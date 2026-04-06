@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mnemosyne | Memory-Layer Data Framework</title>
+    <title>Nemosyne | VR Artefacts for Real-World Data</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=Inter:wght@300;400;500;600;700&display=swap');
         
@@ -14,8 +14,8 @@
         }
 
         :root {
-            --void-dark: #050508;
-            --void-deeper: #020204;
+            --void-dark: #0a0a0f;
+            --void-deeper: #050508;
             --lunar-silver: #c0c5ce;
             --memory-gold: #d4af37;
             --datasphere-cyan: #00d4aa;
@@ -24,6 +24,8 @@
             --tombs-blue: #1a3a52;
             --light: #f0f2f5;
             --gray: #8a9199;
+            --aframe-red: #ef2d5e;
+            --d3-orange: #f9a03c;
         }
 
         html {
@@ -31,7 +33,7 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--void-dark);
             color: var(--light);
             line-height: 1.6;
@@ -48,7 +50,7 @@
             background-image: 
                 linear-gradient(rgba(0, 212, 170, 0.03) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(0, 212, 170, 0.03) 1px, transparent 1px);
-            background-size: 60px 60px;
+            background-size: 50px 50px;
             pointer-events: none;
             z-index: 0;
             animation: temporalShift 20s linear infinite;
@@ -56,7 +58,7 @@
 
         @keyframes temporalShift {
             0% { transform: perspective(500px) rotateX(60deg) translateY(0); }
-            100% { transform: perspective(500px) rotateX(60deg) translateY(60px); }
+            100% { transform: perspective(500px) rotateX(60deg) translateY(50px); }
         }
 
         /* Navigation */
@@ -69,7 +71,7 @@
             justify-content: space-between;
             align-items: center;
             z-index: 1000;
-            background: rgba(5, 5, 8, 0.7);
+            background: rgba(10, 10, 15, 0.8);
             backdrop-filter: blur(20px);
             border-bottom: 1px solid rgba(0, 212, 170, 0.1);
         }
@@ -79,7 +81,7 @@
             align-items: center;
             gap: 0.75rem;
             font-family: 'Cinzel', serif;
-            font-size: 1.4rem;
+            font-size: 1.5rem;
             font-weight: 600;
             color: var(--lunar-silver);
             text-decoration: none;
@@ -87,8 +89,8 @@
         }
 
         .logo-symbol {
-            width: 36px;
-            height: 36px;
+            width: 40px;
+            height: 40px;
             border: 2px solid var(--memory-gold);
             border-radius: 50%;
             display: flex;
@@ -101,7 +103,7 @@
         .logo-symbol::before {
             content: '◈';
             color: var(--memory-gold);
-            font-size: 1.2rem;
+            font-size: 1.3rem;
         }
 
         @keyframes lunarPhase {
@@ -188,9 +190,9 @@
             width: 100%;
             height: 100%;
             background: 
-                radial-gradient(circle at 30% 50%, rgba(107, 78, 230, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 70% 80%, rgba(0, 212, 170, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 50% 20%, rgba(212, 175, 55, 0.08) 0%, transparent 40%);
+                radial-gradient(circle at 20% 50%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(0, 212, 170, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(212, 175, 55, 0.08) 0%, transparent 40%);
             pointer-events: none;
         }
 
@@ -230,34 +232,37 @@
             z-index: 1;
         }
 
-        .tomb-badge {
+        .badge {
             display: inline-flex;
             align-items: center;
-            gap: 0.75rem;
-            padding: 0.6rem 1.2rem;
-            background: rgba(26, 58, 82, 0.3);
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(0, 212, 170, 0.1);
             border: 1px solid rgba(0, 212, 170, 0.3);
             border-radius: 2px;
             font-size: 0.8rem;
             color: var(--datasphere-cyan);
             font-weight: 600;
             margin-bottom: 2rem;
+            animation: fadeInUp 0.8s ease;
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            animation: fadeInUp 0.8s ease;
             position: relative;
             overflow: hidden;
         }
 
-        .tomb-badge::before {
+        .badge::before {
             content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(0, 212, 170, 0.2), transparent);
-            animation: scan 3s infinite;
+            width: 8px;
+            height: 8px;
+            background: var(--memory-gold);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
         @keyframes scan {
@@ -265,14 +270,9 @@
             100% { left: 100%; }
         }
 
-        .tomb-badge::after {
-            content: '◈';
-            color: var(--memory-gold);
-        }
-
         h1 {
             font-family: 'Cinzel', serif;
-            font-size: clamp(2.8rem, 6vw, 5rem);
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
             font-weight: 400;
             line-height: 1.1;
             margin-bottom: 1.5rem;
@@ -280,7 +280,7 @@
             animation: fadeInUp 0.8s ease 0.1s both;
         }
 
-        .mnemosyne {
+        .nemosyne {
             background: linear-gradient(135deg, var(--memory-gold) 0%, var(--lunar-silver) 50%, var(--datasphere-cyan) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -289,24 +289,43 @@
         }
 
         .hero-subtitle {
-            font-size: clamp(1.1rem, 2vw, 1.3rem);
+            font-size: clamp(1.1rem, 2vw, 1.35rem);
             color: var(--gray);
             max-width: 600px;
-            margin: 0 auto 3rem;
-            font-weight: 300;
+            margin: 0 auto 2rem;
             animation: fadeInUp 0.8s ease 0.2s both;
-            line-height: 1.8;
         }
 
-        .hero-quote {
-            font-family: 'Cinzel', serif;
-            font-size: 0.9rem;
-            color: var(--temporal-purple);
-            font-style: italic;
+        .tech-stack {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
             margin-bottom: 3rem;
-            opacity: 0.8;
             animation: fadeInUp 0.8s ease 0.25s both;
-            letter-spacing: 0.05em;
+            flex-wrap: wrap;
+        }
+
+        .tech-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: var(--lunar-silver);
+            font-weight: 500;
+        }
+
+        .tech-badge.aframe {
+            border-color: var(--aframe-red);
+            color: var(--aframe-red);
+        }
+
+        .tech-badge.d3 {
+            border-color: var(--d3-orange);
+            color: var(--d3-orange);
         }
 
         .cta-group {
@@ -318,14 +337,14 @@
         }
 
         .btn {
-            padding: 1rem 2.5rem;
+            padding: 1rem 2rem;
             border-radius: 2px;
             font-weight: 600;
             text-decoration: none;
             transition: all 0.3s ease;
             display: inline-flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.5rem;
             font-size: 0.9rem;
             text-transform: uppercase;
             letter-spacing: 0.1em;
@@ -358,28 +377,6 @@
             box-shadow: 0 0 30px rgba(212, 175, 55, 0.2);
         }
 
-        /* Time Tombs Visual */
-        .tombs-visual {
-            position: absolute;
-            bottom: 10%;
-            right: 5%;
-            width: 200px;
-            height: 300px;
-            opacity: 0.1;
-            pointer-events: none;
-        }
-
-        .tomb {
-            position: absolute;
-            bottom: 0;
-            background: linear-gradient(to top, var(--tombs-blue), transparent);
-            border: 1px solid rgba(0, 212, 170, 0.2);
-        }
-
-        .tomb:nth-child(1) { left: 20%; width: 40px; height: 100px; }
-        .tomb:nth-child(2) { left: 40%; width: 60px; height: 150px; }
-        .tomb:nth-child(3) { left: 60%; width: 30px; height: 80px; }
-
         @keyframes fadeInUp {
             from { opacity: 0; transform: translateY(30px); }
             to { opacity: 1; transform: translateY(0); }
@@ -387,7 +384,7 @@
 
         /* Features Section */
         .features {
-            padding: 8rem 5%;
+            padding: 6rem 5%;
             background: var(--void-deeper);
             position: relative;
             border-top: 1px solid rgba(0, 212, 170, 0.1);
@@ -400,19 +397,19 @@
 
         .section-header {
             text-align: center;
-            margin-bottom: 5rem;
+            margin-bottom: 4rem;
         }
 
         .section-tag {
             display: inline-block;
-            padding: 0.5rem 1.2rem;
-            background: rgba(107, 78, 230, 0.1);
-            color: var(--temporal-purple);
-            border: 1px solid rgba(107, 78, 230, 0.3);
+            padding: 0.4rem 1rem;
+            background: rgba(6, 182, 212, 0.1);
+            color: var(--datasphere-cyan);
+            border: 1px solid rgba(0, 212, 170, 0.3);
             border-radius: 2px;
             font-size: 0.75rem;
             font-weight: 700;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
             text-transform: uppercase;
             letter-spacing: 0.15em;
             font-family: 'Cinzel', serif;
@@ -420,7 +417,7 @@
 
         h2 {
             font-family: 'Cinzel', serif;
-            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            font-size: clamp(2rem, 4vw, 3rem);
             font-weight: 400;
             margin-bottom: 1rem;
             color: var(--lunar-silver);
@@ -429,15 +426,14 @@
 
         .section-subtitle {
             color: var(--gray);
-            font-size: 1.1rem;
+            font-size: 1.2rem;
             max-width: 600px;
             margin: 0 auto;
-            font-weight: 300;
         }
 
         .features-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 2rem;
         }
 
@@ -474,29 +470,23 @@
         }
 
         .feature-icon {
-            width: 50px;
-            height: 50px;
+            width: 60px;
+            height: 60px;
+            background: rgba(99, 102, 241, 0.1);
             border: 1px solid var(--memory-gold);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.3rem;
+            font-size: 1.8rem;
             margin-bottom: 1.5rem;
             color: var(--memory-gold);
             position: relative;
-        }
-
-        .feature-icon::after {
-            content: '';
-            position: absolute;
-            inset: -5px;
-            border: 1px solid var(--memory-gold);
-            opacity: 0.3;
+            z-index: 1;
         }
 
         .feature-card h3 {
             font-family: 'Cinzel', serif;
-            font-size: 1.2rem;
+            font-size: 1.3rem;
             margin-bottom: 0.75rem;
             color: var(--lunar-silver);
             font-weight: 600;
@@ -505,141 +495,60 @@
 
         .feature-card p {
             color: var(--gray);
-            line-height: 1.8;
-            font-size: 0.95rem;
+            line-height: 1.7;
         }
 
-        /* Void Which Binds Section */
-        .void-section {
-            padding: 8rem 5%;
+        /* Demo Section */
+        .demo {
+            padding: 6rem 5%;
             position: relative;
             overflow: hidden;
-            background: 
-                radial-gradient(ellipse at center, rgba(107, 78, 230, 0.1) 0%, transparent 70%);
+            background: var(--void-dark);
         }
 
-        .void-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4rem;
-            align-items: center;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .void-visual {
-            position: relative;
-            height: 400px;
-            border: 1px solid rgba(0, 212, 170, 0.2);
+        .demo-visual {
             background: rgba(5, 5, 8, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .void-core {
-            width: 150px;
-            height: 150px;
-            border: 2px solid var(--temporal-purple);
-            border-radius: 50%;
-            position: relative;
-            animation: voidPulse 4s ease-in-out infinite;
-        }
-
-        .void-core::before,
-        .void-core::after {
-            content: '';
-            position: absolute;
-            border: 1px solid var(--datasphere-cyan);
-            border-radius: 50%;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-        }
-
-        .void-core::before {
-            width: 200px;
-            height: 200px;
-            animation: voidRotate 10s linear infinite;
-        }
-
-        .void-core::after {
-            width: 250px;
-            height: 250px;
-            animation: voidRotate 15s linear infinite reverse;
-        }
-
-        @keyframes voidPulse {
-            0%, 100% { box-shadow: 0 0 30px rgba(107, 78, 230, 0.3); }
-            50% { box-shadow: 0 0 60px rgba(107, 78, 230, 0.6); }
-        }
-
-        @keyframes voidRotate {
-            from { transform: translate(-50%, -50%) rotate(0deg); }
-            to { transform: translate(-50%, -50%) rotate(360deg); }
-        }
-
-        .void-text h3 {
-            font-family: 'Cinzel', serif;
-            font-size: 1.8rem;
-            color: var(--lunar-silver);
-            margin-bottom: 1.5rem;
-            letter-spacing: 0.05em;
-        }
-
-        .void-text p {
-            color: var(--gray);
-            margin-bottom: 1.5rem;
-            line-height: 1.9;
-        }
-
-        /* Code Section */
-        .code-section {
-            padding: 8rem 5%;
-            background: var(--void-deeper);
-            border-top: 1px solid rgba(0, 212, 170, 0.1);
-        }
-
-        .code-container {
-            max-width: 900px;
-            margin: 3rem auto 0;
-            position: relative;
-        }
-
-        .code-block {
-            background: rgba(2, 2, 4, 0.8);
             border: 1px solid rgba(0, 212, 170, 0.2);
             border-radius: 2px;
-            padding: 2rem;
-            font-family: 'Fira Code', 'Consolas', monospace;
-            font-size: 0.9rem;
-            overflow-x: auto;
+            padding: 3rem;
+            margin-top: 3rem;
             position: relative;
         }
 
-        .code-block::before {
+        .demo-visual::before {
             content: '◈ MNEMOSYNE INTERFACE';
             position: absolute;
             top: -12px;
             left: 20px;
-            background: var(--void-deeper);
+            background: var(--void-dark);
             padding: 0 1rem;
             color: var(--datasphere-cyan);
             font-size: 0.7rem;
             letter-spacing: 0.2em;
+            font-family: 'Cinzel', serif;
+        }
+
+        .code-block {
+            background: rgba(2, 2, 4, 0.8);
+            border-radius: 2px;
+            padding: 1.5rem;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            border: 1px solid rgba(0, 212, 170, 0.1);
         }
 
         .code-header {
             display: flex;
             gap: 0.5rem;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
             padding-bottom: 1rem;
             border-bottom: 1px solid rgba(0, 212, 170, 0.1);
         }
 
         .code-dot {
-            width: 10px;
-            height: 10px;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
         }
 
@@ -649,110 +558,135 @@
 
         .code-content {
             color: var(--lunar-silver);
-            line-height: 2;
+            line-height: 1.8;
         }
 
         .code-keyword { color: var(--temporal-purple); }
         .code-string { color: var(--datasphere-cyan); }
-        .code-func { color: var(--memory-gold); }
         .code-comment { color: var(--gray); font-style: italic; }
-        .code-tag { color: var(--shrike-red); }
 
-        /* Time Tombs Roadmap */
-        .roadmap {
-            padding: 8rem 5%;
-            position: relative;
+        /* Use Cases */
+        .use-cases {
+            padding: 6rem 5%;
+            background: var(--void-deeper);
+            border-top: 1px solid rgba(0, 212, 170, 0.1);
         }
 
-        .timeline {
-            max-width: 800px;
-            margin: 4rem auto 0;
-            position: relative;
+        .use-case-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 3rem;
         }
 
-        .timeline::before {
-            content: '';
-            position: absolute;
-            left: 50%;
-            top: 0;
-            bottom: 0;
-            width: 1px;
-            background: linear-gradient(to bottom, var(--datasphere-cyan), var(--temporal-purple), transparent);
-            transform: translateX(-50%);
-        }
-
-        .timeline-item {
-            display: flex;
-            justify-content: flex-end;
-            padding-right: 50%;
-            position: relative;
-            margin-bottom: 3rem;
-        }
-
-        .timeline-item:nth-child(even) {
-            justify-content: flex-start;
-            padding-right: 0;
-            padding-left: 50%;
-        }
-
-        .timeline-content {
-            background: rgba(5, 5, 8, 0.8);
-            border: 1px solid rgba(0, 212, 170, 0.2);
+        .use-case-item {
+            background: rgba(5, 5, 8, 0.5);
+            border-left: 3px solid var(--datasphere-cyan);
             padding: 1.5rem;
-            max-width: 300px;
-            position: relative;
+            border-radius: 0 2px 2px 0;
+            transition: all 0.3s ease;
         }
 
-        .timeline-content::before {
-            content: '◈';
-            position: absolute;
-            color: var(--memory-gold);
-            font-size: 1.2rem;
+        .use-case-item:hover {
+            background: rgba(5, 5, 8, 0.8);
+            transform: translateX(5px);
+            border-left-color: var(--memory-gold);
         }
 
-        .timeline-item:nth-child(odd) .timeline-content::before {
-            right: -40px;
-        }
-
-        .timeline-item:nth-child(even) .timeline-content::before {
-            left: -40px;
-        }
-
-        .timeline-phase {
-            font-family: 'Cinzel', serif;
+        .use-case-item h4 {
             color: var(--datasphere-cyan);
-            font-size: 0.8rem;
-            letter-spacing: 0.1em;
             margin-bottom: 0.5rem;
-        }
-
-        .timeline-title {
-            color: var(--lunar-silver);
             font-size: 1.1rem;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
+            font-family: 'Cinzel', serif;
+            letter-spacing: 0.05em;
         }
 
-        .timeline-desc {
+        .use-case-item p {
+            color: var(--gray);
+            font-size: 0.95rem;
+        }
+
+        /* Built With Section */
+        .built-with {
+            padding: 4rem 5%;
+            background: var(--void-dark);
+            border-top: 1px solid rgba(0, 212, 170, 0.1);
+            text-align: center;
+        }
+
+        .built-with h3 {
+            font-family: 'Cinzel', serif;
+            color: var(--lunar-silver);
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            letter-spacing: 0.1em;
+        }
+
+        .tech-logos {
+            display: flex;
+            justify-content: center;
+            gap: 4rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .tech-logo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+
+        .tech-logo:hover {
+            opacity: 1;
+        }
+
+        .tech-logo-icon {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 800;
+            border-radius: 8px;
+        }
+
+        .tech-logo-icon.aframe {
+            background: rgba(239, 45, 94, 0.1);
+            color: var(--aframe-red);
+            border: 1px solid var(--aframe-red);
+        }
+
+        .tech-logo-icon.d3 {
+            background: rgba(249, 160, 60, 0.1);
+            color: var(--d3-orange);
+            border: 1px solid var(--d3-orange);
+        }
+
+        .tech-logo span {
             color: var(--gray);
             font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
         }
 
         /* Footer */
         footer {
-            padding: 5rem 5%;
+            padding: 4rem 5%;
             background: var(--void-deeper);
             border-top: 1px solid rgba(0, 212, 170, 0.1);
             text-align: center;
-            position: relative;
         }
 
         .footer-moon {
-            width: 80px;
-            height: 80px;
+            width: 60px;
+            height: 60px;
             border: 2px solid var(--memory-gold);
             border-radius: 50%;
-            margin: 0 auto 2rem;
+            margin: 0 auto 1.5rem;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -764,7 +698,7 @@
 
         .footer-tagline {
             font-family: 'Cinzel', serif;
-            font-size: 1.4rem;
+            font-size: 1.5rem;
             color: var(--lunar-silver);
             margin-bottom: 0.5rem;
             letter-spacing: 0.1em;
@@ -779,17 +713,16 @@
 
         .footer-text {
             color: var(--gray);
-            max-width: 500px;
+            max-width: 600px;
             margin: 0 auto 2rem;
             font-size: 0.9rem;
-            line-height: 1.8;
         }
 
         .footer-links {
             display: flex;
             justify-content: center;
-            gap: 2.5rem;
-            margin-bottom: 3rem;
+            gap: 2rem;
+            margin-bottom: 2rem;
         }
 
         .footer-links a {
@@ -807,9 +740,8 @@
 
         .copyright {
             color: var(--gray);
-            font-size: 0.8rem;
+            font-size: 0.875rem;
             opacity: 0.6;
-            letter-spacing: 0.05em;
         }
 
         /* Responsive */
@@ -818,23 +750,13 @@
             
             .hero { padding: 6rem 5% 3rem; }
             
-            .void-content { grid-template-columns: 1fr; }
+            .tech-stack { gap: 1rem; }
             
-            .timeline::before { left: 20px; }
+            .cta-group { flex-direction: column; align-items: center; }
             
-            .timeline-item,
-            .timeline-item:nth-child(even) {
-                justify-content: flex-start;
-                padding-left: 50px;
-                padding-right: 0;
-            }
+            .btn { width: 100%; max-width: 300px; justify-content: center; }
             
-            .timeline-item:nth-child(odd) .timeline-content::before,
-            .timeline-item:nth-child(even) .timeline-content::before {
-                left: -35px;
-            }
-            
-            .features-grid { grid-template-columns: 1fr; }
+            .tech-logos { gap: 2rem; }
         }
     </style>
 </head>
@@ -846,15 +768,15 @@
     <nav>
         <a href="#" class="logo">
             <div class="logo-symbol"></div>
-            <span>Mnemosyne</span>
+            <span>Nemosyne</span>
         </a>
         <ul class="nav-links">
-            <li><a href="#void">The Void</a></li>
-            <li><a href="#artefacts">Artefacts</a></li>
-            <li><a href="#timeline">Timeline</a></li>
-            <li><a href="#docs">Docs</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#demo">Demo</a></li>
+            <li><a href="#use-cases">Use Cases</a></li>
+            <li><a href="#docs">Documentation</a></li>
         </ul>
-        <a href="https://github.com/nemosyne/mnemosyne" class="github-btn" target="_blank">
+        <a href="https://github.com/nemosyne/nemosyne" class="github-btn" target="_blank">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
             </svg>
@@ -874,122 +796,104 @@
             <div class="crystal"></div>
         </div>
         
-        <div class="tombs-visual">
-            <div class="tomb"></div>
-            <div class="tomb"></div>
-            <div class="tomb"></div>
-        </div>
-        
         <div class="hero-content">
-            <div class="tomb-badge">Memory-Layer Framework</div>
+            <div class="badge">Open Source VR Framework</div>
             <h1>
-                <span class="mnemosyne">Mnemosyne</span>
+                Manipulate Reality Through<br>
+                <span class="nemosyne">Virtual Artefacts</span>
             </h1>
             <p class="hero-subtitle">
-                Bind real-world data to virtual artefacts. Manipulate the present through the memory of things. A WebXR framework for spatial computing and temporal visualization.
+                A powerful framework for creating interactive VR representations of real-world objects and data. Transform complex information into tangible, manipulable 3D experiences.
             </p>
-            <p class="hero-quote">
-                "The datasphere remembers what the world forgets."
-            </p>
+            
+            <div class="tech-stack">
+                <div class="tech-badge aframe">
+                    <span>▲</span>
+                    <span>Built on A-Frame</span>
+                </div>
+                <div class="tech-badge d3">
+                    <span>◈</span>
+                    <span>Powered by D3.js</span>
+                </div>
+            </div>
+            
             <div class="cta-group">
                 <a href="#getting-started" class="btn btn-primary">
-                    Enter the Void
+                    Get Started
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M7 17L17 7M17 7H7M17 7V17"/>
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
                     </svg>
                 </a>
-                <a href="https://github.com/nemosyne/mnemosyne" class="btn btn-secondary" target="_blank">
-                    View Source
+                <a href="https://github.com/nemosyne/nemosyne" class="btn btn-secondary" target="_blank">
+                    View on GitHub
                 </a>
             </div>
         </div>
     </section>
 
     <!-- Features Section -->
-    <section class="features" id="artefacts">
+    <section class="features" id="features">
         <div class="container">
             <div class="section-header">
                 <span class="section-tag">Capabilities</span>
-                <h2>Artefacts of Memory</h2>
+                <h2>Bridging Physical and Virtual</h2>
                 <p class="section-subtitle">
-                    Transform raw data into manipulable objects. Each artefact carries the weight and history of its source.
+                    Create immersive data experiences that leverage spatial computing for deeper understanding and intuitive manipulation.
                 </p>
             </div>
             
             <div class="features-grid">
                 <div class="feature-card">
-                    <div class="feature-icon">◈</div>
-                    <h3>Temporal Binding</h3>
-                    <p>Connect data streams across time. Visualize historical states and project future probabilities as manipulable 4D objects.</p>
+                    <div class="feature-icon">🎯</div>
+                    <h3>Spatial Data Binding</h3>
+                    <p>Bind real-world datasets to interactive 3D objects. Manipulate complex data through natural hand gestures and spatial interactions.</p>
                 </div>
                 
                 <div class="feature-card">
-                    <div class="feature-icon">◈</div>
-                    <h3>The Void Which Binds</h3>
-                    <p>Real-time synchronization between physical sensors and virtual representations. Instantaneous state reflection across realities.</p>
+                    <div class="feature-icon">🔮</div>
+                    <h3>Real-time Visualization</h3>
+                    <p>Stream live data into VR environments. Watch as your data updates in real-time, responding to changes in the physical world.</p>
                 </div>
                 
                 <div class="feature-card">
-                    <div class="feature-icon">◈</div>
-                    <h3>Farcasters</h3>
-                    <p>Instantiate remote data locally. Collaborate across distances as if sharing the same physical space.</p>
+                    <div class="feature-icon">🤝</div>
+                    <h3>Collaborative Spaces</h3>
+                    <p>Multi-user VR environments where teams can simultaneously interact with shared data artefacts, regardless of physical location.</p>
                 </div>
                 
                 <div class="feature-card">
-                    <div class="feature-icon">◈</div>
-                    <h3>TechnoCore Integration</h3>
-                    <p>AI-driven pattern recognition. Let the datasphere itself suggest connections and anomalies in your data.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">◈</div>
-                    <h3>Crystalline Structure</h3>
-                    <p>Modular, faceted components that reflect data properties through geometry, color, and temporal behavior.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">◈</div>
+                    <div class="feature-icon">⚡</div>
                     <h3>WebXR Native</h3>
-                    <p>No plugins. No installs. Pure web standards. Access the memory-layer from any device, any time.</p>
+                    <p>Built on open web standards. Runs in any modern browser without plugins. Compatible with Quest, HoloLens, and mobile AR.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🧩</div>
+                    <h3>Modular Components</h3>
+                    <p>Extensible architecture with reusable artefact components. Build custom data representations or use pre-built templates.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Analytics Integration</h3>
+                    <p>Connect to REST APIs, GraphQL, WebSockets, or IoT streams. Visualize everything from financial data to sensor networks.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Void Which Binds Section -->
-    <section class="void-section" id="void">
-        <div class="void-content">
-            <div class="void-visual">
-                <div class="void-core"></div>
-            </div>
-            <div class="void-text">
-                <span class="section-tag">Architecture</span>
-                <h3>The Void Which Binds</h3>
-                <p>
-                    At the heart of Mnemosyne lies the connection layer—a quantum-inspired synchronization engine that maintains state coherence between physical reality and virtual representation.
-                </p>
-                <p>
-                    Like the Void that connects all points in space-time across the Hyperion universe, our framework binds your data sources into a unified, manipulable reality. Changes in the physical world ripple instantaneously through the datasphere.
-                </p>
-                <p>
-                    Build on this foundation to create living artefacts that breathe with your data.
-                </p>
-            </div>
-        </div>
-    </section>
-
-    <!-- Code Section -->
-    <section class="code-section">
+    <!-- Demo Section -->
+    <section class="demo" id="demo">
         <div class="container">
             <div class="section-header">
-                <span class="section-tag">Invocation</span>
-                <h2>Speak to the Datasphere</h2>
+                <span class="section-tag">Quick Start</span>
+                <h2>Define Your First Artefact</h2>
                 <p class="section-subtitle">
-                    Declare your artefacts. Bind them to memory. Let them live.
+                    Create interactive VR objects with declarative syntax. Bind data, define interactions, and render in minutes.
                 </p>
             </div>
             
-            <div class="code-container">
+            <div class="demo-visual">
                 <div class="code-block">
                     <div class="code-header">
                         <span class="code-dot red"></span>
@@ -997,73 +901,83 @@
                         <span class="code-dot green"></span>
                     </div>
                     <div class="code-content">
-<span class="code-keyword">import</span> { Mnemosyne, Artefact, TemporalBinding } <span class="code-keyword">from</span> <span class="code-string">'mnemosyne'</span>;<br><br>
-<span class="code-comment">// Initialize the memory-layer</span><br>
-<span class="code-keyword">const</span> void = <span class="code-keyword">new</span> <span class="code-func">Mnemosyne</span>({<br>
-&nbsp;&nbsp;realm: <span class="code-string">'nemosyne.world'</span>,<br>
-&nbsp;&nbsp;temporalDepth: <span class="code-string">'infinite'</span><br>
-});<br><br>
-<span class="code-comment">// Forge an artefact from live data</span><br>
-<span class="code-keyword">const</span> sensorCrystal = <span class="code-keyword">new</span> <span class="code-func">Artefact</span>({<br>
+<span class="code-keyword">import</span> { Nemosyne, Artefact, DataBinding } <span class="code-keyword">from</span> <span class="code-string">'nemosyne'</span>;<br><br>
+<span class="code-comment">// Create a manipulable 3D data representation</span><br>
+<span class="code-keyword">const</span> sensorArtefact = <span class="code-keyword">new</span> Artefact({<br>
 &nbsp;&nbsp;geometry: <span class="code-string">'crystal'</span>,<br>
-&nbsp;&nbsp;facets: {<br>
-&nbsp;&nbsp;&nbsp;&nbsp;temperature: { bind: <span class="code-string">'ws://sensors.local/temp'</span>, map: <span class="code-string">'color'</span> },<br>
-&nbsp;&nbsp;&nbsp;&nbsp;pressure: { bind: <span class="code-string">'ws://sensors.local/pres'</span>, map: <span class="code-string">'scale'</span> },<br>
-&nbsp;&nbsp;&nbsp;&nbsp;history: { bind: <span class="code-string">'temporal://db/metrics'</span>, depth: <span class="code-string">'24h'</span> }<br>
-&nbsp;&nbsp;},<br>
-&nbsp;&nbsp;interactions: [<span class="code-string">'rotate'</span>, <span class="code-string">'timescrub'</span>, <span class="code-string">'farcast'</span>]<br>
+&nbsp;&nbsp;data: <span class="code-keyword">new</span> DataBinding({<br>
+&nbsp;&nbsp;&nbsp;&nbsp;source: <span class="code-string">'ws://sensors.local/temperature'</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;mapping: {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;color: { min: <span class="code-string">'#0066ff'</span>, max: <span class="code-string">'#ff3300'</span> },<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;scale: { field: <span class="code-string">'value'</span>, range: [1, 3] }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;}),<br>
+&nbsp;&nbsp;interactions: [<span class="code-string">'grab'</span>, <span class="code-string">'inspect'</span>, <span class="code-string">'timeline'</span>]<br>
 });<br><br>
-<span class="code-comment">// Manifest in the void</span><br>
-void.<span class="code-func">manifest</span>(sensorCrystal, { x: 0, y: 1.6, z: -2 });
+<span class="code-comment">// Deploy to VR space</span><br>
+sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Timeline Section -->
-    <section class="roadmap" id="timeline">
+    <!-- Use Cases -->
+    <section class="use-cases" id="use-cases">
         <div class="container">
             <div class="section-header">
-                <span class="section-tag">Chronology</span>
-                <h2>Time Tombs</h2>
+                <span class="section-tag">Applications</span>
+                <h2>Transform Your Data</h2>
                 <p class="section-subtitle">
-                    The future casts shadows backward. Our roadmap is written in the language of what's to come.
+                    From scientific visualization to industrial IoT, VR Artefacts unlock new ways of understanding complex systems.
                 </p>
             </div>
             
-            <div class="timeline">
-                <div class="timeline-item">
-                    <div class="timeline-content">
-                        <div class="timeline-phase">Phase I</div>
-                        <div class="timeline-title">The Opening</div>
-                        <div class="timeline-desc">Core framework, WebXR bindings, and basic artefact crystallization.</div>
-                    </div>
+            <div class="use-case-grid">
+                <div class="use-case-item">
+                    <h4>🏭 Industrial IoT</h4>
+                    <p>Monitor factory floor sensors as interactive 3D models. Spot anomalies by observing colour and scale changes in real-time.</p>
                 </div>
                 
-                <div class="timeline-item">
-                    <div class="timeline-content">
-                        <div class="timeline-phase">Phase II</div>
-                        <div class="timeline-title">Farcasters</div>
-                        <div class="timeline-desc">Multi-user synchronization, shared spaces, and collaborative manipulation.</div>
-                    </div>
+                <div class="use-case-item">
+                    <h4>📈 Financial Markets</h4>
+                    <p>Navigate market data as spatial landscapes. Walk through trading volumes and manipulate time-series in 3D space.</p>
                 </div>
                 
-                <div class="timeline-item">
-                    <div class="timeline-content">
-                        <div class="timeline-phase">Phase III</div>
-                        <div class="timeline-title">The Core</div>
-                        <div class="timeline-desc">AI integration, predictive visualization, and autonomous artefact generation.</div>
-                    </div>
+                <div class="use-case-item">
+                    <h4>🔬 Scientific Research</h4>
+                    <p>Handle molecular structures or astronomical data at scale. Collaborate with remote teams in shared virtual labs.</p>
                 </div>
                 
-                <div class="timeline-item">
-                    <div class="timeline-content">
-                        <div class="timeline-phase">Phase IV</div>
-                        <div class="timeline-title">Unity</div>
-                        <div class="timeline-desc">Seamless physical-virtual fusion. The datasphere becomes indistinguishable from reality.</div>
-                    </div>
+                <div class="use-case-item">
+                    <h4>🏥 Medical Imaging</h4>
+                    <p>Manipulate MRI and CT scans as volumetric artefacts. Annotate and discuss cases with specialists worldwide.</p>
                 </div>
+                
+                <div class="use-case-item">
+                    <h4>🌐 Smart Cities</h4>
+                    <p>Urban data visualization—traffic flows, energy grids, and population density as manipulable city models.</p>
+                </div>
+                
+                <div class="use-case-item">
+                    <h4>🎓 Education</h4>
+                    <p>Interactive learning artefacts. Students manipulate historical artifacts or mathematical concepts in VR.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Built With Section -->
+    <section class="built-with">
+        <h3>Built With</h3>
+        <div class="tech-logos">
+            <div class="tech-logo">
+                <div class="tech-logo-icon aframe">A</div>
+                <span>A-FRAME</span>
+            </div>
+            <div class="tech-logo">
+                <div class="tech-logo-icon d3">D3</div>
+                <span>D3.JS</span>
             </div>
         </div>
     </section>
@@ -1071,19 +985,19 @@ void.<span class="code-func">manifest</span>(sensorCrystal, { x: 0, y: 1.6, z: -
     <!-- Footer -->
     <footer>
         <div class="footer-moon">◈</div>
-        <div class="footer-tagline">Mnemosyne</div>
+        <div class="footer-tagline">Nemosyne</div>
         <div class="footer-domain">nemosyne.world</div>
         <p class="footer-text">
-            A framework for those who believe data should be touched, manipulated, and understood through the spatial memory of virtual artefacts.
+            Advancing the use of VR artefacts as tools for manipulating and understanding real-world objects and data.
         </p>
         <div class="footer-links">
-            <a href="https://github.com/nemosyne/mnemosyne" target="_blank">GitHub</a>
+            <a href="https://github.com/nemosyne/nemosyne" target="_blank">GitHub</a>
             <a href="#docs">Documentation</a>
             <a href="#examples">Examples</a>
             <a href="mailto:hello@nemosyne.world">Contact</a>
         </div>
         <p class="copyright">
-            © 2026 Mnemosyne Project. Released under MIT License. Inspired by the datasphere.
+            © 2026 Nemosyne Project. Released under MIT License.
         </p>
     </footer>
 
