@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne — Scientific Research</title>
+    
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="../../framework/dist/nemosyne.v2.js"></script>
+    <script src="../../extensions/molecular/pdb-parser.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        .ui { position: absolute; top: 20px; left: 20px; z-index: 100; pointer-events: none; font-family: 'Segoe UI', sans-serif; color: #fff; }
+        .badge { background: rgba(107, 78, 230, 0.2); border: 1px solid #6b4ee6; color: #6b4ee6; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; display: inline-block; margin-bottom: 10px; }
+        h1 { margin: 0 0 5px; font-size: 24px; font-weight: 300; }
+        .subtitle { color: #888; font-size: 14px; margin: 0; }
+        .controls { margin-top: 20px; font-size: 12px; color: #666; }
+        kbd { background: #222; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+    <div class="ui">
+        <div class="badge">Scientific Research</div>
+        <h1>Molecular Visualization</h1>
+        <p class="subtitle">Protein structure with CPK coloring</p>
+        <div class="controls">
+            <p>Element colors: C=Gray | N=Blue | O=Red | S=Yellow | H=White</p>
+            <p><kbd>Click atom</kb> for details | <kbd>Drag</kb> to rotate view</p>
+        </div>
+    </div>
+
+    <a-scene nemosyne-scene="theme: void">
+        
+        <a-entity position="0 0 30">
+            <a-camera look-controls wasd-controls="acceleration: 50">
+                <a-cursor color="#6b4ee6" scale="0.5 0.5 0.5" raycaster="objects: .clickable"></a-cursor>
+            </a-camera>
+        </a-entity>
+
+        <!-- Molecule Container -->
+        <a-entity id="molecule" position="0 0 0">
+            <!-- Atoms -->
+            <a-entity
+                id="atoms-group"
+                nemosyne-artefact-v2='<;{
+                    "spec": {
+                        "id": "atom",
+                        "geometry": { "type": "sphere", "radius": 0.5 },
+                        "material": {
+                            "properties": {
+                                "color": { "$data": "color" },
+                                "emissive": { "$data": "color" },
+                                "emissiveIntensity": 0.2,
+                                "metalness": 0.3,
+                                "roughness": 0.7
+                            }
+                        },
+                        "transform": {
+                            "scale": { "$data": "radius", "$range": [0.8, 1.5] }
+                        },
+                        "behaviours": [
+                            { "trigger": "hover", "action": "glow", "params": { "intensity": 1 } },
+                            { "trigger": "click", "action": "show-label", "params": { 
+                                "content": { "$template": "{element} | {resName} {resSeq}" },
+                                "duration": 5
+                            }}
+                        ]
+                    },
+                    "dataset": {}
+                }'
+            ></a-entity>
+
+            <!-- Bonds -->
+            <a-entity id="bonds-group"></a-entity>
+        </a-entity>
+
+        <!-- Info Panel -->
+        <a-entity id="info-panel" position="-8 5 -10" rotation="0 30 0">
+            <a-plane width="6" height="4" color="#0a0a0f" opacity="0.95" material="shader: flat"></a-plane>
+            <a-text id="atom-count" value="Atoms: -" align="left" width="5" color="#6b4ee6" position="-2.5 1.5 0.01"></a-text>
+            <a-text id="bond-count" value="Bonds: -" align="left" width="5" color="#888" position="-2.5 1 0.01"></a-text>
+            <a-text id="selected-atom" value="Click an atom" align="left" width="4" color="#fff" position="-2.5 0 0.01"></a-text>
+        </a-entity>
+
+        <a-sky color="#000205"></a-sky>
+
+    </a-scene>
+
+    <script>
+        // Sample PDB data (simplified Alanine dipeptide)
+        const samplePDB = `TITLE     ALANINE DIPEPTIDE
+COMPND    MOL_ID: 1;
+COMPND   2 MOLECULE: ALANINE;
+COMPND   3 CHAIN: A;
+SOURCE    MOL_ID: 1;
+ATOM      1  N   ALA A   1      -0.676  -1.221  -0.083  1.00  0.00           N
+ATOM      2  CA  ALA A   1       0.035  -0.012   0.032  1.00  0.00           C
+ATOM      3  CB  ALA A   1       1.544  -0.243  -0.188  1.00  0.00           C
+ATOM      4  C   ALA A   1      -0.326   1.250   0.783  1.00  0.00           C
+ATOM      5  O   ALA A   1      -1.449   1.458   1.208  1.00  0.00           O
+ATOM      6  N   ALA A   2       0.631   2.168   0.970  1.00  0.00           N
+ATOM      7  CA  ALA A   2       0.362   3.518   1.512  1.00  0.00           C
+ATOM      8  CB  ALA A   2      -0.168   4.478   0.442  1.00  0.00           C
+ATOM      9  C   ALA A   2       1.619   3.987   2.189  1.00  0.00           C
+ATOM     10  O   ALA A   2       2.724   3.518   1.837  1.00  0.00           O
+ATOM     11  H   ALA A   1      -0.350  -2.098  -0.398  1.00  0.00           H
+ATOM     12  HA  ALA A   1      -0.023   0.283  -0.935  1.00  0.00           H
+ATOM     13 1HB  ALA A   1       1.954  -0.073   0.812  1.00  0.00           H
+ATOM     14 2HB  ALA A   1       1.675  -1.286  -0.470  1.00  0.00           H
+ATOM     15 3HB  ALA A   1       1.953   0.393  -0.995  1.00  0.00           H
+ATOM     16  H   ALA A   2       1.553   1.968   0.658  1.00  0.00           H
+ATOM     17  HA  ALA A   2      -0.391   3.478   2.311  1.00  0.00           H
+ATOM     18 1HB  ALA A   2      -0.063   5.539   0.712  1.00  0.00           H
+ATOM     19 2HB  ALA A   2      -1.247   4.389   0.275  1.00  0.00           H
+ATOM     20 3HB  ALA A   2       0.316   4.280  -0.527  1.00  0.00           H
+CONECT    1    2   11
+CONECT    2    1    3    4   12
+CONECT    3    2   13   14   15
+CONECT    4    2    5    6
+CONECT    5    4
+CONECT    6    4    7   16
+CONECT    7    6    8    9   17
+CONECT    8    7   18   19   20
+CONECT    9    7   10
+CONECT   10    9
+END`;
+
+        // Parse PDB
+        const pdbParser = new PDBParser();
+        const molecule = pdbParser.parse(samplePDB);
+        const nemosyneData = pdbParser.toNemosyneRecords(molecule);
+
+        // Update UI
+        document.getElementById('atom-count').setAttribute('value', `Atoms: ${molecule.atomCount}`);
+        document.getElementById('bond-count').setAttribute('value', `Bonds: ${molecule.bondCount}`);
+
+        // Initialize visualization
+        const atomsEl = document.querySelector('#atoms-group');
+        if (atomsEl) {
+            atomsEl.setAttribute('nemosyne-artefact-v2', 'dataset', JSON.stringify({ records: nemosyneData.atoms }));
+        }
+
+        // Position atoms at their coordinates
+        setTimeout(() => {
+            const atomNodes = atomsEl?.querySelectorAll('.clickable') || [];
+            atomNodes.forEach((node, i) => {
+                const atom = nemosyneData.atoms[i];
+                if (atom) {
+                    // PDB coordinates are already centered on molecule, just scale
+                    node.setAttribute('position', `${atom.x} ${atom.y} ${atom.z}`);
+                    
+                    // Add click handler
+                    node.addEventListener('click', () => {
+                        const info = document.getElementById('selected-atom');
+                        info.setAttribute('value', 
+                            `${atom.element} ${atom.resName} ${atom.resSeq}\n` +
+                            `Pos: (${atom.x.toFixed(2)}, ${atom.y.toFixed(2)}, ${atom.z.toFixed(2)})\n` +
+                            `B-factor: ${atom.tempFactor.toFixed(2)}`
+                        );
+                    });
+                }
+            });
+
+            // Create bonds
+            const bondsGroup = document.querySelector('#bonds-group');
+            molecule.bonds.forEach(bond => {
+                const atom1 = nemosyneData.atoms.find(a => a.id === `atom-${bond.source}`);
+                const atom2 = nemosyneData.atoms.find(a => a.id === `atom-${bond.target}`);
+                
+                if (atom1 && atom2) {
+                    const connector = document.createElement('a-entity');
+                    bondsGroup.appendChild(connector);
+                    
+                    setTimeout(() => {
+                        const el1 = atomsEl.querySelector(`[data-artefact-id="atom-${bond.source}"]`);
+                        const el2 = atomsEl.querySelector(`[data-artefact-id="atom-${bond.target}"]`);
+                        
+                        if (el1 && el2) {
+                            connector.setAttribute('nemosyne-connector', {
+                                from: el1,
+                                to: el2,
+                                color: '#606060',
+                                thickness: 0.05,
+                                opacity: 0.8
+                            });
+                        }
+                    }, 500);
+                }
+            });
+        }, 1000);
+
+        // Auto-rotate molecule
+        const moleculeContainer = document.querySelector('#molecule');
+        if (moleculeContainer) {
+            let rotation = 0;
+            setInterval(() => {
+                rotation += 0.2;
+                moleculeContainer.setAttribute('rotation', `0 ${rotation} 0`);
+            }, 50);
+        }
+    </script>
+
+</body>
+</html>

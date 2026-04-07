@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne — Medical Imaging</title>
+    
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="../../framework/dist/nemosyne.v2.js"></script>
+    <script src="../../extensions/dicom-volumetric/dicom-parser.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        .ui { position: absolute; top: 20px; left: 20px; right: 20px; z-index: 100; pointer-events: none; font-family: 'Segoe UI', sans-serif; color: #fff; display: flex; justify-content: space-between; }
+        .badge { background: rgba(255, 56, 100, 0.2); border: 1px solid #ff3864; color: #ff3864; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        h1 { margin: 0 0 5px; font-size: 24px; font-weight: 300; }
+        .subtitle { color: #888; font-size: 14px; }
+        .patient-info { text-align: right; }
+        .controls { margin-top: 20px; font-size: 11px; color: #666; }
+        kbd { background: #222; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+    <div class="ui">
+        <div>
+            <span class="badge">Medical Imaging</span>
+            <h1>DICOM Viewer</h1>
+            <p class="subtitle">CT Chest Scan — Volume Rendering</p>
+            <div class="controls">
+                <kbd>WASD</kbd> Navigate | <kbd>Mouse</kbd> Look | <kbd>Scroll</kbd> Slice
+            </div>
+        </div>
+        <div class="patient-info">
+            <p class="subtitle">Patient: ANONYMOUS</p>
+            <p class="subtitle">Study: Chest CT</p>
+            <p class="subtitle" id="slice-info">Slice: 16/32 | HU: -800–1200</p>
+        </div>
+    </div>
+
+    <a-scene nemosyne-scene="theme: void">
+        
+        <a-entity position="0 8 15" rotation="-30 0 0">
+            <a-camera look-controls wasd-controls="acceleration: 50">
+                <a-cursor color="#ff3864" scale="0.5 0.5 0.5" raycaster="objects: .clickable"></a-cursor>
+            </a-camera>
+        </a-entity>
+
+        <!-- Volume data visualization -->
+        <a-entity id="volume-container" position="0 0 0">
+            
+            <!-- Cross-section slices as heightmaps -->
+            <a-entity id="axial-slice" position="0 0 0">
+                <a-entity
+                    nemosyne-artefact-v2='<;{
+                        "spec": {
+                            "id": "voxel-column",
+                            "geometry": { "type": "box" },
+                            "material": {
+                                "properties": {
+                                    "color": { "$data": "hu_value", "$map": "diverging-rdgy" },
+                                    "emissive": { "$data": "hu_value", "$map": "diverging-rdgy" },
+                                    "emissiveIntensity": 0.2,
+                                    "transparent": true,
+                                    "opacity": 0.8
+                                }
+                            },
+                            "transform": {
+                                "scale": { "$data": "density", "$range": [0.1, 1] }
+                            },
+                            "behaviours": [
+                                { "trigger": "hover", "action": "glow", "params": { "intensity": 1 } },
+                                { "trigger": "click", "action": "show-label", "params": { 
+                                    "content": { "$template": "HU: {hu}" },
+                                    "duration": 3
+                                }}
+                            ]
+                        },
+                        "dataset": {},
+                        "layout": "grid",
+                        "layout-options": { "columns": 8, "spacing": 0.8 }
+                    }'
+                ></a-entity>
+            </a-entity>
+
+            <!-- Sagittal slice indicator -->
+            <a-entity id="sagittal-plane" position="-4 0 0" rotation="0 -90 0">
+                <a-plane width="8" height="6" color="#ff3864" opacity="0.1"
+                    material="emissive: #ff3864; emissiveIntensity: 0.2"
+                ></a-plane>
+                <a-text value="Sagittal" align="center" width="4" color="#ff3864" position="0 3.5 0.1"></a-text>
+            </a-entity>
+
+            <!-- Coronal slice indicator -->
+            <a-entity id="coronal-plane" position="0 -3 0" rotation="90 0 0">
+                <a-plane width="8" height="8" color="#6b4ee6" opacity="0.1"
+                    material="emissive: #6b4ee6; emissiveIntensity: 0.2"
+                ></a-plane>
+                <a-text value="Coronal" align="center" width="4" color="#6b4ee6" position="0 4.5 0.1"></a-text>
+            </a-entity>
+
+            <!-- ROI marker for anomaly -->
+            <a-entity id="roi-marker" position="2 1 0">
+                <a-sphere radius="0.3" color="#ff3864" opacity="0.6"
+                    material="emissive: #ff3864; emissiveIntensity: 0.5; transparent: true"
+                    animation="property: scale; dir: alternate; to: 1.2 1.2 1.2; dur: 1000; loop: true"
+                ></a-sphere>
+                <a-text value="ROI: Lesion candidate" align="center" width="4" color="#ff3864" position="0 0.8 0"></a-text>
+            </a-entity>
+        </a-entity>
+
+        <!-- Transfer function editor panel -->
+        <a-entity id="tf-panel" position="8 2 -5" rotation="0 -30 0">
+            <a-plane width="5" height="6" color="#0a0a0f" opacity="0.95" material="shader: flat"></a-plane>
+            
+            <a-text value="Transfer Function" align="center" width="5" color="#fff" position="0 2.5 0.1"></a-text>
+            
+            <!-- HU scale legend -->
+            <a-entity id="hu-scale" position="0 1 0.1">
+                <a-entity position="0 0 0">
+                    <a-box width="0.3" height="0.3" depth="0.1" color="#000000" position="-1.8 0 0"></a-box>
+                    <a-text value="Air (-1000)" align="left" width="3" color="#888" position="-1.5 -0.1 0"></a-text>
+                </a-entity>
+                
+                <a-entity position="0 -0.5 0">
+                    <a-box width="0.3" height="0.3" depth="0.1" color="#ff3864" position="-1.8 0 0"></a-box>
+                    <a-text value="Soft Tissue (40)" align="left" width="3" color="#888" position="-1.5 -0.1 0"></a-text>
+                </a-entity>
+                
+                <a-entity position="0 -1 0">
+                    <a-box width="0.3" height="0.3" depth="0.1" color="#ffffff" position="-1.8 0 0"
+003e</a-box>
+                    
+                    <a-text value="Bone (1000)" align="left" width="3" color="#888" position="-1.5 -0.1 0"></a-text>
+                </a-entity>
+            </a-entity>
+        </a-entity>
+
+        <!-- Measurement tools -->
+        <a-entity id="measurement-tools" position="-10 0 0" rotation="0 45 0">
+            <a-plane width="4" height="3" color="#0a0a0f" opacity="0.9" material="shader: flat"></a-plane>
+            
+            <a-text value="Measurements" align="center" width="4" color="#fff" position="0 1.2 0.1"></a-text>
+            
+            <a-text id="distance-measure" value="Distance: --" align="left" width="3" color="#888" position="-1.5 0.5 0.1"></a-text>
+            
+            <a-text id="angle-measure" value="Angle: --" align="left" width="3" color="#888" position="-1.5 0 0.1"></a-text>
+            
+            <a-text id="volume-measure" value="Volume est: --" align="left" width="3" color="#888" position="-1.5 -0.5 0.1"></a-text>
+        </a-entity>
+
+        <a-sky color="#000205"></a-sky>
+
+    </a-scene>
+
+    <script>
+        // Generate synthetic CT volume
+        const ctData = DICOMParser.generateSampleCT({ x: 64, y: 64, z: 32 });
+        
+        // Create transfer function
+        const tf = new TransferFunction();
+        tf.applyPreset('ct-bone');
+        
+        let currentSlice = 16;
+        const totalSlices = ctData.dimensions.z;
+        
+        // Convert slice to visualization data
+        function getSliceData(sliceIndex) {
+            const data = [];
+            const { x: width, y: height } = ctData.dimensions;
+            
+            for (let y = 0; y < height; y += 8) {
+                for (let x = 0; x < width; x += 8) {
+                    const idx = sliceIndex * width * height + y * width + x;
+                    const hu = ctData.volume[idx];
+                    
+                    // Apply window/level
+                    const normalized = (hu - ctData.window.center + ctData.window.width/2) / ctData.window.width;
+                    
+                    data.push({
+                        id: `voxel-${x}-${y}`,
+                        x: x / 8,
+                        y: y / 8,
+                        hu: Math.round(hu),
+                        hu_value: hu,
+                        density: Math.max(0.1, Math.min(1, normalized))
+                    });
+                }
+            }
+            
+            return data;
+        }
+
+        // Update visualization
+        function updateSlice() {
+            const sliceData = getSliceData(currentSlice);
+            
+            const sliceEl = document.querySelector('#axial-slice > a-entity');
+            if (sliceEl) {
+                sliceEl.setAttribute('nemosyne-artefact-v2', 'dataset', JSON.stringify({ 
+                    records: sliceData 
+                }));
+            }
+            
+            // Update info
+            document.getElementById('slice-info').textContent = 
+                `Slice: ${currentSlice + 1}/${totalSlices} | HU: ${ctData.minValue}–${ctData.maxValue}`;
+        }
+
+        // Initialize
+        updateSlice();
+
+        // Scroll through slices
+        let lastScrollTime = 0;
+        document.addEventListener('wheel', (e) => {
+            const now = Date.now();
+            if (now - lastScrollTime < 100) return; // Throttle
+            lastScrollTime = now;
+            
+            if (e.deltaY > 0) {
+                currentSlice = Math.min(totalSlices - 1, currentSlice + 1);
+            } else {
+                currentSlice = Math.max(0, currentSlice - 1);
+            }
+            
+            updateSlice();
+        });
+
+        // Keyboard slice navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
+                currentSlice = Math.min(totalSlices - 1, currentSlice + 1);
+                updateSlice();
+            } else if (e.key === 'ArrowDown') {
+                currentSlice = Math.max(0, currentSlice - 1);
+                updateSlice();
+            }
+        });
+
+        // Auto-advance animation
+        setInterval(() => {
+            currentSlice = (currentSlice + 1) % totalSlices;
+            updateSlice();
+        }, 3000);
+
+        // Position voxels in grid
+        setTimeout(() => {
+            const nodes = document.querySelectorAll('#axial-slice .clickable');
+            nodes.forEach((node, i) => {
+                const x = (i % 8) - 4;
+                const y = Math.floor(i / 8) - 4;
+                node.setAttribute('position', `${x * 0.8} ${y * 0.8} 0`);
+            });
+        }, 500);
+    </script>
+
+</body>
+</html>

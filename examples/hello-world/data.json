@@ -1,0 +1,12 @@
+{
+  "dataset": "hello-world",
+  "records": [
+    {
+      "id": "hw-001",
+      "value": 42,
+      "label": "Hello World",
+      "category": "demo",
+      "confidence": 0.95
+    }
+  ]
+}

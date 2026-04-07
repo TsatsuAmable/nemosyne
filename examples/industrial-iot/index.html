@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne — Industrial IoT Dashboard</title>
+    
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="../../framework/dist/nemosyne.v2.js"></script>
+    <script src="../../extensions/websocket-stream/index.js"></script>
+    <script src="../../extensions/websocket-stream/alert-system.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        .ui { position: absolute; top: 20px; left: 20px; z-index: 100; pointer-events: none; font-family: 'Segoe UI', sans-serif; color: #fff; }
+        .badge { background: rgba(255, 170, 0, 0.2); border: 1px solid #ffaa00; color: #ffaa00; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; display: inline-block; margin-bottom: 10px; }
+        h1 { margin: 0 0 5px; font-size: 24px; font-weight: 300; }
+        .subtitle { color: #888; font-size: 14px; margin: 0; }
+        .status { color: #666; font-size: 12px; margin-top: 10px; }
+        .alert { color: #ff3864; font-weight: bold; }
+        kbd { background: #222; padding: 2px 6px; border-radius: 3px; font-family: monospace; color: #ccc; }
+    </style>
+</head>
+<body>
+
+    <div class="ui">
+        <div class="badge">Industrial IoT</div>
+        <h1>Factory Floor Monitor</h1>
+        <p class="subtitle">Live sensor telemetry with alerts</p>
+        <p class="status">
+            🔴 Temps <span id="temp-status">OK</span> | 
+            🟡 Vibration <span id="vib-status">OK</span> | 
+            🟢 Power <span id="pwr-status">OK</span>
+        </p>
+        <p class="status"><kbd>Click</kbd> sensor for history | <kbd>Hover</kb> for details</p>
+    </div>
+
+    <a-scene nemosyne-scene="theme: void">
+        
+        <a-entity position="0 2 12">
+            <a-camera look-controls wasd-controls="acceleration: 100">
+                <a-cursor color="#ffaa00" scale="0.5 0.5 0.5" raycaster="objects: .clickable"></a-cursor>
+            </a-camera>
+        </a-entity>
+
+        <!-- Temperature sensors -->
+        <a-entity
+            id="temp-sensors"
+            nemosyne-artefact-v2='<;{
+                "spec": {
+                    "id": "temp-sensor",
+                    "geometry": { "type": "sphere", "radius": 0.6 },
+                    "material": {
+                        "properties": {
+                            "color": { "$data": "temperature", "$map": "diverging-rdgy" },
+                            "emissive": { "$data": "temperature", "$map": "diverging-rdgy" },
+                            "emissiveIntensity": 0.5,
+                            "metalness": 0.9,
+                            "roughness": 0.1
+                        }
+                    },
+                    "transform": {
+                        "scale": { "$data": "intensity", "$range": [0.8, 1.3] }
+                    },
+                    "behaviours": [
+                        { "trigger": "hover", "action": "glow", "params": { "intensity": 2 } },
+                        { "trigger": "click", "action": "show-label", "params": { 
+                            "content": { "$template": "{name}: {temperature}°C" },
+                            "duration": 5
+                        }}
+                    ],
+                    "labels": {
+                        "primary": { "$data": "name" },
+                        "color": "#ffaa00"
+                    }
+                },
+                "dataset": {},
+                "layout": "grid",
+                "layout-options": {}
+            }'
+        ></a-entity>
+
+        <!-- Energy flow connectors -->
+        <a-entity id="energy-flows"></a-entity>
+
+        <!-- Vibration sensors -->
+        <a-entity
+            id="vib-sensors"
+            nemosyne-artefact-v2='<;{
+                "spec": {
+                    "id": "vib-sensor",
+                    "geometry": { "type": "octahedron", "radius": 0.5 },
+                    "material": {
+                        "properties": {
+                            "color": "#6b4ee6",
+                            "emissive": "#6b4ee6",
+                            "emissiveIntensity": 0.3
+                        }
+                    },
+                    "behaviours": [
+                        { "trigger": "hover", "action": "glow", "params": { "intensity": 1.5 } },
+                        { "trigger": "idle", "action": "rotate", "params": { "speed": 1 } }
+                    ]
+                },
+                "dataset": {}
+            }'
+        ></a-entity>
+
+        <!-- Power distribution -->
+        <a-entity
+            id="power-nodes"
+            nemosyne-artefact-v2='<;{
+                "spec": {
+                    "id": "power-node",
+                    "geometry": { "type": "box" },
+                    "material": {
+                        "properties": {
+                            "color": { "$data": "load", "$map": "viridis" },
+                            "emissive": "#00d4aa",
+                            "emissiveIntensity": 0.4
+                        }
+                    },
+                    "transform": {
+                        "scale": { "$data": "load", "$range": [0.5, 2] }
+                    }
+                },
+                "dataset": {}
+            }'
+        ></a-entity>
+
+        <!-- Alert display panel -->
+        <a-entity id="alert-panel" position="8 4 -5">
+            <a-plane width="4" height="2" color="#1a1a2e" opacity="0.9"></a-plane>
+            <a-text id="alert-text" value="System Normal" align="center" width="6" color="#00d4aa" position="0 0 0.1"></a-text>
+        </a-entity>
+
+        <a-sky color="#000205"></a-sky>
+
+    </a-scene>
+
+    <script>
+        // Simulate IoT sensor data
+        const sensorData = {
+            temps: [
+                { id: 'temp-01', name: 'Furnace A', temperature: 78, intensity: 1.0 },
+                { id: 'temp-02', name: 'Furnace B', temperature: 82, intensity: 1.1 },
+                { id: 'temp-03', name: 'Cooling', temperature: 45, intensity: 0.8 },
+                { id: 'temp-04', name: 'Motor Room', temperature: 65, intensity: 0.9 }
+            ],
+            vibs: [
+                { id: 'vib-01', name: 'Pump 1', level: 0.3 },
+                { id: 'vib-02', name: 'Compressor', level: 0.8 },
+                { id: 'vib-03', name: 'Fan Array', level: 0.2 }
+            ],
+            power: [
+                { id: 'pwr-01', name: 'Main Line', load: 85 },
+                { id: 'pwr-02', name: 'Auxiliary', load: 42 },
+                { id: 'pwr-03', name: 'Backup', load: 12 }
+            ]
+        };
+
+        // Position sensors manually for layout
+        const layouts = {
+            temps: [{ x: -6, y: 3, z: 0 }, { x: -2, y: 3, z: 0 }, { x: 2, y: 3, z: 0 }, { x: 6, y: 3, z: 0 }],
+            vibs: [{ x: -4, y: 0, z: 2 }, { x: 0, y: 0, z: 2 }, { x: 4, y: 0, z: 2 }],
+            power: [{ x: -5, y: -2, z: 0 }, { x: 0, y: -2, z: 0 }, { x: 5, y: -2, z: 0 }]
+        };
+
+        // Initialize alert system
+        const alertSystem = new AlertSystem(document.querySelector('a-scene'));
+        
+        alertSystem.addRule('high-temp', {
+            field: 'temperature',
+            operator: '>',
+            threshold: 85,
+            severity: 'critical',
+            visuals: { glow: true, color: '#ff3864', pulse: true },
+            message: 'CRITICAL: High Temperature!'
+        });
+
+        alertSystem.addRule('high-vibration', {
+            field: 'level',
+            operator: '>',
+            threshold: 0.7,
+            severity: 'warning',
+            visuals: { glow: true, color: '#ffaa00', pulse: false },
+            message: 'WARNING: High Vibration'
+        });
+
+        // Update data periodically
+        function updateSensors() {
+            // Update temperatures
+            sensorData.temps.forEach(sensor => {
+                // Random walk
+                sensor.temperature += (Math.random() - 0.5) * 4;
+                sensor.temperature = Math.max(40, Math.min(100, sensor.temperature));
+                sensor.intensity = 0.8 + (sensor.temperature / 100) * 0.5;
+                
+                // Check alerts
+                alertSystem.check(sensor.id, sensor);
+            });
+            
+            // Update power
+            sensorData.power.forEach(node => {
+                node.load = Math.max(10, Math.min(95, node.load + (Math.random() - 0.5) * 10));
+            });
+
+            // Update DOM
+            updateUI();
+        }
+
+        function updateUI() {
+            // Update temperature sensors
+            const tempEl = document.querySelector('#temp-sensors');
+            if (tempEl) {
+                tempEl.setAttribute('nemosyne-artefact-v2', 'dataset', JSON.stringify({ 
+                    records: sensorData.temps 
+                }));
+            }
+
+            // Update vibration sensors
+            const vibEl = document.querySelector('#vib-sensors');
+            if (vibEl) {
+                vibEl.setAttribute('nemosyne-artefact-v2', 'dataset', JSON.stringify({ 
+                    records: sensorData.vibs 
+                }));
+            }
+
+            // Update power nodes
+            const pwrEl = document.querySelector('#power-nodes');
+            if (pwrEl) {
+                pwrEl.setAttribute('nemosyne-artefact-v2', 'dataset', JSON.stringify({ 
+                    records: sensorData.power 
+                }));
+            }
+
+            // Update status display
+            const hasHighTemp = sensorData.temps.some(s => s.temperature > 85);
+            const hasHighVib = sensorData.vibs.some(s => s.level > 0.7);
+            
+            document.getElementById('temp-status').textContent = hasHighTemp ? '⚠️ ALERT' : 'OK';
+            document.getElementById('temp-status').className = hasHighTemp ? 'alert' : '';
+            
+            document.getElementById('vib-status').textContent = hasHighVib ? '⚠️ WARNING' : 'OK';
+            document.getElementById('vib-status').className = hasHighVib ? 'alert' : '';
+        }
+
+        // Set initial positions
+        function setupPositions() {
+            const setupArtefacts = (selector, positions) => {
+                const el = document.querySelector(selector);
+                if (!el) return;
+                
+                el.addEventListener('nemosyne-loaded', (e) => {
+                    const nodes = el.querySelectorAll('.clickable');
+                    nodes.forEach((node, i) => {
+                        if (positions[i]) {
+                            node.setAttribute('position', positions[i]);
+                        }
+                    });
+                });
+            };
+
+            setupArtefacts('#temp-sensors', layouts.temps);
+            setupArtefacts('#vib-sensors', layouts.vibs);
+            setupArtefacts('#power-nodes', layouts.power);
+        }
+
+        // Initialize
+        setupPositions();
+        updateUI();
+        setInterval(updateSensors, 2000); // Update every 2 seconds
+
+        // Create energy flow connectors
+        setTimeout(() => {
+            const flowContainer = document.querySelector('#energy-flows');
+            const powerNodes = document.querySelectorAll('#power-nodes .clickable');
+            const tempSensors = document.querySelectorAll('#temp-sensors .clickable');
+            
+            // Connect power to temps
+            powerNodes.forEach(power => {
+                tempSensors.forEach(temp => {
+                    const connector = document.createElement('a-entity');
+                    connector.setAttribute('nemosyne-connector', {
+                        from: power,
+                        to: temp,
+                        color: '#ffaa00',
+                        thickness: 0.02,
+                        opacity: 0.3,
+                        animated: true
+                    });
+                    flowContainer.appendChild(connector);
+                });
+            });
+        }, 2000);
+    </script>
+
+</body>
+</html>
