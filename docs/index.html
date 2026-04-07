@@ -4,27 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nemosyne | VR Artefacts for Real-World Data</title>
-  <!-- Primary favicon -->
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
-  
-  <!-- Fallback for older browsers -->
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
-  <link rel="shortcut icon" href="/favicon.ico">
-  
-  <!-- Apple devices -->
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-  
-  <!-- Android/Chrome -->
-  <link rel="manifest" href="/site.webmanifest">
-  <meta name="theme-color" content="#0a0a0f">
-  
-  <!-- Microsoft -->
-  <meta name="msapplication-TileColor" content="#0a0a0f">
-  <meta name="msapplication-config" content="/browserconfig.xml">
-
-
+    
+    <!-- A-Frame for VR section -->
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.0.0/dist/aframe-extras.min.js"></script>
+    
+    <!-- Primary favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
+    
+    <!-- Fallback for older browsers -->
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="shortcut icon" href="/favicon.ico">
+    
+    <!-- Apple devices -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    
+    <!-- Android/Chrome -->
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#0a0a0f">
+    
+    <!-- Microsoft -->
+    <meta name="msapplication-TileColor" content="#0a0a0f">
+    <meta name="msapplication-config" content="/browserconfig.xml">
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=Inter:wght@300;400;500;600;700&display=swap');
@@ -404,6 +407,114 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* VR Demo Section */
+        .vr-section {
+            padding: 6rem 5%;
+            background: var(--void-deeper);
+            position: relative;
+            border-top: 1px solid rgba(0, 212, 170, 0.2);
+            border-bottom: 1px solid rgba(0, 212, 170, 0.2);
+        }
+
+        .vr-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 3rem;
+            align-items: center;
+        }
+
+        .vr-info h2 {
+            font-family: 'Cinzel', serif;
+            font-size: 2rem;
+            color: var(--lunar-silver);
+            margin-bottom: 1rem;
+            letter-spacing: 0.05em;
+        }
+
+        .vr-info p {
+            color: var(--gray);
+            margin-bottom: 1.5rem;
+            line-height: 1.8;
+        }
+
+        .vr-controls {
+            background: rgba(0, 212, 170, 0.05);
+            border: 1px solid rgba(0, 212, 170, 0.2);
+            padding: 1.5rem;
+            border-radius: 2px;
+        }
+
+        .vr-controls h4 {
+            color: var(--datasphere-cyan);
+            font-family: 'Cinzel', serif;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            letter-spacing: 0.1em;
+        }
+
+        .vr-controls ul {
+            list-style: none;
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+
+        .vr-controls li {
+            margin-bottom: 0.5rem;
+            padding-left: 1rem;
+            position: relative;
+        }
+
+        .vr-controls li::before {
+            content: '◈';
+            position: absolute;
+            left: 0;
+            color: var(--memory-gold);
+            font-size: 0.6rem;
+        }
+
+        .aframe-container {
+            position: relative;
+            height: 500px;
+            border: 2px solid rgba(0, 212, 170, 0.3);
+            border-radius: 2px;
+            overflow: hidden;
+            box-shadow: 0 0 60px rgba(0, 212, 170, 0.1);
+        }
+
+        .aframe-container::before {
+            content: '◈ DATASPHERE SIMULATION';
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: var(--datasphere-cyan);
+            font-family: 'Cinzel', serif;
+            font-size: 0.7rem;
+            letter-spacing: 0.2em;
+            z-index: 10;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(0, 212, 170, 0.5);
+        }
+
+        .aframe-container::after {
+            content: 'ACTIVE';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: var(--memory-gold);
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+            z-index: 10;
+            pointer-events: none;
+            animation: pulse 2s infinite;
+        }
+
+        a-scene {
+            width: 100%;
+            height: 100%;
+        }
+
         /* Features Section */
         .features {
             padding: 6rem 5%;
@@ -538,7 +649,7 @@
         }
 
         .demo-visual::before {
-            content: '◈ MNEMOSYNE INTERFACE';
+            content: '◈ NEMOSYNE INTERFACE';
             position: absolute;
             top: -12px;
             left: 20px;
@@ -767,6 +878,16 @@
         }
 
         /* Responsive */
+        @media (max-width: 1024px) {
+            .vr-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .aframe-container {
+                height: 400px;
+            }
+        }
+
         @media (max-width: 768px) {
             .nav-links { display: none; }
             
@@ -779,6 +900,10 @@
             .btn { width: 100%; max-width: 300px; justify-content: center; }
             
             .tech-logos { gap: 2rem; }
+            
+            .aframe-container {
+                height: 300px;
+            }
         }
     </style>
 </head>
@@ -794,9 +919,9 @@
         </a>
         <ul class="nav-links">
             <li><a href="#features">Features</a></li>
-            <li><a href="#demo">Demo</a></li>
+            <li><a href="#vr-demo">VR Demo</a></li>
+            <li><a href="#demo">Code</a></li>
             <li><a href="#use-cases">Use Cases</a></li>
-            <li><a href="#docs">Documentation</a></li>
         </ul>
         <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -840,8 +965,8 @@
             </div>
             
             <div class="cta-group">
-                <a href="#getting-started" class="btn btn-primary">
-                    Get Started
+                <a href="#vr-demo" class="btn btn-primary">
+                    Enter the Datasphere
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M5 12h14M12 5l7 7-7 7"/>
                     </svg>
@@ -849,6 +974,208 @@
                 <a href="https://github.com/TsatsuAmable/nemosyne" class="btn btn-secondary" target="_blank">
                     View on GitHub
                 </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- VR Demo Section with A-Frame -->
+    <section class="vr-section" id="vr-demo">
+        <div class="vr-container">
+            <div class="vr-info">
+                <span class="section-tag">Live Demo</span>
+                <h2>The Datasphere Awaits</h2>
+                <p>
+                    Experience Nemosyne's core visualization engine. This interactive VR scene demonstrates data nodes and memory crystals—key components of our spatial data framework.
+                </p>
+                <p>
+                    Navigate through living data structures that pulse with real-time information. Click on crystalline nodes to access their data signatures.
+                </p>
+                <div class="vr-controls">
+                    <h4>Navigation</h4>
+                    <ul>
+                        <li>WASD to move through the void</li>
+                        <li>Mouse drag to rotate perspective</li>
+                        <li>Click data nodes to interact</li>
+                        <li>Scroll to adjust velocity</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="aframe-container">
+                <a-scene embedded fog="type: exponential; color: #000510; density: 0.02" 
+                         background="color: #000205"
+                         renderer="antialias: true; colorManagement: true;">
+                    
+                    <!-- Assets -->
+                    <a-assets>
+                        <a-mixin id="data-node" geometry="primitive: octahedron" material="color: #00d4aa; emissive: #00d4aa; emissiveIntensity: 0.5; wireframe: true" animation="property: rotation; to: 0 360 0; loop: true; dur: 10000; easing: linear"></a-mixin>
+                        <a-mixin id="core-structure" geometry="primitive: torusKnot; radius: 2; radiusTubular: 0.1" material="color: #d4af37; emissive: #d4af37; emissiveIntensity: 0.8; wireframe: true"></a-mixin>
+                        <a-mixin id="data-stream" geometry="primitive: cylinder; radius: 0.02; height: 50" material="color: #00d4aa; opacity: 0.3; transparent: true; emissive: #00d4aa; emissiveIntensity: 0.5"></a-mixin>
+                    </a-assets>
+
+                    <!-- Camera -->
+                    <a-entity position="0 3 12" rotation="-10 0 0">
+                        <a-camera look-controls="pointerLockEnabled: false" wasd-controls="acceleration: 100; fly: true">
+                            <a-cursor color="#00d4aa" scale="0.3 0.3 0.3" 
+                                      animation__click="property: scale; startEvents: click; dur: 100; to: 0.1 0.1 0.1"
+                                      animation__release="property: scale; startEvents: mouseup; dur: 100; to: 0.3 0.3 0.3"
+                                      raycaster="objects: .clickable; far: 50"></a-cursor>
+                        </a-camera>
+                    </a-entity>
+
+                    <!-- Lighting -->
+                    <a-light type="ambient" color="#001122" intensity="0.3"></a-light>
+                    <a-light type="point" position="0 0 0" intensity="1.5" distance="50" color="#d4af37" cast-shadow="true"></a-light>
+                    <a-light type="point" position="10 10 10" intensity="0.8" distance="30" color="#00d4aa"></a-light>
+                    <a-light type="point" position="-10 -5 10" intensity="0.5" distance="30" color="#6b4ee6"></a-light>
+
+                    <!-- Background -->
+                    <a-sky color="#000205" material="shader: flat"></a-sky>
+
+                    <!-- Central Core - Nemosyne Heart -->
+                    <a-entity position="0 0 0" animation="property: rotation; to: 360 360 0; loop: true; dur: 60000; easing: linear">
+                        <a-entity mixin="core-structure" scale="3 3 3" animation="property: scale; dir: alternate; dur: 4000; to: 3.2 3.2 3.2; loop: true"></a-entity>
+                        <a-entity mixin="core-structure" scale="2.5 2.5 2.5" rotation="45 45 0" animation="property: rotation; to: 405 405 0; loop: true; dur: 20000"></a-entity>
+                        
+                        <!-- Inner sphere -->
+                        <a-sphere radius="1.5" color="#d4af37" opacity="0.3" material="emissive: #d4af37; emissiveIntensity: 0.5; transparent: true"
+                                  animation="property: material.emissiveIntensity; dir: alternate; dur: 2000; to: 0.8; loop: true"></a-sphere>
+                    </a-entity>
+
+                    <!-- Data Nodes - Sample Artefacts -->
+                    <a-entity id="demo-nodes"></a-entity>
+
+                    <!-- Data Highways -->
+                    <a-entity id="demo-highways"></a-entity>
+
+                    <!-- Floating Crystals -->
+                    <a-entity id="demo-crystals"></a-entity>
+
+                    <!-- Labels -->
+                    <a-text value="NEMOSYNE CORE" position="0 5 0" align="center" color="#d4af37" 
+                            width="15" font="kelsonsans" shader="msdf"
+                            animation="property: position; dir: alternate; dur: 3000; to: 0 5.5 0; loop: true"></a-text>
+
+                    <!-- Procedural Generation Script -->
+                    <script>
+                        // Generate data nodes
+                        const nodesContainer = document.querySelector('#demo-nodes');
+                        const nodeData = [
+                            { pos: [5, 2, -5], color: '#00d4aa', size: 1.2, label: 'SENSOR A' },
+                            { pos: [-4, 3, -3], color: '#6b4ee6', size: 1, label: 'DATABASE' },
+                            { pos: [3, -2, -6], color: '#ff3864', size: 0.9, label: 'ALERT' },
+                            { pos: [-5, -1, -4], color: '#00d4aa', size: 1.1, label: 'SENSOR B' },
+                            { pos: [0, 4, -8], color: '#d4af37', size: 1.5, label: 'MEMORY' }
+                        ];
+
+                        nodeData.forEach((data, index) => {
+                            const node = document.createElement('a-entity');
+                            node.setAttribute('position', data.pos.join(' '));
+                            
+                            const geo = document.createElement('a-octahedron');
+                            geo.setAttribute('radius', data.size);
+                            geo.setAttribute('color', data.color);
+                            geo.setAttribute('material', `emissive: ${data.color}; emissiveIntensity: 0.6; wireframe: true; transparent: true; opacity: 0.8`);
+                            geo.setAttribute('class', 'clickable');
+                            geo.setAttribute('animation', `property: rotation; to: 360 360 360; loop: true; dur: ${8000 + index * 1000}; easing: linear`);
+                            geo.setAttribute('animation__pulse', `property: scale; dir: alternate; dur: ${2000 + index * 500}; to: 1.2 1.2 1.2; loop: true`);
+                            
+                            const core = document.createElement('a-sphere');
+                            core.setAttribute('radius', data.size * 0.3);
+                            core.setAttribute('color', data.color);
+                            core.setAttribute('material', `emissive: ${data.color}; emissiveIntensity: 1; transparent: true; opacity: 0.9`);
+                            
+                            // Orbiting bits
+                            for (let i = 0; i < 2; i++) {
+                                const orbit = document.createElement('a-entity');
+                                orbit.setAttribute('animation', `property: rotation; to: 360 0 0; loop: true; dur: ${4000 + i * 2000}; easing: linear`);
+                                const bit = document.createElement('a-box');
+                                bit.setAttribute('position', `${data.size + 0.8} 0 0`);
+                                bit.setAttribute('width', 0.15);
+                                bit.setAttribute('height', 0.15);
+                                bit.setAttribute('depth', 0.15);
+                                bit.setAttribute('color', '#ffffff');
+                                bit.setAttribute('material', 'emissive: #ffffff; emissiveIntensity: 0.8');
+                                orbit.appendChild(bit);
+                                node.appendChild(orbit);
+                            }
+                            
+                            geo.addEventListener('click', function() {
+                                console.log('Accessing: ' + data.label);
+                                this.setAttribute('animation__click', 'property: scale; to: 1.8 1.8 1.8; dur: 200; dir: alternate');
+                            });
+                            
+                            node.appendChild(geo);
+                            node.appendChild(core);
+                            nodesContainer.appendChild(node);
+                        });
+
+                        // Generate highways
+                        const highways = document.querySelector('#demo-highways');
+                        const connections = [
+                            [[0,0,0], [5,2,-5]], [[0,0,0], [-4,3,-3]], [[0,0,0], [3,-2,-6]],
+                            [[5,2,-5], [0,4,-8]], [[-4,3,-3], [-5,-1,-4]]
+                        ];
+
+                        connections.forEach(([start, end]) => {
+                            const midX = (start[0] + end[0]) / 2;
+                            const midY = (start[1] + end[1]) / 2;
+                            const midZ = (start[2] + end[2]) / 2;
+                            const length = Math.sqrt(Math.pow(end[0]-start[0], 2) + Math.pow(end[1]-start[1], 2) + Math.pow(end[2]-start[2], 2));
+                            
+                            const highway = document.createElement('a-entity');
+                            highway.setAttribute('position', `${midX} ${midY} ${midZ}`);
+                            
+                            const tube = document.createElement('a-cylinder');
+                            tube.setAttribute('height', length);
+                            tube.setAttribute('radius', 0.05);
+                            tube.setAttribute('color', '#00d4aa');
+                            tube.setAttribute('opacity', '0.2');
+                            tube.setAttribute('material', 'transparent: true; emissive: #00d4aa; emissiveIntensity: 0.3');
+                            
+                            // Look at end
+                            const direction = new THREE.Vector3(end[0]-start[0], end[1]-start[1], end[2]-start[2]).normalize();
+                            const axis = new THREE.Vector3(0, 1, 0);
+                            const angle = Math.acos(axis.dot(direction));
+                            tube.setAttribute('rotation', `${angle * 180 / Math.PI} 0 0`);
+                            
+                            // Data packets
+                            for (let i = 0; i < 2; i++) {
+                                const packet = document.createElement('a-sphere');
+                                packet.setAttribute('radius', 0.1);
+                                packet.setAttribute('color', '#ffffff');
+                                packet.setAttribute('material', 'emissive: #ffffff; emissiveIntensity: 1');
+                                packet.setAttribute('position', `0 ${(i - 0.5) * length/2} 0`);
+                                packet.setAttribute('animation', `property: position; to: 0 ${length/2} 0; dur: ${2000 + i * 500}; loop: true; dir: alternate; easing: easeInOutSine`);
+                                tube.appendChild(packet);
+                            }
+                            
+                            highway.appendChild(tube);
+                            highways.appendChild(highway);
+                        });
+
+                        // Generate floating crystals
+                        const crystals = document.querySelector('#demo-crystals');
+                        for (let i = 0; i < 8; i++) {
+                            const crystal = document.createElement('a-entity');
+                            const x = (Math.random() - 0.5) * 20;
+                            const y = (Math.random() - 0.5) * 10;
+                            const z = (Math.random() - 0.5) * 15 - 5;
+                            crystal.setAttribute('position', `${x} ${y} ${z}`);
+                            
+                            const geo = document.createElement('a-cone');
+                            geo.setAttribute('radius-bottom', 0.1);
+                            geo.setAttribute('radius-top', 0);
+                            geo.setAttribute('height', 0.8);
+                            geo.setAttribute('color', '#00d4aa');
+                            geo.setAttribute('material', 'emissive: #00d4aa; emissiveIntensity: 0.5; transparent: true; opacity: 0.6');
+                            geo.setAttribute('animation', `property: position; dir: alternate; dur: ${3000 + i * 500}; to: ${x} ${y + 0.5} ${z}; loop: true; easing: easeInOutSine`);
+                            
+                            crystal.appendChild(geo);
+                            crystals.appendChild(crystal);
+                        }
+                    </script>
+                </a-scene>
             </div>
         </div>
     </section>
