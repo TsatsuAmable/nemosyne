@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne — Financial Markets</title>
+    
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="../../framework/dist/nemosyne.v2.js"></script>
+    <script src="../../extensions/fix-protocol/fix-parser.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        .ui { position: absolute; top: 20px; left: 20px; right: 20px; z-index: 100; pointer-events: none; font-family: 'Segoe UI', sans-serif; color: #fff; display: flex; justify-content: space-between; }
+        .badge { background: rgba(0, 212, 170, 0.2); border: 1px solid #00d4aa; color: #00d4aa; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        h1 { margin: 0 0 5px; font-size: 24px; font-weight: 300; }
+        .subtitle { color: #888; font-size: 14px; }
+        .ticker { text-align: right; }
+        .price { font-size: 32px; font-weight: bold; }
+        .change { color: #00d4aa; font-size: 14px; }
+        .change.negative { color: #ff3864; }
+    </style>
+</head>
+<body>
+
+    <div class="ui">
+        <div>
+            <span class="badge">Financial Markets</span>
+            <h1>AAPL Order Book</h1>
+            <p class="subtitle">FIX Protocol Visualization</p>
+        </div>
+        <div class="ticker">
+            <div class="price" id="current-price">178.50</div>
+            <div class="change" id="price-change">+1.24 (+0.70%)</div>
+            <p class="subtitle">
+                Spread: <span id="spread">0.04</span> | 
+                Vol: <span id="volume">45.2M</span>
+            </p>
+        </div>
+    </div>
+
+    <a-scene nemosyne-scene="theme: void">
+        
+        <a-entity position="0 2 15" rotation="0 0 0">
+            <a-camera look-controls wasd-controls="acceleration: 100">
+                <a-cursor color="#00d4aa" scale="0.5 0.5 0.5" raycaster="objects: .clickable"></a-cursor>
+            </a-camera>
+        </a-entity>
+
+        <!-- Order Book Visualization -->
+        <a-entity id="orderbook-container">
+            <!-- Bids (Buy side) -->
+            <a-entity
+                nemosyne-artefact-v2='<;{
+                    "spec": {
+                        "id": "bid-level",
+                        "geometry": { "type": "box" },
+                        "material": {
+                            "properties": {
+                                "color": "#00d4aa",
+                                "emissive": "#00d4aa",
+                                "emissiveIntensity": 0.3
+                            }
+                        },
+                        "transform": {
+                            "scale": { "$data": "size", "$range": [0.5, 3] }
+                        },
+                        "behaviours": [
+                            { "trigger": "hover", "action": "glow", "params": { "intensity": 1.5 } },
+                            { "trigger": "click", "action": "show-label", "params": { 
+                                "content": { "$template": "Bid {price} | Size {size}" },
+                                "duration": 3
+                            }}
+                        ]
+                    },
+                    "dataset": {},
+                    "layout": "timeline",
+                    "layout-options": { "spacing": 2, "yOffset": 1 }
+                }'
+            ></a-entity>
+
+            <!-- Asks (Sell side) -->
+            <a-entity
+                nemosyne-artefact-v2='<;{
+                    "spec": {
+                        "id": "ask-level",
+                        "geometry": { "type": "box" },
+                        "material": {
+                            "properties": {
+                                "color": "#ff3864",
+                                "emissive": "#ff3864",
+                                "emissiveIntensity": 0.3
+                            }
+                        },
+                        "transform": {
+                            "scale": { "$data": "size", "$range": [0.5, 3] }
+                        },
+                        "behaviours": [
+                            { "trigger": "hover", "action": "glow", "params": { "intensity": 1.5 } },
+                            { "trigger": "click", "action": "show-label", "params": { 
+                                "content": { "$template": "Ask {price} | Size {size}" },
+                                "duration": 3
+                            }}
+                        ]
+                    },
+                    "dataset": {},
+                    "layout": "timeline",
+                    "layout-options": { "spacing": 2, "yOffset": -1 }
+                }'
+            ></a-entity>
+        </a-entity>
+
+        <!-- Recent Trades -->
+        <a-entity
+            id="trade-flow"
+            nemosyne-artefact-v2='<;{
+                "spec": {
+                    "id": "trade-node",
+                    "geometry": { "type": "sphere", "radius": 0.3 },
+                    "material": {
+                        "properties": {
+                            "color": { "$data": "side", "$map": "diverging-rdgy" },
+                            "emissive": "#d4af37",
+                            "emissiveIntensity": 0.8
+                        }
+                    },
+                    "behaviours": [
+                        { "trigger": "hover", "action": "glow", "params": { "intensity": 2 } }
+                    ]
+                },
+                "dataset": {},
+                "layout": "timeline",
+                "layout-options": { "spacing": 3, "yOffset": 0, "zOffset": -5 }
+            }'
+        ></a-entity>
+
+        <!-- Price ladder -->
+        <a-entity id="price-ladder" position="10 0 -5">
+            <!-- Generated dynamically -->
+        </a-entity>
+
+        <!-- FIX message log panel -->
+        <a-entity id="fix-log" position="-12 2 0" rotation="0 30 0">
+            <a-plane width="5" height="6" color="#0a0a0f" opacity="0.95"></a-plane>
+            <a-text id="last-fix" value="FIX Messages" align="left" width="4" color="#00d4aa" position="-2.2 2 0.1"></a-text>
+            <a-text id="fix-list" value="Waiting..." align="left" width="3" color="#888" position="-2.2 1.5 0.1"></a-text>
+        </a-entity>
+
+        <!-- Mid price indicator -->
+        <a-entity position="0 0 0">
+            <a-cylinder radius="0.5" height="0.1" color="#d4af37" 
+                material="emissive: #d4af37; emissiveIntensity: 0.5"></a-cylinder>
+            <a-text id="mid-price" value="178.50" align="center" width="8" color="#d4af37" position="0 0.5 0"></a-text>
+        </a-entity>
+
+        <a-sky color="#000205"></a-sky>
+
+    </a-scene>
+
+    <script>
+        // Initialize FIX components
+        const fixParser = new FIXParser();
+        const marketData = new MarketDataAggregator(10);
+
+        // Sample FIX messages (simulated)
+        const sampleMessages = [
+            '8=FIX.4.4|9=102|35=D|11=ORD001|55=AAPL|54=1|38=500|44=178.48|40=2|59=0|10=123|',
+            '8=FIX.4.4|9=156|35=8|11=ORD001|17=EXE001|150=0|39=0|55=AAPL|54=1|38=500|14=0|151=500|6=0|10=456|',
+            '8=FIX.4.4|9=145|35=8|11=ORD001|17=EXE002|150=1|39=1|55=AAPL|54=1|38=500|14=200|151=300|6=178.48|10=789|',
+            '8=FIX.4.4|9=145|35=8|11=ORD001|17=EXE003|150=2|39=2|55=AAPL|54=1|38=500|14=500|151=0|6=178.49|10=012|'
+        ];
+
+        // Simulated market data
+        function generateMarketData() {
+            const basePrice = 178.50;
+            
+            // Generate bids
+            const bids = [];
+            for (let i = 0; i < 5; i++) {
+                bids.push({
+                    price: basePrice - 0.02 - (i * 0.01),
+                    size: Math.floor(Math.random() * 5000) + 1000
+                });
+            }
+            
+            // Generate asks
+            const asks = [];
+            for (let i = 0; i < 5; i++) {
+                asks.push({
+                    price: basePrice + 0.02 + (i * 0.01),
+                    size: Math.floor(Math.random() * 5000) + 1000
+                });
+            }
+            
+            return { bids, asks };
+        }
+
+        // Process FIX messages
+        function processFIXMessage(msgText) {
+            const parsed = fixParser.parse(msgText);
+            const record = fixParser.toNemosyneRecord(parsed);
+            
+            // Update display
+            const log = document.getElementById('fix-list');
+            const msgPreview = `${parsed.msgType}: ${record.sideName} ${record.symbol} @ ${record.price}`;
+            log.setAttribute('value', msgPreview + '\n' + log.getAttribute('value').split('\n').slice(0, 5).join('\n'));
+            
+            return record;
+        }
+
+        // Update visualization
+        function updateOrderBook() {
+            const data = generateMarketData();
+            
+            // Calculate mid price
+            const midPrice = (data.bids[0].price + data.asks[0].price) / 2;
+            const spread = data.asks[0].price - data.bids[0].price;
+            
+            // Update DOM
+            document.getElementById('current-price').textContent = midPrice.toFixed(2);
+            document.getElementById('spread').textContent = spread.toFixed(2);
+            document.getElementById('mid-price').setAttribute('value', midPrice.toFixed(2));
+            
+            // Update bid visualization
+            const bidData = data.bids.map((b, i) => ({
+                id: `bid-${i}`,
+                price: b.price.toFixed(2),
+                size: b.size,
+                level: i
+            }));
+            
+            const askData = data.asks.map((a, i) => ({
+                id: `ask-${i}`,
+                price: a.price.toFixed(2),
+                size: a.size,
+                level: i
+            }));
+            
+            const bidEl = document.querySelector('#orderbook-container > a-entity:nth-child(1)');
+            const askEl = document.querySelector('#orderbook-container > a-entity:nth-child(2)');
+            
+            if (bidEl) {
+                bidEl.setAttribute('nemosyne-artefact-v2', 'dataset', JSON.stringify({ records: bidData }));
+            }
+            if (askEl) {
+                askEl.setAttribute('nemosyne-artefact-v2', 'dataset', JSON.stringify({ records: askData }));
+            }
+            
+            // Position the bars
+            setTimeout(() => {
+                const bidNodes = bidEl?.querySelectorAll('.clickable') || [];
+                const askNodes = askEl?.querySelectorAll('.clickable') || [];
+                
+                bidNodes.forEach((node, i) => {
+                    node.setAttribute('position', `${-4 + i * 2} ${1 + i * 0.1} 0`);
+                });
+                
+                askNodes.forEach((node, i) => {
+                    node.setAttribute('position', `${2 + i * 2} ${1 - i * 0.1} 0`);
+                });
+            }, 100);
+        }
+
+        // Process trades
+        function processTrades() {
+            // Simulate trades
+            const trade = {
+                price: 178.50 + (Math.random() - 0.5) * 0.1,
+                size: Math.floor(Math.random() * 1000) + 100,
+                side: Math.random() > 0.5 ? 'buy' : 'sell',
+                timestamp: Date.now()
+            };
+            
+            const tradeEl = document.querySelector('#trade-flow');
+            if (tradeEl) {
+                const tradeData = [{
+                    id: `trade-${Date.now()}`,
+                    price: trade.price.toFixed(2),
+                    size: trade.size,
+                    side: trade.side
+                }];
+                
+                tradeEl.setAttribute('nemosyne-artefact-v2', 'dataset', JSON.stringify({ records: tradeData }));
+            }
+        }
+
+        // Position trades
+        function setupTradeFlow() {
+            const tradeEl = document.querySelector('#trade-flow');
+            if (!tradeEl) return;
+            
+            tradeEl.addEventListener('nemosyne-loaded', () => {
+                const nodes = tradeEl.querySelectorAll('.clickable');
+                nodes.forEach((node, i) => {
+                    node.setAttribute('position', `${-6 + i * 3} 0 -5`);
+                });
+            });
+        }
+
+        // Initialize
+        setupTradeFlow();
+        updateOrderBook();
+        processTrades();
+        
+        // Periodic updates
+        setInterval(updateOrderBook, 1000);
+        setInterval(processTrades, 2000);
+        
+        // Process a FIX message periodically
+        let msgIndex = 0;
+        setInterval(() => {
+            const msg = sampleMessages[msgIndex % sampleMessages.length];
+            processFIXMessage(msg);
+            msgIndex++;
+        }, 3000);
+    </script>
+
+</body>
+</html>

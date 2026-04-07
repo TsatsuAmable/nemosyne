@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne — Network Galaxy</title>
+    
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="../../framework/dist/nemosyne.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        .ui { position: absolute; top: 20px; left: 20px; z-index: 100; pointer-events: none; font-family: 'Segoe UI', sans-serif; color: #fff; }
+        .badge { background: rgba(107, 78, 230, 0.2); border: 1px solid #6b4ee6; color: #6b4ee6; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; display: inline-block; margin-bottom: 10px; }
+        h1 { margin: 0 0 5px; font-size: 24px; font-weight: 300; }
+        .subtitle { color: #888; font-size: 14px; margin: 0 0 10px; }
+        .stats { color: #666; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <div class="ui">
+        <div class="badge">Network Galaxy</div>
+        <h1>Nemosyne</h1>
+        <p class="subtitle">8 nodes in a radial network</p>
+        <p class="stats"
+003eHover to glow • Click to see labels</p>
+    </div>
+
+    <a-scene nemosyne-scene="theme: void" background="color: #000205">
+        
+        <a-entity position="0 1.6 10">
+            <a-camera look-controls wasd-controls="acceleration: 100">
+                <a-cursor color="#6b4ee6" scale="0.5 0.5 0.5" raycaster="objects: .clickable"></a-cursor>
+            </a-camera>
+        </a-entity>
+
+        <!-- Network data -->
+        <nemosyne-artefact
+            spec-inline='<;{
+                "id": "network-node",
+                "geometry": { "type": "sphere", "radius": 0.6 },
+                "material": {
+                    "properties": {
+                        "color": { "$data": "category", "$map": "category10" },
+                        "emissive": { "$data": "category", "$map": "category10" },
+                        "emissiveIntensity": 0.4,
+                        "metalness": 0.9,
+                        "roughness": 0.1
+                    }
+                },
+                "transform": {
+                    "scale": { "$data": "connections", "$range": [0.8, 1.5] }
+                },
+                "behaviours": [
+                    { "trigger": "hover", "action": "glow", "params": { "intensity": 2 } },
+                    { "trigger": "hover-leave", "action": "glow", "params": { "intensity": 0.4 } },
+                    { "trigger": "click", "action": "scale", "params": { "factor": 1.4, "duration": 0.2 } },
+                    { "trigger": "idle", "action": "rotate", "params": { "speed": 0.3, "axis": "y" } }
+                ],
+                "labels": {
+                    "primary": { "$data": "label" },
+                    "color": "#00d4aa",
+                    "position": "above"
+                }
+            }'
+            data-inline='<;{
+                "records": [
+                    { "id": "A", "label": "Database", "category": 0, "connections": 5, "role": "hub" },
+                    { "id": "B", "label": "API Server", "category": 1, "connections": 3, "role": "service" },
+                    { "id": "C", "label": "Cache", "category": 2, "connections": 2, "role": "storage" },
+                    { "id": "D", "label": "Auth Service", "category": 3, "connections": 4, "role": "security" },
+                    { "id": "E", "label": "Web App", "category": 1, "connections": 2, "role": "consumer" },
+                    { "id": "F", "label": "Mobile API", "category": 1, "connections": 2, "role": "consumer" },
+                    { "id": "G", "label": "Analytics", "category": 4, "connections": 1, "role": "processing" },
+                    { "id": "H", "label": "Logs", "category": 4, "connections": 1, "role": "storage" }
+                ]
+            }'>
+        </nemosyne-artefact>
+
+        <!-- Connection lines (procedural) -->
+        <a-entity id="connections"></a-entity>
+
+        <a-sky color="#000205"></a-sky>
+
+    </a-scene>
+
+    <script>
+        // Add connections when scene loads
+        const scene = document.querySelector('a-scene');
+        
+        // Simple connection lines
+        setTimeout(() => {
+            const container = document.querySelector('#connections');
+            const nodes = scene.querySelectorAll('.clickable');
+            
+            // Create some connections
+            const connections = [
+                [0, 1], [0, 2], [0, 3], [1, 4], [1, 5], [1, 6], [2, 7]
+            ];
+            
+            connections.forEach(([a, b]) => {
+                if (nodes[a] && nodes[b]) {
+                    const line = document.createElement('a-entity');
+                    const posA = nodes[a].getAttribute('position');
+                    const posB = nodes[b].getAttribute('position');
+                    
+                    // Distance
+                    const dist = Math.sqrt(
+                        Math.pow(posB.x - posA.x, 2) +
+                        Math.pow(posB.y - posA.y, 2) +
+                        Math.pow(posB.z - posA.z, 2)
+                    );
+                    
+                    line.setAttribute('geometry', {
+                        primitive: 'cylinder',
+                        radius: 0.02,
+                        height: dist
+                    });
+                    line.setAttribute('material', {
+                        color: '#00d4aa',
+                        opacity: 0.3,
+                        transparent: true,
+                        emissive: '#00d4aa',
+                        emissiveIntensity: 0.2
+                    });
+                    
+                    // Position at midpoint
+                    const midX = (posA.x + posB.x) / 2;
+                    const midY = (posA.y + posB.y) / 2;
+                    const midZ = (posA.z + posB.z) / 2;
+                    line.setAttribute('position', `${midX} ${midY} ${midZ}`);
+                    
+                    // Orient toward target
+                    line.object3D.lookAt(posB.x, posB.y, posB.z);
+                    line.object3D.rotateX(Math.PI / 2);
+                    
+                    container.appendChild(line);
+                }
+            });
+        }, 1500);
+    </script>
+
+</body>
+</html>
