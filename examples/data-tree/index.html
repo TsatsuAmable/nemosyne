@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne — Data Tree</title>
+    
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="../../framework/dist/nemosyne.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        .ui { position: absolute; top: 20px; left: 20px; z-index: 100; pointer-events: none; font-family: 'Segoe UI', sans-serif; color: #fff; }
+        .badge { background: rgba(107, 78, 230, 0.2); border: 1px solid #6b4ee6; color: #6b4ee6; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; display: inline-block; margin-bottom: 10px; }
+        h1 { margin: 0 0 5px; font-size: 24px; font-weight: 300; }
+        .subtitle { color: #888; font-size: 14px; margin: 0; }
+    </style>
+</head>
+<body>
+
+    <div class="ui">
+        <div class="badge">Data Tree</div>
+        <h1>Nemosyne</h1>
+        <p class="subtitle">Hierarchical file system</p>
+    </div>
+
+    <a-scene nemosyne-scene="theme: void">
+        
+        <a-entity position="0 2 12">
+            <a-camera look-controls wasd-controls="acceleration: 100">
+                <a-cursor color="#6b4ee6" scale="0.5 0.5 0.5" raycaster="objects: .clickable"></a-cursor>
+            </a-camera>
+        </a-entity>
+
+        <!-- Tree structure -->
+        <nemosyne-artefact
+            spec-inline='<;{
+                "id": "tree-node",
+                "geometry": { "type": "dodecahedron", "radius": 0.5 },
+                "material": {
+                    "properties": {
+                        "color": { "$data": "type", "$map": "category10" },
+                        "emissive": { "$data": "type", "$map": "category10" },
+                        "emissiveIntensity": 0.5,
+                        "metalness": 0.9,
+                        "roughness": 0.1
+                    }
+                },
+                "transform": {
+                    "scale": { "$data": "size", "$range": [0.8, 1.3] }
+                },
+                "behaviours": [
+                    { "trigger": "hover", "action": "glow", "params": { "intensity": 2 } },
+                    { "trigger": "hover-leave", "action": "glow", "params": { "intensity": 0.5 } },
+                    { "trigger": "click", "action": "scale", "params": { "factor": 1.3, "duration": 0.2 } }
+                ],
+                "labels": {
+                    "primary": { "$data": "name" },
+                    "color": "#fff",
+                    "position": "above"
+                }
+            }'
+            data-inline='<;{
+                "records": [
+                    { "id": "root", "name": "Documents", "type": 0, "size": 1.5, "depth": 0 },
+                    { "id": "work", "name": "Work", "type": 1, "size": 1.2, "depth": 1, "parent": "root" },
+                    { "id": "personal", "name": "Personal", "type": 1, "size": 1.2, "depth": 1, "parent": "root" },
+                    { "id": "projects", "name": "Projects", "type": 1, "size": 1.2, "depth": 1, "parent": "root" },
+                    { "id": "nemosyne", "name": "Nemosyne", "type": 2, "size": 1, "depth": 2, "parent": "projects" },
+                    { "id": "research", "name": "Research", "type": 3, "size": 1, "depth": 2, "parent": "projects" },
+                    { "id": "reports", "name": "Reports", "type": 3, "size": 0.9, "depth": 2, "parent": "work" },
+                    { "id": "budget", "name": "Budget.xlsx", "type": 4, "size": 0.8, "depth": 3, "parent": "work" },
+                    { "id": "photos", "name": "Photos", "type": 2, "size": 1, "depth": 2, "parent": "personal" },
+                    { "id": "src", "name": "src", "type": 2, "size": 0.9, "depth": 3, "parent": "nemosyne" },
+                    { "id": "docs", "name": "docs", "type": 3, "size": 0.9, "depth": 3, "parent": "nemosyne" },
+                    { "id": "index", "name": "index.html", "type": 4, "size": 0.7, "depth": 4, "parent": "src" }
+                ]
+            }'>
+        </nemosyne-artefact>
+
+        <!-- Connection pillars -->
+        <a-entity id="connections"></a-entity>
+
+        <a-sky color="#000205"></a-sky>
+
+    </a-scene>
+
+    <script>
+        // Calculate tree positions
+        const scene = document.querySelector('a-scene');
+        scene.addEventListener('nemosyne-loaded', (e) => {
+            const nodes = document.querySelectorAll('.clickable');
+            const dataMap = new Map();
+            
+            // Get layout positions from parsed data
+            const layout = {
+                "root": { x: 0, y: 4, z: 0 },
+                "work": { x: -4, y: 2, z: 2 },
+                "personal": { x: 0, y: 2, z: 4 },
+                "projects": { x: 4, y: 2, z: 2 },
+                "nemosyne": { x: 3, y: 0, z: 4 },
+                "research": { x: 5, y: 0, z: 4 },
+                "reports": { x: -5, y: 0, z: 3 },
+                "budget": { x: -6, y: -2, z: 3 },
+                "photos": { x: -1, y: 0, z: 6 },
+                "src": { x: 2, y: -2, z: 5 },
+                "docs": { x: 4, y: -2, z: 5 },
+                "index": { x: 2, y: -4, z: 5 }
+            };
+            
+            // Position each node
+            const nodeArray = Array.from(nodes);
+            Object.keys(layout).forEach((key, i) => {
+                if (nodeArray[i]) {
+                    const pos = layout[key];
+                    nodeArray[i].setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
+                }
+            });
+
+            // Draw connections
+            const parents = {
+                "work": "root",
+                "personal": "root",
+                "projects": "root",
+                "nemosyne": "projects",
+                "research": "projects",
+                "reports": "work",
+                "budget": "reports",
+                "photos": "personal",
+                "src": "nemosyne",
+                "docs": "nemosyne",
+                "index": "src"
+            };
+
+            const container = document.querySelector('#connections');
+            Object.entries(parents).forEach(([childKey, parentKey]) => {
+                const childNode = nodeArray[Object.keys(layout).indexOf(childKey)];
+                const parentNode = nodeArray[Object.keys(layout).indexOf(parentKey)];
+                
+                if (childNode && parentNode) {
+                    const posC = childNode.getAttribute('position');
+                    const posP = parentNode.getAttribute('position');
+                    
+                    const line = document.createElement('a-entity');
+                    const dist = Math.sqrt(
+                        Math.pow(posC.x - posP.x, 2) +
+                        Math.pow(posC.y - posP.y, 2) +
+                        Math.pow(posC.z - posP.z, 2)
+                    );
+                    
+                    line.setAttribute('geometry', {
+                        primitive: 'cylinder',
+                        radius: 0.03,
+                        height: dist
+                    });
+                    line.setAttribute('material', {
+                        color: '#6b4ee6',
+                        opacity: 0.5,
+                        transparent: true,
+                        emissive: '#6b4ee6',
+                        emissiveIntensity: 0.3
+                    });
+                    
+                    const midX = (posC.x + posP.x) / 2;
+                    const midY = (posC.y + posP.y) / 2;
+                    const midZ = (posC.z + posP.z) / 2;
+                    line.setAttribute('position', `${midX} ${midY} ${midZ}`);
+                    
+                    line.object3D.lookAt(posC.x, posC.y, posC.z);
+                    line.object3D.rotateX(Math.PI / 2);
+                    
+                    container.appendChild(line);
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
