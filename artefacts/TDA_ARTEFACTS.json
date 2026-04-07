@@ -1,0 +1,318 @@
+[
+  {
+    "artefact_id": "topo-persistence-barcode",
+    "name": "Persistence Barcode",
+    "tda_concept": "persistent_homology",
+    "topology": "temporal-persistent",
+    "description": "Visualizes birth and death of topological features across filtration scales",
+    "geometry_template": {
+      "base": "box",
+      "variant": "horizontal-bar",
+      "dimensions": {
+        "height": 0.2,
+        "depth": 0.1,
+        "width_dynamic": "persistence_lifetime"
+      }
+    },
+    "visual_encoding": {
+      "x": "birth_scale",
+      "y": "homology_dimension_encoded",
+      "width": "persistence_lifetime",
+      "color": {
+        "dimension_0": "#1f77b4",
+        "dimension_1": "#ff7f0e",
+        "dimension_2": "#2ca02c",
+        "high_persistence": "#d62728"
+      }
+    },
+    "required_data": {
+      "persistence_pairs": [
+        {
+          "dimension": 0,
+          "birth": 0,
+          "death": 1.5,
+          "persistence": 1.5
+        },
+        {
+          "dimension": 1,
+          "birth": 0.8,
+          "death": 2.2,
+          "persistence": 1.4
+        },
+        {
+          "dimension": 1,
+          "birth": 2.5,
+          "death": 6.0,
+          "persistence": 3.5
+        }
+      ]
+    },
+    "behaviours": [
+      "threshold-filter",
+      "homology-dimension-toggle",
+      "persistence-hover-detail",
+      "diagonal-cut-highlight"
+    ],
+    "interactions": {
+      "threshold_slider": "Filter features by minimum persistence",
+      "dimension_checkbox": "Toggle H0, H1, H2 visibility",
+      "bar_click": "Highlight in companion views (complex, mapper)",
+      "diagonal_brush": "Select features by birth-death relationship"
+    },
+    "d3_scales": {
+      "x": "scaleLinear().domain([min_birth, max_death]).range([0, 20])",
+      "y": "scaleBand().domain([0, 1, 2]).range([0, 6])",
+      "color": "Ordinal(H0=blue, H1=orange, H2=green)"
+    }
+  },
+  {
+    "artefact_id": "topo-simplicial-complex",
+    "name": "Simplicial Complex",
+    "tda_concept": "vietoris_rips_complex",
+    "topology": "simplices",
+    "description": "Mesh of points, edges, triangles, tetrahedra showing connectivity at a scale",
+    "geometry_template": {
+      "0-simplices": { "type": "sphere", "radius": 0.15 },
+      "1-simplices": { "type": "cylinder", "radius": 0.02, "segments": 8 },
+      "2-simplices": { "type": "plane", "opacity": 0.3, "doubleSided": true },
+      "3-simplices": { "type": "tetrahedron", "opacity": 0.15 }
+    },
+    "visual_encoding": {
+      "vertices": "0-simplices (data points)",
+      "edges": "1-simplices (pairs within 2ε)",
+      "triangles": "2-simplices (triples pairwise within 2ε)",
+      "tetrahedra": "3-simplices (quadruples forming clique)"
+    },
+    "required_data": {
+      "filtration_epsilon": 2.5,
+      "vertices": [
+        { "id": 0, "x": 0, "y": 0, "z": 0, "label": "A" },
+        { "id": 1, "x": 2.1, "y": 0.3, "z": 0.1, "label": "B" },
+        { "id": 2, "x": 1.2, "y": 1.8, "z": 0.2, "label": "C" },
+        { "id": 3, "x": 2.8, "y": 1.5, "z": 0.5, "label": "D" },
+        { "id": 4, "x": 1.5, "y": 0.5, "z": 1.8, "label": "E" }
+      ],
+      "edges": [[0, 1], [0, 2], [1, 2], [1, 3], [2, 3], [2, 4], [3, 4]],
+      "triangles": [[0, 1, 2], [1, 2, 3]],
+      "tetrahedra": []
+    },
+    "behaviours": [
+      "epsilon-scrub",
+      "simplex-hover-highlight",
+      "boundary-edge-glow",
+      "cycle-detection-pulse"
+    ],
+    "interactions": {
+      "epsilon_slider": "Adjust ε, watch simplices appear/disappear",
+      "simplex_hover": "Show constituent vertices/edges/facets",
+      "simplex_click": "Expand to show neighborhood",
+      "homology_mode": "Highlight cycles (H1), cavities (H2), components (H0)"
+    },
+    "tda_computation": "ripser, gudhi, or scikit-tda"
+  },
+  {
+    "artefact_id": "topo-mapper-network",
+    "name": "Mapper Graph",
+    "tda_concept": "mapper_algorithm",
+    "topology": "graph-cluster",
+    "description": "Topological skeleton using lens projection and partial clustering",
+    "geometry_template": {
+      "nodes": { "type": "sphere", "radius_dynamic": "cluster_size" },
+      "edges": { "type": "curved-tube", "radius": 0.03 },
+      "layout": "force-directed-3d"
+    },
+    "visual_encoding": {
+      "node_position": "graph_layout_force_directed",
+      "node_color": "filter_function_value",
+      "node_size": "cluster_cardinality",
+      "edge_thickness": "overlap_strength",
+      "edge_color": "gradient_between_connected_nodes"
+    },
+    "required_data": {
+      "filter_function": "lens_pca_component_1",
+      "cover": {
+        "num_intervals": 10,
+        "overlap": 0.3
+      },
+      "clusters": [
+        { "id": "I0_C0", "interval": 0, "points": [12, 15, 18, 22], "size": 4, "centroid": [-2.5, 0.1, 0] },
+        { "id": "I0_C1", "interval": 0, "points": [45, 48, 52], "size": 3, "centroid": [-2.2, 0.8, 0.2] },
+        { "id": "I1_C0", "interval": 1, "points": [15, 18, 22, 25, 28], "size": 5, "centroid": [-1.5, 0, 0] },
+        { "id": "I2_C0", "interval": 2, "points": [78, 82, 85, 88], "size": 4, "centroid": [2.2, -0.5, 0] }
+      ],
+      "edges": [
+        { "source": "I0_C0", "target": "I1_C0", "overlap_count": 3, "strength": 0.75 },
+        { "source": "I1_C0", "target": "I2_C0", "overlap_count": 0, "strength": 0 }
+      ]
+    },
+    "behaviours": [
+      "cluster-expand",
+      "filter-remap",
+      "cover-adjust",
+      "node-member-preview"
+    ],
+    "interactions": {
+      "node_hover": "Preview cluster members",
+      "node_click": "Expand to show full member list with original data",
+      "edge_hover": "Show overlapping points",
+      "lens_dropdown": "Change filter function (PCA, t-SNE, eccentricity, density)",
+      "cover_sliders": "Adjust number of intervals and overlap"
+    },
+    "keen_parameters": {
+      "n_intervals": "Number of lens interval bins",
+      "overlap": "Percentage overlap between intervals",
+      "clusterer": "DBSCAN, HDBSCAN, or Agglomerative"
+    }
+  },
+  {
+    "artefact_id": "topo-reeb-contours",
+    "name": "Reeb Graph",
+    "tda_concept": "reeb_graph",
+    "topology": "level-set-evolution",
+    "description": "Evolution of level set connected components across a scalar function",
+    "geometry_template": {
+      "critical_nodes": { "type": "sphere", "size": "type_dependent" },
+      "contour_arcs": { "type": "tubular-mesh", "sections": "level_set_samples" },
+      "layout": "monotone-path-y" 
+    },
+    "visual_encoding": {
+      "y_position": "function_value",
+      "critical_size": { "min": 0.2, "saddle": 0.15, "max": 0.25 },
+      "critical_color": { "min": "#2ca02c", "saddle": "#ff7f0e", "max": "#d62728" },
+      "arc_thickness": "contour_cardinality_at_sample"
+    },
+    "required_data": {
+      "scalar_function": "height_above_ground",
+      "domain": [0, 10],
+      "critical_points": [
+        { "id": "cp_0", "type": "minimum", "value": 0.5, "position": [5, 0.5, 5], "index": 0 },
+        { "id": "cp_1", "type": "saddle", "value": 3.2, "position": [7, 3.2, 3], "index": 1 },
+        { "id": "cp_2", "type": "saddle", "value": 5.8, "position": [3, 5.8, 7], "index": 2 },
+        { "id": "cp_3", "type": "maximum", "value": 8.5, "position": [5, 8.5, 5], "index": 3 }
+      ],
+      "contour_segments": [
+        { 
+          "from": "cp_0", 
+          "to": "cp_1", 
+          "samples": [
+            { "value": 0.5, "contours": [{ "size": 1, "boundary": "single" }] },
+            { "value": 1.5, "contours": [{ "size": 5, "boundary": "single" }] },
+            { "value": 2.5, "contours": [{ "size": 12, "boundary": "single" }] }
+          ]
+        },
+        {
+          "from": "cp_1",
+          "to": "cp_2",
+          "branches": ["left", "right"],
+          "samples": [
+            { "value": 3.5, "contours": [{ "size": 8 }, { "size": 6 }] },
+            { "value": 4.5, "contours": [{ "size": 10 }, { "size": 7 }] }
+          ]
+        }
+      ]
+    },
+    "behaviours": [
+      "level-slice-scrub",
+      "merge-split-animation",
+      "contour-surface-display",
+      "critical-neighborhood-zoom"
+    ],
+    "interactions": {
+      "horizontal_slider": "Move level set slice through function range",
+      "critical_click": "Zoom to critical point, show Morse neighborhood",
+      "branch_hover": "Highlight descendant/ancestor paths",
+      "animate_play": "Animate sweep through function values"
+    },
+    "morse_theory": "Critical points (index 0=min, 1=saddle, 2=max) + level set evolution"
+  },
+  {
+    "artefact_id": "topo-umap-manifold",
+    "name": "UMAP Manifold",
+    "tda_concept": "umap_embedding",
+    "topology": "manifold-learning",
+    "description": "Dimensionality reduction preserving local neighborhoods and global topology",
+    "geometry_template": {
+      "points": { "type": "sphere", "radius": "adaptive_density" },
+      "neighbors": { "type": "line", "opacity": 0.2 },
+      "manifold": { "type": "implicit-surface-mesh", "resolution": "adaptive" }
+    },
+    "visual_encoding": {
+      "position": "low_dimensional_embedding_xyz",
+      "color": "original_class_or_continuous_attr",
+      "size": "local_density_inverse",
+      "opacity": "trustworthiness_weight",
+      "neighbors": "knn_graph_subset"
+    },
+    "required_data": {
+      "n_neighbors": 15,
+      "min_dist": 0.1,
+      "n_epochs": 500,
+      "metrics": {
+        "trustworthiness": 0.94,
+        "continuity": 0.96,
+        "local_distortion": 0.08
+      },
+      "embedding": [
+        { "id": 0, "original_id": "patient_042", "x": -2.3, "y": 1.2, "z": 0.5, "class": "control", "neighbors": [12, 45, 78] },
+        { "id": 1, "original_id": "patient_043", "x": -2.1, "y": 1.4, "z": 0.3, "class": "control", "neighbors": [0, 23, 56] },
+        { "id": 100, "original_id": "patient_145", "x": 1.8, "y": -2.1, "z": -0.4, "class": "treatment", "neighbors": [101, 102, 156] }
+      ],
+      "high_dimensional_attributes": {
+        "patient_042": {"age": 45, "biomarker_a": 0.82, "biomarker_b": 1.23, ...},
+        "patient_043": {"age": 47, "biomarker_a": 0.79, "biomarker_b": 1.18, ...}
+      }
+    },
+    "behaviours": [
+      "neighbor-probe",
+      "class-cluster-highlight",
+      "parameter-remap",
+      "selection-brush",
+      "original-data-reveal"
+    ],
+    "interactions": {
+      "point_hover": "Show original high-D data",
+      "point_click": "Expand detailed patient profile",
+      "brush_select": "Select region, show aggregated statistics",
+      "parameter_sliders": "Adjust n_neighbors, min_dist, watch embedding morph",
+      "color_by": "Switch between original class, cluster ID, continuous variable"
+    },
+    "manifold_quality": "Trustworthiness, continuity, local distortion metrics"
+  },
+  {
+    "artefact_id": "topo-betti-evolution",
+    "name": "Betti Evolution",
+    "tda_concept": "betti_number_tracking",
+    "topology": "homology-evolution",
+    "description": "Track Betti numbers (connected components, holes, voids) across filtration",
+    "geometry_template": {
+      "chart": { "type": "stacked-area-3d", "layers": "homology_dimensions" },
+      "curves": { "type": "ribbon-tube", "thickness": "betti_magnitude" }
+    },
+    "visual_encoding": {
+      "x": "filtration_scale_epsilon",
+      "y_stacked": ["beta_0", "beta_1", "beta_2"],
+      "color": { "beta_0": "#1f77b4", "beta_1": "#ff7f0e", "beta_2": "#2ca02c" }
+    },
+    "required_data": {
+      "filtration_values": [0, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0],
+      "betti_numbers": {
+        "beta_0": [50, 45, 38, 32, 25, 18, 12,  8,  5,  3,  1,  1],
+        "beta_1": [ 0,  0,  2,  5,  8, 12, 15, 18, 19, 17, 12,  5],
+        "beta_2": [ 0,  0,  0,  0,  1,  2,  4,  6,  8,  9,  8,  4]
+      }
+    },
+    "behaviours": [
+      "layer-toggle",
+      "derivative-rate",
+      "euler-characteristic-curve",
+      "significant-persistence-marker"
+    ],
+    "interactions": {
+      "layer_checkbox": "Toggle beta_0/beta_1/beta_2 visibility",
+      "hover_query": "Show exact counts at that epsilon",
+      "persistence_threshold": "Mark where features stabilize",
+      "deriviative_view": "Show rate of change (d beta / d epsilon)"
+    },
+    "algebraic_topology": "Euler characteristic = sum((-1)^k * beta_k)"
+  }
+]
