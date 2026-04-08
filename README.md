@@ -8,8 +8,8 @@
 
 A JavaScript framework for creating interactive 3D data visualizations in VR.
 
-**🚀 [Live Examples](https://nemosyne.world/examples/)** | 
-**📖 [Documentation](https://nemosyne.world/docs/)** |
+**🚀 [Examples](#examples-gallery)** |
+**📖 [Documentation](#documentation)** |
 **[GitHub](https://github.com/TsatsuAmable/nemosyne)**
 
 ---
@@ -61,13 +61,13 @@ Nemosyne.quickStart(document.querySelector('a-scene'), {
 - [🌳 Data Tree](./examples/data-tree/) — Hierarchical file system ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/data-tree))
 
 ### Domain-Specific Examples
-- [🏭 Industrial IoT](./examples/industrial-iot/) — Factory floor monitoring
-- [📈 Financial Markets](./examples/financial-markets/) — FIX protocol trading
-- [🧬 Scientific Research](./examples/scientific-research/) — Molecular visualization
-- [🏥 Medical Imaging](./examples/medical-imaging/) — DICOM CT viewer
-- [🏙️ Smart Cities](./examples/smart-cities/) — Urban data visualization
-- [🎓 Education](./examples/education-solar/) — Solar system explorer
-- [🎮 Virtual Worlds](./examples/virtual-worlds/) — Game dev level editor
+- [🏭 Industrial IoT](./examples/industrial-iot/) — Factory floor monitoring ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/industrial-iot))
+- [📈 Financial Markets](./examples/financial-markets/) — FIX protocol trading ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/financial-markets))
+- [🧬 Scientific Research](./examples/scientific-research/) — Molecular visualization ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/scientific-research))
+- [🏥 Medical Imaging](./examples/medical-imaging/) — DICOM CT viewer ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/medical-imaging))
+- [🏙️ Smart Cities](./examples/smart-cities/) — Urban data visualization ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/smart-cities))
+- [🎓 Education](./examples/education-solar/) — Solar system explorer ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/education-solar))
+- [🎮 Virtual Worlds](./examples/virtual-worlds/) — Game dev level editor ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/virtual-worlds))
 
 ---
 
