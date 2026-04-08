@@ -14,6 +14,10 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     
+    defaults:
+      run:
+        working-directory: ./framework
+    
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -23,7 +27,7 @@ jobs:
       with:
         node-version: '20.x'
         cache: 'npm'
-        cache-dependency-path: package-lock.json
+        cache-dependency-path: ./framework/package-lock.json
         registry-url: 'https://registry.npmjs.org'
     
     - name: Install dependencies
@@ -38,11 +42,13 @@ jobs:
     - name: Publish to npm
       if: github.event_name == 'release'
       run: npm publish --access=public
+      working-directory: .
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
     - name: Publish to npm (manual)
       if: github.event_name == 'workflow_dispatch'
       run: npm publish --access=public
+      working-directory: .
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
