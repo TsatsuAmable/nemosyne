@@ -705,6 +705,41 @@
             font-size: 0.95rem;
         }
 
+        .use-case-item h4 a {
+            color: var(--datasphere-cyan);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .use-case-item h4 a:hover {
+            color: var(--memory-gold);
+        }
+
+        .use-case-link {
+            display: inline-flex;
+            align-items: center;
+            color: var(--datasphere-cyan);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-top: 0.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .use-case-link:hover {
+            color: var(--memory-gold);
+        }
+
+        .use-case-link::after {
+            content: '→';
+            margin-left: 0.3rem;
+            transition: transform 0.2s ease;
+        }
+
+        .use-case-link:hover::after {
+            transform: translateX(3px);
+        }
+
         /* Built With Section */
         .built-with {
             padding: 4rem 5%;
