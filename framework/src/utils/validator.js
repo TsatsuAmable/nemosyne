@@ -9,51 +9,52 @@ export class Validator {
     
     if (!spec) {
       errors.push('Spec is required');
-      return errors;
-    }
-    
-    // Required fields
-    if (!spec.id) {
-      errors.push('Spec must have an "id"');
-    }
-    
-    // Geometry validation
-    if (spec.geometry) {
-      const validTypes = ['sphere', 'box', 'cylinder', 'octahedron', 
-                          'tetrahedron', 'dodecahedron', 'icosahedron', 
-                          'torus', 'plane', 'circle'];
-      if (spec.geometry.type && !validTypes.includes(spec.geometry.type)) {
-        errors.push(`Invalid geometry type: ${spec.geometry.type}`);
+    } else {
+      // Only validate properties if spec exists
+      
+      // Required fields
+      if (!spec.id) {
+        errors.push('Spec must have an "id"');
       }
-    }
-    
-    // Material validation
-    if (spec.material) {
-      if (spec.material.properties?.color) {
-        const color = spec.material.properties.color;
-        if (typeof color === 'string' && !this.isValidColor(color)) {
-          errors.push(`Invalid color: ${color}`);
+      
+      // Geometry validation
+      if (spec.geometry) {
+        const validTypes = ['sphere', 'box', 'cylinder', 'octahedron', 
+                            'tetrahedron', 'dodecahedron', 'icosahedron', 
+                            'torus', 'plane', 'circle'];
+        if (spec.geometry.type && !validTypes.includes(spec.geometry.type)) {
+          errors.push(`Invalid geometry type: ${spec.geometry.type}`);
         }
       }
-    }
-    
-    // Behaviours validation
-    if (spec.behaviours) {
-      if (!Array.isArray(spec.behaviours)) {
-        errors.push('Behaviours must be an array');
-      } else {
-        const validTriggers = ['hover', 'hover-leave', 'click', 'idle', 'data-update'];
-        const validActions = ['glow', 'scale', 'move', 'rotate', 'color-shift', 
-                              'show-label', 'hide-label', 'pulse', 'emit', 'reveal'];
-        
-        spec.behaviours.forEach((b, i) => {
-          if (b.trigger && !validTriggers.includes(b.trigger)) {
-            errors.push(`Behaviour ${i}: Invalid trigger "${b.trigger}"`);
+      
+      // Material validation
+      if (spec.material) {
+        if (spec.material.properties?.color) {
+          const color = spec.material.properties.color;
+          if (typeof color === 'string' && !this.isValidColor(color)) {
+            errors.push(`Invalid color: ${color}`);
           }
-          if (b.action && !validActions.includes(b.action)) {
-            errors.push(`Behaviour ${i}: Invalid action "${b.action}"`);
-          }
-        });
+        }
+      }
+      
+      // Behaviours validation
+      if (spec.behaviours) {
+        if (!Array.isArray(spec.behaviours)) {
+          errors.push('Behaviours must be an array');
+        } else {
+          const validTriggers = ['hover', 'hover-leave', 'click', 'idle', 'data-update'];
+          const validActions = ['glow', 'scale', 'move', 'rotate', 'color-shift', 
+                                'show-label', 'hide-label', 'pulse', 'emit', 'reveal'];
+          
+          spec.behaviours.forEach((b, i) => {
+            if (b.trigger && !validTriggers.includes(b.trigger)) {
+              errors.push(`Behaviour ${i}: Invalid trigger "${b.trigger}"`);
+            }
+            if (b.action && !validActions.includes(b.action)) {
+              errors.push(`Behaviour ${i}: Invalid action "${b.action}"`);
+            }
+          });
+        }
       }
     }
     
@@ -70,15 +71,14 @@ export class Validator {
     
     if (!data) {
       errors.push('Data is required');
-      return errors;
-    }
-    
-    // Check for records
-    const records = data.records || data.nodes || data.data;
-    if (!records) {
-      errors.push('Data must contain "records", "nodes", or "data" array');
-    } else if (!Array.isArray(records)) {
-      errors.push('Records must be an array');
+    } else {
+      // Check for records
+      const records = data.records || data.nodes || data.data;
+      if (!records) {
+        errors.push('Data must contain "records", "nodes", or "data" array');
+      } else if (!Array.isArray(records)) {
+        errors.push('Records must be an array');
+      }
     }
     
     if (errors.length > 0) {

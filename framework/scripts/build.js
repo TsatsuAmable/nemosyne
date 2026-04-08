@@ -23,16 +23,27 @@ if (fs.existsSync(BUILD_DIR)) {
 // Create fresh dist directory
 fs.mkdirSync(BUILD_DIR, { recursive: true });
 
-// Run Vite build
-console.log('📦 Running Vite build...\n');
-try {
-  execSync('npx vite build', { 
-    cwd: path.join(__dirname, '..'),
-    stdio: 'inherit'
-  });
-} catch (error) {
-  console.error('❌ Build failed:', error.message);
-  process.exit(1);
+// Run builds for each format
+const builds = [
+  { format: 'es', mode: 'es', label: 'ES Module' },
+  { format: 'umd', mode: 'umd', label: 'UMD Bundle' },
+  { format: 'iife', mode: 'iife', label: 'IIFE Bundle' }
+];
+
+console.log('📦 Running Vite builds...\n');
+
+for (const build of builds) {
+  console.log(`  Building ${build.label}...`);
+  try {
+    execSync(`npx vite build --mode ${build.mode}`, {
+      cwd: path.join(__dirname, '..'),
+      stdio: 'pipe'
+    });
+    console.log(`  ✅ ${build.label} complete`);
+  } catch (error) {
+    console.error(`  ❌ ${build.label} failed:`, error.message);
+    process.exit(1);
+  }
 }
 
 // Add version header to built files
@@ -86,5 +97,5 @@ console.log(`\n📂 Output: ${BUILD_DIR}`);
 console.log('\nUsage:');
 console.log('  ES Module:  import Nemosyne from "./dist/nemosyne.es.js"');
 console.log('  UMD:        const Nemosyne = require("./dist/nemosyne.umd.js")');
-console.log('  CDN/IIFE:   \u003cscript src="./dist/nemosyne.iife.js"\u003e\u003c/script\u003e');
-console.log('  Minified:   \u003cscript src="./dist/nemosyne.min.iife.js"\u003e\u003c/script\u003e');
+console.log('  CDN/IIFE:   <script src="./dist/nemosyne.iife.js"></script>');
+console.log('  Minified:   <script src="./dist/nemosyne.min.iife.js"></script>');
