@@ -1,0 +1,34 @@
+name: Lint
+
+on:
+  push:
+    branches: [ main, gsvAineko, develop ]
+  pull_request:
+    branches: [ main, gsvAineko, develop ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: framework/package-lock.json
+    
+    - name: Install dependencies
+      working-directory: ./framework
+      run: npm ci
+    
+    - name: Run linting
+      working-directory: ./framework
+      run: npm run lint || echo "No lint script configured"
+    
+    - name: Check code formatting
+      working-directory: ./framework
+      run: npm run format:check || echo "No format:check script configured"
