@@ -23,34 +23,26 @@ jobs:
       with:
         node-version: '20.x'
         cache: 'npm'
-        cache-dependency-path: framework/package-lock.json
+        cache-dependency-path: package-lock.json
         registry-url: 'https://registry.npmjs.org'
     
     - name: Install dependencies
-      working-directory: ./framework
       run: npm ci
     
     - name: Run tests
-      working-directory: ./framework
       run: npm test
     
     - name: Build package
-      working-directory: ./framework
       run: npm run build
-    
-    - name: Copy dist to root
-      run: cp -r framework/dist/* dist/
     
     - name: Publish to npm
       if: github.event_name == 'release'
-      working-directory: .
       run: npm publish --access=public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
     - name: Publish to npm (manual)
       if: github.event_name == 'workflow_dispatch'
-      working-directory: .
       run: npm publish --access=public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -19,16 +19,13 @@ jobs:
       with:
         node-version: '20.x'
         cache: 'npm'
-        cache-dependency-path: framework/package-lock.json
+        cache-dependency-path: package-lock.json
     
     - name: Install dependencies
-      working-directory: ./framework
       run: npm ci
     
     - name: Run linting
-      working-directory: ./framework
       run: npm run lint || echo "No lint script configured"
     
     - name: Check code formatting
-      working-directory: ./framework
       run: npm run format:check || echo "No format:check script configured"

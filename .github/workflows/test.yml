@@ -23,14 +23,12 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-        cache-dependency-path: framework/package-lock.json
+        cache-dependency-path: package-lock.json
     
     - name: Install dependencies
-      working-directory: ./framework
       run: npm ci
     
     - name: Run tests
-      working-directory: ./framework
       run: npm test
     
     - name: Upload coverage report
