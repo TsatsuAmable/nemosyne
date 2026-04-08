@@ -125,7 +125,7 @@ export class BehaviourEngine {
   /**
    * Execute a sequence of actions
    */
-.executeSequence(entity, sequence, data) {
+  static executeSequence(entity, sequence, data) {
   sequence.forEach((step, index) => {
     setTimeout(() => {
       this.executeAction(entity, step.action, step.params, data);
