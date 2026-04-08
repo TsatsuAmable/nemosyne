@@ -3,317 +3,342 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nemosyne — Financial Markets</title>
+    <title>Nemosyne - Financial Markets Visualization</title>
     
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-    <script src="../../framework/dist/nemosyne.v2.js"></script>
-    <script src="../../extensions/fix-protocol/fix-parser.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <script>
+        // Market Data Component
+        AFRAME.registerComponent('market-depth', {
+            schema: {
+                symbol: { type: 'string', default: 'BTC-USD' },
+                price: { type: 'number', default: 45000 },
+                volume: { type: 'number', default: 1000 },
+                change: { type: 'number', default: 0 }
+            },
+            init: function() {
+                this.el.setAttribute('class', 'interactive market-bar');
+                this.createVisualization();
+                this.startMarketFeed();
+            },
+            createVisualization: function() {
+                const isPositive = this.data.change >= 0;
+                const color = isPositive ? '#00d4aa' : '#ff3864';
+                
+                // Create price column
+                const height = Math.max(0.5, Math.log(this.data.volume) / 5);
+                const column = document.createElement('a-box');
+                column.setAttribute('position', `0 ${height/2} 0`);
+                column.setAttribute('width', '0.8');
+                column.setAttribute('height', height);
+                column.setAttribute('depth', '0.8');
+                column.setAttribute('material', {
+                    color: color,
+                    transparent: true,
+                    opacity: 0.8,
+                    metalness: 0.3,
+                    roughness: 0.4
+                });
+                column.setAttribute('class', 'price-column');
+                
+                // Add glow effect
+                column.setAttribute('animation__glow', {
+                    property: 'material.emissive',
+                    from: '#000000',
+                    to: color,
+                    dur: 1000,
+                    loop: true,
+                    dir: 'alternate',
+                    easing: 'easeInOutSine'
+                });
+                
+                this.el.appendChild(column);
+                
+                // Price label
+                const label = document.createElement('a-text');
+                label.setAttribute('position', `0 ${height + 0.5} 0`);
+                label.setAttribute('align', 'center');
+                label.setAttribute('value', `${this.data.symbol}\n$${this.data.price.toLocaleString()}\n${this.data.change >= 0 ? '+' : ''}${this.data.change.toFixed(2)}%`);
+                label.setAttribute('width', '3');
+                label.setAttribute('color', '#ffffff');
+                label.setAttribute('class', 'price-label');
+                this.el.appendChild(label);
+                
+                // Volume marker (small sphere at base)
+                const volumeIndicator = document.createElement('a-sphere');
+                volumeIndicator.setAttribute('position', '0 0.1 0');
+                volumeIndicator.setAttribute('radius', '0.15');
+                volumeIndicator.setAttribute('material', {
+                    color: '#d4af37',
+                    emissive: '#d4af37',
+                    emissiveIntensity: 0.5
+                });
+                volumeIndicator.setAttribute('class', 'volume-indicator');
+                this.el.appendChild(volumeIndicator);
+            },
+            startMarketFeed: function() {
+                // Simulated WebSocket market data
+                // Production: wss://stream.data.alpaca.markets/v2/iex
+                
+                const updateMarket = () => {
+                    const volatility = 0.02;
+                    const change = (Math.random() - 0.5) * volatility;
+                    const newPrice = this.data.price * (1 + change);
+                    const newVolume = Math.max(100, this.data.volume + (Math.random() - 0.5) * 500);
+                    const cumulativeChange = this.data.change + change * 100;
+                    
+                    this.updateVisualization(newPrice, newVolume, cumulativeChange);
+                    
+                    // Emit event for order book
+                    this.el.emit('marketUpdate', { 
+                        symbol: this.data.symbol, 
+                        price: newPrice, 
+                        volume: newVolume,
+                        change: cumulativeChange 
+                    });
+                };
+                
+                this.marketInterval = setInterval(updateMarket, 2000);
+            },
+            updateVisualization: function(price, volume, change) {
+                const isPositive = change >= 0;
+                const color = isPositive ? '#00d4aa' : '#ff3864';
+                const height = Math.max(0.5, Math.log(volume) / 5);
+                
+                const column = this.el.querySelector('.price-column');
+                if (column) {
+                    column.setAttribute('position', `0 ${height/2} 0`);
+                    column.setAttribute('height', height);
+                    column.setAttribute('material', {
+                        color: color,
+                        emissive: color,
+                        emissiveIntensity: 0.3
+                    });
+                }
+                
+                const label = this.el.querySelector('.price-label');
+                if (label) {
+                    label.setAttribute('position', `0 ${height + 0.5} 0`);
+                    label.setAttribute('value', `${this.data.symbol}\n$${price.toLocaleString()}\n${change >= 0 ? '+' : ''}${change.toFixed(2)}%`);
+                    label.setAttribute('color', isPositive ? '#00d4aa' : '#ff3864');
+                }
+            },
+            remove: function() {
+                if (this.marketInterval) clearInterval(this.marketInterval);
+            }
+        });
+
+        // Order Book Component
+        AFRAME.registerComponent('order-book', {
+            schema: {
+                depth: { type: 'number', default: 10 }
+            },
+            init: function() {
+                this.createOrderBook();
+            },
+            createOrderBook: function() {
+                // Create bid/ask walls
+                const width = 8;
+                const depth = 4;
+                
+                // Bid wall (buy orders) - green
+                for (let i = 0; i < this.data.depth; i++) {
+                    const size = Math.random() * 2 + 0.5;
+                    const bid = document.createElement('a-box');
+                    bid.setAttribute('position', `${-4 - i * 0.5} ${size/2} 0`);
+                    bid.setAttribute('width', '0.4');
+                    bid.setAttribute('height', size);
+                    bid.setAttribute('depth', '2');
+                    bid.setAttribute('material', {
+                        color: '#00d4aa',
+                        transparent: true,
+                        opacity: 0.6
+                    });
+                    this.el.appendChild(bid);
+                }
+                
+                // Ask wall (sell orders) - red
+                for (let i = 0; i < this.data.depth; i++) {
+                    const size = Math.random() * 2 + 0.5;
+                    const ask = document.createElement('a-box');
+                    ask.setAttribute('position', `${4 + i * 0.5} ${size/2} 0`);
+                    ask.setAttribute('width', '0.4');
+                    ask.setAttribute('height', size);
+                    ask.setAttribute('depth', '2');
+                    ask.setAttribute('material', {
+                        color: '#ff3864',
+                        transparent: true,
+                        opacity: 0.6
+                    });
+                    this.el.appendChild(ask);
+                }
+                
+                // Mid-price indicator
+                const midPrice = document.createElement('a-box');
+                midPrice.setAttribute('position', '0 0.1 0');
+                midPrice.setAttribute('width', '0.2');
+                midPrice.setAttribute('height', '0.2');
+                midPrice.setAttribute('depth', '3');
+                midPrice.setAttribute('material', {
+                    color: '#d4af37',
+                    emissive: '#d4af37',
+                    emissiveIntensity: 1
+                });
+                midPrice.setAttribute('animation__pulse', {
+                    property: 'material.emissiveIntensity',
+                    from: 0.5,
+                    to: 1.5,
+                    dur: 500,
+                    loop: true,
+                    dir: 'alternate'
+                });
+                this.el.appendChild(midPrice);
+            }
+        });
+
+        // Market Floor Component
+        AFRAME.registerComponent('trading-floor', {
+            init: function() {
+                this.createFloor();
+                this.createInstruments();
+                this.createOrderBook();
+            },
+            createFloor: function() {
+                const floor = document.createElement('a-plane');
+                floor.setAttribute('position', '0 0 0');
+                floor.setAttribute('rotation', '-90 0 0');
+                floor.setAttribute('width', '30');
+                floor.setAttribute('height', '30');
+                floor.setAttribute('material', {
+                    color: '#0a0a0f',
+                    metalness: 0.8,
+                    roughness: 0.2
+                });
+                this.el.appendChild(floor);
+            },
+            createInstruments: function() {
+                const instruments = [
+                    { symbol: 'BTC', price: 45234, volume: 15420 },
+                    { symbol: 'ETH', price: 3234, volume: 8230 },
+                    { symbol: 'SOL', price: 98, volume: 4560 },
+                    { symbol: 'AAPL', price: 182, volume: 28900 },
+                    { symbol: 'MSFT', price: 378, volume: 15200 },
+                    { symbol: 'NVDA', price: 485, volume: 21300 }
+                ];
+                
+                instruments.forEach((inst, i) => {
+                    const x = (i % 3) * 6 - 6;
+                    const z = Math.floor(i / 3) * 6 - 3;
+                    const change = (Math.random() - 0.5) * 10;
+                    
+                    const instrument = document.createElement('a-entity');
+                    instrument.setAttribute('position', `${x} 0 ${z}`);
+                    instrument.setAttribute('market-depth', {
+                        symbol: inst.symbol,
+                        price: inst.price,
+                        volume: inst.volume,
+                        change: change
+                    });
+                    this.el.appendChild(instrument);
+                });
+            },
+            createOrderBook: function() {
+                const orderBook = document.createElement('a-entity');
+                orderBook.setAttribute('position', '0 0 -8');
+                orderBook.setAttribute('order-book', { depth: 8 });
+                this.el.appendChild(orderBook);
+            }
+        });
+    </script>
     
     <style>
-        body { margin: 0; overflow: hidden; background: #000; }
-        .ui { position: absolute; top: 20px; left: 20px; right: 20px; z-index: 100; pointer-events: none; font-family: 'Segoe UI', sans-serif; color: #fff; display: flex; justify-content: space-between; }
-        .badge { background: rgba(0, 212, 170, 0.2); border: 1px solid #00d4aa; color: #00d4aa; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
-        h1 { margin: 0 0 5px; font-size: 24px; font-weight: 300; }
-        .subtitle { color: #888; font-size: 14px; }
-        .ticker { text-align: right; }
-        .price { font-size: 32px; font-weight: bold; }
-        .change { color: #00d4aa; font-size: 14px; }
-        .change.negative { color: #ff3864; }
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #market-dashboard {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            color: white;
+            width: 350px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .market-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .positive { color: #00d4aa; }
+        .negative { color: #ff3864; }
+        .blink {
+            animation: blink 0.5s ease-in-out;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
     </style>
 </head>
 <body>
-
-    <div class="ui">
-        <div>
-            <span class="badge">Financial Markets</span>
-            <h1>AAPL Order Book</h1>
-            <p class="subtitle">FIX Protocol Visualization</p>
+    <div id="market-dashboard">
+        <h2 class="text-xl font-bold mb-4 text-[#d4af37]">Live Market Data</h2>
+        <div id="market-feed">
+            <div class="market-row">
+                <span>BTC-USD</span>
+                <span class="positive" id="btc-price">$45,234.00</span>
+                <span class="positive">+1.2%</span>
+            </div>
+            <div class="market-row">
+                <span>ETH-USD</span>
+                <span class="negative" id="eth-price">$3,234.50</span>
+                <span class="negative">-0.8%</span>
+            </div>
+            <div class="market-row">
+                <span>SOL-USD</span>
+                <span class="positive" id="sol-price">$98.45</span>
+                <span class="positive">+5.2%</span>
+            </div>
         </div>
-        <div class="ticker">
-            <div class="price" id="current-price">178.50</div>
-            <div class="change" id="price-change">+1.24 (+0.70%)</div>
-            <p class="subtitle">
-                Spread: <span id="spread">0.04</span> | 
-                Vol: <span id="volume">45.2M</span>
-            </p>
+        <div class="mt-4 text-xs text-gray-500">
+            Data: Simulated WebSocket feed<br>
+            Source: FIX protocol compatible
         </div>
     </div>
 
-    <a-scene nemosyne-scene="theme: void">
-        
-        <a-entity position="0 2 15" rotation="0 0 0">
-            <a-camera look-controls wasd-controls="acceleration: 100">
-                <a-cursor color="#00d4aa" scale="0.5 0.5 0.5" raycaster="objects: .clickable"></a-cursor>
+    <a-scene trading-floor background="color: #0a0a0f">
+        <a-entity position="0 5 15" rotation="-30 0 0">
+            <a-camera look-controls wasd-controls>
+                <a-cursor color="#d4af37" fuse="false" raycaster="objects: .interactive"></a-cursor>
             </a-camera>
         </a-entity>
 
-        <!-- Order Book Visualization -->
-        <a-entity id="orderbook-container">
-            <!-- Bids (Buy side) -->
-            <a-entity
-                nemosyne-artefact-v2='<;{
-                    "spec": {
-                        "id": "bid-level",
-                        "geometry": { "type": "box" },
-                        "material": {
-                            "properties": {
-                                "color": "#00d4aa",
-                                "emissive": "#00d4aa",
-                                "emissiveIntensity": 0.3
-                            }
-                        },
-                        "transform": {
-                            "scale": { "$data": "size", "$range": [0.5, 3] }
-                        },
-                        "behaviours": [
-                            { "trigger": "hover", "action": "glow", "params": { "intensity": 1.5 } },
-                            { "trigger": "click", "action": "show-label", "params": { 
-                                "content": { "$template": "Bid {price} | Size {size}" },
-                                "duration": 3
-                            }}
-                        ]
-                    },
-                    "dataset": {},
-                    "layout": "timeline",
-                    "layout-options": { "spacing": 2, "yOffset": 1 }
-                }'
-            ></a-entity>
-
-            <!-- Asks (Sell side) -->
-            <a-entity
-                nemosyne-artefact-v2='<;{
-                    "spec": {
-                        "id": "ask-level",
-                        "geometry": { "type": "box" },
-                        "material": {
-                            "properties": {
-                                "color": "#ff3864",
-                                "emissive": "#ff3864",
-                                "emissiveIntensity": 0.3
-                            }
-                        },
-                        "transform": {
-                            "scale": { "$data": "size", "$range": [0.5, 3] }
-                        },
-                        "behaviours": [
-                            { "trigger": "hover", "action": "glow", "params": { "intensity": 1.5 } },
-                            { "trigger": "click", "action": "show-label", "params": { 
-                                "content": { "$template": "Ask {price} | Size {size}" },
-                                "duration": 3
-                            }}
-                        ]
-                    },
-                    "dataset": {},
-                    "layout": "timeline",
-                    "layout-options": { "spacing": 2, "yOffset": -1 }
-                }'
-            ></a-entity>
-        </a-entity>
-
-        <!-- Recent Trades -->
-        <a-entity
-            id="trade-flow"
-            nemosyne-artefact-v2='<;{
-                "spec": {
-                    "id": "trade-node",
-                    "geometry": { "type": "sphere", "radius": 0.3 },
-                    "material": {
-                        "properties": {
-                            "color": { "$data": "side", "$map": "diverging-rdgy" },
-                            "emissive": "#d4af37",
-                            "emissiveIntensity": 0.8
-                        }
-                    },
-                    "behaviours": [
-                        { "trigger": "hover", "action": "glow", "params": { "intensity": 2 } }
-                    ]
-                },
-                "dataset": {},
-                "layout": "timeline",
-                "layout-options": { "spacing": 3, "yOffset": 0, "zOffset": -5 }
-            }'
-        ></a-entity>
-
-        <!-- Price ladder -->
-        <a-entity id="price-ladder" position="10 0 -5">
-            <!-- Generated dynamically -->
-        </a-entity>
-
-        <!-- FIX message log panel -->
-        <a-entity id="fix-log" position="-12 2 0" rotation="0 30 0">
-            <a-plane width="5" height="6" color="#0a0a0f" opacity="0.95"></a-plane>
-            <a-text id="last-fix" value="FIX Messages" align="left" width="4" color="#00d4aa" position="-2.2 2 0.1"></a-text>
-            <a-text id="fix-list" value="Waiting..." align="left" width="3" color="#888" position="-2.2 1.5 0.1"></a-text>
-        </a-entity>
-
-        <!-- Mid price indicator -->
-        <a-entity position="0 0 0">
-            <a-cylinder radius="0.5" height="0.1" color="#d4af37" 
-                material="emissive: #d4af37; emissiveIntensity: 0.5"></a-cylinder>
-            <a-text id="mid-price" value="178.50" align="center" width="8" color="#d4af37" position="0 0.5 0"></a-text>
-        </a-entity>
-
-        <a-sky color="#000205"></a-sky>
-
+        <a-entity light="type: ambient; intensity: 0.2; color: #1a1a2e"></a-entity>
+        <a-entity light="type: directional; intensity: 0.6; color: #ffffff" position="-10 20 10"></a-entity>
+        <a-entity light="type: point; intensity: 0.4; color: #00d4aa; distance: 30" position="0 10 0"></a-entity>
     </a-scene>
 
     <script>
-        // Initialize FIX components
-        const fixParser = new FIXParser();
-        const marketData = new MarketDataAggregator(10);
-
-        // Sample FIX messages (simulated)
-        const sampleMessages = [
-            '8=FIX.4.4|9=102|35=D|11=ORD001|55=AAPL|54=1|38=500|44=178.48|40=2|59=0|10=123|',
-            '8=FIX.4.4|9=156|35=8|11=ORD001|17=EXE001|150=0|39=0|55=AAPL|54=1|38=500|14=0|151=500|6=0|10=456|',
-            '8=FIX.4.4|9=145|35=8|11=ORD001|17=EXE002|150=1|39=1|55=AAPL|54=1|38=500|14=200|151=300|6=178.48|10=789|',
-            '8=FIX.4.4|9=145|35=8|11=ORD001|17=EXE003|150=2|39=2|55=AAPL|54=1|38=500|14=500|151=0|6=178.49|10=012|'
-        ];
-
-        // Simulated market data
-        function generateMarketData() {
-            const basePrice = 178.50;
-            
-            // Generate bids
-            const bids = [];
-            for (let i = 0; i < 5; i++) {
-                bids.push({
-                    price: basePrice - 0.02 - (i * 0.01),
-                    size: Math.floor(Math.random() * 5000) + 1000
-                });
+        // Update dashboard from scene events
+        const scene = document.querySelector('a-scene');
+        scene.addEventListener('marketUpdate', (e) => {
+            const { symbol, price, change } = e.detail;
+            const elementId = symbol.toLowerCase() + '-price';
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.textContent = '$' + price.toLocaleString(undefined, { minimumFractionDigits: 2 });
+                el.className = change >= 0 ? 'positive' : 'negative';
+                el.classList.add('blink');
+                setTimeout(() => el.classList.remove('blink'), 500);
             }
-            
-            // Generate asks
-            const asks = [];
-            for (let i = 0; i < 5; i++) {
-                asks.push({
-                    price: basePrice + 0.02 + (i * 0.01),
-                    size: Math.floor(Math.random() * 5000) + 1000
-                });
-            }
-            
-            return { bids, asks };
-        }
-
-        // Process FIX messages
-        function processFIXMessage(msgText) {
-            const parsed = fixParser.parse(msgText);
-            const record = fixParser.toNemosyneRecord(parsed);
-            
-            // Update display
-            const log = document.getElementById('fix-list');
-            const msgPreview = `${parsed.msgType}: ${record.sideName} ${record.symbol} @ ${record.price}`;
-            log.setAttribute('value', msgPreview + '\n' + log.getAttribute('value').split('\n').slice(0, 5).join('\n'));
-            
-            return record;
-        }
-
-        // Update visualization
-        function updateOrderBook() {
-            const data = generateMarketData();
-            
-            // Calculate mid price
-            const midPrice = (data.bids[0].price + data.asks[0].price) / 2;
-            const spread = data.asks[0].price - data.bids[0].price;
-            
-            // Update DOM
-            document.getElementById('current-price').textContent = midPrice.toFixed(2);
-            document.getElementById('spread').textContent = spread.toFixed(2);
-            document.getElementById('mid-price').setAttribute('value', midPrice.toFixed(2));
-            
-            // Update bid visualization
-            const bidData = data.bids.map((b, i) => ({
-                id: `bid-${i}`,
-                price: b.price.toFixed(2),
-                size: b.size,
-                level: i
-            }));
-            
-            const askData = data.asks.map((a, i) => ({
-                id: `ask-${i}`,
-                price: a.price.toFixed(2),
-                size: a.size,
-                level: i
-            }));
-            
-            const bidEl = document.querySelector('#orderbook-container > a-entity:nth-child(1)');
-            const askEl = document.querySelector('#orderbook-container > a-entity:nth-child(2)');
-            
-            if (bidEl) {
-                bidEl.setAttribute('nemosyne-artefact-v2', 'dataset', JSON.stringify({ records: bidData }));
-            }
-            if (askEl) {
-                askEl.setAttribute('nemosyne-artefact-v2', 'dataset', JSON.stringify({ records: askData }));
-            }
-            
-            // Position the bars
-            setTimeout(() => {
-                const bidNodes = bidEl?.querySelectorAll('.clickable') || [];
-                const askNodes = askEl?.querySelectorAll('.clickable') || [];
-                
-                bidNodes.forEach((node, i) => {
-                    node.setAttribute('position', `${-4 + i * 2} ${1 + i * 0.1} 0`);
-                });
-                
-                askNodes.forEach((node, i) => {
-                    node.setAttribute('position', `${2 + i * 2} ${1 - i * 0.1} 0`);
-                });
-            }, 100);
-        }
-
-        // Process trades
-        function processTrades() {
-            // Simulate trades
-            const trade = {
-                price: 178.50 + (Math.random() - 0.5) * 0.1,
-                size: Math.floor(Math.random() * 1000) + 100,
-                side: Math.random() > 0.5 ? 'buy' : 'sell',
-                timestamp: Date.now()
-            };
-            
-            const tradeEl = document.querySelector('#trade-flow');
-            if (tradeEl) {
-                const tradeData = [{
-                    id: `trade-${Date.now()}`,
-                    price: trade.price.toFixed(2),
-                    size: trade.size,
-                    side: trade.side
-                }];
-                
-                tradeEl.setAttribute('nemosyne-artefact-v2', 'dataset', JSON.stringify({ records: tradeData }));
-            }
-        }
-
-        // Position trades
-        function setupTradeFlow() {
-            const tradeEl = document.querySelector('#trade-flow');
-            if (!tradeEl) return;
-            
-            tradeEl.addEventListener('nemosyne-loaded', () => {
-                const nodes = tradeEl.querySelectorAll('.clickable');
-                nodes.forEach((node, i) => {
-                    node.setAttribute('position', `${-6 + i * 3} 0 -5`);
-                });
-            });
-        }
-
-        // Initialize
-        setupTradeFlow();
-        updateOrderBook();
-        processTrades();
-        
-        // Periodic updates
-        setInterval(updateOrderBook, 1000);
-        setInterval(processTrades, 2000);
-        
-        // Process a FIX message periodically
-        let msgIndex = 0;
-        setInterval(() => {
-            const msg = sampleMessages[msgIndex % sampleMessages.length];
-            processFIXMessage(msg);
-            msgIndex++;
-        }, 3000);
+        });
     </script>
-
 </body>
 </html>
