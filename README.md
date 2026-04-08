@@ -8,8 +8,8 @@
 
 A JavaScript framework for creating interactive 3D data visualizations in VR.
 
-**🚀 [Live Examples](https://nemosyne.world/examples/)** | 
-**📖 [Documentation](https://nemosyne.world/docs/)** |
+**🚀 [Examples](#examples-gallery)** |
+**📖 [Documentation](#documentation)** |
 **[GitHub](https://github.com/TsatsuAmable/nemosyne)**
 
 ---
@@ -51,23 +51,23 @@ Nemosyne.quickStart(document.querySelector('a-scene'), {
 
 ## Examples Gallery
 
-Visit the [live examples gallery](https://nemosyne.world/examples/):
+<!-- Web gallery: https://nemosyne.world/examples/ (deploying soon) -->
 
 ### Core Examples
-- [🔷 Hello World](https://nemosyne.world/examples/hello-world/) — Single crystal, basic interactions
-- [🌌 Network Galaxy](https://nemosyne.world/examples/network-galaxy/) — 8-node microservices network
-- [📊 Bar Chart](https://nemosyne.world/examples/bar-chart/) — Monthly revenue visualization
-- [🌀 Timeline Spiral](https://nemosyne.world/examples/timeline-spiral/) — 24-hour activity pattern
-- [🌳 Data Tree](https://nemosyne.world/examples/data-tree/) — Hierarchical file system
+- [🔷 Hello World](./examples/hello-world/) — Single crystal, basic interactions ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/hello-world))
+- [🌌 Network Galaxy](./examples/network-galaxy/) — 8-node microservices network ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/network-galaxy))
+- [📊 Bar Chart](./examples/bar-chart/) — Monthly revenue visualization ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/bar-chart))
+- [🌀 Timeline Spiral](./examples/timeline-spiral/) — 24-hour activity pattern ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/timeline-spiral))
+- [🌳 Data Tree](./examples/data-tree/) — Hierarchical file system ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/data-tree))
 
 ### Domain-Specific Examples
-- [🏭 Industrial IoT](https://nemosyne.world/examples/industrial-iot/) — Factory floor monitoring
-- [📈 Financial Markets](https://nemosyne.world/examples/financial-markets/) — FIX protocol trading
-- [🧬 Scientific Research](https://nemosyne.world/examples/scientific-research/) — Molecular visualization
-- [🏥 Medical Imaging](https://nemosyne.world/examples/medical-imaging/) — DICOM CT viewer
-- [🏙️ Smart Cities](https://nemosyne.world/examples/smart-cities/) — Urban data visualization
-- [🎓 Education](https://nemosyne.world/examples/education-solar/) — Solar system explorer
-- [🎮 Virtual Worlds](https://nemosyne.world/examples/virtual-worlds/) — Game dev level editor
+- [🏭 Industrial IoT](./examples/industrial-iot/) — Factory floor monitoring ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/industrial-iot))
+- [📈 Financial Markets](./examples/financial-markets/) — FIX protocol trading ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/financial-markets))
+- [🧬 Scientific Research](./examples/scientific-research/) — Molecular visualization ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/scientific-research))
+- [🏥 Medical Imaging](./examples/medical-imaging/) — DICOM CT viewer ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/medical-imaging))
+- [🏙️ Smart Cities](./examples/smart-cities/) — Urban data visualization ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/smart-cities))
+- [🎓 Education](./examples/education-solar/) — Solar system explorer ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/education-solar))
+- [🎮 Virtual Worlds](./examples/virtual-worlds/) — Game dev level editor ([View on GitHub](https://github.com/TsatsuAmable/nemosyne/tree/main/examples/virtual-worlds))
 
 ---
 
@@ -84,9 +84,9 @@ Visit the [live examples gallery](https://nemosyne.world/examples/):
 
 ## Documentation
 
-- [📘 API Reference v0.2](https://nemosyne.world/docs/api/v0.2.md)
-- [🎨 Design System](https://nemosyne.world/docs/DESIGN_SYSTEM.md)
-- [🔧 Build System](https://nemosyne.world/framework/BUILD.md)
+- [📘 API Reference v0.2](./docs/api/v0.2.md)
+- [🎨 Design System](./docs/DESIGN_SYSTEM.md)  
+- [🔧 Build System](./framework/BUILD.md)
 - [👥 Contributing](CONTRIBUTING.md)
 
 ---
