@@ -871,3 +871,104 @@
                 height: 300px;
             }
         }
+
+        /* Examples Gallery Section */
+        .examples-gallery {
+            padding: 8rem 5%;
+            background: linear-gradient(180deg, rgba(0,212,170,0.05) 0%, transparent 50%);
+        }
+
+        .examples-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .example-card {
+            background: rgba(10, 10, 15, 0.8);
+            border: 1px solid rgba(212, 175, 55, 0.1);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .example-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--memory-gold), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .example-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(212, 175, 55, 0.3);
+            box-shadow: 0 10px 40px rgba(0, 212, 170, 0.1);
+        }
+
+        .example-card:hover::before {
+            opacity: 1;
+        }
+
+        .example-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .example-card h4 {
+            font-family: 'Cinzel', serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--memory-gold);
+            margin-bottom: 0.75rem;
+        }
+
+        .example-card p {
+            font-size: 0.9rem;
+            color: var(--lunar-silver);
+            line-height: 1.6;
+            margin-bottom: 1rem;
+            opacity: 0.85;
+        }
+
+        .example-link {
+            display: inline-flex;
+            align-items: center;
+            color: var(--datasphere-cyan);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .example-link:hover {
+            color: var(--memory-gold);
+        }
+
+        .example-link::after {
+            content: '→';
+            margin-left: 0.3rem;
+            transition: transform 0.2s ease;
+        }
+
+        .example-link:hover::after {
+            transform: translateX(3px);
+        }
+
+        @media (max-width: 768px) {
+            .examples-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .example-card {
+                padding: 1.25rem;
+            }
+        }
