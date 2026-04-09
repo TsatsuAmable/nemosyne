@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VRIDE with Memory Palace Integration</title>
+    
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="../src/components/nemosyne-memory-crystal.js"></script>
+    <script src="../src/adapters/MemPalaceAPIAdapter.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        #ui {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #00d4aa;
+            font-family: monospace;
+            pointer-events: none;
+            z-index: 100;
+        }
+        #status { 
+            background: rgba(0,0,0,0.8); 
+            padding: 10px; 
+            border-radius: 4px;
+            border: 1px solid #00d4aa;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div id="status">Connecting to MemPalace...</div>
+    </div>
+    
+    <a-scene background="color: #050510" fog="type: exponential; density: 0.02">
+        <a-sky color="#050510"></a-sky>
+        
+        <a-light type="ambient" color="#1a1a2e" intensity="0.5"></a-light>
+        <a-light type="point" color="#00d4aa" position="0 3 -3" intensity="0.5"></a-light>
+        
+        <a-camera position="0 1.6 0">
+            <a-cursor color="#00d4aa" raycaster="objects: .clickable"></a-cursor>
+            <laser-controls></laser-controls>
+        </a-camera>
+        
+        <a-entity id="crystal-container"></a-entity>
+        
+        <a-entity id="left-hand" hand-controls="hand: left"></a-entity>
+        <a-entity id="right-hand" hand-controls="hand: right" laser-controls raycaster="objects: .clickable"></a-entity>
+    </a-scene>
+    
+    <script>
+        // Initialize VRIDE with MemPalace
+        async function init() {
+            const statusEl = document.getElementById('status');
+            const container = document.getElementById('crystal-container');
+            
+            try {
+                // Create adapter
+                const adapter = new MemPalaceAPIAdapter({
+                    baseUrl: 'http://localhost:8765',
+                    wsUrl: 'ws://localhost:8766'
+                });
+                
+                // Initialize connection
+                const crystals = await adapter.initialize();
+                statusEl.textContent = `Connected: ${crystals.length} crystals`;
+                
+                // Render crystals
+                crystals.forEach(crystal => {
+                    const entity = document.createElement('a-entity');
+                    entity.setAttribute('nemosyne-memory-crystal', {
+                        position: crystal.position,
+                        rotation: crystal.rotation,
+                        scale: crystal.scale,
+                        drawerId: crystal.data.drawerId,
+                        wingId: crystal.data.wingId,
+                        roomId: crystal.data.roomId,
+                        color: crystal.visual.color,
+                        emissive: crystal.visual.emissive,
+                        pulse: crystal.visual.pulse
+                    });
+                    entity.classList.add('clickable');
+                    container.appendChild(entity);
+                });
+                
+                // Listen for real-time updates
+                document.addEventListener('changes', (e) => {
+                    const changes = e.detail;
+                    
+                    changes.additions.forEach(c => {
+                        const entity = document.createElement('a-entity');
+                        entity.setAttribute('nemosyne-memory-crystal', c);
+                        container.appendChild(entity);
+                    });
+                    
+                    statusEl.textContent = `Updated: +${changes.additions.length} -${changes.deletions.length}`;
+                });
+                
+            } catch (error) {
+                statusEl.textContent = 'Failed to connect (using demo mode)';
+                statusEl.style.color = '#ff6666';
+                console.error(error);
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
