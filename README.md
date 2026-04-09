@@ -4,6 +4,7 @@
 
 > *"The data is the scene"*
 
+[![NPM](https://img.shields.io/npm/v/nemosyne.svg)](https://www.npmjs.com/package/nemosyne)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![WebXR](https://img.shields.io/badge/WebXR-Ready-brightgreen.svg)](https://immersiveweb.dev/)
 [![A-Frame](https://img.shields.io/badge/A--Frame-1.4.0-EF2D5E)](https://aframe.io/)
@@ -27,17 +28,29 @@ Nemosyne is a revolutionary **data-native visualization system** that automatica
 
 ## 🚀 Quick Start
 
+### Via npm (Recommended)
+
 ```bash
-# Clone the repository
-git clone https://github.com/TsatsuAmable/nemosyne.git
-cd nemosyne
-
-# Serve with any static server
-python3 -m http.server 8080
-
-# Open in browser
-open http://localhost:8080/examples/nemosyne-ecosystem-demo.html
+npm install nemosyne
 ```
+
+Your data → VR automatically:
+
+```javascript
+import { DataNativeEngine } from 'nemosyne';
+
+const data = {
+  nodes: [{ id: 1, name: "AI Research", value: 100 }],
+  links: [{ source: 1, target: 2, strength: 0.8 }]
+};
+
+const engine = new DataNativeEngine();
+engine.loadData(data).render('#scene');
+```
+
+**Dependencies:**
+- [A-Frame](https://aframe.io/) ^1.4.0 (peer dependency)
+- [ammo.js](https://github.com/kripken/ammo.js/) ^0.0.10 (for physics)
 
 ### Using with MemPalace
 
@@ -52,24 +65,58 @@ open http://localhost:8080/examples/animated-memory-explorer.html
 
 ---
 
-## 📦 Installation
-
 ### Via CDN
 
 ```html
 <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-<script src="https://cdn.jsdmirror.com/npm/ammo.js@0.0.10/ammo.js"></script>
-<script src="path/to/nemosyne.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ammo.js@0.0.10/ammo.js"></script>
+<script src="https://unpkg.com/nemosyne@latest/dist/nemosyne.iife.js"></script>
 ```
 
-### Via npm
+### Clone & Build Locally
 
 ```bash
-npm install nemosyne
+git clone https://github.com/TsatsuAmable/nemosyne.git
+cd nemosyne
+npm install
+npm run build
+
+# Serve examples
+python3 -m http.server 8080
+open http://localhost:8080/examples/nemosyne-ecosystem-demo.html
 ```
 
-```javascript
-import 'nemosyne';
+### With MemPalace
+
+```bash
+cd ~/.openclaw/workspace-main/mempalace-api
+./start.sh
+
+open http://localhost:8080/examples/animated-memory-explorer.html
+```
+
+---
+
+## 📦 Dependencies
+
+### Required
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| [aframe](https://aframe.io/) | ^1.4.0 | VR/AR framework (peer dependency) |
+| [ammo.js](https://github.com/kripken/ammo.js/) | ^0.0.10 | Physics engine for force-directed graphs |
+
+### Optional
+
+| Package | Purpose |
+|---------|---------|
+| [d3](https://d3js.org/) | Data transformations (used internally) |
+| [MemPalace](https://github.com/TsatsuAmable/MemPalace) | Memory integration |
+
+### Installation with Dependencies
+
+```bash
+npm install nemosyne aframe ammo.js
 ```
 
 ---
