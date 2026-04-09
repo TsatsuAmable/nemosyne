@@ -1,0 +1,8 @@
+npm error code ENEEDAUTH
+npm error code ENEEDAUTH
+npm error need auth This command requires you to be logged in.
+npm error need auth This command requires you to be logged in.
+npm error need auth You need to authorize this machine using `npm adduser`
+npm error need auth You need to authorize this machine using `npm adduser`
+npm error A complete log of this run can be found in: /Users/tsatsuamable/.npm/_logs/2026-04-09T16_30_32_237Z-debug-0.log
+npm error A complete log of this run can be found in: /Users/tsatsuamable/.npm/_logs/2026-04-09T16_30_32_237Z-debug-0.log
