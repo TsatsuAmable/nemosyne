@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne Data-Native Engine Demo</title>
+    
+    <!-- Load core modules -->
+    <script src="../src/core/NemosyneDataPacket.js"></script>
+    <script src="../src/core/TopologyDetector.js"></script>
+    <script src="../src/core/PropertyMapper.js"></script>
+    <script src="../src/core/LayoutEngine.js"></script>
+    <script src="../src/core/DataNativeEngine.js"></script>
+    
+    <script src="../src/components/nemosyne-data-native.js"></script>
+    <script src="../src/components/nemosyne-distance-field.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; font-family: -apple-system, sans-serif; background: #050510; }
+        #ui {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #00d4aa;
+            background: rgba(0,0,0,0.85);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #00d4aa;
+            z-index: 1000;
+            max-width: 350px;
+        }
+        h2 { margin: 0 0 10px 0; font-size: 1.3em; }
+        .stat { font-family: monospace; font-size: 0.9em; color: #888; }
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            flex-direction: column;
+            z-index: 1000;
+        }
+        button {
+            background: rgba(0, 212, 170, 0.15);
+            border: 1px solid #00d4aa;
+            color: #00d4aa;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            text-align: left;
+        }
+        button:hover { background: rgba(0, 212, 170, 0.3); }
+        #gesture-log {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            color: #00d4aa;
+            font-family: monospace;
+            font-size: 12px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border-radius: 4px;
+            max-width: 300px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .log-entry { margin: 2px 0; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <h2>🔮 Data-Native Engine</h2>
+        <p style="font-size: 0.9em; margin: 5px 0;">Automatic visualization from data semantics</p>
+        
+        <div class="stat" id="topology-stat">Topology: Auto-detecting...</div>
+        <div class="stat" id="packet-count">Packets: 0</div>
+        <div class="stat" id="gesture-state">Gesture: Ready</div>
+        
+        <p style="font-size: 0.8em; margin-top: 15px; color: #666;">
+            Try: Pinch to grab • Move to manipulate • Thumbs up to confirm
+        </p>
+    </div>
+    
+    <div id="controls">
+        <button onclick="loadGraphData()">
+            📊 Load Graph Data
+            <small style="display:block;color:#888;">Social network (force layout)</small>
+        </button>
+        <button onclick="loadTemporalData()">
+            📈 Load Temporal Data
+            <small style="display:block;color:#888;">Time series (spiral layout)</small>
+        </button>
+        <button onclick="loadCategoricalData()">
+            📁 Load Categories
+            <small style="display:block;color:#888;">Files by type (grid layout)</small>
+        </button>
+        <button onclick="toggleGestures()">
+            ✋ Toggle Gesture Mode
+            <small style="display:block;color:#888;">Hand tracking on/off</small>
+        </button>
+    </div>
+    
+    <div id="gesture-log"></div>
+
+    <a-scene background="color: #050510" fog="type: exponential; density: 0.015">
+        <a-sky color="#050510"></a-sky>
+        
+        <a-light type="ambient" color="#1a1a2e" intensity="0.4"></a-light>
+        <a-light type="directional" color="#00d4aa" intensity="0.3" position="-2 4 2"></a-light>
+        <a-light type="point" color="#00d4aa" intensity="0.3" position="0 3 -3"></a-light>
+        
+        <a-grid id="grid" static-body width="50" height="50" color="#1a1a2e"></a-grid>
+        
+        <a-camera id="camera" position="0 1.6 0" wasd-controls="acceleration: 100">
+            <a-cursor color="#00d4aa" raycaster="objects: .data-crystal; far: 20"></a-cursor>
+        </a-camera>
+        
+        <a-entity id="left-hand" hand-controls="hand: left" laser-controls raycaster="objects: .data-crystal"></a-entity>
+        <a-entity id="right-hand" hand-controls="hand: right" laser-controls raycaster="objects: .data-crystal"></a-entity>
+        
+        <a-entity id="visualization-container"></a-entity>
+    </a-scene>
+
+    <script>
+        // Global engine reference
+        let engine = null;
+        let currentTopology = null;
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initEngine();
+            
+            // Listen for engine events
+            document.addEventListener('data-ingested', (e) => {
+                updateUI(e.detail);
+            });
+            
+            document.addEventListener('gesture-handled', (e) => {
+                logGesture(e.detail);
+            });
+        });
+        
+        function initEngine() {
+            const container = document.getElementById('visualization-container');
+            const scene = document.querySelector('a-scene');
+            
+            engine = new DataNativeEngine({
+                scene: container,
+                gestureEnabled: true,
+                telemetryEnabled: true
+            });
+            
+            // Listen for gestures from hand controllers
+            setupHandTracking();
+        }
+        
+        function setupHandTracking() {
+            const leftHand = document.getElementById('left-hand');
+            const rightHand = document.getElementById('right-hand');
+            
+            // Simple pinch detection simulation
+            let isPinching = false;
+            let grabbedEntity = null;
+            
+            // Track hand positions
+            const handPositions = { left: null, right: null };
+            
+            // Update loop for gesture detection
+            setInterval(() => {
+                // Get hand positions from A-Frame
+                // In real implementation, use WebXR Hand Tracking API
+                detectGestures();
+            }, 50);
+        }
+        
+        function detectGestures() {
+            // Placeholder for gesture recognition
+            // Would integrate with gestures branch formalism
+        }
+        
+        // Sample Data Generators
+        function loadGraphData() {
+            clearVisualization();
+            
+            const nodes = [];
+            const nodeCount = 30;
+            
+            // Create social network nodes
+            for (let i = 0; i < nodeCount; i++) {
+                const importance = Math.random();
+                nodes.push({
+                    id: `user-${i}`,
+                    value: { name: `User ${i}`, role: importance > 0.7 ? 'admin' : 'user' },
+                    semantics: {
+                        type: 'relational',
+                        structure: 'graph',
+                        coordinateSpace: 'embedding'
+                    },
+                    relations: {
+                        links: [] // Will be populated below
+                    },
+                    context: { importance: importance }
+                });
+            }
+            
+            // Add random connections
+            nodes.forEach((node, i) => {
+                const connectionCount = Math.floor(Math.random() * 5) + 1;
+                for (let j = 0; j < connectionCount; j++) {
+                    const target = Math.floor(Math.random() * nodeCount);
+                    if (target !== i) {
+                        node.relations.links.push({
+                            to: `user-${target}`,
+                            type: 'friend',
+                            weight: Math.random()
+                        });
+                    }
+                }
+            });
+            
+            engine.ingest(nodes);
+            currentTopology = 'nemosyne-graph-force';
+            updateStatus(`Graph: ${nodes.length} nodes, ~${nodeCount * 2.5} edges`);
+        }
+        
+        function loadTemporalData() {
+            clearVisualization();
+            
+            const dataPoints = [];
+            const startTime = Date.now() - (7 * 24 * 60 * 60 * 1000); // 7 days ago
+            
+            for (let i = 0; i < 50; i++) {
+                const time = startTime + (i * 24 * 60 * 60 * 1000); // Daily
+                const value = 20 + Math.sin(i * 0.5) * 10 + Math.random() * 5; // Temperature-like
+                const importance = value / 35; // Hotter = more important
+                
+                dataPoints.push({
+                    id: `temp-${i}`,
+                    value: value,
+                    semantics: {
+                        type: 'temporal',
+                        structure: 'point',
+                        scale: 'continuous',
+                        domain: 'temperature',
+                        temporal: true
+                    },
+                    relations: {
+                        temporal: {
+                            before: i > 0 ? [`temp-${i-1}`] : [],
+                            after: i < 49 ? [`temp-${i+1}`] : []
+                        }
+                    },
+                    context: {
+                        timestamp: time,
+                        importance: importance
+                    }
+                });
+            }
+            
+            engine.ingest(dataPoints);
+            currentTopology = 'nemosyne-timeline-spiral';
+            updateStatus(`Timeline: ${dataPoints.length} days of temperature data`);
+        }
+        
+        function loadCategoricalData() {
+            clearVisualization();
+            
+            const categories = ['documents', 'images', 'videos', 'code', 'audio'];
+            const files = [];
+            
+            categories.forEach((cat, catIndex) => {
+                const count = 5 + Math.floor(Math.random() * 8);
+                
+                for (let i = 0; i < count; i++) {
+                    const size = Math.floor(Math.random() * 10000) + 1000;
+                    
+                    files.push({
+                        id: `${cat}-${i}`,
+                        value: { 
+                            name: `${cat}_file_${i}.${cat === 'code' ? 'js' : 'bin'}`,
+                            size: size
+                        },
+                        semantics: {
+                            type: 'categorical',
+                            structure: 'point',
+                            scale: 'nominal',
+                            subtype: cat
+                        },
+                        relations: {},
+                        context: {
+                            importance: size / 10000
+                        }
+                    });
+                }
+            });
+            
+            engine.ingest(files);
+            currentTopology = 'nemosyne-grid-categorical';
+            updateStatus(`Categories: ${files.length} files across ${categories.length} types`);
+        }
+        
+        function clearVisualization() {
+            const container = document.getElementById('visualization-container');
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
+            
+            // Reset engine state if needed
+            if (engine) {
+                engine.dataPackets.clear();
+                engine.artefacts.clear();
+            }
+        }
+        
+        function toggleGestures() {
+            const state = engine.gestureEnabled ? 'disabled' : 'enabled';
+            engine.gestureEnabled = !engine.gestureEnabled;
+            document.getElementById('gesture-state').textContent = `Gesture: ${state}`;
+            logGesture({ gesture: 'toggle', state: state });
+        }
+        
+        // UI Updates
+        function updateUI(detail) {
+            document.getElementById('packet-count').textContent = `Packets: ${detail.count}`;
+            if (detail.topology) {
+                document.getElementById('topology-stat').textContent = `Topology: ${detail.topology}`;
+            }
+        }
+        
+        function updateStatus(msg) {
+            // Add to log
+            const log = document.getElementById('gesture-log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `✓ ${msg}`;
+            entry.style.color = '#00d4aa';
+            log.insertBefore(entry, log.firstChild);
+            
+            // Keep only last 10
+            while (log.children.length > 10) {
+                log.removeChild(log.lastChild);
+            }
+        }
+        
+        function logGesture(detail) {
+            const log = document.getElementById('gesture-log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `✋ ${detail.gesture}${detail.action ? ': ' + detail.action : ''}`;
+            log.insertBefore(entry, log.firstChild);
+            
+            while (log.children.length > 10) {
+                log.removeChild(log.lastChild);
+            }
+        }
+        
+        // Grid helper
+        AFRAME.registerComponent('a-grid', {
+            schema: {
+                width: { type: 'number', default: 50 },
+                height: { type: 'number', default: 50 },
+                color: { type: 'color', default: '#1a1a2e' }
+            },
+            
+            init: function() {
+                const grid = new THREE.GridHelper(
+                    this.data.width, 
+                    this.data.width, 
+                    this.data.color,
+                    this.data.color
+                );
+                grid.material.opacity = 0.2;
+                grid.material.transparent = true;
+                this.el.setObject3D('mesh', grid);
+            }
+        });
+    </script>
+</body>
+</html>
