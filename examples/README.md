@@ -6,35 +6,6 @@ This directory contains working demonstrations of VR Artefacts across different 
 
 ## Quick Start
 
-### Via npm
-
-```bash
-npm install nemosyne
-```
-
-```javascript
-import { DataNativeEngine } from 'nemosyne';
-
-const engine = new DataNativeEngine();
-engine.loadData(myData).render('#scene');
-```
-
-**Required dependencies:**
-
-```bash
-npm install aframe ammo.js
-```
-
-### Via CDN (No Build)
-
-```html
-<script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/ammo.js@0.0.10/ammo.js"></script>
-<script src="https://unpkg.com/nemosyne@latest/dist/nemosyne.iife.js"></script>
-```
-
-### Local Development
-
 All examples are static HTML files. Simply open in any modern browser:
 
 ```bash
@@ -501,4 +472,4 @@ Data sources may have separate licenses (see individual READMEs).
 
 ---
 
-*Generated as part of Nemosyne v1.1.0*
+*Generated as part of Nemosyne v0.2.0*

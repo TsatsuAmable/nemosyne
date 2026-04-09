@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne - Medical Imaging: DICOM Viewer</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    
+    <script>
+        // DICOM Slice Component
+        AFRAME.registerComponent('dicom-slice', {
+            schema: {
+                sliceIndex: { type: 'number', default: 0 },
+                totalSlices: { type: 'number', default: 128 },
+                modality: { type: 'string', default: 'CT' }
+            },
+            init: function() {
+                this.el.setAttribute('class', 'interactive dicom-slice');
+                this.createSliceVisualization();
+                this.startSliceStream();
+            },
+            createSliceVisualization: function() {
+                // Create slice as a textured plane
+                const geometry = document.createElement('a-plane');
+                geometry.setAttribute('width', '4');
+                geometry.setAttribute('height', '4');
+                geometry.setAttribute('position', '0 0 0');
+                geometry.setAttribute('material', {
+                    color: this.generateSliceColor(),
+                    shader: 'flat',
+                    transparent: true,
+                    opacity: 0.9
+                });
+                geometry.setAttribute('class', 'slice-geometry');
+                
+                // Add anatomical detail pattern using canvas texture
+                this.addAnatomicalDetails(geometry);
+                
+                this.el.appendChild(geometry);
+                
+                // Slice info label
+                const label = document.createElement('a-text');
+                label.setAttribute('position', '0 2.5 0');
+                label.setAttribute('align', 'center');
+                label.setAttribute('value', `${this.data.modality} Slice ${this.data.sliceIndex + 1}/${this.data.totalSlices}`);
+                label.setAttribute('width', '6');
+                label.setAttribute('color', '#ffffff');
+                label.setAttribute('class', 'slice-label');
+                this.el.appendChild(label);
+                
+                // Interactive controls
+                this.addInteractionControls();
+            },
+            addAnatomicalDetails: function(plane) {
+                // Simulate DICOM image with procedural generation
+                // In production, this would load actual DICOM pixel data
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                
+                // Create medical image-like pattern
+                this.drawMedicalPattern(ctx, this.data.modality);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                const material = new THREE.MeshBasicMaterial({
+                    map: texture,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                
+                plane.getObject3D('mesh').material = material;
+            },
+            drawMedicalPattern: function(ctx, modality) {
+                const width = ctx.canvas.width;
+                const height = ctx.canvas.height;
+                
+                // Base tissue color based on modality
+                if (modality === 'CT') {
+                    // CT: grayscale with Hounsfield units
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(0, 0, width, height);
+                    
+                    // Bone structures (bright)
+                    ctx.fillStyle = '#ddd';
+                    for (let i = 0; i < 3; i++) {
+                        const x = width / 2 + (i - 1) * 60;
+                        ctx.beginPath();
+                        ctx.arc(x, height / 2, 30 + Math.random() * 20, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    
+                    // Air pockets (dark)
+                    ctx.fillStyle = '#111';
+                    for (let i = 0; i < 5; i++) {
+                        const x = Math.random() * width;
+                        const y = Math.random() * height;
+                        const r = 10 + Math.random() * 15;
+                        ctx.beginPath();
+                        ctx.arc(x, y, r, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                } else if (modality === 'MRI') {
+                    // MRI: T1/T2 weighted contrast
+                    ctx.fillStyle = '#222';
+                    ctx.fillRect(0, 0, width, height);
+                    
+                    // Soft tissue (bright)
+                    ctx.fillStyle = '#888';
+                    ctx.fillRect(width * 0.3, height * 0.3, width * 0.4, height * 0.4);
+                    
+                    // CSF/Fluid (hyperintense)
+                    ctx.fillStyle = '#fff';
+                    for (let i = 0; i < 3; i++) {
+                        ctx.beginPath();
+                        ctx.arc(
+                            width * 0.2 + i * 80,
+                            height * 0.2 + i * 50,
+                            20,
+                            0, Math.PI * 2
+                        );
+                        ctx.fill();
+                    }
+                    
+                    // Add noise
+                    const imageData = ctx.getImageData(0, 0, width, height);
+                    for (let i = 0; i < imageData.data.length; i += 4) {
+                        const noise = (Math.random() - 0.5) * 30;
+                        imageData.data[i] = Math.max(0, Math.min(255, imageData.data[i] + noise));
+                        imageData.data[i+1] = Math.max(0, Math.min(255, imageData.data[i+1] + noise));
+                        imageData.data[i+2] = Math.max(0, Math.min(255, imageData.data[i+2] + noise));
+                    }
+                    ctx.putImageData(imageData, 0, 0);
+                }
+                
+                // Add annotation markers
+                ctx.strokeStyle = '#00d4aa';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(50, 50, width - 100, height - 100);
+            },
+            generateSliceColor: function() {
+                const colors = {
+                    'CT': '#ffffff',
+                    'MRI': '#eeeeee',
+                    'PET': '#ffdddd',
+                    'XRAY': '#ffffff'
+                };
+                return colors[this.data.modality] || '#ffffff';
+            },
+            addInteractionControls: function() {
+                const geometry = this.el.querySelector('.slice-geometry');
+                if (geometry) {
+                    geometry.addEventListener('click', () => {
+                        this.cycleSlice();
+                    });
+                }
+            },
+            cycleSlice: function() {
+                this.data.sliceIndex = (this.data.sliceIndex + 1) % this.data.totalSlices;
+                this.updateSliceDisplay();
+            },
+            startSliceStream: function() {
+                // Simulate real-time DICOM streaming
+                // Production: WebSocket connection to PACS server
+                // ws = new WebSocket('wss://pacs.hospital.example.com/stream')
+                
+                this.sliceInterval = setInterval(() => {
+                    if (Math.random() > 0.7) {
+                        this.cycleSlice();
+                    }
+                }, 3000);
+            },
+            updateSliceDisplay: function() {
+                const label = this.el.querySelector('.slice-label');
+                if (label) {
+                    label.setAttribute('value', 
+                        `${this.data.modality} Slice ${this.data.sliceIndex + 1}/${this.data.totalSlices}`);
+                }
+                
+                const geometry = this.el.querySelector('.slice-geometry');
+                if (geometry) {
+                    // Regenerate slice with new seed
+                    this.addAnatomicalDetails(geometry);
+                }
+            },
+            remove: function() {
+                if (this.sliceInterval) clearInterval(this.sliceInterval);
+            }
+        });
+
+        // Volume Reconstruction Component
+        AFRAME.registerComponent('volume-viewer', {
+            schema: {
+                modality: { type: 'string', default: 'CT' }
+            },
+            init: function() {
+                this.createVolume();
+            },
+            createVolume: function() {
+                const slices = 16;
+                const spacing = 0.25;
+                
+                for (let i = 0; i < slices; i++) {
+                    const slice = document.createElement('a-plane');
+                    slice.setAttribute('position', `0 ${(i - slices/2) * spacing} -2`);
+                    slice.setAttribute('width', '3');
+                    slice.setAttribute('height', '3');
+                    slice.setAttribute('rotation', '90 0 0');
+                    slice.setAttribute('material', {
+                        color: '#ffffff',
+                        transparent: true,
+                        opacity: 0.1 + (i / slices) * 0.3,
+                        side: 'double'
+                    });
+                    slice.setAttribute('class', 'volume-slice');
+                    this.el.appendChild(slice);
+                }
+                
+                // Add rotation animation for volume preview
+                this.el.setAttribute('animation__rotate', {
+                    property: 'rotation',
+                    from: '0 0 0',
+                    to: '0 360 0',
+                    dur: 30000,
+                    loop: true,
+                    easing: 'linear'
+                });
+            }
+        });
+
+        // Medical Viewer Environment
+        AFRAME.registerComponent('medical-viewer', {
+            init: function() {
+                this.createEnvironment();
+                this.createDisplays();
+            },
+            createEnvironment: function() {
+                // Dark medical viewing room
+                const floor = document.createElement('a-plane');
+                floor.setAttribute('position', '0 0 -2');
+                floor.setAttribute('rotation', '-90 0 0');
+                floor.setAttribute('width', '15');
+                floor.setAttribute('height', '15');
+                floor.setAttribute('material', {
+                    color: '#0a0a0f',
+                    metalness: 0.3,
+                    roughness: 0.7
+                });
+                this.el.appendChild(floor);
+            },
+            createDisplays: function() {
+                // Main DICOM viewer
+                const mainViewer = document.createElement('a-entity');
+                mainViewer.setAttribute('position', '0 2 -4');
+                mainViewer.setAttribute('dicom-slice', {
+                    sliceIndex: 64,
+                    totalSlices: 128,
+                    modality: 'CT'
+                });
+                this.el.appendChild(mainViewer);
+                
+                // Secondary MRI viewer
+                const mriViewer = document.createElement('a-entity');
+                mriViewer.setAttribute('position', '-5 2 -3');
+                mriViewer.setAttribute('rotation', '0 30 0');
+                mriViewer.setAttribute('dicom-slice', {
+                    sliceIndex: 32,
+                    totalSlices: 256,
+                    modality: 'MRI'
+                });
+                this.el.appendChild(mriViewer);
+                
+                // Volume reconstruction
+                const volume = document.createElement('a-entity');
+                volume.setAttribute('position', '5 1 -3');
+                volume.setAttribute('rotation', '0 -30 0');
+                volume.setAttribute('volume-viewer', { modality: 'CT' });
+                this.el.appendChild(volume);
+            }
+        });
+    </script>
+    
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #medical-controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            color: white;
+            width: 300px;
+        }
+        .modality-btn {
+            display: inline-block;
+            padding: 8px 16px;
+            margin: 5px;
+            background: rgba(0, 212, 170, 0.2);
+            border: 1px solid #00d4aa;
+            border-radius: 4px;
+            color: #00d4aa;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .modality-btn:hover, .modality-btn.active {
+            background: rgba(0, 212, 170, 0.4);
+        }
+        .slice-slider {
+            width: 100%;
+            margin: 15px 0;
+            -webkit-appearance: none;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+        }
+        .slice-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #00d4aa;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .windowing-controls {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="medical-controls">
+        <h2 class="text-lg font-bold mb-4 text-[#00d4aa]">DICOM Viewer</h2>
+        
+        <div class="mb-4">
+            <span class="text-sm text-gray-400">Modality:</span>
+            <div>
+                <button class="modality-btn active" onclick="setModality('CT')">CT</button>
+                <button class="modality-btn" onclick="setModality('MRI')">MRI</button>
+                <button class="modality-btn" onclick="setModality('PET')">PET</button>
+            </div>
+        </div>
+        
+        <div>
+            <span class="text-sm text-gray-400">Slice Navigation:</span>
+            <input type="range" min="0" max="127" value="64" class="slice-slider" id="slice-slider" oninput="updateSlice(this.value)">
+            <div class="flex justify-between text-xs text-gray-500">
+                <span>0</span>
+                <span id="slice-number">64/128</span>
+                <span>127</span>
+            </div>
+        </div>
+        
+        <div class="windowing-controls">
+            <span class="text-sm text-gray-400">Window/Level:</span>
+            <div class="flex gap-2 mt-2">
+                <button class="modality-btn text-xs" onclick="setWindow('soft')">Soft Tissue</button>
+                <button class="modality-btn text-xs" onclick="setWindow('bone')">Bone</button>
+                <button class="modality-btn text-xs" onclick="setWindow('lung')">Lung</button>
+            </div>
+        </div>
+        
+        <div class="mt-4 text-xs text-gray-500">
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-[#00d4aa] animate-pulse"></span>
+                <span>Live DICOM Stream (Simulated)</span>
+            </div>
+            <div class="mt-2">Click viewer to cycle slices</div>
+        </div>
+    </div>
+
+    <a-scene medical-viewer background="color: #050508">
+        <a-entity position="0 1.6 5">
+            <a-camera look-controls wasd-controls>
+                <a-cursor color="#00d4aa" fuse="false" raycaster="objects: .interactive"></a-cursor>
+            </a-camera>
+        </a-entity>
+
+        <a-entity light="type: ambient; intensity: 0.2; color: #1a1a2e"></a-entity>
+        <a-entity light="type: directional; intensity: 0.4; color: #ffffff" position="-5 10 5"></a-entity>
+        <a-entity light="type: point; intensity: 0.3; color: #00d4aa; distance: 10" position="0 3 0"></a-entity>
+    </a-scene>
+
+    <script>
+        let currentModality = 'CT';
+        let currentSlice = 64;
+        
+        function setModality(modality) {
+            currentModality = modality;
+            document.querySelectorAll('.modality-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Update viewer
+            const viewer = document.querySelector('[dicom-slice]');
+            if (viewer) {
+                viewer.setAttribute('dicom-slice', 'modality', modality);
+            }
+        }
+        
+        function updateSlice(value) {
+            currentSlice = parseInt(value);
+            document.getElementById('slice-number').textContent = `${currentSlice}/128`;
+            
+            const viewer = document.querySelector('[dicom-slice]');
+            if (viewer) {
+                viewer.setAttribute('dicom-slice', 'sliceIndex', currentSlice);
+            }
+        }
+        
+        function setWindow(type) {
+            console.log('Windowing set to:', type);
+            // In production, this would adjust Hounsfield unit window
+        }
+    </script>
+</body>
+</html>
