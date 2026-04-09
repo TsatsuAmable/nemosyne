@@ -44,7 +44,13 @@
   },
   "homepage": "https://github.com/TsatsuAmable/nemosyne#readme",
   "peerDependencies": {
-    "aframe": "^1.4.0"
+    "aframe": "^1.4.0",
+    "ammo.js": "^0.0.10"
+  },
+  "peerDependenciesMeta": {
+    "ammo.js": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@babel/core": "^7.21.0",
