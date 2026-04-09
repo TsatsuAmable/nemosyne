@@ -1,6 +1,6 @@
 {
-  "name": "nemosyne-vr",
-  "version": "1.0.0",
+  "name": "nemosyne",
+  "version": "1.1.0",
   "description": "Data-native VR visualization framework for WebXR",
   "main": "dist/nemosyne.js",
   "module": "dist/nemosyne.esm.js",
