@@ -443,7 +443,7 @@ To add a new example:
 <!DOCTYPE html>
 <html>
 <head>
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
   <title>Nemosyne - Your Example</title>
 </head>
 <body>

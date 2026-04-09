@@ -84,7 +84,7 @@ Open http://localhost:8000
 <html>
 <head>
   <title>Nemosyne — Hello World</title>
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
   <script src="../../framework/dist/nemosyne.js"></script>
 </head>
 <body>

@@ -7,7 +7,7 @@
 [![NPM](https://img.shields.io/npm/v/nemosyne.svg)](https://www.npmjs.com/package/nemosyne)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![WebXR](https://img.shields.io/badge/WebXR-Ready-brightgreen.svg)](https://immersiveweb.dev/)
-[![A-Frame](https://img.shields.io/badge/A--Frame-1.4.0-EF2D5E)](https://aframe.io/)
+[![A-Frame](https://img.shields.io/badge/A--Frame-1.7.0-EF2D5E)](https://aframe.io/)
 
 ---
 
@@ -68,7 +68,7 @@ open http://localhost:8080/examples/animated-memory-explorer.html
 ### Via CDN
 
 ```html
-<script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+<script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/ammo.js@0.0.10/ammo.js"></script>
 <script src="https://unpkg.com/nemosyne@latest/dist/nemosyne.iife.js"></script>
 ```
