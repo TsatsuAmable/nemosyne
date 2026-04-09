@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne Distance Field Demo</title>
+    
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="../src/components/nemosyne-distance-field.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; font-family: -apple-system, sans-serif; }
+        #ui {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #00d4aa;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #00d4aa;
+            z-index: 100;
+            max-width: 300px;
+        }
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+        button {
+            background: rgba(0, 212, 170, 0.2);
+            border: 1px solid #00d4aa;
+            color: #00d4aa;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover { background: rgba(0, 212, 170, 0.4); }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <h3>🌐 Distance Field Demo</h3>
+        <p>Visualize relationships between data points</p>
+        <ul style="font-size: 0.9em; padding-left: 20px; margin: 10px 0;">
+            <li>🎯 <strong>Thick lines:</strong> High similarity</li>
+            <li>💎 <strong>Cyan:</strong> Strongly related</li>
+            <li>🔴 <strong>Red:</strong> Weakly related</li>
+            <li>✨ <strong>Pulsing:</strong> Live connection</li>
+        </ul>
+        <p style="font-size: 0.8em; color: #888;">
+            Connections: <span id="connection-count">0</span><br>
+            Threshold: <span id="threshold-display">5.0</span>m
+        </p>
+    </div>
+    
+    <div id="controls">
+        <button onclick="updateThreshold(3)">Threshold: 3m</button>
+        <button onclick="updateThreshold(5)">Threshold: 5m</button>
+        <button onclick="updateThreshold(8)">Threshold: 8m</button>
+        <button onclick="toggleAnimation()">Toggle Pulse</button>
+    </div>
+
+    <a-scene background="color: #050510" fog="type: exponential; density: 0.02">
+        <a-sky color="#050510"></a-sky>
+        <a-light type="ambient" color="#1a1a2e" intensity="0.5"></a-light>
+        <a-light type="point" color="#00d4aa" position="0 3 -3" intensity="0.5">
+            <animation attribute="intensity" from="0.3" to="0.7" dur="4000" direction="alternate" repeat="indefinite"></animation>
+        </a-light>
+
+        <a-camera position="0 1.6 0">
+            <a-cursor color="#00d4aa"></a-cursor>
+        </a-camera>
+
+        <a-sphere id="source" position="0 1.6 -5" radius="0.15" 
+                  color="#00d4aa" emissive="#00d4aa" emissive-intensity="0.8"
+                  class="clickable">
+            <a-entity id="distance-field" 
+                      nemosyne-distance-field="sourcePoint: 0 1.6 -5; threshold: 5; maxConnections: 15; animate: true"></a-entity>
+        </a-sphere>
+
+    </a-scene>
+
+    <script>
+        // Generate random neighbor points with similarities
+        function generateNeighbors(count) {
+            const neighbors = [];
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * Math.PI * 2;
+                const radius = 2 + Math.random() * 4;
+                
+                neighbors.push({
+                    id: `neighbor-${i}`,
+                    position: {
+                        x: Math.cos(angle) * radius,
+                        y: 1.6 + (Math.random() - 0.5) * 2,
+                        z: -5 + Math.sin(angle) * radius
+                    },
+                    similarity: Math.random() // Random similarity for demo
+                });
+            }
+            return neighbors;
+        }
+
+        // Create visual neighbor points
+        function createNeighborVisuals(neighbors) {
+            const scene = document.querySelector('a-scene');
+            
+            neighbors.forEach(n => {
+                const sphere = document.createElement('a-sphere');
+                sphere.setAttribute('position', `${n.position.x} ${n.position.y} ${n.position.z}`);
+                sphere.setAttribute('radius', '0.08');
+                
+                // Color based on similarity
+                const color = n.similarity > 0.7 ? '#00ffff' : 
+                              n.similarity > 0.4 ? '#00d4aa' : '#ff6666';
+                
+                sphere.setAttribute('color', color);
+                sphere.setAttribute('emissive', color);
+                sphere.setAttribute('emissive-intensity', '0.5');
+                sphere.setAttribute('class', 'clickable');
+                
+                // Hover effect
+                sphere.addEventListener('mouseenter', () => {
+                    sphere.setAttribute('scale', '1.5 1.5 1.5');
+                });
+                sphere.addEventListener('mouseleave', () => {
+                    sphere.setAttribute('scale', '1 1 1');
+                });
+                
+                scene.appendChild(sphere);
+            });
+        }
+
+        // Initialize
+        const neighbors = generateNeighbors(25);
+        createNeighborVisuals(neighbors);
+
+        // Set neighbors on distance field
+        document.addEventListener('DOMContentLoaded', () => {
+            const field = document.getElementById('distance-field');
+            field.setAttribute('nemosyne-distance-field', 'neighbors', neighbors);
+            
+            // Update connection count
+            document.getElementById('connection-count').textContent = 
+                neighbors.filter(n => (2 + Math.random() * 4) <= 5).length;
+        });
+
+        // Controls
+        function updateThreshold(threshold) {
+            const field = document.getElementById('distance-field');
+            field.setAttribute('nemosyne-distance-field', 'threshold', threshold);
+            document.getElementById('threshold-display').textContent = threshold;
+        }
+
+        function toggleAnimation() {
+            const field = document.getElementById('distance-field');
+            const current = field.getAttribute('nemosyne-distance-field').animate;
+            field.setAttribute('nemosyne-distance-field', 'animate', !current);
+        }
+    </script>
+</body>
+</html>
