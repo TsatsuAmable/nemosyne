@@ -22,8 +22,18 @@ const EXTERNAL_URLS = [
     'http://'
 ];
 
+const SKIP_URLS = [
+    'data:',  // Skip data URIs (images, fonts, etc.)
+    'mailto:',
+    'javascript:'
+];
+
 function isExternal(url) {
     return EXTERNAL_URLS.some(prefix => url.startsWith(prefix));
+}
+
+function shouldSkip(url) {
+    return SKIP_URLS.some(prefix => url.startsWith(prefix));
 }
 
 function extractLinks(htmlContent, filePath) {
@@ -49,6 +59,10 @@ function resolveLink(link, baseDir) {
 }
 
 function checkLink(link, baseDir) {
+    if (shouldSkip(link)) {
+        return { valid: true, skip: true, path: link };
+    }
+    
     if (isExternal(link)) {
         return { valid: true, external: true, path: link };
     }
