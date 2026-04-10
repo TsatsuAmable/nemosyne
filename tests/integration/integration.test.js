@@ -1,8 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { SceneManager } from '../../src/core/scene-manager.js';
-import { DataLoader } from '../../src/utils/data-loader.js';
 import { layoutEngine } from '../../src/layouts/layout-engine.js';
-import { NemosyneArtefactV2 } from '../../framework/src/components/nemosyne-artefact-v2.js';
+
+// Mock A-Frame and SceneManager since they require browser environment
+const mockScene = {
+  appendChild: vi.fn(),
+  removeChild: vi.fn(),
+  querySelector: vi.fn(),
+  emit: vi.fn(),
+  addEventListener: vi.fn(),
+  object3D: { visible: true }
+};
 
 /**
  * Integration Tests for Nemosyne VR Visualization Framework
