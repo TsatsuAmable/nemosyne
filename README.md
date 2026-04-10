@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![WebXR](https://img.shields.io/badge/WebXR-Ready-brightgreen.svg)](https://immersiveweb.dev/)
 [![A-Frame](https://img.shields.io/badge/A--Frame-1.7.0-EF2D5E)](https://aframe.io/)
-[![CI](https://github.com/TsatsuAmable/nemosyne/actions/workflows/ci.yml/badge.svg)](https://github.com/TsatsuAmable/nemosyne/actions)
+[![CI](https://github.com/TsatsuAmable/nemosyne/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/TsatsuAmable/nemosyne/actions)
 
 **[Documentation](docs/API_REFERENCE_COMPLETE.md)** | **[Architecture](ARCHITECTURE.md)** | **[Examples](examples/)** | **[Changelog](CHANGELOG.md)**
 
