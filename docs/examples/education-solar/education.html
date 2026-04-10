@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne — Educational Solar System</title>
+    
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="../../framework/dist/nemosyne.v2.js"></script>
+    <script src="../../extensions/education-solar/astronomy.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        .ui { position: absolute; top: 20px; left: 20px; right: 20px; z-index: 100; pointer-events: none; font-family: 'Segoe UI', sans-serif; color: #fff; display: flex; justify-content: space-between; }
+        .badge { background: rgba(212, 175, 55, 0.2); border: 1px solid #d4af37; color: #d4af37; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        h1 { margin: 0 0 5px; font-size: 24px; font-weight: 300; }
+        .subtitle { color: #888; font-size: 14px; }
+        .quiz-info { text-align: right; }
+        .controls { margin-top: 20px; font-size: 12px; color: #666; }
+        kbd { background: #222; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+    <div class="ui">
+        <div>
+            <span class="badge">Education</span>
+            <h1>Solar System Explorer</h1>
+            <p class="subtitle">Interactive astronomy lesson</p>
+            <div class="controls">
+                <p><kbd>Space</kbd> Pause | <kbd>C</kbd> Compare sizes | <kbd>Q</kbd> Start Quiz</p>
+            </div>
+        </div>
+        
+        <div class="quiz-info">
+            <p class="subtitle" id="planet-info">Orbital period: 365.25 days</p>
+            <p class="subtitle" id="date-display">Date: 2026-01-01</p>
+        </div>
+    </div>
+
+    <a-scene nemosyne-scene="theme: void">
+        
+        <a-entity position="0 5 25">
+            <a-camera look-controls wasd-controls="acceleration: 100">
+                <a-cursor color="#d4af37" scale="0.5 0.5 0.5" raycaster="objects: .clickable"></a-cursor>
+            </a-camera>
+        </a-entity>
+
+        <!-- Sun -->
+        <a-entity id="sun" position="0 0 0">
+            <a-sphere 
+                radius="2" 
+                color="#FFD700" 
+                material="emissive: #FFD700; emissiveIntensity: 1; shader: flat"
+                class="clickable"
+            >
+                <!-- Glow halo -->
+                <a-sphere 
+                    radius="2.5" 
+                    color="#FFAA00" 
+                    material="transparent: true; opacity: 0.3; emissive: #FFAA00; emissiveIntensity: 0.5"
+                    animation="property: scale; dir: alternate; to: 1.1 1.1 1.1; dur: 2000; loop: true"
+                ></a-sphere>
+            </a-sphere>
+            
+            <a-text 
+                value="Sun\nType: G-type star\nMass: 1.989 × 10^30 kg" 
+                align="center" 
+                width="6" 
+                color="#d4af37" 
+                position="0 3 0"
+                visible="false"
+                class="planet-label"
+            ></a-text>
+        </a-entity>
+
+        <!-- Orbit Rings -->
+        <a-entity id="orbit-rings">
+            <!-- Mercury -->
+            <a-ring inner-radius="3.87" outer-radius="3.9" color="#8C8C8C" opacity="0.3" rotation="-90 0 0"></a-ring>
+            
+            <!-- Venus -->
+            <a-ring inner-radius="7.23" outer-radius="7.26" color="#E6E6B8" opacity="0.3" rotation="-90 0 0"></a-ring>
+            
+            <!-- Earth -->
+            <a-ring inner-radius="10" outer-radius="10.03" color="#6B93D6" opacity="0.3" rotation="-90 0 0"></a-ring>
+            
+            <!-- Mars -->
+            <a-ring inner-radius="15.24" outer-radius="15.27" color="#C1440E" opacity="0.3" rotation="-90 0 0"></a-ring>
+            
+            <!-- Jupiter -->
+            <a-ring inner-radius="26.03" outer-radius="26.06" color="#D8CA9D" opacity="0.3" rotation="-90 0 0"></a-ring>
+        </a-entity>
+
+        <!-- Planets container -->
+        <a-entity id="planets-container">            
+            <!-- Mercury -->
+            <a-entity id="Mercury" position="3.87 0 0">
+                <a-sphere radius="0.15" color="#8C8C8C" material="metalness: 0.3; roughness: 0.9" class="clickable"></a-sphere>
+                <a-text value="Mercury\nOrbital: 88 days\nDiameter: 4,879 km" align="center" width="4" color="#fff" position="0 0.5 0" visible="false" class="planet-label"></a-text>
+            </a-entity>
+
+            <!-- Venus -->
+            <a-entity id="Venus" position="7.23 0 0">
+                <a-sphere radius="0.38" color="#E6E6B8" material="metalness: 0.5; roughness: 0.3" class="clickable"></a-sphere>
+                <a-text value="Venus\nOrbital: 225 days\nDiameter: 12,104 km" align="center" width="4" color="#fff" position="0 0.7 0" visible="false" class="planet-label"></a-text>
+            </a-entity>
+
+            <!-- Earth -->
+            <a-entity id="Earth" position="10 0 0">
+                <a-sphere radius="0.4" color="#6B93D6" material="metalness: 0.2; roughness: 0.4" class="clickable"></a-sphere>
+                <a-entity id="Moon" position="0.6 0 0">
+                    <a-sphere radius="0.11" color="#C0C0C0" material="metalness: 0.1; roughness: 0.9"></a-sphere>
+                </a-entity>
+                
+                <a-text value="Earth\nOrbital: 365.25 days\nDiameter: 12,742 km\nMoons: 1" align="center" width="4" color="#fff" position="0 0.8 0" visible="false" class="planet-label"></a-text>
+            </a-entity>
+
+            <!-- Mars -->
+            <a-entity id="Mars" position="15.24 0 0">
+                <a-sphere radius="0.21" color="#C1440E" material="metalness: 0.2; roughness: 0.8" class="clickable"></a-sphere>
+                <a-text value="Mars\nOrbital: 687 days\nDiameter: 6,779 km\nMoons: 2" align="center" width="4" color="#fff" position="0 0.5 0" visible="false" class="planet-label"></a-text>
+            </a-entity>
+
+            <!-- Jupiter -->
+            <a-entity id="Jupiter" position="26.03 0 0">
+                <a-sphere radius="1.12" color="#D8CA9D" material="metalness: 0.1; roughness: 0.5" class="clickable"></a-sphere>
+                <!-- Jupiter's stripes -->
+                <a-ring inner-radius="1.13" outer-radius="1.14" color="#8B7355" rotation="0 90 0"></a-ring>
+                <a-ring inner-radius="1.13" outer-radius="1.14" color="#8B7355" rotation="30 90 0"></a-ring>
+                <a-text value="Jupiter\nOrbital: 11.86 years\nDiameter: 139,820 km\nMoons: 95" align="center" width="4" color="#fff" position="0 1.5 0" visible="false" class="planet-label"></a-text>
+            </a-entity>
+
+            <!-- Saturn (with rings) -->
+            <a-entity id="Saturn" position="35.37 0 0">
+                <a-sphere radius="0.95" color="#EAD6B8" material="metalness: 0.1; roughness: 0.5" class="clickable"></a-sphere>
+                <!-- Rings -->
+                <a-entity rotation="26.73 0 0">
+                    <a-ring inner-radius="1.5" outer-radius="2.2" color="#C4A574" opacity="0.6"></a-ring>
+                    <a-ring inner-radius="2.3" outer-radius="2.5" color="#8B7355" opacity="0.4"></a-ring>
+                </a-entity>
+                
+                <a-text value="Saturn\nOrbital: 29.45 years\nDiameter: 116,460 km\nMoons: 146" align="center" width="4" color="#fff" position="0 1.3 0" visible="false" class="planet-label"></a-text>
+            </a-entity>
+
+            <!-- Uranus -->
+            <a-entity id="Uranus" position="50.19 0 0">
+                <a-sphere radius="0.4" color="#D1E7E7" material="metalness: 0.2; roughness: 0.3" class="clickable"></a-sphere>
+                <a-text value="Uranus\nOrbital: 84.02 years\nDiameter: 50,724 km\nMoons: 27" align="center" width="4" color="#fff" position="0 0.7 0" visible="false" class="planet-label"></a-text>
+            </a-entity>
+
+            <!-- Neptune -->
+            <a-entity id="Neptune" position="63.07 0 0">
+                <a-sphere radius="0.39" color="#5B5DDF" material="metalness: 0.2; roughness: 0.3" class="clickable"></a-sphere>
+                <a-text value="Neptune\nOrbital: 164.8 years\nDiameter: 49,244 km\nMoons: 14" align="center" width="4" color="#fff" position="0 0.6 0" visible="false" class="planet-label"></a-text>
+            </a-entity>
+        </a-entity>
+
+        <!-- Starfield background -->
+        <a-entity id="stars">
+            <a-entity position="-50 -50 -50">
+                <a-sphere radius="0.05" color="white" opacity="0.8"></a-sphere>
+            </a-entity>
+            <a-entity position="80 -30 -80">
+                <a-sphere radius="0.08" color="white" opacity="0.6"></a-sphere>
+            </a-entity>
+            <a-entity position="-30 60 -100">
+                <a-sphere radius="0.1" color="#FFF8DC" opacity="0.7"></a-sphere>
+            </a-entity>
+        </a-entity>
+
+        <!-- Scale comparison mode -->
+        <a-entity id="scale-comparison" visible="false" position="0 8 -10">
+            <a-plane width="40" height="6" color="#0a0a0f" opacity="0.9" material="shader: flat"></a-plane>
+            
+            <a-text value="Size Comparison (all planets at same scale)" align="center" width="6" color="#fff" position="0 2.5 0.1"></a-text>
+            
+            <!-- Scaled planets in a row -->
+            <a-entity position="-12 0 0">
+                <a-sphere radius="0.015" color="#8C8C8C"></a-sphere>
+                <a-text value="Mercury" align="center" width="3" color="#888" position="0 -0.3 0"></a-text>
+            </a-entity>
+            
+            <a-entity position="-8 0 0">
+                <a-sphere radius="0.038" color="#E6E6B8"></a-sphere>
+                <a-text value="Venus" align="center" width="3" color="#888" position="0 -0.3 0"></a-text>
+            </a-entity>
+            
+            <a-entity position="-4 0 0">
+                <a-sphere radius="0.04" color="#6B93D6"></a-sphere>
+                <a-text value="Earth" align="center" width="3" color="#888" position="0 -0.3 0"></a-text>
+            </a-entity>
+            
+            <a-entity position="0 0 0">
+                <a-sphere radius="0.021" color="#C1440E"></a-sphere>
+                <a-text value="Mars" align="center" width="3" color="#888" position="0 -0.3 0"></a-text>
+            </a-entity>
+            
+            <a-entity position="4 0 0">
+                <a-sphere radius="0.448" color="#D8CA9D"></a-sphere>
+                <a-text value="Jupiter" align="center" width="3" color="#888" position="0 -0.6 0"></a-text>
+            </a-entity>
+            
+            <a-entity position="9 0 0">
+                <a-sphere radius="0.378" color="#EAD6B8"></a-sphere>
+                <a-text value="Saturn" align="center" width="3" color="#888" position="0 -0.5 0"></a-text>
+            </a-entity>
+        </a-entity>
+
+        <!-- Quiz panel -->
+        <a-entity id="quiz-panel" visible="false"></a-entity>
+
+        <a-sky color="#000205"></a-sky>
+
+    </a-scene>
+
+    <script>
+        // Astronomical calculator
+        const astro = new AstronomicalCalculator();
+        
+        // Planet data for positioning
+        const planetData = {
+            'Mercury': { distance: 3.87, period: 0.241, angle: 0 },
+            'Venus': { distance: 7.23, period: 0.615, angle: Math.PI / 4 },
+            'Earth': { distance: 10, period: 1, angle: Math.PI / 2 },
+            'Mars': { distance: 15.24, period: 1.881, angle: Math.PI },
+            'Jupiter': { distance: 26.03, period: 11.86, angle: 3 * Math.PI / 2 },
+            'Saturn': { distance: 35.37, period: 29.45, angle: Math.PI / 3 },
+            'Uranus': { distance: 50.19, period: 84.02, angle: 5 * Math.PI / 3 },
+            'Neptune': { distance: 63.07, period: 164.8, angle: 0 }
+        };
+        
+        let simulationTime = 0;
+        let isPaused = false;
+        let speedMultiplier = 1;
+        
+        // Animation loop
+        function animate() {
+            if (!isPaused) {
+                simulationTime += 0.01 * speedMultiplier;
+                
+                Object.keys(planetData).forEach(planet => {
+                    const data = planetData[planet];
+                    const angle = data.angle + (simulationTime / data.period) * 2 * Math.PI;
+                    
+                    const x = Math.cos(angle) * data.distance;
+                    const z = Math.sin(angle) * data.distance;
+                    
+                    const el = document.getElementById(planet);
+                    if (el) {
+                        el.setAttribute('position', `${x} 0 ${z}`);
+                    }
+                });
+                
+                // Animate Earth's moon
+                const moonAngle = simulationTime * 2; // Orbits in ~27 days
+                const moonX = Math.cos(moonAngle) * 0.6;
+                const moonZ = Math.sin(moonAngle) * 0.6;
+                const moon = document.querySelector('#Moon');
+                if (moon) {
+                    moon.setAttribute('position', `${moonX} 0 ${moonZ}`);
+                }
+                
+                // Update date display (1 unit = 1 Earth year)
+                const year = 2026 + Math.floor(simulationTime);
+                const day = Math.floor((simulationTime % 1) * 365);
+                document.getElementById('date-display').textContent = 
+                    `Date: ${year}-${String(day + 1).padStart(3, '0')}`;
+            }
+            
+            requestAnimationFrame(animate);
+        }
+        
+        animate();
+        
+        // Click handlers for planets
+        Object.keys(planetData).forEach(planet => {
+            const el = document.getElementById(planet);
+            if (el) {
+                const sphere = el.querySelector('.clickable');
+                const label = el.querySelector('.planet-label');
+                
+                if (sphere && label) {
+                    sphere.addEventListener('click', () => {
+                        // Hide all other labels
+                        document.querySelectorAll('.planet-label').forEach(l => l.setAttribute('visible', false));
+                        
+                        // Show this label
+                        label.setAttribute('visible', true);
+                        
+                        // Update info panel
+                        const data = planetData[planet];
+                        document.getElementById('planet-info').textContent = 
+                            `${planet}: ${data.period} year orbit`;
+                        
+                        // Auto-hide after 5 seconds
+                        setTimeout(() => {
+                            label.setAttribute('visible', false);
+                        }, 5000);
+                    });
+                }
+            }
+        });
+        
+        // Sun click handler
+        document.querySelector('#sun .clickable').addEventListener('click', () => {
+            const label = document.querySelector('#sun .planet-label');
+            if (label) {
+                const isVisible = label.getAttribute('visible') === 'true';
+                label.setAttribute('visible', !isVisible);
+            }
+        });
+        
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case ' ':
+                    isPaused = !isPaused;
+                    break;
+                case 'c':
+                case 'C':
+                    toggleScaleComparison();
+                    break;
+                case 'q':
+                case 'Q':
+                    startQuiz();
+                    break;
+                case 'ArrowUp':
+                    speedMultiplier = Math.min(10, speedMultiplier * 2);
+                    break;
+                case 'ArrowDown':
+                    speedMultiplier = Math.max(0.1, speedMultiplier / 2);
+                    break;
+            }
+        });
+        
+        function toggleScaleComparison() {
+            const comparison = document.getElementById('scale-comparison');
+            const planets = document.getElementById('planets-container');
+            const rings = document.getElementById('orbit-rings');
+            
+            const isVisible = comparison.getAttribute('visible') === 'true';
+            
+            if (!isVisible) {
+                comparison.setAttribute('visible', true);
+                planets.setAttribute('visible', false);
+                rings.setAttribute('visible', false);
+            } else {
+                comparison.setAttribute('visible', false);
+                planets.setAttribute('visible', true);
+                rings.setAttribute('visible', true);
+            }
+        }
+        
+        // Quiz system setup
+        const quizSystem = new QuizSystem(document.querySelector('a-scene'));
+        
+        quizSystem.addQuestion({
+            id: 'q1',
+            text: 'Which planet is closest to the Sun?',
+            answers: [
+                { text: 'Mercury', correct: true },
+                { text: 'Venus', correct: false },
+                { text: 'Earth', correct: false },
+                { text: 'Mars', correct: false }
+            ],
+            explanation: 'Mercury is the closest planet to the Sun at only 0.387 AU.'
+        });
+        
+        quizSystem.addQuestion({
+            id: 'q2',
+            text: 'Which planet has the most moons?',
+            answers: [
+                { text: 'Jupiter', correct: false },
+                { text: 'Saturn', correct: true },
+                { text: 'Uranus', correct: false },
+                { text: 'Neptune', correct: false }
+            ],
+            explanation: 'Saturn has 146 known moons, more than any other planet in our solar system.'
+        });
+        
+        quizSystem.addQuestion({
+            id: 'q3',
+            text: 'How long is an Earth year in days?',
+            answers: [
+                { text: '365', correct: true },
+                { text: '365.25', correct: true },
+                { text: '360', correct: false },
+                { text: '366', correct: false }
+            ],
+            explanation: 'An Earth year is approximately 365.25 days. We add a leap day every 4 years to account for the quarter day.'
+        });
+        
+        function startQuiz() {
+            isPaused = true;
+            quizSystem.displayQuestion();
+        }
+        
+        // Generate random stars
+        function generateStars() {
+            const starsContainer = document.getElementById('stars');
+            const starColors = ['#FFFFFF', '#FFF8DC', '#FFE4E1', '#E6E6FA'];
+            
+            for (let i = 0; i < 50; i++) {
+                const star = document.createElement('a-entity');
+                const x = (Math.random() - 0.5) * 200;
+                const y = (Math.random() - 0.5) * 200;
+                const z = (Math.random() - 0.5) * 200 - 50;
+                const size = 0.02 + Math.random() * 0.08;
+                const color = starColors[Math.floor(Math.random() * starColors.length)];
+                
+                star.setAttribute('position', `${x} ${y} ${z}`);
+                
+                const sphere = document.createElement('a-sphere');
+                sphere.setAttribute('radius', size);
+                sphere.setAttribute('color', color);
+                sphere.setAttribute('opacity', 0.5 + Math.random() * 0.5);
+                
+                // Twinkle animation
+                if (Math.random() > 0.7) {
+                    sphere.setAttribute('animation', {
+                        property: 'material.opacity',
+                        from: 0.3,
+                        to: 1,
+                        dur: 1000 + Math.random() * 2000,
+                        loop: true,
+                        dir: 'alternate'
+                    });
+                }
+                
+                star.appendChild(sphere);
+                starsContainer.appendChild(star);
+            }
+        }
+        
+        generateStars();
+    </script>
+
+</body>
+</html>

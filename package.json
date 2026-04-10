@@ -1,6 +1,6 @@
 {
-  "name": "nemosyne-vr",
-  "version": "1.0.0",
+  "name": "nemosyne",
+  "version": "1.1.0",
   "description": "Data-native VR visualization framework for WebXR",
   "main": "dist/nemosyne.js",
   "module": "dist/nemosyne.esm.js",
@@ -44,7 +44,13 @@
   },
   "homepage": "https://github.com/TsatsuAmable/nemosyne#readme",
   "peerDependencies": {
-    "aframe": "^1.4.0"
+    "aframe": "^1.7.0",
+    "ammo.js": "^0.0.10"
+  },
+  "peerDependenciesMeta": {
+    "ammo.js": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@babel/core": "^7.21.0",

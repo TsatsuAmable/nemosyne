@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne - Scientific Research: Molecular Visualization</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    
+    <script>
+        // Molecule Component
+        AFRAME.registerComponent('molecule-viewer', {
+            schema: {
+                pdbId: { type: 'string', default: 'caffeine' }
+            },
+            init: function() {
+                this.el.setAttribute('class', 'interactive molecule');
+                this.loadMolecule();
+            },
+            loadMolecule: function() {
+                // Simulated molecule data (in production, fetch from PDB API)
+                const molecules = {
+                    caffeine: this.getCaffeineData(),
+                    water: this.getWaterData(),
+                    benzene: this.getBenzeneData()
+                };
+                
+                const data = molecules[this.data.pdbId] || molecules.caffeine;
+                this.renderMolecule(data);
+            },
+            getCaffeineData: function() {
+                return {
+                    name: 'Caffeine',
+                    formula: 'C8H10N4O2',
+                    atoms: [
+                        { element: 'C', x: 0, y: 0, z: 0, bonds: 3 },
+                        { element: 'N', x: 1.5, y: 0.5, z: 0, bonds: 3 },
+                        { element: 'C', x: 2, y: 2, z: 0.5, bonds: 2 },
+                        { element: 'N', x: 1, y: 3, z: 1, bonds: 3 },
+                        { element: 'C', x: -0.5, y: 2.5, z: 1, bonds: 2 },
+                        { element: 'C', x: -1, y: 1, z: 0.5, bonds: 2 },
+                        { element: 'O', x: -2, y: 0.5, z: 1, bonds: 2 },
+                        { element: 'N', x: 0.5, y: 4, z: 1.5, bonds: 3 },
+                        { element: 'C', x: 2, y: 4.5, z: 1.5, bonds: 3 },
+                        { element: 'O', x: 3, y: 4, z: 1, bonds: 2 },
+                        { element: 'C', x: 1.5, y: 6, z: 2, bonds: 3 },
+                        { element: 'N', x: 0, y: 6.5, z: 2.5, bonds: 3 },
+                        { element: 'C', x: -1, y: 5.5, z: 2.5, bonds: 2 },
+                        { element: 'O', x: -2, y: 6, z: 3, bonds: 2 }
+                    ],
+                    bonds: [
+                        { from: 0, to: 1, order: 1 },
+                        { from: 1, to: 2, order: 2 },
+                        { from: 2, to: 3, order: 1 },
+                        { from: 3, to: 4, order: 2 },
+                        { from: 4, to: 5, order: 1 },
+                        { from: 5, to: 0, order: 2 },
+                        { from: 5, to: 6, order: 2 },
+                        { from: 4, to: 7, order: 1 },
+                        { from: 7, to: 8, order: 1 },
+                        { from: 8, to: 9, order: 2 },
+                        { from: 8, to: 10, order: 1 },
+                        { from: 10, to: 11, order: 1 },
+                        { from: 11, to: 12, order: 2 },
+                        { from: 12, to: 13, order: 2 }
+                    ]
+                };
+            },
+            getWaterData: function() {
+                return {
+                    name: 'Water',
+                    formula: 'H2O',
+                    atoms: [
+                        { element: 'O', x: 0, y: 0, z: 0, bonds: 2 },
+                        { element: 'H', x: 0.96, y: 0, z: 0, bonds: 1 },
+                        { element: 'H', x: -0.24, y: 0.93, z: 0, bonds: 1 }
+                    ],
+                    bonds: [
+                        { from: 0, to: 1, order: 1 },
+                        { from: 0, to: 2, order: 1 }
+                    ]
+                };
+            },
+            getBenzeneData: function() {
+                const atoms = [];
+                const bonds = [];
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i / 6) * Math.PI * 2;
+                    atoms.push({ 
+                        element: 'C', 
+                        x: Math.cos(angle) * 1.4, 
+                        y: Math.sin(angle) * 1.4, 
+                        z: 0,
+                        bonds: 3
+                    });
+                    atoms.push({
+                        element: 'H',
+                        x: Math.cos(angle) * 2.4,
+                        y: Math.sin(angle) * 2.4,
+                        z: 0,
+                        bonds: 1
+                    });
+                    bonds.push({ from: i * 2, to: ((i + 1) % 6) * 2, order: i % 2 === 0 ? 2 : 1 });
+                    bonds.push({ from: i * 2, to: i * 2 + 1, order: 1 });
+                }
+                return { name: 'Benzene', formula: 'C6H6', atoms, bonds };
+            },
+            renderMolecule: function(data) {
+                const elementColors = {
+                    C: '#333333',
+                    N: '#3050F8',
+                    O: '#FF0D0D',
+                    H: '#FFFFFF',
+                    S: '#FFFF30',
+                    P: '#FF8000'
+                };
+                
+                const elementSizes = {
+                    C: 0.7,
+                    N: 0.65,
+                    O: 0.65,
+                    H: 0.3,
+                    S: 0.8,
+                    P: 0.75
+                };
+                
+                // Center the molecule
+                let centerX = 0, centerY = 0, centerZ = 0;
+                data.atoms.forEach(a => {
+                    centerX += a.x;
+                    centerY += a.y;
+                    centerZ += a.z;
+                });
+                centerX /= data.atoms.length;
+                centerY /= data.atoms.length;
+                centerZ /= data.atoms.length;
+                
+                // Render atoms
+                data.atoms.forEach((atom, i) => {
+                    const sphere = document.createElement('a-sphere');
+                    sphere.setAttribute('position', 
+                        `${atom.x - centerX} ${atom.y - centerY} ${atom.z - centerZ}`);
+                    sphere.setAttribute('radius', elementSizes[atom.element] || 0.5);
+                    sphere.setAttribute('material', {
+                        color: elementColors[atom.element] || '#888888',
+                        metalness: 0.5,
+                        roughness: 0.3,
+                        emissive: elementColors[atom.element] || '#888888',
+                        emissiveIntensity: 0.1
+                    });
+                    sphere.setAttribute('class', 'interactive atom');
+                    sphere.setAttribute('data-atom-index', i);
+                    
+                    // Hover animation
+                    sphere.addEventListener('mouseenter', () => {
+                        sphere.setAttribute('scale', '1.3 1.3 1.3');
+                    });
+                    sphere.addEventListener('mouseleave', () => {
+                        sphere.setAttribute('scale', '1 1 1');
+                    });
+                    
+                    this.el.appendChild(sphere);
+                });
+                
+                // Render bonds
+                data.bonds.forEach(bond => {
+                    const atom1 = data.atoms[bond.from];
+                    const atom2 = data.atoms[bond.to];
+                    
+                    const x1 = atom1.x - centerX;
+                    const y1 = atom1.y - centerY;
+                    const z1 = atom1.z - centerZ;
+                    const x2 = atom2.x - centerX;
+                    const y2 = atom2.y - centerY;
+                    const z2 = atom2.z - centerZ;
+                    
+                    const midX = (x1 + x2) / 2;
+                    const midY = (y1 + y2) / 2;
+                    const midZ = (z1 + z2) / 2;
+                    
+                    const length = Math.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2);
+                    const cylinder = document.createElement('a-cylinder');
+                    cylinder.setAttribute('position', `${midX} ${midY} ${midZ}`);
+                    cylinder.setAttribute('height', length);
+                    cylinder.setAttribute('radius', bond.order === 2 ? 0.15 : 0.1);
+                    cylinder.setAttribute('material', {
+                        color: '#888888',
+                        opacity: 0.8
+                    });
+                    
+                    // Calculate rotation
+                    const dx = x2 - x1;
+                    const dy = y2 - y1;
+                    const dz = z2 - z1;
+                    const theta = Math.atan2(Math.sqrt(dx*dx + dz*dz), dy) * 180 / Math.PI;
+                    const phi = Math.atan2(dz, dx) * 180 / Math.PI;
+                    cylinder.setAttribute('rotation', `${theta} ${phi} 0`);
+                    
+                    this.el.appendChild(cylinder);
+                });
+                
+                // Add rotation animation to entire molecule
+                this.el.setAttribute('animation__rotate', {
+                    property: 'rotation',
+                    from: '0 0 0',
+                    to: '0 360 0',
+                    dur: 20000,
+                    loop: true,
+                    easing: 'linear'
+                });
+            }
+        });
+
+        // Simulation Environment
+        AFRAME.registerComponent('lab-environment', {
+            init: function() {
+                this.createLab();
+            },
+            createLab: function() {
+                // Lab floor
+                const floor = document.createElement('a-plane');
+                floor.setAttribute('position', '0 0 0');
+                floor.setAttribute('rotation', '-90 0 0');
+                floor.setAttribute('width', '20');
+                floor.setAttribute('height', '20');
+                floor.setAttribute('material', {
+                    color: '#1a1a2e',
+                    metalness: 0.4,
+                    roughness: 0.6
+                });
+                this.el.appendChild(floor);
+                
+                // Grid lines
+                for (let i = -5; i <= 5; i++) {
+                    const line = document.createElement('a-box');
+                    line.setAttribute('position', `${i * 2} 0.01 0`);
+                    line.setAttribute('width', '0.02');
+                    line.setAttribute('height', '0.01');
+                    line.setAttribute('depth', '20');
+                    line.setAttribute('material', { color: '#00d4aa', opacity: 0.2 });
+                    this.el.appendChild(line);
+                    
+                    const line2 = document.createElement('a-box');
+                    line2.setAttribute('position', `0 0.01 ${i * 2}`);
+                    line2.setAttribute('width', '20');
+                    line2.setAttribute('height', '0.01');
+                    line2.setAttribute('depth', '0.02');
+                    line2.setAttribute('material', { color: '#00d4aa', opacity: 0.2 });
+                    this.el.appendChild(line2);
+                }
+            }
+        });
+    </script>
+    
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #molecule-selector {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            color: white;
+        }
+        .molecule-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(0, 212, 170, 0.2);
+            border: 1px solid #00d4aa;
+            border-radius: 4px;
+            color: #00d4aa;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .molecule-btn:hover {
+            background: rgba(0, 212, 170, 0.4);
+        }
+        .legend {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="molecule-selector">
+        <h2 class="text-lg font-bold mb-4 text-[#d4af37]">Molecular Viewer</h2>
+        
+        <button class="molecule-btn" onclick="loadMolecule('caffeine')">Caffeine (C8H10N4O2)</button>
+        <button class="molecule-btn" onclick="loadMolecule('water')">Water (H2O)</button>
+        <button class="molecule-btn" onclick="loadMolecule('benzene')">Benzene (C6H6)</button>
+        
+        <div class="legend">
+            <h3 class="text-sm font-bold mb-2">Element Colors</h3>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #333"></div>
+                <span>Carbon (C)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #3050F8"></div>
+                <span>Nitrogen (N)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #FF0D0D"></div>
+                <span>Oxygen (O)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #FFF"></div>
+                <span>Hydrogen (H)</span>
+            </div>
+        </div>
+    </div>
+
+    <a-scene lab-environment background="color: #0a0a0f">
+        <a-entity id="molecule-container" position="0 3 -5" molecule-viewer="pdbId: caffeine"></a-entity>
+        
+        <a-entity position="0 5 8" rotation="-25 0 0">
+            <a-camera look-controls wasd-controls>
+                <a-cursor color="#d4af37" fuse="false"></a-cursor>
+            </a-camera>
+        </a-entity>
+
+        <a-entity light="type: ambient; intensity: 0.4; color: #ffffff"></a-entity>
+        <a-entity light="type: directional; intensity: 0.6; color: #ffffff" position="-5 10 5"></a-entity>
+        <a-entity light="type: point; intensity: 0.3; color: #00d4aa; distance: 20" position="5 5 5"></a-entity>
+    </a-scene>
+
+    <script>
+        function loadMolecule(pdbId) {
+            const container = document.getElementById('molecule-container');
+            container.innerHTML = '';
+            container.setAttribute('molecule-viewer', 'pdbId', pdbId);
+        }
+    </script>
+</body>
+</html>

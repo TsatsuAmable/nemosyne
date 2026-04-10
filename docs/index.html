@@ -3,582 +3,522 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nemosyne Documentation</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        :root {
-            --primary: #00d4aa;
-            --secondary: #4ecdc4;
-            --bg-dark: #050510;
-            --bg-card: #0a0a1a;
-            --text: #ffffff;
-            --text-muted: #8888aa;
-            --border: rgba(0,212,170,0.2);
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg-dark);
-            color: var(--text);
-            line-height: 1.6;
-        }
-        
-        /* Header */
-        header {
-            background: linear-gradient(135deg, var(--bg-card) 0%, #1a1a3a 100%);
-            border-bottom: 1px solid var(--border);
-            padding: 1.5rem 2rem;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-        
-        nav {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .logo {
-            font-size: 1.8rem;
-            font-weight: 700;
-            background: linear-gradient(90deg, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        .nav-links {
-            display: flex;
-            gap: 2rem;
-            list-style: none;
-        }
-        
-        .nav-links a {
-            color: var(--text-muted);
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.3s;
-        }
-        
-        .nav-links a:hover {
-            color: var(--primary);
-        }
-        
-        /* Hero */
-        .hero {
-            text-align: center;
-            padding: 6rem 2rem;
-            background: 
-                radial-gradient(
-                    circle at 50% 50%,
-                    rgba(0,212,170,0.1) 0%,
-                    transparent 50%
-                ),
-                var(--bg-dark);
-        }
-        
-        .hero h1 {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-            background: linear-gradient(90deg, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        .hero p {
-            font-size: 1.3rem;
-            color: var(--text-muted);
-            margin-bottom: 2rem;
-        }
-        
-        .hero-buttons {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-        }
-        
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 1rem 2rem;
-            border-radius: 8px;
-            font-weight: 600;
-            text-decoration: none;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: var(--bg-dark);
-        }
-        
-        .btn-secondary {
-            background: rgba(255,255,255,0.1);
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(0,212,170,0.3);
-        }
-        
-        /* Main Content */
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 4rem 2rem;
-        }
-        
-        .grid-2 {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-            gap: 3rem;
-        }
-        
-        /* Cards */
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 2rem;
-        }
-        
-        .card h2 {
-            font-size: 1.5rem;
-            color: var(--primary);
-            margin-bottom: 1rem;
-        }
-        
-        .card h3 {
-            font-size: 1.1rem;
-            margin: 1.5rem 0 0.5rem;
-            color: var(--secondary);
-        }
-        
-        /* Code Blocks */
-        pre {
-            background: #000;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1.5rem;
-            overflow-x: auto;
-            margin: 1rem 0;
-        }
-        
-        code {
-            font-family: 'Fira Code', monospace;
-            font-size: 0.9rem;
-            color: var(--primary);
-        }
-        
-        .code-comment {
-            color: var(--text-muted);
-        }
-        
-        .code-keyword {
-            color: #ff79c6;
-        }
-        
-        .code-string {
-            color: #f1fa8c;
-        }
-        
-        /* Features Grid */
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-            margin-top: 4rem;
-        }
-        
-        .feature-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 2rem;
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 40px rgba(0,212,170,0.1);
-        }
-        
-        .feature-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-        
-        .feature-card h3 {
-            font-size: 1.3rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .feature-card p {
-            color: var(--text-muted);
-        }
-        
-        /* API Reference */
-        .api-section {
-            margin: 4rem 0;
-        }
-        
-        .api-section h2 {
-            font-size: 2rem;
-            margin-bottom: 2rem;
-            color: var(--primary);
-        }
-        
-        .method {
-            border-left: 3px solid var(--primary);
-            padding-left: 1.5rem;
-            margin: 2rem 0;
-        }
-        
-        .method h3 {
-            font-family: 'Fira Code', monospace;
-            font-size: 1.2rem;
-            color: var(--secondary);
-        }
-        
-        .method-signature {
-            background: rgba(0,0,0,0.3);
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            margin: 0.5rem 0;
-            font-family: 'Fira Code', monospace;
-        }
-        
-        .method-params {
-            margin-top: 1rem;
-        }
-        
-        .method-params dt {
-            color: var(--primary);
-            font-family: 'Fira Code', monospace;
-            margin-top: 0.5rem;
-        }
-        
-        .method-params dd {
-            color: var(--text-muted);
-            margin-left: 1rem;
-        }
-        
-        /* Component List */
-        .component-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 1rem;
-            margin-top: 2rem;
-        }
-        
-        .component-item {
-            background: rgba(0,212,170,0.05);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-        }
-        
-        .component-item code {
-            color: var(--primary);
-            font-weight: 600;
-        }
-        
-        .component-item p {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            margin-top: 0.5rem;
-        }
-        
-        /* Footer */
-        footer {
-            background: var(--bg-card);
-            border-top: 1px solid var(--border);
-            text-align: center;
-            padding: 3rem 2rem;
-            margin-top: 4rem;
-        }
-        
-        footer p {
-            color: var(--text-muted);
-        }
-        
-        footer a {
-            color: var(--primary);
-            text-decoration: none;
-        }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-            .hero h1 {
-                font-size: 2.5rem;
-            }
-            
-            .grid-2 {
-                grid-template-columns: 1fr;
-            }
-            
-            .nav-links {
-                display: none;
-            }
-        }
-    </style>
+    <title>Nemosyne | VR Artefacts for Real-World Data</title>
+    
+    <!-- A-Frame for VR section -->
+    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.0.0/dist/aframe-extras.min.js"></script>
+    
+    <!-- Primary favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
+    
+    <!-- Fallback for older browsers -->
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="img/favicon_io/favicon-16x16.png">
+    <link rel="shortcut icon" href="img/favicon_io/favicon.ico">
+    
+    <!-- Apple devices -->
+    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon_io/apple-touch-icon.png">
+    
+    <!-- Android/Chrome -->
+    <link rel="manifest" href="img/favicon_io/site.webmanifest">
+    <meta name="theme-color" content="#0a0a0f">
+    
+    <!-- Microsoft -->
+    <meta name="msapplication-TileColor" content="#0a0a0f">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="logo">Nemosyne</div>
-            <ul class="nav-links">
-                <li><a href="#quickstart">Quick Start</a></li>
-                <li><a href="#api">API</a></li>
-                <li><a href="#components">Components</a></li>
-                <li><a href="#examples">Examples</a></li>
-                <li><a href="https://github.com/TsatsuAmable/nemosyne">GitHub</a></li>
-            </ul>
-        </nav>
-    </header>
 
+    <div class="temporal-grid"></div>
+
+    <!-- Navigation -->
+    <nav>
+        <a href="#" class="logo">
+            <div class="logo-symbol"></div>
+            <span>Nemosyne</span>
+        </a>
+        <ul class="nav-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#vr-demo">VR Demo</a></li>
+            <li><a href="#demo">Code</a></li>
+            <li><a href="#use-cases">Use Cases</a></li>
+        </ul>
+        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            GitHub
+        </a>
+    </nav>
+
+    <!-- Hero Section -->
     <section class="hero">
-        <h1>Nemosyne</h1>
-        <p>Data-Native VR Visualization Framework</p>
-        <div class="hero-buttons">
-            <a href="#quickstart" class="btn btn-primary">Get Started</a>
-            <a href="../examples/gallery.html" class="btn btn-secondary">View Gallery</a>
+        <div class="void-bg"></div>
+        <div class="crystal-field">
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+        </div>
+        
+        <div class="hero-content">
+            <div class="badge">Open Source VR Framework</div>
+            <h1>
+                Manipulate Reality Through<br>
+                <span class="nemosyne">Virtual Artefacts</span>
+            </h1>
+            <p class="hero-subtitle">
+                A powerful framework for creating interactive VR representations of real-world objects and data. Transform complex information into tangible, manipulable 3D experiences.
+            </p>
+            
+            <div class="tech-stack">
+                <div onclick="window.location='https://aframe.io'" class="tech-badge aframe">
+                    <span>▲</span>
+                    <span>Built on A-Frame</span>
+                </div>
+                <div onclick="window.location='https://d3js.org'" class="tech-badge d3">
+                    <span>◈</span>
+                    <span>Powered by D3.js</span>
+                </div>
+            </div>
+            
+            <div class="cta-group">
+                <a href="#vr-demo" class="btn btn-primary">
+                    Enter the Datasphere
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </a>
+                <a href="https://github.com/TsatsuAmable/nemosyne" class="btn btn-secondary" target="_blank">
+                    View on GitHub
+                </a>
+            </div>
         </div>
     </section>
 
-    <div class="container">
-        <!-- Quick Start -->
-        <section id="quickstart" class="card api-section">
-            <h2>Quick Start</h2>
-            <p>Nemosyne automatically generates VR scenes from your data. Just provide the data—it builds the optimal visualization.</p>
-            
-            <h3>Installation</h3>
-            <pre><code><span class="code-comment"># Via npm</span>
-npm install nemosyne-vr
-
-<span class="code-comment"># Via CDN</span><span class="code-keyword"><script</span> src=<span class="code-string"">"https://unpkg.com/nemosyne-vr@latest/dist/nemosyne.min.js"</span>><<span class="code-keyword"">/script</span>></code></pre>
-            
-            <h3>Basic Usage</h3>
-            <pre><code><span class="code-comment"">// Initialize</span>
-<span class="code-keyword"">const</span> engine = <span class="code-keyword"">new</span> DataNativeEngine();
-
-<span class="code-comment"">// Your data</span>
-<span class="code-keyword"">const</span> data = {
-  nodes: [{ id: 1, value: 10 }, { id: 2, value: 20 }],
-  links: [{ source: 1, target: 2 }]
-};
-
-<span class="code-comment"">// Auto-render</span>
-engine.loadData(data).then(() => engine.render(<span class="code-string"">'#scene'</span>));</code></pre>
-        </section>
-
-        <!-- Features -->
-        <section class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">🧠</div>
-                <h3>Intelligent Layout</h3>
-                <p>Auto-detects 9 topology types and selects optimal visualization.</p>
+    <!-- VR Demo Section with A-Frame -->
+    <section class="vr-section" id="vr-demo">
+        <div class="vr-container">
+            <div class="vr-info">
+                <span class="section-tag">Live Demo</span>
+                <h2>The Datasphere Awaits</h2>
+                <p>
+                    Experience Nemosyne's core visualization engine. This interactive VR scene demonstrates data nodes and memory crystals—key components of our spatial data framework.
+                </p>
+                <p>
+                    Navigate through living data structures that pulse with real-time information. Click on crystalline nodes to access their data signatures.
+                </p>
+                <div class="vr-controls">
+                    <h4>Navigation</h4>
+                    <ul>
+                        <li>WASD to move through the void</li>
+                        <li>Mouse drag to rotate perspective</li>
+                        <li>Click data nodes to interact</li>
+                        <li>Scroll to adjust velocity</li>
+                    </ul>
+                </div>
             </div>
             
-            <div class="feature-card">
-                <div class="feature-icon">⚡</div>
-                <h3>High Performance</h3>
-                <p>10,000+ nodes at 30fps with Ammo.js physics.</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="feature-icon">🎮</div>
-                <h3>WebXR Ready</div>
-                <p>Runs on any VR headset via browser—no installation.</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="feature-icon">🎬</div>
-                <h3>Time Animation</h3>
-                <p>Scrub through time, watch data evolve.</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="feature-icon">🔗</div>
-                <h3>MemPalace Sync</h3>
-                <p>Real-time sync with live memory updates.</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="feature-icon">🎨</div>
-                <h3>14 Components</h3>
-                <p>Comprehensive visualization library for any data type.</p>
-            </div>
-        </section>
-
-        <!-- API Reference -->
-        <section id="api" class="api-section">
-            <h2>API Reference</h2>
-            
-            <div class="card">
-                <h3>DataNativeEngine</h3>
-                <div class="method">
-                    <h3>constructor(options)</h3>
-                    <p>Creates a new Nemosyne instance.</p>
+            <div class="aframe-container">
+                <a-scene embedded fog="type: exponential; color: #000510; density: 0.02" 
+                         background="color: #000205"
+                         renderer="antialias: true; colorManagement: true;">
                     
-                    <dl class="method-params">
-                        <dt>options.autoDetect</dt>
-                        <dd>Auto-select visualization (default: true)</dd>
+                    <!-- Assets -->
+                    <a-assets>
+                        <a-mixin id="data-node" geometry="primitive: octahedron" material="color: #00d4aa; emissive: #00d4aa; emissiveIntensity: 0.5; wireframe: true" animation="property: rotation; to: 0 360 0; loop: true; dur: 10000; easing: linear"></a-mixin>
+                        <a-mixin id="core-structure" geometry="primitive: torusKnot; radius: 2; radiusTubular: 0.1" material="color: #d4af37; emissive: #d4af37; emissiveIntensity: 0.8; wireframe: true"></a-mixin>
+                        <a-mixin id="data-stream" geometry="primitive: cylinder; radius: 0.02; height: 50" material="color: #00d4aa; opacity: 0.3; transparent: true; emissive: #00d4aa; emissiveIntensity: 0.5"></a-mixin>
+                    </a-assets>
+
+                    <!-- Camera -->
+                    <a-entity position="0 3 12" rotation="-10 0 0">
+                        <a-camera look-controls="pointerLockEnabled: false" wasd-controls="acceleration: 100; fly: true">
+                            <a-cursor color="#00d4aa" scale="0.3 0.3 0.3" 
+                                      animation__click="property: scale; startEvents: click; dur: 100; to: 0.1 0.1 0.1"
+                                      animation__release="property: scale; startEvents: mouseup; dur: 100; to: 0.3 0.3 0.3"
+                                      raycaster="objects: .clickable; far: 50"></a-cursor>
+                        </a-camera>
+                    </a-entity>
+
+                    <!-- Lighting -->
+                    <a-light type="ambient" color="#001122" intensity="0.3"></a-light>
+                    <a-light type="point" position="0 0 0" intensity="1.5" distance="50" color="#d4af37" cast-shadow="true"></a-light>
+                    <a-light type="point" position="10 10 10" intensity="0.8" distance="30" color="#00d4aa"></a-light>
+                    <a-light type="point" position="-10 -5 10" intensity="0.5" distance="30" color="#6b4ee6"></a-light>
+
+                    <!-- Background -->
+                    <a-sky color="#000205" material="shader: flat"></a-sky>
+
+                    <!-- Central Core - Nemosyne Heart -->
+                    <a-entity position="0 0 0" animation="property: rotation; to: 360 360 0; loop: true; dur: 60000; easing: linear">
+                        <a-entity mixin="core-structure" scale="3 3 3" animation="property: scale; dir: alternate; dur: 4000; to: 3.2 3.2 3.2; loop: true"></a-entity>
+                        <a-entity mixin="core-structure" scale="2.5 2.5 2.5" rotation="45 45 0" animation="property: rotation; to: 405 405 0; loop: true; dur: 20000"></a-entity>
                         
-                        <dt>options.enableGestures</dt>
-                        <dd>Enable hand tracking (default: true)</dd>
-                        
-                        <dt>options.performanceMode</dt>
-                        <dd>'quality', 'balanced', or 'performance'</dd>
-                    </dl>
-                </div>
-                
-                <div class="method">
-                    <h3>loadData(data): Promise<span></span></h3>
-                    <p>Load data and auto-detect topology.</p>
-                </div>
-                
-                <div class="method">
-                    <h3>render(selector): void</h3>
-                    <p>Render visualization to DOM element or A-Frame scene.</p>
-                </div>
+                        <!-- Inner sphere -->
+                        <a-sphere radius="1.5" color="#d4af37" opacity="0.3" material="emissive: #d4af37; emissiveIntensity: 0.5; transparent: true"
+                                  animation="property: material.emissiveIntensity; dir: alternate; dur: 2000; to: 0.8; loop: true"></a-sphere>
+                    </a-entity>
+
+                    <!-- Data Nodes - Sample Artefacts -->
+                    <a-entity id="demo-nodes"></a-entity>
+
+                    <!-- Data Highways -->
+                    <a-entity id="demo-highways"></a-entity>
+
+                    <!-- Floating Crystals -->
+                    <a-entity id="demo-crystals"></a-entity>
+
+                    <!-- Labels -->
+                    <a-text value="NEMOSYNE CORE" position="0 5 0" align="center" color="#d4af37" 
+                            width="15" font="kelsonsans" shader="msdf"
+                            animation="property: position; dir: alternate; dur: 3000; to: 0 5.5 0; loop: true"></a-text>
+
+                    <!-- Procedural Generation Script -->
+                    <script>
+                        // Generate data nodes
+                        const nodesContainer = document.querySelector('#demo-nodes');
+                        const nodeData = [
+                            { pos: [5, 2, -5], color: '#00d4aa', size: 1.2, label: 'SENSOR A' },
+                            { pos: [-4, 3, -3], color: '#6b4ee6', size: 1, label: 'DATABASE' },
+                            { pos: [3, -2, -6], color: '#ff3864', size: 0.9, label: 'ALERT' },
+                            { pos: [-5, -1, -4], color: '#00d4aa', size: 1.1, label: 'SENSOR B' },
+                            { pos: [0, 4, -8], color: '#d4af37', size: 1.5, label: 'MEMORY' }
+                        ];
+
+                        nodeData.forEach((data, index) => {
+                            const node = document.createElement('a-entity');
+                            node.setAttribute('position', data.pos.join(' '));
+                            
+                            const geo = document.createElement('a-octahedron');
+                            geo.setAttribute('radius', data.size);
+                            geo.setAttribute('color', data.color);
+                            geo.setAttribute('material', `emissive: ${data.color}; emissiveIntensity: 0.6; wireframe: true; transparent: true; opacity: 0.8`);
+                            geo.setAttribute('class', 'clickable');
+                            geo.setAttribute('animation', `property: rotation; to: 360 360 360; loop: true; dur: ${8000 + index * 1000}; easing: linear`);
+                            geo.setAttribute('animation__pulse', `property: scale; dir: alternate; dur: ${2000 + index * 500}; to: 1.2 1.2 1.2; loop: true`);
+                            
+                            const core = document.createElement('a-sphere');
+                            core.setAttribute('radius', data.size * 0.3);
+                            core.setAttribute('color', data.color);
+                            core.setAttribute('material', `emissive: ${data.color}; emissiveIntensity: 1; transparent: true; opacity: 0.9`);
+                            
+                            // Orbiting bits
+                            for (let i = 0; i < 2; i++) {
+                                const orbit = document.createElement('a-entity');
+                                orbit.setAttribute('animation', `property: rotation; to: 360 0 0; loop: true; dur: ${4000 + i * 2000}; easing: linear`);
+                                const bit = document.createElement('a-box');
+                                bit.setAttribute('position', `${data.size + 0.8} 0 0`);
+                                bit.setAttribute('width', 0.15);
+                                bit.setAttribute('height', 0.15);
+                                bit.setAttribute('depth', 0.15);
+                                bit.setAttribute('color', '#ffffff');
+                                bit.setAttribute('material', 'emissive: #ffffff; emissiveIntensity: 0.8');
+                                orbit.appendChild(bit);
+                                node.appendChild(orbit);
+                            }
+                            
+                            geo.addEventListener('click', function() {
+                                console.log('Accessing: ' + data.label);
+                                this.setAttribute('animation__click', 'property: scale; to: 1.8 1.8 1.8; dur: 200; dir: alternate');
+                            });
+                            
+                            node.appendChild(geo);
+                            node.appendChild(core);
+                            nodesContainer.appendChild(node);
+                        });
+
+                        // Generate highways
+                        const highways = document.querySelector('#demo-highways');
+                        const connections = [
+                            [[0,0,0], [5,2,-5]], [[0,0,0], [-4,3,-3]], [[0,0,0], [3,-2,-6]],
+                            [[5,2,-5], [0,4,-8]], [[-4,3,-3], [-5,-1,-4]]
+                        ];
+
+                        connections.forEach(([start, end]) => {
+                            const midX = (start[0] + end[0]) / 2;
+                            const midY = (start[1] + end[1]) / 2;
+                            const midZ = (start[2] + end[2]) / 2;
+                            const length = Math.sqrt(Math.pow(end[0]-start[0], 2) + Math.pow(end[1]-start[1], 2) + Math.pow(end[2]-start[2], 2));
+                            
+                            const highway = document.createElement('a-entity');
+                            highway.setAttribute('position', `${midX} ${midY} ${midZ}`);
+                            
+                            const tube = document.createElement('a-cylinder');
+                            tube.setAttribute('height', length);
+                            tube.setAttribute('radius', 0.05);
+                            tube.setAttribute('color', '#00d4aa');
+                            tube.setAttribute('opacity', '0.2');
+                            tube.setAttribute('material', 'transparent: true; emissive: #00d4aa; emissiveIntensity: 0.3');
+                            
+                            // Look at end
+                            const direction = new THREE.Vector3(end[0]-start[0], end[1]-start[1], end[2]-start[2]).normalize();
+                            const axis = new THREE.Vector3(0, 1, 0);
+                            const angle = Math.acos(axis.dot(direction));
+                            tube.setAttribute('rotation', `${angle * 180 / Math.PI} 0 0`);
+                            
+                            // Data packets
+                            for (let i = 0; i < 2; i++) {
+                                const packet = document.createElement('a-sphere');
+                                packet.setAttribute('radius', 0.1);
+                                packet.setAttribute('color', '#ffffff');
+                                packet.setAttribute('material', 'emissive: #ffffff; emissiveIntensity: 1');
+                                packet.setAttribute('position', `0 ${(i - 0.5) * length/2} 0`);
+                                packet.setAttribute('animation', `property: position; to: 0 ${length/2} 0; dur: ${2000 + i * 500}; loop: true; dir: alternate; easing: easeInOutSine`);
+                                tube.appendChild(packet);
+                            }
+                            
+                            highway.appendChild(tube);
+                            highways.appendChild(highway);
+                        });
+
+                        // Generate floating crystals
+                        const crystals = document.querySelector('#demo-crystals');
+                        for (let i = 0; i < 8; i++) {
+                            const crystal = document.createElement('a-entity');
+                            const x = (Math.random() - 0.5) * 20;
+                            const y = (Math.random() - 0.5) * 10;
+                            const z = (Math.random() - 0.5) * 15 - 5;
+                            crystal.setAttribute('position', `${x} ${y} ${z}`);
+                            
+                            const geo = document.createElement('a-cone');
+                            geo.setAttribute('radius-bottom', 0.1);
+                            geo.setAttribute('radius-top', 0);
+                            geo.setAttribute('height', 0.8);
+                            geo.setAttribute('color', '#00d4aa');
+                            geo.setAttribute('material', 'emissive: #00d4aa; emissiveIntensity: 0.5; transparent: true; opacity: 0.6');
+                            geo.setAttribute('animation', `property: position; dir: alternate; dur: ${3000 + i * 500}; to: ${x} ${y + 0.5} ${z}; loop: true; easing: easeInOutSine`);
+                            
+                            crystal.appendChild(geo);
+                            crystals.appendChild(crystal);
+                        }
+                    </script>
+                </a-scene>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Capabilities</span>
+                <h2>Bridging Physical and Virtual</h2>
+                <p class="section-subtitle">
+                    Create immersive data experiences that leverage spatial computing for deeper understanding and intuitive manipulation.
+                </p>
             </div>
             
-            <div class="card">
-                <h3>TemporalScrubber</h3>
-                <div class="method">
-                    <h3>play(): void</h3>
-                    <p>Start time animation.</p>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Spatial Data Binding</h3>
+                    <p>Bind real-world datasets to interactive 3D objects. Manipulate complex data through natural hand gestures and spatial interactions.</p>
                 </div>
                 
-                <div class="method">
-                    <h3>scrubTo(timestamp): object</h3>
-                    <p>Jump to specific time point.</p>
+                <div class="feature-card">
+                    <div class="feature-icon">🔮</div>
+                    <h3>Real-time Visualization</h3>
+                    <p>Stream live data into VR environments. Watch as your data updates in real-time, responding to changes in the physical world.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🤝</div>
+                    <h3>Collaborative Spaces</h3>
+                    <p>Multi-user VR environments where teams can simultaneously interact with shared data artefacts, regardless of physical location.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>WebXR Native</h3>
+                    <p>Built on open web standards. Runs in any modern browser without plugins. Compatible with Quest, HoloLens, and mobile AR.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🧩</div>
+                    <h3>Modular Components</h3>
+                    <p>Extensible architecture with reusable artefact components. Build custom data representations or use pre-built templates.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Analytics Integration</h3>
+                    <p>Connect to REST APIs, GraphQL, WebSockets, or IoT streams. Visualize everything from financial data to sensor networks.</p>
                 </div>
             </div>
+        </div>
+    </section>
+
+    <!-- Demo Section -->
+    <section class="demo" id="demo">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Quick Start</span>
+                <h2>Define Your First Artefact</h2>
+                <p class="section-subtitle">
+                    Create interactive VR objects with declarative syntax. Bind data, define interactions, and render in minutes.
+                </p>
+            </div>
             
-            <div class="card">
-                <h3>MemPalaceVRConnector</h3>
-                <div class="method">
-                    <h3>connect(): Promise<span></span></h3>
-                    <p>Connect to MemPalace API.</p>
-                </div>
-                
-                <div class="method">
-                    <h3>findMemoriesNearPosition(position, radius): Array</h3>
-                    <p>Spatial query—find memories within radius.</p>
+            <div class="demo-visual">
+                <div class="code-block">
+                    <div class="code-header">
+                        <span class="code-dot red"></span>
+                        <span class="code-dot yellow"></span>
+                        <span class="code-dot green"></span>
+                    </div>
+                    <div class="code-content">
+<span class="code-keyword">import</span> { Nemosyne, Artefact, DataBinding } <span class="code-keyword">from</span> <span class="code-string">'nemosyne'</span>;<br><br>
+<span class="code-comment">// Create a manipulable 3D data representation</span><br>
+<span class="code-keyword">const</span> sensorArtefact = <span class="code-keyword">new</span> Artefact({<br>
+&nbsp;&nbsp;geometry: <span class="code-string">'crystal'</span>,<br>
+&nbsp;&nbsp;data: <span class="code-keyword">new</span> DataBinding({<br>
+&nbsp;&nbsp;&nbsp;&nbsp;source: <span class="code-string">'ws://sensors.local/temperature'</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;mapping: {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;color: { min: <span class="code-string">'#0066ff'</span>, max: <span class="code-string">'#ff3300'</span> },<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;scale: { field: <span class="code-string">'value'</span>, range: [1, 3] }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;}),<br>
+&nbsp;&nbsp;interactions: [<span class="code-string">'grab'</span>, <span class="code-string">'inspect'</span>, <span class="code-string">'timeline'</span>]<br>
+});<br><br>
+<span class="code-comment">// Deploy to VR space</span><br>
+sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
+                    </div>
                 </div>
             </div>
-        </section>
+        </div>
+    </section>
 
-        <!-- Components -->
-        <section id="components" class="api-section">
-            <h2>Visualization Components</h2>
-            
-            <div class="component-list">
-                <div class="component-item">
-                    <code>nemosyne-graph-force</code>
-                    <p>Force-directed network with physics</p>
-                </div>
-                
-                <div class="component-item">
-                    <code>nemosyne-timeline-spiral</code>
-                    <p>Golden-angle spiral timeline</p>
-                </div>
-                
-                <div class="component-item">
-                    <code>nemosyne-scatter-semantic</code>
-                    <p>2D/3D scatter with clustering</p>
-                </div>
-                
-                <div class="component-item">
-                    <code>nemosyne-geo-globe</code>
-                    <p>3D globe with markers</p>
-                </div>
-                
-                <div class="component-item">
-                    <code>nemosyne-tree-hierarchical</code>
-                    <p>Collapsible tree layout</p>
-                </div>
-                
-                <div class="component-item">
-                    <code>nemosyne-tree-radial</code>
-                    <p>Sunburst radial tree</p>
-                </div>
-                
-                <div class="component-item">
-                    <code>nemosyne-grid-categorical</code>
-                    <p>Grid layout by category</p>
-                </div>
-                
-                <div class="component-item">
-                    <code>nemosyne-heatmap-matrix</code>
-                    <p>Correlation heatmap visualization</p>
-                </div>
-                
-                <div class="component-item">
-                    <code>nemosyne-crystal-field</code>
-                    <p>Scalar field rendering</p>
-                </div>
-                
-                <div class="component-item">
-                    <code>nemosyne-stream-graph</code>
-                    <p>Flowing data over time</p>
-                </div>
-                
-                <div class="component-item">
-                    <code>nemosyne-circle-pack</code>
-                    <p>Nested circle hierarchy</p>
-                </div>
-                
-                <div class="component-item">
-                    <code>nemosyne-network-globe</code>
-                    <p>Global network on sphere</p>
-                </div>
-                
-                <div class="component-item">
-                    <code>nemosyne-parallel-coords</code>
-                    <p>Multi-dimensional exploration</p>
-                </div>
+    <!-- Examples Gallery -->
+    <section class="examples-gallery" id="examples">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Gallery</span>
+                <h2>Example Artefacts</h2>
+                <p class="section-subtitle">
+                    Explore working demonstrations of Nemosyne visualizations. Each example includes source code and live VR scenes.
+                </p>
             </div>
-        </section>
-
-        <!-- Examples -->
-        <section id="examples" class="api-section">
-            <h2>Examples</h2>
             
-            <div class="card">
-                <h3>Animated Memory Explorer</h3>
-                <p>Walk through your MemPalace with time as a dimension:</p>
-                
-                <pre><code><span class="code-keyword"">const</span> connector = <span class="code-keyword"">new</span> MemPalaceVRConnector();
-<span class="code-keyword"">const</span> scrubber = <span class="code-keyword"">new</span> TemporalScrubber();
+            <div class="examples-grid">
+                <a href="examples/hello-world/index.html" target="_blank" class="example-link">
+                    <div class="example-card">
+                    <div class="example-icon">🔷</div>
+                    <h4>Hello World</h4>
+                    <p>Single crystal with basic interactions — the simplest starting point.</p>
+                    </div>
+                </a>
 
-<span class="code-keyword"">await</span> connector.connect();
-<span class="code-keyword"">await</span> scrubber.loadFromMemPalace(connector);
+                <a href="examples/network-galaxy/index.html" target="_blank" class="example-link">
+                <div class="example-card">
+                    <div class="example-icon">🌌</div>
+                    <h4>Network Galaxy</h4>
+                    <p>8-node microservices network visualization with force-directed layout.</p>
+                </div>
+                </a>
 
-scrubber.play(); <span class="code-comment"">// Watch memories evolve</span></code></pre>
+                    <a href="examples/bar-chart/index.html" target="_blank" class="example-link">
+                <div class="example-card">
+                    <div class="example-icon">📊</div>
+                    <h4>Bar Chart</h4>
+                    <p>Monthly revenue visualization using spatial bar artefacts.</p>
+                </div>
+                </a>
                 
-                <a href="../examples/animated-memory-explorer.html" class="btn btn-secondary" style="margin-top: 1rem;">
-                    Try Demo
+                    <a href="examples/timeline-spiral/index.html" target="_blank" class="example-link">                <div class="example-card">
+                    <div class="example-icon">🌀</div>
+                    <h4>Timeline Spiral</h4>
+                    <p>24-hour activity patterns plotted on a temporal spiral layout.</p>
+                </div>
+                </a>
+
+                    <a href="examples/data-tree/index.html" target="_blank" class="example-link">
+                                        <div class="example-card">
+                    <div class="example-icon">🌳</div>
+                    <h4>Data Tree</h4>
+                    <p>Hierarchical file system visualization with tree layout.</p>
+                </div>
+                </a>
+                
+                <a href="examples/virtual-worlds/index.html" target="_blank" class="example-link">
+                <div class="example-card">
+                    <div class="example-icon">🎮</div>
+                    <h4>Virtual Worlds</h4>
+                    <p>Game development level editor with NavMesh integration.</p>
+                </div>
                 </a>
             </div>
-        </section>
-    </div>
+        </div>
+    </section>
 
+    <!-- Use Cases -->
+    <section class="use-cases" id="use-cases">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Applications</span>
+                <h2>Transform Your Data</h2>
+                <p class="section-subtitle">
+                    From scientific visualization to industrial IoT, VR Artefacts unlock new ways of understanding complex systems.
+                </p>
+            </div>
+            
+            <div class="use-case-grid">
+                <div class="use-case-item">
+                    <h4><a href="examples/industrial-iot/iot.html" target="_blank">🏭 Industrial IoT</a></h4>
+                    <p>Monitor factory floor sensors as interactive 3D models. Spot anomalies by observing colour and scale changes in real-time. <a href="../examples/industrial-iot/iot.html" target="_blank" class="use-case-link">View demo →</a></p>
+                </div>
+                
+                <div class="use-case-item">
+                    <h4><a href="examples/financial-markets/markets.html" target="_blank">📈 Financial Markets</a></h4>
+                    <p>Navigate market data as spatial landscapes. Walk through trading volumes and manipulate time-series in 3D space. <a href="../examples/financial-markets/markets.html" target="_blank" class="use-case-link">View demo →</a></p>
+                </div>
+                
+                <div class="use-case-item">
+                    <h4><a href="examples/scientific-research/research.html" target="_blank">🔬 Scientific Research</a></h4>
+                    <p>Handle molecular structures or astronomical data at scale. Collaborate with remote teams in shared virtual labs. <a href="../examples/scientific-research/research.html" target="_blank" class="use-case-link">View demo →</a></p>
+                </div>
+                
+                <div class="use-case-item">
+                    <h4><a href="examples/medical-imaging/imaging.html" target="_blank">🏥 Medical Imaging</a></h4>
+                    <p>Manipulate MRI and CT scans as volumetric artefacts. Annotate and discuss cases with specialists worldwide. <a href="../examples/medical-imaging/imaging.html" target="_blank" class="use-case-link">View demo →</a></p>
+                </div>
+                
+                <div class="use-case-item">
+                    <h4><a href="examples/smart-cities/cities.html" target="_blank">🌐 Smart Cities</a></h4>
+                    <p>Urban data visualization—traffic flows, energy grids, and population density as manipulable city models. <a href="../examples/smart-cities/cities.html" target="_blank" class="use-case-link">View demo →</a></p>
+                </div>
+                
+                <div class="use-case-item">
+                    <h4><a href="examples/education-solar/education.html" target="_blank">🎓 Education</a></h4>
+                    <p>Interactive learning artefacts. Students manipulate historical artifacts or mathematical concepts in VR. <a href="../examples/education-solar/education.html" target="_blank" class="use-case-link">View demo →</a></p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
     <footer>
-        <p>Built with 💚 by <a href="https://github.com/TsatsuAmable">Tsatsu Amable</a></p>
-        <p><a href="https://github.com/TsatsuAmable/nemosyne">GitHub</a> • MIT Licensed</p>
+        <div class="footer-moon">◈</div>
+        <div class="footer-tagline">Nemosyne</div>
+        <div class="footer-domain">nemosyne.world</div>
+        <p class="footer-text">
+            Advancing the use of VR artefacts as tools for manipulating and understanding real-world objects and data.
+        </p>
+        <div class="footer-links">
+            <a href="https://github.com/TsatsuAmable/nemosyne" target="_blank">GitHub</a>
+            <a href="../examples/gallery.html">Gallery</a>
+            <a href="API_REFERENCE.md">API</a>
+        </div>
+        <p class="copyright">
+            © 2026 Nemosyne Project. Released under MIT License.
+        </p>
     </footer>
+
 </body>
 </html>

@@ -1,0 +1,339 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne - Industrial IoT Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- A-Frame VR Framework -->
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    
+    <script>
+        // Industrial IoT Component
+        AFRAME.registerComponent('industrial-sensor', {
+            schema: {
+                sensorId: { type: 'string', default: 'sensor-1' },
+                type: { type: 'string', default: 'temperature' },
+                value: { type: 'number', default: 0 },
+                threshold: { type: 'number', default: 100 },
+                status: { type: 'string', default: 'normal' }
+            },
+            init: function() {
+                this.el.setAttribute('class', 'interactive sensor-artefact');
+                this.createVisualization();
+                this.startDataStream();
+            },
+            createVisualization: function() {
+                const colors = {
+                    normal: '#00d4aa',
+                    warning: '#d4af37',
+                    critical: '#ff3864'
+                };
+                
+                // Create sensor body
+                const body = document.createElement('a-cylinder');
+                body.setAttribute('position', '0 0 0');
+                body.setAttribute('radius', '0.3');
+                body.setAttribute('height', '1');
+                body.setAttribute('material', {
+                    color: colors[this.data.status] || colors.normal,
+                    metalness: 0.8,
+                    roughness: 0.2,
+                    emissive: colors[this.data.status] || colors.normal,
+                    emissiveIntensity: 0.3
+                });
+                body.setAttribute('geometry', 'primitive: cylinder');
+                this.el.appendChild(body);
+                
+                // Create status indicator (glowing top)
+                const indicator = document.createElement('a-sphere');
+                indicator.setAttribute('position', '0 0.6 0');
+                indicator.setAttribute('radius', '0.15');
+                indicator.setAttribute('material', {
+                    color: colors[this.data.status] || colors.normal,
+                    emissive: colors[this.data.status] || colors.normal,
+                    emissiveIntensity: 1
+                });
+                indicator.setAttribute('class', 'status-indicator');
+                this.el.appendChild(indicator);
+                
+                // Create value label
+                const label = document.createElement('a-text');
+                label.setAttribute('position', '0 1.2 0');
+                label.setAttribute('align', 'center');
+                label.setAttribute('value', `${this.data.type}: ${this.data.value.toFixed(1)}`);
+                label.setAttribute('width', '4');
+                label.setAttribute('color', '#ffffff');
+                label.setAttribute('class', 'sensor-label');
+                this.el.appendChild(label);
+            },
+            startDataStream: function() {
+                // Simulate WebSocket data stream
+                // In production, replace with: ws = new WebSocket('wss://factory-api.example.com/sensors')
+                
+                const mockDataStream = () => {
+                    // Simulate sensor readings with realistic patterns
+                    const baseValue = this.data.type === 'temperature' ? 75 : 
+                                     this.data.type === 'pressure' ? 50 :
+                                     this.data.type === 'vibration' ? 0.5 : 25;
+                    
+                    const noise = (Math.random() - 0.5) * 10;
+                    const newValue = Math.max(0, baseValue + noise + Math.sin(Date.now() / 10000) * 5);
+                    
+                    let newStatus = 'normal';
+                    if (newValue > this.data.threshold * 0.9) newStatus = 'warning';
+                    if (newValue > this.data.threshold) newStatus = 'critical';
+                    
+                    this.updateVisualization(newValue, newStatus);
+                };
+                
+                // Update every 2 seconds (simulating real-time feed)
+                this.dataInterval = setInterval(mockDataStream, 2000);
+            },
+            updateVisualization: function(value, status) {
+                const colors = {
+                    normal: '#00d4aa',
+                    warning: '#d4af37',
+                    critical: '#ff3864'
+                };
+                
+                const indicator = this.el.querySelector('.status-indicator');
+                if (indicator) {
+                    indicator.setAttribute('material', {
+                        color: colors[status],
+                        emissive: colors[status],
+                        emissiveIntensity: status === 'critical' ? 2 : 1
+                    });
+                    
+                    // Pulse animation for critical status
+                    if (status === 'critical') {
+                        indicator.setAttribute('animation__pulse', {
+                            property: 'scale',
+                            from: '1 1 1',
+                            to: '1.3 1.3 1.3',
+                            dir: 'alternate',
+                            dur: 500,
+                            loop: true,
+                            easing: 'easeInOutSine'
+                        });
+                    } else {
+                        indicator.removeAttribute('animation__pulse');
+                        indicator.setAttribute('scale', '1 1 1');
+                    }
+                }
+                
+                // Update label with value and units
+                const label = this.el.querySelector('.sensor-label');
+                if (label) {
+                    const unit = this.data.type === 'temperature' ? '°C' : 
+                                this.data.type === 'pressure' ? 'PSI' :
+                                this.data.type === 'vibration' ? 'mm/s' : '%';
+                    label.setAttribute('value', `${this.data.type}: ${value.toFixed(1)}${unit}`);
+                }
+                
+                // Scale cylinder based on value intensity
+                const body = this.el.querySelector('a-cylinder');
+                if (body) {
+                    const scale = 0.8 + (value / this.data.threshold) * 0.5;
+                    body.setAttribute('scale', `1 ${scale} 1`);
+                }
+            },
+            remove: function() {
+                if (this.dataInterval) clearInterval(this.dataInterval);
+            }
+        });
+
+        // Factory Floor Manager Component
+        AFRAME.registerComponent('factory-manager', {
+            schema: {
+                sensorCount: { type: 'number', default: 8 }
+            },
+            init: function() {
+                this.createFloor();
+                this.createSensors();
+                this.createConveyorLine();
+            },
+            createFloor: function() {
+                const floor = document.createElement('a-plane');
+                floor.setAttribute('position', '0 0 -5');
+                floor.setAttribute('rotation', '-90 0 0');
+                floor.setAttribute('width', '20');
+                floor.setAttribute('height', '20');
+                floor.setAttribute('material', {
+                    color: '#1a1a2e',
+                    metalness: 0.5,
+                    roughness: 0.8,
+                    repeat: '10 10'
+                });
+                floor.setAttribute('shadow', 'receive: true');
+                this.el.appendChild(floor);
+                
+                // Add grid pattern
+                for (let i = 0; i < 5; i++) {
+                    const line = document.createElement('a-box');
+                    line.setAttribute('position', `${(i - 2) * 4} 0.01 -5`);
+                    line.setAttribute('width', '0.05');
+                    line.setAttribute('height', '0.01');
+                    line.setAttribute('depth', '16');
+                    line.setAttribute('material', { color: '#333333', opacity: 0.5 });
+                    this.el.appendChild(line);
+                }
+            },
+            createSensors: function() {
+                const sensorTypes = ['temperature', 'pressure', 'vibration', 'humidity'];
+                const thresholds = { temperature: 100, pressure: 80, vibration: 5, humidity: 70 };
+                
+                for (let i = 0; i < this.data.sensorCount; i++) {
+                    const x = (i % 4) * 3 - 4.5;
+                    const z = Math.floor(i / 4) * 4 - 2;
+                    const type = sensorTypes[i % sensorTypes.length];
+                    
+                    const sensor = document.createElement('a-entity');
+                    sensor.setAttribute('position', `${x} 0.5 ${z}`);
+                    sensor.setAttribute('industrial-sensor', {
+                        sensorId: `sensor-${i + 1}`,
+                        type: type,
+                        value: 50,
+                        threshold: thresholds[type] || 100
+                    });
+                    this.el.appendChild(sensor);
+                }
+            },
+            createConveyorLine: function() {
+                // Create animated conveyor belt
+                const conveyor = document.createElement('a-box');
+                conveyor.setAttribute('position', '0 0.05 2');
+                conveyor.setAttribute('width', '18');
+                conveyor.setAttribute('height', '0.1');
+                conveyor.setAttribute('depth', '2');
+                conveyor.setAttribute('material', {
+                    color: '#2a2a3e',
+                    metalness: 0.3,
+                    roughness: 0.7
+                });
+                this.el.appendChild(conveyor);
+                
+                // Moving items on conveyor
+                for (let i = 0; i < 4; i++) {
+                    const item = document.createElement('a-box');
+                    item.setAttribute('position', `${i * 4 - 6} 0.3 2`);
+                    item.setAttribute('width', '0.8');
+                    item.setAttribute('height', '0.8');
+                    item.setAttribute('depth', '0.8');
+                    item.setAttribute('material', { 
+                        color: i % 2 === 0 ? '#d4af37' : '#00d4aa',
+                        metalness: 0.3
+                    });
+                    item.setAttribute('animation__move', {
+                        property: 'position',
+                        from: `${i * 4 - 6} 0.3 2`,
+                        to: `${(i + 4) * 4 - 6} 0.3 2`,
+                        dur: 8000,
+                        loop: true,
+                        easing: 'linear'
+                    });
+                    this.el.appendChild(item);
+                }
+            }
+        });
+    </script>
+    
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        .loading { display: flex; justify-content: center; align-items: center; height: 100vh; background: #0a0a0f; color: white; }
+        #dashboard {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            color: white;
+            max-width: 300px;
+        }
+        .sensor-status {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+        }
+        .status-normal { color: #00d4aa; }
+        .status-warning { color: #d4af37; }
+        .status-critical { color: #ff3864; }
+    </style>
+</head>
+<body>
+    <!-- WebSocket Connection Status Dashboard -->
+    <div id="dashboard">
+        <h2 class="text-xl font-bold mb-4 text-[#d4af37]">Factory Floor Monitor</h2>
+        <div class="mb-4">
+            <span class="text-sm text-gray-400">Connection Status:</span>
+            <span id="ws-status" class="status-normal ml-2 font-bold">● LIVE</span>
+        </div>
+        <div class="sensor-status">
+            <span>Sensors Active:</span>
+            <span class="status-normal">8/8</span>
+        </div>
+        <div class="sensor-status">
+            <span>System Status:</span>
+            <span id="system-status" class="status-normal">NORMAL</span>
+        </div>
+        <div class="text-xs text-gray-500 mt-4">
+            Live WebSocket data stream simulation
+        </div>
+    </div>
+
+    <!-- VR Scene -->
+    <a-scene factory-manager background="color: #0a0a0f">
+        <!-- Assets -->
+        <a-assets>
+            <img id="grid-texture" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%231a1a2e'/%3E%3Cpath d='M0 0h100v100h-100z' fill='none' stroke='%23333333' stroke-width='1'/%3E%3C/svg%3E" crossorigin="anonymous">
+        </a-assets>
+
+        <!-- Camera with WASD controls -->
+        <a-entity position="0 3 8" rotation="-20 0 0">
+            <a-camera look-controls wasd-controls>
+                <a-cursor color="#d4af37" fuse="false" raycaster="objects: .interactive"></a-cursor>
+            </a-camera>
+        </a-entity>
+
+        <!-- Ambient Lighting -->
+        <a-entity light="type: ambient; intensity: 0.3; color: #1a1a2e"></a-entity>
+        <a-entity light="type: directional; intensity: 0.8; color: #ffffff" position="-5 10 5"></a-entity>
+        <a-entity light="type: point; intensity: 0.5; color: #00d4aa; distance: 20" position="0 5 0"></a-entity>
+
+        <!-- Scene loaded via factory-manager component -->
+    </a-scene>
+
+    <script>
+        // Simulate WebSocket connection status updates
+        // In production: new WebSocket('wss://factory-api.example.com/live')
+        
+        const wsStatus = document.getElementById('ws-status');
+        const systemStatus = document.getElementById('system-status');
+        
+        // Simulated real-time status updates
+        setInterval(() => {
+            // Randomly fluctuate between normal and warning
+            const rand = Math.random();
+            if (rand > 0.9) {
+                systemStatus.textContent = 'WARNING';
+                systemStatus.className = 'status-warning';
+            } else if (rand > 0.95) {
+                systemStatus.textContent = 'CRITICAL';
+                systemStatus.className = 'status-critical';
+            } else {
+                systemStatus.textContent = 'NORMAL';
+                systemStatus.className = 'status-normal';
+            }
+            
+            // Blink indicator
+            wsStatus.style.opacity = (Date.now() % 1000 < 500) ? '1' : '0.5';
+        }, 1000);
+    </script>
+</body></html>

@@ -1,7 +1,7 @@
 # Nemosyne Architecture
 
 **Version:** 0.2.0  
-**Last Updated:** 2026-04-09
+**Last Updated:** 2026-04-10
 
 ---
 
@@ -25,11 +25,29 @@
 ### High-Level Architecture
 
 ```
-[Data Source] → [Nemosyne Core] → [A-Frame Scene] → [WebGL Renderer] → [Display]
-                    ↓
-              [Datumplane VR]
-                    ↓
-          [User Interaction] ← [Input Devices]
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  Raw Data   │────▶│   Nemosyne  │────▶│ A-Frame     │────▶│  Display    │
+│  (JSON/CSV) │     │   Core      │     │   Scene     │     │  (VR/2D)    │
+└─────────────┘     └──────┬──────┘     └─────────────┘     └─────────────┘
+                           │
+                    ┌──────▼──────┐
+                    │  Datumplane   │
+                    │  (3D Space)   │
+                    └──────┬──────┘
+                           │
+              ┌────────────┼────────────┐
+              │            │            │
+              ▼            ▼            ▼
+         ┌─────────┐ ┌──────────┐ ┌──────────┐
+         │ Layout  │ │ Transform│ │ Behaviour│
+         │ Engine  │ │ Engine   │ │ Engine   │
+         └────┬────┘ └────┬─────┘ └────┬─────┘
+              └────────────┼────────────┘
+                           ▼
+                    ┌──────────────┐
+                    │  Three.js/   │
+                    │  WebGL       │
+                    └──────────────┘
 ```
 
 ### Design Principles
@@ -46,72 +64,186 @@
 
 ### 2.1 SceneManager
 
-The central orchestrator responsible for:
-- Initializing the VR scene
-- Managing artefacts lifecycle
-- Coordinating layout calculations
-- Handling data updates
+The central orchestrator responsible for initializing the VR scene and managing the component lifecycle.
 
-```javascript
-class SceneManager {
-  constructor(container, options) {
-    this.scene = new AFRAME.Scene();
+```typescript
+interface SceneManager {
+  scene: AFRAME.Scene;
+  artefacts: Map<string, Artefact>;
+  layouts: LayoutEngine;
+  transforms: TransformEngine;
+  behaviours: BehaviourEngine;
+  
+  registerArtefact(spec: ArtefactSpec, data: DataPoint[]): Promise<Artefact>;
+  updateData(artefactId: string, newData: DataPoint[]): void;
+  destroy(): void;
+}
+
+class SceneManagerImpl implements SceneManager {
+  constructor(container: HTMLElement, options?: SceneOptions) {
+    this.scene = document.createElement('a-scene');
     this.artefacts = new Map();
     this.layouts = new LayoutEngine();
     this.transforms = new TransformEngine();
     this.behaviours = new BehaviourEngine();
+    
+    if (container) {
+      container.appendChild(this.scene);
+    }
+    
+    this.setupDefaults();
   }
   
-  registerArtefact(spec, data) {
-    // Validation, instantiation, mounting
+  async registerArtefact(spec: ArtefactSpec, data: DataPoint[]): Promise<Artefact> {
+    // Validation
+    validateSpec(spec);
+    validateData(data);
+    
+    // Calculate layout positions
+    const positions = this.layouts.calculate(spec.layout || 'grid', data, spec.layoutOptions);
+    
+    // Create artefact
+    const artefact = new Artefact(spec, data, positions);
+    
+    // Mount to scene
+    this.scene.appendChild(artefact.mesh);
+    this.artefacts.set(artefact.id, artefact);
+    
+    return artefact;
   }
   
-  updateData(artefactId, newData) {
-    // Diff calculation, visual updates
+  updateData(artefactId: string, newData: DataPoint[]): void {
+    const artefact = this.artefacts.get(artefactId);
+    if (artefact) {
+      // Calculate diff
+      const diff = this.calculateDiff(artefact.data, newData);
+      
+      // Apply updates
+      if (diff.hasAdditions) {
+        diff.additions.forEach(item => artefact.spawnEntity(item));
+      }
+      if (diff.hasRemovals) {
+        diff.removals.forEach(item => artefact.despawnEntity(item.id));
+      }
+      if (diff.hasUpdates) {
+        diff.updates.forEach(update => artefact.updateEntity(update));
+      }
+    }
   }
   
-  destroy() {
-    // Cleanup, memory management
+  private calculateDiff(oldData: DataPoint[], newData: DataPoint[]): DataDiff {
+    // Implementation in utils/diff-engine.js
+    return diffEngine.calculate(oldData, newData);
   }
 }
 ```
+
+**Complexity:**
+- `registerArtefact()`: O(n) where n = number of data points
+- `updateData()`: O(m) where m = size of diff
+- Memory: O(total artefacts × data points)
 
 ### 2.2 Artefact
 
-The fundamental unit of visualization:
+The fundamental unit of visualization.
 
-```javascript
-class Artefact {
-  constructor(spec, data) {
+```typescript
+interface ArtefactSpec {
+  id: string;
+  type?: string;                    // 'crystal', 'sphere', 'node', etc.
+  geometry: GeometrySpec;
+  material: MaterialSpec;
+  transforms?: TransformSpec[];
+  behaviours?: BehaviourSpec[];
+  labels?: LabelSpec;
+  connections?: 'auto' | ConnectionSpec[];
+  layout?: string;                  // 'grid', 'radial', 'timeline', etc.
+  layoutOptions?: LayoutOptions;
+}
+
+interface Artefact {
+  id: string;
+  spec: ArtefactSpec;
+  data: DataPoint[];
+  mesh: THREE.Mesh | THREE.Group;
+  material: THREE.Material;
+  position: THREE.Vector3;
+  rotation: THREE.Euler;
+  scale: THREE.Vector3;
+  
+  update(data: DataPoint[]): void;
+  highlight(state: boolean): void;
+  select(state: boolean): void;
+  destroy(): void;
+}
+
+class ArtefactImpl implements Artefact {
+  id: string;
+  mesh: THREE.Mesh;
+  
+  constructor(spec: ArtefactSpec, data: DataPoint[], positions: Position[]) {
     this.id = spec.id || uuid();
-    this.spec = this.validate(spec);
-    this.data = this.transform(data);
+    this.spec = this.validateSpec(spec);
+    this.data = this.transformData(data);
     
-    // Three.js representation
+    // Create mesh group
     this.mesh = this.createMesh();
-    this.material = this.createMaterial();
+    
+    // Apply transforms
+    this.applyTransforms(data);
+    
+    // Setup behaviours
+    this.setupBehaviours(spec.behaviours);
   }
   
-  update(data) {
-    // Update transforms based on new data
-    this.updateTransforms(data);
+  createMesh(): THREE.Mesh {
+    const { geometry: geoSpec, material: matSpec } = this.spec;
+    
+    const geometry = this.createGeometry(geoSpec);
+    const material = this.createMaterial(matSpec);
+    
+    return new THREE.Mesh(geometry, material);
   }
   
-  destroy() {
+  update(data: DataPoint[]): void {
+    // Calculate transforms based on new data
+    this.applyTransforms(data);
+    
+    // Trigger visual updates
+    this.mesh.geometry.attributes.position.needsUpdate = true;
+    this.mesh.material.needsUpdate = true;
+  }
+  
+  destroy(): void {
     // Proper disposal for garbage collection
+    this.mesh.geometry.dispose();
+    if (this.mesh.material.map) this.mesh.material.map.dispose();
+    this.mesh.material.dispose();
+    
+    // Remove from parent
+    if (this.mesh.parent) {
+      this.mesh.parent.remove(this.mesh);
+    }
+    
+    // Nullify references
+    this.mesh = null;
   }
 }
 ```
 
+**Source:** `src/core/artefact.js` | `framework/src/components/nemosyne-artefact-v2.js`
+
 ### 2.3 Datumplane
 
-The conceptual 3D dataspace:
+The conceptual 3D dataspace where all visualizations exist.
 
-| Dimension | Default | Purpose |
-|-----------|---------|---------|
-| **X** | `-5` to `5` | Relational data, networks |
-| **Y** | `0` to `3` | Hierarchy, importance |
-| **Z** | `-5` to `5` | Time, sequence |
+| Dimension | Default | Purpose | Mapping |
+|-----------|---------|---------|---------|
+| **X** | `-5` to `5` | Relational data | Networks, categories |
+| **Y** | `0` to `3` | Hierarchy, importance | Values, levels |
+| **Z** | `-5` to `5` | Time, sequence | Temporal data |
+
+The Datumplane is not a physical boundary but a coordinate reference. Data can extend beyond these bounds.
 
 ---
 
@@ -122,36 +254,38 @@ The conceptual 3D dataspace:
 ```
 [Raw Data] 
     ↓
-[Validator] - Schema enforcement, type checking
+[Validator] ← Schema enforcement, type checking (O(n))
     ↓
-[Transformer] - Normalization, scaling
+[Transformer] ← Normalization, scaling (O(n))
     ↓
-[Layout Calculator] - Position assignment
+[Layout Calculator] ← Position assignment (varies by algorithm)
     ↓
-[Render Engine] - Three.js mesh generation
+[Render Engine] ← Three.js mesh generation (O(n))
     ↓
-[GPU] - WebGL rendering
+[GPU] ← WebGL rendering
 ```
 
 ### 3.2 Update Cycle
 
 ```javascript
 // Data → Visual synchronization
-DataSource.on('update', newData => {
-  const diff = calculateDiff(currentData, newData);
+DataSource.on('update', (newData: DataPoint[]) => {
+  const diff = calculateDiff(currentData, newData);  // O(n) with hashing
   
   if (diff.hasAdditions) {
-    scene.spawn(diff.additions);
+    diff.additions.forEach(item => scene.spawn(item));
+    // Complexity: O(additions) → DOM + WebGL buffer updates
   }
   
   if (diff.hasRemovals) {
-    scene.despawn(diff.removals);
+    diff.removals.forEach(item => scene.despawn(item.id));
+    // Complexity: O(removals) → Buffer reallocation
   }
   
   if (diff.hasUpdates) {
     diff.updates.forEach(update => {
       const artefact = scene.get(update.id);
-      artefact.update(update.changes);
+      artefact.update(update.changes);  // O(1) per update
       
       // Triggers animation
       animator.transition(artefact, update.changes, {
@@ -165,16 +299,14 @@ DataSource.on('update', newData => {
 
 ### 3.3 Batching Strategy
 
-For performance, updates are batched:
+For performance, updates are batched using `requestAnimationFrame`:
 
 ```javascript
 class UpdateBatch {
-  constructor() {
-    this.queue = [];
-    this.rafId = null;
-  }
+  private queue: Update[] = [];
+  private rafId: number | null = null;
   
-  push(update) {
+  push(update: Update): void {
     this.queue.push(update);
     
     if (!this.rafId) {
@@ -182,13 +314,37 @@ class UpdateBatch {
     }
   }
   
-  flush() {
-    // Process all queued updates
-    // Group by type for efficient rendering
+  flush(): void {
+    // Group updates by type for efficient batching
+    const byType = this.groupBy(this.queue, u => u.type);
+    
+    // Process each type batch
+    byType.forEach((updates, type) => {
+      this.processBatch(type, updates);
+    });
+    
     // Clear queue
+    this.queue = [];
+    this.rafId = null;
+  }
+  
+  private processBatch(type: string, updates: Update[]): void {
+    switch(type) {
+      case 'position':
+        // Single buffer update for all positions
+        this.updatePositionBuffer(updates);
+        break;
+      case 'color':
+        // Single material update
+        this.updateColorBuffer(updates);
+        break;
+      // ... etc
+    }
   }
 }
 ```
+
+**Source:** `src/core/update-batch.js`
 
 ---
 
@@ -242,28 +398,23 @@ Artefact (abstract base)
 ### 4.3 Component Interface
 
 ```typescript
+interface ArtefactBuilder {
+  build(spec: ArtefactSpec, record: DataPoint, position: Position, parent: HTMLElement): Artefact;
+  validate(spec: ArtefactSpec): boolean;
+}
+
 interface Artefact {
-  // Identification
   id: string;
   type: string;
   name: string;
-  
-  // Specification
   spec: ArtefactSpec;
-  
-  // Data
-  data: DataPoint | DataPoint[];
-  
-  // Visual representation
+  data: DataPoint;
   mesh: THREE.Mesh;
   material: THREE.Material;
+  position: THREE.Vector3;
+  rotation: THREE.Euler;
+  scale: THREE.Vector3;
   
-  // Spatial properties
-  position: Vector3;
-  rotation: Euler;
-  scale: Vector3;
-  
-  // Methods
   update(newData: DataPoint): void;
   highlight(state: boolean): void;
   select(state: boolean): void;
@@ -279,43 +430,61 @@ interface ArtefactSpec {
 }
 ```
 
+**Source:** `framework/src/components/artefact-builder.js`
+
 ---
 
 ## Layout System
 
-### 5.1 Layout Interface
+### 5.1 Layout Engine
 
 ```javascript
 class LayoutEngine {
+  private algorithms = new Map<string, LayoutAlgorithm>();
+  
   constructor() {
-    this.algorithms = new Map();
     this.registerDefaults();
   }
   
-  register(name, algorithm) {
+  register(name: string, algorithm: LayoutAlgorithm): void {
     this.algorithms.set(name, algorithm);
   }
   
-  calculate(records, layoutType, options) {
+  calculate(layoutType: string, records: DataPoint[], options: LayoutOptions): Position[] {
     const algorithm = this.algorithms.get(layoutType);
+    if (!algorithm) {
+      throw new Error(`Unknown layout: ${layoutType}`);
+    }
     return algorithm.calculate(records, options);
+  }
+  
+  private registerDefaults(): void {
+    this.register('grid', new GridLayout());
+    this.register('radial', new RadialLayout());
+    this.register('timeline', new TimelineLayout());
+    this.register('spiral', new SpiralLayout());
+    this.register('tree', new TreeLayout());
+    this.register('force', new ForceLayout());
   }
 }
 ```
 
 ### 5.2 Grid Layout
 
-**Algorithm:**
+**Algorithm:** O(n)
+
 ```javascript
-function gridLayout(records, { columns, spacing, offset }) {
-  const numCols = columns || Math.ceil(Math.sqrt(records.length));
+function gridLayout(records: DataPoint[], options: GridOptions): Position[] {
+  const columns = options.columns || Math.ceil(Math.sqrt(records.length));
+  const spacing = options.spacing || { x: 2, y: 0, z: 2 };
+  const offset = options.offset || { x: 0, y: 0, z: 0 };
   
   return records.map((record, i) => {
-    const col = i % numCols;
-    const row = Math.floor(i / numCols);
+    const col = i % columns;
+    const row = Math.floor(i / columns);
     
     return {
-      x: (col - (numCols - 1) / 2) * spacing.x + offset.x,
+      x: (col - (columns - 1) / 2) * spacing.x + offset.x,
       y: row * spacing.y + offset.y,
       z: offset.z
     };
@@ -323,19 +492,23 @@ function gridLayout(records, { columns, spacing, offset }) {
 }
 ```
 
-**Complexity:** O(n)  
-**Use Cases:** Tables, calendars, basic positioning
+**Use Cases:** Tables, calendars, basic positioning  
+**Complexity:** O(n) | **Space:** O(n)
 
 ### 5.3 Force-Directed Layout
 
-**Algorithm (D3-force simulation):**
+**Algorithm:** O(n²) worst case
+
 ```javascript
-function forceLayout(records, options) {
+function forceLayout(records: DataPoint[], options: ForceOptions): Position[] {
   const simulation = d3.forceSimulation(records)
     .force('charge', d3.forceManyBody().strength(options.charge || -30))
     .force('center', d3.forceCenter(0, 0, 0))
-    .force('collision', d3.forceCollide().radius(options.radius || 0.5))
-    .force('link', options.links ? d3.forceLink(options.links) : null);
+    .force('collision', d3.forceCollide().radius(options.radius || 0.5));
+  
+  if (options.links) {
+    simulation.force('link', d3.forceLink(options.links));
+  }
   
   // Run simulation to convergence
   simulation.tick(300);
@@ -344,60 +517,49 @@ function forceLayout(records, options) {
 }
 ```
 
-**Complexity:** O(n²) worst case  
-**Use Cases:** Networks, graphs, organic structures
+**Use Cases:** Networks, graphs, organic structures  
+**Complexity:** O(n²) worst case | **Space:** O(n + links)
 
 ### 5.4 Timeline Layout
 
-**Algorithm:**
+**Algorithm:** O(n log n) (due to sort)
+
 ```javascript
-function timelineLayout(records, { 
-  field = 'date', 
-  spacing = { x: 1, y: 0, z: 0 },
-  offset = { x: 0, y: 0, z: 0 },
-  direction = 'horizontal', // 'horizontal' | 'spiral'
-  spiral = false 
-}) {
-  // Sort by temporal field
+function timelineLayout(records: DataPoint[], options: TimelineOptions): Position[] {
+  const field = options.field || 'date';
+  const spacing = options.spacing || { x: 1, y: 0, z: 0 };
+  const direction = options.direction || 'horizontal';
+  
+  // Sort by temporal field - O(n log n)
   const sorted = [...records].sort((a, b) => 
     new Date(a[field]) - new Date(b[field])
   );
   
-  if (spiral) {
-    // Spiral variant
-    const spiralFactor = 0.1;
-    return sorted.map((r, i) => ({
-      x: offset.x + spacing.x * i,
-      y: offset.y + Math.sin(i * spiralFactor) * 2,
-      z: offset.z + Math.cos(i * spiralFactor) * 2
-    }));
-  }
-  
-  // Linear layout
   const centerOffset = sorted.length * spacing.x / 2;
   
   return sorted.map((r, i) => ({
-    x: (direction === 'horizontal' ? i : 0) * spacing.x - centerOffset + offset.x,
-    y: offset.y,
-    z: (direction === 'vertical' ? i : 0) * spacing.z + offset.z
+    x: direction === 'horizontal' ? (i * spacing.x - centerOffset) : 0,
+    y: options.yOffset || 0,
+    z: direction === 'vertical' ? (i * spacing.z) : 0
   }));
 }
 ```
 
-**Complexity:** O(n log n) due to sort  
-**Use Cases:** Time series, event logs, historical data
+**Use Cases:** Time series, event logs, historical data  
+**Complexity:** O(n log n) | **Space:** O(n)
 
 ### 5.5 Tree Layout
 
-**Algorithm (Reingold-Tilford):**
+**Algorithm:** Reingold-Tilford O(n)
+
 ```javascript
-function treeLayout(records, options) {
-  // Build hierarchy
+function treeLayout(records: DataPoint[], options: TreeOptions): Position[] {
+  // Build hierarchy - O(n)
   const hierarchy = d3.stratify()
     .id(d => d.id)
     .parentId(d => d.parentId)(records);
   
-  // Calculate layout
+  // Calculate layout - O(n)
   const tree = d3.tree()
     .size([options.width || 10, options.height || 10]);
   
@@ -413,8 +575,10 @@ function treeLayout(records, options) {
 }
 ```
 
-**Complexity:** O(n)  
-**Use Cases:** Org charts, file systems, taxonomies
+**Use Cases:** Org charts, file systems, taxonomies  
+**Complexity:** O(n) | **Space:** O(n)
+
+**Source:** `framework/src/layouts/layout-engine.js` | `src/layouts/*.js`
 
 ---
 
@@ -426,7 +590,7 @@ Nemosyne uses a declarative transform specification:
 
 ```javascript
 const transforms = {
-  // Scale based on data
+  // Scale based on data value
   scale: {
     $data: 'value',
     $range: [0, 100],
@@ -436,7 +600,7 @@ const transforms = {
   // Color based on category
   color: {
     $data: 'status',
-    $map: 'viridis' // D3 color scale
+    $map: 'viridis'  // D3 color scale
   },
   
   // Position based on layout
@@ -457,7 +621,7 @@ const transforms = {
 
 ```javascript
 class TransformEngine {
-  resolve(transformSpec, data, context) {
+  resolve(transformSpec: TransformSpec, data: DataPoint, context: Context): any {
     // Handle different transform types
     if (transformSpec.$data) {
       return this.resolveDataTransform(transformSpec, data);
@@ -468,14 +632,16 @@ class TransformEngine {
     }
     
     if (transformSpec.$calculate) {
-      return transformSpec.$calculate(this.getNestedValue(data, transformSpec.$data));
+      return transformSpec.$calculate(
+        this.getNestedValue(data, transformSpec.$data)
+      );
     }
     
     // Static value
     return transformSpec;
   }
   
-  resolveDataTransform(spec, data) {
+  private resolveDataTransform(spec: TransformSpec, data: DataPoint): any {
     const value = this.getNestedValue(data, spec.$data);
     
     if (spec.$map) {
@@ -487,6 +653,10 @@ class TransformEngine {
     }
     
     return value;
+  }
+  
+  private getNestedValue(obj: any, path: string): any {
+    return path.split('.').reduce((o, p) => o?.[p], obj);
   }
 }
 ```
@@ -502,26 +672,33 @@ class TransformEngine {
 | **Time Scale** | Date | Position | Timelines |
 | **Quantize** | Numeric | Binned | Histograms |
 
+**Source:** `framework/src/transforms/transform-engine.js`
+
 ---
 
 ## Behaviour System
 
-### 7.1 Behaviour Interface
+### 7.1 Behaviour Engine
 
 ```javascript
 class BehaviourEngine {
+  private handlers = new Map<string, BehaviourHandler>();
+  
   constructor() {
-    this.handlers = new Map();
     this.registerDefaults();
   }
   
-  register(trigger, handler) {
+  register(trigger: string, handler: BehaviourHandler): void {
     this.handlers.set(trigger, handler);
   }
   
-  setup(entity, behaviours, data) {
+  setup(entity: Entity, behaviours: BehaviourSpec[], data: DataPoint): CleanupFn[] {
     return behaviours.map(behaviour => {
       const handler = this.handlers.get(behaviour.trigger);
+      if (!handler) {
+        console.warn(`Unknown behaviour trigger: ${behaviour.trigger}`);
+        return () => {};  // No-op cleanup
+      }
       return handler.attach(entity, behaviour, data);
     });
   }
@@ -546,20 +723,22 @@ class BehaviourEngine {
 ```javascript
 // Define custom behaviour
 class QuantumEntanglement {
-  attach(entity, config, data) {
+  attach(entity: Entity, config: EntanglementConfig, data: DataPoint): CleanupFn {
     const partner = scene.get(config.pairedWith);
     
-    return {
-      update: (newData) => {
-        // Mirror partner's highlight state
-        if (partner.isHighlighted) {
-          entity.highlight(true);
-        }
-      },
-      
-      cleanup: () => {
-        // Proper event listener removal
+    const handler = (newData: DataPoint) => {
+      // Mirror partner's highlight state
+      if (partner.isHighlighted) {
+        entity.highlight(true);
       }
+    };
+    
+    // Subscribe to partner updates
+    partner.on('update', handler);
+    
+    // Return cleanup function
+    return () => {
+      partner.off('update', handler);
     };
   }
 }
@@ -576,6 +755,8 @@ const spec = {
 };
 ```
 
+**Source:** `framework/src/behaviours/behaviour-engine.js`
+
 ---
 
 ## WebSocket Integration
@@ -584,8 +765,11 @@ const spec = {
 
 ```javascript
 class NemosyneDataStream {
-  constructor(url, options = {}) {
-    this.url = url;
+  private ws: WebSocket | null = null;
+  private reconnectCount = 0;
+  private listeners = new Map<string, Set<Callback>>();
+  
+  constructor(private url: string, private options: StreamOptions = {}) {
     this.options = {
       reconnect: true,
       reconnectInterval: 5000,
@@ -594,19 +778,15 @@ class NemosyneDataStream {
       ...options
     };
     
-    this.ws = null;
-    this.reconnectCount = 0;
-    this.listeners = new Map();
-    
     this.connect();
   }
   
-  connect() {
+  private connect(): void {
     this.ws = new WebSocket(this.url);
     
     this.ws.onopen = () => {
       this.reconnectCount = 0;
-      this.emit('connected');
+      this.emit('connected', {});
       this.startHeartbeat();
     };
     
@@ -617,7 +797,7 @@ class NemosyneDataStream {
     
     this.ws.onclose = () => {
       this.stopHeartbeat();
-      this.emit('disconnected');
+      this.emit('disconnected', {});
       
       if (this.options.reconnect && this.reconnectCount < this.options.maxReconnects) {
         setTimeout(() => this.connect(), this.options.reconnectInterval);
@@ -630,29 +810,29 @@ class NemosyneDataStream {
     };
   }
   
-  parse(message) {
+  private parse(message: string): DataMessage {
     // Support multiple formats
     try {
       return JSON.parse(message);
     } catch {
       // Try CSV
       if (message.includes(',')) {
-        return this.parseCSV(message);
+        return { type: 'csv', data: this.parseCSV(message) };
       }
       // Return raw
-      return { raw: message };
+      return { type: 'raw', data: message };
     }
   }
   
-  emit(event, data) {
-    this.listeners.get(event)?.forEach(cb => cb(data));
-  }
-  
-  on(event, callback) {
+  on(event: string, callback: Callback): void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
-    this.listeners.get(event).add(callback);
+    this.listeners.get(event)!.add(callback);
+  }
+  
+  private emit(event: string, data: any): void {
+    this.listeners.get(event)?.forEach(cb => cb(data));
   }
 }
 ```
@@ -667,6 +847,8 @@ class NemosyneDataStream {
 | SSE | ✅ | `EventSource` |
 | FIX | ⚠️ | Financial protocol |
 
+**Source:** `src/core/websocket-stream.js`
+
 ---
 
 ## Performance Considerations
@@ -674,6 +856,7 @@ class NemosyneDataStream {
 ### 9.1 Rendering Optimizations
 
 **Instanced Mesh Rendering:**
+
 ```javascript
 // For repeated geometry (stars, particles)
 const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
@@ -697,27 +880,27 @@ scene.add(mesh);
 ```
 
 **Level of Detail (LOD):**
+
 ```javascript
-// Simplify geometry for distant objects
 const lod = new THREE.LOD();
 
 lod.addLevel(highPolyMesh, 0);      // < 50 units
 lod.addLevel(mediumPolyMesh, 50);   // 50-100 units
-lod.addLevel(lowPolyMesh, 100);    // > 100 units
+lod.addLevel(lowPolyMesh, 100);     // > 100 units
 
 scene.add(lod);
 ```
 
 **Occlusion Culling:**
+
 ```javascript
-// Skip rendering objects behind others
 class OcclusionCulling {
-  update(camera, objects) {
+  update(camera: THREE.Camera, objects: THREE.Object3D[]): THREE.Object3D[] {
     return objects.filter(obj => {
       // Frustum culling
       if (!obj.inFrustum(camera)) return false;
       
-      // Occlusion query
+      // Occlusion query (simplified)
       return !this.occludedBy(obj, camera);
     });
   }
@@ -727,25 +910,30 @@ class OcclusionCulling {
 ### 9.2 Memory Management
 
 **Object Pooling:**
+
 ```javascript
 class ArtefactPool {
-  constructor(createFn, resetFn, size = 100) {
-    this.createFn = createFn;
-    this.resetFn = resetFn;
-    this.available = Array(size).fill().map(createFn);
-    this.inUse = new Set();
+  private available: Artefact[] = [];
+  private inUse = new Set<Artefact>();
+  
+  constructor(
+    private createFn: () => Artefact,
+    private resetFn: (obj: Artefact) => void,
+    private size = 100
+  ) {
+    this.available = Array(size).fill(null).map(createFn);
   }
   
-  acquire() {
+  acquire(): Artefact {
     if (this.available.length === 0) {
       throw new Error('Pool exhausted');
     }
-    const obj = this.available.pop();
+    const obj = this.available.pop()!;
     this.inUse.add(obj);
     return obj;
   }
   
-  release(obj) {
+  release(obj: Artefact): void {
     this.inUse.delete(obj);
     this.resetFn(obj);
     this.available.push(obj);
@@ -754,15 +942,20 @@ class ArtefactPool {
 ```
 
 **Texture Disposal:**
+
 ```javascript
 artefact.destroy() {
   // Properly dispose all GPU resources
   this.mesh.geometry.dispose();
-  this.mesh.material.map.dispose();
+  if (this.mesh.material.map) {
+    this.mesh.material.map.dispose();
+  }
   this.mesh.material.dispose();
   
   // Remove from scene
-  this.mesh.parent.remove(this.mesh);
+  if (this.mesh.parent) {
+    this.mesh.parent.remove(this.mesh);
+  }
   
   // Nullify references for GC
   this.mesh = null;
@@ -787,14 +980,12 @@ artefact.destroy() {
 
 ```javascript
 class MyArtefact extends Nemosyne.Artefact {
-  constructor(spec, data) {
+  constructor(spec: ArtefactSpec, data: DataPoint[]) {
     super(spec, data);
-    
-    // Custom initialization
     this.customProperty = spec.customProperty;
   }
   
-  createMesh() {
+  createMesh(): THREE.Mesh {
     // Custom Three.js geometry
     const geometry = new THREE.CustomGeometry(...);
     const material = new THREE.ShaderMaterial({
@@ -805,7 +996,7 @@ class MyArtefact extends Nemosyne.Artefact {
     return new THREE.Mesh(geometry, material);
   }
   
-  update(data) {
+  update(data: DataPoint[]): void {
     // Custom update logic
     this.mesh.material.uniforms.time.value = Date.now();
     super.update(data);
@@ -820,8 +1011,8 @@ Nemosyne.registerArtefact('my-custom', MyArtefact);
 
 ```javascript
 class SpiralGalaxyLayout {
-  calculate(records, options) {
-    const positions = [];
+  calculate(records: DataPoint[], options: GalaxyOptions): Position[] {
+    const positions: Position[] = [];
     const spiralFactor = options.tightness || 0.3;
     const spread = options.spread || 2;
     
@@ -831,7 +1022,7 @@ class SpiralGalaxyLayout {
       
       positions.push({
         x: Math.cos(angle) * radius,
-        y: (i / records.length) * options.height || 5,
+        y: (i / records.length) * (options.height || 5),
         z: Math.sin(angle) * radius
       });
     });
@@ -847,7 +1038,7 @@ Nemosyne.registerLayout('galaxy', new SpiralGalaxyLayout());
 
 ```javascript
 Nemosyne.registerTransform('quantum', {
-  apply: (value, options) => {
+  apply: (value: number, options: QuantumOptions) => {
     // Quantum superposition visualization
     const probability = Math.abs(value);
     return {
@@ -862,13 +1053,13 @@ Nemosyne.registerTransform('quantum', {
 ### 10.4 Plugin System
 
 ```javascript
-const myPlugin = {
+const myPlugin: NemosynePlugin = {
   name: 'quantum-plugin',
   version: '1.0.0',
   
-  install(Nemosyne, options) {
+  install(Nemosyne: NemosyneAPI, options: PluginOptions): void {
     // Add global methods
-    Nemosyne.entangle = (artefact1, artefact2) => {
+    Nemosyne.entangle = (artefact1: Artefact, artefact2: Artefact) => {
       // Quantum entanglement logic
     };
     
@@ -876,7 +1067,7 @@ const myPlugin = {
     Nemosyne.registerArtefact('quantum-particle', QuantumParticle);
   },
   
-  uninstall() {
+  uninstall(): void {
     // Cleanup
   }
 };
@@ -891,10 +1082,11 @@ Nemosyne.use(myPlugin);
 - [Component Development Guide](docs/Custom-Components.md)
 - [Performance Optimization](docs/Performance.md)
 - [WebSocket Integration](docs/WebSocket-Guide.md)
+- [API Reference](docs/API_REFERENCE_COMPLETE.md)
 - [Hyperion Cantos Thematic](docs/Thematic/Hyperion-Cantos.md)
 
 ---
 
 **Version:** 0.2.0  
-**Last Updated:** 2026-04-09  
-**Maintainer:** TsatsuAmable
+**Last Updated:** 2026-04-10  
+**Source:** `/src/core/` | `/framework/src/`

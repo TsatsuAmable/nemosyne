@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne - Financial Markets Visualization</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <script>
+        // Market Data Component
+        AFRAME.registerComponent('market-depth', {
+            schema: {
+                symbol: { type: 'string', default: 'BTC-USD' },
+                price: { type: 'number', default: 45000 },
+                volume: { type: 'number', default: 1000 },
+                change: { type: 'number', default: 0 }
+            },
+            init: function() {
+                this.el.setAttribute('class', 'interactive market-bar');
+                this.createVisualization();
+                this.startMarketFeed();
+            },
+            createVisualization: function() {
+                const isPositive = this.data.change >= 0;
+                const color = isPositive ? '#00d4aa' : '#ff3864';
+                
+                // Create price column
+                const height = Math.max(0.5, Math.log(this.data.volume) / 5);
+                const column = document.createElement('a-box');
+                column.setAttribute('position', `0 ${height/2} 0`);
+                column.setAttribute('width', '0.8');
+                column.setAttribute('height', height);
+                column.setAttribute('depth', '0.8');
+                column.setAttribute('material', {
+                    color: color,
+                    transparent: true,
+                    opacity: 0.8,
+                    metalness: 0.3,
+                    roughness: 0.4
+                });
+                column.setAttribute('class', 'price-column');
+                
+                // Add glow effect
+                column.setAttribute('animation__glow', {
+                    property: 'material.emissive',
+                    from: '#000000',
+                    to: color,
+                    dur: 1000,
+                    loop: true,
+                    dir: 'alternate',
+                    easing: 'easeInOutSine'
+                });
+                
+                this.el.appendChild(column);
+                
+                // Price label
+                const label = document.createElement('a-text');
+                label.setAttribute('position', `0 ${height + 0.5} 0`);
+                label.setAttribute('align', 'center');
+                label.setAttribute('value', `${this.data.symbol}\n$${this.data.price.toLocaleString()}\n${this.data.change >= 0 ? '+' : ''}${this.data.change.toFixed(2)}%`);
+                label.setAttribute('width', '3');
+                label.setAttribute('color', '#ffffff');
+                label.setAttribute('class', 'price-label');
+                this.el.appendChild(label);
+                
+                // Volume marker (small sphere at base)
+                const volumeIndicator = document.createElement('a-sphere');
+                volumeIndicator.setAttribute('position', '0 0.1 0');
+                volumeIndicator.setAttribute('radius', '0.15');
+                volumeIndicator.setAttribute('material', {
+                    color: '#d4af37',
+                    emissive: '#d4af37',
+                    emissiveIntensity: 0.5
+                });
+                volumeIndicator.setAttribute('class', 'volume-indicator');
+                this.el.appendChild(volumeIndicator);
+            },
+            startMarketFeed: function() {
+                // Simulated WebSocket market data
+                // Production: wss://stream.data.alpaca.markets/v2/iex
+                
+                const updateMarket = () => {
+                    const volatility = 0.02;
+                    const change = (Math.random() - 0.5) * volatility;
+                    const newPrice = this.data.price * (1 + change);
+                    const newVolume = Math.max(100, this.data.volume + (Math.random() - 0.5) * 500);
+                    const cumulativeChange = this.data.change + change * 100;
+                    
+                    this.updateVisualization(newPrice, newVolume, cumulativeChange);
+                    
+                    // Emit event for order book
+                    this.el.emit('marketUpdate', { 
+                        symbol: this.data.symbol, 
+                        price: newPrice, 
+                        volume: newVolume,
+                        change: cumulativeChange 
+                    });
+                };
+                
+                this.marketInterval = setInterval(updateMarket, 2000);
+            },
+            updateVisualization: function(price, volume, change) {
+                const isPositive = change >= 0;
+                const color = isPositive ? '#00d4aa' : '#ff3864';
+                const height = Math.max(0.5, Math.log(volume) / 5);
+                
+                const column = this.el.querySelector('.price-column');
+                if (column) {
+                    column.setAttribute('position', `0 ${height/2} 0`);
+                    column.setAttribute('height', height);
+                    column.setAttribute('material', {
+                        color: color,
+                        emissive: color,
+                        emissiveIntensity: 0.3
+                    });
+                }
+                
+                const label = this.el.querySelector('.price-label');
+                if (label) {
+                    label.setAttribute('position', `0 ${height + 0.5} 0`);
+                    label.setAttribute('value', `${this.data.symbol}\n$${price.toLocaleString()}\n${change >= 0 ? '+' : ''}${change.toFixed(2)}%`);
+                    label.setAttribute('color', isPositive ? '#00d4aa' : '#ff3864');
+                }
+            },
+            remove: function() {
+                if (this.marketInterval) clearInterval(this.marketInterval);
+            }
+        });
+
+        // Order Book Component
+        AFRAME.registerComponent('order-book', {
+            schema: {
+                depth: { type: 'number', default: 10 }
+            },
+            init: function() {
+                this.createOrderBook();
+            },
+            createOrderBook: function() {
+                // Create bid/ask walls
+                const width = 8;
+                const depth = 4;
+                
+                // Bid wall (buy orders) - green
+                for (let i = 0; i < this.data.depth; i++) {
+                    const size = Math.random() * 2 + 0.5;
+                    const bid = document.createElement('a-box');
+                    bid.setAttribute('position', `${-4 - i * 0.5} ${size/2} 0`);
+                    bid.setAttribute('width', '0.4');
+                    bid.setAttribute('height', size);
+                    bid.setAttribute('depth', '2');
+                    bid.setAttribute('material', {
+                        color: '#00d4aa',
+                        transparent: true,
+                        opacity: 0.6
+                    });
+                    this.el.appendChild(bid);
+                }
+                
+                // Ask wall (sell orders) - red
+                for (let i = 0; i < this.data.depth; i++) {
+                    const size = Math.random() * 2 + 0.5;
+                    const ask = document.createElement('a-box');
+                    ask.setAttribute('position', `${4 + i * 0.5} ${size/2} 0`);
+                    ask.setAttribute('width', '0.4');
+                    ask.setAttribute('height', size);
+                    ask.setAttribute('depth', '2');
+                    ask.setAttribute('material', {
+                        color: '#ff3864',
+                        transparent: true,
+                        opacity: 0.6
+                    });
+                    this.el.appendChild(ask);
+                }
+                
+                // Mid-price indicator
+                const midPrice = document.createElement('a-box');
+                midPrice.setAttribute('position', '0 0.1 0');
+                midPrice.setAttribute('width', '0.2');
+                midPrice.setAttribute('height', '0.2');
+                midPrice.setAttribute('depth', '3');
+                midPrice.setAttribute('material', {
+                    color: '#d4af37',
+                    emissive: '#d4af37',
+                    emissiveIntensity: 1
+                });
+                midPrice.setAttribute('animation__pulse', {
+                    property: 'material.emissiveIntensity',
+                    from: 0.5,
+                    to: 1.5,
+                    dur: 500,
+                    loop: true,
+                    dir: 'alternate'
+                });
+                this.el.appendChild(midPrice);
+            }
+        });
+
+        // Market Floor Component
+        AFRAME.registerComponent('trading-floor', {
+            init: function() {
+                this.createFloor();
+                this.createInstruments();
+                this.createOrderBook();
+            },
+            createFloor: function() {
+                const floor = document.createElement('a-plane');
+                floor.setAttribute('position', '0 0 0');
+                floor.setAttribute('rotation', '-90 0 0');
+                floor.setAttribute('width', '30');
+                floor.setAttribute('height', '30');
+                floor.setAttribute('material', {
+                    color: '#0a0a0f',
+                    metalness: 0.8,
+                    roughness: 0.2
+                });
+                this.el.appendChild(floor);
+            },
+            createInstruments: function() {
+                const instruments = [
+                    { symbol: 'BTC', price: 45234, volume: 15420 },
+                    { symbol: 'ETH', price: 3234, volume: 8230 },
+                    { symbol: 'SOL', price: 98, volume: 4560 },
+                    { symbol: 'AAPL', price: 182, volume: 28900 },
+                    { symbol: 'MSFT', price: 378, volume: 15200 },
+                    { symbol: 'NVDA', price: 485, volume: 21300 }
+                ];
+                
+                instruments.forEach((inst, i) => {
+                    const x = (i % 3) * 6 - 6;
+                    const z = Math.floor(i / 3) * 6 - 3;
+                    const change = (Math.random() - 0.5) * 10;
+                    
+                    const instrument = document.createElement('a-entity');
+                    instrument.setAttribute('position', `${x} 0 ${z}`);
+                    instrument.setAttribute('market-depth', {
+                        symbol: inst.symbol,
+                        price: inst.price,
+                        volume: inst.volume,
+                        change: change
+                    });
+                    this.el.appendChild(instrument);
+                });
+            },
+            createOrderBook: function() {
+                const orderBook = document.createElement('a-entity');
+                orderBook.setAttribute('position', '0 0 -8');
+                orderBook.setAttribute('order-book', { depth: 8 });
+                this.el.appendChild(orderBook);
+            }
+        });
+    </script>
+    
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #market-dashboard {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            color: white;
+            width: 350px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .market-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .positive { color: #00d4aa; }
+        .negative { color: #ff3864; }
+        .blink {
+            animation: blink 0.5s ease-in-out;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+    </style>
+</head>
+<body>
+    <div id="market-dashboard">
+        <h2 class="text-xl font-bold mb-4 text-[#d4af37]">Live Market Data</h2>
+        <div id="market-feed">
+            <div class="market-row">
+                <span>BTC-USD</span>
+                <span class="positive" id="btc-price">$45,234.00</span>
+                <span class="positive">+1.2%</span>
+            </div>
+            <div class="market-row">
+                <span>ETH-USD</span>
+                <span class="negative" id="eth-price">$3,234.50</span>
+                <span class="negative">-0.8%</span>
+            </div>
+            <div class="market-row">
+                <span>SOL-USD</span>
+                <span class="positive" id="sol-price">$98.45</span>
+                <span class="positive">+5.2%</span>
+            </div>
+        </div>
+        <div class="mt-4 text-xs text-gray-500">
+            Data: Simulated WebSocket feed<br>
+            Source: FIX protocol compatible
+        </div>
+    </div>
+
+    <a-scene trading-floor background="color: #0a0a0f">
+        <a-entity position="0 5 15" rotation="-30 0 0">
+            <a-camera look-controls wasd-controls>
+                <a-cursor color="#d4af37" fuse="false" raycaster="objects: .interactive"></a-cursor>
+            </a-camera>
+        </a-entity>
+
+        <a-entity light="type: ambient; intensity: 0.2; color: #1a1a2e"></a-entity>
+        <a-entity light="type: directional; intensity: 0.6; color: #ffffff" position="-10 20 10"></a-entity>
+        <a-entity light="type: point; intensity: 0.4; color: #00d4aa; distance: 30" position="0 10 0"></a-entity>
+    </a-scene>
+
+    <script>
+        // Update dashboard from scene events
+        const scene = document.querySelector('a-scene');
+        scene.addEventListener('marketUpdate', (e) => {
+            const { symbol, price, change } = e.detail;
+            const elementId = symbol.toLowerCase() + '-price';
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.textContent = '$' + price.toLocaleString(undefined, { minimumFractionDigits: 2 });
+                el.className = change >= 0 ? 'positive' : 'negative';
+                el.classList.add('blink');
+                setTimeout(() => el.classList.remove('blink'), 500);
+            }
+        });
+    </script>
+</body>
+</html>
