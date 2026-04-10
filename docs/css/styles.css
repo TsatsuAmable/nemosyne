@@ -989,7 +989,6 @@
         }
 
         .example-link::after {
-            content: '→';
             margin-left: 0.3rem;
             transition: transform 0.2s ease;
         }
