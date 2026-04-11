@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nemosyne | VR Artefacts for Real-World Data</title>
+    <title>Nemosyne | Research Framework for Immersive Data Visualization</title>
     
     <!-- A-Frame for VR section -->
     <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
@@ -35,13 +35,20 @@
 
     <div class="temporal-grid"></div>
 
+    <!-- Research Preview Banner -->
+    <div class="research-banner" style="background: linear-gradient(90deg, #6b4ee6, #ff3864); padding: 10px 20px; text-align: center; font-size: 14px; position: fixed; top: 0; left: 0; right: 0; z-index: 1000;">
+        <span style="color: #fff;">🔬 Research Preview — We're validating how spatial computing affects data comprehension. Your feedback shapes the science.</span>
+        <a href="#research" style="color: #d4af37; margin-left: 15px; text-decoration: underline;">Learn about our research agenda →</a>
+    </div>
+
     <!-- Navigation -->
-    <nav>
+    <nav style="top: 40px;">
         <a href="#" class="logo">
             <div class="logo-symbol"></div>
             <span>Nemosyne</span>
         </a>
         <ul class="nav-links">
+            <li><a href="#research">Research</a></li>
             <li><a href="#features">Features</a></li>
             <li><a href="#vr-demo">VR Demo</a></li>
             <li><a href="#demo">Code</a></li>
@@ -68,13 +75,15 @@
         </div>
         
         <div class="hero-content">
-            <div class="badge">Open Source VR Framework</div>
+            <div class="badge">Experimental Research Framework</div>
             <h1>
-                Manipulate Reality Through<br>
-                <span class="nemosyne">Virtual Artefacts</span>
+                Exploring How Data Topology<br>
+                <span class="nemosyne">Becomes Spatial Experience</span>
             </h1>
             <p class="hero-subtitle">
-                A powerful framework for creating interactive VR representations of real-world objects and data. Transform complex information into tangible, manipulable 3D experiences.
+                Nemosyne is an experimental framework for investigating immersive data visualization. 
+                We're testing a hypothesis: <strong>does embodied, navigable 3D space improve data comprehension compared to 2D?</strong> 
+                Help us find the answer.
             </p>
             
             <div class="tech-stack">
@@ -90,13 +99,13 @@
             
             <div class="cta-group">
                 <a href="#vr-demo" class="btn btn-primary">
-                    Enter the Datasphere
+                    Try the Experiments
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M5 12h14M12 5l7 7-7 7"/>
                     </svg>
                 </a>
-                <a href="https://github.com/TsatsuAmable/nemosyne" class="btn btn-secondary" target="_blank">
-                    View on GitHub
+                <a href="#research" class="btn btn-secondary">
+                    Our Research Agenda
                 </a>
             </div>
         </div>
@@ -109,10 +118,12 @@
                 <span class="section-tag">Live Demo</span>
                 <h2>The Datasphere Awaits</h2>
                 <p>
-                    Experience Nemosyne's core visualization engine. This interactive VR scene demonstrates data nodes and memory crystals—key components of our spatial data framework.
+                    This interactive VR scene demonstrates our <strong>experimental</strong> spatial data framework. 
+                    We're testing whether the Datumplane mapping (X=relationships, Y=hierarchy, Z=time) improves comprehension compared to traditional 2D layouts.
                 </p>
-                <p>
-                    Navigate through living data structures that pulse with real-time information. Click on crystalline nodes to access their data signatures.
+                <p style="color: #d4af37; font-size: 14px; border-left: 2px solid #d4af37; padding-left: 15px; margin-top: 15px;">
+                    <strong>Research Question:</strong> Does embodied navigation through 3D data space improve recall and pattern recognition? 
+                    <a href="#research" style="color: #00d4aa;">See our methodology →</a>
                 </p>
                 <div class="vr-controls">
                     <h4>Navigation</h4>
@@ -457,14 +468,135 @@ sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
         </div>
     </section>
 
+    <!-- Research Agenda Section -->
+    <section class="research" id="research" style="padding: 120px 0; background: linear-gradient(180deg, #0a0a0f 0%, #111118 50%, #0a0a0f 100%); position: relative; overflow: hidden;">
+        <div style="position: absolute; inset: 0; background: radial-gradient(circle at 30% 50%, rgba(107, 78, 230, 0.1) 0%, transparent 50%), radial-gradient(circle at 70% 30%, rgba(0, 212, 170, 0.1) 0%, transparent 40%); pointer-events: none;"></div>
+        
+        <div class="container" style="position: relative; z-index: 1;">
+            <div class="section-header">
+                <span class="section-tag" style="background: linear-gradient(90deg, #6b4ee6, #ff3864);">Research Agenda</span>
+                <h2>Building the Empirical Foundation</h2>
+                <p class="section-subtitle">
+                    Nemosyne makes design assumptions that need validation. We're treating the framework as a platform for answering seven critical research questions.
+                </p>
+            </div>
+            
+            <div style="display: grid; gap: 30px; max-width: 1000px; margin: 0 auto;">
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
+                    <div style="display: flex; align-items: flex-start; gap: 20px;">
+                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #6b4ee6, #ff3864); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">1</div>
+                        <div>
+                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Spatial Encoding Efficacy</h3>
+                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                                <strong>Question:</strong> Does embodied, navigable 3D space produce better data comprehension than 2D alternatives, and for which task types? <br><br>
+                                <strong>Hypothesis:</strong> 3D advantages emerge for topology-reading tasks (finding bridges between clusters), not value-reading tasks (precise comparisons).
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
+                    <div style="display: flex; align-items: flex-start; gap: 20px;">
+                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #00d4aa, #d4af37); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">2</div>
+                        <div>
+                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Datumplane Semantics</h3>
+                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                                <strong>Question:</strong> Are the X/Y/Z axis assignments (relationships/hierarchy/time) congruent with human spatial intuition, or arbitrary? <br><br>
+                                <strong>Experiment:</strong> Present the same dataset in multiple axis configurations and measure comprehension speed and accuracy.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
+                    <div style="display: flex; align-items: flex-start; gap: 20px;">
+                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #d4af37, #ff3864); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">3</div>
+                        <div>
+                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Topology Detection</h3>
+                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                                <strong>Question:</strong> Can we reliably distinguish structural-level topology (scale-free networks, continuous fields) from schema-level patterns? <br><br>
+                                <strong>Challenge:</strong> Extend constraint programming approaches (Draco system) to the 3D design space.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
+                    <div style="display: flex; align-items: flex-start; gap: 20px;">
+                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #6b4ee6, #00d4aa); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">4</div>
+                        <div>
+                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Memory Palace Hypothesis</h3>
+                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                                <strong>Question:</strong> Does encoding information in a self-constructed, navigable VR space improve recall compared to 2D representations? <br><br>
+                                <strong>Hypothesis:</strong> Self-generated spatial contexts produce stronger encoding than imposed ones (generation effect + contextual reinstatement).
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
+                    <div style="display: flex; align-items: flex-start; gap: 20px;">
+                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #ff3864, #6b4ee6); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">5</div>
+                        <div>
+                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Multi-User Shared Reference Frames</h3>
+                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                                <strong>Question:</strong> When multiple users navigate the same data space simultaneously, how do shared reference frames and private viewpoints interact? <br><br>
+                                <strong>Problem:</strong> In VR, users can have literally inverted spatial reference frames. "Look at this" becomes ambiguous.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
+                    <div style="display: flex; align-items: flex-start; gap: 20px;">
+                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #00d4aa, #6b4ee6); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">6</div>
+                        <div>
+                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Perceptual Limits of 3D Density</h3>
+                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                                <strong>Question:</strong> At what point does node density in 3D space cause the visualization to become illegible regardless of frame rate? <br><br>
+                                <strong>Focus:</strong> Effective field of relevant perception, depth as a data channel (vergence-accommodation conflict), clutter thresholds.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
+                    <div style="display: flex; align-items: flex-start; gap: 20px;">
+                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #d4af37, #00d4aa); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">7</div>
+                        <div>
+                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Artefact Semiotics</h3>
+                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                                <strong>Question:</strong> When is a 3D form a better encoding than a colour channel or a label? What conditions make arbitrary shapes read as meaningful icons? <br><br>
+                                <strong>Framework:</strong> Apply semiotics (Peirce's icon/index/symbol) and affordance theory (Gibson, Norman) to 3D glyph design.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 60px;">
+                <p style="color: rgba(255,255,255,0.6); font-style: italic; margin-bottom: 25px;">
+                    "The project has good aesthetic sense and clear philosophical direction. What it needs is the discipline to test whether the philosophy actually holds when humans try to use it."
+                </p>
+                <a href="https://github.com/TsatsuAmable/nemosyne/discussions" target="_blank" class="btn btn-primary" style="display: inline-flex;">
+                    Join the Research Discussion
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </section>
+
     <!-- Use Cases -->
     <section class="use-cases" id="use-cases">
         <div class="container">
             <div class="section-header">
-                <span class="section-tag">Applications</span>
-                <h2>Transform Your Data</h2>
+                <span class="section-tag">Research Applications</span>
+                <h2>Potential Use Cases</h2>
                 <p class="section-subtitle">
-                    From scientific visualization to industrial IoT, VR Artefacts unlock new ways of understanding complex systems.
+                    These domains represent our hypotheses for where immersive data visualization may provide advantages. 
+                    We're seeking collaborators to help validate (or refute) these use cases.
                 </p>
             </div>
             
@@ -508,15 +640,18 @@ sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
         <div class="footer-tagline">Nemosyne</div>
         <div class="footer-domain">nemosyne.world</div>
         <p class="footer-text">
-            Advancing the use of VR artefacts as tools for manipulating and understanding real-world objects and data.
+            An experimental research framework for immersive data visualization. 
+            Building the empirical foundation for spatial computing and data comprehension.
         </p>
         <div class="footer-links">
             <a href="https://github.com/TsatsuAmable/nemosyne" target="_blank">GitHub</a>
             <a href="../examples/gallery.html">Gallery</a>
             <a href="API_REFERENCE.md">API</a>
+            <a href="#research">Research Agenda</a>
         </div>
         <p class="copyright">
-            © 2026 Nemosyne Project. Released under MIT License.
+            © 2026 Nemosyne Project. Released under MIT License. <br>
+            <span style="color: #d4af37; font-size: 12px;">Research Preview — Validating assumptions through empirical study.</span>
         </p>
     </footer>
 
