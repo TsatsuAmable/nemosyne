@@ -36,13 +36,13 @@
     <div class="temporal-grid"></div>
 
     <!-- Research Preview Banner -->
-    <div class="research-banner" style="background: linear-gradient(90deg, #6b4ee6, #ff3864); padding: 10px 20px; text-align: center; font-size: 14px; position: fixed; top: 0; left: 0; right: 0; z-index: 1000;">
-        <span style="color: #fff;">🔬 Research Preview — We're validating how spatial computing affects data comprehension. Your feedback shapes the science.</span>
-        <a href="#research" style="color: #d4af37; margin-left: 15px; text-decoration: underline;">Learn about our research agenda →</a>
+    <div class="research-banner">
+        <span>🔬 Research Preview — We're validating how spatial computing affects data comprehension.</span>
+        <a href="#research">Learn about our research agenda →</a>
     </div>
 
     <!-- Navigation -->
-    <nav style="top: 40px;">
+    <nav class="has-research-banner">
         <a href="#" class="logo">
             <div class="logo-symbol"></div>
             <span>Nemosyne</span>
@@ -116,14 +116,14 @@
         <div class="vr-container">
             <div class="vr-info">
                 <span class="section-tag">Live Demo</span>
-                <h2>The Datasphere Awaits</h2>
+                <h2>Experimental Scene</h2>
                 <p>
-                    This interactive VR scene demonstrates our <strong>experimental</strong> spatial data framework. 
+                    This interactive VR scene demonstrates our <strong>experimental</strong> spatial data framework.
                     We're testing whether the Datumplane mapping (X=relationships, Y=hierarchy, Z=time) improves comprehension compared to traditional 2D layouts.
                 </p>
-                <p style="color: #d4af37; font-size: 14px; border-left: 2px solid #d4af37; padding-left: 15px; margin-top: 15px;">
-                    <strong>Research Question:</strong> Does embodied navigation through 3D data space improve recall and pattern recognition? 
-                    <a href="#research" style="color: #00d4aa;">See our methodology →</a>
+                <p class="research-callout">
+                    <strong>Research Question:</strong> Does embodied navigation through 3D data space improve recall and pattern recognition?
+                    <a href="#research">See our methodology →</a>
                 </p>
                 <div class="vr-controls">
                     <h4>Navigation</h4>
@@ -468,26 +468,24 @@ sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
         </div>
     </section>
 
-    <!-- Research Agenda Section -->
-    <section class="research" id="research" style="padding: 120px 0; background: linear-gradient(180deg, #0a0a0f 0%, #111118 50%, #0a0a0f 100%); position: relative; overflow: hidden;">
-        <div style="position: absolute; inset: 0; background: radial-gradient(circle at 30% 50%, rgba(107, 78, 230, 0.1) 0%, transparent 50%), radial-gradient(circle at 70% 30%, rgba(0, 212, 170, 0.1) 0%, transparent 40%); pointer-events: none;"></div>
-        
-        <div class="container" style="position: relative; z-index: 1;">
+    <!-- Research Section -->
+    <section class="research" id="research">
+        <div class="container">
             <div class="section-header">
-                <span class="section-tag" style="background: linear-gradient(90deg, #6b4ee6, #ff3864);">Research Agenda</span>
+                <span class="section-tag">Research Agenda</span>
                 <h2>Building the Empirical Foundation</h2>
                 <p class="section-subtitle">
                     Nemosyne makes design assumptions that need validation. We're treating the framework as a platform for answering seven critical research questions.
                 </p>
             </div>
             
-            <div style="display: grid; gap: 30px; max-width: 1000px; margin: 0 auto;">
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
-                    <div style="display: flex; align-items: flex-start; gap: 20px;">
-                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #6b4ee6, #ff3864); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">1</div>
+            <div class="research-grid">
+                <div class="research-card">
+                    <div class="research-card-header">
+                        <div class="research-number">1</div>
                         <div>
-                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Spatial Encoding Efficacy</h3>
-                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                            <h3>Spatial Encoding Efficacy</h3>
+                            <p>
                                 <strong>Question:</strong> Does embodied, navigable 3D space produce better data comprehension than 2D alternatives, and for which task types? <br><br>
                                 <strong>Hypothesis:</strong> 3D advantages emerge for topology-reading tasks (finding bridges between clusters), not value-reading tasks (precise comparisons).
                             </p>
@@ -495,12 +493,12 @@ sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
                     </div>
                 </div>
                 
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
-                    <div style="display: flex; align-items: flex-start; gap: 20px;">
-                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #00d4aa, #d4af37); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">2</div>
+                <div class="research-card">
+                    <div class="research-card-header">
+                        <div class="research-number">2</div>
                         <div>
-                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Datumplane Semantics</h3>
-                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                            <h3>Datumplane Semantics</h3>
+                            <p>
                                 <strong>Question:</strong> Are the X/Y/Z axis assignments (relationships/hierarchy/time) congruent with human spatial intuition, or arbitrary? <br><br>
                                 <strong>Experiment:</strong> Present the same dataset in multiple axis configurations and measure comprehension speed and accuracy.
                             </p>
@@ -508,12 +506,12 @@ sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
                     </div>
                 </div>
                 
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
-                    <div style="display: flex; align-items: flex-start; gap: 20px;">
-                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #d4af37, #ff3864); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">3</div>
+                <div class="research-card">
+                    <div class="research-card-header">
+                        <div class="research-number">3</div>
                         <div>
-                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Topology Detection</h3>
-                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                            <h3>Topology Detection</h3>
+                            <p>
                                 <strong>Question:</strong> Can we reliably distinguish structural-level topology (scale-free networks, continuous fields) from schema-level patterns? <br><br>
                                 <strong>Challenge:</strong> Extend constraint programming approaches (Draco system) to the 3D design space.
                             </p>
@@ -521,12 +519,12 @@ sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
                     </div>
                 </div>
                 
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
-                    <div style="display: flex; align-items: flex-start; gap: 20px;">
-                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #6b4ee6, #00d4aa); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">4</div>
+                <div class="research-card">
+                    <div class="research-card-header">
+                        <div class="research-number">4</div>
                         <div>
-                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Memory Palace Hypothesis</h3>
-                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                            <h3>Memory Palace Hypothesis</h3>
+                            <p>
                                 <strong>Question:</strong> Does encoding information in a self-constructed, navigable VR space improve recall compared to 2D representations? <br><br>
                                 <strong>Hypothesis:</strong> Self-generated spatial contexts produce stronger encoding than imposed ones (generation effect + contextual reinstatement).
                             </p>
@@ -534,12 +532,12 @@ sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
                     </div>
                 </div>
                 
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
-                    <div style="display: flex; align-items: flex-start; gap: 20px;">
-                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #ff3864, #6b4ee6); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">5</div>
+                <div class="research-card">
+                    <div class="research-card-header">
+                        <div class="research-number">5</div>
                         <div>
-                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Multi-User Shared Reference Frames</h3>
-                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                            <h3>Multi-User Shared Reference Frames</h3>
+                            <p>
                                 <strong>Question:</strong> When multiple users navigate the same data space simultaneously, how do shared reference frames and private viewpoints interact? <br><br>
                                 <strong>Problem:</strong> In VR, users can have literally inverted spatial reference frames. "Look at this" becomes ambiguous.
                             </p>
@@ -547,12 +545,12 @@ sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
                     </div>
                 </div>
                 
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
-                    <div style="display: flex; align-items: flex-start; gap: 20px;">
-                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #00d4aa, #6b4ee6); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">6</div>
+                <div class="research-card">
+                    <div class="research-card-header">
+                        <div class="research-number">6</div>
                         <div>
-                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Perceptual Limits of 3D Density</h3>
-                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                            <h3>Perceptual Limits of 3D Density</h3>
+                            <p>
                                 <strong>Question:</strong> At what point does node density in 3D space cause the visualization to become illegible regardless of frame rate? <br><br>
                                 <strong>Focus:</strong> Effective field of relevant perception, depth as a data channel (vergence-accommodation conflict), clutter thresholds.
                             </p>
@@ -560,12 +558,12 @@ sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
                     </div>
                 </div>
                 
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px; transition: transform 0.3s;">
-                    <div style="display: flex; align-items: flex-start; gap: 20px;">
-                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #d4af37, #00d4aa); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">7</div>
+                <div class="research-card">
+                    <div class="research-card-header">
+                        <div class="research-number">7</div>
                         <div>
-                            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 20px;">Artefact Semiotics</h3>
-                            <p style="color: rgba(255,255,255,0.7); margin: 0; line-height: 1.6;">
+                            <h3>Artefact Semiotics</h3>
+                            <p>
                                 <strong>Question:</strong> When is a 3D form a better encoding than a colour channel or a label? What conditions make arbitrary shapes read as meaningful icons? <br><br>
                                 <strong>Framework:</strong> Apply semiotics (Peirce's icon/index/symbol) and affordance theory (Gibson, Norman) to 3D glyph design.
                             </p>
@@ -574,15 +572,10 @@ sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
                 </div>
             </div>
             
-            <div style="text-align: center; margin-top: 60px;">
-                <p style="color: rgba(255,255,255,0.6); font-style: italic; margin-bottom: 25px;">
-                    "The project has good aesthetic sense and clear philosophical direction. What it needs is the discipline to test whether the philosophy actually holds when humans try to use it."
-                </p>
-                <a href="https://github.com/TsatsuAmable/nemosyne/discussions" target="_blank" class="btn btn-primary" style="display: inline-flex;">
+            <div class="research-quote">
+                <p>"The project has good aesthetic sense and clear philosophical direction. What it needs is the discipline to test whether the philosophy actually holds when humans try to use it."</p>
+                <a href="https://github.com/TsatsuAmable/nemosyne/discussions" target="_blank" class="btn btn-primary">
                     Join the Research Discussion
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
                 </a>
             </div>
         </div>
@@ -651,7 +644,7 @@ sensorArtefact.mount(<span class="code-string">'#vr-scene'</span>);
         </div>
         <p class="copyright">
             © 2026 Nemosyne Project. Released under MIT License. <br>
-            <span style="color: #d4af37; font-size: 12px;">Research Preview — Validating assumptions through empirical study.</span>
+            <span class="research-note">Research Preview — Validating assumptions through empirical study.</span>
         </p>
     </footer>
 

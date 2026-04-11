@@ -1006,3 +1006,204 @@
                 padding: 1.25rem;
             }
         }
+/* Research Preview Banner */
+.research-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(90deg, var(--temporal-purple), var(--shrike-red));
+    padding: 0.75rem 5%;
+    text-align: center;
+    font-size: 0.85rem;
+    z-index: 1001;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.research-banner span {
+    color: var(--light);
+    font-weight: 500;
+}
+
+.research-banner a {
+    color: var(--memory-gold);
+    margin-left: 1rem;
+    text-decoration: none;
+    font-weight: 600;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.3s;
+}
+
+.research-banner a:hover {
+    border-bottom-color: var(--memory-gold);
+}
+
+/* Research Section */
+.research {
+    padding: 6rem 5%;
+    background: linear-gradient(180deg, var(--void-dark) 0%, var(--void-deeper) 50%, var(--void-dark) 100%);
+    position: relative;
+    overflow: hidden;
+    border-top: 1px solid rgba(107, 78, 230, 0.2);
+}
+
+.research .section-tag {
+    background: linear-gradient(90deg, var(--temporal-purple), var(--shrike-red));
+    border: none;
+    color: var(--light);
+}
+
+.research-grid {
+    display: grid;
+    gap: 2rem;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.research-card {
+    background: rgba(5, 5, 8, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+    padding: 2rem;
+    transition: all 0.4s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.research-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(to bottom, var(--temporal-purple), transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
+}
+
+.research-card:hover {
+    border-color: rgba(107, 78, 230, 0.3);
+    transform: translateY(-3px);
+    background: rgba(5, 5, 8, 0.8);
+}
+
+.research-card:hover::before {
+    opacity: 1;
+}
+
+.research-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.25rem;
+}
+
+.research-number {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, var(--temporal-purple), var(--shrike-red));
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    color: var(--light);
+    flex-shrink: 0;
+}
+
+.research-card:nth-child(1) .research-number {
+    background: linear-gradient(135deg, var(--temporal-purple), var(--shrike-red));
+}
+
+.research-card:nth-child(2) .research-number {
+    background: linear-gradient(135deg, var(--datasphere-cyan), var(--memory-gold));
+}
+
+.research-card:nth-child(3) .research-number {
+    background: linear-gradient(135deg, var(--memory-gold), var(--shrike-red));
+}
+
+.research-card:nth-child(4) .research-number {
+    background: linear-gradient(135deg, var(--temporal-purple), var(--datasphere-cyan));
+}
+
+.research-card:nth-child(5) .research-number {
+    background: linear-gradient(135deg, var(--shrike-red), var(--temporal-purple));
+}
+
+.research-card:nth-child(6) .research-number {
+    background: linear-gradient(135deg, var(--datasphere-cyan), var(--temporal-purple));
+}
+
+.research-card:nth-child(7) .research-number {
+    background: linear-gradient(135deg, var(--memory-gold), var(--datasphere-cyan));
+}
+
+.research-card h3 {
+    font-family: 'Cinzel', serif;
+    font-size: 1.25rem;
+    margin: 0 0 0.75rem 0;
+    color: var(--lunar-silver);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
+.research-card p {
+    color: var(--gray);
+    margin: 0;
+    line-height: 1.7;
+}
+
+.research-card strong {
+    color: var(--datasphere-cyan);
+    font-weight: 600;
+}
+
+.research-quote {
+    text-align: center;
+    margin-top: 4rem;
+    padding: 2rem;
+    border-top: 1px solid rgba(0, 212, 170, 0.1);
+    border-bottom: 1px solid rgba(0, 212, 170, 0.1);
+}
+
+.research-quote p {
+    color: var(--gray);
+    font-style: italic;
+    font-size: 1.1rem;
+    max-width: 800px;
+    margin: 0 auto 1.5rem;
+    line-height: 1.8;
+}
+
+/* Nav adjustment for research banner */
+nav.has-research-banner {
+    top: 45px;
+}
+/* Research Callout - Used in VR section */
+.research-callout {
+    color: var(--memory-gold);
+    font-size: 0.9rem;
+    border-left: 2px solid var(--memory-gold);
+    padding-left: 1rem;
+    margin-top: 1rem;
+}
+
+.research-callout a {
+    color: var(--datasphere-cyan);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.3s;
+}
+
+.research-callout a:hover {
+    border-bottom-color: var(--datasphere-cyan);
+}
+
+/* Footer research note */
+.copyright .research-note {
+    color: var(--memory-gold);
+    font-size: 12px;
+}
