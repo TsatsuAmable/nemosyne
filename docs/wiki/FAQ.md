@@ -1,44 +1,52 @@
 # Frequently Asked Questions
 
+> ⚠️ **RESEARCH PREVIEW**: Nemosyne is an experimental framework. Answers describe current implementation, not validated best practices.
+
+---
+
 ## General Questions
 
 ### What is Nemosyne?
 
-Nemosyne is a **data-native VR visualization framework** that transforms data into immersive 3D experiences. Unlike traditional tools that force data into charts, Nemosyne lets data shape the scene, enabling you to walk through your data in VR.
+Nemosyne is an **experimental research framework** for investigating immersive data visualization in VR. We're testing whether 3D, navigable data spaces improve comprehension compared to traditional 2D charts.
+
+**It is not**: A production-ready visualization tool, a replacement for Tableau/D3, or a validated approach.
+
+**It is**: A platform for empirical research into spatial data encoding.
 
 ### What does "data-native" mean?
 
-Traditional visualization tools require you to reshape data to fit charts (pivot tables, aggregations, etc.). Nemosyne reads your data's intrinsic structure and automatically creates the optimal visualization. You provide data, Nemosyne handles the rest.
+In Nemosyne's design philosophy, "data-native" means attempting to derive visual encoding from data structure rather than imposing chart types. **Note**: Whether this approach produces better visualizations is an open research question.
 
 ### Do I need a VR headset?
 
-No. Nemosyne works in any modern web browser with mouse/keyboard controls. However, a VR headset (Quest, Vive, etc.) provides the full immersive experience.
+No. Nemosyne works in any modern web browser with mouse/keyboard. VR headsets provide immersion but we're also studying whether desktop 3D (without headset) offers any advantages.
 
 ### What browsers are supported?
 
-- Chrome/Edge 90+
-- Firefox 88+
-- Safari 15+ (WebGL 2.0)
+- Chrome/Edge 90+ (full support)
+- Firefox 88+ (full support)
+- Safari 15+ (WebGL only, no VR)
 
-WebXR (VR mode) requires Chrome/Edge or Firefox with compatible hardware.
+WebXR (headset support) requires Chrome/Edge/Firefox with compatible hardware.
+
+---
 
 ## Getting Started
 
 ### How do I install Nemosyne?
 
 **CDN (easiest):**
-
 ```html
 <script src="https://cdn.jsdelivr.net/npm/nemosyne@latest/dist/nemosyne.min.js"></script>
 ```
 
 **NPM:**
-
 ```bash
 npm install nemosyne
 ```
 
-### What's the simplest visualization I can create?
+### What's the simplest visualization?
 
 ```html
 <a-entity nemosyne-artefact-v2="
@@ -48,15 +56,18 @@ npm install nemosyne
 "></a-entity>
 ```
 
-This creates two spheres in a basic grid layout.
+This creates two spheres. Whether this is useful depends on your research question.
 
 ### Where can I see examples?
 
-Check the `/examples/` directory in the repository. Key demos:
-- `hello-world.html` - Basic setup
-- `nemorooms-demo.html` - Multi-room navigation
-- `memory-palace-vr.html` - Full VR experience
-- `physics-explosion-demo.html` - Physics simulation
+See `/examples/` directory. **Important**: These use **simulated data** to demonstrate capabilities. They show what's possible, not production implementations.
+
+- `hello-world.html` - Basic setup (works)
+- `industrial-iot/` - Simulated sensor data (not real factory)
+- `financial-markets/` - Mock prices (not live trading)
+- `medical-imaging/` - Sample images (not DICOM integration)
+
+---
 
 ## Data & Formats
 
@@ -64,21 +75,24 @@ Check the `/examples/` directory in the repository. Key demos:
 
 - **JSON** - Primary format
 - **CSV** - Via loader
-- **WebSocket** - Real-time streaming
-- **Direct arrays** - JavaScript objects
+- **Arrays** - JavaScript objects
+- **WebSocket** - Real-time streaming (implemented but latency impact unstudied)
 
 ### How much data can Nemosyne handle?
 
-| Metric | Performance |
-|--------|-------------|
-| **Nodes** | 10,000+ @ 60fps |
-| **Memory** | ~300MB for 10k nodes |
-| **Load Time** | ~2s for 5k nodes |
-| **Physics** | 1,000+ dynamic bodies |
+**Unknown**. We have not conducted systematic performance testing.
+
+| Scale | Estimated | Confidence |
+|-------|-----------|------------|
+| < 100 nodes | Likely smooth | Medium |
+| 100-1000 nodes | Uncertain | Low |
+| > 1000 nodes | Unknown | None |
+
+If you benchmark, please share results on GitHub Discussions.
 
 ### Can I update data in real-time?
 
-Yes. Use `scene.updateData(id, newData)` or WebSocket streaming:
+Yes, the WebSocket implementation works:
 
 ```javascript
 const stream = new NemosyneDataStream('ws://localhost:8766');
@@ -87,20 +101,26 @@ stream.on('data', (packet) => {
 });
 ```
 
+**However**: The effect of latency on VR comprehension is unstudied. We don't know if real-time updates help or hurt understanding.
+
+---
+
 ## Layouts & Visualizations
 
 ### Which layout should I use?
 
-| Data Type | Recommended Layout |
-|-----------|-------------------|
-| Categories | `grid` or `radial` |
-| Time series | `timeline` or `spiral` |
-| Networks | `force` or `graph-force` |
-| Hierarchies | `tree` |
-| Geographic | `geo-globe` |
-| Scatter | `scatter` |
+We don't know yet. Current options with **untested hypotheses**:
 
-See [Layout Algorithms](Layout-Algorithms) for details.
+| Layout | Hypothesis | Status |
+|--------|------------|--------|
+| `grid` | Good for categories | Implemented |
+| `radial` | Good for menus/cycles | Implemented |
+| `timeline` | Good for chronology | Implemented |
+| `spiral` | May show accumulation | Implemented |
+| `tree` | May reveal hierarchies | Implemented |
+| `force` | May reveal clusters | Implemented |
+
+**Research needed**: User studies comparing 3D layouts to 2D equivalents.
 
 ### Can I create custom layouts?
 
@@ -118,6 +138,8 @@ Nemosyne.registerLayout('my-layout', {
 });
 ```
 
+If you develop a layout that shows promise in user testing, please share your findings.
+
 ### How do I map data to colors?
 
 ```javascript
@@ -130,92 +152,52 @@ Nemosyne.registerLayout('my-layout', {
 }
 ```
 
-Or for continuous values:
+**Research question**: Do color mappings need adaptation for 3D contexts (lighting, depth perception)?
 
-```javascript
-{
-  transforms: [{
-    property: 'color',
-    $data: 'value',
-    $range: ['#00d4aa', '#ff6b6b']  // Gradient
-  }]
-}
-```
+---
 
 ## Performance
 
 ### Why is my visualization slow?
 
-**Common causes:**
-1. Too many data points (>10,000)
-2. Complex geometries (use spheres instead of detailed meshes)
-3. No sleep/wake optimization (physics)
-4. Memory leaks (not disposing objects)
+Common causes (unprioritized):
+1. Too many data points (try < 100 for testing)
+2. Complex geometries (use simple shapes)
+3. No optimization (no LOD, instancing, culling implemented)
 
-**Solutions:**
-
-```javascript
-// Reduce geometry complexity
-{ geometry: { type: 'sphere', segments: 16 } } // Instead of 64
-
-// Enable physics sleep
-body.setSleepingThresholds(0.1, 0.1);
-
-// Dispose properly
-artefact.destroy();
-```
-
-### How do I optimize for mobile VR?
-
-- Use instanced meshes for repeated geometries
-- Reduce texture sizes
-- Simplify collision shapes
-- Disable shadows
-- Use LOD (Level of Detail)
+**Solutions**:
+- Reduce geometry: `{ geometry: { type: 'sphere', segments: 16 } }`
+- Use fewer data points for initial testing
 
 ### What's the recommended target for Quest 2?
 
-- **Nodes:** < 5,000 for smooth performance
-- **Draw calls:** < 50
-- **Textures:** < 10MB total
-- **Physics:** < 500 bodies
+Unknown. We have not benchmarked on Quest 2 specifically.
+
+**Conservative guess**: < 500 nodes for smooth performance
+
+If you test, please report:
+- Node count
+- FPS achieved
+- Device specs
+
+---
 
 ## Physics
 
 ### Do I need physics?
 
-Only if you want:
-- Collision detection
-- Realistic dynamics
-- Force-directed layouts at scale (10k+ nodes)
-- Interactive dragging with momentum
+Physics is optional. It's implemented via Ammo.js but:
+- Adds complexity
+- Performance impact unmeasured
+- Educational value for dataviz unproven
 
-### How do I enable physics?
-
-```html
-<script src="https://cdn.jsdelivr.net/npm/ammo.js@0.0.10/ammo.js"></script>
-<script src="src/physics/AmmoPhysicsEngine.js"></script>
-```
-
-Then use the physics-enabled component:
-
-```html
-<a-entity nemosyne-graph-force="
-  nodes: [...];
-  edges: [...];
-  chargeStrength: -50;
-"></a-entity>
-```
+Use if your research question involves physical dynamics (e.g., "do bouncing data points aid engagement?").
 
 ### Can I use physics without Ammo.js?
 
-Nemosyne includes a simplified force-directed layout without physics:
+The simplified `layout: 'force'` works without physics. It's pure JavaScript but may not scale to large networks.
 
-```javascript
-{ layout: 'force' }  // Pure JavaScript, no WASM
-```
-
-But for collisions and realistic dynamics, Ammo.js is required.
+---
 
 ## Custom Development
 
@@ -233,98 +215,95 @@ class MyArtefact extends Nemosyne.Artefact {
 Nemosyne.registerArtefact('my-custom', MyArtefact);
 ```
 
+If you create an artefact and test it with users, please publish your results.
+
 ### How do I contribute?
 
-See [Contributing Guidelines](Contributing-Guidelines). Quick steps:
+We welcome research contributions:
 
-1. Fork the repository
-2. Create a feature branch
-3. Make changes with tests
-4. Submit a pull request
+1. **User Studies**: Test Nemosyne with participants, publish findings
+2. **Research Design**: Propose study methodologies
+3. **Bug Fixes**: Improve the experimental platform
+4. **Documentation**: Clarify experimental status
 
-### What's the code style?
+See [Contributing Guidelines](../CONTRIBUTING.md).
 
-- **Linting:** ESLint with custom config
-- **Formatting:** Prettier
-- **Testing:** All features need tests
-- **Documentation:** Update docs with API changes
+---
+
+## Research Context
+
+### Is Nemosyne better than 2D charts?
+
+**We don't know.** That's the research question.
+
+Current hypothesis: 3D may be better for:
+- Understanding network topology
+- Comprehending hierarchies
+- Memory encoding (spatial context)
+
+Likely worse for:
+- Precise value comparison
+- Reading labels at a distance
+- Quick pattern recognition (occlusion)
+
+### How can I help validate (or refute) Nemosyne?
+
+1. **Design a study**: Compare 3D vs 2D for a specific task
+2. **Run a pilot**: Test with colleagues/friends
+3. **Share results**: Post on GitHub Discussions
+4. **Collaborate**: Join ongoing research efforts
+
+### What's the goal?
+
+To determine **when, if ever**, 3D VR data visualization provides measurable advantages over 2D alternatives—and when it doesn't.
+
+We're not trying to prove 3D is better. We're trying to find out if it ever is, and for what.
+
+---
 
 ## Troubleshooting
 
 ### "Ammo is not defined"
 
-**Cause:** Ammo.js not loaded before Nemosyne.
+Cause: Ammo.js not loaded before Nemosyne.
 
-**Fix:**
-
+Fix:
 ```html
-<!-- Load Ammo FIRST -->
 <script src="ammo.js"></script>
 <script>
-  // Wait for WASM
   Ammo().then(() => {
     // Now load Nemosyne
   });
 </script>
 ```
 
-### Bodies not moving
-
-**Cause:** Body is asleep or kinematic.
-
-**Fix:**
-
-```javascript
-body.activate();  // Wake up
-// Or check if kinematic:
-const isKinematic = body.getCollisionFlags() & Ammo.btCollisionObject.CF_KINEMATIC_OBJECT;
-```
-
 ### "Nothing appears in VR"
 
-**Causes:**
+Causes:
 1. HTTPS required for WebXR
 2. Camera positioned incorrectly
-3. Scene background/sky not set
+3. Scene background not set
 
-**Fix:**
-
+Fix:
 ```html
 <a-scene background="color: #000" renderer="antialias: true">
   <a-camera position="0 1.6 0"></a-camera>
 </a-scene>
 ```
 
-### Memory leaks
-
-**Proper cleanup:**
-
-```javascript
-// Remove artefact
-scene.removeArtefact(id);
-
-// Destroy physics
-physics.destroy();
-
-// Clear containers
-container.innerHTML = '';
-```
+---
 
 ## Support
 
 ### Where can I get help?
 
-1. **[Discord](https://discord.gg/nemosyne)** - Community chat
+1. **[GitHub Discussions](https://github.com/TsatsuAmable/nemosyne/discussions)** - Research Q&A
 2. **[GitHub Issues](https://github.com/TsatsuAmable/nemosyne/issues)** - Bug reports
-3. **[GitHub Discussions](https://github.com/TsatsuAmable/nemosyne/discussions)** - Q&A
-4. **Stack Overflow** - Tag with `nemosyne`
+3. **No Discord yet** - May create if research community grows
 
 ### Is there commercial support?
 
-Coming in v1.0. For now:
-- Enterprise consulting via Discord
-- Sponsored development available
-- Training workshops (request via email)
+No. This is a research project, not a product.
 
 ### How do I report a bug?
 
@@ -337,4 +316,9 @@ Include:
 
 ---
 
-**Have a question not answered here?** Add it to the [GitHub Discussions](https://github.com/TsatsuAmable/nemosyne/discussions) and we'll update this FAQ.
+**Have a question not answered here?** Add it to [GitHub Discussions](https://github.com/TsatsuAmable/nemosyne/discussions) and we'll update this FAQ.
+
+---
+
+**Last Updated:** 2026-04-12  
+**Version:** 0.2.0-research

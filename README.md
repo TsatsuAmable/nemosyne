@@ -1,44 +1,69 @@
 # Nemosyne 🌌
 
-**Data-Native VR Visualization Framework**
+**Research Framework for Immersive Data Visualization**
 
-> *"The data is the scene"*, *"The data is the art"*, *"The data is the memory"*
+> ⚠️ **RESEARCH PREVIEW**: Nemosyne is an experimental framework for investigating whether 3D VR visualizations improve data comprehension compared to 2D. Many features are implemented but untested. We are seeking collaborators to help validate (or refute) our hypotheses.
 
 [![NPM](https://img.shields.io/npm/v/nemosyne.svg)](https://www.npmjs.com/package/nemosyne)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![WebXR](https://img.shields.io/badge/WebXR-Ready-brightgreen.svg)](https://immersiveweb.dev/)
+[![WebXR](https://img.shields.io/badge/WebXR-Experimental-orange.svg)](https://immersiveweb.dev/)
 [![A-Frame](https://img.shields.io/badge/A--Frame-1.7.0-EF2D5E)](https://aframe.io/)
-[![CI](https://github.com/TsatsuAmable/nemosyne/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/TsatsuAmable/nemosyne/actions)
 
-**[Documentation](docs/API_REFERENCE_COMPLETE.md)** | **[Architecture](ARCHITECTURE.md)** | **[Examples](examples/)** | **[Changelog](CHANGELOG.md)**
+**[Documentation](docs/API_REFERENCE_COMPLETE.md)** | **[Research Agenda](docs/RESEARCH_AGENDA.md)** | **[Examples](examples/)** | **[Changelog](CHANGELOG.md)**
+
+---
+
+## 🔬 Current Status
+
+Nemosyne is a research framework, not a production tool. Here's what exists versus what's validated:
+
+| Component | Implementation | Validation Status | Research Question |
+|-----------|---------------|-------------------|-------------------|
+| **Core Rendering** | ✅ Working | ⚠️ Needs UX study | Does 3D spatial encoding improve comprehension? |
+| **Layout Algorithms** | ✅ 7 implemented | ❌ Not started | Which layouts work for which data types? |
+| **Topology Detection** | 🚧 Partial | ❌ Not started | Can we reliably auto-detect data structure? |
+| **Performance (10k nodes)** | 🚧 Unbenchmarked | ❌ Not started | At what density does 3D become illegible? |
+| **WebSocket Streaming** | ✅ Working | ⚠️ Unmeasured | Does real-time VR dataviz improve monitoring? |
+| **MemPalace Integration** | 🚧 Connector exists | ❌ Not started | Does self-built spatial context aid recall? |
+| **17 Artefact Types** | 🚧 ~5 working | ❌ Not started | Which visual encodings are most effective? |
+
+### What This Means
+
+- **✅ Working**: Code runs, produces output
+- **⚠️ Needs UX study**: Implemented but untested with users
+- **🚧 Unbenchmarked**: No performance data exists
+- **❌ Not started**: No empirical validation yet
 
 ---
 
 ## 🌟 What is Nemosyne?
 
-Nemosyne is a revolutionary **data-native VR visualization framework** that transforms data topology into immersive 3D experiences. Named after the Titaness of memory, it enables you to walk through your data, explore relationships spatially, and interact with information in ways impossible in 2D.
+Nemosyne is an **experimental framework** for creating 3D visualizations of data in VR. We're testing a core hypothesis: **does embodied, navigable 3D space improve data comprehension compared to 2D representations?**
 
-### The Nemosyne Philosophy
+Named after the Titaness of memory, Nemosyne explores whether "walking through your data" reveals patterns invisible in traditional charts—or whether the added spatial complexity obscures more than it reveals.
 
-Traditional visualization tools force you to **shape data to fit charts**. Nemosyne inverts this: **data shapes the scene**. Provide your data, and Nemosyne automatically builds the optimal visualization based on its intrinsic structure.
+### The Core Hypothesis
 
 ```
-Raw Data → Topology Detection → Layout Engine → VR Scene
-     ↓            ↓                ↓            ↓
-  Records    Patterns      Positions      Entities
+Hypothesis: 3D advantages emerge for topology-reading tasks
+(finding bridges between clusters, understanding hierarchies)
+
+NOT for: value-reading tasks (precise comparisons, reading labels)
 ```
+
+This hypothesis is **untested**. We're building the infrastructure to find out.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Experimental)
 
 ### Installation
 
 ```bash
-npm install nemosyne aframe ammo.js
+npm install nemosyne aframe
 ```
 
-### Hello, VR World
+### Basic Example
 
 ```html
 <!DOCTYPE html>
@@ -48,6 +73,146 @@ npm install nemosyne aframe ammo.js
   <script src="dist/nemosyne.min.js"></script>
 </head>
 <body>
+  <a-scene>
+    <!-- A basic 3D bar chart -->
+    <a-entity nemosyne-artefact-v2="
+      spec: {
+        id: 'demo',
+        geometry: { type: 'cylinder', radius: 0.3, height: 2 },
+        material: { properties: { color: '#00d4aa' } }
+      };
+      dataset: {
+        records: [
+          { month: 'Jan', sales: 100 },
+          { month: 'Feb', sales: 150 }
+        ]
+      };
+      layout: grid;
+      layout-options: { columns: 2, spacing: 2 }
+    "></a-entity>
+  </a-scene>
+</body>
+</html>
+```
+
+⚠️ **Note**: This creates a 3D visualization. Whether it's *better* than a 2D bar chart for your task is the research question we're investigating.
+
+---
+
+## 📋 Research Agenda
+
+We're treating Nemosyne as a platform for answering seven critical questions:
+
+### 1. Spatial Encoding Efficacy
+**Question**: Does embodied, navigable 3D space produce better data comprehension than 2D alternatives, and for which task types?
+
+**Hypothesis**: 3D advantages emerge for topology-reading tasks (finding bridges between clusters), not value-reading tasks (precise comparisons).
+
+### 2. Datumplane Semantics
+**Question**: Are the X/Y/Z axis assignments (relationships/hierarchy/time) congruent with human spatial intuition, or arbitrary?
+
+**Experiment**: Present the same dataset in multiple axis configurations and measure comprehension speed and accuracy.
+
+### 3. Memory Palace Hypothesis
+**Question**: Does encoding information in a self-constructed, navigable VR space improve recall compared to 2D representations?
+
+**Hypothesis**: Self-generated spatial contexts produce stronger encoding than imposed ones.
+
+*[See all 7 research questions](docs/RESEARCH_AGENDA.md)*
+
+---
+
+## 📦 Current Capabilities (Experimental)
+
+### Implemented Layouts
+
+| Layout | Status | Notes |
+|--------|--------|-------|
+| `grid` | ✅ Working | Rows and columns |
+| `radial` | ✅ Working | Circular arrangement |
+| `timeline` | ✅ Working | Linear temporal |
+| `spiral` | ⚠️ Implemented | Needs validation |
+| `tree` | ⚠️ Implemented | Reingold-Tilford algorithm |
+| `force` | ⚠️ Implemented | Force-directed placement |
+| `scatter` | 🚧 Basic | Needs refinement |
+
+**Important**: These layouts run and produce output. Whether they produce *useful* visualizations for specific tasks is unknown.
+
+### Data Topology Detection (Experimental)
+
+Nemosyne attempts to analyze your data and suggest layouts. This is **heuristic-based** and untested:
+
+| Topology | Detection | Confidence |
+|----------|-----------|------------|
+| **Network** | `nodes` + `links` arrays | Low—needs validation |
+| **Hierarchy** | `parent` references | Low—needs validation |
+| **Temporal** | `timestamp` field | Medium—time is unambiguous |
+| **Numerical** | Single numeric value | High—trivial detection |
+
+---
+
+## 🧪 Examples (Simulated Data)
+
+The `/examples/` directory contains demonstrations using **simulated data**. They show what's possible, not production integrations.
+
+| Example | Status | Data Source |
+|---------|--------|-------------|
+| hello-world | ✅ Working | Static |
+| industrial-iot | ⚠️ Simulated | Mock WebSocket |
+| financial-markets | ⚠️ Simulated | Mock price generator |
+| medical-imaging | 🚧 Static | Sample images, not DICOM |
+| smart-cities | ⚠️ Simulated | Mock sensor data |
+| scientific-research | 🚧 Static | Sample molecule |
+
+**None** of these currently connect to real data sources. They're visual prototypes awaiting empirical validation.
+
+---
+
+## 🤝 Contributing to Research
+
+We're seeking collaborators with expertise in:
+
+- **Human-Computer Interaction** — Design user studies
+- **Data Visualization** — Validate layout efficacy
+- **VR/AR Development** — Improve WebXR performance
+- **Cognitive Psychology** — Test memory palace hypothesis
+
+### How to Contribute
+
+1. **Join the Discussion**: [GitHub Discussions](https://github.com/TsatsuAmable/nemosyne/discussions)
+2. **Propose a Study**: Open an issue with your research design
+3. **Share Results**: If you test Nemosyne, publish your findings
+
+---
+
+## 📝 License
+
+MIT © [Tsatsu Amable](https://github.com/TsatsuAmable)
+
+See [LICENSE](LICENSE) for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **[A-Frame](https://aframe.io/)** — WebXR framework
+- **[Three.js](https://threejs.org/)** — 3D rendering
+- **[Dan Simmons](https://en.wikipedia.org/wiki/Dan_Simmons)** — Hyperion Cantos inspiration
+
+---
+
+## 💬 Research Community
+
+- **GitHub Discussions**: [Join the research conversation](https://github.com/TsatsuAmable/nemosyne/discussions)
+- **Issues**: Report bugs or propose studies
+
+---
+
+**Built for data exploration research** 🌌
+
+<p align="center">
+  <em>"We're not claiming 3D is better. We're building the tools to find out."</em>
+</p>
   <a-scene>
     <a-entity nemosyne-artefact-v2="
       spec: {
