@@ -100,7 +100,7 @@ class GravityBehaviour extends PhysicsBehaviour {
   applyGravity(center, strength, radius) {
     const A = this.physics.ammo;
     
-    this.physics.nodeBodies.forEach((body, nodeId) = {
+    this.physics.nodeBodies.forEach((body, nodeId) => {
       const pos = body.getWorldTransform().getOrigin();
       
       const dx = center.x - pos.x();

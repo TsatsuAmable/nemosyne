@@ -17,9 +17,9 @@
     "build": "npm run build:umd && npm run build:esm",
     "build:umd": "webpack --mode production",
     "build:esm": "rollup -c rollup.config.js",
-    "test": "jest --testPathIgnorePatterns='framework' --testPathIgnorePatterns='integration'",
-    "test:unit": "jest --testPathIgnorePatterns='framework' --testPathIgnorePatterns='integration'",
-    "test:watch": "jest --watch --testPathIgnorePatterns='framework' --testPathIgnorePatterns='integration'",
+    "test": "jest --testPathPattern='nemosyne.test.js'",
+    "test:unit": "jest --testPathPattern='nemosyne.test.js'",
+    "test:watch": "jest --watch --testPathPattern='nemosyne.test.js'",
     "lint": "eslint src/",
     "docs": "jsdoc -c jsdoc.json"
   },
