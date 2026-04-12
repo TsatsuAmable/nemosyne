@@ -1,12 +1,12 @@
 # Nemosyne Examples Gallery
 
-This directory contains working demonstrations of VR Artefacts across different domains. Each example is a complete, self-contained HTML application with live data integration.
+> ⚠️ **RESEARCH PREVIEW**: These examples demonstrate what's technically possible, not production applications. All use **simulated data**—real integrations await empirical validation.
 
 ---
 
 ## Quick Start
 
-All examples are static HTML files. Simply open in any modern browser:
+All examples are static HTML files with **mock data generators**:
 
 ```bash
 # Start a local server
@@ -23,453 +23,260 @@ http://localhost:8080/hello-world/
 
 ## Examples Overview
 
-### Core Examples
+### Core Examples (Working)
 
-| Example | Description | Key Features |
-|---------|-------------|--------------|
-| **hello-world** | Basic crystal artefact | Single interactive element, data binding |
-| **network-galaxy** | Network topology | Force-directed layout, microservices visualization |
-| **bar-chart** | Spatial data visualization | Monthly revenue, vertical bars, hover interactions |
-| **timeline-spiral** | Temporal data | Activity patterns, spiral layout, time-series binding |
-| **data-tree** | Hierarchical visualization | File system, tree layout, expandable nodes |
-| **virtual-worlds** | Game development | NavMesh integration, level editor, collision detection |
+| Example | Description | Data | Status |
+|---------|-------------|------|--------|
+| **hello-world** | Basic crystal artefact | Static | ✅ Works |
+| **network-galaxy** | Force-directed network | Mock topology | ⚠️ Simulated |
+| **bar-chart** | Spatial bar chart | Static CSV | ✅ Works |
+| **timeline-spiral** | Temporal spiral | Mock time series | ⚠️ Simulated |
+| **data-tree** | File system tree | Static JSON | ✅ Works |
+| **virtual-worlds** | Game mechanics demo | N/A | ⚠️ Tech demo |
 
-### Domain-Specific Examples
+### Domain Examples (Visual Prototypes)
 
-| Example | Domain | Data Integration | Unique Features |
-|---------|--------|-----------------|-----------------|
-| **industrial-iot** | Manufacturing | WebSocket sensor feed | Real-time alerts, status indicators, conveyor visualizations |
-| **financial-markets** | Finance | FIX-protocol trading | Market depth, bid/ask walls, live price updates |
-| **scientific-research** | Science | PDB molecular structures | Atom visualization, bonds, molecular rotation |
-| **medical-imaging** | Healthcare | DICOM PACS streaming | CT/MRI modes, slice navigation, window/level controls |
-| **smart-cities** | Urban Planning | IoT sensor grid | Traffic patterns, energy consumption, air quality |
-| **education-solar** | Education | NASA planetary data | Accurate orbital mechanics, moon systems, starfield |
+These show **what might be possible**. They use **simulated data**, not real integrations.
+
+| Example | Domain | Data Source | Reality |
+|---------|--------|-------------|---------|
+| **industrial-iot** | Manufacturing | **Mock WebSocket** | Simulated sensors |
+| **financial-markets** | Finance | **Mock prices** | Random walk generator |
+| **scientific-research** | Science | **Static molecule** | Sample PDB, not live |
+| **medical-imaging** | Healthcare | **Sample images** | Not DICOM connected |
+| **smart-cities** | Urban | **Mock sensor grid** | No real IoT |
+| **education-solar** | Education | **Static orbits** | Simplified physics |
 
 ---
 
-## Technical Documentation
+## What These Examples Actually Are
 
-### Industrial IoT Example
+### Purpose
+These demonstrate:
+- **Technical feasibility**: "Can we render 3D data in VR?" (Yes)
+- **Interaction patterns**: "How might users navigate?" (Proposed)
+- **Visual concepts**: "What might this look like?" (Speculative)
+
+### Not Demonstrated
+- **Utility**: "Is this better than 2D?" (Unknown)
+- **Real-world integration**: "Does this work with actual data?" (Not tested)
+- **Performance at scale**: "Can it handle 10k nodes?" (Unbenchmarked)
+
+---
+
+## Example Details
+
+### Industrial IoT (Simulated)
 
 **Location:** `examples/industrial-iot/`
 
-**Data Model:**
+**What it actually does:**
+- Generates random temperature/pressure values every 2 seconds
+- Displays them as colored cylinders
+- **Not connected to any real sensors**
+
+**Data Model (Mock):**
 ```javascript
 {
   sensorId: 'sensor-1',
-  type: 'temperature',  // temperature | pressure | vibration | humidity
-  value: 75.3,
+  type: 'temperature',
+  value: Math.random() * 100,  // Simulated
   threshold: 100,
-  status: 'normal'     // normal | warning | critical
+  status: Math.random() > 0.8 ? 'warning' : 'normal'  // Random
 }
 ```
 
-**WebSocket Simulation:**
-- Updates every 2 seconds
-- Simulates temperature spikes, pressure drops
-- Status changes trigger color and animation changes
+**Research Question:** Would real-time sensor visualization in VR improve monitoring compared to dashboard alarms?
 
-**Visual Encoding:**
-| Sensor Status | Color | Animation |
-|---------------|-------|-----------|
-| Normal | Cyan (#00d4aa) | Static glow |
-| Warning | Gold (#d4af37) | Slow pulse |
-| Critical | Red (#ff3864) | Rapid pulse + scaling |
-
-**Interaction:**
-- Hover: Scale up, show tooltip
-- Click: Detailed sensor panel
-- Real-time: Conveyor belt animates continuously
+**Answer:** Unknown. This demo can't answer that.
 
 ---
 
-### Financial Markets Example
+### Financial Markets (Simulated)
 
 **Location:** `examples/financial-markets/`
 
-**Data Model:**
+**What it actually does:**
+- Generates random price movements
+- Displays as 3D bars
+- **Not connected to any exchange**
+
+**Data Model (Mock):**
 ```javascript
 {
   symbol: 'BTC-USD',
-  price: 45234.50,
-  volume: 15420,
-  change: 1.2,  // percentage
-  bid: 45230,
-  ask: 45238
+  price: previousPrice + (Math.random() - 0.5) * 100,  // Random walk
+  volume: Math.floor(Math.random() * 10000),
+  change: (Math.random() - 0.5) * 5
 }
 ```
 
-**WebSocket Simulation:**
-- Price updates every 2 seconds
-- Volatility based on crypto/FX patterns
-- Automatic color coding (green=up, red=down)
+**Research Question:** Would traders make better decisions with 3D market depth visualization?
 
-**Visual Encoding:**
-| Element | Representation | Interaction |
-|---------|----------------|-------------|
-| Price | Bar height | Scale on click |
-| Volume | Base radius | Pulse animation |
-| Change | Bar color | Color shift on update |
-| Order Book | Wall visualization | Bid=green, Ask=red |
-
-**FIX Protocol Compatibility:**
-Component accepts standard FIX message format:
-```
-8=FIX.4.4|9=100|35=W|55=BTCUSD|268=2|269=0|270=45234|271=100|10=123|
-```
+**Answer:** Unknown. This demo can't answer that.
 
 ---
 
-### Scientific Research Example
+### Scientific Research (Static)
 
 **Location:** `examples/scientific-research/`
 
-**Data Model (PDB-style):**
-```javascript
-{
-  name: 'Caffeine',
-  formula: 'C8H10N4O2',
-  atoms: [
-    { element: 'C', x: 0, y: 0, z: 0, bonds: 3 },
-    // ... more atoms
-  ],
-  bonds: [
-    { from: 0, to: 1, order: 1 }
-  ]
-}
-```
+**What it actually does:**
+- Displays a static molecular structure (caffeine)
+- **Not fetching from RCSB PDB database**
+- **Not live research data**
 
-**Element Visualization:**
-| Element | Color | Radius | CPK Standard |
-|---------|-------|--------|--------------|
-| Carbon (C) | #333333 | 0.7 | ✓ |
-| Nitrogen (N) | #3050F8 | 0.65 | ✓ |
-| Oxygen (O) | #FF0D0D | 0.65 | ✓ |
-| Hydrogen (H) | #FFFFFF | 0.3 | ✓ |
+**Data:** Hardcoded JSON of caffeine atoms
 
-**Interactions:**
-- Hover atom: Scale 1.3x, show element info
-- Click: Freeze rotation
-- Auto-rotation: 360° every 20 seconds
+**Research Question:** Does manipulating molecules in VR improve structural understanding?
 
-**Loading Real PDB Files:**
-```javascript
-// Fetch from RCSB PDB Database
-fetch('https://files.rcsb.org/download/1ABC.pdb')
-  .then(r => r.text())
-  .then(parsePDB)
-  .then(renderMolecule);
-```
+**Answer:** Unknown. This demo can't answer that.
 
 ---
 
-### Medical Imaging Example
+### Medical Imaging (Static)
 
 **Location:** `examples/medical-imaging/`
 
-**Data Model (DICOM-style):**
-```javascript
-{
-  modality: 'CT',
-  sliceIndex: 64,
-  totalSlices: 128,
-  windowCenter: 40,  // Hounsfield units
-  windowWidth: 400,
-  pixelData: Uint16Array  // 512x512 typical
-}
-```
+**What it actually does:**
+- Shows sample medical images
+- **Not connected to PACS**
+- **Not real patient data**
 
-**Window/Level Presets:**
-| Tissue | Window Center | Window Width | Use Case |
-|--------|---------------|--------------|----------|
-| Soft Tissue | 40 | 400 | Organs, muscles |
-| Bone | 400 | 1800 | Fractures, implants |
-| Lung | -600 | 1500 | Pneumonia, COVID |
+**Data:** Sample PNG images, not DICOM
 
-**WebSocket Simulation:**
-- Slice cycling every 3 seconds
-- Simulates real-time DICOM streaming from PACS
-- Annotations update per slice
+**Research Question:** Would radiologists benefit from VR review of volumetric scans?
 
-**DICOM Integration:**
-```javascript
-// Connect to PACS server
-const ws = new WebSocket('wss://pacs.hospital.org/stream');
-ws.onmessage = (event) => {
-  const dicomData = JSON.parse(event.data);
-  updateSlice(dicomData);
-};
-```
+**Answer:** Unknown. This demo can't answer that.
 
 ---
 
-### Smart Cities Example
+### Smart Cities (Simulated)
 
 **Location:** `examples/smart-cities/`
 
-**Data Model:**
+**What it actually does:**
+- Generates mock traffic/energy data
+- Updates every 3 seconds
+- **Not connected to city sensors**
+
+**Data Model (Mock):**
 ```javascript
 {
   zoneId: 'Zone-1',
-  traffic: 65,        // 0-100 congestion index
-  energy: 58,         // MW consumption
-  population: 12000,  // people/km²
-  airQuality: 72      // AQI 0-100
+  traffic: Math.floor(Math.random() * 100),
+  energy: Math.floor(Math.random() * 100),
+  airQuality: Math.floor(Math.random() * 100)
 }
 ```
 
-**Time-Based Patterns:**
-| Time Period | Traffic Multiplier | Energy Multiplier |
-|-------------|-------------------|-------------------|
-| Rush Hour (7-9, 17-19) | 1.7x | 1.4x |
-| Business Hours | 1.2x | 1.3x |
-| Night | 0.3x | 0.6x |
+**Research Question:** Would urban planners make better decisions with 3D city data?
 
-**WebSocket Simulation:**
-- Updates every 3 seconds
-- Correlates traffic with air quality (inverse relationship)
-- Vehicle animations speed up during rush hour
-
-**IoT Sensor Integration:**
-```javascript
-// Real sensor data from smart city API
-fetch('https://api.smartcity.gov/live-zones')
-  .then(r => r.json())
-  .then(data => {
-    data.zones.forEach(updateZoneVisualization);
-  });
-```
+**Answer:** Unknown. This demo can't answer that.
 
 ---
 
-### Education: Solar System Example
+### Education Solar (Simplified)
 
 **Location:** `examples/education-solar/`
 
-**Data Model:**
-```javascript
-{
-  name: 'Earth',
-  radius: 6371,        // km
-  distance: 149600000, // km from sun
-  orbitalPeriod: 365.25, // days
-  rotationPeriod: 24,   // hours
-  moons: 1,
-  hasRings: false
-}
-```
+**What it actually does:**
+- Animates simplified orbits
+- **Not using NASA Horizons API**
+- **Not accurate orbital mechanics**
 
-**Scale Adjustments:**
-- Distance: Logarithmic scale (otherwise planets too far apart)
-- Size: Linear ratio (Sun = 3 units, Jupiter = 2.2 units, Earth = 1 unit)
-- Time: 1 second = ~10 Earth days
+**Data:** Hardcoded orbital parameters
 
-**Planetary Features:**
-| Planet | Special Rendering | Moons |
-|--------|-------------------|-------|
-| Earth | Atmosphere glow | 1 (animated orbit) |
-| Jupiter | Cloud bands | 4 |
-| Saturn | Ring system with particles | 3 |
-| Mars | Red tint | 2 (Phobos, Deimos) |
+**Research Question:** Does embodied learning in VR improve astronomical understanding?
 
-**Educational Features:**
-- Click planet: Show facts panel
-- Orbit toggle: Show/hide orbital paths
-- Time scale: Adjust simulation speed
-- Focus mode: Zoom to specific planet
+**Answer:** Unknown. This demo can't answer that.
 
 ---
 
-## WebSocket API Reference
+## Performance Notes
 
-All examples use WebSocket-style data streams. In production, replace simulation with real endpoints:
+| Example | Entities | Data Source | Desktop | Mobile VR |
+|---------|----------|-------------|---------|-----------|
+| Industrial IoT | 12 | Mock | Unknown | Unknown |
+| Financial Markets | 15 | Mock | Unknown | Unknown |
+| Scientific | 50 | Static | Unknown | Unknown |
+| Medical | 5 | Static | Unknown | Unknown |
+| Smart Cities | 40 | Mock | Unknown | Unknown |
+| Solar | 500+ | Static | Unknown | Unknown |
 
-### Connection Pattern
-```javascript
-class DataStream {
-  constructor(url, onMessage) {
-    this.ws = new WebSocket(url);
-    this.ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      onMessage(data);
-    };
-  }
-  
-  send(command) {
-    this.ws.send(JSON.stringify(command));
-  }
-}
-```
-
-### Recommended Providers
-
-| Domain | Data Source | API/Protocol | Free Tier |
-|--------|-------------|--------------|-----------|
-| Industrial | ThingsBoard | MQTT/WebSocket | ✓ |
-| Financial | Alpaca Markets | WebSocket FIX | ✓ |
-| Scientific | RCSB PDB | REST API | ✓ |
-| Medical | Orthanc PACS | DICOMWeb | Self-hosted |
-| Urban | OpenAQ | REST API | ✓ |
-| Education | NASA Horizons | REST API | ✓ |
+**Note:** "Unknown" means we haven't benchmarked. These numbers are unvalidated.
 
 ---
 
-## Performance Tuning
+## How to Use These Examples
 
-### Optimization Tips
+### For Technical Exploration
+1. Open in browser
+2. Verify 3D rendering works
+3. Test interactions
+4. **Do not conclude utility** from visual appeal
 
-**1. Instanced Meshes**
-For repeated elements (sensors, stars, vehicles):
+### For Research Design
+1. Identify research question
+2. Replace simulated data with real data
+3. Design controlled study
+4. Compare 3D vs 2D for specific task
+5. Publish results
+
+### For Real Integration
+If you want to connect to real data sources:
+
 ```javascript
-// Instead of creating 500 individual spheres:
-const starField = document.createElement('a-entity');
-starField.setAttribute('instanced-mesh', {
-  count: 500,
-  geometry: 'sphere',
-  radius: 0.1
-});
-```
+// Replace this:
+setInterval(() => generateMockData(), 2000);
 
-**2. LOD (Level of Detail)**
-For complex scenes:
-```javascript
-entity.setAttribute('lod', {
-  levels: [
-    { distance: 0, geometry: 'high-poly' },
-    { distance: 50, geometry: 'low-poly' }
-  ]
-});
-```
-
-**3. Occlusion Culling**
-Hide objects behind others:
-```javascript
-entity.setAttribute('occlusion-culling', true);
-```
-
-### Benchmarks
-
-| Example | Entities | Update Rate | FPS (Desktop) | FPS (Mobile) |
-|---------|----------|-------------|---------------|--------------|
-| Industrial IoT | 12 | 2s | 60fps | 45fps |
-| Financial Markets | 15 | 2s | 60fps | 50fps |
-| Scientific Research | 50 | - | 60fps | 40fps |
-| Medical Imaging | 5 | 3s | 60fps | 55fps |
-| Smart Cities | 40 | 3s | 55fps | 35fps |
-| Solar System | 500+ | - | 45fps | 25fps |
-
----
-
-## Customization Guide
-
-### Changing Data Sources
-
-**1. Replace WebSocket URL**
-```javascript
-// In component definition
-this.ws = new WebSocket('wss://your-api.example.com/data');
-```
-
-**2. Transform Data Format**
-```javascript
-this.ws.onmessage = (event) => {
-  const rawData = JSON.parse(event.data);
-  const transformed = this.transformData(rawData);
-  this.updateVisualization(transformed);
-};
-```
-
-**3. Adjust Update Frequency**
-```javascript
-// For slower connections
-setInterval(updateData, 5000);  // 5 seconds
-
-// For real-time critical
-setInterval(updateData, 100);   // 100ms (max 10fps)
+// With this:
+const ws = new WebSocket('wss://your-real-api.com/data');
+ws.onmessage = (event) => updateVisualization(JSON.parse(event.data));
 ```
 
 ---
 
-## File Structure
+## Contributing Real Integrations
 
-```
-examples/
-├── hello-world/
-│   ├── index.html          # Single artefact example
-│   └── README.md           # Specific documentation
-├── network-galaxy/
-│   ├── index.html
-│   ├── data/
-│   │   └── topology.json   # Network topology data
-│   └── README.md
-├── industrial-iot/
-│   ├── index.html
-│   ├── assets/
-│   │   └── textures/       # Optional: sensor textures
-│   └── README.md
-└── ... (other examples)
-```
+If you build a working integration with real data:
 
----
-
-## Browser Support
-
-| Browser | Version | WebGL | WebSocket | VR Headset |
-|---------|---------|-------|-----------|------------|
-| Chrome | 90+ | ✓ | ✓ | ✓ (WebXR) |
-| Firefox | 88+ | ✓ | ✓ | ✓ (WebXR) |
-| Safari | 14+ | ✓ | ✓ | ✗ |
-| Edge | 90+ | ✓ | ✓ | ✓ (WebXR) |
-
-**Mobile VR:**
-- Cardboard: Supported (gyroscope)
-- Oculus Quest: Supported (WebXR)
-- HoloLens: Partial (see AR.js)
-
----
-
-## Contributing
-
-To add a new example:
-
-1. Create directory: `examples/your-example/`
-2. Add `index.html` with VR scene
-3. Include `README.md` with documentation
-4. Test on multiple browsers
+1. Fork the repository
+2. Add your example to `examples/your-integration/`
+3. Document the data source
+4. Report your findings (even if negative)
 5. Submit pull request
 
-**Example Template:**
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
-  <title>Nemosyne - Your Example</title>
-</head>
-<body>
-  <a-scene>
-    <a-entity your-component></a-entity>
-    <a-camera position="0 1.6 0"></a-camera>
-  </a-scene>
-</body>
-</html>
-```
+**We especially want:**
+- User studies comparing 3D vs 2D
+- Performance benchmarks on real hardware
+- Integration attempts (successful or failed)
 
 ---
 
-## License
+## Research Context
 
-All examples are released under MIT License.
-Data sources may have separate licenses (see individual READMEs).
+These examples exist to:
+1. **Demonstrate technical feasibility** (can we render this?)
+2. **Provoke research questions** (should we render this?)
+3. **Invite collaboration** (help us find out)
+
+They do **not** exist to:
+1. Prove 3D is better
+2. Showcase production features
+3. Replace existing tools
+
+**The important question:** For which tasks, if any, does this approach work?
 
 ---
 
 ## Support
 
-- GitHub Issues: https://github.com/TsatsuAmable/nemosyne/issues
-- Documentation: https://nemosyne.world/docs/
-- Discord: https://discord.gg/nemosyne
+- GitHub Issues: Bug reports
+- GitHub Discussions: Research Q&A
+- No commercial support (research project)
 
 ---
 
-*Generated as part of Nemosyne v0.2.0*
+*Last Updated: 2026-04-12*  
+*Version: 0.2.0-research*
