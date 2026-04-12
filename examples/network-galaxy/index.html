@@ -157,6 +157,11 @@
             max-height: 200px;
             overflow-y: auto;
         }
+
+        /* VR-specific UI adjustments */
+        .a-canvas.a-grab-cursor {
+            cursor: grab;
+        }
     </style>
 </head>
 <body>
@@ -165,7 +170,7 @@
         <div class="badge">Research Study</div>
         <h1>Network Topology Task</h1>
         <p class="subtitle">Testing 3D vs 2D comprehension</p>
-        <p class="stats">Hover to glow • Click to select</p>
+        <p class="stats">Hover to glow • Click to select • VR: Trigger to select</p>
     </div>
 
     <div class="study-timer" id="timer">00:00</div>
@@ -196,12 +201,52 @@
         </div>
     </div>
 
-    <a-scene nemosyne-scene="theme: void" background="color: #000205" id="scene">
+    <a-scene 
+        nemosyne-scene="theme: void" 
+        background="color: #000205" 
+        id="scene"
+        webxr="optionalFeatures: hand-tracking, local-floor, bounded-floor">
         
-        <a-entity position="0 1.6 10">
+        <!-- Camera rig with teleportation support -->
+        <a-entity position="0 1.6 10" id="camera-rig">
             <a-camera look-controls wasd-controls="acceleration: 100" id="camera">
+                <!-- Laser pointer for VR selection -->
+                <a-entity 
+                    laser-controls="hand: right"
+                    raycaster="objects: .clickable; far: 50"
+                    line="color: #6b4ee6; opacity: 0.5">
+                </a-entity>
                 <a-cursor color="#6b4ee6" scale="0.5 0.5 0.5" raycaster="objects: .clickable"></a-cursor>
             </a-camera>
+        </a-entity>
+
+        <!-- Oculus Touch Controllers -->
+        <a-entity 
+            id="leftController" 
+            oculus-touch-controls="hand: left"
+            laser-controls="hand: left"
+            raycaster="objects: .clickable; far: 50; showLine: true"
+            line="color: #00d4aa; opacity: 0.3">
+        </a-entity>
+        
+        <a-entity 
+            id="rightController" 
+            oculus-touch-controls="hand: right"
+            laser-controls="hand: right"
+            raycaster="objects: .clickable; far: 50; showLine: true"
+            line="color: #00d4aa; opacity: 0.3">
+        </a-entity>
+
+        <!-- Hand tracking (Quest 2/3/Pro) -->
+        <a-entity 
+            id="leftHand" 
+            hand-tracking-controls="hand: left"
+            hand-tracking-grab-controls="hand: left">
+        </a-entity>
+        <a-entity 
+            id="rightHand" 
+            hand-tracking-controls="hand: right"
+            hand-tracking-grab-controls="hand: right">
         </a-entity>
 
         <!-- Network data -->
@@ -262,6 +307,8 @@
         let taskActive = false;
         let currentTask = 1;
         const totalTasks = 3;
+        let vrMode = false;
+        let controllerTracking = { left: false, right: false };
         
         // Correct answers for tasks
         const taskAnswers = {
@@ -285,10 +332,16 @@
                     telemetry.attachToScene(scene);
                     document.getElementById('telemetry-status').textContent = 
                         'Telemetry: Active (Session: ' + telemetry.sessionId.substring(0, 8) + '...)';
+                    
+                    // Detect VR mode
+                    detectVRMode(scene);
                 });
                 
                 // Set up click handlers for nodes
                 setupNodeHandlers();
+                
+                // Set up controller handlers
+                setupControllerHandlers();
                 
             } catch (e) {
                 console.error('Telemetry initialization failed:', e);
@@ -296,6 +349,80 @@
                     'Telemetry: Failed (check console)';
             }
         });
+
+        // Detect VR mode and headset type
+        function detectVRMode(scene) {
+            const checkVR = () => {
+                if (scene.is('vr-mode')) {
+                    vrMode = true;
+                    console.log('[ResearchTelemetry] VR mode detected');
+                    
+                    // Check for specific headset
+                    const userAgent = navigator.userAgent;
+                    if (userAgent.includes('Oculus') || userAgent.includes('Quest')) {
+                        console.log('[ResearchTelemetry] Meta Quest detected');
+                        telemetry.logInteraction('vr-headset-detected', 'meta-quest', { 
+                            userAgent: userAgent.substring(0, 50) 
+                        });
+                    }
+                    
+                    // Log VR entry
+                    telemetry.logInteraction('vr-session-start', 'immersive-vr', {
+                        timestamp: Date.now()
+                    });
+                }
+            };
+            
+            scene.addEventListener('enter-vr', () => {
+                vrMode = true;
+                console.log('[ResearchTelemetry] Entered VR mode');
+                telemetry.logInteraction('vr-enter', 'immersive-vr', {});
+            });
+            
+            scene.addEventListener('exit-vr', () => {
+                vrMode = false;
+                console.log('[ResearchTelemetry] Exited VR mode');
+                telemetry.logInteraction('vr-exit', 'inline', {});
+            });
+            
+            // Check immediately and after delay
+            checkVR();
+            setTimeout(checkVR, 1000);
+        }
+
+        // Set up controller handlers for Quest
+        function setupControllerHandlers() {
+            const scene = document.querySelector('#scene');
+            
+            // Track controller connection
+            ['leftController', 'rightController'].forEach(id => {
+                const controller = document.getElementById(id);
+                if (controller) {
+                    controller.addEventListener('controllerconnected', (e) => {
+                        console.log(`[ResearchTelemetry] ${id} connected:`, e.detail.name);
+                        controllerTracking[id.replace('Controller', '')] = true;
+                        telemetry.logInteraction('controller-connected', id, {
+                            name: e.detail.name
+                        });
+                    });
+                    
+                    controller.addEventListener('controllerdisconnected', () => {
+                        console.log(`[ResearchTelemetry] ${id} disconnected`);
+                        controllerTracking[id.replace('Controller', '')] = false;
+                    });
+                }
+            });
+            
+            // Track hand tracking
+            ['leftHand', 'rightHand'].forEach(id => {
+                const hand = document.getElementById(id);
+                if (hand) {
+                    hand.addEventListener('hand-tracking-grab-start', () => {
+                        telemetry.logInteraction('hand-grab', id, {});
+                    });
+                }
+            });
+        }
         
         // Create connection lines
         setTimeout(() => {
@@ -354,7 +481,12 @@
                 const target = e.detail?.intersectedEl;
                 if (target && target.classList.contains('clickable')) {
                     const nodeId = target.getAttribute('data-id');
-                    handleNodeClick(nodeId);
+                    
+                    // Log interaction type based on input
+                    const inputType = e.detail.cursorEl?.getAttribute('laser-controls') ? 'vr-laser' : 
+                                     e.detail.cursorEl?.getAttribute('hand-tracking-controls') ? 'hand-tracking' : 'mouse';
+                    
+                    handleNodeClick(nodeId, inputType);
                 }
             });
         }
@@ -373,7 +505,7 @@
             }
         }
         
-        function handleNodeClick(nodeId) {
+        function handleNodeClick(nodeId, inputType = 'mouse') {
             if (!taskActive) return;
             
             const timeToComplete = Date.now() - taskStartTime;
@@ -390,16 +522,21 @@
                     timeToComplete,
                     correct ? [] : [`selected-${nodeId}`]
                 );
+                
+                // Log input method
+                telemetry.logInteraction('task-input-method', inputType, {
+                    vrMode: vrMode,
+                    task: currentTask
+                });
             }
             
             // Show results
-            showResults(correct, timeToComplete, nodeId);
+            showResults(correct, timeToComplete, nodeId, inputType);
         }
         
         function skipTask() {
             if (!taskActive && currentTask === 1) {
-                // Start without timing
-                document.getElementById('study-panel').classList.add('hidden');
+                document.getElementById('study-panel').classList.remove('hidden');
                 return;
             }
             
@@ -410,17 +547,20 @@
             }
         }
         
-        function showResults(correct, time, selected) {
+        function showResults(correct, time, selected, inputType) {
             const panel = document.getElementById('results-panel');
             const message = document.getElementById('results-message');
             const dataDiv = document.getElementById('results-data');
             
             panel.classList.remove('hidden');
             
+            const inputLabel = inputType === 'vr-laser' ? ' (VR Controller)' : 
+                              inputType === 'hand-tracking' ? ' (Hand Tracking)' : ' (Mouse)';
+            
             if (correct) {
                 message.innerHTML = `
                     <strong style="color: #00d4aa;">Correct!</strong><br>
-                    You found the hub in ${(time / 1000).toFixed(2)} seconds.
+                    You found the hub in ${(time / 1000).toFixed(2)} seconds${inputLabel}.
                 `;
             } else {
                 message.innerHTML = `
@@ -438,8 +578,11 @@
                     timeMs: time,
                     selectedNode: selected,
                     correctNode: taskAnswers[currentTask],
+                    inputType: inputType,
+                    vrMode: vrMode,
                     navigationPoints: summary.totalNavigationPoints,
-                    interactions: summary.totalInteractions
+                    interactions: summary.totalInteractions,
+                    controllers: controllerTracking
                 }, null, 2);
             }
         }
@@ -463,7 +606,6 @@
             currentTask++;
             
             if (currentTask > totalTasks) {
-                // Study complete
                 document.getElementById('results-panel').classList.add('hidden');
                 document.getElementById('study-panel').classList.remove('hidden');
                 document.querySelector('.study-title').textContent = 'Study Complete';
@@ -475,12 +617,10 @@
                 return;
             }
             
-            // Reset for next task
             document.getElementById('results-panel').classList.add('hidden');
             document.getElementById('study-panel').classList.remove('hidden');
             document.querySelector('.study-title').textContent = `Task ${currentTask} of ${totalTasks}`;
             
-            // Update task description
             const taskDescriptions = {
                 2: 'Find the node that connects to the most different categories.',
                 3: 'Find the node furthest from the hub (Database).'

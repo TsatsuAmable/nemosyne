@@ -368,5 +368,28 @@ See `src/core/ResearchTelemetry.md` for full API documentation.
 
 ---
 
+## VR Testing (Meta Quest)
+
+Test studies on Meta Quest 3/3S/2/Pro:
+
+```bash
+# Host on local network
+cd examples/network-galaxy/
+python3 -m http.server 8000
+
+# On Quest Meta Browser, navigate to:
+# http://YOUR_IP:8000
+```
+
+**Tracked in VR:**
+- Headset 6DOF position/rotation
+- Controller laser selection
+- Hand tracking pinch gestures
+- VR mode entry/exit events
+
+See [`docs/VR_TESTING.md`](../docs/VR_TESTING.md) for complete setup.
+
+---
+
 *Last Updated: 2026-04-12*  
 *Version: 0.2.0-research*
