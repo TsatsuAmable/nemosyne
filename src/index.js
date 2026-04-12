@@ -13,13 +13,11 @@ export { NemosyneDataPacket } from './core/NemosyneDataPacket.js';
 export { TopologyDetector } from './core/TopologyDetector.js';
 export { PropertyMapper } from './core/PropertyMapper.js';
 export { LayoutEngine } from './core/LayoutEngine.js';
+export { ResearchTelemetry } from './core/ResearchTelemetry.js';
 
 // Animation
 export { TemporalScrubber } from './animation/TemporalScrubber.js';
 export { UncertaintyVisualizer } from './animation/UncertaintyVisualizer.js';
-
-// MemPalace Integration
-export { MemPalaceVRConnector } from './core/MemPalaceVRConnector.js';
 
 // Physics
 export { AmmoPhysicsEngine } from './physics/AmmoPhysicsEngine.js';
@@ -57,6 +55,6 @@ export default {
   LayoutEngine,
   TemporalScrubber,
   UncertaintyVisualizer,
-  MemPalaceVRConnector,
+  ResearchTelemetry,
   AmmoPhysicsEngine
 };

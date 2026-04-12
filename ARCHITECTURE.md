@@ -1,7 +1,10 @@
 # Nemosyne Architecture
 
-**Version:** 0.2.0  
-**Last Updated:** 2026-04-10
+**Version:** 0.2.0-research  
+**Last Updated:** 2026-04-12  
+**Status:** Experimental — Subject to Change Based on Research Findings
+
+> ⚠️ **RESEARCH PREVIEW**: This document describes the current system design. All architectural decisions are hypotheses awaiting empirical validation. The architecture may change significantly based on research results.
 
 ---
 
@@ -22,6 +25,18 @@
 
 ## System Overview
 
+### Research Context
+
+Nemosyne's architecture exists to test a hypothesis: **Does 3D spatial computing improve data comprehension compared to 2D?**
+
+The current design assumes:
+- Automatic topology detection is possible (unvalidated)
+- Layout algorithms have predictable efficacy (untested)
+- Transform engines produce meaningful encodings (unproven)
+- Behaviours enhance understanding (unknown)
+
+These assumptions drive the architecture but may be wrong.
+
 ### High-Level Architecture
 
 ```
@@ -31,7 +46,7 @@
 └─────────────┘     └──────┬──────┘     └─────────────┘     └─────────────┘
                            │
                     ┌──────▼──────┐
-                    │  Datumplane   │
+                    │  Datumplane   │  ← Research Question: Is 3D better?
                     │  (3D Space)   │
                     └──────┬──────┘
                            │
@@ -41,6 +56,7 @@
          ┌─────────┐ ┌──────────┐ ┌──────────┐
          │ Layout  │ │ Transform│ │ Behaviour│
          │ Engine  │ │ Engine   │ │ Engine   │
+         │ (untested)│ (unproven) │ (unknown)│
          └────┬────┘ └────┬─────┘ └────┬─────┘
               └────────────┼────────────┘
                            ▼
@@ -50,13 +66,13 @@
                     └──────────────┘
 ```
 
-### Design Principles
+### Design Principles (Hypotheses)
 
-1. **Declarative over Imperative**: Define what, not how
-2. **Component-Based**: Reusable, composable building blocks
-3. **Data-Driven**: Visualizations reflect underlying data
-4. **VR-First**: Spatial computing as default context
-5. **Real-Time**: Live data streams, not static exports
+1. **Declarative over Imperative**: Define what, not how (may be wrong if users need more control)
+2. **Component-Based**: Reusable, composable building blocks (efficacy untested)
+3. **Data-Driven**: Visualizations reflect underlying data (topology detection accuracy unknown)
+4. **VR-First**: Spatial computing as default context (core research question)
+5. **Real-Time**: Live data streams (latency impact on comprehension unstudied)
 
 ---
 
@@ -64,15 +80,15 @@
 
 ### 2.1 SceneManager
 
-The central orchestrator responsible for initializing the VR scene and managing the component lifecycle.
+The central orchestrator. **Note**: The component lifecycle is implemented but its optimality for VR dataviz is unproven.
 
 ```typescript
 interface SceneManager {
   scene: AFRAME.Scene;
   artefacts: Map<string, Artefact>;
-  layouts: LayoutEngine;
-  transforms: TransformEngine;
-  behaviours: BehaviourEngine;
+  layouts: LayoutEngine;      // Implemented, efficacy unknown
+  transforms: TransformEngine; // Implemented, meaningfulness unknown
+  behaviours: BehaviourEngine; // Implemented, impact unknown
   
   registerArtefact(spec: ArtefactSpec, data: DataPoint[]): Promise<Artefact>;
   updateData(artefactId: string, newData: DataPoint[]): void;
