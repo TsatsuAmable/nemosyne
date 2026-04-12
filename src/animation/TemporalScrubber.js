@@ -430,5 +430,6 @@ class TemporalScrubber extends EventTarget {
   }
 }
 
+export { TemporalScrubber };
 
 console.log('[TemporalScrubber] Module loaded');

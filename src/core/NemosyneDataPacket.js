@@ -570,3 +570,5 @@ class DataPacketGroup extends EventTarget {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { NemosyneDataPacket, DataPacketGroup };
 }
+
+export { NemosyneDataPacket, DataPacketGroup };

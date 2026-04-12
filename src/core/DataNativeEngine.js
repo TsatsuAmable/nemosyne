@@ -708,5 +708,6 @@ class TelemetryAnalyzer {
   }
 }
 
+export { DataNativeEngine };
 
 console.log('[DataNativeEngine] Module loaded');

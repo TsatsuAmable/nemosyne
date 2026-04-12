@@ -311,3 +311,5 @@ class PropertyMapper {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = PropertyMapper;
 }
+
+export { PropertyMapper };

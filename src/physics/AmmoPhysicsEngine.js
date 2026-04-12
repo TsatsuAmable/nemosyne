@@ -537,3 +537,4 @@ class AmmoPhysicsEngine {
 
 
 console.log('[AmmoPhysicsEngine] Module loaded');
+export { AmmoPhysicsEngine };

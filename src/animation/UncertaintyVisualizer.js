@@ -386,3 +386,5 @@ class UncertaintyVisualizer {
 
 
 console.log('[UncertaintyVisualizer] Module loaded');
+
+export { UncertaintyVisualizer };

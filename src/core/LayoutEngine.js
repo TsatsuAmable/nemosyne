@@ -560,3 +560,5 @@ class LayoutEngine {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = LayoutEngine;
 }
+
+export { LayoutEngine };

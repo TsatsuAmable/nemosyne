@@ -286,3 +286,5 @@ class TopologyScorer {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { TopologyDetector, TopologyScorer };
 }
+
+export { TopologyDetector, TopologyScorer };
