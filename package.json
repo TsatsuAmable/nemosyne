@@ -18,6 +18,7 @@
     "build:umd": "webpack --mode production",
     "build:esm": "rollup -c rollup.config.js",
     "test": "jest",
+    "test:unit": "jest",
     "test:watch": "jest --watch",
     "lint": "eslint src/",
     "docs": "jsdoc -c jsdoc.json"
