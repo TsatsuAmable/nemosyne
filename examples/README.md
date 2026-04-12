@@ -278,5 +278,118 @@ They do **not** exist to:
 
 ---
 
+---
+
+## Research Study Examples
+
+### Network Galaxy — Topology Reading Study
+
+**Location:** `examples/network-galaxy/`
+
+**Purpose:** Empirical validation of topology comprehension in 3D vs 2D
+
+**What it measures:**
+- Time to identify network hub nodes
+- Navigation patterns through 3D space
+- Gaze dwell on relevant vs irrelevant nodes
+- Task success rates
+
+**Research Questions:**
+1. Is 3D network visualization faster for finding central nodes?
+2. Do users develop spatial memory for node positions?
+3. Does scale affect comprehension (8 vs 50 vs 200 nodes)?
+
+**How to run:**
+```bash
+cd examples/network-galaxy/
+python3 -m http.server 8000
+# Open http://localhost:8000 in browser
+# Complete the 3 tasks
+# Export JSON data for analysis
+```
+
+**Data collected:**
+```json
+{
+  "sessionId": "a1b2c3d4...",
+  "taskCompletions": [
+    {
+      "taskId": "task-1-find-hub",
+      "success": true,
+      "timeToComplete": 12450,
+      "navigationPathLength": 45,
+      "interactionsCount": 3
+    }
+  ],
+  "navigationPath": [...],
+  "interactions": [...],
+  "gazeTargets": [...]
+}
+```
+
+**Privacy:** No PII, hashed session IDs, stays client-side
+
+---
+
+## ResearchTelemetry API
+
+All examples can integrate with the research telemetry system:
+
+```javascript
+import { ResearchTelemetry } from '../src/core/ResearchTelemetry.js';
+
+const telemetry = new ResearchTelemetry({
+  enabled: true,
+  exportFormat: 'json'
+});
+
+// Attach to scene
+telemetry.attachToScene(document.querySelector('a-scene'));
+
+// Log custom events
+telemetry.logTaskCompletion('find-bridge-nodes', true, 45000);
+
+// Export for analysis
+const data = telemetry.exportData();
+download(data, `study-${telemetry.sessionId}.json`);
+```
+
+### Available Metrics
+
+| Metric | Method | Research Use |
+|--------|--------|--------------|
+| Navigation path | `trackNavigation()` | Spatial learning analysis |
+| Interaction frequency | `logInteraction()` | Exploration patterns |
+| Gaze dwell time | `trackGaze()` | Attention analysis |
+| Task completion | `logTaskCompletion()` | Efficacy measurement |
+| Layout performance | `logLayoutEvent()` | Algorithm comparison |
+
+See `src/core/ResearchTelemetry.md` for full API documentation.
+
+---
+
+## VR Testing (Meta Quest)
+
+Test studies on Meta Quest 3/3S/2/Pro:
+
+```bash
+# Host on local network
+cd examples/network-galaxy/
+python3 -m http.server 8000
+
+# On Quest Meta Browser, navigate to:
+# http://YOUR_IP:8000
+```
+
+**Tracked in VR:**
+- Headset 6DOF position/rotation
+- Controller laser selection
+- Hand tracking pinch gestures
+- VR mode entry/exit events
+
+See [`docs/VR_TESTING.md`](../docs/VR_TESTING.md) for complete setup.
+
+---
+
 *Last Updated: 2026-04-12*  
 *Version: 0.2.0-research*

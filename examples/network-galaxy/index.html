@@ -3,41 +3,256 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nemosyne — Network Galaxy</title>
+    <title>Nemosyne Research — Network Galaxy Study</title>
     
     <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
     <script src="../../framework/dist/nemosyne.js"></script>
+    <script src="../../src/core/ResearchTelemetry.js"></script>
     
     <style>
         body { margin: 0; overflow: hidden; background: #000; }
-        .ui { position: absolute; top: 20px; left: 20px; z-index: 100; pointer-events: none; font-family: 'Segoe UI', sans-serif; color: #fff; }
-        .badge { background: rgba(107, 78, 230, 0.2); border: 1px solid #6b4ee6; color: #6b4ee6; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; display: inline-block; margin-bottom: 10px; }
+        
+        .ui { 
+            position: absolute; 
+            top: 20px; 
+            left: 20px; 
+            z-index: 100; 
+            pointer-events: none; 
+            font-family: 'Segoe UI', sans-serif; 
+            color: #fff; 
+        }
+        
+        .badge { 
+            background: rgba(107, 78, 230, 0.2); 
+            border: 1px solid #6b4ee6; 
+            color: #6b4ee6; 
+            padding: 4px 12px; 
+            border-radius: 4px; 
+            font-size: 12px; 
+            text-transform: uppercase; 
+            letter-spacing: 1px; 
+            display: inline-block; 
+            margin-bottom: 10px; 
+        }
+        
         h1 { margin: 0 0 5px; font-size: 24px; font-weight: 300; }
         .subtitle { color: #888; font-size: 14px; margin: 0 0 10px; }
         .stats { color: #666; font-size: 12px; }
+        
+        /* Study UI */
+        .study-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.95);
+            border: 1px solid #6b4ee6;
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'Segoe UI', sans-serif;
+            color: #fff;
+            pointer-events: auto;
+        }
+        
+        .study-title {
+            color: #6b4ee6;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .study-task {
+            font-size: 16px;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        
+        .study-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .study-btn {
+            background: linear-gradient(135deg, #6b4ee6, #00d4aa);
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        
+        .study-btn:hover {
+            opacity: 0.9;
+        }
+        
+        .study-btn.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .study-timer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.9);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            border-radius: 4px;
+            padding: 10px 20px;
+            font-family: 'Segoe UI', sans-serif;
+            color: #00d4aa;
+            font-size: 18px;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .telemetry-status {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            font-size: 11px;
+            color: #666;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        
+        .hidden { display: none !important; }
+        
+        .results-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 200;
+            background: rgba(10, 10, 15, 0.98);
+            border: 1px solid #6b4ee6;
+            border-radius: 8px;
+            padding: 30px;
+            font-family: 'Segoe UI', sans-serif;
+            color: #fff;
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        .results-title {
+            color: #00d4aa;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        
+        .results-data {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #888;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* VR-specific UI adjustments */
+        .a-canvas.a-grab-cursor {
+            cursor: grab;
+        }
     </style>
 </head>
 <body>
 
     <div class="ui">
-        <div class="badge">Network Galaxy</div>
-        <h1>Nemosyne</h1>
-        <p class="subtitle">8 nodes in a radial network</p>
-        <p class="stats"
-003eHover to glow • Click to see labels</p>
+        <div class="badge">Research Study</div>
+        <h1>Network Topology Task</h1>
+        <p class="subtitle">Testing 3D vs 2D comprehension</p>
+        <p class="stats">Hover to glow • Click to select • VR: Trigger to select</p>
     </div>
 
-    <a-scene nemosyne-scene="theme: void" background="color: #000205">
+    <div class="study-timer" id="timer">00:00</div>
+
+    <div class="telemetry-status" id="telemetry-status">Telemetry: Ready</div>
+
+    <!-- Study Task Panel -->
+    <div class="study-panel" id="study-panel">
+        <div class="study-title">Task 1 of 3: Find the Hub</div>
+        <div class="study-task" id="study-task">
+            <strong>Find the node with the most connections.</strong><br>
+            This node is the "hub" of the network. Click on it when you find it.
+        </div>
+        <div class="study-buttons">
+            <button class="study-btn" onclick="startTask()">Start Task</button>
+            <button class="study-btn secondary" onclick="skipTask()">Skip</button>
+        </div>
+    </div>
+
+    <!-- Results Panel (hidden) -->
+    <div class="results-panel hidden" id="results-panel">
+        <div class="results-title">Task Complete</div>
+        <p id="results-message"></p>
+        <div class="results-data" id="results-data"></div>
+        <div class="study-buttons" style="margin-top: 20px;">
+            <button class="study-btn" onclick="exportData()">Export Data</button>
+            <button class="study-btn secondary" onclick="nextTask()">Next Task</button>
+        </div>
+    </div>
+
+    <a-scene 
+        nemosyne-scene="theme: void" 
+        background="color: #000205" 
+        id="scene"
+        webxr="optionalFeatures: hand-tracking, local-floor, bounded-floor">
         
-        <a-entity position="0 1.6 10">
-            <a-camera look-controls wasd-controls="acceleration: 100">
+        <!-- Camera rig with teleportation support -->
+        <a-entity position="0 1.6 10" id="camera-rig">
+            <a-camera look-controls wasd-controls="acceleration: 100" id="camera">
+                <!-- Laser pointer for VR selection -->
+                <a-entity 
+                    laser-controls="hand: right"
+                    raycaster="objects: .clickable; far: 50"
+                    line="color: #6b4ee6; opacity: 0.5">
+                </a-entity>
                 <a-cursor color="#6b4ee6" scale="0.5 0.5 0.5" raycaster="objects: .clickable"></a-cursor>
             </a-camera>
         </a-entity>
 
+        <!-- Oculus Touch Controllers -->
+        <a-entity 
+            id="leftController" 
+            oculus-touch-controls="hand: left"
+            laser-controls="hand: left"
+            raycaster="objects: .clickable; far: 50; showLine: true"
+            line="color: #00d4aa; opacity: 0.3">
+        </a-entity>
+        
+        <a-entity 
+            id="rightController" 
+            oculus-touch-controls="hand: right"
+            laser-controls="hand: right"
+            raycaster="objects: .clickable; far: 50; showLine: true"
+            line="color: #00d4aa; opacity: 0.3">
+        </a-entity>
+
+        <!-- Hand tracking (Quest 2/3/Pro) -->
+        <a-entity 
+            id="leftHand" 
+            hand-tracking-controls="hand: left"
+            hand-tracking-grab-controls="hand: left">
+        </a-entity>
+        <a-entity 
+            id="rightHand" 
+            hand-tracking-controls="hand: right"
+            hand-tracking-grab-controls="hand: right">
+        </a-entity>
+
         <!-- Network data -->
         <nemosyne-artefact
-            spec-inline='<;{
+            id="network-artefact"
+            spec-inline='{
                 "id": "network-node",
                 "geometry": { "type": "sphere", "radius": 0.6 },
                 "material": {
@@ -64,7 +279,7 @@
                     "position": "above"
                 }
             }'
-            data-inline='<;{
+            data-inline='{
                 "records": [
                     { "id": "A", "label": "Database", "category": 0, "connections": 5, "role": "hub" },
                     { "id": "B", "label": "API Server", "category": 1, "connections": 3, "role": "service" },
@@ -86,15 +301,134 @@
     </a-scene>
 
     <script>
-        // Add connections when scene loads
-        const scene = document.querySelector('a-scene');
+        // Research Telemetry Setup
+        let telemetry;
+        let taskStartTime;
+        let taskActive = false;
+        let currentTask = 1;
+        const totalTasks = 3;
+        let vrMode = false;
+        let controllerTracking = { left: false, right: false };
         
-        // Simple connection lines
+        // Correct answers for tasks
+        const taskAnswers = {
+            1: 'A', // Database has most connections (5)
+            2: 'D', // Auth Service connects to most categories
+            3: 'G'  // Analytics is furthest from hub
+        };
+        
+        // Initialize telemetry when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                telemetry = new ResearchTelemetry({
+                    enabled: true,
+                    exportFormat: 'json',
+                    autoExport: false
+                });
+                
+                // Wait for scene to be ready
+                const scene = document.querySelector('#scene');
+                scene.addEventListener('loaded', () => {
+                    telemetry.attachToScene(scene);
+                    document.getElementById('telemetry-status').textContent = 
+                        'Telemetry: Active (Session: ' + telemetry.sessionId.substring(0, 8) + '...)';
+                    
+                    // Detect VR mode
+                    detectVRMode(scene);
+                });
+                
+                // Set up click handlers for nodes
+                setupNodeHandlers();
+                
+                // Set up controller handlers
+                setupControllerHandlers();
+                
+            } catch (e) {
+                console.error('Telemetry initialization failed:', e);
+                document.getElementById('telemetry-status').textContent = 
+                    'Telemetry: Failed (check console)';
+            }
+        });
+
+        // Detect VR mode and headset type
+        function detectVRMode(scene) {
+            const checkVR = () => {
+                if (scene.is('vr-mode')) {
+                    vrMode = true;
+                    console.log('[ResearchTelemetry] VR mode detected');
+                    
+                    // Check for specific headset
+                    const userAgent = navigator.userAgent;
+                    if (userAgent.includes('Oculus') || userAgent.includes('Quest')) {
+                        console.log('[ResearchTelemetry] Meta Quest detected');
+                        telemetry.logInteraction('vr-headset-detected', 'meta-quest', { 
+                            userAgent: userAgent.substring(0, 50) 
+                        });
+                    }
+                    
+                    // Log VR entry
+                    telemetry.logInteraction('vr-session-start', 'immersive-vr', {
+                        timestamp: Date.now()
+                    });
+                }
+            };
+            
+            scene.addEventListener('enter-vr', () => {
+                vrMode = true;
+                console.log('[ResearchTelemetry] Entered VR mode');
+                telemetry.logInteraction('vr-enter', 'immersive-vr', {});
+            });
+            
+            scene.addEventListener('exit-vr', () => {
+                vrMode = false;
+                console.log('[ResearchTelemetry] Exited VR mode');
+                telemetry.logInteraction('vr-exit', 'inline', {});
+            });
+            
+            // Check immediately and after delay
+            checkVR();
+            setTimeout(checkVR, 1000);
+        }
+
+        // Set up controller handlers for Quest
+        function setupControllerHandlers() {
+            const scene = document.querySelector('#scene');
+            
+            // Track controller connection
+            ['leftController', 'rightController'].forEach(id => {
+                const controller = document.getElementById(id);
+                if (controller) {
+                    controller.addEventListener('controllerconnected', (e) => {
+                        console.log(`[ResearchTelemetry] ${id} connected:`, e.detail.name);
+                        controllerTracking[id.replace('Controller', '')] = true;
+                        telemetry.logInteraction('controller-connected', id, {
+                            name: e.detail.name
+                        });
+                    });
+                    
+                    controller.addEventListener('controllerdisconnected', () => {
+                        console.log(`[ResearchTelemetry] ${id} disconnected`);
+                        controllerTracking[id.replace('Controller', '')] = false;
+                    });
+                }
+            });
+            
+            // Track hand tracking
+            ['leftHand', 'rightHand'].forEach(id => {
+                const hand = document.getElementById(id);
+                if (hand) {
+                    hand.addEventListener('hand-tracking-grab-start', () => {
+                        telemetry.logInteraction('hand-grab', id, {});
+                    });
+                }
+            });
+        }
+        
+        // Create connection lines
         setTimeout(() => {
             const container = document.querySelector('#connections');
-            const nodes = scene.querySelectorAll('.clickable');
+            const nodes = document.querySelectorAll('.clickable');
             
-            // Create some connections
             const connections = [
                 [0, 1], [0, 2], [0, 3], [1, 4], [1, 5], [1, 6], [2, 7]
             ];
@@ -105,7 +439,6 @@
                     const posA = nodes[a].getAttribute('position');
                     const posB = nodes[b].getAttribute('position');
                     
-                    // Distance
                     const dist = Math.sqrt(
                         Math.pow(posB.x - posA.x, 2) +
                         Math.pow(posB.y - posA.y, 2) +
@@ -125,13 +458,11 @@
                         emissiveIntensity: 0.2
                     });
                     
-                    // Position at midpoint
                     const midX = (posA.x + posB.x) / 2;
                     const midY = (posA.y + posB.y) / 2;
                     const midZ = (posA.z + posB.z) / 2;
                     line.setAttribute('position', `${midX} ${midY} ${midZ}`);
                     
-                    // Orient toward target
                     line.object3D.lookAt(posB.x, posB.y, posB.z);
                     line.object3D.rotateX(Math.PI / 2);
                     
@@ -139,6 +470,185 @@
                 }
             });
         }, 1500);
+        
+        // Set up node click handlers
+        function setupNodeHandlers() {
+            const scene = document.querySelector('#scene');
+            
+            scene.addEventListener('click', (e) => {
+                if (!taskActive) return;
+                
+                const target = e.detail?.intersectedEl;
+                if (target && target.classList.contains('clickable')) {
+                    const nodeId = target.getAttribute('data-id');
+                    
+                    // Log interaction type based on input
+                    const inputType = e.detail.cursorEl?.getAttribute('laser-controls') ? 'vr-laser' : 
+                                     e.detail.cursorEl?.getAttribute('hand-tracking-controls') ? 'hand-tracking' : 'mouse';
+                    
+                    handleNodeClick(nodeId, inputType);
+                }
+            });
+        }
+        
+        // Task Management
+        function startTask() {
+            taskActive = true;
+            taskStartTime = Date.now();
+            
+            document.getElementById('study-panel').classList.add('hidden');
+            startTimer();
+            
+            // Log layout event
+            if (telemetry) {
+                telemetry.logLayoutEvent('radial-network', 8, 1500);
+            }
+        }
+        
+        function handleNodeClick(nodeId, inputType = 'mouse') {
+            if (!taskActive) return;
+            
+            const timeToComplete = Date.now() - taskStartTime;
+            const correct = nodeId === taskAnswers[currentTask];
+            
+            taskActive = false;
+            stopTimer();
+            
+            // Log to telemetry
+            if (telemetry) {
+                telemetry.logTaskCompletion(
+                    `task-${currentTask}-find-hub`,
+                    correct,
+                    timeToComplete,
+                    correct ? [] : [`selected-${nodeId}`]
+                );
+                
+                // Log input method
+                telemetry.logInteraction('task-input-method', inputType, {
+                    vrMode: vrMode,
+                    task: currentTask
+                });
+            }
+            
+            // Show results
+            showResults(correct, timeToComplete, nodeId, inputType);
+        }
+        
+        function skipTask() {
+            if (!taskActive && currentTask === 1) {
+                document.getElementById('study-panel').classList.remove('hidden');
+                return;
+            }
+            
+            if (taskActive) {
+                taskActive = false;
+                stopTimer();
+                nextTask();
+            }
+        }
+        
+        function showResults(correct, time, selected, inputType) {
+            const panel = document.getElementById('results-panel');
+            const message = document.getElementById('results-message');
+            const dataDiv = document.getElementById('results-data');
+            
+            panel.classList.remove('hidden');
+            
+            const inputLabel = inputType === 'vr-laser' ? ' (VR Controller)' : 
+                              inputType === 'hand-tracking' ? ' (Hand Tracking)' : ' (Mouse)';
+            
+            if (correct) {
+                message.innerHTML = `
+                    <strong style="color: #00d4aa;">Correct!</strong><br>
+                    You found the hub in ${(time / 1000).toFixed(2)} seconds${inputLabel}.
+                `;
+            } else {
+                message.innerHTML = `
+                    <strong style="color: #ff3864;">Incorrect</strong><br>
+                    You selected a node with fewer connections.
+                `;
+            }
+            
+            // Show telemetry summary
+            if (telemetry) {
+                const summary = telemetry.generateSummary();
+                dataDiv.textContent = JSON.stringify({
+                    task: currentTask,
+                    correct: correct,
+                    timeMs: time,
+                    selectedNode: selected,
+                    correctNode: taskAnswers[currentTask],
+                    inputType: inputType,
+                    vrMode: vrMode,
+                    navigationPoints: summary.totalNavigationPoints,
+                    interactions: summary.totalInteractions,
+                    controllers: controllerTracking
+                }, null, 2);
+            }
+        }
+        
+        function exportData() {
+            if (!telemetry) return;
+            
+            const data = telemetry.exportData('json');
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `nemosyne-study-${telemetry.sessionId}.json`;
+            a.click();
+            
+            URL.revokeObjectURL(url);
+        }
+        
+        function nextTask() {
+            currentTask++;
+            
+            if (currentTask > totalTasks) {
+                document.getElementById('results-panel').classList.add('hidden');
+                document.getElementById('study-panel').classList.remove('hidden');
+                document.querySelector('.study-title').textContent = 'Study Complete';
+                document.getElementById('study-task').innerHTML = 
+                    '<strong>Thank you for participating!</strong><br>' +
+                    'Your data helps us understand if 3D visualization improves comprehension.';
+                document.querySelector('.study-buttons').innerHTML = 
+                    '<button class="study-btn" onclick="location.reload()">Restart</button>';
+                return;
+            }
+            
+            document.getElementById('results-panel').classList.add('hidden');
+            document.getElementById('study-panel').classList.remove('hidden');
+            document.querySelector('.study-title').textContent = `Task ${currentTask} of ${totalTasks}`;
+            
+            const taskDescriptions = {
+                2: 'Find the node that connects to the most different categories.',
+                3: 'Find the node furthest from the hub (Database).'
+            };
+            document.getElementById('study-task').innerHTML = 
+                `<strong>${taskDescriptions[currentTask]}</strong><br>Click on it when you find it.`;
+        }
+        
+        // Timer
+        let timerInterval;
+        
+        function startTimer() {
+            const timerEl = document.getElementById('timer');
+            const start = Date.now();
+            
+            timerInterval = setInterval(() => {
+                const elapsed = Date.now() - start;
+                const seconds = Math.floor(elapsed / 1000);
+                const minutes = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                timerEl.textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }, 100);
+        }
+        
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
     </script>
 
 </body>
