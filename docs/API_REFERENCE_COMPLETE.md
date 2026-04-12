@@ -1,7 +1,10 @@
 # Nemosyne API Reference
 
-**Version:** 0.2.0  
-**Last Updated:** 2026-04-10
+**Version:** 0.2.0-research  
+**Last Updated:** 2026-04-12  
+**Status:** Experimental API — Subject to Change Based on Research Findings
+
+> ⚠️ **RESEARCH PREVIEW**: This API is experimental. Methods are implemented but their efficacy is untested. The API may change significantly based on research results. Use at your own risk.
 
 ---
 
@@ -22,7 +25,7 @@
 
 ## Quick Start
 
-The fastest way to create a visualization:
+The fastest way to create a visualization (experimental):
 
 ```javascript
 Nemosyne.quickStart(scene, {
@@ -34,6 +37,8 @@ Nemosyne.quickStart(scene, {
   animate: true
 });
 ```
+
+**Note**: This creates a 3D visualization. Whether it produces useful output is the research question we're investigating.
 
 **Complete HTML Example:**
 
