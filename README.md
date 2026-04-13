@@ -7,7 +7,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-83%25-yellow.svg)](.)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![WebXR](https://img.shields.io/badge/WebXR-Ready-orange.svg)](https://immersiveweb.dev/)
-[![Release](https://img.shields.io/badge/release-v1.1.0-blue.svg)](https://github.com/TsatsuAmable/nemosyne/releases)
+[![Release](https://img.shields.io/badge/release-v1.2.0-blue.svg)](https://github.com/TsatsuAmable/nemosyne/releases)
 
 > **Experimental**: Nemosyne is a research framework exploring whether 3D VR visualizations improve data comprehension. [Learn about our research agenda](docs/RESEARCH_AGENDA.md).
 
@@ -141,7 +141,15 @@ npm install nemosyne aframe
 
 ## 🗺️ Roadmap
 
-### v1.1.0 (Current) ✅
+### v1.2.0 (Current) ✅
+**Released April 2025**
+- [x] Integration tests with Playwright (26 tests)
+- [x] CI type checking enabled
+- [x] 373 tests, 83.5% coverage
+- [x] Full module exports (AnimationEngine, GestureController, TelemetryEngine)
+- [x] Documentation accuracy improvements
+
+### v1.1.0 ✅
 **Released April 2025**
 - [x] Comprehensive test suite (312 tests, ~80% coverage)
 - [x] CLI tool for project scaffolding
@@ -150,17 +158,12 @@ npm install nemosyne aframe
 - [x] README redesign
 - [x] All core modules stable
 
-### v1.2.0 (Next) 🚧
+### v1.3.0 (Next) 🚧
 - GitHub Wiki
 - Video tutorials
 - Mobile VR optimizations
-- Enhanced documentation
-
-### v1.3.0
 - Physics integration (AMMO.js full support)
-- Gesture recognition
-- Voice commands
-- Multiplayer sync (WebRTC)
+- Enhanced documentation
 
 ### v2.0.0 (Long-term)
 - AR mode (WebXR hit-test)
