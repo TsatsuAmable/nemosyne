@@ -28,7 +28,7 @@
     "test:unit": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --watch",
     "test:coverage": "jest --coverage --collectCoverageFrom='src/**/*.js' --coverageThreshold='{\"global\":{\"branches\":95,\"functions\":95,\"lines\":95,\"statements\":95}}'",
-    "test:integration": "echo 'No integration tests configured' && exit 0",
+    "test:integration": "playwright test tests/integration/",
     "test:integration:ui": "playwright test --ui",
     "lint": "eslint src/",
     "docs": "jsdoc -c jsdoc.json",
