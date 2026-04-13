@@ -9,9 +9,19 @@
  * 
  * Architecture:
  * DataPacket → TopologyDetector → LayoutEngine → GestureController → Render
+ * 
+ * @typedef {import('../types/index.ts').DataNativeEngineOptions} DataNativeEngineOptions
+ * @typedef {import('../types/index.ts').NemosynePacketData} NemosynePacketData
+ * @typedef {import('../types/index.ts').QueryConditions} QueryConditions
+ * @typedef {import('../types/index.ts').Entity} Entity
+ * @typedef {import('../types/index.ts').GestureEvent} GestureEvent
+ * @typedef {import('../types/index.ts').TelemetryData} TelemetryData
+ * @typedef {import('../types/index.ts').VisualProperties} VisualProperties
+ * @typedef {import('../types/index.ts').AnimationConfig} AnimationConfig
+ * @typedef {import('./LayoutEngine.js').LayoutEngine} LayoutEngine
  */
 
-import { TopologyDetector, TopologyScorer } from './TopologyDetector.js';
+import { TopologyDetector } from './TopologyDetector.js';
 import { PropertyMapper } from './PropertyMapper.js';
 import { LayoutEngine } from './LayoutEngine.js';
 import { NemosyneDataPacket } from './NemosyneDataPacket.js';
@@ -20,6 +30,9 @@ import { GestureDataController } from './GestureController.js';
 import { TelemetryAnalyzer } from './TelemetryEngine.js';
 
 class DataNativeEngine extends EventTarget {
+  /**
+   * @param {DataNativeEngineOptions} [options={}]
+   */
   constructor(options = {}) {
     super();
     
@@ -34,8 +47,11 @@ class DataNativeEngine extends EventTarget {
     this.telemetryAnalyzer = new TelemetryAnalyzer();
     
     // State
+    /** @type {Map<string, NemosynePacketData>} */
     this.dataPackets = new Map(); // id -> NemosyneDataPacket
+    /** @type {Map<string, Entity>} */
     this.artefacts = new Map();   // id -> Entity
+    /** @type {Set<string>} */
     this.selection = new Set();   // Set of selected IDs
     this.scene = options.scene || document.querySelector('a-scene');
     
@@ -53,9 +69,9 @@ class DataNativeEngine extends EventTarget {
 
   /**
    * Ingest data and auto-visualize
-   * @param {Array|Object} rawData - Raw data to visualize
-   * @param {Object} schema - Optional schema hints
-   * @returns {Array} Created artefacts
+   * @param {Array<unknown>|Object} rawData - Raw data to visualize
+   * @param {Object} [schema={}] - Optional schema hints
+   * @returns {Promise<Entity[]>} Created artefacts
    */
   async ingest(rawData, schema = {}) {
     console.log('[DataNativeEngine] Ingesting data...');
@@ -113,6 +129,9 @@ class DataNativeEngine extends EventTarget {
 
   /**
    * Normalize raw data to NemosyneDataPacket format
+   * @param {Array<unknown>|Object} rawData
+   * @param {Object} schema
+   * @returns {NemosynePacketData[]}
    */
   normalizeData(rawData, schema) {
     const dataArray = Array.isArray(rawData) ? rawData : [rawData];
@@ -162,6 +181,12 @@ class DataNativeEngine extends EventTarget {
 
   /**
    * Create A-Frame entity from packet
+   * @param {NemosynePacketData} packet
+   * @param {string} topology
+   * @param {VisualProperties} visualProps
+   * @param {{x: number, y: number, z: number}} position
+   * @param {AnimationConfig} [animation]
+   * @returns {Entity}
    */
   createArtefact(packet, topology, visualProps, position, animation) {
     // Select component type based on topology
@@ -212,6 +237,7 @@ class DataNativeEngine extends EventTarget {
 
   /**
    * Handle incoming gesture
+   * @param {GestureEvent} gesture
    */
   handleGesture(gesture) {
     console.log('[DataNativeEngine] Gesture received:', gesture.type);
@@ -236,6 +262,7 @@ class DataNativeEngine extends EventTarget {
 
   /**
    * Handle VR headset telemetry
+   * @param {TelemetryData} telemetry
    */
   handleTelemetry(telemetry) {
     if (!this.telemetryEnabled) return;
@@ -256,6 +283,7 @@ class DataNativeEngine extends EventTarget {
 
   /**
    * Adapt visualization based on user behavior
+   * @param {TelemetryData} telemetry
    */
   adaptToTelemetry(telemetry) {
     // Example: Reduce detail when user is moving quickly
@@ -271,6 +299,9 @@ class DataNativeEngine extends EventTarget {
   }
 
   // Gesture handlers
+  /**
+   * @param {GestureEvent} gesture
+   */
   onGrab(gesture) {
     const { target, hand } = gesture;
     if (!target) return;
@@ -287,6 +318,9 @@ class DataNativeEngine extends EventTarget {
     this.updateVisualFeedback(target, 'grabbed');
   }
 
+  /**
+   * @param {GestureEvent} gesture
+   */
   onPinch(gesture) {
     const { target, scale } = gesture;
     if (!target) return;
@@ -306,8 +340,11 @@ class DataNativeEngine extends EventTarget {
     }
   }
 
+  /**
+   * @param {GestureEvent} gesture
+   */
   onSwipe(gesture) {
-    const { direction, target } = gesture;
+    const { direction, target: _target } = gesture;
     
     // Filter or transform based on swipe
     if (direction === 'left') {
@@ -317,6 +354,9 @@ class DataNativeEngine extends EventTarget {
     }
   }
 
+  /**
+   * @param {GestureEvent} gesture
+   */
   onPoint(gesture) {
     const { target } = gesture;
     if (!target) return;
@@ -329,6 +369,10 @@ class DataNativeEngine extends EventTarget {
   }
 
   // Utility methods
+  /**
+   * @param {string} id
+   * @returns {NemosynePacketData|undefined}
+   */
   getDataPacket(id) {
     return this.dataPackets.get(id);
   }
@@ -337,11 +381,19 @@ class DataNativeEngine extends EventTarget {
     return Array.from(this.dataPackets.values());
   }
 
+  /**
+   * @param {string} id
+   * @returns {Entity|undefined}
+   */
   getArtefact(id) {
     return this.artefacts.get(id);
   }
 
   // Selection API
+  /**
+   * @param {string} id
+   * @param {{clear?: boolean}} [options={}]
+   */
   select(id, options = {}) {
     if (options.clear !== false) {
       this.clearSelection();
@@ -355,6 +407,9 @@ class DataNativeEngine extends EventTarget {
     }
   }
 
+  /**
+   * @param {string} id
+   */
   addToSelection(id) {
     const artefact = this.artefacts.get(id);
     if (artefact) {
@@ -363,6 +418,9 @@ class DataNativeEngine extends EventTarget {
     }
   }
 
+  /**
+   * @param {string} id
+   */
   removeFromSelection(id) {
     const artefact = this.artefacts.get(id);
     if (artefact) {
@@ -371,6 +429,9 @@ class DataNativeEngine extends EventTarget {
     }
   }
 
+  /**
+   * @param {string} id
+   */
   toggleSelection(id) {
     if (this.selection.has(id)) {
       this.removeFromSelection(id);
@@ -406,6 +467,10 @@ class DataNativeEngine extends EventTarget {
     });
   }
 
+  /**
+   * @param {string} startId
+   * @param {string} endId
+   */
   selectRange(startId, endId) {
     // Select all packets between start and end
     const allIds = Array.from(this.dataPackets.keys());
@@ -423,10 +488,18 @@ class DataNativeEngine extends EventTarget {
   }
 
   // Filter and query
+  /**
+   * @param {function(NemosynePacketData): boolean} predicate
+   * @returns {NemosynePacketData[]}
+   */
   filter(predicate) {
     return this.getAllDataPackets().filter(predicate);
   }
 
+  /**
+   * @param {QueryConditions} conditions
+   * @returns {NemosynePacketData[]}
+   */
   query(conditions) {
     return this.getAllDataPackets().filter(packet => {
       return Object.entries(conditions).every(([key, value]) => {
@@ -447,6 +520,11 @@ class DataNativeEngine extends EventTarget {
     });
   }
 
+  /**
+   * @param {string} field
+   * @param {'asc'|'desc'} [order='asc']
+   * @returns {NemosynePacketData[]}
+   */
   sortBy(field, order = 'asc') {
     const packets = this.getAllDataPackets();
     return packets.sort((a, b) => {
@@ -460,6 +538,10 @@ class DataNativeEngine extends EventTarget {
     });
   }
 
+  /**
+   * @param {string} field
+   * @returns {Map<unknown, NemosynePacketData[]>}
+   */
   groupBy(field) {
     const groups = new Map();
     
@@ -476,6 +558,10 @@ class DataNativeEngine extends EventTarget {
     return groups;
   }
 
+  /**
+   * @param {string} field
+   * @returns {unknown[]}
+   */
   getUniqueValues(field) {
     const values = new Set();
     this.getAllDataPackets().forEach(packet => {
@@ -485,6 +571,10 @@ class DataNativeEngine extends EventTarget {
     return Array.from(values);
   }
 
+  /**
+   * @param {string} field
+   * @returns {{min: number, max: number, avg: number, sum: number, count: number}}
+   */
   calculateStats(field) {
     const packets = this.getAllDataPackets();
     const values = packets.map(p => p.get(field)).filter(v => typeof v === 'number');
