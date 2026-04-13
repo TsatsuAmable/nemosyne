@@ -61,6 +61,25 @@ npm test
 7. Push to your fork
 8. Open a Pull Request
 
+### Branch Protection Rules
+
+**The `main` branch is protected. All changes must go through Pull Requests.**
+
+#### Requirements for merging to `main`:
+- ✅ **Pull Request required** - Direct pushes to `main` are blocked
+- ✅ **CI must pass** - All status checks (`test`, `build`) must be green
+- ✅ **Up-to-date branch** - Your branch must be current with `main`
+- ✅ **1 approving review** - At least one maintainer must approve
+- ✅ **No force pushes** - History rewriting is disabled
+- ✅ **No deletions** - Branch deletion is disabled
+
+**Note:** The CI runs automatically on every PR and includes:
+- Unit tests (311+ tests)
+- Build verification
+- Linting
+
+Make sure your PR passes all checks before requesting review.
+
 ## Commit Message Format
 
 ```
