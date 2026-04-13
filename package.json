@@ -26,6 +26,8 @@
     "test:unit": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --watch",
     "test:coverage": "jest --coverage --collectCoverageFrom='src/**/*.js' --coverageThreshold='{\"global\":{\"branches\":95,\"functions\":95,\"lines\":95,\"statements\":95}}'",
+    "test:integration": "playwright test",
+    "test:integration:ui": "playwright test --ui",
     "lint": "eslint src/",
     "docs": "jsdoc -c jsdoc.json",
     "docs:build": "npm run docs",
@@ -66,6 +68,7 @@
   "devDependencies": {
     "@babel/core": "^7.21.0",
     "@babel/preset-env": "^7.21.0",
+    "@playwright/test": "^1.59.1",
     "babel-loader": "^9.1.2",
     "commander": "^12.1.0",
     "eslint": "^8.36.0",

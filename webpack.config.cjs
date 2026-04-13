@@ -60,7 +60,10 @@ module.exports = {
   devtool: 'source-map',
   
   devServer: {
-    contentBase: path.join(__dirname, 'examples'),
+    static: {
+      directory: path.join(__dirname, 'examples'),
+      publicPath: '/',
+    },
     port: 8080,
     hot: true,
     open: true
