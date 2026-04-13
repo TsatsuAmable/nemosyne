@@ -248,8 +248,8 @@ describe('DataNativeEngine - Additional Coverage', () => {
       expect(layouts.length).toBeGreaterThan(0);
     });
 
-    test('should relayout with specific topology', async () => {
-      engine.relayout('nemosyne-graph-force');
+    test('should setLayout with specific topology', async () => {
+      engine.setLayout('nemosyne-graph-force');
       // Should recalculate positions
     });
   });

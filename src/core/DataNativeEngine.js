@@ -690,7 +690,21 @@ class DataNativeEngine extends EventTarget {
   calculateStatistics() { return {}; }
   temporarilyReduceDetail() { }
   expandDetailForNearby(entity) { }
-  suggestRelatedData(entity) { }
+  suggestRelatedData(packet) {
+    if (!packet || !packet.relations || !packet.relations.links) {
+      return [];
+    }
+    
+    const related = [];
+    packet.relations.links.forEach(link => {
+      const relatedPacket = this.dataPackets.get(link.to);
+      if (relatedPacket) {
+        related.push(relatedPacket);
+      }
+    });
+    
+    return related;
+  }
   shiftTemporalView(direction) { }
   commitPendingTransformation() { }
   rollbackTransformation() { }
