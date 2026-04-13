@@ -58,49 +58,43 @@ global.Event = Event;
 global.CustomEvent = CustomEvent;
 global.EventTarget = EventTarget;
 
-// Mock scene element with appendChild and dataset
-const mockParent = {
-  appendChild: () => ({ dataset: {} }),
-  removeChild: () => {},
-  parentNode: null,
-};
-
-const mockScene = {
-  tagName: 'a-scene',
-  setAttribute: () => {},
-  getAttribute: () => null,
-  style: {},
-  dataset: {},
-  parentNode: null,
-  classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
-  appendChild: (child) => {
-    child.parentNode = mockScene;
-    return child;
-  },
-  removeChild: () => {},
-  addEventListener: () => {},
-  removeEventListener: () => {},
-  dispatchEvent: () => true,
-};
-
-global.document = {
-  querySelector: () => mockScene,
-  querySelectorAll: () => [],
-  createElement: (tag) => ({
-    tagName: tag,
+// Helper to create mock DOM elements with proper parent/child relationships
+function createMockElement(tagName = 'div') {
+  const element = {
+    tagName,
     setAttribute: () => {},
     getAttribute: () => null,
     style: {},
     dataset: {},
-    classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
-    appendChild: () => ({ dataset: {} }),
+    parentNode: null,
+    classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {}, replace: () => true },
+    appendChild: function(child) {
+      if (child) {
+        child.parentNode = element;
+      }
+      return child;
+    },
     removeChild: () => {},
     addEventListener: () => {},
     removeEventListener: () => {},
     dispatchEvent: () => true,
-  }),
-  body: { appendChild: () => {}, removeChild: () => {} },
+  };
+  return element;
+}
+
+// Create mock scene that will be returned by querySelector
+const mockScene = createMockElement('a-scene');
+
+// Document mock with EventTarget support
+global.document = {
+  querySelector: () => mockScene,
+  querySelectorAll: () => [],
+  createElement: (tag) => createMockElement(tag),
+  body: createMockElement('body'),
   readyState: 'complete',
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  dispatchEvent: () => true,
 };
 
 global.window = {

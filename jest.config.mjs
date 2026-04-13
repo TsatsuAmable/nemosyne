@@ -21,7 +21,7 @@ export default {
   testMatch: [
     '<rootDir>/tests/core.test.mjs',
     '<rootDir>/tests/coverage-gaps.test.mjs',
-    // '<rootDir>/tests/coverage-90.test.mjs', // Requires full browser env - skip for now
+    '<rootDir>/tests/coverage-90.test.mjs',
     '<rootDir>/tests/data-native-engine.test.mjs',
     '<rootDir>/tests/data-native-engine-additional.test.mjs',
     '<rootDir>/tests/index.test.mjs',
