@@ -18,7 +18,7 @@
  * @typedef {import('../types/index.ts').TelemetryData} TelemetryData
  * @typedef {import('../types/index.ts').VisualProperties} VisualProperties
  * @typedef {import('../types/index.ts').AnimationConfig} AnimationConfig
- * @typedef {import('./LayoutEngine.js').LayoutEngine} LayoutEngine
+ * @typedef {import('./LayoutEngine.js').LayoutEngine} _LayoutEngine
  */
 
 import { TopologyDetector } from './TopologyDetector.js';
