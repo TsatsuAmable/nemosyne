@@ -58,22 +58,49 @@ global.Event = Event;
 global.CustomEvent = CustomEvent;
 global.EventTarget = EventTarget;
 
+// Mock scene element with appendChild and dataset
+const mockParent = {
+  appendChild: () => ({ dataset: {} }),
+  removeChild: () => {},
+  parentNode: null,
+};
+
+const mockScene = {
+  tagName: 'a-scene',
+  setAttribute: () => {},
+  getAttribute: () => null,
+  style: {},
+  dataset: {},
+  parentNode: null,
+  classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
+  appendChild: (child) => {
+    child.parentNode = mockScene;
+    return child;
+  },
+  removeChild: () => {},
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  dispatchEvent: () => true,
+};
+
 global.document = {
-  querySelector: () => null,
+  querySelector: () => mockScene,
   querySelectorAll: () => [],
   createElement: (tag) => ({
     tagName: tag,
     setAttribute: () => {},
     getAttribute: () => null,
     style: {},
+    dataset: {},
     classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
-    appendChild: () => {},
+    appendChild: () => ({ dataset: {} }),
     removeChild: () => {},
     addEventListener: () => {},
     removeEventListener: () => {},
     dispatchEvent: () => true,
   }),
   body: { appendChild: () => {}, removeChild: () => {} },
+  readyState: 'complete',
 };
 
 global.window = {
