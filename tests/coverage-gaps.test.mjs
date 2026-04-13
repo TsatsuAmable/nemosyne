@@ -5,11 +5,14 @@
 
 import { jest } from '@jest/globals';
 import { 
-  DataNativeEngine, 
+  AnimationEngine,
+  DataNativeEngine,
+  GestureController,
   LayoutEngine, 
   NemosyneDataPacket, 
   PropertyMapper, 
-  ResearchTelemetry, 
+  ResearchTelemetry,
+  TelemetryEngine,
   TopologyDetector 
 } from '../src/core/index.js';
 
@@ -32,6 +35,21 @@ describe('Module Exports (index.js)', () => {
     expect(typeof TopologyDetector).toBe('function');
   });
 
+  test('should export AnimationEngine', () => {
+    expect(AnimationEngine).toBeDefined();
+    expect(typeof AnimationEngine).toBe('function');
+  });
+
+  test('should export GestureController', () => {
+    expect(GestureController).toBeDefined();
+    expect(typeof GestureController).toBe('function');
+  });
+
+  test('should export TelemetryEngine', () => {
+    expect(TelemetryEngine).toBeDefined();
+    expect(typeof TelemetryEngine).toBe('function');
+  });
+
   test('exported classes should be instantiable', () => {
     expect(() => new DataNativeEngine()).not.toThrow();
     expect(() => new LayoutEngine()).not.toThrow();
@@ -39,6 +57,9 @@ describe('Module Exports (index.js)', () => {
     expect(() => new PropertyMapper()).not.toThrow();
     expect(() => new ResearchTelemetry()).not.toThrow();
     expect(() => new TopologyDetector()).not.toThrow();
+    expect(() => new AnimationEngine()).not.toThrow();
+    expect(() => new GestureController()).not.toThrow();
+    expect(() => new TelemetryEngine()).not.toThrow();
   });
 });
 
@@ -566,5 +587,244 @@ describe('TopologyDetector - Edge Cases', () => {
   test('validateTopology should validate result', () => {
     const isValid = detector.validateTopology('nemosyne-graph-force');
     expect(typeof isValid).toBe('boolean');
+  });
+});
+
+
+describe('AnimationEngine - Coverage', () => {
+  let engine;
+  let mockPacket;
+
+  beforeEach(() => {
+    engine = new AnimationEngine();
+    mockPacket = { id: '1', value: 10 };
+  });
+
+  test('should determine animation for packet', () => {
+    const anim = engine.determineAnimation(mockPacket);
+    expect(anim).toBeDefined();
+    expect(anim.property).toBe('scale');
+    expect(anim.from).toBe('0 0 0');
+    expect(anim.to).toBe('1 1 1');
+    expect(anim.dur).toBeGreaterThan(500);
+    expect(anim.dur).toBeLessThan(800);
+    expect(anim.easing).toBe('easeInOutQuad');
+  });
+
+  test('should format animation as A-Frame string', () => {
+    const anim = {
+      property: 'position',
+      from: '0 0 0',
+      to: '1 1 1',
+      dur: 1000,
+      easing: 'easeInOut'
+    };
+    const formatted = engine.formatAnimation(anim);
+    expect(formatted).toContain('position: 0 0 0');
+    expect(formatted).toContain('position: 1 1 1');
+    expect(formatted).toContain('dur: 1000');
+    expect(formatted).toContain('easing: easeInOut');
+  });
+
+  test('should create entrance animation', () => {
+    const anim = engine.entranceAnimation(500);
+    expect(anim.property).toBe('scale');
+    expect(anim.from).toBe('0 0 0');
+    expect(anim.to).toBe('1 1 1');
+    expect(anim.dur).toBe(500);
+    expect(anim.easing).toBe('easeOutElastic');
+  });
+
+  test('should create exit animation', () => {
+    const anim = engine.exitAnimation(300);
+    expect(anim.property).toBe('scale');
+    expect(anim.from).toBe('1 1 1');
+    expect(anim.to).toBe('0 0 0');
+    expect(anim.dur).toBe(300);
+    expect(anim.easing).toBe('easeInQuad');
+  });
+
+  test('should create highlight animation', () => {
+    const anim = engine.highlightAnimation(200);
+    expect(anim.property).toBe('scale');
+    expect(anim.from).toBe('1 1 1');
+    expect(anim.to).toBe('1.2 1.2 1.2');
+    expect(anim.dur).toBe(200);
+    expect(anim.easing).toBe('easeInOutQuad');
+    expect(anim.dir).toBe('alternate');
+  });
+
+  test('should create focus animation with position', () => {
+    const pos = { x: 10, y: 20, z: 30 };
+    const anim = engine.focusAnimation(pos, 750);
+    expect(anim.property).toBe('position');
+    expect(anim.from).toBe('10 20 30');
+    expect(anim.to).toBe('10 20 30');
+    expect(anim.dur).toBe(750);
+    expect(anim.easing).toBe('easeInOutQuad');
+  });
+
+  test('should accept custom options', () => {
+    const custom = new AnimationEngine({ duration: 2000, easing: 'linear' });
+    expect(custom.defaultDuration).toBe(2000);
+    expect(custom.easing).toBe('linear');
+  });
+});
+
+describe('GestureController - Coverage', () => {
+  let controller;
+  let mockEngine;
+
+  beforeEach(() => {
+    mockEngine = {
+      handleGesture: jest.fn()
+    };
+    controller = new GestureController(mockEngine);
+  });
+
+  test('should initialize with engine reference', () => {
+    expect(controller.engine).toBe(mockEngine);
+    expect(controller.interactionZones).toBeInstanceOf(Map);
+    expect(controller.activeGestures).toBeInstanceOf(Map);
+  });
+
+  test('should initialize interaction zones', () => {
+    const mockZone = {
+      setAttribute: jest.fn(),
+      dataset: {}
+    };
+    global.document.createElement = jest.fn(() => mockZone);
+    
+    const mockEntity = {
+      nemosyneData: { id: 'entity-1' },
+      parentNode: { appendChild: jest.fn() }
+    };
+    
+    controller.initializeInteractionZones([mockEntity]);
+    expect(controller.interactionZones.has('entity-1')).toBe(true);
+  });
+
+  test('should calculate hand-zone distance', () => {
+    const hand = { position: { x: 0, y: 0, z: 0 } };
+    const zone = {
+      getAttribute: jest.fn(() => ({ x: 3, y: 4, z: 0 }))
+    };
+    
+    const dist = controller.calculateHandZoneDistance(hand, zone);
+    expect(dist).toBe(5);
+  });
+
+  test('should process hand update and check zones', () => {
+    const mockZone = {
+      getAttribute: jest.fn(() => ({ x: 0, y: 0, z: 0 })),
+      emit: jest.fn()
+    };
+    controller.interactionZones.set('zone-1', mockZone);
+    
+    const handData = { position: { x: 0.1, y: 0, z: 0 } };
+    controller.processHandUpdate(handData);
+    
+    expect(mockZone.emit).toHaveBeenCalled();
+  });
+
+  test('should process gesture and forward to engine', () => {
+    const gestureData = { type: 'pinch', target: null };
+    controller.processGesture(gestureData);
+    
+    expect(mockEngine.handleGesture).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'pinch'
+    }));
+  });
+
+  test('should get target for gesture', () => {
+    const gestureData = { ray: { origin: { x: 0 }, direction: { x: 1 } } };
+    const result = controller.getTargetForGesture(gestureData);
+    expect(result).toEqual({ entity: null, packet: null });
+  });
+});
+
+describe('TelemetryEngine - Coverage', () => {
+  let engine;
+
+  beforeEach(() => {
+    engine = new TelemetryEngine();
+  });
+
+  test('should initialize with empty history', () => {
+    expect(engine.gazeHistory).toEqual([]);
+    expect(engine.headHistory).toEqual([]);
+    expect(engine.fixationThreshold).toBe(800);
+  });
+
+  test('should track gaze data', () => {
+    const gazeData = {
+      point: { x: 100, y: 200, z: 50 },
+      direction: { x: 0, y: 0, z: 1 }
+    };
+    
+    engine.trackGaze(gazeData);
+    expect(engine.gazeHistory.length).toBe(1);
+    expect(engine.gazeHistory[0].point).toEqual(gazeData.point);
+  });
+
+  test('should filter old gaze data', () => {
+    const oldTime = Date.now() - 3000;
+    engine.gazeHistory.push({
+      timestamp: oldTime,
+      point: { x: 0, y: 0, z: 0 },
+      direction: { x: 0, y: 0, z: 1 }
+    });
+    
+    engine.trackGaze({ point: { x: 100 }, direction: { z: 1 } });
+    
+    expect(engine.gazeHistory.every(g => g.timestamp > Date.now() - 2000)).toBe(true);
+  });
+
+  test('should track head movement', () => {
+    const headData = {
+      position: { x: 0, y: 1.6, z: 0 },
+      velocity: { x: 0.1, y: 0, z: 0 }
+    };
+    
+    engine.trackHeadMovement(headData);
+    expect(engine.headHistory.length).toBe(1);
+    expect(engine.headHistory[0].position).toEqual(headData.position);
+  });
+
+  test('should calculate centroid of points', () => {
+    const points = [
+      { x: 0, y: 0, z: 0 },
+      { x: 10, y: 10, z: 10 },
+      { x: 20, y: 20, z: 20 }
+    ];
+    
+    const centroid = engine.calculateCentroid(points);
+    expect(centroid).toEqual({ x: 10, y: 10, z: 10 });
+  });
+
+  test('should calculate distance between points', () => {
+    const a = { x: 0, y: 0, z: 0 };
+    const b = { x: 3, y: 4, z: 0 };
+    
+    const dist = engine.distance(a, b);
+    expect(dist).toBe(5);
+  });
+
+  test('should calculate head speed', () => {
+    const speed = engine.calculateHeadSpeed();
+    expect(speed).toBe(0);
+  });
+
+  test('should find entity at point', () => {
+    const entity = engine.findEntityAt({ x: 0, y: 0, z: 0 });
+    expect(entity).toBeNull();
+  });
+
+  test('should emit custom events', () => {
+    const mockDispatch = jest.fn();
+    global.document.dispatchEvent = mockDispatch;
+    
+    engine.emit('test-event', { data: 'value' });
+    expect(mockDispatch).toHaveBeenCalled();
   });
 });
