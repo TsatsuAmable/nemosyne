@@ -5,15 +5,40 @@
 
 import { jest } from '@jest/globals';
 import {
+  AnimationEngine,
   DataNativeEngine,
+  GestureController,
   LayoutEngine,
   NemosyneDataPacket,
   PropertyMapper,
   ResearchTelemetry,
+  TelemetryEngine,
   TopologyDetector
 } from '../src/core/index.js';
 
 describe('Index Exports', () => {
+  test('should export AnimationEngine', () => {
+    expect(AnimationEngine).toBeDefined();
+    expect(typeof AnimationEngine).toBe('function');
+    const instance = new AnimationEngine();
+    expect(instance).toBeInstanceOf(AnimationEngine);
+  });
+
+  test('should export GestureController', () => {
+    expect(GestureController).toBeDefined();
+    expect(typeof GestureController).toBe('function');
+    const mockEngine = { handleGesture: jest.fn() };
+    const instance = new GestureController(mockEngine);
+    expect(instance).toBeInstanceOf(GestureController);
+  });
+
+  test('should export TelemetryEngine', () => {
+    expect(TelemetryEngine).toBeDefined();
+    expect(typeof TelemetryEngine).toBe('function');
+    const instance = new TelemetryEngine();
+    expect(instance).toBeInstanceOf(TelemetryEngine);
+  });
+
   test('should export DataNativeEngine', () => {
     expect(DataNativeEngine).toBeDefined();
     expect(typeof DataNativeEngine).toBe('function');
@@ -151,6 +176,39 @@ describe('Index Exports', () => {
     expect(typeof instance.toJSON).toBe('function');
     expect(typeof instance.addLink).toBe('function');
     expect(typeof instance.computeVisualHash).toBe('function');
+  });
+
+  test('AnimationEngine should have expected methods', () => {
+    const instance = new AnimationEngine();
+    expect(typeof instance.determineAnimation).toBe('function');
+    expect(typeof instance.formatAnimation).toBe('function');
+    expect(typeof instance.entranceAnimation).toBe('function');
+    expect(typeof instance.exitAnimation).toBe('function');
+    expect(typeof instance.highlightAnimation).toBe('function');
+    expect(typeof instance.focusAnimation).toBe('function');
+  });
+
+  test('GestureController should have expected methods', () => {
+    const mockEngine = { handleGesture: jest.fn() };
+    const instance = new GestureController(mockEngine);
+    expect(typeof instance.initializeInteractionZones).toBe('function');
+    expect(typeof instance.setupHandTracking).toBe('function');
+    expect(typeof instance.calculateHandZoneDistance).toBe('function');
+    expect(typeof instance.processHandUpdate).toBe('function');
+    expect(typeof instance.processGesture).toBe('function');
+    expect(typeof instance.getTargetForGesture).toBe('function');
+  });
+
+  test('TelemetryEngine should have expected methods', () => {
+    const instance = new TelemetryEngine();
+    expect(typeof instance.trackGaze).toBe('function');
+    expect(typeof instance.trackHeadMovement).toBe('function');
+    expect(typeof instance.detectFixation).toBe('function');
+    expect(typeof instance.calculateCentroid).toBe('function');
+    expect(typeof instance.distance).toBe('function');
+    expect(typeof instance.calculateHeadSpeed).toBe('function');
+    expect(typeof instance.findEntityAt).toBe('function');
+    expect(typeof instance.emit).toBe('function');
   });
 
   test('ResearchTelemetry should have expected methods', () => {

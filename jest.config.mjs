@@ -24,6 +24,7 @@ export default {
     '<rootDir>/tests/coverage-90.test.mjs',
     '<rootDir>/tests/data-native-engine.test.mjs',
     '<rootDir>/tests/data-native-engine-additional.test.mjs',
+    '<rootDir>/tests/event-handlers.test.mjs',
     '<rootDir>/tests/index.test.mjs',
     '<rootDir>/tests/layout-engine.test.mjs',
   ],
