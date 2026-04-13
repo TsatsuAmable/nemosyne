@@ -141,21 +141,29 @@ npm install nemosyne aframe
 
 ## 🗺️ Roadmap
 
-### v0.2.1 (Next)
+### v0.2.1 (Current) ✅
+- [x] Comprehensive test suite (312 tests, ~80% coverage)
+- [x] CLI tool for project scaffolding
+- [x] TypeScript definitions
+- [x] GitHub templates and code of conduct
+- [x] README redesign
+
+### v0.2.2 (Next) 🚧
 - GitHub Wiki
 - Video tutorials
 - Mobile VR optimizations
 
 ### v0.3.0
-- Physics integration (AMMO.js)
+- Physics integration (AMMO.js full support)
 - Gesture recognition
 - Voice commands
-- Multiplayer sync
+- Multiplayer sync (WebRTC)
 
-### v1.0.0
+### v1.0.0 (Long-term)
 - AR mode (WebXR hit-test)
 - AI-assisted artefact generation
 - Collaborative editing
+- Commercial support tiers
 
 See [CHANGELOG.md](CHANGELOG.md) for completed features.
 
