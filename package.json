@@ -6,7 +6,11 @@
   "main": "dist/nemosyne.js",
   "module": "dist/nemosyne.esm.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "nemosyne": "./bin/nemosyne-cli.js"
+  },
   "files": [
+    "bin/",
     "dist/",
     "src/",
     "examples/",
@@ -60,6 +64,7 @@
     }
   },
   "devDependencies": {
+    "commander": "^12.0.0",
     "@babel/core": "^7.21.0",
     "@babel/preset-env": "^7.21.0",
     "babel-loader": "^9.1.2",
