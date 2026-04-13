@@ -14,9 +14,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "dev": "webpack serve --mode development",
+    "dev": "webpack serve --mode development --config webpack.config.cjs",
     "build": "npm run build:umd && npm run build:esm",
-    "build:umd": "webpack --mode production",
+    "build:umd": "webpack --mode production --config webpack.config.cjs",
     "build:esm": "rollup -c rollup.config.js",
     "test": "jest --coverage --collectCoverageFrom='src/**/*.js'",
     "test:unit": "jest --coverage --collectCoverageFrom='src/**/*.js'",
