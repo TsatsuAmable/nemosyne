@@ -87,7 +87,7 @@ global.window = {
   document: global.document,
 };
 
-global.navigator = {
+global.navigator = global.window.navigator = {
   userAgent: 'node',
   getGamepads: () => [],
   xr: null,
