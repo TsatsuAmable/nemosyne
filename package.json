@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/nemosyne.js",
   "module": "dist/nemosyne.esm.js",
-  "types": "dist/index.d.ts",
+  "types": "dist/types/index.d.ts",
   "bin": {
     "nemosyne": "./bin/nemosyne-cli.js"
   },
@@ -19,9 +19,11 @@
   ],
   "scripts": {
     "dev": "webpack serve --mode development --config webpack.config.cjs",
-    "build": "npm run build:umd && npm run build:esm",
+    "build": "npm run build:umd && npm run build:esm && npm run build:types",
     "build:umd": "webpack --mode production --config webpack.config.cjs",
     "build:esm": "rollup -c rollup.config.js",
+    "build:types": "tsc -p tsconfig.declarations.json",
+    "typecheck": "tsc -p tsconfig.declarations.json --noEmit",
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "test:unit": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --watch",

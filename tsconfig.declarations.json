@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist/types",
+    "rootDir": "./src",
+    "allowJs": true,
+    "checkJs": true,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "src/types/**/*",
+    "src/core/DataNativeEngine.js",
+    "src/core/AnimationEngine.js",
+    "src/core/GestureController.js",
+    "src/core/TelemetryEngine.js",
+    "src/core/NemosyneDataPacket.js",
+    "src/core/PropertyMapper.js",
+    "src/index.js"
+  ],
+  "exclude": ["node_modules", "dist", "tests", "src/animation", "src/components"]
+}
