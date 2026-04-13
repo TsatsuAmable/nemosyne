@@ -45,12 +45,6 @@ class ResearchTelemetry {
     this.lastPositionLog = 0;
     this.positionThrottle = 100; // ms between position logs
 
-    // Bind methods
-    this.handleCameraMove = this.handleCameraMove.bind(this);
-    this.handleInteraction = this.handleInteraction.bind(this);
-    this.handleGaze = this.handleGaze.bind(this);
-    this.handleLayoutChange = this.handleLayoutChange.bind(this);
-
     console.log('[ResearchTelemetry] Initialized');
     console.log(`[ResearchTelemetry] Session: ${this.sessionId}`);
 

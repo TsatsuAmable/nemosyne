@@ -11,6 +11,11 @@
  * DataPacket → TopologyDetector → LayoutEngine → GestureController → Render
  */
 
+import { TopologyDetector, TopologyScorer } from './TopologyDetector.js';
+import { PropertyMapper } from './PropertyMapper.js';
+import { LayoutEngine } from './LayoutEngine.js';
+import { NemosyneDataPacket } from './NemosyneDataPacket.js';
+
 class DataNativeEngine extends EventTarget {
   constructor(options = {}) {
     super();
@@ -28,6 +33,7 @@ class DataNativeEngine extends EventTarget {
     // State
     this.dataPackets = new Map(); // id -> NemosyneDataPacket
     this.artefacts = new Map();   // id -> Entity
+    this.selection = new Set();   // Set of selected IDs
     this.scene = options.scene || document.querySelector('a-scene');
     
     // Configuration
@@ -110,12 +116,24 @@ class DataNativeEngine extends EventTarget {
     
     return dataArray.map((item, index) => {
       // Auto-generate ID if not present
-      const id = item.id || `packet-${Date.now()}-${index}`;
+      // Check schema.idField first, then item.id, then auto-generate
+      let id = item.id;
+      if (!id && schema.idField && item[schema.idField] !== undefined) {
+        id = String(item[schema.idField]);
+      }
+      id = id || `packet-${Date.now()}-${index}`;
+      
+      // Extract value from schema.valueField if provided
+      let value = item.value;
+      if (!value && schema.valueField && item[schema.valueField] !== undefined) {
+        value = item[schema.valueField];
+      }
+      value = value || item;
       
       // Build packet with defaults
       return new NemosyneDataPacket({
         id,
-        value: item.value || item,
+        value,
         semantics: {
           type: schema.type || this.inferType(item),
           structure: schema.structure || this.inferStructure(item),
@@ -183,325 +201,482 @@ class DataNativeEngine extends EventTarget {
     entity.classList.add('data-native-entity');
     entity.classList.add('clickable');
     
-    // Store reference to packet for reverse lookup
+    // Store reference
     entity.nemosyneData = packet;
-    entity.topology = topology;
     
     return entity;
   }
 
   /**
-   * Handle gesture events from GestureController
+   * Handle incoming gesture
    */
-  handleGesture(event) {
-    const { gesture, hand, target, intersection } = event;
+  handleGesture(gesture) {
+    console.log('[DataNativeEngine] Gesture received:', gesture.type);
     
-    switch (gesture) {
-      case 'point-and-pinch':
-        // Selection + potential manipulation start
-        if (target) {
-          this.selectDataEntity(target, hand);
-        }
+    switch(gesture.type) {
+      case 'grab':
+        this.onGrab(gesture);
         break;
-        
-      case 'grab-move':
-        // Spatial data manipulation
-        if (target) {
-          this.spatialDataUpdate(target, hand);
-        }
+      case 'pinch':
+        this.onPinch(gesture);
         break;
-        
-      case 'two-hand-expand':
-        // Scale/aggregate data
-        this.dataAggregation(event.center, hand);
+      case 'swipe':
+        this.onSwipe(gesture);
         break;
-        
-      case 'swipe-left':
-        // Navigate temporal data
-        this.temporalNavigation('backward');
-        break;
-        
-      case 'swipe-right':
-        // Navigate temporal data
-        this.temporalNavigation('forward');
-        break;
-        
-      case 'circle-draw':
-        // Filter/select region
-        this.spatialFilter(event.boundingBox);
-        break;
-        
-      case 'thumbs-up':
-        // Confirm transformation
-        this.commitPendingTransformation();
-        break;
-        
-      case 'thumbs-down':
-        // Cancel transformation
-        this.rollbackTransformation();
+      case 'point':
+        this.onPoint(gesture);
         break;
     }
     
-    this.emit('gesture-handled', { gesture, target, action: event.action });
+    this.emit('gesture-handled', { gesture });
   }
 
   /**
-   * Handle VR headset telemetry for gaze/attention analysis
+   * Handle VR headset telemetry
    */
-  handleTelemetry(event) {
-    const { type, data } = event;
+  handleTelemetry(telemetry) {
+    if (!this.telemetryEnabled) return;
     
-    switch (type) {
-      case 'gaze-fixation':
-        // User is looking at something intently
-        this.handleGazeFixation(data);
-        break;
-        
-      case 'head-velocity':
-        // Fast head movement - disorientation or scanning
-        if (data.speed > 100) {
-          this.temporarilyReduceDetail();
-        }
-        break;
-        
-      case 'proximity':
-        // User moved close to a cluster
-        this.expandDetailForNearby(data.entity);
-        break;
-        
-      case 'dwell-time':
-        // User has been in same area for a while
-        this.suggestRelatedData(data.entity);
-        break;
+    // Analyze gaze patterns
+    if (telemetry.gaze) {
+      this.telemetryAnalyzer.trackGaze(telemetry.gaze);
+    }
+    
+    // Analyze head movement
+    if (telemetry.head) {
+      this.telemetryAnalyzer.trackHeadMovement(telemetry.head);
+    }
+    
+    // Adapt visualization based on telemetry
+    this.adaptToTelemetry(telemetry);
+  }
+
+  /**
+   * Adapt visualization based on user behavior
+   */
+  adaptToTelemetry(telemetry) {
+    // Example: Reduce detail when user is moving quickly
+    if (telemetry.head?.velocity > 50) {
+      this.temporarilyReduceDetail();
+    }
+    
+    // Example: Expand detail where user is looking
+    if (telemetry.gaze?.fixation) {
+      const entity = telemetry.gaze.fixation.entity;
+      this.expandDetailForNearby(entity);
     }
   }
 
-  /**
-   * Spatial data manipulation via hand movement
-   * Updates data values based on spatial gesture
-   */
-  spatialDataUpdate(entity, hand) {
-    const packet = entity.nemosyneData;
-    if (!packet) return;
+  // Gesture handlers
+  onGrab(gesture) {
+    const { target, hand } = gesture;
+    if (!target) return;
     
-    // Calculate delta from original position
-    const originalPos = this.layoutEngine.getOriginalPosition(packet.id);
-    const currentPos = hand.position;
-    
-    const delta = {
-      x: currentPos.x - originalPos.x,
-      y: currentPos.y - originalPos.y,
-      z: currentPos.z - originalPos.z
+    // Start drag
+    this.dragState = {
+      target,
+      hand,
+      startPosition: { ...target.getAttribute('position') },
+      startHand: { ...hand.position }
     };
-    
-    // Map spatial delta to data transformation
-    switch (packet.semantics.type) {
-      case 'quantitative':
-        // Moving along Y axis modifies value
-        const valueDelta = delta.y * 1000; // Scale factor
-        packet.transform({ 
-          value: packet.value + valueDelta,
-          transformType: 'manual-spatial'
-        });
-        break;
-        
-      case 'categorical':
-        // Moving to different cluster suggests reclassification
-        const nearestCluster = this.findNearestCluster(currentPos);
-        if (nearestCluster !== packet.semantics.category) {
-          packet.transform({
-            category: nearestCluster,
-            transformType: 'reclassification'
-          });
-        }
-        break;
-        
-      case 'temporal':
-        // Moving along timeline
-        const timeDelta = delta.x * 1000 * 60 * 60; // hours to ms
-        packet.transform({
-          timestamp: packet.context.timestamp + timeDelta,
-          transformType: 'timeshift'
-        });
-        break;
-    }
     
     // Visual feedback
-    this.updateVisualFeedback(entity, 'transforming');
-    
-    // Emit
-    this.emit('data-transformed', { packet, delta, hand });
+    this.updateVisualFeedback(target, 'grabbed');
   }
 
-  /**
-   * Aggregate data via two-hand gesture
-   */
-  dataAggregation(center, hands) {
-    // Find all entities within the gesture volume
-    const volume = this.calculateGestureVolume(hands);
-    const containedEntities = this.findEntitiesInVolume(volume);
+  onPinch(gesture) {
+    const { target, scale } = gesture;
+    if (!target) return;
     
-    if (containedEntities.length > 1) {
-      // Create aggregate packet
-      const aggregatePacket = this.createAggregatePacket(containedEntities);
-      
-      // Visualize as cluster
-      this.visualizeAggregate(aggregatePacket, center);
-      
-      this.emit('data-aggregated', { 
-        sources: containedEntities.map(e => e.nemosyneData.id),
-        aggregate: aggregatePacket 
-      });
-    }
-  }
-
-  /**
-   * Navigate temporal data via swipe gesture
-   */
-  temporalNavigation(direction) {
-    const temporalPackets = Array.from(this.dataPackets.values())
-      .filter(p => p.semantics.type === 'temporal')
-      .sort((a, b) => a.context.timestamp - b.context.timestamp);
-    
-    if (direction === 'forward') {
-      // Shift view to later data
-      this.shiftTemporalView(1);
-    } else {
-      // Shift view to earlier data
-      this.shiftTemporalView(-1);
-    }
-    
-    // Animate transition
-    this.scene.emit('temporal-shift', { direction });
-  }
-
-  /**
-   * Filter data based on spatial region
-   */
-  spatialFilter(boundingBox) {
-    const contained = this.findEntitiesInVolume(boundingBox);
-    const excluded = Array.from(this.artefacts.values())
-      .filter(a => !contained.includes(a));
-    
-    // Dim excluded entities
-    excluded.forEach(entity => {
-      entity.setAttribute('animation', {
-        property: 'material.opacity',
-        to: 0.1,
-        dur: 300
-      });
+    // Scale the entity
+    const currentScale = target.getAttribute('scale');
+    target.setAttribute('scale', {
+      x: currentScale.x * scale,
+      y: currentScale.y * scale,
+      z: currentScale.z * scale
     });
     
-    // Highlight contained
-    contained.forEach(entity => {
-      entity.setAttribute('animation', {
-        property: 'material.emissiveIntensity',
-        to: 1.5,
-        dur: 300
-      });
-    });
-    
-    this.emit('spatial-filter-applied', { 
-      contained: contained.length,
-      excluded: excluded.length 
-    });
-  }
-
-  /**
-   * Handle gaze fixation - show details
-   */
-  handleGazeFixation(data) {
-    const entity = data.entity;
-    const packet = entity?.nemosyneData;
-    
+    // Update data
+    const packet = this.dataPackets.get(target.nemosyneData.id);
     if (packet) {
-      // Show contextual info
-      this.showDataDetails(entity, packet);
-      
-      // Highlight connections
-      this.highlightRelatedData(packet);
+      packet.set('visual.scale', scale);
     }
   }
 
-  /**
-   * Show detailed data view on gaze
-   */
-  showDataDetails(entity, packet) {
-    // Create floating label with data info
-    const label = document.createElement('a-entity');
-    label.setAttribute('position', {
-      x: entity.getAttribute('position').x,
-      y: entity.getAttribute('position').y + 0.5,
-      z: entity.getAttribute('position').z
-    });
-    label.setAttribute('text', {
-      value: `${packet.id}: ${JSON.stringify(packet.value).slice(0, 50)}`,
-      align: 'center',
-      color: '#00d4aa',
-      width: 2
-    });
-    label.setAttribute('billboard', true);
+  onSwipe(gesture) {
+    const { direction, target } = gesture;
     
-    this.scene.appendChild(label);
-    
-    // Auto-remove after 3 seconds
-    setTimeout(() => label.remove(), 3000);
-  }
-
-  /**
-   * Public API: Update data from external source
-   */
-  updateData(packetId, newValue) {
-    const packet = this.dataPackets.get(packetId);
-    const entity = this.artefacts.get(packetId);
-    
-    if (packet && entity) {
-      // Update packet
-      packet.updateValue(newValue);
-      
-      // Re-map properties
-      const newProps = this.propertyMapper.map(packet);
-      
-      // Animate transition
-      entity.setAttribute('animation', {
-        property: 'material.color',
-        to: newProps.color,
-        dur: 500,
-        easing: 'easeInOutQuad'
-      });
-      
-      entity.setAttribute('animation__scale', {
-        property: 'scale',
-        to: `${newProps.scale.x} ${newProps.scale.y} ${newProps.scale.z}`,
-        dur: 500,
-        easing: 'easeOutElastic'
-      });
-      
-      this.emit('data-updated', { packetId, newValue });
+    // Filter or transform based on swipe
+    if (direction === 'left') {
+      this.shiftTemporalView('past');
+    } else if (direction === 'right') {
+      this.shiftTemporalView('future');
     }
   }
 
-  /**
-   * Public API: Get current data state
-   */
-  getDataState() {
+  onPoint(gesture) {
+    const { target } = gesture;
+    if (!target) return;
+    
+    // Highlight and show details
+    this.highlight(target.nemosyneData.id);
+    
+    // Suggest related data
+    this.suggestRelatedData(target.nemosyneData);
+  }
+
+  // Utility methods
+  getDataPacket(id) {
+    return this.dataPackets.get(id);
+  }
+
+  getAllDataPackets() {
+    return Array.from(this.dataPackets.values());
+  }
+
+  getArtefact(id) {
+    return this.artefacts.get(id);
+  }
+
+  // Selection API
+  select(id, options = {}) {
+    if (options.clear !== false) {
+      this.clearSelection();
+    }
+    
+    const artefact = this.artefacts.get(id);
+    if (artefact) {
+      artefact.classList.add('selected');
+      this.selection.add(id);
+      this.emit('selection-changed', { selected: [id] });
+    }
+  }
+
+  addToSelection(id) {
+    const artefact = this.artefacts.get(id);
+    if (artefact) {
+      artefact.classList.add('selected');
+      this.selection.add(id);
+    }
+  }
+
+  removeFromSelection(id) {
+    const artefact = this.artefacts.get(id);
+    if (artefact) {
+      artefact.classList.remove('selected');
+      this.selection.delete(id);
+    }
+  }
+
+  toggleSelection(id) {
+    if (this.selection.has(id)) {
+      this.removeFromSelection(id);
+    } else {
+      this.addToSelection(id);
+    }
+  }
+
+  clearSelection() {
+    this.artefacts.forEach(artefact => {
+      artefact.classList.remove('selected');
+    });
+    this.selection.clear();
+  }
+
+  getSelectedPackets() {
+    return Array.from(this.selection).map(id => this.dataPackets.get(id)).filter(Boolean);
+  }
+
+  selectAll() {
+    this.artefacts.forEach((_, id) => {
+      this.addToSelection(id);
+    });
+  }
+
+  invertSelection() {
+    this.artefacts.forEach((artefact, id) => {
+      if (this.selection.has(id)) {
+        this.removeFromSelection(id);
+      } else {
+        this.addToSelection(id);
+      }
+    });
+  }
+
+  selectRange(startId, endId) {
+    // Select all packets between start and end
+    const allIds = Array.from(this.dataPackets.keys());
+    const startIdx = allIds.indexOf(startId);
+    const endIdx = allIds.indexOf(endId);
+    
+    if (startIdx === -1 || endIdx === -1) return;
+    
+    const min = Math.min(startIdx, endIdx);
+    const max = Math.max(startIdx, endIdx);
+    
+    for (let i = min; i <= max; i++) {
+      this.addToSelection(allIds[i]);
+    }
+  }
+
+  // Filter and query
+  filter(predicate) {
+    return this.getAllDataPackets().filter(predicate);
+  }
+
+  query(conditions) {
+    return this.getAllDataPackets().filter(packet => {
+      return Object.entries(conditions).every(([key, value]) => {
+        const packetValue = packet.get(key);
+        
+        if (typeof value === 'object' && value !== null) {
+          // Handle operators like $gt, $lt, $in, $exists
+          if (value.$gt !== undefined) return packetValue > value.$gt;
+          if (value.$lt !== undefined) return packetValue < value.$lt;
+          if (value.$gte !== undefined) return packetValue >= value.$gte;
+          if (value.$lte !== undefined) return packetValue <= value.$lte;
+          if (value.$in !== undefined) return value.$in.includes(packetValue);
+          if (value.$exists !== undefined) return value.$exists ? packetValue !== undefined : packetValue === undefined;
+        }
+        
+        return packetValue === value;
+      });
+    });
+  }
+
+  sortBy(field, order = 'asc') {
+    const packets = this.getAllDataPackets();
+    return packets.sort((a, b) => {
+      const aVal = a.get(field);
+      const bVal = b.get(field);
+      
+      if (order === 'desc') {
+        return bVal > aVal ? 1 : -1;
+      }
+      return aVal > bVal ? 1 : -1;
+    });
+  }
+
+  groupBy(field) {
+    const groups = new Map();
+    
+    this.getAllDataPackets().forEach(packet => {
+      const value = packet.get(field);
+      const key = value || 'unknown';
+      
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key).push(packet);
+    });
+    
+    return groups;
+  }
+
+  getUniqueValues(field) {
+    const values = new Set();
+    this.getAllDataPackets().forEach(packet => {
+      const value = packet.get(field);
+      if (value !== undefined) values.add(value);
+    });
+    return Array.from(values);
+  }
+
+  calculateStats(field) {
+    const packets = this.getAllDataPackets();
+    const values = packets.map(p => p.get(field)).filter(v => typeof v === 'number');
+    
+    if (values.length === 0) {
+      return { min: 0, max: 0, avg: 0, sum: 0, count: 0 };
+    }
+    
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const sum = values.reduce((a, b) => a + b, 0);
+    const avg = sum / values.length;
+    
+    return { min, max, avg, sum, count: values.length };
+  }
+
+  updateData(id, updates) {
+    const packet = this.dataPackets.get(id);
+    if (!packet) return false;
+    
+    // Apply updates
+    Object.entries(updates).forEach(([path, value]) => {
+      packet.set(path, value);
+    });
+    
+    // Update visualization
+    const artefact = this.artefacts.get(id);
+    if (artefact) {
+      const props = this.propertyMapper.map(packet);
+      this.updateArtefactVisuals(artefact, props);
+    }
+    
+    this.emit('data-updated', { id, updates });
+    return true;
+  }
+
+  removeData(id) {
+    const packet = this.dataPackets.get(id);
+    if (!packet) return false;
+    
+    // Remove from scene
+    const artefact = this.artefacts.get(id);
+    if (artefact && artefact.parentNode) {
+      artefact.parentNode.removeChild(artefact);
+    }
+    
+    // Remove from maps
+    this.dataPackets.delete(id);
+    this.artefacts.delete(id);
+    
+    this.emit('data-removed', { id });
+    return true;
+  }
+
+  clear() {
+    this.dataPackets.forEach((packet, id) => {
+      this.removeData(id);
+    });
+    this.emit('data-cleared');
+  }
+
+  updateArtefactVisuals(artefact, props) {
+    // Update visual properties
+    if (props.color) {
+      artefact.setAttribute('material', 'color', props.color);
+    }
+    if (props.scale) {
+      artefact.setAttribute('scale', props.scale);
+    }
+  }
+
+  // Visualization
+  setColorScheme(scheme) {
+    // Update property mapper color scheme
+    this.propertyMapper.setColorScheme?.(scheme);
+  }
+
+  setScaleRange(min, max) {
+    // Update scale range for visualization
+    this.propertyMapper.setScaleRange?.(min, max);
+  }
+
+  highlight(id) {
+    const artefact = this.artefacts.get(id);
+    if (artefact) {
+      artefact.classList.add('highlighted');
+    }
+  }
+
+  unhighlight(id) {
+    const artefact = this.artefacts.get(id);
+    if (artefact) {
+      artefact.classList.remove('highlighted');
+    }
+  }
+
+  focus(id) {
+    const artefact = this.artefacts.get(id);
+    if (artefact) {
+      const pos = artefact.getAttribute('position');
+      // Center view on this position
+      this.scene?.setAttribute?.('position', {
+        x: -pos.x,
+        y: -pos.y,
+        z: -pos.z
+      });
+    }
+  }
+
+  zoomToFit() {
+    // Calculate bounding box of all artefacts
+    // and adjust camera to fit
+    const packets = this.getAllDataPackets();
+    if (packets.length === 0) return;
+    
+    // Default implementation
+    console.log('[DataNativeEngine] Zooming to fit');
+  }
+
+  resetView() {
+    // Reset camera/scene position
+    this.scene?.setAttribute?.('position', { x: 0, y: 0, z: 0 });
+    this.scene?.setAttribute?.('rotation', { x: 0, y: 0, z: 0 });
+  }
+
+  setLayout(type) {
+    this.currentLayout = type;
+    // Trigger re-layout
+    const packets = this.getAllDataPackets();
+    if (packets.length > 0) {
+      const positions = this.layoutEngine.calculatePositions(packets, type);
+      // Update positions
+      packets.forEach(packet => {
+        const artefact = this.artefacts.get(packet.id);
+        if (artefact) {
+          artefact.setAttribute('position', positions.get(packet.id));
+        }
+      });
+    }
+  }
+
+  getAvailableLayouts() {
+    return [
+      'nemosyne-graph-force',
+      'nemosyne-tree-hierarchical',
+      'nemosyne-timeline-spiral',
+      'nemosyne-timeline-linear',
+      'nemosyne-scatter-semantic',
+      'nemosyne-geo-globe',
+      'nemosyne-grid-categorical'
+    ];
+  }
+
+  // Event handling
+  emit(eventName, detail) {
+    this.dispatchEvent(new CustomEvent(eventName, { detail }));
+  }
+
+  // Export/Import
+  toJSON() {
     return {
-      packets: Array.from(this.dataPackets.values()),
-      topology: this.topologyDetector.lastDetected,
-      statistics: this.calculateStatistics()
+      dataPackets: Array.from(this.dataPackets.entries()).map(([id, packet]) => ({
+        id,
+        data: packet.toJSON()
+      }))
     };
   }
 
-  /**
-   * Utility: Emit events
-   */
-  emit(eventName, detail) {
-    const event = new CustomEvent(eventName, { detail });
-    this.dispatchEvent(event);
-    console.log(`[DataNativeEngine] Event: ${eventName}`, detail);
+  fromJSON(json) {
+    if (!json) return;
+    
+    let data;
+    try {
+      data = typeof json === 'string' ? JSON.parse(json) : json;
+    } catch (e) {
+      console.warn('[DataNativeEngine] Failed to parse JSON:', e);
+      return;
+    }
+    
+    if (!data || !data.dataPackets) {
+      console.warn('[DataNativeEngine] Invalid data format');
+      return;
+    }
+    
+    this.clear();
+    
+    data.dataPackets.forEach(({ id, data: packetData }) => {
+      const packet = NemosyneDataPacket.fromJSON(packetData);
+      this.dataPackets.set(id, packet);
+    });
+    
+    this.emit('data-loaded', { count: this.dataPackets.size });
   }
 
-  // Helper methods (placeholders)
+  // Helper methods
   inferType(item) { return 'quantitative'; }
   inferStructure(item) { return 'point'; }
   getComponentForTopology(topology) { return 'nemosyne-data-crystal'; }
@@ -520,12 +695,136 @@ class DataNativeEngine extends EventTarget {
   commitPendingTransformation() { }
   rollbackTransformation() { }
   highlightRelatedData(packet) { }
+
+  // Performance and state
+  getPerformanceMetrics() {
+    return {
+      packetCount: this.dataPackets.size,
+      artefactCount: this.artefacts.size,
+      timestamp: Date.now()
+    };
+  }
+
+  getState() {
+    return {
+      dataPackets: Array.from(this.dataPackets.entries()),
+      artefacts: Array.from(this.artefacts.keys()),
+      selection: Array.from(this.artefacts.entries())
+        .filter(([_, a]) => a.classList?.contains('selected'))
+        .map(([id, _]) => id),
+      layout: this.currentLayout || 'default'
+    };
+  }
+
+  hasData() {
+    return this.dataPackets.size > 0;
+  }
+
+  getDataCount() {
+    return this.dataPackets.size;
+  }
+
+  // Export methods
+  toCSV() {
+    const headers = ['id', 'value'];
+    const rows = this.getAllDataPackets().map(p => {
+      return [p.id, JSON.stringify(p.value)];
+    });
+    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  }
+}
+
+
+/**
+ * Animator: Handles animation logic for data artefacts
+ */
+class Animator {
+  constructor(options = {}) {
+    this.defaultDuration = options.duration || 1000;
+    this.easing = options.easing || 'easeInOutQuad';
+  }
+
+  /**
+   * Determine animation for a data packet
+   */
+  determineAnimation(packet) {
+    // Simple heuristic: animate appearance
+    const baseDuration = 500;
+    const stagger = Math.random() * 200;
+    
+    return {
+      property: 'scale',
+      from: '0 0 0',
+      to: '1 1 1',
+      dur: baseDuration + stagger,
+      easing: this.easing
+    };
+  }
+
+  /**
+   * Format animation for A-Frame
+   */
+  formatAnimation(animation) {
+    return `${animation.property}: ${animation.from}; ${animation.property}: ${animation.to}; dur: ${animation.dur}; easing: ${animation.easing}`;
+  }
+
+  /**
+   * Create entrance animation
+   */
+  entranceAnimation(duration = 1000) {
+    return {
+      property: 'scale',
+      from: '0 0 0',
+      to: '1 1 1',
+      dur: duration,
+      easing: 'easeOutElastic'
+    };
+  }
+
+  /**
+   * Create exit animation
+   */
+  exitAnimation(duration = 500) {
+    return {
+      property: 'scale',
+      from: '1 1 1',
+      to: '0 0 0',
+      dur: duration,
+      easing: 'easeInQuad'
+    };
+  }
+
+  /**
+   * Create highlight animation
+   */
+  highlightAnimation(duration = 300) {
+    return {
+      property: 'scale',
+      from: '1 1 1',
+      to: '1.2 1.2 1.2',
+      dur: duration,
+      easing: 'easeInOutQuad',
+      dir: 'alternate'
+    };
+  }
+
+  /**
+   * Create focus animation
+   */
+  focusAnimation(targetPosition, duration = 500) {
+    return {
+      property: 'position',
+      to: targetPosition,
+      dur: duration,
+      easing: 'easeInOutQuad'
+    };
+  }
 }
 
 
 /**
  * GestureController: Bridges hand tracking to data operations
- * Connects to the gesures branch formalism
+ * Connects to the gestures branch formalism
  */
 class GestureDataController {
   constructor(engine) {
@@ -708,6 +1007,6 @@ class TelemetryAnalyzer {
   }
 }
 
-export { DataNativeEngine };
+export { DataNativeEngine, Animator, GestureDataController, TelemetryAnalyzer };
 
 console.log('[DataNativeEngine] Module loaded');
