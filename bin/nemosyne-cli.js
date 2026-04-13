@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 program
   .name('nemosyne')
   .description('CLI for Nemosyne VR Framework')
-  .version('0.2.1');
+  .version('1.1.0');
 
 program
   .command('init <name>')
@@ -45,7 +45,7 @@ program
         "preview": "vite preview"
       },
       dependencies: {
-        "nemosyne": "^0.2.1",
+        "nemosyne": "^1.1.0",
         "aframe": "^1.7.0"
       },
       devDependencies: {
