@@ -105,7 +105,7 @@ class LayoutEngine {
       
       // Attraction (along links)
       for (const p1 of packets) {
-        if (!p1.relations.links) continue;
+        if (!p1.relations?.links) continue;
         
         const pos1 = positions.get(p1.id);
         const force = forces.get(p1.id) || { x: 0, y: 0, z: 0 };
@@ -189,22 +189,27 @@ class LayoutEngine {
   }
 
   buildHierarchy(packets) {
+    // Return null for empty arrays
+    if (!packets || packets.length === 0) return null;
+    
     // Find root (node without parent or most ancestors)
     const parents = new Map();
     const byId = new Map();
     
     packets.forEach(p => {
       byId.set(p.id, p);
-      if (p.relations.parent) {
+      if (p.relations?.parent) {
         parents.set(p.id, p.relations.parent);
       }
     });
     
-    // Find root (node not listed as anyone's child, or first)
+    // Find root (node not listed as anyone's child)
     let rootId = packets[0].id;
-    for (const [child, parent] of parents) {
-      if (!parents.values().includes(child)) {
-        rootId = parent;
+    const childIds = new Set(parents.keys());
+    const parentIds = Array.from(parents.values());
+    for (const pid of parentIds) {
+      if (!childIds.has(pid)) {
+        rootId = pid;
         break;
       }
     }
@@ -217,7 +222,7 @@ class LayoutEngine {
       
       // Find children
       packets.forEach(p => {
-        if (p.relations.parent === id) {
+        if (p.relations?.parent === id) {
           const child = buildRecursive(p.id);
           if (child) node.children.push(child);
         }
@@ -260,16 +265,20 @@ class LayoutEngine {
    * Linear timeline
    */
   linearTimelineLayout(packets) {
+    if (!packets || packets.length === 0) return new Map();
+    
     const sorted = [...packets].sort((a, b) => 
-      (a.context.timestamp || 0) - (b.context.timestamp || 0)
+      (a.context?.timestamp || 0) - (b.context?.timestamp || 0)
     );
     
     const positions = new Map();
-    const totalSpan = (sorted[sorted.length - 1].context.timestamp - sorted[0].context.timestamp) || 1;
+    const firstTime = sorted[0].context?.timestamp || 0;
+    const lastTime = sorted[sorted.length - 1].context?.timestamp || firstTime;
+    const totalSpan = lastTime - firstTime || 1;
     const length = 10; // 10 meters
     
     sorted.forEach((p, i) => {
-      const t = (p.context.timestamp - sorted[0].context.timestamp) / totalSpan;
+      const t = ((p.context?.timestamp || firstTime) - firstTime) / totalSpan;
       
       positions.set(p.id, {
         x: this.options.center.x + (t - 0.5) * length,

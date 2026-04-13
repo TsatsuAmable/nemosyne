@@ -49,30 +49,38 @@ class TopologyDetector {
   extractFeatures(packets) {
     const n = packets.length;
     
+    // Defensive: ensure packets have expected structure
+    const safePackets = packets.map(p => ({
+      semantics: { structure: 'point', type: 'unknown', ...p.semantics },
+      relations: { children: [], links: [], parent: null, ...p.relations },
+      context: { timestamp: null, domain: null, ...p.context },
+      ...p
+    }));
+    
     return {
       // Structure distribution
-      structures: this.countBy(packets, p => p.semantics.structure),
-      types: this.countBy(packets, p => p.semantics.type),
-      coordinateSpaces: this.countBy(packets, p => p.semantics.coordinateSpace),
-      scales: this.countBy(packets, p => p.semantics.scale),
+      structures: this.countBy(safePackets, p => p.semantics.structure),
+      types: this.countBy(safePackets, p => p.semantics.type),
+      coordinateSpaces: this.countBy(safePackets, p => p.semantics.coordinateSpace),
+      scales: this.countBy(safePackets, p => p.semantics.scale),
       
       // Relationship metrics
-      hasHierarchy: packets.some(p => p.relations.parent || p.relations.children?.length > 0),
-      hasGraphLinks: packets.some(p => p.relations.links?.length > 0),
-      averageLinksPerNode: this.averageLinks(packets),
+      hasHierarchy: safePackets.some(p => p.relations.parent || p.relations.children?.length > 0),
+      hasGraphLinks: safePackets.some(p => p.relations.links?.length > 0),
+      averageLinksPerNode: this.averageLinks(safePackets),
       
       // Temporal metrics
-      hasTimestamps: packets.some(p => p.context.timestamp),
-      timestampRange: this.getTimestampSpan(packets),
-      isSequential: this.isSequential(packets),
+      hasTimestamps: safePackets.some(p => p.context.timestamp),
+      timestampRange: this.getTimestampSpan(safePackets),
+      isSequential: this.isSequential(safePackets),
       
       // Spatial metrics
-      hasEmbeddings: packets.some(p => p.semantics.embedding),
-      averageDimensions: this.average(packets, p => p.semantics.dimensions || 3),
+      hasEmbeddings: safePackets.some(p => p.semantics.embedding),
+      averageDimensions: this.average(safePackets, p => p.semantics.dimensions || 3),
       
       // Domain distribution
-      domains: this.countBy(packets, p => p.context.domain),
-      hasGeoData: packets.some(p => p.semantics.subtype === 'latlong' || p.semantics.coordinateSpace === 'geo'),
+      domains: this.countBy(safePackets, p => p.context.domain),
+      hasGeoData: safePackets.some(p => p.semantics.subtype === 'latlong' || p.semantics.coordinateSpace === 'geo'),
       
       // Size
       packetCount: n
@@ -118,6 +126,82 @@ class TopologyDetector {
     const sum = packets.reduce((s, p) => s + (fn(p) || 0), 0);
     return sum / packets.length;
   }
+
+  /**
+   * Get confidence scores for all topologies
+   */
+  getConfidenceScores(packets) {
+    if (!packets || packets.length === 0) {
+      return { 'nemosyne-crystal-default': 1.0 };
+    }
+    const dataArray = Array.isArray(packets) ? packets : Array.from(packets.values());
+    const features = this.extractFeatures(dataArray);
+    return this.scorer.scoreAll(features, dataArray);
+  }
+
+  /**
+   * Validate topology name
+   */
+  validateTopology(topology) {
+    const valid = [
+      'nemosyne-graph-force',
+      'nemosyne-tree-hierarchical',
+      'nemosyne-timeline-spiral',
+      'nemosyne-timeline-linear',
+      'nemosyne-scatter-semantic',
+      'nemosyne-geo-globe',
+      'nemosyne-grid-categorical',
+      'nemosyne-heatmap-matrix',
+      'nemosyne-crystal-default'
+    ];
+    return valid.includes(topology);
+  }
+
+  /**
+   * Get description for topology
+   */
+  getDescription(topology) {
+    const descriptions = {
+      'nemosyne-graph-force': 'Force-directed graph layout for networked data',
+      'nemosyne-tree-hierarchical': 'Hierarchical tree layout for parent-child data',
+      'nemosyne-timeline-spiral': 'Spiral timeline for temporal sequences',
+      'nemosyne-timeline-linear': 'Linear timeline for short time ranges',
+      'nemosyne-scatter-semantic': 'Scatter plot for high-dimensional embeddings',
+      'nemosyne-geo-globe': 'Globe projection for geographic data',
+      'nemosyne-grid-categorical': 'Grid layout for categorical data',
+      'nemosyne-heatmap-matrix': 'Matrix layout for correlation data',
+      'nemosyne-crystal-default': 'Default crystal layout for general data'
+    };
+    return descriptions[topology] || 'Unknown topology';
+  }
+
+  /**
+   * Calculate maximum tree depth
+   */
+  maxTreeDepth(packets) {
+    if (!packets || packets.length === 0) return 0;
+    
+    const idToPacket = new Map();
+    packets.forEach(p => idToPacket.set(p.id, p));
+    
+    const getDepth = (packet, visited = new Set()) => {
+      if (visited.has(packet.id)) return 0; // Cycle detection
+      visited.add(packet.id);
+      
+      const children = packet.relations?.children || [];
+      if (children.length === 0) return 1;
+      
+      const childDepths = children.map(childId => {
+        const child = idToPacket.get(childId);
+        return child ? getDepth(child, new Set(visited)) : 0;
+      });
+      
+      return 1 + Math.max(...childDepths, 0);
+    };
+    
+    const depths = packets.map(p => getDepth(p));
+    return Math.max(...depths, 0);
+  }
 }
 
 
@@ -142,7 +226,7 @@ class TopologyScorer {
     let score = 0;
 
     // High link density suggests graph
-    const avgLinks = features.averageLinksPerNode;
+    const avgLinks = features.averageLinksPerNode || 0;
     if (avgLinks > 2) score += 0.4;
     else if (avgLinks > 0.5) score += 0.2;
 
@@ -150,10 +234,12 @@ class TopologyScorer {
     if (features.hasGraphLinks) score += 0.3;
 
     // Relational type
-    if (features.types.relational / features.packetCount > 0.5) score += 0.2;
+    const typeCount = features.types?.relational || 0;
+    if (features.packetCount > 0 && typeCount / features.packetCount > 0.5) score += 0.2;
 
     // Structure hints
-    if (features.structures.graph / features.packetCount > 0.5) score += 0.3;
+    const structCount = features.structures?.graph || 0;
+    if (features.packetCount > 0 && structCount / features.packetCount > 0.5) score += 0.3;
 
     return Math.min(1, score);
   }
@@ -165,10 +251,11 @@ class TopologyScorer {
     if (features.hasHierarchy) score += 0.4;
 
     // Tree structure hint
-    if (features.structures.tree / features.packetCount > 0.5) score += 0.4;
+    const structCount = features.structures?.tree || 0;
+    if (features.packetCount > 0 && structCount / features.packetCount > 0.5) score += 0.4;
 
     // Categorical with parent-child
-    if (features.types.categorical && features.hasHierarchy) score += 0.2;
+    if (features.types?.categorical && features.hasHierarchy) score += 0.2;
 
     return Math.min(1, score);
   }
@@ -177,7 +264,8 @@ class TopologyScorer {
     let score = 0;
 
     // Temporal data
-    if (features.types.temporal / features.packetCount > 0.5) score += 0.3;
+    const typeCount = features.types?.temporal || 0;
+    if (features.packetCount > 0 && typeCount / features.packetCount > 0.5) score += 0.3;
 
     // Has timestamps
     if (features.hasTimestamps) score += 0.2;
@@ -189,7 +277,8 @@ class TopologyScorer {
     if (features.isSequential) score += 0.3;
 
     // Continuous scale (good for spiral progression)
-    if (features.scales.continuous / features.packetCount > 0.5) score += 0.1;
+    const continuousCount = features.scales?.continuous || 0;
+    if (features.packetCount > 0 && continuousCount / features.packetCount > 0.5) score += 0.1;
 
     return Math.min(1, score);
   }
@@ -198,7 +287,8 @@ class TopologyScorer {
     let score = 0;
 
     // Similar to spiral but for shorter time ranges
-    if (features.types.temporal / features.packetCount > 0.5) score += 0.3;
+    const temporalCount = features.types?.temporal || 0;
+    if (features.packetCount > 0 && temporalCount / features.packetCount > 0.5) score += 0.3;
     if (features.hasTimestamps) score += 0.2;
     if (features.isSequential) score += 0.3;
 
@@ -215,7 +305,8 @@ class TopologyScorer {
     if (features.hasEmbeddings) score += 0.4;
 
     // Embedding space
-    if (features.coordinateSpaces.embedding / features.packetCount > 0.5) score += 0.3;
+    const coordCount = features.coordinateSpaces?.embedding || 0;
+    if (features.packetCount > 0 && coordCount / features.packetCount > 0.5) score += 0.3;
 
     // High dimensionality
     if (features.averageDimensions > 2) score += 0.2;
@@ -230,13 +321,15 @@ class TopologyScorer {
     let score = 0;
 
     // Geo coordinate space
-    if (features.coordinateSpaces.geo / features.packetCount > 0.5) score += 0.5;
+    const coordCount = features.coordinateSpaces?.geo || 0;
+    if (features.packetCount > 0 && coordCount / features.packetCount > 0.5) score += 0.5;
 
     // Explicit latlong subtype
     if (features.hasGeoData) score += 0.4;
 
     // Spatial type
-    if (features.types.spatial / features.packetCount > 0.5) score += 0.2;
+    const spatialCount = features.types?.spatial || 0;
+    if (features.packetCount > 0 && spatialCount / features.packetCount > 0.5) score += 0.2;
 
     return Math.min(1, score);
   }
@@ -245,13 +338,16 @@ class TopologyScorer {
     let score = 0;
 
     // Categorical data
-    if (features.types.categorical / features.packetCount > 0.7) score += 0.4;
+    const catCount = features.types?.categorical || 0;
+    if (features.packetCount > 0 && catCount / features.packetCount > 0.7) score += 0.4;
 
     // Grid structure hint
-    if (features.structures.grid / features.packetCount > 0.5) score += 0.4;
+    const gridCount = features.structures?.grid || 0;
+    if (features.packetCount > 0 && gridCount / features.packetCount > 0.5) score += 0.4;
 
     // Nominal scale (discrete categories)
-    if (features.scales.nominal / features.packetCount > 0.5) score += 0.2;
+    const nominalCount = features.scales?.nominal || 0;
+    if (features.packetCount > 0 && nominalCount / features.packetCount > 0.5) score += 0.2;
 
     return Math.min(1, score);
   }
@@ -260,10 +356,12 @@ class TopologyScorer {
     let score = 0;
 
     // Matrix structure
-    if (features.structures.matrix / features.packetCount > 0.5) score += 0.5;
+    const matrixCount = features.structures?.matrix || 0;
+    if (features.packetCount > 0 && matrixCount / features.packetCount > 0.5) score += 0.5;
 
     // Quantitative values
-    if (features.types.quantitative / features.packetCount > 0.5) score += 0.3;
+    const quantCount = features.types?.quantitative || 0;
+    if (features.packetCount > 0 && quantCount / features.packetCount > 0.5) score += 0.3;
 
     return Math.min(1, score);
   }
@@ -272,12 +370,72 @@ class TopologyScorer {
     let score = 0;
 
     // Field structure
-    if (features.structures.field / features.packetCount > 0.5) score += 0.5;
+    const fieldCount = features.structures?.field || 0;
+    if (features.packetCount > 0 && fieldCount / features.packetCount > 0.5) score += 0.5;
 
     // Continuous data
-    if (features.scales.continuous / features.packetCount > 0.5) score += 0.3;
+    const continuousCount = features.scales?.continuous || 0;
+    if (features.packetCount > 0 && continuousCount / features.packetCount > 0.5) score += 0.3;
 
     return Math.min(1, score);
+  }
+
+  /**
+   * Get scoring weights for a topology type
+   * Returns the weight configuration used for scoring
+   */
+  getWeights(topologyType) {
+    const weights = {
+      'nemosyne-graph-force': {
+        linkDensity: 0.4,
+        hasGraphLinks: 0.3,
+        relational: 0.2,
+        structure: 0.3
+      },
+      'nemosyne-tree-hierarchical': {
+        hierarchy: 0.4,
+        structure: 0.4,
+        categorical: 0.2
+      },
+      'nemosyne-timeline-spiral': {
+        temporal: 0.3,
+        timestamps: 0.2,
+        timeRange: 0.2,
+        sequential: 0.3,
+        continuous: 0.1
+      },
+      'nemosyne-timeline-linear': {
+        temporal: 0.3,
+        timestamps: 0.2,
+        sequential: 0.3,
+        shortRange: 0.2
+      },
+      'nemosyne-scatter-semantic': {
+        embeddings: 0.4,
+        coordinateSpace: 0.3,
+        dimensions: 0.2,
+        count: 0.1
+      },
+      'nemosyne-geo-globe': {
+        geo: 0.5,
+        latlong: 0.4,
+        spatial: 0.2
+      },
+      'nemosyne-grid-categorical': {
+        categorical: 0.4,
+        grid: 0.4,
+        nominal: 0.2
+      },
+      'nemosyne-heatmap-matrix': {
+        matrix: 0.5,
+        quantitative: 0.3
+      },
+      'nemosyne-crystal-default': {
+        default: 1.0
+      }
+    };
+    
+    return weights[topologyType] || weights['nemosyne-crystal-default'];
   }
 }
 
