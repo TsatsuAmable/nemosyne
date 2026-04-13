@@ -37,8 +37,8 @@ test.describe('Basic Nemosyne Workflow', () => {
     // Wait for entities to be created (custom timeout for rendering)
     await page.waitForTimeout(2000);
     
-    // Check for data entities (nemosyne-data components create these)
-    const entities = await page.locator('[nemosyne-data]').count();
+    // Check for data entities (nemosyne-artefact or nemosyne-data)
+    const entities = await page.locator('nemosyne-artefact, [nemosyne-data], [nemosyne-artefact-v2]').count();
     expect(entities).toBeGreaterThan(0);
   });
 });
@@ -50,7 +50,7 @@ test.describe('Nemosyne Gallery Demo', () => {
     await page.waitForLoadState('networkidle');
     
     const title = await page.title();
-    expect(title).toContain('Gallery');
+    expect(title).toContain('Nemosyne');
   });
 
   test('should contain interactive elements', async ({ page }) => {

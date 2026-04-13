@@ -23,11 +23,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  // Web server disabled for now - run manually for tests
-  // webServer: {
-  //   command: 'npm run dev',
-  //   url: 'http://localhost:8080',
-  //   reuseExistingServer: !process.env.CI,
-  //   timeout: 120000,
-  // },
+  // Static server for examples
+  webServer: {
+    command: 'npx http-server . -p 8080 --silent',
+    url: 'http://localhost:8080',
+    reuseExistingServer: !process.env.CI,
+    timeout: 30000,
+  },
 });
