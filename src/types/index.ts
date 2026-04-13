@@ -285,14 +285,6 @@ declare global {
     createElement(tagName: string): Entity;
     dispatchEvent(event: Event): boolean;
   }
-  
-  interface CustomEvent<T = unknown> extends Event {
-    detail: T;
-  }
-  
-  class CustomEvent<T = unknown> extends Event {
-    constructor(type: string, eventInitDict?: { detail?: T });
-  }
 }
 
 // ============================================================================
