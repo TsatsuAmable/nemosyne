@@ -53,7 +53,7 @@ Here's a basic 3D bar chart. **Note**: Whether this is better than a 2D chart is
 
   <!-- 3D Bar Chart (Experimental) -->
   <a-entity position="0 0 -3">
-    <a-entity nemosyne-artefact-v2="
+    <a-entity nemosyne-artefact="
       spec: {
         id: 'sales-chart',
         geometry: { type: 'cylinder', radius: 0.3, height: 2 },
@@ -87,7 +87,7 @@ Here's a basic 3D bar chart. **Note**: Whether this is better than a 2D chart is
 ⚠️ Behaviours are implemented but their effectiveness is untested.
 
 ```html
-<a-entity nemosyne-artefact-v2="
+<a-entity nemosyne-artefact="
   spec: { id: 'interactive-chart', geometry: { type: 'cylinder', radius: 0.3 } };
   dataset: { records: [{ sales: 100 }, { sales: 150 }] };
   transforms: [{

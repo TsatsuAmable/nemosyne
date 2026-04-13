@@ -30,12 +30,20 @@ npm install nemosyne aframe
 </head>
 <body>
   <a-scene>
-    <a-entity nemosyne-artefact-v2="
-      spec: { id: 'demo', geometry: { type: 'cylinder', radius: 0.3, height: 2 }, material: { color: '#00d4aa' } };
-      dataset: { records: [{ month: 'Jan', sales: 100 }, { month: 'Feb', sales: 150 }] };
-      layout: grid;
-      layout-options: { columns: 2, spacing: 2 }
-    "></a-entity>
+    <nemosyne-artefact
+      spec-inline='<;{
+        "id": "demo",
+        "geometry": { "type": "cylinder", "radius": 0.3, "height": 2 },
+        "material": { "properties": { "color": "#00d4aa" } }
+      }'
+      data-inline='<;{
+        "records": [
+          { "month": "Jan", "sales": 100 },
+          { "month": "Feb", "sales": 150 }
+        ]
+      }'
+      layout="grid">
+    </nemosyne-artefact>
   </a-scene>
 </body>
 </html>

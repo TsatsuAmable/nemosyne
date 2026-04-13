@@ -49,7 +49,7 @@ npm install nemosyne
 ### What's the simplest visualization?
 
 ```html
-<a-entity nemosyne-artefact-v2="
+<a-entity nemosyne-artefact="
   spec: { id: 'demo', geometry: { type: 'sphere', radius: 0.5 } };
   dataset: { records: [{ value: 1 }, { value: 2 }] };
   layout: grid

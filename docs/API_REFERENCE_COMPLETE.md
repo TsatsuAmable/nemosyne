@@ -52,7 +52,7 @@ Nemosyne.quickStart(scene, {
 <body>
   <a-scene>
     <!-- Basic crystal field -->
-    <a-entity nemosyne-artefact-v2="
+    <a-entity nemosyne-artefact="
       spec: {
         id: 'demo',
         geometry: { type: 'octahedron', radius: 1 },
@@ -508,7 +508,7 @@ Instant data transport portal with particle streams.
 
 ## Component Attributes
 
-### nemosyne-artefact-v2
+### nemosyne-artefact
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -909,7 +909,7 @@ Nemosyne.registerBehaviour('entangled', {
 
 | v0.1 | v0.2 | Notes |
 |------|------|-------|
-| `nemosyne-artefact` | `nemosyne-artefact-v2` | New stabilized API |
+| `nemosyne-artefact` | `nemosyne-artefact` | New stabilized API |
 | `src` | `spec` (inline JSON) | Inline JSON string |
 | `data` | `dataset` (inline JSON) | Inline JSON string |
 | `spec-inline` | `spec` | Unified naming |
@@ -931,7 +931,7 @@ Nemosyne.registerBehaviour('entangled', {
 
 **v0.2:**
 ```html
-<a-entity nemosyne-artefact-v2="
+<a-entity nemosyne-artefact="
   spec: { id: 'my-spec', geometry: {...} };
   dataset: { records: [...] };
   layout: grid;

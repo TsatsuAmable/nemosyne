@@ -48,7 +48,7 @@ interface SceneManager {
 
 ## Component Attributes
 
-### nemosyne-artefact-v2
+### nemosyne-artefact
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
