@@ -1,6 +1,6 @@
 /**
  * TypeScript Definitions for Nemosyne
- * Version: 1.1.0
+ * Version: 0.2.1
  */
 
 export interface NemosyneDataPacketOptions {
