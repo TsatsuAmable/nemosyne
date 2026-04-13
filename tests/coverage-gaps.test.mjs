@@ -275,8 +275,11 @@ describe('ResearchTelemetry - Export Features', () => {
     
     const summary = telemetry.generateSummary();
     expect(summary).toBeDefined();
-    expect(summary).toHaveProperty('sessionDuration');
     expect(summary).toHaveProperty('totalInteractions');
+    expect(summary).toHaveProperty('uniqueElementsInteracted');
+    expect(summary).toHaveProperty('totalNavigationPoints');
+    expect(summary).toHaveProperty('averageVelocity');
+    expect(summary).toHaveProperty('taskSuccessRate');
   });
 
   test('should handle disabled telemetry for export', () => {
@@ -372,10 +375,15 @@ describe('ResearchTelemetry - Event Logging', () => {
   });
 
   test('trackNavigation should record camera position', () => {
-    telemetry.trackNavigation({ 
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 }
-    });
+    const mockCamera = {
+      getAttribute: jest.fn((attr) => {
+        if (attr === 'position') return { x: 0, y: 0, z: 0 };
+        if (attr === 'rotation') return { x: 0, y: 0, z: 0 };
+        return {};
+      })
+    };
+    
+    telemetry.trackNavigation(mockCamera);
     expect(telemetry.metrics.navigationPath.length).toBeGreaterThan(0);
   });
 
