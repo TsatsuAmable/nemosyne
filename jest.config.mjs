@@ -20,6 +20,7 @@ export default {
   },
   testMatch: [
     '<rootDir>/tests/core.test.mjs',
+    '<rootDir>/tests/coverage-gaps.test.mjs',
     '<rootDir>/tests/data-native-engine.test.mjs',
     '<rootDir>/tests/data-native-engine-additional.test.mjs',
     '<rootDir>/tests/index.test.mjs',
