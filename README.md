@@ -3,8 +3,8 @@
 **Immersive Data Visualization for WebXR**
 
 [![NPM](https://img.shields.io/npm/v/nemosyne.svg)](https://www.npmjs.com/package/nemosyne)
-[![Tests](https://img.shields.io/badge/tests-311%20passing-brightgreen.svg)](.)
-[![Coverage](https://img.shields.io/badge/coverage-~80%25-yellow.svg)](.)
+[![Tests](https://img.shields.io/badge/tests-373%20passing-brightgreen.svg)](.)
+[![Coverage](https://img.shields.io/badge/coverage-83%25-yellow.svg)](.)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![WebXR](https://img.shields.io/badge/WebXR-Ready-orange.svg)](https://immersiveweb.dev/)
 [![Release](https://img.shields.io/badge/release-v1.1.0-blue.svg)](https://github.com/TsatsuAmable/nemosyne/releases)
@@ -48,7 +48,7 @@ See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed setup instructions.
 ## ✨ Features
 
 - **7 Layout Algorithms**: Force-directed, tree, timeline (linear/spiral), scatter, globe, categorical grid, matrix
-- **17 Artefact Types**: Cylinders, spheres, glyphs, networks, surfaces
+- **8 Visual Primitives**: Spheres, boxes, cylinders, cones, and procedural geometries mapped from data structure
 - **Topology Detection**: Automatically suggests best layout for your data structure
 - **Real-time Streaming**: WebSocket support for live data
 - **Transform DSL**: Declarative data-to-visual mappings
@@ -60,7 +60,7 @@ See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed setup instructions.
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Core Rendering | ✅ Stable | 311 tests passing, ~80% coverage |
+| Core Rendering | ✅ Stable | 373 tests passing, ~83% coverage |
 | Layout Algorithms | ✅ Ready | 7 implementations with tests |
 | Topology Detection | ✅ Working | Auto-detects data structure |
 | WebSocket Streaming | ✅ Working | Real-time data updates |

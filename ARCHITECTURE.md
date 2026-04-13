@@ -1,6 +1,6 @@
 # Nemosyne Architecture
 
-**Version:** 0.2.0-research  
+**Version:** 1.1.0-research  
 **Last Updated:** 2026-04-12  
 **Status:** Experimental — Subject to Change Based on Research Findings
 
