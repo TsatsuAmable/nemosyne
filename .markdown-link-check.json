@@ -1,0 +1,29 @@
+{
+  "timeout": "20s",
+  "retryOn429": true,
+  "retryCount": 3,
+  "fallbackRetryDelay": "30s",
+  "aliveStatusCodes": [200, 206],
+  "ignorePatterns": [
+    {
+      "pattern": "^https://github.com/TsatsuAmable/nemosyne/(issues|pull)"
+    },
+    {
+      "pattern": "^https://localhost"
+    },
+    {
+      "pattern": "^http://localhost"
+    },
+    {
+      "pattern": "^#"
+    }
+  ],
+  "httpHeaders": [
+    {
+      "urls": ["https://github.com"],
+      "headers": {
+        "User-Agent": "Mozilla/5.0 (compatible; LinkChecker/1.0)"
+      }
+    }
+  ]
+}
