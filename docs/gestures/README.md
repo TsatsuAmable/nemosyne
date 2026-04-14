@@ -101,7 +101,7 @@ Example:   SELECT = P ∧ dwell(0.5)
 
 1. Read `GESTURE_SPECIFICATION.md` Section 7 (Implementation)
 2. Review `GESTURE_ENGINE.md` Section 2 (Pipeline)
-3. Check existing Nemosyne component patterns in `/framework/src/components/`
+3. Check existing Nemosyne component patterns in `/src/framework/components/`
 
 ### For Designers
 

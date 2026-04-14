@@ -247,7 +247,7 @@ class ArtefactImpl implements Artefact {
 }
 ```
 
-**Source:** `src/core/artefact.js` | `framework/src/components/nemosyne-artefact-v2.js`
+**Source:** `src/core/artefact.js` | `src/framework/components/nemosyne-artefact-v2.js`
 
 ### 2.3 Datumplane
 
@@ -446,7 +446,7 @@ interface ArtefactSpec {
 }
 ```
 
-**Source:** `framework/src/components/artefact-builder.js`
+**Source:** `src/framework/components/artefact-builder.js`
 
 ---
 
@@ -594,7 +594,7 @@ function treeLayout(records: DataPoint[], options: TreeOptions): Position[] {
 **Use Cases:** Org charts, file systems, taxonomies  
 **Complexity:** O(n) | **Space:** O(n)
 
-**Source:** `framework/src/layouts/layout-engine.js` | `src/layouts/*.js`
+**Source:** `src/framework/layouts/layout-engine.js` | `src/layouts/*.js`
 
 ---
 
@@ -688,7 +688,7 @@ class TransformEngine {
 | **Time Scale** | Date | Position | Timelines |
 | **Quantize** | Numeric | Binned | Histograms |
 
-**Source:** `framework/src/transforms/transform-engine.js`
+**Source:** `src/framework/transforms/transform-engine.js`
 
 ---
 
@@ -771,7 +771,7 @@ const spec = {
 };
 ```
 
-**Source:** `framework/src/behaviours/behaviour-engine.js`
+**Source:** `src/framework/behaviours/behaviour-engine.js`
 
 ---
 
@@ -1105,4 +1105,4 @@ Nemosyne.use(myPlugin);
 
 **Version:** 0.2.0  
 **Last Updated:** 2026-04-10  
-**Source:** `/src/core/` | `/framework/src/`
+**Source:** `/src/core/` | `/src/framework/`

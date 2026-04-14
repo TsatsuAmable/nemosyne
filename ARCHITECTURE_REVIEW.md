@@ -86,7 +86,7 @@ Nemosyne v0.2.0 is a promising VR-first data visualization framework with solid 
 
 **Current Architecture:**
 ```
-framework/
+src/framework/
 ├── src/
 │   ├── index-v2.js          # Good
 │   ├── utils/               # Good
@@ -168,7 +168,7 @@ framework/
 | docs/DESIGN_SYSTEM.md | ⚠️ Outdated | 40% | Update for v0.2 |
 | examples/*/README.md | ✅ Good | 85% | Minor updates |
 | examples/README.md | ✅ Good | 90% | Keep updated |
-| framework/README.md | ❌ Missing | 0% | Create from scratch |
+| src/framework/README.md | ❌ Missing | 0% | Create from scratch |
 | CONTRIBUTING.md | ⚠️ Template | 50% | Expand guidelines |
 | ROADMAP.md | ❌ Missing | 0% | Create |
 | CHANGELOG.md | ❌ Missing | 0% | Create |
