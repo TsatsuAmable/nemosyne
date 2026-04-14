@@ -6,6 +6,15 @@
   "main": "dist/nemosyne.js",
   "module": "dist/nemosyne.esm.js",
   "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/nemosyne.esm.js",
+      "require": "./dist/nemosyne.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./hyperion": "./dist/nemosyne-hyperion.js",
+    "./physics": "./dist/nemosyne-physics.js"
+  },
   "bin": {
     "nemosyne": "./bin/nemosyne-cli.js"
   },
