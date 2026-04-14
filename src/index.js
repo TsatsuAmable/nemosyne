@@ -14,6 +14,12 @@ export { TopologyDetector } from './core/TopologyDetector.js';
 export { PropertyMapper } from './core/PropertyMapper.js';
 export { LayoutEngine } from './core/LayoutEngine.js';
 export { ResearchTelemetry } from './core/ResearchTelemetry.js';
+export { WebSocketDataSource, loadWebSocket } from './core/WebSocketDataSource.js';
+export * as TransformDSL from './core/TransformDSL.js';
+
+// Components (side-effect: registers A-Frame components)
+import './components/nemosyne-artefact-v2.js';
+import './components/nemosyne-data-native.js';
 
 // Animation
 export { TemporalScrubber } from './animation/TemporalScrubber.js';
@@ -56,5 +62,7 @@ export default {
   TemporalScrubber,
   UncertaintyVisualizer,
   ResearchTelemetry,
-  AmmoPhysicsEngine
+  AmmoPhysicsEngine,
+  WebSocketDataSource,
+  TransformDSL
 };
