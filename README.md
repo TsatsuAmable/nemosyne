@@ -29,40 +29,108 @@ npm install nemosyne aframe
   <script src="https://unpkg.com/nemosyne@latest/dist/nemosyne.iife.js"></script>
 </head>
 <body>
-  <a-scene>
+  <a-scene nemosyne-scene="theme: void">
     <!-- Camera -->
-    <a-entity position="0 1.6 4">
+    <a-entity position="0 2 6">
       <a-camera>
-        <a-cursor color="#00d4aa"></a-cursor>
+        <a-cursor color="#00d4aa" raycaster="objects: .clickable"></a-cursor>
       </a-camera>
     </a-entity>
     
     <!-- Lighting -->
-    <a-light type="ambient" color="#222"></a-light>
-    <a-light type="point" position="2 4 4" color="#fff"></a-light>
+    <a-light type="ambient" color="#001122" intensity="0.3"></a-light>
+    <a-light type="point" position="2 4 4" intensity="1.5" color="#ffffff"></a-light>
     
-    <!-- Visualization -->
+    <!-- Nemosyne Bar Chart -->
     <a-entity 
       nemosyne-artefact-v2='
         {
           "spec": {
-            "id": "demo",
-            "geometry": { "type": "cylinder", "radius": 0.3, "height": 2 },
-            "material": { "properties": { "color": "#00d4aa" } }
+            "id": "sales-chart",
+            "geometry": { "type": "box" },
+            "material": { 
+              "properties": { 
+                "color": "#00d4aa",
+                "emissive": "#00d4aa",
+                "emissiveIntensity": 0.4,
+                "metalness": 0.8,
+                "roughness": 0.2
+              }
+            },
+            "transform": {
+              "scale": { "$data": "sales", "$range": [0.5, 3] }
+            },
+            "behaviours": [
+              { "trigger": "hover", "action": "glow", "params": { "intensity": 2 } },
+              { "trigger": "hover-leave", "action": "glow", "params": { "intensity": 0.4 } },
+              { "trigger": "click", "action": "scale", "params": { "factor": 1.2 } }
+            ],
+            "labels": {
+              "primary": { "$data": "month" },
+              "color": "#ffffff",
+              "position": "above"
+            }
           },
           "dataset": { 
             "records": [
               { "month": "Jan", "sales": 100 }, 
-              { "month": "Feb", "sales": 150 }
+              { "month": "Feb", "sales": 150 },
+              { "month": "Mar", "sales": 80 },
+              { "month": "Apr", "sales": 200 }
             ] 
           },
-          "layout": "grid"
+          "layout": "grid",
+          "layout-options": { "columns": 4, "spacing": 2 }
         }
       '>
     </a-entity>
     
+    <!-- Nemosyne Network Graph -->
+    <a-entity 
+      position="0 0 -4"
+      nemosyne-artefact-v2='
+        {
+          "spec": {
+            "id": "network-demo",
+            "geometry": { "type": "octahedron", "radius": 0.5 },
+            "material": { 
+              "properties": { 
+                "color": "#6b4ee6",
+                "emissive": "#6b4ee6",
+                "emissiveIntensity": 0.5
+              }
+            },
+            "behaviours": [
+              { "trigger": "idle", "action": "rotate", "params": { "speed": 0.2, "axis": "y" } }
+            ]
+          },
+          "dataset": {
+            "records": [
+              { "id": "A", "value": 50, "connections": ["B", "C"] },
+              { "id": "B", "value": 30, "connections": ["C"] },
+              { "id": "C", "value": 40, "connections": [] }
+            ]
+          },
+          "layout": "force",
+          "layout-options": { "bounds": 3 }
+        }
+      '>
+    </a-entity>
+    
+    <!-- Connector between visualizations -->
+    <a-entity
+      nemosyne-connector="
+        from: #sales-chart;
+        to: #network-demo;
+        color: #00d4aa;
+        thickness: 0.05;
+        animated: true
+      ">
+    </a-entity>
+    
     <!-- Ground -->
-    <a-plane rotation="-90 0 0" width="20" height="20" color="#0a0a0f"></a-plane>
+    <a-plane rotation="-90 0 0" width="30" height="30" color="#0a0a0f" 
+      material="roughness: 0.9; metalness: 0.1"></a-plane>
   </a-scene>
 </body>
 </html>
