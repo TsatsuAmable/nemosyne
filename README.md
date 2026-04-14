@@ -21,6 +21,10 @@
 npm install nemosyne aframe
 ```
 
+**[View Full Featured Quick Start →](IMPRESSIVE_QUICKSTART.md)** — Interactive 3D data space with 4 visualizations, animations, and JavaScript API.
+
+**Minimal example:**
+
 ```html
 <!DOCTYPE html>
 <html>
