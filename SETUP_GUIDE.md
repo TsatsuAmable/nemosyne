@@ -2,8 +2,8 @@
 
 ## Step-by-Step Setup Documentation
 
-**Version:** 1.0.0  
-**Last Updated:** April 2026  
+**Version:** 1.2.0  
+**Last Updated:** April 14, 2026  
 **Branches:** `vride`, `gestures`, `memory-palace-vr`
 
 ---
