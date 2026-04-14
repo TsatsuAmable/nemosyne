@@ -25,7 +25,9 @@ describe('Nemosyne CLI', () => {
       });
       return { success: true, output, code: 0 };
     } catch (error) {
-      return { success: false, output: error.stdout || error.message, code: error.status };
+      // Capture both stdout and stderr
+      const output = (error.stdout || '') + (error.stderr || '');
+      return { success: false, output, code: error.status };
     }
   };
 

@@ -101,7 +101,7 @@ const templates = {
     <p class="subtitle">Monthly revenue data</p>
   </div>
 
-  <a-scene nemosyne-scene="theme: void">
+  <a-scene background="color: #000510">
     <a-entity position="-8 2 8" rotation="0 -45 0">
       <a-camera look-controls wasd-controls="acceleration: 100">
         <a-cursor color="#00d4aa" scale="0.5 0.5 0.5"></a-cursor>
@@ -242,7 +242,7 @@ Try different layouts by editing \`index.html\`:
     <button onclick="togglePhysics()">Toggle Physics</button>
   </div>
 
-  <a-scene nemosyne-scene="theme: void">
+  <a-scene background="color: #000510">
     <a-entity position="0 0 10">
       <a-camera look-controls wasd-controls="acceleration: 50">
         <a-cursor color="#6464ff" scale="0.5 0.5 0.5" raycaster="objects: .clickable"></a-cursor>
@@ -386,7 +386,7 @@ Network graph visualization using Nemosyne.
     <p class="subtitle">Time-series spiral visualization</p>
   </div>
 
-  <a-scene nemosyne-scene="theme: void">
+  <a-scene background="color: #000205">
     <a-entity position="0 5 15" rotation="-15 0 0">
       <a-camera look-controls wasd-controls="acceleration: 50"></a-camera>
     </a-entity>

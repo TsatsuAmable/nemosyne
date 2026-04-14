@@ -27,6 +27,7 @@ export default {
     '<rootDir>/tests/event-handlers.test.mjs',
     '<rootDir>/tests/index.test.mjs',
     '<rootDir>/tests/layout-engine.test.mjs',
+    '<rootDir>/tests/cli/cli.test.mjs',
   ],
   testPathIgnorePatterns: [
     '/node_modules/',

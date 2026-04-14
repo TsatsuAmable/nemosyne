@@ -14,12 +14,18 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const CLI_PATH = path.resolve(__dirname, '../../bin/nemosyne-cli.js');
-const TEMP_DIR = path.resolve(__dirname, '../../.tmp-cli-integration');
+const TEMP_DIR = path.resolve(__dirname, '../../.tmp-cli-integration-' + Date.now());
+
+let server;
+let serverPort;
+let testCounter = 0;
+
+function getUniqueProjectName(base) {
+  testCounter++;
+  return `${base}-${Date.now()}-${testCounter}`;
+}
 
 test.describe('Nemosyne CLI Integration', () => {
-  let server;
-  let serverPort;
-
   test.beforeAll(() => {
     // Clean and create temp directory
     if (fs.existsSync(TEMP_DIR)) {
@@ -74,7 +80,7 @@ test.describe('Nemosyne CLI Integration', () => {
   };
 
   test('CLI creates valid basic project', () => {
-    const project = createProject('basic-test', 'basic');
+    const project = createProject(getUniqueProjectName('basic-test'), 'basic');
 
     expect(fs.existsSync(project.path)).toBe(true);
     expect(fs.existsSync(path.join(project.path, 'index.html'))).toBe(true);
@@ -84,7 +90,7 @@ test.describe('Nemosyne CLI Integration', () => {
   });
 
   test('CLI creates valid network project', () => {
-    const project = createProject('network-test', 'network');
+    const project = createProject(getUniqueProjectName('network-test'), 'network');
 
     const indexPath = path.join(project.path, 'index.html');
     const content = fs.readFileSync(indexPath, 'utf-8');
@@ -94,7 +100,7 @@ test.describe('Nemosyne CLI Integration', () => {
   });
 
   test('CLI creates valid timeline project', () => {
-    const project = createProject('timeline-test', 'timeline');
+    const project = createProject(getUniqueProjectName('timeline-test'), 'timeline');
 
     const indexPath = path.join(project.path, 'index.html');
     const content = fs.readFileSync(indexPath, 'utf-8');
@@ -104,7 +110,7 @@ test.describe('Nemosyne CLI Integration', () => {
   });
 
   test('Generated project uses correct CDN path', () => {
-    const project = createProject('cdn-test');
+    const project = createProject(getUniqueProjectName('cdn-test'));
 
     const indexPath = path.join(project.path, 'index.html');
     const content = fs.readFileSync(indexPath, 'utf-8');
@@ -114,7 +120,7 @@ test.describe('Nemosyne CLI Integration', () => {
   });
 
   test('Generated project loads without 404s', async ({ page }) => {
-    const project = createProject('load-test');
+    const project = createProject(getUniqueProjectName('load-test'));
 
     const failedRequests = [];
     page.on('response', response => {
@@ -131,7 +137,7 @@ test.describe('Nemosyne CLI Integration', () => {
   });
 
   test('Generated project has no critical JS errors', async ({ page }) => {
-    const project = createProject('error-test');
+    const project = createProject(getUniqueProjectName('error-test'));
 
     const errors = [];
     page.on('pageerror', err => {
@@ -148,7 +154,7 @@ test.describe('Nemosyne CLI Integration', () => {
   });
 
   test('Generated project contains nemosyne component', async ({ page }) => {
-    const project = createProject('component-test');
+    const project = createProject(getUniqueProjectName('component-test'));
 
     await startServer(project.path, 8767);
     await page.goto('http://127.0.0.1:8767/');
@@ -162,7 +168,7 @@ test.describe('Nemosyne CLI Integration', () => {
   });
 
   test('CLI validate detects valid project', () => {
-    const project = createProject('valid-project');
+    const project = createProject(getUniqueProjectName('valid-project'));
 
     const output = execSync(`node ${CLI_PATH} validate valid-project`, {
       encoding: 'utf-8',
@@ -173,10 +179,11 @@ test.describe('Nemosyne CLI Integration', () => {
   });
 
   test('CLI validate detects missing index.html', () => {
-    fs.mkdirSync(path.join(TEMP_DIR, 'invalid-project'), { recursive: true });
+    const projName = getUniqueProjectName('invalid-project');
+    fs.mkdirSync(path.join(TEMP_DIR, projName), { recursive: true });
 
     try {
-      execSync(`node ${CLI_PATH} validate invalid-project`, {
+      execSync(`node ${CLI_PATH} validate ${projName}`, {
         encoding: 'utf-8',
         cwd: TEMP_DIR
       });
@@ -187,7 +194,7 @@ test.describe('Nemosyne CLI Integration', () => {
   });
 
   test('CLI validate detects wrong bundle', () => {
-    const project = createProject('warn-project');
+    const project = createProject(getUniqueProjectName('warn-project'));
 
     // Replace iife.js with min.js
     const indexPath = path.join(project.path, 'index.html');
@@ -205,7 +212,7 @@ test.describe('Nemosyne CLI Integration', () => {
   });
 
   test('Generated project has valid data.json', () => {
-    const project = createProject('data-test');
+    const project = createProject(getUniqueProjectName('data-test'));
 
     const dataPath = path.join(project.path, 'data.json');
     const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
@@ -216,7 +223,7 @@ test.describe('Nemosyne CLI Integration', () => {
   });
 
   test('CLI build creates dist directory', () => {
-    const project = createProject('build-test');
+    const project = createProject(getUniqueProjectName('build-test'));
 
     execSync(`node ${CLI_PATH} build build-test -o dist`, {
       encoding: 'utf-8',
