@@ -36,6 +36,22 @@ export class LayoutEngine {
   }
 
   /**
+   * Alias for calculate() - maintains compatibility with core API
+   * @param {Array} records - Data records (or first arg as layout name)
+   * @param {string|Object} layoutNameOrOptions - Layout name or options
+   * @param {Object} options - Layout options
+   * @returns {Array} Array of {x, y, z} positions
+   */
+  calculatePositions(records, layoutNameOrOptions, options = {}) {
+    // Handle different call signatures
+    if (typeof layoutNameOrOptions === 'string') {
+      return this.calculate(layoutNameOrOptions, records, options);
+    }
+    // If second arg is options object, default to scatter
+    return this.calculate('scatter', records, layoutNameOrOptions || options);
+  }
+
+  /**
    * Grid layout - rows and columns
    */
   gridLayout(records, options = {}) {
