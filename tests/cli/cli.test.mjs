@@ -144,7 +144,7 @@ describe('Nemosyne CLI', () => {
       expect(result.output).toContain('basic');
       expect(result.output).toContain('network');
       expect(result.output).toContain('timeline');
-      expect(result.output).toContain('Bar Chart');
+      expect(result.output).toContain('Basic Visualization');
       expect(result.output).toContain('Network Graph');
     });
   });
