@@ -29,6 +29,7 @@ export default {
     '<rootDir>/tests/layout-engine.test.mjs',
     '<rootDir>/tests/cli/cli.test.mjs',
     '<rootDir>/tests/core/data-loader.test.mjs',
+    '<rootDir>/tests/core/transform-dsl.test.mjs',
     '<rootDir>/tests/core/websocket-datasource.test.mjs',
   ],
   testPathIgnorePatterns: [

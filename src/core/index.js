@@ -2,6 +2,7 @@ export { Animator as AnimationEngine } from './AnimationEngine.js';
 export { DataNativeEngine } from './DataNativeEngine.js';
 export * as DataLoader from './DataLoader.js';
 export { WebSocketDataSource, loadWebSocket } from './WebSocketDataSource.js';
+export * as TransformDSL from './TransformDSL.js';
 export { GestureDataController as GestureController } from './GestureController.js';
 export { LayoutEngine } from './LayoutEngine.js';
 export { NemosyneDataPacket } from './NemosyneDataPacket.js';
