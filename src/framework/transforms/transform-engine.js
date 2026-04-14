@@ -3,21 +3,39 @@
  * Converts data fields to visual properties using data-driven transforms
  */
 
-import 'https://cdn.jsdelivr.net/npm/d3-scale@4/dist/d3-scale.min.js';
-import 'https://cdn.jsdelivr.net/npm/d3-color@3/dist/d3-color.min.js';
+import { scaleSequential } from 'd3-scale';
+
+// Color interpolators from d3-scale-chromatic (optional, will use fallback if not available)
+const interpolators = {
+  'viridis': (t) => {
+    // Simplified viridis approximation
+    const r = Math.max(0, Math.min(255, 68 + t * 200 - (t > 0.5 ? (t - 0.5) * 400 : 0)));
+    const g = Math.max(0, Math.min(255, 1 + t * 250));
+    const b = Math.max(0, Math.min(255, 84 + (1 - t) * 150));
+    return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+  },
+  'plasma': (t) => {
+    const r = Math.max(0, Math.min(255, 61 + t * 240));
+    const g = Math.max(0, Math.min(255, t < 0.5 ? t * 200 : 100 + (1 - t) * 100));
+    const b = Math.max(0, Math.min(255, 150 + t * 105));
+    return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+  },
+  'blues': (t) => `rgb(${Math.round(t * 50)}, ${Math.round(t * 100)}, ${Math.round(150 + t * 105)})`,
+  'reds': (t) => `rgb(${Math.round(200 + t * 55)}, ${Math.round(t * 80)}, ${Math.round(t * 80)})`,
+  'greens': (t) => `rgb(${Math.round(t * 80)}, ${Math.round(150 + t * 105)}, ${Math.round(t * 80)})`,
+  'warm': (t) => `rgb(${Math.round(255)}, ${Math.round(t * 200)}, ${Math.round(t * 50)})`,
+  'cool': (t) => `rgb(${Math.round(t * 50)}, ${Math.round(t * 200)}, ${Math.round(255)})`
+};
 
 export class TransformEngine {
   constructor() {
     this.scales = new Map();
-    this.defaultScales = {
-      'viridis': d3?.scaleSequential?.(d3.interpolateViridis) || null,
-      'plasma': d3?.scaleSequential?.(d3.interpolatePlasma) || null,
-      'warm': d3?.scaleSequential?.(d3.interpolateWarm) || null,
-      'cool': d3?.scaleSequential?.(d3.interpolateCool) || null,
-      'blues': d3?.scaleSequential?.(d3.interpolateBlues) || null,
-      'reds': d3?.scaleSequential?.(d3.interpolateReds) || null,
-      'greens': d3?.scaleSequential?.(d3.interpolateGreens) || null
-    };
+    this.defaultScales = {};
+    
+    // Initialize default color scales
+    for (const [name, interpolator] of Object.entries(interpolators)) {
+      this.defaultScales[name] = scaleSequential(interpolator);
+    }
   }
 
   /**
