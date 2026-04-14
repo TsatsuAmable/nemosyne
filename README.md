@@ -26,23 +26,49 @@ npm install nemosyne aframe
 <html>
 <head>
   <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
-  <script src="dist/nemosyne.iife.js"></script>
+  <script src="https://unpkg.com/nemosyne@latest/dist/nemosyne.iife.js"></script>
 </head>
 <body>
   <a-scene>
-    <a-entity nemosyne-artefact-v2="
-      spec: {
-        id: 'demo',
-        geometry: { type: 'cylinder', radius: 0.3, height: 2 },
-        material: { properties: { color: '#00d4aa' } }
-      };
-      dataset: { records: [{ month: 'Jan', sales: 100 }, { month: 'Feb', sales: 150 }] };
-      layout: grid
-    "></a-entity>
+    <!-- Camera -->
+    <a-entity position="0 1.6 4">
+      <a-camera>
+        <a-cursor color="#00d4aa"></a-cursor>
+      </a-camera>
+    </a-entity>
+    
+    <!-- Lighting -->
+    <a-light type="ambient" color="#222"></a-light>
+    <a-light type="point" position="2 4 4" color="#fff"></a-light>
+    
+    <!-- Visualization -->
+    <a-entity 
+      nemosyne-artefact-v2='
+        {
+          "spec": {
+            "id": "demo",
+            "geometry": { "type": "cylinder", "radius": 0.3, "height": 2 },
+            "material": { "properties": { "color": "#00d4aa" } }
+          },
+          "dataset": { 
+            "records": [
+              { "month": "Jan", "sales": 100 }, 
+              { "month": "Feb", "sales": 150 }
+            ] 
+          },
+          "layout": "grid"
+        }
+      '>
+    </a-entity>
+    
+    <!-- Ground -->
+    <a-plane rotation="-90 0 0" width="20" height="20" color="#0a0a0f"></a-plane>
   </a-scene>
 </body>
 </html>
 ```
+
+Open in a browser or serve with `python3 -m http.server 8000`.
 
 See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed setup instructions.
 
