@@ -1,8 +1,8 @@
 # Nemosyne Development Roadmap
 
-**Last Updated:** 2025-04-13  
-**Current Version:** 1.2.0  
-**Current Phase:** Phase 3-4 (Core Framework Complete + Examples + Documentation)
+**Last Updated:** 2025-04-14  
+**Current Version:** 1.2.1  
+**Current Phase:** Phase 5 Complete (Architecture Consolidation + Build System Stabilization)
 
 ---
 
@@ -114,6 +114,20 @@
 
 ---
 
+## Phase 5.5: Architecture Consolidation ✅ COMPLETE (v1.2.1)
+**Timeline:** April 14, 2025  
+**Goal:** Unify framework source and ensure documentation accuracy
+
+- [x] Consolidate `framework/src/` into `src/framework/` for single source of truth
+- [x] Fix webpack build compatibility (replace CDN imports with npm dependencies)
+- [x] Fix ESLint config for ES modules (.eslintrc.cjs)
+- [x] Add `calculatePositions()` to framework LayoutEngine for API compatibility
+- [x] Verify all README documented APIs are exported and functional
+- [x] All 484 tests passing, builds successful
+- [x] Documentation now matches implementation
+
+---
+
 ## Phase 6: Expansion 🚧 IN PROGRESS
 **Timeline:** Q2-Q3 2025  
 **Goal:** Build a rich ecosystem of VR data components
@@ -171,6 +185,7 @@ See `docs/RESEARCH_AGENDA.md` for detailed hypotheses and validation plan.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| v1.2.1 | 2025-04-14 | Framework source consolidation, build system fixes, documentation compliance |
 | v1.2.0 | 2025-04-13 | Integration tests, 373 tests, 83.5% coverage |
 | v1.1.0 | 2025-04-13 | Test suite, CLI tool, TypeScript definitions |
 | v1.0.0 | 2025-04-13 | API stabilization |

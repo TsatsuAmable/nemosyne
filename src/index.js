@@ -29,7 +29,7 @@ export { TemporalScrubber } from './animation/TemporalScrubber.js';
 export { UncertaintyVisualizer } from './animation/UncertaintyVisualizer.js';
 
 // Version
-export const VERSION = '1.2.0';
+export const VERSION = '1.2.1';
 
 // Re-export framework as main API
 export const Nemosyne = NemosyneFramework;
