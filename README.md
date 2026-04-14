@@ -26,24 +26,19 @@ npm install nemosyne aframe
 <html>
 <head>
   <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
-  <script src="dist/nemosyne.min.js"></script>
+  <script src="dist/nemosyne.iife.js"></script>
 </head>
 <body>
   <a-scene>
-    <nemosyne-artefact
-      spec-inline='<;{
-        "id": "demo",
-        "geometry": { "type": "cylinder", "radius": 0.3, "height": 2 },
-        "material": { "properties": { "color": "#00d4aa" } }
-      }'
-      data-inline='<;{
-        "records": [
-          { "month": "Jan", "sales": 100 },
-          { "month": "Feb", "sales": 150 }
-        ]
-      }'
-      layout="grid">
-    </nemosyne-artefact>
+    <a-entity nemosyne-artefact-v2="
+      spec: {
+        id: 'demo',
+        geometry: { type: 'cylinder', radius: 0.3, height: 2 },
+        material: { properties: { color: '#00d4aa' } }
+      };
+      dataset: { records: [{ month: 'Jan', sales: 100 }, { month: 'Feb', sales: 150 }] };
+      layout: grid
+    "></a-entity>
   </a-scene>
 </body>
 </html>
@@ -142,7 +137,7 @@ npm install nemosyne aframe
 
 ### CDN (Quick Try)
 ```html
-<script src="https://unpkg.com/nemosyne@latest/dist/nemosyne.min.js"></script>
+<script src="https://unpkg.com/nemosyne@latest/dist/nemosyne.iife.js"></script>
 ```
 
 ---
