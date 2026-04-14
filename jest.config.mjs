@@ -28,6 +28,7 @@ export default {
     '<rootDir>/tests/index.test.mjs',
     '<rootDir>/tests/layout-engine.test.mjs',
     '<rootDir>/tests/cli/cli.test.mjs',
+    '<rootDir>/tests/core/data-loader.test.mjs',
   ],
   testPathIgnorePatterns: [
     '/node_modules/',
