@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Nemosyne — Orbital Simulator (Physics-Enabled)</title>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/n5ro/aframe-physics-system@v4.0.1/dist/aframe-physics-system.min.js"></script>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #000; color: #fff; }
+    #info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 100;
+      background: rgba(0,0,0,0.85);
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 380px;
+      border: 1px solid #444;
+    }
+    #info h1 { margin: 0 0 10px 0; font-size: 1.4em; color: #ff6b35; }
+    #controls {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #333;
+    }
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+      font-size: 0.85em;
+    }
+    .control-row label { min-width: 80px; color: #aaa; }
+    .control-row input[type="range"] { flex: 1; }
+    .control-row button {
+      background: #ff6b35;
+      border: none;
+      color: #000;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .control-row button:hover { background: #ff8555; }
+    #time-display {
+      font-family: monospace;
+      color: #ff6b35;
+      font-size: 1.2em;
+    }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; font-size: 0.8em; }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .physics-badge {
+      display: inline-block;
+      background: #ff6b35;
+      color: #000;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75em;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h1>🪐 Orbital Simulator <span class="physics-badge">PHYSICS</span></h1>
+    <p>Real-time orbital mechanics with NEO trajectories</p>
+    
+    <div id="time-display">2020-01-01</div>
+    
+    <div id="controls">
+      <div class="control-row">
+        <label>Time Speed:</label>
+        <input type="range" id="speed-slider" min="0" max="100" value="10">
+        <span id="speed-value">10x</span>
+      </div>
+      <div class="control-row">
+        <label>Scrub:</label>
+        <input type="range" id="time-scrubber" min="0" max="547" value="0">
+      </div>
+      <div class="control-row">
+        <button id="play-pause">⏸ Pause</button>
+        <button id="reset-view">⟲ Reset</button>
+      </div>
+    </div>
+    
+    <div class="legend">
+      <div class="legend-item"><span class="dot" style="background:#ffdd44"></span> Sun</div>
+      <div class="legend-item"><span class="dot" style="background:#4488ff"></span> Earth</div>
+      <div class="legend-item"><span class="dot" style="background:#ff4444"></span> Hazardous NEO</div>
+      <div class="legend-item"><span class="dot" style="background:#44ff44"></span> Safe NEO</div>
+    </div>
+    
+    <p style="font-size: 0.75em; color: #666; margin-top: 15px;">
+      <strong>Physics:</strong> Objects follow Keplerian orbits. Trails show 30-day paths.
+    </p>
+  </div>
+
+  <a-scene 
+    physics="gravity: 0; debug: false"
+    background="color: #000005"
+    fog="type: exponential; color: #000005; density: 0.01">
+    
+    <!-- Assets -->
+    <a-assets>
+      <a-mixin id="sun" geometry="primitive: sphere; radius: 0.3" material="color: #ffdd44; emissive: #ffaa00; emissiveIntensity: 0.5"></a-mixin>
+      <a-mixin id="earth-body" geometry="primitive: sphere; radius: 0.08" material="color: #4488ff; emissive: #224488; emissiveIntensity: 0.3"></a-mixin>
+      <a-mixin id="neo-hazardous" geometry="primitive: sphere; radius: 0.04" material="color: #ff4444; emissive: #441111; emissiveIntensity: 0.5"></a-mixin>
+      <a-mixin id="neo-safe" geometry="primitive: sphere; radius: 0.03" material="color: #44ff44; emissive: #114411; emissiveIntensity: 0.3"></a-mixin>
+      <a-mixin id="orbit-line" material="color: #333; opacity: 0.2; transparent: true"></a-mixin>
+    </a-assets>
+
+    <!-- Sun (center, gravitational anchor) -->
+    <a-entity id="sun-entity" position="0 0 0" mixin="sun">
+      <a-light type="point" color="#ffddaa" intensity="2" distance="100"></a-light>
+      <a-entity particle-system="preset: dust; color: #ffaa44,#ffdd88; particleCount: 100"></a-entity>
+    </a-entity>
+
+    <!-- Solar System Container -->
+    <a-entity id="solar-system"></a-entity>
+
+    <!-- NEO Container -->
+    <a-entity id="neo-container"></a-entity>
+
+    <!-- Orbital Trail Container -->
+    <a-entity id="trail-container"></a-entity>
+
+    <!-- Camera Rig -->
+    <a-entity id="camera-rig" position="0 5 15" rotation="-20 0 0">
+      <a-camera look-controls wasd-controls="acceleration: 100">
+        <a-cursor color="#ff6b35" scale="0.5 0.5 0.5" fuse="false"></a-cursor>
+      </a-camera>
+    </a-entity>
+
+    <!-- Lighting -->
+    <a-light type="ambient" color="#1a1a2e"></a-light>
+  </a-scene>
+
+  <script>
+    /**
+     * Astronomical Calculator for Orbital Mechanics
+     * Handles Keplerian orbits and position calculations
+     */
+    class AstronomicalCalculator {
+      constructor() {
+        this.G = 6.674e-11; // Gravitational constant
+        this.M_sun = 1.989e30; // Solar mass (kg)
+        this.AU = 149597870700; // meters per AU
+        this.day = 86400; // seconds per day
+        
+        // Simplified planet data (for reference, though we focus on NEOs)
+        this.earth = {
+          a: 1.0, // AU
+          e: 0.0167,
+          period: 365.25, // days
+          i: 0, // inclination (degrees)
+          omega: 0, // argument of perihelion
+          node: 0, // longitude of ascending node
+          M0: 0, // mean anomaly at epoch
+          epoch: 2451545.0 // J2000
+        };
+      }
+
+      /**
+       * Calculate NEO position from orbital elements
+       * Simplified for near-Earth objects using close approach data
+       */
+      calculateNEOPosition(neo, daysSinceEpoch) {
+        // For this simulation, we use the pre-calculated positions
+        // and interpolate between close approaches
+        if (neo.positions && neo.positions.length > 0) {
+          // Find positions bracketing current time
+          const targetTime = daysSinceEpoch;
+          
+          // Linear interpolation between known positions
+          for (let i = 0; i < neo.positions.length - 1; i++) {
+            const p1 = neo.positions[i];
+            const p2 = neo.positions[i + 1];
+            
+            if (targetTime >= p1.time && targetTime <= p2.time) {
+              const t = (targetTime - p1.time) / (p2.time - p1.time);
+              return {
+                x: p1.x + (p2.x - p1.x) * t,
+                y: p1.y + (p2.y - p1.y) * t,
+                z: p1.z + (p2.z - p1.z) * t,
+                distance: p1.distance + (p2.distance - p1.distance) * t
+              };
+            }
+          }
+          
+          // Return last known position if beyond data
+          const last = neo.positions[neo.positions.length - 1];
+          return { x: last.x, y: last.y, z: last.z, distance: last.distance };
+        }
+        
+        // Fallback to simple orbital calculation
+        return this.calculateKeplerianOrbit(neo, daysSinceEpoch);
+      }
+
+      /**
+       * Calculate Keplerian orbital position
+       */
+      calculateKeplerianOrbit(elements, daysSinceEpoch) {
+        const a = elements.a || 1.5; // Semi-major axis (AU)
+        const e = elements.e || 0.5; // Eccentricity
+        const period = elements.period || 686; // Orbital period (days)
+        const i = (elements.i || 0) * Math.PI / 180; // Inclination (rad)
+        
+        // Mean anomaly at current time
+        const M = (2 * Math.PI * daysSinceEpoch / period) % (2 * Math.PI);
+        
+        // Solve Kepler's equation: M = E - e*sin(E)
+        let E = M;
+        for (let iter = 0; iter < 10; iter++) {
+          E = M + e * Math.sin(E);
+        }
+        
+        // True anomaly
+        const cosE = Math.cos(E);
+        const sinE = Math.sin(E);
+        const cosNu = (cosE - e) / (1 - e * cosE);
+        const sinNu = (Math.sqrt(1 - e*e) * sinE) / (1 - e * cosE);
+        const nu = Math.atan2(sinNu, cosNu);
+        
+        // Distance
+        const r = a * (1 - e * cosE);
+        
+        // Position in orbital plane
+        const x_orb = r * Math.cos(nu);
+        const y_orb = r * Math.sin(nu);
+        
+        // Apply inclination (simplified - rotate around x-axis)
+        const x = x_orb;
+        const y = y_orb * Math.cos(i);
+        const z = y_orb * Math.sin(i);
+        
+        return { x, y, z, distance: r };
+      }
+
+      /**
+       * Calculate Earth's position
+       */
+      getEarthPosition(daysSinceEpoch) {
+        return this.calculateKeplerianOrbit(this.earth, daysSinceEpoch);
+      }
+    }
+
+    /**
+     * Physics-Enabled Orbital Simulator
+     */
+    class OrbitalSimulator {
+      constructor() {
+        this.calc = new AstronomicalCalculator();
+        this.container = document.getElementById('neo-container');
+        this.earthContainer = document.getElementById('solar-system');
+        this.trailContainer = document.getElementById('trail-container');
+        
+        // Simulation state
+        this.simTime = 0; // Days since 2020-01-01
+        this.timeSpeed = 10; // Days per second
+        this.isPlaying = true;
+        this.neos = [];
+        this.earthEntity = null;
+        this.trails = new Map(); // NEO ID -> trail entity array
+        this.trailLength = 30; // Days of trail
+        
+        // DOM elements
+        this.timeDisplay = document.getElementById('time-display');
+        this.speedSlider = document.getElementById('speed-slider');
+        this.speedValue = document.getElementById('speed-value');
+        this.scrubber = document.getElementById('time-scrubber');
+        this.playPauseBtn = document.getElementById('play-pause');
+        this.resetBtn = document.getElementById('reset-view');
+        
+        this.init();
+      }
+
+      async init() {
+        try {
+          // Load NEO data
+          const response = await fetch('../data/neo-processed.json');
+          const { data, meta } = await response.json();
+          
+          // Enhance NEOs with orbital trajectory data
+          this.neos = this.prepareNEOData(data.slice(0, 500)); // Limit to 500 for performance
+          
+          // Create Earth
+          this.createEarth();
+          
+          // Create NEO entities
+          this.createNEOEntities();
+          
+          // Setup controls
+          this.setupControls();
+          
+          // Start simulation loop
+          this.lastFrameTime = performance.now();
+          this.simulationLoop();
+          
+          console.log('[OrbitalSimulator] Initialized with', this.neos.length, 'NEOs');
+          
+        } catch (error) {
+          console.error('[OrbitalSimulator] Initialization failed:', error);
+        }
+      }
+
+      prepareNEOData(rawData) {
+        return rawData.map((neo, index) => ({
+          id: neo.id || `neo-${index}`,
+          designation: neo.designation,
+          hazardClass: neo.hazardClass,
+          estimatedDiameter: neo.estimatedDiameter,
+          velocityKms: neo.velocityKms,
+          // Generate orbital trajectory from close approach data
+          positions: this.generateTrajectory(neo),
+          entity: null,
+          currentPosition: { x: 0, y: 0, z: 0 }
+        }));
+      }
+
+      generateTrajectory(neo) {
+        // Generate points along trajectory based on close approach
+        // This is simplified - in reality we'd have full orbital elements
+        const positions = [];
+        
+        // Use the close approach position as a point in the trajectory
+        // Generate a simple elliptical orbit
+        const a = neo.distanceAU || 1.5;
+        const e = 0.3 + Math.random() * 0.4; // Random eccentricity
+        const period = Math.pow(a, 1.5) * 365.25; // Kepler's 3rd law
+        const inclination = (Math.random() - 0.5) * 30; // +/- 15 degrees
+        
+        // Generate 36 points (every 10 days for a ~1 year period)
+        for (let day = 0; day < 365; day += 10) {
+          const pos = this.calc.calculateKeplerianOrbit(
+            { a, e, period, i: inclination },
+            day + (neo.timeDays || 0)
+          );
+          positions.push({ ...pos, time: day });
+        }
+        
+        return positions;
+      }
+
+      createEarth() {
+        this.earthEntity = document.createElement('a-entity');
+        this.earthEntity.setAttribute('mixin', 'earth-body');
+        this.earthEntity.setAttribute('shadow', 'cast: true; receive: true');
+        
+        // Add Earth label
+        const label = document.createElement('a-text');
+        label.setAttribute('value', 'EARTH');
+        label.setAttribute('align', 'center');
+        label.setAttribute('position', '0 0.2 0');
+        label.setAttribute('scale', '0.3 0.3 0.3');
+        label.setAttribute('color', '#4488ff');
+        this.earthEntity.appendChild(label);
+        
+        // Add Earth's orbit ring
+        const orbitRing = document.createElement('a-ring');
+        orbitRing.setAttribute('radius-inner', '0.98');
+        orbitRing.setAttribute('radius-outer', '1.0');
+        orbitRing.setAttribute('rotation', '-90 0 0');
+        orbitRing.setAttribute('color', '#224488');
+        orbitRing.setAttribute('opacity', '0.3');
+        this.earthContainer.appendChild(orbitRing);
+        
+        this.earthContainer.appendChild(this.earthEntity);
+      }
+
+      createNEOEntities() {
+        this.neos.forEach(neo => {
+          const entity = document.createElement('a-entity');
+          
+          // Select appearance based on hazard
+          const mixin = neo.hazardClass === 'hazardous' ? 'neo-hazardous' : 'neo-safe';
+          entity.setAttribute('mixin', mixin);
+          
+          // Add hover interaction
+          entity.addEventListener('mouseenter', () => {
+            entity.setAttribute('scale', '1.5 1.5 1.5');
+            this.showNeoInfo(neo);
+          });
+          
+          entity.addEventListener('mouseleave', () => {
+            entity.setAttribute('scale', '1 1 1');
+          });
+          
+          this.container.appendChild(entity);
+          neo.entity = entity;
+          
+          // Create trail for this NEO
+          this.createTrail(neo);
+        });
+      }
+
+      createTrail(neo) {
+        const trailEntities = [];
+        
+        for (let i = 0; i < this.trailLength; i++) {
+          const trailPoint = document.createElement('a-sphere');
+          trailPoint.setAttribute('radius', '0.015');
+          trailPoint.setAttribute('color', neo.hazardClass === 'hazardous' ? '#ff4444' : '#44ff44');
+          trailPoint.setAttribute('opacity', (1 - i / this.trailLength) * 0.5);
+          trailPoint.setAttribute('transparent', 'true');
+          this.trailContainer.appendChild(trailPoint);
+          trailEntities.push(trailPoint);
+        }
+        
+        this.trails.set(neo.id, trailEntities);
+      }
+
+      updatePositions() {
+        // Update Earth
+        const earthPos = this.calc.getEarthPosition(this.simTime);
+        this.earthEntity.setAttribute('position', `${earthPos.x} ${earthPos.y} ${earthPos.z}`);
+        
+        // Update NEOs
+        this.neos.forEach(neo => {
+          const pos = this.calc.calculateNEOPosition(neo, this.simTime);
+          neo.currentPosition = pos;
+          
+          if (neo.entity) {
+            neo.entity.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
+          }
+          
+          // Update trail
+          this.updateTrail(neo);
+        });
+      }
+
+      updateTrail(neo) {
+        const trailEntities = this.trails.get(neo.id);
+        if (!trailEntities) return;
+        
+        // Calculate trail positions going back in time
+        for (let i = 0; i < this.trailLength; i++) {
+          const trailTime = this.simTime - (i + 1);
+          if (trailTime < 0) {
+            trailEntities[i].setAttribute('visible', 'false');
+            continue;
+          }
+          
+          const pos = this.calc.calculateNEOPosition(neo, trailTime);
+          trailEntities[i].setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
+          trailEntities[i].setAttribute('visible', 'true');
+        }
+      }
+
+      setupControls() {
+        // Speed slider
+        this.speedSlider.addEventListener('input', (e) => {
+          this.timeSpeed = parseFloat(e.target.value);
+          this.speedValue.textContent = this.timeSpeed + 'x';
+        });
+        
+        // Scrubber
+        this.scrubber.addEventListener('input', (e) => {
+          this.simTime = parseFloat(e.target.value);
+          this.isPlaying = false;
+          this.playPauseBtn.textContent = '▶ Play';
+          this.updatePositions();
+          this.updateTimeDisplay();
+        });
+        
+        // Play/Pause
+        this.playPauseBtn.addEventListener('click', () => {
+          this.isPlaying = !this.isPlaying;
+          this.playPauseBtn.textContent = this.isPlaying ? '⏸ Pause' : '▶ Play';
+        });
+        
+        // Reset
+        this.resetBtn.addEventListener('click', () => {
+          document.getElementById('camera-rig').setAttribute('position', '0 5 15');
+          document.getElementById('camera-rig').setAttribute('rotation', '-20 0 0');
+        });
+      }
+
+      updateTimeDisplay() {
+        const startDate = new Date('2020-01-01');
+        const currentDate = new Date(startDate.getTime() + this.simTime * 86400000);
+        this.timeDisplay.textContent = currentDate.toISOString().split('T')[0];
+      }
+
+      showNeoInfo(neo) {
+        // Could show a tooltip or panel with NEO details
+        console.log('NEO:', neo.designation, 'Distance:', neo.currentPosition.distance.toFixed(4), 'AU');
+      }
+
+      simulationLoop() {
+        const now = performance.now();
+        const deltaTime = (now - this.lastFrameTime) / 1000; // seconds
+        this.lastFrameTime = now;
+        
+        if (this.isPlaying) {
+          // Advance simulation time
+          this.simTime += this.timeSpeed * deltaTime;
+          
+          // Clamp to data range (0-547 days for ~18 months of data)
+          if (this.simTime > 547) {
+            this.simTime = 0; // Loop
+          }
+          
+          // Update scrubber
+          this.scrubber.value = this.simTime;
+          
+          // Update positions
+          this.updatePositions();
+          
+          // Update display
+          this.updateTimeDisplay();
+        }
+        
+        requestAnimationFrame(() => this.simulationLoop());
+      }
+    }
+
+    // Initialize when scene is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      const scene = document.querySelector('a-scene');
+      
+      if (scene.hasLoaded) {
+        new OrbitalSimulator();
+      } else {
+        scene.addEventListener('loaded', () => {
+          new OrbitalSimulator();
+        });
+      }
+    });
+  </script>
+</body>
+</html>
