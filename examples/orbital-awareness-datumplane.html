@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Nemosyne — Orbital Awareness (Datumplane)</title>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+  <script src="../dist/nemosyne.esm.js" type="module"></script>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #000; color: #fff; }
+    #info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 100;
+      background: rgba(0,0,0,0.8);
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 320px;
+      border: 1px solid #333;
+    }
+    #info h1 { margin: 0 0 10px 0; font-size: 1.4em; color: #00d4aa; }
+    #info h2 { margin: 15px 0 8px 0; font-size: 1em; color: #aaa; }
+    #stats { margin-top: 15px; font-size: 0.85em; color: #888; }
+    .datumplane-axis {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 5px 0;
+      font-size: 0.85em;
+    }
+    .axis-label { 
+      display: inline-block; 
+      padding: 2px 8px; 
+      border-radius: 4px; 
+      font-weight: bold;
+      font-size: 0.8em;
+    }
+    .axis-x { background: #4488ff; color: #000; }
+    .axis-y { background: #ff44aa; color: #fff; }
+    .axis-z { background: #44ff88; color: #000; }
+    .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 0.8em; }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h1>🌌 Orbital Awareness (Datumplane)</h1>
+    <p>10,000 Near-Earth Object approaches rendered via Nemosyne framework</p>
+    
+    <h2>Datumplane Semantics</h2>
+    <div class="datumplane-axis">
+      <span class="axis-label axis-x">X</span>
+      <span>Orbital plane position (AU)</span>
+    </div>
+    <div class="datumplane-axis">
+      <span class="axis-label axis-y">Y</span>
+      <span>Elevation above/below ecliptic</span>
+    </div>
+    <div class="datumplane-axis">
+      <span class="axis-label axis-z">Z</span>
+      <span>Time → forward into future</span>
+    </div>
+    
+    <div class="legend">
+      <div class="legend-item"><span class="dot" style="background:#ff4444"></span> Hazardous</div>
+      <div class="legend-item"><span class="dot" style="background:#ffaa00"></span> Close</div>
+      <div class="legend-item"><span class="dot" style="background:#44ff44"></span> Safe</div>
+    </div>
+    
+    <p style="font-size: 0.8em; color: #666; margin-top: 15px;">
+      <strong>Controls:</strong> WASD to move. Walk along Z-axis to travel through time.
+    </p>
+    
+    <div id="stats">Loading via Nemosyne...</div>
+  </div>
+
+  <a-scene background="color: #050510" fog="type: exponential; color: #050510; density: 0.015">
+    <!-- Earth at center -->
+    <a-entity id="earth" position="0 0 0">
+      <a-sphere 
+        geometry="primitive: sphere; radius: 0.1"
+        material="color: #4488ff; metalness: 0.3; roughness: 0.7; emissive: #001133; emissiveIntensity: 0.2">
+      </a-sphere>
+      <a-ring color="#4488ff" radius-inner="0.15" radius-outer="0.16" opacity="0.3" rotation="-90 0 0"></a-ring>
+      <a-ring color="#4488ff" radius-inner="0.25" radius-outer="0.26" opacity="0.2" rotation="-90 0 0"></a-ring>
+      <a-text value="EARTH" position="0 -0.25 0" align="center" color="#4488ff" scale="0.4 0.4 0.4"></a-text>
+    </a-entity>
+
+    <!-- Datumplane Grid -->
+    <a-entity id="datumplane-grid">
+      <!-- XY plane at Z=0 -->
+      <a-plane 
+        position="0 0 0"
+        rotation="-90 0 0"
+        width="20"
+        height="20"
+        material="color: #112233; opacity: 0.3; transparent: true">
+      </a-plane>
+      
+      <!-- Axes -->
+      <a-cylinder position="5 0 0" rotation="0 0 90" height="10" radius="0.01" color="#4488ff" opacity="0.3"></a-cylinder>
+      <a-cylinder position="0 5 0" rotation="0 0 0" height="10" radius="0.01" color="#ff44aa" opacity="0.3"></a-cylinder>
+      <a-cylinder position="0 0 10" rotation="90 0 0" height="20" radius="0.01" color="#44ff88" opacity="0.3"></a-cylinder>
+    </a-entity>
+
+    <!-- Time markers (years) -->
+    <a-entity id="time-markers"></a-entity>
+
+    <!-- Nemosyne Artefact: NEO Data -->
+    <a-entity 
+      id="neo-artefact"
+      nemosyne-artefact-v2=""
+      position="0 0 0">
+    </a-entity>
+
+    <!-- Camera -->
+    <a-entity position="0 3 12" rotation="-20 0 0">
+      <a-camera look-controls wasd-controls="acceleration: 60">
+        <a-cursor color="#00d4aa" scale="0.5 0.5 0.5"></a-cursor>
+      </a-camera>
+    </a-entity>
+
+    <!-- Lighting -->
+    <a-light type="ambient" color="#1a1a2e"></a-light>
+    <a-light type="point" position="0 10 -5" color="#ffffff" intensity="0.6"></a-light>
+    <a-light type="point" position="0 5 15" color="#4488ff" intensity="0.3"></a-light>
+  </a-scene>
+
+  <script type="module">
+    import { DataNativeEngine, LayoutEngine, PropertyMapper } from '../dist/nemosyne.esm.js';
+    import { executeTransform } from '../src/core/TransformDSL.js';
+
+    // Datumplane Configuration
+    const DATUMPLANE_CONFIG = {
+      // Semantic axis mapping
+      axes: {
+        x: { field: 'x', label: 'Orbital Position', unit: 'AU' },
+        y: { field: 'y', label: 'Ecliptic Elevation', unit: 'AU' },
+        z: { field: 'timeDays', label: 'Time', unit: 'days', scale: 2 }
+      },
+      
+      // Visual encodings
+      encodings: {
+        color: {
+          field: 'hazardClass',
+          mapping: {
+            'hazardous': '#ff4444',
+            'close': '#ffaa00',
+            'safe': '#44ff44'
+          }
+        },
+        size: {
+          field: 'estimatedDiameter',
+          domain: [1, 1000],
+          range: [0.02, 0.15],
+          scale: 'log'
+        },
+        emissive: {
+          field: 'hazardClass',
+          mapping: {
+            'hazardous': '#330000',
+            'close': '#331100',
+            'safe': '#003300'
+          }
+        }
+      }
+    };
+
+    class OrbitalAwarenessDatumplane {
+      constructor() {
+        this.engine = new DataNativeEngine();
+        this.layout = new LayoutEngine();
+        this.mapper = new PropertyMapper();
+        this.container = document.getElementById('neo-artefact');
+        this.statsEl = document.getElementById('stats');
+      }
+
+      async init() {
+        try {
+          // Load NEO data
+          const response = await fetch('../data/neo-processed.json');
+          const { data, meta } = await response.json();
+          
+          this.engine.loadDataset('neo', data);
+          
+          // Update stats
+          this.updateStats(data);
+          
+          // Build visualization using Datumplane semantics
+          this.buildDatumplaneVisualization(data);
+          
+          // Add time markers
+          this.addTimeMarkers();
+          
+          console.log('[OrbitalAwareness] Datumplane initialized with', data.length, 'objects');
+          
+        } catch (error) {
+          console.error('[OrbitalAwareness] Initialization failed:', error);
+          this.statsEl.innerHTML = `<span style="color:#ff4444">Error: ${error.message}</span>`;
+        }
+      }
+
+      updateStats(data) {
+        const counts = {
+          hazardous: data.filter(r => r.hazardClass === 'hazardous').length,
+          close: data.filter(r => r.hazardClass === 'close').length,
+          safe: data.filter(r => r.hazardClass === 'safe').length
+        };
+        
+        this.statsEl.innerHTML = `
+          <div style="margin-top:10px; padding-top:10px; border-top:1px solid #333;">
+            <strong>Dataset:</strong> ${data.length.toLocaleString()} NEOs<br>
+            <span style="color:#ff4444">●</span> Hazardous: ${counts.hazardous}<br>
+            <span style="color:#ffaa00">●</span> Close: ${counts.close}<br>
+            <span style="color:#44ff44">●</span> Safe: ${counts.safe}
+          </div>
+        `;
+      }
+
+      buildDatumplaneVisualization(records) {
+        const fragment = document.createDocumentFragment();
+        const { axes, encodings } = DATUMPLANE_CONFIG;
+
+        records.forEach((record, index) => {
+          const entity = document.createElement('a-entity');
+          
+          // Datumplane: Position mapping
+          // X/Y: Orbital plane (already calculated in data)
+          // Z: Time dimension (walk through future)
+          const x = record[axes.x.field] || 0;
+          const y = record[axes.y.field] || 0;
+          const z = (record[axes.z.field] || 0) / 365 * axes.z.scale; // Days → years → visual scale
+          
+          entity.setAttribute('position', `${x} ${y} ${z}`);
+          
+          // Datumplane: Color encoding (hierarchy/relationship)
+          const color = encodings.color.mapping[record[encodings.color.field]] || '#ffffff';
+          const emissive = encodings.emissive.mapping[record[encodings.color.field]] || '#000000';
+          
+          // Datumplane: Size encoding (magnitude/importance)
+          const size = this.mapSize(record[encodings.size.field], encodings.size);
+          
+          // Apply visual properties
+          entity.setAttribute('geometry', {
+            primitive: 'sphere',
+            radius: size
+          });
+          
+          entity.setAttribute('material', {
+            color: color,
+            emissive: emissive,
+            emissiveIntensity: 0.4,
+            metalness: 0.2,
+            roughness: 0.7
+          });
+          
+          // Metadata for interaction
+          entity.dataset.designation = record.designation;
+          entity.dataset.distance = record.distanceAU.toFixed(4) + ' AU';
+          entity.dataset.diameter = Math.round(record.estimatedDiameter) + 'm';
+          entity.dataset.date = record.date;
+          entity.dataset.velocity = record.velocityKms.toFixed(1) + ' km/s';
+          entity.dataset.hazard = record.hazardClass;
+          
+          // Hover interaction
+          entity.addEventListener('mouseenter', () => {
+            entity.setAttribute('material', 'emissiveIntensity', 0.8);
+            entity.setAttribute('scale', '1.5 1.5 1.5');
+          });
+          
+          entity.addEventListener('mouseleave', () => {
+            entity.setAttribute('material', 'emissiveIntensity', 0.4);
+            entity.setAttribute('scale', '1 1 1');
+          });
+          
+          fragment.appendChild(entity);
+        });
+        
+        this.container.appendChild(fragment);
+      }
+
+      mapSize(value, spec) {
+        if (!value || value <= 0) return spec.range[0];
+        
+        // Log scale for diameter (asteroids vary wildly in size)
+        const logValue = Math.log10(value);
+        const logDomain = [Math.log10(spec.domain[0]), Math.log10(spec.domain[1])];
+        const normalized = (logValue - logDomain[0]) / (logDomain[1] - logDomain[0]);
+        const clamped = Math.max(0, Math.min(1, normalized));
+        
+        return spec.range[0] + clamped * (spec.range[1] - spec.range[0]);
+      }
+
+      addTimeMarkers() {
+        const markers = document.getElementById('time-markers');
+        const years = [2020, 2021];
+        const scale = DATUMPLANE_CONFIG.axes.z.scale;
+        
+        years.forEach(year => {
+          const daysSince2020 = (year - 2020) * 365;
+          const z = daysSince2020 / 365 * scale;
+          
+          const marker = document.createElement('a-entity');
+          marker.setAttribute('position', `0 0 ${z}`);
+          
+          // Time plane ring
+          const ring = document.createElement('a-ring');
+          ring.setAttribute('color', '#44ff88');
+          ring.setAttribute('radius-inner', '6');
+          ring.setAttribute('radius-outer', '6.05');
+          ring.setAttribute('opacity', '0.15');
+          ring.setAttribute('rotation', '-90 0 0');
+          
+          // Year label
+          const label = document.createElement('a-text');
+          label.setAttribute('value', year.toString());
+          label.setAttribute('position', '0 4 0');
+          label.setAttribute('align', 'center');
+          label.setAttribute('color', '#44ff88');
+          label.setAttribute('scale', '2 2 2');
+          
+          marker.appendChild(ring);
+          marker.appendChild(label);
+          markers.appendChild(marker);
+        });
+      }
+    }
+
+    // Initialize when A-Frame is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      const scene = document.querySelector('a-scene');
+      
+      if (scene.hasLoaded) {
+        new OrbitalAwarenessDatumplane().init();
+      } else {
+        scene.addEventListener('loaded', () => {
+          new OrbitalAwarenessDatumplane().init();
+        });
+      }
+    });
+  </script>
+</body>
+</html>
