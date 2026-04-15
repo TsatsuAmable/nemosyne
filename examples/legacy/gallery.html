@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne - Research Framework Examples</title>
+    
+    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+    
+    <style>
+        :root {
+            --void-dark: #050510;
+            --memory-gold: #d4af37;
+            --datasphere-cyan: #00d4aa;
+            --echo-gray: #8888aa;
+            --warning-amber: #ffaa00;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--void-dark);
+            color: #fff;
+            min-height: 100vh;
+        }
+        
+        /* Research Preview Banner */
+        .research-banner {
+            background: linear-gradient(90deg, rgba(255,170,0,0.2), rgba(255,170,0,0.1));
+            border-left: 4px solid var(--warning-amber);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .research-banner .icon {
+            font-size: 1.5rem;
+        }
+        
+        .research-banner .content {
+            flex: 1;
+        }
+        
+        .research-banner h3 {
+            color: var(--warning-amber);
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .research-banner p {
+            color: var(--echo-gray);
+            font-size: 0.85rem;
+        }
+        
+        header {
+            text-align: center;
+            padding: 3rem 2rem;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 100%);
+            border-bottom: 1px solid rgba(0,212,170,0.2);
+        }
+        
+        h1 {
+            font-family: 'Cinzel', Georgia, serif;
+            font-size: 3rem;
+            background: linear-gradient(90deg, var(--datasphere-cyan), #4ecdc4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tagline {
+            color: var(--echo-gray);
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .version-badge {
+            display: inline-block;
+            background: rgba(255,170,0,0.2);
+            color: var(--warning-amber);
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            border: 1px solid var(--warning-amber);
+        }
+        
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 2rem;
+            padding: 3rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: rgba(20,20,40,0.8);
+            border: 1px solid rgba(0,212,170,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+            position: relative;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(0,212,170,0.2);
+        }
+        
+        .card-badge {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(0,212,170,0.2);
+            color: var(--datasphere-cyan);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            z-index: 10;
+        }
+        
+        .card-badge.experimental {
+            background: rgba(255,170,0,0.2);
+            color: var(--warning-amber);
+        }
+        
+        .card-badge.simulated {
+            background: rgba(136,136,170,0.2);
+            color: var(--echo-gray);
+        }
+        
+        .card-preview {
+            height: 200px;
+            background: linear-gradient(135deg, #1a1a3a, #0a0a1a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card-preview::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(
+                circle at 50% 50%,
+                rgba(0,212,170,0.1) 0%,
+                transparent 70%
+            );
+        }
+        
+        .card-icon {
+            font-size: 4rem;
+            opacity: 0.8;
+        }
+        
+        .card-content {
+            padding: 1.5rem;
+        }
+        
+        .card-title {
+            font-family: 'Cinzel', Georgia, serif;
+            font-size: 1.3rem;
+            color: var(--datasphere-cyan);
+            margin-bottom: 0.5rem;
+        }
+        
+        .card-description {
+            color: var(--echo-gray);
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+        }
+        
+        .data-disclosure {
+            background: rgba(255,170,0,0.05);
+            border-left: 3px solid var(--warning-amber);
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+            color: var(--echo-gray);
+        }
+        
+        .card-tags {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+        
+        .tag {
+            background: rgba(0,212,170,0.1);
+            color: var(--datasphere-cyan);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            border: 1px solid rgba(0,212,170,0.3);
+        }
+        
+        .tag.vr { background: rgba(212,175,55,0.1); color: var(--memory-gold); border-color: var(--memory-gold); }
+        .tag.telemetry { background: rgba(0,212,170,0.15); color: var(--datasphere-cyan); font-weight: 600; }
+        
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--datasphere-cyan), #00a884);
+            color: #fff;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(0,212,170,0.3);
+        }
+        
+        .btn.secondary {
+            background: transparent;
+            border: 1px solid var(--datasphere-cyan);
+            margin-left: 0.5rem;
+        }
+        
+        .section-header {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem 3rem 0;
+        }
+        
+        .section-header h2 {
+            font-family: 'Cinzel', Georgia, serif;
+            color: var(--memory-gold);
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .section-header p {
+            color: var(--echo-gray);
+            font-size: 0.95rem;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 4rem;
+            padding: 2rem;
+            background: rgba(0,212,170,0.05);
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--datasphere-cyan);
+        }
+        
+        .stat-label {
+            color: var(--echo-gray);
+            font-size: 0.9rem;
+        }
+        
+        .implementation-note {
+            max-width: 1600px;
+            margin: 2rem auto;
+            padding: 0 3rem;
+        }
+        
+        .implementation-note .note-box {
+            background: rgba(20,20,40,0.8);
+            border: 1px solid rgba(0,212,170,0.3);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+        
+        .implementation-note h3 {
+            color: var(--datasphere-cyan);
+            margin-bottom: 1rem;
+            font-family: 'Cinzel', Georgia, serif;
+        }
+        
+        .implementation-note table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        
+        .implementation-note th {
+            text-align: left;
+            padding: 0.75rem;
+            color: var(--echo-gray);
+            border-bottom: 1px solid rgba(0,212,170,0.2);
+        }
+        
+        .implementation-note td {
+            padding: 0.75rem;
+            border-bottom: 1px solid rgba(0,212,170,0.1);
+        }
+        
+        .implementation-note .status {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        
+        .status.implemented {
+            background: rgba(0,212,170,0.2);
+            color: var(--datasphere-cyan);
+        }
+        
+        .status.experimental {
+            background: rgba(255,170,0,0.2);
+            color: var(--warning-amber);
+        }
+        
+        .status.planned {
+            background: rgba(136,136,170,0.2);
+            color: var(--echo-gray);
+        }
+        
+        footer {
+            text-align: center;
+            padding: 3rem;
+            border-top: 1px solid rgba(0,212,170,0.1);
+            color: var(--echo-gray);
+        }
+        
+        footer a {
+            color: var(--datasphere-cyan);
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Research Preview Banner -->
+    <div class="research-banner">
+        <span class="icon">⚠️</span>
+        <div class="content">
+            <h3>Research Framework Preview</h3>
+            <p>These examples demonstrate implementation status. Empirical validation studies are ongoing. Performance claims are engineering estimates, not validated benchmarks.</p>
+        </div>
+    </div>
+    
+    <header>
+        <h1>Nemosyne</h1>
+        <p class="tagline">Data-Native VR Visualization Framework</p>
+        <span class="version-badge">v0.2.0-research</span>
+    </header>
+    
+    <!-- Featured: ResearchTelemetry + VR Examples -->
+    <div class="section-header">
+        <h2>🔬 Research Features</h2>
+        <p>Examples with privacy-preserving telemetry for empirical validation studies</p>
+    </div>
+    
+    <div class="gallery">
+        <!-- Network Galaxy with Telemetry -->
+        <div class="card">
+            <span class="card-badge experimental">EXPERIMENTAL</span>
+            <div class="card-preview">
+                <span class="card-icon">🌌</span>
+            </div>
+            <div class="card-content">
+                <h3 class="card-title">Network Galaxy Study</h3>
+                <p class="card-description">3-task topology study with ResearchTelemetry integration. Tracks navigation, gaze dwell time, and interaction patterns for VR UX research.</p>
+                <div class="data-disclosure">
+                    📊 <strong>Data:</strong> Simulated network topology (5-25 nodes). No real network data used.
+                </div>
+                <div class="card-tags">
+                    <span class="tag telemetry">ResearchTelemetry</span>
+                    <span class="tag vr">Quest VR</span>
+                    <span class="tag">Network</span>
+                    <span class="tag">Physics</span>
+                </div>
+                <a href="network-galaxy/index.html" class="btn">Launch Study →</a>
+            </div>
+        </div>
+        
+        <!-- Memory Palace VR with Live Sync -->
+        <div class="card">
+            <span class="card-badge experimental">EXPERIMENTAL</span>
+            <div class="card-preview">
+                <span class="card-icon">🏛️</span>
+            </div>
+            <div class="card-content">
+                <h3 class="card-title">Memory Palace VR</h3>
+                <p class="card-description">Walk through your MemPalace database in VR. Real-time synchronization with SQLite backend. Includes spatial navigation telemetry.</p>
+                <div class="data-disclosure">
+                    🧠 <strong>Data:</strong> Requires local MemPalace database. Falls back to sample data if unavailable.
+                </div>
+                <div class="card-tags">
+                    <span class="tag telemetry">ResearchTelemetry</span>
+                    <span class="tag vr">VR Required</span>
+                    <span class="tag">MemPalace</span>
+                    <span class="tag">Live Sync</span>
+                </div>
+                <a href="memory-palace-vr/index.html" class="btn">Launch VR →</a>
+            </div>
+        </div>
+        
+        <!-- Quest Controller Demo -->
+        <div class="card">
+            <span class="card-badge experimental">EXPERIMENTAL</span>
+            <div class="card-preview">
+                <span class="card-icon">🎮</span>
+            </div>
+            <div class="card-content">
+                <h3 class="card-title">Quest Controller Input</h3>
+                <p class="card-description">Meta Quest 2/3/Pro controller and hand tracking support. Demonstrates grip, trigger, thumbstick, and pinch gesture recognition with telemetry logging.</p>
+                <div class="data-disclosure">
+                    🎯 <strong>Hardware:</strong> Requires Meta Quest headset + controllers or hand tracking.
+                </div>
+                <div class="card-tags">
+                    <span class="tag telemetry">ResearchTelemetry</span>
+                    <span class="tag vr">Quest VR</span>
+                    <span class="tag">Hand Tracking</span>
+                    <span class="tag">Haptics</span>
+                </div>
+                <a href="network-galaxy/index.html?vr=input-demo" class="btn">Try Input Demo →</a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Core Visualizations -->
+    <div class="section-header">
+        <h2>📊 Visualization Components</h2>
+        <p>Data-native automatic visualization for topology detection</p>
+    </div>
+    
+    <div class="gallery">
+        <div class="card">
+            <span class="card-badge simulated">SIMULATED DATA</span>
+            <div class="card-preview">
+                <span class="card-icon">🕸️</span>
+            </div>
+            <div class="card-content">
+                <h3 class="card-title">Force-Directed Graph</h3>
+                <p class="card-description">Interactive network with physics simulation. Node count and performance characteristics not empirically validated.</p>
+                <div class="data-disclosure">
+                    📊 <strong>Data:</strong> Randomly generated network (simulated). No real network topology.
+                </div>
+                <div class="card-tags">
+                    <span class="tag">Network</span>
+                    <span class="tag">Physics</span>
+                </div>
+                <a href="nemosyne-ecosystem-demo.html" class="btn">View Demo →</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <span class="card-badge simulated">SIMULATED DATA</span>
+            <div class="card-preview">
+                <span class="card-icon">🌀</span>
+            </div>
+            <div class="card-content">
+                <h3 class="card-title">Spiral Timeline</h3>
+                <p class="card-description">Golden-angle spiral arrangement for temporal data. Implementation complete, performance validation pending.</p>
+                <div class="data-disclosure">
+                    📅 <strong>Data:</strong> Synthetic temporal events (random dates, no real dataset).
+                </div>
+                <div class="card-tags">
+                    <span class="tag">Temporal</span>
+                    <span class="tag">Animation</span>
+                </div>
+                <a href="timeline-spiral/index.html" class="btn">View Demo →</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <span class="card-badge simulated">SIMULATED DATA</span>
+            <div class="card-preview">
+                <span class="card-icon">📊</span>
+            </div>
+            <div class="card-content">
+                <h3 class="card-title">Semantic Scatter</h3>
+                <p class="card-description">3D scatter plots with automatic clustering. Embeddings are randomly generated for demonstration.</p>
+                <div class="data-disclosure">
+                    📈 <strong>Data:</strong> Random 3D coordinates (simulated embeddings). No real semantic data.
+                </div>
+                <div class="card-tags">
+                    <span class="tag">Scatter</span>
+                    <span class="tag">Clustering</span>
+                </div>
+                <a href="data-native-demo.html" class="btn">View Demo →</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <span class="card-badge simulated">SIMULATED DATA</span>
+            <div class="card-preview">
+                <span class="card-icon">🌍</span>
+            </div>
+            <div class="card-content">
+                <h3 class="card-title">Geo Globe</h3>
+                <p class="card-description">Geographic visualization on 3D globe with arc connections. Locations are random coordinates.</p>
+                <div class="data-disclosure">
+                    🌐 <strong>Data:</strong> Random latitude/longitude (simulated). No real geographic data.
+                </div>
+                <div class="card-tags">
+                    <span class="tag">Geographic</span>
+                    <span class="tag">Globe</span>
+                </div>
+                <a href="network-galaxy/index.html" class="btn">View Demo →</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <span class="card-badge simulated">SIMULATED DATA</span>
+            <div class="card-preview">
+                <span class="card-icon">🌳</span>
+            </div>
+            <div class="card-content">
+                <h3 class="card-title">Tree Visualizations</h3>
+                <p class="card-description">Hierarchical data as trees and radial sunbursts. Data structure randomly generated.</p>
+                <div class="data-disclosure">
+                    🌲 <strong>Data:</strong> Randomly generated hierarchy (simulated). No real organizational data.
+                </div>
+                <div class="card-tags">
+                    <span class="tag">Hierarchy</span>
+                    <span class="tag">Tree</span>
+                </div>
+                <a href="data-tree/index.html" class="btn">View Demo →</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <span class="card-badge simulated">SIMULATED DATA</span>
+            <div class="card-preview">
+                <span class="card-icon">⏱️</span>
+            </div>
+            <div class="card-content">
+                <h3 class="card-title">Temporal Scrubber</h3>
+                <p class="card-description">Time-travel through data evolution with smooth interpolation. Event sequences are synthetic.</p>
+                <div class="data-disclosure">
+                    ⏰ <strong>Data:</strong> Synthetic event timeline (random). No real historical data.
+                </div>
+                <div class="card-tags">
+                    <span class="tag">Animation</span>
+                    <span class="tag">Time Travel</span>
+                </div>
+                <a href="animated-memory-explorer.html" class="btn">View Demo →</a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Implementation Status -->
+    <div class="implementation-note">
+        <div class="note-box">
+            <h3>Implementation vs. Validation Status</h3>
+            <p style="color: var(--echo-gray); margin-bottom: 1rem;">Clear distinction between code completion and empirical verification.</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Implementation</th>
+                        <th>Validation</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>ResearchTelemetry Core</td>
+                        <td><span class="status implemented">IMPLEMENTED</span></td>
+                        <td><span class="status experimental">IN PROGRESS</span></td>
+                        <td>Privacy-preserving logging working. Usability studies pending.</td>
+                    </tr>
+                    <tr>
+                        <td>Quest VR Controllers</td>
+                        <td><span class="status implemented">IMPLEMENTED</span></td>
+                        <td><span class="status experimental">IN PROGRESS</span></td>
+                        <td>Input mapping complete. Empirical latency measurements TBD.</td>
+                    </tr>
+                    <tr>
+                        <td>Hand Tracking</td>
+                        <td><span class="status implemented">IMPLEMENTED</span></td>
+                        <td><span class="status experimental">IN PROGRESS</span></td>
+                        <td>Pinch detection working. Accuracy validation pending.</td>
+                    </tr>
+                    <tr>
+                        <td>Network Galaxy</td>
+                        <td><span class="status implemented">IMPLEMENTED</span></td>
+                        <td><span class="status experimental">IN PROGRESS</span></td>
+                        <td>3-task study framework ready. IRB approval pending.</td>
+                    </tr>
+                    <tr>
+                        <td>Physics (Ammo.js)</td>
+                        <td><span class="status implemented">IMPLEMENTED</span></td>
+                        <td><span class="status planned">PLANNED</span></td>
+                        <td>WebAssembly physics integration. Benchmarks TBD.</td>
+                    </tr>
+                    <tr>
+                        <td>MemPalace Sync</td>
+                        <td><span class="status implemented">IMPLEMENTED</span></td>
+                        <td><span class="status planned">PLANNED</span></td>
+                        <td>SQLite WebAssembly bridge. Performance validation TBD.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-value">6</div>
+            <div class="stat-label">Research Features</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value">27</div>
+            <div class="stat-label">Unit Tests</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value">✓</div>
+            <div class="stat-label">CI Passing</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value">WebXR</div>
+            <div class="stat-label">Ready</div>
+        </div>
+    </div>
+    
+    <footer>
+        <p><a href="https://github.com/TsatsuAmable/nemosyne">GitHub</a> • 
+           <a href="../docs/index.html">Documentation</a> • 
+           <a href="../README.md">Readme</a> •
+           <a href="../docs/VR_TESTING.md">VR Testing Guide</a></p>
+        <p style="margin-top: 1rem; font-size: 0.85rem;">All examples use simulated data unless otherwise noted. Research framework — not production software.</p>
+    </footer>
+</body>
+</html>

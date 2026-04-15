@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Nemosyne — Orbital Awareness</title>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+  <script src="../dist/nemosyne.iife.js"></script>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #000; color: #fff; }
+    #info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 100;
+      background: rgba(0,0,0,0.7);
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 300px;
+    }
+    #info h1 { margin: 0 0 10px 0; font-size: 1.5em; }
+    #stats { margin-top: 15px; font-size: 0.9em; color: #aaa; }
+    .legend { display: flex; gap: 10px; margin-top: 10px; font-size: 0.85em; }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h1>🌍 Orbital Awareness</h1>
+    <p>10,000 Near-Earth Object close approaches (2020–2021)</p>
+    <p><strong>Controls:</strong> WASD to move, mouse to look. Walk along Z-axis to travel through time.</p>
+    <div class="legend">
+      <div class="legend-item"><span class="dot" style="background:#ff4444"></span> Hazardous (&lt;0.05 AU)</div>
+      <div class="legend-item"><span class="dot" style="background:#ffaa00"></span> Close (0.05-0.1 AU)</div>
+      <div class="legend-item"><span class="dot" style="background:#44ff44"></span> Safe (&gt;0.1 AU)</div>
+    </div>
+    <div id="stats">Loading...</div>
+  </div>
+
+  <a-scene background="color: #050510" fog="type: exponential; color: #050510; density: 0.02">
+    <!-- Assets -->
+    <a-assets>
+      <a-mixin id="earth" geometry="primitive: sphere; radius: 0.1" material="color: #4488ff; metalness: 0.3; roughness: 0.7"></a-mixin>
+    </a-assets>
+
+    <!-- Earth at origin -->
+    <a-entity id="earth-container" position="0 0 0">
+      <a-sphere mixin="earth"></a-sphere>
+      <a-ring color="#4488ff" radius-inner="0.15" radius-outer="0.16" opacity="0.3" rotation="-90 0 0"></a-ring>
+      <a-ring color="#4488ff" radius-inner="0.25" radius-outer="0.26" opacity="0.2" rotation="-90 0 0"></a-ring>
+      <a-text value="EARTH" position="0 -0.2 0" align="center" color="#4488ff" scale="0.5 0.5 0.5"></a-text>
+    </a-entity>
+
+    <!-- NEO Container -->
+    <a-entity id="neo-container"></a-entity>
+
+    <!-- Time markers -->
+    <a-entity id="time-markers"></a-entity>
+
+    <!-- Camera -->
+    <a-entity position="0 2 10" rotation="-15 0 0">
+      <a-camera look-controls wasd-controls="acceleration: 50"></a-camera>
+    </a-entity>
+
+    <!-- Lighting -->
+    <a-light type="ambient" color="#222"></a-light>
+    <a-light type="point" position="0 5 -5" color="#fff" intensity="0.5"></a-light>
+    <a-light type="point" position="0 5 10" color="#4488ff" intensity="0.3"></a-light>
+  </a-scene>
+
+  <script>
+    // Load and visualize NEO data
+    async function loadNEOData() {
+      const response = await fetch('../data/neo-processed.json');
+      const { data, meta } = await response.json();
+      
+      const container = document.getElementById('neo-container');
+      const stats = document.getElementById('stats');
+      
+      // Update stats
+      const hazardous = data.filter(r => r.hazardClass === 'hazardous').length;
+      const close = data.filter(r => r.hazardClass === 'close').length;
+      const safe = data.filter(r => r.hazardClass === 'safe').length;
+      stats.innerHTML = `
+        Total: ${data.length} objects<br>
+        Hazardous: ${hazardous}<br>
+        Close: ${close}<br>
+        Safe: ${safe}
+      `;
+      
+      // Create NEO points
+      const fragment = document.createDocumentFragment();
+      
+      data.forEach(neo => {
+        const entity = document.createElement('a-entity');
+        
+        // Color based on hazard
+        let color = '#44ff44';
+        let emissive = '#002200';
+        if (neo.hazardClass === 'close') {
+          color = '#ffaa00';
+          emissive = '#221100';
+        } else if (neo.hazardClass === 'hazardous') {
+          color = '#ff4444';
+          emissive = '#220000';
+        }
+        
+        // Size based on estimated diameter (log scale for visibility)
+        const size = Math.max(0.02, Math.log10(neo.estimatedDiameter / 10 + 1) / 10);
+        
+        entity.setAttribute('geometry', {
+          primitive: 'sphere',
+          radius: size
+        });
+        entity.setAttribute('material', {
+          color: color,
+          emissive: emissive,
+          emissiveIntensity: 0.3,
+          metalness: 0.1,
+          roughness: 0.8
+        });
+        entity.setAttribute('position', `${neo.x} ${neo.y} ${neo.z}`);
+        
+        // Add tooltip data
+        entity.dataset.designation = neo.designation;
+        entity.dataset.distance = neo.distanceAU.toFixed(4) + ' AU';
+        entity.dataset.diameter = Math.round(neo.estimatedDiameter) + 'm';
+        entity.dataset.date = neo.date;
+        entity.dataset.velocity = neo.velocityKms.toFixed(1) + ' km/s';
+        
+        fragment.appendChild(entity);
+      });
+      
+      container.appendChild(fragment);
+      
+      // Add time markers
+      addTimeMarkers(data);
+    }
+    
+    function addTimeMarkers(data) {
+      const markers = document.getElementById('time-markers');
+      const years = [2020, 2021];
+      
+      years.forEach(year => {
+        const daysSince2020 = (year - 2020) * 365;
+        const z = daysSince2020 / 365 * 2;
+        
+        const marker = document.createElement('a-entity');
+        marker.setAttribute('position', `0 0 ${z}`);
+        
+        // Ring marker
+        const ring = document.createElement('a-ring');
+        ring.setAttribute('color', '#666');
+        ring.setAttribute('radius-inner', '4');
+        ring.setAttribute('radius-outer', '4.1');
+        ring.setAttribute('opacity', '0.2');
+        ring.setAttribute('rotation', '-90 0 0');
+        
+        // Label
+        const label = document.createElement('a-text');
+        label.setAttribute('value', year.toString());
+        label.setAttribute('position', '0 3 0');
+        label.setAttribute('align', 'center');
+        label.setAttribute('color', '#666');
+        label.setAttribute('scale', '1.5 1.5 1.5');
+        
+        marker.appendChild(ring);
+        marker.appendChild(label);
+        markers.appendChild(marker);
+      });
+    }
+    
+    loadNEOData().catch(console.error);
+  </script>
+</body>
+</html>
