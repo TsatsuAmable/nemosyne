@@ -2,14 +2,14 @@
 
 ## The Atomic Unit
 
-The Crystal is the fundamental VR data artefact — a self-contained object that merges A-Frame's 3D rendering with D3.js's data transformation capabilities.
+The Crystal is the fundamental VR data artefact — a self-contained object that merges three.js 3D rendering with D3.js data transformation capabilities.
 
 ---
 
 ## Core Philosophy
 
 ```
-Crystal = A-Frame Entity + D3 Data Binding + Behaviour Engine
+Crystal = three.js Object + D3 Data Binding + Behaviour Engine
 ```
 
 Every Crystal is:
@@ -58,7 +58,7 @@ class NemosyneCrystal extends AFRAME.Component {
 
 ---
 
-## The D3-A-Frame Bridge
+## The D3-three.js Bridge
 
 ### Data → Visual Mapping
 
@@ -85,7 +85,7 @@ onDataChange(newValue) {
   const newScale = this.valueScale(newValue);
   const newColor = this.viridisScale(newValue);
   
-  // A-Frame: Apply with animation
+  // three.js: Apply with animation
   this.el.setAttribute('animation', {
     property: 'scale',
     to: `${newScale} ${newScale} ${newScale}`,

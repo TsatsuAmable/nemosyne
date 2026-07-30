@@ -4,7 +4,7 @@
 
 The **Crystal** is the foundational, atomic building block of Nemosyne. It represents the successful marriage of:
 
-- **A-Frame** → 3D geometry, materials, VR rendering
+- **three.js** → 3D geometry, materials, WebXR rendering
 - **D3.js** → Data scales, colour maps, value transformations
 - **Custom Behaviours** → Interactions, animations, state management
 
@@ -37,7 +37,7 @@ The **Crystal** is the foundational, atomic building block of Nemosyne. It repre
 A Crystal is a **first-class VR data citizen** — a self-contained entity that:
 
 1. **Observes data** via D3.js scales
-2. **Renders itself** via A-Frame
+2. **Renders itself** via three.js
 3. **Behaves interactively** via custom behaviours
 4. **Reacts to change** automatically
 
@@ -66,10 +66,10 @@ this.scales = {
 };
 ```
 
-### 2. Visual Layer (A-Frame)
+### 2. Visual Layer (three.js)
 
 ```javascript
-// A-Frame entity with geometry + material
+// three.js Mesh with geometry + material
 this.geometryEl = document.createElement('a-octahedron');
 this.geometryEl.setAttribute('radius', this.data.radius);
 this.geometryEl.setAttribute('material', {
@@ -108,8 +108,8 @@ crystal.setValue(85);
 // Crystal automatically:
 // 1. D3: valueScale(85) → 2.1
 // 2. D3: viridis(85) → "#00ff88"
-// 3. A-Frame: animate scale to 2.1x
-// 4. A-Frame: fade color to teal-green
+// 3. three.js: animate scale to 2.1x
+// 4. three.js: fade color to teal-green
 // 5. Emit: "data-change" event
 ```
 
@@ -227,7 +227,7 @@ NemosyneCrystal.registerBehaviour('pulse', class {
 // Get crystal
 const crystal = document.querySelector('#my-crystal');
 
-// Change value (triggers D3 → A-Frame animation)
+// Change value (triggers D3 → three.js animation)
 crystal.components['nemosyne-crystal'].setValue(95);
 
 // Change visual property
@@ -245,7 +245,7 @@ crystal.addEventListener('data-change', (e) => {
 
 ---
 
-## D3 + A-Frame Integration
+## D3 + three.js Integration
 
 ### Value → Size
 
@@ -258,7 +258,7 @@ const valueScale = d3.scaleLinear()
 // When value changes
 const newSize = valueScale(newValue);  // e.g., 70 → 2.0
 
-// A-Frame animation
+// three.js animation
 el.setAttribute('animation', {
   property: 'scale',
   to: '2.0 2.0 2.0',
@@ -277,7 +277,7 @@ const colorScale = d3.scaleSequential(d3.interpolateViridis)
 // When value changes
 const newColor = colorScale(newValue);  // e.g., 70 → "#3b528b"
 
-// A-Frame material update
+// three.js material update
 el.setAttribute('material', 'color', newColor);
 ```
 
