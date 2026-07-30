@@ -31,16 +31,23 @@ Thank you for your interest in contributing! This document outlines how to get i
 ```bash
 # Clone the repo
 git clone https://github.com/TsatsuAmable/nemosyne.git
-cd nemosyne/framework
+cd nemosyne
 
 # Install dependencies
 npm install
 
-# Start dev server
+# Generate local HTTPS certificates for WebXR dev
+mkdir -p certs
+openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -subj "/CN=localhost" -nodes
+
+# Start the dev server
 npm run dev
 
 # Run tests
 npm test
+
+# Production build
+npm run build
 ```
 
 ## Code Style

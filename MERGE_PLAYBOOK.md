@@ -156,12 +156,12 @@ Rewrite the world repo's `README.md` to describe the merged project. Suggested s
 2. Links:
    - Website: `https://nemosyne.world` (GitHub Pages)
    - Live app: `https://nemosyne-analysis-suite.netlify.app/` (replace with real URL)
-   - GitHub repo: `https://github.com/nemosyne.world/nemosyne`
+   - GitHub repo: `https://github.com/TsatsuAmable/nemosyne`
 3. What Nemosyne is (three.js/WebXR spatial data analysis).
 4. Current capabilities (hand tracking, controllers, desktop fallback, CSV import, session persistence, export/provenance, networking, telemetry, accessibility, gesture coach).
 5. Installation / development:
    ```bash
-   git clone https://github.com/nemosyne.world/nemosyne.git
+   git clone https://github.com/TsatsuAmable/nemosyne.git
    cd nemosyne
    npm install
    npm run dev

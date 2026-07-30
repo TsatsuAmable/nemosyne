@@ -13,7 +13,7 @@ This guide will walk you through running Nemosyne locally and loading your first
 
 ```bash
 # Clone the repository
-git clone https://github.com/nemosyne.world/nemosyne.git
+git clone https://github.com/TsatsuAmable/nemosyne.git
 cd nemosyne
 
 # Install dependencies

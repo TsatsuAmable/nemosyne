@@ -1,39 +1,43 @@
 # Industrial IoT Example
 
-Real-time sensor monitoring for manufacturing facility.
+Real-time sensor monitoring using the `sensor-stream` sample dataset and the built-in demo WebSocket stream.
 
-## Use Case
-Monitor temperature, vibration, and energy consumption across factory floor.
+## What it shows
 
-## Data Schema
-```json
-{
-  "sensors": [
-    {
-      "id": "temp-001",
-      "type": "temperature",
-      "value": 78.5,
-      "unit": "celsius",
-      "status": "normal",
-      "location": { "x": 10, "y": 0, "z": 5 },
-      "lastUpdate": "2026-04-07T13:30:00Z"
-    }
-  ]
-}
-```
+`src/data/SampleDatasets.js` defines an IoT sensor time-series with hourly temperature and vibration readings for two sensors:
 
-## Artefacts
-- **Temperature Nodes:** Color-coded (blue→red), size = heat intensity
-- **Vibration Spheres:** Pulsing animation for active alarms
-- **Energy Flow:** Animated tubes showing power distribution
-- **Status Panels:** Floating displays for aggregate metrics
+| time | sensorId | temperature | vibration |
+|---|---|---|---|
+| 2026-07-28T00:00:00 | S1 | 22.1 | 0.04 |
+| 2026-07-28T01:00:00 | S1 | 22.4 | 0.05 |
+| ... | ... | ... | ... |
 
-## Behaviours
-- Click sensor to see 24h history sparkline
-- Alert mode: Alarms glow red and pulse
-- Drag to reposition sensors (calibration mode)
+The Draco engine sees the `time` and numeric columns, infers **TIME_SERIES**, and lays the data out as a time ribbon with token markers.
 
-## Extensions Required
-- Real-time WebSocket data streaming
-- Threshold-based alerts with visual/audio feedback
-- Time-series data caching for history
+## Artefacts generated
+
+- **Time ribbon** — continuous trail of temperature/vibration over time.
+- **Token markers** — one per row, sized by vibration.
+- **Colour encoding** — temperature maps to a warm/cool scale.
+- **Anomaly halos** — pulsing magenta rings when an outlier is detected.
+
+## Try this in VR
+
+1. Launch the app and open the wheel menu.
+2. Choose **Views → Dataset** and pick **IoT Sensor Stream**.
+3. Connect the live stream:
+   - **Wheel menu → Live → Demo Stream** connects to the dev-server endpoint `wss://host/__demo-stream`.
+   - New rows arrive once per second and extend the ribbon.
+4. Operations you can perform:
+   - **Time slice** — wheel menu or `sliceDown` gesture.
+   - **Anomaly on `vibration`** — wheel menu **Ops → Highlight Outliers**.
+   - **Sort by temperature** — `sliceUp` gesture.
+   - **Reset** — `pushForward` gesture.
+
+## Bring your own stream
+
+For local development the Vite server already hosts `/__demo-stream`. In production, point `WebSocketAdapter` at your own secure WebSocket endpoint. The adapter supports JSON, MessagePack, Apache Arrow, and FlatBuffers binary payloads.
+
+## Export
+
+Use **Panels → Export Story** to save the buffered dataset and operation history.

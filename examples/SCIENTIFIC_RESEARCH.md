@@ -1,41 +1,38 @@
 # Scientific Research Example
 
-Molecular dynamics and protein structure visualization.
+A vector-field memory palace built from the `wind-field` sample dataset.
 
-## Use Case
-Explore 3D molecular structures and simulation trajectories.
+## What it shows
 
-## Data Schema
-```json
-{
-  "molecule": {
-    "atoms": [
-      {
-        "serial": 1,
-        "name": "N",
-        "element": "N",        "residue": "ALA",
-        "chain": "A",        "resSeq": 1,        "x": -0.527, "y": 2.053, "z": -0.194",
-        "bfactor": 20.0
-      }
-    ],
-    "bonds": [[1, 2], [2, 3], [3, 4]]  }
-}
-```
+`src/data/SyntheticData.js` generates 40 sample vectors with position (`x`, `y`, `z`), direction (`u`, `v`, `w`), and derived `magnitude`.
 
-## Artefacts
-- **Atom Spheres:** CPK coloring (C=gray, N=blue, O=red, S=yellow)
-- **Bond Cylinders:** Thickness = bond order
-- **Secondary Structure:** Ribbon/cartoon representation
-- **Electron Density:** Volumetric cloud rendering
+| id | x | y | z | u | v | w | magnitude |
+|---|---|---|---|---|---|---|---|
+| V0 | 2.3 | 1.2 | -4.1 | 0.6 | -0.1 | 0.7 | 0.92 |
+| ... | ... | ... | ... | ... | ... | ... | ... |
 
-## Behaviours
-- Rotate molecule with controller
-- Measure distances between atoms
-- Toggle between ball-and-stick / ribbon views
-- Animation: Molecular dynamics trajectory
+The Draco engine detects `u`/`v`/`w` vector components, infers **VECTOR_FIELD**, and renders flow-ray streamlines coloured by magnitude.
 
-## Extensions Required
-- PDB file parser
-- Volumetric rendering for density maps
-- Distance measurement tools
-- Trajectory animation system
+## Artefacts generated
+
+- **Flow-ray streamlines** — cone/cylinder arrows showing vector direction and strength.
+- **Magnitude colour scale** — Viridis-like mapping from low to high magnitude.
+- **TDA summary panels** — persistence barcode, mapper graph, Betti curve (toggle via statistical lens).
+
+## Try this in VR
+
+1. Launch the app and open the wheel menu.
+2. Choose **Views → Dataset** and pick **Wind Vector Field**.
+3. Operations you can perform:
+   - **Inspect** — point at a streamline to see its vector components.
+   - **Toggle statistical lens** — `scoopUp` gesture to open the TDA summary and correlation matrix.
+   - **Anomaly on `magnitude`** — highlights extreme vectors.
+   - **Reset** — `pushForward` gesture.
+
+## Roadmap extensions
+
+Full scientific loaders (NetCDF, HDF5, PLY/VTK meshes) and server-side TDA compute are planned for later phases. Today the app gives a lightweight, JS-only shape-first preview.
+
+## Export
+
+Use **Panels → Export Screenshot** to capture the vector-field view.
