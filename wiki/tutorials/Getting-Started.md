@@ -1,99 +1,89 @@
 # Getting Started with Nemosyne
 
-This guide will walk you through creating your first VR data visualization.
+This guide will walk you through running Nemosyne locally and loading your first dataset.
 
 ## Prerequisites
 
-- Basic knowledge of HTML
-- Modern web browser (Chrome, Firefox, Edge)
-- Optional: VR headset (Quest, Vive, Index, etc.)
+- Node.js 20+
+- A modern web browser (Chrome, Firefox, Edge)
+- Optional: a VR headset (Meta Quest 3/3S) for the full experience
+- Optional: OpenSSL for generating local HTTPS certificates
 
 ## Installation
 
-### Option 1: CDN (Quickest)
+```bash
+# Clone the repository
+git clone https://github.com/nemosyne.world/nemosyne.git
+cd nemosyne
 
-Add these to your HTML:
-
-```html
-<script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/nemosyne@0.1.0/dist/nemosyne.min.js"></script>
+# Install dependencies
+npm install
 ```
 
-### Option 2: npm
+## Generate HTTPS certificates
+
+WebXR requires a secure origin. The Vite dev server will use certificates from the `certs/` folder if present.
+
+### macOS / Linux / Git Bash
 
 ```bash
-npm install nemosyne
+mkdir certs
+openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -subj /CN=localhost -nodes
 ```
 
-```javascript
-import 'aframe';
-import 'nemosyne';
-```
+### Windows (Git Bash)
 
-## Your First Visualization
+Same command as above, run from Git Bash.
 
-### 1. Create an HTML file
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <title>My First Nemosyne Vis</title>
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/nemosyne@0.1.0/dist/nemosyne.min.js"></script>
-</head>
-<body>
-  <a-scene>
-    <!-- Camera with cursor -->
-    <a-entity position="0 1.6 4">
-      <a-camera look-controls wasd-controls>
-        <a-cursor color="#00d4aa"></a-cursor>
-      </a-camera>
-    </a-entity>
-    
-    <!-- Your visualization -->
-    <nemosyne-artefact 
-      spec-inline='<;{"id": "crystal", "geometry": {"type": "octahedron"}, "material": {"color": "#00d4aa"}}'
-      data-inline='<;{"records": [{"value": 42}]}'>
-    </nemosyne-artefact>
-  </a-scene>
-</body>
-</html>
-```
-
-### 2. Open in browser
-
-Just open the file (or serve via local server for the best experience):
+## Start the dev server
 
 ```bash
-npx serve
+npm run dev
 ```
 
-### 3. Navigate!
+Vite 8 enables HTTPS automatically when `certs/key.pem` and `certs/cert.pem` are found.
 
-- **WASD** — Move around
-- **Mouse** — Look around
-- **Click** — Interact with the crystal
+Open `https://YOUR-IP:5173` in Meta Quest Browser, or use ADB port forwarding and open `https://localhost:5173`.
+
+## Load your first dataset
+
+1. Launch the app.
+2. Use the file loader panel to upload a CSV or JSON file, or pick a built-in sample dataset.
+3. The Draco recommender will choose a layout and geometry automatically.
+4. Use hand gestures or the wheel menu to filter, aggregate, sort, or cluster the data.
+
+## Desktop fallback
+
+If you don't have a headset, the app also works with mouse and keyboard:
+
+- **Mouse** — look around and click to select.
+- **WASD / Arrow keys** — move.
+- **M** — toggle wheel menu.
+- **F** — filter.
+- **A** — aggregate.
+- **S** — sort.
+- **Ctrl+Z / Ctrl+Y** — undo / redo.
+- **P** — open settings.
 
 ## Next Steps
 
-- [Learn about Artefacts](../artefacts/)
-- [Explore Examples](../examples/)
-- [Read the API docs](../api/)
+- [Learn about Artefacts](../artefacts/SPECIFICATION.md)
+- [Read the Roadmap](../../ROADMAP.md)
+- [Explore the Architecture](../../ARCHITECTURE.md)
 
 ## Troubleshooting
 
-### My visualization doesn't appear
+### The page doesn't load in Quest Browser
 
-- Check browser console for errors
-- Ensure A-Frame loads before Nemosyne
-- Try a local server (file:// URLs have security restrictions)
+- Make sure you are using `https://`.
+- Check that the certificate files exist in `certs/`.
+- Verify the computer and headset are on the same network.
 
 ### Controls don't work
 
-- Click on the scene first to focus
-- WASD controls may require keyboard focus
+- Click on the canvas first to focus it.
+- Ensure hand tracking or controllers are enabled in your VR system settings.
 
 ---
 
-*Tutorial version 0.1*
+*Tutorial version 1.0.0-alpha.1*

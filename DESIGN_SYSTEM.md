@@ -74,7 +74,7 @@ Reduce UI elements that aren't data. Use spatial relationships instead of border
 ### Font Families
 
 - **Primary:** System sans-serif (Segoe UI, -apple-system, etc.)
-- **Labels:** `kelsonsans` (A-Frame default) or `exo2bold` for futuristic feel
+- **Labels:** `exo2bold` or system sans-serif for futuristic feel
 - **Mono:** `JetBrains Mono` or `Fira Code` for data values
 
 ### Hierarchy
@@ -88,10 +88,10 @@ Reduce UI elements that aren't data. Use spatial relationships instead of border
 
 ### Text in VR
 
-- Always face the camera ( billboard component)
-- Use `draw: front` to ensure readability
-- Minimum width: 4 units for visibility
-- Align: center for floating labels, left for data lists
+- Use `TextSprite` / canvas-based labels that always face the camera.
+- Keep labels at a comfortable distance (~0.55–1.5 m) for legibility.
+- Minimum width: 4 units for visibility.
+- Align: center for floating labels, left for data lists.
 
 ---
 
