@@ -10,7 +10,7 @@ A WebXR/three.js runtime that transforms multi-dimensional datasets into interac
 
 **[Launch Nemosyne](https://nemosyne-analysis-suite.netlify.app/)** |
 **[Documentation](./docs/)** |
-**[GitHub](https://github.com/nemosyne.world/nemosyne)**
+**[GitHub](https://github.com/TsatsuAmable/nemosyne)**
 
 ---
 
@@ -45,7 +45,7 @@ Open it in a WebXR-capable browser such as Meta Quest Browser. A VR headset is r
 
 ```bash
 # Clone the repository
-git clone https://github.com/nemosyne.world/nemosyne.git
+git clone https://github.com/TsatsuAmable/nemosyne.git
 cd nemosyne
 
 # Install dependencies
@@ -134,6 +134,6 @@ MIT © Nemosyne Project
 
 ---
 
-**[Star on GitHub](https://github.com/nemosyne.world/nemosyne)** |
-**[Report Issues](https://github.com/nemosyne.world/nemosyne/issues)** |
-**[Discussions](https://github.com/nemosyne.world/nemosyne/discussions)**
+**[Star on GitHub](https://github.com/TsatsuAmable/nemosyne)** |
+**[Report Issues](https://github.com/TsatsuAmable/nemosyne/issues)** |
+**[Discussions](https://github.com/TsatsuAmable/nemosyne/discussions)**

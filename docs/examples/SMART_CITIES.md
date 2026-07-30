@@ -1,46 +1,39 @@
 # Smart Cities Example
 
-Urban data visualization for city planning.
+A geospatial memory palace built from the `geo-cities` sample dataset.
 
-## Use Case
-Monitor traffic, air quality, and energy across urban environment.
+## What it shows
 
-## Data Schema
-```json
-{
-  "cityBlocks": [    {
-      "id": "block-001",
-      "bounds": [[0, 0], [100, 0], [100, 100], [0, 100]],
-      "buildings": [        {
-          "height": 45,
-          "type": "residential",          "occupancy": 0.85,
-          "energyUsage": 1250
-        }
-      ],
-      "trafficFlow": 450,      "airQuality": { "pm25": 15, "no2": 30, "o3": 45 }
-    }
-  ],
-  "trafficSignals": [    {
-      "id": "sig-001", "location": [50, 50],      "state": "green",
-      "cycleTime": 90    }
-  ]
-}
-```
+`src/data/SyntheticData.js` generates 20 global cities with lat/lon, population, and GDP:
 
-## Artefacts
-- **Building Blocks:** Extruded polygons showing skyline
-- **Traffic Arteries:** Animated flow lines (speed = thickness)
-- **AQI Plumes:** Rising transparent columns (color = quality)
-- **Transit Network:** Underground tube visualization
+| name | lat | lon | population | gdp |
+|---|---|---|---|---|
+| New York | 40.7 | -74.0 | 8 | 312 |
+| London | 51.5 | -0.1 | 9 | 478 |
+| ... | ... | ... | ... | ... |
 
-## Behaviours
-- Fly through at street level
-- Time-of-day slider (see rush hour patterns)
-- Toggle data layers (traffic, pollution, energy)
-- Click building for details panel
+The Draco engine detects `lat`/`lon`, infers **GEO**, and maps the points to a room-scale geo-surface with columns and zone boundaries.
 
-## Extensions Required
-- GeoJSON parser
-- OSM building extrusion
-- Time-of-day simulation
-- Particle systems for traffic
+## Artefacts generated
+
+- **Geo-surface columns** — one per city, height = population.
+- **Zone boundaries** — regional grouping halos.
+- **Colour encoding** — GDP maps to the colour scale.
+
+## Try this in VR
+
+1. Launch the app and open the wheel menu.
+2. Choose **Views → Dataset** and pick **Global Cities Geospatial**.
+3. Operations you can perform:
+   - **Filter by population** — `pinchTogether` gesture.
+   - **Aggregate by region** — `pinchApart` gesture.
+   - **Sort by GDP** — `sliceUp` gesture.
+   - **Toggle flight mode** — wheel menu **Views → Toggle Flight**, then fly over the model.
+
+## Note on city-scale data
+
+The current geospatial layout is room-scale and works best with tens to hundreds of points. Large-scale terrain, GeoJSON, and OSM building extrusion are roadmap items.
+
+## Export
+
+Use **Panels → Export Story** to save the current filter and camera view.

@@ -967,8 +967,54 @@
             .examples-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .example-card {
                 padding: 1.25rem;
             }
+
+            .dataset-table table {
+                font-size: 0.85rem;
+            }
+        }
+
+        /* Tags for dataset and example cards */
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            margin: 0 0.25rem 0.25rem 0;
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            border-radius: 2px;
+            color: var(--datasphere-cyan);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Dataset reference table */
+        .dataset-table table {
+            width: 100%;
+            min-width: 720px;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .dataset-table th,
+        .dataset-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .dataset-table th {
+            font-family: 'Cinzel', serif;
+            color: var(--datasphere-cyan);
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-align: left;
+            border-bottom: 1px solid rgba(0, 212, 170, 0.3);
+        }
+
+        .dataset-table tr:hover td {
+            background: rgba(0, 212, 170, 0.03);
         }
