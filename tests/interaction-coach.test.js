@@ -47,6 +47,27 @@ describe('InteractionCoach', () => {
     expect(coach.entries[0].gesture).toBeNull();
     expect(coach.entries[0].controller).toBeNull();
   });
+
+  it('skips logging entirely in expert mode', () => {
+    coach.setUserMode('expert');
+    coach.log({ action: 'Filter', gesture: 'pinchTogether', result: '12 rows' });
+    expect(coach.entries.length).toBe(0);
+    expect(coach.userMode).toBe('expert');
+  });
+
+  it('collapses to the most recent interaction in intermediate mode', () => {
+    coach.setUserMode('intermediate');
+    coach.log({ action: 'First', result: '1' });
+    coach.log({ action: 'Second', result: '2' });
+    expect(coach.entries.length).toBe(1);
+    expect(coach.entries[0].action).toBe('Second');
+  });
+
+  it('falls back to novice when given an invalid mode', () => {
+    coach.setUserMode('expert');
+    coach.setUserMode('wizard');
+    expect(coach.userMode).toBe('novice');
+  });
 });
 
 describe('GestureMapping', () => {

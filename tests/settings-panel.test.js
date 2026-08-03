@@ -28,6 +28,7 @@ describe('SettingsPanel', () => {
     expect(panel.getSetting('feedbackHaptic')).toBe(true);
     expect(panel.getSetting('feedbackVisual')).toBe(true);
     expect(panel.getSetting('gesturesEnabled')).toBe(true);
+    expect(panel.getSetting('userMode')).toBe('novice');
   });
 
   it('loads persisted settings from localStorage', () => {
@@ -63,6 +64,31 @@ describe('SettingsPanel', () => {
     expect(keys).toContain('feedbackHaptic');
     expect(keys).toContain('feedbackVisual');
     expect(keys).toContain('gesturesEnabled');
+    expect(keys).toContain('userMode');
+  });
+
+  it('cycles the user mode choice when clicked', () => {
+    panel = new SettingsPanel(cameraGroup);
+    panel.show();
+    panel.mesh.updateMatrixWorld();
+
+    const btn = panel._buttons.find((b) => b.key === 'userMode');
+    const hitPoint = new THREE.Vector3();
+    const u = (btn.choiceBounds.next.x + btn.choiceBounds.next.w / 2) / panel.width;
+    const v = 1 - (btn.bounds.y + btn.bounds.h / 2) / panel.height;
+    hitPoint.set((u - 0.5) * panel.worldSize[0], (v - 0.5) * panel.worldSize[1], 0);
+    hitPoint.applyMatrix4(panel.mesh.matrixWorld);
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.ray.origin.copy(hitPoint);
+    raycaster.ray.origin.z += 0.1;
+    raycaster.ray.direction.set(0, 0, -1);
+
+    expect(panel.getSetting('userMode')).toBe('novice');
+    expect(panel.handleContentClick(raycaster)).toBe(true);
+    expect(panel.getSetting('userMode')).toBe('intermediate');
+    expect(panel.handleContentClick(raycaster)).toBe(true);
+    expect(panel.getSetting('userMode')).toBe('expert');
   });
 
   it('toggles a setting when its content button is clicked', () => {

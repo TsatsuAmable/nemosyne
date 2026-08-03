@@ -28,6 +28,7 @@ export class SettingsPanel extends MovablePanel {
     collabEnabled: false,
     collabRoom: 'default',
     collabName: 'Analyst',
+    userMode: 'novice',
   };
 
   constructor(cameraGroup, options = {}) {
@@ -89,6 +90,13 @@ export class SettingsPanel extends MovablePanel {
 
   _buildButtons() {
     const labels = [
+      {
+        key: 'userMode',
+        label: 'User Mode',
+        section: 'USER MODE',
+        type: 'choice',
+        choices: ['novice', 'intermediate', 'expert'],
+      },
       { key: 'lensTDA', label: 'TDA Summary Lens', section: 'STATISTICAL LENS' },
       { key: 'lensCorrelation', label: 'Correlation Matrix', section: 'STATISTICAL LENS' },
       { key: 'feedbackAudio', label: 'Audio Feedback', section: 'FEEDBACK' },

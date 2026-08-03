@@ -19,6 +19,7 @@ export class TooltipManager {
     this.maxDistance = options.maxDistance ?? 6;
     this.gazeConeDegrees = options.gazeConeDegrees ?? 12;
     this.offsetY = options.offsetY ?? 0.35;
+    this.enabled = options.enabled ?? true;
 
     this.raycaster = new THREE.Raycaster();
     this.raycaster.far = this.maxDistance;
@@ -142,10 +143,23 @@ export class TooltipManager {
   }
 
   /**
+   * Enable or disable tooltip rendering without losing registered targets.
+   */
+  setEnabled(enabled) {
+    this.enabled = !!enabled;
+  }
+
+  /**
    * Update gaze detection, dwell timers, tooltip fade states, and the
    * immediate pointer-hit label.
    */
   update(delta) {
+    if (!this.enabled) {
+      for (const entry of this.pool) this._fadeOut(entry, delta);
+      this._fadePointerHit(delta, false);
+      return;
+    }
+
     if (!this.camera) {
       for (const entry of this.pool) this._fadeOut(entry, delta);
       this._fadePointerHit(delta, false);

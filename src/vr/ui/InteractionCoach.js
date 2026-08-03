@@ -29,8 +29,31 @@ export class InteractionCoach extends MovablePanel {
       colorblindMode: options.colorblindMode ?? 'none',
     });
 
-    this.maxEntries = options.maxEntries ?? 16;
+    this.userMode = options.userMode ?? 'novice';
+    this._requestedMaxEntries = options.maxEntries ?? 16;
+    this.maxEntries = this._effectiveMaxEntries();
     this.entries = [];
+    this.render();
+  }
+
+  _effectiveMaxEntries() {
+    if (this.userMode === 'expert') return 0;
+    if (this.userMode === 'intermediate') return 1;
+    return this._requestedMaxEntries;
+  }
+
+  setUserMode(mode) {
+    const valid = ['novice', 'intermediate', 'expert'].includes(mode) ? mode : 'novice';
+    if (this.userMode === valid) return;
+    this.userMode = valid;
+    this.maxEntries = this._effectiveMaxEntries();
+    if (this.userMode === 'expert') {
+      this.entries = [];
+    } else {
+      while (this.entries.length > this.maxEntries) {
+        this.entries.pop();
+      }
+    }
     this.render();
   }
 
@@ -43,6 +66,8 @@ export class InteractionCoach extends MovablePanel {
    * @param {string} [param.result] - outcome text, e.g. '12 rows'
    */
   log({ action, gesture, controller, result }) {
+    if (this.userMode === 'expert') return;
+
     const meta = gesture ? getGestureMeta(gesture) : null;
     const controllerText = controller ?? meta?.controller ?? null;
     const gestureText = gesture ? `${meta?.icon ?? ''} ${meta?.label ?? gesture}` : null;
@@ -55,7 +80,7 @@ export class InteractionCoach extends MovablePanel {
       result,
     });
 
-    if (this.entries.length > this.maxEntries) {
+    while (this.entries.length > this.maxEntries) {
       this.entries.pop();
     }
 
@@ -70,9 +95,28 @@ export class InteractionCoach extends MovablePanel {
     let y = margin;
 
     ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
     ctx.textAlign = 'left';
-    ctx.fillText('Recent interactions (newest first)', margin, y + lineHeight / 2);
+
+    if (this.userMode === 'expert') {
+      ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
+      ctx.fillText('Expert mode', margin, y + lineHeight / 2);
+      y += lineHeight + margin;
+      ctx.font = this._scaleFont('16px monospace');
+      ctx.fillStyle = this.highContrast ? '#aaaaaa' : '#778899';
+      ctx.fillText(
+        'Gesture and controller help are disabled. Open this panel from the wheel menu to re-enable.',
+        margin,
+        y + lineHeight / 2
+      );
+      return;
+    }
+
+    ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
+    const header =
+      this.userMode === 'intermediate'
+        ? 'Recent interaction (last only)'
+        : 'Recent interactions (newest first)';
+    ctx.fillText(header, margin, y + lineHeight / 2);
     y += lineHeight + margin;
 
     if (this.entries.length === 0) {

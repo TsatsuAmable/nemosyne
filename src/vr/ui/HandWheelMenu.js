@@ -50,9 +50,19 @@ export class HandWheelMenu {
     this.nodeSize = options.nodeSize ?? 0.045;
     this.actionSpread = options.actionSpread ?? Math.PI / 2.2;
 
+    // Guard angles and hover delay from Google VR constellation guidelines.
+    // openAngleThreshold: how far the off-hand laser must stray from center
+    // before the wheel is allowed to open. closeAngleThreshold: how far the
+    // laser must stray before the wheel closes.
+    this.openAngleThreshold = options.openAngleThreshold ?? 0;
+    this.closeAngleThreshold = options.closeAngleThreshold ?? Infinity;
+    this.hoverDelayMs = options.hoverDelayMs ?? 0;
+
     this.feedback = options.feedback ?? engine?.input?.feedback ?? null;
 
     this._cameraPos = new THREE.Vector3();
+    this._pointerAngle = null;
+    this._hoverStart = { category: null, action: null, at: 0 };
     this._categories = [];
     this._categoryMeshes = [];
     this._actionMeshes = [];
@@ -98,7 +108,7 @@ export class HandWheelMenu {
       const cat = this._categories[mesh.userData.categoryIndex];
       if (cat) {
         mesh.material.map?.dispose?.();
-        mesh.material.map = this._createLabelTexture(cat.label);
+        mesh.material.map = this._createLabelTexture(cat);
       }
     }
     for (const mesh of this._actionMeshes) {
@@ -106,7 +116,7 @@ export class HandWheelMenu {
       const action = cat?.items?.[mesh.userData.actionIndex];
       if (action) {
         mesh.material.map?.dispose?.();
-        mesh.material.map = this._createLabelTexture(action.label);
+        mesh.material.map = this._createLabelTexture(action);
       }
     }
   }
@@ -167,8 +177,48 @@ export class HandWheelMenu {
     this.engine.camera.getWorldPosition(this._cameraPos);
     this.group.lookAt(this._cameraPos);
 
+    this._updatePointerAngle();
     this._updateHover();
     this._updateVisibility();
+  }
+
+  /**
+   * Record the current pointer angle relative to the wheel center.
+   * This is used by guard-angle logic in external callers; `update()` keeps
+   * the internal value fresh so toggling code can query it.
+   */
+  _updatePointerAngle() {
+    this.group.updateMatrixWorld();
+    this._raycaster.ray.origin.copy(this.engine.camera.position);
+    this.engine.camera.getWorldDirection(this._raycaster.ray.direction);
+    this._raycaster.ray.applyMatrix4(new THREE.Matrix4().copy(this.group.matrixWorld).invert());
+    this._pointerAngle = Math.atan2(
+      this._raycaster.ray.direction.y,
+      this._raycaster.ray.direction.x
+    );
+  }
+
+  /**
+   * Return true if the off-hand pointer is inside the allowed open zone.
+   * Useful for callers that want to suppress accidental menu toggles when the
+   * pointer is still near the reticle center.
+   */
+  isPointerInsideOpenZone() {
+    if (this.openAngleThreshold <= 0) return true;
+    if (this._pointerAngle == null) return true;
+    const deviation = Math.abs(this._pointerAngle);
+    return deviation >= this.openAngleThreshold;
+  }
+
+  /**
+   * Return true if the pointer has strayed beyond the close zone.
+   */
+  shouldCloseByPointer() {
+    if (!this.group.visible) return false;
+    if (this.closeAngleThreshold === Infinity) return false;
+    if (this._pointerAngle == null) return false;
+    const deviation = Math.abs(this._pointerAngle);
+    return deviation > this.closeAngleThreshold;
   }
 
   /**
@@ -238,7 +288,7 @@ export class HandWheelMenu {
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false,
-        map: this._createLabelTexture(cat.label),
+        map: this._createLabelTexture(cat),
       });
       this._categoryMaterials.push(material);
 
@@ -270,7 +320,7 @@ export class HandWheelMenu {
           side: THREE.DoubleSide,
           depthTest: false,
           depthWrite: false,
-          map: this._createLabelTexture(action.label),
+          map: this._createLabelTexture(action),
         });
         this._actionMaterials.push(material);
 
@@ -330,19 +380,27 @@ export class HandWheelMenu {
       }
     }
 
-    this.hoveredCategory = hitCategory ?? this.selectedCategory;
-    this.hoveredAction = hitAction;
+    const now = performance.now();
+    const isSameHover =
+      hitCategory === this._lastHovered.category &&
+      hitAction?.categoryId === this._lastHovered.action?.categoryId &&
+      hitAction?.index === this._lastHovered.action?.index;
 
-    if (
-      hitCategory !== this._lastHovered.category ||
-      hitAction?.categoryId !== this._lastHovered.action?.categoryId ||
-      hitAction?.index !== this._lastHovered.action?.index
-    ) {
-      if (hitCategory || hitAction) {
-        this.feedback?.playHover?.();
-      }
-      this._lastHovered.category = hitCategory;
-      this._lastHovered.action = hitAction;
+    if (!isSameHover) {
+      this._hoverStart = { category: hitCategory, action: hitAction, at: now };
+      this._lastHovered = { category: hitCategory, action: hitAction };
+    }
+
+    const elapsed = now - this._hoverStart.at;
+    const hoverConfirmed = hitCategory != null && elapsed >= this.hoverDelayMs;
+
+    // When hovering an unselected category, promote it for preview; only confirm
+    // an action after the hover delay has elapsed.
+    this.hoveredCategory = hitCategory ?? this.selectedCategory;
+    this.hoveredAction = hoverConfirmed ? hitAction : null;
+
+    if (hoverConfirmed && (hitCategory || hitAction)) {
+      this.feedback?.playHover?.();
     }
 
     // Apply hover scale/opacity to all meshes.
@@ -430,7 +488,9 @@ export class HandWheelMenu {
     this._connectorLines.geometry.setDrawRange(0, idx / 3);
   }
 
-  _createLabelTexture(label) {
+  _createLabelTexture(item) {
+    const { label = '', icon = null } =
+      item != null && typeof item === 'object' ? item : { label: item };
     const size = 256;
     const canvas = document.createElement('canvas');
     canvas.width = size;
@@ -441,13 +501,32 @@ export class HandWheelMenu {
     ctx.fillStyle = this.highContrast ? '#000000' : 'rgba(0, 0, 0, 0.35)';
     ctx.fillRect(0, 0, size, size);
 
-    const fontSize = 28 * this.textScale;
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#ffffff';
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
     const text = String(label ?? '').slice(0, 14);
-    ctx.fillText(text, size / 2, size / 2);
+
+    if (icon) {
+      // Icon-first layout: render a large glyph in the upper half and a small
+      // caption below it. Glyphs are provided as emoji or short text symbols.
+      const iconSize = 96 * this.textScale;
+      ctx.font = `${iconSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffcc';
+      ctx.fillText(icon, size / 2, size * 0.38);
+
+      if (text) {
+        ctx.font = `bold ${22 * this.textScale}px sans-serif`;
+        ctx.fillStyle = this.highContrast ? '#ffffff' : '#ffffff';
+        ctx.fillText(text, size / 2, size * 0.78);
+      }
+    } else {
+      // Text-only fallback.
+      const fontSize = 28 * this.textScale;
+      ctx.fillStyle = this.highContrast ? '#ffffff' : '#ffffff';
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, size / 2, size / 2);
+    }
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.minFilter = THREE.LinearFilter;

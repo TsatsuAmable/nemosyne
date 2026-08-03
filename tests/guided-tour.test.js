@@ -110,4 +110,17 @@ describe('GuidedTour', () => {
     expect(tour._highlightMesh.visible).toBe(true);
     expect(tour._highlightMesh.position.x).toBeCloseTo(targetPos.x, 3);
   });
+
+  it('skips the tour immediately in expert mode', () => {
+    const onComplete = vi.fn();
+    tour = new GuidedTour(engine, {
+      tour: FIRST_DATASET_TOUR,
+      userMode: 'expert',
+      onComplete,
+    });
+    expect(tour.start()).toBe(false);
+    expect(tour.isFinished).toBe(true);
+    expect(tour.isActive).toBe(false);
+    expect(onComplete).toHaveBeenCalled();
+  });
 });

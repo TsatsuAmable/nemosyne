@@ -223,9 +223,14 @@ export class World {
     this.dashboardPanels = [];
 
     // Hand-attached radial wheel menu on the first tracked hand.
+    // Guard angles and hover delay are set from Google VR constellation
+    // guidelines to reduce accidental opens and hover flashing.
     this.handWheelMenu = new HandWheelMenu(this.engine, this.engine.input.hands[0], {
       feedback: this.engine.input.feedback,
       analystAnchor: this.analystAnchor,
+      openAngleThreshold: Math.PI / 8,
+      closeAngleThreshold: Math.PI * 0.75,
+      hoverDelayMs: 120,
     });
     this.engine.addUpdatable(this.handWheelMenu);
     this.engine.addHudObject(this.handWheelMenu);
@@ -332,7 +337,9 @@ export class World {
 
     // Interaction coach: running commentary that anchors gestures/controllers to
     // system behavior and teaches the gesture vocabulary.
-    this.interactionCoach = new InteractionCoach(this.engine.cameraGroup);
+    this.interactionCoach = new InteractionCoach(this.engine.cameraGroup, {
+      userMode: this.settingsPanel.getSetting('userMode'),
+    });
     this.panelManager.register(this.interactionCoach);
     this.engine.input.addPanel(this.interactionCoach);
     this.engine.addUpdatable(this.interactionCoach);
@@ -359,9 +366,16 @@ export class World {
     });
     this.engine.addUpdatable(this.guidedTour);
 
+    // Track whether the guided tour has been auto-started for novice users.
+    this._tourAutoStarted = false;
+
     // Load default sample, then restore an autosave if one exists.
     this.loadDataset(DEFAULT_DATASET_ENTRY);
     this._restoreAutoSave();
+
+    // Apply the initial user mode (novice by default) to the coach, tooltips,
+    // and tour visibility.
+    this._applyUserModeSettings();
   }
 
   _resolveTourTarget(target) {
@@ -638,7 +652,9 @@ export class World {
       const has = await this.sessionStore.hasSession('autosave');
       if (!has) return;
       this.vrConsole?.log?.('log', ['Restoring autosave...']);
-      return this.loadSession('autosave');
+      const restored = await this.loadSession('autosave');
+      if (restored) this._applyUserModeSettings();
+      return restored;
     } catch (err) {
       console.warn('[World] autosave restore failed:', err);
     }
@@ -1179,6 +1195,8 @@ export class World {
         this._leaveCollaborationRoom();
         this._joinCollaborationRoom(value);
       }
+    } else if (key === 'userMode') {
+      this._applyUserModeSettings();
     }
     this._logInteraction('Setting changed', { result: `${key} = ${value}` });
     this._captureSession();
@@ -1214,6 +1232,36 @@ export class World {
       haptic: settings.feedbackHaptic,
       visual: settings.feedbackVisual,
     });
+  }
+
+  /**
+   * Apply the current `userMode` setting to the interaction coach, tooltips,
+   * and guided tour. Novice users get an automatic tour start and a full
+   * interaction coach; intermediate users get a collapsed coach; expert users
+   * disable coach logging and hide most tooltips.
+   */
+  _applyUserModeSettings() {
+    const mode = this.settingsPanel?.getSetting?.('userMode') ?? 'novice';
+    this.interactionCoach?.setUserMode?.(mode);
+    this.guidedTour?.setUserMode?.(mode);
+    if (this.tooltipManager) this.tooltipManager.setEnabled(mode !== 'expert');
+
+    if (mode === 'novice') {
+      if (
+        this.guidedTour &&
+        !this.guidedTour.isActive &&
+        !this.guidedTour.isFinished &&
+        !this._tourAutoStarted
+      ) {
+        this.startTour();
+        this._tourAutoStarted = true;
+      }
+    } else if (mode === 'expert') {
+      this.panelManager?.hidePanel?.(this.interactionCoach);
+      if (this.guidedTour && !this.guidedTour.isFinished) {
+        this.guidedTour.skip();
+      }
+    }
   }
 
   _joinCollaborationRoom(roomId = null) {
@@ -1311,109 +1359,159 @@ export class World {
       {
         id: 'panels',
         label: 'Panels',
+        icon: '🪟',
         items: [
-          { id: 'launcher', label: 'Launcher', callback: () => this.panelManager.toggleLauncher() },
-          { id: 'settings', label: 'Settings', callback: () => this._toggleSettingsPanel() },
+          {
+            id: 'launcher',
+            label: 'Launcher',
+            icon: '🚀',
+            callback: () => this.panelManager.toggleLauncher(),
+          },
+          {
+            id: 'settings',
+            label: 'Settings',
+            icon: '⚙️',
+            callback: () => this._toggleSettingsPanel(),
+          },
           {
             id: 'operation-log',
-            label: 'Operation Log',
+            label: 'Log',
+            icon: '📝',
             callback: () => this.panelManager.togglePanel(this.operationLogPanel),
           },
           {
             id: 'telemetry',
             label: 'Telemetry',
+            icon: '📊',
             callback: () => this.panelManager.togglePanel(this.metricsPanel),
           },
           {
             id: 'performance',
-            label: 'Performance',
+            label: 'Perf',
+            icon: '⏱️',
             callback: () => this.panelManager.togglePanel(this.performancePanel),
           },
           {
             id: 'interaction-coach',
-            label: 'Interaction Coach',
+            label: 'Coach',
+            icon: '🎓',
             callback: () => this.panelManager.togglePanel(this.interactionCoach),
           },
-          { id: 'tour', label: 'Tour', callback: () => this.startTour() },
-          { id: 'recenter', label: 'Recenter', callback: () => this.panelManager.recenter() },
+          { id: 'tour', label: 'Tour', icon: '📍', callback: () => this.startTour() },
+          {
+            id: 'recenter',
+            label: 'Recenter',
+            icon: '🎯',
+            callback: () => this.panelManager.recenter(),
+          },
           {
             id: 'scroll-dashboard-left',
-            label: 'Scroll Left',
+            label: '◀ Dash',
+            icon: '⬅️',
             callback: () => this.dashboard.scrollBySlots(-1),
           },
           {
             id: 'scroll-dashboard-right',
-            label: 'Scroll Right',
+            label: 'Dash ▶',
+            icon: '➡️',
             callback: () => this.dashboard.scrollBySlots(1),
           },
           {
             id: 'reset-dashboard',
-            label: 'Reset Dashboard',
+            label: 'Reset Dash',
+            icon: '↺',
             callback: () => this.dashboard.resetDashboard(),
           },
-          { id: 'save-session', label: 'Save Session', callback: () => this.saveSession('manual') },
+          {
+            id: 'save-session',
+            label: 'Save',
+            icon: '💾',
+            callback: () => this.saveSession('manual'),
+          },
           {
             id: 'load-session',
-            label: 'Load Last Session',
+            label: 'Load',
+            icon: '⏮️',
             callback: () => this.loadSession('autosave'),
           },
           {
             id: 'delete-autosave',
-            label: 'New Session',
+            label: 'New',
+            icon: '🆕',
             callback: () => this.deleteSession('autosave'),
           },
           {
             id: 'export-screenshot',
-            label: 'Export Screenshot',
+            label: 'Screenshot',
+            icon: '📸',
             callback: () => this.exportScreenshot(),
           },
-          { id: 'export-story', label: 'Export Story', callback: () => this.exportAnalysisStory() },
+          {
+            id: 'export-story',
+            label: 'Story',
+            icon: '📤',
+            callback: () => this.exportAnalysisStory(),
+          },
         ],
       },
       {
         id: 'views',
         label: 'Views',
+        icon: '👁️',
         items: [
           {
             id: 'portals',
             label: 'Portals',
+            icon: '🌀',
             callback: () => this.setPortalsEnabled(!this.portalsEnabled),
           },
-          { id: 'dataset', label: 'Dataset', callback: () => this._cycleDataset() },
-          { id: 'cycle-theme', label: 'Cycle Theme', callback: () => this._cycleThemePreset() },
+          { id: 'dataset', label: 'Dataset', icon: '💎', callback: () => this._cycleDataset() },
+          {
+            id: 'cycle-theme',
+            label: 'Theme',
+            icon: '🎨',
+            callback: () => this._cycleThemePreset(),
+          },
           {
             id: 'teleport-toggle',
-            label: 'Toggle Teleport',
+            label: 'Teleport',
+            icon: '📡',
             callback: () => this.engine.locomotion.toggleTeleport(),
           },
           {
             id: 'teleport-overview',
             label: 'Overview',
+            icon: '🌍',
             callback: () => this.engine.locomotion.teleportToAnchor('overview'),
           },
           {
             id: 'teleport-detail',
             label: 'Detail',
+            icon: '🔎',
             callback: () => this.engine.locomotion.teleportToAnchor('detail'),
           },
           {
             id: 'teleport-north',
             label: 'North',
+            icon: '⬆️',
             callback: () => this.engine.locomotion.teleportToAnchor('north'),
           },
           {
             id: 'teleport-south',
             label: 'South',
+            icon: '⬇️',
             callback: () => this.engine.locomotion.teleportToAnchor('south'),
           },
           {
             id: 'toggle-flight',
-            label: 'Toggle Flight',
+            label: 'Flight',
+            icon: '🚀',
             callback: () => this.engine.locomotion.toggleFlight(),
           },
           {
             id: 'drop-to-floor',
-            label: 'Drop to Floor',
+            label: 'Floor',
+            icon: '🧱',
             callback: () => this.engine.locomotion.dropToFloor(),
           },
         ],
@@ -1421,10 +1519,12 @@ export class World {
       {
         id: 'live',
         label: 'Live',
+        icon: '📡',
         items: [
           {
             id: 'live-toggle',
-            label: this.isLiveConnected() ? 'Stop Live' : 'Start Live',
+            label: this.isLiveConnected() ? 'Stop' : 'Start',
+            icon: this.isLiveConnected() ? '⏹️' : '▶️',
             callback: () =>
               this.isLiveConnected() ? this.disconnectLiveStream() : this.connectLiveStream(),
           },
@@ -1433,10 +1533,12 @@ export class World {
       {
         id: 'collab',
         label: 'Collab',
+        icon: '👥',
         items: [
           {
             id: 'collab-toggle',
-            label: this.collaborationCoordinator.isConnected() ? 'Leave Room' : 'Join Room',
+            label: this.collaborationCoordinator.isConnected() ? 'Leave' : 'Join',
+            icon: this.collaborationCoordinator.isConnected() ? '🚪' : '🔗',
             callback: () =>
               this.collaborationCoordinator.isConnected()
                 ? this._leaveCollaborationRoom()
@@ -1444,7 +1546,8 @@ export class World {
           },
           {
             id: 'collab-panel',
-            label: 'Network Panel',
+            label: 'Network',
+            icon: '🌐',
             callback: () => this.panelManager.togglePanel(this.networkPanel),
           },
         ],
@@ -1452,28 +1555,57 @@ export class World {
       {
         id: 'ops',
         label: 'Ops',
+        icon: '⚙️',
         items: [
-          { id: 'filter', label: 'Filter', callback: () => this.applyDataOperation('filter') },
-          { id: 'sort', label: 'Sort', callback: () => this.applyDataOperation('sort') },
+          {
+            id: 'filter',
+            label: 'Filter',
+            icon: '🔎',
+            callback: () => this.applyDataOperation('filter'),
+          },
+          {
+            id: 'sort',
+            label: 'Sort',
+            icon: '📶',
+            callback: () => this.applyDataOperation('sort'),
+          },
           {
             id: 'aggregate',
             label: 'Aggregate',
+            icon: '📚',
             callback: () => this.applyDataOperation('aggregate'),
           },
-          { id: 'cluster', label: 'Cluster', callback: () => this.applyDataOperation('cluster') },
+          {
+            id: 'cluster',
+            label: 'Cluster',
+            icon: '🔷',
+            callback: () => this.applyDataOperation('cluster'),
+          },
           {
             id: 'hierarchical',
-            label: 'Hierarchical',
+            label: 'Hierarchy',
+            icon: '🌳',
             callback: () => this.applyDataOperation('hierarchical'),
           },
-          { id: 'density', label: 'Density', callback: () => this.applyDataOperation('density') },
-          { id: 'anomaly', label: 'Anomaly', callback: () => this.applyDataOperation('anomaly') },
+          {
+            id: 'density',
+            label: 'Density',
+            icon: '⚫',
+            callback: () => this.applyDataOperation('density'),
+          },
+          {
+            id: 'anomaly',
+            label: 'Anomaly',
+            icon: '⚡',
+            callback: () => this.applyDataOperation('anomaly'),
+          },
           {
             id: 'timeSlice',
-            label: 'Time Slice',
+            label: 'Slice',
+            icon: '🕒',
             callback: () => this.applyDataOperation('timeSlice'),
           },
-          { id: 'reset', label: 'Reset', callback: () => this.resetDataOperation() },
+          { id: 'reset', label: 'Reset', icon: '↺', callback: () => this.resetDataOperation() },
         ],
       },
     ]);

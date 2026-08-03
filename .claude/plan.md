@@ -797,3 +797,227 @@ For every existing Vitest file, one of three outcomes is required:
 12. Networking Phase 5 reduced to state/serialization; binary protocols deferred.
 
 Start with Phase 0 and the profiling baseline. Do not proceed to Phase 1 until the build loop, ABI, allocator, and command-buffer wire format have been reviewed and tested in isolation.
+
+---
+
+# Plan — UI/UX Improvements Based on Immersive Analytics Research
+
+## Goal
+
+Nemosyne's UI has a strong foundation (constellation wheel menu, movable panels, analyst anchor, guided tour), but several patterns still pull users out of the data or rely on dense text panels. Recent research on VR games, immersive analytics, and spatial computing points to a consistent set of improvements: more direct manipulation, less detached UI, better information hierarchy, stronger affordances, and adaptive guidance for novices vs. experts. This plan translates those findings into concrete next steps for the Nemosyne UI layer.
+
+## Research takeaways
+
+### Starblood Arena / cockpit HUD design ([Amped UX](https://www.amped-ux.com/starblood-arena.html))
+
+- Project HUD elements onto a virtual "cockpit glass" circle; keep UI modular and separate from scene geometry.
+- Place high-priority feedback near the center of the user's view; push timers, objectives, and status into the periphery.
+- Use iconography + color + text + status bars + button signifiers together so users understand controller mappings.
+- Use head-locked "newspaper" widgets for immediate info and world-fixed diegetic panels for secondary info.
+- Mark immediate-view UI with a red circle; place lower-priority elements in peripheral vision.
+- Address comfort and motion sickness early; controls should feel fun while mitigating nausea.
+
+### 3D Radar Chart / gestural immersive analytics ([arXiv 2303.07995](https://ar5iv.labs.arxiv.org/html/2303.07995))
+
+- Prefer direct hand-based grasping of visible widgets and context-triggered gestural postures over separate graphical menus.
+- Map every interaction to analysis tasks: select, explore, reconfigure, filter, zoom.
+- Prioritize comfortable hand postures for frequent actions.
+- Bimanual symmetric gestures work for range selection/zoom, but require reliable tracking and tolerate little occlusion.
+- Infer intent from in-situ context: disable conflicting commands when a hand is near an interactive widget.
+- Provide pause/resume, deliberate reset, and zoom-history affordances.
+
+### Tableau Vision Pro / immersive analytics ([Tableau blog](https://www.tableau.com/blog/exploring-spatial-computing-and-immersive-analytics-vision-pro), [RécitKit arXiv 2508.18670v1](https://arxiv.org/html/2508.18670v1))
+
+- There is a sharp split between novices and experts; novices need scaffolding, experts want efficiency.
+- Gaze + pinch is novel but has a learning curve; users need more than a 45-minute demo to become proficient.
+- Users prefer direct manipulation on charts over detached control panels.
+- 3D visualizations create occlusion; add auto-rotation, mini-maps, breadcrumbs, or transparency cues.
+- Traditional 2D charts remain valuable inside 3D space; build spatial interactions on top of familiar chart types.
+- Infinite canvas needs narrative anchors and structured checkpoints so users do not feel lost.
+- Collaboration is a more believable enterprise use case than solo executive dashboards.
+- Cross-platform continuity and accessibility are must-haves.
+- Templates, live previews, and narrative scaffolding reduce authoring burden and improve comprehension.
+
+### Google VR Constellation Menu ([developers.google.com](https://developers.google.com/vr/elements/constellation-menu))
+
+- Choices radiate from the reticle; hovering a branch reveals deeper items while earlier rings stay visible.
+- Keep every reachable choice one click away.
+- Draw a connector line along the chosen path to reinforce spatial muscle memory.
+- Prefer icons over text for labels.
+- Guard opening with an "Open FoV Angle" and close with a "Close Angle" to prevent accidental triggers.
+- Set a menu distance closer than scene objects; use hover delay to avoid accidental switches while sweeping the pointer.
+- Fade icon backgrounds by state and trim connector lines near the reticle.
+
+### VR UI best practices (systematic review, Displays 2026; [doi:10.1016/j.displa.2026.103452](https://doi.org/10.1016/j.displa.2026.103452))
+
+- Maintain proper viewing distances and element spacing.
+- Place interactive elements in the lower field of view when possible.
+- Use intuitive, ergonomic interactions.
+- Pay attention to onboarding, learning curves, and cybersickness.
+
+## Current state assessment
+
+| Component | What's working | What's missing / risky |
+|---|---|---|
+| `HandWheelMenu` | Body-anchored constellation menu, connector lines, category/action split, accessible scaling | Still uses text labels instead of icons; no open/close angle guards; action ring can feel dense |
+| `MovablePanel` | Tilted canvas panels, depth clamping, drag, minimize, accessibility flags | No snap-to-zone animation; no "newspaper" head-locked mode; window controls are small canvas targets |
+| `VRMenu` | Comprehensive operation and dataset access | Very long text list (1200 px height), detached from data objects, novices are overwhelmed |
+| `GuidedTour` | Step-based onboarding with arrows and audio hooks | No progression breadcrumb; no "pause/resume" gesture; step conditions are coarse |
+| `InteractionCoach` | Real-time gesture/controller log | Passive text log; not contextual; does not fade for experts |
+| `DashboardManager` | Wall and semicircle layouts | Semicircle mode not stress-tested; no mini-map or overview of open panels |
+| `PanelManager` | Analyst anchor, launcher ring, slot assignment | Free-floating mode exists but lacks persistence and quick-reset |
+| `Engine` / `World` | WebXR lifecycle, input routing, theme | No user-settable comfort options (snap turn, vignette, seated height); no FOV-aware UI fade |
+
+## Concrete improvements
+
+### 1. Icon-first wheel menu with guard angles
+
+**Files:** `src/vr/ui/HandWheelMenu.js`, `src/utils/GestureMapping.js`, `src/vr/ui/IconAtlas.js` (new)
+
+- Replace text label textures with icon-first, text-below thumbnails for categories and actions. Keep text as a small caption only when the label is not self-explanatory.
+- Add configurable `openAngleThreshold` and `closeAngleThreshold`: the wheel only opens when the off-hand pointer moves far enough from center, and closes when it strays too far, reducing accidental opens.
+- Add a short hover delay (~120–200 ms) before an action is highlighted so sweeping the laser does not flash all items.
+- Animate connector lines and selected-path nodes with stronger state feedback (pulse on hover, dim unselected branches).
+- Provide a "recents" or "favorites" inner ring for expert users so common operations are one click away.
+
+**Why:** Google's constellation guidelines and Starblood Arena both emphasize icon clarity, muscle memory, and accidental-trigger prevention.
+
+### 2. Diegetic, in-place data operations
+
+**Files:** `src/vr/interactions/DataOperations.js`, `src/draco/VRTopologyTranslator.js`, `src/vr/ui/HUDOverlay.js` (new)
+
+- Attach operation affordances directly to artefacts: a small "sort" handle on a tabular plinth, a "filter" threshold slider on a time ribbon, a "cluster" toggle on a graph constellation.
+- Use bimanual symmetric gestures for range/zoom on time-series and geo datasets (e.g., both hands pinch apart to expand a time window), with a visual preview of the new range before release.
+- Disable travel/locomotion when a hand is near an interactive widget to prevent accidental movement while adjusting data.
+- Keep the `VRMenu` as a fallback "omnibus" panel, but promote the most common operations into the scene.
+
+**Why:** Tableau and the 3D Radar Chart research both show users strongly prefer direct manipulation over detached control panels.
+
+### 3. Progressive disclosure: novice vs. expert modes
+
+**Files:** `src/vr/ui/GuidedTour.js`, `src/vr/ui/InteractionCoach.js`, `src/vr/ui/SettingsPanel.js`, `src/vr/World.js`
+
+- Add a `userMode` setting: `novice`, `intermediate`, `expert`.
+- Novice: always show the guided tour on first dataset load, expand the interaction coach, show tooltips on first encounter of each gesture/menu item.
+- Intermediate: tour becomes optional, coach collapses to the last line only, tooltips show on long-hover.
+- Expert: auto-hide the coach and most tooltips; enable gesture-only shortcuts; show a compact "command palette" wheel ring.
+- Persist the chosen mode in `SessionStore` and surface it in the settings panel.
+
+**Why:** Tableau found a sharp novice/expert split; a single UI cannot serve both well.
+
+### 4. Better information hierarchy and comfort
+
+**Files:** `src/vr/ui/PanelManager.js`, `src/vr/ui/DashboardManager.js`, `src/vr/Engine.js`, `src/vr/ui/MovablePanel.js`
+
+- Define a HUD "focus zone" (center 30°) for high-priority feedback (e.g., active operation result, live-stream warning, anomaly alert). Push dashboards, settings, and logs into the periphery by default.
+- Add a head-locked "newspaper" panel mode for tutorial cards and transient notifications that must stay readable regardless of where the user looks.
+- Add comfort settings: snap/smooth turn toggle, vignette intensity during locomotion, seated-height offset, default panel distance, reduced motion.
+- Fade panels that are far from the gaze vector to reduce occlusion and visual clutter.
+
+**Why:** Starblood Arena's circular HUD hierarchy and the Displays 2026 review both stress comfort and proper FOV placement.
+
+### 5. Narrative scaffolding and breadcrumbs
+
+**Files:** `src/vr/ui/GuidedTour.js`, `src/vr/ui/DashboardManager.js`, `src/data/AnalysisHistory.js`, `src/vr/ui/NarrativeStrip.js` (new)
+
+- Add a persistent "narrative strip" or breadcrumb trail showing the current dataset → operation → view state, so users know where they are in an analysis story.
+- Each operation appends a node to the strip; clicking a node rewinds the analysis history to that point.
+- Tours should have clear checkpoints, visible progression (e.g., "Step 3 of 7"), and a pause/resume gesture.
+- Provide analysis "templates" (e.g., "Factory floor monitoring", "Fraud investigation") that preload a sample dataset, set a theme, and start the matching tour.
+
+**Why:** RécitKit and Tableau both highlight the need for breadcrumbs, templates, and structured checkpoints in infinite-canvas spaces.
+
+### 6. Collaboration-first UI
+
+**Files:** `src/network/NetworkManager.js`, `src/vr/ui/NetworkPanel.js`, `src/vr/World.js`, `src/vr/ui/PeerPresenceHUD.js` (new)
+
+- Add a compact peer-presence HUD (peripheral, icon + name) showing connected analysts and their approximate direction.
+- Use color-coded avatars or ghost camera rigs to make remote presence feel spatial rather than chat-like.
+- Add a "raise hand" / "follow me" gesture and a shared pointer/laser toggle.
+- Keep the collaboration panel small and world-anchored; do not let it dominate the analyst anchor.
+
+**Why:** Tableau's enterprise evaluation found collaboration a more credible use case than solo dashboards.
+
+### 7. Occlusion management for 3D visualizations
+
+**Files:** `src/vr/artifacts/*.js`, `src/vr/scalability/LODManager.js`, `src/vr/World.js`
+
+- Add a mini-overview (e.g., a small bird's-eye 2D map or TDA summary) that shows the user's current view frustum relative to the full palace.
+- When the user gazes at a data point, dim or X-ray occluders within 20 cm of the ray so the target remains visible.
+- Use the existing `LODManager` to fade distant labels and switch distant artefacts to aggregate proxies.
+- Add an auto-rotate/pivot hint for densely occluded views (e.g., "rotate to see the back of the graph").
+
+**Why:** 3D occlusion was a major issue in Tableau's Vision Pro study.
+
+### 8. Accessibility and cross-platform continuity
+
+**Files:** `src/utils/Accessibility.js`, `src/vr/ui/MovablePanel.js`, `src/vr/DesktopControls.js`, `src/ui/FileLoader.js`
+
+- Expand accessibility settings: text scale already exists; add high-contrast themes, colorblind-safe palettes, persistent audio narration for gestures, and haptic intensity.
+- Ensure every gesture has a controller equivalent and a desktop equivalent (documented in the interaction coach).
+- Synchronize key settings and the most recent analysis story between desktop and VR sessions via `SessionStore`.
+- Add a "desktop preview" mode that renders the current palace in a 2D view with orbit controls so analysts can prepare on a monitor before entering VR.
+
+**Why:** Tableau and the Displays 2026 review both identify accessibility and cross-platform continuity as must-haves.
+
+### 9. Live previews and contextual help
+
+**Files:** `src/vr/ui/TooltipManager.js`, `src/vr/ui/VRMenu.js`, `src/vr/interactions/DataOperations.js`
+
+- Before applying a filter/sort/aggregate, show a transient ghost preview of the result (e.g., faded destination positions, highlighted outliers) so the user can confirm the operation.
+- Tooltips should appear near the hovered artefact, not in a fixed panel, and include the controller/button hint.
+- Add a "what would this do?" long-hover in the wheel menu and VRMenu for operations.
+
+**Why:** RécitKit specifically asked for live previews of how data drives scene changes.
+
+### 10. Harden menu robustness and intent inference
+
+**Files:** `src/vr/InputRouter.js`, `src/vr/interactions/HandGestureRecognizer.js`, `src/vr/ui/HandWheelMenu.js`
+
+- Infer intent from context: if the pointer hand is inside a data artefact's bounding sphere, suppress locomotion and global gestures; if both hands are near the wheel menu, suppress scene selection.
+- Add a global "pause input" gesture (e.g., both fists closed) so users can reset their hands without triggering commands.
+- Add a deliberate "reset view" gesture that returns the user to the default overview without undoing analysis history.
+
+**Why:** The 3D Radar Chart paper identified ambiguous postures and unintentional commands as the main usability issue.
+
+## Implementation order
+
+### Immediate (1–2 weeks)
+
+1. **Icon-first wheel menu** — add icon support and guard angles to `HandWheelMenu`.
+2. **Novice/expert mode switch** — add `userMode` to `SettingsPanel`, `SessionStore`, and the interaction coach.
+3. **Narrative breadcrumb** — add a small analyst-anchored strip tied to `AnalysisHistory`.
+4. **Comfort settings** — snap turn, vignette, seated height in `SettingsPanel` and `Engine`.
+
+### Short term (2–4 weeks)
+
+5. **In-place operation handles** — attach affordances to artefacts for filter/sort/slice on the most common topologies.
+6. **Live previews** — ghost the result of menu-selected operations before applying.
+7. **Mini-overview** — add a small 2D map/TDA summary showing the current frustum.
+8. **Peer-presence HUD** — compact peripheral indicators for collaboration.
+
+### Medium term (1–2 months)
+
+9. **Analysis templates** — load dataset + theme + tour as a single "story" entry point.
+10. **Cross-platform continuity** — desktop preview mode and setting sync.
+11. **Advanced intent inference** — context-aware gesture suppression and pause/resume/reset gestures.
+
+## Success criteria
+
+- `HandWheelMenu` uses icons for at least 80% of category/action entries and has documented open/close angle thresholds.
+- A novice/expert mode toggle is available and persisted across sessions.
+- At least three data operations (filter, sort, time-slice) have in-place artefact handles in addition to the detached menu.
+- Analysis history is visible as a spatial breadcrumb and clickable rewind strip.
+- Comfort settings reduce reported discomfort in a short user test.
+- Every new UI feature has a corresponding Vitest test and an update in `docs/GETTING_STARTED.md` or `docs/DESIGN_SYSTEM.md`.
+
+## Risks and mitigation
+
+| Risk | Mitigation |
+|---|---|
+| Icons may be ambiguous for complex operations | Keep a small text caption and tooltips; allow user-customizable labels in expert mode. |
+| In-place handles add visual clutter | Use LOD/fade; only show handles when gazed at or when the user's hand is near. |
+| More modes means more test permutations | Unit-test mode switching and keep UI logic in pure helper functions. |
+| Direct manipulation conflicts with existing ray-based panel drag | Use a "near hand" threshold to switch from ray to direct hand interaction. |
+| Cross-platform preview requires duplicated rendering | Start with a simple 2D orthographic screenshot/orbit view, not a full renderer. |
+
