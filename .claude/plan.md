@@ -84,3 +84,716 @@ Use this table to keep the gallery and example docs aligned with `src/data/Sampl
 - The Quick Start code block can be pasted into a local `nemosyne` build and produce a visible palace (modulo HTTPS certs).
 - All gallery card links resolve to `docs/examples/*.md` files that describe shipped behaviour.
 - The site still builds and renders without broken internal anchors.
+
+---
+
+# Plan — Rust/WASM Re-Architecture
+
+## Goal
+
+Move the heavy, GC-sensitive parts of Nemosyne into Rust-generated WebAssembly while keeping three.js as the WebGL/WebXR renderer. The JS host becomes a thin shell: it handles browser APIs, forwards input events, loads bytes into WASM memory, and flushes Rust-encoded command buffers to three.js each frame.
+
+The desired characteristics are:
+
+- **Rust, not C++**: use `wasm-bindgen`/`wasm-pack` and target `wasm32-unknown-unknown`.
+- **Zero-copy / direct memory views**: JS reads layout, transform, and vertex data via typed-array views into the WASM memory buffer.
+- **Command buffers**: Rust encodes per-frame draw/transform/audio/haptic/network commands into a packed binary stream in WASM memory; JS consumes the stream.
+- **Integer handles / pointers**: entities, meshes, materials, buffers are referenced by `u32` IDs; JS keeps a lightweight ID→three.js object map.
+- **Gradual replacement**: existing JS app keeps running while subsystems are ported one at a time.
+- **Tests**: `cargo test` for pure Rust modules; `wasm-bindgen-test` for browser-facing modules; existing JS assertions are ported where practical.
+
+## Why
+
+Current runtime issues:
+
+- JS-side GC pauses during large dataset operations and per-frame artefact updates.
+- Large object churn in `DatasetOperations`, `VRTopologyTranslator`, and the animation loop.
+- Deep object graphs in the three.js scene graph for large datasets.
+- Repeated JS↔JS data copies when parsing live streams and serializing analysis stories.
+
+Rust/WASM gives deterministic allocation, compact value types, SIMD-friendly math, and a single shared memory buffer. The command-buffer model lets JS spend most of its frame budget in browser APIs rather than application logic.
+
+## Target architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  JS host layer (thin, browser-only)                                  │
+│  - WebXR session, XRFrame, XRInputSourceArray                        │
+│  - three.js renderer, materials, geometries, WebGL objects           │
+│  - ID mapping: WASM handle → three.js Object3D / Mesh / BufferGeometry│
+│  - InputRouter forwards raw events as integer streams               │
+│  - CSV/JSON/WebSocket bytes copied into WASM memory                   │
+│  - Audio / haptic output from command buffers                         │
+│  - DOM panel rendering driven by Rust content commands              │
+├──────────────────────────────────────────────────────────────────────┤
+│  wasm-bindgen interface                                              │
+│  - exported functions return (ptr, len) or integer handles          │
+│  - imported functions only for logging / timestamp / crypto           │
+├──────────────────────────────────────────────────────────────────────┤
+│  Rust runtime                                                        │
+│  - ECS/scene graph (Entity, Transform, MeshRef, MaterialRef)         │
+│  - Math: Vec3, Quat, Mat4, AABB, spatial hash                        │
+│  - Dataset, encodings, parsers, operations, clustering, anomaly     │
+│  - Draco constraint engine + layout generators                     │
+│  - Command encoder: draw, transform, audio, haptic, panel            │
+│  - Spatial index, LOD, culling                                       │
+│  - Input state machine + gesture recognizer                          │
+│  - Networking state machine (room, presence, data channels)          │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+## Crate layout
+
+Add a `wasm/` directory at the project root:
+
+```
+wasm/
+├── Cargo.toml
+├── Cargo.lock
+├── src/
+│   ├── lib.rs                    # wasm-bindgen entry point
+│   ├── memory.rs                 # Allocator, bump/ring buffers, view helpers
+│   ├── math.rs                   # Vec3, Quat, Mat4, AABB, color
+│   ├── scene/
+│   │   ├── entity.rs             # ECS: Entity, Generation, ComponentMask
+│   │   ├── transform.rs          # Local/world matrices, hierarchy
+│   │   ├── graph.rs              # SceneGraph, parent/child relations
+│   │   └── command_encoder.rs    # CommandBuffer, draw/transform/audio/panel ops
+│   ├── data/
+│   │   ├── dataset.rs            # Typed rows, column metadata
+│   │   ├── encodings.rs          # Color/size/pulse/value mappers
+│   │   ├── parsers.rs            # CSV/JSON → Dataset
+│   │   ├── operations.rs         # filter, sort, aggregate, cluster, anomaly, slice
+│   │   ├── synthetic.rs          # Sample dataset generators
+│   │   └── topology.rs           # Topology inference facts
+│   ├── draco/
+│   │   ├── facts.rs              # Statistical / topology fact extraction
+│   │   ├── constraints.rs        # Hard/soft constraints and scoring
+│   │   ├── layouts.rs            # Grid, force-directed, radial tree, geo, ribbon
+│   │   └── translator.rs         # Spec → SceneGraph command list
+│   ├── input/
+│   │   ├── state.rs              # Controller/hand/desktop pose state
+│   │   ├── gestures.rs           # Pinch, slice, scoop, rotate recognizers
+│   │   └── router.rs             # Map raw input to intents
+│   ├── net/
+│   │   ├── room.rs               # Peer, room, signalling state
+│   │   └── protocol.rs           # Message serialization
+│   ├── analysis/
+│   │   ├── history.rs            # Undo/redo stack
+│   │   ├── session.rs            # Saved session serde
+│   │   └── tda.rs                # Lightweight TDA summaries
+│   └── tests/                    # wasm-bindgen-test modules
+├── pkg/                          # wasm-pack output (gitignored)
+└── build.sh                      # wasm-pack --target web --out-dir pkg
+```
+
+Top-level workspace: `Cargo.toml` in `wasm/` only for now; later we may add a `crates/` workspace.
+
+## Memory model
+
+1. **Shared `WebAssembly.Memory`** initialized to 128 MB, growable to 512 MB.
+2. **Rust owns the allocator** inside the module. JS does not allocate in WASM memory except through exported `alloc`/`dealloc` helpers.
+3. **Row-major typed arrays** for numeric data:
+   - `f32` vertices: `(x, y, z, nx, ny, nz, u, v)` interleaved.
+   - `u16` indices.
+   - `f32` transform matrices: 16 consecutive floats.
+   - `u8` command stream.
+4. **Stable handles**:
+   - `Entity(u32)` — never re-used within a session (or generation-indexed).
+   - `Mesh(u32)` — maps to a `THREE.BufferGeometry` on the JS side.
+   - `Material(u32)` — maps to a `THREE.Material` on the JS side.
+   - `Texture(u32)` — still loaded by JS; Rust references it by handle.
+5. **Zero-copy reads from JS**:
+   ```javascript
+   const mem = wasm.memory;
+   const ptr = wasm.get_transform_ptr(entity);
+   const matrix = new Float32Array(mem.buffer, ptr, 16);
+   // update three.js Object3D.matrix.fromArray(matrix) directly
+   ```
+6. **Ring buffers for live streams**:
+   - A fixed-capacity row ring buffer in WASM memory.
+   - JS copies only new bytes from the WebSocket message into the ring tail.
+   - Rust processes the tail into the dataset and emits incremental scene commands.
+
+## Command buffer design
+
+Rust writes commands into a `u8` ring buffer in WASM memory. Each command is a small header plus payload.
+
+```rust
+#[repr(u8)]
+enum Cmd {
+    Clear = 0,
+    SetTransform = 1,      // entity_id: u32, matrix_ptr: u32
+    SetVisibility = 2,     // entity_id: u32, visible: u8
+    DrawMesh = 3,          // entity_id: u32, mesh_id: u32, material_id: u32, layer_mask: u32
+    UpdateVertices = 4,    // mesh_id: u32, ptr: u32, count: u32
+    UpdateIndices = 5,     // mesh_id: u32, ptr: u32, count: u32
+    SetInstanceMatrices = 6, // mesh_id: u32, ptr: u32, count: u32
+    PlayTone = 7,          // freq: f32, duration_ms: u32, volume: f32
+    PlayHaptic = 8,        // hand: u8, intensity: f32, duration_ms: u32
+    SetPanelText = 9,      // panel_id: u32, ptr: u32, len: u32
+    SetCameraRig = 10,     // position_ptr: u32, rotation_ptr: u32
+    NetworkBroadcast = 11, // ptr: u32, len: u32
+}
+```
+
+JS reads the command stream once per frame, applies transforms/visibility, updates geometry buffers, and issues draw calls. three.js retains object identity; only data changes.
+
+## JS host responsibilities
+
+| Responsibility | Notes |
+|---|---|
+| WebXR session lifecycle | `navigator.xr.requestSession`, `XRWebGLLayer`, reference spaces. |
+| three.js renderer setup | Renderer, camera, scene root, lights (or command-driven lights). |
+| ID ↔ object mapping | `Map<u32, THREE.Object3D>`, `Map<u32, THREE.BufferGeometry>`, `Map<u32, THREE.Material>`. |
+| Input event forwarding | Each frame, write controller/hand poses and button states into WASM memory, then call `wasm.input_update()`. |
+| Asset loading | Fetch CSV/JSON/WebSocket bytes, copy into WASM `alloc`ed region, call `wasm.data_load_bytes(topology, ptr, len)`. |
+| Command flush | After `wasm.update(delta_ms, time_ms)`, read the command buffer and apply to three.js. |
+| Audio/haptics | JS owns `AudioContext` and XR haptic actuators; executes commands. |
+| DOM panels | A small panel manager that receives `SetPanelText` / `SetPanelPose` commands. |
+| Telemetry / console | Forward Rust log messages via imported `js_log(level, ptr, len)`. |
+
+## What stays in JS initially
+
+- `Engine.js` shrinks to WebXR + renderer setup + command loop.
+- `World.js` becomes a coordinator: create WASM runtime, load default dataset, wire input.
+- `VRButton.js`, `DesktopControls.js`, and panel DOM code remain.
+- `Parsers.js` is kept as a fallback until Rust CSV/JSON parsers are proven.
+- Live WebSocket adapter stays in JS; it copies raw bytes into WASM.
+
+## Phased migration plan
+
+### Phase 0 — Tooling and foundation (1–2 weeks)
+
+- [ ] Install Rust toolchain: `rustup target add wasm32-unknown-unknown` + `cargo install wasm-pack`.
+- [ ] Create `wasm/Cargo.toml` with workspace + crate dependencies.
+- [ ] Add a Vite plugin to invoke `wasm-pack` and serve `.wasm` files.
+- [ ] Add `wasm-bindgen` and `js-sys` dependencies.
+- [ ] Create a minimal `lib.rs` exposing `init(runtime_ptr)`, `memory()`, and a health-check ping.
+- [ ] Add a JS host module `src/wasm/RuntimeBridge.js` that:
+  - loads `wasm/pkg/nemosyne_wasm_bg.wasm`,
+  - provides `alloc_bytes` / `read_bytes` helpers,
+  - exposes `call('update', delta, time)`.
+- [ ] Add `npm run wasm` and `npm run build:wasm` scripts.
+
+**Success criteria:** `console.log(wasm.ping())` works in the browser; build passes.
+
+### Phase 1 — Data layer in Rust (2–3 weeks)
+
+Port the core data model and operations first; they are the easiest to test in isolation and deliver immediate value.
+
+- [ ] Port `Dataset`, `ColumnType`, `Encodings` to `wasm/src/data/`.
+- [ ] Port CSV/JSON parsers to Rust using `csv` and `serde_json` crates.
+- [ ] Port `DatasetOperations` (filter, sort, aggregate, cluster, hierarchical, dbscan, anomaly, slice).
+- [ ] Port `SampleDatasets` / synthetic generators.
+- [ ] Port topology inference (`TopologyInference`).
+- [ ] Add `wasm-bindgen-test` tests that mirror `tests/data.test.js`, `tests/dataset-operations.test.js`, `tests/parsers.test.js`, `tests/topology-inference.test.js`.
+- [ ] Add JS bridge method `wasm.data_load_csv(ptr, len)` returning a dataset handle.
+- [ ] Replace `src/data/Dataset.js`, `src/data/Parsers.js`, `src/data/DatasetOperations.js` usage in `World.js` with calls into WASM, while keeping the files for fallback.
+
+**Success criteria:** All existing data/operation tests have Rust equivalents; JS app can still load sample datasets but the computation happens in WASM.
+
+### Phase 2 — Scene graph and command buffers (3–4 weeks)
+
+- [ ] Implement ECS in `wasm/src/scene/` with `Entity`, `Transform`, `LocalToWorld`, `MeshRef`, `MaterialRef`.
+- [ ] Implement `CommandEncoder` that builds a packed command stream per frame.
+- [ ] Add JS `CommandApplier` that reads the stream and updates three.js objects.
+- [ ] Port `DatumPlane`, `TechnoCoreNode`, `FarcasterPortal` logic to Rust entity setup; JS keeps three.js assets.
+- [ ] Port simple artefacts (Crystal, Column, Orb) to Rust command generation.
+- [ ] Keep complex artefacts (ChartPlane, TDAPlanes, panels) in JS initially, driven by Rust data.
+- [ ] Port `tests/movable-panel.test.js` and `tests/world.test.js` relevant parts to integration tests.
+
+**Success criteria:** A simple scene (datum plane + 3 artefacts) renders via command buffers from Rust with no JS-side per-frame scene-graph traversal.
+
+### Phase 3 — Draco layout engine in Rust (3–4 weeks)
+
+- [ ] Port `ConstraintEngine` facts and constraints to `wasm/src/draco/`.
+- [ ] Port layout generators: `GridLayout3D`, `ForceDirected3D`, `RadialTreeLayout`, `GeoSurfaceLayout`, `TimeSeriesRibbonLayout`, `StreamlineLayout`.
+- [ ] Port `VRTopologyTranslator` to generate scene commands from a solved spec.
+- [ ] Port `DracoTopologyNode` lifecycle (solve → synthesize → place → update).
+- [ ] Add `wasm-bindgen-test` tests for each layout and the full Draco solve path.
+- [ ] Add JS integration tests replacing `tests/draco.test.js` and `tests/draco-layouts.test.js`.
+
+**Success criteria:** Loading a sample dataset produces the same palace layout via Rust-generated commands as the current JS version.
+
+### Phase 4 — Input and interaction state machine (2–3 weeks)
+
+- [ ] Port `HandGestureRecognizer` to Rust.
+- [ ] Port `ControllerGestureMapper` pose/button state to Rust.
+- [ ] Port `InputRouter` intent dispatch to Rust.
+- [ ] Port `DataOperations.js` interaction transforms (filter fade, aggregate merge, sort reorder, etc.) to Rust command generation.
+- [ ] Port `AnalysisHistory` undo/redo stack.
+- [ ] Keep JS-only: WebXR pose polling, haptic/audio execution.
+
+**Success criteria:** Hand and controller gestures produce the same operations as today; undo/redo is driven by Rust.
+
+### Phase 5 — Networking and live streams (2–3 weeks)
+
+- [ ] Move WebSocket adapter state machine and message normalization to Rust.
+- [ ] Parse binary payloads (MessagePack, Arrow IPC, FlatBuffers) in Rust into the dataset ring buffer.
+- [ ] Move room/signalling state to Rust (`NetworkManager`, `Room`, `SignallingChannel`).
+- [ ] Emit network broadcast commands from Rust; JS sends them via the WebSocket/RTC channel.
+- [ ] Keep JS-only: actual WebSocket and RTCDataChannel objects.
+
+**Success criteria:** Live stream demo (`/__demo-stream`) updates the Rust dataset and emits scene commands; collaboration presence works through Rust state.
+
+### Phase 6 — Polish, performance, test parity (2–3 weeks)
+
+- [ ] Port remaining utility modules: `SeededRandom`, `PerformanceBudget`, `Telemetry`, `SessionStore`.
+- [ ] Remove or archive the JS modules that are fully replaced.
+- [ ] Profile Quest Browser frame time; optimize command buffer size and layout hot paths.
+- [ ] Ensure `cargo test` passes and `wasm-pack test --headless --chrome/firefox` passes.
+- [ ] Re-run full integration test suite; fix regressions.
+- [ ] Update `README.md`, `docs/ARCHITECTURE.md`, and `CLAUDE.md` with the new architecture.
+
+**Success criteria:**
+- `cargo test` passes.
+- `npm test` passes with comparable or better coverage.
+- Production bundle size ≤ current 865 KB minified JS (WASM included).
+- Frame time on Quest Browser ≤ 13.33 ms for the default dataset.
+
+## Test strategy
+
+- **Rust unit tests**: `cargo test` for pure modules (`data`, `math`, `draco`, `analysis`).
+- **WASM browser tests**: `wasm-pack test --headless --chrome` for modules that touch memory or `wasm-bindgen`.
+- **JS integration tests**: keep Vitest for end-to-end host behaviour; replace module-level tests with Rust equivalents.
+- **Porting rule**: for every JS test file removed, add either a Rust test module or a JS integration test that exercises the same behaviour through the new bridge.
+
+## Toolchain requirements
+
+The current environment has Node.js but no Rust toolchain. To start Phase 0:
+
+```bash
+# Windows
+winget install Rustlang.Rustup
+rustup default stable
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack
+
+# macOS/Linux
+curl --proto '=https' --tlsv1.2 -sSf https://rustup.rs | sh
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack
+```
+
+## Build integration
+
+Add to `package.json`:
+
+```json
+{
+  "scripts": {
+    "wasm": "wasm-pack build wasm --target web --out-dir pkg",
+    "wasm:dev": "wasm-pack build wasm --target web --out-dir pkg --dev",
+    "dev": "npm run wasm:dev && vite --host",
+    "build": "npm run wasm && vite build",
+    "test": "cargo test --manifest-path wasm/Cargo.toml && vitest run"
+  }
+}
+```
+
+Update `vite.config.js` to:
+- copy `wasm/pkg/*.wasm` into `dist/`,
+- treat `.wasm` as assets,
+- serve `wasm/pkg/` during dev.
+
+## Risks and mitigation
+
+| Risk | Mitigation |
+|---|---|
+| WASM bundle size grows too large | Use `wasm-opt -Os`, LTO, and `wee_alloc` or `lol_alloc`; measure before/after. |
+| `wasm-bindgen` API ergonomics slow iteration | Wrap low-level calls in `src/wasm/RuntimeBridge.js` so JS callers stay simple. |
+| Debugging is harder | Keep source maps (`wasm-pack --debug` for dev) and a JS fallback path for each module. |
+| Porting 69 Vitest test files takes too long | Port test files incrementally; keep JS tests running as regression harness. |
+| WebXR pose latency from extra JS↔WASM hop | Batch poses once per frame; keep pose reading in JS, decision logic in Rust. |
+| SharedArrayBuffer requires COOP/COEP | Already configured in `vite.config.js`; verify production headers. |
+
+## Decision summary
+
+You confirmed:
+1. Rust over C++.
+2. Keep three.js as WebGL renderer (no custom renderer).
+3. Gradual replacement, not a big-bang rewrite.
+4. `cargo test` + `wasm-bindgen-test`; port existing assertions.
+
+This plan implements those choices. The first actionable step is installing the Rust toolchain and creating the `wasm/` crate + Vite integration. I recommend starting with Phase 0 only, validating the build loop before committing to Phase 1.
+
+---
+
+# Critique Response — Technical Standards for the Rust/WASM Migration
+
+The original plan described *what* to port and *why*. This section records the gaps found during critique and defines the concrete technical solutions and standards the implementation must follow.
+
+## 1. ABI surface — `(ptr, len)` and integer handles only
+
+The `wasm-bindgen` boundary is intentionally narrow. Rust exposes a small set of exports; JS exposes a small set of imports. No `String`, `Vec`, or complex objects cross the boundary on hot paths.
+
+### Exported functions (Rust → JS)
+
+| Function | Return | Purpose |
+|---|---|---|
+| `init(seed: u64) -> RuntimeHandle` | `u32` | Create runtime, return handle. |
+| `memory() -> Memory` | `WebAssembly.Memory` | Shared memory reference. |
+| `alloc(len: u32) -> u32` | `u32` | Bump/heap allocate `len` bytes; return offset. |
+| `dealloc(ptr: u32, len: u32)` | `()` | Free a previous `alloc`. |
+| `data_load_csv(ptr: u32, len: u32) -> DatasetHandle` | `u32` | Parse CSV bytes in shared memory. |
+| `data_load_json(ptr: u32, len: u32) -> DatasetHandle` | `u32` | Parse JSON bytes in shared memory. |
+| `dataset_solve(handle: u32) -> SpecHandle` | `u32` | Run Draco on a dataset. |
+| `scene_build(spec: u32) -> SceneHandle` | `u32` | Generate scene commands from a spec. |
+| `update(delta_ms: f32, time_ms: f64) -> u32` | `u32` | Per-frame tick; returns command-buffer byte count. |
+| `input_write(ptr: u32, len: u32)` | `()` | Copy input event/pose bytes into Rust. |
+| `command_buffer_ptr() -> u32` | `u32` | Offset of the current frame command buffer. |
+| `string_ptr(handle: u32) -> (u32, u32)` | two `u32` | (ptr, len) for a Rust-managed string/buffer. |
+| `destroy(handle: u32)` | `()` | Release a handle and its Rust-owned resources. |
+
+### Imported functions (JS → Rust)
+
+| Function | Purpose |
+|---|---|
+| `js_log(level: u8, ptr: u32, len: u32)` | Forward Rust `log!` to browser console. |
+| `js_now() -> f64` | High-resolution timestamp. |
+| `js_random() -> f64` | Cryptographically-weak random for deterministic fallback. |
+| `js_warn_discard(ptr: u32, len: u32)` | Telemetry: report dropped command bytes. |
+
+### Rules
+
+1. **No `wasm-bindgen` `String`/`Vec` on the frame hot path.** Use `(ptr, len)` pairs into shared memory.
+2. **Handles are opaque `u32`.** JS keeps a `Map<u32, Object>` for three.js objects; Rust owns the generation/validity bits.
+3. **Lifetime contract:** any pointer returned by `alloc` must be paired with `dealloc`, or be explicitly documented as transferred to Rust (e.g., dataset bytes).
+4. **Endianness:** all multi-byte values are little-endian, matching WASM and the host platform.
+
+## 2. Allocator strategy — two-tier, deterministic
+
+A single global allocator is not enough for a real-time renderer. Use two tiers:
+
+### Tier A — Per-frame bump allocator (`FrameArena`)
+
+- One arena per thread of execution (single-threaded in WASM).
+- Reset at the start of `update()`.
+- Used for: command buffer, transform scratch arrays, pose state, transient strings.
+- Size: 8 MB initially, growable to 32 MB. If an allocation fails, emit a `PlayTone` error beep and a telemetry warning; never panic on the render thread.
+
+### Tier B — Long-lived heap allocator
+
+- Used for: datasets, scene graph nodes, ECS tables, history stack, session store.
+- Default choice: `dlmalloc` (stable, standard). Switch to `lol_alloc` only after measuring and confirming equivalent correctness.
+- Avoid `wee_alloc`; it has known fragmentation issues on long-running sessions.
+
+### Memory layout constants
+
+```rust
+pub const INITIAL_MEMORY_PAGES: u32 = 2048;      // 128 MiB
+pub const MAX_MEMORY_PAGES: u32 = 8192;          // 512 MiB
+pub const FRAME_ARENA_SIZE: usize = 8 * 1024 * 1024;
+pub const COMMAND_RING_SIZE: usize = 2 * 1024 * 1024;
+```
+
+## 3. Command buffer wire format
+
+The command stream is a packed `u8` stream. It must be 4-byte aligned at the start of each command so JS can read `u32`/`f32` values safely.
+
+### Stream header (per frame)
+
+```
+0..4  magic      u32   0x4E4D5359 ('NMSY')
+4..8  version    u16   major, u16 minor  (e.g., 0x0001)
+8..12  byte_count u32   number of payload bytes following the header
+12..16 checksum   u32   CRC32 of payload (optional in dev builds)
+```
+
+### Command structure
+
+Each command begins with an 8-byte header:
+
+```
+0..1  opcode     u8    Cmd enum value
+1..4  reserved   u8[3] zeroed, reserved for future flags
+4..8  payload_len u32  bytes after the header (multiple of 4)
+```
+
+Followed by `payload_len` bytes of little-endian fields.
+
+### Revised opcode table
+
+```rust
+#[repr(u8)]
+#[derive(Copy, Clone, Debug)]
+enum Cmd {
+    Clear            = 0,   // no payload; clears the applier state
+    SetTransform     = 1,   // entity_id: u32, matrix: [f32; 16]
+    SetVisibility    = 2,   // entity_id: u32, visible: u8, pad[3]
+    DrawMesh         = 3,   // entity_id: u32, mesh_id: u32, material_id: u32, layer_mask: u32
+    UpdateVertices   = 4,   // mesh_id: u32, ptr: u32, count: u32, layout: u8
+    UpdateIndices    = 5,   // mesh_id: u32, ptr: u32, count: u32, index_type: u8
+    SetInstanceMatrices = 6, // mesh_id: u32, ptr: u32, count: u32
+    PlayTone         = 7,   // freq: f32, duration_ms: u32, volume: f32, waveform: u8
+    PlayHaptic       = 8,   // hand: u8, intensity: f32, duration_ms: u32
+    SetPanelText     = 9,   // panel_id: u32, ptr: u32, len: u32
+    SetPanelPose     = 10,  // panel_id: u32, position: [f32; 3], rotation: [f32; 4]
+    SetCameraRig     = 11,  // position: [f32; 3], rotation: [f32; 4]
+    NetworkBroadcast = 12,  // channel_id: u32, ptr: u32, len: u32
+    DestroyEntity    = 13,  // entity_id: u32
+    SetScissor       = 14,  // x, y, w, h: u32
+    EnableLayer      = 15,  // layer_mask: u32, enable: u8
+}
+```
+
+### Applier rules
+
+- JS `CommandApplier` reads the stream once per frame, in order.
+- Unknown opcodes are logged and skipped using the payload length.
+- Commands that reference unknown entity/material/mesh handles are ignored (defensive, for async destruction).
+- The command buffer is a ring; Rust writes one frame ahead while JS consumes the previous frame. Double-buffered to avoid stalls.
+
+## 4. Scene graph split — Rust owns existence and local transforms, three.js owns world matrices
+
+The biggest architectural risk is duplicating the full scene graph in Rust. The split must be explicit:
+
+### Rust side (ECS in `wasm/src/scene/`)
+
+- `Entity(u32)` — existence bit, generation counter.
+- `LocalTransform` — position, rotation, scale.
+- `Parent(u32)` — parent entity handle.
+- `MeshRef(u32)`, `MaterialRef(u32)`, `LayerMask(u32)`.
+- `Visibility(bool)`.
+- Systems run each frame: `propagate_transforms`, `compute_world_matrices`, `cull_frustum`.
+
+### JS side (three.js retained mode)
+
+- `Object3D` tree mirrors the Rust parent/child graph only for entities that have a `MeshRef`.
+- JS does **not** recompute world matrices; it copies the precomputed 4×4 matrix from Rust via `object.matrix.fromArray(...)` and sets `object.matrixWorldNeedsUpdate = true`.
+- Parent/child relationships are updated only when commands `SetParent` / `DestroyEntity` arrive, not every frame.
+
+### Handle allocation rules
+
+1. `Entity` IDs are allocated sequentially from a pool; generation counter stored in a side table.
+2. `Mesh` and `Material` IDs are allocated by Rust but the actual three.js object is created lazily on first `DrawMesh` command.
+3. Reusing a destroyed handle must increment its generation; JS checks generation before applying commands.
+
+## 5. Instancing and GPU point-cloud thresholds
+
+To keep the JS side from creating thousands of draw calls:
+
+| Entity count | Strategy |
+|---|---|
+| ≤ 256 unique meshes | Individual `THREE.Mesh` objects; fine for interaction. |
+| 257 – 8,192 similar artefacts | `THREE.InstancedMesh` with per-instance matrix/color buffer updated via `SetInstanceMatrices`. |
+| 8,193 – 65,536 points | GPU point cloud: one `THREE.Points` system, vertex attributes updated via `UpdateVertices`. |
+| > 65,536 points | LOD + spatial indexing; emit aggregate representations (bins, histogram bars, TDA mapper graphs). |
+
+### Standard thresholds (tunable per dataset)
+
+```rust
+pub const INTERACTIVE_MESH_LIMIT: usize = 256;
+pub const INSTANCED_MESH_LIMIT: usize = 8_192;
+pub const POINT_CLOUD_LIMIT: usize = 65_536;
+```
+
+The Draco translator chooses the representation based on `dataset.row_count()` and topology.
+
+## 6. Capability flags — gradual cutover registry
+
+Because this is a gradual migration, both JS and Rust implementations of a subsystem will coexist. Use runtime capability flags so the app can switch safely.
+
+```rust
+bitflags! {
+    pub struct Capabilities: u32 {
+        const DATASET_RUST      = 1 << 0;
+        const PARSER_RUST       = 1 << 1;
+        const OPERATIONS_RUST   = 1 << 2;
+        const DRACO_RUST        = 1 << 3;
+        const SCENE_RUST        = 1 << 4;
+        const INPUT_RUST        = 1 << 5;
+        const NETWORK_RUST      = 1 << 6;
+        const COMMAND_BUFFER    = 1 << 7; // enabled once Scene is Rust
+        const INSTANCING        = 1 << 8;
+        const WASM_TELEMETRY    = 1 << 9;
+    }
+}
+```
+
+Default capability set for each phase:
+
+- Phase 0: none.
+- Phase 1: `DATASET_RUST | PARSER_RUST | OPERATIONS_RUST`.
+- Phase 2: add `SCENE_RUST | COMMAND_BUFFER | INSTANCING`.
+- Phase 3: add `DRACO_RUST`.
+- Phase 4: add `INPUT_RUST`.
+- Phase 5: add `NETWORK_RUST`.
+- Phase 6: add `WASM_TELEMETRY`.
+
+`World.js` reads `wasm.capabilities()` at startup and routes work accordingly. If a capability is off, the JS fallback module is used.
+
+## 7. Bundle size targets — realistic phased goals
+
+The original plan claimed “≤ current 865 KB minified JS (WASM included).” That is unrealistic for a Rust + `wasm-bindgen` build. Use these targets instead:
+
+| Phase | Target size | Measured as |
+|---|---|---|
+| Phase 0 | ≤ 1.1 MB total | `wasm/pkg/*.wasm` gzipped + JS wrapper. |
+| Phase 1 | ≤ 1.4 MB total | After data layer in Rust. |
+| Phase 2 | ≤ 1.7 MB total | After scene + command buffer. |
+| Phase 3 | ≤ 2.1 MB total | After Draco layouts. |
+| Phase 6 | ≤ 2.5 MB total | Full migration, `wasm-opt -Os`, LTO. |
+
+### Size budget by subsystem
+
+- Runtime + allocator + math: ≤ 300 KB gzipped.
+- Data + parsers + operations: ≤ 400 KB gzipped.
+- Draco + layouts: ≤ 500 KB gzipped.
+- Scene + command encoder: ≤ 300 KB gzipped.
+- Input + networking: ≤ 300 KB gzipped.
+
+Use `twiggy` and `wasm-objdump` to attribute bytes. Revisit features if a subsystem exceeds its budget by > 20%.
+
+## 8. Profiling baseline — required before Phase 1
+
+Do not start porting without measuring the current JS runtime. Record:
+
+1. **Load time** — from `World.start()` to first palace render for each sample dataset.
+2. **Frame time** — median / p95 / p99 on Quest Browser for the default dataset.
+3. **GC pressure** — count and duration of major GC pauses during a 60-second session.
+4. **Memory high watermark** — JS heap + GPU memory after loading the largest sample.
+5. **Command buffer byte count** — estimated bytes JS would need to write today if it were command-buffer-driven.
+
+Add a `PerformanceBaseline.md` under `docs/engineering/` with the numbers. The Phase 6 success criteria are:
+
+- Frame time p95 ≤ baseline p95 × 0.80.
+- Major GC pause count ≤ baseline × 0.50.
+- Total bundle size ≤ 2.5 MB gzipped.
+- Startup time ≤ baseline × 1.20 (WASM initialization is allowed to add up to 20%).
+
+## 9. Networking scope — reduce Phase 5, defer binary protocols
+
+The original Phase 5 was too broad. Adopt this narrower scope:
+
+### In scope for Phase 5
+
+- Move room/signalling state machine to Rust (`Room`, peer presence, last-seen timestamps).
+- Move message serialization/deserialization for the existing JSON protocol to Rust.
+- Emit `NetworkBroadcast` commands from Rust; JS only calls `WebSocket.send` / `RTCDataChannel.send`.
+- Keep live WebSocket byte copying in JS; only the parsed rows are pushed to Rust via `data_push_rows(ptr, len)`.
+
+### Deferred to post-Phase 6 / future roadmap
+
+- Binary payload formats (MessagePack, Arrow IPC, FlatBuffers).
+- Custom signalling server protocol beyond the existing JSON.
+- Rust-owned WebSocket/RTC objects (requires `web-sys` imports that can be brittle).
+
+This keeps Phase 5 focused on state and serialization, avoiding the instability of browser networking APIs in WASM.
+
+## 10. Crate layout — mirror JS source tree, keep it flat
+
+The original nested layout under `wasm/src/scene/`, `wasm/src/data/`, etc., is fine, but the Draco layouts should mirror the JS directory structure so that porting is mechanical.
+
+Revised `wasm/src/` layout:
+
+```
+wasm/src/
+├── lib.rs
+├── memory.rs
+├── math.rs
+├── capabilities.rs
+├── commands.rs          # opcode enum + command encoder
+├── applier_protocol.rs  # header + ring buffer spec
+├── data/
+│   ├── dataset.rs
+│   ├── column.rs
+│   ├── encodings.rs
+│   ├── parsers.rs
+│   ├── operations.rs
+│   ├── synthetic.rs
+│   └── topology.rs
+├── draco/
+│   ├── facts.rs
+│   ├── constraints.rs
+│   ├── translator.rs
+│   └── layouts/
+│       ├── grid.rs
+│       ├── force_directed.rs
+│       ├── radial_tree.rs
+│       ├── geo_surface.rs
+│       ├── time_series_ribbon.rs
+│       └── streamline.rs
+├── scene/
+│   ├── entity.rs
+│   ├── transform.rs
+│   ├── graph.rs
+│   ├── handle.rs
+│   └── cull.rs
+├── input/
+│   ├── state.rs
+│   ├── gestures.rs
+│   └── router.rs
+├── net/
+│   ├── room.rs
+│   └── protocol.rs
+└── analysis/
+    ├── history.rs
+    ├── session.rs
+    └── tda.rs
+```
+
+Top-level `wasm/Cargo.toml` is a single crate. Convert to a workspace only if a second crate (e.g., a native benchmark harness) is added.
+
+## 11. Test porting standards
+
+For every existing Vitest file, one of three outcomes is required:
+
+1. **Port to Rust unit test** (`#[test]` in `wasm/src/*/mod.rs` or `tests/*.rs`) if the module has no JS dependency.
+2. **Port to `wasm-bindgen-test`** if the module touches shared memory, handles, or command buffers.
+3. **Keep as JS integration test** through `RuntimeBridge.js` if the behaviour is host-specific (WebXR session, audio, haptics, file loading).
+
+### Porting checklist per subsystem
+
+- [ ] List all `tests/*.test.js` files and map each to outcome 1, 2, or 3.
+- [ ] Preserve assertion semantics; do not weaken tests to make them pass.
+- [ ] Add Rust tests for edge cases JS could not easily test (empty datasets, NaN handling, duplicate handles).
+- [ ] Run `cargo test` and `wasm-pack test --headless --chrome` in CI before merging any Phase.
+
+### Example mapping
+
+| JS test | Rust target | Notes |
+|---|---|---|
+| `tests/parsers.test.js` | `wasm/src/data/parsers.rs` unit tests | CSV/JSON edge cases. |
+| `tests/dataset-operations.test.js` | `wasm/src/data/operations.rs` unit tests | filter, sort, aggregate, cluster, anomaly. |
+| `tests/draco-layouts.test.js` | `wasm/src/draco/layouts/*.rs` + `wasm-bindgen-test` | Verify handle outputs and matrix counts. |
+| `tests/world.test.js` | JS integration via `RuntimeBridge.js` | Requires three.js + jsdom mock canvas. |
+
+## 12. Build and CI standards
+
+- `npm run dev` must build the WASM dev target first.
+- `npm run build` must run `wasm-pack --release` and `vite build`.
+- `npm test` must run `cargo test --manifest-path wasm/Cargo.toml` before Vitest.
+- Add `.github/workflows/ci.yml` jobs:
+  - `cargo fmt --check`
+  - `cargo clippy --target wasm32-unknown-unknown -- -D warnings`
+  - `cargo test`
+  - `wasm-pack test --headless --chrome` (optional while headless Chrome is flaky)
+  - `npm run build`
+  - `npm test`
+- Pin `wasm-pack` version in `package.json` `devDependencies` via a `postinstall` script or document the required version.
+
+## 13. Documentation standards
+
+- Every exported Rust function must have a rustdoc comment explaining its lifetime contract and handle semantics.
+- Every command opcode must be documented with payload layout in `wasm/src/commands.rs`.
+- `RuntimeBridge.js` must expose a typed JSDoc interface for every exported function.
+- Update `docs/ARCHITECTURE.md` and `CLAUDE.md` at the end of each phase to reflect new capabilities.
+
+## Updated decision summary
+
+1. Rust over C++.
+2. three.js remains the WebGL/WebXR renderer.
+3. Gradual replacement via capability flags.
+4. `cargo test` + `wasm-bindgen-test`; port existing assertions without weakening them.
+5. Zero-copy memory views and integer handles only on the ABI.
+6. Two-tier allocator (bump arena + stable heap).
+7. Packed, aligned, versioned command buffer with a JS applier.
+8. Scene graph split: Rust owns ECS/world matrices, three.js mirrors only renderable objects.
+9. Instancing thresholds defined and enforced by the Draco translator.
+10. Realistic bundle-size budgets per phase.
+11. Profiling baseline required before any porting begins.
+12. Networking Phase 5 reduced to state/serialization; binary protocols deferred.
+
+Start with Phase 0 and the profiling baseline. Do not proceed to Phase 1 until the build loop, ABI, allocator, and command-buffer wire format have been reviewed and tested in isolation.
