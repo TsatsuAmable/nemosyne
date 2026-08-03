@@ -151,6 +151,50 @@ export class SessionStore {
   }
 
   /**
+   * Store an arbitrary JSON value without session-schema validation.
+   * Used for cross-platform shared settings and similar small payloads.
+   *
+   * @param {string} id
+   * @param {object} value
+   * @returns {Promise<void>}
+   */
+  async setItem(id, value) {
+    const db = await this._db();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.put({ id, value, savedAt: Date.now() });
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+    });
+  }
+
+  /**
+   * Load an arbitrary JSON value stored with `setItem`.
+   *
+   * @param {string} id
+   * @returns {Promise<object|null>}
+   */
+  async getItem(id) {
+    if (!this._idb) return null;
+    try {
+      const db = await this._db();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const request = store.get(id);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const result = request.result;
+          resolve(result ? result.value : null);
+        };
+      });
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /**
    * Check whether a session exists.
    *
    * @param {string} id

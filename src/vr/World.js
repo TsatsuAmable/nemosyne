@@ -41,6 +41,7 @@ import {
   computeOperationDataset,
 } from './interactions/DataOperations.js';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildTDASummaryGroup } from './artifacts/TDAPlanes.js';
 import { HandGestureRecognizer } from './interactions/HandGestureRecognizer.js';
 import { ControllerGestureMapper } from './interactions/ControllerGestureMapper.js';
@@ -429,6 +430,10 @@ export class World {
     // settings panel values.
     this._applyComfortSettings();
     this._applyPanelDistance();
+
+    // Restore cross-platform shared settings asynchronously after the baseline
+    // defaults have been applied.
+    this._loadSharedSettings();
   }
 
   _resolveTourTarget(target) {
@@ -1279,6 +1284,108 @@ export class World {
     this._captureSession();
   }
 
+  /**
+   * Toggle a desktop "preview" orbit camera for preparing on a monitor before
+   * entering VR. Saves the current first-person pose so it can be restored.
+   */
+  _toggleDesktopPreview() {
+    const isVR = !!this.engine.renderer.xr.getSession();
+    if (isVR) {
+      this.vrConsole?.log?.('log', ['Desktop preview is only available outside VR']);
+      return;
+    }
+
+    this._desktopPreviewEnabled = !this._desktopPreviewEnabled;
+    if (this._desktopPreviewEnabled) {
+      // Store first-person pose.
+      this._desktopPreviewSavedPose = {
+        position: this.engine.cameraGroup.position.clone(),
+        yaw: this.engine.desktop?.yaw ?? 0,
+        pitch: this.engine.desktop?.pitch ?? 0,
+      };
+      // Disable first-person desktop mouse look and locomotion.
+      this.engine.desktop?.disable?.();
+      this.engine.locomotion?.setEnabled?.(false);
+
+      // Create orbit controls looking at the palace center.
+      if (!this._orbitControls) {
+        this._orbitControls = new OrbitControls(this.engine.camera, this.engine.renderer.domElement);
+        this._orbitControls.target.set(0, 1.4, -3.5);
+        this._orbitControls.enableDamping = true;
+        this._orbitControls.dampingFactor = 0.1;
+        this._orbitControls.screenSpacePanning = false;
+        this.engine.addUpdatable({
+          update: () => this._orbitControls?.update?.(),
+        });
+      }
+      this._orbitControls.enabled = true;
+      this._orbitControls.reset();
+      // Position the camera for a flattering overview.
+      this.engine.cameraGroup.position.set(0, 2.5, 2);
+      this.engine.cameraGroup.rotation.y = Math.PI;
+      this.engine.camera.rotation.x = -0.25;
+      this._orbitControls.update();
+      this.vrConsole?.log?.('log', ['Desktop preview on']);
+    } else {
+      this._orbitControls && (this._orbitControls.enabled = false);
+      this.engine.desktop?.enable?.();
+      this.engine.locomotion?.setEnabled?.(true);
+      if (this._desktopPreviewSavedPose) {
+        this.engine.cameraGroup.position.copy(this._desktopPreviewSavedPose.position);
+        if (this.engine.desktop) {
+          this.engine.desktop.yaw = this._desktopPreviewSavedPose.yaw;
+          this.engine.desktop.pitch = this._desktopPreviewSavedPose.pitch;
+          this.engine.desktop._applyRotation?.();
+        }
+      }
+      this.vrConsole?.log?.('log', ['Desktop preview off']);
+    }
+    this._logInteraction('Desktop preview', { result: this._desktopPreviewEnabled ? 'on' : 'off' });
+    this._captureSession();
+  }
+
+  /**
+   * Persist a cross-platform settings payload so desktop and VR sessions can
+   * share preferences and the latest analysis story.
+   */
+  async _saveSharedSettings() {
+    if (!this.sessionStore || !this.settingsPanel) return;
+    const settings = this.settingsPanel.getAllSettings();
+    const story = this._buildAnalysisStory();
+    try {
+      await this.sessionStore.setItem('shared-settings', {
+        version: 1,
+        savedAt: Date.now(),
+        settings,
+        lastStory: story,
+      });
+    } catch (err) {
+      console.warn('[World] failed to save shared settings:', err);
+    }
+  }
+
+  /**
+   * Restore cross-platform shared settings. Applied before the per-session
+   * autosave so the current session can override shared defaults.
+   */
+  async _loadSharedSettings() {
+    if (!this.sessionStore || !this.settingsPanel) return;
+    try {
+      const shared = await this.sessionStore.getItem('shared-settings');
+      if (!shared?.settings) return;
+      for (const [key, value] of Object.entries(shared.settings)) {
+        this.settingsPanel.setSetting(key, value);
+      }
+      this._applyComfortSettings();
+      this._applyPanelDistance();
+      this._applyFeedbackSettings(this.settingsPanel.getAllSettings());
+      this._applyAccessibilitySettings();
+      this.vrConsole?.log?.('log', ['Shared settings restored']);
+    } catch (err) {
+      console.warn('[World] failed to load shared settings:', err);
+    }
+  }
+
   _setStatisticalLensVisible(enabled) {
     const tdaEnabled = enabled && (this.settingsPanel?.getSetting('lensTDA') ?? true);
     const corrEnabled = enabled && (this.settingsPanel?.getSetting('lensCorrelation') ?? true);
@@ -1333,6 +1440,7 @@ export class World {
     } else if (key === 'peerPresence') {
       this.peerPresenceHUD?.setEnabled?.(value);
     }
+    this._saveSharedSettings();
     this._logInteraction('Setting changed', { result: `${key} = ${value}` });
     this._captureSession();
   }
@@ -1710,6 +1818,12 @@ export class World {
             label: 'Peers',
             icon: '👥',
             callback: () => this._togglePeerPresenceHUD(),
+          },
+          {
+            id: 'toggle-desktop-preview',
+            label: 'Preview',
+            icon: '🖥️',
+            callback: () => this._toggleDesktopPreview(),
           },
           {
             id: 'toggle-flight',
