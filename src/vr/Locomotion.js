@@ -155,6 +155,16 @@ export class Locomotion {
     this.seatedHeightOffset = offset;
   }
 
+  setEnabled(enabled) {
+    this.enabled = enabled;
+    if (!enabled) {
+      this.keys.clear();
+      this.teleportMode = false;
+      this.flightMode = false;
+      this._endTeleportPreview();
+    }
+  }
+
   dropToFloor() {
     this.cameraGroup.position.y = this.teleportFloorY;
   }
@@ -272,6 +282,7 @@ export class Locomotion {
   }
 
   update(delta, time) {
+    if (this.enabled === false) return;
     this.turnCooldown = Math.max(0, this.turnCooldown - delta);
 
     // 1. Controller thumbsticks

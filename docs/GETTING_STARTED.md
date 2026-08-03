@@ -119,6 +119,7 @@ Then open `https://localhost:5173` in the Quest Browser.
 | Join collaboration room | Settings → NETWORK → Collaboration ON |
 | Leave collaboration room | Wheel menu → Collab → Leave Room |
 | View collaboration status | Wheel menu → Collab → Network Panel |
+| Toggle desktop preview | Wheel menu → Views → Preview (outside VR) |
 
 ### Context-aware shortcuts
 
@@ -225,6 +226,8 @@ Saved state includes:
 - Settings, theme, and guided-tour progress.
 
 Live stream connections are not persisted; a restored session keeps the last buffered dataset.
+
+Key settings and the most recent analysis story are also saved to a cross-platform `shared-settings` record, so changes made in desktop preview mode are restored when you later enter VR.
 
 ---
 
