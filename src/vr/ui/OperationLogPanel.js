@@ -52,7 +52,11 @@ export class OperationLogPanel extends MovablePanel {
     ctx.font = '16px monospace';
     for (const entry of this.entries.slice(0, 18)) {
       const time = entry.timestamp
-        ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        ? new Date(entry.timestamp).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          })
         : '--:--:--';
       const suffix = entry.rowCount != null ? ` — ${entry.rowCount} rows` : '';
       const text = `${time}  ${entry.operation}${suffix}`;

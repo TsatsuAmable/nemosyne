@@ -78,7 +78,11 @@ export class InteractionCoach extends MovablePanel {
     if (this.entries.length === 0) {
       ctx.font = this._scaleFont('16px monospace');
       ctx.fillStyle = this.highContrast ? '#aaaaaa' : '#778899';
-      ctx.fillText('Perform a gesture, controller action, or menu selection to see it here.', margin, y + lineHeight / 2);
+      ctx.fillText(
+        'Perform a gesture, controller action, or menu selection to see it here.',
+        margin,
+        y + lineHeight / 2
+      );
       return;
     }
 

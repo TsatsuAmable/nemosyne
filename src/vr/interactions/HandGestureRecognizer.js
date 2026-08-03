@@ -104,9 +104,12 @@ export class HandGestureRecognizer {
     if (dt <= 0) return;
 
     const gesture = this._classify(
-      left, right,
-      this._prev.leftPos, this._prev.rightPos,
-      this._prev.leftDir, this._prev.rightDir,
+      left,
+      right,
+      this._prev.leftPos,
+      this._prev.rightPos,
+      this._prev.leftDir,
+      this._prev.rightDir,
       dt
     );
 

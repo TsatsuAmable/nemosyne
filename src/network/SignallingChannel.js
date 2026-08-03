@@ -25,7 +25,9 @@ export class SignallingChannel extends EventTarget {
     if (this._ws) return Promise.resolve();
     return new Promise((resolve, reject) => {
       try {
-        this._ws = new WebSocket(`${this.url}?room=${encodeURIComponent(this.roomId)}&peer=${encodeURIComponent(this.peerId)}`);
+        this._ws = new WebSocket(
+          `${this.url}?room=${encodeURIComponent(this.roomId)}&peer=${encodeURIComponent(this.peerId)}`
+        );
       } catch (err) {
         reject(err);
         return;

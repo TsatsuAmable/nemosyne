@@ -55,7 +55,9 @@ export class SettingsPanel extends MovablePanel {
   _loadSettings() {
     try {
       const raw = localStorage.getItem(SettingsPanel.STORAGE_KEY);
-      return raw ? { ...SettingsPanel.DEFAULTS, ...JSON.parse(raw) } : { ...SettingsPanel.DEFAULTS };
+      return raw
+        ? { ...SettingsPanel.DEFAULTS, ...JSON.parse(raw) }
+        : { ...SettingsPanel.DEFAULTS };
     } catch {
       return { ...SettingsPanel.DEFAULTS };
     }
@@ -96,12 +98,38 @@ export class SettingsPanel extends MovablePanel {
       { key: 'telemetryEnabled', label: 'Telemetry Opt-in', section: 'PRIVACY' },
       { key: 'highContrast', label: 'High Contrast', section: 'ACCESSIBILITY' },
       { key: 'dwellSelection', label: 'Dwell Select', section: 'ACCESSIBILITY' },
-      { key: 'textScale', label: 'Text Scale', section: 'ACCESSIBILITY', type: 'stepper', min: 0.75, max: 2, step: 0.25 },
-      { key: 'colorblindMode', label: 'Colorblind', section: 'ACCESSIBILITY', type: 'choice', choices: ['none', 'deuteranopia', 'protanopia', 'tritanopia'] },
+      {
+        key: 'textScale',
+        label: 'Text Scale',
+        section: 'ACCESSIBILITY',
+        type: 'stepper',
+        min: 0.75,
+        max: 2,
+        step: 0.25,
+      },
+      {
+        key: 'colorblindMode',
+        label: 'Colorblind',
+        section: 'ACCESSIBILITY',
+        type: 'choice',
+        choices: ['none', 'deuteranopia', 'protanopia', 'tritanopia'],
+      },
       { key: 'strictBudget', label: 'Strict Budget', section: 'PERFORMANCE' },
       { key: 'collabEnabled', label: 'Collaboration', section: 'NETWORK' },
-      { key: 'collabRoom', label: 'Room', section: 'NETWORK', type: 'choice', choices: ['default', 'team-a', 'team-b', 'demo'] },
-      { key: 'collabName', label: 'Name', section: 'NETWORK', type: 'choice', choices: ['Analyst', 'Observer', 'Guest', 'Peer'] },
+      {
+        key: 'collabRoom',
+        label: 'Room',
+        section: 'NETWORK',
+        type: 'choice',
+        choices: ['default', 'team-a', 'team-b', 'demo'],
+      },
+      {
+        key: 'collabName',
+        label: 'Name',
+        section: 'NETWORK',
+        type: 'choice',
+        choices: ['Analyst', 'Observer', 'Guest', 'Peer'],
+      },
     ];
 
     const rowH = 72;
@@ -236,13 +264,17 @@ export class SettingsPanel extends MovablePanel {
 
     // Decrement arrow.
     const decActive = value > this._buttons.find((b) => b.stepperBounds === bounds)?.min;
-    ctx.fillStyle = decActive ? `#${this.remapColor(0x00ffcc).toString(16).padStart(6, '0')}` : '#445566';
+    ctx.fillStyle = decActive
+      ? `#${this.remapColor(0x00ffcc).toString(16).padStart(6, '0')}`
+      : '#445566';
     ctx.fillRect(bounds.dec.x, bounds.dec.y, bounds.dec.w, bounds.dec.h);
     ctx.strokeRect(bounds.dec.x, bounds.dec.y, bounds.dec.w, bounds.dec.h);
 
     // Increment arrow.
     const incActive = value < this._buttons.find((b) => b.stepperBounds === bounds)?.max;
-    ctx.fillStyle = incActive ? `#${this.remapColor(0x00ffcc).toString(16).padStart(6, '0')}` : '#445566';
+    ctx.fillStyle = incActive
+      ? `#${this.remapColor(0x00ffcc).toString(16).padStart(6, '0')}`
+      : '#445566';
     ctx.fillRect(bounds.inc.x, bounds.inc.y, bounds.inc.w, bounds.inc.h);
     ctx.strokeRect(bounds.inc.x, bounds.inc.y, bounds.inc.w, bounds.inc.h);
 
@@ -271,7 +303,10 @@ export class SettingsPanel extends MovablePanel {
     ctx.font = this._scaleFont('bold 18px monospace');
     ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
     ctx.textAlign = 'center';
-    const display = String(value ?? '').charAt(0).toUpperCase() + String(value ?? '').slice(1);
+    const display =
+      String(value ?? '')
+        .charAt(0)
+        .toUpperCase() + String(value ?? '').slice(1);
     ctx.fillText(display, x + w / 2, y + h / 2 + 1);
     ctx.textAlign = 'left';
   }

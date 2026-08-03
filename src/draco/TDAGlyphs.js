@@ -46,7 +46,9 @@ export class TDAGlyphs {
       byDim[iv.dimension].push(iv);
     }
 
-    const dims = Object.keys(byDim).map(Number).sort((a, b) => a - b);
+    const dims = Object.keys(byDim)
+      .map(Number)
+      .sort((a, b) => a - b);
     const rowH = height / Math.max(1, dims.length);
 
     dims.forEach((dim, dimIdx) => {
@@ -60,8 +62,8 @@ export class TDAGlyphs {
       });
 
       for (const iv of byDim[dim]) {
-        const x1 = ((iv.birth / maxDeath) - 0.5) * width;
-        const x2 = ((iv.death / maxDeath) - 0.5) * width;
+        const x1 = (iv.birth / maxDeath - 0.5) * width;
+        const x2 = (iv.death / maxDeath - 0.5) * width;
         const geo = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(x1, rowY, 0),
           new THREE.Vector3(x2, rowY, 0),
@@ -79,12 +81,7 @@ export class TDAGlyphs {
    * edges: [{ source, target }]
    */
   static mapperGraph(nodes = [], edges = [], options = {}) {
-    const {
-      radius = 0.7,
-      yOffset = 1.2,
-      nodeColor = 0x00ffcc,
-      edgeColor = 0x88ccff,
-    } = options;
+    const { radius = 0.7, yOffset = 1.2, nodeColor = 0x00ffcc, edgeColor = 0x88ccff } = options;
 
     const group = new THREE.Group();
     const positions = [];

@@ -67,9 +67,7 @@ export function clearAnomalyHighlight(artifact) {
  * @param {number} [radius]
  */
 export function applyOutlierLens(artifact, anomalyDataset, focusPoint, radius = 0.7) {
-  const outlierRows = new Set(
-    anomalyDataset.rows.filter((r) => r._anomaly === true)
-  );
+  const outlierRows = new Set(anomalyDataset.rows.filter((r) => r._anomaly === true));
   let idx = 0;
   const count = outlierRows.size;
   for (const mesh of artifact.nodeMeshes) {

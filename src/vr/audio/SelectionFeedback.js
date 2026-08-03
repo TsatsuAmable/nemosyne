@@ -8,7 +8,13 @@ import * as THREE from 'three';
  * marker at the selection point.
  */
 export class SelectionFeedback {
-  constructor({ enabled = true, volume = 0.15, audioEnabled = true, hapticEnabled = true, visualEnabled = true } = {}) {
+  constructor({
+    enabled = true,
+    volume = 0.15,
+    audioEnabled = true,
+    hapticEnabled = true,
+    visualEnabled = true,
+  } = {}) {
     this.enabled = enabled;
     this.volume = volume;
     this.audioEnabled = audioEnabled;
@@ -52,7 +58,13 @@ export class SelectionFeedback {
   /**
    * Play a short tone. `shape` can be 'sine', 'square', 'triangle', 'sawtooth'.
    */
-  playTone({ frequency = 440, duration = 0.08, shape = 'sine', attack = 0.005, release = 0.03 } = {}) {
+  playTone({
+    frequency = 440,
+    duration = 0.08,
+    shape = 'sine',
+    attack = 0.005,
+    release = 0.03,
+  } = {}) {
     if (!this.enabled || !this.audioEnabled || !this.audioContext) return;
     this._resume();
 

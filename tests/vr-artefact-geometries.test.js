@@ -36,7 +36,12 @@ describe('VRTopologyTranslator artefact geometries', () => {
   for (const geometry of geometries) {
     it(`creates a mesh for geometry ${geometry}`, () => {
       const ds = makeDataset([{ id: 'A', value: 5 }]);
-      const mesh = VRTopologyTranslator._makeNode({ id: 'A', value: 5 }, ds, { color: 'id', size: 'value' }, geometry);
+      const mesh = VRTopologyTranslator._makeNode(
+        { id: 'A', value: 5 },
+        ds,
+        { color: 'id', size: 'value' },
+        geometry
+      );
       expect(mesh).toBeInstanceOf(THREE.Mesh);
       expect(mesh.geometry).toBeTruthy();
       expect(mesh.material).toBeTruthy();
@@ -49,8 +54,18 @@ describe('VRTopologyTranslator artefact geometries', () => {
       { id: 'A', value: 0 },
       { id: 'B', value: 100 },
     ]);
-    const small = VRTopologyTranslator._makeNode({ id: 'A', value: 0 }, ds, { size: 'value' }, 'ORB');
-    const large = VRTopologyTranslator._makeNode({ id: 'B', value: 100 }, ds, { size: 'value' }, 'ORB');
+    const small = VRTopologyTranslator._makeNode(
+      { id: 'A', value: 0 },
+      ds,
+      { size: 'value' },
+      'ORB'
+    );
+    const large = VRTopologyTranslator._makeNode(
+      { id: 'B', value: 100 },
+      ds,
+      { size: 'value' },
+      'ORB'
+    );
     expect(large.scale.x).toBeGreaterThan(small.scale.x);
   });
 

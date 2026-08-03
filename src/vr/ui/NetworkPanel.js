@@ -47,9 +47,17 @@ export class NetworkPanel extends MovablePanel {
     y += lineHeight + 12;
 
     ctx.fillStyle = this.status.connected
-      ? (this.highContrast ? '#ffffff' : '#00ffcc')
-      : (this.highContrast ? '#ffffff' : '#ff5577');
-    ctx.fillText(`State: ${this.status.connected ? 'Connected' : 'Offline'}`, margin, y + lineHeight / 2);
+      ? this.highContrast
+        ? '#ffffff'
+        : '#00ffcc'
+      : this.highContrast
+        ? '#ffffff'
+        : '#ff5577';
+    ctx.fillText(
+      `State: ${this.status.connected ? 'Connected' : 'Offline'}`,
+      margin,
+      y + lineHeight / 2
+    );
     y += lineHeight + 18;
 
     ctx.fillStyle = this.highContrast ? '#ffffff' : '#ccffff';
@@ -62,7 +70,9 @@ export class NetworkPanel extends MovablePanel {
       ctx.fillText('  No peers in room', margin, y + lineHeight / 2);
     } else {
       for (const peer of this.status.peers) {
-        const label = peer.name ? `${peer.name} (${peer.peerId.slice(0, 6)})` : peer.peerId.slice(0, 12);
+        const label = peer.name
+          ? `${peer.name} (${peer.peerId.slice(0, 6)})`
+          : peer.peerId.slice(0, 12);
         ctx.fillStyle = this.highContrast ? '#ffffff' : '#ccffff';
         ctx.fillText(`  • ${label}`, margin, y + lineHeight / 2);
         y += lineHeight;

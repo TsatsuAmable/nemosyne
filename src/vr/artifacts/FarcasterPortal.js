@@ -138,8 +138,14 @@ export class FarcasterPortal {
     const previewBoost = this._previewActive ? 0.35 : 0;
 
     this.horizonMat.opacity = 0.4 + pulse * 0.2 + activityBoost + previewBoost;
-    this._sharedRingMaterial.opacity = Math.min(1, 0.55 + pulse * 0.2 + activityBoost + previewBoost);
-    this.glowMat.opacity = Math.min(0.9, 0.15 + pulse * 0.15 + activityBoost * 0.5 + previewBoost * 0.8);
+    this._sharedRingMaterial.opacity = Math.min(
+      1,
+      0.55 + pulse * 0.2 + activityBoost + previewBoost
+    );
+    this.glowMat.opacity = Math.min(
+      0.9,
+      0.15 + pulse * 0.15 + activityBoost * 0.5 + previewBoost * 0.8
+    );
 
     const scale = 1 + pulse * 0.04 + this._dataActivity * 0.06;
     this.horizon.scale.setScalar(scale);

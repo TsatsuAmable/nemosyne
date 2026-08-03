@@ -17,15 +17,19 @@ export function makeSalesTable(rows = 60) {
     const discount = Math.random() > 0.8 ? 0.2 : 0;
     rows_.push({ id: `S${i + 1}`, region, product, units, price, revenue, discount });
   }
-  return new Dataset('Sales Performance', [
-    { name: 'id', type: ColumnType.CATEGORICAL },
-    { name: 'region', type: ColumnType.CATEGORICAL },
-    { name: 'product', type: ColumnType.CATEGORICAL },
-    { name: 'units', type: ColumnType.NUMERIC },
-    { name: 'price', type: ColumnType.NUMERIC },
-    { name: 'revenue', type: ColumnType.NUMERIC },
-    { name: 'discount', type: ColumnType.NUMERIC },
-  ], rows_);
+  return new Dataset(
+    'Sales Performance',
+    [
+      { name: 'id', type: ColumnType.CATEGORICAL },
+      { name: 'region', type: ColumnType.CATEGORICAL },
+      { name: 'product', type: ColumnType.CATEGORICAL },
+      { name: 'units', type: ColumnType.NUMERIC },
+      { name: 'price', type: ColumnType.NUMERIC },
+      { name: 'revenue', type: ColumnType.NUMERIC },
+      { name: 'discount', type: ColumnType.NUMERIC },
+    ],
+    rows_
+  );
 }
 
 export function makeOrgChart(depth = 3, branching = [1, 3, 4, 2]) {
@@ -56,14 +60,18 @@ export function makeOrgChart(depth = 3, branching = [1, 3, 4, 2]) {
     }
   }
 
-  return new Dataset('Organization Chart', [
-    { name: 'id', type: ColumnType.NUMERIC },
-    { name: 'name', type: ColumnType.CATEGORICAL },
-    { name: 'level', type: ColumnType.NUMERIC },
-    { name: 'parent', type: ColumnType.NUMERIC },
-    { name: 'employees', type: ColumnType.NUMERIC },
-    { name: 'budget', type: ColumnType.NUMERIC },
-  ], rows);
+  return new Dataset(
+    'Organization Chart',
+    [
+      { name: 'id', type: ColumnType.NUMERIC },
+      { name: 'name', type: ColumnType.CATEGORICAL },
+      { name: 'level', type: ColumnType.NUMERIC },
+      { name: 'parent', type: ColumnType.NUMERIC },
+      { name: 'employees', type: ColumnType.NUMERIC },
+      { name: 'budget', type: ColumnType.NUMERIC },
+    ],
+    rows
+  );
 }
 
 export function makeWindField(count = 40) {
@@ -83,16 +91,20 @@ export function makeWindField(count = 40) {
   for (const r of rows) {
     r.magnitude = Math.sqrt(r.u * r.u + r.v * r.v + r.w * r.w);
   }
-  return new Dataset('Wind Vector Field', [
-    { name: 'id', type: ColumnType.CATEGORICAL },
-    { name: 'x', type: ColumnType.NUMERIC },
-    { name: 'y', type: ColumnType.NUMERIC },
-    { name: 'z', type: ColumnType.NUMERIC },
-    { name: 'u', type: ColumnType.NUMERIC },
-    { name: 'v', type: ColumnType.NUMERIC },
-    { name: 'w', type: ColumnType.NUMERIC },
-    { name: 'magnitude', type: ColumnType.NUMERIC },
-  ], rows);
+  return new Dataset(
+    'Wind Vector Field',
+    [
+      { name: 'id', type: ColumnType.CATEGORICAL },
+      { name: 'x', type: ColumnType.NUMERIC },
+      { name: 'y', type: ColumnType.NUMERIC },
+      { name: 'z', type: ColumnType.NUMERIC },
+      { name: 'u', type: ColumnType.NUMERIC },
+      { name: 'v', type: ColumnType.NUMERIC },
+      { name: 'w', type: ColumnType.NUMERIC },
+      { name: 'magnitude', type: ColumnType.NUMERIC },
+    ],
+    rows
+  );
 }
 
 export function makeSocialGraph(nodes = 24) {
@@ -115,11 +127,15 @@ export function makeSocialGraph(nodes = 24) {
       }
     }
   }
-  const ds = new Dataset('Social Influence Graph', [
-    { name: 'id', type: ColumnType.CATEGORICAL },
-    { name: 'group', type: ColumnType.CATEGORICAL },
-    { name: 'influence', type: ColumnType.NUMERIC },
-  ], rows);
+  const ds = new Dataset(
+    'Social Influence Graph',
+    [
+      { name: 'id', type: ColumnType.CATEGORICAL },
+      { name: 'group', type: ColumnType.CATEGORICAL },
+      { name: 'influence', type: ColumnType.NUMERIC },
+    ],
+    rows
+  );
   ds.edges = edges;
   return ds;
 }
@@ -148,15 +164,19 @@ export function makeFinancialSeries(ticks = 48, symbol = 'MEMO') {
     });
     price = close;
   }
-  return new Dataset('Financial Series', [
-    { name: 'time', type: ColumnType.TEMPORAL },
-    { name: 'symbol', type: ColumnType.CATEGORICAL },
-    { name: 'open', type: ColumnType.NUMERIC },
-    { name: 'high', type: ColumnType.NUMERIC },
-    { name: 'low', type: ColumnType.NUMERIC },
-    { name: 'close', type: ColumnType.NUMERIC },
-    { name: 'volume', type: ColumnType.NUMERIC },
-  ], rows);
+  return new Dataset(
+    'Financial Series',
+    [
+      { name: 'time', type: ColumnType.TEMPORAL },
+      { name: 'symbol', type: ColumnType.CATEGORICAL },
+      { name: 'open', type: ColumnType.NUMERIC },
+      { name: 'high', type: ColumnType.NUMERIC },
+      { name: 'low', type: ColumnType.NUMERIC },
+      { name: 'close', type: ColumnType.NUMERIC },
+      { name: 'volume', type: ColumnType.NUMERIC },
+    ],
+    rows
+  );
 }
 
 /**
@@ -190,13 +210,17 @@ export function makeGeoCities(count = 20) {
     population: Math.floor(2 + Math.random() * 18),
     gdp: Math.floor(50 + Math.random() * 450),
   }));
-  return new Dataset('Global Cities', [
-    { name: 'name', type: ColumnType.CATEGORICAL },
-    { name: 'lat', type: ColumnType.NUMERIC },
-    { name: 'lon', type: ColumnType.NUMERIC },
-    { name: 'population', type: ColumnType.NUMERIC },
-    { name: 'gdp', type: ColumnType.NUMERIC },
-  ], rows);
+  return new Dataset(
+    'Global Cities',
+    [
+      { name: 'name', type: ColumnType.CATEGORICAL },
+      { name: 'lat', type: ColumnType.NUMERIC },
+      { name: 'lon', type: ColumnType.NUMERIC },
+      { name: 'population', type: ColumnType.NUMERIC },
+      { name: 'gdp', type: ColumnType.NUMERIC },
+    ],
+    rows
+  );
 }
 
 /**
@@ -221,13 +245,17 @@ export function makeFlowProcess(stages = 6) {
       edges.push({ source: `S${i}`, target: `S${skip}`, weight: Math.random() });
     }
   }
-  const ds = new Dataset('Process Flow', [
-    { name: 'id', type: ColumnType.CATEGORICAL },
-    { name: 'stage', type: ColumnType.NUMERIC },
-    { name: 'label', type: ColumnType.CATEGORICAL },
-    { name: 'throughput', type: ColumnType.NUMERIC },
-    { name: 'latency', type: ColumnType.NUMERIC },
-  ], rows);
+  const ds = new Dataset(
+    'Process Flow',
+    [
+      { name: 'id', type: ColumnType.CATEGORICAL },
+      { name: 'stage', type: ColumnType.NUMERIC },
+      { name: 'label', type: ColumnType.CATEGORICAL },
+      { name: 'throughput', type: ColumnType.NUMERIC },
+      { name: 'latency', type: ColumnType.NUMERIC },
+    ],
+    rows
+  );
   ds.edges = edges;
   return ds;
 }

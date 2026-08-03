@@ -13,14 +13,18 @@ describe('ChartPlanePanel', () => {
 
   beforeEach(() => {
     cameraGroup = new THREE.Group();
-    dataset = new Dataset('Test', [
-      { name: 'category', type: ColumnType.CATEGORICAL },
-      { name: 'value', type: ColumnType.NUMERIC },
-    ], [
-      { category: 'A', value: 10 },
-      { category: 'B', value: 30 },
-      { category: 'C', value: 20 },
-    ]);
+    dataset = new Dataset(
+      'Test',
+      [
+        { name: 'category', type: ColumnType.CATEGORICAL },
+        { name: 'value', type: ColumnType.NUMERIC },
+      ],
+      [
+        { category: 'A', value: 10 },
+        { category: 'B', value: 30 },
+        { category: 'C', value: 20 },
+      ]
+    );
   });
 
   it('extends MovablePanel', () => {
@@ -51,12 +55,14 @@ describe('ChartPlanePanel', () => {
     });
     const before = panel.texture.version;
 
-    const updated = new Dataset('Updated', [
-      { name: 'category', type: ColumnType.CATEGORICAL },
-      { name: 'value', type: ColumnType.NUMERIC },
-    ], [
-      { category: 'X', value: 100 },
-    ]);
+    const updated = new Dataset(
+      'Updated',
+      [
+        { name: 'category', type: ColumnType.CATEGORICAL },
+        { name: 'value', type: ColumnType.NUMERIC },
+      ],
+      [{ category: 'X', value: 100 }]
+    );
     panel.setDataset(updated);
 
     expect(panel.texture.version).toBeGreaterThan(before);

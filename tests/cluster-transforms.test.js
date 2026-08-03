@@ -27,16 +27,20 @@ function makeArtifact(rows) {
 }
 
 function makeClusteredDataset() {
-  return new Dataset('Clusters', [
-    { name: 'value', type: ColumnType.NUMERIC },
-    { name: '_cluster', type: ColumnType.NUMERIC },
-  ], [
-    { value: 1, _cluster: 0 },
-    { value: 2, _cluster: 0 },
-    { value: 10, _cluster: 1 },
-    { value: 11, _cluster: 1 },
-    { value: 100, _cluster: -1 },
-  ]);
+  return new Dataset(
+    'Clusters',
+    [
+      { name: 'value', type: ColumnType.NUMERIC },
+      { name: '_cluster', type: ColumnType.NUMERIC },
+    ],
+    [
+      { value: 1, _cluster: 0 },
+      { value: 2, _cluster: 0 },
+      { value: 10, _cluster: 1 },
+      { value: 11, _cluster: 1 },
+      { value: 100, _cluster: -1 },
+    ]
+  );
 }
 
 describe('ClusterTransforms', () => {
@@ -50,9 +54,9 @@ describe('ClusterTransforms', () => {
     const artifact = makeArtifact(dataset.rows);
     applyNestedRings(artifact, dataset);
 
-    const cluster0 = dataset.rows.filter((r) => r._cluster === 0).map((r) =>
-      artifact.nodeMeshes.find((m) => m.userData.row === r).position.clone()
-    );
+    const cluster0 = dataset.rows
+      .filter((r) => r._cluster === 0)
+      .map((r) => artifact.nodeMeshes.find((m) => m.userData.row === r).position.clone());
 
     expect(cluster0.length).toBeGreaterThan(0);
     for (const pos of cluster0) {
@@ -86,9 +90,9 @@ describe('ClusterTransforms', () => {
     const artifact = makeArtifact(dataset.rows);
     applyDendrogramArc(artifact, dataset);
 
-    const cluster0 = dataset.rows.filter((r) => r._cluster === 0).map((r) =>
-      artifact.nodeMeshes.find((m) => m.userData.row === r).position.clone()
-    );
+    const cluster0 = dataset.rows
+      .filter((r) => r._cluster === 0)
+      .map((r) => artifact.nodeMeshes.find((m) => m.userData.row === r).position.clone());
 
     expect(cluster0.length).toBe(2);
     for (const pos of cluster0) {

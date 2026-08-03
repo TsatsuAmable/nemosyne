@@ -290,9 +290,7 @@ describe('HandPointer', () => {
     const hand = new HandPointer(renderer, 0);
 
     const session = {
-      inputSources: [
-        { handedness: 'right', hand: xrHandMap },
-      ],
+      inputSources: [{ handedness: 'right', hand: xrHandMap }],
     };
 
     const frame = {

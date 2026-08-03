@@ -1,6 +1,7 @@
 const DB_NAME = 'nemosyne-sessions';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'sessions';
+const SNAPSHOT_SCHEMA_VERSION = 1;
 
 /**
  * Lightweight IndexedDB-backed session store.
@@ -31,6 +32,11 @@ export class SessionStore {
           const db = event.target.result;
           if (!db.objectStoreNames.contains(STORE_NAME)) {
             db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          }
+          // Version 2: delete legacy snapshots without schema version.
+          if (event.oldVersion < 2) {
+            // Schema migration is limited in IndexedDB upgrade transactions;
+            // invalid snapshots are filtered at load time instead.
           }
         };
       });
@@ -73,12 +79,30 @@ export class SessionStore {
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const result = request.result;
-          resolve(result ? result.snapshot : null);
+          resolve(result ? this._validateSnapshot(result.snapshot) : null);
         };
       });
     } catch (err) {
       return null;
     }
+  }
+
+  /**
+   * Validate and normalize a stored snapshot.
+   * Rejects snapshots with incompatible schema versions or missing required fields.
+   *
+   * @param {object|null} snapshot
+   * @returns {object|null}
+   */
+  _validateSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return null;
+    if (snapshot.schemaVersion && snapshot.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) {
+      // Future migrations can branch here; for now reject stale snapshots.
+      return null;
+    }
+    if (!snapshot.dataset || typeof snapshot.dataset !== 'object') return null;
+    if (!Array.isArray(snapshot.history) && snapshot.history !== undefined) return null;
+    return snapshot;
   }
 
   /**

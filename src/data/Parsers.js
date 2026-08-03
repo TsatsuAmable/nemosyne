@@ -7,6 +7,12 @@ const DEFAULT_CSV_OPTIONS = {
   maxColumns: 1_000,
 };
 
+const DEFAULT_JSON_OPTIONS = {
+  name: 'json',
+  maxRows: 100_000,
+  maxColumns: 1_000,
+};
+
 export function inferType(values) {
   let numeric = 0;
   let temporal = 0;
@@ -25,15 +31,23 @@ export function inferType(values) {
   return ColumnType.TEXT;
 }
 
-export function parseJSON(text) {
+export function parseJSON(text, options = {}) {
+  const opts = { ...DEFAULT_JSON_OPTIONS, ...options };
   const raw = JSON.parse(text);
   if (!Array.isArray(raw)) throw new Error('JSON dataset must be an array of objects');
-  if (raw.length === 0) return new Dataset('json', [], []);
-  const columns = Object.keys(raw[0]).map((name) => {
-    const type = inferType(raw.map((r) => r[name]));
+  if (raw.length === 0) return new Dataset(opts.name, [], []);
+
+  const columns = Object.keys(raw[0]);
+  if (opts.maxColumns > 0 && columns.length > opts.maxColumns) {
+    throw new Error(`JSON has ${columns.length} columns; maximum allowed is ${opts.maxColumns}`);
+  }
+
+  const rows = opts.maxRows > 0 ? raw.slice(0, opts.maxRows) : raw;
+  const typedColumns = columns.map((name) => {
+    const type = inferType(rows.map((r) => r[name]));
     return { name, type };
   });
-  return new Dataset('json', columns, raw);
+  return new Dataset(opts.name, typedColumns, rows);
 }
 
 /**
@@ -121,7 +135,9 @@ export function parseCSV(text, options = {}) {
   const rawLines = normalized.split('\n');
   if (rawLines.length === 0) return new Dataset(opts.name, [], []);
 
-  const headers = tokenizeCSVLine(rawLines[0], delimiter).map((h) => h.trim().replace(/^["']|["']$/g, ''));
+  const headers = tokenizeCSVLine(rawLines[0], delimiter).map((h) =>
+    h.trim().replace(/^["']|["']$/g, '')
+  );
   if (opts.maxColumns > 0 && headers.length > opts.maxColumns) {
     throw new Error(`CSV has ${headers.length} columns; maximum allowed is ${opts.maxColumns}`);
   }
@@ -152,7 +168,7 @@ export function parseCSV(text, options = {}) {
         v = v.slice(1, -1).replace(/""/g, '"');
       }
       const n = Number(v);
-      row[headers[j]] = (!Number.isNaN(n) && v !== '') ? n : v;
+      row[headers[j]] = !Number.isNaN(n) && v !== '' ? n : v;
     }
     rows.push(row);
     buffer = '';

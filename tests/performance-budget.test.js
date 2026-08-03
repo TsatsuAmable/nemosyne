@@ -29,7 +29,11 @@ describe('PerformanceBudget', () => {
   });
 
   it('flags excessive draw calls', () => {
-    const violations = budget.check({ frameMs: 10, dropped: false, rendererInfo: { render: { calls: 600 } } });
+    const violations = budget.check({
+      frameMs: 10,
+      dropped: false,
+      rendererInfo: { render: { calls: 600 } },
+    });
     expect(violations.some((v) => v.id === 'drawCalls')).toBe(true);
   });
 
@@ -129,7 +133,12 @@ describe('World performance integration', () => {
   it('logs performance violations from engine tick', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    world.engine.performanceBudget.setBudgets({ frameMs: 5, drawCalls: 5, triangles: 5, points: 5 });
+    world.engine.performanceBudget.setBudgets({
+      frameMs: 5,
+      drawCalls: 5,
+      triangles: 5,
+      points: 5,
+    });
 
     // Stub renderer.info so we do not need a real WebGL context.
     const originalInfo = world.engine.renderer.info;

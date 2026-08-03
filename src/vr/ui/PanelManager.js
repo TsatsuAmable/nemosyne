@@ -358,10 +358,7 @@ export class PanelManager {
     if (dist >= min && dist <= max) return;
 
     const target = Math.min(Math.max(dist, min), max);
-    const dir =
-      toAnchor.lengthSq() > 0
-        ? toAnchor.normalize()
-        : new THREE.Vector3(0, 0, -1);
+    const dir = toAnchor.lengthSq() > 0 ? toAnchor.normalize() : new THREE.Vector3(0, 0, -1);
     const targetPos = this._anchor.clone().add(dir.multiplyScalar(target));
     offset.subVectors(targetPos, base);
     this._layoutPanel(panel);
@@ -382,7 +379,9 @@ export class PanelManager {
     // frame before accumulating so head/body motion does not drift the panel.
     if (this._analystAnchor) {
       this._analystAnchor.updateMatrixWorld(true);
-      const localDelta = delta.clone().applyMatrix4(new THREE.Matrix4().copy(this._analystAnchor.matrixWorld).invert());
+      const localDelta = delta
+        .clone()
+        .applyMatrix4(new THREE.Matrix4().copy(this._analystAnchor.matrixWorld).invert());
       offset.add(localDelta);
     } else {
       offset.add(delta);
@@ -444,7 +443,10 @@ export class PanelManager {
   /** Try to activate a launcher icon hit by the given raycaster. */
   handleLauncherHit(raycaster) {
     if (!this._launcherVisible) return null;
-    const hits = raycaster.intersectObjects(this._launchers.map((l) => l.mesh), false);
+    const hits = raycaster.intersectObjects(
+      this._launchers.map((l) => l.mesh),
+      false
+    );
     if (hits.length === 0) return null;
     const panel = hits[0].object.userData.panel;
     if (!panel) return null;

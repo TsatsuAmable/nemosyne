@@ -109,10 +109,10 @@ describe('SessionStore', () => {
   });
 
   it('overwrites an existing session', async () => {
-    await store.saveSession('session-1', { a: 1 });
-    await store.saveSession('session-1', { a: 2 });
+    await store.saveSession('session-1', { dataset: { a: 1 } });
+    await store.saveSession('session-1', { dataset: { a: 2 } });
     const loaded = await store.loadSession('session-1');
-    expect(loaded.a).toBe(2);
+    expect(loaded.dataset.a).toBe(2);
   });
 
   it('returns null for missing sessions', async () => {

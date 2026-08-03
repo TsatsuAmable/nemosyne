@@ -47,7 +47,11 @@ describe('Dataset JSON serialization', () => {
   });
 
   it('normalizes undefined values to null on export', () => {
-    const partial = new Dataset('Partial', [{ name: 'a', type: ColumnType.TEXT }], [{ a: undefined }]);
+    const partial = new Dataset(
+      'Partial',
+      [{ name: 'a', type: ColumnType.TEXT }],
+      [{ a: undefined }]
+    );
     const json = partial.toJSON();
     expect(json.rows[0].a).toBeNull();
     const restored = Dataset.fromJSON(json);

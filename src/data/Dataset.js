@@ -14,7 +14,7 @@ export class Dataset {
   constructor(name, columns, rows) {
     this.name = name;
     this.columns = columns; // [{ name, type }]
-    this.rows = rows;       // array of objects
+    this.rows = rows; // array of objects
   }
 
   get rowCount() {
@@ -54,7 +54,9 @@ export class Dataset {
   }
 
   rangeOf(name) {
-    const values = this.getColumnValues(name).filter((v) => typeof v === 'number' && !Number.isNaN(v));
+    const values = this.getColumnValues(name).filter(
+      (v) => typeof v === 'number' && !Number.isNaN(v)
+    );
     if (values.length === 0) return { min: 0, max: 0 };
     return { min: Math.min(...values), max: Math.max(...values) };
   }
@@ -94,7 +96,11 @@ export class Dataset {
   }
 
   clone() {
-    return new Dataset(this.name, this.columns.slice(), this.rows.map((r) => ({ ...r })));
+    return new Dataset(
+      this.name,
+      this.columns.slice(),
+      this.rows.map((r) => ({ ...r }))
+    );
   }
 
   /**

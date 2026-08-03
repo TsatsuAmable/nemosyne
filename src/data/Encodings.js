@@ -5,9 +5,7 @@ import * as THREE from 'three';
  * color (categorical hue / numeric sequential), size, pulse, rotation.
  */
 
-const PALETTE = [
-  0x00ffcc, 0xff0055, 0xffaa00, 0x00aaff, 0xff00ff, 0x88ff00,
-];
+const PALETTE = [0x00ffcc, 0xff0055, 0xffaa00, 0x00aaff, 0xff00ff, 0x88ff00];
 
 export function categoricalColor(value, index) {
   return PALETTE[index % PALETTE.length];

@@ -177,9 +177,8 @@ export class SpatialIndex {
 
   _firstBoundaryT(origin, dir, cell) {
     if (dir === 0) return Infinity;
-    const nextBoundary = dir > 0
-      ? (Math.floor(origin / cell) + 1) * cell
-      : Math.floor(origin / cell) * cell;
+    const nextBoundary =
+      dir > 0 ? (Math.floor(origin / cell) + 1) * cell : Math.floor(origin / cell) * cell;
     return (nextBoundary - origin) / dir;
   }
 }

@@ -183,7 +183,8 @@ export class TooltipManager {
       const stillValid =
         entry.targetMesh &&
         entry.targetMesh.visible &&
-        (entry.targetMesh.userData._tooltipDwell > 0 || this.lod.shouldShowLabel(this._worldPos(entry.targetMesh)));
+        (entry.targetMesh.userData._tooltipDwell > 0 ||
+          this.lod.shouldShowLabel(this._worldPos(entry.targetMesh)));
       if (!stillValid) {
         this._release(entry);
       }
@@ -221,7 +222,8 @@ export class TooltipManager {
     const hit = this._findPointerHit();
     if (hit && hit.object) {
       this._lastPointerHit = hit;
-      const meta = hit.object.userData.tooltipMeta || this._inferMetaFromUserData(hit.object.userData);
+      const meta =
+        hit.object.userData.tooltipMeta || this._inferMetaFromUserData(hit.object.userData);
       if (meta && (meta.title || meta.body)) {
         this._pointerHitTooltip.mesh.visible = true;
         this._pointerHitPos.copy(hit.point);
@@ -363,8 +365,11 @@ export class TooltipManager {
   _inferMetaFromUserData(userData) {
     const row = userData?.row ?? {};
     const title = row.category ?? row.type ?? userData?.label ?? userData?.name ?? null;
-    const numericKeys = Object.keys(row).filter((k) => typeof row[k] === 'number' && !k.startsWith('_'));
-    const valueKey = numericKeys[0] ?? Object.keys(row).find((k) => k !== 'category' && k !== 'type');
+    const numericKeys = Object.keys(row).filter(
+      (k) => typeof row[k] === 'number' && !k.startsWith('_')
+    );
+    const valueKey =
+      numericKeys[0] ?? Object.keys(row).find((k) => k !== 'category' && k !== 'type');
     const value = valueKey !== undefined ? row[valueKey] : undefined;
     let body = '';
     if (value !== undefined) {

@@ -45,15 +45,17 @@ export const OPEN_DATA_SOURCES = [
       if (payload?.type !== 'ticker' || payload?.product_id !== 'BTC-USD') return null;
       return {
         name: 'Coinbase BTC-USD Ticker',
-        rows: [{
-          time: payload.time || new Date().toISOString(),
-          product: payload.product_id,
-          price: Number(payload.price),
-          volume24h: Number(payload.volume_24h),
-          open24h: Number(payload.open_24h),
-          low24h: Number(payload.low_24h),
-          high24h: Number(payload.high_24h),
-        }],
+        rows: [
+          {
+            time: payload.time || new Date().toISOString(),
+            product: payload.product_id,
+            price: Number(payload.price),
+            volume24h: Number(payload.volume_24h),
+            open24h: Number(payload.open_24h),
+            low24h: Number(payload.low_24h),
+            high24h: Number(payload.high_24h),
+          },
+        ],
       };
     },
   },
@@ -101,13 +103,15 @@ export const OPEN_DATA_SOURCES = [
       if (payload?.e !== 'trade') return null;
       return {
         name: 'Binance BTC/USDT Trades',
-        rows: [{
-          time: new Date(payload.T).toISOString(),
-          symbol: payload.s,
-          price: Number(payload.p),
-          quantity: Number(payload.q),
-          buyerIsMaker: payload.m,
-        }],
+        rows: [
+          {
+            time: new Date(payload.T).toISOString(),
+            symbol: payload.s,
+            price: Number(payload.p),
+            quantity: Number(payload.q),
+            buyerIsMaker: payload.m,
+          },
+        ],
       };
     },
   },

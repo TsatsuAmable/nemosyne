@@ -108,7 +108,9 @@ describe('World accessibility integration', () => {
   it('sets colorblind mode on panels and theme', () => {
     world.settingsPanel.setSetting('colorblindMode', 'deuteranopia');
     expect(world.panelManager.panels[0].colorblindMode).toBe('deuteranopia');
-    expect(world.engine.theme.pointLight.color.getHex()).not.toBe(WorldTheme.PRESETS.neonMidnight.pointColor);
+    expect(world.engine.theme.pointLight.color.getHex()).not.toBe(
+      WorldTheme.PRESETS.neonMidnight.pointColor
+    );
   });
 
   it('toggles dwell selection on the input router', () => {

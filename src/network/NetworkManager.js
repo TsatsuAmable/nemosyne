@@ -9,19 +9,29 @@ import { Room } from './Room.js';
  * - Broadcasts local state and receives remote peer state deltas.
  * - Emits events so the World can react to peer joins/leaves/state updates.
  */
+const DEFAULT_MAX_STATE_BYTES = 128 * 1024; // 128 KiB
+
 export class NetworkManager extends EventTarget {
-  constructor({ signallingUrl, roomId, peerId, peerName = 'Analyst', iceServers = null } = {}) {
+  constructor({
+    signallingUrl,
+    roomId,
+    peerId,
+    peerName = 'Analyst',
+    iceServers = null,
+    maxStateBytes = DEFAULT_MAX_STATE_BYTES,
+  } = {}) {
     super();
     this.signallingUrl = signallingUrl ?? this._defaultSignallingUrl();
     this.roomId = roomId ?? 'default';
     this.peerId = peerId ?? this._generatePeerId();
     this.peerName = peerName;
     this.iceServers = iceServers ?? [{ urls: 'stun:stun.l.google.com:19302' }];
+    this.maxStateBytes = maxStateBytes;
 
     this.room = new Room(this.roomId, this.peerId, this.peerName);
     this.signalling = null;
     this.connections = new Map(); // peerId -> RTCPeerConnection
-    this.channels = new Map();    // peerId -> RTCDataChannel
+    this.channels = new Map(); // peerId -> RTCDataChannel
     this._connected = false;
     this._localState = {};
   }
@@ -56,8 +66,13 @@ export class NetworkManager extends EventTarget {
   }
 
   setLocalState(state) {
-    this._localState = { ...this._localState, ...state };
-    const payload = JSON.stringify({ type: 'state', peerId: this.peerId, state: this._localState });
+    const next = { ...this._localState, ...state };
+    const payload = JSON.stringify({ type: 'state', peerId: this.peerId, state: next });
+    if (new Blob([payload]).size > this.maxStateBytes) {
+      console.warn('[NetworkManager] state payload exceeds maximum size; update dropped');
+      return;
+    }
+    this._localState = next;
     for (const [peerId, channel] of this.channels) {
       if (channel.readyState === 'open') {
         try {
@@ -74,7 +89,7 @@ export class NetworkManager extends EventTarget {
   }
 
   _onSignal({ from, data } = {}) {
-    if (!from || !data) return;
+    if (!from || !data || typeof data !== 'object') return;
     if (data.type === 'offer') this._handleOffer(from, data);
     else if (data.type === 'answer') this._handleAnswer(from, data);
     else if (data.type === 'ice') this._handleIce(from, data);
@@ -162,22 +177,30 @@ export class NetworkManager extends EventTarget {
       }
       // Broadcast current state to the new peer.
       try {
-        channel.send(JSON.stringify({ type: 'state', peerId: this.peerId, state: this._localState }));
-      } catch (_) {}
+        channel.send(
+          JSON.stringify({ type: 'state', peerId: this.peerId, state: this._localState })
+        );
+      } catch (_) {
+        // Peer may have disconnected before state arrived; ignore send failures.
+      }
     });
 
     channel.addEventListener('message', (event) => {
+      if (new Blob([event.data]).size > this.maxStateBytes) return;
       let payload;
       try {
         payload = JSON.parse(event.data);
       } catch {
         return;
       }
+      if (!payload || typeof payload !== 'object') return;
       if (payload.type === 'state' && payload.peerId) {
         this.room.updatePeerState(payload.peerId, payload.state ?? {});
-        this.dispatchEvent(new CustomEvent('peerState', {
-          detail: { peerId: payload.peerId, state: payload.state },
-        }));
+        this.dispatchEvent(
+          new CustomEvent('peerState', {
+            detail: { peerId: payload.peerId, state: payload.state },
+          })
+        );
       }
     });
 
@@ -191,7 +214,9 @@ export class NetworkManager extends EventTarget {
   _closePeer(peerId, conn) {
     try {
       conn.close();
-    } catch (_) {}
+    } catch (_) {
+      // Connection may already be closed; ignore.
+    }
     this.channels.delete(peerId);
     this.room.removePeer(peerId);
   }

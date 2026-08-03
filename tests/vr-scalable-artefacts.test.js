@@ -11,11 +11,15 @@ function makeGridDataset(count, categories = 3) {
     value: i,
     category: String.fromCharCode(65 + (i % categories)),
   }));
-  return new Dataset('Grid', [
-    { name: 'id', type: ColumnType.CATEGORICAL },
-    { name: 'value', type: ColumnType.NUMERIC },
-    { name: 'category', type: ColumnType.CATEGORICAL },
-  ], rows);
+  return new Dataset(
+    'Grid',
+    [
+      { name: 'id', type: ColumnType.CATEGORICAL },
+      { name: 'value', type: ColumnType.NUMERIC },
+      { name: 'category', type: ColumnType.CATEGORICAL },
+    ],
+    rows
+  );
 }
 
 function makeGeoDataset(count, categories = 3) {
@@ -25,12 +29,16 @@ function makeGeoDataset(count, categories = 3) {
     magnitude: i,
     region: String.fromCharCode(65 + (i % categories)),
   }));
-  return new Dataset('Geo', [
-    { name: 'lat', type: ColumnType.NUMERIC },
-    { name: 'lon', type: ColumnType.NUMERIC },
-    { name: 'magnitude', type: ColumnType.NUMERIC },
-    { name: 'region', type: ColumnType.CATEGORICAL },
-  ], rows);
+  return new Dataset(
+    'Geo',
+    [
+      { name: 'lat', type: ColumnType.NUMERIC },
+      { name: 'lon', type: ColumnType.NUMERIC },
+      { name: 'magnitude', type: ColumnType.NUMERIC },
+      { name: 'region', type: ColumnType.CATEGORICAL },
+    ],
+    rows
+  );
 }
 
 describe('VRTopologyTranslator scalable artefacts', () => {
@@ -38,10 +46,19 @@ describe('VRTopologyTranslator scalable artefacts', () => {
     const ds = makeGridDataset(50);
     const result = {
       facts: { rowCount: 50, topology: 'TABULAR', isLargeDataset: true },
-      spec: { layout: 'GRID_3D', geometry: 'INSTANCED_POINT_CLOUD', behavior: 'STATIC', interaction: 'CLUSTER_PROBE' },
+      spec: {
+        layout: 'GRID_3D',
+        geometry: 'INSTANCED_POINT_CLOUD',
+        behavior: 'STATIC',
+        interaction: 'CLUSTER_PROBE',
+      },
       cost: 0,
     };
-    const artifact = VRTopologyTranslator.synthesizeArtifact(result, { topology: 'TABULAR', dataset: ds, encodings: { color: 'category', size: 'value' } });
+    const artifact = VRTopologyTranslator.synthesizeArtifact(result, {
+      topology: 'TABULAR',
+      dataset: ds,
+      encodings: { color: 'category', size: 'value' },
+    });
 
     expect(artifact.nodeMeshes.length).toBe(1);
     expect(artifact.nodeMeshes[0]).toBeInstanceOf(THREE.InstancedMesh);
@@ -52,10 +69,19 @@ describe('VRTopologyTranslator scalable artefacts', () => {
     const ds = makeGridDataset(30, 5);
     const result = {
       facts: { rowCount: 30, topology: 'TABULAR', hasHighCardinality: true, cardinalityOfColor: 5 },
-      spec: { layout: 'GRID_3D', geometry: 'CLUSTER_VOLUME', behavior: 'STATIC', interaction: 'CLUSTER_PROBE' },
+      spec: {
+        layout: 'GRID_3D',
+        geometry: 'CLUSTER_VOLUME',
+        behavior: 'STATIC',
+        interaction: 'CLUSTER_PROBE',
+      },
       cost: 0,
     };
-    const artifact = VRTopologyTranslator.synthesizeArtifact(result, { topology: 'TABULAR', dataset: ds, encodings: { color: 'category' } });
+    const artifact = VRTopologyTranslator.synthesizeArtifact(result, {
+      topology: 'TABULAR',
+      dataset: ds,
+      encodings: { color: 'category' },
+    });
 
     expect(artifact.nodeMeshes.length).toBe(5);
     for (const mesh of artifact.nodeMeshes) {
@@ -69,10 +95,19 @@ describe('VRTopologyTranslator scalable artefacts', () => {
     const ds = makeGeoDataset(40, 4);
     const result = {
       facts: { rowCount: 40, topology: 'GEO', isLargeDataset: true },
-      spec: { layout: 'GEO_SURFACE', geometry: 'AGGREGATE_BARS', behavior: 'STATIC', interaction: 'INSPECT_CELL' },
+      spec: {
+        layout: 'GEO_SURFACE',
+        geometry: 'AGGREGATE_BARS',
+        behavior: 'STATIC',
+        interaction: 'INSPECT_CELL',
+      },
       cost: 0,
     };
-    const artifact = VRTopologyTranslator.synthesizeArtifact(result, { topology: 'GEO', dataset: ds, encodings: { color: 'region', size: 'magnitude' } });
+    const artifact = VRTopologyTranslator.synthesizeArtifact(result, {
+      topology: 'GEO',
+      dataset: ds,
+      encodings: { color: 'region', size: 'magnitude' },
+    });
 
     expect(artifact.nodeMeshes.length).toBe(4);
     for (const mesh of artifact.nodeMeshes) {
@@ -86,10 +121,19 @@ describe('VRTopologyTranslator scalable artefacts', () => {
     const ds = makeGridDataset(20, 4);
     const result = {
       facts: { rowCount: 20, topology: 'TABULAR' },
-      spec: { layout: 'GRID_3D', geometry: 'CLUSTER_VOLUME', behavior: 'STATIC', interaction: 'CLUSTER_PROBE' },
+      spec: {
+        layout: 'GRID_3D',
+        geometry: 'CLUSTER_VOLUME',
+        behavior: 'STATIC',
+        interaction: 'CLUSTER_PROBE',
+      },
       cost: 0,
     };
-    const artifact = VRTopologyTranslator.synthesizeArtifact(result, { topology: 'TABULAR', dataset: ds, encodings: { color: 'category' } });
+    const artifact = VRTopologyTranslator.synthesizeArtifact(result, {
+      topology: 'TABULAR',
+      dataset: ds,
+      encodings: { color: 'category' },
+    });
     const mesh = artifact.nodeMeshes[0];
     const originalOpacity = mesh.material.opacity;
 

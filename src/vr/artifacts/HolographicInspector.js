@@ -34,10 +34,7 @@ export class HolographicInspector {
       depthWrite: false,
     });
 
-    this.mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(worldSize[0], worldSize[1]),
-      this.material
-    );
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(worldSize[0], worldSize[1]), this.material);
     this.mesh.name = 'holographic-inspector';
     this.mesh.visible = false;
     if (this.cameraGroup) this.cameraGroup.add(this.mesh);
@@ -281,8 +278,12 @@ export class HolographicInspector {
     if (!this.engine?.input?.feedback) return;
     const fb = this.engine.input.feedback;
     fb.playTone({ frequency: 990, duration: 0.06, shape: 'sine', volume: fb.volume });
-    setTimeout(() => fb.playTone({ frequency: 1320, duration: 0.08, shape: 'sine', volume: fb.volume }), 50);
-    if (nodeMesh) fb.showHitMarker(this.engine.scene, nodeMesh.getWorldPosition(this._tmpVec), 0x00ffcc, 220);
+    setTimeout(
+      () => fb.playTone({ frequency: 1320, duration: 0.08, shape: 'sine', volume: fb.volume }),
+      50
+    );
+    if (nodeMesh)
+      fb.showHitMarker(this.engine.scene, nodeMesh.getWorldPosition(this._tmpVec), 0x00ffcc, 220);
   }
 
   _playCloseFeedback() {

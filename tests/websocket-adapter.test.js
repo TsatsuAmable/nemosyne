@@ -82,12 +82,12 @@ describe('WebSocketAdapter', () => {
 
     adapter.connect();
     adapter._ws.open();
-    adapter._ws.dispatchMessage(JSON.stringify({
-      topology: 'TIME_SERIES',
-      rows: [
-        { time: '2026-07-28T12:00:00Z', sensorId: 'alpha', temperature: 22.5 },
-      ],
-    }));
+    adapter._ws.dispatchMessage(
+      JSON.stringify({
+        topology: 'TIME_SERIES',
+        rows: [{ time: '2026-07-28T12:00:00Z', sensorId: 'alpha', temperature: 22.5 }],
+      })
+    );
 
     expect(updateSpy).toHaveBeenCalledOnce();
     const update = updateSpy.mock.calls[0][0];
@@ -129,7 +129,11 @@ describe('WebSocketAdapter', () => {
 
   it('auto-reconnects after a server close', () => {
     vi.useFakeTimers();
-    const adapter = new WebSocketAdapter({ url: 'wss://example.com/stream', reconnect: true, reconnectDelay: 100 });
+    const adapter = new WebSocketAdapter({
+      url: 'wss://example.com/stream',
+      reconnect: true,
+      reconnectDelay: 100,
+    });
 
     adapter.connect();
     adapter._ws.open();
@@ -166,7 +170,8 @@ describe('WebSocketAdapter', () => {
   it('uses a custom parseMessage function', () => {
     const adapter = new WebSocketAdapter({
       url: 'wss://example.com/stream',
-      parseMessage: (payload) => (payload?.type === 'trade' ? { rows: [{ price: Number(payload.price) }] } : null),
+      parseMessage: (payload) =>
+        payload?.type === 'trade' ? { rows: [{ price: Number(payload.price) }] } : null,
     });
     const updateSpy = vi.fn();
     adapter.onUpdate(updateSpy);
@@ -221,11 +226,14 @@ describe('WebSocketAdapter', () => {
     adapter.onStatus(statusSpy);
 
     adapter.connect();
-    adapter._ws.send = () => { throw new Error('send failed'); };
+    adapter._ws.send = () => {
+      throw new Error('send failed');
+    };
     adapter._ws.open();
 
-    expect(statusSpy).toHaveBeenLastCalledWith('error', expect.stringContaining('Subscription send failed'));
+    expect(statusSpy).toHaveBeenLastCalledWith(
+      'error',
+      expect.stringContaining('Subscription send failed')
+    );
   });
 });
-
-

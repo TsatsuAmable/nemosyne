@@ -16,7 +16,16 @@ import {
   captureBaseState,
   resetTransforms,
 } from '../src/vr/interactions/DataOperations.js';
-import { filter, sort, aggregate, cluster, hierarchical, dbscan, anomaly, slice } from '../src/data/DatasetOperations.js';
+import {
+  filter,
+  sort,
+  aggregate,
+  cluster,
+  hierarchical,
+  dbscan,
+  anomaly,
+  slice,
+} from '../src/data/DatasetOperations.js';
 
 describe('VR Data Operations', () => {
   let dataset;
@@ -24,16 +33,20 @@ describe('VR Data Operations', () => {
   let artifact;
 
   beforeEach(() => {
-    dataset = new Dataset('Test', [
-      { name: 'id', type: ColumnType.NUMERIC },
-      { name: 'category', type: ColumnType.CATEGORICAL },
-      { name: 'value', type: ColumnType.NUMERIC },
-    ], [
-      { id: 1, category: 'A', value: 10 },
-      { id: 2, category: 'A', value: 20 },
-      { id: 3, category: 'B', value: 30 },
-      { id: 4, category: 'B', value: 40 },
-    ]);
+    dataset = new Dataset(
+      'Test',
+      [
+        { name: 'id', type: ColumnType.NUMERIC },
+        { name: 'category', type: ColumnType.CATEGORICAL },
+        { name: 'value', type: ColumnType.NUMERIC },
+      ],
+      [
+        { id: 1, category: 'A', value: 10 },
+        { id: 2, category: 'A', value: 20 },
+        { id: 3, category: 'B', value: 30 },
+        { id: 4, category: 'B', value: 40 },
+      ]
+    );
     const engine = new ConstraintEngine();
     solved = engine.solve({ topology: TopologyTypes.TABULAR, dataset });
     artifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset });
@@ -84,7 +97,9 @@ describe('VR Data Operations', () => {
     expect(clusters.size).toBeGreaterThan(0);
 
     // At least one node should have moved away from origin (x or z changed).
-    const moved = artifact.nodeMeshes.some((m) => Math.abs(m.position.x) > 0.1 || Math.abs(m.position.z + 3.5) > 0.1);
+    const moved = artifact.nodeMeshes.some(
+      (m) => Math.abs(m.position.x) > 0.1 || Math.abs(m.position.z + 3.5) > 0.1
+    );
     expect(moved).toBe(true);
   });
 
@@ -92,21 +107,27 @@ describe('VR Data Operations', () => {
     const clustered = hierarchical(dataset, ['value'], 'average', 2);
     applyHierarchicalCluster(artifact, clustered);
 
-    const moved = artifact.nodeMeshes.some((m) => Math.abs(m.position.x) > 0.1 || Math.abs(m.position.z + 3.5) > 0.1);
+    const moved = artifact.nodeMeshes.some(
+      (m) => Math.abs(m.position.x) > 0.1 || Math.abs(m.position.z + 3.5) > 0.1
+    );
     expect(moved).toBe(true);
   });
 
   it('density cluster separates DBSCAN clusters and noise', () => {
-    const ds = new Dataset('Dense', [
-      { name: 'id', type: ColumnType.NUMERIC },
-      { name: 'value', type: ColumnType.NUMERIC },
-    ], [
-      { id: 1, value: 1 },
-      { id: 2, value: 2 },
-      { id: 3, value: 100 },
-      { id: 4, value: 101 },
-      { id: 5, value: 500 },
-    ]);
+    const ds = new Dataset(
+      'Dense',
+      [
+        { name: 'id', type: ColumnType.NUMERIC },
+        { name: 'value', type: ColumnType.NUMERIC },
+      ],
+      [
+        { id: 1, value: 1 },
+        { id: 2, value: 2 },
+        { id: 3, value: 100 },
+        { id: 4, value: 101 },
+        { id: 5, value: 500 },
+      ]
+    );
     const engine = new ConstraintEngine();
     const solved = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds });
     const localArtifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });
@@ -141,15 +162,19 @@ describe('VR Data Operations', () => {
   });
 
   it('anomaly highlight lifts outliers and adds halos', () => {
-    const ds = new Dataset('Anomaly', [
-      { name: 'id', type: ColumnType.NUMERIC },
-      { name: 'value', type: ColumnType.NUMERIC },
-    ], [
-      { id: 1, value: 1 },
-      { id: 2, value: 2 },
-      { id: 3, value: 3 },
-      { id: 4, value: 10000 },
-    ]);
+    const ds = new Dataset(
+      'Anomaly',
+      [
+        { name: 'id', type: ColumnType.NUMERIC },
+        { name: 'value', type: ColumnType.NUMERIC },
+      ],
+      [
+        { id: 1, value: 1 },
+        { id: 2, value: 2 },
+        { id: 3, value: 3 },
+        { id: 4, value: 10000 },
+      ]
+    );
     const engine = new ConstraintEngine();
     const solved = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds });
     const localArtifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });

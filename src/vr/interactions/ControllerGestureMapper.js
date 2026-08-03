@@ -54,7 +54,8 @@ export class ControllerGestureMapper {
 
     const sources = Array.from(activeSession.inputSources);
     const rightController = controllers.find((c) => c.handedness === 'right') ?? controllers[0];
-    const leftController = controllers.find((c) => c.handedness === 'left') ?? controllers[1] ?? rightController;
+    const leftController =
+      controllers.find((c) => c.handedness === 'left') ?? controllers[1] ?? rightController;
 
     const rightSource = this._findSource(rightController, sources);
     const leftSource = this._findSource(leftController, sources);
@@ -191,7 +192,10 @@ export class ControllerGestureMapper {
 
     const moveThreshold = 0.08;
     if (Math.abs(delta) > moveThreshold) {
-      this._fire(delta < 0 ? 'pinchTogether' : 'pinchApart', time, { input: 'both-triggers', delta });
+      this._fire(delta < 0 ? 'pinchTogether' : 'pinchApart', time, {
+        input: 'both-triggers',
+        delta,
+      });
       return;
     }
 

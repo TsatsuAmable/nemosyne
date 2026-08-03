@@ -42,7 +42,9 @@ describe('DataCard', () => {
     card.update(0, 0);
 
     const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(card.mesh.quaternion);
-    const toCamera = new THREE.Vector3().subVectors(camera.position, card.mesh.position).normalize();
+    const toCamera = new THREE.Vector3()
+      .subVectors(camera.position, card.mesh.position)
+      .normalize();
     expect(forward.dot(toCamera)).toBeGreaterThan(0.99);
   });
 

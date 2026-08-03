@@ -26,8 +26,8 @@ export class InputRouter {
     this.hands = [];
 
     this.interactables = []; // { mesh, onEnter, onLeave, onSelect, data }
-    this.hudObjects = [];    // objects with handlePointerClick(raycaster)
-    this.panels = [];        // MovablePanels
+    this.hudObjects = []; // objects with handlePointerClick(raycaster)
+    this.panels = []; // MovablePanels
 
     this.hovered = null;
     this.activePointer = null; // controller or hand that triggered latest selection
@@ -42,8 +42,8 @@ export class InputRouter {
 
     // Polled pointer state.
     this.controllerTriggerPressed = new Map(); // ControllerPointer -> boolean
-    this.controllerGripPressed = new Map();    // ControllerPointer -> boolean
-    this.lastHandPinched = new Map();          // HandPointer -> boolean
+    this.controllerGripPressed = new Map(); // ControllerPointer -> boolean
+    this.lastHandPinched = new Map(); // HandPointer -> boolean
     this.lastBothPinched = false;
 
     // Active drag/click state.
@@ -203,9 +203,11 @@ export class InputRouter {
   _updateDwellSelection(panelHit, sceneHit) {
     if (!this.dwellSelection || this.downPointer) return;
 
-    const target = panelHit ? { type: 'panel', value: panelHit.panel }
-      : sceneHit ? { type: 'scene', value: this.interactables.find((i) => i.mesh === sceneHit.object) }
-      : null;
+    const target = panelHit
+      ? { type: 'panel', value: panelHit.panel }
+      : sceneHit
+        ? { type: 'scene', value: this.interactables.find((i) => i.mesh === sceneHit.object) }
+        : null;
 
     const targetId = target ? `${target.type}:${target.value?.mesh?.uuid ?? target.value}` : null;
     if (targetId !== this._dwellTarget) {
@@ -248,7 +250,8 @@ export class InputRouter {
     const sources = Array.from(session.inputSources);
 
     // System gesture: both hands pinched simultaneously toggles panels.
-    const bothPinched = this.hands.length >= 2 && this.hands[0].isPinched() && this.hands[1].isPinched();
+    const bothPinched =
+      this.hands.length >= 2 && this.hands[0].isPinched() && this.hands[1].isPinched();
     if (bothPinched && !this.lastBothPinched && this.onSystemToggle) {
       this.onSystemToggle();
     }
@@ -390,9 +393,7 @@ export class InputRouter {
    */
   _findSourceForController(controller, sources) {
     if (controller.handedness && controller.handedness !== 'none') {
-      const match = sources.find(
-        (s) => !s.hand && s.handedness === controller.handedness
-      );
+      const match = sources.find((s) => !s.hand && s.handedness === controller.handedness);
       if (match) return match;
     }
     const nonHand = sources.filter((s) => !s.hand);
@@ -461,7 +462,11 @@ export class InputRouter {
     // of missing joints should not force the pointer back to a controller
     // fallback that may have no real pose on Quest Browser.
     for (const hand of this.hands) {
-      if (typeof hand.isPoseValid === 'function' ? hand.isPoseValid() : (hand.jointsValid && hand.ray?.visible)) {
+      if (
+        typeof hand.isPoseValid === 'function'
+          ? hand.isPoseValid()
+          : hand.jointsValid && hand.ray?.visible
+      ) {
         const ray = hand.getRay(new THREE.Ray());
         if (ray.direction.lengthSq() > 0) return hand;
       }

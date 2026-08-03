@@ -44,7 +44,9 @@ export class InputTelemetry extends MovablePanel {
 
     this.lines = [];
     this.log(`HEAD: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}`);
-    this.log(`PRES: ${this.engine.renderer.xr.isPresenting ? 'Y' : 'N'} SRCS: ${session?.inputSources?.length ?? 0}`);
+    this.log(
+      `PRES: ${this.engine.renderer.xr.isPresenting ? 'Y' : 'N'} SRCS: ${session?.inputSources?.length ?? 0}`
+    );
 
     // XRInputSourceArray is array-like but may not implement Array.prototype
     // methods in every runtime, so convert to a real array once.
@@ -56,15 +58,15 @@ export class InputTelemetry extends MovablePanel {
     for (let i = 0; i < sources.length; i++) {
       const src = sources[i];
       const p = this._getSourcePosition(src);
-      const posStr = p
-        ? `[${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}]`
-        : '[---]';
+      const posStr = p ? `[${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}]` : '[---]';
       if (src.hand) {
         const hand = this._findHand(src, sources, input.hands);
         if (hand) coveredHands.add(hand);
         const pinch = hand ? (hand.isPinched() ? 'YES' : 'no ') : '???';
         const dist = hand ? hand.pinchDistance.toFixed(3) : '-';
-        this.log(`HAND${i} ${src.handedness?.toUpperCase() ?? '?'} ${posStr} pinch=${pinch} d=${dist}`);
+        this.log(
+          `HAND${i} ${src.handedness?.toUpperCase() ?? '?'} ${posStr} pinch=${pinch} d=${dist}`
+        );
       } else {
         const controller = this._findController(src, sources, input.controllers);
         if (controller) coveredControllers.add(controller);
@@ -72,7 +74,9 @@ export class InputTelemetry extends MovablePanel {
         const axes = gp?.axes?.length ? gp.axes.map((a) => a.toFixed(2)).join(',') : '-';
         const trig = gp?.buttons?.[0]?.pressed ? 'TRIG' : '---';
         const grip = gp?.buttons?.[1]?.pressed ? 'GRIP' : '---';
-        this.log(`CTRL${i} ${src.handedness?.toUpperCase() ?? '?'} ${posStr} axes=[${axes}] ${trig} ${grip}`);
+        this.log(
+          `CTRL${i} ${src.handedness?.toUpperCase() ?? '?'} ${posStr} axes=[${axes}] ${trig} ${grip}`
+        );
       }
     }
 
@@ -82,15 +86,21 @@ export class InputTelemetry extends MovablePanel {
       if (coveredHands.has(h)) continue;
       if (h.ray?.visible && h.jointsValid) {
         const origin = h.getWorldPosition(new THREE.Vector3());
-        this.log(`HAND${h.index} ${h.handedness?.toUpperCase() ?? '?'} [${origin.x.toFixed(2)}, ${origin.y.toFixed(2)}, ${origin.z.toFixed(2)}] pinch=${h.isPinched() ? 'YES' : 'no '} d=${h.pinchDistance.toFixed(3)}`);
+        this.log(
+          `HAND${h.index} ${h.handedness?.toUpperCase() ?? '?'} [${origin.x.toFixed(2)}, ${origin.y.toFixed(2)}, ${origin.z.toFixed(2)}] pinch=${h.isPinched() ? 'YES' : 'no '} d=${h.pinchDistance.toFixed(3)}`
+        );
       } else {
-        this.log(`HAND${h.index} ${h.handedness?.toUpperCase() ?? '?'} not tracked (jointsValid=${h.jointsValid ? 'Y' : 'N'} ray=${h.ray?.visible ? 'Y' : 'N'})`);
+        this.log(
+          `HAND${h.index} ${h.handedness?.toUpperCase() ?? '?'} not tracked (jointsValid=${h.jointsValid ? 'Y' : 'N'} ray=${h.ray?.visible ? 'Y' : 'N'})`
+        );
       }
     }
     for (const c of input.controllers) {
       if (coveredControllers.has(c)) continue;
       const origin = c.getRay(new THREE.Ray()).origin;
-      this.log(`CTRL${c.index} ${c.handedness?.toUpperCase() ?? '?'} [${origin.x.toFixed(2)}, ${origin.y.toFixed(2)}, ${origin.z.toFixed(2)}] no source`);
+      this.log(
+        `CTRL${c.index} ${c.handedness?.toUpperCase() ?? '?'} [${origin.x.toFixed(2)}, ${origin.y.toFixed(2)}, ${origin.z.toFixed(2)}] no source`
+      );
     }
 
     this.render();

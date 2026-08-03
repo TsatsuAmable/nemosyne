@@ -2,7 +2,11 @@ import { parseCSV, parseJSON } from '../data/Parsers.js';
 import { inferEncodings } from '../data/Encodings.js';
 import { inferTopology, inferEncodingsForTopology } from '../data/TopologyInference.js';
 import { validateImport, formatValidationResult } from '../data/ImportError.js';
-import { allSampleDatasets, getSampleDataset, getDefaultEncodings } from '../data/SampleDatasets.js';
+import {
+  allSampleDatasets,
+  getSampleDataset,
+  getDefaultEncodings,
+} from '../data/SampleDatasets.js';
 import { TopologyTypes } from '../draco/ConstraintEngine.js';
 
 /**
@@ -19,7 +23,91 @@ export class FileLoaderUI {
   _buildUI() {
     const container = document.createElement('div');
     container.id = 'nemosyne-loader';
-    container.style.cssText = `
+    container.style.cssText = this._containerStyle();
+
+    const title = document.createElement('div');
+    title.textContent = '// NEMOSYNE DATA LOADER';
+    title.style.cssText =
+      'font-weight: bold; margin-bottom: 10px; color: #00ffcc; text-shadow: 0 0 5px #00ffcc;';
+    container.appendChild(title);
+
+    // Quick control reference.
+    const help = document.createElement('div');
+    help.style.cssText = this._boxStyle();
+    const strong = document.createElement('strong');
+    strong.textContent = 'Controls';
+    help.appendChild(strong);
+    const lines = [
+      'Point laser / index finger + trigger/pinch to select',
+      'Controllers: left stick move, right stick turn',
+      'Hands: pinch and drag to pull yourself around',
+      'Desktop: WASD move, Q/E turn',
+      'Draco HUD floats near your left shoulder',
+    ];
+    for (const line of lines) {
+      help.appendChild(document.createElement('br'));
+      help.appendChild(document.createTextNode(`• ${line}`));
+    }
+    container.appendChild(help);
+
+    // Sample dataset selector.
+    container.appendChild(this._label('Sample datasets'));
+
+    const sampleSelect = document.createElement('select');
+    sampleSelect.style.cssText = this._inputStyle();
+    sampleSelect.appendChild(new Option('-- select a sample --', ''));
+    for (const d of allSampleDatasets) {
+      sampleSelect.appendChild(new Option(d.label, d.key));
+    }
+    sampleSelect.addEventListener('change', (e) => {
+      const key = e.target.value;
+      if (!key) return;
+      const entry = getSampleDataset(key);
+      if (entry) this._emitSample(entry);
+    });
+    container.appendChild(sampleSelect);
+
+    container.appendChild(this._divider());
+
+    // File upload.
+    container.appendChild(this._label('Upload CSV or JSON'));
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.csv,.json,.txt';
+    fileInput.style.cssText = this._inputStyle();
+    fileInput.addEventListener('change', (e) => this._handleFile(e.target.files[0]));
+    container.appendChild(fileInput);
+
+    const topologySelect = document.createElement('select');
+    topologySelect.style.cssText = this._inputStyle();
+    topologySelect.appendChild(new Option('Auto-detect topology', '', true, true));
+    for (const [k, v] of Object.entries(TopologyTypes)) {
+      topologySelect.appendChild(new Option(k, v));
+    }
+    container.appendChild(topologySelect);
+
+    // Schema preview panel for imported files.
+    const schemaPreview = document.createElement('div');
+    schemaPreview.id = 'loader-schema';
+    schemaPreview.style.cssText =
+      'margin-top: 10px; padding: 8px; background: rgba(0, 30, 40, 0.4); border: 1px solid #005577; border-radius: 3px; color: #88ccff; font-size: 11px; display: none;';
+    container.appendChild(schemaPreview);
+
+    const status = document.createElement('div');
+    status.id = 'loader-status';
+    status.style.cssText = 'margin-top: 10px; color: #88ccff; min-height: 1.2em;';
+    container.appendChild(status);
+
+    this.statusEl = status;
+    this.schemaEl = schemaPreview;
+    this.topologySelect = topologySelect;
+
+    return container;
+  }
+
+  _containerStyle() {
+    return `
       position: absolute;
       top: 12px;
       right: 12px;
@@ -37,82 +125,10 @@ export class FileLoaderUI {
       box-shadow: 0 0 12px rgba(0, 255, 204, 0.25);
       user-select: none;
     `;
+  }
 
-    const title = document.createElement('div');
-    title.textContent = '// NEMOSYNE DATA LOADER';
-    title.style.cssText = 'font-weight: bold; margin-bottom: 10px; color: #00ffcc; text-shadow: 0 0 5px #00ffcc;';
-    container.appendChild(title);
-
-    // Quick control reference.
-    const help = document.createElement('div');
-    help.style.cssText = 'margin-bottom: 12px; padding: 8px; background: rgba(0, 30, 40, 0.6); border: 1px solid #005577; border-radius: 3px; color: #88ccff; font-size: 11px; line-height: 1.4;';
-    help.innerHTML = `
-      <strong>Controls</strong><br>
-      • Point laser / index finger + trigger/pinch to select<br>
-      • Controllers: left stick move, right stick turn<br>
-      • Hands: pinch and drag to pull yourself around<br>
-      • Desktop: WASD move, Q/E turn<br>
-      • Draco HUD floats near your left shoulder
-    `;
-    container.appendChild(help);
-
-    // Sample dataset selector.
-    const sampleLabel = this._label('Sample datasets');
-    container.appendChild(sampleLabel);
-
-    const sampleSelect = document.createElement('select');
-    sampleSelect.style.cssText = this._inputStyle();
-    sampleSelect.innerHTML = `
-      <option value="">-- select a sample --</option>
-      ${allSampleDatasets.map((d) => `<option value="${d.key}">${d.label}</option>`).join('')}
-    `;
-    sampleSelect.addEventListener('change', (e) => {
-      const key = e.target.value;
-      if (!key) return;
-      const entry = getSampleDataset(key);
-      if (entry) this._emitSample(entry);
-    });
-    container.appendChild(sampleSelect);
-
-    container.appendChild(this._divider());
-
-    // File upload.
-    const uploadLabel = this._label('Upload CSV or JSON');
-    container.appendChild(uploadLabel);
-
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = '.csv,.json,.txt';
-    fileInput.style.cssText = this._inputStyle();
-    fileInput.addEventListener('change', (e) => this._handleFile(e.target.files[0]));
-    container.appendChild(fileInput);
-
-    const topologySelect = document.createElement('select');
-    topologySelect.style.cssText = this._inputStyle();
-    topologySelect.innerHTML = `
-      <option value="" selected>Auto-detect topology</option>
-      ${Object.entries(TopologyTypes)
-        .map(([k, v]) => `<option value="${v}">${k}</option>`)
-        .join('')}
-    `;
-    container.appendChild(topologySelect);
-
-    // Schema preview panel for imported files.
-    const schemaPreview = document.createElement('div');
-    schemaPreview.id = 'loader-schema';
-    schemaPreview.style.cssText = 'margin-top: 10px; padding: 8px; background: rgba(0, 30, 40, 0.4); border: 1px solid #005577; border-radius: 3px; color: #88ccff; font-size: 11px; display: none;';
-    container.appendChild(schemaPreview);
-
-    const status = document.createElement('div');
-    status.id = 'loader-status';
-    status.style.cssText = 'margin-top: 10px; color: #88ccff; min-height: 1.2em;';
-    container.appendChild(status);
-
-    this.statusEl = status;
-    this.schemaEl = schemaPreview;
-    this.topologySelect = topologySelect;
-
-    return container;
+  _boxStyle() {
+    return 'margin-bottom: 12px; padding: 8px; background: rgba(0, 30, 40, 0.6); border: 1px solid #005577; border-radius: 3px; color: #88ccff; font-size: 11px; line-height: 1.4;';
   }
 
   _label(text) {
@@ -162,12 +178,11 @@ export class FileLoaderUI {
       if (file.name.toLowerCase().endsWith('.csv')) {
         dataset = parseCSV(text, { name: file.name, maxRows: 100_000 });
       } else if (file.name.toLowerCase().endsWith('.json')) {
-        dataset = parseJSON(text);
-        dataset.name = file.name;
+        dataset = parseJSON(text, { name: file.name, maxRows: 100_000 });
       } else {
         // Try JSON first, then CSV.
         try {
-          dataset = parseJSON(text);
+          dataset = parseJSON(text, { name: file.name, maxRows: 100_000 });
         } catch {
           dataset = parseCSV(text, { name: file.name, maxRows: 100_000 });
         }
@@ -201,26 +216,55 @@ export class FileLoaderUI {
   }
 
   _renderSchema(dataset, topology, encodings, warnings) {
-    const typeColor = { NUMERIC: '#ffaa00', CATEGORICAL: '#00ffcc', TEMPORAL: '#ff00ff', TEXT: '#88aaff' };
-    const rows = dataset.columns.map((c) => {
+    const typeColor = {
+      NUMERIC: '#ffaa00',
+      CATEGORICAL: '#00ffcc',
+      TEMPORAL: '#ff00ff',
+      TEXT: '#88aaff',
+    };
+
+    this.schemaEl.innerHTML = '';
+    this.schemaEl.appendChild(this._schemaHeader(dataset, topology));
+
+    for (const c of dataset.columns) {
       const usedBy = Object.entries(encodings)
         .filter(([, name]) => name === c.name)
         .map(([channel]) => channel)
         .join(', ');
-      const extra = usedBy ? ` → ${usedBy}` : '';
-      return `<div style="display:flex;justify-content:space-between;"><span>${c.name}</span><span style="color:${typeColor[c.type] || '#fff'}">${c.type}${extra}</span></div>`;
-    }).join('');
+      this.schemaEl.appendChild(this._schemaRow(c, usedBy, typeColor[c.type] || '#fff'));
+    }
 
-    const warningHtml = warnings.length
-      ? `<div style="margin-top:6px;color:#ffaa00;">⚠ ${warnings.map((w) => w.message).join('; ')}</div>`
-      : '';
+    if (warnings.length) {
+      const warningEl = document.createElement('div');
+      warningEl.style.cssText = 'margin-top:6px;color:#ffaa00;';
+      warningEl.textContent = `⚠ ${warnings.map((w) => w.message).join('; ')}`;
+      this.schemaEl.appendChild(warningEl);
+    }
 
-    this.schemaEl.innerHTML = `
-      <div style="font-weight:bold;margin-bottom:4px;">${dataset.name} — ${topology} (${dataset.rowCount} rows)</div>
-      ${rows}
-      ${warningHtml}
-    `;
     this.schemaEl.style.display = 'block';
+  }
+
+  _schemaHeader(dataset, topology) {
+    const header = document.createElement('div');
+    header.style.cssText = 'font-weight:bold;margin-bottom:4px;';
+    header.textContent = `${dataset.name} — ${topology} (${dataset.rowCount} rows)`;
+    return header;
+  }
+
+  _schemaRow(column, usedBy, color) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;justify-content:space-between;';
+
+    const name = document.createElement('span');
+    name.textContent = column.name;
+    row.appendChild(name);
+
+    const type = document.createElement('span');
+    type.style.color = color;
+    type.textContent = `${column.type}${usedBy ? ` → ${usedBy}` : ''}`;
+    row.appendChild(type);
+
+    return row;
   }
 
   _clearSchema() {

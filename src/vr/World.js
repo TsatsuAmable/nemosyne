@@ -24,10 +24,7 @@ import {
 import { TopologyTypes } from '../draco/ConstraintEngine.js';
 import { disposeObject } from '../utils/Dispose.js';
 import { downloadDataUrl, downloadText } from '../utils/Download.js';
-import { WebSocketAdapter } from '../data/connectors/WebSocketAdapter.js';
-import { PollingAdapter } from '../data/connectors/PollingAdapter.js';
-import { rowsToDataset } from '../data/connectors/normalize.js';
-import { getOpenDataSource } from '../data/connectors/OpenDataSources.js';
+import { LiveStreamCoordinator } from './coordinators/LiveStreamCoordinator.js';
 import {
   filter,
   sort,
@@ -57,6 +54,7 @@ import { HandGestureRecognizer } from './interactions/HandGestureRecognizer.js';
 import { ControllerGestureMapper } from './interactions/ControllerGestureMapper.js';
 import { AnalysisHistory } from '../data/AnalysisHistory.js';
 import { SessionStore } from '../data/SessionStore.js';
+import { Dataset } from '../data/Dataset.js';
 import { GuidedTour } from './ui/GuidedTour.js';
 import { FIRST_DATASET_TOUR } from '../data/DefaultTour.js';
 import { WorldTheme } from './WorldTheme.js';
@@ -65,7 +63,7 @@ import { TelemetryPanel } from './ui/TelemetryPanel.js';
 import { PerformancePanel } from './ui/PerformancePanel.js';
 import { NetworkPanel } from './ui/NetworkPanel.js';
 import { InteractionCoach } from './ui/InteractionCoach.js';
-import { NetworkManager } from '../network/NetworkManager.js';
+import { CollaborationCoordinator } from './coordinators/CollaborationCoordinator.js';
 import { getGestureMeta } from '../utils/GestureMapping.js';
 
 // Map sample-dataset keys to atmospheric presets so each dataset has a distinct mood.
@@ -234,14 +232,12 @@ export class World {
     this.engine.input.setHandWheelMenu(this.handWheelMenu);
 
     this._datasetCycleIndex = -1;
-    this._buildWheelMenu();
 
-    // Live-streaming state.
-    this.liveConnector = null;
-    this.liveRows = [];
-    this._pendingRows = [];
-    this._liveFlushTimer = null;
-    this._liveUpdatePending = false;
+    // Live-streaming and collaboration state.
+    this.liveStreamCoordinator = new LiveStreamCoordinator({ world: this });
+    this.collaborationCoordinator = new CollaborationCoordinator({ world: this });
+
+    this._buildWheelMenu();
 
     // DOM telemetry overlay (legacy 2D status line).
     this.telemetry = document.getElementById('telemetry');
@@ -307,7 +303,9 @@ export class World {
     this.panelManager.hidePanel(this.operationLogPanel);
 
     // Telemetry panel: live opt-in session / performance metrics.
-    this.metricsPanel = new TelemetryPanel(this.engine.cameraGroup, { telemetry: this.telemetryCollector });
+    this.metricsPanel = new TelemetryPanel(this.engine.cameraGroup, {
+      telemetry: this.telemetryCollector,
+    });
     this.panelManager.register(this.metricsPanel);
     this.engine.input.addPanel(this.metricsPanel);
     this.engine.addUpdatable(this.metricsPanel);
@@ -324,12 +322,13 @@ export class World {
     this.panelManager.hidePanel(this.performancePanel);
 
     // Collaboration network panel and manager (offline until explicitly joined).
-    this.networkPanel = new NetworkPanel(this.engine.cameraGroup, { telemetry: this.telemetryCollector });
+    this.networkPanel = new NetworkPanel(this.engine.cameraGroup, {
+      telemetry: this.telemetryCollector,
+    });
     this.panelManager.register(this.networkPanel);
     this.engine.input.addPanel(this.networkPanel);
     this.engine.addUpdatable(this.networkPanel);
     this.panelManager.hidePanel(this.networkPanel);
-    this.networkManager = null;
 
     // Interaction coach: running commentary that anchors gestures/controllers to
     // system behavior and teaches the gesture vocabulary.
@@ -424,7 +423,10 @@ export class World {
       this.tooltipManager.registerTarget(this.core.group);
     }
     if (this.datum?.mesh) {
-      this.datum.mesh.userData.tooltipMeta = { title: 'Datum Plane', body: 'Substrate of cyberspace' };
+      this.datum.mesh.userData.tooltipMeta = {
+        title: 'Datum Plane',
+        body: 'Substrate of cyberspace',
+      };
       this.tooltipManager.registerTarget(this.datum.mesh);
     }
     if (this.portalA?.group) {
@@ -492,7 +494,11 @@ export class World {
       version: 1,
       savedAt: Date.now(),
       entry: {
-        name: this.currentEntry.name ?? this._originalDataset?.name ?? this.currentEntry.label ?? 'dataset',
+        name:
+          this.currentEntry.name ??
+          this._originalDataset?.name ??
+          this.currentEntry.label ??
+          'dataset',
         topology: this.currentEntry.topology,
         encodings: this.currentEntry.encodings,
         maxDepth: this.currentEntry.maxDepth,
@@ -539,7 +545,6 @@ export class World {
       return false;
     }
 
-    const { Dataset } = await import('../data/Dataset.js');
     const original = Dataset.fromJSON(snapshot.originalDataset);
     const transformed = snapshot.transformedDataset
       ? Dataset.fromJSON(snapshot.transformedDataset)
@@ -559,7 +564,6 @@ export class World {
 
     // Restore the analysis history so undo/redo works across sessions.
     if (snapshot.analysisHistory) {
-      const { AnalysisHistory } = await import('../data/AnalysisHistory.js');
       this.analysisHistory = AnalysisHistory.fromJSON(snapshot.analysisHistory);
     } else {
       this.analysisHistory.clear();
@@ -720,7 +724,9 @@ export class World {
   _updateWorld(delta, time) {
     // Sync core pulse to the amount of analysis history in the session.
     if (this.core?.setDataActivity) {
-      const activity = this.analysisHistory ? this.analysisHistory.length / Math.max(1, this.analysisHistory.maxFrames) : 0;
+      const activity = this.analysisHistory
+        ? this.analysisHistory.length / Math.max(1, this.analysisHistory.maxFrames)
+        : 0;
       this.core.setDataActivity(activity);
     }
 
@@ -748,8 +754,9 @@ export class World {
   }
 
   _broadcastPresence() {
-    if (!this.networkManager?.isConnected) return;
-    this.networkManager.setLocalState({
+    const nm = this.collaborationCoordinator.networkManager;
+    if (!nm?.isConnected) return;
+    nm.setLocalState({
       camera: this.engine.cameraGroup.position.toArray(),
       rotationY: this.engine.cameraGroup.rotation.y,
       dataset: this.currentEntry?.name ?? this.currentEntry?.label ?? '-',
@@ -793,9 +800,14 @@ export class World {
 
     const source = ctx.source === 'controller' ? 'controller' : 'hand';
     const meta = getGestureMeta(name);
-    const input = source === 'controller'
-      ? (ctx.button ? `Controller ${ctx.button}` : ctx.input ? `Controller ${ctx.input}` : meta?.controller)
-      : meta?.hand;
+    const input =
+      source === 'controller'
+        ? ctx.button
+          ? `Controller ${ctx.button}`
+          : ctx.input
+            ? `Controller ${ctx.input}`
+            : meta?.controller
+        : meta?.hand;
 
     this._logInteraction(meta?.action ?? name, {
       gesture: name,
@@ -902,7 +914,9 @@ export class World {
       topology: entry.topology,
       dataset: entry.dataset,
       maxDepth: entry.maxDepth,
-      encodings: entry.encodings ?? getDefaultEncodings({ dataset: entry.dataset, topology: entry.topology }),
+      encodings:
+        entry.encodings ??
+        getDefaultEncodings({ dataset: entry.dataset, topology: entry.topology }),
     };
 
     this.dracoNode = new DracoTopologyNode(this.engine.scene, dataInput, [0, 1.4, -3.5]);
@@ -910,7 +924,11 @@ export class World {
     this._wireArtifactInteraction(this.dracoNode);
 
     // Rebuild diagnostic HUD bound to the new node.
-    this.diagnostic = new DracoDiagnosticHUD(this.engine.cameraGroup, this.dracoNode, [-0.8, 1.5, -1.2]);
+    this.diagnostic = new DracoDiagnosticHUD(
+      this.engine.cameraGroup,
+      this.dracoNode,
+      [-0.8, 1.5, -1.2]
+    );
     this.engine.input.addPanel(this.diagnostic);
     this.analystAnchor.add(this.diagnostic.mesh);
 
@@ -968,30 +986,38 @@ export class World {
 
     if (!this._originalDataset || !this.dashboard) return;
     const ds = this._originalDataset;
-    const facts = this.dracoNode?.engine?.extractFacts?.(ds) ?? { numericColumns: ds.numericColumns.length };
+    const facts = this.dracoNode?.engine?.extractFacts?.(ds) ?? {
+      numericColumns: ds.numericColumns.length,
+    };
 
     const panels = [];
 
     if (facts.numericColumns > 1 || ds.numericColumns.length > 1) {
-      panels.push(new ChartPlanePanel(this.engine.cameraGroup, ds, {
-        title: 'Correlation Matrix',
-        chartType: 'CORRELATION',
-      }));
+      panels.push(
+        new ChartPlanePanel(this.engine.cameraGroup, ds, {
+          title: 'Correlation Matrix',
+          chartType: 'CORRELATION',
+        })
+      );
     }
 
     if (facts.hasTimeSeries || ds.temporalColumns.length > 0) {
-      panels.push(new ChartPlanePanel(this.engine.cameraGroup, ds, {
-        title: 'Time Series',
-        chartType: 'LINE',
-      }));
+      panels.push(
+        new ChartPlanePanel(this.engine.cameraGroup, ds, {
+          title: 'Time Series',
+          chartType: 'LINE',
+        })
+      );
     }
 
     if (panels.length === 0 && ds.numericColumns.length > 0) {
-      panels.push(new ChartPlanePanel(this.engine.cameraGroup, ds, {
-        title: `Distribution of ${ds.numericColumns[0].name}`,
-        chartType: 'HISTOGRAM',
-        column: ds.numericColumns[0].name,
-      }));
+      panels.push(
+        new ChartPlanePanel(this.engine.cameraGroup, ds, {
+          title: `Distribution of ${ds.numericColumns[0].name}`,
+          chartType: 'HISTOGRAM',
+          column: ds.numericColumns[0].name,
+        })
+      );
     }
 
     for (let i = 0; i < panels.length; i++) {
@@ -1004,7 +1030,10 @@ export class World {
       this.dashboardPanels.push({ panel });
 
       // Register the panel mesh for pointer-hover labels.
-      panel.mesh.userData.tooltipMeta = { title: panel.title, body: 'Drag to reposition; drop to snap' };
+      panel.mesh.userData.tooltipMeta = {
+        title: panel.title,
+        body: 'Drag to reposition; drop to snap',
+      };
       this.tooltipManager.registerTarget(panel.mesh);
       this._dashboardTooltipTargets.push(panel.mesh);
     }
@@ -1072,7 +1101,9 @@ export class World {
 
   _togglePanels() {
     this.panelManager.toggleLauncher();
-    this._logInteraction('Launcher', { result: this.panelManager.isLauncherVisible() ? 'opened' : 'closed' });
+    this._logInteraction('Launcher', {
+      result: this.panelManager.isLauncherVisible() ? 'opened' : 'closed',
+    });
   }
 
   _cycleDataset(delta = 1) {
@@ -1101,8 +1132,12 @@ export class World {
   _toggleStatisticalLens() {
     this._statisticalLensEnabled = !this._statisticalLensEnabled;
     this._setStatisticalLensVisible(this._statisticalLensEnabled);
-    this.vrConsole?.log?.('log', [`Statistical lens ${this._statisticalLensEnabled ? 'on' : 'off'}`]);
-    this._logInteraction('Statistical lens', { result: this._statisticalLensEnabled ? 'on' : 'off' });
+    this.vrConsole?.log?.('log', [
+      `Statistical lens ${this._statisticalLensEnabled ? 'on' : 'off'}`,
+    ]);
+    this._logInteraction('Statistical lens', {
+      result: this._statisticalLensEnabled ? 'on' : 'off',
+    });
     this._captureSession();
   }
 
@@ -1117,7 +1152,9 @@ export class World {
   _toggleSettingsPanel() {
     if (!this.settingsPanel) return;
     this.panelManager.togglePanel(this.settingsPanel);
-    this._logInteraction('Settings panel', { result: this.settingsPanel.mesh.visible ? 'opened' : 'closed' });
+    this._logInteraction('Settings panel', {
+      result: this.settingsPanel.mesh.visible ? 'opened' : 'closed',
+    });
   }
 
   _onSettingChanged(key, value) {
@@ -1180,65 +1217,15 @@ export class World {
   }
 
   _joinCollaborationRoom(roomId = null) {
-    if (this.networkManager?.isConnected) return Promise.resolve();
-    const settings = this.settingsPanel.getAllSettings();
-    const targetRoom = roomId ?? settings.collabRoom ?? 'default';
-    this.networkManager = new NetworkManager({
-      signallingUrl: this._defaultSignallingUrl(),
-      roomId: targetRoom,
-      peerName: settings.collabName ?? 'Analyst',
-    });
-    this.networkPanel.setStatus({ roomId: targetRoom, connected: false, peers: [], lastEvent: 'Joining...' });
-    this._wireNetworkEvents();
-    this._logInteraction('Join room', { result: targetRoom });
-    return this.networkManager.connect(targetRoom);
+    return this.collaborationCoordinator.joinCollaborationRoom(roomId);
   }
 
   _leaveCollaborationRoom() {
-    if (!this.networkManager) return;
-    const roomId = this.networkManager.roomId;
-    this.networkManager.disconnect();
-    this.networkManager = null;
-    this.networkPanel.setStatus({ roomId: '-', connected: false, peers: [], lastEvent: 'Left room' });
-    this._logInteraction('Leave room', { result: roomId });
+    this.collaborationCoordinator.leaveCollaborationRoom();
   }
 
-  _wireNetworkEvents() {
-    if (!this.networkManager) return;
-    this.networkManager.addEventListener('connected', (e) => {
-      const roomId = e.detail?.roomId ?? this.networkManager.roomId;
-      this.networkPanel.setStatus({ roomId, connected: true, lastEvent: `Connected to ${roomId}` });
-      this.vrConsole?.log?.('log', [`Collaboration: joined ${roomId}`]);
-      this.telemetryCollector?.recordOperation?.('network-connect');
-      this._buildWheelMenu();
-    });
-    this.networkManager.addEventListener('disconnected', () => {
-      this.networkPanel.setStatus({ connected: false, lastEvent: 'Disconnected' });
-      this.vrConsole?.log?.('log', ['Collaboration: left room']);
-      this.telemetryCollector?.recordOperation?.('network-disconnect');
-      this._buildWheelMenu();
-    });
-    this.networkManager.addEventListener('peerJoined', (e) => {
-      const peers = this.networkManager.room.getPeers();
-      this.networkPanel.setStatus({ peers, lastEvent: `${e.detail?.name ?? e.detail?.peerId} joined` });
-      this.vrConsole?.log?.('log', [`Peer joined: ${e.detail?.name ?? e.detail?.peerId}`]);
-      this._logInteraction('Peer joined', { result: e.detail?.name ?? e.detail?.peerId });
-    });
-    this.networkManager.addEventListener('peerLeft', (e) => {
-      const peers = this.networkManager.room.getPeers();
-      this.networkPanel.setStatus({ peers, lastEvent: `${e.detail?.peerId} left` });
-      this.vrConsole?.log?.('log', [`Peer left: ${e.detail?.peerId}`]);
-      this._logInteraction('Peer left', { result: e.detail?.peerId });
-    });
-    this.networkManager.addEventListener('peerState', (e) => {
-      this.telemetryCollector?.recordOperation?.('peer-state');
-    });
-  }
-
-  _defaultSignallingUrl() {
-    if (typeof location === 'undefined') return 'wss://localhost:5173/__signal';
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${location.host}/__signal`;
+  get networkManager() {
+    return this.collaborationCoordinator?.networkManager ?? null;
   }
 
   undoAnalysis() {
@@ -1327,19 +1314,59 @@ export class World {
         items: [
           { id: 'launcher', label: 'Launcher', callback: () => this.panelManager.toggleLauncher() },
           { id: 'settings', label: 'Settings', callback: () => this._toggleSettingsPanel() },
-          { id: 'operation-log', label: 'Operation Log', callback: () => this.panelManager.togglePanel(this.operationLogPanel) },
-          { id: 'telemetry', label: 'Telemetry', callback: () => this.panelManager.togglePanel(this.metricsPanel) },
-          { id: 'performance', label: 'Performance', callback: () => this.panelManager.togglePanel(this.performancePanel) },
-          { id: 'interaction-coach', label: 'Interaction Coach', callback: () => this.panelManager.togglePanel(this.interactionCoach) },
+          {
+            id: 'operation-log',
+            label: 'Operation Log',
+            callback: () => this.panelManager.togglePanel(this.operationLogPanel),
+          },
+          {
+            id: 'telemetry',
+            label: 'Telemetry',
+            callback: () => this.panelManager.togglePanel(this.metricsPanel),
+          },
+          {
+            id: 'performance',
+            label: 'Performance',
+            callback: () => this.panelManager.togglePanel(this.performancePanel),
+          },
+          {
+            id: 'interaction-coach',
+            label: 'Interaction Coach',
+            callback: () => this.panelManager.togglePanel(this.interactionCoach),
+          },
           { id: 'tour', label: 'Tour', callback: () => this.startTour() },
           { id: 'recenter', label: 'Recenter', callback: () => this.panelManager.recenter() },
-          { id: 'scroll-dashboard-left', label: 'Scroll Left', callback: () => this.dashboard.scrollBySlots(-1) },
-          { id: 'scroll-dashboard-right', label: 'Scroll Right', callback: () => this.dashboard.scrollBySlots(1) },
-          { id: 'reset-dashboard', label: 'Reset Dashboard', callback: () => this.dashboard.resetDashboard() },
+          {
+            id: 'scroll-dashboard-left',
+            label: 'Scroll Left',
+            callback: () => this.dashboard.scrollBySlots(-1),
+          },
+          {
+            id: 'scroll-dashboard-right',
+            label: 'Scroll Right',
+            callback: () => this.dashboard.scrollBySlots(1),
+          },
+          {
+            id: 'reset-dashboard',
+            label: 'Reset Dashboard',
+            callback: () => this.dashboard.resetDashboard(),
+          },
           { id: 'save-session', label: 'Save Session', callback: () => this.saveSession('manual') },
-          { id: 'load-session', label: 'Load Last Session', callback: () => this.loadSession('autosave') },
-          { id: 'delete-autosave', label: 'New Session', callback: () => this.deleteSession('autosave') },
-          { id: 'export-screenshot', label: 'Export Screenshot', callback: () => this.exportScreenshot() },
+          {
+            id: 'load-session',
+            label: 'Load Last Session',
+            callback: () => this.loadSession('autosave'),
+          },
+          {
+            id: 'delete-autosave',
+            label: 'New Session',
+            callback: () => this.deleteSession('autosave'),
+          },
+          {
+            id: 'export-screenshot',
+            label: 'Export Screenshot',
+            callback: () => this.exportScreenshot(),
+          },
           { id: 'export-story', label: 'Export Story', callback: () => this.exportAnalysisStory() },
         ],
       },
@@ -1347,16 +1374,48 @@ export class World {
         id: 'views',
         label: 'Views',
         items: [
-          { id: 'portals', label: 'Portals', callback: () => this.setPortalsEnabled(!this.portalsEnabled) },
+          {
+            id: 'portals',
+            label: 'Portals',
+            callback: () => this.setPortalsEnabled(!this.portalsEnabled),
+          },
           { id: 'dataset', label: 'Dataset', callback: () => this._cycleDataset() },
           { id: 'cycle-theme', label: 'Cycle Theme', callback: () => this._cycleThemePreset() },
-          { id: 'teleport-toggle', label: 'Toggle Teleport', callback: () => this.engine.locomotion.toggleTeleport() },
-          { id: 'teleport-overview', label: 'Overview', callback: () => this.engine.locomotion.teleportToAnchor('overview') },
-          { id: 'teleport-detail', label: 'Detail', callback: () => this.engine.locomotion.teleportToAnchor('detail') },
-          { id: 'teleport-north', label: 'North', callback: () => this.engine.locomotion.teleportToAnchor('north') },
-          { id: 'teleport-south', label: 'South', callback: () => this.engine.locomotion.teleportToAnchor('south') },
-          { id: 'toggle-flight', label: 'Toggle Flight', callback: () => this.engine.locomotion.toggleFlight() },
-          { id: 'drop-to-floor', label: 'Drop to Floor', callback: () => this.engine.locomotion.dropToFloor() },
+          {
+            id: 'teleport-toggle',
+            label: 'Toggle Teleport',
+            callback: () => this.engine.locomotion.toggleTeleport(),
+          },
+          {
+            id: 'teleport-overview',
+            label: 'Overview',
+            callback: () => this.engine.locomotion.teleportToAnchor('overview'),
+          },
+          {
+            id: 'teleport-detail',
+            label: 'Detail',
+            callback: () => this.engine.locomotion.teleportToAnchor('detail'),
+          },
+          {
+            id: 'teleport-north',
+            label: 'North',
+            callback: () => this.engine.locomotion.teleportToAnchor('north'),
+          },
+          {
+            id: 'teleport-south',
+            label: 'South',
+            callback: () => this.engine.locomotion.teleportToAnchor('south'),
+          },
+          {
+            id: 'toggle-flight',
+            label: 'Toggle Flight',
+            callback: () => this.engine.locomotion.toggleFlight(),
+          },
+          {
+            id: 'drop-to-floor',
+            label: 'Drop to Floor',
+            callback: () => this.engine.locomotion.dropToFloor(),
+          },
         ],
       },
       {
@@ -1366,7 +1425,8 @@ export class World {
           {
             id: 'live-toggle',
             label: this.isLiveConnected() ? 'Stop Live' : 'Start Live',
-            callback: () => (this.isLiveConnected() ? this.disconnectLiveStream() : this.connectLiveStream()),
+            callback: () =>
+              this.isLiveConnected() ? this.disconnectLiveStream() : this.connectLiveStream(),
           },
         ],
       },
@@ -1376,10 +1436,17 @@ export class World {
         items: [
           {
             id: 'collab-toggle',
-            label: this.networkManager?.isConnected ? 'Leave Room' : 'Join Room',
-            callback: () => (this.networkManager?.isConnected ? this._leaveCollaborationRoom() : this._joinCollaborationRoom()),
+            label: this.collaborationCoordinator.isConnected() ? 'Leave Room' : 'Join Room',
+            callback: () =>
+              this.collaborationCoordinator.isConnected()
+                ? this._leaveCollaborationRoom()
+                : this._joinCollaborationRoom(),
           },
-          { id: 'collab-panel', label: 'Network Panel', callback: () => this.panelManager.togglePanel(this.networkPanel) },
+          {
+            id: 'collab-panel',
+            label: 'Network Panel',
+            callback: () => this.panelManager.togglePanel(this.networkPanel),
+          },
         ],
       },
       {
@@ -1388,12 +1455,24 @@ export class World {
         items: [
           { id: 'filter', label: 'Filter', callback: () => this.applyDataOperation('filter') },
           { id: 'sort', label: 'Sort', callback: () => this.applyDataOperation('sort') },
-          { id: 'aggregate', label: 'Aggregate', callback: () => this.applyDataOperation('aggregate') },
+          {
+            id: 'aggregate',
+            label: 'Aggregate',
+            callback: () => this.applyDataOperation('aggregate'),
+          },
           { id: 'cluster', label: 'Cluster', callback: () => this.applyDataOperation('cluster') },
-          { id: 'hierarchical', label: 'Hierarchical', callback: () => this.applyDataOperation('hierarchical') },
+          {
+            id: 'hierarchical',
+            label: 'Hierarchical',
+            callback: () => this.applyDataOperation('hierarchical'),
+          },
           { id: 'density', label: 'Density', callback: () => this.applyDataOperation('density') },
           { id: 'anomaly', label: 'Anomaly', callback: () => this.applyDataOperation('anomaly') },
-          { id: 'timeSlice', label: 'Time Slice', callback: () => this.applyDataOperation('timeSlice') },
+          {
+            id: 'timeSlice',
+            label: 'Time Slice',
+            callback: () => this.applyDataOperation('timeSlice'),
+          },
           { id: 'reset', label: 'Reset', callback: () => this.resetDataOperation() },
         ],
       },
@@ -1423,115 +1502,35 @@ export class World {
    * @param {string} sourceKey from src/data/connectors/OpenDataSources.js
    */
   connectLiveSource(sourceKey) {
-    const source = getOpenDataSource(sourceKey);
-    if (!source) {
-      console.warn('[World] unknown live source:', sourceKey);
-      return false;
-    }
-
-    this.disconnectLiveStream();
-    this.liveRows = [];
-
-    const url = source.url ?? this._demoStreamUrl();
-
-    if (source.transport === 'websocket') {
-      if (typeof WebSocket === 'undefined') {
-        console.warn('[World] WebSocket not available in this environment');
-        return false;
-      }
-      this.liveConnector = new WebSocketAdapter({
-        url,
-        topology: source.topology ?? TopologyTypes.TIME_SERIES,
-        mode: source.mode ?? 'window',
-        windowSize: source.windowSize ?? 50,
-        subscriptions: source.subscriptions ?? [],
-        parseMessage: source.parseMessage,
-        reconnect: true,
-      });
-    } else if (source.transport === 'polling') {
-      if (typeof fetch === 'undefined') {
-        console.warn('[World] fetch not available in this environment');
-        return false;
-      }
-      this.liveConnector = new PollingAdapter({
-        url,
-        topology: source.topology ?? TopologyTypes.GEO,
-        mode: source.mode ?? 'replace',
-        intervalMs: source.intervalMs ?? 10000,
-        fetchOptions: source.fetchOptions ?? {},
-        parseResponse: source.parseResponse,
-      });
-    } else {
-      console.warn('[World] unsupported transport:', source.transport);
-      return false;
-    }
-
-    this._wireLiveConnector();
-    this.liveConnector.connect();
-    return true;
+    return this.liveStreamCoordinator.connectLiveSource(sourceKey);
   }
 
   /**
    * Connect to a raw WebSocket data stream.
    * If no URL is supplied, the bundled demo endpoint is used.
    */
-  connectLiveStream(url = this._demoStreamUrl(), {
-    topology = TopologyTypes.TIME_SERIES,
-    mode = 'window',
-    windowSize = 50,
-  } = {}) {
-    if (typeof WebSocket === 'undefined') {
-      console.warn('[World] WebSocket not available in this environment');
-      return false;
-    }
-
-    this.disconnectLiveStream();
-    this.liveRows = [];
-
-    this.liveConnector = new WebSocketAdapter({
-      url,
-      topology,
-      mode,
-      windowSize,
-      reconnect: true,
-    });
-
-    this._wireLiveConnector();
-    this.liveConnector.connect();
-    return true;
-  }
-
-  _wireLiveConnector() {
-    this._liveUpdateUnsub = this.liveConnector.onUpdate((update) => this._onLiveUpdate(update));
-    this._liveStatusUnsub = this.liveConnector.onStatus((status, detail) => {
-      console.log(`[World] live stream ${status}`, detail || '');
-      this.vrMenu?.setLiveConnected?.(this.liveConnector?.isConnected?.() ?? false);
-      if (status === 'connected') this.vrConsole?.log?.('log', ['Live stream connected']);
-      if (status === 'disconnected') this.vrConsole?.log?.('log', ['Live stream disconnected']);
-      if (status === 'error') this.vrConsole?.warn?.('warn', [`Live stream error: ${detail}`]);
-    });
+  connectLiveStream(url, options) {
+    return this.liveStreamCoordinator.connectLiveStream(url, options);
   }
 
   disconnectLiveStream() {
-    this._cancelLiveFlush();
-    this.liveRows = [];
-    this._pendingRows = [];
-    if (this._liveUpdateUnsub) {
-      this._liveUpdateUnsub();
-      this._liveUpdateUnsub = null;
-    }
-    if (this._liveStatusUnsub) {
-      this._liveStatusUnsub();
-      this._liveStatusUnsub = null;
-    }
-    if (this.liveConnector) {
-      this.liveConnector.disconnect();
-      this.liveConnector = null;
-    }
+    this.liveStreamCoordinator.disconnectLiveStream();
+  }
+
+  get liveConnector() {
+    return this.liveStreamCoordinator?.liveConnector ?? null;
+  }
+
+  get _liveFlushTimer() {
+    return this.liveStreamCoordinator?._liveFlushTimer ?? null;
+  }
+
+  get _pendingRows() {
+    return this.liveStreamCoordinator?._pendingRows ?? [];
   }
 
   isLiveConnected() {
-    return this.liveConnector?.isConnected?.() ?? false;
+    return this.liveStreamCoordinator.isLiveConnected();
   }
 
   /**
@@ -1631,7 +1630,9 @@ export class World {
     this._updateDashboardDatasets(this._transformedDataset);
     this._pushAnalysisHistory(operation, datasetBefore, this._transformedDataset);
 
-    this.vrConsole?.log?.('log', [`Operation: ${operation} → ${this._transformedDataset.rowCount} rows`]);
+    this.vrConsole?.log?.('log', [
+      `Operation: ${operation} → ${this._transformedDataset.rowCount} rows`,
+    ]);
     this._logInteraction(operation, {
       result: `${this._transformedDataset.rowCount} rows`,
     });
@@ -1650,71 +1651,6 @@ export class World {
     this._pushAnalysisHistory('reset', datasetBefore, this._transformedDataset);
     this.vrConsole?.log?.('log', ['Reset transforms']);
     this._logInteraction('Reset', { result: `${this._transformedDataset.rowCount} rows` });
-  }
-
-  _demoStreamUrl() {
-    if (typeof location === 'undefined') return 'wss://localhost:5173/__demo-stream';
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${location.host}/__demo-stream`;
-  }
-
-  _onLiveUpdate(update) {
-    const rows = update.dataset?.rows ?? [];
-    if (rows.length === 0) return;
-
-    this._pendingRows.push(...rows);
-    const merged = [...this.liveRows, ...rows];
-    const limit = this.liveConnector?.windowSize ?? 50;
-    this.liveRows = update.mode === 'window' ? merged.slice(-limit) : merged;
-
-    this._liveUpdatePending = true;
-    if (!this._liveFlushTimer) {
-      this._liveFlushTimer = setTimeout(() => this._flushLiveUpdate(), 1000);
-    }
-  }
-
-  _flushLiveUpdate() {
-    this._liveFlushTimer = null;
-    if (!this._liveUpdatePending || this.liveRows.length === 0) return;
-    this._liveUpdatePending = false;
-
-    const topology = this.liveConnector?.topology || TopologyTypes.TIME_SERIES;
-
-    // Try incremental append for time-series if a live Draco node already exists.
-    if (
-      topology === TopologyTypes.TIME_SERIES &&
-      this.dracoNode &&
-      this.currentEntry?.name === 'Live Stream' &&
-      this._pendingRows.length > 0
-    ) {
-      const incremental = this.dracoNode.appendRows(this._pendingRows, {
-        mode: 'append',
-        limit: this.liveConnector?.windowSize ?? 50,
-      });
-      if (incremental) {
-        this._pendingRows = [];
-        return;
-      }
-    }
-
-    // Fallback: full re-solve.
-    const dataset = rowsToDataset(this.liveRows, 'Live Stream');
-    this.loadDataset({
-      name: 'Live Stream',
-      topology,
-      dataset,
-      maxDepth: 1,
-      encodings: getDefaultEncodings({ dataset, topology }),
-    });
-    this._pendingRows = [];
-  }
-
-  _cancelLiveFlush() {
-    if (this._liveFlushTimer) {
-      clearTimeout(this._liveFlushTimer);
-      this._liveFlushTimer = null;
-    }
-    this._liveUpdatePending = false;
   }
 
   start() {

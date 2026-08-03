@@ -29,7 +29,12 @@ export class Engine {
     this.cameraGroup = new THREE.Group();
     this.scene.add(this.cameraGroup);
 
-    this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 200);
+    this.camera = new THREE.PerspectiveCamera(
+      75,
+      window.innerWidth / window.innerHeight,
+      0.05,
+      200
+    );
     this.camera.position.set(0, 1.6, 0);
     this.cameraGroup.add(this.camera);
 
@@ -37,7 +42,11 @@ export class Engine {
     // scene is black or the camera is at the wrong height.
     this._addOriginMarker();
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: 'high-performance',
+    });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.xr.enabled = true;
@@ -45,6 +54,11 @@ export class Engine {
     // scene background is not explicitly set. Match the theme fog color.
     this.renderer.setClearColor(0x020208, 1);
     document.body.appendChild(this.renderer.domElement);
+
+    this._contextRestored = this._contextRestored.bind(this);
+    this._contextLost = this._contextLost.bind(this);
+    this.renderer.domElement.addEventListener('webglcontextlost', this._contextLost);
+    this.renderer.domElement.addEventListener('webglcontextrestored', this._contextRestored);
 
     document.body.appendChild(NemosyneVRButton.createButton(this.renderer));
 
@@ -102,6 +116,25 @@ export class Engine {
   start() {
     this.clock.start();
     this.renderer.setAnimationLoop(() => this._tick());
+
+    // Listen for XR session visibility changes (e.g., user removes headset,
+    // guardian triggered, tracking lost). We hook here because the session is
+    // created lazily by the VR button.
+    const checkSession = () => {
+      const session = this.renderer.xr.getSession();
+      if (session && !session._nemosyneVisibilityHook) {
+        session._nemosyneVisibilityHook = true;
+        session.addEventListener('visibilitychange', () => {
+          this._reportSessionStatus(
+            session.visibilityState === 'visible'
+              ? 'session resumed'
+              : `session ${session.visibilityState}`,
+            session.visibilityState === 'visible' ? '#00ffcc' : '#ffaa00'
+          );
+        });
+      }
+    };
+    this.renderer.xr.addEventListener('sessionstart', checkSession);
   }
 
   _tick() {
@@ -210,8 +243,26 @@ export class Engine {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
+  _contextLost(event) {
+    event.preventDefault();
+    console.warn('[Engine] WebGL context lost');
+    this._reportSessionStatus('GPU context lost — pausing render', '#ffaa00');
+    // Stop the animation loop; the renderer will resume automatically once the
+    // context is restored. three.js does not require manual resource recreation
+    // for a simple context restoration, but we clear transient state.
+    this.renderer.setAnimationLoop(null);
+  }
+
+  _contextRestored() {
+    console.warn('[Engine] WebGL context restored');
+    this._reportSessionStatus('GPU context restored', '#00ffcc');
+    this.renderer.setAnimationLoop(() => this._tick());
+  }
+
   dispose() {
     this.renderer.setAnimationLoop(null);
+    this.renderer.domElement.removeEventListener('webglcontextlost', this._contextLost);
+    this.renderer.domElement.removeEventListener('webglcontextrestored', this._contextRestored);
     this.locomotion.dispose();
     this.desktop.dispose();
     disposeObject(this.scene);

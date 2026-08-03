@@ -56,7 +56,7 @@ describe('OpenDataSources registry', () => {
       high_24h: '66000.00',
     });
     expect(parsed.rows.length).toBe(1);
-    expect(parsed.rows[0].price).toBe(65432.10);
+    expect(parsed.rows[0].price).toBe(65432.1);
     expect(parsed.rows[0].product).toBe('BTC-USD');
 
     expect(source.parseMessage({ type: 'heartbeat' })).toBeNull();
@@ -71,7 +71,7 @@ describe('OpenDataSources registry', () => {
       'BTC/USD',
     ]);
     expect(parsed.rows.length).toBe(1);
-    expect(parsed.rows[0].price).toBe(65000.00);
+    expect(parsed.rows[0].price).toBe(65000.0);
     expect(parsed.rows[0].side).toBe('b');
 
     expect(source.parseMessage({ event: 'heartbeat' })).toBeNull();
@@ -88,7 +88,7 @@ describe('OpenDataSources registry', () => {
       m: true,
     });
     expect(parsed.rows.length).toBe(1);
-    expect(parsed.rows[0].price).toBe(65000.00);
+    expect(parsed.rows[0].price).toBe(65000.0);
     expect(parsed.rows[0].symbol).toBe('BTCUSDT');
 
     expect(source.parseMessage({ e: 'depthUpdate' })).toBeNull();
@@ -116,7 +116,22 @@ describe('OpenDataSources registry', () => {
     const source = getOpenDataSource('opensky-aircraft');
     const parsed = source.parseResponse({
       states: [
-        ['a12345', 'ABC123 ', 'USA', 1722172800, null, -120, 35, 10000, false, 250, 90, 5, null, null],
+        [
+          'a12345',
+          'ABC123 ',
+          'USA',
+          1722172800,
+          null,
+          -120,
+          35,
+          10000,
+          false,
+          250,
+          90,
+          5,
+          null,
+          null,
+        ],
       ],
     });
     expect(parsed.rows.length).toBe(1);

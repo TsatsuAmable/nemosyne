@@ -225,14 +225,7 @@ export class HandWheelMenu {
     const count = this._categories.length;
     if (count === 0) return;
 
-    const palette = [
-      0x00ffcc,
-      0xff00cc,
-      0xccff00,
-      0x00ccff,
-      0xffcc00,
-      0xcc00ff,
-    ];
+    const palette = [0x00ffcc, 0xff00cc, 0xccff00, 0x00ccff, 0xffcc00, 0xcc00ff];
     const angleStep = (Math.PI * 2) / count;
 
     for (let i = 0; i < count; i++) {
@@ -250,7 +243,11 @@ export class HandWheelMenu {
       this._categoryMaterials.push(material);
 
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(this.nodeSize, this.nodeSize), material);
-      mesh.position.set(Math.cos(angle) * this.categoryRadius, Math.sin(angle) * this.categoryRadius, 0);
+      mesh.position.set(
+        Math.cos(angle) * this.categoryRadius,
+        Math.sin(angle) * this.categoryRadius,
+        0
+      );
       mesh.userData.kind = 'category';
       mesh.userData.categoryId = cat.id;
       mesh.userData.categoryIndex = i;
@@ -336,9 +333,11 @@ export class HandWheelMenu {
     this.hoveredCategory = hitCategory ?? this.selectedCategory;
     this.hoveredAction = hitAction;
 
-    if (hitCategory !== this._lastHovered.category ||
-        (hitAction?.categoryId !== this._lastHovered.action?.categoryId ||
-         hitAction?.index !== this._lastHovered.action?.index)) {
+    if (
+      hitCategory !== this._lastHovered.category ||
+      hitAction?.categoryId !== this._lastHovered.action?.categoryId ||
+      hitAction?.index !== this._lastHovered.action?.index
+    ) {
       if (hitCategory || hitAction) {
         this.feedback?.playHover?.();
       }
@@ -392,14 +391,16 @@ export class HandWheelMenu {
   }
 
   _positionActionMesh(mesh) {
-    const catMesh = this._categoryMeshes.find((m) => m.userData.categoryId === mesh.userData.categoryId);
+    const catMesh = this._categoryMeshes.find(
+      (m) => m.userData.categoryId === mesh.userData.categoryId
+    );
     if (!catMesh) return;
 
     const categoryAngle = Math.atan2(catMesh.position.y, catMesh.position.x);
     const items = this._categories.find((c) => c.id === mesh.userData.categoryId)?.items ?? [];
     const count = items.length;
     const index = mesh.userData.actionIndex;
-    const spread = Math.min(this.actionSpread, (Math.PI * 2) / this._categories.length * 0.9);
+    const spread = Math.min(this.actionSpread, ((Math.PI * 2) / this._categories.length) * 0.9);
     const angle = categoryAngle - spread / 2 + (count > 1 ? (index / (count - 1)) * spread : 0);
 
     mesh.position.set(Math.cos(angle) * this.actionRadius, Math.sin(angle) * this.actionRadius, 0);
@@ -409,7 +410,9 @@ export class HandWheelMenu {
     const catMesh = this._categoryMeshes.find((m) => m.userData.categoryId === activeCategoryId);
     if (!catMesh) return;
 
-    const activeActions = this._actionMeshes.filter((m) => m.userData.categoryId === activeCategoryId);
+    const activeActions = this._actionMeshes.filter(
+      (m) => m.userData.categoryId === activeCategoryId
+    );
     const positions = this._connectorLines.geometry.attributes.position.array;
     let idx = 0;
     for (const actionMesh of activeActions) {

@@ -40,11 +40,41 @@ export class VRTopologyTranslator {
 
     // Phase 7 scalable geometry paths.
     if (spec.geometry === 'INSTANCED_POINT_CLOUD') {
-      this._buildInstancedPointCloud(group, nodeMeshes, rows, dataset, encodings, spec, rng, edges, facts.depth);
+      this._buildInstancedPointCloud(
+        group,
+        nodeMeshes,
+        rows,
+        dataset,
+        encodings,
+        spec,
+        rng,
+        edges,
+        facts.depth
+      );
     } else if (spec.geometry === 'CLUSTER_VOLUME') {
-      this._buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec, rng, edges, facts.depth);
+      this._buildClusterVolume(
+        group,
+        nodeMeshes,
+        rows,
+        dataset,
+        encodings,
+        spec,
+        rng,
+        edges,
+        facts.depth
+      );
     } else if (spec.geometry === 'AGGREGATE_BARS') {
-      this._buildAggregateBars(group, nodeMeshes, rows, dataset, encodings, spec, rng, edges, facts.depth);
+      this._buildAggregateBars(
+        group,
+        nodeMeshes,
+        rows,
+        dataset,
+        encodings,
+        spec,
+        rng,
+        edges,
+        facts.depth
+      );
     } else {
       switch (spec.layout) {
         case 'GRID_3D':
@@ -104,7 +134,14 @@ export class VRTopologyTranslator {
       group,
       nodeMeshes,
       edgeMeshes,
-      interactions: this._makeInteractions(spec.interaction, group, nodeMeshes, edgeMeshes, rows, edges),
+      interactions: this._makeInteractions(
+        spec.interaction,
+        group,
+        nodeMeshes,
+        edgeMeshes,
+        rows,
+        edges
+      ),
       update: (delta, time) => {
         behaviors.forEach((b) => b(delta, time));
       },
@@ -113,7 +150,9 @@ export class VRTopologyTranslator {
 
     // Attach a companion ChartPlane for rich numeric or temporal datasets.
     if (facts.numericColumns > 1 || facts.hasTimeSeries) {
-      const chart = ChartPlane.fromFacts(facts, dataset, { title: facts.hasTimeSeries ? 'Time Series' : 'Correlation' });
+      const chart = ChartPlane.fromFacts(facts, dataset, {
+        title: facts.hasTimeSeries ? 'Time Series' : 'Correlation',
+      });
       chart.setDataset(dataset);
       chart.mesh.position.set(2.4, 1.6, -3.5);
       chart.mesh.lookAt(0, 1.6, -3.5);
@@ -308,10 +347,17 @@ export class VRTopologyTranslator {
   static _buildEdges(group, edgeMeshes, nodeMeshes, edges) {
     const mat = new THREE.LineBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.35 });
     for (const e of edges) {
-      const src = nodeMeshes.find((m) => m.userData.row?.id === e.source || m.userData.row?.name === e.source);
-      const dst = nodeMeshes.find((m) => m.userData.row?.id === e.target || m.userData.row?.name === e.target);
+      const src = nodeMeshes.find(
+        (m) => m.userData.row?.id === e.source || m.userData.row?.name === e.source
+      );
+      const dst = nodeMeshes.find(
+        (m) => m.userData.row?.id === e.target || m.userData.row?.name === e.target
+      );
       if (!src || !dst) continue;
-      const geo = new THREE.BufferGeometry().setFromPoints([src.position.clone(), dst.position.clone()]);
+      const geo = new THREE.BufferGeometry().setFromPoints([
+        src.position.clone(),
+        dst.position.clone(),
+      ]);
       const line = new THREE.Line(geo, mat);
       group.add(line);
       edgeMeshes.push(line);
@@ -379,24 +425,46 @@ export class VRTopologyTranslator {
       case 'TIME_RIBBON': {
         const timeField = encodings.time || dataset?.temporalColumns[0]?.name || 'time';
         const valueField = encodings.size || dataset?.numericColumns[0]?.name || 'temperature';
-        return TimeSeriesRibbonLayout.compute(rows, { timeKey: timeField, valueKey: valueField, yOffset: 1.2 });
+        return TimeSeriesRibbonLayout.compute(rows, {
+          timeKey: timeField,
+          valueKey: valueField,
+          yOffset: 1.2,
+        });
       }
       default:
         return [];
     }
   }
 
-  static _buildInstancedPointCloud(group, nodeMeshes, rows, dataset, encodings, spec, rng, edges = [], depth = 1) {
-    const positions = this._computeLayoutPositions(rows, dataset, encodings, spec, rng, edges, depth);
+  static _buildInstancedPointCloud(
+    group,
+    nodeMeshes,
+    rows,
+    dataset,
+    encodings,
+    spec,
+    rng,
+    edges = [],
+    depth = 1
+  ) {
+    const positions = this._computeLayoutPositions(
+      rows,
+      dataset,
+      encodings,
+      spec,
+      rng,
+      edges,
+      depth
+    );
     if (positions.length === 0) return;
 
-    const colorField = encodings.color || dataset?.categoricalColumns[0]?.name || dataset?.numericColumns[0]?.name;
+    const colorField =
+      encodings.color || dataset?.categoricalColumns[0]?.name || dataset?.numericColumns[0]?.name;
     const sizeField = encodings.size || dataset?.numericColumns[0]?.name;
     const colorCol = colorField ? dataset?.getColumn(colorField) : null;
     const sizeCol = sizeField ? dataset?.getColumn(sizeField) : null;
-    const uniqueColors = colorCol?.type === 'CATEGORICAL'
-      ? [...new Set(dataset.getColumnValues(colorField))]
-      : [];
+    const uniqueColors =
+      colorCol?.type === 'CATEGORICAL' ? [...new Set(dataset.getColumnValues(colorField))] : [];
     const sizeRange = sizeCol?.type === 'NUMERIC' ? dataset.rangeOf(sizeField) : { min: 0, max: 1 };
 
     const items = positions.map((p, idx) => {
@@ -432,8 +500,26 @@ export class VRTopologyTranslator {
     nodeMeshes.push(cloud.mesh);
   }
 
-  static _buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec, rng, edges = [], depth = 1) {
-    const positions = this._computeLayoutPositions(rows, dataset, encodings, spec, rng, edges, depth);
+  static _buildClusterVolume(
+    group,
+    nodeMeshes,
+    rows,
+    dataset,
+    encodings,
+    spec,
+    rng,
+    edges = [],
+    depth = 1
+  ) {
+    const positions = this._computeLayoutPositions(
+      rows,
+      dataset,
+      encodings,
+      spec,
+      rng,
+      edges,
+      depth
+    );
     if (positions.length === 0) return;
 
     const colorField = encodings.color || dataset?.categoricalColumns[0]?.name;
@@ -478,7 +564,17 @@ export class VRTopologyTranslator {
     }
   }
 
-  static _buildAggregateBars(group, nodeMeshes, rows, dataset, encodings, spec, rng, edges = [], depth = 1) {
+  static _buildAggregateBars(
+    group,
+    nodeMeshes,
+    rows,
+    dataset,
+    encodings,
+    spec,
+    rng,
+    edges = [],
+    depth = 1
+  ) {
     if (spec.layout === 'GEO_SURFACE') {
       const catField = encodings.color || dataset?.categoricalColumns[0]?.name;
       const valueField = encodings.size || dataset?.numericColumns[0]?.name;
@@ -534,7 +630,17 @@ export class VRTopologyTranslator {
     }
 
     // Fallback for unsupported layouts: render as instanced point cloud.
-    this._buildInstancedPointCloud(group, nodeMeshes, rows, dataset, encodings, spec, rng, edges, depth);
+    this._buildInstancedPointCloud(
+      group,
+      nodeMeshes,
+      rows,
+      dataset,
+      encodings,
+      spec,
+      rng,
+      edges,
+      depth
+    );
   }
 
   /**
@@ -572,7 +678,11 @@ export class VRTopologyTranslator {
         .sort((a, b) => new Date(a[timeField]) - new Date(b[timeField]))
         .map((r, idx) => {
           const value = Number(r[valueField]) || 0;
-          return new THREE.Vector3((startIdx + idx) * 0.8 - 2, value * 0.2, (existingMesh.userData.seriesIndex || 0) * 1.5 - 2);
+          return new THREE.Vector3(
+            (startIdx + idx) * 0.8 - 2,
+            value * 0.2,
+            (existingMesh.userData.seriesIndex || 0) * 1.5 - 2
+          );
         });
       if (newPoints.length === 0) continue;
 
@@ -631,8 +741,14 @@ export class VRTopologyTranslator {
               const row = mesh.userData.row;
               const id = row.id ?? row.name;
               for (const e of edges) {
-                if (e.source === id) partners.push(meshList.find((m) => (m.userData.row?.id ?? m.userData.row?.name) === e.target));
-                if (e.target === id) partners.push(meshList.find((m) => (m.userData.row?.id ?? m.userData.row?.name) === e.source));
+                if (e.source === id)
+                  partners.push(
+                    meshList.find((m) => (m.userData.row?.id ?? m.userData.row?.name) === e.target)
+                  );
+                if (e.target === id)
+                  partners.push(
+                    meshList.find((m) => (m.userData.row?.id ?? m.userData.row?.name) === e.source)
+                  );
               }
             }
             applyResonancePulse(group, mesh, partners.filter(Boolean));

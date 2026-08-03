@@ -57,10 +57,7 @@ describe('validateImport', () => {
   });
 
   it('flags max rows exceeded', () => {
-    const ds = makeDataset(
-      [{ name: 'a', type: ColumnType.NUMERIC }],
-      [{ a: 1 }, { a: 2 }]
-    );
+    const ds = makeDataset([{ name: 'a', type: ColumnType.NUMERIC }], [{ a: 1 }, { a: 2 }]);
     const result = validateImport(ds, { maxRows: 1 });
     expect(result.ok).toBe(false);
     expect(result.errors[0].code).toBe(ImportErrorCode.MAX_ROWS_EXCEEDED);
@@ -98,11 +95,7 @@ describe('validateImport', () => {
         { name: 'a', type: ColumnType.NUMERIC },
         { name: 'b', type: ColumnType.NUMERIC },
       ],
-      [
-        { a: 1, b: 2 },
-        { a: 3, b: 4 },
-        { a: 5 },
-      ]
+      [{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5 }]
     );
     const result = validateImport(ds, { rowLengthMismatchTolerance: 0.4 });
     expect(result.ok).toBe(true);

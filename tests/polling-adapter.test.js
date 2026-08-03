@@ -24,7 +24,9 @@ describe('PollingAdapter', () => {
     vi.useFakeTimers();
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ features: [{ properties: { mag: 2.5, time: Date.now(), place: 'A' } }] }),
+      json: async () => ({
+        features: [{ properties: { mag: 2.5, time: Date.now(), place: 'A' } }],
+      }),
     });
 
     const adapter = new PollingAdapter({

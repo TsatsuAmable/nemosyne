@@ -72,7 +72,7 @@ export class HandPointer {
 
     this.pinched = false;
     this.pinchThreshold = 0.04; // meters (forgiving for Quest hand tracking)
-    this.releaseThreshold = 0.065;  // meters
+    this.releaseThreshold = 0.065; // meters
 
     // Keep a reusable origin/direction for ray queries.
     this.rayOrigin = new THREE.Vector3();
@@ -119,13 +119,17 @@ export class HandPointer {
       if (dataHand?.get) {
         try {
           handGetSample = dataHand.get('index-finger-tip');
-        } catch (_) {}
+        } catch (_) {
+          // Ignore unsupported hand introspection.
+        }
       }
       let handEntries = null;
       if (dataHand && typeof dataHand.entries === 'function') {
         try {
           handEntries = [...dataHand.entries()].slice(0, 5);
-        } catch (_) {}
+        } catch (_) {
+          // Ignore unsupported hand introspection.
+        }
       }
 
       // Keep this log minimal; it is useful the first time a hand connects.
@@ -201,7 +205,9 @@ export class HandPointer {
             this.handedness = source.handedness ?? this.handedness;
             this.jointsValid = this._validateJoints();
             if (this.jointsValid) {
-              console.log(`[HandPointer ${this.index}] fallback from inputSource valid=${this.jointsValid} count=${Object.keys(this.joints).length} handedness=${this.handedness}`);
+              console.log(
+                `[HandPointer ${this.index}] fallback from inputSource valid=${this.jointsValid} count=${Object.keys(this.joints).length} handedness=${this.handedness}`
+              );
             }
           }
         }
@@ -238,9 +244,7 @@ export class HandPointer {
     const tipPos = tip.transform.position;
     const thumbPos = thumb.transform.position;
     const d = Math.sqrt(
-      (tipPos.x - thumbPos.x) ** 2 +
-      (tipPos.y - thumbPos.y) ** 2 +
-      (tipPos.z - thumbPos.z) ** 2
+      (tipPos.x - thumbPos.x) ** 2 + (tipPos.y - thumbPos.y) ** 2 + (tipPos.z - thumbPos.z) ** 2
     );
     this.pinchDistance = d;
 
@@ -258,10 +262,18 @@ export class HandPointer {
     const origin = this.rayOrigin.set(tipPos.x, tipPos.y, tipPos.z);
     let dir;
     if (knuckle) {
-      const knucklePos = new THREE.Vector3(knuckle.transform.position.x, knuckle.transform.position.y, knuckle.transform.position.z);
+      const knucklePos = new THREE.Vector3(
+        knuckle.transform.position.x,
+        knuckle.transform.position.y,
+        knuckle.transform.position.z
+      );
       dir = this.rayDirection.copy(origin).sub(knucklePos).normalize();
     } else if (wrist) {
-      const wristPos = new THREE.Vector3(wrist.transform.position.x, wrist.transform.position.y, wrist.transform.position.z);
+      const wristPos = new THREE.Vector3(
+        wrist.transform.position.x,
+        wrist.transform.position.y,
+        wrist.transform.position.z
+      );
       dir = this.rayDirection.copy(origin).sub(wristPos).normalize();
     } else {
       // Last resort: use the hand space world matrix if available. Some test
@@ -295,8 +307,12 @@ export class HandPointer {
     const dir = this.rayDirection;
     const end = new THREE.Vector3().copy(origin).add(dir.clone().multiplyScalar(this.rayLength));
     const positions = this.ray.geometry.attributes.position.array;
-    positions[0] = origin.x; positions[1] = origin.y; positions[2] = origin.z;
-    positions[3] = end.x;   positions[4] = end.y;   positions[5] = end.z;
+    positions[0] = origin.x;
+    positions[1] = origin.y;
+    positions[2] = origin.z;
+    positions[3] = end.x;
+    positions[4] = end.y;
+    positions[5] = end.z;
     this.ray.geometry.attributes.position.needsUpdate = true;
   }
 
@@ -423,7 +439,9 @@ export class HandPointer {
             joints[name] = space;
             found++;
           }
-        } catch (_) {}
+        } catch (_) {
+          // Ignore unsupported joint introspection.
+        }
       }
       // Also try iterating entries if available (spec-compliant XRHand is iterable).
       if (found === 0 && typeof raw.entries === 'function') {
@@ -434,7 +452,9 @@ export class HandPointer {
               found++;
             }
           }
-        } catch (_) {}
+        } catch (_) {
+          // Ignore unsupported hand iteration.
+        }
       }
       return found > 0 ? joints : null;
     }

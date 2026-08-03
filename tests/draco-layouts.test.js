@@ -39,12 +39,7 @@ describe('Draco layout generators', () => {
   });
 
   it('ForceDirected3D returns a position per row', () => {
-    const rows = [
-      { id: 'A' },
-      { id: 'B' },
-      { id: 'C' },
-      { id: 'D' },
-    ];
+    const rows = [{ id: 'A' }, { id: 'B' }, { id: 'C' }, { id: 'D' }];
     const edges = [
       { source: 'A', target: 'B' },
       { source: 'B', target: 'C' },
@@ -92,7 +87,9 @@ describe('Draco layout generators', () => {
     ];
     const layout = TimeSeriesRibbonLayout.compute(rows);
 
-    const s1 = layout.filter((p) => p.seriesId === 'S1').sort((a, b) => a.pointIndex - b.pointIndex);
+    const s1 = layout
+      .filter((p) => p.seriesId === 'S1')
+      .sort((a, b) => a.pointIndex - b.pointIndex);
     expect(s1.length).toBe(3);
     expect(s1[0].row.value).toBe(1);
     expect(s1[1].row.value).toBe(2);
@@ -120,7 +117,11 @@ describe('Draco layout generators', () => {
       { lon: 180, lat: 90, value: 100 },
       { lon: 0, lat: 0, value: 50 },
     ];
-    const layout = GeoSurfaceLayout.compute(rows, { valueKey: 'value', roomWidth: 6, roomDepth: 3 });
+    const layout = GeoSurfaceLayout.compute(rows, {
+      valueKey: 'value',
+      roomWidth: 6,
+      roomDepth: 3,
+    });
 
     const sw = layout.find((p) => p.lon === -180 && p.lat === -90);
     const ne = layout.find((p) => p.lon === 180 && p.lat === 90);

@@ -52,9 +52,19 @@ describe('InteractionCoach', () => {
 describe('GestureMapping', () => {
   it('returns metadata for every gesture in the recognizer vocabulary', () => {
     const names = [
-      'pinchTogether', 'pinchApart', 'swipeRight', 'swipeLeft',
-      'sliceUp', 'sliceDown', 'scoopUp', 'scoopDown', 'pushForward',
-      'rotateCW', 'rotateCCW', 'okSign', 'bothPinched',
+      'pinchTogether',
+      'pinchApart',
+      'swipeRight',
+      'swipeLeft',
+      'sliceUp',
+      'sliceDown',
+      'scoopUp',
+      'scoopDown',
+      'pushForward',
+      'rotateCW',
+      'rotateCCW',
+      'okSign',
+      'bothPinched',
     ];
     for (const name of names) {
       const meta = getGestureMeta(name);
