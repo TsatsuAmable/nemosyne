@@ -64,6 +64,7 @@ import { PerformancePanel } from './ui/PerformancePanel.js';
 import { NetworkPanel } from './ui/NetworkPanel.js';
 import { InteractionCoach } from './ui/InteractionCoach.js';
 import { NarrativeStrip } from './ui/NarrativeStrip.js';
+import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.js';
 import { CollaborationCoordinator } from './coordinators/CollaborationCoordinator.js';
 import { getGestureMeta } from '../utils/GestureMapping.js';
 
@@ -124,6 +125,16 @@ export class World {
     this.tooltipManager.mount(this.engine.scene);
     this.tooltipManager.setPointerRaycaster(this.engine.input.raycaster);
     this.engine.addUpdatable(this.tooltipManager);
+
+    // In-place operation handles near data artefacts for direct manipulation.
+    this.inPlaceHandles = new InPlaceOperationHandles(this.engine.scene, this.engine.camera, {
+      userMode: this.settingsPanel?.getSetting?.('userMode') ?? 'novice',
+      onOperation: (op) => this.applyDataOperation(op),
+    });
+    this.engine.addUpdatable({
+      update: (delta, time) =>
+        this.inPlaceHandles.update(delta, time, this.engine.input.raycaster.ray),
+    });
 
     // Farcaster portals: data-transformation gates.
     this.portalA = new FarcasterPortal({
@@ -339,7 +350,7 @@ export class World {
     // Interaction coach: running commentary that anchors gestures/controllers to
     // system behavior and teaches the gesture vocabulary.
     this.interactionCoach = new InteractionCoach(this.engine.cameraGroup, {
-      userMode: this.settingsPanel.getSetting('userMode'),
+      userMode: this.settingsPanel?.getSetting?.('userMode') ?? 'novice',
     });
     this.panelManager.register(this.interactionCoach);
     this.engine.input.addPanel(this.interactionCoach);
@@ -928,9 +939,11 @@ export class World {
     this.portalA?.setDataActivity?.(activity);
     this.portalB?.setDataActivity?.(activity);
 
-    // Tear down previous Draco node and diagnostic HUD.
+    // Tear down previous Draco node, diagnostic HUD, and in-place handles.
     if (this.dracoNode) {
       this.engine.removeUpdatable(this.dracoNode);
+      this.inPlaceHandles.unregisterInteractables(this.engine.input);
+      this.inPlaceHandles.clear();
       if (this.dracoNode.artifact) {
         for (const mesh of this.dracoNode.artifact.nodeMeshes) {
           this.engine.removeInteractable(mesh);
@@ -1101,16 +1114,22 @@ export class World {
     const original = dracoNode.reSolveAndSynthesize.bind(dracoNode);
     dracoNode.reSolveAndSynthesize = () => {
       if (dracoNode.artifact) {
+        this.inPlaceHandles.unregisterInteractables(this.engine.input);
+        this.inPlaceHandles.clear();
         for (const mesh of dracoNode.artifact.nodeMeshes) {
           this.engine.removeInteractable(mesh);
         }
       }
       original();
       wire();
+      this.inPlaceHandles.build(dracoNode);
+      this.inPlaceHandles.registerInteractables(this.engine.input);
       if (this.diagnostic) this.diagnostic.render();
     };
 
     wire();
+    this.inPlaceHandles.build(dracoNode);
+    this.inPlaceHandles.registerInteractables(this.engine.input);
   }
 
   _showDataCard(mesh) {
@@ -1218,6 +1237,7 @@ export class World {
       }
     } else if (key === 'userMode') {
       this._applyUserModeSettings();
+      this.inPlaceHandles?.setUserMode?.(this.settingsPanel.getSetting('userMode'));
     } else if (['snapTurn', 'snapTurnAngle', 'reducedMotion'].includes(key)) {
       this._applyComfortSettings();
     } else if (key === 'vignette' || key === 'vignetteIntensity') {

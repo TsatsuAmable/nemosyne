@@ -153,6 +153,13 @@ describe('World integration', () => {
     vi.restoreAllMocks();
   });
 
+  function expectedInteractableCount(world) {
+    const topology = world.dracoNode.dataInput?.topology;
+    const supportsHandles = topology === 'TIME_SERIES' || topology === 'TABULAR' || topology === 'HIERARCHY';
+    const handleCount = supportsHandles ? (topology === 'TIME_SERIES' ? 1 : 2) : 0;
+    return world.dracoNode.artifact.nodeMeshes.length + 1 + handleCount;
+  }
+
   it('creates the default Draco node and registers diagnostic + telemetry panels', () => {
     world = new World();
 
@@ -167,7 +174,7 @@ describe('World integration', () => {
     expect(panels).toContain(world.diagnostic);
 
     const interactableMeshes = world.engine.input.interactables.map((i) => i.mesh);
-    expect(interactableMeshes.length).toBe(world.dracoNode.artifact.nodeMeshes.length + 1);
+    expect(interactableMeshes.length).toBe(expectedInteractableCount(world));
     expect(interactableMeshes).toContain(world.core.group);
     for (const mesh of world.dracoNode.artifact.nodeMeshes) {
       expect(interactableMeshes).toContain(mesh);
@@ -192,7 +199,7 @@ describe('World integration', () => {
     expect(world.engine.input.panels).toContain(world.diagnostic);
 
     const interactableMeshes = world.engine.input.interactables.map((i) => i.mesh);
-    expect(interactableMeshes.length).toBe(world.dracoNode.artifact.nodeMeshes.length + 1);
+    expect(interactableMeshes.length).toBe(expectedInteractableCount(world));
     expect(interactableMeshes).toContain(world.core.group);
     for (const mesh of oldMeshes) {
       expect(interactableMeshes).not.toContain(mesh);
@@ -209,7 +216,7 @@ describe('World integration', () => {
     world.dracoNode.reSolveAndSynthesize();
 
     const interactableMeshes = world.engine.input.interactables.map((i) => i.mesh);
-    expect(interactableMeshes.length).toBe(world.dracoNode.artifact.nodeMeshes.length + 1);
+    expect(interactableMeshes.length).toBe(expectedInteractableCount(world));
     expect(interactableMeshes).toContain(world.core.group);
     for (const mesh of oldMeshes) {
       expect(interactableMeshes).not.toContain(mesh);
