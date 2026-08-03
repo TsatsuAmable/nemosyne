@@ -7,6 +7,16 @@
  */
 
 import * as THREE from 'three';
+import {
+  filter,
+  sort,
+  aggregate,
+  cluster,
+  hierarchical,
+  dbscan,
+  anomaly,
+  slice,
+} from '../../data/DatasetOperations.js';
 import { applyNestedRings, applyDendrogramArc, applyDensityCloud } from './ClusterTransforms.js';
 import {
   applyAnomalyHighlight,
@@ -166,6 +176,71 @@ export function applySlice(artifact, slicedDataset, originalDataset) {
       mesh.scale.setScalar(0.2);
       if (mesh.material.opacity !== undefined) mesh.material.opacity = 0.2;
     }
+  }
+}
+
+/**
+ * Compute the dataset that would result from applying a named operation,
+ * without touching the artefact. Used for live previews and can also be reused
+ * by the apply path to keep parameter logic in one place.
+ * @param {string} operation
+ * @param {import('../../data/Dataset.js').Dataset} dataset
+ * @param {import('../../data/Dataset.js').Dataset} originalDataset
+ * @returns {import('../../data/Dataset.js').Dataset}
+ */
+export function computeOperationDataset(operation, dataset, originalDataset) {
+  switch (operation) {
+    case 'filter': {
+      const col = dataset.numericColumns[0]?.name || 'value';
+      const values = dataset.getColumnValues(col);
+      const numeric = values.filter((v) => typeof v === 'number' && !Number.isNaN(v));
+      const median = numeric.length
+        ? numeric.slice().sort((a, b) => a - b)[Math.floor(numeric.length / 2)]
+        : 0;
+      return filter(dataset, (r) => {
+        const v = r[col];
+        return typeof v === 'number' && v > median;
+      });
+    }
+    case 'sort': {
+      const col = dataset.numericColumns[0]?.name || dataset.columns[0]?.name || 'value';
+      return sort(dataset, col, 'asc');
+    }
+    case 'aggregate': {
+      const cat = dataset.categoricalColumns[0]?.name || dataset.columns[0]?.name;
+      if (!cat) return dataset.clone();
+      return aggregate(dataset, cat, (group) => {
+        const first = group[0];
+        const result = { ...first };
+        const num = dataset.numericColumns[0]?.name;
+        if (num) {
+          result[num] = group.reduce((sum, r) => sum + (Number(r[num]) || 0), 0);
+        }
+        result._count = group.length;
+        return result;
+      });
+    }
+    case 'cluster':
+      return cluster(dataset, 3);
+    case 'hierarchical': {
+      const features = dataset.numericColumns.map((c) => c.name);
+      return hierarchical(dataset, features, 'average', 3);
+    }
+    case 'density': {
+      const features = dataset.numericColumns.map((c) => c.name);
+      return dbscan(dataset, 1, 1, features);
+    }
+    case 'anomaly': {
+      const col = dataset.numericColumns[0]?.name;
+      return anomaly(dataset, col, 'zscore', 2);
+    }
+    case 'timeSlice': {
+      const start = Math.floor(originalDataset.rowCount / 2);
+      const end = originalDataset.rowCount;
+      return slice(originalDataset, start, end);
+    }
+    default:
+      return dataset.clone();
   }
 }
 

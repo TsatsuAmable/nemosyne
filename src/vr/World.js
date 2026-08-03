@@ -26,16 +26,6 @@ import { disposeObject } from '../utils/Dispose.js';
 import { downloadDataUrl, downloadText } from '../utils/Download.js';
 import { LiveStreamCoordinator } from './coordinators/LiveStreamCoordinator.js';
 import {
-  filter,
-  sort,
-  aggregate,
-  cluster,
-  hierarchical,
-  dbscan,
-  anomaly,
-  slice,
-} from '../data/DatasetOperations.js';
-import {
   applyFilter,
   applySort,
   applyAggregate,
@@ -47,6 +37,7 @@ import {
   applySlice,
   captureBaseState,
   resetTransforms,
+  computeOperationDataset,
 } from './interactions/DataOperations.js';
 import * as THREE from 'three';
 import { buildTDASummaryGroup } from './artifacts/TDAPlanes.js';
@@ -65,6 +56,7 @@ import { NetworkPanel } from './ui/NetworkPanel.js';
 import { InteractionCoach } from './ui/InteractionCoach.js';
 import { NarrativeStrip } from './ui/NarrativeStrip.js';
 import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.js';
+import { LivePreview } from './interactions/LivePreview.js';
 import { CollaborationCoordinator } from './coordinators/CollaborationCoordinator.js';
 import { getGestureMeta } from '../utils/GestureMapping.js';
 
@@ -130,10 +122,18 @@ export class World {
     this.inPlaceHandles = new InPlaceOperationHandles(this.engine.scene, this.engine.camera, {
       userMode: this.settingsPanel?.getSetting?.('userMode') ?? 'novice',
       onOperation: (op) => this.applyDataOperation(op),
+      onOperationHover: (op) => this.previewDataOperation(op),
+      onOperationLeave: () => this.clearOperationPreview(),
     });
     this.engine.addUpdatable({
       update: (delta, time) =>
         this.inPlaceHandles.update(delta, time, this.engine.input.raycaster.ray),
+    });
+
+    // Live preview of data operations before they are committed.
+    this.livePreview = new LivePreview(this.engine.scene, this.engine.camera);
+    this.engine.addUpdatable({
+      update: () => this.livePreview.update(),
     });
 
     // Farcaster portals: data-transformation gates.
@@ -1656,57 +1656,27 @@ export class World {
         id: 'ops',
         label: 'Ops',
         icon: '⚙️',
-        items: [
-          {
-            id: 'filter',
-            label: 'Filter',
-            icon: '🔎',
-            callback: () => this.applyDataOperation('filter'),
-          },
-          {
-            id: 'sort',
-            label: 'Sort',
-            icon: '📶',
-            callback: () => this.applyDataOperation('sort'),
-          },
-          {
-            id: 'aggregate',
-            label: 'Aggregate',
-            icon: '📚',
-            callback: () => this.applyDataOperation('aggregate'),
-          },
-          {
-            id: 'cluster',
-            label: 'Cluster',
-            icon: '🔷',
-            callback: () => this.applyDataOperation('cluster'),
-          },
-          {
-            id: 'hierarchical',
-            label: 'Hierarchy',
-            icon: '🌳',
-            callback: () => this.applyDataOperation('hierarchical'),
-          },
-          {
-            id: 'density',
-            label: 'Density',
-            icon: '⚫',
-            callback: () => this.applyDataOperation('density'),
-          },
-          {
-            id: 'anomaly',
-            label: 'Anomaly',
-            icon: '⚡',
-            callback: () => this.applyDataOperation('anomaly'),
-          },
-          {
-            id: 'timeSlice',
-            label: 'Slice',
-            icon: '🕒',
-            callback: () => this.applyDataOperation('timeSlice'),
-          },
-          { id: 'reset', label: 'Reset', icon: '↺', callback: () => this.resetDataOperation() },
-        ],
+        items: (() => {
+          const opItem = (id, label, icon, op) => ({
+            id,
+            label,
+            icon,
+            callback: () => this.applyDataOperation(op),
+            onHover: () => this.previewDataOperation(op),
+            onLeave: () => this.clearOperationPreview(),
+          });
+          return [
+            opItem('filter', 'Filter', '🔎', 'filter'),
+            opItem('sort', 'Sort', '📶', 'sort'),
+            opItem('aggregate', 'Aggregate', '📚', 'aggregate'),
+            opItem('cluster', 'Cluster', '🔷', 'cluster'),
+            opItem('hierarchical', 'Hierarchy', '🌳', 'hierarchical'),
+            opItem('density', 'Density', '⚫', 'density'),
+            opItem('anomaly', 'Anomaly', '⚡', 'anomaly'),
+            opItem('timeSlice', 'Slice', '🕒', 'timeSlice'),
+            { id: 'reset', label: 'Reset', icon: '↺', callback: () => this.resetDataOperation() },
+          ];
+        })(),
       },
     ]);
   }
@@ -1781,79 +1751,44 @@ export class World {
 
     const datasetBefore = this._transformedDataset.clone();
     captureBaseState(this.dracoNode.artifact);
-    const dataset = this._transformedDataset;
-    const original = this._originalDataset;
+
+    this._transformedDataset = computeOperationDataset(
+      operation,
+      this._transformedDataset,
+      this._originalDataset
+    );
 
     switch (operation) {
-      case 'filter': {
-        const values = dataset.getColumnValues(dataset.numericColumns[0]?.name || 'value');
-        const numeric = values.filter((v) => typeof v === 'number' && !Number.isNaN(v));
-        const median = numeric.length
-          ? numeric.slice().sort((a, b) => a - b)[Math.floor(numeric.length / 2)]
-          : 0;
-        this._transformedDataset = filter(dataset, (r) => {
-          const v = r[dataset.numericColumns[0]?.name || 'value'];
-          return typeof v === 'number' && v > median;
-        });
+      case 'filter':
         applyFilter(this.dracoNode.artifact, this._transformedDataset);
         break;
-      }
-      case 'sort': {
-        const col = dataset.numericColumns[0]?.name || dataset.columns[0]?.name || 'value';
-        this._transformedDataset = sort(dataset, col, 'asc');
+      case 'sort':
         applySort(this.dracoNode.artifact, this._transformedDataset);
         break;
-      }
-      case 'aggregate': {
-        const cat = dataset.categoricalColumns[0]?.name || dataset.columns[0]?.name;
-        if (cat) {
-          this._transformedDataset = aggregate(dataset, cat, (group) => {
-            const first = group[0];
-            const result = { ...first };
-            const num = dataset.numericColumns[0]?.name;
-            if (num) {
-              result[num] = group.reduce((sum, r) => sum + (Number(r[num]) || 0), 0);
-            }
-            result._count = group.length;
-            return result;
-          });
-          applyAggregate(this.dracoNode.artifact, this._transformedDataset);
-        }
+      case 'aggregate':
+        applyAggregate(this.dracoNode.artifact, this._transformedDataset);
         break;
-      }
-      case 'cluster': {
-        this._transformedDataset = cluster(dataset, 3);
+      case 'cluster':
         applyCluster(this.dracoNode.artifact, this._transformedDataset);
         break;
-      }
-      case 'hierarchical': {
-        const features = dataset.numericColumns.map((c) => c.name);
-        this._transformedDataset = hierarchical(dataset, features, 'average', 3);
+      case 'hierarchical':
         applyHierarchicalCluster(this.dracoNode.artifact, this._transformedDataset);
         break;
-      }
-      case 'density': {
-        const features = dataset.numericColumns.map((c) => c.name);
-        this._transformedDataset = dbscan(dataset, 1, 1, features);
+      case 'density':
         applyDensityCluster(this.dracoNode.artifact, this._transformedDataset);
         break;
-      }
-      case 'anomaly': {
-        const col = dataset.numericColumns[0]?.name;
-        this._transformedDataset = anomaly(dataset, col, 'zscore', 2);
+      case 'anomaly':
         applyAnomaly(this.dracoNode.artifact, this._transformedDataset);
         break;
-      }
-      case 'timeSlice': {
-        const start = Math.floor(original.rowCount / 2);
-        const end = original.rowCount;
-        this._transformedDataset = slice(original, start, end);
-        applySlice(this.dracoNode.artifact, this._transformedDataset, original);
+      case 'timeSlice':
+        applySlice(this.dracoNode.artifact, this._transformedDataset, this._originalDataset);
         break;
-      }
       default:
         return;
     }
+
+    // Commit clears any transient preview.
+    this.clearOperationPreview();
 
     if (this.tdaRecompute && operation !== 'anomaly') {
       this.tdaRecompute();
@@ -1870,9 +1805,32 @@ export class World {
     });
   }
 
+  /**
+   * Show a transient preview of what `operation` would do to the current
+   * palace without mutating the dataset or artefact. Cleared automatically
+   * when the operation is applied or when the menu is closed.
+   */
+  previewDataOperation(operation) {
+    if (!this._originalDataset || !this.dracoNode?.artifact) return;
+    if (!this._transformedDataset) {
+      this._transformedDataset = this._originalDataset.clone();
+    }
+    const previewDataset = computeOperationDataset(
+      operation,
+      this._transformedDataset,
+      this._originalDataset
+    );
+    this.livePreview.preview(operation, previewDataset, this._originalDataset, this.dracoNode.artifact);
+  }
+
+  clearOperationPreview() {
+    this.livePreview.clear();
+  }
+
   /** Restore the original dataset and reset artefact transforms. */
   resetDataOperation() {
     if (!this._originalDataset || !this.dracoNode?.artifact) return;
+    this.clearOperationPreview();
     const datasetBefore = this._transformedDataset?.clone?.() ?? null;
     this._transformedDataset = this._originalDataset.clone();
     resetTransforms(this.dracoNode.artifact);
