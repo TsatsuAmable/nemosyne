@@ -816,7 +816,7 @@ describe('World integration', () => {
 
       expect(channel.messages.length).toBeGreaterThan(0);
       const last = JSON.parse(channel.messages[channel.messages.length - 1]);
-      expect(last.state.camera).toEqual([1, 2, 3]);
+      expect(last.state.position).toEqual({ x: 1, y: 2, z: 3 });
     } finally {
       globalThis.WebSocket = originalWebSocket;
       globalThis.RTCPeerConnection = originalRTCPeerConnection;

@@ -37,6 +37,7 @@ export class SettingsPanel extends MovablePanel {
     defaultPanelDistance: 1.2,
     reducedMotion: false,
     miniOverview: true,
+    peerPresence: true,
   };
 
   constructor(cameraGroup, options = {}) {
@@ -108,6 +109,7 @@ export class SettingsPanel extends MovablePanel {
       { key: 'lensTDA', label: 'TDA Summary Lens', section: 'STATISTICAL LENS' },
       { key: 'lensCorrelation', label: 'Correlation Matrix', section: 'STATISTICAL LENS' },
       { key: 'miniOverview', label: 'Mini Overview', section: 'NAVIGATION' },
+      { key: 'peerPresence', label: 'Peer Presence', section: 'COLLABORATION' },
       { key: 'feedbackAudio', label: 'Audio Feedback', section: 'FEEDBACK' },
       { key: 'feedbackHaptic', label: 'Haptic Feedback', section: 'FEEDBACK' },
       { key: 'feedbackVisual', label: 'Visual Feedback', section: 'FEEDBACK' },

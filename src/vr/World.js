@@ -58,6 +58,7 @@ import { NarrativeStrip } from './ui/NarrativeStrip.js';
 import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.js';
 import { LivePreview } from './interactions/LivePreview.js';
 import { MiniOverview } from './ui/MiniOverview.js';
+import { PeerPresenceHUD } from './ui/PeerPresenceHUD.js';
 import { CollaborationCoordinator } from './coordinators/CollaborationCoordinator.js';
 import { getGestureMeta } from '../utils/GestureMapping.js';
 
@@ -225,6 +226,17 @@ export class World {
     });
     this.miniOverview.setEnabled(this.settingsPanel?.getSetting?.('miniOverview') ?? true);
     this.engine.addUpdatable(this.miniOverview);
+
+    // Peer-presence HUD for collaboration.
+    this.peerPresenceHUD = new PeerPresenceHUD(this.engine.cameraGroup, {
+      followAnchor: this.analystAnchor,
+      getPeers: () => this.networkManager?.room?.getRemoteSnapshot() ?? [],
+      getLocalPeerId: () => this.networkManager?.peerId ?? null,
+      position: [-0.9, 1.35, -0.7],
+      size: 0.5,
+    });
+    this.peerPresenceHUD.setEnabled(this.settingsPanel?.getSetting?.('peerPresence') ?? true);
+    this.engine.addUpdatable(this.peerPresenceHUD);
 
     // Curved, scrollable analyst dashboard in front of the user.
     this.dashboard = new DashboardManager(this.engine.cameraGroup, {
@@ -816,8 +828,9 @@ export class World {
   _broadcastPresence() {
     const nm = this.collaborationCoordinator.networkManager;
     if (!nm?.isConnected) return;
+    const pos = this.engine.cameraGroup.position;
     nm.setLocalState({
-      camera: this.engine.cameraGroup.position.toArray(),
+      position: { x: pos.x, y: pos.y, z: pos.z },
       rotationY: this.engine.cameraGroup.rotation.y,
       dataset: this.currentEntry?.name ?? this.currentEntry?.label ?? '-',
     });
@@ -1218,6 +1231,15 @@ export class World {
     this._captureSession();
   }
 
+  _togglePeerPresenceHUD() {
+    const next = !this.peerPresenceHUD.mesh.visible;
+    this.peerPresenceHUD.setEnabled(next);
+    this.settingsPanel?.setSetting?.('peerPresence', next);
+    this.vrConsole?.log?.('log', [`Peer presence ${next ? 'on' : 'off'}`]);
+    this._logInteraction('Peer presence', { result: next ? 'on' : 'off' });
+    this._captureSession();
+  }
+
   _setStatisticalLensVisible(enabled) {
     const tdaEnabled = enabled && (this.settingsPanel?.getSetting('lensTDA') ?? true);
     const corrEnabled = enabled && (this.settingsPanel?.getSetting('lensCorrelation') ?? true);
@@ -1269,6 +1291,8 @@ export class World {
       this._applyPanelDistance();
     } else if (key === 'miniOverview') {
       this.miniOverview?.setEnabled?.(value);
+    } else if (key === 'peerPresence') {
+      this.peerPresenceHUD?.setEnabled?.(value);
     }
     this._logInteraction('Setting changed', { result: `${key} = ${value}` });
     this._captureSession();
@@ -1630,6 +1654,12 @@ export class World {
             label: 'Overview',
             icon: '🗺️',
             callback: () => this._toggleMiniOverview(),
+          },
+          {
+            id: 'toggle-peer-presence',
+            label: 'Peers',
+            icon: '👥',
+            callback: () => this._togglePeerPresenceHUD(),
           },
           {
             id: 'toggle-flight',
