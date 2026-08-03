@@ -33,7 +33,10 @@ function makeRaycasterForUV(panel, u, v) {
 /**
  * Simple mock pointer whose ray can be set per test.
  */
-function makeMockPointer({ origin = new THREE.Vector3(0, 0, 0), direction = new THREE.Vector3(0, 0, -1) } = {}) {
+function makeMockPointer({
+  origin = new THREE.Vector3(0, 0, 0),
+  direction = new THREE.Vector3(0, 0, -1),
+} = {}) {
   return {
     ray: { visible: true },
     _origin: origin.clone(),
@@ -116,7 +119,10 @@ describe('MovablePanel', () => {
   });
 
   it('drags at a fixed depth using a plane facing the viewer', () => {
-    const pointer = makeMockPointer({ origin: new THREE.Vector3(0, 0, 0), direction: new THREE.Vector3(0, 0, -1) });
+    const pointer = makeMockPointer({
+      origin: new THREE.Vector3(0, 0, 0),
+      direction: new THREE.Vector3(0, 0, -1),
+    });
     panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
     const startDistance = panel.mesh.position.length();
 

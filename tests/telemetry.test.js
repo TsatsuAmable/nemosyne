@@ -108,10 +108,17 @@ describe('TelemetryCollector', () => {
   it('captures global errors and unhandled rejections when enabled', () => {
     telemetry.setEnabled(true);
 
-    window.dispatchEvent(new ErrorEvent('error', { error: new Error('global err'), message: 'global err' }));
+    window.dispatchEvent(
+      new ErrorEvent('error', { error: new Error('global err'), message: 'global err' })
+    );
     const dummyPromise = Promise.reject(new Error('rejected'));
     dummyPromise.catch(() => {}); // suppress Node unhandled rejection
-    window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { promise: dummyPromise, reason: new Error('rejected') }));
+    window.dispatchEvent(
+      new PromiseRejectionEvent('unhandledrejection', {
+        promise: dummyPromise,
+        reason: new Error('rejected'),
+      })
+    );
 
     const report = telemetry.getReport();
     expect(report.errors.count).toBeGreaterThanOrEqual(2);

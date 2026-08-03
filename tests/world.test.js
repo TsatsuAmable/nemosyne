@@ -120,10 +120,12 @@ describe('World integration', () => {
 
     // Capture window resize listeners so each test can remove them cleanly.
     const originalAdd = window.addEventListener;
-    addListenerSpy = vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
-      if (type === 'resize') resizeListeners.push(listener);
-      return originalAdd.call(window, type, listener, options);
-    });
+    addListenerSpy = vi
+      .spyOn(window, 'addEventListener')
+      .mockImplementation((type, listener, options) => {
+        if (type === 'resize') resizeListeners.push(listener);
+        return originalAdd.call(window, type, listener, options);
+      });
   });
 
   afterEach(() => {
@@ -225,7 +227,9 @@ describe('World integration', () => {
     world.loadDataset(entry);
 
     expect(world.dracoNode.dataInput.encodings).toBeTruthy();
-    expect(world.dracoNode.dataInput.encodings.color).toBe(sales.dataset.categoricalColumns[0]?.name);
+    expect(world.dracoNode.dataInput.encodings.color).toBe(
+      sales.dataset.categoricalColumns[0]?.name
+    );
     expect(world.dracoNode.solverResult.spec).toBeTruthy();
   });
 
@@ -408,10 +412,12 @@ describe('World integration', () => {
       expect(world.liveConnector).toBeInstanceOf(WebSocketAdapter);
 
       world.liveConnector._ws.open();
-      world.liveConnector._ws.dispatchMessage(JSON.stringify({
-        topology: 'TIME_SERIES',
-        rows: [{ time: '2026-07-28T12:00:00Z', sensorId: 'alpha', temperature: 22.5 }],
-      }));
+      world.liveConnector._ws.dispatchMessage(
+        JSON.stringify({
+          topology: 'TIME_SERIES',
+          rows: [{ time: '2026-07-28T12:00:00Z', sensorId: 'alpha', temperature: 22.5 }],
+        })
+      );
 
       expect(loadSpy).not.toHaveBeenCalled();
       vi.advanceTimersByTime(1100);
@@ -585,7 +591,9 @@ describe('World integration', () => {
     expect(restoredWorld.metricsPanel.mesh.position.y).toBeCloseTo(1.2, 2);
     expect(restoredWorld.metricsPanel.mesh.position.z).toBeCloseTo(-0.8, 2);
     expect(restoredWorld.metricsPanel.mesh.visible).toBe(true);
-    const savedMetrics = restoredWorld.panelManager.getPanelPositions().find((p) => p.title === 'TELEMETRY');
+    const savedMetrics = restoredWorld.panelManager
+      .getPanelPositions()
+      .find((p) => p.title === 'TELEMETRY');
     expect(savedMetrics?.visible).toBe(true);
   });
 
@@ -783,9 +791,13 @@ describe('World integration', () => {
       await connectPromise;
 
       // Simulate a peer joining so a data channel is wired.
-      world.networkManager.signalling._ws.dispatchMessage(JSON.stringify({
-        roomId: 'presence-room', from: 'peerB', data: { type: 'join' },
-      }));
+      world.networkManager.signalling._ws.dispatchMessage(
+        JSON.stringify({
+          roomId: 'presence-room',
+          from: 'peerB',
+          data: { type: 'join' },
+        })
+      );
 
       const channel = world.networkManager.channels.get('peerB');
       expect(channel).toBeTruthy();
@@ -922,9 +934,5 @@ class SessionStoreStub {
 
   async deleteSession(id) {
     this._sessions.delete(id);
-  }
-
-  async hasSession(id) {
-    return this._sessions.has(id);
   }
 }

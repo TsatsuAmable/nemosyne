@@ -57,10 +57,12 @@ describe('World coverage extensions', () => {
     };
 
     const originalAdd = window.addEventListener;
-    addListenerSpy = vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
-      if (type === 'resize') resizeListeners.push(listener);
-      return originalAdd.call(window, type, listener, options);
-    });
+    addListenerSpy = vi
+      .spyOn(window, 'addEventListener')
+      .mockImplementation((type, listener, options) => {
+        if (type === 'resize') resizeListeners.push(listener);
+        return originalAdd.call(window, type, listener, options);
+      });
   });
 
   afterEach(() => {
@@ -116,10 +118,7 @@ describe('World coverage extensions', () => {
 
   it('shows a holographic inspector at the selected mesh position', () => {
     world = new World();
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshBasicMaterial()
-    );
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
     mesh.position.set(2, 1.4, -4);
     mesh.userData.row = { id: 'X', value: 99 };
 
@@ -145,7 +144,12 @@ describe('World coverage extensions', () => {
   it('applies filter, sort, aggregate, cluster, and time-slice operations', () => {
     world = new World();
     const ds = getSampleDataset('supply-chain');
-    world.loadDataset({ name: ds.label, ...ds, maxDepth: ds.depth, encodings: { color: 'region', size: 'inventory' } });
+    world.loadDataset({
+      name: ds.label,
+      ...ds,
+      maxDepth: ds.depth,
+      encodings: { color: 'region', size: 'inventory' },
+    });
 
     const baseRows = world._transformedDataset.rowCount;
 
@@ -227,10 +231,12 @@ describe('World coverage extensions', () => {
       world.liveConnector._ws.open();
       const appendSpy = vi.spyOn(world.dracoNode, 'appendRows').mockReturnValue(true);
 
-      world.liveConnector._ws.dispatchMessage(JSON.stringify({
-        topology: 'TIME_SERIES',
-        rows: [{ time: '2026-07-28T12:00:00Z', sensorId: 'alpha', temperature: 22.5 }],
-      }));
+      world.liveConnector._ws.dispatchMessage(
+        JSON.stringify({
+          topology: 'TIME_SERIES',
+          rows: [{ time: '2026-07-28T12:00:00Z', sensorId: 'alpha', temperature: 22.5 }],
+        })
+      );
 
       vi.advanceTimersByTime(1100);
       expect(appendSpy).toHaveBeenCalledOnce();
@@ -244,7 +250,12 @@ describe('World coverage extensions', () => {
   it('records analysis operations and supports undo/redo', () => {
     world = new World();
     const ds = getSampleDataset('supply-chain');
-    world.loadDataset({ name: ds.label, ...ds, maxDepth: ds.depth, encodings: { color: 'region', size: 'inventory' } });
+    world.loadDataset({
+      name: ds.label,
+      ...ds,
+      maxDepth: ds.depth,
+      encodings: { color: 'region', size: 'inventory' },
+    });
 
     const originalRowCount = world._originalDataset.rowCount;
     world.applyDataOperation('filter');
@@ -262,7 +273,12 @@ describe('World coverage extensions', () => {
   it('maps hand gestures to analysis commands and perspective switches', () => {
     world = new World();
     const ds = getSampleDataset('supply-chain');
-    world.loadDataset({ name: ds.label, ...ds, maxDepth: ds.depth, encodings: { color: 'region', size: 'inventory' } });
+    world.loadDataset({
+      name: ds.label,
+      ...ds,
+      maxDepth: ds.depth,
+      encodings: { color: 'region', size: 'inventory' },
+    });
 
     const startRowCount = world._transformedDataset.rowCount;
     world._onGesture('pinchTogether');
@@ -311,10 +327,14 @@ describe('World coverage extensions', () => {
     world.applyDataOperation('filter');
     const filteredRowCount = world._transformedDataset.rowCount;
 
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true })
+    );
     expect(world._transformedDataset.rowCount).toBe(originalRowCount);
 
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'y', ctrlKey: true, bubbles: true }));
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'y', ctrlKey: true, bubbles: true })
+    );
     expect(world._transformedDataset.rowCount).toBe(filteredRowCount);
   });
 
@@ -326,10 +346,12 @@ describe('World coverage extensions', () => {
       world = new World();
       world.connectLiveStream('wss://test/stream', { mode: 'replace' });
       world.liveConnector._ws.open();
-      world.liveConnector._ws.dispatchMessage(JSON.stringify({
-        topology: 'TIME_SERIES',
-        rows: [{ time: '2026-07-28T12:00:00Z', sensorId: 'alpha', temperature: 22.5 }],
-      }));
+      world.liveConnector._ws.dispatchMessage(
+        JSON.stringify({
+          topology: 'TIME_SERIES',
+          rows: [{ time: '2026-07-28T12:00:00Z', sensorId: 'alpha', temperature: 22.5 }],
+        })
+      );
 
       expect(world._liveFlushTimer).not.toBeNull();
       world.disconnectLiveStream();

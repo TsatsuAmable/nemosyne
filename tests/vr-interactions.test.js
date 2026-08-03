@@ -31,7 +31,10 @@ class MockEventTarget {
 /**
  * Mock controller pointer with a poseable ray.
  */
-function makeMockController({ origin = new THREE.Vector3(0, 0, 0), direction = new THREE.Vector3(0, 0, -1) } = {}) {
+function makeMockController({
+  origin = new THREE.Vector3(0, 0, 0),
+  direction = new THREE.Vector3(0, 0, -1),
+} = {}) {
   const group = new MockEventTarget();
   const rayLength = { value: 4 };
   const rayVisible = { value: true };
@@ -654,9 +657,7 @@ describe('DracoDiagnosticHUD', () => {
     };
 
     engine = new ConstraintEngine();
-    const dataset = new Dataset('Test', [
-      { name: 'a', type: ColumnType.NUMERIC },
-    ], [{ a: 1 }]);
+    const dataset = new Dataset('Test', [{ name: 'a', type: ColumnType.NUMERIC }], [{ a: 1 }]);
 
     dracoNode = {
       engine,
@@ -712,10 +713,7 @@ describe('DracoDiagnosticHUD', () => {
 
   it('returns false when the ray misses the panel', () => {
     const hud = new DracoDiagnosticHUD(cameraGroup, dracoNode);
-    const raycaster = new THREE.Raycaster(
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, 1, 0)
-    );
+    const raycaster = new THREE.Raycaster(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0));
 
     const consumed = hud.handleContentClick(raycaster);
     expect(consumed).toBe(false);
@@ -804,7 +802,9 @@ describe('InputTelemetry', () => {
     const rightHand = makeMockHand(1, 'right', true);
 
     const session = {
-      inputSources: [makeInputSource({ handedness: 'right', hand: true, position: new THREE.Vector3(0, 0, 0) })],
+      inputSources: [
+        makeInputSource({ handedness: 'right', hand: true, position: new THREE.Vector3(0, 0, 0) }),
+      ],
     };
     const engine = makeMockEngine(session, [leftHand, rightHand]);
     engine.xrFrame = makeMockFrame();
@@ -880,10 +880,10 @@ function makeRaycasterForButton(hud, button) {
 function makeRaycasterForUV(hud, u, v) {
   const geom = hud.mesh.geometry;
   const posAttr = geom.attributes.position;
-  const topLeft = new THREE.Vector3().fromBufferAttribute(posAttr, 0);      // uv(0,1)
-  const topRight = new THREE.Vector3().fromBufferAttribute(posAttr, 1);      // uv(1,1)
-  const bottomLeft = new THREE.Vector3().fromBufferAttribute(posAttr, 2);   // uv(0,0)
-  const bottomRight = new THREE.Vector3().fromBufferAttribute(posAttr, 3);  // uv(1,0)
+  const topLeft = new THREE.Vector3().fromBufferAttribute(posAttr, 0); // uv(0,1)
+  const topRight = new THREE.Vector3().fromBufferAttribute(posAttr, 1); // uv(1,1)
+  const bottomLeft = new THREE.Vector3().fromBufferAttribute(posAttr, 2); // uv(0,0)
+  const bottomRight = new THREE.Vector3().fromBufferAttribute(posAttr, 3); // uv(1,0)
 
   const localPoint = new THREE.Vector3()
     .addScaledVector(bottomLeft, (1 - u) * (1 - v))
@@ -896,7 +896,9 @@ function makeRaycasterForUV(hud, u, v) {
 
   // Start slightly in front of the panel along its local +Z normal so the
   // ray reliably intersects the front face.
-  const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(hud.mesh.getWorldQuaternion(new THREE.Quaternion()));
+  const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(
+    hud.mesh.getWorldQuaternion(new THREE.Quaternion())
+  );
   const origin = worldPoint.clone().add(normal.multiplyScalar(0.1));
   const direction = worldPoint.clone().sub(origin).normalize();
   return new THREE.Raycaster(origin, direction);

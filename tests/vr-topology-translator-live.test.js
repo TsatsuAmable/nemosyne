@@ -48,9 +48,11 @@ describe('VRTopologyTranslator live/incremental updates', () => {
     const meshA = artifact.nodeMeshes.find((m) => m.userData.row?.series === 'A');
     const beforeGeometry = meshA.geometry;
 
-    const appended = VRTopologyTranslator.appendRowsToArtifact(artifact, [
-      { time: '2024-01-01T00:02:00Z', value: 14, sensorId: 'A' },
-    ], { dataset: ds });
+    const appended = VRTopologyTranslator.appendRowsToArtifact(
+      artifact,
+      [{ time: '2024-01-01T00:02:00Z', value: 14, sensorId: 'A' }],
+      { dataset: ds }
+    );
 
     expect(appended).toBe(true);
     expect(artifact.nodeMeshes.length).toBe(beforeCount);
@@ -59,18 +61,24 @@ describe('VRTopologyTranslator live/incremental updates', () => {
   });
 
   it('returns false for incremental append on non-ribbon layouts', () => {
-    const ds = new Dataset('Tabular', [
-      { name: 'a', type: ColumnType.NUMERIC },
-      { name: 'b', type: ColumnType.CATEGORICAL },
-    ], [
-      { a: 1, b: 'x' },
-      { a: 2, b: 'y' },
-    ]);
+    const ds = new Dataset(
+      'Tabular',
+      [
+        { name: 'a', type: ColumnType.NUMERIC },
+        { name: 'b', type: ColumnType.CATEGORICAL },
+      ],
+      [
+        { a: 1, b: 'x' },
+        { a: 2, b: 'y' },
+      ]
+    );
     const engine = new ConstraintEngine();
     const solved = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds });
     const artifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });
 
-    const appended = VRTopologyTranslator.appendRowsToArtifact(artifact, [{ a: 3, b: 'z' }], { dataset: ds });
+    const appended = VRTopologyTranslator.appendRowsToArtifact(artifact, [{ a: 3, b: 'z' }], {
+      dataset: ds,
+    });
     expect(appended).toBe(false);
   });
 });

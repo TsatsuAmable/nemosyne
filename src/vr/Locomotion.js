@@ -36,10 +36,10 @@ export class Locomotion {
     this.cameraGroup = engine.cameraGroup;
     this.scene = engine.scene;
 
-    this.moveSpeed = 2.0;           // meters per second
-    this.verticalSpeed = 1.5;       // meters per second (flight mode)
-    this.flightSpeed = 2.0;         // horizontal flight speed
-    this.snapAngle = Math.PI / 6;   // 30 degrees
+    this.moveSpeed = 2.0; // meters per second
+    this.verticalSpeed = 1.5; // meters per second (flight mode)
+    this.flightSpeed = 2.0; // horizontal flight speed
+    this.snapAngle = Math.PI / 6; // 30 degrees
     this.deadZone = 0.15;
 
     this.flightMode = false;
@@ -359,9 +359,13 @@ export class Locomotion {
     const yaw = this.tempEuler.y;
 
     const stickAngle = Math.atan2(-y, x);
-    const distance = Math.min(this.teleportMaxDistance, Math.sqrt(x * x + y * y) * this.teleportMaxDistance);
+    const distance = Math.min(
+      this.teleportMaxDistance,
+      Math.sqrt(x * x + y * y) * this.teleportMaxDistance
+    );
 
-    this.tempVec.set(Math.cos(stickAngle), 0, Math.sin(stickAngle))
+    this.tempVec
+      .set(Math.cos(stickAngle), 0, Math.sin(stickAngle))
       .applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
 
     const origin = this.tempVec2.set(0, 0, 0);
@@ -411,7 +415,9 @@ export class Locomotion {
     if (Math.abs(denom) > 0.001) {
       const t = -(this._floorPlane.constant + this._floorPlane.normal.dot(origin)) / denom;
       if (t > 0) {
-        target = origin.clone().add(ray.direction.clone().multiplyScalar(Math.min(t, this.teleportMaxDistance)));
+        target = origin
+          .clone()
+          .add(ray.direction.clone().multiplyScalar(Math.min(t, this.teleportMaxDistance)));
       }
     }
     if (!target) {
@@ -575,7 +581,10 @@ export class Locomotion {
       this.tempEuler.setFromQuaternion(this.tempQuat);
       const yaw = this.tempEuler.y;
 
-      this.tempVec.set(x, 0, z).normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+      this.tempVec
+        .set(x, 0, z)
+        .normalize()
+        .applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
       const speed = this.flightMode ? this.flightSpeed : this.moveSpeed;
       this.tempVec.multiplyScalar(speed * delta);
 

@@ -27,7 +27,8 @@ export class PollingAdapter extends DataConnector {
   } = {}) {
     super();
     if (!url) throw new Error('PollingAdapter requires a url');
-    if (typeof parseResponse !== 'function') throw new Error('PollingAdapter requires parseResponse');
+    if (typeof parseResponse !== 'function')
+      throw new Error('PollingAdapter requires parseResponse');
 
     this.url = url;
     this.topology = topology;

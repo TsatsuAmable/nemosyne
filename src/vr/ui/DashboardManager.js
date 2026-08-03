@@ -193,7 +193,7 @@ export class DashboardManager {
     // Panels snapped to off-screen zones roll in as the carousel scrolls.
     if (this.layoutMode === 'semicircle' && this.scrollOffset !== this._lastScrollOffset) {
       for (const entry of this.panels) {
-        if (entry.zoneIndex !== null && !(entry.panel.drag?.active)) {
+        if (entry.zoneIndex !== null && !entry.panel.drag?.active) {
           this._snapPanelToZone(entry.panel, entry.zoneIndex);
         }
       }
@@ -243,8 +243,8 @@ export class DashboardManager {
   }
 
   _buildWallZones() {
-    const startX = -(this.columns - 1) * this.cellWidth / 2;
-    const startY = (this.rows - 1) * this.cellHeight / 2;
+    const startX = (-(this.columns - 1) * this.cellWidth) / 2;
+    const startY = ((this.rows - 1) * this.cellHeight) / 2;
     let index = 0;
 
     for (let row = 0; row < this.rows; row++) {
@@ -285,7 +285,7 @@ export class DashboardManager {
   _buildSemicircleZones() {
     const step = this._angularStep();
     const startAngle = this.centerAngle - ((this.columns - 1) * step) / 2;
-    const startY = this.heightY + (this.rows - 1) * this.rowPitch / 2;
+    const startY = this.heightY + ((this.rows - 1) * this.rowPitch) / 2;
     let index = 0;
 
     for (let col = 0; col < this.columns; col++) {
@@ -329,13 +329,7 @@ export class DashboardManager {
   _zoneGeometry(width, height) {
     const w = width / 2;
     const h = height / 2;
-    const vertices = new Float32Array([
-      -w, -h, 0,
-       w, -h, 0,
-       w,  h, 0,
-      -w,  h, 0,
-      -w, -h, 0,
-    ]);
+    const vertices = new Float32Array([-w, -h, 0, w, -h, 0, w, h, 0, -w, h, 0, -w, -h, 0]);
     const geom = new THREE.BufferGeometry();
     geom.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     return geom;
@@ -465,10 +459,7 @@ export class DashboardManager {
     }
 
     const panelLocal = this._panelCenterInWallLocal(panel);
-    return Math.sqrt(
-      (panelLocal.x - zone.x) ** 2 +
-      (panelLocal.y - zone.y) ** 2
-    );
+    return Math.sqrt((panelLocal.x - zone.x) ** 2 + (panelLocal.y - zone.y) ** 2);
   }
 
   _panelCenterInWallLocal(panel) {

@@ -46,7 +46,16 @@ describe('ControllerGestureMapper', () => {
 
   it('maps right A button to rotateCCW (undo)', () => {
     const right = new MockControllerPointer('right');
-    right.gamepad = { buttons: [{ pressed: false }, { pressed: false }, { pressed: false }, { pressed: true }, { pressed: false }], axes: [0, 0, 0, 0] };
+    right.gamepad = {
+      buttons: [
+        { pressed: false },
+        { pressed: false },
+        { pressed: false },
+        { pressed: true },
+        { pressed: false },
+      ],
+      axes: [0, 0, 0, 0],
+    };
 
     mapper.update([right], makeSession(right), 0);
 
@@ -56,7 +65,16 @@ describe('ControllerGestureMapper', () => {
 
   it('maps right B button to rotateCW (redo)', () => {
     const right = new MockControllerPointer('right');
-    right.gamepad = { buttons: [{ pressed: false }, { pressed: false }, { pressed: false }, { pressed: false }, { pressed: true }], axes: [0, 0, 0, 0] };
+    right.gamepad = {
+      buttons: [
+        { pressed: false },
+        { pressed: false },
+        { pressed: false },
+        { pressed: false },
+        { pressed: true },
+      ],
+      axes: [0, 0, 0, 0],
+    };
 
     mapper.update([right], makeSession(right), 0);
 
@@ -66,7 +84,16 @@ describe('ControllerGestureMapper', () => {
 
   it('maps left Y button to okSign', () => {
     const left = new MockControllerPointer('left');
-    left.gamepad = { buttons: [{ pressed: false }, { pressed: false }, { pressed: false }, { pressed: false }, { pressed: true }], axes: [0, 0, 0, 0] };
+    left.gamepad = {
+      buttons: [
+        { pressed: false },
+        { pressed: false },
+        { pressed: false },
+        { pressed: false },
+        { pressed: true },
+      ],
+      axes: [0, 0, 0, 0],
+    };
 
     mapper.update([left], makeSession(left), 0);
 
@@ -93,10 +120,12 @@ describe('ControllerGestureMapper', () => {
     right.gamepad = { buttons: [{ pressed: true }, { pressed: false }], axes: [0, 0, 0, 0] };
     left.gamepad = { buttons: [{ pressed: true }, { pressed: false }], axes: [0, 0, 0, 0] };
 
-    const session = { inputSources: [
-      { handedness: 'right', gamepad: right.gamepad },
-      { handedness: 'left', gamepad: left.gamepad },
-    ] };
+    const session = {
+      inputSources: [
+        { handedness: 'right', gamepad: right.gamepad },
+        { handedness: 'left', gamepad: left.gamepad },
+      ],
+    };
 
     mapper.update([right, left], session, 0);
     right.setPosition(0.1, 0, 0);

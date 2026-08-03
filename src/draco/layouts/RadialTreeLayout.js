@@ -18,7 +18,7 @@ export class RadialTreeLayout extends LayoutBase {
     const byLevel = {};
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const lvl = Number(row[levelKey]) ?? 0;
+      const lvl = Number(row[levelKey] ?? 0);
       if (!byLevel[lvl]) byLevel[lvl] = [];
       byLevel[lvl].push({ row, index: i });
     }

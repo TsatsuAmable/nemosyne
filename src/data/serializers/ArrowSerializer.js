@@ -7,11 +7,7 @@
  * response.
  */
 
-import {
-  tableFromArrays,
-  tableToIPC,
-  tableFromIPC,
-} from 'apache-arrow';
+import { tableFromArrays, tableToIPC, tableFromIPC } from 'apache-arrow';
 import { Dataset } from '../Dataset.js';
 
 /**

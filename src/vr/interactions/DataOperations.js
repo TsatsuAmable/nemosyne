@@ -8,7 +8,12 @@
 
 import * as THREE from 'three';
 import { applyNestedRings, applyDendrogramArc, applyDensityCloud } from './ClusterTransforms.js';
-import { applyAnomalyHighlight, clearAnomalyHighlight, applyOutlierLens, releaseOutlierLens } from './AnomalyTransforms.js';
+import {
+  applyAnomalyHighlight,
+  clearAnomalyHighlight,
+  applyOutlierLens,
+  releaseOutlierLens,
+} from './AnomalyTransforms.js';
 
 /**
  * Apply a filter operation: rows present in the filtered dataset remain visible,

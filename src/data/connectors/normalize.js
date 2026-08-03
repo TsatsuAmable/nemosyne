@@ -38,7 +38,7 @@ export function normalizeLiveMessage(message, defaultTopology = 'TIME_SERIES') {
   if (!message || typeof message !== 'object') return null;
 
   let dataset = null;
-  let topology = message.topology || defaultTopology;
+  const topology = message.topology || defaultTopology;
 
   if (message.dataset instanceof Dataset) {
     dataset = message.dataset;

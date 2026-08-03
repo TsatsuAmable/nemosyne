@@ -86,7 +86,11 @@ describe('FileLoaderUI', () => {
   });
 
   it('auto-detects topology from CSV schema', async () => {
-    const file = new File(['time,value\n2026-07-28T00:00:00,10\n2026-07-28T01:00:00,20'], 'series.csv', { type: 'text/csv' });
+    const file = new File(
+      ['time,value\n2026-07-28T00:00:00,10\n2026-07-28T01:00:00,20'],
+      'series.csv',
+      { type: 'text/csv' }
+    );
     const input = loader.container.querySelector('input[type="file"]');
 
     Object.defineProperty(input, 'files', { value: [file], writable: false });

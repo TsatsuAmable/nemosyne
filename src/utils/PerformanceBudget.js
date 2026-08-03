@@ -7,7 +7,7 @@
  */
 
 export const DEFAULT_BUDGETS = {
-  frameMs: 16.67,          // 60 fps
+  frameMs: 16.67, // 60 fps
   droppedFramesPer10s: 5, // acceptable stutter
   drawCalls: 500,
   triangles: 200_000,
@@ -15,7 +15,7 @@ export const DEFAULT_BUDGETS = {
   interactables: 500,
   updatables: 200,
   panels: 20,
-  handTrackingMs: 4,     // budget for hand-tracking processing per frame
+  handTrackingMs: 4, // budget for hand-tracking processing per frame
 };
 
 export class PerformanceBudget {

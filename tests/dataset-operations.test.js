@@ -88,10 +88,11 @@ describe('DatasetOperations', () => {
   });
 
   it('falls back to single cluster when no numeric columns', () => {
-    const ds = new Dataset('NoNums', [{ name: 'label', type: ColumnType.TEXT }], [
-      { label: 'x' },
-      { label: 'y' },
-    ]);
+    const ds = new Dataset(
+      'NoNums',
+      [{ name: 'label', type: ColumnType.TEXT }],
+      [{ label: 'x' }, { label: 'y' }]
+    );
     const result = cluster(ds, 3);
     expect(result.rows.every((r) => r._cluster === 0)).toBe(true);
   });
@@ -112,10 +113,11 @@ describe('DatasetOperations', () => {
   });
 
   it('hierarchical clustering falls back to single cluster without numeric columns', () => {
-    const ds = new Dataset('NoNums', [{ name: 'label', type: ColumnType.TEXT }], [
-      { label: 'x' },
-      { label: 'y' },
-    ]);
+    const ds = new Dataset(
+      'NoNums',
+      [{ name: 'label', type: ColumnType.TEXT }],
+      [{ label: 'x' }, { label: 'y' }]
+    );
     const result = hierarchical(ds, [], 'single', 2);
     expect(result.rows.every((r) => r._cluster === 0)).toBe(true);
   });
@@ -207,18 +209,17 @@ describe('DatasetOperations', () => {
   });
 
   it('anomaly falls back safely with no numeric columns', () => {
-    const ds = new Dataset('NoNums', [{ name: 'label', type: ColumnType.TEXT }], [
-      { label: 'x' },
-      { label: 'y' },
-    ]);
+    const ds = new Dataset(
+      'NoNums',
+      [{ name: 'label', type: ColumnType.TEXT }],
+      [{ label: 'x' }, { label: 'y' }]
+    );
     const result = anomaly(ds);
     expect(result.rows.every((r) => r._anomaly === false)).toBe(true);
   });
 
   it('updateRows append and replace maintain sliding window', () => {
-    const ds = makeDataset([
-      { id: 1, category: 'A', value: 1 },
-    ]);
+    const ds = makeDataset([{ id: 1, category: 'A', value: 1 }]);
     ds.updateRows([{ id: 2, category: 'A', value: 2 }], 'append', 2);
     expect(ds.rowCount).toBe(2);
     ds.updateRows([{ id: 3, category: 'A', value: 3 }], 'append', 2);

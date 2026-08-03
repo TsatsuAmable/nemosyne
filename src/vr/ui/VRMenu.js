@@ -10,23 +10,26 @@ import { OPEN_DATA_SOURCES } from '../../data/connectors/OpenDataSources.js';
  * Farcaster portals) without leaving immersive mode.
  */
 export class VRMenu extends MovablePanel {
-  constructor(cameraGroup, {
-    onLoadDataset,
-    onTogglePortals,
-    onConnectStream,
-    onDisconnectStream,
-    onSelectLiveSource,
-    onFilter,
-    onSort,
-    onAggregate,
-    onCluster,
-    onHierarchicalCluster,
-    onDensityCluster,
-    onAnomaly,
-    onTimeSlice,
-    onReset,
-    portalsEnabled = true,
-  } = {}) {
+  constructor(
+    cameraGroup,
+    {
+      onLoadDataset,
+      onTogglePortals,
+      onConnectStream,
+      onDisconnectStream,
+      onSelectLiveSource,
+      onFilter,
+      onSort,
+      onAggregate,
+      onCluster,
+      onHierarchicalCluster,
+      onDensityCluster,
+      onAnomaly,
+      onTimeSlice,
+      onReset,
+      portalsEnabled = true,
+    } = {}
+  ) {
     super(cameraGroup, {
       title: 'VR MENU',
       width: 800,
@@ -185,11 +188,12 @@ export class VRMenu extends MovablePanel {
       const isToggleOn = btn.type === 'toggle' && this.portalsEnabled;
       const isConnectOn = btn.type === 'connectStream' && this.liveConnected;
       const isDisconnectOn = btn.type === 'disconnectStream' && !this.liveConnected;
-      const bg = isToggleOn || isConnectOn
-        ? 'rgba(0, 255, 204, 0.25)'
-        : isDisconnectOn
-          ? 'rgba(255, 85, 119, 0.25)'
-          : 'rgba(0, 60, 80, 0.7)';
+      const bg =
+        isToggleOn || isConnectOn
+          ? 'rgba(0, 255, 204, 0.25)'
+          : isDisconnectOn
+            ? 'rgba(255, 85, 119, 0.25)'
+            : 'rgba(0, 60, 80, 0.7)';
       const stroke = isToggleOn || isConnectOn ? '#00ffcc' : '#88ccff';
 
       ctx.fillStyle = bg;

@@ -106,10 +106,7 @@ describe('HandWheelMenu', () => {
     });
     menu.show();
 
-    const raycaster = new THREE.Raycaster(
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(-1, 0, 0)
-    );
+    const raycaster = new THREE.Raycaster(new THREE.Vector3(0, 0, 0), new THREE.Vector3(-1, 0, 0));
 
     expect(menu.handlePointerClick(raycaster)).toBe(false);
     expect(menu.isVisible()).toBe(true);
@@ -121,10 +118,7 @@ describe('HandWheelMenu', () => {
       actions: [{ id: 'a', label: 'A', callback: () => (called = true) }],
     });
 
-    const raycaster = new THREE.Raycaster(
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, 0, -1)
-    );
+    const raycaster = new THREE.Raycaster(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1));
 
     expect(menu.handlePointerClick(raycaster)).toBe(false);
     expect(called).toBe(false);
@@ -144,7 +138,10 @@ describe('HandWheelMenu', () => {
 
     // After update the wheel's +Z should point toward the camera at (0,1.6,0).
     const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(menu.group.quaternion);
-    const toCamera = engine.camera.position.clone().sub(menu.group.getWorldPosition(new THREE.Vector3())).normalize();
+    const toCamera = engine.camera.position
+      .clone()
+      .sub(menu.group.getWorldPosition(new THREE.Vector3()))
+      .normalize();
     expect(forward.dot(toCamera)).toBeGreaterThan(0.9);
     expect(forward.distanceTo(before)).toBeGreaterThan(0.1);
   });
@@ -218,7 +215,9 @@ describe('HandWheelMenu', () => {
       menu.handlePointerClick(raycaster); // select category
       menu.update();
 
-      const activeActions = menu._actionMeshes.filter((m) => m.visible && m.userData.categoryId === 'cat-a');
+      const activeActions = menu._actionMeshes.filter(
+        (m) => m.visible && m.userData.categoryId === 'cat-a'
+      );
       expect(activeActions.length).toBe(2);
     });
 

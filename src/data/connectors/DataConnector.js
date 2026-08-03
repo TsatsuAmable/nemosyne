@@ -62,7 +62,6 @@ export class DataConnector {
       try {
         cb(update);
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.error('DataConnector update listener threw:', err);
       }
     });
@@ -75,7 +74,6 @@ export class DataConnector {
       try {
         cb(status, detail);
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.error('DataConnector status listener threw:', err);
       }
     });

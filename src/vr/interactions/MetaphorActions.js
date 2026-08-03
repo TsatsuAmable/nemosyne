@@ -29,7 +29,12 @@ function _animateOpacity(material, duration = DEFAULT_DURATION, onDone = null) {
  * RESONANCE_PULSE: an expanding ring that travels from the selected node to
  * its connected neighbors, making graph relationships audible/visible.
  */
-export function applyResonancePulse(group, mesh, neighbors = [], { color = 0x00ffcc, speed = 3.5, duration = DEFAULT_DURATION } = {}) {
+export function applyResonancePulse(
+  group,
+  mesh,
+  neighbors = [],
+  { color = 0x00ffcc, speed = 3.5, duration = DEFAULT_DURATION } = {}
+) {
   const origin = mesh.position.clone();
   const targets = neighbors.length > 0 ? neighbors : [];
 
@@ -75,7 +80,11 @@ export function applyResonancePulse(group, mesh, neighbors = [], { color = 0x00f
  * FORK_PLANE: a translucent vertical or horizontal plane that bisects the
  * artefact, highlighting the half-space containing the selected item.
  */
-export function applyForkPlane(group, mesh, { color = 0xff00cc, size = 2.5, duration = DEFAULT_DURATION } = {}) {
+export function applyForkPlane(
+  group,
+  mesh,
+  { color = 0xff00cc, size = 2.5, duration = DEFAULT_DURATION } = {}
+) {
   const planeGeo = new THREE.PlaneGeometry(size, size);
   const planeMat = new THREE.MeshBasicMaterial({
     color,
@@ -101,7 +110,11 @@ export function applyForkPlane(group, mesh, { color = 0xff00cc, size = 2.5, dura
  * CHRONO_DIAL: a circular dial around the selected time-series point that
  * opens like a clock face, emphasising the temporal neighbourhood.
  */
-export function applyChronoDial(group, mesh, { color = 0x00ccff, radius = 0.5, duration = DEFAULT_DURATION } = {}) {
+export function applyChronoDial(
+  group,
+  mesh,
+  { color = 0x00ccff, radius = 0.5, duration = DEFAULT_DURATION } = {}
+) {
   const ringGeo = new THREE.RingGeometry(radius * 0.6, radius, 64);
   const ringMat = new THREE.MeshBasicMaterial({
     color,
@@ -136,7 +149,12 @@ export function applyChronoDial(group, mesh, { color = 0x00ccff, radius = 0.5, d
  * CONSTELLATION: draws ephemeral lines from the selected node to a set of
  * related nodes, making similarity or adjacency visible for a moment.
  */
-export function applyConstellation(group, mesh, related = [], { color = 0xffcc00, duration = DEFAULT_DURATION } = {}) {
+export function applyConstellation(
+  group,
+  mesh,
+  related = [],
+  { color = 0xffcc00, duration = DEFAULT_DURATION } = {}
+) {
   if (related.length === 0) return;
 
   const material = new THREE.LineBasicMaterial({
@@ -149,7 +167,10 @@ export function applyConstellation(group, mesh, related = [], { color = 0xffcc00
   const lines = [];
 
   for (const other of related) {
-    const geo = new THREE.BufferGeometry().setFromPoints([mesh.position.clone(), other.position.clone()]);
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      mesh.position.clone(),
+      other.position.clone(),
+    ]);
     const line = new THREE.Line(geo, material);
     group.add(line);
     lines.push({ line, geo });
@@ -168,7 +189,11 @@ export function applyConstellation(group, mesh, related = [], { color = 0xffcc00
  * BEACON: a vertical column of light rising from the selected point, useful
  * for locating items in dense geo or tabular spaces.
  */
-export function applyBeacon(group, mesh, { color = 0x00ffcc, height = 2.5, duration = DEFAULT_DURATION } = {}) {
+export function applyBeacon(
+  group,
+  mesh,
+  { color = 0x00ffcc, height = 2.5, duration = DEFAULT_DURATION } = {}
+) {
   const geo = new THREE.CylinderGeometry(0.02, 0.08, height, 16, 1, true);
   geo.translate(0, height / 2, 0);
   const mat = new THREE.MeshBasicMaterial({
@@ -194,7 +219,12 @@ export function applyBeacon(group, mesh, { color = 0x00ffcc, height = 2.5, durat
  * ALEPH: a brief "all-connections" flash from the selected node to every other
  * visible node, giving a sense of the local neighbourhood at a glance.
  */
-export function applyAleph(group, mesh, others = [], { color = 0xffffff, duration = DEFAULT_DURATION } = {}) {
+export function applyAleph(
+  group,
+  mesh,
+  others = [],
+  { color = 0xffffff, duration = DEFAULT_DURATION } = {}
+) {
   if (others.length === 0) return;
 
   const material = new THREE.LineBasicMaterial({
@@ -208,7 +238,10 @@ export function applyAleph(group, mesh, others = [], { color = 0xffffff, duratio
 
   for (const other of others) {
     if (other === mesh) continue;
-    const geo = new THREE.BufferGeometry().setFromPoints([mesh.position.clone(), other.position.clone()]);
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      mesh.position.clone(),
+      other.position.clone(),
+    ]);
     const line = new THREE.Line(geo, material);
     group.add(line);
     lines.push({ line, geo });

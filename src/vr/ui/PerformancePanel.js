@@ -69,16 +69,28 @@ export class PerformancePanel extends MovablePanel {
       const fps = tel.frames.lastMs > 0 ? (1000 / tel.frames.lastMs).toFixed(0) : '-';
       ctx.fillText(`Session: ${formatDuration(tel.session.durationSeconds)}`, pad + 8, y + lineH);
       y += lineH;
-      ctx.fillText(`Frames: ${tel.frames.count}  Dropped: ${tel.frames.dropped}`, pad + 8, y + lineH);
+      ctx.fillText(
+        `Frames: ${tel.frames.count}  Dropped: ${tel.frames.dropped}`,
+        pad + 8,
+        y + lineH
+      );
       y += lineH;
-      ctx.fillText(`Frame time: ${tel.frames.lastMs.toFixed(1)} ms (~${fps} fps)`, pad + 8, y + lineH);
+      ctx.fillText(
+        `Frame time: ${tel.frames.lastMs.toFixed(1)} ms (~${fps} fps)`,
+        pad + 8,
+        y + lineH
+      );
       y += lineH;
       ctx.fillText(`Avg frame: ${tel.frames.averageMs.toFixed(1)} ms`, pad + 8, y + lineH);
       y += lineH;
     } else {
       ctx.font = this._scaleFont('16px monospace');
       ctx.fillStyle = '#88aaff';
-      ctx.fillText('Telemetry is disabled. Enable it in Settings → Telemetry Opt-in.', pad + 8, y + lineH);
+      ctx.fillText(
+        'Telemetry is disabled. Enable it in Settings → Telemetry Opt-in.',
+        pad + 8,
+        y + lineH
+      );
       y += lineH * 2;
     }
 
@@ -123,7 +135,11 @@ export class PerformancePanel extends MovablePanel {
       for (const v of violations.slice(-8).reverse()) {
         const color = v.severity === 'critical' ? '#ff3355' : '#ffaa33';
         ctx.fillStyle = this.highContrast ? '#ffffff' : color;
-        const time = new Date(v.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const time = new Date(v.time).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
         ctx.fillText(`${time} ${v.message}`, pad + 8, y + lineH);
         y += lineH;
         if (y > contentH - pad) return;

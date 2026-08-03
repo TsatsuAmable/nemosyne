@@ -70,7 +70,7 @@ export class ChartPlane {
   /** Factory helper that picks a sensible chart type from a Draco facts object. */
   static fromFacts(facts, dataset, options = {}) {
     let type = ChartType.BAR;
-    let column = options.column ?? dataset.numericColumns[0]?.name ?? null;
+    const column = options.column ?? dataset.numericColumns[0]?.name ?? null;
     let xColumn = null;
     let yColumn = null;
     let title = options.title ?? 'Chart';
@@ -198,15 +198,17 @@ export class ChartPlane {
   }
 
   _numericValues(columnName) {
-    return this.dataset.getColumnValues(columnName ?? this.column)
+    return this.dataset
+      .getColumnValues(columnName ?? this.column)
       .filter((v) => typeof v === 'number' && !Number.isNaN(v));
   }
 
   _drawBarChart(ctx, w, h) {
     const values = this._numericValues();
-    const labels = this.dataset.categoricalColumns.length > 0
-      ? this.dataset.getColumnValues(this.dataset.categoricalColumns[0].name)
-      : values.map((_, i) => String(i));
+    const labels =
+      this.dataset.categoricalColumns.length > 0
+        ? this.dataset.getColumnValues(this.dataset.categoricalColumns[0].name)
+        : values.map((_, i) => String(i));
     const rect = this._chartRect(w, h);
     const max = Math.max(...values, 1);
     const barWidth = rect.width / values.length;
@@ -238,7 +240,11 @@ export class ChartPlane {
         ctx.font = '14px monospace';
         ctx.fillStyle = '#88ccff';
         ctx.textAlign = 'center';
-        ctx.fillText(String(labels[i] ?? i).slice(0, 12), x + barWidth * 0.35, rect.y + rect.height + 24);
+        ctx.fillText(
+          String(labels[i] ?? i).slice(0, 12),
+          x + barWidth * 0.35,
+          rect.y + rect.height + 24
+        );
       }
     }
   }
@@ -374,7 +380,9 @@ export class ChartPlane {
     const names = this.dataset.numericColumns.map((c) => c.name);
     if (names.length < 2) return this._drawNoData(ctx, w, h);
 
-    const values = names.map((name) => this.dataset.getColumnValues(name).filter((v) => typeof v === 'number' && !Number.isNaN(v)));
+    const values = names.map((name) =>
+      this.dataset.getColumnValues(name).filter((v) => typeof v === 'number' && !Number.isNaN(v))
+    );
     const n = values[0]?.length || 0;
     if (n === 0) return this._drawNoData(ctx, w, h);
 

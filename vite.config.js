@@ -132,6 +132,16 @@ export default defineConfig(({ command }) => ({
   build: {
     target: 'es2022',
     outDir: 'dist',
-    sourcemap: true,
+    sourcemap: false,
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/three')) return 'three';
+          if (id.includes('/src/data/serializers/')) return 'serializers';
+          if (id.includes('/src/vr/ui/')) return 'vr-ui';
+        },
+      },
+    },
   },
 }));

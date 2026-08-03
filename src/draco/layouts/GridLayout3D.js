@@ -6,14 +6,9 @@ import { LayoutBase } from './LayoutBase.js';
  */
 export class GridLayout3D extends LayoutBase {
   static compute(rows = [], options = {}) {
-    const {
-      spacing = 1.1,
-      sortKey,
-      sortDirection = 'asc',
-      yOffset = 1.2,
-    } = options;
+    const { spacing = 1.1, sortKey, sortDirection = 'asc', yOffset = 1.2 } = options;
 
-    let ordered = rows.slice();
+    const ordered = rows.slice();
     if (sortKey) {
       ordered.sort((a, b) => {
         const av = a[sortKey] ?? 0;

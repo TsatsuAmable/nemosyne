@@ -135,10 +135,7 @@ describe('inferEncodingsForTopology', () => {
   });
 
   it('drops undefined encoding values', () => {
-    const ds = makeDataset(
-      [{ name: 'value', type: ColumnType.NUMERIC }],
-      [{ value: 1 }]
-    );
+    const ds = makeDataset([{ name: 'value', type: ColumnType.NUMERIC }], [{ value: 1 }]);
     expect(inferEncodingsForTopology(ds, TopologyTypes.TABULAR)).toEqual({
       color: 'value',
       size: 'value',

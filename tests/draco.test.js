@@ -55,18 +55,22 @@ describe('ConstraintEngine', () => {
     const engine = new ConstraintEngine();
     const base = engine.solve({
       topology: TopologyTypes.TABULAR,
-      dataset: new Dataset('Table', [
-        { name: 'a', type: ColumnType.NUMERIC },
-      ], [{ a: 1 }, { a: 2 }]),
+      dataset: new Dataset(
+        'Table',
+        [{ name: 'a', type: ColumnType.NUMERIC }],
+        [{ a: 1 }, { a: 2 }]
+      ),
     });
 
     // Crush the grid preference.
     engine.setWeight('prefer_grid_for_tabular', 0);
     const changed = engine.solve({
       topology: TopologyTypes.TABULAR,
-      dataset: new Dataset('Table', [
-        { name: 'a', type: ColumnType.NUMERIC },
-      ], [{ a: 1 }, { a: 2 }]),
+      dataset: new Dataset(
+        'Table',
+        [{ name: 'a', type: ColumnType.NUMERIC }],
+        [{ a: 1 }, { a: 2 }]
+      ),
     });
 
     expect(changed.cost).toBeLessThanOrEqual(base.cost);
@@ -74,12 +78,23 @@ describe('ConstraintEngine', () => {
 
   it('extracts scale-aware facts', () => {
     const engine = new ConstraintEngine({ largeRowThreshold: 10 });
-    const rows = Array.from({ length: 20 }, (_, i) => ({ value: i, category: String.fromCharCode(65 + (i % 3)) }));
-    const ds = new Dataset('Scale', [
-      { name: 'value', type: ColumnType.NUMERIC },
-      { name: 'category', type: ColumnType.CATEGORICAL },
-    ], rows);
-    const result = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds, encodings: { color: 'category' } });
+    const rows = Array.from({ length: 20 }, (_, i) => ({
+      value: i,
+      category: String.fromCharCode(65 + (i % 3)),
+    }));
+    const ds = new Dataset(
+      'Scale',
+      [
+        { name: 'value', type: ColumnType.NUMERIC },
+        { name: 'category', type: ColumnType.CATEGORICAL },
+      ],
+      rows
+    );
+    const result = engine.solve({
+      topology: TopologyTypes.TABULAR,
+      dataset: ds,
+      encodings: { color: 'category' },
+    });
 
     expect(result.facts.isLargeDataset).toBe(true);
     expect(result.facts.cardinalityOfColor).toBe(3);
@@ -90,10 +105,14 @@ describe('ConstraintEngine', () => {
   it('prefers instanced point cloud for large tabular datasets', () => {
     const engine = new ConstraintEngine({ largeRowThreshold: 10 });
     const rows = Array.from({ length: 20 }, (_, i) => ({ value: i, category: 'A' }));
-    const ds = new Dataset('BigTable', [
-      { name: 'value', type: ColumnType.NUMERIC },
-      { name: 'category', type: ColumnType.CATEGORICAL },
-    ], rows);
+    const ds = new Dataset(
+      'BigTable',
+      [
+        { name: 'value', type: ColumnType.NUMERIC },
+        { name: 'category', type: ColumnType.CATEGORICAL },
+      ],
+      rows
+    );
     const result = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds });
 
     expect(result.spec.geometry).toBe('INSTANCED_POINT_CLOUD');
@@ -102,12 +121,20 @@ describe('ConstraintEngine', () => {
 
   it('prefers aggregate bars for large geo datasets', () => {
     const engine = new ConstraintEngine({ largeRowThreshold: 10 });
-    const rows = Array.from({ length: 20 }, (_, i) => ({ lat: 35 + i * 0.01, lon: -118 + i * 0.01, magnitude: i }));
-    const ds = new Dataset('BigGeo', [
-      { name: 'lat', type: ColumnType.NUMERIC },
-      { name: 'lon', type: ColumnType.NUMERIC },
-      { name: 'magnitude', type: ColumnType.NUMERIC },
-    ], rows);
+    const rows = Array.from({ length: 20 }, (_, i) => ({
+      lat: 35 + i * 0.01,
+      lon: -118 + i * 0.01,
+      magnitude: i,
+    }));
+    const ds = new Dataset(
+      'BigGeo',
+      [
+        { name: 'lat', type: ColumnType.NUMERIC },
+        { name: 'lon', type: ColumnType.NUMERIC },
+        { name: 'magnitude', type: ColumnType.NUMERIC },
+      ],
+      rows
+    );
     const result = engine.solve({ topology: TopologyTypes.GEO, dataset: ds });
 
     expect(result.spec.geometry).toBe('AGGREGATE_BARS');
@@ -115,21 +142,34 @@ describe('ConstraintEngine', () => {
 
   it('prefers cluster volume for high-cardinality color', () => {
     const engine = new ConstraintEngine({ largeRowThreshold: 100, highCardinalityThreshold: 8 });
-    const rows = Array.from({ length: 20 }, (_, i) => ({ value: i, category: String.fromCharCode(65 + i) }));
-    const ds = new Dataset('HighCard', [
-      { name: 'value', type: ColumnType.NUMERIC },
-      { name: 'category', type: ColumnType.CATEGORICAL },
-    ], rows);
-    const result = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds, encodings: { color: 'category' } });
+    const rows = Array.from({ length: 20 }, (_, i) => ({
+      value: i,
+      category: String.fromCharCode(65 + i),
+    }));
+    const ds = new Dataset(
+      'HighCard',
+      [
+        { name: 'value', type: ColumnType.NUMERIC },
+        { name: 'category', type: ColumnType.CATEGORICAL },
+      ],
+      rows
+    );
+    const result = engine.solve({
+      topology: TopologyTypes.TABULAR,
+      dataset: ds,
+      encodings: { color: 'category' },
+    });
 
     expect(result.spec.geometry).toBe('CLUSTER_VOLUME');
   });
 
   it('extracts statistical facts for numeric columns', () => {
     const engine = new ConstraintEngine();
-    const ds = new Dataset('Stats', [
-      { name: 'value', type: ColumnType.NUMERIC },
-    ], [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 5 }, { value: 100 }]);
+    const ds = new Dataset(
+      'Stats',
+      [{ name: 'value', type: ColumnType.NUMERIC }],
+      [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 5 }, { value: 100 }]
+    );
     const result = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds });
 
     expect(result.facts.columnStats.value).toBeDefined();
@@ -141,16 +181,20 @@ describe('ConstraintEngine', () => {
 
   it('computes correlation matrix for multiple numeric columns', () => {
     const engine = new ConstraintEngine();
-    const ds = new Dataset('Correlated', [
-      { name: 'a', type: ColumnType.NUMERIC },
-      { name: 'b', type: ColumnType.NUMERIC },
-    ], [
-      { a: 1, b: 2 },
-      { a: 2, b: 4 },
-      { a: 3, b: 6 },
-      { a: 4, b: 8 },
-      { a: 5, b: 10 },
-    ]);
+    const ds = new Dataset(
+      'Correlated',
+      [
+        { name: 'a', type: ColumnType.NUMERIC },
+        { name: 'b', type: ColumnType.NUMERIC },
+      ],
+      [
+        { a: 1, b: 2 },
+        { a: 2, b: 4 },
+        { a: 3, b: 6 },
+        { a: 4, b: 8 },
+        { a: 5, b: 10 },
+      ]
+    );
     const result = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds });
 
     expect(Object.keys(result.facts.correlationMatrix)).toContain('a');
@@ -159,12 +203,22 @@ describe('ConstraintEngine', () => {
 
   it('reports categorical distribution and entropy', () => {
     const engine = new ConstraintEngine();
-    const ds = new Dataset('Categories', [
-      { name: 'category', type: ColumnType.CATEGORICAL },
-    ], [
-      { category: 'A' }, { category: 'A' }, { category: 'B' }, { category: 'B' }, { category: 'B' },
-    ]);
-    const result = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds, encodings: { color: 'category' } });
+    const ds = new Dataset(
+      'Categories',
+      [{ name: 'category', type: ColumnType.CATEGORICAL }],
+      [
+        { category: 'A' },
+        { category: 'A' },
+        { category: 'B' },
+        { category: 'B' },
+        { category: 'B' },
+      ]
+    );
+    const result = engine.solve({
+      topology: TopologyTypes.TABULAR,
+      dataset: ds,
+      encodings: { color: 'category' },
+    });
 
     expect(result.facts.categoryDistribution.category).toBeDefined();
     expect(result.facts.categoryDistribution.category.topCategories[0].value).toBe('B');
@@ -173,16 +227,20 @@ describe('ConstraintEngine', () => {
 
   it('detects temporal trend direction', () => {
     const engine = new ConstraintEngine();
-    const ds = new Dataset('Trend', [
-      { name: 'time', type: ColumnType.TEMPORAL },
-      { name: 'value', type: ColumnType.NUMERIC },
-    ], [
-      { time: '2026-07-28T00:00:00', value: 1 },
-      { time: '2026-07-28T01:00:00', value: 2 },
-      { time: '2026-07-28T02:00:00', value: 3 },
-      { time: '2026-07-28T03:00:00', value: 4 },
-      { time: '2026-07-28T04:00:00', value: 5 },
-    ]);
+    const ds = new Dataset(
+      'Trend',
+      [
+        { name: 'time', type: ColumnType.TEMPORAL },
+        { name: 'value', type: ColumnType.NUMERIC },
+      ],
+      [
+        { time: '2026-07-28T00:00:00', value: 1 },
+        { time: '2026-07-28T01:00:00', value: 2 },
+        { time: '2026-07-28T02:00:00', value: 3 },
+        { time: '2026-07-28T03:00:00', value: 4 },
+        { time: '2026-07-28T04:00:00', value: 5 },
+      ]
+    );
     const result = engine.solve({ topology: TopologyTypes.TIME_SERIES, dataset: ds });
 
     expect(result.facts.trendDirection).toBe('up');
@@ -191,11 +249,11 @@ describe('ConstraintEngine', () => {
 
   it('prefers ORB geometry when outliers are present', () => {
     const engine = new ConstraintEngine();
-    const ds = new Dataset('Outliers', [
-      { name: 'value', type: ColumnType.NUMERIC },
-    ], [
-      { value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 5 }, { value: 500 },
-    ]);
+    const ds = new Dataset(
+      'Outliers',
+      [{ name: 'value', type: ColumnType.NUMERIC }],
+      [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 5 }, { value: 500 }]
+    );
 
     // Override default grid preference so statistical rules can win.
     engine.setWeight('prefer_grid_for_tabular', 0);
@@ -240,17 +298,26 @@ describe('VRTopologyTranslator', () => {
   });
 
   it('maps numeric values to size and categorical values to color', () => {
-    const ds = new Dataset('Mini', [
-      { name: 'category', type: ColumnType.CATEGORICAL },
-      { name: 'value', type: ColumnType.NUMERIC },
-    ], [
-      { category: 'A', value: 10 },
-      { category: 'B', value: 100 },
-    ]);
+    const ds = new Dataset(
+      'Mini',
+      [
+        { name: 'category', type: ColumnType.CATEGORICAL },
+        { name: 'value', type: ColumnType.NUMERIC },
+      ],
+      [
+        { category: 'A', value: 10 },
+        { category: 'B', value: 100 },
+      ]
+    );
     const artifact = VRTopologyTranslator.synthesizeArtifact(
       {
         facts: { nodeCount: 2, topology: 'TABULAR' },
-        spec: { layout: 'GRID_3D', geometry: 'CUBE_MATRIX', behavior: 'STATIC', interaction: 'INSPECT_CELL' },
+        spec: {
+          layout: 'GRID_3D',
+          geometry: 'CUBE_MATRIX',
+          behavior: 'STATIC',
+          interaction: 'INSPECT_CELL',
+        },
         cost: 0,
       },
       { topology: 'TABULAR', dataset: ds, encodings: { color: 'category', size: 'value' } }

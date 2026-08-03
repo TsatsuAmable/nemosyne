@@ -14,14 +14,50 @@ export const TopologyTypes = {
 };
 
 export const VRChannels = {
-  LAYOUT: ['GRID_3D', 'FORCE_DIRECTED_3D', 'RADIAL_ORBITAL', 'VECTOR_STREAMLINE', 'TIME_RIBBON', 'GEO_SURFACE'],
-  GEOMETRY: ['CUBE_MATRIX', 'ICOSA_NODE', 'CONICAL_TREE', 'FLOW_RAY', 'GEO_COLUMN', 'CLUSTER_VOLUME', 'INSTANCED_POINT_CLOUD', 'AGGREGATE_BARS', 'ORB', 'COLUMN', 'BEAM'],
+  LAYOUT: [
+    'GRID_3D',
+    'FORCE_DIRECTED_3D',
+    'RADIAL_ORBITAL',
+    'VECTOR_STREAMLINE',
+    'TIME_RIBBON',
+    'GEO_SURFACE',
+  ],
+  GEOMETRY: [
+    'CUBE_MATRIX',
+    'ICOSA_NODE',
+    'CONICAL_TREE',
+    'FLOW_RAY',
+    'GEO_COLUMN',
+    'CLUSTER_VOLUME',
+    'INSTANCED_POINT_CLOUD',
+    'AGGREGATE_BARS',
+    'ORB',
+    'COLUMN',
+    'BEAM',
+  ],
   BEHAVIOR: ['PULSE_QUANTITATIVE', 'ORBITAL_SPIN', 'WAVE_OSCILLATION', 'STATIC'],
-  INTERACTION: ['INSPECT_CELL', 'TRAVERSE_EDGE', 'DRILL_DOWN', 'HARVEST_STREAM', 'CLUSTER_PROBE', 'FILTER_BRUSH', 'RESONANCE_PULSE', 'FORK_PLANE', 'CHRONO_DIAL', 'CONSTELLATION', 'BEACON', 'ALEPH'],
+  INTERACTION: [
+    'INSPECT_CELL',
+    'TRAVERSE_EDGE',
+    'DRILL_DOWN',
+    'HARVEST_STREAM',
+    'CLUSTER_PROBE',
+    'FILTER_BRUSH',
+    'RESONANCE_PULSE',
+    'FORK_PLANE',
+    'CHRONO_DIAL',
+    'CONSTELLATION',
+    'BEACON',
+    'ALEPH',
+  ],
 };
 
 export class ConstraintEngine {
-  constructor({ largeRowThreshold = 500, highCardinalityThreshold = 12, outlierIqrMultiplier = 1.5 } = {}) {
+  constructor({
+    largeRowThreshold = 500,
+    highCardinalityThreshold = 12,
+    outlierIqrMultiplier = 1.5,
+  } = {}) {
     this.largeRowThreshold = largeRowThreshold;
     this.highCardinalityThreshold = highCardinalityThreshold;
     this.outlierIqrMultiplier = outlierIqrMultiplier;
@@ -40,14 +76,19 @@ export class ConstraintEngine {
     const temporalColumns = ds?.temporalColumns ?? [];
     const colorColumn = dataInput.encodings?.color ?? categoricalColumns[0]?.name ?? null;
     const cardinalityOfColor = colorColumn && ds ? ds.cardinalityOf(colorColumn) : 0;
-    const numericValues = numericColumns.length > 0 && ds
-      ? ds.getColumnValues(numericColumns[0].name).filter((v) => typeof v === 'number' && !Number.isNaN(v))
-      : [];
+    const numericValues =
+      numericColumns.length > 0 && ds
+        ? ds
+            .getColumnValues(numericColumns[0].name)
+            .filter((v) => typeof v === 'number' && !Number.isNaN(v))
+        : [];
 
     const columnStats = {};
     for (const col of numericColumns) {
       if (!ds) continue;
-      const values = ds.getColumnValues(col.name).filter((v) => typeof v === 'number' && !Number.isNaN(v));
+      const values = ds
+        .getColumnValues(col.name)
+        .filter((v) => typeof v === 'number' && !Number.isNaN(v));
       columnStats[col.name] = this._numericStats(values);
     }
 
@@ -57,14 +98,19 @@ export class ConstraintEngine {
       categoryDistribution[col.name] = this._categoricalDistribution(ds, col.name);
     }
 
-    const correlationMatrix = ds && numericColumns.length >= 2
-      ? this._correlationMatrix(ds, numericColumns.map((c) => c.name))
-      : {};
+    const correlationMatrix =
+      ds && numericColumns.length >= 2
+        ? this._correlationMatrix(
+            ds,
+            numericColumns.map((c) => c.name)
+          )
+        : {};
 
     const primaryTimeColumn = temporalColumns[0]?.name;
-    const temporalStats = primaryTimeColumn && ds
-      ? this._temporalStats(ds, primaryTimeColumn, numericColumns[0]?.name)
-      : { trendDirection: 'flat', seasonalityHint: false };
+    const temporalStats =
+      primaryTimeColumn && ds
+        ? this._temporalStats(ds, primaryTimeColumn, numericColumns[0]?.name)
+        : { trendDirection: 'flat', seasonalityHint: false };
 
     const primaryStats = columnStats[numericColumns[0]?.name] || {};
 
@@ -109,9 +155,8 @@ export class ConstraintEngine {
     const min = sorted[0];
     const max = sorted[n - 1];
     const mean = values.reduce((a, b) => a + b, 0) / n;
-    const median = n % 2 === 1
-      ? sorted[Math.floor(n / 2)]
-      : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
+    const median =
+      n % 2 === 1 ? sorted[Math.floor(n / 2)] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
 
     let variance = 0;
     for (const v of values) {
@@ -238,14 +283,17 @@ export class ConstraintEngine {
   _estimateOutlierCount(values) {
     if (values.length < 4) return 0;
     const sorted = values.slice().sort((a, b) => a - b);
-    const median = sorted.length % 2 === 1
-      ? sorted[Math.floor(sorted.length / 2)]
-      : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+    const median =
+      sorted.length % 2 === 1
+        ? sorted[Math.floor(sorted.length / 2)]
+        : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
     const deviations = values.map((v) => Math.abs(v - median));
-    const mad = deviations.length % 2 === 1
-      ? deviations.slice().sort((a, b) => a - b)[Math.floor(deviations.length / 2)]
-      : (deviations.slice().sort((a, b) => a - b)[deviations.length / 2 - 1]
-         + deviations.slice().sort((a, b) => a - b)[deviations.length / 2]) / 2;
+    const mad =
+      deviations.length % 2 === 1
+        ? deviations.slice().sort((a, b) => a - b)[Math.floor(deviations.length / 2)]
+        : (deviations.slice().sort((a, b) => a - b)[deviations.length / 2 - 1] +
+            deviations.slice().sort((a, b) => a - b)[deviations.length / 2]) /
+          2;
     if (mad === 0) {
       // Fall back to IQR when the middle half is degenerate.
       const q1 = sorted[Math.floor(sorted.length * 0.25)];
@@ -257,7 +305,7 @@ export class ConstraintEngine {
     }
     const threshold = 3.5; // Iglewicz & Hoaglin recommendation.
     return values.filter((v) => {
-      const modifiedZ = 0.6745 * (v - median) / mad;
+      const modifiedZ = (0.6745 * (v - median)) / mad;
       return Math.abs(modifiedZ) > threshold;
     }).length;
   }
@@ -276,15 +324,18 @@ export class ConstraintEngine {
       return true;
     });
     this.hardConstraints.push((facts, spec) => {
-      if (facts.topology === TopologyTypes.HIERARCHY && spec.layout === 'VECTOR_STREAMLINE') return false;
+      if (facts.topology === TopologyTypes.HIERARCHY && spec.layout === 'VECTOR_STREAMLINE')
+        return false;
       return true;
     });
     this.hardConstraints.push((facts, spec) => {
-      if (facts.topology === TopologyTypes.VECTOR_FIELD && spec.layout !== 'VECTOR_STREAMLINE') return false;
+      if (facts.topology === TopologyTypes.VECTOR_FIELD && spec.layout !== 'VECTOR_STREAMLINE')
+        return false;
       return true;
     });
     this.hardConstraints.push((facts, spec) => {
-      if (facts.topology === TopologyTypes.TIME_SERIES && spec.layout !== 'TIME_RIBBON') return false;
+      if (facts.topology === TopologyTypes.TIME_SERIES && spec.layout !== 'TIME_RIBBON')
+        return false;
       return true;
     });
     this.hardConstraints.push((facts, spec) => {
@@ -304,48 +355,72 @@ export class ConstraintEngine {
     this.softConstraints.push({
       name: 'prefer_pulse_for_timeseries',
       weight: 10,
-      eval: (facts, spec) => (facts.hasTimeSeries && spec.behavior !== 'PULSE_QUANTITATIVE' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.hasTimeSeries && spec.behavior !== 'PULSE_QUANTITATIVE' ? 1 : 0,
     });
     this.softConstraints.push({
       name: 'prefer_radial_for_deep_hierarchy',
       weight: 15,
-      eval: (facts, spec) => (facts.topology === TopologyTypes.HIERARCHY && facts.depth > 2 && spec.layout !== 'RADIAL_ORBITAL' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.HIERARCHY &&
+        facts.depth > 2 &&
+        spec.layout !== 'RADIAL_ORBITAL'
+          ? 1
+          : 0,
     });
     this.softConstraints.push({
       name: 'prefer_grid_for_tabular',
       weight: 8,
-      eval: (facts, spec) => (facts.topology === TopologyTypes.TABULAR && spec.layout !== 'GRID_3D' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.TABULAR && spec.layout !== 'GRID_3D' ? 1 : 0,
     });
     this.softConstraints.push({
       name: 'match_interaction_to_topology',
       weight: 12,
       eval: (facts, spec) => {
-        if (facts.topology === TopologyTypes.HIERARCHY && spec.interaction !== 'DRILL_DOWN') return 1;
-        if (facts.topology === TopologyTypes.GRAPH && spec.interaction !== 'TRAVERSE_EDGE') return 1;
-        if ((facts.topology === TopologyTypes.TABULAR || facts.topology === TopologyTypes.GEO) && spec.interaction !== 'INSPECT_CELL') return 1;
-        if ((facts.topology === TopologyTypes.VECTOR_FIELD || facts.topology === TopologyTypes.TIME_SERIES) && spec.interaction !== 'HARVEST_STREAM') return 1;
+        if (facts.topology === TopologyTypes.HIERARCHY && spec.interaction !== 'DRILL_DOWN')
+          return 1;
+        if (facts.topology === TopologyTypes.GRAPH && spec.interaction !== 'TRAVERSE_EDGE')
+          return 1;
+        if (
+          (facts.topology === TopologyTypes.TABULAR || facts.topology === TopologyTypes.GEO) &&
+          spec.interaction !== 'INSPECT_CELL'
+        )
+          return 1;
+        if (
+          (facts.topology === TopologyTypes.VECTOR_FIELD ||
+            facts.topology === TopologyTypes.TIME_SERIES) &&
+          spec.interaction !== 'HARVEST_STREAM'
+        )
+          return 1;
         return 0;
       },
     });
     this.softConstraints.push({
       name: 'prefer_force_directed_for_graphs',
       weight: 14,
-      eval: (facts, spec) => (facts.topology === TopologyTypes.GRAPH && spec.layout !== 'FORCE_DIRECTED_3D' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.GRAPH && spec.layout !== 'FORCE_DIRECTED_3D' ? 1 : 0,
     });
     this.softConstraints.push({
       name: 'prefer_streamline_for_vectors',
       weight: 14,
-      eval: (facts, spec) => (facts.topology === TopologyTypes.VECTOR_FIELD && spec.layout !== 'VECTOR_STREAMLINE' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.VECTOR_FIELD && spec.layout !== 'VECTOR_STREAMLINE'
+          ? 1
+          : 0,
     });
     this.softConstraints.push({
       name: 'prefer_geo_surface_for_geo',
       weight: 14,
-      eval: (facts, spec) => (facts.topology === TopologyTypes.GEO && spec.layout !== 'GEO_SURFACE' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.GEO && spec.layout !== 'GEO_SURFACE' ? 1 : 0,
     });
     this.softConstraints.push({
       name: 'prefer_geo_column_geometry',
       weight: 14,
-      eval: (facts, spec) => (facts.topology === TopologyTypes.GEO && spec.geometry !== 'GEO_COLUMN' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.GEO && spec.geometry !== 'GEO_COLUMN' ? 1 : 0,
     });
     this.softConstraints.push({
       name: 'prefer_motion_for_continuous_data',
@@ -367,7 +442,8 @@ export class ConstraintEngine {
       weight: 25,
       eval: (facts, spec) => {
         if (!facts.isLargeDataset) return 0;
-        if (facts.topology !== TopologyTypes.GEO && facts.topology !== TopologyTypes.TIME_SERIES) return 0;
+        if (facts.topology !== TopologyTypes.GEO && facts.topology !== TopologyTypes.TIME_SERIES)
+          return 0;
         return spec.geometry !== 'AGGREGATE_BARS' ? 1 : 0;
       },
     });
@@ -393,32 +469,42 @@ export class ConstraintEngine {
     this.softConstraints.push({
       name: 'prefer_resonance_for_graphs',
       weight: 8,
-      eval: (facts, spec) => (facts.topology === TopologyTypes.GRAPH && spec.interaction !== 'RESONANCE_PULSE' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.GRAPH && spec.interaction !== 'RESONANCE_PULSE' ? 1 : 0,
     });
     this.softConstraints.push({
       name: 'prefer_constellation_for_graphs',
       weight: 6,
-      eval: (facts, spec) => (facts.topology === TopologyTypes.GRAPH && spec.interaction !== 'CONSTELLATION' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.GRAPH && spec.interaction !== 'CONSTELLATION' ? 1 : 0,
     });
     this.softConstraints.push({
       name: 'prefer_aleph_for_dense_graphs',
       weight: 7,
-      eval: (facts, spec) => (facts.topology === TopologyTypes.GRAPH && facts.density > 0.5 && spec.interaction !== 'ALEPH' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.GRAPH &&
+        facts.density > 0.5 &&
+        spec.interaction !== 'ALEPH'
+          ? 1
+          : 0,
     });
     this.softConstraints.push({
       name: 'prefer_chrono_dial_for_timeseries',
       weight: 8,
-      eval: (facts, spec) => (facts.topology === TopologyTypes.TIME_SERIES && spec.interaction !== 'CHRONO_DIAL' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.TIME_SERIES && spec.interaction !== 'CHRONO_DIAL' ? 1 : 0,
     });
     this.softConstraints.push({
       name: 'prefer_fork_plane_for_tabular',
       weight: 8,
-      eval: (facts, spec) => (facts.topology === TopologyTypes.TABULAR && spec.interaction !== 'FORK_PLANE' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.TABULAR && spec.interaction !== 'FORK_PLANE' ? 1 : 0,
     });
     this.softConstraints.push({
       name: 'prefer_beacon_for_geo',
       weight: 8,
-      eval: (facts, spec) => (facts.topology === TopologyTypes.GEO && spec.interaction !== 'BEACON' ? 1 : 0),
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.GEO && spec.interaction !== 'BEACON' ? 1 : 0,
     });
 
     // Phase 8 statistical soft constraints.
@@ -459,7 +545,8 @@ export class ConstraintEngine {
       name: 'prefer_chrono_dial_for_trends',
       weight: 11,
       eval: (facts, spec) => {
-        if (facts.trendDirection === 'flat' || facts.topology !== TopologyTypes.TIME_SERIES) return 0;
+        if (facts.trendDirection === 'flat' || facts.topology !== TopologyTypes.TIME_SERIES)
+          return 0;
         return spec.interaction !== 'CHRONO_DIAL' ? 1 : 0;
       },
     });
@@ -510,9 +597,7 @@ export class ConstraintEngine {
       }
     }
 
-    const valid = candidates.filter((spec) =>
-      this.hardConstraints.every((hc) => hc(facts, spec))
-    );
+    const valid = candidates.filter((spec) => this.hardConstraints.every((hc) => hc(facts, spec)));
 
     if (valid.length === 0) {
       throw new Error('ConstraintEngine: unsatisfiable constraint set for input facts');

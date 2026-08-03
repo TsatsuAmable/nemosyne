@@ -47,7 +47,11 @@ describe('SelectionFeedback', () => {
 
   beforeEach(() => {
     mockCtx = makeMockAudioContext();
-    vi.stubGlobal('window', { AudioContext: vi.fn(function () { return mockCtx; }) });
+    vi.stubGlobal('window', {
+      AudioContext: vi.fn(function () {
+        return mockCtx;
+      }),
+    });
     feedback = new SelectionFeedback({ volume: 0.2 });
   });
 

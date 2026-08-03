@@ -15,11 +15,11 @@ const STORAGE_KEY = 'nemosyne-telemetry-consent';
  */
 function makeHistogram() {
   return {
-    under16: 0,   // 0–16 ms (≥60 fps)
-    under33: 0,   // 16–33 ms (30–60 fps)
-    under50: 0,   // 33–50 ms (20–30 fps)
-    under100: 0,  // 50–100 ms
-    over100: 0,   // >100 ms
+    under16: 0, // 0–16 ms (≥60 fps)
+    under33: 0, // 16–33 ms (30–60 fps)
+    under50: 0, // 33–50 ms (20–30 fps)
+    under100: 0, // 50–100 ms
+    over100: 0, // >100 ms
   };
 }
 

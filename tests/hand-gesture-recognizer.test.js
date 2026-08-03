@@ -9,7 +9,12 @@ function makePose({
   direction = new THREE.Vector3(0, 0, -1),
   pinched = false,
 } = {}) {
-  return { position: position.clone(), direction: direction.clone().normalize(), pinched, valid: true };
+  return {
+    position: position.clone(),
+    direction: direction.clone().normalize(),
+    pinched,
+    valid: true,
+  };
 }
 
 function makeHand(poseOverrides = {}, index = 0, handedness = 'right') {
@@ -67,8 +72,18 @@ describe('HandGestureRecognizer', () => {
     const gestures = [];
     recognizer.onGesture = (name) => gestures.push(name);
 
-    update(recognizer, 0, { position: new THREE.Vector3(-0.3, 0, 0), pinched: true }, { position: new THREE.Vector3(0.3, 0, 0), pinched: true });
-    update(recognizer, 0.1, { position: new THREE.Vector3(-0.1, 0, 0), pinched: true }, { position: new THREE.Vector3(0.1, 0, 0), pinched: true });
+    update(
+      recognizer,
+      0,
+      { position: new THREE.Vector3(-0.3, 0, 0), pinched: true },
+      { position: new THREE.Vector3(0.3, 0, 0), pinched: true }
+    );
+    update(
+      recognizer,
+      0.1,
+      { position: new THREE.Vector3(-0.1, 0, 0), pinched: true },
+      { position: new THREE.Vector3(0.1, 0, 0), pinched: true }
+    );
 
     expect(gestures).toContain('pinchTogether');
   });
@@ -78,8 +93,18 @@ describe('HandGestureRecognizer', () => {
     const gestures = [];
     recognizer.onGesture = (name) => gestures.push(name);
 
-    update(recognizer, 0, { position: new THREE.Vector3(-0.1, 0, 0), pinched: true }, { position: new THREE.Vector3(0.1, 0, 0), pinched: true });
-    update(recognizer, 0.1, { position: new THREE.Vector3(-0.3, 0, 0), pinched: true }, { position: new THREE.Vector3(0.3, 0, 0), pinched: true });
+    update(
+      recognizer,
+      0,
+      { position: new THREE.Vector3(-0.1, 0, 0), pinched: true },
+      { position: new THREE.Vector3(0.1, 0, 0), pinched: true }
+    );
+    update(
+      recognizer,
+      0.1,
+      { position: new THREE.Vector3(-0.3, 0, 0), pinched: true },
+      { position: new THREE.Vector3(0.3, 0, 0), pinched: true }
+    );
 
     expect(gestures).toContain('pinchApart');
   });
@@ -89,8 +114,18 @@ describe('HandGestureRecognizer', () => {
     const gestures = [];
     recognizer.onGesture = (name) => gestures.push(name);
 
-    update(recognizer, 0, { position: new THREE.Vector3(-0.2, 0, -0.5), pinched: false, handedness: 'right' }, { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'left' });
-    update(recognizer, 0.1, { position: new THREE.Vector3(0.2, 0, -0.5), pinched: false, handedness: 'right' }, { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'left' });
+    update(
+      recognizer,
+      0,
+      { position: new THREE.Vector3(-0.2, 0, -0.5), pinched: false, handedness: 'right' },
+      { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'left' }
+    );
+    update(
+      recognizer,
+      0.1,
+      { position: new THREE.Vector3(0.2, 0, -0.5), pinched: false, handedness: 'right' },
+      { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'left' }
+    );
 
     expect(gestures).toContain('swipeRight');
   });
@@ -100,8 +135,18 @@ describe('HandGestureRecognizer', () => {
     const gestures = [];
     recognizer.onGesture = (name) => gestures.push(name);
 
-    update(recognizer, 0, { position: new THREE.Vector3(0.2, 0, -0.5), pinched: false, handedness: 'right' }, { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'left' });
-    update(recognizer, 0.1, { position: new THREE.Vector3(-0.2, 0, -0.5), pinched: false, handedness: 'right' }, { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'left' });
+    update(
+      recognizer,
+      0,
+      { position: new THREE.Vector3(0.2, 0, -0.5), pinched: false, handedness: 'right' },
+      { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'left' }
+    );
+    update(
+      recognizer,
+      0.1,
+      { position: new THREE.Vector3(-0.2, 0, -0.5), pinched: false, handedness: 'right' },
+      { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'left' }
+    );
 
     expect(gestures).toContain('swipeLeft');
   });
@@ -111,89 +156,141 @@ describe('HandGestureRecognizer', () => {
     const gestures = [];
     recognizer.onGesture = (name) => gestures.push(name);
 
-    update(recognizer, 0, { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'right' }, { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'left' });
-    update(recognizer, 0.1, { position: new THREE.Vector3(0, 0.2, -0.5), pinched: false, handedness: 'right' }, { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'left' });
+    update(
+      recognizer,
+      0,
+      { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'right' },
+      { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'left' }
+    );
+    update(
+      recognizer,
+      0.1,
+      { position: new THREE.Vector3(0, 0.2, -0.5), pinched: false, handedness: 'right' },
+      { position: new THREE.Vector3(0, 0, -0.5), pinched: false, handedness: 'left' }
+    );
 
     expect(gestures).toContain('sliceUp');
   });
 
   it('detects two-hand scoop up', () => {
-    const recognizer = new HandGestureRecognizer({ cooldown: 0, moveThreshold: 0.05, palmDotThreshold: 0.3 });
+    const recognizer = new HandGestureRecognizer({
+      cooldown: 0,
+      moveThreshold: 0.05,
+      palmDotThreshold: 0.3,
+    });
     const gestures = [];
     recognizer.onGesture = (name) => gestures.push(name);
 
-    update(recognizer, 0, {
-      position: new THREE.Vector3(-0.2, 0, -0.4),
-      direction: new THREE.Vector3(0, 1, 0),
-      pinched: false,
-    }, {
-      position: new THREE.Vector3(0.2, 0, -0.4),
-      direction: new THREE.Vector3(0, 1, 0),
-      pinched: false,
-    });
-    update(recognizer, 0.1, {
-      position: new THREE.Vector3(-0.2, 0.2, -0.4),
-      direction: new THREE.Vector3(0, 1, 0),
-      pinched: false,
-    }, {
-      position: new THREE.Vector3(0.2, 0.2, -0.4),
-      direction: new THREE.Vector3(0, 1, 0),
-      pinched: false,
-    });
+    update(
+      recognizer,
+      0,
+      {
+        position: new THREE.Vector3(-0.2, 0, -0.4),
+        direction: new THREE.Vector3(0, 1, 0),
+        pinched: false,
+      },
+      {
+        position: new THREE.Vector3(0.2, 0, -0.4),
+        direction: new THREE.Vector3(0, 1, 0),
+        pinched: false,
+      }
+    );
+    update(
+      recognizer,
+      0.1,
+      {
+        position: new THREE.Vector3(-0.2, 0.2, -0.4),
+        direction: new THREE.Vector3(0, 1, 0),
+        pinched: false,
+      },
+      {
+        position: new THREE.Vector3(0.2, 0.2, -0.4),
+        direction: new THREE.Vector3(0, 1, 0),
+        pinched: false,
+      }
+    );
 
     expect(gestures).toContain('scoopUp');
   });
 
   it('detects two-hand scoop down', () => {
-    const recognizer = new HandGestureRecognizer({ cooldown: 0, moveThreshold: 0.05, palmDotThreshold: 0.3 });
+    const recognizer = new HandGestureRecognizer({
+      cooldown: 0,
+      moveThreshold: 0.05,
+      palmDotThreshold: 0.3,
+    });
     const gestures = [];
     recognizer.onGesture = (name) => gestures.push(name);
 
-    update(recognizer, 0, {
-      position: new THREE.Vector3(-0.2, 0.2, -0.4),
-      direction: new THREE.Vector3(0, -1, 0),
-      pinched: false,
-    }, {
-      position: new THREE.Vector3(0.2, 0.2, -0.4),
-      direction: new THREE.Vector3(0, -1, 0),
-      pinched: false,
-    });
-    update(recognizer, 0.1, {
-      position: new THREE.Vector3(-0.2, 0, -0.4),
-      direction: new THREE.Vector3(0, -1, 0),
-      pinched: false,
-    }, {
-      position: new THREE.Vector3(0.2, 0, -0.4),
-      direction: new THREE.Vector3(0, -1, 0),
-      pinched: false,
-    });
+    update(
+      recognizer,
+      0,
+      {
+        position: new THREE.Vector3(-0.2, 0.2, -0.4),
+        direction: new THREE.Vector3(0, -1, 0),
+        pinched: false,
+      },
+      {
+        position: new THREE.Vector3(0.2, 0.2, -0.4),
+        direction: new THREE.Vector3(0, -1, 0),
+        pinched: false,
+      }
+    );
+    update(
+      recognizer,
+      0.1,
+      {
+        position: new THREE.Vector3(-0.2, 0, -0.4),
+        direction: new THREE.Vector3(0, -1, 0),
+        pinched: false,
+      },
+      {
+        position: new THREE.Vector3(0.2, 0, -0.4),
+        direction: new THREE.Vector3(0, -1, 0),
+        pinched: false,
+      }
+    );
 
     expect(gestures).toContain('scoopDown');
   });
 
   it('detects two-hand push forward', () => {
-    const recognizer = new HandGestureRecognizer({ cooldown: 0, moveThreshold: 0.05, palmDotThreshold: 0.3 });
+    const recognizer = new HandGestureRecognizer({
+      cooldown: 0,
+      moveThreshold: 0.05,
+      palmDotThreshold: 0.3,
+    });
     const gestures = [];
     recognizer.onGesture = (name) => gestures.push(name);
 
-    update(recognizer, 0, {
-      position: new THREE.Vector3(-0.2, 0, -0.2),
-      direction: new THREE.Vector3(0, 0, -1),
-      pinched: false,
-    }, {
-      position: new THREE.Vector3(0.2, 0, -0.2),
-      direction: new THREE.Vector3(0, 0, -1),
-      pinched: false,
-    });
-    update(recognizer, 0.1, {
-      position: new THREE.Vector3(-0.2, 0, -0.4),
-      direction: new THREE.Vector3(0, 0, -1),
-      pinched: false,
-    }, {
-      position: new THREE.Vector3(0.2, 0, -0.4),
-      direction: new THREE.Vector3(0, 0, -1),
-      pinched: false,
-    });
+    update(
+      recognizer,
+      0,
+      {
+        position: new THREE.Vector3(-0.2, 0, -0.2),
+        direction: new THREE.Vector3(0, 0, -1),
+        pinched: false,
+      },
+      {
+        position: new THREE.Vector3(0.2, 0, -0.2),
+        direction: new THREE.Vector3(0, 0, -1),
+        pinched: false,
+      }
+    );
+    update(
+      recognizer,
+      0.1,
+      {
+        position: new THREE.Vector3(-0.2, 0, -0.4),
+        direction: new THREE.Vector3(0, 0, -1),
+        pinched: false,
+      },
+      {
+        position: new THREE.Vector3(0.2, 0, -0.4),
+        direction: new THREE.Vector3(0, 0, -1),
+        pinched: false,
+      }
+    );
 
     expect(gestures).toContain('pushForward');
   });
@@ -203,8 +300,18 @@ describe('HandGestureRecognizer', () => {
     const gestures = [];
     recognizer.onGesture = (name) => gestures.push(name);
 
-    update(recognizer, 0, { pinched: true, handedness: 'right' }, { pinched: false, handedness: 'left' });
-    update(recognizer, 0.1, { pinched: true, handedness: 'right' }, { pinched: false, handedness: 'left' });
+    update(
+      recognizer,
+      0,
+      { pinched: true, handedness: 'right' },
+      { pinched: false, handedness: 'left' }
+    );
+    update(
+      recognizer,
+      0.1,
+      { pinched: true, handedness: 'right' },
+      { pinched: false, handedness: 'left' }
+    );
 
     expect(gestures).toContain('okSign');
   });
@@ -215,10 +322,25 @@ describe('HandGestureRecognizer', () => {
     recognizer.onGesture = (name) => gestures.push(name);
 
     // Initialize at t=0, then perform a valid gesture after the cooldown window.
-    update(recognizer, 0, { position: new THREE.Vector3(-0.3, 0, 0), pinched: true }, { position: new THREE.Vector3(0.3, 0, 0), pinched: true });
-    update(recognizer, 0.6, { position: new THREE.Vector3(-0.1, 0, 0), pinched: true }, { position: new THREE.Vector3(0.1, 0, 0), pinched: true });
+    update(
+      recognizer,
+      0,
+      { position: new THREE.Vector3(-0.3, 0, 0), pinched: true },
+      { position: new THREE.Vector3(0.3, 0, 0), pinched: true }
+    );
+    update(
+      recognizer,
+      0.6,
+      { position: new THREE.Vector3(-0.1, 0, 0), pinched: true },
+      { position: new THREE.Vector3(0.1, 0, 0), pinched: true }
+    );
     // Second motion occurs inside the cooldown window and must be ignored.
-    update(recognizer, 0.8, { position: new THREE.Vector3(-0.05, 0, 0), pinched: true }, { position: new THREE.Vector3(0.05, 0, 0), pinched: true });
+    update(
+      recognizer,
+      0.8,
+      { position: new THREE.Vector3(-0.05, 0, 0), pinched: true },
+      { position: new THREE.Vector3(0.05, 0, 0), pinched: true }
+    );
 
     expect(gestures.filter((g) => g === 'pinchTogether').length).toBe(1);
   });

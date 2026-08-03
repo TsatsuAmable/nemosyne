@@ -94,14 +94,41 @@ export const geoCities = makeGeoCities(20);
 export const flowProcess = makeFlowProcess(6);
 
 export const allSampleDatasets = [
-  { key: 'supply-chain', label: 'Supply Chain Hierarchy', dataset: supplyChainHierarchy, topology: 'HIERARCHY', depth: 3 },
+  {
+    key: 'supply-chain',
+    label: 'Supply Chain Hierarchy',
+    dataset: supplyChainHierarchy,
+    topology: 'HIERARCHY',
+    depth: 3,
+  },
   { key: 'fraud-graph', label: 'Fraud Transaction Graph', dataset: fraudGraph, topology: 'GRAPH' },
-  { key: 'sensor-stream', label: 'IoT Sensor Stream', dataset: sensorTimeSeries, topology: 'TIME_SERIES' },
-  { key: 'sales-table', label: 'Sales Performance Table', dataset: salesTable, topology: 'TABULAR' },
-  { key: 'org-chart', label: 'Organization Chart', dataset: orgChart, topology: 'HIERARCHY', depth: 3 },
+  {
+    key: 'sensor-stream',
+    label: 'IoT Sensor Stream',
+    dataset: sensorTimeSeries,
+    topology: 'TIME_SERIES',
+  },
+  {
+    key: 'sales-table',
+    label: 'Sales Performance Table',
+    dataset: salesTable,
+    topology: 'TABULAR',
+  },
+  {
+    key: 'org-chart',
+    label: 'Organization Chart',
+    dataset: orgChart,
+    topology: 'HIERARCHY',
+    depth: 3,
+  },
   { key: 'wind-field', label: 'Wind Vector Field', dataset: windField, topology: 'VECTOR_FIELD' },
   { key: 'social-graph', label: 'Social Influence Graph', dataset: socialGraph, topology: 'GRAPH' },
-  { key: 'financial-series', label: 'Financial Candle Series', dataset: financialSeries, topology: 'TIME_SERIES' },
+  {
+    key: 'financial-series',
+    label: 'Financial Candle Series',
+    dataset: financialSeries,
+    topology: 'TIME_SERIES',
+  },
   { key: 'geo-cities', label: 'Global Cities Geospatial', dataset: geoCities, topology: 'GEO' },
   { key: 'flow-process', label: 'Process Flow Graph', dataset: flowProcess, topology: 'GRAPH' },
 ];
@@ -116,11 +143,20 @@ export function getDefaultEncodings(entry) {
   const ds = entry.dataset;
   switch (entry.topology) {
     case 'HIERARCHY':
-      return { color: ds.categoricalColumns[0]?.name, size: ds.numericColumns[0]?.name, pulse: ds.numericColumns[1]?.name };
+      return {
+        color: ds.categoricalColumns[0]?.name,
+        size: ds.numericColumns[0]?.name,
+        pulse: ds.numericColumns[1]?.name,
+      };
     case 'GRAPH':
       return { color: ds.categoricalColumns[0]?.name, size: ds.numericColumns[0]?.name };
     case 'TIME_SERIES':
-      return { color: ds.categoricalColumns[0]?.name, size: ds.numericColumns[0]?.name, time: ds.temporalColumns[0]?.name, pulse: ds.numericColumns[1]?.name };
+      return {
+        color: ds.categoricalColumns[0]?.name,
+        size: ds.numericColumns[0]?.name,
+        time: ds.temporalColumns[0]?.name,
+        pulse: ds.numericColumns[1]?.name,
+      };
     case 'VECTOR_FIELD':
       return { color: 'magnitude', size: 'magnitude' };
     case 'GEO':

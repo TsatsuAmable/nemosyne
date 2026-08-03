@@ -33,7 +33,14 @@ function euclidean(a, b) {
  * @param {number} linkage 'single' | 'complete' | 'average'
  * @returns {{ nodes: Array<{ id, rows, level, center }>, edges: Array<[number, number]> }}
  */
-export function mapper(rows, featureColumns, filterFn, bins = 5, overlap = 0.3, linkage = 'single') {
+export function mapper(
+  rows,
+  featureColumns,
+  filterFn,
+  bins = 5,
+  overlap = 0.3,
+  linkage = 'single'
+) {
   if (rows.length === 0) return { nodes: [], edges: [] };
 
   const values = rows.map((r) => ({
@@ -74,8 +81,8 @@ export function mapper(rows, featureColumns, filterFn, bins = 5, overlap = 0.3, 
         }
       }
       if (cluster.length >= 1) {
-        const centerFeature = cluster[0].feature.map((_, dim) =>
-          cluster.reduce((s, p) => s + p.feature[dim], 0) / cluster.length
+        const centerFeature = cluster[0].feature.map(
+          (_, dim) => cluster.reduce((s, p) => s + p.feature[dim], 0) / cluster.length
         );
         nodes.push({
           id: nodes.length,

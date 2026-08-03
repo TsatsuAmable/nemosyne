@@ -9,11 +9,15 @@ describe('downloadDataUrl', () => {
   beforeEach(() => {
     clickedAnchors = [];
     // Capture clicks on anchors created by the helper.
-    document.addEventListener('click', (e) => {
-      if (e.target.tagName === 'A' && e.target.download) {
-        clickedAnchors.push(e.target);
-      }
-    }, true);
+    document.addEventListener(
+      'click',
+      (e) => {
+        if (e.target.tagName === 'A' && e.target.download) {
+          clickedAnchors.push(e.target);
+        }
+      },
+      true
+    );
   });
 
   afterEach(() => {

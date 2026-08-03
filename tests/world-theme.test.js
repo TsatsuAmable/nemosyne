@@ -17,7 +17,13 @@ describe('WorldTheme', () => {
 
   it('exports a set of named presets', () => {
     expect(Object.keys(WorldTheme.PRESETS)).toEqual(
-      expect.arrayContaining(['neonMidnight', 'daylightGlobe', 'coolDepth', 'warmAnomaly', 'deepNet'])
+      expect.arrayContaining([
+        'neonMidnight',
+        'daylightGlobe',
+        'coolDepth',
+        'warmAnomaly',
+        'deepNet',
+      ])
     );
   });
 

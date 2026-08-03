@@ -1,20 +1,28 @@
 import { describe, it, expect } from 'vitest';
 import { Dataset, ColumnType } from '../src/data/Dataset.js';
 import { parseCSV, parseJSON } from '../src/data/Parsers.js';
-import { categoricalColor, numericColor, normalize, inferEncodings } from '../src/data/Encodings.js';
 import {
-  makeFinancialSeries,
-  makeGeoCities,
-  makeFlowProcess,
-} from '../src/data/SyntheticData.js';
+  categoricalColor,
+  numericColor,
+  normalize,
+  inferEncodings,
+} from '../src/data/Encodings.js';
+import { makeFinancialSeries, makeGeoCities, makeFlowProcess } from '../src/data/SyntheticData.js';
 import { allSampleDatasets } from '../src/data/SampleDatasets.js';
 
 describe('Dataset', () => {
   it('stores typed columns and rows', () => {
-    const ds = new Dataset('Test', [
-      { name: 'a', type: ColumnType.NUMERIC },
-      { name: 'b', type: ColumnType.CATEGORICAL },
-    ], [{ a: 1, b: 'x' }, { a: 2, b: 'y' }]);
+    const ds = new Dataset(
+      'Test',
+      [
+        { name: 'a', type: ColumnType.NUMERIC },
+        { name: 'b', type: ColumnType.CATEGORICAL },
+      ],
+      [
+        { a: 1, b: 'x' },
+        { a: 2, b: 'y' },
+      ]
+    );
 
     expect(ds.rowCount).toBe(2);
     expect(ds.numericColumns.length).toBe(1);
@@ -23,9 +31,11 @@ describe('Dataset', () => {
   });
 
   it('computes cardinality', () => {
-    const ds = new Dataset('Test', [
-      { name: 'b', type: ColumnType.CATEGORICAL },
-    ], [{ b: 'x' }, { b: 'x' }, { b: 'y' }]);
+    const ds = new Dataset(
+      'Test',
+      [{ name: 'b', type: ColumnType.CATEGORICAL }],
+      [{ b: 'x' }, { b: 'x' }, { b: 'y' }]
+    );
     expect(ds.cardinalityOf('b')).toBe(2);
   });
 
@@ -82,11 +92,15 @@ describe('Encodings', () => {
   });
 
   it('infers default encodings from column types', () => {
-    const ds = new Dataset('Demo', [
-      { name: 'cat', type: ColumnType.CATEGORICAL },
-      { name: 'val', type: ColumnType.NUMERIC },
-      { name: 'ts', type: ColumnType.TEMPORAL },
-    ], [{ cat: 'A', val: 10, ts: '2026-01-01' }]);
+    const ds = new Dataset(
+      'Demo',
+      [
+        { name: 'cat', type: ColumnType.CATEGORICAL },
+        { name: 'val', type: ColumnType.NUMERIC },
+        { name: 'ts', type: ColumnType.TEMPORAL },
+      ],
+      [{ cat: 'A', val: 10, ts: '2026-01-01' }]
+    );
     const enc = inferEncodings(ds);
     expect(enc.color).toBe('cat');
     expect(enc.size).toBe('val');

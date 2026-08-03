@@ -166,7 +166,7 @@ function makeWebGLContext() {
 // jsdom defines getContext on the prototype and warns about unimplemented
 // contexts. We replace it wholesale so three.js and our canvas UI can work.
 Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
-  value: function (type, ...rest) {
+  value(type, ...rest) {
     if (type === 'webgl' || type === 'experimental-webgl' || type === 'webgl2') {
       return makeWebGLContext();
     }

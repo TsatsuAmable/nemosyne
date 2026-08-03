@@ -65,7 +65,8 @@ export function remapColor(hex, mode) {
 }
 
 export function normalizeHex(hex) {
-  const h = typeof hex === 'number' ? hex.toString(16).padStart(6, '0') : String(hex).replace('#', '');
+  const h =
+    typeof hex === 'number' ? hex.toString(16).padStart(6, '0') : String(hex).replace('#', '');
   return parseInt(h.slice(0, 6), 16);
 }
 

@@ -144,12 +144,7 @@ export class MovablePanel {
 
     // Minimize button.
     const mb = this.minimizeBtn;
-    if (
-      cx >= mb.x &&
-      cx <= mb.x + mb.w &&
-      cy >= mb.y &&
-      cy <= mb.y + mb.h
-    ) {
+    if (cx >= mb.x && cx <= mb.x + mb.w && cy >= mb.y && cy <= mb.y + mb.h) {
       this._endDrag();
       this.hide();
       return 'minimize';
@@ -325,7 +320,10 @@ export class MovablePanel {
   }
 
   _scaleFont(font) {
-    return font.replace(/(\d+(?:\.\d+)?)\s*px/, (match, size) => `${(parseFloat(size) * this.textScale).toFixed(1)}px`);
+    return font.replace(
+      /(\d+(?:\.\d+)?)\s*px/,
+      (match, size) => `${(parseFloat(size) * this.textScale).toFixed(1)}px`
+    );
   }
 
   _startDrag(pointer, hitPointWorld) {
@@ -333,7 +331,8 @@ export class MovablePanel {
 
     // Sample distance from the analyst anchor origin at the moment of grab.
     const localHit = hitPointWorld.clone();
-    if (this.parentGroup) localHit.applyMatrix4(new THREE.Matrix4().copy(this.parentGroup.matrixWorld).invert());
+    if (this.parentGroup)
+      localHit.applyMatrix4(new THREE.Matrix4().copy(this.parentGroup.matrixWorld).invert());
     const distance = Math.sqrt(localHit.x ** 2 + localHit.y ** 2 + localHit.z ** 2);
 
     this.drag.active = true;

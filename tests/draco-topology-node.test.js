@@ -12,14 +12,18 @@ describe('DracoTopologyNode', () => {
 
   beforeEach(() => {
     scene = new THREE.Scene();
-    dataset = new Dataset('Tabular', [
-      { name: 'value', type: ColumnType.NUMERIC },
-      { name: 'category', type: ColumnType.CATEGORICAL },
-    ], [
-      { value: 10, category: 'A' },
-      { value: 20, category: 'B' },
-      { value: 30, category: 'A' },
-    ]);
+    dataset = new Dataset(
+      'Tabular',
+      [
+        { name: 'value', type: ColumnType.NUMERIC },
+        { name: 'category', type: ColumnType.CATEGORICAL },
+      ],
+      [
+        { value: 10, category: 'A' },
+        { value: 20, category: 'B' },
+        { value: 30, category: 'A' },
+      ]
+    );
   });
 
   afterEach(() => {
@@ -109,7 +113,10 @@ describe('DracoTopologyNode', () => {
       dataset,
     });
 
-    const raycaster = new THREE.Raycaster(new THREE.Vector3(10, 10, 10), new THREE.Vector3(1, 0, 0));
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(10, 10, 10),
+      new THREE.Vector3(1, 0, 0)
+    );
     const hit = node.interactWithRay(raycaster);
 
     expect(hit).toBeNull();
@@ -130,12 +137,14 @@ describe('DracoTopologyNode', () => {
   it('appendRows returns true when incremental path succeeds', () => {
     const node = new DracoTopologyNode(scene, {
       topology: TopologyTypes.TIME_SERIES,
-      dataset: new Dataset('Time', [
-        { name: 'time', type: ColumnType.TEMPORAL },
-        { name: 'value', type: ColumnType.NUMERIC },
-      ], [
-        { time: '2026-07-28T00:00:00', value: 1 },
-      ]),
+      dataset: new Dataset(
+        'Time',
+        [
+          { name: 'time', type: ColumnType.TEMPORAL },
+          { name: 'value', type: ColumnType.NUMERIC },
+        ],
+        [{ time: '2026-07-28T00:00:00', value: 1 }]
+      ),
     });
 
     const before = node.dataInput.dataset.rowCount;

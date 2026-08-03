@@ -42,9 +42,7 @@ describe('InstancedPointCloud', () => {
 
   it('updates colors and scales of individual instances', () => {
     const cloud = new InstancedPointCloud(10);
-    cloud.setPoints([
-      { position: [0, 0, -1], color: 0xffffff, scale: 1, data: { id: 'a' } },
-    ]);
+    cloud.setPoints([{ position: [0, 0, -1], color: 0xffffff, scale: 1, data: { id: 'a' } }]);
 
     cloud.updateInstances([{ index: 0, color: 0x0000ff, scale: 2 }]);
 

@@ -37,8 +37,12 @@ describe('VRConsole', () => {
     console.warn('warn-message');
     console.error('error-message');
 
-    expect(consolePanel.lines.some((l) => l.level === 'warn' && l.text.includes('warn-message'))).toBe(true);
-    expect(consolePanel.lines.some((l) => l.level === 'error' && l.text.includes('error-message'))).toBe(true);
+    expect(
+      consolePanel.lines.some((l) => l.level === 'warn' && l.text.includes('warn-message'))
+    ).toBe(true);
+    expect(
+      consolePanel.lines.some((l) => l.level === 'error' && l.text.includes('error-message'))
+    ).toBe(true);
   });
 
   it('caps the number of stored lines', () => {

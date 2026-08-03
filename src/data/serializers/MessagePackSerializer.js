@@ -31,5 +31,9 @@ export function datasetToMessagePack(dataset) {
 export function messagePackToDataset(buffer) {
   const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;
   const payload = decode(bytes);
-  return new Dataset(payload.name ?? 'MessagePack Dataset', payload.columns ?? [], payload.rows ?? []);
+  return new Dataset(
+    payload.name ?? 'MessagePack Dataset',
+    payload.columns ?? [],
+    payload.rows ?? []
+  );
 }

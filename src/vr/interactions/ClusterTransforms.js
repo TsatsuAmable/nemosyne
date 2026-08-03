@@ -8,9 +8,7 @@
 
 import * as THREE from 'three';
 
-const DEFAULT_PALETTE = [
-  0x00ffcc, 0xff0055, 0x88ccff, 0xffcc00, 0xcc66ff, 0x00cc66,
-];
+const DEFAULT_PALETTE = [0x00ffcc, 0xff0055, 0x88ccff, 0xffcc00, 0xcc66ff, 0x00cc66];
 
 /** Move artefact nodes into nested rings, one ring per cluster. */
 export function applyNestedRings(artifact, clusteredDataset, options = {}) {
@@ -69,12 +67,7 @@ export function applyDensityCloud(artifact, clusteredDataset, options = {}) {
 export function applyDendrogramArc(artifact, clusteredDataset, options = {}) {
   const clusters = collectClusters(clusteredDataset);
   const clusterIds = [...clusters.keys()].sort((a, b) => a - b);
-  const {
-    baseRadius = 1.2,
-    ringStep = 1.2,
-    arcSpan = Math.PI,
-    centreZ = -3.5,
-  } = options;
+  const { baseRadius = 1.2, ringStep = 1.2, arcSpan = Math.PI, centreZ = -3.5 } = options;
 
   clusterIds.forEach((id, cIdx) => {
     const members = clusters.get(id);
