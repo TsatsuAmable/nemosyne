@@ -16,6 +16,8 @@ export class InPlaceOperationHandles {
     this.scene = scene;
     this.camera = camera;
     this.onOperation = options.onOperation ?? (() => {});
+    this.onOperationHover = options.onOperationHover ?? (() => {});
+    this.onOperationLeave = options.onOperationLeave ?? (() => {});
     this.userMode = options.userMode ?? 'novice';
     this.enabled = options.enabled ?? true;
     this._handles = [];
@@ -186,10 +188,12 @@ export class InPlaceOperationHandles {
         onEnter: () => {
           handle.hover = true;
           handle.baseOffset.y = 0.65;
+          this.onOperationHover(handle.operation);
         },
         onLeave: () => {
           handle.hover = false;
           handle.baseOffset.y = 0.55;
+          this.onOperationLeave(handle.operation);
         },
         onSelect: () => this.activate(handle.operation),
       });

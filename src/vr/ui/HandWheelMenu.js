@@ -81,6 +81,7 @@ export class HandWheelMenu {
     this.textScale = 1;
     this.highContrast = false;
     this.colorblindMode = 'none';
+    this._previousHoveredAction = null;
 
     if (options.actions) this.setActions(options.actions);
     if (options.menu) this.setMenu(options.menu);
@@ -143,8 +144,11 @@ export class HandWheelMenu {
   }
 
   toggle() {
+    const wasVisible = this.group.visible;
     this.group.visible = !this.group.visible;
-    if (this.group.visible) {
+    if (wasVisible) {
+      this._clearHoveredActionCallbacks();
+    } else {
       this.selectedCategory = null;
       this.hoveredCategory = null;
       this.hoveredAction = null;
@@ -160,10 +164,28 @@ export class HandWheelMenu {
 
   hide() {
     this.group.visible = false;
+    this._clearHoveredActionCallbacks();
   }
 
   isVisible() {
     return this.group.visible;
+  }
+
+  _findAction(categoryId, actionIndex) {
+    const category = this._categories.find((c) => c.id === categoryId);
+    return category?.items?.[actionIndex] ?? null;
+  }
+
+  _clearHoveredActionCallbacks() {
+    const prevAction = this._previousHoveredAction;
+    if (prevAction?.onLeave) {
+      try {
+        prevAction.onLeave();
+      } catch (e) {
+        console.error('[HandWheelMenu] onLeave error', e);
+      }
+    }
+    this._previousHoveredAction = null;
   }
 
   /**
@@ -401,6 +423,29 @@ export class HandWheelMenu {
 
     if (hoverConfirmed && (hitCategory || hitAction)) {
       this.feedback?.playHover?.();
+    }
+
+    // Fire optional item hover/leave callbacks when the confirmed action changes.
+    const prevAction = this._previousHoveredAction;
+    const nextAction = this.hoveredAction
+      ? this._findAction(this.hoveredAction.categoryId, this.hoveredAction.index)
+      : null;
+    if (prevAction !== nextAction) {
+      if (prevAction?.onLeave) {
+        try {
+          prevAction.onLeave();
+        } catch (e) {
+          console.error('[HandWheelMenu] onLeave error', e);
+        }
+      }
+      if (nextAction?.onHover) {
+        try {
+          nextAction.onHover();
+        } catch (e) {
+          console.error('[HandWheelMenu] onHover error', e);
+        }
+      }
+      this._previousHoveredAction = nextAction;
     }
 
     // Apply hover scale/opacity to all meshes.
