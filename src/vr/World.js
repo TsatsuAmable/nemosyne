@@ -21,6 +21,7 @@ import {
   allSampleDatasets,
   getDefaultEncodings,
 } from '../data/SampleDatasets.js';
+import { ANALYSIS_TEMPLATES, resolveTemplate } from '../data/AnalysisTemplates.js';
 import { TopologyTypes } from '../draco/ConstraintEngine.js';
 import { disposeObject } from '../utils/Dispose.js';
 import { downloadDataUrl, downloadText } from '../utils/Download.js';
@@ -940,6 +941,44 @@ export class World {
   }
 
   /**
+   * Load a ready-made analysis template: dataset, theme, and tour in one step.
+   * @param {string} templateId
+   */
+  loadTemplate(templateId) {
+    const resolved = resolveTemplate(templateId, allSampleDatasets);
+    if (!resolved) {
+      this.vrConsole?.log?.('warn', [`Unknown analysis template: ${templateId}`]);
+      return false;
+    }
+    const { entry, theme, tourId } = resolved;
+    const fullEntry = {
+      key: entry.key,
+      name: entry.label,
+      topology: TopologyTypes[entry.topology] ?? entry.topology,
+      dataset: entry.dataset,
+      maxDepth: entry.depth ?? entry.maxDepth ?? 1,
+      encodings: entry.encodings ?? getDefaultEncodings(entry),
+    };
+
+    this.loadDataset(fullEntry);
+
+    // Apply the template's atmosphere after loadDataset so the story has a
+    // predictable mood regardless of the default dataset mapping.
+    if (theme && WorldTheme.PRESETS[theme]) {
+      this.engine.theme.applyPreset(theme);
+    }
+
+    if (tourId === 'first-dataset' && this.guidedTour && !this.guidedTour.isActive) {
+      this.startTour();
+    }
+
+    this.vrConsole?.log?.('log', [`Template loaded: ${templateId}`]);
+    this._logInteraction('Analysis template', { result: templateId });
+    this._captureSession();
+    return true;
+  }
+
+  /**
    * Switch the active data palace. `entry` should contain:
    * { name, topology, dataset, maxDepth?, encodings? }
    */
@@ -1600,6 +1639,17 @@ export class World {
             callback: () => this.exportAnalysisStory(),
           },
         ],
+      },
+      {
+        id: 'templates',
+        label: 'Templates',
+        icon: '📖',
+        items: ANALYSIS_TEMPLATES.map((t) => ({
+          id: `template-${t.id}`,
+          label: t.label,
+          icon: t.icon,
+          callback: () => this.loadTemplate(t.id),
+        })),
       },
       {
         id: 'views',

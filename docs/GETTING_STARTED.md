@@ -120,11 +120,39 @@ Then open `https://localhost:5173` in the Quest Browser.
 | Leave collaboration room | Wheel menu → Collab → Leave Room |
 | View collaboration status | Wheel menu → Collab → Network Panel |
 
+### Context-aware shortcuts
+
+These recent UI additions reduce the need to open the full wheel menu for common actions:
+
+| Feature | What it does | How to use it |
+|---|---|---|
+| In-place operation handles | Small badges appear near the data palace for supported topologies | Hover/select the 🔎 (filter), 📶 (sort), or 🕒 (time slice) badge attached to an artefact |
+| Live preview | Ghost markers show the result of an operation before you commit it | Hover over an operation in the wheel menu or an in-place handle; the markers clear once you apply or leave |
+| Mini-overview | Top-down mini-map of the palace and your view cone | Wheel menu → Views → Overview, or Settings → Navigation → Mini Overview |
+| Peer-presence HUD | Lists connected collaborators and their direction | Join a collaboration room; toggle with Wheel menu → Views → Peers, or Settings → Collaboration → Peer Presence |
+
 HUD panels are free-floating: drag a panel by its title bar to move it independently in front of you. Panel positions and visibility are saved with the session, so your layout is restored after a reload.
 
 ---
 
-## 7. Try a live stream
+## 7. Analysis templates
+
+If you prefer to start with a complete scenario instead of a raw dataset, use the **Templates** category in the constellation wheel menu. Each template loads a curated sample dataset, applies a matching atmosphere theme, and starts the guided tour.
+
+| Template | Scenario |
+|---|---|
+| Factory Floor Monitoring | IoT temperature and vibration stream with time-slice anomaly exploration |
+| Fraud Investigation | Transaction graph with suspicious-amount anomaly highlighting |
+| Sales Performance Review | Sales table for sorting and regional aggregation |
+| Organizational Cost Audit | Radial org chart for level aggregation and budget outlier inspection |
+| Market Session Replay | OHLCV candle series for replaying a trading session through time slices |
+| Geospatial Benchmark | Lat/lon city data rendered as room-scale bars |
+
+Templates are the fastest way for a new analyst to see how the gesture and operation vocabulary maps to a real analysis workflow.
+
+---
+
+## 8. Try a live stream
 
 The dev server includes a demo WebSocket endpoint at `/__demo-stream`. In VR:
 
@@ -137,7 +165,7 @@ Curated public sources (Coinbase, Kraken, Binance, USGS earthquakes, OpenSky air
 
 ---
 
-## 8. Bring your own data
+## 9. Bring your own data
 
 The Nemosyne loader panel (top-right in the 2D view, or use the wheel menu) accepts **CSV** and **JSON** files. JSON must be an array of objects. CSV files are parsed with automatic delimiter detection and quoted-field support.
 
@@ -179,7 +207,7 @@ Excel and Parquet support are planned as plugin importers; CSV is the canonical 
 
 ---
 
-## 9. Saving your session
+## 10. Saving your session
 
 Nemosyne auto-saves your session to the browser's IndexedDB every few seconds when the dataset, camera, settings, theme, or tour state changes. The autosave is restored automatically when you reopen the app.
 
@@ -200,7 +228,7 @@ Live stream connections are not persisted; a restored session keeps the last buf
 
 ---
 
-## 10. Export and provenance
+## 11. Export and provenance
 
 Nemosyne can export what you see and how you reached it.
 
@@ -212,7 +240,7 @@ These exports are initiated from the hand wheel menu and respect the same user-g
 
 ---
 
-## 11. Telemetry and observability (opt-in)
+## 12. Telemetry and observability (opt-in)
 
 Nemosyne can collect lightweight session metrics locally to help you understand performance and usage. Telemetry is **disabled by default** and never transmitted automatically.
 
@@ -233,7 +261,7 @@ Telemetry data is included in exported analysis stories and is cleared when you 
 
 ---
 
-## 12. Accessibility options
+## 13. Accessibility options
 
 Nemosyne includes several settings to make the workspace more usable:
 
@@ -251,7 +279,7 @@ Accessibility settings persist to localStorage and are restored on launch.
 
 ---
 
-## 13. Performance profiling and budgets
+## 14. Performance profiling and budgets
 
 Nemosyne monitors runtime performance so you can find bottlenecks before they ruin a VR session, especially on the Quest Browser.
 
@@ -266,7 +294,7 @@ Budget checks run once per second inside the engine tick. Violations are printed
 
 ---
 
-## 14. Interaction coach and gesture vocabulary
+## 15. Interaction coach and gesture vocabulary
 
 Nemosyne teaches its input vocabulary by showing a running commentary of what you do and how the system interpreted it. Open **Panels → Interaction Coach** from the wheel menu to see:
 
@@ -319,7 +347,7 @@ Disable hand gestures in **Settings → GESTURES → Hand Gestures** if you want
 
 ---
 
-## 15. Multi-user collaboration (experimental)
+## 16. Multi-user collaboration (experimental)
 
 Nemosyne can join a shared room over WebRTC so multiple analysts can inhabit the same memory palace. Data is local-only in this first networking release: each peer sees their own dataset, while camera pose and room presence are shared.
 
@@ -354,7 +382,7 @@ While connected, your camera position, rotation, and current dataset name are br
 
 ---
 
-## 16. Run tests
+## 17. Run tests
 
 ```bash
 npm test
@@ -368,7 +396,7 @@ npm run test:coverage
 
 ---
 
-## 17. Next steps
+## 18. Next steps
 
 - Read [`docs/IDEOLOGY.md`](IDEOLOGY.md) to understand the spatial-memory design.
 - Read [`docs/ARTEFACTS.md`](ARTEFACTS.md) to learn the artefact taxonomy.
