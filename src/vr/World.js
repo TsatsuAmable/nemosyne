@@ -57,6 +57,7 @@ import { InteractionCoach } from './ui/InteractionCoach.js';
 import { NarrativeStrip } from './ui/NarrativeStrip.js';
 import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.js';
 import { LivePreview } from './interactions/LivePreview.js';
+import { MiniOverview } from './ui/MiniOverview.js';
 import { CollaborationCoordinator } from './coordinators/CollaborationCoordinator.js';
 import { getGestureMeta } from '../utils/GestureMapping.js';
 
@@ -213,6 +214,17 @@ export class World {
     this.engine.input.addPanel(this.telemetryPanel);
     this.engine.input.addPanel(this.vrConsole);
     this.engine.input.addPanel(this.vrMenu);
+
+    // Mini-overview / mini-map showing palace and camera frustum.
+    this.miniOverview = new MiniOverview(this.engine.cameraGroup, {
+      followAnchor: this.analystAnchor,
+      getNodeMeshes: () => this.dracoNode?.artifact?.nodeMeshes ?? [],
+      getCamera: () => this.engine.camera,
+      position: [0.9, 1.35, -0.7],
+      size: 0.5,
+    });
+    this.miniOverview.setEnabled(this.settingsPanel?.getSetting?.('miniOverview') ?? true);
+    this.engine.addUpdatable(this.miniOverview);
 
     // Curved, scrollable analyst dashboard in front of the user.
     this.dashboard = new DashboardManager(this.engine.cameraGroup, {
@@ -1197,6 +1209,15 @@ export class World {
     this._captureSession();
   }
 
+  _toggleMiniOverview() {
+    const next = !this.miniOverview.mesh.visible;
+    this.miniOverview.setEnabled(next);
+    this.settingsPanel?.setSetting?.('miniOverview', next);
+    this.vrConsole?.log?.('log', [`Mini overview ${next ? 'on' : 'off'}`]);
+    this._logInteraction('Mini overview', { result: next ? 'on' : 'off' });
+    this._captureSession();
+  }
+
   _setStatisticalLensVisible(enabled) {
     const tdaEnabled = enabled && (this.settingsPanel?.getSetting('lensTDA') ?? true);
     const corrEnabled = enabled && (this.settingsPanel?.getSetting('lensCorrelation') ?? true);
@@ -1246,6 +1267,8 @@ export class World {
       this._applyComfortSettings();
     } else if (key === 'defaultPanelDistance') {
       this._applyPanelDistance();
+    } else if (key === 'miniOverview') {
+      this.miniOverview?.setEnabled?.(value);
     }
     this._logInteraction('Setting changed', { result: `${key} = ${value}` });
     this._captureSession();
@@ -1601,6 +1624,12 @@ export class World {
             label: 'South',
             icon: '⬇️',
             callback: () => this.engine.locomotion.teleportToAnchor('south'),
+          },
+          {
+            id: 'toggle-mini-overview',
+            label: 'Overview',
+            icon: '🗺️',
+            callback: () => this._toggleMiniOverview(),
           },
           {
             id: 'toggle-flight',
