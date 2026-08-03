@@ -155,7 +155,8 @@ describe('World integration', () => {
 
   function expectedInteractableCount(world) {
     const topology = world.dracoNode.dataInput?.topology;
-    const supportsHandles = topology === 'TIME_SERIES' || topology === 'TABULAR' || topology === 'HIERARCHY';
+    const supportsHandles =
+      topology === 'TIME_SERIES' || topology === 'TABULAR' || topology === 'HIERARCHY';
     const handleCount = supportsHandles ? (topology === 'TIME_SERIES' ? 1 : 2) : 0;
     return world.dracoNode.artifact.nodeMeshes.length + 1 + handleCount;
   }

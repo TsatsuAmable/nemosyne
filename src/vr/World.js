@@ -1,19 +1,7 @@
 import { Engine } from './Engine.js';
-import { DatumPlane } from './artifacts/DatumPlane.js';
-import { TechnoCoreNode } from './artifacts/TechnoCoreNode.js';
-import { FarcasterPortal } from './artifacts/FarcasterPortal.js';
-import { HolographicInspector } from './artifacts/HolographicInspector.js';
 import { DracoTopologyNode } from '../draco/DracoTopologyNode.js';
 import { DracoDiagnosticHUD } from '../draco/DracoDiagnosticHUD.js';
-import { InputTelemetry } from './InputTelemetry.js';
-import { VRConsole } from './ui/VRConsole.js';
-import { VRMenu } from './ui/VRMenu.js';
-import { PanelManager } from './ui/PanelManager.js';
-import { SettingsPanel } from './ui/SettingsPanel.js';
-import { HandWheelMenu } from './ui/HandWheelMenu.js';
 import { TooltipManager } from './ui/TooltipManager.js';
-import { OperationLogPanel } from './ui/OperationLogPanel.js';
-import { DashboardManager } from './ui/DashboardManager.js';
 import { ChartPlanePanel } from './ui/ChartPlanePanel.js';
 import { FileLoaderUI } from '../ui/FileLoader.js';
 import {
@@ -34,17 +22,17 @@ import {
   applyHierarchicalCluster,
   applyDensityCluster,
   applyAnomaly,
-  clearAnomaly,
   applySlice,
-  captureBaseState,
   resetTransforms,
-  computeOperationDataset,
 } from './interactions/DataOperations.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildTDASummaryGroup } from './artifacts/TDAPlanes.js';
 import { HandGestureRecognizer } from './interactions/HandGestureRecognizer.js';
 import { ControllerGestureMapper } from './interactions/ControllerGestureMapper.js';
+import { WorldInputCoordinator } from './coordinators/WorldInputCoordinator.js';
+import { UserModeController } from './coordinators/UserModeController.js';
+import { ComfortSettingsController } from './coordinators/ComfortSettingsController.js';
 import { AnalysisHistory } from '../data/AnalysisHistory.js';
 import { SessionStore } from '../data/SessionStore.js';
 import { Dataset } from '../data/Dataset.js';
@@ -52,17 +40,13 @@ import { GuidedTour } from './ui/GuidedTour.js';
 import { FIRST_DATASET_TOUR } from '../data/DefaultTour.js';
 import { WorldTheme } from './WorldTheme.js';
 import { TelemetryCollector } from '../utils/Telemetry.js';
-import { TelemetryPanel } from './ui/TelemetryPanel.js';
-import { PerformancePanel } from './ui/PerformancePanel.js';
-import { NetworkPanel } from './ui/NetworkPanel.js';
-import { InteractionCoach } from './ui/InteractionCoach.js';
-import { NarrativeStrip } from './ui/NarrativeStrip.js';
 import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.js';
 import { LivePreview } from './interactions/LivePreview.js';
-import { MiniOverview } from './ui/MiniOverview.js';
-import { PeerPresenceHUD } from './ui/PeerPresenceHUD.js';
 import { CollaborationCoordinator } from './coordinators/CollaborationCoordinator.js';
-import { getGestureMeta } from '../utils/GestureMapping.js';
+import { DataOperationController } from './coordinators/DataOperationController.js';
+import { WorldUIManager } from './coordinators/WorldUIManager.js';
+import { WorldSceneComposer } from './coordinators/WorldSceneComposer.js';
+import { WorldEventBus, WorldTopics } from '../utils/EventBus.js';
 
 // Map sample-dataset keys to atmospheric presets so each dataset has a distinct mood.
 const DATASET_THEME_MAP = {
@@ -96,26 +80,129 @@ export class World {
   constructor() {
     this.engine = new Engine();
 
+    // Lightweight event bus for cross-cutting UI/UX concerns. Anything that
+    // needs to react to operations, settings changes, or session events can
+    // subscribe without hard-wiring into `World`.
+    this.eventBus = new WorldEventBus();
+
+    // Data-operation controller owns dataset mutation, analysis history, and
+    // the operation → visual-transform mapping.
+    this.dataOperationController = new DataOperationController({
+      eventBus: this.eventBus,
+      getArtifact: () => this.dracoNode?.artifact ?? null,
+    });
+
     // Explicit analyst anchor: all HUD panels, dashboard, and wheel menu are
     // parented here so the workspace clusters around the user rather than the
     // world origin. It sits at the camera rig origin by default so local
     // coordinates remain compatible with existing panel defaults.
-    this.analystAnchor = new THREE.Group();
-    this.analystAnchor.name = 'analystAnchor';
-    this.engine.cameraGroup.add(this.analystAnchor);
+    // Scene composer creates persistent landmarks and the analyst anchor that
+    // all HUD panels are parented to.
+    this.sceneComposer = new WorldSceneComposer(this.engine, {
+      onWarp: (zone, pos, operation) => this._warpToZone(zone, pos, operation),
+    });
+    this.analystAnchor = this.sceneComposer.analystAnchor;
+    this.datum = this.sceneComposer.datum;
+    this.core = this.sceneComposer.core;
+    this.inspector = this.sceneComposer.inspector;
+    this.portalA = this.sceneComposer.portalA;
+    this.portalB = this.sceneComposer.portalB;
 
-    // Shared substrate.
-    this.datum = new DatumPlane();
-    this.engine.scene.add(this.datum.mesh);
-    this.engine.addUpdatable(this.datum);
+    // Opt-in telemetry collector. Local-only until explicitly exported.
+    this.telemetryCollector = new TelemetryCollector();
+    this.telemetryCollector.loadConsent();
+    this.engine.telemetry = this.telemetryCollector;
 
-    this.core = new TechnoCoreNode({ position: [7, 4, -10], scale: 1.2 });
-    this.engine.scene.add(this.core.group);
-    this.engine.addUpdatable(this.core);
+    // UI manager owns all HUD panels, dashboard, and wheel menu. It is created
+    // early so later code can access panel references through the facade.
+    this.uiManager = new WorldUIManager(this.engine, this.analystAnchor, this.eventBus, {
+      onLoadDataset: (entry) => this.loadDataset(entry),
+      onTogglePortals: (enabled) => this.setPortalsEnabled(enabled),
+      onConnectStream: () => this.connectLiveStream(),
+      onDisconnectStream: () => this.disconnectLiveStream(),
+      onSelectLiveSource: (sourceKey) => this.connectLiveSource(sourceKey),
+      onFilter: () => this.dataOperationController.apply('filter'),
+      onSort: () => this.dataOperationController.apply('sort'),
+      onAggregate: () => this.dataOperationController.apply('aggregate'),
+      onCluster: () => this.dataOperationController.apply('cluster'),
+      onHierarchicalCluster: () => this.dataOperationController.apply('hierarchical'),
+      onDensityCluster: () => this.dataOperationController.apply('density'),
+      onAnomaly: () => this.dataOperationController.apply('anomaly'),
+      onTimeSlice: () => this.dataOperationController.apply('timeSlice'),
+      onReset: () => this.resetDataOperation(),
+      onPanelChange: () => this._requestAutoSave(),
+      onSettingChanged: (key, value) => this._onSettingChanged(key, value),
+      onSeekHistory: (index) => this._seekAnalysisHistory(index),
+      getNodeMeshes: () => this.dracoNode?.artifact?.nodeMeshes ?? [],
+      getPeers: () => this.networkManager?.room?.getRemoteSnapshot() ?? [],
+      getLocalPeerId: () => this.networkManager?.peerId ?? null,
+      getSetting: (key) => this.uiManager?.settingsPanel?.getSetting?.(key),
+      telemetryCollector: this.telemetryCollector,
+      analysisHistory: this.dataOperationController.analysisHistory,
+    });
 
-    this.inspector = new HolographicInspector(this.engine);
-    this.inspector.mount(this.engine.scene);
-    this.engine.addUpdatable(this.inspector);
+    // Legacy facade properties: tests and internal code access panels through
+    // `world.*` directly.
+    this.panelManager = this.uiManager.panelManager;
+    this.dashboard = this.uiManager.dashboard;
+    this.handWheelMenu = this.uiManager.handWheelMenu;
+    this.vrMenu = this.uiManager.vrMenu;
+    this.vrConsole = this.uiManager.vrConsole;
+    this.telemetryPanel = this.uiManager.telemetryPanel;
+    this.settingsPanel = this.uiManager.settingsPanel;
+    this.operationLogPanel = this.uiManager.operationLogPanel;
+    this.metricsPanel = this.uiManager.metricsPanel;
+    this.performancePanel = this.uiManager.performancePanel;
+    this.networkPanel = this.uiManager.networkPanel;
+    this.interactionCoach = this.uiManager.interactionCoach;
+    this.narrativeStrip = this.uiManager.narrativeStrip;
+    this.miniOverview = this.uiManager.miniOverview;
+    this.peerPresenceHUD = this.uiManager.peerPresenceHUD;
+
+    // Input coordinator owns gesture recognition, context-aware suppression, and
+    // the mapping from gestures/commands to world actions.
+    this.inputCoordinator = new WorldInputCoordinator(this.engine, this.eventBus, {
+      getSetting: (key) => this.settingsPanel?.getSetting?.(key),
+      getDracoGroup: () => this.dracoNode?.group ?? null,
+      getArtifact: () => this.dracoNode?.artifact ?? null,
+      getHandWheelMenu: () => this.handWheelMenu,
+      callbacks: {
+        onApplyOperation: (op) => this.dataOperationController.apply(op),
+        onCycleDataset: (delta) => this._cycleDataset(delta),
+        onResetData: () => this.resetDataOperation(),
+        onUndo: () => this.undoAnalysis(),
+        onRedo: () => this.redoAnalysis(),
+        onToggleStatisticalLens: () => this._toggleStatisticalLens(),
+        onToggleSettingsPanel: () => this._toggleSettingsPanel(),
+        onTogglePanels: () => this._togglePanels(),
+        onToggleMiniOverview: () => this._toggleMiniOverview(),
+        onTogglePeerPresence: () => this._togglePeerPresenceHUD(),
+        onToggleDesktopPreview: () => this._toggleDesktopPreview(),
+        onLoadTemplate: (id) => this.loadTemplate(id),
+        onLog: (msg) => this.vrConsole?.log?.('log', Array.isArray(msg) ? msg : [msg]),
+        onCaptureSession: () => this._requestAutoSave(),
+      },
+    });
+
+    // User-mode controller applies novice/intermediate/expert policies to the
+    // coach, tour, and tooltips.
+    this.userModeController = new UserModeController(this.eventBus, {
+      getUserMode: () => this.settingsPanel?.getSetting?.('userMode') ?? 'novice',
+      getTourState: () => ({
+        isActive: this.guidedTour?.isActive ?? false,
+        isFinished: this.guidedTour?.isFinished ?? false,
+      }),
+      startTour: () => this.startTour(),
+      skipTour: () => this.guidedTour?.skip?.(),
+      setCoachMode: (mode) => this.interactionCoach?.setUserMode?.(mode),
+      setTourMode: (mode) => this.guidedTour?.setUserMode?.(mode),
+      setTooltipEnabled: (enabled) => this.tooltipManager?.setEnabled?.(enabled),
+      hideCoachPanel: () => this.panelManager?.hidePanel?.(this.interactionCoach),
+    });
+
+    // Comfort settings controller applies snap turn, vignette, seated height,
+    // and panel distance to the engine/locomotion and analyst anchor.
+    this.comfortSettingsController = new ComfortSettingsController(this.engine, this.analystAnchor);
 
     this.tooltipManager = new TooltipManager(this.engine.camera);
     this.tooltipManager.mount(this.engine.scene);
@@ -125,9 +212,9 @@ export class World {
     // In-place operation handles near data artefacts for direct manipulation.
     this.inPlaceHandles = new InPlaceOperationHandles(this.engine.scene, this.engine.camera, {
       userMode: this.settingsPanel?.getSetting?.('userMode') ?? 'novice',
-      onOperation: (op) => this.applyDataOperation(op),
-      onOperationHover: (op) => this.previewDataOperation(op),
-      onOperationLeave: () => this.clearOperationPreview(),
+      onOperation: (op) => this.dataOperationController.apply(op),
+      onOperationHover: (op) => this.dataOperationController.preview(op),
+      onOperationLeave: () => this.dataOperationController.clearPreview(),
     });
     this.engine.addUpdatable({
       update: (delta, time) =>
@@ -139,29 +226,6 @@ export class World {
     this.engine.addUpdatable({
       update: () => this.livePreview.update(),
     });
-
-    // Farcaster portals: data-transformation gates.
-    this.portalA = new FarcasterPortal({
-      position: [-2.5, 1.6, -2],
-      targetZone: 'DEEP_NET',
-      targetPosition: [0, 0, -20],
-      color: WorldTheme.PRESETS.deepNet.pointColor,
-      operation: 'anomaly',
-      onWarp: (zone, pos, operation) => this._warpToZone(zone, pos, operation),
-    });
-    this.engine.scene.add(this.portalA.group);
-    this.engine.addUpdatable(this.portalA);
-
-    this.portalB = new FarcasterPortal({
-      position: [0, 1.6, -8],
-      targetZone: 'LOCAL_MATRIX',
-      targetPosition: [0, 0, 0],
-      color: WorldTheme.PRESETS.neonMidnight.pointColor,
-      operation: 'reset',
-      onWarp: (zone, pos, operation) => this._warpToZone(zone, pos, operation),
-    });
-    this.engine.scene.add(this.portalB.group);
-    this.engine.addUpdatable(this.portalB);
 
     // Register functional landmarks as interactables: core cycles the lens hub,
     // portals are triggered by walking through them.
@@ -175,105 +239,7 @@ export class World {
     // Register visual elements for gaze/pointer tooltips.
     this._registerTooltipTargets();
 
-    // In-VR movable panels.
-    this.telemetryPanel = new InputTelemetry(this.engine);
-    this.engine.addUpdatable(this.telemetryPanel);
-
-    this.vrConsole = new VRConsole(this.engine.cameraGroup);
-    this.engine.addUpdatable(this.vrConsole);
-
     this.portalsEnabled = true;
-    this.vrMenu = new VRMenu(this.engine.cameraGroup, {
-      onLoadDataset: (entry) => this.loadDataset(entry),
-      onTogglePortals: (enabled) => this.setPortalsEnabled(enabled),
-      onConnectStream: () => this.connectLiveStream(),
-      onDisconnectStream: () => this.disconnectLiveStream(),
-      onSelectLiveSource: (sourceKey) => this.connectLiveSource(sourceKey),
-      onFilter: () => this.applyDataOperation('filter'),
-      onSort: () => this.applyDataOperation('sort'),
-      onAggregate: () => this.applyDataOperation('aggregate'),
-      onCluster: () => this.applyDataOperation('cluster'),
-      onHierarchicalCluster: () => this.applyDataOperation('hierarchical'),
-      onDensityCluster: () => this.applyDataOperation('density'),
-      onAnomaly: () => this.applyDataOperation('anomaly'),
-      onTimeSlice: () => this.applyDataOperation('timeSlice'),
-      onReset: () => this.resetDataOperation(),
-    });
-    this.engine.addUpdatable(this.vrMenu);
-
-    // Independent panel manager: registers panels for per-panel toggling and
-    // the launcher ring. InputRouter still handles raycast/drag; PanelManager
-    // handles visibility orchestration. Free-floating mode lets users drag panels
-    // independently; their poses are persisted with the session.
-    this.panelManager = new PanelManager(this.engine.cameraGroup, {
-      analystAnchor: this.analystAnchor,
-      freeFloating: true,
-      onChange: () => this._requestAutoSave(),
-    });
-    this.panelManager.register(this.telemetryPanel);
-    this.panelManager.register(this.vrConsole);
-    this.panelManager.register(this.vrMenu);
-    this.engine.input.setPanelManager(this.panelManager);
-    this.engine.input.addPanel(this.telemetryPanel);
-    this.engine.input.addPanel(this.vrConsole);
-    this.engine.input.addPanel(this.vrMenu);
-
-    // Mini-overview / mini-map showing palace and camera frustum.
-    this.miniOverview = new MiniOverview(this.engine.cameraGroup, {
-      followAnchor: this.analystAnchor,
-      getNodeMeshes: () => this.dracoNode?.artifact?.nodeMeshes ?? [],
-      getCamera: () => this.engine.camera,
-      position: [0.9, 1.35, -0.7],
-      size: 0.5,
-    });
-    this.miniOverview.setEnabled(this.settingsPanel?.getSetting?.('miniOverview') ?? true);
-    this.engine.addUpdatable(this.miniOverview);
-
-    // Peer-presence HUD for collaboration.
-    this.peerPresenceHUD = new PeerPresenceHUD(this.engine.cameraGroup, {
-      followAnchor: this.analystAnchor,
-      getPeers: () => this.networkManager?.room?.getRemoteSnapshot() ?? [],
-      getLocalPeerId: () => this.networkManager?.peerId ?? null,
-      position: [-0.9, 1.35, -0.7],
-      size: 0.5,
-    });
-    this.peerPresenceHUD.setEnabled(this.settingsPanel?.getSetting?.('peerPresence') ?? true);
-    this.engine.addUpdatable(this.peerPresenceHUD);
-
-    // Curved, scrollable analyst dashboard in front of the user.
-    this.dashboard = new DashboardManager(this.engine.cameraGroup, {
-      analystAnchor: this.analystAnchor,
-      layoutMode: 'semicircle',
-      columns: 7,
-      visibleColumns: 5,
-      rows: 2,
-      radius: 1.35,
-      arcSpan: Math.PI,
-      centerAngle: 0,
-      heightY: 1.45,
-      rowPitch: 0.75,
-      cellWidth: 0.75,
-      cellHeight: 0.55,
-      snapDistance: 0.5,
-      autoScale: true,
-    });
-    this.engine.addUpdatable(this.dashboard);
-    this.dashboardPanels = [];
-
-    // Hand-attached radial wheel menu on the first tracked hand.
-    // Guard angles and hover delay are set from Google VR constellation
-    // guidelines to reduce accidental opens and hover flashing.
-    this.handWheelMenu = new HandWheelMenu(this.engine, this.engine.input.hands[0], {
-      feedback: this.engine.input.feedback,
-      analystAnchor: this.analystAnchor,
-      openAngleThreshold: Math.PI / 8,
-      closeAngleThreshold: Math.PI * 0.75,
-      hoverDelayMs: 120,
-    });
-    this.engine.addUpdatable(this.handWheelMenu);
-    this.engine.addHudObject(this.handWheelMenu);
-    this.engine.input.setHandWheelMenu(this.handWheelMenu);
-
     this._datasetCycleIndex = -1;
 
     // Live-streaming and collaboration state.
@@ -302,103 +268,64 @@ export class World {
     // Tell the tooltip manager about any dashboard panels created later.
     this._dashboardTooltipTargets = [];
 
-    // Analysis operation history for undo/redo stepping.
-    this.analysisHistory = new AnalysisHistory();
+    // Analysis operation history is owned by the data-operation controller, but
+    // exposed as a legacy property for tests and UI panels.
+    this.analysisHistory = this.dataOperationController.analysisHistory;
+
+    // Facade getters for the dataset state owned by the data-operation controller.
+    // Tests and session code still access `world._originalDataset` and
+    // `world._transformedDataset` directly.
+    Object.defineProperty(this, '_originalDataset', {
+      get: () => this.dataOperationController.originalDataset,
+      set: (value) => {
+        this.dataOperationController._originalDataset = value?.clone?.() ?? null;
+      },
+    });
+    Object.defineProperty(this, '_transformedDataset', {
+      get: () => this.dataOperationController.transformedDataset,
+      set: (value) => {
+        this.dataOperationController._transformedDataset = value?.clone?.() ?? null;
+      },
+    });
+
+    // Facade getters for input state owned by the input coordinator. Tests read
+    // these directly and sometimes set `_inputPaused` to simulate pause.
+    Object.defineProperty(this, '_inputPaused', {
+      get: () => this.inputCoordinator.inputPaused,
+      set: (value) => {
+        this.inputCoordinator._inputPaused = !!value;
+      },
+    });
+    Object.defineProperty(this, '_handNearArtefact', {
+      get: () => this.inputCoordinator.handNearArtefact,
+    });
+    Object.defineProperty(this, '_handNearWheelMenu', {
+      get: () => this.inputCoordinator.handNearWheelMenu,
+    });
 
     // Persistent session store (IndexedDB). Auto-saves the world state so the
     // user can resume after a page reload.
     this.sessionStore = new SessionStore();
     this._sessionAutoSaveTimer = null;
 
-    // Opt-in telemetry collector. Local-only until explicitly exported.
-    this.telemetryCollector = new TelemetryCollector();
-    this.telemetryCollector.loadConsent();
-    this.engine.telemetry = this.telemetryCollector;
-
     // Wire desktop/VR keyboard undo/redo to the analysis history.
     this.engine.onUndo = () => this.undoAnalysis();
     this.engine.onRedo = () => this.redoAnalysis();
-    this.engine.onPauseInput = () => this._togglePauseInput();
-    this.engine.onResetView = () => this._resetView();
+    this.engine.onPauseInput = () => this.inputCoordinator.togglePauseInput();
+    this.engine.onResetView = () => this.inputCoordinator.resetView();
 
-    // Dual-hand gesture recognition.
-    this.gestureRecognizer = new HandGestureRecognizer({
-      cooldown: 0.65,
-      onGesture: (name, ctx) => this._onGesture(name, ctx),
-    });
-    this.engine.addUpdatable({
-      update: (delta, time) => this._updateGestures(delta, time),
-    });
+    // Gesture recognition and context routing is owned by the input coordinator.
 
     // Statistical-lens visibility state.
     this._statisticalLensEnabled = true;
 
-    // Settings panel for gesture / lens / feedback customization.
-    this.settingsPanel = new SettingsPanel(this.engine.cameraGroup, {
-      onChange: (key, value) => this._onSettingChanged(key, value),
-    });
-    this.engine.addUpdatable(this.settingsPanel);
-    this.panelManager.register(this.settingsPanel);
-    this.engine.input.addPanel(this.settingsPanel);
-
-    // Operation log panel: lightweight provenance of applied operations.
-    this.operationLogPanel = new OperationLogPanel(this.engine.cameraGroup);
-    this.panelManager.register(this.operationLogPanel);
-    this.engine.input.addPanel(this.operationLogPanel);
-    this.panelManager.hidePanel(this.operationLogPanel);
-
-    // Telemetry panel: live opt-in session / performance metrics.
-    this.metricsPanel = new TelemetryPanel(this.engine.cameraGroup, {
-      telemetry: this.telemetryCollector,
-    });
-    this.panelManager.register(this.metricsPanel);
-    this.engine.input.addPanel(this.metricsPanel);
-    this.engine.addUpdatable(this.metricsPanel);
-    this.panelManager.hidePanel(this.metricsPanel);
-
-    // Performance panel: live budget and violation view for Quest profiling.
-    this.performancePanel = new PerformancePanel(this.engine.cameraGroup, {
-      budget: this.engine.performanceBudget,
-      telemetry: this.telemetryCollector,
-    });
-    this.panelManager.register(this.performancePanel);
-    this.engine.input.addPanel(this.performancePanel);
-    this.engine.addUpdatable(this.performancePanel);
-    this.panelManager.hidePanel(this.performancePanel);
-
-    // Collaboration network panel and manager (offline until explicitly joined).
-    this.networkPanel = new NetworkPanel(this.engine.cameraGroup, {
-      telemetry: this.telemetryCollector,
-    });
-    this.panelManager.register(this.networkPanel);
-    this.engine.input.addPanel(this.networkPanel);
-    this.engine.addUpdatable(this.networkPanel);
-    this.panelManager.hidePanel(this.networkPanel);
-
-    // Interaction coach: running commentary that anchors gestures/controllers to
-    // system behavior and teaches the gesture vocabulary.
-    this.interactionCoach = new InteractionCoach(this.engine.cameraGroup, {
-      userMode: this.settingsPanel?.getSetting?.('userMode') ?? 'novice',
-    });
-    this.panelManager.register(this.interactionCoach);
-    this.engine.input.addPanel(this.interactionCoach);
-    this.engine.addUpdatable(this.interactionCoach);
-    this.panelManager.hidePanel(this.interactionCoach);
-
-    // Narrative breadcrumb strip: clickable timeline of analysis operations.
-    this.narrativeStrip = new NarrativeStrip(this.engine.cameraGroup, {
-      analystAnchor: this.analystAnchor,
-      history: this.analysisHistory,
-      onSeek: (index) => this._seekAnalysisHistory(index),
-    });
-    this.panelManager.register(this.narrativeStrip);
-    this.engine.input.addPanel(this.narrativeStrip);
-    this.engine.addUpdatable(this.narrativeStrip);
-    this.panelManager.hidePanel(this.narrativeStrip);
+    // Subscribe to data-operation events so World can keep rendering, logging,
+    // auto-save, and telemetry in sync without the controller knowing about them.
+    this._subscribeDataOperationEvents();
 
     // Controller gesture mapper: emits the same gesture names as hand tracking.
     this.controllerGestureMapper = new ControllerGestureMapper({
-      onGesture: (name, ctx) => this._onGesture(name, ctx),
+      onGesture: (name, ctx) => this.inputCoordinator.onGesture(name, ctx),
     });
     this.engine.input.setControllerGestureMapper(this.controllerGestureMapper);
 
@@ -426,12 +353,14 @@ export class World {
 
     // Apply the initial user mode (novice by default) to the coach, tooltips,
     // and tour visibility.
-    this._applyUserModeSettings();
+    this.userModeController.apply();
 
     // Apply initial comfort and panel-distance settings from the saved/default
     // settings panel values.
-    this._applyComfortSettings();
-    this._applyPanelDistance();
+    this.comfortSettingsController.apply(this.settingsPanel.getAllSettings());
+    this.comfortSettingsController.applyPanelDistance(
+      this.settingsPanel.getAllSettings().defaultPanelDistance
+    );
 
     // Restore cross-platform shared settings asynchronously after the baseline
     // defaults have been applied.
@@ -666,8 +595,10 @@ export class World {
       for (const [key, value] of Object.entries(snapshot.settings)) {
         this.settingsPanel?.setSetting?.(key, value);
       }
-      this._applyComfortSettings();
-      this._applyPanelDistance();
+      this.comfortSettingsController.apply(this.settingsPanel.getAllSettings());
+      this.comfortSettingsController.applyPanelDistance(
+        this.settingsPanel.getAllSettings().defaultPanelDistance
+      );
     }
 
     // Restore theme.
@@ -717,7 +648,7 @@ export class World {
       if (!has) return;
       this.vrConsole?.log?.('log', ['Restoring autosave...']);
       const restored = await this.loadSession('autosave');
-      if (restored) this._applyUserModeSettings();
+      if (restored) this.userModeController.apply();
       return restored;
     } catch (err) {
       console.warn('[World] autosave restore failed:', err);
@@ -725,7 +656,7 @@ export class World {
   }
 
   _captureSession() {
-    this._requestAutoSave();
+    this.eventBus.emit(WorldTopics.SESSION_CAPTURE);
   }
 
   /**
@@ -845,7 +776,7 @@ export class World {
   }
 
   _logInteraction(action, { gesture, controller, result } = {}) {
-    this.interactionCoach?.log?.({ action, gesture, controller, result });
+    this.eventBus.emit(WorldTopics.INTERACTION_LOG, { action, gesture, controller, result });
   }
 
   _trackCameraForAutoSave() {
@@ -864,186 +795,6 @@ export class World {
     this.engine.locomotion.addAnchor('detail', [0, 0, -3], 0, 'Detail');
     this.engine.locomotion.addAnchor('north', [-4, 0, -6], Math.PI / 4, 'North');
     this.engine.locomotion.addAnchor('south', [4, 0, -6], -Math.PI / 4, 'South');
-  }
-
-  _updateGestures(delta, time) {
-    if (this.settingsPanel?.getSetting('gesturesEnabled') === false) return;
-    this._updateInputContext();
-    if (this._handNearArtefact) return;
-    this.gestureRecognizer.setHands(this.engine.input.hands);
-    this.gestureRecognizer.update(delta, time);
-  }
-
-  /**
-   * Infer input context from hand poses and scene widgets. Used to suppress
-   * conflicting commands when the user is interacting with an artefact or the
-   * wheel menu.
-   */
-  _updateInputContext() {
-    const hands = this.engine.input.hands;
-    if (!hands?.length) {
-      this._handNearArtefact = false;
-      this._handNearWheelMenu = false;
-      this.engine.input.setSuppressSceneSelection?.(false);
-      this.engine.locomotion?.setEnabled?.(true);
-      return;
-    }
-
-    // Dominant hand position in world space.
-    const handPos = new THREE.Vector3();
-    const dominant = hands[this.gestureRecognizer?.dominantHandIndex ?? 0] ?? hands[0];
-    if (dominant.getHandTransform) {
-      const q = new THREE.Quaternion();
-      dominant.getHandTransform(handPos, q);
-    } else if (dominant.rayOrigin) {
-      handPos.copy(dominant.rayOrigin);
-    }
-
-    // Check proximity to the palace centre / node bounding sphere.
-    let artefactCenter = null;
-    let artefactRadius = 0;
-    const nodeMeshes = this.dracoNode?.artifact?.nodeMeshes ?? [];
-    if (nodeMeshes.length > 0) {
-      const box = new THREE.Box3().setFromObject(this.dracoNode.group);
-      artefactCenter = new THREE.Vector3();
-      box.getCenter(artefactCenter);
-      artefactRadius = box.getBoundingSphere(new THREE.Sphere()).radius;
-    }
-    this._handNearArtefact =
-      artefactCenter != null && handPos.distanceToSquared(artefactCenter) < artefactRadius * artefactRadius;
-
-    // Check proximity to the hand-attached wheel menu.
-    const wheelWorldPos = new THREE.Vector3();
-    this.handWheelMenu?.group?.getWorldPosition(wheelWorldPos);
-    const wheelVisible = this.handWheelMenu?.isVisible?.() ?? false;
-    let nearWheel = false;
-    if (wheelVisible) {
-      for (const hand of hands) {
-        let pos = new THREE.Vector3();
-        if (hand.getHandTransform) {
-          const q = new THREE.Quaternion();
-          hand.getHandTransform(pos, q);
-        } else if (hand.rayOrigin) {
-          pos.copy(hand.rayOrigin);
-        }
-        if (pos.distanceToSquared(wheelWorldPos) < 0.25) {
-          nearWheel = true;
-          break;
-        }
-      }
-    }
-    this._handNearWheelMenu = nearWheel;
-
-    const paused = !!this._inputPaused;
-    this.engine.input.setSuppressSceneSelection?.(this._handNearWheelMenu || paused);
-    this.engine.locomotion?.setEnabled?.(!this._handNearArtefact && !paused);
-  }
-
-  _onGesture(name, ctx = {}) {
-    // Global pause/resume overrides everything except the pause gesture itself.
-    if (this._inputPaused && name !== 'pauseResume') {
-      this.vrConsole?.log?.('log', ['Input paused — gesture ignored']);
-      return;
-    }
-
-    this.telemetryCollector?.recordGesture?.(name);
-
-    // Multi-modal feedback so gesture recognition is perceptible.
-    this.engine.input.feedback?.playGestureTone?.(name);
-    this.engine.input.feedback?.playHaptic?.(0.6, 50);
-
-    const source = ctx.source === 'controller' ? 'controller' : 'hand';
-    const meta = getGestureMeta(name);
-    const input =
-      source === 'controller'
-        ? ctx.button
-          ? `Controller ${ctx.button}`
-          : ctx.input
-            ? `Controller ${ctx.input}`
-            : meta?.controller
-        : meta?.hand;
-
-    this._logInteraction(meta?.action ?? name, {
-      gesture: name,
-      controller: source === 'controller' ? input : null,
-    });
-
-    // Route the intent to the matching World action.
-    switch (name) {
-      case 'pinchTogether':
-        this.applyDataOperation('filter');
-        break;
-      case 'pinchApart':
-        this.applyDataOperation('aggregate');
-        break;
-      case 'swipeRight':
-        this._cycleDataset(1);
-        break;
-      case 'swipeLeft':
-        this._cycleDataset(-1);
-        break;
-      case 'sliceUp':
-        this.applyDataOperation('sort');
-        break;
-      case 'sliceDown':
-        this.applyDataOperation('timeSlice');
-        break;
-      case 'scoopUp':
-        if (this.engine.locomotion.flightMode) {
-          this.engine.locomotion.ascend();
-          this.vrConsole?.log?.('log', ['Flight: ascend']);
-        } else {
-          this._toggleStatisticalLens();
-        }
-        break;
-      case 'scoopDown':
-        if (this.engine.locomotion.flightMode) {
-          this.engine.locomotion.descend();
-          this.vrConsole?.log?.('log', ['Flight: descend']);
-        }
-        break;
-      case 'pushForward':
-        // Infer intent from hand state: open hands reset the view, pinched hands
-        // reset the data operations.
-        if (ctx.openHands) {
-          this._resetView();
-        } else {
-          this.resetDataOperation();
-        }
-        break;
-      case 'rotateCW':
-        this.redoAnalysis();
-        break;
-      case 'rotateCCW':
-        this.undoAnalysis();
-        break;
-      case 'okSign':
-        this._toggleSettingsPanel();
-        break;
-      case 'pauseResume':
-        this._togglePauseInput();
-        break;
-      // 'bothPinched' is reserved for the system launcher toggle.
-      default:
-        break;
-    }
-  }
-
-  _togglePauseInput() {
-    this._inputPaused = !this._inputPaused;
-    this.vrConsole?.log?.('log', [`Input ${this._inputPaused ? 'paused' : 'resumed'}`]);
-    this._logInteraction('Pause input', { result: this._inputPaused ? 'paused' : 'resumed' });
-  }
-
-  /**
-   * Return the camera to a default overview anchor without undoing analysis
-   * history. This is the spatial equivalent of a "reset view" command.
-   */
-  _resetView() {
-    this.engine.locomotion.teleportToAnchor('overview');
-    this.vrConsole?.log?.('log', ['View reset to overview']);
-    this._logInteraction('Reset view', { result: 'overview' });
-    this._captureSession();
   }
 
   /**
@@ -1332,6 +1083,28 @@ export class World {
     });
   }
 
+  /** Legacy facade for tests and direct callers. Delegates to the input coordinator. */
+  _onGesture(name, ctx = {}) {
+    return this.inputCoordinator.onGesture(name, ctx);
+  }
+
+  _togglePauseInput() {
+    return this.inputCoordinator.togglePauseInput();
+  }
+
+  /**
+   * Legacy facade for tests and direct callers. Delegates to the input
+   * coordinator's reset view action.
+   */
+  _resetView() {
+    return this.inputCoordinator.resetView();
+  }
+
+  /** Legacy facade for tests that want to force a context recompute. */
+  _updateInputContext() {
+    return this.inputCoordinator._updateInputContext();
+  }
+
   _cycleDataset(delta = 1) {
     const n = allSampleDatasets.length;
     this._datasetCycleIndex = (this._datasetCycleIndex + delta + n) % n;
@@ -1410,7 +1183,10 @@ export class World {
 
       // Create orbit controls looking at the palace center.
       if (!this._orbitControls) {
-        this._orbitControls = new OrbitControls(this.engine.camera, this.engine.renderer.domElement);
+        this._orbitControls = new OrbitControls(
+          this.engine.camera,
+          this.engine.renderer.domElement
+        );
         this._orbitControls.target.set(0, 1.4, -3.5);
         this._orbitControls.enableDamping = true;
         this._orbitControls.dampingFactor = 0.1;
@@ -1477,8 +1253,10 @@ export class World {
       for (const [key, value] of Object.entries(shared.settings)) {
         this.settingsPanel.setSetting(key, value);
       }
-      this._applyComfortSettings();
-      this._applyPanelDistance();
+      this.comfortSettingsController.apply(this.settingsPanel.getAllSettings());
+      this.comfortSettingsController.applyPanelDistance(
+        this.settingsPanel.getAllSettings().defaultPanelDistance
+      );
       this._applyFeedbackSettings(this.settingsPanel.getAllSettings());
       this._applyAccessibilitySettings();
       this.vrConsole?.log?.('log', ['Shared settings restored']);
@@ -1526,16 +1304,18 @@ export class World {
         this._joinCollaborationRoom(value);
       }
     } else if (key === 'userMode') {
-      this._applyUserModeSettings();
+      this.userModeController.apply(this.settingsPanel.getSetting('userMode'));
       this.inPlaceHandles?.setUserMode?.(this.settingsPanel.getSetting('userMode'));
     } else if (['snapTurn', 'snapTurnAngle', 'reducedMotion'].includes(key)) {
-      this._applyComfortSettings();
+      this.comfortSettingsController.apply(this.settingsPanel.getAllSettings());
     } else if (key === 'vignette' || key === 'vignetteIntensity') {
-      this._applyComfortSettings();
+      this.comfortSettingsController.apply(this.settingsPanel.getAllSettings());
     } else if (key === 'seatedHeightOffset') {
-      this._applyComfortSettings();
+      this.comfortSettingsController.apply(this.settingsPanel.getAllSettings());
     } else if (key === 'defaultPanelDistance') {
-      this._applyPanelDistance();
+      this.comfortSettingsController.applyPanelDistance(
+        this.settingsPanel.getAllSettings().defaultPanelDistance
+      );
     } else if (key === 'miniOverview') {
       this.miniOverview?.setEnabled?.(value);
     } else if (key === 'peerPresence') {
@@ -1576,61 +1356,6 @@ export class World {
       haptic: settings.feedbackHaptic,
       visual: settings.feedbackVisual,
     });
-  }
-
-  /**
-   * Apply comfort settings to the engine/locomotion and optional vignette.
-   */
-  _applyComfortSettings() {
-    const settings = this.settingsPanel.getAllSettings();
-    const locomotion = this.engine.locomotion;
-    locomotion.setSnapTurnEnabled?.(settings.snapTurn ?? true);
-    locomotion.setSnapAngle?.(((settings.snapTurnAngle ?? 30) * Math.PI) / 180);
-    locomotion.setReducedMotion?.(settings.reducedMotion ?? false);
-    locomotion.setSeatedHeightOffset?.(settings.seatedHeightOffset ?? 0);
-    this.engine.setVignetteEnabled?.(settings.vignette ?? false, settings.vignetteIntensity ?? 0.4);
-  }
-
-  /**
-   * Apply default panel distance by moving the analyst anchor forward/back.
-   * Panels remain at their local positions relative to the anchor.
-   */
-  _applyPanelDistance() {
-    const settings = this.settingsPanel.getAllSettings();
-    const distance = settings.defaultPanelDistance ?? 1.2;
-    if (this.analystAnchor) {
-      this.analystAnchor.position.z = -distance;
-    }
-  }
-
-  /**
-   * Apply the current `userMode` setting to the interaction coach, tooltips,
-   * and guided tour. Novice users get an automatic tour start and a full
-   * interaction coach; intermediate users get a collapsed coach; expert users
-   * disable coach logging and hide most tooltips.
-   */
-  _applyUserModeSettings() {
-    const mode = this.settingsPanel?.getSetting?.('userMode') ?? 'novice';
-    this.interactionCoach?.setUserMode?.(mode);
-    this.guidedTour?.setUserMode?.(mode);
-    if (this.tooltipManager) this.tooltipManager.setEnabled(mode !== 'expert');
-
-    if (mode === 'novice') {
-      if (
-        this.guidedTour &&
-        !this.guidedTour.isActive &&
-        !this.guidedTour.isFinished &&
-        !this._tourAutoStarted
-      ) {
-        this.startTour();
-        this._tourAutoStarted = true;
-      }
-    } else if (mode === 'expert') {
-      this.panelManager?.hidePanel?.(this.interactionCoach);
-      if (this.guidedTour && !this.guidedTour.isFinished) {
-        this.guidedTour.skip();
-      }
-    }
   }
 
   _joinCollaborationRoom(roomId = null) {
@@ -1709,14 +1434,6 @@ export class World {
     }
   }
 
-  _pushAnalysisHistory(operation, datasetBefore, datasetAfter, parameters = {}) {
-    this.analysisHistory.push(operation, datasetBefore, datasetAfter, parameters);
-    this.telemetryCollector?.recordOperation?.(operation);
-    this._updateOperationLog();
-    this._updateNarrativeStrip();
-    this._captureSession();
-  }
-
   _seekAnalysisHistory(index) {
     const frame = this.analysisHistory?.seek?.(index);
     if (!frame) return;
@@ -1743,8 +1460,69 @@ export class World {
     this.operationLogPanel?.setEntries(entries);
   }
 
+  _subscribeDataOperationEvents() {
+    // Cross-cutting subscribers: keep logging, telemetry, and auto-save out of
+    // feature methods by reacting to events instead of calling World directly.
+    this.eventBus.on(WorldTopics.INTERACTION_LOG, ({ action, gesture, controller, result }) => {
+      this.interactionCoach?.log?.({ action, gesture, controller, result });
+    });
+
+    this.eventBus.on(WorldTopics.SESSION_CAPTURE, () => {
+      this._requestAutoSave();
+    });
+
+    this.eventBus.on(WorldTopics.CONSOLE_LOG, (args) => {
+      this.vrConsole?.log?.('log', Array.isArray(args) ? args : [args]);
+    });
+
+    this.eventBus.on(WorldTopics.CONSOLE_WARN, (args) => {
+      this.vrConsole?.log?.('warn', Array.isArray(args) ? args : [args]);
+    });
+
+    // Route interaction events (gestures, commands, settings changes) to the
+    // interaction coach and telemetry so individual callers do not need to.
+    this.eventBus.on(WorldTopics.INTERACTION, ({ action, gesture, controller, result }) => {
+      this.eventBus.emit(WorldTopics.INTERACTION_LOG, { action, gesture, controller, result });
+    });
+
+    this.eventBus.on(WorldTopics.GESTURE_RECOGNIZED, ({ name }) => {
+      this.telemetryCollector?.recordGesture?.(name);
+    });
+
+    this.eventBus.on(WorldTopics.OPERATION_APPLIED, ({ operation, rowCount }) => {
+      this.telemetryCollector?.recordOperation?.(operation);
+      this._updateDashboardDatasets(this._transformedDataset);
+      if (this.tdaRecompute && operation !== 'anomaly') this.tdaRecompute();
+      this._updateOperationLog();
+      this._updateNarrativeStrip();
+      this.vrConsole?.log?.('log', [`Operation: ${operation} → ${rowCount} rows`]);
+      this._logInteraction(operation, { result: `${rowCount} rows` });
+      this._requestAutoSave();
+    });
+
+    this.eventBus.on(
+      WorldTopics.OPERATION_PREVIEW,
+      ({ operation, previewDataset, originalDataset, artifact }) => {
+        this.livePreview.preview(operation, previewDataset, originalDataset, artifact);
+      }
+    );
+
+    this.eventBus.on(WorldTopics.OPERATION_CLEAR_PREVIEW, () => {
+      this.livePreview.clear();
+    });
+
+    this.eventBus.on(WorldTopics.HISTORY_SEEK, ({ operation, dataset }) => {
+      this._restoreDataset(dataset, operation);
+      this._updateNarrativeStrip();
+    });
+
+    this.eventBus.on(WorldTopics.SESSION_AUTOSAVE_REQUEST, () => {
+      this._requestAutoSave();
+    });
+  }
+
   _buildWheelMenu() {
-    this.handWheelMenu.setMenu([
+    this.uiManager.buildWheelMenu([
       {
         id: 'panels',
         label: 'Panels',
@@ -2061,110 +1839,41 @@ export class World {
 
   /**
    * Apply a named dataset operation and its matching VR artefact transform.
-   * Supported: 'filter', 'sort', 'aggregate', 'cluster', 'timeSlice'.
+   * Delegates to `DataOperationController`; World reacts through the event bus.
    */
   applyDataOperation(operation) {
-    if (!this._originalDataset || !this.dracoNode?.artifact) {
-      console.warn('[World] no dataset/artefact available for operation:', operation);
-      return;
-    }
-
-    if (!this._transformedDataset) {
-      this._transformedDataset = this._originalDataset.clone();
-    }
-
-    const datasetBefore = this._transformedDataset.clone();
-    captureBaseState(this.dracoNode.artifact);
-
-    this._transformedDataset = computeOperationDataset(
-      operation,
-      this._transformedDataset,
-      this._originalDataset
-    );
-
-    switch (operation) {
-      case 'filter':
-        applyFilter(this.dracoNode.artifact, this._transformedDataset);
-        break;
-      case 'sort':
-        applySort(this.dracoNode.artifact, this._transformedDataset);
-        break;
-      case 'aggregate':
-        applyAggregate(this.dracoNode.artifact, this._transformedDataset);
-        break;
-      case 'cluster':
-        applyCluster(this.dracoNode.artifact, this._transformedDataset);
-        break;
-      case 'hierarchical':
-        applyHierarchicalCluster(this.dracoNode.artifact, this._transformedDataset);
-        break;
-      case 'density':
-        applyDensityCluster(this.dracoNode.artifact, this._transformedDataset);
-        break;
-      case 'anomaly':
-        applyAnomaly(this.dracoNode.artifact, this._transformedDataset);
-        break;
-      case 'timeSlice':
-        applySlice(this.dracoNode.artifact, this._transformedDataset, this._originalDataset);
-        break;
-      default:
-        return;
-    }
-
-    // Commit clears any transient preview.
-    this.clearOperationPreview();
-
-    if (this.tdaRecompute && operation !== 'anomaly') {
-      this.tdaRecompute();
-    }
-
-    this._updateDashboardDatasets(this._transformedDataset);
-    this._pushAnalysisHistory(operation, datasetBefore, this._transformedDataset);
-
-    this.vrConsole?.log?.('log', [
-      `Operation: ${operation} → ${this._transformedDataset.rowCount} rows`,
-    ]);
-    this._logInteraction(operation, {
-      result: `${this._transformedDataset.rowCount} rows`,
-    });
+    this.dataOperationController.apply(operation);
   }
 
   /**
-   * Show a transient preview of what `operation` would do to the current
-   * palace without mutating the dataset or artefact. Cleared automatically
-   * when the operation is applied or when the menu is closed.
+   * Show a transient preview of what `operation` would do. World renders the
+   * preview by subscribing to `operation:preview` events.
    */
   previewDataOperation(operation) {
-    if (!this._originalDataset || !this.dracoNode?.artifact) return;
-    if (!this._transformedDataset) {
-      this._transformedDataset = this._originalDataset.clone();
-    }
-    const previewDataset = computeOperationDataset(
-      operation,
-      this._transformedDataset,
-      this._originalDataset
-    );
-    this.livePreview.preview(operation, previewDataset, this._originalDataset, this.dracoNode.artifact);
+    this.dataOperationController.preview(operation);
   }
 
   clearOperationPreview() {
-    this.livePreview.clear();
+    this.dataOperationController.clearPreview();
   }
 
   /** Restore the original dataset and reset artefact transforms. */
   resetDataOperation() {
-    if (!this._originalDataset || !this.dracoNode?.artifact) return;
-    this.clearOperationPreview();
-    const datasetBefore = this._transformedDataset?.clone?.() ?? null;
-    this._transformedDataset = this._originalDataset.clone();
-    resetTransforms(this.dracoNode.artifact);
+    this.dataOperationController.reset();
     // For layouts whose positions were changed by sort/cluster, a full re-solve
     // is the safest reset.
-    this.dracoNode.reSolveAndSynthesize();
-    this._updateDashboardDatasets(this._transformedDataset);
-    this._pushAnalysisHistory('reset', datasetBefore, this._transformedDataset);
-    this.vrConsole?.log?.('log', ['Reset transforms']);
-    this._logInteraction('Reset', { result: `${this._transformedDataset.rowCount} rows` });
+    this.dracoNode?.reSolveAndSynthesize?.();
+    this._updateDashboardDatasets(this.dataOperationController.transformedDataset);
+    if (this.tdaRecompute) this.tdaRecompute();
+    this._updateOperationLog();
+    this._updateNarrativeStrip();
+    this.vrConsole?.log?.('log', [
+      `Reset transforms → ${this.dataOperationController.transformedDataset?.rowCount ?? 0} rows`,
+    ]);
+    this._logInteraction('Reset', {
+      result: `${this.dataOperationController.transformedDataset?.rowCount ?? 0} rows`,
+    });
+    this._requestAutoSave();
   }
 
   start() {

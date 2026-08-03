@@ -121,7 +121,9 @@ export class HandGestureRecognizer {
 
     // Detect a sustained both-pinched-close pose for pause/resume input.
     const bothPinchedClose =
-      left.pinched && right.pinched && left.position.distanceTo(right.position) < this._pauseCloseDistance;
+      left.pinched &&
+      right.pinched &&
+      left.position.distanceTo(right.position) < this._pauseCloseDistance;
     if (bothPinchedClose && this._bothPinchedCloseStart == null) {
       this._bothPinchedCloseStart = time;
       this._pauseResumeFired = false;
