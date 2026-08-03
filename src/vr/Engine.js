@@ -74,6 +74,10 @@ export class Engine {
 
     this.headWorldPos = new THREE.Vector3();
 
+    this._vignetteMesh = this._createVignetteMesh();
+    this.camera.add(this._vignetteMesh);
+    this._vignetteMesh.visible = false;
+
     this._setupControllersAndHands();
 
     window.addEventListener('resize', () => this._onWindowResize());
@@ -199,6 +203,47 @@ export class Engine {
       telemetry.textContent = `TICK ERROR: ${err?.message ?? err}`;
       telemetry.style.color = '#ff0055';
     }
+  }
+
+  _createVignetteMesh() {
+    // A full-screen quad that is always centered in front of the camera.
+    // Used as a tunnel-vision / peripheral darkening comfort aid during
+    // locomotion. Hidden by default.
+    const geom = new THREE.PlaneGeometry(2, 2, 1, 1);
+    // Radial gradient in UV space.
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d') || this._createMockContext();
+    const gradient = ctx.createRadialGradient(128, 128, 64, 128, 128, 180);
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(1, 'rgba(0,0,0,1)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 256, 256);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+
+    const mat = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0,
+      side: THREE.FrontSide,
+      depthTest: false,
+      depthWrite: false,
+    });
+
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.z = -0.5;
+    mesh.name = 'vignette';
+    return mesh;
+  }
+
+  setVignetteEnabled(enabled, intensity = 0.4) {
+    if (!this._vignetteMesh) return;
+    this._vignetteMesh.visible = enabled;
+    this._vignetteMesh.material.opacity = enabled ? intensity : 0;
   }
 
   _addOriginMarker() {

@@ -189,4 +189,47 @@ describe('Locomotion', () => {
     locomotion.descend();
     expect(engine.cameraGroup.position.y).toBeCloseTo(0, 3);
   });
+
+  it('supports snap turn by default', () => {
+    expect(locomotion.snapTurnEnabled).toBe(true);
+    const initialY = engine.cameraGroup.rotation.y;
+    locomotion._applySnapTurn(1);
+    expect(engine.cameraGroup.rotation.y).not.toBeCloseTo(initialY, 3);
+  });
+
+  it('can switch to smooth turn', () => {
+    locomotion.setSnapTurnEnabled(false);
+    const initialY = engine.cameraGroup.rotation.y;
+    locomotion._applySmoothTurn(1, 0.1);
+    expect(engine.cameraGroup.rotation.y).not.toBeCloseTo(initialY, 3);
+  });
+
+  it('respects configured snap angle', () => {
+    locomotion.setSnapAngle(Math.PI / 4);
+    engine.cameraGroup.rotation.y = 0;
+    locomotion._applySnapTurn(1);
+    expect(engine.cameraGroup.rotation.y).toBeCloseTo(-Math.PI / 4, 3);
+  });
+
+  it('slows smooth turn rate when reduced motion is enabled', () => {
+    locomotion.setSnapTurnEnabled(false);
+    locomotion.setReducedMotion(true);
+    engine.cameraGroup.rotation.y = 0;
+    locomotion._applySmoothTurn(1, 0.1);
+    const reduced = engine.cameraGroup.rotation.y;
+
+    engine.cameraGroup.rotation.y = 0;
+    locomotion.setReducedMotion(false);
+    locomotion._applySmoothTurn(1, 0.1);
+    const normal = engine.cameraGroup.rotation.y;
+
+    expect(Math.abs(reduced)).toBeLessThan(Math.abs(normal));
+  });
+
+  it('applies seated height offset during update', () => {
+    engine.camera.position.y = 1.6;
+    locomotion.setSeatedHeightOffset(-0.3);
+    locomotion.update(0.016, 0);
+    expect(engine.cameraGroup.position.y).toBeGreaterThan(0);
+  });
 });

@@ -388,6 +388,11 @@ export class World {
     // Apply the initial user mode (novice by default) to the coach, tooltips,
     // and tour visibility.
     this._applyUserModeSettings();
+
+    // Apply initial comfort and panel-distance settings from the saved/default
+    // settings panel values.
+    this._applyComfortSettings();
+    this._applyPanelDistance();
   }
 
   _resolveTourTarget(target) {
@@ -613,11 +618,13 @@ export class World {
       this.engine.cameraGroup.rotation.y = snapshot.camera.rotationY;
     }
 
-    // Restore settings.
+    // Restore settings (including comfort and user mode).
     if (snapshot.settings) {
       for (const [key, value] of Object.entries(snapshot.settings)) {
         this.settingsPanel?.setSetting?.(key, value);
       }
+      this._applyComfortSettings();
+      this._applyPanelDistance();
     }
 
     // Restore theme.
@@ -1211,6 +1218,14 @@ export class World {
       }
     } else if (key === 'userMode') {
       this._applyUserModeSettings();
+    } else if (['snapTurn', 'snapTurnAngle', 'reducedMotion'].includes(key)) {
+      this._applyComfortSettings();
+    } else if (key === 'vignette' || key === 'vignetteIntensity') {
+      this._applyComfortSettings();
+    } else if (key === 'seatedHeightOffset') {
+      this._applyComfortSettings();
+    } else if (key === 'defaultPanelDistance') {
+      this._applyPanelDistance();
     }
     this._logInteraction('Setting changed', { result: `${key} = ${value}` });
     this._captureSession();
@@ -1246,6 +1261,31 @@ export class World {
       haptic: settings.feedbackHaptic,
       visual: settings.feedbackVisual,
     });
+  }
+
+  /**
+   * Apply comfort settings to the engine/locomotion and optional vignette.
+   */
+  _applyComfortSettings() {
+    const settings = this.settingsPanel.getAllSettings();
+    const locomotion = this.engine.locomotion;
+    locomotion.setSnapTurnEnabled?.(settings.snapTurn ?? true);
+    locomotion.setSnapAngle?.(((settings.snapTurnAngle ?? 30) * Math.PI) / 180);
+    locomotion.setReducedMotion?.(settings.reducedMotion ?? false);
+    locomotion.setSeatedHeightOffset?.(settings.seatedHeightOffset ?? 0);
+    this.engine.setVignetteEnabled?.(settings.vignette ?? false, settings.vignetteIntensity ?? 0.4);
+  }
+
+  /**
+   * Apply default panel distance by moving the analyst anchor forward/back.
+   * Panels remain at their local positions relative to the anchor.
+   */
+  _applyPanelDistance() {
+    const settings = this.settingsPanel.getAllSettings();
+    const distance = settings.defaultPanelDistance ?? 1.2;
+    if (this.analystAnchor) {
+      this.analystAnchor.position.z = -distance;
+    }
   }
 
   /**
