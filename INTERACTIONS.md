@@ -156,6 +156,20 @@ A template loads the dataset, applies the matching visual theme, and starts the 
 
 ---
 
+## Cross-Platform Continuity
+
+Nemosyne shares key preferences and the latest analysis story between desktop and VR sessions through IndexedDB (`shared-settings`). When a setting changes in either mode, it is written to the shared store and restored the next time the app launches.
+
+In addition, a **Desktop Preview** mode lets you inspect the palace on a monitor before putting on a headset:
+
+- Toggle from the wheel menu: **Views → Preview**.
+- Outside VR, this switches from first-person mouse/keyboard controls to an orbit camera centered on the palace.
+- Your first-person pose is saved so you can return to it with the same menu action.
+
+This is useful for preparing a dataset, configuring settings, or demonstrating the workspace without a headset.
+
+---
+
 ## System Controls
 
 | Function | Default input |
