@@ -29,6 +29,7 @@ Nemosyne defines a small set of **metaphor-accurate** interactions: every gestur
 | **Density Cluster** | `DatasetOperations.dbscan(...)` | Dense groups become clouds; noise sinks below plane | Wheel menu Density button |
 | **Anomaly Highlight** | `DatasetOperations.anomaly(...)` | Outliers lift and pulse with magenta halos | Wheel menu Highlight outliers button |
 | **Outlier Lens** | `applyOutlierLens` | Outliers swarm around the pointing hand | Hold pinch on an outlier cluster |
+| **Live Preview** | `computeOperationDataset` (preview only) | Transient markers show which rows will be kept, removed, reordered, or flagged as outliers before the operation is applied | Hover an operation in the wheel menu or an in-place handle |
 | **Reset** | `Dataset.reset()` | All artefacts return to the solved layout | Wheel menu Reset button or `pushForward` gesture |
 | **Undo / Redo** | `AnalysisHistory` rewinds or replays operations | Artefact rebuilds from the stored dataset | `rotateCCW` / `rotateCW` gestures or `Ctrl+Z` / `Ctrl+Y` |
 
@@ -105,11 +106,53 @@ Settings are persisted to `localStorage` under `nemosyne-vr-settings` and applie
 
 ### Body-locked constellation wheel menu
 - Pinch the menu hand to toggle a two-level constellation wheel that floats body-locked in front of the chest at ~0.55 m.
-- Inner ring: categories (Panels, Views, Live, Ops).
+- Inner ring: categories (Templates, Panels, Views, Live, Collab, Ops).
 - Outer ring: actions within the hovered or selected category.
 - Faint connector lines link the active category to its actions, building spatial muscle memory.
 - Dominant-hand index ray hovers to preview and pinch to confirm.
 - Hovering a node brightens and scales it slightly; selecting an action plays a confirm tone and closes the wheel.
+- Hovering an operation in the **Ops** ring triggers a **live preview** of the result.
+
+---
+
+## In-Place Operation Handles
+
+For common topologies, small world-space badges appear near the data palace so you can act without opening the wheel menu:
+
+| Topology | Handles | Badge |
+|---|---|---|
+| **TABULAR** / **HIERARCHY** | Filter, Sort | 🔎, 📶 |
+| **TIME_SERIES** | Time Slice | 🕒 |
+
+The handles fade in when your pointer or hand is nearby and are hidden in expert mode. Selecting a handle applies the same operation as the wheel menu.
+
+---
+
+## Spatial HUDs
+
+Two lightweight, analyst-anchored HUDs help you stay oriented and aware of collaborators:
+
+- **Mini-overview** — a top-down map of the palace with a cone showing your current horizontal view direction. Toggle from the wheel menu (Views → Overview) or Settings.
+- **Peer-presence HUD** — lists connected collaborators with colored dots and, when they broadcast their position, a direction arrow relative to your forward vector. Toggle from the wheel menu (Views → Peers) or Settings.
+
+---
+
+## Analysis Templates
+
+Ready-made **analysis stories** (`src/data/AnalysisTemplates.js`) bundle a sample dataset, an atmosphere preset, and a guided tour into a single entry point. They let a new analyst start from a credible scenario instead of an empty palace.
+
+Open the **Templates** category in the constellation wheel menu and pick a story:
+
+| Template | Dataset | Theme | Tour |
+|---|---|---|---|
+| Factory Floor Monitoring | IoT sensor stream | `coolDepth` | first dataset |
+| Fraud Investigation | Fraud transaction graph | `warmAnomaly` | first dataset |
+| Sales Performance Review | Sales table | `daylightGlobe` | first dataset |
+| Organizational Cost Audit | Org chart | `neonMidnight` | first dataset |
+| Market Session Replay | Financial candle series | `daylightGlobe` | first dataset |
+| Geospatial Benchmark | Global cities | `coolDepth` | first dataset |
+
+A template loads the dataset, applies the matching visual theme, and starts the default guided tour so the gesture and operation vocabulary are introduced in context.
 
 ---
 
