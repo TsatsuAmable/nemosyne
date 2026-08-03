@@ -48,7 +48,8 @@ This roadmap is aligned with the upstream `nemosyne.world` 6-phase structure, ad
 
 ## Phase 6 — Real-World Deployments 🔄
 
-- [x] Production build and deployment pipeline (`vite build`, Netlify, Vercel, GitHub Actions CI).
+- [x] Production build and deployment pipeline (`vite build`, Netlify, Vercel).
+- [x] GitHub Actions CI workflow (`.github/workflows/ci.yml`).
 - [x] Desktop fallback with mouse/keyboard (`DesktopControls`).
 - [x] Efficient data transmission hooks (Apache Arrow IPC, FlatBuffers, MessagePack serializers + `WebSocketAdapter.binaryParser`).
 - [ ] Optional multi-user collaborative memory palaces.
@@ -99,7 +100,7 @@ The project’s core thesis — multi-dimensional datasets become interactive 3D
 ### Strengths
 
 - **Architecture:** Clean separation between Engine, World, artifacts, UI, interactions, and data layers.
-- **Test discipline:** 478 Vitest tests make refactoring safe for a WebXR codebase.
+- **Test discipline:** 675+ Vitest tests make refactoring safe for a WebXR codebase.
 - **Constraint-driven synthesis:** `DracoTopologyNode` + `ConstraintEngine` turn data facts into layout/interaction/geometry specs rather than hard-coding one chart per dataset.
 - **Unified input:** `HandGestureRecognizer`, `InputRouter`, `HandPointer`, `ControllerPointer`, `DesktopControls` share one model across VR and desktop.
 - **Atmosphere as signal:** Theme presets tied to dataset mood make the environment itself convey information.
