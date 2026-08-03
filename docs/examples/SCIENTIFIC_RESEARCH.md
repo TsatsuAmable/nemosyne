@@ -31,7 +31,7 @@ The Draco engine detects `u`/`v`/`w` vector components, infers **VECTOR_FIELD**,
 
 ## Roadmap extensions
 
-Full scientific loaders (NetCDF, HDF5, PLY/VTK meshes) and server-side TDA compute are planned for later phases. Today the app gives a lightweight, JS-only shape-first preview.
+Large scientific file loaders and server-side TDA compute are planned for later phases. Today the built-in `wind-field` sample gives a lightweight, JS-only shape-first preview using the same TDA summary panels that ship for all numeric datasets.
 
 ## Export
 

@@ -36,7 +36,7 @@ The Draco engine sees the `time` and numeric columns, infers **TIME_SERIES**, an
 
 ## Bring your own stream
 
-For local development the Vite server already hosts `/__demo-stream`. In production, point `WebSocketAdapter` at your own secure WebSocket endpoint. The adapter supports JSON, MessagePack, Apache Arrow, and FlatBuffers binary payloads.
+For local development the Vite server already hosts `/__demo-stream`. In production, point `WebSocketAdapter` at your own secure WebSocket endpoint and supply a `parseMessage` or `binaryParser` callback to convert your payload into `{ rows, topology?, name? }` rows. The runtime ships with a JSON parser; bring your own parser for MessagePack, Apache Arrow, or FlatBuffers frames.
 
 ## Export
 
