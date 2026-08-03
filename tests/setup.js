@@ -191,6 +191,7 @@ Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
         putImageData: noOp,
         drawImage: noOp,
         createLinearGradient: () => ({ addColorStop: noOp }),
+        createRadialGradient: () => ({ addColorStop: noOp }),
         save: noOp,
         restore: noOp,
         translate: noOp,

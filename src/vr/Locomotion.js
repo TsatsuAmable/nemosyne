@@ -42,6 +42,10 @@ export class Locomotion {
     this.snapAngle = Math.PI / 6; // 30 degrees
     this.deadZone = 0.15;
 
+    this.snapTurnEnabled = true;
+    this.reducedMotion = false;
+    this.seatedHeightOffset = 0;
+
     this.flightMode = false;
 
     this.tempVec = new THREE.Vector3();
@@ -133,6 +137,22 @@ export class Locomotion {
 
   toggleFlight() {
     this.setFlightEnabled(!this.flightMode);
+  }
+
+  setSnapTurnEnabled(enabled) {
+    this.snapTurnEnabled = enabled;
+  }
+
+  setSnapAngle(radians) {
+    if (radians > 0) this.snapAngle = radians;
+  }
+
+  setReducedMotion(enabled) {
+    this.reducedMotion = !!enabled;
+  }
+
+  setSeatedHeightOffset(offset) {
+    this.seatedHeightOffset = offset;
   }
 
   dropToFloor() {
@@ -265,6 +285,22 @@ export class Locomotion {
 
     // 4. Teleport preview update
     this._updateTeleportPreview();
+
+    // 5. Apply seated-height offset and reduced-motion damping.
+    this._applyComfortOffset(delta);
+  }
+
+  _applyComfortOffset(delta) {
+    if (this.seatedHeightOffset !== 0) {
+      const targetY = this.camera.position.y + this.seatedHeightOffset;
+      // Do not fight the camera group's own vertical movement; just maintain
+      // the configured offset from the tracked head height.
+      if (Math.abs(this.cameraGroup.position.y - targetY) > 0.001) {
+        const alpha = this.reducedMotion ? 0.02 : 0.2;
+        this.cameraGroup.position.y +=
+          (targetY - this.cameraGroup.position.y) * Math.min(1, alpha * (delta * 60));
+      }
+    }
   }
 
   _updateControllerMovement(delta) {
@@ -337,7 +373,11 @@ export class Locomotion {
         this._endTeleportPreview();
       }
     } else {
-      this._applySnapTurn(turnX);
+      if (this.snapTurnEnabled) {
+        this._applySnapTurn(turnX);
+      } else {
+        this._applySmoothTurn(turnX, delta);
+      }
     }
 
     // Trigger acts as a dedicated teleport confirm when the preview is active,
@@ -564,7 +604,11 @@ export class Locomotion {
       this._applyMovement(moveX, moveZ, delta);
     }
     if (turn !== 0) {
-      this._applySnapTurn(turn);
+      if (this.snapTurnEnabled) {
+        this._applySnapTurn(turn);
+      } else {
+        this._applySmoothTurn(turn, delta);
+      }
     }
   }
 
@@ -602,5 +646,11 @@ export class Locomotion {
     const direction = x > 0 ? 1 : -1;
     this.cameraGroup.rotateY(-this.snapAngle * direction);
     this.turnCooldown = this.turnCooldownDuration;
+  }
+
+  _applySmoothTurn(x, delta) {
+    if (x === 0) return;
+    const rate = this.reducedMotion ? this.snapAngle / 3 : this.snapAngle * 2;
+    this.cameraGroup.rotateY(-rate * x * delta);
   }
 }

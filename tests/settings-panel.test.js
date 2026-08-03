@@ -65,6 +65,9 @@ describe('SettingsPanel', () => {
     expect(keys).toContain('feedbackVisual');
     expect(keys).toContain('gesturesEnabled');
     expect(keys).toContain('userMode');
+    expect(keys).toContain('snapTurn');
+    expect(keys).toContain('vignette');
+    expect(keys).toContain('reducedMotion');
   });
 
   it('cycles the user mode choice when clicked', () => {
