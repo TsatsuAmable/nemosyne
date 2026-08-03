@@ -91,11 +91,32 @@ export class AnalysisHistory {
     };
   }
 
+  /** Index of the current frame, or -1 when the stack is empty. */
+  get currentIndex() {
+    return this._index;
+  }
+
   /** Return the current frame, or null if the stack is empty. */
   current() {
     if (this._index < 0 || this._index >= this._stack.length) return null;
     const frame = this._stack[this._index];
     return { ...frame, dataset: frame.datasetAfter.clone() };
+  }
+
+  /**
+   * Jump directly to a specific frame index.
+   * @param {number} index
+   * @returns {{ operation: string, dataset: import('./Dataset.js').Dataset, parameters: object } | null}
+   */
+  seek(index) {
+    if (this.length === 0) return null;
+    this._index = Math.max(0, Math.min(this.length - 1, index));
+    const frame = this._stack[this._index];
+    return {
+      operation: frame.operation,
+      dataset: frame.datasetAfter.clone(),
+      parameters: frame.parameters,
+    };
   }
 
   /** Clear all recorded frames and reset the pointer. */

@@ -63,6 +63,7 @@ import { TelemetryPanel } from './ui/TelemetryPanel.js';
 import { PerformancePanel } from './ui/PerformancePanel.js';
 import { NetworkPanel } from './ui/NetworkPanel.js';
 import { InteractionCoach } from './ui/InteractionCoach.js';
+import { NarrativeStrip } from './ui/NarrativeStrip.js';
 import { CollaborationCoordinator } from './coordinators/CollaborationCoordinator.js';
 import { getGestureMeta } from '../utils/GestureMapping.js';
 
@@ -345,6 +346,17 @@ export class World {
     this.engine.addUpdatable(this.interactionCoach);
     this.panelManager.hidePanel(this.interactionCoach);
 
+    // Narrative breadcrumb strip: clickable timeline of analysis operations.
+    this.narrativeStrip = new NarrativeStrip(this.engine.cameraGroup, {
+      analystAnchor: this.analystAnchor,
+      history: this.analysisHistory,
+      onSeek: (index) => this._seekAnalysisHistory(index),
+    });
+    this.panelManager.register(this.narrativeStrip);
+    this.engine.input.addPanel(this.narrativeStrip);
+    this.engine.addUpdatable(this.narrativeStrip);
+    this.panelManager.hidePanel(this.narrativeStrip);
+
     // Controller gesture mapper: emits the same gesture names as hand tracking.
     this.controllerGestureMapper = new ControllerGestureMapper({
       onGesture: (name, ctx) => this._onGesture(name, ctx),
@@ -582,6 +594,8 @@ export class World {
     } else {
       this.analysisHistory.clear();
     }
+    this.narrativeStrip?.setHistory?.(this.analysisHistory);
+    this._updateNarrativeStrip();
 
     // Re-apply the visual transform of the current history frame, if any.
     const current = this.analysisHistory.current();
@@ -1280,6 +1294,7 @@ export class World {
     if (!this.analysisHistory.canUndo) return;
     const frame = this.analysisHistory.undo();
     this._restoreDataset(frame.dataset, frame.operation);
+    this._updateNarrativeStrip();
     this.vrConsole?.log?.('log', [`Undo: ${frame.operation}`]);
     this._logInteraction('Undo', { result: frame.operation });
   }
@@ -1288,6 +1303,7 @@ export class World {
     if (!this.analysisHistory.canRedo) return;
     const frame = this.analysisHistory.redo();
     this._restoreDataset(frame.dataset, frame.operation);
+    this._updateNarrativeStrip();
     this.vrConsole?.log?.('log', [`Redo: ${frame.operation}`]);
     this._logInteraction('Redo', { result: frame.operation });
   }
@@ -1342,7 +1358,25 @@ export class World {
     this.analysisHistory.push(operation, datasetBefore, datasetAfter, parameters);
     this.telemetryCollector?.recordOperation?.(operation);
     this._updateOperationLog();
+    this._updateNarrativeStrip();
     this._captureSession();
+  }
+
+  _seekAnalysisHistory(index) {
+    const frame = this.analysisHistory?.seek?.(index);
+    if (!frame) return;
+    this._restoreDataset(frame.dataset, frame.operation);
+    this._updateNarrativeStrip();
+    this.vrConsole?.log?.('log', [`Rewound to ${frame.operation}`]);
+    this._logInteraction('Seek history', { result: frame.operation });
+    this._captureSession();
+  }
+
+  _updateNarrativeStrip() {
+    this.narrativeStrip?.render?.();
+    if (this.analysisHistory?.length > 0) {
+      this.panelManager?.showPanel?.(this.narrativeStrip);
+    }
   }
 
   _updateOperationLog() {
@@ -1398,6 +1432,12 @@ export class World {
             callback: () => this.panelManager.togglePanel(this.interactionCoach),
           },
           { id: 'tour', label: 'Tour', icon: '📍', callback: () => this.startTour() },
+          {
+            id: 'narrative-strip',
+            label: 'Timeline',
+            icon: '🎞️',
+            callback: () => this.panelManager.togglePanel(this.narrativeStrip),
+          },
           {
             id: 'recenter',
             label: 'Recenter',
