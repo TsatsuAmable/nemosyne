@@ -111,6 +111,10 @@ export class InputRouter {
     this.controllerGestureMapper = mapper;
   }
 
+  setSuppressSceneSelection(enabled) {
+    this._suppressSceneSelection = enabled;
+  }
+
   /** Return the pointer object that triggered the most recent selection. */
   getActivePointer() {
     return this.activePointer;
@@ -144,10 +148,12 @@ export class InputRouter {
     // even when the visual laser appears to pass "through" them because they
     // are rendered without depth testing.
     const panelHit = this._raycastPanels();
-    const sceneHits = this.raycaster.intersectObjects(
-      this.interactables.map((i) => i.mesh),
-      false
-    );
+    const sceneHits = this._suppressSceneSelection
+      ? []
+      : this.raycaster.intersectObjects(
+          this.interactables.map((i) => i.mesh),
+          false
+        );
 
     const pointer = this._getActivePointerObject();
     if (panelHit) {

@@ -124,6 +124,12 @@ export class DesktopControls {
     if (e.code === 'Escape') {
       document.exitPointerLock?.();
     }
+    if (e.code === 'KeyP') {
+      this.engine.onPauseInput?.();
+    }
+    if (e.code === 'KeyR') {
+      this.engine.onResetView?.();
+    }
 
     // Desktop undo/redo shortcuts.
     if (e.ctrlKey || e.metaKey) {

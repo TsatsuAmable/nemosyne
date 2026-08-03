@@ -30,7 +30,9 @@ Nemosyne defines a small set of **metaphor-accurate** interactions: every gestur
 | **Anomaly Highlight** | `DatasetOperations.anomaly(...)` | Outliers lift and pulse with magenta halos | Wheel menu Highlight outliers button |
 | **Outlier Lens** | `applyOutlierLens` | Outliers swarm around the pointing hand | Hold pinch on an outlier cluster |
 | **Live Preview** | `computeOperationDataset` (preview only) | Transient markers show which rows will be kept, removed, reordered, or flagged as outliers before the operation is applied | Hover an operation in the wheel menu or an in-place handle |
-| **Reset** | `Dataset.reset()` | All artefacts return to the solved layout | Wheel menu Reset button or `pushForward` gesture |
+| **Reset** | `Dataset.reset()` | All artefacts return to the solved layout | Wheel menu Reset button or `pushForward` gesture with pinched hands |
+| **Reset View** | — | Camera returns to the overview anchor without undoing history | `pushForward` gesture with open hands, or `R` on desktop |
+| **Pause / Resume Input** | — | All gestures are ignored while paused; locomotion and scene selection are disabled | Hold both hands pinched close together for ~1 second, or `P` on desktop |
 | **Undo / Redo** | `AnalysisHistory` rewinds or replays operations | Artefact rebuilds from the stored dataset | `rotateCCW` / `rotateCW` gestures or `Ctrl+Z` / `Ctrl+Y` |
 
 ---
@@ -50,10 +52,12 @@ Nemosyne defines a small set of **metaphor-accurate** interactions: every gestur
 | **sliceDown** | Dominant open-hand slice down | Apply **timeSlice** |
 | **scoopUp** | Both palms up, rising together | Toggle the **statistical lens** (TDA summary + correlation matrix); in flight mode, **ascend** |
 | **scoopDown** | Both palms down, lowering together | In flight mode, **descend** |
-| **pushForward** | Both palms forward, pushing away | **Reset** data operations |
+| **pushForward (pinched)** | Both palms forward, pushing away | **Reset** data operations |
+| **pushForward (open)** | Both open palms forward, pushing away | **Reset** view to overview |
 | **rotateCW** | Cupped hands twisting clockwise | **Redo** the last undone analysis operation |
 | **rotateCCW** | Cupped hands twisting counter-clockwise | **Undo** the last analysis operation |
 | **okSign** | Dominant pinch while non-dominant is open | Toggle the **settings panel** |
+| **pauseResume** | Pinch both index fingers close together and hold ~1 s | **Pause / resume** all input |
 
 The recognizer is used by `World._updateGestures()`; the resulting intent is handled by `World._onGesture()`.
 
@@ -191,10 +195,24 @@ This is useful for preparing a dataset, configuring settings, or demonstrating t
 | Open settings panel | `okSign` gesture |
 | Start guided tour | Wheel menu → Panels → Tour |
 | Filter / aggregate / sort / time-slice | `pinchTogether`, `pinchApart`, `sliceUp`, `sliceDown` |
-| Reset data operations | `pushForward` gesture |
+| Reset data operations | `pushForward` gesture with pinched hands |
+| Reset view | `pushForward` gesture with open hands, or `R` on desktop |
+| Pause / resume input | Hold both hands pinched close together for ~1 s, or `P` on desktop |
 | Toggle 3D flight mode | Wheel menu → Views → Toggle Flight |
 | Ascend / descend in flight mode | Right thumbstick up/down, or `scoopUp` / `scoopDown` gesture |
 | Drop to floor | Wheel menu → Views → Drop to Floor |
+
+---
+
+## Context-Aware Gesture Suppression
+
+Nemosyne infers intent from the spatial context of your hands to reduce accidental commands:
+
+- **Hand near a data artefact** — when the dominant hand is inside the palace's bounding volume, global gestures are suppressed and locomotion is disabled so you can adjust in-place handles or direct widgets without accidentally moving or triggering an operation.
+- **Hand near the wheel menu** — when a hand is close to the body-locked constellation wheel, scene selection is suppressed for the other hand so you can operate the menu without selecting palace nodes through it.
+- **Input paused** — while paused, all gestures, locomotion, and scene selection are ignored. Use this to reposition your hands or take a break without unintended commands.
+
+These checks run each frame in `World._updateInputContext()` and update `InputRouter` and `Locomotion` suppression flags.
 
 ---
 

@@ -318,6 +318,8 @@ export class World {
     // Wire desktop/VR keyboard undo/redo to the analysis history.
     this.engine.onUndo = () => this.undoAnalysis();
     this.engine.onRedo = () => this.redoAnalysis();
+    this.engine.onPauseInput = () => this._togglePauseInput();
+    this.engine.onResetView = () => this._resetView();
 
     // Dual-hand gesture recognition.
     this.gestureRecognizer = new HandGestureRecognizer({
@@ -866,11 +868,84 @@ export class World {
 
   _updateGestures(delta, time) {
     if (this.settingsPanel?.getSetting('gesturesEnabled') === false) return;
+    this._updateInputContext();
+    if (this._handNearArtefact) return;
     this.gestureRecognizer.setHands(this.engine.input.hands);
     this.gestureRecognizer.update(delta, time);
   }
 
+  /**
+   * Infer input context from hand poses and scene widgets. Used to suppress
+   * conflicting commands when the user is interacting with an artefact or the
+   * wheel menu.
+   */
+  _updateInputContext() {
+    const hands = this.engine.input.hands;
+    if (!hands?.length) {
+      this._handNearArtefact = false;
+      this._handNearWheelMenu = false;
+      this.engine.input.setSuppressSceneSelection?.(false);
+      this.engine.locomotion?.setEnabled?.(true);
+      return;
+    }
+
+    // Dominant hand position in world space.
+    const handPos = new THREE.Vector3();
+    const dominant = hands[this.gestureRecognizer?.dominantHandIndex ?? 0] ?? hands[0];
+    if (dominant.getHandTransform) {
+      const q = new THREE.Quaternion();
+      dominant.getHandTransform(handPos, q);
+    } else if (dominant.rayOrigin) {
+      handPos.copy(dominant.rayOrigin);
+    }
+
+    // Check proximity to the palace centre / node bounding sphere.
+    let artefactCenter = null;
+    let artefactRadius = 0;
+    const nodeMeshes = this.dracoNode?.artifact?.nodeMeshes ?? [];
+    if (nodeMeshes.length > 0) {
+      const box = new THREE.Box3().setFromObject(this.dracoNode.group);
+      artefactCenter = new THREE.Vector3();
+      box.getCenter(artefactCenter);
+      artefactRadius = box.getBoundingSphere(new THREE.Sphere()).radius;
+    }
+    this._handNearArtefact =
+      artefactCenter != null && handPos.distanceToSquared(artefactCenter) < artefactRadius * artefactRadius;
+
+    // Check proximity to the hand-attached wheel menu.
+    const wheelWorldPos = new THREE.Vector3();
+    this.handWheelMenu?.group?.getWorldPosition(wheelWorldPos);
+    const wheelVisible = this.handWheelMenu?.isVisible?.() ?? false;
+    let nearWheel = false;
+    if (wheelVisible) {
+      for (const hand of hands) {
+        let pos = new THREE.Vector3();
+        if (hand.getHandTransform) {
+          const q = new THREE.Quaternion();
+          hand.getHandTransform(pos, q);
+        } else if (hand.rayOrigin) {
+          pos.copy(hand.rayOrigin);
+        }
+        if (pos.distanceToSquared(wheelWorldPos) < 0.25) {
+          nearWheel = true;
+          break;
+        }
+      }
+    }
+    this._handNearWheelMenu = nearWheel;
+
+    const paused = !!this._inputPaused;
+    this.engine.input.setSuppressSceneSelection?.(this._handNearWheelMenu || paused);
+    this.engine.locomotion?.setEnabled?.(!this._handNearArtefact && !paused);
+  }
+
   _onGesture(name, ctx = {}) {
+    // Global pause/resume overrides everything except the pause gesture itself.
+    if (this._inputPaused && name !== 'pauseResume') {
+      this.vrConsole?.log?.('log', ['Input paused — gesture ignored']);
+      return;
+    }
+
     this.telemetryCollector?.recordGesture?.(name);
 
     // Multi-modal feedback so gesture recognition is perceptible.
@@ -928,7 +1003,13 @@ export class World {
         }
         break;
       case 'pushForward':
-        this.resetDataOperation();
+        // Infer intent from hand state: open hands reset the view, pinched hands
+        // reset the data operations.
+        if (ctx.openHands) {
+          this._resetView();
+        } else {
+          this.resetDataOperation();
+        }
         break;
       case 'rotateCW':
         this.redoAnalysis();
@@ -939,10 +1020,30 @@ export class World {
       case 'okSign':
         this._toggleSettingsPanel();
         break;
+      case 'pauseResume':
+        this._togglePauseInput();
+        break;
       // 'bothPinched' is reserved for the system launcher toggle.
       default:
         break;
     }
+  }
+
+  _togglePauseInput() {
+    this._inputPaused = !this._inputPaused;
+    this.vrConsole?.log?.('log', [`Input ${this._inputPaused ? 'paused' : 'resumed'}`]);
+    this._logInteraction('Pause input', { result: this._inputPaused ? 'paused' : 'resumed' });
+  }
+
+  /**
+   * Return the camera to a default overview anchor without undoing analysis
+   * history. This is the spatial equivalent of a "reset view" command.
+   */
+  _resetView() {
+    this.engine.locomotion.teleportToAnchor('overview');
+    this.vrConsole?.log?.('log', ['View reset to overview']);
+    this._logInteraction('Reset view', { result: 'overview' });
+    this._captureSession();
   }
 
   /**

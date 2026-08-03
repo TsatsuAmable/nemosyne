@@ -66,10 +66,17 @@ export const GESTURE_MAP = {
   },
   pushForward: {
     label: 'Push Forward',
-    hand: 'Both palms face forward, push away from the body.',
+    hand: 'Both palms face forward, push away from the body. Open hands reset the view; pinched hands reset data operations.',
     controller: 'Hold both triggers and push controllers forward.',
     action: 'Reset',
     icon: '⤴',
+  },
+  pauseResume: {
+    label: 'Pause / Resume Input',
+    hand: 'Pinch both index fingers close together and hold for ~1 second.',
+    controller: 'Press both grip buttons and hold for ~1 second.',
+    action: 'Pause Input',
+    icon: '⏸',
   },
   rotateCW: {
     label: 'Rotate Clockwise',
