@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
 import { Dataset, ColumnType } from '../src/data/Dataset.js';
 import {
@@ -76,6 +76,42 @@ describe('Draco layout generators', () => {
     }
     const level2Horizontal = Math.sqrt(level2.position.x ** 2 + level2.position.z ** 2);
     expect(level2Horizontal).toBeGreaterThan(3.5);
+  });
+
+  it('RadialTreeLayout links parentKey children to parents', () => {
+    const rows = [
+      { id: 1, level: 0 },
+      { id: 2, level: 1, parentId: 1 },
+      { id: 3, level: 1, parentId: 1 },
+    ];
+    const layout = RadialTreeLayout.compute(rows, { parentKey: 'parentId' });
+
+    const child = layout.find((p) => p.row.id === 2);
+    const root = layout.find((p) => p.row.id === 1);
+    expect(child.parentIndex).toBe(root.index);
+  });
+
+  it('RadialTreeLayout falls back to nearest parent when no parentKey is given', () => {
+    const rows = [
+      { id: 1, level: 0 },
+      { id: 2, level: 1 },
+      { id: 3, level: 1 },
+      { id: 4, level: 2 },
+    ];
+    const layout = RadialTreeLayout.compute(rows);
+
+    const level2 = layout.find((p) => p.row.id === 4);
+    expect(typeof level2.parentIndex).toBe('number');
+    const parent = layout[level2.parentIndex];
+    expect(parent.row.level).toBe(1);
+  });
+
+  it('RadialTreeLayout treats a missing levelKey as zero', () => {
+    const rows = [{ id: 1 }, { id: 2 }];
+    const layout = RadialTreeLayout.compute(rows);
+
+    expect(layout.length).toBe(2);
+    expect(layout.every((p) => p.position.x === 0 && p.position.z === 0)).toBe(true);
   });
 
   it('TimeSeriesRibbonLayout groups by series and sorts by time', () => {
