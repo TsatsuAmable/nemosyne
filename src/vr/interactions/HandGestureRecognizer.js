@@ -54,6 +54,12 @@ export class HandGestureRecognizer {
     this._lastGestureTime = 0;
     this._lastGestureName = null;
 
+    // Track sustained both-pinched-close pose for pause/resume input.
+    this._bothPinchedCloseStart = null;
+    this._pauseResumeFired = false;
+    this._pauseHoldThreshold = 0.8;
+    this._pauseCloseDistance = 0.25;
+
     this._tempA = new THREE.Vector3();
     this._tempB = new THREE.Vector3();
   }
@@ -113,6 +119,33 @@ export class HandGestureRecognizer {
       dt
     );
 
+    // Detect a sustained both-pinched-close pose for pause/resume input.
+    const bothPinchedClose =
+      left.pinched && right.pinched && left.position.distanceTo(right.position) < this._pauseCloseDistance;
+    if (bothPinchedClose && this._bothPinchedCloseStart == null) {
+      this._bothPinchedCloseStart = time;
+      this._pauseResumeFired = false;
+    } else if (!bothPinchedClose) {
+      this._bothPinchedCloseStart = null;
+      this._pauseResumeFired = false;
+    }
+    if (
+      bothPinchedClose &&
+      !this._pauseResumeFired &&
+      time - this._bothPinchedCloseStart >= this._pauseHoldThreshold &&
+      this._canFire('pauseResume', time)
+    ) {
+      this._pauseResumeFired = true;
+      this._lastGestureTime = time;
+      this._lastGestureName = 'pauseResume';
+      this.onGesture('pauseResume', {
+        dominant: left,
+        nonDominant: right,
+        hands: poses,
+        openHands: false,
+      });
+    }
+
     if (gesture && this._canFire(gesture, time)) {
       this._lastGestureTime = time;
       this._lastGestureName = gesture;
@@ -120,6 +153,7 @@ export class HandGestureRecognizer {
         dominant: left,
         nonDominant: right,
         hands: poses,
+        openHands: !left.pinched && !right.pinched,
       });
     }
 
