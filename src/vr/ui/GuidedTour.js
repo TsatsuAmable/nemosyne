@@ -68,7 +68,13 @@ export class GuidedTour {
     this._resolveTarget = options.resolveTarget ?? (() => null);
     this._checkCondition = options.checkCondition ?? (() => false);
 
+    this.userMode = options.userMode ?? 'novice';
+
     this._tempVec = new THREE.Vector3();
+  }
+
+  setUserMode(mode) {
+    this.userMode = ['novice', 'intermediate', 'expert'].includes(mode) ? mode : 'novice';
   }
 
   _createArrow() {
@@ -109,6 +115,10 @@ export class GuidedTour {
   start() {
     if (!this.tour?.steps?.length) {
       console.warn('[GuidedTour] no tour loaded');
+      return false;
+    }
+    if (this.userMode === 'expert') {
+      this.skip();
       return false;
     }
     this._active = true;

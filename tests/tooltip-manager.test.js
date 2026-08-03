@@ -161,4 +161,25 @@ describe('TooltipManager', () => {
     expect(manager.targets.length).toBe(0);
     expect(manager.pool.every((e) => !e.active)).toBe(true);
   });
+
+  it('does not show tooltips when disabled', () => {
+    const camera = makeCamera(new THREE.Vector3(0, 1.6, 0), new THREE.Vector3(0, 0, -1));
+    const manager = new TooltipManager(camera, { dwellMs: 50, enabled: false });
+    const scene = new THREE.Scene();
+    manager.mount(scene);
+
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2));
+    mesh.position.set(0, 1.6, -2);
+    mesh.userData.row = { id: 1, value: 7 };
+    scene.add(mesh);
+
+    manager.setTargets([mesh]);
+    manager.update(0.1);
+    expect(manager.pool.every((e) => !e.active)).toBe(true);
+    expect(manager._pointerHitTooltip.fade).toBe(0);
+
+    manager.setEnabled(true);
+    manager.update(0.1);
+    expect(manager.pool.some((e) => e.active)).toBe(true);
+  });
 });
