@@ -800,224 +800,368 @@ Start with Phase 0 and the profiling baseline. Do not proceed to Phase 1 until t
 
 ---
 
-# Plan — UI/UX Improvements Based on Immersive Analytics Research
+# Plan — UI/UX Refactor: Break God Classes into Loosely-Coupled Subsystems
 
 ## Goal
 
-Nemosyne's UI has a strong foundation (constellation wheel menu, movable panels, analyst anchor, guided tour), but several patterns still pull users out of the data or rely on dense text panels. Recent research on VR games, immersive analytics, and spatial computing points to a consistent set of improvements: more direct manipulation, less detached UI, better information hierarchy, stronger affordances, and adaptive guidance for novices vs. experts. This plan translates those findings into concrete next steps for the Nemosyne UI layer.
+The UI/UX layer has grown a pair of God classes that absorb too many responsibilities:
 
-## Research takeaways
+- `src/vr/World.js` (≈2,200 lines) composes the scene, creates every HUD panel, routes gestures, applies data operations, manages sessions, collaboration, live streams, settings, tours, themes, and analysis history.
+- `src/vr/InputRouter.js` (≈490 lines) mixes controller polling, hand tracking, panel raycasts, hover state, dwell selection, drag capture, and system-gesture detection.
 
-### Starblood Arena / cockpit HUD design ([Amped UX](https://www.amped-ux.com/starblood-arena.html))
+This plan refactors them into smaller, single-responsibility classes connected by an event bus and clear delegation patterns. The refactor is not just cleanup: it is the enabling foundation for the research-backed UI/UX improvements already identified (direct manipulation, progressive disclosure, comfort settings, narrative scaffolding, collaboration-first UI, occlusion management, accessibility, live previews, and intent inference). Smaller, loosely-coupled classes make each of those improvements testable, swappable, and safe to iterate on. The public `World` API must stay backward-compatible so the existing Vitest suite continues to pass.
 
-- Project HUD elements onto a virtual "cockpit glass" circle; keep UI modular and separate from scene geometry.
-- Place high-priority feedback near the center of the user's view; push timers, objectives, and status into the periphery.
-- Use iconography + color + text + status bars + button signifiers together so users understand controller mappings.
-- Use head-locked "newspaper" widgets for immediate info and world-fixed diegetic panels for secondary info.
-- Mark immediate-view UI with a red circle; place lower-priority elements in peripheral vision.
-- Address comfort and motion sickness early; controls should feel fun while mitigating nausea.
+## Research takeaways (why the refactor matters)
 
-### 3D Radar Chart / gestural immersive analytics ([arXiv 2303.07995](https://ar5iv.labs.arxiv.org/html/2303.07995))
+The original UI/UX improvement plan was grounded in immersive-analytics research. The refactor keeps those goals but treats architectural separation as the *enabling work* for each of them:
 
-- Prefer direct hand-based grasping of visible widgets and context-triggered gestural postures over separate graphical menus.
-- Map every interaction to analysis tasks: select, explore, reconfigure, filter, zoom.
-- Prioritize comfortable hand postures for frequent actions.
-- Bimanual symmetric gestures work for range selection/zoom, but require reliable tracking and tolerate little occlusion.
-- Infer intent from in-situ context: disable conflicting commands when a hand is near an interactive widget.
-- Provide pause/resume, deliberate reset, and zoom-history affordances.
+- **Starblood Arena / cockpit HUD** — a modular HUD requires a `WorldUIManager` that owns panels independently of scene geometry and a `ComfortSettingsController` that can shift UI into focus/peripheral zones.
+- **3D Radar Chart / gestural analytics** — direct manipulation and context-aware suppression need a clean `WorldInputCoordinator` and a split `InputRouter` state machine, not gesture logic buried in a 2,200-line class.
+- **Tableau Vision Pro / novice-vs-expert split** — `UserModeController` (State pattern) can apply mode-specific behavior to the coach, tour, and tooltips without `World.js` branching on strings.
+- **Google VR Constellation Menu** — icon-first wheel menus and guard angles are easier to evolve when `HandWheelMenu` is not also responsible for input polling and global gesture suppression.
+- **VR UI best practices (Displays 2026)** — comfort, viewing distance, and lower-field placement are the domain of `ComfortSettingsController` and `WorldUIManager`, not ad-hoc logic in `World.js`.
 
-### Tableau Vision Pro / immersive analytics ([Tableau blog](https://www.tableau.com/blog/exploring-spatial-computing-and-immersive-analytics-vision-pro), [RécitKit arXiv 2508.18670v1](https://arxiv.org/html/2508.18670v1))
+## Scope
 
-- There is a sharp split between novices and experts; novices need scaffolding, experts want efficiency.
-- Gaze + pinch is novel but has a learning curve; users need more than a 45-minute demo to become proficient.
-- Users prefer direct manipulation on charts over detached control panels.
-- 3D visualizations create occlusion; add auto-rotation, mini-maps, breadcrumbs, or transparency cues.
-- Traditional 2D charts remain valuable inside 3D space; build spatial interactions on top of familiar chart types.
-- Infinite canvas needs narrative anchors and structured checkpoints so users do not feel lost.
-- Collaboration is a more believable enterprise use case than solo executive dashboards.
-- Cross-platform continuity and accessibility are must-haves.
-- Templates, live previews, and narrative scaffolding reduce authoring burden and improve comprehension.
+### In scope
 
-### Google VR Constellation Menu ([developers.google.com](https://developers.google.com/vr/elements/constellation-menu))
+- Extract cohesive subsystems from `World.js` into new coordinator/controller classes.
+- Extract input-state management from `InputRouter.js` into focused state-machine classes.
+- Introduce a lightweight `WorldEventBus` for cross-cutting concerns (interaction logging, auto-save, telemetry, settings broadcasts).
+- Apply design patterns: Facade, Mediator, Strategy, State, Observer, Builder.
+- Preserve every public property/method accessed by `tests/world.test.js`, `tests/world-coverage.test.js`, `tests/input-router.test.js`, and related UI tests.
+- Run the full test suite after each extraction and fix regressions.
 
-- Choices radiate from the reticle; hovering a branch reveals deeper items while earlier rings stay visible.
-- Keep every reachable choice one click away.
-- Draw a connector line along the chosen path to reinforce spatial muscle memory.
-- Prefer icons over text for labels.
-- Guard opening with an "Open FoV Angle" and close with a "Close Angle" to prevent accidental triggers.
-- Set a menu distance closer than scene objects; use hover delay to avoid accidental switches while sweeping the pointer.
-- Fade icon backgrounds by state and trim connector lines near the reticle.
+### Out of scope
 
-### VR UI best practices (systematic review, Displays 2026; [doi:10.1016/j.displa.2026.103452](https://doi.org/10.1016/j.displa.2026.103452))
-
-- Maintain proper viewing distances and element spacing.
-- Place interactive elements in the lower field of view when possible.
-- Use intuitive, ergonomic interactions.
-- Pay attention to onboarding, learning curves, and cybersickness.
+- Refactoring non-UI subsystems (Draco engine, parsers, network internals).
+- WASM migration work.
+- Documentation/landing-page content updates.
 
 ## Current state assessment
 
-| Component | What's working | What's missing / risky |
+| Component | Status | What's next |
 |---|---|---|
-| `HandWheelMenu` | Body-anchored constellation menu, connector lines, category/action split, accessible scaling | Still uses text labels instead of icons; no open/close angle guards; action ring can feel dense |
-| `MovablePanel` | Tilted canvas panels, depth clamping, drag, minimize, accessibility flags | No snap-to-zone animation; no "newspaper" head-locked mode; window controls are small canvas targets |
-| `VRMenu` | Comprehensive operation and dataset access | Very long text list (1200 px height), detached from data objects, novices are overwhelmed |
-| `GuidedTour` | Step-based onboarding with arrows and audio hooks | No progression breadcrumb; no "pause/resume" gesture; step conditions are coarse |
-| `InteractionCoach` | Real-time gesture/controller log | Passive text log; not contextual; does not fade for experts |
-| `DashboardManager` | Wall and semicircle layouts | Semicircle mode not stress-tested; no mini-map or overview of open panels |
-| `PanelManager` | Analyst anchor, launcher ring, slot assignment | Free-floating mode exists but lacks persistence and quick-reset |
-| `Engine` / `World` | WebXR lifecycle, input routing, theme | No user-settable comfort options (snap turn, vignette, seated height); no FOV-aware UI fade |
+| `HandWheelMenu` | Implemented; icons + guard angles + hover delay already ship | Keep behavior; make it a pure rendering/input widget owned by `WorldUIManager` |
+| `MovablePanel` | Implemented; drag, minimize, accessibility exist | Extract rendering helpers; consider a newspaper/head-locked mode later |
+| `VRMenu` | Implemented | Move button registry and operation dispatch out of `World.js` into `WorldUIManager` |
+| `GuidedTour` | Implemented | Keep; let `UserModeController` decide when to start it |
+| `InteractionCoach` | Implemented | Subscribe to `WorldEventBus` `'interaction'` events instead of being called directly |
+| `NarrativeStrip` | Implemented | Subscribe to `'operation:applied'` / `'history:seek'` events |
+| `MiniOverview` | Implemented | Owned by `WorldUIManager` |
+| `PeerPresenceHUD` | Implemented | Owned by `WorldUIManager` |
+| `DashboardManager` | Implemented | Owned by `WorldUIManager` |
+| `PanelManager` | Implemented | Owned by `WorldUIManager` |
+| `InPlaceOperationHandles` / `LivePreview` | Implemented | Driven by `DataOperationController` events |
+| `Engine` / `World` | God-class risk | Refactor into facade + coordinators |
+| `InputRouter` | God-class risk | Split into state-machine helpers |
 
-## Concrete improvements
+## Responsibilities to split
 
-### 1. Icon-first wheel menu with guard angles
+| Responsibility | Currently in | New home |
+|---|---|---|
+| Scene landmark composition (datum plane, core, portals, inspector) | `World.js` constructor | `WorldSceneComposer` |
+| HUD panel creation & lifecycle (VRMenu, console, settings, log, metrics, perf, network, coach, narrative strip) | `World.js` constructor | `WorldUIManager` |
+| Dashboard creation & panel registration | `World.js` constructor | `WorldUIManager` |
+| Hand wheel menu construction | `World.js` `_buildWheelMenu` | `WorldUIManager` |
+| Gesture/context routing, pause/resume, reset view | `World.js` `_onGesture`, `_updateGestures`, `_updateInputContext` | `WorldInputCoordinator` |
+| Data operation apply/preview/reset/history wiring | `World.js` `applyDataOperation`, `previewDataOperation`, `resetDataOperation` | `DataOperationController` |
+| User-mode effects (tour auto-start, coach visibility, tooltip policy) | `World.js` `_applyUserModeSettings` | `UserModeController` |
+| Comfort/panel-distance settings application | `World.js` `_applyComfortSettings`, `_applyPanelDistance` | `ComfortSettingsController` |
+| Interaction logging, auto-save trigger, telemetry notifications | scattered in `World.js` | `WorldEventBus` + subscribers |
+| Pointer hover/down/up/drag/dwell state machine | `InputRouter.js` | `PointerStateMachine` + `DwellSelectionController` |
+| Controller/hand polling and system toggle detection | `InputRouter.js` | `InputPoller` |
+| Selection dispatch (hover/leave/select callbacks) | `InputRouter.js` | `SelectionDispatcher` |
 
-**Files:** `src/vr/ui/HandWheelMenu.js`, `src/utils/GestureMapping.js`, `src/vr/ui/IconAtlas.js` (new)
+## Proposed class design
 
-- Replace text label textures with icon-first, text-below thumbnails for categories and actions. Keep text as a small caption only when the label is not self-explanatory.
-- Add configurable `openAngleThreshold` and `closeAngleThreshold`: the wheel only opens when the off-hand pointer moves far enough from center, and closes when it strays too far, reducing accidental opens.
-- Add a short hover delay (~120–200 ms) before an action is highlighted so sweeping the laser does not flash all items.
-- Animate connector lines and selected-path nodes with stronger state feedback (pulse on hover, dim unselected branches).
-- Provide a "recents" or "favorites" inner ring for expert users so common operations are one click away.
+### New utility
 
-**Why:** Google's constellation guidelines and Starblood Arena both emphasize icon clarity, muscle memory, and accidental-trigger prevention.
+#### `src/utils/EventBus.js` — `WorldEventBus`
 
-### 2. Diegetic, in-place data operations
+A tiny typed pub/sub:
 
-**Files:** `src/vr/interactions/DataOperations.js`, `src/draco/VRTopologyTranslator.js`, `src/vr/ui/HUDOverlay.js` (new)
+```js
+export class WorldEventBus {
+  on(topic, handler)
+  off(topic, handler)
+  emit(topic, payload)
+  once(topic, handler)
+}
+```
 
-- Attach operation affordances directly to artefacts: a small "sort" handle on a tabular plinth, a "filter" threshold slider on a time ribbon, a "cluster" toggle on a graph constellation.
-- Use bimanual symmetric gestures for range/zoom on time-series and geo datasets (e.g., both hands pinch apart to expand a time window), with a visual preview of the new range before release.
-- Disable travel/locomotion when a hand is near an interactive widget to prevent accidental movement while adjusting data.
-- Keep the `VRMenu` as a fallback "omnibus" panel, but promote the most common operations into the scene.
+Topics used by the UI refactor:
+- `'interaction'` — `{ action, gesture, controller, result }`
+- `'settings:changed'` — `{ key, value, all }`
+- `'dataset:loaded'` — `{ entry }`
+- `'operation:applied'` — `{ operation, rowCount }`
+- `'operation:preview'` — `{ operation, previewDataset, originalDataset }`
+- `'operation:clear-preview'`
+- `'history:seek'` — `{ index, operation }`
+- `'session:autosave-request'`
 
-**Why:** Tableau and the 3D Radar Chart research both show users strongly prefer direct manipulation over detached control panels.
+### New coordinators under `src/vr/coordinators/`
 
-### 3. Progressive disclosure: novice vs. expert modes
+#### `WorldUIManager`
 
-**Files:** `src/vr/ui/GuidedTour.js`, `src/vr/ui/InteractionCoach.js`, `src/vr/ui/SettingsPanel.js`, `src/vr/World.js`
+Owns every HUD object except the runtime scene landmarks. Provides the public surface that `World.js` currently exposes directly:
 
-- Add a `userMode` setting: `novice`, `intermediate`, `expert`.
-- Novice: always show the guided tour on first dataset load, expand the interaction coach, show tooltips on first encounter of each gesture/menu item.
-- Intermediate: tour becomes optional, coach collapses to the last line only, tooltips show on long-hover.
-- Expert: auto-hide the coach and most tooltips; enable gesture-only shortcuts; show a compact "command palette" wheel ring.
-- Persist the chosen mode in `SessionStore` and surface it in the settings panel.
+```js
+export class WorldUIManager {
+  constructor(engine, analystAnchor, eventBus, callbacks)
+  get panelManager()
+  get dashboard()
+  get handWheelMenu()
+  get vrMenu()
+  get vrConsole()
+  get settingsPanel()
+  get operationLogPanel()
+  get metricsPanel()
+  get performancePanel()
+  get networkPanel()
+  get interactionCoach()
+  get narrativeStrip()
+  get miniOverview()
+  get peerPresenceHUD()
 
-**Why:** Tableau found a sharp novice/expert split; a single UI cannot serve both well.
+  buildWheelMenu(actions)
+  toggleSettingsPanel()
+  togglePanel(panel)
+  showPanel(panel)
+  hidePanel(panel)
+  recenterPanels()
+  applyAccessibility(options)
+  updateNarrativeStrip(history)
+  updateOperationLog(entries)
+}
+```
 
-### 4. Better information hierarchy and comfort
+Internally it constructs `PanelManager`, `DashboardManager`, all `MovablePanel` subclasses, `HandWheelMenu`, `MiniOverview`, `PeerPresenceHUD`, and wires them to the engine updatables and input panels.
 
-**Files:** `src/vr/ui/PanelManager.js`, `src/vr/ui/DashboardManager.js`, `src/vr/Engine.js`, `src/vr/ui/MovablePanel.js`
+#### `WorldInputCoordinator`
 
-- Define a HUD "focus zone" (center 30°) for high-priority feedback (e.g., active operation result, live-stream warning, anomaly alert). Push dashboards, settings, and logs into the periphery by default.
-- Add a head-locked "newspaper" panel mode for tutorial cards and transient notifications that must stay readable regardless of where the user looks.
-- Add comfort settings: snap/smooth turn toggle, vignette intensity during locomotion, seated-height offset, default panel distance, reduced motion.
-- Fade panels that are far from the gaze vector to reduce occlusion and visual clutter.
+Receives gesture names from `HandGestureRecognizer` and `ControllerGestureMapper`, resolves intent, applies context-aware suppression (hand near artefact/wheel menu), and delegates to the right subsystem via callbacks or events.
 
-**Why:** Starblood Arena's circular HUD hierarchy and the Displays 2026 review both stress comfort and proper FOV placement.
+```js
+export class WorldInputCoordinator {
+  constructor(engine, eventBus, options)
+  setHandlers({
+    onApplyOperation,
+    onPreviewOperation,
+    onClearPreview,
+    onCycleDataset,
+    onResetView,
+    onResetData,
+    onUndo,
+    onRedo,
+    onTogglePause,
+    onToggleSettings,
+    onTogglePanels,
+    onToggleStatisticalLens,
+    onToggleMiniOverview,
+    onTogglePeerPresence,
+    onToggleDesktopPreview,
+    onLoadTemplate,
+  })
+  update(delta, time)
+  onGesture(name, ctx)
+}
+```
 
-### 5. Narrative scaffolding and breadcrumbs
+Moves `_updateGestures`, `_updateInputContext`, `_onGesture`, `_togglePauseInput`, `_resetView` out of `World.js`.
 
-**Files:** `src/vr/ui/GuidedTour.js`, `src/vr/ui/DashboardManager.js`, `src/data/AnalysisHistory.js`, `src/vr/ui/NarrativeStrip.js` (new)
+#### `DataOperationController`
 
-- Add a persistent "narrative strip" or breadcrumb trail showing the current dataset → operation → view state, so users know where they are in an analysis story.
-- Each operation appends a node to the strip; clicking a node rewinds the analysis history to that point.
-- Tours should have clear checkpoints, visible progression (e.g., "Step 3 of 7"), and a pause/resume gesture.
-- Provide analysis "templates" (e.g., "Factory floor monitoring", "Fraud investigation") that preload a sample dataset, set a theme, and start the matching tour.
+Encapsulates the strategy for each data operation. Owns `_originalDataset`, `_transformedDataset`, and pushes to `AnalysisHistory`. Emits events so `WorldUIManager` can update the narrative strip, operation log, dashboard, and TDA summary.
 
-**Why:** RécitKit and Tableau both highlight the need for breadcrumbs, templates, and structured checkpoints in infinite-canvas spaces.
+```js
+export class DataOperationController {
+  constructor(eventBus, options)
+  setOriginalDataset(dataset)
+  get originalDataset()
+  get transformedDataset()
+  apply(operation)
+  preview(operation)
+  clearPreview()
+  reset()
+  undo()
+  redo()
+  seekHistory(index)
+  get analysisHistory()
+}
+```
 
-### 6. Collaboration-first UI
+Operations are dispatched through a `OperationStrategyRegistry` (Strategy pattern):
 
-**Files:** `src/network/NetworkManager.js`, `src/vr/ui/NetworkPanel.js`, `src/vr/World.js`, `src/vr/ui/PeerPresenceHUD.js` (new)
+```js
+class OperationStrategyRegistry {
+  register(name, strategy)
+  computeDataset(operation, current, original)
+  applyVisual(operation, artifact, dataset, original)
+}
+```
 
-- Add a compact peer-presence HUD (peripheral, icon + name) showing connected analysts and their approximate direction.
-- Use color-coded avatars or ghost camera rigs to make remote presence feel spatial rather than chat-like.
-- Add a "raise hand" / "follow me" gesture and a shared pointer/laser toggle.
-- Keep the collaboration panel small and world-anchored; do not let it dominate the analyst anchor.
+Strategies are small objects:
 
-**Why:** Tableau's enterprise evaluation found collaboration a more credible use case than solo dashboards.
+```js
+const FilterStrategy = {
+  computeDataset: (current, original) => computeFilter(current),
+  applyVisual: (artifact, dataset) => applyFilter(artifact, dataset),
+};
+```
 
-### 7. Occlusion management for 3D visualizations
+#### `WorldSceneComposer`
 
-**Files:** `src/vr/artifacts/*.js`, `src/vr/scalability/LODManager.js`, `src/vr/World.js`
+Builds shared scene landmarks and exposes them as properties. Keeps the `World.js` constructor from directly instantiating artefacts.
 
-- Add a mini-overview (e.g., a small bird's-eye 2D map or TDA summary) that shows the user's current view frustum relative to the full palace.
-- When the user gazes at a data point, dim or X-ray occluders within 20 cm of the ray so the target remains visible.
-- Use the existing `LODManager` to fade distant labels and switch distant artefacts to aggregate proxies.
-- Add an auto-rotate/pivot hint for densely occluded views (e.g., "rotate to see the back of the graph").
+```js
+export class WorldSceneComposer {
+  constructor(engine)
+  get datum()
+  get core()
+  get portals()
+  get inspector()
+  get analystAnchor()
+}
+```
 
-**Why:** 3D occlusion was a major issue in Tableau's Vision Pro study.
+#### `UserModeController`
 
-### 8. Accessibility and cross-platform continuity
+State-pattern controller for `novice | intermediate | expert`. Applies effects to the guided tour, interaction coach, and tooltip manager.
 
-**Files:** `src/utils/Accessibility.js`, `src/vr/ui/MovablePanel.js`, `src/vr/DesktopControls.js`, `src/ui/FileLoader.js`
+```js
+export class UserModeController {
+  constructor(eventBus, options)
+  setMode(mode)
+  get mode()
+}
+```
 
-- Expand accessibility settings: text scale already exists; add high-contrast themes, colorblind-safe palettes, persistent audio narration for gestures, and haptic intensity.
-- Ensure every gesture has a controller equivalent and a desktop equivalent (documented in the interaction coach).
-- Synchronize key settings and the most recent analysis story between desktop and VR sessions via `SessionStore`.
-- Add a "desktop preview" mode that renders the current palace in a 2D view with orbit controls so analysts can prepare on a monitor before entering VR.
+#### `ComfortSettingsController`
 
-**Why:** Tableau and the Displays 2026 review both identify accessibility and cross-platform continuity as must-haves.
+Applies comfort-related settings to `Engine` and `Locomotion`, and repositions the analyst anchor for panel distance.
 
-### 9. Live previews and contextual help
+```js
+export class ComfortSettingsController {
+  constructor(engine, analystAnchor)
+  apply(settings)
+}
+```
 
-**Files:** `src/vr/ui/TooltipManager.js`, `src/vr/ui/VRMenu.js`, `src/vr/interactions/DataOperations.js`
+### `InputRouter.js` split
 
-- Before applying a filter/sort/aggregate, show a transient ghost preview of the result (e.g., faded destination positions, highlighted outliers) so the user can confirm the operation.
-- Tooltips should appear near the hovered artefact, not in a fixed panel, and include the controller/button hint.
-- Add a "what would this do?" long-hover in the wheel menu and VRMenu for operations.
+Keep `InputRouter` as a thin facade. Move internals into:
 
-**Why:** RécitKit specifically asked for live previews of how data drives scene changes.
+#### `src/vr/input/PointerStateMachine.js`
 
-### 10. Harden menu robustness and intent inference
+Tracks hover, down pointer, captured panel, drag state, and dwell target.
 
-**Files:** `src/vr/InputRouter.js`, `src/vr/interactions/HandGestureRecognizer.js`, `src/vr/ui/HandWheelMenu.js`
+#### `src/vr/input/InputPoller.js`
 
-- Infer intent from context: if the pointer hand is inside a data artefact's bounding sphere, suppress locomotion and global gestures; if both hands are near the wheel menu, suppress scene selection.
-- Add a global "pause input" gesture (e.g., both fists closed) so users can reset their hands without triggering commands.
-- Add a deliberate "reset view" gesture that returns the user to the default overview without undoing analysis history.
+Polls XR `inputSources`, maintains `controllerTriggerPressed`, `controllerGripPressed`, `lastHandPinched`, detects system toggles.
 
-**Why:** The 3D Radar Chart paper identified ambiguous postures and unintentional commands as the main usability issue.
+#### `src/vr/input/SelectionDispatcher.js`
+
+Executes `onSelect` callbacks on hovered interactables and HUD click handlers, plays feedback.
+
+#### `src/vr/input/DwellSelectionController.js`
+
+Manages dwell timer and threshold for motor-accessibility selection.
+
+## Mapping research-backed improvements to the new architecture
+
+| # | Improvement | Enabling refactor | New/changed files |
+|---|---|---|---|
+| 1 | Icon-first wheel menu with guard angles | `HandWheelMenu` becomes a rendering widget owned by `WorldUIManager`; input guards move to `WorldInputCoordinator` | `src/vr/ui/HandWheelMenu.js`, `src/vr/ui/IconAtlas.js` |
+| 2 | Diegetic, in-place data operations | `DataOperationController` emits preview/apply events; `InPlaceOperationHandles` listens | `src/vr/interactions/InPlaceOperationHandles.js`, `src/vr/coordinators/DataOperationController.js` |
+| 3 | Progressive disclosure: novice/expert modes | `UserModeController` (State pattern) applies mode effects | `src/vr/coordinators/UserModeController.js` |
+| 4 | Better information hierarchy and comfort | `ComfortSettingsController` + `WorldUIManager` focus-zone logic | `src/vr/coordinators/ComfortSettingsController.js`, `src/vr/Engine.js` |
+| 5 | Narrative scaffolding and breadcrumbs | `NarrativeStrip` subscribes to `WorldEventBus` | `src/vr/ui/NarrativeStrip.js` |
+| 6 | Collaboration-first UI | `PeerPresenceHUD` owned by `WorldUIManager`; `CollaborationCoordinator` already extracted | `src/vr/ui/PeerPresenceHUD.js` |
+| 7 | Occlusion management | `MiniOverview` owned by `WorldUIManager`; future gaze-occlusion logic in `WorldInputCoordinator` | `src/vr/ui/MiniOverview.js` |
+| 8 | Accessibility and cross-platform continuity | `ComfortSettingsController` applies settings; event bus syncs state | `src/utils/EventBus.js`, `src/vr/ui/MovablePanel.js` |
+| 9 | Live previews and contextual help | `DataOperationController` emits preview events; `LivePreview` already extracted | `src/vr/interactions/LivePreview.js` |
+| 10 | Harden menu robustness and intent inference | `WorldInputCoordinator` context check; split `InputRouter` state machine | `src/vr/InputRouter.js`, `src/vr/input/*.js` |
+
+## Public API compatibility strategy
+
+`World.js` becomes a facade that delegates to the new classes but keeps the legacy properties:
+
+```js
+this.uiManager = new WorldUIManager(...);
+this.panelManager = this.uiManager.panelManager;
+this.dashboard = this.uiManager.dashboard;
+this.handWheelMenu = this.uiManager.handWheelMenu;
+// etc.
+```
+
+Methods like `applyDataOperation(operation)` delegate to `dataOperationController.apply(operation)`. `_onGesture(name, ctx)` delegates to `inputCoordinator.onGesture(name, ctx)`. `_buildWheelMenu()` delegates to `uiManager.buildWheelMenu(actions)`.
+
+Tests that spy on internal methods (e.g. `vi.spyOn(world, 'loadDataset')`) continue to work because the public method still exists.
+
+## Event-driven cross-cutting
+
+Replace direct calls like:
+
+```js
+this._logInteraction('Filter', { result: '12 rows' });
+this._captureSession();
+this._updateOperationLog();
+this._updateNarrativeStrip();
+```
+
+With a single event:
+
+```js
+this.eventBus.emit('operation:applied', { operation, rowCount });
+```
+
+Subscribers:
+- `InteractionCoach` logs the interaction.
+- `OperationLogPanel` refreshes.
+- `NarrativeStrip` re-renders.
+- `World` queues an auto-save.
+- `TelemetryCollector` records the operation.
+
+This decouples the operation controller from UI panels and logging.
 
 ## Implementation order
 
-### Immediate (1–2 weeks)
+### Phase A — Structural refactor (foundation)
 
-1. **Icon-first wheel menu** — add icon support and guard angles to `HandWheelMenu`.
-2. **Novice/expert mode switch** — add `userMode` to `SettingsPanel`, `SessionStore`, and the interaction coach.
-3. **Narrative breadcrumb** — add a small analyst-anchored strip tied to `AnalysisHistory`.
-4. **Comfort settings** — snap turn, vignette, seated height in `SettingsPanel` and `Engine`.
+1. **Add `WorldEventBus`** — pure utility, no existing code changes.
+2. **Extract `DataOperationController`** — move `applyDataOperation`, `previewDataOperation`, `resetDataOperation`, history wiring. Keep `World.applyDataOperation` as a delegate. Run `npm test`.
+3. **Extract `WorldUIManager`** — move panel/dashboard/wheel-menu construction. Keep all `world.*` references. Run tests.
+4. **Extract `WorldInputCoordinator`** — move gesture/context code. Run tests.
+5. **Extract `WorldSceneComposer`** — move landmark composition. Run tests.
+6. **Extract `UserModeController` and `ComfortSettingsController`** — move settings-effect code. Run tests.
+7. **Refactor `InputRouter.js`** — split into state machine / poller / dispatcher / dwell controller. Run tests.
+8. **Wire the event bus** — replace scattered `_logInteraction` / `_captureSession` / `_updateNarrativeStrip` calls with events. Run full test suite.
 
-### Short term (2–4 weeks)
+### Phase B — Research-backed improvements (build on the refactor)
 
-5. **In-place operation handles** — attach affordances to artefacts for filter/sort/slice on the most common topologies.
-6. **Live previews** — ghost the result of menu-selected operations before applying.
-7. **Mini-overview** — add a small 2D map/TDA summary showing the current frustum.
-8. **Peer-presence HUD** — compact peripheral indicators for collaboration.
-
-### Medium term (1–2 months)
-
-9. **Analysis templates** — load dataset + theme + tour as a single "story" entry point.
-10. **Cross-platform continuity** — desktop preview mode and setting sync.
-11. **Advanced intent inference** — context-aware gesture suppression and pause/resume/reset gestures.
+9. **Icon-first wheel menu** — replace remaining text-only labels; finalize guard-angle tuning.
+10. **In-place operation handles** — extend topology coverage once `DataOperationController` events are stable.
+11. **FOV focus zones and newspaper panel mode** — add to `WorldUIManager` / `ComfortSettingsController`.
+12. **Advanced intent inference** — tighten context checks in `WorldInputCoordinator`.
 
 ## Success criteria
 
-- `HandWheelMenu` uses icons for at least 80% of category/action entries and has documented open/close angle thresholds.
-- A novice/expert mode toggle is available and persisted across sessions.
-- At least three data operations (filter, sort, time-slice) have in-place artefact handles in addition to the detached menu.
-- Analysis history is visible as a spatial breadcrumb and clickable rewind strip.
-- Comfort settings reduce reported discomfort in a short user test.
-- Every new UI feature has a corresponding Vitest test and an update in `docs/GETTING_STARTED.md` or `docs/DESIGN_SYSTEM.md`.
+- `npm test` passes with no new failures.
+- `World.js` is under 1,000 lines.
+- `InputRouter.js` is under 250 lines as a facade.
+- Every new class has a dedicated Vitest test file under `tests/`.
+- Public `World` API remains backward-compatible: `tests/world.test.js` and `tests/world-coverage.test.js` pass without modification.
+- No circular imports between new coordinator classes.
+- The research-backed improvements already shipped (wheel menu icons, guard angles, novice/expert mode, narrative strip, mini-overview, peer presence, live preview, in-place handles, comfort settings) continue to work after the refactor.
 
 ## Risks and mitigation
 
 | Risk | Mitigation |
 |---|---|
-| Icons may be ambiguous for complex operations | Keep a small text caption and tooltips; allow user-customizable labels in expert mode. |
-| In-place handles add visual clutter | Use LOD/fade; only show handles when gazed at or when the user's hand is near. |
-| More modes means more test permutations | Unit-test mode switching and keep UI logic in pure helper functions. |
-| Direct manipulation conflicts with existing ray-based panel drag | Use a "near hand" threshold to switch from ray to direct hand interaction. |
-| Cross-platform preview requires duplicated rendering | Start with a simple 2D orthographic screenshot/orbit view, not a full renderer. |
+| Tests rely on `world.*` internals | Keep facade properties and delegate methods; only move bodies. |
+| Circular dependencies between coordinators | Pass `eventBus` and small callback objects, not the whole `World`. |
+| Refactor is too large to land safely | Land one extraction at a time; run tests after each. |
+| Event bus adds indirection that makes debugging harder | Keep topic names in a `WorldTopics` constant; log emissions in dev builds. |
+| `InputRouter` refactor breaks hand/controller input | Keep original behavior in the facade; add characterization tests before splitting. |
 

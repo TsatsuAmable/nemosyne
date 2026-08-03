@@ -106,7 +106,8 @@ export class LivePreview {
   _previewAnomaly(previewDataset, artifact) {
     for (const mesh of artifact.nodeMeshes) {
       const previewRow = this._findPreviewRow(mesh.userData.row, previewDataset.rows);
-      const isOutlier = previewRow?._anomaly || previewRow?.anomaly || previewRow?._outlier || previewRow?.outlier;
+      const isOutlier =
+        previewRow?._anomaly || previewRow?.anomaly || previewRow?._outlier || previewRow?.outlier;
       if (!isOutlier) continue;
       const marker = this._createSprite('⚡', '#ff3366');
       this._attachMarker(marker, mesh, new THREE.Vector3(0, 0.9, 0));

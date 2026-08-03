@@ -156,10 +156,7 @@ export class MiniOverview {
 
     ctx.beginPath();
     ctx.moveTo(cp.x, cp.y);
-    ctx.lineTo(
-      cp.x + Math.cos(leftAngle) * coneLen,
-      cp.y - Math.sin(leftAngle) * coneLen
-    );
+    ctx.lineTo(cp.x + Math.cos(leftAngle) * coneLen, cp.y - Math.sin(leftAngle) * coneLen);
     ctx.arc(cp.x, cp.y, coneLen, -leftAngle, -rightAngle, true);
     ctx.closePath();
     ctx.fillStyle = 'rgba(255, 204, 0, 0.25)';

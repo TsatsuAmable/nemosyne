@@ -33,7 +33,11 @@ describe('HandGestureRecognizer intent inference', () => {
   it('emits pauseResume after both hands pinched close together for the hold threshold', () => {
     const close = new THREE.Vector3(0, 0, 0);
     const handA = makeHand(close.clone(), new THREE.Vector3(0, 0, -1), true);
-    const handB = makeHand(close.clone().add(new THREE.Vector3(0.05, 0, 0)), new THREE.Vector3(0, 0, -1), true);
+    const handB = makeHand(
+      close.clone().add(new THREE.Vector3(0.05, 0, 0)),
+      new THREE.Vector3(0, 0, -1),
+      true
+    );
     recognizer.setHands([handA, handB]);
 
     // First frame initializes state.

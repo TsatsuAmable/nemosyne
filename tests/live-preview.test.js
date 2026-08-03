@@ -19,10 +19,14 @@ function makeDataset(rows, name = 'test') {
     name: r.name ?? `row-${i}`,
     value: r.value ?? 0,
   }));
-  return new Dataset(name, [
-    { name: 'name', type: ColumnType.CATEGORICAL },
-    { name: 'value', type: ColumnType.NUMERIC },
-  ], normalizedRows);
+  return new Dataset(
+    name,
+    [
+      { name: 'name', type: ColumnType.CATEGORICAL },
+      { name: 'value', type: ColumnType.NUMERIC },
+    ],
+    normalizedRows
+  );
 }
 
 function makeArtifactMeshes(rows) {
