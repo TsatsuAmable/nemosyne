@@ -116,4 +116,45 @@ describe('InputRouter controller system toggle', () => {
 
     expect(toggles).toBe(0);
   });
+
+  it('falls back to index order for controllers without handedness', () => {
+    const noHand = new MockController('none');
+    router.addController(noHand);
+
+    engine.session = {
+      inputSources: [{ gamepad: { buttons: [{ pressed: false }, { pressed: true }] } }],
+    };
+
+    router.update(null, null, engine.session, 0);
+    expect(toggles).toBe(1);
+  });
+
+  it('clears hover and resets ray length when no pointer is available', () => {
+    const entry = { mesh: new THREE.Object3D(), onEnter: vi.fn(), onLeave: vi.fn() };
+    router.addInteractable(entry.mesh, entry);
+    router.hovered = entry;
+
+    router.update(null, null, engine.session, 0);
+
+    expect(router.hovered).toBeNull();
+  });
+
+  it('fires a global select callback', () => {
+    const selectCb = vi.fn();
+    router.onSelectCallback = selectCb;
+
+    const controller = new MockController('right');
+    router.addController(controller);
+    engine.session = {
+      inputSources: [
+        { handedness: 'right', gamepad: { buttons: [{ pressed: false }, { pressed: false }] } },
+      ],
+    };
+
+    router.update(null, null, engine.session, 0);
+    engine.session.inputSources[0].gamepad.buttons[0].pressed = true;
+    router.update(null, null, engine.session, 0.1);
+
+    expect(selectCb).toHaveBeenCalled();
+  });
 });

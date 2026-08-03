@@ -92,4 +92,19 @@ describe('DesktopControls', () => {
     controls.update();
     expect(controls._cursor.visible).toBe(true);
   });
+
+  it('performs undo and redo from keyboard shortcuts', () => {
+    engine.onUndo = vi.fn();
+    engine.onRedo = vi.fn();
+
+    const ev = new KeyboardEvent('keydown', { ctrlKey: true, key: 'z', code: 'KeyZ' });
+    const preventDefault = vi.spyOn(ev, 'preventDefault');
+    controls._onKeyDown(ev);
+    expect(engine.onUndo).toHaveBeenCalled();
+    expect(preventDefault).toHaveBeenCalled();
+
+    const redoEv = new KeyboardEvent('keydown', { ctrlKey: true, key: 'y', code: 'KeyY' });
+    controls._onKeyDown(redoEv);
+    expect(engine.onRedo).toHaveBeenCalled();
+  });
 });
