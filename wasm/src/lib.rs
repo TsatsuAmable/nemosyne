@@ -77,7 +77,7 @@ mod allocator {
 
     #[cfg(not(target_arch = "wasm32"))]
     mod host {
-        use std::alloc::{alloc, dealloc, Layout};
+        use std::alloc::{alloc as sys_alloc, dealloc as sys_dealloc, Layout};
 
         pub fn reset() {}
 
@@ -88,7 +88,7 @@ mod allocator {
             }
             let aligned_len = (len + 7) & !7;
             let layout = Layout::from_size_align(aligned_len, 8).expect("invalid layout");
-            let ptr = unsafe { alloc(layout) };
+            let ptr = unsafe { sys_alloc(layout) };
             if ptr.is_null() {
                 panic!("allocator out of memory");
             }
@@ -101,7 +101,7 @@ mod allocator {
             }
             let aligned_len = ((len as usize) + 7) & !7;
             let layout = Layout::from_size_align(aligned_len, 8).expect("invalid layout");
-            unsafe { dealloc(ptr as *mut u8, layout) };
+            unsafe { sys_dealloc(ptr as *mut u8, layout) };
         }
     }
 }
