@@ -12,25 +12,32 @@
  * primitives cross the wasm-bindgen boundary.
  */
 
-import initWasm, * as raw from '../../wasm/pkg/nemosyne_wasm.js';
-
 let wasmModule = null;
 let memoryView = null;
 
 /**
  * Initialise the WASM runtime.
  *
- * @param {string|URL} [wasmUrl] - Optional URL to the `.wasm` binary. In dev
- *   the Vite plugin serves it at `/wasm/nemosyne_wasm_bg.wasm`; in production
- *   it is copied to `dist/wasm/`.
+ * The wasm-pack generated module is loaded lazily so that builds which do not
+ * run `wasm-pack` still bundle and start without a hard import-time dependency
+ * on the generated `wasm/pkg/` directory. When the module is present (dev, or
+ * after `npm run build:wasm`) it is fetched and initialised; otherwise the
+ * caller can fall back to the JS implementation.
+ *
+ * @param {string|URL} [wasmUrl] - Optional URL to the `.wasm` binary. When
+ *   omitted, the wasm-pack init function fetches it relative to its own JS URL.
  * @returns {Promise<object>} The raw wasm-bindgen exports.
  */
 export async function initRuntime(wasmUrl) {
   if (wasmModule) return wasmModule;
 
+  // Absolute path is preserved by Vite as an external runtime fetch; it points
+  // at the wasm-pack output served from the project root in dev.
+  const mod = await import('/wasm/pkg/nemosyne_wasm.js');
+
   // wasm-pack --target web exports an `init` function that fetches the binary.
-  await initWasm(wasmUrl);
-  wasmModule = raw;
+  await mod.default(wasmUrl);
+  wasmModule = mod;
   refreshMemoryView();
 
   // Seed the runtime. Phase 0 returns a sentinel handle of 1.
