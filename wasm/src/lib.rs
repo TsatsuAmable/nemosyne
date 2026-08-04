@@ -429,10 +429,10 @@ pub fn data_load_sample(key_ptr: u32, key_len: u32) -> u32 {
 }
 
 /// Write the comma-separated list of available sample keys into `out_ptr`.
-/// The host must `alloc` at least 64 bytes. Returns the number of bytes written.
+/// The host must `alloc` at least 256 bytes. Returns the number of bytes written.
 #[wasm_bindgen]
 pub fn data_sample_keys(out_ptr: u32, out_len: u32) -> u32 {
-    let keys = "supply-chain,fraud-graph,sensor-stream";
+    let keys = "supply-chain,fraud-graph,sensor-stream,sales-table,org-chart,wind-field,social-graph,financial-series,geo-cities,flow-process";
     let bytes = keys.as_bytes();
     let write_len = std::cmp::min(bytes.len(), out_len as usize);
     let slice = unsafe { allocator::view_mut(out_ptr, write_len as u32) };
@@ -537,16 +537,39 @@ mod tests {
 
     #[test]
     fn data_sample_keys_writes_list() {
-        let buf_len = 64;
+        let buf_len = 256;
         let buf = alloc(buf_len);
         let written = data_sample_keys(buf, buf_len);
         assert!(written > 0);
         let slice = unsafe { allocator::view(buf, written) };
         let s = std::str::from_utf8(slice).expect("utf8");
-        assert!(s.contains("supply-chain"));
-        assert!(s.contains("fraud-graph"));
-        assert!(s.contains("sensor-stream"));
+        for key in [
+            "supply-chain",
+            "fraud-graph",
+            "sensor-stream",
+            "sales-table",
+            "org-chart",
+            "wind-field",
+            "social-graph",
+            "financial-series",
+            "geo-cities",
+            "flow-process",
+        ] {
+            assert!(s.contains(key), "missing sample key: {}", key);
+        }
         dealloc(buf, buf_len);
+    }
+
+    #[test]
+    fn data_load_sample_financial_series_has_rows() {
+        let key = b"financial-series";
+        let (ptr, len) = allocator::copy_bytes(key);
+        let handle = data_load_sample(ptr, len);
+        assert!(handle > 0);
+        assert_eq!(dataset_row_count(handle), 48);
+        assert_eq!(dataset_column_count(handle), 7);
+        dataset_destroy(handle);
+        dealloc(ptr, len);
     }
 
     #[test]
