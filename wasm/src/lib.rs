@@ -363,6 +363,53 @@ pub fn dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     .unwrap_or(0)
 }
 
+/// Load a JS `Dataset.toJSON()` object back into the Rust data layer and
+/// return a dataset handle. Returns `0` if the JSON is invalid.
+#[wasm_bindgen]
+pub fn data_load_dataset_json(ptr: u32, len: u32) -> u32 {
+    let bytes = unsafe { allocator::view(ptr, len) };
+    let json = match std::str::from_utf8(bytes) {
+        Ok(s) => s,
+        Err(_) => return 0,
+    };
+    match data::dataset::Dataset::from_js_json(json) {
+        Ok(dataset) => data::register_dataset(dataset),
+        Err(e) => {
+            log_error(&format!("data_load_dataset_json failed: {}", e));
+            0
+        }
+    }
+}
+
+/// Apply a generic data operation to a dataset and return a new dataset handle.
+///
+/// `op_ptr` / `op_len` point to a UTF-8 JSON object with a top-level `op`
+/// field. See `data::operations_bridge::Operation` for supported shapes.
+/// Returns `0` on parse or execution failure.
+#[wasm_bindgen]
+pub fn data_operation(handle: u32, op_ptr: u32, op_len: u32) -> u32 {
+    let op_bytes = unsafe { allocator::view(op_ptr, op_len) };
+    let op_json = match std::str::from_utf8(op_bytes) {
+        Ok(s) => s,
+        Err(_) => return 0,
+    };
+    let op: data::operations_bridge::Operation = match serde_json::from_str(op_json) {
+        Ok(o) => o,
+        Err(e) => {
+            log_error(&format!("data_operation parse failed: {}", e));
+            return 0;
+        }
+    };
+    data::with_dataset(handle, |ds| match data::operations_bridge::apply(ds, op) {
+        Ok(result) => data::register_dataset(result),
+        Err(e) => {
+            log_error(&format!("data_operation failed: {}", e));
+            0
+        }
+    })
+    .unwrap_or(0)
+}
+
 /// Load a built-in sample dataset by key and return a dataset handle.
 /// Returns `0` if the key is unknown.
 #[wasm_bindgen]
@@ -523,5 +570,49 @@ mod tests {
         dealloc(buf, required);
         dataset_destroy(handle);
         dealloc(key_ptr, key_len);
+    }
+
+    #[test]
+    fn data_operation_sorts_dataset() {
+        let key = b"sensor-stream";
+        let (ptr, len) = allocator::copy_bytes(key);
+        let handle = data_load_sample(ptr, len);
+        assert!(handle > 0);
+
+        let op = b"{\"op\":\"sort\",\"column\":\"temperature\"}";
+        let (op_ptr, op_len) = allocator::copy_bytes(op);
+        let result = data_operation(handle, op_ptr, op_len);
+        assert!(result > 0);
+        assert_eq!(dataset_row_count(result), dataset_row_count(handle));
+
+        dealloc(op_ptr, op_len);
+        dataset_destroy(handle);
+        dataset_destroy(result);
+        dealloc(ptr, len);
+    }
+
+    #[test]
+    fn data_load_dataset_json_round_trips() {
+        let key = b"fraud-graph";
+        let (key_ptr, key_len) = allocator::copy_bytes(key);
+        let handle = data_load_sample(key_ptr, key_len);
+        assert!(handle > 0);
+
+        let required = dataset_to_json(handle, 0, 0);
+        let buf = alloc(required);
+        let written = dataset_to_json(handle, buf, required);
+        assert_eq!(written, required);
+
+        let json_bytes = unsafe { allocator::view(buf, written) };
+        let (json_ptr, json_len) = allocator::copy_bytes(json_bytes);
+        let handle2 = data_load_dataset_json(json_ptr, json_len);
+        assert!(handle2 > 0);
+        assert_eq!(dataset_row_count(handle2), dataset_row_count(handle));
+        assert_eq!(dataset_column_count(handle2), dataset_column_count(handle));
+
+        dealloc(buf, required);
+        dealloc(json_ptr, json_len);
+        dataset_destroy(handle);
+        dataset_destroy(handle2);
     }
 }
