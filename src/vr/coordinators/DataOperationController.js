@@ -6,6 +6,7 @@
  */
 
 import { AnalysisHistory } from '../../data/AnalysisHistory.js';
+import { Dataset } from '../../data/Dataset.js';
 import {
   applyFilter,
   applySort,
@@ -16,10 +17,13 @@ import {
   applyAnomaly,
   applySlice,
   computeOperationDataset,
+  buildWasmOperationSpec,
   captureBaseState,
   resetTransforms,
 } from '../interactions/DataOperations.js';
 import { WorldEventBus, WorldTopics } from '../../utils/EventBus.js';
+
+const CAP_OPERATIONS_RUST = 1 << 2;
 
 const VISUAL_APPLIERS = {
   filter: applyFilter,
@@ -45,6 +49,21 @@ export class DataOperationController {
     this._analysisHistory = new AnalysisHistory({ maxFrames: maxHistoryFrames });
     this._originalDataset = null;
     this._transformedDataset = null;
+    this._wasmRuntime = null;
+    this._wasmCapabilities = 0;
+  }
+
+  /**
+   * Optional Rust/WASM bridge. When present and the OPERATIONS_RUST capability
+   * is enabled, selected operations are computed in Rust and the result is
+   * converted back to a JS Dataset.
+   *
+   * @param {object|null} bridge
+   * @param {number} capabilities
+   */
+  setWasmRuntime(bridge, capabilities = 0) {
+    this._wasmRuntime = bridge;
+    this._wasmCapabilities = capabilities;
   }
 
   /** @returns {import('../../data/AnalysisHistory.js').AnalysisHistory} */
@@ -98,7 +117,7 @@ export class DataOperationController {
     const datasetBefore = this._transformedDataset.clone();
     captureBaseState(artifact);
 
-    this._transformedDataset = computeOperationDataset(
+    this._transformedDataset = this._computeDataset(
       operation,
       this._transformedDataset,
       this._originalDataset
@@ -107,6 +126,32 @@ export class DataOperationController {
     this.applyVisual(operation, this._transformedDataset);
     this.clearPreview();
     this._pushAnalysisHistory(operation, datasetBefore, this._transformedDataset);
+  }
+
+  /**
+   * Compute the result dataset for an operation, routing to the WASM data layer
+   * when the operation is supported there and the runtime is ready. Otherwise
+   * falls back to the JS implementation.
+   *
+   * @param {string} operation
+   * @param {import('../../data/Dataset.js').Dataset} dataset
+   * @param {import('../../data/Dataset.js').Dataset} originalDataset
+   * @returns {import('../../data/Dataset.js').Dataset}
+   */
+  _computeDataset(operation, dataset, originalDataset) {
+    if (
+      this._wasmRuntime &&
+      (this._wasmCapabilities & CAP_OPERATIONS_RUST) !== 0
+    ) {
+      const op = buildWasmOperationSpec(operation, dataset, originalDataset);
+      if (op) {
+        const result = this._wasmRuntime.executeOperation(dataset.toJSON(), op);
+        if (result) {
+          return Dataset.fromJSON(result);
+        }
+      }
+    }
+    return computeOperationDataset(operation, dataset, originalDataset);
   }
 
   /**
@@ -146,7 +191,7 @@ export class DataOperationController {
       this._transformedDataset = this._originalDataset.clone();
     }
 
-    const previewDataset = computeOperationDataset(
+    const previewDataset = this._computeDataset(
       operation,
       this._transformedDataset,
       this._originalDataset

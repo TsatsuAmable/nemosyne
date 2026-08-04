@@ -1952,6 +1952,7 @@ export class World {
     if (bridge.isReady()) {
       this._wasmRuntime = bridge;
       this._wasmCapabilities = bridge.capabilities();
+      this.dataOperationController?.setWasmRuntime?.(bridge, this._wasmCapabilities);
       return;
     }
 
@@ -1961,6 +1962,7 @@ export class World {
     await bridge.initRuntime('/wasm/nemosyne_wasm_bg.wasm');
     this._wasmRuntime = bridge;
     this._wasmCapabilities = bridge.capabilities();
+    this.dataOperationController?.setWasmRuntime?.(bridge, this._wasmCapabilities);
     this.vrConsole?.log?.('log', [
       `WASM ready — capabilities ${this._wasmCapabilities.toString(2)}`,
     ]);
