@@ -5,7 +5,7 @@
  * without being hard-wired into `World`.
  */
 
-import { AnalysisHistory } from '../../data/AnalysisHistory.js';
+import { AnalysisHistory } from '../../data/AnalysisHistory.ts';
 import { Dataset } from '../../data/Dataset.ts';
 import {
   applyFilter,
@@ -66,7 +66,7 @@ export class DataOperationController {
     this._wasmCapabilities = capabilities;
   }
 
-  /** @returns {import('../../data/AnalysisHistory.js').AnalysisHistory} */
+  /** @returns {import('../../data/AnalysisHistory.ts').AnalysisHistory} */
   get analysisHistory() {
     return this._analysisHistory;
   }

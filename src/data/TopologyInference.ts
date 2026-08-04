@@ -1,12 +1,8 @@
 import { TopologyTypes } from '../draco/ConstraintEngine.js';
+import type { Dataset } from './Dataset.ts';
+import type { ColumnSchema } from './types.ts';
 
-/**
- * Heuristic topology inference from dataset column names and types.
- *
- * The goal is to pick a sensible default so a user can drop a CSV onto
- * Nemosyne and see an appropriate memory palace without manually selecting a
- * topology. Every rule can be overridden by the user in the loader UI.
- */
+type TopologyValue = string;
 
 const GRAPH_HINTS = ['source', 'target', 'from', 'to', 'src', 'dst', 'edge'];
 const HIERARCHY_HINTS = ['parent', 'child', 'level', 'parentid', 'childid'];
@@ -16,106 +12,106 @@ const VECTOR_HINTS = ['u', 'v', 'w', 'vx', 'vy', 'vz'];
 /**
  * Normalize a column name for fuzzy matching.
  */
-function _normalize(name) {
+function _normalize(name: string): string {
   return name.toLowerCase().replace(/[_\- ]/g, '');
 }
 
 /**
  * Find columns whose normalized name matches any hint.
  */
-function _findHintedColumns(columns, hints) {
+function _findHintedColumns(columns: ColumnSchema[], hints: string[]): ColumnSchema[] {
   return columns.filter((c) => hints.some((h) => _normalize(c.name).includes(h)));
+}
+
+export interface EncodingMapping {
+  color?: string;
+  size?: string;
+  pulse?: string;
+  time?: string;
+  label?: string;
+  [key: string]: string | undefined;
 }
 
 /**
  * Infer a topology from the dataset schema.
- *
- * @param {import('./Dataset.ts').Dataset} dataset
- * @param {string} [explicitTopology] Optional user override.
- * @returns {string} A value from TopologyTypes.
  */
-export function inferTopology(dataset, explicitTopology) {
-  if (explicitTopology && TopologyTypes[explicitTopology]) {
-    return TopologyTypes[explicitTopology];
+export function inferTopology(dataset: Dataset, explicitTopology?: string): TopologyValue {
+  if (explicitTopology && (TopologyTypes as Record<string, string>)[explicitTopology]) {
+    return (TopologyTypes as Record<string, string>)[explicitTopology];
   }
 
   const numeric = dataset.numericColumns.map((c) => c.name);
   const categorical = dataset.categoricalColumns.map((c) => c.name);
   const temporal = dataset.temporalColumns.map((c) => c.name);
-  const allNames = dataset.columns.map((c) => c.name);
 
   // Graph: explicit edge columns or source/target pairs.
   const graphCols = _findHintedColumns(dataset.columns, GRAPH_HINTS);
   if (graphCols.length >= 2) {
-    return TopologyTypes.GRAPH;
+    return TopologyTypes.GRAPH as string;
   }
 
   // Hierarchy: parent/child/level columns.
   const hierarchyCols = _findHintedColumns(dataset.columns, HIERARCHY_HINTS);
   if (hierarchyCols.length >= 1 && (categorical.length > 0 || numeric.length > 0)) {
-    return TopologyTypes.HIERARCHY;
+    return TopologyTypes.HIERARCHY as string;
   }
 
   // Geo: lat/lon or x/y coordinate columns.
   const geoCols = _findHintedColumns(dataset.columns, GEO_HINTS);
   if (geoCols.length >= 2) {
-    return TopologyTypes.GEO;
+    return TopologyTypes.GEO as string;
   }
 
   // Vector field: u/v/w or vx/vy/vz components.
   const vectorCols = _findHintedColumns(dataset.columns, VECTOR_HINTS);
   if (vectorCols.length >= 2 && numeric.length >= 2) {
-    return TopologyTypes.VECTOR_FIELD;
+    return TopologyTypes.VECTOR_FIELD as string;
   }
 
   // Time series: temporal column + at least one numeric column.
   if (temporal.length > 0 && numeric.length > 0) {
-    return TopologyTypes.TIME_SERIES;
+    return TopologyTypes.TIME_SERIES as string;
   }
 
-  return TopologyTypes.TABULAR;
+  return TopologyTypes.TABULAR as string;
 }
 
 /**
  * Suggest default encodings for an inferred topology.
- *
- * @param {import('./Dataset.ts').Dataset} dataset
- * @param {string} topology
- * @returns {Object} Encodings object suitable for `World.loadDataset`.
  */
-export function inferEncodingsForTopology(dataset, topology) {
-  const enc = {};
+export function inferEncodingsForTopology(dataset: Dataset, topology: string): EncodingMapping {
+  const enc: EncodingMapping = {};
   const cat = dataset.categoricalColumns[0]?.name;
   const num = dataset.numericColumns[0]?.name;
   const num2 = dataset.numericColumns[1]?.name;
   const time = dataset.temporalColumns[0]?.name;
 
   switch (topology) {
-    case TopologyTypes.HIERARCHY:
+    case TopologyTypes.HIERARCHY as string:
       enc.color = cat ?? num;
       enc.size = num;
       enc.pulse = num2;
       break;
-    case TopologyTypes.GRAPH:
+    case TopologyTypes.GRAPH as string:
       enc.color = cat ?? num;
       enc.size = num;
       break;
-    case TopologyTypes.TIME_SERIES:
+    case TopologyTypes.TIME_SERIES as string:
       enc.color = cat ?? num;
       enc.size = num;
       enc.time = time;
       enc.pulse = num2;
       break;
-    case TopologyTypes.VECTOR_FIELD:
+    case TopologyTypes.VECTOR_FIELD as string:
       enc.color = 'magnitude';
       enc.size = 'magnitude';
       break;
-    case TopologyTypes.GEO:
+    case TopologyTypes.GEO as string:
       enc.color = cat ?? num;
       enc.size = num;
       enc.label = cat;
       break;
-    case TopologyTypes.TABULAR:
+    case TopologyTypes.TABULAR as string:
     default:
       enc.color = cat ?? num;
       enc.size = num;

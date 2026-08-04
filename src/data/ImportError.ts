@@ -1,3 +1,5 @@
+import type { Dataset } from './Dataset.ts';
+
 export const ImportErrorCode = {
   EMPTY_FILE: 'EMPTY_FILE',
   NO_ROWS: 'NO_ROWS',
@@ -8,7 +10,9 @@ export const ImportErrorCode = {
   MAX_COLUMNS_EXCEEDED: 'MAX_COLUMNS_EXCEEDED',
   PARSE_ERROR: 'PARSE_ERROR',
   UNSUPPORTED_FORMAT: 'UNSUPPORTED_FORMAT',
-};
+} as const;
+
+export type ImportErrorCodeValue = (typeof ImportErrorCode)[keyof typeof ImportErrorCode];
 
 /**
  * Structured import error with a machine-readable code and a human-readable
@@ -16,7 +20,10 @@ export const ImportErrorCode = {
  * warn the user.
  */
 export class ImportError extends Error {
-  constructor(code, message, fatal = true) {
+  code: ImportErrorCodeValue;
+  fatal: boolean;
+
+  constructor(code: ImportErrorCodeValue, message: string, fatal: boolean = true) {
     super(message);
     this.code = code;
     this.fatal = fatal;
@@ -24,26 +31,40 @@ export class ImportError extends Error {
 }
 
 export class ImportWarning extends Error {
-  constructor(code, message) {
+  code: ImportErrorCodeValue;
+
+  constructor(code: ImportErrorCodeValue, message: string) {
     super(message);
     this.code = code;
   }
 }
 
+export interface ValidationOptions {
+  maxRows?: number;
+  maxColumns?: number;
+  rowLengthMismatchTolerance?: number;
+}
+
+export interface ValidationResult {
+  ok: boolean;
+  errors: ImportError[];
+  warnings: ImportWarning[];
+}
+
 /**
  * Validate a parsed dataset before it is handed to World.loadDataset.
- *
- * @param {import('./Dataset.ts').Dataset} dataset
- * @param {Object} [options]
- * @param {number} [options.maxRows] Fatal if exceeded.
- * @param {number} [options.maxColumns] Fatal if exceeded.
- * @param {number} [options.rowLengthMismatchTolerance=0.05] Fraction of rows that may have a different length before it becomes fatal.
- * @returns {{ ok: boolean, errors: ImportError[], warnings: ImportWarning[] }}
  */
-export function validateImport(dataset, options = {}) {
-  const errors = [];
-  const warnings = [];
-  const { maxRows = Infinity, maxColumns = Infinity, rowLengthMismatchTolerance = 0.05 } = options;
+export function validateImport(
+  dataset: Dataset | null | undefined,
+  options: ValidationOptions = {}
+): ValidationResult {
+  const errors: ImportError[] = [];
+  const warnings: ImportWarning[] = [];
+  const {
+    maxRows = Infinity,
+    maxColumns = Infinity,
+    rowLengthMismatchTolerance = 0.05,
+  } = options;
 
   if (!dataset) {
     errors.push(
@@ -137,7 +158,7 @@ export function validateImport(dataset, options = {}) {
  * Format errors and warnings into a single status message suitable for the
  * loader UI.
  */
-export function formatValidationResult(result) {
+export function formatValidationResult(result: ValidationResult): string | null {
   if (!result.ok) {
     const first = result.errors[0];
     return `Error: ${first.message}`;

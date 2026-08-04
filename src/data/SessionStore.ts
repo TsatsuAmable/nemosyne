@@ -3,6 +3,20 @@ const DB_VERSION = 2;
 const STORE_NAME = 'sessions';
 const SNAPSHOT_SCHEMA_VERSION = 1;
 
+export interface SessionSnapshot {
+  schemaVersion?: number;
+  dataset: Record<string, unknown>;
+  history?: unknown[];
+  [key: string]: unknown;
+}
+
+export interface SessionListing {
+  id: string;
+  savedAt: number;
+}
+
+type IDBFactory = Pick<typeof indexedDB, 'open'>;
+
 /**
  * Lightweight IndexedDB-backed session store.
  *
@@ -11,25 +25,29 @@ const SNAPSHOT_SCHEMA_VERSION = 1;
  * optional `indexedDB` factory so tests can inject a stub.
  */
 export class SessionStore {
-  constructor({ indexedDB: idb = null } = {}) {
+  private _idb: IDBFactory | null;
+  private _dbPromise: Promise<IDBDatabase> | null;
+
+  constructor({ indexedDB: idb = null }: { indexedDB?: IDBFactory | null } = {}) {
     this._idb = idb || (typeof indexedDB !== 'undefined' ? indexedDB : null);
     this._dbPromise = null;
   }
 
-  _db() {
+  private _db(): Promise<IDBDatabase> {
     if (!this._idb) {
       return Promise.reject(new Error('IndexedDB is not available in this environment'));
     }
     if (!this._dbPromise) {
-      this._dbPromise = new Promise((resolve, reject) => {
-        const request = this._idb.open(DB_NAME, DB_VERSION);
+      this._dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
+        const request = this._idb!.open(DB_NAME, DB_VERSION);
         request.onerror = () => {
           this._dbPromise = null;
           reject(request.error);
         };
         request.onsuccess = () => resolve(request.result);
         request.onupgradeneeded = (event) => {
-          const db = event.target.result;
+          const target = event.target as IDBRequest;
+          const db = target.result as IDBDatabase;
           if (!db.objectStoreNames.contains(STORE_NAME)) {
             db.createObjectStore(STORE_NAME, { keyPath: 'id' });
           }
@@ -46,14 +64,10 @@ export class SessionStore {
 
   /**
    * Save a session snapshot. Existing entries with the same id are overwritten.
-   *
-   * @param {string} id
-   * @param {object} snapshot
-   * @returns {Promise<void>}
    */
-  async saveSession(id, snapshot) {
+  async saveSession(id: string, snapshot: SessionSnapshot): Promise<void> {
     const db = await this._db();
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       const request = store.put({ id, snapshot, savedAt: Date.now() });
@@ -64,25 +78,22 @@ export class SessionStore {
 
   /**
    * Load a session snapshot by id.
-   *
-   * @param {string} id
-   * @returns {Promise<object|null>}
    */
-  async loadSession(id) {
+  async loadSession(id: string): Promise<SessionSnapshot | null> {
     if (!this._idb) return null;
     try {
       const db = await this._db();
-      return new Promise((resolve, reject) => {
+      return new Promise<SessionSnapshot | null>((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readonly');
         const store = tx.objectStore(STORE_NAME);
         const request = store.get(id);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
-          const result = request.result;
+          const result = request.result as { snapshot?: SessionSnapshot } | undefined;
           resolve(result ? this._validateSnapshot(result.snapshot) : null);
         };
       });
-    } catch (err) {
+    } catch {
       return null;
     }
   }
@@ -90,11 +101,8 @@ export class SessionStore {
   /**
    * Validate and normalize a stored snapshot.
    * Rejects snapshots with incompatible schema versions or missing required fields.
-   *
-   * @param {object|null} snapshot
-   * @returns {object|null}
    */
-  _validateSnapshot(snapshot) {
+  private _validateSnapshot(snapshot: SessionSnapshot | undefined | null): SessionSnapshot | null {
     if (!snapshot || typeof snapshot !== 'object') return null;
     if (snapshot.schemaVersion && snapshot.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) {
       // Future migrations can branch here; for now reject stale snapshots.
@@ -107,45 +115,41 @@ export class SessionStore {
 
   /**
    * List all stored session ids with their save timestamps.
-   *
-   * @returns {Promise<Array<{id: string, savedAt: number}>>}
    */
-  async listSessions() {
+  async listSessions(): Promise<SessionListing[]> {
     if (!this._idb) return [];
     try {
       const db = await this._db();
-      return new Promise((resolve, reject) => {
+      return new Promise<SessionListing[]>((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readonly');
         const store = tx.objectStore(STORE_NAME);
         const request = store.getAll();
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
-          resolve(request.result.map((r) => ({ id: r.id, savedAt: r.savedAt })));
+          const result = request.result as Array<{ id: string; savedAt: number }>;
+          resolve(result.map((r) => ({ id: r.id, savedAt: r.savedAt })));
         };
       });
-    } catch (err) {
+    } catch {
       return [];
     }
   }
 
   /**
    * Delete a session by id.
-   *
-   * @param {string} id
-   * @returns {Promise<void>}
    */
-  async deleteSession(id) {
+  async deleteSession(id: string): Promise<void> {
     if (!this._idb) return;
     try {
       const db = await this._db();
-      return new Promise((resolve, reject) => {
+      return new Promise<void>((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readwrite');
         const store = tx.objectStore(STORE_NAME);
         const request = store.delete(id);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => resolve();
       });
-    } catch (err) {
+    } catch {
       // Ignore deletion errors when storage is unavailable.
     }
   }
@@ -153,14 +157,10 @@ export class SessionStore {
   /**
    * Store an arbitrary JSON value without session-schema validation.
    * Used for cross-platform shared settings and similar small payloads.
-   *
-   * @param {string} id
-   * @param {object} value
-   * @returns {Promise<void>}
    */
-  async setItem(id, value) {
+  async setItem(id: string, value: Record<string, unknown>): Promise<void> {
     const db = await this._db();
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       const request = store.put({ id, value, savedAt: Date.now() });
@@ -171,40 +171,34 @@ export class SessionStore {
 
   /**
    * Load an arbitrary JSON value stored with `setItem`.
-   *
-   * @param {string} id
-   * @returns {Promise<object|null>}
    */
-  async getItem(id) {
+  async getItem(id: string): Promise<Record<string, unknown> | null> {
     if (!this._idb) return null;
     try {
       const db = await this._db();
-      return new Promise((resolve, reject) => {
+      return new Promise<Record<string, unknown> | null>((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readonly');
         const store = tx.objectStore(STORE_NAME);
         const request = store.get(id);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
-          const result = request.result;
-          resolve(result ? result.value : null);
+          const result = request.result as { value?: Record<string, unknown> } | undefined;
+          resolve(result?.value ?? null);
         };
       });
-    } catch (err) {
+    } catch {
       return null;
     }
   }
 
   /**
    * Check whether a session exists.
-   *
-   * @param {string} id
-   * @returns {Promise<boolean>}
    */
-  async hasSession(id) {
+  async hasSession(id: string): Promise<boolean> {
     if (!this._idb) return false;
     try {
       const db = await this._db();
-      return new Promise((resolve, reject) => {
+      return new Promise<boolean>((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readonly');
         const store = tx.objectStore(STORE_NAME);
         const request = store.getKey(id);
