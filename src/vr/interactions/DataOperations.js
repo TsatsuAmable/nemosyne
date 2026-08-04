@@ -259,6 +259,41 @@ export function captureBaseState(artifact) {
 }
 
 /**
+ * Build a WASM-compatible operation spec for operations whose Rust and JS
+ * semantics are aligned. Returns `null` for operations that should stay on the
+ * JS path (e.g. those with different default parameters or algorithms).
+ *
+ * @param {string} operation
+ * @param {import('../../data/Dataset.js').Dataset} dataset
+ * @param {import('../../data/Dataset.js').Dataset} originalDataset
+ * @returns {object|null}
+ */
+export function buildWasmOperationSpec(operation, dataset, originalDataset) {
+  switch (operation) {
+    case 'sort': {
+      const col =
+        dataset.numericColumns[0]?.name ||
+        dataset.columns[0]?.name ||
+        'value';
+      return { op: 'sort', column: col, ascending: true };
+    }
+    case 'cluster':
+      return { op: 'k_means', k: 3 };
+    case 'hierarchical':
+      return { op: 'hierarchical', k: 3 };
+    case 'density':
+      return { op: 'dbscan', eps: 1, min_points: 1 };
+    case 'timeSlice': {
+      const start = Math.floor(originalDataset.rowCount / 2);
+      const end = originalDataset.rowCount;
+      return { op: 'slice', start, end };
+    }
+    default:
+      return null;
+  }
+}
+
+/**
  * Reset all artefact meshes to their captured base state.
  * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
  */

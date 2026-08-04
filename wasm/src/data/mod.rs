@@ -1,6 +1,7 @@
 pub mod column;
 pub mod dataset;
 pub mod operations;
+pub mod operations_bridge;
 pub mod parsers;
 pub mod synthetic;
 pub mod topology;
