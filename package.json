@@ -6,8 +6,9 @@
   "scripts": {
     "wasm": "wasm-pack build wasm --target web --out-dir pkg",
     "wasm:dev": "wasm-pack build wasm --target web --out-dir pkg --dev",
+    "build:wasm": "wasm-pack build wasm --target web --out-dir pkg",
     "dev": "npm run wasm:dev && vite --host",
-    "build": "npm run wasm && vite build",
+    "build": "vite build",
     "preview": "vite preview --host",
     "lint": "eslint src tests --ext .js,.mjs",
     "lint:fix": "eslint src tests --ext .js,.mjs --fix",

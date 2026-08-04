@@ -2,7 +2,6 @@ import { defineConfig } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRoomRegistry } from './src/network/SignallingServerCore.js';
-import wasmPackPlugin from './vite-wasm-pack-plugin.js';
 
 const certDir = path.resolve(process.cwd(), 'certs');
 
@@ -118,7 +117,6 @@ function httpsOptions(command) {
 
 export default defineConfig(({ command }) => ({
   plugins: [
-    wasmPackPlugin({ mode: command === 'build' ? 'release' : 'dev' }),
     demoStreamPlugin(),
     signallingPlugin(),
   ],
