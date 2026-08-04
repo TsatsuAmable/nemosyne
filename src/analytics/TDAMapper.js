@@ -10,7 +10,7 @@
  * for live VR datasets, not a replacement for full TDA libraries.
  */
 
-import { hierarchical } from '../data/DatasetOperations.js';
+import { hierarchical } from '../data/DatasetOperations.ts';
 
 /** Euclidean distance between two numeric vectors (shared features). */
 function euclidean(a, b) {

@@ -8,11 +8,11 @@
  */
 
 import { tableFromArrays, tableToIPC, tableFromIPC } from 'apache-arrow';
-import { Dataset } from '../Dataset.js';
+import { Dataset } from '../Dataset.ts';
 
 /**
  * Convert a Nemosyne Dataset into an Arrow IPC byte stream.
- * @param {import('../Dataset.js').Dataset} dataset
+ * @param {import('../Dataset.ts').Dataset} dataset
  * @returns {Uint8Array}
  */
 export function datasetToArrowIPC(dataset) {
@@ -33,7 +33,7 @@ export function datasetToArrowIPC(dataset) {
  * Parse an Arrow IPC byte stream back into a Nemosyne Dataset.
  * @param {Uint8Array|ArrayBuffer} buffer
  * @param {string} name
- * @returns {import('../Dataset.js').Dataset}
+ * @returns {import('../Dataset.ts').Dataset}
  */
 export function arrowIPCToDataset(buffer, name = 'Arrow Dataset') {
   const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;

@@ -1,4 +1,4 @@
-import { Dataset } from './Dataset.js';
+import { Dataset } from './Dataset.ts';
 
 /**
  * Undo/redo stack for data-analysis operations.
@@ -35,8 +35,8 @@ export class AnalysisHistory {
   /**
    * Record a data operation.
    * @param {string} operation e.g. 'filter', 'sort', 'aggregate'
-   * @param {import('./Dataset.js').Dataset} datasetBefore
-   * @param {import('./Dataset.js').Dataset} datasetAfter
+   * @param {import('./Dataset.ts').Dataset} datasetBefore
+   * @param {import('./Dataset.ts').Dataset} datasetAfter
    * @param {object} [parameters]
    */
   push(operation, datasetBefore, datasetAfter, parameters = {}) {
@@ -65,7 +65,7 @@ export class AnalysisHistory {
 
   /**
    * Undo the most recently applied operation.
-   * @returns {{ operation: string, dataset: import('./Dataset.js').Dataset, parameters: object } | null}
+   * @returns {{ operation: string, dataset: import('./Dataset.ts').Dataset, parameters: object } | null}
    */
   undo() {
     if (!this.canUndo) return null;
@@ -80,7 +80,7 @@ export class AnalysisHistory {
 
   /**
    * Redo the next previously undone operation.
-   * @returns {{ operation: string, dataset: import('./Dataset.js').Dataset, parameters: object } | null}
+   * @returns {{ operation: string, dataset: import('./Dataset.ts').Dataset, parameters: object } | null}
    */
   redo() {
     if (!this.canRedo) return null;
@@ -108,7 +108,7 @@ export class AnalysisHistory {
   /**
    * Jump directly to a specific frame index.
    * @param {number} index
-   * @returns {{ operation: string, dataset: import('./Dataset.js').Dataset, parameters: object } | null}
+   * @returns {{ operation: string, dataset: import('./Dataset.ts').Dataset, parameters: object } | null}
    */
   seek(index) {
     if (this.length === 0) return null;

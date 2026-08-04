@@ -51,8 +51,8 @@ export class LivePreview {
   /**
    * Show a preview for the named operation.
    * @param {string} operation
-   * @param {import('../../data/Dataset.js').Dataset} previewDataset
-   * @param {import('../../data/Dataset.js').Dataset} originalDataset
+   * @param {import('../../data/Dataset.ts').Dataset} previewDataset
+   * @param {import('../../data/Dataset.ts').Dataset} originalDataset
    * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
    */
   preview(operation, previewDataset, originalDataset, artifact) {

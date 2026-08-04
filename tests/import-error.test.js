@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect } from 'vitest';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import {
   ImportError,
   ImportWarning,

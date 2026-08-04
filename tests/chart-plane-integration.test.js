@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.js';
 import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.js';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { ChartPlane } from '../src/vr/artifacts/ChartPlane.js';
 
 describe('ChartPlane integration', () => {

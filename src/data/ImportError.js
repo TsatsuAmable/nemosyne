@@ -33,7 +33,7 @@ export class ImportWarning extends Error {
 /**
  * Validate a parsed dataset before it is handed to World.loadDataset.
  *
- * @param {import('./Dataset.js').Dataset} dataset
+ * @param {import('./Dataset.ts').Dataset} dataset
  * @param {Object} [options]
  * @param {number} [options.maxRows] Fatal if exceeded.
  * @param {number} [options.maxColumns] Fatal if exceeded.

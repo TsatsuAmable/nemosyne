@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.js';
 import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.js';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
-import { fraudGraph, orgChart, windField } from '../src/data/SampleDatasets.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { fraudGraph, orgChart, windField } from '../src/data/SampleDatasets.ts';
 
 describe('ConstraintEngine', () => {
   it('solves a hierarchy with radial orbital layout', () => {

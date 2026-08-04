@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.js';
-import { allSampleDatasets, getDefaultEncodings } from '../../data/SampleDatasets.js';
+import { allSampleDatasets, getDefaultEncodings } from '../../data/SampleDatasets.ts';
 import { OPEN_DATA_SOURCES } from '../../data/connectors/OpenDataSources.js';
 
 /**

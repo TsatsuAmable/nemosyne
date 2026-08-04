@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { World } from '../src/vr/World.js';
 import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.js';
 import { DracoDiagnosticHUD } from '../src/draco/DracoDiagnosticHUD.js';
-import { getSampleDataset } from '../src/data/SampleDatasets.js';
+import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.js';
 import { WorldTheme } from '../src/vr/WorldTheme.js';
 import * as Download from '../src/utils/Download.js';

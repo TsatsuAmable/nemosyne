@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { ChartPlanePanel } from '../src/vr/ui/ChartPlanePanel.js';
 import { MovablePanel } from '../src/vr/ui/MovablePanel.js';
 import { DashboardManager } from '../src/vr/ui/DashboardManager.js';

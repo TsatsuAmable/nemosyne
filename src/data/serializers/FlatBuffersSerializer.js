@@ -7,7 +7,7 @@
  * simple hand-rolled row buffer so it has zero code-generation dependency.
  */
 
-import { Dataset } from '../Dataset.js';
+import { Dataset } from '../Dataset.ts';
 
 const TEXT_ENCODER = new TextEncoder();
 const TEXT_DECODER = new TextDecoder();
@@ -36,7 +36,7 @@ const TYPE_IDS = {
  *     number: [float64]
  *     string: [uint32 length][bytes]
  *
- * @param {import('../Dataset.js').Dataset} dataset
+ * @param {import('../Dataset.ts').Dataset} dataset
  * @returns {ArrayBuffer}
  */
 export function datasetToFlatBuffer(dataset) {
@@ -89,7 +89,7 @@ export function datasetToFlatBuffer(dataset) {
  * Deserialize a FlatBuffer back into a Dataset.
  * @param {ArrayBuffer|Uint8Array} buffer
  * @param {string} name
- * @returns {import('../Dataset.js').Dataset}
+ * @returns {import('../Dataset.ts').Dataset}
  */
 export function flatBufferToDataset(buffer, name = 'FlatBuffer Dataset') {
   const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;

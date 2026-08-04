@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { InPlaceOperationHandles } from '../src/vr/interactions/InPlaceOperationHandles.js';
-import { Dataset } from '../src/data/Dataset.js';
+import { Dataset } from '../src/data/Dataset.ts';
 
 function makeMesh(name = 'node', x = 0, y = 0, z = -2) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2));

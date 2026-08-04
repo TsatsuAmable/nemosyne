@@ -6,10 +6,11 @@
  * for reset/comparison.
  */
 
-import { Dataset } from './Dataset.js';
+import { Dataset, ColumnType } from './Dataset.ts';
+import type { ColumnSchema } from './types.ts';
 
 /** Euclidean distance between two numeric vectors. */
-function euclidean(a, b) {
+function euclidean(a: number[], b: number[]): number {
   let sum = 0;
   for (let i = 0; i < a.length; i++) {
     const d = a[i] - b[i];
@@ -19,7 +20,7 @@ function euclidean(a, b) {
 }
 
 /** Return a deterministic pseudo-random generator from a seed. */
-function makeRand(seed) {
+function makeRand(seed: number): () => number {
   let s = seed % 2147483647;
   if (s <= 0) s += 2147483646;
   return () => {
@@ -29,8 +30,8 @@ function makeRand(seed) {
 }
 
 /** Pick an initial centroid set using k-means++ seeding. */
-function kmeansPlusPlus(values, k, rand) {
-  const centroids = [];
+function kmeansPlusPlus(values: number[][], k: number, rand: () => number): number[][] {
+  const centroids: number[][] = [];
   centroids.push(values[Math.floor(rand() * values.length)]);
   const distances = new Float64Array(values.length);
   while (centroids.length < k) {
@@ -59,25 +60,16 @@ function kmeansPlusPlus(values, k, rand) {
 
 /**
  * Filter rows by a predicate function.
- * @param {Dataset} dataset
- * @param {(row: Object) => boolean} predicate
- * @returns {Dataset}
  */
-export function filter(dataset, predicate) {
+export function filter(dataset: Dataset, predicate: (row: Record<string, unknown>) => boolean): Dataset {
   const rows = dataset.rows.filter(predicate);
   return new Dataset(`${dataset.name} [filtered]`, dataset.columns.slice(), rows);
 }
 
-/** Return the same row references so VR artefact identity checks continue to work. */
-
 /**
  * Sort rows by a column value.
- * @param {Dataset} dataset
- * @param {string} columnName
- * @param {'asc'|'desc'} direction
- * @returns {Dataset}
  */
-export function sort(dataset, columnName, direction = 'asc') {
+export function sort(dataset: Dataset, columnName: string, direction: 'asc' | 'desc' = 'asc'): Dataset {
   const rows = dataset.rows.slice().sort((a, b) => {
     const av = a[columnName];
     const bv = b[columnName];
@@ -95,19 +87,19 @@ export function sort(dataset, columnName, direction = 'asc') {
 
 /**
  * Aggregate rows by a categorical column using an aggregator function.
- * @param {Dataset} dataset
- * @param {string} groupBy
- * @param {(rows: Object[]) => Object} aggregator receives the group rows and returns one aggregated row
- * @returns {Dataset}
  */
-export function aggregate(dataset, groupBy, aggregator) {
-  const groups = new Map();
+export function aggregate(
+  dataset: Dataset,
+  groupBy: string,
+  aggregator: (rows: Record<string, unknown>[]) => Record<string, unknown>
+): Dataset {
+  const groups = new Map<unknown, Record<string, unknown>[]>();
   for (const row of dataset.rows) {
     const key = row[groupBy];
     if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(row);
+    groups.get(key)!.push(row);
   }
-  const rows = [];
+  const rows: Record<string, unknown>[] = [];
   for (const [, groupRows] of groups) {
     rows.push(aggregator(groupRows));
   }
@@ -117,19 +109,14 @@ export function aggregate(dataset, groupBy, aggregator) {
 /**
  * Simple k-means-lite clustering on numeric columns.
  * Adds a `_cluster` column to each row.
- * @param {Dataset} dataset
- * @param {number} k
- * @param {string[]} [featureColumns] defaults to all numeric columns
- * @returns {Dataset}
  */
-export function cluster(dataset, k = 3, featureColumns = null) {
+export function cluster(dataset: Dataset, k: number = 3, featureColumns: string[] | null = null): Dataset {
   const numeric = featureColumns ?? dataset.numericColumns.map((c) => c.name);
   if (numeric.length === 0) {
-    // No numeric columns: assign all rows to cluster 0.
     const rows = dataset.rows.map((r) => ({ ...r, _cluster: 0 }));
     return new Dataset(
       `${dataset.name} [clustered]`,
-      [...dataset.columns, { name: '_cluster', type: 'NUMERIC' }],
+      [...dataset.columns, { name: '_cluster', type: ColumnType.NUMERIC }],
       rows
     );
   }
@@ -206,34 +193,42 @@ export function cluster(dataset, k = 3, featureColumns = null) {
     r._cluster = finalAssignments[i];
     return r;
   });
-  const newColumns = [...dataset.columns];
+  const newColumns: ColumnSchema[] = [...dataset.columns];
   if (!newColumns.find((c) => c.name === '_cluster')) {
-    newColumns.push({ name: '_cluster', type: 'NUMERIC' });
+    newColumns.push({ name: '_cluster', type: ColumnType.NUMERIC });
   }
   return new Dataset(`${dataset.name} [clustered]`, newColumns, clusteredRows);
+}
+
+interface ClusterNode {
+  id: number;
+  members: number[];
+  centroid: number[];
+  count: number;
+}
+
+interface MergeHistory {
+  merge: [number, number];
+  distance: number;
+  size: number;
 }
 
 /**
  * Agglomerative hierarchical clustering on numeric columns.
  * Adds a `_cluster` column with the cluster id and `_linkage` metadata on the dataset.
- * @param {Dataset} dataset
- * @param {string[]} [featureColumns] defaults to all numeric columns
- * @param {'single'|'complete'|'average'} [linkage]
- * @param {number} [targetClusters] number of clusters to cut the dendrogram at
- * @returns {Dataset}
  */
 export function hierarchical(
-  dataset,
-  featureColumns = null,
-  linkage = 'average',
-  targetClusters = 3
-) {
+  dataset: Dataset,
+  featureColumns: string[] | null = null,
+  linkage: 'single' | 'complete' | 'average' = 'average',
+  targetClusters: number = 3
+): Dataset {
   const numeric = featureColumns ?? dataset.numericColumns.map((c) => c.name);
   if (numeric.length === 0) {
     const rows = dataset.rows.map((r) => ({ ...r, _cluster: 0 }));
     return new Dataset(
       `${dataset.name} [hierarchical]`,
-      [...dataset.columns, { name: '_cluster', type: 'NUMERIC' }],
+      [...dataset.columns, { name: '_cluster', type: ColumnType.NUMERIC }],
       rows
     );
   }
@@ -246,11 +241,11 @@ export function hierarchical(
   }
 
   // Initial clusters: each point is its own cluster.
-  const clusters = values.map((v, i) => ({ id: i, members: [i], centroid: v.slice(), count: 1 }));
-  const history = [];
+  const clusters: ClusterNode[] = values.map((v, i) => ({ id: i, members: [i], centroid: v.slice(), count: 1 }));
+  const history: MergeHistory[] = [];
   let nextMergeId = n;
 
-  function clusterDistance(a, b) {
+  function clusterDistance(a: ClusterNode, b: ClusterNode): number {
     let best = linkage === 'single' ? Infinity : -Infinity;
     let total = 0;
     let pairs = 0;
@@ -270,7 +265,7 @@ export function hierarchical(
     return linkage === 'average' ? (pairs > 0 ? total / pairs : 0) : best;
   }
 
-  function merge(a, b, newId) {
+  function merge(a: ClusterNode, b: ClusterNode, newId: number): ClusterNode {
     const members = [...a.members, ...b.members];
     const centroid = a.centroid.map((v, i) => {
       const sum = members.reduce((s, idx) => s + values[idx][i], 0);
@@ -305,7 +300,7 @@ export function hierarchical(
   }
 
   // Cut dendrogram to produce flat clusters from recorded merges.
-  const parentOf = new Array(n).fill(-1);
+  const parentOf: number[] = new Array(n).fill(-1);
   let nextId = n;
   for (const step of history) {
     const node = nextId++;
@@ -314,9 +309,9 @@ export function hierarchical(
     parentOf.push(-1);
   }
 
-  function leaves(node) {
+  function leaves(node: number): number[] {
     if (node < n) return [node];
-    const result = [];
+    const result: number[] = [];
     for (let i = 0; i < parentOf.length; i++) {
       if (parentOf[i] === node) {
         result.push(...leaves(i));
@@ -327,25 +322,25 @@ export function hierarchical(
 
   // Cut the dendrogram into `targetClusters` flat clusters.
   // Start with the root and repeatedly split the largest internal node.
-  const nodeSize = new Array(parentOf.length).fill(0);
+  const nodeSize: number[] = new Array(parentOf.length).fill(0);
   for (let i = 0; i < n; i++) nodeSize[i] = 1;
   for (let id = n; id < parentOf.length; id++) {
     nodeSize[id] = leaves(id).length;
   }
 
-  function isLeaf(node) {
+  function isLeaf(node: number): boolean {
     return node < n;
   }
 
-  function childrenOf(node) {
-    const kids = [];
+  function childrenOf(node: number): number[] {
+    const kids: number[] = [];
     for (let i = 0; i < parentOf.length; i++) {
       if (parentOf[i] === node) kids.push(i);
     }
     return kids;
   }
 
-  const candidates = [parentOf.length - 1];
+  const candidates: number[] = [parentOf.length - 1];
   while (candidates.length < targetClusters) {
     const splitIdx = candidates.findIndex((node) => !isLeaf(node));
     if (splitIdx === -1) break;
@@ -354,7 +349,7 @@ export function hierarchical(
     candidates.splice(splitIdx, 1, ...kids);
   }
 
-  const assignments = new Array(n).fill(-1);
+  const assignments: number[] = new Array(n).fill(-1);
   for (let c = 0; c < candidates.length; c++) {
     for (const leaf of leaves(candidates[c])) {
       assignments[leaf] = c;
@@ -365,9 +360,9 @@ export function hierarchical(
     r._cluster = assignments[i];
     return r;
   });
-  const newColumns = [...dataset.columns];
+  const newColumns: ColumnSchema[] = [...dataset.columns];
   if (!newColumns.find((c) => c.name === '_cluster')) {
-    newColumns.push({ name: '_cluster', type: 'NUMERIC' });
+    newColumns.push({ name: '_cluster', type: ColumnType.NUMERIC });
   }
   const result = new Dataset(`${dataset.name} [hierarchical]`, newColumns, clusteredRows);
   result._meta = { linkage, targetClusters, history };
@@ -377,19 +372,19 @@ export function hierarchical(
 /**
  * Density-based spatial clustering (DBSCAN) on numeric columns.
  * Adds a `_cluster` column. Noise points are labelled `-1`.
- * @param {Dataset} dataset
- * @param {number} [eps] neighbourhood radius
- * @param {number} [minPoints] minimum neighbours to form a core point
- * @param {string[]} [featureColumns] defaults to all numeric columns
- * @returns {Dataset}
  */
-export function dbscan(dataset, eps = 1, minPoints = 2, featureColumns = null) {
+export function dbscan(
+  dataset: Dataset,
+  eps: number = 1,
+  minPoints: number = 2,
+  featureColumns: string[] | null = null
+): Dataset {
   const numeric = featureColumns ?? dataset.numericColumns.map((c) => c.name);
   if (numeric.length === 0) {
     const rows = dataset.rows.map((r) => ({ ...r, _cluster: 0 }));
     return new Dataset(
       `${dataset.name} [dbscan]`,
-      [...dataset.columns, { name: '_cluster', type: 'NUMERIC' }],
+      [...dataset.columns, { name: '_cluster', type: ColumnType.NUMERIC }],
       rows
     );
   }
@@ -397,11 +392,11 @@ export function dbscan(dataset, eps = 1, minPoints = 2, featureColumns = null) {
   const rows = dataset.rows.slice();
   const values = rows.map((r) => numeric.map((name) => Number(r[name]) || 0));
   const n = values.length;
-  const labels = new Array(n).fill(undefined);
+  const labels: (number | undefined)[] = new Array(n).fill(undefined);
   let clusterId = 0;
 
-  function regionQuery(pointIdx) {
-    const neighbours = [];
+  function regionQuery(pointIdx: number): number[] {
+    const neighbours: number[] = [];
     for (let i = 0; i < n; i++) {
       if (i === pointIdx) continue;
       if (euclidean(values[pointIdx], values[i]) <= eps) neighbours.push(i);
@@ -432,12 +427,12 @@ export function dbscan(dataset, eps = 1, minPoints = 2, featureColumns = null) {
   }
 
   const clusteredRows = rows.map((r, i) => {
-    r._cluster = labels[i];
+    r._cluster = labels[i] ?? -1;
     return r;
   });
-  const newColumns = [...dataset.columns];
+  const newColumns: ColumnSchema[] = [...dataset.columns];
   if (!newColumns.find((c) => c.name === '_cluster')) {
-    newColumns.push({ name: '_cluster', type: 'NUMERIC' });
+    newColumns.push({ name: '_cluster', type: ColumnType.NUMERIC });
   }
   const result = new Dataset(`${dataset.name} [dbscan]`, newColumns, clusteredRows);
   result._meta = {
@@ -449,17 +444,19 @@ export function dbscan(dataset, eps = 1, minPoints = 2, featureColumns = null) {
   return result;
 }
 
+type AnomalyMethod = 'iqr' | 'zscore' | 'isolation';
+
 /**
  * Detect anomalies in a numeric column.
  * Adds an `_anomaly` column with a boolean flag and `_anomalyScore` with a severity score.
  * Supported methods: 'iqr', 'zscore', 'isolation'.
- * @param {Dataset} dataset
- * @param {string} [columnName] defaults to first numeric column
- * @param {'iqr'|'zscore'|'isolation'} [method]
- * @param {number} [sensitivity] multiplier for the detection threshold (default 1.5 for IQR, 3 for zscore)
- * @returns {Dataset}
  */
-export function anomaly(dataset, columnName = null, method = 'iqr', sensitivity = null) {
+export function anomaly(
+  dataset: Dataset,
+  columnName: string | null = null,
+  method: AnomalyMethod = 'iqr',
+  sensitivity: number | null = null
+): Dataset {
   const numericColumns = dataset.numericColumns.map((c) => c.name);
   const target = columnName ?? numericColumns[0];
   if (!target) {
@@ -468,8 +465,8 @@ export function anomaly(dataset, columnName = null, method = 'iqr', sensitivity 
       `${dataset.name} [anomaly]`,
       [
         ...dataset.columns,
-        { name: '_anomaly', type: 'CATEGORICAL' },
-        { name: '_anomalyScore', type: 'NUMERIC' },
+        { name: '_anomaly', type: ColumnType.CATEGORICAL },
+        { name: '_anomalyScore', type: ColumnType.NUMERIC },
       ],
       rows
     );
@@ -477,10 +474,10 @@ export function anomaly(dataset, columnName = null, method = 'iqr', sensitivity 
 
   const rawValues = dataset.getColumnValues(target);
   const values = rawValues.map((v) => (typeof v === 'number' && !Number.isNaN(v) ? v : null));
-  const valid = values.filter((v) => v !== null);
+  const valid = values.filter((v): v is number => v !== null);
 
-  let flags = [];
-  let scores = [];
+  let flags: boolean[] = [];
+  let scores: number[] = [];
 
   if (method === 'iqr') {
     const threshold = sensitivity ?? 1.5;
@@ -513,7 +510,7 @@ export function anomaly(dataset, columnName = null, method = 'iqr', sensitivity 
     const rand = makeRand(dataset.fingerprint);
     const indexed = valid.map((v, i) => ({ value: v, index: rawValues.indexOf(v, i) }));
 
-    function splitCount(value, depth = 0) {
+    function splitCount(value: number, depth: number = 0): number {
       if (depth >= limit) return depth;
       const subset = indexed.filter((item) => item.value <= value);
       if (subset.length === 0 || subset.length === indexed.length) return depth;
@@ -522,7 +519,7 @@ export function anomaly(dataset, columnName = null, method = 'iqr', sensitivity 
 
     const depths = indexed.map((item) => splitCount(item.value));
     const maxDepth = Math.max(1, ...depths);
-    const scoreMap = new Map();
+    const scoreMap = new Map<number, number>();
     for (const { index, value } of indexed) {
       const d = splitCount(value);
       scoreMap.set(index, d / maxDepth);
@@ -539,12 +536,12 @@ export function anomaly(dataset, columnName = null, method = 'iqr', sensitivity 
   }
 
   const rows = dataset.rows.map((r, i) => ({ ...r, _anomaly: flags[i], _anomalyScore: scores[i] }));
-  const newColumns = [...dataset.columns];
+  const newColumns: ColumnSchema[] = [...dataset.columns];
   if (!newColumns.find((c) => c.name === '_anomaly')) {
-    newColumns.push({ name: '_anomaly', type: 'CATEGORICAL' });
+    newColumns.push({ name: '_anomaly', type: ColumnType.CATEGORICAL });
   }
   if (!newColumns.find((c) => c.name === '_anomalyScore')) {
-    newColumns.push({ name: '_anomalyScore', type: 'NUMERIC' });
+    newColumns.push({ name: '_anomalyScore', type: ColumnType.NUMERIC });
   }
   const result = new Dataset(`${dataset.name} [anomaly:${method}]`, newColumns, rows);
   result._meta = {
@@ -558,12 +555,8 @@ export function anomaly(dataset, columnName = null, method = 'iqr', sensitivity 
 
 /**
  * Slice rows by index range.
- * @param {Dataset} dataset
- * @param {number} start
- * @param {number} end
- * @returns {Dataset}
  */
-export function slice(dataset, start, end) {
+export function slice(dataset: Dataset, start: number, end: number): Dataset {
   const rows = dataset.rows.slice(start, end);
   return new Dataset(`${dataset.name} [slice ${start}-${end}]`, dataset.columns.slice(), rows);
 }

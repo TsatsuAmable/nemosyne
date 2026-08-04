@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ANALYSIS_TEMPLATES, resolveTemplate } from '../src/data/AnalysisTemplates.js';
-import { allSampleDatasets } from '../src/data/SampleDatasets.js';
+import { allSampleDatasets } from '../src/data/SampleDatasets.ts';
 
 describe('AnalysisTemplates', () => {
   it('contains well-defined story templates', () => {

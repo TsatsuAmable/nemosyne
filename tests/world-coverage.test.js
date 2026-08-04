@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { World } from '../src/vr/World.js';
-import { getSampleDataset } from '../src/data/SampleDatasets.js';
+import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { TopologyTypes } from '../src/draco/ConstraintEngine.js';
 
 const CONNECTING = 0;

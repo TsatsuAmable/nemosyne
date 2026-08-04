@@ -16,7 +16,7 @@ import {
   dbscan,
   anomaly,
   slice,
-} from '../../data/DatasetOperations.js';
+} from '../../data/DatasetOperations.ts';
 import { applyNestedRings, applyDendrogramArc, applyDensityCloud } from './ClusterTransforms.js';
 import {
   applyAnomalyHighlight,
@@ -29,7 +29,7 @@ import {
  * Apply a filter operation: rows present in the filtered dataset remain visible,
  * absent rows shrink and fade below the DatumPlane.
  * @param {{ nodeMeshes: THREE.Mesh[], group: THREE.Group }} artifact
- * @param {import('../../data/Dataset.js').Dataset} filteredDataset
+ * @param {import('../../data/Dataset.ts').Dataset} filteredDataset
  */
 export function applyFilter(artifact, filteredDataset) {
   const kept = new Set(filteredDataset.rows);
@@ -51,7 +51,7 @@ export function applyFilter(artifact, filteredDataset) {
 /**
  * Apply a sort operation: reorder visible nodes along a horizontal arc.
  * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.js').Dataset} sortedDataset
+ * @param {import('../../data/Dataset.ts').Dataset} sortedDataset
  */
 export function applySort(artifact, sortedDataset) {
   const order = sortedDataset.rows;
@@ -74,7 +74,7 @@ export function applySort(artifact, sortedDataset) {
  * For every unique aggregated row, matching original meshes are hidden and a new
  * aggregated marker is scaled by the group size.
  * @param {{ nodeMeshes: THREE.Mesh[], group: THREE.Group }} artifact
- * @param {import('../../data/Dataset.js').Dataset} aggregatedDataset
+ * @param {import('../../data/Dataset.ts').Dataset} aggregatedDataset
  */
 export function applyAggregate(artifact, aggregatedDataset) {
   // For simplicity, hide all original nodes and scale the first node of each
@@ -100,7 +100,7 @@ export function applyAggregate(artifact, aggregatedDataset) {
 /**
  * Apply a cluster operation: move nodes into nested rings grouped by their `_cluster` value.
  * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.js').Dataset} clusteredDataset
+ * @param {import('../../data/Dataset.ts').Dataset} clusteredDataset
  */
 export function applyCluster(artifact, clusteredDataset) {
   applyNestedRings(artifact, clusteredDataset, { baseRadius: 2, ringStep: 0.8, centreZ: -3.5 });
@@ -109,7 +109,7 @@ export function applyCluster(artifact, clusteredDataset) {
 /**
  * Apply a hierarchical clustering operation: arrange clusters in dendrogram-like arcs.
  * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.js').Dataset} clusteredDataset
+ * @param {import('../../data/Dataset.ts').Dataset} clusteredDataset
  */
 export function applyHierarchicalCluster(artifact, clusteredDataset) {
   applyDendrogramArc(artifact, clusteredDataset, { baseRadius: 1.2, ringStep: 1.2, centreZ: -3.5 });
@@ -118,7 +118,7 @@ export function applyHierarchicalCluster(artifact, clusteredDataset) {
 /**
  * Apply a DBSCAN result: dense clusters become clouds; noise points sink below the plane.
  * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.js').Dataset} clusteredDataset
+ * @param {import('../../data/Dataset.ts').Dataset} clusteredDataset
  */
 export function applyDensityCluster(artifact, clusteredDataset) {
   applyDensityCloud(artifact, clusteredDataset, { spread: 1.4, centreZ: -3.5 });
@@ -127,7 +127,7 @@ export function applyDensityCluster(artifact, clusteredDataset) {
 /**
  * Apply anomaly highlighting: outliers lift and pulse.
  * @param {{ nodeMeshes: THREE.Mesh[], group: THREE.Group }} artifact
- * @param {import('../../data/Dataset.js').Dataset} anomalyDataset
+ * @param {import('../../data/Dataset.ts').Dataset} anomalyDataset
  */
 export function applyAnomaly(artifact, anomalyDataset) {
   applyAnomalyHighlight(artifact, anomalyDataset);
@@ -144,7 +144,7 @@ export function clearAnomaly(artifact) {
 /**
  * Focus an outlier lens around a world-space point.
  * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.js').Dataset} anomalyDataset
+ * @param {import('../../data/Dataset.ts').Dataset} anomalyDataset
  * @param {import('three').Vector3} focusPoint
  */
 export function applyOutlierLensAt(artifact, anomalyDataset, focusPoint) {
@@ -162,8 +162,8 @@ export function releaseOutlierLensAt(artifact) {
 /**
  * Apply a slice operation: rows inside the slice remain bright; rows outside dim.
  * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.js').Dataset} slicedDataset
- * @param {import('../../data/Dataset.js').Dataset} originalDataset
+ * @param {import('../../data/Dataset.ts').Dataset} slicedDataset
+ * @param {import('../../data/Dataset.ts').Dataset} originalDataset
  */
 export function applySlice(artifact, slicedDataset, originalDataset) {
   const kept = new Set(slicedDataset.rows);
@@ -184,9 +184,9 @@ export function applySlice(artifact, slicedDataset, originalDataset) {
  * without touching the artefact. Used for live previews and can also be reused
  * by the apply path to keep parameter logic in one place.
  * @param {string} operation
- * @param {import('../../data/Dataset.js').Dataset} dataset
- * @param {import('../../data/Dataset.js').Dataset} originalDataset
- * @returns {import('../../data/Dataset.js').Dataset}
+ * @param {import('../../data/Dataset.ts').Dataset} dataset
+ * @param {import('../../data/Dataset.ts').Dataset} originalDataset
+ * @returns {import('../../data/Dataset.ts').Dataset}
  */
 export function computeOperationDataset(operation, dataset, originalDataset) {
   switch (operation) {
@@ -264,8 +264,8 @@ export function captureBaseState(artifact) {
  * JS path (e.g. those with different default parameters or algorithms).
  *
  * @param {string} operation
- * @param {import('../../data/Dataset.js').Dataset} dataset
- * @param {import('../../data/Dataset.js').Dataset} originalDataset
+ * @param {import('../../data/Dataset.ts').Dataset} dataset
+ * @param {import('../../data/Dataset.ts').Dataset} originalDataset
  * @returns {object|null}
  */
 export function buildWasmOperationSpec(operation, dataset, originalDataset) {
