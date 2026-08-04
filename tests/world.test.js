@@ -128,11 +128,11 @@ describe('World integration', () => {
       });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     addListenerSpy?.mockRestore();
 
     if (world) {
-      world.engine.dispose();
+      await world.dispose();
       if (world.loader?.container?.parentNode) {
         world.loader.container.parentNode.removeChild(world.loader.container);
       }
