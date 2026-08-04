@@ -5,9 +5,106 @@ use wasm_bindgen::prelude::*;
 pub const INITIAL_MEMORY_PAGES: u32 = 2048; // 128 MiB
 pub const MAX_MEMORY_PAGES: u32 = 8192; // 512 MiB
 
-/// A simple bump allocator for Phase 0. It is replaced by the two-tier arena +
-/// heap design in Phase 1, but it is enough to prove the build loop and ABI.
-static mut BUMP: usize = 0;
+/// Target-specific allocation helpers.
+///
+/// On `wasm32` this is a bump allocator over the shared WebAssembly memory,
+/// using `core::arch::wasm32::memory_grow` to expand the heap. This is the
+/// production implementation used by the JS host.
+///
+/// On the host (x86_64, etc.) this falls back to the system allocator so that
+/// `cargo test` can exercise the same public API and pure-Rust logic without
+/// requiring a WASM test runner in Phase 0.
+mod allocator {
+    #[cfg(target_arch = "wasm32")]
+    pub use wasm::*;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use host::*;
+
+    #[cfg(target_arch = "wasm32")]
+    mod wasm {
+        use crate::{INITIAL_MEMORY_PAGES, MAX_MEMORY_PAGES};
+
+        static mut BUMP: usize = 0;
+
+        pub fn reset() {
+            let current_pages = unsafe { core::arch::wasm32::memory_grow(0, 0) };
+            let base = (current_pages * 65536) as usize;
+            unsafe { BUMP = base; }
+        }
+
+        pub fn alloc(len: u32) -> u32 {
+            let len = len as usize;
+            if len == 0 {
+                return 0;
+            }
+
+            unsafe {
+                let aligned_len = (len + 7) & !7;
+                let ptr = BUMP;
+                let end = ptr + aligned_len;
+                let max = (MAX_MEMORY_PAGES as usize) * 65536;
+                if end > max {
+                    panic!("allocator out of memory");
+                }
+
+                let current_pages = core::arch::wasm32::memory_grow(0, 0);
+                let current_bytes = current_pages * 65536;
+                if end > current_bytes as usize {
+                    let needed_pages = ((end - 1) / 65536 + 1) as usize;
+                    let delta = needed_pages.saturating_sub(current_pages as usize);
+                    let max_delta = (MAX_MEMORY_PAGES - current_pages as u32) as usize;
+                    if delta > max_delta {
+                        panic!("allocator cannot grow memory further");
+                    }
+                    core::arch::wasm32::memory_grow(0, delta as i32);
+                }
+
+                BUMP = end;
+                ptr as u32
+            }
+        }
+
+        pub fn dealloc(ptr: u32, len: u32) {
+            unsafe {
+                let aligned_len = ((len as usize) + 7) & !7;
+                if (BUMP - aligned_len) == (ptr as usize) {
+                    BUMP -= aligned_len;
+                }
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    mod host {
+        use std::alloc::{alloc, dealloc, Layout};
+
+        pub fn reset() {}
+
+        pub fn alloc(len: u32) -> u32 {
+            let len = len as usize;
+            if len == 0 {
+                return 0;
+            }
+            let aligned_len = (len + 7) & !7;
+            let layout = Layout::from_size_align(aligned_len, 8).expect("invalid layout");
+            let ptr = unsafe { alloc(layout) };
+            if ptr.is_null() {
+                panic!("allocator out of memory");
+            }
+            ptr as u32
+        }
+
+        pub fn dealloc(ptr: u32, len: u32) {
+            if ptr == 0 {
+                return;
+            }
+            let aligned_len = ((len as usize) + 7) & !7;
+            let layout = Layout::from_size_align(aligned_len, 8).expect("invalid layout");
+            unsafe { dealloc(ptr as *mut u8, layout) };
+        }
+    }
+}
 
 /// Initialise the runtime and the WASM memory layout.
 ///
@@ -19,13 +116,7 @@ static mut BUMP: usize = 0;
 /// Must be called once before any other exported function.
 #[wasm_bindgen]
 pub fn init(_seed: u64) -> u32 {
-    // Reset the bump allocator to the end of the static data section.
-    // `memory_grow(0)` returns the current size in pages; multiply by page size.
-    let current_pages = unsafe { core::arch::wasm32::memory_grow(0, 0) };
-    let base = (current_pages * 65536) as usize;
-    unsafe {
-        BUMP = base;
-    }
+    allocator::reset();
     1
 }
 
@@ -45,37 +136,7 @@ pub fn memory() -> JsValue {
 /// `len` must be > 0. The returned pointer is 8-byte aligned.
 #[wasm_bindgen]
 pub fn alloc(len: u32) -> u32 {
-    let len = len as usize;
-    if len == 0 {
-        return 0;
-    }
-
-    unsafe {
-        // Keep 8-byte alignment for future SIMD-friendly layouts.
-        let aligned_len = (len + 7) & !7;
-        let ptr = BUMP;
-        let end = ptr + aligned_len;
-        let max = (MAX_MEMORY_PAGES as usize) * 65536;
-        if end > max {
-            panic!("allocator out of memory");
-        }
-
-        // Grow memory if needed. memory_grow(0, delta) returns previous pages.
-        let current_pages = core::arch::wasm32::memory_grow(0, 0);
-        let current_bytes = current_pages * 65536;
-        if end > current_bytes as usize {
-            let needed_pages = ((end - 1) / 65536 + 1) as usize;
-            let delta = needed_pages.saturating_sub(current_pages as usize);
-            let max_delta = (MAX_MEMORY_PAGES - current_pages as u32) as usize;
-            if delta > max_delta {
-                panic!("allocator cannot grow memory further");
-            }
-            core::arch::wasm32::memory_grow(0, delta as i32);
-        }
-
-        BUMP = end;
-        ptr as u32
-    }
+    allocator::alloc(len)
 }
 
 /// Release a previous `alloc` allocation back to the bump arena.
@@ -87,12 +148,7 @@ pub fn alloc(len: u32) -> u32 {
 /// no-op. Later phases replace this with a real heap allocator.
 #[wasm_bindgen]
 pub fn dealloc(ptr: u32, len: u32) {
-    unsafe {
-        let aligned_len = ((len as usize) + 7) & !7;
-        if (BUMP - aligned_len) == (ptr as usize) {
-            BUMP -= aligned_len;
-        }
-    }
+    allocator::dealloc(ptr, len);
 }
 
 /// Health-check echo. Returns `42` so the JS host can verify the ABI in one
