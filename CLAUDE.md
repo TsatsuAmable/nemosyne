@@ -20,10 +20,12 @@ All commands below are relative to the repository root.
 
 ```bash
 npm install
-npm run dev      # Vite dev server on https://localhost:5173 plus network IP
-npm run build    # Production bundle -> dist/
+npm run wasm:dev # Compile Rust/WASM crate in dev mode
+npm run wasm     # Compile Rust/WASM crate for release
+npm run dev      # wasm-pack dev build + Vite dev server on https://localhost:5173
+npm run build    # wasm-pack release build + production bundle -> dist/
 npm run preview  # Preview the production bundle
-npm test         # Run all Vitest tests once
+npm test         # cargo test for wasm/ + all Vitest tests once
 npm run test:coverage
 ```
 
@@ -133,6 +135,7 @@ Nemosyne is gradually moving compute-sensitive subsystems into Rust-generated We
 - **Instancing thresholds:** ≤ 256 unique meshes use individual `THREE.Mesh`; 257–8,192 use `InstancedMesh`; 8,193–65,536 use a GPU point cloud; larger datasets are binned/LOD'd by the Rust spatial index.
 - **Capability flags:** `World.js` reads `wasm.capabilities()` at startup and routes work to Rust or JS fallbacks. Flags are enabled phase by phase; never enable `COMMAND_BUFFER` before `SCENE_RUST`.
 - **Testing porting rule:** every JS test removed must be replaced by a Rust unit test, a `wasm-bindgen-test`, or a JS integration test through `RuntimeBridge.js` that exercises the same behaviour.
+- **Build loop:** `npm run dev` / `npm run build` invoke `wasm-pack` via `vite-wasm-pack-plugin.js`. Run `npm run wasm` for a manual release build; `cargo test --manifest-path wasm/Cargo.toml` runs the Rust unit tests.
 - **Bundle budgets:** target ≤ 2.5 MB total gzipped at the end of the migration; measure each phase with `twiggy`/`wasm-objdump`.
 
 ## Vite plugins
