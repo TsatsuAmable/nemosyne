@@ -2,6 +2,7 @@ import { parseCSV, parseJSON } from '../data/Parsers.js';
 import { inferEncodings } from '../data/Encodings.js';
 import { inferTopology, inferEncodingsForTopology } from '../data/TopologyInference.js';
 import { validateImport, formatValidationResult } from '../data/ImportError.js';
+import { Dataset } from '../data/Dataset.js';
 import {
   allSampleDatasets,
   getSampleDataset,
@@ -13,11 +14,27 @@ import { TopologyTypes } from '../draco/ConstraintEngine.js';
  * DOM-based file loader and dataset selector.
  * Provides a small overlay panel for desktop debugging and headset pass-through.
  */
+const CAP_PARSER_RUST = 1 << 1;
+
 export class FileLoaderUI {
-  constructor({ onLoad }) {
+  constructor({ onLoad, wasmRuntime, wasmCapabilities = 0 }) {
     this.onLoad = onLoad;
+    this.wasmRuntime = wasmRuntime ?? null;
+    this.wasmCapabilities = wasmCapabilities;
     this.container = this._buildUI();
     document.body.appendChild(this.container);
+  }
+
+  /**
+   * Swap the WASM runtime reference after the runtime has been initialised.
+   * This is called by World when the Rust data layer becomes available.
+   *
+   * @param {object|null} wasmRuntime
+   * @param {number} wasmCapabilities
+   */
+  setWasmRuntime(wasmRuntime, wasmCapabilities = 0) {
+    this.wasmRuntime = wasmRuntime;
+    this.wasmCapabilities = wasmCapabilities;
   }
 
   _buildUI() {
@@ -175,7 +192,11 @@ export class FileLoaderUI {
     const text = await file.text();
     let dataset;
     try {
-      if (file.name.toLowerCase().endsWith('.csv')) {
+      const ext = file.name.toLowerCase().split('.').pop();
+      const wasmDataset = this._tryWasmParse(text, ext, file.name);
+      if (wasmDataset) {
+        dataset = wasmDataset;
+      } else if (file.name.toLowerCase().endsWith('.csv')) {
         dataset = parseCSV(text, { name: file.name, maxRows: 100_000 });
       } else if (file.name.toLowerCase().endsWith('.json')) {
         dataset = parseJSON(text, { name: file.name, maxRows: 100_000 });
@@ -213,6 +234,30 @@ export class FileLoaderUI {
       dataset,
       encodings,
     });
+  }
+
+  /**
+   * If the WASM parser is ready and the file type is supported, parse the
+   * text through Rust and return a JS Dataset. Otherwise return null.
+   *
+   * @param {string} text
+   * @param {string} ext
+   * @param {string} name
+   * @returns {Dataset|null}
+   */
+  _tryWasmParse(text, ext, name) {
+    if (!this.wasmRuntime || (this.wasmCapabilities & CAP_PARSER_RUST) === 0) {
+      return null;
+    }
+    if (ext !== 'csv' && ext !== 'json') {
+      return null;
+    }
+    const bytes = new TextEncoder().encode(text);
+    const json = this.wasmRuntime.parseDatasetBytes(bytes, ext);
+    if (!json) return null;
+    const dataset = Dataset.fromJSON(json);
+    dataset.name = name;
+    return dataset;
   }
 
   _renderSchema(dataset, topology, encodings, warnings) {
