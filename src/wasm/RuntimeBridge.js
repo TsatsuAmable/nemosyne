@@ -298,6 +298,67 @@ export function getDatasetJson(handle) {
 }
 
 /**
+ * Load a JS `Dataset.toJSON()` object into the Rust data layer and return a
+ * dataset handle. Returns `0` on failure.
+ *
+ * @param {object} obj
+ * @returns {number}
+ */
+export function loadDatasetJson(obj) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const json = JSON.stringify(obj);
+  const bytes = new TextEncoder().encode(json);
+  const { ptr, len } = allocBytes(bytes);
+  try {
+    return wasmModule.data_load_dataset_json(ptr, len);
+  } finally {
+    wasmModule.dealloc(ptr, len);
+  }
+}
+
+/**
+ * Apply a generic data operation to a Rust dataset handle and return a new
+ * dataset handle. Returns `0` on failure.
+ *
+ * @param {number} handle
+ * @param {object} op
+ * @returns {number}
+ */
+export function runOperation(handle, op) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const json = JSON.stringify(op);
+  const bytes = new TextEncoder().encode(json);
+  const { ptr, len } = allocBytes(bytes);
+  try {
+    return wasmModule.data_operation(handle, ptr, len);
+  } finally {
+    wasmModule.dealloc(ptr, len);
+  }
+}
+
+/**
+ * Execute a generic operation against a JS `Dataset` through the Rust data
+ * layer and return the resulting JS dataset object. Returns `null` on failure.
+ *
+ * @param {object} datasetObj
+ * @param {object} op
+ * @returns {object|null}
+ */
+export function executeOperation(datasetObj, op) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const inputHandle = loadDatasetJson(datasetObj);
+  if (inputHandle === 0) return null;
+  const outputHandle = runOperation(inputHandle, op);
+  try {
+    if (outputHandle === 0) return null;
+    return getDatasetJson(outputHandle);
+  } finally {
+    destroyDataset(inputHandle);
+    if (outputHandle !== 0) destroyDataset(outputHandle);
+  }
+}
+
+/**
  * Low-level call helper used by integration tests. Only a small set of
  * operations is exposed; this keeps the host surface narrow.
  *
