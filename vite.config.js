@@ -116,7 +116,10 @@ function httpsOptions(command) {
 }
 
 export default defineConfig(({ command }) => ({
-  plugins: [demoStreamPlugin(), signallingPlugin()],
+  plugins: [
+    demoStreamPlugin(),
+    signallingPlugin(),
+  ],
   server: {
     host: true,
     https: httpsOptions(command),

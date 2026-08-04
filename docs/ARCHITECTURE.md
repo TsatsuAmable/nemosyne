@@ -46,6 +46,15 @@ Raw Data (CSV/JSON/Live Stream)
   - `OpenDataSources.js` — registry of curated public feeds.
   - `normalize.js` — helpers to convert live messages into `Dataset` rows.
 
+### 1b. Rust/WASM Core (`wasm/`)
+
+A gradually expanding Rust runtime compiled to WebAssembly. Phase 0 establishes the build loop, shared memory, and a minimal ABI surface. Future phases port the data layer, scene graph, command buffers, Draco layouts, input state, and networking state machine into Rust while three.js remains the WebGL/WebXR renderer.
+
+- **ABI** — exported functions return `u32` handles or `(ptr, len)` offsets; imported functions are limited to logging, timestamps, and telemetry.
+- **Memory** — shared `WebAssembly.Memory` starts at 128 MB and grows to 512 MB; JS reads typed arrays directly from the WASM buffer.
+- **Command buffer** — packed, 4-byte-aligned `u8` stream with a versioned header and opcode/payload structure; JS `CommandApplier` consumes it once per frame.
+- **Bridge** — `src/wasm/RuntimeBridge.js` loads `wasm/pkg/nemosyne_wasm_bg.wasm`, exposes `allocBytes` / `readBytes`, and forwards per-frame `update(delta, time)` calls.
+
 ### 2. Draco Layer (`src/draco/`)
 
 - **ConstraintEngine.js** — symbolic recommender.
@@ -136,7 +145,8 @@ Raw Data (CSV/JSON/Live Stream)
 
 ## Runtime Conventions
 
-- ES modules only; no build required for development (Vite optional for HTTPS serving).
+- ES modules only; Vite is required for serving and bundling.
+- `npm run dev` and `npm run build` invoke `wasm-pack` first to compile the Rust crate in `wasm/`.
 - Three.js loaded via import map (`three@0.168.0`).
 - WebXR uses `local-floor` reference space with optional `hand-tracking`.
 - `XRInputSourceArray` is normalized with `Array.from()` because Quest Browser's array-like object lacks `Array.prototype` methods.
@@ -148,7 +158,9 @@ Raw Data (CSV/JSON/Live Stream)
 
 - Vitest with jsdom.
 - `tests/setup.js` provides a robust WebGL/Canvas 2D mock.
-- Unit tests cover: data parsing, Draco engine, live connectors, panel system, VR interactions, WebXR lifecycle.
+- `cargo test --manifest-path wasm/Cargo.toml` for pure Rust modules.
+- `wasm-pack test --headless --chrome` for browser-facing Rust modules (added as the WASM surface grows).
+- Unit tests cover: data parsing, Draco engine, live connectors, panel system, VR interactions, WebXR lifecycle, and the WASM bridge.
 
 ---
 
