@@ -308,6 +308,10 @@ export class World {
     this.sessionStore = new SessionStore();
     this._sessionAutoSaveTimer = null;
 
+    // Track async initialization work so tests can wait for it during teardown.
+    this._initPromises = [];
+    this._disposed = false;
+
     // Wire desktop/VR keyboard undo/redo to the analysis history.
     this.engine.onUndo = () => this.undoAnalysis();
     this.engine.onRedo = () => this.redoAnalysis();
@@ -349,7 +353,7 @@ export class World {
 
     // Load default sample, then restore an autosave if one exists.
     this.loadDataset(DEFAULT_DATASET_ENTRY);
-    this._restoreAutoSave();
+    this._initPromises.push(this._restoreAutoSave());
 
     // Apply the initial user mode (novice by default) to the coach, tooltips,
     // and tour visibility.
@@ -364,7 +368,7 @@ export class World {
 
     // Restore cross-platform shared settings asynchronously after the baseline
     // defaults have been applied.
-    this._loadSharedSettings();
+    this._initPromises.push(this._loadSharedSettings());
   }
 
   _resolveTourTarget(target) {
@@ -491,7 +495,7 @@ export class World {
    * Capture the current world state as a JSON snapshot and save it.
    */
   async saveSession(id = 'autosave') {
-    if (!this.currentEntry?.dataset || !this.dracoNode) return;
+    if (this._disposed || !this.currentEntry?.dataset || !this.dracoNode) return;
 
     const snapshot = {
       version: 1,
@@ -527,6 +531,7 @@ export class World {
       this.vrConsole?.log?.('log', [`Session saved: ${id}`]);
       this._logInteraction('Save session', { result: id });
     } catch (err) {
+      if (this._disposed) return;
       console.warn('[World] failed to save session:', err);
       this.vrConsole?.log?.('warn', [`Session save failed: ${err.message}`]);
     }
@@ -537,13 +542,16 @@ export class World {
    * settings, and tour progress from the snapshot.
    */
   async loadSession(id = 'autosave') {
+    if (this._disposed) return false;
     const snapshot = await this.sessionStore.loadSession(id);
     if (!snapshot) {
+      if (this._disposed) return false;
       this.vrConsole?.log?.('log', [`No saved session: ${id}`]);
       return false;
     }
 
     if (!snapshot.originalDataset) {
+      if (this._disposed) return false;
       this.vrConsole?.log?.('warn', [`Session ${id} has no dataset`]);
       return false;
     }
@@ -620,15 +628,18 @@ export class World {
       this.guidedTour._renderStep();
     }
 
+    if (this._disposed) return true;
     this.vrConsole?.log?.('log', [`Session restored: ${id}`]);
     return true;
   }
 
   async deleteSession(id) {
+    if (this._disposed) return;
     try {
       await this.sessionStore.deleteSession(id);
       this.vrConsole?.log?.('log', [`Session deleted: ${id}`]);
     } catch (err) {
+      if (this._disposed) return;
       console.warn('[World] failed to delete session:', err);
     }
   }
@@ -638,6 +649,7 @@ export class World {
    * mutate the world state.
    */
   _requestAutoSave() {
+    if (this._disposed) return;
     if (this._sessionAutoSaveTimer) clearTimeout(this._sessionAutoSaveTimer);
     this._sessionAutoSaveTimer = setTimeout(() => this.saveSession('autosave'), 2000);
   }
@@ -646,11 +658,13 @@ export class World {
     try {
       const has = await this.sessionStore.hasSession('autosave');
       if (!has) return;
+      if (this._disposed) return;
       this.vrConsole?.log?.('log', ['Restoring autosave...']);
       const restored = await this.loadSession('autosave');
-      if (restored) this.userModeController.apply();
+      if (restored && !this._disposed) this.userModeController.apply();
       return restored;
     } catch (err) {
+      if (this._disposed) return;
       console.warn('[World] autosave restore failed:', err);
     }
   }
@@ -1226,7 +1240,7 @@ export class World {
    * share preferences and the latest analysis story.
    */
   async _saveSharedSettings() {
-    if (!this.sessionStore || !this.settingsPanel) return;
+    if (this._disposed || !this.sessionStore || !this.settingsPanel) return;
     const settings = this.settingsPanel.getAllSettings();
     const story = this._buildAnalysisStory();
     try {
@@ -1237,6 +1251,7 @@ export class World {
         lastStory: story,
       });
     } catch (err) {
+      if (this._disposed) return;
       console.warn('[World] failed to save shared settings:', err);
     }
   }
@@ -1246,7 +1261,7 @@ export class World {
    * autosave so the current session can override shared defaults.
    */
   async _loadSharedSettings() {
-    if (!this.sessionStore || !this.settingsPanel) return;
+    if (this._disposed || !this.sessionStore || !this.settingsPanel) return;
     try {
       const shared = await this.sessionStore.getItem('shared-settings');
       if (!shared?.settings) return;
@@ -1259,8 +1274,10 @@ export class World {
       );
       this._applyFeedbackSettings(this.settingsPanel.getAllSettings());
       this._applyAccessibilitySettings();
+      if (this._disposed) return;
       this.vrConsole?.log?.('log', ['Shared settings restored']);
     } catch (err) {
+      if (this._disposed) return;
       console.warn('[World] failed to load shared settings:', err);
     }
   }
@@ -1874,6 +1891,33 @@ export class World {
       result: `${this.dataOperationController.transformedDataset?.rowCount ?? 0} rows`,
     });
     this._requestAutoSave();
+  }
+
+  /**
+   * Tear down the world and all async resources. Production code rarely calls
+   * this, but tests need it to avoid timers, live streams, and collaboration
+   * connections logging after the environment has been torn down.
+   */
+  async dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
+
+    // Stop any pending auto-save and live flushes before they log.
+    if (this._sessionAutoSaveTimer) {
+      clearTimeout(this._sessionAutoSaveTimer);
+      this._sessionAutoSaveTimer = null;
+    }
+    this.liveStreamCoordinator?.disconnectLiveStream?.();
+    this.collaborationCoordinator?.leaveCollaborationRoom?.();
+
+    // Detach telemetry global listeners so late window errors are not recorded.
+    this.telemetryCollector?.setEnabled?.(false);
+
+    // Wait for async init work to finish so it cannot log after disposal.
+    await Promise.allSettled(this._initPromises);
+    this._initPromises = [];
+
+    this.engine.dispose();
   }
 
   start() {
