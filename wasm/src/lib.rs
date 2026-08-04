@@ -75,35 +75,116 @@ mod allocator {
                 }
             }
         }
+
+        /// View `len` bytes starting at `ptr` as a shared WASM memory slice.
+        pub unsafe fn view<'a>(ptr: u32, len: u32) -> &'a [u8] {
+            core::slice::from_raw_parts(ptr as *const u8, len as usize)
+        }
+
+        /// Mutable view into shared WASM memory.
+        pub unsafe fn view_mut<'a>(ptr: u32, len: u32) -> &'a mut [u8] {
+            core::slice::from_raw_parts_mut(ptr as *mut u8, len as usize)
+        }
+
+        /// Allocate and copy `src` into WASM memory. Returns `(ptr, len)`.
+        pub fn copy_bytes(src: &[u8]) -> (u32, u32) {
+            let len = src.len() as u32;
+            let ptr = alloc(len);
+            let dst = unsafe { view_mut(ptr, len) };
+            dst.copy_from_slice(src);
+            (ptr, len)
+        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     mod host {
-        use std::alloc::{alloc as sys_alloc, dealloc as sys_dealloc, Layout};
+        use std::sync::Mutex;
 
-        pub fn reset() {}
+        use crate::INITIAL_MEMORY_PAGES;
+
+        const CAPACITY: usize = (INITIAL_MEMORY_PAGES as usize) * 65536;
+
+        struct HostMemory {
+            buffer: Vec<u8>,
+            bump: usize,
+        }
+
+        impl HostMemory {
+            const fn new() -> Self {
+                Self {
+                    buffer: Vec::new(),
+                    bump: 0,
+                }
+            }
+
+            fn reset(&mut self) {
+                self.buffer = Vec::with_capacity(CAPACITY);
+                self.bump = 0;
+            }
+
+            fn alloc(&mut self, len: u32) -> u32 {
+                let len = len as usize;
+                if len == 0 {
+                    return 0;
+                }
+                if self.buffer.capacity() == 0 {
+                    self.reset();
+                }
+                let aligned_len = (len + 7) & !7;
+                let ptr = self.bump;
+                let end = ptr + aligned_len;
+                if end > self.buffer.capacity() {
+                    panic!("allocator out of memory");
+                }
+                unsafe {
+                    std::ptr::write_bytes(self.buffer.as_mut_ptr().add(ptr), 0, aligned_len);
+                    self.buffer.set_len(end);
+                }
+                self.bump = end;
+                ptr as u32
+            }
+
+            fn dealloc(&mut self, ptr: u32, len: u32) {
+                let aligned_len = ((len as usize) + 7) & !7;
+                if (self.bump - aligned_len) == (ptr as usize) {
+                    self.bump -= aligned_len;
+                }
+            }
+        }
+
+        static HOST_MEMORY: Mutex<HostMemory> = Mutex::new(HostMemory::new());
+
+        pub fn reset() {
+            HOST_MEMORY.lock().expect("host memory lock").reset();
+        }
 
         pub fn alloc(len: u32) -> u32 {
-            let len = len as usize;
-            if len == 0 {
-                return 0;
-            }
-            let aligned_len = (len + 7) & !7;
-            let layout = Layout::from_size_align(aligned_len, 8).expect("invalid layout");
-            let ptr = unsafe { sys_alloc(layout) };
-            if ptr.is_null() {
-                panic!("allocator out of memory");
-            }
-            ptr as u32
+            HOST_MEMORY.lock().expect("host memory lock").alloc(len)
         }
 
         pub fn dealloc(ptr: u32, len: u32) {
-            if ptr == 0 {
-                return;
-            }
-            let aligned_len = ((len as usize) + 7) & !7;
-            let layout = Layout::from_size_align(aligned_len, 8).expect("invalid layout");
-            unsafe { sys_dealloc(ptr as *mut u8, layout) };
+            HOST_MEMORY.lock().expect("host memory lock").dealloc(ptr, len);
+        }
+
+        /// View `len` bytes starting at `ptr` as a slice into the host buffer.
+        pub unsafe fn view<'a>(ptr: u32, len: u32) -> &'a [u8] {
+            let base = HOST_MEMORY.lock().expect("host memory lock").buffer.as_ptr();
+            core::slice::from_raw_parts(base.add(ptr as usize), len as usize)
+        }
+
+        /// Mutable view into the host buffer.
+        pub unsafe fn view_mut<'a>(ptr: u32, len: u32) -> &'a mut [u8] {
+            let base = HOST_MEMORY.lock().expect("host memory lock").buffer.as_mut_ptr();
+            core::slice::from_raw_parts_mut(base.add(ptr as usize), len as usize)
+        }
+
+        /// Allocate and copy `src` into the host buffer. Returns `(ptr, len)`.
+        pub fn copy_bytes(src: &[u8]) -> (u32, u32) {
+            let len = src.len() as u32;
+            let ptr = alloc(len);
+            let dst = unsafe { view_mut(ptr, len) };
+            dst.copy_from_slice(src);
+            (ptr, len)
         }
     }
 }
@@ -167,7 +248,7 @@ pub fn ping() -> u32 {
 /// `ptr` must point to a region of at least `len` bytes that the JS host owns.
 #[wasm_bindgen]
 pub fn fill_pattern(ptr: u32, len: u32) -> u32 {
-    let slice = unsafe { core::slice::from_raw_parts_mut(ptr as *mut u8, len as usize) };
+    let slice = unsafe { allocator::view_mut(ptr, len) };
     for (i, byte) in slice.iter_mut().enumerate() {
         *byte = (i % 256) as u8;
     }
@@ -215,7 +296,7 @@ pub fn capabilities() -> u32 {
 /// `ptr` must point to `len` valid UTF-8 bytes readable by the JS host.
 #[wasm_bindgen]
 pub fn data_load_csv(ptr: u32, len: u32) -> u32 {
-    let bytes = unsafe { core::slice::from_raw_parts(ptr as *const u8, len as usize) };
+    let bytes = unsafe { allocator::view(ptr, len) };
     let name = "csv";
     match data::parsers::parse_csv(bytes, name) {
         Ok(dataset) => data::register_dataset(dataset),
@@ -232,7 +313,7 @@ pub fn data_load_csv(ptr: u32, len: u32) -> u32 {
 /// `ptr` must point to `len` valid UTF-8 bytes readable by the JS host.
 #[wasm_bindgen]
 pub fn data_load_json(ptr: u32, len: u32) -> u32 {
-    let bytes = unsafe { core::slice::from_raw_parts(ptr as *const u8, len as usize) };
+    let bytes = unsafe { allocator::view(ptr, len) };
     let name = "json";
     match data::parsers::parse_json(bytes, name) {
         Ok(dataset) => data::register_dataset(dataset),
@@ -275,7 +356,7 @@ pub fn dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
             return bytes.len() as u32;
         }
         let write_len = std::cmp::min(bytes.len(), out_len as usize);
-        let slice = unsafe { core::slice::from_raw_parts_mut(out_ptr as *mut u8, write_len) };
+        let slice = unsafe { allocator::view_mut(out_ptr, write_len as u32) };
         slice.copy_from_slice(&bytes[..write_len]);
         write_len as u32
     })
@@ -286,7 +367,7 @@ pub fn dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
 /// Returns `0` if the key is unknown.
 #[wasm_bindgen]
 pub fn data_load_sample(key_ptr: u32, key_len: u32) -> u32 {
-    let key_bytes = unsafe { core::slice::from_raw_parts(key_ptr as *const u8, key_len as usize) };
+    let key_bytes = unsafe { allocator::view(key_ptr, key_len) };
     let key = match std::str::from_utf8(key_bytes) {
         Ok(k) => k,
         Err(_) => return 0,
@@ -307,7 +388,7 @@ pub fn data_sample_keys(out_ptr: u32, out_len: u32) -> u32 {
     let keys = "supply-chain,fraud-graph,sensor-stream";
     let bytes = keys.as_bytes();
     let write_len = std::cmp::min(bytes.len(), out_len as usize);
-    let slice = unsafe { core::slice::from_raw_parts_mut(out_ptr as *mut u8, write_len) };
+    let slice = unsafe { allocator::view_mut(out_ptr, write_len as u32) };
     slice.copy_from_slice(&bytes[..write_len]);
     write_len as u32
 }
@@ -356,7 +437,7 @@ mod tests {
         let ptr = alloc(len as u32);
         let written = fill_pattern(ptr, len as u32);
         assert_eq!(written, len as u32);
-        let slice = unsafe { core::slice::from_raw_parts(ptr as *const u8, len) };
+        let slice = unsafe { allocator::view(ptr, len as u32) };
         for (i, byte) in slice.iter().enumerate() {
             assert_eq!(*byte, (i % 256) as u8);
         }
@@ -366,38 +447,46 @@ mod tests {
     #[test]
     fn data_load_csv_creates_dataset() {
         let csv = b"name,age,city\nAlice,30,NYC\nBob,25,LA\n";
-        let handle = data_load_csv(csv.as_ptr() as u32, csv.len() as u32);
+        let (ptr, len) = allocator::copy_bytes(csv);
+        let handle = data_load_csv(ptr, len);
         assert!(handle > 0);
         assert_eq!(dataset_row_count(handle), 2);
         assert_eq!(dataset_column_count(handle), 3);
         dataset_destroy(handle);
+        dealloc(ptr, len);
     }
 
     #[test]
     fn data_load_json_creates_dataset() {
         let json = br#"[{"x":1,"y":2},{"x":3,"y":4}]"#;
-        let handle = data_load_json(json.as_ptr() as u32, json.len() as u32);
+        let (ptr, len) = allocator::copy_bytes(json);
+        let handle = data_load_json(ptr, len);
         assert!(handle > 0);
         assert_eq!(dataset_row_count(handle), 2);
         assert_eq!(dataset_column_count(handle), 2);
         dataset_destroy(handle);
+        dealloc(ptr, len);
     }
 
     #[test]
     fn data_load_sample_creates_dataset() {
         let key = b"supply-chain";
-        let handle = data_load_sample(key.as_ptr() as u32, key.len() as u32);
+        let (ptr, len) = allocator::copy_bytes(key);
+        let handle = data_load_sample(ptr, len);
         assert!(handle > 0);
         assert_eq!(dataset_row_count(handle), 12);
         assert_eq!(dataset_column_count(handle), 5);
         dataset_destroy(handle);
+        dealloc(ptr, len);
     }
 
     #[test]
     fn data_load_sample_returns_zero_for_unknown_key() {
         let key = b"not-a-key";
-        let handle = data_load_sample(key.as_ptr() as u32, key.len() as u32);
+        let (ptr, len) = allocator::copy_bytes(key);
+        let handle = data_load_sample(ptr, len);
         assert_eq!(handle, 0);
+        dealloc(ptr, len);
     }
 
     #[test]
@@ -406,7 +495,7 @@ mod tests {
         let buf = alloc(buf_len);
         let written = data_sample_keys(buf, buf_len);
         assert!(written > 0);
-        let slice = unsafe { core::slice::from_raw_parts(buf as *const u8, written as usize) };
+        let slice = unsafe { allocator::view(buf, written) };
         let s = std::str::from_utf8(slice).expect("utf8");
         assert!(s.contains("supply-chain"));
         assert!(s.contains("fraud-graph"));
@@ -417,7 +506,8 @@ mod tests {
     #[test]
     fn dataset_to_json_round_trips() {
         let key = b"fraud-graph";
-        let handle = data_load_sample(key.as_ptr() as u32, key.len() as u32);
+        let (key_ptr, key_len) = allocator::copy_bytes(key);
+        let handle = data_load_sample(key_ptr, key_len);
         assert!(handle > 0);
 
         let required = dataset_to_json(handle, 0, 0);
@@ -426,12 +516,13 @@ mod tests {
         let written = dataset_to_json(handle, buf, required);
         assert_eq!(written, required);
 
-        let slice = unsafe { core::slice::from_raw_parts(buf as *const u8, written as usize) };
+        let slice = unsafe { allocator::view(buf, written) };
         let json = std::str::from_utf8(slice).expect("utf8");
         assert!(json.contains("\"name\":\"Transaction Fraud Graph\""));
         assert!(json.contains("\"edges\""));
 
         dealloc(buf, required);
         dataset_destroy(handle);
+        dealloc(key_ptr, key_len);
     }
 }
