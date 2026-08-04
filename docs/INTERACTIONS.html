@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne Interaction Vocabulary | Nemosyne</title>
+
+    <!-- Primary favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
+
+    <!-- Fallback for older browsers -->
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="img/favicon_io/favicon-16x16.png">
+    <link rel="shortcut icon" href="img/favicon_io/favicon.ico">
+
+    <!-- Apple devices -->
+    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon_io/apple-touch-icon.png">
+
+    <!-- Android/Chrome -->
+    <link rel="manifest" href="img/favicon_io/site.webmanifest">
+    <meta name="theme-color" content="#0a0a0f">
+
+    <!-- Microsoft -->
+    <meta name="msapplication-TileColor" content="#0a0a0f">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+
+    <div class="temporal-grid"></div>
+
+    <!-- Navigation -->
+    <nav>
+        <a href="./index.html" class="logo">
+            <div class="logo-symbol"></div>
+            <span>Nemosyne</span>
+        </a>
+        <ul class="nav-links">
+            <li><a href="./index.html#features">Features</a></li>
+            <li><a href="./index.html#datasets">Datasets</a></li>
+            <li><a href="./index.html#examples">Examples</a></li>
+            <li><a href="./index.html#use-cases">Use Cases</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">VR Demo</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">Launch App</a></li>
+        </ul>
+        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            GitHub
+        </a>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="hero" style="min-height: 40vh; padding-top: 8rem; padding-bottom: 3rem;">
+        <div class="void-bg"></div>
+        <div class="crystal-field">
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+        </div>
+
+        <div class="hero-content">
+            <div class="badge">Nemosyne Documentation</div>
+            <h1>Nemosyne Interaction Vocabulary</h1>
+            <p class="hero-subtitle" style="max-width: 700px; margin-left: auto; margin-right: auto;">
+                Nemosyne defines a small set of metaphor-accurate interactions: every gesture performs a dataset operation *and* a ma...
+            </p>
+        </div>
+    </section>
+
+    <!-- Content Section -->
+    <section class="features" id="content">
+        <div class="container">
+            <article class="markdown-content">
+<p>Nemosyne defines a small set of <strong>metaphor-accurate</strong> interactions: every gesture performs a dataset operation <em>and</em> a matching VR artefact transform.</p>
+<hr>
+<h2>Core Interaction Loop</h2>
+<ol>
+<li><strong>Orient</strong> — Enter the memory palace generated from the dataset.</li>
+<li><strong>Probe</strong> — Point at a node and inspect its real data values.</li>
+<li><strong>Query</strong> — Highlight matching records across the space.</li>
+<li><strong>Compare</strong> — See the same layout under different encodings or filters.</li>
+<li><strong>Annotate</strong> — Drop a beacon on a finding.</li>
+<li><strong>Share</strong> — Export the current palace state as a JSON view spec.</li>
+</ol>
+<hr>
+<h2>Data Operation → Artefact Transform Mapping</h2>
+<table>
+<thead>
+<tr>
+<th>Intent</th>
+<th>Dataset operation</th>
+<th>VR artefact transform</th>
+<th>Input</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Inspect</strong></td>
+<td>—</td>
+<td>Holographic inspector appears near the active hand; node brightens and elevates</td>
+<td>Point + pinch/select on node</td>
+</tr>
+<tr>
+<td><strong>Filter</strong></td>
+<td><code>Dataset.filter(predicate)</code></td>
+<td>Non-matching nodes shrink, fade, and fall below the DatumPlane</td>
+<td>Wheel menu, filter ring, or <code>pinchTogether</code> gesture</td>
+</tr>
+<tr>
+<td><strong>Aggregate</strong></td>
+<td><code>Dataset.aggregate(groupBy, aggregator)</code></td>
+<td>Grouped crystals merge into a larger Orb or Column</td>
+<td>Wheel menu or <code>pinchApart</code> gesture</td>
+</tr>
+<tr>
+<td><strong>Sort</strong></td>
+<td><code>Dataset.sort(column)</code></td>
+<td>Nodes reorder along an arc or spiral</td>
+<td>Wheel menu or <code>sliceUp</code> gesture</td>
+</tr>
+<tr>
+<td><strong>Time Slice</strong></td>
+<td><code>Dataset.slice(start, end)</code></td>
+<td>A cut plane moves through the ribbon; older data dims</td>
+<td>Wheel menu or <code>sliceDown</code> gesture</td>
+</tr>
+<tr>
+<td><strong>Cluster</strong></td>
+<td><code>Dataset.cluster(k)</code></td>
+<td>Similar nodes attract into a Zone ring</td>
+<td>Pinch-drag a node near another</td>
+</tr>
+<tr>
+<td><strong>Hierarchical Cluster</strong></td>
+<td><code>DatasetOperations.hierarchical(...)</code></td>
+<td>Dendrogram arcs arranged by linkage distance</td>
+<td>Wheel menu Hierarchical button</td>
+</tr>
+<tr>
+<td><strong>Density Cluster</strong></td>
+<td><code>DatasetOperations.dbscan(...)</code></td>
+<td>Dense groups become clouds; noise sinks below plane</td>
+<td>Wheel menu Density button</td>
+</tr>
+<tr>
+<td><strong>Anomaly Highlight</strong></td>
+<td><code>DatasetOperations.anomaly(...)</code></td>
+<td>Outliers lift and pulse with magenta halos</td>
+<td>Wheel menu Highlight outliers button</td>
+</tr>
+<tr>
+<td><strong>Outlier Lens</strong></td>
+<td><code>applyOutlierLens</code></td>
+<td>Outliers swarm around the pointing hand</td>
+<td>Hold pinch on an outlier cluster</td>
+</tr>
+<tr>
+<td><strong>Live Preview</strong></td>
+<td><code>computeOperationDataset</code> (preview only)</td>
+<td>Transient markers show which rows will be kept, removed, reordered, or flagged as outliers before the operation is applied</td>
+<td>Hover an operation in the wheel menu or an in-place handle</td>
+</tr>
+<tr>
+<td><strong>Reset</strong></td>
+<td><code>Dataset.reset()</code></td>
+<td>All artefacts return to the solved layout</td>
+<td>Wheel menu Reset button or <code>pushForward</code> gesture with pinched hands</td>
+</tr>
+<tr>
+<td><strong>Reset View</strong></td>
+<td>—</td>
+<td>Camera returns to the overview anchor without undoing history</td>
+<td><code>pushForward</code> gesture with open hands, or <code>R</code> on desktop</td>
+</tr>
+<tr>
+<td><strong>Pause / Resume Input</strong></td>
+<td>—</td>
+<td>All gestures are ignored while paused; locomotion and scene selection are disabled</td>
+<td>Hold both hands pinched close together for ~1 second, or <code>P</code> on desktop</td>
+</tr>
+<tr>
+<td><strong>Undo / Redo</strong></td>
+<td><code>AnalysisHistory</code> rewinds or replays operations</td>
+<td>Artefact rebuilds from the stored dataset</td>
+<td><code>rotateCCW</code> / <code>rotateCW</code> gestures or <code>Ctrl+Z</code> / <code>Ctrl+Y</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Dual-Hand Gesture Commands</h2>
+<p><code>src/vr/interactions/HandGestureRecognizer.js</code> reads both tracked hands each frame and maps simple pose patterns to analysis commands. Gestures are deliberately conservative: each has a cooldown and a clear displacement threshold so accidental motion does not spam commands.</p>
+<table>
+<thead>
+<tr>
+<th>Gesture</th>
+<th>Hands</th>
+<th>Mapped action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>bothPinched</strong></td>
+<td>Both hands pinch simultaneously</td>
+<td>System toggle: show/hide the launcher ring</td>
+</tr>
+<tr>
+<td><strong>pinchTogether</strong></td>
+<td>Both hands pinched and moving closer</td>
+<td>Apply <strong>filter</strong></td>
+</tr>
+<tr>
+<td><strong>pinchApart</strong></td>
+<td>Both hands pinched and moving apart</td>
+<td>Apply <strong>aggregate</strong></td>
+</tr>
+<tr>
+<td><strong>swipeRight</strong></td>
+<td>Dominant open-hand swipe right</td>
+<td>Next dataset</td>
+</tr>
+<tr>
+<td><strong>swipeLeft</strong></td>
+<td>Dominant open-hand swipe left</td>
+<td>Previous dataset</td>
+</tr>
+<tr>
+<td><strong>sliceUp</strong></td>
+<td>Dominant open-hand slice up</td>
+<td>Apply <strong>sort</strong></td>
+</tr>
+<tr>
+<td><strong>sliceDown</strong></td>
+<td>Dominant open-hand slice down</td>
+<td>Apply <strong>timeSlice</strong></td>
+</tr>
+<tr>
+<td><strong>scoopUp</strong></td>
+<td>Both palms up, rising together</td>
+<td>Toggle the <strong>statistical lens</strong> (TDA summary + correlation matrix); in flight mode, <strong>ascend</strong></td>
+</tr>
+<tr>
+<td><strong>scoopDown</strong></td>
+<td>Both palms down, lowering together</td>
+<td>In flight mode, <strong>descend</strong></td>
+</tr>
+<tr>
+<td><strong>pushForward (pinched)</strong></td>
+<td>Both palms forward, pushing away</td>
+<td><strong>Reset</strong> data operations</td>
+</tr>
+<tr>
+<td><strong>pushForward (open)</strong></td>
+<td>Both open palms forward, pushing away</td>
+<td><strong>Reset</strong> view to overview</td>
+</tr>
+<tr>
+<td><strong>rotateCW</strong></td>
+<td>Cupped hands twisting clockwise</td>
+<td><strong>Redo</strong> the last undone analysis operation</td>
+</tr>
+<tr>
+<td><strong>rotateCCW</strong></td>
+<td>Cupped hands twisting counter-clockwise</td>
+<td><strong>Undo</strong> the last analysis operation</td>
+</tr>
+<tr>
+<td><strong>okSign</strong></td>
+<td>Dominant pinch while non-dominant is open</td>
+<td>Toggle the <strong>settings panel</strong></td>
+</tr>
+<tr>
+<td><strong>pauseResume</strong></td>
+<td>Pinch both index fingers close together and hold ~1 s</td>
+<td><strong>Pause / resume</strong> all input</td>
+</tr>
+</tbody></table>
+<p>The recognizer is used by <code>World._updateGestures()</code>; the resulting intent is handled by <code>World._onGesture()</code>.</p>
+<hr>
+<h2>Analysis History &amp; Undo/Redo</h2>
+<p>Every data operation is recorded in an <code>AnalysisHistory</code> stack (<code>src/data/AnalysisHistory.js</code>). Each frame stores:</p>
+<ul>
+<li><code>operation</code> — the command name (e.g. <code>filter</code>, <code>sort</code>, <code>aggregate</code>).</li>
+<li><code>datasetBefore</code> / <code>datasetAfter</code> — deep clones of the dataset on each side of the operation.</li>
+<li><code>parameters</code> — optional replay parameters.</li>
+<li><code>timestamp</code> — when the frame was recorded.</li>
+</ul>
+<p>The stack is pointer-based. Undo returns the dataset before the current frame; redo returns the dataset after the next frame. A new operation after an undo discards the redo branch. The stack is capped at 50 frames by default.</p>
+<p>You can step through history with:</p>
+<ul>
+<li><code>rotateCCW</code> / <code>rotateCW</code> hand gestures.</li>
+<li><code>Ctrl+Z</code> and <code>Ctrl+Y</code> (or <code>Ctrl+Shift+Z</code>) on the desktop keyboard.</li>
+</ul>
+<h2>Settings Panel</h2>
+<p><code>src/vr/ui/SettingsPanel.js</code> is a movable, camera-rig-attached panel that lets analysts customize:</p>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Options</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Statistical Lens</strong></td>
+<td>Toggle the TDA summary group and/or the correlation matrix panel</td>
+</tr>
+<tr>
+<td><strong>Feedback</strong></td>
+<td>Enable/disable audio, haptic, and visual feedback independently</td>
+</tr>
+<tr>
+<td><strong>Gestures</strong></td>
+<td>Enable/disable the dual-hand gesture recognizer</td>
+</tr>
+</tbody></table>
+<p>Settings are persisted to <code>localStorage</code> under <code>nemosyne-vr-settings</code> and applied immediately via <code>World._onSettingChanged()</code>.</p>
+<hr>
+<h2>Gesture Details</h2>
+<h3>Point + pinch / select</h3>
+<ul>
+<li><strong>Controller</strong>: trigger click while pointing.</li>
+<li><strong>Hand tracking</strong>: extend index finger and pinch thumb+index.</li>
+<li>Used for inspect, menu selection, and button presses.</li>
+</ul>
+<h3>Two-hand pinch + pull</h3>
+<ul>
+<li>Pinch an artefact with each hand, then pull hands apart or together.</li>
+<li>Pulling apart expands/untangles; pulling together aggregates.</li>
+</ul>
+<h3>Horizontal / vertical hand swipe</h3>
+<ul>
+<li>Swipe horizontally across the palace to cycle sort keys.</li>
+<li>Swipe vertically to move a time-slice plane forward/backward.</li>
+</ul>
+<h3>Body-locked constellation wheel menu</h3>
+<ul>
+<li>Pinch the menu hand to toggle a two-level constellation wheel that floats body-locked in front of the chest at ~0.55 m.</li>
+<li>Inner ring: categories (Templates, Panels, Views, Live, Collab, Ops).</li>
+<li>Outer ring: actions within the hovered or selected category.</li>
+<li>Faint connector lines link the active category to its actions, building spatial muscle memory.</li>
+<li>Dominant-hand index ray hovers to preview and pinch to confirm.</li>
+<li>Hovering a node brightens and scales it slightly; selecting an action plays a confirm tone and closes the wheel.</li>
+<li>Hovering an operation in the <strong>Ops</strong> ring triggers a <strong>live preview</strong> of the result.</li>
+</ul>
+<hr>
+<h2>In-Place Operation Handles</h2>
+<p>For common topologies, small world-space badges appear near the data palace so you can act without opening the wheel menu:</p>
+<table>
+<thead>
+<tr>
+<th>Topology</th>
+<th>Handles</th>
+<th>Badge</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>TABULAR</strong> / <strong>HIERARCHY</strong></td>
+<td>Filter, Sort</td>
+<td>🔎, 📶</td>
+</tr>
+<tr>
+<td><strong>TIME_SERIES</strong></td>
+<td>Time Slice</td>
+<td>🕒</td>
+</tr>
+</tbody></table>
+<p>The handles fade in when your pointer or hand is nearby and are hidden in expert mode. Selecting a handle applies the same operation as the wheel menu.</p>
+<hr>
+<h2>Spatial HUDs</h2>
+<p>Two lightweight, analyst-anchored HUDs help you stay oriented and aware of collaborators:</p>
+<ul>
+<li><strong>Mini-overview</strong> — a top-down map of the palace with a cone showing your current horizontal view direction. Toggle from the wheel menu (Views → Overview) or Settings.</li>
+<li><strong>Peer-presence HUD</strong> — lists connected collaborators with colored dots and, when they broadcast their position, a direction arrow relative to your forward vector. Toggle from the wheel menu (Views → Peers) or Settings.</li>
+</ul>
+<hr>
+<h2>Analysis Templates</h2>
+<p>Ready-made <strong>analysis stories</strong> (<code>src/data/AnalysisTemplates.js</code>) bundle a sample dataset, an atmosphere preset, and a guided tour into a single entry point. They let a new analyst start from a credible scenario instead of an empty palace.</p>
+<p>Open the <strong>Templates</strong> category in the constellation wheel menu and pick a story:</p>
+<table>
+<thead>
+<tr>
+<th>Template</th>
+<th>Dataset</th>
+<th>Theme</th>
+<th>Tour</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Factory Floor Monitoring</td>
+<td>IoT sensor stream</td>
+<td><code>coolDepth</code></td>
+<td>first dataset</td>
+</tr>
+<tr>
+<td>Fraud Investigation</td>
+<td>Fraud transaction graph</td>
+<td><code>warmAnomaly</code></td>
+<td>first dataset</td>
+</tr>
+<tr>
+<td>Sales Performance Review</td>
+<td>Sales table</td>
+<td><code>daylightGlobe</code></td>
+<td>first dataset</td>
+</tr>
+<tr>
+<td>Organizational Cost Audit</td>
+<td>Org chart</td>
+<td><code>neonMidnight</code></td>
+<td>first dataset</td>
+</tr>
+<tr>
+<td>Market Session Replay</td>
+<td>Financial candle series</td>
+<td><code>daylightGlobe</code></td>
+<td>first dataset</td>
+</tr>
+<tr>
+<td>Geospatial Benchmark</td>
+<td>Global cities</td>
+<td><code>coolDepth</code></td>
+<td>first dataset</td>
+</tr>
+</tbody></table>
+<p>A template loads the dataset, applies the matching visual theme, and starts the default guided tour so the gesture and operation vocabulary are introduced in context.</p>
+<hr>
+<h2>Cross-Platform Continuity</h2>
+<p>Nemosyne shares key preferences and the latest analysis story between desktop and VR sessions through IndexedDB (<code>shared-settings</code>). When a setting changes in either mode, it is written to the shared store and restored the next time the app launches.</p>
+<p>In addition, a <strong>Desktop Preview</strong> mode lets you inspect the palace on a monitor before putting on a headset:</p>
+<ul>
+<li>Toggle from the wheel menu: <strong>Views → Preview</strong>.</li>
+<li>Outside VR, this switches from first-person mouse/keyboard controls to an orbit camera centered on the palace.</li>
+<li>Your first-person pose is saved so you can return to it with the same menu action.</li>
+</ul>
+<p>This is useful for preparing a dataset, configuring settings, or demonstrating the workspace without a headset.</p>
+<hr>
+<h2>System Controls</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Default input</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Toggle wheel menu</td>
+<td>Controller grip (hold) or two-hand pinch</td>
+</tr>
+<tr>
+<td>Toggle individual panel</td>
+<td>Wheel menu → panel button, or launcher ring</td>
+</tr>
+<tr>
+<td>Drag panel</td>
+<td>Point at title bar, hold trigger/pinch, move</td>
+</tr>
+<tr>
+<td>Scroll dashboard</td>
+<td>Wheel menu → Panels → Scroll Left / Right</td>
+</tr>
+<tr>
+<td>Re-center panels</td>
+<td>Wheel menu → Recenter</td>
+</tr>
+<tr>
+<td>Reset dashboard</td>
+<td>Wheel menu → Panels → Reset Dashboard</td>
+</tr>
+<tr>
+<td>Switch dataset</td>
+<td>Wheel menu → Views → Dataset, or <code>swipeRight</code> / <code>swipeLeft</code> gesture</td>
+</tr>
+<tr>
+<td>Connect live stream</td>
+<td>Wheel menu → Live → Start/Stop Live</td>
+</tr>
+<tr>
+<td>Toggle Farcaster portals</td>
+<td>Wheel menu → Views → Portals</td>
+</tr>
+<tr>
+<td>Cycle TechnoCore lens hub</td>
+<td>Point + pinch the TechnoCore</td>
+</tr>
+<tr>
+<td>Walk through Farcaster portal</td>
+<td>Step into a portal to warp + apply its data operation</td>
+</tr>
+<tr>
+<td>Toggle statistical lens</td>
+<td><code>scoopUp</code> gesture (when not in flight mode), Settings Panel, or TechnoCore <code>statistical</code> lens</td>
+</tr>
+<tr>
+<td>Cycle atmosphere theme</td>
+<td>Wheel menu → Views → Cycle Theme</td>
+</tr>
+<tr>
+<td>Undo / redo operation</td>
+<td><code>rotateCCW</code> / <code>rotateCW</code>, or <code>Ctrl+Z</code> / <code>Ctrl+Y</code></td>
+</tr>
+<tr>
+<td>Open settings panel</td>
+<td><code>okSign</code> gesture</td>
+</tr>
+<tr>
+<td>Start guided tour</td>
+<td>Wheel menu → Panels → Tour</td>
+</tr>
+<tr>
+<td>Filter / aggregate / sort / time-slice</td>
+<td><code>pinchTogether</code>, <code>pinchApart</code>, <code>sliceUp</code>, <code>sliceDown</code></td>
+</tr>
+<tr>
+<td>Reset data operations</td>
+<td><code>pushForward</code> gesture with pinched hands</td>
+</tr>
+<tr>
+<td>Reset view</td>
+<td><code>pushForward</code> gesture with open hands, or <code>R</code> on desktop</td>
+</tr>
+<tr>
+<td>Pause / resume input</td>
+<td>Hold both hands pinched close together for ~1 s, or <code>P</code> on desktop</td>
+</tr>
+<tr>
+<td>Toggle 3D flight mode</td>
+<td>Wheel menu → Views → Toggle Flight</td>
+</tr>
+<tr>
+<td>Ascend / descend in flight mode</td>
+<td>Right thumbstick up/down, or <code>scoopUp</code> / <code>scoopDown</code> gesture</td>
+</tr>
+<tr>
+<td>Drop to floor</td>
+<td>Wheel menu → Views → Drop to Floor</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Context-Aware Gesture Suppression</h2>
+<p>Nemosyne infers intent from the spatial context of your hands to reduce accidental commands:</p>
+<ul>
+<li><strong>Hand near a data artefact</strong> — when the dominant hand is inside the palace&#39;s bounding volume, global gestures are suppressed and locomotion is disabled so you can adjust in-place handles or direct widgets without accidentally moving or triggering an operation.</li>
+<li><strong>Hand near the wheel menu</strong> — when a hand is close to the body-locked constellation wheel, scene selection is suppressed for the other hand so you can operate the menu without selecting palace nodes through it.</li>
+<li><strong>Input paused</strong> — while paused, all gestures, locomotion, and scene selection are ignored. Use this to reposition your hands or take a break without unintended commands.</li>
+</ul>
+<p>These checks run each frame in <code>World._updateInputContext()</code> and update <code>InputRouter</code> and <code>Locomotion</code> suppression flags.</p>
+<hr>
+<h2>Guided Tour</h2>
+<p><code>src/vr/ui/GuidedTour.js</code> plays a step-by-step spatial tutorial authored as JSON. The default tour (<code>src/data/DefaultTour.js</code>) introduces the datum plane, Draco palace, node inspection, the constellation wheel menu, two-hand gestures, the settings panel, and the curved dashboard.</p>
+<ul>
+<li>Tours advance manually via <code>next()</code> / <code>previous()</code> or automatically when a step&#39;s condition is satisfied.</li>
+<li>Each step displays a camera-rig-attached instruction card and a pulsing highlight ring around the target.</li>
+<li>A narration tone plays per step when audio feedback is enabled.</li>
+<li>Start the tour from the wheel menu under <strong>Panels → Tour</strong> or programmatically with <code>world.startTour()</code>.</li>
+</ul>
+<h2>Atmosphere &amp; Theme Presets</h2>
+<p><code>src/vr/WorldTheme.js</code> controls the cyberspace mood: fog density/color, ambient/point light intensities, grid colors, and a slow ambient dust particle field. Each dataset load can request a preset so the environment matches the data&#39;s emotional register.</p>
+<p>Available presets: <code>neonMidnight</code>, <code>daylightGlobe</code>, <code>coolDepth</code>, <code>warmAnomaly</code>, <code>deepNet</code>.</p>
+<ul>
+<li>Loading a sample dataset by key automatically applies a mapped preset (e.g., <code>fraud-graph</code> → <code>warmAnomaly</code>, <code>sensor-stream</code> → <code>coolDepth</code>).</li>
+<li>Walking through a Farcaster portal warps the camera, applies a zone-specific preset, and performs the portal&#39;s data operation.</li>
+<li>The <strong>Cycle Theme</strong> wheel-menu action lets the user browse presets manually; the current choice is logged to the VR Console.</li>
+<li><code>TechnoCoreNode</code> and <code>FarcasterPortal</code> intensify their glow/pulse when data activity is high, tying the visuals to live or dynamic datasets.</li>
+</ul>
+<hr>
+<h2>Functional Landmarks</h2>
+<p>The TechnoCore and Farcaster portals are no longer purely decorative set dressing; they are part of the analysis workflow.</p>
+<h3>TechnoCore — Lens Hub</h3>
+<p><code>src/vr/artifacts/TechnoCoreNode.js</code></p>
+<ul>
+<li><strong>Pinch/select</strong> the core to cycle the lens mode: <code>off</code> → <code>statistical</code> → <code>anomaly</code> → <code>off</code>.</li>
+<li>Each mode tints the core, megasphere, and rings with a distinct color:<ul>
+<li><code>off</code> — cyan</li>
+<li><code>statistical</code> — teal (<code>statistical lens</code> on)</li>
+<li><code>anomaly</code> — magenta (<code>anomaly</code> data operation applied)</li>
+</ul>
+</li>
+<li>The core&#39;s pulse intensity scales with the amount of analysis history (<code>analysisHistory.length / maxFrames</code>), so a busy session literally glows brighter.</li>
+<li>Lens-mode changes emit a dedicated core tone and a short haptic pulse.</li>
+</ul>
+<h3>Farcaster Portals — Data-Transformation Gates</h3>
+<p><code>src/vr/artifacts/FarcasterPortal.js</code></p>
+<ul>
+<li>Each portal carries a registered data operation (e.g., <code>anomaly</code>, <code>reset</code>, <code>filter</code>).</li>
+<li><strong>Step through</strong> a portal to warp to its target zone and apply that operation to the dataset.</li>
+<li>Portals preview their active state: when the user is within ~2.5 m, the ring, horizon, and halo brighten, signaling that the gate is armed.</li>
+<li>After a warp the portal plays a zone-specific tone and a stronger haptic pulse.</li>
+<li>Current wiring:<ul>
+<li><strong>Portal A (Deep Net)</strong> — applies the <code>anomaly</code> operation and warps to the deep-net zone.</li>
+<li><strong>Portal B (Local Matrix)</strong> — applies <code>reset</code> and returns the camera to the origin.</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h2>Phase 7 Interaction Metaphors</h2>
+<p>Beyond the core operations, Nemosyne defines six spatial metaphors for reasoning about data. They are available as <code>interaction</code> spec values and are triggered on node selection.</p>
+<table>
+<thead>
+<tr>
+<th>Metaphor</th>
+<th>Effect</th>
+<th>Best For</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>RESONANCE_PULSE</strong></td>
+<td>Expanding rings travel from the selected node to its graph neighbours.</td>
+<td>Graphs / networks</td>
+</tr>
+<tr>
+<td><strong>FORK_PLANE</strong></td>
+<td>A translucent plane bisects the artefact, highlighting the selected item&#39;s half-space.</td>
+<td>Tabular / spatial partitions</td>
+</tr>
+<tr>
+<td><strong>CHRONO_DIAL</strong></td>
+<td>A rotating clock-face ring appears around a time-series point.</td>
+<td>Time-series</td>
+</tr>
+<tr>
+<td><strong>CONSTELLATION</strong></td>
+<td>Ephemeral lines connect the selected node to up to eight related nodes.</td>
+<td>Networks / similarity</td>
+</tr>
+<tr>
+<td><strong>BEACON</strong></td>
+<td>A vertical light column rises from the selected point.</td>
+<td>Geo / dense tabular spaces</td>
+</tr>
+<tr>
+<td><strong>ALEPH</strong></td>
+<td>All other visible nodes briefly flash a connection to the selected node.</td>
+<td>Dense graphs</td>
+</tr>
+</tbody></table>
+<p>The metaphors are implemented in <code>src/vr/interactions/MetaphorActions.js</code> and wired into <code>VRTopologyTranslator</code>. By default the constraint engine still prefers base interactions (<code>TRAVERSE_EDGE</code>, <code>INSPECT_CELL</code>, etc.); tuning the metaphor soft-constraint weights selects them.</p>
+<h2>Holographic Inspector</h2>
+<p><code>src/vr/artifacts/HolographicInspector.js</code> replaces the old flat <code>DataCard</code> with a gravity-glove-style slate:</p>
+<ul>
+<li>Appears near the active pointer hand when a node is selected, then smoothly follows the hand.</li>
+<li>Always faces the user&#39;s head so text stays readable.</li>
+<li>Renders the node&#39;s title, category badge, and key/value fields on a dark scanlined slate.</li>
+<li>Dismissed by a quick downward flick of the pointing hand or by looking away for more than ~0.8 s.</li>
+<li>Plays a short confirm tone and a transient hit marker on open, and a release tone on close.</li>
+</ul>
+<p>This matches the diegetic UI pattern used in Half-Life: Alyx and No Man&#39;s Sky: information lives in the world, attached to the user&#39;s body, rather than as a fixed HUD element.</p>
+<hr>
+<h2>Contextual Gaze Tooltips</h2>
+<p><code>src/vr/ui/TooltipManager.js</code> keeps label clutter low with a pooled set of world-space gaze tooltips:</p>
+<ul>
+<li>A compact label fades in when you look at a node for more than ~400 ms.</li>
+<li>Nodes within arm&#39;s reach show labels immediately via the existing <code>LODManager</code> rules.</li>
+<li>Tooltips billboards toward your eyes and float just above the node, so they stay readable from any angle.</li>
+<li>They fade out as soon as you look away or the node is no longer visible.</li>
+</ul>
+<p>Only a small pool of tooltips is active at once, so dense datasets do not turn into a wall of text.</p>
+<hr>
+<h2>Spatial Dashboard (Curved, Scrollable Workspace)</h2>
+<p><code>src/vr/ui/DashboardManager.js</code> now lays out 2D <code>ChartPlane</code>s and diagnostic panels on a curved, scrollable grid in front of the analyst:</p>
+<ul>
+<li>The dashboard is attached to the camera rig and wraps around the user in a front-facing semi-circle (default radius 1.35 m, 180° arc), so panels stay readable without turning around.</li>
+<li>The grid has angular columns and vertical rows. More panels than fit in the visible arc are parked just off-screen and roll into view when the carousel is scrolled.</li>
+<li>Faint wireframe snap zones appear while a panel is being dragged; the nearest zone highlights in magenta.</li>
+<li>Dropping a panel near a zone snaps it into place, orients it toward the analyst, and scales it to fit the cell.</li>
+<li>Dropping a panel into an off-screen zone auto-scrolls the carousel to bring that zone into view.</li>
+<li>Chart panels are created automatically from the active dataset (<code>ChartPlanePanel.js</code>) and update when data operations run.</li>
+<li>The constellation wheel menu provides <strong>Scroll Left</strong>, <strong>Scroll Right</strong>, and <strong>Reset Dashboard</strong> actions under Panels.</li>
+</ul>
+<p>This borrows the cockpit-style panel layout from <em>Elite Dangerous</em> and <em>No Man&#39;s Sky</em> (information arranged in world space around the pilot) and the carousel paging common in VR game menus (<em>Echo VR</em>, console radial menus). The grid itself is inspired by the Google VR Constellation Menu and <em>Starblood Arena</em> circular HUD: a regular angular arrangement that builds spatial muscle memory.</p>
+<hr>
+<h2>Analyst Anchor</h2>
+<p>The analyst (the user&#39;s head / camera rig) is now the explicit anchor for all HUD elements:</p>
+<ul>
+<li><code>PanelManager</code>, <code>DashboardManager</code>, and <code>HandWheelMenu</code> are parented to a dedicated <code>analystAnchor</code> group under the camera rig.</li>
+<li>Movable panels, the launcher ring, the curved dashboard, and the constellation wheel menu all travel with the analyst instead of floating at fixed world positions.</li>
+<li>This keeps pointer rays, panels, and menu nodes clustered in the user&#39;s personal space, so the workspace is readable from any position in the memory palace.</li>
+<li>The datum plane, TechnoCore landmark, and Farcaster portals remain world-anchored — they are the memory-palace substrate.</li>
+</ul>
+<p>The anchor is exposed as <code>world.analystAnchor</code> and can be offset programmatically if a particular body-locked position (chest, belt, shoulder) works better for a deployment.</p>
+<hr>
+<h2>3D Flight Navigation</h2>
+<p>A toggleable flight mode adds full 3D translation (X, Y, Z) to the standard ground-constrained locomotion:</p>
+<ul>
+<li><strong>Toggle</strong>: Wheel menu → Views → Toggle Flight (or <code>Locomotion.toggleFlight()</code>).</li>
+<li><strong>Horizontal</strong>: Left thumbstick continues to strafe and move forward/back relative to headset yaw.</li>
+<li><strong>Vertical</strong>: Right thumbstick up/down moves the analyst up and down.</li>
+<li><strong>Gestures</strong>: When flight mode is active, <code>scoopUp</code> ascends and <code>scoopDown</code> descends.</li>
+<li><strong>Drop to Floor</strong>: Wheel menu → Views → Drop to Floor instantly returns the analyst to floor level.</li>
+<li>Flight mode and teleport mode are mutually exclusive — enabling one disables the other.</li>
+</ul>
+<hr>
+<h2>Feedback</h2>
+<p>Every data operation, selection, and recognized gesture provides multi-modal feedback via <code>src/vr/audio/SelectionFeedback.js</code>:</p>
+<ul>
+<li><strong>Visual</strong> — artefact scale/position/color change; pointer ray flashes white on select and gesture.</li>
+<li><strong>Audio</strong> — procedural Web Audio API tones: subtle tick on hover, two-tone confirm chirp on select, and a unique short tone for each gesture command.</li>
+<li><strong>Haptic</strong> — controller vibration (Quest native) on select/drag/gesture, with a fallback to <code>navigator.vibrate</code> when no XR haptic actuator is available.</li>
+<li><strong>UI</strong> — VR Console logs the operation and affected row count.</li>
+</ul>
+<p>Each channel can be toggled independently in the <strong>Settings Panel</strong> or programmatically through <code>SelectionFeedback.setToggles({ audio, haptic, visual })</code>.</p>
+<hr>
+<h2>Design Rationale</h2>
+<p>The goal is to make data operations feel like physical actions in a place:</p>
+<ul>
+<li><strong>Filtering</strong> should feel like <em>removing</em> objects from view.</li>
+<li><strong>Aggregating</strong> should feel like <em>merging</em> objects.</li>
+<li><strong>Sorting</strong> should feel like <em>rearranging</em> objects on a shelf.</li>
+<li><strong>Time-slicing</strong> should feel like <em>cutting through</em> a stream.</li>
+<li><strong>Clustering</strong> should feel like <em>gathering</em> similar objects; hierarchical clustering unfolds like a dendrogram, while density clustering separates dense clouds from noise.</li>
+<li><strong>Anomaly highlighting</strong> should feel like <em>spotlights</em> on records that break the pattern.</li>
+<li><strong>Outlier lens</strong> should feel like pulling suspects to the front of the room for inspection.</li>
+</ul>
+<p>This spatial-motor mapping is intended to offload working memory to the body and the environment.</p>
+
+            </article>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-moon">◈</div>
+        <div class="footer-tagline">Nemosyne</div>
+        <div class="footer-domain">nemosyne.world</div>
+        <p class="footer-text">
+            Advancing the use of VR artefacts as tools for manipulating and understanding real-world objects and data.
+        </p>
+        <div class="footer-links">
+            <a href="https://github.com/TsatsuAmable/nemosyne" target="_blank">GitHub</a>
+            <a href="https://www.npmjs.com/package/nemosyne" target="_blank">npm Package</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/issues" target="_blank">Issues</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/discussions" target="_blank">Discussions</a>
+            <a href="./ARCHITECTURE.html">Architecture</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/blob/main/LICENSE" target="_blank">License (MIT)</a>
+        </div>
+        <p class="copyright">
+            © 2026 Nemosyne Project. Released under MIT License.
+        </p>
+    </footer>
+
+</body>
+</html>

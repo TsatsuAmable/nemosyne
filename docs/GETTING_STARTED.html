@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Getting Started with Nemosyne | Nemosyne</title>
+
+    <!-- Primary favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
+
+    <!-- Fallback for older browsers -->
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="img/favicon_io/favicon-16x16.png">
+    <link rel="shortcut icon" href="img/favicon_io/favicon.ico">
+
+    <!-- Apple devices -->
+    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon_io/apple-touch-icon.png">
+
+    <!-- Android/Chrome -->
+    <link rel="manifest" href="img/favicon_io/site.webmanifest">
+    <meta name="theme-color" content="#0a0a0f">
+
+    <!-- Microsoft -->
+    <meta name="msapplication-TileColor" content="#0a0a0f">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+
+    <div class="temporal-grid"></div>
+
+    <!-- Navigation -->
+    <nav>
+        <a href="./index.html" class="logo">
+            <div class="logo-symbol"></div>
+            <span>Nemosyne</span>
+        </a>
+        <ul class="nav-links">
+            <li><a href="./index.html#features">Features</a></li>
+            <li><a href="./index.html#datasets">Datasets</a></li>
+            <li><a href="./index.html#examples">Examples</a></li>
+            <li><a href="./index.html#use-cases">Use Cases</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">VR Demo</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">Launch App</a></li>
+        </ul>
+        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            GitHub
+        </a>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="hero" style="min-height: 40vh; padding-top: 8rem; padding-bottom: 3rem;">
+        <div class="void-bg"></div>
+        <div class="crystal-field">
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+        </div>
+
+        <div class="hero-content">
+            <div class="badge">Nemosyne Documentation</div>
+            <h1>Getting Started with Nemosyne</h1>
+            <p class="hero-subtitle" style="max-width: 700px; margin-left: auto; margin-right: auto;">
+                This guide walks you through running the Nemosyne Spatial Data Analysis Suite on a Meta Quest 3S and exploring your f...
+            </p>
+        </div>
+    </section>
+
+    <!-- Content Section -->
+    <section class="features" id="content">
+        <div class="container">
+            <article class="markdown-content">
+<p>This guide walks you through running the Nemosyne Spatial Data Analysis Suite on a Meta Quest 3S and exploring your first dataset in VR.</p>
+<hr>
+<h2>Prerequisites</h2>
+<ul>
+<li>Node.js 20+</li>
+<li>A Meta Quest 3/3S or another WebXR-capable headset</li>
+<li>A local network connection between your computer and the headset</li>
+<li>OpenSSL, Git Bash, or .NET for generating local HTTPS certificates</li>
+</ul>
+<hr>
+<h2>1. Install</h2>
+<pre><code class="language-bash">git clone https://github.com/TsatsuAmable/nemosyne.git
+cd nemosyne-analysis-suite
+npm install
+</code></pre>
+<hr>
+<h2>2. Generate HTTPS certificates</h2>
+<p>WebXR requires a secure origin. The Vite dev server will use certificates in <code>certs/</code> if present.</p>
+<h3>Git Bash (recommended on Windows)</h3>
+<pre><code class="language-bash">mkdir -p certs
+openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -subj &quot;/CN=localhost&quot; -nodes
+</code></pre>
+<h3>macOS / Linux</h3>
+<pre><code class="language-bash">mkdir certs
+openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -subj &quot;/CN=localhost&quot; -nodes
+</code></pre>
+<h3>mkcert (smoothest option)</h3>
+<pre><code class="language-bash">mkcert -install
+mkcert localhost 127.0.0.1 ::1 &lt;your-computer-ip&gt;
+# rename output files to certs/key.pem and certs/cert.pem
+</code></pre>
+<hr>
+<h2>3. Start the dev server</h2>
+<pre><code class="language-bash">npm run dev
+</code></pre>
+<p>Vite will start on <code>https://localhost:5173</code> and on your local network IP.</p>
+<hr>
+<h2>4. Open on the Meta Quest 3S</h2>
+<h3>Option A — Same Wi-Fi</h3>
+<ol>
+<li>Find your computer&#39;s local IP address (e.g., <code>192.168.1.50</code>).</li>
+<li>Open Meta Quest Browser.</li>
+<li>Navigate to <code>https://&lt;your-computer-ip&gt;:5173</code>.</li>
+<li>Accept the self-signed certificate warning if necessary.</li>
+</ol>
+<h3>Option B — ADB port forwarding</h3>
+<pre><code class="language-bash">adb forward tcp:5173 tcp:5173
+</code></pre>
+<p>Then open <code>https://localhost:5173</code> in the Quest Browser.</p>
+<hr>
+<h2>5. Enter VR</h2>
+<ol>
+<li>Tap the <strong>Enter VR</strong> button at the bottom of the page.</li>
+<li>Allow WebXR permissions if prompted.</li>
+<li>You should see:<ul>
+<li>A pulsing DatumPlane grid beneath you.</li>
+<li>A TechnoCore megasphere landmark.</li>
+<li>A Draco-recommended data palace in front of you.</li>
+<li>HUD panels in your field of view.</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2>6. First interactions</h2>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Look around</td>
+<td>Move your head</td>
+</tr>
+<tr>
+<td>Point</td>
+<td>Controller laser or index-finger ray</td>
+</tr>
+<tr>
+<td>Select a node</td>
+<td>Trigger click or pinch</td>
+</tr>
+<tr>
+<td>Inspect values</td>
+<td>Select a data node; a DataCard appears</td>
+</tr>
+<tr>
+<td>Open wheel menu</td>
+<td>Pinch the menu hand (or grip button / two-hand pinch)</td>
+</tr>
+<tr>
+<td>Toggle panels</td>
+<td>Wheel menu buttons</td>
+</tr>
+<tr>
+<td>Drag a panel</td>
+<td>Point at title bar, hold trigger/pinch, move</td>
+</tr>
+<tr>
+<td>Switch dataset</td>
+<td>Wheel menu → Views → Dataset</td>
+</tr>
+<tr>
+<td>Connect live data</td>
+<td>Wheel menu → Live → Start Live</td>
+</tr>
+<tr>
+<td>Trigger a metaphor</td>
+<td>Select a node; if the dataset uses a Phase 7 metaphor, a transient spatial effect plays</td>
+</tr>
+<tr>
+<td>Walk/fly through a Farcaster portal</td>
+<td>Step into the glowing ring; the atmosphere shifts</td>
+</tr>
+<tr>
+<td>Toggle 3D flight mode</td>
+<td>Wheel menu → Views → Toggle Flight</td>
+</tr>
+<tr>
+<td>Ascend / descend</td>
+<td>Right thumbstick up/down in flight mode, or <code>scoopUp</code> / <code>scoopDown</code> gesture</td>
+</tr>
+<tr>
+<td>Drop to floor</td>
+<td>Wheel menu → Views → Drop to Floor</td>
+</tr>
+<tr>
+<td>Export screenshot</td>
+<td>Wheel menu → Panels → Export Screenshot</td>
+</tr>
+<tr>
+<td>Export analysis story</td>
+<td>Wheel menu → Panels → Export Story</td>
+</tr>
+<tr>
+<td>View operation log</td>
+<td>Wheel menu → Panels → Operation Log</td>
+</tr>
+<tr>
+<td>View live telemetry</td>
+<td>Wheel menu → Panels → Telemetry</td>
+</tr>
+<tr>
+<td>View performance budget</td>
+<td>Wheel menu → Panels → Performance</td>
+</tr>
+<tr>
+<td>Open interaction coach</td>
+<td>Wheel menu → Panels → Interaction Coach</td>
+</tr>
+<tr>
+<td>Join collaboration room</td>
+<td>Settings → NETWORK → Collaboration ON</td>
+</tr>
+<tr>
+<td>Leave collaboration room</td>
+<td>Wheel menu → Collab → Leave Room</td>
+</tr>
+<tr>
+<td>View collaboration status</td>
+<td>Wheel menu → Collab → Network Panel</td>
+</tr>
+<tr>
+<td>Toggle desktop preview</td>
+<td>Wheel menu → Views → Preview (outside VR)</td>
+</tr>
+</tbody></table>
+<h3>Context-aware shortcuts</h3>
+<p>These recent UI additions reduce the need to open the full wheel menu for common actions:</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>What it does</th>
+<th>How to use it</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>In-place operation handles</td>
+<td>Small badges appear near the data palace for supported topologies</td>
+<td>Hover/select the 🔎 (filter), 📶 (sort), or 🕒 (time slice) badge attached to an artefact</td>
+</tr>
+<tr>
+<td>Live preview</td>
+<td>Ghost markers show the result of an operation before you commit it</td>
+<td>Hover over an operation in the wheel menu or an in-place handle; the markers clear once you apply or leave</td>
+</tr>
+<tr>
+<td>Mini-overview</td>
+<td>Top-down mini-map of the palace and your view cone</td>
+<td>Wheel menu → Views → Overview, or Settings → Navigation → Mini Overview</td>
+</tr>
+<tr>
+<td>Peer-presence HUD</td>
+<td>Lists connected collaborators and their direction</td>
+<td>Join a collaboration room; toggle with Wheel menu → Views → Peers, or Settings → Collaboration → Peer Presence</td>
+</tr>
+</tbody></table>
+<p>HUD panels are free-floating: drag a panel by its title bar to move it independently in front of you. Panel positions and visibility are saved with the session, so your layout is restored after a reload.</p>
+<hr>
+<h2>7. Analysis templates</h2>
+<p>If you prefer to start with a complete scenario instead of a raw dataset, use the <strong>Templates</strong> category in the constellation wheel menu. Each template loads a curated sample dataset, applies a matching atmosphere theme, and starts the guided tour.</p>
+<table>
+<thead>
+<tr>
+<th>Template</th>
+<th>Scenario</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Factory Floor Monitoring</td>
+<td>IoT temperature and vibration stream with time-slice anomaly exploration</td>
+</tr>
+<tr>
+<td>Fraud Investigation</td>
+<td>Transaction graph with suspicious-amount anomaly highlighting</td>
+</tr>
+<tr>
+<td>Sales Performance Review</td>
+<td>Sales table for sorting and regional aggregation</td>
+</tr>
+<tr>
+<td>Organizational Cost Audit</td>
+<td>Radial org chart for level aggregation and budget outlier inspection</td>
+</tr>
+<tr>
+<td>Market Session Replay</td>
+<td>OHLCV candle series for replaying a trading session through time slices</td>
+</tr>
+<tr>
+<td>Geospatial Benchmark</td>
+<td>Lat/lon city data rendered as room-scale bars</td>
+</tr>
+</tbody></table>
+<p>Templates are the fastest way for a new analyst to see how the gesture and operation vocabulary maps to a real analysis workflow.</p>
+<hr>
+<h2>8. Try a live stream</h2>
+<p>The dev server includes a demo WebSocket endpoint at <code>/__demo-stream</code>. In VR:</p>
+<ol>
+<li>Open the wheel menu.</li>
+<li>Choose <strong>VR Menu</strong>.</li>
+<li>Tap <strong>Connect Live Stream</strong> or <strong>Demo Stream</strong>.</li>
+<li>Watch the palace update with streaming rows.</li>
+</ol>
+<p>Curated public sources (Coinbase, Kraken, Binance, USGS earthquakes, OpenSky aircraft) are also available; some may require an internet connection and may be rate-limited.</p>
+<hr>
+<h2>9. Bring your own data</h2>
+<p>The Nemosyne loader panel (top-right in the 2D view, or use the wheel menu) accepts <strong>CSV</strong> and <strong>JSON</strong> files. JSON must be an array of objects. CSV files are parsed with automatic delimiter detection and quoted-field support.</p>
+<h3>CSV format tips</h3>
+<ul>
+<li>The first row must be a header with column names.</li>
+<li>Commas, semicolons, tabs, and pipes are auto-detected as delimiters.</li>
+<li>Fields containing commas or line breaks should be wrapped in double quotes.</li>
+<li>Use <code>&quot;&quot;</code> inside a quoted field to represent a literal double quote.</li>
+<li>Example:<pre><code class="language-csv">sensorId,temperature,time
+S1,22.5,2026-07-28T00:00:00
+S2,19.8,2026-07-28T01:00:00
+</code></pre>
+</li>
+</ul>
+<h3>Topology auto-detection</h3>
+<p>Nemosyne guesses the best palace topology from your column names and types:</p>
+<table>
+<thead>
+<tr>
+<th>If your CSV has...</th>
+<th>Inferred topology</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>source</code>/<code>target</code>, <code>from</code>/<code>to</code>, <code>src</code>/<code>dst</code></td>
+<td><strong>GRAPH</strong></td>
+</tr>
+<tr>
+<td><code>parent</code>/<code>child</code> or <code>level</code> columns</td>
+<td><strong>HIERARCHY</strong></td>
+</tr>
+<tr>
+<td><code>lat</code>/<code>lon</code>, <code>latitude</code>/<code>longitude</code>, or <code>x</code>/<code>y</code></td>
+<td><strong>GEO</strong></td>
+</tr>
+<tr>
+<td><code>u</code>/<code>v</code>/<code>w</code> or <code>vx</code>/<code>vy</code>/<code>vz</code></td>
+<td><strong>VECTOR_FIELD</strong></td>
+</tr>
+<tr>
+<td>a date/time column + numeric column</td>
+<td><strong>TIME_SERIES</strong></td>
+</tr>
+<tr>
+<td>none of the above</td>
+<td><strong>TABULAR</strong></td>
+</tr>
+</tbody></table>
+<p>You can override the inferred topology with the dropdown in the loader panel.</p>
+<h3>Troubleshooting imports</h3>
+<ul>
+<li><strong>&quot;No columns&quot; / &quot;No rows&quot;</strong> — the file is empty or lacks a header row.</li>
+<li><strong>&quot;All columns parsed as text&quot;</strong> — check for stray quotes or a mismatched delimiter.</li>
+<li><strong>&quot;Row length mismatch&quot;</strong> — some rows have more or fewer columns than the header; often caused by unescaped commas inside values.</li>
+</ul>
+<p>Excel and Parquet support are planned as plugin importers; CSV is the canonical first-class format today.</p>
+<hr>
+<h2>10. Saving your session</h2>
+<p>Nemosyne auto-saves your session to the browser&#39;s IndexedDB every few seconds when the dataset, camera, settings, theme, or tour state changes. The autosave is restored automatically when you reopen the app.</p>
+<p>You can also save and restore manually from the wheel menu:</p>
+<ul>
+<li><strong>Panels → Save Session</strong> — writes a manual snapshot.</li>
+<li><strong>Panels → Load Last Session</strong> — restores the latest autosave.</li>
+<li><strong>Panels → New Session</strong> — clears the autosave so the next launch starts fresh.</li>
+</ul>
+<p>Saved state includes:</p>
+<ul>
+<li>The loaded dataset and any applied data operations.</li>
+<li>Camera position and orientation.</li>
+<li>Analysis history (undo/redo stack).</li>
+<li>Settings, theme, and guided-tour progress.</li>
+</ul>
+<p>Live stream connections are not persisted; a restored session keeps the last buffered dataset.</p>
+<p>Key settings and the most recent analysis story are also saved to a cross-platform <code>shared-settings</code> record, so changes made in desktop preview mode are restored when you later enter VR.</p>
+<hr>
+<h2>11. Export and provenance</h2>
+<p>Nemosyne can export what you see and how you reached it.</p>
+<ul>
+<li><strong>Panels → Export Screenshot</strong> — captures the current renderer output as a PNG and downloads it.</li>
+<li><strong>Panels → Export Story</strong> — downloads a JSON analysis story with the dataset name, topology, applied operations, camera position, active theme, and timestamps. Use it for lab notebooks, issue reports, or reproducible workflows.</li>
+<li><strong>Panels → Operation Log</strong> — opens a read-only panel that lists recent operations newest-first, including their effect on row count.</li>
+</ul>
+<p>These exports are initiated from the hand wheel menu and respect the same user-gesture rules as browser downloads, so they work inside the Quest Browser when triggered by a controller click or hand pinch.</p>
+<hr>
+<h2>12. Telemetry and observability (opt-in)</h2>
+<p>Nemosyne can collect lightweight session metrics locally to help you understand performance and usage. Telemetry is <strong>disabled by default</strong> and never transmitted automatically.</p>
+<p>To opt in:</p>
+<ol>
+<li>Open the <strong>Settings</strong> panel from the wheel menu.</li>
+<li>Toggle <strong>Telemetry Opt-in</strong> to ON.</li>
+<li>Open <strong>Panels → Telemetry</strong> to see live metrics.</li>
+</ol>
+<p>Tracked metrics include:</p>
+<ul>
+<li>Session duration and loaded dataset.</li>
+<li>Frame timing, dropped-frame count, and FPS estimate.</li>
+<li>Counts of applied operations and recognized gestures.</li>
+<li>Error, warning, and unhandled-rejection counts.</li>
+</ul>
+<p>Telemetry data is included in exported analysis stories and is cleared when you start a new session. You can disable it at any time in Settings; all in-memory counters stop immediately.</p>
+<hr>
+<h2>13. Accessibility options</h2>
+<p>Nemosyne includes several settings to make the workspace more usable:</p>
+<ol>
+<li>Open <strong>Settings</strong> from the wheel menu.</li>
+<li>Adjust under <strong>ACCESSIBILITY</strong>:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>High Contrast</td>
+<td>White-on-black UI chrome and thicker borders.</td>
+</tr>
+<tr>
+<td>Text Scale</td>
+<td>Increase or decrease text size on all panels (0.75× to 2×).</td>
+</tr>
+<tr>
+<td>Colorblind</td>
+<td>Remap accent colors for deuteranopia, protanopia, or tritanopia.</td>
+</tr>
+<tr>
+<td>Dwell Select</td>
+<td>Hover over a panel button or scene object for ~1.2 s to activate it; useful if pinching or pressing a trigger is difficult.</td>
+</tr>
+</tbody></table>
+<p>Accessibility settings persist to localStorage and are restored on launch.</p>
+<hr>
+<h2>14. Performance profiling and budgets</h2>
+<p>Nemosyne monitors runtime performance so you can find bottlenecks before they ruin a VR session, especially on the Quest Browser.</p>
+<ol>
+<li>Enable <strong>Settings → Telemetry Opt-in</strong> to collect frame timing, gestures, and operations.</li>
+<li>Open <strong>Panels → Performance</strong> to see:<ul>
+<li>Live telemetry summary (frame time, dropped frames, FPS estimate).</li>
+<li>Current performance budgets.</li>
+<li>Recent budget violations (frame time, draw calls, triangles, points, interactables, updatables, panels).</li>
+</ul>
+</li>
+<li>Toggle <strong>Settings → Strict Budget</strong> to enforce a tighter 75 fps frame-time target (13.33 ms) and a lower dropped-frame tolerance, useful when profiling on standalone headsets.</li>
+</ol>
+<p>Budget checks run once per second inside the engine tick. Violations are printed to the browser console and listed in the Performance panel. Use them to decide when to enable LOD, reduce panel count, or simplify the palace.</p>
+<hr>
+<h2>15. Interaction coach and gesture vocabulary</h2>
+<p>Nemosyne teaches its input vocabulary by showing a running commentary of what you do and how the system interpreted it. Open <strong>Panels → Interaction Coach</strong> from the wheel menu to see:</p>
+<ul>
+<li>The action the system just performed.</li>
+<li>The hand gesture that triggered it (if any).</li>
+<li>The Meta Quest controller equivalent for that gesture.</li>
+<li>The outcome (e.g. row count after a filter).</li>
+</ul>
+<p>This is useful for learning gesture navigation and for confirming that a subtle hand motion was recognized correctly.</p>
+<h3>Hand gestures</h3>
+<table>
+<thead>
+<tr>
+<th>Gesture</th>
+<th>How to perform it</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pinch Together</td>
+<td>Pinch both index fingers, move hands toward each other</td>
+<td>Filter</td>
+</tr>
+<tr>
+<td>Pinch Apart</td>
+<td>Pinch both index fingers, move hands apart</td>
+<td>Aggregate</td>
+</tr>
+<tr>
+<td>Swipe Right</td>
+<td>Open palm, swipe right</td>
+<td>Next dataset</td>
+</tr>
+<tr>
+<td>Swipe Left</td>
+<td>Open palm, swipe left</td>
+<td>Previous dataset</td>
+</tr>
+<tr>
+<td>Slice Up</td>
+<td>Open palm, slice upward</td>
+<td>Sort</td>
+</tr>
+<tr>
+<td>Slice Down</td>
+<td>Open palm, slice downward</td>
+<td>Time slice</td>
+</tr>
+<tr>
+<td>Scoop Up</td>
+<td>Both palms up, lift hands</td>
+<td>Ascend (flight mode) or toggle statistical lens</td>
+</tr>
+<tr>
+<td>Scoop Down</td>
+<td>Both palms down, lower hands</td>
+<td>Descend (flight mode)</td>
+</tr>
+<tr>
+<td>Push Forward</td>
+<td>Both palms forward, push away</td>
+<td>Reset transforms</td>
+</tr>
+<tr>
+<td>Rotate Clockwise</td>
+<td>Cupped hands twist clockwise</td>
+<td>Redo</td>
+</tr>
+<tr>
+<td>Rotate Counter-Clockwise</td>
+<td>Cupped hands twist counter-clockwise</td>
+<td>Undo</td>
+</tr>
+<tr>
+<td>OK Sign</td>
+<td>Dominant hand pinch, other hand open</td>
+<td>Toggle settings panel</td>
+</tr>
+<tr>
+<td>Both Pinched</td>
+<td>Pinch both index fingers at the same time</td>
+<td>Toggle launcher ring</td>
+</tr>
+</tbody></table>
+<h3>Controller equivalents</h3>
+<p>When using Meta Quest controllers, the same intents are available without hand tracking:</p>
+<table>
+<thead>
+<tr>
+<th>Hand gesture</th>
+<th>Controller equivalent</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pinch Together</td>
+<td>Hold both triggers and move controllers toward each other</td>
+</tr>
+<tr>
+<td>Pinch Apart</td>
+<td>Hold both triggers and move controllers apart</td>
+</tr>
+<tr>
+<td>Swipe Right</td>
+<td>Right thumbstick flick right</td>
+</tr>
+<tr>
+<td>Swipe Left</td>
+<td>Right thumbstick flick left</td>
+</tr>
+<tr>
+<td>Slice Up</td>
+<td>Right thumbstick flick up</td>
+</tr>
+<tr>
+<td>Slice Down</td>
+<td>Right thumbstick flick down</td>
+</tr>
+<tr>
+<td>Scoop Up</td>
+<td>Hold both triggers and raise both controllers</td>
+</tr>
+<tr>
+<td>Scoop Down</td>
+<td>Hold both triggers and lower both controllers</td>
+</tr>
+<tr>
+<td>Push Forward</td>
+<td>Hold both triggers and push controllers forward</td>
+</tr>
+<tr>
+<td>Rotate Clockwise</td>
+<td>Right B button</td>
+</tr>
+<tr>
+<td>Rotate Counter-Clockwise</td>
+<td>Right A button</td>
+</tr>
+<tr>
+<td>OK Sign</td>
+<td>Left Y button</td>
+</tr>
+<tr>
+<td>Both Pinched</td>
+<td>Press both grip buttons together</td>
+</tr>
+</tbody></table>
+<p>Disable hand gestures in <strong>Settings → GESTURES → Hand Gestures</strong> if you want to rely entirely on controllers, or disable the coach by toggling <strong>Panels → Interaction Coach</strong> again.</p>
+<hr>
+<h2>16. Multi-user collaboration (experimental)</h2>
+<p>Nemosyne can join a shared room over WebRTC so multiple analysts can inhabit the same memory palace. Data is local-only in this first networking release: each peer sees their own dataset, while camera pose and room presence are shared.</p>
+<h3>Signalling server</h3>
+<p>During local development, the Vite dev server already hosts a signalling endpoint at <code>/__signal</code>, so no extra process is needed.</p>
+<p>For production or a separate deployment, run the standalone Node server:</p>
+<pre><code class="language-bash">node src/network/SignallingServer.mjs --port=8080
+</code></pre>
+<p>and point the app at the same host/port (e.g. route <code>wss://your-host/__signal</code> to the server behind your TLS terminator).</p>
+<h3>Join a room in VR</h3>
+<ol>
+<li>Open <strong>Settings</strong> from the wheel menu.</li>
+<li>Under <strong>NETWORK</strong>, choose a <strong>Room</strong> (default, team-a, team-b, demo).</li>
+<li>Toggle <strong>Collaboration</strong> ON.</li>
+<li>Open <strong>Collab → Network Panel</strong> to see the room ID, connection state, and peer list.</li>
+</ol>
+<h3>Collaboration wheel menu</h3>
+<ul>
+<li><strong>Collab → Join Room</strong> — connects to the selected room.</li>
+<li><strong>Collab → Leave Room</strong> — disconnects and clears peers.</li>
+<li><strong>Collab → Network Panel</strong> — toggles the room status panel.</li>
+</ul>
+<h3>Shared data</h3>
+<p>While connected, your camera position, rotation, and current dataset name are broadcast to peers through an RTCDataChannel. Sprint 10B.2 will add shared dataset state and synchronized operations.</p>
+<hr>
+<h2>17. Run tests</h2>
+<pre><code class="language-bash">npm test
+</code></pre>
+<p>Run with coverage:</p>
+<pre><code class="language-bash">npm run test:coverage
+</code></pre>
+<hr>
+<h2>18. Next steps</h2>
+<ul>
+<li>Read <a href="IDEOLOGY.md"><code>docs/IDEOLOGY.md</code></a> to understand the spatial-memory design.</li>
+<li>Read <a href="ARTEFACTS.md"><code>docs/ARTEFACTS.md</code></a> to learn the artefact taxonomy.</li>
+<li>Read <a href="INTERACTIONS.md"><code>docs/INTERACTIONS.md</code></a> to learn the gesture vocabulary.</li>
+<li>Read <a href="../ARCHITECTURE_BRIDGE.html"><code>ARCHITECTURE_BRIDGE.md</code></a> to see how this project maps to <code>nemosyne.world</code>.</li>
+<li>Tweak the Draco soft-constraint weights in the diagnostic HUD and watch the layout re-solve.</li>
+</ul>
+
+            </article>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-moon">◈</div>
+        <div class="footer-tagline">Nemosyne</div>
+        <div class="footer-domain">nemosyne.world</div>
+        <p class="footer-text">
+            Advancing the use of VR artefacts as tools for manipulating and understanding real-world objects and data.
+        </p>
+        <div class="footer-links">
+            <a href="https://github.com/TsatsuAmable/nemosyne" target="_blank">GitHub</a>
+            <a href="https://www.npmjs.com/package/nemosyne" target="_blank">npm Package</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/issues" target="_blank">Issues</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/discussions" target="_blank">Discussions</a>
+            <a href="./ARCHITECTURE.html">Architecture</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/blob/main/LICENSE" target="_blank">License (MIT)</a>
+        </div>
+        <p class="copyright">
+            © 2026 Nemosyne Project. Released under MIT License.
+        </p>
+    </footer>
+
+</body>
+</html>

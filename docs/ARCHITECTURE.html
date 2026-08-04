@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne Architecture | Nemosyne</title>
+
+    <!-- Primary favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
+
+    <!-- Fallback for older browsers -->
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="img/favicon_io/favicon-16x16.png">
+    <link rel="shortcut icon" href="img/favicon_io/favicon.ico">
+
+    <!-- Apple devices -->
+    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon_io/apple-touch-icon.png">
+
+    <!-- Android/Chrome -->
+    <link rel="manifest" href="img/favicon_io/site.webmanifest">
+    <meta name="theme-color" content="#0a0a0f">
+
+    <!-- Microsoft -->
+    <meta name="msapplication-TileColor" content="#0a0a0f">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+
+    <div class="temporal-grid"></div>
+
+    <!-- Navigation -->
+    <nav>
+        <a href="./index.html" class="logo">
+            <div class="logo-symbol"></div>
+            <span>Nemosyne</span>
+        </a>
+        <ul class="nav-links">
+            <li><a href="./index.html#features">Features</a></li>
+            <li><a href="./index.html#datasets">Datasets</a></li>
+            <li><a href="./index.html#examples">Examples</a></li>
+            <li><a href="./index.html#use-cases">Use Cases</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">VR Demo</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">Launch App</a></li>
+        </ul>
+        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            GitHub
+        </a>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="hero" style="min-height: 40vh; padding-top: 8rem; padding-bottom: 3rem;">
+        <div class="void-bg"></div>
+        <div class="crystal-field">
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+        </div>
+
+        <div class="hero-content">
+            <div class="badge">Nemosyne Documentation</div>
+            <h1>Nemosyne Architecture</h1>
+            <p class="hero-subtitle" style="max-width: 700px; margin-left: auto; margin-right: auto;">
+                This document describes the architecture of the Nemosyne Spatial Data Analysis Suite runtime
+            </p>
+        </div>
+    </section>
+
+    <!-- Content Section -->
+    <section class="features" id="content">
+        <div class="container">
+            <article class="markdown-content">
+<p>This document describes the architecture of the Nemosyne Spatial Data Analysis Suite runtime.</p>
+<hr>
+<h2>System Overview</h2>
+<pre><code>Raw Data (CSV/JSON/Live Stream)
+         ↓
+   Parsers / Connectors
+         ↓
+      Dataset
+         ↓
+  Draco Constraint Engine  ←── VR diagnostic HUD soft-weight tuner
+         ↓
+   Layout/Geometry/Behavior Spec
+         ↓
+   VRTopologyTranslator
+         ↓
+   Scalability (InstancedMesh / SpatialIndex / LOD)
+         ↓
+   three.js World (Crystal/Artefact meshes)
+         ↓
+   Controller / Hand Input
+         ↓
+   Inspect / Filter / Aggregate / Sort / Cluster / Annotate / Metaphor
+</code></pre>
+<hr>
+<h2>Layers</h2>
+<h3>1. Data Layer (<code>src/data/</code>)</h3>
+<ul>
+<li><strong>Dataset.js</strong> — typed in-memory dataset with column metadata (numeric, categorical, temporal).</li>
+<li><strong>Parsers.js</strong> — CSV/JSON parsing and type inference.</li>
+<li><strong>Encodings.js</strong> — maps data values to color, size, and pulse.</li>
+<li><strong>SampleDatasets.js</strong> / <strong>SyntheticData.js</strong> — built-in examples.</li>
+<li><strong>DatasetOperations.js</strong> — pure functions for filter, sort, aggregate, cluster, slice.</li>
+<li><strong>connectors/</strong> — live data adapters:<ul>
+<li><code>DataConnector.js</code> — base class with callbacks.</li>
+<li><code>WebSocketAdapter.js</code> — auto-reconnecting WebSocket with subscriptions.</li>
+<li><code>PollingAdapter.js</code> — HTTP polling adapter.</li>
+<li><code>OpenDataSources.js</code> — registry of curated public feeds.</li>
+<li><code>normalize.js</code> — helpers to convert live messages into <code>Dataset</code> rows.</li>
+</ul>
+</li>
+</ul>
+<h3>2. Draco Layer (<code>src/draco/</code>)</h3>
+<ul>
+<li><strong>ConstraintEngine.js</strong> — symbolic recommender.<ul>
+<li>Extracts facts from a dataset + topology hint.</li>
+<li>Applies hard constraints to eliminate invalid specs.</li>
+<li>Scores remaining specs with weighted soft constraints.</li>
+<li>Returns the best <code>{ layout, geometry, behavior, interaction }</code> spec.</li>
+</ul>
+</li>
+<li><strong>VRTopologyTranslator.js</strong> — turns the spec into a Three.js artefact group.<ul>
+<li>Builds grid, force-directed, radial, streamline, or time-ribbon layouts.</li>
+<li>Binds data values to geometry, color, size, and motion.</li>
+<li>Returns interaction callbacks (hover/unhover/select).</li>
+</ul>
+</li>
+<li><strong>DracoTopologyNode.js</strong> — manages the lifecycle: solve → synthesize → place in scene → update.</li>
+<li><strong>DracoDiagnosticHUD.js</strong> — floating VR panel for tuning soft-constraint weights.</li>
+</ul>
+<h3>3. VR Runtime Layer (<code>src/vr/</code>)</h3>
+<ul>
+<li><strong>Engine.js</strong> — Three.js scene, renderer, WebXR session management, animation loop.</li>
+<li><strong>WorldTheme.js</strong> — fog, lights, atmosphere.</li>
+<li><strong>World.js</strong> — composes the full scene: datumplane, landmarks, Draco palace, HUD, menu, live connectors.</li>
+<li><strong>InputRouter.js</strong> — normalizes controller and hand input sources, routes raycasts and gestures.</li>
+<li><strong>Controllers.js</strong> — Quest controller laser pointer.</li>
+<li><strong>Hands.js</strong> — hand tracking, joint normalization, pinch detection.</li>
+<li><strong>Locomotion.js</strong> — teleport anchors, ground-constrained movement, and toggleable 3D flight mode.</li>
+<li><strong>DesktopControls.js</strong> — keyboard/mouse fallback for non-VR use.</li>
+<li><strong>VRButton.js</strong> — WebXR entry button with manual <code>XRWebGLLayer</code> binding for Quest Browser.</li>
+</ul>
+<h3>4. Artefacts (<code>src/vr/artifacts/</code>)</h3>
+<ul>
+<li><strong>DatumPlane.js</strong> — pulsing neon grid floor.</li>
+<li><strong>IceVaultNode.js</strong> — interactive data node metaphor.</li>
+<li><strong>TechnoCoreNode.js</strong> — megasphere landmark with orbital rings.</li>
+<li><strong>FarcasterPortal.js</strong> — zone transition portal.</li>
+<li><strong>DataCard.js</strong> — world-space data inspector.</li>
+</ul>
+<h3>5. UI Layer (<code>src/vr/ui/</code>)</h3>
+<ul>
+<li><strong>MovablePanel.js</strong> — base class for analyst-anchored canvas panels.</li>
+<li><strong>PanelManager.js</strong> — registers panels, independent toggles, launcher ring; reparents the HUD cluster to an explicit analyst anchor.</li>
+<li><strong>DashboardManager.js</strong> — curved, scrollable, snap-zone workspace for chart and diagnostic panels.</li>
+<li><strong>ChartPlanePanel.js</strong> — dashboard cell hosting a <code>ChartPlane</code>.</li>
+<li><strong>VRConsole.js</strong> — intercepts <code>console.*</code> and renders recent messages to a panel.</li>
+<li><strong>VRMenu.js</strong> — dataset switching, portal toggle, live source connection.</li>
+<li><strong>HandWheelMenu.js</strong> — body-locked radial menu (not wrist-attached) for stable Meta Quest control.</li>
+<li><strong>TooltipManager.js</strong> — pooled gaze and pointer-hit tooltips for data nodes and visual elements.</li>
+<li><strong>GuidedTour.js</strong> — step-by-step spatial onboarding with highlight rings.</li>
+</ul>
+<h3>6. Interaction Layer (<code>src/vr/interactions/</code>)</h3>
+<ul>
+<li><strong>DataOperations.js</strong> — maps dataset operations (filter, sort, aggregate, cluster, slice) to artefact transforms.</li>
+<li><strong>MetaphorActions.js</strong> — Phase 7 transient spatial effects: Resonance Pulse, Fork Plane, Chrono Dial, Constellation, Beacon, Aleph.</li>
+</ul>
+<h3>7. Scalability Layer (<code>src/vr/scalability/</code>)</h3>
+<ul>
+<li><strong>InstancedPointCloud.js</strong> — <code>THREE.InstancedMesh</code> wrapper for large point datasets.</li>
+<li><strong>SpatialIndex.js</strong> — uniform-grid spatial index for radius and ray queries.</li>
+<li><strong>LODManager.js</strong> — distance/gaze level-of-detail predicates.</li>
+</ul>
+<h3>8. Audio Feedback (<code>src/vr/audio/</code>)</h3>
+<ul>
+<li><strong>SelectionFeedback.js</strong> — Web Audio API tones + pointer-ray flashes for hover/select.</li>
+</ul>
+<h3>9. Utilities (<code>src/utils/</code>)</h3>
+<ul>
+<li><strong>SeededRandom.js</strong> — deterministic RNG for reproducible layouts.</li>
+<li><strong>Dispose.js</strong> — Three.js object disposal helper.</li>
+</ul>
+<hr>
+<h2>Data Flow</h2>
+<h3>Static dataset</h3>
+<ol>
+<li>User uploads CSV/JSON or selects a sample dataset.</li>
+<li><code>Parsers</code> produce a <code>Dataset</code>.</li>
+<li><code>ConstraintEngine.solve(dataset)</code> produces a spec.</li>
+<li><code>VRTopologyTranslator.synthesizeArtifact(spec, dataset)</code> builds the artefact group.</li>
+<li><code>World.loadDataset()</code> places the group in the scene and wires interactions.</li>
+</ol>
+<h3>Live stream</h3>
+<ol>
+<li><code>WebSocketAdapter</code> or <code>PollingAdapter</code> receives messages.</li>
+<li><code>normalize.rowsToDataset()</code> converts messages to rows.</li>
+<li><code>Dataset.updateRows()</code> appends/replaces rows.</li>
+<li><code>World._flushLiveUpdate()</code> calls <code>loadDataset()</code> or an incremental update path.</li>
+<li>The Draco palace re-solves (or updates incrementally) and the new data appears in VR.</li>
+</ol>
+<hr>
+<h2>Runtime Conventions</h2>
+<ul>
+<li>ES modules only; no build required for development (Vite optional for HTTPS serving).</li>
+<li>Three.js loaded via import map (<code>three@0.168.0</code>).</li>
+<li>WebXR uses <code>local-floor</code> reference space with optional <code>hand-tracking</code>.</li>
+<li><code>XRInputSourceArray</code> is normalized with <code>Array.from()</code> because Quest Browser&#39;s array-like object lacks <code>Array.prototype</code> methods.</li>
+<li>Panels, dashboard, and wheel menu are parented to a dedicated <code>analystAnchor</code> under the camera rig so the workspace clusters around the user while remaining draggable in local space.</li>
+</ul>
+<hr>
+<h2>Testing</h2>
+<ul>
+<li>Vitest with jsdom.</li>
+<li><code>tests/setup.js</code> provides a robust WebGL/Canvas 2D mock.</li>
+<li>Unit tests cover: data parsing, Draco engine, live connectors, panel system, VR interactions, WebXR lifecycle.</li>
+</ul>
+<hr>
+<h2>Extension Points</h2>
+<ul>
+<li>New artefacts: add geometries to <code>VRTopologyTranslator</code> and behaviours/interactions to <code>VRChannels</code>.</li>
+<li>New constraints: register rules in <code>ConstraintEngine</code>; expose new facts in <code>extractFacts</code>.</li>
+<li>New scalable renderers: add them under <code>src/vr/scalability/</code> and reference them in <code>VRTopologyTranslator</code>.</li>
+<li>New live sources: add entries to <code>OpenDataSources.js</code>.</li>
+<li>New interactions: extend <code>DataOperations.js</code>, <code>MetaphorActions.js</code>, and the hand wheel menu.</li>
+</ul>
+
+            </article>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-moon">◈</div>
+        <div class="footer-tagline">Nemosyne</div>
+        <div class="footer-domain">nemosyne.world</div>
+        <p class="footer-text">
+            Advancing the use of VR artefacts as tools for manipulating and understanding real-world objects and data.
+        </p>
+        <div class="footer-links">
+            <a href="https://github.com/TsatsuAmable/nemosyne" target="_blank">GitHub</a>
+            <a href="https://www.npmjs.com/package/nemosyne" target="_blank">npm Package</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/issues" target="_blank">Issues</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/discussions" target="_blank">Discussions</a>
+            <a href="./ARCHITECTURE.html">Architecture</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/blob/main/LICENSE" target="_blank">License (MIT)</a>
+        </div>
+        <p class="copyright">
+            © 2026 Nemosyne Project. Released under MIT License.
+        </p>
+    </footer>
+
+</body>
+</html>

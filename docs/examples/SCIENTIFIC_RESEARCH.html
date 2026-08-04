@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scientific Research Example | Nemosyne</title>
+
+    <!-- Primary favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
+
+    <!-- Fallback for older browsers -->
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="img/favicon_io/favicon-16x16.png">
+    <link rel="shortcut icon" href="img/favicon_io/favicon.ico">
+
+    <!-- Apple devices -->
+    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon_io/apple-touch-icon.png">
+
+    <!-- Android/Chrome -->
+    <link rel="manifest" href="img/favicon_io/site.webmanifest">
+    <meta name="theme-color" content="#0a0a0f">
+
+    <!-- Microsoft -->
+    <meta name="msapplication-TileColor" content="#0a0a0f">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+    <div class="temporal-grid"></div>
+
+    <!-- Navigation -->
+    <nav>
+        <a href="../index.html" class="logo">
+            <div class="logo-symbol"></div>
+            <span>Nemosyne</span>
+        </a>
+        <ul class="nav-links">
+            <li><a href="../index.html#features">Features</a></li>
+            <li><a href="../index.html#datasets">Datasets</a></li>
+            <li><a href="../index.html#examples">Examples</a></li>
+            <li><a href="../index.html#use-cases">Use Cases</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">VR Demo</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">Launch App</a></li>
+        </ul>
+        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            GitHub
+        </a>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="hero" style="min-height: 40vh; padding-top: 8rem; padding-bottom: 3rem;">
+        <div class="void-bg"></div>
+        <div class="crystal-field">
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+        </div>
+
+        <div class="hero-content">
+            <div class="badge">Nemosyne Documentation</div>
+            <h1>Scientific Research Example</h1>
+            <p class="hero-subtitle" style="max-width: 700px; margin-left: auto; margin-right: auto;">
+                A vector-field memory palace built from the wind-field sample dataset
+            </p>
+        </div>
+    </section>
+
+    <!-- Content Section -->
+    <section class="features" id="content">
+        <div class="container">
+            <article class="markdown-content">
+<p>A vector-field memory palace built from the <code>wind-field</code> sample dataset.</p>
+<h2>What it shows</h2>
+<p><code>src/data/SyntheticData.js</code> generates 40 sample vectors with position (<code>x</code>, <code>y</code>, <code>z</code>), direction (<code>u</code>, <code>v</code>, <code>w</code>), and derived <code>magnitude</code>.</p>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>x</th>
+<th>y</th>
+<th>z</th>
+<th>u</th>
+<th>v</th>
+<th>w</th>
+<th>magnitude</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>V0</td>
+<td>2.3</td>
+<td>1.2</td>
+<td>-4.1</td>
+<td>0.6</td>
+<td>-0.1</td>
+<td>0.7</td>
+<td>0.92</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+</tbody></table>
+<p>The Draco engine detects <code>u</code>/<code>v</code>/<code>w</code> vector components, infers <strong>VECTOR_FIELD</strong>, and renders flow-ray streamlines coloured by magnitude.</p>
+<h2>Artefacts generated</h2>
+<ul>
+<li><strong>Flow-ray streamlines</strong> — cone/cylinder arrows showing vector direction and strength.</li>
+<li><strong>Magnitude colour scale</strong> — Viridis-like mapping from low to high magnitude.</li>
+<li><strong>TDA summary panels</strong> — persistence barcode, mapper graph, Betti curve (toggle via statistical lens).</li>
+</ul>
+<h2>Try this in VR</h2>
+<ol>
+<li>Launch the app and open the wheel menu.</li>
+<li>Choose <strong>Views → Dataset</strong> and pick <strong>Wind Vector Field</strong>.</li>
+<li>Operations you can perform:<ul>
+<li><strong>Inspect</strong> — point at a streamline to see its vector components.</li>
+<li><strong>Toggle statistical lens</strong> — <code>scoopUp</code> gesture to open the TDA summary and correlation matrix.</li>
+<li><strong>Anomaly on <code>magnitude</code></strong> — highlights extreme vectors.</li>
+<li><strong>Reset</strong> — <code>pushForward</code> gesture.</li>
+</ul>
+</li>
+</ol>
+<h2>Roadmap extensions</h2>
+<p>Full scientific loaders (NetCDF, HDF5, PLY/VTK meshes) and server-side TDA compute are planned for later phases. Today the app gives a lightweight, JS-only shape-first preview.</p>
+<h2>Export</h2>
+<p>Use <strong>Panels → Export Screenshot</strong> to capture the vector-field view.</p>
+
+            </article>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-moon">◈</div>
+        <div class="footer-tagline">Nemosyne</div>
+        <div class="footer-domain">nemosyne.world</div>
+        <p class="footer-text">
+            Advancing the use of VR artefacts as tools for manipulating and understanding real-world objects and data.
+        </p>
+        <div class="footer-links">
+            <a href="https://github.com/TsatsuAmable/nemosyne" target="_blank">GitHub</a>
+            <a href="https://www.npmjs.com/package/nemosyne" target="_blank">npm Package</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/issues" target="_blank">Issues</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/discussions" target="_blank">Discussions</a>
+            <a href="../ARCHITECTURE.html">Architecture</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/blob/main/LICENSE" target="_blank">License (MIT)</a>
+        </div>
+        <p class="copyright">
+            © 2026 Nemosyne Project. Released under MIT License.
+        </p>
+    </footer>
+
+</body>
+</html>
