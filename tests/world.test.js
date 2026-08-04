@@ -4,7 +4,7 @@ import { World } from '../src/vr/World.js';
 import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.js';
 import { DracoDiagnosticHUD } from '../src/draco/DracoDiagnosticHUD.js';
 import { getSampleDataset } from '../src/data/SampleDatasets.ts';
-import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.js';
+import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.ts';
 import { WorldTheme } from '../src/vr/WorldTheme.js';
 import * as Download from '../src/utils/Download.js';
 import { OperationLogPanel } from '../src/vr/ui/OperationLogPanel.js';

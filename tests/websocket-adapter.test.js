@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.js';
+import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.ts';
 
 const CONNECTING = 0;
 const OPEN = 1;

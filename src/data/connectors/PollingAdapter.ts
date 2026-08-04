@@ -1,21 +1,31 @@
-import { DataConnector } from './DataConnector.js';
-import { rowsToDataset } from './normalize.js';
+import { DataConnector, type LiveUpdate } from './DataConnector.ts';
+import { rowsToDataset } from './normalize.ts';
+
+export interface PollingAdapterOptions {
+  url: string;
+  topology?: string;
+  mode?: string;
+  windowSize?: number;
+  intervalMs?: number;
+  fetchOptions?: RequestInit;
+  parseResponse: (json: unknown) => { rows: Record<string, unknown>[]; topology?: string; name?: string } | null;
+}
 
 /**
  * HTTP polling-backed live data connector.
- *
- * Configuration:
- *  - url: REST endpoint URL.
- *  - topology: dataset topology hint (default: 'TIME_SERIES').
- *  - mode: 'replace' | 'append' | 'window'.
- *  - windowSize: rows to retain in window mode (default: 50).
- *  - intervalMs: poll cadence (default: 5000).
- *  - fetchOptions: options passed to fetch (headers, etc.).
- *  - parseResponse: (json) => { rows, topology?, name? } | null.
- *                     Required because most public REST APIs are not shaped as
- *                     a flat row array.
  */
 export class PollingAdapter extends DataConnector {
+  url: string;
+  topology: string;
+  mode: string;
+  windowSize: number;
+  intervalMs: number;
+  fetchOptions: RequestInit;
+  parseResponse: PollingAdapterOptions['parseResponse'];
+
+  private _timer: ReturnType<typeof setTimeout> | boolean | null;
+  private _abortController: AbortController | null;
+
   constructor({
     url,
     topology = 'TIME_SERIES',
@@ -24,7 +34,7 @@ export class PollingAdapter extends DataConnector {
     intervalMs = 5000,
     fetchOptions = {},
     parseResponse,
-  } = {}) {
+  }: PollingAdapterOptions) {
     super();
     if (!url) throw new Error('PollingAdapter requires a url');
     if (typeof parseResponse !== 'function')
@@ -42,32 +52,32 @@ export class PollingAdapter extends DataConnector {
     this._abortController = null;
   }
 
-  connect() {
+  connect(): void {
     if (this._timer) return;
     this._setStatus('connecting');
     this._timer = true; // loop active; _tick will replace with real timeout
     this._tick();
   }
 
-  disconnect() {
+  disconnect(): void {
     this._clearTimer();
     this._abortController?.abort();
     this._abortController = null;
     this._setStatus('disconnected');
   }
 
-  isConnected() {
+  isConnected(): boolean {
     return this._timer != null;
   }
 
-  _clearTimer() {
-    if (this._timer) {
+  private _clearTimer(): void {
+    if (this._timer && typeof this._timer !== 'boolean') {
       clearTimeout(this._timer);
-      this._timer = null;
     }
+    this._timer = null;
   }
 
-  async _tick() {
+  private async _tick(): Promise<void> {
     this._abortController = new AbortController();
     try {
       const res = await fetch(this.url, {
@@ -77,7 +87,7 @@ export class PollingAdapter extends DataConnector {
       if (!res.ok) {
         throw new Error(`HTTP ${res.status} ${res.statusText}`);
       }
-      const json = await res.json();
+      const json: unknown = await res.json();
       const parsed = this.parseResponse(json);
       if (parsed && parsed.rows && parsed.rows.length > 0) {
         const dataset = rowsToDataset(parsed.rows, parsed.name || 'Live Polling');
@@ -85,12 +95,13 @@ export class PollingAdapter extends DataConnector {
           dataset,
           topology: parsed.topology || this.topology,
           mode: this.mode,
-        });
+        } as LiveUpdate);
       }
       this._setStatus('connected');
     } catch (err) {
-      if (err?.name === 'AbortError') return;
-      this._setStatus('error', err?.message || String(err));
+      const e = err as Error;
+      if (e?.name === 'AbortError') return;
+      this._setStatus('error', e?.message || String(err));
     } finally {
       this._abortController = null;
       if (this._timer != null || this.status === 'connecting') {
