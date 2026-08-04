@@ -1,0 +1,27 @@
+[package]
+name = "nemosyne-wasm"
+version = "0.1.0"
+edition = "2021"
+authors = ["Nemosyne Contributors"]
+description = "Nemosyne runtime core compiled to WebAssembly"
+license = "MIT"
+repository = "https://github.com/TsatsuAmable/nemosyne"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2.100"
+js-sys = "0.3.77"
+
+# Deterministic, stable allocator for long-running sessions.
+# wee_alloc is avoided because of known fragmentation issues.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# lol_alloc can be enabled after Phase 0 baseline measurements; dlmalloc is the default.
+
+[profile.release]
+opt-level = 3
+lto = true
+
+[profile.dev]
+opt-level = 1
