@@ -146,6 +146,71 @@ impl Dataset {
         copy
     }
 
+    /// Parse a JS-compatible JSON string produced by `to_js_json()` (or the JS
+    /// `Dataset.toJSON()` method) back into a Rust `Dataset`.
+    pub fn from_js_json(json: &str) -> Result<Self, String> {
+        use serde_json::Value as JsonValue;
+
+        let root: JsonValue = serde_json::from_str(json).map_err(|e| e.to_string())?;
+        let name = root
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("dataset")
+            .to_string();
+
+        let columns: Vec<Column> = root
+            .get("columns")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|c| {
+                        let name = c.get("name")?.as_str()?;
+                        let ty = parse_column_type(c.get("type")?.as_str()?);
+                        Some(Column::new(name, ty))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let rows: Vec<HashMap<String, Value>> = root
+            .get("rows")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr
+                    .iter()
+                    .filter_map(|r| {
+                        let obj = r.as_object()?;
+                        let mut row = HashMap::new();
+                        for col in &columns {
+                            let val = obj.get(&col.name).unwrap_or(&JsonValue::Null);
+                            row.insert(col.name.clone(), js_value_to_value(val));
+                        }
+                        Some(row)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let edges = root.get("edges").and_then(|v| v.as_array()).map(|arr| {
+            arr
+                .iter()
+                .filter_map(|e| {
+                    let obj = e.as_object()?;
+                    let source = obj.get("source")?.as_u64()? as usize;
+                    let target = obj.get("target")?.as_u64()? as usize;
+                    Some((source, target))
+                })
+                .collect()
+        });
+
+        Ok(Self {
+            name,
+            columns,
+            rows,
+            edges,
+        })
+    }
+
     /// Serialize the dataset to a JS-compatible JSON string.
     ///
     /// The format matches `src/data/Dataset.js` `toJSON()` / `fromJSON()` so
@@ -195,6 +260,28 @@ impl Dataset {
         }
 
         serde_json::to_string(&JsonValue::Object(root)).unwrap_or_else(|_| "{}".to_string())
+    }
+}
+
+fn parse_column_type(s: &str) -> ColumnType {
+    match s {
+        "NUMERIC" => ColumnType::Numeric,
+        "CATEGORICAL" => ColumnType::Categorical,
+        "TEMPORAL" => ColumnType::Temporal,
+        "TEXT" => ColumnType::Text,
+        _ => ColumnType::Unknown,
+    }
+}
+
+fn js_value_to_value(v: &serde_json::Value) -> Value {
+    match v {
+        serde_json::Value::Null => Value::Null,
+        serde_json::Value::Bool(b) => Value::Bool(*b),
+        serde_json::Value::Number(n) => {
+            Value::Number(n.as_f64().unwrap_or(0.0))
+        }
+        serde_json::Value::String(s) => Value::Text(s.clone()),
+        _ => Value::Text(v.to_string()),
     }
 }
 
