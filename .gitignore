@@ -3,3 +3,8 @@ coverage/
 certs/
 dist/
 nemosyne/
+wasm/pkg/
+target/
+Cargo.lock
+.claude/worktrees/
+
