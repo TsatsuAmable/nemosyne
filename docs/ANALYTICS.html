@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nemosyne Analytics Layer | Nemosyne</title>
+
+    <!-- Primary favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
+
+    <!-- Fallback for older browsers -->
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="img/favicon_io/favicon-16x16.png">
+    <link rel="shortcut icon" href="img/favicon_io/favicon.ico">
+
+    <!-- Apple devices -->
+    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon_io/apple-touch-icon.png">
+
+    <!-- Android/Chrome -->
+    <link rel="manifest" href="img/favicon_io/site.webmanifest">
+    <meta name="theme-color" content="#0a0a0f">
+
+    <!-- Microsoft -->
+    <meta name="msapplication-TileColor" content="#0a0a0f">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+
+    <div class="temporal-grid"></div>
+
+    <!-- Navigation -->
+    <nav>
+        <a href="./index.html" class="logo">
+            <div class="logo-symbol"></div>
+            <span>Nemosyne</span>
+        </a>
+        <ul class="nav-links">
+            <li><a href="./index.html#features">Features</a></li>
+            <li><a href="./index.html#datasets">Datasets</a></li>
+            <li><a href="./index.html#examples">Examples</a></li>
+            <li><a href="./index.html#use-cases">Use Cases</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">VR Demo</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">Launch App</a></li>
+        </ul>
+        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            GitHub
+        </a>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="hero" style="min-height: 40vh; padding-top: 8rem; padding-bottom: 3rem;">
+        <div class="void-bg"></div>
+        <div class="crystal-field">
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+        </div>
+
+        <div class="hero-content">
+            <div class="badge">Nemosyne Documentation</div>
+            <h1>Nemosyne Analytics Layer</h1>
+            <p class="hero-subtitle" style="max-width: 700px; margin-left: auto; margin-right: auto;">
+                The analytics layer turns Nemosyne from a spatial viewer into a spatial analytics workbench
+            </p>
+        </div>
+    </section>
+
+    <!-- Content Section -->
+    <section class="features" id="content">
+        <div class="container">
+            <article class="markdown-content">
+<p>The analytics layer turns Nemosyne from a spatial viewer into a spatial analytics workbench. It extracts statistical facts from datasets, runs clustering and anomaly detection, and feeds the results back into the Draco recommender so that VR layout, geometry, behaviour, and interaction all adapt to the data.</p>
+<hr>
+<h2>Statistical Facts (<code>ConstraintEngine.extractFacts</code>)</h2>
+<p>For every dataset the Draco engine computes:</p>
+<ul>
+<li><strong><code>columnStats</code></strong> — per numeric column: <code>mean</code>, <code>median</code>, <code>stdDev</code>, <code>skew</code>, <code>kurtosis</code>, <code>min</code>, <code>max</code>.</li>
+<li><strong><code>correlationMatrix</code></strong> — Pearson correlation for every numeric column pair.</li>
+<li><strong><code>categoryDistribution</code></strong> — top categories with counts/fractions and entropy.</li>
+<li><strong><code>trendDirection</code></strong> / <strong><code>seasonalityHint</code></strong> / <strong><code>normalizedSlope</code></strong> — temporal trend heuristics.</li>
+<li><strong><code>hasOutliers</code></strong> — robust modified Z-score (MAD) outlier flag.</li>
+<li><strong><code>hasHighVariance</code></strong>, <strong><code>numericSkew</code></strong>, <strong><code>topCategory</code></strong> — summary signals used by soft constraints.</li>
+</ul>
+<p>These facts drive new soft constraints:</p>
+<table>
+<thead>
+<tr>
+<th>Fact</th>
+<th>Preferred VR mapping</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Outliers present</td>
+<td><code>ORB</code> geometry with pulsing halo</td>
+</tr>
+<tr>
+<td>High variance (tabular)</td>
+<td><code>COLUMN</code> geometry</td>
+</tr>
+<tr>
+<td>Strong correlation</td>
+<td><code>BEAM</code> geometry</td>
+</tr>
+<tr>
+<td>Temporal trend</td>
+<td><code>CHRONO_DIAL</code> interaction</td>
+</tr>
+<tr>
+<td>Seasonality hint</td>
+<td><code>WAVE_OSCILLATION</code> behaviour</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Clustering Operations (<code>src/data/DatasetOperations.js</code>)</h2>
+<p>All clustering operations return a new <code>Dataset</code> with a <code>_cluster</code> column so the original data is preserved.</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Method</th>
+<th>VR visualisation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>cluster(dataset, k, features)</code></td>
+<td>k-means with k-means++ seeding</td>
+<td>Nested rings (<code>ClusterTransforms.applyNestedRings</code>)</td>
+</tr>
+<tr>
+<td><code>hierarchical(dataset, features, linkage, targetClusters)</code></td>
+<td>Agglomerative (single/complete/average)</td>
+<td>Dendrogram arcs (<code>applyDendrogramArc</code>)</td>
+</tr>
+<tr>
+<td><code>dbscan(dataset, eps, minPoints, features)</code></td>
+<td>Density-based</td>
+<td>Density clouds + noise sink (<code>applyDensityCloud</code>)</td>
+</tr>
+</tbody></table>
+<p><code>Dataset</code> rows also receive <code>_meta</code> on hierarchical and DBSCAN results describing linkage history, eps/minPoints, noise count, etc.</p>
+<hr>
+<h2>Anomaly Detection (<code>DatasetOperations.anomaly</code>)</h2>
+<p><code>anomaly(dataset, columnName, method, sensitivity)</code> adds <code>_anomaly</code> and <code>_anomalyScore</code> columns.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>iqr</code></td>
+<td>Interquartile range; sensitivity scales the whisker distance (default <code>1.5</code>).</td>
+</tr>
+<tr>
+<td><code>zscore</code></td>
+<td>Standard-deviation threshold (default <code>3</code>).</td>
+</tr>
+<tr>
+<td><code>isolation</code></td>
+<td>Lightweight isolation-forest approximation using recursive random splits; score is normalised split depth.</td>
+</tr>
+</tbody></table>
+<h3>VR rendering (<code>AnomalyTransforms.js</code>)</h3>
+<ul>
+<li>Outliers receive a pulsing magenta halo (<code>ensureHalo</code>) and lift above the dataset.</li>
+<li><code>applyOutlierLens</code> gathers outliers around a focus point (e.g. the user&#39;s hand) while dimming non-outliers.</li>
+<li><code>updateAnomalyPulse</code> animates halo scale/opacity each frame.</li>
+</ul>
+<h3>Outlier recommender rule</h3>
+<p>The <code>ConstraintEngine</code> already flags <code>hasOutliers</code> via a robust MAD-based modified Z-score and prefers <code>ORB</code> geometry when outliers are present.</p>
+<hr>
+<h2>Chart Planes in VR (<code>ChartPlane</code>)</h2>
+<p><code>src/vr/artifacts/ChartPlane.js</code> renders Canvas 2D plots onto a world-space quad:</p>
+<table>
+<thead>
+<tr>
+<th>ChartType</th>
+<th>Dataset requirement</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>BAR</code></td>
+<td>Numeric column + optional categorical label</td>
+</tr>
+<tr>
+<td><code>LINE</code></td>
+<td>Temporal + numeric columns</td>
+</tr>
+<tr>
+<td><code>HISTOGRAM</code></td>
+<td>Single numeric column</td>
+</tr>
+<tr>
+<td><code>BOX</code></td>
+<td>Single numeric column (5+ values)</td>
+</tr>
+<tr>
+<td><code>CORRELATION</code></td>
+<td>Two or more numeric columns</td>
+</tr>
+</tbody></table>
+<p>Chart planes are auto-attached by <code>VRTopologyTranslator</code> when the dataset has multiple numeric columns or a temporal column. They update in place when the dataset changes, so they work with live streams and data operations.</p>
+<p>The <code>ConstraintEngine</code> includes a low-weight <code>attach_chart_plane_for_rich_numeric_or_time</code> preference that nudges the solver toward specs compatible with inspection interactions.</p>
+<hr>
+<h2>TDA Artefacts (<code>src/analytics/TDAMapper.js</code>, <code>src/vr/artifacts/TDAPlanes.js</code>)</h2>
+<p>Lightweight, JS-only topological summaries give analysts a shape-first view of their data without leaving VR.</p>
+<h3>Algorithms</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>What it computes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mapper(rows, featureColumns, filterFn, bins, overlap, linkage)</code></td>
+<td>Approximate Mapper graph: rows are binned by a 1-D filter function, clustered inside each overlapping bin, and connected when clusters share rows.</td>
+</tr>
+<tr>
+<td><code>persistenceIntervals(rows, filterFn, featureColumns, maxDistance)</code></td>
+<td>0-D persistence intervals for a 1-D filtration; union-find grows components as the filter threshold sweeps outward.</td>
+</tr>
+<tr>
+<td><code>betti0Curve(rows, featureColumns, samples, maxRadius)</code></td>
+<td>Number of connected components of a VR-style proximity graph as the radius grows.</td>
+</tr>
+</tbody></table>
+<p>These are intentionally fast approximations for live VR datasets, not replacements for full TDA libraries.</p>
+<h3>Panels (<code>TDAPlanes.js</code>)</h3>
+<p><code>buildTDASummaryGroup(dataset, featureColumns, filterColumn)</code> creates three world-space canvas panels:</p>
+<table>
+<thead>
+<tr>
+<th>Panel</th>
+<th>Visual</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Persistence barcode</td>
+<td>Horizontal bars with birth/death ticks; infinite deaths are filtered out of the finite view.</td>
+</tr>
+<tr>
+<td>Mapper graph</td>
+<td>Nodes laid out on a circle ordered by filter centre; edges drawn when bins overlap.</td>
+</tr>
+<tr>
+<td>Betti-0 curve</td>
+<td>Connected-component count vs. proximity radius.</td>
+</tr>
+</tbody></table>
+<p>The group is auto-attached by <code>World._attachTDASummary()</code> for datasets with numeric columns and recomputes after each non-anomaly data operation. Each panel exposes <code>update(data)</code> so it can also be driven by the diagnostic HUD or live streams.</p>
+
+            </article>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-moon">◈</div>
+        <div class="footer-tagline">Nemosyne</div>
+        <div class="footer-domain">nemosyne.world</div>
+        <p class="footer-text">
+            Advancing the use of VR artefacts as tools for manipulating and understanding real-world objects and data.
+        </p>
+        <div class="footer-links">
+            <a href="https://github.com/TsatsuAmable/nemosyne" target="_blank">GitHub</a>
+            <a href="https://www.npmjs.com/package/nemosyne" target="_blank">npm Package</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/issues" target="_blank">Issues</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/discussions" target="_blank">Discussions</a>
+            <a href="./ARCHITECTURE.html">Architecture</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/blob/main/LICENSE" target="_blank">License (MIT)</a>
+        </div>
+        <p class="copyright">
+            © 2026 Nemosyne Project. Released under MIT License.
+        </p>
+    </footer>
+
+</body>
+</html>
