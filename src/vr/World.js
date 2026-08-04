@@ -48,6 +48,11 @@ import { WorldUIManager } from './coordinators/WorldUIManager.js';
 import { WorldSceneComposer } from './coordinators/WorldSceneComposer.js';
 import { WorldEventBus, WorldTopics } from '../utils/EventBus.js';
 
+// Capability flags returned by the Rust/WASM runtime. Keep in sync with wasm/src/lib.rs.
+const CAP_DATASET_RUST = 1 << 0;
+const CAP_PARSER_RUST = 1 << 1;
+const CAP_OPERATIONS_RUST = 1 << 2;
+
 // Map sample-dataset keys to atmospheric presets so each dataset has a distinct mood.
 const DATASET_THEME_MAP = {
   'supply-chain': 'neonMidnight',
@@ -241,6 +246,8 @@ export class World {
 
     this.portalsEnabled = true;
     this._datasetCycleIndex = -1;
+    this._wasmCapabilities = 0;
+    this._wasmRuntime = null;
 
     // Live-streaming and collaboration state.
     this.liveStreamCoordinator = new LiveStreamCoordinator({ world: this });
@@ -256,7 +263,7 @@ export class World {
 
     // Loader UI.
     this.loader = new FileLoaderUI({
-      onLoad: (entry) => this.loadDataset(entry),
+      onLoad: (entry) => this.loadDataset(this._maybeLoadSampleFromWasm(entry)),
     });
 
     // Teleport anchors around the palace.
@@ -1123,16 +1130,17 @@ export class World {
     const n = allSampleDatasets.length;
     this._datasetCycleIndex = (this._datasetCycleIndex + delta + n) % n;
     const entry = allSampleDatasets[this._datasetCycleIndex];
+    const resolved = this._maybeLoadSampleFromWasm(entry);
     this.loadDataset({
-      key: entry.key,
-      name: entry.label,
-      topology: TopologyTypes[entry.topology] ?? entry.topology,
-      dataset: entry.dataset,
-      maxDepth: entry.depth ?? 1,
-      encodings: getDefaultEncodings(entry),
+      key: resolved.key,
+      name: resolved.label ?? resolved.name,
+      topology: TopologyTypes[resolved.topology] ?? resolved.topology,
+      dataset: resolved.dataset,
+      maxDepth: resolved.depth ?? 1,
+      encodings: getDefaultEncodings(resolved),
     });
-    this.vrConsole?.log?.('log', [`Dataset: ${entry.label}`]);
-    this._logInteraction('Dataset', { result: entry.label });
+    this.vrConsole?.log?.('log', [`Dataset: ${resolved.label ?? resolved.name}`]);
+    this._logInteraction('Dataset', { result: resolved.label ?? resolved.name });
   }
 
   _cycleThemePreset() {
@@ -1920,7 +1928,69 @@ export class World {
     this.engine.dispose();
   }
 
-  start() {
+  async start() {
+    // Initialise the Rust/WASM runtime in parallel with engine start. If the
+    // binary is missing (e.g. plain Vite build without wasm-pack) or the host
+    // rejects it, fall back to the existing JS data layer.
+    const wasmInitPromise = this._initWasmRuntime().catch((err) => {
+      console.warn('[World] WASM runtime unavailable, using JS fallbacks:', err);
+      this._wasmCapabilities = 0;
+    });
+
     this.engine.start();
+
+    await wasmInitPromise;
+  }
+
+  /**
+   * Initialise the WASM runtime and record the enabled capability set.
+   */
+  async _initWasmRuntime() {
+    // Load the bridge lazily so that production builds which skip wasm-pack
+    // still start without a missing-module error at import time.
+    const bridge = await import('../wasm/RuntimeBridge.js');
+    if (bridge.isReady()) {
+      this._wasmRuntime = bridge;
+      this._wasmCapabilities = bridge.capabilities();
+      return;
+    }
+
+    // In dev, Vite serves the wasm-pack output at /wasm/nemosyne_wasm_bg.wasm.
+    // In production builds that skip wasm-pack this fetch will fail and the
+    // app will transparently fall back to the JS data layer.
+    await bridge.initRuntime('/wasm/nemosyne_wasm_bg.wasm');
+    this._wasmRuntime = bridge;
+    this._wasmCapabilities = bridge.capabilities();
+    this.vrConsole?.log?.('log', [
+      `WASM ready — capabilities ${this._wasmCapabilities.toString(2)}`,
+    ]);
+  }
+
+  /**
+   * If the WASM data layer is ready and the dataset is a built-in sample key,
+   * load it from Rust. Otherwise return the original JS entry unchanged.
+   *
+   * @param {object} entry
+   * @returns {object}
+   */
+  _maybeLoadSampleFromWasm(entry) {
+    if (!entry?.key) return entry;
+    if (!this._wasmCapabilities || (this._wasmCapabilities & CAP_DATASET_RUST) === 0) {
+      return entry;
+    }
+    const bridge = this._wasmRuntime;
+    if (!bridge || !bridge.isReady()) return entry;
+
+    const handle = bridge.loadSample(entry.key);
+    if (handle === 0) return entry;
+
+    try {
+      const json = bridge.getDatasetJson(handle);
+      if (!json) return entry;
+      const dataset = Dataset.fromJSON(json);
+      return { ...entry, dataset };
+    } finally {
+      bridge.destroyDataset(handle);
+    }
   }
 }

@@ -138,6 +138,10 @@ export default defineConfig(({ command }) => ({
     sourcemap: false,
     chunkSizeWarningLimit: 700,
     rollupOptions: {
+      // The wasm-pack output is optional in production; externalise it so
+      // `npm run build` (which does not run wasm-pack) still succeeds. When the
+      // wasm module is present the dynamic import fetches it at runtime.
+      external: ['/wasm/pkg/nemosyne_wasm.js'],
       output: {
         manualChunks(id) {
           if (id.includes('node_modules/three')) return 'three';
