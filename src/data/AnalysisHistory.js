@@ -1,3 +1,5 @@
+import { Dataset } from './Dataset.js';
+
 /**
  * Undo/redo stack for data-analysis operations.
  *
@@ -155,7 +157,6 @@ export class AnalysisHistory {
     if (!obj || typeof obj !== 'object') {
       throw new Error('AnalysisHistory.fromJSON requires an object');
     }
-    const { Dataset } = require('./Dataset.js');
     const history = new AnalysisHistory({ maxFrames: obj.maxFrames ?? 50 });
     const frames = obj.frames || [];
     history._stack = frames.map((f) => ({
