@@ -1,5 +1,7 @@
 use wasm_bindgen::prelude::*;
 
+mod data;
+
 /// Shared memory constants. The WASM module starts at 128 MiB and is allowed
 /// to grow to 512 MiB. These match the JS host's expectations.
 pub const INITIAL_MEMORY_PAGES: u32 = 2048; // 128 MiB
@@ -180,6 +182,73 @@ pub fn command_buffer_ptr() -> u32 {
     0
 }
 
+// ---------------------------------------------------------------------------
+// Phase 1 — data layer exports
+// ---------------------------------------------------------------------------
+
+/// Parse CSV bytes from shared WASM memory and return a dataset handle.
+///
+/// # Safety
+/// `ptr` must point to `len` valid UTF-8 bytes readable by the JS host.
+#[wasm_bindgen]
+pub fn data_load_csv(ptr: u32, len: u32) -> u32 {
+    let bytes = unsafe { core::slice::from_raw_parts(ptr as *const u8, len as usize) };
+    let name = "csv";
+    match data::parsers::parse_csv(bytes, name) {
+        Ok(dataset) => data::register_dataset(dataset),
+        Err(e) => {
+            log_error(&format!("data_load_csv failed: {}", e));
+            0
+        }
+    }
+}
+
+/// Parse JSON bytes from shared WASM memory and return a dataset handle.
+///
+/// # Safety
+/// `ptr` must point to `len` valid UTF-8 bytes readable by the JS host.
+#[wasm_bindgen]
+pub fn data_load_json(ptr: u32, len: u32) -> u32 {
+    let bytes = unsafe { core::slice::from_raw_parts(ptr as *const u8, len as usize) };
+    let name = "json";
+    match data::parsers::parse_json(bytes, name) {
+        Ok(dataset) => data::register_dataset(dataset),
+        Err(e) => {
+            log_error(&format!("data_load_json failed: {}", e));
+            0
+        }
+    }
+}
+
+/// Return the number of rows in a dataset. Returns `0` for invalid handles.
+#[wasm_bindgen]
+pub fn dataset_row_count(handle: u32) -> u32 {
+    data::with_dataset(handle, |ds| ds.row_count() as u32).unwrap_or(0)
+}
+
+/// Return the number of columns in a dataset. Returns `0` for invalid handles.
+#[wasm_bindgen]
+pub fn dataset_column_count(handle: u32) -> u32 {
+    data::with_dataset(handle, |ds| ds.column_count() as u32).unwrap_or(0)
+}
+
+/// Release a dataset handle and its Rust-owned resources.
+#[wasm_bindgen]
+pub fn dataset_destroy(handle: u32) {
+    data::destroy_dataset(handle);
+}
+
+#[cfg(target_arch = "wasm32")]
+fn log_error(msg: &str) {
+    use wasm_bindgen::JsValue;
+    web_sys::console::error_1(&JsValue::from_str(msg));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn log_error(msg: &str) {
+    eprintln!("{}", msg);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -210,5 +279,25 @@ mod tests {
             assert_eq!(*byte, (i % 256) as u8);
         }
         dealloc(ptr, len as u32);
+    }
+
+    #[test]
+    fn data_load_csv_creates_dataset() {
+        let csv = b"name,age,city\nAlice,30,NYC\nBob,25,LA\n";
+        let handle = data_load_csv(csv.as_ptr() as u32, csv.len() as u32);
+        assert!(handle > 0);
+        assert_eq!(dataset_row_count(handle), 2);
+        assert_eq!(dataset_column_count(handle), 3);
+        dataset_destroy(handle);
+    }
+
+    #[test]
+    fn data_load_json_creates_dataset() {
+        let json = br#"[{"x":1,"y":2},{"x":3,"y":4}]"#;
+        let handle = data_load_json(json.as_ptr() as u32, json.len() as u32);
+        assert!(handle > 0);
+        assert_eq!(dataset_row_count(handle), 2);
+        assert_eq!(dataset_column_count(handle), 2);
+        dataset_destroy(handle);
     }
 }

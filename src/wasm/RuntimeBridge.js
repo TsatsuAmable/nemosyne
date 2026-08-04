@@ -154,6 +154,66 @@ export function update(deltaMs, timeMs) {
 }
 
 /**
+ * Load CSV bytes into the Rust data layer and return a dataset handle.
+ *
+ * @param {Uint8Array} bytes
+ * @returns {number} Dataset handle, or 0 on failure.
+ */
+export function loadCsv(bytes) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const { ptr, len } = allocBytes(bytes);
+  try {
+    return wasmModule.data_load_csv(ptr, len);
+  } finally {
+    wasmModule.dealloc(ptr, len);
+  }
+}
+
+/**
+ * Load JSON bytes into the Rust data layer and return a dataset handle.
+ *
+ * @param {Uint8Array} bytes
+ * @returns {number} Dataset handle, or 0 on failure.
+ */
+export function loadJson(bytes) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const { ptr, len } = allocBytes(bytes);
+  try {
+    return wasmModule.data_load_json(ptr, len);
+  } finally {
+    wasmModule.dealloc(ptr, len);
+  }
+}
+
+/**
+ * @param {number} handle
+ * @returns {number}
+ */
+export function datasetRowCount(handle) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  return wasmModule.dataset_row_count(handle);
+}
+
+/**
+ * @param {number} handle
+ * @returns {number}
+ */
+export function datasetColumnCount(handle) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  return wasmModule.dataset_column_count(handle);
+}
+
+/**
+ * Release a dataset handle.
+ *
+ * @param {number} handle
+ */
+export function destroyDataset(handle) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  wasmModule.dataset_destroy(handle);
+}
+
+/**
  * Low-level call helper used by integration tests. Only a small set of
  * operations is exposed; this keeps the host surface narrow.
  *
