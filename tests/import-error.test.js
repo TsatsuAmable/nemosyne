@@ -8,7 +8,7 @@ import {
   ImportErrorCode,
   validateImport,
   formatValidationResult,
-} from '../src/data/ImportError.js';
+} from '../src/data/ImportError.ts';
 
 function makeDataset(columns, rows) {
   return new Dataset('test', columns, rows);

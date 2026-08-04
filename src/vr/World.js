@@ -33,8 +33,8 @@ import { ControllerGestureMapper } from './interactions/ControllerGestureMapper.
 import { WorldInputCoordinator } from './coordinators/WorldInputCoordinator.js';
 import { UserModeController } from './coordinators/UserModeController.js';
 import { ComfortSettingsController } from './coordinators/ComfortSettingsController.js';
-import { AnalysisHistory } from '../data/AnalysisHistory.js';
-import { SessionStore } from '../data/SessionStore.js';
+import { AnalysisHistory } from '../data/AnalysisHistory.ts';
+import { SessionStore } from '../data/SessionStore.ts';
 import { Dataset } from '../data/Dataset.ts';
 import { GuidedTour } from './ui/GuidedTour.js';
 import { FIRST_DATASET_TOUR } from '../data/DefaultTour.js';

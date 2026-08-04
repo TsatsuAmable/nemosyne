@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
-import { AnalysisHistory } from '../src/data/AnalysisHistory.js';
+import { AnalysisHistory } from '../src/data/AnalysisHistory.ts';
 
 function makeDataset(name, rows) {
   const columns = [
