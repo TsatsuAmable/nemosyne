@@ -1,3 +1,16 @@
+import type { Dataset } from '../Dataset.ts';
+
+export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
+
+export interface LiveUpdate {
+  dataset: Dataset;
+  mode: string;
+  topology: string;
+}
+
+type StatusListener = (status: ConnectionStatus | string, detail?: string) => void;
+type UpdateListener = (update: LiveUpdate) => void;
+
 /**
  * Base class for live data connectors.
  *
@@ -11,6 +24,10 @@
  * unsubscribe function.
  */
 export class DataConnector {
+  protected _updateListeners: UpdateListener[];
+  protected _statusListeners: StatusListener[];
+  status: ConnectionStatus | string;
+
   constructor() {
     this._updateListeners = [];
     this._statusListeners = [];
@@ -18,26 +35,23 @@ export class DataConnector {
   }
 
   /** Start the live connection. */
-  connect() {
+  connect(): void {
     throw new Error('DataConnector#connect must be implemented by subclass');
   }
 
   /** Stop the live connection and cancel any reconnect timers. */
-  disconnect() {
+  disconnect(): void {
     throw new Error('DataConnector#disconnect must be implemented by subclass');
   }
 
-  /** @returns {string} */
-  getStatus() {
+  getStatus(): ConnectionStatus | string {
     return this.status;
   }
 
   /**
    * Subscribe to normalized live dataset updates.
-   * @param {(update: LiveUpdate) => void} fn
-   * @returns {() => void} unsubscribe
    */
-  onUpdate(fn) {
+  onUpdate(fn: UpdateListener): () => void {
     this._updateListeners.push(fn);
     return () => {
       this._updateListeners = this._updateListeners.filter((cb) => cb !== fn);
@@ -46,10 +60,8 @@ export class DataConnector {
 
   /**
    * Subscribe to connection status changes.
-   * @param {(status: string, detail?: string) => void} fn
-   * @returns {() => void} unsubscribe
    */
-  onStatus(fn) {
+  onStatus(fn: StatusListener): () => void {
     this._statusListeners.push(fn);
     return () => {
       this._statusListeners = this._statusListeners.filter((cb) => cb !== fn);
@@ -57,7 +69,7 @@ export class DataConnector {
   }
 
   /** @protected */
-  _emitUpdate(update) {
+  protected _emitUpdate(update: LiveUpdate): void {
     this._updateListeners.forEach((cb) => {
       try {
         cb(update);
@@ -68,7 +80,7 @@ export class DataConnector {
   }
 
   /** @protected */
-  _setStatus(status, detail = undefined) {
+  protected _setStatus(status: ConnectionStatus | string, detail?: string): void {
     this.status = status;
     this._statusListeners.forEach((cb) => {
       try {
@@ -79,10 +91,3 @@ export class DataConnector {
     });
   }
 }
-
-/**
- * @typedef {Object} LiveUpdate
- * @property {import('../Dataset.ts').Dataset} dataset
- * @property {string} mode
- * @property {string} topology
- */

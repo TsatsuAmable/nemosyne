@@ -1,8 +1,8 @@
 import { TopologyTypes } from '../../draco/ConstraintEngine.js';
-import { WebSocketAdapter } from '../../data/connectors/WebSocketAdapter.js';
-import { PollingAdapter } from '../../data/connectors/PollingAdapter.js';
-import { getOpenDataSource } from '../../data/connectors/OpenDataSources.js';
-import { rowsToDataset } from '../../data/connectors/normalize.js';
+import { WebSocketAdapter } from '../../data/connectors/WebSocketAdapter.ts';
+import { PollingAdapter } from '../../data/connectors/PollingAdapter.ts';
+import { getOpenDataSource } from '../../data/connectors/OpenDataSources.ts';
+import { rowsToDataset } from '../../data/connectors/normalize.ts';
 import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
 
 /**

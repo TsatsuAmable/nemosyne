@@ -1,20 +1,22 @@
+export interface OpenDataSource {
+  key: string;
+  label: string;
+  transport: 'websocket' | 'polling';
+  url: string | null;
+  topology: string;
+  mode: string;
+  windowSize: number;
+  intervalMs?: number;
+  fetchOptions?: RequestInit;
+  subscriptions?: unknown[];
+  parseMessage?: ((payload: Record<string, unknown>) => { name: string; rows: Record<string, unknown>[] } | null) | null;
+  parseResponse?: ((json: Record<string, unknown>) => { name: string; rows: Record<string, unknown>[] } | null) | null;
+}
+
 /**
  * Curated, ready-to-use open live data sources.
- *
- * Each entry describes how to connect, what to subscribe to, and how to turn
- * the remote message format into a Nemosyne row. Sources are grouped by
- * transport (WebSocket vs REST polling).
- *
- * Notes on real-world APIs:
- *  - Coinbase, Kraken, and Binance public WebSocket feeds do not require auth.
- *  - USGS earthquake GeoJSON feed is polled.
- *  - OpenSky Network REST endpoint is polled and may require a user-agent.
- *  - Quest Browser / corporate networks may block some endpoints. If a source
- *    fails, check the live VR console for the error and try the bundled demo
- *    stream (`/__demo-stream`) instead.
  */
-
-export const OPEN_DATA_SOURCES = [
+export const OPEN_DATA_SOURCES: OpenDataSource[] = [
   {
     key: 'demo-stream',
     label: 'Demo Sensor Stream (bundled)',
@@ -41,13 +43,13 @@ export const OPEN_DATA_SOURCES = [
         channels: ['ticker'],
       },
     ],
-    parseMessage: (payload) => {
+    parseMessage: (payload: Record<string, unknown>) => {
       if (payload?.type !== 'ticker' || payload?.product_id !== 'BTC-USD') return null;
       return {
         name: 'Coinbase BTC-USD Ticker',
         rows: [
           {
-            time: payload.time || new Date().toISOString(),
+            time: (payload.time as string) || new Date().toISOString(),
             product: payload.product_id,
             price: Number(payload.price),
             volume24h: Number(payload.volume_24h),
@@ -74,15 +76,15 @@ export const OPEN_DATA_SOURCES = [
         subscription: { name: 'trade' },
       },
     ],
-    parseMessage: (payload) => {
+    parseMessage: (payload: unknown) => {
       // Kraken trade messages: [channelID, [[price, volume, time, side, orderType, misc]], channelName, pair]
       if (!Array.isArray(payload) || !Array.isArray(payload[1])) return null;
-      const trades = payload[1];
+      const trades = payload[1] as [number, number, number, string, string, string][];
       return {
         name: 'Kraken BTC/USD Trades',
         rows: trades.map((t) => ({
           time: new Date(Number(t[2]) * 1000).toISOString(),
-          pair: payload[3] || 'BTC/USD',
+          pair: (payload[3] as string) || 'BTC/USD',
           price: Number(t[0]),
           volume: Number(t[1]),
           side: t[3],
@@ -99,13 +101,13 @@ export const OPEN_DATA_SOURCES = [
     mode: 'window',
     windowSize: 100,
     subscriptions: [],
-    parseMessage: (payload) => {
+    parseMessage: (payload: Record<string, unknown>) => {
       if (payload?.e !== 'trade') return null;
       return {
         name: 'Binance BTC/USDT Trades',
         rows: [
           {
-            time: new Date(payload.T).toISOString(),
+            time: new Date(Number(payload.T)).toISOString(),
             symbol: payload.s,
             price: Number(payload.p),
             quantity: Number(payload.q),
@@ -122,13 +124,19 @@ export const OPEN_DATA_SOURCES = [
     url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson',
     topology: 'GEO',
     mode: 'replace',
+    windowSize: 100,
     intervalMs: 60000,
     fetchOptions: {},
-    parseResponse: (geojson) => {
-      if (!geojson || !Array.isArray(geojson.features)) return null;
+    parseResponse: (geojson: Record<string, unknown>) => {
+      const features = geojson.features as Array<{
+        id: string;
+        properties: { time: number; mag: number; place: string; alert?: string };
+        geometry?: { coordinates?: [number, number, number] };
+      }>;
+      if (!geojson || !Array.isArray(features)) return null;
       return {
         name: 'USGS Earthquakes (past hour)',
-        rows: geojson.features.map((f) => ({
+        rows: features.map((f) => ({
           id: f.id,
           time: new Date(f.properties.time).toISOString(),
           magnitude: f.properties.mag,
@@ -148,19 +156,21 @@ export const OPEN_DATA_SOURCES = [
     url: 'https://opensky-network.org/api/states/all',
     topology: 'GEO',
     mode: 'replace',
+    windowSize: 100,
     intervalMs: 10000,
     fetchOptions: {
       headers: { 'User-Agent': 'NemosyneAnalysisSuite/0.1' },
     },
-    parseResponse: (json) => {
-      if (!Array.isArray(json.states)) return null;
+    parseResponse: (json: Record<string, unknown>) => {
+      const states = json.states as unknown[][];
+      if (!Array.isArray(states)) return null;
       return {
         name: 'OpenSky Aircraft Positions',
-        rows: json.states.map((s) => ({
+        rows: states.map((s) => ({
           icao24: s[0],
-          callsign: (s[1] || '').trim(),
+          callsign: String(s[1] || '').trim(),
           originCountry: s[2],
-          time: new Date(s[3] * 1000).toISOString(),
+          time: new Date(Number(s[3]) * 1000).toISOString(),
           lon: s[5],
           lat: s[6],
           altitude: s[7],
@@ -173,6 +183,6 @@ export const OPEN_DATA_SOURCES = [
   },
 ];
 
-export function getOpenDataSource(key) {
+export function getOpenDataSource(key: string): OpenDataSource | null {
   return OPEN_DATA_SOURCES.find((s) => s.key === key) || null;
 }

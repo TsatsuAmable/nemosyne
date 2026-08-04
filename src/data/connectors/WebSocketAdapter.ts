@@ -1,26 +1,43 @@
-import { DataConnector } from './DataConnector.js';
-import { normalizeLiveMessage } from './normalize.js';
+import { DataConnector, type LiveUpdate } from './DataConnector.ts';
+import { normalizeLiveMessage, type LiveMessage } from './normalize.ts';
+
+export interface ParsedMessageEnvelope {
+  rows: Record<string, unknown>[];
+  topology?: string;
+  name?: string;
+}
+
+export interface WebSocketAdapterOptions {
+  url: string;
+  topology?: string;
+  mode?: string;
+  windowSize?: number;
+  authToken?: string | null;
+  subscriptions?: unknown[];
+  parseMessage?: ((payload: Record<string, unknown>) => ParsedMessageEnvelope | null) | null;
+  binaryParser?: ((raw: ArrayBuffer | ArrayBufferView) => ParsedMessageEnvelope | null) | null;
+  reconnect?: boolean;
+  reconnectDelay?: number;
+}
 
 /**
  * WebSocket-backed live data connector.
- *
- * Configuration:
- *  - url: WebSocket URL (e.g. `wss://localhost:5173/__demo-stream`).
- *  - topology: dataset topology hint (default: 'TIME_SERIES').
- *  - mode: 'replace' | 'append' | 'window'. World-side buffer management is
- *          used for append/window; each message is treated as a delta.
- *  - windowSize: rows to retain in window mode (default: 50).
- *  - authToken: optional token sent as a sub-protocol or query param.
- *  - subscriptions: array of messages to send once the socket opens.
- *  - parseMessage: optional (payload) => { rows, topology?, name? } | null.
- *                    Lets adapters consume real-world APIs whose messages do
- *                    not already follow the Nemosyne `{ rows }` envelope.
- *  - binaryParser: optional (ArrayBuffer) => { rows, topology?, name? } | null.
- *                    Decodes binary frames (Arrow IPC, FlatBuffers, etc.).
- *  - reconnect: auto-reconnect on close (default: true).
- *  - reconnectDelay: ms between attempts (default: 3000).
  */
 export class WebSocketAdapter extends DataConnector {
+  url: string;
+  topology: string;
+  mode: string;
+  windowSize: number;
+  subscriptions: unknown[];
+  parseMessage: WebSocketAdapterOptions['parseMessage'];
+  binaryParser: WebSocketAdapterOptions['binaryParser'];
+  reconnect: boolean;
+  reconnectDelay: number;
+
+  private _ws: WebSocket | null;
+  private _shouldReconnect: boolean;
+  private _reconnectTimer: ReturnType<typeof setTimeout> | null;
+
   constructor({
     url,
     topology = 'TIME_SERIES',
@@ -32,7 +49,7 @@ export class WebSocketAdapter extends DataConnector {
     binaryParser = null,
     reconnect = true,
     reconnectDelay = 3000,
-  } = {}) {
+  }: WebSocketAdapterOptions) {
     super();
     if (!url) throw new Error('WebSocketAdapter requires a url');
     this.url = authToken ? `${url}?token=${encodeURIComponent(authToken)}` : url;
@@ -51,14 +68,15 @@ export class WebSocketAdapter extends DataConnector {
     this._reconnectTimer = null;
   }
 
-  connect() {
+  connect(): void {
     if (this._ws) return;
     this._shouldReconnect = this.reconnect;
     this._setStatus('connecting');
     try {
       this._ws = new WebSocket(this.url);
     } catch (err) {
-      this._setStatus('error', err?.message || String(err));
+      const e = err as Error;
+      this._setStatus('error', e?.message || String(err));
       this._scheduleReconnect();
       return;
     }
@@ -67,9 +85,10 @@ export class WebSocketAdapter extends DataConnector {
       this._setStatus('connected');
       for (const msg of this.subscriptions) {
         try {
-          this._ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg));
+          this._ws!.send(typeof msg === 'string' ? msg : JSON.stringify(msg));
         } catch (err) {
-          this._setStatus('error', `Subscription send failed: ${err?.message || String(err)}`);
+          const e = err as Error;
+          this._setStatus('error', `Subscription send failed: ${e?.message || String(err)}`);
         }
       }
     });
@@ -79,7 +98,7 @@ export class WebSocketAdapter extends DataConnector {
     });
 
     this._ws.addEventListener('error', (event) => {
-      const detail = event.message || 'WebSocket error';
+      const detail = (event as ErrorEvent).message || 'WebSocket error';
       this._setStatus('error', detail);
     });
 
@@ -90,7 +109,7 @@ export class WebSocketAdapter extends DataConnector {
     });
   }
 
-  disconnect() {
+  disconnect(): void {
     this._shouldReconnect = false;
     this._clearReconnect();
     if (this._ws) {
@@ -104,18 +123,18 @@ export class WebSocketAdapter extends DataConnector {
     this._setStatus('disconnected');
   }
 
-  isConnected() {
+  isConnected(): boolean {
     return this._ws != null && this._ws.readyState === 1; // OPEN
   }
 
-  _clearReconnect() {
+  private _clearReconnect(): void {
     if (this._reconnectTimer) {
       clearTimeout(this._reconnectTimer);
       this._reconnectTimer = null;
     }
   }
 
-  _scheduleReconnect() {
+  private _scheduleReconnect(): void {
     this._clearReconnect();
     if (!this._shouldReconnect || this.isConnected()) return;
     this._reconnectTimer = setTimeout(() => {
@@ -124,23 +143,26 @@ export class WebSocketAdapter extends DataConnector {
     }, this.reconnectDelay);
   }
 
-  _handleMessage(raw) {
-    let payload;
+  private _handleMessage(raw: string | ArrayBuffer | ArrayBufferView | unknown): void {
+    let payload: LiveMessage | unknown;
 
     if (typeof raw === 'string') {
       try {
         payload = JSON.parse(raw);
       } catch (err) {
-        this._setStatus('error', `Invalid JSON: ${err?.message || String(err)}`);
+        const e = err as Error;
+        this._setStatus('error', `Invalid JSON: ${e?.message || String(err)}`);
         return;
       }
     } else if (raw instanceof ArrayBuffer || ArrayBuffer.isView(raw)) {
       if (this.binaryParser) {
         try {
           payload = this.binaryParser(raw);
-          if (!payload || !payload.rows || payload.rows.length === 0) return;
+          const parsed = payload as ParsedMessageEnvelope | null;
+          if (!parsed || !parsed.rows || parsed.rows.length === 0) return;
         } catch (err) {
-          this._setStatus('error', `Binary parse failed: ${err?.message || String(err)}`);
+          const e = err as Error;
+          this._setStatus('error', `Binary parse failed: ${e?.message || String(err)}`);
           return;
         }
       } else {
@@ -151,13 +173,14 @@ export class WebSocketAdapter extends DataConnector {
       payload = raw;
     }
 
-    if (this.parseMessage && typeof payload === 'object') {
+    if (this.parseMessage && typeof payload === 'object' && payload !== null) {
       try {
-        const parsed = this.parseMessage(payload);
+        const parsed = this.parseMessage(payload as Record<string, unknown>);
         if (!parsed || !parsed.rows || parsed.rows.length === 0) return;
         payload = parsed;
       } catch (err) {
-        this._setStatus('error', `Parse failed: ${err?.message || String(err)}`);
+        const e = err as Error;
+        this._setStatus('error', `Parse failed: ${e?.message || String(err)}`);
         return;
       }
     }
@@ -172,6 +195,6 @@ export class WebSocketAdapter extends DataConnector {
       dataset: normalized.dataset,
       topology: normalized.topology,
       mode: this.mode,
-    });
+    } as LiveUpdate);
   }
 }

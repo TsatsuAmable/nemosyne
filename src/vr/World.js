@@ -1830,7 +1830,7 @@ export class World {
 
   /**
    * Connect to a curated open live data source by key.
-   * @param {string} sourceKey from src/data/connectors/OpenDataSources.js
+   * @param {string} sourceKey from src/data/connectors/OpenDataSources.ts
    */
   connectLiveSource(sourceKey) {
     return this.liveStreamCoordinator.connectLiveSource(sourceKey);

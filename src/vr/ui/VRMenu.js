@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.js';
 import { allSampleDatasets, getDefaultEncodings } from '../../data/SampleDatasets.ts';
-import { OPEN_DATA_SOURCES } from '../../data/connectors/OpenDataSources.js';
+import { OPEN_DATA_SOURCES } from '../../data/connectors/OpenDataSources.ts';
 
 /**
  * In-VR settings and dataset menu.
