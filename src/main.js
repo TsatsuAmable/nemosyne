@@ -18,12 +18,14 @@ window.addEventListener('unhandledrejection', (e) => {
   logStartupError(e.reason);
 });
 
-try {
-  const world = new World();
-  world.start();
-  if (telemetry) {
-    telemetry.textContent = 'ready — point and select to inspect';
+(async () => {
+  try {
+    const world = new World();
+    await world.start();
+    if (telemetry) {
+      telemetry.textContent = 'ready — point and select to inspect';
+    }
+  } catch (err) {
+    logStartupError(err);
   }
-} catch (err) {
-  logStartupError(err);
-}
+})();

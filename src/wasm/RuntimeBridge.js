@@ -12,25 +12,32 @@
  * primitives cross the wasm-bindgen boundary.
  */
 
-import initWasm, * as raw from '../../wasm/pkg/nemosyne_wasm.js';
-
 let wasmModule = null;
 let memoryView = null;
 
 /**
  * Initialise the WASM runtime.
  *
- * @param {string|URL} [wasmUrl] - Optional URL to the `.wasm` binary. In dev
- *   the Vite plugin serves it at `/wasm/nemosyne_wasm_bg.wasm`; in production
- *   it is copied to `dist/wasm/`.
+ * The wasm-pack generated module is loaded lazily so that builds which do not
+ * run `wasm-pack` still bundle and start without a hard import-time dependency
+ * on the generated `wasm/pkg/` directory. When the module is present (dev, or
+ * after `npm run build:wasm`) it is fetched and initialised; otherwise the
+ * caller can fall back to the JS implementation.
+ *
+ * @param {string|URL} [wasmUrl] - Optional URL to the `.wasm` binary. When
+ *   omitted, the wasm-pack init function fetches it relative to its own JS URL.
  * @returns {Promise<object>} The raw wasm-bindgen exports.
  */
 export async function initRuntime(wasmUrl) {
   if (wasmModule) return wasmModule;
 
+  // Absolute path is preserved by Vite as an external runtime fetch; it points
+  // at the wasm-pack output served from the project root in dev.
+  const mod = await import('/wasm/pkg/nemosyne_wasm.js');
+
   // wasm-pack --target web exports an `init` function that fetches the binary.
-  await initWasm(wasmUrl);
-  wasmModule = raw;
+  await mod.default(wasmUrl);
+  wasmModule = mod;
   refreshMemoryView();
 
   // Seed the runtime. Phase 0 returns a sentinel handle of 1.
@@ -154,6 +161,143 @@ export function update(deltaMs, timeMs) {
 }
 
 /**
+ * Load CSV bytes into the Rust data layer and return a dataset handle.
+ *
+ * @param {Uint8Array} bytes
+ * @returns {number} Dataset handle, or 0 on failure.
+ */
+export function loadCsv(bytes) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const { ptr, len } = allocBytes(bytes);
+  try {
+    return wasmModule.data_load_csv(ptr, len);
+  } finally {
+    wasmModule.dealloc(ptr, len);
+  }
+}
+
+/**
+ * Load JSON bytes into the Rust data layer and return a dataset handle.
+ *
+ * @param {Uint8Array} bytes
+ * @returns {number} Dataset handle, or 0 on failure.
+ */
+export function loadJson(bytes) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const { ptr, len } = allocBytes(bytes);
+  try {
+    return wasmModule.data_load_json(ptr, len);
+  } finally {
+    wasmModule.dealloc(ptr, len);
+  }
+}
+
+/**
+ * Load a built-in sample dataset by key into the Rust data layer.
+ *
+ * @param {string} key
+ * @returns {number} Dataset handle, or 0 on failure / unknown key.
+ */
+export function loadSample(key) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const bytes = new TextEncoder().encode(key);
+  const { ptr, len } = allocBytes(bytes);
+  try {
+    return wasmModule.data_load_sample(ptr, len);
+  } finally {
+    wasmModule.dealloc(ptr, len);
+  }
+}
+
+/**
+ * Return the list of sample dataset keys supported by the Rust runtime.
+ *
+ * @returns {string[]}
+ */
+export function sampleKeys() {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const len = 64;
+  const ptr = wasmModule.alloc(len);
+  try {
+    const written = wasmModule.data_sample_keys(ptr, len);
+    const s = readString(ptr, written);
+    return s.split(',').filter(Boolean);
+  } finally {
+    wasmModule.dealloc(ptr, len);
+  }
+}
+
+/**
+ * @param {number} handle
+ * @returns {number}
+ */
+export function datasetRowCount(handle) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  return wasmModule.dataset_row_count(handle);
+}
+
+/**
+ * @param {number} handle
+ * @returns {number}
+ */
+export function datasetColumnCount(handle) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  return wasmModule.dataset_column_count(handle);
+}
+
+/**
+ * Release a dataset handle.
+ *
+ * @param {number} handle
+ */
+export function destroyDataset(handle) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  wasmModule.dataset_destroy(handle);
+}
+
+/**
+ * Load a CSV or JSON byte array through the Rust parser and return a plain
+ * JS object matching `src/data/Dataset.js` `toJSON()`.
+ *
+ * @param {Uint8Array} bytes
+ * @param {'csv'|'json'} ext
+ * @returns {object|null}
+ */
+export function parseDatasetBytes(bytes, ext) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const handle = ext === 'csv' ? loadCsv(bytes) : loadJson(bytes);
+  if (handle === 0) return null;
+  try {
+    return getDatasetJson(handle);
+  } finally {
+    destroyDataset(handle);
+  }
+}
+
+/**
+ * Fetch a Rust dataset handle as a plain JS object matching
+ * `src/data/Dataset.js` `toJSON()`.
+ *
+ * @param {number} handle
+ * @returns {object|null}
+ */
+export function getDatasetJson(handle) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const required = wasmModule.dataset_to_json(handle, 0, 0);
+  if (required === 0) {
+    return null;
+  }
+  const ptr = wasmModule.alloc(required);
+  try {
+    const written = wasmModule.dataset_to_json(handle, ptr, required);
+    const json = readString(ptr, written);
+    return JSON.parse(json);
+  } finally {
+    wasmModule.dealloc(ptr, required);
+  }
+}
+
+/**
  * Low-level call helper used by integration tests. Only a small set of
  * operations is exposed; this keeps the host surface narrow.
  *
@@ -175,6 +319,16 @@ export function call(name, ...args) {
  */
 export function isReady() {
   return wasmModule !== null;
+}
+
+/**
+ * Return the enabled Rust-side capability set.
+ *
+ * @returns {number}
+ */
+export function capabilities() {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  return wasmModule.capabilities();
 }
 
 /**
