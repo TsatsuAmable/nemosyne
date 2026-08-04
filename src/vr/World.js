@@ -8,7 +8,7 @@ import {
   supplyChainHierarchy,
   allSampleDatasets,
   getDefaultEncodings,
-} from '../data/SampleDatasets.js';
+} from '../data/SampleDatasets.ts';
 import { ANALYSIS_TEMPLATES, resolveTemplate } from '../data/AnalysisTemplates.js';
 import { TopologyTypes } from '../draco/ConstraintEngine.js';
 import { disposeObject } from '../utils/Dispose.js';
@@ -35,7 +35,7 @@ import { UserModeController } from './coordinators/UserModeController.js';
 import { ComfortSettingsController } from './coordinators/ComfortSettingsController.js';
 import { AnalysisHistory } from '../data/AnalysisHistory.js';
 import { SessionStore } from '../data/SessionStore.js';
-import { Dataset } from '../data/Dataset.js';
+import { Dataset } from '../data/Dataset.ts';
 import { GuidedTour } from './ui/GuidedTour.js';
 import { FIRST_DATASET_TOUR } from '../data/DefaultTour.js';
 import { WorldTheme } from './WorldTheme.js';

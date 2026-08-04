@@ -1,4 +1,4 @@
-import { Dataset, ColumnType } from './Dataset.js';
+import { Dataset, ColumnType } from './Dataset.ts';
 import {
   makeSalesTable,
   makeOrgChart,
@@ -7,7 +7,31 @@ import {
   makeFinancialSeries,
   makeGeoCities,
   makeFlowProcess,
-} from './SyntheticData.js';
+} from './SyntheticData.ts';
+
+export type TopologyType =
+  | 'HIERARCHY'
+  | 'GRAPH'
+  | 'TIME_SERIES'
+  | 'TABULAR'
+  | 'VECTOR_FIELD'
+  | 'GEO';
+
+export interface SampleDatasetEntry {
+  key: string;
+  label: string;
+  dataset: Dataset;
+  topology: TopologyType;
+  depth?: number;
+}
+
+export interface EncodingMapping {
+  color?: string;
+  size?: string;
+  pulse?: string;
+  time?: string;
+  label?: string;
+}
 
 export const supplyChainHierarchy = new Dataset(
   'Global Supply Chain',
@@ -93,7 +117,7 @@ export const financialSeries = makeFinancialSeries(48, 'MEMO');
 export const geoCities = makeGeoCities(20);
 export const flowProcess = makeFlowProcess(6);
 
-export const allSampleDatasets = [
+export const allSampleDatasets: SampleDatasetEntry[] = [
   {
     key: 'supply-chain',
     label: 'Supply Chain Hierarchy',
@@ -134,12 +158,12 @@ export const allSampleDatasets = [
 ];
 
 /** Find a sample dataset entry by its key. */
-export function getSampleDataset(key) {
+export function getSampleDataset(key: string): SampleDatasetEntry | undefined {
   return allSampleDatasets.find((d) => d.key === key);
 }
 
 /** Infer default encodings for a sample entry. */
-export function getDefaultEncodings(entry) {
+export function getDefaultEncodings(entry: SampleDatasetEntry): EncodingMapping {
   const ds = entry.dataset;
   switch (entry.topology) {
     case 'HIERARCHY':

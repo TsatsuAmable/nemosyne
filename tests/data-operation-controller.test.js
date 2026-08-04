@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { DataOperationController } from '../src/vr/coordinators/DataOperationController.js';
 import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.js';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.js';
 import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.js';
 import { captureBaseState } from '../src/vr/interactions/DataOperations.js';

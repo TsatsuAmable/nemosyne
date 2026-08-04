@@ -1,13 +1,13 @@
-import { parseCSV, parseJSON } from '../data/Parsers.js';
+import { parseCSV, parseJSON } from '../data/Parsers.ts';
 import { inferEncodings } from '../data/Encodings.js';
 import { inferTopology, inferEncodingsForTopology } from '../data/TopologyInference.js';
 import { validateImport, formatValidationResult } from '../data/ImportError.js';
-import { Dataset } from '../data/Dataset.js';
+import { Dataset } from '../data/Dataset.ts';
 import {
   allSampleDatasets,
   getSampleDataset,
   getDefaultEncodings,
-} from '../data/SampleDatasets.js';
+} from '../data/SampleDatasets.ts';
 import { TopologyTypes } from '../draco/ConstraintEngine.js';
 
 /**

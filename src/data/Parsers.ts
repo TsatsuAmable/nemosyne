@@ -1,19 +1,27 @@
-import { Dataset, ColumnType } from './Dataset.js';
+import { Dataset, ColumnType } from './Dataset.ts';
+import type { ColumnSchema, ColumnTypeValue } from './types.ts';
 
-const DEFAULT_CSV_OPTIONS = {
+export interface ParseOptions {
+  delimiter?: string | null;
+  name?: string;
+  maxRows?: number;
+  maxColumns?: number;
+}
+
+const DEFAULT_CSV_OPTIONS: Required<ParseOptions> = {
   delimiter: null, // null = auto-detect
   name: 'csv',
   maxRows: 100_000,
   maxColumns: 1_000,
 };
 
-const DEFAULT_JSON_OPTIONS = {
+const DEFAULT_JSON_OPTIONS: Required<Omit<ParseOptions, 'delimiter'>> = {
   name: 'json',
   maxRows: 100_000,
   maxColumns: 1_000,
 };
 
-export function inferType(values) {
+export function inferType(values: unknown[]): ColumnTypeValue {
   let numeric = 0;
   let temporal = 0;
   let total = 0;
@@ -21,7 +29,7 @@ export function inferType(values) {
     if (v === null || v === undefined || v === '') continue;
     total++;
     if (!Number.isNaN(Number(v))) numeric++;
-    else if (!Number.isNaN(Date.parse(v))) temporal++;
+    else if (!Number.isNaN(Date.parse(String(v)))) temporal++;
   }
   if (total === 0) return ColumnType.TEXT;
   if (numeric / total > 0.8) return ColumnType.NUMERIC;
@@ -31,30 +39,31 @@ export function inferType(values) {
   return ColumnType.TEXT;
 }
 
-export function parseJSON(text, options = {}) {
+export function parseJSON(text: string, options: ParseOptions = {}): Dataset {
   const opts = { ...DEFAULT_JSON_OPTIONS, ...options };
-  const raw = JSON.parse(text);
+  const raw: unknown = JSON.parse(text);
   if (!Array.isArray(raw)) throw new Error('JSON dataset must be an array of objects');
   if (raw.length === 0) return new Dataset(opts.name, [], []);
 
-  const columns = Object.keys(raw[0]);
+  const firstRow = raw[0] as Record<string, unknown>;
+  const columns = Object.keys(firstRow);
   if (opts.maxColumns > 0 && columns.length > opts.maxColumns) {
     throw new Error(`JSON has ${columns.length} columns; maximum allowed is ${opts.maxColumns}`);
   }
 
   const rows = opts.maxRows > 0 ? raw.slice(0, opts.maxRows) : raw;
-  const typedColumns = columns.map((name) => {
-    const type = inferType(rows.map((r) => r[name]));
+  const typedColumns: ColumnSchema[] = columns.map((name) => {
+    const type = inferType(rows.map((r: unknown) => (r as Record<string, unknown>)[name]));
     return { name, type };
   });
-  return new Dataset(opts.name, typedColumns, rows);
+  return new Dataset(opts.name, typedColumns, rows as Record<string, unknown>[]);
 }
 
 /**
  * Detect the most likely delimiter for a CSV-ish text by scoring the
  * consistency of field counts across the first few non-empty lines.
  */
-export function detectDelimiter(text, candidates = [',', ';', '\t', '|']) {
+export function detectDelimiter(text: string, candidates: string[] = [',', ';', '\t', '|']): string {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return candidates[0];
 
@@ -80,8 +89,8 @@ export function detectDelimiter(text, candidates = [',', ';', '\t', '|']) {
  * Tokenize a single CSV line, respecting double-quoted fields and escaped
  * quotes (`""`). Returns an array of raw string values.
  */
-export function tokenizeCSVLine(line, delimiter = ',') {
-  const values = [];
+export function tokenizeCSVLine(line: string, delimiter: string = ','): string[] {
+  const values: string[] = [];
   let current = '';
   let inQuotes = false;
 
@@ -115,16 +124,8 @@ export function tokenizeCSVLine(line, delimiter = ',') {
  * Parse CSV text into a Dataset with robust handling of quoted fields,
  * escaped quotes, embedded commas/newlines, delimiter auto-detection, and
  * row/column limits.
- *
- * @param {string} text
- * @param {Object} [options]
- * @param {string|null} [options.delimiter] Delimiter; null to auto-detect.
- * @param {string} [options.name] Dataset name.
- * @param {number} [options.maxRows] Maximum rows to read (excluding header).
- * @param {number} [options.maxColumns] Maximum columns to accept.
- * @returns {Dataset}
  */
-export function parseCSV(text, options = {}) {
+export function parseCSV(text: string, options: ParseOptions = {}): Dataset {
   const opts = { ...DEFAULT_CSV_OPTIONS, ...options };
   const delimiter = opts.delimiter || detectDelimiter(text);
 
@@ -142,7 +143,7 @@ export function parseCSV(text, options = {}) {
     throw new Error(`CSV has ${headers.length} columns; maximum allowed is ${opts.maxColumns}`);
   }
 
-  const rows = [];
+  const rows: Record<string, unknown>[] = [];
   let buffer = '';
   for (let i = 1; i < rawLines.length; i++) {
     if (rows.length >= opts.maxRows) break;
@@ -158,7 +159,7 @@ export function parseCSV(text, options = {}) {
     const values = tokenizeCSVLine(testBuffer, delimiter);
     if (values.length === 1 && values[0].trim() === '') continue; // skip blank lines
 
-    const row = {};
+    const row: Record<string, unknown> = {};
     for (let j = 0; j < headers.length; j++) {
       let v = values[j];
       if (v === undefined) v = '';
@@ -174,7 +175,7 @@ export function parseCSV(text, options = {}) {
     buffer = '';
   }
 
-  const columns = headers.map((name) => ({
+  const columns: ColumnSchema[] = headers.map((name) => ({
     name,
     type: inferType(rows.map((r) => r[name])),
   }));
@@ -182,6 +183,6 @@ export function parseCSV(text, options = {}) {
   return new Dataset(opts.name, columns, rows);
 }
 
-function _tokenizeLine(line, delimiter) {
+function _tokenizeLine(line: string, delimiter: string): string[] {
   return tokenizeCSVLine(line, delimiter);
 }

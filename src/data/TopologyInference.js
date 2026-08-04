@@ -30,7 +30,7 @@ function _findHintedColumns(columns, hints) {
 /**
  * Infer a topology from the dataset schema.
  *
- * @param {import('./Dataset.js').Dataset} dataset
+ * @param {import('./Dataset.ts').Dataset} dataset
  * @param {string} [explicitTopology] Optional user override.
  * @returns {string} A value from TopologyTypes.
  */
@@ -79,7 +79,7 @@ export function inferTopology(dataset, explicitTopology) {
 /**
  * Suggest default encodings for an inferred topology.
  *
- * @param {import('./Dataset.js').Dataset} dataset
+ * @param {import('./Dataset.ts').Dataset} dataset
  * @param {string} topology
  * @returns {Object} Encodings object suitable for `World.loadDataset`.
  */

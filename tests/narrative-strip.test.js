@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { NarrativeStrip } from '../src/vr/ui/NarrativeStrip.js';
 import { AnalysisHistory } from '../src/data/AnalysisHistory.js';
-import { Dataset } from '../src/data/Dataset.js';
+import { Dataset } from '../src/data/Dataset.ts';
 
 function makeDataset(rows) {
   return new Dataset('test', [{ name: 'id', type: 'NUMERIC' }], rows);

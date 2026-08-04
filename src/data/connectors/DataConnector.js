@@ -82,7 +82,7 @@ export class DataConnector {
 
 /**
  * @typedef {Object} LiveUpdate
- * @property {import('../Dataset.js').Dataset} dataset
+ * @property {import('../Dataset.ts').Dataset} dataset
  * @property {string} mode
  * @property {string} topology
  */

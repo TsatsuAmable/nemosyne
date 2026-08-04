@@ -277,7 +277,7 @@ export function buildBettiPlane(options = {}) {
 
 /**
  * Convenience: compute all TDA summaries from a dataset and return a group of panels.
- * @param {import('../../data/Dataset.js').Dataset} dataset
+ * @param {import('../../data/Dataset.ts').Dataset} dataset
  * @param {Array<string>} featureColumns
  * @param {string} filterColumn
  * @returns {{ group: THREE.Group, persistence: { update }, mapper: { update }, betti: { update } }}

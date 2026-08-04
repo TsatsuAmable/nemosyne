@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.js';
 import { TopologyTypes } from '../src/draco/ConstraintEngine.js';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 
 describe('DracoTopologyNode', () => {
   let scene;

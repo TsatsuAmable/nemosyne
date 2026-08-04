@@ -1,13 +1,13 @@
-import { Dataset, ColumnType } from './Dataset.js';
+import { Dataset, ColumnType } from './Dataset.ts';
 
 /**
  * Utilities for generating deterministic synthetic datasets for demos and tests.
  */
 
-export function makeSalesTable(rows = 60) {
+export function makeSalesTable(rows: number = 60): Dataset {
   const regions = ['North', 'South', 'East', 'West'];
   const products = ['Widget', 'Gadget', 'Thingama', 'Doohickey'];
-  const rows_ = [];
+  const rows_: Record<string, unknown>[] = [];
   for (let i = 0; i < rows; i++) {
     const region = regions[i % regions.length];
     const product = products[i % products.length];
@@ -32,10 +32,10 @@ export function makeSalesTable(rows = 60) {
   );
 }
 
-export function makeOrgChart(depth = 3, branching = [1, 3, 4, 2]) {
-  const rows = [];
+export function makeOrgChart(depth: number = 3, branching: number[] = [1, 3, 4, 2]): Dataset {
+  const rows: Record<string, unknown>[] = [];
   let idCounter = 1;
-  function addNode(name, level, parent) {
+  function addNode(name: string, level: number, parent: number | null): number {
     const id = idCounter++;
     const employees = Math.floor(5 + Math.random() * 95);
     const budget = employees * (10000 + Math.random() * 50000);
@@ -44,11 +44,11 @@ export function makeOrgChart(depth = 3, branching = [1, 3, 4, 2]) {
   }
 
   const rootId = addNode('CEO', 0, null);
-  const level1Ids = [];
+  const level1Ids: number[] = [];
   for (let i = 0; i < (branching[1] ?? 3); i++) {
     level1Ids.push(addNode(`VP-${String.fromCharCode(65 + i)}`, 1, rootId));
   }
-  const level2Ids = [];
+  const level2Ids: number[] = [];
   for (const parent of level1Ids) {
     for (let i = 0; i < (branching[2] ?? 3); i++) {
       level2Ids.push(addNode(`Dir-${parent}-${i + 1}`, 2, parent));
@@ -74,8 +74,8 @@ export function makeOrgChart(depth = 3, branching = [1, 3, 4, 2]) {
   );
 }
 
-export function makeWindField(count = 40) {
-  const rows = [];
+export function makeWindField(count: number = 40): Dataset {
+  const rows: Record<string, unknown>[] = [];
   for (let i = 0; i < count; i++) {
     rows.push({
       id: `V${i}`,
@@ -89,7 +89,10 @@ export function makeWindField(count = 40) {
     });
   }
   for (const r of rows) {
-    r.magnitude = Math.sqrt(r.u * r.u + r.v * r.v + r.w * r.w);
+    const u = r.u as number;
+    const v = r.v as number;
+    const w = r.w as number;
+    r.magnitude = Math.sqrt(u * u + v * v + w * w);
   }
   return new Dataset(
     'Wind Vector Field',
@@ -107,8 +110,8 @@ export function makeWindField(count = 40) {
   );
 }
 
-export function makeSocialGraph(nodes = 24) {
-  const rows = [];
+export function makeSocialGraph(nodes: number = 24): Dataset {
+  const rows: Record<string, unknown>[] = [];
   const groups = ['A', 'B', 'C', 'D'];
   for (let i = 0; i < nodes; i++) {
     rows.push({
@@ -143,8 +146,8 @@ export function makeSocialGraph(nodes = 24) {
 /**
  * Generate a financial candle-like time-series: open/high/low/close per tick.
  */
-export function makeFinancialSeries(ticks = 48, symbol = 'MEMO') {
-  const rows = [];
+export function makeFinancialSeries(ticks: number = 48, symbol: string = 'MEMO'): Dataset {
+  const rows: Record<string, unknown>[] = [];
   let price = 100 + Math.random() * 50;
   for (let i = 0; i < ticks; i++) {
     const open = price;
@@ -179,11 +182,17 @@ export function makeFinancialSeries(ticks = 48, symbol = 'MEMO') {
   );
 }
 
+interface CitySeed {
+  name: string;
+  lat: number;
+  lon: number;
+}
+
 /**
  * Generate global city geospatial data with lat/lon and a numeric value.
  */
-export function makeGeoCities(count = 20) {
-  const cities = [
+export function makeGeoCities(count: number = 20): Dataset {
+  const cities: CitySeed[] = [
     { name: 'New York', lat: 40.7, lon: -74.0 },
     { name: 'London', lat: 51.5, lon: -0.1 },
     { name: 'Tokyo', lat: 35.7, lon: 139.7 },
@@ -226,8 +235,8 @@ export function makeGeoCities(count = 20) {
 /**
  * Generate a process-flow / supply-chain graph with weighted edges.
  */
-export function makeFlowProcess(stages = 6) {
-  const rows = [];
+export function makeFlowProcess(stages: number = 6): Dataset {
+  const rows: Record<string, unknown>[] = [];
   for (let i = 0; i < stages; i++) {
     rows.push({
       id: `S${i}`,

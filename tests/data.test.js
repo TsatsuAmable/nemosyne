@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
-import { parseCSV, parseJSON } from '../src/data/Parsers.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { parseCSV, parseJSON } from '../src/data/Parsers.ts';
 import {
   categoricalColor,
   numericColor,
   normalize,
   inferEncodings,
 } from '../src/data/Encodings.js';
-import { makeFinancialSeries, makeGeoCities, makeFlowProcess } from '../src/data/SyntheticData.js';
-import { allSampleDatasets } from '../src/data/SampleDatasets.js';
+import { makeFinancialSeries, makeGeoCities, makeFlowProcess } from '../src/data/SyntheticData.ts';
+import { allSampleDatasets } from '../src/data/SampleDatasets.ts';
 
 describe('Dataset', () => {
   it('stores typed columns and rows', () => {

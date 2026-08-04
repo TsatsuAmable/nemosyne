@@ -6,7 +6,7 @@
  */
 
 import { AnalysisHistory } from '../../data/AnalysisHistory.js';
-import { Dataset } from '../../data/Dataset.js';
+import { Dataset } from '../../data/Dataset.ts';
 import {
   applyFilter,
   applySort,
@@ -71,12 +71,12 @@ export class DataOperationController {
     return this._analysisHistory;
   }
 
-  /** @returns {import('../../data/Dataset.js').Dataset | null} */
+  /** @returns {import('../../data/Dataset.ts').Dataset | null} */
   get originalDataset() {
     return this._originalDataset;
   }
 
-  /** @returns {import('../../data/Dataset.js').Dataset | null} */
+  /** @returns {import('../../data/Dataset.ts').Dataset | null} */
   get transformedDataset() {
     return this._transformedDataset;
   }
@@ -84,7 +84,7 @@ export class DataOperationController {
   /**
    * Set the original dataset and reset the analysis state. This is called
    * whenever a new dataset is loaded.
-   * @param {import('../../data/Dataset.js').Dataset} dataset
+   * @param {import('../../data/Dataset.ts').Dataset} dataset
    */
   setOriginalDataset(dataset) {
     this._originalDataset = dataset?.clone?.() ?? null;
@@ -94,7 +94,7 @@ export class DataOperationController {
 
   /**
    * Set the transformed dataset directly (used when restoring a session).
-   * @param {import('../../data/Dataset.js').Dataset} dataset
+   * @param {import('../../data/Dataset.ts').Dataset} dataset
    */
   setTransformedDataset(dataset) {
     this._transformedDataset = dataset?.clone?.() ?? null;
@@ -134,9 +134,9 @@ export class DataOperationController {
    * falls back to the JS implementation.
    *
    * @param {string} operation
-   * @param {import('../../data/Dataset.js').Dataset} dataset
-   * @param {import('../../data/Dataset.js').Dataset} originalDataset
-   * @returns {import('../../data/Dataset.js').Dataset}
+   * @param {import('../../data/Dataset.ts').Dataset} dataset
+   * @param {import('../../data/Dataset.ts').Dataset} originalDataset
+   * @returns {import('../../data/Dataset.ts').Dataset}
    */
   _computeDataset(operation, dataset, originalDataset) {
     if (
@@ -159,7 +159,7 @@ export class DataOperationController {
    * dataset. Used by `World._restoreDataset` after undo/redo/seek or a full
    * re-solve.
    * @param {string} operation
-   * @param {import('../../data/Dataset.js').Dataset} dataset
+   * @param {import('../../data/Dataset.ts').Dataset} dataset
    */
   applyVisual(operation, dataset) {
     const artifact = this.getArtifact();
@@ -232,7 +232,7 @@ export class DataOperationController {
   /**
    * Undo the most recent operation. Returns the frame to restore, or null if
    * there is nothing to undo.
-   * @returns {{ operation: string, dataset: import('../../data/Dataset.js').Dataset, parameters: object } | null}
+   * @returns {{ operation: string, dataset: import('../../data/Dataset.ts').Dataset, parameters: object } | null}
    */
   undo() {
     if (!this._analysisHistory.canUndo) return null;
@@ -248,7 +248,7 @@ export class DataOperationController {
   /**
    * Redo the next operation. Returns the frame to restore, or null if there is
    * nothing to redo.
-   * @returns {{ operation: string, dataset: import('../../data/Dataset.js').Dataset, parameters: object } | null}
+   * @returns {{ operation: string, dataset: import('../../data/Dataset.ts').Dataset, parameters: object } | null}
    */
   redo() {
     if (!this._analysisHistory.canRedo) return null;
@@ -264,7 +264,7 @@ export class DataOperationController {
   /**
    * Jump to a specific history frame. Returns the frame to restore, or null.
    * @param {number} index
-   * @returns {{ operation: string, dataset: import('../../data/Dataset.js').Dataset, parameters: object } | null}
+   * @returns {{ operation: string, dataset: import('../../data/Dataset.ts').Dataset, parameters: object } | null}
    */
   seekHistory(index) {
     const frame = this._analysisHistory?.seek?.(index);

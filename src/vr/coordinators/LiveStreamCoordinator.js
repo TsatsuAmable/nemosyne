@@ -3,7 +3,7 @@ import { WebSocketAdapter } from '../../data/connectors/WebSocketAdapter.js';
 import { PollingAdapter } from '../../data/connectors/PollingAdapter.js';
 import { getOpenDataSource } from '../../data/connectors/OpenDataSources.js';
 import { rowsToDataset } from '../../data/connectors/normalize.js';
-import { getDefaultEncodings } from '../../data/SampleDatasets.js';
+import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
 
 /**
  * Owns live-stream connection state, buffering, and incremental flushing.

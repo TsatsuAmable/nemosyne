@@ -8,11 +8,11 @@
  */
 
 import { encode, decode } from '@msgpack/msgpack';
-import { Dataset } from '../Dataset.js';
+import { Dataset } from '../Dataset.ts';
 
 /**
  * Serialize a Dataset to a MessagePack Uint8Array.
- * @param {import('../Dataset.js').Dataset} dataset
+ * @param {import('../Dataset.ts').Dataset} dataset
  * @returns {Uint8Array}
  */
 export function datasetToMessagePack(dataset) {
@@ -26,7 +26,7 @@ export function datasetToMessagePack(dataset) {
 /**
  * Deserialize a MessagePack payload back into a Dataset.
  * @param {Uint8Array|ArrayBuffer} buffer
- * @returns {import('../Dataset.js').Dataset}
+ * @returns {import('../Dataset.ts').Dataset}
  */
 export function messagePackToDataset(buffer) {
   const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;

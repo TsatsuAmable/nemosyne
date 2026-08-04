@@ -1,12 +1,12 @@
-import { Dataset, ColumnType } from '../Dataset.js';
-import { inferType } from '../Parsers.js';
+import { Dataset, ColumnType } from '../Dataset.ts';
+import { inferType } from '../Parsers.ts';
 
 /**
  * Build a {@link Dataset} from raw row objects.
  *
  * @param {Array<Record<string, any>>} rows
  * @param {string} name
- * @returns {import('../Dataset.js').Dataset}
+ * @returns {import('../Dataset.ts').Dataset}
  */
 export function rowsToDataset(rows, name = 'Live Stream') {
   if (!Array.isArray(rows) || rows.length === 0) {
@@ -14,7 +14,7 @@ export function rowsToDataset(rows, name = 'Live Stream') {
   }
 
   const keys = Object.keys(rows[0]);
-  /** @type {import('../Dataset.js').Column[]} */
+  /** @type {import('../Dataset.ts').Column[]} */
   const columns = keys.map((key) => {
     const values = rows.map((row) => row[key]);
     return { name: key, type: inferType(values) };
@@ -32,7 +32,7 @@ export function rowsToDataset(rows, name = 'Live Stream') {
  *
  * @param {any} message
  * @param {string} [defaultTopology]
- * @returns {{ dataset: import('../Dataset.js').Dataset, topology: string } | null}
+ * @returns {{ dataset: import('../Dataset.ts').Dataset, topology: string } | null}
  */
 export function normalizeLiveMessage(message, defaultTopology = 'TIME_SERIES') {
   if (!message || typeof message !== 'object') return null;

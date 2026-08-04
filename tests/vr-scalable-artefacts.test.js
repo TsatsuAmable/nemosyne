@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.js';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 
 function makeGridDataset(count, categories = 3) {
   const rows = Array.from({ length: count }, (_, i) => ({

@@ -14,7 +14,7 @@ const PULSE_RATE = 3;
 /**
  * Apply anomaly highlighting: outliers get an emissive halo mesh and lift up.
  * @param {{ nodeMeshes: THREE.Mesh[], group: THREE.Group }} artifact
- * @param {import('../../data/Dataset.js').Dataset} anomalyDataset
+ * @param {import('../../data/Dataset.ts').Dataset} anomalyDataset
  */
 export function applyAnomalyHighlight(artifact, anomalyDataset) {
   captureBaseState(artifact);
@@ -62,7 +62,7 @@ export function clearAnomalyHighlight(artifact) {
  * Gather outliers into a local swarm around a focus point (e.g. the user's hand).
  * Non-outliers dim.
  * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.js').Dataset} anomalyDataset
+ * @param {import('../../data/Dataset.ts').Dataset} anomalyDataset
  * @param {THREE.Vector3} focusPoint
  * @param {number} [radius]
  */
