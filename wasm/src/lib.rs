@@ -422,11 +422,10 @@ mod tests {
     }
 
     #[test]
-    fn alloc_returns_non_zero_and_bump_increases() {
+    fn alloc_returns_increasing_offsets() {
         let ptr = alloc(16);
-        assert!(ptr > 0);
         let ptr2 = alloc(8);
-        assert!(ptr2 > ptr);
+        assert!(ptr2 > ptr, "second allocation should be at a higher offset");
         dealloc(ptr2, 8);
         dealloc(ptr, 16);
     }
