@@ -186,6 +186,41 @@ export function loadJson(bytes) {
 }
 
 /**
+ * Load a built-in sample dataset by key into the Rust data layer.
+ *
+ * @param {string} key
+ * @returns {number} Dataset handle, or 0 on failure / unknown key.
+ */
+export function loadSample(key) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const bytes = new TextEncoder().encode(key);
+  const { ptr, len } = allocBytes(bytes);
+  try {
+    return wasmModule.data_load_sample(ptr, len);
+  } finally {
+    wasmModule.dealloc(ptr, len);
+  }
+}
+
+/**
+ * Return the list of sample dataset keys supported by the Rust runtime.
+ *
+ * @returns {string[]}
+ */
+export function sampleKeys() {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const len = 64;
+  const ptr = wasmModule.alloc(len);
+  try {
+    const written = wasmModule.data_sample_keys(ptr, len);
+    const s = readString(ptr, written);
+    return s.split(',').filter(Boolean);
+  } finally {
+    wasmModule.dealloc(ptr, len);
+  }
+}
+
+/**
  * @param {number} handle
  * @returns {number}
  */
@@ -214,6 +249,48 @@ export function destroyDataset(handle) {
 }
 
 /**
+ * Load a CSV or JSON byte array through the Rust parser and return a plain
+ * JS object matching `src/data/Dataset.js` `toJSON()`.
+ *
+ * @param {Uint8Array} bytes
+ * @param {'csv'|'json'} ext
+ * @returns {object|null}
+ */
+export function parseDatasetBytes(bytes, ext) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const handle = ext === 'csv' ? loadCsv(bytes) : loadJson(bytes);
+  if (handle === 0) return null;
+  try {
+    return getDatasetJson(handle);
+  } finally {
+    destroyDataset(handle);
+  }
+}
+
+/**
+ * Fetch a Rust dataset handle as a plain JS object matching
+ * `src/data/Dataset.js` `toJSON()`.
+ *
+ * @param {number} handle
+ * @returns {object|null}
+ */
+export function getDatasetJson(handle) {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const required = wasmModule.dataset_to_json(handle, 0, 0);
+  if (required === 0) {
+    return null;
+  }
+  const ptr = wasmModule.alloc(required);
+  try {
+    const written = wasmModule.dataset_to_json(handle, ptr, required);
+    const json = readString(ptr, written);
+    return JSON.parse(json);
+  } finally {
+    wasmModule.dealloc(ptr, required);
+  }
+}
+
+/**
  * Low-level call helper used by integration tests. Only a small set of
  * operations is exposed; this keeps the host surface narrow.
  *
@@ -235,6 +312,16 @@ export function call(name, ...args) {
  */
 export function isReady() {
   return wasmModule !== null;
+}
+
+/**
+ * Return the enabled Rust-side capability set.
+ *
+ * @returns {number}
+ */
+export function capabilities() {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  return wasmModule.capabilities();
 }
 
 /**

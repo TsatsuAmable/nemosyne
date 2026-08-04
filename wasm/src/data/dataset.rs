@@ -145,6 +145,57 @@ impl Dataset {
         copy.name = format!("{} {}", self.name, suffix.as_ref());
         copy
     }
+
+    /// Serialize the dataset to a JS-compatible JSON string.
+    ///
+    /// The format matches `src/data/Dataset.js` `toJSON()` / `fromJSON()` so
+    /// the JS host can reconstruct a full `Dataset` object from a Rust handle.
+    pub fn to_js_json(&self) -> String {
+        use serde_json::{Map as JsonMap, Number, Value as JsonValue};
+        let mut root = JsonMap::new();
+        root.insert("name".to_string(), JsonValue::String(self.name.clone()));
+
+        let columns: Vec<JsonValue> = self
+            .columns
+            .iter()
+            .map(|c| {
+                let mut col = JsonMap::new();
+                col.insert("name".to_string(), JsonValue::String(c.name.clone()));
+                col.insert("type".to_string(), JsonValue::String(c.ty.as_str().to_string()));
+                JsonValue::Object(col)
+            })
+            .collect();
+        root.insert("columns".to_string(), JsonValue::Array(columns));
+
+        let rows: Vec<JsonValue> = self
+            .rows
+            .iter()
+            .map(|r| {
+                let mut row = JsonMap::new();
+                for col in &self.columns {
+                    let value = r.get(&col.name).unwrap_or(&Value::Null);
+                    row.insert(col.name.clone(), value.to_js_json_value());
+                }
+                JsonValue::Object(row)
+            })
+            .collect();
+        root.insert("rows".to_string(), JsonValue::Array(rows));
+
+        if let Some(edges) = &self.edges {
+            let edges_json: Vec<JsonValue> = edges
+                .iter()
+                .map(|(a, b)| {
+                    let mut e = JsonMap::new();
+                    e.insert("source".to_string(), JsonValue::Number(Number::from(*a as u64)));
+                    e.insert("target".to_string(), JsonValue::Number(Number::from(*b as u64)));
+                    JsonValue::Object(e)
+                })
+                .collect();
+            root.insert("edges".to_string(), JsonValue::Array(edges_json));
+        }
+
+        serde_json::to_string(&JsonValue::Object(root)).unwrap_or_else(|_| "{}".to_string())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

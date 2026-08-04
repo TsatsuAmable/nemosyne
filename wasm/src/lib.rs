@@ -182,6 +182,29 @@ pub fn command_buffer_ptr() -> u32 {
     0
 }
 
+/// Phase 0/1 per-frame tick. Returns the number of bytes in the current
+/// command buffer; always `0` while no command encoder is wired up.
+#[wasm_bindgen]
+pub fn update(_delta_ms: f32, _time_ms: f32) -> u32 {
+    0
+}
+
+// ---------------------------------------------------------------------------
+// Capability flags
+// ---------------------------------------------------------------------------
+
+const CAP_DATASET_RUST: u32 = 1 << 0;
+const CAP_PARSER_RUST: u32 = 1 << 1;
+const CAP_OPERATIONS_RUST: u32 = 1 << 2;
+
+/// Return the enabled capability set for the current build.
+///
+/// Phase 1 advertises `DATASET_RUST | PARSER_RUST | OPERATIONS_RUST`.
+#[wasm_bindgen]
+pub fn capabilities() -> u32 {
+    CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST
+}
+
 // ---------------------------------------------------------------------------
 // Phase 1 — data layer exports
 // ---------------------------------------------------------------------------
@@ -238,6 +261,57 @@ pub fn dataset_destroy(handle: u32) {
     data::destroy_dataset(handle);
 }
 
+/// Serialize a dataset to a JS-compatible JSON string.
+///
+/// Call with `out_len == 0` to get the required byte length, allocate that
+/// many bytes, then call again to write the JSON. Returns the number of bytes
+/// written (or required).
+#[wasm_bindgen]
+pub fn dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    data::with_dataset(handle, |ds| {
+        let json = ds.to_js_json();
+        let bytes = json.as_bytes();
+        if out_len == 0 {
+            return bytes.len() as u32;
+        }
+        let write_len = std::cmp::min(bytes.len(), out_len as usize);
+        let slice = unsafe { core::slice::from_raw_parts_mut(out_ptr as *mut u8, write_len) };
+        slice.copy_from_slice(&bytes[..write_len]);
+        write_len as u32
+    })
+    .unwrap_or(0)
+}
+
+/// Load a built-in sample dataset by key and return a dataset handle.
+/// Returns `0` if the key is unknown.
+#[wasm_bindgen]
+pub fn data_load_sample(key_ptr: u32, key_len: u32) -> u32 {
+    let key_bytes = unsafe { core::slice::from_raw_parts(key_ptr as *const u8, key_len as usize) };
+    let key = match std::str::from_utf8(key_bytes) {
+        Ok(k) => k,
+        Err(_) => return 0,
+    };
+    match data::synthetic::make_sample(key) {
+        Some(dataset) => data::register_dataset(dataset),
+        None => {
+            log_error(&format!("data_load_sample unknown key: {}", key));
+            0
+        }
+    }
+}
+
+/// Write the comma-separated list of available sample keys into `out_ptr`.
+/// The host must `alloc` at least 64 bytes. Returns the number of bytes written.
+#[wasm_bindgen]
+pub fn data_sample_keys(out_ptr: u32, out_len: u32) -> u32 {
+    let keys = "supply-chain,fraud-graph,sensor-stream";
+    let bytes = keys.as_bytes();
+    let write_len = std::cmp::min(bytes.len(), out_len as usize);
+    let slice = unsafe { core::slice::from_raw_parts_mut(out_ptr as *mut u8, write_len) };
+    slice.copy_from_slice(&bytes[..write_len]);
+    write_len as u32
+}
+
 #[cfg(target_arch = "wasm32")]
 fn log_error(msg: &str) {
     use wasm_bindgen::JsValue;
@@ -256,6 +330,14 @@ mod tests {
     #[test]
     fn ping_returns_42() {
         assert_eq!(ping(), 42);
+    }
+
+    #[test]
+    fn capabilities_returns_phase_1_flags() {
+        let caps = capabilities();
+        assert!(caps & CAP_DATASET_RUST != 0);
+        assert!(caps & CAP_PARSER_RUST != 0);
+        assert!(caps & CAP_OPERATIONS_RUST != 0);
     }
 
     #[test]
@@ -298,6 +380,58 @@ mod tests {
         assert!(handle > 0);
         assert_eq!(dataset_row_count(handle), 2);
         assert_eq!(dataset_column_count(handle), 2);
+        dataset_destroy(handle);
+    }
+
+    #[test]
+    fn data_load_sample_creates_dataset() {
+        let key = b"supply-chain";
+        let handle = data_load_sample(key.as_ptr() as u32, key.len() as u32);
+        assert!(handle > 0);
+        assert_eq!(dataset_row_count(handle), 12);
+        assert_eq!(dataset_column_count(handle), 5);
+        dataset_destroy(handle);
+    }
+
+    #[test]
+    fn data_load_sample_returns_zero_for_unknown_key() {
+        let key = b"not-a-key";
+        let handle = data_load_sample(key.as_ptr() as u32, key.len() as u32);
+        assert_eq!(handle, 0);
+    }
+
+    #[test]
+    fn data_sample_keys_writes_list() {
+        let buf_len = 64;
+        let buf = alloc(buf_len);
+        let written = data_sample_keys(buf, buf_len);
+        assert!(written > 0);
+        let slice = unsafe { core::slice::from_raw_parts(buf as *const u8, written as usize) };
+        let s = std::str::from_utf8(slice).expect("utf8");
+        assert!(s.contains("supply-chain"));
+        assert!(s.contains("fraud-graph"));
+        assert!(s.contains("sensor-stream"));
+        dealloc(buf, buf_len);
+    }
+
+    #[test]
+    fn dataset_to_json_round_trips() {
+        let key = b"fraud-graph";
+        let handle = data_load_sample(key.as_ptr() as u32, key.len() as u32);
+        assert!(handle > 0);
+
+        let required = dataset_to_json(handle, 0, 0);
+        assert!(required > 0);
+        let buf = alloc(required);
+        let written = dataset_to_json(handle, buf, required);
+        assert_eq!(written, required);
+
+        let slice = unsafe { core::slice::from_raw_parts(buf as *const u8, written as usize) };
+        let json = std::str::from_utf8(slice).expect("utf8");
+        assert!(json.contains("\"name\":\"Transaction Fraud Graph\""));
+        assert!(json.contains("\"edges\""));
+
+        dealloc(buf, required);
         dataset_destroy(handle);
     }
 }

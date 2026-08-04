@@ -41,4 +41,18 @@ impl Value {
             _ => None,
         }
     }
+
+    /// Convert to a `serde_json::Value` compatible with the JS `Dataset` class.
+    pub fn to_js_json_value(&self) -> serde_json::Value {
+        match self {
+            Value::Null => serde_json::Value::Null,
+            Value::Number(n) => {
+                serde_json::Number::from_f64(*n)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::Null)
+            }
+            Value::Text(s) => serde_json::Value::String(s.clone()),
+            Value::Bool(b) => serde_json::Value::Bool(*b),
+        }
+    }
 }
