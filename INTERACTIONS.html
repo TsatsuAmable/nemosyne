@@ -193,7 +193,7 @@
 </tbody></table>
 <hr>
 <h2>Dual-Hand Gesture Commands</h2>
-<p><code>src/vr/interactions/HandGestureRecognizer.js</code> reads both tracked hands each frame and maps simple pose patterns to analysis commands. Gestures are deliberately conservative: each has a cooldown and a clear displacement threshold so accidental motion does not spam commands.</p>
+<p><code>src/vr/interactions/HandGestureRecognizer.ts</code> reads both tracked hands each frame and maps simple pose patterns to analysis commands. Gestures are deliberately conservative: each has a cooldown and a clear displacement threshold so accidental motion does not spam commands.</p>
 <table>
 <thead>
 <tr>
@@ -636,7 +636,7 @@
 <td>Dense graphs</td>
 </tr>
 </tbody></table>
-<p>The metaphors are implemented in <code>src/vr/interactions/MetaphorActions.js</code> and wired into <code>VRTopologyTranslator</code>. By default the constraint engine still prefers base interactions (<code>TRAVERSE_EDGE</code>, <code>INSPECT_CELL</code>, etc.); tuning the metaphor soft-constraint weights selects them.</p>
+<p>The metaphors are implemented in <code>src/vr/interactions/MetaphorActions.ts</code> and wired into <code>VRTopologyTranslator</code>. By default the constraint engine still prefers base interactions (<code>TRAVERSE_EDGE</code>, <code>INSPECT_CELL</code>, etc.); tuning the metaphor soft-constraint weights selects them.</p>
 <h2>Holographic Inspector</h2>
 <p><code>src/vr/artifacts/HolographicInspector.js</code> replaces the old flat <code>DataCard</code> with a gravity-glove-style slate:</p>
 <ul>

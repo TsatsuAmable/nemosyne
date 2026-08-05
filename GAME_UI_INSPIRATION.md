@@ -73,7 +73,7 @@ Nemosyne's production-polish phase deliberately borrows patterns that have alrea
 
 **Why it works:** Two-hand gestures are harder to perform accidentally than one-hand motions and map naturally to physical metaphors: *pull together* to filter, *push away* to reset, *scoop up* to reveal a lens, *twist* to turn time backwards/forwards.
 
-**Where in Nemosyne:** `src/vr/interactions/HandGestureRecognizer.js` classifies two-hand and dominant-hand gestures; `src/vr/World.js` maps them to analysis commands, perspective switches, and undo/redo.
+**Where in Nemosyne:** `src/vr/interactions/HandGestureRecognizer.ts` classifies two-hand and dominant-hand gestures; `src/vr/World.js` maps them to analysis commands, perspective switches, and undo/redo.
 
 ### 9. Time-travel undo / redo (Braid, Photoshop history)
 
