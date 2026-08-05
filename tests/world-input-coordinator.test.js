@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { WorldInputCoordinator } from '../src/vr/coordinators/WorldInputCoordinator.js';
+import { WorldInputCoordinator } from '../src/vr/coordinators/WorldInputCoordinator.ts';
 import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.js';
 import { Engine } from '../src/vr/Engine.js';
 

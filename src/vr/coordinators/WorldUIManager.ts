@@ -4,6 +4,7 @@
  * through legacy facade properties so existing tests remain valid.
  */
 
+import type { Group } from 'three';
 import { InputTelemetry } from '../InputTelemetry.js';
 import { VRConsole } from '../ui/VRConsole.js';
 import { VRMenu } from '../ui/VRMenu.js';
@@ -19,15 +20,44 @@ import { InteractionCoach } from '../ui/InteractionCoach.js';
 import { NarrativeStrip } from '../ui/NarrativeStrip.js';
 import { MiniOverview } from '../ui/MiniOverview.js';
 import { PeerPresenceHUD } from '../ui/PeerPresenceHUD.js';
+import type { Engine } from '../Engine.js';
+import type { WorldEventBusLike } from './types.ts';
+import type {
+  AccessibilityOptions,
+  DashboardLike,
+  HandLike,
+  HandWheelMenuLike,
+  LooseOptions,
+  PanelLike,
+  PanelManagerLike,
+  WheelMenuCategory,
+  WorldUIManagerCallbacks,
+} from './types.ts';
+import { DEFAULT_ACCESSIBILITY } from './types.ts';
 
 export class WorldUIManager {
-  /**
-   * @param {import('../Engine.js').Engine} engine
-   * @param {import('three').Group} analystAnchor
-   * @param {import('../../utils/EventBus.js').WorldEventBus} eventBus
-   * @param {object} callbacks
-   */
-  constructor(engine, analystAnchor, eventBus, callbacks = {}) {
+  engine: Engine;
+  analystAnchor: Group;
+  eventBus: WorldEventBusLike;
+  callbacks: WorldUIManagerCallbacks;
+
+  telemetryPanel: InputTelemetry;
+  vrConsole: VRConsole;
+  vrMenu: VRMenu;
+  panelManager: PanelManagerLike;
+  miniOverview: MiniOverview;
+  peerPresenceHUD: PeerPresenceHUD;
+  dashboard: DashboardLike;
+  handWheelMenu: HandWheelMenuLike;
+  settingsPanel: PanelLike;
+  operationLogPanel: PanelLike;
+  metricsPanel: PanelLike;
+  performancePanel: PanelLike;
+  networkPanel: PanelLike;
+  interactionCoach: PanelLike;
+  narrativeStrip: PanelLike;
+
+  constructor(engine: Engine, analystAnchor: Group, eventBus: WorldEventBusLike, callbacks: WorldUIManagerCallbacks = {}) {
     this.engine = engine;
     this.analystAnchor = analystAnchor;
     this.eventBus = eventBus;
@@ -57,7 +87,7 @@ export class WorldUIManager {
       onAnomaly: callbacks.onAnomaly,
       onTimeSlice: callbacks.onTimeSlice,
       onReset: callbacks.onReset,
-    });
+    } as LooseOptions);
     this.engine.addUpdatable(this.vrMenu);
 
     // Panel manager owns the launcher ring and per-panel visibility.
@@ -65,7 +95,7 @@ export class WorldUIManager {
       analystAnchor,
       freeFloating: true,
       onChange: callbacks.onPanelChange,
-    });
+    } as LooseOptions);
     this.panelManager.register(this.telemetryPanel);
     this.panelManager.register(this.vrConsole);
     this.panelManager.register(this.vrMenu);
@@ -81,8 +111,8 @@ export class WorldUIManager {
       getCamera: () => engine.camera,
       position: [0.9, 1.35, -0.7],
       size: 0.5,
-    });
-    this.miniOverview.setEnabled(callbacks.getSetting?.('miniOverview') ?? true);
+    } as LooseOptions);
+    this.miniOverview.setEnabled((callbacks.getSetting?.('miniOverview') as boolean | undefined) ?? true);
     this.engine.addUpdatable(this.miniOverview);
 
     // Peer-presence HUD for collaboration.
@@ -92,8 +122,8 @@ export class WorldUIManager {
       getLocalPeerId: callbacks.getLocalPeerId,
       position: [-0.9, 1.35, -0.7],
       size: 0.5,
-    });
-    this.peerPresenceHUD.setEnabled(callbacks.getSetting?.('peerPresence') ?? true);
+    } as LooseOptions);
+    this.peerPresenceHUD.setEnabled((callbacks.getSetting?.('peerPresence') as boolean | undefined) ?? true);
     this.engine.addUpdatable(this.peerPresenceHUD);
 
     // Curved analyst dashboard.
@@ -112,17 +142,17 @@ export class WorldUIManager {
       cellHeight: 0.55,
       snapDistance: 0.5,
       autoScale: true,
-    });
+    } as LooseOptions);
     this.engine.addUpdatable(this.dashboard);
 
     // Hand-attached radial wheel menu.
-    this.handWheelMenu = new HandWheelMenu(engine, engine.input.hands[0], {
+    this.handWheelMenu = new HandWheelMenu(engine, engine.input.hands[0] as unknown as HandLike, {
       feedback: engine.input.feedback,
       analystAnchor,
       openAngleThreshold: Math.PI / 8,
       closeAngleThreshold: Math.PI * 0.75,
       hoverDelayMs: 120,
-    });
+    } as LooseOptions);
     this.engine.addUpdatable(this.handWheelMenu);
     this.engine.addHudObject(this.handWheelMenu);
     this.engine.input.setHandWheelMenu(this.handWheelMenu);
@@ -130,7 +160,7 @@ export class WorldUIManager {
     // Settings panel.
     this.settingsPanel = new SettingsPanel(engine.cameraGroup, {
       onChange: callbacks.onSettingChanged,
-    });
+    } as LooseOptions);
     this.engine.addUpdatable(this.settingsPanel);
     this.panelManager.register(this.settingsPanel);
     this.engine.input.addPanel(this.settingsPanel);
@@ -144,7 +174,7 @@ export class WorldUIManager {
     // Telemetry metrics panel.
     this.metricsPanel = new TelemetryPanel(engine.cameraGroup, {
       telemetry: callbacks.telemetryCollector,
-    });
+    } as LooseOptions);
     this.panelManager.register(this.metricsPanel);
     this.engine.input.addPanel(this.metricsPanel);
     this.engine.addUpdatable(this.metricsPanel);
@@ -154,7 +184,7 @@ export class WorldUIManager {
     this.performancePanel = new PerformancePanel(engine.cameraGroup, {
       budget: engine.performanceBudget,
       telemetry: callbacks.telemetryCollector,
-    });
+    } as LooseOptions);
     this.panelManager.register(this.performancePanel);
     this.engine.input.addPanel(this.performancePanel);
     this.engine.addUpdatable(this.performancePanel);
@@ -163,7 +193,7 @@ export class WorldUIManager {
     // Collaboration network panel.
     this.networkPanel = new NetworkPanel(engine.cameraGroup, {
       telemetry: callbacks.telemetryCollector,
-    });
+    } as LooseOptions);
     this.panelManager.register(this.networkPanel);
     this.engine.input.addPanel(this.networkPanel);
     this.engine.addUpdatable(this.networkPanel);
@@ -171,8 +201,8 @@ export class WorldUIManager {
 
     // Interaction coach.
     this.interactionCoach = new InteractionCoach(engine.cameraGroup, {
-      userMode: callbacks.getSetting?.('userMode') ?? 'novice',
-    });
+      userMode: (callbacks.getSetting?.('userMode') as string | undefined) ?? 'novice',
+    } as LooseOptions);
     this.panelManager.register(this.interactionCoach);
     this.engine.input.addPanel(this.interactionCoach);
     this.engine.addUpdatable(this.interactionCoach);
@@ -183,7 +213,7 @@ export class WorldUIManager {
       analystAnchor,
       history: callbacks.analysisHistory,
       onSeek: callbacks.onSeekHistory,
-    });
+    } as LooseOptions);
     this.panelManager.register(this.narrativeStrip);
     this.engine.input.addPanel(this.narrativeStrip);
     this.engine.addUpdatable(this.narrativeStrip);
@@ -192,55 +222,53 @@ export class WorldUIManager {
 
   /**
    * Populate the hand wheel menu from a pre-built category/action list.
-   * @param {Array} actions
    */
-  buildWheelMenu(actions) {
-    this.handWheelMenu.setMenu(actions);
+  buildWheelMenu(categories: WheelMenuCategory[]): void {
+    this.handWheelMenu.setMenu(categories);
   }
 
   /**
    * Forward accessibility options to all registered panels that support it.
-   * @param {object} options
    */
-  applyAccessibility(options) {
+  applyAccessibility(options: Partial<AccessibilityOptions>): void {
+    const full = { ...DEFAULT_ACCESSIBILITY, ...options } as AccessibilityOptions;
     for (const panel of this.panelManager.panels) {
-      if (panel?.applyAccessibility) panel.applyAccessibility(options);
+      if (panel?.applyAccessibility) panel.applyAccessibility(full);
     }
-    this.handWheelMenu?.applyAccessibility?.(options);
+    this.handWheelMenu?.applyAccessibility?.(full);
   }
 
   /** Toggle the settings panel through PanelManager. */
-  toggleSettingsPanel() {
+  toggleSettingsPanel(): void {
     this.panelManager.togglePanel(this.settingsPanel);
   }
 
   /** Return whether the settings panel mesh is currently visible. */
-  get isSettingsPanelVisible() {
+  get isSettingsPanelVisible(): boolean {
     return !!this.settingsPanel?.mesh?.visible;
   }
 
   /** Show a panel via PanelManager. */
-  showPanel(panel) {
+  showPanel(panel: PanelLike): void {
     this.panelManager.showPanel(panel);
   }
 
   /** Hide a panel via PanelManager. */
-  hidePanel(panel) {
+  hidePanel(panel: PanelLike): void {
     this.panelManager.hidePanel(panel);
   }
 
   /** Recenter the panel layout. */
-  recenterPanels() {
+  recenterPanels(): void {
     this.panelManager.recenter();
   }
 
   /** Toggle the launcher ring. */
-  toggleLauncher() {
+  toggleLauncher(): void {
     this.panelManager.toggleLauncher();
   }
 
-  /** @returns {boolean} */
-  get isLauncherVisible() {
+  get isLauncherVisible(): boolean {
     return this.panelManager.isLauncherVisible();
   }
 }

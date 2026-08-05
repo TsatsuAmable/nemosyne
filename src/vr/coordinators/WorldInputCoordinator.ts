@@ -9,19 +9,35 @@ import * as THREE from 'three';
 import { HandGestureRecognizer } from '../interactions/HandGestureRecognizer.js';
 import { getGestureMeta } from '../../utils/GestureMapping.js';
 import { WorldEventBus, WorldTopics } from '../../utils/EventBus.js';
+import type { Engine } from '../Engine.js';
+import type {
+  ArtifactRef,
+  EngineLike,
+  GestureContext,
+  HandLike,
+  HandWheelMenuLike,
+  InputCallbacks,
+  LooseOptions,
+  WorldEventBusLike,
+  WorldInputOptions,
+} from './types.ts';
 
 export class WorldInputCoordinator {
-  /**
-   * @param {import('../Engine.js').Engine} engine
-   * @param {import('../../utils/EventBus.js').WorldEventBus} eventBus
-   * @param {object} options
-   * @param {(key: string) => any} options.getSetting
-   * @param {() => import('three').Object3D | null} options.getDracoGroup
-   * @param {() => { nodeMeshes: THREE.Mesh[] } | null} options.getArtifact
-   * @param {() => import('../ui/HandWheelMenu.js').HandWheelMenu | null} options.getHandWheelMenu
-   * @param {object} options.callbacks
-   */
-  constructor(engine, eventBus, options) {
+  engine: Engine | EngineLike;
+  eventBus: WorldEventBusLike;
+  getSetting: (key: string) => unknown;
+  getDracoGroup: () => THREE.Object3D | null;
+  getArtifact: () => ArtifactRef | null;
+  getHandWheelMenu: () => HandWheelMenuLike | null;
+  callbacks: InputCallbacks;
+
+  private _inputPaused: boolean;
+  private _handNearArtefact: boolean;
+  private _handNearWheelMenu: boolean;
+
+  gestureRecognizer: HandGestureRecognizer;
+
+  constructor(engine: Engine | EngineLike, eventBus: WorldEventBusLike, options: WorldInputOptions) {
     this.engine = engine;
     this.eventBus = eventBus ?? new WorldEventBus();
     this.getSetting = options.getSetting ?? (() => undefined);
@@ -36,44 +52,39 @@ export class WorldInputCoordinator {
 
     this.gestureRecognizer = new HandGestureRecognizer({
       cooldown: 0.65,
-      onGesture: (name, ctx) => this.onGesture(name, ctx),
-    });
+      onGesture: (name: string, ctx: Record<string, unknown>) => this.onGesture(name, ctx),
+    } as LooseOptions);
 
     this.engine.addUpdatable({
-      update: (delta, time) => this.update(delta, time),
+      update: (delta: number, time: number) => this.update(delta, time),
     });
   }
 
-  /** @returns {boolean} */
-  get inputPaused() {
+  get inputPaused(): boolean {
     return this._inputPaused;
   }
 
-  /** @returns {boolean} */
-  get handNearArtefact() {
+  get handNearArtefact(): boolean {
     return this._handNearArtefact;
   }
 
-  /** @returns {boolean} */
-  get handNearWheelMenu() {
+  get handNearWheelMenu(): boolean {
     return this._handNearWheelMenu;
   }
 
-  update(delta, time) {
+  update(delta: number, time: number): void {
     if (this.getSetting('gesturesEnabled') === false) return;
     this._updateInputContext();
     if (this._handNearArtefact) return;
-    this.gestureRecognizer.setHands(this.engine.input.hands);
+    this.gestureRecognizer.setHands(this.engine.input.hands as unknown as HandLike[]);
     this.gestureRecognizer.update(delta, time);
   }
 
   /**
    * Handle a recognized gesture or controller-mapped gesture. Emits a
    * `gesture:recognized` event and dispatches to the matching callback.
-   * @param {string} name
-   * @param {object} [ctx]
    */
-  onGesture(name, ctx = {}) {
+  onGesture(name: string, ctx: GestureContext = {}): void {
     if (this._inputPaused && name !== 'pauseResume') {
       this.callbacks.onLog?.('Input paused — gesture ignored');
       return;
@@ -168,8 +179,8 @@ export class WorldInputCoordinator {
    * conflicting commands when the user is interacting with an artefact or the
    * wheel menu.
    */
-  _updateInputContext() {
-    const hands = this.engine.input.hands;
+  _updateInputContext(): void {
+    const hands = this.engine.input.hands as unknown as HandLike[];
     if (!hands?.length) {
       this._handNearArtefact = false;
       this._handNearWheelMenu = false;
@@ -185,11 +196,11 @@ export class WorldInputCoordinator {
       const q = new THREE.Quaternion();
       dominant.getHandTransform(handPos, q);
     } else if (dominant.rayOrigin) {
-      handPos.copy(dominant.rayOrigin);
+      handPos.copy(dominant.rayOrigin as unknown as THREE.Vector3);
     }
 
     // Check proximity to the palace centre / node bounding sphere.
-    let artefactCenter = null;
+    let artefactCenter: THREE.Vector3 | null = null;
     let artefactRadius = 0;
     const dracoGroup = this.getDracoGroup();
     const artifact = this.getArtifact();
@@ -217,7 +228,7 @@ export class WorldInputCoordinator {
           const q = new THREE.Quaternion();
           hand.getHandTransform(pos, q);
         } else if (hand.rayOrigin) {
-          pos.copy(hand.rayOrigin);
+          pos.copy(hand.rayOrigin as unknown as THREE.Vector3);
         }
         if (pos.distanceToSquared(wheelWorldPos) < 0.25) {
           nearWheel = true;
@@ -233,7 +244,7 @@ export class WorldInputCoordinator {
   }
 
   /** Toggle global input pause/resume. */
-  togglePauseInput() {
+  togglePauseInput(): void {
     this._inputPaused = !this._inputPaused;
     this.callbacks.onLog?.(`Input ${this._inputPaused ? 'paused' : 'resumed'}`);
     this.eventBus.emit(WorldTopics.INTERACTION, {
@@ -246,7 +257,7 @@ export class WorldInputCoordinator {
    * Return the camera to a default overview anchor without undoing analysis
    * history. This is the spatial equivalent of a "reset view" command.
    */
-  resetView() {
+  resetView(): void {
     this.engine.locomotion.teleportToAnchor('overview');
     this.callbacks.onLog?.('View reset to overview');
     this.eventBus.emit(WorldTopics.INTERACTION, {

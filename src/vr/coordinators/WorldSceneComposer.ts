@@ -10,14 +10,23 @@ import { TechnoCoreNode } from '../artifacts/TechnoCoreNode.js';
 import { FarcasterPortal } from '../artifacts/FarcasterPortal.js';
 import { HolographicInspector } from '../artifacts/HolographicInspector.js';
 import { WorldTheme } from '../WorldTheme.js';
+import type { Engine } from '../Engine.js';
+import type { LooseOptions, WorldSceneComposerCallbacks } from './types.ts';
 
 export class WorldSceneComposer {
+  engine: Engine;
+  analystAnchor: THREE.Group;
+  datum: DatumPlane;
+  core: TechnoCoreNode;
+  inspector: HolographicInspector;
+  portalA: FarcasterPortal;
+  portalB: FarcasterPortal;
+
   /**
-   * @param {import('../Engine.js').Engine} engine
-   * @param {object} callbacks
-   * @param {(zone: string, pos: number[], operation: string | null) => void} callbacks.onWarp
+   * @param engine
+   * @param callbacks
    */
-  constructor(engine, callbacks = {}) {
+  constructor(engine: Engine, callbacks: WorldSceneComposerCallbacks = {}) {
     this.engine = engine;
 
     // Explicit analyst anchor: all HUD panels, dashboard, and wheel menu are
@@ -51,7 +60,7 @@ export class WorldSceneComposer {
       color: WorldTheme.PRESETS.deepNet.pointColor,
       operation: 'anomaly',
       onWarp: callbacks.onWarp,
-    });
+    } as LooseOptions);
     this.engine.scene.add(this.portalA.group);
     this.engine.addUpdatable(this.portalA);
 
@@ -62,7 +71,7 @@ export class WorldSceneComposer {
       color: WorldTheme.PRESETS.neonMidnight.pointColor,
       operation: 'reset',
       onWarp: callbacks.onWarp,
-    });
+    } as LooseOptions);
     this.engine.scene.add(this.portalB.group);
     this.engine.addUpdatable(this.portalB);
   }

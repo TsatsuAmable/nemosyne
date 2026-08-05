@@ -13,7 +13,7 @@ import { ANALYSIS_TEMPLATES, resolveTemplate } from '../data/AnalysisTemplates.t
 import { TopologyTypes } from '../draco/ConstraintEngine.ts';
 import { disposeObject } from '../utils/Dispose.js';
 import { downloadDataUrl, downloadText } from '../utils/Download.js';
-import { LiveStreamCoordinator } from './coordinators/LiveStreamCoordinator.js';
+import { LiveStreamCoordinator } from './coordinators/LiveStreamCoordinator.ts';
 import {
   applyFilter,
   applySort,
@@ -30,9 +30,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildTDASummaryGroup } from './artifacts/TDAPlanes.js';
 import { HandGestureRecognizer } from './interactions/HandGestureRecognizer.js';
 import { ControllerGestureMapper } from './interactions/ControllerGestureMapper.js';
-import { WorldInputCoordinator } from './coordinators/WorldInputCoordinator.js';
-import { UserModeController } from './coordinators/UserModeController.js';
-import { ComfortSettingsController } from './coordinators/ComfortSettingsController.js';
+import { WorldInputCoordinator } from './coordinators/WorldInputCoordinator.ts';
+import { UserModeController } from './coordinators/UserModeController.ts';
+import { ComfortSettingsController } from './coordinators/ComfortSettingsController.ts';
 import { AnalysisHistory } from '../data/AnalysisHistory.ts';
 import { SessionStore } from '../data/SessionStore.ts';
 import { Dataset } from '../data/Dataset.ts';
@@ -42,10 +42,10 @@ import { WorldTheme } from './WorldTheme.js';
 import { TelemetryCollector } from '../utils/Telemetry.js';
 import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.js';
 import { LivePreview } from './interactions/LivePreview.js';
-import { CollaborationCoordinator } from './coordinators/CollaborationCoordinator.js';
-import { DataOperationController } from './coordinators/DataOperationController.js';
-import { WorldUIManager } from './coordinators/WorldUIManager.js';
-import { WorldSceneComposer } from './coordinators/WorldSceneComposer.js';
+import { CollaborationCoordinator } from './coordinators/CollaborationCoordinator.ts';
+import { DataOperationController } from './coordinators/DataOperationController.ts';
+import { WorldUIManager } from './coordinators/WorldUIManager.ts';
+import { WorldSceneComposer } from './coordinators/WorldSceneComposer.ts';
 import { WorldEventBus, WorldTopics } from '../utils/EventBus.js';
 
 // Capability flags returned by the Rust/WASM runtime. Keep in sync with wasm/src/lib.rs.

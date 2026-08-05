@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { WorldSceneComposer } from '../src/vr/coordinators/WorldSceneComposer.js';
+import { WorldSceneComposer } from '../src/vr/coordinators/WorldSceneComposer.ts';
 import { Engine } from '../src/vr/Engine.js';
 import { DatumPlane } from '../src/vr/artifacts/DatumPlane.js';
 import { TechnoCoreNode } from '../src/vr/artifacts/TechnoCoreNode.js';

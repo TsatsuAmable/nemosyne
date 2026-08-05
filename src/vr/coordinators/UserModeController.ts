@@ -4,20 +4,22 @@
  * branching on mode strings directly.
  */
 
+import type { WorldEventBus } from '../../utils/EventBus.js';
+import type { UserMode, UserModeControllerOptions } from './types.ts';
+
 export class UserModeController {
-  /**
-   * @param {import('../../utils/EventBus.js').WorldEventBus} [eventBus]
-   * @param {object} options
-   * @param {() => string} options.getUserMode
-   * @param {() => { isActive: boolean, isFinished: boolean }} options.getTourState
-   * @param {() => void} options.startTour
-   * @param {() => void} options.skipTour
-   * @param {(mode: string) => void} options.setCoachMode
-   * @param {(mode: string) => void} options.setTourMode
-   * @param {(enabled: boolean) => void} options.setTooltipEnabled
-   * @param {() => void} options.hideCoachPanel
-   */
-  constructor(eventBus, options) {
+  eventBus: WorldEventBus | null;
+  getUserMode: () => UserMode | string;
+  getTourState: () => { isActive: boolean; isFinished: boolean };
+  startTour: () => void;
+  skipTour: () => void;
+  setCoachMode: (mode: UserMode | string) => void;
+  setTourMode: (mode: UserMode | string) => void;
+  setTooltipEnabled: (enabled: boolean) => void;
+  hideCoachPanel: () => void;
+  private _tourAutoStarted: boolean;
+
+  constructor(eventBus: WorldEventBus | null, options: UserModeControllerOptions) {
     this.eventBus = eventBus ?? null;
     this.getUserMode = options.getUserMode;
     this.getTourState = options.getTourState;
@@ -30,8 +32,7 @@ export class UserModeController {
     this._tourAutoStarted = false;
   }
 
-  /** @returns {string} */
-  get mode() {
+  get mode(): UserMode | string {
     return this.getUserMode();
   }
 
@@ -39,7 +40,7 @@ export class UserModeController {
    * Apply the current user mode to the interaction coach, guided tour, and
    * tooltip manager.
    */
-  apply() {
+  apply(): void {
     const mode = this.getUserMode();
     this.setCoachMode?.(mode);
     this.setTourMode?.(mode);
@@ -67,9 +68,8 @@ export class UserModeController {
   /**
    * Explicitly set the current mode. This is useful for tests or external
    * mode-switch commands.
-   * @param {string} mode
    */
-  setMode(mode) {
+  setMode(_mode: UserMode | string): void {
     // The actual source of truth is the settings panel; this method is a
     // convenience that re-applies effects after a mode change.
     this.apply();
