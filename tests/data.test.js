@@ -6,7 +6,7 @@ import {
   numericColor,
   normalize,
   inferEncodings,
-} from '../src/data/Encodings.js';
+} from '../src/data/Encodings.ts';
 import { makeFinancialSeries, makeGeoCities, makeFlowProcess } from '../src/data/SyntheticData.ts';
 import { allSampleDatasets } from '../src/data/SampleDatasets.ts';
 

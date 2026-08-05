@@ -12,7 +12,7 @@
 
 import type { Dataset } from '../../data/Dataset.ts';
 import type { LayoutEntry } from '../types.ts';
-import { normalize } from '../../data/Encodings.js';
+import { normalize } from '../../data/Encodings.ts';
 
 export class LayoutBase {
   static compute<T = Record<string, unknown>>(

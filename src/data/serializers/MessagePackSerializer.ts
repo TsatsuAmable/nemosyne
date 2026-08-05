@@ -9,13 +9,18 @@
 
 import { encode, decode } from '@msgpack/msgpack';
 import { Dataset } from '../Dataset.ts';
+import type { ColumnSchema } from '../types.ts';
+
+interface MessagePackPayload {
+  name?: string;
+  columns?: ColumnSchema[];
+  rows?: Record<string, unknown>[];
+}
 
 /**
  * Serialize a Dataset to a MessagePack Uint8Array.
- * @param {import('../Dataset.ts').Dataset} dataset
- * @returns {Uint8Array}
  */
-export function datasetToMessagePack(dataset) {
+export function datasetToMessagePack(dataset: Dataset): Uint8Array {
   return encode({
     name: dataset.name,
     columns: dataset.columns,
@@ -25,12 +30,10 @@ export function datasetToMessagePack(dataset) {
 
 /**
  * Deserialize a MessagePack payload back into a Dataset.
- * @param {Uint8Array|ArrayBuffer} buffer
- * @returns {import('../Dataset.ts').Dataset}
  */
-export function messagePackToDataset(buffer) {
+export function messagePackToDataset(buffer: Uint8Array | ArrayBuffer): Dataset {
   const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;
-  const payload = decode(bytes);
+  const payload = decode(bytes) as MessagePackPayload;
   return new Dataset(
     payload.name ?? 'MessagePack Dataset',
     payload.columns ?? [],

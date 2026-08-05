@@ -8,19 +8,19 @@
  */
 
 import { tableFromArrays, tableToIPC, tableFromIPC } from 'apache-arrow';
+import type { Table, Vector } from 'apache-arrow';
 import { Dataset } from '../Dataset.ts';
+import type { ColumnTypeValue } from '../types.ts';
 
 /**
  * Convert a Nemosyne Dataset into an Arrow IPC byte stream.
- * @param {import('../Dataset.ts').Dataset} dataset
- * @returns {Uint8Array}
  */
-export function datasetToArrowIPC(dataset) {
+export function datasetToArrowIPC(dataset: Dataset): Uint8Array {
   if (!dataset || dataset.rowCount === 0) {
     return tableToIPC(tableFromArrays({}));
   }
 
-  const arrays = {};
+  const arrays: Record<string, unknown[]> = {};
   for (const column of dataset.columns) {
     arrays[column.name] = dataset.getColumnValues(column.name);
   }
@@ -31,27 +31,28 @@ export function datasetToArrowIPC(dataset) {
 
 /**
  * Parse an Arrow IPC byte stream back into a Nemosyne Dataset.
- * @param {Uint8Array|ArrayBuffer} buffer
- * @param {string} name
- * @returns {import('../Dataset.ts').Dataset}
  */
-export function arrowIPCToDataset(buffer, name = 'Arrow Dataset') {
+export function arrowIPCToDataset(
+  buffer: Uint8Array | ArrayBuffer,
+  name: string = 'Arrow Dataset'
+): Dataset {
   const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;
   if (!bytes || bytes.length === 0) {
     return new Dataset(name, [], []);
   }
 
-  const table = tableFromIPC(bytes);
+  const table: Table = tableFromIPC(bytes);
   const columns = table.schema.fields.map((field) => ({
     name: field.name,
     type: inferColumnType(table.getChild(field.name)),
   }));
 
-  const rows = [];
+  const rows: Record<string, unknown>[] = [];
   for (let i = 0; i < table.numRows; i++) {
-    const row = {};
+    const row: Record<string, unknown> = {};
     for (const field of table.schema.fields) {
-      row[field.name] = table.getChild(field.name).get(i);
+      const child = table.getChild(field.name);
+      row[field.name] = child ? child.get(i) : null;
     }
     rows.push(row);
   }
@@ -59,8 +60,10 @@ export function arrowIPCToDataset(buffer, name = 'Arrow Dataset') {
   return new Dataset(name, columns, rows);
 }
 
-function inferColumnType(vector) {
-  const sample = [];
+function inferColumnType(vector: Vector | null): ColumnTypeValue {
+  if (!vector) return 'TEXT';
+
+  const sample: unknown[] = [];
   for (let i = 0; i < Math.min(20, vector.length); i++) {
     sample.push(vector.get(i));
   }

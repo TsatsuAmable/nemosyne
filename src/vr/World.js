@@ -9,7 +9,7 @@ import {
   allSampleDatasets,
   getDefaultEncodings,
 } from '../data/SampleDatasets.ts';
-import { ANALYSIS_TEMPLATES, resolveTemplate } from '../data/AnalysisTemplates.js';
+import { ANALYSIS_TEMPLATES, resolveTemplate } from '../data/AnalysisTemplates.ts';
 import { TopologyTypes } from '../draco/ConstraintEngine.ts';
 import { disposeObject } from '../utils/Dispose.js';
 import { downloadDataUrl, downloadText } from '../utils/Download.js';
@@ -37,7 +37,7 @@ import { AnalysisHistory } from '../data/AnalysisHistory.ts';
 import { SessionStore } from '../data/SessionStore.ts';
 import { Dataset } from '../data/Dataset.ts';
 import { GuidedTour } from './ui/GuidedTour.js';
-import { FIRST_DATASET_TOUR } from '../data/DefaultTour.js';
+import { FIRST_DATASET_TOUR } from '../data/DefaultTour.ts';
 import { WorldTheme } from './WorldTheme.js';
 import { TelemetryCollector } from '../utils/Telemetry.js';
 import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.js';

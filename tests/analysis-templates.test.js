@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ANALYSIS_TEMPLATES, resolveTemplate } from '../src/data/AnalysisTemplates.js';
+import { ANALYSIS_TEMPLATES, resolveTemplate } from '../src/data/AnalysisTemplates.ts';
 import { allSampleDatasets } from '../src/data/SampleDatasets.ts';
 
 describe('AnalysisTemplates', () => {

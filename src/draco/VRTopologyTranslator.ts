@@ -5,7 +5,7 @@ import {
   numericColor,
   normalize,
   inferEncodings,
-} from '../data/Encodings.js';
+} from '../data/Encodings.ts';
 import { InstancedPointCloud } from '../vr/scalability/index.js';
 import {
   applyResonancePulse,
@@ -49,7 +49,7 @@ export class VRTopologyTranslator {
   static synthesizeArtifact(dracoResult: SolverResult, dataInput: DracoDataInput): Artifact {
     const { spec, facts } = dracoResult;
     const dataset = dataInput.dataset;
-    const encodings = dataInput.encodings || inferEncodings(dataset);
+    const encodings = dataInput.encodings || (dataset ? inferEncodings(dataset) : {});
     const rng = new SeededRandom(dataset?.fingerprint ?? 1);
     const group = new THREE.Group();
     const nodeMeshes: THREE.Mesh[] = [];
@@ -198,7 +198,7 @@ export class VRTopologyTranslator {
         color = categoricalColor(value, unique.indexOf(value));
       } else if (col?.type === 'NUMERIC') {
         const range = dataset.rangeOf(encodings.color);
-        color = numericColor(value, range.min, range.max, 0x00ffcc, 0xff0055);
+        color = numericColor(value as number, range.min, range.max, 0x00ffcc, 0xff0055);
       }
     }
 
@@ -206,7 +206,7 @@ export class VRTopologyTranslator {
       const col = dataset.getColumn(encodings.size);
       if (col?.type === 'NUMERIC') {
         const range = dataset.rangeOf(encodings.size);
-        scale = 0.6 + 0.8 * normalize(row[encodings.size], range.min, range.max);
+        scale = 0.6 + 0.8 * normalize(row[encodings.size] as number, range.min, range.max);
       }
     }
 
@@ -564,12 +564,12 @@ export class VRTopologyTranslator {
         if (colorCol?.type === 'CATEGORICAL') {
           color = categoricalColor(value, uniqueColors.indexOf(value));
         } else if (colorCol?.type === 'NUMERIC') {
-          color = numericColor(value, sizeRange.min, sizeRange.max, 0x00ffcc, 0xff0055);
+          color = numericColor(value as number, sizeRange.min, sizeRange.max, 0x00ffcc, 0xff0055);
         }
       }
 
       if (sizeField && dataset && sizeCol?.type === 'NUMERIC') {
-        scale = 0.6 + 0.8 * normalize(row[sizeField], sizeRange.min, sizeRange.max);
+        scale = 0.6 + 0.8 * normalize(row[sizeField] as number, sizeRange.min, sizeRange.max);
       }
 
       return {
@@ -743,7 +743,7 @@ export class VRTopologyTranslator {
     if (artifact.spec?.layout !== 'TIME_RIBBON') return false;
 
     const dataset = dataInput.dataset;
-    const encodings = dataInput.encodings || inferEncodings(dataset);
+    const encodings = dataInput.encodings || (dataset ? inferEncodings(dataset) : {});
     const timeField = encodings.time || dataset?.temporalColumns[0]?.name || 'time';
     const valueField = encodings.size || dataset?.numericColumns[0]?.name || 'temperature';
 

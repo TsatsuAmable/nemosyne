@@ -6,7 +6,25 @@
  * loading a dataset and guessing which operations to try.
  */
 
-export const ANALYSIS_TEMPLATES = [
+import type { SampleDatasetEntry } from './SampleDatasets.ts';
+
+export interface AnalysisTemplate {
+  id: string;
+  label: string;
+  icon: string;
+  datasetKey: string;
+  theme: string;
+  tourId: string;
+  description: string;
+}
+
+export interface TemplateResolution {
+  entry: SampleDatasetEntry;
+  theme: string;
+  tourId: string;
+}
+
+export const ANALYSIS_TEMPLATES: AnalysisTemplate[] = [
   {
     id: 'factory-floor',
     label: 'Factory Floor Monitoring',
@@ -65,11 +83,11 @@ export const ANALYSIS_TEMPLATES = [
 
 /**
  * Resolve a template to a loader entry using the current sample-dataset registry.
- * @param {string} templateId
- * @param {Array<{ key: string, label: string, topology: string, dataset: Dataset, maxDepth?: number, encodings?: object }>} sampleDatasets
- * @returns {{ entry: object, theme: string, tourId: string } | null}
  */
-export function resolveTemplate(templateId, sampleDatasets) {
+export function resolveTemplate(
+  templateId: string,
+  sampleDatasets: SampleDatasetEntry[]
+): TemplateResolution | null {
   const template = ANALYSIS_TEMPLATES.find((t) => t.id === templateId);
   if (!template) return null;
   const entry = sampleDatasets.find((e) => e.key === template.datasetKey);
