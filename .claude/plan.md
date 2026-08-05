@@ -110,7 +110,7 @@ These modules are the renderable output of Nemosyne. Typing them will let us rem
 1. `src/vr/Engine.js`, `src/vr/World.js`, `src/vr/Locomotion.js`, `src/vr/DesktopControls.js`, `src/vr/Controllers.js`, `src/vr/Hands.js`.
 2. `src/utils/`, `src/network/`, `src/analytics/`, `src/ui/`, `src/main.js`.
 3. Update `docs/ARCHITECTURE.md` and `CLAUDE.md` to state that Nemosyne is now TypeScript-first.
-4. Implement `src/utils/ReviewBundle.js` and the export UI button (after `src/vr/ui/` is converted).
+4. Add the "Export Review Bundle" UI button to `TelemetryPanel`/`SettingsPanel` (after `src/vr/ui/` is converted; `src/utils/ReviewBundle.js` is already implemented).
 5. Run an IWSDK hand/input helper spike.
 
 ---
@@ -1441,5 +1441,6 @@ This directly addresses ROADMAP.md Evaluation Checkpoint gap #7 (“No user stud
 - [x] Meta Web SDK researched and evaluated.
 - [ ] Add spike task to test IWSDK hand/input helper (deferred until after TypeScript migration of `src/vr/input/`).
 - [x] Telemetry/user-data review mechanism designed.
-- [ ] Implement `src/utils/ReviewBundle.js` and export UI (deferred until `src/vr/ui/` TypeScript migration).
+- [x] Implement `src/utils/ReviewBundle.js`.
+- [ ] Add "Export Review Bundle" UI button (deferred until `src/vr/ui/` TypeScript migration).
 
