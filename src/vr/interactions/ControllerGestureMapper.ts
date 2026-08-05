@@ -1,6 +1,3 @@
-import * as THREE from 'three';
-import { getGestureMeta } from '../../utils/GestureMapping.js';
-
 /**
  * Recognizes Meta Quest controller equivalents of the hand-gesture vocabulary.
  *
@@ -24,36 +21,74 @@ import { getGestureMeta } from '../../utils/GestureMapping.js';
  * The mapper is intentionally conservative: it uses cooldowns and requires
  * clear controller motion so resting poses do not spam commands.
  */
-export class ControllerGestureMapper {
-  constructor({ onGesture = () => {}, cooldown = 0.65, flickThreshold = 0.65 } = {}) {
+
+import * as THREE from 'three';
+import type { ControllerGestureMapperLike, PointerLike } from '../coordinators/types.ts';
+
+interface ControllerPointerWithEngine extends PointerLike {
+  engine?: {
+    renderer?: {
+      xr?: {
+        getSession?: () => XRSession | null;
+      };
+    };
+  };
+}
+
+interface ButtonState {
+  primary: boolean;
+  secondary: boolean;
+}
+
+interface StickRest {
+  x: number;
+  y: number;
+}
+
+export class ControllerGestureMapper implements ControllerGestureMapperLike {
+  onGesture: (name: string, detail: Record<string, unknown>) => void;
+  cooldown: number;
+  flickThreshold: number;
+
+  private _lastGestureTime = 0;
+
+  // Previous controller poses for motion-based two-hand gestures.
+  private _prevPositions = new Map<PointerLike, THREE.Vector3>();
+  private _bothTriggersPrev = false;
+
+  // Thumbstick state for flick detection.
+  private _stickRest = new Map<PointerLike, StickRest>();
+  private _stickFired = new Map<PointerLike, boolean>();
+
+  // Button state.
+  private _buttonPrev = new Map<PointerLike, ButtonState>();
+
+  private _tempVec = new THREE.Vector3();
+
+  constructor({
+    onGesture = () => {},
+    cooldown = 0.65,
+    flickThreshold = 0.65,
+  }: {
+    onGesture?: (name: string, detail: Record<string, unknown>) => void;
+    cooldown?: number;
+    flickThreshold?: number;
+  } = {}) {
     this.onGesture = onGesture;
     this.cooldown = cooldown;
     this.flickThreshold = flickThreshold;
-
-    this._lastGestureTime = 0;
-
-    // Previous controller poses for motion-based two-hand gestures.
-    this._prevPositions = new Map(); // ControllerPointer -> Vector3
-    this._bothTriggersPrev = false;
-
-    // Thumbstick state for flick detection.
-    this._stickRest = new Map(); // ControllerPointer -> { x, y }
-    this._stickFired = new Map(); // ControllerPointer -> boolean
-
-    // Button state.
-    this._buttonPrev = new Map(); // ControllerPointer -> { a, b, y, x }
-
-    this._tempVec = new THREE.Vector3();
   }
 
-  update(controllers, session, time) {
+  update(controllers: PointerLike[], session: XRSession | null, time: number) {
     if (controllers.length === 0) return;
 
-    const activeSession = session ?? controllers[0]?.engine?.renderer?.xr?.getSession?.();
+    const fallback = controllers[0] as unknown as ControllerPointerWithEngine;
+    const activeSession = session ?? fallback.engine?.renderer?.xr?.getSession?.();
     if (!activeSession || !activeSession.inputSources) return;
 
     const sources = Array.from(activeSession.inputSources);
-    const rightController = controllers.find((c) => c.handedness === 'right') ?? controllers[0];
+    const rightController =
+      controllers.find((c) => c.handedness === 'right') ?? controllers[0];
     const leftController =
       controllers.find((c) => c.handedness === 'left') ?? controllers[1] ?? rightController;
 
@@ -64,7 +99,13 @@ export class ControllerGestureMapper {
     if (rightSource) this._updateButtons(rightController, rightSource, time);
 
     if (rightSource && leftSource) {
-      this._updateTwoHandMotion(rightController, leftController, rightSource, leftSource, time);
+      this._updateTwoHandMotion(
+        rightController,
+        leftController,
+        rightSource,
+        leftSource,
+        time
+      );
     }
 
     // Update previous pose snapshots for motion-based gestures.
@@ -74,28 +115,30 @@ export class ControllerGestureMapper {
       if (!this._prevPositions.has(controller)) {
         this._prevPositions.set(controller, ray.origin.clone());
       } else {
-        this._prevPositions.get(controller).copy(ray.origin);
+        this._prevPositions.get(controller)!.copy(ray.origin);
       }
     }
   }
 
-  _canFire(time) {
+  private _canFire(time: number) {
     if (time - this._lastGestureTime < this.cooldown) return false;
     return true;
   }
 
-  _fire(gesture, time, detail = {}) {
+  private _fire(gesture: string, time: number, detail: Record<string, unknown> = {}) {
     if (!this._canFire(time)) return;
     this._lastGestureTime = time;
     this.onGesture(gesture, { source: 'controller', ...detail });
   }
 
-  _findSource(controller, sources) {
-    return sources.find((s) => s.handedness === controller.handedness && s.gamepad);
+  private _findSource(controller: PointerLike, sources: XRInputSource[]) {
+    return sources.find(
+      (s) => s.handedness === controller.handedness && !!s.gamepad
+    );
   }
 
-  _updateButtons(controller, source, time) {
-    const buttons = source.gamepad.buttons;
+  private _updateButtons(controller: PointerLike, source: XRInputSource, time: number) {
+    const buttons = source.gamepad!.buttons;
     const isRight = controller.handedness === 'right';
 
     // Standard Quest controller face-button layout: lower button is A/X,
@@ -104,7 +147,7 @@ export class ControllerGestureMapper {
     const primaryPressed = !!buttons[3]?.pressed;
     const secondaryPressed = !!buttons[4]?.pressed;
 
-    const prev = this._buttonPrev.get(controller) || { primary: false, secondary: false };
+    const prev = this._buttonPrev.get(controller) ?? { primary: false, secondary: false };
 
     if (isRight) {
       if (primaryPressed && !prev.primary) this._fire('rotateCCW', time, { button: 'A' });
@@ -113,11 +156,14 @@ export class ControllerGestureMapper {
       if (secondaryPressed && !prev.secondary) this._fire('okSign', time, { button: 'Y' });
     }
 
-    this._buttonPrev.set(controller, { primary: primaryPressed, secondary: secondaryPressed });
+    this._buttonPrev.set(controller, {
+      primary: primaryPressed,
+      secondary: secondaryPressed,
+    });
   }
 
-  _updateThumbstick(controller, source, time) {
-    const axes = source.gamepad.axes;
+  private _updateThumbstick(controller: PointerLike, source: XRInputSource, time: number) {
+    const axes = source.gamepad!.axes;
     if (!axes || axes.length < 2) return;
 
     // WebXR gamepad mappings differ between browsers. The right thumbstick is
@@ -131,10 +177,10 @@ export class ControllerGestureMapper {
       return;
     }
 
-    const rest = this._stickRest.get(controller);
+    const rest = this._stickRest.get(controller)!;
     const dx = x - rest.x;
     const dy = y - rest.y;
-    const fired = this._stickFired.get(controller);
+    const fired = this._stickFired.get(controller)!;
 
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
@@ -155,9 +201,15 @@ export class ControllerGestureMapper {
     }
   }
 
-  _updateTwoHandMotion(rightController, leftController, rightSource, leftSource, time) {
-    const rightButtons = rightSource.gamepad.buttons;
-    const leftButtons = leftSource.gamepad.buttons;
+  private _updateTwoHandMotion(
+    rightController: PointerLike,
+    leftController: PointerLike,
+    rightSource: XRInputSource,
+    leftSource: XRInputSource,
+    time: number
+  ) {
+    const rightButtons = rightSource.gamepad!.buttons;
+    const leftButtons = leftSource.gamepad!.buttons;
 
     const rightTrigger = !!rightButtons[0]?.pressed;
     const leftTrigger = !!leftButtons[0]?.pressed;

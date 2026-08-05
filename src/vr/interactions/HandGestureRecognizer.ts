@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 /**
  * Dual-hand gesture recognizer for Nemosyne analysis commands.
  *
@@ -20,7 +18,65 @@ import * as THREE from 'three';
  *   - okSign             : dominant pinch held while non-dominant is open
  *   - bothPinched        : both hands pinched simultaneously (system toggle)
  */
+
+import * as THREE from 'three';
+import type { GestureContext, HandLike } from '../coordinators/types.ts';
+
+interface HandPose {
+  position: THREE.Vector3;
+  direction: THREE.Vector3;
+  pinched: boolean;
+  valid: boolean;
+}
+
+interface HandGestureRecognizerOptions {
+  onGesture?: (name: string, ctx: GestureContext) => void;
+  cooldown?: number;
+  moveThreshold?: number;
+  pinchThreshold?: number;
+  releaseThreshold?: number;
+  palmDotThreshold?: number;
+}
+
 export class HandGestureRecognizer {
+  onGesture: (name: string, ctx: GestureContext) => void;
+  cooldown: number;
+  moveThreshold: number;
+  pinchThreshold: number;
+  releaseThreshold: number;
+  palmDotThreshold: number;
+
+  hands: HandLike[] = [];
+  dominantHandIndex = 0;
+  nonDominantHandIndex = 1;
+
+  private _prev: {
+    leftPos: THREE.Vector3;
+    rightPos: THREE.Vector3;
+    leftDir: THREE.Vector3;
+    rightDir: THREE.Vector3;
+    leftPinched: boolean;
+    rightPinched: boolean;
+    time: number;
+  };
+  private _initialized = false;
+
+  private _lastGestureTime = 0;
+  private _lastGestureName: string | null = null;
+
+  // Track sustained both-pinched-close pose for pause/resume input.
+  private _bothPinchedCloseStart: number | null = null;
+  private _pauseResumeFired = false;
+  private _pauseHoldThreshold = 0.8;
+  private _pauseCloseDistance = 0.25;
+
+  private _tempA = new THREE.Vector3();
+  private _tempB = new THREE.Vector3();
+
+  // Expose which hand is dominant for callers that need to follow it.
+  dominant?: HandPose;
+  nonDominant?: HandPose;
+
   constructor({
     onGesture = () => {},
     cooldown = 0.65,
@@ -28,17 +84,13 @@ export class HandGestureRecognizer {
     pinchThreshold = 0.045,
     releaseThreshold = 0.07,
     palmDotThreshold = 0.55,
-  } = {}) {
+  }: HandGestureRecognizerOptions = {}) {
     this.onGesture = onGesture;
     this.cooldown = cooldown;
     this.moveThreshold = moveThreshold;
     this.pinchThreshold = pinchThreshold;
     this.releaseThreshold = releaseThreshold;
     this.palmDotThreshold = palmDotThreshold;
-
-    this.hands = [];
-    this.dominantHandIndex = 0;
-    this.nonDominantHandIndex = 1;
 
     this._prev = {
       leftPos: new THREE.Vector3(),
@@ -49,39 +101,31 @@ export class HandGestureRecognizer {
       rightPinched: false,
       time: 0,
     };
-    this._initialized = false;
-
-    this._lastGestureTime = 0;
-    this._lastGestureName = null;
-
-    // Track sustained both-pinched-close pose for pause/resume input.
-    this._bothPinchedCloseStart = null;
-    this._pauseResumeFired = false;
-    this._pauseHoldThreshold = 0.8;
-    this._pauseCloseDistance = 0.25;
-
-    this._tempA = new THREE.Vector3();
-    this._tempB = new THREE.Vector3();
   }
 
-  setHands(hands) {
-    this.hands = (hands || []).filter(Boolean);
+  setHands(hands: HandLike[] | null | undefined) {
+    this.hands = (hands || []).filter((h): h is HandLike => !!h);
     // Default dominant = right (index 1 if tracked), fallback to first valid.
     const right = this.hands.find((h) => h.handedness === 'right');
     const left = this.hands.find((h) => h.handedness === 'left');
     this.dominantHandIndex = right ? this.hands.indexOf(right) : 0;
-    this.nonDominantHandIndex = left ? this.hands.indexOf(left) : this.hands.length > 1 ? 1 : 0;
+    this.nonDominantHandIndex = left
+      ? this.hands.indexOf(left)
+      : this.hands.length > 1
+        ? 1
+        : 0;
   }
 
-  setDominantHand(handedness) {
+  setDominantHand(handedness: string) {
     const idx = this.hands.findIndex((h) => h.handedness === handedness);
     if (idx < 0) return;
     this.dominantHandIndex = idx;
     this.nonDominantHandIndex = this.hands.findIndex((h) => h.handedness !== handedness);
-    if (this.nonDominantHandIndex < 0) this.nonDominantHandIndex = (idx + 1) % this.hands.length;
+    if (this.nonDominantHandIndex < 0)
+      this.nonDominantHandIndex = (idx + 1) % this.hands.length;
   }
 
-  update(delta, time) {
+  update(delta: number, time: number) {
     if (this.hands.length < 1) return;
 
     const poses = this.hands.map((h) => this._readHand(h));
@@ -134,6 +178,7 @@ export class HandGestureRecognizer {
     if (
       bothPinchedClose &&
       !this._pauseResumeFired &&
+      this._bothPinchedCloseStart != null &&
       time - this._bothPinchedCloseStart >= this._pauseHoldThreshold &&
       this._canFire('pauseResume', time)
     ) {
@@ -172,12 +217,12 @@ export class HandGestureRecognizer {
     this.nonDominant = right;
   }
 
-  _canFire(gesture, time) {
+  private _canFire(gesture: string, time: number) {
     if (time - this._lastGestureTime < this.cooldown) return false;
     return true;
   }
 
-  _readHand(hand) {
+  private _readHand(hand: HandLike): HandPose {
     const pos = new THREE.Vector3();
     const dir = new THREE.Vector3();
     let valid = false;
@@ -188,21 +233,29 @@ export class HandGestureRecognizer {
       dir.set(0, 0, -1).applyQuaternion(q);
       valid = Number.isFinite(pos.x) && dir.lengthSq() > 0;
     } else if (hand.rayOrigin && hand.rayDirection) {
-      pos.copy(hand.rayOrigin);
-      dir.copy(hand.rayDirection);
+      pos.copy(hand.rayOrigin as unknown as THREE.Vector3);
+      dir.copy(hand.rayDirection as unknown as THREE.Vector3);
       valid = Number.isFinite(pos.x) && dir.lengthSq() > 0;
     }
 
-    const pinched = hand.isPinched ? hand.isPinched() : hand.pinched;
+    const pinched = hand.isPinched?.() ?? hand.pinched ?? false;
     return {
       position: pos,
       direction: dir.normalize(),
-      pinched: valid && pinched,
+      pinched: valid && !!pinched,
       valid,
     };
   }
 
-  _classify(l, r, prevL, prevR, prevLDir, prevRDir, dt) {
+  private _classify(
+    l: HandPose,
+    r: HandPose,
+    prevL: THREE.Vector3,
+    prevR: THREE.Vector3,
+    prevLDir: THREE.Vector3,
+    prevRDir: THREE.Vector3,
+    dt: number
+  ): string | null {
     const bothPinchedNow = l.pinched && r.pinched;
     const bothPinchedBefore = this._prev.leftPinched && this._prev.rightPinched;
 
@@ -225,7 +278,10 @@ export class HandGestureRecognizer {
     // not misread as a dominant-hand slice.
 
     // Two-hand scoop up: both palms facing up and rising together.
-    if (l.direction.y > this.palmDotThreshold && r.direction.y > this.palmDotThreshold) {
+    if (
+      l.direction.y > this.palmDotThreshold &&
+      r.direction.y > this.palmDotThreshold
+    ) {
       const dyL = l.position.y - prevL.y;
       const dyR = r.position.y - prevR.y;
       if (dyL > 0 && dyR > 0 && Math.min(dyL, dyR) > this.moveThreshold * 0.15) {
@@ -234,7 +290,10 @@ export class HandGestureRecognizer {
     }
 
     // Two-hand scoop down: both palms facing down and lowering together.
-    if (l.direction.y < -this.palmDotThreshold && r.direction.y < -this.palmDotThreshold) {
+    if (
+      l.direction.y < -this.palmDotThreshold &&
+      r.direction.y < -this.palmDotThreshold
+    ) {
       const dyL = l.position.y - prevL.y;
       const dyR = r.position.y - prevR.y;
       if (dyL < 0 && dyR < 0 && Math.min(-dyL, -dyR) > this.moveThreshold * 0.15) {
@@ -243,7 +302,10 @@ export class HandGestureRecognizer {
     }
 
     // Two-hand push forward: both palms facing forward and moving forward.
-    if (l.direction.z < -this.palmDotThreshold && r.direction.z < -this.palmDotThreshold) {
+    if (
+      l.direction.z < -this.palmDotThreshold &&
+      r.direction.z < -this.palmDotThreshold
+    ) {
       const dzL = l.position.z - prevL.z;
       const dzR = r.position.z - prevR.z;
       if (dzL < -this.moveThreshold * 0.5 && dzR < -this.moveThreshold * 0.5) {
@@ -252,7 +314,7 @@ export class HandGestureRecognizer {
     }
 
     // Two-hand rotate: cupped palms facing each other, opposite twist.
-    if (this._palmsFaceEachOther(l, r) && this._oppositeTwist(l, r, prevLDir, prevRDir, dt)) {
+    if (this._palmsFaceEachOther(l, r) && this._oppositeTwist(l, r, prevLDir, prevRDir)) {
       const twist = this._twistAngle(l, r, prevLDir, prevRDir, dt);
       if (twist > 0.15) return 'rotateCW';
       if (twist < -0.15) return 'rotateCCW';
@@ -282,7 +344,7 @@ export class HandGestureRecognizer {
     return null;
   }
 
-  _palmsFaceEachOther(l, r) {
+  private _palmsFaceEachOther(l: HandPose, r: HandPose) {
     // In three.js camera space the dominant hand is typically on the user's
     // right (negative X from world origin). Palms face each other when the
     // right hand points left-ish and the left hand points right-ish.
@@ -292,7 +354,12 @@ export class HandGestureRecognizer {
     return lFacing && rFacing;
   }
 
-  _oppositeTwist(l, r, prevLDir, prevRDir, dt) {
+  private _oppositeTwist(
+    l: HandPose,
+    r: HandPose,
+    prevLDir: THREE.Vector3,
+    prevRDir: THREE.Vector3
+  ) {
     const lYaw = Math.atan2(l.direction.x, l.direction.z);
     const rYaw = Math.atan2(r.direction.x, r.direction.z);
     const pLYaw = Math.atan2(prevLDir.x, prevLDir.z);
@@ -303,7 +370,13 @@ export class HandGestureRecognizer {
     return dl * dr < -0.001;
   }
 
-  _twistAngle(l, r, prevLDir, prevRDir, dt) {
+  private _twistAngle(
+    l: HandPose,
+    r: HandPose,
+    prevLDir: THREE.Vector3,
+    prevRDir: THREE.Vector3,
+    dt: number
+  ) {
     const lYaw = Math.atan2(l.direction.x, l.direction.z);
     const rYaw = Math.atan2(r.direction.x, r.direction.z);
     const pLYaw = Math.atan2(prevLDir.x, prevLDir.z);
@@ -313,7 +386,7 @@ export class HandGestureRecognizer {
     return (dl - dr) / Math.max(0.001, dt);
   }
 
-  _angleDelta(a, b) {
+  private _angleDelta(a: number, b: number) {
     let d = a - b;
     while (d > Math.PI) d -= Math.PI * 2;
     while (d < -Math.PI) d += Math.PI * 2;
@@ -321,7 +394,7 @@ export class HandGestureRecognizer {
   }
 
   /** Expose the last recognized gesture for debug UI. */
-  get lastGesture() {
+  get lastGesture(): string | null {
     return this._lastGestureName;
   }
 }

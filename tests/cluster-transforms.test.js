@@ -8,7 +8,7 @@ import {
   applyDensityCloud,
   applyDendrogramArc,
   autoLayout,
-} from '../src/vr/interactions/ClusterTransforms.js';
+} from '../src/vr/interactions/ClusterTransforms.ts';
 
 function makeArtifact(rows) {
   const group = new THREE.Group();

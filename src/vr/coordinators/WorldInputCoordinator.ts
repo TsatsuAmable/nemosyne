@@ -6,7 +6,7 @@
  */
 
 import * as THREE from 'three';
-import { HandGestureRecognizer } from '../interactions/HandGestureRecognizer.js';
+import { HandGestureRecognizer } from '../interactions/HandGestureRecognizer.ts';
 import { getGestureMeta } from '../../utils/GestureMapping.js';
 import { WorldEventBus, WorldTopics } from '../../utils/EventBus.js';
 import type { Engine } from '../Engine.js';

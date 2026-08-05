@@ -24,12 +24,12 @@ import {
   applyAnomaly,
   applySlice,
   resetTransforms,
-} from './interactions/DataOperations.js';
+} from './interactions/DataOperations.ts';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildTDASummaryGroup } from './artifacts/TDAPlanes.js';
-import { HandGestureRecognizer } from './interactions/HandGestureRecognizer.js';
-import { ControllerGestureMapper } from './interactions/ControllerGestureMapper.js';
+import { HandGestureRecognizer } from './interactions/HandGestureRecognizer.ts';
+import { ControllerGestureMapper } from './interactions/ControllerGestureMapper.ts';
 import { WorldInputCoordinator } from './coordinators/WorldInputCoordinator.ts';
 import { UserModeController } from './coordinators/UserModeController.ts';
 import { ComfortSettingsController } from './coordinators/ComfortSettingsController.ts';
@@ -40,8 +40,8 @@ import { GuidedTour } from './ui/GuidedTour.js';
 import { FIRST_DATASET_TOUR } from '../data/DefaultTour.ts';
 import { WorldTheme } from './WorldTheme.js';
 import { TelemetryCollector } from '../utils/Telemetry.js';
-import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.js';
-import { LivePreview } from './interactions/LivePreview.js';
+import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.ts';
+import { LivePreview } from './interactions/LivePreview.ts';
 import { CollaborationCoordinator } from './coordinators/CollaborationCoordinator.ts';
 import { DataOperationController } from './coordinators/DataOperationController.ts';
 import { WorldUIManager } from './coordinators/WorldUIManager.ts';

@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 /**
  * Transient, non-destructive preview of a data operation before it is applied.
  *
@@ -10,19 +8,40 @@ import * as THREE from 'three';
  * adds temporary overlays that are cleared when the operation is committed or
  * cancelled.
  */
+
+import * as THREE from 'three';
+import type { Dataset } from '../../data/Dataset.ts';
+import type { ArtifactRef } from '../coordinators/types.ts';
+
+interface LivePreviewOptions {
+  enabled?: boolean;
+  offset?: THREE.Vector3;
+}
+
+interface PreviewMarker {
+  mesh: THREE.Sprite;
+  anchorMesh: THREE.Mesh;
+  offset: THREE.Vector3;
+}
+
 export class LivePreview {
-  constructor(scene, camera, options = {}) {
+  scene: THREE.Scene;
+  camera: THREE.Camera;
+  enabled: boolean;
+  offset: THREE.Vector3;
+
+  private _markers: PreviewMarker[] = [];
+  private _tempPos = new THREE.Vector3();
+  private _materialCache = new Map<string, THREE.SpriteMaterial>();
+
+  constructor(scene: THREE.Scene, camera: THREE.Camera, options: LivePreviewOptions = {}) {
     this.scene = scene;
     this.camera = camera;
     this.enabled = options.enabled ?? true;
     this.offset = options.offset ?? new THREE.Vector3(0, 0.75, 0);
-
-    this._markers = [];
-    this._tempPos = new THREE.Vector3();
-    this._materialCache = new Map();
   }
 
-  setEnabled(enabled) {
+  setEnabled(enabled: boolean) {
     this.enabled = enabled;
     for (const m of this._markers) {
       m.mesh.visible = enabled;
@@ -32,37 +51,38 @@ export class LivePreview {
   clear() {
     for (const m of this._markers) {
       this.scene.remove(m.mesh);
-      m.mesh.material.map?.dispose?.();
-      m.mesh.material.dispose?.();
-      if (m.line) {
-        this.scene.remove(m.line);
-        m.line.geometry.dispose?.();
-        m.line.material.dispose?.();
-      }
+      const mat = m.mesh.material as THREE.SpriteMaterial;
+      mat.map?.dispose();
+      mat.dispose();
     }
     this._markers = [];
     for (const mat of this._materialCache.values()) {
-      mat.map?.dispose?.();
-      mat.dispose?.();
+      mat.map?.dispose();
+      mat.dispose();
     }
     this._materialCache.clear();
   }
 
   /**
    * Show a preview for the named operation.
-   * @param {string} operation
-   * @param {import('../../data/Dataset.ts').Dataset} previewDataset
-   * @param {import('../../data/Dataset.ts').Dataset} originalDataset
-   * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
    */
-  preview(operation, previewDataset, originalDataset, artifact) {
+  preview(
+    operation: string,
+    previewDataset: Dataset,
+    originalDataset: Dataset,
+    artifact: ArtifactRef
+  ) {
     this.clear();
-    if (!this.enabled || !artifact?.nodeMeshes?.length) return;
+    if (!this.enabled || !artifact.nodeMeshes.length) return;
 
     switch (operation) {
       case 'filter':
       case 'timeSlice':
-        this._previewKeepRemove(previewDataset, artifact, operation === 'timeSlice' ? '✂' : '✕');
+        this._previewKeepRemove(
+          previewDataset,
+          artifact,
+          operation === 'timeSlice' ? '✂' : '✕'
+        );
         break;
       case 'sort':
         this._previewSort(previewDataset, artifact);
@@ -73,13 +93,14 @@ export class LivePreview {
       default:
         break;
     }
+
+    void originalDataset;
   }
 
-  _previewKeepRemove(previewDataset, artifact, removeIcon) {
+  private _previewKeepRemove(previewDataset: Dataset, artifact: ArtifactRef, removeIcon: string) {
     const kept = new Set(previewDataset.rows);
     for (const mesh of artifact.nodeMeshes) {
-      const row = mesh.userData.row;
-      // Operations may produce new row objects, so match by value identity.
+      const row = this._getRow(mesh);
       const isKept = this._rowInSet(row, kept);
       const icon = isKept ? '✓' : removeIcon;
       const color = isKept ? '#00ffcc' : '#ff3366';
@@ -89,12 +110,12 @@ export class LivePreview {
     }
   }
 
-  _previewSort(previewDataset, artifact) {
+  private _previewSort(previewDataset: Dataset, artifact: ArtifactRef) {
     const order = previewDataset.rows;
     const count = order.length;
     for (let i = 0; i < count; i++) {
       const row = order[i];
-      const mesh = artifact.nodeMeshes.find((m) => this._rowsEqual(m.userData.row, row));
+      const mesh = artifact.nodeMeshes.find((m) => this._rowsEqual(this._getRow(m), row));
       if (!mesh) continue;
       const rank = i + 1;
       const marker = this._createSprite(String(rank), '#ffcc00');
@@ -103,9 +124,9 @@ export class LivePreview {
     }
   }
 
-  _previewAnomaly(previewDataset, artifact) {
+  private _previewAnomaly(previewDataset: Dataset, artifact: ArtifactRef) {
     for (const mesh of artifact.nodeMeshes) {
-      const previewRow = this._findPreviewRow(mesh.userData.row, previewDataset.rows);
+      const previewRow = this._findPreviewRow(this._getRow(mesh), previewDataset.rows);
       const isOutlier =
         previewRow?._anomaly || previewRow?.anomaly || previewRow?._outlier || previewRow?.outlier;
       if (!isOutlier) continue;
@@ -115,21 +136,24 @@ export class LivePreview {
     }
   }
 
-  _findPreviewRow(meshRow, previewRows) {
+  private _findPreviewRow(meshRow: Record<string, unknown>, previewRows: Record<string, unknown>[]) {
     return previewRows.find((r) => this._rowsEqual(r, meshRow));
   }
 
-  _rowInSet(row, set) {
+  private _rowInSet(row: Record<string, unknown>, set: Set<Record<string, unknown>>) {
     for (const r of set) {
       if (this._rowsEqual(r, row)) return true;
     }
     return false;
   }
 
-  _rowsEqual(a, b) {
+  private _getRow(mesh: THREE.Mesh): Record<string, unknown> {
+    return (mesh.userData as { row?: Record<string, unknown> }).row ?? {};
+  }
+
+  private _rowsEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
     if (a === b) return true;
     if (!a || !b) return false;
-    // Compare non-internal keys; preview rows may have added _anomaly, _rank, etc.
     const keysA = Object.keys(a).filter((k) => !k.startsWith('_'));
     const keysB = Object.keys(b).filter((k) => !k.startsWith('_'));
     if (keysA.length !== keysB.length) return false;
@@ -140,16 +164,17 @@ export class LivePreview {
     return true;
   }
 
-  _createSprite(text, color) {
+  private _createSprite(text: string, color: string): THREE.Sprite {
     const key = `${text}|${color}`;
-    if (this._materialCache.has(key)) {
-      return new THREE.Sprite(this._materialCache.get(key));
+    const cached = this._materialCache.get(key);
+    if (cached) {
+      return new THREE.Sprite(cached);
     }
 
     const canvas = document.createElement('canvas');
     canvas.width = 128;
     canvas.height = 128;
-    const ctx = canvas.getContext('2d') || this._createMockContext();
+    const ctx = (canvas.getContext('2d') || this._createMockContext()) as CanvasRenderingContext2D;
 
     ctx.fillStyle = 'rgba(4, 12, 24, 0.85)';
     ctx.fillRect(0, 0, 128, 128);
@@ -178,7 +203,11 @@ export class LivePreview {
     return new THREE.Sprite(mat);
   }
 
-  _attachMarker(sprite, anchorMesh, offset = null) {
+  private _attachMarker(
+    sprite: THREE.Sprite,
+    anchorMesh: THREE.Mesh,
+    offset: THREE.Vector3 | null = null
+  ) {
     sprite.scale.set(0.3, 0.3, 1);
     this.scene.add(sprite);
 
@@ -202,19 +231,19 @@ export class LivePreview {
     }
   }
 
-  _createMockContext() {
+  private _createMockContext(): CanvasRenderingContext2D {
     const noOp = () => {};
     return {
       fillRect: noOp,
       strokeRect: noOp,
       fillText: noOp,
       measureText: () => ({ width: 0 }),
-      set fillStyle(_) {},
-      set strokeStyle(_) {},
-      set lineWidth(_) {},
-      set font(_) {},
-      set textAlign(_) {},
-      set textBaseline(_) {},
-    };
+      set fillStyle(_: string) {},
+      set strokeStyle(_: string) {},
+      set lineWidth(_: number) {},
+      set font(_: string) {},
+      set textAlign(_: string) {},
+      set textBaseline(_: string) {},
+    } as unknown as CanvasRenderingContext2D;
   }
 }

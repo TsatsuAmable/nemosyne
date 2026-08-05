@@ -21,7 +21,7 @@ import {
   buildWasmOperationSpec,
   captureBaseState,
   resetTransforms,
-} from '../interactions/DataOperations.js';
+} from '../interactions/DataOperations.ts';
 import { WorldEventBus, WorldTopics } from '../../utils/EventBus.js';
 import type {
   ArtifactRef,

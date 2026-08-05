@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { HandGestureRecognizer } from '../src/vr/interactions/HandGestureRecognizer.js';
+import { HandGestureRecognizer } from '../src/vr/interactions/HandGestureRecognizer.ts';
 import * as THREE from 'three';
 
 describe('HandGestureRecognizer intent inference', () => {

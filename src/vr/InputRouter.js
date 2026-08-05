@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { PointerRegistry } from './input/PointerRegistry.js';
-import { InteractableRegistry } from './input/InteractableRegistry.js';
-import { PointerEventMachine } from './input/PointerEventMachine.js';
-import { SystemGestureDetector } from './input/SystemGestureDetector.js';
-import { SelectionDispatcher } from './input/SelectionDispatcher.js';
-import { ControllerGestureBridge } from './input/ControllerGestureBridge.js';
+import { PointerRegistry } from './input/PointerRegistry.ts';
+import { InteractableRegistry } from './input/InteractableRegistry.ts';
+import { PointerEventMachine } from './input/PointerEventMachine.ts';
+import { SystemGestureDetector } from './input/SystemGestureDetector.ts';
+import { SelectionDispatcher } from './input/SelectionDispatcher.ts';
+import { ControllerGestureBridge } from './input/ControllerGestureBridge.ts';
 
 /**
  * Routes WebXR controller and hand pointer input.

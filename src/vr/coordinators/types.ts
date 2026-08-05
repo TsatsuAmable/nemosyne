@@ -7,7 +7,7 @@
  * boundaries that have not yet been typed.
  */
 
-import type { Group, Mesh, Object3D } from 'three';
+import type { Color, Group, Mesh, Object3D, Ray, Raycaster } from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
 import type { LiveUpdate } from '../../data/connectors/DataConnector.ts';
 import type { OperationSpec } from '../../data/types.ts';
@@ -30,6 +30,14 @@ export type VisualOperation =
 export interface ArtifactRef {
   nodeMeshes: Mesh[];
   group: Group;
+}
+
+/** Material shape commonly assumed by data-operation visual transforms. */
+export interface NodeMaterialLike {
+  opacity?: number;
+  transparent?: boolean;
+  color?: Color;
+  emissive?: Color;
 }
 
 export interface OperationStrategy {
@@ -105,8 +113,11 @@ export const DEFAULT_ACCESSIBILITY: AccessibilityOptions = {
 };
 
 export interface PanelLike {
-  mesh?: { visible: boolean } | null;
+  mesh?: Object3D | null;
   applyAccessibility?(options: AccessibilityOptions): void;
+  handlePointerDown?(raycaster: Raycaster, pointer: PointerLike): string | null | undefined;
+  handlePointerMove?(raycaster: Raycaster, pointer: PointerLike): void;
+  handlePointerUp?(raycaster: Raycaster, pointer: PointerLike): void;
 }
 
 export interface PanelManagerLike {
@@ -118,6 +129,7 @@ export interface PanelManagerLike {
   recenter(): void;
   toggleLauncher(): void;
   isLauncherVisible(): boolean;
+  handleLauncherHit?(raycaster: Raycaster): boolean | null;
 }
 
 export interface DashboardLike {
@@ -157,6 +169,7 @@ export interface EngineLike {
   addUpdatable(obj: Updatable | (() => void)): void;
   input: InputRouterLike;
   locomotion: LocomotionLike;
+  renderer?: { xr: { getSession(): XRSession | null } };
   setVignetteEnabled?(enabled: boolean, intensity?: number): void;
 }
 
@@ -190,11 +203,31 @@ export interface HandLike {
   ): void;
   isPinched?(): boolean;
   pinched?: boolean;
+  jointsValid?: boolean;
+  ray?: { visible: boolean };
+}
+
+/** Pointer abstraction shared by controllers and hand-tracking wrappers. */
+export interface PointerLike extends HandLike {
+  getRay(target: Ray): Ray;
+  setRayLength?(length: number): void;
+  setRayVisible?(visible: boolean): void;
+  onSelect?(pointer: PointerLike): void;
+  onPinchStart?(pointer: PointerLike): void;
+  isPoseValid?(): boolean;
+  update?(
+    frame: XRFrame | null,
+    referenceSpace: XRReferenceSpace | null,
+    session: XRSession | null
+  ): void;
 }
 
 export interface FeedbackLike {
   playGestureTone?(name: string): void;
   playHaptic?(intensity: number, durationMs: number): void;
+  playHover?(): void;
+  playSelect?(): void;
+  flashPointer?(pointer: PointerLike): void;
 }
 
 export interface LocomotionLike {
@@ -329,4 +362,9 @@ export interface NetworkManagerLike {
   connect(roomId?: string): Promise<void>;
   disconnect(): void;
   setLocalState(state: Record<string, unknown>): void;
+}
+
+/** Minimal facade for controller gesture mappers used by {@link ControllerGestureBridge}. */
+export interface ControllerGestureMapperLike {
+  update(controllers: PointerLike[], session: XRSession | null, time: number): void;
 }

@@ -39,7 +39,7 @@ Nemosyne defines a small set of **metaphor-accurate** interactions: every gestur
 
 ## Dual-Hand Gesture Commands
 
-`src/vr/interactions/HandGestureRecognizer.js` reads both tracked hands each frame and maps simple pose patterns to analysis commands. Gestures are deliberately conservative: each has a cooldown and a clear displacement threshold so accidental motion does not spam commands.
+`src/vr/interactions/HandGestureRecognizer.ts` reads both tracked hands each frame and maps simple pose patterns to analysis commands. Gestures are deliberately conservative: each has a cooldown and a clear displacement threshold so accidental motion does not spam commands.
 
 | Gesture | Hands | Mapped action |
 |---|---|---|
@@ -281,7 +281,7 @@ Beyond the core operations, Nemosyne defines six spatial metaphors for reasoning
 | **BEACON** | A vertical light column rises from the selected point. | Geo / dense tabular spaces |
 | **ALEPH** | All other visible nodes briefly flash a connection to the selected node. | Dense graphs |
 
-The metaphors are implemented in `src/vr/interactions/MetaphorActions.js` and wired into `VRTopologyTranslator`. By default the constraint engine still prefers base interactions (`TRAVERSE_EDGE`, `INSPECT_CELL`, etc.); tuning the metaphor soft-constraint weights selects them.
+The metaphors are implemented in `src/vr/interactions/MetaphorActions.ts` and wired into `VRTopologyTranslator`. By default the constraint engine still prefers base interactions (`TRAVERSE_EDGE`, `INSPECT_CELL`, etc.); tuning the metaphor soft-constraint weights selects them.
 
 ## Holographic Inspector
 

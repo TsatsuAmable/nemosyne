@@ -40,7 +40,7 @@ This repository is the **working three.js/WebXR runtime core** of the Nemosyne v
 | Wheel menu / spatial UI | `PanelManager`, `MovablePanel`, and `HandWheelMenu` provide Quest-native controls. Menu is now body-locked. | Implemented |
 | Selection feedback | `SelectionFeedback` in `src/vr/audio/` gives audio tones + pointer-ray flashes. | Implemented |
 | Scalable large-dataset artefacts | `InstancedPointCloud`, `ClusterVolume`, `AggregateBars`, `SpatialIndex`, `LODManager` in `src/vr/scalability/`. | Implemented |
-| Interaction metaphors | `MetaphorActions.js` implements Resonance Pulse, Fork Plane, Chrono Dial, Constellation, Beacon, Aleph. | Implemented |
+| Interaction metaphors | `MetaphorActions.ts` implements Resonance Pulse, Fork Plane, Chrono Dial, Constellation, Beacon, Aleph. | Implemented |
 | Multi-user collaboration | Shared avatars, annotations, guided tours. | Deferred |
 
 ---

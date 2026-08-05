@@ -15,7 +15,7 @@ import {
   applySlice,
   captureBaseState,
   resetTransforms,
-} from '../src/vr/interactions/DataOperations.js';
+} from '../src/vr/interactions/DataOperations.ts';
 import {
   filter,
   sort,
