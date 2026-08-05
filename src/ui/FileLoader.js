@@ -1,5 +1,5 @@
 import { parseCSV, parseJSON } from '../data/Parsers.ts';
-import { inferEncodings } from '../data/Encodings.js';
+import { inferEncodings } from '../data/Encodings.ts';
 import { inferTopology, inferEncodingsForTopology } from '../data/TopologyInference.ts';
 import { validateImport, formatValidationResult } from '../data/ImportError.ts';
 import { Dataset } from '../data/Dataset.ts';

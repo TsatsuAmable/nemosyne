@@ -7,7 +7,7 @@ import {
   flatBufferToDataset,
   datasetToMessagePack,
   messagePackToDataset,
-} from '../src/data/serializers/index.js';
+} from '../src/data/serializers/index.ts';
 
 const TEST_DATASET = new Dataset(
   'Test',

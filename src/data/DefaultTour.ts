@@ -6,7 +6,20 @@
  * speech synthesis or subtitles; the app currently uses a confirmation tone per
  * step.
  */
-export const FIRST_DATASET_TOUR = {
+
+export interface TourStep {
+  target: string;
+  text: string;
+  actionHint: string;
+}
+
+export interface Tour {
+  id: string;
+  title: string;
+  steps: TourStep[];
+}
+
+export const FIRST_DATASET_TOUR: Tour = {
   id: 'first-dataset',
   title: 'Welcome to Nemosyne',
   steps: [

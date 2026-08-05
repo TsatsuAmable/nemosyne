@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { GuidedTour } from '../src/vr/ui/GuidedTour.js';
-import { FIRST_DATASET_TOUR } from '../src/data/DefaultTour.js';
+import { FIRST_DATASET_TOUR } from '../src/data/DefaultTour.ts';
 
 describe('GuidedTour', () => {
   let engine;

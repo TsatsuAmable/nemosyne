@@ -8,6 +8,7 @@
  */
 
 import { Dataset } from '../Dataset.ts';
+import type { ColumnSchema, ColumnTypeValue } from '../types.ts';
 
 const TEXT_ENCODER = new TextEncoder();
 const TEXT_DECODER = new TextDecoder();
@@ -18,7 +19,9 @@ const TYPE_IDS = {
   TEMPORAL: 3,
   TEXT: 4,
   UNKNOWN: 0,
-};
+} as const;
+
+type ReverseTypeMap = Record<number, ColumnTypeValue>;
 
 /**
  * Serialize a Dataset to a compact binary buffer.
@@ -35,12 +38,9 @@ const TYPE_IDS = {
  *     [uint8 kind: 0=null, 1=number, 2=string]
  *     number: [float64]
  *     string: [uint32 length][bytes]
- *
- * @param {import('../Dataset.ts').Dataset} dataset
- * @returns {ArrayBuffer}
  */
-export function datasetToFlatBuffer(dataset) {
-  const chunks = [];
+export function datasetToFlatBuffer(dataset: Dataset): ArrayBuffer {
+  const chunks: Uint8Array[] = [];
 
   // Header.
   const header = new DataView(new ArrayBuffer(10));
@@ -56,7 +56,7 @@ export function datasetToFlatBuffer(dataset) {
   for (const col of dataset.columns) {
     const nameBytes = TEXT_ENCODER.encode(col.name);
     const colMeta = new DataView(new ArrayBuffer(3));
-    colMeta.setUint8(0, TYPE_IDS[col.type] ?? TYPE_IDS.UNKNOWN);
+    colMeta.setUint8(0, TYPE_IDS[col.type]);
     colMeta.setUint16(1, nameBytes.length, true);
     chunks.push(new Uint8Array(colMeta.buffer), nameBytes);
   }
@@ -87,11 +87,11 @@ export function datasetToFlatBuffer(dataset) {
 
 /**
  * Deserialize a FlatBuffer back into a Dataset.
- * @param {ArrayBuffer|Uint8Array} buffer
- * @param {string} name
- * @returns {import('../Dataset.ts').Dataset}
  */
-export function flatBufferToDataset(buffer, name = 'FlatBuffer Dataset') {
+export function flatBufferToDataset(
+  buffer: ArrayBuffer | Uint8Array,
+  name: string = 'FlatBuffer Dataset'
+): Dataset {
   const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
@@ -104,8 +104,11 @@ export function flatBufferToDataset(buffer, name = 'FlatBuffer Dataset') {
   const rowCount = view.getUint32(6, true);
   let offset = 10;
 
-  const ID_TO_TYPE = Object.fromEntries(Object.entries(TYPE_IDS).map(([k, v]) => [v, k]));
-  const columns = [];
+  const ID_TO_TYPE: ReverseTypeMap = Object.fromEntries(
+    Object.entries(TYPE_IDS).map(([k, v]) => [v, k as ColumnTypeValue])
+  ) as ReverseTypeMap;
+
+  const columns: ColumnSchema[] = [];
   for (let i = 0; i < columnCount; i++) {
     const typeId = view.getUint8(offset++);
     const nameLength = view.getUint16(offset, true);
@@ -118,9 +121,9 @@ export function flatBufferToDataset(buffer, name = 'FlatBuffer Dataset') {
     });
   }
 
-  const rows = [];
+  const rows: Record<string, unknown>[] = [];
   for (let r = 0; r < rowCount; r++) {
-    const row = {};
+    const row: Record<string, unknown> = {};
     for (const col of columns) {
       const kind = view.getUint8(offset++);
       if (kind === 0) {
@@ -143,7 +146,7 @@ export function flatBufferToDataset(buffer, name = 'FlatBuffer Dataset') {
   return new Dataset(name, columns, rows);
 }
 
-function concatenateBuffers(chunks) {
+function concatenateBuffers(chunks: Uint8Array[]): ArrayBuffer {
   let total = 0;
   for (const chunk of chunks) total += chunk.length;
   const out = new Uint8Array(total);
