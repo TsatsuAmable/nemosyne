@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { DataOperationController } from '../src/vr/coordinators/DataOperationController.js';
+import { DataOperationController } from '../src/vr/coordinators/DataOperationController.ts';
 import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.js';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';

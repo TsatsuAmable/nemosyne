@@ -1,10 +1,3 @@
-import { TopologyTypes } from '../../draco/ConstraintEngine.ts';
-import { WebSocketAdapter } from '../../data/connectors/WebSocketAdapter.ts';
-import { PollingAdapter } from '../../data/connectors/PollingAdapter.ts';
-import { getOpenDataSource } from '../../data/connectors/OpenDataSources.ts';
-import { rowsToDataset } from '../../data/connectors/normalize.ts';
-import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
-
 /**
  * Owns live-stream connection state, buffering, and incremental flushing.
  *
@@ -13,8 +6,29 @@ import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
  * or incremental append decision. World.js still decides how to load a dataset
  * by providing callbacks.
  */
+
+import { TopologyTypes } from '../../draco/ConstraintEngine.ts';
+import { WebSocketAdapter } from '../../data/connectors/WebSocketAdapter.ts';
+import { PollingAdapter } from '../../data/connectors/PollingAdapter.ts';
+import { getOpenDataSource } from '../../data/connectors/OpenDataSources.ts';
+import { rowsToDataset } from '../../data/connectors/normalize.ts';
+import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
+import type { TopologyType } from '../../data/types.ts';
+import type { LiveUpdate } from '../../data/connectors/DataConnector.ts';
+import type { LiveConnectorLike, LiveStreamOptions, WorldFacadeForLiveStream } from './types.ts';
+
 export class LiveStreamCoordinator {
-  constructor({ world }) {
+  world: WorldFacadeForLiveStream;
+
+  liveConnector: LiveConnectorLike | null;
+  liveRows: Record<string, unknown>[];
+  private _pendingRows: Record<string, unknown>[];
+  private _liveFlushTimer: ReturnType<typeof setTimeout> | null;
+  private _liveUpdatePending: boolean;
+  private _liveUpdateUnsub: (() => void) | null;
+  private _liveStatusUnsub: (() => void) | null;
+
+  constructor({ world }: { world: WorldFacadeForLiveStream }) {
     this.world = world;
 
     this.liveConnector = null;
@@ -26,7 +40,7 @@ export class LiveStreamCoordinator {
     this._liveStatusUnsub = null;
   }
 
-  _demoStreamUrl() {
+  _demoStreamUrl(): string {
     if (typeof location === 'undefined') return 'wss://localhost:5173/__demo-stream';
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${location.host}/__demo-stream`;
@@ -34,10 +48,8 @@ export class LiveStreamCoordinator {
 
   /**
    * Connect to a curated open live data source by key.
-   * @param {string} sourceKey
-   * @returns {boolean}
    */
-  connectLiveSource(sourceKey) {
+  connectLiveSource(sourceKey: string): boolean {
     const source = getOpenDataSource(sourceKey);
     if (!source) {
       console.warn('[LiveStreamCoordinator] unknown live source:', sourceKey);
@@ -68,16 +80,24 @@ export class LiveStreamCoordinator {
         console.warn('[LiveStreamCoordinator] fetch not available in this environment');
         return false;
       }
+      if (!source.parseResponse) {
+        console.warn('[LiveStreamCoordinator] polling source requires parseResponse:', sourceKey);
+        return false;
+      }
       this.liveConnector = new PollingAdapter({
         url,
         topology: source.topology ?? TopologyTypes.GEO,
         mode: source.mode ?? 'replace',
         intervalMs: source.intervalMs ?? 10000,
         fetchOptions: source.fetchOptions ?? {},
-        parseResponse: source.parseResponse,
+        parseResponse: source.parseResponse as (json: unknown) => {
+          rows: Record<string, unknown>[];
+          topology?: string;
+          name?: string;
+        } | null,
       });
     } else {
-      console.warn('[LiveStreamCoordinator] unsupported transport:', source.transport);
+      console.warn('[LiveStreamCoordinator] unsupported transport:', (source as { transport?: string }).transport);
       return false;
     }
 
@@ -92,8 +112,8 @@ export class LiveStreamCoordinator {
    */
   connectLiveStream(
     url = this._demoStreamUrl(),
-    { topology = TopologyTypes.TIME_SERIES, mode = 'window', windowSize = 50 } = {}
-  ) {
+    { topology = TopologyTypes.TIME_SERIES, mode = 'window', windowSize = 50 }: LiveStreamOptions = {}
+  ): boolean {
     if (typeof WebSocket === 'undefined') {
       console.warn('[LiveStreamCoordinator] WebSocket not available in this environment');
       return false;
@@ -115,9 +135,9 @@ export class LiveStreamCoordinator {
     return true;
   }
 
-  _wireLiveConnector() {
-    this._liveUpdateUnsub = this.liveConnector.onUpdate((update) => this._onLiveUpdate(update));
-    this._liveStatusUnsub = this.liveConnector.onStatus((status, detail) => {
+  _wireLiveConnector(): void {
+    this._liveUpdateUnsub = this.liveConnector!.onUpdate((update: LiveUpdate) => this._onLiveUpdate(update));
+    this._liveStatusUnsub = this.liveConnector!.onStatus((status: string, detail?: string) => {
       console.log(`[LiveStreamCoordinator] live stream ${status}`, detail || '');
       this.world.vrMenu?.setLiveConnected?.(this.liveConnector?.isConnected?.() ?? false);
       if (status === 'connected') this.world.vrConsole?.log?.('log', ['Live stream connected']);
@@ -128,7 +148,7 @@ export class LiveStreamCoordinator {
     });
   }
 
-  disconnectLiveStream() {
+  disconnectLiveStream(): void {
     this._cancelLiveFlush();
     this.liveRows = [];
     this._pendingRows = [];
@@ -146,11 +166,11 @@ export class LiveStreamCoordinator {
     }
   }
 
-  isLiveConnected() {
+  isLiveConnected(): boolean {
     return this.liveConnector?.isConnected?.() ?? false;
   }
 
-  _onLiveUpdate(update) {
+  _onLiveUpdate(update: LiveUpdate): void {
     const rows = update.dataset?.rows ?? [];
     if (rows.length === 0) return;
 
@@ -165,12 +185,12 @@ export class LiveStreamCoordinator {
     }
   }
 
-  _flushLiveUpdate() {
+  _flushLiveUpdate(): void {
     this._liveFlushTimer = null;
     if (!this._liveUpdatePending || this.liveRows.length === 0) return;
     this._liveUpdatePending = false;
 
-    const topology = this.liveConnector?.topology || TopologyTypes.TIME_SERIES;
+    const topology = (this.liveConnector?.topology || TopologyTypes.TIME_SERIES) as TopologyType;
 
     // Try incremental append for time-series if the current dataset matches.
     if (
@@ -201,7 +221,7 @@ export class LiveStreamCoordinator {
     this._pendingRows = [];
   }
 
-  _cancelLiveFlush() {
+  _cancelLiveFlush(): void {
     if (this._liveFlushTimer) {
       clearTimeout(this._liveFlushTimer);
       this._liveFlushTimer = null;

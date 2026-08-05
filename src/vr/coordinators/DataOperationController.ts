@@ -7,6 +7,7 @@
 
 import { AnalysisHistory } from '../../data/AnalysisHistory.ts';
 import { Dataset } from '../../data/Dataset.ts';
+import type { OperationSpec } from '../../data/types.ts';
 import {
   applyFilter,
   applySort,
@@ -22,28 +23,39 @@ import {
   resetTransforms,
 } from '../interactions/DataOperations.js';
 import { WorldEventBus, WorldTopics } from '../../utils/EventBus.js';
+import type {
+  ArtifactRef,
+  DataOperationControllerOptions,
+  HistoryEntry,
+  VisualApplier,
+  VisualOperation,
+  WasmRuntimeBridge,
+  WorldEventBusLike,
+} from './types.ts';
 
 const CAP_OPERATIONS_RUST = 1 << 2;
 
-const VISUAL_APPLIERS = {
-  filter: applyFilter,
-  sort: applySort,
-  aggregate: applyAggregate,
-  cluster: applyCluster,
-  hierarchical: applyHierarchicalCluster,
-  density: applyDensityCluster,
-  anomaly: applyAnomaly,
-  timeSlice: applySlice,
+const VISUAL_APPLIERS: Record<string, VisualApplier> = {
+  filter: applyFilter as VisualApplier,
+  sort: applySort as VisualApplier,
+  aggregate: applyAggregate as VisualApplier,
+  cluster: applyCluster as VisualApplier,
+  hierarchical: applyHierarchicalCluster as VisualApplier,
+  density: applyDensityCluster as VisualApplier,
+  anomaly: applyAnomaly as VisualApplier,
+  timeSlice: applySlice as VisualApplier,
 };
 
 export class DataOperationController {
-  /**
-   * @param {object} options
-   * @param {WorldEventBus} [options.eventBus]
-   * @param {() => { nodeMeshes: THREE.Mesh[], group: THREE.Group } | null} [options.getArtifact]
-   * @param {number} [options.maxHistoryFrames]
-   */
-  constructor({ eventBus, getArtifact, maxHistoryFrames = 50 } = {}) {
+  eventBus: WorldEventBusLike;
+  getArtifact: () => ArtifactRef | null;
+  _analysisHistory: AnalysisHistory;
+  _originalDataset: Dataset | null;
+  _transformedDataset: Dataset | null;
+  _wasmRuntime: WasmRuntimeBridge | null;
+  _wasmCapabilities: number;
+
+  constructor({ eventBus, getArtifact, maxHistoryFrames = 50 }: DataOperationControllerOptions = {}) {
     this.eventBus = eventBus ?? new WorldEventBus();
     this.getArtifact = getArtifact ?? (() => null);
     this._analysisHistory = new AnalysisHistory({ maxFrames: maxHistoryFrames });
@@ -57,36 +69,29 @@ export class DataOperationController {
    * Optional Rust/WASM bridge. When present and the OPERATIONS_RUST capability
    * is enabled, selected operations are computed in Rust and the result is
    * converted back to a JS Dataset.
-   *
-   * @param {object|null} bridge
-   * @param {number} capabilities
    */
-  setWasmRuntime(bridge, capabilities = 0) {
+  setWasmRuntime(bridge: WasmRuntimeBridge | null, capabilities = 0): void {
     this._wasmRuntime = bridge;
     this._wasmCapabilities = capabilities;
   }
 
-  /** @returns {import('../../data/AnalysisHistory.ts').AnalysisHistory} */
-  get analysisHistory() {
+  get analysisHistory(): AnalysisHistory {
     return this._analysisHistory;
   }
 
-  /** @returns {import('../../data/Dataset.ts').Dataset | null} */
-  get originalDataset() {
+  get originalDataset(): Dataset | null {
     return this._originalDataset;
   }
 
-  /** @returns {import('../../data/Dataset.ts').Dataset | null} */
-  get transformedDataset() {
+  get transformedDataset(): Dataset | null {
     return this._transformedDataset;
   }
 
   /**
    * Set the original dataset and reset the analysis state. This is called
    * whenever a new dataset is loaded.
-   * @param {import('../../data/Dataset.ts').Dataset} dataset
    */
-  setOriginalDataset(dataset) {
+  setOriginalDataset(dataset: Dataset): void {
     this._originalDataset = dataset?.clone?.() ?? null;
     this._transformedDataset = this._originalDataset?.clone?.() ?? null;
     this._analysisHistory.clear();
@@ -94,9 +99,8 @@ export class DataOperationController {
 
   /**
    * Set the transformed dataset directly (used when restoring a session).
-   * @param {import('../../data/Dataset.ts').Dataset} dataset
    */
-  setTransformedDataset(dataset) {
+  setTransformedDataset(dataset: Dataset): void {
     this._transformedDataset = dataset?.clone?.() ?? null;
   }
 
@@ -104,9 +108,8 @@ export class DataOperationController {
    * Apply a named operation to the current transformed dataset and artifact.
    * Supported: 'filter', 'sort', 'aggregate', 'cluster', 'hierarchical',
    * 'density', 'anomaly', 'timeSlice'.
-   * @param {string} operation
    */
-  apply(operation) {
+  apply(operation: VisualOperation | string): void {
     const artifact = this.getArtifact();
     if (!this._originalDataset || !artifact) return;
 
@@ -132,20 +135,15 @@ export class DataOperationController {
    * Compute the result dataset for an operation, routing to the WASM data layer
    * when the operation is supported there and the runtime is ready. Otherwise
    * falls back to the JS implementation.
-   *
-   * @param {string} operation
-   * @param {import('../../data/Dataset.ts').Dataset} dataset
-   * @param {import('../../data/Dataset.ts').Dataset} originalDataset
-   * @returns {import('../../data/Dataset.ts').Dataset}
    */
-  _computeDataset(operation, dataset, originalDataset) {
+  _computeDataset(operation: string, dataset: Dataset, originalDataset: Dataset): Dataset {
     if (
       this._wasmRuntime &&
       (this._wasmCapabilities & CAP_OPERATIONS_RUST) !== 0
     ) {
       const op = buildWasmOperationSpec(operation, dataset, originalDataset);
       if (op) {
-        const result = this._wasmRuntime.executeOperation(dataset.toJSON(), op);
+        const result = this._wasmRuntime.executeOperation(dataset.toJSON(), op as OperationSpec);
         if (result) {
           return Dataset.fromJSON(result);
         }
@@ -158,10 +156,8 @@ export class DataOperationController {
    * Apply only the visual transform for an operation without mutating the
    * dataset. Used by `World._restoreDataset` after undo/redo/seek or a full
    * re-solve.
-   * @param {string} operation
-   * @param {import('../../data/Dataset.ts').Dataset} dataset
    */
-  applyVisual(operation, dataset) {
+  applyVisual(operation: string, dataset: Dataset): void {
     const artifact = this.getArtifact();
     if (!artifact || !dataset) return;
 
@@ -172,7 +168,7 @@ export class DataOperationController {
     }
 
     if (operation === 'timeSlice') {
-      applier(artifact, dataset, this._originalDataset);
+      applier(artifact, dataset, this._originalDataset ?? undefined);
     } else {
       applier(artifact, dataset);
     }
@@ -181,9 +177,8 @@ export class DataOperationController {
   /**
    * Show a transient preview of what `operation` would do. The actual preview
    * rendering is performed by a subscriber to `WorldTopics.OPERATION_PREVIEW`.
-   * @param {string} operation
    */
-  preview(operation) {
+  preview(operation: VisualOperation | string): void {
     const artifact = this.getArtifact();
     if (!this._originalDataset || !artifact) return;
 
@@ -207,7 +202,7 @@ export class DataOperationController {
   }
 
   /** Clear any transient operation preview. */
-  clearPreview() {
+  clearPreview(): void {
     this.eventBus.emit(WorldTopics.OPERATION_CLEAR_PREVIEW);
   }
 
@@ -217,7 +212,7 @@ export class DataOperationController {
    * dashboards/TDA, logging, and emitting any UI events after the reset is
    * complete.
    */
-  reset() {
+  reset(): void {
     const artifact = this.getArtifact();
     if (!this._originalDataset || !artifact) return;
 
@@ -232,11 +227,10 @@ export class DataOperationController {
   /**
    * Undo the most recent operation. Returns the frame to restore, or null if
    * there is nothing to undo.
-   * @returns {{ operation: string, dataset: import('../../data/Dataset.ts').Dataset, parameters: object } | null}
    */
-  undo() {
+  undo(): HistoryEntry | null {
     if (!this._analysisHistory.canUndo) return null;
-    const frame = this._analysisHistory.undo();
+    const frame = this._analysisHistory.undo()!;
     this.eventBus.emit(WorldTopics.HISTORY_SEEK, {
       index: this._analysisHistory.currentIndex,
       operation: frame.operation,
@@ -248,11 +242,10 @@ export class DataOperationController {
   /**
    * Redo the next operation. Returns the frame to restore, or null if there is
    * nothing to redo.
-   * @returns {{ operation: string, dataset: import('../../data/Dataset.ts').Dataset, parameters: object } | null}
    */
-  redo() {
+  redo(): HistoryEntry | null {
     if (!this._analysisHistory.canRedo) return null;
-    const frame = this._analysisHistory.redo();
+    const frame = this._analysisHistory.redo()!;
     this.eventBus.emit(WorldTopics.HISTORY_SEEK, {
       index: this._analysisHistory.currentIndex,
       operation: frame.operation,
@@ -263,10 +256,8 @@ export class DataOperationController {
 
   /**
    * Jump to a specific history frame. Returns the frame to restore, or null.
-   * @param {number} index
-   * @returns {{ operation: string, dataset: import('../../data/Dataset.ts').Dataset, parameters: object } | null}
    */
-  seekHistory(index) {
+  seekHistory(index: number): HistoryEntry | null {
     const frame = this._analysisHistory?.seek?.(index);
     if (!frame) return null;
     this.eventBus.emit(WorldTopics.HISTORY_SEEK, {
@@ -277,7 +268,7 @@ export class DataOperationController {
     return frame;
   }
 
-  _pushAnalysisHistory(operation, datasetBefore, datasetAfter) {
+  _pushAnalysisHistory(operation: string, datasetBefore: Dataset, datasetAfter: Dataset): void {
     this._analysisHistory.push(operation, datasetBefore, datasetAfter);
     this.eventBus.emit(WorldTopics.OPERATION_APPLIED, {
       operation,

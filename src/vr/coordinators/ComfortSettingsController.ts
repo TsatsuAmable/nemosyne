@@ -3,27 +3,23 @@
  * distance) to the engine/locomotion and the analyst anchor.
  */
 
+import type { Group } from 'three';
+import type { Engine } from '../Engine.js';
+import type { ComfortSettings } from './types.ts';
+
 export class ComfortSettingsController {
-  /**
-   * @param {import('../Engine.js').Engine} engine
-   * @param {import('three').Group} analystAnchor
-   */
-  constructor(engine, analystAnchor) {
+  engine: Engine;
+  analystAnchor: Group;
+
+  constructor(engine: Engine, analystAnchor: Group) {
     this.engine = engine;
     this.analystAnchor = analystAnchor;
   }
 
   /**
    * Apply comfort settings from the settings panel.
-   * @param {object} settings
-   * @param {boolean} [settings.snapTurn]
-   * @param {number} [settings.snapTurnAngle]
-   * @param {boolean} [settings.reducedMotion]
-   * @param {number} [settings.seatedHeightOffset]
-   * @param {boolean} [settings.vignette]
-   * @param {number} [settings.vignetteIntensity]
    */
-  apply(settings = {}) {
+  apply(settings: ComfortSettings = {}): void {
     const locomotion = this.engine.locomotion;
     locomotion.setSnapTurnEnabled?.(settings.snapTurn ?? true);
     locomotion.setSnapAngle?.(((settings.snapTurnAngle ?? 30) * Math.PI) / 180);
@@ -35,9 +31,8 @@ export class ComfortSettingsController {
   /**
    * Apply the default panel distance by moving the analyst anchor forward/back.
    * Panels remain at their local positions relative to the anchor.
-   * @param {number} distance
    */
-  applyPanelDistance(distance = 1.2) {
+  applyPanelDistance(distance = 1.2): void {
     if (this.analystAnchor) {
       this.analystAnchor.position.z = -distance;
     }
