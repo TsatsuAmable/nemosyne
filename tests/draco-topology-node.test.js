@@ -2,8 +2,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.js';
-import { TopologyTypes } from '../src/draco/ConstraintEngine.js';
+import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.ts';
+import { TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 
 describe('DracoTopologyNode', () => {

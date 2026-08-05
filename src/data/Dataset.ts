@@ -34,10 +34,16 @@ export class Dataset {
   edges?: DatasetEdge[];
   _meta?: DatasetMeta;
 
-  constructor(name: string, columns: ColumnSchema[], rows: Record<string, unknown>[]) {
+  constructor(
+    name: string,
+    columns: ColumnSchema[],
+    rows: Record<string, unknown>[],
+    edges?: DatasetEdge[]
+  ) {
     this.name = name;
     this.columns = columns;
     this.rows = rows;
+    this.edges = edges;
   }
 
   get rowCount(): number {

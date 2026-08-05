@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import { SeededRandom } from '../utils/SeededRandom.js';
-import { categoricalColor, numericColor, normalize, inferEncodings } from '../data/Encodings.js';
-import { InstancedPointCloud, SpatialIndex, LODManager } from '../vr/scalability/index.js';
+import {
+  categoricalColor,
+  numericColor,
+  normalize,
+  inferEncodings,
+} from '../data/Encodings.js';
+import { InstancedPointCloud } from '../vr/scalability/index.js';
 import {
   applyResonancePulse,
   applyForkPlane,
@@ -17,28 +22,43 @@ import {
   TimeSeriesRibbonLayout,
   StreamlineLayout,
   GeoSurfaceLayout,
-} from './layouts/index.js';
+} from './layouts/index.ts';
 import { ChartPlane } from '../vr/artifacts/ChartPlane.js';
+import type { Dataset, DatasetEdge } from '../data/Dataset.ts';
+import type { EncodingMapping } from '../data/SampleDatasets.ts';
+import type {
+  Artifact,
+  DracoDataInput,
+  DracoSpec,
+  GeoEntry,
+  InteractionCallbacks,
+  LayoutEntry,
+  RadialEntry,
+  SolverResult,
+  StreamlineEntry,
+  TimeSeriesEntry,
+  VRGeometry,
+  VRInteraction,
+} from './types.ts';
 
 /**
  * Translates a Draco-style spec into a functional Three.js artifact,
  * binding real dataset values to visual channels where possible.
  */
 export class VRTopologyTranslator {
-  static synthesizeArtifact(dracoResult, dataInput) {
+  static synthesizeArtifact(dracoResult: SolverResult, dataInput: DracoDataInput): Artifact {
     const { spec, facts } = dracoResult;
     const dataset = dataInput.dataset;
     const encodings = dataInput.encodings || inferEncodings(dataset);
     const rng = new SeededRandom(dataset?.fingerprint ?? 1);
     const group = new THREE.Group();
-    const nodeMeshes = [];
-    const edgeMeshes = [];
-    const behaviors = [];
+    const nodeMeshes: THREE.Mesh[] = [];
+    const edgeMeshes: THREE.Line[] = [];
+    const behaviors: Array<(delta: number, time: number) => void> = [];
 
     const rows = dataset?.rows ?? dataInput.rows ?? [];
     const edges = dataInput.edges ?? dataset?.edges ?? [];
 
-    // Phase 7 scalable geometry paths.
     if (spec.geometry === 'INSTANCED_POINT_CLOUD') {
       this._buildInstancedPointCloud(
         group,
@@ -102,7 +122,6 @@ export class VRTopologyTranslator {
       this._buildEdges(group, edgeMeshes, nodeMeshes, edges);
     }
 
-    // Hierarchy edges: connect radial-tree parents to children.
     if (spec.layout === 'RADIAL_ORBITAL') {
       this._buildParentEdges(group, edgeMeshes, nodeMeshes);
     }
@@ -130,7 +149,7 @@ export class VRTopologyTranslator {
         break;
     }
 
-    const artifact = {
+    const artifact: Artifact = {
       group,
       nodeMeshes,
       edgeMeshes,
@@ -148,7 +167,6 @@ export class VRTopologyTranslator {
       spec,
     };
 
-    // Attach a companion ChartPlane for rich numeric or temporal datasets.
     if (facts.numericColumns > 1 || facts.hasTimeSeries) {
       const chart = ChartPlane.fromFacts(facts, dataset, {
         title: facts.hasTimeSeries ? 'Time Series' : 'Correlation',
@@ -163,7 +181,12 @@ export class VRTopologyTranslator {
     return artifact;
   }
 
-  static _makeNode(row, dataset, encodings, geometry = 'ICOSA_NODE') {
+  static _makeNode(
+    row: Record<string, unknown>,
+    dataset: Dataset | undefined,
+    encodings: EncodingMapping,
+    geometry: VRGeometry | string = 'ICOSA_NODE'
+  ): THREE.Mesh {
     let color = 0x00ffcc;
     let scale = 1;
 
@@ -171,7 +194,6 @@ export class VRTopologyTranslator {
       const col = dataset.getColumn(encodings.color);
       const value = row[encodings.color];
       if (col?.type === 'CATEGORICAL') {
-        const idx = dataset.categoricalColumns.find((c) => c.name === encodings.color);
         const unique = [...new Set(dataset.getColumnValues(encodings.color))];
         color = categoricalColor(value, unique.indexOf(value));
       } else if (col?.type === 'NUMERIC') {
@@ -188,7 +210,7 @@ export class VRTopologyTranslator {
       }
     }
 
-    let geom;
+    let geom: THREE.BufferGeometry;
     switch (geometry) {
       case 'CUBE_MATRIX':
         geom = new THREE.BoxGeometry(0.45, 0.45, 0.45);
@@ -245,7 +267,14 @@ export class VRTopologyTranslator {
     return mesh;
   }
 
-  static _buildGrid(group, nodeMeshes, rows, dataset, encodings, rng) {
+  static _buildGrid(
+    group: THREE.Group,
+    nodeMeshes: THREE.Mesh[],
+    rows: Record<string, unknown>[],
+    dataset: Dataset | undefined,
+    encodings: EncodingMapping,
+    _rng: SeededRandom
+  ): void {
     const sortKey = dataset?.numericColumns[0]?.name;
     const positions = GridLayout3D.compute(rows, { sortKey, yOffset: 1.2 });
     for (const p of positions) {
@@ -256,7 +285,15 @@ export class VRTopologyTranslator {
     }
   }
 
-  static _buildForceDirected(group, nodeMeshes, rows, dataset, encodings, rng, edges = []) {
+  static _buildForceDirected(
+    group: THREE.Group,
+    nodeMeshes: THREE.Mesh[],
+    rows: Record<string, unknown>[],
+    dataset: Dataset | undefined,
+    encodings: EncodingMapping,
+    rng: SeededRandom,
+    edges: DatasetEdge[] = []
+  ): void {
     const positions = ForceDirected3D.compute(rows, {
       edges,
       seed: dataset?.fingerprint ?? 1,
@@ -270,8 +307,15 @@ export class VRTopologyTranslator {
     }
   }
 
-  static _buildRadial(group, nodeMeshes, rows, dataset, encodings, depth) {
-    const positions = RadialTreeLayout.compute(rows, { yOffset: 1.2 });
+  static _buildRadial(
+    group: THREE.Group,
+    nodeMeshes: THREE.Mesh[],
+    rows: Record<string, unknown>[],
+    dataset: Dataset | undefined,
+    encodings: EncodingMapping,
+    _depth: number
+  ): void {
+    const positions = RadialTreeLayout.compute(rows, { yOffset: 1.2 }) as RadialEntry<Record<string, unknown>>[];
     for (const p of positions) {
       const mesh = this._makeNode(p.row, dataset, encodings, 'CONICAL_TREE');
       mesh.position.copy(p.position);
@@ -283,11 +327,18 @@ export class VRTopologyTranslator {
     }
   }
 
-  static _buildStreamlines(group, nodeMeshes, rows, dataset, encodings, rng) {
+  static _buildStreamlines(
+    group: THREE.Group,
+    nodeMeshes: THREE.Mesh[],
+    rows: Record<string, unknown>[],
+    dataset: Dataset | undefined,
+    _encodings: EncodingMapping,
+    _rng: SeededRandom
+  ): void {
     const positions = StreamlineLayout.compute(rows, {
       count: Math.min(30, Math.max(8, rows.length)),
       seed: dataset?.fingerprint ?? 1,
-    });
+    }) as StreamlineEntry<Record<string, unknown>>[];
     for (const p of positions) {
       const curve = new THREE.CatmullRomCurve3(p.points);
       const geom = new THREE.TubeGeometry(curve, 20, 0.04, 8, false);
@@ -306,7 +357,13 @@ export class VRTopologyTranslator {
     }
   }
 
-  static _buildTimeRibbon(group, nodeMeshes, rows, dataset, encodings) {
+  static _buildTimeRibbon(
+    group: THREE.Group,
+    nodeMeshes: THREE.Mesh[],
+    rows: Record<string, unknown>[],
+    dataset: Dataset | undefined,
+    encodings: EncodingMapping
+  ): void {
     if (!rows.length) return;
     const timeField = encodings.time || dataset?.temporalColumns[0]?.name || 'time';
     const valueField = encodings.size || dataset?.numericColumns[0]?.name || 'temperature';
@@ -314,10 +371,9 @@ export class VRTopologyTranslator {
       timeKey: timeField,
       valueKey: valueField,
       yOffset: 1.2,
-    });
+    }) as TimeSeriesEntry<Record<string, unknown>>[];
 
-    // Group positions by seriesId so each series becomes one ribbon tube.
-    const bySeries = {};
+    const bySeries: Record<string | number, TimeSeriesEntry<Record<string, unknown>>[]> = {};
     for (const p of positions) {
       if (!bySeries[p.seriesId]) bySeries[p.seriesId] = [];
       bySeries[p.seriesId].push(p);
@@ -344,14 +400,23 @@ export class VRTopologyTranslator {
     });
   }
 
-  static _buildEdges(group, edgeMeshes, nodeMeshes, edges) {
+  static _buildEdges(
+    group: THREE.Group,
+    edgeMeshes: THREE.Line[],
+    nodeMeshes: THREE.Mesh[],
+    edges: DatasetEdge[]
+  ): void {
     const mat = new THREE.LineBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.35 });
     for (const e of edges) {
       const src = nodeMeshes.find(
-        (m) => m.userData.row?.id === e.source || m.userData.row?.name === e.source
+        (m) =>
+          (m.userData.row as Record<string, unknown> | undefined)?.id === e.source ||
+          (m.userData.row as Record<string, unknown> | undefined)?.name === e.source
       );
       const dst = nodeMeshes.find(
-        (m) => m.userData.row?.id === e.target || m.userData.row?.name === e.target
+        (m) =>
+          (m.userData.row as Record<string, unknown> | undefined)?.id === e.target ||
+          (m.userData.row as Record<string, unknown> | undefined)?.name === e.target
       );
       if (!src || !dst) continue;
       const geo = new THREE.BufferGeometry().setFromPoints([
@@ -364,12 +429,18 @@ export class VRTopologyTranslator {
     }
   }
 
-  static _buildParentEdges(group, edgeMeshes, nodeMeshes) {
+  static _buildParentEdges(
+    group: THREE.Group,
+    edgeMeshes: THREE.Line[],
+    nodeMeshes: THREE.Mesh[]
+  ): void {
     const mat = new THREE.LineBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.35 });
     for (const mesh of nodeMeshes) {
-      const parentIdx = mesh.userData.row?._parentIndex ?? mesh.userData.row?.parentIndex;
+      const parentIdx =
+        (mesh.userData.row as Record<string, unknown> | undefined)?._parentIndex ??
+        (mesh.userData.row as Record<string, unknown> | undefined)?.parentIndex;
       if (parentIdx == null) continue;
-      const parent = nodeMeshes[parentIdx];
+      const parent = nodeMeshes[parentIdx as number];
       if (!parent) continue;
       const geo = new THREE.BufferGeometry().setFromPoints([
         parent.position.clone(),
@@ -381,28 +452,38 @@ export class VRTopologyTranslator {
     }
   }
 
-  static _buildGeoSurface(group, nodeMeshes, rows, dataset, encodings, rng) {
+  static _buildGeoSurface(
+    group: THREE.Group,
+    nodeMeshes: THREE.Mesh[],
+    rows: Record<string, unknown>[],
+    dataset: Dataset | undefined,
+    encodings: EncodingMapping,
+    _rng: SeededRandom
+  ): void {
     const valueField = encodings.size || dataset?.numericColumns[0]?.name;
     const positions = GeoSurfaceLayout.compute(rows, {
       valueKey: valueField,
       yOffset: 0.5,
-    });
+    }) as GeoEntry<Record<string, unknown>>[];
 
     for (const p of positions) {
       const mesh = this._makeNode(p.row, dataset, encodings, 'GEO_COLUMN');
       mesh.position.copy(p.position);
-      // Scale the column so its height matches the value; keep radius fixed.
       mesh.scale.y = Math.max(0.1, p.value * 0.05);
       group.add(mesh);
       nodeMeshes.push(mesh);
     }
   }
 
-  /**
-   * Compute world-space positions for the supported scalable layouts.
-   * Returns an array of { row, position } objects.
-   */
-  static _computeLayoutPositions(rows, dataset, encodings, spec, rng, edges = [], depth = 1) {
+  static _computeLayoutPositions(
+    rows: Record<string, unknown>[],
+    dataset: Dataset | undefined,
+    encodings: EncodingMapping,
+    spec: DracoSpec,
+    _rng: SeededRandom,
+    edges: DatasetEdge[] = [],
+    _depth = 1
+  ): LayoutEntry<Record<string, unknown>>[] {
     switch (spec.layout) {
       case 'GRID_3D': {
         const sortKey = encodings.size || dataset?.numericColumns[0]?.name;
@@ -437,16 +518,16 @@ export class VRTopologyTranslator {
   }
 
   static _buildInstancedPointCloud(
-    group,
-    nodeMeshes,
-    rows,
-    dataset,
-    encodings,
-    spec,
-    rng,
-    edges = [],
+    group: THREE.Group,
+    nodeMeshes: THREE.Mesh[],
+    rows: Record<string, unknown>[],
+    dataset: Dataset | undefined,
+    encodings: EncodingMapping,
+    spec: DracoSpec,
+    rng: SeededRandom,
+    edges: DatasetEdge[] = [],
     depth = 1
-  ) {
+  ): void {
     const positions = this._computeLayoutPositions(
       rows,
       dataset,
@@ -461,11 +542,17 @@ export class VRTopologyTranslator {
     const colorField =
       encodings.color || dataset?.categoricalColumns[0]?.name || dataset?.numericColumns[0]?.name;
     const sizeField = encodings.size || dataset?.numericColumns[0]?.name;
-    const colorCol = colorField ? dataset?.getColumn(colorField) : null;
-    const sizeCol = sizeField ? dataset?.getColumn(sizeField) : null;
+    if (!dataset) return;
+    const colorCol = colorField ? dataset.getColumn(colorField) : null;
+    const sizeCol = sizeField ? dataset.getColumn(sizeField) : null;
     const uniqueColors =
-      colorCol?.type === 'CATEGORICAL' ? [...new Set(dataset.getColumnValues(colorField))] : [];
-    const sizeRange = sizeCol?.type === 'NUMERIC' ? dataset.rangeOf(sizeField) : { min: 0, max: 1 };
+      colorField && colorCol?.type === 'CATEGORICAL'
+        ? [...new Set(dataset.getColumnValues(colorField))]
+        : [];
+    const sizeRange =
+      sizeField && sizeCol?.type === 'NUMERIC'
+        ? dataset.rangeOf(sizeField)
+        : { min: 0, max: 1 };
 
     const items = positions.map((p, idx) => {
       const row = p.row;
@@ -493,24 +580,28 @@ export class VRTopologyTranslator {
       };
     });
 
-    const cloud = new InstancedPointCloud(items.length, new THREE.BoxGeometry(0.06, 0.06, 0.06));
+    const CloudCtor = InstancedPointCloud as unknown as new (
+      count: number,
+      geometry?: THREE.BufferGeometry
+    ) => { mesh: THREE.Mesh; setPoints(items: unknown[]): void };
+    const cloud = new CloudCtor(items.length, new THREE.BoxGeometry(0.06, 0.06, 0.06));
     cloud.setPoints(items);
-    cloud.mesh.userData = { instancedCloud: cloud };
+    (cloud.mesh as THREE.Mesh).userData = { instancedCloud: cloud };
     group.add(cloud.mesh);
-    nodeMeshes.push(cloud.mesh);
+    nodeMeshes.push(cloud.mesh as THREE.Mesh);
   }
 
   static _buildClusterVolume(
-    group,
-    nodeMeshes,
-    rows,
-    dataset,
-    encodings,
-    spec,
-    rng,
-    edges = [],
+    group: THREE.Group,
+    nodeMeshes: THREE.Mesh[],
+    rows: Record<string, unknown>[],
+    dataset: Dataset | undefined,
+    encodings: EncodingMapping,
+    spec: DracoSpec,
+    rng: SeededRandom,
+    edges: DatasetEdge[] = [],
     depth = 1
-  ) {
+  ): void {
     const positions = this._computeLayoutPositions(
       rows,
       dataset,
@@ -525,11 +616,11 @@ export class VRTopologyTranslator {
     const colorField = encodings.color || dataset?.categoricalColumns[0]?.name;
     if (!colorField || !dataset) return;
 
-    const clusters = new Map();
+    const clusters = new Map<unknown, THREE.Vector3[]>();
     for (const p of positions) {
       const key = p.row[colorField] ?? 'unknown';
       if (!clusters.has(key)) clusters.set(key, []);
-      clusters.get(key).push(p.position);
+      clusters.get(key)!.push(p.position);
     }
 
     let clusterIdx = 0;
@@ -565,32 +656,33 @@ export class VRTopologyTranslator {
   }
 
   static _buildAggregateBars(
-    group,
-    nodeMeshes,
-    rows,
-    dataset,
-    encodings,
-    spec,
-    rng,
-    edges = [],
+    group: THREE.Group,
+    nodeMeshes: THREE.Mesh[],
+    rows: Record<string, unknown>[],
+    dataset: Dataset | undefined,
+    encodings: EncodingMapping,
+    spec: DracoSpec,
+    rng: SeededRandom,
+    edges: DatasetEdge[] = [],
     depth = 1
-  ) {
+  ): void {
     if (spec.layout === 'GEO_SURFACE') {
       const catField = encodings.color || dataset?.categoricalColumns[0]?.name;
       const valueField = encodings.size || dataset?.numericColumns[0]?.name;
       if (!catField || !dataset) return;
 
-      const groups = new Map();
+      interface AggregateGroup {
+        rows: Record<string, unknown>[];
+      }
+      const groups = new Map<unknown, AggregateGroup>();
       for (const row of rows) {
         const key = row[catField] ?? 'unknown';
-        if (!groups.has(key)) groups.set(key, { rows: [], positions: [], values: [] });
-        const g = groups.get(key);
-        g.rows.push(row);
+        if (!groups.has(key)) groups.set(key, { rows: [] });
+        groups.get(key)!.rows.push(row);
       }
 
-      // Compute per-group geo positions and aggregate values.
-      const geoPositions = GeoSurfaceLayout.compute(rows, { valueKey: valueField, yOffset: 0.5 });
-      const byRow = new Map();
+      const geoPositions = GeoSurfaceLayout.compute(rows, { valueKey: valueField, yOffset: 0.5 }) as GeoEntry<Record<string, unknown>>[];
+      const byRow = new Map<Record<string, unknown>, GeoEntry<Record<string, unknown>>>();
       for (const p of geoPositions) byRow.set(p.row, p);
 
       for (const [key, g] of groups) {
@@ -601,7 +693,7 @@ export class VRTopologyTranslator {
           const p = byRow.get(row);
           if (!p) continue;
           center.add(p.position);
-          valueSum += Number(p.value) || Number(row[valueField]) || 0;
+          valueSum += Number(p.value) || Number(row[valueField as string]) || 0;
           count++;
         }
         if (count === 0) continue;
@@ -629,7 +721,6 @@ export class VRTopologyTranslator {
       return;
     }
 
-    // Fallback for unsupported layouts: render as instanced point cloud.
     this._buildInstancedPointCloud(
       group,
       nodeMeshes,
@@ -643,14 +734,11 @@ export class VRTopologyTranslator {
     );
   }
 
-  /**
-   * Incrementally append new rows to an existing artifact when possible.
-   * Currently optimized for TIME_RIBBON: rebuilds only the affected series
-   * ribbons instead of the whole palace. For other layouts it falls back to
-   * a full re-solve signal (returns false).
-   * @returns {boolean} true if incremental update succeeded
-   */
-  static appendRowsToArtifact(artifact, newRows, dataInput) {
+  static appendRowsToArtifact(
+    artifact: Artifact | undefined,
+    newRows: Record<string, unknown>[],
+    dataInput: DracoDataInput
+  ): boolean {
     if (!artifact || !newRows?.length) return false;
     if (artifact.spec?.layout !== 'TIME_RIBBON') return false;
 
@@ -659,29 +747,36 @@ export class VRTopologyTranslator {
     const timeField = encodings.time || dataset?.temporalColumns[0]?.name || 'time';
     const valueField = encodings.size || dataset?.numericColumns[0]?.name || 'temperature';
 
-    const group = artifact.group;
-    const bySeries = {};
+    const bySeries: Record<string | number, Record<string, unknown>[]> = {};
     for (const row of newRows) {
-      const id = row.sensorId || 'S';
+      const id = (row.sensorId as string | number) || 'S';
       if (!bySeries[id]) bySeries[id] = [];
       bySeries[id].push(row);
     }
 
     for (const [id, sRows] of Object.entries(bySeries)) {
-      const existingMesh = artifact.nodeMeshes.find((m) => m.userData.row?.series === id);
+      const existingMesh = artifact.nodeMeshes.find(
+        (m) => (m.userData.row as Record<string, unknown> | undefined)?.series === id
+      );
       if (!existingMesh) continue;
 
-      const existingPoints = existingMesh.geometry.parameters?.path?.points || [];
+      const existingPoints =
+        ((existingMesh.geometry as THREE.TubeGeometry).parameters?.path as { points?: THREE.Vector3[] } | undefined)
+          ?.points || [];
       const startIdx = existingPoints.length;
       const newPoints = sRows
         .slice()
-        .sort((a, b) => new Date(a[timeField]) - new Date(b[timeField]))
+        .sort(
+          (a, b) =>
+            new Date(a[timeField] as string | number | Date).getTime() -
+            new Date(b[timeField] as string | number | Date).getTime()
+        )
         .map((r, idx) => {
           const value = Number(r[valueField]) || 0;
           return new THREE.Vector3(
             (startIdx + idx) * 0.8 - 2,
             value * 0.2,
-            (existingMesh.userData.seriesIndex || 0) * 1.5 - 2
+            ((existingMesh.userData.seriesIndex as number) || 0) * 1.5 - 2
           );
         });
       if (newPoints.length === 0) continue;
@@ -696,69 +791,102 @@ export class VRTopologyTranslator {
     return true;
   }
 
-  static _makeInteractions(interactionType, group, nodeMeshes, edgeMeshes, rows, edges) {
+  static _makeInteractions(
+    interactionType: VRInteraction,
+    group: THREE.Group,
+    nodeMeshes: THREE.Mesh[],
+    edgeMeshes: THREE.Line[],
+    rows: Record<string, unknown>[],
+    edges: DatasetEdge[]
+  ): InteractionCallbacks {
     const base = {
-      onHover: (mesh) => {
-        if (mesh.material?.emissiveIntensity !== undefined) {
-          mesh.material.emissiveIntensity = 2.0;
-        } else if (mesh.userData?.instancedCloud) {
-          mesh.material.opacity = Math.min(1, mesh.material.opacity + 0.25);
+      onHover: (mesh: THREE.Mesh) => {
+        if ((mesh.material as THREE.MeshStandardMaterial | undefined)?.emissiveIntensity !== undefined) {
+          (mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 2.0;
+        } else if ((mesh.userData as { instancedCloud?: unknown }).instancedCloud) {
+          (mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(
+            1,
+            (mesh.material as THREE.MeshBasicMaterial).opacity + 0.25
+          );
         } else if (mesh.material) {
-          mesh.userData._originalOpacity = mesh.material.opacity;
-          mesh.material.opacity = Math.min(1, mesh.material.opacity + 0.4);
+          (mesh.userData as { _originalOpacity?: number })._originalOpacity = (
+            mesh.material as THREE.Material
+          ).opacity;
+          (mesh.material as THREE.Material).opacity = Math.min(
+            1,
+            (mesh.material as THREE.Material).opacity + 0.4
+          );
         }
       },
-      onUnhover: (mesh) => {
-        if (mesh.material?.emissiveIntensity !== undefined) {
-          mesh.material.emissiveIntensity = 0.3;
-        } else if (mesh.userData?._originalOpacity !== undefined && mesh.material) {
-          mesh.material.opacity = mesh.userData._originalOpacity;
+      onUnhover: (mesh: THREE.Mesh) => {
+        if ((mesh.material as THREE.MeshStandardMaterial | undefined)?.emissiveIntensity !== undefined) {
+          (mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.3;
+        } else if (
+          mesh.material &&
+          (mesh.userData as { _originalOpacity?: number })._originalOpacity !== undefined
+        ) {
+          (mesh.material as THREE.Material).opacity = (mesh.userData as { _originalOpacity: number })._originalOpacity;
         }
       },
-      onSelect: (mesh) => {
-        if (mesh.material?.emissiveIntensity !== undefined) {
-          mesh.material.emissiveIntensity = 3.0;
+      onSelect: (mesh: THREE.Mesh) => {
+        if ((mesh.material as THREE.MeshStandardMaterial | undefined)?.emissiveIntensity !== undefined) {
+          (mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 3.0;
         } else if (mesh.material) {
-          mesh.userData._originalOpacity = mesh.material.opacity;
-          mesh.material.opacity = Math.min(1, mesh.material.opacity + 0.6);
+          (mesh.userData as { _originalOpacity?: number })._originalOpacity = (
+            mesh.material as THREE.Material
+          ).opacity;
+          (mesh.material as THREE.Material).opacity = Math.min(
+            1,
+            (mesh.material as THREE.Material).opacity + 0.6
+          );
         }
       },
     };
 
-    const meshList = nodeMeshes.filter((m) => !(m instanceof THREE.InstancedMesh));
-    const others = (target) => meshList.filter((m) => m !== target);
+    const meshList = nodeMeshes.filter((m) => !(m instanceof THREE.InstancedMesh)
+    );
+    const others = (target: THREE.Mesh) => meshList.filter((m) => m !== target);
 
     switch (interactionType) {
       case 'RESONANCE_PULSE':
         return {
           ...base,
           type: interactionType,
-          onSelect: (mesh) => {
+          onSelect: (mesh: THREE.Mesh) => {
             base.onSelect(mesh);
-            // Pulse to connected edge partners if available.
-            const partners = [];
+            const partners: THREE.Mesh[] = [];
             if (edges?.length && mesh.userData.row) {
-              const row = mesh.userData.row;
-              const id = row.id ?? row.name;
+              const row = mesh.userData.row as Record<string, unknown>;
+              const id = (row.id ?? row.name) as string | number;
               for (const e of edges) {
-                if (e.source === id)
-                  partners.push(
-                    meshList.find((m) => (m.userData.row?.id ?? m.userData.row?.name) === e.target)
+                if (e.source === id) {
+                  const partner = meshList.find(
+                    (m) =>
+                      ((m.userData.row as Record<string, unknown> | undefined)?.id ??
+                        (m.userData.row as Record<string, unknown> | undefined)?.name) ===
+                      e.target
                   );
-                if (e.target === id)
-                  partners.push(
-                    meshList.find((m) => (m.userData.row?.id ?? m.userData.row?.name) === e.source)
+                  if (partner) partners.push(partner);
+                }
+                if (e.target === id) {
+                  const partner = meshList.find(
+                    (m) =>
+                      ((m.userData.row as Record<string, unknown> | undefined)?.id ??
+                        (m.userData.row as Record<string, unknown> | undefined)?.name) ===
+                      e.source
                   );
+                  if (partner) partners.push(partner);
+                }
               }
             }
-            applyResonancePulse(group, mesh, partners.filter(Boolean));
+            applyResonancePulse(group, mesh, partners);
           },
         };
       case 'FORK_PLANE':
         return {
           ...base,
           type: interactionType,
-          onSelect: (mesh) => {
+          onSelect: (mesh: THREE.Mesh) => {
             base.onSelect(mesh);
             applyForkPlane(group, mesh);
           },
@@ -767,7 +895,7 @@ export class VRTopologyTranslator {
         return {
           ...base,
           type: interactionType,
-          onSelect: (mesh) => {
+          onSelect: (mesh: THREE.Mesh) => {
             base.onSelect(mesh);
             applyChronoDial(group, mesh);
           },
@@ -776,7 +904,7 @@ export class VRTopologyTranslator {
         return {
           ...base,
           type: interactionType,
-          onSelect: (mesh) => {
+          onSelect: (mesh: THREE.Mesh) => {
             base.onSelect(mesh);
             applyConstellation(group, mesh, others(mesh).slice(0, 8));
           },
@@ -785,7 +913,7 @@ export class VRTopologyTranslator {
         return {
           ...base,
           type: interactionType,
-          onSelect: (mesh) => {
+          onSelect: (mesh: THREE.Mesh) => {
             base.onSelect(mesh);
             applyBeacon(group, mesh);
           },
@@ -794,7 +922,7 @@ export class VRTopologyTranslator {
         return {
           ...base,
           type: interactionType,
-          onSelect: (mesh) => {
+          onSelect: (mesh: THREE.Mesh) => {
             base.onSelect(mesh);
             applyAleph(group, mesh, others(mesh));
           },

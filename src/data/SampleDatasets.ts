@@ -1,4 +1,5 @@
 import { Dataset, ColumnType } from './Dataset.ts';
+import type { TopologyType, EncodingMapping } from './types.ts';
 import {
   makeSalesTable,
   makeOrgChart,
@@ -9,13 +10,7 @@ import {
   makeFlowProcess,
 } from './SyntheticData.ts';
 
-export type TopologyType =
-  | 'HIERARCHY'
-  | 'GRAPH'
-  | 'TIME_SERIES'
-  | 'TABULAR'
-  | 'VECTOR_FIELD'
-  | 'GEO';
+export type { TopologyType, EncodingMapping } from './types.ts';
 
 export interface SampleDatasetEntry {
   key: string;
@@ -23,14 +18,6 @@ export interface SampleDatasetEntry {
   dataset: Dataset;
   topology: TopologyType;
   depth?: number;
-}
-
-export interface EncodingMapping {
-  color?: string;
-  size?: string;
-  pulse?: string;
-  time?: string;
-  label?: string;
 }
 
 export const supplyChainHierarchy = new Dataset(
@@ -163,8 +150,11 @@ export function getSampleDataset(key: string): SampleDatasetEntry | undefined {
 }
 
 /** Infer default encodings for a sample entry. */
-export function getDefaultEncodings(entry: SampleDatasetEntry): EncodingMapping {
+export function getDefaultEncodings(entry: { dataset?: Dataset; topology?: TopologyType }): EncodingMapping {
   const ds = entry.dataset;
+  if (!ds) {
+    return {};
+  }
   switch (entry.topology) {
     case 'HIERARCHY':
       return {

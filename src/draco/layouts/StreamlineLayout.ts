@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { LayoutBase } from './LayoutBase.js';
+import { LayoutBase } from './LayoutBase.ts';
 import { SeededRandom } from '../../utils/SeededRandom.js';
+import type { LayoutEntry, StreamlineEntry, StreamlineOptions } from '../types.ts';
 
 /**
  * Generate vector-field streamlines as Catmull-Rom curves.
@@ -9,7 +10,10 @@ import { SeededRandom } from '../../utils/SeededRandom.js';
  * magnitude. The layout emits a path of points per streamline.
  */
 export class StreamlineLayout extends LayoutBase {
-  static compute(rows = [], options = {}) {
+  static compute<T = Record<string, unknown>>(
+    rows: T[] = [],
+    options: StreamlineOptions = {}
+  ): LayoutEntry<T>[] {
     const {
       count = Math.min(30, Math.max(8, rows.length)),
       steps = 3,
@@ -19,7 +23,7 @@ export class StreamlineLayout extends LayoutBase {
     } = options;
 
     const rng = new SeededRandom(seed);
-    const out = [];
+    const out: StreamlineEntry<T>[] = [];
 
     for (let i = 0; i < count; i++) {
       const start = new THREE.Vector3(
@@ -27,11 +31,10 @@ export class StreamlineLayout extends LayoutBase {
         rng.range(bounds.y[0], bounds.y[1]),
         rng.range(bounds.z[0], bounds.z[1])
       );
-      const points = [start.clone()];
+      const points: THREE.Vector3[] = [start.clone()];
 
       for (let s = 0; s < steps; s++) {
         const prev = points[points.length - 1];
-        // Deterministic pseudo-vector field: curl-noise-ish direction.
         const dir = new THREE.Vector3(
           Math.sin(prev.z * 0.7 + i) * 0.8,
           0.2 + Math.cos(prev.x * 0.5 + i) * 0.2,
@@ -43,7 +46,7 @@ export class StreamlineLayout extends LayoutBase {
       out.push({
         position: points[0].clone(),
         points,
-        row: rows[i] ?? {},
+        row: rows[i] ?? ({} as T),
         index: i,
       });
     }

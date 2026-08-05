@@ -1,12 +1,16 @@
 import * as THREE from 'three';
-import { LayoutBase } from './LayoutBase.js';
+import { LayoutBase } from './LayoutBase.ts';
+import type { LayoutEntry, RadialEntry, RadialTreeOptions } from '../types.ts';
 
 /**
  * Place hierarchical rows on concentric rings by level. Parent-child edges
  * can be inferred from the optional parentKey field or from row order.
  */
 export class RadialTreeLayout extends LayoutBase {
-  static compute(rows = [], options = {}) {
+  static compute<T = Record<string, unknown>>(
+    rows: T[] = [],
+    options: RadialTreeOptions = {}
+  ): LayoutEntry<T>[] {
     const {
       levelKey = 'level',
       parentKey,
@@ -15,10 +19,10 @@ export class RadialTreeLayout extends LayoutBase {
       yOffset = 1.2,
     } = options;
 
-    const byLevel = {};
+    const byLevel: Record<number, { row: T; index: number }[]> = {};
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const lvl = Number(row[levelKey] ?? 0);
+      const lvl = Number((row as Record<string, unknown>)[levelKey] ?? 0);
       if (!byLevel[lvl]) byLevel[lvl] = [];
       byLevel[lvl].push({ row, index: i });
     }
@@ -27,12 +31,10 @@ export class RadialTreeLayout extends LayoutBase {
       .map(Number)
       .sort((a, b) => a - b);
 
-    const out = [];
-    const parents = [];
+    const out: RadialEntry<T>[] = [];
 
     for (const lvl of levels) {
       const ringRows = byLevel[lvl];
-      // Level 0 sits at the center; deeper levels move outward.
       const radius = lvl === 0 ? 0 : lvl * ringSpacing;
       const count = ringRows.length;
       const y = lvl * yStep + yOffset;
@@ -42,7 +44,7 @@ export class RadialTreeLayout extends LayoutBase {
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
         const item = ringRows[i];
-        const entry = {
+        const entry: RadialEntry<T> = {
           position: new THREE.Vector3(x, y, z),
           row: item.row,
           index: item.index,
@@ -50,13 +52,14 @@ export class RadialTreeLayout extends LayoutBase {
         };
 
         if (parentKey) {
-          const parentId = item.row[parentKey];
+          const parentId = (item.row as Record<string, unknown>)[parentKey];
           if (parentId != null) {
-            const parent = out.find((p) => this.rowId(p.row) === parentId);
+            const parent = out.find(
+              (p) => this.rowId(p.row as Record<string, unknown>) === parentId
+            );
             if (parent) entry.parentIndex = parent.index;
           }
         } else if (lvl > 0) {
-          // Fallback: assign to the previous ring node with the closest angle.
           const prev = out.filter((p) => p.level === lvl - 1);
           if (prev.length) {
             let best = prev[0];

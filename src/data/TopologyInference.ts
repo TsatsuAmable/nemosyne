@@ -1,4 +1,4 @@
-import { TopologyTypes } from '../draco/ConstraintEngine.js';
+import { TopologyTypes } from '../draco/ConstraintEngine.ts';
 import type { Dataset } from './Dataset.ts';
 import type { ColumnSchema } from './types.ts';
 

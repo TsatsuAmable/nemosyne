@@ -1,6 +1,6 @@
 import { Engine } from './Engine.js';
-import { DracoTopologyNode } from '../draco/DracoTopologyNode.js';
-import { DracoDiagnosticHUD } from '../draco/DracoDiagnosticHUD.js';
+import { DracoTopologyNode } from '../draco/DracoTopologyNode.ts';
+import { DracoDiagnosticHUD } from '../draco/DracoDiagnosticHUD.ts';
 import { TooltipManager } from './ui/TooltipManager.js';
 import { ChartPlanePanel } from './ui/ChartPlanePanel.js';
 import { FileLoaderUI } from '../ui/FileLoader.js';
@@ -10,7 +10,7 @@ import {
   getDefaultEncodings,
 } from '../data/SampleDatasets.ts';
 import { ANALYSIS_TEMPLATES, resolveTemplate } from '../data/AnalysisTemplates.js';
-import { TopologyTypes } from '../draco/ConstraintEngine.js';
+import { TopologyTypes } from '../draco/ConstraintEngine.ts';
 import { disposeObject } from '../utils/Dispose.js';
 import { downloadDataUrl, downloadText } from '../utils/Download.js';
 import { LiveStreamCoordinator } from './coordinators/LiveStreamCoordinator.js';

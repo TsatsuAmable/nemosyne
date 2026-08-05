@@ -22,7 +22,7 @@
     "rootDir": ".",
     "types": ["vitest/globals", "node"],
     "paths": {
-      "three": ["./node_modules/three"]
+      "three": ["./node_modules/@types/three"]
     }
   },
   "include": ["src/**/*", "tests/**/*"],
