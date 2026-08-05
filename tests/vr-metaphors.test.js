@@ -12,7 +12,7 @@ import {
   applyConstellation,
   applyBeacon,
   applyAleph,
-} from '../src/vr/interactions/MetaphorActions.js';
+} from '../src/vr/interactions/MetaphorActions.ts';
 
 function makeGraphDataset(count) {
   const rows = Array.from({ length: count }, (_, i) => ({

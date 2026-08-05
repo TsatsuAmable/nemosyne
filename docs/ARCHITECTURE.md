@@ -103,8 +103,8 @@ A gradually expanding Rust runtime compiled to WebAssembly. Phase 0 establishes 
 
 ### 6. Interaction Layer (`src/vr/interactions/`)
 
-- **DataOperations.js** — maps dataset operations (filter, sort, aggregate, cluster, slice) to artefact transforms.
-- **MetaphorActions.js** — Phase 7 transient spatial effects: Resonance Pulse, Fork Plane, Chrono Dial, Constellation, Beacon, Aleph.
+- **DataOperations.ts** — maps dataset operations (filter, sort, aggregate, cluster, slice) to artefact transforms.
+- **MetaphorActions.ts** — Phase 7 transient spatial effects: Resonance Pulse, Fork Plane, Chrono Dial, Constellation, Beacon, Aleph.
 
 ### 7. Scalability Layer (`src/vr/scalability/`)
 
@@ -170,4 +170,4 @@ A gradually expanding Rust runtime compiled to WebAssembly. Phase 0 establishes 
 - New constraints: register rules in `ConstraintEngine`; expose new facts in `extractFacts`.
 - New scalable renderers: add them under `src/vr/scalability/` and reference them in `VRTopologyTranslator`.
 - New live sources: add entries to `OpenDataSources.js`.
-- New interactions: extend `DataOperations.js`, `MetaphorActions.js`, and the hand wheel menu.
+- New interactions: extend `DataOperations.ts`, `MetaphorActions.ts`, and the hand wheel menu.

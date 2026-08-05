@@ -3,21 +3,22 @@
  * by hand tracking. Keeps the concrete mapper outside of `InputRouter` so the
  * router does not need to know gesture-recognition internals.
  */
-export class ControllerGestureBridge {
-  constructor() {
-    this.mapper = null;
-  }
 
-  setMapper(mapper) {
+import type { ControllerGestureMapperLike, PointerLike } from '../coordinators/types.ts';
+
+export class ControllerGestureBridge {
+  mapper: ControllerGestureMapperLike | null = null;
+
+  setMapper(mapper: ControllerGestureMapperLike | null) {
     this.mapper = mapper;
   }
 
   /**
    * Tick the mapper with the current controllers and XR session.
    */
-  update(controllers, session, time) {
+  update(controllers: unknown, session: XRSession | null, time: number) {
     if (this.mapper && session) {
-      this.mapper.update(controllers, session, time);
+      this.mapper.update(controllers as PointerLike[], session, time);
     }
   }
 }

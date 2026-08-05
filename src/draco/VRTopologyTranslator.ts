@@ -14,7 +14,7 @@ import {
   applyConstellation,
   applyBeacon,
   applyAleph,
-} from '../vr/interactions/MetaphorActions.js';
+} from '../vr/interactions/MetaphorActions.ts';
 import {
   GridLayout3D,
   ForceDirected3D,

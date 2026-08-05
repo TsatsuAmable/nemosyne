@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { InPlaceOperationHandles } from '../src/vr/interactions/InPlaceOperationHandles.js';
+import { InPlaceOperationHandles } from '../src/vr/interactions/InPlaceOperationHandles.ts';
 import { Dataset } from '../src/data/Dataset.ts';
 
 function makeMesh(name = 'node', x = 0, y = 0, z = -2) {

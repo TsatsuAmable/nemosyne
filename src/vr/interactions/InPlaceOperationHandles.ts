@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 /**
  * World-space, in-place operation handles for common data-analysis actions.
  *
@@ -11,8 +9,58 @@ import * as THREE from 'three';
  * Handles are implemented as lightweight THREE.Sprite quads so they always
  * face the user, with simple hit testing via InputRouter interactables.
  */
+
+import * as THREE from 'three';
+
+interface DracoNodeLike {
+  artifact?: { nodeMeshes?: THREE.Mesh[] } | undefined;
+  dataInput?: { topology?: string } | undefined;
+}
+
+interface HandleCallbacks {
+  onEnter?: () => void;
+  onLeave?: () => void;
+  onSelect?: () => void;
+}
+
+interface InputRouterLike {
+  addInteractable: (object: THREE.Object3D, callbacks: HandleCallbacks) => void;
+  removeInteractable: (object: THREE.Object3D) => void;
+}
+
+interface OperationHandle {
+  anchorMesh: THREE.Mesh;
+  operation: string;
+  sprite: THREE.Sprite;
+  baseOffset: THREE.Vector3;
+  hover: boolean;
+}
+
+interface InPlaceOptions {
+  onOperation?: (operation: string) => void;
+  onOperationHover?: (operation: string) => void;
+  onOperationLeave?: (operation: string) => void;
+  userMode?: 'novice' | 'expert';
+  enabled?: boolean;
+}
+
 export class InPlaceOperationHandles {
-  constructor(scene, camera, options = {}) {
+  scene: THREE.Scene;
+  camera: THREE.Camera;
+  onOperation: (operation: string) => void;
+  onOperationHover: (operation: string) => void;
+  onOperationLeave: (operation: string) => void;
+  userMode: 'novice' | 'expert';
+  enabled: boolean;
+
+  private _handles: OperationHandle[] = [];
+  private _fadeState = new Map<OperationHandle, number>();
+  private _tempPos = new THREE.Vector3();
+  private _cameraPos = new THREE.Vector3();
+  private _raycaster = new THREE.Raycaster();
+  private _spriteMaterialCache = new Map<string, THREE.SpriteMaterial>();
+
+  constructor(scene: THREE.Scene, camera: THREE.Camera, options: InPlaceOptions = {}) {
     this.scene = scene;
     this.camera = camera;
     this.onOperation = options.onOperation ?? (() => {});
@@ -20,41 +68,37 @@ export class InPlaceOperationHandles {
     this.onOperationLeave = options.onOperationLeave ?? (() => {});
     this.userMode = options.userMode ?? 'novice';
     this.enabled = options.enabled ?? true;
-    this._handles = [];
-    this._fadeState = new Map();
-
-    this._tempPos = new THREE.Vector3();
-    this._cameraPos = new THREE.Vector3();
-    this._raycaster = new THREE.Raycaster();
     this._raycaster.camera = camera;
-
-    this._spriteMaterialCache = new Map();
   }
 
-  setUserMode(mode) {
+  setUserMode(mode: 'novice' | 'expert') {
     this.userMode = mode;
   }
 
-  setEnabled(enabled) {
+  setEnabled(enabled: boolean) {
     this.enabled = enabled;
     for (const h of this._handles) {
-      h.sprite.visible = enabled && this._fadeState.get(h) > 0.01;
+      h.sprite.visible = enabled && (this._fadeState.get(h) ?? 0) > 0.01;
     }
   }
 
   clear() {
     for (const h of this._handles) {
       this.scene.remove(h.sprite);
-      h.sprite.material.map?.dispose();
-      h.sprite.material.dispose();
+      const mat = h.sprite.material as THREE.SpriteMaterial;
+      mat.map?.dispose();
+      mat.dispose();
     }
     this._handles = [];
     this._fadeState.clear();
-    for (const mat of this._spriteMaterialCache.values()) mat.map?.dispose();
+    for (const mat of this._spriteMaterialCache.values()) {
+      mat.map?.dispose();
+      mat.dispose();
+    }
     this._spriteMaterialCache.clear();
   }
 
-  build(dracoNode) {
+  build(dracoNode: DracoNodeLike) {
     this.clear();
     if (!dracoNode?.artifact) return;
 
@@ -76,7 +120,7 @@ export class InPlaceOperationHandles {
     }
   }
 
-  _addHandle(anchorMesh, operation, icon) {
+  private _addHandle(anchorMesh: THREE.Mesh | undefined, operation: string, icon: string) {
     if (!anchorMesh) return;
     const mat = this._getSpriteMaterial(operation, icon);
     const sprite = new THREE.Sprite(mat);
@@ -84,7 +128,7 @@ export class InPlaceOperationHandles {
     sprite.visible = this.enabled;
     this.scene.add(sprite);
 
-    const handle = {
+    const handle: OperationHandle = {
       anchorMesh,
       operation,
       sprite,
@@ -96,14 +140,14 @@ export class InPlaceOperationHandles {
     this._fadeState.set(handle, 0);
   }
 
-  _getSpriteMaterial(operation, icon) {
-    if (this._spriteMaterialCache.has(operation)) {
-      return this._spriteMaterialCache.get(operation);
-    }
+  private _getSpriteMaterial(operation: string, icon: string): THREE.SpriteMaterial {
+    const cached = this._spriteMaterialCache.get(operation);
+    if (cached) return cached;
+
     const canvas = document.createElement('canvas');
     canvas.width = 128;
     canvas.height = 128;
-    const ctx = canvas.getContext('2d') || this._createMockContext();
+    const ctx = (canvas.getContext('2d') || this._createMockContext()) as CanvasRenderingContext2D;
 
     ctx.fillStyle = 'rgba(4, 12, 24, 0.92)';
     ctx.fillRect(0, 0, 128, 128);
@@ -135,7 +179,7 @@ export class InPlaceOperationHandles {
     return mat;
   }
 
-  update(delta, time, pointerRay) {
+  update(delta: number, _time: number, pointerRay: THREE.Ray | undefined) {
     this.camera.getWorldPosition(this._cameraPos);
 
     for (const handle of this._handles) {
@@ -150,7 +194,7 @@ export class InPlaceOperationHandles {
       // Compute desired opacity based on gaze/proximity.
       let targetOpacity = 0.35;
       if (this.userMode === 'expert') targetOpacity = 0;
-      if (this._isPointerNear(handle, pointerRay)) targetOpacity = 0.95;
+      if (pointerRay && this._isPointerNear(handle, pointerRay)) targetOpacity = 0.95;
       else if (this._isHandNear(handle)) targetOpacity = 0.75;
 
       // Fade to target.
@@ -159,30 +203,30 @@ export class InPlaceOperationHandles {
       fade += (targetOpacity - fade) * Math.min(1, rate);
       this._fadeState.set(handle, fade);
 
-      handle.sprite.material.opacity = Math.max(0, fade);
+      const mat = handle.sprite.material as THREE.SpriteMaterial;
+      mat.opacity = Math.max(0, fade);
       handle.sprite.visible = this.enabled && fade > 0.01;
     }
   }
 
-  _isPointerNear(handle, pointerRay) {
-    if (!pointerRay) return false;
+  private _isPointerNear(handle: OperationHandle, pointerRay: THREE.Ray): boolean {
     this._raycaster.ray.copy(pointerRay);
     const hits = this._raycaster.intersectObject(handle.sprite, false);
     return hits.length > 0;
   }
 
-  _isHandNear(handle) {
+  private _isHandNear(_handle: OperationHandle): boolean {
     // No direct hand position available here; rely on caller to tell us via
     // pointer proximity. The InputRouter hover path is authoritative.
     return false;
   }
 
   /** Fire the operation bound to a handle; called by InputRouter selection. */
-  activate(operation) {
+  activate(operation: string) {
     this.onOperation(operation);
   }
 
-  registerInteractables(router) {
+  registerInteractables(router: InputRouterLike) {
     for (const handle of this._handles) {
       router.addInteractable(handle.sprite, {
         onEnter: () => {
@@ -200,26 +244,26 @@ export class InPlaceOperationHandles {
     }
   }
 
-  unregisterInteractables(router) {
+  unregisterInteractables(router: InputRouterLike) {
     for (const handle of this._handles) {
       router.removeInteractable(handle.sprite);
     }
   }
 
-  _createMockContext() {
+  private _createMockContext(): CanvasRenderingContext2D {
     const noOp = () => {};
     return {
       fillRect: noOp,
       strokeRect: noOp,
       fillText: noOp,
       measureText: () => ({ width: 0 }),
-      set fillStyle(_) {},
-      set strokeStyle(_) {},
-      set lineWidth(_) {},
-      set font(_) {},
-      set textAlign(_) {},
-      set textBaseline(_) {},
-      createRadialGradient: () => ({ addColorStop: noOp }),
-    };
+      set fillStyle(_: string) {},
+      set strokeStyle(_: string) {},
+      set lineWidth(_: number) {},
+      set font(_: string) {},
+      set textAlign(_: string) {},
+      set textBaseline(_: string) {},
+      createRadialGradient: () => ({ addColorStop: noOp } as unknown as CanvasGradient),
+    } as unknown as CanvasRenderingContext2D;
   }
 }

@@ -42,8 +42,10 @@ Convert the entire Nemosyne JavaScript source tree to TypeScript module by modul
   - `src/draco/layouts/StreamlineLayout.ts`
   - `src/draco/layouts/index.ts`
 - [x] `src/vr/coordinators/*.js` → `.ts`.
-  - `src/vr/coordinators/types.ts` plus all coordinator classes.
-- [ ] `src/vr/input/` and `src/vr/interactions/` TypeScript conversion.
+- [x] `src/vr/input/*.js` → `.ts`.
+  - PointerEventMachine, PointerRegistry, InteractableRegistry, SystemGestureDetector, ControllerGestureBridge, SelectionDispatcher.
+- [x] `src/vr/interactions/*.js` → `.ts`.
+  - ControllerGestureMapper, HandGestureRecognizer, DataOperations, ClusterTransforms, AnomalyTransforms, LivePreview, InPlaceOperationHandles, MetaphorActions.
 - [ ] `src/vr/artifacts/`, `src/vr/ui/`, `src/vr/audio/`.
 - [ ] `src/vr/Engine.js`, `src/vr/World.js`, `src/vr/Locomotion.js`, `src/vr/DesktopControls.js`, `src/vr/Controllers.js`, `src/vr/Hands.js`.
 - [ ] `src/utils/`, `src/network/`, `src/analytics/`, `src/ui/`, `src/main.js`.
@@ -61,42 +63,55 @@ Convert the entire Nemosyne JavaScript source tree to TypeScript module by modul
    - `npx vitest run` (or the affected test files)
    - `npm run build`
 
-## Next increment: `src/vr/input/` and `src/vr/interactions/`
+## Next increment: `src/vr/artifacts/`, `src/vr/ui/`, `src/vr/audio/`
 
-The data and Draco layers and the `src/vr/coordinators/` refactor are fully typed and green. The next small, low-risk increment is the input and interaction subsystems:
+The data, Draco, coordinator, input, and interaction layers are now fully typed and green. The next increment is the artefact, UI, and audio subsystems. These are the largest remaining consumers of the typed coordinator and input classes, and they directly produce the rendered scene and panels.
 
-- `src/vr/input/PointerEventMachine.js`
-- `src/vr/input/PointerRegistry.js`
-- `src/vr/input/InteractableRegistry.js`
-- `src/vr/input/SystemGestureDetector.js`
-- `src/vr/input/ControllerGestureBridge.js`
-- `src/vr/input/SelectionDispatcher.js`
-- `src/vr/interactions/ControllerGestureMapper.js`
-- `src/vr/interactions/HandGestureRecognizer.js`
-- `src/vr/interactions/DataOperations.js`
-- `src/vr/interactions/ClusterTransforms.js`
-- `src/vr/interactions/AnomalyTransforms.js`
-- `src/vr/interactions/LivePreview.js`
-- `src/vr/interactions/InPlaceOperationHandles.js`
-- `src/vr/interactions/MetaphorActions.js`
+- `src/vr/artifacts/DatumPlane.js`
+- `src/vr/artifacts/TechnoCoreNode.js`
+- `src/vr/artifacts/FarcasterPortal.js`
+- `src/vr/artifacts/HolographicInspector.js`
+- `src/vr/artifacts/DataCard.js`
+- `src/vr/artifacts/ChartPlane.js`
+- `src/vr/artifacts/TDAPlanes.js`
+- `src/vr/artifacts/IceVaultNode.js`
+- `src/vr/ui/MovablePanel.js`
+- `src/vr/ui/PanelManager.js`
+- `src/vr/ui/VRMenu.js`
+- `src/vr/ui/HandWheelMenu.js`
+- `src/vr/ui/VRConsole.js`
+- `src/vr/ui/DashboardManager.js`
+- `src/vr/ui/ChartPlanePanel.js`
+- `src/vr/ui/NetworkPanel.js`
+- `src/vr/ui/OperationLogPanel.js`
+- `src/vr/ui/PerformancePanel.js`
+- `src/vr/ui/TelemetryPanel.js`
+- `src/vr/ui/SettingsPanel.js`
+- `src/vr/ui/InteractionCoach.js`
+- `src/vr/ui/NarrativeStrip.js`
+- `src/vr/ui/MiniOverview.js`
+- `src/vr/ui/PeerPresenceHUD.js`
+- `src/vr/ui/TooltipManager.js`
+- `src/vr/ui/GuidedTour.js`
+- `src/vr/audio/index.js`
+- `src/vr/audio/SelectionFeedback.js`
 
-These modules are the direct consumers of the coordinator classes and the producers of gesture/operation events. Typing them will harden the InputRouter refactor and remove several `any` casts in `InputRouter.js` and `World.js`.
+These modules are the renderable output of Nemosyne. Typing them will let us remove the remaining `LooseOptions` casts in `WorldUIManager.ts` and `WorldSceneComposer.ts`, and will prepare the way for the `ReviewBundle` export UI button.
 
 ### Success criteria
 
 - `npm run typecheck` reports zero new errors.
-- `npx vitest run` passes (especially `tests/input-router.test.js`, `tests/hand-gesture-recognizer.test.js`, `tests/data-operations.test.js`).
+- `npx vitest run` passes (especially `tests/world.test.js`, `tests/movable-panel.test.js`, `tests/technocore-node.test.js`, `tests/chart-plane.test.js`).
 - `npm run build` succeeds.
-- No runtime regressions in controller, hand, or desktop input.
+- No runtime regressions in panels, artefacts, or audio feedback.
 
 ## Following increments (rough order)
 
-1. `src/vr/artifacts/`, `src/vr/ui/`, `src/vr/audio/`.
-2. `src/vr/Engine.js`, `src/vr/World.js`, `src/vr/Locomotion.js`, `src/vr/DesktopControls.js`, `src/vr/Controllers.js`, `src/vr/Hands.js`.
-3. `src/utils/`, `src/network/`, `src/analytics/`, `src/ui/`, `src/main.js`.
-4. Update `docs/ARCHITECTURE.md` and `CLAUDE.md` to state that Nemosyne is now TypeScript-first.
-5. Implement `src/utils/ReviewBundle.js` and the export UI button (after `src/vr/ui/` is converted).
-6. Run an IWSDK hand/input helper spike (after input/interactions are converted).
+1. `src/vr/Engine.js`, `src/vr/World.js`, `src/vr/Locomotion.js`, `src/vr/DesktopControls.js`, `src/vr/Controllers.js`, `src/vr/Hands.js`.
+2. `src/utils/`, `src/network/`, `src/analytics/`, `src/ui/`, `src/main.js`.
+3. Update `docs/ARCHITECTURE.md` and `CLAUDE.md` to state that Nemosyne is now TypeScript-first.
+4. Implement `src/utils/ReviewBundle.js` and the export UI button (after `src/vr/ui/` is converted).
+5. Run an IWSDK hand/input helper spike.
 
 ---
 

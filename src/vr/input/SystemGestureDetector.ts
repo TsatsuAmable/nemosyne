@@ -5,28 +5,31 @@
  * The gesture fires once per press and is debounced by tracking the prior
  * combined state.
  */
-export class SystemGestureDetector {
-  constructor(pointerRegistry) {
-    this.registry = pointerRegistry;
-    this.onSystemToggle = null;
 
-    this._lastGripSystemToggle = false;
+import type { PointerRegistry } from './PointerRegistry.ts';
+
+export class SystemGestureDetector {
+  registry: PointerRegistry;
+  onSystemToggle: (() => void) | null = null;
+
+  private _lastGripSystemToggle = false;
+
+  constructor(pointerRegistry: PointerRegistry) {
+    this.registry = pointerRegistry;
   }
 
   /**
    * Check the current controller and hand states and fire `onSystemToggle` once
    * when a system gesture starts.
-   *
-   * @param {XRSession} session
    */
-  update(session) {
-    if (!session || !session.inputSources) return;
+  update(session: XRSession | null): { bothPinched: boolean } {
+    if (!session || !session.inputSources) return { bothPinched: false };
 
     const sources = Array.from(session.inputSources);
     const bothPinched =
       this.registry.hands.length >= 2 &&
-      this.registry.hands[0].isPinched() &&
-      this.registry.hands[1].isPinched();
+      this.registry.hands[0].isPinched?.() === true &&
+      this.registry.hands[1].isPinched?.() === true;
 
     if (bothPinched && !this.registry.lastBothPinched && this.onSystemToggle) {
       this.onSystemToggle();
@@ -35,10 +38,10 @@ export class SystemGestureDetector {
 
     // Controller buttons: trigger is handled by the pointer event machine;
     // here we only watch the grip for the system toggle.
-    const gripStates = [];
+    const gripStates: boolean[] = [];
     for (const controller of this.registry.controllers) {
       const source = this.registry.findSourceForController(controller, sources);
-      if (!source || !source.gamepad || !source.gamepad.buttons) {
+      if (!source?.gamepad?.buttons) {
         gripStates.push(false);
         continue;
       }

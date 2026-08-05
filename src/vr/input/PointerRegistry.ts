@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 /**
  * Tracks registered controllers and hands, resolves the active pointer ray,
  * and maps XR input sources to controller button states.
@@ -7,45 +5,62 @@ import * as THREE from 'three';
  * This class is intentionally focused on pointer bookkeeping so that
  * `InputRouter` can act as a high-level facade.
  */
+
+import * as THREE from 'three';
+import type { EngineLike, PointerLike } from '../coordinators/types.ts';
+
+interface FallbackPointer extends PointerLike {
+  _fallbackSelect?(pointer: PointerLike): void;
+  _fallbackPinchStart?(pointer: PointerLike): void;
+}
+
 export class PointerRegistry {
-  constructor(engine) {
+  engine: EngineLike;
+
+  controllers: PointerLike[] = [];
+  hands: PointerLike[] = [];
+
+  controllerTriggerPressed = new Map<PointerLike, boolean>();
+  controllerGripPressed = new Map<PointerLike, boolean>();
+  lastHandPinched = new Map<PointerLike, boolean>();
+  lastBothPinched = false;
+
+  constructor(engine: EngineLike) {
     this.engine = engine;
-
-    this.controllers = [];
-    this.hands = [];
-
-    this.controllerTriggerPressed = new Map();
-    this.controllerGripPressed = new Map();
-    this.lastHandPinched = new Map();
-    this.lastBothPinched = false;
   }
 
-  addController(controller) {
+  addController(controller: PointerLike) {
     this.controllers.push(controller);
     this.controllerTriggerPressed.set(controller, false);
     this.controllerGripPressed.set(controller, false);
 
-    controller.onSelect = (pointer) => {
+    const fallback = controller as FallbackPointer;
+    controller.onSelect = (pointer: PointerLike) => {
       // Fallback event path; the primary path is polling.
-      if (controller._fallbackSelect) controller._fallbackSelect(pointer);
+      if (fallback._fallbackSelect) fallback._fallbackSelect(pointer);
     };
   }
 
-  addHand(hand) {
+  addHand(hand: PointerLike) {
     this.hands.push(hand);
     this.lastHandPinched.set(hand, false);
 
-    hand.onPinchStart = (pointer) => {
-      if (hand._fallbackPinchStart) hand._fallbackPinchStart(pointer);
+    const fallback = hand as FallbackPointer;
+    hand.onPinchStart = (pointer: PointerLike) => {
+      if (fallback._fallbackPinchStart) fallback._fallbackPinchStart(pointer);
     };
   }
 
   /**
    * Update each hand pointer for the current XR frame.
    */
-  updateHands(frame, referenceSpace, session) {
+  updateHands(
+    frame: XRFrame | null,
+    referenceSpace: XRReferenceSpace | null,
+    session: XRSession | null
+  ) {
     for (const hand of this.hands) {
-      hand.update(frame, referenceSpace, session);
+      hand.update?.(frame, referenceSpace, session);
     }
   }
 
@@ -57,7 +72,7 @@ export class PointerRegistry {
   updateControllerRayVisibilities() {
     const activeHand = this.getBestHand();
     for (const c of this.controllers) {
-      if (c.setRayVisible) c.setRayVisible(!activeHand);
+      c.setRayVisible?.(!activeHand);
     }
   }
 
@@ -65,7 +80,7 @@ export class PointerRegistry {
    * Return the best pointer ray for hover/scene raycasting, preferring a
    * tracked hand over controllers.
    */
-  getBestPointerRay() {
+  getBestPointerRay(): THREE.Ray | null {
     const activeHand = this.getBestHand();
     if (activeHand) {
       return activeHand.getRay(new THREE.Ray());
@@ -84,7 +99,7 @@ export class PointerRegistry {
   /**
    * Return the pointer object that currently owns the best ray.
    */
-  getActivePointerObject() {
+  getActivePointerObject(): PointerLike | null {
     const activeHand = this.getBestHand();
     if (activeHand) return activeHand;
     for (const c of this.controllers) {
@@ -99,11 +114,11 @@ export class PointerRegistry {
    * missing joints should not force the pointer back to a controller fallback
    * that may have no real pose on Quest Browser.
    */
-  getBestHand() {
+  getBestHand(): PointerLike | null {
     for (const hand of this.hands) {
       const poseValid =
         typeof hand.isPoseValid === 'function'
-          ? hand.isPoseValid()
+          ? (hand.isPoseValid as () => boolean)()
           : hand.jointsValid && hand.ray?.visible;
       if (poseValid) {
         const ray = hand.getRay(new THREE.Ray());
@@ -117,9 +132,14 @@ export class PointerRegistry {
    * Match a ControllerPointer to the XRInputSource that represents it.
    * Falls back to index order among non-hand sources if handedness is unknown.
    */
-  findSourceForController(controller, sources) {
+  findSourceForController(
+    controller: PointerLike,
+    sources: XRInputSource[]
+  ): XRInputSource | null {
     if (controller.handedness && controller.handedness !== 'none') {
-      const match = sources.find((s) => !s.hand && s.handedness === controller.handedness);
+      const match = sources.find(
+        (s) => !s.hand && s.handedness === controller.handedness
+      );
       if (match) return match;
     }
     const nonHand = sources.filter((s) => !s.hand);
@@ -131,8 +151,8 @@ export class PointerRegistry {
    * Return the current XR session input sources as a normal array.
    * XRInputSourceArray is array-like but may not implement Array methods.
    */
-  getInputSources() {
-    const session = this.engine.renderer.xr.getSession();
+  getInputSources(): XRInputSource[] {
+    const session = this.engine.renderer?.xr?.getSession?.();
     return session && session.inputSources ? Array.from(session.inputSources) : [];
   }
 }

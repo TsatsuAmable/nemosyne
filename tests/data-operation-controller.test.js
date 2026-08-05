@@ -5,7 +5,7 @@ import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.js';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
-import { captureBaseState } from '../src/vr/interactions/DataOperations.js';
+import { captureBaseState } from '../src/vr/interactions/DataOperations.ts';
 
 function makeArtifact() {
   const group = new THREE.Group();

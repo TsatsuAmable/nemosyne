@@ -7,6 +7,8 @@
  */
 
 import * as THREE from 'three';
+import type { Dataset } from '../../data/Dataset.ts';
+import type { OperationSpec } from '../../data/types.ts';
 import {
   filter,
   sort,
@@ -17,32 +19,50 @@ import {
   anomaly,
   slice,
 } from '../../data/DatasetOperations.ts';
-import { applyNestedRings, applyDendrogramArc, applyDensityCloud } from './ClusterTransforms.js';
+import { applyNestedRings, applyDendrogramArc, applyDensityCloud } from './ClusterTransforms.ts';
 import {
   applyAnomalyHighlight,
   clearAnomalyHighlight,
   applyOutlierLens,
   releaseOutlierLens,
-} from './AnomalyTransforms.js';
+} from './AnomalyTransforms.ts';
+import type { ArtifactRef, NodeMaterialLike } from '../coordinators/types.ts';
+
+interface NodeUserData {
+  row: Record<string, unknown>;
+  baseScale?: number;
+  baseOpacity?: number;
+  baseTransparent?: boolean;
+  aggregated?: boolean;
+  aggregateCount?: number;
+}
+
+function getNodeMaterial(mesh: THREE.Mesh): NodeMaterialLike {
+  return mesh.material as unknown as NodeMaterialLike;
+}
+
+function getNodeUserData(mesh: THREE.Mesh): NodeUserData {
+  return mesh.userData as NodeUserData;
+}
 
 /**
  * Apply a filter operation: rows present in the filtered dataset remain visible,
  * absent rows shrink and fade below the DatumPlane.
- * @param {{ nodeMeshes: THREE.Mesh[], group: THREE.Group }} artifact
- * @param {import('../../data/Dataset.ts').Dataset} filteredDataset
  */
-export function applyFilter(artifact, filteredDataset) {
+export function applyFilter(artifact: ArtifactRef, filteredDataset: Dataset) {
   const kept = new Set(filteredDataset.rows);
   for (const mesh of artifact.nodeMeshes) {
-    const row = mesh.userData.row;
+    const userData = getNodeUserData(mesh);
+    const row = userData.row;
+    const mat = getNodeMaterial(mesh);
     if (kept.has(row)) {
-      mesh.scale.setScalar(mesh.userData.baseScale ?? 1);
-      mesh.material.opacity = mesh.userData.baseOpacity ?? 1;
-      mesh.material.transparent = mesh.userData.baseTransparent ?? false;
+      mesh.scale.setScalar(userData.baseScale ?? 1);
+      mat.opacity = userData.baseOpacity ?? 1;
+      mat.transparent = userData.baseTransparent ?? false;
       mesh.position.y = Math.max(0.2, mesh.position.y + 0.3);
     } else {
       mesh.scale.setScalar(0.05);
-      if (mesh.material.opacity !== undefined) mesh.material.opacity = 0.15;
+      if (mat.opacity !== undefined) mat.opacity = 0.15;
       mesh.position.y = -0.5;
     }
   }
@@ -50,17 +70,17 @@ export function applyFilter(artifact, filteredDataset) {
 
 /**
  * Apply a sort operation: reorder visible nodes along a horizontal arc.
- * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.ts').Dataset} sortedDataset
  */
-export function applySort(artifact, sortedDataset) {
+export function applySort(artifact: ArtifactRef, sortedDataset: Dataset) {
   const order = sortedDataset.rows;
   const count = order.length;
   const radius = 4;
   const width = Math.min(radius * 2, count * 0.9);
   for (let i = 0; i < count; i++) {
     const row = order[i];
-    const mesh = artifact.nodeMeshes.find((m) => m.userData.row === row);
+    const mesh = artifact.nodeMeshes.find(
+      (m) => getNodeUserData(m).row === row
+    );
     if (!mesh) continue;
     const t = count > 1 ? i / (count - 1) : 0.5;
     const x = (t - 0.5) * width;
@@ -73,108 +93,111 @@ export function applySort(artifact, sortedDataset) {
  * Apply an aggregate operation: grouped rows merge into a single larger orb/column.
  * For every unique aggregated row, matching original meshes are hidden and a new
  * aggregated marker is scaled by the group size.
- * @param {{ nodeMeshes: THREE.Mesh[], group: THREE.Group }} artifact
- * @param {import('../../data/Dataset.ts').Dataset} aggregatedDataset
  */
-export function applyAggregate(artifact, aggregatedDataset) {
+export function applyAggregate(artifact: ArtifactRef, aggregatedDataset: Dataset) {
   // For simplicity, hide all original nodes and scale the first node of each
   // group to represent the aggregate. In a full implementation this would spawn
   // new aggregate meshes.
   for (const mesh of artifact.nodeMeshes) {
     mesh.scale.setScalar(0.05);
-    if (mesh.material.opacity !== undefined) mesh.material.opacity = 0.2;
+    const mat = getNodeMaterial(mesh);
+    if (mat.opacity !== undefined) mat.opacity = 0.2;
   }
 
-  const groupKey = aggregatedDataset.name; // placeholder
+  // Placeholder: keep the original dataset name so the operation is traceable.
+  void aggregatedDataset.name;
   const count = aggregatedDataset.rowCount;
   if (count > 0 && artifact.nodeMeshes[0]) {
     const rep = artifact.nodeMeshes[0];
+    const repUser = getNodeUserData(rep);
+    const repMat = getNodeMaterial(rep);
     rep.scale.setScalar(Math.min(3, 1 + count * 0.15));
-    rep.material.opacity = 1;
+    repMat.opacity = 1;
     rep.position.set(0, rep.position.y + 0.5, -3.5);
-    rep.userData.aggregated = true;
-    rep.userData.aggregateCount = count;
+    repUser.aggregated = true;
+    repUser.aggregateCount = count;
   }
 }
 
 /**
  * Apply a cluster operation: move nodes into nested rings grouped by their `_cluster` value.
- * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.ts').Dataset} clusteredDataset
  */
-export function applyCluster(artifact, clusteredDataset) {
-  applyNestedRings(artifact, clusteredDataset, { baseRadius: 2, ringStep: 0.8, centreZ: -3.5 });
+export function applyCluster(artifact: ArtifactRef, clusteredDataset: Dataset) {
+  applyNestedRings(artifact, clusteredDataset, {
+    baseRadius: 2,
+    ringStep: 0.8,
+    centreZ: -3.5,
+  });
 }
 
 /**
  * Apply a hierarchical clustering operation: arrange clusters in dendrogram-like arcs.
- * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.ts').Dataset} clusteredDataset
  */
-export function applyHierarchicalCluster(artifact, clusteredDataset) {
-  applyDendrogramArc(artifact, clusteredDataset, { baseRadius: 1.2, ringStep: 1.2, centreZ: -3.5 });
+export function applyHierarchicalCluster(artifact: ArtifactRef, clusteredDataset: Dataset) {
+  applyDendrogramArc(artifact, clusteredDataset, {
+    baseRadius: 1.2,
+    ringStep: 1.2,
+    centreZ: -3.5,
+  });
 }
 
 /**
  * Apply a DBSCAN result: dense clusters become clouds; noise points sink below the plane.
- * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.ts').Dataset} clusteredDataset
  */
-export function applyDensityCluster(artifact, clusteredDataset) {
+export function applyDensityCluster(artifact: ArtifactRef, clusteredDataset: Dataset) {
   applyDensityCloud(artifact, clusteredDataset, { spread: 1.4, centreZ: -3.5 });
 }
 
 /**
  * Apply anomaly highlighting: outliers lift and pulse.
- * @param {{ nodeMeshes: THREE.Mesh[], group: THREE.Group }} artifact
- * @param {import('../../data/Dataset.ts').Dataset} anomalyDataset
  */
-export function applyAnomaly(artifact, anomalyDataset) {
+export function applyAnomaly(artifact: ArtifactRef, anomalyDataset: Dataset) {
   applyAnomalyHighlight(artifact, anomalyDataset);
 }
 
 /**
  * Clear anomaly highlighting and restore base transforms.
- * @param {{ nodeMeshes: THREE.Mesh[], group: THREE.Group }} artifact
  */
-export function clearAnomaly(artifact) {
+export function clearAnomaly(artifact: ArtifactRef) {
   clearAnomalyHighlight(artifact);
 }
 
 /**
  * Focus an outlier lens around a world-space point.
- * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.ts').Dataset} anomalyDataset
- * @param {import('three').Vector3} focusPoint
  */
-export function applyOutlierLensAt(artifact, anomalyDataset, focusPoint) {
+export function applyOutlierLensAt(
+  artifact: ArtifactRef,
+  anomalyDataset: Dataset,
+  focusPoint: THREE.Vector3
+) {
   applyOutlierLens(artifact, anomalyDataset, focusPoint);
 }
 
 /**
  * Release the outlier lens.
- * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
  */
-export function releaseOutlierLensAt(artifact) {
+export function releaseOutlierLensAt(artifact: ArtifactRef) {
   releaseOutlierLens(artifact);
 }
 
 /**
  * Apply a slice operation: rows inside the slice remain bright; rows outside dim.
- * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
- * @param {import('../../data/Dataset.ts').Dataset} slicedDataset
- * @param {import('../../data/Dataset.ts').Dataset} originalDataset
  */
-export function applySlice(artifact, slicedDataset, originalDataset) {
+export function applySlice(
+  artifact: ArtifactRef,
+  slicedDataset: Dataset,
+  _originalDataset: Dataset
+) {
   const kept = new Set(slicedDataset.rows);
   for (const mesh of artifact.nodeMeshes) {
-    const row = mesh.userData.row;
+    const row = getNodeUserData(mesh).row;
+    const mat = getNodeMaterial(mesh);
     if (kept.has(row)) {
-      mesh.scale.setScalar(mesh.userData.baseScale ?? 1);
-      if (mesh.material.opacity !== undefined) mesh.material.opacity = 1;
+      mesh.scale.setScalar(getNodeUserData(mesh).baseScale ?? 1);
+      if (mat.opacity !== undefined) mat.opacity = 1;
     } else {
       mesh.scale.setScalar(0.2);
-      if (mesh.material.opacity !== undefined) mesh.material.opacity = 0.2;
+      if (mat.opacity !== undefined) mat.opacity = 0.2;
     }
   }
 }
@@ -183,17 +206,19 @@ export function applySlice(artifact, slicedDataset, originalDataset) {
  * Compute the dataset that would result from applying a named operation,
  * without touching the artefact. Used for live previews and can also be reused
  * by the apply path to keep parameter logic in one place.
- * @param {string} operation
- * @param {import('../../data/Dataset.ts').Dataset} dataset
- * @param {import('../../data/Dataset.ts').Dataset} originalDataset
- * @returns {import('../../data/Dataset.ts').Dataset}
  */
-export function computeOperationDataset(operation, dataset, originalDataset) {
+export function computeOperationDataset(
+  operation: string,
+  dataset: Dataset,
+  originalDataset: Dataset
+): Dataset {
   switch (operation) {
     case 'filter': {
       const col = dataset.numericColumns[0]?.name || 'value';
       const values = dataset.getColumnValues(col);
-      const numeric = values.filter((v) => typeof v === 'number' && !Number.isNaN(v));
+      const numeric = values.filter(
+        (v): v is number => typeof v === 'number' && !Number.isNaN(v)
+      );
       const median = numeric.length
         ? numeric.slice().sort((a, b) => a - b)[Math.floor(numeric.length / 2)]
         : 0;
@@ -203,7 +228,8 @@ export function computeOperationDataset(operation, dataset, originalDataset) {
       });
     }
     case 'sort': {
-      const col = dataset.numericColumns[0]?.name || dataset.columns[0]?.name || 'value';
+      const col =
+        dataset.numericColumns[0]?.name || dataset.columns[0]?.name || 'value';
       return sort(dataset, col, 'asc');
     }
     case 'aggregate': {
@@ -246,14 +272,15 @@ export function computeOperationDataset(operation, dataset, originalDataset) {
 
 /**
  * Store base visual properties on each node mesh so operations can restore them.
- * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
  */
-export function captureBaseState(artifact) {
+export function captureBaseState(artifact: ArtifactRef) {
   for (const mesh of artifact.nodeMeshes) {
-    if (mesh.userData.baseScale == null) mesh.userData.baseScale = mesh.scale.x;
-    if (mesh.userData.baseOpacity == null && mesh.material.opacity !== undefined) {
-      mesh.userData.baseOpacity = mesh.material.opacity;
-      mesh.userData.baseTransparent = mesh.material.transparent;
+    const userData = getNodeUserData(mesh);
+    const mat = getNodeMaterial(mesh);
+    if (userData.baseScale == null) userData.baseScale = mesh.scale.x;
+    if (userData.baseOpacity == null && mat.opacity !== undefined) {
+      userData.baseOpacity = mat.opacity;
+      userData.baseTransparent = mat.transparent;
     }
   }
 }
@@ -262,13 +289,12 @@ export function captureBaseState(artifact) {
  * Build a WASM-compatible operation spec for operations whose Rust and JS
  * semantics are aligned. Returns `null` for operations that should stay on the
  * JS path (e.g. those with different default parameters or algorithms).
- *
- * @param {string} operation
- * @param {import('../../data/Dataset.ts').Dataset} dataset
- * @param {import('../../data/Dataset.ts').Dataset} originalDataset
- * @returns {object|null}
  */
-export function buildWasmOperationSpec(operation, dataset, originalDataset) {
+export function buildWasmOperationSpec(
+  operation: string,
+  dataset: Dataset,
+  originalDataset: Dataset
+): OperationSpec | null {
   switch (operation) {
     case 'sort': {
       const col =
@@ -295,15 +321,16 @@ export function buildWasmOperationSpec(operation, dataset, originalDataset) {
 
 /**
  * Reset all artefact meshes to their captured base state.
- * @param {{ nodeMeshes: THREE.Mesh[] }} artifact
  */
-export function resetTransforms(artifact) {
+export function resetTransforms(artifact: ArtifactRef) {
   for (const mesh of artifact.nodeMeshes) {
-    const baseScale = mesh.userData.baseScale ?? 1;
+    const userData = getNodeUserData(mesh);
+    const mat = getNodeMaterial(mesh);
+    const baseScale = userData.baseScale ?? 1;
     mesh.scale.setScalar(baseScale);
-    if (mesh.material.opacity !== undefined) {
-      mesh.material.opacity = mesh.userData.baseOpacity ?? 1;
-      mesh.material.transparent = mesh.userData.baseTransparent ?? false;
+    if (mat.opacity !== undefined) {
+      mat.opacity = userData.baseOpacity ?? 1;
+      mat.transparent = userData.baseTransparent ?? false;
     }
   }
 }

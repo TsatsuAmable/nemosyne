@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 /**
  * Phase 7 interaction metaphors for VR data artefacts.
  *
@@ -9,9 +7,53 @@ import * as THREE from 'three';
  * interaction vocabulary symbolic while still giving the user strong feedback.
  */
 
+import * as THREE from 'three';
+
+interface FadableMaterial {
+  opacity: number;
+}
+
+interface ResonancePulseOptions {
+  color?: THREE.ColorRepresentation;
+  speed?: number;
+  duration?: number;
+}
+
+interface ForkPlaneOptions {
+  color?: THREE.ColorRepresentation;
+  size?: number;
+  duration?: number;
+}
+
+interface ChronoDialOptions {
+  color?: THREE.ColorRepresentation;
+  radius?: number;
+  duration?: number;
+}
+
+interface ConstellationOptions {
+  color?: THREE.ColorRepresentation;
+  duration?: number;
+}
+
+interface BeaconOptions {
+  color?: THREE.ColorRepresentation;
+  height?: number;
+  duration?: number;
+}
+
+interface AlephOptions {
+  color?: THREE.ColorRepresentation;
+  duration?: number;
+}
+
 const DEFAULT_DURATION = 900;
 
-function _animateOpacity(material, duration = DEFAULT_DURATION, onDone = null) {
+function _animateOpacity(
+  material: FadableMaterial,
+  duration = DEFAULT_DURATION,
+  onDone: (() => void) | null = null
+) {
   const start = performance.now();
   const tick = () => {
     const t = Math.min(1, (performance.now() - start) / duration);
@@ -30,11 +72,12 @@ function _animateOpacity(material, duration = DEFAULT_DURATION, onDone = null) {
  * its connected neighbors, making graph relationships audible/visible.
  */
 export function applyResonancePulse(
-  group,
-  mesh,
-  neighbors = [],
-  { color = 0x00ffcc, speed = 3.5, duration = DEFAULT_DURATION } = {}
+  group: THREE.Group,
+  mesh: THREE.Object3D,
+  neighbors: THREE.Object3D[] = [],
+  { color = 0x00ffcc, speed = 3.5, duration = DEFAULT_DURATION }: ResonancePulseOptions = {}
 ) {
+  void speed;
   const origin = mesh.position.clone();
   const targets = neighbors.length > 0 ? neighbors : [];
 
@@ -81,9 +124,9 @@ export function applyResonancePulse(
  * artefact, highlighting the half-space containing the selected item.
  */
 export function applyForkPlane(
-  group,
-  mesh,
-  { color = 0xff00cc, size = 2.5, duration = DEFAULT_DURATION } = {}
+  group: THREE.Group,
+  mesh: THREE.Object3D,
+  { color = 0xff00cc, size = 2.5, duration = DEFAULT_DURATION }: ForkPlaneOptions = {}
 ) {
   const planeGeo = new THREE.PlaneGeometry(size, size);
   const planeMat = new THREE.MeshBasicMaterial({
@@ -111,9 +154,9 @@ export function applyForkPlane(
  * opens like a clock face, emphasising the temporal neighbourhood.
  */
 export function applyChronoDial(
-  group,
-  mesh,
-  { color = 0x00ccff, radius = 0.5, duration = DEFAULT_DURATION } = {}
+  group: THREE.Group,
+  mesh: THREE.Object3D,
+  { color = 0x00ccff, radius = 0.5, duration = DEFAULT_DURATION }: ChronoDialOptions = {}
 ) {
   const ringGeo = new THREE.RingGeometry(radius * 0.6, radius, 64);
   const ringMat = new THREE.MeshBasicMaterial({
@@ -150,10 +193,10 @@ export function applyChronoDial(
  * related nodes, making similarity or adjacency visible for a moment.
  */
 export function applyConstellation(
-  group,
-  mesh,
-  related = [],
-  { color = 0xffcc00, duration = DEFAULT_DURATION } = {}
+  group: THREE.Group,
+  mesh: THREE.Object3D,
+  related: THREE.Object3D[] = [],
+  { color = 0xffcc00, duration = DEFAULT_DURATION }: ConstellationOptions = {}
 ) {
   if (related.length === 0) return;
 
@@ -164,7 +207,7 @@ export function applyConstellation(
     depthTest: false,
     blending: THREE.AdditiveBlending,
   });
-  const lines = [];
+  const lines: { line: THREE.Line; geo: THREE.BufferGeometry }[] = [];
 
   for (const other of related) {
     const geo = new THREE.BufferGeometry().setFromPoints([
@@ -190,9 +233,9 @@ export function applyConstellation(
  * for locating items in dense geo or tabular spaces.
  */
 export function applyBeacon(
-  group,
-  mesh,
-  { color = 0x00ffcc, height = 2.5, duration = DEFAULT_DURATION } = {}
+  group: THREE.Group,
+  mesh: THREE.Object3D,
+  { color = 0x00ffcc, height = 2.5, duration = DEFAULT_DURATION }: BeaconOptions = {}
 ) {
   const geo = new THREE.CylinderGeometry(0.02, 0.08, height, 16, 1, true);
   geo.translate(0, height / 2, 0);
@@ -220,10 +263,10 @@ export function applyBeacon(
  * visible node, giving a sense of the local neighbourhood at a glance.
  */
 export function applyAleph(
-  group,
-  mesh,
-  others = [],
-  { color = 0xffffff, duration = DEFAULT_DURATION } = {}
+  group: THREE.Group,
+  mesh: THREE.Object3D,
+  others: THREE.Object3D[] = [],
+  { color = 0xffffff, duration = DEFAULT_DURATION }: AlephOptions = {}
 ) {
   if (others.length === 0) return;
 
@@ -234,7 +277,7 @@ export function applyAleph(
     depthTest: false,
     blending: THREE.AdditiveBlending,
   });
-  const lines = [];
+  const lines: { line: THREE.Line; geo: THREE.BufferGeometry }[] = [];
 
   for (const other of others) {
     if (other === mesh) continue;
