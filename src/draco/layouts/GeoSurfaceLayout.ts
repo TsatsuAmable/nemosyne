@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { LayoutBase } from './LayoutBase.js';
+import { LayoutBase } from './LayoutBase.ts';
+import type { GeoEntry, GeoSurfaceOptions, LayoutEntry } from '../types.ts';
 
 /**
  * Map geospatial rows (lat/lon + numeric value) to room-scale positions.
@@ -10,7 +11,10 @@ import { LayoutBase } from './LayoutBase.js';
  *   y = value * heightScale + yOffset
  */
 export class GeoSurfaceLayout extends LayoutBase {
-  static compute(rows = [], options = {}) {
+  static compute<T = Record<string, unknown>>(
+    rows: T[] = [],
+    options: GeoSurfaceOptions = {}
+  ): LayoutEntry<T>[] {
     const {
       lonKey = this._findField(rows, /lon|longitude|x/i),
       latKey = this._findField(rows, /lat|latitude|y/i),
@@ -21,16 +25,15 @@ export class GeoSurfaceLayout extends LayoutBase {
       yOffset = 0.5,
     } = options;
 
-    const out = [];
+    const out: GeoEntry<T>[] = [];
 
-    // Discover lat/lon ranges to normalize.
     let minLon = Infinity;
     let maxLon = -Infinity;
     let minLat = Infinity;
     let maxLat = -Infinity;
     for (const row of rows) {
-      const lon = Number(row[lonKey]);
-      const lat = Number(row[latKey]);
+      const lon = Number((row as Record<string, unknown>)[lonKey as string]);
+      const lat = Number((row as Record<string, unknown>)[latKey as string]);
       if (Number.isFinite(lon)) {
         minLon = Math.min(minLon, lon);
         maxLon = Math.max(maxLon, lon);
@@ -43,9 +46,9 @@ export class GeoSurfaceLayout extends LayoutBase {
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const lon = Number(row[lonKey]);
-      const lat = Number(row[latKey]);
-      const value = valueKey ? Number(row[valueKey]) || 0 : 0;
+      const lon = Number((row as Record<string, unknown>)[lonKey as string]);
+      const lat = Number((row as Record<string, unknown>)[latKey as string]);
+      const value = valueKey ? Number((row as Record<string, unknown>)[valueKey]) || 0 : 0;
 
       let x = 0;
       let z = 0;
@@ -73,9 +76,9 @@ export class GeoSurfaceLayout extends LayoutBase {
     return out;
   }
 
-  static _findField(rows, pattern) {
+  static _findField<T>(rows: T[], pattern: RegExp): string | undefined {
     if (!rows.length) return undefined;
-    const keys = Object.keys(rows[0]);
+    const keys = Object.keys(rows[0] as Record<string, unknown>);
     return keys.find((k) => pattern.test(k));
   }
 }

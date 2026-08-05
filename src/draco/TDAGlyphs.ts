@@ -1,5 +1,49 @@
 import * as THREE from 'three';
 
+interface PersistenceInterval {
+  birth: number;
+  death: number;
+  dimension: number;
+}
+
+interface MapperNode {
+  id: string | number;
+  [key: string]: unknown;
+}
+
+interface MapperEdge {
+  source: string | number;
+  target: string | number;
+}
+
+interface BettiPoint {
+  x: number;
+  b0?: number;
+  b1?: number;
+  b2?: number;
+}
+
+interface PersistenceOptions {
+  width?: number;
+  height?: number;
+  yOffset?: number;
+  colors?: number[];
+}
+
+interface MapperOptions {
+  radius?: number;
+  yOffset?: number;
+  nodeColor?: number;
+  edgeColor?: number;
+}
+
+interface BettiOptions {
+  width?: number;
+  height?: number;
+  yOffset?: number;
+  colors?: number[];
+}
+
 /**
  * Lightweight topological-data-analysis visual summaries.
  *
@@ -12,7 +56,10 @@ export class TDAGlyphs {
    * Persistence barcode: horizontal lines from birth to death, stacked by dimension.
    * intervals: [{ birth, death, dimension }]
    */
-  static persistenceBarcode(intervals, options = {}) {
+  static persistenceBarcode(
+    intervals: PersistenceInterval[],
+    options: PersistenceOptions = {}
+  ): THREE.Group {
     const {
       width = 1.6,
       height = 0.6,
@@ -29,7 +76,6 @@ export class TDAGlyphs {
     });
 
     if (!intervals?.length) {
-      // No data: show an empty frame.
       const frame = new THREE.LineSegments(
         new THREE.EdgesGeometry(new THREE.PlaneGeometry(width, height)),
         mat
@@ -40,7 +86,7 @@ export class TDAGlyphs {
     }
 
     const maxDeath = Math.max(...intervals.map((i) => i.death));
-    const byDim = {};
+    const byDim: Record<number, PersistenceInterval[]> = {};
     for (const iv of intervals) {
       if (!byDim[iv.dimension]) byDim[iv.dimension] = [];
       byDim[iv.dimension].push(iv);
@@ -80,12 +126,16 @@ export class TDAGlyphs {
    * nodes: [{ id }]
    * edges: [{ source, target }]
    */
-  static mapperGraph(nodes = [], edges = [], options = {}) {
+  static mapperGraph(
+    nodes: MapperNode[] = [],
+    edges: MapperEdge[] = [],
+    options: MapperOptions = {}
+  ): THREE.Group {
     const { radius = 0.7, yOffset = 1.2, nodeColor = 0x00ffcc, edgeColor = 0x88ccff } = options;
 
     const group = new THREE.Group();
-    const positions = [];
-    const nodeMeshes = [];
+    const positions: THREE.Vector3[] = [];
+    const nodeMeshes: THREE.Mesh[] = [];
     const nodeGeo = new THREE.SphereGeometry(0.04, 12, 12);
     const nodeMat = new THREE.MeshBasicMaterial({ color: nodeColor });
     const edgeMat = new THREE.LineBasicMaterial({
@@ -127,7 +177,7 @@ export class TDAGlyphs {
    * Betti curve: simple line plot of Betti numbers across a filter parameter.
    * points: [{ x, b0, b1, b2 }]
    */
-  static bettiCurve(points = [], options = {}) {
+  static bettiCurve(points: BettiPoint[] = [], options: BettiOptions = {}): THREE.Group {
     const {
       width = 1.6,
       height = 0.6,
@@ -144,9 +194,9 @@ export class TDAGlyphs {
     const maxB = Math.max(...points.flatMap((p) => [p.b0 ?? 0, p.b1 ?? 0, p.b2 ?? 0]), 1);
 
     const dims = [
-      { key: 'b0', idx: 0 },
-      { key: 'b1', idx: 1 },
-      { key: 'b2', idx: 2 },
+      { key: 'b0' as const, idx: 0 },
+      { key: 'b1' as const, idx: 1 },
+      { key: 'b2' as const, idx: 2 },
     ];
 
     for (const { key, idx } of dims) {
@@ -160,7 +210,7 @@ export class TDAGlyphs {
         .filter((p) => Number.isFinite(p[key]))
         .map((p) => {
           const nx = maxX === minX ? 0 : (p.x - minX) / (maxX - minX) - 0.5;
-          const ny = p[key] / maxB - 0.5;
+          const ny = (p[key] as number) / maxB - 0.5;
           return new THREE.Vector3(nx * width, yOffset + ny * height, 0);
         });
       if (linePoints.length < 2) continue;

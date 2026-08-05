@@ -1,18 +1,22 @@
 import * as THREE from 'three';
-import { LayoutBase } from './LayoutBase.js';
+import { LayoutBase } from './LayoutBase.ts';
+import type { GridLayoutOptions, LayoutEntry } from '../types.ts';
 
 /**
  * Pack rows into a 3D grid. Optional sortKey reorders rows before packing.
  */
 export class GridLayout3D extends LayoutBase {
-  static compute(rows = [], options = {}) {
+  static compute<T = Record<string, unknown>>(
+    rows: T[] = [],
+    options: GridLayoutOptions = {}
+  ): LayoutEntry<T>[] {
     const { spacing = 1.1, sortKey, sortDirection = 'asc', yOffset = 1.2 } = options;
 
-    const ordered = rows.slice();
+    const ordered = rows.slice() as T[];
     if (sortKey) {
       ordered.sort((a, b) => {
-        const av = a[sortKey] ?? 0;
-        const bv = b[sortKey] ?? 0;
+        const av = (a as Record<string, unknown>)[sortKey] ?? 0;
+        const bv = (b as Record<string, unknown>)[sortKey] ?? 0;
         if (typeof av === 'number' && typeof bv === 'number') {
           return sortDirection === 'asc' ? av - bv : bv - av;
         }
@@ -25,7 +29,7 @@ export class GridLayout3D extends LayoutBase {
     const n = ordered.length || 1;
     const cols = Math.ceil(Math.cbrt(n));
     const layers = Math.ceil(n / (cols * cols));
-    const out = [];
+    const out: LayoutEntry<T>[] = [];
 
     for (let i = 0; i < n; i++) {
       const col = i % cols;

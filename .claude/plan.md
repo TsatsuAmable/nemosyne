@@ -1,3 +1,94 @@
+# Plan — Incremental TypeScript Migration
+
+## Goal
+
+Convert the entire Nemosyne JavaScript source tree to TypeScript module by module, while keeping the app runnable and the test suite green after each increment. The migration is a prerequisite for the Rust/WASM Phase 1 host bridge work: a typed JS host makes the `(ptr, len)` / handle ABI easier to verify and maintain, and shared types (`DatasetJSON`, `OperationSpec`, etc.) reduce bugs at the WASM boundary.
+
+## Status
+
+- [x] Tooling: `tsconfig.json`, `eslint.config.js`, `vitest.config.js`, and `package.json` scripts support `.ts` alongside `.js`.
+- [x] Shared types module: `src/data/types.ts` centralizes `DatasetJSON`, `ColumnSchema`, `ColumnTypeValue`, `OperationName`, `OperationSpec`, and related interfaces.
+- [x] WASM host bridge: `src/wasm/RuntimeBridge.ts` is fully typed and uses the shared types.
+- [x] Phase 1 data layer: all core data modules converted to TypeScript.
+  - `src/data/Dataset.ts`
+  - `src/data/Parsers.ts`
+  - `src/data/DatasetOperations.ts`
+  - `src/data/SampleDatasets.ts`
+  - `src/data/SyntheticData.ts`
+  - `src/data/ImportError.ts`
+  - `src/data/AnalysisHistory.ts`
+  - `src/data/TopologyInference.ts`
+  - `src/data/SessionStore.ts`
+  - `src/data/connectors/DataConnector.ts`
+  - `src/data/connectors/normalize.ts`
+  - `src/data/connectors/PollingAdapter.ts`
+  - `src/data/connectors/WebSocketAdapter.ts`
+  - `src/data/connectors/OpenDataSources.ts`
+- [x] Integration test: `tests/wasm-runtime.test.ts` imports shared types and exercises the WASM bridge.
+- [ ] Remaining data-layer JS files: `src/data/Encodings.js`, `src/data/DefaultTour.js`, `src/data/AnalysisTemplates.js`, `src/data/serializers/index.js`.
+- [x] `src/draco/` layer converted to TypeScript.
+  - `src/draco/types.ts` (shared Draco/artefact types)
+  - `src/draco/ConstraintEngine.ts`
+  - `src/draco/VRTopologyTranslator.ts`
+  - `src/draco/DracoTopologyNode.ts`
+  - `src/draco/DracoDiagnosticHUD.ts`
+  - `src/draco/TDAGlyphs.ts`
+  - `src/draco/layouts/LayoutBase.ts`
+  - `src/draco/layouts/GridLayout3D.ts`
+  - `src/draco/layouts/ForceDirected3D.ts`
+  - `src/draco/layouts/RadialTreeLayout.ts`
+  - `src/draco/layouts/GeoSurfaceLayout.ts`
+  - `src/draco/layouts/TimeSeriesRibbonLayout.ts`
+  - `src/draco/layouts/StreamlineLayout.ts`
+  - `src/draco/layouts/index.ts`
+- [ ] `src/vr/` coordinators, input, interactions, artifacts, UI, and Engine/World.
+- [ ] `src/utils/`, `src/network/`, `src/analytics/`, `src/ui/`, `src/main.js`.
+
+## Migration standards
+
+1. **One module at a time.** Rename `.js` → `.ts`, add types, run `npm run typecheck`, then run the relevant Vitest tests.
+2. **Keep JS fallbacks where needed.** Files that the WASM bridge or legacy tests import with `.js` extensions may need import paths updated to `.ts` extensions (allowed by `allowImportingTsExtensions`).
+3. **Use shared types.** Any type that crosses module boundaries (especially dataset JSON, operation specs, column schemas) must come from `src/data/types.ts`.
+4. **Preserve runtime behavior.** Do not change logic during conversion unless a type error reveals a real bug; fix those bugs in separate commits.
+5. **Update tests.** Rename `.test.js` to `.test.ts` when the module under test becomes `.ts`; import shared types from `.ts` sources.
+6. **Verify before moving on.** Required checks after each increment:
+   - `npm run typecheck`
+   - `npm run lint`
+   - `npx vitest run` (or the affected test files)
+   - `npm run build`
+
+## Next increment: remaining `src/data/*.js` stragglers
+
+The Draco layer is now fully typed and green. The next small, low-risk increment is to finish the remaining JavaScript files in `src/data/` that were not converted in the first pass:
+
+- `src/data/Encodings.js`
+- `src/data/DefaultTour.js`
+- `src/data/AnalysisTemplates.js`
+- `src/data/serializers/index.js`
+- `src/data/serializers/ArrowSerializer.js`
+- `src/data/serializers/FlatBuffersSerializer.js`
+- `src/data/serializers/MessagePackSerializer.js`
+
+These modules are used by the Draco and VR layers, so typing them will remove several `any` casts in `src/draco/` and `src/vr/`.
+
+### Success criteria
+
+- `npm run typecheck` reports zero new errors.
+- `npx vitest run` passes.
+- `npm run build` succeeds.
+- No runtime regressions in dataset encoding, templates, or serializers.
+
+## Following increments (rough order)
+
+1. `src/vr/coordinators/` (DataOperationController, WorldUIManager, WorldInputCoordinator, WorldSceneComposer, UserModeController, ComfortSettingsController, LiveStreamCoordinator, CollaborationCoordinator).
+2. `src/vr/input/` and `src/vr/interactions/`.
+3. `src/vr/artifacts/`, `src/vr/ui/`, `src/vr/audio/`.
+4. `src/vr/Engine.js`, `src/vr/World.js`, `src/vr/Locomotion.js`, `src/vr/DesktopControls.js`, `src/vr/Controllers.js`, `src/vr/Hands.js`.
+5. `src/utils/`, `src/network/`, `src/analytics/`, `src/ui/`, `src/main.js`.
+6. Update `docs/ARCHITECTURE.md` and `CLAUDE.md` to state that Nemosyne is now TypeScript-first.
+
+---
+
 # Plan — Expand `docs/index.html` applications and use cases
 
 ## Goal

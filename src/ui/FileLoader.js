@@ -8,7 +8,7 @@ import {
   getSampleDataset,
   getDefaultEncodings,
 } from '../data/SampleDatasets.ts';
-import { TopologyTypes } from '../draco/ConstraintEngine.js';
+import { TopologyTypes } from '../draco/ConstraintEngine.ts';
 
 /**
  * DOM-based file loader and dataset selector.

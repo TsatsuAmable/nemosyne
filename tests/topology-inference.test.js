@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
-import { TopologyTypes } from '../src/draco/ConstraintEngine.js';
+import { TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { inferTopology, inferEncodingsForTopology } from '../src/data/TopologyInference.ts';
 
 function makeDataset(columns, rows) {

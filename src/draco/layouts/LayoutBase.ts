@@ -10,11 +10,15 @@
  * }.
  */
 
-import * as THREE from 'three';
+import type { Dataset } from '../../data/Dataset.ts';
+import type { LayoutEntry } from '../types.ts';
 import { normalize } from '../../data/Encodings.js';
 
 export class LayoutBase {
-  static compute(rows = [], options = {}) {
+  static compute<T = Record<string, unknown>>(
+    _rows: T[] = [],
+    _options: Record<string, unknown> = {}
+  ): LayoutEntry<T>[] {
     throw new Error('Layout subclasses must implement compute()');
   }
 
@@ -22,7 +26,12 @@ export class LayoutBase {
    * Extract a numeric value from a row, normalizing against the dataset range.
    * Returns a number in [0, 1] when the field is numeric.
    */
-  static numericValue(row, dataset, field, fallback = 0) {
+  static numericValue(
+    row: Record<string, unknown>,
+    dataset: Dataset | null | undefined,
+    field: string | undefined,
+    fallback = 0
+  ): number {
     if (!field || !dataset) return fallback;
     const col = dataset.getColumn(field);
     if (!col || col.type !== 'NUMERIC') return fallback;
@@ -35,7 +44,7 @@ export class LayoutBase {
   /**
    * Return a stable row identifier usable for edge matching.
    */
-  static rowId(row, idField = 'id') {
+  static rowId(row: Record<string, unknown>, idField = 'id'): unknown {
     return row[idField] ?? row.name ?? row.label ?? row._index;
   }
 }

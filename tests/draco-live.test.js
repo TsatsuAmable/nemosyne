@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.js';
+import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 
 function makeDataset(rows, topology) {

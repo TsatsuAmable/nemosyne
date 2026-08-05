@@ -10,7 +10,7 @@ import {
   TimeSeriesRibbonLayout,
   StreamlineLayout,
   GeoSurfaceLayout,
-} from '../src/draco/layouts/index.js';
+} from '../src/draco/layouts/index.ts';
 
 describe('Draco layout generators', () => {
   it('GridLayout3D packs rows into a cube', () => {

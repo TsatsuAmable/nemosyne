@@ -4,6 +4,23 @@
  * specification from data facts and user-tunable soft weights.
  */
 
+import type {
+  CategoricalDistribution,
+  DracoDataInput,
+  DracoFacts,
+  DracoSpec,
+  HardConstraint,
+  NumericStats,
+  SoftConstraint,
+  SolverResult,
+  TrendDirection,
+  VRLayout,
+  VRGeometry,
+  VRBehavior,
+  VRInteraction,
+} from './types.ts';
+import type { Dataset } from '../data/Dataset.ts';
+
 export const TopologyTypes = {
   TABULAR: 'TABULAR',
   GRAPH: 'GRAPH',
@@ -11,7 +28,8 @@ export const TopologyTypes = {
   VECTOR_FIELD: 'VECTOR_FIELD',
   TIME_SERIES: 'TIME_SERIES',
   GEO: 'GEO',
-};
+} as const;
+
 
 export const VRChannels = {
   LAYOUT: [
@@ -21,7 +39,7 @@ export const VRChannels = {
     'VECTOR_STREAMLINE',
     'TIME_RIBBON',
     'GEO_SURFACE',
-  ],
+  ] as VRLayout[],
   GEOMETRY: [
     'CUBE_MATRIX',
     'ICOSA_NODE',
@@ -34,8 +52,8 @@ export const VRChannels = {
     'ORB',
     'COLUMN',
     'BEAM',
-  ],
-  BEHAVIOR: ['PULSE_QUANTITATIVE', 'ORBITAL_SPIN', 'WAVE_OSCILLATION', 'STATIC'],
+  ] as VRGeometry[],
+  BEHAVIOR: ['PULSE_QUANTITATIVE', 'ORBITAL_SPIN', 'WAVE_OSCILLATION', 'STATIC'] as VRBehavior[],
   INTERACTION: [
     'INSPECT_CELL',
     'TRAVERSE_EDGE',
@@ -49,15 +67,27 @@ export const VRChannels = {
     'CONSTELLATION',
     'BEACON',
     'ALEPH',
-  ],
+  ] as VRInteraction[],
 };
 
+export interface ConstraintEngineOptions {
+  largeRowThreshold?: number;
+  highCardinalityThreshold?: number;
+  outlierIqrMultiplier?: number;
+}
+
 export class ConstraintEngine {
+  largeRowThreshold: number;
+  highCardinalityThreshold: number;
+  outlierIqrMultiplier: number;
+  hardConstraints: HardConstraint[];
+  softConstraints: SoftConstraint[];
+
   constructor({
     largeRowThreshold = 500,
     highCardinalityThreshold = 12,
     outlierIqrMultiplier = 1.5,
-  } = {}) {
+  }: ConstraintEngineOptions = {}) {
     this.largeRowThreshold = largeRowThreshold;
     this.highCardinalityThreshold = highCardinalityThreshold;
     this.outlierIqrMultiplier = outlierIqrMultiplier;
@@ -67,7 +97,7 @@ export class ConstraintEngine {
   }
 
   /** Extract symbolic facts from a dataset + topology hint. */
-  extractFacts(dataInput) {
+  extractFacts(dataInput: DracoDataInput): DracoFacts {
     const ds = dataInput.dataset;
     const rowCount = ds?.rowCount ?? dataInput.rows?.length ?? dataInput.nodes?.length ?? 0;
     const edgeCount = dataInput.edges?.length ?? ds?.edges?.length ?? 0;
@@ -80,19 +110,19 @@ export class ConstraintEngine {
       numericColumns.length > 0 && ds
         ? ds
             .getColumnValues(numericColumns[0].name)
-            .filter((v) => typeof v === 'number' && !Number.isNaN(v))
+            .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v))
         : [];
 
-    const columnStats = {};
+    const columnStats: Record<string, NumericStats> = {};
     for (const col of numericColumns) {
       if (!ds) continue;
       const values = ds
         .getColumnValues(col.name)
-        .filter((v) => typeof v === 'number' && !Number.isNaN(v));
+        .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
       columnStats[col.name] = this._numericStats(values);
     }
 
-    const categoryDistribution = {};
+    const categoryDistribution: Record<string, CategoricalDistribution> = {};
     for (const col of categoricalColumns) {
       if (!ds) continue;
       categoryDistribution[col.name] = this._categoricalDistribution(ds, col.name);
@@ -104,13 +134,13 @@ export class ConstraintEngine {
             ds,
             numericColumns.map((c) => c.name)
           )
-        : {};
+        : ({} as Record<string, Record<string, number>>);
 
     const primaryTimeColumn = temporalColumns[0]?.name;
     const temporalStats =
       primaryTimeColumn && ds
         ? this._temporalStats(ds, primaryTimeColumn, numericColumns[0]?.name)
-        : { trendDirection: 'flat', seasonalityHint: false };
+        : { trendDirection: 'flat' as TrendDirection, seasonalityHint: false };
 
     const primaryStats = columnStats[numericColumns[0]?.name] || {};
 
@@ -132,7 +162,6 @@ export class ConstraintEngine {
       hasHighCardinality: cardinalityOfColor > this.highCardinalityThreshold,
       isLargeDataset: rowCount > this.largeRowThreshold,
       clusterCount: this._estimateClusterCount(rowCount, cardinalityOfColor, numericColumns.length),
-      // Phase 8 statistical facts.
       columnStats,
       correlationMatrix,
       categoryDistribution,
@@ -141,12 +170,12 @@ export class ConstraintEngine {
       hasOutliers: this._estimateOutlierCount(numericValues) > 0,
       hasHighVariance: primaryStats.stdDev != null && primaryStats.stdDev > 0,
       numericSkew: primaryStats.skew ?? 0,
-      topCategory: categoryDistribution[colorColumn]?.[0]?.value ?? null,
+      topCategory: categoryDistribution[colorColumn]?.topCategories?.[0]?.value ?? null,
     };
   }
 
   /** Compute mean, median, stdDev, skew, and kurtosis for a numeric array. */
-  _numericStats(values) {
+  _numericStats(values: number[]): NumericStats {
     const n = values.length;
     if (n === 0) {
       return { mean: 0, median: 0, stdDev: 0, skew: 0, kurtosis: 0, min: 0, max: 0 };
@@ -182,9 +211,12 @@ export class ConstraintEngine {
   }
 
   /** Return { topCategories: [{value, count, fraction}], entropy } for a categorical column. */
-  _categoricalDistribution(ds, name) {
+  _categoricalDistribution(
+    ds: Dataset,
+    name: string
+  ): CategoricalDistribution {
     const values = ds.getColumnValues(name);
-    const counts = new Map();
+    const counts = new Map<unknown, number>();
     for (const v of values) {
       counts.set(v, (counts.get(v) || 0) + 1);
     }
@@ -202,12 +234,15 @@ export class ConstraintEngine {
   }
 
   /** Pearson correlation matrix for numeric columns. */
-  _correlationMatrix(ds, names) {
+  _correlationMatrix(
+    ds: Dataset,
+    names: string[]
+  ): Record<string, Record<string, number>> {
     const columns = names.map((name) =>
-      ds.getColumnValues(name).filter((v) => typeof v === 'number' && !Number.isNaN(v))
+      ds.getColumnValues(name).filter((v): v is number => typeof v === 'number' && !Number.isNaN(v))
     );
     const n = columns[0]?.length || 0;
-    const matrix = {};
+    const matrix: Record<string, Record<string, number>> = {};
     if (n === 0) return matrix;
 
     const stats = columns.map((vals) => {
@@ -235,13 +270,16 @@ export class ConstraintEngine {
   }
 
   /** Simple trend and seasonality heuristics for a temporal column paired with a numeric value column. */
-  _temporalStats(ds, timeColumn, valueColumn) {
+  _temporalStats(
+    ds: Dataset,
+    timeColumn: string,
+    valueColumn?: string
+  ): { trendDirection: TrendDirection; seasonalityHint: boolean; normalizedSlope?: number } {
     if (!valueColumn || !ds) return { trendDirection: 'flat', seasonalityHint: false };
-    const rows = ds.rows.slice().sort((a, b) => new Date(a[timeColumn]) - new Date(b[timeColumn]));
+    const rows = ds.rows.slice().sort((a, b) => new Date(a[timeColumn] as string | number | Date).getTime() - new Date(b[timeColumn] as string | number | Date).getTime());
     const values = rows.map((r) => Number(r[valueColumn])).filter((v) => !Number.isNaN(v));
     if (values.length < 3) return { trendDirection: 'flat', seasonalityHint: false };
 
-    // Linear regression slope via least squares (x = 0..n-1).
     const n = values.length;
     const xMean = (n - 1) / 2;
     const yMean = values.reduce((a, b) => a + b, 0) / n;
@@ -255,11 +293,10 @@ export class ConstraintEngine {
     const range = Math.max(...values) - Math.min(...values);
     const normalizedSlope = range > 0 ? slope / range : 0;
 
-    let trendDirection = 'flat';
+    let trendDirection: TrendDirection = 'flat';
     if (normalizedSlope > 0.01) trendDirection = 'up';
     else if (normalizedSlope < -0.01) trendDirection = 'down';
 
-    // Very simple seasonality hint: autocorrelation at lag ~ n/4.
     const lag = Math.max(1, Math.floor(n / 4));
     let cov = 0;
     let varA = 0;
@@ -280,7 +317,7 @@ export class ConstraintEngine {
   /** Robust outlier count for the primary numeric channel.
    *  Uses a modified Z-score (MAD-based) so small VR datasets still flag anomalies.
    */
-  _estimateOutlierCount(values) {
+  _estimateOutlierCount(values: number[]): number {
     if (values.length < 4) return 0;
     const sorted = values.slice().sort((a, b) => a - b);
     const median =
@@ -295,7 +332,6 @@ export class ConstraintEngine {
             deviations.slice().sort((a, b) => a - b)[deviations.length / 2]) /
           2;
     if (mad === 0) {
-      // Fall back to IQR when the middle half is degenerate.
       const q1 = sorted[Math.floor(sorted.length * 0.25)];
       const q3 = sorted[Math.ceil(sorted.length * 0.75)];
       const iqr = q3 - q1;
@@ -311,13 +347,13 @@ export class ConstraintEngine {
   }
 
   /** Heuristic cluster count when no explicit clustering is supplied. */
-  _estimateClusterCount(rowCount, cardinalityOfColor, numericColumnCount) {
+  _estimateClusterCount(rowCount: number, cardinalityOfColor: number, numericColumnCount: number): number {
     if (cardinalityOfColor > 1 && cardinalityOfColor <= 20) return cardinalityOfColor;
     if (numericColumnCount === 0) return 1;
     return Math.min(20, Math.max(1, Math.round(Math.sqrt(rowCount))));
   }
 
-  registerDefaultRules() {
+  registerDefaultRules(): void {
     // Hard constraints eliminate invalid physical/spatial bindings.
     this.hardConstraints.push((facts, spec) => {
       if (facts.topology === TopologyTypes.GRAPH && spec.layout === 'GRID_3D') return false;
@@ -342,10 +378,9 @@ export class ConstraintEngine {
       if (facts.topology === TopologyTypes.GEO && spec.layout !== 'GEO_SURFACE') return false;
       return true;
     });
-    // Large datasets must use aggregate or instanced geometry to stay within VR render budget.
     this.hardConstraints.push((facts, spec) => {
       if (facts.isLargeDataset) {
-        const scalableGeometries = ['CLUSTER_VOLUME', 'INSTANCED_POINT_CLOUD', 'AGGREGATE_BARS'];
+        const scalableGeometries: VRGeometry[] = ['CLUSTER_VOLUME', 'INSTANCED_POINT_CLOUD', 'AGGREGATE_BARS'];
         if (!scalableGeometries.includes(spec.geometry)) return false;
       }
       return true;
@@ -464,8 +499,7 @@ export class ConstraintEngine {
       },
     });
 
-    // Phase 7 interaction metaphors (low-weight so base interactions still win
-    // by default, but the metaphors are available for weight tuning later).
+    // Phase 7 interaction metaphors.
     this.softConstraints.push({
       name: 'prefer_resonance_for_graphs',
       weight: 8,
@@ -559,34 +593,31 @@ export class ConstraintEngine {
       },
     });
 
-    // Phase 8 chart-plane attachment rule: prefer chart-plane capable specs
-    // when there is rich numeric or temporal data to visualise.
+    // Phase 8 chart-plane attachment rule.
     this.softConstraints.push({
       name: 'attach_chart_plane_for_rich_numeric_or_time',
       weight: 3,
       eval: (facts, spec) => {
         const richData = facts.numericColumns > 1 || facts.hasTimeSeries;
         if (!richData) return 0;
-        // This is a preference, not a hard requirement; cost is small so it
-        // only nudges the solver toward expressive specs.
         return spec.interaction === 'INSPECT_CELL' ? 0 : 1;
       },
     });
   }
 
-  setWeight(ruleName, weight) {
+  setWeight(ruleName: string, weight: number): void {
     const sc = this.softConstraints.find((c) => c.name === ruleName);
     if (sc) sc.weight = Math.max(0, Math.min(100, weight));
   }
 
-  adjustWeight(ruleName, delta) {
+  adjustWeight(ruleName: string, delta: number): void {
     const sc = this.softConstraints.find((c) => c.name === ruleName);
     if (sc) this.setWeight(ruleName, sc.weight + delta);
   }
 
-  solve(dataInput) {
+  solve(dataInput: DracoDataInput): SolverResult {
     const facts = this.extractFacts(dataInput);
-    const candidates = [];
+    const candidates: DracoSpec[] = [];
     for (const layout of VRChannels.LAYOUT) {
       for (const geometry of VRChannels.GEOMETRY) {
         for (const behavior of VRChannels.BEHAVIOR) {
@@ -603,7 +634,7 @@ export class ConstraintEngine {
       throw new Error('ConstraintEngine: unsatisfiable constraint set for input facts');
     }
 
-    let bestSpec = null;
+    let bestSpec: DracoSpec | null = null;
     let minCost = Infinity;
     for (const spec of valid) {
       let cost = 0;
@@ -616,6 +647,6 @@ export class ConstraintEngine {
       }
     }
 
-    return { facts, spec: bestSpec, cost: minCost };
+    return { facts, spec: bestSpec!, cost: minCost };
   }
 }

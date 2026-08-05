@@ -1,14 +1,27 @@
 import * as THREE from 'three';
-import { ConstraintEngine } from './ConstraintEngine.js';
-import { VRTopologyTranslator } from './VRTopologyTranslator.js';
+import { ConstraintEngine } from './ConstraintEngine.ts';
+import { VRTopologyTranslator } from './VRTopologyTranslator.ts';
 import { disposeObject } from '../utils/Dispose.js';
+import type { Artifact, DracoDataInput, SolverResult } from './types.ts';
 
 /**
  * Manages the lifecycle of a Draco-recommended spatial data artifact:
  * solving, synthesizing, updating, raycast interaction, and live re-solve.
  */
 export class DracoTopologyNode {
-  constructor(scene, dataInput, position = [0, 2.0, -8.0]) {
+  scene: THREE.Scene;
+  dataInput: DracoDataInput;
+  position: [number, number, number];
+  engine: ConstraintEngine;
+  solverResult!: SolverResult;
+  artifact: Artifact | undefined;
+  group: THREE.Group | undefined;
+
+  constructor(
+    scene: THREE.Scene,
+    dataInput: DracoDataInput,
+    position: [number, number, number] = [0, 2.0, -8.0]
+  ) {
     this.scene = scene;
     this.dataInput = dataInput;
     this.position = position;
@@ -16,14 +29,13 @@ export class DracoTopologyNode {
     this.reSolveAndSynthesize();
   }
 
-  adjustWeight(ruleName, delta) {
+  adjustWeight(ruleName: string, delta: number): void {
     this.engine.adjustWeight(ruleName, delta);
     this.reSolveAndSynthesize();
   }
 
-  reSolveAndSynthesize() {
+  reSolveAndSynthesize(): void {
     this.solverResult = this.engine.solve(this.dataInput);
-    console.log('[Draco] spec:', this.solverResult.spec, 'cost:', this.solverResult.cost);
 
     if (this.artifact) {
       this.scene.remove(this.artifact.group);
@@ -36,14 +48,14 @@ export class DracoTopologyNode {
     this.scene.add(this.group);
   }
 
-  update(delta, time) {
+  update(delta: number, time: number): void {
     if (this.artifact?.update) {
       this.artifact.update(delta, time);
     }
   }
 
   /** Raycast against the artifact node meshes and return the hit mesh if any. */
-  interactWithRay(raycaster) {
+  interactWithRay(raycaster: THREE.Raycaster): THREE.Object3D | null {
     if (!this.artifact?.nodeMeshes?.length) return null;
     const hits = raycaster.intersectObjects(this.artifact.nodeMeshes, false);
     if (hits.length > 0) return hits[0].object;
@@ -54,9 +66,12 @@ export class DracoTopologyNode {
    * Append new rows to the underlying dataset and try an incremental update.
    * If incremental update is not supported for the current layout, the full
    * palace is re-solved.
-   * @returns {boolean} true if incremental update succeeded
+   * @returns true if incremental update succeeded
    */
-  appendRows(newRows, options = {}) {
+  appendRows(
+    newRows: Record<string, unknown>[],
+    options: { mode?: 'append' | 'replace'; limit?: number | null } = {}
+  ): boolean {
     if (!this.dataInput.dataset) return false;
     const mode = options.mode || 'append';
     const limit = options.limit ?? null;

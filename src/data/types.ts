@@ -38,3 +38,19 @@ export interface OperationSpec {
   op: OperationName;
   [key: string]: unknown;
 }
+
+export type TopologyType =
+  | 'HIERARCHY'
+  | 'GRAPH'
+  | 'TIME_SERIES'
+  | 'TABULAR'
+  | 'VECTOR_FIELD'
+  | 'GEO';
+
+export interface EncodingMapping {
+  color?: string;
+  size?: string;
+  pulse?: string;
+  time?: string;
+  label?: string;
+}
