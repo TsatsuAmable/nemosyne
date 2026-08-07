@@ -39,7 +39,7 @@ pub fn compute_force_directed_3d(
                 let dz = positions[i][2] - positions[j][2];
 
                 let dist_sq = dx * dx + dy * dy + dz * dz;
-                let (nx, ny, nz, len) = if dist_sq < 1e-6 {
+                let (nx, ny, nz, _len) = if dist_sq < 1e-6 {
                     (1.0, 0.0, 0.0, 1.0)
                 } else {
                     let len = dist_sq.sqrt();
