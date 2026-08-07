@@ -7,7 +7,8 @@ export default defineConfig({
     globals: false,
     exclude: ['node_modules', 'dist', 'docs/nemosyne-world', '.claude', 'wasm'],
     pool: 'forks',
-    fileParallelism: false,
+    maxWorkers: 2,
+    minWorkers: 1,
     teardownTimeout: 3000,
   },
 });
