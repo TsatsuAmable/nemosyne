@@ -6,5 +6,8 @@ export default defineConfig({
     setupFiles: ['./tests/setup.js'],
     globals: false,
     exclude: ['node_modules', 'dist', 'docs/nemosyne-world', '.claude', 'wasm'],
+    pool: 'forks',
+    fileParallelism: false,
+    teardownTimeout: 3000,
   },
 });
