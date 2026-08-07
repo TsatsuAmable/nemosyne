@@ -335,9 +335,9 @@ NemosyneCrystal.registerBehaviour('heartbeat', HeartbeatBehaviour);
 
 ## Next Steps
 
-- **[Crystal Gallery](./CRYSTAL-GALLERY.md)** — See all crystal types
-- **[Behaviour Guide](./BEHAVIOUR-GUIDE.md)** — Create custom behaviours
-- **[Crystal Compositions](./CRYSTAL-COMPOSITIONS.md)** — Group crystals into visualizations
+- **[Artefact Taxonomy](./ARTEFACTS.md)** — See all crystal and spatial artefact types
+- **[Interactions & Gestures](./INTERACTIONS.md)** — Learn interactive gesture controls
+- **[Design System](./DESIGN_SYSTEM.md)** — Palette, typography, and visual spec
 
 ---
 

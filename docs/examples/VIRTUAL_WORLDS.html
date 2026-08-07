@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Cities Example | Nemosyne</title>
+    <title>Virtual Worlds / Gaming Example | Nemosyne</title>
 
     <!-- Primary favicon -->
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
@@ -67,7 +67,7 @@
 
         <div class="hero-content">
             <div class="badge">Nemosyne Documentation</div>
-            <h1>Smart Cities Example</h1>
+            <h1>Virtual Worlds / Gaming Example</h1>
             <p class="hero-subtitle" style="max-width: 700px; margin-left: auto; margin-right: auto;">
                 
             </p>
@@ -78,32 +78,25 @@
     <section class="features" id="content">
         <div class="container">
             <article class="markdown-content">
-<p>A geospatial memory palace built from the <code>geo-cities</code> sample dataset.</p>
+<p>A process-flow memory palace for game-world telemetry, using the <code>flow-process</code> sample dataset.</p>
 <h2>What it shows</h2>
-<p><code>src/data/SyntheticData.js</code> generates 20 global cities with lat/lon, population, and GDP:</p>
+<p>Game levels and pipelines share the same shape as process-flow graphs: stages, edges, throughput, and latency. The <code>flow-process</code> dataset from <code>src/data/SyntheticData.js</code> acts as a stand-in for level telemetry:</p>
 <table>
 <thead>
 <tr>
-<th>name</th>
-<th>lat</th>
-<th>lon</th>
-<th>population</th>
-<th>gdp</th>
+<th>id</th>
+<th>stage</th>
+<th>label</th>
+<th>throughput</th>
+<th>latency</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>New York</td>
-<td>40.7</td>
-<td>-74.0</td>
-<td>8</td>
-<td>312</td>
-</tr>
-<tr>
-<td>London</td>
-<td>51.5</td>
-<td>-0.1</td>
-<td>9</td>
-<td>478</td>
+<td>S0</td>
+<td>0</td>
+<td>Stage 1</td>
+<td>342</td>
+<td>87</td>
 </tr>
 <tr>
 <td>...</td>
@@ -113,29 +106,29 @@
 <td>...</td>
 </tr>
 </tbody></table>
-<p>The Draco engine detects <code>lat</code>/<code>lon</code>, infers <strong>GEO</strong>, and maps the points to a room-scale geo-surface with columns and zone boundaries.</p>
+<p>The Draco engine infers <strong>GRAPH</strong> and lays out a channel-style flow graph with weighted beams.</p>
 <h2>Artefacts generated</h2>
 <ul>
-<li><strong>Geo-surface columns</strong> — one per city, height = population.</li>
-<li><strong>Zone boundaries</strong> — regional grouping halos.</li>
-<li><strong>Colour encoding</strong> — GDP maps to the colour scale.</li>
+<li><strong>Process nodes</strong> — one per stage.</li>
+<li><strong>Weighted beams/trails</strong> — normal and skip paths.</li>
+<li><strong>Glow pulse</strong> — latency drives emissive intensity on bottleneck stages.</li>
 </ul>
 <h2>Try this in VR</h2>
 <ol>
 <li>Launch the app and open the wheel menu.</li>
-<li>Choose <strong>Views → Dataset</strong> and pick <strong>Global Cities Geospatial</strong>.</li>
+<li>Choose <strong>Views → Dataset</strong> and pick <strong>Process Flow Graph</strong>.</li>
 <li>Operations you can perform:<ul>
-<li><strong>Filter by population</strong> — <code>pinchTogether</code> gesture.</li>
-<li><strong>Aggregate by region</strong> — <code>pinchApart</code> gesture.</li>
-<li><strong>Sort by GDP</strong> — <code>sliceUp</code> gesture.</li>
-<li><strong>Toggle flight mode</strong> — wheel menu <strong>Views → Toggle Flight</strong>, then fly over the model.</li>
+<li><strong>Filter low-throughput stages</strong> — focus on the busiest parts of the pipeline.</li>
+<li><strong>Sort by latency</strong> — find bottlenecks.</li>
+<li><strong>Anomaly on latency</strong> — highlights problem stages.</li>
+<li><strong>Reset</strong> — <code>pushForward</code> gesture.</li>
 </ul>
 </li>
 </ol>
-<h2>Note on city-scale data</h2>
-<p>The current geospatial layout is room-scale and works best with tens to hundreds of points. Large-scale terrain, GeoJSON, and OSM building extrusion are roadmap items.</p>
+<h2>Roadmap extensions</h2>
+<p>Direct level-editor data (navmesh, spawn points, trigger zones) and real-time profiling overlays are not yet supported. The current flow-graph palace demonstrates the same spatial reasoning tools that would power those future workflows.</p>
 <h2>Export</h2>
-<p>Use <strong>Panels → Export Story</strong> to save the current filter and camera view.</p>
+<p>Use <strong>Panels → Export Story</strong> to save the analysis.</p>
 
             </article>
         </div>
