@@ -27,6 +27,7 @@ interface WasmModule {
   alloc(len: number): number;
   dealloc(ptr: number, len: number): void;
   fill_pattern(ptr: number, len: number): number;
+  command_buffer_ptr(): number;
   update(deltaMs: number, timeMs: number): number;
   capabilities(): number;
   data_load_csv(ptr: number, len: number): number;
@@ -386,4 +387,22 @@ export function debugFillPattern(len: number): Uint8Array {
   const bytes = readBytes(ptr, len);
   wasmModule.dealloc(ptr, len);
   return bytes;
+}
+
+/**
+  * Return the WASM command buffer pointer.
+  */
+export function commandBufferPtr(): number {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  return wasmModule.command_buffer_ptr();
+}
+
+/**
+  * Read the raw bytes of the current WASM frame command buffer.
+  */
+export function getCommandBufferBytes(byteLength: number): Uint8Array {
+  if (!wasmModule) throw new Error('Runtime not initialised');
+  const ptr = wasmModule.command_buffer_ptr();
+  if (ptr === 0 || byteLength === 0) return new Uint8Array(0);
+  return readBytes(ptr, byteLength);
 }
