@@ -295,7 +295,7 @@
 <li><code>Ctrl+Z</code> and <code>Ctrl+Y</code> (or <code>Ctrl+Shift+Z</code>) on the desktop keyboard.</li>
 </ul>
 <h2>Settings Panel</h2>
-<p><code>src/vr/ui/SettingsPanel.js</code> is a movable, camera-rig-attached panel that lets analysts customize:</p>
+<p><code>src/vr/ui/SettingsPanel.ts</code> is a movable, camera-rig-attached panel that lets analysts customize:</p>
 <table>
 <thead>
 <tr>
@@ -549,7 +549,7 @@
 <p>These checks run each frame in <code>World._updateInputContext()</code> and update <code>InputRouter</code> and <code>Locomotion</code> suppression flags.</p>
 <hr>
 <h2>Guided Tour</h2>
-<p><code>src/vr/ui/GuidedTour.js</code> plays a step-by-step spatial tutorial authored as JSON. The default tour (<code>src/data/DefaultTour.js</code>) introduces the datum plane, Draco palace, node inspection, the constellation wheel menu, two-hand gestures, the settings panel, and the curved dashboard.</p>
+<p><code>src/vr/ui/GuidedTour.ts</code> plays a step-by-step spatial tutorial authored as JSON. The default tour (<code>src/data/DefaultTour.ts</code>) introduces the datum plane, Draco palace, node inspection, the constellation wheel menu, two-hand gestures, the settings panel, and the curved dashboard.</p>
 <ul>
 <li>Tours advance manually via <code>next()</code> / <code>previous()</code> or automatically when a step&#39;s condition is satisfied.</li>
 <li>Each step displays a camera-rig-attached instruction card and a pulsing highlight ring around the target.</li>
@@ -557,7 +557,7 @@
 <li>Start the tour from the wheel menu under <strong>Panels → Tour</strong> or programmatically with <code>world.startTour()</code>.</li>
 </ul>
 <h2>Atmosphere &amp; Theme Presets</h2>
-<p><code>src/vr/WorldTheme.js</code> controls the cyberspace mood: fog density/color, ambient/point light intensities, grid colors, and a slow ambient dust particle field. Each dataset load can request a preset so the environment matches the data&#39;s emotional register.</p>
+<p><code>src/vr/WorldTheme.ts</code> controls the cyberspace mood: fog density/color, ambient/point light intensities, grid colors, and a slow ambient dust particle field. Each dataset load can request a preset so the environment matches the data&#39;s emotional register.</p>
 <p>Available presets: <code>neonMidnight</code>, <code>daylightGlobe</code>, <code>coolDepth</code>, <code>warmAnomaly</code>, <code>deepNet</code>.</p>
 <ul>
 <li>Loading a sample dataset by key automatically applies a mapped preset (e.g., <code>fraud-graph</code> → <code>warmAnomaly</code>, <code>sensor-stream</code> → <code>coolDepth</code>).</li>
@@ -649,7 +649,7 @@
 <p>This matches the diegetic UI pattern used in Half-Life: Alyx and No Man&#39;s Sky: information lives in the world, attached to the user&#39;s body, rather than as a fixed HUD element.</p>
 <hr>
 <h2>Contextual Gaze Tooltips</h2>
-<p><code>src/vr/ui/TooltipManager.js</code> keeps label clutter low with a pooled set of world-space gaze tooltips:</p>
+<p><code>src/vr/ui/TooltipManager.ts</code> keeps label clutter low with a pooled set of world-space gaze tooltips:</p>
 <ul>
 <li>A compact label fades in when you look at a node for more than ~400 ms.</li>
 <li>Nodes within arm&#39;s reach show labels immediately via the existing <code>LODManager</code> rules.</li>
@@ -659,14 +659,14 @@
 <p>Only a small pool of tooltips is active at once, so dense datasets do not turn into a wall of text.</p>
 <hr>
 <h2>Spatial Dashboard (Curved, Scrollable Workspace)</h2>
-<p><code>src/vr/ui/DashboardManager.js</code> now lays out 2D <code>ChartPlane</code>s and diagnostic panels on a curved, scrollable grid in front of the analyst:</p>
+<p><code>src/vr/ui/DashboardManager.ts</code> now lays out 2D <code>ChartPlane</code>s and diagnostic panels on a curved, scrollable grid in front of the analyst:</p>
 <ul>
 <li>The dashboard is attached to the camera rig and wraps around the user in a front-facing semi-circle (default radius 1.35 m, 180° arc), so panels stay readable without turning around.</li>
 <li>The grid has angular columns and vertical rows. More panels than fit in the visible arc are parked just off-screen and roll into view when the carousel is scrolled.</li>
 <li>Faint wireframe snap zones appear while a panel is being dragged; the nearest zone highlights in magenta.</li>
 <li>Dropping a panel near a zone snaps it into place, orients it toward the analyst, and scales it to fit the cell.</li>
 <li>Dropping a panel into an off-screen zone auto-scrolls the carousel to bring that zone into view.</li>
-<li>Chart panels are created automatically from the active dataset (<code>ChartPlanePanel.js</code>) and update when data operations run.</li>
+<li>Chart panels are created automatically from the active dataset (<code>ChartPlanePanel.ts</code>) and update when data operations run.</li>
 <li>The constellation wheel menu provides <strong>Scroll Left</strong>, <strong>Scroll Right</strong>, and <strong>Reset Dashboard</strong> actions under Panels.</li>
 </ul>
 <p>This borrows the cockpit-style panel layout from <em>Elite Dangerous</em> and <em>No Man&#39;s Sky</em> (information arranged in world space around the pilot) and the carousel paging common in VR game menus (<em>Echo VR</em>, console radial menus). The grid itself is inspired by the Google VR Constellation Menu and <em>Starblood Arena</em> circular HUD: a regular angular arrangement that builds spatial muscle memory.</p>

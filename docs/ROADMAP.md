@@ -80,12 +80,12 @@ This roadmap is aligned with the upstream `nemosyne.world` 6-phase structure, ad
 - [x] **Sprint 9.1** — Diegetic data inspector (`HolographicInspector.js`).
 - [x] **Sprint 9.2** — Contextual gaze tooltips (`TooltipManager`).
 - [x] **Sprint 9.3** — Constellation / nested radial menus.
-- [x] **Sprint 9.4** — Spatial dashboard wall with snap zones (`DashboardManager.js`, `ChartPlanePanel.js`, dashboard reset in wheel menu).
+- [x] **Sprint 9.4** — Spatial dashboard wall with snap zones (`DashboardManager.ts`, `ChartPlanePanel.ts`, dashboard reset in wheel menu).
 - [x] **Sprint 9.5** — Teleport anchors and comfort vignette (`locomotion.teleportToAnchor`, overview/detail anchors).
 - [x] **Sprint 9.6** — Guided tour system (`GuidedTour`, `DefaultTour.js`).
 - [x] **Sprint 9.7** — Dual-hand gestures, analysis history undo/redo, settings panel, feedback customization.
 - [x] **Sprint 9.8** — Hand-pointer anchoring, gesture cooldown/threshold tuning, production test hardening.
-- [x] **Sprint 9.9** — Visual polish and atmosphere presets (`WorldTheme.js`, ambient particles, portal/TechnoCore glow pulses, dataset-key atmosphere mapping).
+- [x] **Sprint 9.9** — Visual polish and atmosphere presets (`WorldTheme.ts`, ambient particles, portal/TechnoCore glow pulses, dataset-key atmosphere mapping).
 
 ----
 

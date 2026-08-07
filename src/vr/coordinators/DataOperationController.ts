@@ -22,7 +22,7 @@ import {
   captureBaseState,
   resetTransforms,
 } from '../interactions/DataOperations.ts';
-import { WorldEventBus, WorldTopics } from '../../utils/EventBus.js';
+import { WorldEventBus, WorldTopics } from '../../utils/EventBus.ts';
 import type {
   ArtifactRef,
   DataOperationControllerOptions,

@@ -8,7 +8,7 @@ import {
   buildMapperPlane,
   buildBettiPlane,
   buildTDASummaryGroup,
-} from '../src/vr/artifacts/TDAPlanes.js';
+} from '../src/vr/artifacts/TDAPlanes.ts';
 
 function makeDataset(rows) {
   const columns = [

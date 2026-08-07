@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { WorldUIManager } from '../src/vr/coordinators/WorldUIManager.ts';
-import { WorldEventBus } from '../src/utils/EventBus.js';
-import { Engine } from '../src/vr/Engine.js';
+import { WorldEventBus } from '../src/utils/EventBus.ts';
+import { Engine } from '../src/vr/Engine.ts';
 
 describe('WorldUIManager', () => {
   let engine;

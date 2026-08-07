@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ConstraintEngine } from './ConstraintEngine.ts';
 import { VRTopologyTranslator } from './VRTopologyTranslator.ts';
-import { disposeObject } from '../utils/Dispose.js';
+import { disposeObject } from '../utils/Dispose.ts';
 import type { Artifact, DracoDataInput, SolverResult } from './types.ts';
 
 /**

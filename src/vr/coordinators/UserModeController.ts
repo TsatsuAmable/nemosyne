@@ -4,7 +4,7 @@
  * branching on mode strings directly.
  */
 
-import type { WorldEventBus } from '../../utils/EventBus.js';
+import type { WorldEventBus } from '../../utils/EventBus.ts';
 import type { UserMode, UserModeControllerOptions } from './types.ts';
 
 export class UserModeController {

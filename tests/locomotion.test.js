@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { Locomotion } from '../src/vr/Locomotion.js';
+import { Locomotion } from '../src/vr/Locomotion.ts';
 
 function makeEngine() {
   const scene = new THREE.Scene();

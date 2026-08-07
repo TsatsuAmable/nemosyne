@@ -38,7 +38,7 @@ describe('World.loadTemplate integration', () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    const { World } = await import('../src/vr/World.js');
+    const { World } = await import('../src/vr/World.ts');
     world = new World();
     // Wait for async autosave restore to settle.
     await new Promise((r) => setTimeout(r, 50));

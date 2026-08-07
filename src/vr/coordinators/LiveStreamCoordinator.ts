@@ -22,8 +22,8 @@ export class LiveStreamCoordinator {
 
   liveConnector: LiveConnectorLike | null;
   liveRows: Record<string, unknown>[];
-  private _pendingRows: Record<string, unknown>[];
-  private _liveFlushTimer: ReturnType<typeof setTimeout> | null;
+  _pendingRows: Record<string, unknown>[];
+  _liveFlushTimer: ReturnType<typeof setTimeout> | null;
   private _liveUpdatePending: boolean;
   private _liveUpdateUnsub: (() => void) | null;
   private _liveStatusUnsub: (() => void) | null;
@@ -199,7 +199,7 @@ export class LiveStreamCoordinator {
       this.world.currentEntry?.name === 'Live Stream' &&
       this._pendingRows.length > 0
     ) {
-      const incremental = this.world.dracoNode.appendRows(this._pendingRows, {
+      const incremental = this.world.dracoNode.appendRows?.(this._pendingRows, {
         mode: 'append',
         limit: this.liveConnector?.windowSize ?? 50,
       });

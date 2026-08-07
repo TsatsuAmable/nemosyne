@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import { FarcasterPortal } from '../src/vr/artifacts/FarcasterPortal.js';
+import { FarcasterPortal } from '../src/vr/artifacts/FarcasterPortal.ts';
 
 describe('FarcasterPortal', () => {
   let portal;

@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { InputRouter } from '../src/vr/InputRouter.js';
+import { InputRouter } from '../src/vr/InputRouter.ts';
 
 function makeEngine() {
   return {
