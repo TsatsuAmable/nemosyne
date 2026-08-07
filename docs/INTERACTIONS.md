@@ -39,7 +39,7 @@ Nemosyne defines a small set of **metaphor-accurate** interactions: every gestur
 
 ## Dual-Hand Gesture Commands
 
-`src/vr/interactions/HandGestureRecognizer.js` reads both tracked hands each frame and maps simple pose patterns to analysis commands. Gestures are deliberately conservative: each has a cooldown and a clear displacement threshold so accidental motion does not spam commands.
+`src/vr/interactions/HandGestureRecognizer.ts` reads both tracked hands each frame and maps simple pose patterns to analysis commands. Gestures are deliberately conservative: each has a cooldown and a clear displacement threshold so accidental motion does not spam commands.
 
 | Gesture | Hands | Mapped action |
 |---|---|---|
@@ -81,7 +81,7 @@ You can step through history with:
 
 ## Settings Panel
 
-`src/vr/ui/SettingsPanel.js` is a movable, camera-rig-attached panel that lets analysts customize:
+`src/vr/ui/SettingsPanel.ts` is a movable, camera-rig-attached panel that lets analysts customize:
 
 | Section | Options |
 |---|---|
@@ -218,7 +218,7 @@ These checks run each frame in `World._updateInputContext()` and update `InputRo
 
 ## Guided Tour
 
-`src/vr/ui/GuidedTour.js` plays a step-by-step spatial tutorial authored as JSON. The default tour (`src/data/DefaultTour.js`) introduces the datum plane, Draco palace, node inspection, the constellation wheel menu, two-hand gestures, the settings panel, and the curved dashboard.
+`src/vr/ui/GuidedTour.ts` plays a step-by-step spatial tutorial authored as JSON. The default tour (`src/data/DefaultTour.ts`) introduces the datum plane, Draco palace, node inspection, the constellation wheel menu, two-hand gestures, the settings panel, and the curved dashboard.
 
 - Tours advance manually via `next()` / `previous()` or automatically when a step's condition is satisfied.
 - Each step displays a camera-rig-attached instruction card and a pulsing highlight ring around the target.
@@ -227,7 +227,7 @@ These checks run each frame in `World._updateInputContext()` and update `InputRo
 
 ## Atmosphere & Theme Presets
 
-`src/vr/WorldTheme.js` controls the cyberspace mood: fog density/color, ambient/point light intensities, grid colors, and a slow ambient dust particle field. Each dataset load can request a preset so the environment matches the data's emotional register.
+`src/vr/WorldTheme.ts` controls the cyberspace mood: fog density/color, ambient/point light intensities, grid colors, and a slow ambient dust particle field. Each dataset load can request a preset so the environment matches the data's emotional register.
 
 Available presets: `neonMidnight`, `daylightGlobe`, `coolDepth`, `warmAnomaly`, `deepNet`.
 
@@ -281,7 +281,7 @@ Beyond the core operations, Nemosyne defines six spatial metaphors for reasoning
 | **BEACON** | A vertical light column rises from the selected point. | Geo / dense tabular spaces |
 | **ALEPH** | All other visible nodes briefly flash a connection to the selected node. | Dense graphs |
 
-The metaphors are implemented in `src/vr/interactions/MetaphorActions.js` and wired into `VRTopologyTranslator`. By default the constraint engine still prefers base interactions (`TRAVERSE_EDGE`, `INSPECT_CELL`, etc.); tuning the metaphor soft-constraint weights selects them.
+The metaphors are implemented in `src/vr/interactions/MetaphorActions.ts` and wired into `VRTopologyTranslator`. By default the constraint engine still prefers base interactions (`TRAVERSE_EDGE`, `INSPECT_CELL`, etc.); tuning the metaphor soft-constraint weights selects them.
 
 ## Holographic Inspector
 
@@ -299,7 +299,7 @@ This matches the diegetic UI pattern used in Half-Life: Alyx and No Man's Sky: i
 
 ## Contextual Gaze Tooltips
 
-`src/vr/ui/TooltipManager.js` keeps label clutter low with a pooled set of world-space gaze tooltips:
+`src/vr/ui/TooltipManager.ts` keeps label clutter low with a pooled set of world-space gaze tooltips:
 
 - A compact label fades in when you look at a node for more than ~400 ms.
 - Nodes within arm's reach show labels immediately via the existing `LODManager` rules.
@@ -312,14 +312,14 @@ Only a small pool of tooltips is active at once, so dense datasets do not turn i
 
 ## Spatial Dashboard (Curved, Scrollable Workspace)
 
-`src/vr/ui/DashboardManager.js` now lays out 2D `ChartPlane`s and diagnostic panels on a curved, scrollable grid in front of the analyst:
+`src/vr/ui/DashboardManager.ts` now lays out 2D `ChartPlane`s and diagnostic panels on a curved, scrollable grid in front of the analyst:
 
 - The dashboard is attached to the camera rig and wraps around the user in a front-facing semi-circle (default radius 1.35 m, 180° arc), so panels stay readable without turning around.
 - The grid has angular columns and vertical rows. More panels than fit in the visible arc are parked just off-screen and roll into view when the carousel is scrolled.
 - Faint wireframe snap zones appear while a panel is being dragged; the nearest zone highlights in magenta.
 - Dropping a panel near a zone snaps it into place, orients it toward the analyst, and scales it to fit the cell.
 - Dropping a panel into an off-screen zone auto-scrolls the carousel to bring that zone into view.
-- Chart panels are created automatically from the active dataset (`ChartPlanePanel.js`) and update when data operations run.
+- Chart panels are created automatically from the active dataset (`ChartPlanePanel.ts`) and update when data operations run.
 - The constellation wheel menu provides **Scroll Left**, **Scroll Right**, and **Reset Dashboard** actions under Panels.
 
 This borrows the cockpit-style panel layout from *Elite Dangerous* and *No Man's Sky* (information arranged in world space around the pilot) and the carousel paging common in VR game menus (*Echo VR*, console radial menus). The grid itself is inspired by the Google VR Constellation Menu and *Starblood Arena* circular HUD: a regular angular arrangement that builds spatial muscle memory.

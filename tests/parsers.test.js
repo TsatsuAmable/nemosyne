@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect } from 'vitest';
-import { parseCSV, parseJSON, detectDelimiter, tokenizeCSVLine } from '../src/data/Parsers.js';
+import { parseCSV, parseJSON, detectDelimiter, tokenizeCSVLine } from '../src/data/Parsers.ts';
 
 describe('parseCSV', () => {
   it('parses a simple comma-delimited CSV', () => {

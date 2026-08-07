@@ -70,7 +70,7 @@ This roadmap is aligned with the upstream `nemosyne.world` 6-phase structure, ad
 ## Phase 8 — Deeper Analytics & TDA Artefacts 🔄
 
 - [x] **Sprint 8.1** — Statistical facts engine (`columnStats`, `correlationMatrix`, `categoryDistribution`, temporal trend/seasonality, outlier detection).
-- [x] **Sprint 8.2** — Advanced clustering (`hierarchical`, `dbscan`, k-means++ seeding, `ClusterTransforms.js`).
+- [x] **Sprint 8.2** — Advanced clustering (`hierarchical`, `dbscan`, k-means++ seeding, `ClusterTransforms.ts`).
 - [x] **Sprint 8.3** — Anomaly & outlier layer (`anomaly` operation with IQR/Z-score/isolation methods, ORB halo rendering, outlier lens).
 - [x] **Sprint 8.4** — 2D chart planes in VR (`ChartPlane` artefact for bar/line/histogram/box/correlation plots, auto-attached by `VRTopologyTranslator`).
 - [x] **Sprint 8.5** — TDA artefact factory (`TDAMapper`, persistence barcode, mapper graph, Betti curve).
@@ -80,12 +80,12 @@ This roadmap is aligned with the upstream `nemosyne.world` 6-phase structure, ad
 - [x] **Sprint 9.1** — Diegetic data inspector (`HolographicInspector.js`).
 - [x] **Sprint 9.2** — Contextual gaze tooltips (`TooltipManager`).
 - [x] **Sprint 9.3** — Constellation / nested radial menus.
-- [x] **Sprint 9.4** — Spatial dashboard wall with snap zones (`DashboardManager.js`, `ChartPlanePanel.js`, dashboard reset in wheel menu).
+- [x] **Sprint 9.4** — Spatial dashboard wall with snap zones (`DashboardManager.ts`, `ChartPlanePanel.ts`, dashboard reset in wheel menu).
 - [x] **Sprint 9.5** — Teleport anchors and comfort vignette (`locomotion.teleportToAnchor`, overview/detail anchors).
 - [x] **Sprint 9.6** — Guided tour system (`GuidedTour`, `DefaultTour.js`).
 - [x] **Sprint 9.7** — Dual-hand gestures, analysis history undo/redo, settings panel, feedback customization.
 - [x] **Sprint 9.8** — Hand-pointer anchoring, gesture cooldown/threshold tuning, production test hardening.
-- [x] **Sprint 9.9** — Visual polish and atmosphere presets (`WorldTheme.js`, ambient particles, portal/TechnoCore glow pulses, dataset-key atmosphere mapping).
+- [x] **Sprint 9.9** — Visual polish and atmosphere presets (`WorldTheme.ts`, ambient particles, portal/TechnoCore glow pulses, dataset-key atmosphere mapping).
 
 ----
 

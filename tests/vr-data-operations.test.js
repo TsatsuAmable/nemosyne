@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.js';
-import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.js';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
+import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import {
   applyFilter,
   applySort,
@@ -15,7 +15,7 @@ import {
   applySlice,
   captureBaseState,
   resetTransforms,
-} from '../src/vr/interactions/DataOperations.js';
+} from '../src/vr/interactions/DataOperations.ts';
 import {
   filter,
   sort,
@@ -25,7 +25,7 @@ import {
   dbscan,
   anomaly,
   slice,
-} from '../src/data/DatasetOperations.js';
+} from '../src/data/DatasetOperations.ts';
 
 describe('VR Data Operations', () => {
   let dataset;

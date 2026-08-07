@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { WorldSceneComposer } from '../src/vr/coordinators/WorldSceneComposer.js';
-import { Engine } from '../src/vr/Engine.js';
-import { DatumPlane } from '../src/vr/artifacts/DatumPlane.js';
-import { TechnoCoreNode } from '../src/vr/artifacts/TechnoCoreNode.js';
-import { FarcasterPortal } from '../src/vr/artifacts/FarcasterPortal.js';
-import { HolographicInspector } from '../src/vr/artifacts/HolographicInspector.js';
+import { WorldSceneComposer } from '../src/vr/coordinators/WorldSceneComposer.ts';
+import { Engine } from '../src/vr/Engine.ts';
+import { DatumPlane } from '../src/vr/artifacts/DatumPlane.ts';
+import { TechnoCoreNode } from '../src/vr/artifacts/TechnoCoreNode.ts';
+import { FarcasterPortal } from '../src/vr/artifacts/FarcasterPortal.ts';
+import { HolographicInspector } from '../src/vr/artifacts/HolographicInspector.ts';
 
 describe('WorldSceneComposer', () => {
   let engine;

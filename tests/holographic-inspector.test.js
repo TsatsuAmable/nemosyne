@@ -2,7 +2,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { HolographicInspector } from '../src/vr/artifacts/HolographicInspector.js';
+import { HolographicInspector } from '../src/vr/artifacts/HolographicInspector.ts';
 
 function makeEngine() {
   const cameraGroup = new THREE.Group();

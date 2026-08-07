@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import {
   datasetToArrowIPC,
   arrowIPCToDataset,
@@ -7,7 +7,7 @@ import {
   flatBufferToDataset,
   datasetToMessagePack,
   messagePackToDataset,
-} from '../src/data/serializers/index.js';
+} from '../src/data/serializers/index.ts';
 
 const TEST_DATASET = new Dataset(
   'Test',

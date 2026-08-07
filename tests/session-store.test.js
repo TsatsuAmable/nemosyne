@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SessionStore } from '../src/data/SessionStore.js';
+import { SessionStore } from '../src/data/SessionStore.ts';
 
 /**
  * Minimal in-memory IndexedDB stub for unit testing.

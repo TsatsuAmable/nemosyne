@@ -194,7 +194,7 @@ For each document, remove A-Frame-specific examples and align with the three.js 
 
 | File | Action |
 |---|---|
-| `docs/DESIGN_SYSTEM.md` | Reconcile color tokens with `src/vr/WorldTheme.js`. Consider extracting tokens into `src/vr/theme/designTokens.js`. |
+| `docs/DESIGN_SYSTEM.md` | Reconcile color tokens with `src/vr/WorldTheme.ts`. Consider extracting tokens into `src/vr/theme/designTokens.js`. |
 | `docs/TDA_ARTEFACTS.md` | Reference `src/draco/TDAMapper.js`, persistence barcode, Betti curve implementation. |
 | `docs/THE_CRYSTAL.md` | Reference `IceVaultNode`, `TechnoCoreNode`, and other suite artefacts. |
 | `artefacts/SPECIFICATION.md` | Map its declarative JSON schema to the Draco engine's `{ layout, geometry, behavior, interaction }` output. Consider making `VRTopologyTranslator` ingest this spec. |

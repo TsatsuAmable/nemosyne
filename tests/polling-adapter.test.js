@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { PollingAdapter } from '../src/data/connectors/PollingAdapter.js';
+import { PollingAdapter } from '../src/data/connectors/PollingAdapter.ts';
 
 describe('PollingAdapter', () => {
   let originalFetch;

@@ -2,8 +2,8 @@
 
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { PanelManager } from '../src/vr/ui/PanelManager.js';
-import { MovablePanel } from '../src/vr/ui/MovablePanel.js';
+import { PanelManager } from '../src/vr/ui/PanelManager.ts';
+import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
 
 class TestPanel extends MovablePanel {
   constructor(cameraGroup, title, position) {

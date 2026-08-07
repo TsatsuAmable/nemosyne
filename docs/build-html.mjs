@@ -25,9 +25,23 @@ const INDEX_PATH = path.join(DOCS_ROOT, 'index.html');
 const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
 const indexHtml = fs.readFileSync(INDEX_PATH, 'utf8');
 
+function findMdFiles(dir) {
+  let results = [];
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory() && entry.name !== 'node_modules' && entry.name !== 'wiki') {
+      results = results.concat(findMdFiles(fullPath));
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      const relPath = path.relative(DOCS_ROOT, fullPath).replace(/\\/g, '/');
+      results.push(relPath);
+    }
+  }
+  return results;
+}
+
+const uniqueMdLinks = findMdFiles(DOCS_ROOT);
 const mdLinkPattern = /href="(\.{0,2}\/[^"]*\.md)"/g;
-const mdLinks = [...indexHtml.matchAll(mdLinkPattern)].map((m) => m[1]);
-const uniqueMdLinks = [...new Set(mdLinks)];
 
 function extractFirstHeading(markdown) {
   const match = markdown.match(/^#\s+(.+)$/m);

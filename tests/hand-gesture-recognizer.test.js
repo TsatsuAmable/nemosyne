@@ -2,7 +2,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { HandGestureRecognizer } from '../src/vr/interactions/HandGestureRecognizer.js';
+import { HandGestureRecognizer } from '../src/vr/interactions/HandGestureRecognizer.ts';
 
 function makePose({
   position = new THREE.Vector3(),

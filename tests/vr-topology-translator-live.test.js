@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.js';
-import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.js';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
+import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 
 describe('VRTopologyTranslator live/incremental updates', () => {
   beforeEach(() => {

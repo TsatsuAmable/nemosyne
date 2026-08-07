@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import { createRoomRegistry } from './SignallingServerCore.js';
+import { createRoomRegistry } from './SignallingServerCore.ts';
 
 /**
  * Minimal Node.js signalling server for Nemosyne collaboration rooms.

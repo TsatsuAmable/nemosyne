@@ -1,3 +1,132 @@
+# Plan — Incremental TypeScript Migration
+
+## Goal
+
+Convert the entire Nemosyne JavaScript source tree to TypeScript module by module, while keeping the app runnable and the test suite green after each increment. The migration is a prerequisite for the Rust/WASM Phase 1 host bridge work: a typed JS host makes the `(ptr, len)` / handle ABI easier to verify and maintain, and shared types (`DatasetJSON`, `OperationSpec`, etc.) reduce bugs at the WASM boundary.
+
+## Status
+
+- [x] Tooling: `tsconfig.json`, `eslint.config.js`, `vitest.config.js`, and `package.json` scripts support `.ts` alongside `.js`.
+- [x] Shared types module: `src/data/types.ts` centralizes `DatasetJSON`, `ColumnSchema`, `ColumnTypeValue`, `OperationName`, `OperationSpec`, and related interfaces.
+- [x] WASM host bridge: `src/wasm/RuntimeBridge.ts` is fully typed and uses the shared types.
+- [x] Phase 1 data layer: all core data modules converted to TypeScript.
+  - `src/data/Dataset.ts`
+  - `src/data/Parsers.ts`
+  - `src/data/DatasetOperations.ts`
+  - `src/data/SampleDatasets.ts`
+  - `src/data/SyntheticData.ts`
+  - `src/data/ImportError.ts`
+  - `src/data/AnalysisHistory.ts`
+  - `src/data/TopologyInference.ts`
+  - `src/data/SessionStore.ts`
+  - `src/data/connectors/DataConnector.ts`
+  - `src/data/connectors/normalize.ts`
+  - `src/data/connectors/PollingAdapter.ts`
+  - `src/data/connectors/WebSocketAdapter.ts`
+  - `src/data/connectors/OpenDataSources.ts`
+- [x] Integration test: `tests/wasm-runtime.test.ts` imports shared types and exercises the WASM bridge.
+- [x] Remaining data-layer JS files: `src/data/Encodings.ts`, `src/data/DefaultTour.ts`, `src/data/AnalysisTemplates.ts`, `src/data/serializers/index.ts`, `src/data/serializers/ArrowSerializer.ts`, `src/data/serializers/FlatBuffersSerializer.ts`, `src/data/serializers/MessagePackSerializer.ts`.
+- [x] `src/draco/` layer converted to TypeScript.
+  - `src/draco/types.ts` (shared Draco/artefact types)
+  - `src/draco/ConstraintEngine.ts`
+  - `src/draco/VRTopologyTranslator.ts`
+  - `src/draco/DracoTopologyNode.ts`
+  - `src/draco/DracoDiagnosticHUD.ts`
+  - `src/draco/TDAGlyphs.ts`
+  - `src/draco/layouts/LayoutBase.ts`
+  - `src/draco/layouts/GridLayout3D.ts`
+  - `src/draco/layouts/ForceDirected3D.ts`
+  - `src/draco/layouts/RadialTreeLayout.ts`
+  - `src/draco/layouts/GeoSurfaceLayout.ts`
+  - `src/draco/layouts/TimeSeriesRibbonLayout.ts`
+  - `src/draco/layouts/StreamlineLayout.ts`
+  - `src/draco/layouts/index.ts`
+- [x] `src/vr/coordinators/*.js` → `.ts`.
+- [x] `src/vr/input/*.js` → `.ts`.
+  - PointerEventMachine, PointerRegistry, InteractableRegistry, SystemGestureDetector, ControllerGestureBridge, SelectionDispatcher.
+- [x] `src/vr/interactions/*.js` → `.ts`.
+  - ControllerGestureMapper, HandGestureRecognizer, DataOperations, ClusterTransforms, AnomalyTransforms, LivePreview, InPlaceOperationHandles, MetaphorActions.
+- [x] `src/vr/artifacts/`, `src/vr/ui/`, `src/vr/audio/`.
+  - [x] Wave 1: MovablePanel, PanelManager, VRConsole, OperationLogPanel.
+  - [x] Wave 2: VRMenu, HandWheelMenu, SettingsPanel.
+  - [x] Wave 3: TelemetryPanel, PerformancePanel, NetworkPanel, ChartPlanePanel, DashboardManager + ReviewBundle export button.
+  - [x] Wave 4: InteractionCoach, NarrativeStrip, MiniOverview, PeerPresenceHUD, TooltipManager, GuidedTour.
+- [x] Core VR runtime: `src/vr/Engine.ts`, `src/vr/Locomotion.ts`, `src/vr/DesktopControls.ts`, `src/vr/VRButton.ts`, `src/vr/WorldTheme.ts`.
+- [x] Coupled VR facade: `src/vr/World.ts`, `src/vr/InputRouter.ts`, `src/vr/Controllers.ts`, `src/vr/Hands.ts`, `src/vr/InputTelemetry.ts`.
+- [x] Increment 7: `src/vr/scalability/*.ts` (`index.ts`, `InstancedPointCloud.ts`, `LODManager.ts`, `SpatialIndex.ts`).
+- [x] Increment 8: `src/utils/*.ts` (`Accessibility`, `Dispose`, `Download`, `PerformanceBudget`, `SeededRandom`, `Telemetry`, `GestureMapping`, `EventBus`, `ReviewBundle`).
+- [x] Increment 9: `src/network/*.ts` (NetworkManager, Room, SignallingChannel, SignallingServerCore).
+- [x] Increment 10: `src/analytics/TDAMapper.ts` and `src/ui/FileLoader.ts`.
+- [x] Increment 11: `src/main.ts`.
+
+## Migration standards
+
+1. **One module at a time.** Rename `.js` → `.ts`, add types, run `npm run typecheck`, then run the relevant Vitest tests.
+2. **Keep JS fallbacks where needed.** Files that the WASM bridge or legacy tests import with `.js` extensions may need import paths updated to `.ts` extensions (allowed by `allowImportingTsExtensions`).
+3. **Use shared types.** Any type that crosses module boundaries (especially dataset JSON, operation specs, column schemas) must come from `src/data/types.ts`.
+4. **Preserve runtime behavior.** Do not change logic during conversion unless a type error reveals a real bug; fix those bugs in separate commits.
+5. **Update tests.** Rename `.test.js` to `.test.ts` when the module under test becomes `.ts`; import shared types from `.ts` sources.
+6. **Verify before moving on.** Required checks after each increment:
+   - `npm run typecheck`
+   - `npm run lint`
+   - `npx vitest run` (or the affected test files)
+   - `npm run build`
+
+## Next increment: `src/vr/artifacts/`, `src/vr/ui/`, `src/vr/audio/`
+
+The data, Draco, coordinator, input, and interaction layers are now fully typed and green. The next increment is the artefact, UI, and audio subsystems. These are the largest remaining consumers of the typed coordinator and input classes, and they directly produce the rendered scene and panels.
+
+- `src/vr/artifacts/DatumPlane.ts`
+- `src/vr/artifacts/TechnoCoreNode.ts`
+- `src/vr/artifacts/FarcasterPortal.ts`
+- `src/vr/artifacts/HolographicInspector.ts`
+- `src/vr/artifacts/DataCard.ts`
+- `src/vr/artifacts/ChartPlane.ts`
+- `src/vr/artifacts/TDAPlanes.ts`
+- `src/vr/artifacts/IceVaultNode.ts`
+- `src/vr/ui/MovablePanel.ts`
+- `src/vr/ui/PanelManager.ts`
+- `src/vr/ui/VRMenu.ts`
+- `src/vr/ui/HandWheelMenu.ts`
+- `src/vr/ui/VRConsole.ts`
+- `src/vr/ui/DashboardManager.ts`
+- `src/vr/ui/ChartPlanePanel.ts`
+- `src/vr/ui/NetworkPanel.ts`
+- `src/vr/ui/OperationLogPanel.ts`
+- `src/vr/ui/PerformancePanel.ts`
+- `src/vr/ui/TelemetryPanel.ts`
+- `src/vr/ui/SettingsPanel.ts`
+- `src/vr/ui/InteractionCoach.ts`
+- `src/vr/ui/NarrativeStrip.ts`
+- `src/vr/ui/MiniOverview.ts`
+- `src/vr/ui/PeerPresenceHUD.ts`
+- `src/vr/ui/TooltipManager.ts`
+- `src/vr/ui/GuidedTour.ts`
+- `src/vr/audio/index.ts`
+- `src/vr/audio/SelectionFeedback.ts`
+
+These modules are the renderable output of Nemosyne. Typing them will let us remove the remaining `LooseOptions` casts in `WorldUIManager.ts` and `WorldSceneComposer.ts`, and will prepare the way for the `ReviewBundle` export UI button.
+
+### Success criteria
+
+- `npm run typecheck` reports zero new errors.
+- `npx vitest run` passes (especially `tests/world.test.js`, `tests/movable-panel.test.ts`, `tests/technocore-node.test.js`, `tests/chart-plane.test.js`).
+- `npm run build` succeeds.
+- No runtime regressions in panels, artefacts, or audio feedback.
+
+## Following increments (rough order)
+
+1. Core VR runtime: `src/vr/Engine.ts`, `src/vr/Locomotion.ts`, `src/vr/DesktopControls.ts`, `src/vr/VRButton.ts`, `src/vr/WorldTheme.ts`.
+2. Coupled VR facade: `src/vr/World.ts`, `src/vr/InputRouter.ts`, `src/vr/Controllers.ts`, `src/vr/Hands.ts`, `src/vr/InputTelemetry.ts`.
+3. `src/vr/scalability/*.js`.
+4. `src/utils/*.js`.
+5. `src/network/*.js`.
+6. `src/analytics/TDAMapper.js`, `src/ui/FileLoader.js`, `src/main.js`.
+7. Update `docs/ARCHITECTURE.md` and `CLAUDE.md` to state that Nemosyne is now TypeScript-first.
+8. **Deferred:** Run an IWSDK hand/input helper spike. Defer any Meta Immersive Web SDK (or other external spatial UI library) spike until the TypeScript migration is complete, the UI layer is fully typed, and a lightweight visual-refinement evaluation has compared custom canvas-panel polish against third-party components.
+
+---
+
 # Plan — Expand `docs/index.html` applications and use cases
 
 ## Goal
@@ -806,8 +935,8 @@ Start with Phase 0 and the profiling baseline. Do not proceed to Phase 1 until t
 
 The UI/UX layer has grown a pair of God classes that absorb too many responsibilities:
 
-- `src/vr/World.js` (≈2,200 lines) composes the scene, creates every HUD panel, routes gestures, applies data operations, manages sessions, collaboration, live streams, settings, tours, themes, and analysis history.
-- `src/vr/InputRouter.js` (≈490 lines) mixes controller polling, hand tracking, panel raycasts, hover state, dwell selection, drag capture, and system-gesture detection.
+- `src/vr/World.ts` (≈2,200 lines) composes the scene, creates every HUD panel, routes gestures, applies data operations, manages sessions, collaboration, live streams, settings, tours, themes, and analysis history.
+- `src/vr/InputRouter.ts` (≈490 lines) mixes controller polling, hand tracking, panel raycasts, hover state, dwell selection, drag capture, and system-gesture detection.
 
 This plan refactors them into smaller, single-responsibility classes connected by an event bus and clear delegation patterns. The refactor is not just cleanup: it is the enabling foundation for the research-backed UI/UX improvements already identified (direct manipulation, progressive disclosure, comfort settings, narrative scaffolding, collaboration-first UI, occlusion management, accessibility, live previews, and intent inference). Smaller, loosely-coupled classes make each of those improvements testable, swappable, and safe to iterate on. The public `World` API must stay backward-compatible so the existing Vitest suite continues to pass.
 
@@ -1072,20 +1201,20 @@ Manages dwell timer and threshold for motor-accessibility selection.
 
 | # | Improvement | Enabling refactor | New/changed files |
 |---|---|---|---|
-| 1 | Icon-first wheel menu with guard angles | `HandWheelMenu` becomes a rendering widget owned by `WorldUIManager`; input guards move to `WorldInputCoordinator` | `src/vr/ui/HandWheelMenu.js`, `src/vr/ui/IconAtlas.js` |
-| 2 | Diegetic, in-place data operations | `DataOperationController` emits preview/apply events; `InPlaceOperationHandles` listens | `src/vr/interactions/InPlaceOperationHandles.js`, `src/vr/coordinators/DataOperationController.js` |
-| 3 | Progressive disclosure: novice/expert modes | `UserModeController` (State pattern) applies mode effects | `src/vr/coordinators/UserModeController.js` |
-| 4 | Better information hierarchy and comfort | `ComfortSettingsController` + `WorldUIManager` focus-zone logic | `src/vr/coordinators/ComfortSettingsController.js`, `src/vr/Engine.js` |
-| 5 | Narrative scaffolding and breadcrumbs | `NarrativeStrip` subscribes to `WorldEventBus` | `src/vr/ui/NarrativeStrip.js` |
-| 6 | Collaboration-first UI | `PeerPresenceHUD` owned by `WorldUIManager`; `CollaborationCoordinator` already extracted | `src/vr/ui/PeerPresenceHUD.js` |
-| 7 | Occlusion management | `MiniOverview` owned by `WorldUIManager`; future gaze-occlusion logic in `WorldInputCoordinator` | `src/vr/ui/MiniOverview.js` |
-| 8 | Accessibility and cross-platform continuity | `ComfortSettingsController` applies settings; event bus syncs state | `src/utils/EventBus.js`, `src/vr/ui/MovablePanel.js` |
+| 1 | Icon-first wheel menu with guard angles | `HandWheelMenu` becomes a rendering widget owned by `WorldUIManager`; input guards move to `WorldInputCoordinator` | `src/vr/ui/HandWheelMenu.ts`, `src/vr/ui/IconAtlas.js` |
+| 2 | Diegetic, in-place data operations | `DataOperationController` emits preview/apply events; `InPlaceOperationHandles` listens | `src/vr/interactions/InPlaceOperationHandles.js`, `src/vr/coordinators/DataOperationController.ts` |
+| 3 | Progressive disclosure: novice/expert modes | `UserModeController` (State pattern) applies mode effects | `src/vr/coordinators/UserModeController.ts` |
+| 4 | Better information hierarchy and comfort | `ComfortSettingsController` + `WorldUIManager` focus-zone logic | `src/vr/coordinators/ComfortSettingsController.ts`, `src/vr/Engine.ts` |
+| 5 | Narrative scaffolding and breadcrumbs | `NarrativeStrip` subscribes to `WorldEventBus` | `src/vr/ui/NarrativeStrip.ts` |
+| 6 | Collaboration-first UI | `PeerPresenceHUD` owned by `WorldUIManager`; `CollaborationCoordinator` already extracted | `src/vr/ui/PeerPresenceHUD.ts` |
+| 7 | Occlusion management | `MiniOverview` owned by `WorldUIManager`; future gaze-occlusion logic in `WorldInputCoordinator` | `src/vr/ui/MiniOverview.ts` |
+| 8 | Accessibility and cross-platform continuity | `ComfortSettingsController` applies settings; event bus syncs state | `src/utils/EventBus.js`, `src/vr/ui/MovablePanel.ts` |
 | 9 | Live previews and contextual help | `DataOperationController` emits preview events; `LivePreview` already extracted | `src/vr/interactions/LivePreview.js` |
-| 10 | Harden menu robustness and intent inference | `WorldInputCoordinator` context check; split `InputRouter` state machine | `src/vr/InputRouter.js`, `src/vr/input/*.js` |
+| 10 | Harden menu robustness and intent inference | `WorldInputCoordinator` context check; split `InputRouter` state machine | `src/vr/InputRouter.ts`, `src/vr/input/*.ts` |
 
 ## Public API compatibility strategy
 
-`World.js` becomes a facade that delegates to the new classes but keeps the legacy properties:
+`World.ts` becomes a facade that delegates to the new classes but keeps the legacy properties:
 
 ```js
 this.uiManager = new WorldUIManager(...);
@@ -1164,4 +1293,166 @@ This decouples the operation controller from UI panels and logging.
 | Refactor is too large to land safely | Land one extraction at a time; run tests after each. |
 | Event bus adds indirection that makes debugging harder | Keep topic names in a `WorldTopics` constant; log emissions in dev builds. |
 | `InputRouter` refactor breaks hand/controller input | Keep original behavior in the facade; add characterization tests before splitting. |
+
+---
+
+# Plan — External SDK and Telemetry Review
+
+## Goal
+
+Make two architecture/product decisions that affect the next phase of Nemosyne:
+
+1. **Meta Web SDK (IWSDK) evaluation** — decide whether to adopt, reject, or selectively borrow from Meta’s Immersive Web SDK.
+2. **Telemetry / user-data review pipeline** — design a privacy-first mechanism that lets the user export a reviewable bundle of runtime telemetry and dataset/session metadata so we can base improvements on real evidence rather than assumptions.
+
+Both decisions are recorded here and feed into the TypeScript migration and the UI/UX refactor already in progress.
+
+## 1. Meta Immersive Web SDK (IWSDK) evaluation
+
+### What it is
+
+Meta’s toolkit is now called the **Immersive Web SDK (IWSDK)** (`@iwsdk/core`, `@iwsdk/create`). It is an open-source, Vite-based framework for building WebXR experiences. The GitHub repo is `facebook/immersive-web-sdk`, written in TypeScript, and explicitly “Powered by Three.js.”
+
+- **License:** MIT (Copyright Meta Platforms, Inc. and affiliates).
+- **Runtime target:** WebXR-compatible browsers; Meta lists Quest, Apple Vision Pro, Pico, Android XR, HTC Vive, and desktop emulators.
+- **Key features:** VR/AR session management, hand tracking, one/two-hand and distance grabbing, locomotion, optional Havok physics, AR scene understanding, spatial UI via UIKitML, optional Meta Spatial Editor integration, and AI-assisted dev tooling.
+- **Dependencies:** Node ≥20.19 <21, ≥22.12 <23, or ≥24; Vite-based build.
+
+### Usefulness for Nemosyne
+
+| Nemosyne need | IWSDK fit | Notes |
+|---|---|---|
+| WebXR session setup | Medium | Nemosyne already has a working `Engine.js` session layer. IWSDK would mainly reduce boilerplate. |
+| Hand/controller input | High | Hand tracking, grab, and distance-interaction helpers could accelerate the `InputRouter` refactor and the new `PointerStateMachine`. |
+| Spatial UI panels | Medium | UIKitML components might replace some `MovablePanel` canvas code, but Nemosyne’s panels are heavily data-driven and may not map cleanly. |
+| Locomotion/comfort | Low–Medium | `Locomotion.js` already handles teleport anchors, ground movement, and flight mode; IWSDK’s helpers are generic. |
+| Physics for artefact interactions | Medium | Optional Havok is interesting for future “physics-savvy” data operations, but not needed now. |
+| Draco layout / data visualization | None | IWSDK has no opinion on constraint-driven layouts or data-to-artefact mapping; the core value of Nemosyne stays custom. |
+
+### Openness and vendor lock-in
+
+- **Runtime lock-in: low.** Output is a plain WebXR/three.js web app, hostable anywhere, shareable by URL. Meta and third-party reviewers agree the result is not tied to Quest.
+- **Code lock-in: low.** MIT license permits forking or extracting isolated helpers. Source is on GitHub with active 2026 commits.
+- **Ecosystem lock-in: medium if we go deep.** Optional dependencies create soft coupling:
+  - Meta Spatial Editor for scene authoring.
+  - UIKitML for spatial UI widgets.
+  - Meta Horizon Store / PWA distribution policies.
+  - Havok physics licensing (separate from the open-source IWSDK core).
+- **Standards posture: good.** Meta docs recommend runtime feature detection, not user-agent sniffing, and point to the W3C Immersive Web Working Group and Interop 2026.
+
+### Recommendation
+
+**Adopt selectively, not wholesale.** Nemosyne should keep its own Engine, World, Draco, and artefact pipeline, but can borrow or lightly wrap IWSDK helpers for:
+
+1. Hand-tracked grabbing and pointer abstractions during the `InputRouter` / `PointerStateMachine` refactor.
+2. Spatial UI primitives if `MovablePanel` canvas rendering becomes a bottleneck.
+3. A reference implementation for locomotion comfort defaults.
+
+Before any code dependency is added, run a spike: add `@iwsdk/core` to a throwaway branch, replace one interaction helper (e.g., hand pinch/scroll), and measure bundle size and Quest Browser frame time. If the spike adds >150 KB gzipped or any frame-time regression, drop it and copy the pattern instead.
+
+### Sources
+
+- [Meta WebXR overview](https://developers.meta.com/horizon/documentation/web/webxr-overview/)
+- [Meta IWSDK project setup](https://developers.meta.com/horizon/documentation/iwsdk/guides/01-project-setup/)
+- [facebook/immersive-web-sdk on GitHub](https://github.com/facebook/immersive-web-sdk/)
+- [IWSDK MIT LICENSE](https://github.com/facebook/immersive-web-sdk/blob/main/LICENSE)
+- [VIVERSE: XR Blocks vs Meta IWSDK comparison](https://news.viverse.com/post/vibe-coding-webxr-xr-blocks-vs-iwsdk)
+- [SkarredGhost hands-on review of Meta AI + IWSDK](https://skarredghost.com/2026/04/23/meta-ai-agentic-webxr-how-to/)
+- [VR.org: WebXR Interop 2026 cross-browser standard](https://vr.org/articles/webxr-interop-2026-cross-browser-standard)
+- [Metaverse Standards Forum: Open Metaverse Browser Initiative](https://metaverse-standards.org/news/blog/introducing-open-metaverse-browser-initiative/)
+
+## 2. Telemetry / user-data review pipeline
+
+### Current state
+
+`src/utils/Telemetry.js` (`TelemetryCollector`) is an opt-in, in-memory collector. By design it **never transmits data externally**. It records:
+
+- Frame-time histograms.
+- Dropped-frame counts.
+- Active dataset name and topology.
+- Operation and gesture counters.
+- Error/warning counts and the most recent error.
+
+`src/utils/PerformanceBudget.js` tracks budget violations (frame time, draw calls, triangles, interactables, etc.) and is already wired into the runtime. `src/data/SessionStore.ts` can serialize a session snapshot (dataset, history, settings) to IndexedDB.
+
+### What the user wants
+
+A way to send telemetry and user data back to the supervisor so improvements can be grounded in real usage. This must not violate the existing privacy-first design.
+
+### Proposed design: Analysis Review Bundle (ARB)
+
+Introduce an explicit, user-initiated export called the **Analysis Review Bundle**. It is not an automatic upload; it is a file the user can review, redact, and then attach to a message to the supervisor.
+
+#### Bundle schema (version 1)
+
+```ts
+interface AnalysisReviewBundle {
+  version: 1;
+  generatedAt: number;
+  appVersion: string;
+  privacyLevel: 'telemetry-only' | 'metadata' | 'full-session';
+  telemetry: TelemetryReport;           // from TelemetryCollector.getReport()
+  performance: PerformanceViolation[];  // from PerformanceBudget.getViolations()
+  metadata?: {
+    datasetName: string;
+    datasetTopology: string;
+    rowCount: number;
+    columnSchema: ColumnSchema[];       // names + types only, no values
+    sessionDurationSeconds: number;
+    operations: Record<string, number>;
+    gestures: Record<string, number>;
+  };
+  session?: SessionSnapshot;            // only if privacyLevel === 'full-session'
+  userNotes?: string;                   // free-text context from the user
+}
+```
+
+#### Privacy levels
+
+| Level | Data included | Use case |
+|---|---|---|
+| `telemetry-only` | Frame times, errors, operation/gesture counts, active dataset name/topology. | Baseline performance and UX flow review. No row data. |
+| `metadata` | Above plus column names/types, row count, performance violations. | Design better encodings and defaults for similar dataset shapes. No row values. |
+| `full-session` | Above plus the full `SessionSnapshot` (dataset rows, history, settings). | Deep debugging or reproducing a specific analysis story. Requires explicit user review. |
+
+#### Implementation sketch
+
+1. **Export utility** `src/utils/ReviewBundle.js`:
+   - `buildReviewBundle({ collector, performanceBudget, sessionStore, privacyLevel, userNotes })`.
+   - Sanitizes telemetry: removes raw `lastError` stack traces if they contain URLs or file paths; keeps only the message.
+   - Validates bundle schema; throws if required fields are missing.
+
+2. **In-VR export flow** (added to `TelemetryPanel` or `SettingsPanel`):
+   - User selects privacy level.
+   - A preview screen shows exactly what will be exported.
+   - User clicks “Download Review Bundle” → `downloadText(JSON.stringify(bundle, null, 2), 'nemosyne-review-bundle.json')`.
+   - User can then paste the file into the chat with the supervisor.
+
+3. **No automatic transmission.** The app does not know the supervisor’s endpoint. There is no `fetch`, WebSocket, or RTC send for bundles. This preserves the existing `Telemetry.js` guarantee and avoids GDPR/CCPA/health-data concerns.
+
+#### Security and consent safeguards
+
+- **Opt-in per export:** not a blanket “upload always” toggle.
+- **No PII by default:** no user id, IP, browser fingerprint, or location at `telemetry-only` or `metadata` levels.
+- **Row values only with explicit `full-session` selection** and the user can still redact before sending.
+- **Local-only generation:** bundle is built in the browser and downloaded, not sent to a server.
+- **Encrypted share optional:** future enhancement could encrypt the bundle to the supervisor’s public key before download.
+
+### Recommendation
+
+1. Create `src/utils/ReviewBundle.js` and a minimal `ReviewBundle.test.ts`.
+2. Add a “Export Review Bundle” button to `TelemetryPanel.js`/`SettingsPanel.ts` after the current TypeScript migration reaches `src/vr/ui/`.
+3. Do not add any network endpoint or auto-upload path.
+
+### Relation to roadmap gaps
+
+This directly addresses ROADMAP.md Evaluation Checkpoint gap #7 (“No user studies, task benchmarks, or telemetry to prove spatial analysis improves insight speed/accuracy over 2D tools”). The ARB gives us the evidence base without collecting user data automatically.
+
+## Status
+
+- [x] Meta Web SDK researched and evaluated.
+- [ ] Add spike task to test IWSDK hand/input helper (deferred until after TypeScript migration of `src/vr/input/`).
+- [x] Telemetry/user-data review mechanism designed.
+- [x] Implement `src/utils/ReviewBundle.js`.
+- [x] Add "Export Review Bundle" UI button to `TelemetryPanel.ts` and `SettingsPanel.ts`.
 

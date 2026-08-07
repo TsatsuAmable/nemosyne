@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi } from 'vitest';
-import { DataConnector } from '../src/data/connectors/DataConnector.js';
+import { DataConnector } from '../src/data/connectors/DataConnector.ts';
 
 describe('DataConnector base', () => {
   it('emits updates to all registered listeners', () => {

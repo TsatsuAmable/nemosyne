@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { TDAGlyphs } from '../src/draco/TDAGlyphs.js';
+import { TDAGlyphs } from '../src/draco/TDAGlyphs.ts';
 
 describe('TDAGlyphs', () => {
   it('renders a persistence barcode with one line per interval', () => {

@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import {
   GridLayout3D,
   ForceDirected3D,
@@ -10,7 +10,7 @@ import {
   TimeSeriesRibbonLayout,
   StreamlineLayout,
   GeoSurfaceLayout,
-} from '../src/draco/layouts/index.js';
+} from '../src/draco/layouts/index.ts';
 
 describe('Draco layout generators', () => {
   it('GridLayout3D packs rows into a cube', () => {

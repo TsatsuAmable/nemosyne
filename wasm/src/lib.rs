@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
 
+pub mod command_buffer;
 mod data;
 
 /// Shared memory constants. The WASM module starts at 128 MiB and is allowed
@@ -255,19 +256,20 @@ pub fn fill_pattern(ptr: u32, len: u32) -> u32 {
     len
 }
 
-/// Return the current command-buffer pointer. For Phase 0 this always returns
-/// a sentinel `0` because no command encoder exists yet. The JS host uses this
-/// to confirm the export exists and the ABI is stable.
+/// Return the current command-buffer pointer offset in shared WASM memory.
 #[wasm_bindgen]
 pub fn command_buffer_ptr() -> u32 {
-    0
+    command_buffer::with_global_buffer(|cb| cb.bytes().as_ptr() as u32)
 }
 
-/// Phase 0/1 per-frame tick. Returns the number of bytes in the current
-/// command buffer; always `0` while no command encoder is wired up.
+/// Phase 1 per-frame tick. Encodes scene transform and lifecycle commands into
+/// the command buffer and returns the total byte length of the command buffer.
 #[wasm_bindgen]
 pub fn update(_delta_ms: f32, _time_ms: f32) -> u32 {
-    0
+    command_buffer::with_global_buffer(|cb| {
+        cb.reset();
+        cb.bytes().len() as u32
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -277,13 +279,14 @@ pub fn update(_delta_ms: f32, _time_ms: f32) -> u32 {
 const CAP_DATASET_RUST: u32 = 1 << 0;
 const CAP_PARSER_RUST: u32 = 1 << 1;
 const CAP_OPERATIONS_RUST: u32 = 1 << 2;
+const CAP_COMMAND_BUFFER: u32 = 1 << 3;
 
 /// Return the enabled capability set for the current build.
 ///
-/// Phase 1 advertises `DATASET_RUST | PARSER_RUST | OPERATIONS_RUST`.
+/// Phase 1 advertises `DATASET_RUST | PARSER_RUST | OPERATIONS_RUST | COMMAND_BUFFER`.
 #[wasm_bindgen]
 pub fn capabilities() -> u32 {
-    CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST
+    CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST | CAP_COMMAND_BUFFER
 }
 
 // ---------------------------------------------------------------------------
