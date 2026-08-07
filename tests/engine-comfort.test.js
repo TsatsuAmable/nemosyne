@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { Engine } from '../src/vr/Engine.js';
+import { Engine } from '../src/vr/Engine.ts';
 
 describe('Engine comfort settings', () => {
   let engine;

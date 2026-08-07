@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRoomRegistry } from './src/network/SignallingServerCore.js';
+import { createRoomRegistry } from './src/network/SignallingServerCore.ts';
 
 const certDir = path.resolve(process.cwd(), 'certs');
 

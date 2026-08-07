@@ -5,31 +5,32 @@
  */
 
 import type { Group } from 'three';
-import { InputTelemetry } from '../InputTelemetry.js';
-import { VRConsole } from '../ui/VRConsole.js';
-import { VRMenu } from '../ui/VRMenu.js';
-import { PanelManager } from '../ui/PanelManager.js';
-import { SettingsPanel } from '../ui/SettingsPanel.js';
-import { HandWheelMenu } from '../ui/HandWheelMenu.js';
-import { OperationLogPanel } from '../ui/OperationLogPanel.js';
-import { DashboardManager } from '../ui/DashboardManager.js';
-import { TelemetryPanel } from '../ui/TelemetryPanel.js';
-import { PerformancePanel } from '../ui/PerformancePanel.js';
-import { NetworkPanel } from '../ui/NetworkPanel.js';
-import { InteractionCoach } from '../ui/InteractionCoach.js';
-import { NarrativeStrip } from '../ui/NarrativeStrip.js';
-import { MiniOverview } from '../ui/MiniOverview.js';
-import { PeerPresenceHUD } from '../ui/PeerPresenceHUD.js';
-import type { Engine } from '../Engine.js';
+import { InputTelemetry } from '../InputTelemetry.ts';
+import { VRConsole } from '../ui/VRConsole.ts';
+import { VRMenu } from '../ui/VRMenu.ts';
+import { PanelManager } from '../ui/PanelManager.ts';
+import { SettingsPanel } from '../ui/SettingsPanel.ts';
+import { HandWheelMenu } from '../ui/HandWheelMenu.ts';
+import { OperationLogPanel } from '../ui/OperationLogPanel.ts';
+import { DashboardManager } from '../ui/DashboardManager.ts';
+import { TelemetryPanel } from '../ui/TelemetryPanel.ts';
+import { PerformancePanel } from '../ui/PerformancePanel.ts';
+import { NetworkPanel } from '../ui/NetworkPanel.ts';
+import { InteractionCoach } from '../ui/InteractionCoach.ts';
+import { NarrativeStrip } from '../ui/NarrativeStrip.ts';
+import { MiniOverview } from '../ui/MiniOverview.ts';
+import { PeerPresenceHUD } from '../ui/PeerPresenceHUD.ts';
+import type { Engine } from '../Engine.ts';
 import type { WorldEventBusLike } from './types.ts';
 import type {
   AccessibilityOptions,
-  DashboardLike,
   HandLike,
   HandWheelMenuLike,
   LooseOptions,
   PanelLike,
   PanelManagerLike,
+  PerformanceBudgetLike,
+  TelemetryCollectorLike,
   WheelMenuCategory,
   WorldUIManagerCallbacks,
 } from './types.ts';
@@ -47,13 +48,13 @@ export class WorldUIManager {
   panelManager: PanelManagerLike;
   miniOverview: MiniOverview;
   peerPresenceHUD: PeerPresenceHUD;
-  dashboard: DashboardLike;
+  dashboard: DashboardManager;
   handWheelMenu: HandWheelMenuLike;
   settingsPanel: PanelLike;
   operationLogPanel: PanelLike;
-  metricsPanel: PanelLike;
-  performancePanel: PanelLike;
-  networkPanel: PanelLike;
+  metricsPanel: TelemetryPanel;
+  performancePanel: PerformancePanel;
+  networkPanel: NetworkPanel;
   interactionCoach: PanelLike;
   narrativeStrip: PanelLike;
 
@@ -95,7 +96,7 @@ export class WorldUIManager {
       analystAnchor,
       freeFloating: true,
       onChange: callbacks.onPanelChange,
-    } as LooseOptions);
+    });
     this.panelManager.register(this.telemetryPanel);
     this.panelManager.register(this.vrConsole);
     this.panelManager.register(this.vrMenu);
@@ -142,7 +143,7 @@ export class WorldUIManager {
       cellHeight: 0.55,
       snapDistance: 0.5,
       autoScale: true,
-    } as LooseOptions);
+    });
     this.engine.addUpdatable(this.dashboard);
 
     // Hand-attached radial wheel menu.
@@ -160,7 +161,10 @@ export class WorldUIManager {
     // Settings panel.
     this.settingsPanel = new SettingsPanel(engine.cameraGroup, {
       onChange: callbacks.onSettingChanged,
-    } as LooseOptions);
+      telemetryCollector: callbacks.telemetryCollector as TelemetryCollectorLike | undefined,
+      performanceBudget: engine.performanceBudget as PerformanceBudgetLike,
+      datasetTopology: '-',
+    });
     this.engine.addUpdatable(this.settingsPanel);
     this.panelManager.register(this.settingsPanel);
     this.engine.input.addPanel(this.settingsPanel);
@@ -173,8 +177,10 @@ export class WorldUIManager {
 
     // Telemetry metrics panel.
     this.metricsPanel = new TelemetryPanel(engine.cameraGroup, {
-      telemetry: callbacks.telemetryCollector,
-    } as LooseOptions);
+      telemetry: callbacks.telemetryCollector as TelemetryCollectorLike | undefined,
+      budget: engine.performanceBudget as PerformanceBudgetLike,
+      datasetTopology: '-',
+    });
     this.panelManager.register(this.metricsPanel);
     this.engine.input.addPanel(this.metricsPanel);
     this.engine.addUpdatable(this.metricsPanel);
@@ -182,9 +188,9 @@ export class WorldUIManager {
 
     // Performance budget panel.
     this.performancePanel = new PerformancePanel(engine.cameraGroup, {
-      budget: engine.performanceBudget,
-      telemetry: callbacks.telemetryCollector,
-    } as LooseOptions);
+      budget: engine.performanceBudget as PerformanceBudgetLike,
+      telemetry: callbacks.telemetryCollector as TelemetryCollectorLike | undefined,
+    });
     this.panelManager.register(this.performancePanel);
     this.engine.input.addPanel(this.performancePanel);
     this.engine.addUpdatable(this.performancePanel);
@@ -192,8 +198,8 @@ export class WorldUIManager {
 
     // Collaboration network panel.
     this.networkPanel = new NetworkPanel(engine.cameraGroup, {
-      telemetry: callbacks.telemetryCollector,
-    } as LooseOptions);
+      roomId: '-',
+    });
     this.panelManager.register(this.networkPanel);
     this.engine.input.addPanel(this.networkPanel);
     this.engine.addUpdatable(this.networkPanel);

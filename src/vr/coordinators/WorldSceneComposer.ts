@@ -5,13 +5,13 @@
  */
 
 import * as THREE from 'three';
-import { DatumPlane } from '../artifacts/DatumPlane.js';
-import { TechnoCoreNode } from '../artifacts/TechnoCoreNode.js';
-import { FarcasterPortal } from '../artifacts/FarcasterPortal.js';
-import { HolographicInspector } from '../artifacts/HolographicInspector.js';
-import { WorldTheme } from '../WorldTheme.js';
-import type { Engine } from '../Engine.js';
-import type { LooseOptions, WorldSceneComposerCallbacks } from './types.ts';
+import { DatumPlane } from '../artifacts/DatumPlane.ts';
+import { TechnoCoreNode } from '../artifacts/TechnoCoreNode.ts';
+import { FarcasterPortal } from '../artifacts/FarcasterPortal.ts';
+import { HolographicInspector } from '../artifacts/HolographicInspector.ts';
+import { WorldTheme } from '../WorldTheme.ts';
+import type { Engine } from '../Engine.ts';
+import type { WorldSceneComposerCallbacks } from './types.ts';
 
 export class WorldSceneComposer {
   engine: Engine;
@@ -60,7 +60,7 @@ export class WorldSceneComposer {
       color: WorldTheme.PRESETS.deepNet.pointColor,
       operation: 'anomaly',
       onWarp: callbacks.onWarp,
-    } as LooseOptions);
+    });
     this.engine.scene.add(this.portalA.group);
     this.engine.addUpdatable(this.portalA);
 
@@ -71,7 +71,7 @@ export class WorldSceneComposer {
       color: WorldTheme.PRESETS.neonMidnight.pointColor,
       operation: 'reset',
       onWarp: callbacks.onWarp,
-    } as LooseOptions);
+    });
     this.engine.scene.add(this.portalB.group);
     this.engine.addUpdatable(this.portalB);
   }

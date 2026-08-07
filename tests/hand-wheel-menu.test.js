@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { HandWheelMenu } from '../src/vr/ui/HandWheelMenu.js';
+import { HandWheelMenu } from '../src/vr/ui/HandWheelMenu.ts';
 
 function makeEngineWithCamera() {
   const scene = new THREE.Scene();

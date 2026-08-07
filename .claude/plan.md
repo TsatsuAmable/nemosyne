@@ -46,9 +46,18 @@ Convert the entire Nemosyne JavaScript source tree to TypeScript module by modul
   - PointerEventMachine, PointerRegistry, InteractableRegistry, SystemGestureDetector, ControllerGestureBridge, SelectionDispatcher.
 - [x] `src/vr/interactions/*.js` → `.ts`.
   - ControllerGestureMapper, HandGestureRecognizer, DataOperations, ClusterTransforms, AnomalyTransforms, LivePreview, InPlaceOperationHandles, MetaphorActions.
-- [ ] `src/vr/artifacts/`, `src/vr/ui/`, `src/vr/audio/`.
-- [ ] `src/vr/Engine.js`, `src/vr/World.js`, `src/vr/Locomotion.js`, `src/vr/DesktopControls.js`, `src/vr/Controllers.js`, `src/vr/Hands.js`.
-- [ ] `src/utils/`, `src/network/`, `src/analytics/`, `src/ui/`, `src/main.js`.
+- [x] `src/vr/artifacts/`, `src/vr/ui/`, `src/vr/audio/`.
+  - [x] Wave 1: MovablePanel, PanelManager, VRConsole, OperationLogPanel.
+  - [x] Wave 2: VRMenu, HandWheelMenu, SettingsPanel.
+  - [x] Wave 3: TelemetryPanel, PerformancePanel, NetworkPanel, ChartPlanePanel, DashboardManager + ReviewBundle export button.
+  - [x] Wave 4: InteractionCoach, NarrativeStrip, MiniOverview, PeerPresenceHUD, TooltipManager, GuidedTour.
+- [x] Core VR runtime: `src/vr/Engine.ts`, `src/vr/Locomotion.ts`, `src/vr/DesktopControls.ts`, `src/vr/VRButton.ts`, `src/vr/WorldTheme.ts`.
+- [x] Coupled VR facade: `src/vr/World.ts`, `src/vr/InputRouter.ts`, `src/vr/Controllers.ts`, `src/vr/Hands.ts`, `src/vr/InputTelemetry.ts`.
+- [x] Increment 7: `src/vr/scalability/*.ts` (`index.ts`, `InstancedPointCloud.ts`, `LODManager.ts`, `SpatialIndex.ts`).
+- [x] Increment 8: `src/utils/*.ts` (`Accessibility`, `Dispose`, `Download`, `PerformanceBudget`, `SeededRandom`, `Telemetry`, `GestureMapping`, `EventBus`, `ReviewBundle`).
+- [x] Increment 9: `src/network/*.ts` (NetworkManager, Room, SignallingChannel, SignallingServerCore).
+- [x] Increment 10: `src/analytics/TDAMapper.ts` and `src/ui/FileLoader.ts`.
+- [x] Increment 11: `src/main.ts`.
 
 ## Migration standards
 
@@ -67,51 +76,54 @@ Convert the entire Nemosyne JavaScript source tree to TypeScript module by modul
 
 The data, Draco, coordinator, input, and interaction layers are now fully typed and green. The next increment is the artefact, UI, and audio subsystems. These are the largest remaining consumers of the typed coordinator and input classes, and they directly produce the rendered scene and panels.
 
-- `src/vr/artifacts/DatumPlane.js`
-- `src/vr/artifacts/TechnoCoreNode.js`
-- `src/vr/artifacts/FarcasterPortal.js`
-- `src/vr/artifacts/HolographicInspector.js`
-- `src/vr/artifacts/DataCard.js`
-- `src/vr/artifacts/ChartPlane.js`
-- `src/vr/artifacts/TDAPlanes.js`
-- `src/vr/artifacts/IceVaultNode.js`
-- `src/vr/ui/MovablePanel.js`
-- `src/vr/ui/PanelManager.js`
-- `src/vr/ui/VRMenu.js`
-- `src/vr/ui/HandWheelMenu.js`
-- `src/vr/ui/VRConsole.js`
-- `src/vr/ui/DashboardManager.js`
-- `src/vr/ui/ChartPlanePanel.js`
-- `src/vr/ui/NetworkPanel.js`
-- `src/vr/ui/OperationLogPanel.js`
-- `src/vr/ui/PerformancePanel.js`
-- `src/vr/ui/TelemetryPanel.js`
-- `src/vr/ui/SettingsPanel.js`
-- `src/vr/ui/InteractionCoach.js`
-- `src/vr/ui/NarrativeStrip.js`
-- `src/vr/ui/MiniOverview.js`
-- `src/vr/ui/PeerPresenceHUD.js`
-- `src/vr/ui/TooltipManager.js`
-- `src/vr/ui/GuidedTour.js`
-- `src/vr/audio/index.js`
-- `src/vr/audio/SelectionFeedback.js`
+- `src/vr/artifacts/DatumPlane.ts`
+- `src/vr/artifacts/TechnoCoreNode.ts`
+- `src/vr/artifacts/FarcasterPortal.ts`
+- `src/vr/artifacts/HolographicInspector.ts`
+- `src/vr/artifacts/DataCard.ts`
+- `src/vr/artifacts/ChartPlane.ts`
+- `src/vr/artifacts/TDAPlanes.ts`
+- `src/vr/artifacts/IceVaultNode.ts`
+- `src/vr/ui/MovablePanel.ts`
+- `src/vr/ui/PanelManager.ts`
+- `src/vr/ui/VRMenu.ts`
+- `src/vr/ui/HandWheelMenu.ts`
+- `src/vr/ui/VRConsole.ts`
+- `src/vr/ui/DashboardManager.ts`
+- `src/vr/ui/ChartPlanePanel.ts`
+- `src/vr/ui/NetworkPanel.ts`
+- `src/vr/ui/OperationLogPanel.ts`
+- `src/vr/ui/PerformancePanel.ts`
+- `src/vr/ui/TelemetryPanel.ts`
+- `src/vr/ui/SettingsPanel.ts`
+- `src/vr/ui/InteractionCoach.ts`
+- `src/vr/ui/NarrativeStrip.ts`
+- `src/vr/ui/MiniOverview.ts`
+- `src/vr/ui/PeerPresenceHUD.ts`
+- `src/vr/ui/TooltipManager.ts`
+- `src/vr/ui/GuidedTour.ts`
+- `src/vr/audio/index.ts`
+- `src/vr/audio/SelectionFeedback.ts`
 
 These modules are the renderable output of Nemosyne. Typing them will let us remove the remaining `LooseOptions` casts in `WorldUIManager.ts` and `WorldSceneComposer.ts`, and will prepare the way for the `ReviewBundle` export UI button.
 
 ### Success criteria
 
 - `npm run typecheck` reports zero new errors.
-- `npx vitest run` passes (especially `tests/world.test.js`, `tests/movable-panel.test.js`, `tests/technocore-node.test.js`, `tests/chart-plane.test.js`).
+- `npx vitest run` passes (especially `tests/world.test.js`, `tests/movable-panel.test.ts`, `tests/technocore-node.test.js`, `tests/chart-plane.test.js`).
 - `npm run build` succeeds.
 - No runtime regressions in panels, artefacts, or audio feedback.
 
 ## Following increments (rough order)
 
-1. `src/vr/Engine.js`, `src/vr/World.js`, `src/vr/Locomotion.js`, `src/vr/DesktopControls.js`, `src/vr/Controllers.js`, `src/vr/Hands.js`.
-2. `src/utils/`, `src/network/`, `src/analytics/`, `src/ui/`, `src/main.js`.
-3. Update `docs/ARCHITECTURE.md` and `CLAUDE.md` to state that Nemosyne is now TypeScript-first.
-4. Add the "Export Review Bundle" UI button to `TelemetryPanel`/`SettingsPanel` (after `src/vr/ui/` is converted; `src/utils/ReviewBundle.js` is already implemented).
-5. Run an IWSDK hand/input helper spike.
+1. Core VR runtime: `src/vr/Engine.ts`, `src/vr/Locomotion.ts`, `src/vr/DesktopControls.ts`, `src/vr/VRButton.ts`, `src/vr/WorldTheme.ts`.
+2. Coupled VR facade: `src/vr/World.ts`, `src/vr/InputRouter.ts`, `src/vr/Controllers.ts`, `src/vr/Hands.ts`, `src/vr/InputTelemetry.ts`.
+3. `src/vr/scalability/*.js`.
+4. `src/utils/*.js`.
+5. `src/network/*.js`.
+6. `src/analytics/TDAMapper.js`, `src/ui/FileLoader.js`, `src/main.js`.
+7. Update `docs/ARCHITECTURE.md` and `CLAUDE.md` to state that Nemosyne is now TypeScript-first.
+8. **Deferred:** Run an IWSDK hand/input helper spike. Defer any Meta Immersive Web SDK (or other external spatial UI library) spike until the TypeScript migration is complete, the UI layer is fully typed, and a lightweight visual-refinement evaluation has compared custom canvas-panel polish against third-party components.
 
 ---
 
@@ -923,8 +935,8 @@ Start with Phase 0 and the profiling baseline. Do not proceed to Phase 1 until t
 
 The UI/UX layer has grown a pair of God classes that absorb too many responsibilities:
 
-- `src/vr/World.js` (≈2,200 lines) composes the scene, creates every HUD panel, routes gestures, applies data operations, manages sessions, collaboration, live streams, settings, tours, themes, and analysis history.
-- `src/vr/InputRouter.js` (≈490 lines) mixes controller polling, hand tracking, panel raycasts, hover state, dwell selection, drag capture, and system-gesture detection.
+- `src/vr/World.ts` (≈2,200 lines) composes the scene, creates every HUD panel, routes gestures, applies data operations, manages sessions, collaboration, live streams, settings, tours, themes, and analysis history.
+- `src/vr/InputRouter.ts` (≈490 lines) mixes controller polling, hand tracking, panel raycasts, hover state, dwell selection, drag capture, and system-gesture detection.
 
 This plan refactors them into smaller, single-responsibility classes connected by an event bus and clear delegation patterns. The refactor is not just cleanup: it is the enabling foundation for the research-backed UI/UX improvements already identified (direct manipulation, progressive disclosure, comfort settings, narrative scaffolding, collaboration-first UI, occlusion management, accessibility, live previews, and intent inference). Smaller, loosely-coupled classes make each of those improvements testable, swappable, and safe to iterate on. The public `World` API must stay backward-compatible so the existing Vitest suite continues to pass.
 
@@ -1189,20 +1201,20 @@ Manages dwell timer and threshold for motor-accessibility selection.
 
 | # | Improvement | Enabling refactor | New/changed files |
 |---|---|---|---|
-| 1 | Icon-first wheel menu with guard angles | `HandWheelMenu` becomes a rendering widget owned by `WorldUIManager`; input guards move to `WorldInputCoordinator` | `src/vr/ui/HandWheelMenu.js`, `src/vr/ui/IconAtlas.js` |
+| 1 | Icon-first wheel menu with guard angles | `HandWheelMenu` becomes a rendering widget owned by `WorldUIManager`; input guards move to `WorldInputCoordinator` | `src/vr/ui/HandWheelMenu.ts`, `src/vr/ui/IconAtlas.js` |
 | 2 | Diegetic, in-place data operations | `DataOperationController` emits preview/apply events; `InPlaceOperationHandles` listens | `src/vr/interactions/InPlaceOperationHandles.js`, `src/vr/coordinators/DataOperationController.ts` |
 | 3 | Progressive disclosure: novice/expert modes | `UserModeController` (State pattern) applies mode effects | `src/vr/coordinators/UserModeController.ts` |
-| 4 | Better information hierarchy and comfort | `ComfortSettingsController` + `WorldUIManager` focus-zone logic | `src/vr/coordinators/ComfortSettingsController.ts`, `src/vr/Engine.js` |
-| 5 | Narrative scaffolding and breadcrumbs | `NarrativeStrip` subscribes to `WorldEventBus` | `src/vr/ui/NarrativeStrip.js` |
-| 6 | Collaboration-first UI | `PeerPresenceHUD` owned by `WorldUIManager`; `CollaborationCoordinator` already extracted | `src/vr/ui/PeerPresenceHUD.js` |
-| 7 | Occlusion management | `MiniOverview` owned by `WorldUIManager`; future gaze-occlusion logic in `WorldInputCoordinator` | `src/vr/ui/MiniOverview.js` |
-| 8 | Accessibility and cross-platform continuity | `ComfortSettingsController` applies settings; event bus syncs state | `src/utils/EventBus.js`, `src/vr/ui/MovablePanel.js` |
+| 4 | Better information hierarchy and comfort | `ComfortSettingsController` + `WorldUIManager` focus-zone logic | `src/vr/coordinators/ComfortSettingsController.ts`, `src/vr/Engine.ts` |
+| 5 | Narrative scaffolding and breadcrumbs | `NarrativeStrip` subscribes to `WorldEventBus` | `src/vr/ui/NarrativeStrip.ts` |
+| 6 | Collaboration-first UI | `PeerPresenceHUD` owned by `WorldUIManager`; `CollaborationCoordinator` already extracted | `src/vr/ui/PeerPresenceHUD.ts` |
+| 7 | Occlusion management | `MiniOverview` owned by `WorldUIManager`; future gaze-occlusion logic in `WorldInputCoordinator` | `src/vr/ui/MiniOverview.ts` |
+| 8 | Accessibility and cross-platform continuity | `ComfortSettingsController` applies settings; event bus syncs state | `src/utils/EventBus.js`, `src/vr/ui/MovablePanel.ts` |
 | 9 | Live previews and contextual help | `DataOperationController` emits preview events; `LivePreview` already extracted | `src/vr/interactions/LivePreview.js` |
-| 10 | Harden menu robustness and intent inference | `WorldInputCoordinator` context check; split `InputRouter` state machine | `src/vr/InputRouter.js`, `src/vr/input/*.js` |
+| 10 | Harden menu robustness and intent inference | `WorldInputCoordinator` context check; split `InputRouter` state machine | `src/vr/InputRouter.ts`, `src/vr/input/*.ts` |
 
 ## Public API compatibility strategy
 
-`World.js` becomes a facade that delegates to the new classes but keeps the legacy properties:
+`World.ts` becomes a facade that delegates to the new classes but keeps the legacy properties:
 
 ```js
 this.uiManager = new WorldUIManager(...);
@@ -1429,7 +1441,7 @@ interface AnalysisReviewBundle {
 ### Recommendation
 
 1. Create `src/utils/ReviewBundle.js` and a minimal `ReviewBundle.test.ts`.
-2. Add a “Export Review Bundle” button to `TelemetryPanel.js`/`SettingsPanel.js` after the current TypeScript migration reaches `src/vr/ui/`.
+2. Add a “Export Review Bundle” button to `TelemetryPanel.js`/`SettingsPanel.ts` after the current TypeScript migration reaches `src/vr/ui/`.
 3. Do not add any network endpoint or auto-upload path.
 
 ### Relation to roadmap gaps
@@ -1442,5 +1454,5 @@ This directly addresses ROADMAP.md Evaluation Checkpoint gap #7 (“No user stud
 - [ ] Add spike task to test IWSDK hand/input helper (deferred until after TypeScript migration of `src/vr/input/`).
 - [x] Telemetry/user-data review mechanism designed.
 - [x] Implement `src/utils/ReviewBundle.js`.
-- [ ] Add "Export Review Bundle" UI button (deferred until `src/vr/ui/` TypeScript migration).
+- [x] Add "Export Review Bundle" UI button to `TelemetryPanel.ts` and `SettingsPanel.ts`.
 

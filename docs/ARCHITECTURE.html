@@ -159,15 +159,19 @@
 </ul>
 <h3>5. UI Layer (<code>src/vr/ui/</code>)</h3>
 <ul>
-<li><strong>MovablePanel.js</strong> — base class for analyst-anchored canvas panels.</li>
-<li><strong>PanelManager.js</strong> — registers panels, independent toggles, launcher ring; reparents the HUD cluster to an explicit analyst anchor.</li>
-<li><strong>DashboardManager.js</strong> — curved, scrollable, snap-zone workspace for chart and diagnostic panels.</li>
-<li><strong>ChartPlanePanel.js</strong> — dashboard cell hosting a <code>ChartPlane</code>.</li>
-<li><strong>VRConsole.js</strong> — intercepts <code>console.*</code> and renders recent messages to a panel.</li>
-<li><strong>VRMenu.js</strong> — dataset switching, portal toggle, live source connection.</li>
-<li><strong>HandWheelMenu.js</strong> — body-locked radial menu (not wrist-attached) for stable Meta Quest control.</li>
-<li><strong>TooltipManager.js</strong> — pooled gaze and pointer-hit tooltips for data nodes and visual elements.</li>
-<li><strong>GuidedTour.js</strong> — step-by-step spatial onboarding with highlight rings.</li>
+<li><strong>MovablePanel.ts</strong> — base class for analyst-anchored canvas panels.</li>
+<li><strong>PanelManager.ts</strong> — registers panels, independent toggles, launcher ring; reparents the HUD cluster to an explicit analyst anchor.</li>
+<li><strong>DashboardManager.ts</strong> — curved, scrollable, snap-zone workspace for chart and diagnostic panels.</li>
+<li><strong>ChartPlanePanel.ts</strong> — dashboard cell hosting a <code>ChartPlane</code>.</li>
+<li><strong>VRConsole.ts</strong> — intercepts <code>console.*</code> and renders recent messages to a panel.</li>
+<li><strong>TelemetryPanel.ts</strong> — live opt-in telemetry and Review Bundle export.</li>
+<li><strong>PerformancePanel.ts</strong> — live performance budgets and recent violations.</li>
+<li><strong>NetworkPanel.ts</strong> — collaboration network status and peer list.</li>
+<li><strong>SettingsPanel.ts</strong> — gesture, lens, feedback, telemetry, and accessibility settings.</li>
+<li><strong>VRMenu.ts</strong> — dataset switching, portal toggle, live source connection.</li>
+<li><strong>HandWheelMenu.ts</strong> — body-locked radial menu (not wrist-attached) for stable Meta Quest control.</li>
+<li><strong>TooltipManager.ts</strong> — pooled gaze and pointer-hit tooltips for data nodes and visual elements.</li>
+<li><strong>GuidedTour.ts</strong> — step-by-step spatial onboarding with highlight rings.</li>
 </ul>
 <h3>6. Interaction Layer (<code>src/vr/interactions/</code>)</h3>
 <ul>
@@ -176,9 +180,9 @@
 </ul>
 <h3>7. Scalability Layer (<code>src/vr/scalability/</code>)</h3>
 <ul>
-<li><strong>InstancedPointCloud.js</strong> — <code>THREE.InstancedMesh</code> wrapper for large point datasets.</li>
-<li><strong>SpatialIndex.js</strong> — uniform-grid spatial index for radius and ray queries.</li>
-<li><strong>LODManager.js</strong> — distance/gaze level-of-detail predicates.</li>
+<li><strong>InstancedPointCloud.ts</strong> — <code>THREE.InstancedMesh</code> wrapper for large point datasets.</li>
+<li><strong>SpatialIndex.ts</strong> — uniform-grid spatial index for radius and ray queries.</li>
+<li><strong>LODManager.ts</strong> — distance/gaze level-of-detail predicates.</li>
 </ul>
 <h3>8. Audio Feedback (<code>src/vr/audio/</code>)</h3>
 <ul>
@@ -186,8 +190,8 @@
 </ul>
 <h3>9. Utilities (<code>src/utils/</code>)</h3>
 <ul>
-<li><strong>SeededRandom.js</strong> — deterministic RNG for reproducible layouts.</li>
-<li><strong>Dispose.js</strong> — Three.js object disposal helper.</li>
+<li><strong>SeededRandom.ts</strong> — deterministic RNG for reproducible layouts.</li>
+<li><strong>Dispose.ts</strong> — Three.js object disposal helper.</li>
 </ul>
 <hr>
 <h2>Data Flow</h2>

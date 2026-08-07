@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { SettingsPanel } from '../src/vr/ui/SettingsPanel.js';
+import { SettingsPanel } from '../src/vr/ui/SettingsPanel.ts';
 
 describe('SettingsPanel', () => {
   let panel;

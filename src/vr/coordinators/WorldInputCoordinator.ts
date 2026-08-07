@@ -7,9 +7,9 @@
 
 import * as THREE from 'three';
 import { HandGestureRecognizer } from '../interactions/HandGestureRecognizer.ts';
-import { getGestureMeta } from '../../utils/GestureMapping.js';
-import { WorldEventBus, WorldTopics } from '../../utils/EventBus.js';
-import type { Engine } from '../Engine.js';
+import { getGestureMeta } from '../../utils/GestureMapping.ts';
+import { WorldEventBus, WorldTopics } from '../../utils/EventBus.ts';
+import type { Engine } from '../Engine.ts';
 import type {
   ArtifactRef,
   EngineLike,
@@ -31,7 +31,7 @@ export class WorldInputCoordinator {
   getHandWheelMenu: () => HandWheelMenuLike | null;
   callbacks: InputCallbacks;
 
-  private _inputPaused: boolean;
+  _inputPaused: boolean;
   private _handNearArtefact: boolean;
   private _handNearWheelMenu: boolean;
 

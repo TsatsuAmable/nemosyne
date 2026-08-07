@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { LayoutBase } from './LayoutBase.ts';
-import { SeededRandom } from '../../utils/SeededRandom.js';
+import { SeededRandom } from '../../utils/SeededRandom.ts';
 import type { LayoutEntry, StreamlineEntry, StreamlineOptions } from '../types.ts';
 
 /**

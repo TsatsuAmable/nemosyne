@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { DataCard } from '../src/vr/artifacts/DataCard.js';
+import { DataCard } from '../src/vr/artifacts/DataCard.ts';
 
 describe('DataCard', () => {
   let camera;

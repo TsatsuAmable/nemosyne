@@ -71,15 +71,15 @@ A gradually expanding Rust runtime compiled to WebAssembly. Phase 0 establishes 
 
 ### 3. VR Runtime Layer (`src/vr/`)
 
-- **Engine.js** — Three.js scene, renderer, WebXR session management, animation loop.
-- **WorldTheme.js** — fog, lights, atmosphere.
+- **Engine.ts** — Three.js scene, renderer, WebXR session management, animation loop.
+- **WorldTheme.ts** — fog, lights, atmosphere.
 - **World.js** — composes the full scene: datumplane, landmarks, Draco palace, HUD, menu, live connectors.
 - **InputRouter.js** — normalizes controller and hand input sources, routes raycasts and gestures.
 - **Controllers.js** — Quest controller laser pointer.
 - **Hands.js** — hand tracking, joint normalization, pinch detection.
-- **Locomotion.js** — teleport anchors, ground-constrained movement, and toggleable 3D flight mode.
-- **DesktopControls.js** — keyboard/mouse fallback for non-VR use.
-- **VRButton.js** — WebXR entry button with manual `XRWebGLLayer` binding for Quest Browser.
+- **Locomotion.ts** — teleport anchors, ground-constrained movement, and toggleable 3D flight mode.
+- **DesktopControls.ts** — keyboard/mouse fallback for non-VR use.
+- **VRButton.ts** — WebXR entry button with manual `XRWebGLLayer` binding for Quest Browser.
 
 ### 4. Artefacts (`src/vr/artifacts/`)
 
@@ -108,9 +108,9 @@ A gradually expanding Rust runtime compiled to WebAssembly. Phase 0 establishes 
 
 ### 7. Scalability Layer (`src/vr/scalability/`)
 
-- **InstancedPointCloud.js** — `THREE.InstancedMesh` wrapper for large point datasets.
-- **SpatialIndex.js** — uniform-grid spatial index for radius and ray queries.
-- **LODManager.js** — distance/gaze level-of-detail predicates.
+- **InstancedPointCloud.ts** — `THREE.InstancedMesh` wrapper for large point datasets.
+- **SpatialIndex.ts** — uniform-grid spatial index for radius and ray queries.
+- **LODManager.ts** — distance/gaze level-of-detail predicates.
 
 ### 8. Audio Feedback (`src/vr/audio/`)
 
@@ -118,8 +118,8 @@ A gradually expanding Rust runtime compiled to WebAssembly. Phase 0 establishes 
 
 ### 9. Utilities (`src/utils/`)
 
-- **SeededRandom.js** — deterministic RNG for reproducible layouts.
-- **Dispose.js** — Three.js object disposal helper.
+- **SeededRandom.ts** — deterministic RNG for reproducible layouts.
+- **Dispose.ts** — Three.js object disposal helper.
 
 ---
 

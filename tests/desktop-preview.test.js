@@ -88,7 +88,7 @@ describe('Desktop preview and shared settings', () => {
     localStorage.clear();
     originalIndexedDB = global.indexedDB;
     global.indexedDB = makeStubIndexedDB();
-    const { World } = await import('../src/vr/World.js');
+    const { World } = await import('../src/vr/World.ts');
     world = new World();
     // Wait for async autosave / shared-settings load to settle.
     await new Promise((r) => setTimeout(r, 80));
@@ -142,7 +142,7 @@ describe('Desktop preview and shared settings', () => {
     expect(direct?.settings?.textScale).toBe(1.75);
 
     vi.resetModules();
-    const { World } = await import('../src/vr/World.js');
+    const { World } = await import('../src/vr/World.ts');
     const w2 = new World();
     await new Promise((r) => setTimeout(r, 200));
     const loaded = await w2.sessionStore.getItem('shared-settings');

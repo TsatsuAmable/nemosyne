@@ -15,7 +15,7 @@ Nemosyne's production-polish phase deliberately borrows patterns that have alrea
 - Reduces simulator sickness because the UI is attached to the stable camera rig rather than drifting against the world.
 - Lets panels remain readable while the user looks at the data palace in front of them.
 
-**Where in Nemosyne:** `src/vr/ui/DashboardManager.js` with `layoutMode: 'semicircle'` places chart and diagnostic panels on a curved shell in front of the analyst.
+**Where in Nemosyne:** `src/vr/ui/DashboardManager.ts` with `layoutMode: 'semicircle'` places chart and diagnostic panels on a curved shell in front of the analyst.
 
 ### 2. Constellation / circular muscle-memory layout (Google VR Constellation Menu, Starblood Arena)
 
@@ -24,7 +24,7 @@ Nemosyne's production-polish phase deliberately borrows patterns that have alrea
 **Why it works:** Spatial memory is faster than visual search in VR; the regular radial structure also maps well to the field of view of a headset.
 
 **Where in Nemosyne:**
-- `src/vr/ui/HandWheelMenu.js` arranges categories on an inner ring and actions on an outer ring.
+- `src/vr/ui/HandWheelMenu.ts` arranges categories on an inner ring and actions on an outer ring.
 - The semicircle dashboard arranges snap zones in fixed angular columns so users learn where each chart category lives.
 
 ### 3. Snap-to-zone dragging (Half-Life: Alyx gravity gloves, No Man's Sky inventory)
@@ -57,7 +57,7 @@ Nemosyne's production-polish phase deliberately borrows patterns that have alrea
 
 **Why it works:** Reduces visual noise and keeps dense datasets readable.
 
-**Where in Nemosyne:** `src/vr/ui/TooltipManager.js`.
+**Where in Nemosyne:** `src/vr/ui/TooltipManager.ts`.
 
 ### 7. Gravity-glove / hand-attached inspector (Half-Life: Alyx, Dead and Buried)
 
@@ -73,7 +73,7 @@ Nemosyne's production-polish phase deliberately borrows patterns that have alrea
 
 **Why it works:** Two-hand gestures are harder to perform accidentally than one-hand motions and map naturally to physical metaphors: *pull together* to filter, *push away* to reset, *scoop up* to reveal a lens, *twist* to turn time backwards/forwards.
 
-**Where in Nemosyne:** `src/vr/interactions/HandGestureRecognizer.ts` classifies two-hand and dominant-hand gestures; `src/vr/World.js` maps them to analysis commands, perspective switches, and undo/redo.
+**Where in Nemosyne:** `src/vr/interactions/HandGestureRecognizer.ts` classifies two-hand and dominant-hand gestures; `src/vr/World.ts` maps them to analysis commands, perspective switches, and undo/redo.
 
 ### 9. Time-travel undo / redo (Braid, Photoshop history)
 
@@ -89,7 +89,7 @@ Nemosyne's production-polish phase deliberately borrows patterns that have alrea
 
 **Why it works:** Audio/haptic/visual preferences vary by user and environment; a persistent, movable settings panel makes the app accessible in quiet rooms or shared spaces.
 
-**Where in Nemosyne:** `src/vr/ui/SettingsPanel.js` toggles the statistical-lens components, feedback channels, and gesture recognition. Settings persist to `localStorage`.
+**Where in Nemosyne:** `src/vr/ui/SettingsPanel.ts` toggles the statistical-lens components, feedback channels, and gesture recognition. Settings persist to `localStorage`.
 
 ---
 

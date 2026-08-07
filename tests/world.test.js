@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { World } from '../src/vr/World.js';
+import { World } from '../src/vr/World.ts';
 import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.ts';
 import { DracoDiagnosticHUD } from '../src/draco/DracoDiagnosticHUD.ts';
 import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.ts';
-import { WorldTheme } from '../src/vr/WorldTheme.js';
-import * as Download from '../src/utils/Download.js';
-import { OperationLogPanel } from '../src/vr/ui/OperationLogPanel.js';
+import { WorldTheme } from '../src/vr/WorldTheme.ts';
+import * as Download from '../src/utils/Download.ts';
+import { OperationLogPanel } from '../src/vr/ui/OperationLogPanel.ts';
 
 const CONNECTING = 0;
 const OPEN = 1;

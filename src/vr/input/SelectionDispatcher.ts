@@ -4,7 +4,7 @@
  */
 
 import * as THREE from 'three';
-import { SelectionFeedback } from '../audio/SelectionFeedback.js';
+import { SelectionFeedback } from '../audio/SelectionFeedback.ts';
 import type { PanelLike, PointerLike } from '../coordinators/types.ts';
 import type { InteractableEntry, InteractableRegistry, PanelHit, SceneHit } from './InteractableRegistry.ts';
 

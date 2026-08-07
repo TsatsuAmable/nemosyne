@@ -1,4 +1,4 @@
-import { NetworkManager } from '../../network/NetworkManager.js';
+import { NetworkManager } from '../../network/NetworkManager.ts';
 import type { LooseOptions, NetworkEvent, NetworkManagerLike, WorldFacadeForCollaboration } from './types.ts';
 
 /**
@@ -80,7 +80,7 @@ export class CollaborationCoordinator {
       this.world._buildWheelMenu();
     });
     this.networkManager.addEventListener('peerJoined', (e: NetworkEvent) => {
-      const peers = this.networkManager!.room.getPeers();
+      const peers = this.networkManager!.room.getRemoteSnapshot();
       const peerName = String(e.detail?.name ?? e.detail?.peerId ?? '');
       this.world.networkPanel!.setStatus({
         peers,
@@ -90,7 +90,7 @@ export class CollaborationCoordinator {
       this.world._logInteraction('Peer joined', { result: peerName });
     });
     this.networkManager.addEventListener('peerLeft', (e: NetworkEvent) => {
-      const peers = this.networkManager!.room.getPeers();
+      const peers = this.networkManager!.room.getRemoteSnapshot();
       const peerId = String(e.detail?.peerId ?? '');
       this.world.networkPanel!.setStatus({ peers, lastEvent: `${peerId} left` });
       this.world.vrConsole?.log?.('log', [`Peer left: ${peerId}`]);

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { WorldTheme } from '../src/vr/WorldTheme.js';
+import { WorldTheme } from '../src/vr/WorldTheme.ts';
 
 describe('WorldTheme', () => {
   let scene;

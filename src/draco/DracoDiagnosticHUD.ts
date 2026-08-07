@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MovablePanel } from '../vr/ui/MovablePanel.js';
+import { MovablePanel } from '../vr/ui/MovablePanel.ts';
 import { DracoTopologyNode } from './DracoTopologyNode.ts';
 
 interface DiagnosticButton {
@@ -25,7 +25,7 @@ export class DracoDiagnosticHUD extends MovablePanel {
   private _lastClickAt: number;
 
   constructor(
-    cameraGroup: THREE.Object3D,
+    cameraGroup: THREE.Group,
     dracoNode: DracoTopologyNode,
     position: [number, number, number] = [-0.8, 1.5, -1.2]
   ) {

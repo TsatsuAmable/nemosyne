@@ -11,6 +11,7 @@ export interface TourStep {
   target: string;
   text: string;
   actionHint: string;
+  [key: string]: unknown;
 }
 
 export interface Tour {

@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { TechnoCoreNode } from '../src/vr/artifacts/TechnoCoreNode.js';
+import { TechnoCoreNode } from '../src/vr/artifacts/TechnoCoreNode.ts';
 
 describe('TechnoCoreNode', () => {
   let core;

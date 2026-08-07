@@ -85,7 +85,7 @@ describe('World intent inference integration', () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    const { World } = await import('../src/vr/World.js');
+    const { World } = await import('../src/vr/World.ts');
     world = new World();
     await new Promise((r) => setTimeout(r, 50));
   });

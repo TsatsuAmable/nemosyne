@@ -4,7 +4,7 @@
  */
 
 import type { Group } from 'three';
-import type { Engine } from '../Engine.js';
+import type { Engine } from '../Engine.ts';
 import type { ComfortSettings } from './types.ts';
 
 export class ComfortSettingsController {

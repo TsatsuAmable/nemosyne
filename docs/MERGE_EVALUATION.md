@@ -52,7 +52,7 @@ The merge must also remove the mirrored `docs/nemosyne-world/` subtree inside th
 | Path | Current Value | Update Required |
 |---|---|---|
 | `docs/index.html` | Marketing landing page, branding, examples gallery. | **Decision: preserve current GitHub Pages appearance.** Remove A-Frame scripts/CDN. Replace embedded A-Frame scene with an iframe or prominent link to the Netlify-hosted analysis suite. Update feature copy and code samples to reference the new JavaScript API. |
-| `docs/DESIGN_SYSTEM.md` | Color tokens, typography, themes, accessibility guidelines. | Reconcile tokens with `WorldTheme.js`; ensure colorblind/high-contrast tokens are adopted. |
+| `docs/DESIGN_SYSTEM.md` | Color tokens, typography, themes, accessibility guidelines. | Reconcile tokens with `WorldTheme.ts`; ensure colorblind/high-contrast tokens are adopted. |
 | `docs/CONTRIBUTING.md` | Contribution guide. | Point to the analysis-suite source layout and test commands. |
 | `docs/TDA_ARTEFACTS.md` | Topological data analysis artefacts concept. | Align with the suite's `TDAMapper`, persistence barcode, and Betti curve implementation. |
 | `docs/THE_CRYSTAL.md` | Crystal metaphor for VR data artefacts. | Update to reference `IceVaultNode`, `TechnoCoreNode`, and other suite artefacts instead of A-Frame components. |
@@ -123,11 +123,11 @@ Before deleting `docs/nemosyne-world/`, rescue any unique content that the world
   - Supported input modes (hand tracking, Quest controllers, desktop fallback)
   - Session persistence and export/provenance
   - Networking / collaboration (current capabilities)
-  - Design system tokens (linked to `WorldTheme.js`)
+  - Design system tokens (linked to `WorldTheme.ts`)
 
 ### 5.3 Design system
 
-- Merge `docs/DESIGN_SYSTEM.md` tokens into a shared `src/vr/theme/designTokens.js` or directly into `WorldTheme.js`.
+- Merge `docs/DESIGN_SYSTEM.md` tokens into a shared `src/vr/theme/designTokens.js` or directly into `WorldTheme.ts`.
 - Ensure colorblind palettes and high-contrast mode match the documented tokens.
 
 ---

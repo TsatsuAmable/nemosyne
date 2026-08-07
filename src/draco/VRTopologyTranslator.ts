@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import { SeededRandom } from '../utils/SeededRandom.js';
+import { SeededRandom } from '../utils/SeededRandom.ts';
 import {
   categoricalColor,
   numericColor,
   normalize,
   inferEncodings,
 } from '../data/Encodings.ts';
-import { InstancedPointCloud } from '../vr/scalability/index.js';
+import { InstancedPointCloud } from '../vr/scalability/index.ts';
 import {
   applyResonancePulse,
   applyForkPlane,
@@ -23,7 +23,7 @@ import {
   StreamlineLayout,
   GeoSurfaceLayout,
 } from './layouts/index.ts';
-import { ChartPlane } from '../vr/artifacts/ChartPlane.js';
+import { ChartPlane } from '../vr/artifacts/ChartPlane.ts';
 import type { Dataset, DatasetEdge } from '../data/Dataset.ts';
 import type { EncodingMapping } from '../data/SampleDatasets.ts';
 import type {
@@ -168,7 +168,7 @@ export class VRTopologyTranslator {
     };
 
     if (facts.numericColumns > 1 || facts.hasTimeSeries) {
-      const chart = ChartPlane.fromFacts(facts, dataset, {
+      const chart = ChartPlane.fromFacts(facts, dataset!, {
         title: facts.hasTimeSeries ? 'Time Series' : 'Correlation',
       });
       chart.setDataset(dataset);
