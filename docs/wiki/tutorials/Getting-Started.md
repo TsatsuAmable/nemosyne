@@ -67,7 +67,7 @@ If you don't have a headset, the app also works with mouse and keyboard:
 
 ## Next Steps
 
-- [Learn about Artefacts](../artefacts/SPECIFICATION.md)
+- [Learn about Artefacts](../../ARTEFACTS.md)
 - [Read the Roadmap](../../ROADMAP.md)
 - [Explore the Architecture](../../ARCHITECTURE.md)
 

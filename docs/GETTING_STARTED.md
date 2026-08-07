@@ -404,5 +404,5 @@ npm run test:coverage
 - Read [`docs/IDEOLOGY.md`](IDEOLOGY.md) to understand the spatial-memory design.
 - Read [`docs/ARTEFACTS.md`](ARTEFACTS.md) to learn the artefact taxonomy.
 - Read [`docs/INTERACTIONS.md`](INTERACTIONS.md) to learn the gesture vocabulary.
-- Read [`ARCHITECTURE_BRIDGE.md`](../ARCHITECTURE_BRIDGE.md) to see how this project maps to `nemosyne.world`.
+- Read [`ARCHITECTURE.md`](ARCHITECTURE.md) to see how this project maps data to three.js / WebXR space.
 - Tweak the Draco soft-constraint weights in the diagnostic HUD and watch the layout re-solve.
