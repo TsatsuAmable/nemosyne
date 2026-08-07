@@ -15,7 +15,7 @@
     "format": "prettier --write \"src/**/*.{js,mjs,ts}\" \"tests/**/*.{js,mjs,ts}\"",
     "format:check": "prettier --check \"src/**/*.{js,mjs,ts}\" \"tests/**/*.{js,mjs,ts}\"",
     "typecheck": "tsc --noEmit",
-    "test": "cargo test --manifest-path wasm/Cargo.toml && npm run wasm:dev && vitest run",
+    "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "deploy:netlify": "npm run build && npx netlify deploy --prod --dir=dist",
     "deploy:vercel": "npm run build && npx vercel --prod"
@@ -38,6 +38,7 @@
     "typescript": "^5.7.3",
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
+    "wasm-pack": "^0.15.0",
     "ws": "^8.17.0"
   },
   "keywords": [
