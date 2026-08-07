@@ -7,6 +7,12 @@
 
 import * as THREE from 'three';
 import { HandGestureRecognizer } from '../interactions/HandGestureRecognizer.ts';
+import {
+  spawnPinchFilterHalo,
+  spawnScoopLensHalo,
+  spawnSliceWavePlane,
+  spawnResetPulseSphere,
+} from '../interactions/GestureParticleFeedback.ts';
 import { getGestureMeta } from '../../utils/GestureMapping.ts';
 import { WorldEventBus, WorldTopics } from '../../utils/EventBus.ts';
 import type { Engine } from '../Engine.ts';
@@ -114,11 +120,16 @@ export class WorldInputCoordinator {
     });
 
     // Route the intent to the matching World action.
+    // Spawn transient visual spatial feedback in the scene.
+    const origin = new THREE.Vector3(0, 1.2, -1.2);
+
     switch (name) {
       case 'pinchTogether':
+        if (this.engine?.scene) spawnPinchFilterHalo(this.engine.scene as THREE.Scene, origin);
         this.callbacks.onApplyOperation?.('filter');
         break;
       case 'pinchApart':
+        if (this.engine?.scene) spawnPinchFilterHalo(this.engine.scene as THREE.Scene, origin, { color: 0xffaa00 });
         this.callbacks.onApplyOperation?.('aggregate');
         break;
       case 'swipeRight':
@@ -128,12 +139,15 @@ export class WorldInputCoordinator {
         this.callbacks.onCycleDataset?.(-1);
         break;
       case 'sliceUp':
+        if (this.engine?.scene) spawnSliceWavePlane(this.engine.scene as THREE.Scene, origin, 'up');
         this.callbacks.onApplyOperation?.('sort');
         break;
       case 'sliceDown':
+        if (this.engine?.scene) spawnSliceWavePlane(this.engine.scene as THREE.Scene, origin, 'down');
         this.callbacks.onApplyOperation?.('timeSlice');
         break;
       case 'scoopUp':
+        if (this.engine?.scene) spawnScoopLensHalo(this.engine.scene as THREE.Scene, origin);
         if (this.engine.locomotion.flightMode) {
           this.engine.locomotion.ascend();
           this.callbacks.onLog?.('Flight: ascend');
@@ -148,8 +162,7 @@ export class WorldInputCoordinator {
         }
         break;
       case 'pushForward':
-        // Infer intent from hand state: open hands reset the view, pinched hands
-        // reset the data operations.
+        if (this.engine?.scene) spawnResetPulseSphere(this.engine.scene as THREE.Scene, origin);
         if (ctx.openHands) {
           this.resetView();
         } else {
