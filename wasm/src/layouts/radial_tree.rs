@@ -7,7 +7,6 @@ pub fn compute_radial_tree_3d(
     y_offset: f32,
 ) -> Vec<[f32; 3]> {
     let count = levels.len();
-    let mut out = Vec::with_capacity(count);
 
     let mut level_groups: std::collections::BTreeMap<usize, Vec<usize>> = std::collections::BTreeMap::new();
     for (idx, &lvl) in levels.iter().enumerate() {

@@ -7,9 +7,7 @@ pub mod synthetic;
 pub mod topology;
 pub mod value;
 
-pub use column::{Column, ColumnType};
-pub use dataset::{Dataset, RowUpdateMode};
-pub use value::Value;
+pub use dataset::Dataset;
 
 use std::sync::Mutex;
 
