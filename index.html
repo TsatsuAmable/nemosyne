@@ -221,12 +221,12 @@
                         <span class="code-dot green"></span>
                     </div>
                     <div class="code-content">
-<span class="code-keyword">import</span> { World } <span class="code-keyword">from</span> <span class="code-string">'./vr/World.js'</span>;<br>
-<span class="code-keyword">import</span> { allSampleDatasets } <span class="code-keyword">from</span> <span class="code-string">'./data/SampleDatasets.js'</span>;<br><br>
+<span class="code-keyword">import</span> { World } <span class="code-keyword">from</span> <span class="code-string">'./src/vr/World.ts'</span>;<br>
+<span class="code-keyword">import</span> { allSampleDatasets } <span class="code-keyword">from</span> <span class="code-string">'./src/data/SampleDatasets.ts'</span>;<br><br>
 <span class="code-comment">// Bootstrap the three.js/WebXR world</span><br>
 <span class="code-keyword">const</span> world = <span class="code-keyword">new</span> World();<br>
 world.start();<br><br>
-<span class="code-comment">// Load any built-in dataset (HIERARCHY, GRAPH, TIME_SERIES, ...)</span><br>
+<span class="code-comment">// Load any built-in dataset (HIERARCHY, GRAPH, TIME_SERIES, TABULAR, ...)</span><br>
 world.loadDataset(allSampleDatasets[0]);<br><br>
 <span class="code-comment">// Switch datasets, filter, aggregate, or undo with gestures/wheel menu</span><br>
 <span class="code-comment">// world.loadDataset(allSampleDatasets.find(d => d.key === 'fraud-graph'));</span>
