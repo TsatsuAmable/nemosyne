@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 
 pub mod command_buffer;
 mod data;
+pub mod layouts;
 
 /// Shared memory constants. The WASM module starts at 128 MiB and is allowed
 /// to grow to 512 MiB. These match the JS host's expectations.
@@ -280,13 +281,67 @@ const CAP_DATASET_RUST: u32 = 1 << 0;
 const CAP_PARSER_RUST: u32 = 1 << 1;
 const CAP_OPERATIONS_RUST: u32 = 1 << 2;
 const CAP_COMMAND_BUFFER: u32 = 1 << 3;
+const CAP_LAYOUTS_RUST: u32 = 1 << 4;
 
 /// Return the enabled capability set for the current build.
-///
-/// Phase 1 advertises `DATASET_RUST | PARSER_RUST | OPERATIONS_RUST | COMMAND_BUFFER`.
 #[wasm_bindgen]
 pub fn capabilities() -> u32 {
-    CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST | CAP_COMMAND_BUFFER
+    CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST | CAP_COMMAND_BUFFER | CAP_LAYOUTS_RUST
+}
+
+/// Compute 3D grid layout positions in WASM memory.
+/// Writes `count * 3` floats into `out_ptr`.
+#[wasm_bindgen]
+pub fn layout_grid_3d(count: u32, spacing: f32, y_offset: f32, out_ptr: u32) -> u32 {
+    let positions = layouts::compute_grid_3d(count as usize, spacing, y_offset);
+    let mut offset = out_ptr as usize;
+    let slice = unsafe { allocator::view_mut(out_ptr, count * 12) };
+    for pos in positions {
+        let bx = pos[0].to_le_bytes();
+        let by = pos[1].to_le_bytes();
+        let bz = pos[2].to_le_bytes();
+        let rel = offset - out_ptr as usize;
+        slice[rel..rel + 4].copy_from_slice(&bx);
+        slice[rel + 4..rel + 8].copy_from_slice(&by);
+        slice[rel + 8..rel + 12].copy_from_slice(&bz);
+        offset += 12;
+    }
+    count * 12
+}
+
+/// Compute 3D force-directed layout positions in WASM memory.
+#[wasm_bindgen]
+pub fn layout_force_directed_3d(
+    count: u32,
+    iterations: u32,
+    repulsion: f32,
+    attraction: f32,
+    damping: f32,
+    radius: f32,
+    y_offset: f32,
+    out_ptr: u32,
+) -> u32 {
+    let edges = &[];
+    let positions = layouts::compute_force_directed_3d(
+        count as usize,
+        edges,
+        iterations as usize,
+        repulsion,
+        attraction,
+        damping,
+        radius,
+        y_offset,
+        1.0,
+    );
+    let slice = unsafe { allocator::view_mut(out_ptr, count * 12) };
+    let mut offset = 0;
+    for pos in positions {
+        slice[offset..offset + 4].copy_from_slice(&pos[0].to_le_bytes());
+        slice[offset + 4..offset + 8].copy_from_slice(&pos[1].to_le_bytes());
+        slice[offset + 8..offset + 12].copy_from_slice(&pos[2].to_le_bytes());
+        offset += 12;
+    }
+    count * 12
 }
 
 // ---------------------------------------------------------------------------
