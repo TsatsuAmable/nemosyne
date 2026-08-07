@@ -2,7 +2,7 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import * as THREE from 'three';
-import { VRConsole } from '../src/vr/ui/VRConsole.js';
+import { VRConsole } from '../src/vr/ui/VRConsole.ts';
 
 describe('VRConsole', () => {
   let consolePanel;

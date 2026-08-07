@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { HandGestureRecognizer } from '../src/vr/interactions/HandGestureRecognizer.js';
+import { HandGestureRecognizer } from '../src/vr/interactions/HandGestureRecognizer.ts';
 import * as THREE from 'three';
 
 describe('HandGestureRecognizer intent inference', () => {
@@ -85,7 +85,7 @@ describe('World intent inference integration', () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    const { World } = await import('../src/vr/World.js');
+    const { World } = await import('../src/vr/World.ts');
     world = new World();
     await new Promise((r) => setTimeout(r, 50));
   });

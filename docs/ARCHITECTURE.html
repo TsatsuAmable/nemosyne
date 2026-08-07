@@ -6,19 +6,19 @@
     <title>Nemosyne Architecture | Nemosyne</title>
 
     <!-- Primary favicon -->
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
 
     <!-- Fallback for older browsers -->
-    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon_io/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="img/favicon_io/favicon-16x16.png">
-    <link rel="shortcut icon" href="img/favicon_io/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="./img/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./img/favicon_io/favicon-16x16.png">
+    <link rel="shortcut icon" href="./img/favicon_io/favicon.ico">
 
     <!-- Apple devices -->
-    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon_io/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="./img/favicon_io/apple-touch-icon.png">
 
     <!-- Android/Chrome -->
-    <link rel="manifest" href="img/favicon_io/site.webmanifest">
+    <link rel="manifest" href="./img/favicon_io/site.webmanifest">
     <meta name="theme-color" content="#0a0a0f">
 
     <!-- Microsoft -->
@@ -119,6 +119,14 @@
 </ul>
 </li>
 </ul>
+<h3>1b. Rust/WASM Core (<code>wasm/</code>)</h3>
+<p>A gradually expanding Rust runtime compiled to WebAssembly. Phase 0 establishes the build loop, shared memory, and a minimal ABI surface. Future phases port the data layer, scene graph, command buffers, Draco layouts, input state, and networking state machine into Rust while three.js remains the WebGL/WebXR renderer.</p>
+<ul>
+<li><strong>ABI</strong> — exported functions return <code>u32</code> handles or <code>(ptr, len)</code> offsets; imported functions are limited to logging, timestamps, and telemetry.</li>
+<li><strong>Memory</strong> — shared <code>WebAssembly.Memory</code> starts at 128 MB and grows to 512 MB; JS reads typed arrays directly from the WASM buffer.</li>
+<li><strong>Command buffer</strong> — packed, 4-byte-aligned <code>u8</code> stream with a versioned header and opcode/payload structure; JS <code>CommandApplier</code> consumes it once per frame.</li>
+<li><strong>Bridge</strong> — <code>src/wasm/RuntimeBridge.js</code> loads <code>wasm/pkg/nemosyne_wasm_bg.wasm</code>, exposes <code>allocBytes</code> / <code>readBytes</code>, and forwards per-frame <code>update(delta, time)</code> calls.</li>
+</ul>
 <h3>2. Draco Layer (<code>src/draco/</code>)</h3>
 <ul>
 <li><strong>ConstraintEngine.js</strong> — symbolic recommender.<ul>
@@ -139,15 +147,15 @@
 </ul>
 <h3>3. VR Runtime Layer (<code>src/vr/</code>)</h3>
 <ul>
-<li><strong>Engine.js</strong> — Three.js scene, renderer, WebXR session management, animation loop.</li>
-<li><strong>WorldTheme.js</strong> — fog, lights, atmosphere.</li>
+<li><strong>Engine.ts</strong> — Three.js scene, renderer, WebXR session management, animation loop.</li>
+<li><strong>WorldTheme.ts</strong> — fog, lights, atmosphere.</li>
 <li><strong>World.js</strong> — composes the full scene: datumplane, landmarks, Draco palace, HUD, menu, live connectors.</li>
 <li><strong>InputRouter.js</strong> — normalizes controller and hand input sources, routes raycasts and gestures.</li>
 <li><strong>Controllers.js</strong> — Quest controller laser pointer.</li>
 <li><strong>Hands.js</strong> — hand tracking, joint normalization, pinch detection.</li>
-<li><strong>Locomotion.js</strong> — teleport anchors, ground-constrained movement, and toggleable 3D flight mode.</li>
-<li><strong>DesktopControls.js</strong> — keyboard/mouse fallback for non-VR use.</li>
-<li><strong>VRButton.js</strong> — WebXR entry button with manual <code>XRWebGLLayer</code> binding for Quest Browser.</li>
+<li><strong>Locomotion.ts</strong> — teleport anchors, ground-constrained movement, and toggleable 3D flight mode.</li>
+<li><strong>DesktopControls.ts</strong> — keyboard/mouse fallback for non-VR use.</li>
+<li><strong>VRButton.ts</strong> — WebXR entry button with manual <code>XRWebGLLayer</code> binding for Quest Browser.</li>
 </ul>
 <h3>4. Artefacts (<code>src/vr/artifacts/</code>)</h3>
 <ul>
@@ -171,14 +179,14 @@
 </ul>
 <h3>6. Interaction Layer (<code>src/vr/interactions/</code>)</h3>
 <ul>
-<li><strong>DataOperations.js</strong> — maps dataset operations (filter, sort, aggregate, cluster, slice) to artefact transforms.</li>
-<li><strong>MetaphorActions.js</strong> — Phase 7 transient spatial effects: Resonance Pulse, Fork Plane, Chrono Dial, Constellation, Beacon, Aleph.</li>
+<li><strong>DataOperations.ts</strong> — maps dataset operations (filter, sort, aggregate, cluster, slice) to artefact transforms.</li>
+<li><strong>MetaphorActions.ts</strong> — Phase 7 transient spatial effects: Resonance Pulse, Fork Plane, Chrono Dial, Constellation, Beacon, Aleph.</li>
 </ul>
 <h3>7. Scalability Layer (<code>src/vr/scalability/</code>)</h3>
 <ul>
-<li><strong>InstancedPointCloud.js</strong> — <code>THREE.InstancedMesh</code> wrapper for large point datasets.</li>
-<li><strong>SpatialIndex.js</strong> — uniform-grid spatial index for radius and ray queries.</li>
-<li><strong>LODManager.js</strong> — distance/gaze level-of-detail predicates.</li>
+<li><strong>InstancedPointCloud.ts</strong> — <code>THREE.InstancedMesh</code> wrapper for large point datasets.</li>
+<li><strong>SpatialIndex.ts</strong> — uniform-grid spatial index for radius and ray queries.</li>
+<li><strong>LODManager.ts</strong> — distance/gaze level-of-detail predicates.</li>
 </ul>
 <h3>8. Audio Feedback (<code>src/vr/audio/</code>)</h3>
 <ul>
@@ -186,8 +194,8 @@
 </ul>
 <h3>9. Utilities (<code>src/utils/</code>)</h3>
 <ul>
-<li><strong>SeededRandom.js</strong> — deterministic RNG for reproducible layouts.</li>
-<li><strong>Dispose.js</strong> — Three.js object disposal helper.</li>
+<li><strong>SeededRandom.ts</strong> — deterministic RNG for reproducible layouts.</li>
+<li><strong>Dispose.ts</strong> — Three.js object disposal helper.</li>
 </ul>
 <hr>
 <h2>Data Flow</h2>
@@ -210,7 +218,8 @@
 <hr>
 <h2>Runtime Conventions</h2>
 <ul>
-<li>ES modules only; no build required for development (Vite optional for HTTPS serving).</li>
+<li>ES modules only; Vite is required for serving and bundling.</li>
+<li><code>npm run dev</code> and <code>npm run build</code> invoke <code>wasm-pack</code> first to compile the Rust crate in <code>wasm/</code>.</li>
 <li>Three.js loaded via import map (<code>three@0.168.0</code>).</li>
 <li>WebXR uses <code>local-floor</code> reference space with optional <code>hand-tracking</code>.</li>
 <li><code>XRInputSourceArray</code> is normalized with <code>Array.from()</code> because Quest Browser&#39;s array-like object lacks <code>Array.prototype</code> methods.</li>
@@ -221,7 +230,9 @@
 <ul>
 <li>Vitest with jsdom.</li>
 <li><code>tests/setup.js</code> provides a robust WebGL/Canvas 2D mock.</li>
-<li>Unit tests cover: data parsing, Draco engine, live connectors, panel system, VR interactions, WebXR lifecycle.</li>
+<li><code>cargo test --manifest-path wasm/Cargo.toml</code> for pure Rust modules.</li>
+<li><code>wasm-pack test --headless --chrome</code> for browser-facing Rust modules (added as the WASM surface grows).</li>
+<li>Unit tests cover: data parsing, Draco engine, live connectors, panel system, VR interactions, WebXR lifecycle, and the WASM bridge.</li>
 </ul>
 <hr>
 <h2>Extension Points</h2>
@@ -230,7 +241,7 @@
 <li>New constraints: register rules in <code>ConstraintEngine</code>; expose new facts in <code>extractFacts</code>.</li>
 <li>New scalable renderers: add them under <code>src/vr/scalability/</code> and reference them in <code>VRTopologyTranslator</code>.</li>
 <li>New live sources: add entries to <code>OpenDataSources.js</code>.</li>
-<li>New interactions: extend <code>DataOperations.js</code>, <code>MetaphorActions.js</code>, and the hand wheel menu.</li>
+<li>New interactions: extend <code>DataOperations.ts</code>, <code>MetaphorActions.ts</code>, and the hand wheel menu.</li>
 </ul>
 
             </article>

@@ -2,8 +2,8 @@
  * @jest-environment jsdom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ANALYSIS_TEMPLATES, resolveTemplate } from '../src/data/AnalysisTemplates.js';
-import { allSampleDatasets } from '../src/data/SampleDatasets.js';
+import { ANALYSIS_TEMPLATES, resolveTemplate } from '../src/data/AnalysisTemplates.ts';
+import { allSampleDatasets } from '../src/data/SampleDatasets.ts';
 
 describe('AnalysisTemplates', () => {
   it('contains well-defined story templates', () => {
@@ -38,7 +38,7 @@ describe('World.loadTemplate integration', () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    const { World } = await import('../src/vr/World.js');
+    const { World } = await import('../src/vr/World.ts');
     world = new World();
     // Wait for async autosave restore to settle.
     await new Promise((r) => setTimeout(r, 50));

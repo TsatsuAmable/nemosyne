@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.js';
-import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.js';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
-import { ChartPlane } from '../src/vr/artifacts/ChartPlane.js';
+import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
+import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { ChartPlane } from '../src/vr/artifacts/ChartPlane.ts';
 
 describe('ChartPlane integration', () => {
   it('synthesizes a chart plane for time-series data', () => {

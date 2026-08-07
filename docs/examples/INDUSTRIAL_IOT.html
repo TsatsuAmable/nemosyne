@@ -6,19 +6,19 @@
     <title>Industrial IoT Example | Nemosyne</title>
 
     <!-- Primary favicon -->
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
 
     <!-- Fallback for older browsers -->
-    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon_io/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="img/favicon_io/favicon-16x16.png">
-    <link rel="shortcut icon" href="img/favicon_io/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="../img/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="../img/favicon_io/favicon-16x16.png">
+    <link rel="shortcut icon" href="../img/favicon_io/favicon.ico">
 
     <!-- Apple devices -->
-    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon_io/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="../img/favicon_io/apple-touch-icon.png">
 
     <!-- Android/Chrome -->
-    <link rel="manifest" href="img/favicon_io/site.webmanifest">
+    <link rel="manifest" href="../img/favicon_io/site.webmanifest">
     <meta name="theme-color" content="#0a0a0f">
 
     <!-- Microsoft -->
@@ -135,7 +135,7 @@
 </li>
 </ol>
 <h2>Bring your own stream</h2>
-<p>For local development the Vite server already hosts <code>/__demo-stream</code>. In production, point <code>WebSocketAdapter</code> at your own secure WebSocket endpoint. The adapter supports JSON, MessagePack, Apache Arrow, and FlatBuffers binary payloads.</p>
+<p>For local development the Vite server already hosts <code>/__demo-stream</code>. In production, point <code>WebSocketAdapter</code> at your own secure WebSocket endpoint and supply a <code>parseMessage</code> or <code>binaryParser</code> callback to convert your payload into <code>{ rows, topology?, name? }</code> rows. The runtime ships with a JSON parser; bring your own parser for MessagePack, Apache Arrow, or FlatBuffers frames.</p>
 <h2>Export</h2>
 <p>Use <strong>Panels → Export Story</strong> to save the buffered dataset and operation history.</p>
 

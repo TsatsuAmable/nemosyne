@@ -2,8 +2,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { Engine } from '../src/vr/Engine.js';
-import { DesktopControls } from '../src/vr/DesktopControls.js';
+import { Engine } from '../src/vr/Engine.ts';
+import { DesktopControls } from '../src/vr/DesktopControls.ts';
 
 describe('DesktopControls', () => {
   let engine;

@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { SelectionFeedback } from '../src/vr/audio/SelectionFeedback.js';
+import { SelectionFeedback } from '../src/vr/audio/SelectionFeedback.ts';
 
 function makeMockAudioContext() {
   const oscillators = [];

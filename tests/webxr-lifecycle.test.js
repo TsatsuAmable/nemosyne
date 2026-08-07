@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { NemosyneVRButton } from '../src/vr/VRButton.js';
+import { NemosyneVRButton } from '../src/vr/VRButton.ts';
 
 /**
  * Minimal mock WebGL context.

@@ -2,13 +2,13 @@
 
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import {
   buildPersistencePlane,
   buildMapperPlane,
   buildBettiPlane,
   buildTDASummaryGroup,
-} from '../src/vr/artifacts/TDAPlanes.js';
+} from '../src/vr/artifacts/TDAPlanes.ts';
 
 function makeDataset(rows) {
   const columns = [

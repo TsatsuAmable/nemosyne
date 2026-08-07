@@ -5,6 +5,6 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.js'],
     globals: false,
-    exclude: ['node_modules', 'dist', 'docs/nemosyne-world'],
+    exclude: ['node_modules', 'dist', 'docs/nemosyne-world', '.claude', 'wasm'],
   },
 });

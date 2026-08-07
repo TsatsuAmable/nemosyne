@@ -2,13 +2,13 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import {
   applyNestedRings,
   applyDensityCloud,
   applyDendrogramArc,
   autoLayout,
-} from '../src/vr/interactions/ClusterTransforms.js';
+} from '../src/vr/interactions/ClusterTransforms.ts';
 
 function makeArtifact(rows) {
   const group = new THREE.Group();

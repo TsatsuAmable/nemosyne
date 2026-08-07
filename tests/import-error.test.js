@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect } from 'vitest';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import {
   ImportError,
   ImportWarning,
   ImportErrorCode,
   validateImport,
   formatValidationResult,
-} from '../src/data/ImportError.js';
+} from '../src/data/ImportError.ts';
 
 function makeDataset(columns, rows) {
   return new Dataset('test', columns, rows);

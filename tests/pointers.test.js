@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { ControllerPointer } from '../src/vr/Controllers.js';
-import { HandPointer } from '../src/vr/Hands.js';
+import { ControllerPointer } from '../src/vr/Controllers.ts';
+import { HandPointer } from '../src/vr/Hands.ts';
 
 /**
  * Mock XR hand space with EventTarget semantics.

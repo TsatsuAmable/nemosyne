@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { LayoutBase } from '../src/draco/layouts/LayoutBase.js';
+import { LayoutBase } from '../src/draco/layouts/LayoutBase.ts';
 
 describe('LayoutBase', () => {
   it('requires subclasses to implement compute()', () => {

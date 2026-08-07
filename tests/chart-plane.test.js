@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
-import { ChartPlane, ChartType } from '../src/vr/artifacts/ChartPlane.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { ChartPlane, ChartType } from '../src/vr/artifacts/ChartPlane.ts';
 
 describe('ChartPlane', () => {
   it('renders a bar chart from a numeric column', () => {

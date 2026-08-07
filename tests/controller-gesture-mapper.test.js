@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { ControllerGestureMapper } from '../src/vr/interactions/ControllerGestureMapper.js';
+import { ControllerGestureMapper } from '../src/vr/interactions/ControllerGestureMapper.ts';
 
 class MockControllerPointer {
   constructor(handedness, x = 0, y = 0, z = 0) {
