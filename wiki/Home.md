@@ -9,7 +9,7 @@ Welcome to the Nemosyne documentation hub.
 - [Roadmap](../ROADMAP.md)
 - [Architecture](../ARCHITECTURE.md)
 - [Examples](../examples/)
-- [Artefact Catalog](../artefacts/SPECIFICATION.md)
+- [Artefact Catalog](../ARTEFACTS.md)
 
 ## What's Nemosyne?
 

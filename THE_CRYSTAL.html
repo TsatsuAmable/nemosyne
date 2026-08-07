@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Crystal: Nemosyne's Atomic Unit | Nemosyne</title>
+
+    <!-- Primary favicon -->
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
+
+    <!-- Fallback for older browsers -->
+    <link rel="icon" type="image/png" sizes="32x32" href="./img/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./img/favicon_io/favicon-16x16.png">
+    <link rel="shortcut icon" href="./img/favicon_io/favicon.ico">
+
+    <!-- Apple devices -->
+    <link rel="apple-touch-icon" sizes="180x180" href="./img/favicon_io/apple-touch-icon.png">
+
+    <!-- Android/Chrome -->
+    <link rel="manifest" href="./img/favicon_io/site.webmanifest">
+    <meta name="theme-color" content="#0a0a0f">
+
+    <!-- Microsoft -->
+    <meta name="msapplication-TileColor" content="#0a0a0f">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+
+    <div class="temporal-grid"></div>
+
+    <!-- Navigation -->
+    <nav>
+        <a href="./index.html" class="logo">
+            <div class="logo-symbol"></div>
+            <span>Nemosyne</span>
+        </a>
+        <ul class="nav-links">
+            <li><a href="./index.html#features">Features</a></li>
+            <li><a href="./index.html#datasets">Datasets</a></li>
+            <li><a href="./index.html#examples">Examples</a></li>
+            <li><a href="./index.html#use-cases">Use Cases</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">VR Demo</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">Launch App</a></li>
+        </ul>
+        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            GitHub
+        </a>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="hero" style="min-height: 40vh; padding-top: 8rem; padding-bottom: 3rem;">
+        <div class="void-bg"></div>
+        <div class="crystal-field">
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+            <div class="crystal"></div>
+        </div>
+
+        <div class="hero-content">
+            <div class="badge">Nemosyne Documentation</div>
+            <h1>The Crystal: Nemosyne's Atomic Unit</h1>
+            <p class="hero-subtitle" style="max-width: 700px; margin-left: auto; margin-right: auto;">
+                
+            </p>
+        </div>
+    </section>
+
+    <!-- Content Section -->
+    <section class="features" id="content">
+        <div class="container">
+            <article class="markdown-content">
+<h2>Overview</h2>
+<p>The <strong>Crystal</strong> is the foundational, atomic building block of Nemosyne. It represents the successful marriage of:</p>
+<ul>
+<li><strong>three.js</strong> → 3D geometry, materials, WebXR rendering</li>
+<li><strong>D3.js</strong> → Data scales, colour maps, value transformations</li>
+<li><strong>Custom Behaviours</strong> → Interactions, animations, state management</li>
+</ul>
+<pre><code>┌─────────────────────────────────────────────────────────┐
+│                    NEMOSYNE CRYSTAL                      │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ┌─────────────┐        ┌─────────────┐               │
+│  │   A-FRAME   │◄──────►│   D3.JS     │               │
+│  │  Geometry   │        │   Scales    │               │
+│  │  Materials  │        │   Colours   │               │
+│  │  Scene      │        │   Domains   │               │
+│  └──────┬──────┘        └──────┬──────┘               │
+│         │                       │                       │
+│         └───────────┬───────────┘                       │
+│                     │                                   │
+│              ┌──────────────┐                          │
+│              │   BEHAVIOUR  │                          │
+│              │    ENGINE    │                          │
+│              └──────────────┘                          │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+</code></pre>
+<hr>
+<h2>The Concept</h2>
+<p>A Crystal is a <strong>first-class VR data citizen</strong> — a self-contained entity that:</p>
+<ol>
+<li><strong>Observes data</strong> via D3.js scales</li>
+<li><strong>Renders itself</strong> via three.js</li>
+<li><strong>Behaves interactively</strong> via custom behaviours</li>
+<li><strong>Reacts to change</strong> automatically</li>
+</ol>
+<p>It&#39;s the DNA of every Nemosyne visualization.</p>
+<hr>
+<h2>Architecture</h2>
+<h3>1. Data Layer (D3.js)</h3>
+<pre><code class="language-javascript">// D3 scales transform data → visuals
+this.scales = {
+  // Value → Size (e.g., 42 → 1.2x scale)
+  value: d3.scaleLinear()
+    .domain([0, 100])      // Input: data range
+    .range([0.5, 2.5]),    // Output: visual size
+  
+  // Category → Color (e.g., &quot;A&quot; → #1f77b4)
+  category: d3.scaleOrdinal(d3.schemeCategory10),
+  
+  // Sequential → Color (e.g., 75 → teal-green)
+  viridis: d3.scaleSequential(d3.interpolateViridis)
+    .domain([0, 100])
+};
+</code></pre>
+<h3>2. Visual Layer (three.js)</h3>
+<pre><code class="language-javascript">// three.js Mesh with geometry + material
+this.geometryEl = document.createElement(&#39;a-octahedron&#39;);
+this.geometryEl.setAttribute(&#39;radius&#39;, this.data.radius);
+this.geometryEl.setAttribute(&#39;material&#39;, {
+  color: &#39;#00d4aa&#39;,
+  emissive: &#39;#00d4aa&#39;,
+  emissiveIntensity: 0.5,
+  metalness: 0.8,
+  roughness: 0.2
+});
+</code></pre>
+<h3>3. Behaviour Layer (Custom)</h3>
+<pre><code class="language-javascript">// Behaviours are pluggable
+this.behaviours = {
+  &#39;hover&#39;: HoverBehaviour,      // Glow on hover
+  &#39;click&#39;: ClickBehaviour,      // Scale on click
+  &#39;idle&#39;: IdleBehaviour,        // Rotate/float
+  &#39;data-change&#39;: DataChangeBehaviour  // Animate value changes
+};
+</code></pre>
+<hr>
+<h2>Key Features</h2>
+<h3>Reactive Data Binding</h3>
+<p>When data changes:</p>
+<pre><code class="language-javascript">// Developer calls:
+crystal.setValue(85);
+
+// Crystal automatically:
+// 1. D3: valueScale(85) → 2.1
+// 2. D3: viridis(85) → &quot;#00ff88&quot;
+// 3. three.js: animate scale to 2.1x
+// 4. three.js: fade color to teal-green
+// 5. Emit: &quot;data-change&quot; event
+</code></pre>
+<h3>Extensible Behaviours</h3>
+<p>Built-in behaviours:</p>
+<table>
+<thead>
+<tr>
+<th>Behaviour</th>
+<th>Trigger</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>hover</code></td>
+<td>mouseenter</td>
+<td>emissive glow 0.5 → 2.0</td>
+</tr>
+<tr>
+<td><code>click</code></td>
+<td>click</td>
+<td>scale 1.0 → 1.3, show label</td>
+</tr>
+<tr>
+<td><code>idle</code></td>
+<td>[always]</td>
+<td>rotation, float bob</td>
+</tr>
+<tr>
+<td><code>data-change</code></td>
+<td>setValue()</td>
+<td>animate size/color</td>
+</tr>
+</tbody></table>
+<p>Developers can add custom behaviours:</p>
+<pre><code class="language-javascript">NemosyneCrystal.registerBehaviour(&#39;pulse&#39;, class {
+  init() {
+    this.crystal.addAnimation({
+      property: &#39;emissiveIntensity&#39;,
+      from: 0.3,
+      to: 2.0,
+      loop: true,
+      dir: &#39;alternate&#39;
+    });
+  }
+});
+</code></pre>
+<hr>
+<h2>API Reference</h2>
+<h3>Properties</h3>
+<h4>Visual</h4>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>geometry</code></td>
+<td>string</td>
+<td><code>&quot;octahedron&quot;</code></td>
+<td>Shape: sphere, box, octahedron, dodecahedron, icosahedron</td>
+</tr>
+<tr>
+<td><code>radius</code></td>
+<td>number</td>
+<td>1.0</td>
+<td>Base size</td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td>string</td>
+<td><code>&quot;#00d4aa&quot;</code></td>
+<td>Primary colour (or D3 scale ref)</td>
+</tr>
+<tr>
+<td><code>emissive</code></td>
+<td>string</td>
+<td><code>&quot;#00d4aa&quot;</code></td>
+<td>Glow colour</td>
+</tr>
+<tr>
+<td><code>emissiveIntensity</code></td>
+<td>number</td>
+<td>0.5</td>
+<td>Glow 0-2</td>
+</tr>
+<tr>
+<td><code>metalness</code></td>
+<td>number</td>
+<td>0.8</td>
+<td>Metallic look 0-1</td>
+</tr>
+<tr>
+<td><code>roughness</code></td>
+<td>number</td>
+<td>0.2</td>
+<td>Surface roughness 0-1</td>
+</tr>
+<tr>
+<td><code>opacity</code></td>
+<td>number</td>
+<td>1.0</td>
+<td>Transparency 0-1</td>
+</tr>
+</tbody></table>
+<h4>Data</h4>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>value</code></td>
+<td>any</td>
+<td>42</td>
+<td>Primary data value</td>
+</tr>
+<tr>
+<td><code>valueAccessor</code></td>
+<td>string</td>
+<td><code>&quot;value&quot;</code></td>
+<td>Which field to read</td>
+</tr>
+<tr>
+<td><code>scaleDomain</code></td>
+<td>array</td>
+<td><code>[0, 100]</code></td>
+<td>D3 input range</td>
+</tr>
+<tr>
+<td><code>scaleRange</code></td>
+<td>array</td>
+<td><code>[0.5, 2]</code></td>
+<td>D3 output range (visual)</td>
+</tr>
+<tr>
+<td><code>colourScale</code></td>
+<td>string</td>
+<td><code>&quot;viridis&quot;</code></td>
+<td>D3: viridis, category10, diverging-rdgy</td>
+</tr>
+</tbody></table>
+<h4>Animation</h4>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>autoRotate</code></td>
+<td>boolean</td>
+<td>true</td>
+<td>Spin while idle</td>
+</tr>
+<tr>
+<td><code>rotateSpeed</code></td>
+<td>number</td>
+<td>10</td>
+<td>Degrees per second</td>
+</tr>
+<tr>
+<td><code>float</code></td>
+<td>boolean</td>
+<td>true</td>
+<td>Bob up/down</td>
+</tr>
+<tr>
+<td><code>floatSpeed</code></td>
+<td>number</td>
+<td>1</td>
+<td>Cycles per second</td>
+</tr>
+<tr>
+<td><code>floatAmplitude</code></td>
+<td>number</td>
+<td>0.2</td>
+<td>Bob height in meters</td>
+</tr>
+</tbody></table>
+<h4>Behaviours</h4>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>behaviours</code></td>
+<td>string</td>
+<td><code>&quot;hover,click,idle&quot;</code></td>
+<td>Comma-separated list</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Usage Examples</h2>
+<h3>Basic Crystal</h3>
+<pre><code class="language-html">&lt;nemosyne-crystal
+  value=&quot;42&quot;
+  color=&quot;#00d4aa&quot;
+  behaviour=&quot;hover, click, idle&quot;
+&gt;&lt;/nemosyne-crystal&gt;
+</code></pre>
+<h3>Data-Driven Scaling</h3>
+<pre><code class="language-html">&lt;nemosyne-crystal
+  value=&quot;78&quot;
+  scale-domain=&quot;[0, 100]&quot;
+  scale-range=&quot;[0.5, 3]&quot;
+  colour-scale=&quot;viridis&quot;
+&gt;&lt;/nemosyne-crystal&gt;
+</code></pre>
+<h3>Categorical Data</h3>
+<pre><code class="language-html">&lt;nemosyne-crystal
+  value=&quot;{&#39;category&#39;: &#39;finance&#39;, &#39;amount&#39;: 50000}&quot;
+  value-accessor=&quot;amount&quot;
+  category-field=&quot;category&quot;
+  colour-scale=&quot;category10&quot;
+&gt;&lt;/nemosyne-crystal&gt;
+</code></pre>
+<h3>JavaScript API</h3>
+<pre><code class="language-javascript">// Get crystal
+const crystal = document.querySelector(&#39;#my-crystal&#39;);
+
+// Change value (triggers D3 → three.js animation)
+crystal.components[&#39;nemosyne-crystal&#39;].setValue(95);
+
+// Change visual property
+crystal.setAttribute(&#39;nemosyne-crystal&#39;, &#39;emissiveIntensity&#39;, 1.5);
+
+// Listen to events
+crystal.addEventListener(&#39;hover&#39;, (e) =&gt; {
+  console.log(&#39;Hovered:&#39;, e.detail);
+});
+
+crystal.addEventListener(&#39;data-change&#39;, (e) =&gt; {
+  console.log(`${e.detail.oldValue} → ${e.detail.newValue}`);
+});
+</code></pre>
+<hr>
+<h2>D3 + three.js Integration</h2>
+<h3>Value → Size</h3>
+<pre><code class="language-javascript">// D3 scale
+const valueScale = d3.scaleLinear()
+  .domain([0, 100])
+  .range([0.5, 2.5]);
+
+// When value changes
+const newSize = valueScale(newValue);  // e.g., 70 → 2.0
+
+// three.js animation
+el.setAttribute(&#39;animation&#39;, {
+  property: &#39;scale&#39;,
+  to: &#39;2.0 2.0 2.0&#39;,
+  dur: 300,
+  easing: &#39;easeOutElastic&#39;
+});
+</code></pre>
+<h3>Value → Colour</h3>
+<pre><code class="language-javascript">// D3 viridis scale (black → purple → teal → yellow)
+const colorScale = d3.scaleSequential(d3.interpolateViridis)
+  .domain([0, 100]);
+
+// When value changes
+const newColor = colorScale(newValue);  // e.g., 70 → &quot;#3b528b&quot;
+
+// three.js material update
+el.setAttribute(&#39;material&#39;, &#39;color&#39;, newColor);
+</code></pre>
+<hr>
+<h2>Creating Custom Crystals</h2>
+<h3>Extend the Base</h3>
+<pre><code class="language-javascript">class CustomCrystal extends NemosyneCrystal {
+  init() {
+    super.init();
+    // Custom initialization
+  }
+  
+  customMethod(value) {
+    // Custom behaviour
+    this.setVisual(&#39;color&#39;, &#39;#ff3864&#39;);
+    this.emit(&#39;custom-event&#39;, { value });
+  }
+}
+</code></pre>
+<h3>Register Custom Behaviour</h3>
+<pre><code class="language-javascript">// Define behaviour
+class HeartbeatBehaviour extends CrystalBehaviour {
+  tick(time, delta) {
+    const pulse = (Math.sin(time * 0.003) + 1) / 2; // 0-1
+    const intensity = 0.3 + pulse * 1.5; // 0.3 - 1.8
+    this.crystal.setVisual(&#39;emissiveIntensity&#39;, intensity);
+  }
+}
+
+// Register
+NemosyneCrystal.registerBehaviour(&#39;heartbeat&#39;, HeartbeatBehaviour);
+
+// Use
+// &lt;nemosyne-crystal behaviours=&quot;hover, heartbeat&quot;&gt;&lt;/nemosyne-crystal&gt;
+</code></pre>
+<hr>
+<h2>Best Practices</h2>
+<ol>
+<li><strong>Keep values numeric</strong> for D3 scales to work best</li>
+<li><strong>Use consistent domains</strong> across related crystals</li>
+<li><strong>Let behaviours handle interactions</strong> instead of manual event listeners</li>
+<li><strong>Use data-change behaviour</strong> for reactive updates</li>
+<li><strong>Group crystals</strong> for complex visualizations</li>
+</ol>
+<hr>
+<h2>Next Steps</h2>
+<ul>
+<li><strong><a href="./ARTEFACTS.html">Artefact Taxonomy</a></strong> — See all crystal and spatial artefact types</li>
+<li><strong><a href="./INTERACTIONS.html">Interactions &amp; Gestures</a></strong> — Learn interactive gesture controls</li>
+<li><strong><a href="./DESIGN_SYSTEM.html">Design System</a></strong> — Palette, typography, and visual spec</li>
+</ul>
+<hr>
+<p><strong>The Crystal is the atom. Everything else is molecules.</strong> 🐾</p>
+
+            </article>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-moon">◈</div>
+        <div class="footer-tagline">Nemosyne</div>
+        <div class="footer-domain">nemosyne.world</div>
+        <p class="footer-text">
+            Advancing the use of VR artefacts as tools for manipulating and understanding real-world objects and data.
+        </p>
+        <div class="footer-links">
+            <a href="https://github.com/TsatsuAmable/nemosyne" target="_blank">GitHub</a>
+            <a href="https://www.npmjs.com/package/nemosyne" target="_blank">npm Package</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/issues" target="_blank">Issues</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/discussions" target="_blank">Discussions</a>
+            <a href="./ARCHITECTURE.html">Architecture</a>
+            <a href="https://github.com/TsatsuAmable/nemosyne/blob/main/LICENSE" target="_blank">License (MIT)</a>
+        </div>
+        <p class="copyright">
+            © 2026 Nemosyne Project. Released under MIT License.
+        </p>
+    </footer>
+
+</body>
+</html>
