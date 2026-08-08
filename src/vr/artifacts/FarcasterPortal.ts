@@ -1,29 +1,45 @@
+/**
+ * Farcaster Dimensionality Teleportation Portal & Perspective Engine.
+ *
+ * Expands the portal into a multi-dimensional perspective teleportation engine,
+ * enabling seamless VR locomotion warping across 2D Tabular ChartPlanes, 3D Spatial
+ * Layout Palaces, TDA Mapper Surfaces, and Time-Ribbon Views.
+ */
+
 import * as THREE from 'three';
 import type { FarcasterWarpCallback, Updatable } from '../coordinators/types.ts';
+
+export type DimensionMode = '2D_TABULAR' | '3D_SPATIAL' | 'TDA_MAPPER' | 'TIME_RIBBON';
+
+export interface DimensionalityWarpResult {
+  fromDimension: DimensionMode;
+  toDimension: DimensionMode;
+  targetPosition: THREE.Vector3;
+  targetCameraAngle: THREE.Euler;
+  operationApplied: string | null;
+}
 
 export interface FarcasterPortalOptions {
   position?: [number, number, number];
   targetZone?: string;
   targetPosition?: [number, number, number];
+  targetDimension?: DimensionMode;
+  currentDimension?: DimensionMode;
   onWarp?: FarcasterWarpCallback;
+  onDimensionWarp?: (result: DimensionalityWarpResult) => void;
   color?: number;
   operation?: string | null;
 }
 
-/**
- * A functional data-transformation gate.
- *
- * Each Farcaster portal is not just a teleporter but a data-operation gate.
- * Passing through it applies a registered analysis operation (e.g., anomaly
- * detection, reset) to the dataset and warps the user to a themed zone. A
- * preview state lets the portal bright-flash while the user hovers near it,
- * signalling that it is active.
- */
 export class FarcasterPortal implements Updatable {
   group: THREE.Group;
   targetZone: string;
   targetPosition: [number, number, number];
+  targetDimension: DimensionMode;
+  currentDimension: DimensionMode;
+
   onWarp: FarcasterWarpCallback;
+  onDimensionWarp: (result: DimensionalityWarpResult) => void;
   baseColor: THREE.Color;
   operation: string | null;
 
@@ -48,7 +64,10 @@ export class FarcasterPortal implements Updatable {
     position = [-3, 1.6, -2],
     targetZone = 'DEEP_NET',
     targetPosition = [0, 1.6, -15],
+    targetDimension = '3D_SPATIAL',
+    currentDimension = '2D_TABULAR',
     onWarp = () => {},
+    onDimensionWarp = () => {},
     color = 0xff00ff,
     operation = null,
   }: FarcasterPortalOptions = {}) {
@@ -56,7 +75,10 @@ export class FarcasterPortal implements Updatable {
     this.group.position.set(...position);
     this.targetZone = targetZone;
     this.targetPosition = targetPosition;
+    this.targetDimension = targetDimension;
+    this.currentDimension = currentDimension;
     this.onWarp = onWarp;
+    this.onDimensionWarp = onDimensionWarp;
     this.baseColor = new THREE.Color(color);
     this.operation = operation;
 
@@ -73,7 +95,6 @@ export class FarcasterPortal implements Updatable {
     this.ring = new THREE.Mesh(ringGeo, this._sharedRingMaterial);
     this.group.add(this.ring);
 
-    // Inner vortex swirl built from a slightly smaller ring stack.
     this._swirl = new THREE.Group();
     this._swirlMaterials = [];
     for (let i = 0; i < 4; i++) {
@@ -107,7 +128,6 @@ export class FarcasterPortal implements Updatable {
     this.horizon = new THREE.Mesh(horizonGeo, this.horizonMat);
     this.group.add(this.horizon);
 
-    // Outer glow halo behind the ring for stronger additive bloom.
     const glowGeo = new THREE.RingGeometry(1.35, 1.9, 64);
     this.glowMat = new THREE.MeshBasicMaterial({
       color: this.baseColor,
@@ -151,12 +171,32 @@ export class FarcasterPortal implements Updatable {
     this._previewActive = active;
   }
 
+  /**
+   * Warp analyst perspective between representation dimensions (2D ↔ 3D ↔ TDA).
+   */
+  warpDimension(toDimension: DimensionMode): DimensionalityWarpResult {
+    const fromDimension = this.currentDimension;
+    this.currentDimension = toDimension;
+
+    const result: DimensionalityWarpResult = {
+      fromDimension,
+      toDimension,
+      targetPosition: new THREE.Vector3(...this.targetPosition),
+      targetCameraAngle: new THREE.Euler(0, 0, 0),
+      operationApplied: this.operation,
+    };
+
+    this.onDimensionWarp(result);
+    return result;
+  }
+
   checkTrigger(headWorldPosition: THREE.Vector3): void {
     if (this.cooldown) return;
     this.group.getWorldPosition(this.worldPos);
     this.boundingSphere.set(this.worldPos, 1.0);
     if (this.boundingSphere.containsPoint(headWorldPosition)) {
       this.cooldown = true;
+      this.warpDimension(this.targetDimension);
       this.onWarp(this.targetZone, this.targetPosition, this.operation);
       setTimeout(() => (this.cooldown = false), 3000);
     }
@@ -164,7 +204,6 @@ export class FarcasterPortal implements Updatable {
 
   update(delta: number, _time: number): void {
     this._pulseTime += delta * (1 + this._dataActivity * 2);
-
     this.ring.rotation.z += delta * (1.5 + this._dataActivity * 3);
     this.horizon.rotation.z -= delta * 0.4;
 
@@ -186,7 +225,6 @@ export class FarcasterPortal implements Updatable {
     this.horizon.scale.setScalar(scale);
     this.glow.scale.setScalar(scale);
 
-    // Rotate vortex swirl rings alternately for depth illusion.
     this._swirl.children.forEach((ring, i) => {
       const mesh = ring as THREE.Mesh;
       mesh.rotation.z += delta * (i % 2 === 0 ? 1.2 : -1.0) * (1 + this._dataActivity * 2);
