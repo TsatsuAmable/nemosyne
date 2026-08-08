@@ -182,6 +182,85 @@ Only after those four are met should the roadmap choose between **Phase 10A: Val
 
 ----
 
+## Phase 12 — AI Tuning, Gesture Validation & UX Feedback Loop Closure ⏳
+
+> **Focus:** Close the loop between the intelligence already built (Draco GA, gesture AI, frustration engine) and measurable, user-visible quality. No new major features — deepen, validate, and surface what's already there.
+
+### Sprint 12.1 — Gesture Recognition Validation Harness
+
+Existing coverage in `tests/hand-gesture-recognizer.test.js` tests the recognizer at unit level with synthetic `makePose` stubs, but lacks recorded trajectory fixtures, accuracy assertions, and edge-case coverage.
+
+- [ ] `tests/fixtures/gesture-sequences/` — JSON multi-frame trajectory recordings for all 7 gestures: `pinchTogether`, `spreadHands`, `palmPush`, `swipeLeft`, `swipeRight`, `fistClose`, `pointIndex`
+- [ ] `tests/gesture-recognizer-accuracy.test.ts` — TP rate ≥ 90 %, FP rate ≤ 5 % per gesture, asserted from fixtures
+- [ ] `tests/gesture-edge-cases.test.ts` — cooldown boundary, rapid alternation, dual-hand conflict, controller-equivalent parity, partial occlusion frame sequences
+- [ ] `GestureConfidenceThresholds` config object in `HandGestureRecognizer` — per-gesture tunable `floor` / `ceiling` replacing magic numbers
+- [ ] Update `docs/INTERACTIONS.md` with a gesture confidence spec table
+
+### Sprint 12.2 — Draco Recommender Evaluation Suite
+
+The GA solver runs but its recommendation quality is untested against known-good outputs. `DracoDiagnosticHUD` shows weights live but gives no quality signal back to the analyst.
+
+- [ ] `tests/fixtures/draco-golden/` — 20+ `{ dataset, expectedTopology, expectedLayout }` golden pairs covering all topology types (TABULAR, GRAPH, HIERARCHY, VECTOR, TIME_SERIES, GEOSPATIAL, FLOW, TdaMapper)
+- [ ] `tests/draco-recommender-quality.test.ts` — topology match precision ≥ 80 %, soft-constraint score ≥ 0.7 on golden set
+- [ ] `ConstraintEngine.evaluateCandidate(spec, facts)` public method — expose for external testability without running the full GA loop
+- [ ] `DracoDiagnosticHUD` improvements: live per-constraint contribution bars, last 5 candidate history, colour-coded score delta (green = improved, amber = regressed)
+- [ ] A/B toggle in wheel menu: GA-recommended layout vs naïve default — side-by-side `RepresentationCarousel` comparison mode
+
+### Sprint 12.3 — AI Module Integration & Fine-Tuning
+
+Tests for `NeuralConstraintPredictor`, `GestureClassifierModel`, and `GestureTrainingWorker` exist but are shallow stubs. This sprint wires them into measurable live behaviour.
+
+- [ ] **`NeuralConstraintPredictor`** — end-to-end test: known facts → predicted weights shift GA toward correct topology ≥ 60 % of golden-set cases
+- [ ] **`GestureClassifierModel`** — ONNX accuracy benchmark vs heuristic fallback on the 12.1 fixture set; log `onnxAccuracy` / `heuristicAccuracy` delta to `TelemetryCollector`
+- [ ] **`GestureTrainingWorker`** — verify micro-epoch pass measurably shifts weights toward correct labels using fixture-derived gradients; expose `trainingAccuracy` metric in telemetry
+- [ ] **`UXFrustrationAnalyzer`** threshold calibration: `RAPID_ABANDONMENT` window → configurable; `REPEATED_ACTION` floor → per-action; `AIR_CLICK_MISS` rate → rolling window not cumulative
+- [ ] All AI module health metrics surfaced in the in-VR Performance panel (`onnxReady`, `gestureTP`, `predictor.confidence`)
+
+### Sprint 12.4 — Usability Feedback Loop Closure
+
+`UXFrustrationAnalyzer` generates digests and `InteractionCoach` gives hints, but neither closes the loop into visible, actionable in-VR suggestions.
+
+- [ ] **`FrustrationResponseManager`** (`src/vr/ui/FrustrationResponseManager.ts`) — when `dissatisfactionScore > threshold`, surfaces a contextual diegetic hint card near the user's gaze target
+- [ ] **`GestureConfidenceHUD`** panel (`src/vr/ui/GestureConfidenceHUD.ts`) — per-gesture real-time confidence bar visualization, visible in gesture coaching mode
+- [ ] **Operation feedback polish** — success: green pulse ring + soft chime; failure: amber pulse + 1-line floating error description
+- [ ] **`InteractionCoach` adaptive frequency** — novice = frequent, intermediate = on-demand, expert = off; currently static regardless of mode
+- [ ] `tests/frustration-response.test.ts` — assert hint cards appear within 2 operations of threshold breach; assert no hint shown in expert mode
+
+### Sprint 12.5 — UI/UX Polish & Data Transition Animations
+
+- [ ] **Artefact transition animation** — nodes lerp from old positions to new over 600 ms via `executeInTimeSlices`; easing: ease-out cubic
+- [ ] **Panel visual hierarchy pass** — consistent `bold 22px` title font; category-coloured left border strip (analytics `#00ffcc`, settings `#ffaa00`, collaboration `#aa44ff`); drop-shadow on focused panel
+- [ ] **Empty state designs** for `DataCard`, `OperationLog`, `ChartPlane` — subtle icon + one-line prompt instead of blank canvas
+- [ ] **Audio descriptions** — Web Speech API narration for `filter`, `cluster`, `anomaly` operations; gated by accessibility settings toggle
+- [ ] **`WorldTheme` preset preview** — 3-second animated preview when switching themes (atmosphere particles shift, accent colours cross-fade)
+- [ ] Update `docs/DESIGN_SYSTEM.md` with new UI tokens and animation timing constants
+
+### Sprint 12.6 — Analyst Benchmark Suite (Evidence of Value)
+
+*First structured evidence that spatial analysis delivers real analyst benefit.*
+
+| # | Task | Dataset | Success criterion |
+|---|---|---|---|
+| 1 | *Find the top outlier* | Financial scatter | Correct node selected via inspector |
+| 2 | *Identify the dominant cluster* | Geospatial | Correct cluster label confirmed |
+| 3 | *Trace a causal path* | Process-flow hierarchy | Correct leaf-to-root path activated |
+| 4 | *Spot a temporal anomaly* | Time-series | Anomaly node inspected within time budget |
+| 5 | *Compare two encodings* | Any | Both carousel candidates evaluated, one confirmed |
+
+- [ ] **`BenchmarkSession`** (`src/utils/BenchmarkSession.ts`) — instruments each task with `timeToFirstCorrectSelection`, `gestureCount`, `operationCount`, `frustrationScoreAtCompletion`
+- [ ] In-VR **Benchmark Mode** activated from settings panel — guided task sequence with automated pass/fail scoring
+- [ ] Benchmark results exported as JSON alongside the existing analysis story export
+- [ ] `tests/benchmark-session.test.ts` — all 5 tasks pass under deterministic simulated input
+
+### Sequencing
+
+```
+12.1 → 12.3  (gesture fixtures feed AI accuracy tests)
+12.2 → 12.3  (golden Draco set feeds predictor eval)
+12.1 + 12.2 → 12.6  (benchmark tasks use both)
+12.4 → 12.5  (feedback polish builds on closed loop)
+```
+
 ---
 
 ## Legend
