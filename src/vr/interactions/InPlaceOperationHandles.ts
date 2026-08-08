@@ -211,6 +211,9 @@ export class InPlaceOperationHandles {
 
   private _isPointerNear(handle: OperationHandle, pointerRay: THREE.Ray): boolean {
     this._raycaster.ray.copy(pointerRay);
+    if (this.camera) {
+      this._raycaster.camera = this.camera;
+    }
     const hits = this._raycaster.intersectObject(handle.sprite, false);
     return hits.length > 0;
   }

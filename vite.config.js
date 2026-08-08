@@ -115,10 +115,57 @@ function httpsOptions(command) {
   return undefined;
 }
 
+function remoteLogsPlugin() {
+  const logDir = path.resolve(process.cwd(), 'logs');
+  const logFile = path.join(logDir, 'vr-remote-console.log');
+
+  try {
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+  } catch {
+    // Ignore error
+  }
+
+  function handleLogs(req, res) {
+    if (req.url === '/__remote-logs' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => (body += chunk));
+      req.on('end', () => {
+        try {
+          const entries = JSON.parse(body);
+          if (Array.isArray(entries)) {
+            for (const entry of entries) {
+              const line = `[VR REMOTE LOG ${entry.timestamp}] [${entry.level?.toUpperCase()}] ${entry.message}${entry.stack ? '\n' + entry.stack : ''}\n`;
+              console.log(`\x1b[36m${line.trim()}\x1b[0m`);
+              fs.appendFileSync(logFile, line, 'utf-8');
+            }
+          }
+        } catch {
+          // Ignore error
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok' }));
+      });
+      return true;
+    }
+    return false;
+  }
+
+  return {
+    name: 'nemosyne-remote-logs',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!handleLogs(req, res)) next();
+      });
+    },
+  };
+}
+
 export default defineConfig(({ command }) => ({
   plugins: [
     demoStreamPlugin(),
     signallingPlugin(),
+    remoteLogsPlugin(),
   ],
   server: {
     host: true,

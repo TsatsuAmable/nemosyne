@@ -241,6 +241,9 @@ export class InputRouter {
     }
 
     this.registry.raycaster.ray.copy(ray);
+    if (this.engine?.camera) {
+      this.registry.raycaster.camera = this.engine.camera;
+    }
 
     // Panels take precedence over scene objects.
     const panelHit = this.registry.raycastPanels();

@@ -1,3 +1,6 @@
+import { remoteDebugStreamer } from './utils/RemoteDebugStreamer.ts';
+remoteDebugStreamer.init();
+
 import { World } from './vr/World.ts';
 
 const telemetry = document.getElementById('telemetry');

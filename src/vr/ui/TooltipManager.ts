@@ -304,6 +304,9 @@ export class TooltipManager {
 
   private _findPointerHit(): THREE.Intersection<THREE.Object3D> | null {
     if (!this.pointerRaycaster) return null;
+    if (this.camera) {
+      this.pointerRaycaster.camera = this.camera;
+    }
     const hits = this.pointerRaycaster.intersectObjects(this.targets, false);
     if (hits.length > 0) return hits[0];
     return null;
