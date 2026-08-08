@@ -225,6 +225,98 @@ describe('NetworkManager', () => {
     const last = JSON.parse(channel.messages[channel.messages.length - 1]);
     expect(last.state.camera).toEqual([1, 2, 3]);
   });
+
+  it('broadcasts state delta, dataset operation, selection, and throttled camera pose', async () => {
+    const promise = manager.connect();
+    const mockWs = manager.signalling!._ws as unknown as MockWebSocket;
+    mockWs._open();
+    await promise;
+
+    mockWs._message({ roomId: 'room1', from: 'peerB', data: { type: 'join' } });
+    const channel = manager.channels.get('peerB') as unknown as MockDataChannel;
+    channel.readyState = 'open';
+    channel.dispatchEvent(new Event('open'));
+
+    // 1. broadcastStateDelta
+    manager.broadcastStateDelta('theme', { mode: 'dark' });
+    const deltaMsg = JSON.parse(channel.messages[channel.messages.length - 1]);
+    expect(deltaMsg.type).toBe('delta');
+    expect(deltaMsg.topic).toBe('theme');
+    expect(deltaMsg.data).toEqual({ mode: 'dark' });
+
+    // 2. broadcastDatasetOperation
+    manager.broadcastDatasetOperation({ type: 'filter', column: 'price', min: 10 });
+    const opMsg = JSON.parse(channel.messages[channel.messages.length - 1]);
+    expect(opMsg.type).toBe('datasetOperation');
+    expect(opMsg.op.type).toBe('filter');
+
+    // 3. broadcastSelection
+    manager.broadcastSelection(['row-1', 'row-2']);
+    const selMsg = JSON.parse(channel.messages[channel.messages.length - 1]);
+    expect(selMsg.type).toBe('selectionSync');
+    expect(selMsg.selectedIds).toEqual(['row-1', 'row-2']);
+
+    // 4. broadcastCameraPose (throttled)
+    manager.broadcastCameraPose([0, 1.6, 0], [0, 0, 0, 1], 0);
+    const poseMsg = JSON.parse(channel.messages[channel.messages.length - 1]);
+    expect(poseMsg.type).toBe('cameraPose');
+    expect(poseMsg.position).toEqual([0, 1.6, 0]);
+  });
+
+  it('dispatches incoming stateDelta, remoteDatasetOperation, remoteSelection, and remoteCameraPose events', async () => {
+    const promise = manager.connect();
+    const mockWs = manager.signalling!._ws as unknown as MockWebSocket;
+    mockWs._open();
+    await promise;
+
+    mockWs._message({ roomId: 'room1', from: 'peerB', data: { type: 'join' } });
+    const channel = manager.channels.get('peerB') as unknown as MockDataChannel;
+    channel.readyState = 'open';
+    channel.dispatchEvent(new Event('open'));
+
+    const onDelta = vi.fn();
+    const onOp = vi.fn();
+    const onSel = vi.fn();
+    const onPose = vi.fn();
+
+    manager.addEventListener('stateDelta', onDelta);
+    manager.addEventListener('remoteDatasetOperation', onOp);
+    manager.addEventListener('remoteSelection', onSel);
+    manager.addEventListener('remoteCameraPose', onPose);
+
+    // Simulate incoming messages from peerB over data channel
+    channel.dispatchEvent(
+      new MessageEvent('message', {
+        data: JSON.stringify({ type: 'delta', peerId: 'peerB', topic: 'layout', data: { grid: true } }),
+      })
+    );
+    expect(onDelta).toHaveBeenCalled();
+    expect(onDelta.mock.calls[0][0].detail.topic).toBe('layout');
+
+    channel.dispatchEvent(
+      new MessageEvent('message', {
+        data: JSON.stringify({ type: 'datasetOperation', peerId: 'peerB', op: { type: 'sort', column: 'name' } }),
+      })
+    );
+    expect(onOp).toHaveBeenCalled();
+    expect(onOp.mock.calls[0][0].detail.op.type).toBe('sort');
+
+    channel.dispatchEvent(
+      new MessageEvent('message', {
+        data: JSON.stringify({ type: 'selectionSync', peerId: 'peerB', selectedIds: ['item-42'] }),
+      })
+    );
+    expect(onSel).toHaveBeenCalled();
+    expect(onSel.mock.calls[0][0].detail.selectedIds).toEqual(['item-42']);
+
+    channel.dispatchEvent(
+      new MessageEvent('message', {
+        data: JSON.stringify({ type: 'cameraPose', peerId: 'peerB', position: [1, 2, 3], rotation: [0, 0, 0, 1] }),
+      })
+    );
+    expect(onPose).toHaveBeenCalled();
+    expect(onPose.mock.calls[0][0].detail.position).toEqual([1, 2, 3]);
+  });
 });
 
 describe('SignallingServerCore', () => {

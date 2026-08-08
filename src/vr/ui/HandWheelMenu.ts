@@ -111,15 +111,15 @@ export class HandWheelMenu {
       else if (hand?.group) hand.group.add(this.group);
       this.offset = new THREE.Vector3(
         options.offsetX ?? 0,
-        options.offsetY ?? (engine?.camera ? 1.2 : 0.08),
-        options.offsetZ ?? -0.55
+        options.offsetY ?? -0.1,
+        options.offsetZ ?? -0.42
       );
     }
     this.group.position.copy(this.offset);
 
-    this.categoryRadius = options.categoryRadius ?? 0.07;
-    this.actionRadius = options.actionRadius ?? 0.17;
-    this.nodeSize = options.nodeSize ?? 0.045;
+    this.categoryRadius = options.categoryRadius ?? 0.095;
+    this.actionRadius = options.actionRadius ?? 0.22;
+    this.nodeSize = options.nodeSize ?? 0.065;
     this.actionSpread = options.actionSpread ?? Math.PI / 2.2;
 
     this.openAngleThreshold = options.openAngleThreshold ?? 0;
@@ -323,6 +323,7 @@ export class HandWheelMenu {
     const allMeshes = [...this._categoryMeshes, ...this._actionMeshes];
     if (allMeshes.length === 0) return false;
 
+    this.group.updateMatrixWorld(true);
     const hits = raycaster.intersectObjects(allMeshes, false);
     if (hits.length === 0) return false;
 
@@ -344,9 +345,13 @@ export class HandWheelMenu {
       const { categoryId, actionIndex } = hit.userData as { categoryId: string; actionIndex: number };
       const category = this._categories.find((c) => c.id === categoryId);
       const action = category?.items?.[actionIndex];
-      if (action?.callback) {
+      if (action) {
+        const name = action.label || action.id || 'menu-action';
+        if (typeof (this.engine as any)?.telemetry?.recordMenuAction === 'function') {
+          (this.engine as any).telemetry.recordMenuAction(name);
+        }
         this.feedback?.playSelect?.();
-        action.callback();
+        if (action.callback) action.callback();
       }
       this.hide();
       return true;
@@ -367,31 +372,37 @@ export class HandWheelMenu {
     if (count === 0) return;
 
     const palette = [0x00ffcc, 0xff00cc, 0xccff00, 0x00ccff, 0xffcc00, 0xcc00ff];
-    const angleStep = (Math.PI * 2) / count;
+    const half = Math.ceil(count / 2);
 
     for (let i = 0; i < count; i++) {
       const cat = this._categories[i];
-      const angle = i * angleStep - Math.PI / 2;
+      const isLeft = i < half;
+      const colIndex = isLeft ? i : i - half;
+      const colTotal = isLeft ? half : count - half;
+
+      // Vertical position calculation: centered vertically around y = 0
+      const posX = isLeft ? -0.36 : 0.36;
+      const posY = (colTotal > 1 ? (colIndex - (colTotal - 1) / 2) : 0) * 0.085;
+
+      const colorHex = palette[i % palette.length];
       const material = new THREE.MeshBasicMaterial({
-        color: palette[i % palette.length],
+        color: colorHex,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.9,
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false,
-        map: this._createLabelTexture(cat),
+        map: this._createLabelTexture(cat, colorHex),
       });
       this._categoryMaterials.push(material);
 
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(this.nodeSize, this.nodeSize), material);
-      mesh.position.set(
-        Math.cos(angle) * this.categoryRadius,
-        Math.sin(angle) * this.categoryRadius,
-        0
-      );
+      // Wide rectangular pill geometry for clear, unbunched text
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.075), material);
+      mesh.position.set(posX, posY, 0);
       mesh.userData.kind = 'category';
       mesh.userData.categoryId = cat.id;
       mesh.userData.categoryIndex = i;
+      mesh.userData.isLeft = isLeft;
       mesh.userData.baseScale = 1;
       this.group.add(mesh);
       this._categoryMeshes.push(mesh);
@@ -399,23 +410,23 @@ export class HandWheelMenu {
   }
 
   private _buildActions(): void {
-    const size = this.nodeSize * 0.9;
     for (const cat of this._categories) {
       if (!cat.items?.length) continue;
       for (let i = 0; i < cat.items.length; i++) {
         const action = cat.items[i];
         const material = new THREE.MeshBasicMaterial({
-          color: 0x88ccff,
+          color: 0x00ffcc,
           transparent: true,
-          opacity: 0.85,
+          opacity: 0.9,
           side: THREE.DoubleSide,
           depthTest: false,
           depthWrite: false,
-          map: this._createLabelTexture(action),
+          map: this._createLabelTexture(action, 0x00ffcc),
         });
         this._actionMaterials.push(material);
 
-        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), material);
+        // Wide action pill geometry
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.065), material);
         mesh.userData.kind = 'action';
         mesh.userData.categoryId = cat.id;
         mesh.userData.actionIndex = i;
@@ -436,7 +447,8 @@ export class HandWheelMenu {
       this._connectorMaterial = new THREE.LineBasicMaterial({
         color: 0x00ffcc,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.6,
+        linewidth: 2,
         depthTest: false,
         depthWrite: false,
       });
@@ -565,14 +577,16 @@ export class HandWheelMenu {
     );
     if (!catMesh) return;
 
-    const categoryAngle = Math.atan2(catMesh.position.y, catMesh.position.x);
+    const isLeft = catMesh.userData.isLeft;
     const items = this._categories.find((c) => c.id === mesh.userData.categoryId)?.items ?? [];
     const count = items.length;
     const index: number = mesh.userData.actionIndex;
-    const spread = Math.min(this.actionSpread, ((Math.PI * 2) / this._categories.length) * 0.9);
-    const angle = categoryAngle - spread / 2 + (count > 1 ? (index / (count - 1)) * spread : 0);
 
-    mesh.position.set(Math.cos(angle) * this.actionRadius, Math.sin(angle) * this.actionRadius, 0);
+    // Expand action pills horizontally outward (left to the left, right to the right)
+    const offsetX = isLeft ? -0.25 : +0.25;
+    const offsetY = (count > 1 ? (index - (count - 1) / 2) : 0) * 0.075;
+
+    mesh.position.set(catMesh.position.x + offsetX, catMesh.position.y + offsetY, 0);
   }
 
   private _updateConnectors(activeCategoryId: string): void {
@@ -600,42 +614,60 @@ export class HandWheelMenu {
   }
 
   private _createLabelTexture(
-    item: WheelMenuCategory | WheelMenuAction | { label?: string; icon?: string } | string
+    item: WheelMenuCategory | WheelMenuAction | { label?: string; icon?: string } | string,
+    accentColor: number = 0x00ffcc
   ): THREE.CanvasTexture {
     const { label = '', icon = null } =
       item != null && typeof item === 'object' ? (item as { label?: string; icon?: string }) : { label: item };
-    const size = 256;
+    
+    const width = 512;
+    const height = 160;
     const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext('2d') || this._createMockContext();
 
-    ctx.clearRect(0, 0, size, size);
-    ctx.fillStyle = this.highContrast ? '#000000' : 'rgba(0, 0, 0, 0.35)';
-    ctx.fillRect(0, 0, size, size);
+    ctx.clearRect(0, 0, width, height);
 
-    const text = String(label ?? '').slice(0, 14);
+    // Dark pill background with vibrant category accent border
+    const hexStr = '#' + accentColor.toString(16).padStart(6, '0');
+    ctx.fillStyle = this.highContrast ? '#050a12' : 'rgba(10, 18, 32, 0.94)';
+    
+    if (typeof ctx?.beginPath === 'function') {
+      ctx.beginPath();
+      if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(8, 8, width - 16, height - 16, 24);
+      } else {
+        ctx.rect(8, 8, width - 16, height - 16);
+      }
+      ctx.fill();
+
+      ctx.strokeStyle = this.highContrast ? '#00ffff' : hexStr;
+      ctx.lineWidth = 8;
+      ctx.stroke();
+    }
+
+    const text = String(label ?? '').slice(0, 24);
 
     if (icon) {
-      const iconSize = 96 * this.textScale;
+      const iconSize = 72 * this.textScale;
       ctx.font = `${iconSize}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffcc';
-      ctx.fillText(icon, size / 2, size * 0.38);
+      ctx.fillStyle = this.highContrast ? '#ffffff' : hexStr;
+      ctx.fillText(icon, 70, height / 2);
 
-      if (text) {
-        ctx.font = `bold ${22 * this.textScale}px sans-serif`;
-        ctx.fillStyle = this.highContrast ? '#ffffff' : '#ffffff';
-        ctx.fillText(text, size / 2, size * 0.78);
-      }
+      ctx.font = `bold 32px sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(text, 130, height / 2);
     } else {
-      const fontSize = 28 * this.textScale;
-      ctx.fillStyle = this.highContrast ? '#ffffff' : '#ffffff';
+      const fontSize = 34 * this.textScale;
+      ctx.fillStyle = '#ffffff';
       ctx.font = `bold ${fontSize}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(text, size / 2, size / 2);
+      ctx.fillText(text, width / 2, height / 2);
     }
 
     const tex = new THREE.CanvasTexture(canvas);

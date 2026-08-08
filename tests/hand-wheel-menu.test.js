@@ -168,7 +168,7 @@ describe('HandWheelMenu', () => {
 
     expect(menu.group.parent).toBe(cameraGroup);
     expect(hand.group.children).not.toContain(menu.group);
-    expect(menu.offset.z).toBe(-0.55);
+    expect(menu.offset.z).toBe(-0.42);
   });
 
   it('still supports legacy wrist anchoring via anchorToHand option', () => {

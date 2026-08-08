@@ -50,6 +50,11 @@ export const FIRST_DATASET_TOUR: Tour = {
       actionHint: 'Hover Ops, then select Filter',
     },
     {
+      target: 'draco-transform',
+      text: 'DATA CHARACTERISTICS: Use the VR Menu or Draco controls to dynamically alter dataset behavior — apply filters, re-cluster nodes, isolate anomalies, or slice temporal windows live.',
+      actionHint: 'Select Filter, Cluster, or Anomaly from VR Menu',
+    },
+    {
       target: 'gesture-hint',
       text: 'You can also use two-hand gestures: pinch together to filter, scoop up to toggle the statistical lens, or rotate your cupped hands to undo.',
       actionHint: 'Try a gesture when ready',
@@ -65,8 +70,23 @@ export const FIRST_DATASET_TOUR: Tour = {
       actionHint: 'Drag or scroll a panel',
     },
     {
+      target: 'data-loader',
+      text: 'LOAD DATA: Switch sample domains or load custom CSV/JSON files using the VR Menu or drag-and-drop file loader.',
+      actionHint: 'Switch dataset or load file',
+    },
+    {
+      target: 'session-export',
+      text: 'SAVE & EXPORT: Analysis sessions auto-save to IndexedDB. Export high-res PNG screenshots or JSON Analysis Story bundles anytime.',
+      actionHint: 'Export Story or Screenshot from menu',
+    },
+    {
+      target: 'peer-collaboration',
+      text: 'SHARE & COLLABORATE: Join multi-user WebRTC rooms to share live 3D avatars, node selections, and peer annotations in real time.',
+      actionHint: 'Join collaboration room',
+    },
+    {
       target: 'draco-palace',
-      text: 'That is the core loop: orient, probe, query, compare. Press Next when you are ready to explore on your own.',
+      text: 'That is the core loop: load, probe, transform, save, and share. Press Next to complete the tour!',
       actionHint: 'Press Next to finish',
     },
   ],

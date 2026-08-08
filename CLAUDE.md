@@ -106,11 +106,11 @@ Raw Data (CSV/JSON/Live Stream)
 - `src/vr/ui/` — World-space panels: `MovablePanel`, `PanelManager`, `HandWheelMenu`, `DashboardManager`, `VRConsole`, `VRMenu`, `GuidedTour`, etc.
 - `src/vr/interactions/` — `DataOperations` and `MetaphorActions` (Resonance Pulse, Fork Plane, Chrono Dial, Constellation, Beacon, Aleph).
 - `src/vr/artifacts/` — Scene landmarks and data artefacts (`DatumPlane`, `TechnoCoreNode`, `FarcasterPortal`, `DataCard`, `HolographicInspector`, `ChartPlane`, `TDAPlanes`).
-- `src/vr/scalability/` — `InstancedPointCloud`, `SpatialIndex`, `LODManager`.
+- `src/vr/scalability/` — `InstancedPointCloud`, `SpatialIndex`, `LODManager`, `ObjectPool` (reusable geometry/material mesh pools and time-sliced batch execution).
 - `src/vr/audio/` — `SelectionFeedback` for hover/select audio tones.
 - `src/network/` — WebRTC/WebSocket collaboration (`NetworkManager`, `SignallingChannel`, `Room`, `SignallingServerCore`).
 - `src/analytics/` — `TDAMapper` for topological data analysis artefacts.
-- `src/utils/` — `SeededRandom`, `Dispose`, `Telemetry`, `PerformanceBudget`, `Accessibility`, `Download`, `GestureMapping`.
+- `src/utils/` — `SeededRandom`, `Dispose`, `Telemetry`, `UXFrustrationAnalyzer` (on-device friction pattern detection & low-token UX digests), `PerformanceBudget`, `Accessibility`, `Download`, `GestureMapping`.
 - `src/ui/` — 2D DOM file loader (`FileLoader.js`).
 
 ### Key runtime conventions

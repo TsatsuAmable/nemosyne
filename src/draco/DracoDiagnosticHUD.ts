@@ -58,13 +58,15 @@ export class DracoDiagnosticHUD extends MovablePanel {
       this.buttons.push({ ruleName: sc.name, action: 'DEC', x: 710, y: y - 4, w: 46, h: 34 });
       this.buttons.push({ ruleName: sc.name, action: 'INC', x: 890, y: y - 4, w: 46, h: 34 });
     });
+    this.totalContentHeight = 140 + pad + constraints.length * 70 + 80;
   }
 
   renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
-    const h = contentH;
     const result = this.dracoNode.solverResult;
-
     const pad = 24;
+
+    const constraints = this.dracoNode.engine.softConstraints;
+    this.totalContentHeight = 140 + pad + constraints.length * 70 + 80;
 
     ctx.fillStyle = 'rgba(0, 60, 80, 0.7)';
     ctx.fillRect(20, 20 + pad, w - 40, 70);
@@ -86,7 +88,6 @@ export class DracoDiagnosticHUD extends MovablePanel {
     ctx.fillText('', 710, 115 + pad);
     ctx.fillText('', 890, 115 + pad);
 
-    const constraints = this.dracoNode.engine.softConstraints;
     const rowH = 70;
     constraints.forEach((sc, idx) => {
       const y = 140 + pad + idx * rowH;
@@ -131,7 +132,7 @@ export class DracoDiagnosticHUD extends MovablePanel {
     });
 
     ctx.fillStyle = 'rgba(0, 255, 204, 0.03)';
-    for (let yL = 0; yL < h; yL += 6) {
+    for (let yL = 0; yL < Math.max(contentH, this.totalContentHeight); yL += 6) {
       ctx.fillRect(0, yL, w, 3);
     }
   }
@@ -148,12 +149,15 @@ export class DracoDiagnosticHUD extends MovablePanel {
     const canvasX = uv.x * this.width;
     const canvasY = (1 - uv.y) * this.height;
 
+    // Convert raw canvasY to contentY taking into account title bar and scrollOffset
+    const contentY = canvasY - (this.titleBarHeight + 4) + this.scrollOffset;
+
     for (const btn of this.buttons) {
+      const hitY = (contentY >= btn.y && contentY <= btn.y + btn.h) || (canvasY >= btn.y && canvasY <= btn.y + btn.h);
       if (
         canvasX >= btn.x &&
         canvasX <= btn.x + btn.w &&
-        canvasY >= btn.y &&
-        canvasY <= btn.y + btn.h
+        hitY
       ) {
         const now = performance.now();
         if (now - this._lastClickAt < this._clickCooldownMs) {

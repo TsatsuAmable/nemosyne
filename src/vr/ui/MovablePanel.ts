@@ -126,10 +126,22 @@ export class MovablePanel {
     this.isMinimized = false;
     this.minimizeBtn = { x: 0, y: 0, w: 0, h: 0 };
 
+    this.scrollOffset = 0;
+    this.totalContentHeight = 0;
+    this.scrollbarWidth = 32;
+
     this._matrix = new THREE.Matrix4();
     this._quat = new THREE.Quaternion();
 
     this._resizeMinimizeButton();
+    this.render();
+  }
+
+  scroll(deltaY: number): void {
+    const containerH = this.height - this.titleBarHeight - 4;
+    const maxScroll = Math.max(0, this.totalContentHeight - containerH);
+    if (maxScroll <= 0) return;
+    this.scrollOffset = Math.max(0, Math.min(maxScroll, this.scrollOffset + deltaY));
     this.render();
   }
 
@@ -141,12 +153,18 @@ export class MovablePanel {
     }
     this._clampDistance();
     this.render();
+    if (typeof (this.cameraGroup as any)?.engine?.telemetry?.recordPanelAction === 'function') {
+      (this.cameraGroup as any).engine.telemetry.recordPanelAction(this.title, 'show');
+    }
   }
 
   hide() {
     this.mesh.visible = false;
     this.isMinimized = true;
     if (this.onHide) this.onHide();
+    if (typeof (this.cameraGroup as any)?.engine?.telemetry?.recordPanelAction === 'function') {
+      (this.cameraGroup as any).engine.telemetry.recordPanelAction(this.title, 'hide');
+    }
   }
 
   toggle() {
@@ -169,26 +187,74 @@ export class MovablePanel {
     // Minimize button.
     const mb = this.minimizeBtn;
     if (cx >= mb.x && cx <= mb.x + mb.w && cy >= mb.y && cy <= mb.y + mb.h) {
-      this._endDrag();
       this.hide();
+      if (typeof (this.cameraGroup as any)?.engine?.uiManager?.panelManager?.showLauncher === 'function') {
+        (this.cameraGroup as any).engine.uiManager.panelManager.showLauncher();
+      }
       return 'minimize';
     }
 
     // Title bar drag.
     if (cy <= this.titleBarHeight) {
       this._startDrag(pointer, hits[0].point);
+      if (typeof (this.cameraGroup as any)?.engine?.telemetry?.recordPanelAction === 'function') {
+        (this.cameraGroup as any).engine.telemetry.recordPanelAction(this.title, 'drag-start');
+      }
       return 'drag';
     }
 
+    // Scrollbar track hit testing
+    const containerH = this.height - this.titleBarHeight - 4;
+    const maxScroll = Math.max(0, this.totalContentHeight - containerH);
+    if (maxScroll > 0) {
+      const sbX = this.width - this.scrollbarWidth - 6;
+      if (cx >= sbX) {
+        const relativeY = cy - (this.titleBarHeight + 4);
+        if (relativeY <= 32) {
+          // Top scroll up button
+          this.scroll(-70);
+          return 'scroll';
+        } else if (relativeY >= containerH - 32) {
+          // Bottom scroll down button
+          this.scroll(70);
+          return 'scroll';
+        } else {
+          // Scrollbar thumb area click/drag
+          const ratio = (relativeY - 32) / Math.max(1, containerH - 64);
+          this.scrollOffset = Math.max(0, Math.min(maxScroll, ratio * maxScroll));
+          this.render();
+          return 'scroll';
+        }
+      }
+    }
+
+    if (typeof (this as any).handleContentClick === 'function') {
+      try {
+        (this as any).handleContentClick(worldRaycaster);
+      } catch (e) {
+        console.error('[MovablePanel] handleContentClick error:', e);
+      }
+    }
     return 'content';
+  }
+
+  update(_delta?: number): void {
+    if (!this.mesh || !this.mesh.visible) return;
+    // Always orient panels towards the viewer (parent local origin) for optimal 3D reading angle
+    this.mesh.lookAt(0, 0, 0);
+    this.mesh.rotation.x = -this.tilt;
   }
 
   handlePointerMove(worldRaycaster: THREE.Raycaster, pointer: PointerLike): void {
     if (!this.drag.active || this.drag.pointer !== pointer) return;
 
     const worldRay = pointer.getRay(new THREE.Ray());
-    const target = this._intersectDragPlane(worldRay);
-    if (!target) return;
+    const planeTarget = this._intersectDragPlane(worldRay);
+    
+    // Free 3D ray target: allows moving panels unconstrained in depth and 3D space
+    const rayDist = this.drag.distance || 0.8;
+    const rayTarget = worldRay.origin.clone().add(worldRay.direction.clone().multiplyScalar(rayDist));
+    const target = planeTarget || rayTarget;
 
     if (this.onDragDelta) {
       const delta = new THREE.Vector3().subVectors(target, this.drag.lastTarget);
@@ -197,14 +263,15 @@ export class MovablePanel {
       return;
     }
 
-    // Convert the world-space drag target into the panel's parent local space
-    // so the mesh position is consistent regardless of where the camera rig is.
+    // Convert the 3D drag target into the panel's parent local space.
     const localTarget = target.clone();
     if (this.parentGroup && typeof this.parentGroup.updateMatrixWorld === 'function') {
       this.parentGroup.updateMatrixWorld(true);
       localTarget.applyMatrix4(new THREE.Matrix4().copy(this.parentGroup.matrixWorld).invert());
     }
-    this.mesh.position.copy(localTarget).add(this.drag.offset);
+    const targetPos = localTarget.clone().add(this.drag.offset);
+    // Smooth lerp movement so 3D panel motion feels natural and fluid
+    this.mesh.position.lerp(targetPos, 0.35);
     this._clampDistance();
     // Keep panels facing the viewer (the parent group's origin in local space).
     this.mesh.lookAt(0, 0, 0);
@@ -288,15 +355,71 @@ export class MovablePanel {
     ctx.fillText('—', mb.x + mb.w / 2, mb.y + mb.h / 2);
     ctx.textAlign = 'left';
 
+    const containerH = h - this.titleBarHeight - 4;
+    const maxScroll = Math.max(0, this.totalContentHeight - containerH);
+    if (this.scrollOffset > maxScroll) this.scrollOffset = maxScroll;
+
     if (typeof (this as any).renderContent === 'function') {
       try {
-        ctx.save();
-        ctx.translate(0, this.titleBarHeight + 4);
-        (this as any).renderContent(ctx, w, h - this.titleBarHeight - 4);
-        ctx.restore();
-      } catch {
-        ctx.restore();
+        if (typeof ctx?.save === 'function') ctx.save();
+        if (typeof ctx?.translate === 'function') ctx.translate(0, this.titleBarHeight + 4);
+        
+        // Clip content viewport if scrollbar is active
+        if (maxScroll > 0 && typeof ctx?.beginPath === 'function') {
+          ctx.beginPath();
+          ctx.rect(0, 0, w - this.scrollbarWidth - 10, containerH);
+          ctx.clip();
+          ctx.translate(0, -this.scrollOffset);
+        }
+
+        (this as any).renderContent(ctx, maxScroll > 0 ? w - this.scrollbarWidth - 10 : w, containerH);
+        if (typeof ctx?.restore === 'function') ctx.restore();
+      } catch (_) {
+        if (typeof ctx?.restore === 'function') {
+          try { ctx.restore(); } catch (_) {}
+        }
       }
+    }
+
+    // Render scrollbar track and thumb if content overflows
+    if (maxScroll > 0) {
+      const sbX = w - this.scrollbarWidth - 6;
+      const sbY = this.titleBarHeight + 4;
+      const sbW = this.scrollbarWidth;
+      const sbH = containerH;
+
+      // Track background
+      ctx.fillStyle = '#0a1626';
+      ctx.fillRect(sbX, sbY, sbW, sbH);
+      ctx.strokeStyle = '#00ccaa';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(sbX, sbY, sbW, sbH);
+
+      // Up scroll button (▲)
+      ctx.fillStyle = '#10243e';
+      ctx.fillRect(sbX + 2, sbY + 2, sbW - 4, 28);
+      ctx.fillStyle = '#00ffcc';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('▲', sbX + sbW / 2, sbY + 16);
+
+      // Down scroll button (▼)
+      ctx.fillStyle = '#10243e';
+      ctx.fillRect(sbX + 2, sbY + sbH - 30, sbW - 4, 28);
+      ctx.fillStyle = '#00ffcc';
+      ctx.fillText('▼', sbX + sbW / 2, sbY + sbH - 16);
+
+      // Thumb
+      const thumbAreaH = sbH - 64;
+      const thumbH = Math.max(36, (containerH / this.totalContentHeight) * thumbAreaH);
+      const thumbY = sbY + 32 + (maxScroll > 0 ? (this.scrollOffset / maxScroll) * (thumbAreaH - thumbH) : 0);
+
+      ctx.fillStyle = '#00ffcc';
+      ctx.fillRect(sbX + 4, thumbY, sbW - 8, thumbH);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(sbX + 4, thumbY, sbW - 8, thumbH);
+      ctx.textAlign = 'left';
     }
 
     this.texture.needsUpdate = true;

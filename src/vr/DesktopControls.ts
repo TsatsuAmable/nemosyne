@@ -143,6 +143,16 @@ export class DesktopControls {
     if (e.code === 'KeyR') {
       this.engine.onResetView?.();
     }
+    if (e.code === 'KeyM' || e.code === 'KeyL' || e.code === 'Backquote') {
+      (this.engine as any).uiManager?.handWheelMenu?.toggle?.();
+      (this.engine as any).uiManager?.panelManager?.toggleLauncher?.();
+    }
+    if (e.code === 'KeyN' || e.code === 'ArrowRight') {
+      (this.engine as any).guidedTour?.next?.();
+    }
+    if (e.code === 'KeyB' || e.code === 'ArrowLeft') {
+      (this.engine as any).guidedTour?.previous?.();
+    }
 
     // Desktop undo/redo shortcuts.
     if (e.ctrlKey || e.metaKey) {

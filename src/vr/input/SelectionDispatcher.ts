@@ -76,6 +76,8 @@ export class SelectionDispatcher {
    * Update dwell selection state from the current panel hit and scene entry.
    * `sceneHit` is the object returned by `InteractableRegistry.raycastScene()`.
    */
+  private _dwellStartTime = 0;
+
   updateDwell(panelHit: PanelHit | null, sceneHit: SceneHit | null, activePointer: PointerLike | null) {
     if (!this.dwellSelection || !activePointer) return;
 
@@ -91,12 +93,24 @@ export class SelectionDispatcher {
       : null;
 
     if (targetId !== this._dwellTarget) {
+      if (this._dwellTarget && this._dwellStartTime > 0) {
+        const duration = Date.now() - this._dwellStartTime;
+        if (typeof (this.registry as any)?.engine?.telemetry?.recordDwell === 'function') {
+          (this.registry as any).engine.telemetry.recordDwell(this._dwellTarget, duration, false);
+        }
+      }
+
       this._dwellTarget = targetId;
+      this._dwellStartTime = Date.now();
       if (this._dwellTimer) clearTimeout(this._dwellTimer);
       if (!targetId || !target) return;
 
       const dwellTarget = target;
       this._dwellTimer = setTimeout(() => {
+        if (typeof (this.registry as any)?.engine?.telemetry?.recordDwell === 'function') {
+          const duration = Date.now() - this._dwellStartTime;
+          (this.registry as any).engine.telemetry.recordDwell(targetId, duration, true);
+        }
         if (dwellTarget.type === 'panel') {
           dwellTarget.value.handlePointerDown?.(this.registry.raycaster, activePointer);
         } else if (dwellTarget.value.onSelect) {

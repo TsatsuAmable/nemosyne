@@ -74,5 +74,26 @@ export class WorldSceneComposer {
     });
     this.engine.scene.add(this.portalB.group);
     this.engine.addUpdatable(this.portalB);
+
+    // Register scene composer for live torso tracking
+    this.engine.addUpdatable(this);
+  }
+
+  /**
+   * Continuously update analystAnchor to track the user's torso position and facing direction.
+   */
+  update(_delta?: number): void {
+    if (!this.engine?.camera || !this.analystAnchor) return;
+    const cam = this.engine.camera;
+
+    // Torso position tracking: follows headset position in X and Z,
+    // positioned at torso level (~0.25m below headset eye level)
+    const torsoY = Math.max(0.8, cam.position.y - 0.25);
+    this.analystAnchor.position.set(cam.position.x, torsoY, cam.position.z);
+
+    // Torso orientation tracking: match headset yaw (Y-axis rotation)
+    const headEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+    headEuler.setFromQuaternion(cam.quaternion);
+    this.analystAnchor.rotation.y = headEuler.y;
   }
 }

@@ -94,6 +94,77 @@ export class NetworkManager extends EventTarget {
       return;
     }
     this._localState = next;
+    this._sendToAllOpenChannels(payload);
+  }
+
+  broadcast(message: Record<string, unknown>): void {
+    this.setLocalState(message);
+  }
+
+  broadcastUserTelemetry(telemetry: Record<string, unknown>): void {
+    this.broadcast({ type: 'userTelemetry', telemetry, peerId: this.peerId });
+  }
+
+  /**
+   * Broadcasts a targeted state delta to all peers for a given topic.
+   */
+  broadcastStateDelta(topic: string, data: Record<string, unknown>, timestamp: number = Date.now()): void {
+    const deltaPayload = JSON.stringify({
+      type: 'delta',
+      peerId: this.peerId,
+      topic,
+      data,
+      timestamp,
+    });
+    this._sendToAllOpenChannels(deltaPayload);
+  }
+
+  /**
+   * Synchronizes a dataset operation (filter, transform, sort, aggregate) across WebRTC peers.
+   */
+  broadcastDatasetOperation(op: Record<string, unknown>, timestamp: number = Date.now()): void {
+    const payload = JSON.stringify({
+      type: 'datasetOperation',
+      peerId: this.peerId,
+      op,
+      timestamp,
+    });
+    this._sendToAllOpenChannels(payload);
+  }
+
+  /**
+   * Synchronizes selected item IDs across WebRTC peers.
+   */
+  broadcastSelection(selectedIds: string[]): void {
+    const payload = JSON.stringify({
+      type: 'selectionSync',
+      peerId: this.peerId,
+      selectedIds,
+      timestamp: Date.now(),
+    });
+    this._sendToAllOpenChannels(payload);
+  }
+
+  /**
+   * Throttled 60Hz/20Hz camera pose synchronization for peer VR presence.
+   */
+  _lastPoseSendTime = 0;
+  broadcastCameraPose(position: number[], rotation: number[], throttleMs: number = 50): void {
+    const now = Date.now();
+    if (now - this._lastPoseSendTime < throttleMs) return;
+    this._lastPoseSendTime = now;
+
+    const payload = JSON.stringify({
+      type: 'cameraPose',
+      peerId: this.peerId,
+      position,
+      rotation,
+      timestamp: now,
+    });
+    this._sendToAllOpenChannels(payload);
+  }
+
+  private _sendToAllOpenChannels(payload: string): void {
     for (const [peerId, channel] of this.channels) {
       if (channel.readyState === 'open') {
         try {
@@ -103,14 +174,6 @@ export class NetworkManager extends EventTarget {
         }
       }
     }
-  }
-
-  broadcast(message: Record<string, unknown>): void {
-    this.setLocalState(message);
-  }
-
-  broadcastUserTelemetry(telemetry: Record<string, unknown>): void {
-    this.broadcast({ type: 'userTelemetry', telemetry, peerId: this.peerId });
   }
 
   _onSignal({ from, data }: { from?: string; data?: any } = {}): void {
@@ -225,6 +288,48 @@ export class NetworkManager extends EventTarget {
         this.dispatchEvent(
           new CustomEvent('peerState', {
             detail: { peerId: payload.peerId, state: payload.state },
+          })
+        );
+      } else if (payload.type === 'delta' && payload.peerId) {
+        this.dispatchEvent(
+          new CustomEvent('stateDelta', {
+            detail: {
+              peerId: payload.peerId,
+              topic: payload.topic,
+              data: payload.data,
+              timestamp: payload.timestamp,
+            },
+          })
+        );
+      } else if (payload.type === 'datasetOperation' && payload.peerId) {
+        this.dispatchEvent(
+          new CustomEvent('remoteDatasetOperation', {
+            detail: {
+              peerId: payload.peerId,
+              op: payload.op,
+              timestamp: payload.timestamp,
+            },
+          })
+        );
+      } else if (payload.type === 'selectionSync' && payload.peerId) {
+        this.dispatchEvent(
+          new CustomEvent('remoteSelection', {
+            detail: {
+              peerId: payload.peerId,
+              selectedIds: payload.selectedIds ?? [],
+              timestamp: payload.timestamp,
+            },
+          })
+        );
+      } else if (payload.type === 'cameraPose' && payload.peerId) {
+        this.dispatchEvent(
+          new CustomEvent('remoteCameraPose', {
+            detail: {
+              peerId: payload.peerId,
+              position: payload.position,
+              rotation: payload.rotation,
+              timestamp: payload.timestamp,
+            },
           })
         );
       }

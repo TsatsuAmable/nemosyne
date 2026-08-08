@@ -98,6 +98,12 @@ export class WorldInputCoordinator {
 
     this.eventBus.emit(WorldTopics.GESTURE_RECOGNIZED, { name, ctx });
 
+    const confidence = typeof ctx.confidence === 'number' ? (ctx.confidence as number) : 0.85;
+    const isMisfire = !!ctx.isMisfire;
+    if (typeof (this.engine as any)?.telemetry?.recordGestureConfidence === 'function') {
+      (this.engine as any).telemetry.recordGestureConfidence(name, confidence, isMisfire);
+    }
+
     // Multi-modal feedback so gesture recognition is perceptible.
     this.engine.input.feedback?.playGestureTone?.(name);
     this.engine.input.feedback?.playHaptic?.(0.6, 50);

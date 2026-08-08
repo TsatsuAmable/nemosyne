@@ -643,6 +643,9 @@ describe('DracoDiagnosticHUD', () => {
       moveTo: () => {},
       lineTo: () => {},
       stroke: () => {},
+      save: () => {},
+      restore: () => {},
+      translate: () => {},
     };
 
     // jsdom does not implement the 2D canvas context without the native

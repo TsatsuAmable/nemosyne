@@ -143,9 +143,13 @@ export class DataOperationController {
     ) {
       const op = buildWasmOperationSpec(operation, dataset, originalDataset);
       if (op) {
-        const result = this._wasmRuntime.executeOperation(dataset.toJSON(), op as OperationSpec);
-        if (result) {
-          return Dataset.fromJSON(result);
+        try {
+          const result = this._wasmRuntime.executeOperation(dataset.toJSON(), op as OperationSpec);
+          if (result) {
+            return Dataset.fromJSON(result);
+          }
+        } catch (e) {
+          console.warn('[DataOperationController] WASM operation panic, falling back to JS:', e);
         }
       }
     }

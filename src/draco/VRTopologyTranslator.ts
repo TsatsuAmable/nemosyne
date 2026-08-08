@@ -7,6 +7,7 @@ import {
   inferEncodings,
 } from '../data/Encodings.ts';
 import { InstancedPointCloud } from '../vr/scalability/index.ts';
+import { MeshPool } from '../vr/scalability/ObjectPool.ts';
 import {
   applyResonancePulse,
   applyForkPlane,
@@ -210,11 +211,19 @@ export class VRTopologyTranslator {
       }
     }
 
+    if (geometry === 'CUBE_MATRIX') {
+      const mesh = MeshPool.instance.acquireBox(color, [0.45 * scale, 0.45 * scale, 0.45 * scale]);
+      mesh.userData = { row, dataset, encodings };
+      return mesh;
+    }
+    if (geometry === 'ORB' || geometry === 'ICOSA_NODE') {
+      const mesh = MeshPool.instance.acquireSphere(color, 0.3 * scale);
+      mesh.userData = { row, dataset, encodings };
+      return mesh;
+    }
+
     let geom: THREE.BufferGeometry;
     switch (geometry) {
-      case 'CUBE_MATRIX':
-        geom = new THREE.BoxGeometry(0.45, 0.45, 0.45);
-        break;
       case 'CONICAL_TREE':
         geom = new THREE.ConeGeometry(0.25, 0.6, 8);
         break;
@@ -226,9 +235,6 @@ export class VRTopologyTranslator {
         break;
       case 'COLUMN':
         geom = new THREE.CylinderGeometry(0.12, 0.12, 0.8, 16);
-        break;
-      case 'ORB':
-        geom = new THREE.SphereGeometry(0.28, 24, 24);
         break;
       case 'TOKEN':
         geom = new THREE.CylinderGeometry(0.22, 0.22, 0.05, 24);
@@ -248,7 +254,6 @@ export class VRTopologyTranslator {
       case 'ZONE':
         geom = new THREE.CylinderGeometry(0.5, 0.5, 0.02, 32, 1, true);
         break;
-      case 'ICOSA_NODE':
       default:
         geom = new THREE.IcosahedronGeometry(0.32, 1);
     }

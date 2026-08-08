@@ -454,13 +454,15 @@ export class World {
 
     // Guided tour: step-by-step spatial onboarding.
     this.guidedTour = new GuidedTour(this.engine, {
+      analystAnchor: this.analystAnchor,
       feedback: this.engine.input.feedback,
       tour: FIRST_DATASET_TOUR,
       resolveTarget: (target) => this._resolveTourTarget(target),
       checkCondition: (step) => this._checkTourCondition(step),
       onComplete: () => this.vrConsole?.log?.('log', ['Tour complete']),
-    });
+    } as any);
     this.engine.addUpdatable(this.guidedTour);
+    this.engine.addHudObject(this.guidedTour);
 
     // Track whether the guided tour has been auto-started for novice users.
     this._tourAutoStarted = false;
@@ -509,6 +511,14 @@ export class World {
         return this.settingsPanel?.mesh ? { object: this.settingsPanel.mesh } : null;
       case 'dashboard':
         return { position: new THREE.Vector3(0, 1.45, -1.35) };
+      case 'data-loader':
+        return this.vrMenu?.mesh ? { object: this.vrMenu.mesh } : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
+      case 'session-export':
+        return this.operationLogPanel?.mesh ? { object: this.operationLogPanel.mesh } : { position: new THREE.Vector3(0.5, 1.4, -0.9) };
+      case 'peer-collaboration':
+        return this.peerPresenceHUD?.mesh ? { object: this.peerPresenceHUD.mesh } : { position: new THREE.Vector3(-0.9, 1.35, -0.7) };
+      case 'draco-transform':
+        return this.vrMenu?.mesh ? { object: this.vrMenu.mesh } : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
       default:
         return null;
     }
@@ -523,6 +533,8 @@ export class World {
         return this.handWheelMenu?.isVisible?.() === true;
       case 'settings-panel':
         return this.settingsPanel?.mesh?.visible === true;
+      case 'draco-transform':
+        return (this.dataOperationController?.analysisHistory?.entries?.length ?? 0) > 0;
       default:
         return false;
     }
@@ -993,9 +1005,8 @@ export class World {
    * "PerformanceBudget critical" frame-spike warning.
    */
   loadDataset(entry: DatasetLoadEntry): void {
-    console.log('[World] loading dataset:', entry.name, entry.topology);
-    // Defer the synchronous geometry work so the current XR frame can complete.
-    setTimeout(() => this._doLoadDataset(entry), 0);
+    console.log('[World] loading dataset:', entry.name ?? entry.label, entry.topology);
+    this._doLoadDataset(entry);
   }
 
   /** Internal implementation called after the current frame yields. */
@@ -1153,7 +1164,7 @@ export class World {
 
     for (let i = 0; i < panels.length; i++) {
       const panel = panels[i];
-      panel.mesh.visible = true;
+      panel.mesh.visible = false;
       this.engine.input.addPanel(panel);
       // Let the dashboard pick the next free visible zone so panels start in
       // front of the analyst in semicircle mode.
@@ -2176,16 +2187,21 @@ export class World {
     const bridge = this._wasmRuntime;
     if (!bridge || !bridge.isReady()) return entry;
 
-    const handle = bridge.loadSample(entry.key);
-    if (handle === 0) return entry;
-
     try {
-      const json = bridge.getDatasetJson(handle);
-      if (!json) return entry;
-      const dataset = Dataset.fromJSON(json);
-      return { ...entry, dataset };
-    } finally {
-      bridge.destroyDataset(handle);
+      const handle = bridge.loadSample(entry.key);
+      if (handle === 0) return entry;
+
+      try {
+        const json = bridge.getDatasetJson(handle);
+        if (!json) return entry;
+        const dataset = Dataset.fromJSON(json);
+        return { ...entry, dataset };
+      } finally {
+        bridge.destroyDataset(handle);
+      }
+    } catch (e) {
+      console.warn('[World] WASM sample load panic, falling back to JS:', e);
+      return entry;
     }
   }
 }

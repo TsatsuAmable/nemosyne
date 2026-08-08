@@ -8,6 +8,7 @@
  */
 
 import type { TelemetryReport } from '../vr/coordinators/types.ts';
+import { UXFrustrationAnalyzer, type CompactUXDigest } from './UXFrustrationAnalyzer.ts';
 
 const STORAGE_KEY = 'nemosyne-telemetry-consent';
 
@@ -70,6 +71,7 @@ export class TelemetryCollector {
   private _warningCount: number;
   private _lastError: ErrorSnapshot | null;
   private _unhandledRejections: number;
+  public frustrationAnalyzer: UXFrustrationAnalyzer;
 
   private _handlers: Array<() => void>;
 
@@ -91,6 +93,7 @@ export class TelemetryCollector {
     this._warningCount = 0;
     this._lastError = null;
     this._unhandledRejections = 0;
+    this.frustrationAnalyzer = new UXFrustrationAnalyzer();
 
     this._handlers = [];
   }
@@ -152,18 +155,57 @@ export class TelemetryCollector {
     if (!this._enabled) return;
     this._datasetName = name ?? '-';
     this._datasetTopology = topology ?? '-';
+    this.frustrationAnalyzer.recordUserAction('dataset:load', name);
   }
 
   /** Record an applied analysis operation. */
   recordOperation(operation: string): void {
     if (!this._enabled) return;
     this._operationCounts[operation] = (this._operationCounts[operation] ?? 0) + 1;
+    this.frustrationAnalyzer.recordUserAction('operation', operation);
+  }
+
+  /** Record a window or panel interaction event (open, close, move, snap, drag). */
+  recordPanelAction(panelTitle: string, action: string): void {
+    if (!this._enabled) return;
+    const key = `panel:${action}:${panelTitle}`;
+    this._operationCounts[key] = (this._operationCounts[key] ?? 0) + 1;
+    this.frustrationAnalyzer.recordUserAction(`panel:${action}`, panelTitle);
+  }
+
+  /** Record a VR menu button click event. */
+  recordMenuAction(menuAction: string): void {
+    if (!this._enabled) return;
+    const key = `menu:${menuAction}`;
+    this._operationCounts[key] = (this._operationCounts[key] ?? 0) + 1;
+    this.frustrationAnalyzer.recordUserAction('menu', menuAction);
   }
 
   /** Record a recognized hand gesture. */
   recordGesture(name: string): void {
     if (!this._enabled) return;
     this._gestureCounts[name] = (this._gestureCounts[name] ?? 0) + 1;
+    this.frustrationAnalyzer.recordUserAction('gesture', name);
+  }
+
+  /** Record gaze / laser pointer dwell time on a target. */
+  recordDwell(targetId: string, durationMs: number, wasClicked = false): void {
+    if (!this._enabled) return;
+    const key = `dwell:${targetId}`;
+    this._operationCounts[key] = (this._operationCounts[key] ?? 0) + 1;
+    this.frustrationAnalyzer.recordUserAction(wasClicked ? 'dwell:click' : 'dwell:leave', targetId, { durationMs, wasClicked });
+  }
+
+  /** Record gesture detection confidence and misfire status. */
+  recordGestureConfidence(name: string, confidence: number, isMisfire = false): void {
+    if (!this._enabled) return;
+    this.frustrationAnalyzer.recordUserAction(isMisfire ? 'gesture:misfire' : 'gesture:detected', name, { confidence, isMisfire });
+  }
+
+  /** Record an air click / selection miss. */
+  recordMiss(targetHint?: string): void {
+    if (!this._enabled) return;
+    this.frustrationAnalyzer.recordUserAction('interaction:miss', targetHint);
   }
 
   /** Record an error or warning. */
@@ -173,6 +215,17 @@ export class TelemetryCollector {
     else this._errorCount++;
     const msg = (err as Error | undefined)?.message ?? String(err);
     if (msg) this._lastError = { message: msg, time: Date.now(), isWarning };
+    this.frustrationAnalyzer.recordUserAction(isWarning ? 'warning' : 'error', msg);
+  }
+
+  /** Get ultra-compact low-token UX friction digest. */
+  getCompactUXDigest(): CompactUXDigest {
+    return this.frustrationAnalyzer.getCompactDigest();
+  }
+
+  /** Format 8-line token-efficient UX friction report. */
+  formatCompactUXReport(): string {
+    return this.frustrationAnalyzer.formatCompactReport();
   }
 
   /**

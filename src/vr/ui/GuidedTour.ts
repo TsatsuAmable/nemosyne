@@ -94,7 +94,8 @@ export class GuidedTour {
 
     this._cardGroup = new THREE.Group();
     this._cardGroup.visible = false;
-    if (this.cameraGroup) this.cameraGroup.add(this._cardGroup);
+    const parent = (options as any)?.analystAnchor ?? (engine as any)?.sceneComposer?.analystAnchor ?? this.cameraGroup;
+    if (parent) parent.add(this._cardGroup);
 
     this._cardCanvas = document.createElement('canvas');
     this._cardCanvas.width = 1024;
@@ -115,7 +116,9 @@ export class GuidedTour {
       depthWrite: false,
     });
     this._cardMesh = new THREE.Mesh(geom, mat);
-    this._cardMesh.position.set(0, -0.25, -0.8);
+    // Position card at comfortable eye/chest level in front of analyst
+    const posY = parent === this.cameraGroup ? 1.35 : 0.15;
+    this._cardMesh.position.set(0, posY, -0.65);
     this._cardGroup.add(this._cardMesh);
 
     this._arrow = this._createArrow();
@@ -183,6 +186,7 @@ export class GuidedTour {
     this._active = true;
     this._finished = false;
     this._stepIndex = 0;
+    this._stepLockUntil = Date.now() + 1500;
     this._cardGroup.visible = true;
     this._renderStep();
     this._playNarration();
@@ -205,11 +209,14 @@ export class GuidedTour {
     this._stepIndex = 0;
     this._finished = false;
     this._active = true;
+    this._stepLockUntil = Date.now() + 1500;
     this._cardGroup.visible = true;
     this._renderStep();
     this._playNarration();
     return true;
   }
+
+  private _lastAutoAdvanceStep: number = -1;
 
   next(): void {
     if (!this._active || !this.tour) return;
@@ -249,8 +256,9 @@ export class GuidedTour {
     const step = this.currentStep;
     if (!step) return;
 
-    // Auto-advance if the step condition is satisfied.
-    if (this._checkCondition(step, this._stepIndex)) {
+    // Auto-advance if the step condition is satisfied and this step index hasn't already auto-advanced
+    if (this._lastAutoAdvanceStep !== this._stepIndex && this._checkCondition(step, this._stepIndex)) {
+      this._lastAutoAdvanceStep = this._stepIndex + 1;
       this.next();
       return;
     }
@@ -324,9 +332,66 @@ export class GuidedTour {
       ctx.fillText(`> ${step.actionHint}`, 28, h - 46);
     }
 
+    // Interactive NEXT > button pill (bottom right)
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(w - 200, h - 56, 172, 40);
+    ctx.fillStyle = 'rgba(0, 255, 204, 0.15)';
+    ctx.fillRect(w - 200, h - 56, 172, 40);
+    ctx.fillStyle = '#00ffcc';
+    ctx.font = 'bold 22px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('NEXT >', w - 114, h - 36);
+
+    // Interactive < PREV button pill
+    if (this._stepIndex > 0) {
+      ctx.strokeStyle = '#88ccff';
+      ctx.strokeRect(w - 390, h - 56, 172, 40);
+      ctx.fillStyle = 'rgba(136, 204, 255, 0.15)';
+      ctx.fillRect(w - 390, h - 56, 172, 40);
+      ctx.fillStyle = '#88ccff';
+      ctx.fillText('< PREV', w - 304, h - 36);
+    }
+
     this._cardTexture.needsUpdate = true;
     this._highlightMesh.visible = true;
     this.onStep(step, this._stepIndex);
+  }
+
+  /**
+   * Handle direct raycaster pointer clicks on the GuidedTour card window.
+   */
+  handlePointerDown(raycaster: THREE.Raycaster): boolean {
+    if (!this._active || !this._cardMesh || !this._cardGroup.visible) return false;
+    this._cardGroup.updateMatrixWorld(true);
+    const hits = raycaster.intersectObject(this._cardMesh, false);
+    if (hits.length === 0) return false;
+
+    const uv = hits[0].uv;
+    if (!uv) {
+      this.next();
+      return true;
+    }
+
+    const canvasX = uv.x * this._cardCanvas.width;
+    const canvasY = (1 - uv.y) * this._cardCanvas.height;
+    const w = this._cardCanvas.width;
+    const h = this._cardCanvas.height;
+
+    // Check PREV button click
+    if (this._stepIndex > 0 && canvasX >= w - 390 && canvasX <= w - 218 && canvasY >= h - 56) {
+      this.previous();
+      return true;
+    }
+
+    // Default / NEXT click
+    this.next();
+    return true;
+  }
+
+  handlePointerClick(raycaster: THREE.Raycaster): boolean {
+    return this.handlePointerDown(raycaster);
   }
 
   private _wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number): void {

@@ -1,9 +1,4 @@
-/**
- * Closed-Loop Edge SLM / Perceptron World Model for Draco GA Modulation.
- *
- * Ingests analyst manual candidate weight adjustments and dataset statistical
- * profiles to dynamically modulate Evolutionary Genetic Algorithm (GA) parameters.
- */
+import { NeuralConstraintPredictor, type DatasetFeatureVector, type RecommendedConstraintWeights } from './NeuralConstraintPredictor.ts';
 
 export interface GAParameterSet {
   fitnessWeights: {
@@ -16,12 +11,14 @@ export interface GAParameterSet {
 }
 
 export class DracoWorldModel {
-  modelLoaded = false;
+  modelLoaded = true;
   currentGAParameters: GAParameterSet;
+  predictor: NeuralConstraintPredictor;
 
   private _tuningHistory: Record<string, number>[] = [];
 
   constructor() {
+    this.predictor = new NeuralConstraintPredictor();
     this.currentGAParameters = {
       fitnessWeights: {
         separability: 0.75,
@@ -34,9 +31,21 @@ export class DracoWorldModel {
   }
 
   /**
+   * Predicts recommended soft constraint weights for a given dataset feature profile.
+   */
+  predictWeightsForDataset(features: Partial<DatasetFeatureVector>): RecommendedConstraintWeights {
+    const rec = this.predictor.predict(features);
+    // Sync predicted weights to active GA parameters
+    this.currentGAParameters.fitnessWeights.separability = rec.separabilityWeight / 100.0;
+    this.currentGAParameters.fitnessWeights.occlusion = rec.occlusionWeight / 100.0;
+    this.currentGAParameters.fitnessWeights.audioProximity = rec.audioProximityWeight / 100.0;
+    return rec;
+  }
+
+  /**
    * Ingest manual candidate weight tuning feedback from VR Candidate Carousel.
    */
-  ingestManualTuning(weights: Record<string, number>): GAParameterSet {
+  ingestManualTuning(weights: Record<string, number>, features?: Partial<DatasetFeatureVector>): GAParameterSet {
     this._tuningHistory.push(weights);
 
     // Modulate GA fitness weights live based on analyst preferences
@@ -48,6 +57,11 @@ export class DracoWorldModel {
     }
     if (weights.audioProximity !== undefined) {
       this.currentGAParameters.fitnessWeights.audioProximity = weights.audioProximity;
+    }
+
+    // Perform online training step if dataset features are provided
+    if (features) {
+      this.predictor.trainStep(features, weights);
     }
 
     // Adaptive mutation rate adjustment based on tuning intensity

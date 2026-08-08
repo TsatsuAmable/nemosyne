@@ -257,6 +257,7 @@ export class VRMenu extends MovablePanel {
   }
 
   handleContentClick(raycaster: THREE.Raycaster): boolean {
+    this.mesh.updateMatrixWorld(true);
     const hits = raycaster.intersectObject(this.mesh, false);
     if (hits.length === 0) return false;
 
@@ -264,16 +265,17 @@ export class VRMenu extends MovablePanel {
     if (!uv) return false;
     const canvasX = uv.x * this.width;
     const canvasY = (1 - uv.y) * this.height;
+    const contentY = canvasY + this.scrollOffset;
 
     for (const btn of this.buttons) {
       if (
         canvasX >= btn.x &&
         canvasX <= btn.x + btn.w &&
-        canvasY >= btn.y &&
-        canvasY <= btn.y + btn.h
+        ((canvasY >= btn.y && canvasY <= btn.y + btn.h) ||
+         (contentY >= btn.y && contentY <= btn.y + btn.h))
       ) {
         const now = performance.now();
-        if (now - this._lastClickAt < this._clickCooldownMs) {
+        if (now - this._lastClickAt < 100) {
           return true;
         }
         this._lastClickAt = now;

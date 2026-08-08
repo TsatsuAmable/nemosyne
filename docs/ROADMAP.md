@@ -156,10 +156,10 @@ Only after those four are met should the roadmap choose between **Phase 10A: Val
 
 - [x] **Sprint 10B.1** — Networking foundation (WebRTC data channels, signalling server, room model, wheel-menu join/leave, in-VR network status panel).
 - [x] **Sprint 10B.2** — Free-floating, persisted HUD panels: panels no longer forced into the analyst-anchor arc, drag in cameraGroup local space, positions/visibility saved with the session.
-- [ ] **Sprint 10B.3** — Shared state synchronisation (dataset, operations, camera pose, selections).
-- [ ] **Sprint 10B.4** — Presence & avatars (voice-less or voice-optional, hand/controller avatar, name tags).
-- [ ] **Sprint 10B.5** — Shared annotations, bookmarks, and tours.
-- [ ] **Sprint 10B.6** — Asymmetric desktop companion (2D view of the same session for non-VR stakeholders).
+- [x] **Sprint 10B.3** — Shared state synchronisation (dataset, operations, camera pose, selections).
+- [x] **Sprint 10B.4** — Presence & avatars (voice-less or voice-optional, hand/controller avatar, name tags).
+- [x] **Sprint 10B.5** — Shared annotations, bookmarks, and tours.
+- [x] **Sprint 10B.6** — Asymmetric desktop companion (2D view of the same session for non-VR stakeholders).
 
 ### Deferred longer-term work
 
