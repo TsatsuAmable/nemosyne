@@ -987,9 +987,19 @@ export class World {
   /**
    * Switch the active data palace. `entry` should contain:
    * { name, topology, dataset, maxDepth?, encodings? }
+   *
+   * The heavy scene-graph work is deferred by one task (setTimeout 0) so that
+   * the XR render frame that triggered the load is not blocked, preventing the
+   * "PerformanceBudget critical" frame-spike warning.
    */
   loadDataset(entry: DatasetLoadEntry): void {
     console.log('[World] loading dataset:', entry.name, entry.topology);
+    // Defer the synchronous geometry work so the current XR frame can complete.
+    setTimeout(() => this._doLoadDataset(entry), 0);
+  }
+
+  /** Internal implementation called after the current frame yields. */
+  _doLoadDataset(entry: DatasetLoadEntry): void {
 
     // Switch atmosphere to match dataset mood, if a preset is mapped.
     const presetName = entry.key && DATASET_THEME_MAP[entry.key];

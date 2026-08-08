@@ -401,11 +401,10 @@ export class HandPointer implements PointerLike {
         console.log(`[HandPointer ${this.index}] missing joint '${name}'`);
         return false;
       }
-      const isJointSpace = typeof XRJointSpace === 'undefined' || joint instanceof XRJointSpace;
-      if (!isJointSpace) {
-        console.log(`[HandPointer ${this.index}] joint '${name}' is not XRJointSpace`, joint);
-      }
-      return isJointSpace;
+      // On Meta Quest Browser joints come back as THREE.Group wrappers; the
+      // instanceof check would always fail. Accept any non-null value and let
+      // getJointPose() determine whether it is usable at pose-query time.
+      return true;
     });
   }
 

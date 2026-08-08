@@ -19,8 +19,9 @@ import type { DatasetJSON, OperationSpec } from '../data/types.js';
  * API. We keep this interface intentionally loose because the ABI is versioned
  * by capability flags, not by TypeScript types.
  */
+interface WasmInitInput { module_or_path?: string | URL | Request | Response | BufferSource | WebAssembly.Module; }
 interface WasmModule {
-  default(wasmUrl?: string | URL): Promise<void>;
+  default(wasmUrl?: string | URL | WasmInitInput): Promise<void>;
   init(seed: bigint): number;
   ping(): number;
   memory(): WebAssembly.Memory;
@@ -81,8 +82,9 @@ export async function initRuntime(wasmUrl?: string | URL): Promise<WasmModule> {
   const mod = (await import(/* @vite-ignore */ wasmModuleUrl)) as WasmModule;
 
   // wasm-pack --target web exports an `init` function that fetches the binary.
+  // Use the object-parameter form to avoid the "deprecated positional arg" warning.
   const targetWasmUrl = typeof wasmUrl === 'string' ? wasmUrl : '/wasm/pkg/nemosyne_wasm_bg.wasm';
-  await mod.default(targetWasmUrl);
+  await mod.default({ module_or_path: targetWasmUrl });
   wasmModule = mod;
   refreshMemoryView();
 

@@ -324,7 +324,10 @@ export class Engine {
   _onWindowResize(): void {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    // Do not call setSize() while the XR compositor owns the framebuffer.
+    if (!this.renderer.xr.isPresenting) {
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
   }
 
   _contextLost(event: Event): void {
