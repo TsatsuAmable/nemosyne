@@ -362,8 +362,14 @@ export class MovablePanel {
     return String(sizeOrFont);
   }
 
-  remapColor(colorOrVal?: unknown, _extra?: unknown): string {
-    if (typeof colorOrVal !== 'string') return typeof colorOrVal === 'number' ? `#${colorOrVal.toString(16)}` : '#00ffcc';
+  remapColor(colorOrVal?: unknown, _extra?: unknown): any {
+    if (typeof colorOrVal === 'number') {
+      if (!this.highContrast) return colorOrVal;
+      if (colorOrVal === 0x00ffcc || colorOrVal === 0x00ccaa) return 0x00ffff;
+      if (colorOrVal === 0xff0055 || colorOrVal === 0xff3366) return 0xff3300;
+      return colorOrVal;
+    }
+    if (typeof colorOrVal !== 'string') return '#00ffcc';
     if (!this.highContrast) return colorOrVal;
     if (colorOrVal === '#00ffcc' || colorOrVal === '#00ccaa') return '#00ffff';
     if (colorOrVal === '#ff0055' || colorOrVal === '#ff3366') return '#ff3300';
