@@ -18,14 +18,15 @@ A WebXR/three.js runtime that transforms multi-dimensional datasets into interac
 
 - Loads tabular, hierarchical, graph, time-series, vector-field, and geospatial datasets.
 - Uses a symbolic constraint recommender (Draco-style) to choose layout, geometry, behavior, and interaction based on data topology.
-- Renders the result as a memory-palace-style 3D VR world using the Nemosyne artefact taxonomy.
+- Renders the result as a memory-palace-style 3D VR world anchored to the analyst torso (`analystAnchor`).
 - Supports Meta Quest hand tracking and controllers, plus a desktop fallback with mouse/keyboard.
-- Provides free-floating, persisted HUD panels, a body-locked radial wheel menu, and a curved analyst dashboard.
+- Provides free-floating persisted HUD panels, Dual Vertical Wheel Menus (`±0.36m`), and a curved analyst dashboard.
+- Features an On-Device UX Frustration Engine (`UXFrustrationAnalyzer.ts`), Gaze/Laser Dwell Time tracking, and low-token telemetry digests.
+- Utilizes Geometry & Material Object Pooling (`ObjectPool.ts`) and micro-task time slicing to eliminate dataset load frame spikes.
 - Tracks every data operation on an undo/redo history stack with gesture and keyboard shortcuts.
 - Connects to live streaming datasets/APIs via WebSocket or REST polling adapters.
 - Saves/restores sessions via IndexedDB and exports screenshots + analysis stories as JSON.
-- Includes opt-in telemetry, a performance budget, accessibility options, and a gesture coach.
-- Supports WebRTC/WebSocket networking for shared collaboration (foundation in place).
+- Includes a 4-agent AI Developer Team configuration ([`.agents/team.json`](file:///C:/Users/stromae/Documents/Code/nemosyne.world/.agents/team.json)) and custom Workspace Skill ([`.agents/skills/vr-accessibility/SKILL.md`](file:///C:/Users/stromae/Documents/Code/nemosyne.world/.agents/skills/vr-accessibility/SKILL.md)).
 
 **Project status:** this repo is the merged canonical runtime. The original nemosyne-analysis-suite has been adopted as the three.js/WebXR implementation, replacing the earlier A-Frame component framework.
 
@@ -65,7 +66,7 @@ Then open `https://YOUR-IP:5173` in Meta Quest Browser, or use ADB port forwardi
 
 ```bash
 npm run build      # Production bundle -> dist/
-npm test           # 675 Vitest tests
+npm test           # 940+ Vitest tests
 npm run test:coverage
 ```
 
