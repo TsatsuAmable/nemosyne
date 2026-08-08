@@ -18,6 +18,11 @@ describe('Sprint 10.2: AI Gesture Classifier & JIT Hints', () => {
       expect(calib.pinchThreshold).toBe(0.045);
     });
 
+    it('initializes ONNX bridge gracefully when called', async () => {
+      const loaded = await classifier.initONNXBridge();
+      expect(typeof loaded).toBe('boolean');
+    });
+
     it('classifies pinchTogether gesture when hands move closer', () => {
       for (let i = 0; i < 10; i++) {
         const leftPos = new THREE.Vector3(-0.3 + i * 0.02, 1.2, -0.5);
