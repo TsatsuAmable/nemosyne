@@ -282,11 +282,12 @@ const CAP_PARSER_RUST: u32 = 1 << 1;
 const CAP_OPERATIONS_RUST: u32 = 1 << 2;
 const CAP_COMMAND_BUFFER: u32 = 1 << 3;
 const CAP_LAYOUTS_RUST: u32 = 1 << 4;
+const CAP_TDA_RUST: u32 = 1 << 5;
 
 /// Return the enabled capability set for the current build.
 #[wasm_bindgen]
 pub fn capabilities() -> u32 {
-    CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST | CAP_COMMAND_BUFFER | CAP_LAYOUTS_RUST
+    CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST | CAP_COMMAND_BUFFER | CAP_LAYOUTS_RUST | CAP_TDA_RUST
 }
 
 /// Compute 3D grid layout positions in WASM memory.
