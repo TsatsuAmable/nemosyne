@@ -77,6 +77,20 @@ export class NemosyneVRButton {
         .xr!.requestSession('immersive-vr', sessionInit)
         .then(async (session) => {
           try {
+            const gl = renderer.getContext();
+            if (gl && gl.makeXRCompatible) {
+              await gl.makeXRCompatible();
+            }
+
+            if (typeof XRWebGLLayer === 'undefined') {
+              throw new Error('XRWebGLLayer is not supported by this browser');
+            }
+
+            if (session.updateRenderState && !session.renderState?.baseLayer) {
+              const xrLayer = new XRWebGLLayer(session, gl);
+              await session.updateRenderState({ baseLayer: xrLayer });
+            }
+
             await renderer.xr.setSession(session);
             button.textContent = 'IN VR';
 
