@@ -81,8 +81,9 @@ export class Engine {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.xr.enabled = true;
-    // On some mobile/XR runtimes the default clear color leaks through if the
-    // scene background is not explicitly set. Match the theme fog color.
+    this.renderer.xr.setReferenceSpaceType('local-floor');
+    // Set explicit scene background color so WebXR framebuffers don't clear to transparent black.
+    this.scene.background = new THREE.Color(0x020208);
     this.renderer.setClearColor(0x020208, 1);
     document.body.appendChild(this.renderer.domElement);
 
