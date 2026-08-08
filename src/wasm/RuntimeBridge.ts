@@ -81,7 +81,8 @@ export async function initRuntime(wasmUrl?: string | URL): Promise<WasmModule> {
   const mod = (await import(/* @vite-ignore */ wasmModuleUrl)) as WasmModule;
 
   // wasm-pack --target web exports an `init` function that fetches the binary.
-  await mod.default(wasmUrl);
+  const targetWasmUrl = typeof wasmUrl === 'string' ? wasmUrl : '/wasm/pkg/nemosyne_wasm_bg.wasm';
+  await mod.default(targetWasmUrl);
   wasmModule = mod;
   refreshMemoryView();
 

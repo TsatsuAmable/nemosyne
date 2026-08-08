@@ -56,17 +56,24 @@ export default function wasmPackPlugin(options = {}) {
     },
 
     configureServer(server) {
-      // Serve wasm/pkg/ at /wasm/ so RuntimeBridge.js can fetch
-      // /wasm/nemosyne_wasm_bg.wasm in dev.
       server.middlewares.use('/wasm', (req, res, next) => {
-        const relative = req.url.replace(/^\//, '').split('?')[0];
+        let relative = req.url.replace(/^\//, '').split('?')[0];
+        if (relative.startsWith('pkg/')) {
+          relative = relative.replace(/^pkg\//, '');
+        }
         const filePath = path.join(WASM_PKG_DIR, relative);
-        if (!fs.existsSync(filePath)) {
-          res.statusCode = 404;
-          res.end('Not found');
+        if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+          next();
           return;
         }
-        res.setHeader('Content-Type', 'application/wasm');
+
+        const ext = path.extname(filePath).toLowerCase();
+        let mime = 'application/octet-stream';
+        if (ext === '.wasm') mime = 'application/wasm';
+        else if (ext === '.js') mime = 'application/javascript';
+        else if (ext === '.json') mime = 'application/json';
+
+        res.setHeader('Content-Type', mime);
         fs.createReadStream(filePath).pipe(res);
       });
     },

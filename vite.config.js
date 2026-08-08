@@ -161,11 +161,42 @@ function remoteLogsPlugin() {
   };
 }
 
+function wasmServePlugin() {
+  const wasmPkgDir = path.resolve(process.cwd(), 'wasm', 'pkg');
+  return {
+    name: 'nemosyne-wasm-serve',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/wasm', (req, res, next) => {
+        let relative = req.url.replace(/^\//, '').split('?')[0];
+        if (relative.startsWith('pkg/')) {
+          relative = relative.replace(/^pkg\//, '');
+        }
+        const filePath = path.join(wasmPkgDir, relative);
+        if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+          next();
+          return;
+        }
+
+        const ext = path.extname(filePath).toLowerCase();
+        let mime = 'application/octet-stream';
+        if (ext === '.wasm') mime = 'application/wasm';
+        else if (ext === '.js') mime = 'application/javascript';
+        else if (ext === '.json') mime = 'application/json';
+
+        res.setHeader('Content-Type', mime);
+        fs.createReadStream(filePath).pipe(res);
+      });
+    },
+  };
+}
+
 export default defineConfig(({ command }) => ({
   plugins: [
     demoStreamPlugin(),
     signallingPlugin(),
     remoteLogsPlugin(),
+    wasmServePlugin(),
   ],
   server: {
     host: true,
