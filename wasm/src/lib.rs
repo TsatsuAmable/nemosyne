@@ -61,7 +61,7 @@ mod allocator {
                     if delta > max_delta {
                         panic!("allocator cannot grow memory further");
                     }
-                    core::arch::wasm32::memory_grow(0, delta as i32);
+                    core::arch::wasm32::memory_grow(0, delta as usize);
                 }
 
                 BUMP = end;
@@ -205,12 +205,7 @@ pub fn init(_seed: u64) -> u32 {
     1
 }
 
-/// Return a reference to the WASM memory buffer so the JS host can create
-/// typed-array views directly.
-#[wasm_bindgen]
-pub fn memory() -> JsValue {
-    wasm_bindgen::memory()
-}
+// wasm-bindgen automatically exports `memory` on the module instance.
 
 /// Allocate `len` bytes from the bump arena.
 ///
