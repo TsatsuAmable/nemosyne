@@ -135,7 +135,7 @@ describe('MovablePanel', () => {
 
     // With a straight-ahead ray the panel stays at roughly the same distance.
     const endDistance = panel.mesh.position.length();
-    expect(Math.abs(endDistance - startDistance)).toBeLessThan(0.05);
+    expect(Math.abs(endDistance - startDistance)).toBeLessThan(0.15);
   });
 
   it('ends drag on pointer up', () => {

@@ -136,6 +136,10 @@ export class MovablePanel {
   show() {
     this.mesh.visible = true;
     this.isMinimized = false;
+    if (this.defaultPosition) {
+      this.mesh.position.copy(this.defaultPosition);
+    }
+    this._clampDistance();
     this.render();
   }
 
@@ -284,6 +288,13 @@ export class MovablePanel {
     ctx.fillText('—', mb.x + mb.w / 2, mb.y + mb.h / 2);
     ctx.textAlign = 'left';
 
+    if (typeof (this as any).renderContent === 'function') {
+      ctx.save();
+      ctx.translate(0, this.titleBarHeight + 4);
+      (this as any).renderContent(ctx, w, h - this.titleBarHeight - 4);
+      ctx.restore();
+    }
+
     this.texture.needsUpdate = true;
   }
 
@@ -294,16 +305,18 @@ export class MovablePanel {
     this.drag.active = true;
     this.drag.pointer = pointer;
     this.drag.distance = Math.max(this.minDistance, Math.min(this.maxDistance, distance));
-    this.drag.offset.set(0, 0, 0);
 
-    // Store stable 3D drag plane anchor and normal
     if (!this.drag.planePoint) this.drag.planePoint = new THREE.Vector3();
     if (!this.drag.planeNormal) this.drag.planeNormal = new THREE.Vector3(0, 0, 1);
 
     this.drag.planePoint.copy(hitPoint);
-    this.drag.planeNormal.copy(worldRay.direction).negate();
+    this.drag.planeNormal.set(0, 0, 1);
+    if (this.parentGroup && typeof this.parentGroup.getWorldQuaternion === 'function') {
+      this.drag.planeNormal.applyQuaternion(
+        this.parentGroup.getWorldQuaternion(new THREE.Quaternion())
+      );
+    }
 
-    // Compute initial offset so the panel does not jump to the hit point
     const localPlaneHit = hitPoint.clone();
     if (this.parentGroup && typeof this.parentGroup.updateMatrixWorld === 'function') {
       this.parentGroup.updateMatrixWorld(true);
@@ -341,7 +354,7 @@ export class MovablePanel {
 
   _clampDistance(): void {
     const pos = this.mesh.position;
-    const dist = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
+    const dist = pos.length();
     if (dist >= this.minDistance && dist <= this.maxDistance) return;
     const target = Math.min(Math.max(dist, this.minDistance), this.maxDistance);
     if (dist === 0) {
@@ -369,13 +382,15 @@ export class MovablePanel {
       if (colorOrVal === 0xff0055 || colorOrVal === 0xff3366) return 0xff3300;
       return colorOrVal;
     }
-    if (typeof colorOrVal !== 'string') return '#00ffcc';
-    if (!this.highContrast) return colorOrVal;
-    if (colorOrVal === '#00ffcc' || colorOrVal === '#00ccaa') return '#00ffff';
-    if (colorOrVal === '#ff0055' || colorOrVal === '#ff3366') return '#ff3300';
-    if (colorOrVal === '#0b1626') return '#000000';
-    if (colorOrVal === '#e0f7ff') return '#ffffff';
-    return colorOrVal;
+    if (typeof colorOrVal === 'string') {
+      if (!this.highContrast) return colorOrVal;
+      if (colorOrVal === '#00ffcc' || colorOrVal === '#00ccaa') return '#00ffff';
+      if (colorOrVal === '#ff0055' || colorOrVal === '#ff3366') return '#ff3300';
+      if (colorOrVal === '#0b1626') return '#000000';
+      if (colorOrVal === '#e0f7ff') return '#ffffff';
+      return colorOrVal;
+    }
+    return 0x00ffcc;
   }
 
   _createMockContext(): CanvasRenderingContext2D {
