@@ -32,7 +32,7 @@ export class InputTelemetry extends MovablePanel {
     if (this.lines.length > 18) this.lines.shift();
   }
 
-  update(_delta: number, _time: number): void {
+  update(_delta?: number, _time?: number): void {
     try {
       this._doUpdate();
     } catch (err) {

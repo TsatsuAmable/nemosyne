@@ -68,7 +68,7 @@ describe('Sprint 10.2: AI Gesture Classifier & JIT Hints', () => {
     it('spawns 3D ghost hand hint in scene', () => {
       const pos = new THREE.Vector3(0, 1.5, -1);
       hintManager.showHint('pinchTogether', pos, 'Pinch Together to Filter');
-      expect(hintManager.activeHintGroup).not.be.null;
+      expect(hintManager.activeHintGroup).not.toBeNull();
       expect(scene.children.length).toBeGreaterThan(0);
     });
 

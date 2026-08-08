@@ -65,6 +65,7 @@ export class GuidedTour {
   _stepIndex: number;
   _active: boolean;
   _finished: boolean;
+  _stepLockUntil: number = 0;
 
   _cardGroup: THREE.Group;
   private _cardCanvas: HTMLCanvasElement;
@@ -94,6 +95,7 @@ export class GuidedTour {
 
     this._cardGroup = new THREE.Group();
     this._cardGroup.visible = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const parent = (options as any)?.analystAnchor ?? (engine as any)?.sceneComposer?.analystAnchor ?? this.cameraGroup;
     if (parent) parent.add(this._cardGroup);
 

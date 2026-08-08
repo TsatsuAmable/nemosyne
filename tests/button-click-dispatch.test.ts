@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { GuidedTour } from '../src/vr/ui/GuidedTour.ts';

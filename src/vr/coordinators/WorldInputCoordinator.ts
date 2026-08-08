@@ -100,7 +100,9 @@ export class WorldInputCoordinator {
 
     const confidence = typeof ctx.confidence === 'number' ? (ctx.confidence as number) : 0.85;
     const isMisfire = !!ctx.isMisfire;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof (this.engine as any)?.telemetry?.recordGestureConfidence === 'function') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.engine as any).telemetry.recordGestureConfidence(name, confidence, isMisfire);
     }
 

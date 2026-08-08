@@ -45,6 +45,10 @@ export class MovablePanel {
   isMinimized: boolean;
   minimizeBtn: { x: number; y: number; w: number; h: number };
 
+  scrollOffset: number;
+  totalContentHeight: number;
+  scrollbarWidth: number;
+
   private _matrix: THREE.Matrix4;
   private _quat: THREE.Quaternion;
 
@@ -153,7 +157,9 @@ export class MovablePanel {
     }
     this._clampDistance();
     this.render();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof (this.cameraGroup as any)?.engine?.telemetry?.recordPanelAction === 'function') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.cameraGroup as any).engine.telemetry.recordPanelAction(this.title, 'show');
     }
   }
@@ -162,7 +168,9 @@ export class MovablePanel {
     this.mesh.visible = false;
     this.isMinimized = true;
     if (this.onHide) this.onHide();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof (this.cameraGroup as any)?.engine?.telemetry?.recordPanelAction === 'function') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.cameraGroup as any).engine.telemetry.recordPanelAction(this.title, 'hide');
     }
   }
@@ -188,7 +196,9 @@ export class MovablePanel {
     const mb = this.minimizeBtn;
     if (cx >= mb.x && cx <= mb.x + mb.w && cy >= mb.y && cy <= mb.y + mb.h) {
       this.hide();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (typeof (this.cameraGroup as any)?.engine?.uiManager?.panelManager?.showLauncher === 'function') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (this.cameraGroup as any).engine.uiManager.panelManager.showLauncher();
       }
       return 'minimize';
@@ -197,7 +207,9 @@ export class MovablePanel {
     // Title bar drag.
     if (cy <= this.titleBarHeight) {
       this._startDrag(pointer, hits[0].point);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (typeof (this.cameraGroup as any)?.engine?.telemetry?.recordPanelAction === 'function') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (this.cameraGroup as any).engine.telemetry.recordPanelAction(this.title, 'drag-start');
       }
       return 'drag';
@@ -228,8 +240,10 @@ export class MovablePanel {
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof (this as any).handleContentClick === 'function') {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (this as any).handleContentClick(worldRaycaster);
       } catch (e) {
         console.error('[MovablePanel] handleContentClick error:', e);
@@ -359,6 +373,7 @@ export class MovablePanel {
     const maxScroll = Math.max(0, this.totalContentHeight - containerH);
     if (this.scrollOffset > maxScroll) this.scrollOffset = maxScroll;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof (this as any).renderContent === 'function') {
       try {
         if (typeof ctx?.save === 'function') ctx.save();
@@ -372,11 +387,12 @@ export class MovablePanel {
           ctx.translate(0, -this.scrollOffset);
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (this as any).renderContent(ctx, maxScroll > 0 ? w - this.scrollbarWidth - 10 : w, containerH);
         if (typeof ctx?.restore === 'function') ctx.restore();
-      } catch (_) {
+      } catch {
         if (typeof ctx?.restore === 'function') {
-          try { ctx.restore(); } catch (_) {}
+          try { ctx.restore(); } catch { /* ignore nested restore failure */ }
         }
       }
     }
@@ -502,6 +518,7 @@ export class MovablePanel {
     return String(sizeOrFont);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   remapColor(colorOrVal?: unknown, _extra?: unknown): any {
     if (typeof colorOrVal === 'number') {
       if (!this.highContrast) return colorOrVal;

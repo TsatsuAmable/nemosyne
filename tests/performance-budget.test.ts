@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PerformanceBudget, DEFAULT_BUDGETS } from '../src/utils/PerformanceBudget.ts';
 import { World } from '../src/vr/World.ts';

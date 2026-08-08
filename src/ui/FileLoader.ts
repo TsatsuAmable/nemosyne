@@ -237,8 +237,8 @@ export class FileLoaderUI {
           dataset = parseCSV(text, { name: file.name, maxRows: 100_000 });
         }
       }
-    } catch (err: any) {
-      this._status(`Error parsing file: ${err?.message ?? err}`);
+    } catch (err: unknown) {
+      this._status(`Error parsing file: ${err instanceof Error ? err.message : String(err)}`);
       this._clearSchema();
       return;
     }

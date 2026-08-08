@@ -27,7 +27,11 @@ export interface SpatialBookmark {
   timestamp: number;
 }
 
-export class SharedAnnotationManager extends THREE.Group {
+export interface AnnotationManagerEventMap extends THREE.Object3DEventMap {
+  remoteTourStep: THREE.Event & { detail: Record<string, unknown> };
+}
+
+export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventMap> {
   annotations: Map<string, SpatialAnnotation> = new Map();
   bookmarks: Map<string, SpatialBookmark> = new Map();
   annotationMeshes: Map<string, THREE.Group> = new Map();
@@ -177,7 +181,7 @@ export class SharedAnnotationManager extends THREE.Group {
       this.bookmarks.delete(data.id as string);
     } else if (topic === 'tour_step' && typeof data?.stepIndex === 'number') {
       this.currentTourStep = data.stepIndex;
-      this.dispatchEvent({ type: 'remoteTourStep', detail: data } as any);
+      this.dispatchEvent({ type: 'remoteTourStep', detail: data });
     }
   }
 

@@ -176,6 +176,7 @@ export class NetworkManager extends EventTarget {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   _onSignal({ from, data }: { from?: string; data?: any } = {}): void {
     if (!from || !data || typeof data !== 'object') return;
     if (data.type === 'offer') this._handleOffer(from, data);
@@ -276,6 +277,7 @@ export class NetworkManager extends EventTarget {
 
     channel.addEventListener('message', (event: MessageEvent) => {
       if (new Blob([event.data]).size > this.maxStateBytes) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let payload: any;
       try {
         payload = JSON.parse(event.data);

@@ -11,7 +11,9 @@ export interface SignallingSocket {
   readyState: number;
   send(data: string): void;
   close?(code?: number, reason?: string): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on?(event: string, listener: (...args: any[]) => void): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   addEventListener?(type: string, listener: (...args: any[]) => void): void;
 }
 
@@ -93,6 +95,7 @@ export function createRoomRegistry({
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onMessage = (raw: any) => {
       const rawStr = typeof raw === 'string' ? raw : (raw?.toString?.() ?? String(raw));
       if (Buffer.byteLength(rawStr, 'utf8') > maxMessageBytes) return;
@@ -125,6 +128,7 @@ export function createRoomRegistry({
       socket.on('message', onMessage);
       socket.on('close', onClose);
     } else if (typeof socket.addEventListener === 'function') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       socket.addEventListener('message', (evt: any) => onMessage(evt.data));
       socket.addEventListener('close', onClose);
     }

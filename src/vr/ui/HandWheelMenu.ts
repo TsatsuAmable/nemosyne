@@ -347,7 +347,9 @@ export class HandWheelMenu {
       const action = category?.items?.[actionIndex];
       if (action) {
         const name = action.label || action.id || 'menu-action';
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (typeof (this.engine as any)?.telemetry?.recordMenuAction === 'function') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (this.engine as any).telemetry.recordMenuAction(name);
         }
         this.feedback?.playSelect?.();
@@ -635,7 +637,9 @@ export class HandWheelMenu {
     
     if (typeof ctx?.beginPath === 'function') {
       ctx.beginPath();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (typeof (ctx as any).roundRect === 'function') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (ctx as any).roundRect(8, 8, width - 16, height - 16, 24);
       } else {
         ctx.rect(8, 8, width - 16, height - 16);

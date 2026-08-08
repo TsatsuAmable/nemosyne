@@ -457,9 +457,10 @@ export class World {
       analystAnchor: this.analystAnchor,
       feedback: this.engine.input.feedback,
       tour: FIRST_DATASET_TOUR,
-      resolveTarget: (target) => this._resolveTourTarget(target),
-      checkCondition: (step) => this._checkTourCondition(step),
+      resolveTarget: (target: string) => this._resolveTourTarget(target),
+      checkCondition: (step: TourStep) => this._checkTourCondition(step),
       onComplete: () => this.vrConsole?.log?.('log', ['Tour complete']),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
     this.engine.addUpdatable(this.guidedTour);
     this.engine.addHudObject(this.guidedTour);
@@ -534,7 +535,7 @@ export class World {
       case 'settings-panel':
         return this.settingsPanel?.mesh?.visible === true;
       case 'draco-transform':
-        return (this.dataOperationController?.analysisHistory?.entries?.length ?? 0) > 0;
+        return (this.dataOperationController?.analysisHistory?.length ?? 0) > 0;
       default:
         return false;
     }

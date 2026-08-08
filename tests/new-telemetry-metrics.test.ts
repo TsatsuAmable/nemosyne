@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from 'vitest';
 import { TelemetryCollector } from '../src/utils/Telemetry.ts';
 import { SelectionDispatcher } from '../src/vr/input/SelectionDispatcher.ts';

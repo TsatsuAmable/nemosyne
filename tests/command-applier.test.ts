@@ -70,7 +70,7 @@ describe('CommandApplier', () => {
     view.setUint16(4, COMMAND_VERSION, true);
     view.setUint16(6, 1, true);
 
-    let offset = 8;
+    const offset = 8;
     view.setUint8(offset, OP_UPDATE_TRANSFORM);
     view.setUint32(offset + 1, 42, true);
     view.setFloat32(offset + 5, 10.0, true); // pos x
@@ -126,7 +126,7 @@ describe('CommandApplier', () => {
     view.setUint16(4, COMMAND_VERSION, true);
     view.setUint16(6, 1, true);
 
-    let offset = 8;
+    const offset = 8;
     view.setUint8(offset, OP_SET_COLOR);
     view.setUint32(offset + 1, 15, true);
     view.setFloat32(offset + 5, 1.0, true); // r

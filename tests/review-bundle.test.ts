@@ -102,7 +102,7 @@ describe('buildReviewBundle', () => {
     const collector = makeCollector();
     const budget = makeBudget([]);
     const dataset = makeDataset();
-    const sessionSnapshot = { dataset: dataset, history: [] };
+    const sessionSnapshot = { dataset, history: [] };
 
     const bundle = buildReviewBundle({
       telemetryCollector: collector,

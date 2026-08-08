@@ -144,13 +144,17 @@ export class DesktopControls {
       this.engine.onResetView?.();
     }
     if (e.code === 'KeyM' || e.code === 'KeyL' || e.code === 'Backquote') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.engine as any).uiManager?.handWheelMenu?.toggle?.();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.engine as any).uiManager?.panelManager?.toggleLauncher?.();
     }
     if (e.code === 'KeyN' || e.code === 'ArrowRight') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.engine as any).guidedTour?.next?.();
     }
     if (e.code === 'KeyB' || e.code === 'ArrowLeft') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.engine as any).guidedTour?.previous?.();
     }
 
