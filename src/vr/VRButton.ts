@@ -4,8 +4,11 @@ import type * as THREE from 'three';
  * VR Entry & 3D Desktop Navigation Button.
  *
  * Meta Quest 3S / Quest Browser & Desktop PC Notes:
- * - When in WebXR supported browser / Meta Quest: Displays "ENTER VR" to enter immersive WebXR.
- * - When in Desktop PC browser: Displays "EXPLORE IN 3D" and enables desktop orbit/drag camera controls.
+ * - On Meta Quest / WebXR environments: Displays "ENTER VR" to trigger immersive WebXR session.
+ * - On Desktop PC browsers: Displays "EXPLORE IN 3D".
+ * - WebXR Security Requirement: WebXR APIs require a Secure Context (HTTPS or localhost/127.0.0.1).
+ *   If accessing from Meta Quest over local Wi-Fi IP (e.g. http://192.168.x.x:5173), WebXR is blocked
+ *   by Chromium unless accessed via HTTPS or Netlify/Vercel production URL.
  */
 export class NemosyneVRButton {
   static createButton(renderer: THREE.WebGLRenderer): HTMLButtonElement {
@@ -29,60 +32,84 @@ export class NemosyneVRButton {
       box-shadow: 0 0 12px rgba(0, 255, 204, 0.4);
       transition: all 0.2s ease;
     `;
-    button.textContent = 'EXPLORE IN 3D';
 
-    let isVRSupported = false;
+    const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const isQuestDevice = /Quest|OculusBrowser|WebXR/i.test(userAgent);
+    const isSecure = typeof window !== 'undefined' ? window.isSecureContext : true;
+    const hasXR = typeof navigator !== 'undefined' && 'xr' in navigator && (navigator as Navigator).xr;
 
-    if ('xr' in navigator && (navigator as Navigator).xr) {
+    if (isQuestDevice || hasXR) {
+      if (!isSecure && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+        button.textContent = 'ENTER VR (NEEDS HTTPS / NETLIFY)';
+        button.style.borderColor = '#ffcc00';
+        button.style.color = '#ffcc00';
+      } else {
+        button.textContent = 'ENTER VR';
+      }
+    } else {
+      button.textContent = 'EXPLORE IN 3D';
+    }
+
+    if (hasXR) {
       (navigator as Navigator).xr!.isSessionSupported('immersive-vr').then((supported) => {
         if (supported) {
-          isVRSupported = true;
           button.textContent = 'ENTER VR';
           button.style.borderColor = '#00ffcc';
           button.style.color = '#00ffcc';
         }
+      }).catch((err) => {
+        console.warn('[NemosyneVRButton] isSessionSupported error:', err);
       });
     }
 
-    button.addEventListener('click', () => {
-      if (isVRSupported) {
-        if (renderer.xr.isPresenting) return;
+    const enterVRSession = () => {
+      if (renderer.xr.isPresenting) return;
 
-        const sessionInit: { requiredFeatures: string[]; optionalFeatures: string[] } = {
-          requiredFeatures: ['local-floor'],
-          optionalFeatures: ['hand-tracking'],
-        };
+      const sessionInit: { requiredFeatures: string[]; optionalFeatures: string[] } = {
+        requiredFeatures: ['local-floor'],
+        optionalFeatures: ['hand-tracking'],
+      };
 
-        (navigator as Navigator)
-          .xr!.requestSession('immersive-vr', sessionInit)
-          .then(async (session) => {
-            try {
-              const gl = renderer.getContext();
-              if (gl.makeXRCompatible) {
-                await gl.makeXRCompatible();
-              }
+      if (!hasXR) {
+        alert('WebXR is disabled because this page is served over unencrypted HTTP (http://' + window.location.host + '). Please open the HTTPS production URL (e.g. Netlify/Vercel) or set up HTTPS locally.');
+        return;
+      }
 
-              if (typeof XRWebGLLayer === 'undefined') {
-                throw new Error('XRWebGLLayer is not supported by this browser');
-              }
-              const xrLayer = new XRWebGLLayer(session, gl);
-              await session.updateRenderState({ baseLayer: xrLayer });
-
-              await renderer.xr.setSession(session);
-              button.textContent = 'IN VR';
-
-              session.addEventListener('end', () => {
-                button.textContent = 'ENTER VR';
-              });
-            } catch (setupErr) {
-              console.error('[NemosyneVRButton] XR setup failed:', setupErr);
-              button.textContent = `VR SETUP ERROR: ${(setupErr as Error).message}`;
+      (navigator as Navigator)
+        .xr!.requestSession('immersive-vr', sessionInit)
+        .then(async (session) => {
+          try {
+            const gl = renderer.getContext();
+            if (gl.makeXRCompatible) {
+              await gl.makeXRCompatible();
             }
-          })
-          .catch((err) => {
-            console.error('[NemosyneVRButton] session request failed:', err);
-            button.textContent = 'VR ERROR';
-          });
+
+            if (typeof XRWebGLLayer === 'undefined') {
+              throw new Error('XRWebGLLayer is not supported by this browser');
+            }
+            const xrLayer = new XRWebGLLayer(session, gl);
+            await session.updateRenderState({ baseLayer: xrLayer });
+
+            await renderer.xr.setSession(session);
+            button.textContent = 'IN VR';
+
+            session.addEventListener('end', () => {
+              button.textContent = 'ENTER VR';
+            });
+          } catch (setupErr) {
+            console.error('[NemosyneVRButton] XR setup failed:', setupErr);
+            button.textContent = `VR SETUP ERROR: ${(setupErr as Error).message}`;
+          }
+        })
+        .catch((err) => {
+          console.error('[NemosyneVRButton] session request failed:', err);
+          button.textContent = `VR ERROR: ${(err as Error).message || 'Request Failed'}`;
+        });
+    };
+
+    button.addEventListener('click', () => {
+      if (isQuestDevice || hasXR || button.textContent.includes('ENTER VR')) {
+        enterVRSession();
       } else {
         // Desktop 3D Navigation Mode
         button.textContent = '3D MODE ACTIVE';
