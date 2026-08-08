@@ -351,6 +351,20 @@ export class MovablePanel {
     pos.multiplyScalar(target / dist);
   }
 
+  _scaleFont(size: number, weight = 'normal', font = '"Courier New", Courier, monospace'): string {
+    const scaled = Math.round(size * this.textScale);
+    return `${weight} ${scaled}px ${font}`;
+  }
+
+  remapColor(color: string): string {
+    if (!this.highContrast) return color;
+    if (color === '#00ffcc' || color === '#00ccaa') return '#00ffff';
+    if (color === '#ff0055' || color === '#ff3366') return '#ff3300';
+    if (color === '#0b1626') return '#000000';
+    if (color === '#e0f7ff') return '#ffffff';
+    return color;
+  }
+
   _createMockContext(): CanvasRenderingContext2D {
     return {
       canvas: this.canvas,
