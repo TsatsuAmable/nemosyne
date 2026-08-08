@@ -281,9 +281,10 @@ export class HandWheelMenu {
    * Record the current pointer angle relative to the wheel center.
    */
   _updatePointerAngle(): void {
+    if (!this.group || !this.engine || !this.engine.camera) return;
     this.group.updateMatrixWorld();
-    this._raycaster.ray.origin.copy(this.engine.camera!.position);
-    this.engine.camera!.getWorldDirection(this._raycaster.ray.direction);
+    this._raycaster.ray.origin.copy(this.engine.camera.position);
+    this.engine.camera.getWorldDirection(this._raycaster.ray.direction);
     this._raycaster.ray.applyMatrix4(new THREE.Matrix4().copy(this.group.matrixWorld).invert());
     this._pointerAngle = Math.atan2(
       this._raycaster.ray.direction.y,
@@ -450,9 +451,10 @@ export class HandWheelMenu {
 
   _updateHover(): void {
     // Raycast in the menu's local space for stable hit testing.
+    if (!this.group || !this.engine || !this.engine.camera) return;
     this.group.updateMatrixWorld();
-    this._raycaster.ray.origin.copy(this.engine.camera!.position);
-    this.engine.camera!.getWorldDirection(this._raycaster.ray.direction);
+    this._raycaster.ray.origin.copy(this.engine.camera.position);
+    this.engine.camera.getWorldDirection(this._raycaster.ray.direction);
     this._raycaster.ray.applyMatrix4(new THREE.Matrix4().copy(this.group.matrixWorld).invert());
 
     const allMeshes = [...this._categoryMeshes, ...this._actionMeshes];

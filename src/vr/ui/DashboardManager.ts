@@ -519,8 +519,9 @@ export class DashboardManager {
   }
 
   private _panelCenterInWallLocal(panel: PanelLike): THREE.Vector3 {
-    panel.mesh!.updateMatrixWorld(true);
-    const world = this._tempWorld.setFromMatrixPosition(panel.mesh!.matrixWorld);
+    if (!panel || !panel.mesh) return new THREE.Vector3();
+    panel.mesh.updateMatrixWorld(true);
+    const world = this._tempWorld.setFromMatrixPosition(panel.mesh.matrixWorld);
     return this.wallGroup.worldToLocal(world);
   }
 

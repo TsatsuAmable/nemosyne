@@ -418,6 +418,7 @@ export class MovablePanel {
       return worldRay.origin.clone().add(worldRay.direction.clone().multiplyScalar(t));
     }
 
+    if (!this.parentGroup) return null;
     this.parentGroup.updateMatrixWorld(true);
     const rigOrigin = new THREE.Vector3().setFromMatrixPosition(this.parentGroup.matrixWorld);
     const rigDir = new THREE.Vector3(0, 0, -1).applyQuaternion(
