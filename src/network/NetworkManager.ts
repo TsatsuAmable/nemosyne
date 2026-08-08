@@ -109,6 +109,10 @@ export class NetworkManager extends EventTarget {
     this.setLocalState(message);
   }
 
+  broadcastUserTelemetry(telemetry: Record<string, unknown>): void {
+    this.broadcast({ type: 'userTelemetry', telemetry, peerId: this.peerId });
+  }
+
   _onSignal({ from, data }: { from?: string; data?: any } = {}): void {
     if (!from || !data || typeof data !== 'object') return;
     if (data.type === 'offer') this._handleOffer(from, data);
