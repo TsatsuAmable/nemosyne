@@ -20,11 +20,11 @@ import type { DatasetJSON, OperationSpec } from '../data/types.js';
  * by capability flags, not by TypeScript types.
  */
 interface WasmInitInput { module_or_path?: string | URL | Request | Response | BufferSource | WebAssembly.Module; }
-interface WasmModule {
-  default(wasmUrl?: string | URL | WasmInitInput): Promise<void>;
+/** Mirrors the InitOutput interface from wasm-bindgen --target web. */
+interface WasmInitOutput {
+  memory: WebAssembly.Memory;
   init(seed: bigint): number;
   ping(): number;
-  memory(): WebAssembly.Memory;
   alloc(len: number): number;
   dealloc(ptr: number, len: number): void;
   fill_pattern(ptr: number, len: number): number;
@@ -43,12 +43,17 @@ interface WasmModule {
   data_operation(handle: number, ptr: number, len: number): number;
   [key: string]: unknown;
 }
+interface WasmModule {
+  default(wasmUrl?: string | URL | WasmInitInput): Promise<void>;
+  [key: string]: unknown;
+}
 
 interface AllocResult {
   ptr: number;
   len: number;
 }
 
+let wasmInstance: WasmInitOutput | null = null;
 let wasmModule: WasmModule | null = null;
 let memoryView: DataView | null = null;
 
@@ -81,56 +86,62 @@ export async function initRuntime(wasmUrl?: string | URL): Promise<WasmModule> {
   const wasmModuleUrl = '/wasm/pkg/nemosyne_wasm.js';
   const mod = (await import(/* @vite-ignore */ wasmModuleUrl)) as WasmModule;
 
-  // wasm-pack --target web exports an `init` function that fetches the binary.
-  // Use the object-parameter form to avoid the "deprecated positional arg" warning.
+  // wasm-pack --target web exports an `init` (default) function that returns
+  // an InitOutput with `memory` as a plain property, not a callable.
+  // The WasmModule interface declares it as Promise<void> for external compat;
+  // cast to WasmInitOutput to access the instance exports.
   const targetWasmUrl = typeof wasmUrl === 'string' ? wasmUrl : '/wasm/pkg/nemosyne_wasm_bg.wasm';
-  await mod.default({ module_or_path: targetWasmUrl });
+  // The wasm-bindgen default() returns InitOutput (memory + exports). The
+  // WasmModule interface declares it as Promise<void> for external compatibility;
+  // double-cast through unknown to access the typed instance properties.
+  wasmInstance = (await (mod.default as unknown as (i: WasmInitInput) => Promise<WasmInitOutput>)(
+    { module_or_path: targetWasmUrl }
+  ));
   wasmModule = mod;
   refreshMemoryView();
 
   // Seed the runtime. Phase 0 returns a sentinel handle of 1.
-  const handle = wasmModule.init(0x1234_5678_9abc_def0n);
+  const handle = wasmInstance.init(0x1234_5678_9abc_def0n);
   if (handle !== 1) {
     throw new Error(`Unexpected runtime handle: ${handle}`);
   }
 
   // Verify the health-check ABI.
-  if (wasmModule.ping() !== 42) {
+  if (wasmInstance.ping() !== 42) {
     throw new Error('WASM ping health check failed');
   }
 
-  return wasmModule;
+  return mod;
 }
 
 /**
  * Refresh the cached memory view after WASM memory has grown.
  */
 export function refreshMemoryView(): void {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  const memory = wasmModule.memory();
-  memoryView = new DataView(memory.buffer);
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  // `memory` is a WebAssembly.Memory property on InitOutput, not a function.
+  memoryView = new DataView(wasmInstance.memory.buffer);
 }
 
 /**
  * @returns The shared WebAssembly memory buffer.
  */
 export function memory(): WebAssembly.Memory {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  return wasmModule.memory();
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  return wasmInstance.memory;
 }
 
 /**
  * Copy a Uint8Array into WASM memory and return the allocated offset.
  */
 export function allocBytes(bytes: Uint8Array): AllocResult {
-  if (!wasmModule) throw new Error('Runtime not initialised');
+  if (!wasmInstance) throw new Error('Runtime not initialised');
   const len = bytes.length;
-  const ptr = wasmModule.alloc(len);
+  const ptr = wasmInstance.alloc(len);
   if (ptr === 0 && len > 0) {
     throw new Error('WASM alloc returned 0');
   }
-  const memory = wasmModule.memory();
-  new Uint8Array(memory.buffer, ptr, len).set(bytes);
+  new Uint8Array(wasmInstance.memory.buffer, ptr, len).set(bytes);
   return { ptr, len };
 }
 
@@ -138,17 +149,16 @@ export function allocBytes(bytes: Uint8Array): AllocResult {
  * Release a previous `allocBytes` allocation.
  */
 export function deallocBytes(ptr: number, len: number): void {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  wasmModule.dealloc(ptr, len);
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  wasmInstance.dealloc(ptr, len);
 }
 
 /**
  * Read `len` bytes from WASM memory starting at `ptr`.
  */
 export function readBytes(ptr: number, len: number): Uint8Array {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  const memory = wasmModule.memory();
-  return new Uint8Array(memory.buffer, ptr, len).slice();
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  return new Uint8Array(wasmInstance.memory.buffer, ptr, len).slice();
 }
 
 /**
@@ -182,8 +192,8 @@ export function readU32(ptr: number): number {
  * @returns Number of bytes in the current frame command buffer.
  */
 export function update(deltaMs: number, timeMs: number): number {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  return wasmModule.update(deltaMs, timeMs);
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  return wasmInstance.update(deltaMs, timeMs);
 }
 
 /**
@@ -192,12 +202,12 @@ export function update(deltaMs: number, timeMs: number): number {
  * @returns Dataset handle, or 0 on failure.
  */
 export function loadCsv(bytes: Uint8Array): number {
-  if (!wasmModule) throw new Error('Runtime not initialised');
+  if (!wasmInstance) throw new Error('Runtime not initialised');
   const { ptr, len } = allocBytes(bytes);
   try {
-    return wasmModule.data_load_csv(ptr, len);
+    return wasmInstance.data_load_csv(ptr, len);
   } finally {
-    wasmModule.dealloc(ptr, len);
+    wasmInstance.dealloc(ptr, len);
   }
 }
 
@@ -207,12 +217,12 @@ export function loadCsv(bytes: Uint8Array): number {
  * @returns Dataset handle, or 0 on failure.
  */
 export function loadJson(bytes: Uint8Array): number {
-  if (!wasmModule) throw new Error('Runtime not initialised');
+  if (!wasmInstance) throw new Error('Runtime not initialised');
   const { ptr, len } = allocBytes(bytes);
   try {
-    return wasmModule.data_load_json(ptr, len);
+    return wasmInstance.data_load_json(ptr, len);
   } finally {
-    wasmModule.dealloc(ptr, len);
+    wasmInstance.dealloc(ptr, len);
   }
 }
 
@@ -222,13 +232,13 @@ export function loadJson(bytes: Uint8Array): number {
  * @returns Dataset handle, or 0 on failure / unknown key.
  */
 export function loadSample(key: string): number {
-  if (!wasmModule) throw new Error('Runtime not initialised');
+  if (!wasmInstance) throw new Error('Runtime not initialised');
   const bytes = new TextEncoder().encode(key);
   const { ptr, len } = allocBytes(bytes);
   try {
-    return wasmModule.data_load_sample(ptr, len);
+    return wasmInstance.data_load_sample(ptr, len);
   } finally {
-    wasmModule.dealloc(ptr, len);
+    wasmInstance.dealloc(ptr, len);
   }
 }
 
@@ -236,15 +246,15 @@ export function loadSample(key: string): number {
  * Return the list of sample dataset keys supported by the Rust runtime.
  */
 export function sampleKeys(): string[] {
-  if (!wasmModule) throw new Error('Runtime not initialised');
+  if (!wasmInstance) throw new Error('Runtime not initialised');
   const len = 256;
-  const ptr = wasmModule.alloc(len);
+  const ptr = wasmInstance.alloc(len);
   try {
-    const written = wasmModule.data_sample_keys(ptr, len);
+    const written = wasmInstance.data_sample_keys(ptr, len);
     const s = readString(ptr, written);
     return s.split(',').filter(Boolean);
   } finally {
-    wasmModule.dealloc(ptr, len);
+    wasmInstance.dealloc(ptr, len);
   }
 }
 
@@ -252,24 +262,24 @@ export function sampleKeys(): string[] {
  * @returns The number of rows in a dataset, or 0 for invalid handles.
  */
 export function datasetRowCount(handle: number): number {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  return wasmModule.dataset_row_count(handle);
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  return wasmInstance.dataset_row_count(handle);
 }
 
 /**
  * @returns The number of columns in a dataset, or 0 for invalid handles.
  */
 export function datasetColumnCount(handle: number): number {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  return wasmModule.dataset_column_count(handle);
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  return wasmInstance.dataset_column_count(handle);
 }
 
 /**
  * Release a dataset handle.
  */
 export function destroyDataset(handle: number): void {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  wasmModule.dataset_destroy(handle);
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  wasmInstance.dataset_destroy(handle);
 }
 
 /**
@@ -277,7 +287,7 @@ export function destroyDataset(handle: number): void {
  * JS object matching `src/data/Dataset.ts` `toJSON()`.
  */
 export function parseDatasetBytes(bytes: Uint8Array, ext: 'csv' | 'json'): DatasetJSON | null {
-  if (!wasmModule) throw new Error('Runtime not initialised');
+  if (!wasmInstance) throw new Error('Runtime not initialised');
   const handle = ext === 'csv' ? loadCsv(bytes) : loadJson(bytes);
   if (handle === 0) return null;
   try {
@@ -292,18 +302,18 @@ export function parseDatasetBytes(bytes: Uint8Array, ext: 'csv' | 'json'): Datas
  * `src/data/Dataset.ts` `toJSON()`.
  */
 export function getDatasetJson(handle: number): DatasetJSON | null {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  const required = wasmModule.dataset_to_json(handle, 0, 0);
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  const required = wasmInstance.dataset_to_json(handle, 0, 0);
   if (required === 0) {
     return null;
   }
-  const ptr = wasmModule.alloc(required);
+  const ptr = wasmInstance.alloc(required);
   try {
-    const written = wasmModule.dataset_to_json(handle, ptr, required);
+    const written = wasmInstance.dataset_to_json(handle, ptr, required);
     const json = readString(ptr, written);
     return JSON.parse(json) as DatasetJSON;
   } finally {
-    wasmModule.dealloc(ptr, required);
+    wasmInstance.dealloc(ptr, required);
   }
 }
 
@@ -312,14 +322,14 @@ export function getDatasetJson(handle: number): DatasetJSON | null {
  * dataset handle. Returns `0` on failure.
  */
 export function loadDatasetJson(obj: DatasetJSON): number {
-  if (!wasmModule) throw new Error('Runtime not initialised');
+  if (!wasmInstance) throw new Error('Runtime not initialised');
   const json = JSON.stringify(obj);
   const bytes = new TextEncoder().encode(json);
   const { ptr, len } = allocBytes(bytes);
   try {
-    return wasmModule.data_load_dataset_json(ptr, len);
+    return wasmInstance.data_load_dataset_json(ptr, len);
   } finally {
-    wasmModule.dealloc(ptr, len);
+    wasmInstance.dealloc(ptr, len);
   }
 }
 
@@ -328,14 +338,14 @@ export function loadDatasetJson(obj: DatasetJSON): number {
  * dataset handle. Returns `0` on failure.
  */
 export function runOperation(handle: number, op: OperationSpec): number {
-  if (!wasmModule) throw new Error('Runtime not initialised');
+  if (!wasmInstance) throw new Error('Runtime not initialised');
   const json = JSON.stringify(op);
   const bytes = new TextEncoder().encode(json);
   const { ptr, len } = allocBytes(bytes);
   try {
-    return wasmModule.data_operation(handle, ptr, len);
+    return wasmInstance.data_operation(handle, ptr, len);
   } finally {
-    wasmModule.dealloc(ptr, len);
+    wasmInstance.dealloc(ptr, len);
   }
 }
 
@@ -344,7 +354,7 @@ export function runOperation(handle: number, op: OperationSpec): number {
  * layer and return the resulting JS dataset object. Returns `null` on failure.
  */
 export function executeOperation(datasetObj: DatasetJSON, op: OperationSpec): DatasetJSON | null {
-  if (!wasmModule) throw new Error('Runtime not initialised');
+  if (!wasmInstance) throw new Error('Runtime not initialised');
   const inputHandle = loadDatasetJson(datasetObj);
   if (inputHandle === 0) return null;
   const outputHandle = runOperation(inputHandle, op);
@@ -362,27 +372,27 @@ export function executeOperation(datasetObj: DatasetJSON, op: OperationSpec): Da
  * operations is exposed; this keeps the host surface narrow.
  */
 export function call(name: string, ...args: unknown[]): unknown {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  const fn = wasmModule[name];
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  const fn = wasmInstance[name as keyof WasmInitOutput];
   if (typeof fn !== 'function') {
     throw new Error(`Unknown WASM export: ${name}`);
   }
-  return fn(...args);
+  return (fn as (...a: unknown[]) => unknown)(...args);
 }
 
 /**
  * @returns Whether the WASM runtime has been initialised.
  */
 export function isReady(): boolean {
-  return wasmModule !== null;
+  return wasmInstance !== null;
 }
 
 /**
  * Return the enabled Rust-side capability set.
  */
 export function capabilities(): number {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  return wasmModule.capabilities();
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  return wasmInstance.capabilities();
 }
 
 /**
@@ -390,11 +400,11 @@ export function capabilities(): number {
  * and return the bytes so tests can verify zero-copy reads.
  */
 export function debugFillPattern(len: number): Uint8Array {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  const ptr = wasmModule.alloc(len);
-  wasmModule.fill_pattern(ptr, len);
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  const ptr = wasmInstance.alloc(len);
+  wasmInstance.fill_pattern(ptr, len);
   const bytes = readBytes(ptr, len);
-  wasmModule.dealloc(ptr, len);
+  wasmInstance.dealloc(ptr, len);
   return bytes;
 }
 
@@ -402,16 +412,16 @@ export function debugFillPattern(len: number): Uint8Array {
   * Return the WASM command buffer pointer.
   */
 export function commandBufferPtr(): number {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  return wasmModule.command_buffer_ptr();
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  return wasmInstance.command_buffer_ptr();
 }
 
 /**
   * Read the raw bytes of the current WASM frame command buffer.
   */
 export function getCommandBufferBytes(byteLength: number): Uint8Array {
-  if (!wasmModule) throw new Error('Runtime not initialised');
-  const ptr = wasmModule.command_buffer_ptr();
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  const ptr = wasmInstance.command_buffer_ptr();
   if (ptr === 0 || byteLength === 0) return new Uint8Array(0);
   return readBytes(ptr, byteLength);
 }
