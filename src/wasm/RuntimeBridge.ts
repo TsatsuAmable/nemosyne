@@ -67,10 +67,16 @@ let memoryView: DataView | null = null;
 export async function initRuntime(wasmUrl?: string | URL): Promise<WasmModule> {
   if (wasmModule) return wasmModule;
 
-  // Absolute path is preserved by Vite as an external runtime fetch; it points
-  // at the wasm-pack output served from the project root in dev.
-  // @vite-ignore prevents Vite from trying to resolve the optional wasm-pack
-  // output at transform time, so tests and production builds work without it.
+  // Check if WASM package exists before dynamic import to avoid browser 404 network warnings
+  try {
+    const check = await fetch('/wasm/pkg/nemosyne_wasm.js', { method: 'HEAD' });
+    if (!check.ok) {
+      throw new Error('WASM module package not found (run npm run dev:wasm to enable WASM)');
+    }
+  } catch (err) {
+    throw new Error(`WASM package unavailable: ${(err as Error).message}`);
+  }
+
   const wasmModuleUrl = '/wasm/pkg/nemosyne_wasm.js';
   const mod = (await import(/* @vite-ignore */ wasmModuleUrl)) as WasmModule;
 
