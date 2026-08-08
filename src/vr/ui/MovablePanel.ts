@@ -109,7 +109,9 @@ export class MovablePanel {
     this.mesh = new THREE.Mesh(geom, this.material);
     this.mesh.position.set(...position);
     this.mesh.rotation.x = -tilt;
-    if (this.parentGroup) this.parentGroup.add(this.mesh);
+    if (this.parentGroup && typeof this.parentGroup.add === 'function') {
+      this.parentGroup.add(this.mesh);
+    }
 
     this.defaultPosition = new THREE.Vector3(...position);
 

@@ -128,7 +128,9 @@ export class DashboardManager {
       // Rotate 180° so the wall's +Z faces the user (camera faces -Z).
       this.wallGroup.rotation.y = Math.PI;
     }
-    if (this.analystAnchor) this.analystAnchor.add(this.wallGroup);
+    if (this.analystAnchor && typeof this.analystAnchor.add === 'function') {
+      this.analystAnchor.add(this.wallGroup);
+    }
 
     this.panels = [];
     this.zones = [];
@@ -452,6 +454,7 @@ export class DashboardManager {
   }
 
   private _snapPanelToZone(panel: PanelLike, zoneIndex: number): void {
+    if (!panel || !panel.mesh) return;
     const zone = this.zones[zoneIndex];
     if (!zone) return;
 
@@ -528,7 +531,7 @@ export class DashboardManager {
   private _wallLocalToCameraGroupLocal(v: THREE.Vector3): THREE.Vector3 {
     this.wallGroup.updateMatrixWorld(true);
     const world = v.clone().applyMatrix4(this.wallGroup.matrixWorld);
-    if (!this.cameraGroup) return world;
+    if (!this.cameraGroup || typeof this.cameraGroup.updateMatrixWorld !== 'function') return world;
     this.cameraGroup.updateMatrixWorld(true);
     return world.applyMatrix4(new THREE.Matrix4().copy(this.cameraGroup.matrixWorld).invert());
   }
