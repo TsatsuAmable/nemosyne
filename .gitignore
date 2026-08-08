@@ -6,5 +6,10 @@ nemosyne/
 wasm/pkg/
 target/
 Cargo.lock
-.claude/worktrees/
-
+.claude/
+.gemini/
+.env
+.env.*
+*.secret
+*.pem
+*.key
