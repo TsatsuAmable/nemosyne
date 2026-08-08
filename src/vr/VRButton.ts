@@ -5,10 +5,8 @@ import type * as THREE from 'three';
  *
  * Meta Quest 3S / Quest Browser & Desktop PC Notes:
  * - On Meta Quest / WebXR environments: Displays "ENTER VR" to trigger immersive WebXR session.
- * - On Desktop PC browsers: Displays "EXPLORE IN 3D".
+ * - On Desktop PC browsers: Displays "EXPLORE IN 3D" or "VR NOT SUPPORTED".
  * - WebXR Security Requirement: WebXR APIs require a Secure Context (HTTPS or localhost/127.0.0.1).
- *   If accessing from Meta Quest over local Wi-Fi IP (e.g. http://192.168.x.x:5173), WebXR is blocked
- *   by Chromium unless accessed via HTTPS or Netlify/Vercel production URL.
  */
 export class NemosyneVRButton {
   static createButton(renderer: THREE.WebGLRenderer): HTMLButtonElement {
@@ -35,30 +33,30 @@ export class NemosyneVRButton {
 
     const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
     const isQuestDevice = /Quest|OculusBrowser|WebXR/i.test(userAgent);
-    const isSecure = typeof window !== 'undefined' ? window.isSecureContext : true;
     const hasXR = typeof navigator !== 'undefined' && 'xr' in navigator && (navigator as Navigator).xr;
 
-    if (isQuestDevice || hasXR) {
-      if (!isSecure && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
-        button.textContent = 'ENTER VR (NEEDS HTTPS / NETLIFY)';
-        button.style.borderColor = '#ffcc00';
-        button.style.color = '#ffcc00';
-      } else {
-        button.textContent = 'ENTER VR';
-      }
-    } else {
-      button.textContent = 'EXPLORE IN 3D';
+    if (!hasXR && !isQuestDevice) {
+      button.textContent = 'VR NOT SUPPORTED';
+      button.disabled = true;
+      return button;
     }
+
+    button.textContent = 'ENTER VR';
 
     if (hasXR) {
       (navigator as Navigator).xr!.isSessionSupported('immersive-vr').then((supported) => {
         if (supported) {
           button.textContent = 'ENTER VR';
-          button.style.borderColor = '#00ffcc';
-          button.style.color = '#00ffcc';
+          button.disabled = false;
+        } else if (!isQuestDevice) {
+          button.textContent = 'VR NOT SUPPORTED';
+          button.disabled = true;
         }
-      }).catch((err) => {
-        console.warn('[NemosyneVRButton] isSessionSupported error:', err);
+      }).catch(() => {
+        if (!isQuestDevice) {
+          button.textContent = 'VR NOT SUPPORTED';
+          button.disabled = true;
+        }
       });
     }
 
@@ -111,7 +109,6 @@ export class NemosyneVRButton {
       if (isQuestDevice || hasXR || button.textContent.includes('ENTER VR')) {
         enterVRSession();
       } else {
-        // Desktop 3D Navigation Mode
         button.textContent = '3D MODE ACTIVE';
         button.style.background = 'rgba(0, 255, 204, 0.2)';
         setTimeout(() => {
