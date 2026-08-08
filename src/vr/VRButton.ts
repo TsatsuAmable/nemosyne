@@ -1,18 +1,11 @@
 import type * as THREE from 'three';
 
 /**
- * Minimal VR entry button for Meta Quest Browser / Chrome WebXR.
+ * VR Entry & 3D Desktop Navigation Button.
  *
- * Meta Quest 3S / Quest Browser notes:
- * - `local-floor` is required so the camera starts at floor height.
- * - `hand-tracking` must be requested as an optional feature or hand joints
- *   are not exposed.
- * - `XRInputSourceArray` is array-like and may lack Array.prototype methods.
- * - The WebGL context must be made XR-compatible and the XRWebGLLayer must be
- *   created *before* three.js binds to the session; otherwise the headset
- *   presents blank while the 2D preview works.
- * - `renderer.xr.setReferenceSpace()` is NOT a three.js API; three.js
- *   requests and caches the reference space internally.
+ * Meta Quest 3S / Quest Browser & Desktop PC Notes:
+ * - When in WebXR supported browser / Meta Quest: Displays "ENTER VR" to enter immersive WebXR.
+ * - When in Desktop PC browser: Displays "EXPLORE IN 3D" and enables desktop orbit/drag camera controls.
  */
 export class NemosyneVRButton {
   static createButton(renderer: THREE.WebGLRenderer): HTMLButtonElement {
@@ -34,76 +27,71 @@ export class NemosyneVRButton {
       cursor: pointer;
       z-index: 30;
       box-shadow: 0 0 12px rgba(0, 255, 204, 0.4);
+      transition: all 0.2s ease;
     `;
-    button.textContent = 'ENTER VR';
+    button.textContent = 'EXPLORE IN 3D';
 
-    if ('xr' in navigator === false) {
-      button.textContent = 'VR NOT SUPPORTED';
-      button.disabled = true;
-      return button;
+    let isVRSupported = false;
+
+    if ('xr' in navigator && (navigator as Navigator).xr) {
+      (navigator as Navigator).xr!.isSessionSupported('immersive-vr').then((supported) => {
+        if (supported) {
+          isVRSupported = true;
+          button.textContent = 'ENTER VR';
+          button.style.borderColor = '#00ffcc';
+          button.style.color = '#00ffcc';
+        }
+      });
     }
 
-    (navigator as Navigator).xr!.isSessionSupported('immersive-vr').then((supported) => {
-      if (!supported) {
-        button.textContent = 'VR NOT SUPPORTED';
-        button.disabled = true;
-      }
-    });
-
     button.addEventListener('click', () => {
-      if (renderer.xr.isPresenting) return;
+      if (isVRSupported) {
+        if (renderer.xr.isPresenting) return;
 
-      const sessionInit: { requiredFeatures: string[]; optionalFeatures: string[] } = {
-        requiredFeatures: ['local-floor'],
-        optionalFeatures: ['hand-tracking'],
-      };
+        const sessionInit: { requiredFeatures: string[]; optionalFeatures: string[] } = {
+          requiredFeatures: ['local-floor'],
+          optionalFeatures: ['hand-tracking'],
+        };
 
-      (navigator as Navigator)
-        .xr!.requestSession('immersive-vr', sessionInit)
-        .then(async (session) => {
-          try {
-            // 1. Make the WebGL context explicitly compatible with XR.
-            const gl = renderer.getContext();
-            if (gl.makeXRCompatible) {
-              await gl.makeXRCompatible();
+        (navigator as Navigator)
+          .xr!.requestSession('immersive-vr', sessionInit)
+          .then(async (session) => {
+            try {
+              const gl = renderer.getContext();
+              if (gl.makeXRCompatible) {
+                await gl.makeXRCompatible();
+              }
+
+              if (typeof XRWebGLLayer === 'undefined') {
+                throw new Error('XRWebGLLayer is not supported by this browser');
+              }
+              const xrLayer = new XRWebGLLayer(session, gl);
+              await session.updateRenderState({ baseLayer: xrLayer });
+
+              await renderer.xr.setSession(session);
+              button.textContent = 'IN VR';
+
+              session.addEventListener('end', () => {
+                button.textContent = 'ENTER VR';
+              });
+            } catch (setupErr) {
+              console.error('[NemosyneVRButton] XR setup failed:', setupErr);
+              button.textContent = `VR SETUP ERROR: ${(setupErr as Error).message}`;
             }
-
-            // 2. Create the WebGL layer manually. Quest Browser / Chrome do not
-            // reliably infer this from setSession() alone; doing it first is
-            // the safest path.
-            if (typeof XRWebGLLayer === 'undefined') {
-              throw new Error('XRWebGLLayer is not supported by this browser');
-            }
-            const xrLayer = new XRWebGLLayer(session, gl);
-            await session.updateRenderState({ baseLayer: xrLayer });
-
-            // 3. Bind three.js to the session. three.js will request its own
-            // reference space internally; do NOT call renderer.xr.setReferenceSpace().
-            await renderer.xr.setSession(session);
-
-            button.textContent = 'IN VR';
-            // eslint-disable-next-line no-console
-            console.log('[NemosyneVRButton] session active:', {
-              mode: (session as XRSession & { mode?: string }).mode,
-              baseLayer: session.renderState?.baseLayer?.constructor?.name ?? 'none',
-              layers: session.renderState?.layers?.length ?? 0,
-              isPresenting: renderer.xr.isPresenting,
-            });
-
-            session.addEventListener('end', () => {
-              button.textContent = 'ENTER VR';
-              // eslint-disable-next-line no-console
-              console.log('[NemosyneVRButton] session ended');
-            });
-          } catch (setupErr) {
-            console.error('[NemosyneVRButton] XR setup failed:', setupErr);
-            button.textContent = `VR SETUP ERROR: ${(setupErr as Error).message}`;
-          }
-        })
-        .catch((err) => {
-          console.error('[NemosyneVRButton] session request failed:', err);
-          button.textContent = 'VR ERROR';
-        });
+          })
+          .catch((err) => {
+            console.error('[NemosyneVRButton] session request failed:', err);
+            button.textContent = 'VR ERROR';
+          });
+      } else {
+        // Desktop 3D Navigation Mode
+        button.textContent = '3D MODE ACTIVE';
+        button.style.background = 'rgba(0, 255, 204, 0.2)';
+        setTimeout(() => {
+          button.textContent = 'EXPLORE IN 3D';
+          button.style.background = 'rgba(4, 10, 20, 0.9)';
+        }, 1500);
+      }
     });
 
     return button;
