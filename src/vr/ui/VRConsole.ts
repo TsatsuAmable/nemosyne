@@ -79,7 +79,8 @@ export class VRConsole extends MovablePanel {
     const topPad = 10;
     let y = topPad + lineH;
 
-    for (const line of this.lines) {
+    const lines = this.lines ?? [];
+    for (const line of lines) {
       switch (line.level) {
         case 'error':
           ctx.fillStyle = '#ff5555';

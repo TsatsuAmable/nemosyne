@@ -289,10 +289,14 @@ export class MovablePanel {
     ctx.textAlign = 'left';
 
     if (typeof (this as any).renderContent === 'function') {
-      ctx.save();
-      ctx.translate(0, this.titleBarHeight + 4);
-      (this as any).renderContent(ctx, w, h - this.titleBarHeight - 4);
-      ctx.restore();
+      try {
+        ctx.save();
+        ctx.translate(0, this.titleBarHeight + 4);
+        (this as any).renderContent(ctx, w, h - this.titleBarHeight - 4);
+        ctx.restore();
+      } catch {
+        ctx.restore();
+      }
     }
 
     this.texture.needsUpdate = true;

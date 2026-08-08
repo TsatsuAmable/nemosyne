@@ -162,7 +162,8 @@ export class InputTelemetry extends MovablePanel {
     const lineH = 26;
     const topPad = 14;
     let y = topPad + lineH;
-    for (const line of this.lines) {
+    const lines = this.lines ?? [];
+    for (const line of lines) {
       ctx.fillText(line, 20, y);
       y += lineH;
     }

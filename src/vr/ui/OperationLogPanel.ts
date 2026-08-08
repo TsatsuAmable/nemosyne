@@ -56,7 +56,8 @@ export class OperationLogPanel extends MovablePanel {
     ctx.fillText('// Recent operations', pad, y);
     y += lineH + 8;
 
-    if (this.entries.length === 0) {
+    const entries = this.entries ?? [];
+    if (entries.length === 0) {
       ctx.font = '16px monospace';
       ctx.fillStyle = '#88aaff';
       ctx.fillText('No operations yet.', pad, y);
