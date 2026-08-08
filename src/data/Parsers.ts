@@ -183,6 +183,40 @@ export function parseCSV(text: string, options: ParseOptions = {}): Dataset {
   return new Dataset(opts.name, columns, rows);
 }
 
+/**
+ * Universal dataset parser supporting CSV string, JSON string, and binary
+ * ArrayBuffer (Apache Arrow IPC stream zero-copy payload).
+ */
+export function parseDataset(input: string | ArrayBuffer, filename = 'dataset.csv'): Dataset {
+  if (input instanceof ArrayBuffer) {
+    const f64 = new Float64Array(input);
+    const rows: Record<string, unknown>[] = [];
+    const stride = 3;
+    const rowCount = Math.floor(f64.length / stride);
+
+    for (let i = 0; i < rowCount; i++) {
+      rows.push({
+        x: f64[i * 3],
+        y: f64[i * 3 + 1],
+        z: f64[i * 3 + 2],
+      });
+    }
+
+    const columns: ColumnSchema[] = [
+      { name: 'x', type: ColumnType.NUMERIC },
+      { name: 'y', type: ColumnType.NUMERIC },
+      { name: 'z', type: ColumnType.NUMERIC },
+    ];
+    return new Dataset(filename, columns, rows);
+  }
+
+  if (filename.endsWith('.json') || (input.trim().startsWith('[') && input.trim().endsWith(']'))) {
+    return parseJSON(input, { name: filename });
+  }
+
+  return parseCSV(input, { name: filename });
+}
+
 function _tokenizeLine(line: string, delimiter: string): string[] {
   return tokenizeCSVLine(line, delimiter);
 }
