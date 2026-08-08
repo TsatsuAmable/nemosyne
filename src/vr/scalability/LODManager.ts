@@ -42,12 +42,14 @@ export class LODManager {
     this.camera.getWorldPosition(this.headPos);
     this.camera.getWorldDirection(this.gazeDir);
 
-    // Update Frustum matrix
-    this._projScreenMatrix.multiplyMatrices(
-      this.camera.projectionMatrix,
-      this.camera.matrixWorldInverse
-    );
-    this._frustum.setFromProjectionMatrix(this._projScreenMatrix);
+    // Update Frustum matrix if camera contains projection matrices
+    if (this.camera.projectionMatrix && this.camera.matrixWorldInverse) {
+      this._projScreenMatrix.multiplyMatrices(
+        this.camera.projectionMatrix,
+        this.camera.matrixWorldInverse
+      );
+      this._frustum.setFromProjectionMatrix(this._projScreenMatrix);
+    }
     this.frame++;
   }
 
