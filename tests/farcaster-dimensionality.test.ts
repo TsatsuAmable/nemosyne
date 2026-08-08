@@ -35,6 +35,24 @@ describe('Sprint 13.1: Farcaster Dimensionality Teleportation Engine', () => {
     expect(warpedDimensionResult).toBe(true);
   });
 
+  it('initiates spatial terrain travel to map coordinates', () => {
+    let travelPosition: THREE.Vector3 | undefined;
+    portal.onDimensionWarp = (res) => {
+      travelPosition = res.targetPosition;
+    };
+
+    const res = portal.initiateFarcasterTravel({
+      x: 12.5,
+      y: 3.0,
+      z: -45.0,
+      label: 'Cluster Alpha Anomaly',
+    });
+
+    expect(res.mapCoordinate?.label).toBe('Cluster Alpha Anomaly');
+    expect(travelPosition?.x).toBe(12.5);
+    expect(travelPosition?.z).toBe(-45.0);
+  });
+
   it('triggers dimension warp when analyst head position enters bounding sphere', () => {
     let triggered = false;
     portal.onWarp = () => {

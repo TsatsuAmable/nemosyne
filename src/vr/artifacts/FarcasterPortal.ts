@@ -1,9 +1,8 @@
 /**
- * Farcaster Dimensionality Teleportation Portal & Perspective Engine.
+ * Farcaster Dimensionality & Spatial Teleportation Engine.
  *
- * Expands the portal into a multi-dimensional perspective teleportation engine,
- * enabling seamless VR locomotion warping across 2D Tabular ChartPlanes, 3D Spatial
- * Layout Palaces, TDA Mapper Surfaces, and Time-Ribbon Views.
+ * Enables multi-dimensional perspective warping (2D ↔ 3D ↔ TDA ↔ Time) and
+ * spatial map-based terrain teleportation across 3D memory palace locations.
  */
 
 import * as THREE from 'three';
@@ -11,12 +10,21 @@ import type { FarcasterWarpCallback, Updatable } from '../coordinators/types.ts'
 
 export type DimensionMode = '2D_TABULAR' | '3D_SPATIAL' | 'TDA_MAPPER' | 'TIME_RIBBON';
 
+export interface MapCoordinate {
+  x: number;
+  y: number;
+  z: number;
+  label?: string;
+  datasetNodeId?: string;
+}
+
 export interface DimensionalityWarpResult {
   fromDimension: DimensionMode;
   toDimension: DimensionMode;
   targetPosition: THREE.Vector3;
   targetCameraAngle: THREE.Euler;
   operationApplied: string | null;
+  mapCoordinate?: MapCoordinate;
 }
 
 export interface FarcasterPortalOptions {
@@ -55,6 +63,7 @@ export class FarcasterPortal implements Updatable {
   boundingSphere: THREE.Sphere;
   cooldown: boolean;
   worldPos: THREE.Vector3;
+  activeMapCoordinate: MapCoordinate | null = null;
 
   private _dataActivity: number;
   private _pulseTime: number;
@@ -172,6 +181,46 @@ export class FarcasterPortal implements Updatable {
   }
 
   /**
+   * Set target spatial map coordinate for terrain travel.
+   */
+  setMapTarget(mapCoord: MapCoordinate): void {
+    this.activeMapCoordinate = mapCoord;
+    this.targetPosition = [mapCoord.x, mapCoord.y, mapCoord.z];
+  }
+
+  /**
+   * Initiate Farcaster spatial terrain travel to selected map location.
+   */
+  initiateFarcasterTravel(mapCoord?: MapCoordinate): DimensionalityWarpResult {
+    if (mapCoord) {
+      this.setMapTarget(mapCoord);
+    }
+
+    const fromDimension = this.currentDimension;
+    this.currentDimension = this.targetDimension;
+
+    const targetPos = this.activeMapCoordinate
+      ? new THREE.Vector3(this.activeMapCoordinate.x, this.activeMapCoordinate.y, this.activeMapCoordinate.z)
+      : new THREE.Vector3(...this.targetPosition);
+
+    const result: DimensionalityWarpResult = {
+      fromDimension,
+      toDimension: this.targetDimension,
+      targetPosition: targetPos,
+      targetCameraAngle: new THREE.Euler(0, 0, 0),
+      operationApplied: this.operation,
+      mapCoordinate: this.activeMapCoordinate || undefined,
+    };
+
+    // Trigger visual swirl burst effect
+    this._dataActivity = 1.0;
+
+    this.onDimensionWarp(result);
+    this.onWarp(this.targetZone, [targetPos.x, targetPos.y, targetPos.z], this.operation);
+    return result;
+  }
+
+  /**
    * Warp analyst perspective between representation dimensions (2D ↔ 3D ↔ TDA).
    */
   warpDimension(toDimension: DimensionMode): DimensionalityWarpResult {
@@ -184,6 +233,7 @@ export class FarcasterPortal implements Updatable {
       targetPosition: new THREE.Vector3(...this.targetPosition),
       targetCameraAngle: new THREE.Euler(0, 0, 0),
       operationApplied: this.operation,
+      mapCoordinate: this.activeMapCoordinate || undefined,
     };
 
     this.onDimensionWarp(result);
@@ -196,8 +246,7 @@ export class FarcasterPortal implements Updatable {
     this.boundingSphere.set(this.worldPos, 1.0);
     if (this.boundingSphere.containsPoint(headWorldPosition)) {
       this.cooldown = true;
-      this.warpDimension(this.targetDimension);
-      this.onWarp(this.targetZone, this.targetPosition, this.operation);
+      this.initiateFarcasterTravel();
       setTimeout(() => (this.cooldown = false), 3000);
     }
   }
@@ -231,5 +280,10 @@ export class FarcasterPortal implements Updatable {
       const material = mesh.material as THREE.MeshBasicMaterial;
       material.opacity = 0.25 + activityBoost + Math.sin(this._pulseTime * 5 + i) * 0.08;
     });
+
+    // Decay swirl burst back to steady state
+    if (this._dataActivity > 0) {
+      this._dataActivity = Math.max(0, this._dataActivity - delta * 0.5);
+    }
   }
 }
