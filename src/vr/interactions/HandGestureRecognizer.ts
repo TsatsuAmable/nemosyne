@@ -103,6 +103,14 @@ export class HandGestureRecognizer {
     };
   }
 
+  reset(): void {
+    this._initialized = false;
+    this._lastGestureTime = 0;
+    this._lastGestureName = null;
+    this._bothPinchedCloseStart = null;
+    this._pauseResumeFired = false;
+  }
+
   setHands(hands: HandLike[] | null | undefined) {
     this.hands = (hands || []).filter((h): h is HandLike => !!h);
     // Default dominant = right (index 1 if tracked), fallback to first valid.
