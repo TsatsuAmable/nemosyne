@@ -364,6 +364,32 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
+## Phase 18 — Production Runtime Integration & Worker Hardening ⏳
+
+> **Focus:** Wire Phase 17 architectural abstractions into production runtime loops of `World.ts`, `Engine.ts`, `CollaborativeStateSync`, and `InstancedPointCloud`. Implement dedicated Web Workers via Blob URLs and binary pose channel transport.
+
+### Sprint 18.1 — Wire `SceneGraphController` & `WorkspaceManager` into `World.ts`
+
+- [ ] Instantiate and delegate scene graph setup, camera positioning, torso updates, and dataset state to `SceneGraphController` and `WorkspaceManager` inside `World.ts`
+- [ ] `tests/world-integration-decomposed.test.ts` — test suite asserting `World.ts` delegates to sub-controllers
+
+### Sprint 18.2 — Dedicated Web Workers (`Blob` URL Workers)
+
+- [ ] Implement true dedicated Web Workers using Blob URL constructors (`Worker`) in `CSVParserWorker.ts` and `DracoSolverWorker.ts`
+- [ ] `tests/blob-workers.test.ts` — test suite asserting off-thread message passing
+
+### Sprint 18.3 — Binary WebRTC Pose Streaming Transport
+
+- [ ] Wire `BinaryPoseSerializer` into `CollaborativeStateSync.ts` to transmit 32-byte ArrayBuffer camera poses instead of JSON strings
+- [ ] `tests/binary-webrtc-transport.test.ts` — test suite verifying ArrayBuffer transmission over WebRTC data channels
+
+### Sprint 18.4 — Closed-Loop Adaptive Governor Animation Integration
+
+- [ ] Connect `AdaptiveFrameGovernor.recordFrame()` inside `Engine.ts` animation loop and push `lodScaleFactor` to active `InstancedPointCloud` instances
+- [ ] `tests/closed-loop-governor.test.ts` — test suite asserting active frame time measurement and reactive point cloud scaling
+
+---
+
 ## Legend
 
 - ✅ Complete
