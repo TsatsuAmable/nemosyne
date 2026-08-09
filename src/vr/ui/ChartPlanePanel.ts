@@ -25,6 +25,7 @@ interface ChartPlanePanelOptions extends MovablePanelOptions {
 export class ChartPlanePanel extends MovablePanel {
   chartPlane: ChartPlane;
   chartType: ChartKind;
+  private _datasetVersion = 0;
 
   constructor(cameraGroup: THREE.Group, dataset: Dataset | null | undefined, options: ChartPlanePanelOptions = {}) {
     const worldSize = options.worldSize ?? [1.1, 0.75];
@@ -61,8 +62,13 @@ export class ChartPlanePanel extends MovablePanel {
   }
 
   setDataset(dataset: Dataset | null | undefined): void {
+    this._datasetVersion++;
     this.chartPlane.setDataset(dataset);
     this.render();
+    // Force texture upload unconditionally: the CanvasTextureCacheManager
+    // hashes panel UI state (title/scroll/scale) but not dataset identity,
+    // so it would otherwise skip the GPU upload on unchanged UI state.
+    (this.texture as unknown as { needsUpdate: boolean }).needsUpdate = true;
   }
 
   update(): void {
