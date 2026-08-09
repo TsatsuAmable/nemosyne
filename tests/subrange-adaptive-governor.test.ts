@@ -7,8 +7,8 @@ describe('Sprint 14.2 & 14.3: Sub-Range GPU Buffers & Adaptive Frame Governor Su
   it('updates instance matrix and color attribute sub-ranges in InstancedPointCloud', () => {
     const cloud = new InstancedPointCloud(100);
     cloud.setPoints([
-      { index: 0, position: [0, 0, 0], color: 0xff0000 },
-      { index: 1, position: [1, 1, 1], color: 0x00ff00 },
+      { position: [0, 0, 0], color: 0xff0000 },
+      { position: [1, 1, 1], color: 0x00ff00 },
     ]);
 
     cloud.updateSubRange(0, 1);

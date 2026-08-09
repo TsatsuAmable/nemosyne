@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from 'vitest';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
-import { Dataset } from '../src/data/Dataset.ts';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import goldenData from './fixtures/draco-golden/golden-pairs.json';
 
 describe('Draco Recommender Quality Evaluation Suite', () => {
@@ -11,7 +11,7 @@ describe('Draco Recommender Quality Evaluation Suite', () => {
     const facts = engine.extractFacts({
       dataset: new Dataset(
         'Test',
-        [{ name: 'val', type: 'number' }],
+        [{ name: 'val', type: ColumnType.NUMERIC }],
         [{ val: 10 }, { val: 20 }]
       ),
     });
@@ -68,31 +68,12 @@ describe('Draco Recommender Quality Evaluation Suite', () => {
   });
 
   it('computes soft constraint penalties correctly without hard constraint violation', () => {
-    const facts = {
-      topology: TopologyTypes.TABULAR,
-      rowCount: 10,
-      isLargeDataset: false,
-      hasHighCardinality: false,
-      hasTimeSeries: false,
-      hasContinuousValues: true,
-      numericColumns: 2,
-      categoricalColumns: 1,
-      temporalColumns: 0,
-      nodeCount: 10,
-      edgeCount: 0,
-      depth: 1,
-      density: 0,
-      estimatedDensity: 0,
-      outlierCount: 0,
-      cardinalityOfColor: 3,
-      clusterCount: 2,
-      hasOutliers: false,
-      hasHighVariance: false,
-      numericSkew: 0,
-      topCategory: null,
-      trendDirection: 'flat' as const,
-      seasonalityHint: false,
-    };
+    const ds = new Dataset(
+      'TabularTest',
+      [{ name: 'val1', type: ColumnType.NUMERIC }, { name: 'val2', type: ColumnType.NUMERIC }, { name: 'cat', type: ColumnType.CATEGORICAL }],
+      [{ val1: 10, val2: 5, cat: 'A' }, { val1: 20, val2: 15, cat: 'B' }]
+    );
+    const facts = engine.extractFacts({ dataset: ds });
 
     const goodSpec = {
       layout: 'GRID_3D' as const,

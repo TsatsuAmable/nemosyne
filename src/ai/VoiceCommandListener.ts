@@ -14,6 +14,19 @@ export interface ParsedVoiceCommand {
   layoutType?: string;
 }
 
+interface SpeechRecognitionEvent {
+  results: Array<Array<{ transcript: string }>>;
+}
+
+interface SpeechRecognition {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  start(): void;
+  stop(): void;
+}
+
 export class VoiceCommandListener {
   isListening = false;
   private _recognition: SpeechRecognition | null = null;
@@ -23,8 +36,8 @@ export class VoiceCommandListener {
     this._onCommandCallback = onCommand;
 
     if (typeof window !== 'undefined') {
-      const SpeechClass = (window as unknown as { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition ||
-        (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
+      const win = window as unknown as Record<string, new () => SpeechRecognition>;
+      const SpeechClass = win.SpeechRecognition || win.webkitSpeechRecognition;
 
       if (SpeechClass) {
         this._recognition = new SpeechClass();

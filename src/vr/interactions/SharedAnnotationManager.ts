@@ -28,7 +28,7 @@ export interface SpatialBookmark {
 }
 
 export interface AnnotationManagerEventMap extends THREE.Object3DEventMap {
-  remoteTourStep: THREE.Event & { detail: Record<string, unknown> };
+  remoteTourStep: { detail: Record<string, unknown> };
 }
 
 export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventMap> {
