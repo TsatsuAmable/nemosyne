@@ -5,7 +5,8 @@
  * off the WebXR main render thread.
  */
 
-import { ConstraintEngine, type DracoDataInput, type SolverResult } from './ConstraintEngine.ts';
+import { ConstraintEngine } from './ConstraintEngine.ts';
+import type { DracoDataInput, SolverResult } from './types.ts';
 
 export interface DracoWorkerRequest {
   dataInput: DracoDataInput;

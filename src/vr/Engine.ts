@@ -8,6 +8,7 @@ import { Locomotion } from './Locomotion.ts';
 import { DesktopControls } from './DesktopControls.ts';
 import { disposeObject } from '../utils/Dispose.ts';
 import { PerformanceBudget } from '../utils/PerformanceBudget.ts';
+import { AdaptiveFrameGovernor } from './scalability/AdaptiveFrameGovernor.ts';
 import type { HudObject } from './input/InteractableRegistry.ts';
 import type { PerformanceBudgetLike, TelemetryCollectorLike, Updatable } from './coordinators/types.ts';
 
@@ -25,6 +26,7 @@ export class Engine {
 
   // Performance budget enforcement for Quest Browser profiling.
   performanceBudget: PerformanceBudgetLike;
+  frameGovernor: AdaptiveFrameGovernor;
   _lastBudgetCheck = 0;
 
   cameraGroup: THREE.Group;
@@ -56,6 +58,7 @@ export class Engine {
     this.theme = new WorldTheme(this.scene);
 
     this.performanceBudget = new PerformanceBudget() as PerformanceBudgetLike;
+    this.frameGovernor = new AdaptiveFrameGovernor();
 
     this.cameraGroup = new THREE.Group();
     this.scene.add(this.cameraGroup);
@@ -207,6 +210,10 @@ export class Engine {
       }
 
       this.renderer.render(this.scene, this.camera);
+
+      const frameEnd = performance.now();
+      const frameMs = frameEnd - frameStart;
+      this.frameGovernor.recordFrame(frameMs);
 
       // Evaluate performance budget once per second to avoid overhead.
       const now = performance.now();

@@ -46,6 +46,8 @@ import { DataOperationController } from './coordinators/DataOperationController.
 import { WorldUIManager } from './coordinators/WorldUIManager.ts';
 import { WorldSceneComposer } from './coordinators/WorldSceneComposer.ts';
 import { WorldEventBus, WorldTopics } from '../utils/EventBus.ts';
+import { SceneGraphController } from './coordinators/SceneGraphController.ts';
+import { WorkspaceManager } from './coordinators/WorkspaceManager.ts';
 import { InputTelemetry } from './InputTelemetry.ts';
 import { PanelManager } from './ui/PanelManager.ts';
 import { DashboardManager } from './ui/DashboardManager.ts';
@@ -178,6 +180,8 @@ export class World {
   _tourAutoStarted: boolean;
   _lastCameraPosition!: THREE.Vector3 | null;
   _desktopPreviewEnabled!: boolean;
+  sceneGraphController: SceneGraphController;
+  workspaceManager: WorkspaceManager;
   _desktopPreviewSavedPose!: { position: THREE.Vector3; yaw: number; pitch: number } | null;
   _orbitControls!: OrbitControls | null;
   dracoNode!: DracoTopologyNode | null;
@@ -194,6 +198,9 @@ export class World {
     // needs to react to operations, settings changes, or session events can
     // subscribe without hard-wiring into `World`.
     this.eventBus = new WorldEventBus();
+
+    this.sceneGraphController = new SceneGraphController();
+    this.workspaceManager = new WorkspaceManager(this.engine.scene);
 
     // Data-operation controller owns dataset mutation, analysis history, and
     // the operation → visual-transform mapping.

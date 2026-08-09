@@ -7,12 +7,11 @@
 
 import * as THREE from 'three';
 import { Dataset } from '../../data/Dataset.ts';
-import { LayoutBase } from '../layouts/LayoutBase.ts';
 
 export class WorkspaceManager {
   scene: THREE.Scene;
   activeDataset: Dataset | null = null;
-  activeLayout: LayoutBase | null = null;
+  activeLayoutGroup: THREE.Object3D | null = null;
   datasetNodeGroup: THREE.Group;
 
   constructor(scene: THREE.Scene) {
@@ -22,22 +21,19 @@ export class WorkspaceManager {
     this.scene.add(this.datasetNodeGroup);
   }
 
-  loadDataset(dataset: Dataset, layout?: LayoutBase): void {
+  loadDataset(dataset: Dataset, layoutGroup?: THREE.Object3D): void {
     this.clearDataset();
     this.activeDataset = dataset;
-    this.activeLayout = layout ?? null;
+    this.activeLayoutGroup = layoutGroup ?? null;
 
-    if (layout) {
-      const layoutGroup = layout.getGroup();
-      if (layoutGroup) {
-        this.datasetNodeGroup.add(layoutGroup);
-      }
+    if (layoutGroup) {
+      this.datasetNodeGroup.add(layoutGroup);
     }
   }
 
   clearDataset(): void {
     this.activeDataset = null;
-    this.activeLayout = null;
+    this.activeLayoutGroup = null;
     while (this.datasetNodeGroup.children.length > 0) {
       this.datasetNodeGroup.remove(this.datasetNodeGroup.children[0]);
     }
