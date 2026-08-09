@@ -299,19 +299,19 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
-## Phase 16 — Voice & Natural Language Spatial Query Engine ⏳
+## Phase 16 — Voice & Natural Language Spatial Query Engine ✅
 
 > **Focus:** Enable hands-free natural language spatial interaction. Parse spoken voice commands into Nemosyne operations and generate Web Speech API audio narration for analytics discoveries.
 
 ### Sprint 16.1 — Web Speech API Natural Language Query Listener
 
-- [ ] `VoiceCommandListener.ts` — Web Speech API speech recognition engine parsing spoken voice phrases (*"filter revenue above 200"*, *"show graph view"*, *"reset layout"*) into executable Nemosyne `Operation` commands
-- [ ] `tests/voice-command-listener.test.ts` — test suite verifying intent classification and query parsing
+- [x] `VoiceCommandListener.ts` — Web Speech API speech recognition engine parsing spoken voice phrases (*"filter revenue above 200"*, *"show graph view"*, *"reset layout"*) into executable Nemosyne `Operation` commands
+- [x] `tests/voice-spatial-engine.test.ts` — test suite verifying intent classification and query parsing
 
 ### Sprint 16.2 — Diegetic Audio Feedback & Narration
 
-- [ ] `SpatialAudioNarrator.ts` — Web Speech API speech synthesis engine providing spoken audio narration for operation execution, anomaly alerts, and guided tour steps
-- [ ] `tests/spatial-audio-narrator.test.ts` — test suite verifying audio narration queueing and speech synthesis options
+- [x] `SpatialAudioNarrator.ts` — Web Speech API speech synthesis engine providing spoken audio narration for operation execution, anomaly alerts, and guided tour steps
+- [x] `tests/voice-spatial-engine.test.ts` — test suite verifying audio narration queueing and speech synthesis options
 
 ---
 
