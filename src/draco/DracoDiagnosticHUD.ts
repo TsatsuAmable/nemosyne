@@ -21,8 +21,11 @@ interface DiagnosticButton {
 export class DracoDiagnosticHUD extends MovablePanel {
   dracoNode: DracoTopologyNode;
   buttons: DiagnosticButton[];
+  candidateHistory: Array<{ layout: string; geometry: string; cost: number; timestamp: number }>;
   private _clickCooldownMs: number;
   private _lastClickAt: number;
+  private _lastCost: number | null = null;
+  private _costDelta: number = 0;
 
   constructor(
     cameraGroup: THREE.Group,
@@ -32,15 +35,16 @@ export class DracoDiagnosticHUD extends MovablePanel {
     super(cameraGroup, {
       title: 'DRACO CONSTRAINT DIAGNOSTIC',
       width: 1100,
-      height: 800,
+      height: 850,
       position,
-      worldSize: [1.3, 0.95],
+      worldSize: [1.3, 0.98],
       titleBarHeight: 50,
       contentPadding: 20,
     });
 
     this.dracoNode = dracoNode;
     this.buttons = [];
+    this.candidateHistory = [];
     this._registerButtons();
 
     this._clickCooldownMs = 350;
@@ -54,22 +58,37 @@ export class DracoDiagnosticHUD extends MovablePanel {
     this.buttons = [];
     const pad = 24;
     constraints.forEach((sc, idx) => {
-      const y = 120 + pad + idx * 70;
+      const y = 140 + pad + idx * 70;
       this.buttons.push({ ruleName: sc.name, action: 'DEC', x: 710, y: y - 4, w: 46, h: 34 });
       this.buttons.push({ ruleName: sc.name, action: 'INC', x: 890, y: y - 4, w: 46, h: 34 });
     });
-    this.totalContentHeight = 140 + pad + constraints.length * 70 + 80;
+    this.totalContentHeight = 160 + pad + constraints.length * 70 + 120;
   }
 
   renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
     const result = this.dracoNode.solverResult;
     const pad = 24;
 
+    if (result?.spec) {
+      const currentCost = result.cost;
+      if (this._lastCost !== null && this._lastCost !== currentCost) {
+        this._costDelta = currentCost - this._lastCost;
+        this.candidateHistory.unshift({
+          layout: result.spec.layout,
+          geometry: result.spec.geometry,
+          cost: currentCost,
+          timestamp: Date.now(),
+        });
+        if (this.candidateHistory.length > 5) this.candidateHistory.pop();
+      }
+      this._lastCost = currentCost;
+    }
+
     const constraints = this.dracoNode.engine.softConstraints;
-    this.totalContentHeight = 140 + pad + constraints.length * 70 + 80;
+    this.totalContentHeight = 160 + pad + constraints.length * 70 + 120;
 
     ctx.fillStyle = 'rgba(0, 60, 80, 0.7)';
-    ctx.fillRect(20, 20 + pad, w - 40, 70);
+    ctx.fillRect(20, 20 + pad, w - 40, 85);
 
     ctx.font = 'bold 20px monospace';
     ctx.fillStyle = '#ffaa00';
@@ -79,32 +98,42 @@ export class DracoDiagnosticHUD extends MovablePanel {
       ctx.fillText(`BEHAV: [ ${result.spec.behavior} ]`, 750, 50 + pad);
     }
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(`COST: ${(result?.cost ?? 0).toFixed(1)}  |  LOWER IS BETTER`, 40, 80 + pad);
+    ctx.fillText(`COST: ${(result?.cost ?? 0).toFixed(1)}  |  LOWER IS BETTER`, 40, 85 + pad);
+
+    if (this._costDelta !== 0) {
+      ctx.font = 'bold 18px monospace';
+      ctx.fillStyle = this._costDelta < 0 ? '#00ff66' : '#ff3300';
+      ctx.fillText(`DELTA: ${this._costDelta > 0 ? '+' : ''}${this._costDelta.toFixed(1)}`, 540, 85 + pad);
+    }
 
     ctx.font = 'bold 18px monospace';
     ctx.fillStyle = '#88ccff';
-    ctx.fillText('CONSTRAINT', 20, 115 + pad);
-    ctx.fillText('WEIGHT', 560, 115 + pad);
-    ctx.fillText('', 710, 115 + pad);
-    ctx.fillText('', 890, 115 + pad);
+    ctx.fillText('CONSTRAINT', 20, 130 + pad);
+    ctx.fillText('WEIGHT', 560, 130 + pad);
 
     const rowH = 70;
     constraints.forEach((sc, idx) => {
-      const y = 140 + pad + idx * rowH;
+      const y = 155 + pad + idx * rowH;
       const nameMaxWidth = 345;
 
-      ctx.font = 'bold 20px monospace';
+      ctx.font = 'bold 18px monospace';
       ctx.fillStyle = '#00ffcc';
       ctx.textAlign = 'left';
       const nameText = `${idx + 1}. ${sc.name.toUpperCase()}`;
       ctx.fillText(nameText, 20, y + 20, nameMaxWidth);
 
-      ctx.strokeStyle = '#00ffcc';
+      // Constraint penalty calculation if candidate & facts exist
+      let penalty = 0;
+      if (result?.spec && result?.facts) {
+        penalty = sc.eval(result.facts, result.spec);
+      }
+
+      ctx.strokeStyle = penalty > 0 ? '#ff3366' : '#00ffcc';
       ctx.lineWidth = 2;
       ctx.strokeRect(380, y, 300, 26);
-      ctx.fillStyle = 'rgba(0, 255, 204, 0.15)';
+      ctx.fillStyle = penalty > 0 ? 'rgba(255, 51, 102, 0.2)' : 'rgba(0, 255, 204, 0.15)';
       ctx.fillRect(382, y + 2, 296, 22);
-      ctx.fillStyle = '#00ffcc';
+      ctx.fillStyle = penalty > 0 ? '#ff3366' : '#00ffcc';
       const barWidth = Math.min(292, (sc.weight / 50) * 292);
       ctx.fillRect(382, y + 2, barWidth, 22);
 

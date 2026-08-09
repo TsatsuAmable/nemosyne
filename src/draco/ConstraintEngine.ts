@@ -452,6 +452,30 @@ export class ConstraintEngine {
         facts.topology === TopologyTypes.GEO && spec.layout !== 'GEO_SURFACE' ? 1 : 0,
     });
     this.softConstraints.push({
+      name: 'prefer_icosa_node_for_graphs',
+      weight: 12,
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.GRAPH && spec.geometry !== 'ICOSA_NODE' ? 1 : 0,
+    });
+    this.softConstraints.push({
+      name: 'prefer_conical_tree_for_hierarchy',
+      weight: 12,
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.HIERARCHY && spec.geometry !== 'CONICAL_TREE' ? 1 : 0,
+    });
+    this.softConstraints.push({
+      name: 'prefer_flow_ray_for_vectors',
+      weight: 12,
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.VECTOR_FIELD && spec.geometry !== 'FLOW_RAY' ? 1 : 0,
+    });
+    this.softConstraints.push({
+      name: 'prefer_cube_matrix_for_tabular',
+      weight: 11,
+      eval: (facts, spec) =>
+        facts.topology === TopologyTypes.TABULAR && !facts.isLargeDataset && spec.geometry !== 'CUBE_MATRIX' ? 1 : 0,
+    });
+    this.softConstraints.push({
       name: 'prefer_geo_column_geometry',
       weight: 14,
       eval: (facts, spec) =>
@@ -648,5 +672,24 @@ export class ConstraintEngine {
     }
 
     return { facts, spec: bestSpec!, cost: minCost };
+  }
+
+  /**
+   * Evaluate a specific candidate specification against a set of facts and return cost + validity.
+   */
+  evaluateCandidate(spec: DracoSpec, facts: DracoFacts): { isValid: boolean; cost: number; softConstraintViolations: string[] } {
+    const isValid = this.hardConstraints.every((hc) => hc(facts, spec));
+    let cost = 0;
+    const softConstraintViolations: string[] = [];
+
+    for (const sc of this.softConstraints) {
+      const penalty = sc.eval(facts, spec);
+      if (penalty > 0) {
+        cost += penalty * sc.weight;
+        softConstraintViolations.push(sc.name);
+      }
+    }
+
+    return { isValid, cost, softConstraintViolations };
   }
 }
