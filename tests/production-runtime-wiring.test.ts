@@ -31,7 +31,7 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
       binaryType: '',
       send: (data: unknown) => {
         expect(data).toBeInstanceOf(ArrayBuffer);
-        expect((data as ArrayBuffer).byteLength).toBe(32);
+        expect((data as ArrayBuffer).byteLength).toBe(40); // Sprint 19.1: extended to 40 bytes (peerId + sequence + 7 floats)
       },
     } as unknown as RTCDataChannel;
 
