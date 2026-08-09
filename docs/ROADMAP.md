@@ -278,6 +278,27 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
+## Phase 14 — WebXR Performance, GPU Caching & Memory Optimization ⏳
+
+> **Focus:** Eliminate frame-time spikes and memory allocation garbage collection during WebXR analytics sessions on Meta Quest standalone hardware. Implement dynamic canvas texture diff caching, sub-range GPU buffer updates, and an adaptive 90 FPS frame governor.
+
+### Sprint 14.1 — Canvas Texture GPU Re-Upload Caching
+
+- [ ] `CanvasTextureCacheManager.ts` — dirty-rect and content hashing manager for `MovablePanel` and `HandWheelMenu` preventing unnecessary dynamic canvas texture GPU re-uploads during user interaction
+- [ ] `tests/canvas-texture-cache.test.ts` — test suite asserting canvas texture upload skip rate > 80% on unchanged UI frames
+
+### Sprint 14.2 — Sub-Range GPU Buffer Updates for InstancedPointCloud
+
+- [ ] `InstancedPointCloud` partial buffer update methods (`updateSubRange(offset, count)`) allowing filtered and clustered point subsets to update GPU attribute sub-ranges without full geometry buffer rebuilds
+- [ ] `tests/subrange-buffer.test.ts` — test suite verifying partial GPU attribute buffer updates
+
+### Sprint 14.3 — Adaptive WebXR Frame & Thermal Governor
+
+- [ ] `AdaptiveFrameGovernor.ts` — continuously monitors WebXR frame render time; dynamically scales particle counts, LOD culling distances, and shadow resolution when frame time breaches 11.1ms (90 FPS target on Quest 3S)
+- [ ] `tests/adaptive-governor.test.ts` — test suite simulating frame time spikes and verifying governor LOD scaling response
+
+---
+
 ## Legend
 
 - ✅ Complete
