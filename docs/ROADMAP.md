@@ -390,8 +390,32 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
+## Phase 19 — Architectural Hardening & Zero-Copy Protocol ⏳
+
+> **Focus:** Address multi-user peer collision vulnerability in binary pose sync, eliminate per-frame GC allocations via static typed array views, and complete reactive governor event loops.
+
+### Sprint 19.1 — Multi-User Binary Peer ID & Monotonic Sequence Tracking
+
+- [ ] Add numeric peer ID header and sequence validation to `BinaryPoseSerializer` and `CollaborativeStateSync.ts` to prevent remote peer state collisions in 3+ user rooms
+- [ ] Reuse static ArrayBuffer views to eliminate 3x object allocations per tick during 90Hz pose broadcasts
+- [ ] `tests/zero-copy-network-sync.test.ts` — test suite verifying peer ID demuxing and sequence drop protection
+
+### Sprint 19.2 — Closed-Loop Governor Event Dispatch & Reactive Rendering
+
+- [ ] Dispatch `WorldTopics.PERFORMANCE_THROTTLE` events when `AdaptiveFrameGovernor` adjusts `_lodScaleFactor`
+- [ ] Bind `InstancedPointCloud` and layout particle instances to throttle events reactively
+- [ ] `tests/governor-event-loop.test.ts` — test suite asserting reactive scene load shedding under throttle events
+
+### Sprint 19.3 — Delegate Workspace Node Lifecycle to WorkspaceManager
+
+- [ ] Delegate dataset node group mounting, layout group cleanup (`clearDataset()`), and artifact node registration to `WorkspaceManager`
+- [ ] `tests/workspace-node-lifecycle.test.ts` — test suite verifying workspace dataset node group delegation
+
+---
+
 ## Legend
 
 - ✅ Complete
 - 🔄 In progress
 - ⏳ Deferred to future phase
+
