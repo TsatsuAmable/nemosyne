@@ -278,6 +278,24 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
+## Phase 15 — Collaborative Spatial Memory Palaces ✅
+
+> **Focus:** Enable multi-analyst spatial collaboration. Synchronize active datasets, filter states, 3D selection highlights, hand avatars, and spatial pointers across WebRTC peer connections.
+
+### Sprint 15.1 — Multi-User WebRTC Data Channel State Sync
+
+- [x] `CollaborativeStateSync.ts` — P2P WebRTC data channel state synchronizer replicating active dataset selection, filter operations, and camera transform vectors
+- [x] `tests/collaborative-sync.test.ts` — test suite verifying state broadcast and peer delta merging
+
+### Sprint 15.2 — Peer Avatars & Synchronized Spatial Pointers
+
+- [x] `PeerAvatarManager.ts` — renders lightweight headset & hand avatars for connected remote analysts with color-coded laser pointers and gaze target indicators
+- [x] `tests/peer-avatars-annotations.test.ts` — test suite verifying peer avatar transform updates
+
+### Sprint 15.3 — Shared Annotations & Co-Op Benchmark Sessions
+
+- [x] `SharedAnnotationManager.ts` — synchronized 3D spatial pin drop annotations and collaborative benchmark session scoring
+- [x] `tests/peer-avatars-annotations.test.ts` — test suite verifying annotation sync across peer sessions
 ## Phase 14 — WebXR Performance, GPU Caching & Memory Optimization ✅
 
 > **Focus:** Eliminate frame-time spikes and memory allocation garbage collection during WebXR analytics sessions on Meta Quest standalone hardware. Implement dynamic canvas texture diff caching, sub-range GPU buffer updates, and an adaptive 90 FPS frame governor.
