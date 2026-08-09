@@ -250,6 +250,36 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
+## Phase 13 — Real-World Data Ingestion & Provenance Export Infrastructure ⏳
+
+> **Focus:** Make Nemosyne production-ready for arbitrary analyst datasets. Enable non-developers to load CSV files with automatic schema inference, support binary Arrow IPC streams, export interactive 3D analysis storybooks, and handle WebGL context loss gracefully.
+
+### Sprint 13.1 — CSV/TSV Auto-Inference & Field Mapping UI
+
+- [ ] `CSVDataParser.ts` — robust client-side CSV/TSV parser handling quoted fields, escaped delimiters, missing values, and automatic type inference (NUMERIC, CATEGORICAL, TEMPORAL)
+- [ ] `SchemaMappingPanel.ts` — in-VR panel letting analysts confirm column type assignments, rename fields, and select primary color/size mapping channels before rendering
+- [ ] `tests/csv-parser.test.ts` — test suite verifying malformed CSV handling, numeric type casting, and temporal date parsing
+
+### Sprint 13.2 — Apache Arrow IPC & FlatBuffers Binary Parsers
+
+- [ ] `ArrowBinaryParser.ts` — zero-copy Apache Arrow RecordBatch IPC stream reader feeding directly into `InstancedPointCloud` buffers
+- [ ] `WebSocketAdapter` binary stream integration for high-throughput live streaming datasets (>10,000 events/sec)
+- [ ] `tests/arrow-ipc.test.ts` — test suite asserting zero-copy memory parsing accuracy
+
+### Sprint 13.3 — Spatial Analysis Storybook & Provenance Export
+
+- [ ] `AnalysisStorybookExporter.ts` — packages session state, dataset snapshot, camera poses, active filters, annotations, and tour checkpoints into a standalone downloadable HTML/JSON bundle
+- [ ] In-VR export action in `HandWheelMenu` triggering direct browser download of the analysis storybook
+- [ ] `tests/storybook-exporter.test.ts` — assert export bundle roundtrips cleanly into `World.loadSession()`
+
+### Sprint 13.4 — Session Recovery & WebGL Context Loss Safety
+
+- [ ] `ContextRecoveryManager.ts` — detects WebGL context loss (`webglcontextlost`), preserves application state, and automatically restores geometry/material GPU buffers on `webglcontextrestored`
+- [ ] Auto-save session state to IndexedDB every 30 seconds with instant recovery on page reload
+- [ ] `tests/context-recovery.test.ts` — test suite simulating WebGL context loss and verifying state restoration
+
+---
+
 ## Legend
 
 - ✅ Complete
