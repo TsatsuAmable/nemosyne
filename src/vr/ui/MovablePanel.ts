@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CanvasTextureCacheManager } from './CanvasTextureCacheManager.ts';
 import type {
   AccessibilityOptions,
   DragState,
@@ -16,6 +17,7 @@ interface InternalDragState extends DragState {
  * controller ray, minimized/restored, and placed in depth-aware space.
  */
 export class MovablePanel {
+  private static _textureCacheManager: CanvasTextureCacheManager | null = null;
   cameraGroup: THREE.Group;
   parentGroup: THREE.Group | null;
   title: string;
@@ -438,7 +440,11 @@ export class MovablePanel {
       ctx.textAlign = 'left';
     }
 
-    this.texture.needsUpdate = true;
+    const stateSig = `${this.title}:${this.scrollOffset}:${this.totalContentHeight}:${this.textScale}:${this.highContrast}:${this.colorblindMode}:${this.isMinimized}`;
+    if (!MovablePanel._textureCacheManager) {
+      MovablePanel._textureCacheManager = new CanvasTextureCacheManager();
+    }
+    MovablePanel._textureCacheManager.shouldUpdateTexture(this.title, stateSig, this.texture);
   }
 
   _startDrag(pointer: PointerLike, hitPoint: THREE.Vector3): void {

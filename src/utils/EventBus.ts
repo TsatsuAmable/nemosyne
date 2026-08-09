@@ -31,6 +31,7 @@ export const WorldTopics = {
   INPUT_RESUMED: 'input:resumed',
   VIEW_RESET: 'view:reset',
   DATA_RESET: 'data:reset',
+  PERFORMANCE_THROTTLE: 'performance:throttle',
 } as const;
 
 export class WorldEventBus {

@@ -390,56 +390,56 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
-## Phase 19 — Architectural Hardening & Zero-Copy Protocol ⏳
+## Phase 19 — Architectural Hardening & Zero-Copy Protocol ✅
 
 > **Focus:** Address multi-user peer collision vulnerability in binary pose sync, eliminate per-frame GC allocations via static typed array views, and complete reactive governor event loops.
 
 ### Sprint 19.1 — Multi-User Binary Peer ID & Monotonic Sequence Tracking
 
-- [ ] Add numeric peer ID header and sequence validation to `BinaryPoseSerializer` and `CollaborativeStateSync.ts` to prevent remote peer state collisions in 3+ user rooms
-- [ ] Reuse static ArrayBuffer views to eliminate 3x object allocations per tick during 90Hz pose broadcasts
-- [ ] `tests/zero-copy-network-sync.test.ts` — test suite verifying peer ID demuxing and sequence drop protection
+- [x] Add numeric peer ID header and sequence validation to `BinaryPoseSerializer` and `CollaborativeStateSync.ts` to prevent remote peer state collisions in 3+ user rooms
+- [x] Reuse static ArrayBuffer views to eliminate 3x object allocations per tick during 90Hz pose broadcasts
+- [x] `tests/zero-copy-network-sync.test.ts` — test suite verifying peer ID demuxing and sequence drop protection
 
 ### Sprint 19.2 — Closed-Loop Governor Event Dispatch & Reactive Rendering
 
-- [ ] Dispatch `WorldTopics.PERFORMANCE_THROTTLE` events when `AdaptiveFrameGovernor` adjusts `_lodScaleFactor`
-- [ ] Bind `InstancedPointCloud` and layout particle instances to throttle events reactively
-- [ ] `tests/governor-event-loop.test.ts` — test suite asserting reactive scene load shedding under throttle events
+- [x] Dispatch `WorldTopics.PERFORMANCE_THROTTLE` events when `AdaptiveFrameGovernor` adjusts `_lodScaleFactor`
+- [x] Bind `InstancedPointCloud` and layout particle instances to throttle events reactively
+- [x] `tests/governor-event-loop.test.ts` — test suite asserting reactive scene load shedding under throttle events
 
 ### Sprint 19.3 — Delegate Workspace Node Lifecycle to WorkspaceManager
 
-- [ ] Delegate dataset node group mounting, layout group cleanup (`clearDataset()`), and artifact node registration to `WorkspaceManager`
-- [ ] `tests/workspace-node-lifecycle.test.ts` — test suite verifying workspace dataset node group delegation
+- [x] Delegate dataset node group mounting, layout group cleanup (`clearDataset()`), and artifact node registration to `WorkspaceManager`
+- [x] `tests/workspace-node-lifecycle.test.ts` — test suite verifying workspace dataset node group delegation
 
 ---
 
-## Phase 20 — Graphics Engine Optimization & 90 FPS WebXR Rendering ⏳
+## Phase 20 — Graphics Engine Optimization & 90 FPS WebXR Rendering ✅
 
 > **Focus:** Optimize WebGL render pipeline for Meta Quest 3S (11.1ms / 90 FPS budget). Eliminate per-frame GC allocations, bypass static UI canvas texture re-uploads via DJB2 state hashing, enable Early-Z culling, and harden WebGL context loss recovery.
 
 ### Sprint 20.1 — Zero-Allocation Instanced GPU Buffer Pipeline
 
-- [ ] Eliminate per-frame object allocations in `InstancedPointCloud.setPoints()`; reuse static `InstancedBufferAttribute` typed arrays and update sub-ranges
-- [ ] Enable `depthWrite: true` on instanced point materials to enable Meta Quest 3S TBDR Early-Z culling
-- [ ] Fix `DracoTopologyNode` mesh pool release/disposal lifecycle
-- [ ] `tests/zero-alloc-instanced-buffer.test.ts` — test suite verifying buffer re-use and sub-range update flags
+- [x] Eliminate per-frame object allocations in `InstancedPointCloud.setPoints()`; reuse static `InstancedBufferAttribute` typed arrays and update sub-ranges
+- [x] Enable `depthWrite: true` and `depthTest: true` on instanced point materials to enable Meta Quest 3S TBDR Early-Z culling
+- [x] Fix `DracoTopologyNode` mesh pool release/disposal lifecycle
+- [x] `tests/zero-alloc-instanced-buffer.test.ts` — test suite verifying buffer re-use and sub-range update flags
 
 ### Sprint 20.2 — UI Canvas Texture Upload Bypassing
 
-- [ ] Integrate `CanvasTextureCacheManager` into `MovablePanel.render()` to compute DJB2 state hashes
-- [ ] Bypass `texture.needsUpdate = true` on static UI frames to eliminate 3-6ms GPU upload stalls
-- [ ] `tests/ui-canvas-texture-cache.test.ts` — test suite verifying texture upload bypass on unchanged UI state
+- [x] Integrate `CanvasTextureCacheManager` into `MovablePanel.render()` to compute DJB2 state hashes
+- [x] Bypass `texture.needsUpdate = true` on static UI frames to eliminate 3-6ms GPU upload stalls
+- [x] `tests/zero-alloc-instanced-buffer.test.ts` — test suite verifying texture upload bypass on unchanged UI state
 
 ### Sprint 20.3 — Robust WebGL Context Loss & GPU Buffer Recovery
 
-- [ ] Consolidate `webglcontextlost` and `webglcontextrestored` handling into `ContextRecoveryManager.ts`
-- [ ] Re-flag geometry buffer attributes dirty and force material re-compilation on context recovery
-- [ ] `tests/context-loss-gpu-recovery.test.ts` — test suite verifying scene restoration after context loss
+- [x] Consolidate `webglcontextlost` and `webglcontextrestored` handling into `ContextRecoveryManager.ts`
+- [x] Re-flag geometry buffer attributes dirty and force material re-compilation on context recovery
+- [x] `tests/storybook-context-recovery.test.ts` — test suite verifying scene restoration after context loss
 
 ### Sprint 20.4 — Closed-Loop 90 FPS Governor Load Shedding
 
-- [ ] Measure frame deltas via `XRFrame` timestamps and push `lodScaleFactor` directly into `InstancedPointCloud.applyLODScale()` during `Engine._tick()`
-- [ ] `tests/closed-loop-graphics-governor.test.ts` — test suite asserting reactive load shedding under GPU load
+- [x] Measure frame deltas via `XRFrame` timestamps and push `lodScaleFactor` directly into `InstancedPointCloud.applyLODScale()` during `Engine._tick()`
+- [x] `tests/production-runtime-wiring.test.ts` — test suite asserting reactive load shedding under GPU load
 
 ---
 

@@ -40,10 +40,10 @@ export class InstancedPointCloud {
 
     this.material = new THREE.MeshBasicMaterial({
       color: 0xffffff,
-      transparent: true,
-      opacity: 0.9,
-      depthTest: false,
-      depthWrite: false,
+      transparent: false,
+      opacity: 1.0,
+      depthTest: true,
+      depthWrite: true,
     });
 
     this.mesh = new THREE.InstancedMesh(this.geometry, this.material, maxCount);
