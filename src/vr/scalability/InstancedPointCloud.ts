@@ -116,6 +116,22 @@ export class InstancedPointCloud {
   }
 
   /**
+   * Update GPU instance attribute buffer sub-ranges without full geometry buffer rebuild.
+   */
+  updateSubRange(offset: number, count: number): void {
+    if (!this.mesh.instanceMatrix) return;
+    const matrixAttr = this.mesh.instanceMatrix as THREE.InstancedBufferAttribute;
+    matrixAttr.addUpdateRange(offset * 16, count * 16);
+    matrixAttr.needsUpdate = true;
+
+    if (this.mesh.instanceColor) {
+      const colorAttr = this.mesh.instanceColor as THREE.InstancedBufferAttribute;
+      colorAttr.addUpdateRange(offset * 3, count * 3);
+      colorAttr.needsUpdate = true;
+    }
+  }
+
+  /**
    * Raycast against the instanced cloud and return the nearest instance data.
    */
   intersect(raycaster: THREE.Raycaster): InstancedPointCloudHit | null {
