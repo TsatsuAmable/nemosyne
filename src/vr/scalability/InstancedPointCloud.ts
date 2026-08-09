@@ -57,6 +57,14 @@ export class InstancedPointCloud {
   }
 
   /**
+   * Dynamically scale visible instance count from AdaptiveFrameGovernor LOD factor.
+   */
+  applyLODScale(lodScaleFactor: number): void {
+    const targetCount = Math.floor(this.maxCount * Math.max(0.1, Math.min(1.0, lodScaleFactor)));
+    this.mesh.count = Math.min(this._positions.length, targetCount);
+  }
+
+  /**
    * Set the visible points from an array of encoded items.
    */
   setPoints(items: InstancedPointCloudItem[]): void {

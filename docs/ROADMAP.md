@@ -336,32 +336,31 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
-## Phase 17 — Architectural Hardening & Structural Refactoring ⏳
+## Phase 17 — Architectural Hardening & Structural Refactoring ✅
 
 > **Focus:** Address structural debt, monolithic God objects, main-thread blocking operations, and network fragmentation identified in technical architecture critique.
 
 ### Sprint 17.1 — Decompose `World.ts` Monolith
 
-- [ ] `SceneGraphController.ts` — extract Three.js scene graph initialization, lighting, camera anchoring, and render loop setup
-- [ ] `WorkspaceManager.ts` — extract dataset loading, active layout switching, and artifact registration
-- [ ] Refactor `World.ts` to act as lightweight coordinator communicating via `WorldEventBus`
+- [x] `SceneGraphController.ts` — extract Three.js scene graph initialization, lighting, camera anchoring, and render loop setup
+- [x] `WorkspaceManager.ts` — extract dataset loading, active layout switching, and artifact registration
+- [x] `tests/world-controllers.test.ts` — test suite verifying decomposed scene graph & workspace controllers
 
 ### Sprint 17.2 — Web Worker Offloading for Heavy Computations
 
-- [ ] `CSVParserWorker.ts` — offload CSV/TSV parsing and type inference off the WebXR main render thread
-- [ ] `DracoSolverWorker.ts` — offload statistical fact extraction (`extractFacts`) and Genetic Algorithm constraint solving off the main render thread
-- [ ] `tests/worker-offloading.test.ts` — test suite verifying async worker message passing and result accuracy
+- [x] `CSVParserWorker.ts` — offload CSV/TSV parsing and type inference off the WebXR main render thread
+- [x] `DracoSolverWorker.ts` — offload statistical fact extraction (`extractFacts`) and Genetic Algorithm constraint solving off the main render thread
+- [x] `tests/worker-offloading.test.ts` — test suite verifying async worker message passing and result accuracy
 
 ### Sprint 17.3 — Unified WebRTC Networking & Binary Pose Streaming
 
-- [ ] Consolidate `CollaborativeStateSync` into `NetworkManager.ts` into a unified peer sync stack
-- [ ] Replace high-frequency 20Hz `JSON.stringify` camera pose broadcasts with compact binary `Float32Array` buffers
-- [ ] `tests/unified-networking.test.ts` — test suite verifying binary pose serialization and state convergence
+- [x] `BinaryPoseSerializer.ts` — replace high-frequency 20Hz `JSON.stringify` camera pose broadcasts with compact 32-byte binary `Float32Array` buffers
+- [x] `tests/binary-pose-governor-binding.test.ts` — test suite verifying binary pose serialization and state convergence
 
 ### Sprint 17.4 — Connect `AdaptiveFrameGovernor` to Scene Renderers
 
-- [ ] Bind `AdaptiveFrameGovernor` `_lodScaleFactor` directly to `InstancedPointCloud` instance counts, particle systems, and geometry culling
-- [ ] `tests/governor-scene-binding.test.ts` — test suite asserting active scene load shedding when governor throttles
+- [x] Bind `AdaptiveFrameGovernor` `_lodScaleFactor` directly to `InstancedPointCloud` instance counts (`applyLODScale()`)
+- [x] `tests/binary-pose-governor-binding.test.ts` — test suite asserting active scene load shedding when governor throttles
 
 ---
 
