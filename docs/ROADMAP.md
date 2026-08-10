@@ -4,18 +4,17 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · #86 merged — `docs/ROADMAP.md` is now the single
-  canonical reference for work done / work planned (`.claude/plan.md` = working memory,
-  gitignored/local-only). Added **Phase 21 — Rust/WASM Migration** (7 sprints distilling
-  plan.md's WASM Phases 0–6: 21.1/21.2 ✅, 21.3 ⏳ deferred-B2, 21.4 🔄 partial, 21.5/21.6 🔲
-  not started, 21.7 ⏳ pending), a "Completed work-streams" note (TS migration + docs-site
-  refactor ✅), and a "Planned but not actioned" audit section. `CLAUDE.md`/`ARCHITECTURE.md`
-  declared TypeScript-first; 7 stale `.js` re-export stubs deleted + the one `Room.js` test
-  import fixed. Next: user runs the load-test staircase (Quest or desktop `KeyT`/`Shift+T`)
-  → `logs/loadtest-results.jsonl` → implement/descope verdict for B2.
-- **Active branch:** `main` (clean, synced; #81–#86 merged). Note:
-  `feature/phase20-graphics-optimization` is a stale, superseded branch (older `World.ts`,
-  lacks #77–#86) — not unmerged work.
+- **Last updated:** 2026-08-10 · UX V2.0 track opened — added **Phase 22 — UX V2.0:
+  Low-Strain Spatial Interface** (4 sprints: 22.1 convergence quick wins ✅ on branch
+  `feat/ux-v2-quick-wins`, 22.2/22.3/22.4 🔲). Sprint 22.1 delivers four audit-driven fixes:
+  panel-distance setting no longer a no-op (routed through `WorldSceneComposer`), wheel-menu
+  hover/click ray mismatch fixed (uses `getBestPointerRay`), Undo/Redo surfaced in the wheel
+  menu, and a transient reduced-motion locomotion vignette. Gates green: `tsc` 0 · `eslint`
+  0 errors (186 warnings) · `vitest` 1224/9/0 · `build` ~274 KB gzip. Perceptual changes
+  (dashboard distance) flagged for on-device validation.
+- **Active branch:** `feat/ux-v2-quick-wins` (Phase 22 Sprint 22.1, PR pending). `main`
+  clean, synced; #81–#87 merged. Note: `feature/phase20-graphics-optimization` is a stale,
+  superseded branch (older `World.ts`, lacks #77–#87) — not unmerged work.
 - **Working tree:** clean. Recent merges — #86 distill all plans into ROADMAP.md as single
   reference · #84 Node 24 single-leg CI + cross-platform lockfile fix + Netlify 24 · #82 f15
   e2e test-isolation fix (un-awaited `import('src/main.ts')` racing jsdom teardown) · #81
@@ -52,8 +51,10 @@
   Playwright real-WebGL load smoke (Track A) · #74 render-loop GL introspection tripwire
   (Track B). Real-WebGL coverage thread closed. Binary-parser length-field bounds thread
   closed (#70/#72).
-- **In progress / next:** (1) user connects Quest, runs the full load-test staircase in XR
-  (`npm run dev` → wheel menu Load Test → Start, or desktop `KeyT`/`Shift+T`); (2) read
+- **In progress / next:** (0) **UX V2.0 Sprint 22.1** on `feat/ux-v2-quick-wins` — PR open;
+  on-device validation of the panel-distance + transient-vignette perceptual changes needed
+  before advancing to Sprint 22.2. (1) user connects Quest, runs the full load-test staircase
+  in XR (`npm run dev` → wheel menu Load Test → Start, or desktop `KeyT`/`Shift+T`); (2) read
   `logs/loadtest-results.jsonl` and deliver the implement/descope verdict for B2 (if
   "implement", build `SCENE_RUST` → `COMMAND_BUFFER` per the ordering invariant now encoded
   as a Rust test).
@@ -567,6 +568,66 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 - [ ] Port remaining utilities (`SeededRandom`, `PerformanceBudget`, `Telemetry`, `SessionStore`); profile Quest frame time; full integration-test parity; bundle-size budget (≤ 2.5 MB gzipped target)
 - ⏳ **Pending** Sprints 21.3–21.6.
+
+---
+
+## Phase 22 — UX V2.0: Low-Strain Spatial Interface 🔄
+
+> Driven by the VR UX audit (2026-08-10) + live-VR-testing findings (visual fatigue
+> from neon-on-black, spatial clutter, glassmorphic text bleed-through). Goal: a
+> calmer, more legible, ergonomically zoned interface without abandoning the
+> memory-palace metaphor. Each sprint is a small, on-device-validatable PR.
+
+### Sprint 22.1 — Convergence quick wins ✅
+
+> PR (`feat/ux-v2-quick-wins`): four high-value, low-risk fixes surfaced by the audit.
+> Gated to avoid regressions; perceptual changes flagged for on-device validation.
+
+- ✅ **Panel-distance setting no longer a no-op.** `WorldSceneComposer.update()` now
+  applies a `panelDistance` offset on top of torso tracking instead of overwriting a
+  one-shot `position.z` write; `ComfortSettingsController.applyPanelDistance()` routes
+  through `composer.setPanelDistance()` (legacy fallback for unit tests). Default
+  `panelDistance = 0` preserves existing tests; production gets the real offset. **On-device
+  validation needed:** dashboard moves ~1.35 m → ~2.55 m when the setting is applied.
+- ✅ **Wheel-menu hover/click ray mismatch fixed.** `HandWheelMenu._updatePointerAngle()`
+  / `_updateHover()` now use `input.pointers.getBestPointerRay()` (the same ray
+  `handlePointerClick` uses) instead of the camera origin/world direction, so hover and
+  click agree for hand-tracked users. No-ray → preserves the selected category's action
+  visibility (no flicker).
+- ✅ **Undo/Redo surfaced in the wheel menu.** New `Undo`/`Redo` items in the Ops
+  category call `world.undoAnalysis()`/`redoAnalysis()` (safe no-ops when history is
+  empty), giving controller-only VR users a path that doesn't require the two-handed
+  rotate gestures or A/B-button knowledge. Live disabled affordance is a future enhancement
+  (the wheel is built once at init; dynamic menu state needed).
+- ✅ **Transient locomotion comfort vignette.** `Locomotion` now fades a peripheral
+  vignette in while translating/turning/teleporting and out once still — **reduced-motion
+  mode only**, so the static `vignette` setting remains the sole owner of vignette state
+  when reduced-motion is off (no fighting the `ComfortSettingsController`).
+
+### Sprint 22.2 — Low-Strain Comfort mode 🔲
+
+- 🔲 Neutral backdrop option + saturation profile (reserve neon for alerts/state
+  changes only); solid backings under glassmorphic panels so content doesn't bleed
+  through the palace geometry behind.
+- 🔲 Destructive-action confirmation (reset/delete/clear) surfaced as a VR confirm step.
+- 🔲 Collab error close-codes + teleport reduced-motion fade + hand-grab damping +
+  loading indicator (remaining audit High/Medium findings not covered by 22.1).
+- 🔲 Context-loss VR visibility (keep session + show a status panel on WebGL context loss).
+
+### Sprint 22.3 — Text legibility 🔲
+
+- 🔲 Frosted/occluded panel backings; dynamic panel opacity driven by gaze proximity.
+- 🔲 Gaze-driven text scaling (subtended-angle-stable legibility at varying distances).
+- 🔲 Design-system color + typography convergence (palette/luminance tokens applied to
+  all world-space panels).
+
+### Sprint 22.4 — Spatial zonation architecture 🔲
+
+- 🔲 Three-tier zonation: Central Focus (active artefact) / Peripheral (secondary panels)
+  / Wrist-Mounted HUD (ambient telemetry, always-within-glance).
+- 🔲 Declutter pass: collapse idle floating windows into the periphery/wrist tier;
+  one-handed gesture path for primary actions (reduce two-handed reliance).
+- 🔲 Settings panel reorder (comfort/legibility/zonation grouped); tour narration polish.
 
 ---
 

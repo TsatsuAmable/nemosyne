@@ -1003,6 +1003,8 @@ export interface WorldLike {
   previewDataOperation(operation: string): void;
   clearOperationPreview(): void;
   resetDataOperation(): void;
+  undoAnalysis(): void;
+  redoAnalysis(): void;
   startTour(): void;
   exportScreenshot(): void;
   exportAnalysisStory(): void;

@@ -53,6 +53,15 @@ export class Locomotion {
   tempQuat = new THREE.Quaternion();
   tempEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 
+  // Transient comfort vignette (reduced-motion mode only). Fades a peripheral
+  // vignette in while the user is translating/turning/teleporting and back out
+  // once they are still, instead of relying on a static always-on vignette. When
+  // `reducedMotion` is false this is inert so the ComfortSettingsController's
+  // static `vignette` toggle remains the sole owner of the vignette state.
+  _vignetteOpacity = 0;
+  _vignetteStartPos = new THREE.Vector3();
+  _vignetteStartYaw = 0;
+
   turnCooldown = 0;
   turnCooldownDuration = 0.35;
 
@@ -303,6 +312,13 @@ export class Locomotion {
     if (this.enabled === false) return;
     this.turnCooldown = Math.max(0, this.turnCooldown - delta);
 
+    // Capture the camera-group pose before any motion sub-step so the transient
+    // vignette can detect net translation/rotation this frame.
+    if (this.reducedMotion) {
+      this._vignetteStartPos.copy(this.cameraGroup.position);
+      this._vignetteStartYaw = this._yawOf(this.cameraGroup);
+    }
+
     // 1. Controller thumbsticks
     this._updateControllerMovement(delta);
 
@@ -317,6 +333,41 @@ export class Locomotion {
 
     // 5. Apply seated-height offset and reduced-motion damping.
     this._applyComfortOffset(delta);
+
+    // 6. Drive the transient comfort vignette (reduced-motion only).
+    this._updateLocomotionVignette(delta);
+  }
+
+  /** Extract the yaw (heading) of an object's world quaternion. */
+  _yawOf(obj: THREE.Object3D): number {
+    this.tempEuler.setFromQuaternion(obj.quaternion, 'YXZ');
+    return this.tempEuler.y;
+  }
+
+  /**
+   * Fade a peripheral comfort vignette in while the user is moving and out once
+   * they are still — only when reduced-motion is enabled. When reduced-motion is
+   * off, this is a no-op so the ComfortSettingsController's static `vignette`
+   * setting stays the sole owner of vignette state.
+   */
+  _updateLocomotionVignette(delta: number): void {
+    if (!this.reducedMotion) return;
+    const moved = this.cameraGroup.position.distanceToSquared(this._vignetteStartPos) > 1e-4; // ~1 cm
+    let yawDelta = this._yawOf(this.cameraGroup) - this._vignetteStartYaw;
+    while (yawDelta > Math.PI) yawDelta -= Math.PI * 2;
+    while (yawDelta < -Math.PI) yawDelta += Math.PI * 2;
+    const turning = Math.abs(yawDelta) > 0.02; // ~1.1°
+    const target = moved || turning ? 0.6 : 0;
+    // Fade in faster than out: ramping up discomfort shielding promptly matters
+    // more than a leisurely release once the user is steady.
+    const rate = target > this._vignetteOpacity ? 8 : 3;
+    this._vignetteOpacity += (target - this._vignetteOpacity) * Math.min(1, rate * delta);
+    if (this._vignetteOpacity < 0.01) {
+      this._vignetteOpacity = 0;
+      this.engine.setVignetteEnabled?.(false, 0);
+    } else {
+      this.engine.setVignetteEnabled?.(true, this._vignetteOpacity);
+    }
   }
 
   _applyComfortOffset(delta: number): void {

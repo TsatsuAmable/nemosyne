@@ -262,6 +262,15 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
         opItem('anomaly', 'Anomaly', '⚡', 'anomaly'),
         opItem('timeSlice', 'Slice', '🕒', 'timeSlice'),
         { id: 'reset', label: 'Reset', icon: '↺', callback: () => world.resetDataOperation() },
+        // Undo/Redo surface the analysis history to controller-only VR users who
+        // cannot reliably perform the two-handed rotate gestures or know the
+        // A/B-button mapping. `undoAnalysis`/`redoAnalysis` are safe no-ops when
+        // the history has nothing to undo/redo, so these are always clickable.
+        // A live disabled affordance (dimmed when canUndo/canRedo is false) is a
+        // future enhancement — it requires dynamic menu state, since the wheel is
+        // built once at init.
+        { id: 'undo', label: 'Undo', icon: '⮌', callback: () => world.undoAnalysis() },
+        { id: 'redo', label: 'Redo', icon: '⮎', callback: () => world.redoAnalysis() },
       ],
     },
     {
