@@ -3,7 +3,7 @@
  * instantiated in jsdom without the native `canvas` npm package.
  */
 
-function makeWebGLContext() {
+function makeWebGLContext(canvas) {
   const noOp = () => {};
 
   const params = {
@@ -18,6 +18,9 @@ function makeWebGLContext() {
     0x8872: 8, // MAX_TEXTURE_IMAGE_UNITS
     0x8869: 16, // MAX_VERTEX_ATTRIBS
     0x8dfb: 16, // MAX_VERTEX_UNIFORM_VECTORS
+    0x8b4c: 1024, // MAX_VARYING_VECTORS
+    0x8871: 16, // MAX_COMBINED_TEXTURE_IMAGE_UNITS
+    0x8f41: 2048, // MAX_RENDERBUFFER_SIZE
   };
 
   const ctx = {
@@ -117,7 +120,7 @@ function makeWebGLContext() {
     getShaderPrecisionFormat: () => ({ precision: 1, rangeMin: 1, rangeMax: 1 }),
     getContextAttributes: () => ({ alpha: false, antialias: true, preserveDrawingBuffer: false }),
     isContextLost: () => false,
-    canvas: this,
+    canvas: canvas ?? null,
   };
 
   // Attach the numeric constants three.js reads directly from the context.
@@ -157,6 +160,20 @@ function makeWebGLContext() {
     COLOR_BUFFER_BIT: 0x00004000,
     DEPTH_BUFFER_BIT: 0x00000100,
     STENCIL_BUFFER_BIT: 0x00000400,
+    RGBA: 0x1908,
+    RGB: 0x1907,
+    STATIC_DRAW: 0x88e4,
+    DYNAMIC_DRAW: 0x88e8,
+    STREAM_DRAW: 0x88e0,
+    UNPACK_FLIP_Y_WEBGL: 0x9240,
+    UNPACK_PREMULTIPLY_ALPHA_WEBGL: 0x9241,
+    FRAGMENT_SHADER: 0x8b30,
+    VERTEX_SHADER: 0x8b31,
+    COMPILE_STATUS: 0x8b81,
+    LINK_STATUS: 0x8b82,
+    MAX_VARYING_VECTORS: 0x8b4c,
+    MAX_COMBINED_TEXTURE_IMAGE_UNITS: 0x8871,
+    MAX_RENDERBUFFER_SIZE: 0x8f41,
   };
   Object.assign(ctx, constants);
 
@@ -168,7 +185,7 @@ function makeWebGLContext() {
 Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
   value(type, ...rest) {
     if (type === 'webgl' || type === 'experimental-webgl' || type === 'webgl2') {
-      return makeWebGLContext();
+      return makeWebGLContext(this);
     }
     if (type === '2d') {
       const noOp = () => {};
