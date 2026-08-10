@@ -1,12 +1,15 @@
 # THROWAWAY: regenerate package-lock.json on Linux so it includes the linux
 # platform variants of optional native binaries (lightningcss, @rolldown/binding)
 # that npm 11 (Node 24) requires but a Windows-generated lockfile omits.
-# Triggered manually via workflow_dispatch; downloads the artifact locally,
-# commits the lockfile, then this file is deleted. Not a permanent workflow.
+# Runs on pull_request (PR's head branch) so it executes on this PR; the
+# regenerated lockfile is downloaded as an artifact, committed, then this file
+# is deleted. Not a permanent workflow.
 name: Regen lockfile (Linux)
 
 on:
-  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/regen-lockfile.yml'
 
 jobs:
   regen:
