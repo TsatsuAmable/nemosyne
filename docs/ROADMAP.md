@@ -16,7 +16,7 @@
 - **In progress / next:** await PR review; then pick the next roadmap item (Phase 6).
 - **Blockers / open:** none (PR under review).
 - **Resume pointers:** gate detail → `.agents/teamwork_preview_sub_orch_m1/GATE_STATUS.md`;
-  test inventory → `TEST_READY.md`; PR → see pull request on `feature/phase20-graphics-optimization`.
+  test inventory → `TEST_READY.md`; PR → https://github.com/TsatsuAmable/nemosyne/pull/62.
 
 ### How to update this block
 1. On pickup: read this block first; read resume pointers only if you need detail.
