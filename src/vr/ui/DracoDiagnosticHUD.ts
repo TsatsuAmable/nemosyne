@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { MovablePanel } from '../vr/ui/MovablePanel.ts';
-import { DracoTopologyNode } from './DracoTopologyNode.ts';
+import { MovablePanel } from './MovablePanel.ts';
+import { DracoTopologyNode } from '../../draco/DracoTopologyNode.ts';
 
 interface DiagnosticButton {
   ruleName: string;

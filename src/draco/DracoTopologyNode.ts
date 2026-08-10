@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ConstraintEngine } from './ConstraintEngine.ts';
 import { VRTopologyTranslator } from './VRTopologyTranslator.ts';
 import { disposeObject } from '../utils/Dispose.ts';
-import { MeshPool } from '../vr/scalability/ObjectPool.ts';
+import { MeshPool } from '../utils/ObjectPool.ts';
 import type { Artifact, DracoDataInput, SolverResult } from './types.ts';
 
 /**

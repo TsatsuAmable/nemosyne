@@ -9,7 +9,8 @@ export function rowsToDataset(rows: Record<string, unknown>[], name: string = 'L
     return new Dataset(name, [], []);
   }
 
-  const keys = Object.keys(rows[0]);
+  const rawKeys = Object.keys(rows[0]);
+  const keys = rawKeys.filter((key) => key !== '__proto__' && key !== 'constructor' && key !== 'prototype');
   const columns = keys.map((key) => {
     const values = rows.map((row) => row[key]);
     return { name: key, type: inferType(values) };

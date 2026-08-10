@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { InstancedPointCloud } from '../src/vr/scalability/InstancedPointCloud.ts';
 import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.ts';
@@ -44,5 +44,58 @@ describe('Sprint 20.1 & 20.2: Zero-Allocation Instanced GPU Buffer Pipeline & UI
     const updated = cacheManager.shouldUpdateTexture('CacheTestPanel', stateSig, panel.texture);
 
     expect(updated).toBe(false);
+  });
+
+  it('reuses the same instanceColor InstancedBufferAttribute across setPoints calls (zero allocation)', () => {
+    const cloud = new InstancedPointCloud(100);
+    const itemsA = [
+      { position: [0, 0, 0] as [number, number, number], color: 0xff0000, scale: 1 },
+      { position: [1, 0, 0] as [number, number, number], color: 0x00ff00, scale: 1 },
+    ];
+    const itemsB = [
+      { position: [2, 0, 0] as [number, number, number], color: 0x0000ff, scale: 1 },
+      { position: [3, 0, 0] as [number, number, number], color: 0xffff00, scale: 1 },
+    ];
+
+    cloud.setPoints(itemsA);
+    const colorAttrA = cloud.mesh.instanceColor;
+    expect(colorAttrA).toBeInstanceOf(THREE.InstancedBufferAttribute);
+
+    cloud.setPoints(itemsB);
+    const colorAttrB = cloud.mesh.instanceColor;
+
+    // Same attribute object reference — no reallocation.
+    expect(colorAttrB).toBe(colorAttrA);
+  });
+
+  it('dispose() disposes the InstancedMesh (frees instanced GPU buffers) and forwards to attributes', () => {
+    const cloud = new InstancedPointCloud(50);
+    cloud.setPoints([
+      { position: [0, 0, 0] as [number, number, number], color: 0xff0000, scale: 1 },
+    ]);
+
+    const colorAttr = cloud.mesh.instanceColor!;
+    const matrixAttr = cloud.mesh.instanceMatrix;
+    const colorSpy = vi.fn();
+    const matrixSpy = vi.fn();
+    colorAttr.dispose = colorSpy;
+    matrixAttr.dispose = matrixSpy;
+
+    const geomSpy = vi.fn();
+    const matSpy = vi.fn();
+    cloud.geometry.dispose = geomSpy;
+    cloud.material.dispose = matSpy;
+
+    // mesh.dispose() is the real three r168 path that triggers the renderer's
+    // onInstancedMeshDispose to free instanceMatrix/instanceColor GPU buffers.
+    const meshSpy = vi.spyOn(cloud.mesh, 'dispose');
+
+    cloud.dispose();
+
+    expect(meshSpy).toHaveBeenCalled();
+    expect(colorSpy).toHaveBeenCalled();
+    expect(matrixSpy).toHaveBeenCalled();
+    expect(geomSpy).toHaveBeenCalled();
+    expect(matSpy).toHaveBeenCalled();
   });
 });

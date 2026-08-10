@@ -14,6 +14,30 @@ export interface RemotePeer {
   lastSeenAt: number;
 }
 
+/**
+ * Keys stripped from incoming peer state as defense-in-depth against
+ * per-object prototype pollution. A malicious peer can send
+ * `{"type":"state","__proto__":{...}}` over the data channel; this
+ * message does NOT funnel through Dataset, so we filter it here at the
+ * remote-triggerable merge site.
+ */
+const DANGEROUS_STATE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Rebuild a state object from its own enumerable keys, dropping any
+ * `__proto__`, `constructor`, or `prototype` entries. Returns a fresh
+ * plain object. Non-object/null input collapses to `{}`.
+ */
+function sanitizeState(state: Record<string, unknown>): Record<string, unknown> {
+  if (!state || typeof state !== 'object') return {};
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(state)) {
+    if (DANGEROUS_STATE_KEYS.has(key)) continue;
+    out[key] = state[key];
+  }
+  return out;
+}
+
 export interface RemotePeerSnapshot {
   peerId: string;
   name: string;
@@ -64,13 +88,15 @@ export class Room {
   updatePeerState(peerId: string, state: Record<string, unknown>): boolean {
     const peer = this.peers.get(peerId);
     if (!peer) return false;
-    peer.state = { ...peer.state, ...state };
+    const incoming = sanitizeState(state);
+    peer.state = { ...peer.state, ...incoming };
     peer.lastSeenAt = Date.now();
     return true;
   }
 
   setLocalState(state: Record<string, unknown>): void {
-    this.localState = { ...this.localState, ...state };
+    const incoming = sanitizeState(state);
+    this.localState = { ...this.localState, ...incoming };
   }
 
   getPeerIds(): string[] {

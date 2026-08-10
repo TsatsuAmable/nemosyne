@@ -292,13 +292,17 @@ export class InputRouter {
     // Controller buttons.
     for (const controller of this.pointers.controllers) {
       const source = this.pointers.findSourceForController(controller, sources);
+      const wasTriggerPressed = this.pointers.controllerTriggerPressed.get(controller);
+
       if (!source || !source.gamepad || !source.gamepad.buttons) {
+        if (wasTriggerPressed && this.machine.downPointer === controller) {
+          this.machine.release(controller);
+        }
         this.pointers.controllerTriggerPressed.set(controller, false);
         continue;
       }
 
       const triggerPressed = !!source.gamepad.buttons[0]?.pressed;
-      const wasTriggerPressed = this.pointers.controllerTriggerPressed.get(controller);
 
       if (triggerPressed && !wasTriggerPressed) {
         this.machine.press(controller);

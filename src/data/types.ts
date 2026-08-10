@@ -39,13 +39,7 @@ export interface OperationSpec {
   [key: string]: unknown;
 }
 
-export type TopologyType =
-  | 'HIERARCHY'
-  | 'GRAPH'
-  | 'TIME_SERIES'
-  | 'TABULAR'
-  | 'VECTOR_FIELD'
-  | 'GEO';
+export { type TopologyType, TopologyTypes } from '../types/topology.ts';
 
 export interface EncodingMapping {
   color?: string;

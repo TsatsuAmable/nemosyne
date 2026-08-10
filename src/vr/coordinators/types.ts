@@ -12,6 +12,18 @@ import type { Dataset } from '../../data/Dataset.ts';
 import type { LiveUpdate } from '../../data/connectors/DataConnector.ts';
 import type { DatasetJSON, EncodingMapping, OperationSpec, TopologyType } from '../../data/types.ts';
 
+/** Entry describing a dataset to be loaded into the World. Shared with WorldSessionController. */
+export interface DatasetLoadEntry {
+  [key: string]: unknown;
+  key?: string;
+  name?: string;
+  label?: string;
+  topology: string;
+  dataset: Dataset;
+  maxDepth?: number;
+  encodings?: EncodingMapping;
+}
+
 export type UserMode = 'novice' | 'intermediate' | 'expert';
 
 /** Permissive options bag for bridging to not-yet-typed JS panel/adapter classes. */

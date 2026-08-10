@@ -30,6 +30,11 @@ export function datasetToMessagePack(dataset: Dataset): Uint8Array {
 
 /**
  * Deserialize a MessagePack payload back into a Dataset.
+ *
+ * Defense-in-depth against prototype pollution is centralized in
+ * `Dataset.sanitizeRow` (applied by the Dataset constructor below),
+ * so untrusted `__proto__`/`constructor`/`prototype` row keys are
+ * stripped before reaching downstream consumers.
  */
 export function messagePackToDataset(buffer: Uint8Array | ArrayBuffer): Dataset {
   const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;

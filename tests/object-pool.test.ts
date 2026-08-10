@@ -1,6 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { MeshPool, executeInTimeSlices } from '../src/vr/scalability/ObjectPool.ts';
+import { MeshPool, executeInTimeSlices } from '../src/utils/ObjectPool.ts';
+import {
+  sharedSphereGeometry,
+  sharedBoxGeometry,
+  sharedCylinderGeometry,
+} from '../src/utils/ObjectPool.ts';
+import { disposeObject } from '../src/utils/Dispose.ts';
 
 describe('Object Pool & Time-Sliced Execution Subsystem', () => {
   it('acquires and recycles meshes cleanly without memory allocations', () => {
@@ -46,5 +52,56 @@ describe('Object Pool & Time-Sliced Execution Subsystem', () => {
     });
 
     expect(processed).toEqual(items);
+  });
+
+  it('disposeObject never disposes shared geometries from ObjectPool', () => {
+    // Spy on each shared geometry's dispose to prove it is NOT invoked.
+    const sphereSpy = vi.fn();
+    const boxSpy = vi.fn();
+    const cylinderSpy = vi.fn();
+    const origSphere = sharedSphereGeometry.dispose;
+    const origBox = sharedBoxGeometry.dispose;
+    const origCylinder = sharedCylinderGeometry.dispose;
+    sharedSphereGeometry.dispose = sphereSpy;
+    sharedBoxGeometry.dispose = boxSpy;
+    sharedCylinderGeometry.dispose = cylinderSpy;
+
+    try {
+      const group = new THREE.Group();
+      const sphereMesh = new THREE.Mesh(
+        sharedSphereGeometry,
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      const boxMesh = new THREE.Mesh(
+        sharedBoxGeometry,
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      const cylMesh = new THREE.Mesh(
+        sharedCylinderGeometry,
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      group.add(sphereMesh, boxMesh, cylMesh);
+
+      // A mesh with a non-shared geometry should still be disposed.
+      const privateGeom = new THREE.BufferGeometry();
+      const privateSpy = vi.fn();
+      privateGeom.dispose = privateSpy;
+      const privateMesh = new THREE.Mesh(
+        privateGeom,
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      group.add(privateMesh);
+
+      disposeObject(group);
+
+      expect(sphereSpy).not.toHaveBeenCalled();
+      expect(boxSpy).not.toHaveBeenCalled();
+      expect(cylinderSpy).not.toHaveBeenCalled();
+      expect(privateSpy).toHaveBeenCalled();
+    } finally {
+      sharedSphereGeometry.dispose = origSphere;
+      sharedBoxGeometry.dispose = origBox;
+      sharedCylinderGeometry.dispose = origCylinder;
+    }
   });
 });

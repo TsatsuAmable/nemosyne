@@ -26,7 +26,7 @@ Nemosyne maps high-dimensional datasets into interactive 3D spatial "memory pala
           └── Maps Specs to 3D Geometry, Colors, Sizes, and Animations
                                 │
                                 ▼
-       ObjectPool & Time-Slicing (src/vr/scalability/ObjectPool.ts)
+       ObjectPool & Time-Slicing (src/utils/ObjectPool.ts)
           └── Geometry/Material Reuse & Micro-task Frame Slicing
                                 │
                                 ▼

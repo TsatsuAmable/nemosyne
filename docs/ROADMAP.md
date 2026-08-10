@@ -1,3 +1,31 @@
+## Current Status
+
+> **Single source of truth for project state.** Any agent (Claude Code,
+> Antigravity, any model) reads this block FIRST on pickup and updates it
+> BEFORE stopping. Other docs (CLAUDE.md, .agents/, PROJECT.md, GATE_STATUS.md)
+> point here — they do not duplicate state.
+
+- **Last updated:** 2026-08-10 · Claude Code (glm-5.2) — gate re-confirmed this session
+- **Phase / sprint:** Phase 20 ✅ complete; M1-M4 resume gate green. Next: Phase 6
+  (collaboration, A-Frame convergence, SQL connectors, user studies) — none yet started.
+- **Active branch:** `feature/phase20-graphics-optimization`
+- **Working tree:** clean — M1-M4 + agent-defs + ROADMAP single-source work committed;
+  PR raised for review.
+- **Last gate:** `tsc --noEmit` 0 errors · `vitest run` 1188 pass / 9 skip / 0 fail
+  (exit 0) · `vitest run tests/e2e` 171 pass — re-confirmed 2026-08-10.
+- **In progress / next:** await PR review; then pick the next roadmap item (Phase 6).
+- **Blockers / open:** none (PR under review).
+- **Resume pointers:** gate detail → `.agents/teamwork_preview_sub_orch_m1/GATE_STATUS.md`;
+  test inventory → `TEST_READY.md`; PR → see pull request on `feature/phase20-graphics-optimization`.
+
+### How to update this block
+1. On pickup: read this block first; read resume pointers only if you need detail.
+2. Before stopping: refresh *every* bullet above with current truth (date, branch,
+   tree state, gate result, next action, blockers). Keep it to ~10 lines.
+3. Never let the bullets go stale — a stale "next" is worse than none.
+
+---
+
 # Nemosyne Roadmap
 
 This roadmap is aligned with the upstream `nemosyne.world` 6-phase structure, adapted to the current three.js/WebXR runtime core.
@@ -177,7 +205,7 @@ Only after those four are met should the roadmap choose between **Phase 10A: Val
 - [x] **Sprint 11.3 — Guided Tour Onboarding & Sequential Progression**: Fixed single-step auto-advance guards so tour counts sequentially `1/9` through `9/9`. Added Data Loading, Saving/Exporting, Collaboration, and Data Characteristics demonstration steps.
 - [x] **Sprint 11.4 — On-Device UX Frustration Engine & Low-Token Observability**: Implemented `UXFrustrationAnalyzer.ts` to detect rapid repeated clicking, window thrashing, air-click misses, WASM errors, gesture misfires, and gaze/laser dwell hesitations locally. Generates 8-line token-compressed UX digests.
 - [x] **Sprint 11.5 — Gaze/Laser Dwell & Gesture Confidence Telemetry**: Integrated `recordDwell()` in `SelectionDispatcher.ts` and `recordGestureConfidence()` in `WorldInputCoordinator.ts`.
-- [x] **Sprint 11.6 — Geometry & Material Object Pooling**: Built `MeshPool` in `src/vr/scalability/ObjectPool.ts` and `executeInTimeSlices()` async batch execution to eliminate >200ms dataset load spikes.
+- [x] **Sprint 11.6 — Geometry & Material Object Pooling**: Built `MeshPool` in `src/utils/ObjectPool.ts` and `executeInTimeSlices()` async batch execution to eliminate >200ms dataset load spikes.
 - [x] **Sprint 11.7 — Customization Architecture & AI Developer Team**: Defined 4-agent team in `.agents/team.json` (`technical-architect`, `coder`, `qa-engineer`, `reviewer`) and custom Workspace Skill `.agents/skills/vr-accessibility/SKILL.md`.
 
 ----
@@ -443,35 +471,6 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
-## Phase 20 — Graphics Engine Optimization & 90 FPS WebXR Rendering ⏳
-
-> **Focus:** Optimize WebGL render pipeline for Meta Quest 3S (11.1ms / 90 FPS budget). Eliminate per-frame GC allocations, bypass static UI canvas texture re-uploads via DJB2 state hashing, enable Early-Z culling, and harden WebGL context loss recovery.
-
-### Sprint 20.1 — Zero-Allocation Instanced GPU Buffer Pipeline
-
-- [ ] Eliminate per-frame object allocations in `InstancedPointCloud.setPoints()`; reuse static `InstancedBufferAttribute` typed arrays and update sub-ranges
-- [ ] Enable `depthWrite: true` on instanced point materials to enable Meta Quest 3S TBDR Early-Z culling
-- [ ] Fix `DracoTopologyNode` mesh pool release/disposal lifecycle
-- [ ] `tests/zero-alloc-instanced-buffer.test.ts` — test suite verifying buffer re-use and sub-range update flags
-
-### Sprint 20.2 — UI Canvas Texture Upload Bypassing
-
-- [ ] Integrate `CanvasTextureCacheManager` into `MovablePanel.render()` to compute DJB2 state hashes
-- [ ] Bypass `texture.needsUpdate = true` on static UI frames to eliminate 3-6ms GPU upload stalls
-- [ ] `tests/ui-canvas-texture-cache.test.ts` — test suite verifying texture upload bypass on unchanged UI state
-
-### Sprint 20.3 — Robust WebGL Context Loss & GPU Buffer Recovery
-
-- [ ] Consolidate `webglcontextlost` and `webglcontextrestored` handling into `ContextRecoveryManager.ts`
-- [ ] Re-flag geometry buffer attributes dirty and force material re-compilation on context recovery
-- [ ] `tests/context-loss-gpu-recovery.test.ts` — test suite verifying scene restoration after context loss
-
-### Sprint 20.4 — Closed-Loop 90 FPS Governor Load Shedding
-
-- [ ] Measure frame deltas via `XRFrame` timestamps and push `lodScaleFactor` directly into `InstancedPointCloud.applyLODScale()` during `Engine._tick()`
-- [ ] `tests/closed-loop-graphics-governor.test.ts` — test suite asserting reactive load shedding under GPU load
-
----
 
 ## Legend
 

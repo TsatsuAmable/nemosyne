@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Picking up where you left off
+
+**Read the "Current Status" block at the top of `docs/ROADMAP.md` FIRST.** It is the
+single source of truth for branch, working-tree state, last gate result, the next
+task, and blockers — across any model or harness. Before you stop, refresh that block
+with current truth. Other docs (this file, `.agents/`, `PROJECT.md`) point to it and do
+not duplicate state.
+
 ## Repository layout
 
 This repository contains the canonical Nemosyne runtime. The application code, tests, and build configuration all live at the repository root.
@@ -96,7 +104,7 @@ Raw Data (CSV/JSON/Live Stream)
 ### Source layers
 
 - `src/data/` — `Dataset`, CSV/JSON `Parsers`, `Encodings`, `DatasetOperations` (filter, sort, aggregate, cluster, slice, anomaly), and live connectors (`WebSocketAdapter`, `PollingAdapter`, `OpenDataSources`).
-- `src/draco/` — `ConstraintEngine` (symbolic recommender), `VRTopologyTranslator` (spec → three.js artefact group), `DracoTopologyNode` (solve → synthesize → place), `DracoDiagnosticHUD` (soft-weight tuner), and layout generators under `src/draco/layouts/`.
+- `src/draco/` — `ConstraintEngine` (symbolic recommender), `VRTopologyTranslator` (spec → three.js artefact group), `DracoTopologyNode` (solve → synthesize → place), and layout generators under `src/draco/layouts/`. (The `DracoDiagnosticHUD` soft-weight tuner now lives in `src/vr/ui/`.)
 - `src/vr/` — Core WebXR runtime.
   - `Engine.js` — three.js scene, renderer, XR session, animation loop, updatables.
   - `World.js` — composes the scene: datum plane, landmarks, Draco palace, HUD, menu, live connectors.
@@ -165,6 +173,6 @@ node src/network/SignallingServer.mjs --port=8080
 - `docs/ARCHITECTURE.md` — Layer-by-layer architecture and data-flow descriptions.
 - `ARCHITECTURE_BRIDGE.md` — Maps the upstream `nemosyne.world` concepts to this runtime.
 - `docs/DESIGN_SYSTEM.md` — Color palette, typography, artefact specifications, animation timing, and spacing tokens.
-- `docs/ROADMAP.md` — Phase-by-phase roadmap and current evaluation checkpoint.
+- `docs/ROADMAP.md` — Phase-by-phase roadmap. Its **Current Status** block (top of file) is the live project state — read it first.
 
 When making changes, keep these documents aligned if they mention the feature, file, or command you touch.

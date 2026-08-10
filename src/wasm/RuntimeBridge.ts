@@ -137,8 +137,11 @@ export function memory(): WebAssembly.Memory {
 export function allocBytes(bytes: Uint8Array): AllocResult {
   if (!wasmInstance) throw new Error('Runtime not initialised');
   const len = bytes.length;
+  if (len === 0) {
+    return { ptr: 0, len: 0 };
+  }
   const ptr = wasmInstance.alloc(len);
-  if (ptr === 0 && len > 0) {
+  if (ptr === 0) {
     throw new Error('WASM alloc returned 0');
   }
   new Uint8Array(wasmInstance.memory.buffer, ptr, len).set(bytes);
@@ -150,6 +153,7 @@ export function allocBytes(bytes: Uint8Array): AllocResult {
  */
 export function deallocBytes(ptr: number, len: number): void {
   if (!wasmInstance) throw new Error('Runtime not initialised');
+  if (ptr === 0 || len === 0) return;
   wasmInstance.dealloc(ptr, len);
 }
 

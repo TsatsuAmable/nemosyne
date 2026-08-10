@@ -3,7 +3,7 @@
  * synthesis layer.
  */
 
-import type { Vector3, Group, Mesh, Line } from 'three';
+import type { Vector3, Group, Mesh, Line, BufferGeometry } from 'three';
 import type { Dataset, DatasetEdge } from '../data/Dataset.ts';
 import type { EncodingMapping, TopologyType } from '../data/types.ts';
 
@@ -253,4 +253,46 @@ export interface Artifact {
   update: (delta: number, time: number) => void;
   spec: DracoSpec;
   chartPlane?: unknown;
+}
+
+/** Abstract contract for GPU-instanced point cloud representations. */
+export interface IInstancedPointCloud {
+  mesh: Mesh;
+  setPoints(items: unknown[]): void;
+}
+
+/** Abstract contract for 3D chart plane widgets. */
+export interface IChartPlane {
+  mesh: Mesh;
+  setDataset?: (dataset: Dataset) => void;
+}
+
+/** Factory signature for creating instanced point clouds. */
+export type InstancedPointCloudFactory = (
+  count: number,
+  geometry?: BufferGeometry
+) => IInstancedPointCloud;
+
+/** Factory signature for creating 3D chart planes. */
+export type ChartPlaneFactory = (
+  facts: DracoFacts,
+  dataset: Dataset,
+  options?: { title?: string }
+) => IChartPlane;
+
+/** Handlers for spatial metaphor interaction transforms. */
+export interface MetaphorActionHandlers {
+  applyResonancePulse?: (group: Group, targetMesh: Mesh, partners: Mesh[]) => void;
+  applyForkPlane?: (group: Group, targetMesh: Mesh) => void;
+  applyChronoDial?: (group: Group, targetMesh: Mesh) => void;
+  applyConstellation?: (group: Group, targetMesh: Mesh, others: Mesh[]) => void;
+  applyBeacon?: (group: Group, targetMesh: Mesh) => void;
+  applyAleph?: (group: Group, targetMesh: Mesh, others: Mesh[]) => void;
+}
+
+/** Optional dependency providers for VRTopologyTranslator synthesis. */
+export interface VRTranslatorOptions {
+  pointCloudFactory?: InstancedPointCloudFactory;
+  chartPlaneFactory?: ChartPlaneFactory;
+  metaphorActions?: MetaphorActionHandlers;
 }

@@ -40,14 +40,41 @@ export class ControllerPointer {
     // are not declared in the three.js Object3DEventMap, so treat it as a plain
     // DOM-style EventTarget for typing purposes.
     const eventTarget = this.space as unknown as EventTarget;
-    eventTarget.addEventListener('connected', (evt: Event) => {
-      const data = (evt as unknown as { data?: { handedness?: string } }).data;
-      this.handedness = data?.handedness ?? 'none';
-    });
+    eventTarget.addEventListener('connected', this._onConnected as EventListener);
+    eventTarget.addEventListener('disconnected', this._onDisconnected as EventListener);
+  }
 
-    eventTarget.addEventListener('selectstart', () => {
-      if (this.onSelect) this.onSelect(this);
-    });
+  private _onConnected = (evt: Event): void => {
+    const data = (evt && typeof evt === 'object' && 'data' in evt)
+      ? (evt as unknown as { data?: { handedness?: string } }).data
+      : null;
+    this.handedness = data?.handedness ?? 'none';
+  };
+
+  private _onDisconnected = (): void => {
+    this.handedness = 'none';
+    this.ray.visible = false;
+    this.onSelect = null;
+  };
+
+  dispose(): void {
+    const eventTarget = this.space as unknown as EventTarget;
+    try {
+      eventTarget.removeEventListener('connected', this._onConnected as EventListener);
+      eventTarget.removeEventListener('disconnected', this._onDisconnected as EventListener);
+    } catch (_) {
+      // Ignore if event target removal is unsupported.
+    }
+    this.ray.geometry?.dispose();
+    if (Array.isArray(this.ray.material)) {
+      this.ray.material.forEach((m) => m.dispose());
+    } else {
+      this.ray.material?.dispose();
+    }
+    if (this.ray.parent) {
+      this.ray.parent.remove(this.ray);
+    }
+    this.onSelect = null;
   }
 
   getRay(targetRay: THREE.Ray): THREE.Ray {

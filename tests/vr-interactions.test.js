@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { InputRouter } from '../src/vr/InputRouter.ts';
 import { Locomotion } from '../src/vr/Locomotion.ts';
-import { DracoDiagnosticHUD } from '../src/draco/DracoDiagnosticHUD.ts';
+import { DracoDiagnosticHUD } from '../src/vr/ui/DracoDiagnosticHUD.ts';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { InputTelemetry } from '../src/vr/InputTelemetry.ts';

@@ -4,6 +4,59 @@
  */
 
 import type { ColumnSchema, DatasetJSON } from './types.ts';
+import { CSVDataParser } from './CSVDataParser.ts';
+
+/**
+ * Keys that are stripped from untrusted row objects as defense-in-depth
+ * against per-object prototype pollution. `Object.keys` already skips
+ * inherited properties, but we explicitly filter these names too so a
+ * malicious row carrying an own `__proto__`/`constructor`/`prototype`
+ * data property can never reach downstream code paths (e.g. `Object.assign`
+ * or merge operations that invoke the `__proto__` setter).
+ */
+const DANGEROUS_ROW_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function hasDangerousOwnKey(row: Record<string, unknown>): boolean {
+  return (
+    Object.prototype.hasOwnProperty.call(row, '__proto__') ||
+    Object.prototype.hasOwnProperty.call(row, 'constructor') ||
+    Object.prototype.hasOwnProperty.call(row, 'prototype')
+  );
+}
+
+/**
+ * Always build a fresh plain object from a row's own enumerable keys, dropping
+ * any `__proto__`/`constructor`/`prototype` entries. The result never aliases
+ * the source and never carries a dangerous key. Used by `clone`/`fromJSON`
+ * where a NEW object is semantically required.
+ */
+function cloneRow(row: Record<string, unknown>): Record<string, unknown> {
+  if (!row || typeof row !== 'object') return {};
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(row)) {
+    if (DANGEROUS_ROW_KEYS.has(key)) continue;
+    out[key] = row[key];
+  }
+  return out;
+}
+
+/**
+ * Strip dangerous keys while PRESERVING reference identity for clean rows.
+ * Data-operation visual transforms (`applyFilter`/`applySort`/cluster ops in
+ * `src/vr/interactions/`) match meshes to dataset rows by reference equality
+ * (`mesh.userData.row === dataset.rows[i]`). Cloning every row in the
+ * constructor would break that contract, so only rows that actually carry a
+ * dangerous own key are rebuilt; clean rows are returned unchanged. This
+ * keeps the prototype-pollution defense intact (dangerous keys are still
+ * stripped) without breaking row-reference identity across `Dataset`
+ * boundaries (e.g. `filter(dataset)` -> `new Dataset(...)` -> `applyFilter`).
+ * Non-object/null input collapses to `{}`.
+ */
+function sanitizeRow(row: Record<string, unknown>): Record<string, unknown> {
+  if (!row || typeof row !== 'object') return {};
+  if (!hasDangerousOwnKey(row)) return row;
+  return cloneRow(row);
+}
 
 export const ColumnType = {
   NUMERIC: 'NUMERIC',
@@ -42,7 +95,10 @@ export class Dataset {
   ) {
     this.name = name;
     this.columns = columns;
-    this.rows = rows;
+    // Sanitize every incoming row at the single chokepoint — this covers
+    // parse/CSV/JSON/msgpack/fromJSON/clone/updateRows paths since they
+    // all funnel through the constructor or call sanitizeRow directly.
+    this.rows = rows.map(sanitizeRow);
     this.edges = edges;
   }
 
@@ -113,10 +169,14 @@ export class Dataset {
    * @returns this
    */
   updateRows(newRows: Record<string, unknown>[], mode: 'append' | 'replace' = 'append', limit: number | null = null): this {
+    // Sanitize incoming rows before they join the instance store. Live
+    // stream rows are untrusted (e.g. WebSocket sensor data) and must not
+    // carry dangerous keys into downstream consumers.
+    const sanitized = newRows.map(sanitizeRow);
     if (mode === 'replace') {
-      this.rows = newRows.slice();
+      this.rows = sanitized;
     } else {
-      this.rows.push(...newRows);
+      this.rows.push(...sanitized);
     }
     if (limit != null && this.rows.length > limit) {
       this.rows = this.rows.slice(-limit);
@@ -128,7 +188,10 @@ export class Dataset {
     return new Dataset(
       this.name,
       this.columns.slice(),
-      this.rows.map((r) => ({ ...r }))
+      // Clone (not alias) rows into independent clean objects so mutations to
+      // the clone never leak back into the source. Rows are already sanitized
+      // on construction; cloneRow re-strips dangerous keys defensively.
+      this.rows.map(cloneRow)
     );
   }
 
@@ -160,14 +223,25 @@ export class Dataset {
       throw new Error('Dataset.fromJSON requires an object');
     }
     const typedObj = obj as DatasetJSON;
+    // Build independent, sanitized row copies so the reconstructed dataset
+    // never aliases the parsed payload and never carries dangerous keys. The
+    // constructor's sanitizeRow is a no-op on these (already clean) objects,
+    // preserving their identity for downstream row-reference matching.
     const ds = new Dataset(
       typedObj.name || 'dataset',
       typedObj.columns?.map((c) => ({ name: c.name, type: c.type })) || [],
-      typedObj.rows?.map((r) => ({ ...r })) || []
+      (typedObj.rows ?? []).map(cloneRow)
     );
     if (typedObj.edges) {
       ds.edges = typedObj.edges.map((e) => ({ ...e }));
     }
     return ds;
+  }
+
+  /**
+   * Parse a CSV string directly into a Dataset instance.
+   */
+  static fromCSV(csvText: string, name: string = 'dataset', options?: any): Dataset {
+    return CSVDataParser.parseToDataset(name, csvText, options);
   }
 }

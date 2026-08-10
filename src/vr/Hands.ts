@@ -174,9 +174,34 @@ export class HandPointer implements PointerLike {
   private _onDisconnected = () => {
     this.jointsValid = false;
     this.joints = null;
+    this.pinched = false;
+    this.pinchDistance = Infinity;
     this.ray.visible = false;
+    this.onPinchStart = null;
+    this.onPinchEnd = null;
     console.log(`[HandPointer ${this.index}] disconnected`);
   };
+
+  dispose(): void {
+    const eventTarget = this.space as unknown as EventTarget;
+    try {
+      eventTarget.removeEventListener('connected', this._onConnected);
+      eventTarget.removeEventListener('disconnected', this._onDisconnected);
+    } catch (_) {
+      // Ignore if event target removal is unsupported.
+    }
+    this.ray.geometry?.dispose();
+    if (Array.isArray(this.ray.material)) {
+      this.ray.material.forEach((m) => m.dispose());
+    } else {
+      this.ray.material?.dispose();
+    }
+    if (this.ray.parent) {
+      this.ray.parent.remove(this.ray);
+    }
+    this.onPinchStart = null;
+    this.onPinchEnd = null;
+  }
 
   /** Add ray line to scene (not to hand space so we can position it precisely). */
   mount(scene: THREE.Scene): void {

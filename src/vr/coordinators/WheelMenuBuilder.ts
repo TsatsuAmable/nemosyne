@@ -1,0 +1,278 @@
+import { ANALYSIS_TEMPLATES } from '../../data/AnalysisTemplates.ts';
+
+export interface WheelMenuItemConfig {
+  id: string;
+  label: string;
+  icon?: string;
+  callback?: () => void;
+  onHover?: () => void;
+  onLeave?: () => void;
+}
+
+export interface WheelCategoryConfig {
+  id: string;
+  label: string;
+  icon?: string;
+  items: WheelMenuItemConfig[];
+}
+
+export function buildWheelMenuCategories(world: any): WheelCategoryConfig[] {
+  const opItem = (id: string, label: string, icon: string, op: string) => ({
+    id,
+    label,
+    icon,
+    callback: () => world.applyDataOperation(op),
+    onHover: () => world.previewDataOperation(op),
+    onLeave: () => world.clearOperationPreview(),
+  });
+
+  return [
+    {
+      id: 'panels',
+      label: 'Panels',
+      icon: '🪟',
+      items: [
+        {
+          id: 'launcher',
+          label: 'Launcher',
+          icon: '🚀',
+          callback: () => world.panelManager.toggleLauncher(),
+        },
+        {
+          id: 'settings',
+          label: 'Settings',
+          icon: '⚙️',
+          callback: () => world._toggleSettingsPanel(),
+        },
+        {
+          id: 'operation-log',
+          label: 'Log',
+          icon: '📝',
+          callback: () => world.panelManager.togglePanel(world.operationLogPanel),
+        },
+        {
+          id: 'telemetry',
+          label: 'Telemetry',
+          icon: '📊',
+          callback: () => world.panelManager.togglePanel(world.metricsPanel),
+        },
+        {
+          id: 'performance',
+          label: 'Perf',
+          icon: '⏱️',
+          callback: () => world.panelManager.togglePanel(world.performancePanel),
+        },
+        {
+          id: 'interaction-coach',
+          label: 'Coach',
+          icon: '🎓',
+          callback: () => world.panelManager.togglePanel(world.interactionCoach),
+        },
+        { id: 'tour', label: 'Tour', icon: '📍', callback: () => world.startTour() },
+        {
+          id: 'narrative-strip',
+          label: 'Timeline',
+          icon: '🎞️',
+          callback: () => world.panelManager.togglePanel(world.narrativeStrip),
+        },
+        {
+          id: 'recenter',
+          label: 'Recenter',
+          icon: '🎯',
+          callback: () => world.panelManager.recenter(),
+        },
+        {
+          id: 'scroll-dashboard-left',
+          label: '◀ Dash',
+          icon: '⬅️',
+          callback: () => world.dashboard.scrollBySlots(-1),
+        },
+        {
+          id: 'scroll-dashboard-right',
+          label: 'Dash ▶',
+          icon: '➡️',
+          callback: () => world.dashboard.scrollBySlots(1),
+        },
+        {
+          id: 'reset-dashboard',
+          label: 'Reset Dash',
+          icon: '↺',
+          callback: () => world.dashboard.resetDashboard(),
+        },
+        {
+          id: 'save-session',
+          label: 'Save',
+          icon: '💾',
+          callback: () => world.saveSession('manual'),
+        },
+        {
+          id: 'load-session',
+          label: 'Load',
+          icon: '⏮️',
+          callback: () => world.loadSession('autosave'),
+        },
+        {
+          id: 'delete-autosave',
+          label: 'New',
+          icon: '🆕',
+          callback: () => world.deleteSession('autosave'),
+        },
+        {
+          id: 'export-screenshot',
+          label: 'Screenshot',
+          icon: '📸',
+          callback: () => world.exportScreenshot(),
+        },
+        {
+          id: 'export-story',
+          label: 'Story',
+          icon: '📤',
+          callback: () => world.exportAnalysisStory(),
+        },
+      ],
+    },
+    {
+      id: 'templates',
+      label: 'Templates',
+      icon: '📖',
+      items: ANALYSIS_TEMPLATES.map((t) => ({
+        id: `template-${t.id}`,
+        label: t.label,
+        icon: t.icon,
+        callback: () => world.loadTemplate(t.id),
+      })),
+    },
+    {
+      id: 'views',
+      label: 'Views',
+      icon: '👁️',
+      items: [
+        {
+          id: 'portals',
+          label: 'Portals',
+          icon: '🌀',
+          callback: () => world.setPortalsEnabled(!world.portalsEnabled),
+        },
+        { id: 'dataset', label: 'Dataset', icon: '💎', callback: () => world._cycleDataset() },
+        {
+          id: 'cycle-theme',
+          label: 'Theme',
+          icon: '🎨',
+          callback: () => world._cycleThemePreset(),
+        },
+        {
+          id: 'teleport-toggle',
+          label: 'Teleport',
+          icon: '📡',
+          callback: () => world.engine.locomotion.toggleTeleport(),
+        },
+        {
+          id: 'teleport-overview',
+          label: 'Overview',
+          icon: '🌍',
+          callback: () => world.engine.locomotion.teleportToAnchor('overview'),
+        },
+        {
+          id: 'teleport-detail',
+          label: 'Detail',
+          icon: '🔎',
+          callback: () => world.engine.locomotion.teleportToAnchor('detail'),
+        },
+        {
+          id: 'teleport-north',
+          label: 'North',
+          icon: '⬆️',
+          callback: () => world.engine.locomotion.teleportToAnchor('north'),
+        },
+        {
+          id: 'teleport-south',
+          label: 'South',
+          icon: '⬇️',
+          callback: () => world.engine.locomotion.teleportToAnchor('south'),
+        },
+        {
+          id: 'toggle-mini-overview',
+          label: 'Overview',
+          icon: '🗺️',
+          callback: () => world._toggleMiniOverview(),
+        },
+        {
+          id: 'toggle-peer-presence',
+          label: 'Peers',
+          icon: '👥',
+          callback: () => world._togglePeerPresenceHUD(),
+        },
+        {
+          id: 'toggle-desktop-preview',
+          label: 'Preview',
+          icon: '🖥️',
+          callback: () => world._toggleDesktopPreview(),
+        },
+        {
+          id: 'toggle-flight',
+          label: 'Flight',
+          icon: '🚀',
+          callback: () => world.engine.locomotion.toggleFlight(),
+        },
+        {
+          id: 'drop-to-floor',
+          label: 'Floor',
+          icon: '🧱',
+          callback: () => world.engine.locomotion.dropToFloor(),
+        },
+      ],
+    },
+    {
+      id: 'live',
+      label: 'Live',
+      icon: '📡',
+      items: [
+        {
+          id: 'live-toggle',
+          label: world.isLiveConnected() ? 'Stop' : 'Start',
+          icon: world.isLiveConnected() ? '⏹️' : '▶️',
+          callback: () =>
+            world.isLiveConnected() ? world.disconnectLiveStream() : world.connectLiveStream(),
+        },
+      ],
+    },
+    {
+      id: 'collab',
+      label: 'Collab',
+      icon: '👥',
+      items: [
+        {
+          id: 'collab-toggle',
+          label: world.collaborationCoordinator.isConnected() ? 'Leave' : 'Join',
+          icon: world.collaborationCoordinator.isConnected() ? '🚪' : '🔗',
+          callback: () =>
+            world.collaborationCoordinator.isConnected()
+              ? world._leaveCollaborationRoom()
+              : world._joinCollaborationRoom(),
+        },
+        {
+          id: 'collab-panel',
+          label: 'Network',
+          icon: '🌐',
+          callback: () => world.panelManager.togglePanel(world.networkPanel),
+        },
+      ],
+    },
+    {
+      id: 'ops',
+      label: 'Ops',
+      icon: '⚙️',
+      items: [
+        opItem('filter', 'Filter', '🔎', 'filter'),
+        opItem('sort', 'Sort', '📶', 'sort'),
+        opItem('aggregate', 'Aggregate', '📚', 'aggregate'),
+        opItem('cluster', 'Cluster', '🔷', 'cluster'),
+        opItem('hierarchical', 'Hierarchy', '🌳', 'hierarchical'),
+        opItem('density', 'Density', '⚫', 'density'),
+        opItem('anomaly', 'Anomaly', '⚡', 'anomaly'),
+        opItem('timeSlice', 'Slice', '🕒', 'timeSlice'),
+        { id: 'reset', label: 'Reset', icon: '↺', callback: () => world.resetDataOperation() },
+      ],
+    },
+  ];
+}
