@@ -17,15 +17,17 @@ export class SignallingChannel extends EventTarget {
   url: string;
   roomId: string;
   peerId: string;
+  token: string | undefined;
   _ws: WebSocket | null = null;
   _connected: boolean = false;
   _queue: SignallingMessage[] = [];
 
-  constructor(url: string, roomId: string, peerId: string) {
+  constructor(url: string, roomId: string, peerId: string, token?: string) {
     super();
     this.url = url;
     this.roomId = roomId;
     this.peerId = peerId;
+    this.token = token;
   }
 
   get isOpen(): boolean {
@@ -36,9 +38,12 @@ export class SignallingChannel extends EventTarget {
     if (this._ws) return Promise.resolve();
     return new Promise((resolve, reject) => {
       try {
-        this._ws = new WebSocket(
-          `${this.url}?room=${encodeURIComponent(this.roomId)}&peer=${encodeURIComponent(this.peerId)}`
-        );
+        const params = `room=${encodeURIComponent(this.roomId)}&peer=${encodeURIComponent(this.peerId)}`;
+        // Append the shared-secret token when configured. Never logged.
+        const fullUrl = this.token
+          ? `${this.url}?${params}&token=${encodeURIComponent(this.token)}`
+          : `${this.url}?${params}`;
+        this._ws = new WebSocket(fullUrl);
       } catch (err) {
         reject(err);
         return;

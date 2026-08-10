@@ -66,7 +66,9 @@ function signallingPlugin() {
     if (!server.httpServer) return;
     const { WebSocketServer } = await import('ws');
     const wss = new WebSocketServer({ noServer: true });
-    const registry = createRoomRegistry();
+    // Optional shared-secret gate: set NEMOSYNE_SIGNAL_TOKEN to require a
+    // matching ?token= on join. Unset = open local dev (no token check).
+    const registry = createRoomRegistry({ authToken: process.env.NEMOSYNE_SIGNAL_TOKEN || '' });
 
     server.httpServer.on('upgrade', (request, socket, head) => {
       if (request.url !== '/__signal') return;
@@ -74,7 +76,8 @@ function signallingPlugin() {
         const url = new URL(request.url, `http://${request.headers.host}`);
         const roomId = url.searchParams.get('room') || 'default';
         const peerId = url.searchParams.get('peer') || `peer-${Date.now()}`;
-        registry.handleConnection(ws, roomId, peerId);
+        const token = url.searchParams.get('token') || undefined;
+        registry.handleConnection(ws, roomId, peerId, token);
       });
     });
   }

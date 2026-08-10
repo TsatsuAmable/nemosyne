@@ -16,6 +16,8 @@ export interface NetworkManagerOptions {
   roomId?: string;
   peerId?: string;
   peerName?: string;
+  /** Shared secret required to join a token-gated signalling room. */
+  token?: string;
   iceServers?: RTCIceServer[] | null;
   maxStateBytes?: number;
 }
@@ -25,6 +27,8 @@ export class NetworkManager extends EventTarget {
   roomId: string;
   peerId: string;
   peerName: string;
+  /** Shared secret sent on join; never logged. */
+  token: string | undefined;
   iceServers: RTCIceServer[];
   maxStateBytes: number;
 
@@ -40,6 +44,7 @@ export class NetworkManager extends EventTarget {
     roomId,
     peerId,
     peerName = 'Analyst',
+    token,
     iceServers = null,
     maxStateBytes = DEFAULT_MAX_STATE_BYTES,
   }: NetworkManagerOptions = {}) {
@@ -48,6 +53,7 @@ export class NetworkManager extends EventTarget {
     this.roomId = roomId ?? 'default';
     this.peerId = peerId ?? this._generatePeerId();
     this.peerName = peerName;
+    this.token = token ?? this._loadStoredToken();
     this.iceServers = iceServers ?? [{ urls: 'stun:stun.l.google.com:19302' }];
     this.maxStateBytes = maxStateBytes;
 
@@ -60,7 +66,7 @@ export class NetworkManager extends EventTarget {
 
   async connect(roomId: string | null = null): Promise<void> {
     if (roomId) this.roomId = roomId;
-    this.signalling = new SignallingChannel(this.signallingUrl, this.roomId, this.peerId);
+    this.signalling = new SignallingChannel(this.signallingUrl, this.roomId, this.peerId, this.token);
     this.signalling.addEventListener('open', () => {
       this._connected = true;
       this.dispatchEvent(new CustomEvent('connected', { detail: { roomId: this.roomId } }));
@@ -407,5 +413,18 @@ export class NetworkManager extends EventTarget {
   _generatePeerId(): string {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
     return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  /**
+   * Read the optional shared-secret collaboration token from localStorage
+   * (`nemosyne.collabToken`). The token is a shared secret and is never logged.
+   */
+  _loadStoredToken(): string | undefined {
+    try {
+      const v = typeof localStorage !== 'undefined' ? localStorage.getItem('nemosyne.collabToken') : null;
+      return v || undefined;
+    } catch {
+      return undefined;
+    }
   }
 }

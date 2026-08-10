@@ -20,10 +20,17 @@ export interface SignallingSocket {
 export interface RoomRegistryOptions {
   maxMessageBytes?: number;
   maxPeersPerRoom?: number;
+  /**
+   * Optional shared secret required to join a room. When set (non-empty), a
+   * peer must supply a matching `token` to `handleConnection`; a mismatch is
+   * rejected with close code 4001. When unset, token checks are skipped so
+   * local dev remains frictionless. This is a shared secret, not strong auth.
+   */
+  authToken?: string;
 }
 
 export interface RoomRegistry {
-  handleConnection(socket: SignallingSocket, roomId: string, peerId: string): void;
+  handleConnection(socket: SignallingSocket, roomId: string, peerId: string, token?: string): void;
 }
 
 interface SignallingMessagePayload {
@@ -36,6 +43,7 @@ interface SignallingMessagePayload {
 export function createRoomRegistry({
   maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES,
   maxPeersPerRoom = DEFAULT_MAX_PEERS_PER_ROOM,
+  authToken = '',
 }: RoomRegistryOptions = {}): RoomRegistry {
   const rooms = new Map<string, Map<string, SignallingSocket>>(); // roomId -> Map(peerId -> socket)
 
@@ -72,12 +80,37 @@ export function createRoomRegistry({
     }
   }
 
-  function handleConnection(socket: SignallingSocket, roomId: string, peerId: string): void {
+  function handleConnection(socket: SignallingSocket, roomId: string, peerId: string, token?: string): void {
+    // Shared-secret gate: when a token is configured, every join must supply a
+    // matching token. A missing/mismatched token is rejected before the peer is
+    // admitted to any room state. (room+token is a shared secret, not strong auth.)
+    if (authToken) {
+      if (typeof token !== 'string' || token !== authToken) {
+        try {
+          socket.close?.(4001, 'invalid token');
+        } catch (_) {
+          // Ignore close failures on an already-closed socket.
+        }
+        return;
+      }
+    }
+
     if (!rooms.has(roomId)) rooms.set(roomId, new Map());
     const room = rooms.get(roomId)!;
     if (room.size >= maxPeersPerRoom) {
       try {
         socket.close?.(1008, 'room full');
+      } catch (_) {
+        // Ignore close failures on an already-closed socket.
+      }
+      return;
+    }
+    // Reject a peerId that is already live in the room rather than silently
+    // overwriting it. Closing the *new* (duplicate) join keeps the existing
+    // peer's session intact and prevents impersonation-by-collision.
+    if (room.has(peerId)) {
+      try {
+        socket.close?.(4002, 'peerId in use');
       } catch (_) {
         // Ignore close failures on an already-closed socket.
       }
