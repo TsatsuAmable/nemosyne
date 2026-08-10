@@ -68,6 +68,6 @@ export default [
     },
   },
   {
-    ignores: ['node_modules/', 'dist/', 'coverage/', 'docs/nemosyne-world/', 'artefacts/'],
+    ignores: ['node_modules/', 'dist/', 'coverage/'],
   },
 ];

@@ -128,16 +128,16 @@ Real layout algorithms live under `src/draco/layouts/` and are used by the trans
 
 | Layout | File | Use case |
 |---|---|---|
-| `GridLayout3D` | `GridLayout3D.js` | Tabular / matrix data |
-| `ForceDirected3D` | `ForceDirected3D.js` | Graphs with optional edge weights |
-| `RadialTreeLayout` | `RadialTreeLayout.js` | Hierarchies by level |
-| `TimeSeriesRibbonLayout` | `TimeSeriesRibbonLayout.js` | Time-series ribbons |
-| `StreamlineLayout` | `StreamlineLayout.js` | Vector-field streamlines |
-| `GeoSurfaceLayout` | `GeoSurfaceLayout.js` | Lat/lon to room-scale x/z |
+| `GridLayout3D` | `GridLayout3D.ts` | Tabular / matrix data |
+| `ForceDirected3D` | `ForceDirected3D.ts` | Graphs with optional edge weights |
+| `RadialTreeLayout` | `RadialTreeLayout.ts` | Hierarchies by level |
+| `TimeSeriesRibbonLayout` | `TimeSeriesRibbonLayout.ts` | Time-series ribbons |
+| `StreamlineLayout` | `StreamlineLayout.ts` | Vector-field streamlines |
+| `GeoSurfaceLayout` | `GeoSurfaceLayout.ts` | Lat/lon to room-scale x/z |
 
-## 9. TDA Artefacts (Lightweight Visual Summaries)
+## 10. TDA Artefacts (Lightweight Visual Summaries)
 
-Topological Data Analysis artefacts from `nemosyne.world` are represented as lightweight visual summaries rather than full computed geometry. Factories are in `src/draco/TDAGlyphs.js`:
+Topological Data Analysis artefacts in Nemosyne are represented as lightweight visual summaries rather than full computed geometry. Factories are in `src/draco/TDAGlyphs.ts`:
 
 | TDA Artefact | Visual summary | Purpose |
 |---|---|---|
@@ -150,13 +150,13 @@ Topological Data Analysis artefacts from `nemosyne.world` are represented as lig
 
 Full server-side TDA compute is deferred to later phases.
 
-## 10. Functional Landmarks
+## 11. Functional Landmarks
 
 Two large-scale landmarks in the memory palace have data metaphors and interactions:
 
 | Landmark | File | Data Metaphor | Interaction | Feedback |
 |---|---|---|---|---|
-| **TechnoCore** | `src/vr/artifacts/TechnoCoreNode.js` | Central computation/lens hub | Pinch to cycle `off`/`statistical`/`anomaly` lens modes | Core/ring color tint + pulse scales with analysis-history depth; core tone + haptic |
-| **Farcaster Portal** | `src/vr/artifacts/FarcasterPortal.js` | Data-transformation gate | Step through to warp and apply the registered operation | Brightens when the user is nearby; zone/operation tone + haptic on warp |
+| **TechnoCore** | `src/vr/artifacts/TechnoCoreNode.ts` | Central computation/lens hub | Pinch to cycle `off`/`statistical`/`anomaly` lens modes | Core/ring color tint + pulse scales with analysis-history depth; core tone + haptic |
+| **Farcaster Portal** | `src/vr/artifacts/FarcasterPortal.ts` | Data-transformation gate | Step through to warp and apply the registered operation | Brightens when the user is nearby; zone/operation tone + haptic on warp |
 
 These landmarks bridge the sci-fi aesthetic of the memory palace with the actual analysis workflow.

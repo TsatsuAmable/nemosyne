@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Read the "Current Status" block at the top of `docs/ROADMAP.md` FIRST.** It is the
 single source of truth for branch, working-tree state, last gate result, the next
 task, and blockers — across any model or harness. Before you stop, refresh that block
-with current truth. Other docs (this file, `.agents/`, `PROJECT.md`) point to it and do
-not duplicate state.
+with current truth. Other docs (this file, `.agents/`) point to it and do not
+duplicate state.
 
 ## Repository layout
 
@@ -172,7 +172,6 @@ node src/network/SignallingServer.mjs --port=8080
 - `README.md` — Quick start, build/test commands, deployment notes.
 - `docs/GETTING_STARTED.md` — Detailed Quest setup, first interactions, gestures, session saving, telemetry, collaboration, and CSV import format.
 - `docs/ARCHITECTURE.md` — Layer-by-layer architecture and data-flow descriptions.
-- `ARCHITECTURE_BRIDGE.md` — Maps the upstream `nemosyne.world` concepts to this runtime.
 - `docs/DESIGN_SYSTEM.md` — Color palette, typography, artefact specifications, animation timing, and spacing tokens.
 - `docs/ROADMAP.md` — Phase-by-phase roadmap. Its **Current Status** block (top of file) is the live project state — read it first.
 

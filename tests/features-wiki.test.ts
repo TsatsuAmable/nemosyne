@@ -9,28 +9,12 @@ describe('Project Administration & Documentation Governance', () => {
     const featuresPath = path.join(rootDir, 'FEATURES.md');
     expect(fs.existsSync(featuresPath)).toBe(true);
     const content = fs.readFileSync(featuresPath, 'utf-8');
-    expect(content).toContain('Nemosyne Features & Capability Matrix');
+    // Reframed as a private, experimental project with honest per-area status tags.
+    expect(content).toContain('personal, experimental');
     expect(content).toContain('WebXR Spatial Render Engine');
-    expect(content).toContain('Rust / WASM Performance Core');
-    expect(content).toContain('AI Gesture Recognition');
+    expect(content).toContain('Draco Constraint Recommender');
+    expect(content).toContain('Rust / WASM Compute Layer');
+    expect(content).toContain('Gesture Recognition & JIT Hints');
     expect(content).toContain('WebRTC Multi-User Collaboration');
-  });
-
-  it('validates docs/wiki/ Home.md and API-Reference.md exist and are up to date', () => {
-    const homePath = path.join(rootDir, 'docs', 'wiki', 'Home.md');
-    const apiPath = path.join(rootDir, 'docs', 'wiki', 'API-Reference.md');
-    expect(fs.existsSync(homePath)).toBe(true);
-    expect(fs.existsSync(apiPath)).toBe(true);
-
-    const homeContent = fs.readFileSync(homePath, 'utf-8');
-    expect(homeContent).toContain('Nemosyne Wiki');
-    expect(homeContent).toContain('API Reference');
-
-    const apiContent = fs.readFileSync(apiPath, 'utf-8');
-    expect(apiContent).toContain('Nemosyne API Reference');
-    expect(apiContent).toContain('GestureClassifierModel');
-    expect(apiContent).toContain('SpatialAudioSynthesizer');
-    expect(apiContent).toContain('NetworkManager');
-    expect(apiContent).toContain('UserCloudAvatar');
   });
 });

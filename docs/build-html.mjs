@@ -25,22 +25,22 @@ const INDEX_PATH = path.join(DOCS_ROOT, 'index.html');
 const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
 const indexHtml = fs.readFileSync(INDEX_PATH, 'utf8');
 
-function findMdFiles(dir) {
-  let results = [];
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory() && entry.name !== 'node_modules' && entry.name !== 'wiki') {
-      results = results.concat(findMdFiles(fullPath));
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      const relPath = path.relative(DOCS_ROOT, fullPath).replace(/\\/g, '/');
-      results.push(relPath);
-    }
+// Only render the markdown pages the landing actually links to (as .md or .html),
+// so unreferenced docs don't accumulate stale generated twins. This matches the
+// docstring: "every .md file referenced by docs/index.html".
+function collectLinkedMarkdown(html) {
+  const set = new Set();
+  const linkPattern = /href="(\.{0,2}\/[^"]*\.(?:md|html))"/g;
+  let m;
+  while ((m = linkPattern.exec(html)) !== null) {
+    const href = m[1];
+    if (/index\.(md|html)/.test(href)) continue; // skip landing self-links
+    set.add(href.replace(/\.html$/, '.md'));
   }
-  return results;
+  return [...set];
 }
 
-const uniqueMdLinks = findMdFiles(DOCS_ROOT);
+const uniqueMdLinks = collectLinkedMarkdown(indexHtml);
 const mdLinkPattern = /href="(\.{0,2}\/[^"]*\.md)"/g;
 
 function extractFirstHeading(markdown) {
