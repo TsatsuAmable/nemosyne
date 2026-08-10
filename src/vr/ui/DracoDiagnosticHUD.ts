@@ -35,9 +35,9 @@ export class DracoDiagnosticHUD extends MovablePanel {
     super(cameraGroup, {
       title: 'DRACO CONSTRAINT DIAGNOSTIC',
       width: 1100,
-      height: 850,
+      height: 640,
       position,
-      worldSize: [1.3, 0.98],
+      worldSize: [1.3, 0.72],
       titleBarHeight: 50,
       contentPadding: 20,
     });

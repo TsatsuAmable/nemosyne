@@ -466,8 +466,11 @@ export class World {
 
     // Gesture recognition and context routing is owned by the input coordinator.
 
-    // Statistical-lens visibility state.
-    this._statisticalLensEnabled = true;
+    // Statistical-lens visibility state. Off by default (progressive disclosure):
+    // TDA + correlation windows are hidden until the analyst explicitly requests the
+    // lens via the wheel-menu Views → Lens item, the scoop-up gesture, the TechnoCore
+    // landmark cycle, or the Settings panel toggle.
+    this._statisticalLensEnabled = false;
 
     // Subscribe to data-operation events so World can keep rendering, logging,
     // auto-save, and telemetry in sync without the controller knowing about them.

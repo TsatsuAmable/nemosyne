@@ -3,6 +3,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { SettingsPanel } from '../src/vr/ui/SettingsPanel.ts';
+import { downloadText } from '../src/utils/Download.ts';
+
+vi.mock('../src/utils/Download.ts', () => ({
+  downloadText: vi.fn(() => Promise.resolve()),
+}));
 
 describe('SettingsPanel', () => {
   let panel;
@@ -116,5 +121,121 @@ describe('SettingsPanel', () => {
     const consumed = panel.handleContentClick(raycaster);
     expect(consumed).toBe(true);
     expect(panel.getSetting('gesturesEnabled')).toBe(!before);
+  });
+
+  /** Build a raycaster whose first hit reports the UV for canvas-space (cx, cy).
+   *  Mocking intersectObject lets us reach rows below the visible fold (their
+   *  absolute bounds.y can exceed the panel height, so a real plane raycast
+   *  would miss). handleContentClick maps this UV straight back to (cx, cy). */
+  function raycastAt(panel, cx, cy) {
+    const u = cx / panel.width;
+    const v = 1 - cy / panel.height;
+    const raycaster = new THREE.Raycaster();
+    vi.spyOn(raycaster, 'intersectObject').mockReturnValue([
+      { object: panel.mesh, uv: new THREE.Vector2(u, v) },
+    ]);
+    return raycaster;
+  }
+
+  it.each([
+    ['textScale', 0.75, 2, 0.25],
+    ['snapTurnAngle', 15, 90, 15],
+    ['vignetteIntensity', 0.1, 0.9, 0.1],
+    ['seatedHeightOffset', -0.5, 0.5, 0.1],
+    ['defaultPanelDistance', 0.7, 2.5, 0.1],
+  ])('stepper %s increments and decrements within its clamp', (key, min, max, step) => {
+    panel = new SettingsPanel(cameraGroup);
+    panel.show();
+    panel.mesh.updateMatrixWorld();
+
+    const btn = panel._buttons.find((b) => b.key === key);
+    expect(btn.type).toBe('stepper');
+    const dec = btn.stepperBounds.dec;
+    const inc = btn.stepperBounds.inc;
+
+    const current = Number(panel.getSetting(key));
+
+    // Increment.
+    expect(panel.handleContentClick(raycastAt(panel, inc.x + inc.w / 2, inc.y + inc.h / 2))).toBe(true);
+    expect(panel.getSetting(key)).toBeCloseTo(Math.min(max, current + step), 5);
+
+    // Decrement twice to confirm the lower clamp.
+    panel.handleContentClick(raycastAt(panel, dec.x + dec.w / 2, dec.y + dec.h / 2));
+    panel.handleContentClick(raycastAt(panel, dec.x + dec.w / 2, dec.y + dec.h / 2));
+    const afterTwoDec = Number(panel.getSetting(key));
+    expect(afterTwoDec).toBeGreaterThanOrEqual(min);
+    expect(afterTwoDec).toBeCloseTo(Math.max(min, current - step), 5);
+  });
+
+  it.each([
+    ['colorblindMode', ['none', 'deuteranopia', 'protanopia', 'tritanopia']],
+    ['collabRoom', ['default', 'team-a', 'team-b', 'demo']],
+    ['collabName', ['Analyst', 'Observer', 'Guest', 'Peer']],
+  ])('choice %s advances with next and wraps with prev', (key, choices) => {
+    panel = new SettingsPanel(cameraGroup);
+    panel.show();
+    panel.mesh.updateMatrixWorld();
+
+    const btn = panel._buttons.find((b) => b.key === key);
+    expect(btn.type).toBe('choice');
+    const prev = btn.choiceBounds.prev;
+    const next = btn.choiceBounds.next;
+
+    const startIdx = choices.indexOf(String(panel.getSetting(key)));
+
+    // Next advances by one (mod length).
+    expect(panel.handleContentClick(raycastAt(panel, next.x + next.w / 2, next.y + next.h / 2))).toBe(true);
+    expect(panel.getSetting(key)).toBe(choices[(startIdx + 1) % choices.length]);
+
+    // Prev wraps back below the start.
+    expect(panel.handleContentClick(raycastAt(panel, prev.x + prev.w / 2, prev.y + prev.h / 2))).toBe(true);
+    expect(panel.getSetting(key)).toBe(choices[startIdx]);
+  });
+
+  it('export-bundle privacy toggle flips level without exporting', () => {
+    panel = new SettingsPanel(cameraGroup);
+    panel.show();
+    panel.mesh.updateMatrixWorld();
+
+    const eb = panel._exportBundleBounds;
+    expect(eb).toBeTruthy();
+    expect(panel._exportPrivacyLevel).toBe('metadata');
+
+    const t = eb.toggle;
+    expect(panel.handleContentClick(raycastAt(panel, t.x + t.w / 2, t.y + t.h / 2))).toBe(true);
+    expect(panel._exportPrivacyLevel).toBe('full-session');
+
+    expect(panel.handleContentClick(raycastAt(panel, t.x + t.w / 2, t.y + t.h / 2))).toBe(true);
+    expect(panel._exportPrivacyLevel).toBe('metadata');
+
+    expect(downloadText).not.toHaveBeenCalled();
+  });
+
+  it('export-bundle EXPORT button no-ops without telemetry + budget', () => {
+    panel = new SettingsPanel(cameraGroup);
+    panel.show();
+    panel.mesh.updateMatrixWorld();
+
+    const eb = panel._exportBundleBounds;
+    const e = eb.export;
+    expect(panel.handleContentClick(raycastAt(panel, e.x + e.w / 2, e.y + e.h / 2))).toBe(true);
+    expect(downloadText).not.toHaveBeenCalled();
+  });
+
+  it('export-bundle EXPORT button downloads a review bundle with telemetry + budget', () => {
+    const telemetryCollector = { getReport: () => ({ errors: { last: null } }) };
+    const performanceBudget = { getViolations: () => [] };
+    panel = new SettingsPanel(cameraGroup, { telemetryCollector, performanceBudget });
+    panel.show();
+    panel.mesh.updateMatrixWorld();
+
+    vi.mocked(downloadText).mockClear();
+    const eb = panel._exportBundleBounds;
+    const e = eb.export;
+    expect(panel.handleContentClick(raycastAt(panel, e.x + e.w / 2, e.y + e.h / 2))).toBe(true);
+    expect(downloadText).toHaveBeenCalledTimes(1);
+    const [, filename, mime] = vi.mocked(downloadText).mock.calls[0];
+    expect(filename).toBe('nemosyne-review-bundle.json');
+    expect(mime).toBe('application/json');
   });
 });

@@ -1,18 +1,8 @@
 import * as THREE from 'three';
 import type { FeedbackLike, UserMode } from '../coordinators/types.ts';
+import type { Tour, TourStep } from '../../data/DefaultTour.ts';
 
-export interface TourStep {
-  target: string;
-  text: string;
-  actionHint?: string;
-  audio?: boolean;
-  [key: string]: unknown;
-}
-
-export interface Tour {
-  id: string;
-  steps: TourStep[];
-}
+export type { Tour, TourStep };
 
 export interface TourTarget {
   position?: THREE.Vector3;

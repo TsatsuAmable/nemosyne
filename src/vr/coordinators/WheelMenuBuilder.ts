@@ -210,6 +210,16 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
           icon: '🧱',
           callback: () => world.engine.locomotion.dropToFloor(),
         },
+        {
+          // Statistical lens = TDA (persistence/mapper/betti) + correlation windows.
+          // Hidden by default (progressive disclosure); this is the explicit on-demand
+          // request path. Also reachable via the scoop-up gesture, the TechnoCore
+          // landmark cycle, and the Settings panel toggle.
+          id: 'toggle-lens',
+          label: 'Lens',
+          icon: '🔬',
+          callback: () => world._toggleStatisticalLens?.(),
+        },
       ],
     },
     {

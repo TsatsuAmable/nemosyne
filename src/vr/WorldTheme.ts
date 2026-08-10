@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { remapColor } from '../utils/Accessibility.ts';
 import type { WorldThemePalette } from './coordinators/types.ts';
+import { PALETTE } from './palette.ts';
 
 /** Cyberspace atmosphere: fog, ambient light, point light, background. */
 export class WorldTheme {
@@ -10,9 +11,9 @@ export class WorldTheme {
       fogDensity: 0.035,
       ambientColor: 0x0a192f,
       ambientIntensity: 1.2,
-      pointColor: 0x00ffcc,
+      pointColor: PALETTE.accent,
       pointIntensity: 2.5,
-      gridColor1: 0x00ffcc,
+      gridColor1: PALETTE.accent,
       gridColor2: 0x003333,
     },
     daylightGlobe: {
@@ -54,6 +55,31 @@ export class WorldTheme {
       pointIntensity: 3.0,
       gridColor1: 0xff00ff,
       gridColor2: 0x330066,
+    },
+    // Low-Strain Comfort: dark-slate backdrop, desaturated point light, dim
+    // baseline grids. Reduces the neon-on-pure-black pupil contrast that drives
+    // visual fatigue; neon stays reserved for selection/hover via the existing
+    // emissive-intensity gating in VRTopologyTranslator (unchanged).
+    lowStrain: {
+      fogColor: 0x12161a,
+      fogDensity: 0.03,
+      ambientColor: 0x1a202c,
+      ambientIntensity: 1.0,
+      pointColor: 0x4aa6a0,
+      pointIntensity: 1.4,
+      gridColor1: 0x2a3a44,
+      gridColor2: 0x12161a,
+    },
+    // Muted Professional: neutral middle ground between neonMidnight and lowStrain.
+    mutedProfessional: {
+      fogColor: 0x1a202c,
+      fogDensity: 0.032,
+      ambientColor: 0x223040,
+      ambientIntensity: 1.1,
+      pointColor: 0x00aa88,
+      pointIntensity: 1.8,
+      gridColor1: 0x334444,
+      gridColor2: 0x1a202c,
     },
   };
 

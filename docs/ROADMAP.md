@@ -4,18 +4,23 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · #88 merged — **Phase 22 — UX V2.0** opened; Sprint 22.1
-  (convergence quick wins) merged. Four audit-driven fixes: panel-distance setting no longer
-  a no-op (routed through `WorldSceneComposer`), wheel-menu hover/click ray mismatch fixed
-  (uses `getBestPointerRay`), Undo/Redo surfaced in the wheel menu, and a transient
-  reduced-motion locomotion vignette. Gates were green: `tsc` 0 · `eslint` 0 errors (186
-  warnings) · `vitest` 1224/9/0 · `build` ~274 KB gzip. Sprints 22.2/22.3/22.4 🔲 not started.
-  ⚠️ On-device validation still owed: dashboard distance (~1.35 m → ~2.55 m) + transient
-  vignette comfort check in-headset before advancing to Sprint 22.2.
-- **Active branch:** `main` (clean, synced; #81–#88 merged). Note:
-  `feature/phase20-graphics-optimization` is a stale, superseded branch (older `World.ts`,
-  lacks #77–#88) — not unmerged work.
-- **Working tree:** clean. Recent merges — #88 Phase 22 Sprint 22.1 UX quick wins · #86
+- **Last updated:** 2026-08-10 · **Phase 22 — UX V2.0** Sprint 22.2 ready (PR pending on
+  `feat/ux-v2-sprint-22.2`). Sprint 22.1 (#88) + Sprint 22.2 both done. Sprint 22.2 shipped:
+  TDA on-demand (statistical lens hidden by default; Views → Lens wheel item is the explicit
+  request path), Draco menu shorter (640 px / 0.72 m), tour expanded 13 → 19 stops, WIMP
+  best-practices (shared `palette.ts` tokens, unified `TourStep`/`Tour` types, dead-code
+  cleanup), Low-Strain + Muted theme presets, and full button-surface test coverage (+48
+  tests). Gates green: `tsc` 0 · `eslint` 0 errors (186 warnings) · `vitest` 1272/9/0 ·
+  `build` ~275 KB gzip. Sprints 22.3/22.4 🔲 not started.
+  ⚠️ On-device validation owed (Sprint 22.1 + 22.2): dashboard distance (~1.35 m → ~2.55 m),
+  transient reduced-motion vignette comfort, TDA-on-demand feel, Draco short-frame scroll
+  readability, new tour stop targets, Low-Strain/Muted slate backdrops + neon-on-selection
+  contrast — all in-headset before advancing to Sprint 22.3.
+- **Active branch:** `feat/ux-v2-sprint-22.2` (PR pending; off `main` at 071c2a3, #81–#88
+  merged). Note: `feature/phase20-graphics-optimization` is a stale, superseded branch
+  (older `World.ts`, lacks #77–#88) — not unmerged work.
+- **Working tree:** Sprint 22.2 changes staged for PR (see below). Recent merges — #88
+  Phase 22 Sprint 22.1 UX quick wins · #86
   distill all plans into ROADMAP.md as single reference · #84 Node 24 single-leg CI +
   cross-platform lockfile fix + Netlify 24 · #82 f15 e2e test-isolation fix (un-awaited
   `import('src/main.ts')` racing jsdom teardown) · #81 WASM capability honesty hardening
@@ -32,10 +37,9 @@
   thresholds — no hardcoded results.
 - **Last gate:** `cargo test --manifest-path wasm/Cargo.toml` 30 pass / 0 fail (3 honesty
   tests) · `tsc --noEmit` 0 errors · `eslint` 0 errors (186 warnings, baseline) ·
-  `vitest run` 1224 pass / 9 skip / 0 fail · `npm run wasm` (release) + `vite build`
-  green (~274 KB gzip total) — 2026-08-10. (JS honesty-lock assertions in
-  `wasm-runtime.test.ts` are `maybeDescribe` — skipped in jsdom without a served wasm;
-  the Rust test is the authoritative lock.)
+  `vitest run` 1272 pass / 9 skip / 0 fail · `vite build` green (~275 KB gzip total) —
+  2026-08-10. (JS honesty-lock assertions in `wasm-runtime.test.ts` are `maybeDescribe` —
+  skipped in jsdom without a served wasm; the Rust test is the authoritative lock.)
 - **Merge policy (live):** main ruleset `id=20623327` requires PR + required checks
   (`Rust unit tests (wasm/)` / `Node 24` / `approval-gate`), no bypass.
   `approval-gate.yml` passes immediately for owner PRs (squash auto-merge on green);
@@ -52,13 +56,16 @@
   #78 global WebGL mock deficiencies fix (Option 3c) · #76 Playwright real-WebGL load smoke
   (Track A) · #74 render-loop GL introspection tripwire (Track B). Real-WebGL coverage thread
   closed. Binary-parser length-field bounds thread closed (#70/#72).
-- **In progress / next:** (1) **on-device validation** of Phase 22 Sprint 22.1's perceptual
-  changes (dashboard ~1.35 m → ~2.55 m; transient reduced-motion vignette comfort) on a Quest
-  before advancing to **Sprint 22.2 — Low-Strain Comfort mode**; (2) user connects Quest,
-  runs the full load-test staircase in XR (`npm run dev` → wheel menu Load Test → Start, or
-  desktop `KeyT`/`Shift+T`); (3) read `logs/loadtest-results.jsonl` and deliver the
-  implement/descope verdict for B2 (if "implement", build `SCENE_RUST` → `COMMAND_BUFFER` per
-  the ordering invariant now encoded as a Rust test).
+- **In progress / next:** (1) **merge Sprint 22.2 PR** (`feat/ux-v2-sprint-22.2`) once CI is
+  green; (2) **on-device validation** of Phase 22 Sprint 22.1 + 22.2 perceptual changes
+  (dashboard ~1.35 m → ~2.55 m; transient reduced-motion vignette comfort; TDA-on-demand
+  feel; Draco short-frame scroll; new tour stops; Low-Strain/Muted backdrops + neon-on-
+  selection contrast) on a Quest before advancing to **Sprint 22.3 — text legibility +
+  frosted backings**; (3) user connects Quest, runs the full load-test staircase in XR
+  (`npm run dev` → wheel menu Load Test → Start, or desktop `KeyT`/`Shift+T`); (4) read
+  `logs/loadtest-results.jsonl` and deliver the implement/descope verdict for B2 (if
+  "implement", build `SCENE_RUST` → `COMMAND_BUFFER` per the ordering invariant now encoded
+  as a Rust test).
 - **Blockers / open:** B2 (WASM command-buffer) — deferred pending real-headset
   load-test data from the PR #80 harness. Honesty hardening (#81) + f15 isolation (#82)
   now DONE (precondition met). **The harness has not yet been run** —
@@ -605,30 +612,76 @@ The GA solver runs but its recommendation quality is untested against known-good
   mode only**, so the static `vignette` setting remains the sole owner of vignette state
   when reduced-motion is off (no fighting the `ComfortSettingsController`).
 
-### Sprint 22.2 — Low-Strain Comfort mode 🔲
+### Sprint 22.2 — TDA on-demand, Draco/tour/WIMP polish, button-test coverage, Low-Strain presets ✅
 
-- 🔲 Neutral backdrop option + saturation profile (reserve neon for alerts/state
-  changes only); solid backings under glassmorphic panels so content doesn't bleed
-  through the palace geometry behind.
-- 🔲 Destructive-action confirmation (reset/delete/clear) surfaced as a VR confirm step.
-- 🔲 Collab error close-codes + teleport reduced-motion fade + hand-grab damping +
-  loading indicator (remaining audit High/Medium findings not covered by 22.1).
-- 🔲 Context-loss VR visibility (keep session + show a status panel on WebGL context loss).
+> PR (`feat/ux-v2-sprint-22.2`): progressive-disclosure + low-strain color + WIMP
+> best-practices + full button-surface test coverage. Perceptual changes flagged for
+> on-device validation. Architectural items (3-tier zonation + wrist HUD, foveated
+> rendering, gaze-driven scaling, frosted backings) stay phased to 22.3/22.4.
 
-### Sprint 22.3 — Text legibility 🔲
+- ✅ **TDA on-demand (progressive disclosure).** The statistical lens — the
+  `tda-summary-group` (persistence/mapper/betti planes) **and** the correlation matrix
+  panel — is now **hidden by default** until explicitly requested, via
+  `World._statisticalLensEnabled = false` (the visibility chokepoint
+  `_setStatisticalLensVisible` gates both). A new **Views → Lens** wheel-menu item
+  (`world._toggleStatisticalLens()`) is the explicit request path, supplementing the
+  existing scoop-up gesture, TechnoCore cycle, and Settings toggle. `lensTDA` /
+  `lensCorrelation` Settings sub-toggles stay `true` (they select *which* components show
+  *when the lens is on* — flipping them false would suppress TDA even after an explicit
+  toggle-on). **On-device validation owed:** TDA-on-demand feel (no auto-appear on load).
+- ✅ **Draco diagnostic menu shorter.** `DracoDiagnosticHUD` height `850 → 640` and
+  `worldSize[1]` `0.98 → 0.72` (~27% shorter visible frame); constraint rows scroll within
+  the shorter window. Width unchanged. **On-device validation owed:** scroll readability.
+- ✅ **Tour expanded.** `FIRST_DATASET_TOUR` grew from 13 → 19 stops (TDA lens, comfort
+  settings, live stream, load test, theme preset, narrative timeline), with new
+  `GuidedTourController` resolver/condition cases (`tda-lens`, `comfort-settings`,
+  `load-test`, `narrative-timeline`). The card canvas is fixed-size; more steps = more
+  pages, not a bigger window.
+- ✅ **WIMP best-practices.** (a) New shared color-token module `src/vr/palette.ts`
+  (`PALETTE` numeric hex tokens + `cssHex()`); `WorldTheme.neonMidnight` + the new presets
+  and `MovablePanel.render` now source from it — **identical values, no perceptual
+  change** to existing themes (other panels adopt incrementally in 22.3). (b) Unified the
+  duplicated `TourStep`/`Tour` types into a single canonical source in the data layer
+  (`DefaultTour.ts`); `GuidedTour.ts` and `GuidedTourController.ts` import + re-export.
+  (c) Dead-code cleanup: removed unused `HandWheelMenu.isPointerInsideOpenZone` /
+  `shouldCloseByPointer` (grep-verified zero callers).
+- ✅ **Low-Strain + Muted theme presets.** Two new `WorldTheme.PRESETS`:
+  `lowStrain` (dark-slate backdrop `0x12161a`, muted desaturated-teal point light, low-
+  contrast grids — neon reserved for selection/hover) and `mutedProfessional` (neutral
+  middle ground). `cyclePreset()` and the Views → Theme wheel item pick them up
+  automatically. **On-device validation owed:** slate backdrop reads "calm"; selection
+  neon still pops against it.
+- ✅ **Full button-surface test coverage.** Filled the 7 known gaps with genuine dispatch
+  tests (spies/stubs that record calls — no mocks of callback targets): new
+  `wheel-menu-builder` (all 7 categories + ~50 items wired, Lens → `_toggleStatisticalLens`),
+  `telemetry-panel` (privacy toggle + export), `load-test-panel` (6 size presets +
+  start-full/stop/flush/download via the event bus), `session-roundtrip` (fake IndexedDB +
+  real Dataset/AnalysisHistory roundtrip through `WorldSessionController` save/load/delete +
+  debounced autosave); extended `settings-panel` (5 steppers + 3 choices + export-bundle),
+  `movable-panel-scrollbar` (▲/▼/thumb hit-tests), `button-click-dispatch` (GuidedTour
+  `< PREV` pill). +48 tests.
 
-- 🔲 Frosted/occluded panel backings; dynamic panel opacity driven by gaze proximity.
+### Sprint 22.3 — Text legibility + frosted backings 🔲
+
+- 🔲 Frosted/occluded panel backings (solid backings under glassmorphic panels so content
+  doesn't bleed through palace geometry); dynamic panel opacity driven by gaze proximity.
 - 🔲 Gaze-driven text scaling (subtended-angle-stable legibility at varying distances).
 - 🔲 Design-system color + typography convergence (palette/luminance tokens applied to
-  all world-space panels).
+  all world-space panels, not just `MovablePanel`).
+- 🔲 Destructive-action confirmation (reset/delete/clear) as a VR confirm step; loading
+  indicator; collab error close-codes.
 
 ### Sprint 22.4 — Spatial zonation architecture 🔲
 
 - 🔲 Three-tier zonation: Central Focus (active artefact) / Peripheral (secondary panels)
   / Wrist-Mounted HUD (ambient telemetry, always-within-glance).
+- 🔲 Foveated rendering (WebXR `XRWebGLLayer` foveationLevel) + gaze-weighted LOD;
+  diegetic-interface pass (more in-world artefacts, fewer floating overlays).
 - 🔲 Declutter pass: collapse idle floating windows into the periphery/wrist tier;
   one-handed gesture path for primary actions (reduce two-handed reliance).
-- 🔲 Settings panel reorder (comfort/legibility/zonation grouped); tour narration polish.
+- 🔲 Settings panel reorder (comfort/legibility/zonation grouped); tour narration TTS
+  polish; context-loss VR visibility (keep session + status panel on WebGL context loss);
+  teleport reduced-motion fade + hand-grab damping.
 
 ---
 
