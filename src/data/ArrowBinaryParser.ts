@@ -29,7 +29,21 @@ export class ArrowBinaryParser {
     const rowCount = view.getUint32(4, true);
 
     const dataOffset = 8;
-    const floatData = new Float32Array(buffer, dataOffset, numCols * rowCount);
+    const floatCount = numCols * rowCount;
+    // Length-field bounds: the header's numCols/rowCount are attacker/untrusted
+    // controlled and may declare more data than the buffer actually holds. The
+    // Float32Array constructor would throw an opaque RangeError on overflow;
+    // fail deliberately and descriptively instead so callers can tell corruption
+    // apart from a merely truncated stream.
+    const availableFloats = Math.floor((buffer.byteLength - dataOffset) / 4);
+    if (floatCount > availableFloats) {
+      throw new Error(
+        `ArrowBinaryParser: declared ${numCols} cols × ${rowCount} rows ` +
+          `(${floatCount} floats) exceeds buffer capacity (${availableFloats} floats ` +
+          `in ${buffer.byteLength} bytes)`
+      );
+    }
+    const floatData = new Float32Array(buffer, dataOffset, floatCount);
 
     const columns: ColumnSchema[] = [];
     for (let c = 0; c < numCols; c++) {
@@ -61,9 +75,16 @@ export class ArrowBinaryParser {
 
     const dataOffset = 8;
     // Assuming x, y, z are the first 3 columns
-    if (numCols >= 3) {
-      return new Float32Array(buffer, dataOffset, rowCount * 3);
+    const width = numCols >= 3 ? 3 : numCols;
+    const floatCount = rowCount * width;
+    // Length-field bounds: this feeds the render loop, so a malformed payload
+    // with an inflated rowCount/numCols must degrade to an empty buffer rather
+    // than throw (an opaque RangeError here would crash the frame). A truncated
+    // stream surfaces as an empty Float32Array, matching the < 8-byte path.
+    const availableFloats = Math.floor((buffer.byteLength - dataOffset) / 4);
+    if (floatCount > availableFloats) {
+      return new Float32Array(0);
     }
-    return new Float32Array(buffer, dataOffset, rowCount * numCols);
+    return new Float32Array(buffer, dataOffset, floatCount);
   }
 }
