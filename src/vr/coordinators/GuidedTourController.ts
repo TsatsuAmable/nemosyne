@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { WorldLike } from './types.ts';
 
 export interface TourStep {
   target: string;
@@ -6,9 +7,9 @@ export interface TourStep {
 }
 
 export class GuidedTourController {
-  private _world: any;
+  private _world: WorldLike;
 
-  constructor(world: any) {
+  constructor(world: WorldLike) {
     this._world = world;
   }
 

@@ -22,7 +22,6 @@ describe('Tier 2 — Feature 13: 0 Unhandled Rejections & Leaks (Boundary Cases)
     let errorCaught = false;
     try {
       const invalidPath = './non_existent_module_path_123.ts';
-      // @ts-ignore
       await import(/* @vite-ignore */ invalidPath);
     } catch (e) {
       errorCaught = true;

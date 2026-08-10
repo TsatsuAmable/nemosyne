@@ -4,7 +4,7 @@
  */
 
 import type { ColumnSchema, DatasetJSON } from './types.ts';
-import { CSVDataParser } from './CSVDataParser.ts';
+import { CSVDataParser, type CSVParseOptions } from './CSVDataParser.ts';
 
 /**
  * Keys that are stripped from untrusted row objects as defense-in-depth
@@ -241,7 +241,7 @@ export class Dataset {
   /**
    * Parse a CSV string directly into a Dataset instance.
    */
-  static fromCSV(csvText: string, name: string = 'dataset', options?: any): Dataset {
+  static fromCSV(csvText: string, name: string = 'dataset', options?: CSVParseOptions): Dataset {
     return CSVDataParser.parseToDataset(name, csvText, options);
   }
 }

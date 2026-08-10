@@ -9,6 +9,7 @@
 
 import type { BufferGeometry, Camera, Clock, Color, Group, Mesh, Object3D, Ray, Raycaster, Scene, Vector3, WebGLRenderer } from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
+import type { AnalysisHistory } from '../../data/AnalysisHistory.ts';
 import type { LiveUpdate } from '../../data/connectors/DataConnector.ts';
 import type { DatasetJSON, EncodingMapping, OperationSpec, TopologyType } from '../../data/types.ts';
 
@@ -825,4 +826,226 @@ export interface ReviewBundleOptions {
   datasetTopology?: string;
   sessionDurationSeconds?: number;
   sessionSnapshot?: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// WorldLike facade — the slice of the World god-object accessed by the VR
+// coordinators. The coordinators are duck-typed against `World` and currently
+// hold an unwired reference (typed `any` to avoid an `import/no-cycle`), so this
+// structural facade replaces that `any` with real types without importing the
+// real `World`. Members are required where a coordinator accesses them
+// unconditionally (no `?.`) and optional where it uses optional chaining. This
+// is the staging ground for finishing the World.ts extraction (audit item M1):
+// when the coordinators are wired in, `new XxxController(this)` will require
+// `World` to satisfy this interface, and the facade is tightened then.
+// ---------------------------------------------------------------------------
+
+/** World-space console facade used for log/warn calls. */
+export interface VRConsoleLike {
+  log?(level: string, args: unknown[]): void;
+  warn?(level: string, args: unknown[]): void;
+}
+
+/** Logging callback for analytics interactions. */
+export type LogInteraction = (action: string, meta?: Record<string, unknown>) => void;
+
+/** Locomotion surface accessed by the wheel-menu "views" category. */
+export interface WorldLocomotionLike {
+  toggleTeleport(): void;
+  toggleFlight(): void;
+  dropToFloor(): void;
+  teleportToAnchor(name: string): boolean;
+}
+
+/** Haptic/audio feedback surface accessed by the landmark controller. */
+export interface WorldFeedbackLike {
+  playCoreTone?(mode: string): void;
+  playHaptic?(intensity: number, durationMs: number): void;
+}
+
+/** Callbacks passed to `Engine.addInteractable`. */
+export interface InteractableCallbacks {
+  onEnter?(): void;
+  onLeave?(): void;
+  onSelect?(): void;
+}
+
+/** Engine slice accessed by the coordinators (camera, theme, locomotion, input, renderer). */
+export interface WorldEngineLike {
+  cameraGroup: {
+    position: { toArray(): number[]; fromArray(array: number[]): void };
+    rotation: { y: number };
+  };
+  theme?: { currentPreset: string; applyPreset?(name: string): boolean | void };
+  locomotion: WorldLocomotionLike;
+  input: { feedback?: WorldFeedbackLike };
+  renderer?: { domElement?: { toDataURL(type: string): string } };
+  addInteractable(object: Object3D, callbacks: InteractableCallbacks): void;
+}
+
+/** Settings panel facade (getAllSettings is required; setSetting is optional). */
+export interface SettingsPanelLike {
+  mesh?: Object3D | null;
+  getAllSettings(): SettingsMap;
+  setSetting?(key: string, value: unknown): void;
+}
+
+/** Narrative strip extends a panel with history binding. */
+export interface NarrativeStripLike extends PanelLike {
+  setHistory?(history: AnalysisHistory): void;
+}
+
+/** Persisted-session store facade. */
+export interface SessionStoreLike {
+  saveSession(id: string, snapshot: Record<string, unknown>): Promise<void>;
+  loadSession(id: string): Promise<Record<string, unknown> | null>;
+  deleteSession(id: string): Promise<void>;
+  hasSession(id: string): Promise<boolean>;
+}
+
+/** TechnoCore landmark facade. */
+export interface CoreNodeLike {
+  group?: Object3D;
+  nextLensMode(): string;
+}
+
+/** Tooltip registration facade. */
+export interface TooltipManagerLike {
+  registerTarget(object: Object3D): void;
+}
+
+/** Portal landmark facade. */
+export interface PortalLike {
+  group?: Object3D;
+}
+
+/** Datum plane facade. */
+export interface DatumLike {
+  mesh?: Object3D;
+}
+
+/** Draco topology node facade (group + artefact node meshes). */
+export interface DracoNodeFacadeLike {
+  group?: Object3D;
+  artifact?: { nodeMeshes?: Object3D[] } | null;
+}
+
+/** Data-operation controller facade (history length check). */
+export interface DataOperationControllerLike {
+  analysisHistory?: { length: number };
+}
+
+/** Guided-tour facade — internal underscore fields are accessed on restore. */
+export interface GuidedTourLike {
+  start?(): boolean;
+  stop?(): void;
+  _stepIndex: number;
+  _finished: boolean;
+  _active: boolean;
+  _cardGroup: { visible: boolean };
+  _renderStep(): void;
+}
+
+/** Collaboration coordinator facade. */
+export interface CollaborationCoordinatorLike {
+  isConnected(): boolean;
+}
+
+/** Comfort-settings controller facade. */
+export interface ComfortSettingsControllerLike {
+  apply(settings: SettingsMap): void;
+  applyPanelDistance(distance: number): void;
+}
+
+/** User-mode controller facade. */
+export interface UserModeControllerLike {
+  apply(): void;
+}
+
+/** Saved panel position entry. */
+export interface PanelPosition {
+  title?: string;
+  position?: number[];
+  visible?: boolean;
+}
+
+/** Panel manager slice extended with session-restore panel positioning. */
+export type WorldPanelManagerLike = PanelManagerLike & {
+  getPanelPositions?(): PanelPosition[];
+  setPanelPositions?(positions: PanelPosition[]): void;
+};
+
+/**
+ * Structural facade of the World god-object as seen by the VR coordinators.
+ * Captures only the accessed surface; see the block comment above for the
+ * required/optional convention and the World.ts extraction plan.
+ */
+export interface WorldLike {
+  // required — accessed unconditionally
+  engine: WorldEngineLike;
+  analysisHistory: AnalysisHistory;
+  settingsPanel: SettingsPanelLike;
+  panelManager: WorldPanelManagerLike;
+  dashboard: DashboardLike;
+  sessionStore: SessionStoreLike;
+  comfortSettingsController: ComfortSettingsControllerLike;
+  userModeController: UserModeControllerLike;
+  core: CoreNodeLike;
+  tooltipManager: TooltipManagerLike;
+  collaborationCoordinator: CollaborationCoordinatorLike;
+  loadDataset(entry: DatasetLoadEntry): void;
+  applyDataOperation(operation: string): void;
+  previewDataOperation(operation: string): void;
+  clearOperationPreview(): void;
+  resetDataOperation(): void;
+  startTour(): void;
+  exportScreenshot(): void;
+  exportAnalysisStory(): void;
+  loadTemplate(id: string): void;
+  setPortalsEnabled(enabled: boolean): void;
+  isLiveConnected(): boolean;
+  connectLiveStream(): void;
+  disconnectLiveStream(): void;
+  saveSession(id: string): void;
+  loadSession(id: string): void;
+  deleteSession(id: string): void;
+  _logInteraction: LogInteraction;
+  _captureSession(): void;
+  _setStatisticalLensVisible(visible: boolean): void;
+  _updateNarrativeStrip(): void;
+  _restoreDataset(dataset: Dataset | null, operation: string): void;
+  _cycleDataset(): void;
+  _cycleThemePreset(): void;
+  _toggleSettingsPanel(): void;
+  _toggleMiniOverview(): void;
+  _togglePeerPresenceHUD(): void;
+  _toggleDesktopPreview(): void;
+  _joinCollaborationRoom(): void;
+  _leaveCollaborationRoom(): void;
+
+  // optional — accessed via optional chaining
+  vrConsole?: VRConsoleLike;
+  telemetryCollector?: TelemetryCollectorLike;
+  currentEntry?: DatasetLoadEntry;
+  _disposed?: boolean;
+  _statisticalLensEnabled?: boolean;
+  _originalDataset?: Dataset | null;
+  _transformedDataset?: Dataset | null;
+  portalsEnabled?: boolean;
+  narrativeStrip?: NarrativeStripLike;
+  operationLogPanel?: PanelLike;
+  metricsPanel?: PanelLike;
+  performancePanel?: PanelLike;
+  interactionCoach?: PanelLike;
+  networkPanel?: PanelLike;
+  peerPresenceHUD?: PanelLike;
+  vrMenu?: PanelLike;
+  datum?: DatumLike;
+  dracoNode?: DracoNodeFacadeLike;
+  handWheelMenu?: HandWheelMenuLike;
+  inspector?: { active?: boolean };
+  portalA?: PortalLike;
+  portalB?: PortalLike;
+  guidedTour?: GuidedTourLike;
+  dataOperationController?: DataOperationControllerLike;
 }

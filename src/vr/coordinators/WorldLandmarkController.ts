@@ -1,7 +1,9 @@
-export class WorldLandmarkController {
-  private _world: any;
+import type { WorldLike } from './types.ts';
 
-  constructor(world: any) {
+export class WorldLandmarkController {
+  private _world: WorldLike;
+
+  constructor(world: WorldLike) {
     this._world = world;
   }
 

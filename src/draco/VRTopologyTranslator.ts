@@ -68,7 +68,7 @@ export class VRTopologyTranslator {
 
     return {
       mesh,
-      setPoints(items: any[]) {
+      setPoints(items: { position: number[] | THREE.Vector3; scale?: number; color?: number | string }[]) {
         items.forEach((item, i) => {
           const pos = Array.isArray(item.position) ? item.position : [item.position.x, item.position.y, item.position.z];
           dummy.position.set(pos[0], pos[1], pos[2]);

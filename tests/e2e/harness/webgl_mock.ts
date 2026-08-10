@@ -18,7 +18,7 @@ export interface WebGLMockStats {
   activeTextures: number;
 }
 
-let stats: WebGLMockStats = {
+const stats: WebGLMockStats = {
   createdBuffers: 0,
   deletedBuffers: 0,
   createdTextures: 0,
@@ -284,7 +284,6 @@ export function installWebGLMock(): void {
         }
         if (type === '2d') {
           const noOp = () => {};
-          const canvas = this;
           const ctx = {
             clearRect: noOp,
             fillRect: noOp,
@@ -318,7 +317,7 @@ export function installWebGLMock(): void {
             set shadowBlur(_: any) {},
           };
           (ctx as any).__markNeedsUpdate = () => {
-            if ((canvas as any).__texture) (canvas as any).__texture.needsUpdate = true;
+            if ((this as any).__texture) (this as any).__texture.needsUpdate = true;
           };
           return ctx;
         }
