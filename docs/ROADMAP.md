@@ -4,24 +4,24 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · distillation PR — `docs/ROADMAP.md` made the single
-  canonical reference for work done / work planned: added **Phase 21 — Rust/WASM
-  Migration** (7 sprints distilling `.claude/plan.md`'s WASM Phases 0–6: 21.1/21.2 ✅,
-  21.3 ⏳ deferred-B2, 21.4 🔄 partial, 21.5/21.6 🔲 not started, 21.7 ⏳ pending), a
-  "Completed work-streams" note (TS migration + docs-site refactor ✅), and a
-  "Planned but not actioned" audit section (deferred-by-design / blocked-on-B2 /
-  aspirational gaps). `.claude/plan.md` repositioned as working memory (technical
-  standards only). Small items actioned: `CLAUDE.md`/`ARCHITECTURE.md` → TypeScript-first
-  (`.js`→`.ts` source refs), 7 stale `.js` re-export stubs deleted + the one `Room.js`
-  test import fixed. Next: user runs the load-test staircase (Quest or desktop
-  `KeyT`/`Shift+T`) → `logs/loadtest-results.jsonl` → implement/descope verdict for B2.
-- **Active branch:** `main` (clean, synced; #81–#84 merged). Note: `feature/phase20-graphics-optimization`
-  is a stale, superseded branch (older `World.ts`, lacks #77–#84) — not unmerged work.
-- **Working tree:** clean. Recent merges — #84 Node 24 single-leg CI + cross-platform
-  lockfile fix + Netlify 24 · #82 f15 e2e test-isolation fix (un-awaited `import('src/main.ts')`
-  racing jsdom teardown) · #81 WASM capability honesty hardening (bitfield realigned to spec;
-  dormant command-buffer `0` sentinel; `readBytes` bounds guard; `COMMAND_BUFFER requires
-  SCENE_RUST` ordering invariant as a Rust test).
+- **Last updated:** 2026-08-10 · #86 merged — `docs/ROADMAP.md` is now the single
+  canonical reference for work done / work planned (`.claude/plan.md` = working memory,
+  gitignored/local-only). Added **Phase 21 — Rust/WASM Migration** (7 sprints distilling
+  plan.md's WASM Phases 0–6: 21.1/21.2 ✅, 21.3 ⏳ deferred-B2, 21.4 🔄 partial, 21.5/21.6 🔲
+  not started, 21.7 ⏳ pending), a "Completed work-streams" note (TS migration + docs-site
+  refactor ✅), and a "Planned but not actioned" audit section. `CLAUDE.md`/`ARCHITECTURE.md`
+  declared TypeScript-first; 7 stale `.js` re-export stubs deleted + the one `Room.js` test
+  import fixed. Next: user runs the load-test staircase (Quest or desktop `KeyT`/`Shift+T`)
+  → `logs/loadtest-results.jsonl` → implement/descope verdict for B2.
+- **Active branch:** `main` (clean, synced; #81–#86 merged). Note:
+  `feature/phase20-graphics-optimization` is a stale, superseded branch (older `World.ts`,
+  lacks #77–#86) — not unmerged work.
+- **Working tree:** clean. Recent merges — #86 distill all plans into ROADMAP.md as single
+  reference · #84 Node 24 single-leg CI + cross-platform lockfile fix + Netlify 24 · #82 f15
+  e2e test-isolation fix (un-awaited `import('src/main.ts')` racing jsdom teardown) · #81
+  WASM capability honesty hardening (bitfield realigned to spec; dormant command-buffer `0`
+  sentinel; `readBytes` bounds guard; `COMMAND_BUFFER requires SCENE_RUST` ordering invariant
+  as a Rust test).
 - **Command-buffer decision (B2):** DEFER + minimal hardening (both Expert Graphics
   Engineer & Principal Architect consultations converged). The command buffer targets a
   problem that isn't a *measured* current regression; the JS scalability layer already
@@ -43,13 +43,15 @@
   others need owner approval. New work lands via PR only. (`Playwright load smoke` is
   informational/non-required — NOT in the ruleset.) Required-checks list updated to
   `Node 24` with #84 (was `Node 20`/`Node 22`).
-- **Recently merged:** #84 Node 24 single-leg CI + cross-platform lockfile fix + Netlify 24
-  · #82 f15 e2e test-isolation fix (un-awaited `import('src/main.ts')` racing jsdom teardown)
-  · #81 WASM capability honesty hardening (bitfield realigned to spec; dormant command-buffer
-  sentinel) · #80 VR load-test harness (command-buffer decision B2) · #78 global WebGL mock
-  deficiencies fix (Option 3c) · #76 Playwright real-WebGL load smoke (Track A) · #74
-  render-loop GL introspection tripwire (Track B). Real-WebGL coverage thread closed.
-  Binary-parser length-field bounds thread closed (#70/#72).
+- **Recently merged:** #86 distill all plans into ROADMAP.md as single reference (Phase 21
+  WASM migration + audit + TS-first docs + 7 .js stubs removed) · #84 Node 24 single-leg CI
+  + cross-platform lockfile fix + Netlify 24 · #82 f15 e2e test-isolation fix (un-awaited
+  `import('src/main.ts')` racing jsdom teardown) · #81 WASM capability honesty hardening
+  (bitfield realigned to spec; dormant command-buffer sentinel) · #80 VR load-test harness
+  (command-buffer decision B2) · #78 global WebGL mock deficiencies fix (Option 3c) · #76
+  Playwright real-WebGL load smoke (Track A) · #74 render-loop GL introspection tripwire
+  (Track B). Real-WebGL coverage thread closed. Binary-parser length-field bounds thread
+  closed (#70/#72).
 - **In progress / next:** (1) user connects Quest, runs the full load-test staircase in XR
   (`npm run dev` → wheel menu Load Test → Start, or desktop `KeyT`/`Shift+T`); (2) read
   `logs/loadtest-results.jsonl` and deliver the implement/descope verdict for B2 (if
