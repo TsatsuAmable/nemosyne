@@ -4,19 +4,22 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · Honesty hardening (#81) + f15 test-isolation fix (#82)
-  merged to main; CI matrix reduced to a single Node 24 (active LTS) leg, Netlify
-  pinned to Node 24, docs aligned. Next: user runs the load-test staircase on Quest →
-  read `logs/loadtest-results.jsonl` → deliver the implement/descope verdict for B2.
-- **Active branch:** `main` (clean, synced; both follow-up PRs merged).
-- **Working tree:** clean. Last two merges — #81 realigned the WASM capability bitfield to
-  `.claude/plan.md` §6 (`capabilities()` advertises only the Phase-1 set
-  `DATASET|PARSER|OPERATIONS`; dropped false `CAP_COMMAND_BUFFER`/`CAP_TDA_RUST` +
-  premature `CAP_LAYOUTS_RUST`; added reserved `CAP_SCENE_RUST` et al.; `command_buffer_ptr()`
-  → dormant `0` sentinel; `readBytes` bounds guard; `COMMAND_BUFFER requires SCENE_RUST`
-  ordering invariant encoded as a Rust test). #82 fixed the f15 e2e test that fired an
-  un-awaited `import('src/main.ts')` racing with jsdom teardown (`EnvironmentTeardownError`
-  under the full suite).
+- **Last updated:** 2026-08-10 · #84 merged — Node CI matrix reduced to a single Node 24
+  (active LTS) leg, Netlify pinned to Node 24, and a latent lockfile bug fixed (the
+  Windows-generated `package-lock.json` was missing the linux optional-binary variants of
+  `lightningcss`/`@rolldown/binding`; npm ≤10 tolerated it, npm 11/Node 24 made `npm ci`
+  fail on ubuntu — regenerated cross-platform on an ubuntu runner, +461 additive lines, no
+  version changes). Branch-protection required-checks updated `Node 20`/`Node 22` → `Node 24`.
+  TS migration (plan track 1) is complete on main (`src/vr/artifacts|ui|audio` all `.ts`).
+  Next: user runs the load-test staircase on Quest → read `logs/loadtest-results.jsonl` →
+  deliver the implement/descope verdict for B2.
+- **Active branch:** `main` (clean, synced; #81–#84 merged). Note: `feature/phase20-graphics-optimization`
+  is a stale, superseded branch (older `World.ts`, lacks #77–#84) — not unmerged work.
+- **Working tree:** clean. Recent merges — #84 Node 24 single-leg CI + cross-platform
+  lockfile fix + Netlify 24 · #82 f15 e2e test-isolation fix (un-awaited `import('src/main.ts')`
+  racing jsdom teardown) · #81 WASM capability honesty hardening (bitfield realigned to spec;
+  dormant command-buffer `0` sentinel; `readBytes` bounds guard; `COMMAND_BUFFER requires
+  SCENE_RUST` ordering invariant as a Rust test).
 - **Command-buffer decision (B2):** DEFER + minimal hardening (both Expert Graphics
   Engineer & Principal Architect consultations converged). The command buffer targets a
   problem that isn't a *measured* current regression; the JS scalability layer already
@@ -36,16 +39,15 @@
   (`Rust unit tests (wasm/)` / `Node 24` / `approval-gate`), no bypass.
   `approval-gate.yml` passes immediately for owner PRs (squash auto-merge on green);
   others need owner approval. New work lands via PR only. (`Playwright load smoke` is
-  informational/non-required — NOT in the ruleset.) **NOTE:** the ruleset's
-  required-checks list was updated from `Node 20`/`Node 22` to `Node 24` to match the
-  single-leg CI matrix (Node 20 reached EOL April 2026; Node 22 is maintenance LTS).
-- **Recently merged:** #82 f15 e2e test-isolation fix (un-awaited `import('src/main.ts')`
-  racing jsdom teardown) · #81 WASM capability honesty hardening (bitfield realigned to
-  spec; dormant command-buffer sentinel) · #80 VR load-test harness (command-buffer
-  decision B2) · #78 global WebGL mock deficiencies fix (Option 3c) · #76 Playwright
-  real-WebGL load smoke (Track A) · #74 render-loop GL introspection tripwire (Track B).
-  Real-WebGL test coverage thread closed. Binary-parser length-field bounds thread closed
-  (#70/#72).
+  informational/non-required — NOT in the ruleset.) Required-checks list updated to
+  `Node 24` with #84 (was `Node 20`/`Node 22`).
+- **Recently merged:** #84 Node 24 single-leg CI + cross-platform lockfile fix + Netlify 24
+  · #82 f15 e2e test-isolation fix (un-awaited `import('src/main.ts')` racing jsdom teardown)
+  · #81 WASM capability honesty hardening (bitfield realigned to spec; dormant command-buffer
+  sentinel) · #80 VR load-test harness (command-buffer decision B2) · #78 global WebGL mock
+  deficiencies fix (Option 3c) · #76 Playwright real-WebGL load smoke (Track A) · #74
+  render-loop GL introspection tripwire (Track B). Real-WebGL coverage thread closed.
+  Binary-parser length-field bounds thread closed (#70/#72).
 - **In progress / next:** (1) user connects Quest, runs the full load-test staircase in XR
   (`npm run dev` → wheel menu Load Test → Start, or desktop `KeyT`/`Shift+T`); (2) read
   `logs/loadtest-results.jsonl` and deliver the implement/descope verdict for B2 (if
