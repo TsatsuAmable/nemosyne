@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ConstraintEngine } from './ConstraintEngine.ts';
 import { VRTopologyTranslator } from './VRTopologyTranslator.ts';
 import { disposeObject } from '../utils/Dispose.ts';
-import { MeshPool } from '../vr/scalability/ObjectPool.ts';
+import { MeshPool } from '../utils/ObjectPool.ts';
 import type { Artifact, DracoDataInput, SolverResult } from './types.ts';
 
 /**
@@ -39,9 +39,8 @@ export class DracoTopologyNode {
     this.solverResult = this.engine.solve(this.dataInput);
 
     if (this.artifact) {
-      MeshPool.instance.releaseGroup(this.artifact.group);
       this.scene.remove(this.artifact.group);
-      disposeObject(this.artifact.group);
+      MeshPool.instance.releaseGroup(this.artifact.group);
     }
 
     this.artifact = VRTopologyTranslator.synthesizeArtifact(this.solverResult, this.dataInput);

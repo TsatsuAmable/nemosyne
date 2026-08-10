@@ -81,6 +81,10 @@ export class WorldSceneComposer {
 
   /**
    * Continuously update analystAnchor to track the user's torso position and facing direction.
+   *
+   * The yaw is damped toward the headset yaw via a short-arc lerp (factor 0.15)
+   * so micro-rotations of the headset do not snap the entire HUD workspace
+   * instantly, eliminating jitter while still converging to the target heading.
    */
   update(_delta?: number): void {
     if (!this.engine?.camera || !this.analystAnchor) return;
@@ -91,9 +95,14 @@ export class WorldSceneComposer {
     const torsoY = Math.max(0.8, cam.position.y - 0.25);
     this.analystAnchor.position.set(cam.position.x, torsoY, cam.position.z);
 
-    // Torso orientation tracking: match headset yaw (Y-axis rotation)
+    // Torso orientation tracking: damped lerp toward headset yaw (Y-axis).
     const headEuler = new THREE.Euler(0, 0, 0, 'YXZ');
     headEuler.setFromQuaternion(cam.quaternion);
-    this.analystAnchor.rotation.y = headEuler.y;
+    const targetYaw = headEuler.y;
+    let delta = targetYaw - this.analystAnchor.rotation.y;
+    // Wrap the angular delta to the shortest path in [-PI, PI] so a near-PI
+    // rotation does not take the long way around the circle.
+    delta = THREE.MathUtils.euclideanModulo(delta + Math.PI, Math.PI * 2) - Math.PI;
+    this.analystAnchor.rotation.y += delta * 0.15;
   }
 }

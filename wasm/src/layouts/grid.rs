@@ -28,6 +28,8 @@ mod tests {
     fn grid_layout_computes_positions() {
         let positions = compute_grid_3d(8, 1.1, 1.2);
         assert_eq!(positions.len(), 8);
-        assert_eq!(positions[0][1], 0.65); // Check y offset centering
+        // f32 arithmetic in compute_grid_3d yields 0.65000004, so compare with
+        // tolerance instead of exact equality.
+        assert!((positions[0][1] - 0.65).abs() < 1e-5); // Check y offset centering
     }
 }

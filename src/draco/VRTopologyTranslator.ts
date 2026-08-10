@@ -6,16 +6,7 @@ import {
   normalize,
   inferEncodings,
 } from '../data/Encodings.ts';
-import { InstancedPointCloud } from '../vr/scalability/index.ts';
-import { MeshPool } from '../vr/scalability/ObjectPool.ts';
-import {
-  applyResonancePulse,
-  applyForkPlane,
-  applyChronoDial,
-  applyConstellation,
-  applyBeacon,
-  applyAleph,
-} from '../vr/interactions/MetaphorActions.ts';
+import { MeshPool } from '../utils/ObjectPool.ts';
 import {
   GridLayout3D,
   ForceDirected3D,
@@ -24,7 +15,6 @@ import {
   StreamlineLayout,
   GeoSurfaceLayout,
 } from './layouts/index.ts';
-import { ChartPlane } from '../vr/artifacts/ChartPlane.ts';
 import type { Dataset, DatasetEdge } from '../data/Dataset.ts';
 import type { EncodingMapping } from '../data/SampleDatasets.ts';
 import type {
@@ -40,6 +30,12 @@ import type {
   TimeSeriesEntry,
   VRGeometry,
   VRInteraction,
+  IInstancedPointCloud,
+  IChartPlane,
+  InstancedPointCloudFactory,
+  ChartPlaneFactory,
+  MetaphorActionHandlers,
+  VRTranslatorOptions,
 } from './types.ts';
 
 /**
@@ -47,7 +43,50 @@ import type {
  * binding real dataset values to visual channels where possible.
  */
 export class VRTopologyTranslator {
-  static synthesizeArtifact(dracoResult: SolverResult, dataInput: DracoDataInput): Artifact {
+  private static _pointCloudFactory: InstancedPointCloudFactory | null = null;
+  private static _chartPlaneFactory: ChartPlaneFactory | null = null;
+  private static _metaphorActions: MetaphorActionHandlers = {};
+
+  static registerPointCloudFactory(factory: InstancedPointCloudFactory): void {
+    this._pointCloudFactory = factory;
+  }
+
+  static registerChartPlaneFactory(factory: ChartPlaneFactory): void {
+    this._chartPlaneFactory = factory;
+  }
+
+  static registerMetaphorActions(actions: MetaphorActionHandlers): void {
+    this._metaphorActions = { ...this._metaphorActions, ...actions };
+  }
+
+  private static _createDefaultPointCloud(count: number, geometry?: THREE.BufferGeometry): IInstancedPointCloud {
+    const geom = geometry || new THREE.BoxGeometry(0.06, 0.06, 0.06);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const mesh = new THREE.InstancedMesh(geom, mat, count);
+    const dummy = new THREE.Object3D();
+    const colors = new Float32Array(count * 3);
+
+    return {
+      mesh,
+      setPoints(items: any[]) {
+        items.forEach((item, i) => {
+          const pos = Array.isArray(item.position) ? item.position : [item.position.x, item.position.y, item.position.z];
+          dummy.position.set(pos[0], pos[1], pos[2]);
+          dummy.scale.setScalar(item.scale ?? 1);
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i, dummy.matrix);
+          const c = new THREE.Color(item.color ?? 0x00ffcc);
+          colors[i * 3 + 0] = c.r;
+          colors[i * 3 + 1] = c.g;
+          colors[i * 3 + 2] = c.b;
+        });
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+      },
+    };
+  }
+
+  static synthesizeArtifact(dracoResult: SolverResult, dataInput: DracoDataInput, options?: VRTranslatorOptions): Artifact {
     const { spec, facts } = dracoResult;
     const dataset = dataInput.dataset;
     const encodings = dataInput.encodings || (dataset ? inferEncodings(dataset) : {});
@@ -160,7 +199,8 @@ export class VRTopologyTranslator {
         nodeMeshes,
         edgeMeshes,
         rows,
-        edges
+        edges,
+        options
       ),
       update: (delta, time) => {
         behaviors.forEach((b) => b(delta, time));
@@ -168,11 +208,14 @@ export class VRTopologyTranslator {
       spec,
     };
 
-    if (facts.numericColumns > 1 || facts.hasTimeSeries) {
-      const chart = ChartPlane.fromFacts(facts, dataset!, {
+    const cpFactory = options?.chartPlaneFactory || this._chartPlaneFactory;
+    if ((facts.numericColumns > 1 || facts.hasTimeSeries) && dataset && cpFactory) {
+      const chart = cpFactory(facts, dataset, {
         title: facts.hasTimeSeries ? 'Time Series' : 'Correlation',
       });
-      chart.setDataset(dataset);
+      if (chart.setDataset) {
+        chart.setDataset(dataset);
+      }
       chart.mesh.position.set(2.4, 1.6, -3.5);
       chart.mesh.lookAt(0, 1.6, -3.5);
       group.add(chart.mesh);
@@ -411,7 +454,10 @@ export class VRTopologyTranslator {
     nodeMeshes: THREE.Mesh[],
     edges: DatasetEdge[]
   ): void {
-    const mat = new THREE.LineBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.35 });
+    // Merge all edge endpoint pairs into a single LineSegments geometry to
+    // collapse N draw calls (one per edge) into one. The merged positions are
+    // packed as [x0,y0,z0, x1,y1,z1, ...] — every consecutive pair is one edge.
+    const positions: number[] = [];
     for (const e of edges) {
       const src = nodeMeshes.find(
         (m) =>
@@ -424,14 +470,17 @@ export class VRTopologyTranslator {
           (m.userData.row as Record<string, unknown> | undefined)?.name === e.target
       );
       if (!src || !dst) continue;
-      const geo = new THREE.BufferGeometry().setFromPoints([
-        src.position.clone(),
-        dst.position.clone(),
-      ]);
-      const line = new THREE.Line(geo, mat);
-      group.add(line);
-      edgeMeshes.push(line);
+      positions.push(src.position.x, src.position.y, src.position.z);
+      positions.push(dst.position.x, dst.position.y, dst.position.z);
     }
+    if (positions.length === 0) return;
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const mat = new THREE.LineBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.35 });
+    const lineSegments = new THREE.LineSegments(geo, mat);
+    group.add(lineSegments);
+    edgeMeshes.push(lineSegments);
   }
 
   static _buildParentEdges(
@@ -439,7 +488,8 @@ export class VRTopologyTranslator {
     edgeMeshes: THREE.Line[],
     nodeMeshes: THREE.Mesh[]
   ): void {
-    const mat = new THREE.LineBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.35 });
+    // Merge all parent-child edge endpoint pairs into a single LineSegments.
+    const positions: number[] = [];
     for (const mesh of nodeMeshes) {
       const parentIdx =
         (mesh.userData.row as Record<string, unknown> | undefined)?._parentIndex ??
@@ -447,14 +497,17 @@ export class VRTopologyTranslator {
       if (parentIdx == null) continue;
       const parent = nodeMeshes[parentIdx as number];
       if (!parent) continue;
-      const geo = new THREE.BufferGeometry().setFromPoints([
-        parent.position.clone(),
-        mesh.position.clone(),
-      ]);
-      const line = new THREE.Line(geo, mat);
-      group.add(line);
-      edgeMeshes.push(line);
+      positions.push(parent.position.x, parent.position.y, parent.position.z);
+      positions.push(mesh.position.x, mesh.position.y, mesh.position.z);
     }
+    if (positions.length === 0) return;
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const mat = new THREE.LineBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.35 });
+    const lineSegments = new THREE.LineSegments(geo, mat);
+    group.add(lineSegments);
+    edgeMeshes.push(lineSegments);
   }
 
   static _buildGeoSurface(
@@ -531,7 +584,8 @@ export class VRTopologyTranslator {
     spec: DracoSpec,
     rng: SeededRandom,
     edges: DatasetEdge[] = [],
-    depth = 1
+    depth = 1,
+    options?: VRTranslatorOptions
   ): void {
     const positions = this._computeLayoutPositions(
       rows,
@@ -585,11 +639,8 @@ export class VRTopologyTranslator {
       };
     });
 
-    const CloudCtor = InstancedPointCloud as unknown as new (
-      count: number,
-      geometry?: THREE.BufferGeometry
-    ) => { mesh: THREE.Mesh; setPoints(items: unknown[]): void };
-    const cloud = new CloudCtor(items.length, new THREE.BoxGeometry(0.06, 0.06, 0.06));
+    const pcFactory = options?.pointCloudFactory || this._pointCloudFactory || this._createDefaultPointCloud;
+    const cloud = pcFactory(items.length, new THREE.BoxGeometry(0.06, 0.06, 0.06));
     cloud.setPoints(items);
     (cloud.mesh as THREE.Mesh).userData = { instancedCloud: cloud };
     group.add(cloud.mesh);
@@ -802,8 +853,10 @@ export class VRTopologyTranslator {
     nodeMeshes: THREE.Mesh[],
     edgeMeshes: THREE.Line[],
     rows: Record<string, unknown>[],
-    edges: DatasetEdge[]
+    edges: DatasetEdge[],
+    options?: VRTranslatorOptions
   ): InteractionCallbacks {
+    const actions = { ...this._metaphorActions, ...options?.metaphorActions };
     const base = {
       onHover: (mesh: THREE.Mesh) => {
         if ((mesh.material as THREE.MeshStandardMaterial | undefined)?.emissiveIntensity !== undefined) {
@@ -884,7 +937,7 @@ export class VRTopologyTranslator {
                 }
               }
             }
-            applyResonancePulse(group, mesh, partners);
+            actions.applyResonancePulse?.(group, mesh, partners);
           },
         };
       case 'FORK_PLANE':
@@ -893,7 +946,7 @@ export class VRTopologyTranslator {
           type: interactionType,
           onSelect: (mesh: THREE.Mesh) => {
             base.onSelect(mesh);
-            applyForkPlane(group, mesh);
+            actions.applyForkPlane?.(group, mesh);
           },
         };
       case 'CHRONO_DIAL':
@@ -902,7 +955,7 @@ export class VRTopologyTranslator {
           type: interactionType,
           onSelect: (mesh: THREE.Mesh) => {
             base.onSelect(mesh);
-            applyChronoDial(group, mesh);
+            actions.applyChronoDial?.(group, mesh);
           },
         };
       case 'CONSTELLATION':
@@ -911,7 +964,7 @@ export class VRTopologyTranslator {
           type: interactionType,
           onSelect: (mesh: THREE.Mesh) => {
             base.onSelect(mesh);
-            applyConstellation(group, mesh, others(mesh).slice(0, 8));
+            actions.applyConstellation?.(group, mesh, others(mesh).slice(0, 8));
           },
         };
       case 'BEACON':
@@ -920,7 +973,7 @@ export class VRTopologyTranslator {
           type: interactionType,
           onSelect: (mesh: THREE.Mesh) => {
             base.onSelect(mesh);
-            applyBeacon(group, mesh);
+            actions.applyBeacon?.(group, mesh);
           },
         };
       case 'ALEPH':
@@ -929,7 +982,7 @@ export class VRTopologyTranslator {
           type: interactionType,
           onSelect: (mesh: THREE.Mesh) => {
             base.onSelect(mesh);
-            applyAleph(group, mesh, others(mesh));
+            actions.applyAleph?.(group, mesh, others(mesh));
           },
         };
       default:

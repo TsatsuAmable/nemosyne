@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { World } from '../src/vr/World.ts';
 import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.ts';
-import { DracoDiagnosticHUD } from '../src/draco/DracoDiagnosticHUD.ts';
+import { DracoDiagnosticHUD } from '../src/vr/ui/DracoDiagnosticHUD.ts';
 import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.ts';
 import { WorldTheme } from '../src/vr/WorldTheme.ts';

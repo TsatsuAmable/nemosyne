@@ -4,6 +4,11 @@ import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.t
 import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { ChartPlane } from '../src/vr/artifacts/ChartPlane.ts';
+// Register the VR factories (ChartPlane/InstancedPointCloud/MetaphorActions)
+// the production World wires via this module. The translator's factory seam
+// (introduced by the M1 decoupling) only attaches a `chartPlane` when these
+// are registered, so the integration test must mirror production wiring.
+import '../src/vr/registerFactories.ts';
 
 describe('ChartPlane integration', () => {
   it('synthesizes a chart plane for time-series data', () => {

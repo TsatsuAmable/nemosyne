@@ -28,9 +28,11 @@ export class InstancedPointCloud {
   mesh: THREE.InstancedMesh;
 
   private dummy: THREE.Object3D;
+  private _scratchColor: THREE.Color;
   private _positions: StoredPosition[];
   private _colors: Float32Array;
   private _scales: Float32Array;
+  private _instanceColor: THREE.InstancedBufferAttribute;
 
   constructor(maxCount = 2000, geometry: THREE.BufferGeometry | null = null) {
     this.maxCount = maxCount;
@@ -40,19 +42,26 @@ export class InstancedPointCloud {
 
     this.material = new THREE.MeshBasicMaterial({
       color: 0xffffff,
-      transparent: true,
-      opacity: 0.9,
-      depthTest: false,
-      depthWrite: false,
+      transparent: false,
+      opacity: 1.0,
+      depthTest: true,
+      depthWrite: true,
     });
 
     this.mesh = new THREE.InstancedMesh(this.geometry, this.material, maxCount);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.count = 0;
 
-    this.dummy = new THREE.Object3D();
-    this._positions = [];
+    // Allocate ONE instanceColor attribute (reused across all setPoints calls)
+    // instead of reallocating a new InstancedBufferAttribute each frame.
     this._colors = new Float32Array(maxCount * 3);
+    this._instanceColor = new THREE.InstancedBufferAttribute(this._colors, 3);
+    this._instanceColor.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.instanceColor = this._instanceColor;
+
+    this.dummy = new THREE.Object3D();
+    this._scratchColor = new THREE.Color();
+    this._positions = [];
     this._scales = new Float32Array(maxCount);
   }
 
@@ -83,10 +92,10 @@ export class InstancedPointCloud {
       this.dummy.updateMatrix();
       this.mesh.setMatrixAt(i, this.dummy.matrix);
 
-      const c = new THREE.Color(item.color ?? 0x00ffcc);
-      this._colors[i * 3 + 0] = c.r;
-      this._colors[i * 3 + 1] = c.g;
-      this._colors[i * 3 + 2] = c.b;
+      this._scratchColor.set(item.color ?? 0x00ffcc);
+      this._colors[i * 3 + 0] = this._scratchColor.r;
+      this._colors[i * 3 + 1] = this._scratchColor.g;
+      this._colors[i * 3 + 2] = this._scratchColor.b;
       this._scales[i] = item.scale ?? 1;
 
       this._positions.push({
@@ -97,7 +106,8 @@ export class InstancedPointCloud {
     }
 
     this.mesh.instanceMatrix.needsUpdate = true;
-    this.mesh.instanceColor = new THREE.InstancedBufferAttribute(this._colors, 3);
+    // Reuse the single instanceColor attribute; just signal GPU re-upload.
+    this._instanceColor.needsUpdate = true;
   }
 
   /**
@@ -106,10 +116,10 @@ export class InstancedPointCloud {
   updateInstances(updates: InstancedPointCloudUpdate[]): void {
     for (const u of updates) {
       if (u.color != null) {
-        const c = new THREE.Color(u.color);
-        this._colors[u.index * 3 + 0] = c.r;
-        this._colors[u.index * 3 + 1] = c.g;
-        this._colors[u.index * 3 + 2] = c.b;
+        this._scratchColor.set(u.color);
+        this._colors[u.index * 3 + 0] = this._scratchColor.r;
+        this._colors[u.index * 3 + 1] = this._scratchColor.g;
+        this._colors[u.index * 3 + 2] = this._scratchColor.b;
       }
       if (u.scale != null && this._positions[u.index]) {
         this._scales[u.index] = u.scale;
@@ -157,6 +167,21 @@ export class InstancedPointCloud {
   dispose(): void {
     this.geometry.dispose();
     this.material.dispose();
+    // Dispose the InstancedMesh itself. In three r168 this dispatches the
+    // 'dispose' event that the renderer's WebGLObjects.onInstancedMeshDispose
+    // listens for to remove (and free the GPU buffers of) instanceMatrix and
+    // instanceColor — geometry.dispose() alone does NOT free instanced
+    // attributes. This is the real VRAM-free path; it is a no-op in jsdom
+    // (no renderer is listening) but does not throw.
+    this.mesh.dispose();
+    // Forward-compatibility guards: BufferAttribute has no dispose() in r168,
+    // but invoke it if a future revision adds one.
+    this.mesh.instanceMatrix.dispose?.();
+    this._instanceColor.dispose?.();
+    // Drop CPU-side typed-array references so the instanced buffers can be
+    // garbage collected even when the renderer does not reclaim GPU buffers
+    // for instanced attributes explicitly.
+    this.mesh.instanceColor = null;
     if (this.mesh.parent) this.mesh.parent.remove(this.mesh);
   }
 }

@@ -8,9 +8,11 @@ import { Locomotion } from './Locomotion.ts';
 import { DesktopControls } from './DesktopControls.ts';
 import { disposeObject } from '../utils/Dispose.ts';
 import { PerformanceBudget } from '../utils/PerformanceBudget.ts';
+import { WorldEventBus } from '../utils/EventBus.ts';
 import { AdaptiveFrameGovernor } from './scalability/AdaptiveFrameGovernor.ts';
 import type { HudObject } from './input/InteractableRegistry.ts';
 import type { PerformanceBudgetLike, TelemetryCollectorLike, Updatable } from './coordinators/types.ts';
+import './registerFactories.ts';
 
 /**
  * Core WebXR engine: scene graph, renderer, XR session, input routing,
@@ -28,6 +30,14 @@ export class Engine {
   performanceBudget: PerformanceBudgetLike;
   frameGovernor: AdaptiveFrameGovernor;
   _lastBudgetCheck = 0;
+
+  /**
+   * Shared event bus. Created by the engine so the AdaptiveFrameGovernor can
+   * emit WorldTopics.PERFORMANCE_THROTTLE from the moment it is constructed.
+   * `World` reuses this same instance for all coordinators so the governor's
+   * throttle events reach every subscriber.
+   */
+  eventBus: WorldEventBus;
 
   cameraGroup: THREE.Group;
   camera: THREE.PerspectiveCamera;
@@ -58,7 +68,8 @@ export class Engine {
     this.theme = new WorldTheme(this.scene);
 
     this.performanceBudget = new PerformanceBudget() as PerformanceBudgetLike;
-    this.frameGovernor = new AdaptiveFrameGovernor();
+    this.eventBus = new WorldEventBus();
+    this.frameGovernor = new AdaptiveFrameGovernor(11.1, 30, this.eventBus);
 
     this.cameraGroup = new THREE.Group();
     this.scene.add(this.cameraGroup);
@@ -222,7 +233,7 @@ export class Engine {
         const frameMs = now - frameStart;
         const snapshot = {
           frameMs,
-          dropped: frameMs > (this.performanceBudget.budgets?.frameMs ?? 16.67),
+          dropped: frameMs > (this.performanceBudget.budgets?.frameMs ?? 11.11),
           rendererInfo: this.renderer.info,
           interactableCount: this.input.interactables.length,
           updatableCount: this.updatables.length,

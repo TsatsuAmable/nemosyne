@@ -37,11 +37,12 @@ export class CanvasTextureCacheManager {
 
     if (existing && existing.hash === newHash) {
       this._skipCount++;
+      (texture as unknown as { needsUpdate: boolean }).needsUpdate = false;
       return false; // Skip GPU texture upload
     }
 
     this._cache.set(panelId, { hash: newHash, lastUpdatedMs: now });
-    texture.needsUpdate = true;
+    (texture as unknown as { needsUpdate: boolean }).needsUpdate = true;
     this._uploadCount++;
     return true;
   }

@@ -46,17 +46,28 @@ export function parseJSON(text: string, options: ParseOptions = {}): Dataset {
   if (raw.length === 0) return new Dataset(opts.name, [], []);
 
   const firstRow = raw[0] as Record<string, unknown>;
-  const columns = Object.keys(firstRow);
+  const rawColumns = Object.keys(firstRow);
+  const columns = rawColumns.filter((key) => key !== '__proto__' && key !== 'constructor' && key !== 'prototype');
   if (opts.maxColumns > 0 && columns.length > opts.maxColumns) {
     throw new Error(`JSON has ${columns.length} columns; maximum allowed is ${opts.maxColumns}`);
   }
 
-  const rows = opts.maxRows > 0 ? raw.slice(0, opts.maxRows) : raw;
+  const rawRows = opts.maxRows > 0 ? raw.slice(0, opts.maxRows) : raw;
+  const rows = rawRows.map((r: unknown) => {
+    const rowObj: Record<string, unknown> = {};
+    if (r && typeof r === 'object') {
+      for (const col of columns) {
+        rowObj[col] = (r as Record<string, unknown>)[col];
+      }
+    }
+    return rowObj;
+  });
+
   const typedColumns: ColumnSchema[] = columns.map((name) => {
-    const type = inferType(rows.map((r: unknown) => (r as Record<string, unknown>)[name]));
+    const type = inferType(rows.map((r) => r[name]));
     return { name, type };
   });
-  return new Dataset(opts.name, typedColumns, rows as Record<string, unknown>[]);
+  return new Dataset(opts.name, typedColumns, rows);
 }
 
 /**

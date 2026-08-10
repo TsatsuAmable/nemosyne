@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from './Engine.ts';
 import { DracoTopologyNode } from '../draco/DracoTopologyNode.ts';
-import { DracoDiagnosticHUD } from '../draco/DracoDiagnosticHUD.ts';
+import { DracoDiagnosticHUD } from './ui/DracoDiagnosticHUD.ts';
 import { TooltipManager } from './ui/TooltipManager.ts';
 import { ChartPlanePanel } from './ui/ChartPlanePanel.ts';
 import { FileLoaderUI } from '../ui/FileLoader.ts';
@@ -70,6 +70,7 @@ import { HolographicInspector } from './artifacts/HolographicInspector.ts';
 import type { DatasetJSON, EncodingMapping, TopologyType } from '../data/types.ts';
 import type {
   ArtifactRef,
+  DatasetLoadEntry,
   LiveConnectorLike,
   LiveStreamOptions,
   NetworkManagerLike,
@@ -95,17 +96,6 @@ const DATASET_THEME_MAP: Record<string, string> = {
   'geo-cities': 'coolDepth',
   'flow-process': 'deepNet',
 };
-
-interface DatasetLoadEntry {
-  [key: string]: unknown;
-  key?: string;
-  name?: string;
-  label?: string;
-  topology: string;
-  dataset: Dataset;
-  maxDepth?: number;
-  encodings?: EncodingMapping;
-}
 
 const DEFAULT_DATASET_ENTRY: DatasetLoadEntry = {
   key: 'supply-chain',
@@ -196,8 +186,10 @@ export class World {
 
     // Lightweight event bus for cross-cutting UI/UX concerns. Anything that
     // needs to react to operations, settings changes, or session events can
-    // subscribe without hard-wiring into `World`.
-    this.eventBus = new WorldEventBus();
+    // subscribe without hard-wiring into `World`. Reuse the engine's bus so
+    // the AdaptiveFrameGovernor's PERFORMANCE_THROTTLE events reach all
+    // subscribers on the same bus.
+    this.eventBus = this.engine.eventBus;
 
     this.sceneGraphController = new SceneGraphController();
     this.workspaceManager = new WorkspaceManager(this.engine.scene);

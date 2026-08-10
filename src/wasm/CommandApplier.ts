@@ -62,6 +62,7 @@ export class CommandApplier {
 
       switch (op) {
         case OP_CREATE_NODE: {
+          if (offset + 8 > byteLength) return parsedCommands;
           const entity = view.getUint32(offset, true);
           const geometryType = view.getUint8(offset + 4);
           const materialType = view.getUint8(offset + 5);
@@ -77,6 +78,7 @@ export class CommandApplier {
         }
 
         case OP_UPDATE_TRANSFORM: {
+          if (offset + 44 > byteLength) return parsedCommands;
           const entity = view.getUint32(offset, true);
           const px = view.getFloat32(offset + 4, true);
           const py = view.getFloat32(offset + 8, true);
@@ -110,6 +112,7 @@ export class CommandApplier {
         }
 
         case OP_DESTROY_NODE: {
+          if (offset + 4 > byteLength) return parsedCommands;
           const entity = view.getUint32(offset, true);
           offset += 4;
           this.unregisterEntity(entity);
@@ -118,6 +121,7 @@ export class CommandApplier {
         }
 
         case OP_SET_COLOR: {
+          if (offset + 20 > byteLength) return parsedCommands;
           const entity = view.getUint32(offset, true);
           const r = view.getFloat32(offset + 4, true);
           const g = view.getFloat32(offset + 8, true);
@@ -137,6 +141,7 @@ export class CommandApplier {
         }
 
         case OP_UPDATE_INSTANCES: {
+          if (offset + 12 > byteLength) return parsedCommands;
           const entity = view.getUint32(offset, true);
           const instanceCount = view.getUint32(offset + 4, true);
           const dataOffset = view.getUint32(offset + 8, true);

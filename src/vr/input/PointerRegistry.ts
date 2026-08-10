@@ -51,6 +51,30 @@ export class PointerRegistry {
     };
   }
 
+  removeController(controller: PointerLike): void {
+    const idx = this.controllers.indexOf(controller);
+    if (idx >= 0) {
+      this.controllers.splice(idx, 1);
+    }
+    this.controllerTriggerPressed.delete(controller);
+    this.controllerGripPressed.delete(controller);
+  }
+
+  removeHand(hand: PointerLike): void {
+    const idx = this.hands.indexOf(hand);
+    if (idx >= 0) {
+      this.hands.splice(idx, 1);
+    }
+    this.lastHandPinched.delete(hand);
+  }
+
+  reset(): void {
+    this.controllerTriggerPressed.clear();
+    this.controllerGripPressed.clear();
+    this.lastHandPinched.clear();
+    this.lastBothPinched = false;
+  }
+
   /**
    * Update each hand pointer for the current XR frame.
    */
@@ -136,13 +160,14 @@ export class PointerRegistry {
     controller: PointerLike,
     sources: XRInputSource[]
   ): XRInputSource | null {
+    if (!Array.isArray(sources)) return null;
     if (controller.handedness && controller.handedness !== 'none') {
       const match = sources.find(
-        (s) => !s.hand && s.handedness === controller.handedness
+        (s) => Boolean(s) && !s.hand && s.handedness === controller.handedness
       );
       if (match) return match;
     }
-    const nonHand = sources.filter((s) => !s.hand);
+    const nonHand = sources.filter((s) => Boolean(s) && !s.hand);
     const idx = this.controllers.indexOf(controller);
     return nonHand[idx] ?? null;
   }

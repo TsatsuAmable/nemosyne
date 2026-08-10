@@ -21,14 +21,8 @@ import type {
 } from './types.ts';
 import type { Dataset } from '../data/Dataset.ts';
 
-export const TopologyTypes = {
-  TABULAR: 'TABULAR',
-  GRAPH: 'GRAPH',
-  HIERARCHY: 'HIERARCHY',
-  VECTOR_FIELD: 'VECTOR_FIELD',
-  TIME_SERIES: 'TIME_SERIES',
-  GEO: 'GEO',
-} as const;
+import { TopologyTypes, type TopologyType } from '../types/topology.ts';
+export { TopologyTypes, type TopologyType };
 
 
 export const VRChannels = {

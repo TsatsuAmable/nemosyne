@@ -1,6 +1,5 @@
-import { TopologyTypes } from '../draco/ConstraintEngine.ts';
 import type { Dataset } from './Dataset.ts';
-import type { ColumnSchema } from './types.ts';
+import { TopologyTypes, type ColumnSchema } from './types.ts';
 
 type TopologyValue = string;
 

@@ -83,6 +83,9 @@ export class SignallingChannel extends EventTarget {
     if (this.isOpen && this._ws) {
       this._ws.send(JSON.stringify(message));
     } else {
+      if (this._queue.length >= 100) {
+        this._queue.shift(); // Drop oldest message if queue grows too large during disconnect
+      }
       this._queue.push(message);
     }
   }

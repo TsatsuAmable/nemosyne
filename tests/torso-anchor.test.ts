@@ -30,7 +30,12 @@ describe('Torso Anchor Tracking Subsystem', () => {
     expect(composer.analystAnchor.position.y).toBeCloseTo(1.5);
     expect(composer.analystAnchor.position.z).toBeCloseTo(-2.0);
 
-    // Torso rotation should match headset yaw
+    // Damped yaw: after one frame it moves toward but does not reach the target.
+    expect(composer.analystAnchor.rotation.y).toBeGreaterThan(0);
+    expect(composer.analystAnchor.rotation.y).toBeLessThan(Math.PI / 4);
+
+    // After many frames the damped yaw converges to the headset yaw.
+    for (let i = 0; i < 200; i++) composer.update(0.016);
     expect(composer.analystAnchor.rotation.y).toBeCloseTo(Math.PI / 4);
   });
 });

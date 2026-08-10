@@ -1,4 +1,20 @@
 import * as THREE from 'three';
+import {
+  sharedSphereGeometry,
+  sharedBoxGeometry,
+  sharedCylinderGeometry,
+} from './ObjectPool.ts';
+
+/**
+ * Shared static geometries that must never be disposed by `disposeObject`,
+ * because they are reused across the lifetime of the application (see
+ * `src/utils/ObjectPool.ts`). Disposing them would corrupt every pooled mesh.
+ */
+const SHARED_GEOMETRIES = new WeakSet<THREE.BufferGeometry>([
+  sharedSphereGeometry,
+  sharedBoxGeometry,
+  sharedCylinderGeometry,
+]);
 
 /** Recursively dispose of a Three.js object and its children. */
 export function disposeObject(obj: THREE.Object3D | { dispose(): void } | null | undefined): void {
@@ -7,7 +23,7 @@ export function disposeObject(obj: THREE.Object3D | { dispose(): void } | null |
   const object3D = obj as THREE.Object3D;
   const meshLike = object3D as THREE.Mesh;
 
-  if (meshLike.geometry) {
+  if (meshLike.geometry && !SHARED_GEOMETRIES.has(meshLike.geometry)) {
     meshLike.geometry.dispose();
   }
 

@@ -184,24 +184,51 @@ export class NetworkManager extends EventTarget {
     else if (data.type === 'ice') this._handleIce(from, data);
     else if (data.type === 'join') {
       this._initiateConnection(from);
+    } else if (data.type === 'leave') {
+      this._handleLeave(from);
+    }
+  }
+
+  _handleLeave(peerId: string): void {
+    const conn = this.connections.get(peerId);
+    if (conn) {
+      this._closePeer(peerId, conn);
+      this.connections.delete(peerId);
+      this.channels.delete(peerId);
+      this.room.removePeer(peerId);
+      this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
     }
   }
 
   async _initiateConnection(peerId: string): Promise<void> {
-    if (peerId === this.peerId || this.connections.has(peerId)) return;
+    if (peerId === this.peerId) return;
+    const existing = this.connections.get(peerId);
+    if (existing) {
+      this._closePeer(peerId, existing);
+    }
     const conn = this._createConnection(peerId);
     this.connections.set(peerId, conn);
 
-    const channel = conn.createDataChannel('nemosyne', { ordered: true });
-    this._wireChannel(peerId, channel);
+    try {
+      const channel = conn.createDataChannel('nemosyne', { ordered: true });
+      this._wireChannel(peerId, channel);
 
-    const offer = await conn.createOffer();
-    await conn.setLocalDescription(offer);
-    this.signalling?.sendSignal(peerId, { type: 'offer', sdp: offer.sdp });
+      const offer = await conn.createOffer();
+      await conn.setLocalDescription(offer);
+      this.signalling?.sendSignal(peerId, { type: 'offer', sdp: offer.sdp });
+    } catch (err) {
+      console.warn(`[NetworkManager] Initiate connection with ${peerId} failed:`, err);
+      this._closePeer(peerId, conn);
+      this.connections.delete(peerId);
+    }
   }
 
   async _handleOffer(peerId: string, { sdp }: { sdp: string }): Promise<void> {
     if (peerId === this.peerId) return;
+    const existing = this.connections.get(peerId);
+    if (existing) {
+      this._closePeer(peerId, existing);
+    }
     const conn = this._createConnection(peerId);
     this.connections.set(peerId, conn);
 
@@ -210,16 +237,26 @@ export class NetworkManager extends EventTarget {
       this._wireChannel(peerId, channelEvt.channel);
     });
 
-    await conn.setRemoteDescription({ type: 'offer', sdp });
-    const answer = await conn.createAnswer();
-    await conn.setLocalDescription(answer);
-    this.signalling?.sendSignal(peerId, { type: 'answer', sdp: answer.sdp });
+    try {
+      await conn.setRemoteDescription({ type: 'offer', sdp });
+      const answer = await conn.createAnswer();
+      await conn.setLocalDescription(answer);
+      this.signalling?.sendSignal(peerId, { type: 'answer', sdp: answer.sdp });
+    } catch (err) {
+      console.warn(`[NetworkManager] Handle offer from ${peerId} failed:`, err);
+      this._closePeer(peerId, conn);
+      this.connections.delete(peerId);
+    }
   }
 
   async _handleAnswer(peerId: string, { sdp }: { sdp: string }): Promise<void> {
     const conn = this.connections.get(peerId);
     if (!conn) return;
-    await conn.setRemoteDescription({ type: 'answer', sdp });
+    try {
+      await conn.setRemoteDescription({ type: 'answer', sdp });
+    } catch (err) {
+      console.warn(`[NetworkManager] Handle answer from ${peerId} failed:`, err);
+    }
   }
 
   async _handleIce(peerId: string, { candidate }: { candidate: RTCIceCandidateInit }): Promise<void> {

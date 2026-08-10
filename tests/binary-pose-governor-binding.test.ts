@@ -3,18 +3,20 @@ import { BinaryPoseSerializer, type CameraPose } from '../src/network/BinaryPose
 import { InstancedPointCloud } from '../src/vr/scalability/InstancedPointCloud.ts';
 
 describe('Sprint 17.3 & 17.4: Binary Pose Streaming & Governor Scene Binding Suite', () => {
-  it('serializes and deserializes CameraPose to/from 32-byte ArrayBuffer', () => {
+  it('serializes and deserializes CameraPose to/from 40-byte ArrayBuffer (Sprint 19.1 extended format)', () => {
     const original: CameraPose = {
+      peerId: 1,
       sequence: 1042,
       position: [1.2, 1.6, -0.5],
       rotation: [0, 0.707, 0, 0.707],
     };
 
     const buffer = BinaryPoseSerializer.serialize(original);
-    expect(buffer.byteLength).toBe(32);
+    expect(buffer.byteLength).toBe(40);
 
     const restored = BinaryPoseSerializer.deserialize(buffer);
     expect(restored).not.toBeNull();
+    expect(restored?.peerId).toBe(1);
     expect(restored?.sequence).toBe(1042);
     expect(restored?.position[0]).toBeCloseTo(1.2);
     expect(restored?.position[1]).toBeCloseTo(1.6);
