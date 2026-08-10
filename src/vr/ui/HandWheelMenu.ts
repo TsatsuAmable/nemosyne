@@ -304,27 +304,6 @@ export class HandWheelMenu {
   }
 
   /**
-   * Return true if the off-hand pointer is inside the allowed open zone.
-   */
-  isPointerInsideOpenZone(): boolean {
-    if (this.openAngleThreshold <= 0) return true;
-    if (this._pointerAngle == null) return true;
-    const deviation = Math.abs(this._pointerAngle);
-    return deviation >= this.openAngleThreshold;
-  }
-
-  /**
-   * Return true if the pointer has strayed beyond the close zone.
-   */
-  shouldCloseByPointer(): boolean {
-    if (!this.group.visible) return false;
-    if (this.closeAngleThreshold === Infinity) return false;
-    if (this._pointerAngle == null) return false;
-    const deviation = Math.abs(this._pointerAngle);
-    return deviation > this.closeAngleThreshold;
-  }
-
-  /**
    * HUD-compatible click handler used by InputRouter. Ray is in world space.
    * Returns true if a category or action was hit.
    */

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CanvasTextureCacheManager } from './CanvasTextureCacheManager.ts';
+import { PALETTE, cssHex } from '../palette.ts';
 import type {
   AccessibilityOptions,
   DragState,
@@ -336,11 +337,11 @@ export class MovablePanel {
     const w = this.width;
     const h = this.height;
 
-    const bg = this.highContrast ? '#050a12' : '#0b1626';
-    const border = this.highContrast ? '#00ffff' : '#00ccaa';
-    const titleBg = this.highContrast ? '#0d1f38' : '#10243e';
-    const textColor = this.highContrast ? '#ffffff' : '#e0f7ff';
-    const accent = '#00ffcc';
+    const bg = cssHex(this.highContrast ? PALETTE.panelBgHighContrast : PALETTE.panelBg);
+    const border = cssHex(this.highContrast ? PALETTE.panelBorderHighContrast : PALETTE.panelBorder);
+    const titleBg = cssHex(this.highContrast ? PALETTE.panelTitleBgHighContrast : PALETTE.panelTitleBg);
+    const textColor = cssHex(this.highContrast ? PALETTE.panelTextHighContrast : PALETTE.panelText);
+    const accent = cssHex(PALETTE.accent);
 
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
@@ -363,7 +364,7 @@ export class MovablePanel {
 
     // Minimize button
     const mb = this.minimizeBtn;
-    ctx.fillStyle = '#ff3366';
+    ctx.fillStyle = cssHex(PALETTE.panelMinimize);
     ctx.fillRect(mb.x, mb.y, mb.w, mb.h);
     ctx.fillStyle = '#ffffff';
     ctx.font = `bold ${Math.round(16 * this.textScale)}px sans-serif`;
@@ -407,24 +408,24 @@ export class MovablePanel {
       const sbH = containerH;
 
       // Track background
-      ctx.fillStyle = '#0a1626';
+      ctx.fillStyle = cssHex(PALETTE.panelScrollbarTrack);
       ctx.fillRect(sbX, sbY, sbW, sbH);
-      ctx.strokeStyle = '#00ccaa';
+      ctx.strokeStyle = cssHex(PALETTE.panelBorder);
       ctx.lineWidth = 2;
       ctx.strokeRect(sbX, sbY, sbW, sbH);
 
       // Up scroll button (▲)
-      ctx.fillStyle = '#10243e';
+      ctx.fillStyle = cssHex(PALETTE.panelTitleBg);
       ctx.fillRect(sbX + 2, sbY + 2, sbW - 4, 28);
-      ctx.fillStyle = '#00ffcc';
+      ctx.fillStyle = cssHex(PALETTE.accent);
       ctx.font = 'bold 16px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('▲', sbX + sbW / 2, sbY + 16);
 
       // Down scroll button (▼)
-      ctx.fillStyle = '#10243e';
+      ctx.fillStyle = cssHex(PALETTE.panelTitleBg);
       ctx.fillRect(sbX + 2, sbY + sbH - 30, sbW - 4, 28);
-      ctx.fillStyle = '#00ffcc';
+      ctx.fillStyle = cssHex(PALETTE.accent);
       ctx.fillText('▼', sbX + sbW / 2, sbY + sbH - 16);
 
       // Thumb
@@ -432,7 +433,7 @@ export class MovablePanel {
       const thumbH = Math.max(36, (containerH / this.totalContentHeight) * thumbAreaH);
       const thumbY = sbY + 32 + (maxScroll > 0 ? (this.scrollOffset / maxScroll) * (thumbAreaH - thumbH) : 0);
 
-      ctx.fillStyle = '#00ffcc';
+      ctx.fillStyle = cssHex(PALETTE.accent);
       ctx.fillRect(sbX + 4, thumbY, sbW - 8, thumbH);
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 1;

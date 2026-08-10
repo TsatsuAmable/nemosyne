@@ -90,4 +90,40 @@ describe('Button Click Dispatching Subsystem (Tour & VR Menu)', () => {
     expect(actionConsumed).toBe(true);
     expect(callbackSpy).toHaveBeenCalled();
   });
+
+  it('dispatches the GuidedTour < PREV pill (only when not on the first step)', () => {
+    const camera = new THREE.PerspectiveCamera();
+    const cameraGroup = new THREE.Group();
+    cameraGroup.add(camera);
+
+    const mockEngine: any = {
+      camera,
+      cameraGroup,
+      scene: new THREE.Scene(),
+      addUpdatable() {},
+      addHudObject() {},
+    };
+
+    const tour = new GuidedTour(mockEngine, { tour: FIRST_DATASET_TOUR });
+    tour.start();
+    expect((tour as any)._stepIndex).toBe(0);
+
+    // PREV is not rendered on step 0 — a click in the PREV region must fall
+    // through to NEXT (advancing), not go backwards.
+    const w = (tour as any)._cardCanvas.width; // 1024
+    const h = (tour as any)._cardCanvas.height; // 384
+    const prevUV = new THREE.Vector2(720 / w, 1 - 350 / h); // centre of PREV pill
+    const raycaster = new THREE.Raycaster();
+    vi.spyOn(raycaster, 'intersectObject').mockReturnValue([
+      { object: (tour as any)._cardMesh, uv: prevUV } as any,
+    ]);
+
+    // On step 0 the PREV pill isn't drawn, so the click advances (NEXT fallback).
+    expect(tour.handlePointerClick(raycaster)).toBe(true);
+    expect((tour as any)._stepIndex).toBe(1);
+
+    // Now on step 1 the PREV pill is live — the same hit goes back to step 0.
+    expect(tour.handlePointerClick(raycaster)).toBe(true);
+    expect((tour as any)._stepIndex).toBe(0);
+  });
 });

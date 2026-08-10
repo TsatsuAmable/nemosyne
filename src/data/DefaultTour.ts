@@ -7,16 +7,24 @@
  * step.
  */
 
+/**
+ * Canonical tour types — single source of truth shared by the engine
+ * (`GuidedTour`), the controller (`GuidedTourController`), and tour data. Lives
+ * in the data layer so the VR layer can depend on it without a layering
+ * inversion. `actionHint`/`audio` are optional so the engine stays tolerant of
+ * minimal step definitions.
+ */
 export interface TourStep {
   target: string;
   text: string;
-  actionHint: string;
+  actionHint?: string;
+  audio?: boolean;
   [key: string]: unknown;
 }
 
 export interface Tour {
   id: string;
-  title: string;
+  title?: string;
   steps: TourStep[];
 }
 
@@ -83,6 +91,36 @@ export const FIRST_DATASET_TOUR: Tour = {
       target: 'peer-collaboration',
       text: 'SHARE & COLLABORATE: Join multi-user WebRTC rooms to share live 3D avatars, node selections, and peer annotations in real time.',
       actionHint: 'Join collaboration room',
+    },
+    {
+      target: 'tda-lens',
+      text: 'STATISTICAL LENS: The topological lens reveals persistence, mapper-graph, and betti-curve summary planes. It stays hidden until you request it — toggle it from the Views menu, the scoop-up gesture, or the TechnoCore landmark.',
+      actionHint: 'Toggle the Lens from Views',
+    },
+    {
+      target: 'comfort-settings',
+      text: 'COMFORT: Open Settings to enable reduced-motion mode, a peripheral locomotion vignette, snap-turn, and panel-distance tuning for longer, lower-strain sessions.',
+      actionHint: 'Open Settings → comfort',
+    },
+    {
+      target: 'live-stream',
+      text: 'LIVE DATA: Stream real-time data from built-in sources (ticker/trades/earthquakes/aircraft) or your own WebSocket endpoint. Rows flow into the palace and re-solve live.',
+      actionHint: 'Start a live source from the menu',
+    },
+    {
+      target: 'load-test',
+      text: 'LOAD TEST: Stress-test the palace at 1k to 250k points using the Load Test panel — measure frame time, dropped rate, and heap to decide how far to scale.',
+      actionHint: 'Open the Load Test panel',
+    },
+    {
+      target: 'theme-preset',
+      text: 'ATMOSPHERE: Cycle atmospheric themes from the Views menu — including the Low-Strain Comfort and Muted Professional presets, which use dark-slate backdrops and muted neon to reduce visual fatigue.',
+      actionHint: 'Cycle the Theme from Views',
+    },
+    {
+      target: 'narrative-timeline',
+      text: 'TIMELINE: The timeline strip records every analysis step as a chip. Click a chip to seek back to any prior state of the palace — your full analysis history is reversible.',
+      actionHint: 'Open the Timeline panel',
     },
     {
       target: 'draco-palace',

@@ -316,7 +316,13 @@ describe('World integration', () => {
     expect(world.dashboardPanels.length).toBeGreaterThan(0);
     for (const entry of world.dashboardPanels) {
       expect(world.engine.input.panels).toContain(entry.panel);
-      expect(entry.panel.mesh.visible).toBe(true);
+      // The statistical lens is hidden by default (progressive disclosure), so
+      // the CORRELATION matrix panel starts hidden; other dashboard charts show.
+      if (entry.panel?.chartType === 'CORRELATION') {
+        expect(entry.panel.mesh.visible).toBe(false);
+      } else {
+        expect(entry.panel.mesh.visible).toBe(true);
+      }
     }
   });
 

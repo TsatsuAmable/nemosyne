@@ -1059,4 +1059,8 @@ export interface WorldLike {
   runLoadTest?(profile?: unknown): void;
   stopLoadTest?(): void;
   _toggleLoadTestPanel?(): void;
+  /** TDA summary group (persistence/betti/mapper planes). Hidden by default; shown on lens toggle. */
+  tdaGroup?: { visible: boolean } | null;
+  /** Toggle the statistical lens (TDA + correlation windows) on/off. */
+  _toggleStatisticalLens?(): void;
 }

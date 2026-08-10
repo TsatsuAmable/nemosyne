@@ -60,6 +60,11 @@ export class SettingsPanel extends MovablePanel {
   static STORAGE_KEY = 'nemosyne-vr-settings';
 
   static DEFAULTS: SettingsMap = {
+    // lensTDA / lensCorrelation are sub-toggles: which components of the
+    // statistical lens appear *when the lens is on*. They default on; the lens
+    // itself is hidden by default via World._statisticalLensEnabled (progressive
+    // disclosure). Flipping these to false would suppress TDA even when the
+    // analyst explicitly toggles the lens on.
     lensTDA: true,
     lensCorrelation: true,
     feedbackAudio: true,

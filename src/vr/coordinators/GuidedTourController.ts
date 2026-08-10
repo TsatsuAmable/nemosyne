@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 import type { WorldLike } from './types.ts';
-
-export interface TourStep {
-  target: string;
-  [key: string]: unknown;
-}
+import type { TourStep } from '../../data/DefaultTour.ts';
 
 export class GuidedTourController {
   private _world: WorldLike;
@@ -46,6 +42,20 @@ export class GuidedTourController {
         return w.peerPresenceHUD?.mesh ? { object: w.peerPresenceHUD.mesh } : { position: new THREE.Vector3(-0.9, 1.35, -0.7) };
       case 'draco-transform':
         return w.vrMenu?.mesh ? { object: w.vrMenu.mesh } : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
+      case 'tda-lens':
+        // TDA group sits at (0, 1.6, -3.5); resolve to that position (the group
+        // itself has no resolvable mesh on the facade).
+        return { position: new THREE.Vector3(0, 1.6, -3.5) };
+      case 'comfort-settings':
+        return w.settingsPanel?.mesh ? { object: w.settingsPanel.mesh } : { position: new THREE.Vector3(0.3, 1.4, -0.9) };
+      case 'live-stream':
+        return w.vrMenu?.mesh ? { object: w.vrMenu.mesh } : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
+      case 'load-test':
+        return w.loadTestPanel?.mesh ? { object: w.loadTestPanel.mesh } : { position: new THREE.Vector3(0.9, 1.4, -0.9) };
+      case 'theme-preset':
+        return { position: new THREE.Vector3(0, 1.5, -0.8) };
+      case 'narrative-timeline':
+        return w.narrativeStrip?.mesh ? { object: w.narrativeStrip.mesh } : { position: new THREE.Vector3(0, 1.2, -0.7) };
       default:
         return null;
     }
@@ -59,9 +69,17 @@ export class GuidedTourController {
       case 'wheel-menu':
         return w.handWheelMenu?.isVisible?.() === true;
       case 'settings-panel':
+      case 'comfort-settings':
         return w.settingsPanel?.mesh?.visible === true;
       case 'draco-transform':
         return (w.dataOperationController?.analysisHistory?.length ?? 0) > 0;
+      case 'tda-lens':
+        // Auto-advance once the analyst has revealed the TDA group.
+        return w.tdaGroup?.visible === true;
+      case 'load-test':
+        return w.loadTestPanel?.mesh?.visible === true;
+      case 'narrative-timeline':
+        return w.narrativeStrip?.mesh?.visible === true;
       default:
         return false;
     }

@@ -298,11 +298,12 @@ describe('World coverage extensions', () => {
     world.loadDataset({ name: ds.label, topology: ds.topology, dataset: ds.dataset });
 
     if (world.tdaGroup) {
-      expect(world.tdaGroup.visible).toBe(true);
-      world._onGesture('scoopUp');
+      // TDA is hidden by default (progressive disclosure) until the lens is requested.
       expect(world.tdaGroup.visible).toBe(false);
       world._onGesture('scoopUp');
       expect(world.tdaGroup.visible).toBe(true);
+      world._onGesture('scoopUp');
+      expect(world.tdaGroup.visible).toBe(false);
     }
   });
 
