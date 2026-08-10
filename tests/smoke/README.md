@@ -69,7 +69,7 @@ is a separate task (not this one).
 ## CI
 
 The `playwright-smoke` job in `.github/workflows/ci.yml` runs this smoke on
-every PR (Node 20, ubuntu-latest). It is **informational / non-required**: it is
+every PR (Node 24, ubuntu-latest). It is **informational / non-required**: it is
 **not** in the GitHub branch ruleset (`id=20623327`) and cannot block the owner
 auto-merge flow. Promote it to a required check separately, once it is stable.
 

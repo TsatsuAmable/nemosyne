@@ -42,8 +42,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
+      # Single leg on Node 24 (active LTS, Oct 2025–). Node 20 reached EOL in
+      # April 2026 and was dropped; Node 22 is maintenance LTS. The matrix is
+      # retained (single-element) so a second leg can be re-added trivially if
+      # a cross-version regression signal is ever needed. NOTE: the GitHub
+      # branch-protection required-checks list must list "Node 24" (not 20/22).
       matrix:
-        node-version: [20, 22]
+        node-version: [24]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -97,10 +102,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
 
       - name: Install dependencies

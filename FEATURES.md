@@ -58,7 +58,7 @@ migrating) Rust/WASM compute layer, and an experimental WebRTC collaboration lay
 
 - **Type safety**: full TypeScript (`tsc --noEmit` → 0 errors).
 - **Tests**: Vitest + E2E suite, **1191 pass / 9 skip** — see [TEST_READY.md](./TEST_READY.md) for the current breakdown.
-- **CI**: GitHub Actions matrix (Node 20 & 22); lint is a required gate; `npm run build` must pass.
+- **CI**: GitHub Actions matrix (Node 24, active LTS); lint is a required gate; `npm run build` must pass.
 - **Rust unit tests**: `cargo test --manifest-path wasm/Cargo.toml` (28 tests).
 
 ---

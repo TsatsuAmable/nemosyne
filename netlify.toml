@@ -3,13 +3,13 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "24"
 
 [context.production.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "24"
 
 [context.deploy-preview.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "24"
 
 [[headers]]
   for = "/*"
