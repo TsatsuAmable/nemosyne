@@ -12,6 +12,7 @@ import type { Dataset } from '../../data/Dataset.ts';
 import type { AnalysisHistory } from '../../data/AnalysisHistory.ts';
 import type { LiveUpdate } from '../../data/connectors/DataConnector.ts';
 import type { DatasetJSON, EncodingMapping, OperationSpec, TopologyType } from '../../data/types.ts';
+import type { LoadTestDriver, LoadTestProfile } from '../scalability/LoadTestDriver.ts';
 
 /** Entry describing a dataset to be loaded into the World. Shared with WorldSessionController. */
 export interface DatasetLoadEntry {
@@ -130,6 +131,10 @@ export interface WorldUIManagerCallbacks {
   getSetting?: (key: string) => unknown;
   telemetryCollector?: unknown;
   analysisHistory?: unknown;
+  loadTestDriver?: LoadTestDriver;
+  onStartLoadTest?: (profile: LoadTestProfile) => void;
+  onStopLoadTest?: () => void;
+  onFlushLoadTest?: () => void;
 }
 
 export interface AccessibilityOptions {
@@ -1048,4 +1053,8 @@ export interface WorldLike {
   portalB?: PortalLike;
   guidedTour?: GuidedTourLike;
   dataOperationController?: DataOperationControllerLike;
+  loadTestPanel?: PanelLike;
+  runLoadTest?(profile?: unknown): void;
+  stopLoadTest?(): void;
+  _toggleLoadTestPanel?(): void;
 }

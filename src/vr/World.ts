@@ -67,6 +67,8 @@ import { InteractionCoach } from './ui/InteractionCoach.ts';
 import { NarrativeStrip } from './ui/NarrativeStrip.ts';
 import { MiniOverview } from './ui/MiniOverview.ts';
 import { PeerPresenceHUD } from './ui/PeerPresenceHUD.ts';
+import { LoadTestPanel } from './ui/LoadTestPanel.ts';
+import { LoadTestDriver, type LoadTestProfile, type LoadTestSummary } from './scalability/LoadTestDriver.ts';
 import { DatumPlane } from './artifacts/DatumPlane.ts';
 import { TechnoCoreNode } from './artifacts/TechnoCoreNode.ts';
 import { FarcasterPortal } from './artifacts/FarcasterPortal.ts';
@@ -143,6 +145,8 @@ export class World {
   narrativeStrip: NarrativeStrip;
   miniOverview: MiniOverview;
   peerPresenceHUD: PeerPresenceHUD;
+  loadTestDriver!: LoadTestDriver;
+  loadTestPanel!: LoadTestPanel;
   inputCoordinator: WorldInputCoordinator;
   userModeController: UserModeController;
   comfortSettingsController: ComfortSettingsController;
@@ -186,6 +190,8 @@ export class World {
   tdaGroup!: THREE.Group | null;
   tdaRecompute!: (() => void) | null;
   dashboardPanels!: { panel: ChartPlanePanel }[];
+  _lastLoadTestSummary: LoadTestSummary | null = null;
+  _telemetryConsentBeforeRun: boolean | null = null;
 
   constructor() {
     this.engine = new Engine();
@@ -226,6 +232,20 @@ export class World {
     // Opt-in telemetry collector. Local-only until explicitly exported.
     this.telemetryCollector = new TelemetryCollector();
     this.telemetryCollector.loadConsent?.();
+
+    // Load-test driver for the WASM command-buffer decision. Runs a synthetic
+    // staircase through the real loadDataset path and captures per-frame frame
+    // times + GPU counters. Created before the UI manager so the panel can bind
+    // to it. It is an Engine updatable but returns early when IDLE/COMPLETE.
+    this.loadTestDriver = new LoadTestDriver(
+      {
+        loadDataset: (entry) => this.loadDataset(entry),
+        getActiveSpecInfo: () => this._getActiveSpecInfo(),
+        eventBus: this.eventBus as WorldEventBusLike,
+      },
+      this.engine
+    );
+    this.engine.addUpdatable(this.loadTestDriver);
     this.engine.telemetry = this.telemetryCollector;
 
     // UI manager owns all HUD panels, dashboard, and wheel menu. It is created
@@ -254,6 +274,10 @@ export class World {
       getSetting: (key) => this.uiManager?.settingsPanel?.getSetting?.(key),
       telemetryCollector: this.telemetryCollector,
       analysisHistory: this.dataOperationController.analysisHistory,
+      loadTestDriver: this.loadTestDriver,
+      onStartLoadTest: (profile) => this.runLoadTest(profile),
+      onStopLoadTest: () => this.stopLoadTest(),
+      onFlushLoadTest: () => this.flushLastLoadTestSummary(),
     });
 
     // Legacy facade properties: tests and internal code access panels through
@@ -273,6 +297,7 @@ export class World {
     this.narrativeStrip = this.uiManager.narrativeStrip as NarrativeStrip;
     this.miniOverview = this.uiManager.miniOverview;
     this.peerPresenceHUD = this.uiManager.peerPresenceHUD;
+    this.loadTestPanel = this.uiManager.loadTestPanel;
 
     // Input coordinator owns gesture recognition, context-aware suppression, and
     // the mapping from gestures/commands to world actions.
@@ -436,6 +461,8 @@ export class World {
     this.engine.onRedo = () => this.redoAnalysis();
     this.engine.onPauseInput = () => this.inputCoordinator.togglePauseInput();
     this.engine.onResetView = () => this.inputCoordinator.resetView();
+    this.engine.onToggleLoadTestPanel = () => this._toggleLoadTestPanel();
+    this.engine.onStartLoadTest = () => this.runLoadTest();
 
     // Gesture recognition and context routing is owned by the input coordinator.
 
@@ -1016,6 +1043,10 @@ export class World {
     this._captureSession();
   }
 
+  _toggleLoadTestPanel(): void {
+    this.uiManager?.panelManager?.togglePanel?.(this.loadTestPanel);
+  }
+
   _togglePeerPresenceHUD(): void {
     const next = !this.peerPresenceHUD.mesh.visible;
     this.peerPresenceHUD.setEnabled(next);
@@ -1430,10 +1461,130 @@ export class World {
     this.eventBus.on(WorldTopics.SESSION_AUTOSAVE_REQUEST, () => {
       this._requestAutoSave();
     });
+
+    // Load-test completion: store the summary, enrich it with usability
+    // aggregates (friction score/level/patterns — no raw interaction trail),
+    // restore telemetry consent to its prior state, and flush the perf/UX
+    // summary to the LOCAL dev-server log endpoint. No user dataset rows or
+    // session snapshots leave the device.
+    this.eventBus.on(WorldTopics.LOADTEST_COMPLETE, (payload: unknown) => {
+      const summary = payload as LoadTestSummary;
+      this._lastLoadTestSummary = summary;
+      this._enrichAndFlushLoadTestSummary(summary);
+      this._restoreTelemetryConsent();
+    });
   }
 
   _buildWheelMenu(): void {
     this.uiManager.buildWheelMenu(buildWheelMenuCategories(this));
+  }
+
+  // --- Load-test harness (WASM command-buffer decision) ---
+
+  /** Read the geometry/layout the Draco solver actually picked for the current palace. */
+  _getActiveSpecInfo(): { geometry?: string; layout?: string } | null {
+    const spec = this.dracoNode?.solverResult?.spec;
+    if (!spec) return null;
+    return { geometry: String(spec.geometry), layout: String(spec.layout) };
+  }
+
+  /**
+   * Start a load-test run. Enables telemetry for the run window (restored on
+   * completion) so the usability/friction aggregates are captured. The per-frame
+   * perf trace is captured independently by the LoadTestCollector.
+   */
+  runLoadTest(profile?: LoadTestProfile): void {
+    // Show the panel so the user sees live progress.
+    this.uiManager?.showPanel?.(this.loadTestPanel);
+    this._telemetryConsentBeforeRun = !!this.telemetryCollector?.enabled;
+    try {
+      this.telemetryCollector?.setEnabled?.(true);
+    } catch {
+      // ignore — telemetry is best-effort
+    }
+    this.loadTestDriver.run(profile);
+  }
+
+  /** Abort a running load test. */
+  stopLoadTest(): void {
+    this.loadTestDriver.stop();
+  }
+
+  /** Re-POST the last completed summary to the local dev-server log endpoint. */
+  flushLastLoadTestSummary(): void {
+    if (this._lastLoadTestSummary) {
+      this._enrichAndFlushLoadTestSummary(this._lastLoadTestSummary);
+    }
+  }
+
+  /** Restore telemetry consent to whatever it was before the run. */
+  _restoreTelemetryConsent(): void {
+    if (this._telemetryConsentBeforeRun !== null) {
+      try {
+        this.telemetryCollector?.setEnabled?.(this._telemetryConsentBeforeRun);
+      } catch {
+        // ignore
+      }
+      this._telemetryConsentBeforeRun = null;
+    }
+  }
+
+  /**
+   * Attach usability aggregates (friction score/level/patterns — no raw
+   * interaction trail) and POST the summary to the LOCAL dev-server endpoint
+   * `/__loadtest-results` (serve-only), which appends to
+   * `logs/loadtest-results.jsonl`. Failures are silent — the endpoint only
+   * exists on `npm run dev`, and the panel's Download button is the fallback.
+   */
+  _enrichAndFlushLoadTestSummary(summary: LoadTestSummary): void {
+    summary.usability = this._collectUsabilityDigest();
+    try {
+      void fetch('/__loadtest-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(summary),
+      }).catch(() => {
+        // Endpoint absent (production/preview) or fetch unavailable — silent.
+      });
+    } catch {
+      // fetch unavailable — silent
+    }
+    // Also log a one-line verdict to the console so the RemoteDebugStreamer
+    // (which writes logs/vr-remote-console.log) captures it on the headset.
+    try {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[LOAD TEST] ${summary.profileName} | XR=${summary.xrActive} | ` +
+          `sufficientTo=${summary.verdict.jsPathSufficientTo} ` +
+          `warrantedAt=${summary.verdict.commandBufferWarrantedAt} | ` +
+          summary.verdict.recommendation
+      );
+    } catch {
+      // ignore
+    }
+  }
+
+  /** Aggregate usability digest from the frustration analyzer (local, opt-in). */
+  _collectUsabilityDigest(): {
+    frictionLevel: string;
+    dissatisfactionScore: number;
+    detectedPatterns: string[];
+    telemetryConsentEnabled: boolean;
+  } {
+    const tc = this.telemetryCollector as TelemetryCollectorLike & {
+      frustrationAnalyzer?: { getCompactDigest?: () => Record<string, unknown> };
+    };
+    const digest = tc?.frustrationAnalyzer?.getCompactDigest?.();
+    return {
+      frictionLevel: typeof digest?.frictionLevel === 'string' ? (digest.frictionLevel as string) : 'unknown',
+      dissatisfactionScore: typeof digest?.dissatisfactionScore === 'number' ? (digest.dissatisfactionScore as number) : 0,
+      detectedPatterns: Array.isArray(digest?.detectedPatterns)
+        ? (digest.detectedPatterns as Array<{ name?: string } | string>).map((p) =>
+            typeof p === 'string' ? p : p?.name ?? 'pattern'
+          )
+        : [],
+      telemetryConsentEnabled: !!this.telemetryCollector?.enabled,
+    };
   }
 
   setPortalsEnabled(enabled: boolean): void {

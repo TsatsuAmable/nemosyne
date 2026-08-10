@@ -54,6 +54,9 @@ export class Engine {
   onRedo: (() => void) | null = null;
   onPauseInput: (() => void) | null = null;
   onResetView: (() => void) | null = null;
+  // Optional load-test callbacks (populated by World; triggered by desktop KeyT).
+  onToggleLoadTestPanel: (() => void) | null = null;
+  onStartLoadTest: (() => void) | null = null;
 
   headWorldPos: THREE.Vector3;
 
@@ -62,6 +65,13 @@ export class Engine {
   xrFrame: XRFrame | null = null;
   xrRefSpace: XRReferenceSpace | null = null;
   xrSession: XRSession | null = null;
+
+  /**
+   * Last frame's wall-clock duration in ms (frameEnd - frameStart from `_tick`).
+   * Exposed so the load-test collector (an Engine updatable) can read per-frame
+   * timing without re-instrumenting the frame loop. 0 until the first tick.
+   */
+  lastFrameMs = 0;
 
   constructor() {
     this.scene = new THREE.Scene();
@@ -225,6 +235,7 @@ export class Engine {
       const frameEnd = performance.now();
       const frameMs = frameEnd - frameStart;
       this.frameGovernor.recordFrame(frameMs);
+      this.lastFrameMs = frameMs;
 
       // Evaluate performance budget once per second to avoid overhead.
       const now = performance.now();

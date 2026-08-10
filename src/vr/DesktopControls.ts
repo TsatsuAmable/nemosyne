@@ -143,6 +143,14 @@ export class DesktopControls {
     if (e.code === 'KeyR') {
       this.engine.onResetView?.();
     }
+    if (e.code === 'KeyT') {
+      // Dev shortcut: toggle the load-test panel (Shift+T starts a full run).
+      if (e.shiftKey) {
+        this.engine.onStartLoadTest?.();
+      } else {
+        this.engine.onToggleLoadTestPanel?.();
+      }
+    }
     if (e.code === 'KeyM' || e.code === 'KeyL' || e.code === 'Backquote') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.engine as any).uiManager?.handWheelMenu?.toggle?.();
