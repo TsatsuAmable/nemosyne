@@ -4,23 +4,23 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · UX V2.0 track opened — added **Phase 22 — UX V2.0:
-  Low-Strain Spatial Interface** (4 sprints: 22.1 convergence quick wins ✅ on branch
-  `feat/ux-v2-quick-wins`, 22.2/22.3/22.4 🔲). Sprint 22.1 delivers four audit-driven fixes:
-  panel-distance setting no longer a no-op (routed through `WorldSceneComposer`), wheel-menu
-  hover/click ray mismatch fixed (uses `getBestPointerRay`), Undo/Redo surfaced in the wheel
-  menu, and a transient reduced-motion locomotion vignette. Gates green: `tsc` 0 · `eslint`
-  0 errors (186 warnings) · `vitest` 1224/9/0 · `build` ~274 KB gzip. Perceptual changes
-  (dashboard distance) flagged for on-device validation.
-- **Active branch:** `feat/ux-v2-quick-wins` (Phase 22 Sprint 22.1, PR pending). `main`
-  clean, synced; #81–#87 merged. Note: `feature/phase20-graphics-optimization` is a stale,
-  superseded branch (older `World.ts`, lacks #77–#87) — not unmerged work.
-- **Working tree:** clean. Recent merges — #86 distill all plans into ROADMAP.md as single
-  reference · #84 Node 24 single-leg CI + cross-platform lockfile fix + Netlify 24 · #82 f15
-  e2e test-isolation fix (un-awaited `import('src/main.ts')` racing jsdom teardown) · #81
-  WASM capability honesty hardening (bitfield realigned to spec; dormant command-buffer `0`
-  sentinel; `readBytes` bounds guard; `COMMAND_BUFFER requires SCENE_RUST` ordering invariant
-  as a Rust test).
+- **Last updated:** 2026-08-10 · #88 merged — **Phase 22 — UX V2.0** opened; Sprint 22.1
+  (convergence quick wins) merged. Four audit-driven fixes: panel-distance setting no longer
+  a no-op (routed through `WorldSceneComposer`), wheel-menu hover/click ray mismatch fixed
+  (uses `getBestPointerRay`), Undo/Redo surfaced in the wheel menu, and a transient
+  reduced-motion locomotion vignette. Gates were green: `tsc` 0 · `eslint` 0 errors (186
+  warnings) · `vitest` 1224/9/0 · `build` ~274 KB gzip. Sprints 22.2/22.3/22.4 🔲 not started.
+  ⚠️ On-device validation still owed: dashboard distance (~1.35 m → ~2.55 m) + transient
+  vignette comfort check in-headset before advancing to Sprint 22.2.
+- **Active branch:** `main` (clean, synced; #81–#88 merged). Note:
+  `feature/phase20-graphics-optimization` is a stale, superseded branch (older `World.ts`,
+  lacks #77–#88) — not unmerged work.
+- **Working tree:** clean. Recent merges — #88 Phase 22 Sprint 22.1 UX quick wins · #86
+  distill all plans into ROADMAP.md as single reference · #84 Node 24 single-leg CI +
+  cross-platform lockfile fix + Netlify 24 · #82 f15 e2e test-isolation fix (un-awaited
+  `import('src/main.ts')` racing jsdom teardown) · #81 WASM capability honesty hardening
+  (bitfield realigned to spec; dormant command-buffer `0` sentinel; `readBytes` bounds guard;
+  `COMMAND_BUFFER requires SCENE_RUST` ordering invariant as a Rust test).
 - **Command-buffer decision (B2):** DEFER + minimal hardening (both Expert Graphics
   Engineer & Principal Architect consultations converged). The command buffer targets a
   problem that isn't a *measured* current regression; the JS scalability layer already
@@ -42,22 +42,23 @@
   others need owner approval. New work lands via PR only. (`Playwright load smoke` is
   informational/non-required — NOT in the ruleset.) Required-checks list updated to
   `Node 24` with #84 (was `Node 20`/`Node 22`).
-- **Recently merged:** #86 distill all plans into ROADMAP.md as single reference (Phase 21
-  WASM migration + audit + TS-first docs + 7 .js stubs removed) · #84 Node 24 single-leg CI
-  + cross-platform lockfile fix + Netlify 24 · #82 f15 e2e test-isolation fix (un-awaited
-  `import('src/main.ts')` racing jsdom teardown) · #81 WASM capability honesty hardening
-  (bitfield realigned to spec; dormant command-buffer sentinel) · #80 VR load-test harness
-  (command-buffer decision B2) · #78 global WebGL mock deficiencies fix (Option 3c) · #76
-  Playwright real-WebGL load smoke (Track A) · #74 render-loop GL introspection tripwire
-  (Track B). Real-WebGL coverage thread closed. Binary-parser length-field bounds thread
-  closed (#70/#72).
-- **In progress / next:** (0) **UX V2.0 Sprint 22.1** on `feat/ux-v2-quick-wins` — PR open;
-  on-device validation of the panel-distance + transient-vignette perceptual changes needed
-  before advancing to Sprint 22.2. (1) user connects Quest, runs the full load-test staircase
-  in XR (`npm run dev` → wheel menu Load Test → Start, or desktop `KeyT`/`Shift+T`); (2) read
-  `logs/loadtest-results.jsonl` and deliver the implement/descope verdict for B2 (if
-  "implement", build `SCENE_RUST` → `COMMAND_BUFFER` per the ordering invariant now encoded
-  as a Rust test).
+- **Recently merged:** #88 Phase 22 Sprint 22.1 — UX V2.0 convergence quick wins (panel
+  distance no-op fix, wheel-menu ray mismatch, Undo/Redo, transient reduced-motion vignette)
+  · #86 distill all plans into ROADMAP.md as single reference (Phase 21 WASM migration +
+  audit + TS-first docs + 7 .js stubs removed) · #84 Node 24 single-leg CI + cross-platform
+  lockfile fix + Netlify 24 · #82 f15 e2e test-isolation fix (un-awaited `import('src/main.ts')`
+  racing jsdom teardown) · #81 WASM capability honesty hardening (bitfield realigned to spec;
+  dormant command-buffer sentinel) · #80 VR load-test harness (command-buffer decision B2) ·
+  #78 global WebGL mock deficiencies fix (Option 3c) · #76 Playwright real-WebGL load smoke
+  (Track A) · #74 render-loop GL introspection tripwire (Track B). Real-WebGL coverage thread
+  closed. Binary-parser length-field bounds thread closed (#70/#72).
+- **In progress / next:** (1) **on-device validation** of Phase 22 Sprint 22.1's perceptual
+  changes (dashboard ~1.35 m → ~2.55 m; transient reduced-motion vignette comfort) on a Quest
+  before advancing to **Sprint 22.2 — Low-Strain Comfort mode**; (2) user connects Quest,
+  runs the full load-test staircase in XR (`npm run dev` → wheel menu Load Test → Start, or
+  desktop `KeyT`/`Shift+T`); (3) read `logs/loadtest-results.jsonl` and deliver the
+  implement/descope verdict for B2 (if "implement", build `SCENE_RUST` → `COMMAND_BUFFER` per
+  the ordering invariant now encoded as a Rust test).
 - **Blockers / open:** B2 (WASM command-buffer) — deferred pending real-headset
   load-test data from the PR #80 harness. Honesty hardening (#81) + f15 isolation (#82)
   now DONE (precondition met). **The harness has not yet been run** —
