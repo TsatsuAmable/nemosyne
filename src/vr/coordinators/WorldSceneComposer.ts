@@ -21,6 +21,15 @@ export class WorldSceneComposer {
   inspector: HolographicInspector;
   portalA: FarcasterPortal;
   portalB: FarcasterPortal;
+  /**
+   * Forward offset (metres, along the anchor's local -Z) applied to the
+   * analystAnchor each frame so the workspace sits at the user's configured
+   * panel distance. Defaults to 0 (behaviour-preserving) until
+   * `setPanelDistance` is called by the comfort controller; without this, the
+   * per-frame torso tracking overwrites any one-shot `position.z` the comfort
+   * controller writes, silently making the Panel Distance setting a no-op.
+   */
+  panelDistance = 0;
 
   /**
    * @param engine
@@ -91,9 +100,15 @@ export class WorldSceneComposer {
     const cam = this.engine.camera;
 
     // Torso position tracking: follows headset position in X and Z,
-    // positioned at torso level (~0.25m below headset eye level)
+    // positioned at torso level (~0.25m below headset eye level). The configured
+    // panelDistance is applied as a forward (-Z) offset so the workspace sits at
+    // the user's chosen reading distance rather than at the headset.
     const torsoY = Math.max(0.8, cam.position.y - 0.25);
-    this.analystAnchor.position.set(cam.position.x, torsoY, cam.position.z);
+    this.analystAnchor.position.set(
+      cam.position.x,
+      torsoY,
+      cam.position.z - this.panelDistance,
+    );
 
     // Torso orientation tracking: damped lerp toward headset yaw (Y-axis).
     const headEuler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -104,5 +119,14 @@ export class WorldSceneComposer {
     // rotation does not take the long way around the circle.
     delta = THREE.MathUtils.euclideanModulo(delta + Math.PI, Math.PI * 2) - Math.PI;
     this.analystAnchor.rotation.y += delta * 0.15;
+  }
+
+  /**
+   * Set the forward panel-distance offset (metres) applied each frame. Takes
+   * effect on the next `update()` tick, so it survives the per-frame torso
+   * tracking that previously overwrote a one-shot `position.z` write.
+   */
+  setPanelDistance(distance: number): void {
+    this.panelDistance = distance;
   }
 }

@@ -28,7 +28,7 @@ import type {
 interface HandWheelMenuEngine {
   camera?: THREE.Camera;
   cameraGroup?: THREE.Group;
-  input?: { feedback?: FeedbackLike };
+  input?: { feedback?: FeedbackLike; pointers?: { getBestPointerRay(): THREE.Ray | null } };
 }
 
 interface HandWheelMenuOptions {
@@ -279,12 +279,23 @@ export class HandWheelMenu {
 
   /**
    * Record the current pointer angle relative to the wheel center.
+   *
+   * Sources the ray from the active pointer (controller/hand ray via
+   * `engine.input.pointers.getBestPointerRay()`) — the same ray used for click
+   * selection — so the open/close zone logic agrees with where the user is
+   * pointing rather than where they are looking. When no pointer is active the
+   * angle is cleared (null), which the zone helpers treat as "no constraint".
    */
   _updatePointerAngle(): void {
     if (!this.group || !this.engine || !this.engine.camera) return;
     this.group.updateMatrixWorld();
-    this._raycaster.ray.origin.copy(this.engine.camera.position);
-    this.engine.camera.getWorldDirection(this._raycaster.ray.direction);
+    const ray = this.engine.input?.pointers?.getBestPointerRay?.();
+    if (!ray) {
+      this._pointerAngle = null;
+      return;
+    }
+    this._raycaster.ray.origin.copy(ray.origin);
+    this._raycaster.ray.direction.copy(ray.direction);
     this._raycaster.ray.applyMatrix4(new THREE.Matrix4().copy(this.group.matrixWorld).invert());
     this._pointerAngle = Math.atan2(
       this._raycaster.ray.direction.y,
@@ -464,25 +475,34 @@ export class HandWheelMenu {
   }
 
   _updateHover(): void {
-    // Raycast in the menu's local space for stable hit testing.
+    // Raycast in the menu's local space for stable hit testing. The ray is
+    // sourced from the active pointer (controller/hand ray via
+    // `engine.input.pointers.getBestPointerRay()`) — the same ray used for click
+    // selection — so the highlighted item is the one a pinch will actually
+    // activate. Previously this used head gaze, so the highlight could sit on a
+    // different item than the pointer-select (misselection). When no pointer is
+    // active, no hit is recorded and `hoveredCategory` falls back to the selected
+    // category (see below), keeping that category's actions visible.
     if (!this.group || !this.engine || !this.engine.camera) return;
     this.group.updateMatrixWorld();
-    this._raycaster.ray.origin.copy(this.engine.camera.position);
-    this.engine.camera.getWorldDirection(this._raycaster.ray.direction);
-    this._raycaster.ray.applyMatrix4(new THREE.Matrix4().copy(this.group.matrixWorld).invert());
-
-    const allMeshes = [...this._categoryMeshes, ...this._actionMeshes];
-    const hits = this._raycaster.intersectObjects(allMeshes, false);
+    const ray = this.engine.input?.pointers?.getBestPointerRay?.();
 
     let hitCategory: string | null = null;
     let hitAction: HoverTarget | null = null;
-    if (hits.length > 0) {
-      const hit = hits[0].object as THREE.Mesh;
-      if (hit.userData.kind === 'category') {
-        hitCategory = hit.userData.categoryId;
-      } else if (hit.userData.kind === 'action') {
-        hitAction = { categoryId: hit.userData.categoryId, index: hit.userData.actionIndex };
-        hitCategory = hit.userData.categoryId;
+    if (ray) {
+      this._raycaster.ray.origin.copy(ray.origin);
+      this._raycaster.ray.direction.copy(ray.direction);
+      this._raycaster.ray.applyMatrix4(new THREE.Matrix4().copy(this.group.matrixWorld).invert());
+      const allMeshes = [...this._categoryMeshes, ...this._actionMeshes];
+      const hits = this._raycaster.intersectObjects(allMeshes, false);
+      if (hits.length > 0) {
+        const hit = hits[0].object as THREE.Mesh;
+        if (hit.userData.kind === 'category') {
+          hitCategory = hit.userData.categoryId;
+        } else if (hit.userData.kind === 'action') {
+          hitAction = { categoryId: hit.userData.categoryId, index: hit.userData.actionIndex };
+          hitCategory = hit.userData.categoryId;
+        }
       }
     }
 

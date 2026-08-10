@@ -342,7 +342,7 @@ export class World {
 
     // Comfort settings controller applies snap turn, vignette, seated height,
     // and panel distance to the engine/locomotion and analyst anchor.
-    this.comfortSettingsController = new ComfortSettingsController(this.engine, this.analystAnchor);
+    this.comfortSettingsController = new ComfortSettingsController(this.engine, this.analystAnchor, this.sceneComposer);
 
     this.tooltipManager = new TooltipManager(this.engine.camera);
     this.tooltipManager.mount(this.engine.scene);
