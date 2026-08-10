@@ -1,6 +1,6 @@
 # Game & Immersive-UI Inspiration for Nemosyne
 
-Nemosyne's production-polish phase deliberately borrows patterns that have already been proven in VR games and immersive analytics research. This document catalogues the patterns we have adopted and where they appear in the codebase.
+Nemosyne's production-polish phase deliberately borrows patterns that have already been proven in VR games and immersive analytics research. This document catalogues the patterns adopted and where they appear in the codebase.
 
 ---
 
@@ -109,7 +109,7 @@ Nemosyne's production-polish phase deliberately borrows patterns that have alrea
 
 ## Future Borrowings
 
-Patterns we have identified but not yet implemented:
+Patterns identified but not yet implemented:
 
 - **Teleport arc preview + named anchors** (Robo Recall, Budget Cuts) for comfortable long-distance movement.
 - **Haptic confirmation on snap** so dropping a panel into a zone has a tangible feel.

@@ -69,7 +69,7 @@ Synchronous instantiation of hundreds of Three.js `Mesh`, `BufferGeometry`, and 
 
 # 🚀 Additional Metrics & Logs to Track
 
-To further improve user experience and diagnose friction before it causes dissatisfaction, we recommend adding the following metrics to our telemetry pipeline:
+To further improve user experience and diagnose friction before it causes dissatisfaction, the following metrics could be added to the telemetry pipeline:
 
 | Metric | Target Component | Purpose & Insight |
 | :--- | :--- | :--- |
