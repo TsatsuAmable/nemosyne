@@ -5,21 +5,22 @@
 > BEFORE stopping. Other docs (CLAUDE.md, .agents/, PROJECT.md, GATE_STATUS.md)
 > point here — they do not duplicate state.
 
-- **Last updated:** 2026-08-10 · Claude Code (glm-5.2) — PR #62 merged to main; CI gate
-  enforced + green; merge policy added (no direct push to main, owner PRs auto-merge on
-  green, others require owner approval).
+- **Last updated:** 2026-08-10 · Claude Code (glm-5.2) — merge policy LIVE + verified:
+  direct push to main rejected by ruleset (tested); `approval-gate` required check on;
+  `allow_auto_merge` on.
 - **Phase / sprint:** Phase 20 ✅ complete; M1-M4 resume gate green AND CI-enforced.
   Phase 6 deferred pending remaining audit-finding triage.
-- **Active branch:** `feature/ci-merge-gate` (this policy PR). main = `e299d7d`.
-- **Working tree:** uncommitted on this branch — `.github/workflows/approval-gate.yml`
-  (new) + this status edit. Will open a PR for the merge policy.
+- **Active branch:** `docs/roadmap-policy-live` (this status refresh). main = `ed40632`.
+- **Working tree:** uncommitted on this branch — this status edit only (now must go
+  via PR; direct push to main is blocked by the ruleset).
 - **Last gate:** `tsc --noEmit` 0 errors · `vitest run --coverage` 1188 pass / 9 skip /
-  0 fail (cov 83.47/70.55/77.56/85.6) · `cargo test` 28 pass / 0 fail (host) · remote CI
-  all-green on PR #62 — 2026-08-10.
-- **CI / merge policy now enforces:** `ci.yml` rust job (cargo test, blocking) + node
-  job [20,22] (typecheck/coverage/build blocking; lint + bundle-size non-blocking);
-  `approval-gate.yml` required check — owner-authored PRs auto-merge on green,
-  other PRs blocked until repo owner approves; main ruleset blocks direct pushes.
+  0 fail (cov 83.47/70.55/77.56/85.6) · `cargo test` 28 pass / 0 fail (host) — 2026-08-10.
+- **Merge policy (live):** main ruleset `id=20623327` — require PR + required checks
+  `Rust unit tests (wasm/)` / `Node 20` / `Node 22` / `approval-gate`, no bypass (blocks
+  direct push to main for everyone incl. admin, verified). `approval-gate.yml` passes
+  immediately for owner-authored PRs (→ enable squash auto-merge on green); fails for
+  everyone else until the owner APPROVES the current head (→ then auto-merge on green).
+  `allow_auto_merge` enabled. New work must land via PR.
 - **In progress / next:** (1) lint cleanup → flip lint to blocking; (2) WASM
   command-buffer: wire+reconcile or delete (audit B2) + enable JS bridge test
   (RuntimeBridge fetch-skip); (3) close network peer-impersonation; (4) binary-parser
@@ -31,7 +32,8 @@
   (fixed: 1e-5 tol).
 - **Blockers / open:** B2 (WASM command-buffer dormant/spec-drifted/untested) — decide
   before scaling further.
-- **Resume pointers:** PR #62 merged to main (`e299d7d`); merge-policy PR pending;
+- **Resume pointers:** PR #62 (CI gate) + PR #63 (approval-gate) merged to main
+  (`ed40632`); merge-policy ruleset `id=20623327` active;
   gate detail → `.agents/teamwork_preview_sub_orch_m1/GATE_STATUS.md`;
   test inventory → `TEST_READY.md`.
 
