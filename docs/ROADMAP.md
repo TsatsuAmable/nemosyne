@@ -4,23 +4,23 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · **Phase 22 — UX V2.0** Sprint 22.2 ready (PR pending on
-  `feat/ux-v2-sprint-22.2`). Sprint 22.1 (#88) + Sprint 22.2 both done. Sprint 22.2 shipped:
-  TDA on-demand (statistical lens hidden by default; Views → Lens wheel item is the explicit
-  request path), Draco menu shorter (640 px / 0.72 m), tour expanded 13 → 19 stops, WIMP
-  best-practices (shared `palette.ts` tokens, unified `TourStep`/`Tour` types, dead-code
-  cleanup), Low-Strain + Muted theme presets, and full button-surface test coverage (+48
-  tests). Gates green: `tsc` 0 · `eslint` 0 errors (186 warnings) · `vitest` 1272/9/0 ·
+- **Last updated:** 2026-08-11 · #90 merged — **Phase 22 — UX V2.0** Sprint 22.2 landed.
+  Sprint 22.1 (#88) + Sprint 22.2 (#90) both merged. Sprint 22.2 shipped: TDA on-demand
+  (statistical lens hidden by default; Views → Lens wheel item is the explicit request path),
+  Draco menu shorter (640 px / 0.72 m), tour expanded 13 → 19 stops, WIMP best-practices
+  (shared `palette.ts` tokens, unified `TourStep`/`Tour` types, dead-code cleanup),
+  Low-Strain + Muted theme presets, and full button-surface test coverage (+48 tests).
+  Gates green: `tsc` 0 · `eslint` 0 errors (186 warnings) · `vitest` 1272/9/0 ·
   `build` ~275 KB gzip. Sprints 22.3/22.4 🔲 not started.
   ⚠️ On-device validation owed (Sprint 22.1 + 22.2): dashboard distance (~1.35 m → ~2.55 m),
   transient reduced-motion vignette comfort, TDA-on-demand feel, Draco short-frame scroll
   readability, new tour stop targets, Low-Strain/Muted slate backdrops + neon-on-selection
   contrast — all in-headset before advancing to Sprint 22.3.
-- **Active branch:** `feat/ux-v2-sprint-22.2` (PR pending; off `main` at 071c2a3, #81–#88
-  merged). Note: `feature/phase20-graphics-optimization` is a stale, superseded branch
-  (older `World.ts`, lacks #77–#88) — not unmerged work.
-- **Working tree:** Sprint 22.2 changes staged for PR (see below). Recent merges — #88
-  Phase 22 Sprint 22.1 UX quick wins · #86
+- **Active branch:** `main` (clean, synced; #81–#90 merged). Note:
+  `feature/phase20-graphics-optimization` is a stale, superseded branch (older `World.ts`,
+  lacks #77–#90) — not unmerged work.
+- **Working tree:** clean. Recent merges — #90 Phase 22 Sprint 22.2 · #89 ROADMAP refresh
+  (#88) · #88 Phase 22 Sprint 22.1 UX quick wins · #86
   distill all plans into ROADMAP.md as single reference · #84 Node 24 single-leg CI +
   cross-platform lockfile fix + Netlify 24 · #82 f15 e2e test-isolation fix (un-awaited
   `import('src/main.ts')` racing jsdom teardown) · #81 WASM capability honesty hardening
@@ -46,23 +46,24 @@
   others need owner approval. New work lands via PR only. (`Playwright load smoke` is
   informational/non-required — NOT in the ruleset.) Required-checks list updated to
   `Node 24` with #84 (was `Node 20`/`Node 22`).
-- **Recently merged:** #88 Phase 22 Sprint 22.1 — UX V2.0 convergence quick wins (panel
-  distance no-op fix, wheel-menu ray mismatch, Undo/Redo, transient reduced-motion vignette)
-  · #86 distill all plans into ROADMAP.md as single reference (Phase 21 WASM migration +
-  audit + TS-first docs + 7 .js stubs removed) · #84 Node 24 single-leg CI + cross-platform
-  lockfile fix + Netlify 24 · #82 f15 e2e test-isolation fix (un-awaited `import('src/main.ts')`
-  racing jsdom teardown) · #81 WASM capability honesty hardening (bitfield realigned to spec;
-  dormant command-buffer sentinel) · #80 VR load-test harness (command-buffer decision B2) ·
-  #78 global WebGL mock deficiencies fix (Option 3c) · #76 Playwright real-WebGL load smoke
+- **Recently merged:** #90 Phase 22 Sprint 22.2 — TDA on-demand, Draco/tour/WIMP polish,
+  button-test coverage, Low-Strain/Muted presets · #89 ROADMAP Current Status refresh (#88)
+  · #88 Phase 22 Sprint 22.1 — UX V2.0 convergence quick wins (panel distance no-op fix,
+  wheel-menu ray mismatch, Undo/Redo, transient reduced-motion vignette) · #86 distill all
+  plans into ROADMAP.md as single reference (Phase 21 WASM migration + audit + TS-first docs
+  + 7 .js stubs removed) · #84 Node 24 single-leg CI + cross-platform lockfile fix +
+  Netlify 24 · #82 f15 e2e test-isolation fix (un-awaited `import('src/main.ts')` racing
+  jsdom teardown) · #81 WASM capability honesty hardening (bitfield realigned to spec;
+  dormant command-buffer sentinel) · #80 VR load-test harness (command-buffer decision B2)
+  · #78 global WebGL mock deficiencies fix (Option 3c) · #76 Playwright real-WebGL load smoke
   (Track A) · #74 render-loop GL introspection tripwire (Track B). Real-WebGL coverage thread
   closed. Binary-parser length-field bounds thread closed (#70/#72).
-- **In progress / next:** (1) **merge Sprint 22.2 PR** (`feat/ux-v2-sprint-22.2`) once CI is
-  green; (2) **on-device validation** of Phase 22 Sprint 22.1 + 22.2 perceptual changes
-  (dashboard ~1.35 m → ~2.55 m; transient reduced-motion vignette comfort; TDA-on-demand
-  feel; Draco short-frame scroll; new tour stops; Low-Strain/Muted backdrops + neon-on-
-  selection contrast) on a Quest before advancing to **Sprint 22.3 — text legibility +
-  frosted backings**; (3) user connects Quest, runs the full load-test staircase in XR
-  (`npm run dev` → wheel menu Load Test → Start, or desktop `KeyT`/`Shift+T`); (4) read
+- **In progress / next:** (1) **on-device validation** of Phase 22 Sprint 22.1 + 22.2
+  perceptual changes (dashboard ~1.35 m → ~2.55 m; transient reduced-motion vignette comfort;
+  TDA-on-demand feel; Draco short-frame scroll; new tour stops; Low-Strain/Muted backdrops +
+  neon-on-selection contrast) on a Quest before advancing to **Sprint 22.3 — text legibility
+  + frosted backings**; (2) user connects Quest, runs the full load-test staircase in XR
+  (`npm run dev` → wheel menu Load Test → Start, or desktop `KeyT`/`Shift+T`); (3) read
   `logs/loadtest-results.jsonl` and deliver the implement/descope verdict for B2 (if
   "implement", build `SCENE_RUST` → `COMMAND_BUFFER` per the ordering invariant now encoded
   as a Rust test).
