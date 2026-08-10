@@ -5,8 +5,9 @@
 > not duplicate state.
 
 - **Last updated:** 2026-08-10 · Honesty hardening (#81) + f15 test-isolation fix (#82)
-  merged to main. Next: user runs the load-test staircase on Quest → read
-  `logs/loadtest-results.jsonl` → deliver the implement/descope verdict for B2.
+  merged to main; CI matrix reduced to a single Node 24 (active LTS) leg, Netlify
+  pinned to Node 24, docs aligned. Next: user runs the load-test staircase on Quest →
+  read `logs/loadtest-results.jsonl` → deliver the implement/descope verdict for B2.
 - **Active branch:** `main` (clean, synced; both follow-up PRs merged).
 - **Working tree:** clean. Last two merges — #81 realigned the WASM capability bitfield to
   `.claude/plan.md` §6 (`capabilities()` advertises only the Phase-1 set
@@ -32,10 +33,12 @@
   `wasm-runtime.test.ts` are `maybeDescribe` — skipped in jsdom without a served wasm;
   the Rust test is the authoritative lock.)
 - **Merge policy (live):** main ruleset `id=20623327` requires PR + required checks
-  (`Rust unit tests (wasm/)` / `Node 20` / `Node 22` / `approval-gate`), no bypass.
+  (`Rust unit tests (wasm/)` / `Node 24` / `approval-gate`), no bypass.
   `approval-gate.yml` passes immediately for owner PRs (squash auto-merge on green);
   others need owner approval. New work lands via PR only. (`Playwright load smoke` is
-  informational/non-required — NOT in the ruleset.)
+  informational/non-required — NOT in the ruleset.) **NOTE:** the ruleset's
+  required-checks list was updated from `Node 20`/`Node 22` to `Node 24` to match the
+  single-leg CI matrix (Node 20 reached EOL April 2026; Node 22 is maintenance LTS).
 - **Recently merged:** #82 f15 e2e test-isolation fix (un-awaited `import('src/main.ts')`
   racing jsdom teardown) · #81 WASM capability honesty hardening (bitfield realigned to
   spec; dormant command-buffer sentinel) · #80 VR load-test harness (command-buffer
