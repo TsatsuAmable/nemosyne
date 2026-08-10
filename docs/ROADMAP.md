@@ -5,17 +5,16 @@
 > BEFORE stopping. Other docs (CLAUDE.md, .agents/, PROJECT.md, GATE_STATUS.md)
 > point here — they do not duplicate state.
 
-- **Last updated:** 2026-08-10 · Claude Code (glm-5.2) — CI gate enforced (audit B1
-  done); two real Rust bugs fixed in the process.
+- **Last updated:** 2026-08-10 · Claude Code (glm-5.2) — CI gate enforced + green on
+  remote (audit B1 closed); two real Rust bugs fixed in the process.
 - **Phase / sprint:** Phase 20 ✅ complete; M1-M4 resume gate green AND now CI-enforced.
   Phase 6 deferred pending remaining audit-finding triage.
 - **Active branch:** `feature/phase20-graphics-optimization`
-- **Working tree:** uncommitted — CI gate changes (ci.yml, vitest.config.js,
-  package.json, CLAUDE.md) + Rust fixes (grid.rs, lib.rs) + this status edit. PR #62
-  open; will push these onto it.
+- **Working tree:** clean (commit `4fee296` pushed). PR #62 CI green on remote: Rust
+  unit tests pass · Node 20/22 pass. Uncommitted: this status refresh only.
 - **Last gate:** `tsc --noEmit` 0 errors · `vitest run --coverage` 1188 pass / 9 skip /
   0 fail (cov 83.47/70.55/77.56/85.6, thresholds clear) · `cargo test` 28 pass / 0 fail
-  (host) — all re-confirmed 2026-08-10.
+  (host) · remote CI all-green — re-confirmed 2026-08-10.
 - **CI (ci.yml) now enforces:** `rust` job = cargo test (blocking, 20-min timeout,
   cargo cache); `node` job [20,22] = typecheck (blocking) + lint (non-blocking: 123
   errors surfaced) + test:coverage (blocking) + build (blocking) + bundle-size report
