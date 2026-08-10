@@ -4,33 +4,34 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · real-WebGL test coverage, PR 1 of 2 (mock GL
-  introspection + render-loop tripwire).
-- **Active branch:** `test/render-loop-gl-introspection` (off main, post-#73).
-- **Working tree:** PR pending — `tests/e2e/harness/webgl_mock.ts` (additive
-  call-log `getWebGLMockCalls`/`resetWebGLMockCalls` on clear/useProgram/draws;
+- **Last updated:** 2026-08-10 · real-WebGL test coverage, PR 2 of 2 next (Playwright
+  load smoke). PR 1 (Track B) merged as #74.
+- **Active branch:** none (on main, post-#74). Next branch for Track A to be cut off
+  main `db409e6`.
+- **Working tree:** clean. Track B landed in #74 — `tests/e2e/harness/webgl_mock.ts`
+  (additive call-log `getWebGLMockCalls`/`resetWebGLMockCalls` on clear/useProgram/draws;
   completed the WebGL2 method surface — VAOs, `getActiveUniform`/`getActiveAttrib`,
-  samplers, sync — so a real `renderer.render()` frame can complete under the mock),
-  `tests/e2e/tier1_feature_coverage/f16_render_loop_gl_introspection.spec.ts` (new —
-  drives `engine._tick()` through the populated default scene; asserts
-  `createdPrograms>0`, `createdBuffers>0`, a non-zero draw call). Global `tests/setup.js`
-  mock untouched → 1197-test baseline preserved.
+  samplers, sync — so a real `renderer.render()` frame completes under the mock),
+  `tests/e2e/tier1_feature_coverage/f16_render_loop_gl_introspection.spec.ts` (drives
+  `engine._tick()` through the populated default scene; asserts `createdPrograms>0`,
+  `createdBuffers>0`, a non-zero draw call). Global `tests/setup.js` untouched →
+  baseline preserved.
 - **Last gate:** `tsc --noEmit` 0 errors · `eslint` 0 errors (184 pre-existing test
   warnings) · `vitest run` 1198 pass / 9 skip / 0 fail · `vite build` green — 2026-08-10.
 - **Merge policy (live):** main ruleset `id=20623327` requires PR + required checks
   (`Rust unit tests (wasm/)` / `Node 20` / `Node 22` / `approval-gate`), no bypass.
   `approval-gate.yml` passes immediately for owner PRs (squash auto-merge on green);
   others need owner approval. New work lands via PR only.
-- **Recently merged:** #70 `ArrowBinaryParser` length-field bounds · #72
+- **Recently merged:** #74 render-loop GL introspection tripwire (Track B) · #72
   `FlatBuffersSerializer` length-field bounds · #73 ROADMAP refresh. Binary-parser
   length-field bounds thread closed.
-- **In progress / next:** real-WebGL test coverage — PR 1 (this branch, mock
-  introspection tripwire). PR 2 to follow: Playwright load smoke against real headless
-  Chromium (`@playwright/test` devDep + `tests/smoke/load.spec.ts` + an
-  informational/non-required `playwright-smoke` CI job). Then: decide on the dormant
-  WASM command-buffer (audit B2). Deferred: Option 3c — a standalone PR fixing only
-  `tests/setup.js` mock deficiencies (`canvas: this`→`null`, backfill missing GL
-  constants) without touching `getExtension`/`getContextAttributes`.
+- **In progress / next:** real-WebGL test coverage — PR 2 (Track A): Playwright load
+  smoke against real headless Chromium (`@playwright/test` devDep + `tests/smoke/load.spec.ts`
+  + `playwright.config.ts` + an informational/non-required `playwright-smoke` CI job in
+  `.github/workflows/ci.yml`; two sequential PRs per locked decision, PR 1 done). Then:
+  decide on the dormant WASM command-buffer (audit B2). Deferred: Option 3c — a
+  standalone PR fixing only `tests/setup.js` mock deficiencies (`canvas: this`→`null`,
+  backfill missing GL constants) without touching `getExtension`/`getContextAttributes`.
 - **Blockers / open:** B2 (WASM command-buffer dormant/spec-drifted/untested) — decide
   before scaling further.
 - **Resume pointers:** test inventory → `TEST_READY.md`; this file's Current Status is
