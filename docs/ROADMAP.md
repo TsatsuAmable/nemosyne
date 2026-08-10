@@ -5,16 +5,30 @@
 > BEFORE stopping. Other docs (CLAUDE.md, .agents/, PROJECT.md, GATE_STATUS.md)
 > point here — they do not duplicate state.
 
-- **Last updated:** 2026-08-10 · Claude Code (glm-5.2) — gate re-confirmed this session
-- **Phase / sprint:** Phase 20 ✅ complete; M1-M4 resume gate green. Next: Phase 6
-  (collaboration, A-Frame convergence, SQL connectors, user studies) — none yet started.
+- **Last updated:** 2026-08-10 · Claude Code (glm-5.2) — CI gate enforced (audit B1
+  done); two real Rust bugs fixed in the process.
+- **Phase / sprint:** Phase 20 ✅ complete; M1-M4 resume gate green AND now CI-enforced.
+  Phase 6 deferred pending remaining audit-finding triage.
 - **Active branch:** `feature/phase20-graphics-optimization`
-- **Working tree:** clean — M1-M4 + agent-defs + ROADMAP single-source work committed;
-  PR raised for review.
-- **Last gate:** `tsc --noEmit` 0 errors · `vitest run` 1188 pass / 9 skip / 0 fail
-  (exit 0) · `vitest run tests/e2e` 171 pass — re-confirmed 2026-08-10.
-- **In progress / next:** await PR review; then pick the next roadmap item (Phase 6).
-- **Blockers / open:** none (PR under review).
+- **Working tree:** uncommitted — CI gate changes (ci.yml, vitest.config.js,
+  package.json, CLAUDE.md) + Rust fixes (grid.rs, lib.rs) + this status edit. PR #62
+  open; will push these onto it.
+- **Last gate:** `tsc --noEmit` 0 errors · `vitest run --coverage` 1188 pass / 9 skip /
+  0 fail (cov 83.47/70.55/77.56/85.6, thresholds clear) · `cargo test` 28 pass / 0 fail
+  (host) — all re-confirmed 2026-08-10.
+- **CI (ci.yml) now enforces:** `rust` job = cargo test (blocking, 20-min timeout,
+  cargo cache); `node` job [20,22] = typecheck (blocking) + lint (non-blocking: 123
+  errors surfaced) + test:coverage (blocking) + build (blocking) + bundle-size report
+  (non-blocking). Both gate PRs.
+- **In progress / next:** (1) lint cleanup → flip lint to blocking; (2) WASM
+  command-buffer: wire+reconcile or delete (audit B2) + enable JS bridge test
+  (RuntimeBridge fetch-skip); (3) close network peer-impersonation; (4) binary-parser
+  length-field bounds; (5) finish World.ts extraction; (6) test-quality cleanup.
+- **Resolved this move:** audit B1 (CI gate) ✅; two Rust suite reds that B1 surfaced —
+  `data_operation` re-entrant `DATASET_REGISTRY` Mutex deadlock (fixed: apply inside
+  lock, register after release) and `grid_layout` f32 equality assert (fixed: 1e-5 tol).
+- **Blockers / open:** B2 (WASM command-buffer dormant/spec-drifted/untested) — decide
+  before scaling further.
 - **Resume pointers:** gate detail → `.agents/teamwork_preview_sub_orch_m1/GATE_STATUS.md`;
   test inventory → `TEST_READY.md`; PR → https://github.com/TsatsuAmable/nemosyne/pull/62.
 

@@ -454,14 +454,19 @@ pub fn data_operation(handle: u32, op_ptr: u32, op_len: u32) -> u32 {
             return 0;
         }
     };
-    data::with_dataset(handle, |ds| match data::operations_bridge::apply(ds, op) {
-        Ok(result) => data::register_dataset(result),
-        Err(e) => {
+    // Apply the operation inside the registry lock, then release the lock and only
+    // then register the result. Calling `register_dataset` from inside the
+    // `with_dataset` closure would re-enter the same `DATASET_REGISTRY` Mutex,
+    // which is non-reentrant and would deadlock.
+    let result = data::with_dataset(handle, |ds| data::operations_bridge::apply(ds, op));
+    match result {
+        Some(Ok(new_dataset)) => data::register_dataset(new_dataset),
+        Some(Err(e)) => {
             log_error(&format!("data_operation failed: {}", e));
             0
         }
-    })
-    .unwrap_or(0)
+        None => 0,
+    }
 }
 
 /// Load a built-in sample dataset by key and return a dataset handle.

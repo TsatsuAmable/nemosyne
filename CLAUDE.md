@@ -33,7 +33,8 @@ npm run wasm     # Compile Rust/WASM crate for release
 npm run dev      # wasm-pack dev build + Vite dev server on https://localhost:5173
 npm run build    # wasm-pack release build + production bundle -> dist/
 npm run preview  # Preview the production bundle
-npm test         # cargo test for wasm/ + all Vitest tests once
+npm test         # all Vitest tests once (JS only; no Rust toolchain required)
+npm run test:all # cargo test for wasm/ + all Vitest tests once
 npm run test:coverage
 ```
 

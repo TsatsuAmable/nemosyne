@@ -7,7 +7,38 @@ on:
     branches: [main]
 
 jobs:
-  test-and-build:
+  rust:
+    name: Rust unit tests (wasm/)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('wasm/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-registry-
+
+      - name: Cache wasm target
+        uses: actions/cache@v4
+        with:
+          path: wasm/target
+          key: ${{ runner.os }}-wasm-target-${{ hashFiles('wasm/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-wasm-target-
+
+      - name: Run Rust unit tests
+        run: cargo test --manifest-path wasm/Cargo.toml
+
+  node:
+    name: Node ${{ matrix.node-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -26,14 +57,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck
+
+      # Non-blocking until the 123 outstanding lint errors are cleaned up; then remove
+      # continue-on-error. See ROADMAP "In progress / next" for the follow-up task.
+      - name: Lint (non-blocking report)
+        continue-on-error: true
+        run: npm run lint
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
 
       - name: Run production build
         run: npm run build
 
-      - name: Run coverage
-        run: npm run test:coverage
+      # Non-blocking visibility into bundle size; a hard gzipped budget is a follow-up.
+      - name: Bundle size report (non-blocking)
+        continue-on-error: true
+        run: |
+          du -sh dist
+          node -e "const fs=require('fs'),zlib=require('zlib'),p=require('path');let t=0;const walk=d=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){const f=p.join(d,e.name);if(e.isDirectory())walk(f);else try{t+=zlib.gzipSync(fs.readFileSync(f)).length}catch{}}};walk('dist');console.log('gzipped total bytes:',t,'('+(t/1048576).toFixed(2)+' MiB)')"
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
