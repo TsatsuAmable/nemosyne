@@ -1,23 +1,7 @@
 import { ANALYSIS_TEMPLATES } from '../../data/AnalysisTemplates.ts';
-import type { PanelLike, WorldLike } from './types.ts';
+import type { PanelLike, WheelMenuCategory, WorldLike } from './types.ts';
 
-export interface WheelMenuItemConfig {
-  id: string;
-  label: string;
-  icon?: string;
-  callback?: () => void;
-  onHover?: () => void;
-  onLeave?: () => void;
-}
-
-export interface WheelCategoryConfig {
-  id: string;
-  label: string;
-  icon?: string;
-  items: WheelMenuItemConfig[];
-}
-
-export function buildWheelMenuCategories(world: WorldLike): WheelCategoryConfig[] {
+export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] {
   const opItem = (id: string, label: string, icon: string, op: string) => ({
     id,
     label,

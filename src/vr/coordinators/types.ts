@@ -880,7 +880,7 @@ export interface WorldEngineLike {
   locomotion: WorldLocomotionLike;
   input: { feedback?: WorldFeedbackLike };
   renderer?: { domElement?: { toDataURL(type: string): string } };
-  addInteractable(object: Object3D, callbacks: InteractableCallbacks): void;
+  addInteractable(object: Object3D, handlers?: Record<string, unknown>): void;
 }
 
 /** Settings panel facade (getAllSettings is required; setSetting is optional). */
@@ -1026,7 +1026,7 @@ export interface WorldLike {
   // optional — accessed via optional chaining
   vrConsole?: VRConsoleLike;
   telemetryCollector?: TelemetryCollectorLike;
-  currentEntry?: DatasetLoadEntry;
+  currentEntry?: DatasetLoadEntry | null;
   _disposed?: boolean;
   _statisticalLensEnabled?: boolean;
   _originalDataset?: Dataset | null;
@@ -1041,7 +1041,7 @@ export interface WorldLike {
   peerPresenceHUD?: PanelLike;
   vrMenu?: PanelLike;
   datum?: DatumLike;
-  dracoNode?: DracoNodeFacadeLike;
+  dracoNode?: DracoNodeFacadeLike | null;
   handWheelMenu?: HandWheelMenuLike;
   inspector?: { active?: boolean };
   portalA?: PortalLike;
