@@ -325,8 +325,12 @@ describe('SignallingServerCore', () => {
     const socket = new EventTarget() as any;
     socket.readyState = 1;
     socket.sent = [];
+    socket.closeCode = undefined;
+    socket.closeReason = undefined;
     socket.send = (data: string) => socket.sent.push(data);
-    socket.close = () => {
+    socket.close = (code?: number, reason?: string) => {
+      socket.closeCode = code;
+      socket.closeReason = reason;
       socket.readyState = 3;
       socket.listeners?.close?.forEach?.((fn: any) => fn());
     };
@@ -389,6 +393,70 @@ describe('SignallingServerCore', () => {
     const leaveMessages = a.sent.filter((m: string) => JSON.parse(m).data.type === 'leave');
     expect(leaveMessages.length).toBe(1);
     expect(JSON.parse(leaveMessages[0]).from).toBe('peerB');
+  });
+
+  it('rejects a join with the wrong token (close 4001) and does not admit it', () => {
+    const registry = createRoomRegistry({ authToken: 'secret' });
+    const a = makeSocket();
+    const b = makeSocket();
+
+    // a supplies the wrong token -> rejected before being admitted.
+    registry.handleConnection(a, 'room1', 'peerA', 'wrong');
+    expect(a.closeCode).toBe(4001);
+    expect(a.readyState).toBe(3);
+
+    // b supplies the correct token -> admitted. a (rejected) must not be in the
+    // room, so b receives no join notification from a.
+    registry.handleConnection(b, 'room1', 'peerB', 'secret');
+    expect(b.closeCode).toBeUndefined();
+    expect(b.readyState).toBe(1);
+    const joinsFromA = b.sent.filter((m: string) => JSON.parse(m).from === 'peerA');
+    expect(joinsFromA.length).toBe(0);
+  });
+
+  it('rejects a join with no token when a token is required (close 4001)', () => {
+    const registry = createRoomRegistry({ authToken: 'secret' });
+    const a = makeSocket();
+    registry.handleConnection(a, 'room1', 'peerA'); // no token arg
+    expect(a.closeCode).toBe(4001);
+  });
+
+  it('admits a join with the correct token and relays between peers', () => {
+    const registry = createRoomRegistry({ authToken: 'secret' });
+    const a = makeSocket();
+    const b = makeSocket();
+
+    registry.handleConnection(a, 'room1', 'peerA', 'secret');
+    registry.handleConnection(b, 'room1', 'peerB', 'secret');
+    expect(a.closeCode).toBeUndefined();
+    expect(b.closeCode).toBeUndefined();
+
+    // a should have been notified of b joining.
+    const joinMessages = a.sent.filter((m: string) => JSON.parse(m).data.type === 'join');
+    expect(joinMessages.length).toBe(1);
+    expect(JSON.parse(joinMessages[0]).from).toBe('peerB');
+
+    // Direct relay still works for token-gated peers.
+    b.sent.length = 0;
+    a.listeners.message[0](JSON.stringify({ to: 'peerB', data: { type: 'offer' } }));
+    expect(b.sent.length).toBe(1);
+  });
+
+  it('rejects a duplicate peerId (close 4002) and keeps the existing peer', () => {
+    const registry = createRoomRegistry();
+    const a = makeSocket();
+    const a2 = makeSocket();
+
+    registry.handleConnection(a, 'room1', 'peerA');
+    expect(a.closeCode).toBeUndefined();
+    expect(a.readyState).toBe(1);
+
+    // A second connection claiming the same live peerId is rejected.
+    registry.handleConnection(a2, 'room1', 'peerA');
+    expect(a2.closeCode).toBe(4002);
+    expect(a2.readyState).toBe(3);
+    // The original peer is unaffected.
+    expect(a.readyState).toBe(1);
   });
 });
 
