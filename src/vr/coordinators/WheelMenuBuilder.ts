@@ -264,5 +264,30 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
         { id: 'reset', label: 'Reset', icon: '↺', callback: () => world.resetDataOperation() },
       ],
     },
+    {
+      id: 'loadtest',
+      label: 'Load Test',
+      icon: '🧪',
+      items: [
+        {
+          id: 'loadtest-panel',
+          label: 'Panel',
+          icon: '📊',
+          callback: () => world._toggleLoadTestPanel?.(),
+        },
+        {
+          id: 'loadtest-start',
+          label: 'Start',
+          icon: '▶️',
+          callback: () => world.runLoadTest?.(),
+        },
+        {
+          id: 'loadtest-stop',
+          label: 'Stop',
+          icon: '⏹️',
+          callback: () => world.stopLoadTest?.(),
+        },
+      ],
+    },
   ];
 }

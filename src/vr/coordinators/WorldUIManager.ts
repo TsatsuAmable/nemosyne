@@ -20,6 +20,8 @@ import { InteractionCoach } from '../ui/InteractionCoach.ts';
 import { NarrativeStrip } from '../ui/NarrativeStrip.ts';
 import { MiniOverview } from '../ui/MiniOverview.ts';
 import { PeerPresenceHUD } from '../ui/PeerPresenceHUD.ts';
+import { LoadTestPanel } from '../ui/LoadTestPanel.ts';
+import type { LoadTestDriver } from '../scalability/LoadTestDriver.ts';
 import type { Engine } from '../Engine.ts';
 import type { WorldEventBusLike } from './types.ts';
 import type {
@@ -57,6 +59,7 @@ export class WorldUIManager {
   networkPanel: NetworkPanel;
   interactionCoach: PanelLike;
   narrativeStrip: PanelLike;
+  loadTestPanel: LoadTestPanel;
 
   constructor(engine: Engine, analystAnchor: Group, eventBus: WorldEventBusLike, callbacks: WorldUIManagerCallbacks = {}) {
     this.engine = engine;
@@ -224,6 +227,20 @@ export class WorldUIManager {
     this.engine.input.addPanel(this.narrativeStrip);
     this.engine.addUpdatable(this.narrativeStrip);
     this.panelManager.hidePanel(this.narrativeStrip);
+
+    // Load-test panel (WASM command-buffer decision harness). Bound to the
+    // driver + start/stop/flush callbacks owned by World.
+    this.loadTestPanel = new LoadTestPanel(engine.cameraGroup, {
+      driver: callbacks.loadTestDriver as LoadTestDriver,
+      eventBus: eventBus,
+      onStart: callbacks.onStartLoadTest,
+      onStop: callbacks.onStopLoadTest,
+      onFlush: callbacks.onFlushLoadTest,
+    });
+    this.panelManager.register(this.loadTestPanel);
+    this.engine.input.addPanel(this.loadTestPanel);
+    this.engine.addUpdatable(this.loadTestPanel);
+    this.panelManager.hidePanel(this.loadTestPanel);
   }
 
   /**

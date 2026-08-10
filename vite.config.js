@@ -170,6 +170,63 @@ function remoteLogsPlugin() {
   };
 }
 
+/**
+ * Load-test results endpoint, mounted on the Vite dev server only.
+ *
+ * The VR load-test harness POSTs a completed run summary (perf/UX aggregates
+ * only — no user dataset rows or session snapshots) to `/__loadtest-results`
+ * when a run finishes. This serve-only handler appends one JSON object per line
+ * to `logs/loadtest-results.jsonl`, so the dev can read the verdict (whether the
+ * WASM command buffer is warranted and the perf level it must meet) off the
+ * local machine after a real-headset run. Mirrors `remoteLogsPlugin`.
+ */
+function loadtestResultsPlugin() {
+  const logDir = path.resolve(process.cwd(), 'logs');
+  const logFile = path.join(logDir, 'loadtest-results.jsonl');
+
+  try {
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+  } catch {
+    // Ignore error
+  }
+
+  function handleLoadTest(req, res) {
+    if (req.url === '/__loadtest-results' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => (body += chunk));
+      req.on('end', () => {
+        try {
+          const summary = JSON.parse(body);
+          // One JSON object per line (JSONL).
+          fs.appendFileSync(logFile, JSON.stringify(summary) + '\n', 'utf-8');
+          // Echo a compact verdict line to the dev console.
+          const verdict = summary?.verdict ?? {};
+          const line =
+            `[LOAD TEST] ${summary?.profileName ?? '?'} | XR=${summary?.xrActive} | ` +
+            `sufficientTo=${verdict.jsPathSufficientTo} warrantedAt=${verdict.commandBufferWarrantedAt}`;
+          console.log(`\x1b[35m${line}\x1b[0m`);
+        } catch (err) {
+          console.error('[loadtest-results] failed to parse/append summary:', err);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok' }));
+      });
+      return true;
+    }
+    return false;
+  }
+
+  return {
+    name: 'nemosyne-loadtest-results',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!handleLoadTest(req, res)) next();
+      });
+    },
+  };
+}
+
 function wasmServePlugin() {
   const wasmPkgDir = path.resolve(process.cwd(), 'wasm', 'pkg');
   return {
@@ -205,6 +262,7 @@ export default defineConfig(({ command }) => ({
     demoStreamPlugin(),
     signallingPlugin(),
     remoteLogsPlugin(),
+    loadtestResultsPlugin(),
     wasmServePlugin(),
   ],
   server: {
