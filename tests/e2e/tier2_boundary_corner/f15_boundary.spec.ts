@@ -12,10 +12,21 @@ describe('Tier 2 — Feature 15: Requirement-Driven E2E Suite & TEST_READY.md (B
     expect(fs.existsSync(vitestPath)).toBe(true);
   });
 
-  it('F15-BC2: Opaque-box testing principles: tests access public exports only', () => {
-    // Verify public module exports are available without private access
-    const mainModule = import('../../../src/main.ts');
-    expect(mainModule).toBeDefined();
+  it('F15-BC2: Opaque-box testing principles: tests access public exports only', async () => {
+    // Verify a public module's exports are reachable via the normal import
+    // path (opaque-box: tests use public exports, never private internals).
+    //
+    // NOTE: do NOT dynamically import the app entry point `src/main.ts` here.
+    // Its top level runs side effects (remoteDebugStreamer.init monkeypatches
+    // console.* and adds global window listeners) and fires an un-awaited
+    // `new World()` + `world.start()` IIFE. A fire-and-forget `import()` of it
+    // leaks that background work past the test, racing with jsdom teardown and
+    // throwing an unhandled `EnvironmentTeardownError` under the full suite
+    // (Vitest warns this "might cause false positive tests"). Instead import a
+    // side-effect-free public module and await it so no promise leaks.
+    const mod = await import('../../../src/utils/SeededRandom.ts');
+    expect(mod).toBeDefined();
+    expect(typeof mod.SeededRandom).toBe('function');
   });
 
   it('F15-BC3: Test suite environment variables support custom runner configuration', () => {
