@@ -5,7 +5,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.js'],
     globals: false,
-    exclude: ['node_modules', 'dist', '.claude', 'wasm'],
+    // tests/smoke is a Playwright suite (real Chromium), not a Vitest suite —
+    // exclude it so `vitest run` doesn't try to load @playwright/test under jsdom.
+    exclude: ['node_modules', 'dist', '.claude', 'wasm', 'tests/smoke'],
     pool: 'forks',
     maxWorkers: 2,
     minWorkers: 1,

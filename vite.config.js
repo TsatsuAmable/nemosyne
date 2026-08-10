@@ -108,6 +108,12 @@ function generateRows(count) {
 }
 
 function httpsOptions(command) {
+  // The Playwright load-smoke (test/playwright-load-smoke) runs `vite preview`
+  // over plain HTTP — headless Chromium needs no TLS, and CI has no certs.
+  // Setting NEMOSYNE_FORCE_HTTP=1 (via Playwright's webServer.env) forces HTTP
+  // even when local dev certs are present, keeping the smoke deterministic
+  // across environments. Normal dev/preview is unaffected.
+  if (process.env.NEMOSYNE_FORCE_HTTP === '1') return undefined;
   const key = loadCert('key.pem');
   const cert = loadCert('cert.pem');
   if (key && cert) return { key, cert };
