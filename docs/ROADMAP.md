@@ -4,27 +4,31 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · post-#70 status refresh (binary-parser length-field
-  bounds merged).
-- **Active branch:** `main` (clean, at `f278bac`).
-- **Working tree:** clean.
+- **Last updated:** 2026-08-10 · FlatBuffer length-field bounds (extend the #70
+  pattern to the hand-rolled `FlatBuffersSerializer`; add bounds tests).
+- **Active branch:** `fix/flatbuffer-length-bounds` (off main, post-#71).
+- **Working tree:** PR pending — `src/data/serializers/FlatBuffersSerializer.ts`
+  (per-read bounds checks via an `ensure(need, what)` helper; descriptive throw on
+  truncated `columnCount`/`nameLength`/`rowCount`/string-`len`), `tests/serializers.test.js`
+  (+6 FlatBuffer bounds tests), `docs/ROADMAP.md` (this refresh).
 - **Last gate:** `tsc --noEmit` 0 errors · `eslint` 0 errors (184 pre-existing test
-  warnings) · `vitest run` 1191 pass / 9 skip / 0 fail · `vite build` green — 2026-08-10.
+  warnings) · `vitest run` 1197 pass / 9 skip / 0 fail · `vite build` green — 2026-08-10.
 - **Merge policy (live):** main ruleset `id=20623327` requires PR + required checks
   (`Rust unit tests (wasm/)` / `Node 20` / `Node 22` / `approval-gate`), no bypass.
   `approval-gate.yml` passes immediately for owner PRs (squash auto-merge on green);
   others need owner approval. New work lands via PR only.
-- **Recently merged:** #67 signalling-auth (token-gated joins, duplicate-peerId
-  rejection) · #68 docs cleanup (private-effort reframing, dedup) · #69
+- **Recently merged:** #68 docs cleanup (private-effort reframing, dedup) · #69
   coordinator-wiring (World.ts → 5 typed coordinators via `WorldLike` facade, −577
   lines) · #70 binary-parser length-field bounds (`ArrowBinaryParser` validates
-  `numCols×rowCount` before constructing `Float32Array` views; descriptive throw on
-  the parse path, empty `Float32Array` on the render path).
-- **In progress / next:** none in flight. Next candidates: (1) extend the length-field
-  bounds pattern to the sibling serializers (`FlatBuffersSerializer`,
-  `MessagePackSerializer`) — same attacker-controlled length-field gap, currently
-  untested; (2) real-WebGL test coverage (Playwright load smoke + GL introspection in
-  the mock); (3) decide on the dormant WASM command-buffer (audit B2).
+  `numCols×rowCount` before constructing `Float32Array` views) · #71 ROADMAP refresh.
+- **In progress / next:** FlatBuffer length-bounds PR (this branch) — see above. Note:
+  the earlier "sibling-serializer" candidate named `MessagePackSerializer` in error —
+  it delegates decoding to the vetted `@msgpack/msgpack` library (no hand-rolled length
+  fields; its hardening concern is prototype pollution, covered by F11). Same for
+  `ArrowSerializer` (uses `apache-arrow`). The hand-rolled length-field gap was
+  `FlatBuffersSerializer` only — closed by this PR. Next candidates: (1) real-WebGL
+  test coverage (Playwright load smoke + GL introspection in the mock); (2) decide on
+  the dormant WASM command-buffer (audit B2).
 - **Blockers / open:** B2 (WASM command-buffer dormant/spec-drifted/untested) — decide
   before scaling further.
 - **Resume pointers:** test inventory → `TEST_READY.md`; this file's Current Status is
