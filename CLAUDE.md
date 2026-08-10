@@ -107,11 +107,11 @@ Raw Data (CSV/JSON/Live Stream)
 - `src/data/` — `Dataset`, CSV/JSON `Parsers`, `Encodings`, `DatasetOperations` (filter, sort, aggregate, cluster, slice, anomaly), and live connectors (`WebSocketAdapter`, `PollingAdapter`, `OpenDataSources`).
 - `src/draco/` — `ConstraintEngine` (symbolic recommender), `VRTopologyTranslator` (spec → three.js artefact group), `DracoTopologyNode` (solve → synthesize → place), and layout generators under `src/draco/layouts/`. (The `DracoDiagnosticHUD` soft-weight tuner now lives in `src/vr/ui/`.)
 - `src/vr/` — Core WebXR runtime.
-  - `Engine.js` — three.js scene, renderer, XR session, animation loop, updatables.
-  - `World.js` — composes the scene: datum plane, landmarks, Draco palace, HUD, menu, live connectors.
-  - `InputRouter.js`, `Controllers.js`, `Hands.js` — normalized controller, hand-tracking, and desktop input.
-  - `Locomotion.js` — teleport anchors, ground movement, and flight mode.
-  - `DesktopControls.js` — mouse/keyboard fallback.
+  - `Engine.ts` — three.js scene, renderer, XR session, animation loop, updatables.
+  - `World.ts` — composes the scene: datum plane, landmarks, Draco palace, HUD, menu, live connectors.
+  - `InputRouter.ts`, `Controllers.ts`, `Hands.ts` — normalized controller, hand-tracking, and desktop input.
+  - `Locomotion.ts` — teleport anchors, ground movement, and flight mode.
+  - `DesktopControls.ts` — mouse/keyboard fallback.
 - `src/vr/ui/` — World-space panels: `MovablePanel`, `PanelManager`, `HandWheelMenu`, `DashboardManager`, `VRConsole`, `VRMenu`, `GuidedTour`, etc.
 - `src/vr/interactions/` — `DataOperations` and `MetaphorActions` (Resonance Pulse, Fork Plane, Chrono Dial, Constellation, Beacon, Aleph).
 - `src/vr/artifacts/` — Scene landmarks and data artefacts (`DatumPlane`, `TechnoCoreNode`, `FarcasterPortal`, `DataCard`, `HolographicInspector`, `ChartPlane`, `TDAPlanes`).
@@ -120,10 +120,11 @@ Raw Data (CSV/JSON/Live Stream)
 - `src/network/` — WebRTC/WebSocket collaboration (`NetworkManager`, `SignallingChannel`, `Room`, `SignallingServerCore`).
 - `src/analytics/` — `TDAMapper` for topological data analysis artefacts.
 - `src/utils/` — `SeededRandom`, `Dispose`, `Telemetry`, `UXFrustrationAnalyzer` (on-device friction pattern detection & low-token UX digests), `PerformanceBudget`, `Accessibility`, `Download`, `GestureMapping`.
-- `src/ui/` — 2D DOM file loader (`FileLoader.js`).
+- `src/ui/` — 2D DOM file loader (`FileLoader.ts`).
 
 ### Key runtime conventions
 
+- TypeScript-first: all source under `src/` is `.ts` (import maps + Vite; `npm run typecheck` / `tsc --noEmit` is a required CI gate). Only config and test-harness files (`vite.config.js`, `vitest.config.js`, `tests/setup.js`, `vite-wasm-pack-plugin.js`) and individual `.test.js`/`.spec.ts` files remain `.js`/`.mjs`.
 - ES modules only; three.js is loaded via import map pointing at `three@0.168.0`.
 - `Engine` owns an `updatables` array; anything with an `.update(delta, time)` method is ticked each frame.
 - `World` creates an `analystAnchor` under the camera rig; HUD panels, dashboard, and wheel menu are parented there so the workspace clusters around the user while remaining draggable in local space.
@@ -134,7 +135,7 @@ Raw Data (CSV/JSON/Live Stream)
 
 ## Rust/WASM migration standards
 
-Nemosyne is gradually moving compute-sensitive subsystems into Rust-generated WebAssembly while keeping three.js as the WebGL/WebXR renderer. The full migration plan and technical standards live in `.claude/plan.md`. When working on or near the WASM boundary, follow these rules:
+Nemosyne is gradually moving compute-sensitive subsystems into Rust-generated WebAssembly while keeping three.js as the WebGL/WebXR renderer. **Migration status is tracked in `docs/ROADMAP.md` §Phase 21 — Rust/WASM Migration** (the single canonical reference for what's done and what's planned); the **technical standards** (ABI, memory model, command-buffer wire format, capability flags, instancing thresholds) live in `.claude/plan.md` (working memory). When working on or near the WASM boundary, follow these rules:
 
 - **ABI surface is `(ptr, len)` and integer handles only.** Exported functions return `u32` handles or `(ptr, len)` pairs; imported functions are limited to logging, timestamps, and telemetry. No `String`/`Vec` cross the hot path.
 - **Shared memory layout:** `WebAssembly.Memory` starts at 128 MB and grows to 512 MB. JS reads typed arrays directly from the WASM buffer. All multi-byte values are little-endian.
@@ -142,8 +143,8 @@ Nemosyne is gradually moving compute-sensitive subsystems into Rust-generated We
 - **Command buffer:** packed, 4-byte-aligned `u8` stream with a versioned header and opcode/payload structure. JS `CommandApplier` consumes it once per frame and maps handles to three.js objects.
 - **Scene graph split:** Rust owns the ECS, local transforms, and world-matrix computation. three.js owns the renderable object tree and GPU resources; JS copies precomputed matrices into `Object3D.matrix`.
 - **Instancing thresholds:** ≤ 256 unique meshes use individual `THREE.Mesh`; 257–8,192 use `InstancedMesh`; 8,193–65,536 use a GPU point cloud; larger datasets are binned/LOD'd by the Rust spatial index.
-- **Capability flags:** `World.js` reads `wasm.capabilities()` at startup and routes work to Rust or JS fallbacks. Flags are enabled phase by phase; never enable `COMMAND_BUFFER` before `SCENE_RUST`.
-- **Testing porting rule:** every JS test removed must be replaced by a Rust unit test, a `wasm-bindgen-test`, or a JS integration test through `RuntimeBridge.js` that exercises the same behaviour.
+- **Capability flags:** `World.ts` reads `wasm.capabilities()` at startup and routes work to Rust or JS fallbacks. Flags are enabled phase by phase; never enable `COMMAND_BUFFER` before `SCENE_RUST`.
+- **Testing porting rule:** every JS test removed must be replaced by a Rust unit test, a `wasm-bindgen-test`, or a JS integration test through `RuntimeBridge.ts` that exercises the same behaviour.
 - **Build loop:** `npm run dev` / `npm run build` invoke `wasm-pack` via `vite-wasm-pack-plugin.js`. Run `npm run wasm` for a manual release build; `cargo test --manifest-path wasm/Cargo.toml` runs the Rust unit tests.
 - **Bundle budgets:** target ≤ 2.5 MB total gzipped at the end of the migration; measure each phase with `twiggy`/`wasm-objdump`.
 
@@ -152,7 +153,7 @@ Nemosyne is gradually moving compute-sensitive subsystems into Rust-generated We
 `vite.config.js` registers two custom plugins that run only during `serve`/`preview`:
 
 - `demoStreamPlugin` — mounts `wss://<host>/__demo-stream`, emitting mock time-series sensor rows once per second.
-- `signallingPlugin` — mounts `wss://<host>/__signal` for local multiplayer signalling; uses `createRoomRegistry()` from `src/network/SignallingServerCore.js`.
+- `signallingPlugin` — mounts `wss://<host>/__signal` for local multiplayer signalling; uses `createRoomRegistry()` from `src/network/SignallingServerCore.ts`.
 
 For a standalone signalling server in production:
 
