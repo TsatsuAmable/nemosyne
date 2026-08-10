@@ -11,10 +11,9 @@ import {
   allSampleDatasets,
   getDefaultEncodings,
 } from '../data/SampleDatasets.ts';
-import { ANALYSIS_TEMPLATES, resolveTemplate } from '../data/AnalysisTemplates.ts';
+import { resolveTemplate } from '../data/AnalysisTemplates.ts';
 import { TopologyTypes } from '../draco/ConstraintEngine.ts';
 import { disposeObject } from '../utils/Dispose.ts';
-import { downloadDataUrl, downloadText } from '../utils/Download.ts';
 import { LiveStreamCoordinator } from './coordinators/LiveStreamCoordinator.ts';
 import {
   applyFilter,
@@ -33,7 +32,7 @@ import { WorldInputCoordinator } from './coordinators/WorldInputCoordinator.ts';
 import { UserModeController } from './coordinators/UserModeController.ts';
 import { ComfortSettingsController } from './coordinators/ComfortSettingsController.ts';
 import { AnalysisHistory } from '../data/AnalysisHistory.ts';
-import { SessionStore, type SessionSnapshot } from '../data/SessionStore.ts';
+import { SessionStore } from '../data/SessionStore.ts';
 import { Dataset } from '../data/Dataset.ts';
 import { GuidedTour, type TourStep } from './ui/GuidedTour.ts';
 import { FIRST_DATASET_TOUR } from '../data/DefaultTour.ts';
@@ -45,6 +44,11 @@ import { CollaborationCoordinator } from './coordinators/CollaborationCoordinato
 import { DataOperationController } from './coordinators/DataOperationController.ts';
 import { WorldUIManager } from './coordinators/WorldUIManager.ts';
 import { WorldSceneComposer } from './coordinators/WorldSceneComposer.ts';
+import { WorldSessionController } from './coordinators/WorldSessionController.ts';
+import { GuidedTourController } from './coordinators/GuidedTourController.ts';
+import { WorldLandmarkController } from './coordinators/WorldLandmarkController.ts';
+import { AnalysisStoryExporter } from './coordinators/AnalysisStoryExporter.ts';
+import { buildWheelMenuCategories } from './coordinators/WheelMenuBuilder.ts';
 import { WorldEventBus, WorldTopics } from '../utils/EventBus.ts';
 import { SceneGraphController } from './coordinators/SceneGraphController.ts';
 import { WorkspaceManager } from './coordinators/WorkspaceManager.ts';
@@ -151,6 +155,9 @@ export class World {
   _wasmRuntime: WasmRuntimeBridge | null;
   liveStreamCoordinator: LiveStreamCoordinator;
   collaborationCoordinator: CollaborationCoordinator;
+  landmarkController!: WorldLandmarkController;
+  tourController!: GuidedTourController;
+  sessionController!: WorldSessionController;
   loader: FileLoaderUI;
   telemetry: HTMLElement | null;
   _dashboardTooltipTargets: THREE.Mesh[];
@@ -161,7 +168,6 @@ export class World {
   _handNearArtefact!: boolean;
   _handNearWheelMenu!: boolean;
   sessionStore: SessionStore;
-  _sessionAutoSaveTimer: ReturnType<typeof setTimeout> | null;
   _initPromises: Promise<unknown>[];
   _disposed: boolean;
   _statisticalLensEnabled: boolean;
@@ -338,7 +344,8 @@ export class World {
 
     // Register functional landmarks as interactables: core cycles the lens hub,
     // portals are triggered by walking through them.
-    this._registerLandmarkInteractions();
+    this.landmarkController = new WorldLandmarkController(this);
+    this.landmarkController.registerLandmarkInteractions();
 
     // Per-frame hook: portal trigger checks and core activity sync.
     this.engine.addUpdatable({
@@ -346,7 +353,7 @@ export class World {
     });
 
     // Register visual elements for gaze/pointer tooltips.
-    this._registerTooltipTargets();
+    this.landmarkController.registerTooltipTargets();
 
     this.portalsEnabled = true;
     this._datasetCycleIndex = -1;
@@ -419,7 +426,6 @@ export class World {
     // Persistent session store (IndexedDB). Auto-saves the world state so the
     // user can resume after a page reload.
     this.sessionStore = new SessionStore();
-    this._sessionAutoSaveTimer = null;
 
     // Track async initialization work so tests can wait for it during teardown.
     this._initPromises = [];
@@ -452,17 +458,21 @@ export class World {
     this.panelManager.hidePanel(this.settingsPanel);
 
     // Guided tour: step-by-step spatial onboarding.
+    this.tourController = new GuidedTourController(this);
     this.guidedTour = new GuidedTour(this.engine, {
       analystAnchor: this.analystAnchor,
       feedback: this.engine.input.feedback,
       tour: FIRST_DATASET_TOUR,
-      resolveTarget: (target: string) => this._resolveTourTarget(target),
-      checkCondition: (step: TourStep) => this._checkTourCondition(step),
+      resolveTarget: (target: string) => this.tourController.resolveTarget(target),
+      checkCondition: (step: TourStep) => this.tourController.checkCondition(step),
       onComplete: () => this.vrConsole?.log?.('log', ['Tour complete']),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
     this.engine.addUpdatable(this.guidedTour);
     this.engine.addHudObject(this.guidedTour);
+
+    // Session save/load/autosave coordinator (reads facade members lazily).
+    this.sessionController = new WorldSessionController(this);
 
     // Track whether the guided tour has been auto-started for novice users.
     this._tourAutoStarted = false;
@@ -487,183 +497,19 @@ export class World {
     this._initPromises.push(this._loadSharedSettings());
   }
 
-  _resolveTourTarget(target: string): { object?: THREE.Object3D; position?: THREE.Vector3 } | null {
-    switch (target) {
-      case 'datum-plane':
-        return { object: this.datum?.mesh, position: this.datum?.mesh?.position };
-      case 'draco-palace':
-        return { object: this.dracoNode?.group, position: this.dracoNode?.group?.position };
-      case 'node-mesh':
-        return this.dracoNode?.artifact?.nodeMeshes?.[0]
-          ? { object: this.dracoNode.artifact.nodeMeshes[0] }
-          : null;
-      case 'wheel-menu':
-        return this.handWheelMenu?.group ? { object: this.handWheelMenu.group } : null;
-      case 'wheel-ops': {
-        const ops = (
-          this.handWheelMenu as unknown as { _categories: { id: string }[] }
-        )._categories?.find((c) => c.id === 'ops');
-        return ops ? { position: new THREE.Vector3(0, 1.4, -0.6) } : null;
-      }
-      case 'gesture-hint':
-        return { position: new THREE.Vector3(0, 1.5, -1.0) };
-      case 'settings-panel':
-        return this.settingsPanel?.mesh ? { object: this.settingsPanel.mesh } : null;
-      case 'dashboard':
-        return { position: new THREE.Vector3(0, 1.45, -1.35) };
-      case 'data-loader':
-        return this.vrMenu?.mesh ? { object: this.vrMenu.mesh } : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
-      case 'session-export':
-        return this.operationLogPanel?.mesh ? { object: this.operationLogPanel.mesh } : { position: new THREE.Vector3(0.5, 1.4, -0.9) };
-      case 'peer-collaboration':
-        return this.peerPresenceHUD?.mesh ? { object: this.peerPresenceHUD.mesh } : { position: new THREE.Vector3(-0.9, 1.35, -0.7) };
-      case 'draco-transform':
-        return this.vrMenu?.mesh ? { object: this.vrMenu.mesh } : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
-      default:
-        return null;
-    }
-  }
-
-  _checkTourCondition(step: TourStep): boolean {
-    // Auto-advance a few steps when the user performs the hinted action.
-    switch (step.target) {
-      case 'node-mesh':
-        return this.inspector?.active === true;
-      case 'wheel-menu':
-        return this.handWheelMenu?.isVisible?.() === true;
-      case 'settings-panel':
-        return this.settingsPanel?.mesh?.visible === true;
-      case 'draco-transform':
-        return (this.dataOperationController?.analysisHistory?.length ?? 0) > 0;
-      default:
-        return false;
-    }
-  }
-
   startTour(): boolean {
-    return this.guidedTour?.start?.() ?? false;
-  }
-
-  stopTour(): void {
-    this.guidedTour?.stop?.();
-  }
-
-  _registerTooltipTargets(): void {
-    // Landmarks and environment.
-    if (this.core?.group) {
-      this.core.group.userData.tooltipMeta = {
-        title: 'TechnoCore',
-        body: 'Lens hub: pinch to cycle statistical/anomaly lens',
-      };
-      this.tooltipManager.registerTarget(this.core.group);
-    }
-    if (this.datum?.mesh) {
-      this.datum.mesh.userData.tooltipMeta = {
-        title: 'Datum Plane',
-        body: 'Substrate of cyberspace',
-      };
-      this.tooltipManager.registerTarget(this.datum.mesh);
-    }
-    if (this.portalA?.group) {
-      this.portalA.group.userData.tooltipMeta = {
-        title: 'Farcaster: Deep Net',
-        body: 'Step through to apply anomaly lens and warp to the deep-net zone',
-      };
-      this.tooltipManager.registerTarget(this.portalA.group);
-    }
-    if (this.portalB?.group) {
-      this.portalB.group.userData.tooltipMeta = {
-        title: 'Farcaster: Local Matrix',
-        body: 'Step through to reset transforms and return to the local matrix',
-      };
-      this.tooltipManager.registerTarget(this.portalB.group);
-    }
-  }
-
-  _registerLandmarkInteractions(): void {
-    if (this.core?.group) {
-      this.engine.addInteractable(this.core.group, {
-        onEnter: () => {},
-        onLeave: () => {},
-        onSelect: () => this._onCoreSelect(),
-      });
-    }
+    return this.tourController.startTour();
   }
 
   _onCoreSelect(): void {
-    const mode = this.core.nextLensMode();
-    if (mode === 'statistical') {
-      this._statisticalLensEnabled = true;
-      this._setStatisticalLensVisible(true);
-      this.vrConsole?.log?.('log', ['TechnoCore: statistical lens']);
-    } else if (mode === 'anomaly') {
-      this.applyDataOperation('anomaly');
-      this.vrConsole?.log?.('log', ['TechnoCore: anomaly lens applied']);
-    } else {
-      this._statisticalLensEnabled = false;
-      this._setStatisticalLensVisible(false);
-      this.vrConsole?.log?.('log', ['TechnoCore: lens off']);
-    }
-    this._logInteraction('TechnoCore lens', { result: mode });
-    this.engine.input.feedback?.playCoreTone?.(mode);
-    this.engine.input.feedback?.playHaptic?.(0.5, 60);
-    this._captureSession();
-  }
-
-  _applyPortalOperation(operation: string | null): void {
-    if (!operation) return;
-    if (operation === 'reset') {
-      this.resetDataOperation();
-    } else {
-      this.applyDataOperation(operation);
-    }
+    this.landmarkController.onCoreSelect();
   }
 
   /**
    * Capture the current world state as a JSON snapshot and save it.
    */
   async saveSession(id: string = 'autosave'): Promise<void> {
-    if (this._disposed || !this.currentEntry?.dataset || !this.dracoNode) return;
-
-    const snapshot: Record<string, unknown> = {
-      schemaVersion: 1,
-      savedAt: Date.now(),
-      dataset: this._originalDataset?.toJSON?.() ?? null,
-      entry: {
-        name:
-          this.currentEntry.name ??
-          this._originalDataset?.name ??
-          this.currentEntry.label ??
-          'dataset',
-        topology: this.currentEntry.topology,
-        encodings: this.currentEntry.encodings,
-        maxDepth: this.currentEntry.maxDepth,
-      },
-      originalDataset: this._originalDataset?.toJSON?.() ?? null,
-      transformedDataset: this._transformedDataset?.toJSON?.() ?? null,
-      analysisHistory: this.analysisHistory?.toJSON?.() ?? null,
-      camera: {
-        position: this.engine.cameraGroup.position.toArray(),
-        rotationY: this.engine.cameraGroup.rotation.y,
-      },
-      settings: this.settingsPanel?.getAllSettings?.() ?? {},
-      tour: {
-        stepIndex: this.guidedTour?._stepIndex ?? 0,
-        finished: this.guidedTour?._finished ?? true,
-      },
-      theme: this.engine.theme?.currentPreset ?? 'neonMidnight',
-      panelPositions: this.panelManager?.getPanelPositions?.() ?? [],
-    };
-
-    try {
-      await this.sessionStore.saveSession(id, snapshot as SessionSnapshot);
-      this.vrConsole?.log?.('log', [`Session saved: ${id}`]);
-      this._logInteraction('Save session', { result: id });
-    } catch (err) {
-      if (this._disposed) return;
-      console.warn('[World] failed to save session:', err);
-      this.vrConsole?.log?.('warn', [`Session save failed: ${(err as Error).message}`]);
-    }
+    return this.sessionController.saveSession(id);
   }
 
   /**
@@ -671,116 +517,11 @@ export class World {
    * settings, and tour progress from the snapshot.
    */
   async loadSession(id: string = 'autosave'): Promise<boolean> {
-    if (this._disposed) return false;
-    const snapshot = await this.sessionStore.loadSession(id);
-    if (!snapshot) {
-      if (this._disposed) return false;
-      this.vrConsole?.log?.('log', [`No saved session: ${id}`]);
-      return false;
-    }
-
-    const s = snapshot as Record<string, unknown>;
-    const originalDataset = s.originalDataset as DatasetJSON | null;
-    if (!originalDataset) {
-      if (this._disposed) return false;
-      this.vrConsole?.log?.('warn', [`Session ${id} has no dataset`]);
-      return false;
-    }
-
-    const original = Dataset.fromJSON(originalDataset);
-    const transformedDataset = s.transformedDataset as DatasetJSON | null;
-    const transformed = transformedDataset ? Dataset.fromJSON(transformedDataset) : original.clone();
-
-    const entryData = (s.entry ?? {}) as Record<string, unknown>;
-    const entry: DatasetLoadEntry = {
-      name: (entryData.name as string | undefined) ?? original.name,
-      topology: (entryData.topology as string | undefined) ?? 'TABULAR',
-      dataset: original,
-      maxDepth: entryData.maxDepth as number | undefined,
-      encodings: entryData.encodings as EncodingMapping | undefined,
-    };
-
-    this.loadDataset(entry);
-    this._originalDataset = original.clone();
-    this._transformedDataset = transformed.clone();
-
-    // Restore the analysis history so undo/redo works across sessions.
-    const historyData = s.analysisHistory;
-    if (historyData) {
-      this.analysisHistory = AnalysisHistory.fromJSON(historyData);
-    } else {
-      this.analysisHistory.clear();
-    }
-    this.narrativeStrip?.setHistory?.(this.analysisHistory);
-    this._updateNarrativeStrip();
-
-    // Re-apply the visual transform of the current history frame, if any.
-    const current = this.analysisHistory.current();
-    if (current) {
-      this._restoreDataset(current.datasetAfter, current.operation);
-    } else {
-      this._restoreDataset(this._transformedDataset, 'reset');
-    }
-
-    // Restore camera pose.
-    const cameraData = (s.camera ?? {}) as Record<string, unknown>;
-    const cameraPos = cameraData.position as number[] | undefined;
-    if (cameraPos) {
-      this.engine.cameraGroup.position.fromArray(cameraPos);
-    }
-    const rotationY = cameraData.rotationY as number | undefined;
-    if (typeof rotationY === 'number') {
-      this.engine.cameraGroup.rotation.y = rotationY;
-    }
-
-    // Restore settings (including comfort and user mode).
-    const settingsData = s.settings as SettingsMap | undefined;
-    if (settingsData) {
-      for (const [key, value] of Object.entries(settingsData)) {
-        this.settingsPanel?.setSetting?.(key as keyof SettingsMap & string, value as never);
-      }
-      this.comfortSettingsController.apply(this.settingsPanel.getAllSettings());
-      this.comfortSettingsController.applyPanelDistance(
-        this.settingsPanel.getAllSettings().defaultPanelDistance
-      );
-    }
-
-    // Restore theme.
-    const themeName = s.theme as string | undefined;
-    if (themeName && this.engine.theme?.applyPreset) {
-      this.engine.theme.applyPreset(themeName);
-    }
-
-    // Restore panel layout (free-floating positions and visibility).
-    const panelPositions = s.panelPositions as { title?: string; position?: number[]; visible?: boolean }[] | undefined;
-    if (panelPositions && this.panelManager) {
-      this.panelManager.setPanelPositions(panelPositions);
-    }
-
-    // Restore tour progress.
-    const tourData = s.tour as { finished?: boolean; stepIndex?: number } | undefined;
-    if (this.guidedTour && tourData && !tourData.finished) {
-      this.guidedTour._stepIndex = tourData.stepIndex ?? 0;
-      this.guidedTour._finished = false;
-      this.guidedTour._active = true;
-      this.guidedTour._cardGroup.visible = true;
-      this.guidedTour._renderStep();
-    }
-
-    if (this._disposed) return true;
-    this.vrConsole?.log?.('log', [`Session restored: ${id}`]);
-    return true;
+    return this.sessionController.loadSession(id);
   }
 
   async deleteSession(id: string): Promise<void> {
-    if (this._disposed) return;
-    try {
-      await this.sessionStore.deleteSession(id);
-      this.vrConsole?.log?.('log', [`Session deleted: ${id}`]);
-    } catch (err) {
-      if (this._disposed) return;
-      console.warn('[World] failed to delete session:', err);
-    }
+    return this.sessionController.deleteSession(id);
   }
 
   /**
@@ -788,25 +529,11 @@ export class World {
    * mutate the world state.
    */
   _requestAutoSave(): void {
-    if (this._disposed) return;
-    if (this._sessionAutoSaveTimer) clearTimeout(this._sessionAutoSaveTimer);
-    this._sessionAutoSaveTimer = setTimeout(() => this.saveSession('autosave'), 2000);
+    this.sessionController.requestAutoSave();
   }
 
   async _restoreAutoSave(): Promise<unknown> {
-    try {
-      const has = await this.sessionStore.hasSession('autosave');
-      if (!has) return;
-      if (this._disposed) return;
-      this.vrConsole?.log?.('log', ['Restoring autosave...']);
-      const restored = await this.loadSession('autosave');
-      if (restored && !this._disposed) this.userModeController.apply();
-      return restored;
-    } catch (err) {
-      if (this._disposed) return;
-      console.warn('[World] autosave restore failed:', err);
-    }
-    return;
+    return this.sessionController.restoreAutoSave();
   }
 
   _captureSession(): void {
@@ -818,24 +545,7 @@ export class World {
    * browser download.
    */
   exportScreenshot(format: string = 'png'): void {
-    try {
-      const renderer = this.engine?.renderer;
-      if (!renderer?.domElement?.toDataURL) {
-        this.vrConsole?.log?.('warn', ['Screenshot not available']);
-        return;
-      }
-      const isJpeg = format === 'jpeg' || format === 'jpg';
-      const mime = isJpeg ? 'image/jpeg' : 'image/png';
-      const ext = isJpeg ? 'jpg' : 'png';
-      const dataUrl = renderer.domElement.toDataURL(mime);
-      const filename = `nemosyne-${Date.now()}.${ext}`;
-      downloadDataUrl(dataUrl, filename);
-      this.vrConsole?.log?.('log', [`Screenshot exported: ${filename}`]);
-      this._logInteraction('Export screenshot', { result: filename });
-    } catch (err) {
-      console.warn('[World] screenshot export failed:', err);
-      this.vrConsole?.log?.('warn', [`Screenshot export failed: ${(err as Error).message}`]);
-    }
+    AnalysisStoryExporter.exportScreenshot(this.engine, this.vrConsole, this._logInteraction, format);
   }
 
   /**
@@ -843,47 +553,21 @@ export class World {
    * operations, camera position, and theme.
    */
   _buildAnalysisStory(): Record<string, unknown> {
-    const frames = this.analysisHistory?.frames() ?? [];
-    return {
-      version: 1,
-      timestamp: Date.now(),
-      savedAt: new Date().toISOString(),
-      dataset: {
-        name: this.currentEntry?.name ?? this._originalDataset?.name ?? 'dataset',
-        topology: this.currentEntry?.topology ?? 'TABULAR',
-        rowCount: this._transformedDataset?.rowCount ?? this._originalDataset?.rowCount ?? 0,
-      },
-      camera: this.engine?.cameraGroup?.position?.toArray?.() ?? [],
-      theme: this.engine?.theme?.currentPreset ?? 'neonMidnight',
-      operations: frames.map((f) => ({
-        operation: f.operation,
-        rowCountAfter: f.datasetAfter?.rowCount,
-        parameters: f.parameters,
-        timestamp: f.timestamp,
-      })),
-      telemetry: this.telemetryCollector?.getReport?.(),
-    };
+    return AnalysisStoryExporter.buildAnalysisStory(this);
   }
 
   /**
    * Export the analysis story as a downloadable JSON file.
    */
   exportAnalysisStory(): Record<string, unknown> {
-    const story = this._buildAnalysisStory();
-    this.downloadAnalysisStory(story);
-    this._logInteraction('Export story', { result: `nemosyne-story-${story.timestamp}.json` });
-    return story;
+    return AnalysisStoryExporter.exportAnalysisStory(this);
   }
 
   /**
    * Download a previously-built analysis story, or build one if none provided.
    */
   downloadAnalysisStory(story: Record<string, unknown> | null = null): void {
-    const data = story ?? this._buildAnalysisStory();
-    const text = JSON.stringify(data, null, 2);
-    const filename = `nemosyne-story-${data.timestamp}.json`;
-    downloadText(text, filename, 'application/json');
-    this.vrConsole?.log?.('log', [`Analysis story exported: ${filename}`]);
+    AnalysisStoryExporter.downloadAnalysisStory(this, story);
   }
 
   _updateWorld(_delta: number, _time: number): void {
@@ -1231,7 +915,7 @@ export class World {
 
   _warpToZone(zone: string, pos: number[], operation: string | null): void {
     // First apply the data transformation that the gate represents.
-    this._applyPortalOperation(operation);
+    this.landmarkController.applyPortalOperation(operation);
 
     this.engine.cameraGroup.position.set(pos[0], pos[1], pos[2]);
     const zonePreset = zone === 'DEEP_NET' ? 'deepNet' : 'neonMidnight';
@@ -1749,265 +1433,7 @@ export class World {
   }
 
   _buildWheelMenu(): void {
-    this.uiManager.buildWheelMenu([
-      {
-        id: 'panels',
-        label: 'Panels',
-        icon: '🪟',
-        items: [
-          {
-            id: 'launcher',
-            label: 'Launcher',
-            icon: '🚀',
-            callback: () => this.panelManager.toggleLauncher(),
-          },
-          {
-            id: 'settings',
-            label: 'Settings',
-            icon: '⚙️',
-            callback: () => this._toggleSettingsPanel(),
-          },
-          {
-            id: 'operation-log',
-            label: 'Log',
-            icon: '📝',
-            callback: () => this.panelManager.togglePanel(this.operationLogPanel),
-          },
-          {
-            id: 'telemetry',
-            label: 'Telemetry',
-            icon: '📊',
-            callback: () => this.panelManager.togglePanel(this.metricsPanel),
-          },
-          {
-            id: 'performance',
-            label: 'Perf',
-            icon: '⏱️',
-            callback: () => this.panelManager.togglePanel(this.performancePanel),
-          },
-          {
-            id: 'interaction-coach',
-            label: 'Coach',
-            icon: '🎓',
-            callback: () => this.panelManager.togglePanel(this.interactionCoach),
-          },
-          { id: 'tour', label: 'Tour', icon: '📍', callback: () => this.startTour() },
-          {
-            id: 'narrative-strip',
-            label: 'Timeline',
-            icon: '🎞️',
-            callback: () => this.panelManager.togglePanel(this.narrativeStrip),
-          },
-          {
-            id: 'recenter',
-            label: 'Recenter',
-            icon: '🎯',
-            callback: () => this.panelManager.recenter(),
-          },
-          {
-            id: 'scroll-dashboard-left',
-            label: '◀ Dash',
-            icon: '⬅️',
-            callback: () => this.dashboard.scrollBySlots(-1),
-          },
-          {
-            id: 'scroll-dashboard-right',
-            label: 'Dash ▶',
-            icon: '➡️',
-            callback: () => this.dashboard.scrollBySlots(1),
-          },
-          {
-            id: 'reset-dashboard',
-            label: 'Reset Dash',
-            icon: '↺',
-            callback: () => this.dashboard.resetDashboard(),
-          },
-          {
-            id: 'save-session',
-            label: 'Save',
-            icon: '💾',
-            callback: () => this.saveSession('manual'),
-          },
-          {
-            id: 'load-session',
-            label: 'Load',
-            icon: '⏮️',
-            callback: () => this.loadSession('autosave'),
-          },
-          {
-            id: 'delete-autosave',
-            label: 'New',
-            icon: '🆕',
-            callback: () => this.deleteSession('autosave'),
-          },
-          {
-            id: 'export-screenshot',
-            label: 'Screenshot',
-            icon: '📸',
-            callback: () => this.exportScreenshot(),
-          },
-          {
-            id: 'export-story',
-            label: 'Story',
-            icon: '📤',
-            callback: () => this.exportAnalysisStory(),
-          },
-        ],
-      },
-      {
-        id: 'templates',
-        label: 'Templates',
-        icon: '📖',
-        items: ANALYSIS_TEMPLATES.map((t) => ({
-          id: `template-${t.id}`,
-          label: t.label,
-          icon: t.icon,
-          callback: () => this.loadTemplate(t.id),
-        })),
-      },
-      {
-        id: 'views',
-        label: 'Views',
-        icon: '👁️',
-        items: [
-          {
-            id: 'portals',
-            label: 'Portals',
-            icon: '🌀',
-            callback: () => this.setPortalsEnabled(!this.portalsEnabled),
-          },
-          { id: 'dataset', label: 'Dataset', icon: '💎', callback: () => this._cycleDataset() },
-          {
-            id: 'cycle-theme',
-            label: 'Theme',
-            icon: '🎨',
-            callback: () => this._cycleThemePreset(),
-          },
-          {
-            id: 'teleport-toggle',
-            label: 'Teleport',
-            icon: '📡',
-            callback: () => this.engine.locomotion.toggleTeleport(),
-          },
-          {
-            id: 'teleport-overview',
-            label: 'Overview',
-            icon: '🌍',
-            callback: () => this.engine.locomotion.teleportToAnchor('overview'),
-          },
-          {
-            id: 'teleport-detail',
-            label: 'Detail',
-            icon: '🔎',
-            callback: () => this.engine.locomotion.teleportToAnchor('detail'),
-          },
-          {
-            id: 'teleport-north',
-            label: 'North',
-            icon: '⬆️',
-            callback: () => this.engine.locomotion.teleportToAnchor('north'),
-          },
-          {
-            id: 'teleport-south',
-            label: 'South',
-            icon: '⬇️',
-            callback: () => this.engine.locomotion.teleportToAnchor('south'),
-          },
-          {
-            id: 'toggle-mini-overview',
-            label: 'Overview',
-            icon: '🗺️',
-            callback: () => this._toggleMiniOverview(),
-          },
-          {
-            id: 'toggle-peer-presence',
-            label: 'Peers',
-            icon: '👥',
-            callback: () => this._togglePeerPresenceHUD(),
-          },
-          {
-            id: 'toggle-desktop-preview',
-            label: 'Preview',
-            icon: '🖥️',
-            callback: () => this._toggleDesktopPreview(),
-          },
-          {
-            id: 'toggle-flight',
-            label: 'Flight',
-            icon: '🚀',
-            callback: () => this.engine.locomotion.toggleFlight(),
-          },
-          {
-            id: 'drop-to-floor',
-            label: 'Floor',
-            icon: '🧱',
-            callback: () => this.engine.locomotion.dropToFloor(),
-          },
-        ],
-      },
-      {
-        id: 'live',
-        label: 'Live',
-        icon: '📡',
-        items: [
-          {
-            id: 'live-toggle',
-            label: this.isLiveConnected() ? 'Stop' : 'Start',
-            icon: this.isLiveConnected() ? '⏹️' : '▶️',
-            callback: () =>
-              this.isLiveConnected() ? this.disconnectLiveStream() : this.connectLiveStream(),
-          },
-        ],
-      },
-      {
-        id: 'collab',
-        label: 'Collab',
-        icon: '👥',
-        items: [
-          {
-            id: 'collab-toggle',
-            label: this.collaborationCoordinator.isConnected() ? 'Leave' : 'Join',
-            icon: this.collaborationCoordinator.isConnected() ? '🚪' : '🔗',
-            callback: () =>
-              this.collaborationCoordinator.isConnected()
-                ? this._leaveCollaborationRoom()
-                : this._joinCollaborationRoom(),
-          },
-          {
-            id: 'collab-panel',
-            label: 'Network',
-            icon: '🌐',
-            callback: () => this.panelManager.togglePanel(this.networkPanel),
-          },
-        ],
-      },
-      {
-        id: 'ops',
-        label: 'Ops',
-        icon: '⚙️',
-        items: (() => {
-          const opItem = (id: string, label: string, icon: string, op: string) => ({
-            id,
-            label,
-            icon,
-            callback: () => this.applyDataOperation(op),
-            onHover: () => this.previewDataOperation(op),
-            onLeave: () => this.clearOperationPreview(),
-          });
-          return [
-            opItem('filter', 'Filter', '🔎', 'filter'),
-            opItem('sort', 'Sort', '📶', 'sort'),
-            opItem('aggregate', 'Aggregate', '📚', 'aggregate'),
-            opItem('cluster', 'Cluster', '🔷', 'cluster'),
-            opItem('hierarchical', 'Hierarchy', '🌳', 'hierarchical'),
-            opItem('density', 'Density', '⚫', 'density'),
-            opItem('anomaly', 'Anomaly', '⚡', 'anomaly'),
-            opItem('timeSlice', 'Slice', '🕒', 'timeSlice'),
-            { id: 'reset', label: 'Reset', icon: '↺', callback: () => this.resetDataOperation() },
-          ];
-        })(),
-      },
-    ]);
+    this.uiManager.buildWheelMenu(buildWheelMenuCategories(this));
   }
 
   setPortalsEnabled(enabled: boolean): void {
@@ -2113,10 +1539,7 @@ export class World {
     this._disposed = true;
 
     // Stop any pending auto-save and live flushes before they log.
-    if (this._sessionAutoSaveTimer) {
-      clearTimeout(this._sessionAutoSaveTimer);
-      this._sessionAutoSaveTimer = null;
-    }
+    this.sessionController?.dispose?.();
     this.liveStreamCoordinator?.disconnectLiveStream?.();
     this.collaborationCoordinator?.leaveCollaborationRoom?.();
 
