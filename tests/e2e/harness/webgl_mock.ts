@@ -18,6 +18,17 @@ export interface WebGLMockStats {
   activeTextures: number;
 }
 
+/**
+ * A recorded GL method invocation. `count` is captured only for draw calls
+ * (the vertex/index count, i.e. the first count-bearing argument) so a
+ * regression can report "drew 0 vertices" rather than just "no draw call".
+ * Other tracked calls (clear/useProgram) carry no count.
+ */
+export interface GLCall {
+  name: string;
+  count?: number;
+}
+
 const stats: WebGLMockStats = {
   createdBuffers: 0,
   deletedBuffers: 0,
@@ -41,6 +52,20 @@ export function getWebGLMockStats(): WebGLMockStats {
   return stats;
 }
 
+// Call log: records a small set of GL method invocations (clear, useProgram,
+// the draw calls) for render-loop tripwire assertions. Deliberately narrow —
+// we do NOT record bufferData/uniform*/texImage2D args (large, no ground
+// truth, maintenance trap). Only draw calls carry a `count`.
+const calls: GLCall[] = [];
+
+export function getWebGLMockCalls(): GLCall[] {
+  return calls;
+}
+
+export function resetWebGLMockCalls(): void {
+  calls.length = 0;
+}
+
 export function resetWebGLMockStats(): void {
   stats.createdBuffers = 0;
   stats.deletedBuffers = 0;
@@ -52,10 +77,20 @@ export function resetWebGLMockStats(): void {
   stats.deletedPrograms = 0;
   stats.createdFramebuffers = 0;
   stats.deletedFramebuffers = 0;
+  // Keep the call log in sync with the resource stats so a single reset
+  // gives callers a clean slate for both.
+  calls.length = 0;
 }
 
 export function makeExtendedWebGLContext(canvas?: HTMLCanvasElement): any {
   const noOp = () => {};
+
+  // Record a tracked GL call into the module-level call log. Draw calls pass
+  // the vertex/index count so a regression can distinguish "no draw" from
+  // "drew 0 vertices".
+  const record = (name: string, count?: number): void => {
+    calls.push(count !== undefined ? { name, count } : { name });
+  };
 
   const params: Record<number, any> = {
     0x1f00: 'WebGL Mock Renderer (E2E)', // VENDOR
@@ -105,7 +140,7 @@ export function makeExtendedWebGLContext(canvas?: HTMLCanvasElement): any {
     compileShader: noOp,
     attachShader: noOp,
     linkProgram: noOp,
-    useProgram: noOp,
+    useProgram: () => record('useProgram'),
     getProgramParameter: () => true,
     getShaderParameter: () => true,
     getShaderInfoLog: () => '',
@@ -117,6 +152,15 @@ export function makeExtendedWebGLContext(canvas?: HTMLCanvasElement): any {
       if (program) stats.deletedPrograms++;
     },
     getAttribLocation: () => 0,
+    // Program introspection: three.js reads info.name during setProgram. Return
+    // safe single-value mock infos (type FLOAT) so the render path can progress
+    // to the draw call. These are still non-validating no-ops — the mock does
+    // not implement GL semantics, it just completes the method surface.
+    getActiveUniform: () => ({ name: 'u_mock', size: 1, type: 0x1406 }),
+    getActiveAttrib: () => ({ name: 'a_mock', size: 1, type: 0x1406 }),
+    getAttachedShaders: () => 0,
+    getShaderSource: () => '',
+    bindAttribLocation: noOp,
     getUniformLocation: (prog: any, name: string) => ({ __type: 'uniform', name }),
     enableVertexAttribArray: noOp,
     disableVertexAttribArray: noOp,
@@ -180,17 +224,25 @@ export function makeExtendedWebGLContext(canvas?: HTMLCanvasElement): any {
     colorMask: noOp,
     viewport: noOp,
     scissor: noOp,
-    clear: noOp,
+    clear: () => record('clear'),
     clearStencil: noOp,
     stencilFunc: noOp,
     stencilFuncSeparate: noOp,
     stencilOp: noOp,
     stencilOpSeparate: noOp,
     stencilMask: noOp,
-    drawArrays: noOp,
-    drawElements: noOp,
-    drawArraysInstanced: noOp,
-    drawElementsInstanced: noOp,
+    drawArrays: (_mode: number, _first: number, count: number) => record('drawArrays', count),
+    drawElements: (_mode: number, count: number, _type: number, _offset: number) =>
+      record('drawElements', count),
+    drawArraysInstanced: (_mode: number, _first: number, count: number, _instanceCount: number) =>
+      record('drawArraysInstanced', count),
+    drawElementsInstanced: (
+      _mode: number,
+      count: number,
+      _type: number,
+      _offset: number,
+      _instanceCount: number
+    ) => record('drawElementsInstanced', count),
     lineWidth: noOp,
     cullFace: noOp,
     frontFace: noOp,
@@ -201,6 +253,36 @@ export function makeExtendedWebGLContext(canvas?: HTMLCanvasElement): any {
     finish: noOp,
     flush: noOp,
     readPixels: noOp,
+
+    // WebGL2 surface: three.js 0.168 uses VAOs and other WebGL2 entry points
+    // during render. These are no-ops / safe returns (no semantics) present so
+    // the render path can complete to a draw call under the mock.
+    createVertexArray: () => ({ __type: 'vao' }),
+    deleteVertexArray: noOp,
+    bindVertexArray: noOp,
+    bindVertexArrayOES: noOp,
+    getBufferParameter: () => 0,
+    texStorage2D: noOp,
+    texStorage3D: noOp,
+    bindBufferBase: noOp,
+    bindBufferRange: noOp,
+    uniformBlockBinding: noOp,
+    getUniformIndices: () => [],
+    getActiveUniforms: () => [],
+    getUniformBlockIndex: () => 0,
+    getActiveUniformBlockName: () => '',
+    getActiveUniformBlockParameter: () => 0,
+    samplerParameteri: noOp,
+    samplerParameterf: noOp,
+    createSampler: () => ({ __type: 'sampler' }),
+    deleteSampler: noOp,
+    bindSampler: noOp,
+    readBuffer: noOp,
+    fenceSync: () => ({ __type: 'sync' }),
+    isSync: () => false,
+    deleteSync: noOp,
+    clientWaitSync: () => 0x911d /* ALREADY_SIGNALED */,
+    waitSync: noOp,
 
     uniformMatrix4fv: noOp,
     uniformMatrix3fv: noOp,
