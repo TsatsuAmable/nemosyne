@@ -4,34 +4,34 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · real-WebGL test coverage COMPLETE (both PRs merged:
-  #74 Track B jsdom tripwire, #76 Track A Playwright real-Chromium smoke). Next: WASM
-  command-buffer decision (audit B2).
-- **Active branch:** none (on main, post-#76 `2a06fde`).
-- **Working tree:** clean. Real-WebGL coverage landed in two PRs — #74: jsdom
-  render-loop GL introspection tripwire (`tests/e2e/harness/webgl_mock.ts` additive
-  call-log + completed WebGL2 surface; `f16_render_loop_gl_introspection.spec.ts` drives
-  `engine._tick()` → asserts programs/buffers/draw). #76: Playwright load smoke
-  (`tests/smoke/load.spec.ts` boots the built app in real headless Chromium via
-  SwiftShader WebGL2; asserts real GL context, VR button, per-frame telemetry,
-  no errors, only expected 404s; `playwright.config.ts`; informational/non-required
-  `playwright-smoke` CI job green on Linux; `vite.config.js` `NEMOSYNE_FORCE_HTTP`,
-  `vitest.config.js` excludes `tests/smoke`). Global `tests/setup.js` untouched.
+- **Last updated:** 2026-08-10 · real-WebGL coverage + global mock fix COMPLETE
+  (#74, #76, #78). Next: WASM command-buffer decision (audit B2) — the standing blocker.
+- **Active branch:** none (on main, post-#78 `96d34cd`).
+- **Working tree:** clean. Recent test-infra work: #74 jsdom render-loop GL
+  introspection tripwire (harness mock call-log + WebGL2 surface); #76 Playwright
+  real-Chromium load smoke (SwiftShader WebGL2, informational/non-required CI job,
+  green on Linux); #78 Option 3c — `tests/setup.js` global mock additive-only fix
+  (`canvas: this`→`globalThis` bug → real canvas pass-through; backfilled missing GL
+  constants + params three.js reads from `gl.<NAME>`/`getParameter(gl.MAX_*>)`;
+  `getExtension` stays `null` → capability branches off; new
+  `tests/webgl-mock-contract.test.js` locks the invariant). 1198 existing tests
+  unchanged across #78.
 - **Last gate:** `tsc --noEmit` 0 errors · `eslint` 0 errors (184 pre-existing test
-  warnings) · `vitest run` 1198 pass / 9 skip / 0 fail · `npm run test:smoke` 1 pass
-  (real Chromium) · `vite build` green — 2026-08-10.
+  warnings) · `vitest run` 1202 pass / 9 skip / 0 fail (1198 baseline + 4 mock-contract
+  guard tests) · `npm run test:smoke` 1 pass (real Chromium) · `vite build` green —
+  2026-08-10.
 - **Merge policy (live):** main ruleset `id=20623327` requires PR + required checks
   (`Rust unit tests (wasm/)` / `Node 20` / `Node 22` / `approval-gate`), no bypass.
   `approval-gate.yml` passes immediately for owner PRs (squash auto-merge on green);
   others need owner approval. New work lands via PR only. (`Playwright load smoke` is
   informational/non-required — NOT in the ruleset.)
-- **Recently merged:** #76 Playwright real-WebGL load smoke (Track A) · #74 render-loop
-  GL introspection tripwire (Track B) · #75 ROADMAP refresh. Real-WebGL test coverage
-  thread closed. Binary-parser length-field bounds thread closed (#70/#72).
-- **In progress / next:** decide on the dormant WASM command-buffer (audit B2) — the
-  standing blocker. Deferred: Option 3c — a standalone PR fixing only `tests/setup.js`
-  mock deficiencies (`canvas: this`→`null`, backfill missing GL constants) without
-  touching `getExtension`/`getContextAttributes`.
+- **Recently merged:** #78 global WebGL mock deficiencies fix (Option 3c) · #76
+  Playwright real-WebGL load smoke (Track A) · #74 render-loop GL introspection
+  tripwire (Track B). Real-WebGL test coverage thread closed. Binary-parser
+  length-field bounds thread closed (#70/#72).
+- **In progress / next:** decide on the dormant WASM command-buffer (audit B2) —
+  dormant/spec-drifted/untested; `COMMAND_BUFFER` must not be enabled before
+  `SCENE_RUST`. Decide: implement, defer, or descope.
 - **Blockers / open:** B2 (WASM command-buffer dormant/spec-drifted/untested) — decide
   before scaling further.
 - **Resume pointers:** test inventory → `TEST_READY.md`; this file's Current Status is
