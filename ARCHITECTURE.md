@@ -2,6 +2,8 @@
 
 This document provides a comprehensive technical reference for the **Nemosyne Spatial Data Analysis Suite**, detailing system architecture, component boundaries, class structures, public API contracts, data pipelines, and WebXR spatial ergonomics.
 
+> **TypeScript-first.** All source under `src/` is `.ts` (import maps + Vite; `tsc --noEmit` is a required CI gate). Only config and test-harness files (`vite.config.js`, `vitest.config.js`, `tests/setup.js`, `vite-wasm-pack-plugin.js`) and individual test files remain `.js`/`.mjs`. Migration status of the Rust/WASM compute layer is tracked in [ROADMAP.md](./ROADMAP.md) §Phase 21.
+
 ---
 
 ## 1. 🌐 System Overview & Architecture Pipeline
