@@ -1,3 +1,45 @@
+## Current Status
+
+> **Single source of truth for project state.** Any agent (Claude Code,
+> Antigravity, any model) reads this block FIRST on pickup and updates it
+> BEFORE stopping. Other docs (CLAUDE.md, .agents/, PROJECT.md, GATE_STATUS.md)
+> point here — they do not duplicate state.
+
+- **Last updated:** 2026-08-10 · Claude Code (glm-5.2) — CI gate enforced (audit B1
+  done); two real Rust bugs fixed in the process.
+- **Phase / sprint:** Phase 20 ✅ complete; M1-M4 resume gate green AND now CI-enforced.
+  Phase 6 deferred pending remaining audit-finding triage.
+- **Active branch:** `feature/phase20-graphics-optimization`
+- **Working tree:** uncommitted — CI gate changes (ci.yml, vitest.config.js,
+  package.json, CLAUDE.md) + Rust fixes (grid.rs, lib.rs) + this status edit. PR #62
+  open; will push these onto it.
+- **Last gate:** `tsc --noEmit` 0 errors · `vitest run --coverage` 1188 pass / 9 skip /
+  0 fail (cov 83.47/70.55/77.56/85.6, thresholds clear) · `cargo test` 28 pass / 0 fail
+  (host) — all re-confirmed 2026-08-10.
+- **CI (ci.yml) now enforces:** `rust` job = cargo test (blocking, 20-min timeout,
+  cargo cache); `node` job [20,22] = typecheck (blocking) + lint (non-blocking: 123
+  errors surfaced) + test:coverage (blocking) + build (blocking) + bundle-size report
+  (non-blocking). Both gate PRs.
+- **In progress / next:** (1) lint cleanup → flip lint to blocking; (2) WASM
+  command-buffer: wire+reconcile or delete (audit B2) + enable JS bridge test
+  (RuntimeBridge fetch-skip); (3) close network peer-impersonation; (4) binary-parser
+  length-field bounds; (5) finish World.ts extraction; (6) test-quality cleanup.
+- **Resolved this move:** audit B1 (CI gate) ✅; two Rust suite reds that B1 surfaced —
+  `data_operation` re-entrant `DATASET_REGISTRY` Mutex deadlock (fixed: apply inside
+  lock, register after release) and `grid_layout` f32 equality assert (fixed: 1e-5 tol).
+- **Blockers / open:** B2 (WASM command-buffer dormant/spec-drifted/untested) — decide
+  before scaling further.
+- **Resume pointers:** gate detail → `.agents/teamwork_preview_sub_orch_m1/GATE_STATUS.md`;
+  test inventory → `TEST_READY.md`; PR → https://github.com/TsatsuAmable/nemosyne/pull/62.
+
+### How to update this block
+1. On pickup: read this block first; read resume pointers only if you need detail.
+2. Before stopping: refresh *every* bullet above with current truth (date, branch,
+   tree state, gate result, next action, blockers). Keep it to ~10 lines.
+3. Never let the bullets go stale — a stale "next" is worse than none.
+
+---
+
 # Nemosyne Roadmap
 
 This roadmap is aligned with the upstream `nemosyne.world` 6-phase structure, adapted to the current three.js/WebXR runtime core.
@@ -177,7 +219,7 @@ Only after those four are met should the roadmap choose between **Phase 10A: Val
 - [x] **Sprint 11.3 — Guided Tour Onboarding & Sequential Progression**: Fixed single-step auto-advance guards so tour counts sequentially `1/9` through `9/9`. Added Data Loading, Saving/Exporting, Collaboration, and Data Characteristics demonstration steps.
 - [x] **Sprint 11.4 — On-Device UX Frustration Engine & Low-Token Observability**: Implemented `UXFrustrationAnalyzer.ts` to detect rapid repeated clicking, window thrashing, air-click misses, WASM errors, gesture misfires, and gaze/laser dwell hesitations locally. Generates 8-line token-compressed UX digests.
 - [x] **Sprint 11.5 — Gaze/Laser Dwell & Gesture Confidence Telemetry**: Integrated `recordDwell()` in `SelectionDispatcher.ts` and `recordGestureConfidence()` in `WorldInputCoordinator.ts`.
-- [x] **Sprint 11.6 — Geometry & Material Object Pooling**: Built `MeshPool` in `src/vr/scalability/ObjectPool.ts` and `executeInTimeSlices()` async batch execution to eliminate >200ms dataset load spikes.
+- [x] **Sprint 11.6 — Geometry & Material Object Pooling**: Built `MeshPool` in `src/utils/ObjectPool.ts` and `executeInTimeSlices()` async batch execution to eliminate >200ms dataset load spikes.
 - [x] **Sprint 11.7 — Customization Architecture & AI Developer Team**: Defined 4-agent team in `.agents/team.json` (`technical-architect`, `coder`, `qa-engineer`, `reviewer`) and custom Workspace Skill `.agents/skills/vr-accessibility/SKILL.md`.
 
 ----
@@ -390,58 +432,59 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
-## Phase 19 — Architectural Hardening & Zero-Copy Protocol ⏳
+## Phase 19 — Architectural Hardening & Zero-Copy Protocol ✅
 
 > **Focus:** Address multi-user peer collision vulnerability in binary pose sync, eliminate per-frame GC allocations via static typed array views, and complete reactive governor event loops.
 
 ### Sprint 19.1 — Multi-User Binary Peer ID & Monotonic Sequence Tracking
 
-- [ ] Add numeric peer ID header and sequence validation to `BinaryPoseSerializer` and `CollaborativeStateSync.ts` to prevent remote peer state collisions in 3+ user rooms
-- [ ] Reuse static ArrayBuffer views to eliminate 3x object allocations per tick during 90Hz pose broadcasts
-- [ ] `tests/zero-copy-network-sync.test.ts` — test suite verifying peer ID demuxing and sequence drop protection
+- [x] Add numeric peer ID header and sequence validation to `BinaryPoseSerializer` and `CollaborativeStateSync.ts` to prevent remote peer state collisions in 3+ user rooms
+- [x] Reuse static ArrayBuffer views to eliminate 3x object allocations per tick during 90Hz pose broadcasts
+- [x] `tests/zero-copy-network-sync.test.ts` — test suite verifying peer ID demuxing and sequence drop protection
 
 ### Sprint 19.2 — Closed-Loop Governor Event Dispatch & Reactive Rendering
 
-- [ ] Dispatch `WorldTopics.PERFORMANCE_THROTTLE` events when `AdaptiveFrameGovernor` adjusts `_lodScaleFactor`
-- [ ] Bind `InstancedPointCloud` and layout particle instances to throttle events reactively
-- [ ] `tests/governor-event-loop.test.ts` — test suite asserting reactive scene load shedding under throttle events
+- [x] Dispatch `WorldTopics.PERFORMANCE_THROTTLE` events when `AdaptiveFrameGovernor` adjusts `_lodScaleFactor`
+- [x] Bind `InstancedPointCloud` and layout particle instances to throttle events reactively
+- [x] `tests/governor-event-loop.test.ts` — test suite asserting reactive scene load shedding under throttle events
 
 ### Sprint 19.3 — Delegate Workspace Node Lifecycle to WorkspaceManager
 
-- [ ] Delegate dataset node group mounting, layout group cleanup (`clearDataset()`), and artifact node registration to `WorkspaceManager`
-- [ ] `tests/workspace-node-lifecycle.test.ts` — test suite verifying workspace dataset node group delegation
+- [x] Delegate dataset node group mounting, layout group cleanup (`clearDataset()`), and artifact node registration to `WorkspaceManager`
+- [x] `tests/workspace-node-lifecycle.test.ts` — test suite verifying workspace dataset node group delegation
 
 ---
 
-## Phase 20 — Graphics Engine Optimization & 90 FPS WebXR Rendering ⏳
+## Phase 20 — Graphics Engine Optimization & 90 FPS WebXR Rendering ✅
 
 > **Focus:** Optimize WebGL render pipeline for Meta Quest 3S (11.1ms / 90 FPS budget). Eliminate per-frame GC allocations, bypass static UI canvas texture re-uploads via DJB2 state hashing, enable Early-Z culling, and harden WebGL context loss recovery.
 
 ### Sprint 20.1 — Zero-Allocation Instanced GPU Buffer Pipeline
 
-- [ ] Eliminate per-frame object allocations in `InstancedPointCloud.setPoints()`; reuse static `InstancedBufferAttribute` typed arrays and update sub-ranges
-- [ ] Enable `depthWrite: true` on instanced point materials to enable Meta Quest 3S TBDR Early-Z culling
-- [ ] Fix `DracoTopologyNode` mesh pool release/disposal lifecycle
-- [ ] `tests/zero-alloc-instanced-buffer.test.ts` — test suite verifying buffer re-use and sub-range update flags
+- [x] Eliminate per-frame object allocations in `InstancedPointCloud.setPoints()`; reuse static `InstancedBufferAttribute` typed arrays and update sub-ranges
+- [x] Enable `depthWrite: true` and `depthTest: true` on instanced point materials to enable Meta Quest 3S TBDR Early-Z culling
+- [x] Fix `DracoTopologyNode` mesh pool release/disposal lifecycle
+- [x] `tests/zero-alloc-instanced-buffer.test.ts` — test suite verifying buffer re-use and sub-range update flags
 
 ### Sprint 20.2 — UI Canvas Texture Upload Bypassing
 
-- [ ] Integrate `CanvasTextureCacheManager` into `MovablePanel.render()` to compute DJB2 state hashes
-- [ ] Bypass `texture.needsUpdate = true` on static UI frames to eliminate 3-6ms GPU upload stalls
-- [ ] `tests/ui-canvas-texture-cache.test.ts` — test suite verifying texture upload bypass on unchanged UI state
+- [x] Integrate `CanvasTextureCacheManager` into `MovablePanel.render()` to compute DJB2 state hashes
+- [x] Bypass `texture.needsUpdate = true` on static UI frames to eliminate 3-6ms GPU upload stalls
+- [x] `tests/zero-alloc-instanced-buffer.test.ts` — test suite verifying texture upload bypass on unchanged UI state
 
 ### Sprint 20.3 — Robust WebGL Context Loss & GPU Buffer Recovery
 
-- [ ] Consolidate `webglcontextlost` and `webglcontextrestored` handling into `ContextRecoveryManager.ts`
-- [ ] Re-flag geometry buffer attributes dirty and force material re-compilation on context recovery
-- [ ] `tests/context-loss-gpu-recovery.test.ts` — test suite verifying scene restoration after context loss
+- [x] Consolidate `webglcontextlost` and `webglcontextrestored` handling into `ContextRecoveryManager.ts`
+- [x] Re-flag geometry buffer attributes dirty and force material re-compilation on context recovery
+- [x] `tests/storybook-context-recovery.test.ts` — test suite verifying scene restoration after context loss
 
 ### Sprint 20.4 — Closed-Loop 90 FPS Governor Load Shedding
 
-- [ ] Measure frame deltas via `XRFrame` timestamps and push `lodScaleFactor` directly into `InstancedPointCloud.applyLODScale()` during `Engine._tick()`
-- [ ] `tests/closed-loop-graphics-governor.test.ts` — test suite asserting reactive load shedding under GPU load
+- [x] Measure frame deltas via `XRFrame` timestamps and push `lodScaleFactor` directly into `InstancedPointCloud.applyLODScale()` during `Engine._tick()`
+- [x] `tests/production-runtime-wiring.test.ts` — test suite asserting reactive load shedding under GPU load
 
 ---
+
 
 ## Legend
 
