@@ -443,6 +443,36 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
+## Phase 20 — Graphics Engine Optimization & 90 FPS WebXR Rendering ⏳
+
+> **Focus:** Optimize WebGL render pipeline for Meta Quest 3S (11.1ms / 90 FPS budget). Eliminate per-frame GC allocations, bypass static UI canvas texture re-uploads via DJB2 state hashing, enable Early-Z culling, and harden WebGL context loss recovery.
+
+### Sprint 20.1 — Zero-Allocation Instanced GPU Buffer Pipeline
+
+- [ ] Eliminate per-frame object allocations in `InstancedPointCloud.setPoints()`; reuse static `InstancedBufferAttribute` typed arrays and update sub-ranges
+- [ ] Enable `depthWrite: true` on instanced point materials to enable Meta Quest 3S TBDR Early-Z culling
+- [ ] Fix `DracoTopologyNode` mesh pool release/disposal lifecycle
+- [ ] `tests/zero-alloc-instanced-buffer.test.ts` — test suite verifying buffer re-use and sub-range update flags
+
+### Sprint 20.2 — UI Canvas Texture Upload Bypassing
+
+- [ ] Integrate `CanvasTextureCacheManager` into `MovablePanel.render()` to compute DJB2 state hashes
+- [ ] Bypass `texture.needsUpdate = true` on static UI frames to eliminate 3-6ms GPU upload stalls
+- [ ] `tests/ui-canvas-texture-cache.test.ts` — test suite verifying texture upload bypass on unchanged UI state
+
+### Sprint 20.3 — Robust WebGL Context Loss & GPU Buffer Recovery
+
+- [ ] Consolidate `webglcontextlost` and `webglcontextrestored` handling into `ContextRecoveryManager.ts`
+- [ ] Re-flag geometry buffer attributes dirty and force material re-compilation on context recovery
+- [ ] `tests/context-loss-gpu-recovery.test.ts` — test suite verifying scene restoration after context loss
+
+### Sprint 20.4 — Closed-Loop 90 FPS Governor Load Shedding
+
+- [ ] Measure frame deltas via `XRFrame` timestamps and push `lodScaleFactor` directly into `InstancedPointCloud.applyLODScale()` during `Engine._tick()`
+- [ ] `tests/closed-loop-graphics-governor.test.ts` — test suite asserting reactive load shedding under GPU load
+
+---
+
 ## Legend
 
 - ✅ Complete
