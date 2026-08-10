@@ -5,7 +5,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.js'],
     globals: false,
-    exclude: ['node_modules', 'dist', 'docs/nemosyne-world', '.claude', 'wasm'],
+    exclude: ['node_modules', 'dist', '.claude', 'wasm'],
     pool: 'forks',
     maxWorkers: 2,
     minWorkers: 1,

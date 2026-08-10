@@ -197,7 +197,7 @@ The VR runtime layer manages WebGL rendering, WebXR session binding, camera anch
 
 ## 3. 🧪 Testing & Build Verification
 
-The project includes an extensive Vitest unit and integration test suite (116+ test files, 940+ tests):
+The project includes an extensive Vitest unit and integration test suite (174 test files, 1191 pass / 9 skip — see [TEST_READY.md](../TEST_READY.md) for the current breakdown):
 
 ```bash
 # Run all unit and integration tests

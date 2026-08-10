@@ -1,16 +1,16 @@
 # Nemosyne
 
-[![GitHub Pages](https://img.shields.io/badge/Live-nemosyne.world-brightgreen?logo=github)](https://nemosyne.world)
-[![Netlify](https://img.shields.io/badge/App-Netlify-00C7B7?logo=netlify)](https://nemosyne-analysis-suite.netlify.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub Pages](https://img.shields.io/badge/Site-nemosyne.world-brightgreen?logo=github)](https://nemosyne.world)
 
-**VR Spatial Data Analysis Suite**
+> **A personal, experimental WebXR project — not a maintained product or npm package.**
+> Nemosyne is a solo exploration of spatial data analysis in VR. Expect rough edges,
+> unfinished features, and breaking changes. Nothing here is published to npm or
+> supported for external use.
 
-A WebXR/three.js runtime that transforms multi-dimensional datasets into interactive 3D memory palaces. Built on the ideas of [nemosyne.world](https://nemosyne.world): the Method of Loci, spatial epistemology, and a taxonomy of data artefacts (Crystal, Column, Orb, Plinth, Beam, Trail, Ring, Field, Zone).
-
-**[Launch Nemosyne](https://nemosyne-analysis-suite.netlify.app/)** |
-**[Documentation](./docs/)** |
-**[GitHub](https://github.com/TsatsuAmable/nemosyne)**
+A WebXR / three.js runtime that maps multi-dimensional datasets into interactive 3D
+"memory palaces" using a Draco-style constraint recommender and an artefact taxonomy
+(Crystal, Column, Orb, Plinth, Beam, Trail, Ring, Field, Zone).
 
 ---
 
@@ -20,29 +20,16 @@ A WebXR/three.js runtime that transforms multi-dimensional datasets into interac
 - Uses a symbolic constraint recommender (Draco-style) to choose layout, geometry, behavior, and interaction based on data topology.
 - Renders the result as a memory-palace-style 3D VR world anchored to the analyst torso (`analystAnchor`).
 - Supports Meta Quest hand tracking and controllers, plus a desktop fallback with mouse/keyboard.
-- Provides free-floating persisted HUD panels, Dual Vertical Wheel Menus (`±0.36m`), and a curved analyst dashboard.
-- Features an On-Device UX Frustration Engine (`UXFrustrationAnalyzer.ts`), Gaze/Laser Dwell Time tracking, and low-token telemetry digests.
-- Utilizes Geometry & Material Object Pooling (`ObjectPool.ts`) and micro-task time slicing to eliminate dataset load frame spikes.
+- Provides free-floating persisted HUD panels, Dual Vertical Wheel Menus, and a curved analyst dashboard.
+- Includes an on-device UX frustration analyzer, gaze/laser dwell-time tracking, and low-token telemetry digests.
+- Uses geometry & material object pooling and micro-task time slicing to reduce dataset-load frame spikes.
 - Tracks every data operation on an undo/redo history stack with gesture and keyboard shortcuts.
 - Connects to live streaming datasets/APIs via WebSocket or REST polling adapters.
 - Saves/restores sessions via IndexedDB and exports screenshots + analysis stories as JSON.
-- Includes a 4-agent AI Developer Team configuration ([`.agents/team.json`](file:///C:/Users/stromae/Documents/Code/nemosyne.world/.agents/team.json)) and custom Workspace Skill ([`.agents/skills/vr-accessibility/SKILL.md`](file:///C:/Users/stromae/Documents/Code/nemosyne.world/.agents/skills/vr-accessibility/SKILL.md)).
-
-**Project status:** this repo is the merged canonical runtime. The original nemosyne-analysis-suite has been adopted as the three.js/WebXR implementation, replacing the earlier A-Frame component framework.
 
 ---
 
 ## Quick start
-
-### Live app
-
-The fastest way to try Nemosyne is the Netlify deployment:
-
-**https://nemosyne-analysis-suite.netlify.app/**
-
-Open it in a WebXR-capable browser such as Meta Quest Browser. A VR headset is recommended; a desktop fallback is also available.
-
-### Run locally
 
 ```bash
 # Clone the repository
@@ -54,7 +41,7 @@ npm install
 
 # Generate HTTPS certificates (required for WebXR on a local network)
 mkdir certs
-openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -subj /CN=localhost -nodes
+openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -subj "/CN=localhost" -nodes
 
 # Start the dev server
 npm run dev
@@ -65,10 +52,12 @@ Then open `https://YOUR-IP:5173` in Meta Quest Browser, or use ADB port forwardi
 ### Build and test
 
 ```bash
-npm run build      # Production bundle -> dist/
-npm test           # 940+ Vitest tests
+npm run build        # Production bundle -> dist/
+npm test             # Vitest suite (1191 pass / 9 skip; see TEST_READY.md)
 npm run test:coverage
 ```
+
+See [TEST_READY.md](./TEST_READY.md) for the current test-count breakdown.
 
 ---
 
@@ -77,64 +66,57 @@ npm run test:coverage
 ```
 nemosyne/
 ├── index.html              # App entry point
-├── package.json            # nemosyne@1.0.0-alpha.1
-├── vite.config.js          # Vite 8 + HTTPS dev server
+├── package.json
+├── vite.config.js          # Vite + HTTPS dev server + signalling plugin
 ├── vitest.config.js        # Test config
 ├── src/
 │   ├── main.js             # Bootstraps World
-│   ├── vr/                 # Engine, World, UI, interactions, locomotion, input
-│   ├── draco/              # Constraint engine, topology translator, layout generators
+│   ├── ai/                 # (planned) on-device model integration
+│   ├── analytics/          # TDA mapper
 │   ├── data/               # Dataset, operations, connectors, session store
+│   ├── draco/              # Constraint engine, topology translator, layout generators
 │   ├── network/            # WebRTC/WebSocket collaboration
-│   └── utils/              # Telemetry, performance budget, accessibility, download helpers
-├── tests/                  # 675+ Vitest tests
+│   ├── ui/                 # 2D DOM file loader
+│   ├── utils/              # Telemetry, performance budget, accessibility, download helpers
+│   ├── vr/                 # Engine, World, UI panels, interactions, locomotion, input
+│   │   ├── artifacts/      # Scene landmarks and data artefacts
+│   │   ├── audio/          # Selection feedback tones
+│   │   ├── interactions/   # Data operations and metaphor actions
+│   │   └── scalability/     # Instanced point cloud, spatial index, LOD, object pool
+│   └── wasm/               # Rust/WASM runtime bridge (gradual migration)
+├── wasm/                   # Rust crate (data, draco, ECS — compiled via wasm-pack)
+├── tests/                  # Vitest + E2E suite
 ├── docs/                   # Project docs + GitHub Pages website
-│   ├── index.html          # Marketing landing page (GitHub Pages)
-│   ├── css/                # Site styles
-│   ├── wiki/               # Wiki pages
-│   ├── ROADMAP.md          # Current phase roadmap
-│   ├── GETTING_STARTED.md  # Developer getting started
-│   └── DESIGN_SYSTEM.md    # Visual language tokens
-├── artefacts/              # Declarative artefact specification
-└── research/               # Concept notes (Crystal architecture, data topologies)
+└── artefacts/              # Declarative artefact specification
 ```
 
 ---
 
 ## Documentation
 
-- [Design System](./docs/DESIGN_SYSTEM.md)
 - [Getting Started](./docs/GETTING_STARTED.md)
-- [Roadmap](./docs/ROADMAP.md)
 - [Architecture](./docs/ARCHITECTURE.md)
-- [Contributing](./docs/CONTRIBUTING.md)
+- [Features](./FEATURES.md)
+- [Artefacts](./docs/ARTEFACTS.md)
+- [Roadmap](./docs/ROADMAP.md)
+- [Design System](./docs/DESIGN_SYSTEM.md)
+- [Test Readiness](./TEST_READY.md)
 
 ---
 
 ## Deployment
 
 - **Website:** GitHub Pages serves `docs/index.html` at https://nemosyne.world.
-- **Live app:** Netlify builds and serves the three.js/WebXR app from the `dist/` directory.
-- **npm:** the package is published as `nemosyne`.
-
-Configure the Netlify site with:
-- Build command: `npm run build`
-- Publish directory: `dist`
+- **Live app:** Netlify builds and serves the three.js/WebXR app from `dist/` (private demo deployment).
 
 ---
 
-## Migration note
+## Background
 
-The earlier A-Frame/D3 component framework (`framework/`, `<nemosyne-artefact-v2>`, CDN builds) has been retired. The three.js/WebXR runtime from the original nemosyne-analysis-suite is now the canonical implementation. The declarative artefact specification, design tokens, and research concepts from the A-Frame era have been preserved and aligned with the new runtime where applicable.
+The earlier A-Frame/D3 component framework has been retired. The current three.js/WebXR runtime is the canonical implementation; the declarative artefact specification, design tokens, and research concepts from the A-Frame era were carried forward and aligned where applicable.
 
 ---
 
 ## License
 
-MIT © Nemosyne Project
-
----
-
-**[Star on GitHub](https://github.com/TsatsuAmable/nemosyne)** |
-**[Report Issues](https://github.com/TsatsuAmable/nemosyne/issues)** |
-**[Discussions](https://github.com/TsatsuAmable/nemosyne/discussions)**
+MIT © Tsatsu Amable

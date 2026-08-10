@@ -17,7 +17,7 @@ This guide walks you through running the Nemosyne Spatial Data Analysis Suite on
 
 ```bash
 git clone https://github.com/TsatsuAmable/nemosyne.git
-cd nemosyne-analysis-suite
+cd nemosyne
 npm install
 ```
 

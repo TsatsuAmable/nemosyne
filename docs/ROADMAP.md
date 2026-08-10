@@ -1,41 +1,32 @@
 ## Current Status
 
-> **Single source of truth for project state.** Any agent (Claude Code,
-> Antigravity, any model) reads this block FIRST on pickup and updates it
-> BEFORE stopping. Other docs (CLAUDE.md, .agents/, PROJECT.md, GATE_STATUS.md)
-> point here — they do not duplicate state.
+> **Single source of truth for project state.** Read this block FIRST on pickup and
+> update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
+> not duplicate state.
 
-- **Last updated:** 2026-08-10 · Claude Code (glm-5.2) — merge policy LIVE + verified:
-  direct push to main rejected by ruleset (tested); `approval-gate` required check on;
-  `allow_auto_merge` on.
-- **Phase / sprint:** Phase 20 ✅ complete; M1-M4 resume gate green AND CI-enforced.
-  Phase 6 deferred pending remaining audit-finding triage.
-- **Active branch:** `docs/roadmap-policy-live` (this status refresh). main = `ed40632`.
-- **Working tree:** uncommitted on this branch — this status edit only (now must go
-  via PR; direct push to main is blocked by the ruleset).
-- **Last gate:** `tsc --noEmit` 0 errors · `vitest run --coverage` 1188 pass / 9 skip /
-  0 fail (cov 83.47/70.55/77.56/85.6) · `cargo test` 28 pass / 0 fail (host) — 2026-08-10.
-- **Merge policy (live):** main ruleset `id=20623327` — require PR + required checks
-  `Rust unit tests (wasm/)` / `Node 20` / `Node 22` / `approval-gate`, no bypass (blocks
-  direct push to main for everyone incl. admin, verified). `approval-gate.yml` passes
-  immediately for owner-authored PRs (→ enable squash auto-merge on green); fails for
-  everyone else until the owner APPROVES the current head (→ then auto-merge on green).
-  `allow_auto_merge` enabled. New work must land via PR.
-- **In progress / next:** (1) lint cleanup → flip lint to blocking; (2) WASM
-  command-buffer: wire+reconcile or delete (audit B2) + enable JS bridge test
-  (RuntimeBridge fetch-skip); (3) close network peer-impersonation; (4) binary-parser
-  length-field bounds; (5) finish World.ts extraction; (6) test-quality cleanup.
-- **Resolved this move:** audit B1 (CI gate) ✅ + merge policy (no direct push to main,
-  owner auto-merge on green, others need owner approval); two Rust suite reds that B1
-  surfaced — `data_operation` re-entrant `DATASET_REGISTRY` Mutex deadlock (fixed:
-  apply inside lock, register after release) and `grid_layout` f32 equality assert
-  (fixed: 1e-5 tol).
+- **Last updated:** 2026-08-10 · docs cleanup pass (Track 4 of the critique-driven
+  hardening: packaging, blocking lint, signalling auth, doc cleanup).
+- **Active branch:** `docs/private-effort-cleanup`. This branch rebases onto main before
+  its PR to pick up the squash-merged #65/#66/#67.
+- **Working tree:** uncommitted — Track 4 documentation cleanup only.
+- **Last gate:** `tsc --noEmit` 0 errors · `vitest run --coverage` 1191 pass / 9 skip /
+  0 fail · `cargo test` 28 pass / 0 fail (host) — 2026-08-10.
+- **Merge policy (live):** main ruleset `id=20623327` requires PR + required checks
+  (`Rust unit tests (wasm/)` / `Node 20` / `Node 22` / `approval-gate`), no bypass.
+  `approval-gate.yml` passes immediately for owner PRs (squash auto-merge on green);
+  others need owner approval. New work lands via PR only.
+- **Recently merged:** #65 packaging (runtime deps) · #66 lint-blocking (clear src
+  `any`, CI lint required) · #67 signalling-auth (token-gated joins, duplicate-peerId
+  rejection).
+- **In progress / next:** Track 4 (this docs PR) — rebased onto #67, ready to merge.
+  Next: (1) wire the 5 typed coordinators into `World.ts` to finish the World.ts
+  extraction; (2) real-WebGL test coverage (Playwright load smoke + GL introspection in
+  the mock); (3) decide on the dormant WASM command-buffer (audit B2); (4) binary-parser
+  length-field bounds.
 - **Blockers / open:** B2 (WASM command-buffer dormant/spec-drifted/untested) — decide
   before scaling further.
-- **Resume pointers:** PR #62 (CI gate) + PR #63 (approval-gate) merged to main
-  (`ed40632`); merge-policy ruleset `id=20623327` active;
-  gate detail → `.agents/teamwork_preview_sub_orch_m1/GATE_STATUS.md`;
-  test inventory → `TEST_READY.md`.
+- **Resume pointers:** test inventory → `TEST_READY.md`; this file's Current Status is
+  the source of truth.
 
 ### How to update this block
 1. On pickup: read this block first; read resume pointers only if you need detail.
@@ -47,7 +38,7 @@
 
 # Nemosyne Roadmap
 
-This roadmap is aligned with the upstream `nemosyne.world` 6-phase structure, adapted to the current three.js/WebXR runtime core.
+This roadmap follows a phased structure adapted to the current three.js/WebXR runtime core.
 
 ---
 
@@ -80,7 +71,7 @@ This roadmap is aligned with the upstream `nemosyne.world` 6-phase structure, ad
 
 ## Phase 4 — Examples & Documentation 🔄
 
-- [x] `README.md`, `ARCHITECTURE_BRIDGE.md`, `docs/IDEOLOGY.md`, `docs/ARTEFACTS.md`, `docs/INTERACTIONS.md`, `docs/ARCHITECTURE.md`, `docs/GETTING_STARTED.md`.
+- [x] `README.md`, `docs/IDEOLOGY.md`, `docs/ARTEFACTS.md`, `docs/INTERACTIONS.md`, `docs/ARCHITECTURE.md`, `docs/GETTING_STARTED.md`.
 - [x] Complete `docs/ROADMAP.md` and keep it current.
 - [x] Expand built-in sample datasets (financial, geospatial, process-flow).
 - [ ] Add tutorial screencasts or screenshots.
@@ -99,9 +90,8 @@ This roadmap is aligned with the upstream `nemosyne.world` 6-phase structure, ad
 - [x] GitHub Actions CI workflow (`.github/workflows/ci.yml`).
 - [x] Desktop fallback with mouse/keyboard (`DesktopControls`).
 - [x] Efficient data transmission hooks (Apache Arrow IPC, FlatBuffers, MessagePack serializers + `WebSocketAdapter.binaryParser`).
-- [ ] Optional multi-user collaborative memory palaces.
-- [ ] Neural predictive layer for soft-constraint weight recommendation.
-- [ ] Convergence with upstream A-Frame component framework where feasible.
+- [x] Multi-user collaborative memory palaces (see Phase 10B).
+- [x] Neural predictive layer for soft-constraint weight recommendation (see Phase 11).
 
 ## Phase 7 — VR Comfort, Scalability & Interaction Metaphors ✅
 
@@ -138,16 +128,16 @@ This roadmap is aligned with the upstream `nemosyne.world` 6-phase structure, ad
 
 ## Evaluation Checkpoint — End of Phase 9
 
-*Status as of 2026-07-28. Written from a technical product lead / principal architect perspective after completing Phase 9 and running the full test suite (674 tests passing, 68 test files).*
+*Status as of 2026-07-28, written after completing Phase 9. Test counts have grown since; see TEST_READY.md for the current number.*
 
 ### Goal delivery
 
-The project’s core thesis — multi-dimensional datasets become interactive 3D memory palaces — is now **demonstrated end-to-end**. The constraint-driven Draco pipeline, artefact taxonomy, multi-modal input model, statistical aids, live connectors, and atmosphere layer all work together in a single WebXR/three.js runtime. Estimation: **~75 % of the foundational vision is shipped and tested**.
+The project’s core thesis — multi-dimensional datasets become interactive 3D memory palaces — is **demonstrated end-to-end**. The constraint-driven Draco pipeline, artefact taxonomy, multi-modal input model, statistical aids, live connectors, and atmosphere layer all work together in a single WebXR/three.js runtime. Most of the foundational vision is implemented and tested, with rough edges and unfinished features remaining — this is a personal, experimental project, not a finished product.
 
 ### Strengths
 
 - **Architecture:** Clean separation between Engine, World, artifacts, UI, interactions, and data layers.
-- **Test discipline:** 675+ Vitest tests make refactoring safe for a WebXR codebase.
+- **Test discipline:** A growing Vitest suite (1191 pass / 9 skip — see TEST_READY.md) makes refactoring safe for a WebXR codebase.
 - **Constraint-driven synthesis:** `DracoTopologyNode` + `ConstraintEngine` turn data facts into layout/interaction/geometry specs rather than hard-coding one chart per dataset.
 - **Unified input:** `HandGestureRecognizer`, `InputRouter`, `HandPointer`, `ControllerPointer`, `DesktopControls` share one model across VR and desktop.
 - **Atmosphere as signal:** Theme presets tied to dataset mood make the environment itself convey information.
@@ -163,16 +153,9 @@ The project’s core thesis — multi-dimensional datasets become interactive 3D
 6. **Graceful degradation.** GPU context loss, tracking loss mid-gesture, malformed CSVs, and network stalls need explicit recovery paths.
 7. **Evidence of value.** No user studies, task benchmarks, or telemetry to prove spatial analysis improves insight speed/accuracy over 2D tools.
 
-### Comparison with similar efforts
+### How it differs from related work
 
-| Comparable | Nemosyne advantage | Nemosyne gap |
-|---|---|---|
-| Virtualitics | Open architecture; stronger game/diegetic UX; artefact taxonomy | Enterprise polish, validated studies, connector library, SSO |
-| Tableau/Power BI | Embodied interaction and spatial memory-palace metaphor | Chart grammar, broad sharing/export, ecosystem |
-| A-Frame/three.js viz demos | Real analysis operations, undo/redo, live data, tests | Usually one-off scenes without an operation model |
-| Observable / D3 / Plotly | Immersion and embodied gestures | Statistical modeling breadth, notebook provenance, shareability |
-
-Positioning: Nemosyne is best understood as an **open, web-native, metaphor-first augmentation layer** for analysts who already use notebooks or BI tools, not as a direct replacement for them today.
+Nemosyne is a personal exploration of metaphor-first, embodied spatial analysis, not a competitor to shipping products. Compared with notebook/BI tools (Tableau, Power BI, Observable) it trades chart grammar, broad connectors, and provenance for immersion and the memory-palace metaphor; compared with one-off three.js/A-Frame viz demos it adds real analysis operations, undo/redo, live data, and tests; compared with enterprise VR analytics (e.g. Virtualitics) it lacks validated studies, connector breadth, and SSO. It is best understood as an experiment, not a replacement for any of these.
 
 ### Recommended decision gate before Phase 10
 
@@ -211,7 +194,6 @@ Only after those four are met should the roadmap choose between **Phase 10A: Val
 ### Deferred longer-term work
 
 - [x] Neural predictive layer for soft-constraint weight recommendation (`NeuralConstraintPredictor.ts`).
-- [ ] Convergence with upstream A-Frame component framework where feasible.
 - [ ] Direct SQL / data-warehouse connectors.
 - [ ] Scientific user studies comparing spatial vs. 2D analysis workflows.
 
