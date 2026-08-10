@@ -94,6 +94,7 @@ export function flatBufferToDataset(
 ): Dataset {
   const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const end = bytes.byteLength;
 
   if (bytes.length < 10) return new Dataset(name, [], []);
   if (view.getUint8(0) !== 0x4e || view.getUint8(1) !== 0x45 || view.getUint8(2) !== 0x4d) {
@@ -104,15 +105,32 @@ export function flatBufferToDataset(
   const rowCount = view.getUint32(6, true);
   let offset = 10;
 
+  // Length-field bounds: the header's columnCount/rowCount and every per-column
+  // nameLength / per-cell string len are untrusted. Without these checks a
+  // malformed payload makes DataView throw an opaque RangeError once the running
+  // offset runs past the buffer, or — via subarray clamping — silently produce
+  // truncated garbage. validate each length-bearing read against the buffer end
+  // and fail deliberately and descriptively, mirroring the magic-byte contract.
+  const ensure = (need: number, what: string): void => {
+    if (offset + need > end) {
+      throw new Error(
+        `FlatBuffer: truncated at ${what} — need ${need} bytes at offset ${offset}, ` +
+          `only ${Math.max(0, end - offset)} remain (${end} bytes total)`
+      );
+    }
+  };
+
   const ID_TO_TYPE: ReverseTypeMap = Object.fromEntries(
     Object.entries(TYPE_IDS).map(([k, v]) => [v, k as ColumnTypeValue])
   ) as ReverseTypeMap;
 
   const columns: ColumnSchema[] = [];
   for (let i = 0; i < columnCount; i++) {
+    ensure(3, `column ${i} header`);
     const typeId = view.getUint8(offset++);
     const nameLength = view.getUint16(offset, true);
     offset += 2;
+    ensure(nameLength, `column ${i} name (${nameLength} bytes)`);
     const nameBytes = bytes.subarray(offset, offset + nameLength);
     offset += nameLength;
     columns.push({
@@ -125,15 +143,19 @@ export function flatBufferToDataset(
   for (let r = 0; r < rowCount; r++) {
     const row: Record<string, unknown> = {};
     for (const col of columns) {
+      ensure(1, `row ${r} column "${col.name}" kind`);
       const kind = view.getUint8(offset++);
       if (kind === 0) {
         row[col.name] = null;
       } else if (kind === 1) {
+        ensure(8, `row ${r} column "${col.name}" float64`);
         row[col.name] = view.getFloat64(offset, true);
         offset += 8;
       } else if (kind === 2) {
+        ensure(4, `row ${r} column "${col.name}" string length`);
         const len = view.getUint32(offset, true);
         offset += 4;
+        ensure(len, `row ${r} column "${col.name}" string (${len} bytes)`);
         row[col.name] = TEXT_DECODER.decode(bytes.subarray(offset, offset + len));
         offset += len;
       } else {
