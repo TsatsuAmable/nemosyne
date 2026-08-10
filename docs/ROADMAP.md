@@ -4,15 +4,17 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · #84 merged — Node CI matrix reduced to a single Node 24
-  (active LTS) leg, Netlify pinned to Node 24, and a latent lockfile bug fixed (the
-  Windows-generated `package-lock.json` was missing the linux optional-binary variants of
-  `lightningcss`/`@rolldown/binding`; npm ≤10 tolerated it, npm 11/Node 24 made `npm ci`
-  fail on ubuntu — regenerated cross-platform on an ubuntu runner, +461 additive lines, no
-  version changes). Branch-protection required-checks updated `Node 20`/`Node 22` → `Node 24`.
-  TS migration (plan track 1) is complete on main (`src/vr/artifacts|ui|audio` all `.ts`).
-  Next: user runs the load-test staircase on Quest → read `logs/loadtest-results.jsonl` →
-  deliver the implement/descope verdict for B2.
+- **Last updated:** 2026-08-10 · distillation PR — `docs/ROADMAP.md` made the single
+  canonical reference for work done / work planned: added **Phase 21 — Rust/WASM
+  Migration** (7 sprints distilling `.claude/plan.md`'s WASM Phases 0–6: 21.1/21.2 ✅,
+  21.3 ⏳ deferred-B2, 21.4 🔄 partial, 21.5/21.6 🔲 not started, 21.7 ⏳ pending), a
+  "Completed work-streams" note (TS migration + docs-site refactor ✅), and a
+  "Planned but not actioned" audit section (deferred-by-design / blocked-on-B2 /
+  aspirational gaps). `.claude/plan.md` repositioned as working memory (technical
+  standards only). Small items actioned: `CLAUDE.md`/`ARCHITECTURE.md` → TypeScript-first
+  (`.js`→`.ts` source refs), 7 stale `.js` re-export stubs deleted + the one `Room.js`
+  test import fixed. Next: user runs the load-test staircase (Quest or desktop
+  `KeyT`/`Shift+T`) → `logs/loadtest-results.jsonl` → implement/descope verdict for B2.
 - **Active branch:** `main` (clean, synced; #81–#84 merged). Note: `feature/phase20-graphics-optimization`
   is a stale, superseded branch (older `World.ts`, lacks #77–#84) — not unmerged work.
 - **Working tree:** clean. Recent merges — #84 Node 24 single-leg CI + cross-platform
@@ -55,10 +57,13 @@
   as a Rust test).
 - **Blockers / open:** B2 (WASM command-buffer) — deferred pending real-headset
   load-test data from the PR #80 harness. Honesty hardening (#81) + f15 isolation (#82)
-  now DONE (precondition met).
-- **Resume pointers:** test inventory → `TEST_READY.md`; honesty-hardening plan →
-  `~/.claude/plans/iterative-moseying-snowflake.md`; this file's Current Status is
-  the source of truth.
+  now DONE (precondition met). **The harness has not yet been run** —
+  `logs/loadtest-results.jsonl` does not exist (`logs/` holds only `vr-remote-console.log`);
+  the staircase can be exercised on desktop (`KeyT`/`Shift+T`) but GPU/latency fidelity
+  needs a Quest.
+- **Resume pointers:** test inventory → `TEST_READY.md`; WASM migration technical
+  standards + working notes → `.claude/plan.md` (status tracked here in §Phase 21);
+  this file's Current Status is the source of truth.
 
 ### How to update this block
 1. On pickup: read this block first; read resume pointers only if you need detail.
@@ -71,6 +76,17 @@
 # Nemosyne Roadmap
 
 This roadmap follows a phased structure adapted to the current three.js/WebXR runtime core.
+
+### Completed work-streams
+
+Cross-cutting work-streams that are **done** and recorded here (not in
+`.claude/plan.md`) as the single reference:
+
+- **TypeScript migration** ✅ — the entire JS source tree was converted to `.ts`
+  (import maps + Vite; `tsc --noEmit` is a required CI gate). The 7 stale `.js`
+  re-export stubs left behind were removed in the distillation PR.
+- **Docs-site refactor** ✅ — `docs/index.html`, examples, dataset mapping, and
+  use-case blurbs.
 
 ---
 
@@ -504,11 +520,89 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
+## Phase 21 — Rust/WASM Migration 🔄
+
+> **Focus:** Migrate compute-sensitive subsystems from TypeScript into a Rust crate
+> compiled to WebAssembly, keeping three.js as the WebGL/WebXR renderer. The full
+> technical standards (ABI surface, memory model, command-buffer wire format,
+> capability flags, instancing thresholds, bundle/profiling budgets) live in
+> `.claude/plan.md` (working memory). **This phase is the single canonical record of
+> migration status**; the per-sprint checkboxes there are not authoritative. The
+> crate advertises exactly `CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST`
+> (Phase-1 set); the `COMMAND_BUFFER requires SCENE_RUST` ordering invariant is
+> encoded as a Rust test (#81).
+
+### Sprint 21.1 — Tooling & foundation ✅
+
+- [x] Rust toolchain (`wasm32-unknown-unknown` + `wasm-pack`), `wasm/Cargo.toml`, `vite-wasm-pack-plugin`
+- [x] `lib.rs` health-check; `src/wasm/RuntimeBridge.ts` (load/init/`alloc`/`read_bytes`); `npm run wasm`
+
+### Sprint 21.2 — Data layer in Rust ✅
+
+- [x] Port `Dataset`/`ColumnType`/`Encodings`, CSV/JSON parsers, `DatasetOperations`, sample datasets, topology inference to `wasm/src/`
+- [x] Wire behind `CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST` (`World.ts`, `FileLoader.ts`, `DataOperationController.ts`) with JS fallbacks; 30 Rust unit tests
+
+### Sprint 21.3 — Scene graph & command buffers ⏳
+
+- [ ] Implement Rust ECS (`Entity`/`Transform`/`LocalToWorld`/`MeshRef`/`MaterialRef`) + `CommandEncoder`
+- [ ] JS `CommandApplier` consuming the packed stream; `DatumPlane`/`TechnoCoreNode`/`FarcasterPortal` + simple artefacts via Rust commands
+- ⏳ **Deferred behind the B2 load-test gate** — no measured regression; the JS scalability layer already implements the spec instancing tiers. `CommandApplier`/opcode definitions exist but are dormant; `command_buffer_ptr` returns the `0` "not-implemented" sentinel (#81). Revisit after the user runs the load-test staircase (Quest or desktop `KeyT`/`Shift+T`) → `logs/loadtest-results.jsonl`.
+
+### Sprint 21.4 — Draco layout engine in Rust 🔄
+
+- [ ] Port `ConstraintEngine` facts/constraints; `VRTopologyTranslator` command-gen; `DracoTopologyNode` lifecycle; TDA export
+- 🔄 **Partial** — `layout_grid_3d` / `layout_force_directed_3d` / radial-tree are in Rust and unit-tested; the Rust constraint solver, `VRTopologyTranslator` command-gen, and TDA export are **not** migrated. The `CAP_DRACO_RUST` bit stays reserved until the full subsystem is ported.
+
+### Sprint 21.5 — Input & interaction state machine 🔲
+
+- [ ] Port `HandGestureRecognizer`, `ControllerGestureMapper`, `InputRouter` intent dispatch, `DataOperations` interaction transforms, `AnalysisHistory` undo/redo to Rust (JS keeps WebXR pose polling + haptics/audio)
+
+### Sprint 21.6 — Networking & live streams 🔲
+
+- [ ] Move WebSocket state machine / message normalization, binary-payload parsing (MessagePack/Arrow IPC/FlatBuffers), and room/signalling state to Rust (JS keeps the actual WebSocket / `RTCDataChannel` objects)
+
+### Sprint 21.7 — Polish, performance, test parity ⏳
+
+- [ ] Port remaining utilities (`SeededRandom`, `PerformanceBudget`, `Telemetry`, `SessionStore`); profile Quest frame time; full integration-test parity; bundle-size budget (≤ 2.5 MB gzipped target)
+- ⏳ **Pending** Sprints 21.3–21.6.
+
+---
+
+## Planned but not actioned (audit 2026-08-10)
+
+> Consolidated from a full audit of all plan docs + this roadmap against the
+> codebase. These items are **recorded here as remaining work**; none are built.
+
+### Deferred by design (consciously punted)
+
+- Excel / Parquet importers (future plugin importers)
+- Direct SQL / data-warehouse connectors
+- Scientific user study vs 2D baseline
+- Tutorial screencasts / screenshots
+- Multi-user voice chat (voice-optional by intent)
+- IWSDK hand/input helper spike (deferral gate met; spike not run)
+
+### Blocked on the B2 load-test (real Quest data)
+
+- WASM Sprints 21.3–21.7 (command-buffer decision deferred pending measurements)
+- Quest GPU-memory + hand-tracking-latency probes — the PR #80 harness measures frame
+  time (p50/p95/p99), dropped rate, JS heap, and `renderer.info` counts; GPU bytes and
+  hand latency require a real headset. The harness is built + unit-tested but has **not
+  yet been run** (`logs/loadtest-results.jsonl` does not exist).
+
+### Aspirational gaps (never scoped into a phase)
+
+- Shared links / shareable session URLs
+- Connector API authentication
+
+---
+
 
 ## Legend
 
 - ✅ Complete
 - 🔄 In progress
 - ⏳ Deferred to future phase
+- 🔲 Not started
 
 

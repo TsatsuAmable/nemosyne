@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Dataset } from '../../../src/data/Dataset.js';
 import { CSVDataParser } from '../../../src/data/CSVDataParser.js';
-import { Room } from '../../../src/network/Room.js';
+import { Room } from '../../../src/network/Room.ts';
 import { generatePollutedCSV, generatePollutedJSON } from '../harness/dataset_fixtures.js';
 
 describe('Feature 11: Prototype Pollution Hardening', () => {
