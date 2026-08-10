@@ -32,9 +32,15 @@ maybeDescribe('RuntimeBridge integration', () => {
   it('initialises the runtime and reports Phase 1 capabilities', () => {
     expect(bridge.isReady()).toBe(true);
     const caps = bridge.capabilities();
+    // Phase-1 implemented subsystems are advertised.
     expect(caps & (1 << 0)).not.toBe(0); // DATASET_RUST
     expect(caps & (1 << 1)).not.toBe(0); // PARSER_RUST
     expect(caps & (1 << 2)).not.toBe(0); // OPERATIONS_RUST
+    // Honesty lock (mirrors the Rust test): reserved / unimplemented bits are
+    // NOT advertised. Spec bitfield: DRACO=1<<3, SCENE=1<<4, COMMAND_BUFFER=1<<7.
+    expect(caps & (1 << 3)).toBe(0); // DRACO_RUST (layouts only; not the full subsystem)
+    expect(caps & (1 << 4)).toBe(0); // SCENE_RUST (scene graph still JS)
+    expect(caps & (1 << 7)).toBe(0); // COMMAND_BUFFER (dormant stub)
   });
 
   it('loads a built-in sample dataset from Rust', () => {

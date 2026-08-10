@@ -252,10 +252,19 @@ pub fn fill_pattern(ptr: u32, len: u32) -> u32 {
     len
 }
 
-/// Return the current command-buffer pointer offset in shared WASM memory.
+/// Return the command-buffer pointer offset in shared WASM linear memory.
+///
+/// **Dormant:** the command buffer is not implemented — `update()` only resets
+/// the buffer to its header and nothing encodes commands. Returns `0` as the
+/// "not implemented" sentinel; the JS host (`RuntimeBridge.getCommandBufferBytes`)
+/// treats `ptr === 0` as an empty buffer. The previous implementation returned a
+/// `Vec` heap pointer, which is NOT a linear-memory offset — the JS host would
+/// have interpreted it as one and read garbage/OOB. Copying the buffer into the
+/// linear-memory arena belongs in the implement phase; this sentinel is the
+/// honest minimal fix.
 #[wasm_bindgen]
 pub fn command_buffer_ptr() -> u32 {
-    command_buffer::with_global_buffer(|cb| cb.bytes().as_ptr() as u32)
+    0
 }
 
 /// Phase 1 per-frame tick. Encodes scene transform and lifecycle commands into
@@ -269,20 +278,41 @@ pub fn update(_delta_ms: f32, _time_ms: f32) -> u32 {
 }
 
 // ---------------------------------------------------------------------------
-// Capability flags
+// Capability flags — gradual cutover registry (realigned to .claude/plan.md §6)
 // ---------------------------------------------------------------------------
+//
+// The bitfield matches the spec exactly. Only subsystems whose primary path is
+// genuinely migrated to Rust AND exercised by JS routing are *advertised* in
+// `capabilities()`; the rest are defined so the ordering invariant
+// (`COMMAND_BUFFER` requires `SCENE_RUST`) is expressible and testable, but are
+// NOT advertised until their subsystem is implemented. See plan.md §758-766 for
+// the per-phase default set (Phase 1 = `DATASET_RUST | PARSER_RUST |
+// OPERATIONS_RUST`).
+//
+// Implemented + advertised (Phase 1):
+const CAP_DATASET_RUST: u32 = 1 << 0; // wasm/src/data/dataset.rs
+const CAP_PARSER_RUST: u32 = 1 << 1; // wasm/src/data/parsers.rs
+const CAP_OPERATIONS_RUST: u32 = 1 << 2; // wasm/src/data/operations.rs
+// Reserved (defined for the invariant; NOT advertised until implemented):
+const CAP_DRACO_RUST: u32 = 1 << 3; // reserved — only the layout generators are in
+//   Rust so far (wasm/src/layouts/); the constraint solver + TDA remain JS, so
+//   the Draco subsystem is not yet migrated. Phase 3.
+const CAP_SCENE_RUST: u32 = 1 << 4; // reserved — scene graph still JS. Phase 2.
+const CAP_INPUT_RUST: u32 = 1 << 5; // reserved — input still JS. Phase 4.
+const CAP_NETWORK_RUST: u32 = 1 << 6; // reserved. Phase 5.
+const CAP_COMMAND_BUFFER: u32 = 1 << 7; // reserved — dormant stub; enabled once
+//   `SCENE_RUST` is set (ordering invariant). Phase 2.
+const CAP_INSTANCING: u32 = 1 << 8; // reserved. Phase 2.
+const CAP_WASM_TELEMETRY: u32 = 1 << 9; // reserved. Phase 6.
 
-const CAP_DATASET_RUST: u32 = 1 << 0;
-const CAP_PARSER_RUST: u32 = 1 << 1;
-const CAP_OPERATIONS_RUST: u32 = 1 << 2;
-const CAP_COMMAND_BUFFER: u32 = 1 << 3;
-const CAP_LAYOUTS_RUST: u32 = 1 << 4;
-const CAP_TDA_RUST: u32 = 1 << 5;
-
-/// Return the enabled capability set for the current build.
+/// Return the enabled capability set for the current build — the spec Phase-1
+/// set only (`DATASET_RUST | PARSER_RUST | OPERATIONS_RUST`). Higher bits are
+/// reserved until their subsystem is genuinely migrated; see the constants
+/// above. JS (`World`, `FileLoader`, `DataOperationController`) gates only on the
+/// three advertised bits.
 #[wasm_bindgen]
 pub fn capabilities() -> u32 {
-    CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST | CAP_COMMAND_BUFFER | CAP_LAYOUTS_RUST | CAP_TDA_RUST
+    CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST
 }
 
 /// Compute 3D grid layout positions in WASM memory.
@@ -522,9 +552,47 @@ mod tests {
     #[test]
     fn capabilities_returns_phase_1_flags() {
         let caps = capabilities();
+        // Phase-1 implemented subsystems are advertised.
         assert!(caps & CAP_DATASET_RUST != 0);
         assert!(caps & CAP_PARSER_RUST != 0);
         assert!(caps & CAP_OPERATIONS_RUST != 0);
+        // Honesty lock: reserved / unimplemented bits are NOT advertised. This
+        // catches a future regression that re-adds a premature or false claim.
+        assert_eq!(caps & CAP_DRACO_RUST, 0, "DRACO_RUST not yet migrated");
+        assert_eq!(caps & CAP_SCENE_RUST, 0, "SCENE_RUST not yet migrated");
+        assert_eq!(caps & CAP_COMMAND_BUFFER, 0, "COMMAND_BUFFER is dormant");
+        assert_eq!(caps & CAP_INSTANCING, 0, "INSTANCING not yet migrated");
+    }
+
+    /// The spec ordering invariant: `COMMAND_BUFFER` must not be advertised
+    /// unless `SCENE_RUST` is also set (plan.md §751: "enabled once Scene is
+    /// Rust"). Encoded here so a future PR that enables `COMMAND_BUFFER`
+    /// without `SCENE_RUST` fails CI.
+    fn enforce_command_buffer_ordering(caps: u32) -> bool {
+        if caps & CAP_COMMAND_BUFFER != 0 {
+            caps & CAP_SCENE_RUST != 0
+        } else {
+            true
+        }
+    }
+
+    #[test]
+    fn command_buffer_requires_scene_rust_invariant() {
+        // The real advertised set satisfies the invariant (COMMAND_BUFFER is off).
+        assert!(enforce_command_buffer_ordering(capabilities()));
+        // A synthetic set with COMMAND_BUFFER but no SCENE_RUST violates it.
+        assert!(!enforce_command_buffer_ordering(CAP_COMMAND_BUFFER));
+        // COMMAND_BUFFER together with SCENE_RUST satisfies it.
+        assert!(enforce_command_buffer_ordering(
+            CAP_COMMAND_BUFFER | CAP_SCENE_RUST
+        ));
+    }
+
+    #[test]
+    fn command_buffer_ptr_is_dormant_zero() {
+        // The command buffer is dormant: command_buffer_ptr() returns the 0
+        // sentinel, not a Vec heap pointer. See command_buffer_ptr doc comment.
+        assert_eq!(command_buffer_ptr(), 0);
     }
 
     #[test]

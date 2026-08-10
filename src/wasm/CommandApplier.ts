@@ -15,6 +15,17 @@ export interface ParsedCommand {
   data?: Record<string, unknown>;
 }
 
+/**
+ * Parses the WASM command buffer and applies scene-graph ops to three.js.
+ *
+ * **Dormant.** Not instantiated by the runtime — `src/` never constructs a
+ * `CommandApplier` (verified by grep). It is exercised only by
+ * `tests/command-applier.test.ts` and `tests/subsystem-resiliency-audit.test.ts`
+ * (which covers truncated-buffer bounds-safety). It will be wired into the
+ * frame loop when `CAP_SCENE_RUST` and `CAP_COMMAND_BUFFER` are enabled, gated
+ * on a real-headset load test (PR #80's harness → `logs/loadtest-results.jsonl`).
+ * The buffer ABI it parses is provisional (see `wasm/src/command_buffer.rs`).
+ */
 export class CommandApplier {
   private entities: Map<number, THREE.Object3D> = new Map();
   private scene: THREE.Scene;

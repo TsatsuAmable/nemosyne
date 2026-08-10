@@ -1,3 +1,18 @@
+//! Provisional command-buffer encoding for the WASM scene-graph split.
+//!
+//! **Dormant.** This module is not wired into the runtime: `update()` only
+//! resets the buffer to its header and nothing encodes commands, and the JS
+//! host never calls `command_buffer_ptr()` / `getCommandBufferBytes()` /
+//! `CommandApplier.applyCommandBuffer()` from `src/` (verified — the only
+//! consumers are unit tests). It will be wired when `CAP_SCENE_RUST` and
+//! `CAP_COMMAND_BUFFER` are enabled, gated on a real-headset load test
+//! (PR #80's harness → `logs/loadtest-results.jsonl`).
+//!
+//! The encoding below (MAGIC / VERSION / 5 opcodes / 8-byte header) is
+//! **provisional and unreconciled** with `.claude/plan.md` §7 (command-buffer
+//! ABI); it will be reconciled as part of the implement phase. Until then it
+//! is exercised by its own unit test only.
+
 use std::sync::Mutex;
 
 pub const MAGIC: u32 = 0x4E454D4F; // "NEMO" in ASCII

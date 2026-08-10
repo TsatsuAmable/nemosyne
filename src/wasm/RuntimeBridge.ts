@@ -158,10 +158,17 @@ export function deallocBytes(ptr: number, len: number): void {
 }
 
 /**
- * Read `len` bytes from WASM memory starting at `ptr`.
+ * Read `len` bytes from WASM memory starting at `ptr`. Bounds-checked: returns
+ * an empty buffer if `ptr + len` is outside the current `memory.buffer` (e.g. a
+ * stale pointer captured before a memory grow, or the dormant
+ * `command_buffer_ptr()` sentinel), so the dormant command-buffer path can never
+ * throw a `RangeError`.
  */
 export function readBytes(ptr: number, len: number): Uint8Array {
   if (!wasmInstance) throw new Error('Runtime not initialised');
+  if (ptr < 0 || len < 0 || ptr + len > wasmInstance.memory.buffer.byteLength) {
+    return new Uint8Array(0);
+  }
   return new Uint8Array(wasmInstance.memory.buffer, ptr, len).slice();
 }
 
@@ -414,6 +421,11 @@ export function debugFillPattern(len: number): Uint8Array {
 
 /**
   * Return the WASM command buffer pointer.
+  *
+  * **Dormant:** the command buffer is not implemented; the Rust export returns
+  * `0` as the "not implemented" sentinel (see `command_buffer_ptr` doc in
+  * `wasm/src/lib.rs`). No `src/` caller invokes this; it exists for the future
+  * `SCENE_RUST` + `COMMAND_BUFFER` cutover.
   */
 export function commandBufferPtr(): number {
   if (!wasmInstance) throw new Error('Runtime not initialised');
@@ -422,6 +434,9 @@ export function commandBufferPtr(): number {
 
 /**
   * Read the raw bytes of the current WASM frame command buffer.
+  *
+  * **Dormant:** `command_buffer_ptr()` returns `0`, so this returns an empty
+  * buffer (the `ptr === 0` short-circuit). No `src/` caller invokes this.
   */
 export function getCommandBufferBytes(byteLength: number): Uint8Array {
   if (!wasmInstance) throw new Error('Runtime not initialised');
