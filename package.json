@@ -24,11 +24,14 @@
     "test:e2e:tier2": "vitest run tests/e2e/tier2_boundary_corner",
     "test:e2e:tier3": "vitest run tests/e2e/tier3_cross_feature",
     "test:e2e:tier4": "vitest run tests/e2e/tier4_real_world",
+    "test:smoke": "playwright test",
+    "test:smoke:install": "playwright install --with-deps chromium",
     "deploy:netlify": "npm run build && npx netlify deploy --prod --dir=dist",
     "deploy:vercel": "npm run build && npx vercel --prod"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
+    "@playwright/test": "^1.62.1",
     "@types/three": "^0.185.4",
     "@typescript-eslint/eslint-plugin": "^8.24.0",
     "@typescript-eslint/parser": "^8.24.0",
