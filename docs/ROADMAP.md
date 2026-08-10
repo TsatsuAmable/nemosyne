@@ -4,31 +4,27 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · binary-parser length-field bounds (make the
-  `ArrowBinaryParser` Float32 length-field check explicit instead of an incidental
-  `RangeError`).
-- **Active branch:** `fix/binary-parser-length-bounds` (off main, post-#69).
-- **Working tree:** PR pending — `src/data/ArrowBinaryParser.ts`
-  (`parseBinaryFloatStream` throws a descriptive `Error` when declared
-  `numCols×rowCount` exceeds buffer capacity; `extractZeroCopyPositions` returns an
-  empty `Float32Array` instead of throwing on the render path).
+- **Last updated:** 2026-08-10 · post-#70 status refresh (binary-parser length-field
+  bounds merged).
+- **Active branch:** `main` (clean, at `f278bac`).
+- **Working tree:** clean.
 - **Last gate:** `tsc --noEmit` 0 errors · `eslint` 0 errors (184 pre-existing test
   warnings) · `vitest run` 1191 pass / 9 skip / 0 fail · `vite build` green — 2026-08-10.
 - **Merge policy (live):** main ruleset `id=20623327` requires PR + required checks
   (`Rust unit tests (wasm/)` / `Node 20` / `Node 22` / `approval-gate`), no bypass.
   `approval-gate.yml` passes immediately for owner PRs (squash auto-merge on green);
   others need owner approval. New work lands via PR only.
-- **Recently merged:** #66 lint-blocking (clear src `any`, CI lint required) · #67
-  signalling-auth (token-gated joins, duplicate-peerId rejection) · #68 docs cleanup
-  (private-effort reframing, dedup) · #69 coordinator-wiring (World.ts →
-  `WorldSessionController`/`GuidedTourController`/`WorldLandmarkController`/
-  `WheelMenuBuilder`/`AnalysisStoryExporter` via `WorldLike` facade, −577 lines).
-- **In progress / next:** binary-parser length-bounds PR (this branch) — see above.
-  Next: (1) real-WebGL test coverage (Playwright load smoke + GL introspection in the
-  mock); (2) decide on the dormant WASM command-buffer (audit B2); (3) extend the
-  length-field bounds pattern to the sibling serializers (`FlatBuffersSerializer`,
+- **Recently merged:** #67 signalling-auth (token-gated joins, duplicate-peerId
+  rejection) · #68 docs cleanup (private-effort reframing, dedup) · #69
+  coordinator-wiring (World.ts → 5 typed coordinators via `WorldLike` facade, −577
+  lines) · #70 binary-parser length-field bounds (`ArrowBinaryParser` validates
+  `numCols×rowCount` before constructing `Float32Array` views; descriptive throw on
+  the parse path, empty `Float32Array` on the render path).
+- **In progress / next:** none in flight. Next candidates: (1) extend the length-field
+  bounds pattern to the sibling serializers (`FlatBuffersSerializer`,
   `MessagePackSerializer`) — same attacker-controlled length-field gap, currently
-  untested.
+  untested; (2) real-WebGL test coverage (Playwright load smoke + GL introspection in
+  the mock); (3) decide on the dormant WASM command-buffer (audit B2).
 - **Blockers / open:** B2 (WASM command-buffer dormant/spec-drifted/untested) — decide
   before scaling further.
 - **Resume pointers:** test inventory → `TEST_READY.md`; this file's Current Status is
