@@ -4,36 +4,29 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · WASM command-buffer honesty hardening delivered (the
-  B2 DEFER's minimal-hardening follow-up, PR #80's sibling). Next: user runs the load-test
-  staircase on Quest → read `logs/loadtest-results.jsonl` → deliver the implement/descope
-  verdict for B2.
-- **Active branch:** `feature/wasm-honesty-hardening` (cut from main, PR pending).
-- **Working tree:** honesty hardening of the WASM capability surface — behavior-neutral,
-  all on the dormant command-buffer path (zero `src/` callers verified). Modified:
-  `wasm/src/lib.rs` (realign cap bitfield to `.claude/plan.md` §6 spec; `capabilities()`
-  returns the Phase-1 set only — `DATASET|PARSER|OPERATIONS` — dropping the false
-  `CAP_COMMAND_BUFFER`/`CAP_TDA_RUST` + premature `CAP_LAYOUTS_RUST` claims; added
-  `CAP_SCENE_RUST`/`CAP_DRACO_RUST`/`CAP_INPUT_RUST`/`CAP_NETWORK_RUST`/`CAP_INSTANCING`/
-  `CAP_WASM_TELEMETRY` as reserved spec bits; `command_buffer_ptr()` → `0` dormant
-  sentinel instead of the Vec-heap-ptr ABI bug; strengthened + added Rust honesty tests:
-  `capabilities_returns_phase_1_flags` (reserved bits off), `command_buffer_requires_scene_rust_invariant`,
-  `command_buffer_ptr_is_dormant_zero`), `wasm/src/command_buffer.rs` (provisional/dormant
-  module doc), `src/wasm/RuntimeBridge.ts` (`readBytes` bounds guard vs stale-ptr/grow
-  `RangeError`; dormant doc comments on `commandBufferPtr`/`getCommandBufferBytes`),
-  `src/wasm/CommandApplier.ts` (dormant class doc), `tests/wasm-runtime.test.ts` (JS
-  honesty-lock assertions on reserved bits), `docs/ROADMAP.md` (this block).
+- **Last updated:** 2026-08-10 · Honesty hardening (#81) + f15 test-isolation fix (#82)
+  merged to main. Next: user runs the load-test staircase on Quest → read
+  `logs/loadtest-results.jsonl` → deliver the implement/descope verdict for B2.
+- **Active branch:** `main` (clean, synced; both follow-up PRs merged).
+- **Working tree:** clean. Last two merges — #81 realigned the WASM capability bitfield to
+  `.claude/plan.md` §6 (`capabilities()` advertises only the Phase-1 set
+  `DATASET|PARSER|OPERATIONS`; dropped false `CAP_COMMAND_BUFFER`/`CAP_TDA_RUST` +
+  premature `CAP_LAYOUTS_RUST`; added reserved `CAP_SCENE_RUST` et al.; `command_buffer_ptr()`
+  → dormant `0` sentinel; `readBytes` bounds guard; `COMMAND_BUFFER requires SCENE_RUST`
+  ordering invariant encoded as a Rust test). #82 fixed the f15 e2e test that fired an
+  un-awaited `import('src/main.ts')` racing with jsdom teardown (`EnvironmentTeardownError`
+  under the full suite).
 - **Command-buffer decision (B2):** DEFER + minimal hardening (both Expert Graphics
   Engineer & Principal Architect consultations converged). The command buffer targets a
   problem that isn't a *measured* current regression; the JS scalability layer already
   implements the spec's instancing tiers. Revisit after load-testing the JS path at 65k+.
-  PR #80 (merged) delivered the harness that produces that data; this PR delivers the
+  PR #80 (merged) delivered the harness that produces that data; #81 (merged) delivered the
   honesty hardening that is its precondition if the run says "implement". Privacy (PR #80):
   perf/UX aggregates only, local dev-server endpoint, no external API, no user dataset
   rows/session snapshots. Verdict computed from real measurements against fixed reviewable
   thresholds — no hardcoded results.
-- **Last gate:** `cargo test --manifest-path wasm/Cargo.toml` 30 pass / 0 fail (3 new
-  honesty tests) · `tsc --noEmit` 0 errors · `eslint` 0 errors (186 warnings, baseline) ·
+- **Last gate:** `cargo test --manifest-path wasm/Cargo.toml` 30 pass / 0 fail (3 honesty
+  tests) · `tsc --noEmit` 0 errors · `eslint` 0 errors (186 warnings, baseline) ·
   `vitest run` 1224 pass / 9 skip / 0 fail · `npm run wasm` (release) + `vite build`
   green (~274 KB gzip total) — 2026-08-10. (JS honesty-lock assertions in
   `wasm-runtime.test.ts` are `maybeDescribe` — skipped in jsdom without a served wasm;
@@ -43,17 +36,21 @@
   `approval-gate.yml` passes immediately for owner PRs (squash auto-merge on green);
   others need owner approval. New work lands via PR only. (`Playwright load smoke` is
   informational/non-required — NOT in the ruleset.)
-- **Recently merged:** #80 VR load-test harness (command-buffer decision B2) · #78 global
-  WebGL mock deficiencies fix (Option 3c) · #76 Playwright real-WebGL load smoke (Track A)
-  · #74 render-loop GL introspection tripwire (Track B). Real-WebGL test coverage thread
-  closed. Binary-parser length-field bounds thread closed (#70/#72).
-- **In progress / next:** (1) merge the honesty-hardening PR; (2) user connects Quest,
-  runs the full load-test staircase in XR (`npm run dev` → wheel menu Load Test → Start, or
-  desktop `KeyT`/`Shift+T`); (3) read `logs/loadtest-results.jsonl` and deliver the
-  implement/descope verdict for B2 (if "implement", build `SCENE_RUST` → `COMMAND_BUFFER`
-  per the ordering invariant now encoded as a Rust test).
+- **Recently merged:** #82 f15 e2e test-isolation fix (un-awaited `import('src/main.ts')`
+  racing jsdom teardown) · #81 WASM capability honesty hardening (bitfield realigned to
+  spec; dormant command-buffer sentinel) · #80 VR load-test harness (command-buffer
+  decision B2) · #78 global WebGL mock deficiencies fix (Option 3c) · #76 Playwright
+  real-WebGL load smoke (Track A) · #74 render-loop GL introspection tripwire (Track B).
+  Real-WebGL test coverage thread closed. Binary-parser length-field bounds thread closed
+  (#70/#72).
+- **In progress / next:** (1) user connects Quest, runs the full load-test staircase in XR
+  (`npm run dev` → wheel menu Load Test → Start, or desktop `KeyT`/`Shift+T`); (2) read
+  `logs/loadtest-results.jsonl` and deliver the implement/descope verdict for B2 (if
+  "implement", build `SCENE_RUST` → `COMMAND_BUFFER` per the ordering invariant now encoded
+  as a Rust test).
 - **Blockers / open:** B2 (WASM command-buffer) — deferred pending real-headset
-  load-test data from the PR #80 harness. Honesty hardening now DONE (precondition met).
+  load-test data from the PR #80 harness. Honesty hardening (#81) + f15 isolation (#82)
+  now DONE (precondition met).
 - **Resume pointers:** test inventory → `TEST_READY.md`; honesty-hardening plan →
   `~/.claude/plans/iterative-moseying-snowflake.md`; this file's Current Status is
   the source of truth.
