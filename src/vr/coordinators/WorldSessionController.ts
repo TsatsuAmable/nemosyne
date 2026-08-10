@@ -1,13 +1,13 @@
 import { Dataset } from '../../data/Dataset.ts';
 import { AnalysisHistory } from '../../data/AnalysisHistory.ts';
 import type { DatasetJSON, EncodingMapping } from '../../data/types.ts';
-import type { DatasetLoadEntry } from './types.ts';
+import type { DatasetLoadEntry, WorldLike } from './types.ts';
 
 export class WorldSessionController {
-  private _world: any;
-  private _sessionAutoSaveTimer: any = null;
+  private _world: WorldLike;
+  private _sessionAutoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(world: any) {
+  constructor(world: WorldLike) {
     this._world = world;
   }
 
@@ -66,7 +66,7 @@ export class WorldSessionController {
       return false;
     }
 
-    const s = snapshot as Record<string, unknown>;
+    const s = snapshot;
     const originalDataset = s.originalDataset as DatasetJSON | null;
     if (!originalDataset) {
       if (w._disposed) return false;
@@ -93,7 +93,7 @@ export class WorldSessionController {
 
     const historyData = s.analysisHistory;
     if (historyData) {
-      w.analysisHistory = AnalysisHistory.fromJSON(historyData as any);
+      w.analysisHistory = AnalysisHistory.fromJSON(historyData);
     } else {
       w.analysisHistory.clear();
     }
@@ -117,10 +117,10 @@ export class WorldSessionController {
       w.engine.cameraGroup.rotation.y = rotationY;
     }
 
-    const settingsData = s.settings as Record<string, any> | undefined;
+    const settingsData = s.settings as Record<string, unknown> | undefined;
     if (settingsData) {
       for (const [key, value] of Object.entries(settingsData)) {
-        w.settingsPanel?.setSetting?.(key as any, value as never);
+        w.settingsPanel?.setSetting?.(key, value);
       }
       w.comfortSettingsController.apply(w.settingsPanel.getAllSettings());
       w.comfortSettingsController.applyPanelDistance(
@@ -135,7 +135,7 @@ export class WorldSessionController {
 
     const panelPositions = s.panelPositions as { title?: string; position?: number[]; visible?: boolean }[] | undefined;
     if (panelPositions && w.panelManager) {
-      w.panelManager.setPanelPositions(panelPositions);
+      w.panelManager.setPanelPositions?.(panelPositions);
     }
 
     const tourData = s.tour as { finished?: boolean; stepIndex?: number } | undefined;

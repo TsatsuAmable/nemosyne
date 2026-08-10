@@ -11,11 +11,11 @@ import { CommandApplier, COMMAND_MAGIC, COMMAND_VERSION, OP_UPDATE_TRANSFORM } f
 describe('Audit Pass 2 - Subsystem Resiliency & Bounds Safety', () => {
   describe('1. WebXR Input Router & Controller Event Handling', () => {
     it('handles controller disconnect event gracefully and clears selection listener', () => {
-      const mockListeners = new Map<string, Function>();
+      const mockListeners = new Map<string, (event: { type: string }) => void>();
       const mockControllerGroup = {
         add: vi.fn(),
-        addEventListener: (type: string, fn: Function) => mockListeners.set(type, fn),
-        removeEventListener: (type: string, fn: Function) => mockListeners.delete(type),
+        addEventListener: (type: string, fn: (event: { type: string }) => void) => mockListeners.set(type, fn),
+        removeEventListener: (type: string, fn: (event: { type: string }) => void) => mockListeners.delete(type),
         getWorldPosition: vi.fn(),
         getWorldQuaternion: vi.fn(),
       };
@@ -40,11 +40,11 @@ describe('Audit Pass 2 - Subsystem Resiliency & Bounds Safety', () => {
     });
 
     it('handles hand disconnect event gracefully and resets pinch states', () => {
-      const mockListeners = new Map<string, Function>();
+      const mockListeners = new Map<string, (event: { type: string }) => void>();
       const mockHandGroup = {
         add: vi.fn(),
-        addEventListener: (type: string, fn: Function) => mockListeners.set(type, fn),
-        removeEventListener: (type: string, fn: Function) => mockListeners.delete(type),
+        addEventListener: (type: string, fn: (event: { type: string }) => void) => mockListeners.set(type, fn),
+        removeEventListener: (type: string, fn: (event: { type: string }) => void) => mockListeners.delete(type),
       };
       const mockRenderer = {
         xr: {

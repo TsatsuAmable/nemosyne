@@ -1,4 +1,5 @@
 import { ANALYSIS_TEMPLATES } from '../../data/AnalysisTemplates.ts';
+import type { PanelLike, WorldLike } from './types.ts';
 
 export interface WheelMenuItemConfig {
   id: string;
@@ -16,7 +17,7 @@ export interface WheelCategoryConfig {
   items: WheelMenuItemConfig[];
 }
 
-export function buildWheelMenuCategories(world: any): WheelCategoryConfig[] {
+export function buildWheelMenuCategories(world: WorldLike): WheelCategoryConfig[] {
   const opItem = (id: string, label: string, icon: string, op: string) => ({
     id,
     label,
@@ -25,6 +26,11 @@ export function buildWheelMenuCategories(world: any): WheelCategoryConfig[] {
     onHover: () => world.previewDataOperation(op),
     onLeave: () => world.clearOperationPreview(),
   });
+  // Panels are optional on the World facade (created lazily during World init);
+  // toggle only when the target actually exists.
+  const toggle = (panel: PanelLike | undefined) => {
+    if (panel) world.panelManager.togglePanel(panel);
+  };
 
   return [
     {
@@ -48,32 +54,32 @@ export function buildWheelMenuCategories(world: any): WheelCategoryConfig[] {
           id: 'operation-log',
           label: 'Log',
           icon: '📝',
-          callback: () => world.panelManager.togglePanel(world.operationLogPanel),
+          callback: () => toggle(world.operationLogPanel),
         },
         {
           id: 'telemetry',
           label: 'Telemetry',
           icon: '📊',
-          callback: () => world.panelManager.togglePanel(world.metricsPanel),
+          callback: () => toggle(world.metricsPanel),
         },
         {
           id: 'performance',
           label: 'Perf',
           icon: '⏱️',
-          callback: () => world.panelManager.togglePanel(world.performancePanel),
+          callback: () => toggle(world.performancePanel),
         },
         {
           id: 'interaction-coach',
           label: 'Coach',
           icon: '🎓',
-          callback: () => world.panelManager.togglePanel(world.interactionCoach),
+          callback: () => toggle(world.interactionCoach),
         },
         { id: 'tour', label: 'Tour', icon: '📍', callback: () => world.startTour() },
         {
           id: 'narrative-strip',
           label: 'Timeline',
           icon: '🎞️',
-          callback: () => world.panelManager.togglePanel(world.narrativeStrip),
+          callback: () => toggle(world.narrativeStrip),
         },
         {
           id: 'recenter',
@@ -254,7 +260,7 @@ export function buildWheelMenuCategories(world: any): WheelCategoryConfig[] {
           id: 'collab-panel',
           label: 'Network',
           icon: '🌐',
-          callback: () => world.panelManager.togglePanel(world.networkPanel),
+          callback: () => toggle(world.networkPanel),
         },
       ],
     },

@@ -60,10 +60,9 @@ jobs:
       - name: Typecheck (tsc --noEmit)
         run: npm run typecheck
 
-      # Non-blocking until the 123 outstanding lint errors are cleaned up; then remove
-      # continue-on-error. See ROADMAP "In progress / next" for the follow-up task.
-      - name: Lint (non-blocking report)
-        continue-on-error: true
+      # Lint is blocking: all src no-explicit-any errors are resolved; remaining
+      # test any-usage is downgraded to non-blocking warnings (see eslint.config.js).
+      - name: Lint
         run: npm run lint
 
       - name: Run tests with coverage

@@ -48,12 +48,23 @@ export default [
       ...tsPlugin.configs.recommended.rules,
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-explicit-any': 'error',
     },
   },
   {
-    files: ['tests/**/*.js', 'tests/**/*.ts'],
+    files: ['tests/**/*.js'],
     rules: {
       'no-console': 'off',
+    },
+  },
+  {
+    files: ['tests/**/*.ts'],
+    plugins: {
+      '@typescript-eslint': tsPlugin,
+    },
+    rules: {
+      'no-console': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
   {

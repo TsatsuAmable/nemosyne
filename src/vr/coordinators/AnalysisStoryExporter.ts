@@ -1,10 +1,12 @@
 import { downloadDataUrl, downloadText } from '../../utils/Download.ts';
+import type { HistoryFrame } from '../../data/AnalysisHistory.ts';
+import type { LogInteraction, VRConsoleLike, WorldEngineLike, WorldLike } from './types.ts';
 
 export class AnalysisStoryExporter {
   static exportScreenshot(
-    engine: any,
-    vrConsole?: any,
-    logInteraction?: (action: string, meta?: any) => void,
+    engine?: WorldEngineLike,
+    vrConsole?: VRConsoleLike,
+    logInteraction?: LogInteraction,
     format: string = 'png'
   ): void {
     try {
@@ -27,7 +29,7 @@ export class AnalysisStoryExporter {
     }
   }
 
-  static buildAnalysisStory(world: any): Record<string, unknown> {
+  static buildAnalysisStory(world: WorldLike): Record<string, unknown> {
     const frames = world.analysisHistory?.frames() ?? [];
     return {
       version: 1,
@@ -40,7 +42,7 @@ export class AnalysisStoryExporter {
       },
       camera: world.engine?.cameraGroup?.position?.toArray?.() ?? [],
       theme: world.engine?.theme?.currentPreset ?? 'neonMidnight',
-      operations: frames.map((f: any) => ({
+      operations: frames.map((f: HistoryFrame) => ({
         operation: f.operation,
         rowCountAfter: f.datasetAfter?.rowCount,
         parameters: f.parameters,
@@ -50,14 +52,14 @@ export class AnalysisStoryExporter {
     };
   }
 
-  static exportAnalysisStory(world: any): Record<string, unknown> {
+  static exportAnalysisStory(world: WorldLike): Record<string, unknown> {
     const story = this.buildAnalysisStory(world);
     this.downloadAnalysisStory(world, story);
     world._logInteraction?.('Export story', { result: `nemosyne-story-${story.timestamp}.json` });
     return story;
   }
 
-  static downloadAnalysisStory(world: any, story: Record<string, unknown> | null = null): void {
+  static downloadAnalysisStory(world: WorldLike, story: Record<string, unknown> | null = null): void {
     const data = story ?? this.buildAnalysisStory(world);
     const text = JSON.stringify(data, null, 2);
     const filename = `nemosyne-story-${data.timestamp}.json`;
