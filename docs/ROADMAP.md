@@ -4,27 +4,31 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-10 · coordinator wiring (audit item #5 — finish the
-  `World.ts` extraction by delegating to the 5 typed coordinators from #66).
-- **Active branch:** `refactor/wire-coordinators-into-world` (off main, post-#68).
-- **Working tree:** PR pending — `src/vr/World.ts` (−577 lines: 2207→1630),
-  `src/vr/coordinators/WheelMenuBuilder.ts`, `src/vr/coordinators/types.ts`.
+- **Last updated:** 2026-08-10 · binary-parser length-field bounds (make the
+  `ArrowBinaryParser` Float32 length-field check explicit instead of an incidental
+  `RangeError`).
+- **Active branch:** `fix/binary-parser-length-bounds` (off main, post-#69).
+- **Working tree:** PR pending — `src/data/ArrowBinaryParser.ts`
+  (`parseBinaryFloatStream` throws a descriptive `Error` when declared
+  `numCols×rowCount` exceeds buffer capacity; `extractZeroCopyPositions` returns an
+  empty `Float32Array` instead of throwing on the render path).
 - **Last gate:** `tsc --noEmit` 0 errors · `eslint` 0 errors (184 pre-existing test
   warnings) · `vitest run` 1191 pass / 9 skip / 0 fail · `vite build` green — 2026-08-10.
 - **Merge policy (live):** main ruleset `id=20623327` requires PR + required checks
   (`Rust unit tests (wasm/)` / `Node 20` / `Node 22` / `approval-gate`), no bypass.
   `approval-gate.yml` passes immediately for owner PRs (squash auto-merge on green);
   others need owner approval. New work lands via PR only.
-- **Recently merged:** #65 packaging (runtime deps) · #66 lint-blocking (clear src
-  `any`, CI lint required) · #67 signalling-auth (token-gated joins, duplicate-peerId
-  rejection) · #68 docs cleanup (private-effort reframing, dedup).
-- **In progress / next:** coordinator-wiring PR (this branch) — replaces World.ts
-  inline save/load/tour/landmark/wheel-menu/export logic with delegation to
-  `WorldSessionController` / `GuidedTourController` / `WorldLandmarkController` /
-  `WheelMenuBuilder` / `AnalysisStoryExporter` via the `WorldLike` facade; behavior
-  identical, all public symbols preserved, zero test edits. Next: (1) real-WebGL test
-  coverage (Playwright load smoke + GL introspection in the mock); (2) decide on the
-  dormant WASM command-buffer (audit B2); (3) binary-parser length-field bounds.
+- **Recently merged:** #66 lint-blocking (clear src `any`, CI lint required) · #67
+  signalling-auth (token-gated joins, duplicate-peerId rejection) · #68 docs cleanup
+  (private-effort reframing, dedup) · #69 coordinator-wiring (World.ts →
+  `WorldSessionController`/`GuidedTourController`/`WorldLandmarkController`/
+  `WheelMenuBuilder`/`AnalysisStoryExporter` via `WorldLike` facade, −577 lines).
+- **In progress / next:** binary-parser length-bounds PR (this branch) — see above.
+  Next: (1) real-WebGL test coverage (Playwright load smoke + GL introspection in the
+  mock); (2) decide on the dormant WASM command-buffer (audit B2); (3) extend the
+  length-field bounds pattern to the sibling serializers (`FlatBuffersSerializer`,
+  `MessagePackSerializer`) — same attacker-controlled length-field gap, currently
+  untested.
 - **Blockers / open:** B2 (WASM command-buffer dormant/spec-drifted/untested) — decide
   before scaling further.
 - **Resume pointers:** test inventory → `TEST_READY.md`; this file's Current Status is
