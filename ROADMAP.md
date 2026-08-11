@@ -11,9 +11,12 @@
   (shared `palette.ts` tokens, unified `TourStep`/`Tour` types, dead-code cleanup),
   Low-Strain + Muted theme presets, and full button-surface test coverage (+48 tests).
   Gates green: `tsc` 0 · `eslint` 0 errors (186 warnings) · `vitest` 1272/9/0 ·
-  `build` ~275 KB gzip. Sprints 22.3/22.4/22.5/22.6/22.7 🔲 not started (scoped from
+  `build` ~275 KB gzip. Sprints 22.3/22.4/22.5/22.6/22.7/22.8/22.9 🔲 not started (scoped from
   `docs/USER_STORIES_AND_UX_ANALYSIS.md` — 29 user stories + gap/UX audit — plus a second
-  architecture/research review and a third UX/user-journey review, both verified 2026-08-11).
+  architecture/research review, a third UX/user-journey review, and a five-review project-level
+  pass — Principal Software Architect, Expert Graphics Engineer, Security & Robustness, VR-UX
+  Expert, Technical-Debt audit — all verified 2026-08-11; 10/10 load-bearing claims
+  independently re-confirmed against code).
   **Doc staleness fixed this PR:** `SampleDatasets.js`→`.ts` across 6 doc files;
   `DataCard`→`HolographicInspector` in GETTING_STARTED; test-count 1191→1272 in README +
   TEST_READY (verified by `npm test`: 1272 pass / 9 skip / 182 files).
@@ -78,7 +81,12 @@
   **onboarding last-mile** (wire the built-but-never-instantiated
   `JITGestureHintManager` + `FrustrationResponseManager` — both grep-confirmed dead in
   production), **analysis completeness** (aggregate placeholder → real `AGGREGATE_BARS`;
-  Streamline/Geo layout honesty), and dead-code cleanup; **22.4** keeps spatial zonation +
+  Streamline/Geo layout honesty), and dead-code cleanup; **extended by the VR-UX project
+  review** with concrete input-correctness bugs — hand-pinch double-toggle/double-fire (P1),
+  `HandGestureRecognizer` ignoring `dominantHandIndex` for single-hand gestures, hand-grab
+  locomotion conflicting with the both-pinch system gesture, `scoopDown` dead-end, and the
+  seated-height offset feedback loop (needs in-headset confirmation). **22.4** keeps spatial
+  zonation +
   foveation + diegetic and adds the **four-tier-instancing spec/impl reconciliation** (decide:
   implement `GL_POINTS` tier vs. correct `CLAUDE.md` to the two-tier reality); **22.5** (new)
   wires the built-but-dead **collaboration embodied-presence** stack
@@ -91,9 +99,17 @@
   selection), confidence-bearing facts, stable `datumId`, `Dataset` immutability-model
   decision, `World`→composition-root shrink, dependency-direction rule, event-bus discipline,
   `updatables` typing, `three`/`@types` version alignment, `allowJs` review, `src/ai` README
-  staleness, semantic-mark-vs-visual-skin separation, load-test transition metrics. **22.7**
-  (new, from a third UX/user-journey review — factually accurate, no false headlines) holds
-  the task-first workflow items: Draco "Why this view?" / "Explain this" explainer (P0,
+  staleness, semantic-mark-vs-visual-skin separation, load-test transition metrics; **extended
+  by the Principal-Architect + Technical-Debt reviews**: cluster/hierarchical/dbscan input-row
+  mutation (P0, breaks reset), `DracoSolverWorker` is a fake worker (`setTimeout(0)` + divergent
+  engine), capability-flag duplication across 4 files, `analysisHistory` alias severed on
+  restore, `Encodings.ts`→`three` (the concrete dependency-direction violation), operation-tag
+  drift (`anomaly_iqr` vs `anomaly`), the full dead-code inventory (`src/ai/` 740 lines +
+  `src/data/serializers/` unwired + duplicate `SharedAnnotationManager` + dead `IceVaultNode`/
+  `GestureConfidenceHUD`), `TelemetryCollectorLike` interface gap (root of ~13 `as any` casts),
+  `coordinators/types.ts` 1066-line god-file, coordinator `dispose()` inconsistency (14/16).
+  **22.7** (new, from a third UX/user-journey review — factually accurate, no false headlines)
+  holds the task-first workflow items: Draco "Why this view?" / "Explain this" explainer (P0,
   verified missing — `DracoDiagnosticHUD` is a weight tuner, not an explainer), task-first
   onboarding with templates as the front door + a guided "Find the Fraud" investigation,
   precision/detail transition (use space for discovery, conventional representations for
@@ -101,7 +117,17 @@
   analyst (wire the built-but-dead annotation/bookmark classes), navigation-cost
   instrumentation (analysis_time vs navigation_time); plus a record correction that the
   review's "no in-app import" framing is inaccurate (`FileLoader.ts` is an in-app overlay at
-  `World.ts:401`). Sprint 22.3 also gains a first-class **Compare** operation (verified
+  `World.ts:401`). **22.8** (new, Security & Robustness review — no P0/RCE found) covers
+  signalling `from`-spoof impersonation (P1), WASM `leaves()` unbounded-recursion stack-overflow
+  trap (P1), the Vite dev/preview signalling-is-dead bug (strict `!==` before query parse —
+  verified, not a false positive), WebRTC `peerId` trust, per-peer rate limiting, CSV
+  `__proto__` filter inconsistency, WASM `count*12` overflow, allocator panic-on-OOM, and the
+  stale `DataView`-after-`grow` (found by 3 reviewers independently). **22.9** (new, Expert
+  Graphics Engineer + Architect) covers the `reSolveAndSynthesize` GPU leak (materials/textures/
+  instance buffers never disposed — VRAM OOM on a live time-series re-solving ~1/s; P1), the
+  orphaned second `WebGLRenderer` in `SceneGraphController` (P0 architecture — burns a Quest
+  context for nothing), stale `memoryView` after grow, and per-frame allocations in
+  `LODManager`/`SpatialIndex`. Sprint 22.3 also gains a first-class **Compare** operation (verified
   missing — named in the conceptual loop but not implemented), an **input parity matrix**
   (accessibility), and **error-recovery UX messaging**. The research-direction items
   (2D-vs-VR experimental harness, human-performance benchmark, semantic/structural position
@@ -768,6 +794,50 @@ The GA solver runs but its recommendation quality is untested against known-good
   the unset cells. (The colorblind, dwell-delay, and dominant-hand items above are the first
   rows of this matrix.)
 
+#### Input-correctness bugs (from the VR-UX project review, verified 2026-08-11)
+> All net-new, grounded in code. These are concrete cells of the parity matrix above —
+> interaction paths that fire wrong, twice, or on the wrong hand.
+
+- 🔲 **Hand-pinch double-toggle / double-fire (P1, verified).** `HandPointer._doUpdate`
+  synchronously calls `this.onPinchStart(this)` on pinch-start (`Hands.ts:285`), and
+  `InputRouter.addHand` wires that fallback to `handWheelMenu.toggle()` (menu hand) or
+  `dispatcher.triggerSelect()` (non-menu hand) (`InputRouter.ts:153-161`). Then in the *same*
+  `update()` frame, `_pollSelection` detects the same edge (`pinched && !wasPinched`) and
+  toggles the menu again (`:329-335`) or calls `machine.press(hand)` (`:337-338`). Net effect:
+  the menu hand opens **and** closes in one frame → the wheel menu appears non-responsive to
+  pinch; the non-menu hand fires `triggerSelect` twice (double selection, double audio/haptic).
+  Controller path is unaffected (no `selectstart` → no `onSelect`). Fix: suppress the
+  `onPinchStart` fallback when the polling path is active (or remove the fallback — the comment
+  at `:33-34` says polling is primary).
+- 🔲 **`HandGestureRecognizer` ignores `dominantHandIndex` for single-hand gestures (P2,
+  verified).** `setHands()` derives `dominantHandIndex` from handedness (`:114-125`) but
+  `update()` uses array order `poses[0]`/`poses[1]` (`:146-147`) and swipe/slice track only
+  `poses[0]` (`:332-342`); `okSign` checks `l.pinched && !r.pinched` (`:346-350`). On Quest the
+  hand-array order follows XR input-source *connection* order, not handedness, so single-hand
+  gestures fire on the wrong hand or not at all if hands connect as [left, right]. Distinct from
+  the US9 wheel-menu item (which is `WorldUIManager` hardcoding `hands[0]`) — here the
+  recognizer's own classification ignores the index it computed. Fix: use
+  `poses[this.dominantHandIndex]`/`poses[this.nonDominantHandIndex]` in `update()`.
+- 🔲 **Hand-grab locomotion conflicts with the both-pinch system gesture (P2, verified).**
+  `_updateHandGrabMovement` (`Locomotion.ts:644-680`) takes the first pinched hand for
+  world-grab with no awareness of `SystemGestureDetector.bothPinched` (selection is suppressed
+  during both-pinch at `InputRouter.ts:321-325`, but locomotion is not). Recalling the launcher
+  via the system toggle lurches the world proportionally to hand movement during the hold. Fix:
+  skip `_updateHandGrabMovement` when both hands are pinched.
+- 🔲 **`scoopDown` is a dead-end outside flight mode (P2, verified).** `scoopUp` toggles the
+  statistical lens when not in flight, but `scoopDown` has no `else` branch
+  (`WorldInputCoordinator.ts:166-171`) — the inverse gesture has no inverse action, forcing menu
+  navigation (Views → Lens) to disable the lens. The recognizer classifies both symmetrically.
+  Fix: add an `else` calling `onToggleStatisticalLens` (true toggle pair).
+- 🔲 **Seated-height offset double-counts head height (P1, verified medium-confidence — needs
+  in-headset).** `_applyComfortOffset` sets `cameraGroup.position.y = camera.position.y +
+  seatedHeightOffset` (`Locomotion.ts:375`), but `camera` is a child of `cameraGroup`
+  (`Engine.ts:94`) → `camera.position.y` is re-derived after the group moves, forming a feedback
+  loop. At equilibrium the offset has zero net effect and the lerp (`:380`) causes visible
+  vertical jitter. The same `+ camera.position.y` pattern in `_warpTo:636` is harmless only
+  because teleport is one-shot. Fix: `cameraGroup.position.y = seatedHeightOffset` (drop the
+  `camera.position.y` term). Confirm the matrix update order in-headset before shipping.
+
 #### Onboarding last-mile (wire the praised-but-dead features)
 - 🔲 **JIT gesture hints never instantiated in production (US11, verified).**
   `JITGestureHintManager` is a real class (ghost-hand wireframe + diegetic label + per-gesture
@@ -949,6 +1019,135 @@ The GA solver runs but its recommendation quality is untested against known-good
   Do not chase — though **exposing build/commit metadata** on the site (no version/commit
   shown today) is a valid, cheap follow-up.
 
+#### Data/Draco correctness (extended — Principal Architect review, verified 2026-08-11)
+- 🔲 **`cluster`/`hierarchical`/`dbscan` mutate the input dataset's rows (P0, verified).**
+  `DatasetOperations.ts:192-195, 359-362, 429-432` do `rows.map((r,i) => { r._cluster = …; return
+  r; })` — a shallow `slice()` plus a write onto the *original* row objects, then wrap them in a
+  "new" `Dataset`. The `_originalDataset` baseline is tainted with cluster labels, so
+  reset/undo reverts to already-labeled data — silently breaking the immutability/reset contract.
+  `anomaly` (`:538`) does it correctly with `({ ...r })`. Fix: spread-copy the row in all three.
+  Distinct from the `updateRows` live-stream mutability decision above.
+- 🔲 **Operation type drift: TS `'anomaly_iqr'` vs Rust `'anomaly'` (P1, verified).** TS
+  `OperationName` (`types.ts:32`) carries `'anomaly_iqr'` while the Rust bridge produces
+  `'anomaly'` (`operations_bridge.rs:29`). The TS type actively prevents sending the tag Rust
+  expects. Align on one snake_case tag.
+- 🔲 **`hasHighVariance` is always-true / `estimatedDensity` dead (P2, verified).** The
+  `prefer_column_for_high_variance` soft constraint fires for almost every dataset, diluting
+  Draco's discriminating power; `estimatedDensity` is computed but never read. Audit the
+  predicate and either gate it honestly or remove the dead fact.
+
+#### Architecture hygiene (extended — Principal Architect review, verified 2026-08-11)
+- 🔲 **`DracoSolverWorker` is not a real Web Worker (P1, verified).** `DracoSolverWorker.ts:29`
+  runs `this._engine.solve()` inside `setTimeout(…, 0)` on the main thread (the docstring claims
+  it "offloads … off the WebXR main render thread" — misleading), and `:21` holds a *separate*
+  `ConstraintEngine` singleton from `DracoTopologyNode`'s (`DracoTopologyNode.ts:29`). Adjusting
+  a weight through the worker therefore blocks XR frames and mutates a divergent engine. Either
+  make it a real `Worker` (post `dataInput`, receive `SolverResult`) or delete it and route
+  weight adjustments through `DracoTopologyNode.adjustWeight`.
+- 🔲 **Capability flags duplicated across 4 files with no shared source (P1, verified).** The
+  bitfield is re-declared in `wasm/src/lib.rs:293-306`, `World.ts:90`, `FileLoader.ts:18`, and
+  `DataOperationController.ts:36` — only a comment keeps them in sync. Introduce a single
+  `CapabilityFlag` source (Rust `const` + generated/checked TS mirror) so bit drift is caught.
+- 🔲 **`analysisHistory` alias severed on session restore (P1, verified).**
+  `WorldSessionController.ts:96` overwrites `World.analysisHistory` with a fresh object, but the
+  controller's own `_analysisHistory` still points at the old array → undo/redo is stale after a
+  restore. Re-bind the alias or route history access through one owner.
+- 🔲 **`Encodings.ts` imports `three` (P1, verified) — the concrete dependency-direction
+  violation.** `src/data/Encodings.ts:1-2` is the only `src/data/` file importing three.js; it
+  pulls rendering types into the data layer. This is the live instance of the "Dataset must not
+  import three.js" rule above. Extract the render-coupled bits (e.g. color → `THREE.Color`)
+  into the representation layer.
+- 🔲 **`CAP_OPERATIONS_RUST` over-promises (P2, verified).** The flag advertises 8 operations
+  but `buildWasmOperationSpec` (`DataOperations.ts:293`) only routes 5 — filter/aggregate/anomaly
+  never reach WASM. Align the flag with what is actually routed (honesty, matching #81's spirit).
+- 🔲 **Other architecture-hygiene P2s (verified):** dead `WorkspaceManager` (zero callers);
+  `registerFactories.ts` side-effect self-call; `layout_force_directed_3d` passes empty edges
+  (and the layout exports are not in the JS interface); `UserModeController` emits a non-`WorldTopics`
+  bus string; duplicated `EncodingMapping`; duplicated layout dispatch tables; duplicated
+  command-buffer ABI constants; `VRTopologyTranslator` static mutable singletons; WASM module URL
+  inconsistency (`/wasm/` vs `/wasm/pkg/`); two allocators with LIFO-only bump dealloc; no JSON
+  error round-trip across the ABI; `WasmRuntimeBridge` interface is a subset of the real class;
+  facade setter clones asymmetrically.
+
+#### Dead-code inventory (extended — Technical-Debt audit, verified 2026-08-11)
+> The six built-but-never-instantiated classes are already recorded (22.3 JIT/frustration, 22.5
+> avatars/companion/annotations). The audit surfaced *additional* dead production code.
+
+- 🔲 **`src/ai/` entire module is production-unwired — 740 lines (P1, verified).** None of the 6
+  `src/ai/*.ts` files (`NeuralConstraintPredictor`, `GestureClassifierModel`, `GestureModelStore`,
+  `GestureTrainingWorker`, `VoiceCommandListener`, `DracoWorldModel`) is imported anywhere in
+  `src/` outside `src/ai/` itself (grep-confirmed zero); only tests reference them. This upgrades
+  the existing "src/ai/ README staleness" item: the whole AI subsystem is built and unit-tested
+  but never wired into `World`/`Engine`/any coordinator. Decide: wire + integration-test, or
+  delete (the symbolic Draco recommender is the defensible story — see the README item above).
+- 🔲 **`src/data/serializers/` is production-unwired (P1, verified).** The barrel
+  (`serializers/index.ts`) has zero production importers; `datasetToArrowIPC`/`arrowIPCToDataset`
+  are never called in `src/` outside the directory. `@msgpack/msgpack` and `apache-arrow` are
+  exercised only by tests, not the runtime. (`FlatBuffersSerializer` is misleadingly named — a
+  hand-rolled row buffer with no FlatBuffers dependency.) Wire the chosen serialization path into
+  the dataset/network flow, or delete the unused variants. (Phase 6 records these serializers as
+  shipped — that line is stale relative to the runtime.)
+- 🔲 **Duplicate `SharedAnnotationManager` with divergent `SpatialAnnotation` interfaces (P1,
+  verified).** `src/network/SharedAnnotationManager.ts` (`{ authorPeerId, position, text,
+  timestamp }`) and `src/vr/interactions/SharedAnnotationManager.ts` (`{ authorId, authorName,
+  colorHex?, … }`) are two classes, same name, same concept, incompatible shapes — both
+  built-but-dead. Consolidate into one shared type + one implementation.
+- 🔲 **`IceVaultNode` and `GestureConfidenceHUD` are fully dead (P2, verified).** Zero importers
+  in `src/` or `tests/` for either (`src/vr/artifacts/IceVaultNode.ts`, `src/vr/ui/GestureConfidenceHUD.ts`).
+  Delete.
+- 🔲 **`src/vr/scalability/ObjectPool.ts` is now a 1-line re-export shim (P2, verified).** The
+  implementation moved to `src/utils/ObjectPool.ts`; the old path is kept only so 4 e2e specs
+  still resolve. Update those imports to `utils/ObjectPool.ts` and delete the shim.
+- 🔲 **Two legacy `.js` test stubs inflate the skip count (P2, verified).** `tests/file-loader.test.js`
+  and `tests/tda-mapper.test.js` are `describe.skip` placeholders whose `.ts` replacements exist
+  and run. Delete both.
+
+#### Type-safety, structure & config debt (Technical-Debt audit, verified 2026-08-11)
+- 🔲 **`TelemetryCollectorLike` interface gap drives the `as any` telemetry duck-typing (P1,
+  verified).** The real `TelemetryCollector` implements `recordPanelAction`/`recordMenuAction`/
+  `recordDwell`/`recordGestureConfidence` (`Telemetry.ts:169,177,192,200`) but the
+  `TelemetryCollectorLike` interface (`coordinators/types.ts:541-552`) declares none of them, so
+  callers duck-type through `as any` (`MovablePanel.ts:164,175,214,247,380`, `HandWheelMenu.ts:341`,
+  `SelectionDispatcher.ts:99,113`, `WorldInputCoordinator.ts:104`) — ~13 of the 66 `any` casts
+  trace to this single gap. Add the 4 methods (and `uiManager`/`panelManager`/`guidedTour` to
+  `EngineLike`) and drop the casts.
+- 🔲 **`coordinators/types.ts` is a 1066-line god-file (P1, verified).** ~75 exported interfaces
+  spanning every layer (telemetry, panels, dashboard, wheel menu, themes, engine, input, hands,
+  pointers, locomotion, network, scalability, live stream, comfort, accessibility) — the 2nd-
+  largest `src/` file and a circular-import hub. Split by subdomain (`types/telemetry.ts`,
+  `types/ui.ts`, `types/network.ts`, `types/scalability.ts`).
+- 🔲 **Inconsistent coordinator lifecycle — 14 of 16 coordinators have no `dispose()` (P1,
+  verified).** Only `SceneGraphController` and `WorldSessionController` define `dispose()`;
+  `World.dispose()` cleans up coordinators via three ad-hoc conventions. `CollaborationCoordinator`
+  registers 5 `addEventListener` handlers with no `removeEventListener`/`dispose` (relies on
+  `NetworkManager` GC). Standardize a `dispose()` contract on a `Coordinator` base.
+- 🔲 **`VRTopologyTranslator.ts` is 992 lines (P2, verified).** 3rd-largest `src/` file; holds the
+  factory registry + per-topology synthesis for all 6 topologies. Split per-topology synthesis
+  into `src/draco/layouts/*` siblings.
+- 🔲 **`World.ts:498-500` casts the GuidedTour options bag to `as any` (P2, verified).** Slips
+  `resolveTarget`/`checkCondition`/`onComplete`/`analystAnchor` past the typed
+  `GuidedTourOptions` interface (with an eslint-disable). Extend the options type and drop the cast.
+- 🔲 **`VRTopologyTranslator` hardcodes 9 palette hex literals (P2, verified).** `:64,78,234,245,
+  394,480,507,618,626` use raw hex instead of `palette.ts`/`WorldTheme` tokens — design-system
+  drift. Reference the shared tokens.
+- 🔲 **Config/test debt (P2, verified):** `tsconfig` `noUnusedLocals`/`noUnusedParameters: false`
+  masks the 186 lint warnings — fix warnings then flip both `true`; coverage thresholds
+  (`vitest.config.js`) sit below the measured ~83%/70% baseline (tighten + track); 10 `console.log`
+  in production `src/` (`EventBus.ts:106`, `LiveStreamCoordinator.ts:141`, `Engine.ts:394`,
+  `Hands.ts:155,169,182,240,426`, `World.ts:722,1559`) — route through `TelemetryCollector`/
+  `VRConsole` or gate behind debug; `RuntimeBridge.ts:15` lone `.js` import of a `.ts` module;
+  e2e tier1 specs import source via `.js` (35) while tier2-4 use `.ts` (69) — normalize;
+  `remote-debug-streamer.test.ts` is near-vacuous (asserts only no-throw, never verifies the
+  stubbed `fetch`).
+- 🟢 **`CommandApplier` is built-ahead scaffolding, not dead (verified).** It is instantiated
+  only in tests and `RuntimeBridge.commandBufferPtr` honestly returns `0` ("dormant"). This is
+  intentional per the **B2 command-buffer DEFER** decision above; the `COMMAND_BUFFER requires
+  SCENE_RUST` ordering invariant lives as a Rust test. Do not chase — add a production
+  integration test once `SCENE_RUST` lands.
+- 🟢 **`ArrowBinaryParser` is "fake-Arrow" (known limitation, not a defect).** It parses flat
+  `f64` triples, not real Apache Arrow IPC. Recorded as a known simplification; the real Arrow
+  path is the unwired `serializers/` module above.
+
 ### Sprint 22.7 — Task-first workflow & Draco explainability 🔲 (new)
 
 > Evidence base: a third external review (UX / user-journey pass, 47 sections) verified against
@@ -1010,6 +1209,82 @@ The GA solver runs but its recommendation quality is untested against known-good
   (clone / certs / Quest Browser), not for importing data once running. The CSV-first
   *journey* polish (drop → preview schema → confirm → "Analysing…" → Draco recommendation →
   enter palace) is still a valid onboarding follow-up, but the reviewer over-stated the gap.
+
+### Sprint 22.8 — Security & WASM robustness hardening 🔲 (new)
+
+> Evidence base: a Security & Robustness project review (`.agents/team.json` reviewer persona),
+> verified against code 2026-08-11. **No P0 / RCE found.** No glTF/OBJ mesh parser exists in the
+> runtime, so there is no unsafe-mesh-parser attack surface. The findings are an impersonation
+> vector in the signalling server, a WASM stack-overflow trap, and a dev-tooling break plus
+> hardening items. All load-bearing claims independently re-verified (see PR body scorecard).
+
+- 🔲 **Signalling `from` spoof → impersonation + connection-disruption DoS (P1, verified).**
+  `SignallingServerCore.isValidMessage` (`:50-57`) only checks that `from` is a string; it does
+  not verify the value equals the authenticated `peerId`. `broadcast`/`sendTo` then use
+  `message.from ?? peerId` (`:143, :145`) — any peer can set `from: "victim-peer-id"` to
+  impersonate that peer in relayed messages, or `from: "*"`-style values to confuse recipients.
+  Fix: ignore the client-supplied `from` and always use the server-bound `peerId` (the `??`
+  fallback should be the *only* path); add a test asserting a spoofed `from` is overwritten.
+- 🔲 **WASM `leaves()` unbounded recursion → stack-overflow trap (P1, verified).**
+  `wasm/src/data/operations.rs:453-464` `leaves()` recurses depth-first per child with no depth
+  bound; a degenerate merge-history chain produces a tree whose depth is linear in history
+  length → WASM stack overflow → trap → instance unusable. Reachable via the `data_operation`
+  ABI. Fix: convert to an explicit stack/iterative traversal, or bound the recursion depth.
+- 🔲 **Vite dev/preview signalling is dead for parametrised clients (P2, verified — not a false
+  positive).** `vite.config.js:74` does `if (request.url !== '/__signal') return;`, but a peer's
+  upgrade URL is `/__signal?room=…&peer=…&token=…`, so the strict `!==` bails *before* the
+  `new URL(...).searchParams` parse at `:76-79` ever runs. In dev/preview, multiplayer signalling
+  silently never connects. Fix: parse the pathname (`new URL(request.url, …).pathname === '/__signal'`)
+  before the query check.
+- 🔲 **Other security/robustness P2s (verified):** WebRTC `payload.peerId` is trusted client-side
+  with no cross-check against the signalling-authenticated identity; no per-peer rate limiting on
+  the signalling server (a flood peer can exhaust the room); CSV `__proto__` header filter is
+  inconsistent (`Parsers.ts:150` filters it but `:50` does not) — prototype-pollution gap;
+  `wasm` `count * 12` `u32` multiplication can overflow on huge datasets without a checked mul;
+  the WASM allocator panics on OOM (acceptable, but the panic should surface as a recoverable
+  capability error, not an unrecoverable trap); `readF32`/`readU32` cache a `DataView` that goes
+  stale after `memory.grow()` (cross-validated by 3 independent reviewers — Graphics, Security,
+  Architect). Fix the DataView to re-derive after grow.
+- 🟢 **No glTF/OBJ parser, no unsafe mesh-parser surface (verified).** The only binary parser is
+  `ArrowBinaryParser` (flat `f64` triples — the "fake-Arrow" known limitation recorded in 22.6).
+  Not a security defect.
+
+### Sprint 22.9 — GPU resource lifecycle & per-frame allocation hygiene 🔲 (new)
+
+> Evidence base: Expert Graphics Engineer project review + the orphaned-renderer finding from the
+> Principal Architect review, verified against code 2026-08-11. Theme: **dispose everything you
+> create, allocate nothing per frame.** The re-solve leak is the highest-impact item — on a live
+  time-series it re-solves roughly every second, leaking materials + textures each time.
+
+- 🔲 **`DracoTopologyNode.reSolveAndSynthesize` GPU leak — materials, textures, instance buffers
+  (P1, verified).** On re-solve (`DracoTopologyNode.ts:38-50`), the old artifact group is
+  released via `MeshPool.releaseGroup`, but `release`/`releaseGroup`/`clear`
+  (`src/utils/ObjectPool.ts:96-110, 113-123, 126-133`) only ever dispose *custom geometry*
+  (`mesh.geometry?.dispose?.()`) — they **never** call `material.dispose()` or
+  `texture.dispose()`, and `clear()` disposes nothing. `VRTopologyTranslator.synthesizeArtifact`
+  builds fresh materials + CanvasTextures (labels) each call. Worst case: live `TIME_SERIES`
+  fallback re-solves every ~1 s → materials + label textures + `InstancedMesh` instance-attribute
+  buffers leak each tick → VRAM OOM on Quest. (Note: `World.loadDataset` uses the correct
+  `disposeObject` path — the leak is specific to the re-solve/re-weight path.) Fix: have
+  `releaseGroup` dispose materials + textures (respecting shared-pool geometries), and make
+  `clear()` a full teardown.
+- 🔲 **Orphaned second `WebGLRenderer` (P0 architecture, verified).** `SceneGraphController.ts:47`
+  unconditionally constructs `new THREE.WebGLRenderer({ antialias, alpha })`; `World.ts:206`
+  constructs the controller with no `options.container`, so `renderer.domElement` is never
+  appended (`:51-53` guard) and the renderer is never `.render()`'ed (Engine owns the real
+  renderer at `Engine.ts:100`) nor `.dispose()`'d. This burns a WebGL context at startup — on
+  Quest's tight context limit (~8–16) it risks later context-creation failures for nothing. Fix:
+  construct the renderer lazily, or inject Engine's renderer; verify whether the controller's
+  `scene`/`camera`/`analystAnchor` are actually wired into the render loop before removing.
+- 🔲 **Stale `memoryView` after `memory.grow()` (P2, verified ×3 reviewers).**
+  `RuntimeBridge` caches a typed-array view over the WASM `Memory`; after `memory.grow()` the
+  backing buffer is replaced and the cached view detaches. Re-derive the view on grow. (Found
+  independently by the Graphics, Security, and Architect reviewers — high confidence.)
+- 🔲 **Per-frame allocations in hot paths (P2, verified).** `LODManager.isInGaze` allocates a
+  `Vector3` per call (`:80-84`); `LODManager.isInFrustum` allocates a `Sphere` and holds dead
+  `cullPositions`; `SpatialIndex.raycast` allocates inside the inner loop. Hoist to reused
+  scratch members. Plus `Engine.dispose` listener cleanup is incomplete and `MeshPool.clear` is
+  not a full dispose (see the leak item above).
 
 ---
 
