@@ -10,8 +10,8 @@
 | Metric | Value |
 |---|---|
 | `npx tsc --noEmit` | **0 errors** |
-| `npx vitest run` (full suite) | **1191 passed · 9 skipped · 0 failed** (exit 0) |
-| Test files (full suite) | 174 passed · 3 skipped (177) |
+| `npx vitest run` (full suite) | **1272 passed · 9 skipped · 0 failed** (exit 0) |
+| Test files (full suite) | 182 passed · 3 skipped (185) |
 | E2E suite (`tests/e2e`) | **171 passed · 0 failed** across **39 spec files** |
 | E2E runner script | `npm run test:e2e` (`vitest run tests/e2e`) |
 

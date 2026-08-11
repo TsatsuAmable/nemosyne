@@ -4,7 +4,7 @@ A hierarchical memory palace built from the `supply-chain` sample dataset.
 
 ## What it shows
 
-`src/data/SampleDatasets.js` defines a three-level supply chain:
+`src/data/SampleDatasets.ts` defines a three-level supply chain:
 
 | name | level | region | inventory | riskScore |
 |---|---|---|---|---|
