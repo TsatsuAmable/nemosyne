@@ -11,9 +11,12 @@
   (shared `palette.ts` tokens, unified `TourStep`/`Tour` types, dead-code cleanup),
   Low-Strain + Muted theme presets, and full button-surface test coverage (+48 tests).
   Gates green: `tsc` 0 · `eslint` 0 errors (186 warnings) · `vitest` 1272/9/0 ·
-  `build` ~275 KB gzip. Sprints 22.3/22.4/22.5/22.6 🔲 not started (scoped from
-  `docs/USER_STORIES_AND_UX_ANALYSIS.md` — 29 user stories + gap/UX audit — and a second
-  architecture/research review verified 2026-08-11).
+  `build` ~275 KB gzip. Sprints 22.3/22.4/22.5/22.6/22.7 🔲 not started (scoped from
+  `docs/USER_STORIES_AND_UX_ANALYSIS.md` — 29 user stories + gap/UX audit — plus a second
+  architecture/research review and a third UX/user-journey review, both verified 2026-08-11).
+  **Doc staleness fixed this PR:** `SampleDatasets.js`→`.ts` across 6 doc files;
+  `DataCard`→`HolographicInspector` in GETTING_STARTED; test-count 1191→1272 in README +
+  TEST_READY (verified by `npm test`: 1272 pass / 9 skip / 182 files).
   ⚠️ On-device validation owed (Sprint 22.1 + 22.2): dashboard distance (~1.35 m → ~2.55 m),
   transient reduced-motion vignette comfort, TDA-on-demand feel, Draco short-frame scroll
   readability, new tour stop targets, Low-Strain/Muted slate backdrops + neon-on-selection
@@ -83,10 +86,23 @@
   selection), confidence-bearing facts, stable `datumId`, `Dataset` immutability-model
   decision, `World`→composition-root shrink, dependency-direction rule, event-bus discipline,
   `updatables` typing, `three`/`@types` version alignment, `allowJs` review, `src/ai` README
-  staleness, semantic-mark-vs-visual-skin separation, load-test transition metrics. The
-  research-direction items (2D-vs-VR experimental harness, human-performance benchmark,
-  semantic/structural position discipline, evidence-informed Draco loop, hardware-validation
-  matrix) are recorded under **Planned but not actioned → Research validation**. **"Dwell
+  staleness, semantic-mark-vs-visual-skin separation, load-test transition metrics. **22.7**
+  (new, from a third UX/user-journey review — factually accurate, no false headlines) holds
+  the task-first workflow items: Draco "Why this view?" / "Explain this" explainer (P0,
+  verified missing — `DracoDiagnosticHUD` is a weight tuner, not an explainer), task-first
+  onboarding with templates as the front door + a guided "Find the Fraud" investigation,
+  precision/detail transition (use space for discovery, conventional representations for
+  precision), investigation-timeline / analytical-narrative provenance for the returning
+  analyst (wire the built-but-dead annotation/bookmark classes), navigation-cost
+  instrumentation (analysis_time vs navigation_time); plus a record correction that the
+  review's "no in-app import" framing is inaccurate (`FileLoader.ts` is an in-app overlay at
+  `World.ts:401`). Sprint 22.3 also gains a first-class **Compare** operation (verified
+  missing — named in the conceptual loop but not implemented), an **input parity matrix**
+  (accessibility), and **error-recovery UX messaging**. The research-direction items
+  (2D-vs-VR experimental harness, human-performance benchmark, semantic/structural position
+  discipline, evidence-informed Draco loop, hardware-validation matrix, 5-level evidence
+  hierarchy, 5-study research programme, UX-cost composite, frustration-analyzer-as-signal)
+  are recorded under **Planned but not actioned → Research validation**. **"Dwell
   Select" is a working feature, not a defect** — record corrected, do not chase. **Live site
   is in sync** (three.js/WebXR, verified 2026-08-11) — the review's "serves A-Frame/D3" P0 is
   stale; do not chase, though exposing build/commit metadata is a valid cheap follow-up.
@@ -735,6 +751,12 @@ The GA solver runs but its recommendation quality is untested against known-good
   hardcodes `engine.input.hands[0]` while `WorldInputCoordinator.ts:215` correctly uses
   `hands[this.gestureRecognizer?.dominantHandIndex ?? 0]`. Fix: bind the wheel menu to
   `dominantHandIndex` like the rest of the input system. Low severity.
+- 🔲 **Input parity matrix (verified gap).** No analytical task should depend on one physical
+  ability. Build an explicit parity matrix (action × {hand, controller, keyboard, dwell}):
+  select / filter / aggregate / sort / time-slice / undo / inspect. Dwell is wired
+  (`SelectionDispatcher.ts`, 1200 ms) but not exercised across every action; verify and fill
+  the unset cells. (The colorblind, dwell-delay, and dominant-hand items above are the first
+  rows of this matrix.)
 
 #### Onboarding last-mile (wire the praised-but-dead features)
 - 🔲 **JIT gesture hints never instantiated in production (US11, verified).**
@@ -764,6 +786,13 @@ The GA solver runs but its recommendation quality is untested against known-good
   procedural vector field rather than reading real `u/v/w` columns; `GeoSurfaceLayout` uses a
   fixed `heightScale` rather than dataset-normalized scaling. Fix: read the vector columns
   when present (synthetic fallback otherwise); normalize geo height to the data range.
+- 🔲 **No first-class Compare operation (verified).** `DatasetOperations.ts` exports
+  filter / sort / aggregate / cluster / hierarchical / dbscan / anomaly / slice — **no
+  `compare`**; `DataOperations.computeOperationDataset` (`:210`) and `buildWasmOperationSpec`
+  (`:293`) likewise have none. "Compare" is named in the conceptual loop
+  (Orient / Probe / Query / **Compare** / Annotate / Share) but is not implemented. Add Compare
+  as a first-class operation: group A vs group B, before vs after, selected vs population,
+  representation A vs B, 2D vs 3D. Also valuable as a research condition.
 
 #### Small fixes / dead-code
 - 🔲 Remove dead declarations/code: `dwellEnabled`/`dwellDelayMs` aliases
@@ -779,6 +808,11 @@ The GA solver runs but its recommendation quality is untested against known-good
 - 🔲 **Dashboard wiring check (US10, UNCONFIRMED).** `WorldUIManager` constructs
   `DashboardManager` without calling `registerPanel`; verify whether `World.ts` wires chart
   panels in elsewhere. If not, the dashboard renders empty — wire it.
+- 🔲 **Error-recovery UX messaging.** Engineering handles context loss / tracking loss /
+  malformed CSV / network stalls, but user-facing recovery is raw ("WebXR input source
+  disconnected"). Rewrite analyst-facing: "Hand tracking lost — your analysis is safe; switch
+  to controller input or pause" / "Live stream interrupted — last update 14:32:08, 3,842
+  records preserved." Principle: never make the user wonder whether their analysis was lost.
 
 ### Sprint 22.4 — Spatial zonation architecture 🔲
 
@@ -890,6 +924,68 @@ The GA solver runs but its recommendation quality is untested against known-good
   Do not chase — though **exposing build/commit metadata** on the site (no version/commit
   shown today) is a valid, cheap follow-up.
 
+### Sprint 22.7 — Task-first workflow & Draco explainability 🔲 (new)
+
+> Evidence base: a third external review (UX / user-journey pass, 47 sections) verified against
+> code 2026-08-11 — **factually accurate, no false headlines** (unlike the architecture pass).
+> Its thesis: Nemosyne has "a lot of implementation evidence, but almost no user evidence" and
+> has "designed an interaction language before proving that users need to learn that language."
+> Organizing frame: **Find → Understand → Prove → Share**. *Find* is strong; *Understand* is
+> developing; *Prove* and *Share* are weak. This sprint holds the engineering items that move
+> the product from interface-first toward task-first; the evidence/research items go under
+> **Planned but not actioned → Research validation**.
+
+- 🔲 **Draco "Why this view?" / "Explain this" (P0, verified missing).** There is **no**
+  user-facing explainer. `DracoDiagnosticHUD` is a soft-constraint weight *tuner* for power
+  users (renders LAYOUT/GEOM/BEHAV/COST/DELTA + `adjustWeight`), not an explainer. Add a
+  compact "Why this palace?" panel: detected topology family, community count, edge density,
+  anomalous hubs, and *why* the recommended layout was chosen (e.g. "force-directed preserves
+  local connectivity while separating dense communities"). This turns Draco from invisible
+  magic into explainable analytical assistance — and is research infrastructure (the
+  explanation is a testable claim about what users trust). A universal **"Explain this"**
+  command (select an artefact → "why is this here / what does its size mean / why are these
+  nodes together / why is this an anomaly") bridges Draco, statistics, spatial semantics,
+  accessibility, onboarding, and trust.
+- 🔲 **Task-first onboarding: templates as the front door (P0).** The 6 analysis templates
+  (`AnalysisTemplates.ts:27-82`, already wired to the wheel menu + `World.ts:676`) should
+  become the entry point — not "Load Dataset" but "What are you trying to understand?" (find
+  anomalies / understand relationships / explore change / compare groups / explore hierarchy)
+  → template selects dataset + representation + interaction vocabulary + tour + theme. Make
+  Draco operate at the UX level, not merely the rendering level. A guided **"Find the Fraud"
+  investigation** (5 interactions: look around → select anomaly → pull nodes together →
+  inspect → mark finding) teaches the system by solving a problem, not by touring components.
+  ⚠️ A 19-stop tour is itself a diagnostic — if the system needs 19 instructional stops, the
+  interaction model may be too dense; task-first onboarding is the counterweight, not a longer tour.
+- 🔲 **Precision / detail transition (P0).** Formalise the hybrid principle **"use space for
+  discovery, conventional representations for precision"** — a spatial → inspect → expand →
+  2D detail card / table / chart path so the user never fights the spatial interface to read
+  an exact number. `HolographicInspector` (hand-following diegetic slate) + `ChartPlanePanel`
+  (`World.ts:853,862,871`) are the foundations; add an explicit precision view for long
+  labels / many columns / exact numbers / side-by-side comparison. Do not try to beat 2D at
+  value-reading; make the transition seamless instead.
+- 🔲 **Investigation timeline / analytical narrative (P1, verified partial).** Session
+  persistence is real (`WorldSessionController.ts:18-46` persists dataset / camera / history /
+  settings / tour / theme / panel positions) — but persistence ≠ provenance. The returning
+  analyst needs "what did I do last time?" as a user-facing narrative (filtered N → detected M
+  anomalies → clustered into K groups → inspected row #X → added Y findings) with
+  [Resume] / [Open Summary] / [Start Fresh], not just a restored state. Annotation + bookmark
+  classes exist (`src/vr/interactions/SharedAnnotationManager.ts` — built, never instantiated,
+  incl. WebRTC bookmark sync); wire them so a finding can be captured, annotated, and shared.
+- 🔲 **Navigation-cost instrumentation (P0).** The premise relies on navigating space, but
+  navigation can become the task. No evidence yet says how much time is spent analysing vs
+  navigating. Instrument `analysis_time` vs `navigation_time`, `distance_travelled`,
+  `orientation_recoveries`, `teleport_count`, `camera_rotation`, `time_to_target`,
+  `time_not_facing_target`. Prerequisite metric for the spatial-advantage study; answers
+  "does spatial navigation help or hurt?" (Existing telemetry + `UXFrustrationAnalyzer` are
+  the plumbing; this adds the analysis-vs-navigation split.)
+- 🟡 **Import framing — record correction.** The review frames data import as
+  "developer-oriented (clone / npm / certs)" with no in-app flow. That is **inaccurate for the
+  import step**: `src/ui/FileLoader.ts` is an in-app DOM CSV/JSON file-picker overlay
+  (`World.ts:401`, WASM fast path) — the dev-orientation is real for *getting into VR*
+  (clone / certs / Quest Browser), not for importing data once running. The CSV-first
+  *journey* polish (drop → preview schema → confirm → "Analysing…" → Draco recommendation →
+  enter palace) is still a valid onboarding follow-up, but the reviewer over-stated the gap.
+
 ---
 
 ## Planned but not actioned (audit 2026-08-10)
@@ -939,6 +1035,37 @@ The GA solver runs but its recommendation quality is untested against known-good
   65k/100k datasets, comfort, text readability, reduced motion) matrix with date + headset
   firmware + browser version on every result. The roadmap's on-device validation already
   lists the items; this formalises them as a repeatable matrix.
+- **5-level evidence hierarchy — adopt project-wide (from the UX/user-journey review).**
+  Label every feature/claim by evidence level: 🟢 Implemented (exists) → 🔵 Tested (automated
+  behaviour correct) → 🟡 Usable (representative users complete the task) → 🟠 Useful (users
+  perform better / derive value) → 🔴 Superior (controlled study shows a reproducible
+  advantage over a credible baseline). Much of Nemosyne's documentation stops at 🟢/🔵 while
+  its research ambitions require 🟡/🟠/🔴. Make the labelling explicit so the gap is visible,
+  not hidden — "demonstrated vs validated" is the vocabulary.
+- **5-study research programme (uses the harness + navigation-cost instrumentation above).**
+  (1) **Learnability** — time to first successful operation, gesture-recognition errors, help
+  requests, 24 h recall; (2) **Spatial advantage** — 2D dashboard vs desktop-3D vs VR-3D on
+  topology tasks (bridge / cluster / path / anomaly / relationship); (3) **Precision penalty**
+  — where 3D loses to 2D (rank / compare / estimate / read exact values), *just as important
+  as proving advantages*; (4) **Metaphor comprehension** — give users the gestures
+  (pinch / slice / scoop / rotate / push) without explanation, measure interpretation
+  accuracy / confidence / learning time / retention (tests whether the physical language is
+  actually intuitive — a publishable result in its own right); (5) **Memory** — 2D chart vs 3D
+  imposed vs 3D navigable vs 3D user-manipulated, recall at 5 min / 24 h / 7 d (directly tests
+  the memory-palace hypothesis). The flagship is a **"Find the Fraud"** between-subjects study
+  (2D / Nemosyne desktop-3D / Nemosyne VR) measuring accuracy, time, navigation, interaction
+  errors, confidence, recall, workload, plus one brutally simple question: "which
+  representation helped you understand the data?"
+- **UX-cost composite ("User Journey Score").** Per task: UX cost = learning + navigation +
+  interaction + interpretation + evidence cost. Nemosyne currently concentrates on the middle
+  (analysis cost); the surrounding costs are where the UX gaps live. Keep the underlying
+  metrics visible — the composite is a diagnostic, not a vanity number.
+- **UX frustration analyzer as signal, not conclusion.** `UXFrustrationAnalyzer` (wired via
+  `Telemetry.ts:96`) detects patterns like `LONG_DWELL_HESITATION` — but long dwell can mean
+  careful inspection / reading / interest, not frustration, and many gestures can mean
+  engagement, not bad UX. Model `interaction signal → possible UX hypothesis → human
+  validation`, not `signal → frustration score`. Treat on-device detection as triage for
+  studies, never as a verdict.
 
 ### Blocked on the B2 load-test (real Quest data)
 

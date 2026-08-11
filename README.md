@@ -53,7 +53,7 @@ Then open `https://YOUR-IP:5173` in Meta Quest Browser, or use ADB port forwardi
 
 ```bash
 npm run build        # Production bundle -> dist/
-npm test             # Vitest suite (1191 pass / 9 skip; see TEST_READY.md)
+npm test             # Vitest suite (1272 pass / 9 skip; see TEST_READY.md)
 npm run test:coverage
 ```
 

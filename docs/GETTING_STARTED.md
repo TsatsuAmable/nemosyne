@@ -99,7 +99,7 @@ Then open `https://localhost:5173` in the Quest Browser.
 | Look around | Move your head |
 | Point | Controller laser or index-finger ray |
 | Select a node | Trigger click or pinch |
-| Inspect values | Select a data node; a DataCard appears |
+| Inspect values | Select a data node; a HolographicInspector slate appears |
 | Open wheel menu | Pinch the menu hand (or grip button / two-hand pinch) |
 | Toggle panels | Wheel menu buttons |
 | Drag a panel | Point at title bar, hold trigger/pinch, move |

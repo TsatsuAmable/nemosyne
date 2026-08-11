@@ -4,7 +4,7 @@ A graph memory palace built from the `fraud-graph` sample dataset.
 
 ## What it shows
 
-`src/data/SampleDatasets.js` defines eight transactions with `amount`, `isFraud`, and `hour` fields, plus weighted edges between related transactions.
+`src/data/SampleDatasets.ts` defines eight transactions with `amount`, `isFraud`, and `hour` fields, plus weighted edges between related transactions.
 
 | id | amount | isFraud | hour |
 |---|---|---|---|
