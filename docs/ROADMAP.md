@@ -11,8 +11,9 @@
   (shared `palette.ts` tokens, unified `TourStep`/`Tour` types, dead-code cleanup),
   Low-Strain + Muted theme presets, and full button-surface test coverage (+48 tests).
   Gates green: `tsc` 0 · `eslint` 0 errors (186 warnings) · `vitest` 1272/9/0 ·
-  `build` ~275 KB gzip. Sprints 22.3/22.4/22.5 🔲 not started (scoped from
-  `docs/USER_STORIES_AND_UX_ANALYSIS.md` — 29 user stories + evidence-backed gap/UX audit).
+  `build` ~275 KB gzip. Sprints 22.3/22.4/22.5/22.6 🔲 not started (scoped from
+  `docs/USER_STORIES_AND_UX_ANALYSIS.md` — 29 user stories + gap/UX audit — and a second
+  architecture/research review verified 2026-08-11).
   ⚠️ On-device validation owed (Sprint 22.1 + 22.2): dashboard distance (~1.35 m → ~2.55 m),
   transient reduced-motion vignette comfort, TDA-on-demand feel, Draco short-frame scroll
   readability, new tour stop targets, Low-Strain/Muted slate backdrops + neon-on-selection
@@ -77,8 +78,18 @@
   implement `GL_POINTS` tier vs. correct `CLAUDE.md` to the two-tier reality); **22.5** (new)
   wires the built-but-dead **collaboration embodied-presence** stack
   (`PeerAvatarManager`/`CollaborativeStateSync`/`BinaryPoseSerializer` + full quaternion
-  broadcast). **"Dwell Select" is a working feature, not a defect** — record corrected, do
-  not chase.
+  broadcast); **22.6** (new, from a second architecture/research review) covers data/Draco
+  correctness (`_correlationMatrix` pairwise-complete fix — P0, feeds representation
+  selection), confidence-bearing facts, stable `datumId`, `Dataset` immutability-model
+  decision, `World`→composition-root shrink, dependency-direction rule, event-bus discipline,
+  `updatables` typing, `three`/`@types` version alignment, `allowJs` review, `src/ai` README
+  staleness, semantic-mark-vs-visual-skin separation, load-test transition metrics. The
+  research-direction items (2D-vs-VR experimental harness, human-performance benchmark,
+  semantic/structural position discipline, evidence-informed Draco loop, hardware-validation
+  matrix) are recorded under **Planned but not actioned → Research validation**. **"Dwell
+  Select" is a working feature, not a defect** — record corrected, do not chase. **Live site
+  is in sync** (three.js/WebXR, verified 2026-08-11) — the review's "serves A-Frame/D3" P0 is
+  stale; do not chase, though exposing build/commit metadata is a valid cheap follow-up.
 - **Blockers / open:** B2 (WASM command-buffer) — deferred pending real-headset
   load-test data from the PR #80 harness. Honesty hardening (#81) + f15 isolation (#82)
   now DONE (precondition met). **The harness has not yet been run** —
@@ -809,6 +820,76 @@ The GA solver runs but its recommendation quality is untested against known-good
 - 🔲 (Future, by design) shared dataset state + synchronized operations — GETTING_STARTED
   notes "Sprint 10B.2"; still not built, recorded as future work, not a regression.
 
+### Sprint 22.6 — Data/Draco correctness + architecture hygiene 🔲 (new)
+
+> Evidence base: a second external review (architecture/research pass) verified against
+> code 2026-08-11. **9 of 12 concrete claims confirmed**, 1 false (see "Not a defect"
+> note below), 1 partly confirmed, 1 understated. Engineering items recorded here; research
+> items in the next section.
+
+- 🔲 **`_correlationMatrix` missing-value misalignment (P0 correctness, verified).**
+  `ConstraintEngine._correlationMatrix` (`ConstraintEngine.ts:235-259`) filters each numeric
+  column independently (`filter(!NaN)`) then pairs values by **index** `k` over
+  `n = columns[0].length`. When missing values occur in different rows, the k-th valid value
+  of column A is from a different row than the k-th valid value of column B → wrong
+  correlation (and possible `NaN` when a shorter column is indexed past its length). It feeds
+  the `prefer_beam_for_correlations` soft constraint (`:580`), so a stats bug becomes a
+  **visualization-selection bug**. Fix: compute from **pairwise complete observations** per
+  column pair; add a test with staggered NaN rows asserting the expected correlation.
+- 🔲 **Confidence-bearing statistical facts.** Trend/seasonality are currently binary flags;
+  upgrade to `{ signal, strength, sampleCount, method }` so Draco can reason about
+  confidence rather than `trend=true`. (Temporal extraction lives in `ConstraintEngine.ts:274+`.)
+- 🔲 **Stable `datumId` decoupling renderer from JS object identity.** `Dataset.ts:44-51`
+  explicitly preserves row-object identity so `mesh.userData.row === dataset.rows[i]` matches
+  after strip/clone. The renderer should not care whether a row was cloned by filter /
+  serialization / WASM / a worker / persistence / collaboration. Give every datum a stable
+  semantic ID; match meshes by `mesh.userData.datumId`. Pre-work for WASM + collab.
+- 🔲 **`Dataset` immutability model — decide and document.** ARCHITECTURE calls `Dataset`
+  "immutable" but `updateRows()` mutates the row store for live streams (verified). Choose
+  **B** (mutable live dataset + immutable derived operations) for streams and document it
+  precisely; fix the doc/impl contradiction.
+- 🔲 **`World.ts` → composition root, not nervous system.** Now **1,784 lines** (verified);
+  owns/references an enormous state surface. Target `World` as a thin composition root over
+  Runtime / Workspace / DataSession / Input / Presentation / Persistence / Collaboration.
+  Coordinators are extracted already; finish removing direct cross-subsystem state from `World`.
+- 🔲 **Formalise dependency direction.** Add a hard rule to `ARCHITECTURE.md`: `data → analysis
+  → representation → rendering → input`, never backward; `Dataset` must not import three.js;
+  `Draco` must not import `World`; UI must not modify `Dataset` directly. More valuable than
+  further class descriptions.
+- 🔲 **Event-bus discipline.** Events for observation / telemetry / UI notification /
+  decoupled cross-cutting concerns; **direct method calls** for commands / ownership /
+  lifecycle / state transitions — so the call graph stays visible and debuggable.
+- 🔲 **`updatables: unknown[]` → `Updatable[]` (verified).** `Engine.ts:46` is dynamically
+  duck-typed (`has update()`). Type it as `Updatable[]` with an explicit
+  `add`/`remove`/`dispose` lifecycle (the `Updatable` type already exists in the project).
+- 🔲 **Align `three` / `@types/three` versions (verified).** `package.json` declares
+  `three: ^0.168.0` vs `@types/three: ^0.185.4`; `tsconfig` maps `three` → `@types/three`,
+  masked by `skipLibCheck: true`. Compiling against a different API surface than the runtime
+  is risky for graphics code. Align versions or eliminate the explicit mismatch.
+- 🔲 **Review `allowJs: true` (verified).** Source is TS-first now; make the boundary explicit
+  (`src` = TS-only; tests/config = JS) rather than a broad compiler permission.
+- 🔲 **Resolve `src/ai/` README staleness + AI-story inconsistency.** `README.md:74` says
+  `ai/ # (planned)` but `src/ai/` already holds 6 real files (`NeuralConstraintPredictor`,
+  `GestureClassifierModel`, `GestureModelStore`, `GestureTrainingWorker`,
+  `VoiceCommandListener`, `DracoWorldModel`). Decide: keep AI emphasis with accurate status,
+  or **remove the AI emphasis for now** (the symbolic Draco recommender is the more
+  interesting, defensible story — don't dilute "transparent representation recommender" into
+  "AI chooses your chart"). If a learned layer comes later, evaluate it against Draco.
+- 🔲 **Separate semantic mark from visual skin.** Today spatial form and cyberpunk aesthetic
+  are entangled. Split `NODE → {crystal, sphere, dot, column}` and `BEAM → {neon, neutral,
+  high-contrast}` so the research question "does spatial form help?" can be answered
+  independently of "does the aesthetic help?"
+- 🔲 **Load-test: add transition metrics.** The `settleSec` mechanism exists (tests use 0);
+  steady-state measurement excludes the most painful part of a dataset swap. Report
+  dataset-transition p50/p95, worst stall, frames missed, GC pause, time-to-interactive
+  alongside steady-state FPS — "can it move 8k → 65k without a perceptible freeze?"
+- 🟢 **NOT a defect — live site is in sync (verified 2026-08-11).** An external review
+  claimed `nemosyne.world` still serves the retired A-Frame/D3 page (ranked P0 #1). Verified
+  FALSE: a fresh fetch of the live root shows "Built directly on three.js and WebXR", **zero**
+  A-Frame/D3 mentions; `docs/index.html` matches. The review's crawler hit a stale cache.
+  Do not chase — though **exposing build/commit metadata** on the site (no version/commit
+  shown today) is a valid, cheap follow-up.
+
 ---
 
 ## Planned but not actioned (audit 2026-08-10)
@@ -824,6 +905,40 @@ The GA solver runs but its recommendation quality is untested against known-good
 - Tutorial screencasts / screenshots
 - Multi-user voice chat (voice-optional by intent)
 - IWSDK hand/input helper spike (deferral gate met; spike not run)
+
+### Research validation (from the architecture/research review, verified 2026-08-11)
+
+> The strongest critique: engineering is now well ahead of empirical evidence. The
+> bottleneck is **evidence, not features**. These are research-direction items, not
+> engineering sprints.
+
+- **2D-vs-VR experimental harness** — a reusable harness (dataset × task × 2D control ×
+  desktop-3D × VR-3D × timer × answer capture × confidence × workload × interaction
+  telemetry × analysis) to run studies: topology discovery, anomaly detection, temporal
+  pattern recognition, quantitative comparison, memory/recall. The target result is a
+  per-task matrix of where spatial representation wins/loses — not a blanket "VR beats 2D".
+  (Supersedes the bare "Scientific user study vs 2D baseline" line above.)
+- **Human-performance benchmark alongside the spec benchmark.** The golden-set test
+  (`draco-recommender-quality.test.ts:33`, ≥80% topology/layout match) measures "did Draco
+  choose what we expected", not "was the representation good". A human-performance benchmark
+  (`dataset + task + representation → accuracy / time / workload / recall`) lets the system
+  say "our expert prior was wrong" when users perform best on a non-Draco representation.
+- **Semantic vs structural vs layout position discipline.** "near=similar, far=different,
+  inside=cluster, connected=relationship" are hypotheses, not perceptual laws. The UI must
+  distinguish position that encodes a data variable (semantic) from position that exposes
+  topology (structural) from position that is merely algorithmic arrangement (layout), or the
+  visualization can manufacture false inference (e.g. force-directed proximity ≠ semantic
+  similarity). One of the deepest research problems here.
+- **Evidence-informed Draco loop.** Evolve Draco from an expert-rule engine toward an
+  empirically informed recommender: dataset → Draco → representation → human study →
+  succeeds/fails → evidence store → Draco++. The hard rules encode a *human expert's* visual
+  language today; the research contribution is data-semantics → spatial-representation
+  learned from outcomes.
+- **Hardware-validation matrix.** Turn "Quest compatible" into evidence: a per-headset
+  (Desktop / Quest 3S / Quest 3 / other) × test (startup, hand tracking, controller, 1k/8k/
+  65k/100k datasets, comfort, text readability, reduced motion) matrix with date + headset
+  firmware + browser version on every result. The roadmap's on-device validation already
+  lists the items; this formalises them as a repeatable matrix.
 
 ### Blocked on the B2 load-test (real Quest data)
 
