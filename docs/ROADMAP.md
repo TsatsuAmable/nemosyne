@@ -72,8 +72,10 @@
   deliver the implement/descope verdict for B2 (if "implement", build `SCENE_RUST` →
   `COMMAND_BUFFER` per the ordering invariant now encoded as a Rust test). (4) **Sprint
   scoping from the UX audit** (`docs/USER_STORIES_AND_UX_ANALYSIS.md`): **22.3** now covers
-  accessibility (colorblind data-encoding gap + per-mode remap + dwell-delay stepper +
-  hand-wheel dominant hand), **onboarding last-mile** (wire the built-but-never-instantiated
+  accessibility (colorblind data-encoding gap → fix needs a dedicated **Okabe–Ito**
+  categorical palette, not naive wiring — `remapColor()` is a 4-role classifier unsuited to
+  N-category data + per-mode remap + dwell-delay stepper + hand-wheel dominant hand),
+  **onboarding last-mile** (wire the built-but-never-instantiated
   `JITGestureHintManager` + `FrustrationResponseManager` — both grep-confirmed dead in
   production), **analysis completeness** (aggregate placeholder → real `AGGREGATE_BARS`;
   Streamline/Geo layout honesty), and dead-code cleanup; **22.4** keeps spatial zonation +
@@ -81,7 +83,10 @@
   implement `GL_POINTS` tier vs. correct `CLAUDE.md` to the two-tier reality); **22.5** (new)
   wires the built-but-dead **collaboration embodied-presence** stack
   (`PeerAvatarManager`/`CollaborativeStateSync`/`BinaryPoseSerializer` + full quaternion
-  broadcast); **22.6** (new, from a second architecture/research review) covers data/Draco
+  broadcast) **+ `AsymmetricDesktopCompanion`** (sixth built-but-dead class — spectator UI
+  never instantiated) **+ collab moderation/kick + reconnection-state** (token gate is a
+  shared secret, not strong auth; no host kick; no collab rejoin-state); **22.6** (new, from a
+  second architecture/research review) covers data/Draco
   correctness (`_correlationMatrix` pairwise-complete fix — P0, feeds representation
   selection), confidence-bearing facts, stable `datumId`, `Dataset` immutability-model
   decision, `World`→composition-root shrink, dependency-direction rule, event-bus discipline,
@@ -740,8 +745,13 @@ The GA solver runs but its recommendation quality is untested against known-good
   (or a wrapper) so palace + chart data encoding respects the mode; make `remapColor`
   per-mode for deuteranopia/protanopia/tritanopia; switch the default palette to a
   colorblind-safe sequence (perceptual change to all scenes — confirm before shipping) OR
-  keep the neon default and remap only when the mode is on. Tests asserting remap reaches
-  both `ChartPlane` and `VRTopologyTranslator` output.
+  keep the neon default and remap only when the mode is on. **Do not wire naively:** the
+  existing `remapColor()` is a 4-role semantic classifier (ok / alert / primary / secondary),
+  not an N-category palette generator — calling it from `categoricalColor()` would still
+  collapse same-hue-family categories. The real fix is a dedicated colorblind-safe
+  **categorical** palette (e.g. **Okabe–Ito**, 8-colour) selected when the mode is on, with a
+  shape/texture redundancy channel for categories beyond the palette length. Tests asserting
+  remap reaches both `ChartPlane` and `VRTopologyTranslator` output.
 - 🔲 **Dwell threshold not user-adjustable (US23, verified).** The dwell chain is fully wired
   and ticking per frame (`SettingsPanel.dwellSelection` → `World.ts:1247` →
   `InputRouter.setDwellSelection` → `SelectionDispatcher`, 1200 ms) — but the threshold is
@@ -851,6 +861,21 @@ The GA solver runs but its recommendation quality is untested against known-good
   no head orientation; even with avatars wired, orientation would be wrong). Remove the dead
   `broadcastCameraPose`.
 - 🔲 Remote laser-pointer sync + gaze-target sync (optional follow-on).
+- 🔲 **Wire `AsymmetricDesktopCompanion` (verified sixth built-but-dead class).** A real
+  spectator UI exists (2D overlay: view-follow, bookmark quick-jump, peer-presence metrics,
+  comments) but `new AsymmetricDesktopCompanion` has **zero** call sites in `src/` (grep
+  2026-08-11) — it is never instantiated, so the desktop-stakeholder path (persona P2) does
+  not run. Instantiate in the collaboration path, drive from the live peer/camera state, and
+  surface companion comments back into the VR analyst's view non-disruptively. Joins
+  `JITGestureHintManager` / `FrustrationResponseManager` / `PeerAvatarManager` /
+  `SharedAnnotationManager` / `CollaborativeStateSync` on the built-but-never-wired list.
+- 🔲 **Collab moderation + reconnection-state.** The token gate is a shared secret, not strong
+  auth (self-documented). No host moderation/kick — once joined, a peer cannot be removed.
+  Single-user session persistence exists (`WorldSessionController` — dataset/camera/history/
+  settings/tour), but **collab reconnection-state does not**: if a peer disconnects mid-session,
+  whether they can rejoin the same analytical state (undo history, bookmarks, shared
+  annotations) is unverified/unsupported. Add host kick + a rejoin-state-sync path (separate
+  from the local IndexedDB save).
 - 🔲 (Future, by design) shared dataset state + synchronized operations — GETTING_STARTED
   notes "Sprint 10B.2"; still not built, recorded as future work, not a regression.
 
