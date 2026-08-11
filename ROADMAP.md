@@ -11,7 +11,8 @@
   (shared `palette.ts` tokens, unified `TourStep`/`Tour` types, dead-code cleanup),
   Low-Strain + Muted theme presets, and full button-surface test coverage (+48 tests).
   Gates green: `tsc` 0 · `eslint` 0 errors (186 warnings) · `vitest` 1272/9/0 ·
-  `build` ~275 KB gzip. Sprints 22.3/22.4 🔲 not started.
+  `build` ~275 KB gzip. Sprints 22.3/22.4/22.5 🔲 not started (scoped from
+  `docs/USER_STORIES_AND_UX_ANALYSIS.md` — 29 user stories + evidence-backed gap/UX audit).
   ⚠️ On-device validation owed (Sprint 22.1 + 22.2): dashboard distance (~1.35 m → ~2.55 m),
   transient reduced-motion vignette comfort, TDA-on-demand feel, Draco short-frame scroll
   readability, new tour stop targets, Low-Strain/Muted slate backdrops + neon-on-selection
@@ -61,16 +62,23 @@
 - **In progress / next:** (1) **on-device validation** of Phase 22 Sprint 22.1 + 22.2
   perceptual changes (dashboard ~1.35 m → ~2.55 m; transient reduced-motion vignette comfort;
   TDA-on-demand feel; Draco short-frame scroll; new tour stops; Low-Strain/Muted backdrops +
-  neon-on-selection contrast) on a Quest before advancing to **Sprint 22.3 — text legibility
-  + frosted backings**; (2) user connects Quest, runs the full load-test staircase in XR
-  (`npm run dev` → wheel menu Load Test → Start, or desktop `KeyT`/`Shift+T`); (3) read
-  `logs/loadtest-results.jsonl` and deliver the implement/descope verdict for B2 (if
-  "implement", build `SCENE_RUST` → `COMMAND_BUFFER` per the ordering invariant now encoded
-  as a Rust test). (4) **Sprint 22.3 scope expanded** with verified UI/UX-review findings
-  recorded below (Sprint 22.3 §): the **colorblind data-encoding gap** (real — `categoricalColor`
-  + `ChartPlane` + `VRTopologyTranslator` bypass the remap; default palette has a red-green
-  pair) and the **hand-wheel dominant-hand** miss are genuine and testable; **"Dwell Select"
-  is a working feature, not a defect** (record corrected — do not chase).
+  neon-on-selection contrast) on a Quest before advancing to **Sprint 22.3**; (2) user
+  connects Quest, runs the full load-test staircase in XR (`npm run dev` → wheel menu Load
+  Test → Start, or desktop `KeyT`/`Shift+T`); (3) read `logs/loadtest-results.jsonl` and
+  deliver the implement/descope verdict for B2 (if "implement", build `SCENE_RUST` →
+  `COMMAND_BUFFER` per the ordering invariant now encoded as a Rust test). (4) **Sprint
+  scoping from the UX audit** (`docs/USER_STORIES_AND_UX_ANALYSIS.md`): **22.3** now covers
+  accessibility (colorblind data-encoding gap + per-mode remap + dwell-delay stepper +
+  hand-wheel dominant hand), **onboarding last-mile** (wire the built-but-never-instantiated
+  `JITGestureHintManager` + `FrustrationResponseManager` — both grep-confirmed dead in
+  production), **analysis completeness** (aggregate placeholder → real `AGGREGATE_BARS`;
+  Streamline/Geo layout honesty), and dead-code cleanup; **22.4** keeps spatial zonation +
+  foveation + diegetic and adds the **four-tier-instancing spec/impl reconciliation** (decide:
+  implement `GL_POINTS` tier vs. correct `CLAUDE.md` to the two-tier reality); **22.5** (new)
+  wires the built-but-dead **collaboration embodied-presence** stack
+  (`PeerAvatarManager`/`CollaborativeStateSync`/`BinaryPoseSerializer` + full quaternion
+  broadcast). **"Dwell Select" is a working feature, not a defect** — record corrected, do
+  not chase.
 - **Blockers / open:** B2 (WASM command-buffer) — deferred pending real-headset
   load-test data from the PR #80 harness. Honesty hardening (#81) + f15 isolation (#82)
   now DONE (precondition met). **The harness has not yet been run** —
@@ -306,9 +314,15 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ### Sprint 12.4 — Usability Feedback Loop Closure
 
-- [x] **`FrustrationResponseManager`** (`src/vr/ui/FrustrationResponseManager.ts`) — when `dissatisfactionScore > threshold`, surfaces a contextual diegetic hint card near the user's gaze target
+- [x] **`FrustrationResponseManager`** (`src/vr/ui/FrustrationResponseManager.ts`) — class + isolated unit test built; surfaces a contextual diegetic hint card when `dissatisfactionScore > threshold`
 - [x] **`GestureConfidenceHUD`** panel (`src/vr/ui/GestureConfidenceHUD.ts`) — per-gesture real-time confidence bar visualization
 - [x] `tests/frustration-response.test.ts` — assert hint cards appear within 2 operations of threshold breach; assert threshold adapts to expert mode
+- ⚠️ **Correction (verified 2026-08-11):** `FrustrationResponseManager` is **never
+  instantiated in production** — `new FrustrationResponseManager` appears only in tests,
+  never in `src/` (grep-confirmed). The class and its test exist, but the in-VR hint card
+  never appears at runtime; the `UXFrustrationAnalyzer` score only reaches the manual
+  review-bundle export. Wiring it into the runtime is now **Sprint 22.3** (onboarding
+  last-mile). Same applies to `JITGestureHintManager` (built + tested, never instantiated).
 
 ### Sprint 12.5 — UI/UX Polish & Data Transition Animations
 
@@ -666,48 +680,94 @@ The GA solver runs but its recommendation quality is untested against known-good
   `movable-panel-scrollbar` (▲/▼/thumb hit-tests), `button-click-dispatch` (GuidedTour
   `< PREV` pill). +48 tests.
 
-### Sprint 22.3 — Text legibility + frosted backings 🔲
+### Sprint 22.3 — Accessibility, onboarding last-mile & analysis completeness 🔲
 
+> Evidence base: `docs/USER_STORIES_AND_UX_ANALYSIS.md` (29 user stories, gap/UX verdicts
+> with file:line, verified 2026-08-11). This sprint absorbs the verified findings of two
+> UI/UX review passes. Theme: **close the last mile** — wire the class-level plumbing that
+> already exists into the surface where the user encounters it.
+
+#### Text legibility & panel backings
 - 🔲 Frosted/occluded panel backings (solid backings under glassmorphic panels so content
   doesn't bleed through palace geometry); dynamic panel opacity driven by gaze proximity.
 - 🔲 Gaze-driven text scaling (subtended-angle-stable legibility at varying distances).
+  (`textScale` already reaches the canvas font path — `MovablePanel.ts:360` — this adds
+  distance-driven auto-scaling, not the base setting.)
 - 🔲 Design-system color + typography convergence (palette/luminance tokens applied to
   all world-space panels, not just `MovablePanel`).
 - 🔲 Destructive-action confirmation (reset/delete/clear) as a VR confirm step; loading
   indicator; collab error close-codes.
-- 🔲 **Colorblind data-encoding gap (verified 2026-08-11, from a UI/UX review pass).**
-  `categoricalColor()` (`src/data/Encodings.ts:13`) returns the raw `PALETTE`
+
+#### Accessibility (the critical color path)
+- 🔲 **Colorblind data-encoding gap (US22, verified).** `categoricalColor()`
+  (`src/data/Encodings.ts:13`) returns the raw `PALETTE`
   (`[0x00ffcc, 0xff0055, 0xffaa00, 0x00aaff, 0xff00ff, 0x88ff00]` — index 1 red + index 5
   green is a red-green confusion pair) and never applies a colorblind remap.
   `WorldTheme.applyColorblindMode()` only remaps environment (fog/ambient/point light/grid/
   particles); `ChartPlane.ts` has zero colorblind references; and `VRTopologyTranslator.ts`
   calls `categoricalColor()` at 5 sites (lines 242, 436, 624, 695, 759), so the *same*
-  un-remapped palette colors the 3D palace crystals as well as 2D charts. Fix: thread the
-  active `colorblindMode` into `categoricalColor()` (or a wrapper) so palace + chart data
-  encoding respects the mode; switch the default palette to a colorblind-safe sequence
-  (perceptual change to all scenes — confirm before shipping) OR keep the neon default and
-  remap only when the mode is on. Add tests asserting remap reaches both `ChartPlane` and
-  `VRTopologyTranslator` output.
-- 🔲 **Hand-wheel menu ignores dominant hand (verified 2026-08-11).**
-  `WorldUIManager.ts:153` hardcodes `engine.input.hands[0]` for the `HandWheelMenu`, while
-  `WorldInputCoordinator.ts:215` correctly uses `hands[this.gestureRecognizer?.dominantHandIndex
-  ?? 0]`. So gestures respect dominant-hand preference but the wheel menu does not —
-  left-handed users get the wheel on the non-dominant hand. Fix: bind the wheel menu to
+  un-remapped palette colors the 3D palace crystals as well as 2D charts. **Also** the
+  per-mode choice (deuteranopia/protanopia/tritanopia) is cosmetic: `MovablePanel.remapColor`
+  only branches on the `highContrast` boolean, not per-mode, and `Accessibility.remapColor`
+  maps only 4 hue families. Fix: thread the active `colorblindMode` into `categoricalColor()`
+  (or a wrapper) so palace + chart data encoding respects the mode; make `remapColor`
+  per-mode for deuteranopia/protanopia/tritanopia; switch the default palette to a
+  colorblind-safe sequence (perceptual change to all scenes — confirm before shipping) OR
+  keep the neon default and remap only when the mode is on. Tests asserting remap reaches
+  both `ChartPlane` and `VRTopologyTranslator` output.
+- 🔲 **Dwell threshold not user-adjustable (US23, verified).** The dwell chain is fully wired
+  and ticking per frame (`SettingsPanel.dwellSelection` → `World.ts:1247` →
+  `InputRouter.setDwellSelection` → `SelectionDispatcher`, 1200 ms) — but the threshold is
+  fixed; `_dwellThreshold` plumbing exists with no UI. Fix: expose a dwell-delay stepper in
+  the Accessibility section. (Dwell Select itself is **not** a defect — confirmed working.)
+- 🔲 **Hand-wheel menu ignores dominant hand (US9, verified).** `WorldUIManager.ts:153`
+  hardcodes `engine.input.hands[0]` while `WorldInputCoordinator.ts:215` correctly uses
+  `hands[this.gestureRecognizer?.dominantHandIndex ?? 0]`. Fix: bind the wheel menu to
   `dominantHandIndex` like the rest of the input system. Low severity.
-- 🟢 **"Dwell Select" is NOT a defect (record corrected 2026-08-11).** A UI/UX review flagged
-  the Settings → Accessibility "Dwell Select" toggle as a dead control with no backing.
-  Verified FALSE: the chain is fully wired and ticking every frame — `SettingsPanel.dwellSelection`
-  → `World.ts:1247` → `InputRouter.setDwellSelection` (`InputRouter.ts:203`) →
-  `SelectionDispatcher.setDwellSelection` (`SelectionDispatcher.ts:40`), and `InputRouter.update()`
-  calls `dispatcher.updateDwell()` per frame (`InputRouter.ts:271`), firing
-  `handlePointerDown`/`onSelect` after the 1200 ms threshold. The reviewer searched for the
-  wrong symbol (`dwellEnabled`/`dwellDelayMs`); the real key is `dwellSelection`. Minor cleanup:
-  the `dwellEnabled`/`dwellDelayMs` aliases in `coordinators/types.ts:145-146` are unused dead
-  declarations — remove them so the next review isn't misled.
-- 🟡 **Panel declutter: `PanelManager.hideAll()`/`showAll()` already exist**
-  (`PanelManager.ts:182-191`) — the consolidated manager is present. Open question (minor):
-  whether a single user-facing "hide all panels / focus mode" affordance is exposed in the
-  wheel menu. Wire one if not; not an architecture gap.
+
+#### Onboarding last-mile (wire the praised-but-dead features)
+- 🔲 **JIT gesture hints never instantiated in production (US11, verified).**
+  `JITGestureHintManager` is a real class (ghost-hand wireframe + diegetic label + per-gesture
+  cooldown + bob animation) but `new JITGestureHintManager` appears only in tests, never in
+  `src/` (grep-confirmed). Fix: instantiate in `World`/`WorldUIManager`, call `setScene`, and
+  drive hints from the gesture/interaction context. The "diegetic debounced onboarding"
+  praised in review does not currently run.
+- 🔲 **Frustration-response hint card never instantiated in production (US12, verified).**
+  `FrustrationResponseManager` is a real class (novice 0.35 / intermediate 0.55 / expert 0.85
+  thresholds, 10 s cooldown, 7 s visibility, pattern-specific tip card) but `new
+  FrustrationResponseManager` appears only in tests, never in `src/` (grep-confirmed). The
+  `UXFrustrationAnalyzer` computes a real 0–1 dissatisfaction score but it only reaches the
+  manual review-bundle export — the in-VR hint never appears. Fix: instantiate the manager,
+  feed it the analyzer score each frame, call `setUserMode` from the settings userMode, and
+  parent the hint to `analystAnchor` (not a raw camera offset). **Correct the roadmap record**
+  below (this line was previously marked `[x]` done — it is not).
+
+#### Analysis completeness
+- 🔲 **Aggregate operation is a visual placeholder (US5, verified).** `applyAggregate`
+  (`DataOperations.ts:97-120`) hides all nodes and scales the first node by group count;
+  its own comment says "In a full implementation this would spawn new aggregate meshes." A
+  real `AGGREGATE_BARS` geometry builder exists unused in `VRTopologyTranslator.ts:714`.
+  Fix: route the VR aggregate path through `AGGREGATE_BARS` (or grouped markers) so
+  pinch-apart produces real per-group summaries instead of collapsing the palace to one node.
+- 🔲 **Streamline/Geo layout honesty (US2, verified).** `StreamlineLayout` uses a synthetic
+  procedural vector field rather than reading real `u/v/w` columns; `GeoSurfaceLayout` uses a
+  fixed `heightScale` rather than dataset-normalized scaling. Fix: read the vector columns
+  when present (synthetic fallback otherwise); normalize geo height to the data range.
+
+#### Small fixes / dead-code
+- 🔲 Remove dead declarations/code: `dwellEnabled`/`dwellDelayMs` aliases
+  (`coordinators/types.ts:145-146`, real key is `dwellSelection`); `NetworkManager.broadcastCameraPose`
+  (zero call sites); `HandWheelMenu` `openAngleThreshold`/`closeAngleThreshold` (stored but
+  never read by visibility logic — either wire or remove); `PerformanceBudget.handTrackingMs`
+  (declared, never checked — either check or remove).
+- 🟡 **Panel declutter (verified): `PanelManager.hideAll()`/`showAll()` already exist**
+  (`PanelManager.ts:182-191`). Wire a single user-facing "hide all panels / focus mode"
+  affordance in the wheel menu if not already exposed; not an architecture gap.
+- 🔲 Undo/Redo wheel-menu items: add a disabled affordance when the history stack is empty
+  (`WheelMenuBuilder.ts:279-281` acknowledges the silent no-op).
+- 🔲 **Dashboard wiring check (US10, UNCONFIRMED).** `WorldUIManager` constructs
+  `DashboardManager` without calling `registerPanel`; verify whether `World.ts` wires chart
+  panels in elsewhere. If not, the dashboard renders empty — wire it.
 
 ### Sprint 22.4 — Spatial zonation architecture 🔲
 
@@ -720,6 +780,34 @@ The GA solver runs but its recommendation quality is untested against known-good
 - 🔲 Settings panel reorder (comfort/legibility/zonation grouped); tour narration TTS
   polish; context-loss VR visibility (keep session + status panel on WebGL context loss);
   teleport reduced-motion fade + hand-grab damping.
+- 🔲 **Four-tier instancing: reconcile spec vs. implementation (US21, verified).**
+  `CLAUDE.md` migration standards document discrete bands (≤256 Mesh / 257–8,192
+  InstancedMesh / 8,193–65,536 GPU point cloud / larger binned-LOD). The actual code is
+  **two-tier** (small → individual `Mesh`; large >500 rows → `InstancedPointCloud` /
+  cluster volume / aggregate bars) plus an `AdaptiveFrameGovernor` LOD scale; no `GL_POINTS`
+  GPU point-cloud renderer distinct from `InstancedMesh` exists, and the 8,192 / 65,536
+  bands are not separated. **Decision required:** (a) implement the `GL_POINTS` tier +
+  band router (ties into Phase 21 WASM / the B2 command-buffer work, defer until load-test
+  data says it's a measured regression), OR (b) correct `CLAUDE.md` to the two-tier reality
+  (cheap, honest). Default to (b) unless 65k+ load-test data shows the middle band matters.
+
+### Sprint 22.5 — Collaboration embodied presence 🔲 (new)
+
+> The WebRTC mesh is real and shipped (multi-peer, token gate, standalone signalling). The
+> embodied-presence stack is fully implemented and unit-tested but has **zero production
+> call sites** — this sprint wires it.
+
+- 🔲 **Wire `PeerAvatarManager`** (wireframe head + box hands + laser line) — currently
+  never constructed; instantiate in the collaboration path, drive from remote peer state.
+- 🔲 **Wire `CollaborativeStateSync`** (djb2 numeric peerId + sequence-drop) and
+  `BinaryPoseSerializer` (40-byte ArrayBuffer) — replace the JSON `setLocalState({position,
+  rotationY})` hot path with the binary serializer so avatars get full pose.
+- 🔲 **Broadcast full quaternion pose** (current path sends `position` + `rotationY` only —
+  no head orientation; even with avatars wired, orientation would be wrong). Remove the dead
+  `broadcastCameraPose`.
+- 🔲 Remote laser-pointer sync + gaze-target sync (optional follow-on).
+- 🔲 (Future, by design) shared dataset state + synchronized operations — GETTING_STARTED
+  notes "Sprint 10B.2"; still not built, recorded as future work, not a regression.
 
 ---
 
