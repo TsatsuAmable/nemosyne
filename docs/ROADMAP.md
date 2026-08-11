@@ -66,7 +66,11 @@
   (`npm run dev` → wheel menu Load Test → Start, or desktop `KeyT`/`Shift+T`); (3) read
   `logs/loadtest-results.jsonl` and deliver the implement/descope verdict for B2 (if
   "implement", build `SCENE_RUST` → `COMMAND_BUFFER` per the ordering invariant now encoded
-  as a Rust test).
+  as a Rust test). (4) **Sprint 22.3 scope expanded** with verified UI/UX-review findings
+  recorded below (Sprint 22.3 §): the **colorblind data-encoding gap** (real — `categoricalColor`
+  + `ChartPlane` + `VRTopologyTranslator` bypass the remap; default palette has a red-green
+  pair) and the **hand-wheel dominant-hand** miss are genuine and testable; **"Dwell Select"
+  is a working feature, not a defect** (record corrected — do not chase).
 - **Blockers / open:** B2 (WASM command-buffer) — deferred pending real-headset
   load-test data from the PR #80 harness. Honesty hardening (#81) + f15 isolation (#82)
   now DONE (precondition met). **The harness has not yet been run** —
@@ -671,6 +675,39 @@ The GA solver runs but its recommendation quality is untested against known-good
   all world-space panels, not just `MovablePanel`).
 - 🔲 Destructive-action confirmation (reset/delete/clear) as a VR confirm step; loading
   indicator; collab error close-codes.
+- 🔲 **Colorblind data-encoding gap (verified 2026-08-11, from a UI/UX review pass).**
+  `categoricalColor()` (`src/data/Encodings.ts:13`) returns the raw `PALETTE`
+  (`[0x00ffcc, 0xff0055, 0xffaa00, 0x00aaff, 0xff00ff, 0x88ff00]` — index 1 red + index 5
+  green is a red-green confusion pair) and never applies a colorblind remap.
+  `WorldTheme.applyColorblindMode()` only remaps environment (fog/ambient/point light/grid/
+  particles); `ChartPlane.ts` has zero colorblind references; and `VRTopologyTranslator.ts`
+  calls `categoricalColor()` at 5 sites (lines 242, 436, 624, 695, 759), so the *same*
+  un-remapped palette colors the 3D palace crystals as well as 2D charts. Fix: thread the
+  active `colorblindMode` into `categoricalColor()` (or a wrapper) so palace + chart data
+  encoding respects the mode; switch the default palette to a colorblind-safe sequence
+  (perceptual change to all scenes — confirm before shipping) OR keep the neon default and
+  remap only when the mode is on. Add tests asserting remap reaches both `ChartPlane` and
+  `VRTopologyTranslator` output.
+- 🔲 **Hand-wheel menu ignores dominant hand (verified 2026-08-11).**
+  `WorldUIManager.ts:153` hardcodes `engine.input.hands[0]` for the `HandWheelMenu`, while
+  `WorldInputCoordinator.ts:215` correctly uses `hands[this.gestureRecognizer?.dominantHandIndex
+  ?? 0]`. So gestures respect dominant-hand preference but the wheel menu does not —
+  left-handed users get the wheel on the non-dominant hand. Fix: bind the wheel menu to
+  `dominantHandIndex` like the rest of the input system. Low severity.
+- 🟢 **"Dwell Select" is NOT a defect (record corrected 2026-08-11).** A UI/UX review flagged
+  the Settings → Accessibility "Dwell Select" toggle as a dead control with no backing.
+  Verified FALSE: the chain is fully wired and ticking every frame — `SettingsPanel.dwellSelection`
+  → `World.ts:1247` → `InputRouter.setDwellSelection` (`InputRouter.ts:203`) →
+  `SelectionDispatcher.setDwellSelection` (`SelectionDispatcher.ts:40`), and `InputRouter.update()`
+  calls `dispatcher.updateDwell()` per frame (`InputRouter.ts:271`), firing
+  `handlePointerDown`/`onSelect` after the 1200 ms threshold. The reviewer searched for the
+  wrong symbol (`dwellEnabled`/`dwellDelayMs`); the real key is `dwellSelection`. Minor cleanup:
+  the `dwellEnabled`/`dwellDelayMs` aliases in `coordinators/types.ts:145-146` are unused dead
+  declarations — remove them so the next review isn't misled.
+- 🟡 **Panel declutter: `PanelManager.hideAll()`/`showAll()` already exist**
+  (`PanelManager.ts:182-191`) — the consolidated manager is present. Open question (minor):
+  whether a single user-facing "hide all panels / focus mode" affordance is exposed in the
+  wheel menu. Wire one if not; not an architecture gap.
 
 ### Sprint 22.4 — Spatial zonation architecture 🔲
 
