@@ -4,154 +4,44 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-11 · #90 merged — **Phase 22 — UX V2.0** Sprint 22.2 landed.
-  Sprint 22.1 (#88) + Sprint 22.2 (#90) both merged. Sprint 22.2 shipped: TDA on-demand
-  (statistical lens hidden by default; Views → Lens wheel item is the explicit request path),
-  Draco menu shorter (640 px / 0.72 m), tour expanded 13 → 19 stops, WIMP best-practices
-  (shared `palette.ts` tokens, unified `TourStep`/`Tour` types, dead-code cleanup),
-  Low-Strain + Muted theme presets, and full button-surface test coverage (+48 tests).
-  Gates green: `tsc` 0 · `eslint` 0 errors (186 warnings) · `vitest` 1272/9/0 ·
-  `build` ~275 KB gzip. Sprints 22.3/22.4/22.5/22.6/22.7/22.8/22.9 🔲 not started (scoped from
-  `docs/USER_STORIES_AND_UX_ANALYSIS.md` — 29 user stories + gap/UX audit — plus a second
-  architecture/research review, a third UX/user-journey review, and a five-review project-level
-  pass — Principal Software Architect, Expert Graphics Engineer, Security & Robustness, VR-UX
-  Expert, Technical-Debt audit — all verified 2026-08-11; 10/10 load-bearing claims
-  independently re-confirmed against code).
-  **Doc staleness fixed this PR:** `SampleDatasets.js`→`.ts` across 6 doc files;
-  `DataCard`→`HolographicInspector` in GETTING_STARTED; test-count 1191→1272 in README +
-  TEST_READY (verified by `npm test`: 1272 pass / 9 skip / 182 files).
-  ⚠️ On-device validation owed (Sprint 22.1 + 22.2): dashboard distance (~1.35 m → ~2.55 m),
-  transient reduced-motion vignette comfort, TDA-on-demand feel, Draco short-frame scroll
-  readability, new tour stop targets, Low-Strain/Muted slate backdrops + neon-on-selection
-  contrast — all in-headset before advancing to Sprint 22.3.
-- **Active branch:** `main` (clean, synced; #81–#90 merged). Note:
-  `feature/phase20-graphics-optimization` is a stale, superseded branch (older `World.ts`,
-  lacks #77–#90) — not unmerged work.
-- **Working tree:** clean. Recent merges — #90 Phase 22 Sprint 22.2 · #89 ROADMAP refresh
-  (#88) · #88 Phase 22 Sprint 22.1 UX quick wins · #86
-  distill all plans into ROADMAP.md as single reference · #84 Node 24 single-leg CI +
-  cross-platform lockfile fix + Netlify 24 · #82 f15 e2e test-isolation fix (un-awaited
-  `import('src/main.ts')` racing jsdom teardown) · #81 WASM capability honesty hardening
-  (bitfield realigned to spec; dormant command-buffer `0` sentinel; `readBytes` bounds guard;
-  `COMMAND_BUFFER requires SCENE_RUST` ordering invariant as a Rust test).
-- **Command-buffer decision (B2):** DEFER + minimal hardening (both Expert Graphics
-  Engineer & Principal Architect consultations converged). The command buffer targets a
-  problem that isn't a *measured* current regression; the JS scalability layer already
-  implements the spec's instancing tiers. Revisit after load-testing the JS path at 65k+.
-  PR #80 (merged) delivered the harness that produces that data; #81 (merged) delivered the
-  honesty hardening that is its precondition if the run says "implement". Privacy (PR #80):
-  perf/UX aggregates only, local dev-server endpoint, no external API, no user dataset
-  rows/session snapshots. Verdict computed from real measurements against fixed reviewable
-  thresholds — no hardcoded results.
-- **Last gate:** `cargo test --manifest-path wasm/Cargo.toml` 30 pass / 0 fail (3 honesty
-  tests) · `tsc --noEmit` 0 errors · `eslint` 0 errors (186 warnings, baseline) ·
-  `vitest run` 1272 pass / 9 skip / 0 fail · `vite build` green (~275 KB gzip total) —
-  2026-08-10. (JS honesty-lock assertions in `wasm-runtime.test.ts` are `maybeDescribe` —
-  skipped in jsdom without a served wasm; the Rust test is the authoritative lock.)
-- **Merge policy (live):** main ruleset `id=20623327` requires PR + required checks
-  (`Rust unit tests (wasm/)` / `Node 24` / `approval-gate`), no bypass.
-  `approval-gate.yml` passes immediately for owner PRs (squash auto-merge on green);
-  others need owner approval. New work lands via PR only. (`Playwright load smoke` is
-  informational/non-required — NOT in the ruleset.) Required-checks list updated to
-  `Node 24` with #84 (was `Node 20`/`Node 22`).
-- **Recently merged:** #90 Phase 22 Sprint 22.2 — TDA on-demand, Draco/tour/WIMP polish,
-  button-test coverage, Low-Strain/Muted presets · #89 ROADMAP Current Status refresh (#88)
-  · #88 Phase 22 Sprint 22.1 — UX V2.0 convergence quick wins (panel distance no-op fix,
-  wheel-menu ray mismatch, Undo/Redo, transient reduced-motion vignette) · #86 distill all
-  plans into ROADMAP.md as single reference (Phase 21 WASM migration + audit + TS-first docs
-  + 7 .js stubs removed) · #84 Node 24 single-leg CI + cross-platform lockfile fix +
-  Netlify 24 · #82 f15 e2e test-isolation fix (un-awaited `import('src/main.ts')` racing
-  jsdom teardown) · #81 WASM capability honesty hardening (bitfield realigned to spec;
-  dormant command-buffer sentinel) · #80 VR load-test harness (command-buffer decision B2)
-  · #78 global WebGL mock deficiencies fix (Option 3c) · #76 Playwright real-WebGL load smoke
-  (Track A) · #74 render-loop GL introspection tripwire (Track B). Real-WebGL coverage thread
-  closed. Binary-parser length-field bounds thread closed (#70/#72).
-- **In progress / next:** (1) **on-device validation** of Phase 22 Sprint 22.1 + 22.2
-  perceptual changes (dashboard ~1.35 m → ~2.55 m; transient reduced-motion vignette comfort;
-  TDA-on-demand feel; Draco short-frame scroll; new tour stops; Low-Strain/Muted backdrops +
-  neon-on-selection contrast) on a Quest before advancing to **Sprint 22.3**; (2) user
-  connects Quest, runs the full load-test staircase in XR (`npm run dev` → wheel menu Load
-  Test → Start, or desktop `KeyT`/`Shift+T`); (3) read `logs/loadtest-results.jsonl` and
-  deliver the implement/descope verdict for B2 (if "implement", build `SCENE_RUST` →
-  `COMMAND_BUFFER` per the ordering invariant now encoded as a Rust test). (4) **Sprint
-  scoping from the UX audit** (`docs/USER_STORIES_AND_UX_ANALYSIS.md`): **22.3** now covers
-  accessibility (colorblind data-encoding gap → fix needs a dedicated **Okabe–Ito**
-  categorical palette, not naive wiring — `remapColor()` is a 4-role classifier unsuited to
-  N-category data + per-mode remap + dwell-delay stepper + hand-wheel dominant hand),
-  **onboarding last-mile** (wire the built-but-never-instantiated
-  `JITGestureHintManager` + `FrustrationResponseManager` — both grep-confirmed dead in
-  production), **analysis completeness** (aggregate placeholder → real `AGGREGATE_BARS`;
-  Streamline/Geo layout honesty), and dead-code cleanup; **extended by the VR-UX project
-  review** with concrete input-correctness bugs — hand-pinch double-toggle/double-fire (P1),
-  `HandGestureRecognizer` ignoring `dominantHandIndex` for single-hand gestures, hand-grab
-  locomotion conflicting with the both-pinch system gesture, `scoopDown` dead-end, and the
-  seated-height offset feedback loop (needs in-headset confirmation). **22.4** keeps spatial
-  zonation +
-  foveation + diegetic and adds the **four-tier-instancing spec/impl reconciliation** (decide:
-  implement `GL_POINTS` tier vs. correct `CLAUDE.md` to the two-tier reality); **22.5** (new)
-  wires the built-but-dead **collaboration embodied-presence** stack
-  (`PeerAvatarManager`/`CollaborativeStateSync`/`BinaryPoseSerializer` + full quaternion
-  broadcast) **+ `AsymmetricDesktopCompanion`** (sixth built-but-dead class — spectator UI
-  never instantiated) **+ collab moderation/kick + reconnection-state** (token gate is a
-  shared secret, not strong auth; no host kick; no collab rejoin-state); **22.6** (new, from a
-  second architecture/research review) covers data/Draco
-  correctness (`_correlationMatrix` pairwise-complete fix — P0, feeds representation
-  selection), confidence-bearing facts, stable `datumId`, `Dataset` immutability-model
-  decision, `World`→composition-root shrink, dependency-direction rule, event-bus discipline,
-  `updatables` typing, `three`/`@types` version alignment, `allowJs` review, `src/ai` README
-  staleness, semantic-mark-vs-visual-skin separation, load-test transition metrics; **extended
-  by the Principal-Architect + Technical-Debt reviews**: cluster/hierarchical/dbscan input-row
-  mutation (P0, breaks reset), `DracoSolverWorker` is a fake worker (`setTimeout(0)` + divergent
-  engine), capability-flag duplication across 4 files, `analysisHistory` alias severed on
-  restore, `Encodings.ts`→`three` (the concrete dependency-direction violation), operation-tag
-  drift (`anomaly_iqr` vs `anomaly`), the full dead-code inventory (`src/ai/` 740 lines +
-  `src/data/serializers/` unwired + duplicate `SharedAnnotationManager` + dead `IceVaultNode`/
-  `GestureConfidenceHUD`), `TelemetryCollectorLike` interface gap (root of ~13 `as any` casts),
-  `coordinators/types.ts` 1066-line god-file, coordinator `dispose()` inconsistency (14/16).
-  **22.7** (new, from a third UX/user-journey review — factually accurate, no false headlines)
-  holds the task-first workflow items: Draco "Why this view?" / "Explain this" explainer (P0,
-  verified missing — `DracoDiagnosticHUD` is a weight tuner, not an explainer), task-first
-  onboarding with templates as the front door + a guided "Find the Fraud" investigation,
-  precision/detail transition (use space for discovery, conventional representations for
-  precision), investigation-timeline / analytical-narrative provenance for the returning
-  analyst (wire the built-but-dead annotation/bookmark classes), navigation-cost
-  instrumentation (analysis_time vs navigation_time); plus a record correction that the
-  review's "no in-app import" framing is inaccurate (`FileLoader.ts` is an in-app overlay at
-  `World.ts:401`). **22.8** (new, Security & Robustness review — no P0/RCE found) covers
-  signalling `from`-spoof impersonation (P1), WASM `leaves()` unbounded-recursion stack-overflow
-  trap (P1), the Vite dev/preview signalling-is-dead bug (strict `!==` before query parse —
-  verified, not a false positive), WebRTC `peerId` trust, per-peer rate limiting, CSV
-  `__proto__` filter inconsistency, WASM `count*12` overflow, allocator panic-on-OOM, and the
-  stale `DataView`-after-`grow` (found by 3 reviewers independently). **22.9** (new, Expert
-  Graphics Engineer + Architect) covers the `reSolveAndSynthesize` GPU leak (materials/textures/
-  instance buffers never disposed — VRAM OOM on a live time-series re-solving ~1/s; P1), the
-  orphaned second `WebGLRenderer` in `SceneGraphController` (P0 architecture — burns a Quest
-  context for nothing), stale `memoryView` after grow, and per-frame allocations in
-  `LODManager`/`SpatialIndex`. Sprint 22.3 also gains a first-class **Compare** operation (verified
-  missing — named in the conceptual loop but not implemented), an **input parity matrix**
-  (accessibility), and **error-recovery UX messaging**. The research-direction items
-  (2D-vs-VR experimental harness, human-performance benchmark, semantic/structural position
-  discipline, evidence-informed Draco loop, hardware-validation matrix, 5-level evidence
-  hierarchy, 5-study research programme, UX-cost composite, frustration-analyzer-as-signal)
-  are recorded under **Planned but not actioned → Research validation**. **"Dwell
-  Select" is a working feature, not a defect** — record corrected, do not chase. **Live site
-  is in sync** (three.js/WebXR, verified 2026-08-11) — the review's "serves A-Frame/D3" P0 is
-  stale; do not chase, though exposing build/commit metadata is a valid cheap follow-up.
-- **Blockers / open:** B2 (WASM command-buffer) — deferred pending real-headset
-  load-test data from the PR #80 harness. Honesty hardening (#81) + f15 isolation (#82)
-  now DONE (precondition met). **The harness has not yet been run** —
-  `logs/loadtest-results.jsonl` does not exist (`logs/` holds only `vr-remote-console.log`);
-  the staircase can be exercised on desktop (`KeyT`/`Shift+T`) but GPU/latency fidelity
-  needs a Quest.
-- **Resume pointers:** test inventory → `TEST_READY.md`; WASM migration technical
-  standards + working notes → `.claude/plan.md` (status tracked here in §Phase 21);
-  this file's Current Status is the source of truth.
+- **Last updated:** 2026-08-11 · `main` at `9dceca7` (clean, synced). #97 merged — recorded
+  five project-level reviews (Principal Architect, Graphics, Security & Robustness, VR-UX,
+  Tech-Debt; 10/10 load-bearing claims re-verified against code) → Sprints 22.3 & 22.6
+  extended, 22.8 (Security/WASM) + 22.9 (GPU lifecycle) new. Prior merges: #90 Sprint 22.2
+  (TDA on-demand, tour 13→19, Low-Strain/Muted presets, +48 tests, doc-staleness fixes) ·
+  #88 Sprint 22.1 · #86 plan distillation · #84 Node 24 CI · #82 f15 isolation · #81 WASM
+  honesty hardening · #80 load-test harness.
+- **Gates (2026-08-10):** `cargo test` 30/0 · `tsc` 0 · `eslint` 0 err / 186 warn ·
+  `vitest` 1272/9/0 (182 files) · `build` ~275 KB gzip. (JS honesty-locks in
+  `wasm-runtime.test.ts` are `maybeDescribe` — skipped in jsdom; the Rust test is
+  authoritative.)
+- **Branch / tree:** `main`, clean. `feature/phase20-graphics-optimization` is stale/
+  superseded (older `World.ts`, lacks #77–#97) — not unmerged work.
+- **Merge policy (live):** ruleset `id=20623327` requires PR + `Rust unit tests (wasm/)` /
+  `Node 24` / `approval-gate`; owner PRs auto-merge (squash) on green, others need owner
+  approval. PR-only. (`Playwright load smoke` informational, not required.)
+- **Command-buffer (B2):** DEFER + minimal hardening (#81). Not a *measured* regression —
+  the JS scalability layer already implements the spec's instancing tiers. Revisit after
+  load-testing the JS path at 65k+ via the #80 harness. (Standing integrity/privacy
+  constraints live in `CLAUDE.md`, not here.)
+- **Next:** (1) on-device validation of Sprint 22.1+22.2 perceptual changes on a Quest
+  (full list in §Sprint 22.2); (2) run the load-test staircase in XR → implement/descope
+  verdict for **B2** (command-buffer DEFER — revisit after 65k+ real measurement; #80 harness
+  not yet run, `logs/loadtest-results.jsonl` absent; desktop `KeyT`/`Shift+T` works but needs
+  a Quest for GPU/latency fidelity); (3) Sprint 22.3.
+- **Sprint map:** 22.1 ✅ · 22.2 ✅ · 22.3–22.9 🔲 — scope + evidence in the §Sprint 22.x
+  sections below. Research items in §Research validation. 🟢 do-not-chase: Dwell Select
+  works; live site in sync (the "serves A-Frame/D3" P0 is stale).
+- **Blockers:** B2 (WASM command-buffer) deferred pending real-headset load-test data
+  (preconditions #81/#82 done; #80 harness not yet run — `logs/loadtest-results.jsonl` absent).
+- **Resume pointers:** test inventory → `TEST_READY.md`; WASM standards/notes →
+  `.claude/plan.md` (§Phase 21); sprint scope + evidence → §Sprint 22.x below.
 
 ### How to update this block
-1. On pickup: read this block first; read resume pointers only if you need detail.
-2. Before stopping: refresh *every* bullet above with current truth (date, branch,
-   tree state, gate result, next action, blockers). Keep it to ~10 lines.
-3. Never let the bullets go stale — a stale "next" is worse than none.
+1. On pickup: read this block first; jump to the cited §Sprint 22.x for detail.
+2. Before stopping: refresh every bullet with current truth (date, branch, tree, gate,
+   next, blockers). **Hard cap ~30 lines** — move narrative into the sprint sections below.
+3. A stale "next" is worse than none.
 
 ---
 
