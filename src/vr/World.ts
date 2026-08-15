@@ -78,6 +78,7 @@ import type { DatasetJSON, EncodingMapping, TopologyType } from '../data/types.t
 import type {
   ArtifactRef,
   DatasetLoadEntry,
+  HandLike,
   LiveConnectorLike,
   LiveStreamOptions,
   NetworkManagerLike,
@@ -270,8 +271,12 @@ export class World {
       onPanelChange: () => this._requestAutoSave(),
       onSettingChanged: (key, value) => this._onSettingChanged(key, value),
       onSeekHistory: (index) => this._seekAnalysisHistory(index),
-      getNodeMeshes: () => this.dracoNode?.artifact?.nodeMeshes ?? [],
-      getPeers: () => this.networkManager?.room?.getRemoteSnapshot() ?? [],
+       getNodeMeshes: () => this.dracoNode?.artifact?.nodeMeshes ?? [],
+       getDominantHand: () => {
+         const index = this.inputCoordinator?.gestureRecognizer?.dominantHandIndex;
+         return this.engine.input.hands[index ?? 0] as unknown as HandLike | null;
+       },
+       getPeers: () => this.networkManager?.room?.getRemoteSnapshot() ?? [],
       getLocalPeerId: () => this.networkManager?.peerId ?? null,
       getSetting: (key) => this.uiManager?.settingsPanel?.getSetting?.(key),
       telemetryCollector: this.telemetryCollector,
@@ -786,7 +791,9 @@ export class World {
         getDefaultEncodings({ dataset: entry.dataset, topology }),
     };
 
-    this.dracoNode = new DracoTopologyNode(this.engine.scene, dataInput, [0, 1.4, -3.5]);
+    this.dracoNode = new DracoTopologyNode(this.engine.scene, dataInput, [0, 1.4, -3.5], {
+      colorblindMode: this.settingsPanel?.getSetting?.('colorblindMode') ?? 'none',
+    });
     this.engine.addUpdatable(this.dracoNode);
     this._wireArtifactInteraction(this.dracoNode);
 

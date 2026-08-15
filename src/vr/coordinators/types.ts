@@ -127,6 +127,7 @@ export interface WorldUIManagerCallbacks {
   onSettingChanged?: (key: string, value: unknown) => void;
   onSeekHistory?: (index: number) => void;
   getNodeMeshes?: () => Mesh[];
+  getDominantHand?: () => HandLike | null;
   getPeers?: () => unknown[];
   getLocalPeerId?: () => string | null;
   getSetting?: (key: string) => unknown;

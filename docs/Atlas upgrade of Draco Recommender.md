@@ -1362,7 +1362,7 @@ Natural language
  ↓  
 Intent parser  
  ↓  
-Draco analytical API  
+Atlas analytical API
  ↓  
 Deterministic evidence  
  ↓  
@@ -1374,9 +1374,9 @@ LLM explanation
 
 ---
 
-# **28\. Definition of Done for Draco 2.0**
+# **29\. Definition of Done for Atlas**
 
-Draco 2.0 should not be considered complete when it produces attractive VR scenes.
+Atlas should not be considered complete when it produces attractive VR scenes.
 
 It is complete when the following scenario works end-to-end:
 
@@ -1410,19 +1410,12 @@ Can another researcher reconstruct the analytical path that produced an observat
 
 ### **Recommendation usefulness**
 
-Do Draco recommendations lead to productive analytical actions?
+Do Atlas recommendations lead to productive analytical actions?
 
 ### **Research validity**
 
-Can the system support controlled empirical comparisons between:
-
-2D  
-vs  
-desktop 3D  
-vs  
-VR
-
-without changing the underlying analytical task?
+Can the system support a controlled empirical comparison between canonical 2D and VR without
+changing the underlying analytical task?
 
 ### **Qualitative evidence**
 

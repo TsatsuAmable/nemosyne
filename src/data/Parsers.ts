@@ -147,9 +147,9 @@ export function parseCSV(text: string, options: ParseOptions = {}): Dataset {
   const rawLines = normalized.split('\n');
   if (rawLines.length === 0) return new Dataset(opts.name, [], []);
 
-  const headers = tokenizeCSVLine(rawLines[0], delimiter).map((h) =>
-    h.trim().replace(/^["']|["']$/g, '')
-  );
+  const headers = tokenizeCSVLine(rawLines[0], delimiter)
+    .map((h, index) => ({ name: h.trim().replace(/^["']|["']$/g, ''), index }))
+    .filter(({ name }) => !['__proto__', 'constructor', 'prototype'].includes(name));
   if (opts.maxColumns > 0 && headers.length > opts.maxColumns) {
     throw new Error(`CSV has ${headers.length} columns; maximum allowed is ${opts.maxColumns}`);
   }
@@ -171,8 +171,8 @@ export function parseCSV(text: string, options: ParseOptions = {}): Dataset {
     if (values.length === 1 && values[0].trim() === '') continue; // skip blank lines
 
     const row: Record<string, unknown> = {};
-    for (let j = 0; j < headers.length; j++) {
-      let v = values[j];
+    for (const { name, index } of headers) {
+      let v = values[index];
       if (v === undefined) v = '';
       v = v.trim();
       // Strip surrounding quotes and unescape doubled quotes.
@@ -180,13 +180,13 @@ export function parseCSV(text: string, options: ParseOptions = {}): Dataset {
         v = v.slice(1, -1).replace(/""/g, '"');
       }
       const n = Number(v);
-      row[headers[j]] = !Number.isNaN(n) && v !== '' ? n : v;
+      row[name] = !Number.isNaN(n) && v !== '' ? n : v;
     }
     rows.push(row);
     buffer = '';
   }
 
-  const columns: ColumnSchema[] = headers.map((name) => ({
+  const columns: ColumnSchema[] = headers.map(({ name }) => ({
     name,
     type: inferType(rows.map((r) => r[name])),
   }));

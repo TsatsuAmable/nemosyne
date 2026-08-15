@@ -1,5 +1,5 @@
 import { SignallingChannel } from './SignallingChannel.ts';
-import { Room } from './Room.ts';
+import { Room, type NetworkRole } from './Room.ts';
 
 /**
  * Manages WebRTC peer connections and a shared room for Nemosyne collaboration.
@@ -16,6 +16,7 @@ export interface NetworkManagerOptions {
   roomId?: string;
   peerId?: string;
   peerName?: string;
+  role?: NetworkRole;
   /** Shared secret required to join a token-gated signalling room. */
   token?: string;
   iceServers?: RTCIceServer[] | null;
@@ -27,6 +28,7 @@ export class NetworkManager extends EventTarget {
   roomId: string;
   peerId: string;
   peerName: string;
+  role: NetworkRole;
   /** Shared secret sent on join; never logged. */
   token: string | undefined;
   iceServers: RTCIceServer[];
@@ -44,6 +46,7 @@ export class NetworkManager extends EventTarget {
     roomId,
     peerId,
     peerName = 'Analyst',
+    role = 'participant',
     token,
     iceServers = null,
     maxStateBytes = DEFAULT_MAX_STATE_BYTES,
@@ -53,11 +56,12 @@ export class NetworkManager extends EventTarget {
     this.roomId = roomId ?? 'default';
     this.peerId = peerId ?? this._generatePeerId();
     this.peerName = peerName;
+    this.role = role;
     this.token = token ?? this._loadStoredToken();
     this.iceServers = iceServers ?? [{ urls: 'stun:stun.l.google.com:19302' }];
     this.maxStateBytes = maxStateBytes;
 
-    this.room = new Room(this.roomId, this.peerId, this.peerName);
+    this.room = new Room(this.roomId, this.peerId, this.peerName, this.role);
   }
 
   get isConnected(): boolean {
@@ -94,7 +98,7 @@ export class NetworkManager extends EventTarget {
 
   setLocalState(state: Record<string, unknown>): void {
     const next = { ...this._localState, ...state };
-    const payload = JSON.stringify({ type: 'state', peerId: this.peerId, state: next });
+    const payload = JSON.stringify({ type: 'state', peerId: this.peerId, role: this.role, state: next });
     if (new Blob([payload]).size > this.maxStateBytes) {
       console.warn('[NetworkManager] state payload exceeds maximum size; update dropped');
       return;
@@ -128,14 +132,17 @@ export class NetworkManager extends EventTarget {
   /**
    * Synchronizes a dataset operation (filter, transform, sort, aggregate) across WebRTC peers.
    */
-  broadcastDatasetOperation(op: Record<string, unknown>, timestamp: number = Date.now()): void {
+  broadcastDatasetOperation(op: Record<string, unknown>, timestamp: number = Date.now()): boolean {
+    if (!this.room.canMutateSharedState(this.role)) return false;
     const payload = JSON.stringify({
       type: 'datasetOperation',
       peerId: this.peerId,
+      role: this.role,
       op,
       timestamp,
     });
     this._sendToAllOpenChannels(payload);
+    return true;
   }
 
   /**
@@ -311,7 +318,7 @@ export class NetworkManager extends EventTarget {
       // Broadcast current state to the new peer.
       try {
         channel.send(
-          JSON.stringify({ type: 'state', peerId: this.peerId, state: this._localState })
+          JSON.stringify({ type: 'state', peerId: this.peerId, role: this.role, state: this._localState })
         );
       } catch (_) {
         // Peer may have disconnected before state arrived; ignore send failures.
@@ -329,6 +336,9 @@ export class NetworkManager extends EventTarget {
       }
       if (!payload || typeof payload !== 'object') return;
       if (payload.type === 'state' && payload.peerId) {
+        if (payload.role === 'participant' || payload.role === 'observer') {
+          this.room.updatePeerRole(payload.peerId, payload.role);
+        }
         this.room.updatePeerState(payload.peerId, payload.state ?? {});
         this.dispatchEvent(
           new CustomEvent('peerState', {
@@ -346,7 +356,11 @@ export class NetworkManager extends EventTarget {
             },
           })
         );
-      } else if (payload.type === 'datasetOperation' && payload.peerId) {
+      } else if (
+        payload.type === 'datasetOperation' &&
+        payload.peerId &&
+        this.room.peers.get(payload.peerId)?.role === 'participant'
+      ) {
         this.dispatchEvent(
           new CustomEvent('remoteDatasetOperation', {
             detail: {

@@ -116,6 +116,16 @@ describe('Room', () => {
     expect(room.addPeer('peerA')).toBeNull();
   });
 
+  it('tracks participant and observer roles', () => {
+    const room = new Room('room1', 'peerA', 'Alice', 'observer');
+    const peer = room.addPeer('peerB', 'Bob', 'participant');
+
+    expect(room.localRole).toBe('observer');
+    expect(peer?.role).toBe('participant');
+    expect(room.canMutateSharedState()).toBe(false);
+    expect(room.canMutateSharedState('participant')).toBe(true);
+  });
+
   it('serializes to JSON', () => {
     const room = new Room('room1', 'peerA', 'Alice');
     room.addPeer('peerB', 'Bob');
@@ -250,6 +260,7 @@ describe('NetworkManager', () => {
     const opMsg = JSON.parse(channel.messages[channel.messages.length - 1]);
     expect(opMsg.type).toBe('datasetOperation');
     expect(opMsg.op.type).toBe('filter');
+    expect(opMsg.role).toBe('participant');
 
     // 3. broadcastSelection
     manager.broadcastSelection(['row-1', 'row-2']);
@@ -262,6 +273,18 @@ describe('NetworkManager', () => {
     const poseMsg = JSON.parse(channel.messages[channel.messages.length - 1]);
     expect(poseMsg.type).toBe('cameraPose');
     expect(poseMsg.position).toEqual([0, 1.6, 0]);
+  });
+
+  it('does not broadcast dataset operations from an observer', () => {
+    const observer = new NetworkManager({
+      signallingUrl: 'ws://test',
+      roomId: 'room1',
+      peerId: 'observer',
+      role: 'observer',
+    });
+
+    expect(observer.broadcastDatasetOperation({ type: 'filter' })).toBe(false);
+    observer.disconnect();
   });
 
   it('dispatches incoming stateDelta, remoteDatasetOperation, remoteSelection, and remoteCameraPose events', async () => {
