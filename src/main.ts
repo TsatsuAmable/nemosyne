@@ -2,6 +2,7 @@ import { remoteDebugStreamer } from './utils/RemoteDebugStreamer.ts';
 remoteDebugStreamer.init();
 
 import { World } from './vr/World.ts';
+import { UXTraceRecorder } from './vr/trace/UXTraceRecorder.ts';
 
 const telemetry = document.getElementById('telemetry');
 
@@ -26,6 +27,35 @@ window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
   try {
     const world = new World();
     await world.start();
+
+    // Dev-only UX trace recorder: correlates hand input with head-gaze
+    // context and streams it to the dev server (`logs/ux-trace.jsonl`).
+    if (import.meta.env.DEV) {
+      const recorder = new UXTraceRecorder({
+        engine: world.engine,
+        eventBus: world.eventBus,
+        getUIState: () => ({
+          wheel: world.handWheelMenu?.isVisible?.() ?? false,
+          tour: world.guidedTour
+            ? {
+                active: world.guidedTour.isActive,
+                step: world.guidedTour.stepIndex,
+                total: world.guidedTour.stepCount,
+              }
+            : null,
+          lens: world._statisticalLensEnabled,
+          paused: world.inputCoordinator.inputPaused,
+        }),
+        extraGazeTargets: () =>
+          world.guidedTour?.isActive ? [world.guidedTour.cardMesh] : [],
+      });
+      world.engine.input.onHandPinchEdge = (hand, phase, gating) =>
+        recorder.recordPinch(hand, phase, gating);
+      world.engine.input.dispatcher.onDispatch = (info) => recorder.recordSelection(info);
+      world.engine.input.systemDetector.onTrace = (info) => recorder.recordSystemGesture(info);
+      world.handWheelMenu.onVisibility = (visible, via) => recorder.recordWheel(visible, via);
+    }
+
     if (telemetry) {
       telemetry.textContent = 'ready — point and select to inspect';
     }
