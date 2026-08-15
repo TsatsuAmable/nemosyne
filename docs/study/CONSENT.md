@@ -3,7 +3,7 @@
 Status: Draft. This is a study-design framework and not a substitute for institutional ethics or IRB review.
 
 ## What this study involves
-Participants will complete a data-analysis task under one of two conditions: a standard 2D condition or a VR condition.
+Participants will complete a data-analysis task under one of three conditions: a standard 2D condition, a desktop 3D condition, or a VR condition.
 
 ## What is recorded
 The exact recorded fields must match the final data dictionary. In general, the study may record:

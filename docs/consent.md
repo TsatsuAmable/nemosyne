@@ -11,8 +11,8 @@ exists to make sure the *system design* has a place to point to, not to substitu
 that process.
 
 ## What this study involves
-You will be asked to complete a data-analysis task under one of two conditions (a
-standard 2D screen or a VR headset), depending on random assignment.
+You will be asked to complete a data-analysis task under one of three conditions (a
+standard 2D screen, a 3D desktop view, or a VR headset), depending on random assignment.
 
 ## What is recorded
 *(Fill this in directly from `data-dictionary.md` once it's complete for the actual

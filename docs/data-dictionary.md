@@ -14,7 +14,7 @@ build must have a row here before Gate 6 rehearsal.
 |---|---|---|---|---|---|---|---|
 | `participantId` | Assigned at consent | Pseudonymous ID, e.g. `P014` | — | Once | No | Study dataset | Yes — explained at consent |
 | `trialId` | Generated per trial | Unique trial identifier | — | Once per trial | No | Study dataset | No (internal) |
-| `condition` | Assigned via `condition-order.json` | 2D / VR-3D | — | Once per trial | No | Study dataset | No (internal, though participant experiences it directly) |
+| `condition` | Assigned via `condition-order.json` | 2D / Desktop-3D / VR-3D | — | Once per trial | No | Study dataset | No (internal, though participant experiences it directly) |
 | `headYaw` *(VR-3D only)* | XR camera pose | Head rotation about vertical axis | radians | Per frame | No | Ephemeral (aggregate only, not raw stream, unless justified) | Yes — general "movement is tracked" disclosure |
 | `navigationTime` | Derived from task events | Time spent in locomotion vs. inspection | ms | Per trial | Yes | Study dataset | Yes |
 | `selectionSequence` | Task event log | Ordered list of selected nodes/objects | — | Per trial | No | Study dataset | Yes |

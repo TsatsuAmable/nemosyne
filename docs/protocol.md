@@ -16,14 +16,15 @@ precision, workload, navigation, or comfort.
 
 ## Conditions
 1. **2D** — canonical 2D control (see `datasets/` and `scoring.json`; same dataset, task
-   wording, and scoring rubric as the VR condition, per Stable Release Gate 5)
-2. **VR-3D** — Nemosyne, WebXR/headset path
+   wording, and scoring rubric as the other two conditions, per Stable Release Gate 5)
+2. **Desktop-3D** — Nemosyne, non-VR desktop rendering path
+3. **VR-3D** — Nemosyne, WebXR/headset path
 
 ## Task
 Fraud-01 (see `tasks.json` for the machine-readable version). Participant is given a
 transaction dataset and asked to identify the anomalous/fraudulent node(s), using
 whichever representation and operations the condition provides (Compare is available in
-both conditions in equivalent form — verify this before freezing the protocol).
+all three conditions in equivalent form — verify this before freezing the protocol).
 
 ## Participant flow
 1. Consent (see `consent.md`) and observation disclosure

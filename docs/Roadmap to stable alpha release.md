@@ -35,7 +35,7 @@ disposed.
 
 \*\*Framing.\*\* "Stable release" here is defined narrowly and deliberately: not feature-  
 complete, not scaled, not collaboration-ready — the smallest, most honest version of  
-Nemosyne capable of running one real study (2D vs. VR-3D on a defined task)
+Nemosyne capable of running one real study (2D vs. desktop-3D vs. VR-3D on a defined task)  
 without the \*infrastructure itself\* being a confound. A crash, a security hole, a UI bug  
 that silently excludes colorblind participants, or a wheel menu that double-fires under  
 observation are not just quality issues here — they invalidate any data collected on top  
@@ -426,11 +426,11 @@ Conflating them was the gap in the prior revision — Gate 2.5 answers "can I wa
 trial," Gate 5 answers "do fifty trials constitute an experiment."
 
 \- 🔲 \*\*Study/trial data model.\*\* Explicit \`participantId\` (pseudonymous, e.g. \`P014\`, not  
-  a real identifier — see governance below), \`trialId\`, \`condition\` (2D / VR-3D),
+  a real identifier — see governance below), \`trialId\`, \`condition\` (2D / desktop-3D /  
   VR-3D), \`taskId\`, \`protocolVersion\`. None of this exists today; it needs to be added as  
   a first-class layer above the existing per-session save format in  
   \`WorldSessionController\`, not folded into it.  
-\- 🔲 \*\*Condition counterbalancing.\*\* If every participant runs 2D → VR in
+\- 🔲 \*\*Condition counterbalancing.\*\* If every participant runs 2D → desktop-3D → VR in  
   the same order, practice effects confound the result indistinguishably from a real  
   spatial-representation effect. Needs an assignment mechanism (e.g. Latin square across  
   participants), recorded per trial so order can be checked as a covariate later.  
@@ -452,7 +452,7 @@ trial," Gate 5 answers "do fifty trials constitute an experiment."
   correlated after the fact without manual reconciliation.  
 \- 🔲 \*\*Canonical 2D control, as its own implementation milestone — not an afterthought.\*\*  
   The 2D condition needs the \*same\* dataset, task wording, scoring rubric, and analytical  
-  semantics as the VR condition, built and versioned alongside it, not
+  semantics as the VR/desktop-3D conditions, built and versioned alongside them, not  
   assembled ad hoc when the study is about to run. Without this, the comparison is  
   "Nemosyne vs. some other tool," not "Nemosyne vs. 2D" — a materially weaker claim.  
 \- 🔲 \*\*Experimental confound register.\*\* A living document (separate from, but  
@@ -509,7 +509,7 @@ rehearsed:
   build artifact, defined network conditions) → fresh participant → researcher observer  
   joins → full trial (start, task, Compare, capture finding, an induced-error recovery,  
   session save) → resume from saved session → export the trial record → delete-participant  
-  path exercised → repeat on 2D, repeat on Quest hardware.
+  path exercised → repeat on 2D, repeat on desktop-3D, repeat on Quest hardware.
 
 \*\*Frozen experiment package.\*\* The rehearsal above is only reproducible if the protocol  
 itself is versioned and frozen alongside the software, not assembled from whatever  
@@ -634,3 +634,4 @@ prematurely and then have Gates 3/5 invalidate it. Gate 6 is last by definition 
 freeze and rehearsal gate, not build work, and exists specifically so the first real study  
 session is the boring, well-rehearsed one rather than the first time all the pieces run  
 together.
+

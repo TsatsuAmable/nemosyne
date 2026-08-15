@@ -10,7 +10,8 @@ For defined analytical tasks involving relationships and multidimensional struct
 
 ## Conditions
 1. 2D control condition
-2. VR condition using the WebXR headset path
+2. Desktop-3D condition using the Nemosyne desktop path
+3. VR-3D condition using the WebXR headset path
 
 All conditions share the same task family, task wording, scoring rubric, and dataset version, unless a documented exception is approved before collection begins.
 
