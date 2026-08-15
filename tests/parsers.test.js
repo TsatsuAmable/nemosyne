@@ -95,6 +95,13 @@ describe('parseCSV', () => {
     const ds = parseCSV('a,b,c\n1,2\n3,4,5');
     expect(ds.rows[0]).toEqual({ a: 1, b: 2, c: '' });
   });
+
+  it('drops prototype-polluting CSV headers while preserving value alignment', () => {
+    const ds = parseCSV('__proto__,safe,constructor\nignored,1,ignored\nignored,2,ignored');
+
+    expect(ds.columns.map((column) => column.name)).toEqual(['safe']);
+    expect(ds.rows).toEqual([{ safe: 1 }, { safe: 2 }]);
+  });
 });
 
 describe('tokenizeCSVLine', () => {

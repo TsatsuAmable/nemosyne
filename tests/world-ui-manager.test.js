@@ -107,6 +107,16 @@ describe('WorldUIManager', () => {
     expect(engine.input.handWheelMenu).toBe(ui.handWheelMenu);
   });
 
+  it('binds the wheel menu to the supplied dominant hand', () => {
+    const dominantHand = { handedness: 'left' };
+    const localUi = new WorldUIManager(engine, anchor, bus, {
+      ...callbacks,
+      getDominantHand: () => dominantHand,
+    });
+
+    expect(localUi.handWheelMenu.hand).toBe(dominantHand);
+  });
+
   it('hides auxiliary panels at startup', () => {
     expect(ui.operationLogPanel.mesh.visible).toBe(false);
     expect(ui.metricsPanel.mesh.visible).toBe(false);

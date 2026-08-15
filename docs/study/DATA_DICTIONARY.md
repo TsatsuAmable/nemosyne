@@ -5,7 +5,7 @@ Status: Draft. This file must be finalized before the study is frozen.
 | Field | Source | Meaning | Unit | Sampling | Derived? | Participant disclosure |
 |---|---|---|---|---|---|---|
 | participantId | assigned at consent | pseudonymous participant identifier | — | once per participant | no | yes |
-| condition | assigned via randomization plan | 2D / Desktop-3D / VR-3D | — | once per trial | no | yes, as experienced by participant |
+| condition | assigned via randomization plan | 2D / VR-3D | — | once per trial | no | yes, as experienced by participant |
 | trialId | generated per trial | unique trial identifier | — | once per trial | no | no |
 | correctness | scoring pipeline | correctness of response against ground truth | binary or scaled score | once per trial | yes | no |
 | completionTime | event log | elapsed time for trial completion | ms | once per trial | yes | yes |

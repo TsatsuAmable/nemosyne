@@ -6,9 +6,12 @@
  * over a WebRTC data channel.
  */
 
+export type NetworkRole = 'participant' | 'observer';
+
 export interface RemotePeer {
   peerId: string;
   name: string;
+  role: NetworkRole;
   joinedAt: number;
   state: Record<string, unknown>;
   lastSeenAt: number;
@@ -41,6 +44,7 @@ function sanitizeState(state: Record<string, unknown>): Record<string, unknown> 
 export interface RemotePeerSnapshot {
   peerId: string;
   name: string;
+  role: NetworkRole;
   state: Record<string, unknown>;
 }
 
@@ -48,6 +52,7 @@ export interface RoomJSON {
   roomId: string;
   localPeerId: string;
   localName: string;
+  localRole: NetworkRole;
   peers: RemotePeerSnapshot[];
   createdAt: number;
 }
@@ -56,23 +61,31 @@ export class Room {
   roomId: string;
   localPeerId: string;
   localName: string;
+  localRole: NetworkRole;
   peers: Map<string, RemotePeer>;
   createdAt: number;
   localState: Record<string, unknown> = {};
 
-  constructor(roomId: string, localPeerId: string, localName: string = 'Analyst') {
+  constructor(
+    roomId: string,
+    localPeerId: string,
+    localName: string = 'Analyst',
+    localRole: NetworkRole = 'participant'
+  ) {
     this.roomId = roomId;
     this.localPeerId = localPeerId;
     this.localName = localName;
+    this.localRole = localRole;
     this.peers = new Map<string, RemotePeer>();
     this.createdAt = Date.now();
   }
 
-  addPeer(peerId: string, name: string = 'Analyst'): RemotePeer | null {
+  addPeer(peerId: string, name: string = 'Analyst', role: NetworkRole = 'participant'): RemotePeer | null {
     if (peerId === this.localPeerId) return null;
     const peer: RemotePeer = {
       peerId,
       name,
+      role,
       joinedAt: Date.now(),
       state: {},
       lastSeenAt: Date.now(),
@@ -94,6 +107,17 @@ export class Room {
     return true;
   }
 
+  updatePeerRole(peerId: string, role: NetworkRole): boolean {
+    const peer = this.peers.get(peerId);
+    if (!peer) return false;
+    peer.role = role;
+    return true;
+  }
+
+  canMutateSharedState(role: NetworkRole = this.localRole): boolean {
+    return role === 'participant';
+  }
+
   setLocalState(state: Record<string, unknown>): void {
     const incoming = sanitizeState(state);
     this.localState = { ...this.localState, ...incoming };
@@ -107,6 +131,7 @@ export class Room {
     return [...this.peers.entries()].map(([peerId, peer]) => ({
       peerId,
       name: peer.name,
+      role: peer.role,
       state: peer.state,
     }));
   }
@@ -116,6 +141,7 @@ export class Room {
       roomId: this.roomId,
       localPeerId: this.localPeerId,
       localName: this.localName,
+      localRole: this.localRole,
       peers: this.getRemoteSnapshot(),
       createdAt: this.createdAt,
     };

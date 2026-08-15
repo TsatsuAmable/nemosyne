@@ -4,13 +4,15 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-15 (post-fix on-device traces analyzed; system-toggle and aim-alignment issues remain; Tier B review fixes still uncommitted).
+- **Last updated:** 2026-08-15 (document alignment audit; Phase 22.3 active, Phase 21.3 started but gated).
 - **Repository state:** branch `feat/input-tier-a-ux-trace` (off `4c203e0`, docs #98) has three committed Tier A/UX-trace/docs commits plus uncommitted reviewed Tier B wiring, cleanup, and tests; `temp_phase23.md` remains an uncommitted local draft (Phase 23 proposal).
 - **Last gate result:** PASS (2026-08-15, after Tier B review fixes) — `typecheck` clean → `lint` 0 errors (206 warnings) → `test:coverage` 1301 passed / 9 skipped, exit 0 (tier4 large-CSV timeout remains a parallel-load flake; passes isolated) → `build` exit 0.
 - **On-device rerun #2 (2026-08-15 15:24):** session ran ~5 min but `logs/ux-trace.jsonl` captured ONLY the meta record. Root cause: scene contains `THREE.Sprite` interactables (label sprites); recorder's raycaster never set `.camera`, and `Sprite.raycast` dereferences `raycaster.camera.matrixWorld` after a console.error-only guard → TypeError every frame → recorder self-disabled at 11 errors (`UXTraceRecorder.ts` update guard). Full stack + paired `THREE.Sprite: "Raycaster.camera"` errors in `logs/vr-remote-console.log`. Validation report NOT yet filled. **Fix applied:** `_raycastTargets` now sets `raycaster.camera`, filters null meshes; `_buildContext` degrades per-section (head/gaze, pointer, hands) with one-time warn instead of throwing; regression test with Sprite + null-mesh interactables (13/13 pass).
 - **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges (with actual routing decision), selection hit/miss, gestures, system toggles fired/suppressed, wheel open/close, and tour steps with head-gaze raycast target + pointer-ray drift, sampled at 5 Hz. Streams to `/__ux-trace` (vite serve plugin) → `logs/ux-trace.jsonl`; analyze with `node scripts/analyze-ux-trace.mjs --timeline`. Auto-on in dev, self-disables on 404. Wired in `src/main.ts` via taps in InputRouter/SelectionDispatcher/SystemGestureDetector/HandWheelMenu/GuidedTour. Pipeline smoke-verified 2026-08-15. **Next trace expansion:** capture all ray-touched panels, buttons, data elements, and world-space targets, including ordered intersections, stable target identity/type, hit point/distance, active pinch/gesture, routing decision, and head/pointer world-space context.
 - **Known open issue (quantified 2026-08-15 traces):** system-toggle remains hair-trigger — earlier long sessions had 61/78 both-pinch toggles; latest 141-second session had 16 toggles and 13 `system-suppressed` pinches. Each suppresses per-hand selection (`InputRouter.ts` bothPinched gate); selection remains poor (20 callback-only outcomes, 1 HUD hit) and gaze/pointer target divergence was 36% in the latest session. User-reported symptom remains "can't close panels / click menu items", while grab-based world repositioning works. Fix hypothesis (NOT yet implemented): sustained-dwell (e.g. 400 ms) + cooldown + skip when pointer ray is over a panel. **Validation target:** deliberate-only toggles, < ~10 per focused session, lower suppression, and improved panel selection.
-- **Next:** (1) Review and commit Tier B assist wiring, then implement the system-toggle tuning before the next focused Quest session; watch terminal for `[UX TRACE]`, fill `docs/PHASE_22_3_VALIDATION_REPORT.md`, analyze `logs/ux-trace.jsonl`, and compare against the 61/78-toggle baseline; (2) Phase 22.3 Tier C accessibility (Okabe–Ito categorical palette via `categoricalColor()`, dwell stepper, gaze text scaling); (3) Phase 21.3 unblock via load-test staircase (`logs/loadtest-results.jsonl`); decision items: StorybookExporter/ContextRecovery consolidation, workers stay deferred.
+- **Active work:** Phase 22.3 has started with input-correctness, onboarding wiring, and accessibility tracks. Phase 21.3 has started at the infrastructure/readiness stage but remains blocked from command-buffer rollout until the B2 load-test staircase produces `logs/loadtest-results.jsonl`.
+- **Next:** Review and commit Tier B assist wiring, implement system-toggle tuning, complete focused Quest validation, then execute Phase 22.3 Tier C accessibility (Okabe–Ito categorical palette via `categoricalColor()`, dwell stepper, gaze text scaling). In parallel, run the Phase 21.3 load-test staircase and decide whether command buffers are warranted from measured results. Atlas remains a proposed analytical architecture; it does not change current implementation status.
+- **Atlas architecture boundary:** Current Draco remains the v1 embodiment pipeline (`Dataset` facts → visual spec → VR artefact). DatasetSpace, provenance-bearing structures, analytical recommendations, and reproducible research sessions are not implemented. Atlas migration work is proposed below and must not be inferred from existing Dataset, TDA, session, telemetry, or benchmark utilities.
 - **Resume pointers:** validation → `docs/PHASE_22_3_VALIDATION_REPORT.md` (+ guide); UX trace → `scripts/analyze-ux-trace.mjs` + `src/vr/trace/UXTraceRecorder.ts`; audit → `docs/AUDIT_PHASES_1_20.md`; product docs → `docs/PROJECT_DOCS_INDEX.md`; study package → `docs/study/README.md`; Phase 22.3 scope → §Sprint 22.3.
 
 ### How to update this block
@@ -91,7 +93,6 @@ Cross-cutting work-streams that are **done** and recorded here (not in
 - [x] `README.md`, `docs/IDEOLOGY.md`, `docs/ARTEFACTS.md`, `docs/INTERACTIONS.md`, `docs/ARCHITECTURE.md`, `docs/GETTING_STARTED.md`.
 - [x] Complete `docs/ROADMAP.md` and keep it current.
 - [x] Expand built-in sample datasets (financial, geospatial, process-flow).
-- [ ] Add tutorial screencasts or screenshots.
 
 ## Phase 5 — Artefact Library Expansion ✅ 🔄
 
@@ -522,7 +523,11 @@ The GA solver runs but its recommendation quality is untested against known-good
 - [x] Port `Dataset`/`ColumnType`/`Encodings`, CSV/JSON parsers, `DatasetOperations`, sample datasets, topology inference to `wasm/src/`
 - [x] Wire behind `CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST` (`World.ts`, `FileLoader.ts`, `DataOperationController.ts`) with JS fallbacks; 30 Rust unit tests
 
-### Sprint 21.3 — Scene graph & command buffers ⏳
+### Sprint 21.3 — Scene graph & command buffers 🔄
+
+> **Started 2026-08-15.** Readiness and load-test evidence are in progress. Command-buffer
+> rollout remains gated; no Rust scene graph or production command-buffer capability is
+> claimed until the B2 staircase supplies measured results.
 
 - [ ] Implement Rust ECS (`Entity`/`Transform`/`LocalToWorld`/`MeshRef`/`MaterialRef`) + `CommandEncoder`
 - [ ] JS `CommandApplier` consuming the packed stream; `DatumPlane`/`TechnoCoreNode`/`FarcasterPortal` + simple artefacts via Rust commands
@@ -630,7 +635,11 @@ The GA solver runs but its recommendation quality is untested against known-good
   `movable-panel-scrollbar` (▲/▼/thumb hit-tests), `button-click-dispatch` (GuidedTour
   `< PREV` pill). +48 tests.
 
-### Sprint 22.3 — Accessibility, onboarding last-mile & analysis completeness 🔲
+### Sprint 22.3 — Accessibility, onboarding last-mile & analysis completeness 🔄
+
+> **Started 2026-08-15.** This sprint is active across input correctness, onboarding wiring,
+> accessibility, and analysis completeness. Items remain unchecked until implementation and
+> targeted validation provide evidence; the Quest validation report is still pending.
 
 > Evidence base: `docs/USER_STORIES_AND_UX_ANALYSIS.md` (29 user stories, gap/UX verdicts
 > with file:line, verified 2026-08-11). This sprint absorbs the verified findings of two
@@ -688,6 +697,7 @@ The GA solver runs but its recommendation quality is untested against known-good
   (`SelectionDispatcher.ts`, 1200 ms) but not exercised across every action; verify and fill
   the unset cells. (The colorblind, dwell-delay, and dominant-hand items above are the first
   rows of this matrix.)
+- [ ] Add tutorial screencasts or screenshots.
 
 #### Input-correctness bugs (from the VR-UX project review, verified 2026-08-11)
 > All net-new, grounded in code. These are concrete cells of the parity matrix above —
@@ -849,7 +859,9 @@ The GA solver runs but its recommendation quality is untested against known-good
 > Evidence base: a second external review (architecture/research pass) verified against
 > code 2026-08-11. **9 of 12 concrete claims confirmed**, 1 false (see "Not a defect"
 > note below), 1 partly confirmed, 1 understated. Engineering items recorded here; research
-> items in the next section.
+> items in the next section. This sprint is the first Atlas prerequisite slice: identity,
+> provenance, dependency direction, mutation semantics, and ownership must be settled before
+> introducing DatasetSpace or an analytical Draco API.
 
 - 🔲 **`_correlationMatrix` missing-value misalignment (P0 correctness, verified).**
   `ConstraintEngine._correlationMatrix` (`ConstraintEngine.ts:235-259`) filters each numeric
@@ -1052,7 +1064,9 @@ The GA solver runs but its recommendation quality is untested against known-good
 > Organizing frame: **Find → Understand → Prove → Share**. *Find* is strong; *Understand* is
 > developing; *Prove* and *Share* are weak. This sprint holds the engineering items that move
 > the product from interface-first toward task-first; the evidence/research items go under
-> **Planned but not actioned → Research validation**.
+> **Planned but not actioned → Research validation**. Atlas alignment: explainability must
+> eventually consume a structured `Atlas` guidance object with target, action, rationale, evidence,
+> and confidence; the current diagnostic HUD is not that API.
 
 - 🔲 **Draco "Why this view?" / "Explain this" (P0, verified missing).** There is **no**
   user-facing explainer. `DracoDiagnosticHUD` is a soft-constraint weight *tuner* for power
@@ -1102,7 +1116,7 @@ The GA solver runs but its recommendation quality is untested against known-good
   import step**: `src/ui/FileLoader.ts` is an in-app DOM CSV/JSON file-picker overlay
   (`World.ts:401`, WASM fast path) — the dev-orientation is real for *getting into VR*
   (clone / certs / Quest Browser), not for importing data once running. The CSV-first
-  *journey* polish (drop → preview schema → confirm → "Analysing…" → Draco recommendation →
+  *journey* polish (drop → preview schema → confirm → "Analysing…" → Atlas guidance →
   enter palace) is still a valid onboarding follow-up, but the reviewer over-stated the gap.
 
 ### Sprint 22.8 — Security & WASM robustness hardening 🔲 (new)
@@ -1113,18 +1127,14 @@ The GA solver runs but its recommendation quality is untested against known-good
 > vector in the signalling server, a WASM stack-overflow trap, and a dev-tooling break plus
 > hardening items. All load-bearing claims independently re-verified (see PR body scorecard).
 
-- 🔲 **Signalling `from` spoof → impersonation + connection-disruption DoS (P1, verified).**
+- ✅ **Signalling `from` spoof → impersonation + connection-disruption DoS (P1, fixed 2026-08-15).**
   `SignallingServerCore.isValidMessage` (`:50-57`) only checks that `from` is a string; it does
   not verify the value equals the authenticated `peerId`. `broadcast`/`sendTo` then use
-  `message.from ?? peerId` (`:143, :145`) — any peer can set `from: "victim-peer-id"` to
-  impersonate that peer in relayed messages, or `from: "*"`-style values to confuse recipients.
-  Fix: ignore the client-supplied `from` and always use the server-bound `peerId` (the `??`
-  fallback should be the *only* path); add a test asserting a spoofed `from` is overwritten.
-- 🔲 **WASM `leaves()` unbounded recursion → stack-overflow trap (P1, verified).**
-  `wasm/src/data/operations.rs:453-464` `leaves()` recurses depth-first per child with no depth
-  bound; a degenerate merge-history chain produces a tree whose depth is linear in history
-  length → WASM stack overflow → trap → instance unusable. Reachable via the `data_operation`
-  ABI. Fix: convert to an explicit stack/iterative traversal, or bound the recursion depth.
+  the authenticated `peerId` (`:143, :145`), ignoring client-supplied sender identities. Regression
+  tests cover spoofed direct and broadcast messages in `tests/network.test.ts`.
+- ✅ **WASM `leaves()` unbounded recursion → stack-overflow trap (P1, fixed 2026-08-15).**
+  `wasm/src/data/operations.rs` now uses iterative traversal with an explicit stack. A 20,000-level
+  merge-history regression test verifies deep chains without recursive stack growth.
 - 🔲 **Vite dev/preview signalling is dead for parametrised clients (P2, verified — not a false
   positive).** `vite.config.js:74` does `if (request.url !== '/__signal') return;`, but a peer's
   upgrade URL is `/__signal?room=…&peer=…&token=…`, so the strict `!==` bails *before* the
@@ -1183,6 +1193,149 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ---
 
+## Atlas V5 — Spatial Analytical Intelligence (proposed)
+
+> Source: `docs/Atlas upgrade of Draco Recommender.md`. This is a roadmap alignment and
+> migration plan, not a claim that the target architecture exists. The current Draco v1
+> embodiment path remains supported while the boundaries below are established.
+
+### Architectural direction
+
+```text
+Dataset -> analytical model -> DatasetSpace -> discovered structures
+        -> ResearchContext -> Atlas -> VR semantic embodiment
+```
+
+- `DatasetSpace` owns a persistent, renderer-independent spatial representation of the complete
+  dataset, with stable datum IDs, content-based dataset identity, spatial provenance, algorithm
+  versions, parameters, normalization, distance metric, and seed.
+- Structure discovery owns first-class regions, clusters, anomalies, trajectories, and
+  neighbourhood relationships. A row label or renderer group is not sufficient evidence.
+- `Atlas` is the new analytical guidance layer above the current constraint solver. It must
+  expose a target, analytical action, rationale, evidence, confidence, and accept/reject/override
+  state. It must not be implemented by renaming `DracoSpec`.
+- Statistical calculations are Rust/WASM provider work, not a second TypeScript formula stack.
+  Prefer maintained crates (`ndarray`, `nalgebra`, `statrs`, `rand_chacha`, `petgraph`, `rstar`/
+  `kiddo`, `geo`) behind versioned `AnalysisSpec`/`AnalysisResult` contracts. Published methods,
+  fixture datasets, and independent R/Python implementations validate the Rust providers; they
+  are not runtime dependencies. In-house implementations require a documented method with
+  numerical conformance tests and no suitable maintained crate.
+- VR translates analytical commands into embodiment; analytical layers must not depend on
+  Three.js object identity, WebXR state, or renderer lifecycle.
+- Research sessions must distinguish dataset transformations, navigation, observations,
+  recommendation decisions, and interventions before the system makes reproducibility claims.
+
+### Atlas MVP feature slice
+
+> The first Atlas slice is one complete, reproducible full-dataset analysis loop, not a second
+> rendering stack or a collection of disconnected visual features.
+
+```text
+CSV/JSON -> schema preview -> DatasetModel -> DatasetSpace -> structures
+          -> Rust statistical analysis -> Atlas guidance -> Draco VR embodiment
+          -> canonical 2D precision handoff -> finding -> replay bundle
+```
+
+- **P0 Dataset foundation:** stable datum IDs, content hashing, feature roles, relationship
+  model, explicit missingness policy, immutable DatasetSpace versions, and full-dataset coverage.
+- **P0 Spatial analysis:** deterministic PCA or MDS baseline, neighbourhood graph, one named
+  structure provider, spatial provenance, and visible distinction between semantic, structural,
+  and layout position.
+- **P0 Statistical provider:** Rust/WASM `AnalysisSpec`/`AnalysisResult` contracts, robust
+  descriptive summaries, diagnostics, deterministic scaling, and schema-compatible JS fallback.
+- **P0 Atlas guidance:** target, analytical action, rationale, evidence, confidence, limitations,
+  provenance, and accept/reject/override state. Guidance must be testable without WebXR.
+- **P0 Embodiment:** Draco v1 renders the complete DatasetSpace through an adapter; it does not
+  own statistical truth or replace the whole dataset with a recommended subset.
+- **P0 Precision handoff:** canonical 2D provides exact values, filters, comparisons, intervals,
+  and export while preserving dataset, structure, selection, and provenance IDs.
+- **P0 Replay:** research context, commands, guidance decisions, observations, provider versions,
+  seeds, and resulting state hashes are persisted in a replayable session bundle.
+
+### Atlas feature priorities
+
+**P1 — Credible research release**
+
+- Compare as a first-class operation: group A/B, before/after, selected/population, and condition
+  comparison with declared estimand, missing-data policy, and uncertainty method.
+- Task-first workflows for anomaly, comparison, relationship, hierarchy, and temporal analysis.
+- Evidence and explanation panel exposing method, parameters, diagnostics, evidence level, and
+  "why this?" rationale.
+- Progressive computation from schema and identity to coarse space, neighbourhoods, structures,
+  local statistics, and guidance without blocking the render loop.
+- Research context, observation capture, typed event ledger, observer permissions, and replay.
+- Accessibility parity across hand, controller, dwell, and 2D paths, including color-safe encoding,
+  adjustable dwell, text scaling, reduced motion, and tracking-loss recovery.
+- Rust/JS conformance fixtures covering missingness, ties, degenerate inputs, seeds, tolerances,
+  provider fallback, and resource limits.
+
+**P2 — Evidence-dependent extensions**
+
+- Sensitivity analysis across embeddings, seeds, normalization, and structure parameters.
+- Advanced graph, temporal, spatial, and TDA structure providers.
+- Optional natural-language Atlas requests and evidence-grounded explanations.
+- Collaborative research state, observer mode, and intervention workflows.
+- Confirmatory protocol mode with frozen estimands, multiplicity policy, participant-level
+  inference, and independent analysis bundles.
+
+**Explicit non-goals**
+
+- Desktop 3D as a product or study condition.
+- Replacing Draco v1 with a new renderer.
+- Expanding Draco visual-metaphor rules as the primary analytical strategy.
+- LLM-owned statistics, confidence, clustering, evidence, or recommendations.
+- Claims that attractive scenes, telemetry, benchmarks, or unit tests demonstrate user benefit.
+
+### Atlas MVP exit criteria
+
+- The same complete reference dataset produces equivalent DatasetSpace coordinates, IDs,
+  neighbourhoods, and named structures across repeated runs.
+- Rust/WASM and JS providers conform to the same result schema and declared numerical tolerances.
+- Every displayed structure and guidance result exposes method, parameters, provenance, diagnostics,
+  and evidence status.
+- A researcher can inspect a full dataset in VR, verify exact values in canonical 2D, record a
+  finding, save the state, and replay it without WebXR or network access.
+- No Atlas domain, analysis, or spatial module imports Three.js, WebXR, or `World`.
+
+### Migration sequence and gates
+
+1. **Atlas 0 — Freeze Draco v1.** Do not add more visual-metaphor rules to
+   `ConstraintEngine`. Document and test the existing facts/spec/translator contract.
+2. **Atlas 1 — DatasetSpace foundation.** Add a renderer-independent model with stable datum IDs,
+   content-based fingerprinting, explicit normalization and deterministic embedding metadata.
+   Gate: a complete reference dataset round-trips without Draco or VR.
+3. **Atlas 2 — Structure discovery.** Convert clustering/TDA outputs into provenance-bearing,
+   stable-ID structures with membership and evidence. Gate: cluster counts come from named,
+   parameterized procedures rather than heuristics, and outputs are reproducible.
+4. **Atlas 3 — Analytical guidance.** Introduce `Atlas` above Draco v1 and connect
+  research context to evidence-backed analytical actions. Gate: every recommendation is
+  inspectable, rejectable, overrideable, and independently testable without rendering.
+5. **Atlas 4 — Semantic VR embodiment.** Map analytical targets to testable VR commands for
+   navigation, isolation, slicing, inspection, comparison, and reset. Gate: commands operate on
+   analytical IDs and preserve provenance rather than mutating Three.js state directly.
+6. **Atlas 5 — Research context and replay.** Extend session persistence with DatasetSpace,
+   structures, research context, recommendation history, observations, interventions, and spatial
+   state. Gate: a session can be restored from serialized state without manual reconstruction.
+7. **Atlas 6 — Controlled experiment harness.** Add study conditions, tasks, trials, outcomes,
+   counterbalancing, and frozen configuration. Gate: human-performance claims require controlled
+   evidence; telemetry, unit tests, and benchmark utilities alone are not study evidence.
+8. **Atlas 7 — Optional language layer.** Add intent parsing and explanations only after the
+   deterministic analytical API exists. An LLM may interpret or explain, never authoritatively
+   compute evidence, clustering, confidence, or recommendations.
+
+### Current non-goals
+
+- Do not claim that current `Dataset`, `TDAMapper`, `WorldSessionController`, `UXTraceRecorder`,
+  or `BenchmarkSession` already implement DatasetSpace, full provenance, research replay, or
+  validated user benefit.
+- Do not couple DatasetSpace to Three.js, WebXR, or current mesh `userData.row` references.
+- Do not enable Atlas work by expanding the existing visual rule vocabulary or by promoting
+  current heuristic `clusterCount` into analytical structure evidence.
+- Do not make collaboration, observer mode, or an LLM part of the first DatasetSpace slice
+  without explicit event, permission, and reproducibility schemas.
+
+---
+
 ## Planned but not actioned (audit 2026-08-10)
 
 > Consolidated from a full audit of all plan docs + this roadmap against the
@@ -1204,7 +1357,7 @@ The GA solver runs but its recommendation quality is untested against known-good
 > engineering sprints.
 
 - **2D-vs-VR experimental harness** — a reusable harness (dataset × task × 2D control ×
-  desktop-3D × VR-3D × timer × answer capture × confidence × workload × interaction
+  VR-3D × timer × answer capture × confidence × workload × interaction
   telemetry × analysis) to run studies: topology discovery, anomaly detection, temporal
   pattern recognition, quantitative comparison, memory/recall. The target result is a
   per-task matrix of where spatial representation wins/loses — not a blanket "VR beats 2D".
@@ -1239,7 +1392,7 @@ The GA solver runs but its recommendation quality is untested against known-good
   not hidden — "demonstrated vs validated" is the vocabulary.
 - **5-study research programme (uses the harness + navigation-cost instrumentation above).**
   (1) **Learnability** — time to first successful operation, gesture-recognition errors, help
-  requests, 24 h recall; (2) **Spatial advantage** — 2D dashboard vs desktop-3D vs VR-3D on
+  requests, 24 h recall; (2) **Spatial advantage** — 2D dashboard vs VR-3D on
   topology tasks (bridge / cluster / path / anomaly / relationship); (3) **Precision penalty**
   — where 3D loses to 2D (rank / compare / estimate / read exact values), *just as important
   as proving advantages*; (4) **Metaphor comprehension** — give users the gestures
@@ -1248,7 +1401,7 @@ The GA solver runs but its recommendation quality is untested against known-good
   actually intuitive — a publishable result in its own right); (5) **Memory** — 2D chart vs 3D
   imposed vs 3D navigable vs 3D user-manipulated, recall at 5 min / 24 h / 7 d (directly tests
   the memory-palace hypothesis). The flagship is a **"Find the Fraud"** between-subjects study
-  (2D / Nemosyne desktop-3D / Nemosyne VR) measuring accuracy, time, navigation, interaction
+  (2D / Nemosyne VR) measuring accuracy, time, navigation, interaction
   errors, confidence, recall, workload, plus one brutally simple question: "which
   representation helped you understand the data?"
 - **UX-cost composite ("User Journey Score").** Per task: UX cost = learning + navigation +

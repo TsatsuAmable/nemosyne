@@ -28,6 +28,7 @@ export type OperationName =
   | 'filter'
   | 'sort'
   | 'aggregate'
+  | 'compare'
   | 'slice'
   | 'anomaly_iqr'
   | 'k_means'

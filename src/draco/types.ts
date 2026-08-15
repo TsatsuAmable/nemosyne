@@ -277,7 +277,7 @@ export type InstancedPointCloudFactory = (
 export type ChartPlaneFactory = (
   facts: DracoFacts,
   dataset: Dataset,
-  options?: { title?: string }
+  options?: { title?: string; colorblindMode?: string | boolean }
 ) => IChartPlane;
 
 /** Handlers for spatial metaphor interaction transforms. */
@@ -295,4 +295,5 @@ export interface VRTranslatorOptions {
   pointCloudFactory?: InstancedPointCloudFactory;
   chartPlaneFactory?: ChartPlaneFactory;
   metaphorActions?: MetaphorActionHandlers;
+  colorblindMode?: string | boolean;
 }

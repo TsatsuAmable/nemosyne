@@ -9,9 +9,12 @@ import type { EncodingMapping } from './types.ts';
  */
 
 const PALETTE = [0x00ffcc, 0xff0055, 0xffaa00, 0x00aaff, 0xff00ff, 0x88ff00] as const;
+const COLORBLIND_PALETTE = [0x0072b2, 0xe69f00, 0x009e73, 0xf0e442, 0x56b4e9, 0xd55e00, 0xcc79a7, 0x000000] as const;
 
-export function categoricalColor(_value: unknown, index: number): number {
-  return PALETTE[index % PALETTE.length];
+export function categoricalColor(_value: unknown, index: number, colorblindMode: string | boolean = 'none'): number {
+  const safe = colorblindMode !== 'none' && colorblindMode !== false;
+  const palette = safe ? COLORBLIND_PALETTE : PALETTE;
+  return palette[index % palette.length];
 }
 
 export function numericColor(

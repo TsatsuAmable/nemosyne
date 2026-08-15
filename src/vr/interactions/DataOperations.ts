@@ -13,6 +13,7 @@ import {
   filter,
   sort,
   aggregate,
+  compare,
   cluster,
   hierarchical,
   dbscan,
@@ -245,6 +246,13 @@ export function computeOperationDataset(
         result._count = group.length;
         return result;
       });
+    }
+    case 'compare': {
+      const groupBy = dataset.categoricalColumns[0]?.name;
+      if (!groupBy) return dataset.clone();
+      const groups = [...new Set(dataset.rows.map((row) => row[groupBy]))];
+      if (groups.length < 2) return dataset.clone();
+      return compare(dataset, groupBy, groups[0], groups[1]);
     }
     case 'cluster':
       return cluster(dataset, 3);
