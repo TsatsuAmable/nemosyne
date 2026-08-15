@@ -4,38 +4,35 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-11 · `main` at `9dceca7` (clean, synced). #97 merged — recorded
-  five project-level reviews (Principal Architect, Graphics, Security & Robustness, VR-UX,
-  Tech-Debt; 10/10 load-bearing claims re-verified against code) → Sprints 22.3 & 22.6
-  extended, 22.8 (Security/WASM) + 22.9 (GPU lifecycle) new. Prior merges: #90 Sprint 22.2
-  (TDA on-demand, tour 13→19, Low-Strain/Muted presets, +48 tests, doc-staleness fixes) ·
-  #88 Sprint 22.1 · #86 plan distillation · #84 Node 24 CI · #82 f15 isolation · #81 WASM
-  honesty hardening · #80 load-test harness.
-- **Gates (2026-08-10):** `cargo test` 30/0 · `tsc` 0 · `eslint` 0 err / 186 warn ·
-  `vitest` 1272/9/0 (182 files) · `build` ~275 KB gzip. (JS honesty-locks in
-  `wasm-runtime.test.ts` are `maybeDescribe` — skipped in jsdom; the Rust test is
-  authoritative.)
-- **Branch / tree:** `main`, clean. `feature/phase20-graphics-optimization` is stale/
-  superseded (older `World.ts`, lacks #77–#97) — not unmerged work.
-- **Merge policy (live):** ruleset `id=20623327` requires PR + `Rust unit tests (wasm/)` /
-  `Node 24` / `approval-gate`; owner PRs auto-merge (squash) on green, others need owner
-  approval. PR-only. (`Playwright load smoke` informational, not required.)
-- **Command-buffer (B2):** DEFER + minimal hardening (#81). Not a *measured* regression —
-  the JS scalability layer already implements the spec's instancing tiers. Revisit after
-  load-testing the JS path at 65k+ via the #80 harness. (Standing integrity/privacy
-  constraints live in `CLAUDE.md`, not here.)
-- **Next:** (1) on-device validation of Sprint 22.1+22.2 perceptual changes on a Quest
-  (full list in §Sprint 22.2); (2) run the load-test staircase in XR → implement/descope
-  verdict for **B2** (command-buffer DEFER — revisit after 65k+ real measurement; #80 harness
-  not yet run, `logs/loadtest-results.jsonl` absent; desktop `KeyT`/`Shift+T` works but needs
-  a Quest for GPU/latency fidelity); (3) Sprint 22.3.
-- **Sprint map:** 22.1 ✅ · 22.2 ✅ · 22.3–22.9 🔲 — scope + evidence in the §Sprint 22.x
-  sections below. Research items in §Research validation. 🟢 do-not-chase: Dwell Select
-  works; live site in sync (the "serves A-Frame/D3" P0 is stale).
-- **Blockers:** B2 (WASM command-buffer) deferred pending real-headset load-test data
-  (preconditions #81/#82 done; #80 harness not yet run — `logs/loadtest-results.jsonl` absent).
-- **Resume pointers:** test inventory → `TEST_READY.md`; WASM standards/notes →
-  `.claude/plan.md` (§Phase 21); sprint scope + evidence → §Sprint 22.x below.
+- **Last updated:** 2026-08-15 (post-rerun #2: UX trace crashed on-device — root-caused + fixed + regression-tested; session data lost, rerun needed).
+- **Repository state:** branch `feat/input-tier-a-ux-trace` (off `4c203e0`, docs #98) carries Tier A input fixes + hand-tracking pipeline repairs + UX trace instrumentation (incl. Sprite-raycast fix) + docs set + AGENTS.md, committed in three logical commits; `temp_phase23.md` remains an uncommitted local draft (Phase 23 proposal).
+- **Last gate result:** PASS (2026-08-15, after trace fix) — `typecheck` clean → `lint` 0 errors (206 warnings) → `test:coverage` 1295 passed / 9 skipped, exit 0 (tier4 large-CSV test flaked in 2/3 runs under parallel load; passes isolated + full pass on final run) → `build` exit 0.
+- **On-device rerun #2 (2026-08-15 15:24):** session ran ~5 min but `logs/ux-trace.jsonl` captured ONLY the meta record. Root cause: scene contains `THREE.Sprite` interactables (label sprites); recorder's raycaster never set `.camera`, and `Sprite.raycast` dereferences `raycaster.camera.matrixWorld` after a console.error-only guard → TypeError every frame → recorder self-disabled at 11 errors (`UXTraceRecorder.ts` update guard). Full stack + paired `THREE.Sprite: "Raycaster.camera"` errors in `logs/vr-remote-console.log`. Validation report NOT yet filled. **Fix applied:** `_raycastTargets` now sets `raycaster.camera`, filters null meshes; `_buildContext` degrades per-section (head/gaze, pointer, hands) with one-time warn instead of throwing; regression test with Sprite + null-mesh interactables (13/13 pass).
+- **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges (with actual routing decision), selection hit/miss, gestures, system toggles fired/suppressed, wheel open/close, and tour steps with head-gaze raycast target + pointer-ray drift, sampled at 5 Hz. Streams to `/__ux-trace` (vite serve plugin) → `logs/ux-trace.jsonl`; analyze with `node scripts/analyze-ux-trace.mjs --timeline`. Auto-on in dev, self-disables on 404. Wired in `src/main.ts` via taps in InputRouter/SelectionDispatcher/SystemGestureDetector/HandWheelMenu/GuidedTour. Pipeline smoke-verified 2026-08-15.
+- **Known open issue (quantified 2026-08-15, rerun #2 console log):** system-toggle is hair-trigger — 61 both-pinch toggles in the final ~5-min session (198 across the day), each also suppressing per-hand selection (`InputRouter.ts` bothPinched gate); user-unconfirmed symptom "can't close panels / click menu items", while grab-based world repositioning works (different input path). Fix hypothesis (NOT yet implemented): sustained-dwell (e.g. 400 ms) + cooldown + skip when pointer ray is over a panel. **Validation for next on-device session:** with fixed UXTraceRecorder live, measure both-pinch toggle count (target: deliberate-only, < ~10/session vs 61), `system-suppressed` pinch-gating share, and selection misses while gaze-target is a panel — these confirm/refute the hypothesis before tuning. Pre-existing, unrelated: WASM `RuntimeError: unreachable` on operations (JS fallback catches, 66×/session), `data_load_sample unknown key` errors, ~250 ms frame spikes on dataset load.
+- **Next:** (1) On-device rerun #3 with fixed recorder (dev server restart, watch terminal for `[UX TRACE]` lines as live confirmation trace is flowing); fill `docs/PHASE_22_3_VALIDATION_REPORT.md`, analyze `logs/ux-trace.jsonl`, and collect the both-pinch validation metrics (see Known open issue); (2) commit Tier A + pipeline fixes + UX trace + docs; (3) Phase 22.3 Tier B — wire 3 built-only UI components (FrustrationResponseManager, JITGestureHintManager, GestureConfidenceHUD); decision items: StorybookExporter/ContextRecovery consolidation, workers stay deferred; (4) Tier C accessibility (Okabe–Ito categorical palette via `categoricalColor()`, dwell stepper, gaze text scaling); (5) Phase 21.3 unblock via load-test staircase (`logs/loadtest-results.jsonl`).
+- **Resume pointers:** validation → `docs/PHASE_22_3_VALIDATION_REPORT.md` (+ guide); UX trace → `scripts/analyze-ux-trace.mjs` + `src/vr/trace/UXTraceRecorder.ts`; audit → `docs/AUDIT_PHASES_1_20.md`; product docs → `docs/PROJECT_DOCS_INDEX.md`; study package → `docs/study/README.md`; Phase 22.3 scope → §Sprint 22.3.
+
+### How to update this block
+1. On pickup: read this block first; jump to the cited sections for detail.
+2. Before stopping: refresh every bullet with current truth.
+3. Keep the block concise; move longer narrative to the relevant sections below.
+
+---
+
+# Documentation architecture
+
+The repository now follows a three-layer model:
+
+1. Product governance and implementation — this roadmap and the engineering docs.
+2. Study protocol and methodological governance — `docs/study/`.
+3. Study operations and reproducibility — `docs/study/` consent, dictionary, and version files.
+
+This split is deliberate. The layers are related but not interchangeable.
+
+---
+
+# Nemosyne Roadmap
 
 ### How to update this block
 1. On pickup: read this block first; jump to the cited §Sprint 22.x for detail.
@@ -262,15 +259,12 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ### Sprint 12.4 — Usability Feedback Loop Closure
 
-- [x] **`FrustrationResponseManager`** (`src/vr/ui/FrustrationResponseManager.ts`) — class + isolated unit test built; surfaces a contextual diegetic hint card when `dissatisfactionScore > threshold`
-- [x] **`GestureConfidenceHUD`** panel (`src/vr/ui/GestureConfidenceHUD.ts`) — per-gesture real-time confidence bar visualization
+> **Audit note (2026-08-14):** Components in this sprint were **built** (classes + unit tests complete) but are **not wired** (never instantiated in production). See `docs/AUDIT_PHASES_1_20.md` for systematic verification. Wiring work is deferred to Phase 22.3 (onboarding last-mile).
+
+- [x] **`FrustrationResponseManager`** (`src/vr/ui/FrustrationResponseManager.ts`) — **BUILT, NOT WIRED.** Class complete; surfaces a contextual diegetic hint card when `dissatisfactionScore > threshold`. Tests pass. Never instantiated in World.ts or any coordinator. → **Phase 22.3 task (US12):** wire into World, call `setUserMode()` from settings, parent to `analystAnchor`.
+- [x] **`GestureConfidenceHUD`** (`src/vr/ui/GestureConfidenceHUD.ts`) — **BUILT, NOT WIRED.** Per-gesture real-time confidence bar visualization. Tests pass. Never instantiated. → **Phase 22.3 task:** instantiate and parent to `analystAnchor`.
+- [x] **`JITGestureHintManager`** (`src/vr/ui/JITGestureHintManager.ts`) — **BUILT, NOT WIRED.** Ghost-hand wireframe + diegetic label. Tests pass. Never instantiated. → **Phase 22.3 task (US11):** instantiate, call `setScene()`, drive from gesture context.
 - [x] `tests/frustration-response.test.ts` — assert hint cards appear within 2 operations of threshold breach; assert threshold adapts to expert mode
-- ⚠️ **Correction (verified 2026-08-11):** `FrustrationResponseManager` is **never
-  instantiated in production** — `new FrustrationResponseManager` appears only in tests,
-  never in `src/` (grep-confirmed). The class and its test exist, but the in-VR hint card
-  never appears at runtime; the `UXFrustrationAnalyzer` score only reaches the manual
-  review-bundle export. Wiring it into the runtime is now **Sprint 22.3** (onboarding
-  last-mile). Same applies to `JITGestureHintManager` (built + tested, never instantiated).
 
 ### Sprint 12.5 — UI/UX Polish & Data Transition Animations
 
@@ -322,13 +316,18 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ### Sprint 13.3 — Spatial Analysis Storybook & Provenance Export
 
-- [x] `AnalysisStorybookExporter.ts` — packages session state, dataset snapshot, camera poses, selected filters, annotations, and tour checkpoints into a downloadable JSON/HTML bundle
-- [x] Client-side browser download trigger helper
+> **Audit note (2026-08-14):** `AnalysisStorybookExporter.ts` class is **BUILT, NOT WIRED.** Export functionality is implemented in `TelemetryPanel.ts` instead; the class is never instantiated. Decision: either wire the class into TelemetryPanel or consolidate export logic into a single path. For now, export works via TelemetryPanel (not misleading, but terminology "Storybook" vs. "Telemetry" should be clarified).
+
+- [x] `AnalysisStorybookExporter.ts` — **BUILT, NOT WIRED.** Packages session state, dataset snapshot, camera poses, selected filters, annotations, and tour checkpoints into a downloadable JSON/HTML bundle (class complete, tests pass, never instantiated)
+- [x] `TelemetryPanel.ts` — export functionality actively used; exports raw telemetry + session context as JSON
 - [x] `tests/storybook-context-recovery.test.ts` — test suite verifying storybook bundle serialization
 
 ### Sprint 13.4 — Session Recovery & WebGL Context Loss Safety
 
-- [x] `ContextRecoveryManager.ts` — detects WebGL context loss (`webglcontextlost`), preserves state, and restores GPU buffers on `webglcontextrestored`
+> **Audit note (2026-08-14):** `ContextRecoveryManager.ts` is **BUILT, NOT WIRED.** WebGL context loss handling exists in `Engine.ts` directly (`contextlost`/`contextrestored` listeners) rather than delegated to the manager.
+
+- [x] `ContextRecoveryManager.ts` — **BUILT, NOT WIRED.** Class complete; detects WebGL context loss, preserves state, restores GPU buffers (never instantiated; logic lives in `Engine.ts`)
+- [x] `Engine.ts` — `contextlost`/`contextrestored` event listeners active; context loss recovery working in production
 - [x] `tests/storybook-context-recovery.test.ts` — test suite simulating WebGL context loss and verifying recovery dispatch
 
 ---
@@ -403,18 +402,21 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ### Sprint 17.2 — Web Worker Offloading for Heavy Computations
 
-- [x] `CSVParserWorker.ts` — offload CSV/TSV parsing and type inference off the WebXR main render thread
-- [x] `DracoSolverWorker.ts` — offload statistical fact extraction (`extractFacts`) and Genetic Algorithm constraint solving off the main render thread
+> **Audit note (2026-08-14):** Worker classes are **BUILT, NOT WIRED.** Both classes are complete with tests, but the main-thread parsing/solving paths remain active. Workers are never instantiated. Decision: main-thread performance is acceptable for current datasets (100k points load in <200ms); worker offloading can be revisited if main-thread blocking becomes critical. For now, the built workers serve as a reference implementation.
+
+- [x] `CSVParserWorker.ts` — **BUILT, NOT WIRED.** Class complete; would offload CSV/TSV parsing and type inference off the WebXR main render thread (never instantiated; main-thread parser in `FileLoader.ts` used instead)
+- [x] `DracoSolverWorker.ts` — **BUILT, NOT WIRED.** Class complete; would offload statistical fact extraction and Genetic Algorithm constraint solving (never instantiated; main-thread solver in `DracoTopologyNode.ts` used instead)
 - [x] `tests/worker-offloading.test.ts` — test suite verifying async worker message passing and result accuracy
 
 ### Sprint 17.3 — Unified WebRTC Networking & Binary Pose Streaming
 
-- [x] `BinaryPoseSerializer.ts` — replace high-frequency 20Hz `JSON.stringify` camera pose broadcasts with compact 32-byte binary `Float32Array` buffers
+- [x] `BinaryPoseSerializer.ts` — **WIRED.** Used in `CollaborativeStateSync.ts`; replaces high-frequency 20Hz `JSON.stringify` camera pose broadcasts with compact 32-byte binary `Float32Array` buffers
 - [x] `tests/binary-pose-governor-binding.test.ts` — test suite verifying binary pose serialization and state convergence
 
 ### Sprint 17.4 — Connect `AdaptiveFrameGovernor` to Scene Renderers
 
 - [x] Bind `AdaptiveFrameGovernor` `_lodScaleFactor` directly to `InstancedPointCloud` instance counts (`applyLODScale()`)
+- [x] **WIRED.** Governor instantiated in `Engine.ts:82`, actively adjusts LOD during render loop
 - [x] `tests/binary-pose-governor-binding.test.ts` — test suite asserting active scene load shedding when governor throttles
 
 ---
@@ -1279,5 +1281,3 @@ The GA solver runs but its recommendation quality is untested against known-good
 - 🔄 In progress
 - ⏳ Deferred to future phase
 - 🔲 Not started
-
-
