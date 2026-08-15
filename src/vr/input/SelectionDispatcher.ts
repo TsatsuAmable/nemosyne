@@ -12,9 +12,18 @@ type DwellTarget =
   | { type: 'panel'; value: PanelLike }
   | { type: 'scene'; value: InteractableEntry };
 
+export interface SelectionDispatchInfo {
+  hudConsumed: boolean;
+  sceneMesh: THREE.Object3D | null;
+  sceneData?: unknown;
+  hadCallback: boolean;
+  pointer: PointerLike | null;
+}
+
 export class SelectionDispatcher {
   registry: InteractableRegistry;
   onSelectCallback: ((ray: THREE.Ray) => void) | null;
+  onDispatch: ((info: SelectionDispatchInfo) => void) | null = null;
 
   feedback: SelectionFeedback;
 
@@ -61,7 +70,17 @@ export class SelectionDispatcher {
     this.feedback.playSelect();
     this.feedback.flashPointer(activePointer);
 
-    if (this.registry.dispatchHudClick()) return;
+    const hudConsumed = this.registry.dispatchHudClick();
+    if (this.onDispatch) {
+      this.onDispatch({
+        hudConsumed,
+        sceneMesh: hudConsumed ? null : this.registry.hovered?.mesh ?? null,
+        sceneData: hudConsumed ? undefined : this.registry.hovered?.data,
+        hadCallback: !!this.onSelectCallback,
+        pointer: activePointer,
+      });
+    }
+    if (hudConsumed) return;
 
     if (this.registry.hovered?.onSelect) {
       this.registry.hovered.onSelect(this.registry.hovered.mesh, this.registry.hovered.data);

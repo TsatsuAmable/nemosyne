@@ -21,7 +21,7 @@ function makeHand(poseOverrides = {}, index = 0, handedness = 'right') {
   const pose = makePose(poseOverrides);
   return {
     index,
-    handedness,
+    handedness: poseOverrides.handedness ?? handedness,
     rayOrigin: pose.position,
     rayDirection: pose.direction,
     isPinched: () => pose.pinched,

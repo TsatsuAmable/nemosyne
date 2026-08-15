@@ -60,6 +60,14 @@ export class InputTelemetry extends MovablePanel {
     // One line per active XR input source, with world-space position.
     const coveredHands = new Set<HandLike>();
     const coveredControllers = new Set<PointerLike>();
+    const trackedHandSides = new Set<string>();
+    for (const h of input!.hands) {
+      const poseValid =
+        typeof (h as { isPoseValid?: unknown }).isPoseValid === 'function'
+          ? (h as { isPoseValid: () => boolean }).isPoseValid()
+          : h.jointsValid;
+      if (h.handedness && poseValid) trackedHandSides.add(h.handedness);
+    }
     for (let i = 0; i < sources.length; i++) {
       const src = sources[i];
       const p = this._getSourcePosition(src);
@@ -79,8 +87,12 @@ export class InputTelemetry extends MovablePanel {
         const axes = gp?.axes?.length ? gp.axes.map((a) => a.toFixed(2)).join(',') : '-';
         const trig = gp?.buttons?.[0]?.pressed ? 'TRIG' : '---';
         const grip = gp?.buttons?.[1]?.pressed ? 'GRIP' : '---';
+        // Quest reports controller sources alongside tracked hands; mark them
+        // so the two data streams are distinguishable at a glance.
+        const dup =
+          src.handedness && trackedHandSides.has(src.handedness) ? ' [hand live]' : '';
         this.log(
-          `CTRL${i} ${src.handedness?.toUpperCase() ?? '?'} ${posStr} axes=[${axes}] ${trig} ${grip}`
+          `CTRL${i} ${src.handedness?.toUpperCase() ?? '?'} ${posStr} axes=[${axes}] ${trig} ${grip}${dup}`
         );
       }
     }

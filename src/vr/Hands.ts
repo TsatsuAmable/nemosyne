@@ -41,8 +41,10 @@ interface XRConnectionEventData {
 
 /**
  * Wraps WebXR hand tracking and renders a hand mesh plus a pointing ray.
- * Detects pinch between thumb tip and index tip and emits 'nemosyne-pinchstart'
- * and 'nemosyne-pinchend' events.
+ * Detects pinch between thumb tip and index tip, updates `pinched` state for
+ * per-frame polling, and calls `onPinchStart`/`onPinchEnd` fallback callbacks
+ * (frame-gated). Pinch transitions are console-logged for on-device validation
+ * traces (captured by logs/vr-remote-console.log).
  *
  * Robust joint lookup: some runtimes expose `XRHandPrimitive.joints` directly,
  * while others (Quest Browser) expose them on the connected event. We cache
@@ -80,6 +82,15 @@ export class HandPointer implements PointerLike {
 
   joints: Record<string, XRJointSpace> | null = null;
   private _debugFrame = 0;
+  private _lastPinchCallbackFrame = -1;
+  private _lastJointIssueMsg: string | null = null;
+  private _noPoseStreak = 0;
+  private _wrapperPosePosition = new THREE.Vector3();
+  private _wrapperPose = {
+    transform: { position: this._wrapperPosePosition, orientation: {} },
+  };
+  private static _sourceClaims = new WeakMap<object, HandPointer>();
+  private _boundSource: (XRInputSource & { hand?: unknown }) | null = null;
   rayLength = 4;
 
   constructor(renderer: THREE.WebGLRenderer, index: number) {
@@ -177,8 +188,10 @@ export class HandPointer implements PointerLike {
     this.pinched = false;
     this.pinchDistance = Infinity;
     this.ray.visible = false;
-    this.onPinchStart = null;
-    this.onPinchEnd = null;
+    if (this._boundSource) {
+      HandPointer._sourceClaims.delete(this._boundSource);
+      this._boundSource = null;
+    }
     console.log(`[HandPointer ${this.index}] disconnected`);
   };
 
@@ -246,6 +259,14 @@ export class HandPointer implements PointerLike {
       }
 
       if (!this.jointsValid) {
+        if (this._debugFrame % 300 === 0) {
+          const handSourceCount = session?.inputSources
+            ? Array.from(session.inputSources).filter((s) => s.hand).length
+            : -1;
+          console.log(
+            `[HandPointer ${this.index}] waiting for joints: handedness=${this.handedness} session=${session ? 'yes' : 'no'} handSources=${handSourceCount} joints=${this.joints ? Object.keys(this.joints).length : 0}`
+          );
+        }
         this.ray.visible = false;
         this.pinchDistance = Infinity;
         return;
@@ -258,6 +279,12 @@ export class HandPointer implements PointerLike {
     const wrist = this.getJointPose('wrist', frame, referenceSpace);
 
     if (!tip || !thumb) {
+      this._noPoseStreak++;
+      if (this._noPoseStreak === 150) {
+        console.log(
+          `[HandPointer ${this.index}] joints valid but no pose for 150 frames (hand untracked or joint type rejected)`
+        );
+      }
       // Cannot detect pinch, but we can still keep the pointer anchored to the
       // last known pose so the laser does not snap back to the world origin
       // during transient tracking loss.
@@ -273,6 +300,7 @@ export class HandPointer implements PointerLike {
 
     // Pinch detection: compute distance even if wrist pose is missing so
     // pinch events are as reliable as possible.
+    this._noPoseStreak = 0;
     const tipPos = tip.transform.position;
     const thumbPos = thumb.transform.position;
     const d = Math.sqrt(
@@ -282,10 +310,24 @@ export class HandPointer implements PointerLike {
 
     if (!this.pinched && d < this.pinchThreshold) {
       this.pinched = true;
-      if (this.onPinchStart) this.onPinchStart(this);
+      console.log(
+        `[HandPointer ${this.index}] pinch start d=${d.toFixed(3)} handedness=${this.handedness} frame=${this._debugFrame}`
+      );
+      if (this.onPinchStart && this._lastPinchCallbackFrame !== this._debugFrame) {
+        this._lastPinchCallbackFrame = this._debugFrame;
+        this.onPinchStart(this);
+      } else if (this.onPinchStart) {
+        console.log(`[HandPointer ${this.index}] pinch start callback gated (same frame)`);
+      }
     } else if (this.pinched && d > this.releaseThreshold) {
       this.pinched = false;
-      if (this.onPinchEnd) this.onPinchEnd(this);
+      console.log(
+        `[HandPointer ${this.index}] pinch end d=${d.toFixed(3)} frame=${this._debugFrame}`
+      );
+      if (this.onPinchEnd && this._lastPinchCallbackFrame !== this._debugFrame) {
+        this._lastPinchCallbackFrame = this._debugFrame;
+        this.onPinchEnd(this);
+      }
     }
 
     // Pointing ray: from index tip forward along the index metacarpal -> tip
@@ -406,31 +448,53 @@ export class HandPointer implements PointerLike {
   getJointPose(name: string, frame: XRFrame | null, referenceSpace: XRReferenceSpace | null): XRPose | null {
     const joint = this.joints?.[name];
     if (!joint || !frame || !referenceSpace) return null;
-    // XRJointSpace is only defined when the hand-tracking module is supported.
-    // Avoid a ReferenceError in runtimes where the global is missing.
-    if (typeof XRJointSpace !== 'undefined' && !(joint instanceof XRJointSpace)) return null;
-    try {
-      const pose = frame.getJointPose?.(joint as XRJointSpace, referenceSpace);
-      return pose ?? null;
-    } catch (_err) {
-      // Transient joint-pose failures should not blank the hand laser.
-      return null;
+    const isNative = typeof XRJointSpace !== 'undefined' && joint instanceof XRJointSpace;
+    if (isNative || typeof XRJointSpace === 'undefined') {
+      try {
+        const pose = frame.getJointPose?.(joint as XRJointSpace, referenceSpace);
+        return pose ?? null;
+      } catch (_err) {
+        // Transient joint-pose failures should not blank the hand laser.
+        return null;
+      }
     }
+    // three.js wrapper joint: derive a pose from its world matrix so hands
+    // stay usable when only the wrapper path has live data.
+    const wrapper = joint as unknown as { matrixWorld?: THREE.Matrix4 };
+    if (wrapper?.matrixWorld) {
+      this._wrapperPosePosition.setFromMatrixPosition(wrapper.matrixWorld);
+      return this._wrapperPose as unknown as XRPose;
+    }
+    return null;
   }
 
   _validateJoints(): boolean {
     if (!this.joints) return false;
+    const nativeRequired = typeof XRJointSpace !== 'undefined';
     return ['index-finger-tip', 'thumb-tip'].every((name) => {
       const joint = this.joints?.[name];
       if (!joint) {
-        console.log(`[HandPointer ${this.index}] missing joint '${name}'`);
+        this._logJointIssueOnce(`missing joint '${name}'`);
         return false;
       }
-      // On Meta Quest Browser joints come back as THREE.Group wrappers; the
-      // instanceof check would always fail. Accept any non-null value and let
-      // getJointPose() determine whether it is usable at pose-query time.
+      // three.js populates space.joints with THREE.Group wrappers. They are
+      // not valid XRJointSpace inputs for frame.getJointPose(), so treating
+      // them as valid would permanently block the native inputSource fallback
+      // and kill all pose queries. Reject them and let the fallback engage.
+      if (nativeRequired && !(joint instanceof XRJointSpace)) {
+        this._logJointIssueOnce(
+          `joint '${name}' is a non-native wrapper; falling back to inputSource joints`
+        );
+        return false;
+      }
       return true;
     });
+  }
+
+  private _logJointIssueOnce(message: string): void {
+    if (this._lastJointIssueMsg === message) return;
+    this._lastJointIssueMsg = message;
+    console.log(`[HandPointer ${this.index}] ${message}`);
   }
 
   /**
@@ -518,11 +582,36 @@ export class HandPointer implements PointerLike {
 
   _findHandSource(session: XRSession): (XRInputSource & { hand?: unknown }) | null {
     const sources = Array.from(session.inputSources || []);
-    if (this.handedness && this.handedness !== 'none') {
-      return sources.find((s) => s.hand && s.handedness === this.handedness) || null;
-    }
     const handSources = sources.filter((s) => s.hand);
-    return handSources[this.index] ?? null;
+
+    // Stay bound to the input source we already claimed while it exists, so
+    // a flapping handedness value or reconnect ordering cannot make two
+    // HandPointers track the same physical hand.
+    if (this._boundSource && handSources.includes(this._boundSource)) {
+      return this._boundSource;
+    }
+    if (this._boundSource) {
+      HandPointer._sourceClaims.delete(this._boundSource);
+      this._boundSource = null;
+    }
+
+    const unclaimed = handSources.filter((s) => {
+      const claimant = HandPointer._sourceClaims.get(s as object);
+      return !claimant || claimant === this;
+    });
+
+    let bound: (XRInputSource & { hand?: unknown }) | null = null;
+    if (this.handedness && this.handedness !== 'none') {
+      bound = unclaimed.find((s) => s.handedness === this.handedness) ?? null;
+    }
+    if (!bound) {
+      bound = unclaimed[this.index] ?? null;
+    }
+    if (bound) {
+      this._boundSource = bound;
+      HandPointer._sourceClaims.set(bound, this);
+    }
+    return bound;
   }
 
   get group(): THREE.Group {

@@ -61,8 +61,10 @@ export class HandGestureRecognizer {
   };
   private _initialized = false;
 
-  private _lastGestureTime = 0;
-  private _lastGestureName: string | null = null;
+  _lastGestureTime = 0;
+  _lastGestureName: string | null = null;
+  _incompleteScoopDownTime: number | null = null;
+  _scoopDownTimeout = 0.5;
 
   // Track sustained both-pinched-close pose for pause/resume input.
   private _bothPinchedCloseStart: number | null = null;
@@ -74,8 +76,8 @@ export class HandGestureRecognizer {
   private _tempB = new THREE.Vector3();
 
   // Expose which hand is dominant for callers that need to follow it.
-  dominant?: HandPose;
-  nonDominant?: HandPose;
+  dominant?: HandLike;
+  nonDominant?: HandLike;
 
   constructor({
     onGesture = () => {},
@@ -109,6 +111,7 @@ export class HandGestureRecognizer {
     this._lastGestureName = null;
     this._bothPinchedCloseStart = null;
     this._pauseResumeFired = false;
+    this._incompleteScoopDownTime = null;
   }
 
   setHands(hands: HandLike[] | null | undefined) {
@@ -122,6 +125,8 @@ export class HandGestureRecognizer {
       : this.hands.length > 1
         ? 1
         : 0;
+    this.dominant = this.hands[this.dominantHandIndex];
+    this.nonDominant = this.hands[this.nonDominantHandIndex];
   }
 
   setDominantHand(handedness: string) {
@@ -131,6 +136,8 @@ export class HandGestureRecognizer {
     this.nonDominantHandIndex = this.hands.findIndex((h) => h.handedness !== handedness);
     if (this.nonDominantHandIndex < 0)
       this.nonDominantHandIndex = (idx + 1) % this.hands.length;
+    this.dominant = this.hands[this.dominantHandIndex];
+    this.nonDominant = this.hands[this.nonDominantHandIndex];
   }
 
   update(delta: number, time: number) {
@@ -161,21 +168,29 @@ export class HandGestureRecognizer {
     const dt = time - this._prev.time;
     if (dt <= 0) return;
 
+    // Use dominant/non-dominant hand order instead of hardcoded left/right
+    const dominant = poses[this.dominantHandIndex];
+    const nonDominant = poses[this.nonDominantHandIndex] || dominant;
+    const prevDominantPos = this.dominantHandIndex === 0 ? this._prev.leftPos : this._prev.rightPos;
+    const prevNonDominantPos = this.nonDominantHandIndex === 0 ? this._prev.leftPos : this._prev.rightPos;
+    const prevDominantDir = this.dominantHandIndex === 0 ? this._prev.leftDir : this._prev.rightDir;
+    const prevNonDominantDir = this.nonDominantHandIndex === 0 ? this._prev.leftDir : this._prev.rightDir;
+
     const gesture = this._classify(
-      left,
-      right,
-      this._prev.leftPos,
-      this._prev.rightPos,
-      this._prev.leftDir,
-      this._prev.rightDir,
+      dominant,
+      nonDominant,
+      prevDominantPos,
+      prevNonDominantPos,
+      prevDominantDir,
+      prevNonDominantDir,
       dt
     );
 
     // Detect a sustained both-pinched-close pose for pause/resume input.
     const bothPinchedClose =
-      left.pinched &&
-      right.pinched &&
-      left.position.distanceTo(right.position) < this._pauseCloseDistance;
+      dominant.pinched &&
+      nonDominant.pinched &&
+      dominant.position.distanceTo(nonDominant.position) < this._pauseCloseDistance;
     if (bothPinchedClose && this._bothPinchedCloseStart == null) {
       this._bothPinchedCloseStart = time;
       this._pauseResumeFired = false;
@@ -193,9 +208,12 @@ export class HandGestureRecognizer {
       this._pauseResumeFired = true;
       this._lastGestureTime = time;
       this._lastGestureName = 'pauseResume';
+      console.log(
+        `[GestureRecognizer] fire pauseResume dominant=${this.dominant?.handedness ?? '?'} t=${time.toFixed(2)}`
+      );
       this.onGesture('pauseResume', {
-        dominant: left,
-        nonDominant: right,
+        dominant,
+        nonDominant,
         hands: poses,
         openHands: false,
       });
@@ -204,12 +222,35 @@ export class HandGestureRecognizer {
     if (gesture && this._canFire(gesture, time)) {
       this._lastGestureTime = time;
       this._lastGestureName = gesture;
+      console.log(
+        `[GestureRecognizer] fire ${gesture} dominant=${this.dominant?.handedness ?? '?'} t=${time.toFixed(2)}`
+      );
       this.onGesture(gesture, {
-        dominant: left,
-        nonDominant: right,
+        dominant,
+        nonDominant,
         hands: poses,
-        openHands: !left.pinched && !right.pinched,
+        openHands: !dominant.pinched && !nonDominant.pinched,
       });
+      this._incompleteScoopDownTime = null;
+    } else if (this._lastGestureName === 'scoopDown' && gesture !== 'scoopDown') {
+      // Track incomplete scoopDown attempts: if we were in scoopDown state but
+      // motion stops, reset the cooldown after a timeout so user can retry.
+      if (this._incompleteScoopDownTime === null) {
+        console.log(`[GestureRecognizer] scoopDown incomplete at t=${time.toFixed(2)}`);
+      }
+      this._incompleteScoopDownTime = time;
+    }
+
+    // If incomplete scoopDown timeout elapsed, allow retry by resetting cooldown.
+    if (
+      this._incompleteScoopDownTime != null &&
+      time - this._incompleteScoopDownTime >= this._scoopDownTimeout
+    ) {
+      console.log(
+        `[GestureRecognizer] scoopDown retry unlocked (cooldown reset) t=${time.toFixed(2)}`
+      );
+      this._lastGestureTime = Math.max(0, time - this.cooldown);
+      this._incompleteScoopDownTime = null;
     }
 
     this._prev.leftPos.copy(left.position);
@@ -221,8 +262,8 @@ export class HandGestureRecognizer {
     this._prev.time = time;
 
     // Expose which hand is dominant for callers that need to follow it.
-    this.dominant = left;
-    this.nonDominant = right;
+    this.dominant = this.hands[this.dominantHandIndex];
+    this.nonDominant = this.hands[this.nonDominantHandIndex] ?? this.dominant;
   }
 
   private _canFire(gesture: string, time: number) {

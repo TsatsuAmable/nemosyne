@@ -19,6 +19,7 @@ interface InternalDragState extends DragState {
  */
 export class MovablePanel {
   private static _textureCacheManager: CanvasTextureCacheManager | null = null;
+  private _renderGeneration = 0;
   cameraGroup: THREE.Group;
   parentGroup: THREE.Group | null;
   title: string;
@@ -441,7 +442,8 @@ export class MovablePanel {
       ctx.textAlign = 'left';
     }
 
-    const stateSig = `${this.title}:${this.scrollOffset}:${this.totalContentHeight}:${this.textScale}:${this.highContrast}:${this.colorblindMode}:${this.isMinimized}`;
+    this._renderGeneration++;
+    const stateSig = `${this.title}:${this._renderGeneration}:${this.scrollOffset}:${this.totalContentHeight}:${this.textScale}:${this.highContrast}:${this.colorblindMode}:${this.isMinimized}`;
     if (!MovablePanel._textureCacheManager) {
       MovablePanel._textureCacheManager = new CanvasTextureCacheManager();
     }
