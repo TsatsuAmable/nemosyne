@@ -72,25 +72,6 @@ export class FileLoaderUI {
       'font-weight: bold; margin-bottom: 10px; color: #00ffcc; text-shadow: 0 0 5px #00ffcc;';
     container.appendChild(title);
 
-    // Quick control reference.
-    const help = document.createElement('div');
-    help.style.cssText = this._boxStyle();
-    const strong = document.createElement('strong');
-    strong.textContent = 'Controls';
-    help.appendChild(strong);
-    const lines = [
-      'Point laser / index finger + trigger/pinch to select',
-      'Controllers: left stick move, right stick turn',
-      'Hands: pinch and drag to pull yourself around',
-      'Desktop: WASD move, Q/E turn',
-      'Draco HUD floats near your left shoulder',
-    ];
-    for (const line of lines) {
-      help.appendChild(document.createElement('br'));
-      help.appendChild(document.createTextNode(`• ${line}`));
-    }
-    container.appendChild(help);
-
     // Sample dataset selector.
     container.appendChild(this._label('Sample datasets'));
 

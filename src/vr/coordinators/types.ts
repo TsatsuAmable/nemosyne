@@ -12,6 +12,7 @@ import type { Dataset } from '../../data/Dataset.ts';
 import type { AnalysisHistory } from '../../data/AnalysisHistory.ts';
 import type { LiveUpdate } from '../../data/connectors/DataConnector.ts';
 import type { DatasetJSON, EncodingMapping, OperationSpec, TopologyType } from '../../data/types.ts';
+import type { UXFrustrationAnalyzer } from '../../utils/UXFrustrationAnalyzer.ts';
 import type { LoadTestDriver, LoadTestProfile } from '../scalability/LoadTestDriver.ts';
 
 /** Entry describing a dataset to be loaded into the World. Shared with WorldSessionController. */
@@ -540,6 +541,7 @@ export interface TelemetryReport {
 
 export interface TelemetryCollectorLike {
   enabled: boolean;
+  frustrationAnalyzer: UXFrustrationAnalyzer;
   getReport(): TelemetryReport;
   loadConsent?(): void;
   saveConsent?(enabled: boolean): void;

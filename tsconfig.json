@@ -20,7 +20,7 @@
     "sourceMap": true,
     "outDir": "./dist/types",
     "rootDir": ".",
-    "types": ["vitest/globals", "node"],
+    "types": ["vitest/globals", "node", "vite/client"],
     "paths": {
       "three": ["./node_modules/@types/three"]
     }

@@ -1,0 +1,11 @@
+{
+  "status": "DEPRECATED",
+  "supersededBy": "docs/study/version.json",
+  "note": "This legacy version file is retained only for historical reference. The canonical version binding lives in docs/study/version.json.",
+  "experimentPackageVersion": "0.1.0-draft",
+  "protocolVersion": "0.1.0-draft",
+  "nemosyneBuildCommit": "PLACEHOLDER — fill with the exact tagged commit at Gate 6 rehearsal",
+  "datasetVersion": "PLACEHOLDER — e.g. F-2026-08-11",
+  "taskVersion": "0.1.0-draft",
+  "notes": "This file is the single source of truth for the release-record binding required by the Stable Release roadmap's Gate 6: {Nemosyne build} + {experiment package version} + {protocol version} + {dataset version} + {task version}. Every trial result should be reconstructable by citing this file's values at the time the trial ran, not by a loose label like 'VR condition'."
+}

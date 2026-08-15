@@ -314,6 +314,28 @@ fn kmeans_plus_plus(values: &[Vec<f64>], k: usize, rng: &mut Lcg) -> Vec<Vec<f64
     centroids
 }
 
+fn leaves(node: usize, n: usize, parent_of: &[i64]) -> Vec<usize> {
+    let mut result = Vec::new();
+    let mut stack = vec![node];
+
+    while let Some(current) = stack.pop() {
+        if current < n {
+            result.push(current);
+            continue;
+        }
+
+        let children: Vec<usize> = parent_of
+            .iter()
+            .enumerate()
+            .filter(|(_, parent)| **parent == current as i64)
+            .map(|(index, _)| index)
+            .collect();
+        stack.extend(children.into_iter().rev());
+    }
+
+    result
+}
+
 /// Agglomerative hierarchical clustering. Adds a `_cluster` column.
 pub fn hierarchical(
     dataset: &Dataset,
@@ -448,19 +470,6 @@ pub fn hierarchical(
         parent_of[*b] = node as i64;
         parent_of.push(-1);
         next_id += 1;
-    }
-
-    fn leaves(node: usize, n: usize, parent_of: &[i64]) -> Vec<usize> {
-        if node < n {
-            return vec![node];
-        }
-        let mut result = Vec::new();
-        for (i, &p) in parent_of.iter().enumerate() {
-            if p == node as i64 {
-                result.extend(leaves(i, n, parent_of));
-            }
-        }
-        result
     }
 
     fn children_of(node: usize, parent_of: &[i64]) -> Vec<usize> {
@@ -676,6 +685,17 @@ mod tests {
         let ds = sample_dataset();
         let clustered = hierarchical(&ds, None, "average", 2);
         assert_eq!(clustered.row_count(), 2);
+    }
+
+    #[test]
+    fn leaves_handles_deep_merge_histories_without_recursion() {
+        let depth = 20_000;
+        let mut parent_of = vec![-1; depth + 1];
+        for node in 1..=depth {
+            parent_of[node - 1] = node as i64;
+        }
+
+        assert_eq!(leaves(depth, 1, &parent_of), vec![0]);
     }
 
     #[test]

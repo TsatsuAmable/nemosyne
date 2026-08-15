@@ -83,6 +83,20 @@ export class FrustrationResponseManager {
     this._lastShownAt = now;
   }
 
+  dispose(): void {
+    if (!this._hintMesh) return;
+    this._hintMesh.visible = false;
+    this._cameraGroup.remove(this._hintMesh);
+    this._hintMesh.geometry.dispose();
+    if (Array.isArray(this._hintMesh.material)) {
+      this._hintMesh.material.forEach((material) => material.dispose());
+    } else {
+      this._hintMesh.material.dispose();
+    }
+    this._texture.dispose();
+    this._hintMesh = null;
+  }
+
   private _renderHintCard(pattern: FrictionPattern, score: number): void {
     const ctx = this._ctx;
     const w = this._canvas.width;

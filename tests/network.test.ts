@@ -358,6 +358,22 @@ describe('SignallingServerCore', () => {
     expect(payload.data.type).toBe('offer');
   });
 
+  it('overwrites spoofed sender identities on direct messages', () => {
+    const registry = createRoomRegistry();
+    const a = makeSocket();
+    const b = makeSocket();
+
+    registry.handleConnection(a, 'room1', 'peerA');
+    registry.handleConnection(b, 'room1', 'peerB');
+
+    b.sent.length = 0;
+    a.listeners.message[0](
+      JSON.stringify({ to: 'peerB', from: 'victim-peer', data: { type: 'offer' } })
+    );
+
+    expect(JSON.parse(b.sent[0]).from).toBe('peerA');
+  });
+
   it('broadcasts to all room peers', () => {
     const registry = createRoomRegistry();
     const a = makeSocket();
@@ -374,6 +390,22 @@ describe('SignallingServerCore', () => {
     expect(c.sent.length).toBeGreaterThan(0);
     const lastB = JSON.parse(b.sent[b.sent.length - 1]);
     expect(lastB.data.type).toBe('ping');
+  });
+
+  it('overwrites spoofed sender identities on broadcasts', () => {
+    const registry = createRoomRegistry();
+    const a = makeSocket();
+    const b = makeSocket();
+
+    registry.handleConnection(a, 'room2-spoof', 'peerA');
+    registry.handleConnection(b, 'room2-spoof', 'peerB');
+
+    b.sent.length = 0;
+    a.listeners.message[0](
+      JSON.stringify({ to: '*', from: 'victim-peer', data: { type: 'ping' } })
+    );
+
+    expect(JSON.parse(b.sent[b.sent.length - 1]).from).toBe('peerA');
   });
 
   it('notifies existing peers on join and leaves', () => {
