@@ -76,7 +76,7 @@ export class SelectionDispatcher {
         hudConsumed,
         sceneMesh: hudConsumed ? null : this.registry.hovered?.mesh ?? null,
         sceneData: hudConsumed ? undefined : this.registry.hovered?.data,
-        hadCallback: !!this.onSelectCallback,
+        hadCallback: !!this.registry.hovered?.onSelect || !!this.onSelectCallback,
         pointer: activePointer,
       });
     }

@@ -119,6 +119,9 @@ export class JITGestureHintManager {
           } else {
             obj.material.dispose();
           }
+        } else if (obj instanceof THREE.Sprite) {
+          obj.material.map?.dispose();
+          obj.material.dispose();
         }
       });
       this.activeHintGroup = null;

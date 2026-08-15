@@ -51,7 +51,11 @@ window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
       });
       world.engine.input.onHandPinchEdge = (hand, phase, gating) =>
         recorder.recordPinch(hand, phase, gating);
-      world.engine.input.dispatcher.onDispatch = (info) => recorder.recordSelection(info);
+      const previousDispatch = world.engine.input.dispatcher.onDispatch;
+      world.engine.input.dispatcher.onDispatch = (info) => {
+        previousDispatch?.(info);
+        recorder.recordSelection(info);
+      };
       world.engine.input.systemDetector.onTrace = (info) => recorder.recordSystemGesture(info);
       world.handWheelMenu.onVisibility = (visible, via) => recorder.recordWheel(visible, via);
     }

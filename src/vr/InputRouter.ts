@@ -190,6 +190,10 @@ export class InputRouter {
     this.registry.addPanel(panel);
   }
 
+  removePanel(panel: PanelLike): void {
+    this.registry.removePanel(panel);
+  }
+
   setPanelManager(manager: PanelManagerLike): void {
     this.panelManager = manager;
     this.machine.panelManager = manager;
