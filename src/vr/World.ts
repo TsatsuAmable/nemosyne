@@ -75,6 +75,7 @@ import { TechnoCoreNode } from './artifacts/TechnoCoreNode.ts';
 import { FarcasterPortal } from './artifacts/FarcasterPortal.ts';
 import { HolographicInspector } from './artifacts/HolographicInspector.ts';
 import type { DatasetJSON, EncodingMapping, TopologyType } from '../data/types.ts';
+import { DatasetSpace } from '../atlas/DatasetSpace.ts';
 import type {
   ArtifactRef,
   DatasetLoadEntry,
@@ -171,6 +172,7 @@ export class World {
   analysisHistory: AnalysisHistory;
   _originalDataset!: Dataset | null;
   _transformedDataset!: Dataset | null;
+  datasetSpace: DatasetSpace | null;
   _inputPaused!: boolean;
   _handNearArtefact!: boolean;
   _handNearWheelMenu!: boolean;
@@ -408,6 +410,7 @@ export class World {
 
     this.portalsEnabled = true;
     this._datasetCycleIndex = -1;
+    this.datasetSpace = null;
     this._wasmCapabilities = 0;
     this._wasmRuntime = null;
 
@@ -817,6 +820,7 @@ export class World {
     this.analystAnchor.add(this.diagnostic.mesh);
 
     this.currentEntry = entry;
+    this.datasetSpace = entry.dataset ? new DatasetSpace(entry.dataset) : null;
     this.telemetryCollector?.recordDataset?.(entry.name ?? entry.label ?? 'dataset', entry.topology);
 
     // Preserve original state so data operations can be reset.
