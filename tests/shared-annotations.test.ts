@@ -105,6 +105,25 @@ describe('Sprint 10B.5: Shared Annotations, Bookmarks & Synchronized Tours', () 
     expect(annotationManager.currentTourStep).toBe(0);
   });
 
+  it('ignores cyclic, non-object, and out-of-range remote payloads', () => {
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+
+    expect(() => annotationManager.handleRemoteDelta('annotations_add', cyclic)).not.toThrow();
+    expect(() => annotationManager.handleRemoteDelta('annotations_add', null as never)).not.toThrow();
+    annotationManager.handleRemoteDelta('annotations_add', {
+      id: 'bad-color',
+      position: [0, 0, 0],
+      text: 'invalid color',
+      authorId: 'peer',
+      authorName: 'Peer',
+      timestamp: Date.now(),
+      colorHex: 0x1000000,
+    });
+
+    expect(annotationManager.annotations.size).toBe(0);
+  });
+
   it('drops oversized and rate-limited remote deltas before rendering', () => {
     const oversizedText = 'x'.repeat(20_000);
     annotationManager.handleRemoteDelta('annotations_add', {
