@@ -19,3 +19,4 @@ logs/
 test-results/
 playwright-report/
 tests/coverage
+docs/website_copy.md
