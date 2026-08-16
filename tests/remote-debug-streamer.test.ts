@@ -15,6 +15,7 @@ describe('RemoteDebugStreamer', () => {
   });
 
   afterEach(() => {
+    remoteDebugStreamer.dispose();
     vi.restoreAllMocks();
   });
 

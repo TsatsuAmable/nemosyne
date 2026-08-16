@@ -22,6 +22,7 @@ class RemoteDebugStreamer {
   private origWarn = console.warn;
   private origError = console.error;
   private origInfo = console.info;
+  private flushTimer: ReturnType<typeof setInterval> | null = null;
 
   init(): void {
     if (typeof window === 'undefined') return;
@@ -72,9 +73,20 @@ class RemoteDebugStreamer {
     });
 
     // Start background batch flusher
-    setInterval(() => this.flush(), 500);
+    if (this.flushTimer === null) {
+      const timer = setInterval(() => this.flush(), 500);
+      (timer as unknown as { unref?: () => void }).unref?.();
+      this.flushTimer = timer;
+    }
 
     this.origLog.call(console, '[RemoteDebugStreamer] Live VR console telemetry initialized');
+  }
+
+  dispose(): void {
+    if (this.flushTimer !== null) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
   }
 
   private formatArgs(args: unknown[]): string {
