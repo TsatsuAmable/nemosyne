@@ -111,4 +111,9 @@ export class ChartPlanePanel extends MovablePanel {
       ctx.fillText(this.chartPlane.title, w / 2, contentH / 2);
     }
   }
+
+  dispose(): void {
+    this.chartPlane.dispose();
+    super.dispose();
+  }
 }

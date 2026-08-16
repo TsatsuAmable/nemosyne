@@ -11,7 +11,7 @@
 - **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges (with actual routing decision), selection hit/miss, gestures, system toggles fired/suppressed, wheel open/close, and tour steps with head-gaze raycast target + pointer-ray drift, sampled at 5 Hz. Streams to `/__ux-trace` (vite serve plugin) → `logs/ux-trace.jsonl`; analyze with `node scripts/analyze-ux-trace.mjs --timeline`. Auto-on in dev, self-disables on 404. Wired in `src/main.ts` via taps in InputRouter/SelectionDispatcher/SystemGestureDetector/HandWheelMenu/GuidedTour. Pipeline smoke-verified 2026-08-15. **Next trace expansion:** capture all ray-touched panels, buttons, data elements, and world-space targets, including ordered intersections, stable target identity/type, hit point/distance, active pinch/gesture, routing decision, and head/pointer world-space context.
 - **System-toggle tuning (2026-08-16):** both-hand pinch now requires a 400 ms hold, skips panel-targeted rays, and has a 1 s cooldown; raw simultaneous pinches still suppress per-hand selection until released. Focused Quest evidence is pending. **Validation target:** deliberate-only toggles, < ~10 per focused session, lower suppression, and improved panel selection.
 - **Active work:** Phase 22.3 is in input-validation and accessibility tracks; Tier B onboarding wiring is complete. Phase 21.3 has started at the infrastructure/readiness stage but remains blocked from command-buffer rollout until the B2 load-test staircase produces `logs/loadtest-results.jsonl`.
-- **Next:** Complete focused Quest validation for the newly tuned system toggle, then execute Phase 22.3 Tier C accessibility (dwell stepper, gaze text scaling, and categorical redundancy follow-up). In parallel, run the Phase 21.3 load-test staircase and decide whether command buffers are warranted from measured results. Atlas remains a proposed analytical architecture; it does not change current implementation status.
+- **Next:** Pick up the Phase 22.3 adversarial hardening follow-up: enforce authorization on inbound shared-state deltas, validate and bound remote annotation payloads, complete Compare visual/history behavior, recolor existing artefacts across accessibility modes, dispose dashboard chart resources, and unify controller/pinch system-toggle gating. Then complete focused Quest validation and Tier C accessibility. In parallel, run the Phase 21.3 load-test staircase and decide whether command buffers are warranted from measured results. Atlas remains a proposed analytical architecture; it does not change current implementation status.
 - **Atlas architecture boundary:** Current Draco remains the v1 embodiment pipeline (`Dataset` facts → visual spec → VR artefact). DatasetSpace, provenance-bearing structures, analytical recommendations, and reproducible research sessions are not implemented. Atlas migration work is proposed below and must not be inferred from existing Dataset, TDA, session, telemetry, or benchmark utilities.
 - **Resume pointers:** validation → `docs/PHASE_22_3_VALIDATION_REPORT.md` (+ guide); UX trace → `scripts/analyze-ux-trace.mjs` + `src/vr/trace/UXTraceRecorder.ts`; audit → `docs/AUDIT_PHASES_1_20.md`; product docs → `docs/PROJECT_DOCS_INDEX.md`; study package → `docs/study/README.md`; Phase 22.3 scope → §Sprint 22.3.
 
@@ -761,14 +761,29 @@ The GA solver runs but its recommendation quality is untested against known-good
   affordance in the wheel menu if not already exposed; not an architecture gap.
 - 🔲 Undo/Redo wheel-menu items: add a disabled affordance when the history stack is empty
   (`WheelMenuBuilder.ts:279-281` acknowledges the silent no-op).
-- 🔲 **Dashboard wiring check (US10, UNCONFIRMED).** `WorldUIManager` constructs
-  `DashboardManager` without calling `registerPanel`; verify whether `World.ts` wires chart
-  panels in elsewhere. If not, the dashboard renders empty — wire it.
+- ✅ **Dashboard wiring check (US10, resolved).** `World.ts:_buildDashboard()` constructs
+  chart panels, registers them with `DashboardManager`, and adds them to engine input after
+  each dataset load. Remaining dashboard work is lifecycle disposal and accessibility redraw,
+  tracked in Sprint 22.3.1.
 - 🔲 **Error-recovery UX messaging.** Engineering handles context loss / tracking loss /
   malformed CSV / network stalls, but user-facing recovery is raw ("WebXR input source
   disconnected"). Rewrite analyst-facing: "Hand tracking lost — your analysis is safe; switch
   to controller input or pause" / "Live stream interrupted — last update 14:32:08, 3,842
   records preserved." Principle: never make the user wonder whether their analysis was lost.
+
+### Sprint 22.3.1 — Adversarial hardening and last-mile closure 🔲
+
+> **Added 2026-08-16 from security, graphics, and adversarial review.** This is the next
+> implementation phase after the current wiring and tuning work. No item is complete until
+> targeted tests and the relevant manual/Quest evidence exist.
+
+- 🔲 **Inbound shared-state authorization:** bind the claimed sender to the RTC channel peer, enforce participant role on received annotation/bookmark/tour/dataset deltas, and reject spoofed peer IDs.
+- 🔲 **Remote delta hardening:** validate annotation/bookmark schemas, enforce payload size/count/rate bounds, and prevent malformed remote data from throwing during rendering or exhausting resources.
+- 🔲 **Compare completion:** add an explicit visual/history restore path, remap dashboard chart columns for compare summary datasets, and cover one-numeric-column and fewer-than-two-group cases end to end.
+- 🔲 **Accessibility recolor:** update existing Draco artefacts when colorblind mode changes and verify palette output for bars, lines, histograms, box plots, heatmaps, and dashboard panels.
+- 🔲 **Dashboard lifecycle:** dispose ChartPlane textures, materials, geometry, and canvas resources on dashboard rebuild and teardown.
+- 🔲 **Unified system-toggle gate:** apply dwell, cooldown, panel targeting, and release semantics consistently to hand pinches and controller grips; prevent re-arming while a gesture remains held.
+- 🔲 **Adversarial regression coverage:** add tests for remote authorization/schema abuse, Compare rendering/history, existing-scene recoloring, chart disposal, and controller/pinch precedence.
 
 ### Sprint 22.4 — Spatial zonation architecture 🔲
 

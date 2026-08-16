@@ -18,3 +18,4 @@ logs/
 # Playwright (real-WebGL load smoke)
 test-results/
 playwright-report/
+tests/coverage

@@ -855,7 +855,7 @@ export class World {
     for (const entry of this.dashboardPanels ?? []) {
       this.dashboard.unregisterPanel(entry.panel);
       this.engine.input.panels = this.engine.input.panels.filter((p) => p !== entry.panel);
-      disposeObject(entry.panel.mesh);
+      entry.panel.dispose?.();
     }
     this.dashboardPanels = [];
 

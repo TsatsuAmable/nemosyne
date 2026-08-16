@@ -10,6 +10,20 @@ import { Room, type NetworkRole } from './Room.ts';
  * - Emits events so the World can react to peer joins/leaves/state updates.
  */
 const DEFAULT_MAX_STATE_BYTES = 128 * 1024; // 128 KiB
+const MAX_DELTA_KEYS = 32;
+const MAX_DELTA_ARRAY_ITEMS = 256;
+const SHARED_DELTA_TOPICS = new Set([
+  'annotation',
+  'annotations_add',
+  'annotations_remove',
+  'bookmark',
+  'bookmarks_add',
+  'bookmarks_remove',
+  'tour',
+  'tour_step',
+  'dataset',
+  'layout',
+]);
 
 export interface NetworkManagerOptions {
   signallingUrl?: string;
@@ -336,22 +350,27 @@ export class NetworkManager extends EventTarget {
       } catch {
         return;
       }
-      if (!payload || typeof payload !== 'object') return;
-      if (payload.type === 'state' && payload.peerId) {
-        if (payload.role === 'participant' || payload.role === 'observer') {
-          this.room.updatePeerRole(payload.peerId, payload.role);
-        }
-        this.room.updatePeerState(payload.peerId, payload.state ?? {});
+      if (!payload || typeof payload !== 'object' || payload.peerId !== peerId) return;
+      if (payload.type === 'state') {
+        if (!payload.state || typeof payload.state !== 'object' || Array.isArray(payload.state)) return;
+        this.room.updatePeerState(peerId, payload.state);
         this.dispatchEvent(
           new CustomEvent('peerState', {
-            detail: { peerId: payload.peerId, state: payload.state },
+            detail: { peerId, state: payload.state },
           })
         );
-      } else if (payload.type === 'delta' && payload.peerId) {
+      } else if (
+        payload.type === 'delta' &&
+        typeof payload.topic === 'string' &&
+        SHARED_DELTA_TOPICS.has(payload.topic) &&
+        this._validRemoteObject(payload.data)
+      ) {
+        const role = this.room.peers.get(peerId)?.role;
+        if (role !== 'participant') return;
         this.dispatchEvent(
           new CustomEvent('stateDelta', {
             detail: {
-              peerId: payload.peerId,
+              peerId,
               topic: payload.topic,
               data: payload.data,
               timestamp: payload.timestamp,
@@ -360,33 +379,42 @@ export class NetworkManager extends EventTarget {
         );
       } else if (
         payload.type === 'datasetOperation' &&
-        payload.peerId &&
-        this.room.peers.get(payload.peerId)?.role === 'participant'
+        this.room.peers.get(peerId)?.role === 'participant' &&
+        this._validRemoteObject(payload.op)
       ) {
         this.dispatchEvent(
           new CustomEvent('remoteDatasetOperation', {
             detail: {
-              peerId: payload.peerId,
+              peerId,
               op: payload.op,
               timestamp: payload.timestamp,
             },
           })
         );
-      } else if (payload.type === 'selectionSync' && payload.peerId) {
+      } else if (
+        payload.type === 'selectionSync' &&
+        Array.isArray(payload.selectedIds) &&
+        payload.selectedIds.length <= MAX_DELTA_ARRAY_ITEMS &&
+        payload.selectedIds.every((id: unknown) => typeof id === 'string' && id.length <= 256)
+      ) {
         this.dispatchEvent(
           new CustomEvent('remoteSelection', {
             detail: {
-              peerId: payload.peerId,
-              selectedIds: payload.selectedIds ?? [],
+              peerId,
+              selectedIds: payload.selectedIds,
               timestamp: payload.timestamp,
             },
           })
         );
-      } else if (payload.type === 'cameraPose' && payload.peerId) {
+      } else if (
+        payload.type === 'cameraPose' &&
+        this._validVector(payload.position, 3) &&
+        this._validVector(payload.rotation, 4)
+      ) {
         this.dispatchEvent(
           new CustomEvent('remoteCameraPose', {
             detail: {
-              peerId: payload.peerId,
+              peerId,
               position: payload.position,
               rotation: payload.rotation,
               timestamp: payload.timestamp,
@@ -401,6 +429,16 @@ export class NetworkManager extends EventTarget {
       this.room.removePeer(peerId);
       this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
     });
+  }
+
+  private _validVector(value: unknown, length: number): value is number[] {
+    return Array.isArray(value) && value.length === length && value.every((n) => typeof n === 'number' && Number.isFinite(n));
+  }
+
+  private _validRemoteObject(value: unknown): value is Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const keys = Object.keys(value as Record<string, unknown>);
+    return keys.length <= MAX_DELTA_KEYS && keys.every((key) => key.length <= 128);
   }
 
   _closePeer(peerId: string, conn: RTCPeerConnection): void {
