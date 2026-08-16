@@ -39,6 +39,8 @@ function makeWebGLContext(canvas) {
     getShaderParameter: () => true,
     getShaderInfoLog: () => '',
     getProgramInfoLog: () => '',
+    getActiveUniform: () => ({ name: 'u_mock', size: 1, type: 0x1406 }),
+    getActiveAttrib: () => ({ name: 'a_mock', size: 1, type: 0x1406 }),
     deleteShader: noOp,
     deleteProgram: noOp,
     getAttribLocation: () => 0,
@@ -183,7 +185,7 @@ function makeWebGLContext(canvas) {
 // jsdom defines getContext on the prototype and warns about unimplemented
 // contexts. We replace it wholesale so three.js and our canvas UI can work.
 Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
-  value(type, ...rest) {
+  value(type, ..._rest) {
     if (type === 'webgl' || type === 'experimental-webgl' || type === 'webgl2') {
       return makeWebGLContext(this);
     }
