@@ -43,6 +43,7 @@ import type {
  * binding real dataset values to visual channels where possible.
  */
 export class VRTopologyTranslator {
+  private static _colorblindMode: string | boolean = 'none';
   private static _pointCloudFactory: InstancedPointCloudFactory | null = null;
   private static _chartPlaneFactory: ChartPlaneFactory | null = null;
   private static _metaphorActions: MetaphorActionHandlers = {};
@@ -87,6 +88,7 @@ export class VRTopologyTranslator {
   }
 
   static synthesizeArtifact(dracoResult: SolverResult, dataInput: DracoDataInput, options?: VRTranslatorOptions): Artifact {
+    this._colorblindMode = options?.colorblindMode ?? 'none';
     const { spec, facts } = dracoResult;
     const dataset = dataInput.dataset;
     const encodings = dataInput.encodings || (dataset ? inferEncodings(dataset) : {});
@@ -212,6 +214,7 @@ export class VRTopologyTranslator {
     if ((facts.numericColumns > 1 || facts.hasTimeSeries) && dataset && cpFactory) {
       const chart = cpFactory(facts, dataset, {
         title: facts.hasTimeSeries ? 'Time Series' : 'Correlation',
+        colorblindMode: options?.colorblindMode,
       });
       if (chart.setDataset) {
         chart.setDataset(dataset);
@@ -239,7 +242,7 @@ export class VRTopologyTranslator {
       const value = row[encodings.color];
       if (col?.type === 'CATEGORICAL') {
         const unique = [...new Set(dataset.getColumnValues(encodings.color))];
-        color = categoricalColor(value, unique.indexOf(value));
+          color = categoricalColor(value, unique.indexOf(value), this._colorblindMode);
       } else if (col?.type === 'NUMERIC') {
         const range = dataset.rangeOf(encodings.color);
         color = numericColor(value as number, range.min, range.max, 0x00ffcc, 0xff0055);
@@ -433,7 +436,7 @@ export class VRTopologyTranslator {
       if (points.length < 2) return;
       const curve = new THREE.CatmullRomCurve3(points);
       const geom = new THREE.TubeGeometry(curve, points.length * 3, 0.06, 8, false);
-      const color = categoricalColor(id, sIdx);
+      const color = categoricalColor(id, sIdx, this._colorblindMode);
       const mat = new THREE.MeshBasicMaterial({
         color,
         wireframe: true,
@@ -621,7 +624,7 @@ export class VRTopologyTranslator {
       if (colorField && dataset) {
         const value = row[colorField];
         if (colorCol?.type === 'CATEGORICAL') {
-          color = categoricalColor(value, uniqueColors.indexOf(value));
+           color = categoricalColor(value, uniqueColors.indexOf(value), this._colorblindMode);
         } else if (colorCol?.type === 'NUMERIC') {
           color = numericColor(value as number, sizeRange.min, sizeRange.max, 0x00ffcc, 0xff0055);
         }
@@ -692,7 +695,7 @@ export class VRTopologyTranslator {
       }
       radius = Math.max(0.1, radius * 1.2);
 
-      const color = categoricalColor(key, clusterIdx);
+       const color = categoricalColor(key, clusterIdx, this._colorblindMode);
       const geom = new THREE.SphereGeometry(radius, 24, 24);
       const mat = new THREE.MeshBasicMaterial({
         color,
@@ -756,7 +759,7 @@ export class VRTopologyTranslator {
         center.divideScalar(count);
         const avgValue = valueSum / count;
 
-        const color = categoricalColor(key, [...groups.keys()].indexOf(key));
+      const color = categoricalColor(key, [...groups.keys()].indexOf(key), this._colorblindMode);
         const height = Math.max(0.2, avgValue * 0.05);
         const geom = new THREE.CylinderGeometry(0.12, 0.12, height, 16);
         geom.translate(0, height / 2, 0);

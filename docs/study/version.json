@@ -1,0 +1,8 @@
+{
+  "experimentPackageVersion": "0.1.0-draft",
+  "protocolVersion": "0.1.0-draft",
+  "nemosyneBuildCommit": "PLACEHOLDER",
+  "datasetVersion": "PLACEHOLDER",
+  "taskVersion": "0.1.0-draft",
+  "notes": "This file binds the study package to a specific build and dataset state. Populate before freeze."
+}

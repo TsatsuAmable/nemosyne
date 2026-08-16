@@ -3,7 +3,7 @@ import { ConstraintEngine } from './ConstraintEngine.ts';
 import { VRTopologyTranslator } from './VRTopologyTranslator.ts';
 import { disposeObject } from '../utils/Dispose.ts';
 import { MeshPool } from '../utils/ObjectPool.ts';
-import type { Artifact, DracoDataInput, SolverResult } from './types.ts';
+import type { Artifact, DracoDataInput, SolverResult, VRTranslatorOptions } from './types.ts';
 
 /**
  * Manages the lifecycle of a Draco-recommended spatial data artifact:
@@ -13,6 +13,7 @@ export class DracoTopologyNode {
   scene: THREE.Scene;
   dataInput: DracoDataInput;
   position: [number, number, number];
+  translatorOptions: VRTranslatorOptions;
   engine: ConstraintEngine;
   solverResult!: SolverResult;
   artifact: Artifact | undefined;
@@ -21,11 +22,13 @@ export class DracoTopologyNode {
   constructor(
     scene: THREE.Scene,
     dataInput: DracoDataInput,
-    position: [number, number, number] = [0, 2.0, -8.0]
+    position: [number, number, number] = [0, 2.0, -8.0],
+    translatorOptions: VRTranslatorOptions = {}
   ) {
     this.scene = scene;
     this.dataInput = dataInput;
     this.position = position;
+    this.translatorOptions = translatorOptions;
     this.engine = new ConstraintEngine();
     this.reSolveAndSynthesize();
   }
@@ -43,7 +46,11 @@ export class DracoTopologyNode {
       MeshPool.instance.releaseGroup(this.artifact.group);
     }
 
-    this.artifact = VRTopologyTranslator.synthesizeArtifact(this.solverResult, this.dataInput);
+    this.artifact = VRTopologyTranslator.synthesizeArtifact(
+      this.solverResult,
+      this.dataInput,
+      this.translatorOptions
+    );
     this.group = this.artifact.group;
     this.group.position.set(...this.position);
     this.scene.add(this.group);

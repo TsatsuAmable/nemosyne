@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
+import { categoricalColor } from '../../data/Encodings.ts';
 import type { Updatable } from '../coordinators/types.ts';
 
 const DEFAULT_WIDTH = 1024;
@@ -25,6 +26,7 @@ export interface ChartPlaneOptions {
   yColumn?: string | null;
   title?: string;
   color?: string;
+  colorblindMode?: string | boolean;
 }
 
 export interface DracoFactsLike {
@@ -57,6 +59,7 @@ export class ChartPlane implements Updatable {
   yColumn: string | null;
   title: string;
   color: string;
+  colorblindMode: string | boolean;
 
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
@@ -76,6 +79,7 @@ export class ChartPlane implements Updatable {
     yColumn = null,
     title = 'Chart',
     color = '#00ffcc',
+    colorblindMode = 'none',
   }: ChartPlaneOptions = {}) {
     this.width = width;
     this.height = height;
@@ -86,6 +90,7 @@ export class ChartPlane implements Updatable {
     this.yColumn = yColumn;
     this.title = title;
     this.color = color;
+    this.colorblindMode = colorblindMode;
 
     this.canvas = document.createElement('canvas');
     this.canvas.width = width;
@@ -266,7 +271,10 @@ export class ChartPlane implements Updatable {
       const barH = (values[i] / max) * rect.height;
       const x = rect.x + i * barWidth + barWidth * 0.15;
       const y = rect.y + rect.height - barH;
-      ctx.fillStyle = this.color;
+      const categorical = categoricalColor(i, i, this.colorblindMode);
+      ctx.fillStyle = this.colorblindMode !== 'none' && this.colorblindMode !== false
+        ? `#${categorical.toString(16).padStart(6, '0')}`
+        : this.color;
       ctx.globalAlpha = 0.85;
       ctx.fillRect(x, y, barWidth * 0.7, barH);
       ctx.globalAlpha = 1;

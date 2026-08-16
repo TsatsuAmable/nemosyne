@@ -116,6 +116,16 @@ describe('Room', () => {
     expect(room.addPeer('peerA')).toBeNull();
   });
 
+  it('tracks participant and observer roles', () => {
+    const room = new Room('room1', 'peerA', 'Alice', 'observer');
+    const peer = room.addPeer('peerB', 'Bob', 'participant');
+
+    expect(room.localRole).toBe('observer');
+    expect(peer?.role).toBe('participant');
+    expect(room.canMutateSharedState()).toBe(false);
+    expect(room.canMutateSharedState('participant')).toBe(true);
+  });
+
   it('serializes to JSON', () => {
     const room = new Room('room1', 'peerA', 'Alice');
     room.addPeer('peerB', 'Bob');
@@ -250,6 +260,7 @@ describe('NetworkManager', () => {
     const opMsg = JSON.parse(channel.messages[channel.messages.length - 1]);
     expect(opMsg.type).toBe('datasetOperation');
     expect(opMsg.op.type).toBe('filter');
+    expect(opMsg.role).toBe('participant');
 
     // 3. broadcastSelection
     manager.broadcastSelection(['row-1', 'row-2']);
@@ -262,6 +273,18 @@ describe('NetworkManager', () => {
     const poseMsg = JSON.parse(channel.messages[channel.messages.length - 1]);
     expect(poseMsg.type).toBe('cameraPose');
     expect(poseMsg.position).toEqual([0, 1.6, 0]);
+  });
+
+  it('does not broadcast dataset operations from an observer', () => {
+    const observer = new NetworkManager({
+      signallingUrl: 'ws://test',
+      roomId: 'room1',
+      peerId: 'observer',
+      role: 'observer',
+    });
+
+    expect(observer.broadcastDatasetOperation({ type: 'filter' })).toBe(false);
+    observer.disconnect();
   });
 
   it('dispatches incoming stateDelta, remoteDatasetOperation, remoteSelection, and remoteCameraPose events', async () => {
@@ -358,6 +381,22 @@ describe('SignallingServerCore', () => {
     expect(payload.data.type).toBe('offer');
   });
 
+  it('overwrites spoofed sender identities on direct messages', () => {
+    const registry = createRoomRegistry();
+    const a = makeSocket();
+    const b = makeSocket();
+
+    registry.handleConnection(a, 'room1', 'peerA');
+    registry.handleConnection(b, 'room1', 'peerB');
+
+    b.sent.length = 0;
+    a.listeners.message[0](
+      JSON.stringify({ to: 'peerB', from: 'victim-peer', data: { type: 'offer' } })
+    );
+
+    expect(JSON.parse(b.sent[0]).from).toBe('peerA');
+  });
+
   it('broadcasts to all room peers', () => {
     const registry = createRoomRegistry();
     const a = makeSocket();
@@ -374,6 +413,22 @@ describe('SignallingServerCore', () => {
     expect(c.sent.length).toBeGreaterThan(0);
     const lastB = JSON.parse(b.sent[b.sent.length - 1]);
     expect(lastB.data.type).toBe('ping');
+  });
+
+  it('overwrites spoofed sender identities on broadcasts', () => {
+    const registry = createRoomRegistry();
+    const a = makeSocket();
+    const b = makeSocket();
+
+    registry.handleConnection(a, 'room2-spoof', 'peerA');
+    registry.handleConnection(b, 'room2-spoof', 'peerB');
+
+    b.sent.length = 0;
+    a.listeners.message[0](
+      JSON.stringify({ to: '*', from: 'victim-peer', data: { type: 'ping' } })
+    );
+
+    expect(JSON.parse(b.sent[b.sent.length - 1]).from).toBe('peerA');
   });
 
   it('notifies existing peers on join and leaves', () => {

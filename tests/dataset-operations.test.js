@@ -4,6 +4,7 @@ import {
   filter,
   sort,
   aggregate,
+  compare,
   cluster,
   hierarchical,
   dbscan,
@@ -71,6 +72,25 @@ describe('DatasetOperations', () => {
     const a = result.rows.find((r) => r.category === 'A');
     expect(a.total).toBe(30);
     expect(a.count).toBe(2);
+  });
+
+  it('compares two categorical groups with numeric means and counts', () => {
+    const ds = makeDataset([
+      { id: 1, category: 'A', value: 10 },
+      { id: 2, category: 'A', value: 20 },
+      { id: 3, category: 'B', value: 30 },
+    ]);
+    const result = compare(ds, 'category', 'A', 'B', ['value']);
+
+    expect(result.rowCount).toBe(1);
+    expect(result.rows[0]).toMatchObject({
+      _measure: 'value',
+      _meanA: 15,
+      _meanB: 30,
+      _difference: -15,
+      _countA: 2,
+      _countB: 1,
+    });
   });
 
   it('clusters rows into k groups using numeric columns', () => {

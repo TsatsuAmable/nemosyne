@@ -8,11 +8,19 @@
 
 import type { PointerRegistry } from './PointerRegistry.ts';
 
+export interface SystemGestureTraceInfo {
+  kind: 'both-pinch' | 'both-pinch-suppressed' | 'grips';
+  y0?: number;
+  y1?: number;
+}
+
 export class SystemGestureDetector {
   registry: PointerRegistry;
   onSystemToggle: (() => void) | null = null;
+  onTrace: ((info: SystemGestureTraceInfo) => void) | null = null;
 
   private _lastGripSystemToggle = false;
+  private _lastSuppressedBothPinched = false;
 
   constructor(pointerRegistry: PointerRegistry) {
     this.registry = pointerRegistry;
@@ -20,19 +28,50 @@ export class SystemGestureDetector {
 
   /**
    * Check the current controller and hand states and fire `onSystemToggle` once
-   * when a system gesture starts.
+   * when a system gesture starts. Suppress system gesture if hands are in a reach zone
+   * (Y > 1.5m) to prevent Quest system gesture from blocking user grab input.
    */
   update(session: XRSession | null): { bothPinched: boolean } {
-    if (!session || !session.inputSources) return { bothPinched: false };
+    const sources = session?.inputSources ? Array.from(session.inputSources) : [];
 
-    const sources = Array.from(session.inputSources);
-    const bothPinched =
+    // Suppress system gesture when either hand is in a reach zone (high Y) to avoid
+    // blocking user grab input in the upper interaction space.
+    const origin0 = this.registry.hands[0]?.rayOrigin as unknown as { y?: number } | undefined;
+    const origin1 = this.registry.hands[1]?.rayOrigin as unknown as { y?: number } | undefined;
+    const systemGestureZoneSuppressed =
+      this.registry.hands.length >= 2 &&
+      origin0?.y !== undefined &&
+      origin1?.y !== undefined &&
+      (origin0.y > 1.5 || origin1.y > 1.5);
+
+    const rawBothPinched =
       this.registry.hands.length >= 2 &&
       this.registry.hands[0].isPinched?.() === true &&
       this.registry.hands[1].isPinched?.() === true;
+    const bothPinched = rawBothPinched && !systemGestureZoneSuppressed;
 
-    if (bothPinched && !this.registry.lastBothPinched && this.onSystemToggle) {
-      this.onSystemToggle();
+    if (
+      rawBothPinched &&
+      systemGestureZoneSuppressed &&
+      !this._lastSuppressedBothPinched &&
+      origin0?.y !== undefined &&
+      origin1?.y !== undefined
+    ) {
+      console.log(
+        `[SystemGestureDetector] both-pinch suppressed in reach zone (y0=${origin0.y.toFixed(2)}, y1=${origin1.y.toFixed(2)})`
+      );
+      this.onTrace?.({
+        kind: 'both-pinch-suppressed',
+        y0: origin0.y,
+        y1: origin1.y,
+      });
+    }
+    this._lastSuppressedBothPinched = rawBothPinched && systemGestureZoneSuppressed;
+
+    if (bothPinched && !this.registry.lastBothPinched) {
+      console.log('[SystemGestureDetector] system toggle fired (both-pinch start)');
+      this.onTrace?.({ kind: 'both-pinch' });
+      this.onSystemToggle?.();
     }
     this.registry.lastBothPinched = bothPinched;
 
@@ -56,6 +95,8 @@ export class SystemGestureDetector {
     const bothGrips = gripStates.length >= 2 && gripStates.every(Boolean);
     const singleGrip = gripStates.length === 1 && gripStates[0];
     if ((bothGrips || singleGrip) && !this._lastGripSystemToggle && this.onSystemToggle) {
+      console.log('[SystemGestureDetector] system toggle fired (controller grips)');
+      this.onTrace?.({ kind: 'grips' });
       this.onSystemToggle();
     }
     this._lastGripSystemToggle = bothGrips || singleGrip;

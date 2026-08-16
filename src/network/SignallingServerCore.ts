@@ -140,9 +140,9 @@ export function createRoomRegistry({
       }
       if (!isValidMessage(message)) return;
       if (message.to === '*') {
-        broadcast(roomId, message.from ?? peerId, message.data);
+        broadcast(roomId, peerId, message.data);
       } else if (message.to) {
-        sendTo(roomId, message.to, message.from ?? peerId, message.data);
+        sendTo(roomId, message.to, peerId, message.data);
       }
     };
 

@@ -62,6 +62,11 @@ export class InteractableRegistry {
     this.panels.push(panel);
   }
 
+  removePanel(panel: PanelLike) {
+    const index = this.panels.indexOf(panel);
+    if (index >= 0) this.panels.splice(index, 1);
+  }
+
   setSuppressSceneSelection(enabled: boolean) {
     this.suppressSceneSelection = !!enabled;
   }

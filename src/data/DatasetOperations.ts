@@ -107,6 +107,53 @@ export function aggregate(
 }
 
 /**
+ * Compare the first two groups in a categorical column using numeric means.
+ * The result is a compact, reproducible summary dataset for a precision view.
+ */
+export function compare(
+  dataset: Dataset,
+  groupBy: string,
+  groupA: unknown,
+  groupB: unknown,
+  measureColumns: string[] = dataset.numericColumns.map((column) => column.name)
+): Dataset {
+  const rowsA = dataset.rows.filter((row) => row[groupBy] === groupA);
+  const rowsB = dataset.rows.filter((row) => row[groupBy] === groupB);
+  const rows = measureColumns.map((measure) => {
+    const valuesA = rowsA.map((row) => Number(row[measure])).filter(Number.isFinite);
+    const valuesB = rowsB.map((row) => Number(row[measure])).filter(Number.isFinite);
+    const meanA = valuesA.length ? valuesA.reduce((sum, value) => sum + value, 0) / valuesA.length : null;
+    const meanB = valuesB.length ? valuesB.reduce((sum, value) => sum + value, 0) / valuesB.length : null;
+    return {
+      [groupBy]: `${String(groupA)} vs ${String(groupB)}`,
+      _measure: measure,
+      _groupA: String(groupA),
+      _groupB: String(groupB),
+      _meanA: meanA,
+      _meanB: meanB,
+      _difference: meanA == null || meanB == null ? null : meanA - meanB,
+      _countA: valuesA.length,
+      _countB: valuesB.length,
+    };
+  });
+  return new Dataset(
+    `${dataset.name} [compare: ${String(groupA)} vs ${String(groupB)}]`,
+    [
+      { name: groupBy, type: ColumnType.CATEGORICAL },
+      { name: '_measure', type: ColumnType.TEXT },
+      { name: '_groupA', type: ColumnType.CATEGORICAL },
+      { name: '_groupB', type: ColumnType.CATEGORICAL },
+      { name: '_meanA', type: ColumnType.NUMERIC },
+      { name: '_meanB', type: ColumnType.NUMERIC },
+      { name: '_difference', type: ColumnType.NUMERIC },
+      { name: '_countA', type: ColumnType.NUMERIC },
+      { name: '_countB', type: ColumnType.NUMERIC },
+    ],
+    rows
+  );
+}
+
+/**
  * Simple k-means-lite clustering on numeric columns.
  * Adds a `_cluster` column to each row.
  */

@@ -150,7 +150,9 @@ export class WorldUIManager {
     this.engine.addUpdatable(this.dashboard);
 
     // Hand-attached radial wheel menu.
-    this.handWheelMenu = new HandWheelMenu(engine, engine.input.hands[0] as unknown as HandLike, {
+    const dominantHand = callbacks.getDominantHand?.() ??
+      (engine.input.hands.find((hand) => hand.handedness === 'right') as unknown as HandLike | undefined);
+    this.handWheelMenu = new HandWheelMenu(engine, dominantHand as HandLike, {
       feedback: engine.input.feedback,
       analystAnchor,
       openAngleThreshold: Math.PI / 8,

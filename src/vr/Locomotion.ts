@@ -376,7 +376,9 @@ export class Locomotion {
       // Do not fight the camera group's own vertical movement; just maintain
       // the configured offset from the tracked head height.
       if (Math.abs(this.cameraGroup.position.y - targetY) > 0.001) {
-        const alpha = this.reducedMotion ? 0.02 : 0.2;
+        // Use lower alpha to dampen tracking jitter and prevent oscillation.
+        // Reduced motion: 0.02 (slower); Normal: 0.05 (prevents overshoot on 90 FPS).
+        const alpha = this.reducedMotion ? 0.02 : 0.05;
         this.cameraGroup.position.y +=
           (targetY - this.cameraGroup.position.y) * Math.min(1, alpha * (delta * 60));
       }

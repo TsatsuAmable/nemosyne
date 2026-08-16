@@ -227,6 +227,85 @@ function loadtestResultsPlugin() {
   };
 }
 
+/**
+ * UX trace endpoint, mounted on the Vite dev server only.
+ *
+ * The dev-only UXTraceRecorder POSTs batches of correlated input/world-view
+ * records (pinch edges with routing decisions, selection hit/miss, gestures,
+ * system toggles, head-gaze context samples) to `/__ux-trace`. Each record is
+ * appended as one JSON line to `logs/ux-trace.jsonl` for offline analysis via
+ * `scripts/analyze-ux-trace.mjs`. Mirrors `loadtestResultsPlugin`.
+ */
+function uxTracePlugin() {
+  const logDir = path.resolve(process.cwd(), 'logs');
+  const logFile = path.join(logDir, 'ux-trace.jsonl');
+
+  try {
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+  } catch {
+    // Ignore error
+  }
+
+  function handleUxTrace(req, res) {
+    if (req.url === '/__ux-trace' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => (body += chunk));
+      req.on('end', () => {
+        let appended = 0;
+        try {
+          const batch = JSON.parse(body);
+          if (batch && Array.isArray(batch.records)) {
+            const lines = [];
+            for (const record of batch.records) {
+              if (!record || typeof record !== 'object') continue;
+              lines.push(JSON.stringify(record));
+              appended++;
+              // Echo interesting events (not 5 Hz context samples) to the terminal.
+              if (['pinch', 'selection', 'gesture', 'system', 'wheel', 'tour'].includes(record.type)) {
+                const detail =
+                  record.type === 'pinch'
+                    ? `${record.phase} ${record.hand} d=${record.d} -> ${record.gating}`
+                    : record.type === 'selection'
+                      ? `${record.hit}${record.target ? ` ${record.target}` : ''}`
+                      : record.type === 'gesture'
+                        ? `${record.name} conf=${record.confidence}`
+                        : record.type === 'system'
+                          ? record.kind
+                          : record.type === 'wheel'
+                            ? `${record.state} via ${record.via}`
+                            : `step ${record.step}/${record.total}`;
+                const ctx = record.ctx || {};
+                const gaze = ctx.gaze?.target ? ` gaze=${ctx.gaze.target}` : '';
+                const drift = ctx.ptr?.driftDeg != null ? ` drift=${ctx.ptr.driftDeg}°` : '';
+                console.log(
+                  `\x1b[33m[UX TRACE ${batch.sid} +${record.t}s] ${record.type}: ${detail}${gaze}${drift}\x1b[0m`
+                );
+              }
+            }
+            if (lines.length > 0) fs.appendFileSync(logFile, lines.join('\n') + '\n', 'utf-8');
+          }
+        } catch (err) {
+          console.error('[ux-trace] failed to parse/append batch:', err);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', appended }));
+      });
+      return true;
+    }
+    return false;
+  }
+
+  return {
+    name: 'nemosyne-ux-trace',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!handleUxTrace(req, res)) next();
+      });
+    },
+  };
+}
+
 function wasmServePlugin() {
   const wasmPkgDir = path.resolve(process.cwd(), 'wasm', 'pkg');
   return {
@@ -263,6 +342,7 @@ export default defineConfig(({ command }) => ({
     signallingPlugin(),
     remoteLogsPlugin(),
     loadtestResultsPlugin(),
+    uxTracePlugin(),
     wasmServePlugin(),
   ],
   server: {

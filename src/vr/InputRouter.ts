@@ -64,6 +64,19 @@ export class InputRouter {
   activePointer: PointerLike | null;
   onSelectCallback: ((ray: THREE.Ray) => void) | null;
   onSystemToggle: (() => void) | null;
+  onHandPinchEdge:
+    | ((
+        hand: PointerLike,
+        phase: 'start' | 'end',
+        gating:
+          | 'select'
+          | 'select-release'
+          | 'passive-release'
+          | 'wheel-toggle'
+          | 'wheel-release'
+          | 'system-suppressed'
+      ) => void)
+    | null = null;
 
   constructor(engine: EngineLike) {
     this.engine = engine;
@@ -175,6 +188,10 @@ export class InputRouter {
 
   addPanel(panel: PanelLike): void {
     this.registry.addPanel(panel);
+  }
+
+  removePanel(panel: PanelLike): void {
+    this.registry.removePanel(panel);
   }
 
   setPanelManager(manager: PanelManagerLike): void {
@@ -321,6 +338,11 @@ export class InputRouter {
       if (bothPinched) {
         // Two-hand pinch is reserved for the system gesture; do not fire
         // per-hand selection while it is held.
+        if (pinched && !wasPinched) {
+          this.onHandPinchEdge?.(hand, 'start', 'system-suppressed');
+        } else if (!pinched && wasPinched) {
+          this.onHandPinchEdge?.(hand, 'end', 'system-suppressed');
+        }
         this.pointers.lastHandPinched.set(hand, pinched);
         continue;
       }
@@ -328,16 +350,23 @@ export class InputRouter {
       // The hand holding the radial wheel toggles the menu on pinch.
       if (this.handWheelMenu && hand === this.handWheelMenu.hand) {
         if (pinched && !wasPinched) {
+          this.onHandPinchEdge?.(hand, 'start', 'wheel-toggle');
           this.handWheelMenu.toggle();
+        } else if (!pinched && wasPinched) {
+          this.onHandPinchEdge?.(hand, 'end', 'wheel-release');
         }
         this.pointers.lastHandPinched.set(hand, pinched);
         continue;
       }
 
       if (pinched && !wasPinched) {
+        this.onHandPinchEdge?.(hand, 'start', 'select');
         this.machine.press(hand);
       } else if (!pinched && wasPinched && this.machine.downPointer === hand) {
+        this.onHandPinchEdge?.(hand, 'end', 'select-release');
         this.machine.release(hand);
+      } else if (!pinched && wasPinched) {
+        this.onHandPinchEdge?.(hand, 'end', 'passive-release');
       }
 
       this.pointers.lastHandPinched.set(hand, pinched);

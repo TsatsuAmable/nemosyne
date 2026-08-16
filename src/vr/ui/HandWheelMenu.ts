@@ -72,6 +72,7 @@ export class HandWheelMenu {
   selectedCategory: string | null;
   hoveredCategory: string | null;
   hoveredAction: HoverTarget | null;
+  onVisibility: ((visible: boolean, via: 'toggle' | 'show' | 'hide') => void) | null = null;
 
   textScale: number;
   highContrast: boolean;
@@ -226,6 +227,7 @@ export class HandWheelMenu {
       this.hoveredCategory = null;
       this.hoveredAction = null;
     }
+    this.onVisibility?.(this.group.visible, 'toggle');
   }
 
   show(): void {
@@ -233,11 +235,13 @@ export class HandWheelMenu {
     this.selectedCategory = null;
     this.hoveredCategory = null;
     this.hoveredAction = null;
+    this.onVisibility?.(true, 'show');
   }
 
   hide(): void {
     this.group.visible = false;
     this._clearHoveredActionCallbacks();
+    this.onVisibility?.(false, 'hide');
   }
 
   isVisible(): boolean {

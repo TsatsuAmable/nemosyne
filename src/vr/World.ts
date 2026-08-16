@@ -31,6 +31,7 @@ import { ControllerGestureMapper } from './interactions/ControllerGestureMapper.
 import { WorldInputCoordinator } from './coordinators/WorldInputCoordinator.ts';
 import { UserModeController } from './coordinators/UserModeController.ts';
 import { ComfortSettingsController } from './coordinators/ComfortSettingsController.ts';
+import { AdaptiveAssistController } from './coordinators/AdaptiveAssistController.ts';
 import { AnalysisHistory } from '../data/AnalysisHistory.ts';
 import { SessionStore } from '../data/SessionStore.ts';
 import { Dataset } from '../data/Dataset.ts';
@@ -77,6 +78,7 @@ import type { DatasetJSON, EncodingMapping, TopologyType } from '../data/types.t
 import type {
   ArtifactRef,
   DatasetLoadEntry,
+  HandLike,
   LiveConnectorLike,
   LiveStreamOptions,
   NetworkManagerLike,
@@ -150,6 +152,7 @@ export class World {
   inputCoordinator: WorldInputCoordinator;
   userModeController: UserModeController;
   comfortSettingsController: ComfortSettingsController;
+  adaptiveAssist: AdaptiveAssistController;
   tooltipManager: TooltipManager;
   inPlaceHandles: InPlaceOperationHandles;
   livePreview: LivePreview;
@@ -268,8 +271,12 @@ export class World {
       onPanelChange: () => this._requestAutoSave(),
       onSettingChanged: (key, value) => this._onSettingChanged(key, value),
       onSeekHistory: (index) => this._seekAnalysisHistory(index),
-      getNodeMeshes: () => this.dracoNode?.artifact?.nodeMeshes ?? [],
-      getPeers: () => this.networkManager?.room?.getRemoteSnapshot() ?? [],
+       getNodeMeshes: () => this.dracoNode?.artifact?.nodeMeshes ?? [],
+       getDominantHand: () => {
+         const index = this.inputCoordinator?.gestureRecognizer?.dominantHandIndex;
+         return this.engine.input.hands[index ?? 0] as unknown as HandLike | null;
+       },
+       getPeers: () => this.networkManager?.room?.getRemoteSnapshot() ?? [],
       getLocalPeerId: () => this.networkManager?.peerId ?? null,
       getSetting: (key) => this.uiManager?.settingsPanel?.getSetting?.(key),
       telemetryCollector: this.telemetryCollector,
@@ -343,6 +350,15 @@ export class World {
     // Comfort settings controller applies snap turn, vignette, seated height,
     // and panel distance to the engine/locomotion and analyst anchor.
     this.comfortSettingsController = new ComfortSettingsController(this.engine, this.analystAnchor, this.sceneComposer);
+
+    this.adaptiveAssist = new AdaptiveAssistController({
+      engine: this.engine,
+      eventBus: this.eventBus,
+      analystAnchor: this.analystAnchor,
+      scene: this.engine.scene,
+      analyzer: this.telemetryCollector.frustrationAnalyzer,
+      isAssistEnabled: () => this.telemetryCollector.enabled,
+    });
 
     this.tooltipManager = new TooltipManager(this.engine.camera);
     this.tooltipManager.mount(this.engine.scene);
@@ -775,7 +791,9 @@ export class World {
         getDefaultEncodings({ dataset: entry.dataset, topology }),
     };
 
-    this.dracoNode = new DracoTopologyNode(this.engine.scene, dataInput, [0, 1.4, -3.5]);
+    this.dracoNode = new DracoTopologyNode(this.engine.scene, dataInput, [0, 1.4, -3.5], {
+      colorblindMode: this.settingsPanel?.getSetting?.('colorblindMode') ?? 'none',
+    });
     this.engine.addUpdatable(this.dracoNode);
     this._wireArtifactInteraction(this.dracoNode);
 
@@ -963,6 +981,7 @@ export class World {
 
   _togglePanels(): void {
     this.panelManager.toggleLauncher();
+    this.adaptiveAssist.recordPanelToggle('launcher', this.panelManager.isLauncherVisible());
     this._logInteraction('Launcher', {
       result: this.panelManager.isLauncherVisible() ? 'opened' : 'closed',
     });
@@ -1028,6 +1047,7 @@ export class World {
   _toggleStatisticalLens(): void {
     this._statisticalLensEnabled = !this._statisticalLensEnabled;
     this._setStatisticalLensVisible(this._statisticalLensEnabled);
+    this.adaptiveAssist.recordPanelToggle('statistical-lens', this._statisticalLensEnabled);
     this.vrConsole?.log?.('log', [
       `Statistical lens ${this._statisticalLensEnabled ? 'on' : 'off'}`,
     ]);
@@ -1180,6 +1200,7 @@ export class World {
   _toggleSettingsPanel(): void {
     if (!this.settingsPanel) return;
     this.panelManager.togglePanel(this.settingsPanel);
+    this.adaptiveAssist.recordPanelToggle('settings', this.settingsPanel.mesh.visible);
     this._logInteraction('Settings panel', {
       result: this.settingsPanel.mesh.visible ? 'opened' : 'closed',
     });
@@ -1699,6 +1720,7 @@ export class World {
 
     // Detach telemetry global listeners so late window errors are not recorded.
     this.telemetryCollector?.setEnabled?.(false);
+    this.adaptiveAssist?.dispose();
 
     // Wait for async init work to finish so it cannot log after disposal.
     await Promise.allSettled(this._initPromises);

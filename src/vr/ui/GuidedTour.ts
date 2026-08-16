@@ -242,6 +242,18 @@ export class GuidedTour {
     return this._finished;
   }
 
+  get stepIndex(): number {
+    return this._stepIndex;
+  }
+
+  get stepCount(): number {
+    return this.tour?.steps?.length ?? 0;
+  }
+
+  get cardMesh(): THREE.Mesh {
+    return this._cardMesh;
+  }
+
   update(_delta: number, time: number): void {
     if (!this._active) return;
 
