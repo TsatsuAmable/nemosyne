@@ -28,7 +28,8 @@ wss.on('connection', (socket, req) => {
   const roomId = url.searchParams.get('room') || 'default';
   const peerId = url.searchParams.get('peer') || `peer-${Date.now()}`;
   const token = url.searchParams.get('token') || undefined;
-  registry.handleConnection(socket, roomId, peerId, token);
+  const role = url.searchParams.get('role') === 'observer' ? 'observer' : 'participant';
+  registry.handleConnection(socket, roomId, peerId, token, role);
 });
 
 console.log(`[SignallingServer] listening on ws://localhost:${PORT}/__signal${AUTH_TOKEN ? ' (token required)' : ''}`);

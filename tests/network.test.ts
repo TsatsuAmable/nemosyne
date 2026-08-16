@@ -347,6 +347,71 @@ describe('NetworkManager', () => {
     expect(onPose).toHaveBeenCalled();
     expect(onPose.mock.calls[0][0].detail.position).toEqual([1, 2, 3]);
   });
+
+  it('does not let an observer elevate through a state role claim', async () => {
+    const promise = manager.connect();
+    const mockWs = manager.signalling!._ws as unknown as MockWebSocket;
+    mockWs._open();
+    await promise;
+
+    mockWs._message({ roomId: 'room1', from: 'peer-observer', data: { type: 'join', role: 'observer' } });
+    const channel = manager.channels.get('peer-observer') as unknown as MockDataChannel;
+    channel.readyState = 'open';
+    channel.dispatchEvent(new Event('open'));
+
+    const onDelta = vi.fn();
+    manager.addEventListener('stateDelta', onDelta);
+    channel.dispatchEvent(
+      new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'state',
+          peerId: 'peer-observer',
+          role: 'participant',
+          state: {},
+        }),
+      })
+    );
+    channel.dispatchEvent(
+      new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'delta',
+          peerId: 'peer-observer',
+          topic: 'annotations_add',
+          data: { id: 'spoofed' },
+        }),
+      })
+    );
+
+    expect(manager.room.peers.get('peer-observer')?.role).toBe('observer');
+    expect(onDelta).not.toHaveBeenCalled();
+  });
+
+  it('rejects a delta whose claimed peer ID differs from its channel peer', async () => {
+    const promise = manager.connect();
+    const mockWs = manager.signalling!._ws as unknown as MockWebSocket;
+    mockWs._open();
+    await promise;
+
+    mockWs._message({ roomId: 'room1', from: 'peerB', data: { type: 'join', role: 'participant' } });
+    const channel = manager.channels.get('peerB') as unknown as MockDataChannel;
+    channel.readyState = 'open';
+    channel.dispatchEvent(new Event('open'));
+
+    const onDelta = vi.fn();
+    manager.addEventListener('stateDelta', onDelta);
+    channel.dispatchEvent(
+      new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'delta',
+          peerId: 'victim-peer',
+          topic: 'annotations_add',
+          data: { id: 'spoofed' },
+        }),
+      })
+    );
+
+    expect(onDelta).not.toHaveBeenCalled();
+  });
 });
 
 describe('SignallingServerCore', () => {
