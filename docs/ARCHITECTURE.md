@@ -222,7 +222,5 @@ npm run build
 ## 📚 Related Documentation Files
 - [`CLAUDE.md`](../CLAUDE.md) — Runtime guidelines and development commands.
 - [`GITHUB_ISSUES.md`](GITHUB_ISSUES.md) — Issue tracking and proposed solutions.
-- [`PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md`](PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md) — Product architecture, release tracks, and governance.
-- [`STATISTICAL_METHOD_REGISTER.md`](STATISTICAL_METHOD_REGISTER.md) — Method admission and reproducibility template.
 - [`team.json`](../.agents/team.json) — AI Developer Team configuration.
 - [`SKILL.md`](../.agents/skills/vr-accessibility/SKILL.md) — VR UX and accessibility standards.

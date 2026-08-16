@@ -2,12 +2,6 @@
 
 The current analytics layer turns Nemosyne from a spatial viewer into a spatial analytics workbench. It extracts statistical facts from datasets, runs clustering and anomaly detection, and feeds the results into the Draco v1 Embodiment Engine so VR layout, geometry, behaviour, and interaction adapt to the data. The proposed Atlas layer will own full-dataset analytical guidance and provenance.
 
-This file documents shipped Draco-era analytics, including heuristic and lightweight JS methods.
-It is not a statistical validation register and does not imply that current outputs are
-confirmatory evidence. See [PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md](PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md)
-and [STATISTICAL_METHOD_REGISTER.md](STATISTICAL_METHOD_REGISTER.md) for the target boundary and
-method-admission rules.
-
 ---
 
 ## Statistical Facts (`ConstraintEngine.extractFacts`)
