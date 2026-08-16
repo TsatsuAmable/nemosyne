@@ -16,6 +16,9 @@ Use this layer to answer:
 - What is active, planned, blocked, or deferred?
 - What is the engineering state of the codebase?
 
+Historical context:
+- [Roadmap history](archive/ROADMAP_HISTORY.md) — completed and superseded phases only; not an active status source
+
 ## 2. Study protocol and research governance
 This layer covers the design of a controlled study, including hypotheses, confounds, equivalence, and analysis rules.
 
@@ -47,7 +50,8 @@ Use this layer to answer:
 - Can the study be reconstructed later?
 
 ## Legacy / superseded draft documents
-The following files are legacy drafts and should be treated as deprecated staging notes only until they are removed:
+The following files are deprecated staging notes. They are flagged for deletion after link
+verification, not active sources of truth:
 - [docs/confound-register.md](confound-register.md)
 - [docs/reconciliation-note.md](reconciliation-note.md)
 - [docs/representation-equivalence.md](representation-equivalence.md)

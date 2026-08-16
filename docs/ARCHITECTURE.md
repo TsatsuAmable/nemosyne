@@ -4,6 +4,11 @@ This document provides a comprehensive technical reference for the **Nemosyne Sp
 
 > **TypeScript-first.** All source under `src/` is `.ts` (import maps + Vite; `tsc --noEmit` is a required CI gate). Only config and test-harness files (`vite.config.js`, `vitest.config.js`, `tests/setup.js`, `vite-wasm-pack-plugin.js`) and individual test files remain `.js`/`.mjs`. Migration status of the Rust/WASM compute layer is tracked in [ROADMAP.md](./ROADMAP.md) §Phase 21.
 
+> **Authority note.** Product architecture, release-track decisions, state ownership, and
+> dependency rules are defined in [PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md](PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md).
+> This file describes the current engineering reference and must not imply that proposed Atlas,
+> DatasetSpace, provenance, or replay capabilities are implemented.
+
 ---
 
 ## 1. 🌐 System Overview & Architecture Pipeline
