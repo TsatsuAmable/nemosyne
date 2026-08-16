@@ -244,17 +244,20 @@ fn org_chart(depth: usize) -> Dataset {
             add_node(&mut rows, &mut id_counter, &mut rng, &name, 1, Some(root))
         })
         .collect();
-    let level2: Vec<usize> = level1
-        .iter()
-        .flat_map(|&parent| {
-            (0..branching.get(2).copied().unwrap_or(3))
-                .map(move |i| {
-                    let name = format!("Dir-{}-{}", parent, i + 1);
-                    add_node(&mut rows, &mut id_counter, &mut rng, &name, 2, Some(parent))
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect();
+    let mut level2 = Vec::new();
+    for &parent in &level1 {
+        for i in 0..branching.get(2).copied().unwrap_or(3) {
+            let name = format!("Dir-{}-{}", parent, i + 1);
+            level2.push(add_node(
+                &mut rows,
+                &mut id_counter,
+                &mut rng,
+                &name,
+                2,
+                Some(parent),
+            ));
+        }
+    }
     for &parent in &level2 {
         for i in 0..branching.get(3).copied().unwrap_or(3) {
             let name = format!("Team-{}-{}", parent, i + 1);
