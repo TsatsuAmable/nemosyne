@@ -1,19 +1,27 @@
-# 🏛️ Nemosyne Technical Architecture & API Reference
+# Nemosyne Technical Architecture & API Reference
 
 This document provides a comprehensive technical reference for the **Nemosyne Spatial Data Analysis Suite**, detailing system architecture, component boundaries, class structures, public API contracts, data pipelines, and WebXR spatial ergonomics.
 
 > **TypeScript-first.** All source under `src/` is `.ts` (import maps + Vite; `tsc --noEmit` is a required CI gate). Only config and test-harness files (`vite.config.js`, `vitest.config.js`, `tests/setup.js`, `vite-wasm-pack-plugin.js`) and individual test files remain `.js`/`.mjs`. Migration status of the Rust/WASM compute layer is tracked in [ROADMAP.md](./ROADMAP.md) §Phase 21.
 
+> **Status note.** This is the current engineering reference for the renderer-centered runtime.
+> Atlas Core, DatasetSpace, provenance-bearing analysis, and deterministic replay are Stable
+> Alpha requirements but remain unimplemented unless `docs/ROADMAP.md` says otherwise. Richer
+> Atlas capabilities remain proposed.
+
 > **Authority note.** Product architecture, release-track decisions, state ownership, and
 > dependency rules are defined in [PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md](PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md).
-> This file describes the current engineering reference and must not imply that proposed Atlas,
-> DatasetSpace, provenance, or replay capabilities are implemented.
+> This file describes the current engineering reference and must not imply that Atlas Core or
+> richer proposed Atlas, DatasetSpace, provenance, or replay capabilities are implemented.
 
 ---
 
 ## 1. 🌐 System Overview & Architecture Pipeline
 
-Nemosyne maps high-dimensional datasets into interactive 3D spatial "memory palaces" using a Draco-style symbolic constraint engine, WebGL/WebXR three.js rendering, and WebAssembly compute kernels.
+Nemosyne currently maps supported datasets into interactive spatial visualizations using the
+Draco v1 symbolic constraint engine, WebGL/WebXR three.js rendering, and optional WebAssembly
+compute providers. The target direction adds a renderer-independent analytical record and Atlas
+guidance, but those are not current runtime capabilities.
 
 ```
        Raw Input Data (CSV / JSON / WebSockets / Live Streams)
@@ -128,6 +136,28 @@ The Draco v1 Embodiment Engine implements symbolic constraint satisfaction for a
 
 The VR runtime layer manages WebGL rendering, WebXR session binding, camera anchoring, and coordinator modules.
 
+#### `World.ts` composition root
+
+`World` currently composes the runtime and delegates work to coordinators. The Stable Alpha
+architecture refactor narrows that role further: it constructs dependencies, translates input into
+typed commands, coordinates renderer lifecycle, and observes transitions. It must not own Atlas
+state, analytical facts, research records, persistence authority, or remote state application.
+
+The target boundary is:
+
+```text
+logical session + Atlas Core + research ledger
+                    |
+              typed commands
+                    |
+          World composition root
+             /              \
+       2D precision       WebXR renderer
+```
+
+Acceptance evidence is a renderer teardown/rebuild from serialized logical state, uniform
+coordinator disposal, and identical analytical command semantics for 2D and VR.
+
 #### `Engine.ts`
 - **Class**: `Engine`
 - **Purpose**: Owns Three.js `Scene`, `PerspectiveCamera`, `WebGLRenderer`, WebXR render loop, and the `updatables` ticking array.
@@ -204,7 +234,8 @@ The VR runtime layer manages WebGL rendering, WebXR session binding, camera anch
 
 ## 3. 🧪 Testing & Build Verification
 
-The project includes an extensive Vitest unit and integration test suite (174 test files, 1191 pass / 9 skip — see [TEST_READY.md](../TEST_READY.md) for the current breakdown):
+The current test and build evidence is maintained in the `Current Status` block of
+[ROADMAP.md](ROADMAP.md), not duplicated here.
 
 ```bash
 # Run all unit and integration tests
@@ -221,6 +252,6 @@ npm run build
 
 ## 📚 Related Documentation Files
 - [`CLAUDE.md`](../CLAUDE.md) — Runtime guidelines and development commands.
-- [`GITHUB_ISSUES.md`](GITHUB_ISSUES.md) — Issue tracking and proposed solutions.
+- [`PROJECT_DOCS_INDEX.md`](PROJECT_DOCS_INDEX.md) — Documentation authorities and archive index.
 - [`team.json`](../.agents/team.json) — AI Developer Team configuration.
 - [`SKILL.md`](../.agents/skills/vr-accessibility/SKILL.md) — VR UX and accessibility standards.

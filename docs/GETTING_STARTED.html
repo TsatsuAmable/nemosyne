@@ -325,7 +325,7 @@ mkcert localhost 127.0.0.1 ::1 &lt;your-computer-ip&gt;
 <p>Curated public sources (Coinbase, Kraken, Binance, USGS earthquakes, OpenSky aircraft) are also available; some may require an internet connection and may be rate-limited.</p>
 <hr>
 <h2>9. Bring your own data</h2>
-<p>The Nemosyne loader panel (top-right in the 2D view, or use the wheel menu) accepts <strong>CSV</strong> and <strong>JSON</strong> files. JSON must be an array of objects. CSV files are parsed with automatic delimiter detection and quoted-field support.</p>
+<p>The Nemosyne loader panel (top-right in the 2D view, or use the wheel menu) accepts <strong>CSV</strong> and <strong>JSON</strong> files. JSON must be an array of objects. CSV files are parsed with automatic delimiter detection and quoted-field support. Dangerous prototype keys are rejected from imported headers.</p>
 <h3>CSV format tips</h3>
 <ul>
 <li>The first row must be a header with column names.</li>
@@ -620,7 +620,7 @@ S2,19.8,2026-07-28T01:00:00
 <p>Disable hand gestures in <strong>Settings → GESTURES → Hand Gestures</strong> if you want to rely entirely on controllers, or disable the coach by toggling <strong>Panels → Interaction Coach</strong> again.</p>
 <hr>
 <h2>16. Multi-user collaboration (experimental)</h2>
-<p>Nemosyne can join a shared room over WebRTC so multiple analysts can inhabit the same memory palace. Data is local-only in this first networking release: each peer sees their own dataset, while camera pose and room presence are shared.</p>
+<p>Nemosyne can join a shared room over WebRTC so multiple analysts can inhabit the same memory palace. Data is local-only in this first networking release: each peer sees their own dataset, while camera pose and room presence are shared. Peers have explicit <code>participant</code> or <code>observer</code> roles; observers may monitor shared state but cannot broadcast dataset mutations.</p>
 <h3>Signalling server</h3>
 <p>During local development, the Vite dev server already hosts a signalling endpoint at <code>/__signal</code>, so no extra process is needed.</p>
 <p>For production or a separate deployment, run the standalone Node server:</p>
@@ -670,7 +670,8 @@ configured, joins work without one, exactly as before.</p>
 <hr>
 <h2>18. Next steps</h2>
 <ul>
-<li>Read <a href="IDEOLOGY.md"><code>docs/IDEOLOGY.md</code></a> to understand the spatial-memory design.</li>
+<li>Read <a href="Nemosyne_Concept_Paper_v1.0.md"><code>docs/Nemosyne_Concept_Paper_v1.0.md</code></a> for the current
+concept narrative; archived vision essays are historical only.</li>
 <li>Read <a href="ARTEFACTS.md"><code>docs/ARTEFACTS.md</code></a> to learn the artefact taxonomy.</li>
 <li>Read <a href="INTERACTIONS.md"><code>docs/INTERACTIONS.md</code></a> to learn the gesture vocabulary.</li>
 <li>Read <a href="ARCHITECTURE.md"><code>ARCHITECTURE.md</code></a> to see how this project maps data to three.js / WebXR space.</li>

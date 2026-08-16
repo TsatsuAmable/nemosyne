@@ -38,10 +38,10 @@ node_modules/
 Explicitly deprecated or archived materials. Confusing to include.
 
 ```
-docs/_legacy_study_drafts/
+docs/archive/study-drafts/
 ```
 
-**Rationale:** Superseded by `docs/study/` canonical set. Reference only if needed for historical context.
+**Rationale:** Superseded by `docs/study/` canonical set. Reference only for historical context.
 
 ---
 
@@ -49,15 +49,15 @@ docs/_legacy_study_drafts/
 Documents that don't fit the three-layer model and aren't actively maintained. Reference only.
 
 ```
-docs/IDEOLOGY.md
-docs/GAME_UI_INSPIRATION.md
-docs/GITHUB_ISSUES.md
+docs/archive/IDEOLOGY.md
+docs/archive/GAME_UI_INSPIRATION.md
+docs/archive/GITHUB_ISSUES.md
 ```
 
 **Rationale:**
-- `IDEOLOGY.md` — Vision essay; narrative is in ROADMAP.md Current Status
-- `GAME_UI_INSPIRATION.md` — Design reference; not tied to active decisions
-- `GITHUB_ISSUES.md` — ~150 words; GitHub UI is authoritative
+- `archive/IDEOLOGY.md` — Vision essay; not an authority
+- `archive/GAME_UI_INSPIRATION.md` — Design reference; not tied to active decisions
+- `archive/GITHUB_ISSUES.md` — GitHub UI is authoritative
 
 ---
 
@@ -69,7 +69,7 @@ docs/INTERACTIONS.md         (Phase 22 gestures missing)
 docs/DESIGN_SYSTEM.md        (Low-strain themes + palette.ts missing)
 docs/ARTEFACTS.md            (Recent topology updates missing)
 docs/ANALYTICS.md            (TDA on-demand missing)
-docs/ARCHITECTURE.md         (World.ts decomposition not reflected)
+docs/ARCHITECTURE.md         (World composition-root refactor is planned, not implemented)
 docs/GETTING_STARTED.md      (Quest setup outdated, UI changes not reflected)
 ```
 
@@ -113,7 +113,7 @@ target/
 test-results/
 
 # Legacy / archived
-docs/_legacy_study_drafts/
+docs/archive/study-drafts/
 
 # Node / environment
 node_modules/
@@ -160,8 +160,8 @@ Before adding a new doc:
 | Category | Example | Why Exclude |
 |---|---|---|
 | Auto-generated | `docs/ROADMAP.html` | Index the `.md` source instead |
-| Archive | `docs/_legacy_study_drafts/` | Superseded; confusing |
-| Orphaned | `docs/IDEOLOGY.md` | No clear operational role |
+| Archive | `docs/archive/study-drafts/` | Superseded; historical only |
+| Archived | `docs/archive/IDEOLOGY.md` | Historical vision; not an authority |
 | Outdated | `docs/INTERACTIONS.md` | Will be refreshed soon; don't embed stale info |
 | Noise | `node_modules/`, `coverage/` | Build artifacts, not documentation |
 

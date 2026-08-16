@@ -38,9 +38,7 @@ For each doc identified as changed:
 
 ### Step 4: Audit Orphaned Docs (30 min)
 Check these regularly:
-- [ ] `docs/IDEOLOGY.md` — still relevant?
-- [ ] `docs/GAME_UI_INSPIRATION.md` — any active designs it informed?
-- [ ] `docs/GITHUB_ISSUES.md` — still needed?
+- [x] Historical vision/design/issue notes moved to `docs/archive/`.
 - [ ] Any other files in `docs/` not explicitly canonical?
 
 Decision: **Keep, Archive, or Move to `docs/study/`?**
@@ -164,13 +162,13 @@ Does it describe current product features or guidance?
   ├─ YES → Keep, mark as active, schedule refresh if stale
   │
   └─ NO → Has it been superseded by newer docs?
-         ├─ YES → Archive to `docs/_legacy/` or delete
+         ├─ YES → Archive to `docs/archive/` or delete
          │
          └─ NO → Is it research/methodological (not product guidance)?
                 ├─ YES → Move to `docs/study/` or archive
                 │
                 └─ NO → Is it a reference/inspiration doc (not operational)?
-                       ├─ YES → Archive or move to `docs/_reference/`
+                        ├─ YES → Archive to `docs/archive/`
                        │
                        └─ NO → UNKNOWN → Ask team, then decide
 ```
@@ -188,8 +186,8 @@ Does it describe current product features or guidance?
 **Action:** Either fill immediately or formally defer; don't leave in limbo
 
 ### Pattern 3: Orphaned Design Doc
-**Example:** `docs/GAME_UI_INSPIRATION.md` — no recent design decisions reference it  
-**Action:** Archive to `docs/_design-reference/`; not in main context
+**Example:** archived design notes — no recent design decisions reference them
+**Action:** Archive to `docs/archive/`; not in main context
 
 ### Pattern 4: Auto-Generated HTML Stale
 **Example:** `docs/ROADMAP.html` doesn't match current `docs/ROADMAP.md`  

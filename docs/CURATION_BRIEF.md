@@ -32,16 +32,16 @@
 | `docs/study/CONFOUNDS.md` | Confound register | 🟡 Draft, placeholders | Multiple TBD fields |
 | `docs/GETTING_STARTED.md` | User onboarding guide | 🟡 Active but outdated | References old UI, needs refresh |
 | `docs/INTERACTIONS.md` | Gesture & interaction reference | 🟡 Active but incomplete | Missing recent Phase 22 gestures |
-| `docs/ARCHITECTURE.md` | System architecture | 🟡 Active but outdated | World.ts decomposition not reflected |
+| `docs/ARCHITECTURE.md` | System architecture | 🟡 Active target + runtime reference | World.ts composition-root refactor is planned for Stable Alpha |
 
 ### 🔴 Deprecated / Legacy (Should Be Archived or Removed)
 
 | Document | Purpose | Status | Reason for Removal |
 |---|---|---|---|
-| `docs/_legacy_study_drafts/` (6 files) | Legacy study protocol drafts | 🔴 Archived (2026-08-14) | Superseded by `docs/study/` canonical set |
-| `docs/IDEOLOGY.md` | Project vision essay | 🔴 Stale (last edit ~2026-07-15) | Narrative hasn't been updated; thesis is in ROADMAP.md |
-| `docs/GAME_UI_INSPIRATION.md` | UI design references | 🔴 Draft artifact (~2026-06) | No active design decisions trace to this; useful for reference but not on critical path |
-| `docs/GITHUB_ISSUES.md` | Issue tracking guide | 🔴 Minimal (~150 words) | Redundant with GitHub UI; not used |
+| `docs/archive/study-drafts/` | Legacy study protocol drafts | 🔴 Archived (2026-08-16) | Superseded by `docs/study/` canonical set |
+| `docs/archive/IDEOLOGY.md` | Project vision essay | Archived | Historical context only |
+| `docs/archive/GAME_UI_INSPIRATION.md` | UI design references | Archived | Historical context only |
+| `docs/archive/GITHUB_ISSUES.md` | Issue tracking guide | Archived | GitHub Issues is the active issue authority |
 | `docs/ARTEFACTS.md` | Artefact taxonomy | 🟡 Outdated | Last major edit ~2026-07-15; Phase 22 additions not reflected |
 | `docs/ANALYTICS.md` | Analytics features | 🟡 Outdated | Last edit ~2026-07-15; TDA on-demand feature not documented |
 | `docs/DESIGN_SYSTEM.md` | Color, typography, spacing tokens | 🟡 Outdated | `WorldTheme` refactor + low-strain presets not reflected; `src/vr/palette.ts` introduced in Phase 22.2 but not documented |
@@ -60,13 +60,15 @@
 
 ## Key Issues Identified
 
-### 1. **Three-Layer Doc Model Not Fully Adopted**
+### 1. **Three-Layer Doc Model**
 - `docs/ROADMAP.md` (product layer) is canonical ✅
 - `docs/study/` (study layer) is canonical ✅
-- But `docs/USER_STORIES_AND_UX_ANALYSIS.md` spans both product and research — should it move to `docs/study/`?
-- `docs/IDEOLOGY.md` is orphaned (research/vision, not product governance, not study protocol)
+- `docs/PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md` is the product-direction authority.
+- `docs/USER_STORIES_AND_UX_ANALYSIS.md` remains product research input, not study authority.
+- Historical vision, design, issue, and study drafts are now under `docs/archive/`.
 
-**Action:** Clarify destination for research-oriented docs: move to `docs/study/`, keep in `docs/`, or archive?
+**Action:** Keep active authorities in the index; do not promote proposals or research inputs to
+authority without a governance decision.
 
 ### 2. **Outdated Feature Documentation**
 - `docs/INTERACTIONS.md` missing Phase 22 gestures (TDA on-demand, updated wheel menu layout)
@@ -77,18 +79,18 @@
 **Action:** Refresh after Phase 22.3 completion; create a refresh audit checklist.
 
 ### 3. **Stale Architecture Docs**
-- `docs/ARCHITECTURE.md` doesn't reflect World.ts decomposition into 16 coordinators (Phase 17)
-- Doesn't reflect SceneGraphController / WorkspaceManager delegation
-- Still reads as if World is a monolith
+- `docs/ARCHITECTURE.md` now records the coordinator decomposition and the target World composition-root boundary
 
-**Action:** Refresh post-Phase 17 work (already done in code, docs lag).
+**Action:** Implement and validate the Stable Alpha World composition-root refactor; keep the
+architecture document aligned with the resulting ownership boundaries.
 
-### 4. **Study Package Placeholders Not Frozen**
+### 4. **Study Package Not Frozen**
 - `docs/study/PROTOCOL.md`, `ANALYSIS_PLAN.md`, `CONFOUNDS.md`, `CONSENT.md` have TBD fields
 - No freeze deadline defined
 - Blocks formal study package adoption
 
-**Action:** Decide: freeze as-is with placeholders, fill all fields, or defer to Phase 23?
+**Action:** Complete the 2D-versus-VR crossover decisions, task artifact, analysis plan, consent,
+data dictionary, and version binding before collection. Do not claim a frozen package yet.
 
 ### 5. **Website HTML Sync Issue**
 - All `.html` files in `docs/` are auto-generated via `build-html.mjs`
@@ -99,10 +101,7 @@
 
 ### 6. **Context Clutter**
 The following documents should probably NOT be indexed into agent context by default:
-- `docs/_legacy_study_drafts/` (archived, confusing)
-- `docs/IDEOLOGY.md` (orphaned vision essay)
-- `docs/GAME_UI_INSPIRATION.md` (reference only, not operational)
-- `docs/GITHUB_ISSUES.md` (minimal, redundant)
+- `docs/archive/` (historical, not an authority)
 - All `.html` files (auto-generated, hard to read in plaintext)
 
 **Action:** Create a `.docs-ignore` or update `.gitignore` guidance for AI context tools.
@@ -137,17 +136,15 @@ Current model from `docs/PROJECT_DOCS_INDEX.md`:
    - ✅ `src/data/SessionStore.ts` (session persistence code)
 
 **Orphaned docs** (not in any layer):
-- `docs/IDEOLOGY.md` (vision/narrative, not operational)
-- `docs/GAME_UI_INSPIRATION.md` (reference only)
-- `docs/GITHUB_ISSUES.md` (process doc, minimal)
+- `docs/archive/` (historical material, not operational)
 
 ---
 
 ## Recommended Actions (Priority Order)
 
 ### Tier 1 (Immediate – Unblock Phase 22.3)
-1. **Freeze study package** — Decide: accept placeholders or fill all fields? (1–2 days)
-2. **Move or archive orphaned docs** — Clarify home for IDEOLOGY, USER_STORIES_AND_UX_ANALYSIS (1 day)
+1. **Complete study freeze inputs** — Resolve the crossover, estimands, task artifact, and capture policy.
+2. **Maintain archive boundaries** — Keep historical material out of active authority paths.
 3. **Document build process** — Add notes to contributing guide for HTML sync (30 min)
 
 ### Tier 2 (After Phase 22.3)
@@ -158,7 +155,7 @@ Current model from `docs/PROJECT_DOCS_INDEX.md`:
 ### Tier 3 (Long-term Maintenance)
 7. **Create context ignore list** — Formalize which docs should not be auto-indexed (30 min)
 8. **Add HTML sync CI check** — Verify `docs/*.md` and `docs/*.html` are always in sync (1–2 days)
-9. **Archive older design artifacts** — GAME_UI_INSPIRATION, etc. to `docs/_design-reference/` (30 min)
+9. **Archive older design artifacts** — completed under `docs/archive/`; keep that path canonical.
 
 ---
 

@@ -429,7 +429,8 @@ npm run test:coverage
 
 ## 18. Next steps
 
-- Read [`docs/IDEOLOGY.md`](IDEOLOGY.md) to understand the spatial-memory design.
+- Read [`docs/Nemosyne_Concept_Paper_v1.0.md`](Nemosyne_Concept_Paper_v1.0.md) for the current
+  concept narrative; archived vision essays are historical only.
 - Read [`docs/ARTEFACTS.md`](ARTEFACTS.md) to learn the artefact taxonomy.
 - Read [`docs/INTERACTIONS.md`](INTERACTIONS.md) to learn the gesture vocabulary.
 - Read [`ARCHITECTURE.md`](ARCHITECTURE.md) to see how this project maps data to three.js / WebXR space.
