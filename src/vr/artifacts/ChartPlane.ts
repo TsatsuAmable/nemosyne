@@ -68,6 +68,7 @@ export class ChartPlane implements Updatable {
   mesh: THREE.Mesh;
 
   dataset: Dataset | null;
+  private _disposed = false;
 
   constructor({
     width = DEFAULT_WIDTH,
@@ -205,6 +206,18 @@ export class ChartPlane implements Updatable {
     }
 
     this.texture.needsUpdate = true;
+  }
+
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    this.mesh.parent?.remove(this.mesh);
+    this.mesh.geometry.dispose();
+    this.material.dispose();
+    this.texture.dispose();
+    this.canvas.width = 1;
+    this.canvas.height = 1;
+    this.dataset = null;
   }
 
   _drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number): void {

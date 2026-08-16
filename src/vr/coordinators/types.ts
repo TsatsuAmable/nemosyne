@@ -38,9 +38,10 @@ export type VisualOperation =
   | 'aggregate'
   | 'cluster'
   | 'hierarchical'
-  | 'density'
-  | 'anomaly'
-  | 'timeSlice';
+   | 'density'
+   | 'anomaly'
+   | 'timeSlice'
+   | 'compare';
 
 export type LensMode = 'off' | 'statistical' | 'anomaly';
 
@@ -122,6 +123,7 @@ export interface WorldUIManagerCallbacks {
   onDensityCluster?: () => void;
   onAnomaly?: () => void;
   onTimeSlice?: () => void;
+  onCompare?: () => void;
   onReset?: () => void;
   onPanelChange?: () => void;
   onSettingChanged?: (key: string, value: unknown) => void;
@@ -299,6 +301,7 @@ export interface VRMenuCallbacks {
   onDensityCluster?: () => void;
   onAnomaly?: () => void;
   onTimeSlice?: () => void;
+  onCompare?: () => void;
   onReset?: () => void;
 }
 
@@ -407,6 +410,7 @@ export interface InputRouterLike {
   setHandWheelMenu(menu: HandWheelMenuLike): void;
   setSuppressSceneSelection?(enabled: boolean): void;
   raycaster: { ray: Ray };
+  raycastPanels?(): { panel: PanelLike; distance: number } | null;
 }
 
 export interface HandLike {

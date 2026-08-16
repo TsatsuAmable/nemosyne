@@ -1,5 +1,9 @@
 # On-Device Validation Report — Phase 22.3 Tier A
 
+> **Evidence status:** The early checklist entries below are diagnostic session observations,
+> not acceptance evidence for the current implementation. Do not treat them as the current
+> branch verdict; complete a fresh structured Quest rerun using the validation guide.
+
 > Fill in after running the Quest 3S session per `docs/PHASE_22_3_VALIDATION_GUIDE.md`.
 > Evidence sources: `logs/vr-remote-console.log` (auto-collected VR console), Quest console
 > (hold Options > Show Logs), screen recording notes.

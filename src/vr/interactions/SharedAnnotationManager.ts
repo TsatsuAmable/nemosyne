@@ -67,7 +67,8 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
     authorId = 'local',
     authorName = 'Analyst',
     colorHex = 0x3388ff
-  ): SpatialAnnotation {
+  ): SpatialAnnotation | null {
+    if (!this._canMutateSharedState()) return null;
     const id = `annot-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const annotation: SpatialAnnotation = {
       id,
@@ -93,6 +94,7 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
    * Removes an annotation by ID.
    */
   removeAnnotation(id: string): boolean {
+    if (!this._canMutateSharedState()) return false;
     const deleted = this.annotations.delete(id);
     if (deleted) {
       const mesh = this.annotationMeshes.get(id);
@@ -116,7 +118,8 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
     cameraPosition: [number, number, number],
     cameraRotation: [number, number, number, number],
     authorId = 'local'
-  ): SpatialBookmark {
+  ): SpatialBookmark | null {
+    if (!this._canMutateSharedState()) return null;
     const id = `bm-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const bookmark: SpatialBookmark = {
       id,
@@ -140,6 +143,7 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
    * Removes a bookmark by ID.
    */
   removeBookmark(id: string): boolean {
+    if (!this._canMutateSharedState()) return false;
     const deleted = this.bookmarks.delete(id);
     if (deleted && this.networkManager) {
       this.networkManager.broadcastStateDelta('bookmarks_remove', { id });
@@ -151,10 +155,15 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
    * Synchronizes guided tour step progress across connected peers.
    */
   broadcastTourStep(stepIndex: number, tourId = 'default'): void {
+    if (!this._canMutateSharedState()) return;
     this.currentTourStep = stepIndex;
     if (this.networkManager) {
       this.networkManager.broadcastStateDelta('tour_step', { stepIndex, tourId });
     }
+  }
+
+  private _canMutateSharedState(): boolean {
+    return !this.networkManager || this.networkManager.room.canMutateSharedState(this.networkManager.role);
   }
 
   /**

@@ -35,4 +35,21 @@ describe('VR Menu Buttons Subsystem', () => {
     expect(mode).toBe('content');
     expect(onFilterSpy).toHaveBeenCalled();
   });
+
+  it('exposes the Compare operation as a user-facing menu action', () => {
+    const onCompareSpy = vi.fn();
+    const vrMenu = new VRMenu(new THREE.Group(), { onCompare: onCompareSpy });
+    const compareBtn = vrMenu.buttons.find((b) => b.type === 'compare');
+    expect(compareBtn).toBeDefined();
+
+    const uvX = (compareBtn!.x + compareBtn!.w / 2) / vrMenu.width;
+    const uvY = 1 - (compareBtn!.y + compareBtn!.h / 2) / vrMenu.height;
+    const raycaster = new THREE.Raycaster();
+    vi.spyOn(raycaster, 'intersectObject').mockReturnValue([
+      { object: vrMenu.mesh, uv: new THREE.Vector2(uvX, uvY) } as any,
+    ]);
+
+    expect(vrMenu.handleContentClick(raycaster)).toBe(true);
+    expect(onCompareSpy).toHaveBeenCalledOnce();
+  });
 });

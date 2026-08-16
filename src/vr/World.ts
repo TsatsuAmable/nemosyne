@@ -267,6 +267,7 @@ export class World {
       onDensityCluster: () => this.dataOperationController.apply('density'),
       onAnomaly: () => this.dataOperationController.apply('anomaly'),
       onTimeSlice: () => this.dataOperationController.apply('timeSlice'),
+      onCompare: () => this.dataOperationController.apply('compare'),
       onReset: () => this.resetDataOperation(),
       onPanelChange: () => this._requestAutoSave(),
       onSettingChanged: (key, value) => this._onSettingChanged(key, value),
@@ -854,7 +855,7 @@ export class World {
     for (const entry of this.dashboardPanels ?? []) {
       this.dashboard.unregisterPanel(entry.panel);
       this.engine.input.panels = this.engine.input.panels.filter((p) => p !== entry.panel);
-      disposeObject(entry.panel.mesh);
+      entry.panel.dispose?.();
     }
     this.dashboardPanels = [];
 

@@ -12,6 +12,7 @@ describe('Sprint 10B.5: Shared Annotations, Bookmarks & Synchronized Tours', () 
 
   it('adds and renders a 3D spatial pin annotation', () => {
     const annot = annotationManager.addAnnotation([1, 1.6, -2], 'Outlier Cluster', 'user-1', 'Bob');
+    if (!annot) throw new Error('expected participant annotation');
     expect(annot.id).toBeTruthy();
     expect(annotationManager.annotations.size).toBe(1);
     expect(annotationManager.annotationMeshes.has(annot.id)).toBe(true);
@@ -23,6 +24,7 @@ describe('Sprint 10B.5: Shared Annotations, Bookmarks & Synchronized Tours', () 
 
   it('removes an annotation and disposes its 3D mesh cleanly', () => {
     const annot = annotationManager.addAnnotation([0, 1, 0], 'Test Note');
+    if (!annot) throw new Error('expected participant annotation');
     expect(annotationManager.annotations.size).toBe(1);
 
     const removed = annotationManager.removeAnnotation(annot.id);
@@ -33,6 +35,7 @@ describe('Sprint 10B.5: Shared Annotations, Bookmarks & Synchronized Tours', () 
 
   it('adds and manages saved camera bookmarks', () => {
     const bm = annotationManager.addBookmark('Overview Anchor', [0, 1.6, 0], [0, 0, 0, 1], 'user-1');
+    if (!bm) throw new Error('expected participant bookmark');
     expect(bm.id).toBeTruthy();
     expect(annotationManager.bookmarks.size).toBe(1);
     expect(annotationManager.bookmarks.get(bm.id)?.title).toBe('Overview Anchor');
@@ -49,6 +52,7 @@ describe('Sprint 10B.5: Shared Annotations, Bookmarks & Synchronized Tours', () 
 
     // Add local annotation -> triggers broadcast
     const annot = annotationManager.addAnnotation([0, 2, -1], 'Remote Sync Test');
+    if (!annot) throw new Error('expected participant annotation');
     expect(broadcastSpy).toHaveBeenCalledWith('annotations_add', expect.any(Object));
 
     // Handle incoming remote annotation
@@ -67,6 +71,20 @@ describe('Sprint 10B.5: Shared Annotations, Bookmarks & Synchronized Tours', () 
     // Handle remote remove
     annotationManager.handleRemoteDelta('annotations_remove', { id: 'remote-1' });
     expect(annotationManager.annotations.has('remote-1')).toBe(false);
+  });
+
+  it('blocks observer annotation and bookmark mutations', () => {
+    const observer = new NetworkManager({ role: 'observer' });
+    const manager = new SharedAnnotationManager(observer);
+
+    expect(manager.addAnnotation([0, 1, -1], 'Blocked')).toBeNull();
+    expect(manager.addBookmark('Blocked', [0, 1, 0], [0, 0, 0, 1])).toBeNull();
+    expect(manager.removeAnnotation('missing')).toBe(false);
+    expect(manager.removeBookmark('missing')).toBe(false);
+    manager.broadcastTourStep(3);
+    expect(manager.annotations.size).toBe(0);
+    expect(manager.bookmarks.size).toBe(0);
+    expect(manager.currentTourStep).toBe(0);
   });
 
   it('synchronizes guided tour steps across WebRTC peers', () => {

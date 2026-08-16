@@ -4,23 +4,19 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-16 after merging `origin/main` (`917bd5b`) into local `main`.
-- **Repository state:** local `main` contains remote `origin/main` plus the coordinator
-  wiring and local Rust synthetic-data compile fix. The pull merge is complete; preserved
-  local work remains staged for review. `nul` is an unrelated untracked Windows entry.
-- **Last gate result (2026-08-16):** `typecheck` clean → `lint` 0 errors (206 warnings) →
-  Vitest `1310 passed / 9 skipped` across 190 files → build green → Rust `32 passed / 0
-  failed`.
+- **Last updated:** 2026-08-16 after merging the Phase 22.3 salvage branch into local `main`.
+- **Repository state:** local `main` contains remote `origin/main`, the committed cleanup/gate
+  restoration, and the refresh branch's selected input/network/document changes. Legacy
+  study `.docx` files and `docs/decision_framework.md` were intentionally removed.
+- **Last gate result:** `typecheck` clean → `lint` 0 errors (205 warnings) → Vitest `1315
+  passed / 9 skipped` across 190 files → build green → Rust `32 passed / 0 failed`.
 - **On-device rerun #2 (2026-08-15 15:24):** session ran ~5 min but `logs/ux-trace.jsonl` captured ONLY the meta record. Root cause: scene contains `THREE.Sprite` interactables (label sprites); recorder's raycaster never set `.camera`, and `Sprite.raycast` dereferences `raycaster.camera.matrixWorld` after a console.error-only guard → TypeError every frame → recorder self-disabled at 11 errors (`UXTraceRecorder.ts` update guard). Full stack + paired `THREE.Sprite: "Raycaster.camera"` errors in `logs/vr-remote-console.log`. Validation report NOT yet filled. **Fix applied:** `_raycastTargets` now sets `raycaster.camera`, filters null meshes; `_buildContext` degrades per-section (head/gaze, pointer, hands) with one-time warn instead of throwing; regression test with Sprite + null-mesh interactables (13/13 pass).
 - **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges (with actual routing decision), selection hit/miss, gestures, system toggles fired/suppressed, wheel open/close, and tour steps with head-gaze raycast target + pointer-ray drift, sampled at 5 Hz. Streams to `/__ux-trace` (vite serve plugin) → `logs/ux-trace.jsonl`; analyze with `node scripts/analyze-ux-trace.mjs --timeline`. Auto-on in dev, self-disables on 404. Wired in `src/main.ts` via taps in InputRouter/SelectionDispatcher/SystemGestureDetector/HandWheelMenu/GuidedTour. Pipeline smoke-verified 2026-08-15. **Next trace expansion:** capture all ray-touched panels, buttons, data elements, and world-space targets, including ordered intersections, stable target identity/type, hit point/distance, active pinch/gesture, routing decision, and head/pointer world-space context.
-- **Known open issue (quantified 2026-08-15 traces):** system-toggle remains hair-trigger — earlier long sessions had 61/78 both-pinch toggles; latest 141-second session had 16 toggles and 13 `system-suppressed` pinches. Each suppresses per-hand selection (`InputRouter.ts` bothPinched gate); selection remains poor (20 callback-only outcomes, 1 HUD hit) and gaze/pointer target divergence was 36% in the latest session. User-reported symptom remains "can't close panels / click menu items", while grab-based world repositioning works. Fix hypothesis (NOT yet implemented): sustained-dwell (e.g. 400 ms) + cooldown + skip when pointer ray is over a panel. **Validation target:** deliberate-only toggles, < ~10 per focused session, lower suppression, and improved panel selection.
-- **Next:** re-run the full current-tree gates, then review Tier B assist wiring and tune
-  system-toggle behavior before the next focused Quest session; continue Phase 22.3 Tier C
-  accessibility and the Phase 21.3 load-test staircase.
-- **Resume pointers:** validation → `docs/PHASE_22_3_VALIDATION_REPORT.md` (+ guide); UX trace
-  → `scripts/analyze-ux-trace.mjs` + `src/vr/trace/UXTraceRecorder.ts`; audit →
-  `docs/AUDIT_PHASES_1_20.md`; product docs → `docs/PROJECT_DOCS_INDEX.md`; study package
-  → `docs/study/README.md`; Phase 22.3 scope → §Sprint 22.3.
+- **System-toggle tuning (2026-08-16):** both-hand pinch now requires a 400 ms hold, skips panel-targeted rays, and has a 1 s cooldown; raw simultaneous pinches still suppress per-hand selection until released. Focused Quest evidence is pending. **Validation target:** deliberate-only toggles, < ~10 per focused session, lower suppression, and improved panel selection.
+- **Active work:** Phase 22.3 is in input-validation and accessibility tracks; Tier B onboarding wiring is complete. Phase 21.3 has started at the infrastructure/readiness stage but remains blocked from command-buffer rollout until the B2 load-test staircase produces `logs/loadtest-results.jsonl`.
+- **Next:** Pick up the Phase 22.3 adversarial hardening follow-up: enforce authorization on inbound shared-state deltas, validate and bound remote annotation payloads, complete Compare visual/history behavior, recolor existing artefacts across accessibility modes, dispose dashboard chart resources, and unify controller/pinch system-toggle gating. Then complete focused Quest validation and Tier C accessibility. In parallel, run the Phase 21.3 load-test staircase and decide whether command buffers are warranted from measured results. Atlas remains a proposed analytical architecture; it does not change current implementation status.
+- **Atlas architecture boundary:** Current Draco remains the v1 embodiment pipeline (`Dataset` facts → visual spec → VR artefact). DatasetSpace, provenance-bearing structures, analytical recommendations, and reproducible research sessions are not implemented. Atlas migration work is proposed below and must not be inferred from existing Dataset, TDA, session, telemetry, or benchmark utilities.
+- **Resume pointers:** validation → `docs/PHASE_22_3_VALIDATION_REPORT.md` (+ guide); UX trace → `scripts/analyze-ux-trace.mjs` + `src/vr/trace/UXTraceRecorder.ts`; audit → `docs/AUDIT_PHASES_1_20.md`; product docs → `docs/PROJECT_DOCS_INDEX.md`; study package → `docs/study/README.md`; Phase 22.3 scope → §Sprint 22.3.
 
 ### How to update this block
 1. On pickup: read this block first; jump to the cited sections for detail.
@@ -267,11 +263,11 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ### Sprint 12.4 — Usability Feedback Loop Closure
 
-> **Audit note (2026-08-14):** Components in this sprint were **built** (classes + unit tests complete) but are **not wired** (never instantiated in production). See `docs/AUDIT_PHASES_1_20.md` for systematic verification. Wiring work is deferred to Phase 22.3 (onboarding last-mile).
+> **Audit note (2026-08-14, resolved 2026-08-16):** Components in this sprint were initially **built** (classes + unit tests complete) but not wired. `AdaptiveAssistController` now mounts and drives the three assist surfaces in production; Quest usability validation remains pending. See `docs/AUDIT_PHASES_1_20.md` for the historical baseline.
 
-- [x] **`FrustrationResponseManager`** (`src/vr/ui/FrustrationResponseManager.ts`) — **BUILT, NOT WIRED.** Class complete; surfaces a contextual diegetic hint card when `dissatisfactionScore > threshold`. Tests pass. Never instantiated in World.ts or any coordinator. → **Phase 22.3 task (US12):** wire into World, call `setUserMode()` from settings, parent to `analystAnchor`.
-- [x] **`GestureConfidenceHUD`** (`src/vr/ui/GestureConfidenceHUD.ts`) — **BUILT, NOT WIRED.** Per-gesture real-time confidence bar visualization. Tests pass. Never instantiated. → **Phase 22.3 task:** instantiate and parent to `analystAnchor`.
-- [x] **`JITGestureHintManager`** (`src/vr/ui/JITGestureHintManager.ts`) — **BUILT, NOT WIRED.** Ghost-hand wireframe + diegetic label. Tests pass. Never instantiated. → **Phase 22.3 task (US11):** instantiate, call `setScene()`, drive from gesture context.
+- [x] **`FrustrationResponseManager`** (`src/vr/ui/FrustrationResponseManager.ts`) — **WIRED in Phase 22.3.** `AdaptiveAssistController` feeds analyzer actions, applies user mode, and parents the card to `analystAnchor`.
+- [x] **`GestureConfidenceHUD`** (`src/vr/ui/GestureConfidenceHUD.ts`) — **WIRED in Phase 22.3.** `AdaptiveAssistController` instantiates, registers, and disposes the per-gesture confidence panel.
+- [x] **`JITGestureHintManager`** (`src/vr/ui/JITGestureHintManager.ts`) — **WIRED in Phase 22.3.** `AdaptiveAssistController` sets the scene and drives diegetic hints from gesture and selection context.
 - [x] `tests/frustration-response.test.ts` — assert hint cards appear within 2 operations of threshold breach; assert threshold adapts to expert mode
 
 ### Sprint 12.5 — UI/UX Polish & Data Transition Animations
@@ -644,8 +640,8 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 ### Sprint 22.3 — Accessibility, onboarding last-mile & analysis completeness 🔄
 
-> **Started 2026-08-15.** This sprint is active across input correctness, onboarding wiring,
-> accessibility, and analysis completeness. Items remain unchecked until implementation and
+> **Started 2026-08-15.** This sprint is active across input correctness, accessibility,
+> and analysis completeness; onboarding wiring is complete. Items remain unchecked until implementation and
 > targeted validation provide evidence; the Quest validation report is still pending.
 
 > Evidence base: `docs/USER_STORIES_AND_UX_ANALYSIS.md` (29 user stories, gap/UX verdicts
@@ -668,36 +664,20 @@ The GA solver runs but its recommendation quality is untested against known-good
   indicator; collab error close-codes.
 
 #### Accessibility (the critical color path)
-- 🔲 **Colorblind data-encoding gap (US22, verified).** `categoricalColor()`
-  (`src/data/Encodings.ts:13`) returns the raw `PALETTE`
-  (`[0x00ffcc, 0xff0055, 0xffaa00, 0x00aaff, 0xff00ff, 0x88ff00]` — index 1 red + index 5
-  green is a red-green confusion pair) and never applies a colorblind remap.
-  `WorldTheme.applyColorblindMode()` only remaps environment (fog/ambient/point light/grid/
-  particles); `ChartPlane.ts` has zero colorblind references; and `VRTopologyTranslator.ts`
-  calls `categoricalColor()` at 5 sites (lines 242, 436, 624, 695, 759), so the *same*
-  un-remapped palette colors the 3D palace crystals as well as 2D charts. **Also** the
-  per-mode choice (deuteranopia/protanopia/tritanopia) is cosmetic: `MovablePanel.remapColor`
-  only branches on the `highContrast` boolean, not per-mode, and `Accessibility.remapColor`
-  maps only 4 hue families. Fix: thread the active `colorblindMode` into `categoricalColor()`
-  (or a wrapper) so palace + chart data encoding respects the mode; make `remapColor`
-  per-mode for deuteranopia/protanopia/tritanopia; switch the default palette to a
-  colorblind-safe sequence (perceptual change to all scenes — confirm before shipping) OR
-  keep the neon default and remap only when the mode is on. **Do not wire naively:** the
-  existing `remapColor()` is a 4-role semantic classifier (ok / alert / primary / secondary),
-  not an N-category palette generator — calling it from `categoricalColor()` would still
-  collapse same-hue-family categories. The real fix is a dedicated colorblind-safe
-  **categorical** palette (e.g. **Okabe–Ito**, 8-colour) selected when the mode is on, with a
-  shape/texture redundancy channel for categories beyond the palette length. Tests asserting
-  remap reaches both `ChartPlane` and `VRTopologyTranslator` output.
+- ✅ **Colorblind data encoding (US22, fixed in `7649446`).** `categoricalColor()` now selects
+  an Okabe–Ito categorical palette when a colorblind mode is active; `VRTopologyTranslator` and
+  `ChartPlane` receive the active mode while the legacy neon palette remains the default.
+  Automated coverage verifies mode-specific categorical output. Shape/texture redundancy for
+  categories beyond the palette length remains a follow-up.
 - 🔲 **Dwell threshold not user-adjustable (US23, verified).** The dwell chain is fully wired
   and ticking per frame (`SettingsPanel.dwellSelection` → `World.ts:1247` →
   `InputRouter.setDwellSelection` → `SelectionDispatcher`, 1200 ms) — but the threshold is
   fixed; `_dwellThreshold` plumbing exists with no UI. Fix: expose a dwell-delay stepper in
   the Accessibility section. (Dwell Select itself is **not** a defect — confirmed working.)
-- 🔲 **Hand-wheel menu ignores dominant hand (US9, verified).** `WorldUIManager.ts:153`
-  hardcodes `engine.input.hands[0]` while `WorldInputCoordinator.ts:215` correctly uses
-  `hands[this.gestureRecognizer?.dominantHandIndex ?? 0]`. Fix: bind the wheel menu to
-  `dominantHandIndex` like the rest of the input system. Low severity.
+ - ✅ **Hand-wheel dominant-hand binding (US9, fixed in `7649446`).** `WorldUIManager` now
+  obtains the wheel hand through the dominant-hand provider used by the input coordinator,
+  with a right-hand fallback when no recognizer is available. Regression coverage verifies the
+  supplied dominant hand is bound.
 - 🔲 **Input parity matrix (verified gap).** No analytical task should depend on one physical
   ability. Build an explicit parity matrix (action × {hand, controller, keyboard, dwell}):
   select / filter / aggregate / sort / time-slice / undo / inspect. Dwell is wired
@@ -709,6 +689,8 @@ The GA solver runs but its recommendation quality is untested against known-good
 #### Input-correctness bugs (from the VR-UX project review, verified 2026-08-11)
 > All net-new, grounded in code. These are concrete cells of the parity matrix above —
 > interaction paths that fire wrong, twice, or on the wrong hand.
+
+- ✅ **System-toggle tuning (P2, code complete; Quest evidence pending).** Both-hand pinch now requires a 400 ms hold, ignores panel-targeted rays, and has a 1 s cooldown. Reach-zone suppression remains active. Focused Quest validation must confirm deliberate-only toggles and improved panel selection.
 
 - 🔲 **Hand-pinch double-toggle / double-fire (P1, verified).** `HandPointer._doUpdate`
   synchronously calls `this.onPinchStart(this)` on pinch-start (`Hands.ts:285`), and
@@ -751,21 +733,8 @@ The GA solver runs but its recommendation quality is untested against known-good
   `camera.position.y` term). Confirm the matrix update order in-headset before shipping.
 
 #### Onboarding last-mile (wire the praised-but-dead features)
-- 🔲 **JIT gesture hints never instantiated in production (US11, verified).**
-  `JITGestureHintManager` is a real class (ghost-hand wireframe + diegetic label + per-gesture
-  cooldown + bob animation) but `new JITGestureHintManager` appears only in tests, never in
-  `src/` (grep-confirmed). Fix: instantiate in `World`/`WorldUIManager`, call `setScene`, and
-  drive hints from the gesture/interaction context. The "diegetic debounced onboarding"
-  praised in review does not currently run.
-- 🔲 **Frustration-response hint card never instantiated in production (US12, verified).**
-  `FrustrationResponseManager` is a real class (novice 0.35 / intermediate 0.55 / expert 0.85
-  thresholds, 10 s cooldown, 7 s visibility, pattern-specific tip card) but `new
-  FrustrationResponseManager` appears only in tests, never in `src/` (grep-confirmed). The
-  `UXFrustrationAnalyzer` computes a real 0–1 dissatisfaction score but it only reaches the
-  manual review-bundle export — the in-VR hint never appears. Fix: instantiate the manager,
-  feed it the analyzer score each frame, call `setUserMode` from the settings userMode, and
-  parent the hint to `analystAnchor` (not a raw camera offset). **Correct the roadmap record**
-  below (this line was previously marked `[x]` done — it is not).
+- ✅ **JIT gesture hints wired in production (US11).** `AdaptiveAssistController` instantiates the manager, sets the scene, and drives hints from selection and gesture context. Targeted tests cover the coordinator; Quest validation remains pending.
+- ✅ **Frustration-response hint card wired in production (US12).** `AdaptiveAssistController` instantiates the manager, feeds analyzer actions, applies user mode, and parents the UI to `analystAnchor`. Targeted tests cover the coordinator; Quest validation remains pending.
 
 #### Analysis completeness
 - 🔲 **Aggregate operation is a visual placeholder (US5, verified).** `applyAggregate`
@@ -778,13 +747,11 @@ The GA solver runs but its recommendation quality is untested against known-good
   procedural vector field rather than reading real `u/v/w` columns; `GeoSurfaceLayout` uses a
   fixed `heightScale` rather than dataset-normalized scaling. Fix: read the vector columns
   when present (synthetic fallback otherwise); normalize geo height to the data range.
-- 🔲 **No first-class Compare operation (verified).** `DatasetOperations.ts` exports
-  filter / sort / aggregate / cluster / hierarchical / dbscan / anomaly / slice — **no
-  `compare`**; `DataOperations.computeOperationDataset` (`:210`) and `buildWasmOperationSpec`
-  (`:293`) likewise have none. "Compare" is named in the conceptual loop
-  (Orient / Probe / Query / **Compare** / Annotate / Share) but is not implemented. Add Compare
-  as a first-class operation: group A vs group B, before vs after, selected vs population,
-  representation A vs B, 2D vs 3D. Also valuable as a research condition.
+- ✅ **First-class Compare operation (fixed in `7649446`).** `DatasetOperations.compare()` now
+  produces a deterministic group-A/group-B numeric-mean summary with counts and differences;
+  `computeOperationDataset()` exposes the default first-categorical-column path. The current
+  implementation is a foundation for before/after, selected/population, and richer inferential
+  comparisons; it is not a statistical significance test.
 
 #### Small fixes / dead-code
 - 🔲 Remove dead declarations/code: `dwellEnabled`/`dwellDelayMs` aliases
@@ -797,14 +764,29 @@ The GA solver runs but its recommendation quality is untested against known-good
   affordance in the wheel menu if not already exposed; not an architecture gap.
 - 🔲 Undo/Redo wheel-menu items: add a disabled affordance when the history stack is empty
   (`WheelMenuBuilder.ts:279-281` acknowledges the silent no-op).
-- 🔲 **Dashboard wiring check (US10, UNCONFIRMED).** `WorldUIManager` constructs
-  `DashboardManager` without calling `registerPanel`; verify whether `World.ts` wires chart
-  panels in elsewhere. If not, the dashboard renders empty — wire it.
+- ✅ **Dashboard wiring check (US10, resolved).** `World.ts:_buildDashboard()` constructs
+  chart panels, registers them with `DashboardManager`, and adds them to engine input after
+  each dataset load. Remaining dashboard work is lifecycle disposal and accessibility redraw,
+  tracked in Sprint 22.3.1.
 - 🔲 **Error-recovery UX messaging.** Engineering handles context loss / tracking loss /
   malformed CSV / network stalls, but user-facing recovery is raw ("WebXR input source
   disconnected"). Rewrite analyst-facing: "Hand tracking lost — your analysis is safe; switch
   to controller input or pause" / "Live stream interrupted — last update 14:32:08, 3,842
   records preserved." Principle: never make the user wonder whether their analysis was lost.
+
+### Sprint 22.3.1 — Adversarial hardening and last-mile closure 🔲
+
+> **Added 2026-08-16 from security, graphics, and adversarial review.** This is the next
+> implementation phase after the current wiring and tuning work. No item is complete until
+> targeted tests and the relevant manual/Quest evidence exist.
+
+- 🔲 **Inbound shared-state authorization:** bind the claimed sender to the RTC channel peer, enforce participant role on received annotation/bookmark/tour/dataset deltas, and reject spoofed peer IDs.
+- 🔲 **Remote delta hardening:** validate annotation/bookmark schemas, enforce payload size/count/rate bounds, and prevent malformed remote data from throwing during rendering or exhausting resources.
+- 🔲 **Compare completion:** add an explicit visual/history restore path, remap dashboard chart columns for compare summary datasets, and cover one-numeric-column and fewer-than-two-group cases end to end.
+- 🔲 **Accessibility recolor:** update existing Draco artefacts when colorblind mode changes and verify palette output for bars, lines, histograms, box plots, heatmaps, and dashboard panels.
+- 🔲 **Dashboard lifecycle:** dispose ChartPlane textures, materials, geometry, and canvas resources on dashboard rebuild and teardown.
+- 🔲 **Unified system-toggle gate:** apply dwell, cooldown, panel targeting, and release semantics consistently to hand pinches and controller grips; prevent re-arming while a gesture remains held.
+- 🔲 **Adversarial regression coverage:** add tests for remote authorization/schema abuse, Compare rendering/history, existing-scene recoloring, chart disposal, and controller/pinch precedence.
 
 ### Sprint 22.4 — Spatial zonation architecture 🔲
 
@@ -1142,6 +1124,8 @@ The GA solver runs but its recommendation quality is untested against known-good
 - ✅ **WASM `leaves()` unbounded recursion → stack-overflow trap (P1, fixed 2026-08-15).**
   `wasm/src/data/operations.rs` now uses iterative traversal with an explicit stack. A 20,000-level
   merge-history regression test verifies deep chains without recursive stack growth.
+- ✅ **CSV prototype-pollution header filtering (fixed in `7649446`).** `parseCSV()` now removes
+  `__proto__`, `constructor`, and `prototype` headers while preserving value-column alignment.
 - 🔲 **Vite dev/preview signalling is dead for parametrised clients (P2, verified — not a false
   positive).** `vite.config.js:74` does `if (request.url !== '/__signal') return;`, but a peer's
   upgrade URL is `/__signal?room=…&peer=…&token=…`, so the strict `!==` bails *before* the
@@ -1150,8 +1134,7 @@ The GA solver runs but its recommendation quality is untested against known-good
   before the query check.
 - 🔲 **Other security/robustness P2s (verified):** WebRTC `payload.peerId` is trusted client-side
   with no cross-check against the signalling-authenticated identity; no per-peer rate limiting on
-  the signalling server (a flood peer can exhaust the room); CSV `__proto__` header filter is
-  inconsistent (`Parsers.ts:150` filters it but `:50` does not) — prototype-pollution gap;
+  the signalling server (a flood peer can exhaust the room);
   `wasm` `count * 12` `u32` multiplication can overflow on huge datasets without a checked mul;
   the WASM allocator panics on OOM (acceptable, but the panic should surface as a recoverable
   capability error, not an unrecoverable trap); `readF32`/`readU32` cache a `DataView` that goes
@@ -1364,7 +1347,7 @@ CSV/JSON -> schema preview -> DatasetModel -> DatasetSpace -> structures
 > engineering sprints.
 
 - **2D-vs-VR experimental harness** — a reusable harness (dataset × task × 2D control ×
-  VR-3D × timer × answer capture × confidence × workload × interaction
+  VR × timer × answer capture × confidence × workload × interaction
   telemetry × analysis) to run studies: topology discovery, anomaly detection, temporal
   pattern recognition, quantitative comparison, memory/recall. The target result is a
   per-task matrix of where spatial representation wins/loses — not a blanket "VR beats 2D".
@@ -1399,7 +1382,7 @@ CSV/JSON -> schema preview -> DatasetModel -> DatasetSpace -> structures
   not hidden — "demonstrated vs validated" is the vocabulary.
 - **5-study research programme (uses the harness + navigation-cost instrumentation above).**
   (1) **Learnability** — time to first successful operation, gesture-recognition errors, help
-  requests, 24 h recall; (2) **Spatial advantage** — 2D dashboard vs VR-3D on
+  requests, 24 h recall; (2) **Spatial advantage** — 2D dashboard vs VR on
   topology tasks (bridge / cluster / path / anomaly / relationship); (3) **Precision penalty**
   — where 3D loses to 2D (rank / compare / estimate / read exact values), *just as important
   as proving advantages*; (4) **Metaphor comprehension** — give users the gestures
