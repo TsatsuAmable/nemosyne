@@ -51,6 +51,15 @@ interface SignallingMessagePayload {
   [key: string]: unknown;
 }
 
+type NetworkRole = 'participant' | 'observer';
+
+function canRelayMessage(role: NetworkRole, message: unknown): boolean {
+  if (role === 'participant') return true;
+  if (message == null || typeof message !== 'object' || Array.isArray(message)) return false;
+  const type = (message as { type?: unknown }).type;
+  return type === 'offer' || type === 'answer' || type === 'ice';
+}
+
 export function createRoomRegistry({
   maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES,
   maxPeersPerRoom = DEFAULT_MAX_PEERS_PER_ROOM,
@@ -67,7 +76,8 @@ export function createRoomRegistry({
     return true;
   }
 
-  function broadcast(roomId: string, from: string, message: unknown): void {
+  function broadcast(roomId: string, from: string, role: NetworkRole, message: unknown): void {
+    if (!canRelayMessage(role, message)) return;
     const room = rooms.get(roomId);
     if (!room) return;
     const data = JSON.stringify({ roomId, from, data: message });
@@ -79,7 +89,8 @@ export function createRoomRegistry({
     }
   }
 
-  function sendTo(roomId: string, to: string, from: string, message: unknown): void {
+  function sendTo(roomId: string, to: string, from: string, role: NetworkRole, message: unknown): void {
+    if (!canRelayMessage(role, message)) return;
     const room = rooms.get(roomId);
     if (!room) return;
     const target = room.get(to)?.socket;
@@ -157,9 +168,9 @@ export function createRoomRegistry({
       }
       if (!isValidMessage(message)) return;
       if (message.to === '*') {
-        broadcast(roomId, peerId, message.data);
+        broadcast(roomId, peerId, room.get(peerId)!.role, message.data);
       } else if (message.to) {
-        sendTo(roomId, message.to, peerId, message.data);
+        sendTo(roomId, message.to, peerId, room.get(peerId)!.role, message.data);
       }
     };
 

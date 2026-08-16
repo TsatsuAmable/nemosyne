@@ -502,6 +502,46 @@ describe('SignallingServerCore', () => {
     expect(JSON.parse(b.sent[b.sent.length - 1]).from).toBe('peerA');
   });
 
+  it('blocks observer direct relays except WebRTC negotiation messages', () => {
+    const registry = createRoomRegistry();
+    const observer = makeSocket();
+    const participant = makeSocket();
+
+    registry.handleConnection(observer, 'room-observer-direct', 'observer', undefined, 'observer');
+    registry.handleConnection(participant, 'room-observer-direct', 'participant');
+    participant.sent.length = 0;
+
+    observer.listeners.message[0](
+      JSON.stringify({ to: 'participant', data: { type: 'datasetOperation', op: { type: 'delete' } } })
+    );
+    expect(participant.sent).toHaveLength(0);
+
+    observer.listeners.message[0](
+      JSON.stringify({ to: 'participant', data: { type: 'answer', sdp: 'observer-answer' } })
+    );
+    expect(participant.sent).toHaveLength(1);
+    expect(JSON.parse(participant.sent[0]).data.type).toBe('answer');
+  });
+
+  it('blocks observer broadcasts except WebRTC negotiation messages', () => {
+    const registry = createRoomRegistry();
+    const observer = makeSocket();
+    const participant = makeSocket();
+
+    registry.handleConnection(observer, 'room-observer-broadcast', 'observer', undefined, 'observer');
+    registry.handleConnection(participant, 'room-observer-broadcast', 'participant');
+    observer.sent.length = 0;
+    participant.sent.length = 0;
+
+    observer.listeners.message[0](JSON.stringify({ to: '*', data: { type: 'state', state: { x: 1 } } }));
+    expect(observer.sent).toHaveLength(0);
+    expect(participant.sent).toHaveLength(0);
+
+    observer.listeners.message[0](JSON.stringify({ to: '*', data: { type: 'ice', candidate: {} } }));
+    expect(participant.sent).toHaveLength(1);
+    expect(JSON.parse(participant.sent[0]).data.type).toBe('ice');
+  });
+
   it('notifies existing peers on join and leaves', () => {
     const registry = createRoomRegistry();
     const a = makeSocket();
