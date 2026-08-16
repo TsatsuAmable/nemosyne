@@ -1423,7 +1423,7 @@ CSV/JSON -> schema preview -> DatasetModel -> DatasetSpace -> structures
 
 ## Legend
 
-- ✅ Complete
-- 🔄 In progress
-- ⏳ Deferred to future phase
-- 🔲 Not started
+- `Current work` = actively being implemented or validated.
+- `Planned` = approved next work with a defined exit condition.
+- `Deferred` = intentionally not active; promotion requires a decision.
+- `Proposed` = architecture direction without implementation commitment.
