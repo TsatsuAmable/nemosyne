@@ -304,7 +304,7 @@ export class InputRouter {
     if (!session || !session.inputSources) return;
     const sources = Array.from(session.inputSources);
 
-    const { bothPinched } = this.systemDetector.update(session);
+    const { suppressSelection } = this.systemDetector.update(session);
 
     // Controller buttons.
     for (const controller of this.pointers.controllers) {
@@ -335,7 +335,7 @@ export class InputRouter {
       const pinched = hand.isPinched?.() ?? false;
       const wasPinched = this.pointers.lastHandPinched.get(hand);
 
-      if (bothPinched) {
+      if (suppressSelection) {
         // Two-hand pinch is reserved for the system gesture; do not fire
         // per-hand selection while it is held.
         if (pinched && !wasPinched) {

@@ -3,6 +3,11 @@
 **Date:** 2026-08-14  
 **Status:** ✅ Complete — Ready for decision
 
+**Status refresh:** 2026-08-16 — Phase 22.3 Tier B wiring is complete for
+`FrustrationResponseManager`, `JITGestureHintManager`, and `GestureConfidenceHUD` via
+`AdaptiveAssistController`. The counts and findings below describe the audit snapshot at
+the original date unless explicitly marked otherwise.
+
 ---
 
 ## Executive Summary
@@ -32,7 +37,7 @@ Independent audit of all components claimed ✅ done in Phases 1–20 reveals:
 
 **This is not a defect in the code.** The classes are high-quality. It's a **roadmap-documentation issue**: we marked "component built" as equivalent to "feature shipped," when really it means "building block ready but not wired yet."
 
-**Phase 22.3 correctly identified this** when it said "wire the praised-but-dead features" — that was accurate.
+**Phase 22.3 correctly identified this** when it said "wire the praised-but-dead features" — that was accurate at audit time. Tier B wiring is now complete through `AdaptiveAssistController`.
 
 ---
 
@@ -40,7 +45,7 @@ Independent audit of all components claimed ✅ done in Phases 1–20 reveals:
 
 ### Option A: Proceed with Phase 22.3 as-is
 - Tier A: Fix 5 P1 input correctness bugs (high priority, high risk if skipped)
-- Tier B: Wire the 7 built-only components into World.ts (low risk, ~20 instantiation lines)
+- Tier B: ~~Wire the 7 built-only components into World.ts~~ **Complete for the three assist surfaces**; remaining worker/exporter components stay intentionally deferred
 - Tier C: Accessibility polish (colorblind data encoding, text scaling, dwell UI)
 
 **This is recommended.** The audit confirms Phase 22.3 has the right scope; we just lacked visibility into the "built but not wired" split.
@@ -58,16 +63,16 @@ Independent audit of all components claimed ✅ done in Phases 1–20 reveals:
 
 ## Key Findings
 
-### Built-Only Components (7 total)
-1. `FrustrationResponseManager` — diegetic hint cards on frustration
-2. `JITGestureHintManager` — gesture teaching via ghost hands
-3. `GestureConfidenceHUD` — real-time gesture confidence visualization
+### Built-Only Components (historical audit)
+1. `FrustrationResponseManager` — diegetic hint cards on frustration (**wired in `AdaptiveAssistController`**)
+2. `JITGestureHintManager` — gesture teaching via ghost hands (**wired in `AdaptiveAssistController`**)
+3. `GestureConfidenceHUD` — real-time gesture confidence visualization (**wired in `AdaptiveAssistController`**)
 4. `CSVParserWorker` — Web Worker for CSV parsing (main thread parser active instead)
 5. `DracoSolverWorker` — Web Worker for constraint solving (main thread solver active instead)
 6. `AnalysisStorybookExporter` — analysis story bundler (export logic in TelemetryPanel instead)
 7. `ContextRecoveryManager` — WebGL recovery coordinator (logic in Engine.ts instead)
 
-**Risk:** Low. All have passing tests. Wiring is 1–5 instantiation lines per component.
+**Status:** The first three are wired and covered by `tests/adaptive-assist-controller.test.ts`. The remaining four are still built-only or intentionally superseded by existing paths.
 
 ### Partially Wired (4 total)
 1. **Colorblind data encoding (P1)** — UI theme is colorblind-aware, but `categoricalColor()` ignores mode; palace crystals and charts use un-remapped palette → red-green confusion for deuteranopia users
@@ -91,13 +96,11 @@ Independent audit of all components claimed ✅ done in Phases 1–20 reveals:
 **Timeline:** 1–2 weeks  
 **Testing:** Existing test harness adequate; verify on Quest  
 
-### Phase 22.3 Tier B (Wiring) — 7 built-only components
-- Instantiate FrustrationResponseManager, JITGestureHintManager, GestureConfidenceHUD
-- Wire them into World/WorldUIManager, parent to `analystAnchor`
-- Feed scores/context from appropriate handlers
-
-**Timeline:** 1 week  
-**Testing:** Wire → run existing test suite → on-device validation  
+### Phase 22.3 Tier B (Wiring) — complete
+- `AdaptiveAssistController` is instantiated by `World`.
+- `FrustrationResponseManager`, `JITGestureHintManager`, and `GestureConfidenceHUD` are instantiated, mounted, fed runtime context, and disposed.
+- Targeted coverage is in `tests/adaptive-assist-controller.test.ts`.
+- Quest usability evidence remains part of focused validation; it is not a wiring blocker.
 
 ### Phase 22.3 Tier C (Accessibility) — Features & polish
 - Colorblind data-palette remapping (thread colorblindMode to `categoricalColor()`)
@@ -137,7 +140,6 @@ Blocked on "load-test validation" — the test exists but hasn't been run.
 
 The audit clarifies the roadmap, confirms Phase 22.3 scope is appropriate, and identifies the "built but not wired" split as a documentation issue, not a code issue. No blockers prevent starting immediately.
 
-**Three actions to unlock Phase 23:**
+**Remaining actions to unlock Phase 23:**
 1. Complete Tier A (input defect fixes) ← **highest priority, highest risk if skipped**
-2. Complete Tier B (wire built-only components) ← low risk, high quality
-3. Complete Tier C (accessibility features) ← medium risk, user-facing impact
+2. Complete Tier C (accessibility features) ← medium risk, user-facing impact

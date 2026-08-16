@@ -267,6 +267,7 @@ export class World {
       onDensityCluster: () => this.dataOperationController.apply('density'),
       onAnomaly: () => this.dataOperationController.apply('anomaly'),
       onTimeSlice: () => this.dataOperationController.apply('timeSlice'),
+      onCompare: () => this.dataOperationController.apply('compare'),
       onReset: () => this.resetDataOperation(),
       onPanelChange: () => this._requestAutoSave(),
       onSettingChanged: (key, value) => this._onSettingChanged(key, value),

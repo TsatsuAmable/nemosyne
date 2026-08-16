@@ -118,7 +118,8 @@ export class NetworkManager extends EventTarget {
   /**
    * Broadcasts a targeted state delta to all peers for a given topic.
    */
-  broadcastStateDelta(topic: string, data: Record<string, unknown>, timestamp: number = Date.now()): void {
+  broadcastStateDelta(topic: string, data: Record<string, unknown>, timestamp: number = Date.now()): boolean {
+    if (!this.room.canMutateSharedState(this.role)) return false;
     const deltaPayload = JSON.stringify({
       type: 'delta',
       peerId: this.peerId,
@@ -127,6 +128,7 @@ export class NetworkManager extends EventTarget {
       timestamp,
     });
     this._sendToAllOpenChannels(deltaPayload);
+    return true;
   }
 
   /**

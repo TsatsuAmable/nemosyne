@@ -48,6 +48,18 @@ describe('ChartPlanePanel', () => {
     expect(panel.title).toBe('Values');
   });
 
+  it('passes and updates colorblind mode on the chart renderer', () => {
+    const panel = new ChartPlanePanel(cameraGroup, dataset, {
+      chartType: 'BAR',
+      column: 'value',
+      colorblindMode: 'deuteranopia',
+    });
+    expect(panel.chartPlane.colorblindMode).toBe('deuteranopia');
+
+    panel.applyAccessibility({ textScale: 1, highContrast: false, colorblindMode: 'tritanopia' });
+    expect(panel.chartPlane.colorblindMode).toBe('tritanopia');
+  });
+
   it('updates the chart when the dataset changes', () => {
     const panel = new ChartPlanePanel(cameraGroup, dataset, {
       chartType: 'BAR',

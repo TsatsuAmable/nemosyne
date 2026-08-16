@@ -51,6 +51,7 @@ export class ChartPlanePanel extends MovablePanel {
       yColumn: options.yColumn,
       title: options.title ?? 'CHART',
       color: options.color,
+      colorblindMode: options.colorblindMode ?? 'none',
       worldSize,
       width: this.width,
       height: this.height - this.titleBarHeight,
@@ -80,6 +81,8 @@ export class ChartPlanePanel extends MovablePanel {
 
   applyAccessibility(options: AccessibilityOptions): void {
     super.applyAccessibility(options);
+    this.chartPlane.colorblindMode = options.colorblindMode ?? 'none';
+    this.chartPlane.update();
     this.render();
   }
 

@@ -90,6 +90,7 @@ export class WorldUIManager {
       onDensityCluster: callbacks.onDensityCluster,
       onAnomaly: callbacks.onAnomaly,
       onTimeSlice: callbacks.onTimeSlice,
+      onCompare: callbacks.onCompare,
       onReset: callbacks.onReset,
     } as LooseOptions);
     this.engine.addUpdatable(this.vrMenu);
