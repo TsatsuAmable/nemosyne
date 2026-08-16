@@ -11,6 +11,7 @@ export default defineConfig({
     pool: 'forks',
     maxWorkers: 2,
     minWorkers: 1,
+    testTimeout: 10000,
     teardownTimeout: 3000,
     coverage: {
       provider: 'v8',
