@@ -4,17 +4,18 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-16 after starting `feature/phase-22-3-1-hardening`.
-- **Repository state:** local `main` contains remote `origin/main`; this working tree is on the
-  new feature branch with Phase 22.3.1 hardening changes staged only in the working tree.
-- **Last gate result:** before this branch, `typecheck` was clean, lint had 0 errors (205 warnings),
-  Vitest had `1317 passed / 9 skipped`, build was green, and Rust had `32 passed / 0 failed`.
-  On this branch, typecheck and build are clean; requested test rerun is intentionally skipped.
+- **Last updated:** 2026-08-16 after signalling-role relay hardening and renderer-lifecycle extraction.
+- **Repository state:** working tree is clean on `signalling-sec-fix`, tracking
+  `origin/signalling-sec-fix`; the local branch is two commits behind its remote tip, whose tree
+  contains the merged composition-root changes.
+- **Last gate result:** the previously recorded gates remain: typecheck was clean, lint had 0 errors
+  (205 warnings), Vitest had `1317 passed / 9 skipped`, build was green, and Rust had `32 passed / 0
+  failed`. No fresh full gate has been run after the latest signalling and lifecycle changes.
 - **On-device rerun #2 (2026-08-15 15:24):** session ran ~5 min but `logs/ux-trace.jsonl` captured ONLY the meta record. Root cause: scene contains `THREE.Sprite` interactables (label sprites); recorder's raycaster never set `.camera`, and `Sprite.raycast` dereferences `raycaster.camera.matrixWorld` after a console.error-only guard → TypeError every frame → recorder self-disabled at 11 errors (`UXTraceRecorder.ts` update guard). Full stack + paired `THREE.Sprite: "Raycaster.camera"` errors in `logs/vr-remote-console.log`. Validation report NOT yet filled. **Fix applied:** `_raycastTargets` now sets `raycaster.camera`, filters null meshes; `_buildContext` degrades per-section (head/gaze, pointer, hands) with one-time warn instead of throwing; regression test with Sprite + null-mesh interactables (13/13 pass).
 - **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges (with actual routing decision), selection hit/miss, gestures, system toggles fired/suppressed, wheel open/close, and tour steps with head-gaze raycast target + pointer-ray drift, sampled at 5 Hz. Streams to `/__ux-trace` (vite serve plugin) → `logs/ux-trace.jsonl`; analyze with `node scripts/analyze-ux-trace.mjs --timeline`. Auto-on in dev, self-disables on 404. Wired in `src/main.ts` via taps in InputRouter/SelectionDispatcher/SystemGestureDetector/HandWheelMenu/GuidedTour. Pipeline smoke-verified 2026-08-15. **Next trace expansion:** capture all ray-touched panels, buttons, data elements, and world-space targets, including ordered intersections, stable target identity/type, hit point/distance, active pinch/gesture, routing decision, and head/pointer world-space context.
 - **System-toggle tuning (2026-08-16):** both-hand pinch now requires a 400 ms hold, skips panel-targeted rays, and has a 1 s cooldown; raw simultaneous pinches still suppress per-hand selection until released. Focused Quest evidence is pending. **Validation target:** deliberate-only toggles, < ~10 per focused session, lower suppression, and improved panel selection.
-- **Active work:** Phase 22.3 remains in input-validation and accessibility tracks; Tier B onboarding wiring is complete. Documentation direction now requires Atlas Core in Stable Alpha, with the complete Atlas Research Release deferred. Phase 21.3 remains infrastructure/readiness work and is blocked from command-buffer rollout until the B2 load-test staircase produces `logs/loadtest-results.jsonl`.
-- **Next:** Complete remaining Phase 22.3.1 validation and manual evidence for the hardening branch, then refactor `World.ts` into a composition root with typed logical-session, Atlas Core, research-ledger, input-command, and renderer lifecycle boundaries. Implement Atlas Core: stable datum identity, one provenance-bearing provider, one renderer-independent DatasetSpace, and deterministic inspectable guidance. In parallel, run the Phase 21.3 load-test staircase and decide whether command buffers are warranted from measured results.
+- **Active work:** Phase 22.3 remains in input-validation and accessibility tracks; Tier B onboarding wiring is complete. Phase 22.3.1 now has observer relay filtering, renderer-lifecycle extraction, dashboard resource disposal, and scene teardown code, but manual evidence and targeted regression coverage remain open. Documentation direction requires Atlas Core in Stable Alpha, with the complete Atlas Research Release deferred. Phase 21.3 remains infrastructure/readiness work and is blocked from command-buffer rollout until the B2 load-test staircase produces `logs/loadtest-results.jsonl`.
+- **Next:** Run the fresh Quest validation and full JS/Rust gates, then complete targeted hardening coverage. Finish the `World.ts` composition-root boundaries around logical session, Atlas Core, research ledger, input commands, and renderer lifecycle. Implement Atlas Core: stable datum identity, one provenance-bearing provider, one renderer-independent DatasetSpace, and deterministic inspectable guidance. In parallel, run the Phase 21.3 load-test staircase and decide whether command buffers are warranted from measured results.
 - **Atlas architecture boundary:** Current Draco remains the v1 embodiment pipeline (`Dataset` facts → visual spec → VR artefact). Atlas Core is required for Stable Alpha but is not yet implemented: DatasetSpace, provenance-bearing structures, analytical recommendations, and reproducible research sessions remain gaps. The later Atlas Research Release expands this core and must not be inferred from existing Dataset, TDA, session, telemetry, or benchmark utilities.
 - **Resume pointers:** validation → `docs/PHASE_22_3_VALIDATION_REPORT.md` (+ guide); UX trace → `scripts/analyze-ux-trace.mjs` + `src/vr/trace/UXTraceRecorder.ts`; audit → `docs/AUDIT_PHASES_1_20.md`; product docs → `docs/PROJECT_DOCS_INDEX.md`; study package → `docs/study/README.md`; Phase 22.3 scope → §Sprint 22.3.
 
@@ -781,10 +782,11 @@ The GA solver runs but its recommendation quality is untested against known-good
 > targeted tests and the relevant manual/Quest evidence exist.
 
 - [x] **Inbound shared-state authorization:** signaling now carries the peer role, role changes cannot be smuggled through state payloads, and received shared-state deltas require the channel-bound peer ID plus participant role. Regression tests cover observer elevation and claimed-peer spoofing; manual/integration confirmation remains pending.
+- [x] **Observer signalling relay restriction:** observers can relay only WebRTC `offer`/`answer`/`ice` messages; direct and broadcast application-state relays are blocked and covered by network regression tests. Manual/integration confirmation remains pending.
 - 🔲 **Remote delta hardening:** validate annotation/bookmark schemas, enforce payload size/count/rate bounds, and prevent malformed remote data from throwing during rendering or exhausting resources.
 - 🔲 **Compare completion:** add an explicit visual/history restore path, remap dashboard chart columns for compare summary datasets, and cover one-numeric-column and fewer-than-two-group cases end to end.
 - 🔲 **Accessibility recolor:** update existing Draco artefacts when colorblind mode changes and verify palette output for bars, lines, histograms, box plots, heatmaps, and dashboard panels.
-- 🔲 **Dashboard lifecycle:** dispose ChartPlane textures, materials, geometry, and canvas resources on dashboard rebuild and teardown.
+- 🟡 **Dashboard lifecycle:** `WorldRendererLifecycle` now owns dashboard rebuild/update/disposal and calls `ChartPlane.dispose()` for textures, materials, geometry, and canvas resources. Targeted lifecycle evidence and full teardown validation remain.
 - 🔲 **Unified system-toggle gate:** apply dwell, cooldown, panel targeting, and release semantics consistently to hand pinches and controller grips; prevent re-arming while a gesture remains held.
 - 🔲 **Adversarial regression coverage:** add tests for remote authorization/schema abuse, Compare rendering/history, existing-scene recoloring, chart disposal, and controller/pinch precedence.
 
@@ -873,9 +875,10 @@ The GA solver runs but its recommendation quality is untested against known-good
   "immutable" but `updateRows()` mutates the row store for live streams (verified). Choose
   **B** (mutable live dataset + immutable derived operations) for streams and document it
   precisely; fix the doc/impl contradiction.
-- 🔲 **`World.ts` → composition root, not nervous system.** Now **1,784 lines** (verified);
-  owns/references an enormous state surface. Target `World` as a thin composition root over
-  Runtime / Workspace / DataSession / Input / Presentation / Persistence / Collaboration.
+- 🟡 **`World.ts` → composition root, not nervous system.** Renderer lifecycle and scene teardown
+  have been extracted, reducing direct renderer/dashboard ownership. The remaining target is a thin
+  composition root over Runtime / Workspace / DataSession / Input / Presentation / Persistence /
+  Collaboration; Atlas and logical-session boundaries are not implemented yet.
   Coordinators are extracted already; finish removing direct cross-subsystem state from `World`.
 - 🔲 **Formalise dependency direction.** Add a hard rule to `ARCHITECTURE.md`: `data → analysis
   → representation → rendering → input`, never backward; `Dataset` must not import three.js;
