@@ -26,7 +26,6 @@ import {
   applySlice,
   resetTransforms,
 } from './interactions/DataOperations.ts';
-import { buildTDASummaryGroup } from './artifacts/TDAPlanes.ts';
 import { ControllerGestureMapper } from './interactions/ControllerGestureMapper.ts';
 import { WorldInputCoordinator } from './coordinators/WorldInputCoordinator.ts';
 import { UserModeController } from './coordinators/UserModeController.ts';
@@ -53,6 +52,7 @@ import { buildWheelMenuCategories } from './coordinators/WheelMenuBuilder.ts';
 import { WorldEventBus, WorldTopics } from '../utils/EventBus.ts';
 import { SceneGraphController } from './coordinators/SceneGraphController.ts';
 import { WorkspaceManager } from './coordinators/WorkspaceManager.ts';
+import { WorldRendererLifecycle } from './coordinators/WorldRendererLifecycle.ts';
 import { InputTelemetry } from './InputTelemetry.ts';
 import { PanelManager } from './ui/PanelManager.ts';
 import { DashboardManager } from './ui/DashboardManager.ts';
@@ -185,6 +185,7 @@ export class World {
   _desktopPreviewEnabled!: boolean;
   sceneGraphController: SceneGraphController;
   workspaceManager: WorkspaceManager;
+  rendererLifecycle: WorldRendererLifecycle;
   _desktopPreviewSavedPose!: { position: THREE.Vector3; yaw: number; pitch: number } | null;
   _orbitControls!: OrbitControls | null;
   dracoNode!: DracoTopologyNode | null;
@@ -365,6 +366,14 @@ export class World {
     this.tooltipManager.mount(this.engine.scene);
     this.tooltipManager.setPointerRaycaster(this.engine.input.raycaster);
     this.engine.addUpdatable(this.tooltipManager);
+
+    this.rendererLifecycle = new WorldRendererLifecycle({
+      engine: this.engine,
+      dashboard: this.dashboard,
+      tooltipManager: this.tooltipManager,
+      getOriginalDataset: () => this._originalDataset,
+      getDracoNode: () => this.dracoNode,
+    });
 
     // In-place operation handles near data artefacts for direct manipulation.
     this.inPlaceHandles = new InPlaceOperationHandles(this.engine.scene, this.engine.camera, {
@@ -828,90 +837,15 @@ export class World {
   }
 
   _attachTDASummary(): void {
-    if (this.tdaGroup) {
-      this.engine.scene.remove(this.tdaGroup);
-      this.tdaGroup = null;
-    }
-    const ds = this._originalDataset;
-    if (!ds || ds.numericColumns.length === 0) return;
-    const numericNames = ds.numericColumns.map((c) => c.name);
-    const filterName = numericNames[0];
-    const featureNames = numericNames.slice(0, 3);
-    const tda = buildTDASummaryGroup(ds, featureNames, filterName);
-    this.tdaGroup = tda.group;
-    this.tdaRecompute = tda.recompute;
-    this.engine.scene.add(this.tdaGroup);
-    this.tdaRecompute();
+    this.rendererLifecycle.attachTDASummary();
+    this.tdaGroup = this.rendererLifecycle.tdaGroup;
+    this.tdaRecompute = this.rendererLifecycle.tdaRecompute;
   }
 
   _buildDashboard(): void {
-    // Tear down any existing dashboard chart panels.
-    for (const mesh of this._dashboardTooltipTargets ?? []) {
-      const idx = this.tooltipManager.targets.indexOf(mesh);
-      if (idx >= 0) this.tooltipManager.targets.splice(idx, 1);
-    }
-    this._dashboardTooltipTargets = [];
-
-    for (const entry of this.dashboardPanels ?? []) {
-      this.dashboard.unregisterPanel(entry.panel);
-      this.engine.input.panels = this.engine.input.panels.filter((p) => p !== entry.panel);
-      entry.panel.dispose?.();
-    }
-    this.dashboardPanels = [];
-
-    if (!this._originalDataset || !this.dashboard) return;
-    const ds = this._originalDataset;
-    const facts = this.dracoNode?.engine?.extractFacts?.(ds) ?? null;
-    const numericColumnCount = facts?.numericColumns ?? ds.numericColumns.length;
-    const hasTimeSeries = facts?.hasTimeSeries ?? ds.temporalColumns.length > 0;
-
-    const panels: ChartPlanePanel[] = [];
-
-    if (numericColumnCount > 1 || ds.numericColumns.length > 1) {
-      panels.push(
-        new ChartPlanePanel(this.engine.cameraGroup, ds, {
-          title: 'Correlation Matrix',
-          chartType: 'CORRELATION',
-        })
-      );
-    }
-
-    if (hasTimeSeries || ds.temporalColumns.length > 0) {
-      panels.push(
-        new ChartPlanePanel(this.engine.cameraGroup, ds, {
-          title: 'Time Series',
-          chartType: 'LINE',
-        })
-      );
-    }
-
-    if (panels.length === 0 && ds.numericColumns.length > 0) {
-      panels.push(
-        new ChartPlanePanel(this.engine.cameraGroup, ds, {
-          title: `Distribution of ${ds.numericColumns[0].name}`,
-          chartType: 'HISTOGRAM',
-          column: ds.numericColumns[0].name,
-        })
-      );
-    }
-
-    for (let i = 0; i < panels.length; i++) {
-      const panel = panels[i];
-      panel.mesh.visible = false;
-      this.engine.input.addPanel(panel);
-      // Let the dashboard pick the next free visible zone so panels start in
-      // front of the analyst in semicircle mode.
-      this.dashboard.registerPanel(panel);
-      this.dashboardPanels.push({ panel });
-
-      // Register the panel mesh for pointer-hover labels.
-      panel.mesh.userData.tooltipMeta = {
-        title: panel.title,
-        body: 'Drag to reposition; drop to snap',
-      };
-      this.tooltipManager.registerTarget(panel.mesh);
-      this._dashboardTooltipTargets.push(panel.mesh);
-    }
+    this.rendererLifecycle.rebuildDashboard();
+    this.dashboardPanels = this.rendererLifecycle.dashboardPanels;
+    this._dashboardTooltipTargets = this.rendererLifecycle.dashboardTooltipTargets;
   }
 
   _updateDashboardDatasets(dataset: Dataset | null | undefined): void {
@@ -1735,6 +1669,7 @@ export class World {
     // Detach telemetry global listeners so late window errors are not recorded.
     this.telemetryCollector?.setEnabled?.(false);
     this.adaptiveAssist?.dispose();
+    this.rendererLifecycle?.dispose();
 
     // Wait for async init work to finish so it cannot log after disposal.
     await Promise.allSettled(this._initPromises);
