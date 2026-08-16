@@ -104,6 +104,19 @@ export class WorldRendererLifecycle {
       if (dataset) {
         const columns = new Set(dataset.columns.map((column) => column.name));
         const numericColumns = dataset.numericColumns.map((column) => column.name);
+        const isCompareSummary = columns.has('_difference') && columns.has('_measure');
+        const compareGroupColumn = dataset.categoricalColumns.find(
+          (column) => !['_measure', '_groupA', '_groupB'].includes(column.name)
+        )?.name;
+
+        if (isCompareSummary) {
+          if (panel.chartPlane.chartType === 'HISTOGRAM' || panel.chartPlane.chartType === 'BAR') {
+            panel.chartPlane.column = '_difference';
+          } else if (panel.chartPlane.chartType === 'LINE') {
+            panel.chartPlane.xColumn = compareGroupColumn ?? null;
+            panel.chartPlane.yColumn = '_difference';
+          }
+        }
         if (panel.chartPlane.column && !columns.has(panel.chartPlane.column)) {
           panel.chartPlane.column = numericColumns[0] ?? null;
         }

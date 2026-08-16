@@ -268,6 +268,11 @@ export class ChartPlane implements Updatable {
       .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
   }
 
+  _accessibleColor(index: number): string {
+    if (this.colorblindMode === 'none' || this.colorblindMode === false) return this.color;
+    return `#${categoricalColor(index, index, this.colorblindMode).toString(16).padStart(6, '0')}`;
+  }
+
   _drawBarChart(ctx: CanvasRenderingContext2D, w: number, h: number): void {
     const values = this._numericValues();
     const labels =
@@ -339,7 +344,7 @@ export class ChartPlane implements Updatable {
     this._drawAxes(ctx, rect, xName ?? 'index', yName, min, max);
 
     ctx.beginPath();
-    ctx.strokeStyle = this.color;
+    ctx.strokeStyle = this._accessibleColor(0);
     ctx.lineWidth = 3;
     for (let i = 0; i < ys.length; i++) {
       const x = rect.x + (i / Math.max(1, ys.length - 1)) * rect.width;
@@ -350,7 +355,7 @@ export class ChartPlane implements Updatable {
     ctx.stroke();
 
     // Points.
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = this._accessibleColor(1);
     for (let i = 0; i < ys.length; i++) {
       const x = rect.x + (i / Math.max(1, ys.length - 1)) * rect.width;
       const y = rect.y + rect.height - ((ys[i] - min) / range) * rect.height;
@@ -384,7 +389,7 @@ export class ChartPlane implements Updatable {
       const barH = (counts[i] / maxCount) * rect.height;
       const x = rect.x + i * barWidth + barWidth * 0.1;
       const y = rect.y + rect.height - barH;
-      ctx.fillStyle = this.color;
+      ctx.fillStyle = this._accessibleColor(0);
       ctx.globalAlpha = 0.8;
       ctx.fillRect(x, y, barWidth * 0.8, barH);
       ctx.globalAlpha = 1;
@@ -414,7 +419,7 @@ export class ChartPlane implements Updatable {
 
     const yFor = (v: number): number => rect.y + rect.height - ((v - min) / range) * rect.height;
 
-    ctx.strokeStyle = this.color;
+    ctx.strokeStyle = this._accessibleColor(0);
     ctx.lineWidth = 3;
     // Whiskers.
     ctx.beginPath();
@@ -423,7 +428,7 @@ export class ChartPlane implements Updatable {
     ctx.stroke();
 
     // Box.
-    ctx.fillStyle = 'rgba(0, 255, 204, 0.25)';
+    ctx.fillStyle = `${this._accessibleColor(0)}40`;
     ctx.fillRect(cx - boxW / 2, yFor(q3), boxW, yFor(q1) - yFor(q3));
     ctx.strokeRect(cx - boxW / 2, yFor(q3), boxW, yFor(q1) - yFor(q3));
 
@@ -483,10 +488,19 @@ export class ChartPlane implements Updatable {
       for (let j = 0; j < size; j++) {
         const corr = matrix[i][j];
         const intensity = Math.abs(corr);
-        const r = corr < 0 ? Math.floor(255 * intensity) : 0;
-        const g = corr >= 0 ? Math.floor(255 * intensity) : 0;
-        const b = Math.floor(100 * (1 - intensity));
-        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        if (this.colorblindMode !== 'none' && this.colorblindMode !== false) {
+          const color = categoricalColor(corr < 0 ? 1 : 0, corr < 0 ? 1 : 0, this.colorblindMode)
+            .toString(16)
+            .padStart(6, '0');
+          ctx.fillStyle = `#${color}${Math.round(Math.max(0.2, intensity) * 255)
+            .toString(16)
+            .padStart(2, '0')}`;
+        } else {
+          const r = corr < 0 ? Math.floor(255 * intensity) : 0;
+          const g = corr >= 0 ? Math.floor(255 * intensity) : 0;
+          const b = Math.floor(100 * (1 - intensity));
+          ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        }
         ctx.fillRect(rect.x + j * cell, rect.y + i * cell, cell - 2, cell - 2);
       }
     }

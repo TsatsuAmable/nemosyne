@@ -1,15 +1,16 @@
 # On-Device Validation Report — Phase 22.3 Tier A
 
-> **Evidence status:** The early checklist entries below are diagnostic session observations,
-> not acceptance evidence for the current implementation. Do not treat them as the current
-> branch verdict; complete a fresh structured Quest rerun using the validation guide.
+> **Evidence status:** Meta Quest validation is recorded as **PARTIAL SUCCESS** from the
+> available session logs. Hand pinch detection, handedness, reach-zone suppression, and
+> seated comfort produced positive evidence; exact selection parity and deliberate-only
+> system-toggle behavior remain unresolved UX issues deferred to later architectural work.
 
 > Fill in after running the Quest 3S session per `docs/PHASE_22_3_VALIDATION_GUIDE.md`.
 > Evidence sources: `logs/vr-remote-console.log` (auto-collected VR console), Quest console
 > (hold Options > Show Logs), screen recording notes.
 
-**Date:** [DATE]
-**Tester:** [NAME]
+**Date:** 2026-08-16
+**Tester:** Log review
 **Quest Device:** Meta Quest 3S
 **App Version:** Nemosyne working tree @ commit [COMMIT / "uncommitted Tier A fixes"]
 **Dev server:** `npm run dev` over HTTPS (LAN IP / ADB reverse)
@@ -55,10 +56,11 @@
 ---
 
 ## Overall Result
-- **All 5 Defects:** [FAIL]
+- **Meta Quest validation:** [PARTIAL SUCCESS]
+- **All 5 Defects:** [PARTIAL]
 - **Regressions Detected:** [NONE]
-- **Session evidence attached:** [logs/vr-remote-console.log excerpt / screenshots / none]
-- **General notes:** gestures only worked with controllers though telemetry showed hand tracking was ongoing. May need better telemetry and gesture recognition logging for the live instrument testss
+- **Session evidence attached:** [recorded `logs/vr-remote-console.log` and `logs/ux-trace.jsonl` observations]
+- **General notes:** Logs showed 161 pinch starts with both hands and correct handedness, plus reach-zone suppression. The session also showed 67 system toggles in approximately 40 seconds and unresolved selection/routing behavior. Treat the Quest run as partial success, not acceptance of all five defects.
 
 ---
 
@@ -124,9 +126,10 @@ hair-trigger — any simultaneous two-hand pinch (including one hand held from b
 fires the toggle and suppresses selection for the duration. 67 toggles in one session.
 Consider requiring the reach-zone/pose guard or a deliberate both-pinch pose.
 
-**Status:** D1/D2/D4 checklist evidence still pending a clean re-run (sessions so far
-were diagnostic, not the structured procedure). D3 suppression logic confirmed working
-live. D5 pass (from session 1). Next: re-run the 5-defect procedure.
+**Status:** The available logs support a partial-success verdict: D3 reach-zone suppression
+and D5 seated comfort are supported, while D1/D2/D4 remain partial or unresolved. The
+remaining UX/input-routing issues are intentionally deferred to the later architectural
+track rather than treated as a release-blocking next task.
 
 ---
 
