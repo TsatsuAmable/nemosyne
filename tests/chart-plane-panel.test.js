@@ -60,6 +60,49 @@ describe('ChartPlanePanel', () => {
     expect(panel.chartPlane.colorblindMode).toBe('tritanopia');
   });
 
+  it.each(['BAR', 'LINE', 'HISTOGRAM', 'BOX', 'CORRELATION'])(
+    'redraws an existing %s chart when colorblind mode changes',
+    (chartType) => {
+      const chartDataset =
+        chartType === 'LINE'
+          ? new Dataset(
+              'Line',
+              [
+                { name: 'time', type: ColumnType.TEMPORAL },
+                { name: 'value', type: ColumnType.NUMERIC },
+              ],
+              [
+                { time: '2026-01-01T00:00:00Z', value: 1 },
+                { time: '2026-01-01T01:00:00Z', value: 2 },
+              ]
+            )
+          : chartType === 'CORRELATION'
+            ? new Dataset(
+                'Correlation',
+                [
+                  { name: 'a', type: ColumnType.NUMERIC },
+                  { name: 'b', type: ColumnType.NUMERIC },
+                ],
+                [
+                  { a: 1, b: 2 },
+                  { a: 2, b: 4 },
+                  { a: 3, b: 6 },
+                ]
+              )
+            : dataset;
+      const panel = new ChartPlanePanel(cameraGroup, chartDataset, {
+        chartType,
+        column: 'value',
+      });
+      const before = panel.chartPlane.texture.version;
+
+      panel.applyAccessibility({ textScale: 1, highContrast: false, colorblindMode: 'protanopia' });
+
+      expect(panel.chartPlane.colorblindMode).toBe('protanopia');
+      expect(panel.chartPlane.texture.version).toBeGreaterThan(before);
+    }
+  );
+
   it('updates the chart when the dataset changes', () => {
     const panel = new ChartPlanePanel(cameraGroup, dataset, {
       chartType: 'BAR',

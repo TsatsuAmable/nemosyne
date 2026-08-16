@@ -36,4 +36,42 @@ describe('SystemGestureDetector unified gate', () => {
     detector.update(session);
     expect(toggle).toHaveBeenCalledOnce();
   });
+
+  it('gives a panel-targeted controller grip precedence to panel interaction', () => {
+    const pointers = registry([], [true, true]) as unknown as {
+      isBestPointerOverPanel: ReturnType<typeof vi.fn>;
+    };
+    pointers.isBestPointerOverPanel.mockReturnValue(true);
+    const detector = new SystemGestureDetector(pointers as never, { toggleCooldownMs: 0, now: () => 0 });
+    const toggle = vi.fn();
+    detector.onSystemToggle = toggle;
+    const session = {
+      inputSources: [
+        { gamepad: { buttons: [{}, { pressed: true }] } },
+        { gamepad: { buttons: [{}, { pressed: true }] } },
+      ],
+    } as unknown as XRSession;
+
+    const result = detector.update(session);
+
+    expect(result.suppressSelection).toBe(false);
+    expect(toggle).not.toHaveBeenCalled();
+  });
+
+  it('suppresses hand selection only for an un-targeted both-hand pinch', () => {
+    let now = 0;
+    const pointers = registry([{ pinched: true }, { pinched: true }]) as unknown as {
+      isBestPointerOverPanel: ReturnType<typeof vi.fn>;
+    };
+    const detector = new SystemGestureDetector(pointers as never, {
+      bothPinchHoldMs: 0,
+      toggleCooldownMs: 0,
+      now: () => now,
+    });
+
+    expect(detector.update(null).suppressSelection).toBe(true);
+    pointers.isBestPointerOverPanel.mockReturnValue(true);
+    now = 1;
+    expect(detector.update(null).suppressSelection).toBe(false);
+  });
 });
