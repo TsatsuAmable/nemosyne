@@ -849,7 +849,22 @@ export class World {
   }
 
   _updateDashboardDatasets(dataset: Dataset | null | undefined): void {
-    this.rendererLifecycle.updateDashboardDatasets(dataset);
+    for (const entry of this.dashboardPanels ?? []) {
+      const panel = entry.panel;
+      if (dataset && panel.chartPlane) {
+        const numericNames = dataset.numericColumns.map((column) => column.name);
+        if (panel.chartPlane.column && !dataset.columns.some((column) => column.name === panel.chartPlane.column)) {
+          panel.chartPlane.column = numericNames[0] ?? null;
+        }
+        if (panel.chartPlane.xColumn && !dataset.columns.some((column) => column.name === panel.chartPlane.xColumn)) {
+          panel.chartPlane.xColumn = dataset.temporalColumns[0]?.name ?? null;
+        }
+        if (panel.chartPlane.yColumn && !dataset.columns.some((column) => column.name === panel.chartPlane.yColumn)) {
+          panel.chartPlane.yColumn = numericNames[0] ?? null;
+        }
+      }
+      entry.panel.setDataset(dataset);
+    }
   }
 
   _wireArtifactInteraction(dracoNode: DracoTopologyNode): void {
