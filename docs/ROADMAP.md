@@ -4,12 +4,13 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-16 after running the validation gates on `accissibility-fix-new-push`.
-- **Repository state:** working tree is clean on `accissibility-fix-new-push`, tracking
-  `origin/accissibility-fix-new-push`.
-- **Last gate result:** typecheck passed; lint passed with 0 errors and 205 warnings; production
-  build passed. Vitest coverage did not complete within five minutes. Rust tests were blocked because
-  `cargo` is not installed in the environment.
+- **Last updated:** 2026-08-16 after investigating the Vitest coverage timeout on
+  `accissibility-fix-new-push`.
+- **Repository state:** working tree has test-environment fixes on `accissibility-fix-new-push`,
+  tracking `origin/accissibility-fix-new-push`.
+- **Last gate result:** targeted typecheck/lint passed; full Vitest coverage passed with 189 files,
+  1,333 tests, and 84.38% statements in 267 seconds. The prior timeout was suite duration, not a
+  hang. Production build was not rerun. Rust tests remain blocked because `cargo` is unavailable.
 - **On-device rerun #2 (2026-08-15 15:24):** session ran ~5 min but `logs/ux-trace.jsonl` captured ONLY the meta record. Root cause: scene contains `THREE.Sprite` interactables (label sprites); recorder's raycaster never set `.camera`, and `Sprite.raycast` dereferences `raycaster.camera.matrixWorld` after a console.error-only guard → TypeError every frame → recorder self-disabled at 11 errors (`UXTraceRecorder.ts` update guard). Full stack + paired `THREE.Sprite: "Raycaster.camera"` errors in `logs/vr-remote-console.log`. Validation report NOT yet filled. **Fix applied:** `_raycastTargets` now sets `raycaster.camera`, filters null meshes; `_buildContext` degrades per-section (head/gaze, pointer, hands) with one-time warn instead of throwing; regression test with Sprite + null-mesh interactables (13/13 pass).
 - **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges (with actual routing decision), selection hit/miss, gestures, system toggles fired/suppressed, wheel open/close, and tour steps with head-gaze raycast target + pointer-ray drift, sampled at 5 Hz. Streams to `/__ux-trace` (vite serve plugin) → `logs/ux-trace.jsonl`; analyze with `node scripts/analyze-ux-trace.mjs --timeline`. Auto-on in dev, self-disables on 404. Wired in `src/main.ts` via taps in InputRouter/SelectionDispatcher/SystemGestureDetector/HandWheelMenu/GuidedTour. Pipeline smoke-verified 2026-08-15. **Next trace expansion:** capture all ray-touched panels, buttons, data elements, and world-space targets, including ordered intersections, stable target identity/type, hit point/distance, active pinch/gesture, routing decision, and head/pointer world-space context.
 - **System-toggle tuning (2026-08-16):** both-hand pinch requires a 400 ms hold, skips panel-targeted rays, and has a 1 s cooldown. Quest logs support partial success: 161 pinch starts, correct handedness, and reach-zone suppression were observed, but 67 toggles occurred in ~40 seconds and selection/routing UX remains unresolved. Those UX issues are deferred to the later architectural track.

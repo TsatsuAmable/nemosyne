@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { downloadDataUrl, downloadText } from '../src/utils/Download.ts';
 
 describe('downloadDataUrl', () => {
@@ -8,6 +8,11 @@ describe('downloadDataUrl', () => {
 
   beforeEach(() => {
     clickedAnchors = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+      event.preventDefault();
+      this.dispatchEvent(event);
+    });
     // Capture clicks on anchors created by the helper.
     document.addEventListener(
       'click',
@@ -23,6 +28,7 @@ describe('downloadDataUrl', () => {
 
   afterEach(() => {
     clickedAnchors = [];
+    vi.restoreAllMocks();
   });
 
   it('creates an anchor with href and download attributes', async () => {
@@ -54,6 +60,18 @@ describe('downloadDataUrl', () => {
 });
 
 describe('downloadText', () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+      event.preventDefault();
+      this.dispatchEvent(event);
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('creates a blob and triggers a download', async () => {
     let capturedHref = '';
     let capturedDownload = '';
