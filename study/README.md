@@ -1,6 +1,6 @@
 # Study package overview
 
-Status: Draft package — authoritative study governance is defined here and in the companion study files under this directory.
+Status: Draft package — canonical structure, not yet frozen for collection.
 
 This directory is the canonical source for the study protocol and operational governance associated with the Nemosyne experimental work. It is intentionally separate from the product-roadmap and engineering documentation in [docs/ROADMAP.md](../ROADMAP.md).
 
@@ -34,5 +34,12 @@ A study package is considered frozen only after:
 - consent and data dictionary are aligned to the actual recorded fields
 - the version file is populated with the build and dataset identity
 
+The intended design is a 2D-versus-VR crossover. It remains draft until assignment, estimand,
+task artifact, order/carry-over handling, exclusions, missing-data rules, multiplicity policy, and
+Atlas Core provider/version are fixed. Atlas Core is part of the Stable Alpha analytical substrate
+and must be identical across both study conditions. Richer adaptive guidance and exploratory
+analytical structures remain out of scope unless separately versioned and registered.
+
 ## Legacy note
-Earlier draft files in the root [docs](../) directory were superseded by this package and should be treated as historical notes only. They are not canonical.
+Earlier draft files are archived under [docs/archive/study-drafts](../archive/study-drafts/)
+and should be treated as historical notes only. They are not canonical.
