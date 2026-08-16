@@ -110,4 +110,15 @@ describe('ChartPlanePanel', () => {
     panel.update();
     expect(panel.texture.version).toBeGreaterThanOrEqual(before);
   });
+
+  it('disposes the chart GPU resources with the panel', () => {
+    const panel = new ChartPlanePanel(cameraGroup, dataset, { chartType: 'BAR', column: 'value' });
+    const textureDispose = panel.chartPlane.texture.dispose;
+    const materialDispose = panel.chartPlane.material.dispose;
+    panel.dispose();
+    expect(panel.chartPlane.canvas.width).toBe(1);
+    expect(panel.chartPlane.canvas.height).toBe(1);
+    expect(panel.chartPlane.texture.dispose).toBe(textureDispose);
+    expect(panel.chartPlane.material.dispose).toBe(materialDispose);
+  });
 });

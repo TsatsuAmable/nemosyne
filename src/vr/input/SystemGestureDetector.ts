@@ -23,6 +23,8 @@ export class SystemGestureDetector {
   private _lastSuppressedBothPinched = false;
   private _bothPinchStartAt: number | null = null;
   private _lastBothPinchToggleAt = -Infinity;
+  private _lastSystemToggleAt = -Infinity;
+  private _gripStartAt: number | null = null;
   private readonly _bothPinchHoldMs: number;
   private readonly _toggleCooldownMs: number;
   private readonly _now: () => number;
@@ -95,12 +97,14 @@ export class SystemGestureDetector {
     if (
       bothPinched &&
       !this.registry.lastBothPinched &&
-      now - this._lastBothPinchToggleAt >= this._toggleCooldownMs
+      now - this._lastBothPinchToggleAt >= this._toggleCooldownMs &&
+      now - this._lastSystemToggleAt >= this._toggleCooldownMs
     ) {
       console.log('[SystemGestureDetector] system toggle fired (both-pinch start)');
       this.onTrace?.({ kind: 'both-pinch' });
       this.onSystemToggle?.();
       this._lastBothPinchToggleAt = now;
+      this._lastSystemToggleAt = now;
     }
     this.registry.lastBothPinched = bothPinched;
 
@@ -123,12 +127,19 @@ export class SystemGestureDetector {
     // one controller is available, a single grip works as a fallback.
     const bothGrips = gripStates.length >= 2 && gripStates.every(Boolean);
     const singleGrip = gripStates.length === 1 && gripStates[0];
-    if ((bothGrips || singleGrip) && !this._lastGripSystemToggle && this.onSystemToggle) {
+    const rawGrip = bothGrips || singleGrip;
+    if (rawGrip && !pointerOverPanel) this._gripStartAt ??= now;
+    else this._gripStartAt = null;
+    // Keep the one-controller fallback responsive; paired grips still share the
+    // panel, release, and cooldown gates with the hand gesture.
+    const gripHeld = rawGrip && this._gripStartAt !== null;
+    if (gripHeld && !this._lastGripSystemToggle && this.onSystemToggle && now - this._lastSystemToggleAt >= this._toggleCooldownMs) {
       console.log('[SystemGestureDetector] system toggle fired (controller grips)');
       this.onTrace?.({ kind: 'grips' });
       this.onSystemToggle();
+      this._lastSystemToggleAt = now;
     }
-    this._lastGripSystemToggle = bothGrips || singleGrip;
+    this._lastGripSystemToggle = gripHeld;
 
     return { bothPinched, suppressSelection };
   }
