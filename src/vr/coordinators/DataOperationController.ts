@@ -106,7 +106,7 @@ export class DataOperationController {
 
   /**
    * Apply a named operation to the current transformed dataset and artifact.
-   * Supported: 'filter', 'sort', 'aggregate', 'cluster', 'hierarchical',
+   * Supported: 'filter', 'sort', 'aggregate', 'compare', 'cluster', 'hierarchical',
    * 'density', 'anomaly', 'timeSlice'.
    */
   apply(operation: VisualOperation | string): void {

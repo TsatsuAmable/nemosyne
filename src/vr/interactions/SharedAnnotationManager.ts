@@ -238,7 +238,7 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
       const annotation = data;
       this.annotations.set(annotation.id, annotation);
       this._renderAnnotationMesh(annotation);
-    } else if (topic === 'annotations_remove' && typeof data?.id === 'string') {
+    } else if (topic === 'annotations_remove' && isSafeId(data?.id)) {
       const id = data.id as string;
       this.annotations.delete(id);
       const mesh = this.annotationMeshes.get(id);
@@ -250,9 +250,15 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
     } else if (topic === 'bookmarks_add' && data && isBookmark(data) && (this.bookmarks.has(data.id) || this.bookmarks.size < MAX_REMOTE_BOOKMARKS)) {
       const bookmark = data;
       this.bookmarks.set(bookmark.id, bookmark);
-    } else if (topic === 'bookmarks_remove' && typeof data?.id === 'string') {
-      this.bookmarks.delete(data.id as string);
-    } else if (topic === 'tour_step' && typeof data?.stepIndex === 'number') {
+    } else if (topic === 'bookmarks_remove' && isSafeId(data?.id)) {
+      this.bookmarks.delete(data.id);
+    } else if (
+      topic === 'tour_step' &&
+      typeof data?.stepIndex === 'number' &&
+      Number.isInteger(data.stepIndex) &&
+      data.stepIndex >= 0 &&
+      isSafeId(data.tourId)
+    ) {
       this.currentTourStep = data.stepIndex;
       this.dispatchEvent({ type: 'remoteTourStep', detail: data });
     }

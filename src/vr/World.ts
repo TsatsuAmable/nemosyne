@@ -1200,6 +1200,11 @@ export class World {
     this.handWheelMenu?.applyAccessibility?.(options);
     this.engine.input.setDwellSelection?.(options.dwellSelection ?? false);
 
+    if (this.dracoNode && this.dracoNode.translatorOptions.colorblindMode !== options.colorblindMode) {
+      this.dracoNode.translatorOptions.colorblindMode = options.colorblindMode;
+      this.dracoNode.reSolveAndSynthesize();
+    }
+
     // Remap world theme accent colors for colorblind modes.
     if (options.colorblindMode && options.colorblindMode !== 'none') {
       this.engine.theme.applyColorblindMode?.(options.colorblindMode as string);
@@ -1282,6 +1287,9 @@ export class World {
         break;
       case 'timeSlice':
         applySlice(this.dracoNode.artifact!, transformedDataset, this._originalDataset ?? transformedDataset);
+        break;
+      case 'compare':
+        // The dataset re-solve is the visual representation for Compare.
         break;
       case 'reset':
       default:
@@ -1374,6 +1382,10 @@ export class World {
       (payload: unknown) => {
         const { operation, rowCount } = payload as { operation: string; rowCount?: number };
         this.telemetryCollector?.recordOperation?.(operation);
+        if (operation === 'compare') {
+          // Compare changes the dataset shape, so rebuild the Draco artefact.
+          this._restoreDataset(this._transformedDataset, operation);
+        }
         this._updateDashboardDatasets(this._transformedDataset);
         if (this.tdaRecompute && operation !== 'anomaly') this.tdaRecompute();
         this._updateOperationLog();

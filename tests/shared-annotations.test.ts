@@ -95,6 +95,35 @@ describe('Sprint 10B.5: Shared Annotations, Bookmarks & Synchronized Tours', () 
     expect(annotationManager.bookmarks.size).toBe(0);
   });
 
+  it('rejects malformed removal and tour deltas', () => {
+    annotationManager.handleRemoteDelta('annotations_remove', { id: '' });
+    annotationManager.handleRemoteDelta('bookmarks_remove', { id: 'x'.repeat(129) });
+    annotationManager.handleRemoteDelta('tour_step', { stepIndex: -1, tourId: 'tour' });
+    annotationManager.handleRemoteDelta('tour_step', { stepIndex: 1.5, tourId: 'tour' });
+    annotationManager.handleRemoteDelta('tour_step', { stepIndex: 2, tourId: '' });
+
+    expect(annotationManager.currentTourStep).toBe(0);
+  });
+
+  it('drops oversized and rate-limited remote deltas before rendering', () => {
+    const oversizedText = 'x'.repeat(20_000);
+    annotationManager.handleRemoteDelta('annotations_add', {
+      id: 'oversized',
+      position: [0, 0, 0],
+      text: oversizedText,
+      authorId: 'peer',
+      authorName: 'Peer',
+      timestamp: Date.now(),
+    });
+    expect(annotationManager.annotations.size).toBe(0);
+
+    for (let index = 0; index < 101; index += 1) {
+      annotationManager.handleRemoteDelta('tour_step', { stepIndex: index, tourId: 'tour' });
+    }
+
+    expect(annotationManager.currentTourStep).toBe(99);
+  });
+
   it('blocks observer annotation and bookmark mutations', () => {
     const observer = new NetworkManager({ role: 'observer' });
     const manager = new SharedAnnotationManager(observer);
