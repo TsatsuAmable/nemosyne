@@ -55,6 +55,7 @@ export class MovablePanel {
 
   private _matrix: THREE.Matrix4;
   private _quat: THREE.Quaternion;
+  private _disposed = false;
 
   constructor(cameraGroup: THREE.Group, options: MovablePanelOptions = {}) {
     const {
@@ -331,6 +332,17 @@ export class MovablePanel {
       this._resizeMinimizeButton();
       this.render();
     }
+  }
+
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    this.mesh.parent?.remove(this.mesh);
+    this.mesh.geometry.dispose();
+    this.material.dispose();
+    this.texture.dispose();
+    this.canvas.width = 1;
+    this.canvas.height = 1;
   }
 
   render() {

@@ -1,4 +1,5 @@
 \# Nemosyne — Roadmap to Stable Release  
+\> **Historical planning document.** `docs/ROADMAP.md` and `docs/study/` are authoritative.
 \#\#\# (MVP feature set \+ NFRs \+ UX sufficient to make the core hypothesis seamlessly testable)
 
 \*\*Revision note:\*\* this version incorporates a definitional correction to what "Stable"  
@@ -35,7 +36,7 @@ disposed.
 
 \*\*Framing.\*\* "Stable release" here is defined narrowly and deliberately: not feature-  
 complete, not scaled, not collaboration-ready — the smallest, most honest version of  
-Nemosyne capable of running one real study (2D vs. desktop-3D vs. VR-3D on a defined task)  
+Nemosyne capable of running one real study (2D vs. VR-3D on a defined task)
 without the \*infrastructure itself\* being a confound. A crash, a security hole, a UI bug  
 that silently excludes colorblind participants, or a wheel menu that double-fires under  
 observation are not just quality issues here — they invalidate any data collected on top  
@@ -207,7 +208,7 @@ question is "what does the flagship task need," not "what has been built."\*
   explicitly excluded from MVP scope
 
 \*\*Missing core capability:\*\*  
-\- 🔲 \*\*First-class Compare operation.\*\* Currently absent as a dedicated operation  
+\- ✅ \*\*First-class Compare operation.\*\* Implemented in `7649446` as a dedicated
   (verified: \`DatasetOperations.ts\` has diff-adjacent ops but no unified compare-selected-  
   vs-baseline capability). This is not a nice-to-have — "Find the Fraud" and most  
   plausible study tasks are fundamentally comparison tasks (selected vs. population,  
@@ -219,12 +220,12 @@ question is "what does the flagship task need," not "what has been built."\*
 
 \*\*Accessibility (promoted from "nice to have" to MVP because it's a validity issue, not  
 just a UX issue):\*\*  
-\- 🔲 \*\*Colorblind data-encoding gap.\*\* \`categoricalColor()\` in \`Encodings.ts\` never  
-  applies the colorblind remap; default palette pairs red/green. If the study recruits a  
+\- ✅ \*\*Colorblind data encoding.\*\* Implemented in `7649446`;
+  `categoricalColor()` uses a dedicated colorblind-safe palette when the mode is active. If the study recruits a
   representative sample and doesn't screen for color vision, this isn't just an  
   accessibility gap — it's a confound that would silently degrade a subset of  
   participants' task performance for reasons unrelated to the variable being studied.  
-  Fix: dedicated colorblind-safe categorical palette (Okabe–Ito), not just wiring the  
+  The implementation uses a dedicated colorblind-safe categorical palette (Okabe–Ito), not just wiring the
   existing 4-role \`remapColor()\` into a 6+-category use case (confirmed that would still  
   collapse same-hue-family categories).  
 \- 🔲 Text legibility pass (frosted panel backing, minimum contrast) — same logic: illegible  
@@ -426,11 +427,11 @@ Conflating them was the gap in the prior revision — Gate 2.5 answers "can I wa
 trial," Gate 5 answers "do fifty trials constitute an experiment."
 
 \- 🔲 \*\*Study/trial data model.\*\* Explicit \`participantId\` (pseudonymous, e.g. \`P014\`, not  
-  a real identifier — see governance below), \`trialId\`, \`condition\` (2D / desktop-3D /  
+  a real identifier — see governance below), \`trialId\`, \`condition\` (2D / VR-3D),
   VR-3D), \`taskId\`, \`protocolVersion\`. None of this exists today; it needs to be added as  
   a first-class layer above the existing per-session save format in  
   \`WorldSessionController\`, not folded into it.  
-\- 🔲 \*\*Condition counterbalancing.\*\* If every participant runs 2D → desktop-3D → VR in  
+\- 🔲 \*\*Condition counterbalancing.\*\* If every participant runs 2D → VR in
   the same order, practice effects confound the result indistinguishably from a real  
   spatial-representation effect. Needs an assignment mechanism (e.g. Latin square across  
   participants), recorded per trial so order can be checked as a covariate later.  
@@ -452,7 +453,7 @@ trial," Gate 5 answers "do fifty trials constitute an experiment."
   correlated after the fact without manual reconciliation.  
 \- 🔲 \*\*Canonical 2D control, as its own implementation milestone — not an afterthought.\*\*  
   The 2D condition needs the \*same\* dataset, task wording, scoring rubric, and analytical  
-  semantics as the VR/desktop-3D conditions, built and versioned alongside them, not  
+  semantics as the VR condition, built and versioned alongside it, not
   assembled ad hoc when the study is about to run. Without this, the comparison is  
   "Nemosyne vs. some other tool," not "Nemosyne vs. 2D" — a materially weaker claim.  
 \- 🔲 \*\*Experimental confound register.\*\* A living document (separate from, but  
@@ -509,7 +510,7 @@ rehearsed:
   build artifact, defined network conditions) → fresh participant → researcher observer  
   joins → full trial (start, task, Compare, capture finding, an induced-error recovery,  
   session save) → resume from saved session → export the trial record → delete-participant  
-  path exercised → repeat on 2D, repeat on desktop-3D, repeat on Quest hardware.
+  path exercised → repeat on 2D, repeat on Quest hardware.
 
 \*\*Frozen experiment package.\*\* The rehearsal above is only reproducible if the protocol  
 itself is versioned and frozen alongside the software, not assembled from whatever  
@@ -634,4 +635,3 @@ prematurely and then have Gates 3/5 invalidate it. Gate 6 is last by definition 
 freeze and rehearsal gate, not build work, and exists specifically so the first real study  
 session is the boring, well-rehearsed one rather than the first time all the pieces run  
 together.
-

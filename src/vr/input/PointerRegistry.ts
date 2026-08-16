@@ -120,6 +120,14 @@ export class PointerRegistry {
     return null;
   }
 
+  isBestPointerOverPanel(): boolean {
+    const ray = this.getBestPointerRay();
+    if (!ray || !this.engine.input?.raycaster || !this.engine.input.raycastPanels) return false;
+    this.engine.input.raycaster.ray.copy(ray);
+    const panelHit = this.engine.input.raycastPanels();
+    return panelHit !== null && panelHit !== undefined;
+  }
+
   /**
    * Return the pointer object that currently owns the best ray.
    */

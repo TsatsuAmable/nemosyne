@@ -47,6 +47,7 @@ export class VRMenu extends MovablePanel {
   onDensityCluster?: VRMenuCallbacks['onDensityCluster'];
   onAnomaly?: VRMenuCallbacks['onAnomaly'];
   onTimeSlice?: VRMenuCallbacks['onTimeSlice'];
+  onCompare?: VRMenuCallbacks['onCompare'];
   onReset?: VRMenuCallbacks['onReset'];
 
   portalsEnabled: boolean;
@@ -70,6 +71,7 @@ export class VRMenu extends MovablePanel {
       onDensityCluster,
       onAnomaly,
       onTimeSlice,
+      onCompare,
       onReset,
       portalsEnabled = true,
     } = options;
@@ -97,6 +99,7 @@ export class VRMenu extends MovablePanel {
     this.onDensityCluster = onDensityCluster;
     this.onAnomaly = onAnomaly;
     this.onTimeSlice = onTimeSlice;
+    this.onCompare = onCompare;
     this.onReset = onReset;
     this.portalsEnabled = portalsEnabled;
     this.liveConnected = false;
@@ -136,6 +139,7 @@ export class VRMenu extends MovablePanel {
       { type: 'density', label: 'Density cluster (DBSCAN)' },
       { type: 'anomaly', label: 'Highlight outliers' },
       { type: 'timeSlice', label: 'Time slice: last 50%' },
+      { type: 'compare', label: 'Compare first two groups' },
       { type: 'reset', label: 'Reset transforms' },
     ];
     ops.forEach((op, idx) => {
@@ -342,6 +346,10 @@ export class VRMenu extends MovablePanel {
         }
         if (btn.type === 'timeSlice') {
           this.onTimeSlice?.();
+          return true;
+        }
+        if (btn.type === 'compare') {
+          this.onCompare?.();
           return true;
         }
         if (btn.type === 'reset') {

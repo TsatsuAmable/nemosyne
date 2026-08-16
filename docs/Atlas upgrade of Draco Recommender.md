@@ -10,6 +10,29 @@
 **Target:** Stable research release  
 **Primary architectural change:** Reposition Draco from a visual-metaphor recommender to an interactive spatial analytical intelligence layer.
 
+### Repository alignment (2026-08-15)
+
+This document is a proposed V5 architecture, not a record of shipped capability. The
+canonical implementation status is `docs/ROADMAP.md`; its phase checkboxes and validation
+evidence take precedence over the epics and migration phases described here.
+
+- **Phase 22.3:** Started in the repository. Current work is low-strain UX, input correctness,
+  onboarding wiring, accessibility, and analysis completeness. These improvements support the
+  Atlas principles of researcher control, legibility, and reproducible interaction, but do not
+  constitute Atlas.
+- **Phase 21.3:** Started at the readiness stage and gated by the B2 load-test staircase.
+  Rust scene-graph migration and production command-buffer use remain unimplemented until
+  measured `logs/loadtest-results.jsonl` evidence supports the decision.
+- **Draco status:** The existing constraint engine and VR translator remain the current Draco
+  Embodiment Engine v1. Atlas Phase 0 is therefore a planning constraint: do not expand visual
+  metaphor rules while DatasetSpace and analytical recommendation boundaries are being defined.
+- **DatasetSpace and Atlas epics:** Proposed follow-on architecture. No new `DatasetSpace`,
+  `Atlas`, or analytical guidance API should be marked implemented without a
+  corresponding roadmap entry, source evidence, tests, and validation result.
+
+The alignment rule is: roadmap state records what exists and what is verified; this Atlas
+document records the intended architectural destination and acceptance model.
+
 ---
 
 ## **1\. Executive product decision**
@@ -24,7 +47,7 @@ The existing Draco implementation is useful infrastructure, but its responsibili
 
 The product needs to become:
 
-> dataset → analytical model → persistent spatial representation → discovered structures → researcher interaction/context → Draco recommendation → VR embodiment
+> dataset → analytical model → persistent spatial representation → discovered structures → researcher interaction/context → Atlas guidance → VR embodiment
 
 This is not a cosmetic refactor. It is a change in the product's core analytical model.
 
@@ -459,21 +482,21 @@ The existing implementation should initially be treated as a lightweight live-VR
 
 ---
 
-# **8\. Epic C: Draco 2.0**
+# **8\. Epic C: Atlas analytical guidance**
 
 ## **C1. Change Draco's responsibility**
 
-The new Draco API should not return only:
+The new analytical API should not return only:
 
 DracoSpec
 
-It should return:
+It should return an `Atlas` guidance object:
 
-DracoRecommendation
+Atlas
 
 with:
 
-interface DracoRecommendation {  
+interface Atlas {
   id: string;
 
   target: RecommendationTarget;
@@ -531,7 +554,7 @@ DracoSpec
 
 Target:
 
-DracoRecommendation  
+Atlas
         ↓  
 EmbodimentConstraints  
         ↓  
@@ -711,7 +734,7 @@ interface ResearchContext {
   observerMode?: boolean;  
 }
 
-Draco recommendations then depend on:
+Atlas recommendations then depend on:
 
 DatasetSpace  
 \+  
@@ -969,7 +992,102 @@ Nemosyne should retain that useful determinism while extending Draco's scope.
 
 ---
 
-# **22\. Non-functional requirements**
+# **22\. Research-backed statistical execution**
+
+Atlas statistical calculations should execute in Rust/WASM through maintained statistical
+libraries wherever a suitable implementation exists. TypeScript should own request validation,
+rendering, and fallback orchestration, not duplicate statistical formulas. An external reference
+implementation is a validation oracle only; it is not the production execution path.
+
+## **22.1 Method policy**
+
+Methods are selected by research question and declared with assumptions, estimand, missing-data
+policy, seed, resampling unit, numerical precision, and evidence status:
+
+| Question | Initial method family | Published technique reference | Atlas status |
+|---|---|---|---|
+| Summary and uncertainty | Robust summaries, bootstrap intervals | Efron (1979), *Bootstrap Methods: Another Look at the Jackknife* | Descriptive/exploratory |
+| Multiple comparisons | Benjamini-Hochberg false discovery rate | Benjamini & Hochberg (1995) | Validation before confirmatory use |
+| Missing data | Explicit missingness patterns; multiple-imputation contract | Rubin (1987), *Multiple Imputation for Nonresponse in Surveys* | Study/offline analysis until validated |
+| Clustering | K-means, hierarchical, DBSCAN with stability diagnostics | Hennig (2007), *What are the True Clusters?* | Exploratory unless externally validated |
+| Dimensionality reduction | PCA/MDS baseline; UMAP as sensitivity analysis | McInnes, Healy & Melville (2018), UMAP | Exploratory |
+| TDA | Mapper, Betti-0, persistence with stability checks | Chazal et al., persistence-diagram stability literature | Exploratory/not validated |
+| Effect sizes | Standardized mean differences and confidence intervals | Lakens (2013), *Calculating and Reporting Effect Sizes* | Confirmatory only under frozen protocol |
+
+No visual separation, cluster label, anomaly score, correlation, topological feature, or VR
+navigation metric may be presented as causal or population-level evidence without a defined
+sampling design, estimand, diagnostics, and human-study validation.
+
+## **22.2 Preferred Rust providers**
+
+The preferred production path is Rust/WASM crates behind versioned Atlas `AnalysisSpec` and
+`AnalysisResult` contracts:
+
+- `ndarray` for columnar and matrix storage.
+- `nalgebra` for linear algebra, decompositions, PCA, and MDS primitives.
+- `statrs` for probability distributions and validated statistical primitives.
+- `rand_chacha` with explicit seeds for reproducible bootstrap, permutation, and clustering.
+- `petgraph` for graph metrics and structural analysis.
+- `rstar` or `kiddo` for spatial indexing and nearest-neighbour queries.
+- `geo` for declared geographic coordinate systems and distance operations.
+- `sha2`, `serde`, and `serde_json` for content hashes and versioned provenance envelopes.
+- `linfa` sub-crates may be adopted for clustering or reduction only after crate-level WASM,
+  numerical, maintenance, license, and bundle-size checks.
+
+Rust crates are preferred over self-implemented replacements. A method may be implemented in
+house only when no suitable maintained crate exists, and then requires a published-method
+specification, fixture tests, numerical tolerances, and comparison against an independent
+reference implementation. TDA crates require separate evaluation; the existing lightweight TDA
+implementation remains an explicitly exploratory fallback rather than a scientific authority.
+
+## **22.3 Execution and evidence contract**
+
+Every result records:
+
+- method, crate/plugin, version, and implementation digest;
+- dataset and feature hashes, normalization, distance metric, and missing-value policy;
+- estimator, assumptions, diagnostics, sample size, and effective sample size;
+- seed, resampling unit, numerical precision, and execution backend;
+- estimate, interval type, interval limits, and evidence status;
+- warnings when the method is exploratory, underpowered, unstable, or not validated.
+
+Rust/WASM and TypeScript fallback providers must implement the same schemas and policies. They
+must agree exactly on labels, counts, bounds, and categorical outputs; floating-point measures
+use declared absolute/relative tolerances. External R/Python/scientific implementations are
+used for conformance checks and published-method validation, not as a runtime dependency.
+
+Interactive VR analysis is exploratory by default. Confirmatory study analysis requires a frozen
+protocol, prespecified estimand, participant-level inference, missing-data rules, multiplicity
+policy, effect sizes, intervals, and an independently rerunnable analysis bundle.
+
+## **22.4 Rust module boundary**
+
+```text
+wasm/src/analysis/
+  spec.rs          # validated methods, parameters, estimands, seeds
+  result.rs        # typed result and validity envelope
+  provenance.rs    # hashes, crate/plugin versions, backend
+  diagnostics.rs   # assumptions, warnings, failures
+  descriptive.rs
+  uncertainty.rs
+  association.rs
+  anomaly.rs
+  clustering.rs
+  graph.rs
+  temporal.rs
+  spatial.rs
+  reduction.rs
+  tda.rs
+```
+
+The ABI remains pointer/length based with bounds-checked, versioned envelopes. Rust owns
+calculation buffers; TypeScript owns plugin selection, cancellation, capability negotiation,
+privacy policy, and presentation. No statistical module may import Three.js, WebXR, or renderer
+state.
+
+---
+
+# **23\. Non-functional requirements**
 
 ## **NFR-1: Reproducibility**
 
@@ -1042,7 +1160,7 @@ timestamp
 
 ## **NFR-5: Explainability**
 
-Every automated Draco recommendation must have:
+Every automated Atlas recommendation must have:
 
 reason  
 evidence  
@@ -1071,7 +1189,7 @@ LLM semantic interface
 
 ---
 
-# **23\. Performance budgets**
+# **24\. Performance budgets**
 
 For stable release I would establish explicit budgets rather than vague "low latency".
 
@@ -1098,7 +1216,7 @@ The exact budgets should subsequently be benchmarked against representative data
 
 ---
 
-# **24\. Stable-release scope**
+# **25\. Stable-release scope**
 
 I would define the stable release as **the smallest version that demonstrates the complete analytical loop**.
 
@@ -1116,7 +1234,7 @@ It must contain:
 * existing TDA capabilities integrated  
 * semantic zoom  
 * region/cluster/observation hierarchy  
-* deterministic Draco recommendations  
+* deterministic Atlas recommendations
 * recommendation explanation  
 * manual override  
 * recommendation history  
@@ -1129,7 +1247,7 @@ It must contain:
 * event/observation capture  
 * protocol-controlled intervention  
 * reproducible study harness  
-* 2D / desktop-3D / VR comparison conditions  
+* 2D / VR comparison conditions
 * counterbalancing  
 * trial/outcome capture  
 * frozen experiment package  
@@ -1149,32 +1267,32 @@ This prevents the project from becoming a technological Christmas tree.
 
 ---
 
-# **25\. Feature acceptance matrix**
+# **26\. Feature acceptance matrix**
 
-| Capability | Stable release? | Acceptance test |
+| Capability | Status | Acceptance test |
 | ----- | ----- | ----- |
-| Full DatasetSpace | **YES** | Entire reference dataset represented in one coherent space |
-| Spatial provenance | **YES** | Coordinates can be traced to method/features |
-| Clusters | **YES** | Actual reproducible cluster computation |
-| Regions | **YES** | Regions can be entered/exited/inspected |
-| Density | **YES** | Density structures represented |
-| TDA | **YES** | Existing Mapper/TDA integrated into spatial model |
-| Datapoint inspection | **YES** | Individual observations remain inspectable |
-| Semantic zoom | **YES** | Region → cluster → observation navigation |
-| Draco analytical recommendation | **YES** | Recommends analytical action |
-| Visual metaphor recommendation | **YES** | Existing ConstraintEngine handles embodiment |
+| Full DatasetSpace | **PROPOSED** | Entire reference dataset represented in one coherent space |
+| Spatial provenance | **PROPOSED** | Coordinates can be traced to method/features |
+| Clusters | **PROPOSED** | Actual reproducible cluster computation |
+| Regions | **PROPOSED** | Regions can be entered/exited/inspected |
+| Density | **PROPOSED** | Density structures represented |
+| TDA | **PROPOSED** | Existing Mapper/TDA integrated into spatial model |
+| Datapoint inspection | **PROPOSED** | Individual observations remain inspectable |
+| Semantic zoom | **PROPOSED** | Region → cluster → observation navigation |
+| Atlas analytical guidance | **PROPOSED** | Recommends analytical action |
+| Draco v1 visual embodiment | **CURRENT** | Existing ConstraintEngine handles embodiment |
 | LLM | **NO, optional** | System remains fully functional without it |
-| Research context | **YES** | Hypothesis/question can influence recommendations |
-| Research events | **YES** | Actions and observations recorded |
-| Observer mode | **YES** | Observer can monitor participant |
-| Collaboration | **YES** | Multiple roles can share analytical session |
-| Intervention control | **YES** | Intervention permissions enforced and recorded |
-| Session persistence | **YES** | Full analytical world reloads |
-| Reproducible experiment harness | **YES** | Study package can be frozen/replayed |
+| Research context | **PROPOSED** | Hypothesis/question can influence guidance |
+| Research events | **PROPOSED** | Actions and observations recorded |
+| Observer mode | **PROPOSED** | Observer can monitor participant |
+| Collaboration | **PROPOSED** | Multiple roles can share analytical session |
+| Intervention control | **PROPOSED** | Intervention permissions enforced and recorded |
+| Session persistence | **PROPOSED** | Full analytical world reloads |
+| Reproducible experiment harness | **PROPOSED** | Study package can be frozen/replayed |
 
 ---
 
-# **26\. Proposed codebase changes**
+# **27\. Proposed codebase changes**
 
 The current source structure is already reasonably well separated across `analytics`, `data`, `draco`, `vr`, `network`, `ai`, `ui` and related modules.
 
@@ -1202,7 +1320,7 @@ src/
 ├── draco/  
 │   ├── ConstraintEngine.ts          retain/refactor  
 │   ├── DracoSolverWorker.ts         extend  
-│   ├── DracoRecommendation.ts       NEW  
+│   ├── Atlas.ts                      NEW
 │   ├── DracoAnalyst.ts              NEW  
 │   ├── DracoEvidence.ts             NEW  
 │   ├── DracoResearchContext.ts      NEW  
@@ -1232,7 +1350,7 @@ src/
 
 ---
 
-# **27\. Migration strategy**
+# **28\. Migration strategy**
 
 ## **Phase 0: Architectural freeze**
 
@@ -1287,7 +1405,7 @@ ResearchContext
 \+  
 StructureDiscovery  
         ↓  
-DracoRecommendation
+Atlas
 
 **Exit criterion:** Draco can recommend *where/what/how to investigate*, not merely what geometry to render.
 
@@ -1340,13 +1458,9 @@ Study
  ├── observations  
  └── frozen configuration
 
-Support:
-
-2D  
-Desktop 3D  
-VR
-
-as controlled experimental conditions.
+Support standard 2D and VR as the controlled experimental conditions. Desktop 3D is not an
+Atlas product feature or study condition. `DesktopControls` remains only as a non-VR input
+fallback for development, accessibility, and recovery.
 
 **Exit criterion:** a study can be executed, captured and replayed without manually reconstructing the configuration.
 
@@ -1354,7 +1468,7 @@ as controlled experimental conditions.
 
 ## **Phase 7: LLM layer**
 
-Only after deterministic Draco is operational.
+Only after deterministic Atlas is operational.
 
 Implement:
 
@@ -1386,7 +1500,7 @@ That is the **golden path**.
 
 ---
 
-# **29\. Product success criteria**
+# **30\. Product success criteria**
 
 The architecture should ultimately be judged against Nemosyne's research hypothesis, not the sophistication of its rendering engine.
 
@@ -1435,7 +1549,7 @@ That final relationship is especially important for Nemosyne's research ambition
 
 ---
 
-# **30\. Final architectural position**
+# **31\. Final architectural position**
 
 I would make this the central statement of the product specification:
 
@@ -1498,4 +1612,3 @@ It is to put those pieces into the correct causal order:
 **That is the architecture I would now use as the governing specification for the stable-release roadmap.**
 
 It also gives you a much cleaner product boundary: **analytics establishes what exists, DatasetSpace establishes where it exists, Draco decides what is worth investigating, and VR determines how the researcher experiences it.** The LLM then sits above that machinery as a semantic interface, rather than becoming the machinery itself.
-

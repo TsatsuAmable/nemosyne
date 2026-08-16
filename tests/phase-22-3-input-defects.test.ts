@@ -191,11 +191,33 @@ describe('Phase 22.3 Input Defects', () => {
         findSourceForController: () => null,
       } as unknown as PointerRegistry;
 
-      const detector = new SystemGestureDetector(mockRegistry);
+      let now = 0;
+      const detector = new SystemGestureDetector(mockRegistry, { now: () => now });
+      expect(detector.update(null).bothPinched).toBe(false);
+      now = 400;
       const result = detector.update(null);
 
       // System gesture should be allowed (bothPinched = true)
       expect(result.bothPinched).toBe(true);
+    });
+
+    it('does not toggle while the pointer is over a panel', () => {
+      const mockRegistry = {
+        hands: [
+          { rayOrigin: new THREE.Vector3(0, 0.5, 0), isPinched: () => true },
+          { rayOrigin: new THREE.Vector3(0, 0.5, 0), isPinched: () => true },
+        ],
+        lastBothPinched: false,
+        controllers: [],
+        controllerGripPressed: new Map(),
+        findSourceForController: () => null,
+        isBestPointerOverPanel: () => true,
+      } as unknown as PointerRegistry;
+      let now = 0;
+      const detector = new SystemGestureDetector(mockRegistry, { now: () => now });
+      detector.update(null);
+      now = 1000;
+      expect(detector.update(null).bothPinched).toBe(false);
     });
   });
 

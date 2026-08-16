@@ -287,6 +287,12 @@ describe('NetworkManager', () => {
     observer.disconnect();
   });
 
+  it('does not broadcast shared state deltas from an observer', () => {
+    const observer = new NetworkManager({ role: 'observer' });
+    expect(observer.broadcastStateDelta('annotations_add', { id: 'blocked' })).toBe(false);
+    observer.disconnect();
+  });
+
   it('dispatches incoming stateDelta, remoteDatasetOperation, remoteSelection, and remoteCameraPose events', async () => {
     const promise = manager.connect();
     const mockWs = manager.signalling!._ws as unknown as MockWebSocket;
