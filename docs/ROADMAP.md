@@ -792,9 +792,15 @@ The GA solver runs but its recommendation quality is untested against known-good
 
 - [x] **Inbound shared-state authorization:** signaling now carries the peer role, role changes cannot be smuggled through state payloads, and received shared-state deltas require the channel-bound peer ID plus participant role. Regression tests cover observer elevation and claimed-peer spoofing; manual/integration confirmation remains pending.
 - [x] **Observer signalling relay restriction:** observers can relay only WebRTC `offer`/`answer`/`ice` messages; direct and broadcast application-state relays are blocked and covered by network regression tests. Manual/integration confirmation remains pending.
+<<<<<<< HEAD
 - 🟡 **Remote delta hardening:** annotation/bookmark schemas, payload size/count/rate bounds, and malformed removal/tour-step rejection are implemented and covered; manual/integration evidence remains.
 - [x] **Compare completion:** explicit visual/history restore, dashboard `_difference` remapping, and one-numeric-column/fewer-than-two-group handling manually verified `PASS`; automated coverage remains deferred.
 - 🟡 **Accessibility recolor:** runtime rebuild now updates existing Draco artefacts when colorblind mode changes; ChartPlane bars, lines, histograms, box plots, heatmaps, and dashboard panels use the safe palette. Manual verification remains.
+=======
+- 🔲 **Remote delta hardening:** validate annotation/bookmark schemas, enforce payload size/count/rate bounds, and prevent malformed remote data from throwing during rendering or exhausting resources.
+- 🔲 **Compare completion:** add an explicit visual/history restore path, remap dashboard chart columns for compare summary datasets, and cover one-numeric-column and fewer-than-two-group cases end to end.
+- 🔲 **Accessibility recolor:** update existing Draco artefacts when colorblind mode changes and verify palette output for bars, lines, histograms, box plots, heatmaps, and dashboard panels.
+>>>>>>> ba15356b5249d579d8bbfbb2ab4797bdddb3881f
 - 🟡 **Dashboard lifecycle:** `WorldRendererLifecycle` now owns dashboard rebuild/update/disposal and calls `ChartPlane.dispose()` for textures, materials, geometry, and canvas resources. Targeted lifecycle evidence and full teardown validation remain.
 - 🔲 **Unified system-toggle gate:** apply dwell, cooldown, panel targeting, and release semantics consistently to hand pinches and controller grips; prevent re-arming while a gesture remains held.
 - 🔲 **Adversarial regression coverage:** add tests for remote authorization/schema abuse, Compare rendering/history, existing-scene recoloring, chart disposal, and controller/pinch precedence.
