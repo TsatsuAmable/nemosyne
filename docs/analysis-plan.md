@@ -27,7 +27,7 @@ State explicitly: accuracy on what, scored how, against what ground truth (`scor
 
 ## Planned condition comparisons
 State each comparison this study is designed to make, in advance:
-- 2D vs. VR-3D on primary outcome
+- 2D vs. VR on primary outcome
 - [add secondary-outcome comparisons as needed — same discipline applies]
 
 ## Exclusion rules

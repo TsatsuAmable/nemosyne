@@ -1,4 +1,5 @@
 \# Nemosyne — Roadmap to Stable Release  
+\> **Historical planning document.** `docs/ROADMAP.md` and `docs/study/` are authoritative.
 \#\#\# (MVP feature set \+ NFRs \+ UX sufficient to make the core hypothesis seamlessly testable)
 
 \*\*Revision note:\*\* this version incorporates a definitional correction to what "Stable"  
@@ -207,7 +208,7 @@ question is "what does the flagship task need," not "what has been built."\*
   explicitly excluded from MVP scope
 
 \*\*Missing core capability:\*\*  
-\- 🔲 \*\*First-class Compare operation.\*\* Currently absent as a dedicated operation  
+\- ✅ \*\*First-class Compare operation.\*\* Implemented in `7649446` as a dedicated
   (verified: \`DatasetOperations.ts\` has diff-adjacent ops but no unified compare-selected-  
   vs-baseline capability). This is not a nice-to-have — "Find the Fraud" and most  
   plausible study tasks are fundamentally comparison tasks (selected vs. population,  
@@ -219,12 +220,12 @@ question is "what does the flagship task need," not "what has been built."\*
 
 \*\*Accessibility (promoted from "nice to have" to MVP because it's a validity issue, not  
 just a UX issue):\*\*  
-\- 🔲 \*\*Colorblind data-encoding gap.\*\* \`categoricalColor()\` in \`Encodings.ts\` never  
-  applies the colorblind remap; default palette pairs red/green. If the study recruits a  
+\- ✅ \*\*Colorblind data encoding.\*\* Implemented in `7649446`;
+  `categoricalColor()` uses a dedicated colorblind-safe palette when the mode is active. If the study recruits a
   representative sample and doesn't screen for color vision, this isn't just an  
   accessibility gap — it's a confound that would silently degrade a subset of  
   participants' task performance for reasons unrelated to the variable being studied.  
-  Fix: dedicated colorblind-safe categorical palette (Okabe–Ito), not just wiring the  
+  The implementation uses a dedicated colorblind-safe categorical palette (Okabe–Ito), not just wiring the
   existing 4-role \`remapColor()\` into a 6+-category use case (confirmed that would still  
   collapse same-hue-family categories).  
 \- 🔲 Text legibility pass (frosted panel backing, minimum contrast) — same logic: illegible  

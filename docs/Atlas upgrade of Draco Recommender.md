@@ -1269,26 +1269,26 @@ This prevents the project from becoming a technological Christmas tree.
 
 # **26\. Feature acceptance matrix**
 
-| Capability | Stable release? | Acceptance test |
+| Capability | Status | Acceptance test |
 | ----- | ----- | ----- |
-| Full DatasetSpace | **YES** | Entire reference dataset represented in one coherent space |
-| Spatial provenance | **YES** | Coordinates can be traced to method/features |
-| Clusters | **YES** | Actual reproducible cluster computation |
-| Regions | **YES** | Regions can be entered/exited/inspected |
-| Density | **YES** | Density structures represented |
-| TDA | **YES** | Existing Mapper/TDA integrated into spatial model |
-| Datapoint inspection | **YES** | Individual observations remain inspectable |
-| Semantic zoom | **YES** | Region → cluster → observation navigation |
-| Draco analytical recommendation | **YES** | Recommends analytical action |
-| Visual metaphor recommendation | **YES** | Existing ConstraintEngine handles embodiment |
+| Full DatasetSpace | **PROPOSED** | Entire reference dataset represented in one coherent space |
+| Spatial provenance | **PROPOSED** | Coordinates can be traced to method/features |
+| Clusters | **PROPOSED** | Actual reproducible cluster computation |
+| Regions | **PROPOSED** | Regions can be entered/exited/inspected |
+| Density | **PROPOSED** | Density structures represented |
+| TDA | **PROPOSED** | Existing Mapper/TDA integrated into spatial model |
+| Datapoint inspection | **PROPOSED** | Individual observations remain inspectable |
+| Semantic zoom | **PROPOSED** | Region → cluster → observation navigation |
+| Atlas analytical guidance | **PROPOSED** | Recommends analytical action |
+| Draco v1 visual embodiment | **CURRENT** | Existing ConstraintEngine handles embodiment |
 | LLM | **NO, optional** | System remains fully functional without it |
-| Research context | **YES** | Hypothesis/question can influence recommendations |
-| Research events | **YES** | Actions and observations recorded |
-| Observer mode | **YES** | Observer can monitor participant |
-| Collaboration | **YES** | Multiple roles can share analytical session |
-| Intervention control | **YES** | Intervention permissions enforced and recorded |
-| Session persistence | **YES** | Full analytical world reloads |
-| Reproducible experiment harness | **YES** | Study package can be frozen/replayed |
+| Research context | **PROPOSED** | Hypothesis/question can influence guidance |
+| Research events | **PROPOSED** | Actions and observations recorded |
+| Observer mode | **PROPOSED** | Observer can monitor participant |
+| Collaboration | **PROPOSED** | Multiple roles can share analytical session |
+| Intervention control | **PROPOSED** | Intervention permissions enforced and recorded |
+| Session persistence | **PROPOSED** | Full analytical world reloads |
+| Reproducible experiment harness | **PROPOSED** | Study package can be frozen/replayed |
 
 ---
 
