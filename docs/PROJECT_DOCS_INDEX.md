@@ -6,9 +6,9 @@ This repository keeps three separate documentation layers.
 This layer covers the shipped product, roadmap state, architecture, and engineering decisions.
 
 Canonical files:
-- [docs/ROADMAP.md](docs/ROADMAP.md)
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
+- [ROADMAP.md](ROADMAP.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [GETTING_STARTED.md](GETTING_STARTED.md)
 - [README.md](../README.md)
 
 Use this layer to answer:
@@ -56,7 +56,8 @@ The following files are legacy drafts and should be treated as deprecated stagin
 - [docs/data-dictionary.md](data-dictionary.md)
 - [docs/consent.md](consent.md)
 
-These were replaced by the canonical study package under [docs/study](study).
+These were replaced by the canonical study package under [docs/study](study). They may contain
+historical feature assumptions, including the retired Desktop 3D study condition.
 
 ## Ownership and authority
 - Product state and engineering status remain authoritative in [docs/ROADMAP.md](ROADMAP.md).

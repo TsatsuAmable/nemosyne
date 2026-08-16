@@ -22,6 +22,7 @@ Nemosyne defines a small set of **metaphor-accurate** interactions: every gestur
 | **Inspect** | — | Holographic inspector appears near the active hand; node brightens and elevates | Point + pinch/select on node |
 | **Filter** | `Dataset.filter(predicate)` | Non-matching nodes shrink, fade, and fall below the DatumPlane | Wheel menu, filter ring, or `pinchTogether` gesture |
 | **Aggregate** | `Dataset.aggregate(groupBy, aggregator)` | Grouped crystals merge into a larger Orb or Column | Wheel menu or `pinchApart` gesture |
+| **Compare** | `DatasetOperations.compare(groupBy, groupA, groupB, measures)` | A compact group-summary view exposes means, counts, and differences for the selected measures | Canonical 2D precision view; VR guidance foundation |
 | **Sort** | `Dataset.sort(column)` | Nodes reorder along an arc or spiral | Wheel menu or `sliceUp` gesture |
 | **Time Slice** | `Dataset.slice(start, end)` | A cut plane moves through the ribbon; older data dims | Wheel menu or `sliceDown` gesture |
 | **Cluster** | `Dataset.cluster(k)` | Similar nodes attract into a Zone ring | Pinch-drag a node near another |

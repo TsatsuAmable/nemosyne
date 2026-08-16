@@ -17,7 +17,7 @@ The primary outcome should be the task accuracy measure that best reflects the s
 
 ## Planned comparisons
 At minimum:
-- 2D vs. VR-3D
+- 2D vs. VR
 
 These comparisons are pre-registered and should not be changed after the data are seen.
 

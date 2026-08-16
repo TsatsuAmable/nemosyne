@@ -92,7 +92,7 @@ The WebAssembly subsystem executes high-performance data transformations and spa
 
 ### 2.3 📐 Draco Constraint Recommender (`src/draco/`)
 
-The Draco layer implements symbolic constraint satisfaction for automated 3D spatial visualization.
+The Draco v1 Embodiment Engine implements symbolic constraint satisfaction for automated VR spatial visualization. Atlas is the proposed analytical guidance layer above it.
 
 #### `ConstraintEngine.ts`
 - **Class**: `ConstraintEngine`
@@ -215,7 +215,7 @@ npm run build
 ---
 
 ## 📚 Related Documentation Files
-- [`CLAUDE.md`](file:///C:/Users/stromae/Documents/Code/nemosyne.world/CLAUDE.md) — Runtime guidelines and development commands.
-- [`docs/GITHUB_ISSUES.md`](file:///C:/Users/stromae/Documents/Code/nemosyne.world/docs/GITHUB_ISSUES.md) — Issue tracking and proposed solutions.
-- [`.agents/team.json`](file:///C:/Users/stromae/Documents/Code/nemosyne.world/.agents/team.json) — AI Developer Team configuration.
-- [`.agents/skills/vr-accessibility/SKILL.md`](file:///C:/Users/stromae/Documents/Code/nemosyne.world/.agents/skills/vr-accessibility/SKILL.md) — VR UX and accessibility standards.
+- [`CLAUDE.md`](../CLAUDE.md) — Runtime guidelines and development commands.
+- [`GITHUB_ISSUES.md`](GITHUB_ISSUES.md) — Issue tracking and proposed solutions.
+- [`team.json`](../.agents/team.json) — AI Developer Team configuration.
+- [`SKILL.md`](../.agents/skills/vr-accessibility/SKILL.md) — VR UX and accessibility standards.
