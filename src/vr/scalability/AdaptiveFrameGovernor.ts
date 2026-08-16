@@ -12,6 +12,8 @@
 
 import { WorldEventBus, WorldTopics } from '../../utils/EventBus.ts';
 
+
+
 export interface FrameGovernorMetrics {
   averageFrameTimeMs: number;
   lodScaleFactor: number; // 0.5 (low detail) to 1.0 (full detail)
