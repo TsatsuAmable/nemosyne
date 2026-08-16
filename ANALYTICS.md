@@ -1,6 +1,6 @@
 # Nemosyne Analytics Layer
 
-The analytics layer turns Nemosyne from a spatial viewer into a spatial analytics workbench. It extracts statistical facts from datasets, runs clustering and anomaly detection, and feeds the results back into the Draco recommender so that VR layout, geometry, behaviour, and interaction all adapt to the data.
+The current analytics layer turns Nemosyne from a spatial viewer into a spatial analytics workbench. It extracts statistical facts from datasets, runs clustering and anomaly detection, and feeds the results into the Draco v1 Embodiment Engine so VR layout, geometry, behaviour, and interaction adapt to the data. The proposed Atlas layer will own full-dataset analytical guidance and provenance.
 
 ---
 

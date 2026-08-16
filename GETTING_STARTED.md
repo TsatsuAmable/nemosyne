@@ -119,7 +119,7 @@ Then open `https://localhost:5173` in the Quest Browser.
 | Join collaboration room | Settings → NETWORK → Collaboration ON |
 | Leave collaboration room | Wheel menu → Collab → Leave Room |
 | View collaboration status | Wheel menu → Collab → Network Panel |
-| Toggle desktop preview | Wheel menu → Views → Preview (outside VR) |
+| Use desktop input fallback | Mouse/keyboard input for development, accessibility, and recovery |
 
 ### Context-aware shortcuts
 
@@ -168,7 +168,7 @@ Curated public sources (Coinbase, Kraken, Binance, USGS earthquakes, OpenSky air
 
 ## 9. Bring your own data
 
-The Nemosyne loader panel (top-right in the 2D view, or use the wheel menu) accepts **CSV** and **JSON** files. JSON must be an array of objects. CSV files are parsed with automatic delimiter detection and quoted-field support.
+The Nemosyne loader panel (top-right in the 2D view, or use the wheel menu) accepts **CSV** and **JSON** files. JSON must be an array of objects. CSV files are parsed with automatic delimiter detection and quoted-field support. Dangerous prototype keys are rejected from imported headers.
 
 ### CSV format tips
 
@@ -227,7 +227,7 @@ Saved state includes:
 
 Live stream connections are not persisted; a restored session keeps the last buffered dataset.
 
-Key settings and the most recent analysis story are also saved to a cross-platform `shared-settings` record, so changes made in desktop preview mode are restored when you later enter VR.
+Key settings and the most recent analysis story are also saved to a cross-platform `shared-settings` record, so settings used through the desktop input fallback are restored when you later enter VR.
 
 ---
 
@@ -352,7 +352,7 @@ Disable hand gestures in **Settings → GESTURES → Hand Gestures** if you want
 
 ## 16. Multi-user collaboration (experimental)
 
-Nemosyne can join a shared room over WebRTC so multiple analysts can inhabit the same memory palace. Data is local-only in this first networking release: each peer sees their own dataset, while camera pose and room presence are shared.
+Nemosyne can join a shared room over WebRTC so multiple analysts can inhabit the same memory palace. Data is local-only in this first networking release: each peer sees their own dataset, while camera pose and room presence are shared. Peers have explicit `participant` or `observer` roles; observers may monitor shared state but cannot broadcast dataset mutations.
 
 ### Signalling server
 

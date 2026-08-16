@@ -4,6 +4,10 @@
 **Method:** Systematic grep search for instantiation (`new ClassName`) and usage in `src/` directory  
 **Scope:** All major components claimed ✅ done in Phases 1–20
 
+**Status refresh:** 2026-08-16 — The three Phase 12.4 assist surfaces identified below as
+built-only are now wired through `AdaptiveAssistController` in `World.ts`. The audit findings
+remain useful as the historical baseline; worker/exporter/recovery findings remain unchanged.
+
 ---
 
 ## Summary
@@ -37,15 +41,15 @@ These components are correctly marked as done and are actively used in productio
 
 ---
 
-### 🔴 Built-Only (7 components) — **Roadmap honesty issues**
+### 🔴 Built-Only (7 components at audit time) — **Roadmap honesty issues**
 
-These components exist as complete classes in `src/` but are **never instantiated in production**. They appear only in tests.
+These components existed as complete classes in `src/` but were **never instantiated in production at audit time**. The first three are now wired; the remaining entries retain their audit status.
 
 | Component | Phase | Current Status | Roadmap Claim |
 |---|---|---|---|
-| `FrustrationResponseManager` | 12.4 | Class complete, test-only | ✅ "Implemented Sprint 12.4" |
-| `JITGestureHintManager` | 12.4 | Class complete, test-only | ✅ "Implemented Sprint 12.4" |
-| `GestureConfidenceHUD` | 12.4 | Class complete, test-only | ✅ "Implemented Sprint 12.4" |
+| `FrustrationResponseManager` | 12.4 | ✅ Wired by `AdaptiveAssistController` | ✅ "Implemented Sprint 12.4" |
+| `JITGestureHintManager` | 12.4 | ✅ Wired by `AdaptiveAssistController` | ✅ "Implemented Sprint 12.4" |
+| `GestureConfidenceHUD` | 12.4 | ✅ Wired by `AdaptiveAssistController` | ✅ "Implemented Sprint 12.4" |
 | `CSVParserWorker` | 17.2 | Class defined, never used | ✅ "Implemented Sprint 17.2" |
 | `DracoSolverWorker` | 17.2 | Class defined, never used | ✅ "Implemented Sprint 17.2" |
 | `AnalysisStorybookExporter` | 13.3 | Class defined, export logic elsewhere | ✅ "Implemented Sprint 13.3" |
@@ -162,9 +166,9 @@ These components are partially integrated, but the feature they claim is incompl
 | 10A.5 | Colorblind data encoding | ✅ Done (palettes, UI color remap) | 🟡 UI done, data encoding missing | Move data-palette fix to Phase 22.3 (US22) |
 | 10A.5 | Dwell threshold control | ✅ Done (dwell selection wired) | 🟡 Core done, UI control missing | Move UI stepper to Phase 22.3 (US23) |
 | 10A.5 | Text scaling | ✅ Done (static scaling) | 🟡 Done, dynamic scaling missing | Move gaze-distance auto-scale to Phase 22.3 |
-| 12.4 | Frustration response | ✅ Done (class + tests) | 🔴 Built-only, never instantiated | Mark as "Built" in Phase 12.4; move wiring to Phase 22.3 (US12) |
-| 12.4 | JIT gesture hints | ✅ Done (class + tests) | 🔴 Built-only, never instantiated | Mark as "Built" in Phase 12.4; move wiring to Phase 22.3 (US11) |
-| 12.4 | Gesture confidence HUD | ✅ Done (class + tests) | 🔴 Built-only, never instantiated | Mark as "Built" in Phase 12.4; move instantiation to Phase 22.3 |
+| 12.4 | Frustration response | ✅ Done (class + tests) | ✅ Wired by `AdaptiveAssistController` | Production wiring completed in Phase 22.3 |
+| 12.4 | JIT gesture hints | ✅ Done (class + tests) | ✅ Wired by `AdaptiveAssistController` | Production wiring completed in Phase 22.3 |
+| 12.4 | Gesture confidence HUD | ✅ Done (class + tests) | ✅ Wired by `AdaptiveAssistController` | Production wiring completed in Phase 22.3 |
 | 13.3 | Storybook export | ✅ Done (`AnalysisStorybookExporter`) | 🔴 Built-only; export is in `TelemetryPanel` | Clarify: either wire exporter or remove class |
 | 17.2 | CSV Parser Worker | ✅ Done (class + tests) | 🔴 Built-only; main thread parser used | Mark as "Built" in Phase 17.2; note main-thread still active |
 | 17.2 | Draco Solver Worker | ✅ Done (class + tests) | 🔴 Built-only; main thread solver used | Mark as "Built" in Phase 17.2; note main-thread still active |
@@ -179,9 +183,9 @@ These components are partially integrated, but the feature they claim is incompl
    - Explicitly mark the "built-only" components
    - Reference Phase 22.3 as the destination for wiring work
 
-### 2. **Formalize Phase 22.3 scope as three tiers:**
+### 2. **Formalize Phase 22.3 scope as three tiers:** *(Tier B now complete)*
    - **Tier A (P1 Bugs):** 5 input correctness defects + 3 accessibility data-encoding gaps
-   - **Tier B (Wiring):** Instantiate FrustrationResponseManager, JITGestureHintManager, wire them into World.ts
+    - **Tier B (Wiring):** ✅ Complete via `AdaptiveAssistController` in `World.ts`; Quest usability validation remains pending
    - **Tier C (Polish):** Gaze-distance text scaling, frosted panel backings, design-system convergence
 
 ### 3. **Unblock Phase 21.3 (command buffers)**
