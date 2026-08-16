@@ -4,18 +4,19 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-16 after merging the Phase 22.3 salvage branch into local `main`.
+- **Last updated:** 2026-08-16 after concept-direction and documentation-governance realignment.
 - **Repository state:** local `main` contains remote `origin/main`, the committed cleanup/gate
-  restoration, and the refresh branch's selected input/network/document changes. Legacy
-  study `.docx` files and `docs/decision_framework.md` were intentionally removed.
-- **Last gate result:** `typecheck` clean → `lint` 0 errors (205 warnings) → Vitest `1315
-  passed / 9 skipped` across 190 files → build green → Rust `32 passed / 0 failed`.
+  restoration, and the refresh branch's selected input/network/document changes. This working
+  tree also contains the concept-direction documentation update: superseded study/design/roadmap
+  material is archived under `docs/archive/`, while `docs/study/` remains canonical.
+- **Last gate result:** `typecheck` clean → `lint` 0 errors (205 warnings) → Vitest `1317
+  passed / 9 skipped` across 187 passed and 3 skipped files → build green → Rust `32 passed / 0 failed`.
 - **On-device rerun #2 (2026-08-15 15:24):** session ran ~5 min but `logs/ux-trace.jsonl` captured ONLY the meta record. Root cause: scene contains `THREE.Sprite` interactables (label sprites); recorder's raycaster never set `.camera`, and `Sprite.raycast` dereferences `raycaster.camera.matrixWorld` after a console.error-only guard → TypeError every frame → recorder self-disabled at 11 errors (`UXTraceRecorder.ts` update guard). Full stack + paired `THREE.Sprite: "Raycaster.camera"` errors in `logs/vr-remote-console.log`. Validation report NOT yet filled. **Fix applied:** `_raycastTargets` now sets `raycaster.camera`, filters null meshes; `_buildContext` degrades per-section (head/gaze, pointer, hands) with one-time warn instead of throwing; regression test with Sprite + null-mesh interactables (13/13 pass).
 - **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges (with actual routing decision), selection hit/miss, gestures, system toggles fired/suppressed, wheel open/close, and tour steps with head-gaze raycast target + pointer-ray drift, sampled at 5 Hz. Streams to `/__ux-trace` (vite serve plugin) → `logs/ux-trace.jsonl`; analyze with `node scripts/analyze-ux-trace.mjs --timeline`. Auto-on in dev, self-disables on 404. Wired in `src/main.ts` via taps in InputRouter/SelectionDispatcher/SystemGestureDetector/HandWheelMenu/GuidedTour. Pipeline smoke-verified 2026-08-15. **Next trace expansion:** capture all ray-touched panels, buttons, data elements, and world-space targets, including ordered intersections, stable target identity/type, hit point/distance, active pinch/gesture, routing decision, and head/pointer world-space context.
 - **System-toggle tuning (2026-08-16):** both-hand pinch now requires a 400 ms hold, skips panel-targeted rays, and has a 1 s cooldown; raw simultaneous pinches still suppress per-hand selection until released. Focused Quest evidence is pending. **Validation target:** deliberate-only toggles, < ~10 per focused session, lower suppression, and improved panel selection.
-- **Active work:** Phase 22.3 is in input-validation and accessibility tracks; Tier B onboarding wiring is complete. Phase 21.3 has started at the infrastructure/readiness stage but remains blocked from command-buffer rollout until the B2 load-test staircase produces `logs/loadtest-results.jsonl`.
-- **Next:** Pick up the Phase 22.3 adversarial hardening follow-up: enforce authorization on inbound shared-state deltas, validate and bound remote annotation payloads, complete Compare visual/history behavior, recolor existing artefacts across accessibility modes, dispose dashboard chart resources, and unify controller/pinch system-toggle gating. Then complete focused Quest validation and Tier C accessibility. In parallel, run the Phase 21.3 load-test staircase and decide whether command buffers are warranted from measured results. Atlas remains a proposed analytical architecture; it does not change current implementation status.
-- **Atlas architecture boundary:** Current Draco remains the v1 embodiment pipeline (`Dataset` facts → visual spec → VR artefact). DatasetSpace, provenance-bearing structures, analytical recommendations, and reproducible research sessions are not implemented. Atlas migration work is proposed below and must not be inferred from existing Dataset, TDA, session, telemetry, or benchmark utilities.
+- **Active work:** Phase 22.3 remains in input-validation and accessibility tracks; Tier B onboarding wiring is complete. Documentation direction now requires Atlas Core in Stable Alpha, with the complete Atlas Research Release deferred. Phase 21.3 remains infrastructure/readiness work and is blocked from command-buffer rollout until the B2 load-test staircase produces `logs/loadtest-results.jsonl`.
+- **Next:** Complete the remaining Phase 22.3.1 adversarial hardening: validate and bound remote annotation payloads, complete Compare visual/history behavior, recolor existing artefacts across accessibility modes, dispose dashboard chart resources, and unify controller/pinch system-toggle gating. Inbound shared-state authorization is implemented with signaling-bound roles, channel-bound sender checks, spoof rejection, and regression tests; manual/integration confirmation remains pending. Then refactor `World.ts` into a composition root with typed logical-session, Atlas Core, research-ledger, input-command, and renderer lifecycle boundaries. Implement Atlas Core: stable datum identity, one provenance-bearing provider, one renderer-independent DatasetSpace, and deterministic inspectable guidance. In parallel, run the Phase 21.3 load-test staircase and decide whether command buffers are warranted from measured results.
+- **Atlas architecture boundary:** Current Draco remains the v1 embodiment pipeline (`Dataset` facts → visual spec → VR artefact). Atlas Core is required for Stable Alpha but is not yet implemented: DatasetSpace, provenance-bearing structures, analytical recommendations, and reproducible research sessions remain gaps. The later Atlas Research Release expands this core and must not be inferred from existing Dataset, TDA, session, telemetry, or benchmark utilities.
 - **Resume pointers:** validation → `docs/PHASE_22_3_VALIDATION_REPORT.md` (+ guide); UX trace → `scripts/analyze-ux-trace.mjs` + `src/vr/trace/UXTraceRecorder.ts`; audit → `docs/AUDIT_PHASES_1_20.md`; product docs → `docs/PROJECT_DOCS_INDEX.md`; study package → `docs/study/README.md`; Phase 22.3 scope → §Sprint 22.3.
 
 ### How to update this block
@@ -93,7 +94,7 @@ Cross-cutting work-streams that are **done** and recorded here (not in
 
 ## Phase 4 — Examples & Documentation 🔄
 
-- [x] `README.md`, `docs/IDEOLOGY.md`, `docs/ARTEFACTS.md`, `docs/INTERACTIONS.md`, `docs/ARCHITECTURE.md`, `docs/GETTING_STARTED.md`.
+- [x] `README.md`, `docs/ARTEFACTS.md`, `docs/INTERACTIONS.md`, `docs/ARCHITECTURE.md`, `docs/GETTING_STARTED.md`.
 - [x] Complete `docs/ROADMAP.md` and keep it current.
 - [x] Expand built-in sample datasets (financial, geospatial, process-flow).
 
@@ -780,7 +781,7 @@ The GA solver runs but its recommendation quality is untested against known-good
 > implementation phase after the current wiring and tuning work. No item is complete until
 > targeted tests and the relevant manual/Quest evidence exist.
 
-- 🔲 **Inbound shared-state authorization:** bind the claimed sender to the RTC channel peer, enforce participant role on received annotation/bookmark/tour/dataset deltas, and reject spoofed peer IDs.
+- [x] **Inbound shared-state authorization:** signaling now carries the peer role, role changes cannot be smuggled through state payloads, and received shared-state deltas require the channel-bound peer ID plus participant role. Regression tests cover observer elevation and claimed-peer spoofing; manual/integration confirmation remains pending.
 - 🔲 **Remote delta hardening:** validate annotation/bookmark schemas, enforce payload size/count/rate bounds, and prevent malformed remote data from throwing during rendering or exhausting resources.
 - 🔲 **Compare completion:** add an explicit visual/history restore path, remap dashboard chart columns for compare summary datasets, and cover one-numeric-column and fewer-than-two-group cases end to end.
 - 🔲 **Accessibility recolor:** update existing Draco artefacts when colorblind mode changes and verify palette output for bars, lines, histograms, box plots, heatmaps, and dashboard panels.
@@ -1380,20 +1381,10 @@ CSV/JSON -> schema preview -> DatasetModel -> DatasetSpace -> structures
   advantage over a credible baseline). Much of Nemosyne's documentation stops at 🟢/🔵 while
   its research ambitions require 🟡/🟠/🔴. Make the labelling explicit so the gap is visible,
   not hidden — "demonstrated vs validated" is the vocabulary.
-- **5-study research programme (uses the harness + navigation-cost instrumentation above).**
-  (1) **Learnability** — time to first successful operation, gesture-recognition errors, help
-  requests, 24 h recall; (2) **Spatial advantage** — 2D dashboard vs VR on
-  topology tasks (bridge / cluster / path / anomaly / relationship); (3) **Precision penalty**
-  — where 3D loses to 2D (rank / compare / estimate / read exact values), *just as important
-  as proving advantages*; (4) **Metaphor comprehension** — give users the gestures
-  (pinch / slice / scoop / rotate / push) without explanation, measure interpretation
-  accuracy / confidence / learning time / retention (tests whether the physical language is
-  actually intuitive — a publishable result in its own right); (5) **Memory** — 2D chart vs 3D
-  imposed vs 3D navigable vs 3D user-manipulated, recall at 5 min / 24 h / 7 d (directly tests
-  the memory-palace hypothesis). The flagship is a **"Find the Fraud"** between-subjects study
-  (2D / Nemosyne VR) measuring accuracy, time, navigation, interaction
-  errors, confidence, recall, workload, plus one brutally simple question: "which
-  representation helped you understand the data?"
+- **Research direction:** the active Stable Alpha study is a bounded, preregistered 2D-versus-VR
+  crossover using one frozen task and implementation bundle. Its outcomes, estimands, exclusions,
+  and missing-data rules belong to `docs/study/`, not this roadmap. Learnability, memory, metaphor,
+  and broader topology questions are deferred research hypotheses, not release commitments.
 - **UX-cost composite ("User Journey Score").** Per task: UX cost = learning + navigation +
   interaction + interpretation + evidence cost. Nemosyne currently concentrates on the middle
   (analysis cost); the surrounding costs are where the UX gaps live. Keep the underlying

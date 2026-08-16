@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🏛️ Nemosyne Technical Architecture & API Reference | Nemosyne</title>
+    <title>Nemosyne Technical Architecture & API Reference | Nemosyne</title>
 
     <!-- Primary favicon -->
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
@@ -66,7 +66,7 @@
 
         <div class="hero-content">
             <div class="badge">Nemosyne Documentation</div>
-            <h1>🏛️ Nemosyne Technical Architecture & API Reference</h1>
+            <h1>Nemosyne Technical Architecture & API Reference</h1>
             <p class="hero-subtitle" style="max-width: 700px; margin-left: auto; margin-right: auto;">
                 This document provides a comprehensive technical reference for the Nemosyne Spatial Data Analysis Suite, detailing sy...
             </p>
@@ -78,9 +78,26 @@
         <div class="container">
             <article class="markdown-content">
 <p>This document provides a comprehensive technical reference for the <strong>Nemosyne Spatial Data Analysis Suite</strong>, detailing system architecture, component boundaries, class structures, public API contracts, data pipelines, and WebXR spatial ergonomics.</p>
+<blockquote>
+<p><strong>TypeScript-first.</strong> All source under <code>src/</code> is <code>.ts</code> (import maps + Vite; <code>tsc --noEmit</code> is a required CI gate). Only config and test-harness files (<code>vite.config.js</code>, <code>vitest.config.js</code>, <code>tests/setup.js</code>, <code>vite-wasm-pack-plugin.js</code>) and individual test files remain <code>.js</code>/<code>.mjs</code>. Migration status of the Rust/WASM compute layer is tracked in <a href="./ROADMAP.html">ROADMAP.md</a> §Phase 21.</p>
+</blockquote>
+<blockquote>
+<p><strong>Status note.</strong> This is the current engineering reference for the renderer-centered runtime.
+Atlas, DatasetSpace, provenance-bearing analysis, and deterministic replay remain proposed
+unless <code>docs/ROADMAP.md</code> says otherwise.</p>
+</blockquote>
+<blockquote>
+<p><strong>Authority note.</strong> Product architecture, release-track decisions, state ownership, and
+dependency rules are defined in <a href="PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md">PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md</a>.
+This file describes the current engineering reference and must not imply that proposed Atlas,
+DatasetSpace, provenance, or replay capabilities are implemented.</p>
+</blockquote>
 <hr>
 <h2>1. 🌐 System Overview &amp; Architecture Pipeline</h2>
-<p>Nemosyne maps high-dimensional datasets into interactive 3D spatial &quot;memory palaces&quot; using a Draco-style symbolic constraint engine, WebGL/WebXR three.js rendering, and WebAssembly compute kernels.</p>
+<p>Nemosyne currently maps supported datasets into interactive spatial visualizations using the
+Draco v1 symbolic constraint engine, WebGL/WebXR three.js rendering, and optional WebAssembly
+compute providers. The target direction adds a renderer-independent analytical record and Atlas
+guidance, but those are not current runtime capabilities.</p>
 <pre><code>       Raw Input Data (CSV / JSON / WebSockets / Live Streams)
                                 │
                                 ▼
@@ -160,8 +177,8 @@
 <li><strong>Fault-Tolerance</strong>: Wrapped in JS <code>try...catch</code> blocks to auto-fallback to JavaScript calculations on WebAssembly panics.</li>
 </ul>
 <hr>
-<h3>2.3 📐 Draco v1 Embodiment Engine (<code>src/draco/</code>)</h3>
-<p>The Draco v1 layer implements symbolic constraint satisfaction for automated VR spatial visualization. Atlas is the proposed analytical guidance layer above it.</p>
+<h3>2.3 📐 Draco Constraint Recommender (<code>src/draco/</code>)</h3>
+<p>The Draco v1 Embodiment Engine implements symbolic constraint satisfaction for automated VR spatial visualization. Atlas is the proposed analytical guidance layer above it.</p>
 <h4><code>ConstraintEngine.ts</code></h4>
 <ul>
 <li><strong>Class</strong>: <code>ConstraintEngine</code></li>
@@ -277,7 +294,8 @@
 </ul>
 <hr>
 <h2>3. 🧪 Testing &amp; Build Verification</h2>
-<p>The project includes an extensive Vitest unit and integration test suite (174 test files, 1191 pass / 9 skip — see <a href="../TEST_READY.html">TEST_READY.md</a> for the current breakdown):</p>
+<p>The current test and build evidence is maintained in the <code>Current Status</code> block of
+<a href="ROADMAP.md">ROADMAP.md</a>, not duplicated here.</p>
 <pre><code class="language-bash"># Run all unit and integration tests
 npm test
 
@@ -290,10 +308,10 @@ npm run build
 <hr>
 <h2>📚 Related Documentation Files</h2>
 <ul>
-<li><a href="file:///C:/Users/stromae/Documents/Code/nemosyne.world/CLAUDE.md"><code>CLAUDE.md</code></a> — Runtime guidelines and development commands.</li>
-<li><a href="file:///C:/Users/stromae/Documents/Code/nemosyne.world/docs/GITHUB_ISSUES.md"><code>docs/GITHUB_ISSUES.md</code></a> — Issue tracking and proposed solutions.</li>
-<li><a href="file:///C:/Users/stromae/Documents/Code/nemosyne.world/.agents/team.json"><code>.agents/team.json</code></a> — AI Developer Team configuration.</li>
-<li><a href="file:///C:/Users/stromae/Documents/Code/nemosyne.world/.agents/skills/vr-accessibility/SKILL.md"><code>.agents/skills/vr-accessibility/SKILL.md</code></a> — VR UX and accessibility standards.</li>
+<li><a href="../CLAUDE.html"><code>CLAUDE.md</code></a> — Runtime guidelines and development commands.</li>
+<li><a href="PROJECT_DOCS_INDEX.md"><code>PROJECT_DOCS_INDEX.md</code></a> — Documentation authorities and archive index.</li>
+<li><a href="../.agents/team.json"><code>team.json</code></a> — AI Developer Team configuration.</li>
+<li><a href="../.agents/skills/vr-accessibility/SKILL.html"><code>SKILL.md</code></a> — VR UX and accessibility standards.</li>
 </ul>
 
             </article>

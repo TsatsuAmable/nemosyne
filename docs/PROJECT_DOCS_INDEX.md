@@ -1,13 +1,16 @@
 # Project documentation index
 
-This repository keeps three separate documentation layers.
+This repository keeps three separate documentation layers and one historical archive. Archived
+documents are context only and never override the authorities below.
 
 ## 1. Product governance and implementation
 This layer covers the shipped product, roadmap state, architecture, and engineering decisions.
 
 Canonical files:
 - [ROADMAP.md](ROADMAP.md)
+- [PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md](PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
+- [STATISTICAL_METHOD_REGISTER.md](STATISTICAL_METHOD_REGISTER.md)
 - [GETTING_STARTED.md](GETTING_STARTED.md)
 - [README.md](../README.md)
 
@@ -49,23 +52,25 @@ Use this layer to answer:
 - What version of the build and dataset generated the data?
 - Can the study be reconstructed later?
 
-## Legacy / superseded draft documents
-The following files are deprecated staging notes. They are flagged for deletion after link
-verification, not active sources of truth:
-- [docs/confound-register.md](confound-register.md)
-- [docs/reconciliation-note.md](reconciliation-note.md)
-- [docs/representation-equivalence.md](representation-equivalence.md)
-- [docs/analysis-plan.md](analysis-plan.md)
-- [docs/protocol.md](protocol.md)
-- [docs/data-dictionary.md](data-dictionary.md)
-- [docs/consent.md](consent.md)
+## Proposals and research inputs
 
-These were replaced by the canonical study package under [docs/study](study). They may contain
-historical feature assumptions, including the retired Desktop 3D study condition.
+- [nemosyne-concept-paper-architecture.md](nemosyne-concept-paper-architecture.md) — concept
+  reconciliation and target architecture; subordinate to governance and roadmap.
+- [Atlas upgrade of Draco Recommender.md](Atlas%20upgrade%20of%20Draco%20Recommender.md) —
+  subordinate Atlas proposal; not a release specification.
+- [Nemosyne_Concept_Paper_v1.0.md](Nemosyne_Concept_Paper_v1.0.md) — concept narrative, not
+  implementation status.
+- [USER_STORIES_AND_UX_ANALYSIS.md](USER_STORIES_AND_UX_ANALYSIS.md) — product research input.
+
+## Historical archive
+
+- [Archive index](archive/README.md) — superseded roadmaps, design material, and study drafts.
 
 ## Ownership and authority
 - Product state and engineering status remain authoritative in [docs/ROADMAP.md](ROADMAP.md).
 - Study design remains authoritative in [docs/study](study).
 - Operational data package and consent remain authoritative in [docs/study](study).
+
+No archived document is an active source of truth.
 
 This is intentionally a three-layer model; the layers are related but not interchangeable.

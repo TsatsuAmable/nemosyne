@@ -52,6 +52,7 @@ export class NetworkManager extends EventTarget {
   signalling: SignallingChannel | null = null;
   connections: Map<string, RTCPeerConnection> = new Map();
   channels: Map<string, RTCDataChannel> = new Map();
+  peerRoles: Map<string, NetworkRole> = new Map();
   _connected: boolean = false;
   _localState: Record<string, unknown> = {};
 
@@ -84,7 +85,13 @@ export class NetworkManager extends EventTarget {
 
   async connect(roomId: string | null = null): Promise<void> {
     if (roomId) this.roomId = roomId;
-    this.signalling = new SignallingChannel(this.signallingUrl, this.roomId, this.peerId, this.token);
+    this.signalling = new SignallingChannel(
+      this.signallingUrl,
+      this.roomId,
+      this.peerId,
+      this.token,
+      this.role
+    );
     this.signalling.addEventListener('open', () => {
       this._connected = true;
       this.dispatchEvent(new CustomEvent('connected', { detail: { roomId: this.roomId } }));
@@ -105,6 +112,7 @@ export class NetworkManager extends EventTarget {
     }
     this.connections.clear();
     this.channels.clear();
+    this.peerRoles.clear();
     this.signalling?.disconnect();
     this.signalling = null;
     this.dispatchEvent(new Event('disconnected'));
@@ -212,7 +220,10 @@ export class NetworkManager extends EventTarget {
     else if (data.type === 'answer') this._handleAnswer(from, data);
     else if (data.type === 'ice') this._handleIce(from, data);
     else if (data.type === 'join') {
-      this._initiateConnection(from);
+      const role = this._validRole(data.role) ? data.role : 'participant';
+      if (this.peerRoles.has(from)) return;
+      this.peerRoles.set(from, role);
+      this._initiateConnection(from, role);
     } else if (data.type === 'leave') {
       this._handleLeave(from);
     }
@@ -224,12 +235,13 @@ export class NetworkManager extends EventTarget {
       this._closePeer(peerId, conn);
       this.connections.delete(peerId);
       this.channels.delete(peerId);
+      this.peerRoles.delete(peerId);
       this.room.removePeer(peerId);
       this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
     }
   }
 
-  async _initiateConnection(peerId: string): Promise<void> {
+  async _initiateConnection(peerId: string, peerRole: NetworkRole = 'participant'): Promise<void> {
     if (peerId === this.peerId) return;
     const existing = this.connections.get(peerId);
     if (existing) {
@@ -240,7 +252,7 @@ export class NetworkManager extends EventTarget {
 
     try {
       const channel = conn.createDataChannel('nemosyne', { ordered: true });
-      this._wireChannel(peerId, channel);
+      this._wireChannel(peerId, channel, peerRole);
 
       const offer = await conn.createOffer();
       await conn.setLocalDescription(offer);
@@ -263,7 +275,7 @@ export class NetworkManager extends EventTarget {
 
     conn.addEventListener('datachannel', (event: Event) => {
       const channelEvt = event as RTCDataChannelEvent;
-      this._wireChannel(peerId, channelEvt.channel);
+      this._wireChannel(peerId, channelEvt.channel, this.peerRoles.get(peerId) ?? 'participant');
     });
 
     try {
@@ -323,11 +335,12 @@ export class NetworkManager extends EventTarget {
     return conn;
   }
 
-  _wireChannel(peerId: string, channel: RTCDataChannel): void {
+  _wireChannel(peerId: string, channel: RTCDataChannel, peerRole: NetworkRole = 'participant'): void {
     this.channels.set(peerId, channel);
+    this.peerRoles.set(peerId, peerRole);
 
     channel.addEventListener('open', () => {
-      const peer = this.room.addPeer(peerId);
+      const peer = this.room.peers.get(peerId) ?? this.room.addPeer(peerId, 'Analyst', peerRole);
       if (peer) {
         this.dispatchEvent(new CustomEvent('peerJoined', { detail: peer }));
       }
@@ -353,9 +366,6 @@ export class NetworkManager extends EventTarget {
       if (!payload || typeof payload !== 'object' || payload.peerId !== peerId) return;
       if (payload.type === 'state') {
         if (!payload.state || typeof payload.state !== 'object' || Array.isArray(payload.state)) return;
-        if (payload.role === 'participant' || payload.role === 'observer') {
-          this.room.updatePeerRole(peerId, payload.role);
-        }
         this.room.updatePeerState(peerId, payload.state);
         this.dispatchEvent(
           new CustomEvent('peerState', {
@@ -429,6 +439,7 @@ export class NetworkManager extends EventTarget {
 
     channel.addEventListener('close', () => {
       this.channels.delete(peerId);
+      this.peerRoles.delete(peerId);
       this.room.removePeer(peerId);
       this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
     });
@@ -444,6 +455,10 @@ export class NetworkManager extends EventTarget {
     return keys.length <= MAX_DELTA_KEYS && keys.every((key) => key.length <= 128);
   }
 
+  private _validRole(value: unknown): value is NetworkRole {
+    return value === 'participant' || value === 'observer';
+  }
+
   _closePeer(peerId: string, conn: RTCPeerConnection): void {
     try {
       conn.close();
@@ -451,6 +466,7 @@ export class NetworkManager extends EventTarget {
       // Connection may already be closed; ignore.
     }
     this.channels.delete(peerId);
+    this.peerRoles.delete(peerId);
     this.room.removePeer(peerId);
   }
 

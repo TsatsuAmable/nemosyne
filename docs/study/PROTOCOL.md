@@ -5,17 +5,32 @@ Status: Draft package.
 ## Study name
 Find the Fraud
 
-## Core hypothesis
-For defined analytical tasks involving relationships and multidimensional structure, a spatial and embodied analytical interface can improve human discovery and understanding relative to a conventional 2D analytical interface, without unacceptable costs in precision, workload, comfort, or navigation.
+## Research question
+For the defined task and frozen implementation bundle, how do the 2D control and Nemosyne VR
+condition differ in accuracy, completion time, workload, comfort, navigation cost, and interaction
+errors? This is a comparative question, not a presumption that VR improves discovery or
+understanding.
 
 ## Conditions
 1. 2D control condition
 2. VR condition using the WebXR headset path
 
-All conditions share the same task family, task wording, scoring rubric, and dataset version, unless a documented exception is approved before collection begins.
+Both conditions share the same task, task wording, scoring rubric, analytical content, training,
+researcher support policy, and dataset version. Desktop 3D is not a condition.
+
+Stable Alpha includes a fixed Atlas Core substrate. The same Atlas provider, DatasetSpace version,
+recommendation policy, and provenance configuration must serve both conditions; Atlas Core is not
+an additional condition-specific treatment.
+
+The intended assignment is a 2x2 crossover with counterbalanced order. The protocol is not frozen
+until assignment, trial count, carry-over handling, and analysis unit are fixed in the analysis
+plan.
 
 ## Primary task
-The participant is given a structured transaction dataset and asked to identify anomalous or fraudulent node(s) or relationships. The exact task specification should be represented in the machine-readable task artifact and mirrored in the human-readable task description used in the protocol.
+The participant is given a structured transaction dataset and asked to identify anomalous or
+fraudulent node(s) or relationships. The exact task specification must be represented in a
+versioned machine-readable task artifact and mirrored in the human-readable task description
+before freeze.
 
 ## Participant flow
 1. Consent and disclosure

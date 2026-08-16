@@ -30,7 +30,18 @@ export interface RoomRegistryOptions {
 }
 
 export interface RoomRegistry {
-  handleConnection(socket: SignallingSocket, roomId: string, peerId: string, token?: string): void;
+  handleConnection(
+    socket: SignallingSocket,
+    roomId: string,
+    peerId: string,
+    token?: string,
+    role?: 'participant' | 'observer'
+  ): void;
+}
+
+interface RoomPeer {
+  socket: SignallingSocket;
+  role: 'participant' | 'observer';
 }
 
 interface SignallingMessagePayload {
@@ -45,7 +56,7 @@ export function createRoomRegistry({
   maxPeersPerRoom = DEFAULT_MAX_PEERS_PER_ROOM,
   authToken = '',
 }: RoomRegistryOptions = {}): RoomRegistry {
-  const rooms = new Map<string, Map<string, SignallingSocket>>(); // roomId -> Map(peerId -> socket)
+  const rooms = new Map<string, Map<string, RoomPeer>>();
 
   function isValidMessage(data: unknown): data is SignallingMessagePayload {
     if (data == null) return false;
@@ -61,9 +72,9 @@ export function createRoomRegistry({
     if (!room) return;
     const data = JSON.stringify({ roomId, from, data: message });
     if (data.length > maxMessageBytes) return;
-    for (const socket of room.values()) {
-      if (socket.readyState === 1) {
-        socket.send(data);
+    for (const peer of room.values()) {
+      if (peer.socket.readyState === 1) {
+        peer.socket.send(data);
       }
     }
   }
@@ -71,7 +82,7 @@ export function createRoomRegistry({
   function sendTo(roomId: string, to: string, from: string, message: unknown): void {
     const room = rooms.get(roomId);
     if (!room) return;
-    const target = room.get(to);
+    const target = room.get(to)?.socket;
     if (target?.readyState === 1) {
       const data = JSON.stringify({ roomId, from, data: message });
       if (data.length <= maxMessageBytes) {
@@ -80,7 +91,13 @@ export function createRoomRegistry({
     }
   }
 
-  function handleConnection(socket: SignallingSocket, roomId: string, peerId: string, token?: string): void {
+  function handleConnection(
+    socket: SignallingSocket,
+    roomId: string,
+    peerId: string,
+    token?: string,
+    role: 'participant' | 'observer' = 'participant'
+  ): void {
     // Shared-secret gate: when a token is configured, every join must supply a
     // matching token. A missing/mismatched token is rejected before the peer is
     // admitted to any room state. (room+token is a shared secret, not strong auth.)
@@ -116,15 +133,15 @@ export function createRoomRegistry({
       }
       return;
     }
-    room.set(peerId, socket);
+    room.set(peerId, { socket, role });
 
     // Notify existing peers that a new peer joined, and tell the new peer
     // about existing peers so it can initiate WebRTC offers.
     for (const [id, other] of room) {
-      if (id !== peerId && other.readyState === 1) {
-        const data = JSON.stringify({ roomId, from: peerId, data: { type: 'join' } });
-        if (data.length <= maxMessageBytes) other.send(data);
-        socket.send(JSON.stringify({ roomId, from: id, data: { type: 'join' } }));
+      if (id !== peerId && other.socket.readyState === 1) {
+        const data = JSON.stringify({ roomId, from: peerId, data: { type: 'join', role } });
+        if (data.length <= maxMessageBytes) other.socket.send(data);
+        socket.send(JSON.stringify({ roomId, from: id, data: { type: 'join', role: other.role } }));
       }
     }
 
@@ -150,9 +167,9 @@ export function createRoomRegistry({
       room.delete(peerId);
       if (room.size === 0) rooms.delete(roomId);
       for (const other of room.values()) {
-        if (other.readyState === 1) {
+        if (other.socket.readyState === 1) {
           const data = JSON.stringify({ roomId, from: peerId, data: { type: 'leave' } });
-          if (data.length <= maxMessageBytes) other.send(data);
+          if (data.length <= maxMessageBytes) other.socket.send(data);
         }
       }
     };

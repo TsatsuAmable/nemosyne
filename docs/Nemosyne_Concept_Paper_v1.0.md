@@ -110,14 +110,15 @@ separate studies and must not be inferred from the flagship comparison.
 The following are known gaps between this concept and the current project. They are not implied
 to be implemented by the concept paper:
 
-- **Atlas gap:** DatasetSpace, analytical recommendations, provenance-bearing structures, and
-  reproducible analytical sessions are not yet implemented.
+- **Atlas gap:** Atlas Core is a Stable Alpha requirement but DatasetSpace, provenance-bearing
+  structures, deterministic analytical recommendations, and reproducible analytical sessions are
+  not yet implemented. Richer Atlas capabilities remain later work.
 - **Rust gap:** Rust/WASM execution infrastructure exists, but a registered, independently
   validated analytical kernel with JS/Rust conformance is not complete.
 - **Persistence gap:** Current session persistence is not yet a complete analysis record or
   deterministic Memory Palace replay bundle.
-- **Research gap:** Stable Alpha still requires study-harness, observer-role, authorization,
-  accessibility, recovery, Quest, and 2D-control qualification.
+- **Research gap:** Stable Alpha still requires Atlas Core plus study-harness, observer-role,
+  authorization, accessibility, recovery, Quest, and 2D-control qualification.
 - **Perception gap:** MediaPipe/ONNX and learned intent models are optional future work, not a
   Stable Alpha dependency.
 - **Evidence gap:** Current heuristic analytics and visual separation do not establish analytical
@@ -141,10 +142,10 @@ Principal risks:
 ## Stable release definition
 
 Stable Alpha is the smallest reliable research instrument capable of running the defined
-2D-versus-VR `Find the Fraud` study with shared task/data semantics, participant and observer
-roles, accessibility, recovery, save/resume, precision handoff, and replayable trial records. It
-does not require proof that Nemosyne is superior to 2D, and it does not include Desktop 3D as a
-study condition.
+2D-versus-VR `Find the Fraud` study with Atlas Core, shared task/data semantics, participant and
+observer roles, accessibility, recovery, save/resume, precision handoff, and replayable trial
+records. It does not require proof that Nemosyne is superior to 2D, and it does not include Desktop
+3D as a study condition.
 
 ## References
 
