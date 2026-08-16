@@ -4,14 +4,23 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **Last updated:** 2026-08-15 (post-fix on-device traces analyzed; system-toggle and aim-alignment issues remain; Tier B review fixes still uncommitted).
-- **Repository state:** branch `feat/input-tier-a-ux-trace` (off `4c203e0`, docs #98) has three committed Tier A/UX-trace/docs commits plus uncommitted reviewed Tier B wiring, cleanup, and tests; `temp_phase23.md` remains an uncommitted local draft (Phase 23 proposal).
-- **Last gate result:** PASS (2026-08-15, after Tier B review fixes) — `typecheck` clean → `lint` 0 errors (206 warnings) → `test:coverage` 1301 passed / 9 skipped, exit 0 (tier4 large-CSV timeout remains a parallel-load flake; passes isolated) → `build` exit 0.
+- **Last updated:** 2026-08-16 after merging `origin/main` (`917bd5b`) into local `main`.
+- **Repository state:** local `main` contains remote `origin/main` plus the coordinator
+  wiring and local Rust synthetic-data compile fix. The pull merge is complete; preserved
+  local work remains staged for review. `nul` is an unrelated untracked Windows entry.
+- **Last gate result (2026-08-16):** `typecheck` clean → `lint` 0 errors (206 warnings) →
+  Vitest `1310 passed / 9 skipped` across 190 files → build green → Rust `32 passed / 0
+  failed`.
 - **On-device rerun #2 (2026-08-15 15:24):** session ran ~5 min but `logs/ux-trace.jsonl` captured ONLY the meta record. Root cause: scene contains `THREE.Sprite` interactables (label sprites); recorder's raycaster never set `.camera`, and `Sprite.raycast` dereferences `raycaster.camera.matrixWorld` after a console.error-only guard → TypeError every frame → recorder self-disabled at 11 errors (`UXTraceRecorder.ts` update guard). Full stack + paired `THREE.Sprite: "Raycaster.camera"` errors in `logs/vr-remote-console.log`. Validation report NOT yet filled. **Fix applied:** `_raycastTargets` now sets `raycaster.camera`, filters null meshes; `_buildContext` degrades per-section (head/gaze, pointer, hands) with one-time warn instead of throwing; regression test with Sprite + null-mesh interactables (13/13 pass).
 - **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges (with actual routing decision), selection hit/miss, gestures, system toggles fired/suppressed, wheel open/close, and tour steps with head-gaze raycast target + pointer-ray drift, sampled at 5 Hz. Streams to `/__ux-trace` (vite serve plugin) → `logs/ux-trace.jsonl`; analyze with `node scripts/analyze-ux-trace.mjs --timeline`. Auto-on in dev, self-disables on 404. Wired in `src/main.ts` via taps in InputRouter/SelectionDispatcher/SystemGestureDetector/HandWheelMenu/GuidedTour. Pipeline smoke-verified 2026-08-15. **Next trace expansion:** capture all ray-touched panels, buttons, data elements, and world-space targets, including ordered intersections, stable target identity/type, hit point/distance, active pinch/gesture, routing decision, and head/pointer world-space context.
 - **Known open issue (quantified 2026-08-15 traces):** system-toggle remains hair-trigger — earlier long sessions had 61/78 both-pinch toggles; latest 141-second session had 16 toggles and 13 `system-suppressed` pinches. Each suppresses per-hand selection (`InputRouter.ts` bothPinched gate); selection remains poor (20 callback-only outcomes, 1 HUD hit) and gaze/pointer target divergence was 36% in the latest session. User-reported symptom remains "can't close panels / click menu items", while grab-based world repositioning works. Fix hypothesis (NOT yet implemented): sustained-dwell (e.g. 400 ms) + cooldown + skip when pointer ray is over a panel. **Validation target:** deliberate-only toggles, < ~10 per focused session, lower suppression, and improved panel selection.
-- **Next:** (1) Review and commit Tier B assist wiring, then implement the system-toggle tuning before the next focused Quest session; watch terminal for `[UX TRACE]`, fill `docs/PHASE_22_3_VALIDATION_REPORT.md`, analyze `logs/ux-trace.jsonl`, and compare against the 61/78-toggle baseline; (2) Phase 22.3 Tier C accessibility (Okabe–Ito categorical palette via `categoricalColor()`, dwell stepper, gaze text scaling); (3) Phase 21.3 unblock via load-test staircase (`logs/loadtest-results.jsonl`); decision items: StorybookExporter/ContextRecovery consolidation, workers stay deferred.
-- **Resume pointers:** validation → `docs/PHASE_22_3_VALIDATION_REPORT.md` (+ guide); UX trace → `scripts/analyze-ux-trace.mjs` + `src/vr/trace/UXTraceRecorder.ts`; audit → `docs/AUDIT_PHASES_1_20.md`; product docs → `docs/PROJECT_DOCS_INDEX.md`; study package → `docs/study/README.md`; Phase 22.3 scope → §Sprint 22.3.
+- **Next:** re-run the full current-tree gates, then review Tier B assist wiring and tune
+  system-toggle behavior before the next focused Quest session; continue Phase 22.3 Tier C
+  accessibility and the Phase 21.3 load-test staircase.
+- **Resume pointers:** validation → `docs/PHASE_22_3_VALIDATION_REPORT.md` (+ guide); UX trace
+  → `scripts/analyze-ux-trace.mjs` + `src/vr/trace/UXTraceRecorder.ts`; audit →
+  `docs/AUDIT_PHASES_1_20.md`; product docs → `docs/PROJECT_DOCS_INDEX.md`; study package
+  → `docs/study/README.md`; Phase 22.3 scope → §Sprint 22.3.
 
 ### How to update this block
 1. On pickup: read this block first; jump to the cited sections for detail.
