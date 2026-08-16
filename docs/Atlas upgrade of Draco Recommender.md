@@ -10,10 +10,6 @@
 **Target:** Stable research release  
 **Primary architectural change:** Reposition Draco from a visual-metaphor recommender to an interactive spatial analytical intelligence layer.
 
-> **Governance note:** This is detailed proposal material, not the authority for product status or
-> release scope. Use [PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md](PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md)
-> for the approved release split and `docs/ROADMAP.md` for implementation truth.
-
 ### Repository alignment (2026-08-15)
 
 This document is a proposed V5 architecture, not a record of shipped capability. The
