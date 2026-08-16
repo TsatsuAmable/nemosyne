@@ -27,6 +27,57 @@ export interface SpatialBookmark {
   timestamp: number;
 }
 
+const MAX_REMOTE_ANNOTATIONS = 1000;
+const MAX_REMOTE_BOOKMARKS = 500;
+const MAX_REMOTE_TEXT_LENGTH = 500;
+const MAX_REMOTE_ID_LENGTH = 128;
+const MAX_REMOTE_TITLE_LENGTH = 200;
+const MAX_REMOTE_COORDINATE = 10000;
+const MAX_REMOTE_PAYLOAD_BYTES = 16_384;
+const REMOTE_DELTA_WINDOW_MS = 10_000;
+const MAX_REMOTE_DELTAS_PER_WINDOW = 100;
+
+function isFiniteTuple(value: unknown, length: number): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.length === length &&
+    value.every((item) => typeof item === 'number' && Number.isFinite(item) && Math.abs(item) <= MAX_REMOTE_COORDINATE)
+  );
+}
+
+function isSafeId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= MAX_REMOTE_ID_LENGTH;
+}
+
+function isAnnotation(value: Record<string, unknown>): value is Record<string, unknown> & SpatialAnnotation {
+  return (
+    isSafeId(value.id) &&
+    isFiniteTuple(value.position, 3) &&
+    typeof value.text === 'string' &&
+    value.text.length <= MAX_REMOTE_TEXT_LENGTH &&
+    isSafeId(value.authorId) &&
+    typeof value.authorName === 'string' &&
+    value.authorName.length <= MAX_REMOTE_TITLE_LENGTH &&
+    typeof value.timestamp === 'number' &&
+    Number.isFinite(value.timestamp) &&
+    (value.colorHex === undefined || (typeof value.colorHex === 'number' && Number.isInteger(value.colorHex) && value.colorHex >= 0 && value.colorHex <= 0xffffff))
+  );
+}
+
+function isBookmark(value: Record<string, unknown>): value is Record<string, unknown> & SpatialBookmark {
+  return (
+    isSafeId(value.id) &&
+    typeof value.title === 'string' &&
+    value.title.length <= MAX_REMOTE_TITLE_LENGTH &&
+    isFiniteTuple(value.cameraPosition, 3) &&
+    isFiniteTuple(value.cameraRotation, 4) &&
+    typeof value.authorId === 'string' &&
+    value.authorId.length <= MAX_REMOTE_ID_LENGTH &&
+    typeof value.timestamp === 'number' &&
+    Number.isFinite(value.timestamp)
+  );
+}
+
 export interface AnnotationManagerEventMap extends THREE.Object3DEventMap {
   remoteTourStep: { detail: Record<string, unknown> };
 }
@@ -38,6 +89,7 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
 
   networkManager: NetworkManager | null = null;
   currentTourStep: number = 0;
+  private _remoteDeltaTimes: number[] = [];
 
   constructor(networkManager?: NetworkManager | null) {
     super();
@@ -170,8 +222,20 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
    * Handles incoming remote state deltas for annotations, bookmarks, and tour steps.
    */
   handleRemoteDelta(topic: string, data: Record<string, unknown>): void {
-    if (topic === 'annotations_add' && data && typeof data.id === 'string') {
-      const annotation = data as unknown as SpatialAnnotation;
+    const now = Date.now();
+    this._remoteDeltaTimes = this._remoteDeltaTimes.filter((time) => now - time < REMOTE_DELTA_WINDOW_MS);
+    if (this._remoteDeltaTimes.length >= MAX_REMOTE_DELTAS_PER_WINDOW) return;
+    let payloadSize = 0;
+    try {
+      payloadSize = JSON.stringify(data)?.length ?? 0;
+    } catch {
+      return;
+    }
+    if (payloadSize > MAX_REMOTE_PAYLOAD_BYTES) return;
+    this._remoteDeltaTimes.push(now);
+
+    if (topic === 'annotations_add' && data && isAnnotation(data) && (this.annotations.has(data.id) || this.annotations.size < MAX_REMOTE_ANNOTATIONS)) {
+      const annotation = data;
       this.annotations.set(annotation.id, annotation);
       this._renderAnnotationMesh(annotation);
     } else if (topic === 'annotations_remove' && typeof data?.id === 'string') {
@@ -183,8 +247,8 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
         this._disposeGroup(mesh);
         this.annotationMeshes.delete(id);
       }
-    } else if (topic === 'bookmarks_add' && data && typeof data.id === 'string') {
-      const bookmark = data as unknown as SpatialBookmark;
+    } else if (topic === 'bookmarks_add' && data && isBookmark(data) && (this.bookmarks.has(data.id) || this.bookmarks.size < MAX_REMOTE_BOOKMARKS)) {
+      const bookmark = data;
       this.bookmarks.set(bookmark.id, bookmark);
     } else if (topic === 'bookmarks_remove' && typeof data?.id === 'string') {
       this.bookmarks.delete(data.id as string);

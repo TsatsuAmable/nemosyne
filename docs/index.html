@@ -3,56 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nemosyne — an experimental WebXR data project</title>
+    <title>Nemosyne - an experimental WebXR data project</title>
 
-    <!-- Primary favicon -->
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
-
-    <!-- Fallback for older browsers -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E%26%239672%3B%3C/text%3E%3C/svg%3E">
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon_io/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="img/favicon_io/favicon-16x16.png">
     <link rel="shortcut icon" href="img/favicon_io/favicon.ico">
-
-    <!-- Apple devices -->
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon_io/apple-touch-icon.png">
-
-    <!-- Android/Chrome -->
     <link rel="manifest" href="img/favicon_io/site.webmanifest">
     <meta name="theme-color" content="#0a0a0f">
-
-    <!-- Microsoft -->
     <meta name="msapplication-TileColor" content="#0a0a0f">
     <meta name="msapplication-config" content="browserconfig.xml">
 
     <link rel="stylesheet" href="./css/styles.css">
 </head>
 <body>
-
     <div class="temporal-grid"></div>
 
-    <!-- Navigation -->
     <nav>
         <a href="#" class="logo">
             <div class="logo-symbol"></div>
             <span>Nemosyne</span>
         </a>
         <ul class="nav-links">
-            <li><a href="#features">Features</a></li>
-            <li><a href="#datasets">Datasets</a></li>
-            <li><a href="#examples">Examples</a></li>
-            <li><a href="#use-cases">Use Cases</a></li>
-            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">Demo</a></li>
+            <li><a href="#features">Capabilities</a></li>
         </ul>
-        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank" rel="noopener">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
             </svg>
             GitHub
         </a>
     </nav>
 
-    <!-- Hero Section -->
     <section class="hero">
         <div class="void-bg"></div>
         <div class="crystal-field">
@@ -65,24 +49,24 @@
         </div>
 
         <div class="hero-content">
-            <div class="badge">Personal · Experimental</div>
+            <div class="badge">Personal - Experimental</div>
             <h1>
                 Map data into<br>
                 <span class="nemosyne">3D memory palaces</span>
             </h1>
             <p class="hero-subtitle">
-                A three.js/WebXR spatial data analysis project. Load CSV/JSON or live streams, let the Draco v1 embodiment engine choose the layout, then explore, filter, cluster, and annotate in VR. A desktop input fallback is available for development, accessibility, and recovery.
+                Nemosyne is a three.js/WebXR spatial data analysis project. Explore data as interactive artefacts, inspect relationships in space, and use embodied input to find patterns.
             </p>
             <p class="hero-subtitle" style="opacity: 0.7; margin-top: 0.5rem;">
-                A personal, experimental project — not a maintained product or npm package.
+                A personal research project, not a maintained product or npm package.
             </p>
 
             <div class="tech-stack">
-                <div onclick="window.location='https://threejs.org'" class="tech-badge aframe">
+                <div class="tech-badge aframe">
                     <span>▲</span>
                     <span>Built on three.js</span>
                 </div>
-                <div onclick="window.location='https://immersiveweb.dev'" class="tech-badge d3">
+                <div class="tech-badge d3">
                     <span>◈</span>
                     <span>WebXR Native</span>
                 </div>
@@ -91,410 +75,103 @@
             <div class="cta-group">
                 <a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener" class="btn btn-primary">
                     Try the demo
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M5 12h14M12 5l7 7-7 7"/>
                     </svg>
-                </a>
-                <a href="https://github.com/TsatsuAmable/nemosyne" class="btn btn-secondary" target="_blank">
-                    View on GitHub
                 </a>
             </div>
         </div>
     </section>
 
-    <!-- VR Demo Section -->
-    <section class="vr-section" id="vr-demo">
+    <section class="vr-section" id="runtime">
         <div class="vr-container">
             <div class="vr-info">
-                <span class="section-tag">Live Demo</span>
-                <h2>The Datasphere Awaits</h2>
+                <span class="section-tag">The Runtime</span>
+                <h2>Analysis with a sense of place</h2>
                 <p>
-                    Experience the Nemosyne spatial data analysis suite directly in your browser. Launch the WebXR app on a Quest headset. A desktop input fallback is available for development, accessibility, and recovery.
+                    Nemosyne turns structured and streaming data into a spatial workspace. The runtime separates analytical operations from their visual embodiment so the same findings can be inspected through different views.
                 </p>
                 <p>
-                    Load built-in sample datasets, transform them with gesture-driven operations, and inspect crystalline artefacts in a persistent memory palace.
+                    Quest hand tracking and controllers are supported directly. Desktop input provides a practical fallback for development, accessibility, and recovery.
                 </p>
                 <div class="vr-controls">
-                    <h4>Highlights</h4>
+                    <h4>Designed for</h4>
                     <ul>
-                        <li>Hand tracking &amp; Quest controller support</li>
-                        <li>Desktop input fallback for development and recovery</li>
-                        <li>Free-floating, persisted HUD panels</li>
-                        <li>CSV/JSON import and live streaming connectors</li>
-                        <li>Session persistence and analysis export</li>
-                        <li>10 built-in datasets across 6 data topologies</li>
+                        <li>Exploration of complex relationships</li>
+                        <li>World-space inspection and comparison</li>
+                        <li>Embodied filtering and transformation</li>
+                        <li>Reproducible analytical sessions</li>
                     </ul>
-                </div>
-                <div class="cta-group" style="margin-top: 1.5rem;">
-                    <a href="https://nemosyne-analysis-suite.netlify.app/" class="btn btn-primary" target="_blank" rel="noopener">
-                        Try the demo
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M5 12h14M12 5l7 7-7 7"/>
-                        </svg>
-                    </a>
-                    <a href="./GETTING_STARTED.html" target="_blank" rel="noopener">
-                        Getting Started
-                    </a>
                 </div>
             </div>
 
             <div class="aframe-container" style="display: flex; align-items: center; justify-content: center; flex-direction: column; background: #000205; border-radius: 12px;">
                 <div style="text-align: center; padding: 2rem;">
                     <div style="font-size: 4rem; margin-bottom: 1rem;">◈</div>
-                    <h3 style="color: #00d4aa; margin-bottom: 1rem;">WebXR Runtime Ready</h3>
+                    <h3 style="color: #00d4aa; margin-bottom: 1rem;">WebXR Runtime</h3>
                     <p style="color: #a0a0b0; max-width: 320px;">
-                        The live three.js/WebXR demo is hosted on Netlify. Click below to enter the datasphere.
+                        Enter the live WebXR experience from the demo link above.
                     </p>
-                    <a href="https://nemosyne-analysis-suite.netlify.app/" class="btn btn-primary" target="_blank" rel="noopener" style="margin-top: 1rem;">
-                        Open App →
-                    </a>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Features Section -->
     <section class="features" id="features">
         <div class="container">
             <div class="section-header">
                 <span class="section-tag">Capabilities</span>
-                <h2>Bridging Data and Space</h2>
+                <h2>From data to understanding</h2>
                 <p class="section-subtitle">
-                    Create immersive data experiences that leverage spatial computing for deeper understanding and intuitive manipulation.
+                    A compact runtime for turning data, analysis, and spatial interaction into one inspectable workspace.
                 </p>
             </div>
 
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">🎯</div>
-                    <h3>Spatial Data Binding</h3>
-                    <p>Bind real-world datasets to interactive 3D artefacts. Manipulate complex data through natural hand gestures and spatial interactions.</p>
+                    <h3>Spatial Data Mapping</h3>
+                    <p>Map CSV, JSON, and live-stream data into interactive 3D artefacts for embodied exploration and inspection.</p>
                 </div>
-
                 <div class="feature-card">
                     <div class="feature-icon">🔮</div>
-                    <h3>Draco v1 Embodiment Engine</h3>
-                    <p>Symbolic constraint engine picks VR layout, geometry, behaviour, and interaction based on data topology and statistical facts.</p>
+                    <h3>Draco v1 Embodiment</h3>
+                    <p>A symbolic constraint engine selects layout, geometry, behaviour, and interaction from topology and statistical facts.</p>
                 </div>
-
                 <div class="feature-card">
                     <div class="feature-icon">🤝</div>
                     <h3>Collaborative Spaces</h3>
-                    <p>WebRTC/WebSocket networking foundation for shared memory palaces, avatars, annotations, and guided tours.</p>
+                    <p>WebRTC/WebSocket foundations support shared memory palaces, peer presence, annotations, and guided tours.</p>
                 </div>
-
                 <div class="feature-card">
                     <div class="feature-icon">⚡</div>
                     <h3>WebXR Native</h3>
-                    <p>Built directly on three.js and WebXR. Runs on Quest Browser with hand tracking and controllers; desktop input is a fallback only.</p>
+                    <p>Runs directly on three.js and WebXR with Quest hand tracking, controllers, and a desktop recovery path.</p>
                 </div>
-
                 <div class="feature-card">
                     <div class="feature-icon">🧩</div>
-                    <h3>Modular Panels</h3>
-                    <p>Free-floating, persisted HUD panels and a curved analyst dashboard snap to a comfortable semi-circular workspace.</p>
+                    <h3>Spatial Workspaces</h3>
+                    <p>Moveable HUD panels, a curved analyst dashboard, session persistence, and world-space inspection keep analysis legible.</p>
                 </div>
-
                 <div class="feature-card">
                     <div class="feature-icon">📊</div>
-                    <h3>Analytics Integration</h3>
-                    <p>CSV/JSON import, live WebSocket/REST polling adapters, clustering, anomaly detection, and TDA summary panels.</p>
+                    <h3>Analytical Operations</h3>
+                    <p>Filter, aggregate, sort, cluster, detect anomalies, inspect correlations, and expose TDA summaries in context.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Demo Section -->
-    <section class="demo" id="demo">
-        <div class="container">
-            <div class="section-header">
-                <span class="section-tag">Quick Start</span>
-                <h2>Explore Your First Dataset</h2>
-                <p class="section-subtitle">
-                    The runtime ships with ten sample datasets. Load one, and the Draco engine will choose the layout and artefacts for you.
-                </p>
-            </div>
-
-            <div class="demo-visual">
-                <div class="code-block">
-                    <div class="code-header">
-                        <span class="code-dot red"></span>
-                        <span class="code-dot yellow"></span>
-                        <span class="code-dot green"></span>
-                    </div>
-                    <div class="code-content">
-<span class="code-keyword">import</span> { World } <span class="code-keyword">from</span> <span class="code-string">'./src/vr/World.ts'</span>;<br>
-<span class="code-keyword">import</span> { allSampleDatasets } <span class="code-keyword">from</span> <span class="code-string">'./src/data/SampleDatasets.ts'</span>;<br><br>
-<span class="code-comment">// Bootstrap the three.js/WebXR world</span><br>
-<span class="code-keyword">const</span> world = <span class="code-keyword">new</span> World();<br>
-world.start();<br><br>
-<span class="code-comment">// Load any built-in dataset (HIERARCHY, GRAPH, TIME_SERIES, TABULAR, ...)</span><br>
-world.loadDataset(allSampleDatasets[0]);<br><br>
-<span class="code-comment">// Switch datasets, filter, aggregate, or undo with gestures/wheel menu</span><br>
-<span class="code-comment">// world.loadDataset(allSampleDatasets.find(d => d.key === 'fraud-graph'));</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Built-in Datasets Section -->
-    <section class="features" id="datasets">
-        <div class="container">
-            <div class="section-header">
-                <span class="section-tag">Shipped Datasets</span>
-                <h2>Built-In Memory Palaces</h2>
-                <p class="section-subtitle">
-                    Every sample dataset below is reproducible in the live app today. Each one infers a data topology and produces a distinct artefact layout.
-                </p>
-            </div>
-
-            <div class="dataset-table" style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; color: var(--lunar-silver);">
-                    <thead>
-                        <tr style="border-bottom: 1px solid rgba(0,212,170,0.3);">
-                            <th style="text-align: left; padding: 0.75rem 1rem; font-family: 'Cinzel', serif; color: var(--datasphere-cyan);">Dataset</th>
-                            <th style="text-align: left; padding: 0.75rem 1rem; font-family: 'Cinzel', serif; color: var(--datasphere-cyan);">Topology</th>
-                            <th style="text-align: left; padding: 0.75rem 1rem; font-family: 'Cinzel', serif; color: var(--datasphere-cyan);">Artefacts generated</th>
-                            <th style="text-align: left; padding: 0.75rem 1rem; font-family: 'Cinzel', serif; color: var(--datasphere-cyan);">Try this operation</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 0.75rem 1rem;"><strong>Supply Chain Hierarchy</strong></td>
-                            <td style="padding: 0.75rem 1rem;"><span class="tag">HIERARCHY</span></td>
-                            <td style="padding: 0.75rem 1rem;">Conical tree nodes on plinth rings with beam edges</td>
-                            <td style="padding: 0.75rem 1rem;">Filter by region, aggregate by region</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 0.75rem 1rem;"><strong>Fraud Transaction Graph</strong></td>
-                            <td style="padding: 0.75rem 1rem;"><span class="tag">GRAPH</span></td>
-                            <td style="padding: 0.75rem 1rem;">Icosa nodes + beam edges, orbs for high-amount hubs</td>
-                            <td style="padding: 0.75rem 1rem;">Filter fraud, anomaly on amount</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 0.75rem 1rem;"><strong>IoT Sensor Stream</strong></td>
-                            <td style="padding: 0.75rem 1rem;"><span class="tag">TIME_SERIES</span></td>
-                            <td style="padding: 0.75rem 1rem;">Time ribbon with temperature/vibration tokens</td>
-                            <td style="padding: 0.75rem 1rem;">Time slice, connect live stream</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 0.75rem 1rem;"><strong>Sales Performance Table</strong></td>
-                            <td style="padding: 0.75rem 1rem;"><span class="tag">TABULAR</span></td>
-                            <td style="padding: 0.75rem 1rem;">Crystals on category plinths + auto chart plane</td>
-                            <td style="padding: 0.75rem 1rem;">Sort by revenue, aggregate by region</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 0.75rem 1rem;"><strong>Organization Chart</strong></td>
-                            <td style="padding: 0.75rem 1rem;"><span class="tag">HIERARCHY</span></td>
-                            <td style="padding: 0.75rem 1rem;">Radial tree on tiered rings</td>
-                            <td style="padding: 0.75rem 1rem;">Aggregate by level, anomaly on budget</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 0.75rem 1rem;"><strong>Wind Vector Field</strong></td>
-                            <td style="padding: 0.75rem 1rem;"><span class="tag">VECTOR_FIELD</span></td>
-                            <td style="padding: 0.75rem 1rem;">Flow-ray streamlines coloured by magnitude</td>
-                            <td style="padding: 0.75rem 1rem;">Inspect magnitude, toggle statistical lens</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 0.75rem 1rem;"><strong>Social Influence Graph</strong></td>
-                            <td style="padding: 0.75rem 1rem;"><span class="tag">GRAPH</span></td>
-                            <td style="padding: 0.75rem 1rem;">Force-directed constellation of groups</td>
-                            <td style="padding: 0.75rem 1rem;">Filter by group, density cluster</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 0.75rem 1rem;"><strong>Financial Candle Series</strong></td>
-                            <td style="padding: 0.75rem 1rem;"><span class="tag">TIME_SERIES</span></td>
-                            <td style="padding: 0.75rem 1rem;">OHLCV ribbon with volume tokens</td>
-                            <td style="padding: 0.75rem 1rem;">Time slice, anomaly on close</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 0.75rem 1rem;"><strong>Global Cities Geospatial</strong></td>
-                            <td style="padding: 0.75rem 1rem;"><span class="tag">GEO</span></td>
-                            <td style="padding: 0.75rem 1rem;">Geo-surface columns + zone boundaries</td>
-                            <td style="padding: 0.75rem 1rem;">Filter by population, aggregate by region</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 0.75rem 1rem;"><strong>Process Flow Graph</strong></td>
-                            <td style="padding: 0.75rem 1rem;"><span class="tag">GRAPH / FLOW</span></td>
-                            <td style="padding: 0.75rem 1rem;">Process nodes + weighted beams/trails</td>
-                            <td style="padding: 0.75rem 1rem;">Filter low-throughput stages</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="dataset-cta" style="text-align: center; margin-top: 2rem;">
-                <p style="color: var(--gray); margin-bottom: 1rem;">
-                    All datasets are defined in <code>src/data/SampleDatasets.ts</code>. Read <a href="./GETTING_STARTED.html" target="_blank" style="color: var(--datasphere-cyan); text-decoration: none;">Getting Started</a> for CSV/JSON import and live-stream connection steps.
-                </p>
-            </div>
-        </div>
-    </section>
-
-    <!-- Examples Gallery -->
-    <section class="examples-gallery" id="examples">
-        <div class="container">
-            <div class="section-header">
-                <span class="section-tag">Gallery</span>
-                <h2>Example Memory Palaces</h2>
-                <p class="section-subtitle">
-                    Every gallery card maps to a built-in sample dataset. Launch the live app, open the wheel menu, and switch datasets to try each one.
-                </p>
-            </div>
-
-            <div class="examples-grid">
-                <div class="example-card">
-                    <div class="example-icon">🌳</div>
-                    <h4>Supply Chain Hierarchy</h4>
-                    <p>Global hubs, warehouses, and distribution centres rendered as a radial-tree palace. Filter by region or aggregate inventory by region.</p>
-                    <div style="margin-bottom: 0.75rem;"><span class="tag">HIERARCHY</span> <span class="tag">Tree + Plinth</span></div>
-                    <a href="./examples/SUPPLY_CHAIN.html" class="example-link">Read more →</a>
-                </div>
-                <div class="example-card">
-                    <div class="example-icon">🕸️</div>
-                    <h4>Fraud Transaction Graph</h4>
-                    <p>Transactions linked by amount and fraud flag. Anomaly detection lifts suspicious orbs; filter to reveal the fraud chain.</p>
-                    <div style="margin-bottom: 0.75rem;"><span class="tag">GRAPH</span> <span class="tag">Constellation</span></div>
-                    <a href="./examples/FRAUD_GRAPH.html" class="example-link">Read more →</a>
-                </div>
-                <div class="example-card">
-                    <div class="example-icon">📡</div>
-                    <h4>Industrial IoT Stream</h4>
-                    <p>Live temperature and vibration time-series. Connect to the dev-server demo stream and watch the ribbon update in real time.</p>
-                    <div style="margin-bottom: 0.75rem;"><span class="tag">TIME_SERIES</span> <span class="tag">Ribbon</span></div>
-                    <a href="./examples/INDUSTRIAL_IOT.html" class="example-link">Read more →</a>
-                </div>
-                <div class="example-card">
-                    <div class="example-icon">📊</div>
-                    <h4>Sales Performance Table</h4>
-                    <p>Sales rows become crystals on plinths, with an auto-attached chart plane. Sort by revenue or aggregate by region and product.</p>
-                    <div style="margin-bottom: 0.75rem;"><span class="tag">TABULAR</span> <span class="tag">Crystal + Chart</span></div>
-                    <a href="./examples/SALES_TABLE.html" class="example-link">Read more →</a>
-                </div>
-                <div class="example-card">
-                    <div class="example-icon">🏢</div>
-                    <h4>Organization Chart</h4>
-                    <p>Employees and budgets arranged as a radial tree. Aggregate by level to roll up headcount and cost, or anomaly-scan budgets.</p>
-                    <div style="margin-bottom: 0.75rem;"><span class="tag">HIERARCHY</span> <span class="tag">Radial Tree</span></div>
-                    <a href="./examples/ORG_CHART.html" class="example-link">Read more →</a>
-                </div>
-                <div class="example-card">
-                    <div class="example-icon">🌬️</div>
-                    <h4>Wind Vector Field</h4>
-                    <p>Vector arrows become flow-ray streamlines. Inspect magnitude and toggle the statistical lens for a TDA summary.</p>
-                    <div style="margin-bottom: 0.75rem;"><span class="tag">VECTOR_FIELD</span> <span class="tag">Streamlines</span></div>
-                    <a href="./examples/SCIENTIFIC_RESEARCH.html" class="example-link">Read more →</a>
-                </div>
-                <div class="example-card">
-                    <div class="example-icon">🕸️</div>
-                    <h4>Social Influence Graph</h4>
-                    <p>Communities and influence scores laid out with force-directed placement. Filter by group or run density clustering.</p>
-                    <div style="margin-bottom: 0.75rem;"><span class="tag">GRAPH</span> <span class="tag">Force-Directed</span></div>
-                    <a href="./examples/SOCIAL_GRAPH.html" class="example-link">Read more →</a>
-                </div>
-                <div class="example-card">
-                    <div class="example-icon">📈</div>
-                    <h4>Financial Candle Series</h4>
-                    <p>OHLCV market data rendered as a time ribbon. Scrub through the session with time-slice and spot volatility clusters.</p>
-                    <div style="margin-bottom: 0.75rem;"><span class="tag">TIME_SERIES</span> <span class="tag">Candle Ribbon</span></div>
-                    <a href="./examples/FINANCIAL_MARKETS.html" class="example-link">Read more →</a>
-                </div>
-                <div class="example-card">
-                    <div class="example-icon">🌍</div>
-                    <h4>Global Cities Geospatial</h4>
-                    <p>Lat/lon population and GDP data mapped to room-scale columns and zones. Fly over the model and filter to the largest metros.</p>
-                    <div style="margin-bottom: 0.75rem;"><span class="tag">GEO</span> <span class="tag">Surface + Columns</span></div>
-                    <a href="./examples/SMART_CITIES.html" class="example-link">Read more →</a>
-                </div>
-                <div class="example-card">
-                    <div class="example-icon">🏭</div>
-                    <h4>Process Flow Graph</h4>
-                    <p>Pipeline stages with throughput and latency. Trace weighted beams from source to sink and filter out low-throughput stages.</p>
-                    <div style="margin-bottom: 0.75rem;"><span class="tag">GRAPH / FLOW</span> <span class="tag">Channels + Trails</span></div>
-                    <a href="./examples/FLOW_PROCESS.html" class="example-link">Read more →</a>
-                </div>
-                <div class="example-card">
-                    <div class="example-icon">✋</div>
-                    <h4>Gesture-Driven Analysis</h4>
-                    <p>Pinch, slice, scoop, and rotate to filter, sort, aggregate, undo, and reset. Every gesture performs a dataset operation and a matching artefact transform.</p>
-                    <div style="margin-bottom: 0.75rem;"><span class="tag">INTERACTION</span> <span class="tag">Hand + Controller</span></div>
-                    <a href="./INTERACTIONS.html" class="example-link">Read more →</a>
-                </div>
-                <div class="example-card">
-                    <div class="example-icon">🧬</div>
-                    <h4>Statistical Lens &amp; TDA</h4>
-                    <p>Toggle the statistical lens to see persistence barcodes, mapper graphs, and Betti curves for numeric datasets.</p>
-                    <div style="margin-bottom: 0.75rem;"><span class="tag">ANALYTICS</span> <span class="tag">TDA Panels</span></div>
-                    <a href="./ANALYTICS.html" class="example-link">Read more →</a>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Use Cases -->
-    <section class="use-cases" id="use-cases">
-        <div class="container">
-            <div class="section-header">
-                <span class="section-tag">Applications</span>
-                <h2>Transform Your Data</h2>
-                <p class="section-subtitle">
-                    These scenarios are reproducible today with the built-in sample datasets, gesture operations, and live connectors.
-                </p>
-            </div>
-
-            <div class="use-case-grid">
-                <div class="use-case-item">
-                    <h4>🏭 Factory Floor Monitoring</h4>
-                    <p>Load the <strong>IoT Sensor Stream</strong>, connect to the dev-server <code>/__demo-stream</code>, and watch temperature and vibration tokens update in the time ribbon. Time-slice the stream with the wheel menu or <code>sliceDown</code> gesture and pulse magenta halos on anomalous readings.</p>
-                </div>
-
-                <div class="use-case-item">
-                    <h4>🔍 Fraud Investigation</h4>
-                    <p>Load the <strong>Fraud Transaction Graph</strong>. Anomaly detection on <code>amount</code> lifts suspicious transactions as glowing orbs. Use <code>pinchTogether</code> or the wheel menu to filter out non-fraud nodes and focus on the fraud chain.</p>
-                </div>
-
-                <div class="use-case-item">
-                    <h4>📈 Sales Performance Review</h4>
-                    <p>Load the <strong>Sales Performance Table</strong>. The Draco engine attaches a chart plane automatically. Sort by <code>revenue</code> with <code>sliceUp</code>, aggregate by <code>region</code>, and export the analysis story from the wheel menu.</p>
-                </div>
-
-                <div class="use-case-item">
-                    <h4>🏢 Organizational Cost Audit</h4>
-                    <p>Load the <strong>Organization Chart</strong>. Walk the radial tree, aggregate by <code>level</code>, then use the <code>scoopUp</code> gesture to open the statistical lens and see the correlation between <code>employees</code> and <code>budget</code>.</p>
-                </div>
-
-                <div class="use-case-item">
-                    <h4>📉 Market Session Replay</h4>
-                    <p>Load the <strong>Financial Candle Series</strong>. Scrub through the OHLCV ribbon with the time-slice operation to replay a trading session and spot volatility clusters in 3D space.</p>
-                </div>
-
-                <div class="use-case-item">
-                    <h4>🌍 Geospatial Benchmark</h4>
-                    <p>Load <strong>Global Cities</strong>. Fly over room-scale lat/lon bars sized by population and coloured by GDP, then filter to the largest metros or aggregate by region.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Footer -->
     <footer>
         <div class="footer-moon">◈</div>
         <div class="footer-tagline">Nemosyne</div>
         <div class="footer-domain">nemosyne.world</div>
         <p class="footer-text">
-            A personal, experimental WebXR project exploring VR artefacts as tools for
-            understanding data. Not a maintained product or npm package.
+            A personal, experimental WebXR project exploring VR artefacts as tools for understanding data.
         </p>
-        <div class="footer-links">
-            <a href="https://github.com/TsatsuAmable/nemosyne" target="_blank">GitHub</a>
-            <a href="./ARCHITECTURE.html" target="_blank">Architecture</a>
-            <a href="https://github.com/TsatsuAmable/nemosyne/blob/main/LICENSE" target="_blank">License (MIT)</a>
-        </div>
         <p class="copyright">
             © 2026 Tsatsu Amable. Released under MIT License.
         </p>
     </footer>
-
 </body>
 </html>

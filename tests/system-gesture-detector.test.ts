@@ -1,0 +1,39 @@
+import { describe, expect, it, vi } from 'vitest';
+import { SystemGestureDetector } from '../src/vr/input/SystemGestureDetector.ts';
+
+function registry(hands: Array<{ pinched: boolean }>, grips: boolean[] = []) {
+  const handPointers = hands.map((hand) => ({ isPinched: () => hand.pinched }));
+  const controllers = grips.map(() => ({ handedness: 'none', rayOrigin: { y: 1 }, getRay: () => ({ origin: { x: 0 }, direction: { lengthSq: () => 1 } }) }));
+  return {
+    hands: handPointers,
+    controllers,
+    lastBothPinched: false,
+    controllerGripPressed: new Map(),
+    isBestPointerOverPanel: vi.fn(() => false),
+    findSourceForController: vi.fn((_controller: unknown, sources: XRInputSource[]) => sources[0] ?? null),
+  } as never;
+}
+
+describe('SystemGestureDetector unified gate', () => {
+  it('fires controller grips once until release', () => {
+    const now = 0;
+    const detector = new SystemGestureDetector(registry([], [true, true]), {
+      bothPinchHoldMs: 400,
+      toggleCooldownMs: 0,
+      now: () => now,
+    });
+    const toggle = vi.fn();
+    detector.onSystemToggle = toggle;
+    const session = {
+      inputSources: [
+        { gamepad: { buttons: [{}, { pressed: true }] } },
+        { gamepad: { buttons: [{}, { pressed: true }] } },
+      ],
+    } as unknown as XRSession;
+
+    detector.update(session);
+    detector.update(session);
+    detector.update(session);
+    expect(toggle).toHaveBeenCalledOnce();
+  });
+});

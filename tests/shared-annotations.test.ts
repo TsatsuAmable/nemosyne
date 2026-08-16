@@ -73,6 +73,28 @@ describe('Sprint 10B.5: Shared Annotations, Bookmarks & Synchronized Tours', () 
     expect(annotationManager.annotations.has('remote-1')).toBe(false);
   });
 
+  it('rejects malformed remote annotations and bookmarks without rendering them', () => {
+    annotationManager.handleRemoteDelta('annotations_add', {
+      id: 'bad',
+      position: [Infinity, 0, 0],
+      text: 'invalid',
+      authorId: 'peer',
+      authorName: 'Peer',
+      timestamp: Date.now(),
+    });
+    annotationManager.handleRemoteDelta('bookmarks_add', {
+      id: 'bad-bookmark',
+      title: 'invalid',
+      cameraPosition: [0, 1, 0],
+      cameraRotation: [0, 0, 0],
+      authorId: 'peer',
+      timestamp: Date.now(),
+    });
+
+    expect(annotationManager.annotations.size).toBe(0);
+    expect(annotationManager.bookmarks.size).toBe(0);
+  });
+
   it('blocks observer annotation and bookmark mutations', () => {
     const observer = new NetworkManager({ role: 'observer' });
     const manager = new SharedAnnotationManager(observer);
