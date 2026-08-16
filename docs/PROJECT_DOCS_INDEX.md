@@ -22,6 +22,10 @@ Use this layer to answer:
 Historical context:
 - [Roadmap history](archive/ROADMAP_HISTORY.md) — completed and superseded phases only; not an active status source
 
+Reviews and proposals:
+- [Nemosyne concept paper v1.0](Nemosyne_Concept_Paper_v1.0.md) — long-term product/research concept
+- [Concept paper v1.0 initial review](Nemosyne_Concept_Paper_v1.0_REVIEW.md) — non-authoritative review recommendations for deeper analysis
+
 ## 2. Study protocol and research governance
 This layer covers the design of a controlled study, including hypotheses, confounds, equivalence, and analysis rules.
 
