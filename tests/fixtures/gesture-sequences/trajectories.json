@@ -1,0 +1,41 @@
+{
+  "description": "Multi-frame 60Hz gesture trajectory recordings for Nemosyne validation harness.",
+  "gestures": {
+    "pinchTogether": [
+      { "time": 0.00, "left": { "pos": [-0.30, 1.20, -0.40], "pinched": true }, "right": { "pos": [0.30, 1.20, -0.40], "pinched": true } },
+      { "time": 0.10, "left": { "pos": [-0.22, 1.20, -0.40], "pinched": true }, "right": { "pos": [0.22, 1.20, -0.40], "pinched": true } },
+      { "time": 0.20, "left": { "pos": [-0.15, 1.20, -0.40], "pinched": true }, "right": { "pos": [0.15, 1.20, -0.40], "pinched": true } },
+      { "time": 0.30, "left": { "pos": [-0.08, 1.20, -0.40], "pinched": true }, "right": { "pos": [0.08, 1.20, -0.40], "pinched": true } }
+    ],
+    "pinchApart": [
+      { "time": 0.00, "left": { "pos": [-0.08, 1.20, -0.40], "pinched": true }, "right": { "pos": [0.08, 1.20, -0.40], "pinched": true } },
+      { "time": 0.10, "left": { "pos": [-0.15, 1.20, -0.40], "pinched": true }, "right": { "pos": [0.15, 1.20, -0.40], "pinched": true } },
+      { "time": 0.20, "left": { "pos": [-0.22, 1.20, -0.40], "pinched": true }, "right": { "pos": [0.22, 1.20, -0.40], "pinched": true } },
+      { "time": 0.30, "left": { "pos": [-0.30, 1.20, -0.40], "pinched": true }, "right": { "pos": [0.30, 1.20, -0.40], "pinched": true } }
+    ],
+    "swipeLeft": [
+      { "time": 0.00, "left": { "pos": [0.30, 1.20, -0.40], "pinched": false }, "right": { "pos": [0.30, 1.20, -0.40], "pinched": false } },
+      { "time": 0.10, "left": { "pos": [0.18, 1.20, -0.40], "pinched": false }, "right": { "pos": [0.18, 1.20, -0.40], "pinched": false } },
+      { "time": 0.20, "left": { "pos": [0.05, 1.20, -0.40], "pinched": false }, "right": { "pos": [0.05, 1.20, -0.40], "pinched": false } },
+      { "time": 0.30, "left": { "pos": [-0.10, 1.20, -0.40], "pinched": false }, "right": { "pos": [-0.10, 1.20, -0.40], "pinched": false } }
+    ],
+    "swipeRight": [
+      { "time": 0.00, "left": { "pos": [-0.10, 1.20, -0.40], "pinched": false }, "right": { "pos": [-0.10, 1.20, -0.40], "pinched": false } },
+      { "time": 0.10, "left": { "pos": [0.05, 1.20, -0.40], "pinched": false }, "right": { "pos": [0.05, 1.20, -0.40], "pinched": false } },
+      { "time": 0.20, "left": { "pos": [0.18, 1.20, -0.40], "pinched": false }, "right": { "pos": [0.18, 1.20, -0.40], "pinched": false } },
+      { "time": 0.30, "left": { "pos": [0.30, 1.20, -0.40], "pinched": false }, "right": { "pos": [0.30, 1.20, -0.40], "pinched": false } }
+    ],
+    "scoopUp": [
+      { "time": 0.00, "left": { "pos": [-0.20, 0.90, -0.40], "dir": [0, 1, 0], "pinched": false }, "right": { "pos": [0.20, 0.90, -0.40], "dir": [0, 1, 0], "pinched": false } },
+      { "time": 0.10, "left": { "pos": [-0.20, 1.05, -0.40], "dir": [0, 1, 0], "pinched": false }, "right": { "pos": [0.20, 1.05, -0.40], "dir": [0, 1, 0], "pinched": false } },
+      { "time": 0.20, "left": { "pos": [-0.20, 1.20, -0.40], "dir": [0, 1, 0], "pinched": false }, "right": { "pos": [0.20, 1.20, -0.40], "dir": [0, 1, 0], "pinched": false } },
+      { "time": 0.30, "left": { "pos": [-0.20, 1.35, -0.40], "dir": [0, 1, 0], "pinched": false }, "right": { "pos": [0.20, 1.35, -0.40], "dir": [0, 1, 0], "pinched": false } }
+    ],
+    "pushForward": [
+      { "time": 0.00, "left": { "pos": [-0.20, 1.20, -0.25], "pinched": false }, "right": { "pos": [0.20, 1.20, -0.25], "pinched": false } },
+      { "time": 0.10, "left": { "pos": [-0.20, 1.20, -0.40], "pinched": false }, "right": { "pos": [0.20, 1.20, -0.40], "pinched": false } },
+      { "time": 0.20, "left": { "pos": [-0.20, 1.20, -0.55], "pinched": false }, "right": { "pos": [0.20, 1.20, -0.55], "pinched": false } },
+      { "time": 0.30, "left": { "pos": [-0.20, 1.20, -0.70], "pinched": false }, "right": { "pos": [0.20, 1.20, -0.70], "pinched": false } }
+    ]
+  }
+}

@@ -2,9 +2,9 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import { LivePreview } from '../src/vr/interactions/LivePreview.js';
-import { computeOperationDataset } from '../src/vr/interactions/DataOperations.js';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { LivePreview } from '../src/vr/interactions/LivePreview.ts';
+import { computeOperationDataset } from '../src/vr/interactions/DataOperations.ts';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 
 function makeMesh(name = 'node', value = 0, x = 0, y = 0, z = -2) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2));

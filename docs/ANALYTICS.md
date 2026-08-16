@@ -51,7 +51,7 @@ All clustering operations return a new `Dataset` with a `_cluster` column so the
 | `zscore` | Standard-deviation threshold (default `3`). |
 | `isolation` | Lightweight isolation-forest approximation using recursive random splits; score is normalised split depth. |
 
-### VR rendering (`AnomalyTransforms.js`)
+### VR rendering (`AnomalyTransforms.ts`)
 
 - Outliers receive a pulsing magenta halo (`ensureHalo`) and lift above the dataset.
 - `applyOutlierLens` gathers outliers around a focus point (e.g. the user's hand) while dimming non-outliers.

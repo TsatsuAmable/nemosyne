@@ -2,9 +2,9 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { World } from '../src/vr/World.js';
-import { getSampleDataset } from '../src/data/SampleDatasets.js';
-import { TopologyTypes } from '../src/draco/ConstraintEngine.js';
+import { World } from '../src/vr/World.ts';
+import { getSampleDataset } from '../src/data/SampleDatasets.ts';
+import { TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 
 const CONNECTING = 0;
 const OPEN = 1;
@@ -298,11 +298,12 @@ describe('World coverage extensions', () => {
     world.loadDataset({ name: ds.label, topology: ds.topology, dataset: ds.dataset });
 
     if (world.tdaGroup) {
-      expect(world.tdaGroup.visible).toBe(true);
-      world._onGesture('scoopUp');
+      // TDA is hidden by default (progressive disclosure) until the lens is requested.
       expect(world.tdaGroup.visible).toBe(false);
       world._onGesture('scoopUp');
       expect(world.tdaGroup.visible).toBe(true);
+      world._onGesture('scoopUp');
+      expect(world.tdaGroup.visible).toBe(false);
     }
   });
 

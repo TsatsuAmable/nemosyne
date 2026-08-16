@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { HandWheelMenu } from '../src/vr/ui/HandWheelMenu.js';
+import { HandWheelMenu } from '../src/vr/ui/HandWheelMenu.ts';
 
 function makeEngineWithCamera() {
   const scene = new THREE.Scene();
@@ -168,7 +168,7 @@ describe('HandWheelMenu', () => {
 
     expect(menu.group.parent).toBe(cameraGroup);
     expect(hand.group.children).not.toContain(menu.group);
-    expect(menu.offset.z).toBe(-0.55);
+    expect(menu.offset.z).toBe(-0.42);
   });
 
   it('still supports legacy wrist anchoring via anchorToHand option', () => {

@@ -7,11 +7,48 @@ on:
     branches: [main]
 
 jobs:
-  test-and-build:
+  rust:
+    name: Rust unit tests (wasm/)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('wasm/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-registry-
+
+      - name: Cache wasm target
+        uses: actions/cache@v4
+        with:
+          path: wasm/target
+          key: ${{ runner.os }}-wasm-target-${{ hashFiles('wasm/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-wasm-target-
+
+      - name: Run Rust unit tests
+        run: cargo test --manifest-path wasm/Cargo.toml
+
+  node:
+    name: Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
+      # Single leg on Node 24 (active LTS, Oct 2025–). Node 20 reached EOL in
+      # April 2026 and was dropped; Node 22 is maintenance LTS. The matrix is
+      # retained (single-element) so a second leg can be re-added trivially if
+      # a cross-version regression signal is ever needed. NOTE: the GitHub
+      # branch-protection required-checks list must list "Node 24" (not 20/22).
       matrix:
-        node-version: [20, 22]
+        node-version: [24]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,18 +62,65 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck
+
+      # Lint is blocking: all src no-explicit-any errors are resolved; remaining
+      # test any-usage is downgraded to non-blocking warnings (see eslint.config.js).
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
 
       - name: Run production build
         run: npm run build
 
-      - name: Run coverage
-        run: npm run test:coverage
+      # Non-blocking visibility into bundle size; a hard gzipped budget is a follow-up.
+      - name: Bundle size report (non-blocking)
+        continue-on-error: true
+        run: |
+          du -sh dist
+          node -e "const fs=require('fs'),zlib=require('zlib'),p=require('path');let t=0;const walk=d=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){const f=p.join(d,e.name);if(e.isDirectory())walk(f);else try{t+=zlib.gzipSync(fs.readFileSync(f)).length}catch{}}};walk('dist');console.log('gzipped total bytes:',t,'('+(t/1048576).toFixed(2)+' MiB)')"
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-node${{ matrix.node-version }}
           path: coverage/
+          if-no-files-found: ignore
+
+  # Real-WebGL load smoke against headless Chromium (WebGL2 via SwiftShader).
+  # Informational / NON-REQUIRED: not in the GitHub branch ruleset (id=20623327)
+  # and cannot block the owner auto-merge flow. Promote to required separately
+  # once stable. See tests/smoke/README.md.
+  playwright-smoke:
+    name: Playwright load smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser (Chromium + system deps)
+        run: npx playwright install --with-deps chromium
+
+      - name: Run load smoke (builds dist/ + serves via vite preview)
+        run: npm run test:smoke
+
+      - name: Upload Playwright trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-trace
+          path: test-results/
           if-no-files-found: ignore

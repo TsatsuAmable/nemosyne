@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect } from 'vitest';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
-import { TopologyTypes } from '../src/draco/ConstraintEngine.js';
-import { inferTopology, inferEncodingsForTopology } from '../src/data/TopologyInference.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { TopologyTypes } from '../src/draco/ConstraintEngine.ts';
+import { inferTopology, inferEncodingsForTopology } from '../src/data/TopologyInference.ts';
 
 function makeDataset(columns, rows) {
   return new Dataset('test', columns, rows);

@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRoomRegistry } from './src/network/SignallingServerCore.js';
+import { createRoomRegistry } from './src/network/SignallingServerCore.ts';
 
 const certDir = path.resolve(process.cwd(), 'certs');
 
@@ -66,7 +66,9 @@ function signallingPlugin() {
     if (!server.httpServer) return;
     const { WebSocketServer } = await import('ws');
     const wss = new WebSocketServer({ noServer: true });
-    const registry = createRoomRegistry();
+    // Optional shared-secret gate: set NEMOSYNE_SIGNAL_TOKEN to require a
+    // matching ?token= on join. Unset = open local dev (no token check).
+    const registry = createRoomRegistry({ authToken: process.env.NEMOSYNE_SIGNAL_TOKEN || '' });
 
     server.httpServer.on('upgrade', (request, socket, head) => {
       if (request.url !== '/__signal') return;
@@ -74,7 +76,8 @@ function signallingPlugin() {
         const url = new URL(request.url, `http://${request.headers.host}`);
         const roomId = url.searchParams.get('room') || 'default';
         const peerId = url.searchParams.get('peer') || `peer-${Date.now()}`;
-        registry.handleConnection(ws, roomId, peerId);
+        const token = url.searchParams.get('token') || undefined;
+        registry.handleConnection(ws, roomId, peerId, token);
       });
     });
   }
@@ -105,6 +108,12 @@ function generateRows(count) {
 }
 
 function httpsOptions(command) {
+  // The Playwright load-smoke (test/playwright-load-smoke) runs `vite preview`
+  // over plain HTTP — headless Chromium needs no TLS, and CI has no certs.
+  // Setting NEMOSYNE_FORCE_HTTP=1 (via Playwright's webServer.env) forces HTTP
+  // even when local dev certs are present, keeping the smoke deterministic
+  // across environments. Normal dev/preview is unaffected.
+  if (process.env.NEMOSYNE_FORCE_HTTP === '1') return undefined;
   const key = loadCert('key.pem');
   const cert = loadCert('cert.pem');
   if (key && cert) return { key, cert };
@@ -115,10 +124,146 @@ function httpsOptions(command) {
   return undefined;
 }
 
+function remoteLogsPlugin() {
+  const logDir = path.resolve(process.cwd(), 'logs');
+  const logFile = path.join(logDir, 'vr-remote-console.log');
+
+  try {
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+  } catch {
+    // Ignore error
+  }
+
+  function handleLogs(req, res) {
+    if (req.url === '/__remote-logs' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => (body += chunk));
+      req.on('end', () => {
+        try {
+          const entries = JSON.parse(body);
+          if (Array.isArray(entries)) {
+            for (const entry of entries) {
+              const line = `[VR REMOTE LOG ${entry.timestamp}] [${entry.level?.toUpperCase()}] ${entry.message}${entry.stack ? '\n' + entry.stack : ''}\n`;
+              console.log(`\x1b[36m${line.trim()}\x1b[0m`);
+              fs.appendFileSync(logFile, line, 'utf-8');
+            }
+          }
+        } catch {
+          // Ignore error
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok' }));
+      });
+      return true;
+    }
+    return false;
+  }
+
+  return {
+    name: 'nemosyne-remote-logs',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!handleLogs(req, res)) next();
+      });
+    },
+  };
+}
+
+/**
+ * Load-test results endpoint, mounted on the Vite dev server only.
+ *
+ * The VR load-test harness POSTs a completed run summary (perf/UX aggregates
+ * only — no user dataset rows or session snapshots) to `/__loadtest-results`
+ * when a run finishes. This serve-only handler appends one JSON object per line
+ * to `logs/loadtest-results.jsonl`, so the dev can read the verdict (whether the
+ * WASM command buffer is warranted and the perf level it must meet) off the
+ * local machine after a real-headset run. Mirrors `remoteLogsPlugin`.
+ */
+function loadtestResultsPlugin() {
+  const logDir = path.resolve(process.cwd(), 'logs');
+  const logFile = path.join(logDir, 'loadtest-results.jsonl');
+
+  try {
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+  } catch {
+    // Ignore error
+  }
+
+  function handleLoadTest(req, res) {
+    if (req.url === '/__loadtest-results' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => (body += chunk));
+      req.on('end', () => {
+        try {
+          const summary = JSON.parse(body);
+          // One JSON object per line (JSONL).
+          fs.appendFileSync(logFile, JSON.stringify(summary) + '\n', 'utf-8');
+          // Echo a compact verdict line to the dev console.
+          const verdict = summary?.verdict ?? {};
+          const line =
+            `[LOAD TEST] ${summary?.profileName ?? '?'} | XR=${summary?.xrActive} | ` +
+            `sufficientTo=${verdict.jsPathSufficientTo} warrantedAt=${verdict.commandBufferWarrantedAt}`;
+          console.log(`\x1b[35m${line}\x1b[0m`);
+        } catch (err) {
+          console.error('[loadtest-results] failed to parse/append summary:', err);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok' }));
+      });
+      return true;
+    }
+    return false;
+  }
+
+  return {
+    name: 'nemosyne-loadtest-results',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!handleLoadTest(req, res)) next();
+      });
+    },
+  };
+}
+
+function wasmServePlugin() {
+  const wasmPkgDir = path.resolve(process.cwd(), 'wasm', 'pkg');
+  return {
+    name: 'nemosyne-wasm-serve',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/wasm', (req, res, next) => {
+        let relative = req.url.replace(/^\//, '').split('?')[0];
+        if (relative.startsWith('pkg/')) {
+          relative = relative.replace(/^pkg\//, '');
+        }
+        const filePath = path.join(wasmPkgDir, relative);
+        if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+          next();
+          return;
+        }
+
+        const ext = path.extname(filePath).toLowerCase();
+        let mime = 'application/octet-stream';
+        if (ext === '.wasm') mime = 'application/wasm';
+        else if (ext === '.js') mime = 'application/javascript';
+        else if (ext === '.json') mime = 'application/json';
+
+        res.setHeader('Content-Type', mime);
+        fs.createReadStream(filePath).pipe(res);
+      });
+    },
+  };
+}
+
 export default defineConfig(({ command }) => ({
   plugins: [
     demoStreamPlugin(),
     signallingPlugin(),
+    remoteLogsPlugin(),
+    loadtestResultsPlugin(),
+    wasmServePlugin(),
   ],
   server: {
     host: true,

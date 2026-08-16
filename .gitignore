@@ -1,3 +1,4 @@
+.agents/
 node_modules/
 coverage/
 certs/
@@ -6,5 +7,14 @@ nemosyne/
 wasm/pkg/
 target/
 Cargo.lock
-.claude/worktrees/
-
+.claude/
+.gemini/
+.env
+.env.*
+*.secret
+*.pem
+*.key
+logs/
+# Playwright (real-WebGL load smoke)
+test-results/
+playwright-report/

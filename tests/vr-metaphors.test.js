@@ -2,9 +2,9 @@
 
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.js';
-import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.js';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
+import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import {
   applyResonancePulse,
   applyForkPlane,
@@ -12,7 +12,7 @@ import {
   applyConstellation,
   applyBeacon,
   applyAleph,
-} from '../src/vr/interactions/MetaphorActions.js';
+} from '../src/vr/interactions/MetaphorActions.ts';
 
 function makeGraphDataset(count) {
   const rows = Array.from({ length: count }, (_, i) => ({

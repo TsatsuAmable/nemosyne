@@ -6,19 +6,19 @@
     <title>Getting Started with Nemosyne | Nemosyne</title>
 
     <!-- Primary favicon -->
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E◈%3C/text%3E%3C/svg%3E">
 
     <!-- Fallback for older browsers -->
-    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon_io/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="img/favicon_io/favicon-16x16.png">
-    <link rel="shortcut icon" href="img/favicon_io/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="./img/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./img/favicon_io/favicon-16x16.png">
+    <link rel="shortcut icon" href="./img/favicon_io/favicon.ico">
 
     <!-- Apple devices -->
-    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon_io/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="./img/favicon_io/apple-touch-icon.png">
 
     <!-- Android/Chrome -->
-    <link rel="manifest" href="img/favicon_io/site.webmanifest">
+    <link rel="manifest" href="./img/favicon_io/site.webmanifest">
     <meta name="theme-color" content="#0a0a0f">
 
     <!-- Microsoft -->
@@ -42,8 +42,7 @@
             <li><a href="./index.html#datasets">Datasets</a></li>
             <li><a href="./index.html#examples">Examples</a></li>
             <li><a href="./index.html#use-cases">Use Cases</a></li>
-            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">VR Demo</a></li>
-            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">Launch App</a></li>
+            <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener">Demo</a></li>
         </ul>
         <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -90,7 +89,7 @@
 <hr>
 <h2>1. Install</h2>
 <pre><code class="language-bash">git clone https://github.com/TsatsuAmable/nemosyne.git
-cd nemosyne-analysis-suite
+cd nemosyne
 npm install
 </code></pre>
 <hr>
@@ -163,7 +162,7 @@ mkcert localhost 127.0.0.1 ::1 &lt;your-computer-ip&gt;
 </tr>
 <tr>
 <td>Inspect values</td>
-<td>Select a data node; a DataCard appears</td>
+<td>Select a data node; a HolographicInspector slate appears</td>
 </tr>
 <tr>
 <td>Open wheel menu</td>
@@ -628,6 +627,24 @@ S2,19.8,2026-07-28T01:00:00
 <pre><code class="language-bash">node src/network/SignallingServer.mjs --port=8080
 </code></pre>
 <p>and point the app at the same host/port (e.g. route <code>wss://your-host/__signal</code> to the server behind your TLS terminator).</p>
+<h3>Shared-secret token (optional, recommended for non-local use)</h3>
+<p>By default any client that knows the room ID can join. For a private demo you can
+gate joins behind a shared secret so the server rejects clients that do not supply
+it. This is <strong>not strong authentication</strong> — room ID + token together form a shared
+secret anyone in the room can read — but it keeps casual snoopers out.</p>
+<p>Set a token on the standalone server:</p>
+<pre><code class="language-bash">node src/network/SignallingServer.mjs --port=8080 --token=SHARED_SECRET
+# or: NEMOSYNE_SIGNAL_TOKEN=SHARED_SECRET node src/network/SignallingServer.mjs --port=8080
+</code></pre>
+<p>For the dev-server plugin, set <code>NEMOSYNE_SIGNAL_TOKEN</code> in the environment before
+<code>npm run dev</code>. When a token is configured, a join without a matching <code>?token=</code> is
+rejected (close code 4001). A second client claiming a peer ID already live in the
+room is also rejected (close code 4002) rather than silently taking it over.</p>
+<p>On the client, store the same token once in the browser before joining:</p>
+<pre><code class="language-js">localStorage.setItem(&#39;nemosyne.collabToken&#39;, &#39;SHARED_SECRET&#39;);
+</code></pre>
+<p>(NetworkManager reads it automatically; it is never logged.) When no token is
+configured, joins work without one, exactly as before.</p>
 <h3>Join a room in VR</h3>
 <ol>
 <li>Open <strong>Settings</strong> from the wheel menu.</li>
@@ -656,7 +673,7 @@ S2,19.8,2026-07-28T01:00:00
 <li>Read <a href="IDEOLOGY.md"><code>docs/IDEOLOGY.md</code></a> to understand the spatial-memory design.</li>
 <li>Read <a href="ARTEFACTS.md"><code>docs/ARTEFACTS.md</code></a> to learn the artefact taxonomy.</li>
 <li>Read <a href="INTERACTIONS.md"><code>docs/INTERACTIONS.md</code></a> to learn the gesture vocabulary.</li>
-<li>Read <a href="../ARCHITECTURE_BRIDGE.html"><code>ARCHITECTURE_BRIDGE.md</code></a> to see how this project maps to <code>nemosyne.world</code>.</li>
+<li>Read <a href="ARCHITECTURE.md"><code>ARCHITECTURE.md</code></a> to see how this project maps data to three.js / WebXR space.</li>
 <li>Tweak the Draco soft-constraint weights in the diagnostic HUD and watch the layout re-solve.</li>
 </ul>
 
@@ -670,18 +687,15 @@ S2,19.8,2026-07-28T01:00:00
         <div class="footer-tagline">Nemosyne</div>
         <div class="footer-domain">nemosyne.world</div>
         <p class="footer-text">
-            Advancing the use of VR artefacts as tools for manipulating and understanding real-world objects and data.
+            A personal, experimental WebXR project. Not a maintained product or npm package.
         </p>
         <div class="footer-links">
             <a href="https://github.com/TsatsuAmable/nemosyne" target="_blank">GitHub</a>
-            <a href="https://www.npmjs.com/package/nemosyne" target="_blank">npm Package</a>
-            <a href="https://github.com/TsatsuAmable/nemosyne/issues" target="_blank">Issues</a>
-            <a href="https://github.com/TsatsuAmable/nemosyne/discussions" target="_blank">Discussions</a>
             <a href="./ARCHITECTURE.html">Architecture</a>
             <a href="https://github.com/TsatsuAmable/nemosyne/blob/main/LICENSE" target="_blank">License (MIT)</a>
         </div>
         <p class="copyright">
-            © 2026 Nemosyne Project. Released under MIT License.
+            © 2026 Tsatsu Amable. Released under MIT License.
         </p>
     </footer>
 

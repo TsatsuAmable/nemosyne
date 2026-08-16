@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { VRMenu } from '../src/vr/ui/VRMenu.js';
+import { VRMenu } from '../src/vr/ui/VRMenu.ts';
 
 function makeRaycasterForButton(menu, btn) {
   const u = (btn.x + btn.w / 2) / menu.canvas.width;

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { WorldUIManager } from '../src/vr/coordinators/WorldUIManager.js';
-import { WorldEventBus } from '../src/utils/EventBus.js';
-import { Engine } from '../src/vr/Engine.js';
+import { WorldUIManager } from '../src/vr/coordinators/WorldUIManager.ts';
+import { WorldEventBus } from '../src/utils/EventBus.ts';
+import { Engine } from '../src/vr/Engine.ts';
 
 describe('WorldUIManager', () => {
   let engine;
@@ -159,8 +159,8 @@ describe('WorldUIManager', () => {
 
     ui.applyAccessibility({ textScale: 1.5, highContrast: true });
 
-    expect(panelSpy).toHaveBeenCalledWith({ textScale: 1.5, highContrast: true });
-    expect(wheelSpy).toHaveBeenCalledWith({ textScale: 1.5, highContrast: true });
+    expect(panelSpy).toHaveBeenCalledWith({ textScale: 1.5, highContrast: true, colorblindMode: 'none' });
+    expect(wheelSpy).toHaveBeenCalledWith({ textScale: 1.5, highContrast: true, colorblindMode: 'none' });
   });
 
   it('reads initial mini-overview setting from callback', () => {

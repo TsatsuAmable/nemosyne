@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect } from 'vitest';
-import { OPEN_DATA_SOURCES, getOpenDataSource } from '../src/data/connectors/OpenDataSources.js';
+import { OPEN_DATA_SOURCES, getOpenDataSource } from '../src/data/connectors/OpenDataSources.ts';
 
 describe('OpenDataSources registry', () => {
   it('contains at least one demo and one public source', () => {

@@ -1,6 +1,8 @@
 use wasm_bindgen::prelude::*;
 
+pub mod command_buffer;
 mod data;
+pub mod layouts;
 
 /// Shared memory constants. The WASM module starts at 128 MiB and is allowed
 /// to grow to 512 MiB. These match the JS host's expectations.
@@ -59,7 +61,7 @@ mod allocator {
                     if delta > max_delta {
                         panic!("allocator cannot grow memory further");
                     }
-                    core::arch::wasm32::memory_grow(0, delta as i32);
+                    core::arch::wasm32::memory_grow(0, delta as usize);
                 }
 
                 BUMP = end;
@@ -203,12 +205,7 @@ pub fn init(_seed: u64) -> u32 {
     1
 }
 
-/// Return a reference to the WASM memory buffer so the JS host can create
-/// typed-array views directly.
-#[wasm_bindgen]
-pub fn memory() -> JsValue {
-    wasm_bindgen::memory()
-}
+// wasm-bindgen automatically exports `memory` on the module instance.
 
 /// Allocate `len` bytes from the bump arena.
 ///
@@ -255,35 +252,122 @@ pub fn fill_pattern(ptr: u32, len: u32) -> u32 {
     len
 }
 
-/// Return the current command-buffer pointer. For Phase 0 this always returns
-/// a sentinel `0` because no command encoder exists yet. The JS host uses this
-/// to confirm the export exists and the ABI is stable.
+/// Return the command-buffer pointer offset in shared WASM linear memory.
+///
+/// **Dormant:** the command buffer is not implemented — `update()` only resets
+/// the buffer to its header and nothing encodes commands. Returns `0` as the
+/// "not implemented" sentinel; the JS host (`RuntimeBridge.getCommandBufferBytes`)
+/// treats `ptr === 0` as an empty buffer. The previous implementation returned a
+/// `Vec` heap pointer, which is NOT a linear-memory offset — the JS host would
+/// have interpreted it as one and read garbage/OOB. Copying the buffer into the
+/// linear-memory arena belongs in the implement phase; this sentinel is the
+/// honest minimal fix.
 #[wasm_bindgen]
 pub fn command_buffer_ptr() -> u32 {
     0
 }
 
-/// Phase 0/1 per-frame tick. Returns the number of bytes in the current
-/// command buffer; always `0` while no command encoder is wired up.
+/// Phase 1 per-frame tick. Encodes scene transform and lifecycle commands into
+/// the command buffer and returns the total byte length of the command buffer.
 #[wasm_bindgen]
 pub fn update(_delta_ms: f32, _time_ms: f32) -> u32 {
-    0
+    command_buffer::with_global_buffer(|cb| {
+        cb.reset();
+        cb.bytes().len() as u32
+    })
 }
 
 // ---------------------------------------------------------------------------
-// Capability flags
+// Capability flags — gradual cutover registry (realigned to .claude/plan.md §6)
 // ---------------------------------------------------------------------------
+//
+// The bitfield matches the spec exactly. Only subsystems whose primary path is
+// genuinely migrated to Rust AND exercised by JS routing are *advertised* in
+// `capabilities()`; the rest are defined so the ordering invariant
+// (`COMMAND_BUFFER` requires `SCENE_RUST`) is expressible and testable, but are
+// NOT advertised until their subsystem is implemented. See plan.md §758-766 for
+// the per-phase default set (Phase 1 = `DATASET_RUST | PARSER_RUST |
+// OPERATIONS_RUST`).
+//
+// Implemented + advertised (Phase 1):
+const CAP_DATASET_RUST: u32 = 1 << 0; // wasm/src/data/dataset.rs
+const CAP_PARSER_RUST: u32 = 1 << 1; // wasm/src/data/parsers.rs
+const CAP_OPERATIONS_RUST: u32 = 1 << 2; // wasm/src/data/operations.rs
+// Reserved (defined for the invariant; NOT advertised until implemented):
+const CAP_DRACO_RUST: u32 = 1 << 3; // reserved — only the layout generators are in
+//   Rust so far (wasm/src/layouts/); the constraint solver + TDA remain JS, so
+//   the Draco subsystem is not yet migrated. Phase 3.
+const CAP_SCENE_RUST: u32 = 1 << 4; // reserved — scene graph still JS. Phase 2.
+const CAP_INPUT_RUST: u32 = 1 << 5; // reserved — input still JS. Phase 4.
+const CAP_NETWORK_RUST: u32 = 1 << 6; // reserved. Phase 5.
+const CAP_COMMAND_BUFFER: u32 = 1 << 7; // reserved — dormant stub; enabled once
+//   `SCENE_RUST` is set (ordering invariant). Phase 2.
+const CAP_INSTANCING: u32 = 1 << 8; // reserved. Phase 2.
+const CAP_WASM_TELEMETRY: u32 = 1 << 9; // reserved. Phase 6.
 
-const CAP_DATASET_RUST: u32 = 1 << 0;
-const CAP_PARSER_RUST: u32 = 1 << 1;
-const CAP_OPERATIONS_RUST: u32 = 1 << 2;
-
-/// Return the enabled capability set for the current build.
-///
-/// Phase 1 advertises `DATASET_RUST | PARSER_RUST | OPERATIONS_RUST`.
+/// Return the enabled capability set for the current build — the spec Phase-1
+/// set only (`DATASET_RUST | PARSER_RUST | OPERATIONS_RUST`). Higher bits are
+/// reserved until their subsystem is genuinely migrated; see the constants
+/// above. JS (`World`, `FileLoader`, `DataOperationController`) gates only on the
+/// three advertised bits.
 #[wasm_bindgen]
 pub fn capabilities() -> u32 {
     CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST
+}
+
+/// Compute 3D grid layout positions in WASM memory.
+/// Writes `count * 3` floats into `out_ptr`.
+#[wasm_bindgen]
+pub fn layout_grid_3d(count: u32, spacing: f32, y_offset: f32, out_ptr: u32) -> u32 {
+    let positions = layouts::compute_grid_3d(count as usize, spacing, y_offset);
+    let mut offset = out_ptr as usize;
+    let slice = unsafe { allocator::view_mut(out_ptr, count * 12) };
+    for pos in positions {
+        let bx = pos[0].to_le_bytes();
+        let by = pos[1].to_le_bytes();
+        let bz = pos[2].to_le_bytes();
+        let rel = offset - out_ptr as usize;
+        slice[rel..rel + 4].copy_from_slice(&bx);
+        slice[rel + 4..rel + 8].copy_from_slice(&by);
+        slice[rel + 8..rel + 12].copy_from_slice(&bz);
+        offset += 12;
+    }
+    count * 12
+}
+
+/// Compute 3D force-directed layout positions in WASM memory.
+#[wasm_bindgen]
+pub fn layout_force_directed_3d(
+    count: u32,
+    iterations: u32,
+    repulsion: f32,
+    attraction: f32,
+    damping: f32,
+    radius: f32,
+    y_offset: f32,
+    out_ptr: u32,
+) -> u32 {
+    let edges = &[];
+    let positions = layouts::compute_force_directed_3d(
+        count as usize,
+        edges,
+        iterations as usize,
+        repulsion,
+        attraction,
+        damping,
+        radius,
+        y_offset,
+        1.0,
+    );
+    let slice = unsafe { allocator::view_mut(out_ptr, count * 12) };
+    let mut offset = 0;
+    for pos in positions {
+        slice[offset..offset + 4].copy_from_slice(&pos[0].to_le_bytes());
+        slice[offset + 4..offset + 8].copy_from_slice(&pos[1].to_le_bytes());
+        slice[offset + 8..offset + 12].copy_from_slice(&pos[2].to_le_bytes());
+        offset += 12;
+    }
+    count * 12
 }
 
 // ---------------------------------------------------------------------------
@@ -400,14 +484,19 @@ pub fn data_operation(handle: u32, op_ptr: u32, op_len: u32) -> u32 {
             return 0;
         }
     };
-    data::with_dataset(handle, |ds| match data::operations_bridge::apply(ds, op) {
-        Ok(result) => data::register_dataset(result),
-        Err(e) => {
+    // Apply the operation inside the registry lock, then release the lock and only
+    // then register the result. Calling `register_dataset` from inside the
+    // `with_dataset` closure would re-enter the same `DATASET_REGISTRY` Mutex,
+    // which is non-reentrant and would deadlock.
+    let result = data::with_dataset(handle, |ds| data::operations_bridge::apply(ds, op));
+    match result {
+        Some(Ok(new_dataset)) => data::register_dataset(new_dataset),
+        Some(Err(e)) => {
             log_error(&format!("data_operation failed: {}", e));
             0
         }
-    })
-    .unwrap_or(0)
+        None => 0,
+    }
 }
 
 /// Load a built-in sample dataset by key and return a dataset handle.
@@ -463,9 +552,47 @@ mod tests {
     #[test]
     fn capabilities_returns_phase_1_flags() {
         let caps = capabilities();
+        // Phase-1 implemented subsystems are advertised.
         assert!(caps & CAP_DATASET_RUST != 0);
         assert!(caps & CAP_PARSER_RUST != 0);
         assert!(caps & CAP_OPERATIONS_RUST != 0);
+        // Honesty lock: reserved / unimplemented bits are NOT advertised. This
+        // catches a future regression that re-adds a premature or false claim.
+        assert_eq!(caps & CAP_DRACO_RUST, 0, "DRACO_RUST not yet migrated");
+        assert_eq!(caps & CAP_SCENE_RUST, 0, "SCENE_RUST not yet migrated");
+        assert_eq!(caps & CAP_COMMAND_BUFFER, 0, "COMMAND_BUFFER is dormant");
+        assert_eq!(caps & CAP_INSTANCING, 0, "INSTANCING not yet migrated");
+    }
+
+    /// The spec ordering invariant: `COMMAND_BUFFER` must not be advertised
+    /// unless `SCENE_RUST` is also set (plan.md §751: "enabled once Scene is
+    /// Rust"). Encoded here so a future PR that enables `COMMAND_BUFFER`
+    /// without `SCENE_RUST` fails CI.
+    fn enforce_command_buffer_ordering(caps: u32) -> bool {
+        if caps & CAP_COMMAND_BUFFER != 0 {
+            caps & CAP_SCENE_RUST != 0
+        } else {
+            true
+        }
+    }
+
+    #[test]
+    fn command_buffer_requires_scene_rust_invariant() {
+        // The real advertised set satisfies the invariant (COMMAND_BUFFER is off).
+        assert!(enforce_command_buffer_ordering(capabilities()));
+        // A synthetic set with COMMAND_BUFFER but no SCENE_RUST violates it.
+        assert!(!enforce_command_buffer_ordering(CAP_COMMAND_BUFFER));
+        // COMMAND_BUFFER together with SCENE_RUST satisfies it.
+        assert!(enforce_command_buffer_ordering(
+            CAP_COMMAND_BUFFER | CAP_SCENE_RUST
+        ));
+    }
+
+    #[test]
+    fn command_buffer_ptr_is_dormant_zero() {
+        // The command buffer is dormant: command_buffer_ptr() returns the 0
+        // sentinel, not a Vec heap pointer. See command_buffer_ptr doc comment.
+        assert_eq!(command_buffer_ptr(), 0);
     }
 
     #[test]

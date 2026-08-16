@@ -1,0 +1,95 @@
+{
+  "description": "Golden dataset-to-topology recommendation test pairs for Draco recommender evaluation.",
+  "pairs": [
+    {
+      "id": "tabular-sales",
+      "topology": "TABULAR",
+      "dataInput": {
+        "dataset": {
+          "name": "Sales Table",
+          "columns": [
+            { "name": "region", "type": "CATEGORICAL" },
+            { "name": "revenue", "type": "NUMERIC" },
+            { "name": "margin", "type": "NUMERIC" }
+          ],
+          "rows": [
+            { "region": "North", "revenue": 100, "margin": 15 },
+            { "region": "South", "revenue": 150, "margin": 25 },
+            { "region": "East", "revenue": 200, "margin": 30 }
+          ]
+        }
+      },
+      "expectedLayout": "GRID_3D",
+      "expectedGeometry": "CUBE_MATRIX"
+    },
+    {
+      "id": "graph-social",
+      "topology": "GRAPH",
+      "dataInput": {
+        "topology": "GRAPH",
+        "nodes": [{ "id": "A" }, { "id": "B" }, { "id": "C" }],
+        "edges": [{ "source": "A", "target": "B" }, { "source": "B", "target": "C" }]
+      },
+      "expectedLayout": "FORCE_DIRECTED_3D",
+      "expectedGeometry": "ICOSA_NODE"
+    },
+    {
+      "id": "hierarchy-org",
+      "topology": "HIERARCHY",
+      "dataInput": {
+        "topology": "HIERARCHY",
+        "maxDepth": 4,
+        "dataset": {
+          "name": "Org Hierarchy",
+          "columns": [{ "name": "role", "type": "CATEGORICAL" }],
+          "rows": [{ "role": "CEO" }, { "role": "VP" }, { "role": "Director" }]
+        }
+      },
+      "expectedLayout": "RADIAL_ORBITAL",
+      "expectedGeometry": "CONICAL_TREE"
+    },
+    {
+      "id": "vector-flow",
+      "topology": "VECTOR_FIELD",
+      "dataInput": {
+        "topology": "VECTOR_FIELD",
+        "dataset": {
+          "name": "Wind Field",
+          "columns": [{ "name": "u", "type": "NUMERIC" }, { "name": "v", "type": "NUMERIC" }],
+          "rows": [{ "u": 1.2, "v": 0.5 }]
+        }
+      },
+      "expectedLayout": "VECTOR_STREAMLINE",
+      "expectedGeometry": "FLOW_RAY"
+    },
+    {
+      "id": "timeseries-sensors",
+      "topology": "TIME_SERIES",
+      "dataInput": {
+        "topology": "TIME_SERIES",
+        "isTimeSeries": true,
+        "dataset": {
+          "name": "Sensor Stream",
+          "columns": [{ "name": "timestamp", "type": "TEMPORAL" }, { "name": "temp", "type": "NUMERIC" }],
+          "rows": [{ "timestamp": "2026-01-01", "temp": 22.5 }, { "timestamp": "2026-01-02", "temp": 23.1 }]
+        }
+      },
+      "expectedLayout": "TIME_RIBBON",
+      "expectedBehavior": "PULSE_QUANTITATIVE"
+    },
+    {
+      "id": "geo-locations",
+      "topology": "GEO",
+      "dataInput": {
+        "topology": "GEO",
+        "dataset": {
+          "name": "City Outlets",
+          "columns": [{ "name": "lat", "type": "NUMERIC" }, { "name": "lon", "type": "NUMERIC" }],
+          "rows": [{ "lat": 51.5, "lon": -0.12 }]
+        }
+      },
+      "expectedLayout": "GEO_SURFACE",
+      "expectedGeometry": "GEO_COLUMN"
+    }
+  ]
+}

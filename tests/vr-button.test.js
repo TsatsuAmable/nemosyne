@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { NemosyneVRButton } from '../src/vr/VRButton.js';
+import { NemosyneVRButton } from '../src/vr/VRButton.ts';
 
 function makeMockRenderer() {
   return {

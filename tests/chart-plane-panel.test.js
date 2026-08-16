@@ -2,10 +2,10 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
-import { ChartPlanePanel } from '../src/vr/ui/ChartPlanePanel.js';
-import { MovablePanel } from '../src/vr/ui/MovablePanel.js';
-import { DashboardManager } from '../src/vr/ui/DashboardManager.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { ChartPlanePanel } from '../src/vr/ui/ChartPlanePanel.ts';
+import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
+import { DashboardManager } from '../src/vr/ui/DashboardManager.ts';
 
 describe('ChartPlanePanel', () => {
   let cameraGroup;

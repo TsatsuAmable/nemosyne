@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { World } from '../src/vr/World.js';
-import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.js';
-import { DracoDiagnosticHUD } from '../src/draco/DracoDiagnosticHUD.js';
-import { getSampleDataset } from '../src/data/SampleDatasets.js';
-import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.js';
-import { WorldTheme } from '../src/vr/WorldTheme.js';
-import * as Download from '../src/utils/Download.js';
-import { OperationLogPanel } from '../src/vr/ui/OperationLogPanel.js';
+import { World } from '../src/vr/World.ts';
+import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.ts';
+import { DracoDiagnosticHUD } from '../src/vr/ui/DracoDiagnosticHUD.ts';
+import { getSampleDataset } from '../src/data/SampleDatasets.ts';
+import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.ts';
+import { WorldTheme } from '../src/vr/WorldTheme.ts';
+import * as Download from '../src/utils/Download.ts';
+import { OperationLogPanel } from '../src/vr/ui/OperationLogPanel.ts';
 
 const CONNECTING = 0;
 const OPEN = 1;
@@ -316,7 +316,13 @@ describe('World integration', () => {
     expect(world.dashboardPanels.length).toBeGreaterThan(0);
     for (const entry of world.dashboardPanels) {
       expect(world.engine.input.panels).toContain(entry.panel);
-      expect(entry.panel.mesh.visible).toBe(true);
+      // The statistical lens is hidden by default (progressive disclosure), so
+      // the CORRELATION matrix panel starts hidden; other dashboard charts show.
+      if (entry.panel?.chartType === 'CORRELATION') {
+        expect(entry.panel.mesh.visible).toBe(false);
+      } else {
+        expect(entry.panel.mesh.visible).toBe(true);
+      }
     }
   });
 

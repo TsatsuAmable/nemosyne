@@ -17,7 +17,7 @@ This guide walks you through running the Nemosyne Spatial Data Analysis Suite on
 
 ```bash
 git clone https://github.com/TsatsuAmable/nemosyne.git
-cd nemosyne-analysis-suite
+cd nemosyne
 npm install
 ```
 
@@ -99,7 +99,7 @@ Then open `https://localhost:5173` in the Quest Browser.
 | Look around | Move your head |
 | Point | Controller laser or index-finger ray |
 | Select a node | Trigger click or pinch |
-| Inspect values | Select a data node; a DataCard appears |
+| Inspect values | Select a data node; a HolographicInspector slate appears |
 | Open wheel menu | Pinch the menu hand (or grip button / two-hand pinch) |
 | Toggle panels | Wheel menu buttons |
 | Drag a panel | Point at title bar, hold trigger/pinch, move |
@@ -366,6 +366,34 @@ node src/network/SignallingServer.mjs --port=8080
 
 and point the app at the same host/port (e.g. route `wss://your-host/__signal` to the server behind your TLS terminator).
 
+### Shared-secret token (optional, recommended for non-local use)
+
+By default any client that knows the room ID can join. For a private demo you can
+gate joins behind a shared secret so the server rejects clients that do not supply
+it. This is **not strong authentication** — room ID + token together form a shared
+secret anyone in the room can read — but it keeps casual snoopers out.
+
+Set a token on the standalone server:
+
+```bash
+node src/network/SignallingServer.mjs --port=8080 --token=SHARED_SECRET
+# or: NEMOSYNE_SIGNAL_TOKEN=SHARED_SECRET node src/network/SignallingServer.mjs --port=8080
+```
+
+For the dev-server plugin, set `NEMOSYNE_SIGNAL_TOKEN` in the environment before
+`npm run dev`. When a token is configured, a join without a matching `?token=` is
+rejected (close code 4001). A second client claiming a peer ID already live in the
+room is also rejected (close code 4002) rather than silently taking it over.
+
+On the client, store the same token once in the browser before joining:
+
+```js
+localStorage.setItem('nemosyne.collabToken', 'SHARED_SECRET');
+```
+
+(NetworkManager reads it automatically; it is never logged.) When no token is
+configured, joins work without one, exactly as before.
+
 ### Join a room in VR
 
 1. Open **Settings** from the wheel menu.
@@ -404,5 +432,5 @@ npm run test:coverage
 - Read [`docs/IDEOLOGY.md`](IDEOLOGY.md) to understand the spatial-memory design.
 - Read [`docs/ARTEFACTS.md`](ARTEFACTS.md) to learn the artefact taxonomy.
 - Read [`docs/INTERACTIONS.md`](INTERACTIONS.md) to learn the gesture vocabulary.
-- Read [`ARCHITECTURE_BRIDGE.md`](../ARCHITECTURE_BRIDGE.md) to see how this project maps to `nemosyne.world`.
+- Read [`ARCHITECTURE.md`](ARCHITECTURE.md) to see how this project maps data to three.js / WebXR space.
 - Tweak the Draco soft-constraint weights in the diagnostic HUD and watch the layout re-solve.

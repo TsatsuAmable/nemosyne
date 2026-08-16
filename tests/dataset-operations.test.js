@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import {
   filter,
   sort,
@@ -9,7 +9,7 @@ import {
   dbscan,
   anomaly,
   slice,
-} from '../src/data/DatasetOperations.js';
+} from '../src/data/DatasetOperations.ts';
 
 function makeDataset(rows, name = 'Test') {
   const columns = [

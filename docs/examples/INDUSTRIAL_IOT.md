@@ -4,7 +4,7 @@ Real-time sensor monitoring using the `sensor-stream` sample dataset and the bui
 
 ## What it shows
 
-`src/data/SampleDatasets.js` defines an IoT sensor time-series with hourly temperature and vibration readings for two sensors:
+`src/data/SampleDatasets.ts` defines an IoT sensor time-series with hourly temperature and vibration readings for two sensors:
 
 | time | sensorId | temperature | vibration |
 |---|---|---|---|

@@ -1,0 +1,72 @@
+name: approval-gate
+
+# Enforces the repository merge policy (see docs/ROADMAP.md "Current Status"):
+#   - PRs authored by the repo owner auto-merge once the build is green.
+#   - PRs from anyone else are blocked until the repo owner approves them, then
+#     auto-merge on green (or the owner merges manually).
+# This job is a *required* status check named "approval-gate" on the main branch
+# ruleset. It exists because GitHub auto-merge cannot skip a native
+# "require approvals" rule (and bypass lists are unavailable on user-owned
+# repos), so a custom gate is the only way to auto-merge your own PRs while
+# hard-blocking everyone else's until you approve.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  approval-gate:
+    name: approval-gate
+    runs-on: ubuntu-latest
+    outputs:
+      approved: ${{ steps.gate.outputs.approved }}
+    steps:
+      - id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          OWNER='${{ github.repository_owner }}'
+          PR_NUMBER='${{ github.event.pull_request.number }}'
+          HEAD_SHA='${{ github.event.pull_request.head.sha }}'
+
+          AUTHOR=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.user.login')
+          echo "PR #$PR_NUMBER author=$AUTHOR owner=$OWNER head=$HEAD_SHA"
+
+          APPROVED=false
+          if [ "$AUTHOR" = "$OWNER" ]; then
+            APPROVED=true
+            echo "Author is the repo owner — auto-approved."
+          else
+            # Count an APPROVED review by the owner on the *current* head only,
+            # so a new push after approval re-blocks until re-approved.
+            if gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" --paginate \
+                 --jq ".[] | select(.user.login==\"$OWNER\" and .state==\"APPROVED\" and .commit_id==\"$HEAD_SHA\")" \
+                 | grep -q .; then
+              APPROVED=true
+              echo "Approved by owner $OWNER on $HEAD_SHA."
+            fi
+          fi
+
+          echo "approved=$APPROVED" >> "$GITHUB_OUTPUT"
+          if [ "$APPROVED" != "true" ]; then
+            echo "::error::Blocked — this PR can merge once the repo owner ($OWNER) approves it."
+            exit 1
+          fi
+
+      - name: Enable auto-merge (squash) when approved
+        if: steps.gate.outputs.approved == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER='${{ github.event.pull_request.number }}'
+          # --repo avoids shelling out to a local git repo (this job runs without
+          # actions/checkout), which would otherwise fail with "not a git repository".
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash \
+            || echo "Auto-merge not enabled (PR may be a fork, a draft, or already merged)."

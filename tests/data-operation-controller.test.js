@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { DataOperationController } from '../src/vr/coordinators/DataOperationController.js';
-import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.js';
-import { Dataset, ColumnType } from '../src/data/Dataset.js';
-import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.js';
-import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.js';
-import { captureBaseState } from '../src/vr/interactions/DataOperations.js';
+import { DataOperationController } from '../src/vr/coordinators/DataOperationController.ts';
+import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.ts';
+import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
+import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
+import { captureBaseState } from '../src/vr/interactions/DataOperations.ts';
 
 function makeArtifact() {
   const group = new THREE.Group();
