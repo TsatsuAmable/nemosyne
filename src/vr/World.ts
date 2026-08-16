@@ -1655,6 +1655,7 @@ export class World {
     this.telemetryCollector?.setEnabled?.(false);
     this.adaptiveAssist?.dispose();
     this.rendererLifecycle?.dispose();
+    this.sceneGraphController.dispose();
 
     // Wait for async init work to finish so it cannot log after disposal.
     await Promise.allSettled(this._initPromises);

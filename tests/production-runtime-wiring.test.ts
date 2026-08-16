@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { Engine } from '../src/vr/Engine.ts';
 import { CollaborativeStateSync } from '../src/network/CollaborativeStateSync.ts';
@@ -13,6 +13,10 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
     expect(world.sceneGraphController).toBeDefined();
     expect(world.workspaceManager).toBeDefined();
     expect(world.sceneGraphController.scene).toBeInstanceOf(THREE.Scene);
+
+    const disposeSpy = vi.spyOn(world.sceneGraphController, 'dispose');
+    await world.dispose();
+    expect(disposeSpy).toHaveBeenCalledOnce();
   });
 
   it('measures frame timing via AdaptiveFrameGovernor in Engine tick', () => {
