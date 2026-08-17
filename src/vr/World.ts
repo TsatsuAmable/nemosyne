@@ -76,6 +76,8 @@ import { FarcasterPortal } from './artifacts/FarcasterPortal.ts';
 import { HolographicInspector } from './artifacts/HolographicInspector.ts';
 import type { DatasetJSON, EncodingMapping, TopologyType } from '../data/types.ts';
 import { DatasetSpace } from '../atlas/DatasetSpace.ts';
+import { AtlasCore } from '../atlas/AtlasCore.ts';
+import { NemosyneSession } from '../session/NemosyneSession.ts';
 import type {
   ArtifactRef,
   DatasetLoadEntry,
@@ -88,9 +90,6 @@ import type {
   WasmRuntimeBridge,
   WorldEventBusLike,
 } from './coordinators/types.ts';
-
-// Capability flags returned by the Rust/WASM runtime. Keep in sync with wasm/src/lib.rs.
-const CAP_DATASET_RUST = 1 << 0;
 
 // Map sample-dataset keys to atmospheric presets so each dataset has a distinct mood.
 const DATASET_THEME_MAP: Record<string, string> = {
@@ -123,6 +122,8 @@ const DEFAULT_DATASET_ENTRY: DatasetLoadEntry = {
 export class World {
   engine: Engine;
   eventBus: WorldEventBusLike;
+  atlas: AtlasCore;
+  session: NemosyneSession;
   dataOperationController: DataOperationController;
   sceneComposer: WorldSceneComposer;
   analystAnchor: THREE.Group;
@@ -161,6 +162,7 @@ export class World {
   _datasetCycleIndex: number;
   _wasmCapabilities: number;
   _wasmRuntime: WasmRuntimeBridge | null;
+  _wasmUnavailable: boolean;
   liveStreamCoordinator: LiveStreamCoordinator;
   collaborationCoordinator: CollaborationCoordinator;
   landmarkController!: WorldLandmarkController;
@@ -169,10 +171,9 @@ export class World {
   loader: FileLoaderUI;
   telemetry: HTMLElement | null;
   _dashboardTooltipTargets: THREE.Mesh[];
-  analysisHistory: AnalysisHistory;
+  analysisHistory!: AnalysisHistory;
   _originalDataset!: Dataset | null;
   _transformedDataset!: Dataset | null;
-  datasetSpace: DatasetSpace | null;
   _inputPaused!: boolean;
   _handNearArtefact!: boolean;
   _handNearWheelMenu!: boolean;
@@ -212,11 +213,19 @@ export class World {
     this.sceneGraphController = new SceneGraphController();
     this.workspaceManager = new WorkspaceManager(this.engine.scene);
 
+    // AtlasCore is the single analytical authority for the operation path
+    // (Wave 4). It owns the kernel handle, the provenance ledger, the analysis
+    // results chain, and the AnalysisHistory undo/redo cursor. The kernel is
+    // bound later in `_initWasmRuntime`.
+    this.atlas = new AtlasCore({ kernel: null, eventBus: this.eventBus as WorldEventBus });
+
     // Data-operation controller owns dataset mutation, analysis history, and
-    // the operation → visual-transform mapping.
+    // the operation → visual-transform mapping. It issues typed AnalysisSpec
+    // commands to AtlasCore instead of calling the kernel directly.
     this.dataOperationController = new DataOperationController({
       eventBus: this.eventBus as WorldEventBus,
       getArtifact: () => this.dracoNode?.artifact ?? null,
+      atlas: this.atlas,
     });
 
     // Explicit analyst anchor: all HUD panels, dashboard, and wheel menu are
@@ -375,6 +384,7 @@ export class World {
       tooltipManager: this.tooltipManager,
       getOriginalDataset: () => this._originalDataset,
       getDracoNode: () => this.dracoNode,
+      getWasmBridge: () => this._wasmRuntime,
     });
 
     // In-place operation handles near data artefacts for direct manipulation.
@@ -410,9 +420,9 @@ export class World {
 
     this.portalsEnabled = true;
     this._datasetCycleIndex = -1;
-    this.datasetSpace = null;
     this._wasmCapabilities = 0;
     this._wasmRuntime = null;
+    this._wasmUnavailable = false;
 
     // Live-streaming and collaboration state.
     this.liveStreamCoordinator = new LiveStreamCoordinator({ world: this });
@@ -442,24 +452,29 @@ export class World {
     // Tell the tooltip manager about any dashboard panels created later.
     this._dashboardTooltipTargets = [];
 
-    // Analysis operation history is owned by the data-operation controller, but
-    // exposed as a legacy property for tests and UI panels.
-    this.analysisHistory = this.dataOperationController.analysisHistory;
+    // Analysis history is owned by AtlasCore; expose it as a live getter so
+    // legacy consumers (narrative strip, session restore, tests) stay in sync.
+    Object.defineProperty(this, 'analysisHistory', {
+      get: () => this.atlas.analysisHistory,
+      configurable: true,
+    });
 
-    // Facade getters for the dataset state owned by the data-operation controller.
-    // Tests and session code still access `world._originalDataset` and
+    // Facade getters for the dataset state owned by AtlasCore. Tests and
+    // session code still access `world._originalDataset` and
     // `world._transformedDataset` directly.
     Object.defineProperty(this, '_originalDataset', {
-      get: () => this.dataOperationController.originalDataset,
+      get: () => this.atlas.originalDataset,
       set: (value) => {
-        this.dataOperationController._originalDataset = value?.clone?.() ?? null;
+        this.atlas.setOriginalDataset(value);
       },
+      configurable: true,
     });
     Object.defineProperty(this, '_transformedDataset', {
-      get: () => this.dataOperationController.transformedDataset,
+      get: () => this.atlas.dataset,
       set: (value) => {
-        this.dataOperationController._transformedDataset = value?.clone?.() ?? null;
+        this.atlas.setCurrentDataset(value);
       },
+      configurable: true,
     });
 
     // Facade getters for input state owned by the input coordinator. Tests read
@@ -529,6 +544,11 @@ export class World {
     } as any);
     this.engine.addUpdatable(this.guidedTour);
     this.engine.addHudObject(this.guidedTour);
+
+    // Authoritative logical session (Wave 4): wraps AtlasCore + presentation
+    // state and owns the schemaVersion-2 snapshot. Constructed before the
+    // session controller so it can read `this.session`.
+    this.session = new NemosyneSession({ atlas: this.atlas });
 
     // Session save/load/autosave coordinator (reads facade members lazily).
     this.sessionController = new WorldSessionController(this);
@@ -820,15 +840,14 @@ export class World {
     this.analystAnchor.add(this.diagnostic.mesh);
 
     this.currentEntry = entry;
-    this.datasetSpace = entry.dataset ? new DatasetSpace(entry.dataset) : null;
     this.telemetryCollector?.recordDataset?.(entry.name ?? entry.label ?? 'dataset', entry.topology);
 
-    // Preserve original state so data operations can be reset.
+    // Preserve original state so data operations can be reset. Setting
+    // `_originalDataset` routes through AtlasCore.loadDataset (resets ledger,
+    // results, and history, bumps version, appends a 'load' ResearchEvent);
+    // setting `_transformedDataset` points the current dataset at the original.
     this._originalDataset = entry.dataset?.clone?.() ?? null;
     this._transformedDataset = this._originalDataset?.clone?.() ?? null;
-
-    // Each loaded dataset starts a fresh analysis history.
-    this.analysisHistory?.clear();
 
     // Attach optional TDA summary group for numeric datasets.
     this._attachTDASummary();
@@ -1207,6 +1226,16 @@ export class World {
     if (this.dracoNode && this.dracoNode.translatorOptions.colorblindMode !== options.colorblindMode) {
       this.dracoNode.translatorOptions.colorblindMode = options.colorblindMode;
       this.dracoNode.reSolveAndSynthesize();
+      // A full re-solve rebuilds the artefact from the dataset but drops the
+      // visual transform of the currently-active data operation (e.g. a
+      // filter's lifted/hidden nodes). Re-apply it so a mid-analysis palette
+      // change does not silently revert the active operation's transform —
+      // mirroring _restoreDataset, which re-applies it after the same call.
+      const currentOp = this.analysisHistory?.current?.()?.operation;
+      const currentDataset = this._transformedDataset ?? this._originalDataset;
+      if (currentOp && currentDataset) {
+        this._reapplyOperationTransform(currentOp, currentDataset);
+      }
     }
 
     // Remap world theme accent colors for colorblind modes.
@@ -1233,26 +1262,36 @@ export class World {
     this.collaborationCoordinator.leaveCollaborationRoom();
   }
 
+  /**
+   * The DatasetSpace for the currently-loaded dataset. Built lazily on first
+   * access (and rebuilt when the source dataset changes) rather than eagerly
+   * on every `loadDataset`, since the renderer, session save, and data
+   * operations do not read it — only scaffolding/tests do — so paying a full
+   * clone + per-row hash + range computation on the load hot path was wasted
+   * work that could trip the PerformanceBudget critical frame-spike warning.
+   */
+  get datasetSpace(): DatasetSpace | null {
+    // AtlasCore caches the DatasetSpace against the current dataset identity.
+    return this.atlas.datasetSpace;
+  }
+
   get networkManager(): NetworkManagerLike | null {
     return this.collaborationCoordinator?.networkManager ?? null;
   }
 
   undoAnalysis(): void {
-    if (!this.analysisHistory.canUndo) return;
-    const frame = this.analysisHistory.undo();
+    // The controller emits HISTORY_SEEK; World's listener restores the dataset
+    // + narrative strip. Consolidating the two history-mutation paths here
+    // keeps seek events consistent (Wave 4).
+    const frame = this.dataOperationController.undo();
     if (!frame) return;
-    this._restoreDataset(frame.dataset, frame.operation);
-    this._updateNarrativeStrip();
     this.vrConsole?.log?.('log', [`Undo: ${frame.operation}`]);
     this._logInteraction('Undo', { result: frame.operation });
   }
 
   redoAnalysis(): void {
-    if (!this.analysisHistory.canRedo) return;
-    const frame = this.analysisHistory.redo();
+    const frame = this.dataOperationController.redo();
     if (!frame) return;
-    this._restoreDataset(frame.dataset, frame.operation);
-    this._updateNarrativeStrip();
     this.vrConsole?.log?.('log', [`Redo: ${frame.operation}`]);
     this._logInteraction('Redo', { result: frame.operation });
   }
@@ -1267,39 +1306,7 @@ export class World {
 
     // Re-apply the visual transform that belongs to this operation, because a
     // full re-solve only rebuilds the artefact from the dataset.
-    switch (operation) {
-      case 'filter':
-        applyFilter(this.dracoNode.artifact!, transformedDataset);
-        break;
-      case 'sort':
-        applySort(this.dracoNode.artifact!, transformedDataset);
-        break;
-      case 'aggregate':
-        applyAggregate(this.dracoNode.artifact!, transformedDataset);
-        break;
-      case 'cluster':
-        applyCluster(this.dracoNode.artifact!, transformedDataset);
-        break;
-      case 'hierarchical':
-        applyHierarchicalCluster(this.dracoNode.artifact!, transformedDataset);
-        break;
-      case 'density':
-        applyDensityCluster(this.dracoNode.artifact!, transformedDataset);
-        break;
-      case 'anomaly':
-        applyAnomaly(this.dracoNode.artifact!, transformedDataset);
-        break;
-      case 'timeSlice':
-        applySlice(this.dracoNode.artifact!, transformedDataset, this._originalDataset ?? transformedDataset);
-        break;
-      case 'compare':
-        // The dataset re-solve is the visual representation for Compare.
-        break;
-      case 'reset':
-      default:
-        resetTransforms(this.dracoNode.artifact!);
-        break;
-    }
+    this._reapplyOperationTransform(operation, transformedDataset);
 
     this._updateDashboardDatasets(transformedDataset);
     if (this.tdaRecompute && operation !== 'anomaly') {
@@ -1307,11 +1314,54 @@ export class World {
     }
   }
 
+  /**
+   * Re-apply the visual transform for a data operation to the current artefact.
+   *
+   * A full `reSolveAndSynthesize` rebuilds the artefact from the dataset but
+   * drops the operation's visual transform (e.g. a filter's lifted/hidden
+   * nodes, a sort's ordering, a cluster's grouping). Any code path that
+   * re-solves mid-analysis must call this to preserve the active operation.
+   */
+  _reapplyOperationTransform(operation: string, dataset: Dataset): void {
+    if (!this.dracoNode?.artifact) return;
+    switch (operation) {
+      case 'filter':
+        applyFilter(this.dracoNode.artifact, dataset);
+        break;
+      case 'sort':
+        applySort(this.dracoNode.artifact, dataset);
+        break;
+      case 'aggregate':
+        applyAggregate(this.dracoNode.artifact, dataset);
+        break;
+      case 'cluster':
+        applyCluster(this.dracoNode.artifact, dataset);
+        break;
+      case 'hierarchical':
+        applyHierarchicalCluster(this.dracoNode.artifact, dataset);
+        break;
+      case 'density':
+        applyDensityCluster(this.dracoNode.artifact, dataset);
+        break;
+      case 'anomaly':
+        applyAnomaly(this.dracoNode.artifact, dataset);
+        break;
+      case 'timeSlice':
+        applySlice(this.dracoNode.artifact, dataset, this._originalDataset ?? dataset);
+        break;
+      case 'compare':
+        // The dataset re-solve is the visual representation for Compare.
+        break;
+      case 'reset':
+      default:
+        resetTransforms(this.dracoNode.artifact);
+        break;
+    }
+  }
+
   _seekAnalysisHistory(index: number): void {
-    const frame = this.analysisHistory?.seek?.(index);
+    const frame = this.dataOperationController.seekHistory(index);
     if (!frame) return;
-    this._restoreDataset(frame.dataset, frame.operation);
-    this._updateNarrativeStrip();
     this.vrConsole?.log?.('log', [`Rewound to ${frame.operation}`]);
     this._logInteraction('Seek history', { result: frame.operation });
     this._captureSession();
@@ -1664,6 +1714,7 @@ export class World {
 
     // Stop any pending auto-save and live flushes before they log.
     this.sessionController?.dispose?.();
+    this.atlas?.dispose?.();
     this.liveStreamCoordinator?.disconnectLiveStream?.();
     this.collaborationCoordinator?.leaveCollaborationRoom?.();
 
@@ -1681,12 +1732,15 @@ export class World {
   }
 
   async start(): Promise<void> {
-    // Initialise the Rust/WASM runtime in parallel with engine start. If the
-    // binary is missing (e.g. plain Vite build without wasm-pack) or the host
-    // rejects it, fall back to the existing JS data layer.
+    // Initialise the Rust/WASM runtime in parallel with engine start. The
+    // kernel is MANDATORY for analytics; if it cannot be loaded the engine
+    // still starts but data ops surface a hard "kernel unavailable" state.
     const wasmInitPromise = this._initWasmRuntime().catch((err) => {
-      console.warn('[World] WASM runtime unavailable, using JS fallbacks:', err);
+      this._wasmRuntime = null;
       this._wasmCapabilities = 0;
+      this._wasmUnavailable = true;
+      console.error('[World] analytical kernel unavailable:', err);
+      this.vrConsole?.log?.('error', ['Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.']);
     });
 
     this.engine.start();
@@ -1695,7 +1749,8 @@ export class World {
   }
 
   /**
-   * Initialise the WASM runtime and record the enabled capability set.
+   * Initialise the WASM runtime and record the enabled capability set. Throws
+   * on failure; the caller (start()) surfaces the unavailable state.
    */
   async _initWasmRuntime(): Promise<void> {
     // Load the bridge lazily so that production builds which skip wasm-pack
@@ -1704,18 +1759,18 @@ export class World {
     if (bridge.isReady()) {
       this._wasmRuntime = bridge;
       this._wasmCapabilities = bridge.capabilities();
-      this.dataOperationController?.setWasmRuntime?.(bridge, this._wasmCapabilities);
+      this.atlas.setKernel(bridge, this._wasmCapabilities);
+      // TODO(Wave 6): route FileLoader parse through AtlasCore.
       this.loader?.setWasmRuntime?.(bridge, this._wasmCapabilities);
       return;
     }
 
     // In dev, Vite serves the wasm-pack output at /wasm/nemosyne_wasm_bg.wasm.
-    // In production builds that skip wasm-pack this fetch will fail and the
-    // app will transparently fall back to the JS data layer.
     await bridge.initRuntime('/wasm/nemosyne_wasm_bg.wasm');
     this._wasmRuntime = bridge;
     this._wasmCapabilities = bridge.capabilities();
-    this.dataOperationController?.setWasmRuntime?.(bridge, this._wasmCapabilities);
+    this.atlas.setKernel(bridge, this._wasmCapabilities);
+    // TODO(Wave 6): route FileLoader parse through AtlasCore.
     this.loader?.setWasmRuntime?.(bridge, this._wasmCapabilities);
     this.vrConsole?.log?.('log', [
       `WASM ready — capabilities ${this._wasmCapabilities.toString(2)}`,
@@ -1723,17 +1778,17 @@ export class World {
   }
 
   /**
-   * If the WASM data layer is ready and the dataset is a built-in sample key,
-   * load it from Rust. Otherwise return the original JS entry unchanged.
+   * If the analytical kernel is ready and `entry` is a built-in sample key,
+   * load the sample *content* from Rust. Otherwise return the entry unchanged.
    *
-   * @param {object} entry
-   * @returns {object}
+   * Sample content may come from the static JS `SampleDatasets` arrays when the
+   * kernel is absent (those are static data, not analytical results), but NO
+   * analytical operation ever runs in JS — the kernel remains the only
+   * analytical path.
    */
   _maybeLoadSampleFromWasm(entry: DatasetLoadEntry): DatasetLoadEntry {
+    // TODO(Wave 6): route sample load through AtlasCore.loadDataset.
     if (!entry?.key) return entry;
-    if (!this._wasmCapabilities || (this._wasmCapabilities & CAP_DATASET_RUST) === 0) {
-      return entry;
-    }
     const bridge = this._wasmRuntime;
     if (!bridge || !bridge.isReady()) return entry;
 
@@ -1750,7 +1805,7 @@ export class World {
         bridge.destroyDataset(handle);
       }
     } catch (e) {
-      console.warn('[World] WASM sample load panic, falling back to JS:', e);
+      console.error('[World] kernel sample load panic:', e);
       return entry;
     }
   }

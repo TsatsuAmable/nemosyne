@@ -4,7 +4,6 @@ import {
   categoricalColor,
   numericColor,
   normalize,
-  inferEncodings,
 } from '../data/Encodings.ts';
 import { MeshPool } from '../utils/ObjectPool.ts';
 import {
@@ -91,7 +90,7 @@ export class VRTopologyTranslator {
     this._colorblindMode = options?.colorblindMode ?? 'none';
     const { spec, facts } = dracoResult;
     const dataset = dataInput.dataset;
-    const encodings = dataInput.encodings || (dataset ? inferEncodings(dataset) : {});
+    const encodings = dataInput.encodings ?? {};
     const rng = new SeededRandom(dataset?.fingerprint ?? 1);
     const group = new THREE.Group();
     const nodeMeshes: THREE.Mesh[] = [];
@@ -802,7 +801,7 @@ export class VRTopologyTranslator {
     if (artifact.spec?.layout !== 'TIME_RIBBON') return false;
 
     const dataset = dataInput.dataset;
-    const encodings = dataInput.encodings || (dataset ? inferEncodings(dataset) : {});
+    const encodings = dataInput.encodings ?? {};
     const timeField = encodings.time || dataset?.temporalColumns[0]?.name || 'time';
     const valueField = encodings.size || dataset?.numericColumns[0]?.name || 'temperature';
 

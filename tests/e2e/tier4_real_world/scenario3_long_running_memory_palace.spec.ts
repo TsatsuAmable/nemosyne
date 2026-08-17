@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { WorkspaceManager } from '../../../src/vr/coordinators/WorkspaceManager.ts';
 import { DataOperationController } from '../../../src/vr/coordinators/DataOperationController.ts';
+import { AtlasCore } from '../../../src/atlas/AtlasCore.ts';
 import { WorldEventBus } from '../../../src/utils/EventBus.ts';
 import { Dataset } from '../../../src/data/Dataset.ts';
-import { sharedSphereGeometry, sharedBoxGeometry } from '../../../src/vr/scalability/ObjectPool.ts';
+import { sharedSphereGeometry, sharedBoxGeometry } from '../../../src/utils/ObjectPool.ts';
+import { makeKernelMockBridge } from '../../helpers/kernelMock.js';
 
 describe('Tier 4 — Scenario 3: Long-Running VR Spatial Memory Palace & Dynamic Dataset Swapping', () => {
   it('Executes multi-dataset session: loads Dataset A, simulates long run, swaps to Dataset B, and verifies MeshPool static geometry preservation', () => {
@@ -15,7 +17,11 @@ describe('Tier 4 — Scenario 3: Long-Running VR Spatial Memory Palace & Dynamic
     // path (captureBaseState -> computeDataset -> applyVisual -> history push)
     // instead of early-returning on a null artifact.
     const artifact = { group: new THREE.Group(), nodeMeshes: [] as THREE.Mesh[] };
-    const doc = new DataOperationController({ eventBus: bus, getArtifact: () => artifact });
+    // Wave 4: AtlasCore is the analytical authority. Wrap the mock kernel in a
+    // real AtlasCore and inject it into the controller so apply() runs the
+    // typed AnalysisSpec path; analytical parity is covered by Rust tests.
+    const atlas = new AtlasCore({ kernel: makeKernelMockBridge() as any });
+    const doc = new DataOperationController({ eventBus: bus, getArtifact: () => artifact, atlas });
 
     // Step 1: Load Dataset A (Gene Expression topology)
     const datasetA = new Dataset('GeneExpression', [

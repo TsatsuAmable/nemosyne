@@ -4,7 +4,10 @@ import * as THREE from 'three';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { AnalysisHistory } from '../src/data/AnalysisHistory.ts';
 import { SessionStore } from '../src/data/SessionStore.ts';
+import { AtlasCore } from '../src/atlas/AtlasCore.ts';
+import { NemosyneSession } from '../src/session/NemosyneSession.ts';
 import { WorldSessionController } from '../src/vr/coordinators/WorldSessionController.ts';
+import { makeKernelMockBridge } from './helpers/kernelMock.js';
 import type { WorldLike } from '../src/vr/coordinators/types.ts';
 
 /**
@@ -73,12 +76,21 @@ function makeDataset(name: string): Dataset {
   );
 }
 
-/** Builds a stub WorldLike backed by REAL Dataset/AnalysisHistory/three.js
- *  objects so the controller's serialize/deserialize roundtrip is genuine. */
+/** Builds a stub WorldLike backed by REAL Dataset/AtlasCore/NemosyneSession
+ *  + three.js objects so the controller's serialize/deserialize roundtrip is
+ *  genuine. Wave 4: snapshot authority lives on NemosyneSession. */
 function makeStubWorld(sessionStore: SessionStore): { world: WorldLike; stub: any } {
   const ds = makeDataset('palace');
-  const history = new AnalysisHistory();
-  history.push('filter', makeDataset('before'), ds, { threshold: 15 });
+
+  // Real AtlasCore with the mock kernel; load the dataset so the ledger + a
+  // history frame are populated before save.
+  const atlas = new AtlasCore({ kernel: makeKernelMockBridge() as any });
+  atlas.setOriginalDataset(ds);
+  // Mirror the legacy stub: one 'filter' history frame (cursor) alongside the
+  // 'load' ledger entry produced by setOriginalDataset.
+  atlas.analysisHistory.push('filter', makeDataset('before'), ds, { threshold: 15 });
+
+  const session = new NemosyneSession({ atlas });
 
   const cameraGroup = new THREE.Group();
   cameraGroup.position.set(1.5, 2.0, -3.0);
@@ -96,7 +108,9 @@ function makeStubWorld(sessionStore: SessionStore): { world: WorldLike; stub: an
     dracoNode: { group: new THREE.Object3D() },
     _originalDataset: ds,
     _transformedDataset: ds,
-    analysisHistory: history,
+    atlas,
+    session,
+    analysisHistory: atlas.analysisHistory,
     engine: {
       cameraGroup,
       theme: { currentPreset: 'neonMidnight', applyPreset: vi.fn() },
@@ -142,15 +156,15 @@ describe('SessionStore persistence (fake IndexedDB)', () => {
   });
 
   it('round-trips a snapshot through save/load', async () => {
-    const snap = { schemaVersion: 1, dataset: { name: 'x' }, history: [] };
+    const snap = { schemaVersion: 2, dataset: { name: 'x' }, history: [] };
     await store.saveSession('s1', snap as any);
     const loaded = await store.loadSession('s1');
     expect(loaded).toEqual(snap);
   });
 
   it('hasSession / listSessions reflect stored entries', async () => {
-    await store.saveSession('a', { schemaVersion: 1, dataset: {} } as any);
-    await store.saveSession('b', { schemaVersion: 1, dataset: {} } as any);
+    await store.saveSession('a', { schemaVersion: 2, dataset: {} } as any);
+    await store.saveSession('b', { schemaVersion: 2, dataset: {} } as any);
     expect(await store.hasSession('a')).toBe(true);
     expect(await store.hasSession('missing')).toBe(false);
 
@@ -160,7 +174,7 @@ describe('SessionStore persistence (fake IndexedDB)', () => {
   });
 
   it('deleteSession clears the entry', async () => {
-    await store.saveSession('s', { schemaVersion: 1, dataset: {} } as any);
+    await store.saveSession('s', { schemaVersion: 2, dataset: {} } as any);
     expect(await store.hasSession('s')).toBe(true);
     await store.deleteSession('s');
     expect(await store.hasSession('s')).toBe(false);
@@ -168,12 +182,13 @@ describe('SessionStore persistence (fake IndexedDB)', () => {
   });
 
   it('rejects snapshots with an incompatible schema version', async () => {
-    await store.saveSession('old', { schemaVersion: 99, dataset: {} } as any);
+    // Wave 4: schemaVersion 2 is the only accepted version; legacy v1 rejected.
+    await store.saveSession('old', { schemaVersion: 1, dataset: {} } as any);
     expect(await store.loadSession('old')).toBe(null);
   });
 
   it('rejects snapshots missing a dataset object', async () => {
-    await store.saveSession('bad', { schemaVersion: 1 } as any);
+    await store.saveSession('bad', { schemaVersion: 2 } as any);
     expect(await store.loadSession('bad')).toBe(null);
   });
 
@@ -208,15 +223,19 @@ describe('WorldSessionController save/load roundtrip', () => {
     expect(await store.hasSession('manual')).toBe(true);
 
     const snap: any = await store.loadSession('manual');
-    expect(snap.schemaVersion).toBe(1);
-    expect(snap.theme).toBe('neonMidnight');
-    expect(snap.tour).toEqual({ stepIndex: 2, finished: false });
-    expect(snap.camera.position).toEqual([1.5, 2.0, -3.0]);
-    expect(snap.camera.rotationY).toBeCloseTo(0.7);
-    expect(snap.settings.userMode).toBe('intermediate');
-    expect(snap.panelPositions).toEqual([{ title: 'A', position: [1, 2, 3], visible: true }]);
+    expect(snap.schemaVersion).toBe(2);
+    expect(snap.presentation.theme).toBe('neonMidnight');
+    expect(snap.presentation.tour).toEqual({ stepIndex: 2, finished: false });
+    expect(snap.presentation.camera.position).toEqual([1.5, 2.0, -3.0]);
+    expect(snap.presentation.camera.rotationY).toBeCloseTo(0.7);
+    expect(snap.presentation.settings.userMode).toBe('intermediate');
+    expect(snap.presentation.panelPositions).toEqual([{ title: 'A', position: [1, 2, 3], visible: true }]);
     expect(snap.originalDataset).toBeTruthy();
+    expect(snap.currentDataset).toBeTruthy();
     expect(snap.analysisHistory).toBeTruthy();
+    expect(Array.isArray(snap.analysisResults)).toBe(true);
+    expect(Array.isArray(snap.eventLedger)).toBe(true);
+    expect(snap.datasetSpace).toBeTruthy();
   });
 
   it('loadSession restores dataset, settings, camera, theme, panels, and tour', async () => {
@@ -238,9 +257,9 @@ describe('WorldSessionController save/load roundtrip', () => {
     expect(entry.dataset).toBeInstanceOf(Dataset);
     expect(entry.dataset.name).toBe('palace');
 
-    // History restored from real AnalysisHistory.fromJSON.
-    expect(stub.analysisHistory).toBeInstanceOf(AnalysisHistory);
-    expect(stub.narrativeStrip.setHistory).toHaveBeenCalledWith(stub.analysisHistory);
+    // History restored on the shared atlas (real AnalysisHistory).
+    expect(stub.atlas.analysisHistory).toBeInstanceOf(AnalysisHistory);
+    expect(stub.narrativeStrip.setHistory).toHaveBeenCalledWith(stub.atlas.analysisHistory);
     expect(stub._restoreDataset).toHaveBeenCalled();
 
     // Camera pose restored.

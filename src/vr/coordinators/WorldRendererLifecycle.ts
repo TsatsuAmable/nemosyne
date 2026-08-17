@@ -6,6 +6,7 @@ import { DashboardManager } from '../ui/DashboardManager.ts';
 import { TooltipManager } from '../ui/TooltipManager.ts';
 import type { DracoTopologyNode } from '../../draco/DracoTopologyNode.ts';
 import type { Engine } from '../Engine.ts';
+import type { WasmRuntimeBridge } from './types.ts';
 
 export interface RendererLifecycleOptions {
   engine: Engine;
@@ -13,6 +14,7 @@ export interface RendererLifecycleOptions {
   tooltipManager: TooltipManager;
   getOriginalDataset: () => Dataset | null;
   getDracoNode: () => DracoTopologyNode | null;
+  getWasmBridge: () => WasmRuntimeBridge | null;
 }
 
 /** Owns renderer-side dataset summaries and dashboard resource lifecycle. */
@@ -22,6 +24,7 @@ export class WorldRendererLifecycle {
   readonly tooltipManager: TooltipManager;
   readonly getOriginalDataset: () => Dataset | null;
   readonly getDracoNode: () => DracoTopologyNode | null;
+  readonly getWasmBridge: () => WasmRuntimeBridge | null;
 
   dashboardPanels: { panel: ChartPlanePanel }[] = [];
   dashboardTooltipTargets: THREE.Mesh[] = [];
@@ -34,6 +37,7 @@ export class WorldRendererLifecycle {
     this.tooltipManager = options.tooltipManager;
     this.getOriginalDataset = options.getOriginalDataset;
     this.getDracoNode = options.getDracoNode;
+    this.getWasmBridge = options.getWasmBridge;
   }
 
   attachTDASummary(): void {
@@ -47,7 +51,12 @@ export class WorldRendererLifecycle {
     if (!dataset || dataset.numericColumns.length === 0) return;
 
     const numericNames = dataset.numericColumns.map((column) => column.name);
-    const summary = buildTDASummaryGroup(dataset, numericNames.slice(0, 3), numericNames[0]);
+    const summary = buildTDASummaryGroup(
+      dataset,
+      numericNames.slice(0, 3),
+      numericNames[0],
+      this.getWasmBridge() ?? undefined
+    );
     this.tdaGroup = summary.group;
     this.tdaRecompute = summary.recompute;
     this.engine.scene.add(summary.group);

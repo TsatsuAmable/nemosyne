@@ -1,8 +1,6 @@
-import { parseCSV, parseJSON } from '../data/Parsers.ts';
-import { inferTopology, inferEncodingsForTopology } from '../data/TopologyInference.ts';
 import { validateImport, formatValidationResult } from '../data/ImportError.ts';
 import { Dataset } from '../data/Dataset.ts';
-import type { ColumnSchema, DatasetJSON, TopologyType } from '../data/types.ts';
+import type { ColumnSchema, DatasetJSON, EncodingMapping, TopologyType } from '../data/types.ts';
 import {
   allSampleDatasets,
   getSampleDataset,
@@ -15,7 +13,14 @@ import { TopologyTypes } from '../draco/ConstraintEngine.ts';
  * DOM-based file loader and dataset selector.
  * Provides a small overlay panel for desktop debugging and headset pass-through.
  */
-const CAP_PARSER_RUST = 1 << 1;
+/**
+ * Hard cap on uploaded file size, checked BEFORE `file.text()` reads the whole
+ * file into memory. Without this, a multi-GB upload OOMs the tab before the
+ * 100k-row / 1000-column limits (applied during parse) can engage. 256 MB is
+ * generous for legitimate analytical datasets while bounding the peak heap
+ * (the parse path may transiently hold file → string → bytes → parsed).
+ */
+const MAX_IMPORT_BYTES = 256 * 1024 * 1024;
 
 export interface FileLoaderLoadEvent {
   name: string;
@@ -25,8 +30,21 @@ export interface FileLoaderLoadEvent {
   encodings: Record<string, string>;
 }
 
+/**
+ * Slice of the WASM runtime the loader uses. The analytical kernel is the ONLY
+ * parse/topology/encoding path; `wasmCapabilities` is kept for telemetry but
+ * is never used to route between implementations.
+ */
 export interface WasmRuntimeBridge {
-  parseDatasetBytes(bytes: Uint8Array, ext: string): DatasetJSON | null;
+  isReady(): boolean;
+  capabilities?: () => number;
+  loadCsv(bytes: Uint8Array): number;
+  loadJson(bytes: Uint8Array): number;
+  getDatasetJson(handle: number): DatasetJSON | null;
+  destroyDataset(handle: number): void;
+  inferTopology(handle: number): string | null;
+  inferEncodings(handle: number, topology?: string): EncodingMapping | null;
+  parseDatasetBytes?(bytes: Uint8Array, ext: 'csv' | 'json'): DatasetJSON | null;
 }
 
 export interface FileLoaderOptions {
@@ -199,30 +217,29 @@ export class FileLoaderUI {
 
   private async _handleFile(file: File | undefined): Promise<void> {
     if (!file) return;
+    // Reject oversized files before reading them into memory. `file.size` is
+    // present on all evergreen browsers; guard for the rare undefined case.
+    if (typeof file.size === 'number' && file.size > MAX_IMPORT_BYTES) {
+      const mb = (file.size / (1024 * 1024)).toFixed(1);
+      const maxMb = (MAX_IMPORT_BYTES / (1024 * 1024)).toFixed(0);
+      this._status(`File too large (${mb} MB); import cap is ${maxMb} MB.`);
+      this._clearSchema();
+      return;
+    }
     const text = await file.text();
-    let dataset: Dataset;
+    const ext = file.name.toLowerCase().split('.').pop() ?? '';
+    const bytes = new TextEncoder().encode(text);
+
+    let parsed: { dataset: Dataset; topology: TopologyType; encodings: Record<string, string> };
     try {
-      const ext = file.name.toLowerCase().split('.').pop() ?? '';
-      const wasmDataset = this._tryWasmParse(text, ext, file.name);
-      if (wasmDataset) {
-        dataset = wasmDataset;
-      } else if (file.name.toLowerCase().endsWith('.csv')) {
-        dataset = parseCSV(text, { name: file.name, maxRows: 100_000 });
-      } else if (file.name.toLowerCase().endsWith('.json')) {
-        dataset = parseJSON(text, { name: file.name, maxRows: 100_000 });
-      } else {
-        // Try JSON first, then CSV.
-        try {
-          dataset = parseJSON(text, { name: file.name, maxRows: 100_000 });
-        } catch {
-          dataset = parseCSV(text, { name: file.name, maxRows: 100_000 });
-        }
-      }
+      parsed = this._parseViaKernel(bytes, ext, file.name);
     } catch (err: unknown) {
       this._status(`Error parsing file: ${err instanceof Error ? err.message : String(err)}`);
       this._clearSchema();
       return;
     }
+
+    const { dataset, topology, encodings } = parsed;
 
     const validation = validateImport(dataset, { maxRows: 100_000, maxColumns: 1_000 });
     const message = formatValidationResult(validation);
@@ -231,10 +248,6 @@ export class FileLoaderUI {
       this._clearSchema();
       return;
     }
-
-    const explicitTopology = (this.topologySelect.value as TopologyType) || null;
-    const topology = inferTopology(dataset, explicitTopology) as TopologyType;
-    const encodings = inferEncodingsForTopology(dataset, topology) as Record<string, string>;
 
     this._renderSchema(dataset, topology, encodings, validation.warnings);
     this._status(message || `Loaded ${dataset.rowCount} rows from ${file.name} as ${topology}`);
@@ -247,22 +260,45 @@ export class FileLoaderUI {
   }
 
   /**
-   * If the WASM parser is ready and the file type is supported, parse the
-   * text through Rust and return a JS Dataset. Otherwise return null.
+   * Parse file bytes through the mandatory Rust kernel and derive topology +
+   * encodings from the kernel before releasing the dataset handle. There is no
+   * JS parse/topology/encoding fallback: if the kernel is unavailable this
+   * throws and the caller surfaces the error.
    */
-  private _tryWasmParse(text: string, ext: string, name: string): Dataset | null {
-    if (!this.wasmRuntime || (this.wasmCapabilities & CAP_PARSER_RUST) === 0) {
-      return null;
+  private _parseViaKernel(
+    bytes: Uint8Array,
+    ext: string,
+    name: string
+  ): { dataset: Dataset; topology: TopologyType; encodings: Record<string, string> } {
+    const bridge = this.wasmRuntime;
+    if (!bridge || typeof bridge.isReady !== 'function' || !bridge.isReady()) {
+      throw new Error('Analytical kernel unavailable — cannot parse file');
     }
     if (ext !== 'csv' && ext !== 'json') {
-      return null;
+      throw new Error('Unsupported file type; use .csv or .json');
     }
-    const bytes = new TextEncoder().encode(text);
-    const json = this.wasmRuntime.parseDatasetBytes(bytes, ext);
-    if (!json) return null;
-    const dataset = Dataset.fromJSON(json);
-    dataset.name = name;
-    return dataset;
+    const handle = ext === 'csv' ? bridge.loadCsv(bytes) : bridge.loadJson(bytes);
+    if (handle === 0) {
+      throw new Error('Kernel parser rejected the file');
+    }
+    try {
+      const json = bridge.getDatasetJson(handle);
+      if (!json) {
+        throw new Error('Kernel parser produced no dataset');
+      }
+      const explicitTopology = (this.topologySelect.value as TopologyType) || null;
+      const topology =
+        (explicitTopology as TopologyType) ??
+        (bridge.inferTopology(handle) as TopologyType | null) ??
+        ('TABULAR' as TopologyType);
+      const enc = bridge.inferEncodings(handle, topology as string);
+      const encodings = (enc ?? {}) as unknown as Record<string, string>;
+      const dataset = Dataset.fromJSON(json);
+      dataset.name = name;
+      return { dataset, topology, encodings };
+    } finally {
+      bridge.destroyDataset(handle);
+    }
   }
 
   private _renderSchema(

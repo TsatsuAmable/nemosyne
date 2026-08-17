@@ -5,6 +5,19 @@ import * as THREE from 'three';
 import { World } from '../src/vr/World.ts';
 import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { TopologyTypes } from '../src/draco/ConstraintEngine.ts';
+import { makeKernelMockBridge } from './helpers/kernelMock.js';
+
+// Wave 2: the analytical kernel is mandatory in production. Integration tests
+// wire a mock kernel (canned, JS-backed) so orchestration stays testable in
+// plain jsdom; analytical parity is covered by Rust tests + wasm-runtime.test.ts.
+function wireKernel(w) {
+  const bridge = makeKernelMockBridge();
+  // Wave 4: AtlasCore is the analytical authority; bind the kernel there.
+  w.atlas?.setKernel?.(bridge, 0x3c07);
+  w.loader?.setWasmRuntime?.(bridge, 0x3c07);
+  w._wasmRuntime = bridge;
+  w._wasmUnavailable = false;
+}
 
 const CONNECTING = 0;
 const OPEN = 1;
@@ -90,7 +103,7 @@ describe('World coverage extensions', () => {
   });
 
   it('toggles portal visibility and syncs the VR menu button', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     expect(world.portalsEnabled).toBe(true);
     expect(world.portalA.group.visible).toBe(true);
 
@@ -106,7 +119,7 @@ describe('World coverage extensions', () => {
   });
 
   it('warps the camera and changes theme colors', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const startY = world.engine.cameraGroup.position.y;
 
     world._warpToZone('DEEP_NET', [0, 0, -20]);
@@ -117,7 +130,7 @@ describe('World coverage extensions', () => {
   });
 
   it('shows a holographic inspector at the selected mesh position', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
     mesh.position.set(2, 1.4, -4);
     mesh.userData.row = { id: 'X', value: 99 };
@@ -129,7 +142,7 @@ describe('World coverage extensions', () => {
   });
 
   it('cycles through all sample datasets and wraps around', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const names = [];
     for (let i = 0; i < 12; i++) {
       world._cycleDataset();
@@ -142,7 +155,7 @@ describe('World coverage extensions', () => {
   });
 
   it('applies filter, sort, aggregate, cluster, and time-slice operations', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const ds = getSampleDataset('supply-chain');
     world.loadDataset({
       name: ds.label,
@@ -157,7 +170,16 @@ describe('World coverage extensions', () => {
     expect(world._transformedDataset.rowCount).toBeLessThan(baseRows);
 
     world.applyDataOperation('sort');
-    expect(world._transformedDataset.name).toContain('sorted');
+    // The kernel sort does NOT rename the dataset (the legacy JS path appended
+    // 'sorted'). Assert ascending ordering on the sort column instead.
+    const sortCol = world._transformedDataset.numericColumns[0]?.name;
+    expect(world._transformedDataset.rowCount).toBeGreaterThan(0);
+    if (sortCol) {
+      const sortedRows = world._transformedDataset.rows;
+      const first = Number(sortedRows[0][sortCol]);
+      const last = Number(sortedRows[sortedRows.length - 1][sortCol]);
+      expect(first).toBeLessThanOrEqual(last);
+    }
 
     world.applyDataOperation('aggregate');
     expect(world._transformedDataset.rowCount).toBeGreaterThan(0);
@@ -165,12 +187,16 @@ describe('World coverage extensions', () => {
     world.applyDataOperation('cluster');
     expect(world._transformedDataset.getColumn('_cluster')).toBeTruthy();
 
+    // timeSlice runs the kernel `slice` against the CURRENT transformed
+    // dataset (Wave 2 mandatory-kernel semantics): a contiguous window of the
+    // current view. The slice primitive is parity-covered by Rust tests +
+    // wasm-runtime.test.ts; here we assert the window is non-empty.
     world.applyDataOperation('timeSlice');
     expect(world._transformedDataset.rowCount).toBeGreaterThan(0);
   });
 
   it('resets data operations back to the original dataset', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const ds = getSampleDataset('sales-table');
     world.loadDataset({ name: ds.label, topology: ds.topology, dataset: ds.dataset });
 
@@ -186,7 +212,7 @@ describe('World coverage extensions', () => {
     const originalWebSocket = globalThis.WebSocket;
     try {
       globalThis.WebSocket = MockWebSocket;
-      world = new World();
+      world = new World(); wireKernel(world);
 
       const result = world.connectLiveSource('demo-stream');
       expect(result).toBe(true);
@@ -203,7 +229,7 @@ describe('World coverage extensions', () => {
   });
 
   it('returns false for an unknown live source key', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     expect(world.connectLiveSource('nonexistent')).toBe(false);
   });
 
@@ -212,7 +238,7 @@ describe('World coverage extensions', () => {
     vi.useFakeTimers();
     try {
       globalThis.WebSocket = MockWebSocket;
-      world = new World();
+      world = new World(); wireKernel(world);
       const incremental = world.connectLiveStream('wss://test/stream', {
         mode: 'window',
         topology: TopologyTypes.TIME_SERIES,
@@ -248,7 +274,7 @@ describe('World coverage extensions', () => {
   });
 
   it('records analysis operations and supports undo/redo', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const ds = getSampleDataset('supply-chain');
     world.loadDataset({
       name: ds.label,
@@ -271,7 +297,7 @@ describe('World coverage extensions', () => {
   });
 
   it('maps hand gestures to analysis commands and perspective switches', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const ds = getSampleDataset('supply-chain');
     world.loadDataset({
       name: ds.label,
@@ -293,7 +319,7 @@ describe('World coverage extensions', () => {
   });
 
   it('toggles the statistical lens from a gesture', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const ds = getSampleDataset('sales-table');
     world.loadDataset({ name: ds.label, topology: ds.topology, dataset: ds.dataset });
 
@@ -308,7 +334,7 @@ describe('World coverage extensions', () => {
   });
 
   it('starts and completes the guided tour from the wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     expect(world.guidedTour).toBeTruthy();
 
     const result = world.startTour();
@@ -320,7 +346,7 @@ describe('World coverage extensions', () => {
   });
 
   it('triggers undo/redo from desktop keyboard shortcuts', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const ds = getSampleDataset('sales-table');
     world.loadDataset({ name: ds.label, topology: ds.topology, dataset: ds.dataset });
 
@@ -344,7 +370,7 @@ describe('World coverage extensions', () => {
     vi.useFakeTimers();
     try {
       globalThis.WebSocket = MockWebSocket;
-      world = new World();
+      world = new World(); wireKernel(world);
       world.connectLiveStream('wss://test/stream', { mode: 'replace' });
       world.liveConnector._ws.open();
       world.liveConnector._ws.dispatchMessage(

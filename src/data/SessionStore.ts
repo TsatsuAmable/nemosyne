@@ -1,12 +1,17 @@
 const DB_NAME = 'nemosyne-sessions';
 const DB_VERSION = 2;
 const STORE_NAME = 'sessions';
-const SNAPSHOT_SCHEMA_VERSION = 1;
+const SNAPSHOT_SCHEMA_VERSION = 2;
 
 export interface SessionSnapshot {
   schemaVersion?: number;
-  dataset: Record<string, unknown>;
+  /** A dataset-shaped object: `currentDataset`, `originalDataset`, or legacy `dataset`. */
+  dataset?: Record<string, unknown>;
+  currentDataset?: Record<string, unknown>;
+  originalDataset?: Record<string, unknown>;
   history?: unknown[];
+  eventLedger?: unknown[];
+  analysisResults?: unknown[];
   [key: string]: unknown;
 }
 
@@ -100,16 +105,26 @@ export class SessionStore {
 
   /**
    * Validate and normalize a stored snapshot.
-   * Rejects snapshots with incompatible schema versions or missing required fields.
+   * Rejects snapshots with an incompatible schema version (Wave 4: only
+   * schemaVersion 2 is accepted — saved-session compat BREAKS per rule 5) or
+   * missing a dataset-shaped object. NemosyneSessionJSON carries
+   * `currentDataset`/`originalDataset`; the legacy `dataset` field is still
+   * accepted as a fallback.
    */
   private _validateSnapshot(snapshot: SessionSnapshot | undefined | null): SessionSnapshot | null {
     if (!snapshot || typeof snapshot !== 'object') return null;
-    if (snapshot.schemaVersion && snapshot.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) {
-      // Future migrations can branch here; for now reject stale snapshots.
+    if (snapshot.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) {
+      // Reject stale/unknown schema versions (including legacy schemaVersion 1).
       return null;
     }
-    if (!snapshot.dataset || typeof snapshot.dataset !== 'object') return null;
+    const hasDataset =
+      (snapshot.dataset && typeof snapshot.dataset === 'object') ||
+      (snapshot.currentDataset && typeof snapshot.currentDataset === 'object') ||
+      (snapshot.originalDataset && typeof snapshot.originalDataset === 'object');
+    if (!hasDataset) return null;
     if (!Array.isArray(snapshot.history) && snapshot.history !== undefined) return null;
+    if (!Array.isArray(snapshot.eventLedger) && snapshot.eventLedger !== undefined) return null;
+    if (!Array.isArray(snapshot.analysisResults) && snapshot.analysisResults !== undefined) return null;
     return snapshot;
   }
 

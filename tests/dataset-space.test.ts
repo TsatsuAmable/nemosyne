@@ -51,4 +51,47 @@ describe('DatasetSpace', () => {
 
     expect(() => DatasetSpace.fromJSON(snapshot)).toThrow(/fingerprint mismatch/);
   });
+
+  it('computes a locale-independent fingerprint via codepoint key ordering', () => {
+    // Reference canonicalization that sorts object keys by UTF-16 code unit
+    // (locale-independent), mirroring the contract DatasetSpace relies on so
+    // a snapshot saved on one device restores on another regardless of the
+    // runtime's default collation.
+    const refCanonicalize = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(refCanonicalize);
+      if (value && typeof value === 'object') {
+        return Object.fromEntries(
+          Object.entries(value as Record<string, unknown>)
+            .sort(([a], [b]) => (a > b ? 1 : a < b ? -1 : 0))
+            .map(([k, v]) => [k, refCanonicalize(v)])
+        );
+      }
+      return value;
+    };
+    const refHash = (value: unknown): string => {
+      const text = JSON.stringify(refCanonicalize(value));
+      let state = 2166136261;
+      for (let i = 0; i < text.length; i += 1) {
+        state ^= text.charCodeAt(i);
+        state = Math.imul(state, 16777619);
+      }
+      return (state >>> 0).toString(16).padStart(8, '0');
+    };
+
+    // Column names 'B' (U+0042) and 'a' (U+0061): codepoint puts 'B' first; a
+    // case-insensitive locale collation would put 'a' first. The fingerprint
+    // must follow codepoint ordering, or a session saved on one device could
+    // fail `fromJSON` fingerprint verification on another.
+    const ds = new Dataset(
+      'Case',
+      [
+        { name: 'B', type: 'NUMERIC' },
+        { name: 'a', type: 'NUMERIC' },
+      ],
+      [{ B: 1, a: 2 }, { B: 3, a: 4 }]
+    );
+    const space = new DatasetSpace(ds);
+
+    expect(space.fingerprint).toBe(refHash(ds.toJSON()));
+  });
 });

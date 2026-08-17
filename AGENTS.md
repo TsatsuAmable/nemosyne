@@ -45,10 +45,13 @@ Run all four before claiming a task done. `lint` and `typecheck` are both blocki
   `https://unpkg.com/three@0.168.0/build/three.module.js`. The npm `three@0.168.0` dep is for type
   resolution and WASM-side tests only. Pin matches `tsconfig.json` `paths`. Do not "fix" by importing
   from `node_modules` paths unless you change the import map too.
-- **WASM is optional at runtime.** `vite.config.js` rollupOptions.external `/wasm/pkg/nemosyne_wasm.js`
-  so `npm run build` succeeds even when `wasm/pkg/` is absent. `World.ts` reads
-  `RuntimeBridge.capabilities()` at startup and routes to Rust or JS fallbacks by capability flag.
-  Never assume WASM is present.
+- **WASM is optional for the BUILD, mandatory for analytics at runtime.** `vite.config.js`
+  rollupOptions.external `/wasm/pkg/nemosyne_wasm.js` so `npm run build` succeeds even when
+  `wasm/pkg/` is absent. At runtime `World.ts` requires the kernel: if it's missing/unready, World
+  surfaces a hard "analytical kernel unavailable" state (VRConsole error) — there is **no JS
+  analytical fallback** and capability flags are telemetry-only (never used to route). Never
+  reintroduce a JS analytical path or an `if (caps & …)` routing branch. (Rust/WASM commitment
+  sprint; see `docs/ROADMAP.md` §Current Status.)
 - **Cross-Origin headers are set in dev.** `vite.config.js` emits `COOP: same-origin` /
   `COEP: require-corp`. Adding cross-origin assets (CDN fonts, images) may require CORP headers or
   they will be blocked under COEP.
@@ -94,6 +97,60 @@ Run all four before claiming a task done. `lint` and `typecheck` are both blocki
   in production). Several components are built-only — do not assume a completed roadmap phase means it runs.
 - Phase 21 (Rust/WASM migration) is gated by capability flags enabled phase-by-phase. Never enable
   `COMMAND_BUFFER` before `SCENE_RUST`. Migration plan + ABI standards live in `.claude/plan.md`.
+
+## Token-efficient workflow (standard practice)
+
+Apply to any agent working on this repo — solo or multi-agent. Keep context and tool spend low
+without losing correctness.
+
+- **Compact context at every commit boundary.** Once a task is committed and the gate is green,
+  drop stale implementation detail from working context before the next task; carry forward only
+  durable facts (governing rules, plan, last commit sha, next task). A green commit is a clean
+  forget-point.
+- **Don't re-read files you just edited.** Edit/Write tools confirm success and track file state;
+  re-reading to "verify" wastes context.
+- **Review diffs, not whole files.** `git diff --stat` for the overview, then read only the
+  suspicious hunks. Full-file reads only when the file is unfamiliar.
+- **Grep-verify instead of re-read.** A targeted grep contract ("`grep -rn 'if (caps &' src/` ==
+  0") beats a 2000-token read. Record the contract next to the finding so re-verification is a
+  one-liner next cycle.
+- **Tail tool output.** `npm test 2>&1 | tail -20`, `git log --oneline -5` — not full streams.
+- **Skip gate layers the change didn't touch, mid-iteration.** If a change didn't touch `wasm/`,
+  the `cargo test` result carries forward; re-run only the affected layers while iterating. (The
+  full gate order in "Required command order" still must pass before claiming a task done.)
+- **Brief precisely, then review the diff.** When delegating to a sub-agent, give a file-by-file
+  spec upfront; review only the resulting diff, not the agent's intermediate reads. A tight brief
+  that prevents a wrong implementation saves the rework.
+- **Resume a dead sub-agent, don't relaunch.** If a sub-agent hits a limit/error, resume it
+  (keeping its context) rather than spawning fresh — avoids re-reading the substrate.
+- **Persist substrate maps, don't re-derive them.** Load-bearing codebase facts (fingerprint
+  algorithms, kernel-call paths, facade wiring, ABI) belong in docs/memory, not re-discovered each
+  task.
+- **Put the audit log in the commit body.** Porting-rule mappings, deviations, and gate results
+  live in git history — no extra doc to maintain or load into context.
+- **Batch per-task doc/memory edits to one pass at commit time.** Don't update docs incrementally
+  mid-task.
+- **Ask sub-agents for structured reports** — "exact gate results + file-by-file one-line summary +
+  honest deviations" — not narratives.
+
+## Model routing (cross-tool)
+
+Provider selection for coding-agent work lives in the **local** `.ai/model-routing/`
+folder (gitignored, like `.agents/` and `.claude/`) so Claude Code, OpenCode, and
+Antigravity on the same machine read the same definitions:
+
+- `.ai/model-routing/model-routes.json` — four provider groups (`ollama-cloud`, `google`,
+  `opencode-go`, `opencode-zen`), task-class → preferred/fallback routing, switch triggers.
+- `.ai/model-routing/README.md` — the decision procedure (classify task → look up routing →
+  evaluate triggers → dispatch → fallback on failure → record attribution).
+- `.ai/model-routing/tool-mappings.md` — how to wire the groups into each tool's native config.
+
+**Manifest only — dispatch is unchanged.** The folder standardizes *which provider to pick*
+(and *when to switch*, e.g. on a 429); it does not alter how any harness spawns agents.
+Before heavy sub-agent fan-out, consult it and prefer `ollama-cloud` for bulk work, falling
+over to `google`/`opencode-zen` on rate-limit or for reasoning/long-context tasks. Model IDs
+in the manifest are editable placeholders (see its `_verify` field) — confirm against each
+provider's current catalog.
 
 ## Multi-agent team workflow (`.agents/`)
 

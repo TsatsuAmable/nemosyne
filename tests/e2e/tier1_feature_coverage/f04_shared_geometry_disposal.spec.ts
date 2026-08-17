@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { disposeObject } from '../../../src/utils/Dispose.js';
-import { MeshPool, sharedSphereGeometry, sharedBoxGeometry } from '../../../src/vr/scalability/ObjectPool.js';
+import { MeshPool, sharedSphereGeometry, sharedBoxGeometry } from '../../../src/utils/ObjectPool.ts';
 
 describe('Feature 4: Shared Geometry Disposals', () => {
   it('F4-TC1: disposeObject disposes mesh materials while shared geometries remain intact', () => {

@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use crate::data::column::ColumnType;
+use serde::Serialize;
 use crate::data::dataset::Dataset;
 use crate::data::value::Value;
 
@@ -29,33 +29,93 @@ impl Topology {
     }
 }
 
-/// Infer simple topology from column names and types.
-pub fn infer(dataset: &Dataset) -> Topology {
-    if dataset.has_temporal() {
-        return Topology::TimeSeries;
-    }
-    if dataset
-        .columns
+// Fuzzy column-name hint substrings, mirrored verbatim from
+// `src/data/TopologyInference.ts`. A column matches a hint when its
+// *normalised* name (lowercased, with `_`/`-`/` ` stripped) *contains* the hint
+// substring — not equality. This deliberately reproduces the JS behaviour,
+// including the loose `x`/`y` GEO hints (which match any column containing
+// those letters). Wave 5 may tighten these; Wave 1 is parity-only.
+const GRAPH_HINTS: &[&str] = &["source", "target", "from", "to", "src", "dst", "edge"];
+const HIERARCHY_HINTS: &[&str] = &["parent", "child", "level", "parentid", "childid"];
+const GEO_HINTS: &[&str] = &["lat", "latitude", "lon", "longitude", "x", "y", "lng"];
+const VECTOR_HINTS: &[&str] = &["u", "v", "w", "vx", "vy", "vz"];
+
+fn normalize_name(name: &str) -> String {
+    name.to_lowercase()
+        .chars()
+        .filter(|c| *c != '_' && *c != '-' && *c != ' ')
+        .collect()
+}
+
+fn matches_hint(norm: &str, hints: &[&str]) -> bool {
+    hints.iter().any(|h| norm.contains(h))
+}
+
+fn count_hinted(columns: &[crate::data::column::Column], hints: &[&str]) -> usize {
+    columns
         .iter()
-        .any(|c| c.name.eq_ignore_ascii_case("parent") && c.ty == ColumnType::Categorical)
-    {
-        return Topology::Hierarchy;
+        .filter(|c| matches_hint(&normalize_name(&c.name), hints))
+        .count()
+}
+
+/// Parse a topology name string into a `Topology` (case-insensitive).
+pub fn parse_topology(s: &str) -> Option<Topology> {
+    match s.to_uppercase().as_str() {
+        "TABULAR" => Some(Topology::Tabular),
+        "HIERARCHY" => Some(Topology::Hierarchy),
+        "GRAPH" => Some(Topology::Graph),
+        "TIME_SERIES" => Some(Topology::TimeSeries),
+        "VECTOR_FIELD" => Some(Topology::VectorField),
+        "GEO" => Some(Topology::Geo),
+        "FLOW" => Some(Topology::Flow),
+        _ => None,
     }
-    if dataset
-        .columns
-        .iter()
-        .any(|c| c.name.eq_ignore_ascii_case("source") && c.ty == ColumnType::Categorical)
-    {
+}
+
+/// Infer topology from column names and types, optionally honouring an explicit
+/// override. Mirrors `src/data/TopologyInference.ts::inferTopology` precedence:
+/// explicit → GRAPH (≥2) → HIERARCHY (≥1 + cat/num) → GEO (≥2) → VECTOR_FIELD
+/// (≥2 + ≥2 numeric) → TIME_SERIES (temporal + numeric) → TABULAR.
+pub fn infer_with_explicit(dataset: &Dataset, explicit: Option<Topology>) -> Topology {
+    if let Some(t) = explicit {
+        return t;
+    }
+    let graph_cols = count_hinted(&dataset.columns, GRAPH_HINTS);
+    let hier_cols = count_hinted(&dataset.columns, HIERARCHY_HINTS);
+    let geo_cols = count_hinted(&dataset.columns, GEO_HINTS);
+    let vec_cols = count_hinted(&dataset.columns, VECTOR_HINTS);
+    let n_cat = dataset.categorical_columns().len();
+    let n_num = dataset.numeric_columns().len();
+    let n_time = dataset.temporal_columns().len();
+
+    if graph_cols >= 2 {
         return Topology::Graph;
     }
+    if hier_cols >= 1 && (n_cat > 0 || n_num > 0) {
+        return Topology::Hierarchy;
+    }
+    if geo_cols >= 2 {
+        return Topology::Geo;
+    }
+    if vec_cols >= 2 && n_num >= 2 {
+        return Topology::VectorField;
+    }
+    if n_time > 0 && n_num > 0 {
+        return Topology::TimeSeries;
+    }
     Topology::Tabular
+}
+
+/// Infer topology with no explicit override.
+pub fn infer(dataset: &Dataset) -> Topology {
+    infer_with_explicit(dataset, None)
 }
 
 // ---------------------------------------------------------------------------
 // Topological Data Analysis (TDA) Mapper & Persistence Engine
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TdaMapperNode {
     pub id: usize,
     pub row_indices: Vec<usize>,
@@ -65,19 +125,19 @@ pub struct TdaMapperNode {
     pub size: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TdaMapperGraph {
     pub nodes: Vec<TdaMapperNode>,
     pub edges: Vec<(usize, usize)>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct PersistenceInterval {
     pub birth: f64,
     pub death: Option<f64>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct BettiPoint {
     pub radius: f64,
     pub betti0: usize,
@@ -345,13 +405,59 @@ pub fn compute_betti0_curve(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::column::Column;
+    use crate::data::column::{Column, ColumnType};
 
     #[test]
     fn infers_topology_types() {
         let cols = vec![Column::new("parent", ColumnType::Categorical)];
         let ds = Dataset::new("hier", cols, vec![]);
         assert_eq!(infer(&ds), Topology::Hierarchy);
+    }
+
+    #[test]
+    fn fuzzy_graph_from_source_and_target() {
+        let cols = vec![
+            Column::new("source", ColumnType::Categorical),
+            Column::new("target", ColumnType::Categorical),
+        ];
+        let ds = Dataset::new("g", cols, vec![]);
+        assert_eq!(infer(&ds), Topology::Graph);
+    }
+
+    #[test]
+    fn fuzzy_geo_from_lat_lon() {
+        let cols = vec![
+            Column::new("lat", ColumnType::Numeric),
+            Column::new("lon", ColumnType::Numeric),
+            Column::new("population", ColumnType::Numeric),
+        ];
+        let ds = Dataset::new("geo", cols, vec![]);
+        assert_eq!(infer(&ds), Topology::Geo);
+    }
+
+    #[test]
+    fn fuzzy_time_series_needs_numeric() {
+        // Temporal alone (no numeric) must NOT be TIME_SERIES — falls to TABULAR.
+        let cols = vec![Column::new("time", ColumnType::Temporal)];
+        let ds = Dataset::new("t", cols, vec![]);
+        assert_eq!(infer(&ds), Topology::Tabular);
+    }
+
+    #[test]
+    fn explicit_topology_overrides_inference() {
+        let cols = vec![Column::new("source", ColumnType::Categorical)];
+        let ds = Dataset::new("g", cols, vec![]);
+        assert_eq!(
+            infer_with_explicit(&ds, Some(Topology::Geo)),
+            Topology::Geo
+        );
+    }
+
+    #[test]
+    fn parse_topology_round_trips() {
+        assert_eq!(parse_topology("geo"), Some(Topology::Geo));
+        assert_eq!(parse_topology("VECTOR_FIELD"), Some(Topology::VectorField));
+        assert_eq!(parse_topology("nonsense"), None);
     }
 
     #[test]

@@ -1,8 +1,14 @@
 import { Dataset } from '../../data/Dataset.ts';
-import { AnalysisHistory } from '../../data/AnalysisHistory.ts';
+import { NemosyneSession } from '../../session/NemosyneSession.ts';
 import type { DatasetJSON, EncodingMapping } from '../../data/types.ts';
 import type { DatasetLoadEntry, WorldLike } from './types.ts';
 
+/**
+ * Thin save/load trigger delegating to {@link NemosyneSession} +
+ * {@link SessionStore}. Snapshot authority lives on NemosyneSession
+ * (schemaVersion 2); this controller reads the live world presentation state,
+ * hands it to the session for serialization, and re-wires World on restore.
+ */
 export class WorldSessionController {
   private _world: WorldLike;
   private _sessionAutoSaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -15,10 +21,19 @@ export class WorldSessionController {
     const w = this._world;
     if (w._disposed || !w.currentEntry?.dataset || !w.dracoNode) return;
 
-    const snapshot: Record<string, unknown> = {
-      schemaVersion: 1,
-      savedAt: Date.now(),
-      dataset: w._originalDataset?.toJSON?.() ?? null,
+    // Refresh the session presentation from the live world state.
+    w.session.setPresentation({
+      camera: {
+        position: w.engine.cameraGroup.position.toArray() as [number, number, number],
+        rotationY: w.engine.cameraGroup.rotation.y,
+      },
+      settings: w.settingsPanel?.getAllSettings?.() ?? {},
+      tour: {
+        stepIndex: w.guidedTour?._stepIndex ?? 0,
+        finished: w.guidedTour?._finished ?? true,
+      },
+      theme: w.engine.theme?.currentPreset ?? 'neonMidnight',
+      panelPositions: w.panelManager?.getPanelPositions?.() ?? [],
       entry: {
         name:
           w.currentEntry.name ??
@@ -29,24 +44,12 @@ export class WorldSessionController {
         encodings: w.currentEntry.encodings,
         maxDepth: w.currentEntry.maxDepth,
       },
-      originalDataset: w._originalDataset?.toJSON?.() ?? null,
-      transformedDataset: w._transformedDataset?.toJSON?.() ?? null,
-      analysisHistory: w.analysisHistory?.toJSON?.() ?? null,
-      camera: {
-        position: w.engine.cameraGroup.position.toArray(),
-        rotationY: w.engine.cameraGroup.rotation.y,
-      },
-      settings: w.settingsPanel?.getAllSettings?.() ?? {},
-      tour: {
-        stepIndex: w.guidedTour?._stepIndex ?? 0,
-        finished: w.guidedTour?._finished ?? true,
-      },
-      theme: w.engine.theme?.currentPreset ?? 'neonMidnight',
-      panelPositions: w.panelManager?.getPanelPositions?.() ?? [],
-    };
+    });
+
+    const snapshot = w.session.serialize();
 
     try {
-      await w.sessionStore.saveSession(id, snapshot);
+      await w.sessionStore.saveSession(id, snapshot as unknown as Record<string, unknown>);
       w.vrConsole?.log?.('log', [`Session saved: ${id}`]);
       w._logInteraction('Save session', { result: id });
     } catch (err) {
@@ -66,17 +69,20 @@ export class WorldSessionController {
       return false;
     }
 
-    const s = snapshot;
-    const originalDataset = s.originalDataset as DatasetJSON | null;
+    const s = snapshot as Record<string, unknown>;
+    const originalDataset = (s.originalDataset as DatasetJSON | null) ?? null;
     if (!originalDataset) {
       if (w._disposed) return false;
       w.vrConsole?.log?.('warn', [`Session ${id} has no dataset`]);
       return false;
     }
 
+    // Restore atlas state + presentation in place on the shared atlas/session.
+    w.session.loadFromJSON(s as unknown as Parameters<NemosyneSession['loadFromJSON']>[0]);
+
     const original = Dataset.fromJSON(originalDataset);
-    const transformedDataset = s.transformedDataset as DatasetJSON | null;
-    const transformed = transformedDataset ? Dataset.fromJSON(transformedDataset) : original.clone();
+    const currentDataset = (s.currentDataset as DatasetJSON | null) ?? null;
+    const transformed = currentDataset ? Dataset.fromJSON(currentDataset) : original.clone();
 
     const entryData = (s.entry ?? {}) as Record<string, unknown>;
     const entry: DatasetLoadEntry = {
@@ -87,27 +93,28 @@ export class WorldSessionController {
       encodings: entryData.encodings as EncodingMapping | undefined,
     };
 
+    // Rebuild the Draco palace from the original dataset first. loadDataset
+    // routes through AtlasCore.loadDataset which resets the ledger/results/
+    // history; restore the persisted atlas state AFTERWARDS so the provenance
+    // chain + cursor survive.
     w.loadDataset(entry);
-    w._originalDataset = original.clone();
+    w.session.loadFromJSON(s as unknown as Parameters<NemosyneSession['loadFromJSON']>[0]);
+
+    // Point the current dataset at the restored transformed state.
     w._transformedDataset = transformed.clone();
 
-    const historyData = s.analysisHistory;
-    if (historyData) {
-      w.analysisHistory = AnalysisHistory.fromJSON(historyData);
-    } else {
-      w.analysisHistory.clear();
-    }
-    w.narrativeStrip?.setHistory?.(w.analysisHistory);
+    w.narrativeStrip?.setHistory?.(w.atlas.analysisHistory);
     w._updateNarrativeStrip();
 
-    const current = w.analysisHistory.current();
+    const current = w.atlas.analysisHistory.current();
     if (current) {
       w._restoreDataset(current.datasetAfter, current.operation);
     } else {
       w._restoreDataset(w._transformedDataset, 'reset');
     }
 
-    const cameraData = (s.camera ?? {}) as Record<string, unknown>;
+    const presentation = (s.presentation ?? {}) as Record<string, unknown>;
+    const cameraData = (presentation.camera ?? s.camera ?? {}) as Record<string, unknown>;
     const cameraPos = cameraData.position as number[] | undefined;
     if (cameraPos) {
       w.engine.cameraGroup.position.fromArray(cameraPos);
@@ -117,7 +124,7 @@ export class WorldSessionController {
       w.engine.cameraGroup.rotation.y = rotationY;
     }
 
-    const settingsData = s.settings as Record<string, unknown> | undefined;
+    const settingsData = (presentation.settings ?? s.settings ?? {}) as Record<string, unknown>;
     if (settingsData) {
       for (const [key, value] of Object.entries(settingsData)) {
         w.settingsPanel?.setSetting?.(key, value);
@@ -128,17 +135,19 @@ export class WorldSessionController {
       );
     }
 
-    const themeName = s.theme as string | undefined;
+    const themeName = (presentation.theme ?? s.theme) as string | undefined;
     if (themeName && w.engine.theme?.applyPreset) {
       w.engine.theme.applyPreset(themeName);
     }
 
-    const panelPositions = s.panelPositions as { title?: string; position?: number[]; visible?: boolean }[] | undefined;
+    const panelPositions = (presentation.panelPositions ?? s.panelPositions) as
+      | { title?: string; position?: number[]; visible?: boolean }[]
+      | undefined;
     if (panelPositions && w.panelManager) {
       w.panelManager.setPanelPositions?.(panelPositions);
     }
 
-    const tourData = s.tour as { finished?: boolean; stepIndex?: number } | undefined;
+    const tourData = (presentation.tour ?? s.tour) as { finished?: boolean; stepIndex?: number } | undefined;
     if (w.guidedTour && tourData && !tourData.finished) {
       w.guidedTour._stepIndex = tourData.stepIndex ?? 0;
       w.guidedTour._finished = false;

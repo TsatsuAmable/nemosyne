@@ -15,6 +15,11 @@ export interface LogEntry {
 }
 
 class RemoteDebugStreamer {
+  /** Hard cap on queued entries so an offline / unreachable device can't grow the queue without limit. */
+  private static readonly MAX_QUEUE_ENTRIES = 1000;
+  /** Upper bound for exponential backoff between retry flushes. */
+  private static readonly MAX_BACKOFF_MS = 30_000;
+
   private queue: LogEntry[] = [];
   private isFlushing = false;
   private bannerElement: HTMLDivElement | null = null;
@@ -23,9 +28,23 @@ class RemoteDebugStreamer {
   private origError = console.error;
   private origInfo = console.info;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
+  private initialized = false;
+  private errorHandler: ((event: ErrorEvent) => void) | null = null;
+  private rejectionHandler: ((event: PromiseRejectionEvent) => void) | null = null;
+  /** Consecutive failed flushes — drives exponential backoff. Reset on success. */
+  private consecutiveFailures = 0;
+  /** Timestamp of the last flush attempt, for backoff spacing. */
+  private lastFlushAt = 0;
+  /** Set when the endpoint is confirmed absent (HTTP 404). Stops all future flushes. */
+  private endpointUnavailable = false;
 
   init(): void {
     if (typeof window === 'undefined') return;
+    // Idempotent: a second init (hot reload, repeated test cycle) would
+    // otherwise stack a second pair of window listeners and a second HUD
+    // banner while leaving the console patched.
+    if (this.initialized) return;
+    this.initialized = true;
 
     this.createHudBanner();
 
@@ -57,20 +76,22 @@ class RemoteDebugStreamer {
       this.showOnHud('ERROR: ' + formatted, '#ff3366');
     };
 
-    // Intercept window onerror
-    window.addEventListener('error', (event) => {
+    // Intercept window onerror (store the handler so dispose() can remove it)
+    this.errorHandler = (event) => {
       const msg = `${event.message} at ${event.filename}:${event.lineno}:${event.colno}`;
       this.enqueue('error', msg, userAgent, event.error?.stack);
       this.showOnHud('WINDOW ERROR: ' + msg, '#ff3366');
-    });
+    };
+    window.addEventListener('error', this.errorHandler);
 
     // Intercept window onunhandledrejection
-    window.addEventListener('unhandledrejection', (event) => {
+    this.rejectionHandler = (event) => {
       const reason = event.reason?.message || String(event.reason);
       const stack = event.reason?.stack;
       this.enqueue('error', `Unhandled Rejection: ${reason}`, userAgent, stack);
       this.showOnHud('REJECTION: ' + reason, '#ff9900');
-    });
+    };
+    window.addEventListener('unhandledrejection', this.rejectionHandler);
 
     // Start background batch flusher
     if (this.flushTimer === null) {
@@ -83,10 +104,43 @@ class RemoteDebugStreamer {
   }
 
   dispose(): void {
+    if (!this.initialized) return;
+    this.initialized = false;
+
     if (this.flushTimer !== null) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
     }
+
+    // Remove the window listeners we registered (prevents duplicate error
+    // reporting across init() -> dispose() -> init() cycles).
+    if (this.errorHandler) {
+      window.removeEventListener('error', this.errorHandler);
+      this.errorHandler = null;
+    }
+    if (this.rejectionHandler) {
+      window.removeEventListener('unhandledrejection', this.rejectionHandler);
+      this.rejectionHandler = null;
+    }
+
+    // Restore the original console methods so patched calls stop enqueuing
+    // into a queue that no longer flushes periodically.
+    console.log = this.origLog;
+    console.info = this.origInfo;
+    console.warn = this.origWarn;
+    console.error = this.origError;
+
+    // Remove the HUD banner element.
+    if (this.bannerElement) {
+      this.bannerElement.remove();
+      this.bannerElement = null;
+    }
+
+    // Drop any queued logs that will never flush.
+    this.queue = [];
+    this.consecutiveFailures = 0;
+    this.lastFlushAt = 0;
+    this.endpointUnavailable = false;
   }
 
   private formatArgs(args: unknown[]): string {
@@ -111,6 +165,11 @@ class RemoteDebugStreamer {
       stack,
       userAgent,
     };
+    // Bound the queue: drop the oldest entry when at capacity so a flood of
+    // logs on an unreachable device can't grow memory without limit.
+    if (this.queue.length >= RemoteDebugStreamer.MAX_QUEUE_ENTRIES) {
+      this.queue.shift();
+    }
     this.queue.push(entry);
 
     if (this.queue.length >= 20) {
@@ -119,23 +178,51 @@ class RemoteDebugStreamer {
   }
 
   private async flush(): Promise<void> {
-    if (this.queue.length === 0 || this.isFlushing) return;
+    if (this.endpointUnavailable || this.queue.length === 0 || this.isFlushing) return;
+
+    // Backoff after consecutive failures so a persistently-unreachable
+    // endpoint doesn't spin a tight retry loop on top of the 500ms timer.
+    const now = Date.now();
+    const backoff = Math.min(500 * 2 ** this.consecutiveFailures, RemoteDebugStreamer.MAX_BACKOFF_MS);
+    if (now - this.lastFlushAt < backoff) return;
+    this.lastFlushAt = now;
 
     this.isFlushing = true;
     const batch = [...this.queue];
     this.queue = [];
 
     try {
-      await fetch('/__remote-logs', {
+      const res = await fetch('/__remote-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(batch),
       });
+      if (res.status === 404) {
+        // Endpoint is absent (e.g. a production build, or dev server without
+        // the plugin). Stop flushing permanently and drop the batch rather
+        // than re-queue it forever.
+        this.endpointUnavailable = true;
+        this.queue = [];
+      } else if (!res.ok) {
+        // Other non-OK responses are treated as transient: re-queue + back off.
+        this.recordFailure(batch);
+      } else {
+        this.consecutiveFailures = 0;
+      }
     } catch {
-      // Re-queue failed logs if offline
-      this.queue.unshift(...batch);
+      // Network error (offline / DNS): re-queue the batch, bounded + backed off.
+      this.recordFailure(batch);
     } finally {
       this.isFlushing = false;
+    }
+  }
+
+  private recordFailure(batch: LogEntry[]): void {
+    this.consecutiveFailures += 1;
+    this.queue.unshift(...batch);
+    if (this.queue.length > RemoteDebugStreamer.MAX_QUEUE_ENTRIES) {
+      // Drop oldest (front) entries to stay within the cap.
+      this.queue = this.queue.slice(0, RemoteDebugStreamer.MAX_QUEUE_ENTRIES);
     }
   }
 

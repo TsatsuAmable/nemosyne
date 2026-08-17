@@ -5,6 +5,105 @@ import { createRoomRegistry } from './src/network/SignallingServerCore.ts';
 
 const certDir = path.resolve(process.cwd(), 'certs');
 
+// --- Bounded dev-only POST handling -------------------------------------------------
+// The `/__remote-logs`, `/__loadtest-results`, and `/__ux-trace` endpoints are
+// dev tools. They must reject oversized payloads, time out stuck clients, rate
+// limit by peer, and validate structure before touching the filesystem — so a
+// LAN peer (host:true binds to all interfaces) can't exhaust disk or memory.
+const MAX_BODY_BYTES = 256 * 1024; // 256 KiB
+const POST_TIMEOUT_MS = 5000;
+const RATE_LIMIT_MAX_REQUESTS = 60;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+function createRateLimiter({ maxRequests, windowMs }) {
+  const hits = new Map();
+  return function allow(ip) {
+    const now = Date.now();
+    const key = ip || 'unknown';
+    const times = (hits.get(key) || []).filter((t) => now - t < windowMs);
+    if (times.length >= maxRequests) {
+      hits.set(key, times);
+      return false;
+    }
+    times.push(now);
+    hits.set(key, times);
+    return true;
+  };
+}
+
+const devPostRateLimiter = createRateLimiter({
+  maxRequests: RATE_LIMIT_MAX_REQUESTS,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+});
+
+/**
+ * Read a POST body as JSON with a hard byte cap and a timeout. Calls
+ * `onParsed(body, res)` on success. Responds 413 / 408 / 400 and tears down the
+ * socket on overflow / timeout / bad JSON. Returns true if it handled the
+ * request (so the middleware can stop the chain).
+ */
+function handleBoundedJsonPost(req, res, maxBytes, onParsed) {
+  const ip = req.socket?.remoteAddress;
+  if (!devPostRateLimiter.allow(ip)) {
+    res.writeHead(429, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'rate limited' }));
+    return true;
+  }
+  let body = '';
+  let tooLarge = false;
+  const timer = setTimeout(() => {
+    try {
+      res.writeHead(408, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'request timeout' }));
+    } catch { /* response already gone */ }
+    req.destroy();
+  }, POST_TIMEOUT_MS);
+  req.on('data', (chunk) => {
+    if (tooLarge) return;
+    body += chunk;
+    if (Buffer.byteLength(body) > maxBytes) {
+      tooLarge = true;
+      clearTimeout(timer);
+      try {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'payload too large' }));
+      } catch { /* response already gone */ }
+      req.destroy();
+    }
+  });
+  req.on('end', () => {
+    clearTimeout(timer);
+    if (tooLarge) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      try {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'invalid json' }));
+      } catch { /* response already gone */ }
+      return;
+    }
+    onParsed(parsed, res);
+  });
+  req.on('error', () => clearTimeout(timer));
+  return true;
+}
+
+function jsonOk(res, payload) {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(payload));
+}
+
+function jsonError(res, code, message) {
+  res.writeHead(code, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: message }));
+}
+
+function isShortString(value, maxLen) {
+  return typeof value === 'string' && value.length <= maxLen;
+}
+
 function loadCert(file) {
   const p = path.join(certDir, file);
   try {
@@ -67,8 +166,12 @@ function signallingPlugin() {
     const { WebSocketServer } = await import('ws');
     const wss = new WebSocketServer({ noServer: true });
     // Optional shared-secret gate: set NEMOSYNE_SIGNAL_TOKEN to require a
-    // matching ?token= on join. Unset = open local dev (no token check).
-    const registry = createRoomRegistry({ authToken: process.env.NEMOSYNE_SIGNAL_TOKEN || '' });
+    // matching ?token= on join. Dev stays frictionless: open (no-token) mode
+    // is explicitly allowed here because this plugin only runs under `vite serve`.
+    const registry = createRoomRegistry({
+      authToken: process.env.NEMOSYNE_SIGNAL_TOKEN || '',
+      allowOpenNoToken: true,
+    });
 
     server.httpServer.on('upgrade', (request, socket, head) => {
       if (request.url !== '/__signal') return;
@@ -77,7 +180,11 @@ function signallingPlugin() {
         const roomId = url.searchParams.get('room') || 'default';
         const peerId = url.searchParams.get('peer') || `peer-${Date.now()}`;
         const token = url.searchParams.get('token') || undefined;
-        registry.handleConnection(ws, roomId, peerId, token);
+        // Forward the role so the observer relay-gating in the room registry
+        // is exercised in dev/preview too, matching the standalone server.
+        const roleParam = url.searchParams.get('role');
+        const role = roleParam === 'observer' || roleParam === 'participant' ? roleParam : undefined;
+        registry.handleConnection(ws, roomId, peerId, token, role);
       });
     });
   }
@@ -127,6 +234,9 @@ function httpsOptions(command) {
 function remoteLogsPlugin() {
   const logDir = path.resolve(process.cwd(), 'logs');
   const logFile = path.join(logDir, 'vr-remote-console.log');
+  const MAX_ENTRIES = 500;
+  const MAX_MESSAGE_LEN = 8000;
+  const MAX_LEVEL_LEN = 10;
 
   try {
     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
@@ -135,28 +245,28 @@ function remoteLogsPlugin() {
   }
 
   function handleLogs(req, res) {
-    if (req.url === '/__remote-logs' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk) => (body += chunk));
-      req.on('end', () => {
+    if (req.url !== '/__remote-logs' || req.method !== 'POST') return false;
+    return handleBoundedJsonPost(req, res, MAX_BODY_BYTES, (entries, res) => {
+      if (!Array.isArray(entries) || entries.length > MAX_ENTRIES) {
+        jsonError(res, 400, 'expected an array of at most ' + MAX_ENTRIES + ' entries');
+        return;
+      }
+      for (const entry of entries) {
+        if (!entry || typeof entry !== 'object') continue;
+        if (!isShortString(entry.level, MAX_LEVEL_LEN)) continue;
+        if (!isShortString(entry.message, MAX_MESSAGE_LEN)) continue;
+        const stack = isShortString(entry.stack, MAX_MESSAGE_LEN) ? entry.stack : '';
+        const ts = isShortString(entry.timestamp, 64) ? entry.timestamp : '';
+        const line = `[VR REMOTE LOG ${ts}] [${entry.level.toUpperCase()}] ${entry.message}${stack ? '\n' + stack : ''}\n`;
+        console.log(`\x1b[36m${line.trim()}\x1b[0m`);
         try {
-          const entries = JSON.parse(body);
-          if (Array.isArray(entries)) {
-            for (const entry of entries) {
-              const line = `[VR REMOTE LOG ${entry.timestamp}] [${entry.level?.toUpperCase()}] ${entry.message}${entry.stack ? '\n' + entry.stack : ''}\n`;
-              console.log(`\x1b[36m${line.trim()}\x1b[0m`);
-              fs.appendFileSync(logFile, line, 'utf-8');
-            }
-          }
+          fs.appendFileSync(logFile, line, 'utf-8');
         } catch {
-          // Ignore error
+          // Ignore disk error
         }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok' }));
-      });
-      return true;
-    }
-    return false;
+      }
+      jsonOk(res, { status: 'ok' });
+    });
   }
 
   return {
@@ -191,29 +301,29 @@ function loadtestResultsPlugin() {
   }
 
   function handleLoadTest(req, res) {
-    if (req.url === '/__loadtest-results' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk) => (body += chunk));
-      req.on('end', () => {
-        try {
-          const summary = JSON.parse(body);
-          // One JSON object per line (JSONL).
-          fs.appendFileSync(logFile, JSON.stringify(summary) + '\n', 'utf-8');
-          // Echo a compact verdict line to the dev console.
-          const verdict = summary?.verdict ?? {};
-          const line =
-            `[LOAD TEST] ${summary?.profileName ?? '?'} | XR=${summary?.xrActive} | ` +
-            `sufficientTo=${verdict.jsPathSufficientTo} warrantedAt=${verdict.commandBufferWarrantedAt}`;
-          console.log(`\x1b[35m${line}\x1b[0m`);
-        } catch (err) {
-          console.error('[loadtest-results] failed to parse/append summary:', err);
-        }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok' }));
-      });
-      return true;
-    }
-    return false;
+    if (req.url !== '/__loadtest-results' || req.method !== 'POST') return false;
+    return handleBoundedJsonPost(req, res, MAX_BODY_BYTES, (summary, res) => {
+      if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
+        jsonError(res, 400, 'expected a summary object');
+        return;
+      }
+      // One JSON object per line (JSONL). The body cap already bounds total size.
+      try {
+        fs.appendFileSync(logFile, JSON.stringify(summary) + '\n', 'utf-8');
+      } catch (err) {
+        console.error('[loadtest-results] failed to append summary:', err);
+        jsonError(res, 500, 'write failed');
+        return;
+      }
+      // Echo a compact verdict line to the dev console (bound the strings).
+      const verdict = summary.verdict ?? {};
+      const profileName = isShortString(summary.profileName, 128) ? summary.profileName : '?';
+      const line =
+        `[LOAD TEST] ${profileName} | XR=${summary.xrActive} | ` +
+        `sufficientTo=${verdict.jsPathSufficientTo} warrantedAt=${verdict.commandBufferWarrantedAt}`;
+      console.log(`\x1b[35m${line}\x1b[0m`);
+      jsonOk(res, { status: 'ok' });
+    });
   }
 
   return {
@@ -247,52 +357,51 @@ function uxTracePlugin() {
   }
 
   function handleUxTrace(req, res) {
-    if (req.url === '/__ux-trace' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk) => (body += chunk));
-      req.on('end', () => {
-        let appended = 0;
-        try {
-          const batch = JSON.parse(body);
-          if (batch && Array.isArray(batch.records)) {
-            const lines = [];
-            for (const record of batch.records) {
-              if (!record || typeof record !== 'object') continue;
-              lines.push(JSON.stringify(record));
-              appended++;
-              // Echo interesting events (not 5 Hz context samples) to the terminal.
-              if (['pinch', 'selection', 'gesture', 'system', 'wheel', 'tour'].includes(record.type)) {
-                const detail =
-                  record.type === 'pinch'
-                    ? `${record.phase} ${record.hand} d=${record.d} -> ${record.gating}`
-                    : record.type === 'selection'
-                      ? `${record.hit}${record.target ? ` ${record.target}` : ''}`
-                      : record.type === 'gesture'
-                        ? `${record.name} conf=${record.confidence}`
-                        : record.type === 'system'
-                          ? record.kind
-                          : record.type === 'wheel'
-                            ? `${record.state} via ${record.via}`
-                            : `step ${record.step}/${record.total}`;
-                const ctx = record.ctx || {};
-                const gaze = ctx.gaze?.target ? ` gaze=${ctx.gaze.target}` : '';
-                const drift = ctx.ptr?.driftDeg != null ? ` drift=${ctx.ptr.driftDeg}°` : '';
-                console.log(
-                  `\x1b[33m[UX TRACE ${batch.sid} +${record.t}s] ${record.type}: ${detail}${gaze}${drift}\x1b[0m`
-                );
-              }
-            }
-            if (lines.length > 0) fs.appendFileSync(logFile, lines.join('\n') + '\n', 'utf-8');
-          }
-        } catch (err) {
-          console.error('[ux-trace] failed to parse/append batch:', err);
+    if (req.url !== '/__ux-trace' || req.method !== 'POST') return false;
+    return handleBoundedJsonPost(req, res, MAX_BODY_BYTES, (batch, res) => {
+      if (!batch || !Array.isArray(batch.records) || batch.records.length > 1000) {
+        jsonError(res, 400, 'expected { records: array (<= 1000) }');
+        return;
+      }
+      const lines = [];
+      let appended = 0;
+      for (const record of batch.records) {
+        if (!record || typeof record !== 'object') continue;
+        if (!isShortString(record.type, 32)) continue;
+        const line = JSON.stringify(record);
+        if (line.length > 16 * 1024) continue; // per-record cap
+        lines.push(line);
+        appended++;
+        // Echo interesting events (not 5 Hz context samples) to the terminal.
+        if (['pinch', 'selection', 'gesture', 'system', 'wheel', 'tour'].includes(record.type)) {
+          const detail =
+            record.type === 'pinch'
+              ? `${record.phase} ${record.hand} d=${record.d} -> ${record.gating}`
+              : record.type === 'selection'
+                ? `${record.hit}${record.target ? ` ${record.target}` : ''}`
+                : record.type === 'gesture'
+                  ? `${record.name} conf=${record.confidence}`
+                  : record.type === 'system'
+                    ? record.kind
+                    : record.type === 'wheel'
+                      ? `${record.state} via ${record.via}`
+                      : `step ${record.step}/${record.total}`;
+          const ctx = record.ctx || {};
+          const gaze = ctx.gaze?.target ? ` gaze=${ctx.gaze.target}` : '';
+          const drift = ctx.ptr?.driftDeg != null ? ` drift=${ctx.ptr.driftDeg}°` : '';
+          const sid = isShortString(batch.sid, 64) ? batch.sid : '?';
+          console.log(`\x1b[33m[UX TRACE ${sid} +${record.t}s] ${record.type}: ${detail}${gaze}${drift}\x1b[0m`);
         }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', appended }));
-      });
-      return true;
-    }
-    return false;
+      }
+      if (lines.length > 0) {
+        try {
+          fs.appendFileSync(logFile, lines.join('\n') + '\n', 'utf-8');
+        } catch (err) {
+          console.error('[ux-trace] failed to append batch:', err);
+        }
+      }
+      jsonOk(res, { status: 'ok', appended });
+    });
   }
 
   return {
@@ -317,7 +426,17 @@ function wasmServePlugin() {
         if (relative.startsWith('pkg/')) {
           relative = relative.replace(/^pkg\//, '');
         }
-        const filePath = path.join(wasmPkgDir, relative);
+        // Path-traversal guard: reject any `..` segment and require the
+        // resolved path to stay inside the wasm pkg directory.
+        if (relative.includes('..')) {
+          next();
+          return;
+        }
+        const filePath = path.resolve(wasmPkgDir, relative);
+        if (!filePath.startsWith(wasmPkgDir + path.sep)) {
+          next();
+          return;
+        }
         if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
           next();
           return;
@@ -354,7 +473,10 @@ export default defineConfig(({ command }) => ({
     },
   },
   preview: {
-    host: true,
+    // Localhost only: the dev-only signalling/demo-stream plugins mount in
+    // preview too, and `host: true` would expose them to the LAN. Dev (serve)
+    // stays `host: true` because the Quest workflow needs LAN reachability.
+    host: false,
     https: httpsOptions(command),
   },
   build: {

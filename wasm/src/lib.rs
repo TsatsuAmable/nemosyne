@@ -304,15 +304,28 @@ const CAP_COMMAND_BUFFER: u32 = 1 << 7; // reserved — dormant stub; enabled on
 //   `SCENE_RUST` is set (ordering invariant). Phase 2.
 const CAP_INSTANCING: u32 = 1 << 8; // reserved. Phase 2.
 const CAP_WASM_TELEMETRY: u32 = 1 << 9; // reserved. Phase 6.
+// Wave 1 analytical-kernel subsystems — implemented and exported now. These
+// remain *diagnostic telemetry only* until Wave 2 removes the JS routing: the
+// bits describe what the kernel can do, not what `src/` chooses at runtime.
+const CAP_TOPOLOGY_RUST: u32 = 1 << 10; // wasm/src/data/topology.rs (infer + TDA)
+const CAP_TDA_RUST: u32 = 1 << 11; // mapper / persistence / betti0
+const CAP_ENCODINGS_RUST: u32 = 1 << 12; // wasm/src/data/encodings.rs
+const CAP_STATS_RUST: u32 = 1 << 13; // wasm/src/data/statistics.rs (Facts)
 
-/// Return the enabled capability set for the current build — the spec Phase-1
-/// set only (`DATASET_RUST | PARSER_RUST | OPERATIONS_RUST`). Higher bits are
-/// reserved until their subsystem is genuinely migrated; see the constants
-/// above. JS (`World`, `FileLoader`, `DataOperationController`) gates only on the
-/// three advertised bits.
+/// Return the enabled capability set for the current build. Wave 1 advertises
+/// the data/parser/operations subsystems plus the newly-exported
+/// topology/TDA/encodings/stats subsystems. The remaining bits (Draco, scene,
+/// input, network, command buffer, instancing, telemetry) are reserved until
+/// their subsystem is genuinely migrated; see the constants above.
 #[wasm_bindgen]
 pub fn capabilities() -> u32 {
-    CAP_DATASET_RUST | CAP_PARSER_RUST | CAP_OPERATIONS_RUST
+    CAP_DATASET_RUST
+        | CAP_PARSER_RUST
+        | CAP_OPERATIONS_RUST
+        | CAP_TOPOLOGY_RUST
+        | CAP_TDA_RUST
+        | CAP_ENCODINGS_RUST
+        | CAP_STATS_RUST
 }
 
 /// Compute 3D grid layout positions in WASM memory.
@@ -469,7 +482,8 @@ pub fn data_load_dataset_json(ptr: u32, len: u32) -> u32 {
 ///
 /// `op_ptr` / `op_len` point to a UTF-8 JSON object with a top-level `op`
 /// field. See `data::operations_bridge::Operation` for supported shapes.
-/// Returns `0` on parse or execution failure.
+/// Returns `0` on parse or execution failure. On success the kernel records a
+/// provenance envelope (read it via `kernel_provenance`).
 #[wasm_bindgen]
 pub fn data_operation(handle: u32, op_ptr: u32, op_len: u32) -> u32 {
     let op_bytes = unsafe { allocator::view(op_ptr, op_len) };
@@ -477,20 +491,47 @@ pub fn data_operation(handle: u32, op_ptr: u32, op_len: u32) -> u32 {
         Ok(s) => s,
         Err(_) => return 0,
     };
-    let op: data::operations_bridge::Operation = match serde_json::from_str(op_json) {
+    // Parse once as a raw JSON value (for provenance `parameters`) and again as
+    // the typed `Operation` (for execution). `from_value` consumes, so clone.
+    let raw: serde_json::Value = match serde_json::from_str(op_json) {
+        Ok(v) => v,
+        Err(e) => {
+            log_error(&format!("data_operation parse failed: {}", e));
+            return 0;
+        }
+    };
+    let op: data::operations_bridge::Operation = match serde_json::from_value(raw.clone()) {
         Ok(o) => o,
         Err(e) => {
             log_error(&format!("data_operation parse failed: {}", e));
             return 0;
         }
     };
+    let operation_name = raw
+        .get("op")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+
+    // Input fingerprint (separate lock acquisition — no re-entrancy with apply).
+    let input_fp = data::with_dataset(handle, |ds| ds.fingerprint()).unwrap_or_default();
+
     // Apply the operation inside the registry lock, then release the lock and only
     // then register the result. Calling `register_dataset` from inside the
     // `with_dataset` closure would re-enter the same `DATASET_REGISTRY` Mutex,
     // which is non-reentrant and would deadlock.
     let result = data::with_dataset(handle, |ds| data::operations_bridge::apply(ds, op));
     match result {
-        Some(Ok(new_dataset)) => data::register_dataset(new_dataset),
+        Some(Ok(new_dataset)) => {
+            let output_fp = new_dataset.fingerprint();
+            data::provenance::record(
+                &operation_name,
+                raw,
+                &input_fp,
+                &output_fp,
+            );
+            data::register_dataset(new_dataset)
+        }
         Some(Err(e)) => {
             log_error(&format!("data_operation failed: {}", e));
             0
@@ -529,6 +570,332 @@ pub fn data_sample_keys(out_ptr: u32, out_len: u32) -> u32 {
     write_len as u32
 }
 
+// ---------------------------------------------------------------------------
+// Wave 1 — analytical kernel exports (topology / TDA / encodings / stats /
+// arrow / radial tree / fingerprint / provenance)
+// ---------------------------------------------------------------------------
+//
+// String/JSON results use the same two-call `(out_ptr, out_len)` protocol as
+// `dataset_to_json`: call with `out_len == 0` to query the required byte
+// length, allocate, then call again to write. Every result-bearing call
+// records a provenance envelope readable via `kernel_provenance`.
+
+/// Write a UTF-8 string into the caller-provided buffer using the two-call
+/// size-query protocol. Returns bytes written, or the required length when
+/// `out_len == 0`.
+fn write_str_out(s: &str, out_ptr: u32, out_len: u32) -> u32 {
+    let bytes = s.as_bytes();
+    if out_len == 0 {
+        return bytes.len() as u32;
+    }
+    let write_len = std::cmp::min(bytes.len(), out_len as usize);
+    let slice = unsafe { allocator::view_mut(out_ptr, write_len as u32) };
+    slice.copy_from_slice(&bytes[..write_len]);
+    write_len as u32
+}
+
+/// Return the canonical kernel version string (`KERNEL_VERSION`).
+#[wasm_bindgen]
+pub fn kernel_version(out_ptr: u32, out_len: u32) -> u32 {
+    write_str_out(data::provenance::KERNEL_VERSION, out_ptr, out_len)
+}
+
+/// Return the last recorded provenance envelope as a JSON string (or `""`).
+#[wasm_bindgen]
+pub fn kernel_provenance(out_ptr: u32, out_len: u32) -> u32 {
+    write_str_out(&data::provenance::last_json(), out_ptr, out_len)
+}
+
+/// Return the canonical FNV-1a fingerprint of a dataset (8 hex chars).
+#[wasm_bindgen]
+pub fn dataset_fingerprint(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    let fp = data::with_dataset(handle, |ds| ds.fingerprint()).unwrap_or_default();
+    write_str_out(&fp, out_ptr, out_len)
+}
+
+/// Infer a dataset's topology and return the topology name string
+/// (`TABULAR`/`HIERARCHY`/`GRAPH`/`TIME_SERIES`/`VECTOR_FIELD`/`GEO`/`FLOW`).
+#[wasm_bindgen]
+pub fn data_infer_topology(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    let (topo, input_fp) = match data::with_dataset(handle, |ds| {
+        (data::topology::infer(ds), ds.fingerprint())
+    }) {
+        Some(v) => v,
+        None => return 0,
+    };
+    let name = topo.as_str().to_string();
+    let output_fp = data::fingerprint::fnv1a_hex(&name);
+    data::provenance::record(
+        "infer_topology",
+        serde_json::Value::Null,
+        &input_fp,
+        &output_fp,
+    );
+    write_str_out(&name, out_ptr, out_len)
+}
+
+/// Infer the logical encoding mapping. Pass `topo_len == 0` for the
+/// topology-unaware default, or a topology name for the topology-aware variant.
+#[wasm_bindgen]
+pub fn data_infer_encodings(
+    handle: u32,
+    topo_ptr: u32,
+    topo_len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let (enc, input_fp, params) = match data::with_dataset(handle, |ds| {
+        let explicit = if topo_len > 0 {
+            let bytes = unsafe { allocator::view(topo_ptr, topo_len) };
+            std::str::from_utf8(bytes)
+                .ok()
+                .and_then(data::topology::parse_topology)
+        } else {
+            None
+        };
+        let enc = match explicit {
+            Some(t) => data::encodings::infer_encodings_for_topology(ds, t),
+            None => data::encodings::infer_encodings(ds),
+        };
+        let params = match explicit {
+            Some(t) => serde_json::json!({ "topology": t.as_str() }),
+            None => serde_json::Value::Null,
+        };
+        (enc, ds.fingerprint(), params)
+    }) {
+        Some(v) => v,
+        None => return 0,
+    };
+    let json = serde_json::to_string(&enc).unwrap_or_else(|_| "{}".to_string());
+    let output_fp = data::fingerprint::fnv1a_hex(&json);
+    data::provenance::record("infer_encodings", params, &input_fp, &output_fp);
+    write_str_out(&json, out_ptr, out_len)
+}
+
+/// Return the column schema as JSON: `[{"name":"…","type":"NUMERIC"}, …]`.
+#[wasm_bindgen]
+pub fn data_infer_schema(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    let (schema_json, input_fp) = match data::with_dataset(handle, |ds| {
+        let arr: Vec<serde_json::Value> = ds
+            .columns
+            .iter()
+            .map(|c| {
+                serde_json::json!({ "name": c.name, "type": c.ty.as_str() })
+            })
+            .collect();
+        (serde_json::Value::Array(arr), ds.fingerprint())
+    }) {
+        Some(v) => v,
+        None => return 0,
+    };
+    let json = serde_json::to_string(&schema_json).unwrap_or_else(|_| "[]".to_string());
+    let output_fp = data::fingerprint::fnv1a_hex(&json);
+    data::provenance::record("infer_schema", serde_json::Value::Null, &input_fp, &output_fp);
+    write_str_out(&json, out_ptr, out_len)
+}
+
+/// Compute the full `Facts` statistics block and return it as JSON.
+#[wasm_bindgen]
+pub fn data_statistics(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    let (facts, input_fp) = match data::with_dataset(handle, |ds| {
+        (data::statistics::compute_statistics(ds), ds.fingerprint())
+    }) {
+        Some(v) => v,
+        None => return 0,
+    };
+    let json = serde_json::to_string(&facts).unwrap_or_else(|_| "{}".to_string());
+    let output_fp = data::fingerprint::fnv1a_hex(&json);
+    data::provenance::record("statistics", serde_json::Value::Null, &input_fp, &output_fp);
+    write_str_out(&json, out_ptr, out_len)
+}
+
+/// Parse an Arrow IPC payload and return a dataset handle. Returns `0` on error.
+#[wasm_bindgen]
+pub fn data_parse_arrow(ptr: u32, len: u32) -> u32 {
+    let bytes = unsafe { allocator::view(ptr, len) };
+    match data::parsers::parse_arrow(bytes, "arrow") {
+        Ok(dataset) => data::register_dataset(dataset),
+        Err(e) => {
+            log_error(&format!("data_parse_arrow failed: {}", e));
+            0
+        }
+    }
+}
+
+fn parse_string_array(v: &serde_json::Value) -> Vec<String> {
+    v.as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_f64_array(v: &serde_json::Value) -> Vec<f64> {
+    v.as_array()
+        .map(|a| a.iter().filter_map(|x| x.as_f64()).collect())
+        .unwrap_or_default()
+}
+
+fn parse_usize_array(v: &serde_json::Value) -> Vec<usize> {
+    v.as_array()
+        .map(|a| a.iter().filter_map(|x| x.as_u64().map(|n| n as usize)).collect())
+        .unwrap_or_default()
+}
+
+/// Compute the TDA Mapper graph. `params` JSON:
+/// `{"featureColumns":["x",…],"filterValues":[…],"bins":N,"overlap":F}`.
+/// Returns `{nodes:[…],edges:[[a,b],…]}` JSON.
+#[wasm_bindgen]
+pub fn data_compute_mapper_graph(
+    handle: u32,
+    params_ptr: u32,
+    params_len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let params_bytes = unsafe { allocator::view(params_ptr, params_len) };
+    let params: serde_json::Value = match serde_json::from_slice(params_bytes) {
+        Ok(v) => v,
+        Err(e) => {
+            log_error(&format!("data_compute_mapper_graph params: {}", e));
+            return 0;
+        }
+    };
+    let feature_columns = parse_string_array(params.get("featureColumns").unwrap_or(&serde_json::Value::Null));
+    let filter_values = parse_f64_array(params.get("filterValues").unwrap_or(&serde_json::Value::Null));
+    let bins = params.get("bins").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
+    let overlap = params.get("overlap").and_then(|v| v.as_f64()).unwrap_or(0.3);
+    let fc_refs: Vec<&str> = feature_columns.iter().map(|s| s.as_str()).collect();
+
+    let (graph, input_fp) = match data::with_dataset(handle, |ds| {
+        (
+            data::topology::compute_mapper_graph(ds, &fc_refs, &filter_values, bins, overlap),
+            ds.fingerprint(),
+        )
+    }) {
+        Some(v) => v,
+        None => return 0,
+    };
+    let json = serde_json::to_string(&graph).unwrap_or_else(|_| "{}".to_string());
+    let output_fp = data::fingerprint::fnv1a_hex(&json);
+    data::provenance::record("compute_mapper_graph", params, &input_fp, &output_fp);
+    write_str_out(&json, out_ptr, out_len)
+}
+
+/// Compute 1D persistence intervals. `params` JSON:
+/// `{"featureColumns":[…],"filterValues":[…],"maxDistance":F}`.
+#[wasm_bindgen]
+pub fn data_compute_persistence_intervals(
+    handle: u32,
+    params_ptr: u32,
+    params_len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let params_bytes = unsafe { allocator::view(params_ptr, params_len) };
+    let params: serde_json::Value = match serde_json::from_slice(params_bytes) {
+        Ok(v) => v,
+        Err(e) => {
+            log_error(&format!("data_compute_persistence_intervals params: {}", e));
+            return 0;
+        }
+    };
+    let feature_columns = parse_string_array(params.get("featureColumns").unwrap_or(&serde_json::Value::Null));
+    let filter_values = parse_f64_array(params.get("filterValues").unwrap_or(&serde_json::Value::Null));
+    let max_distance = params.get("maxDistance").and_then(|v| v.as_f64()).unwrap_or(1.0);
+    let fc_refs: Vec<&str> = feature_columns.iter().map(|s| s.as_str()).collect();
+
+    let (intervals, input_fp) = match data::with_dataset(handle, |ds| {
+        (
+            data::topology::compute_persistence_intervals(ds, &fc_refs, &filter_values, max_distance),
+            ds.fingerprint(),
+        )
+    }) {
+        Some(v) => v,
+        None => return 0,
+    };
+    let json = serde_json::to_string(&intervals).unwrap_or_else(|_| "[]".to_string());
+    let output_fp = data::fingerprint::fnv1a_hex(&json);
+    data::provenance::record("compute_persistence_intervals", params, &input_fp, &output_fp);
+    write_str_out(&json, out_ptr, out_len)
+}
+
+/// Compute the Betti-0 curve. `params` JSON: `{"featureColumns":[…],"steps":N}`.
+#[wasm_bindgen]
+pub fn data_compute_betti0_curve(
+    handle: u32,
+    params_ptr: u32,
+    params_len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let params_bytes = unsafe { allocator::view(params_ptr, params_len) };
+    let params: serde_json::Value = match serde_json::from_slice(params_bytes) {
+        Ok(v) => v,
+        Err(e) => {
+            log_error(&format!("data_compute_betti0_curve params: {}", e));
+            return 0;
+        }
+    };
+    let feature_columns = parse_string_array(params.get("featureColumns").unwrap_or(&serde_json::Value::Null));
+    let steps = params.get("steps").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
+    let fc_refs: Vec<&str> = feature_columns.iter().map(|s| s.as_str()).collect();
+
+    let (curve, input_fp) = match data::with_dataset(handle, |ds| {
+        (
+            data::topology::compute_betti0_curve(ds, &fc_refs, steps),
+            ds.fingerprint(),
+        )
+    }) {
+        Some(v) => v,
+        None => return 0,
+    };
+    let json = serde_json::to_string(&curve).unwrap_or_else(|_| "[]".to_string());
+    let output_fp = data::fingerprint::fnv1a_hex(&json);
+    data::provenance::record("compute_betti0_curve", params, &input_fp, &output_fp);
+    write_str_out(&json, out_ptr, out_len)
+}
+
+/// Compute 3D radial-tree positions. `levels_ptr`/`levels_len` point to a JSON
+/// array of node levels (e.g. `[0,1,1,2]`). Writes `count * 3` little-endian
+/// f32 values into `out_ptr`. Returns the number of bytes written.
+#[wasm_bindgen]
+pub fn data_compute_radial_tree_3d(
+    levels_ptr: u32,
+    levels_len: u32,
+    ring_spacing: f32,
+    y_step: f32,
+    y_offset: f32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let level_bytes = unsafe { allocator::view(levels_ptr, levels_len) };
+    let levels_json: serde_json::Value = match serde_json::from_slice(level_bytes) {
+        Ok(v) => v,
+        Err(_) => return 0,
+    };
+    let levels = parse_usize_array(&levels_json);
+    if levels.is_empty() {
+        return 0;
+    }
+    let positions = layouts::compute_radial_tree_3d(&levels, ring_spacing, y_step, y_offset);
+    let needed = positions.len() * 12;
+    if (out_len as usize) < needed {
+        return needed as u32;
+    }
+    let slice = unsafe { allocator::view_mut(out_ptr, needed as u32) };
+    let mut offset = 0usize;
+    for pos in positions {
+        slice[offset..offset + 4].copy_from_slice(&pos[0].to_le_bytes());
+        slice[offset + 4..offset + 8].copy_from_slice(&pos[1].to_le_bytes());
+        slice[offset + 8..offset + 12].copy_from_slice(&pos[2].to_le_bytes());
+        offset += 12;
+    }
+    needed as u32
+}
+
 #[cfg(target_arch = "wasm32")]
 fn log_error(msg: &str) {
     use wasm_bindgen::JsValue;
@@ -556,6 +923,11 @@ mod tests {
         assert!(caps & CAP_DATASET_RUST != 0);
         assert!(caps & CAP_PARSER_RUST != 0);
         assert!(caps & CAP_OPERATIONS_RUST != 0);
+        // Wave 1 analytical subsystems are now implemented + exported.
+        assert!(caps & CAP_TOPOLOGY_RUST != 0, "TOPOLOGY_RUST implemented in Wave 1");
+        assert!(caps & CAP_TDA_RUST != 0, "TDA_RUST implemented in Wave 1");
+        assert!(caps & CAP_ENCODINGS_RUST != 0, "ENCODINGS_RUST implemented in Wave 1");
+        assert!(caps & CAP_STATS_RUST != 0, "STATS_RUST implemented in Wave 1");
         // Honesty lock: reserved / unimplemented bits are NOT advertised. This
         // catches a future regression that re-adds a premature or false claim.
         assert_eq!(caps & CAP_DRACO_RUST, 0, "DRACO_RUST not yet migrated");

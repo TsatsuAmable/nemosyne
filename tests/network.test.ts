@@ -587,6 +587,22 @@ describe('SignallingServerCore', () => {
     expect(a.closeCode).toBe(4001);
   });
 
+  it('rejects an open (no-token) join when allowOpenNoToken is false (standalone prod default)', () => {
+    // The standalone SignallingServer sets allowOpenNoToken=false so a forgotten
+    // token env var doesn't expose an open relay.
+    const registry = createRoomRegistry({ allowOpenNoToken: false });
+    const a = makeSocket();
+    registry.handleConnection(a, 'room1', 'peerA');
+    expect(a.closeCode).toBe(4001);
+  });
+
+  it('still allows an open (no-token) join by default for dev friction', () => {
+    const registry = createRoomRegistry();
+    const a = makeSocket();
+    registry.handleConnection(a, 'room1', 'peerA');
+    expect(a.closeCode).toBeUndefined();
+  });
+
   it('admits a join with the correct token and relays between peers', () => {
     const registry = createRoomRegistry({ authToken: 'secret' });
     const a = makeSocket();

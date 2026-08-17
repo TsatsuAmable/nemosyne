@@ -20,19 +20,31 @@ export interface DatasetSpaceJSON {
   dataset: DatasetJSON;
 }
 
-function canonicalize(value: unknown): unknown {
+/**
+ * Locale-independent canonicalization: recursively sorts object keys by UTF-16
+ * code units so the fingerprint is stable across devices/runtimes regardless of
+ * the default collation (`localeCompare` varies by locale). Exported so AtlasCore
+ * can reuse the exact same canonical form for `outputHash`/`stateHash`.
+ */
+export function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .sort(([a], [b]) => a.localeCompare(b))
+        .sort(([a], [b]) => (a > b ? 1 : a < b ? -1 : 0))
         .map(([key, entry]) => [key, canonicalize(entry)])
     );
   }
   return value;
 }
 
-function hash(value: unknown): string {
+/**
+ * FNV-1a 32-bit hash over the canonicalized JSON of `value`, returned as 8
+ * lowercase hex chars. This matches the kernel's dataset fingerprint algorithm
+ * so JS-side `outputHash`/`stateHash` stay consistent with
+ * `bridge.datasetFingerprint` when the kernel is unavailable.
+ */
+export function fnv1aHex(value: unknown): string {
   const text = JSON.stringify(canonicalize(value));
   let state = 2166136261;
   for (let index = 0; index < text.length; index += 1) {
@@ -54,11 +66,11 @@ export class DatasetSpace {
   constructor(dataset: Dataset) {
     this.dataset = dataset.clone();
     const datasetJSON = this.dataset.toJSON();
-    this.fingerprint = hash(datasetJSON);
+    this.fingerprint = fnv1aHex(datasetJSON);
 
     const occurrences = new Map<string, number>();
     this.datumIds = this.dataset.rows.map((row) => {
-      const rowHash = hash(row);
+      const rowHash = fnv1aHex(row);
       const occurrence = occurrences.get(rowHash) ?? 0;
       occurrences.set(rowHash, occurrence + 1);
       return `${this.fingerprint}:datum-${rowHash}-${occurrence}`;

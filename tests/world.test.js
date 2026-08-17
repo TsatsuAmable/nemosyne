@@ -8,6 +8,19 @@ import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.ts';
 import { WorldTheme } from '../src/vr/WorldTheme.ts';
 import * as Download from '../src/utils/Download.ts';
 import { OperationLogPanel } from '../src/vr/ui/OperationLogPanel.ts';
+import { makeKernelMockBridge } from './helpers/kernelMock.js';
+
+// Wave 2: the analytical kernel is mandatory in production. Integration tests
+// wire a mock kernel (canned, JS-backed) so orchestration stays testable in
+// plain jsdom; analytical parity is covered by Rust tests + wasm-runtime.test.ts.
+function wireKernel(w) {
+  const bridge = makeKernelMockBridge();
+  // Wave 4: AtlasCore is the analytical authority; bind the kernel there.
+  w.atlas?.setKernel?.(bridge, 0x3c07);
+  w.loader?.setWasmRuntime?.(bridge, 0x3c07);
+  w._wasmRuntime = bridge;
+  w._wasmUnavailable = false;
+}
 
 const CONNECTING = 0;
 const OPEN = 1;
@@ -162,7 +175,7 @@ describe('World integration', () => {
   }
 
   it('creates the default Draco node and registers diagnostic + telemetry panels', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     expect(world.dracoNode).toBeInstanceOf(DracoTopologyNode);
     expect(world.dracoNode.artifact).toBeTruthy();
@@ -183,7 +196,7 @@ describe('World integration', () => {
   });
 
   it('loadDataset tears down the previous Draco node and diagnostic, then rebuilds', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     const oldDraco = world.dracoNode;
     const oldDiagnostic = world.diagnostic;
@@ -211,7 +224,7 @@ describe('World integration', () => {
   });
 
   it('reSolveAndSynthesize re-wires artifact interactables', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     const oldMeshes = [...world.dracoNode.artifact.nodeMeshes];
     world.dracoNode.reSolveAndSynthesize();
@@ -228,7 +241,7 @@ describe('World integration', () => {
   });
 
   it('loadDataset infers default encodings when none are provided', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     const sales = getSampleDataset('sales-table');
     const entry = { name: 'Sales Table', topology: sales.topology, dataset: sales.dataset };
@@ -247,7 +260,7 @@ describe('World integration', () => {
     document.body.appendChild(telemetry);
 
     try {
-      world = new World();
+      world = new World(); wireKernel(world);
       world.currentEntry = { name: 'Telemetry Test' };
       world._updateTelemetry();
 
@@ -262,7 +275,7 @@ describe('World integration', () => {
   });
 
   it('wires system toggle to the launcher ring', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     expect(typeof world.engine.input.onSystemToggle).toBe('function');
     expect(world.panelManager.isLauncherVisible()).toBe(false);
@@ -275,7 +288,7 @@ describe('World integration', () => {
   });
 
   it('creates and registers a hand-attached wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     expect(world.handWheelMenu).toBeTruthy();
     expect(world.handWheelMenu.engine).toBe(world.engine);
@@ -284,7 +297,7 @@ describe('World integration', () => {
   });
 
   it('cycles datasets through the hand wheel action', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const initialName = world.currentEntry?.label ?? world.currentEntry?.name;
 
     // The first cycle returns to the same default sample, so cycle twice.
@@ -297,7 +310,7 @@ describe('World integration', () => {
   });
 
   it('toggles individual panels via PanelManager', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const panel = world.telemetryPanel;
 
     expect(panel.mesh.visible).toBe(true);
@@ -309,7 +322,7 @@ describe('World integration', () => {
   });
 
   it('creates a spatial dashboard with chart panels', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     expect(world.dashboard).toBeTruthy();
     expect(world.engine.updatables).toContain(world.dashboard);
@@ -327,7 +340,7 @@ describe('World integration', () => {
   });
 
   it('includes a reset dashboard action in the hand wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
     expect(panelsCategory).toBeTruthy();
@@ -337,7 +350,7 @@ describe('World integration', () => {
   });
 
   it('creates a semicircle dashboard by default', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     expect(world.dashboard.layoutMode).toBe('semicircle');
     expect(world.dashboard.columns).toBeGreaterThan(world.dashboard.visibleColumns);
@@ -345,7 +358,7 @@ describe('World integration', () => {
   });
 
   it('includes scroll dashboard actions in the hand wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
     expect(panelsCategory).toBeTruthy();
@@ -362,7 +375,7 @@ describe('World integration', () => {
   });
 
   it('applies a theme preset when loading a dataset by key', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const fraud = getSampleDataset('fraud-graph');
 
     world.loadDataset({ key: 'fraud-graph', name: 'Fraud Graph', ...fraud });
@@ -371,7 +384,7 @@ describe('World integration', () => {
   });
 
   it('cycles through theme presets from the hand wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const startPreset = world.engine.theme.currentPreset;
 
     const viewsCategory = world.handWheelMenu._categories.find((c) => c.id === 'views');
@@ -383,7 +396,7 @@ describe('World integration', () => {
   });
 
   it('sets portal data activity based on dataset topology', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const sensor = getSampleDataset('sensor-stream');
 
     world.loadDataset({ key: 'sensor-stream', name: 'Sensor Stream', ...sensor });
@@ -393,7 +406,7 @@ describe('World integration', () => {
   });
 
   it('recolors portals to match the loaded dataset theme preset', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const fraud = getSampleDataset('fraud-graph');
 
     world.loadDataset({ key: 'fraud-graph', name: 'Fraud Graph', ...fraud });
@@ -404,7 +417,7 @@ describe('World integration', () => {
   });
 
   it('recolors portals when warping through a portal', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     world._warpToZone('DEEP_NET', [0, 0, -20]);
 
@@ -418,7 +431,7 @@ describe('World integration', () => {
     vi.useFakeTimers();
     try {
       globalThis.WebSocket = MockWebSocket;
-      world = new World();
+      world = new World(); wireKernel(world);
       const loadSpy = vi.spyOn(world, 'loadDataset');
 
       const connected = world.connectLiveStream('wss://test/stream', { mode: 'replace' });
@@ -454,7 +467,7 @@ describe('World integration', () => {
     const originalWebSocket = globalThis.WebSocket;
     try {
       globalThis.WebSocket = undefined;
-      world = new World();
+      world = new World(); wireKernel(world);
       expect(world.connectLiveStream()).toBe(false);
       expect(world.liveConnector).toBeNull();
     } finally {
@@ -463,20 +476,20 @@ describe('World integration', () => {
   });
 
   it('creates an explicit analyst anchor under the camera group', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     expect(world.analystAnchor).toBeTruthy();
     expect(world.analystAnchor.parent).toBe(world.engine.cameraGroup);
   });
 
   it('parents HUD managers to the analyst anchor', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     expect(world.panelManager._launcherGroup.parent).toBe(world.analystAnchor);
     expect(world.dashboard.wallGroup.parent).toBe(world.analystAnchor);
     expect(world.handWheelMenu.group.parent).toBe(world.analystAnchor);
   });
 
   it('includes flight mode actions in the hand wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     const viewsCategory = world.handWheelMenu._categories.find((c) => c.id === 'views');
     expect(viewsCategory).toBeTruthy();
@@ -495,7 +508,7 @@ describe('World integration', () => {
   });
 
   it('routes scoopUp to ascend when flight mode is active', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     world.engine.locomotion.setFlightEnabled(true);
     const startY = world.engine.locomotion.cameraGroup.position.y;
 
@@ -504,13 +517,13 @@ describe('World integration', () => {
   });
 
   it('registers the TechnoCore as an interactable', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const meshes = world.engine.input.interactables.map((i) => i.mesh);
     expect(meshes).toContain(world.core.group);
   });
 
   it('cycles the core lens mode on core selection', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     expect(world.core.lensMode).toBe('off');
 
     world._onCoreSelect();
@@ -522,7 +535,7 @@ describe('World integration', () => {
   });
 
   it('turns the statistical lens off when the core cycles back to off', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     world._onCoreSelect();
     world._onCoreSelect();
     world._onCoreSelect();
@@ -532,13 +545,13 @@ describe('World integration', () => {
   });
 
   it('attaches data operations to each portal', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     expect(world.portalA.operation).toBe('anomaly');
     expect(world.portalB.operation).toBe('reset');
   });
 
   it('applies portal operation and moves the camera when warping', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const resetSpy = vi.spyOn(world, 'resetDataOperation');
 
     world._warpToZone('LOCAL_MATRIX', [0, 0, 0], 'reset');
@@ -548,7 +561,7 @@ describe('World integration', () => {
   });
 
   it('updates core data activity from analysis history length', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     world.applyDataOperation('filter');
     world._updateWorld(0.016, 0);
 
@@ -556,7 +569,7 @@ describe('World integration', () => {
   });
 
   it('triggers a warp when the head enters a portal bounding sphere', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const warpSpy = vi.spyOn(world, '_warpToZone');
     world.engine.headWorldPos = new THREE.Vector3(-2.5, 1.6, -2);
 
@@ -566,7 +579,7 @@ describe('World integration', () => {
   });
 
   it('activates portal preview when the user is nearby', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const headPos = new THREE.Vector3(-2.5, 1.6, -2).add(new THREE.Vector3(0, 0, 1));
     world.engine.headWorldPos = headPos;
 
@@ -576,7 +589,7 @@ describe('World integration', () => {
   });
 
   it('saves and restores a session via the session store', async () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     world.sessionStore = new SessionStoreStub();
 
     // Move camera and mutate data so we have something to restore.
@@ -591,7 +604,7 @@ describe('World integration', () => {
     await world.saveSession('test');
 
     // Create a fresh world and restore the saved session.
-    const restoredWorld = new World();
+    const restoredWorld = new World(); wireKernel(restoredWorld);
     restoredWorld.sessionStore = world.sessionStore;
     const ok = await restoredWorld.loadSession('test');
 
@@ -612,7 +625,7 @@ describe('World integration', () => {
   });
 
   it('exports a screenshot from the renderer canvas', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     const dataUrl = 'data:image/png;base64,test';
     const toDataURL = vi.fn().mockReturnValue(dataUrl);
@@ -629,7 +642,7 @@ describe('World integration', () => {
   });
 
   it('exports an analysis story as downloadable JSON', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const downloadSpy = vi.spyOn(Download, 'downloadText').mockImplementation(() => {});
 
     world.applyDataOperation('filter');
@@ -646,7 +659,7 @@ describe('World integration', () => {
   });
 
   it('includes export and operation log actions in the hand wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
     expect(panelsCategory).toBeTruthy();
     expect(panelsCategory.items.find((i) => i.id === 'operation-log')).toBeTruthy();
@@ -655,7 +668,7 @@ describe('World integration', () => {
   });
 
   it('toggles the operation log panel from the hand wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     expect(world.operationLogPanel).toBeInstanceOf(OperationLogPanel);
     expect(world.operationLogPanel.mesh.visible).toBe(false);
 
@@ -667,7 +680,7 @@ describe('World integration', () => {
   });
 
   it('updates the operation log panel when operations are applied', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const setEntriesSpy = vi.spyOn(world.operationLogPanel, 'setEntries');
 
     world.applyDataOperation('filter');
@@ -679,7 +692,7 @@ describe('World integration', () => {
   });
 
   it('includes a telemetry action in the hand wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
     expect(panelsCategory).toBeTruthy();
     const action = panelsCategory.items.find((i) => i.id === 'telemetry');
@@ -688,7 +701,7 @@ describe('World integration', () => {
   });
 
   it('toggles the telemetry metrics panel from the hand wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     expect(world.metricsPanel.mesh.visible).toBe(false);
 
     const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
@@ -699,7 +712,7 @@ describe('World integration', () => {
   });
 
   it('records operations in telemetry when enabled', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     world.telemetryCollector.setEnabled(true);
 
     world.applyDataOperation('filter');
@@ -710,7 +723,7 @@ describe('World integration', () => {
   });
 
   it('records gestures in telemetry when enabled', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     world.telemetryCollector.setEnabled(true);
 
     world._onGesture('pinchTogether');
@@ -722,7 +735,7 @@ describe('World integration', () => {
   });
 
   it('records dataset load in telemetry when enabled', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     world.telemetryCollector.setEnabled(true);
 
     const fraud = getSampleDataset('fraud-graph');
@@ -734,7 +747,7 @@ describe('World integration', () => {
   });
 
   it('includes telemetry in the analysis story when enabled', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     world.telemetryCollector.setEnabled(true);
     world.applyDataOperation('filter');
 
@@ -745,7 +758,7 @@ describe('World integration', () => {
   });
 
   it('includes collaboration actions in the hand wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
 
     const collabCategory = world.handWheelMenu._categories.find((c) => c.id === 'collab');
     expect(collabCategory).toBeTruthy();
@@ -760,7 +773,7 @@ describe('World integration', () => {
     globalThis.RTCPeerConnection = MockRTCPeerConnection;
 
     try {
-      world = new World();
+      world = new World(); wireKernel(world);
       const collabCategory = world.handWheelMenu._categories.find((c) => c.id === 'collab');
       const joinAction = collabCategory.items.find((i) => i.id === 'collab-toggle');
 
@@ -782,7 +795,7 @@ describe('World integration', () => {
   });
 
   it('toggles the collaboration network panel from the wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     expect(world.networkPanel.mesh.visible).toBe(false);
 
     const collabCategory = world.handWheelMenu._categories.find((c) => c.id === 'collab');
@@ -799,7 +812,7 @@ describe('World integration', () => {
     globalThis.RTCPeerConnection = MockRTCPeerConnection;
 
     try {
-      world = new World();
+      world = new World(); wireKernel(world);
       const connectPromise = world._joinCollaborationRoom('presence-room');
       world.networkManager.signalling._ws.open();
       await connectPromise;
@@ -837,7 +850,7 @@ describe('World integration', () => {
     globalThis.RTCPeerConnection = MockRTCPeerConnection;
 
     try {
-      world = new World();
+      world = new World(); wireKernel(world);
       world.settingsPanel.setSetting('collabEnabled', true);
 
       const connected = new Promise((resolve) => {
@@ -856,14 +869,14 @@ describe('World integration', () => {
   });
 
   it('creates an interaction coach panel', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     expect(world.interactionCoach).toBeTruthy();
     expect(world.panelManager.panels).toContain(world.interactionCoach);
     expect(world.interactionCoach.mesh.visible).toBe(false);
   });
 
   it('includes an interaction coach action in the hand wheel menu', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
     const action = panelsCategory.items.find((i) => i.id === 'interaction-coach');
     expect(action).toBeTruthy();
@@ -872,7 +885,7 @@ describe('World integration', () => {
   });
 
   it('logs gestures to the interaction coach', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const logSpy = vi.spyOn(world.interactionCoach, 'log');
 
     world._onGesture('pinchTogether');
@@ -884,7 +897,7 @@ describe('World integration', () => {
   });
 
   it('logs controller gesture context when source is controller', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const logSpy = vi.spyOn(world.interactionCoach, 'log');
 
     world._onGesture('rotateCW', { source: 'controller', button: 'B' });
@@ -895,7 +908,7 @@ describe('World integration', () => {
   });
 
   it('logs data operations to the interaction coach', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const logSpy = vi.spyOn(world.interactionCoach, 'log');
 
     world.applyDataOperation('filter');
@@ -906,7 +919,7 @@ describe('World integration', () => {
   });
 
   it('logs the launcher toggle to the interaction coach', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     const logSpy = vi.spyOn(world.interactionCoach, 'log');
 
     world._togglePanels();
@@ -917,7 +930,7 @@ describe('World integration', () => {
   });
 
   it('wires the controller gesture mapper into input', () => {
-    world = new World();
+    world = new World(); wireKernel(world);
     expect(world.engine.input.controllerGestureMapper).toBe(world.controllerGestureMapper);
   });
 });

@@ -10,6 +10,16 @@ task, and blockers — across any model or harness. Before you stop, refresh tha
 with current truth. Other docs (this file, `.agents/`) point to it and do not
 duplicate state.
 
+## Model routing (cross-tool)
+
+Provider selection for coding-agent work is standardized in the local `.ai/model-routing/`
+folder (gitignored, like `.agents/` and `.claude/`) — `model-routes.json` (four provider groups: `ollama-cloud`, `google`, `opencode-go`,
+`opencode-zen`; task-class routing + switch triggers), `README.md` (decision procedure), and
+`tool-mappings.md` (per-tool wiring). Shared with OpenCode and Antigravity via `AGENTS.md`.
+**Manifest only — your Claude Code dispatch is unchanged.** Consult it before heavy
+sub-agent fan-out (prefer `ollama-cloud` for bulk work, fall to `google`/`opencode-zen` on
+429 or for reasoning/long-context). Model IDs are editable placeholders — confirm per provider.
+
 ## Repository layout
 
 This repository contains the canonical Nemosyne runtime. The application code, tests, and build configuration all live at the repository root.
@@ -28,10 +38,11 @@ All commands below are relative to the repository root.
 
 ```bash
 npm install
-npm run wasm:dev # Compile Rust/WASM crate in dev mode
-npm run wasm     # Compile Rust/WASM crate for release
-npm run dev      # wasm-pack dev build + Vite dev server on https://localhost:5173
-npm run build    # wasm-pack release build + production bundle -> dist/
+npm run wasm:dev # Compile Rust/WASM crate in dev mode -> wasm/pkg/
+npm run wasm     # Compile Rust/WASM crate for release -> wasm/pkg/
+npm run dev      # Vite dev server ONLY (no wasm-pack; WASM lazy-loaded at runtime) on https://localhost:5173
+npm run dev:wasm # wasm-pack dev build + Vite dev server (use this for full WASM dev)
+npm run build    # Vite production bundle -> dist/ (WASM externalized; succeeds without wasm/pkg)
 npm run preview  # Preview the production bundle
 npm test         # all Vitest tests once (JS only; no Rust toolchain required)
 npm run test:all # cargo test for wasm/ + all Vitest tests once
@@ -41,7 +52,7 @@ npm run test:coverage
 Run a single test file:
 
 ```bash
-npx vitest run tests/parsers.test.js
+npx vitest run tests/world.test.js
 ```
 
 Run tests in watch mode during development:
@@ -72,7 +83,7 @@ adb forward tcp:5173 tcp:5173
 
 - Production build: `npm run build` emits to `dist/`.
 - Netlify configuration in `netlify.toml`: build command `npm run build`, publish directory `dist`.
-- Deployment scripts: `npm run deploy:netlify` and `npm run deploy:vercel` build and deploy in one step.
+- Deployment: Netlify is canonical (`netlify.toml` carries COOP/COEP/CSP). `npm run deploy:netlify` builds and deploys in one step. (`deploy:vercel` was removed in Wave 0.)
 
 ## Architecture overview
 
@@ -83,9 +94,9 @@ High-level data flow:
 ```
 Raw Data (CSV/JSON/Live Stream)
          ↓
-   Parsers / Connectors
+   Rust/WASM Analytical Kernel (parse · infer topology/encodings · operations · statistics · TDA · provenance envelope)
          ↓
-      Dataset
+   Dataset (TS projection over kernel DatasetJSON)
          ↓
   Draco Constraint Engine
          ↓
@@ -99,12 +110,14 @@ Raw Data (CSV/JSON/Live Stream)
          ↓
    Controller / Hand Input
          ↓
-   Inspect / Filter / Aggregate / Sort / Cluster / Annotate / Metaphor
+   Inspect / Filter / Aggregate / Sort / Cluster / Annotate / Metaphor  (each op → kernel + provenance envelope)
 ```
 
 ### Source layers
 
-- `src/data/` — `Dataset`, CSV/JSON `Parsers`, `Encodings`, `DatasetOperations` (filter, sort, aggregate, cluster, slice, anomaly), and live connectors (`WebSocketAdapter`, `PollingAdapter`, `OpenDataSources`).
+- `src/data/` — `Dataset` (thin typed projection over kernel `DatasetJSON`), `Encodings` (three.js visual mapping only — `categoricalColor`/`numericColor`/`normalize`; analytical `inferEncodings` lives in the kernel), `AnalysisHistory` (undo/redo cursor), `SessionStore` (IndexedDB KV), `SampleDatasets`, `types`, and live connectors (`WebSocketAdapter`, `PollingAdapter`, `OpenDataSources`). Parsing and analytical operations are NO longer implemented here — they run in the Rust kernel.
+- `src/wasm/` — `RuntimeBridge.ts` (typed JS wrappers over the Rust/WASM kernel; production code calls these wrappers, not the kernel directly) and `CommandApplier.ts` (dormant command-buffer consumer).
+- `src/atlas/` and `src/session/` — the authoritative session substrate (`DatasetSpace` is the renderer-independent, versioned, FNV-1a-fingerprinted datum substrate; `AtlasCore` + `NemosyneSession` are the authoritative analytical-authority + logical-session layer). See `docs/ROADMAP.md` §Current Status for build/wire status.
 - `src/draco/` — `ConstraintEngine` (symbolic recommender), `VRTopologyTranslator` (spec → three.js artefact group), `DracoTopologyNode` (solve → synthesize → place), and layout generators under `src/draco/layouts/`. (The `DracoDiagnosticHUD` soft-weight tuner now lives in `src/vr/ui/`.)
 - `src/vr/` — Core WebXR runtime.
   - `Engine.ts` — three.js scene, renderer, XR session, animation loop, updatables.
@@ -122,6 +135,8 @@ Raw Data (CSV/JSON/Live Stream)
 - `src/utils/` — `SeededRandom`, `Dispose`, `Telemetry`, `UXFrustrationAnalyzer` (on-device friction pattern detection & low-token UX digests), `PerformanceBudget`, `Accessibility`, `Download`, `GestureMapping`.
 - `src/ui/` — 2D DOM file loader (`FileLoader.ts`).
 
+> `src/analytics/` was removed (Wave 3) — TDA now runs in the Rust kernel.
+
 ### Key runtime conventions
 
 - TypeScript-first: all source under `src/` is `.ts` (import maps + Vite; `npm run typecheck` / `tsc --noEmit` is a required CI gate). Only config and test-harness files (`vite.config.js`, `vitest.config.js`, `tests/setup.js`, `vite-wasm-pack-plugin.js`) and individual `.test.js`/`.spec.ts` files remain `.js`/`.mjs`.
@@ -129,13 +144,14 @@ Raw Data (CSV/JSON/Live Stream)
 - `Engine` owns an `updatables` array; anything with an `.update(delta, time)` method is ticked each frame.
 - `World` creates an `analystAnchor` under the camera rig; HUD panels, dashboard, and wheel menu are parented there so the workspace clusters around the user while remaining draggable in local space.
 - `InputRouter` is the single source of truth for interactables across controllers, hands, and desktop input.
-- `Dataset` holds typed columns and metadata; `DatasetOperations` are pure functions that produce new datasets.
+- `Dataset` is a thin typed projection over kernel `DatasetJSON` (columns, rows, metadata); it performs NO analytical computation. Analytical operations (filter/sort/aggregate/compare/cluster/hierarchical/dbscan/anomaly/slice) execute in the Rust kernel via `RuntimeBridge`, never in TypeScript.
+- **The Rust/WASM kernel is the sole analytical engine.** No TS analytical implementation exists and no production code chooses between analytical paths at runtime; capability flags are telemetry-only. Every kernel analytical result carries a provenance envelope (`{ kernel, kernelVersion, operation, parameters, inputFingerprint, outputFingerprint, timestamp }`).
 - `ConstraintEngine.solve(dataset)` returns a spec; `VRTopologyTranslator.synthesizeArtifact(spec, dataset)` returns a three.js group with interaction callbacks.
-- Live streams feed `Dataset.updateRows()`; `World._flushLiveUpdate()` re-solves or incrementally updates the palace.
+- Live streams feed `Dataset.updateRows()`; `World` re-solves or incrementally updates the palace on the live flush.
 
 ## Rust/WASM migration standards
 
-Nemosyne is gradually moving compute-sensitive subsystems into Rust-generated WebAssembly while keeping three.js as the WebGL/WebXR renderer. **Migration status is tracked in `docs/ROADMAP.md` §Phase 21 — Rust/WASM Migration** (the single canonical reference for what's done and what's planned); the **technical standards** (ABI, memory model, command-buffer wire format, capability flags, instancing thresholds) live in `.claude/plan.md` (working memory). When working on or near the WASM boundary, follow these rules:
+Nemosyne has committed to Rust/WASM as the **canonical analytical engine** — the TypeScript analytical layer (`DatasetOperations`, `Parsers`, `CSVDataParser`, `ArrowBinaryParser`, `TopologyInference`, `TDAMapper`) was deleted; three.js remains the WebGL/WebXR renderer. The active **Rust/WASM commitment sprint** (branch `rust-kernel-commitment`) is tracked in `docs/ROADMAP.md` §Current Status and the plan at `.claude/plans/groovy-mixing-wolf.md`; the **technical standards** (ABI, memory model, command-buffer wire format, instancing thresholds) live in `.claude/plan.md` (working memory). When working on or near the WASM boundary, follow these rules:
 
 - **ABI surface is `(ptr, len)` and integer handles only.** Exported functions return `u32` handles or `(ptr, len)` pairs; imported functions are limited to logging, timestamps, and telemetry. No `String`/`Vec` cross the hot path.
 - **Shared memory layout:** `WebAssembly.Memory` starts at 128 MB and grows to 512 MB. JS reads typed arrays directly from the WASM buffer. All multi-byte values are little-endian.
@@ -143,17 +159,18 @@ Nemosyne is gradually moving compute-sensitive subsystems into Rust-generated We
 - **Command buffer:** packed, 4-byte-aligned `u8` stream with a versioned header and opcode/payload structure. JS `CommandApplier` consumes it once per frame and maps handles to three.js objects.
 - **Scene graph split:** Rust owns the ECS, local transforms, and world-matrix computation. three.js owns the renderable object tree and GPU resources; JS copies precomputed matrices into `Object3D.matrix`.
 - **Instancing thresholds:** ≤ 256 unique meshes use individual `THREE.Mesh`; 257–8,192 use `InstancedMesh`; 8,193–65,536 use a GPU point cloud; larger datasets are binned/LOD'd by the Rust spatial index.
-- **Capability flags:** `World.ts` reads `wasm.capabilities()` at startup and routes work to Rust or JS fallbacks. Flags are enabled phase by phase; never enable `COMMAND_BUFFER` before `SCENE_RUST`.
+- **Capability flags are telemetry-only.** `World.ts` reads `wasm.capabilities()` once at startup for diagnostics; no production code routes between Rust and JS analytical paths (there is no JS analytical fallback). Never reintroduce an `if (caps & …)` routing branch. Keep the ordering invariant (`COMMAND_BUFFER` requires `SCENE_RUST`) for when those flags are wired.
 - **Testing porting rule:** every JS test removed must be replaced by a Rust unit test, a `wasm-bindgen-test`, or a JS integration test through `RuntimeBridge.ts` that exercises the same behaviour.
 - **Build loop:** `npm run dev` / `npm run build` invoke `wasm-pack` via `vite-wasm-pack-plugin.js`. Run `npm run wasm` for a manual release build; `cargo test --manifest-path wasm/Cargo.toml` runs the Rust unit tests.
 - **Bundle budgets:** target ≤ 2.5 MB total gzipped at the end of the migration; measure each phase with `twiggy`/`wasm-objdump`.
 
 ## Vite plugins
 
-`vite.config.js` registers two custom plugins that run only during `serve`/`preview`:
+`vite.config.js` registers five custom plugins that run only during `serve`/`preview`:
 
 - `demoStreamPlugin` — mounts `wss://<host>/__demo-stream`, emitting mock time-series sensor rows once per second.
 - `signallingPlugin` — mounts `wss://<host>/__signal` for local multiplayer signalling; uses `createRoomRegistry()` from `src/network/SignallingServerCore.ts`.
+- `remoteLogsPlugin` / `loadtestResultsPlugin` / `uxTracePlugin` — dev-only POST ingest endpoints (`/__remote-logs`, `/__loadtest-results`, `/__ux-trace`), body/depth/rate bounded (Wave 0). Slated to move out of Vite into a separate process (Wave 7).
 
 For a standalone signalling server in production:
 
@@ -165,8 +182,9 @@ node src/network/SignallingServer.mjs --port=8080
 
 - Framework: Vitest with jsdom environment.
 - Setup: `tests/setup.js` replaces `HTMLCanvasElement.prototype.getContext` to provide a mock WebGL/Canvas 2D context, allowing three.js to initialize in jsdom.
-- Test files live next to source layers (e.g. `tests/draco.test.js`, `tests/parsers.test.js`, `tests/world.test.js`).
+- Test files live next to source layers (e.g. `tests/draco.test.js`, `tests/world.test.js`, `tests/dataset-space.test.ts`). The deleted JS analytical tests (`parsers`, `dataset-operations`, `csv-parser`, `arrow-ipc`, `topology-inference`, `tda-mapper`, `wasm-operations`) are covered by Rust `#[test]`s under `wasm/` + `tests/wasm-runtime.test.ts` (RuntimeBridge parity; skips in plain jsdom by design — the pkg is HTTP-served).
 - Tests use `vitest run` (one-shot). Pass a path to run a single file: `npx vitest run tests/world.test.js`.
+- Gate (see `AGENTS.md` §"Required command order" and §"Token-efficient workflow"): `tsc --noEmit` → `eslint` (0 errors) → `npm run test:all` (cargo + Vitest). Porting rule: every JS test removed must be replaced by a Rust `#[test]`, a `wasm-bindgen-test`, or a JS integration test through `RuntimeBridge.ts`.
 
 ## User-facing documentation
 

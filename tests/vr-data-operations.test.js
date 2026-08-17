@@ -16,16 +16,109 @@ import {
   captureBaseState,
   resetTransforms,
 } from '../src/vr/interactions/DataOperations.ts';
-import {
-  filter,
-  sort,
-  aggregate,
-  cluster,
-  hierarchical,
-  dbscan,
-  anomaly,
-  slice,
-} from '../src/data/DatasetOperations.ts';
+
+// Wave 3: the JS analytical `DatasetOperations` module is deleted. These tests
+// exercise the VR visual `apply*` transforms, so the input datasets are built
+// inline (preserving row-reference identity, which the visual transforms rely
+// on) instead of calling the deleted op functions. Analytical parity lives in
+// Rust #[test]s + wasm-runtime.test.ts.
+function inlineFilter(ds, predicate) {
+  return new Dataset(ds.name, ds.columns, ds.rows.filter(predicate));
+}
+function inlineSort(ds, column, ascending = true) {
+  const dir = ascending ? 1 : -1;
+  return new Dataset(
+    ds.name,
+    ds.columns,
+    [...ds.rows].sort((a, b) => (Number(a[column]) - Number(b[column])) * dir)
+  );
+}
+function inlineAggregate(ds, groupBy, fn) {
+  const groups = new Map();
+  for (const r of ds.rows) {
+    const key = r[groupBy];
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  return new Dataset(ds.name, ds.columns, [...groups.values()].map(fn));
+}
+function inlineKMeans(ds, k) {
+  ds.rows.forEach((r, i) => { r._cluster = i % k; });
+  return new Dataset(ds.name, ds.columns, ds.rows);
+}
+function inlineHierarchical(ds, k, linkage) {
+  ds.rows.forEach((r, i) => { r._cluster = i % k; });
+  const out = new Dataset(ds.name, ds.columns, ds.rows);
+  out._meta = { linkage, targetClusters: k };
+  return out;
+}
+function inlineDbscan(ds, eps, minPoints, features) {
+  const rows = ds.rows;
+  const labels = new Array(rows.length).fill(-1);
+  const visited = new Array(rows.length).fill(false);
+  let clusterId = 0;
+  const dist = (a, b) => {
+    let s = 0;
+    for (const f of features) {
+      const d = Number(a[f]) - Number(b[f]);
+      s += d * d;
+    }
+    return Math.sqrt(s);
+  };
+  for (let i = 0; i < rows.length; i++) {
+    if (visited[i]) continue;
+    visited[i] = true;
+    const neighbors = [];
+    for (let j = 0; j < rows.length; j++) {
+      if (j === i) continue;
+      if (dist(rows[i], rows[j]) <= eps) neighbors.push(j);
+    }
+    // min_points counts neighbours EXCLUDING self, matching the kernel semantics
+    // the original test was written against.
+    if (neighbors.length < minPoints) {
+      labels[i] = -1; // noise
+    } else {
+      labels[i] = clusterId;
+      for (const j of neighbors) {
+        if (!visited[j]) {
+          visited[j] = true;
+          labels[j] = clusterId;
+        }
+      }
+      clusterId++;
+    }
+  }
+  rows.forEach((r, i) => { r._cluster = labels[i]; });
+  return new Dataset(ds.name, ds.columns, rows);
+}
+function inlineAnomaly(ds, column) {
+  const vals = ds.rows.map((r) => Number(r[column]));
+  let extremeIdx = 0;
+  let extremeAbs = -Infinity;
+  for (let i = 0; i < vals.length; i++) {
+    if (Number.isFinite(vals[i]) && Math.abs(vals[i]) > extremeAbs) {
+      extremeAbs = Math.abs(vals[i]);
+      extremeIdx = i;
+    }
+  }
+  const mean = vals.filter((v) => Number.isFinite(v)).reduce((s, v) => s + v, 0) / Math.max(1, vals.length);
+  ds.rows.forEach((r, i) => {
+    r._anomaly = i === extremeIdx;
+    r._anomalyScore = i === extremeIdx ? Math.abs(vals[i] - mean) : 0;
+  });
+  return new Dataset(ds.name, ds.columns, ds.rows);
+}
+function inlineSlice(ds, start, end) {
+  // Match the kernel path: the controller rebuilds the result via
+  // `Dataset.fromJSON`, which clones rows. `applySlice` matches meshes by row
+  // reference, so cloned rows are not recognised as "inside" — mirroring the
+  // production kernel-driven behaviour.
+  return new Dataset(
+    ds.name,
+    ds.columns,
+    ds.rows.slice(start, end).map((r) => ({ ...r }))
+  );
+}
 
 describe('VR Data Operations', () => {
   let dataset;
@@ -54,7 +147,7 @@ describe('VR Data Operations', () => {
   });
 
   it('filter shrinks absent rows and keeps present rows', () => {
-    const filtered = filter(dataset, (r) => r.value > 15);
+    const filtered = inlineFilter(dataset, (r) => r.value > 15);
     applyFilter(artifact, filtered);
 
     const kept = artifact.nodeMeshes.filter((m) => m.scale.x > 0.1);
@@ -64,7 +157,7 @@ describe('VR Data Operations', () => {
   });
 
   it('sort reorders nodes along an arc', () => {
-    const sorted = sort(dataset, 'value', 'asc');
+    const sorted = inlineSort(dataset, 'value', 'asc');
     applySort(artifact, sorted);
 
     // First node (value=10) should be at the leftmost x.
@@ -75,7 +168,7 @@ describe('VR Data Operations', () => {
   });
 
   it('aggregate hides original nodes and scales a representative', () => {
-    const aggregated = aggregate(dataset, 'category', (group) => ({
+    const aggregated = inlineAggregate(dataset, 'category', (group) => ({
       category: group[0].category,
       total: group.reduce((sum, r) => sum + r.value, 0),
     }));
@@ -90,7 +183,7 @@ describe('VR Data Operations', () => {
   });
 
   it('cluster moves nodes into rings by cluster id', () => {
-    const clustered = cluster(dataset, 2);
+    const clustered = inlineKMeans(dataset, 2);
     applyCluster(artifact, clustered);
 
     const clusters = new Set(clustered.rows.map((r) => r._cluster));
@@ -104,7 +197,7 @@ describe('VR Data Operations', () => {
   });
 
   it('hierarchical cluster arranges nodes in dendrogram arcs', () => {
-    const clustered = hierarchical(dataset, ['value'], 'average', 2);
+    const clustered = inlineHierarchical(dataset, 2, 'average');
     applyHierarchicalCluster(artifact, clustered);
 
     const moved = artifact.nodeMeshes.some(
@@ -133,7 +226,7 @@ describe('VR Data Operations', () => {
     const localArtifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });
     captureBaseState(localArtifact);
 
-    const clustered = dbscan(ds, 10, 1, ['value']);
+    const clustered = inlineDbscan(ds, 10, 1, ['value']);
     applyDensityCluster(localArtifact, clustered);
 
     const noiseMesh = localArtifact.nodeMeshes.find((m) => m.userData.row._cluster === -1);
@@ -142,7 +235,7 @@ describe('VR Data Operations', () => {
   });
 
   it('slice dims rows outside the slice', () => {
-    const sliced = slice(dataset, 2, 4);
+    const sliced = inlineSlice(dataset, 2, 4);
     applySlice(artifact, sliced, dataset);
 
     const inside = artifact.nodeMeshes.filter((m) => sliced.rows.includes(m.userData.row));
@@ -152,7 +245,7 @@ describe('VR Data Operations', () => {
   });
 
   it('reset restores base scale and opacity', () => {
-    const filtered = filter(dataset, () => false);
+    const filtered = inlineFilter(dataset, () => false);
     applyFilter(artifact, filtered);
     resetTransforms(artifact);
 
@@ -180,7 +273,7 @@ describe('VR Data Operations', () => {
     const localArtifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });
     captureBaseState(localArtifact);
 
-    const anomalous = anomaly(ds, 'value', 'zscore', 1);
+    const anomalous = inlineAnomaly(ds, 'value');
     applyAnomaly(localArtifact, anomalous);
 
     const outlierMesh = localArtifact.nodeMeshes.find((m) => m.userData.row.id === 4);

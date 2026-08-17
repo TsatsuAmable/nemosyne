@@ -23,10 +23,18 @@ export interface RoomRegistryOptions {
   /**
    * Optional shared secret required to join a room. When set (non-empty), a
    * peer must supply a matching `token` to `handleConnection`; a mismatch is
-   * rejected with close code 4001. When unset, token checks are skipped so
-   * local dev remains frictionless. This is a shared secret, not strong auth.
+   * rejected with close code 4001. Comparison is constant-time. This is a
+   * shared secret, not strong auth.
    */
   authToken?: string;
+  /**
+   * When true (default), a peer may join with no token if no `authToken` is
+   * configured — frictionless local dev. When false, a join with no
+   * configured token is rejected with close 4001 ("token required"). The
+   * standalone production server sets this false so an operator who forgets to
+   * set a token doesn't accidentally run an open relay.
+   */
+  allowOpenNoToken?: boolean;
 }
 
 export interface RoomRegistry {
@@ -53,6 +61,20 @@ interface SignallingMessagePayload {
 
 type NetworkRole = 'participant' | 'observer';
 
+/**
+ * Constant-time string equality. Iterates over the longer of the two strings
+ * even when lengths differ, so a timing adversary can't learn the secret's
+ * length or prefix. Returns false when lengths differ.
+ */
+function timingSafeEqualString(a: string, b: string): boolean {
+  const maxLen = Math.max(a.length, b.length);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < maxLen; i++) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
+
 function canRelayMessage(role: NetworkRole, message: unknown): boolean {
   if (role === 'participant') return true;
   if (message == null || typeof message !== 'object' || Array.isArray(message)) return false;
@@ -64,6 +86,7 @@ export function createRoomRegistry({
   maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES,
   maxPeersPerRoom = DEFAULT_MAX_PEERS_PER_ROOM,
   authToken = '',
+  allowOpenNoToken = true,
 }: RoomRegistryOptions = {}): RoomRegistry {
   const rooms = new Map<string, Map<string, RoomPeer>>();
 
@@ -110,10 +133,13 @@ export function createRoomRegistry({
     role: 'participant' | 'observer' = 'participant'
   ): void {
     // Shared-secret gate: when a token is configured, every join must supply a
-    // matching token. A missing/mismatched token is rejected before the peer is
-    // admitted to any room state. (room+token is a shared secret, not strong auth.)
+    // matching token (constant-time compare). A missing/mismatched token is
+    // rejected before the peer is admitted to any room state. When no token is
+    // configured, the join is only allowed if `allowOpenNoToken` is true (dev);
+    // the standalone production server sets it false so a forgotten token env
+    // var doesn't expose an open relay. (room+token is a shared secret, not strong auth.)
     if (authToken) {
-      if (typeof token !== 'string' || token !== authToken) {
+      if (typeof token !== 'string' || !timingSafeEqualString(token, authToken)) {
         try {
           socket.close?.(4001, 'invalid token');
         } catch (_) {
@@ -121,6 +147,13 @@ export function createRoomRegistry({
         }
         return;
       }
+    } else if (!allowOpenNoToken) {
+      try {
+        socket.close?.(4001, 'token required');
+      } catch (_) {
+        // Ignore close failures on an already-closed socket.
+      }
+      return;
     }
 
     if (!rooms.has(roomId)) rooms.set(roomId, new Map());

@@ -1,5 +1,11 @@
 import { remoteDebugStreamer } from './utils/RemoteDebugStreamer.ts';
-remoteDebugStreamer.init();
+// The remote-debug console streamer patches console.* and ships logs to the
+// Vite dev-only `/__remote-logs` endpoint. It must never run in a production
+// build: the endpoint doesn't exist there, so every flush would 404-retry and
+// the patched console would route user output into a dead queue.
+if (import.meta.env.DEV) {
+  remoteDebugStreamer.init();
+}
 
 import { World } from './vr/World.ts';
 import { UXTraceRecorder } from './vr/trace/UXTraceRecorder.ts';
