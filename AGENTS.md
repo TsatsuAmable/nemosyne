@@ -133,6 +133,25 @@ without losing correctness.
 - **Ask sub-agents for structured reports** — "exact gate results + file-by-file one-line summary +
   honest deviations" — not narratives.
 
+## Model routing (cross-tool)
+
+Provider selection for coding-agent work lives in the **committed** `.ai/model-routing/`
+folder (NOT `.agents/` or `.claude/`, both gitignored) so Claude Code, OpenCode, and
+Antigravity all read the same definitions:
+
+- `.ai/model-routing/model-routes.json` — four provider groups (`ollama-cloud`, `google`,
+  `opencode-go`, `opencode-zen`), task-class → preferred/fallback routing, switch triggers.
+- `.ai/model-routing/README.md` — the decision procedure (classify task → look up routing →
+  evaluate triggers → dispatch → fallback on failure → record attribution).
+- `.ai/model-routing/tool-mappings.md` — how to wire the groups into each tool's native config.
+
+**Manifest only — dispatch is unchanged.** The folder standardizes *which provider to pick*
+(and *when to switch*, e.g. on a 429); it does not alter how any harness spawns agents.
+Before heavy sub-agent fan-out, consult it and prefer `ollama-cloud` for bulk work, falling
+over to `google`/`opencode-zen` on rate-limit or for reasoning/long-context tasks. Model IDs
+in the manifest are editable placeholders (see its `_verify` field) — confirm against each
+provider's current catalog.
+
 ## Multi-agent team workflow (`.agents/`)
 
 Full definitions: `.agents/agents.md` (working model) and `.agents/team.json` (machine-readable config,

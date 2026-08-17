@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "updated": "2026-08-17",
+  "_verify": "Model IDs are best-guess placeholders. Confirm against each provider's current catalog and replace. Provider GROUP names (ollama-cloud / google / opencode-go / opencode-zen) are the stable routing keys; the models arrays are examples to edit.",
+  "goal": "Route coding-agent work across LLM providers to save tokens and avoid single-provider usage limits (e.g. Ollama Cloud session 429). One provider GROUP per provider; task classes route to a preferred group with an ordered fallback chain.",
+  "groups": {
+    "ollama-cloud": {
+      "provider": "Ollama Cloud",
+      "models": ["glm-5.2:cloud"],
+      "_modelsNote": "glm-5.2:cloud is the current session model (confirmed). Add other Ollama Cloud catalog IDs as needed.",
+      "tier": "general",
+      "relativeCost": "low",
+      "contextWindow": 200000,
+      "rateLimits": "Session usage cap; returns 429 on exhaustion (observed). Fastest to exhaust under heavy subagent fan-out.",
+      "bestFor": ["explore", "mechanical", "general-coding"],
+      "fallbackAfter": "google"
+    },
+    "google": {
+      "provider": "Google (Gemini)",
+      "models": ["gemini-2.5-pro", "gemini-2.5-flash"],
+      "_modelsNote": "Best-guess; confirm current Gemini model IDs and replace.",
+      "tier": "reasoning",
+      "relativeCost": "medium",
+      "contextWindow": 1000000,
+      "rateLimits": "Provider-dependent; generally higher quotas than Ollama Cloud session cap.",
+      "bestFor": ["plan", "architect", "review", "long-context"],
+      "fallbackAfter": "opencode-zen"
+    },
+    "opencode-go": {
+      "provider": "OpenCode Go",
+      "models": [],
+      "_modelsNote": "Populate with your OpenCode Go model IDs.",
+      "tier": "code",
+      "relativeCost": "medium",
+      "contextWindow": null,
+      "rateLimits": "Provider-dependent.",
+      "bestFor": ["code-implementation"],
+      "fallbackAfter": "ollama-cloud"
+    },
+    "opencode-zen": {
+      "provider": "OpenCode Zen",
+      "models": [],
+      "_modelsNote": "Populate with your OpenCode Zen model IDs.",
+      "tier": "reasoning",
+      "relativeCost": "medium",
+      "contextWindow": null,
+      "rateLimits": "Provider-dependent.",
+      "bestFor": ["verify", "adversarial-review"],
+      "fallbackAfter": "google"
+    }
+  },
+  "routing": {
+    "explore":             { "preferred": "ollama-cloud",  "fallback": ["google"] },
+    "mechanical":          { "preferred": "ollama-cloud",  "fallback": ["opencode-go"] },
+    "code-implementation": { "preferred": "opencode-go",   "fallback": ["ollama-cloud", "google"] },
+    "review":              { "preferred": "opencode-zen",  "fallback": ["google"] },
+    "verify":              { "preferred": "opencode-zen",  "fallback": ["google"] },
+    "plan":                { "preferred": "google",        "fallback": ["opencode-zen"] },
+    "architect":           { "preferred": "google",        "fallback": ["opencode-zen"] }
+  },
+  "switchTriggers": {
+    "rateLimited": "Provider returned 429 / usage-limit / quota error -> skip to the group's fallbackAfter (or the routing entry's next fallback). Do NOT retry the same provider immediately.",
+    "capabilityMismatch": "Task needs long context (>200k tokens) -> google. Task needs strongest reasoning (verify/adversarial review, architect) -> opencode-zen or google. Task is bulk mechanical/explore -> ollama-cloud.",
+    "costBudget": "Prefer ollama-cloud for high-volume cheap work (explore, mechanical, general coding). Reserve google + opencode-zen for reasoning-heavy or long-context tasks. If a token budget is stated, estimate task cost before dispatch and pick the cheapest group that meets the capability bar.",
+    "failure": "Provider error / timeout / malformed response -> fall to fallbackAfter and record the failure.",
+    "contextLength": "If the task input + expected output may exceed a group's contextWindow, switch to a group whose window fits (google = 1M)."
+  },
+  "decisionProcedure": [
+    "1. Classify the task into one of: explore | mechanical | code-implementation | review | verify | plan | architect.",
+    "2. Look up routing[taskClass] -> { preferred, fallback }.",
+    "3. Before dispatch, evaluate switchTriggers against current conditions (recent 429? capability need? cost budget? context length?).",
+    "4. If a trigger fires, override preferred with the first viable group in the fallback chain.",
+    "5. Dispatch to the chosen group. On mid-task failure (429/error/timeout), fall to fallbackAfter and resume/redo from the last checkpoint.",
+    "6. Record which provider ran with the result (attribution) so token spend is traceable per provider."
+  ]
+}

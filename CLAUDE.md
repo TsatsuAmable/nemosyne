@@ -10,6 +10,16 @@ task, and blockers — across any model or harness. Before you stop, refresh tha
 with current truth. Other docs (this file, `.agents/`) point to it and do not
 duplicate state.
 
+## Model routing (cross-tool)
+
+Provider selection for coding-agent work is standardized in the committed `.ai/model-routing/`
+folder — `model-routes.json` (four provider groups: `ollama-cloud`, `google`, `opencode-go`,
+`opencode-zen`; task-class routing + switch triggers), `README.md` (decision procedure), and
+`tool-mappings.md` (per-tool wiring). Shared with OpenCode and Antigravity via `AGENTS.md`.
+**Manifest only — your Claude Code dispatch is unchanged.** Consult it before heavy
+sub-agent fan-out (prefer `ollama-cloud` for bulk work, fall to `google`/`opencode-zen` on
+429 or for reasoning/long-context). Model IDs are editable placeholders — confirm per provider.
+
 ## Repository layout
 
 This repository contains the canonical Nemosyne runtime. The application code, tests, and build configuration all live at the repository root.
