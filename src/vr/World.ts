@@ -74,6 +74,7 @@ import { LoadTestPanel } from './ui/LoadTestPanel.ts';
 import { LoadTestDriver, type LoadTestProfile, type LoadTestSummary } from './scalability/LoadTestDriver.ts';
 import { DatumPlane } from './artifacts/DatumPlane.ts';
 import { TechnoCoreNode } from './artifacts/TechnoCoreNode.ts';
+import { IceVaultNode } from './artifacts/IceVaultNode.ts';
 import { FarcasterPortal } from './artifacts/FarcasterPortal.ts';
 import { HolographicInspector } from './artifacts/HolographicInspector.ts';
 import type { DatasetJSON, EncodingMapping, TopologyType } from '../data/types.ts';
@@ -131,6 +132,7 @@ export class World {
   analystAnchor: THREE.Group;
   datum: DatumPlane;
   core: TechnoCoreNode;
+  iceVault: IceVaultNode;
   inspector: HolographicInspector;
   portalA: FarcasterPortal;
   portalB: FarcasterPortal;
@@ -248,6 +250,7 @@ export class World {
     this.analystAnchor = this.sceneComposer.analystAnchor;
     this.datum = this.sceneComposer.datum;
     this.core = this.sceneComposer.core;
+    this.iceVault = this.sceneComposer.iceVault;
     this.inspector = this.sceneComposer.inspector;
     this.portalA = this.sceneComposer.portalA;
     this.portalB = this.sceneComposer.portalB;
