@@ -17,6 +17,18 @@ interface DracoNodeLike {
   dataInput?: { topology?: string } | undefined;
 }
 
+interface StructureLike {
+  id: string;
+  kind: string;
+  rowIndices: number[];
+  evidence: { method: string; rank: number; score?: number };
+}
+
+interface StructureSetLike {
+  id: string;
+  structures: StructureLike[];
+}
+
 interface HandleCallbacks {
   onEnter?: () => void;
   onLeave?: () => void;
@@ -34,12 +46,14 @@ interface OperationHandle {
   sprite: THREE.Sprite;
   baseOffset: THREE.Vector3;
   hover: boolean;
+  structureId?: string;
 }
 
 interface InPlaceOptions {
   onOperation?: (operation: string) => void;
   onOperationHover?: (operation: string) => void;
   onOperationLeave?: (operation: string) => void;
+  onStructureCommand?: (structureId: string, action: string) => void;
   userMode?: 'novice' | 'expert';
   enabled?: boolean;
 }
@@ -50,6 +64,7 @@ export class InPlaceOperationHandles {
   onOperation: (operation: string) => void;
   onOperationHover: (operation: string) => void;
   onOperationLeave: (operation: string) => void;
+  onStructureCommand: (structureId: string, action: string) => void;
   userMode: 'novice' | 'expert';
   enabled: boolean;
 
@@ -66,6 +81,7 @@ export class InPlaceOperationHandles {
     this.onOperation = options.onOperation ?? (() => {});
     this.onOperationHover = options.onOperationHover ?? (() => {});
     this.onOperationLeave = options.onOperationLeave ?? (() => {});
+    this.onStructureCommand = options.onStructureCommand ?? (() => {});
     this.userMode = options.userMode ?? 'novice';
     this.enabled = options.enabled ?? true;
     this._raycaster.camera = camera;
@@ -118,6 +134,64 @@ export class InPlaceOperationHandles {
       default:
         return;
     }
+  }
+
+  buildFromStructures(dracoNode: DracoNodeLike, structureSets: StructureSetLike[]) {
+    this.clear();
+    if (!dracoNode?.artifact) return;
+    const meshes = dracoNode.artifact.nodeMeshes ?? [];
+    if (meshes.length === 0) return;
+
+    const iconForKind: Record<string, string> = {
+      'cluster': '🔷',
+      'persistent-component': '📡',
+      'mapper-node': '🗺️',
+    };
+    const actionForKind: Record<string, string> = {
+      'cluster': 'inspect-cluster',
+      'persistent-component': 'inspect-boundary',
+      'mapper-node': 'explore-region',
+    };
+
+    let added = 0;
+    for (const set of structureSets) {
+      for (const structure of set.structures) {
+        if (added >= 6) break;
+        const anchorIdx = structure.rowIndices[0] ?? 0;
+        const anchorMesh = meshes[Math.min(anchorIdx, meshes.length - 1)];
+        if (!anchorMesh) continue;
+        const icon = iconForKind[structure.kind] ?? '📍';
+        const action = actionForKind[structure.kind] ?? 'explore-region';
+        this._addStructureHandle(anchorMesh, structure.id, action, icon);
+        added++;
+      }
+      if (added >= 6) break;
+    }
+  }
+
+  private _addStructureHandle(
+    anchorMesh: THREE.Mesh,
+    structureId: string,
+    action: string,
+    icon: string,
+  ) {
+    const mat = this._getSpriteMaterial(structureId, icon);
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(0.22, 0.22, 1);
+    sprite.visible = this.enabled;
+    this.scene.add(sprite);
+
+    const handle: OperationHandle = {
+      anchorMesh,
+      operation: action,
+      sprite,
+      baseOffset: new THREE.Vector3(0, 0.45, 0),
+      hover: false,
+      structureId,
+    };
+
+    this._handles.push(handle);
+    this._fadeState.set(handle, 0);
   }
 
   private _addHandle(anchorMesh: THREE.Mesh | undefined, operation: string, icon: string) {
@@ -235,14 +309,26 @@ export class InPlaceOperationHandles {
         onEnter: () => {
           handle.hover = true;
           handle.baseOffset.y = 0.65;
-          this.onOperationHover(handle.operation);
+          if (handle.structureId) {
+            this.onStructureCommand(handle.structureId, 'hover');
+          } else {
+            this.onOperationHover(handle.operation);
+          }
         },
         onLeave: () => {
           handle.hover = false;
           handle.baseOffset.y = 0.55;
-          this.onOperationLeave(handle.operation);
+          if (!handle.structureId) {
+            this.onOperationLeave(handle.operation);
+          }
         },
-        onSelect: () => this.activate(handle.operation),
+        onSelect: () => {
+          if (handle.structureId) {
+            this.onStructureCommand(handle.structureId, handle.operation);
+          } else {
+            this.activate(handle.operation);
+          }
+        },
       });
     }
   }

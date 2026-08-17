@@ -5,14 +5,12 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Atlas 4 initial slice: `VRCommand` type + `VRCommandExecutor`
-  coordinator that resolves `targetIds` → `rowIndices` via `DiscoveredStructure`, executes
-  embodiment actions (isolate/navigate/inspect/compare/reset) with ledger-tracked provenance
-  (`'embodiment'` `ResearchEventKind`). Atlas 3 guidance layer complete. Atlas 2 structure
-  discovery complete. Wave 6 merged via PR #130. Wave 5 + statify via PR #128; Wave 4 via PR #127.
-- **Active sprint:** Atlas 4 — continue semantic VR embodiment: per-structure InPlaceHandles,
-  TDA panel structure-ID addressing, refactor `DataOperations.applyX` to accept rowIndices.
-  Rust/WASM remains the canonical analytical engine with no JS fallback.
+- **Last updated:** 2026-08-17 — Atlas 4 semantic VR embodiment: per-structure InPlaceHandles,
+  rowIndices-based DataOperations (`isolateRowIndices`/`highlightRowIndices`/`sliceByRowIndices`/
+  `resetVisibility`), TDA panel structure-ID addressing, `VRCommandExecutor.sliceByStructure`.
+  Atlas 3 guidance layer complete. Atlas 2 structure discovery complete. Wave 6 via PR #130.
+- **Active sprint:** Atlas 4 — continue: refactor all `applyX` to use rowIndices, wire TDA panel
+  click-to-navigate, full structure-handle lifecycle. Then gate Atlas 5 on validated embodiment.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
   research-relevant transforms through the versioned Rust kernel (provenance envelope on every result);
   use battle-tested Rust crates; saved-session compatibility breaks (kernel carries `kernelVersion`).
@@ -258,9 +256,8 @@
   - **Auto-generation trigger:** `_discoverStructuresAndRecommend(operation)` fires after every
     `OPERATION_APPLIED` event — discovers cluster structures after cluster ops, mapper+persistence
     structures after TDA ops, then calls `generateRecommendation()` and marks the panel dirty.
-- **Next:** Atlas 4 — continue semantic VR embodiment: per-structure InPlaceHandles, TDA panel
-  structure-ID addressing, refactor `DataOperations.applyX` to accept `rowIndices` instead of
-  full datasets. Then gate Atlas 5 on validated embodiment commands.
+- **Next:** Atlas 4 — continue: refactor all `applyX` to use rowIndices, wire TDA panel
+  click-to-navigate, full structure-handle lifecycle. Then gate Atlas 5 on validated embodiment.
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files

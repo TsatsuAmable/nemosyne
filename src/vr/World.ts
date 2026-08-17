@@ -400,6 +400,7 @@ export class World {
       onOperation: (op) => this.dataOperationController.apply(op),
       onOperationHover: (op) => this.dataOperationController.preview(op),
       onOperationLeave: () => this.dataOperationController.clearPreview(),
+      onStructureCommand: (structureId, action) => this._executeStructureCommand(structureId, action),
     });
     this.engine.addUpdatable({
       update: (delta: number, time: number) =>
@@ -1107,30 +1108,24 @@ export class World {
   }
 
   private _isolateStructures(rowIndices: number[]): void {
-    if (!this.dracoNode?.artifact?.nodeMeshes) return;
-    const rowSet = new Set(rowIndices);
-    for (const mesh of this.dracoNode.artifact.nodeMeshes) {
-      const row = mesh.userData?.row;
-      if (row) {
-        const rowIdx = this.atlas.dataset.rows.indexOf(row);
-        mesh.visible = rowSet.has(rowIdx);
+    if (!this.dracoNode?.artifact) return;
+    import('./interactions/DataOperations.ts').then(({ isolateRowIndices }) => {
+      if (this.dracoNode?.artifact) {
+        isolateRowIndices(this.dracoNode.artifact, rowIndices);
       }
-    }
+    });
   }
 
   private _navigateToStructures(rowIndices: number[]): void {
     if (!this.dracoNode?.artifact?.nodeMeshes || rowIndices.length === 0) return;
     let cx = 0, cy = 0, cz = 0, count = 0;
-    for (const mesh of this.dracoNode.artifact.nodeMeshes) {
-      const row = mesh.userData?.row;
-      if (row) {
-        const rowIdx = this.atlas.dataset.rows.indexOf(row);
-        if (rowIndices.includes(rowIdx)) {
-          cx += mesh.position.x;
-          cy += mesh.position.y;
-          cz += mesh.position.z;
-          count++;
-        }
+    for (let i = 0; i < this.dracoNode.artifact.nodeMeshes.length; i++) {
+      if (rowIndices.includes(i)) {
+        const mesh = this.dracoNode.artifact.nodeMeshes[i];
+        cx += mesh.position.x;
+        cy += mesh.position.y;
+        cz += mesh.position.z;
+        count++;
       }
     }
     if (count > 0) {
@@ -1139,10 +1134,28 @@ export class World {
   }
 
   private _resetEmbodiment(): void {
-    if (!this.dracoNode?.artifact?.nodeMeshes) return;
-    for (const mesh of this.dracoNode.artifact.nodeMeshes) {
-      mesh.visible = true;
-    }
+    if (!this.dracoNode?.artifact) return;
+    import('./interactions/DataOperations.ts').then(({ resetVisibility }) => {
+      if (this.dracoNode?.artifact) {
+        resetVisibility(this.dracoNode.artifact);
+      }
+    });
+  }
+
+  private _executeStructureCommand(structureId: string, action: string): void {
+    import('./coordinators/VRCommandExecutor.ts').then(({ VRCommandExecutor }) => {
+      const executor = new VRCommandExecutor({
+        atlas: this.atlas,
+        onIsolate: (rowIndices) => this._isolateStructures(rowIndices),
+        onNavigate: (rowIndices) => this._navigateToStructures(rowIndices),
+        onReset: () => this._resetEmbodiment(),
+      });
+      executor.execute({
+        action: action as never,
+        targetIds: [structureId],
+        embodiment: 'structure-handle',
+      });
+    });
   }
 
   private _discoverStructuresAndRecommend(operation: string): void {
@@ -1166,6 +1179,10 @@ export class World {
 
     this.atlas.generateRecommendation();
     this.recommendationPanel?.markDirty?.();
+    if (this.dracoNode && this.atlas.structures.length > 0) {
+      this.inPlaceHandles.buildFromStructures(this.dracoNode, this.atlas.structures as never);
+      this.inPlaceHandles.registerInteractables(this.engine.input as never);
+    }
   }
 
   _togglePeerPresenceHUD(): void {

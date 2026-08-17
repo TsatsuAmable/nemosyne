@@ -363,17 +363,14 @@ export function buildTDASummaryGroup(
   function recompute(): void {
     if (!atlas || !atlas.isReady()) return;
     const filterValues = dataset.rows.map((r) => Number(r[filterColumn]) || 0);
+    const tdaParams = { featureColumns, filterValues };
     persistence.update(
-      (atlas.computePersistenceIntervals(dataset, { featureColumns, filterValues }) ?? []).map(
+      (atlas.computePersistenceIntervals(dataset, tdaParams) ?? []).map(
         (i) => ({ birth: i.birth, death: i.death ?? null })
       )
     );
-    const g = atlas.computeMapperGraph(dataset, {
-      featureColumns,
-      filterValues,
-      bins: 10,
-      overlap: 0.5,
-    });
+    const mapperParams = { ...tdaParams, bins: 10, overlap: 0.5 };
+    const g = atlas.computeMapperGraph(dataset, mapperParams);
     const graph: MapperGraph = {
       nodes: (g?.nodes ?? []).map((n) => ({
         id: n.id,
@@ -384,6 +381,9 @@ export function buildTDASummaryGroup(
     };
     mapperPanel.update(graph);
     betti.update(atlas.computeBetti0Curve(dataset, { featureColumns, steps: 12 }) ?? []);
+
+    atlas.discoverPersistenceStructures(dataset, tdaParams);
+    atlas.discoverMapperStructures(dataset, mapperParams);
   }
 
   return { group, persistence, mapper: mapperPanel, betti, recompute };
