@@ -1091,6 +1091,29 @@ export class World {
     });
   }
 
+  private _discoverStructuresAndRecommend(operation: string): void {
+    if (!this.atlas.isReady()) return;
+    const dataset = this._transformedDataset ?? this.atlas.dataset;
+    if (!dataset || dataset.rowCount === 0) return;
+
+    if (operation === 'cluster' || operation === 'hierarchical' || operation === 'density') {
+      const opMap: Record<string, string> = {
+        cluster: 'k_means',
+        hierarchical: 'hierarchical',
+        density: 'dbscan',
+      };
+      const opName = opMap[operation] ?? 'k_means';
+      this.atlas.discoverClusterStructures(dataset, { op: opName, k: 3 } as never);
+    } else if (this.tdaRecompute) {
+      const filterValues = dataset.rows.map((r) => Number(r[dataset.columns[0]?.name] ?? 0));
+      this.atlas.discoverMapperStructures(dataset, { featureColumns: [dataset.columns[0]?.name].filter(Boolean), filterValues, bins: 10, overlap: 0.5 });
+      this.atlas.discoverPersistenceStructures(dataset, { featureColumns: [dataset.columns[0]?.name].filter(Boolean), filterValues, maxDistance: 2 });
+    }
+
+    this.atlas.generateRecommendation();
+    this.recommendationPanel?.markDirty?.();
+  }
+
   _togglePeerPresenceHUD(): void {
     const next = !this.peerPresenceHUD.mesh.visible;
     this.peerPresenceHUD.setEnabled(next);
@@ -1507,6 +1530,7 @@ export class World {
         }
         this._updateDashboardDatasets(this._transformedDataset);
         if (this.tdaRecompute && operation !== 'anomaly') this.tdaRecompute();
+        this._discoverStructuresAndRecommend(operation);
         this._updateOperationLog();
         this._updateNarrativeStrip();
         this.vrConsole?.log?.('log', [`Operation: ${operation} → ${rowCount} rows`]);

@@ -5,14 +5,13 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Atlas 3 guidance layer initial slice: `GuidanceEngine` consumes
-  `StructureSet` outputs to produce evidence-grounded `AtlasRecommendation`s with typed
-  `AnalyticalAction`, structured `AnalyticalEvidence`, propagated provenance, and ledger-tracked
-  accept/reject/override decisions. Atlas 2 structure discovery complete. Wave 6 merged via PR #130.
-  Wave 5 + statify via PR #128; Wave 4 via PR #127; cross-tool model routing in local/gitignored
-  `.ai/model-routing/`.
-- **Active sprint:** Atlas 3 — continue guidance layer: add `compare-regions`/`investigate-anomaly`
-  rules, wire guidance into VR UI consumers, and connect `suggestedEmbodiment` to Draco constraints.
+- **Last updated:** 2026-08-17 — Atlas 3 guidance layer COMPLETE: `GuidanceEngine` with single-structure
+  + multi-structure rules (compare-regions, investigate-anomaly), `RecommendationPanel` VR UI with
+  accept/reject/override controls, `EmbodimentHints` wiring accepted recommendations to Draco
+  soft-constraint reweighting, and auto-generation trigger after cluster/TDA ops. Atlas 2 structure
+  discovery complete. Wave 6 merged via PR #130. Wave 5 + statify via PR #128; Wave 4 via PR #127;
+  cross-tool model routing in local/gitignored `.ai/model-routing/`.
+- **Active sprint:** Atlas 4 — validated guidance (next major milestone, gated on Atlas 3).
   Rust/WASM remains the canonical analytical engine with no JS fallback.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
   research-relevant transforms through the versioned Rust kernel (provenance envelope on every result);
@@ -241,11 +240,26 @@
     didn't touch the ledger.
   - Session serialization round-trips recommendations transparently via existing `AtlasCoreState`.
   Focused tests: cluster→`inspect-cluster`, persistence→`inspect-boundary`, ledger event verification,
-  state restore round-trip. **Remaining Atlas 3:** `compare-regions`/`investigate-anomaly` rules, VR UI
-  consumers, Draco embodiment wiring via `suggestedEmbodiment`.
-- **Next:** Atlas 3 — wire guidance into VR UI (recommendation panel with accept/reject/override
-  controls), connect `suggestedEmbodiment` to Draco constraints, and add multi-structure comparison
-  rules. Then gate Atlas 4 on validated guidance.
+  state restore round-trip, compare-regions dual-target, investigate-anomaly for DBSCAN noise,
+  embodiment hint rule mapping.
+- **Atlas 3 ✅ (guidance layer — complete):** All three guidance surfaces built and wired:
+  - **Multi-structure rules:** `detectComparison` flags divergent cluster sizes (>15% relative gap)
+    as `compare-regions` with dual `targetIds`; `detectAnomaly` flags DBSCAN noise (label -1) and
+    low-persistence features as `investigate-anomaly`. Priority: anomaly → comparison → single-structure.
+  - **VR UI:** `RecommendationPanel` (`src/vr/ui/RecommendationPanel.ts`) extends `MovablePanel`,
+    renders action/rationale/evidence/confidence-bar/limitations/suggestedEmbodiment, with
+    Accept/Reject/Override buttons (UV hit-test pattern). Wired into `WorldUIManager` (construct/
+    register/hide), `World.ts` (facade + callbacks), `WheelMenuBuilder` (Guidance toggle).
+  - **Draco embodiment wiring:** `EmbodimentHints.ts` maps `suggestedEmbodiment` → Draco
+    soft-constraint reweighting (weight=100): `highlight-cluster`→cluster_volume+cluster_probe,
+    `outlier-orb`→orb_for_outliers, `split-view`→fork_plane_for_tabular, etc. Triggered on
+    `_acceptRecommendation()` via dynamic import (lazy-loaded chunk); `dracoNode.reSolveAndSynthesize()`
+    rebuilds the VR artifact with biased constraints.
+  - **Auto-generation trigger:** `_discoverStructuresAndRecommend(operation)` fires after every
+    `OPERATION_APPLIED` event — discovers cluster structures after cluster ops, mapper+persistence
+    structures after TDA ops, then calls `generateRecommendation()` and marks the panel dirty.
+- **Next:** Atlas 4 — validated guidance (next major milestone). Gate on reproducible structure
+  outputs (Atlas 2) + evidence-grounded recommendations (Atlas 3).
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files
