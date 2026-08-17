@@ -5,21 +5,18 @@
  */
 
 import type {
-  CategoricalDistribution,
   DracoDataInput,
   DracoFacts,
   DracoSpec,
+  FactProvider,
   HardConstraint,
-  NumericStats,
   SoftConstraint,
   SolverResult,
-  TrendDirection,
   VRLayout,
   VRGeometry,
   VRBehavior,
   VRInteraction,
 } from './types.ts';
-import type { Dataset } from '../data/Dataset.ts';
 
 import { TopologyTypes, type TopologyType } from '../types/topology.ts';
 export { TopologyTypes, type TopologyType };
@@ -68,6 +65,8 @@ export interface ConstraintEngineOptions {
   largeRowThreshold?: number;
   highCardinalityThreshold?: number;
   outlierIqrMultiplier?: number;
+  /** Wave 5: facts provider used when `solve` is called without explicit facts. */
+  factProvider?: FactProvider | null;
 }
 
 export class ConstraintEngine {
@@ -76,275 +75,21 @@ export class ConstraintEngine {
   outlierIqrMultiplier: number;
   hardConstraints: HardConstraint[];
   softConstraints: SoftConstraint[];
+  factProvider: FactProvider | null;
 
   constructor({
     largeRowThreshold = 500,
     highCardinalityThreshold = 12,
     outlierIqrMultiplier = 1.5,
+    factProvider = null,
   }: ConstraintEngineOptions = {}) {
     this.largeRowThreshold = largeRowThreshold;
     this.highCardinalityThreshold = highCardinalityThreshold;
     this.outlierIqrMultiplier = outlierIqrMultiplier;
+    this.factProvider = factProvider;
     this.hardConstraints = [];
     this.softConstraints = [];
     this.registerDefaultRules();
-  }
-
-  /** Extract symbolic facts from a dataset + topology hint. */
-  extractFacts(dataInput: DracoDataInput): DracoFacts {
-    const ds = dataInput.dataset;
-    const rowCount = ds?.rowCount ?? dataInput.rows?.length ?? dataInput.nodes?.length ?? 0;
-    const edgeCount = dataInput.edges?.length ?? ds?.edges?.length ?? 0;
-    const numericColumns = ds?.numericColumns ?? [];
-    const categoricalColumns = ds?.categoricalColumns ?? [];
-    const temporalColumns = ds?.temporalColumns ?? [];
-    const colorColumn = dataInput.encodings?.color ?? categoricalColumns[0]?.name ?? null;
-    const cardinalityOfColor = colorColumn && ds ? ds.cardinalityOf(colorColumn) : 0;
-    const numericValues =
-      numericColumns.length > 0 && ds
-        ? ds
-            .getColumnValues(numericColumns[0].name)
-            .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v))
-        : [];
-
-    const columnStats: Record<string, NumericStats> = {};
-    for (const col of numericColumns) {
-      if (!ds) continue;
-      const values = ds
-        .getColumnValues(col.name)
-        .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
-      columnStats[col.name] = this._numericStats(values);
-    }
-
-    const categoryDistribution: Record<string, CategoricalDistribution> = {};
-    for (const col of categoricalColumns) {
-      if (!ds) continue;
-      categoryDistribution[col.name] = this._categoricalDistribution(ds, col.name);
-    }
-
-    const correlationMatrix =
-      ds && numericColumns.length >= 2
-        ? this._correlationMatrix(
-            ds,
-            numericColumns.map((c) => c.name)
-          )
-        : ({} as Record<string, Record<string, number>>);
-
-    const primaryTimeColumn = temporalColumns[0]?.name;
-    const temporalStats =
-      primaryTimeColumn && ds
-        ? this._temporalStats(ds, primaryTimeColumn, numericColumns[0]?.name)
-        : { trendDirection: 'flat' as TrendDirection, seasonalityHint: false };
-
-    const primaryStats = columnStats[numericColumns[0]?.name] || {};
-
-    return {
-      topology: dataInput.topology || TopologyTypes.TABULAR,
-      rowCount,
-      nodeCount: dataInput.nodes?.length ?? rowCount,
-      edgeCount,
-      depth: dataInput.maxDepth ?? ds?.temporalColumns?.length ?? 1,
-      numericColumns: numericColumns.length,
-      categoricalColumns: categoricalColumns.length,
-      temporalColumns: temporalColumns.length,
-      hasTimeSeries: dataInput.isTimeSeries || ds?.hasTemporal || false,
-      hasContinuousValues: ds?.hasNumeric || numericColumns.length > 0,
-      density: edgeCount / Math.max(1, rowCount),
-      estimatedDensity: rowCount / 64,
-      outlierCount: this._estimateOutlierCount(numericValues),
-      cardinalityOfColor,
-      hasHighCardinality: cardinalityOfColor > this.highCardinalityThreshold,
-      isLargeDataset: rowCount > this.largeRowThreshold,
-      clusterCount: this._estimateClusterCount(rowCount, cardinalityOfColor, numericColumns.length),
-      columnStats,
-      correlationMatrix,
-      categoryDistribution,
-      trendDirection: temporalStats.trendDirection,
-      seasonalityHint: temporalStats.seasonalityHint,
-      hasOutliers: this._estimateOutlierCount(numericValues) > 0,
-      hasHighVariance: primaryStats.stdDev != null && primaryStats.stdDev > 0,
-      numericSkew: primaryStats.skew ?? 0,
-      topCategory: categoryDistribution[colorColumn]?.topCategories?.[0]?.value ?? null,
-    };
-  }
-
-  /** Compute mean, median, stdDev, skew, and kurtosis for a numeric array. */
-  _numericStats(values: number[]): NumericStats {
-    const n = values.length;
-    if (n === 0) {
-      return { mean: 0, median: 0, stdDev: 0, skew: 0, kurtosis: 0, min: 0, max: 0 };
-    }
-    const sorted = values.slice().sort((a, b) => a - b);
-    const min = sorted[0];
-    const max = sorted[n - 1];
-    const mean = values.reduce((a, b) => a + b, 0) / n;
-    const median =
-      n % 2 === 1 ? sorted[Math.floor(n / 2)] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
-
-    let variance = 0;
-    for (const v of values) {
-      const d = v - mean;
-      variance += d * d;
-    }
-    variance /= n;
-    const stdDev = Math.sqrt(variance);
-
-    let skew = 0;
-    let kurtosis = 0;
-    if (stdDev > 1e-9) {
-      for (const v of values) {
-        const z = (v - mean) / stdDev;
-        skew += z * z * z;
-        kurtosis += z * z * z * z;
-      }
-      skew /= n;
-      kurtosis = kurtosis / n - 3; // excess kurtosis
-    }
-
-    return { mean, median, stdDev, skew, kurtosis, min, max };
-  }
-
-  /** Return { topCategories: [{value, count, fraction}], entropy } for a categorical column. */
-  _categoricalDistribution(
-    ds: Dataset,
-    name: string
-  ): CategoricalDistribution {
-    const values = ds.getColumnValues(name);
-    const counts = new Map<unknown, number>();
-    for (const v of values) {
-      counts.set(v, (counts.get(v) || 0) + 1);
-    }
-    const n = values.length || 1;
-    const sorted = [...counts.entries()]
-      .map(([value, count]) => ({ value, count, fraction: count / n }))
-      .sort((a, b) => b.count - a.count);
-
-    let entropy = 0;
-    for (const { fraction } of sorted) {
-      if (fraction > 0) entropy -= fraction * Math.log2(fraction);
-    }
-
-    return { topCategories: sorted.slice(0, 5), entropy };
-  }
-
-  /** Pearson correlation matrix for numeric columns. */
-  _correlationMatrix(
-    ds: Dataset,
-    names: string[]
-  ): Record<string, Record<string, number>> {
-    const columns = names.map((name) =>
-      ds.getColumnValues(name).filter((v): v is number => typeof v === 'number' && !Number.isNaN(v))
-    );
-    const n = columns[0]?.length || 0;
-    const matrix: Record<string, Record<string, number>> = {};
-    if (n === 0) return matrix;
-
-    const stats = columns.map((vals) => {
-      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-      const std = Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length);
-      return { mean, std };
-    });
-
-    for (let i = 0; i < names.length; i++) {
-      matrix[names[i]] = {};
-      for (let j = 0; j < names.length; j++) {
-        if (stats[i].std === 0 || stats[j].std === 0) {
-          matrix[names[i]][names[j]] = i === j ? 1 : 0;
-          continue;
-        }
-        let cov = 0;
-        for (let k = 0; k < n; k++) {
-          cov += (columns[i][k] - stats[i].mean) * (columns[j][k] - stats[j].mean);
-        }
-        cov /= n;
-        matrix[names[i]][names[j]] = cov / (stats[i].std * stats[j].std);
-      }
-    }
-    return matrix;
-  }
-
-  /** Simple trend and seasonality heuristics for a temporal column paired with a numeric value column. */
-  _temporalStats(
-    ds: Dataset,
-    timeColumn: string,
-    valueColumn?: string
-  ): { trendDirection: TrendDirection; seasonalityHint: boolean; normalizedSlope?: number } {
-    if (!valueColumn || !ds) return { trendDirection: 'flat', seasonalityHint: false };
-    const rows = ds.rows.slice().sort((a, b) => new Date(a[timeColumn] as string | number | Date).getTime() - new Date(b[timeColumn] as string | number | Date).getTime());
-    const values = rows.map((r) => Number(r[valueColumn])).filter((v) => !Number.isNaN(v));
-    if (values.length < 3) return { trendDirection: 'flat', seasonalityHint: false };
-
-    const n = values.length;
-    const xMean = (n - 1) / 2;
-    const yMean = values.reduce((a, b) => a + b, 0) / n;
-    let num = 0;
-    let den = 0;
-    for (let i = 0; i < n; i++) {
-      num += (i - xMean) * (values[i] - yMean);
-      den += (i - xMean) ** 2;
-    }
-    const slope = den > 0 ? num / den : 0;
-    const range = Math.max(...values) - Math.min(...values);
-    const normalizedSlope = range > 0 ? slope / range : 0;
-
-    let trendDirection: TrendDirection = 'flat';
-    if (normalizedSlope > 0.01) trendDirection = 'up';
-    else if (normalizedSlope < -0.01) trendDirection = 'down';
-
-    const lag = Math.max(1, Math.floor(n / 4));
-    let cov = 0;
-    let varA = 0;
-    let varB = 0;
-    for (let i = 0; i < n - lag; i++) {
-      const a = values[i] - yMean;
-      const b = values[i + lag] - yMean;
-      cov += a * b;
-      varA += a * a;
-      varB += b * b;
-    }
-    const corr = varA > 0 && varB > 0 ? cov / Math.sqrt(varA * varB) : 0;
-    const seasonalityHint = corr > 0.5;
-
-    return { trendDirection, seasonalityHint, normalizedSlope };
-  }
-
-  /** Robust outlier count for the primary numeric channel.
-   *  Uses a modified Z-score (MAD-based) so small VR datasets still flag anomalies.
-   */
-  _estimateOutlierCount(values: number[]): number {
-    if (values.length < 4) return 0;
-    const sorted = values.slice().sort((a, b) => a - b);
-    const median =
-      sorted.length % 2 === 1
-        ? sorted[Math.floor(sorted.length / 2)]
-        : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
-    const deviations = values.map((v) => Math.abs(v - median));
-    const mad =
-      deviations.length % 2 === 1
-        ? deviations.slice().sort((a, b) => a - b)[Math.floor(deviations.length / 2)]
-        : (deviations.slice().sort((a, b) => a - b)[deviations.length / 2 - 1] +
-            deviations.slice().sort((a, b) => a - b)[deviations.length / 2]) /
-          2;
-    if (mad === 0) {
-      const q1 = sorted[Math.floor(sorted.length * 0.25)];
-      const q3 = sorted[Math.ceil(sorted.length * 0.75)];
-      const iqr = q3 - q1;
-      const lower = q1 - this.outlierIqrMultiplier * iqr;
-      const upper = q3 + this.outlierIqrMultiplier * iqr;
-      return values.filter((v) => v < lower || v > upper).length;
-    }
-    const threshold = 3.5; // Iglewicz & Hoaglin recommendation.
-    return values.filter((v) => {
-      const modifiedZ = (0.6745 * (v - median)) / mad;
-      return Math.abs(modifiedZ) > threshold;
-    }).length;
-  }
-
-  /** Heuristic cluster count when no explicit clustering is supplied. */
-  _estimateClusterCount(rowCount: number, cardinalityOfColor: number, numericColumnCount: number): number {
-    if (cardinalityOfColor > 1 && cardinalityOfColor <= 20) return cardinalityOfColor;
-    if (numericColumnCount === 0) return 1;
-    return Math.min(20, Math.max(1, Math.round(Math.sqrt(rowCount))));
   }
 
   registerDefaultRules(): void {
@@ -633,8 +378,17 @@ export class ConstraintEngine {
     if (sc) this.setWeight(ruleName, sc.weight + delta);
   }
 
-  solve(dataInput: DracoDataInput): SolverResult {
-    const facts = this.extractFacts(dataInput);
+  /**
+   * Solve the constraint set for the given data input. Wave 5: Draco performs
+   * NO dataset-derived statistical computation; facts must be supplied either
+   * as an explicit argument or via the configured {@link FactProvider} (e.g.
+   * AtlasCore). Throws if no facts are available.
+   */
+  solve(dataInput: DracoDataInput, facts?: DracoFacts): SolverResult {
+    const resolvedFacts = facts ?? this.factProvider?.facts(dataInput) ?? null;
+    if (!resolvedFacts) {
+      throw new Error('ConstraintEngine: no facts provided (supply facts or a FactProvider)');
+    }
     const candidates: DracoSpec[] = [];
     for (const layout of VRChannels.LAYOUT) {
       for (const geometry of VRChannels.GEOMETRY) {
@@ -646,7 +400,7 @@ export class ConstraintEngine {
       }
     }
 
-    const valid = candidates.filter((spec) => this.hardConstraints.every((hc) => hc(facts, spec)));
+    const valid = candidates.filter((spec) => this.hardConstraints.every((hc) => hc(resolvedFacts, spec)));
 
     if (valid.length === 0) {
       throw new Error('ConstraintEngine: unsatisfiable constraint set for input facts');
@@ -657,7 +411,7 @@ export class ConstraintEngine {
     for (const spec of valid) {
       let cost = 0;
       for (const sc of this.softConstraints) {
-        cost += sc.eval(facts, spec) * sc.weight;
+        cost += sc.eval(resolvedFacts, spec) * sc.weight;
       }
       if (cost < minCost) {
         minCost = cost;
@@ -665,7 +419,7 @@ export class ConstraintEngine {
       }
     }
 
-    return { facts, spec: bestSpec!, cost: minCost };
+    return { facts: resolvedFacts, spec: bestSpec!, cost: minCost };
   }
 
   /**

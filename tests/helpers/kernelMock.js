@@ -340,25 +340,89 @@ function factsFor(ds) {
     const variance = vals.length
       ? vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length
       : 0;
+    const std = Math.sqrt(variance);
+    let skew = 0;
+    let kurtosis = 0;
+    if (std > 1e-9) {
+      for (const v of vals) {
+        const z = (v - mean) / std;
+        skew += z * z * z;
+        kurtosis += z * z * z * z;
+      }
+      skew /= vals.length;
+      kurtosis = kurtosis / vals.length - 3;
+    }
     return {
       name: c.name,
       count: vals.length,
       sum,
       mean,
       median: med,
-      std: Math.sqrt(variance),
+      std,
       var: variance,
       min: vals.length ? Math.min(...vals) : 0,
       max: vals.length ? Math.max(...vals) : 0,
+      skew,
+      kurtosis,
+      outlierCount: 0,
     };
   });
+  const categorical = ds.categoricalColumns.map((c) => {
+    const values = ds.getColumnValues(c.name);
+    const counts = new Map();
+    let total = 0;
+    for (const v of values) {
+      counts.set(v, (counts.get(v) || 0) + 1);
+      total += 1;
+    }
+    const top = [...counts.entries()]
+      .map(([value, count]) => ({ value: String(value), count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    const cardinality = counts.size;
+    let entropy = 0;
+    for (const [, count] of counts) {
+      const p = count / (total || 1);
+      if (p > 0) entropy -= p * Math.log2(p);
+    }
+    return { name: c.name, cardinality, entropy, top };
+  });
+  const temporalNames = ds.temporalColumns.map((c) => c.name);
+  const valueCol = ds.numericColumns[0]?.name;
+  const temporalStats = temporalNames.map((t) => {
+    if (!valueCol) {
+      return { column: t, valueColumn: '', trendDirection: 'flat', seasonalityHint: false, normalizedSlope: 0 };
+    }
+    const rows = ds.rows.slice().sort((a, b) => new Date(a[t]).getTime() - new Date(b[t]).getTime());
+    const values = rows.map((r) => Number(r[valueCol])).filter((v) => !Number.isNaN(v));
+    if (values.length < 3) {
+      return { column: t, valueColumn: valueCol, trendDirection: 'flat', seasonalityHint: false, normalizedSlope: 0 };
+    }
+    const n = values.length;
+    const xMean = (n - 1) / 2;
+    const yMean = values.reduce((s, v) => s + v, 0) / n;
+    let num = 0;
+    let den = 0;
+    for (let i = 0; i < n; i++) {
+      num += (i - xMean) * (values[i] - yMean);
+      den += (i - xMean) ** 2;
+    }
+    const slope = den > 0 ? num / den : 0;
+    const range = Math.max(...values) - Math.min(...values);
+    const normalizedSlope = range > 0 ? slope / range : 0;
+    const trendDirection = normalizedSlope > 0.01 ? 'up' : normalizedSlope < -0.01 ? 'down' : 'flat';
+    return { column: t, valueColumn: valueCol, trendDirection, seasonalityHint: false, normalizedSlope };
+  });
+  // Canned correlation for the first two numeric columns (perfect linear case
+  // is covered by Rust tests); mock returns empty to keep fixtures simple.
   return {
     rowCount: ds.rowCount,
     columnCount: ds.columns.length,
     numeric,
     correlation: [],
-    categorical: [],
-    temporal: ds.temporalColumns.map((c) => c.name),
+    categorical,
+    temporal: temporalNames,
+    temporalStats,
   };
 }
 

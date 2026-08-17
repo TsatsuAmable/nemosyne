@@ -5,6 +5,7 @@ import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.ts';
 import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
 import { CanvasTextureCacheManager } from '../src/vr/ui/CanvasTextureCacheManager.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 
 describe('Sprint 20.1 & 20.2: Zero-Allocation Instanced GPU Buffer Pipeline & UI Texture Cache Suite', () => {
   it('enables depthWrite: true and depthTest: true on InstancedPointCloud for Early-Z culling', () => {
@@ -22,7 +23,7 @@ describe('Sprint 20.1 & 20.2: Zero-Allocation Instanced GPU Buffer Pipeline & UI
       [{ val: 10 }]
     );
 
-    const node = new DracoTopologyNode(scene, { dataset: ds });
+    const node = new DracoTopologyNode(scene, { dataset: ds }, undefined, undefined, makeFactProvider());
     expect(node.artifact).toBeDefined();
 
     // Trigger re-solve & synthesis to test mesh pool release path

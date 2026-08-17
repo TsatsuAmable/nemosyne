@@ -5,8 +5,10 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Wave 4 (AtlasCore + NemosyneSession) implemented and gated green on branch
-  `rust-kernel-commitment`; cross-tool model routing added as local/gitignored `.ai/model-routing/` before Wave 5.
+- **Last updated:** 2026-08-17 — Wave 5 (Draco as pure embodiment consumer) implemented and gated green on
+  branch `rust-kernel-commitment`; working tree modified, NOT committed (left for review). Wave 4
+  (AtlasCore + NemosyneSession) gated green before; cross-tool model routing added as local/gitignored
+  `.ai/model-routing/` before Wave 5.
 - **Active sprint:** commit Rust/WASM as the canonical analytical engine and rip out the JS analytical
   layer (no JS fallback), then build Atlas/NemosyneSession on top. Plan: `.claude/plans/groovy-mixing-wolf.md`.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
@@ -68,10 +70,12 @@
   a "kernel unavailable aborts cleanly" case. `timeSlice` now slices a window of the CURRENT transformed
   dataset (kernel `slice` runs against the current handle) — more correct than the old JS path which sliced
   the original and discarded prior ops.
-- **Deferred to Wave 5:** chaining `build:wasm` into `build` (requires Netlify/CI Rust toolchain setup);
-  byte-exact JS `JSON.stringify` number-format parity (when `DatasetSpace` delegates fingerprint to the
-  kernel); `Dataset.rangeOf`/`cardinalityOf`/`fingerprint` delegation to kernel statistics metadata
-  (TODO(Wave 5) comments left at each call site).
+- **Deferred to Wave 6 (carried from Wave 2/5):** chaining `build:wasm` into `build` (requires
+  Netlify/CI Rust toolchain setup); byte-exact JS `JSON.stringify` number-format parity (when
+  `DatasetSpace` delegates fingerprint to the kernel). `Dataset.rangeOf`/`cardinalityOf`/`fingerprint`
+  resolved in Wave 5 — confirmed renderer consumers (embodiment logic, NOT analytical); the analytical
+  consumer (`extractFacts`) is deleted; `TODO(Wave 6)` markers point at routing DatasetSpace through
+  AtlasCore.
 - **Wave 3 ✅ (delete orphaned JS analytical modules + tests):** `git rm`'d the 7 JS analytical modules
   (`DatasetOperations`/`Parsers`/`CSVDataParser`/`CSVParserWorker`/`ArrowBinaryParser`/`TopologyInference`/
   `analytics/TDAMapper`); split `Encodings.ts` (kept visual helpers, deleted `inferEncodings`); removed
@@ -111,18 +115,66 @@
   decision procedure. Manifest only — harness dispatch unchanged. Motivating incident: an Ollama Cloud
   session 429 killed a Wave-4 sub-agent. `.ai/` is gitignored (like `.agents/`/`.claude/`); pointers in
   `AGENTS.md` + `CLAUDE.md`.
-- **Last gate result (2026-08-17):** `npm run wasm` exit 0; `cargo test` 61/61 pass; `tsc --noEmit`
-  clean; `eslint` 0 errors (~245 pre-existing `no-console` warnings); `npm run test:all` green
-  (cargo 61/61 + Vitest 182 files passed / 1 skipped / 1,267 tests passed / 26 skipped — the wasm-runtime
-  RuntimeBridge parity cases skip in plain jsdom by design; Rust `#[test]`s cover the same logic).
-- **Next:** Wave 5 — Draco as pure embodiment consumer. Extract `ConstraintEngine.extractFacts` into a
-  `FactProvider` interface; `AtlasCore` supplies `DracoFacts` computed via `kernel.statistics` (Rust, via
-  statrs/ndarray). `ConstraintEngine.solve(input)` takes facts as input — no dataset-derived stats inside
-  Draco. Move `_numericStats`/`_correlationMatrix`/`_temporalStats`/`_categoricalDistribution` into
-  `kernel.statistics`. `WorldRendererLifecycle.rebuildDashboard` gets facts from `AtlasCore` (not
-  `dracoNode.engine.extractFacts(dataset)`). `VRTopologyTranslator` consumes `AtlasCore`-provided encodings.
-  Also delegate `Dataset.rangeOf`/`cardinalityOf`/`fingerprint` to kernel statistics metadata (the
-  TODO(Wave 5) call sites left in Wave 3).
+- **Last gate result (2026-08-17, Wave 5):** `npm run wasm` exit 0; `cargo test` 64/64 pass (was 61 — 3
+  new statistics tests); `tsc --noEmit` clean; `eslint` 0 errors (~245 pre-existing `no-console`
+  warnings); `npm run test:all` green (cargo 64/64 + Vitest 182 files passed / 1 skipped / 1,267 tests
+  passed / 26 skipped — the wasm-runtime RuntimeBridge parity cases skip in plain jsdom by design; Rust
+  `#[test]`s cover the same logic).
+- **Wave 5 ✅ (Draco as pure embodiment consumer — facts supplied, not computed):** Draco performs NO
+  dataset-derived statistical computation. `ConstraintEngine.extractFacts` + the analytical helpers
+  (`_numericStats`/`_correlationMatrix`/`_temporalStats`/`_categoricalDistribution`/`_estimateOutlierCount`/
+  `_estimateClusterCount`) DELETED from `src/draco/ConstraintEngine.ts`. New `FactProvider` interface in
+  `src/draco/types.ts` (`facts(input): DracoFacts | null`); `ConstraintEngine.solve(input, facts?)` takes
+  facts as INPUT — resolves `facts ?? factProvider?.facts(input) ?? null` and throws if none supplied
+  (rule bodies unchanged — mechanical provider swap). `DracoTopologyNode` + `DracoSolverWorker` take an
+  optional `FactProvider` (5th ctor arg / per-call request field). **AtlasCore is the Draco FactProvider:**
+  `asFactProvider()` + `dracoFacts(input)` call `this.facts()` (kernel.statistics), map kernel `Facts` →
+  `DracoFacts` via `mapKernelFactsToDraco` (pure shape mapping: stdDev=std, symmetric correlationMatrix
+  from `kf.correlation` pairs, categoryDistribution fraction=count/total, outlierCount from primary
+  numeric, trendDirection/seasonalityHint from `kf.temporalStats[0]`, cardinalityOfColor from
+  `kf.categorical`); reads `bridge.kernelProvenance()` after the kernel call. `minimalDracoFacts`
+  (schema-metadata only, NO stats) is the no-kernel fallback so the renderer shell mounts before
+  `start()` loads wasm — NOT analytical. `World._initWasmRuntime` calls `_rebuildPalaceWithKernelFacts()`
+  after `atlas.setKernel` to rebuild the palace with kernel facts in production. **Kernel `Facts` extended
+  (Rust):** `ColumnStats` gained `skew`/`kurtosis`/`outlier_count` (hand-rolled, matching the
+  column_stats precedent for mean/median/std/var); new `TemporalStats` struct
+  `{column,value_column,trend_direction,seasonality_hint,normalized_slope}` (least-squares slope +
+  lag-autocorrelation > 0.5 → seasonalityHint); `Facts.temporal_stats` Vec. 3 new Rust `#[test]`s
+  (skew/kurtosis symmetric ≈ 0, outlier_count flags extreme, temporal trend up). RuntimeBridge +
+  `types.ts` extended; `kernelMock.js` canned facts now include the new fields. **World wiring:**
+  `_doLoadDataset` now sets the atlas current dataset BEFORE building the Draco palace (so
+  `atlas.inferEncodings` + `asFactProvider` see the new handle); encodings chain is
+  `entry.encodings ?? kernelEncodings ?? getDefaultEncodings(...)`; `DracoTopologyNode` gets
+  `atlas.asFactProvider()`. `WorldRendererLifecycle.rebuildDashboard` gets facts from `getAtlas()` →
+  `atlas.dracoFacts(input)`, NOT `dracoNode.engine.extractFacts(dataset)`; falls back to dataset schema
+  when no atlas. `VRTopologyTranslator` already consumed `dataInput.encodings ?? {}` (no own
+  `inferEncodings` default — Wave 3 removed it); kernel encodings now wired through World. **TODO(Wave 5)
+  resolution:** `Dataset.rangeOf`/`cardinalityOf`/`fingerprint` are RENDERER consumers
+  (VRTopologyTranslator size scaling, LayoutBase, DatasetSpace normalization, SeededRandom seed) —
+  embodiment logic, NOT analytical; the analytical consumer (`extractFacts`) is deleted. Comments updated
+  to point at the kernel source (`ColumnStats`/`CategoricalStats.cardinality`/`dataset_fingerprint`) with
+  `TODO(Wave 6)` for routing DatasetSpace through AtlasCore. **Test-only fact provider:**
+  `tests/helpers/dracoFactsHelper.ts` keeps the former canned extractFacts logic so Draco RULE tests run
+  in plain jsdom without the wasm pkg (NOT production code — no `src/` import; statistical parity covered
+  by Rust `#[test]`s + `wasm-runtime.test.ts`). 15 test files updated to pass `makeFactProvider()` /
+  `computeFacts` (threshold options mirror `ConstraintEngineOptions`). Governing rules grep-verified:
+  no `if (caps & …)` routing in `src/`; no `extractFacts`/`_numericStats`/`_correlationMatrix`/
+  `_temporalStats`/`_categoricalDistribution` in `src/draco/`; `VRTopologyTranslator` uses only
+  `categoricalColor`/`numericColor`/`normalize` (three.js visual mapping, NOT analytical).
+- **Deferred (storage hardening, target Wave 9 / Stable Alpha):** IndexedDB is the right base and already in
+  use (`SessionStore.ts`), but the current shape is suboptimal at Nemosyne scale — one record = whole
+  `NemosyneSession.serialize()` blob rewritten on every autosave (two full dataset copies + history → tens of
+  MB per op); JSON-in-IDB (no structured-clone/typed-array/Arrow benefit); append-only `ResearchEvent` ledger
+  rewritten in full; no `navigator.storage.persist()` (research sessions evictable, esp. Quest) or `.estimate()`
+  quota guard. Plan: split the record to mirror the substrate — immutable original dataset stored once by
+  content fingerprint (dedup across sessions; `DatasetSpace` already FNV-1a-fingerprints), append-only ledger
+  in its own key/store, small mutable analysis-cursor + presentation state separate; store dataset bytes as
+  Arrow/typed arrays via structured clone; call `storage.persist()` + `.estimate()`; consider OPFS for the large
+  immutable dataset-bytes tier. Aligns with post-Wave-4 AtlasCore/DatasetSpace; not touched during Wave 5.
+- **Next:** Wave 6 — route `FileLoader` parse, `World._maybeLoadSampleFromWasm`, `TDAPlanes`, and
+  `DatasetSpace` through AtlasCore (the deferred `TODO(Wave 6)` call sites); collapse the
+  `AnalysisHistory`/`ResearchEvent` ledger double-bookkeeping; byte-exact `JSON.stringify` number-format
+  parity when `DatasetSpace` delegates fingerprint to the kernel.
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files

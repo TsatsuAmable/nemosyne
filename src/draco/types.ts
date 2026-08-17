@@ -125,6 +125,16 @@ export interface SoftConstraint {
   eval: (facts: DracoFacts, spec: DracoSpec) => number;
 }
 
+/**
+ * Provider of {@link DracoFacts} for the constraint engine. Wave 5: Draco no
+ * longer computes dataset-derived statistics itself; facts are supplied by
+ * AtlasCore (which reads them from `kernel.statistics`). Test code may supply
+ * a canned provider (e.g. `tests/helpers/dracoFactsHelper.js`).
+ */
+export interface FactProvider {
+  facts(input: DracoDataInput): DracoFacts | null;
+}
+
 /** Result of running the constraint solver on a data input. */
 export interface SolverResult {
   facts: DracoFacts;

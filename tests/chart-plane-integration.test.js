@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 import { ChartPlane } from '../src/vr/artifacts/ChartPlane.ts';
 // Register the VR factories (ChartPlane/InstancedPointCloud/MetaphorActions)
 // the production World wires via this module. The translator's factory seam
@@ -24,7 +25,7 @@ describe('ChartPlane integration', () => {
         { time: '2026-07-28T02:00:00', value: 3 },
       ]
     );
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const solved = engine.solve({ topology: TopologyTypes.TIME_SERIES, dataset: ds });
     const artifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });
 
@@ -45,7 +46,7 @@ describe('ChartPlane integration', () => {
         { a: 3, b: 6 },
       ]
     );
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const solved = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds });
     const artifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });
 
@@ -64,7 +65,7 @@ describe('ChartPlane integration', () => {
         { category: 'B', value: 20 },
       ]
     );
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const solved = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds });
     const artifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });
 

@@ -137,7 +137,12 @@ export class Dataset {
     return this.numericColumns.length > 0;
   }
 
-  // TODO(Wave 5): delegate to kernel statistics metadata
+  // Wave 5: min/max for visual channel scaling (VRTopologyTranslator, layouts,
+  // DatasetSpace normalization). These are RENDERER consumers (governing rule:
+  // embodiment logic stays in TS). The analytical source of min/max is kernel
+  // `ColumnStats` via AtlasCore.facts(); this accessor remains for renderer
+  // paths that do not hold an AtlasCore reference. TODO(Wave 6): have
+  // DatasetSpace read ranges from AtlasCore/kernel Facts instead of recomputing.
   rangeOf(name: string): { min: number; max: number } {
     const values = this.getColumnValues(name).filter(
       (v): v is number => typeof v === 'number' && !Number.isNaN(v)
@@ -146,12 +151,19 @@ export class Dataset {
     return { min: Math.min(...values), max: Math.max(...values) };
   }
 
-  // TODO(Wave 5): delegate to kernel statistics metadata
+  // Wave 5: cardinality for the color channel. The analytical source is kernel
+  // `CategoricalStats.cardinality` via AtlasCore.facts(); the former analytical
+  // consumer (ConstraintEngine.extractFacts) was deleted. This accessor now
+  // serves only non-analytical callers (kept for completeness). TODO(Wave 6):
+  // route remaining callers through AtlasCore/kernel metadata.
   cardinalityOf(name: string): number {
     return new Set(this.getColumnValues(name)).size;
   }
 
-  // TODO(Wave 5): delegate to kernel statistics metadata
+  // Wave 5: numeric hash used only as a renderer seed for SeededRandom
+  // (VRTopologyTranslator/layouts). NOT an analytical fingerprint — the
+  // canonical content fingerprint is kernel `dataset_fingerprint` /
+  // DatasetSpace.fingerprint (FNV-1a). No analytical consumer remains.
   /** Stable hash for deterministic procedural generation. */
   get fingerprint(): number {
     let h = 0;

@@ -7,6 +7,7 @@ import { Locomotion } from '../src/vr/Locomotion.ts';
 import { DracoDiagnosticHUD } from '../src/vr/ui/DracoDiagnosticHUD.ts';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 import { InputTelemetry } from '../src/vr/InputTelemetry.ts';
 
 /**
@@ -659,7 +660,7 @@ describe('DracoDiagnosticHUD', () => {
       return originalCreateElement(tag);
     };
 
-    engine = new ConstraintEngine();
+    engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const dataset = new Dataset('Test', [{ name: 'a', type: ColumnType.NUMERIC }], [{ a: 1 }]);
 
     dracoNode = {

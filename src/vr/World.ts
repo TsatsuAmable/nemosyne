@@ -385,6 +385,7 @@ export class World {
       getOriginalDataset: () => this._originalDataset,
       getDracoNode: () => this.dracoNode,
       getWasmBridge: () => this._wasmRuntime,
+      getAtlas: () => this.atlas,
     });
 
     // In-place operation handles near data artefacts for direct manipulation.
@@ -813,20 +814,40 @@ export class World {
       this.diagnostic = null;
     }
 
+    // Preserve original state so data operations can be reset. Setting
+    // `_originalDataset` routes through AtlasCore.loadDataset (resets ledger,
+    // results, and history, bumps version, appends a 'load' ResearchEvent);
+    // setting `_transformedDataset` points the current dataset at the original.
+    // Wave 5: this must happen BEFORE the Draco palace build so
+    // `atlas.inferEncodings` and `atlas.asFactProvider` see the new dataset's
+    // kernel handle (statistics + encodings come from the kernel, not JS).
+    this._originalDataset = entry.dataset?.clone?.() ?? null;
+    this._transformedDataset = this._originalDataset?.clone?.() ?? null;
+
     // Build new Draco palace.
     const topology = entry.topology as TopologyType;
+    // Wave 5: encodings come from the kernel (via AtlasCore) when available,
+    // then the entry's explicit encodings, then the static default mapping.
+    const kernelEncodings = this.atlas.inferEncodings(topology) ?? undefined;
     const dataInput = {
       topology,
       dataset: entry.dataset,
       maxDepth: entry.maxDepth,
       encodings:
         entry.encodings ??
+        kernelEncodings ??
         getDefaultEncodings({ dataset: entry.dataset, topology }),
     };
 
-    this.dracoNode = new DracoTopologyNode(this.engine.scene, dataInput, [0, 1.4, -3.5], {
-      colorblindMode: this.settingsPanel?.getSetting?.('colorblindMode') ?? 'none',
-    });
+    this.dracoNode = new DracoTopologyNode(
+      this.engine.scene,
+      dataInput,
+      [0, 1.4, -3.5],
+      {
+        colorblindMode: this.settingsPanel?.getSetting?.('colorblindMode') ?? 'none',
+      },
+      this.atlas.asFactProvider(),
+    );
     this.engine.addUpdatable(this.dracoNode);
     this._wireArtifactInteraction(this.dracoNode);
 
@@ -842,13 +863,6 @@ export class World {
     this.currentEntry = entry;
     this.telemetryCollector?.recordDataset?.(entry.name ?? entry.label ?? 'dataset', entry.topology);
 
-    // Preserve original state so data operations can be reset. Setting
-    // `_originalDataset` routes through AtlasCore.loadDataset (resets ledger,
-    // results, and history, bumps version, appends a 'load' ResearchEvent);
-    // setting `_transformedDataset` points the current dataset at the original.
-    this._originalDataset = entry.dataset?.clone?.() ?? null;
-    this._transformedDataset = this._originalDataset?.clone?.() ?? null;
-
     // Attach optional TDA summary group for numeric datasets.
     this._attachTDASummary();
 
@@ -857,6 +871,17 @@ export class World {
 
     // Sync statistical-lens visibility with the current setting.
     this._setStatisticalLensVisible(this._statisticalLensEnabled);
+  }
+
+  /**
+   * Wave 5: once the analytical kernel is ready, rebuild the current palace so
+   * Draco consumes kernel-derived facts (`kernel.statistics` via AtlasCore)
+   * instead of the minimal schema-metadata facts used before `start()` loaded
+   * the wasm runtime. No-op when no dataset is loaded.
+   */
+  _rebuildPalaceWithKernelFacts(): void {
+    if (!this.currentEntry || this._disposed) return;
+    this.loadDataset(this.currentEntry);
   }
 
   _attachTDASummary(): void {
@@ -1762,6 +1787,7 @@ export class World {
       this.atlas.setKernel(bridge, this._wasmCapabilities);
       // TODO(Wave 6): route FileLoader parse through AtlasCore.
       this.loader?.setWasmRuntime?.(bridge, this._wasmCapabilities);
+      this._rebuildPalaceWithKernelFacts();
       return;
     }
 
@@ -1772,6 +1798,7 @@ export class World {
     this.atlas.setKernel(bridge, this._wasmCapabilities);
     // TODO(Wave 6): route FileLoader parse through AtlasCore.
     this.loader?.setWasmRuntime?.(bridge, this._wasmCapabilities);
+    this._rebuildPalaceWithKernelFacts();
     this.vrConsole?.log?.('log', [
       `WASM ready — capabilities ${this._wasmCapabilities.toString(2)}`,
     ]);
