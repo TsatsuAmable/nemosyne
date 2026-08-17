@@ -102,6 +102,7 @@ export class NemosyneSession {
       eventLedger: core.eventLedger,
       activeRecommendation: core.activeRecommendation,
       decisionHistory: core.decisionHistory,
+      structures: core.structures,
       presentation: this._presentation,
     };
   }
