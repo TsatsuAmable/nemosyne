@@ -933,14 +933,21 @@ export class World {
       }
       original();
       wire();
-      this.inPlaceHandles.build(dracoNode);
-      this.inPlaceHandles.registerInteractables(this.engine.input);
+      this._rebuildStructureHandles(dracoNode);
       if (this.diagnostic) this.diagnostic.render();
     };
 
     wire();
-    this.inPlaceHandles.build(dracoNode);
-    this.inPlaceHandles.registerInteractables(this.engine.input);
+    this._rebuildStructureHandles(dracoNode);
+  }
+
+  private _rebuildStructureHandles(dracoNode: { artifact?: { nodeMeshes?: THREE.Mesh[] } | undefined; dataInput?: { topology?: string } | undefined }): void {
+    if (this.atlas.structures.length > 0) {
+      this.inPlaceHandles.buildFromStructures(dracoNode as never, this.atlas.structures as never);
+    } else {
+      this.inPlaceHandles.build(dracoNode as never);
+    }
+    this.inPlaceHandles.registerInteractables(this.engine.input as never);
   }
 
   _showDataCard(mesh: THREE.Mesh): void {

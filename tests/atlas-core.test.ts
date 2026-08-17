@@ -488,4 +488,49 @@ describe('AtlasCore', () => {
     expect(mesh1.visible).toBe(true);
     expect(mesh2.visible).toBe(true);
   });
+
+  it('DataOperations sortByRowIndices and clusterByRowIndices reposition meshes', async () => {
+    const { sortByRowIndices, clusterByRowIndices, captureBaseState } = await import('../src/vr/interactions/DataOperations.ts');
+    let setCalls: number[] = [];
+    const makeMesh = () => ({
+      userData: { row: {}, baseScale: 1, baseOpacity: 1 },
+      material: { opacity: 1 },
+      visible: true,
+      scale: { setScalar: (_v: number) => {} },
+      position: { x: 0, y: 0, z: 0, set: (x: number, y: number, z: number) => { setCalls.push(x, y, z); } },
+    });
+    const mesh0 = makeMesh();
+    const mesh1 = makeMesh();
+    const mesh2 = makeMesh();
+    const artifact = { nodeMeshes: [mesh0, mesh1, mesh2] };
+    captureBaseState(artifact as never);
+
+    setCalls = [];
+    sortByRowIndices(artifact as never, [0, 2]);
+    expect(setCalls.length).toBeGreaterThan(0);
+
+    setCalls = [];
+    clusterByRowIndices(artifact as never, [[0, 1], [2]]);
+    expect(setCalls.length).toBeGreaterThan(0);
+  });
+
+  it('DataOperations anomalyByRowIndices lifts flagged meshes', async () => {
+    const { anomalyByRowIndices, captureBaseState } = await import('../src/vr/interactions/DataOperations.ts');
+    const makeMesh = () => ({
+      userData: { row: {}, baseScale: 1, baseOpacity: 1 },
+      material: { opacity: 0.5 },
+      visible: true,
+      scale: { setScalar: (_v: number) => {} },
+      position: { x: 0, y: 0, z: 0 },
+    });
+    const mesh0 = makeMesh();
+    const mesh1 = makeMesh();
+    const artifact = { nodeMeshes: [mesh0, mesh1] };
+    captureBaseState(artifact as never);
+
+    anomalyByRowIndices(artifact as never, [1]);
+    expect(mesh0.material.opacity).toBe(0.4);
+    expect(mesh1.material.opacity).toBe(1);
+    expect(mesh1.position.y).toBeGreaterThan(0);
+  });
 });
