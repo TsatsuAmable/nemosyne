@@ -150,6 +150,9 @@ describe('World performance integration', () => {
     const originalRender = world!.engine.renderer.render;
     world!.engine.renderer.render = vi.fn();
 
+    // Force budget check by setting lastBudgetCheck to more than 1000ms ago
+    (world!.engine as any)._lastBudgetCheck = performance.now() - 1005;
+
     world!.engine._tick();
 
     world!.engine.renderer.render = originalRender;
