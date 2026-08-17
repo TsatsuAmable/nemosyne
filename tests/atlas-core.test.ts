@@ -441,4 +441,51 @@ describe('AtlasCore', () => {
     expect(isolatedRows).not.toBeNull();
     expect(isolatedRows!.length).toBeGreaterThan(0);
   });
+
+  it('VRCommandExecutor sliceByStructure resolves and records embodiment', async () => {
+    const { VRCommandExecutor } = await import('../src/vr/coordinators/VRCommandExecutor.ts');
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 2 });
+    const structureId = atlas.structures[0].structures[0].id;
+
+    let isolatedRows: number[] | null = null;
+    const executor = new VRCommandExecutor({
+      atlas,
+      onIsolate: (rows) => { isolatedRows = rows; },
+    });
+
+    const result = executor.sliceByStructure(structureId);
+    expect(result).toBe(true);
+    expect(isolatedRows).not.toBeNull();
+    expect(isolatedRows!.length).toBeGreaterThan(0);
+
+    const embodimentEvents = atlas.ledger.filter((e) => e.kind === 'embodiment');
+    expect(embodimentEvents).toHaveLength(1);
+    expect(embodimentEvents[0].embodimentCommand!.targetIds).toEqual([structureId]);
+  });
+
+  it('DataOperations isolateRowIndices and resetVisibility work on artifact', async () => {
+    const { isolateRowIndices, resetVisibility, captureBaseState } = await import('../src/vr/interactions/DataOperations.ts');
+    const makeMesh = () => ({
+      userData: { row: {}, baseScale: 1, baseOpacity: 1 },
+      material: { opacity: 1 },
+      visible: true,
+      scale: { setScalar: (_v: number) => {} },
+      position: { y: 0 },
+    });
+    const mesh0 = makeMesh();
+    const mesh1 = makeMesh();
+    const mesh2 = makeMesh();
+    const artifact = { nodeMeshes: [mesh0, mesh1, mesh2] };
+    captureBaseState(artifact as never);
+    isolateRowIndices(artifact as never, [1]);
+    expect(mesh0.visible).toBe(false);
+    expect(mesh1.visible).toBe(true);
+    expect(mesh2.visible).toBe(false);
+    resetVisibility(artifact as never);
+    expect(mesh0.visible).toBe(true);
+    expect(mesh1.visible).toBe(true);
+    expect(mesh2.visible).toBe(true);
+  });
 });

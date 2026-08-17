@@ -60,6 +60,50 @@ export function applyFilter(artifact: ArtifactRef, filteredDataset: Dataset) {
 }
 
 /**
+ * Isolate rows by index: meshes at the given row indices remain visible,
+ * all others are hidden. This is the structure-ID-driven variant of
+ * `applyFilter` — it accepts positional row indices (from
+ * `DiscoveredStructure.rowIndices`) instead of a filtered dataset.
+ */
+export function isolateRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
+  const kept = new Set(rowIndices);
+  for (let i = 0; i < artifact.nodeMeshes.length; i++) {
+    const mesh = artifact.nodeMeshes[i];
+    const userData = getNodeUserData(mesh);
+    const mat = getNodeMaterial(mesh);
+    if (kept.has(i)) {
+      mesh.scale.setScalar(userData.baseScale ?? 1);
+      mat.opacity = userData.baseOpacity ?? 1;
+      mat.transparent = userData.baseTransparent ?? false;
+      mesh.visible = true;
+    } else {
+      mesh.scale.setScalar(0.05);
+      if (mat.opacity !== undefined) mat.opacity = 0.1;
+      mesh.visible = false;
+    }
+  }
+}
+
+/**
+ * Highlight rows by index: meshes at the given row indices are emphasised,
+ * others are dimmed but remain visible. Less aggressive than `isolateRowIndices`.
+ */
+export function highlightRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
+  const highlighted = new Set(rowIndices);
+  for (let i = 0; i < artifact.nodeMeshes.length; i++) {
+    const mesh = artifact.nodeMeshes[i];
+    const mat = getNodeMaterial(mesh);
+    if (highlighted.has(i)) {
+      mesh.scale.setScalar((getNodeUserData(mesh).baseScale ?? 1) * 1.3);
+      if (mat.opacity !== undefined) mat.opacity = 1;
+    } else {
+      mesh.scale.setScalar(getNodeUserData(mesh).baseScale ?? 1);
+      if (mat.opacity !== undefined) mat.opacity = 0.3;
+    }
+  }
+}
+
+/**
  * Apply a sort operation: reorder visible nodes along a horizontal arc.
  */
 export function applySort(artifact: ArtifactRef, sortedDataset: Dataset) {
@@ -189,6 +233,26 @@ export function applySlice(
     } else {
       mesh.scale.setScalar(0.2);
       if (mat.opacity !== undefined) mat.opacity = 0.2;
+    }
+  }
+}
+
+/**
+ * Slice by row indices: keep only the specified row indices visible and bright,
+ * dim and shrink the rest. Structure-ID-driven variant of `applySlice`.
+ */
+export function sliceByRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
+  const kept = new Set(rowIndices);
+  for (let i = 0; i < artifact.nodeMeshes.length; i++) {
+    const mesh = artifact.nodeMeshes[i];
+    const mat = getNodeMaterial(mesh);
+    if (kept.has(i)) {
+      mesh.scale.setScalar(getNodeUserData(mesh).baseScale ?? 1);
+      if (mat.opacity !== undefined) mat.opacity = 1;
+      mesh.visible = true;
+    } else {
+      mesh.scale.setScalar(0.2);
+      if (mat.opacity !== undefined) mat.opacity = 0.15;
     }
   }
 }
@@ -344,5 +408,15 @@ export function resetTransforms(artifact: ArtifactRef) {
       mat.opacity = userData.baseOpacity ?? 1;
       mat.transparent = userData.baseTransparent ?? false;
     }
+  }
+}
+
+/**
+ * Reset mesh visibility (un-hide all meshes) without touching scale/opacity.
+ * Used after `isolateRowIndices` / `sliceByRowIndices` to restore full visibility.
+ */
+export function resetVisibility(artifact: ArtifactRef) {
+  for (const mesh of artifact.nodeMeshes) {
+    mesh.visible = true;
   }
 }

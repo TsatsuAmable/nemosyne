@@ -63,6 +63,19 @@ export class VRCommandExecutor {
     });
   }
 
+  sliceByStructure(structureId: string): boolean {
+    const structures = this._resolveTargets([structureId]);
+    if (structures.length === 0) return false;
+    const rowIndices = structures[0].rowIndices;
+    this._onIsolate?.(rowIndices);
+    this._atlas.recordEmbodimentCommand({
+      action: 'inspect-cluster',
+      targetIds: [structureId],
+      embodiment: 'slice',
+    });
+    return true;
+  }
+
   executeFromRecommendation(): boolean {
     const rec = this._atlas.activeRecommendation;
     if (!rec || rec.decision !== 'accepted') return false;
