@@ -5,12 +5,15 @@ import { createRoomRegistry } from './SignallingServerCore.ts';
  * Minimal Node.js signalling server for Nemosyne collaboration rooms.
  *
  * Run with:
- *   node src/network/SignallingServer.mjs --port=5173 [--token=SHARED_SECRET]
+ *   node src/network/SignallingServer.mjs --port=5173 [--token=PARTICIPANT_SECRET] [--observer-token=OBSERVER_SECRET] [--allowed-origins=http://localhost:5173]
  *
- * Expects clients to connect with `?room=ROOM&peer=PEER[&token=SHARED_SECRET]`
- * query params and forwards JSON messages to the target peer or all peers in
- * the room. When --token (or NEMOSYNE_SIGNAL_TOKEN) is set, every join must
- * supply a matching ?token=; otherwise the connection is rejected (close 4001).
+ * Authentication & Role Enforcement:
+ *   - Dual-token mode (Recommended): Pass both --token (or NEMOSYNE_SIGNAL_TOKEN) and
+ *     --observer-token (or NEMOSYNE_OBSERVER_TOKEN). The server authoritatively enforces
+ *     and binds peer capabilities (observers cannot escalate to participant).
+ *   - Cryptographic Signed Tickets: Clients supply HMAC-SHA256 room tickets with embedded claims.
+ *   - Scoped shared secret format: Clients connect with "SECRET:observer" or "SECRET:participant".
+ *   - Open mode (Dev only): Pass --allow-open or NEMOSYNE_SIGNAL_ALLOW_OPEN=1.
  */
 
 const args = process.argv.slice(2);
@@ -50,5 +53,13 @@ wss.on('connection', (socket, req) => {
   registry.handleConnection(socket, roomId, peerId, token, role, req);
 });
 
-const mode = AUTH_TOKEN ? 'token required' : ALLOW_OPEN ? 'OPEN (no token)' : 'closed (set NEMOSYNE_SIGNAL_TOKEN or --allow-open)';
+let mode = 'closed (set NEMOSYNE_SIGNAL_TOKEN or --allow-open)';
+if (AUTH_TOKEN && OBSERVER_TOKEN) {
+  mode = 'token required (dual-token: participant + observer separated)';
+} else if (AUTH_TOKEN) {
+  mode = 'token required (single secret; pass --observer-token for strict role separation)';
+  console.warn('[SignallingServer] WARNING: Running with single --token without --observer-token. Observers sharing this secret can request participant role unless scoped (secret:observer) or HMAC tickets are used.');
+} else if (ALLOW_OPEN) {
+  mode = 'OPEN (no token)';
+}
 console.log(`[SignallingServer] listening on ws://localhost:${PORT}/__signal (${mode})`);
