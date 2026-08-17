@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MovablePanel } from './ui/MovablePanel.ts';
 import type { EngineLike, HandLike, PointerLike } from './coordinators/types.ts';
+import { WorldSpatialContext } from './trace/WorldSpatialContext.ts';
 
 /**
  * A small camera-rig-attached canvas panel that displays live WebXR input state.
@@ -10,6 +11,7 @@ export class InputTelemetry extends MovablePanel {
   engine: EngineLike;
   lines: string[];
   private _tempVec: THREE.Vector3;
+  private _worldContext: WorldSpatialContext;
 
   constructor(engine: EngineLike) {
     super(engine.cameraGroup, {
@@ -25,6 +27,7 @@ export class InputTelemetry extends MovablePanel {
     this.lines = [];
 
     this._tempVec = new THREE.Vector3();
+    this._worldContext = new WorldSpatialContext();
   }
 
   log(line: string): void {
@@ -45,10 +48,22 @@ export class InputTelemetry extends MovablePanel {
   _doUpdate(): void {
     const session = this.engine.renderer?.xr?.getSession?.() ?? null;
     const input = this.engine.input;
-    const pos = this.engine.headWorldPos;
+    const pos = this.engine.headWorldPos ?? new THREE.Vector3(0, 1.6, 0);
+
+    const handPositions: Array<{ pos: THREE.Vector3; handedness: string }> = [];
+    for (const h of input?.hands ?? []) {
+      if (h.rayOrigin && typeof h.rayOrigin === 'object') {
+        const originVec = (h.rayOrigin as THREE.Vector3).clone
+          ? (h.rayOrigin as THREE.Vector3).clone()
+          : new THREE.Vector3((h.rayOrigin as { x?: number }).x ?? 0, (h.rayOrigin as { y?: number }).y ?? 0, (h.rayOrigin as { z?: number }).z ?? 0);
+        handPositions.push({ pos: originVec, handedness: h.handedness ?? `#${h.index ?? '?'}` });
+      }
+    }
+    const worldSnap = this._worldContext.buildSnapshot(this.engine.camera, pos, handPositions);
 
     this.lines = [];
-    this.log(`HEAD: ${pos!.x.toFixed(2)}, ${pos!.y.toFixed(2)}, ${pos!.z.toFixed(2)}`);
+    this.log(`ZONE: ${worldSnap.zone} | NEAR: ${worldSnap.nearestLandmark ? `${worldSnap.nearestLandmark.name} (${worldSnap.nearestLandmark.distance.toFixed(1)}m, ${worldSnap.nearestLandmark.bearingDeg.toFixed(0)}°)` : 'none'}`);
+    this.log(`HEAD: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}`);
     this.log(
       `PRES: ${this.engine.renderer?.xr?.isPresenting ? 'Y' : 'N'} SRCS: ${session?.inputSources?.length ?? 0}`
     );
@@ -77,8 +92,11 @@ export class InputTelemetry extends MovablePanel {
         if (hand) coveredHands.add(hand);
         const pinch = hand ? (hand.isPinched?.() ? 'YES' : 'no ') : '???';
         const dist = hand && typeof hand.pinchDistance === 'number' ? hand.pinchDistance.toFixed(3) : '-';
+        const sideKey = src.handedness ?? `hand${i}`;
+        const ergo = worldSnap.ergonomics[sideKey];
+        const ergoStr = ergo ? ` [${ergo.reachZone} ergo:${ergo.ergonomicScore}%]` : '';
         this.log(
-          `HAND${i} ${src.handedness?.toUpperCase() ?? '?'} ${posStr} pinch=${pinch} d=${dist}`
+          `HAND${i} ${src.handedness?.toUpperCase() ?? '?'} ${posStr} pinch=${pinch} d=${dist}${ergoStr}`
         );
       } else {
         const controller = this._findController(src, sources, input!.controllers);
