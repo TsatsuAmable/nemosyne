@@ -5,14 +5,15 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Wave 6 (route parse/sample/TDA through AtlasCore; collapse
-  AnalysisHistory/ledger double-bookkeeping; ECMAScript byte-exact number-format parity in the kernel
-  fingerprint) on branch `rust-kernel-commitment` (rebased clean onto `main`, squashing to `main` via PR
-  once CI passes — auto-merge enabled). Wave 5 (Draco as pure embodiment consumer) + the statify rule-4
-  follow-up landed via PR #128; Wave 4 (AtlasCore + NemosyneSession) via PR #127; cross-tool model
-  routing lives in local/gitignored `.ai/model-routing/`.
-- **Active sprint:** commit Rust/WASM as the canonical analytical engine and rip out the JS analytical
-  layer (no JS fallback), then build Atlas/NemosyneSession on top. Plan: `.claude/plans/groovy-mixing-wolf.md`.
+- **Last updated:** 2026-08-17 — Atlas 2 structure discovery COMPLETE: Mapper, persistence, and
+  cluster structures now flow through a provenance-bearing, stable-ID `StructureSet` contract with
+  ledger-authority session persistence. Wave 6 merged via PR #130 on branch `rust-kernel-commitment`
+  (rebased clean onto `main`, squashing to `main` via PR once CI passes — auto-merge enabled). Wave 5
+  (Draco as pure embodiment consumer) + the statify rule-4 follow-up landed via PR #128; Wave 4
+  (AtlasCore + NemosyneSession) via PR #127; cross-tool model routing lives in local/gitignored
+  `.ai/model-routing/`.
+- **Active sprint:** Atlas 3 — guidance layer gated on reproducible structure outputs (now available
+  from Atlas 2). Rust/WASM remains the canonical analytical engine with no JS fallback.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
   research-relevant transforms through the versioned Rust kernel (provenance envelope on every result);
   use battle-tested Rust crates; saved-session compatibility breaks (kernel carries `kernelVersion`).
@@ -197,8 +198,24 @@
   `session-roundtrip.test.ts:91` migrated from a direct `analysisHistory.push` to a real `applyAnalysis`
   (toAnalysisSpec); `file-loader`/`world`/`world-coverage` wire kernels through AtlasCore; `tda-planes`
   adds an AtlasCore-routed recompute spy test; `world-renderer-lifecycle` drops `getWasmBridge`.
-  `Dataset.rangeOf`/`cardinalityOf` `TODO(Wave 6)` markers resolved. **Deferred:** chaining `build:wasm`
-  into `build` (Netlify/CI Rust toolchain) still open.
+- **Atlas 2 ✅ (structure discovery — complete):** Three structure-discovery paths now produce
+  provenance-bearing, stable-ID `StructureSet` results through `AtlasCore`:
+  - `discoverMapperStructures` — Mapper graph nodes → `DiscoveredStructure[]` (kind `mapper-node`)
+    with sorted row indices and stable `DatasetSpace` datum IDs.
+  - `discoverPersistenceStructures` — persistence intervals → ranked structures (kind
+    `persistent-component`) with birth/death evidence scores.
+  - `discoverClusterStructures` — projects the kernel's existing k_means/hierarchical/dbscan ops
+    (via `runOperation` + `_cluster` column) into `DiscoveredStructure[]` (kind `cluster`) grouped
+    by label. Pure TS projection — the clustering math stays in Rust; no JS analytical impl.
+  Structure IDs use a `canonicalParams()` serializer (recursively sorted keys) so semantically
+  identical parameter objects produce identical IDs regardless of insertion order. Every
+  `discover*` call pushes a `'structure'` `ResearchEvent` (new `ResearchEventKind`) carrying the
+  full `StructureSet`; `AtlasCoreState.structures` is a derived field rebuilt from the ledger on
+  `restoreState()` (ledger-authority pattern, mirroring `AnalysisHistory`). `NemosyneSession`
+  serializes/deserializes structures transparently via `AtlasCoreState`. Focused tests cover
+  cluster projection + determinism, canonical param identity, and ledger-rebuild on restore.
+  `Dataset.rangeOf`/`cardinalityOf` `TODO(Wave 6)` markers resolved. **Deferred:** chaining
+  `build:wasm` into `build` (Netlify/CI Rust toolchain) still open.
 - **Deferred (storage hardening, target Wave 9 / Stable Alpha):** IndexedDB is the right base and already in
   use (`SessionStore.ts`), but the current shape is suboptimal at Nemosyne scale — one record = whole
   `NemosyneSession.serialize()` blob rewritten on every autosave (two full dataset copies + history → tens of
@@ -209,10 +226,9 @@
   in its own key/store, small mutable analysis-cursor + presentation state separate; store dataset bytes as
   Arrow/typed arrays via structured clone; call `storage.persist()` + `.estimate()`; consider OPFS for the large
   immutable dataset-bytes tier. Aligns with post-Wave-4 AtlasCore/DatasetSpace; not touched during Wave 5.
-- **Next:** Wave 6 — route `FileLoader` parse, `World._maybeLoadSampleFromWasm`, `TDAPlanes`, and
-  `DatasetSpace` through AtlasCore (the deferred `TODO(Wave 6)` call sites); collapse the
-  `AnalysisHistory`/`ResearchEvent` ledger double-bookkeeping; byte-exact `JSON.stringify` number-format
-  parity when `DatasetSpace` delegates fingerprint to the kernel.
+- **Next:** Atlas 3 — build the guidance layer on top of reproducible structure outputs (Mapper,
+  persistence, cluster `StructureSet`s now available from Atlas 2). Then gate Atlas 4 on validated
+  guidance.
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files
