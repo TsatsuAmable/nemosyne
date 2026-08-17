@@ -57,7 +57,7 @@ Run all four before claiming a task done. `lint` and `typecheck` are both blocki
   they will be blocked under COEP.
 - **Demo + signalling endpoints mount on the Vite dev/preview server** at `/__demo-stream`, `/__signal`,
   `/__remote-logs`, `/__loadtest-results` (serve-mode only; not in the production bundle). Production
-  signalling: `node src/network/SignallingServer.mjs --port=8080 [--token=SHARED_SECRET]`.
+  signalling: `node src/network/SignallingServer.mjs --port=8080 [--token=PARTICIPANT_SECRET] [--observer-token=OBSERVER_SECRET]`.
   `NEMOSYNE_SIGNAL_TOKEN` gates `/__signal` in dev when set.
 
 ## Repo layout facts that aren't obvious from filenames

@@ -373,16 +373,17 @@ gate joins behind a shared secret so the server rejects clients that do not supp
 it. This is **not strong authentication** — room ID + token together form a shared
 secret anyone in the room can read — but it keeps casual snoopers out.
 
-Set a token on the standalone server:
+Set tokens on the standalone server (dual-token mode for strict role separation):
 
 ```bash
-node src/network/SignallingServer.mjs --port=8080 --token=SHARED_SECRET
-# or: NEMOSYNE_SIGNAL_TOKEN=SHARED_SECRET node src/network/SignallingServer.mjs --port=8080
+node src/network/SignallingServer.mjs --port=8080 --token=PARTICIPANT_SECRET --observer-token=OBSERVER_SECRET
+# or via environment:
+# NEMOSYNE_SIGNAL_TOKEN=PARTICIPANT_SECRET NEMOSYNE_OBSERVER_TOKEN=OBSERVER_SECRET node src/network/SignallingServer.mjs --port=8080
 ```
 
-For the dev-server plugin, set `NEMOSYNE_SIGNAL_TOKEN` in the environment before
-`npm run dev`. When a token is configured, a join without a matching `?token=` is
-rejected (close code 4001). A second client claiming a peer ID already live in the
+For the dev-server plugin, set `NEMOSYNE_SIGNAL_TOKEN` (and optionally `NEMOSYNE_OBSERVER_TOKEN`) in the environment before
+`npm run dev`. When tokens are configured, a join without a matching token is rejected (close code 4001). Setting both tokens
+guarantees that observers cannot self-elevate to participant roles. A second client claiming a peer ID already live in the
 room is also rejected (close code 4002) rather than silently taking it over.
 
 On the client, store the same token once in the browser before joining:
