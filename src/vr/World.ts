@@ -384,7 +384,6 @@ export class World {
       tooltipManager: this.tooltipManager,
       getOriginalDataset: () => this._originalDataset,
       getDracoNode: () => this.dracoNode,
-      getWasmBridge: () => this._wasmRuntime,
       getAtlas: () => this.atlas,
     });
 
@@ -440,8 +439,7 @@ export class World {
     // Loader UI.
     this.loader = new FileLoaderUI({
       onLoad: (entry: unknown) => this.loadDataset(this._maybeLoadSampleFromWasm(entry as DatasetLoadEntry)),
-      wasmRuntime: this._wasmRuntime,
-      wasmCapabilities: this._wasmCapabilities,
+      atlas: this.atlas,
     });
 
     // Teleport anchors around the palace.
@@ -1785,8 +1783,6 @@ export class World {
       this._wasmRuntime = bridge;
       this._wasmCapabilities = bridge.capabilities();
       this.atlas.setKernel(bridge, this._wasmCapabilities);
-      // TODO(Wave 6): route FileLoader parse through AtlasCore.
-      this.loader?.setWasmRuntime?.(bridge, this._wasmCapabilities);
       this._rebuildPalaceWithKernelFacts();
       return;
     }
@@ -1796,8 +1792,6 @@ export class World {
     this._wasmRuntime = bridge;
     this._wasmCapabilities = bridge.capabilities();
     this.atlas.setKernel(bridge, this._wasmCapabilities);
-    // TODO(Wave 6): route FileLoader parse through AtlasCore.
-    this.loader?.setWasmRuntime?.(bridge, this._wasmCapabilities);
     this._rebuildPalaceWithKernelFacts();
     this.vrConsole?.log?.('log', [
       `WASM ready — capabilities ${this._wasmCapabilities.toString(2)}`,
@@ -1814,23 +1808,15 @@ export class World {
    * analytical path.
    */
   _maybeLoadSampleFromWasm(entry: DatasetLoadEntry): DatasetLoadEntry {
-    // TODO(Wave 6): route sample load through AtlasCore.loadDataset.
+    // Wave 6: sample content is loaded through AtlasCore (the single kernel
+    // caller). When the kernel is absent or the key is unknown, `loadSample`
+    // returns null and the static JS `SampleDatasets` entry is used unchanged
+    // (static data, not an analytical result).
     if (!entry?.key) return entry;
-    const bridge = this._wasmRuntime;
-    if (!bridge || !bridge.isReady()) return entry;
-
     try {
-      const handle = bridge.loadSample(entry.key);
-      if (handle === 0) return entry;
-
-      try {
-        const json = bridge.getDatasetJson(handle);
-        if (!json) return entry;
-        const dataset = Dataset.fromJSON(json);
-        return { ...entry, dataset };
-      } finally {
-        bridge.destroyDataset(handle);
-      }
+      const dataset = this.atlas.loadSample(entry.key);
+      if (!dataset) return entry;
+      return { ...entry, dataset };
     } catch (e) {
       console.error('[World] kernel sample load panic:', e);
       return entry;

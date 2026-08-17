@@ -7,6 +7,7 @@ import { SessionStore } from '../src/data/SessionStore.ts';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { NemosyneSession } from '../src/session/NemosyneSession.ts';
 import { WorldSessionController } from '../src/vr/coordinators/WorldSessionController.ts';
+import { toAnalysisSpec } from '../src/vr/interactions/DataOperations.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.js';
 import type { WorldLike } from '../src/vr/coordinators/types.ts';
 
@@ -86,9 +87,11 @@ function makeStubWorld(sessionStore: SessionStore): { world: WorldLike; stub: an
   // history frame are populated before save.
   const atlas = new AtlasCore({ kernel: makeKernelMockBridge() as any });
   atlas.setOriginalDataset(ds);
-  // Mirror the legacy stub: one 'filter' history frame (cursor) alongside the
-  // 'load' ledger entry produced by setOriginalDataset.
-  atlas.analysisHistory.push('filter', makeDataset('before'), ds, { threshold: 15 });
+  // Wave 6: AnalysisHistory is a DERIVED VIEW of the ledger — frames are
+  // created by running real analyses (the kernel is the only path). The mock
+  // kernel's canned 'filter' op yields the same 'load' + 'filter' shape the
+  // save/load roundtrip asserts on.
+  atlas.applyAnalysis(toAnalysisSpec('filter', ds, atlas));
 
   const session = new NemosyneSession({ atlas });
 

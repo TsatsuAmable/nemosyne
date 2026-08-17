@@ -8,7 +8,6 @@ import { TooltipManager } from '../ui/TooltipManager.ts';
 import type { DracoTopologyNode } from '../../draco/DracoTopologyNode.ts';
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 import type { Engine } from '../Engine.ts';
-import type { WasmRuntimeBridge } from './types.ts';
 
 export interface RendererLifecycleOptions {
   engine: Engine;
@@ -16,8 +15,7 @@ export interface RendererLifecycleOptions {
   tooltipManager: TooltipManager;
   getOriginalDataset: () => Dataset | null;
   getDracoNode: () => DracoTopologyNode | null;
-  getWasmBridge: () => WasmRuntimeBridge | null;
-  /** Wave 5: AtlasCore — the analytical authority supplying Draco facts. */
+  /** Wave 5/6: AtlasCore — the analytical authority (Draco facts + TDA). */
   getAtlas: () => AtlasCore | null;
 }
 
@@ -28,7 +26,6 @@ export class WorldRendererLifecycle {
   readonly tooltipManager: TooltipManager;
   readonly getOriginalDataset: () => Dataset | null;
   readonly getDracoNode: () => DracoTopologyNode | null;
-  readonly getWasmBridge: () => WasmRuntimeBridge | null;
   readonly getAtlas: () => AtlasCore | null;
 
   dashboardPanels: { panel: ChartPlanePanel }[] = [];
@@ -42,7 +39,6 @@ export class WorldRendererLifecycle {
     this.tooltipManager = options.tooltipManager;
     this.getOriginalDataset = options.getOriginalDataset;
     this.getDracoNode = options.getDracoNode;
-    this.getWasmBridge = options.getWasmBridge;
     this.getAtlas = options.getAtlas;
   }
 
@@ -61,7 +57,7 @@ export class WorldRendererLifecycle {
       dataset,
       numericNames.slice(0, 3),
       numericNames[0],
-      this.getWasmBridge() ?? undefined
+      this.getAtlas()
     );
     this.tdaGroup = summary.group;
     this.tdaRecompute = summary.recompute;

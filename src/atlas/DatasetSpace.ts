@@ -21,6 +21,17 @@ export interface DatasetSpaceJSON {
 }
 
 /**
+ * Optional kernel-derived sources for the space. When supplied, `fingerprint`
+ * and `ranges` come from the Rust kernel (byte-parity guaranteed) instead of
+ * the JS fallback (`fnv1aHex` + `Dataset.rangeOf`). The kernel is the single
+ * analytical implementation; this is a delegation, not a second implementation.
+ */
+export interface DatasetSpaceSources {
+  fingerprint?: string | null;
+  ranges?: Record<string, DatasetSpaceNormalization> | null;
+}
+
+/**
  * Locale-independent canonicalization: recursively sorts object keys by UTF-16
  * code units so the fingerprint is stable across devices/runtimes regardless of
  * the default collation (`localeCompare` varies by locale). Exported so AtlasCore
@@ -63,10 +74,10 @@ export class DatasetSpace {
   readonly missingness = 'exclude-non-finite' as const;
   readonly embedding = { method: 'none' as const, dimensions: 0 as const, seed: null };
 
-  constructor(dataset: Dataset) {
+  constructor(dataset: Dataset, sources?: DatasetSpaceSources) {
     this.dataset = dataset.clone();
     const datasetJSON = this.dataset.toJSON();
-    this.fingerprint = fnv1aHex(datasetJSON);
+    this.fingerprint = sources?.fingerprint ?? fnv1aHex(datasetJSON);
 
     const occurrences = new Map<string, number>();
     this.datumIds = this.dataset.rows.map((row) => {
@@ -77,9 +88,15 @@ export class DatasetSpace {
     });
 
     const ranges: Record<string, DatasetSpaceNormalization> = {};
-    for (const column of this.dataset.columns) {
-      if (column.type !== 'NUMERIC') continue;
-      ranges[column.name] = this.dataset.rangeOf(column.name);
+    if (sources?.ranges) {
+      for (const [name, range] of Object.entries(sources.ranges)) {
+        ranges[name] = { min: range.min, max: range.max };
+      }
+    } else {
+      for (const column of this.dataset.columns) {
+        if (column.type !== 'NUMERIC') continue;
+        ranges[column.name] = this.dataset.rangeOf(column.name);
+      }
     }
     this.normalization = ranges;
   }
