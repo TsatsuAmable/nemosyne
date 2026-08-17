@@ -48,8 +48,8 @@ export class StructureExplainer {
       keyFindings.push(`Grouped by '${(op as { group_by?: string }).group_by ?? 'dimensions'}'.`);
     }
 
-    if (result.metrics?.summaryStats) {
-      metrics.statistics = result.metrics.summaryStats;
+    if (result.metrics?.numeric) {
+      metrics.numericStats = result.metrics.numeric;
     }
 
     return {
@@ -57,7 +57,7 @@ export class StructureExplainer {
       summary,
       keyFindings,
       groundedMetrics: metrics,
-      provenanceHash: result.provenance?.fingerprint,
+      provenanceHash: result.provenance?.outputFingerprint,
       sourceDatasetFingerprint: result.datasetFingerprint,
     };
   }
@@ -65,34 +65,34 @@ export class StructureExplainer {
   /**
    * Explains a set of discovered topological structures.
    */
-  explainStructures(structures: StructureSet, datasetFingerprint: string): GroundedExplanation {
-    const clusterCount = structures.clusters.length;
-    const boundaryCount = structures.boundaries.length;
-    const regions = structures.mapperRegions?.length ?? 0;
+  explainStructures(structureSet: StructureSet): GroundedExplanation {
+    const structures = structureSet.structures;
+    const clusterCount = structures.filter((s) => s.kind === 'cluster').length;
+    const persistentCount = structures.filter((s) => s.kind === 'persistent-component').length;
+    const mapperCount = structures.filter((s) => s.kind === 'mapper-node').length;
 
     const metrics: Record<string, unknown> = {
+      totalStructures: structures.length,
       clusterCount,
-      boundaryCount,
-      mapperRegionCount: regions,
+      persistentComponentCount: persistentCount,
+      mapperNodeCount: mapperCount,
+      algorithmVersion: structureSet.algorithmVersion,
     };
 
-    const keyFindings: string[] = [
-      `Identified ${clusterCount} discrete data clusters.`,
-      `Computed ${boundaryCount} topological persistence boundaries.`,
-    ];
+    const keyFindings: string[] = [];
+    if (clusterCount > 0) keyFindings.push(`Identified ${clusterCount} discrete data clusters.`);
+    if (persistentCount > 0) keyFindings.push(`Computed ${persistentCount} topological persistence structures.`);
+    if (mapperCount > 0) keyFindings.push(`Mapped ${mapperCount} topological mapper nodes.`);
 
-    if (regions > 0) {
-      keyFindings.push(`Mapped ${regions} topological feature regions.`);
-    }
-
-    const summary = `Discovered ${clusterCount} analytical clusters and ${boundaryCount} persistence structures across the dataset space.`;
+    const summary = `Discovered ${structures.length} analytical structures (${clusterCount} clusters, ${persistentCount} persistent components) across dataset space.`;
 
     return {
       title: 'Topological Structure Summary',
       summary,
       keyFindings,
       groundedMetrics: metrics,
-      sourceDatasetFingerprint: datasetFingerprint,
+      sourceDatasetFingerprint: structureSet.datasetFingerprint,
+      provenanceHash: structureSet.provenance?.outputFingerprint,
     };
   }
 }

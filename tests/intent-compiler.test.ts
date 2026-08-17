@@ -140,10 +140,13 @@ describe('Atlas 7: IntentCompiler & Deterministic Explanation Layer', () => {
         },
         dataset: SAMPLE_DATASET,
         provenance: {
-          fingerprint: 'prov-123',
-          hostTimestampMs: Date.now(),
+          kernel: 'nemosyne-wasm',
           kernelVersion: '0.2.0',
-          executionDurationMicros: 42,
+          operation: 'anomaly_iqr',
+          parameters: null,
+          inputFingerprint: 'fp-abc',
+          outputFingerprint: 'out-456',
+          timestamp: Date.now(),
         },
         implementationVersion: '0.2.0',
         outputHash: 'out-456',
@@ -155,39 +158,43 @@ describe('Atlas 7: IntentCompiler & Deterministic Explanation Layer', () => {
       expect(explanation.title).toContain('Anomaly Detection on \'amount\'');
       expect(explanation.summary).toContain('2 statistical outlier nodes');
       expect(explanation.groundedMetrics.rowCount).toBe(2);
-      expect(explanation.provenanceHash).toBe('prov-123');
+      expect(explanation.provenanceHash).toBe('out-456');
       expect(explanation.sourceDatasetFingerprint).toBe('fp-abc');
     });
 
     it('generates grounded explanation for a StructureSet', () => {
       const mockStructures: StructureSet = {
-        clusters: [
+        id: 'struct-set-1',
+        datasetFingerprint: 'fp-xyz',
+        datasetVersion: 1,
+        algorithmVersion: '0.2.0',
+        provenance: null,
+        structures: [
           {
-            clusterId: 'c1',
-            label: 'Cluster 1',
-            centroid: [0, 0, 0],
-            memberCount: 15,
-            rowIndices: [0, 1, 2],
+            id: 's1',
+            kind: 'cluster',
+            rowIndices: [0, 1],
+            datumIds: ['A1', 'A2'],
+            evidence: { method: 'cluster', parameters: {}, rank: 1 },
           },
-        ],
-        boundaries: [
           {
-            boundaryId: 'b1',
-            dimension: 0,
-            birth: 0.1,
-            death: 0.8,
-            persistence: 0.7,
+            id: 's2',
+            kind: 'persistent-component',
+            rowIndices: [0],
+            datumIds: ['A1'],
+            evidence: { method: 'persistence', parameters: {}, rank: 1 },
           },
         ],
       };
 
-      const explanation = explainer.explainStructures(mockStructures, 'fp-xyz');
+      const explanation = explainer.explainStructures(mockStructures);
 
       expect(explanation.title).toBe('Topological Structure Summary');
-      expect(explanation.summary).toContain('1 analytical clusters');
-      expect(explanation.summary).toContain('1 persistence structures');
+      expect(explanation.summary).toContain('1 clusters');
+      expect(explanation.summary).toContain('1 persistent components');
       expect(explanation.groundedMetrics.clusterCount).toBe(1);
-      expect(explanation.groundedMetrics.boundaryCount).toBe(1);
+      expect(explanation.groundedMetrics.persistentComponentCount).toBe(1);
+      expect(explanation.sourceDatasetFingerprint).toBe('fp-xyz');
     });
   });
 });
