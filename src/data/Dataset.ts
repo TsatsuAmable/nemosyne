@@ -137,12 +137,12 @@ export class Dataset {
     return this.numericColumns.length > 0;
   }
 
-  // Wave 5: min/max for visual channel scaling (VRTopologyTranslator, layouts,
+  // Wave 5/6: min/max for visual channel scaling (VRTopologyTranslator, layouts,
   // DatasetSpace normalization). These are RENDERER consumers (governing rule:
   // embodiment logic stays in TS). The analytical source of min/max is kernel
-  // `ColumnStats` via AtlasCore.facts(); this accessor remains for renderer
-  // paths that do not hold an AtlasCore reference. TODO(Wave 6): have
-  // DatasetSpace read ranges from AtlasCore/kernel Facts instead of recomputing.
+  // `ColumnStats` via AtlasCore.facts(); DatasetSpace now reads ranges from the
+  // kernel Facts, and this accessor remains only for renderer paths that do not
+  // hold an AtlasCore reference.
   rangeOf(name: string): { min: number; max: number } {
     const values = this.getColumnValues(name).filter(
       (v): v is number => typeof v === 'number' && !Number.isNaN(v)
@@ -151,11 +151,10 @@ export class Dataset {
     return { min: Math.min(...values), max: Math.max(...values) };
   }
 
-  // Wave 5: cardinality for the color channel. The analytical source is kernel
+  // Wave 5/6: cardinality for the color channel. The analytical source is kernel
   // `CategoricalStats.cardinality` via AtlasCore.facts(); the former analytical
   // consumer (ConstraintEngine.extractFacts) was deleted. This accessor now
-  // serves only non-analytical callers (kept for completeness). TODO(Wave 6):
-  // route remaining callers through AtlasCore/kernel metadata.
+  // serves only non-analytical callers (kept for completeness).
   cardinalityOf(name: string): number {
     return new Set(this.getColumnValues(name)).size;
   }

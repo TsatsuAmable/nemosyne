@@ -3,29 +3,34 @@
  *
  * Wave 4: the data-operation controller issues typed {@link AnalysisSpec}
  * commands to AtlasCore. AtlasCore is the ONLY production caller of the Rust
- * kernel for analytical operations (parse/load/sample/TDA are deferred to
- * Wave 6). Every analytical result carries a kernel provenance envelope
- * (`bridge.kernelProvenance()` read after each kernel call); null is tolerated
- * for mock kernels and never fabricated.
+ * kernel for analytical operations (parse/load/sample/TDA were deferred to
+ * Wave 6 and are routed here). Every analytical result carries a kernel
+ * provenance envelope (`bridge.kernelProvenance()` read after each kernel
+ * call); null is tolerated for mock kernels and never fabricated.
  *
- * AnalysisHistory is RETAINED as the undo/redo cursor (legacy consumers:
- * narrative strip, session restore); the ledger + results chain are the
- * authoritative provenance record. A future wave may unify.
+ * Wave 6: the `ResearchEvent` ledger is the single authoritative provenance
+ * record. `AnalysisHistory` (the undo/redo cursor + legacy consumers:
+ * narrative strip, session restore) is a DERIVED VIEW rebuilt from the ledger
+ * on demand — the double bookkeeping is collapsed.
  */
 
 import { AnalysisHistory } from '../data/AnalysisHistory.ts';
-import type { HistoryEntry, HistorySnapshot } from '../data/AnalysisHistory.ts';
+import type { HistoryEntry } from '../data/AnalysisHistory.ts';
 import { Dataset } from '../data/Dataset.ts';
 import type {
+  BettiPoint,
   DatasetJSON,
   EncodingMapping,
   Facts,
   OperationSpec,
+  PersistenceInterval,
   Provenance,
+  TdaMapperGraph,
+  TopologyType,
 } from '../data/types.ts';
 import { WorldEventBus } from '../utils/EventBus.ts';
 import { DatasetSpace, fnv1aHex } from './DatasetSpace.ts';
-import type { DatasetSpaceJSON } from './DatasetSpace.ts';
+import type { DatasetSpaceNormalization } from './DatasetSpace.ts';
 import type {
   AnalysisResult,
   AnalysisSpec,
@@ -71,6 +76,9 @@ export interface WasmRuntimeBridgeFull {
   kernelProvenance?(): Provenance | null;
   datasetFingerprint?(handle: number): string | null;
   inferSchema?(handle: number): unknown;
+  computeMapperGraph?(handle: number, params: Record<string, unknown>): TdaMapperGraph | null;
+  computePersistenceIntervals?(handle: number, params: Record<string, unknown>): PersistenceInterval[] | null;
+  computeBetti0Curve?(handle: number, params: Record<string, unknown>): BettiPoint[] | null;
 }
 
 function now(): number {
@@ -248,7 +256,7 @@ export class AtlasCore {
   private _original: Dataset | null = null;
   private _current: Dataset | null = null;
   private _datasetVersion = 0;
-  private _history: AnalysisHistory;
+  private _historyView: AnalysisHistory | null = null;
   private _results: AnalysisResult[] = [];
   private _ledger: ResearchEvent[] = [];
   private _activeRecommendation: AtlasRecommendation | null = null;
@@ -268,7 +276,6 @@ export class AtlasCore {
   }: { kernel?: WasmRuntimeBridgeFull | null; eventBus?: WorldEventBus; sessionId?: string } = {}) {
     this._kernel = kernel;
     this._eventBus ??= null;
-    this._history = new AnalysisHistory();
     this._sessionId = sessionId ?? `session-${now()}`;
   }
 
@@ -353,14 +360,50 @@ export class AtlasCore {
     return this._current ?? emptyDataset();
   }
 
+  /**
+   * The renderer-independent space for the current dataset. Wave 6: the
+   * fingerprint and numeric normalization ranges are delegated to the kernel
+   * (byte-parity guaranteed), falling back to `fnv1aHex`/`rangeOf` only when
+   * the kernel is unavailable (schema-metadata, not analytical).
+   */
   get datasetSpace(): DatasetSpace | null {
     if (!this._current) return null;
     if (this._datasetSpace && this._datasetSpaceSource === this._current) {
       return this._datasetSpace;
     }
-    this._datasetSpace = new DatasetSpace(this._current);
+    this._datasetSpace = new DatasetSpace(this._current, {
+      fingerprint: this._kernelFingerprint(),
+      ranges: this._kernelRanges(),
+    });
     this._datasetSpaceSource = this._current;
     return this._datasetSpace;
+  }
+
+  /**
+   * Kernel-derived fingerprint (byte-parity), else null. Uses the bridge
+   * directly — deliberately NOT the `datasetFingerprint` getter (whose
+   * fallback reads `datasetSpace`, which would recurse here).
+   */
+  private _kernelFingerprint(): string | null {
+    if (!this.isReady()) return null;
+    const handle = this._ensureHandle();
+    if (handle === 0) return null;
+    try {
+      return this._kernel?.datasetFingerprint?.(handle) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Numeric min/max from kernel `Facts`, else null (falls back to rangeOf). */
+  private _kernelRanges(): Record<string, DatasetSpaceNormalization> | null {
+    const facts = this.facts();
+    if (!facts || facts.numeric.length === 0) return null;
+    const ranges: Record<string, DatasetSpaceNormalization> = {};
+    for (const c of facts.numeric) {
+      ranges[c.name] = { min: c.min, max: c.max };
+    }
+    return ranges;
   }
 
   /** Kernel-derived fingerprint when ready, else DatasetSpace.fingerprint. */
@@ -383,8 +426,17 @@ export class AtlasCore {
     return this._datasetVersion;
   }
 
+  /**
+   * Derived undo/redo cursor. Rebuilt lazily from the {@link ledger} (the
+   * authoritative provenance record) and cached until the next state mutation.
+   * Legacy consumers (narrative strip, DataOperationController, session
+   * restore, tests) treat this as a live `AnalysisHistory`.
+   */
   get analysisHistory(): AnalysisHistory {
-    return this._history;
+    if (!this._historyView) {
+      this._historyView = this._buildHistoryFromLedger();
+    }
+    return this._historyView;
   }
 
   get results(): readonly AnalysisResult[] {
@@ -430,7 +482,6 @@ export class AtlasCore {
       throw new Error('[AtlasCore] kernel rejected input dataset');
     }
 
-    const before = this._current ?? emptyDataset();
     const outHandle = kernel.runOperation(inputHandle, spec.operation);
     if (outHandle === 0) {
       throw new Error(`[AtlasCore] kernel op "${spec.operation.op}" failed`);
@@ -474,8 +525,6 @@ export class AtlasCore {
     };
 
     this._results.push(result);
-    const label = spec.label ?? spec.operation.op;
-    this._history.push(label, before, nextDataset, spec.operation as Record<string, unknown>);
     this._appendEvent('analysis', spec, result);
     return result;
   }
@@ -531,18 +580,16 @@ export class AtlasCore {
    */
   resetAnalysis(): AnalysisResult | null {
     if (!this._original) return null;
-    const before = this._current ?? emptyDataset();
     this._current = this._original.clone();
     this._invalidateHandle();
     this._datasetSpace = null;
     this._datasetSpaceSource = null;
-    this._history.push('reset', before, this._current);
     this._appendEvent('reset', { op: 'reset' }, undefined);
     return null;
   }
 
   undo(): HistoryEntry | null {
-    const entry = this._history.undo();
+    const entry = this.analysisHistory.undo();
     if (!entry) return null;
     this.setCurrentDataset(entry.dataset);
     this._appendEvent('undo', { op: 'undo' }, undefined);
@@ -550,7 +597,7 @@ export class AtlasCore {
   }
 
   redo(): HistoryEntry | null {
-    const entry = this._history.redo();
+    const entry = this.analysisHistory.redo();
     if (!entry) return null;
     this.setCurrentDataset(entry.dataset);
     this._appendEvent('redo', { op: 'redo' }, undefined);
@@ -558,11 +605,92 @@ export class AtlasCore {
   }
 
   seekHistory(index: number): HistoryEntry | null {
-    const entry = this._history.seek(index);
+    const entry = this.analysisHistory.seek(index);
     if (!entry) return null;
     this.setCurrentDataset(entry.dataset);
     this._appendEvent('seek', { op: 'seek', index }, undefined);
     return entry;
+  }
+
+  // --- Wave 6 routed call sites (parse / sample / TDA) --------------------
+
+  /**
+   * Parse file bytes through the mandatory kernel and derive topology +
+   * encodings before releasing the transient handle. There is NO JS
+   * parse/topology/encoding fallback: throws when the kernel is unavailable or
+   * rejects the input. The caller owns the returned dataset's name.
+   */
+  parseBytes(
+    bytes: Uint8Array,
+    ext: 'csv' | 'json',
+    explicitTopology?: string | null
+  ): { dataset: Dataset; topology: TopologyType; encodings: Record<string, string> } {
+    if (!this.isReady()) {
+      throw new Error('Analytical kernel unavailable — cannot parse file');
+    }
+    if (ext !== 'csv' && ext !== 'json') {
+      throw new Error('Unsupported file type; use .csv or .json');
+    }
+    const kernel = this._kernel!;
+    const handle = ext === 'csv' ? kernel.loadCsv(bytes) : kernel.loadJson(bytes);
+    if (handle === 0) {
+      throw new Error('Kernel parser rejected the file');
+    }
+    try {
+      const json = kernel.getDatasetJson(handle);
+      if (!json) {
+        throw new Error('Kernel parser produced no dataset');
+      }
+      const topology =
+        (explicitTopology as TopologyType | null) ??
+        (kernel.inferTopology(handle) as TopologyType | null) ??
+        ('TABULAR' as TopologyType);
+      const enc = kernel.inferEncodings(handle, topology as string);
+      const encodings = (enc ?? {}) as unknown as Record<string, string>;
+      return { dataset: Dataset.fromJSON(json), topology, encodings };
+    } finally {
+      kernel.destroyDataset(handle);
+    }
+  }
+
+  /**
+   * Load a built-in sample's dataset through the kernel. Returns null when the
+   * kernel is unavailable or does not know the key. Sample content may still
+   * come from the static `SampleDatasets` arrays when the kernel is absent —
+   * that is static data, not analytical computation.
+   */
+  loadSample(key: string): Dataset | null {
+    if (!this.isReady() || !key) return null;
+    const kernel = this._kernel!;
+    const handle = kernel.loadSample(key);
+    if (handle === 0) return null;
+    try {
+      const json = kernel.getDatasetJson(handle);
+      return json ? Dataset.fromJSON(json) : null;
+    } finally {
+      kernel.destroyDataset(handle);
+    }
+  }
+
+  computePersistenceIntervals(
+    dataset: Dataset,
+    params: Record<string, unknown>
+  ): PersistenceInterval[] | null {
+    return this._tdaCall(dataset, params, (handle) =>
+      this._kernel?.computePersistenceIntervals?.(handle, params) ?? null
+    );
+  }
+
+  computeMapperGraph(dataset: Dataset, params: Record<string, unknown>): TdaMapperGraph | null {
+    return this._tdaCall(dataset, params, (handle) =>
+      this._kernel?.computeMapperGraph?.(handle, params) ?? null
+    );
+  }
+
+  computeBetti0Curve(dataset: Dataset, params: Record<string, unknown>): BettiPoint[] | null {
+    return this._tdaCall(dataset, params, (handle) =>
+      this._kernel?.computeBetti0Curve?.(handle, params) ?? null
+    );
   }
 
   // --- Facts / inference (Wave 5 consumers; controller medianOf) --------
@@ -653,7 +781,7 @@ export class AtlasCore {
       datasetSpace: this.datasetSpace?.toJSON() ?? null,
       analysisResults: this._results.slice(),
       eventLedger: this._ledger.slice(),
-      analysisHistory: this._history.toJSON(),
+      analysisHistory: this.analysisHistory.toJSON(),
       activeRecommendation: this._activeRecommendation,
       decisionHistory: this._decisionHistory.slice(),
     };
@@ -663,7 +791,9 @@ export class AtlasCore {
     this._original = state.originalDataset ? Dataset.fromJSON(state.originalDataset) : null;
     this._current = state.currentDataset ? Dataset.fromJSON(state.currentDataset) : this._original?.clone?.() ?? null;
     this._datasetVersion = state.datasetVersion ?? this._datasetVersion;
-    this._history = AnalysisHistory.fromJSON(state.analysisHistory ?? { index: -1, maxFrames: 50, frames: [] });
+    // AnalysisHistory is a derived view of the ledger; the persisted snapshot
+    // is NOT trusted (the ledger is the authoritative provenance record).
+    this._invalidateHistoryView();
     this._results = (state.analysisResults ?? []).slice();
     this._ledger = (state.eventLedger ?? []).slice();
     this._activeRecommendation = state.activeRecommendation ?? null;
@@ -722,7 +852,7 @@ export class AtlasCore {
   private _resetState(): void {
     this._results = [];
     this._ledger = [];
-    this._history.clear();
+    this._invalidateHistoryView();
     this._activeRecommendation = null;
     this._decisionHistory = [];
     this._resultCounter = 0;
@@ -753,5 +883,92 @@ export class AtlasCore {
       stateHash,
     };
     this._ledger.push(event);
+    this._invalidateHistoryView();
+  }
+
+  /** Rebuild the cached {@link analysisHistory} from the ledger on next access. */
+  private _invalidateHistoryView(): void {
+    this._historyView = null;
+  }
+
+  /**
+   * Replay the ledger into an {@link AnalysisHistory} cursor. 'load' events
+   * reset the cursor; 'analysis'/'reset' push frames; 'undo'/'redo'/'seek'
+   * move it (faithfully reproducing redo-branch discards via the cursor's own
+   * semantics). The ledger is authoritative — this is the single source for
+   * the undo/redo view.
+   */
+  private _buildHistoryFromLedger(): AnalysisHistory {
+    const history = new AnalysisHistory();
+    let current = this._original?.clone?.() ?? null;
+    for (const event of this._ledger) {
+      switch (event.kind) {
+        case 'load':
+          current = this._original?.clone?.() ?? null;
+          break;
+        case 'analysis': {
+          if (!event.result?.dataset) break;
+          const before = current?.clone?.() ?? null;
+          const after = Dataset.fromJSON(event.result.dataset);
+          current = after;
+          const spec = event.command as AnalysisSpec;
+          const label = spec.label ?? spec.operation.op;
+          history.push(label, before, after, spec.operation as Record<string, unknown>);
+          break;
+        }
+        case 'reset': {
+          const before = current?.clone?.() ?? null;
+          current = this._original?.clone?.() ?? null;
+          if (before) history.push('reset', before, current, {});
+          break;
+        }
+        case 'undo': {
+          const entry = history.undo();
+          if (entry) current = entry.dataset;
+          break;
+        }
+        case 'redo': {
+          const entry = history.redo();
+          if (entry) current = entry.dataset;
+          break;
+        }
+        case 'seek': {
+          const index = (event.command as { index?: number }).index;
+          if (index != null) {
+            const entry = history.seek(index);
+            if (entry) current = entry.dataset;
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    }
+    return history;
+  }
+
+  /**
+   * Run a TDA kernel call over a transient handle (loaded from the dataset,
+   * destroyed afterwards). Reads the kernel provenance envelope recorded by
+   * the call — TDA results are not ledger events, but no kernel call leaves
+   * its envelope unread.
+   */
+  private _tdaCall<T>(
+    dataset: Dataset,
+    _params: Record<string, unknown>,
+    compute: (handle: number) => T | null,
+  ): T | null {
+    if (!this.isReady()) return null;
+    const kernel = this._kernel!;
+    let handle = 0;
+    try {
+      handle = kernel.loadDatasetJson(dataset.toJSON());
+      if (handle === 0) return null;
+      const result = compute(handle);
+      this.lastProvenance();
+      return result;
+    } finally {
+      if (handle !== 0) kernel.destroyDataset(handle);
+    }
   }
 }

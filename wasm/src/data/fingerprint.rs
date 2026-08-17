@@ -8,12 +8,11 @@
 //! digits.
 //!
 //! Byte-for-byte parity with the JS `JSON.stringify(canonicalize(...))` number
-//! formatting (ECMAScript `Number::toString` exponent rules) is a Wave 2
-//! reconciliation item, landed when `DatasetSpace` delegates its fingerprint to
-//! the kernel so there is a single implementation. Within the kernel the
-//! fingerprint is canonical and deterministic, which is what Wave 1 needs for
-//! provenance `inputFingerprint`/`outputFingerprint` and reproducible RNG
-//! seeding.
+//! formatting (ECMAScript `Number::toString` exponent rules) is implemented in
+//! `write_number` (Wave 6). `DatasetSpace` delegates its fingerprint to the
+//! kernel (`AtlasCore.datasetSpace`), so there is a single implementation; the
+//! kernel and JS substrate emit identical canonical JSON bytes and therefore
+//! identical FNV-1a fingerprints.
 
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -181,12 +180,15 @@ fn write_uint(buf: &mut String, n: usize) {
 }
 
 fn write_number(buf: &mut String, n: f64) {
-    // Match JS JSON.stringify number rendering for the common range:
+    // Match JS `JSON.stringify` / `Number::toString` number rendering exactly:
     // - NaN / ±Infinity -> "null"
     // - ±0 -> "0"
-    // - otherwise Rust's shortest round-trip Display (no trailing ".0" for
-    //   integer-valued floats). Exponential-range divergence from ECMAScript
-    //   Number::toString is a Wave 2 reconciliation item.
+    // - otherwise the shortest round-trip digits with ECMAScript exponent
+    //   rules. Rust's `{:e}` produces the same shortest round-trip mantissa
+    //   digits as JS (both round-to-shortest on the true value); the exponent
+    //   `E` from `d.dddde±E` positions the decimal point at `k = E + 1`
+    //   (digits to the left of the point). Fixed notation is used when
+    //   `-5 <= k <= 21` (i.e. `1e-6 <= |n| < 1e21`); exponential otherwise.
     if !n.is_finite() {
         buf.push_str("null");
         return;
@@ -195,7 +197,50 @@ fn write_number(buf: &mut String, n: f64) {
         buf.push('0');
         return;
     }
-    let _ = write!(buf, "{}", n);
+    let neg = n < 0.0;
+    let sci = format!("{:e}", n.abs());
+    let (mantissa, exp_str) = sci.split_once('e').unwrap_or((sci.as_str(), "0"));
+    let exp: i32 = exp_str.parse().unwrap_or(0);
+    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
+    let k = exp + 1;
+
+    if neg {
+        buf.push('-');
+    }
+
+    if k <= -6 || k > 21 {
+        // Exponential: `d[.ddd]e±X` with X = k - 1.
+        buf.push(digits.chars().next().unwrap_or('0'));
+        if digits.len() > 1 {
+            buf.push('.');
+            buf.push_str(&digits[1..]);
+        }
+        let e = k - 1;
+        buf.push('e');
+        if e >= 0 {
+            buf.push('+');
+        }
+        let _ = write!(buf, "{}", e);
+        return;
+    }
+
+    // Fixed notation.
+    if k <= 0 {
+        buf.push_str("0.");
+        for _ in 0..(-k) {
+            buf.push('0');
+        }
+        buf.push_str(&digits);
+    } else if (k as usize) >= digits.len() {
+        buf.push_str(&digits);
+        for _ in 0..((k as usize) - digits.len()) {
+            buf.push('0');
+        }
+    } else {
+        buf.push_str(&digits[..k as usize]);
+        buf.push('.');
+        buf.push_str(&digits[k as usize..]);
+    }
 }
 
 fn write_string(buf: &mut String, s: &str) {
@@ -297,5 +342,83 @@ mod tests {
     fn seed_u32_is_nonzero_and_stable() {
         assert_ne!(seed_u32("00000000"), 0);
         assert_eq!(seed_u32("deadbeef"), seed_u32("deadbeef"));
+    }
+
+    #[test]
+    fn write_number_matches_ecmascript_stringify() {
+        // Expected strings verified against JS `Number.prototype.toString` /
+        // `JSON.stringify` (ECMAScript Number::toString exponent rules).
+        let cases: [(f64, &str); 20] = [
+            (100.0, "100"),
+            (0.1, "0.1"),
+            (1e-7, "1e-7"),
+            (1e-6, "0.000001"),
+            (9.9e-7, "9.9e-7"),
+            (1e21, "1e+21"),
+            (1e20, "100000000000000000000"),
+            (123.456, "123.456"),
+            (1.5, "1.5"),
+            (f64::MAX, "1.7976931348623157e+308"),
+            (f64::from_bits(1), "5e-324"),
+            (30.0, "30"),
+            (250.0, "250"),
+            (0.5, "0.5"),
+            (1e-5, "0.00001"),
+            (2.0, "2"),
+            (1.23e-5, "0.0000123"),
+            (-1.5, "-1.5"),
+            (1.234_567_890_123_456_8e29, "1.2345678901234568e+29"),
+            (0.0, "0"),
+        ];
+        for (val, expected) in cases {
+            let mut buf = String::new();
+            write_number(&mut buf, val);
+            assert_eq!(buf, expected, "write_number({val:?})");
+        }
+    }
+
+    #[test]
+    fn write_number_non_finite_and_zero() {
+        let mut buf = String::new();
+        write_number(&mut buf, f64::NAN);
+        assert_eq!(buf, "null");
+        buf.clear();
+        write_number(&mut buf, f64::INFINITY);
+        assert_eq!(buf, "null");
+        buf.clear();
+        write_number(&mut buf, f64::NEG_INFINITY);
+        assert_eq!(buf, "null");
+        buf.clear();
+        write_number(&mut buf, -0.0);
+        assert_eq!(buf, "0");
+    }
+
+    #[test]
+    fn dataset_fingerprint_matches_js_fnv1a() {
+        // The canonical JSON emitted for a realistic dataset must byte-match
+        // JS `JSON.stringify(canonicalize(toJSON()))` so both sides produce the
+        // identical FNV-1a fingerprint (byte-parity contract).
+        let columns = vec![
+            Column::new("value", ColumnType::Numeric),
+            Column::new("note", ColumnType::Categorical),
+        ];
+        let rows = vec![
+            {
+                let mut r = HashMap::new();
+                r.insert("value".to_string(), Value::Number(0.000001));
+                r.insert("note".to_string(), Value::Text("tiny".to_string()));
+                r
+            },
+            {
+                let mut r = HashMap::new();
+                r.insert("value".to_string(), Value::Number(1e21));
+                r.insert("note".to_string(), Value::Text("big".to_string()));
+                r
+            },
+        ];
+        let mut buf = String::new();
+        write_dataset(&mut buf, &Dataset::new("parity", columns, rows));
+        assert!(buf.contains("0.000001"), "unexpected canonical JSON: {buf}");
+        assert!(buf.contains("1e+21"), "unexpected canonical JSON: {buf}");
     }
 }

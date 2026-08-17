@@ -5,11 +5,12 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Wave 5 (Draco as pure embodiment consumer) + the statify rule-4
-  follow-up committed on branch `rust-kernel-commitment` (rebased clean onto `main`, squashing to `main`
-  via PR #128 once CI passes — auto-merge enabled; the local model-routing blip is purged from branch
-  history, `.ai/` stays gitignored). Wave 4 (AtlasCore + NemosyneSession) merged in PR #127; cross-tool
-  model routing lives in local/gitignored `.ai/model-routing/`.
+- **Last updated:** 2026-08-17 — Wave 6 (route parse/sample/TDA through AtlasCore; collapse
+  AnalysisHistory/ledger double-bookkeeping; ECMAScript byte-exact number-format parity in the kernel
+  fingerprint) on branch `rust-kernel-commitment` (rebased clean onto `main`, squashing to `main` via PR
+  once CI passes — auto-merge enabled). Wave 5 (Draco as pure embodiment consumer) + the statify rule-4
+  follow-up landed via PR #128; Wave 4 (AtlasCore + NemosyneSession) via PR #127; cross-tool model
+  routing lives in local/gitignored `.ai/model-routing/`.
 - **Active sprint:** commit Rust/WASM as the canonical analytical engine and rip out the JS analytical
   layer (no JS fallback), then build Atlas/NemosyneSession on top. Plan: `.claude/plans/groovy-mixing-wolf.md`.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
@@ -46,7 +47,7 @@
   (smartcore ensemble needs rand/getrandom wasm wiring — covered by iqr+zscore for now); linfa
   clustering swap (k_means/hierarchical/dbscan remain the hand-rolled-but-deterministic impls for
   now, seeded from the canonical fingerprint); byte-exact JS `JSON.stringify` number-format parity
-  (ECMAScript exponent rules — lands in Wave 2 when `DatasetSpace` delegates to the kernel).
+  (ECMAScript exponent rules — landed in Wave 6 when `DatasetSpace` delegates fingerprint to the kernel).
 - **Wave 2 ✅ (mandatory WASM, JS analytical fallback removed — kernel is the only analytical path):**
   No `src/` production code imports or calls any JS analytical module; no `if (caps & …)` routing remains
   (capability flags are telemetry-only). `DataOperationController._computeDataset` routes EVERY op through
@@ -71,12 +72,11 @@
   a "kernel unavailable aborts cleanly" case. `timeSlice` now slices a window of the CURRENT transformed
   dataset (kernel `slice` runs against the current handle) — more correct than the old JS path which sliced
   the original and discarded prior ops.
-- **Deferred to Wave 6 (carried from Wave 2/5):** chaining `build:wasm` into `build` (requires
-  Netlify/CI Rust toolchain setup); byte-exact JS `JSON.stringify` number-format parity (when
-  `DatasetSpace` delegates fingerprint to the kernel). `Dataset.rangeOf`/`cardinalityOf`/`fingerprint`
-  resolved in Wave 5 — confirmed renderer consumers (embodiment logic, NOT analytical); the analytical
-  consumer (`extractFacts`) is deleted; `TODO(Wave 6)` markers point at routing DatasetSpace through
-  AtlasCore.
+- **Deferred to Wave 6 (carried from Wave 2/5) — RESOLVED in Wave 6:** chaining `build:wasm` into
+  `build` (requires Netlify/CI Rust toolchain setup; still open); byte-exact JS `JSON.stringify`
+  number-format parity (lands when `DatasetSpace` delegates fingerprint to the kernel) — done;
+  `Dataset.rangeOf`/`cardinalityOf`/`fingerprint` confirmed renderer consumers and DatasetSpace routing
+  through AtlasCore — done.
 - **Wave 3 ✅ (delete orphaned JS analytical modules + tests):** `git rm`'d the 7 JS analytical modules
   (`DatasetOperations`/`Parsers`/`CSVDataParser`/`CSVParserWorker`/`ArrowBinaryParser`/`TopologyInference`/
   `analytics/TDAMapper`); split `Encodings.ts` (kept visual helpers, deleted `inferEncodings`); removed
@@ -91,7 +91,8 @@
   for the operation path (`runOperation`/`statistics`/`inferTopology`/`inferEncodings`/`datasetFingerprint`);
   reads `bridge.kernelProvenance()` after each kernel call and embeds it in every `AnalysisResult` +
   `ResearchEvent` (null-tolerated for the mock, never fabricated); `AnalysisHistory` retained as the
-  undo/redo cursor alongside the ledger (intentional double-bookkeeping, to unify later). New
+  undo/redo cursor alongside the ledger (intentional double-bookkeeping — unified in Wave 6 into a
+  ledger-derived view). New
   `src/session/NemosyneSession.ts` — authoritative logical session: `serialize()`/`deserialize()`/
   `loadFromJSON()`, `schemaVersion 2`, persists `datasetVersion`/`datasetFingerprint`/`currentDataset`/
   `originalDataset`/`datasetSpace`/`analysisResults`/`eventLedger`/`analysisHistory` + presentation state.
@@ -102,11 +103,12 @@
   + `SessionStore` (snapshot authority moved off it). `World` owns one `AtlasCore` + one `NemosyneSession`;
   facade setters route through atlas; `undoAnalysis`/`redoAnalysis`/`_seekAnalysisHistory` consolidated
   through the controller (the HISTORY_SEEK listener restores); `_initWasmRuntime` → `atlas.setKernel`;
-  `dispose()` disposes atlas. `DatasetSpace.ts` exports `fnv1aHex`/`canonicalize` (reused by AtlasCore for
+  `dispose()` disposes atlas.   `DatasetSpace.ts` exports `fnv1aHex`/`canonicalize` (reused by AtlasCore for
   `outputHash`/`stateHash`). `SessionStore` `schemaVersion 2` (rejects 1). **DEFERRED to Wave 6** with
-  `TODO(Wave 6)` markers: route `FileLoader` parse, `World._maybeLoadSampleFromWasm`, and `TDAPlanes`
-  through AtlasCore (they still call the bridge directly — does NOT violate governing rules 1-3; the kernel
-  does the work + emits provenance). New tests `tests/atlas-core.test.ts` + `tests/nemosyne-session.test.ts`
+  `TODO(Wave 6)` markers — **all RESOLVED in Wave 6:** route `FileLoader` parse, `World._maybeLoadSampleFromWasm`,
+  and `TDAPlanes` through AtlasCore (they previously called the bridge directly — did NOT violate governing
+  rules 1-3; the kernel did the work + emitted provenance). New tests `tests/atlas-core.test.ts` +
+  `tests/nemosyne-session.test.ts`
   lock the ledger/round-trip/tamper contracts; all changed wirings updated, no assertions relaxed.
   Acceptance check: scene graph rebuildable from `NemosyneSession.serialize()`.
 - **Model routing (2026-08-17, local/gitignored `.ai/model-routing/`, docs/config only — no gate):** local
@@ -116,12 +118,13 @@
   decision procedure. Manifest only — harness dispatch unchanged. Motivating incident: an Ollama Cloud
   session 429 killed a Wave-4 sub-agent. `.ai/` is gitignored (like `.agents/`/`.claude/`); pointers in
   `AGENTS.md` + `CLAUDE.md`.
-- **Last gate result (2026-08-17, Wave 5 + statify follow-up):** `npm run wasm` exit 0 (statify links to
-  wasm32); `cargo test` 64/64 pass (was 61 — 3 new statistics tests; `skew_and_kurtosis_for_symmetric_data_are_near_zero`
-  still green under statify); `tsc --noEmit` clean; `eslint` 0 errors (~245 pre-existing `no-console`
-  warnings); `npm run test:all` green (cargo 64/64 + Vitest 182 files passed / 1 skipped / 1,267 tests
-  passed / 26 skipped — the wasm-runtime RuntimeBridge parity cases skip in plain jsdom by design; Rust
-  `#[test]`s cover the same logic). Post-rebase tree byte-identical to the gated tree (`git diff` empty).
+- **Last gate result (2026-08-17, Wave 6):** `cargo test` 67/67 pass (64 + 3 new fingerprint tests;
+  run locally via a portable zig-cc linker shim — the stripped container has no gcc); `npm run wasm` exit 0
+  (wasm-pack release → `wasm/pkg`); `cargo build --target wasm32-unknown-unknown` ok; `tsc --noEmit`
+  clean; `eslint` 0 errors (pre-existing `no-console`/unused-var warnings only); `npm run test:all` green
+  (Vitest 182 files passed / 1 skipped, 1,268 tests passed / 26 skipped — the wasm-runtime RuntimeBridge
+  parity cases skip in plain jsdom by design; Rust `#[test]`s cover the same logic); `test:coverage`
+  83.15/70.4/78.36/85.7 (thresholds 70/70/65/55); `npm run build` exit 0.
 - **Wave 5 ✅ (Draco as pure embodiment consumer — facts supplied, not computed):** Draco performs NO
   dataset-derived statistical computation. `ConstraintEngine.extractFacts` + the analytical helpers
   (`_numericStats`/`_correlationMatrix`/`_temporalStats`/`_categoricalDistribution`/`_estimateOutlierCount`/
@@ -165,6 +168,37 @@
   no `if (caps & …)` routing in `src/`; no `extractFacts`/`_numericStats`/`_correlationMatrix`/
   `_temporalStats`/`_categoricalDistribution` in `src/draco/`; `VRTopologyTranslator` uses only
   `categoricalColor`/`numericColor`/`normalize` (three.js visual mapping, NOT analytical).
+- **Wave 6 ✅ (all kernel call sites routed through AtlasCore + ledger-derived history + byte-exact
+  number parity):** every production kernel call now goes through `AtlasCore` (the single analytical
+  authority) — grep-verified: no `src/` code imports `RuntimeBridge` except `World._initWasmRuntime`
+  (kernel bootstrap → `atlas.setKernel`) and `RuntimeBridge.ts` itself. `AtlasCore` gained `parseBytes`
+  (parse + topology + encodings, transient handle destroyed in `finally`, throws on unavailable/rejected
+  kernel — no JS fallback), `loadSample(key)` (null when kernel absent or key unknown → static
+  `SampleDatasets` content is data, not analytics), and `computePersistenceIntervals`/`computeMapperGraph`/
+  `computeBetti0Curve` via a `_tdaCall` transient-handle helper (reads `lastProvenance()`; TDA results are
+  NOT ledger events). `FileLoader` dropped `wasmRuntime`/`setWasmRuntime`/`wasmCapabilities` for `atlas?:
+  AtlasCore | null` (name-setting/validation/errors stay in the loader). `World` dropped `getWasmBridge`
+  from `RendererLifecycleOptions`; `_maybeLoadSampleFromWasm` → `atlas.loadSample`; loader gets `atlas:`.
+  `TDAPlanes.buildTDASummaryGroup` takes `atlas?` and routes recompute through it.
+  **Double-bookkeeping collapsed:** `AnalysisHistory` is now a DERIVED VIEW (`_buildHistoryFromLedger`)
+  rebuilt from the authoritative `ResearchEvent` ledger (replays load→reset, analysis/reset→push with
+  `current`-tracked `before` datasets, undo/redo/seek→cursor moves; cache invalidated on every
+  `_appendEvent`/`_resetState`/`restoreState`); `toState()` emits the derived snapshot and `restoreState()`
+  ignores persisted history (ledger is authoritative); `undo`/`redo`/`seekHistory` read
+  `this.analysisHistory`. **Number parity landed (deferred from Wave 1/2):** `fingerprint.rs.write_number`
+  rewritten to the ECMAScript `Number::toString` algorithm (fixed for `-5 ≤ k ≤ 21`, exponential `d[.ddd]e±X`
+  otherwise; `0`→`"0"`, non-finite→`"null"`) so `dataset_fingerprint` is byte-exact vs `JSON.stringify` —
+  verified against real V8 ground truth via node.exe; 3 new Rust `#[test]`s (20-case ECMAScript table,
+  zero/non-finite, dataset fingerprint matches JS FNV-1a). `DatasetSpace` constructor gained optional
+  `sources?: { fingerprint?: string | null; ranges?: Record<string, DatasetSpaceNormalization> | null }`;
+  `AtlasCore.datasetSpace` delegates fingerprint (`_kernelFingerprint`, kernel-direct to avoid the
+  datasetFingerprint-getter recursion) + numeric ranges (`_kernelRanges` from `facts().numeric`) with
+  `fnv1aHex`/`rangeOf` fallback when the kernel is absent (schema metadata, NOT analytical). Tests:
+  `session-roundtrip.test.ts:91` migrated from a direct `analysisHistory.push` to a real `applyAnalysis`
+  (toAnalysisSpec); `file-loader`/`world`/`world-coverage` wire kernels through AtlasCore; `tda-planes`
+  adds an AtlasCore-routed recompute spy test; `world-renderer-lifecycle` drops `getWasmBridge`.
+  `Dataset.rangeOf`/`cardinalityOf` `TODO(Wave 6)` markers resolved. **Deferred:** chaining `build:wasm`
+  into `build` (Netlify/CI Rust toolchain) still open.
 - **Deferred (storage hardening, target Wave 9 / Stable Alpha):** IndexedDB is the right base and already in
   use (`SessionStore.ts`), but the current shape is suboptimal at Nemosyne scale — one record = whole
   `NemosyneSession.serialize()` blob rewritten on every autosave (two full dataset copies + history → tens of
