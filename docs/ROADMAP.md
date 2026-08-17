@@ -5,10 +5,11 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Wave 5 (Draco as pure embodiment consumer) implemented and gated green on
-  branch `rust-kernel-commitment`; working tree modified, NOT committed (left for review). Wave 4
-  (AtlasCore + NemosyneSession) gated green before; cross-tool model routing added as local/gitignored
-  `.ai/model-routing/` before Wave 5.
+- **Last updated:** 2026-08-17 — Wave 5 (Draco as pure embodiment consumer) + the statify rule-4
+  follow-up committed on branch `rust-kernel-commitment` (rebased clean onto `main`, squashing to `main`
+  via PR #128 once CI passes — auto-merge enabled; the local model-routing blip is purged from branch
+  history, `.ai/` stays gitignored). Wave 4 (AtlasCore + NemosyneSession) merged in PR #127; cross-tool
+  model routing lives in local/gitignored `.ai/model-routing/`.
 - **Active sprint:** commit Rust/WASM as the canonical analytical engine and rip out the JS analytical
   layer (no JS fallback), then build Atlas/NemosyneSession on top. Plan: `.claude/plans/groovy-mixing-wolf.md`.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
@@ -115,11 +116,12 @@
   decision procedure. Manifest only — harness dispatch unchanged. Motivating incident: an Ollama Cloud
   session 429 killed a Wave-4 sub-agent. `.ai/` is gitignored (like `.agents/`/`.claude/`); pointers in
   `AGENTS.md` + `CLAUDE.md`.
-- **Last gate result (2026-08-17, Wave 5):** `npm run wasm` exit 0; `cargo test` 64/64 pass (was 61 — 3
-  new statistics tests); `tsc --noEmit` clean; `eslint` 0 errors (~245 pre-existing `no-console`
+- **Last gate result (2026-08-17, Wave 5 + statify follow-up):** `npm run wasm` exit 0 (statify links to
+  wasm32); `cargo test` 64/64 pass (was 61 — 3 new statistics tests; `skew_and_kurtosis_for_symmetric_data_are_near_zero`
+  still green under statify); `tsc --noEmit` clean; `eslint` 0 errors (~245 pre-existing `no-console`
   warnings); `npm run test:all` green (cargo 64/64 + Vitest 182 files passed / 1 skipped / 1,267 tests
   passed / 26 skipped — the wasm-runtime RuntimeBridge parity cases skip in plain jsdom by design; Rust
-  `#[test]`s cover the same logic).
+  `#[test]`s cover the same logic). Post-rebase tree byte-identical to the gated tree (`git diff` empty).
 - **Wave 5 ✅ (Draco as pure embodiment consumer — facts supplied, not computed):** Draco performs NO
   dataset-derived statistical computation. `ConstraintEngine.extractFacts` + the analytical helpers
   (`_numericStats`/`_correlationMatrix`/`_temporalStats`/`_categoricalDistribution`/`_estimateOutlierCount`/
@@ -136,8 +138,10 @@
   (schema-metadata only, NO stats) is the no-kernel fallback so the renderer shell mounts before
   `start()` loads wasm — NOT analytical. `World._initWasmRuntime` calls `_rebuildPalaceWithKernelFacts()`
   after `atlas.setKernel` to rebuild the palace with kernel facts in production. **Kernel `Facts` extended
-  (Rust):** `ColumnStats` gained `skew`/`kurtosis`/`outlier_count` (hand-rolled, matching the
-  column_stats precedent for mean/median/std/var); new `TemporalStats` struct
+  (Rust):** `ColumnStats` gained `skew`/`kurtosis`/`outlier_count` (`skew` + `kurtosis` via the
+  battle-tested `statify` crate — rule 4, excess kurtosis, `unwrap_or(0.0)` on degenerate columns;
+  `outlier_count` stays a hand-rolled MAD modified-Z heuristic, no surveyed crate ships it); new
+  `TemporalStats` struct
   `{column,value_column,trend_direction,seasonality_hint,normalized_slope}` (least-squares slope +
   lag-autocorrelation > 0.5 → seasonalityHint); `Facts.temporal_stats` Vec. 3 new Rust `#[test]`s
   (skew/kurtosis symmetric ≈ 0, outlier_count flags extreme, temporal trend up). RuntimeBridge +
