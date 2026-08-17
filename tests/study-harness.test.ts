@@ -54,11 +54,11 @@ describe('Atlas 6: Controlled Experiment Harness', () => {
 
   describe('Seeded Study Datasets & Ground Truth', () => {
     it('provides synthetic transaction dataset matching schema and ground-truth nodes', () => {
-      expect(SYNTHETIC_TRANSACTION_FRAUD_DATASET.nodes.length).toBeGreaterThanOrEqual(10);
-      expect(SYNTHETIC_TRANSACTION_FRAUD_DATASET.edges.length).toBeGreaterThanOrEqual(5);
+      expect(SYNTHETIC_TRANSACTION_FRAUD_DATASET.rows.length).toBeGreaterThanOrEqual(10);
+      expect(SYNTHETIC_TRANSACTION_FRAUD_DATASET.edges?.length).toBeGreaterThanOrEqual(5);
 
-      const fraudNodes = SYNTHETIC_TRANSACTION_FRAUD_DATASET.nodes.filter((n) => n.is_fraud);
-      expect(fraudNodes.map((n) => n.id)).toEqual(GROUND_TRUTH_FRAUD_IDS);
+      const fraudNodes = SYNTHETIC_TRANSACTION_FRAUD_DATASET.rows.filter((n: any) => n.is_fraud);
+      expect(fraudNodes.map((n: any) => n.id)).toEqual(GROUND_TRUTH_FRAUD_IDS);
     });
   });
 

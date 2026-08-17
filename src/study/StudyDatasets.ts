@@ -7,18 +7,16 @@
 import type { DatasetJSON } from '../data/types.ts';
 
 export const SYNTHETIC_TRANSACTION_FRAUD_DATASET: DatasetJSON = {
-  version: '1.0.0',
-  schema: {
-    fields: [
-      { name: 'id', type: 'string' },
-      { name: 'account_type', type: 'string' },
-      { name: 'amount', type: 'number' },
-      { name: 'risk_score', type: 'number' },
-      { name: 'cluster', type: 'string' },
-      { name: 'is_fraud', type: 'boolean' },
-    ],
-  },
-  nodes: [
+  name: 'synthetic_transaction_fraud',
+  columns: [
+    { name: 'id', type: 'CATEGORICAL' },
+    { name: 'account_type', type: 'CATEGORICAL' },
+    { name: 'amount', type: 'NUMERIC' },
+    { name: 'risk_score', type: 'NUMERIC' },
+    { name: 'cluster', type: 'CATEGORICAL' },
+    { name: 'is_fraud', type: 'CATEGORICAL' },
+  ],
+  rows: [
     { id: 'acc_001', account_type: 'merchant', amount: 1540.5, risk_score: 0.12, cluster: 'retail', is_fraud: false },
     { id: 'acc_002', account_type: 'personal', amount: 320.0, risk_score: 0.05, cluster: 'personal', is_fraud: false },
     { id: 'acc_003', account_type: 'personal', amount: 450.0, risk_score: 0.08, cluster: 'personal', is_fraud: false },
