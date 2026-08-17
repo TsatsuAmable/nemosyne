@@ -365,9 +365,13 @@ export class HandPointer implements PointerLike {
       dir.set(0, 0, -1);
     }
 
+    // Set ray origin directly to the index fingertip position
+    this.rayOrigin.copy(origin);
+    this.rayDirection.copy(dir);
+
     // Remember this valid pose for the next transient-loss frame.
-    this._lastValidOrigin.copy(origin);
-    this._lastValidDirection.copy(dir);
+    this._lastValidOrigin.copy(this.rayOrigin);
+    this._lastValidDirection.copy(this.rayDirection);
     this._hasLastValidRay = true;
 
     // Update world-space line; default 4 m, will be scaled by InputRouter on hit.
