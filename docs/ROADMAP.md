@@ -5,7 +5,10 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Collaboration Gateway Security & Architecture Hardening:
+- **Last updated:** 2026-08-18 — Atlas 6 complete: Controlled experiment harness implemented and validated
+  in `tests/study-harness.test.ts` (Latin Square counterbalancing, frozen protocol config matching `docs/study/PROTOCOL.md`,
+  ground-truth accuracy/precision/recall/F1 scoring, 3D navigation distance & interaction telemetry, and signed
+  study session exports). Collaboration Gateway Security & Architecture Hardening:
   HMAC-SHA256 cryptographically signed room tickets (`SignedTicket.ts`), rejection of unsigned/raw JSON tokens,
   in-band WebSocket authentication (credentials removed from URL query strings in `SignallingChannel.ts`),
   IP auth-failure throttling & brute-force defense, strict protocol schemas & capability-based authorization,
@@ -13,14 +16,12 @@
   IP and peer rate limiting, room idle cleanup (`SignallingServerCore.ts`), ephemeral `sessionStorage` credentials
   (`NetworkManager.ts`), `/__signal` URL query matching fix (`vite.config.js`), orphaned second WebGL context eliminated
   (`SceneGraphController.ts`), and `IceVaultNode.ts` landmark wired in `WorldSceneComposer.ts` with comprehensive test coverage.
-  Atlas 5 complete: end-to-end session-restore gate validated — a session with structures, research context,
-  recommendation history + decisions, observations, interventions, and spatial state serializes and restores into a
-  fresh World with the VR scene (artefact + operation transform + TDA + structure handles) rebuilt.
+  Atlas 5 complete: end-to-end session-restore gate validated.
   Atlas 4 completion: rowIndices refactor, TDA panel click-to-navigate, full structure-handle lifecycle.
   Wave 6 via PR #130. UX & spatial 3D assets via PR #136; world-aware UX telemetry via PR #137.
-- **Active sprint:** Atlas 6 — controlled experiment harness. Add study conditions, tasks, trials,
-  outcomes, counterbalancing, and frozen configuration. Human-performance claims require controlled
-  evidence; telemetry, unit tests, and benchmark utilities alone are not study evidence.
+- **Active sprint:** Atlas 7 — deterministic language and intent explanation layer. Add grounded intent parsing
+  and explanation facilities strictly on top of the deterministic analytical API (LLM interprets/explains, never
+  computes analytical ground-truth).
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
   research-relevant transforms through the versioned Rust kernel (provenance envelope on every result);
   use battle-tested Rust crates; saved-session compatibility breaks (kernel carries `kernelVersion`).
