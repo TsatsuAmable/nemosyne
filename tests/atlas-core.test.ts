@@ -359,4 +359,31 @@ describe('AtlasCore', () => {
     const recEvents = restored.ledger.filter((e) => e.kind === 'recommendation');
     expect(recEvents).toHaveLength(2);
   });
+
+  it('generates compare-regions guidance when two clusters have divergent sizes', () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 3 });
+
+    const rec = atlas.generateRecommendation();
+
+    expect(rec).not.toBeNull();
+    expect(rec!.action).toBe('compare-regions');
+    expect(rec!.targetIds).toHaveLength(2);
+    expect(rec!.evidenceItems!.some((e) => e.type === 'cluster-size-delta')).toBe(true);
+    expect(rec!.suggestedEmbodiment).toBe('split-view');
+  });
+
+  it('generates investigate-anomaly guidance for DBSCAN noise cluster', () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'dbscan', eps: 0.5, min_points: 2 });
+
+    const rec = atlas.generateRecommendation();
+
+    expect(rec).not.toBeNull();
+    expect(rec!.action).toBe('investigate-anomaly');
+    expect(rec!.evidenceItems!.some((e) => e.type === 'anomaly-score')).toBe(true);
+    expect(rec!.suggestedEmbodiment).toBe('outlier-orb');
+  });
 });
