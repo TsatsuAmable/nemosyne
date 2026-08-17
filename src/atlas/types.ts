@@ -24,6 +24,7 @@ import type {
 } from '../data/types.ts';
 import type { DatasetSpaceJSON } from './DatasetSpace.ts';
 import type { HistorySnapshot } from '../data/AnalysisHistory.ts';
+import type { StructureSet } from './structures.ts';
 
 /**
  * Typed analytical command wrapping a kernel {@link OperationSpec}. Built by
@@ -103,7 +104,7 @@ export interface AtlasRecommendation {
 }
 
 /** Kind of a {@link ResearchEvent}. */
-export type ResearchEventKind = 'load' | 'analysis' | 'preview' | 'undo' | 'redo' | 'seek' | 'reset';
+export type ResearchEventKind = 'load' | 'analysis' | 'structure' | 'preview' | 'undo' | 'redo' | 'seek' | 'reset';
 
 /**
  * Ledger entry recording one state transition of the analytical session. Every
@@ -121,6 +122,7 @@ export interface ResearchEvent {
   kind: ResearchEventKind;
   command: AnalysisSpec | { op: ResearchEventKind; index?: number };
   result?: AnalysisResult;
+  structureSet?: StructureSet;
   datasetVersion: number;
   datasetFingerprint: string;
   recommendationDecision?: RecommendationDecision;
@@ -148,7 +150,9 @@ export interface AtlasCoreState {
   analysisHistory: HistorySnapshot;
   activeRecommendation: AtlasRecommendation | null;
   decisionHistory: AtlasRecommendation[];
+  structures: StructureSet[];
 }
 
 /** Re-exported for downstream consumers (NemosyneSession). */
 export type { DatasetSpaceJSON, HistorySnapshot, EncodingMapping, JSONValue };
+export type { DiscoveredStructure, StructureEvidence, StructureKind, StructureSet } from './structures.ts';

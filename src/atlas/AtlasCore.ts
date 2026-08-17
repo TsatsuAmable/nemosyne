@@ -48,6 +48,8 @@ import type {
   CategoricalDistribution,
 } from '../draco/types.ts';
 import { TopologyTypes } from '../types/topology.ts';
+import { mapClusterStructures, mapMapperStructures, mapPersistenceStructures } from './structures.ts';
+import type { StructureSet } from './structures.ts';
 
 /**
  * Full kernel bridge surface. Extends the duck-typed coordinator subset with
@@ -259,6 +261,7 @@ export class AtlasCore {
   private _historyView: AnalysisHistory | null = null;
   private _results: AnalysisResult[] = [];
   private _ledger: ResearchEvent[] = [];
+  private _structures: StructureSet[] = [];
   private _activeRecommendation: AtlasRecommendation | null = null;
   private _decisionHistory: AtlasRecommendation[] = [];
 
@@ -445,6 +448,10 @@ export class AtlasCore {
 
   get ledger(): readonly ResearchEvent[] {
     return this._ledger;
+  }
+
+  get structures(): readonly StructureSet[] {
+    return this._structures;
   }
 
   get activeRecommendation(): AtlasRecommendation | null {
@@ -693,6 +700,64 @@ export class AtlasCore {
     );
   }
 
+  discoverMapperStructures(dataset: Dataset, params: Record<string, unknown>): StructureSet | null {
+    const graph = this.computeMapperGraph(dataset, params);
+    if (!graph) return null;
+    const space = this._spaceForDataset(dataset);
+    const structures = mapMapperStructures(
+      graph,
+      space.datumIds,
+      space.fingerprint,
+      this.datasetFingerprint === space.fingerprint ? this._datasetVersion : 0,
+      this.kernelVersion() ?? 'unknown',
+      params,
+      this.lastProvenance(),
+    );
+    this._recordStructure(structures);
+    return structures;
+  }
+
+  discoverPersistenceStructures(
+    dataset: Dataset,
+    params: Record<string, unknown>,
+  ): StructureSet | null {
+    const intervals = this.computePersistenceIntervals(dataset, params);
+    if (!intervals) return null;
+    const space = this._spaceForDataset(dataset);
+    const structures = mapPersistenceStructures(
+      intervals,
+      space.fingerprint,
+      this.datasetFingerprint === space.fingerprint ? this._datasetVersion : 0,
+      this.kernelVersion() ?? 'unknown',
+      params,
+      this.lastProvenance(),
+    );
+    this._recordStructure(structures);
+    return structures;
+  }
+
+  discoverClusterStructures(dataset: Dataset, operation: OperationSpec): StructureSet | null {
+    const result = this._clusterCall(dataset, operation);
+    if (!result) return null;
+    const assignments = result.rows.map((row) => {
+      const value = row._cluster;
+      return typeof value === 'number' ? value : Number(value);
+    });
+    if (assignments.some((label) => !Number.isFinite(label))) return null;
+    const space = this._spaceForDataset(dataset);
+    const structures = mapClusterStructures(
+      assignments,
+      space.datumIds,
+      space.fingerprint,
+      this.datasetFingerprint === space.fingerprint ? this._datasetVersion : 0,
+      this.kernelVersion() ?? 'unknown',
+      operation,
+      result.provenance,
+    );
+    this._recordStructure(structures);
+    return structures;
+  }
+
   // --- Facts / inference (Wave 5 consumers; controller medianOf) --------
 
   facts(): Facts | null {
@@ -784,6 +849,7 @@ export class AtlasCore {
       analysisHistory: this.analysisHistory.toJSON(),
       activeRecommendation: this._activeRecommendation,
       decisionHistory: this._decisionHistory.slice(),
+      structures: this._structures.slice(),
     };
   }
 
@@ -796,6 +862,9 @@ export class AtlasCore {
     this._invalidateHistoryView();
     this._results = (state.analysisResults ?? []).slice();
     this._ledger = (state.eventLedger ?? []).slice();
+    this._structures = this._ledger
+      .filter((event) => event.kind === 'structure' && event.structureSet)
+      .map((event) => event.structureSet!);
     this._activeRecommendation = state.activeRecommendation ?? null;
     this._decisionHistory = (state.decisionHistory ?? []).slice();
     this._resultCounter = this._results.length;
@@ -855,6 +924,7 @@ export class AtlasCore {
     this._invalidateHistoryView();
     this._activeRecommendation = null;
     this._decisionHistory = [];
+    this._structures = [];
     this._resultCounter = 0;
     this._eventCounter = 0;
   }
@@ -884,6 +954,44 @@ export class AtlasCore {
     };
     this._ledger.push(event);
     this._invalidateHistoryView();
+  }
+
+  private _recordStructure(structureSet: StructureSet): void {
+    this._structures.push(structureSet);
+    this._eventCounter += 1;
+    this._ledger.push({
+      eventId: `${this._sessionId}:${this._eventCounter}`,
+      sessionId: this._sessionId,
+      timestamp: now(),
+      kind: 'structure',
+      command: { op: 'structure' },
+      structureSet,
+      datasetVersion: structureSet.datasetVersion,
+      datasetFingerprint: structureSet.datasetFingerprint,
+      stateHash: structureSet.datasetFingerprint,
+    });
+    this._invalidateHistoryView();
+  }
+
+  private _clusterCall(
+    dataset: Dataset,
+    operation: OperationSpec,
+  ): { rows: Record<string, unknown>[]; provenance: Provenance | null } | null {
+    if (!this.isReady()) return null;
+    const kernel = this._kernel!;
+    const inputHandle = kernel.loadDatasetJson(dataset.toJSON());
+    if (inputHandle === 0) return null;
+    let outputHandle = 0;
+    try {
+      outputHandle = kernel.runOperation(inputHandle, operation);
+      if (outputHandle === 0) return null;
+      const result = kernel.getDatasetJson(outputHandle);
+      if (!result) return null;
+      return { rows: result.rows, provenance: this.lastProvenance() };
+    } finally {
+      if (outputHandle !== 0) kernel.destroyDataset(outputHandle);
+      kernel.destroyDataset(inputHandle);
+    }
   }
 
   /** Rebuild the cached {@link analysisHistory} from the ledger on next access. */
@@ -970,5 +1078,24 @@ export class AtlasCore {
     } finally {
       if (handle !== 0) kernel.destroyDataset(handle);
     }
+  }
+
+  private _spaceForDataset(dataset: Dataset): DatasetSpace {
+    if (this._current && this.datasetFingerprint === fnv1aHex(dataset.toJSON())) {
+      return this.datasetSpace ?? new DatasetSpace(dataset);
+    }
+    let fingerprint: string | null = null;
+    if (this.isReady()) {
+      const kernel = this._kernel!;
+      const handle = kernel.loadDatasetJson(dataset.toJSON());
+      if (handle !== 0) {
+        try {
+          fingerprint = kernel.datasetFingerprint?.(handle) ?? null;
+        } finally {
+          kernel.destroyDataset(handle);
+        }
+      }
+    }
+    return new DatasetSpace(dataset, { fingerprint });
   }
 }

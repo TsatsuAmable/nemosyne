@@ -206,4 +206,91 @@ describe('AtlasCore', () => {
     expect(atlas.activeRecommendation!.decision).toBe('rejected');
     expect(atlas.decisionHistory.length).toBe(1);
   });
+
+  it('maps deterministic Mapper nodes into stable datum structures', () => {
+    kernel.computeMapperGraph = () => ({
+      nodes: [
+        { id: 2, rowIndices: [3, 2], level: 1, center: [1], filterCenter: 2, size: 2 },
+        { id: 1, rowIndices: [0, 1], level: 0, center: [0], filterCenter: 1, size: 2 },
+      ],
+      edges: [[1, 2]],
+    });
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    const first = atlas.discoverMapperStructures(dataset, { bins: 2, overlap: 0.3 });
+    const second = atlas.discoverMapperStructures(dataset, { bins: 2, overlap: 0.3 });
+    expect(first).toEqual(second);
+    expect(first!.structures[0].rowIndices).toEqual([0, 1]);
+    expect(first!.structures[0].datumIds).toHaveLength(2);
+    expect(first!.provenance).toBeNull();
+    expect(JSON.parse(JSON.stringify(first))).toEqual(first);
+  });
+
+  it('maps persistence intervals into ranked, reproducible structures', () => {
+    kernel.computePersistenceIntervals = () => [
+      { birth: 0.5, death: 1.5 },
+      { birth: 0.1, death: null },
+    ];
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    const result = atlas.discoverPersistenceStructures(dataset, { maxDistance: 2 });
+    expect(result!.structures.map((structure) => structure.evidence.rank)).toEqual([0, 1]);
+    expect(result!.structures[0].evidence.score).toBe(0);
+    expect(result!.structures[1].evidence.score).toBe(1);
+  });
+
+  it('projects kernel clustering assignments into stable cluster structures', () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    const operation = { op: 'k_means' as const, k: 2 };
+    const first = atlas.discoverClusterStructures(dataset, operation);
+    const second = atlas.discoverClusterStructures(dataset, operation);
+
+    expect(first).toEqual(second);
+    expect(first!.structures.map((structure) => structure.rowIndices)).toEqual([
+      [0, 2],
+      [1, 3],
+    ]);
+    expect(first!.structures.every((structure) => structure.kind === 'cluster')).toBe(true);
+    expect(first!.structures[0].datumIds).toHaveLength(2);
+    expect(atlas.structures).toHaveLength(2);
+    expect(atlas.ledger.filter((event) => event.kind === 'structure')).toHaveLength(2);
+  });
+
+  it('canonicalizes nested parameter key order in structure IDs', () => {
+    kernel.computeMapperGraph = () => ({
+      nodes: [{ id: 1, rowIndices: [0, 1], level: 0, center: [0], filterCenter: 1, size: 2 }],
+      edges: [],
+    });
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    const first = atlas.discoverMapperStructures(dataset, {
+      nested: { z: 2, a: 1 },
+      bins: 2,
+    });
+    const second = atlas.discoverMapperStructures(dataset, {
+      bins: 2,
+      nested: { a: 1, z: 2 },
+    });
+
+    expect(first).toEqual(second);
+  });
+
+  it('rebuilds structure sets from the ledger during state restore', () => {
+    kernel.computeMapperGraph = () => ({
+      nodes: [{ id: 1, rowIndices: [0, 1], level: 0, center: [0], filterCenter: 1, size: 2 }],
+      edges: [],
+    });
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    const discovered = atlas.discoverMapperStructures(dataset, { bins: 2 });
+    const state = atlas.toState();
+    state.structures = [];
+
+    const restored = new AtlasCore({ kernel: makeKernelMockBridge() });
+    restored.restoreState(state);
+
+    expect(restored.structures).toEqual([discovered]);
+    expect(restored.ledger.at(-1)!.structureSet).toEqual(discovered);
+  });
 });
