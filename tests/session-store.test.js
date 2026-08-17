@@ -102,15 +102,15 @@ describe('SessionStore', () => {
   });
 
   it('saves and loads a session', async () => {
-    const snapshot = { dataset: { name: 'test' }, camera: { x: 1, y: 2, z: 3 } };
+    const snapshot = { schemaVersion: 2, dataset: { name: 'test' }, camera: { x: 1, y: 2, z: 3 } };
     await store.saveSession('session-1', snapshot);
     const loaded = await store.loadSession('session-1');
     expect(loaded).toEqual(snapshot);
   });
 
   it('overwrites an existing session', async () => {
-    await store.saveSession('session-1', { dataset: { a: 1 } });
-    await store.saveSession('session-1', { dataset: { a: 2 } });
+    await store.saveSession('session-1', { schemaVersion: 2, dataset: { a: 1 } });
+    await store.saveSession('session-1', { schemaVersion: 2, dataset: { a: 2 } });
     const loaded = await store.loadSession('session-1');
     expect(loaded.dataset.a).toBe(2);
   });

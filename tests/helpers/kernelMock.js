@@ -12,6 +12,7 @@
  * covered by Rust `#[test]`s + `tests/wasm-runtime.test.ts`.
  */
 import { Dataset, ColumnType } from '../../src/data/Dataset.ts';
+import { fnv1aHex } from '../../src/atlas/DatasetSpace.ts';
 
 // ---------------------------------------------------------------------------
 // Self-contained canned helpers
@@ -464,7 +465,10 @@ export function makeKernelMockBridge() {
       return cannedInferEncodings(ds, topo);
     },
     inferSchema: (handle) => store.get(handle)?.columns ?? null,
-    datasetFingerprint: () => null,
+    datasetFingerprint: (handle) => {
+      const obj = store.get(handle);
+      return obj ? fnv1aHex(obj) : null;
+    },
     parseDatasetBytes: (bytes, ext) => {
       const handle = ext === 'csv' ? (() => {
         try {

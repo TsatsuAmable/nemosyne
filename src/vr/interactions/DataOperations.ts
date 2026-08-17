@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
 import type { OperationSpec } from '../../data/types.ts';
+import type { AnalysisSpec } from '../../atlas/types.ts';
 import { applyNestedRings, applyDendrogramArc, applyDensityCloud } from './ClusterTransforms.ts';
 import {
   applyAnomalyHighlight,
@@ -292,6 +293,42 @@ export function toKernelSpec(
     default:
       return { op: 'slice', start: 0, end: dataset.rowCount };
   }
+}
+
+/**
+ * Minimal AtlasCore surface `toAnalysisSpec` reads to wrap a kernel op into a
+ * typed {@link AnalysisSpec}. Kept structural so it accepts the real AtlasCore
+ * or a stub in tests.
+ */
+export interface AnalysisSpecAtlas {
+  datasetFingerprint: string | null;
+  datasetVersion: number;
+  kernelVersion(): string | null;
+  medianFor(column: string): number;
+}
+
+/**
+ * Wrap a high-level operation name into a typed {@link AnalysisSpec} for
+ * AtlasCore. `toKernelSpec` remains the pure op→OperationSpec mapper; this is
+ * the thin governance wrapper that stamps the spec with the live dataset
+ * fingerprint/version/kernel-version and the kernel-statistics median thunk.
+ */
+export function toAnalysisSpec(
+  operation: string,
+  dataset: Dataset,
+  atlas: AnalysisSpecAtlas
+): AnalysisSpec {
+  const op = toKernelSpec(operation, dataset, dataset, (col) => atlas.medianFor(col));
+  return {
+    datasetFingerprint: atlas.datasetFingerprint ?? '',
+    datasetVersion: atlas.datasetVersion,
+    operation: op,
+    algorithmVersion: atlas.kernelVersion() ?? '0.2.0',
+    label: operation,
+    seed: null,
+    normalization: 'none',
+    missingness: 'exclude-non-finite',
+  };
 }
 
 /**

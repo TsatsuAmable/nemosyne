@@ -11,9 +11,11 @@ import type { BufferGeometry, Camera, Clock, Color, Group, Mesh, Object3D, Ray, 
 import type { Dataset } from '../../data/Dataset.ts';
 import type { AnalysisHistory } from '../../data/AnalysisHistory.ts';
 import type { LiveUpdate } from '../../data/connectors/DataConnector.ts';
-import type { DatasetJSON, EncodingMapping, Facts, OperationSpec, TdaMapperGraph, PersistenceInterval, BettiPoint, TopologyType } from '../../data/types.ts';
+import type { DatasetJSON, EncodingMapping, Facts, OperationSpec, Provenance, ColumnSchema, TdaMapperGraph, PersistenceInterval, BettiPoint, TopologyType } from '../../data/types.ts';
 import type { UXFrustrationAnalyzer } from '../../utils/UXFrustrationAnalyzer.ts';
 import type { LoadTestDriver, LoadTestProfile } from '../scalability/LoadTestDriver.ts';
+import type { AtlasCore } from '../../atlas/AtlasCore.ts';
+import type { NemosyneSession } from '../../session/NemosyneSession.ts';
 
 /** Entry describing a dataset to be loaded into the World. Shared with WorldSessionController. */
 export interface DatasetLoadEntry {
@@ -106,12 +108,20 @@ export interface WasmRuntimeBridge {
   computeMapperGraph(handle: number, params: Record<string, unknown>): TdaMapperGraph | null;
   computePersistenceIntervals(handle: number, params: Record<string, unknown>): PersistenceInterval[] | null;
   computeBetti0Curve(handle: number, params: Record<string, unknown>): BettiPoint[] | null;
+  // Full-surface members (AtlasCore reads these; optional so duck-typed mocks
+  // that omit them still satisfy the interface — null/undefined is tolerated).
+  kernelVersion?(): string | null;
+  kernelProvenance?(): Provenance | null;
+  datasetFingerprint?(handle: number): string | null;
+  inferSchema?(handle: number): ColumnSchema[] | null;
 }
 
 export interface DataOperationControllerOptions {
   eventBus?: WorldEventBusLike;
   getArtifact?: () => ArtifactRef | null;
   maxHistoryFrames?: number;
+  /** AtlasCore — the analytical authority. Optional so no-atlas smoke tests work. */
+  atlas?: AtlasCore | null;
 }
 
 export interface HistoryEntry {
@@ -1016,6 +1026,10 @@ export interface WorldLike {
   core: CoreNodeLike;
   tooltipManager: TooltipManagerLike;
   collaborationCoordinator: CollaborationCoordinatorLike;
+  /** AtlasCore — the analytical authority (Wave 4). */
+  atlas: AtlasCore;
+  /** Authoritative logical session (Wave 4). */
+  session: NemosyneSession;
   loadDataset(entry: DatasetLoadEntry): void;
   applyDataOperation(operation: string): void;
   previewDataOperation(operation: string): void;

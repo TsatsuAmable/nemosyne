@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { DataOperationController } from '../src/vr/coordinators/DataOperationController.ts';
+import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
@@ -117,18 +118,24 @@ describe('DataOperationController', () => {
   let artifact;
   let dataset;
   let mockBridge;
+  let atlas;
 
   beforeEach(() => {
     eventBus = new WorldEventBus();
     artifact = makeArtifact();
     dataset = makeDataset();
     mockBridge = makeMockBridge();
+    // Wave 4: the controller issues typed AnalysisSpec commands to AtlasCore,
+    // which calls the kernel + records the provenance ledger. Wrap the mock
+    // kernel in a real AtlasCore so the controller mechanics (history, events,
+    // undo/redo, preview) are exercised end-to-end.
+    atlas = new AtlasCore({ kernel: mockBridge, eventBus });
     controller = new DataOperationController({
       eventBus,
       getArtifact: () => artifact,
+      atlas,
     });
     controller.setOriginalDataset(dataset);
-    controller.setWasmRuntime(mockBridge, 0x3c07);
   });
 
   it('stores the original dataset and clones it as transformed', () => {
@@ -252,7 +259,11 @@ describe('DataOperationController', () => {
   });
 
   it('aborts cleanly when the kernel is unavailable (no JS fallback)', () => {
-    controller.setWasmRuntime(null, 0);
+    // Wave 4: swap in an AtlasCore with no kernel bound but the original
+    // dataset loaded, so apply() reaches the kernel path and aborts cleanly.
+    const noKernelAtlas = new AtlasCore({ kernel: null, eventBus });
+    noKernelAtlas.setOriginalDataset(dataset);
+    controller.setAtlas(noKernelAtlas);
     const before = controller.transformedDataset.rowCount;
     const historyBefore = controller.analysisHistory.length;
 

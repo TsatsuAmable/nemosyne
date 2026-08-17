@@ -5,8 +5,8 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Wave 3 (delete orphaned JS analytical modules + tests) implemented and
-  gated green on branch `rust-kernel-commitment`.
+- **Last updated:** 2026-08-17 — Wave 4 (AtlasCore + NemosyneSession — authoritative session + provenance
+  ledger) implemented and gated green on branch `rust-kernel-commitment`.
 - **Active sprint:** commit Rust/WASM as the canonical analytical engine and rip out the JS analytical
   layer (no JS fallback), then build Atlas/NemosyneSession on top. Plan: `.claude/plans/groovy-mixing-wolf.md`.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
@@ -68,49 +68,54 @@
   a "kernel unavailable aborts cleanly" case. `timeSlice` now slices a window of the CURRENT transformed
   dataset (kernel `slice` runs against the current handle) — more correct than the old JS path which sliced
   the original and discarded prior ops.
-- **Deferred to Wave 4:** chaining `build:wasm` into `build` (requires Netlify/CI Rust toolchain setup);
+- **Deferred to Wave 5:** chaining `build:wasm` into `build` (requires Netlify/CI Rust toolchain setup);
   byte-exact JS `JSON.stringify` number-format parity (when `DatasetSpace` delegates fingerprint to the
   kernel); `Dataset.rangeOf`/`cardinalityOf`/`fingerprint` delegation to kernel statistics metadata
-  (entangled with the AtlasCore/Draco-facts work — TODO(Wave 5) comments left at each call site).
-- **Wave 3 ✅ (delete orphaned JS analytical modules + tests):** `git rm`'d `src/data/DatasetOperations.ts`,
-  `Parsers.ts`, `CSVDataParser.ts`, `CSVParserWorker.ts`, `ArrowBinaryParser.ts`, `TopologyInference.ts`,
-  and `src/analytics/TDAMapper.ts` (empty `src/analytics/` dir removed). No `src/` production code imports
-  any of them (grep-verified); the only remaining `TDAMapper`/`DatasetOperations` mentions are stale prose
-  in docstring comments. `src/data/Encodings.ts` split — deleted `inferEncodings` (moved to Rust in Wave 1),
-  kept the three.js visual helpers `categoricalColor`/`numericColor`/`normalize`; `EncodingMapping` stays
-  owned by `src/data/types.ts`. `src/data/Dataset.ts` lost `static fromCSV` + the `CSVDataParser` import
-  (the kernel parses now); `rangeOf`/`cardinalityOf`/`fingerprint` kept with `TODO(Wave 5)` markers.
-  `src/data/connectors/normalize.ts` inlined a majority-rule `inferType` (NUMERIC/TEMPORAL/CATEGORICAL) for
-  cold-start live-stream column typing (full streaming-via-kernel deferred to Wave 4/6).
-  `src/draco/VRTopologyTranslator.ts` dropped the `inferEncodings` import; both
-  `dataInput.encodings || (dataset ? inferEncodings(dataset) : {})` sites → `dataInput.encodings ?? {}`
-  (downstream falls back to kernel-derived encodings supplied on every production load path).
-  `tests/helpers/kernelMock.js` rewritten as a fully self-contained canned mock (imports only
-  `Dataset`/`ColumnType` — no deleted-module deps); implements canned filter-predicate/sort(no-rename)/
-  aggregate/compare/k_means/hierarchical/dbscan/anomaly_iqr+zscore/slice + statistics + loadCsv/loadJson
-  (strips `__proto__`/`constructor`/`prototype`) + inferTopology + inferEncodings; appends `_cluster`/
-  `_anomaly`/`_anomalyScore` columns to match the real kernel's output schema. JS tests deleted
-  (`dataset-operations`/`parsers`/`csv-parser`/`arrow-ipc`/`topology-inference`/`tda-mapper`/
-  `wasm-operations`/`wasm-arrow-parser`) with porting-rule coverage in Rust `#[test]`s +
-  `wasm-runtime.test.ts`; two topology-parity e2e files (`f01_reverse_import`, `tier2/f01_boundary`) deleted
-  because their assertions encoded JS-specific topology heuristics the canned mock does not replicate
-  (Rust topology coverage is the parity home). ~12 e2e + integration tests converted to inline-constructed
-  Datasets / mock-bridge `parseDatasetBytes`; `world-coverage` sort assertion changed from a name-contains
-  `'sorted'` check to an ascending-order check (kernel sort does not rename). **Honest porting-rule flag:**
-  the `CSVParserWorker.parseAsync` async-worker behaviour has no direct kernel equivalent — the
-  worker-offload path was removed, not migrated; the underlying CSV parse is covered by the Rust kernel.
+  (TODO(Wave 5) comments left at each call site).
+- **Wave 3 ✅ (delete orphaned JS analytical modules + tests):** `git rm`'d the 7 JS analytical modules
+  (`DatasetOperations`/`Parsers`/`CSVDataParser`/`CSVParserWorker`/`ArrowBinaryParser`/`TopologyInference`/
+  `analytics/TDAMapper`); split `Encodings.ts` (kept visual helpers, deleted `inferEncodings`); removed
+  `Dataset.fromCSV`; inlined `normalize.inferType`; dropped the `VRTopologyTranslator.inferEncodings`
+  fallback; rewrote `kernelMock.js` self-contained; deleted 8 JS tests + 2 topology-parity e2e (porting-rule
+  coverage in Rust `#[test]`s + `wasm-runtime.test.ts`); converted ~12 e2e/integration tests. Honest flag:
+  `CSVParserWorker` async-worker path removed (no kernel equivalent); underlying CSV parse covered by Rust.
+  Full detail in commit 367cdcd + the sprint memory.
+- **Wave 4 ✅ (AtlasCore + NemosyneSession — authoritative session + provenance ledger):** new
+  `src/atlas/AtlasCore.ts` — the single analytical authority: owns the kernel handle + current
+  `DatasetSpace` + `AnalysisResult` chain + `ResearchEvent` provenance ledger; SOLE caller of the kernel
+  for the operation path (`runOperation`/`statistics`/`inferTopology`/`inferEncodings`/`datasetFingerprint`);
+  reads `bridge.kernelProvenance()` after each kernel call and embeds it in every `AnalysisResult` +
+  `ResearchEvent` (null-tolerated for the mock, never fabricated); `AnalysisHistory` retained as the
+  undo/redo cursor alongside the ledger (intentional double-bookkeeping, to unify later). New
+  `src/session/NemosyneSession.ts` — authoritative logical session: `serialize()`/`deserialize()`/
+  `loadFromJSON()`, `schemaVersion 2`, persists `datasetVersion`/`datasetFingerprint`/`currentDataset`/
+  `originalDataset`/`datasetSpace`/`analysisResults`/`eventLedger`/`analysisHistory` + presentation state.
+  New `src/atlas/types.ts` — `AnalysisSpec`/`AnalysisResult`/`AtlasRecommendation`/`ResearchEvent`/
+  `AtlasCoreState` per the governance contract. `DataOperationController` refactored to issue typed
+  `AnalysisSpec` commands to AtlasCore (controller does visual + events only; ZERO direct bridge calls —
+  grep-verified); `WorldSessionController` is now a thin save/load trigger delegating to `NemosyneSession`
+  + `SessionStore` (snapshot authority moved off it). `World` owns one `AtlasCore` + one `NemosyneSession`;
+  facade setters route through atlas; `undoAnalysis`/`redoAnalysis`/`_seekAnalysisHistory` consolidated
+  through the controller (the HISTORY_SEEK listener restores); `_initWasmRuntime` → `atlas.setKernel`;
+  `dispose()` disposes atlas. `DatasetSpace.ts` exports `fnv1aHex`/`canonicalize` (reused by AtlasCore for
+  `outputHash`/`stateHash`). `SessionStore` `schemaVersion 2` (rejects 1). **DEFERRED to Wave 6** with
+  `TODO(Wave 6)` markers: route `FileLoader` parse, `World._maybeLoadSampleFromWasm`, and `TDAPlanes`
+  through AtlasCore (they still call the bridge directly — does NOT violate governing rules 1-3; the kernel
+  does the work + emits provenance). New tests `tests/atlas-core.test.ts` + `tests/nemosyne-session.test.ts`
+  lock the ledger/round-trip/tamper contracts; all changed wirings updated, no assertions relaxed.
+  Acceptance check: scene graph rebuildable from `NemosyneSession.serialize()`.
 - **Last gate result (2026-08-17):** `npm run wasm` exit 0; `cargo test` 61/61 pass; `tsc --noEmit`
-  clean; `eslint` 0 errors (~235 pre-existing `no-console` warnings); `npm run test:all` green
-  (cargo 61/61 + Vitest 180 files passed / 1 skipped / 1,255 tests passed / 26 skipped — the wasm-runtime
+  clean; `eslint` 0 errors (~245 pre-existing `no-console` warnings); `npm run test:all` green
+  (cargo 61/61 + Vitest 182 files passed / 1 skipped / 1,267 tests passed / 26 skipped — the wasm-runtime
   RuntimeBridge parity cases skip in plain jsdom by design; Rust `#[test]`s cover the same logic).
-- **Next:** Wave 4 — `AtlasCore` (owns the kernel `DatasetHandle` + `DatasetSpace` + analysis chain +
-  `ResearchEvent` provenance ledger; the single analytical authority / only kernel caller) and
-  `NemosyneSession` (authoritative logical session: `datasetVersion`, `datasetFingerprint`, analysis
-  specs+results, recommendation + decision history, exploration state, research ledger, presentation
-  state; `serialize()`/`deserialize()` canonical save format). Refactor `DataOperationController` to issue
-  typed commands to `AtlasCore`; move snapshot authority from `WorldSessionController` to
-  `NemosyneSession.serialize()`. Implement `AnalysisSpec`/`AnalysisResult`/`AtlasRecommendation`/
-  `ResearchEvent` types. Acceptance: scene graph rebuildable from `NemosyneSession.serialize()`.
+- **Next:** Wave 5 — Draco as pure embodiment consumer. Extract `ConstraintEngine.extractFacts` into a
+  `FactProvider` interface; `AtlasCore` supplies `DracoFacts` computed via `kernel.statistics` (Rust, via
+  statrs/ndarray). `ConstraintEngine.solve(input)` takes facts as input — no dataset-derived stats inside
+  Draco. Move `_numericStats`/`_correlationMatrix`/`_temporalStats`/`_categoricalDistribution` into
+  `kernel.statistics`. `WorldRendererLifecycle.rebuildDashboard` gets facts from `AtlasCore` (not
+  `dracoNode.engine.extractFacts(dataset)`). `VRTopologyTranslator` consumes `AtlasCore`-provided encodings.
+  Also delegate `Dataset.rangeOf`/`cardinalityOf`/`fingerprint` to kernel statistics metadata (the
+  TODO(Wave 5) call sites left in Wave 3).
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files
