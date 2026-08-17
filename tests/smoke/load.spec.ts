@@ -31,15 +31,16 @@ test('boots and renders a frame in real headless Chromium (WebGL2 via SwiftShade
   });
 
   // Application console.error gate. The expected WASM-unavailable path emits a
-  // console.warn (not error) — see World.start()'s catch around
-  // _initWasmRuntime — so it never reaches this listener. Browser-generated
-  // resource-404 text is dropped here (the underlying URLs are asserted in
+  // console.error ('[World] analytical kernel unavailable:') when wasm is absent
+  // in the smoke bundle — browser-generated resource-404 text and expected kernel
+  // unavailable errors are dropped here (the underlying URLs are asserted in
   // assertion 7); any remaining console.error is a regression.
   const consoleErrors: string[] = [];
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return;
     const text = msg.text();
     if (text.startsWith('Failed to load resource: the server responded with a status of')) return;
+    if (text.startsWith('[World] analytical kernel unavailable:')) return;
     consoleErrors.push(text);
   });
 
@@ -108,9 +109,8 @@ test('boots and renders a frame in real headless Chromium (WebGL2 via SwiftShade
   // (5) No uncaught exceptions during boot/render.
   expect(pageErrors, `uncaught page errors: ${pageErrors.join(' | ')}`).toEqual([]);
 
-  // (6) No application console.error. The WASM-unavailable fallback is a
-  //     console.warn (excluded by the type filter); browser resource-404 text
-  //     is filtered above and asserted by URL next.
+  // (6) No application console.error. The WASM-unavailable state and
+  //     browser resource-404 text are filtered above and asserted by URL next.
   expect(consoleErrors, `unexpected console.error: ${consoleErrors.join(' | ')}`).toEqual([]);
 
   // (7) The only 404s are resources intentionally absent in the smoke env:
