@@ -31,6 +31,7 @@ describe('WorldRendererLifecycle dashboard ownership', () => {
       tooltipManager: tooltipManager as never,
       getOriginalDataset: () => makeDataset(),
       getDracoNode: () => null,
+      getWasmBridge: () => null,
     });
 
     lifecycle.rebuildDashboard();

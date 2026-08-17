@@ -3,7 +3,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { LivePreview } from '../src/vr/interactions/LivePreview.ts';
-import { computeOperationDataset } from '../src/vr/interactions/DataOperations.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 
 function makeMesh(name = 'node', value = 0, x = 0, y = 0, z = -2) {
@@ -57,7 +56,13 @@ describe('LivePreview', () => {
     ];
     const ds = makeDataset(rows);
     const artifact = { nodeMeshes: makeArtifactMeshes(ds.rows) };
-    const filtered = computeOperationDataset('filter', ds, ds);
+    // Inline result subset — the test only checks marker COUNT = mesh count.
+    // Exact analytical parity (median filter) is covered by Rust tests + wasm-runtime.test.ts.
+    const filtered = new Dataset(
+      ds.name,
+      ds.columns,
+      ds.rows.filter((r) => Number(r.value) > 10)
+    );
 
     preview.preview('filter', filtered, ds, artifact);
 
@@ -74,7 +79,12 @@ describe('LivePreview', () => {
     ];
     const ds = makeDataset(rows);
     const artifact = { nodeMeshes: makeArtifactMeshes(ds.rows) };
-    const sorted = computeOperationDataset('sort', ds, ds);
+    // Inline reordered result; visual marker count is all that is asserted.
+    const sorted = new Dataset(
+      ds.name,
+      ds.columns,
+      [...ds.rows].sort((a, b) => a.value - b.value)
+    );
 
     preview.preview('sort', sorted, ds, artifact);
 
@@ -93,7 +103,13 @@ describe('LivePreview', () => {
     ];
     const ds = makeDataset(rows);
     const artifact = { nodeMeshes: makeArtifactMeshes(ds.rows) };
-    const anomalous = computeOperationDataset('anomaly', ds, ds);
+    // Inline anomaly result; the 10000 row is flagged so at least one sprite is drawn.
+    // Exact z-score parity is covered by Rust tests + wasm-runtime.test.ts.
+    const anomalous = new Dataset(
+      ds.name,
+      [...ds.columns, { name: '_anomaly', type: ColumnType.BOOLEAN }],
+      ds.rows.map((r) => ({ ...r, _anomaly: r.value > 1000 }))
+    );
 
     preview.preview('anomaly', anomalous, ds, artifact);
 
@@ -105,7 +121,7 @@ describe('LivePreview', () => {
     const rows = [{ name: 'a', value: 10 }];
     const ds = makeDataset(rows);
     const artifact = { nodeMeshes: makeArtifactMeshes(ds.rows) };
-    const filtered = computeOperationDataset('filter', ds, ds);
+    const filtered = new Dataset(ds.name, ds.columns, ds.rows.filter(() => true));
 
     preview.preview('filter', filtered, ds, artifact);
     expect(scene.children.filter((c) => c instanceof THREE.Sprite).length).toBe(1);
@@ -120,7 +136,7 @@ describe('LivePreview', () => {
     const mesh = makeMesh('a', 10, 0, 1, -2);
     mesh.userData.row = ds.rows[0];
     const artifact = { nodeMeshes: [mesh] };
-    const filtered = computeOperationDataset('filter', ds, ds);
+    const filtered = new Dataset(ds.name, ds.columns, ds.rows.filter(() => true));
 
     preview.preview('filter', filtered, ds, artifact);
     const marker = preview._markers[0];
@@ -138,15 +154,9 @@ describe('LivePreview', () => {
     const rows = [{ name: 'a', value: 10 }];
     const ds = makeDataset(rows);
     const artifact = { nodeMeshes: makeArtifactMeshes(ds.rows) };
-    const filtered = computeOperationDataset('filter', ds, ds);
+    const filtered = new Dataset(ds.name, ds.columns, ds.rows.filter(() => true));
 
     preview.preview('filter', filtered, ds, artifact);
     expect(preview._markers.length).toBe(0);
-  });
-
-  it('returns the original dataset for unknown operations', () => {
-    const rows = [{ name: 'a', value: 10 }];
-    const ds = makeDataset(rows);
-    expect(computeOperationDataset('unknown', ds, ds).rowCount).toBe(ds.rowCount);
   });
 });

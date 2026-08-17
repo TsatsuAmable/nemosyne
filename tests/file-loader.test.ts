@@ -3,6 +3,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FileLoaderUI } from '../src/ui/FileLoader.ts';
+import { makeKernelMockBridge } from './helpers/kernelMock.js';
 
 const CSV_CONTENT = `value,category
 10,A
@@ -20,7 +21,10 @@ describe('FileLoaderUI', () => {
 
   beforeEach(() => {
     onLoad = vi.fn();
-    loader = new FileLoaderUI({ onLoad });
+    // Wave 2: the analytical kernel is the only parse/topology/encoding path.
+    // Wire a mock kernel so the loader runs in plain jsdom; parse parity is
+    // covered by Rust tests + wasm-runtime.test.ts.
+    loader = new FileLoaderUI({ onLoad, wasmRuntime: makeKernelMockBridge() });
   });
 
   afterEach(() => {

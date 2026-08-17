@@ -9,17 +9,6 @@
 import * as THREE from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
 import type { OperationSpec } from '../../data/types.ts';
-import {
-  filter,
-  sort,
-  aggregate,
-  compare,
-  cluster,
-  hierarchical,
-  dbscan,
-  anomaly,
-  slice,
-} from '../../data/DatasetOperations.ts';
 import { applyNestedRings, applyDendrogramArc, applyDensityCloud } from './ClusterTransforms.ts';
 import {
   applyAnomalyHighlight,
@@ -204,81 +193,6 @@ export function applySlice(
 }
 
 /**
- * Compute the dataset that would result from applying a named operation,
- * without touching the artefact. Used for live previews and can also be reused
- * by the apply path to keep parameter logic in one place.
- */
-export function computeOperationDataset(
-  operation: string,
-  dataset: Dataset,
-  originalDataset: Dataset
-): Dataset {
-  switch (operation) {
-    case 'filter': {
-      const col = dataset.numericColumns[0]?.name || 'value';
-      const values = dataset.getColumnValues(col);
-      const numeric = values.filter(
-        (v): v is number => typeof v === 'number' && !Number.isNaN(v)
-      );
-      const median = numeric.length
-        ? numeric.slice().sort((a, b) => a - b)[Math.floor(numeric.length / 2)]
-        : 0;
-      return filter(dataset, (r) => {
-        const v = r[col];
-        return typeof v === 'number' && v > median;
-      });
-    }
-    case 'sort': {
-      const col =
-        dataset.numericColumns[0]?.name || dataset.columns[0]?.name || 'value';
-      return sort(dataset, col, 'asc');
-    }
-    case 'aggregate': {
-      const cat = dataset.categoricalColumns[0]?.name || dataset.columns[0]?.name;
-      if (!cat) return dataset.clone();
-      return aggregate(dataset, cat, (group) => {
-        const first = group[0];
-        const result = { ...first };
-        const num = dataset.numericColumns[0]?.name;
-        if (num) {
-          result[num] = group.reduce((sum, r) => sum + (Number(r[num]) || 0), 0);
-        }
-        result._count = group.length;
-        return result;
-      });
-    }
-    case 'compare': {
-      const groupBy = dataset.categoricalColumns[0]?.name;
-      if (!groupBy) return dataset.clone();
-      const groups = [...new Set(dataset.rows.map((row) => row[groupBy]))];
-      if (groups.length < 2) return dataset.clone();
-      return compare(dataset, groupBy, groups[0], groups[1]);
-    }
-    case 'cluster':
-      return cluster(dataset, 3);
-    case 'hierarchical': {
-      const features = dataset.numericColumns.map((c) => c.name);
-      return hierarchical(dataset, features, 'average', 3);
-    }
-    case 'density': {
-      const features = dataset.numericColumns.map((c) => c.name);
-      return dbscan(dataset, 1, 1, features);
-    }
-    case 'anomaly': {
-      const col = dataset.numericColumns[0]?.name;
-      return anomaly(dataset, col, 'zscore', 2);
-    }
-    case 'timeSlice': {
-      const start = Math.floor(originalDataset.rowCount / 2);
-      const end = originalDataset.rowCount;
-      return slice(originalDataset, start, end);
-    }
-    default:
-      return dataset.clone();
-  }
-}
-
-/**
  * Store base visual properties on each node mesh so operations can restore them.
  */
 export function captureBaseState(artifact: ArtifactRef) {
@@ -294,36 +208,89 @@ export function captureBaseState(artifact: ArtifactRef) {
 }
 
 /**
- * Build a WASM-compatible operation spec for operations whose Rust and JS
- * semantics are aligned. Returns `null` for operations that should stay on the
- * JS path (e.g. those with different default parameters or algorithms).
+ * Map a high-level operation name to a kernel {@link OperationSpec}. Every
+ * operation produces a spec (the kernel is the ONLY analytical path); an
+ * operation that cannot be meaningfully applied to the current dataset
+ * resolves to an identity slice.
+ *
+ * `medianOf` is an optional thunk the controller supplies — it calls the
+ * kernel statistics pass (median computed in Rust) so the default filter
+ * predicate stays rule-compliant (no JS analytical computation).
  */
-export function buildWasmOperationSpec(
+export function toKernelSpec(
   operation: string,
   dataset: Dataset,
-  originalDataset: Dataset
-): OperationSpec | null {
+  _originalDataset: Dataset,
+  medianOf?: (column: string) => number
+): OperationSpec {
   switch (operation) {
+    case 'filter': {
+      const col = dataset.numericColumns[0]?.name;
+      if (!col) {
+        return { op: 'slice', start: 0, end: dataset.rowCount };
+      }
+      return {
+        op: 'filter',
+        predicate: { op: 'gt', column: col, value: medianOf ? medianOf(col) : 0 },
+      };
+    }
     case 'sort': {
       const col =
-        dataset.numericColumns[0]?.name ||
-        dataset.columns[0]?.name ||
-        'value';
+        dataset.numericColumns[0]?.name || dataset.columns[0]?.name || 'value';
       return { op: 'sort', column: col, ascending: true };
+    }
+    case 'aggregate': {
+      const cat = dataset.categoricalColumns[0]?.name || dataset.columns[0]?.name;
+      if (!cat) {
+        return { op: 'slice', start: 0, end: dataset.rowCount };
+      }
+      return { op: 'aggregate', group_by: cat };
+    }
+    case 'compare': {
+      const groupBy = dataset.categoricalColumns[0]?.name;
+      if (!groupBy) {
+        return { op: 'slice', start: 0, end: dataset.rowCount };
+      }
+      const groups = [...new Set(dataset.rows.map((row) => row[groupBy]))];
+      if (groups.length < 2) {
+        return { op: 'slice', start: 0, end: dataset.rowCount };
+      }
+      return {
+        op: 'compare',
+        group_by: groupBy,
+        group_a: String(groups[0]),
+        group_b: String(groups[1]),
+      };
     }
     case 'cluster':
       return { op: 'k_means', k: 3 };
-    case 'hierarchical':
-      return { op: 'hierarchical', k: 3 };
-    case 'density':
-      return { op: 'dbscan', eps: 1, min_points: 1 };
+    case 'hierarchical': {
+      const features = dataset.numericColumns.map((c) => c.name);
+      return { op: 'hierarchical', k: 3, linkage: 'average', features };
+    }
+    case 'density': {
+      const features = dataset.numericColumns.map((c) => c.name);
+      return { op: 'dbscan', eps: 1, min_points: 1, features };
+    }
+    case 'anomaly': {
+      const col = dataset.numericColumns[0]?.name;
+      if (!col) {
+        return { op: 'slice', start: 0, end: dataset.rowCount };
+      }
+      return { op: 'anomaly_zscore', column: col, sensitivity: 2 };
+    }
     case 'timeSlice': {
-      const start = Math.floor(originalDataset.rowCount / 2);
-      const end = originalDataset.rowCount;
+      // Slice a contiguous window of the CURRENT transformed dataset (the
+      // kernel runs `slice` against the handle built from `dataset`). Bounding
+      // by the current row count keeps the window valid after prior ops;
+      // bounding by the original count would discard those ops and could yield
+      // an empty slice once the view shrinks.
+      const start = Math.floor(dataset.rowCount / 2);
+      const end = dataset.rowCount;
       return { op: 'slice', start, end };
     }
     default:
-      return null;
+      return { op: 'slice', start: 0, end: dataset.rowCount };
   }
 }
 

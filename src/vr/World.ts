@@ -89,9 +89,6 @@ import type {
   WorldEventBusLike,
 } from './coordinators/types.ts';
 
-// Capability flags returned by the Rust/WASM runtime. Keep in sync with wasm/src/lib.rs.
-const CAP_DATASET_RUST = 1 << 0;
-
 // Map sample-dataset keys to atmospheric presets so each dataset has a distinct mood.
 const DATASET_THEME_MAP: Record<string, string> = {
   'supply-chain': 'neonMidnight',
@@ -161,6 +158,7 @@ export class World {
   _datasetCycleIndex: number;
   _wasmCapabilities: number;
   _wasmRuntime: WasmRuntimeBridge | null;
+  _wasmUnavailable: boolean;
   liveStreamCoordinator: LiveStreamCoordinator;
   collaborationCoordinator: CollaborationCoordinator;
   landmarkController!: WorldLandmarkController;
@@ -376,6 +374,7 @@ export class World {
       tooltipManager: this.tooltipManager,
       getOriginalDataset: () => this._originalDataset,
       getDracoNode: () => this.dracoNode,
+      getWasmBridge: () => this._wasmRuntime,
     });
 
     // In-place operation handles near data artefacts for direct manipulation.
@@ -413,6 +412,7 @@ export class World {
     this._datasetCycleIndex = -1;
     this._wasmCapabilities = 0;
     this._wasmRuntime = null;
+    this._wasmUnavailable = false;
 
     // Live-streaming and collaboration state.
     this.liveStreamCoordinator = new LiveStreamCoordinator({ world: this });
@@ -1726,12 +1726,15 @@ export class World {
   }
 
   async start(): Promise<void> {
-    // Initialise the Rust/WASM runtime in parallel with engine start. If the
-    // binary is missing (e.g. plain Vite build without wasm-pack) or the host
-    // rejects it, fall back to the existing JS data layer.
+    // Initialise the Rust/WASM runtime in parallel with engine start. The
+    // kernel is MANDATORY for analytics; if it cannot be loaded the engine
+    // still starts but data ops surface a hard "kernel unavailable" state.
     const wasmInitPromise = this._initWasmRuntime().catch((err) => {
-      console.warn('[World] WASM runtime unavailable, using JS fallbacks:', err);
+      this._wasmRuntime = null;
       this._wasmCapabilities = 0;
+      this._wasmUnavailable = true;
+      console.error('[World] analytical kernel unavailable:', err);
+      this.vrConsole?.log?.('error', ['Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.']);
     });
 
     this.engine.start();
@@ -1740,7 +1743,8 @@ export class World {
   }
 
   /**
-   * Initialise the WASM runtime and record the enabled capability set.
+   * Initialise the WASM runtime and record the enabled capability set. Throws
+   * on failure; the caller (start()) surfaces the unavailable state.
    */
   async _initWasmRuntime(): Promise<void> {
     // Load the bridge lazily so that production builds which skip wasm-pack
@@ -1755,8 +1759,6 @@ export class World {
     }
 
     // In dev, Vite serves the wasm-pack output at /wasm/nemosyne_wasm_bg.wasm.
-    // In production builds that skip wasm-pack this fetch will fail and the
-    // app will transparently fall back to the JS data layer.
     await bridge.initRuntime('/wasm/nemosyne_wasm_bg.wasm');
     this._wasmRuntime = bridge;
     this._wasmCapabilities = bridge.capabilities();
@@ -1768,17 +1770,16 @@ export class World {
   }
 
   /**
-   * If the WASM data layer is ready and the dataset is a built-in sample key,
-   * load it from Rust. Otherwise return the original JS entry unchanged.
+   * If the analytical kernel is ready and `entry` is a built-in sample key,
+   * load the sample *content* from Rust. Otherwise return the entry unchanged.
    *
-   * @param {object} entry
-   * @returns {object}
+   * Sample content may come from the static JS `SampleDatasets` arrays when the
+   * kernel is absent (those are static data, not analytical results), but NO
+   * analytical operation ever runs in JS — the kernel remains the only
+   * analytical path.
    */
   _maybeLoadSampleFromWasm(entry: DatasetLoadEntry): DatasetLoadEntry {
     if (!entry?.key) return entry;
-    if (!this._wasmCapabilities || (this._wasmCapabilities & CAP_DATASET_RUST) === 0) {
-      return entry;
-    }
     const bridge = this._wasmRuntime;
     if (!bridge || !bridge.isReady()) return entry;
 
@@ -1795,7 +1796,7 @@ export class World {
         bridge.destroyDataset(handle);
       }
     } catch (e) {
-      console.warn('[World] WASM sample load panic, falling back to JS:', e);
+      console.error('[World] kernel sample load panic:', e);
       return entry;
     }
   }

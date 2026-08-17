@@ -5,8 +5,8 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Wave 1 (Rust Analytical Kernel) implemented and gated green on branch
-  `rust-kernel-commitment`.
+- **Last updated:** 2026-08-17 — Wave 2 (mandatory WASM, JS analytical fallback removed) implemented and
+  gated green on branch `rust-kernel-commitment`.
 - **Active sprint:** commit Rust/WASM as the canonical analytical engine and rip out the JS analytical
   layer (no JS fallback), then build Atlas/NemosyneSession on top. Plan: `.claude/plans/groovy-mixing-wolf.md`.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
@@ -44,16 +44,42 @@
   clustering swap (k_means/hierarchical/dbscan remain the hand-rolled-but-deterministic impls for
   now, seeded from the canonical fingerprint); byte-exact JS `JSON.stringify` number-format parity
   (ECMAScript exponent rules — lands in Wave 2 when `DatasetSpace` delegates to the kernel).
-- **Deferred to Wave 2:** chaining `build:wasm` into `build` (requires Netlify/CI Rust toolchain setup);
-  removing JS fallback paths (kernel-only routing).
+- **Wave 2 ✅ (mandatory WASM, JS analytical fallback removed — kernel is the only analytical path):**
+  No `src/` production code imports or calls any JS analytical module; no `if (caps & …)` routing remains
+  (capability flags are telemetry-only). `DataOperationController._computeDataset` routes EVERY op through
+  the kernel (`loadDatasetJson` → `runOperation` → `getDatasetJson`, handles destroyed in `finally`); the
+  default filter threshold comes from `kernel.statistics` median (median computed in Rust — no JS stat);
+  `apply`/`preview` abort cleanly on kernel failure (no JS fallback). `DataOperations.ts`: deleted
+  `computeOperationDataset` + the `DatasetOperations` analytical imports; `buildWasmOperationSpec` → pure
+  `toKernelSpec(operation, dataset, _original, medianOf?)` mapper covering all ops (filter/sort/aggregate/
+  compare/cluster/hierarchical/density/anomaly/timeSlice; identity `slice` for unsupported shapes).
+  `FileLoader.ts`: kernel-only `_parseViaKernel` (parse + topology + encodings via the kernel before
+  releasing the handle); removed `parseCSV`/`parseJSON`/`inferTopology`/`inferEncodingsForTopology` JS paths.
+  `World.start` surfaces a hard "analytical kernel unavailable" state (`_wasmUnavailable` + VRConsole error,
+  no silent JS fallback); `_maybeLoadSampleFromWasm` lost the `CAP_DATASET_RUST` gate (sample *content* may
+  still come from the static `SampleDatasets` data arrays when the kernel is absent — that is data, not
+  analytics). `TDAPlanes.buildTDASummaryGroup` routes persistence/mapper/betti0 through the kernel
+  (`bridge?` arg; `recompute()` no-ops when no bridge = the unavailable state, NOT a JS fallback); deleted
+  the `TDAMapper` import. `WorldRendererLifecycle` gets a `getWasmBridge` option. `WasmRuntimeBridge` type
+  extended with the lower-level kernel + TDA calls. Tests: new `tests/helpers/kernelMock.js` (test-only,
+  delegates to the still-present JS modules — Wave 3 deletes those) lets World/controller/FileLoader
+  integration tests exercise orchestration in plain jsdom; `live-preview.test.js` uses inline result
+  Datasets (visual-marker tests, not analytics); `data-operation-controller.test.js` uses the mock bridge +
+  a "kernel unavailable aborts cleanly" case. `timeSlice` now slices a window of the CURRENT transformed
+  dataset (kernel `slice` runs against the current handle) — more correct than the old JS path which sliced
+  the original and discarded prior ops.
+- **Deferred to Wave 3:** chaining `build:wasm` into `build` (requires Netlify/CI Rust toolchain setup);
+  byte-exact JS `JSON.stringify` number-format parity (when `DatasetSpace` delegates fingerprint to the
+  kernel); deleting the now-orphaned JS analytical modules + their tests.
 - **Last gate result (2026-08-17):** `npm run wasm` exit 0; `cargo test` 61/61 pass; `tsc --noEmit`
   clean; `eslint` 0 errors (~235 pre-existing `no-console` warnings); `npm run test:all` green
-  (cargo 61/61 + Vitest 190 files / 1,345 tests passed, 26 skipped). End-to-end ABI smoke of the
-  generated wasm in Node verified the two-call string protocol, provenance envelope, `nemosyneNowMs`,
-  and radial-tree `Float32Array` read.
-- **Next:** Wave 2 — mandatory WASM, remove JS fallback (`RuntimeBridge` hard-fail, `DataOperationController`
-  routes every op through the kernel via `FilterSpec`/`AggregateSpec`, `FileLoader` kernel-only parse,
-  `World`/`TDAPlanes` kernel routing; capability flags become telemetry-only, no `if (caps & …)` in `src/`).
+  (cargo 61/61 + Vitest 190 files / 1,345 tests passed, 26 skipped — the wasm-runtime RuntimeBridge
+  parity cases skip in plain jsdom by design; Rust `#[test]`s cover the same logic).
+- **Next:** Wave 3 — delete the orphaned JS analytical modules + tests (`DatasetOperations.ts`,
+  `Parsers.ts`, `CSVDataParser.ts`, `CSVParserWorker.ts`, `ArrowBinaryParser.ts`, `TopologyInference.ts`,
+  `analytics/TDAMapper.ts`; split `Encodings.ts` — keep visual mapping, delete `inferEncodings*`; thin
+  `Dataset.ts` projection + remove `fromCSV`; delete JS tests + porting-rule audit confirming Rust/
+  RuntimeBridge coverage). Update `kernelMock.js` once the JS delegates are gone.
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files

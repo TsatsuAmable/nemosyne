@@ -17,8 +17,7 @@ import {
   applyDensityCluster,
   applyAnomaly,
   applySlice,
-  computeOperationDataset,
-  buildWasmOperationSpec,
+  toKernelSpec,
   captureBaseState,
   resetTransforms,
 } from '../interactions/DataOperations.ts';
@@ -32,8 +31,6 @@ import type {
   WasmRuntimeBridge,
   WorldEventBusLike,
 } from './types.ts';
-
-const CAP_OPERATIONS_RUST = 1 << 2;
 
 const VISUAL_APPLIERS: Record<string, VisualApplier> = {
   filter: applyFilter as VisualApplier,
@@ -66,9 +63,9 @@ export class DataOperationController {
   }
 
   /**
-   * Optional Rust/WASM bridge. When present and the OPERATIONS_RUST capability
-   * is enabled, selected operations are computed in Rust and the result is
-   * converted back to a JS Dataset.
+   * Bind the Rust/WASM analytical kernel. The kernel is MANDATORY for every
+   * analytical transformation; `capabilities` is stored for telemetry only and
+   * is never used to route between implementations.
    */
   setWasmRuntime(bridge: WasmRuntimeBridge | null, capabilities = 0): void {
     this._wasmRuntime = bridge;
@@ -120,40 +117,68 @@ export class DataOperationController {
     const datasetBefore = this._transformedDataset.clone();
     captureBaseState(artifact);
 
-    this._transformedDataset = this._computeDataset(
-      operation,
-      this._transformedDataset,
-      this._originalDataset
-    );
+    let next: Dataset;
+    try {
+      next = this._computeDataset(
+        operation,
+        this._transformedDataset,
+        this._originalDataset
+      );
+    } catch (err) {
+      // The kernel is the only analytical path. If it rejects the op, abort
+      // cleanly without leaving the controller in a half-applied state. Do NOT
+      // fall back to JS analytics.
+      console.error(`[DataOperationController] kernel rejected "${operation}":`, err);
+      return;
+    }
 
+    this._transformedDataset = next;
     this.applyVisual(operation, this._transformedDataset);
     this.clearPreview();
     this._pushAnalysisHistory(operation, datasetBefore, this._transformedDataset);
   }
 
   /**
-   * Compute the result dataset for an operation, routing to the WASM data layer
-   * when the operation is supported there and the runtime is ready. Otherwise
-   * falls back to the JS implementation.
+   * Compute the result dataset for an operation through the mandatory Rust
+   * kernel. There is no JS analytical fallback: if the kernel is unavailable
+   * or the op fails, this throws and the caller decides how to surface it.
    */
   _computeDataset(operation: string, dataset: Dataset, originalDataset: Dataset): Dataset {
-    if (
-      this._wasmRuntime &&
-      (this._wasmCapabilities & CAP_OPERATIONS_RUST) !== 0
-    ) {
-      const op = buildWasmOperationSpec(operation, dataset, originalDataset);
-      if (op) {
-        try {
-          const result = this._wasmRuntime.executeOperation(dataset.toJSON(), op as OperationSpec);
-          if (result) {
-            return Dataset.fromJSON(result);
-          }
-        } catch (e) {
-          console.warn('[DataOperationController] WASM operation panic, falling back to JS:', e);
-        }
-      }
+    const bridge = this._wasmRuntime;
+    if (!bridge || (typeof bridge.isReady === 'function' && !bridge.isReady())) {
+      throw new Error('[DataOperationController] analytical kernel unavailable');
     }
-    return computeOperationDataset(operation, dataset, originalDataset);
+    const inputHandle = bridge.loadDatasetJson(dataset.toJSON());
+    if (inputHandle === 0) {
+      throw new Error(`[DataOperationController] kernel rejected input for "${operation}"`);
+    }
+    try {
+      const op = toKernelSpec(operation, dataset, originalDataset, (col) =>
+        this._medianOf(bridge, inputHandle, col)
+      );
+      const outHandle = bridge.runOperation(inputHandle, op as OperationSpec);
+      if (outHandle === 0) {
+        throw new Error(`[DataOperationController] kernel op "${operation}" failed`);
+      }
+      try {
+        const json = bridge.getDatasetJson(outHandle);
+        if (!json) {
+          throw new Error(`[DataOperationController] kernel produced no output for "${operation}"`);
+        }
+        return Dataset.fromJSON(json);
+      } finally {
+        bridge.destroyDataset(outHandle);
+      }
+    } finally {
+      bridge.destroyDataset(inputHandle);
+    }
+  }
+
+  /** Read the kernel-computed median for `column` (Rust statistics pass). */
+  _medianOf(bridge: WasmRuntimeBridge, handle: number, column: string): number {
+    const facts = bridge.statistics(handle);
+    const col = facts?.numeric.find((c) => c.name === column);
+    return col?.median ?? 0;
   }
 
   /**
@@ -190,11 +215,19 @@ export class DataOperationController {
       this._transformedDataset = this._originalDataset.clone();
     }
 
-    const previewDataset = this._computeDataset(
-      operation,
-      this._transformedDataset,
-      this._originalDataset
-    );
+    let previewDataset: Dataset;
+    try {
+      previewDataset = this._computeDataset(
+        operation,
+        this._transformedDataset,
+        this._originalDataset
+      );
+    } catch (err) {
+      // Kernel unavailable/rejected — no JS fallback. Skip emitting the
+      // preview rather than surface a partial/incorrect state.
+      console.error(`[DataOperationController] kernel rejected preview "${operation}":`, err);
+      return;
+    }
 
     this.eventBus.emit(WorldTopics.OPERATION_PREVIEW, {
       operation,
