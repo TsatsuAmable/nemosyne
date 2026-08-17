@@ -135,9 +135,9 @@ without losing correctness.
 
 ## Model routing (cross-tool)
 
-Provider selection for coding-agent work lives in the **committed** `.ai/model-routing/`
-folder (NOT `.agents/` or `.claude/`, both gitignored) so Claude Code, OpenCode, and
-Antigravity all read the same definitions:
+Provider selection for coding-agent work lives in the **local** `.ai/model-routing/`
+folder (gitignored, like `.agents/` and `.claude/`) so Claude Code, OpenCode, and
+Antigravity on the same machine read the same definitions:
 
 - `.ai/model-routing/model-routes.json` — four provider groups (`ollama-cloud`, `google`,
   `opencode-go`, `opencode-zen`), task-class → preferred/fallback routing, switch triggers.

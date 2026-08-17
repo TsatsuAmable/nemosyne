@@ -12,8 +12,8 @@ duplicate state.
 
 ## Model routing (cross-tool)
 
-Provider selection for coding-agent work is standardized in the committed `.ai/model-routing/`
-folder — `model-routes.json` (four provider groups: `ollama-cloud`, `google`, `opencode-go`,
+Provider selection for coding-agent work is standardized in the local `.ai/model-routing/`
+folder (gitignored, like `.agents/` and `.claude/`) — `model-routes.json` (four provider groups: `ollama-cloud`, `google`, `opencode-go`,
 `opencode-zen`; task-class routing + switch triggers), `README.md` (decision procedure), and
 `tool-mappings.md` (per-tool wiring). Shared with OpenCode and Antigravity via `AGENTS.md`.
 **Manifest only — your Claude Code dispatch is unchanged.** Consult it before heavy

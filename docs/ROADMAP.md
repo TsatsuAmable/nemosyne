@@ -6,7 +6,7 @@
 
 
 - **Last updated:** 2026-08-17 — Wave 4 (AtlasCore + NemosyneSession) implemented and gated green on branch
-  `rust-kernel-commitment`; cross-tool model routing added (commit 2a01822) before Wave 5.
+  `rust-kernel-commitment`; cross-tool model routing added as local/gitignored `.ai/model-routing/` before Wave 5.
 - **Active sprint:** commit Rust/WASM as the canonical analytical engine and rip out the JS analytical
   layer (no JS fallback), then build Atlas/NemosyneSession on top. Plan: `.claude/plans/groovy-mixing-wolf.md`.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
@@ -104,12 +104,13 @@
   does the work + emits provenance). New tests `tests/atlas-core.test.ts` + `tests/nemosyne-session.test.ts`
   lock the ledger/round-trip/tamper contracts; all changed wirings updated, no assertions relaxed.
   Acceptance check: scene graph rebuildable from `NemosyneSession.serialize()`.
-- **Model routing (2026-08-17, 2a01822, docs/config only — no gate):** committed `.ai/model-routing/`
-  (`model-routes.json` + `README.md` + `tool-mappings.md`) standardizing provider selection across Claude
+- **Model routing (2026-08-17, local/gitignored `.ai/model-routing/`, docs/config only — no gate):** local
+  `model-routes.json` + `README.md` + `tool-mappings.md` standardizing provider selection across Claude
   Code / OpenCode / Antigravity — four groups (`ollama-cloud`/`google`/`opencode-go`/`opencode-zen`), a
   task-class → preferred/fallback routing table, switch triggers (429/capability/cost/context), and a
   decision procedure. Manifest only — harness dispatch unchanged. Motivating incident: an Ollama Cloud
-  session 429 killed a Wave-4 sub-agent. Pointers added to `AGENTS.md` + `CLAUDE.md`.
+  session 429 killed a Wave-4 sub-agent. `.ai/` is gitignored (like `.agents/`/`.claude/`); pointers in
+  `AGENTS.md` + `CLAUDE.md`.
 - **Last gate result (2026-08-17):** `npm run wasm` exit 0; `cargo test` 61/61 pass; `tsc --noEmit`
   clean; `eslint` 0 errors (~245 pre-existing `no-console` warnings); `npm run test:all` green
   (cargo 61/61 + Vitest 182 files passed / 1 skipped / 1,267 tests passed / 26 skipped — the wasm-runtime
