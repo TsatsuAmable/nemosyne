@@ -47,11 +47,8 @@ export class SignallingChannel extends EventTarget {
     return new Promise((resolve, reject) => {
       try {
         const params = `room=${encodeURIComponent(this.roomId)}&peer=${encodeURIComponent(this.peerId)}&role=${this.role}`;
-        // Append the shared-secret token when configured. Never logged.
-        const fullUrl = this.token
-          ? `${this.url}?${params}&token=${encodeURIComponent(this.token)}`
-          : `${this.url}?${params}`;
-        this._ws = new WebSocket(fullUrl);
+        // Credentials are never placed in the URL query string to prevent access-log exposure.
+        this._ws = new WebSocket(`${this.url}?${params}`);
       } catch (err) {
         reject(err);
         return;
@@ -59,6 +56,16 @@ export class SignallingChannel extends EventTarget {
 
       this._ws.addEventListener('open', () => {
         this._connected = true;
+        // In-band authentication message sent immediately over the WebSocket connection
+        if (this.token) {
+          const authMsg: SignallingMessage = {
+            roomId: this.roomId,
+            from: this.peerId,
+            to: '*',
+            data: { type: 'auth', token: this.token, role: this.role },
+          };
+          this._ws?.send(JSON.stringify(authMsg));
+        }
         this._flushQueue();
         this.dispatchEvent(new Event('open'));
         resolve();

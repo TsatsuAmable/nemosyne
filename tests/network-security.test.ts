@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { createRoomRegistry, type SignallingSocket } from '../src/network/SignallingServerCore.ts';
+import { createSignedTicket } from '../src/network/SignedTicket.ts';
 
 interface MockSocketWithState extends SignallingSocket {
   listeners: Record<string, ((...args: any[]) => void)[]>;
@@ -35,21 +36,33 @@ function makeSocket(): MockSocketWithState {
 }
 
 describe('Collaboration Gateway Security & Abuse Protection', () => {
-  describe('Server-Authorized Roles & Escalation Prevention', () => {
-    it('enforces server-assigned role from token claims even if client requests participant', () => {
-      const registry = createRoomRegistry({ authToken: 'secret' });
+  describe('Cryptographic Signed Tickets & Role Authorization', () => {
+    it('enforces server-assigned role from valid HMAC signed ticket', () => {
+      const secret = 'room-hmac-master-key';
+      const registry = createRoomRegistry({ authToken: secret });
       const observerSocket = makeSocket();
 
-      // Scoped token claiming observer role
-      const token = JSON.stringify({ room: 'lab-1', role: 'observer' });
-      registry.handleConnection(observerSocket, 'lab-1', 'analyst-1', token, 'participant');
+      // Create cryptographically signed ticket with observer role
+      const ticket = createSignedTicket({
+        room: 'lab-1',
+        role: 'observer',
+        exp: Date.now() + 60000,
+      }, secret);
+
+      // Client connects with signed ticket claiming observer, but requests participant in header
+      registry.handleConnection(observerSocket, 'lab-1', 'analyst-1', ticket, 'participant');
 
       expect(observerSocket.closeCode).toBeUndefined();
       expect(observerSocket.readyState).toBe(1);
 
       // Attempt to broadcast an unauthorized datasetOperation
       const participantSocket = makeSocket();
-      registry.handleConnection(participantSocket, 'lab-1', 'analyst-2', JSON.stringify({ room: 'lab-1', role: 'participant' }));
+      const participantTicket = createSignedTicket({
+        room: 'lab-1',
+        role: 'participant',
+        exp: Date.now() + 60000,
+      }, secret);
+      registry.handleConnection(participantSocket, 'lab-1', 'analyst-2', participantTicket);
       participantSocket.sent.length = 0;
 
       observerSocket.listeners.message[0](
@@ -58,6 +71,69 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
 
       // Participant should NOT receive unauthorized dataset operations from observer
       expect(participantSocket.sent.length).toBe(0);
+    });
+
+    it('rejects forged / unsigned raw JSON token claims', () => {
+      const secret = 'secure-hmac-secret';
+      const registry = createRoomRegistry({ authToken: secret });
+      const socket = makeSocket();
+
+      // Attacker attempts to forge claims by sending unsigned raw JSON
+      const forgedUnsignedJson = JSON.stringify({ room: 'lab-1', role: 'participant' });
+      registry.handleConnection(socket, 'lab-1', 'attacker', forgedUnsignedJson);
+
+      expect(socket.closeCode).toBe(4001);
+      expect(socket.closeReason).toBe('invalid token');
+    });
+
+    it('rejects tampered cryptographic tickets (invalid signature)', () => {
+      const secret = 'correct-server-secret';
+      const wrongSecret = 'attacker-tampered-secret';
+      const registry = createRoomRegistry({ authToken: secret });
+      const socket = makeSocket();
+
+      // Attacker signs ticket with incorrect secret
+      const tamperedTicket = createSignedTicket({
+        room: 'lab-1',
+        role: 'participant',
+        exp: Date.now() + 60000,
+      }, wrongSecret);
+
+      registry.handleConnection(socket, 'lab-1', 'attacker', tamperedTicket);
+      expect(socket.closeCode).toBe(4001);
+      expect(socket.closeReason).toBe('invalid ticket cryptographic signature');
+    });
+
+    it('rejects expired room-scoped tokens (close 4001)', () => {
+      const secret = 'server-key';
+      const registry = createRoomRegistry({ authToken: secret });
+      const socket = makeSocket();
+
+      const expiredTicket = createSignedTicket({
+        room: 'lab-1',
+        role: 'participant',
+        exp: Date.now() - 10000, // 10 seconds in the past
+      }, secret);
+
+      registry.handleConnection(socket, 'lab-1', 'peer-expired', expiredTicket);
+      expect(socket.closeCode).toBe(4001);
+      expect(socket.closeReason).toBe('ticket expired');
+    });
+
+    it('rejects token scoped for a different room (close 4001)', () => {
+      const secret = 'server-key';
+      const registry = createRoomRegistry({ authToken: secret });
+      const socket = makeSocket();
+
+      const ticketOtherRoom = createSignedTicket({
+        room: 'room-alpha',
+        role: 'participant',
+        exp: Date.now() + 60000,
+      }, secret);
+
+      registry.handleConnection(socket, 'room-beta', 'peer-mismatch', ticketOtherRoom);
+      expect(socket.closeCode).toBe(4001);
+      expect(socket.closeReason).toBe('ticket room scope mismatch');
     });
 
     it('enforces observer role when client connects with dedicated observerAuthToken', () => {
@@ -104,36 +180,6 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
 
       expect(participantSocket.sent.length).toBe(0);
     });
-
-    it('rejects expired room-scoped tokens (close 4001)', () => {
-      const registry = createRoomRegistry({ authToken: 'secret' });
-      const socket = makeSocket();
-
-      const expiredToken = JSON.stringify({
-        room: 'lab-1',
-        role: 'participant',
-        exp: Date.now() - 10000, // 10 seconds in the past
-      });
-
-      registry.handleConnection(socket, 'lab-1', 'peer-expired', expiredToken);
-      expect(socket.closeCode).toBe(4001);
-      expect(socket.closeReason).toBe('token expired');
-    });
-
-    it('rejects token scoped for a different room (close 4001)', () => {
-      const registry = createRoomRegistry({ authToken: 'secret' });
-      const socket = makeSocket();
-
-      const tokenOtherRoom = JSON.stringify({
-        room: 'room-alpha',
-        role: 'participant',
-        exp: Date.now() + 60000,
-      });
-
-      registry.handleConnection(socket, 'room-beta', 'peer-mismatch', tokenOtherRoom);
-      expect(socket.closeCode).toBe(4001);
-      expect(socket.closeReason).toBe('token room mismatch');
-    });
   });
 
   describe('Origin Enforcement (Anti-CSWSH)', () => {
@@ -163,7 +209,27 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
     });
   });
 
-  describe('Rate Limiting & Connection Capping', () => {
+  describe('Auth Failure Throttling & Abuse Defense', () => {
+    it('throttles IP after 5 consecutive auth failures', () => {
+      const registry = createRoomRegistry({ authToken: 'correct-secret', maxAuthFailures: 3 });
+      const req = { socket: { remoteAddress: '198.51.100.10' } };
+
+      // 3 failed auth attempts
+      for (let i = 0; i < 3; i++) {
+        const s = makeSocket();
+        registry.handleConnection(s, 'room1', `brute-${i}`, 'bad-password', 'participant', req);
+        expect(s.closeCode).toBe(4001);
+      }
+
+      expect(registry.getAuthFailureCount('198.51.100.10')).toBe(3);
+
+      // 4th connection is immediately throttled with 1008
+      const blockedSocket = makeSocket();
+      registry.handleConnection(blockedSocket, 'room1', 'brute-blocked', 'correct-secret', 'participant', req);
+      expect(blockedSocket.closeCode).toBe(1008);
+      expect(blockedSocket.closeReason).toBe('too many authentication failures');
+    });
+
     it('enforces message rate limits and terminates abusive sockets with 1008', () => {
       const registry = createRoomRegistry({ maxMessagesPerSecond: 5 });
       const socket = makeSocket();
