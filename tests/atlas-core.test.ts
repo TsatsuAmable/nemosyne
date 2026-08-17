@@ -195,7 +195,7 @@ describe('AtlasCore', () => {
   it('recommendations are recorded against the decision history', () => {
     atlas.setRecommendation({
       targetIds: ['x'],
-      action: 'cluster',
+      action: 'inspect-cluster',
       rationale: 'r',
       evidence: 'e',
       confidence: 0.8,
@@ -292,5 +292,71 @@ describe('AtlasCore', () => {
 
     expect(restored.structures).toEqual([discovered]);
     expect(restored.ledger.at(-1)!.structureSet).toEqual(discovered);
+  });
+
+  it('generates guidance from cluster structures with evidence and provenance', () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 2 });
+
+    const rec = atlas.generateRecommendation();
+
+    expect(rec).not.toBeNull();
+    expect(rec!.action).toBe('inspect-cluster');
+    expect(rec!.decision).toBe('pending');
+    expect(rec!.evidenceItems!.length).toBeGreaterThanOrEqual(2);
+    expect(rec!.evidenceItems!.some((e) => e.source.includes('cluster'))).toBe(true);
+    expect(rec!.targetIds).toHaveLength(1);
+    expect(rec!.confidence).toBeGreaterThan(0);
+    expect(rec!.confidence).toBeLessThanOrEqual(1);
+  });
+
+  it('generates inspect-boundary guidance from persistence structures', () => {
+    kernel.computePersistenceIntervals = () => [
+      { birth: 0, death: 3 },
+      { birth: 1, death: 1.5 },
+    ];
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverPersistenceStructures(dataset, { maxDistance: 2 });
+
+    const rec = atlas.generateRecommendation();
+
+    expect(rec).not.toBeNull();
+    expect(rec!.action).toBe('inspect-boundary');
+    expect(rec!.evidenceItems!.some((e) => e.type === 'persistence-score')).toBe(true);
+  });
+
+  it('records accept/reject decisions as recommendation ledger events', () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 2 });
+    atlas.generateRecommendation();
+
+    atlas.acceptRecommendation();
+    expect(atlas.activeRecommendation!.decision).toBe('accepted');
+    expect(atlas.decisionHistory).toHaveLength(1);
+
+    const recEvents = atlas.ledger.filter((e) => e.kind === 'recommendation');
+    expect(recEvents).toHaveLength(2);
+    expect(recEvents[0].recommendationDecision).toBe('pending');
+    expect(recEvents[1].recommendationDecision).toBe('accepted');
+  });
+
+  it('round-trips recommendations through state save/restore', () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 2 });
+    atlas.generateRecommendation();
+    atlas.rejectRecommendation();
+
+    const state = atlas.toState();
+    const restored = new AtlasCore({ kernel: makeKernelMockBridge() });
+    restored.restoreState(state);
+
+    expect(restored.decisionHistory).toEqual(atlas.decisionHistory);
+    expect(restored.activeRecommendation).toEqual(atlas.activeRecommendation);
+    const recEvents = restored.ledger.filter((e) => e.kind === 'recommendation');
+    expect(recEvents).toHaveLength(2);
   });
 });

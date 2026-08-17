@@ -5,15 +5,15 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Atlas 2 structure discovery COMPLETE: Mapper, persistence, and
-  cluster structures now flow through a provenance-bearing, stable-ID `StructureSet` contract with
-  ledger-authority session persistence. Wave 6 merged via PR #130 on branch `rust-kernel-commitment`
-  (rebased clean onto `main`, squashing to `main` via PR once CI passes — auto-merge enabled). Wave 5
-  (Draco as pure embodiment consumer) + the statify rule-4 follow-up landed via PR #128; Wave 4
-  (AtlasCore + NemosyneSession) via PR #127; cross-tool model routing lives in local/gitignored
+- **Last updated:** 2026-08-17 — Atlas 3 guidance layer initial slice: `GuidanceEngine` consumes
+  `StructureSet` outputs to produce evidence-grounded `AtlasRecommendation`s with typed
+  `AnalyticalAction`, structured `AnalyticalEvidence`, propagated provenance, and ledger-tracked
+  accept/reject/override decisions. Atlas 2 structure discovery complete. Wave 6 merged via PR #130.
+  Wave 5 + statify via PR #128; Wave 4 via PR #127; cross-tool model routing in local/gitignored
   `.ai/model-routing/`.
-- **Active sprint:** Atlas 3 — guidance layer gated on reproducible structure outputs (now available
-  from Atlas 2). Rust/WASM remains the canonical analytical engine with no JS fallback.
+- **Active sprint:** Atlas 3 — continue guidance layer: add `compare-regions`/`investigate-anomaly`
+  rules, wire guidance into VR UI consumers, and connect `suggestedEmbodiment` to Draco constraints.
+  Rust/WASM remains the canonical analytical engine with no JS fallback.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
   research-relevant transforms through the versioned Rust kernel (provenance envelope on every result);
   use battle-tested Rust crates; saved-session compatibility breaks (kernel carries `kernelVersion`).
@@ -226,9 +226,26 @@
   in its own key/store, small mutable analysis-cursor + presentation state separate; store dataset bytes as
   Arrow/typed arrays via structured clone; call `storage.persist()` + `.estimate()`; consider OPFS for the large
   immutable dataset-bytes tier. Aligns with post-Wave-4 AtlasCore/DatasetSpace; not touched during Wave 5.
-- **Next:** Atlas 3 — build the guidance layer on top of reproducible structure outputs (Mapper,
-  persistence, cluster `StructureSet`s now available from Atlas 2). Then gate Atlas 4 on validated
-  guidance.
+- **Atlas 3 initial slice ✅ (guidance layer):** `GuidanceEngine` (`src/atlas/GuidanceEngine.ts`)
+  consumes `StructureSet` outputs and produces `AtlasRecommendation`s with:
+  - Typed `AnalyticalAction` enum (`inspect-cluster`, `inspect-boundary`, `explore-region`,
+    `compare-regions`, `investigate-anomaly`) replacing free-form `action: string`.
+  - Structured `AnalyticalEvidence[]` (`{ type, value, source }`) referencing `DiscoveredStructure.id`s,
+    replacing the single `evidence: string` summary (kept for backwards compat).
+  - Propagated `provenance` from `StructureSet` into the recommendation.
+  - `'pending'` decision state so freshly-generated recs don't need a fabricated decision.
+  - `AtlasCore.generateRecommendation()` runs the engine over `this._structures`; convenience methods
+    `acceptRecommendation()` / `rejectRecommendation()` / `overrideRecommendation()` record decisions.
+  - Every recommendation decision appends a `'recommendation'` `ResearchEvent` with
+    `recommendationDecision` populated — closing the audit-trail gap where `recordDecision` previously
+    didn't touch the ledger.
+  - Session serialization round-trips recommendations transparently via existing `AtlasCoreState`.
+  Focused tests: cluster→`inspect-cluster`, persistence→`inspect-boundary`, ledger event verification,
+  state restore round-trip. **Remaining Atlas 3:** `compare-regions`/`investigate-anomaly` rules, VR UI
+  consumers, Draco embodiment wiring via `suggestedEmbodiment`.
+- **Next:** Atlas 3 — wire guidance into VR UI (recommendation panel with accept/reject/override
+  controls), connect `suggestedEmbodiment` to Draco constraints, and add multi-structure comparison
+  rules. Then gate Atlas 4 on validated guidance.
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files
