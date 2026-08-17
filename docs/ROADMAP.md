@@ -5,124 +5,62 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 after reviewing `atlas-1` vs `main` and applying fixes.
-- **Repository state:** review-fix set committed on `atlas-1` (tracking `origin/atlas-1`); working
-  tree clean. Not yet pushed.
-- **Last gate result:** `tsc --noEmit` clean; eslint 0 errors (pre-existing warnings only); full
-  Vitest 1342 passed | 9 skipped (incl. +4 regression tests: chart point contrast, grip re-arm,
-  locale-stable fingerprint, legacy annotation coercion). Production build and Rust tests not
-  rerun for this change set.
-- **Review fixes (atlas-1 vs main, 10/10):** Vite dev/preview signalling forwards the `role` param
-  so observer relay-gating works locally; line-chart points keep white contrast in the default
-  theme; colorblind toggle re-applies the active data-operation transform after re-solve (shared
-  `_reapplyOperationTransform` helper); grip system-toggle fires once per raw press with no
-  panel-boundary re-arm; `DatasetSpace` fingerprint sorts keys by codepoint (locale-independent);
-  remote-delta rate-limit slot consumed only when a delta is applied; `SharedAnnotationManager`
-  coerces legacy payloads (string `colorHex`, optional `authorName`/`cameraRotation`) while keeping
-  security bounds; `tour_step` accepts a missing `tourId`; `RemoteDebugStreamer.dispose()` restores
-  console/listeners/banner and is idempotent; `world.datasetSpace` is a lazy cached getter, not
-  eagerly built on every load.
-- **Next:** commit the review-fix set on `atlas-1`, rerun the production build, then resume the
-  `World.ts` composition-root / Atlas Core work and the Phase 21.3 load-test staircase. The earlier
-  `accissibility-fix-new-push` items below remain the active accessibility / on-device validation
-  track.
+- **Last updated:** 2026-08-17 — began the Rust/WASM commitment sprint on branch `rust-kernel-commitment`
+  (forked from `atlas-1` after the review-fix set was pushed as `8017f5f`).
+- **Active sprint:** commit Rust/WASM as the canonical analytical engine and rip out the JS analytical
+  layer (no JS fallback), then build Atlas/NemosyneSession on top. Plan: `.claude/plans/groovy-mixing-wolf.md`.
+  Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
+  research-relevant transforms through the versioned Rust kernel (provenance envelope on every result);
+  use battle-tested Rust crates; saved-session compatibility breaks (kernel carries `kernelVersion`).
+- **Wave 0 ✅ (security P0 + dead code + hygiene):** `RemoteDebugStreamer` gated to `import.meta.env.DEV`
+  with a bounded/backoff retry queue; Vite dev POST endpoints (`/__remote-logs`, `/__loadtest-results`,
+  `/__ux-trace`) bounded (body cap, timeout, rate limit, structural caps) and `/wasm` path-traversal
+  fixed; `preview.host` limited to localhost; signalling uses constant-time token compare and the
+  standalone server rejects open (no-token) mode by default; `FileLoader` adds a `file.size` pre-check
+  before reading a file into memory. Deleted `tests/file-loader.test.js` + `tests/tda-mapper.test.js`
+  (skip stubs) and the `src/vr/scalability/ObjectPool.ts` shim (4 e2e specs repointed to
+  `src/utils/ObjectPool.ts`); untracked `.DS_Store` + `temp_phase23.md`; fixed committed `.gitignore`
+  merge markers; added `docs:build` script and consolidated deploy on Netlify (removed `deploy:vercel`).
+- **Deferred to Wave 2:** chaining `build:wasm` into `build` (requires Netlify/CI Rust toolchain setup).
+- **Last gate result:** `tsc --noEmit` clean; eslint 0 errors; full Vitest green (network +2 cases,
+  file-loader +9, remote-debug-streamer, repointed e2e specs all pass). Rust tests not rerun for Wave 0.
+- **Next:** Wave 1 — Rust Analytical Kernel (canonical versioned ABI, full parity via mature crates,
+  provenance envelope, canonical fingerprint, export topology/TDA/arrow/encodings, wire dlmalloc tier,
+  parity tests).
 
-- **Last updated:** 2026-08-16 after deferring Accessibility recolor into the broader UX manual
-  testing effort on `accissibility-fix-new-push`.
-- **Repository state:** working tree has test-environment fixes on `accissibility-fix-new-push`,
-  tracking `origin/accissibility-fix-new-push`.
-- **Last gate result:** typecheck passed; full lint passed with 0 errors and 204 warnings; full Vitest
-  coverage passed with 189 files, 1,333 tests, and 84.38% statements in 267 seconds; production
-  build passed. The prior timeout was suite duration, not a hang. Stable Rust 1.97.1 is installed;
-  Rust tests pass with 32/32 tests using a user-space GCC/libc sysroot workaround because the
-  environment lacks the normal system C linker/libc development path.
-
-- **Last updated:** 2026-08-16 after investigating the Vitest coverage timeout on
-  `accissibility-fix-new-push`.
-- **Repository state:** working tree has test-environment fixes on `accissibility-fix-new-push`,
-  tracking `origin/accissibility-fix-new-push`.
-- **Last gate result:** targeted typecheck/lint passed; full Vitest coverage passed with 189 files,
-  1,333 tests, and 84.38% statements in 267 seconds. The prior timeout was suite duration, not a
-  hang. Production build was not rerun. Rust tests remain blocked because `cargo` is unavailable.
-- **On-device rerun #2 (2026-08-15 15:24):** session ran ~5 min but `logs/ux-trace.jsonl` captured ONLY the meta record. Root cause: scene contains `THREE.Sprite` interactables (label sprites); recorder's raycaster never set `.camera`, and `Sprite.raycast` dereferences `raycaster.camera.matrixWorld` after a console.error-only guard → TypeError every frame → recorder self-disabled at 11 errors (`UXTraceRecorder.ts` update guard). Full stack + paired `THREE.Sprite: "Raycaster.camera"` errors in `logs/vr-remote-console.log`. Validation report NOT yet filled. **Fix applied:** `_raycastTargets` now sets `raycaster.camera`, filters null meshes; `_buildContext` degrades per-section (head/gaze, pointer, hands) with one-time warn instead of throwing; regression test with Sprite + null-mesh interactables (13/13 pass).
-- **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges (with actual routing decision), selection hit/miss, gestures, system toggles fired/suppressed, wheel open/close, and tour steps with head-gaze raycast target + pointer-ray drift, sampled at 5 Hz. Streams to `/__ux-trace` (vite serve plugin) → `logs/ux-trace.jsonl`; analyze with `node scripts/analyze-ux-trace.mjs --timeline`. Auto-on in dev, self-disables on 404. Wired in `src/main.ts` via taps in InputRouter/SelectionDispatcher/SystemGestureDetector/HandWheelMenu/GuidedTour. Pipeline smoke-verified 2026-08-15. **Next trace expansion:** capture all ray-touched panels, buttons, data elements, and world-space targets, including ordered intersections, stable target identity/type, hit point/distance, active pinch/gesture, routing decision, and head/pointer world-space context.
-- **System-toggle tuning (2026-08-16):** both-hand pinch requires a 400 ms hold, skips panel-targeted rays, and has a 1 s cooldown. Quest logs support partial success: 161 pinch starts, correct handedness, and reach-zone suppression were observed, but 67 toggles occurred in ~40 seconds and selection/routing UX remains unresolved. Those UX issues are deferred to the later architectural track.
-- **Active work:** Phase 22.3 input validation is recorded as partial success; Tier B onboarding wiring is complete. Phase 22.3.1 now has observer relay filtering, renderer-lifecycle extraction, dashboard resource disposal, scene teardown code, and remote annotation/bookmark delta schema hardening. Targeted regression coverage and manual evidence remain open. Documentation direction requires Atlas Core in Stable Alpha, with the complete Atlas Research Release deferred. Phase 21.3 remains infrastructure/readiness work and is blocked from command-buffer rollout until the B2 load-test staircase produces `logs/loadtest-results.jsonl`.
-- **Meta Quest session (2026-08-16 17:52-17:55 UTC):** logs show successful native input-source
-  fallback, poseable left/right hands, both-hand and single-hand gesture events, dataset loading,
-  and reach-zone suppression. No remote-console errors were found. System-toggle over-triggering
-  remains observable, including toggles during one-hand/held-hand sequences. The logs contain no
-  colorblind-mode, palette, or recolor event, so Accessibility recolor remains unverified by logs.
-- **Next:** Investigate the Vitest coverage timeout and recurring jsdom warnings, install or provide the Rust
-  toolchain, then rerun the complete JS/Rust gates. After validation closure, manually verify Accessibility
-  recolor across Draco artefacts and dashboard chart types, finish targeted Phase 22.3.1 coverage, and
-  continue the `World.ts` composition-root and Atlas Core work. Run the Phase 21.3 load-test staircase
-  before deciding whether command buffers are warranted.
-- **Last updated:** 2026-08-16 after running the validation gates on `accissibility-fix-new-push`.
-- **Repository state:** working tree is clean on `accissibility-fix-new-push`, tracking
-  `origin/accissibility-fix-new-push`.
-- **Last gate result:** typecheck passed; lint passed with 0 errors and 205 warnings; production
-  build passed. Vitest coverage did not complete within five minutes. Rust tests were blocked because
-  `cargo` is not installed in the environment.
-- **On-device rerun #2 (2026-08-15 15:24):** session ran ~5 min but `logs/ux-trace.jsonl` captured ONLY the meta record. Root cause: scene contains `THREE.Sprite` interactables (label sprites); recorder's raycaster never set `.camera`, and `Sprite.raycast` dereferences `raycaster.camera.matrixWorld` after a console.error-only guard → TypeError every frame → recorder self-disabled at 11 errors (`UXTraceRecorder.ts` update guard). Full stack + paired `THREE.Sprite: "Raycaster.camera"` errors in `logs/vr-remote-console.log`. Validation report NOT yet filled. **Fix applied:** `_raycastTargets` now sets `raycaster.camera`, filters null meshes; `_buildContext` degrades per-section (head/gaze, pointer, hands) with one-time warn instead of throwing; regression test with Sprite + null-mesh interactables (13/13 pass).
-- **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges (with actual routing decision), selection hit/miss, gestures, system toggles fired/suppressed, wheel open/close, and tour steps with head-gaze raycast target + pointer-ray drift, sampled at 5 Hz. Streams to `/__ux-trace` (vite serve plugin) → `logs/ux-trace.jsonl`; analyze with `node scripts/analyze-ux-trace.mjs --timeline`. Auto-on in dev, self-disables on 404. Wired in `src/main.ts` via taps in InputRouter/SelectionDispatcher/SystemGestureDetector/HandWheelMenu/GuidedTour. Pipeline smoke-verified 2026-08-15. **Next trace expansion:** capture all ray-touched panels, buttons, data elements, and world-space targets, including ordered intersections, stable target identity/type, hit point/distance, active pinch/gesture, routing decision, and head/pointer world-space context.
-- **System-toggle tuning (2026-08-16):** both-hand pinch requires a 400 ms hold, skips panel-targeted rays, and has a 1 s cooldown. Quest logs support partial success: 161 pinch starts, correct handedness, and reach-zone suppression were observed, but 67 toggles occurred in ~40 seconds and selection/routing UX remains unresolved. Those UX issues are deferred to the later architectural track.
-- **Active work:** Phase 22.3 input validation is recorded as partial success; Tier B onboarding wiring is complete. Phase 22.3.1 now has observer relay filtering, renderer-lifecycle extraction, dashboard resource disposal, scene teardown code, and remote annotation/bookmark delta schema hardening. Targeted regression coverage and manual evidence remain open. Documentation direction requires Atlas Core in Stable Alpha, with the complete Atlas Research Release deferred. Phase 21.3 remains infrastructure/readiness work and is blocked from command-buffer rollout until the B2 load-test staircase produces `logs/loadtest-results.jsonl`.
-- **Meta Quest session (2026-08-16 17:52-17:55 UTC):** logs show successful native input-source
-  fallback, poseable left/right hands, both-hand and single-hand gesture events, dataset loading,
-  and reach-zone suppression. No remote-console errors were found. System-toggle over-triggering
-  remains observable, including toggles during one-hand/held-hand sequences. The logs contain no
-  colorblind-mode, palette, or recolor event, so Accessibility recolor remains unverified by logs.
-- **Next:** Investigate the Vitest coverage timeout and recurring jsdom warnings, install or provide the Rust
-  toolchain, then rerun the complete JS/Rust gates. After validation closure, manually verify Accessibility
-  recolor across Draco artefacts and dashboard chart types, finish targeted Phase 22.3.1 coverage, and
-  continue the `World.ts` composition-root and Atlas Core work. Run the Phase 21.3 load-test staircase
-  before deciding whether command buffers are warranted.
-- **Last updated:** 2026-08-16 after reviewing the Meta Quest accessibility-session logs.
-- **Repository state:** working tree has uncommitted roadmap, validation-report, remote-delta, and
-  regression-test changes on `feature/compare-completion`, branched from `roadmap-cleanup`.
-- **Last gate result:** manual Compare verification passed. Earlier focused shared-annotation tests
-  passed (`9/9`), typecheck passed, and lint had 0 errors (205 warnings). Full JS/Rust gates and
-  build remain intentionally deferred.
-- **On-device rerun #2 (2026-08-15 15:24):** session ran ~5 min but `logs/ux-trace.jsonl` captured ONLY the meta record. Root cause: scene contains `THREE.Sprite` interactables (label sprites); recorder's raycaster never set `.camera`, and `Sprite.raycast` dereferences `raycaster.camera.matrixWorld` after a console.error-only guard → TypeError every frame → recorder self-disabled at 11 errors (`UXTraceRecorder.ts` update guard). Full stack + paired `THREE.Sprite: "Raycaster.camera"` errors in `logs/vr-remote-console.log`. Validation report NOT yet filled. **Fix applied:** `_raycastTargets` now sets `raycaster.camera`, filters null meshes; `_buildContext` degrades per-section (head/gaze, pointer, hands) with one-time warn instead of throwing; regression test with Sprite + null-mesh interactables (13/13 pass).
-- **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges (with actual routing decision), selection hit/miss, gestures, system toggles fired/suppressed, wheel open/close, and tour steps with head-gaze raycast target + pointer-ray drift, sampled at 5 Hz. Streams to `/__ux-trace` (vite serve plugin) → `logs/ux-trace.jsonl`; analyze with `node scripts/analyze-ux-trace.mjs --timeline`. Auto-on in dev, self-disables on 404. Wired in `src/main.ts` via taps in InputRouter/SelectionDispatcher/SystemGestureDetector/HandWheelMenu/GuidedTour. Pipeline smoke-verified 2026-08-15. **Next trace expansion:** capture all ray-touched panels, buttons, data elements, and world-space targets, including ordered intersections, stable target identity/type, hit point/distance, active pinch/gesture, routing decision, and head/pointer world-space context.
-- **System-toggle tuning (2026-08-16):** both-hand pinch requires a 400 ms hold, skips panel-targeted rays, and has a 1 s cooldown. Quest logs support partial success: 161 pinch starts, correct handedness, and reach-zone suppression were observed, but 67 toggles occurred in ~40 seconds and selection/routing UX remains unresolved. Those UX issues are deferred to the later architectural track.
-- **Active work:** Phase 22.3 input validation is recorded as partial success; Tier B onboarding wiring is complete. Phase 22.3.1 now has observer relay filtering, renderer-lifecycle extraction, dashboard resource disposal, scene teardown code, and remote annotation/bookmark delta schema hardening. Targeted regression coverage and manual evidence remain open. Documentation direction requires Atlas Core in Stable Alpha, with the complete Atlas Research Release deferred. Phase 21.3 remains infrastructure/readiness work and is blocked from command-buffer rollout until the B2 load-test staircase produces `logs/loadtest-results.jsonl`.
-- **Meta Quest session (2026-08-16 17:52-17:55 UTC):** logs show successful native input-source
-  fallback, poseable left/right hands, both-hand and single-hand gesture events, dataset loading,
-  and reach-zone suppression. No remote-console errors were found. System-toggle over-triggering
-  remains observable, including toggles during one-hand/held-hand sequences. The logs contain no
-  colorblind-mode, palette, or recolor event, so Accessibility recolor remains unverified by logs.
-- **Next:** Manually verify runtime Accessibility recolor across existing Draco artefacts and
-  dashboard chart types. Compare visual/history restore, dashboard `_difference` remapping, and
-  edge-case handling are manually verified as `PASS`; automated testing remains deferred. Then finish the `World.ts`
-  composition-root boundaries around logical session, Atlas Core, research ledger, input commands,
-  and renderer lifecycle. Implement Atlas Core and, in parallel, run the Phase 21.3 load-test
-  staircase before deciding whether command buffers are warranted.
-- **Last updated:** 2026-08-16 after deferring Accessibility recolor into the broader UX manual
-  testing effort on `accissibility-fix-new-push`.
-- **Repository state:** working tree has test-environment fixes on `accissibility-fix-new-push`,
-  tracking `origin/accissibility-fix-new-push`.
-- **Last gate result:** typecheck passed; full lint passed with 0 errors and 204 warnings; full Vitest
-  coverage passed with 189 files, 1,333 tests, and 84.38% statements in 267 seconds; production
-  build passed. The prior timeout was suite duration, not a hang. Stable Rust 1.97.1 is installed;
-  Rust tests pass with 32/32 tests using a user-space GCC/libc sysroot workaround because the
-  environment lacks the normal system C linker/libc development path.
-- **On-device rerun #2 (2026-08-15 15:24):** session ran ~5 min but `logs/ux-trace.jsonl` captured ONLY the meta record. Root cause: scene contains `THREE.Sprite` interactables (label sprites); recorder's raycaster never set `.camera`, and `Sprite.raycast` dereferences `raycaster.camera.matrixWorld` after a console.error-only guard → TypeError every frame → recorder self-disabled at 11 errors (`UXTraceRecorder.ts` update guard). Full stack + paired `THREE.Sprite: "Raycaster.camera"` errors in `logs/vr-remote-console.log`. Validation report NOT yet filled. **Fix applied:** `_raycastTargets` now sets `raycaster.camera`, filters null meshes; `_buildContext` degrades per-section (head/gaze, pointer, hands) with one-time warn instead of throwing; regression test with Sprite + null-mesh interactables (13/13 pass).
-- **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges (with actual routing decision), selection hit/miss, gestures, system toggles fired/suppressed, wheel open/close, and tour steps with head-gaze raycast target + pointer-ray drift, sampled at 5 Hz. Streams to `/__ux-trace` (vite serve plugin) → `logs/ux-trace.jsonl`; analyze with `node scripts/analyze-ux-trace.mjs --timeline`. Auto-on in dev, self-disables on 404. Wired in `src/main.ts` via taps in InputRouter/SelectionDispatcher/SystemGestureDetector/HandWheelMenu/GuidedTour. Pipeline smoke-verified 2026-08-15. **Next trace expansion:** capture all ray-touched panels, buttons, data elements, and world-space targets, including ordered intersections, stable target identity/type, hit point/distance, active pinch/gesture, routing decision, and head/pointer world-space context.
-- **System-toggle tuning (2026-08-16):** both-hand pinch requires a 400 ms hold, skips panel-targeted rays, and has a 1 s cooldown. Quest logs support partial success: 161 pinch starts, correct handedness, and reach-zone suppression were observed, but 67 toggles occurred in ~40 seconds and selection/routing UX remains unresolved. Those UX issues are deferred to the later architectural track.
-- **Active work:** Phase 22.3 input validation is recorded as partial success; Tier B onboarding wiring is complete. Phase 22.3.1 now has observer relay filtering, renderer-lifecycle extraction, dashboard resource disposal, scene teardown code, and remote annotation/bookmark delta schema hardening. Targeted regression coverage and manual evidence remain open. Atlas 1 now has a production-wired `DatasetSpace` foundation; structure discovery, analytical guidance, research context, and replay remain open for Stable Alpha. Phase 21.3 remains infrastructure/readiness work and is blocked from command-buffer rollout until the B2 load-test staircase produces `logs/loadtest-results.jsonl`.
-- **Meta Quest session (2026-08-16 17:52-17:55 UTC):** logs show successful native input-source
-  fallback, poseable left/right hands, both-hand and single-hand gesture events, dataset loading,
-  and reach-zone suppression. No remote-console errors were found. System-toggle over-triggering
-  remains observable, including toggles during one-hand/held-hand sequences. Accessibility recolor is
-  intentionally deferred to the broader UX manual-testing effort.
-- **Next:** finish targeted Phase 22.3.1 coverage and manual evidence, continue the `World.ts`
-  composition-root and Atlas Core work, and include Accessibility recolor in the larger UX
-  manual-testing pass. Run the Phase 21.3 load-test staircase before deciding whether command buffers
-  are warranted.
-- **Atlas architecture boundary:** Current Draco remains the v1 embodiment pipeline (`Dataset` facts → visual spec → VR artefact). Atlas 1 now provides a renderer-independent `DatasetSpace` with stable datum IDs, content fingerprinting, normalization metadata, and JSON round-trip; provenance-bearing structures, analytical recommendations, and reproducible research sessions remain gaps. The later Atlas Research Release expands this core and must not be inferred from existing Dataset, TDA, session, telemetry, or benchmark utilities.
-- **Resume pointers:** validation → `docs/PHASE_22_3_VALIDATION_REPORT.md` (+ guide); UX trace → `scripts/analyze-ux-trace.mjs` + `src/vr/trace/UXTraceRecorder.ts`; audit → `docs/AUDIT_PHASES_1_20.md`; product docs → `docs/PROJECT_DOCS_INDEX.md`; study package → `docs/study/README.md`; Phase 22.3 scope → §Sprint 22.3.
+### Prior track (consolidated 2026-08-16)
+- **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files
+  / 1,333 tests / 84.38% statements in 267s; production build passed. Rust tests pass 32/32 using a
+  user-space GCC/libc sysroot workaround (the environment lacks the normal system C linker/libc path);
+  `cargo` is otherwise unavailable in some CI envs.
+- **UX trace instrumentation (dev-only):** `UXTraceRecorder` (`src/vr/trace/`) correlates pinch edges,
+  selection hit/miss, gestures, system toggles, wheel open/close, and tour steps with head-gaze target +
+  pointer-ray drift at 5 Hz; streams to `/__ux-trace` → `logs/ux-trace.jsonl`; analyze with
+  `scripts/analyze-ux-trace.mjs`. Auto-on in dev, self-disables on 404.
+- **On-device rerun #2 (2026-08-15 15:24):** `logs/ux-trace.jsonl` captured only the meta record; root
+  cause was `THREE.Sprite` interactables + a recorder raycaster missing `.camera`. Fixed: `_raycastTargets`
+  sets `raycaster.camera` and filters null meshes; `_buildContext` degrades per-section with a one-time
+  warn. Regression test 13/13.
+- **System-toggle tuning (2026-08-16):** both-hand pinch requires a 400 ms hold, skips panel-targeted
+  rays, 1 s cooldown. Quest logs: 161 pinch starts, correct handedness, reach-zone suppression, but 67
+  toggles in ~40 s — selection/routing UX deferred to the architectural track.
+- **Meta Quest session (2026-08-16 17:52–17:55 UTC):** native input-source fallback, poseable hands,
+  both/single-hand gestures, dataset loading, reach-zone suppression; no remote-console errors;
+  system-toggle over-triggering still observable; Accessibility recolor deferred to UX manual testing.
+- **Active work (Phase 22.3):** input validation partial success; Tier B onboarding complete; Phase
+  22.3.1 has observer relay filtering, renderer-lifecycle extraction, dashboard resource disposal,
+  scene teardown, and remote annotation/bookmark delta schema hardening. Atlas 1 has a production-wired
+  `DatasetSpace` foundation; structure discovery, analytical guidance, research context, and replay
+  remain open for Stable Alpha. Phase 21.3 stays blocked from command-buffer rollout until the B2
+  load-test staircase produces `logs/loadtest-results.jsonl`.
+- **Atlas architecture boundary:** current Draco remains the v1 embodiment pipeline (`Dataset` facts →
+  visual spec → VR artefact). Atlas 1 provides a renderer-independent `DatasetSpace` (stable datum IDs,
+  content fingerprinting, normalization, JSON round-trip); provenance-bearing structures, analytical
+  recommendations, and reproducible research sessions remain gaps.
+- **Resume pointers:** validation → `docs/PHASE_22_3_VALIDATION_REPORT.md`; UX trace →
+  `scripts/analyze-ux-trace.mjs` + `src/vr/trace/UXTraceRecorder.ts`; audit → `docs/AUDIT_PHASES_1_20.md`;
+  product docs → `docs/PROJECT_DOCS_INDEX.md`; study package → `docs/study/README.md`; Phase 22.3 scope
+  → §Sprint 22.3.
 
 ### How to update this block
 1. On pickup: read this block first; jump to the cited sections for detail.

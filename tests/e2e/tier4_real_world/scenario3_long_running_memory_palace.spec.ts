@@ -4,7 +4,7 @@ import { WorkspaceManager } from '../../../src/vr/coordinators/WorkspaceManager.
 import { DataOperationController } from '../../../src/vr/coordinators/DataOperationController.ts';
 import { WorldEventBus } from '../../../src/utils/EventBus.ts';
 import { Dataset } from '../../../src/data/Dataset.ts';
-import { sharedSphereGeometry, sharedBoxGeometry } from '../../../src/vr/scalability/ObjectPool.ts';
+import { sharedSphereGeometry, sharedBoxGeometry } from '../../../src/utils/ObjectPool.ts';
 
 describe('Tier 4 — Scenario 3: Long-Running VR Spatial Memory Palace & Dynamic Dataset Swapping', () => {
   it('Executes multi-dataset session: loads Dataset A, simulates long run, swaps to Dataset B, and verifies MeshPool static geometry preservation', () => {

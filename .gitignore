@@ -19,7 +19,9 @@ logs/
 test-results/
 playwright-report/
 tests/coverage
-<<<<<<< HEAD
 docs/website_copy.md
-=======
->>>>>>> 4eda660d8984d8a08ca3de6c4a21c5f5ba8c3234
+# OS / editor detritus
+.DS_Store
+Thumbs.db
+# Root-level scratch / temp notes (never commit)
+/temp_*

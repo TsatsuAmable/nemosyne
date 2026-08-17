@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { disposeObject } from '../../../src/utils/Dispose.ts';
-import { MeshPool, sharedSphereGeometry, sharedBoxGeometry } from '../../../src/vr/scalability/ObjectPool.ts';
+import { MeshPool, sharedSphereGeometry, sharedBoxGeometry } from '../../../src/utils/ObjectPool.ts';
 
 describe('Tier 2 — Feature 4: Shared Geometry Disposals (Boundary Cases)', () => {
   it('F4-BC1: disposeObject on null, undefined, or already disposed object executes safely', () => {

@@ -16,6 +16,14 @@ import { TopologyTypes } from '../draco/ConstraintEngine.ts';
  * Provides a small overlay panel for desktop debugging and headset pass-through.
  */
 const CAP_PARSER_RUST = 1 << 1;
+/**
+ * Hard cap on uploaded file size, checked BEFORE `file.text()` reads the whole
+ * file into memory. Without this, a multi-GB upload OOMs the tab before the
+ * 100k-row / 1000-column limits (applied during parse) can engage. 256 MB is
+ * generous for legitimate analytical datasets while bounding the peak heap
+ * (the parse path may transiently hold file → string → bytes → parsed).
+ */
+const MAX_IMPORT_BYTES = 256 * 1024 * 1024;
 
 export interface FileLoaderLoadEvent {
   name: string;
@@ -199,6 +207,15 @@ export class FileLoaderUI {
 
   private async _handleFile(file: File | undefined): Promise<void> {
     if (!file) return;
+    // Reject oversized files before reading them into memory. `file.size` is
+    // present on all evergreen browsers; guard for the rare undefined case.
+    if (typeof file.size === 'number' && file.size > MAX_IMPORT_BYTES) {
+      const mb = (file.size / (1024 * 1024)).toFixed(1);
+      const maxMb = (MAX_IMPORT_BYTES / (1024 * 1024)).toFixed(0);
+      this._status(`File too large (${mb} MB); import cap is ${maxMb} MB.`);
+      this._clearSchema();
+      return;
+    }
     const text = await file.text();
     let dataset: Dataset;
     try {
