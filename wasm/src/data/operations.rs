@@ -190,7 +190,7 @@ pub fn k_means(dataset: &Dataset, k: usize, feature_columns: Option<&[&str]>) ->
         .collect();
 
     let effective_k = k.min(values.len()).max(1);
-    let mut rng = Lcg::new(dataset.fingerprint() as u32);
+    let mut rng = Lcg::new(dataset.fingerprint_seed());
     let mut centroids = kmeans_plus_plus(&values,
         effective_k,
         &mut rng,

@@ -1,13 +1,17 @@
 pub mod column;
 pub mod dataset;
+pub mod encodings;
+pub mod fingerprint;
 pub mod operations;
 pub mod operations_bridge;
 pub mod parsers;
+pub mod provenance;
+pub mod statistics;
 pub mod synthetic;
 pub mod topology;
 pub mod value;
 
-pub use dataset::Dataset;
+pub use dataset::{Dataset, Edge};
 
 use std::sync::Mutex;
 

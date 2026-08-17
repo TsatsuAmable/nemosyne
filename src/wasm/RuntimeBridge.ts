@@ -12,7 +12,17 @@
  * primitives cross the wasm-bindgen boundary.
  */
 
-import type { DatasetJSON, OperationSpec } from '../data/types.js';
+import type {
+  DatasetJSON,
+  OperationSpec,
+  Facts,
+  Provenance,
+  EncodingMapping,
+  TdaMapperGraph,
+  PersistenceInterval,
+  BettiPoint,
+  ColumnSchema,
+} from '../data/types.js';
 
 /**
  * wasm-bindgen `--target web` exports an `init` function plus the public Rust
@@ -41,6 +51,51 @@ interface WasmInitOutput {
   dataset_destroy(handle: number): void;
   dataset_to_json(handle: number, ptr: number, len: number): number;
   data_operation(handle: number, ptr: number, len: number): number;
+  // Wave 1 analytical-kernel exports.
+  data_parse_arrow(ptr: number, len: number): number;
+  dataset_fingerprint(handle: number, ptr: number, len: number): number;
+  kernel_version(ptr: number, len: number): number;
+  kernel_provenance(ptr: number, len: number): number;
+  data_infer_topology(handle: number, ptr: number, len: number): number;
+  data_infer_encodings(
+    handle: number,
+    topoPtr: number,
+    topoLen: number,
+    ptr: number,
+    len: number,
+  ): number;
+  data_infer_schema(handle: number, ptr: number, len: number): number;
+  data_statistics(handle: number, ptr: number, len: number): number;
+  data_compute_mapper_graph(
+    handle: number,
+    paramsPtr: number,
+    paramsLen: number,
+    ptr: number,
+    len: number,
+  ): number;
+  data_compute_persistence_intervals(
+    handle: number,
+    paramsPtr: number,
+    paramsLen: number,
+    ptr: number,
+    len: number,
+  ): number;
+  data_compute_betti0_curve(
+    handle: number,
+    paramsPtr: number,
+    paramsLen: number,
+    ptr: number,
+    len: number,
+  ): number;
+  data_compute_radial_tree_3d(
+    levelsPtr: number,
+    levelsLen: number,
+    ringSpacing: number,
+    yStep: number,
+    yOffset: number,
+    ptr: number,
+    len: number,
+  ): number;
   [key: string]: unknown;
 }
 interface WasmModule {
@@ -85,6 +140,11 @@ export async function initRuntime(wasmUrl?: string | URL): Promise<WasmModule> {
 
   const wasmModuleUrl = '/wasm/pkg/nemosyne_wasm.js';
   const mod = (await import(/* @vite-ignore */ wasmModuleUrl)) as WasmModule;
+
+  // Install the host clock the kernel imports as `nemosyneNowMs` for provenance
+  // timestamps. wasm-bindgen resolves this import from `globalThis` at
+  // instantiation time, so it must be present before `mod.default(...)` runs.
+  (globalThis as unknown as Record<string, unknown>).nemosyneNowMs = () => Date.now();
 
   // wasm-pack --target web exports an `init` (default) function that returns
   // an InitOutput with `memory` as a plain property, not a callable.
@@ -375,6 +435,219 @@ export function executeOperation(datasetObj: DatasetJSON, op: OperationSpec): Da
   } finally {
     destroyDataset(inputHandle);
     if (outputHandle !== 0) destroyDataset(outputHandle);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Wave 1 analytical-kernel typed wrappers
+// ---------------------------------------------------------------------------
+//
+// Every result-bearing call here causes the kernel to record a provenance
+// envelope, readable immediately afterwards via `kernelProvenance()`. The
+// string/JSON exports use the two-call `(out_ptr, out_len)` size-query
+// protocol shared with `getDatasetJson`.
+
+/**
+ * Two-call `(out_ptr, out_len)` string-read protocol. Call with `(0, 0)` to
+ * query the required byte length, allocate, then read. Returns `null` when the
+ * kernel reports no result (e.g. an invalid handle).
+ */
+function readStringExport(invoke: (outPtr: number, outLen: number) => number): string | null {
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  const required = invoke(0, 0);
+  if (required === 0) return null;
+  const ptr = wasmInstance.alloc(required);
+  try {
+    const written = invoke(ptr, required);
+    if (written === 0) return null;
+    return readString(ptr, written);
+  } finally {
+    wasmInstance.dealloc(ptr, required);
+  }
+}
+
+/**
+ * Run a TDA export that takes a JSON `params` payload plus the `(out_ptr,
+ * out_len)` string-result protocol. Returns the raw JSON string or `null`.
+ */
+function tdaCall(
+  handle: number,
+  params: Record<string, unknown>,
+  exportName: 'data_compute_mapper_graph' | 'data_compute_persistence_intervals' | 'data_compute_betti0_curve',
+): string | null {
+  const paramBytes = new TextEncoder().encode(JSON.stringify(params));
+  const { ptr: paramPtr, len: paramLen } = allocBytes(paramBytes);
+  try {
+    return readStringExport((outPtr, outLen) => {
+      const fn = wasmInstance![exportName] as (
+        h: number,
+        pp: number,
+        pl: number,
+        p: number,
+        l: number,
+      ) => number;
+      return fn(handle, paramPtr, paramLen, outPtr, outLen);
+    });
+  } finally {
+    deallocBytes(paramPtr, paramLen);
+  }
+}
+
+/** @returns The canonical kernel version string (e.g. `0.2.0`). */
+export function kernelVersion(): string | null {
+  return readStringExport((p, l) => wasmInstance!.kernel_version(p, l));
+}
+
+/** @returns The provenance envelope recorded by the most recent kernel call. */
+export function kernelProvenance(): Provenance | null {
+  const json = readStringExport((p, l) => wasmInstance!.kernel_provenance(p, l));
+  if (!json) return null;
+  return JSON.parse(json) as Provenance;
+}
+
+/** @returns The canonical FNV-1a fingerprint of a dataset (8 hex chars). */
+export function datasetFingerprint(handle: number): string | null {
+  return readStringExport((p, l) => wasmInstance!.dataset_fingerprint(handle, p, l));
+}
+
+/**
+ * @returns The inferred topology name
+ * (`TABULAR`/`HIERARCHY`/`GRAPH`/`TIME_SERIES`/`VECTOR_FIELD`/`GEO`/`FLOW`).
+ */
+export function inferTopology(handle: number): string | null {
+  return readStringExport((p, l) => wasmInstance!.data_infer_topology(handle, p, l));
+}
+
+/**
+ * Infer the logical encoding mapping. Pass a topology name for the
+ * topology-aware variant; omit it for the topology-unaware default.
+ */
+export function inferEncodings(handle: number, topology?: string): EncodingMapping | null {
+  let topoPtr = 0;
+  let topoLen = 0;
+  if (topology) {
+    const r = allocBytes(new TextEncoder().encode(topology));
+    topoPtr = r.ptr;
+    topoLen = r.len;
+  }
+  try {
+    const json = readStringExport((p, l) =>
+      wasmInstance!.data_infer_encodings(handle, topoPtr, topoLen, p, l),
+    );
+    if (!json) return null;
+    return JSON.parse(json) as EncodingMapping;
+  } finally {
+    if (topoLen > 0) deallocBytes(topoPtr, topoLen);
+  }
+}
+
+/** @returns The column schema `[ {name, type}, … ]`. */
+export function inferSchema(handle: number): ColumnSchema[] | null {
+  const json = readStringExport((p, l) => wasmInstance!.data_infer_schema(handle, p, l));
+  if (!json) return null;
+  return JSON.parse(json) as ColumnSchema[];
+}
+
+/** @returns The full `Facts` statistics block. */
+export function statistics(handle: number): Facts | null {
+  const json = readStringExport((p, l) => wasmInstance!.data_statistics(handle, p, l));
+  if (!json) return null;
+  return JSON.parse(json) as Facts;
+}
+
+/**
+ * Parse an Arrow IPC payload and return a dataset handle. Returns `0` on error.
+ */
+export function parseArrow(bytes: Uint8Array): number {
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  const { ptr, len } = allocBytes(bytes);
+  try {
+    return wasmInstance.data_parse_arrow(ptr, len);
+  } finally {
+    deallocBytes(ptr, len);
+  }
+}
+
+/**
+ * Compute the TDA Mapper graph. `params`:
+ * `{ featureColumns: string[], filterValues: number[], bins?: number, overlap?: number }`.
+ */
+export function computeMapperGraph(
+  handle: number,
+  params: Record<string, unknown>,
+): TdaMapperGraph | null {
+  const json = tdaCall(handle, params, 'data_compute_mapper_graph');
+  if (!json) return null;
+  return JSON.parse(json) as TdaMapperGraph;
+}
+
+/**
+ * Compute 1D persistence intervals. `params`:
+ * `{ featureColumns: string[], filterValues: number[], maxDistance?: number }`.
+ */
+export function computePersistenceIntervals(
+  handle: number,
+  params: Record<string, unknown>,
+): PersistenceInterval[] | null {
+  const json = tdaCall(handle, params, 'data_compute_persistence_intervals');
+  if (!json) return null;
+  return JSON.parse(json) as PersistenceInterval[];
+}
+
+/**
+ * Compute the Betti-0 curve. `params`: `{ featureColumns: string[], steps?: number }`.
+ */
+export function computeBetti0Curve(
+  handle: number,
+  params: Record<string, unknown>,
+): BettiPoint[] | null {
+  const json = tdaCall(handle, params, 'data_compute_betti0_curve');
+  if (!json) return null;
+  return JSON.parse(json) as BettiPoint[];
+}
+
+/**
+ * Compute 3D radial-tree positions. Returns a `Float32Array` of `count * 3`
+ * little-endian values (`x,y,z` per node), or `null` on failure.
+ */
+export function computeRadialTree3d(
+  levels: number[],
+  ringSpacing: number,
+  yStep: number,
+  yOffset: number,
+): Float32Array | null {
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  const levelBytes = new TextEncoder().encode(JSON.stringify(levels));
+  const { ptr: levelPtr, len: levelLen } = allocBytes(levelBytes);
+  try {
+    const needed = wasmInstance.data_compute_radial_tree_3d(
+      levelPtr,
+      levelLen,
+      ringSpacing,
+      yStep,
+      yOffset,
+      0,
+      0,
+    );
+    if (needed === 0) return null;
+    const outPtr = wasmInstance.alloc(needed);
+    try {
+      const written = wasmInstance.data_compute_radial_tree_3d(
+        levelPtr,
+        levelLen,
+        ringSpacing,
+        yStep,
+        yOffset,
+        outPtr,
+        needed,
+      );
+      if (written === 0) return null;
+      return new Float32Array(wasmInstance.memory.buffer, outPtr, written / 4).slice();
+    } finally {
+      wasmInstance.dealloc(outPtr, needed);
+    }
+  } finally {
+    deallocBytes(levelPtr, levelLen);
   }
 }
 

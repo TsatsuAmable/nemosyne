@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::data::column::{Column, ColumnType};
-use crate::data::dataset::Dataset;
+use crate::data::dataset::{Dataset, Edge};
 use crate::data::value::Value;
 
 /// Available built-in sample datasets in Phase 1.
@@ -121,13 +121,13 @@ fn fraud_graph() -> Dataset {
     .collect();
     let mut ds = Dataset::new("Transaction Fraud Graph", columns, rows);
     ds.edges = Some(vec![
-        (0, 1),
-        (1, 3),
-        (2, 4),
-        (3, 5),
-        (4, 6),
-        (5, 7),
-        (0, 2),
+        Edge::new(0, 1),
+        Edge::new(1, 3),
+        Edge::new(2, 4),
+        Edge::new(3, 5),
+        Edge::new(4, 6),
+        Edge::new(5, 7),
+        Edge::new(0, 2),
     ]);
     ds
 }
@@ -327,13 +327,13 @@ fn social_graph(nodes: usize) -> Dataset {
             row
         })
         .collect();
-    let mut edges: Vec<(usize, usize)> = Vec::new();
+    let mut edges: Vec<Edge> = Vec::new();
     for i in 0..nodes {
         let connections = 1 + rng.range_usize(0, 3);
         for _ in 0..connections {
             let target = rng.range_usize(0, nodes);
             if target != i {
-                edges.push((i, target));
+                edges.push(Edge::new(i, target));
             }
         }
     }
@@ -447,12 +447,12 @@ fn flow_process(stages: usize) -> Dataset {
             row
         })
         .collect();
-    let mut edges: Vec<(usize, usize)> = Vec::new();
+    let mut edges: Vec<Edge> = Vec::new();
     for i in 0..stages.saturating_sub(1) {
-        edges.push((i, i + 1));
+        edges.push(Edge::new(i, i + 1));
         if rng.next() > 0.6 {
             let skip = (i + 2).min(stages - 1);
-            edges.push((i, skip));
+            edges.push(Edge::new(i, skip));
         }
     }
     let mut ds = Dataset::new("Process Flow", columns, rows);

@@ -5,6 +5,32 @@ use serde::{Deserialize, Serialize};
 use crate::data::column::{Column, ColumnType};
 use crate::data::value::Value;
 
+/// A dataset edge. Mirrors the JS `DatasetEdge` open struct: `source`/`target`
+/// row indices, an optional `weight`, and any extra string-keyed attributes
+/// (preserved verbatim across the ABI so graph datasets round-trip without
+/// dropping provenance-bearing metadata).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Edge {
+    pub source: usize,
+    pub target: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub weight: Option<f64>,
+    /// Extra string-keyed attributes, flattened into the edge JSON.
+    #[serde(flatten)]
+    pub extra: HashMap<String, Value>,
+}
+
+impl Edge {
+    pub fn new(source: usize, target: usize) -> Self {
+        Self {
+            source,
+            target,
+            weight: None,
+            extra: HashMap::new(),
+        }
+    }
+}
+
 /// In-memory dataset: a schema plus row-major records.
 ///
 /// Mirrors the JS `Dataset` class but stores values in a compact enum form.
@@ -13,7 +39,7 @@ pub struct Dataset {
     pub name: String,
     pub columns: Vec<Column>,
     pub rows: Vec<HashMap<String, Value>>,
-    pub edges: Option<Vec<(RowIndex, RowIndex)>>,
+    pub edges: Option<Vec<Edge>>,
 }
 
 pub type RowIndex = usize;
@@ -105,15 +131,18 @@ impl Dataset {
         set.len()
     }
 
-    /// Stable hash for deterministic procedural generation.
-    pub fn fingerprint(&self) -> u64 {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        let mut hasher = DefaultHasher::new();
-        self.name.hash(&mut hasher);
-        self.row_count().hash(&mut hasher);
-        self.column_count().hash(&mut hasher);
-        hasher.finish()
+    /// Canonical content fingerprint: 8-hex FNV-1a over the dataset's
+    /// canonical JSON (keys sorted by UTF-16 code unit). Replaces the prior
+    /// `DefaultHasher` over `name + row_count + column_count`, which collided
+    /// on shape. See `data::fingerprint` and the Wave 1 ABI notes.
+    pub fn fingerprint(&self) -> String {
+        crate::data::fingerprint::dataset_fingerprint(self)
+    }
+
+    /// Deterministic `u32` RNG seed derived from the canonical fingerprint,
+    /// used to pin clustering/anomaly RNG so assignments are reproducible.
+    pub fn fingerprint_seed(&self) -> u32 {
+        crate::data::fingerprint::seed_u32(&self.fingerprint())
     }
 
     /// Append or replace rows for live streams.
@@ -192,15 +221,39 @@ impl Dataset {
             .unwrap_or_default();
 
         let edges = root.get("edges").and_then(|v| v.as_array()).map(|arr| {
-            arr
-                .iter()
-                .filter_map(|e| {
-                    let obj = e.as_object()?;
-                    let source = obj.get("source")?.as_u64()? as usize;
-                    let target = obj.get("target")?.as_u64()? as usize;
-                    Some((source, target))
+            arr.iter().filter_map(|e| {
+                let obj = e.as_object()?;
+                let source = obj
+                    .get("source")
+                    .and_then(|v| v.as_u64())
+                    .or_else(|| {
+                        obj.get("source")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| s.parse::<u64>().ok())
+                    })? as usize;
+                let target = obj
+                    .get("target")
+                    .and_then(|v| v.as_u64())
+                    .or_else(|| {
+                        obj.get("target")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| s.parse::<u64>().ok())
+                    })? as usize;
+                let weight = obj.get("weight").and_then(|v| v.as_f64());
+                let mut extra = HashMap::new();
+                for (k, v) in obj {
+                    if k == "source" || k == "target" || k == "weight" {
+                        continue;
+                    }
+                    extra.insert(k.clone(), js_value_to_value(v));
+                }
+                Some(Edge {
+                    source,
+                    target,
+                    weight,
+                    extra,
                 })
-                .collect()
+            }).collect()
         });
 
         Ok(Self {
@@ -216,7 +269,7 @@ impl Dataset {
     /// The format matches `src/data/Dataset.js` `toJSON()` / `fromJSON()` so
     /// the JS host can reconstruct a full `Dataset` object from a Rust handle.
     pub fn to_js_json(&self) -> String {
-        use serde_json::{Map as JsonMap, Number, Value as JsonValue};
+        use serde_json::{Map as JsonMap, Value as JsonValue};
         let mut root = JsonMap::new();
         root.insert("name".to_string(), JsonValue::String(self.name.clone()));
 
@@ -249,12 +302,7 @@ impl Dataset {
         if let Some(edges) = &self.edges {
             let edges_json: Vec<JsonValue> = edges
                 .iter()
-                .map(|(a, b)| {
-                    let mut e = JsonMap::new();
-                    e.insert("source".to_string(), JsonValue::Number(Number::from(*a as u64)));
-                    e.insert("target".to_string(), JsonValue::Number(Number::from(*b as u64)));
-                    JsonValue::Object(e)
-                })
+                .filter_map(|edge| serde_json::to_value(edge).ok())
                 .collect();
             root.insert("edges".to_string(), JsonValue::Array(edges_json));
         }

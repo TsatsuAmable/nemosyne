@@ -31,6 +31,7 @@ export type OperationName =
   | 'compare'
   | 'slice'
   | 'anomaly_iqr'
+  | 'anomaly_zscore'
   | 'k_means'
   | 'hierarchical'
   | 'dbscan';
@@ -38,6 +39,165 @@ export type OperationName =
 export interface OperationSpec {
   op: OperationName;
   [key: string]: unknown;
+}
+
+/**
+ * JSON value shared across the analytical ABI. Mirrors the Rust `Value` /
+ * `serde_json::Value` the kernel accepts in predicate leaves.
+ */
+export type JSONValue = null | boolean | number | string | JSONValue[] | { [key: string]: JSONValue };
+
+// ---------------------------------------------------------------------------
+// Filter predicate DSL (serialisable, reproducible — no opaque closures)
+// ---------------------------------------------------------------------------
+
+export type Predicate =
+  | { op: 'eq'; column: string; value: JSONValue }
+  | { op: 'ne'; column: string; value: JSONValue }
+  | { op: 'gt' | 'gte' | 'lt' | 'lte'; column: string; value: number }
+  | { op: 'in'; column: string; values: JSONValue[] }
+  | { op: 'between'; column: string; lo: number; hi: number }
+  | { op: 'isnull'; column: string }
+  | { op: 'and' | 'or'; children: Predicate[] }
+  | { op: 'not'; child: Predicate };
+
+export interface FilterSpec {
+  op: 'filter';
+  /** Declarative predicate tree (preferred). */
+  predicate?: Predicate;
+  /** Legacy numeric range on `column` (`min`/`max` inclusive). */
+  column?: string;
+  min?: number;
+  max?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Aggregate + compare specs
+// ---------------------------------------------------------------------------
+
+export type AggregatorFn = 'sum' | 'mean' | 'median' | 'min' | 'max' | 'count' | 'std' | 'var';
+
+export interface Aggregator {
+  column: string;
+  function: AggregatorFn;
+  /** Output column name. Defaults to `{column}_{function}`. */
+  as?: string;
+}
+
+export interface AggregateSpec {
+  op: 'aggregate';
+  /** Legacy single group key. */
+  group_by?: string;
+  /** Multi-key grouping (overrides `group_by` when present). */
+  group_by_columns?: string[];
+  /** Named aggregators. When absent, the legacy sum-all-numeric aggregator runs. */
+  aggregators?: Aggregator[];
+}
+
+export interface CompareSpec {
+  op: 'compare';
+  group_by: string;
+  group_a: string;
+  group_b: string;
+  measures?: string[];
+}
+
+export interface AnomalyIqrSpec {
+  op: 'anomaly_iqr';
+  column: string;
+  sensitivity?: number;
+}
+
+export interface AnomalyZscoreSpec {
+  op: 'anomaly_zscore';
+  column: string;
+  /** Z-score threshold; defaults to 3.0. */
+  sensitivity?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Statistics (`Facts`) — the kernel is the single authority
+// ---------------------------------------------------------------------------
+
+export interface ColumnStats {
+  name: string;
+  count: number;
+  sum: number;
+  mean: number;
+  median: number;
+  std: number;
+  var: number;
+  min: number;
+  max: number;
+}
+
+export interface CorrelationPair {
+  a: string;
+  b: string;
+  value: number;
+}
+
+export interface CategoryCount {
+  value: string;
+  count: number;
+}
+
+export interface CategoricalStats {
+  name: string;
+  cardinality: number;
+  entropy: number;
+  top: CategoryCount[];
+}
+
+export interface Facts {
+  rowCount: number;
+  columnCount: number;
+  numeric: ColumnStats[];
+  correlation: CorrelationPair[];
+  categorical: CategoricalStats[];
+  temporal: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Provenance envelope — emitted by the kernel on every analytical result
+// ---------------------------------------------------------------------------
+
+export interface Provenance {
+  kernel: 'nemosyne-wasm';
+  kernelVersion: string;
+  operation: string;
+  parameters: JSONValue;
+  inputFingerprint: string;
+  outputFingerprint: string;
+  timestamp: number;
+}
+
+// ---------------------------------------------------------------------------
+// TDA result types (mapper graph / persistence / betti0)
+// ---------------------------------------------------------------------------
+
+export interface TdaMapperNode {
+  id: number;
+  rowIndices: number[];
+  level: number;
+  center: number[];
+  filterCenter: number;
+  size: number;
+}
+
+export interface TdaMapperGraph {
+  nodes: TdaMapperNode[];
+  edges: [number, number][];
+}
+
+export interface PersistenceInterval {
+  birth: number;
+  death?: number | null;
+}
+
+export interface BettiPoint {
+  radius: number;
+  betti0: number;
 }
 
 export { type TopologyType, TopologyTypes } from '../types/topology.ts';

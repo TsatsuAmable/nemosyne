@@ -5,8 +5,8 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — began the Rust/WASM commitment sprint on branch `rust-kernel-commitment`
-  (forked from `atlas-1` after the review-fix set was pushed as `8017f5f`).
+- **Last updated:** 2026-08-17 — Wave 1 (Rust Analytical Kernel) implemented and gated green on branch
+  `rust-kernel-commitment`.
 - **Active sprint:** commit Rust/WASM as the canonical analytical engine and rip out the JS analytical
   layer (no JS fallback), then build Atlas/NemosyneSession on top. Plan: `.claude/plans/groovy-mixing-wolf.md`.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
@@ -21,12 +21,39 @@
   (skip stubs) and the `src/vr/scalability/ObjectPool.ts` shim (4 e2e specs repointed to
   `src/utils/ObjectPool.ts`); untracked `.DS_Store` + `temp_phase23.md`; fixed committed `.gitignore`
   merge markers; added `docs:build` script and consolidated deploy on Netlify (removed `deploy:vercel`).
-- **Deferred to Wave 2:** chaining `build:wasm` into `build` (requires Netlify/CI Rust toolchain setup).
-- **Last gate result:** `tsc --noEmit` clean; eslint 0 errors; full Vitest green (network +2 cases,
-  file-loader +9, remote-debug-streamer, repointed e2e specs all pass). Rust tests not rerun for Wave 0.
-- **Next:** Wave 1 — Rust Analytical Kernel (canonical versioned ABI, full parity via mature crates,
-  provenance envelope, canonical fingerprint, export topology/TDA/arrow/encodings, wire dlmalloc tier,
-  parity tests).
+- **Wave 1 ✅ (Rust Analytical Kernel — canonical versioned ABI):** kernel `0.2.0`. New Rust modules:
+  `provenance.rs` (envelope side-channel + `nemosyneNowMs` host-clock import), `fingerprint.rs`
+  (canonical FNV-1a matching `DatasetSpace`'s UTF-16-code-unit algorithm, replacing the divergent
+  `DefaultHasher`), `encodings.rs` (`inferEncodings` + topology-aware variant), `statistics.rs`
+  (`Facts` with ndarray Pearson correlation). `operations_bridge.rs` rewritten: serialisable
+  `Predicate` DSL (eq/ne/gt/gte/lt/lte/in/between/isnull + and/or/not, replacing the JS closure),
+  `AggregateSpec` named aggregators (sum/mean/median/min/max/count/std/var; legacy sum-all-numeric kept),
+  `Compare`, `anomaly_zscore` (population std, threshold default 3) + `anomaly_iqr` op-name alignment.
+  `Dataset` round-trips edge `weight` + extra keys (`Edge` struct). New lib.rs exports:
+  `kernel_version`, `kernel_provenance`, `dataset_fingerprint`, `data_infer_topology`,
+  `data_infer_encodings`, `data_infer_schema`, `data_statistics`, `data_parse_arrow`,
+  `data_compute_mapper_graph`, `data_compute_persistence_intervals`, `data_compute_betti0_curve`,
+  `data_compute_radial_tree_3d`; `data_operation` now records provenance. Capability flags
+  `CAP_TOPOLOGY_RUST|CAP_TDA_RUST|CAP_ENCODINGS_RUST|CAP_STATS_RUST` advertised (bits 10–13; `0x3c07`).
+  `RuntimeBridge.ts` typed wrappers + `globalThis.nemosyneNowMs` install; `types.ts` extended
+  (`Predicate`/`FilterSpec`/`Aggregator`/`AggregateSpec`/`CompareSpec`/`Facts`/`Provenance`/TDA types).
+  Porting rule: Rust `#[test]` (61 pass) + `tests/wasm-runtime.test.ts` RuntimeBridge parity cases
+  (26, run when the pkg is HTTP-served; skipped in plain jsdom by design). `eslint.config.js` now
+  ignores generated `wasm/pkg/` + tooling `.claude/`. **Deferred:** isolation-forest anomaly
+  (smartcore ensemble needs rand/getrandom wasm wiring — covered by iqr+zscore for now); linfa
+  clustering swap (k_means/hierarchical/dbscan remain the hand-rolled-but-deterministic impls for
+  now, seeded from the canonical fingerprint); byte-exact JS `JSON.stringify` number-format parity
+  (ECMAScript exponent rules — lands in Wave 2 when `DatasetSpace` delegates to the kernel).
+- **Deferred to Wave 2:** chaining `build:wasm` into `build` (requires Netlify/CI Rust toolchain setup);
+  removing JS fallback paths (kernel-only routing).
+- **Last gate result (2026-08-17):** `npm run wasm` exit 0; `cargo test` 61/61 pass; `tsc --noEmit`
+  clean; `eslint` 0 errors (~235 pre-existing `no-console` warnings); `npm run test:all` green
+  (cargo 61/61 + Vitest 190 files / 1,345 tests passed, 26 skipped). End-to-end ABI smoke of the
+  generated wasm in Node verified the two-call string protocol, provenance envelope, `nemosyneNowMs`,
+  and radial-tree `Float32Array` read.
+- **Next:** Wave 2 — mandatory WASM, remove JS fallback (`RuntimeBridge` hard-fail, `DataOperationController`
+  routes every op through the kernel via `FilterSpec`/`AggregateSpec`, `FileLoader` kernel-only parse,
+  `World`/`TDAPlanes` kernel routing; capability flags become telemetry-only, no `if (caps & …)` in `src/`).
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files
