@@ -5,9 +5,10 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-18 — Atlas 7 complete: Deterministic language and intent explanation layer
-  implemented and validated in `tests/intent-compiler.test.ts` (`IntentCompiler` mapping queries to `Predicate`/`OperationSpec`
-  trees, `StructureExplainer` producing grounded narrative summaries of `AnalysisResult` and `StructureSet` facts with zero hallucinations).
+- **Last updated:** 2026-08-18 — CI Security & Workflow Hardening: GitHub Actions least-privilege token
+  permissions (`permissions: contents: read`), automated Dependency Review action on PRs (`actions/dependency-review-action@v4`),
+  and dedicated GitHub CodeQL SAST workflow (`.github/workflows/codeql.yml`) on JavaScript/TypeScript.
+  Atlas 7 complete: Deterministic language and intent explanation layer implemented and validated in `tests/intent-compiler.test.ts`.
   Atlas 6 complete: Controlled experiment harness implemented and validated in `tests/study-harness.test.ts`.
   Collaboration Gateway Security & Architecture Hardening:
   HMAC-SHA256 cryptographically signed room tickets (`SignedTicket.ts`), rejection of unsigned/raw JSON tokens,
