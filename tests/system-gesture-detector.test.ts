@@ -74,4 +74,41 @@ describe('SystemGestureDetector unified gate', () => {
     now = 1;
     expect(detector.update(null).suppressSelection).toBe(false);
   });
+
+  it('does not re-fire when a held grip crosses a panel boundary', () => {
+    let now = 0;
+    const pointers = registry([], [true, true]) as unknown as {
+      isBestPointerOverPanel: ReturnType<typeof vi.fn>;
+    };
+    pointers.isBestPointerOverPanel.mockReturnValue(false);
+    const detector = new SystemGestureDetector(pointers as never, {
+      toggleCooldownMs: 0,
+      now: () => now,
+    });
+    const toggle = vi.fn();
+    detector.onSystemToggle = toggle;
+    const session = {
+      inputSources: [
+        { gamepad: { buttons: [{}, { pressed: true }] } },
+        { gamepad: { buttons: [{}, { pressed: true }] } },
+      ],
+    } as unknown as XRSession;
+
+    // Press begins off-panel -> fires once.
+    detector.update(session);
+    expect(toggle).toHaveBeenCalledOnce();
+
+    // Ray drifts over a HUD panel while the grip stays held -> no fire.
+    now = 5;
+    pointers.isBestPointerOverPanel.mockReturnValue(true);
+    detector.update(session);
+
+    // Cooldown has long elapsed and the ray leaves the panel while the grip is
+    // still held -> must NOT re-fire from the same single held press.
+    now = 2000;
+    pointers.isBestPointerOverPanel.mockReturnValue(false);
+    detector.update(session);
+
+    expect(toggle).toHaveBeenCalledOnce();
+  });
 });

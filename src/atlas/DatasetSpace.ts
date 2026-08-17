@@ -25,7 +25,10 @@ function canonicalize(value: unknown): unknown {
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .sort(([a], [b]) => a.localeCompare(b))
+        // Locale-independent ordering: compare by UTF-16 code units so the
+        // fingerprint is stable across devices/runtimes regardless of the
+        // default collation (localeCompare varies by locale).
+        .sort(([a], [b]) => (a > b ? 1 : a < b ? -1 : 0))
         .map(([key, entry]) => [key, canonicalize(entry)])
     );
   }

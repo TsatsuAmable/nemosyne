@@ -354,8 +354,13 @@ export class ChartPlane implements Updatable {
     }
     ctx.stroke();
 
-    // Points.
-    ctx.fillStyle = this._accessibleColor(1);
+    // Points. Keep white-on-line contrast in the default theme; only recolor
+    // when a colorblind palette is active (otherwise _accessibleColor returns
+    // the line stroke color and the points blend into the line).
+    ctx.fillStyle =
+      this.colorblindMode === 'none' || this.colorblindMode === false
+        ? '#ffffff'
+        : this._accessibleColor(1);
     for (let i = 0; i < ys.length; i++) {
       const x = rect.x + (i / Math.max(1, ys.length - 1)) * rect.width;
       const y = rect.y + rect.height - ((ys[i] - min) / range) * rect.height;

@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { ChartPlane, ChartType } from '../src/vr/artifacts/ChartPlane.ts';
 import { ChartPlanePanel } from '../src/vr/ui/ChartPlanePanel.ts';
 import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
 import { DashboardManager } from '../src/vr/ui/DashboardManager.ts';
@@ -163,5 +164,41 @@ describe('ChartPlanePanel', () => {
     expect(panel.chartPlane.canvas.height).toBe(1);
     expect(panel.chartPlane.texture.dispose).toBe(textureDispose);
     expect(panel.chartPlane.material.dispose).toBe(materialDispose);
+  });
+
+  it('keeps white line-chart point contrast in the default (non-colorblind) theme', () => {
+    const line = new Dataset(
+      'Line',
+      [
+        { name: 'time', type: ColumnType.TEMPORAL },
+        { name: 'value', type: ColumnType.NUMERIC },
+      ],
+      [
+        { time: '2026-01-01T00:00:00Z', value: 1 },
+        { time: '2026-01-01T01:00:00Z', value: 2 },
+        { time: '2026-01-01T02:00:00Z', value: 3 },
+      ]
+    );
+    const chart = new ChartPlane({
+      chartType: ChartType.LINE,
+      column: 'value',
+      xColumn: 'time',
+      colorblindMode: 'none',
+      color: '#00ffcc',
+    });
+    // Record every fillStyle assignment; the 2d ctx mock in setup.js is
+    // write-only, so redefine the property on this instance's ctx to capture.
+    const fills = [];
+    Object.defineProperty(chart.ctx, 'fillStyle', {
+      configurable: true,
+      get: () => fills[fills.length - 1] ?? '',
+      set: (v) => { fills.push(v); },
+    });
+    chart.setDataset(line);
+
+    // The last fillStyle set in _drawLineChart is the data-point fill. It must
+    // be white for contrast against the line — not the line stroke color, which
+    // _accessibleColor(1) would return when colorblindMode === 'none'.
+    expect(fills[fills.length - 1]).toBe('#ffffff');
   });
 });

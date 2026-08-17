@@ -49,33 +49,74 @@ function isSafeId(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= MAX_REMOTE_ID_LENGTH;
 }
 
-function isAnnotation(value: Record<string, unknown>): value is Record<string, unknown> & SpatialAnnotation {
-  return (
-    isSafeId(value.id) &&
-    isFiniteTuple(value.position, 3) &&
-    typeof value.text === 'string' &&
-    value.text.length <= MAX_REMOTE_TEXT_LENGTH &&
-    isSafeId(value.authorId) &&
-    typeof value.authorName === 'string' &&
-    value.authorName.length <= MAX_REMOTE_TITLE_LENGTH &&
-    typeof value.timestamp === 'number' &&
-    Number.isFinite(value.timestamp) &&
-    (value.colorHex === undefined || (typeof value.colorHex === 'number' && Number.isInteger(value.colorHex) && value.colorHex >= 0 && value.colorHex <= 0xffffff))
-  );
+function coerceColorHex(value: unknown): number | undefined | null {
+  if (value === undefined) return undefined;
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 0xffffff) return value;
+  // Legacy clients may send colorHex as a CSS hex string ('#ff0000' / 'ff0000').
+  if (typeof value === 'string' && /^#?[0-9a-fA-F]{6}$/.test(value)) {
+    return parseInt(value.replace(/^#/, ''), 16);
+  }
+  return null;
 }
 
-function isBookmark(value: Record<string, unknown>): value is Record<string, unknown> & SpatialBookmark {
-  return (
-    isSafeId(value.id) &&
-    typeof value.title === 'string' &&
-    value.title.length <= MAX_REMOTE_TITLE_LENGTH &&
-    isFiniteTuple(value.cameraPosition, 3) &&
-    isFiniteTuple(value.cameraRotation, 4) &&
-    typeof value.authorId === 'string' &&
-    value.authorId.length <= MAX_REMOTE_ID_LENGTH &&
-    typeof value.timestamp === 'number' &&
-    Number.isFinite(value.timestamp)
-  );
+/**
+ * Validate and normalize a remote annotation payload. Accepts legacy shapes
+ * the old unchecked cast permitted (string colorHex, missing authorName)
+ * while keeping the security bounds (finite in-range positions, id/text
+ * length caps, color range). Returns null for anything malformed.
+ */
+function coerceAnnotation(value: Record<string, unknown>): SpatialAnnotation | null {
+  if (!isSafeId(value.id)) return null;
+  if (!isFiniteTuple(value.position, 3)) return null;
+  if (typeof value.text !== 'string' || value.text.length > MAX_REMOTE_TEXT_LENGTH) return null;
+  if (!isSafeId(value.authorId)) return null;
+  const authorName =
+    typeof value.authorName === 'string' && value.authorName.length <= MAX_REMOTE_TITLE_LENGTH
+      ? value.authorName
+      : '';
+  if (typeof value.timestamp !== 'number' || !Number.isFinite(value.timestamp)) return null;
+  const colorHex = coerceColorHex(value.colorHex);
+  if (colorHex === null) return null;
+  const annotation: SpatialAnnotation = {
+    id: value.id,
+    position: value.position as [number, number, number],
+    text: value.text,
+    authorId: value.authorId,
+    authorName,
+    timestamp: value.timestamp,
+  };
+  if (colorHex !== undefined) annotation.colorHex = colorHex;
+  return annotation;
+}
+
+/**
+ * Validate and normalize a remote bookmark payload. Accepts a missing
+ * cameraRotation (legacy) by defaulting to the identity quaternion; a
+ * present-but-malformed rotation (wrong arity / non-finite / out of range)
+ * is still rejected. Keeps the security bounds on ids, titles, and positions.
+ */
+function coerceBookmark(value: Record<string, unknown>): SpatialBookmark | null {
+  if (!isSafeId(value.id)) return null;
+  if (typeof value.title !== 'string' || value.title.length > MAX_REMOTE_TITLE_LENGTH) return null;
+  if (!isFiniteTuple(value.cameraPosition, 3)) return null;
+  let cameraRotation: [number, number, number, number];
+  if (isFiniteTuple(value.cameraRotation, 4)) {
+    cameraRotation = value.cameraRotation as [number, number, number, number];
+  } else if (value.cameraRotation === undefined) {
+    cameraRotation = [0, 0, 0, 1];
+  } else {
+    return null;
+  }
+  if (typeof value.authorId !== 'string' || value.authorId.length > MAX_REMOTE_ID_LENGTH) return null;
+  if (typeof value.timestamp !== 'number' || !Number.isFinite(value.timestamp)) return null;
+  return {
+    id: value.id,
+    title: value.title,
+    cameraPosition: value.cameraPosition as [number, number, number],
+    cameraRotation,
+    authorId: value.authorId,
+    timestamp: value.timestamp,
+  };
 }
 
 export interface AnnotationManagerEventMap extends THREE.Object3DEventMap {
@@ -232,12 +273,19 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
       return;
     }
     if (payloadSize > MAX_REMOTE_PAYLOAD_BYTES) return;
-    this._remoteDeltaTimes.push(now);
 
-    if (topic === 'annotations_add' && data && isAnnotation(data) && (this.annotations.has(data.id) || this.annotations.size < MAX_REMOTE_ANNOTATIONS)) {
-      const annotation = data;
-      this.annotations.set(annotation.id, annotation);
-      this._renderAnnotationMesh(annotation);
+    // Validate + apply. A rate-limit slot is consumed only when the delta is
+    // well-formed and actually applied, so a flood of malformed-but-sized
+    // payloads cannot starve legitimate deltas (the slot was previously
+    // pushed before validation).
+    let applied = false;
+    if (topic === 'annotations_add' && data) {
+      const annotation = coerceAnnotation(data);
+      if (annotation && (this.annotations.has(annotation.id) || this.annotations.size < MAX_REMOTE_ANNOTATIONS)) {
+        this.annotations.set(annotation.id, annotation);
+        this._renderAnnotationMesh(annotation);
+        applied = true;
+      }
     } else if (topic === 'annotations_remove' && isSafeId(data?.id)) {
       const id = data.id as string;
       this.annotations.delete(id);
@@ -247,21 +295,32 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
         this._disposeGroup(mesh);
         this.annotationMeshes.delete(id);
       }
-    } else if (topic === 'bookmarks_add' && data && isBookmark(data) && (this.bookmarks.has(data.id) || this.bookmarks.size < MAX_REMOTE_BOOKMARKS)) {
-      const bookmark = data;
-      this.bookmarks.set(bookmark.id, bookmark);
+      applied = true;
+    } else if (topic === 'bookmarks_add' && data) {
+      const bookmark = coerceBookmark(data);
+      if (bookmark && (this.bookmarks.has(bookmark.id) || this.bookmarks.size < MAX_REMOTE_BOOKMARKS)) {
+        this.bookmarks.set(bookmark.id, bookmark);
+        applied = true;
+      }
     } else if (topic === 'bookmarks_remove' && isSafeId(data?.id)) {
       this.bookmarks.delete(data.id);
+      applied = true;
     } else if (
       topic === 'tour_step' &&
       typeof data?.stepIndex === 'number' &&
       Number.isInteger(data.stepIndex) &&
       data.stepIndex >= 0 &&
-      isSafeId(data.tourId)
+      // tourId is optional for backward compatibility with older/external
+      // clients that broadcast { stepIndex } without a tourId; when present
+      // it must still be a safe id (an empty/oversized id is rejected).
+      (data?.tourId === undefined || isSafeId(data?.tourId))
     ) {
       this.currentTourStep = data.stepIndex;
       this.dispatchEvent({ type: 'remoteTourStep', detail: data });
+      applied = true;
     }
+
+    if (applied) this._remoteDeltaTimes.push(now);
   }
 
   private _wireNetwork(): void {

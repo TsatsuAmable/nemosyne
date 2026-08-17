@@ -77,7 +77,11 @@ function signallingPlugin() {
         const roomId = url.searchParams.get('room') || 'default';
         const peerId = url.searchParams.get('peer') || `peer-${Date.now()}`;
         const token = url.searchParams.get('token') || undefined;
-        registry.handleConnection(ws, roomId, peerId, token);
+        // Forward the role so the observer relay-gating in the room registry
+        // is exercised in dev/preview too, matching the standalone server.
+        const roleParam = url.searchParams.get('role');
+        const role = roleParam === 'observer' || roleParam === 'participant' ? roleParam : undefined;
+        registry.handleConnection(ws, roomId, peerId, token, role);
       });
     });
   }

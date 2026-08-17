@@ -5,6 +5,28 @@
 > not duplicate state.
 
 
+- **Last updated:** 2026-08-17 after reviewing `atlas-1` vs `main` and applying fixes.
+- **Repository state:** review-fix set committed on `atlas-1` (tracking `origin/atlas-1`); working
+  tree clean. Not yet pushed.
+- **Last gate result:** `tsc --noEmit` clean; eslint 0 errors (pre-existing warnings only); full
+  Vitest 1342 passed | 9 skipped (incl. +4 regression tests: chart point contrast, grip re-arm,
+  locale-stable fingerprint, legacy annotation coercion). Production build and Rust tests not
+  rerun for this change set.
+- **Review fixes (atlas-1 vs main, 10/10):** Vite dev/preview signalling forwards the `role` param
+  so observer relay-gating works locally; line-chart points keep white contrast in the default
+  theme; colorblind toggle re-applies the active data-operation transform after re-solve (shared
+  `_reapplyOperationTransform` helper); grip system-toggle fires once per raw press with no
+  panel-boundary re-arm; `DatasetSpace` fingerprint sorts keys by codepoint (locale-independent);
+  remote-delta rate-limit slot consumed only when a delta is applied; `SharedAnnotationManager`
+  coerces legacy payloads (string `colorHex`, optional `authorName`/`cameraRotation`) while keeping
+  security bounds; `tour_step` accepts a missing `tourId`; `RemoteDebugStreamer.dispose()` restores
+  console/listeners/banner and is idempotent; `world.datasetSpace` is a lazy cached getter, not
+  eagerly built on every load.
+- **Next:** commit the review-fix set on `atlas-1`, rerun the production build, then resume the
+  `World.ts` composition-root / Atlas Core work and the Phase 21.3 load-test staircase. The earlier
+  `accissibility-fix-new-push` items below remain the active accessibility / on-device validation
+  track.
+
 - **Last updated:** 2026-08-16 after deferring Accessibility recolor into the broader UX manual
   testing effort on `accissibility-fix-new-push`.
 - **Repository state:** working tree has test-environment fixes on `accissibility-fix-new-push`,

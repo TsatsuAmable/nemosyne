@@ -172,7 +172,8 @@ export class World {
   analysisHistory: AnalysisHistory;
   _originalDataset!: Dataset | null;
   _transformedDataset!: Dataset | null;
-  datasetSpace: DatasetSpace | null;
+  private _datasetSpaceCache: DatasetSpace | null = null;
+  private _datasetSpaceSource: Dataset | null = null;
   _inputPaused!: boolean;
   _handNearArtefact!: boolean;
   _handNearWheelMenu!: boolean;
@@ -410,7 +411,6 @@ export class World {
 
     this.portalsEnabled = true;
     this._datasetCycleIndex = -1;
-    this.datasetSpace = null;
     this._wasmCapabilities = 0;
     this._wasmRuntime = null;
 
@@ -820,7 +820,6 @@ export class World {
     this.analystAnchor.add(this.diagnostic.mesh);
 
     this.currentEntry = entry;
-    this.datasetSpace = entry.dataset ? new DatasetSpace(entry.dataset) : null;
     this.telemetryCollector?.recordDataset?.(entry.name ?? entry.label ?? 'dataset', entry.topology);
 
     // Preserve original state so data operations can be reset.
@@ -1207,6 +1206,16 @@ export class World {
     if (this.dracoNode && this.dracoNode.translatorOptions.colorblindMode !== options.colorblindMode) {
       this.dracoNode.translatorOptions.colorblindMode = options.colorblindMode;
       this.dracoNode.reSolveAndSynthesize();
+      // A full re-solve rebuilds the artefact from the dataset but drops the
+      // visual transform of the currently-active data operation (e.g. a
+      // filter's lifted/hidden nodes). Re-apply it so a mid-analysis palette
+      // change does not silently revert the active operation's transform —
+      // mirroring _restoreDataset, which re-applies it after the same call.
+      const currentOp = this.analysisHistory?.current?.()?.operation;
+      const currentDataset = this._transformedDataset ?? this._originalDataset;
+      if (currentOp && currentDataset) {
+        this._reapplyOperationTransform(currentOp, currentDataset);
+      }
     }
 
     // Remap world theme accent colors for colorblind modes.
@@ -1231,6 +1240,29 @@ export class World {
 
   _leaveCollaborationRoom(): void {
     this.collaborationCoordinator.leaveCollaborationRoom();
+  }
+
+  /**
+   * The DatasetSpace for the currently-loaded dataset. Built lazily on first
+   * access (and rebuilt when the source dataset changes) rather than eagerly
+   * on every `loadDataset`, since the renderer, session save, and data
+   * operations do not read it — only scaffolding/tests do — so paying a full
+   * clone + per-row hash + range computation on the load hot path was wasted
+   * work that could trip the PerformanceBudget critical frame-spike warning.
+   */
+  get datasetSpace(): DatasetSpace | null {
+    const source = this._originalDataset;
+    if (!source) {
+      this._datasetSpaceCache = null;
+      this._datasetSpaceSource = null;
+      return null;
+    }
+    if (this._datasetSpaceCache && this._datasetSpaceSource === source) {
+      return this._datasetSpaceCache;
+    }
+    this._datasetSpaceCache = new DatasetSpace(source);
+    this._datasetSpaceSource = source;
+    return this._datasetSpaceCache;
   }
 
   get networkManager(): NetworkManagerLike | null {
@@ -1267,43 +1299,56 @@ export class World {
 
     // Re-apply the visual transform that belongs to this operation, because a
     // full re-solve only rebuilds the artefact from the dataset.
+    this._reapplyOperationTransform(operation, transformedDataset);
+
+    this._updateDashboardDatasets(transformedDataset);
+    if (this.tdaRecompute && operation !== 'anomaly') {
+      this.tdaRecompute();
+    }
+  }
+
+  /**
+   * Re-apply the visual transform for a data operation to the current artefact.
+   *
+   * A full `reSolveAndSynthesize` rebuilds the artefact from the dataset but
+   * drops the operation's visual transform (e.g. a filter's lifted/hidden
+   * nodes, a sort's ordering, a cluster's grouping). Any code path that
+   * re-solves mid-analysis must call this to preserve the active operation.
+   */
+  _reapplyOperationTransform(operation: string, dataset: Dataset): void {
+    if (!this.dracoNode?.artifact) return;
     switch (operation) {
       case 'filter':
-        applyFilter(this.dracoNode.artifact!, transformedDataset);
+        applyFilter(this.dracoNode.artifact, dataset);
         break;
       case 'sort':
-        applySort(this.dracoNode.artifact!, transformedDataset);
+        applySort(this.dracoNode.artifact, dataset);
         break;
       case 'aggregate':
-        applyAggregate(this.dracoNode.artifact!, transformedDataset);
+        applyAggregate(this.dracoNode.artifact, dataset);
         break;
       case 'cluster':
-        applyCluster(this.dracoNode.artifact!, transformedDataset);
+        applyCluster(this.dracoNode.artifact, dataset);
         break;
       case 'hierarchical':
-        applyHierarchicalCluster(this.dracoNode.artifact!, transformedDataset);
+        applyHierarchicalCluster(this.dracoNode.artifact, dataset);
         break;
       case 'density':
-        applyDensityCluster(this.dracoNode.artifact!, transformedDataset);
+        applyDensityCluster(this.dracoNode.artifact, dataset);
         break;
       case 'anomaly':
-        applyAnomaly(this.dracoNode.artifact!, transformedDataset);
+        applyAnomaly(this.dracoNode.artifact, dataset);
         break;
       case 'timeSlice':
-        applySlice(this.dracoNode.artifact!, transformedDataset, this._originalDataset ?? transformedDataset);
+        applySlice(this.dracoNode.artifact, dataset, this._originalDataset ?? dataset);
         break;
       case 'compare':
         // The dataset re-solve is the visual representation for Compare.
         break;
       case 'reset':
       default:
-        resetTransforms(this.dracoNode.artifact!);
+        resetTransforms(this.dracoNode.artifact);
         break;
-    }
-
-    this._updateDashboardDatasets(transformedDataset);
-    if (this.tdaRecompute && operation !== 'anomaly') {
-      this.tdaRecompute();
     }
   }
 

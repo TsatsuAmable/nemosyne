@@ -171,4 +171,34 @@ describe('Sprint 10B.5: Shared Annotations, Bookmarks & Synchronized Tours', () 
     expect(annotationManager.currentTourStep).toBe(3);
     expect(onRemoteStep).toHaveBeenCalled();
   });
+
+  it('accepts legacy remote payloads and coerces them to the canonical shape', () => {
+    // Legacy annotation: colorHex as a CSS string and authorName omitted —
+    // both accepted by the old unchecked cast. Coerce to a numeric colorHex
+    // and default the authorName, without dropping the other security bounds.
+    annotationManager.handleRemoteDelta('annotations_add', {
+      id: 'legacy-annot',
+      position: [1, 2, 3],
+      text: 'Legacy note',
+      authorId: 'peer',
+      timestamp: Date.now(),
+      colorHex: '#ff0000',
+    });
+    expect(annotationManager.annotations.size).toBe(1);
+    const annot = annotationManager.annotations.get('legacy-annot');
+    expect(annot?.colorHex).toBe(0xff0000);
+    expect(annot?.authorName).toBe('');
+
+    // Legacy bookmark: cameraRotation omitted — default to the identity
+    // quaternion so a cross-build bookmark still restores a valid pose.
+    annotationManager.handleRemoteDelta('bookmarks_add', {
+      id: 'legacy-bm',
+      title: 'Legacy bookmark',
+      cameraPosition: [0, 1, 0],
+      authorId: 'peer',
+      timestamp: Date.now(),
+    });
+    expect(annotationManager.bookmarks.size).toBe(1);
+    expect(annotationManager.bookmarks.get('legacy-bm')?.cameraRotation).toEqual([0, 0, 0, 1]);
+  });
 });

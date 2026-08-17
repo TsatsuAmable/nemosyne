@@ -23,9 +23,17 @@ class RemoteDebugStreamer {
   private origError = console.error;
   private origInfo = console.info;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
+  private initialized = false;
+  private errorHandler: ((event: ErrorEvent) => void) | null = null;
+  private rejectionHandler: ((event: PromiseRejectionEvent) => void) | null = null;
 
   init(): void {
     if (typeof window === 'undefined') return;
+    // Idempotent: a second init (hot reload, repeated test cycle) would
+    // otherwise stack a second pair of window listeners and a second HUD
+    // banner while leaving the console patched.
+    if (this.initialized) return;
+    this.initialized = true;
 
     this.createHudBanner();
 
@@ -57,20 +65,22 @@ class RemoteDebugStreamer {
       this.showOnHud('ERROR: ' + formatted, '#ff3366');
     };
 
-    // Intercept window onerror
-    window.addEventListener('error', (event) => {
+    // Intercept window onerror (store the handler so dispose() can remove it)
+    this.errorHandler = (event) => {
       const msg = `${event.message} at ${event.filename}:${event.lineno}:${event.colno}`;
       this.enqueue('error', msg, userAgent, event.error?.stack);
       this.showOnHud('WINDOW ERROR: ' + msg, '#ff3366');
-    });
+    };
+    window.addEventListener('error', this.errorHandler);
 
     // Intercept window onunhandledrejection
-    window.addEventListener('unhandledrejection', (event) => {
+    this.rejectionHandler = (event) => {
       const reason = event.reason?.message || String(event.reason);
       const stack = event.reason?.stack;
       this.enqueue('error', `Unhandled Rejection: ${reason}`, userAgent, stack);
       this.showOnHud('REJECTION: ' + reason, '#ff9900');
-    });
+    };
+    window.addEventListener('unhandledrejection', this.rejectionHandler);
 
     // Start background batch flusher
     if (this.flushTimer === null) {
@@ -83,10 +93,40 @@ class RemoteDebugStreamer {
   }
 
   dispose(): void {
+    if (!this.initialized) return;
+    this.initialized = false;
+
     if (this.flushTimer !== null) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
     }
+
+    // Remove the window listeners we registered (prevents duplicate error
+    // reporting across init() -> dispose() -> init() cycles).
+    if (this.errorHandler) {
+      window.removeEventListener('error', this.errorHandler);
+      this.errorHandler = null;
+    }
+    if (this.rejectionHandler) {
+      window.removeEventListener('unhandledrejection', this.rejectionHandler);
+      this.rejectionHandler = null;
+    }
+
+    // Restore the original console methods so patched calls stop enqueuing
+    // into a queue that no longer flushes periodically.
+    console.log = this.origLog;
+    console.info = this.origInfo;
+    console.warn = this.origWarn;
+    console.error = this.origError;
+
+    // Remove the HUD banner element.
+    if (this.bannerElement) {
+      this.bannerElement.remove();
+      this.bannerElement = null;
+    }
+
+    // Drop any queued logs that will never flush.
+    this.queue = [];
   }
 
   private formatArgs(args: unknown[]): string {

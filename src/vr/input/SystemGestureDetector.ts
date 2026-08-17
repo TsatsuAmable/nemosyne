@@ -20,11 +20,11 @@ export class SystemGestureDetector {
   onTrace: ((info: SystemGestureTraceInfo) => void) | null = null;
 
   private _lastGripSystemToggle = false;
+  private _lastRawGrip = false;
   private _lastSuppressedBothPinched = false;
   private _bothPinchStartAt: number | null = null;
   private _lastBothPinchToggleAt = -Infinity;
   private _lastSystemToggleAt = -Infinity;
-  private _gripStartAt: number | null = null;
   private readonly _bothPinchHoldMs: number;
   private readonly _toggleCooldownMs: number;
   private readonly _now: () => number;
@@ -124,22 +124,29 @@ export class SystemGestureDetector {
     }
 
     // System gesture on controllers: both grips pressed together. When only
-    // one controller is available, a single grip works as a fallback.
+    // one controller is available, a single grip works as a fallback. Fire once
+    // per raw press (rising edge) rather than per panel-gated held transition:
+    // gating the held state on pointerOverPanel nulls the start timestamp
+    // while the grip stays pressed, so tracking the toggle on that gated
+    // state would re-arm when the ray leaves the panel and fire a second
+    // toggle from a single held grip. The panel gate still suppresses the
+    // initial fire when the press begins over a panel.
     const bothGrips = gripStates.length >= 2 && gripStates.every(Boolean);
     const singleGrip = gripStates.length === 1 && gripStates[0];
     const rawGrip = bothGrips || singleGrip;
-    if (rawGrip && !pointerOverPanel) this._gripStartAt ??= now;
-    else this._gripStartAt = null;
-    // Keep the one-controller fallback responsive; paired grips still share the
-    // panel, release, and cooldown gates with the hand gesture.
-    const gripHeld = rawGrip && this._gripStartAt !== null;
-    if (gripHeld && !this._lastGripSystemToggle && this.onSystemToggle && now - this._lastSystemToggleAt >= this._toggleCooldownMs) {
+    if (
+      rawGrip &&
+      !this._lastRawGrip &&
+      !pointerOverPanel &&
+      this.onSystemToggle &&
+      now - this._lastSystemToggleAt >= this._toggleCooldownMs
+    ) {
       console.log('[SystemGestureDetector] system toggle fired (controller grips)');
       this.onTrace?.({ kind: 'grips' });
       this.onSystemToggle();
       this._lastSystemToggleAt = now;
     }
-    this._lastGripSystemToggle = gripHeld;
+    this._lastRawGrip = rawGrip;
 
     return { bothPinched, suppressSelection };
   }
