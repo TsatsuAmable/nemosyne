@@ -1,7 +1,38 @@
 /**
  * Vitest setup: mock WebGL context so three.js WebGLRenderer can be
- * instantiated in jsdom without the native `canvas` npm package.
+ * instantiated in jsdom without the native `canvas` npm package,
+ * and ensure a functional in-memory localStorage mock for Node 22+.
  */
+
+const createLocalStorageMock = () => {
+  let store = new Map();
+  return {
+    getItem: (key) => store.get(String(key)) ?? null,
+    setItem: (key, val) => store.set(String(key), String(val)),
+    removeItem: (key) => store.delete(String(key)),
+    clear: () => store.clear(),
+    get length() {
+      return store.size;
+    },
+    key: (i) => Array.from(store.keys())[i] ?? null,
+  };
+};
+
+if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage?.clear !== 'function') {
+  const localStorageMock = createLocalStorageMock();
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+    configurable: true,
+  });
+  if (typeof window !== 'undefined') {
+    Object.defineProperty(window, 'localStorage', {
+      value: localStorageMock,
+      writable: true,
+      configurable: true,
+    });
+  }
+}
 
 function makeWebGLContext(canvas) {
   const noOp = () => {};
