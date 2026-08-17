@@ -27,9 +27,15 @@ const allowOpenArg = args.find((a) => a.startsWith('--allow-open'));
 const ALLOW_OPEN =
   allowOpenArg !== undefined || process.env.NEMOSYNE_SIGNAL_ALLOW_OPEN === '1';
 
+const originsArg = args.find((a) => a.startsWith('--allowed-origins='));
+const ALLOWED_ORIGINS = originsArg
+  ? originsArg.split('=')[1].split(',')
+  : (process.env.NEMOSYNE_ALLOWED_ORIGINS ? process.env.NEMOSYNE_ALLOWED_ORIGINS.split(',') : undefined);
+
 const registry = createRoomRegistry({
   authToken: AUTH_TOKEN,
   observerAuthToken: OBSERVER_TOKEN,
+  allowedOrigins: ALLOWED_ORIGINS,
   allowOpenNoToken: ALLOW_OPEN,
 });
 

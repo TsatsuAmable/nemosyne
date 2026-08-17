@@ -4,18 +4,25 @@
  * code.
  *
  * Hardened Collaboration Gateway Core:
- * - Server-authorized roles & structured credentials (prevents client-asserted role bypass).
+ * - Cryptographically signed room tickets (HMAC-SHA256) & verified capabilities.
+ * - In-band authentication support (keeps credentials out of URL query strings).
  * - Origin enforcement (prevents CSWSH).
+ * - Auth-failure IP throttling & brute-force defense.
  * - Multi-tier abuse protection: IP connection caps, message rate limits, total connection limits.
  * - Strict runtime message schema validation for all signalling payloads.
  * - Room idle expiration and cleanup.
  */
+
+import { verifySignedTicket, timingSafeEqualString } from './SignedTicket.ts';
 
 const DEFAULT_MAX_MESSAGE_BYTES = 64 * 1024; // 64 KiB
 const DEFAULT_MAX_PEERS_PER_ROOM = 50;
 const DEFAULT_MAX_CONNECTIONS_PER_IP = 10;
 const DEFAULT_MAX_TOTAL_CONNECTIONS = 500;
 const DEFAULT_MAX_MESSAGES_PER_SECOND = 50;
+const DEFAULT_MAX_AUTH_FAILURES = 5;
+const DEFAULT_AUTH_WINDOW_MS = 60 * 1000; // 1 minute
+const DEFAULT_AUTH_TIMEOUT_MS = 5000; // 5 seconds to authenticate
 const DEFAULT_ROOM_IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 export interface SignallingSocket {
@@ -29,11 +36,13 @@ export interface SignallingSocket {
 }
 
 export type NetworkRole = 'participant' | 'observer';
+export type PeerCapability = 'webrtc_negotiate' | 'state_broadcast' | 'data_operation' | 'presence';
 
 export interface TokenClaims {
   room?: string;
   role?: NetworkRole;
   exp?: number;
+  capabilities?: PeerCapability[];
   [key: string]: unknown;
 }
 
@@ -43,6 +52,8 @@ export interface RoomRegistryOptions {
   maxConnectionsPerIp?: number;
   maxTotalConnections?: number;
   maxMessagesPerSecond?: number;
+  maxAuthFailures?: number;
+  authTimeoutMs?: number;
   roomIdleTimeoutMs?: number;
   allowedOrigins?: string[] | ((origin: string) => boolean);
   /**
@@ -81,12 +92,15 @@ export interface RoomRegistry {
   getRoomCount(): number;
   getTotalPeers(): number;
   cleanupIdleRooms(): void;
+  getAuthFailureCount(ip: string): number;
 }
 
 interface RoomPeer {
   socket: SignallingSocket;
   role: NetworkRole;
+  capabilities: Set<PeerCapability>;
   ip: string;
+  authenticated: boolean;
   connectedAt: number;
   messageTimestamps: number[];
 }
@@ -98,43 +112,13 @@ interface SignallingMessagePayload {
   [key: string]: unknown;
 }
 
-/**
- * Constant-time string equality. Iterates over the longer of the two strings
- * even when lengths differ, so a timing adversary can't learn the secret's
- * length or prefix. Returns false when lengths differ.
- */
-function timingSafeEqualString(a: string, b: string): boolean {
-  const maxLen = Math.max(a.length, b.length);
-  let diff = a.length ^ b.length;
-  for (let i = 0; i < maxLen; i++) {
-    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-  }
-  return diff === 0;
-}
+const ROLE_CAPABILITIES: Record<NetworkRole, PeerCapability[]> = {
+  participant: ['webrtc_negotiate', 'state_broadcast', 'data_operation', 'presence'],
+  observer: ['webrtc_negotiate', 'presence'],
+};
 
 /**
- * Parse structured or scoped token if encoded as JSON/Base64.
- */
-function parseTokenClaims(token: string): TokenClaims | null {
-  try {
-    if (token.startsWith('{') && token.endsWith('}')) {
-      return JSON.parse(token);
-    }
-    if (token.includes('.')) {
-      const parts = token.split('.');
-      if (parts.length === 3) {
-        const payloadStr = Buffer.from(parts[1], 'base64').toString('utf8');
-        return JSON.parse(payloadStr);
-      }
-    }
-  } catch {
-    // Non-JSON token (simple secret string)
-  }
-  return null;
-}
-
-/**
- * Strict runtime message validation for all signalling payloads.
+ * Strict explicit protocol schema validator for all signalling payloads.
  */
 function isValidSignallingPayload(data: unknown): boolean {
   if (data == null || typeof data !== 'object' || Array.isArray(data)) return false;
@@ -143,6 +127,8 @@ function isValidSignallingPayload(data: unknown): boolean {
   if (typeof type !== 'string') return false;
 
   switch (type) {
+    case 'auth':
+      return typeof obj.token === 'string';
     case 'offer':
     case 'answer':
       return (obj.sdp === undefined || typeof obj.sdp === 'string') && (!obj.sdp || (typeof obj.sdp === 'string' && obj.sdp.length < 64 * 1024));
@@ -155,6 +141,7 @@ function isValidSignallingPayload(data: unknown): boolean {
     case 'pong':
       return true;
     case 'state':
+      return obj.delta !== undefined || obj.state !== undefined;
     case 'datasetOperation':
     case 'annotations_add':
     case 'annotations_remove':
@@ -163,16 +150,35 @@ function isValidSignallingPayload(data: unknown): boolean {
     case 'tour_step':
       return true;
     default:
-      // Allow custom app-level topics as long as payload is bounded object
-      return true;
+      return false;
   }
 }
 
-function canRelayMessage(role: NetworkRole, message: unknown): boolean {
-  if (role === 'participant') return true;
-  if (message == null || typeof message !== 'object' || Array.isArray(message)) return false;
+function getRequiredCapability(message: unknown): PeerCapability | null {
+  if (message == null || typeof message !== 'object' || Array.isArray(message)) return null;
   const type = (message as { type?: unknown }).type;
-  return type === 'offer' || type === 'answer' || type === 'ice' || type === 'ping' || type === 'pong';
+  switch (type) {
+    case 'offer':
+    case 'answer':
+    case 'ice':
+    case 'ping':
+    case 'pong':
+      return 'webrtc_negotiate';
+    case 'join':
+    case 'leave':
+      return 'presence';
+    case 'state':
+    case 'annotations_add':
+    case 'annotations_remove':
+    case 'bookmarks_add':
+    case 'bookmarks_remove':
+    case 'tour_step':
+      return 'state_broadcast';
+    case 'datasetOperation':
+      return 'data_operation';
+    default:
+      return null;
+  }
 }
 
 export function createRoomRegistry({
@@ -181,6 +187,8 @@ export function createRoomRegistry({
   maxConnectionsPerIp = DEFAULT_MAX_CONNECTIONS_PER_IP,
   maxTotalConnections = DEFAULT_MAX_TOTAL_CONNECTIONS,
   maxMessagesPerSecond = DEFAULT_MAX_MESSAGES_PER_SECOND,
+  maxAuthFailures = DEFAULT_MAX_AUTH_FAILURES,
+  authTimeoutMs = DEFAULT_AUTH_TIMEOUT_MS,
   roomIdleTimeoutMs = DEFAULT_ROOM_IDLE_TIMEOUT_MS,
   allowedOrigins,
   authToken = '',
@@ -190,16 +198,37 @@ export function createRoomRegistry({
 }: RoomRegistryOptions = {}): RoomRegistry {
   const rooms = new Map<string, Map<string, RoomPeer>>();
   const ipConnectionCounts = new Map<string, number>();
+  const ipAuthFailures = new Map<string, { count: number; resetAt: number }>();
   const roomLastActive = new Map<string, number>();
 
   function getTotalPeers(): number {
     let total = 0;
-    for (const room of rooms.values()) total += room.size;
+    for (const room of rooms.values()) {
+      for (const peer of room.values()) {
+        if (peer.authenticated) total++;
+      }
+    }
     return total;
   }
 
   function getRoomCount(): number {
     return rooms.size;
+  }
+
+  function getAuthFailureCount(ip: string): number {
+    const record = ipAuthFailures.get(ip);
+    if (!record || Date.now() > record.resetAt) return 0;
+    return record.count;
+  }
+
+  function recordAuthFailure(ip: string): void {
+    const now = Date.now();
+    const record = ipAuthFailures.get(ip);
+    if (!record || now > record.resetAt) {
+      ipAuthFailures.set(ip, { count: 1, resetAt: now + DEFAULT_AUTH_WINDOW_MS });
+    } else {
+      record.count++;
+    }
   }
 
   function cleanupIdleRooms(): void {
@@ -224,30 +253,36 @@ export function createRoomRegistry({
     return true;
   }
 
-  function broadcast(roomId: string, from: string, role: NetworkRole, message: unknown): void {
-    if (!canRelayMessage(role, message)) return;
+  function canPeerRelay(peer: RoomPeer, message: unknown): boolean {
+    const reqCap = getRequiredCapability(message);
+    if (!reqCap) return false;
+    return peer.capabilities.has(reqCap);
+  }
+
+  function broadcast(roomId: string, from: string, peer: RoomPeer, message: unknown): void {
+    if (!canPeerRelay(peer, message)) return;
     const room = rooms.get(roomId);
     if (!room) return;
     const data = JSON.stringify({ roomId, from, data: message });
     if (data.length > maxMessageBytes) return;
     roomLastActive.set(roomId, Date.now());
-    for (const peer of room.values()) {
-      if (peer.socket.readyState === 1) {
-        peer.socket.send(data);
+    for (const other of room.values()) {
+      if (other.authenticated && other.socket.readyState === 1) {
+        other.socket.send(data);
       }
     }
   }
 
-  function sendTo(roomId: string, to: string, from: string, role: NetworkRole, message: unknown): void {
-    if (!canRelayMessage(role, message)) return;
+  function sendTo(roomId: string, to: string, from: string, peer: RoomPeer, message: unknown): void {
+    if (!canPeerRelay(peer, message)) return;
     const room = rooms.get(roomId);
     if (!room) return;
-    const target = room.get(to)?.socket;
-    if (target?.readyState === 1) {
+    const target = room.get(to);
+    if (target?.authenticated && target.socket?.readyState === 1) {
       const data = JSON.stringify({ roomId, from, data: message });
       if (data.length <= maxMessageBytes) {
         roomLastActive.set(roomId, Date.now());
-        target.send(data);
+        target.socket.send(data);
       }
     }
   }
@@ -256,7 +291,7 @@ export function createRoomRegistry({
     if (!allowedOrigins) return true;
     const rawOrigin = request?.headers?.origin;
     const origin = Array.isArray(rawOrigin) ? rawOrigin[0] : rawOrigin;
-    if (!origin) return true; // Non-browser clients without Origin header permitted unless strict
+    if (!origin) return true; // Non-browser or direct connections
     if (typeof allowedOrigins === 'function') {
       return allowedOrigins(origin);
     }
@@ -281,25 +316,23 @@ export function createRoomRegistry({
       if (typeof token !== 'string') {
         return { authorized: false, role: 'observer', closeCode: 4001, reason: 'token required' };
       }
-      // 1. Check structured claims if provided
-      const claims = parseTokenClaims(token);
-      if (claims) {
-        if (claims.exp && typeof claims.exp === 'number' && Date.now() > claims.exp) {
-          return { authorized: false, role: 'observer', closeCode: 4001, reason: 'token expired' };
+
+      // 1. Cryptographically signed HMAC room ticket verification
+      if (token.includes('.')) {
+        const res = verifySignedTicket(token, authToken, roomId);
+        if (res.valid && res.claims) {
+          const role = res.claims.role ?? requestedRole;
+          return { authorized: true, role };
         }
-        if (claims.room && claims.room !== roomId) {
-          return { authorized: false, role: 'observer', closeCode: 4001, reason: 'token room mismatch' };
-        }
-        const serverRole = claims.role ?? requestedRole;
-        return { authorized: true, role: serverRole };
+        return { authorized: false, role: 'observer', closeCode: 4001, reason: res.error ?? 'invalid signed ticket' };
       }
 
-      // 2. Check dedicated observer secret
+      // 2. Observer dedicated secret token match
       if (observerAuthToken && timingSafeEqualString(token, observerAuthToken)) {
         return { authorized: true, role: 'observer' };
       }
 
-      // 3. Check scoped token format: "secret:observer" or "secret:participant"
+      // 3. Scoped token string format: "secret:observer" or "secret:participant"
       if (token.includes(':') && authToken) {
         const [secretPart, rolePart] = token.split(':');
         if (timingSafeEqualString(secretPart, authToken)) {
@@ -308,7 +341,7 @@ export function createRoomRegistry({
         }
       }
 
-      // 4. Standard participant secret
+      // 4. Standard participant shared secret
       if (authToken && timingSafeEqualString(token, authToken)) {
         return { authorized: true, role: requestedRole === 'observer' ? 'observer' : 'participant' };
       }
@@ -331,7 +364,17 @@ export function createRoomRegistry({
     requestedRole: NetworkRole = 'participant',
     request?: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } }
   ): void {
-    // 1. Origin validation
+    const ip = request?.socket?.remoteAddress || '127.0.0.1';
+
+    // 1. Check IP auth-failure throttling
+    if (getAuthFailureCount(ip) >= maxAuthFailures) {
+      try {
+        socket.close?.(1008, 'too many authentication failures');
+      } catch (_) { /* ignore */ }
+      return;
+    }
+
+    // 2. Origin validation
     if (!checkOrigin(request)) {
       try {
         socket.close?.(4003, 'forbidden origin');
@@ -339,8 +382,7 @@ export function createRoomRegistry({
       return;
     }
 
-    // 2. Global and IP connection limits
-    const ip = request?.socket?.remoteAddress || '127.0.0.1';
+    // 3. Global and IP connection limits
     if (getTotalPeers() >= maxTotalConnections) {
       try {
         socket.close?.(1008, 'server connection limit exceeded');
@@ -356,17 +398,7 @@ export function createRoomRegistry({
       return;
     }
 
-    // 3. Server authorization and role determination
-    const authResult = authorizePeer(roomId, token, requestedRole);
-    if (!authResult.authorized) {
-      try {
-        socket.close?.(authResult.closeCode ?? 4001, authResult.reason ?? 'unauthorized');
-      } catch (_) { /* ignore */ }
-      return;
-    }
-    const authorizedRole = authResult.role;
-
-    // 4. Room admission and duplicate peer protection
+    // 4. Room admission check
     if (!rooms.has(roomId)) rooms.set(roomId, new Map());
     const room = rooms.get(roomId)!;
     if (room.size >= maxPeersPerRoom) {
@@ -383,26 +415,70 @@ export function createRoomRegistry({
       return;
     }
 
+    // Determine initial auth state
+    const needsToken = Boolean(authToken || observerAuthToken || !allowOpenNoToken);
+    let initialAuth = false;
+    let initialRole: NetworkRole = requestedRole;
+
+    if (token) {
+      const authResult = authorizePeer(roomId, token, requestedRole);
+      if (!authResult.authorized) {
+        recordAuthFailure(ip);
+        try {
+          socket.close?.(authResult.closeCode ?? 4001, authResult.reason ?? 'unauthorized');
+        } catch (_) { /* ignore */ }
+        return;
+      }
+      initialAuth = true;
+      initialRole = authResult.role;
+    } else if (!needsToken) {
+      initialAuth = true;
+      initialRole = requestedRole;
+    } else {
+      recordAuthFailure(ip);
+      try {
+        socket.close?.(4001, 'token required');
+      } catch (_) { /* ignore */ }
+      return;
+    }
+
     // Register peer
     ipConnectionCounts.set(ip, currentIpCount + 1);
     roomLastActive.set(roomId, Date.now());
 
     const peerEntry: RoomPeer = {
       socket,
-      role: authorizedRole,
+      role: initialRole,
+      capabilities: new Set(ROLE_CAPABILITIES[initialRole]),
       ip,
+      authenticated: initialAuth,
       connectedAt: Date.now(),
       messageTimestamps: [],
     };
     room.set(peerId, peerEntry);
 
-    // Notify existing peers and sync room state with new peer
-    for (const [id, other] of room) {
-      if (id !== peerId && other.socket.readyState === 1) {
-        const data = JSON.stringify({ roomId, from: peerId, data: { type: 'join', role: authorizedRole } });
-        if (data.length <= maxMessageBytes) other.socket.send(data);
-        socket.send(JSON.stringify({ roomId, from: id, data: { type: 'join', role: other.role } }));
+    // If already authenticated on connect, announce join
+    if (initialAuth) {
+      for (const [id, other] of room) {
+        if (id !== peerId && other.authenticated && other.socket.readyState === 1) {
+          const data = JSON.stringify({ roomId, from: peerId, data: { type: 'join', role: initialRole } });
+          if (data.length <= maxMessageBytes) other.socket.send(data);
+          socket.send(JSON.stringify({ roomId, from: id, data: { type: 'join', role: other.role } }));
+        }
       }
+    }
+
+    // Auth timeout for unauthenticated sockets
+    let authTimeout: ReturnType<typeof setTimeout> | null = null;
+    if (!initialAuth) {
+      authTimeout = setTimeout(() => {
+        if (!peerEntry.authenticated) {
+          recordAuthFailure(ip);
+          try {
+            socket.close?.(4001, 'auth timeout');
+          } catch (_) { /* ignore */ }
+        }
+      }, authTimeoutMs);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -428,14 +504,46 @@ export function createRoomRegistry({
       }
       if (!isValidMessage(message)) return;
 
+      // Handle in-band authentication if not yet authenticated
+      if (!peerEntry.authenticated) {
+        const msgData = message.data as { type?: string; token?: string; role?: NetworkRole };
+        if (msgData?.type === 'auth' && msgData.token) {
+          const authRes = authorizePeer(roomId, msgData.token, msgData.role ?? requestedRole);
+          if (authRes.authorized) {
+            peerEntry.authenticated = true;
+            peerEntry.role = authRes.role;
+            peerEntry.capabilities = new Set(ROLE_CAPABILITIES[authRes.role]);
+            if (authTimeout) clearTimeout(authTimeout);
+
+            // Announce join to other authenticated peers
+            for (const [id, other] of room) {
+              if (id !== peerId && other.authenticated && other.socket.readyState === 1) {
+                const data = JSON.stringify({ roomId, from: peerId, data: { type: 'join', role: authRes.role } });
+                if (data.length <= maxMessageBytes) other.socket.send(data);
+                socket.send(JSON.stringify({ roomId, from: id, data: { type: 'join', role: other.role } }));
+              }
+            }
+            return;
+          }
+          recordAuthFailure(ip);
+          try {
+            socket.close?.(authRes.closeCode ?? 4001, authRes.reason ?? 'invalid token');
+          } catch (_) { /* ignore */ }
+          return;
+        }
+        // Discard unauthenticated messages
+        return;
+      }
+
       if (message.to === '*') {
-        broadcast(roomId, peerId, peerEntry.role, message.data);
+        broadcast(roomId, peerId, peerEntry, message.data);
       } else if (message.to) {
-        sendTo(roomId, message.to, peerId, peerEntry.role, message.data);
+        sendTo(roomId, message.to, peerId, peerEntry, message.data);
       }
     };
 
     const onClose = () => {
+      if (authTimeout) clearTimeout(authTimeout);
       const c = ipConnectionCounts.get(ip) || 1;
       if (c <= 1) ipConnectionCounts.delete(ip);
       else ipConnectionCounts.set(ip, c - 1);
@@ -445,10 +553,12 @@ export function createRoomRegistry({
       if (room.size === 0) {
         cleanupIdleRooms();
       }
-      for (const other of room.values()) {
-        if (other.socket.readyState === 1) {
-          const data = JSON.stringify({ roomId, from: peerId, data: { type: 'leave' } });
-          if (data.length <= maxMessageBytes) other.socket.send(data);
+      if (peerEntry.authenticated) {
+        for (const other of room.values()) {
+          if (other.authenticated && other.socket.readyState === 1) {
+            const data = JSON.stringify({ roomId, from: peerId, data: { type: 'leave' } });
+            if (data.length <= maxMessageBytes) other.socket.send(data);
+          }
         }
       }
     };
@@ -463,5 +573,5 @@ export function createRoomRegistry({
     }
   }
 
-  return { handleConnection, getRoomCount, getTotalPeers, cleanupIdleRooms };
+  return { handleConnection, getRoomCount, getTotalPeers, cleanupIdleRooms, getAuthFailureCount };
 }
