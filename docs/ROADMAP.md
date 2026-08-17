@@ -5,12 +5,16 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Atlas 4 semantic VR embodiment: per-structure InPlaceHandles,
-  rowIndices-based DataOperations (`isolateRowIndices`/`highlightRowIndices`/`sliceByRowIndices`/
-  `resetVisibility`), TDA panel structure-ID addressing, `VRCommandExecutor.sliceByStructure`.
-  Atlas 3 guidance layer complete. Atlas 2 structure discovery complete. Wave 6 via PR #130.
-- **Active sprint:** Atlas 4 — continue: refactor all `applyX` to use rowIndices, wire TDA panel
-  click-to-navigate, full structure-handle lifecycle. Then gate Atlas 5 on validated embodiment.
+- **Last updated:** 2026-08-17 — Atlas 4 completion: rowIndices refactor (`sortByRowIndices`/
+  `clusterByRowIndices`/`anomalyByRowIndices`), TDA panel click-to-navigate (`pickStructure`
+  hit-testing on mapper nodes), full structure-handle lifecycle (rebuild on re-solve via
+  `_rebuildStructureHandles`). Atlas 5 foundations: `ResearchContext` persistence + observation/
+  intervention recording. Atlas 3 guidance layer complete. Atlas 2 structure discovery complete.
+  Wave 6 via PR #130.
+- **Active sprint:** Atlas 5 — research context and replay. Extend session persistence with
+  research context, observations, interventions, and spatial state. Restore path already re-solves
+  the artefact, re-applies the operation transform, and recomputes TDA. Remaining: validate the
+  full session-restore gate end-to-end (serialize -> restore -> VR scene intact).
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
   research-relevant transforms through the versioned Rust kernel (provenance envelope on every result);
   use battle-tested Rust crates; saved-session compatibility breaks (kernel carries `kernelVersion`).
@@ -256,8 +260,10 @@
   - **Auto-generation trigger:** `_discoverStructuresAndRecommend(operation)` fires after every
     `OPERATION_APPLIED` event — discovers cluster structures after cluster ops, mapper+persistence
     structures after TDA ops, then calls `generateRecommendation()` and marks the panel dirty.
-- **Next:** Atlas 4 — continue: refactor all `applyX` to use rowIndices, wire TDA panel
-  click-to-navigate, full structure-handle lifecycle. Then gate Atlas 5 on validated embodiment.
+- **Next:** Atlas 5 — validate the session-restore gate end-to-end: serialize a session with
+  structures, research context, recommendations, observations, interventions, and spatial state,
+  restore it, and confirm the VR scene (artefact + operation transform + TDA + handles) rebuilds
+  without manual reconstruction. Then Atlas 6 (controlled experiment harness).
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files
@@ -1586,6 +1592,11 @@ CSV/JSON -> schema preview -> DatasetModel -> DatasetSpace -> structures
 6. **Atlas 5 — Research context and replay.** Extend session persistence with DatasetSpace,
    structures, research context, recommendation history, observations, interventions, and spatial
    state. Gate: a session can be restored from serialized state without manual reconstruction.
+   **Status:** foundations landed — `ResearchContext` (studyId/researchQuestion/hypothesis/
+   variablesOfInterest/observerMode) round-trips through the schemaVersion-2 JSON;
+   `recordObservation`/`recordIntervention` populate the ledger's observation/intervention fields;
+   restore path re-solves the artefact, re-applies the operation transform, recomputes TDA, and
+   rebuilds structure handles. Remaining: end-to-end restore-gate validation.
 7. **Atlas 6 — Controlled experiment harness.** Add study conditions, tasks, trials, outcomes,
    counterbalancing, and frozen configuration. Gate: human-performance claims require controlled
    evidence; telemetry, unit tests, and benchmark utilities alone are not study evidence.
