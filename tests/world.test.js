@@ -624,6 +624,93 @@ describe('World integration', () => {
     expect(savedMetrics?.visible).toBe(true);
   });
 
+  it('Atlas 5 gate: full session (structures + research context + recommendations/decisions + observations + interventions + spatial state) restores without manual reconstruction', async () => {
+    world = new World(); wireKernel(world);
+    world.sessionStore = new SessionStoreStub();
+
+    // Seed the session with every Atlas 5 dimension:
+    // 1) Structures + recommendation from a cluster analysis.
+    world.applyDataOperation('cluster');
+    expect(world.atlas.structures.length).toBeGreaterThan(0);
+    world._acceptRecommendation();
+    expect(world.atlas.decisionHistory.length).toBeGreaterThan(0);
+
+    // 2) Research context.
+    world.session.setResearchContext({
+      studyId: 'study-atlas5',
+      researchQuestion: 'does structure persist across restore?',
+      hypothesis: 'structures + decisions survive serialize',
+      variablesOfInterest: ['inventory'],
+      observerMode: true,
+    });
+
+    // 3) Observations + interventions.
+    world.session.recordObservation('cluster assignments stable');
+    world.session.recordIntervention('inspected cluster handle');
+
+    // 4) Spatial state — camera pose + a free-floating panel.
+    world.engine.cameraGroup.position.set(2.5, 1.75, -4.25);
+    world.panelManager.showPanel(world.metricsPanel);
+    world.metricsPanel.mesh.position.set(0.5, 1.2, -0.8);
+    world.engine.cameraGroup.updateMatrixWorld(true);
+
+    const savedStructureIds = world.atlas.structures
+      .flatMap((set) => set.structures.map((s) => s.id))
+      .sort();
+
+    await world.saveSession('atlas5');
+
+    // Restore into a FRESH world — the restored scene must rebuild the
+    // artefact + operation transform + TDA + structure handles with no
+    // manual reconstruction.
+    const restoredWorld = new World(); wireKernel(restoredWorld);
+    restoredWorld.sessionStore = world.sessionStore;
+    const ok = await restoredWorld.loadSession('atlas5');
+    expect(ok).toBe(true);
+
+    // Structures restored from the ledger (authoritative provenance record).
+    expect(restoredWorld.atlas.structures.length).toBeGreaterThan(0);
+    const restoredIds = restoredWorld.atlas.structures
+      .flatMap((set) => set.structures.map((s) => s.id))
+      .sort();
+    expect(restoredIds).toEqual(savedStructureIds);
+
+    // Research context restored.
+    expect(restoredWorld.session.researchContext).toMatchObject({
+      studyId: 'study-atlas5',
+      researchQuestion: 'does structure persist across restore?',
+      hypothesis: 'structures + decisions survive serialize',
+      variablesOfInterest: ['inventory'],
+      observerMode: true,
+    });
+
+    // Recommendation + decision history restored.
+    expect(restoredWorld.atlas.decisionHistory.length).toBeGreaterThan(0);
+    expect(restoredWorld.atlas.decisionHistory.at(-1).decision).toBe('accepted');
+
+    // Observations + interventions present in the ledger.
+    const ledger = restoredWorld.atlas.ledger;
+    expect(ledger.some((e) => e.observation === 'cluster assignments stable')).toBe(true);
+    expect(ledger.some((e) => e.intervention === 'inspected cluster handle')).toBe(true);
+
+    // VR scene rebuilt WITHOUT manual reconstruction:
+    // artefact meshes re-solved.
+    expect(restoredWorld.dracoNode.artifact.nodeMeshes.length).toBeGreaterThan(0);
+    // structure handles rebuilt from restored structures (not generic build()).
+    const structureHandles = restoredWorld.inPlaceHandles._handles.filter((h) => h.structureId);
+    expect(structureHandles.length).toBeGreaterThan(0);
+    expect(structureHandles.map((h) => h.structureId).sort()).toEqual(savedStructureIds.slice(0, 6));
+    // TDA recompute wired.
+    expect(typeof restoredWorld.tdaRecompute).toBe('function');
+
+    // Spatial state restored.
+    expect(restoredWorld.engine.cameraGroup.position.toArray()).toEqual([2.5, 1.75, -4.25]);
+    const restoredMetrics = restoredWorld.panelManager
+      .getPanelPositions()
+      .find((p) => p.title === 'TELEMETRY');
+    expect(restoredMetrics?.visible).toBe(true);
+  });
+
   it('exports a screenshot from the renderer canvas', () => {
     world = new World(); wireKernel(world);
 
