@@ -266,6 +266,14 @@
   (chamfered frame, grab handle bar, status LED jewel, dynamic `Screen_Face` UV mapping); enhanced
   `HandWheelMenu.ts` with the 3D `HandWheelHub` constellation palm dial socket. Tested via
   `tests/spatial-asset-registry.test.ts` (8 new tests).
+- **World-Aware UX Telemetry & Diagnostics ✅:** Upgraded UX telemetry to be world-aware with
+  `src/vr/trace/WorldSpatialContext.ts`. Classifies memory palace spatial zones (`CENTRAL_PLAZA`,
+  `TECHNOCORE_SECTOR`, `FARCASTER_GATEWAY`, `ICE_VAULT_SECTOR`, `ANALYTICAL_GALLERY`), calculates
+  landmark bearing/elevation, evaluates biomechanical reach zones (`SWEET_SPOT`, `NEAR_FIELD`,
+  `EXTENDED`, `PERIPHERAL`), scores ergonomic health (0-100), and flags gesture troubleshooting reasons
+  (`AIM_DRIFT_EXCESSIVE`, `NEAR_FIELD_TRACKING_JITTER`, `PERIPHERAL_CAMERA_BLINDSPOT`, `OUT_OF_REACH_ZONE`).
+  Integrated into `UXTraceRecorder.ts`, live in-VR HUD `InputTelemetry.ts`, and offline analyzer
+  `scripts/analyze-ux-trace.mjs`. Tested via `tests/world-spatial-context.test.ts` (6 new tests).
 - **Next:** Atlas 4 — continue: refactor all `applyX` to use rowIndices, wire TDA panel
   click-to-navigate, full structure-handle lifecycle. Then gate Atlas 5 on validated embodiment.
 
