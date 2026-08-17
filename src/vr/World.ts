@@ -211,7 +211,12 @@ export class World {
     // subscribers on the same bus.
     this.eventBus = this.engine.eventBus;
 
-    this.sceneGraphController = new SceneGraphController();
+    this.sceneGraphController = new SceneGraphController({
+      renderer: this.engine.renderer,
+      scene: this.engine.scene,
+      camera: this.engine.camera,
+      cameraGroup: this.engine.cameraGroup,
+    });
     this.workspaceManager = new WorkspaceManager(this.engine.scene);
 
     // AtlasCore is the single analytical authority for the operation path

@@ -92,4 +92,14 @@ export class IceVaultNode implements Updatable {
     const pulse = this.hovered ? 8 : (this.pulseSpeed ?? 5);
     this.core.scale.setScalar(1 + Math.sin(time * pulse) * 0.12);
   }
+
+  dispose(): void {
+    this.shell.geometry?.dispose();
+    this.material?.dispose();
+    this.core.geometry?.dispose();
+    this.coreMaterial?.dispose();
+    if (this.group.parent) {
+      this.group.parent.remove(this.group);
+    }
+  }
 }
