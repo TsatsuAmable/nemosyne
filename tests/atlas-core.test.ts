@@ -396,4 +396,49 @@ describe('AtlasCore', () => {
     expect(ruleNames).toContain('prefer_cluster_probe_for_large_datasets');
     expect(ruleNames).toContain('prefer_fork_plane_for_tabular');
   });
+
+  it('records embodiment commands in the ledger with targetIds', async () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 2 });
+    atlas.generateRecommendation();
+    atlas.acceptRecommendation();
+
+    atlas.recordEmbodimentCommand({
+      action: 'inspect-cluster',
+      targetIds: atlas.activeRecommendation!.targetIds,
+      embodiment: 'highlight-cluster',
+      provenance: atlas.activeRecommendation!.provenance,
+    });
+
+    const embodimentEvents = atlas.ledger.filter((e) => e.kind === 'embodiment');
+    expect(embodimentEvents).toHaveLength(1);
+    expect(embodimentEvents[0].embodimentCommand).toBeTruthy();
+    expect(embodimentEvents[0].embodimentCommand!.targetIds).toEqual(
+      atlas.activeRecommendation!.targetIds,
+    );
+  });
+
+  it('VRCommandExecutor resolves targetIds to rowIndices and executes', async () => {
+    const { VRCommandExecutor } = await import('../src/vr/coordinators/VRCommandExecutor.ts');
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 2 });
+    atlas.generateRecommendation();
+
+    let isolatedRows: number[] | null = null;
+    const executor = new VRCommandExecutor({
+      atlas,
+      onIsolate: (rows) => { isolatedRows = rows; },
+    });
+
+    const result = executor.executeFromRecommendation();
+    expect(result).toBe(false);
+
+    atlas.acceptRecommendation();
+    const result2 = executor.executeFromRecommendation();
+    expect(result2).toBe(true);
+    expect(isolatedRows).not.toBeNull();
+    expect(isolatedRows!.length).toBeGreaterThan(0);
+  });
 });

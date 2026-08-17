@@ -5,13 +5,13 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Atlas 3 guidance layer COMPLETE: `GuidanceEngine` with single-structure
-  + multi-structure rules (compare-regions, investigate-anomaly), `RecommendationPanel` VR UI with
-  accept/reject/override controls, `EmbodimentHints` wiring accepted recommendations to Draco
-  soft-constraint reweighting, and auto-generation trigger after cluster/TDA ops. Atlas 2 structure
-  discovery complete. Wave 6 merged via PR #130. Wave 5 + statify via PR #128; Wave 4 via PR #127;
-  cross-tool model routing in local/gitignored `.ai/model-routing/`.
-- **Active sprint:** Atlas 4 — validated guidance (next major milestone, gated on Atlas 3).
+- **Last updated:** 2026-08-17 — Atlas 4 initial slice: `VRCommand` type + `VRCommandExecutor`
+  coordinator that resolves `targetIds` → `rowIndices` via `DiscoveredStructure`, executes
+  embodiment actions (isolate/navigate/inspect/compare/reset) with ledger-tracked provenance
+  (`'embodiment'` `ResearchEventKind`). Atlas 3 guidance layer complete. Atlas 2 structure
+  discovery complete. Wave 6 merged via PR #130. Wave 5 + statify via PR #128; Wave 4 via PR #127.
+- **Active sprint:** Atlas 4 — continue semantic VR embodiment: per-structure InPlaceHandles,
+  TDA panel structure-ID addressing, refactor `DataOperations.applyX` to accept rowIndices.
   Rust/WASM remains the canonical analytical engine with no JS fallback.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
   research-relevant transforms through the versioned Rust kernel (provenance envelope on every result);
@@ -258,8 +258,9 @@
   - **Auto-generation trigger:** `_discoverStructuresAndRecommend(operation)` fires after every
     `OPERATION_APPLIED` event — discovers cluster structures after cluster ops, mapper+persistence
     structures after TDA ops, then calls `generateRecommendation()` and marks the panel dirty.
-- **Next:** Atlas 4 — validated guidance (next major milestone). Gate on reproducible structure
-  outputs (Atlas 2) + evidence-grounded recommendations (Atlas 3).
+- **Next:** Atlas 4 — continue semantic VR embodiment: per-structure InPlaceHandles, TDA panel
+  structure-ID addressing, refactor `DataOperations.applyX` to accept `rowIndices` instead of
+  full datasets. Then gate Atlas 5 on validated embodiment commands.
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files

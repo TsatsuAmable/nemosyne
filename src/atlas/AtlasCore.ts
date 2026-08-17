@@ -39,6 +39,7 @@ import type {
   EvidenceStatus,
   RecommendationDecision,
   ResearchEvent,
+  VRCommand,
 } from './types.ts';
 import type {
   DracoDataInput,
@@ -1031,6 +1032,22 @@ export class AtlasCore {
       if (outputHandle !== 0) kernel.destroyDataset(outputHandle);
       kernel.destroyDataset(inputHandle);
     }
+  }
+
+  recordEmbodimentCommand(command: VRCommand): void {
+    this._eventCounter += 1;
+    this._ledger.push({
+      eventId: `${this._sessionId}:${this._eventCounter}`,
+      sessionId: this._sessionId,
+      timestamp: now(),
+      kind: 'embodiment',
+      command: { op: 'embodiment' },
+      embodimentCommand: command,
+      datasetVersion: this._datasetVersion,
+      datasetFingerprint: this.datasetFingerprint ?? '',
+      stateHash: this.datasetSpace?.fingerprint ?? '',
+    });
+    this._invalidateHistoryView();
   }
 
   /** Rebuild the cached {@link analysisHistory} from the ledger on next access. */

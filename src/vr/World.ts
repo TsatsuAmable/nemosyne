@@ -1068,6 +1068,7 @@ export class World {
   _acceptRecommendation(): void {
     this.atlas.acceptRecommendation();
     this._applyEmbodimentHint();
+    this._executeVRCommand();
     this.recommendationPanel?.markDirty?.();
   }
 
@@ -1089,6 +1090,59 @@ export class World {
         applyEmbodimentHint(this.dracoNode, rec.suggestedEmbodiment!);
       }
     });
+  }
+
+  private _executeVRCommand(): void {
+    const rec = this.atlas.activeRecommendation;
+    if (!rec || rec.decision !== 'accepted') return;
+    import('./coordinators/VRCommandExecutor.ts').then(({ VRCommandExecutor }) => {
+      const executor = new VRCommandExecutor({
+        atlas: this.atlas,
+        onIsolate: (rowIndices) => this._isolateStructures(rowIndices),
+        onNavigate: (rowIndices) => this._navigateToStructures(rowIndices),
+        onReset: () => this._resetEmbodiment(),
+      });
+      executor.executeFromRecommendation();
+    });
+  }
+
+  private _isolateStructures(rowIndices: number[]): void {
+    if (!this.dracoNode?.artifact?.nodeMeshes) return;
+    const rowSet = new Set(rowIndices);
+    for (const mesh of this.dracoNode.artifact.nodeMeshes) {
+      const row = mesh.userData?.row;
+      if (row) {
+        const rowIdx = this.atlas.dataset.rows.indexOf(row);
+        mesh.visible = rowSet.has(rowIdx);
+      }
+    }
+  }
+
+  private _navigateToStructures(rowIndices: number[]): void {
+    if (!this.dracoNode?.artifact?.nodeMeshes || rowIndices.length === 0) return;
+    let cx = 0, cy = 0, cz = 0, count = 0;
+    for (const mesh of this.dracoNode.artifact.nodeMeshes) {
+      const row = mesh.userData?.row;
+      if (row) {
+        const rowIdx = this.atlas.dataset.rows.indexOf(row);
+        if (rowIndices.includes(rowIdx)) {
+          cx += mesh.position.x;
+          cy += mesh.position.y;
+          cz += mesh.position.z;
+          count++;
+        }
+      }
+    }
+    if (count > 0) {
+      this.engine.cameraGroup.position.set(cx / count, cy / count + 0.5, cz / count + 1.5);
+    }
+  }
+
+  private _resetEmbodiment(): void {
+    if (!this.dracoNode?.artifact?.nodeMeshes) return;
+    for (const mesh of this.dracoNode.artifact.nodeMeshes) {
+      mesh.visible = true;
+    }
   }
 
   private _discoverStructuresAndRecommend(operation: string): void {

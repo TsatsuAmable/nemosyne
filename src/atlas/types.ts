@@ -111,6 +111,21 @@ export interface AnalyticalEvidence {
 }
 
 /**
+ * Semantic VR embodiment command carrying analytical target IDs and
+ * provenance. Atlas 4: commands operate on analytical IDs (structure IDs)
+ * rather than mutating Three.js state directly. The executor resolves
+ * targetIds to rowIndices via {@link DiscoveredStructure} and applies
+ * embodiment actions through a single scoped artefact applier.
+ */
+export interface VRCommand {
+  action: AnalyticalAction;
+  targetIds: string[];
+  embodiment: string;
+  sourceRecommendationId?: string;
+  provenance?: Provenance | null;
+}
+
+/**
  * Recommender output tracked by AtlasCore. Decisions are recorded against the
  * ledger so accepted/rejected/overridden recommendations remain auditable.
  */
@@ -128,7 +143,7 @@ export interface AtlasRecommendation {
 }
 
 /** Kind of a {@link ResearchEvent}. */
-export type ResearchEventKind = 'load' | 'analysis' | 'structure' | 'recommendation' | 'preview' | 'undo' | 'redo' | 'seek' | 'reset';
+export type ResearchEventKind = 'load' | 'analysis' | 'structure' | 'recommendation' | 'embodiment' | 'preview' | 'undo' | 'redo' | 'seek' | 'reset';
 
 /**
  * Ledger entry recording one state transition of the analytical session. Every
@@ -147,6 +162,7 @@ export interface ResearchEvent {
   command: AnalysisSpec | { op: ResearchEventKind; index?: number };
   result?: AnalysisResult;
   structureSet?: StructureSet;
+  embodimentCommand?: VRCommand;
   datasetVersion: number;
   datasetFingerprint: string;
   recommendationDecision?: RecommendationDecision;
