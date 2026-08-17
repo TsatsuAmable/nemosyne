@@ -35,7 +35,7 @@ wss.on('connection', (socket, req) => {
   const peerId = url.searchParams.get('peer') || `peer-${Date.now()}`;
   const token = url.searchParams.get('token') || undefined;
   const role = url.searchParams.get('role') === 'observer' ? 'observer' : 'participant';
-  registry.handleConnection(socket, roomId, peerId, token, role);
+  registry.handleConnection(socket, roomId, peerId, token, role, req);
 });
 
 const mode = AUTH_TOKEN ? 'token required' : ALLOW_OPEN ? 'OPEN (no token)' : 'closed (set NEMOSYNE_SIGNAL_TOKEN or --allow-open)';

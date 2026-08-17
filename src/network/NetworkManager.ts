@@ -489,12 +489,12 @@ export class NetworkManager extends EventTarget {
   }
 
   /**
-   * Read the optional shared-secret collaboration token from localStorage
-   * (`nemosyne.collabToken`). The token is a shared secret and is never logged.
+   * Read the optional shared-secret collaboration token from sessionStorage
+   * (`nemosyne.collabToken`). Stored ephemerally per browser session and never logged.
    */
   _loadStoredToken(): string | undefined {
     try {
-      const v = typeof localStorage !== 'undefined' ? localStorage.getItem('nemosyne.collabToken') : null;
+      const v = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('nemosyne.collabToken') : null;
       return v || undefined;
     } catch {
       return undefined;

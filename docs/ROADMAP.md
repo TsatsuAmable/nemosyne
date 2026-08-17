@@ -5,14 +5,17 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Atlas 4 completion: rowIndices refactor (`sortByRowIndices`/
+- **Last updated:** 2026-08-17 — Collaboration Gateway Security & Architecture Hardening:
+  server-authorized roles & structured credentials (escalation-resistant), anti-CSWSH Origin enforcement,
+  IP and peer rate limiting, room idle cleanup, strict runtime message schemas (`SignallingServerCore.ts`),
+  ephemeral `sessionStorage` credentials (`NetworkManager.ts`), CSP hardening (`index.html`), `/__signal`
+  URL query matching fix (`vite.config.js`), orphaned second WebGL context eliminated (`SceneGraphController.ts`),
+  and `IceVaultNode.ts` landmark wired with test coverage. Atlas 4 completion: rowIndices refactor (`sortByRowIndices`/
   `clusterByRowIndices`/`anomalyByRowIndices`), TDA panel click-to-navigate (`pickStructure`
   hit-testing on mapper nodes), full structure-handle lifecycle (rebuild on re-solve via
   `_rebuildStructureHandles`). Atlas 5 foundations: `ResearchContext` persistence + observation/
   intervention recording. Atlas 3 guidance layer complete. Atlas 2 structure discovery complete.
-  Wave 6 via PR #130. UX & spatial 3D assets (Blender MCP pipeline, `SpatialAssetRegistry`,
-  3D panel/`HandWheelMenu` housings) via PR #136; world-aware UX telemetry & diagnostics
-  (`WorldSpatialContext`, reach-zone + ergonomic scoring, gesture troubleshooting) via PR #137.
+  Wave 6 via PR #130. UX & spatial 3D assets via PR #136; world-aware UX telemetry via PR #137.
 - **Active sprint:** Atlas 5 — research context and replay. Extend session persistence with
   research context, observations, interventions, and spatial state. Restore path already re-solves
   the artefact, re-applies the operation transform, and recomputes TDA. Remaining: validate the
