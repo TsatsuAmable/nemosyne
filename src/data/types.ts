@@ -129,6 +129,9 @@ export interface ColumnStats {
   var: number;
   min: number;
   max: number;
+  skew: number;
+  kurtosis: number;
+  outlierCount: number;
 }
 
 export interface CorrelationPair {
@@ -149,6 +152,14 @@ export interface CategoricalStats {
   top: CategoryCount[];
 }
 
+export interface TemporalStats {
+  column: string;
+  valueColumn: string;
+  trendDirection: 'flat' | 'up' | 'down';
+  seasonalityHint: boolean;
+  normalizedSlope: number;
+}
+
 export interface Facts {
   rowCount: number;
   columnCount: number;
@@ -156,6 +167,7 @@ export interface Facts {
   correlation: CorrelationPair[];
   categorical: CategoricalStats[];
   temporal: string[];
+  temporalStats: TemporalStats[];
 }
 
 // ---------------------------------------------------------------------------

@@ -32,6 +32,7 @@ describe('WorldRendererLifecycle dashboard ownership', () => {
       getOriginalDataset: () => makeDataset(),
       getDracoNode: () => null,
       getWasmBridge: () => null,
+      getAtlas: () => null,
     });
 
     lifecycle.rebuildDashboard();

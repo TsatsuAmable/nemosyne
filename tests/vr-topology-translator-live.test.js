@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 
 describe('VRTopologyTranslator live/incremental updates', () => {
   beforeEach(() => {
@@ -26,7 +27,7 @@ describe('VRTopologyTranslator live/incremental updates', () => {
       { time: '2024-01-01T00:00:00Z', value: 5, sensorId: 'B' },
       { time: '2024-01-01T00:01:00Z', value: 7, sensorId: 'B' },
     ]);
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const solved = engine.solve({ topology: TopologyTypes.TIME_SERIES, dataset: ds });
     const artifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });
 
@@ -40,7 +41,7 @@ describe('VRTopologyTranslator live/incremental updates', () => {
       { time: '2024-01-01T00:00:00Z', value: 10, sensorId: 'A' },
       { time: '2024-01-01T00:01:00Z', value: 12, sensorId: 'A' },
     ]);
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const solved = engine.solve({ topology: TopologyTypes.TIME_SERIES, dataset: ds });
     const artifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });
 
@@ -72,7 +73,7 @@ describe('VRTopologyTranslator live/incremental updates', () => {
         { a: 2, b: 'y' },
       ]
     );
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const solved = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds });
     const artifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });
 

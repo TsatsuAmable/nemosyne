@@ -3,6 +3,7 @@ import { Dataset } from '../../../src/data/Dataset.js';
 import { ConstraintEngine, TopologyTypes } from '../../../src/draco/ConstraintEngine.js';
 import { disposeObject } from '../../../src/utils/Dispose.js';
 import { makeKernelMockBridge } from '../../helpers/kernelMock.js';
+import { makeFactProvider } from '../../helpers/dracoFactsHelper.ts';
 import * as THREE from 'three';
 
 describe('Feature 14: Unit & WASM Test Suite Quality', () => {
@@ -28,7 +29,7 @@ describe('Feature 14: Unit & WASM Test Suite Quality', () => {
   });
 
   it('F14-TC3: ConstraintEngine solves symbolic specs for TABULAR, GRAPH, HIERARCHY, GEO, TIME_SERIES', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const topologies = [TopologyTypes.TABULAR, TopologyTypes.GRAPH, TopologyTypes.HIERARCHY, TopologyTypes.GEO, TopologyTypes.TIME_SERIES];
 
     topologies.forEach((topology) => {

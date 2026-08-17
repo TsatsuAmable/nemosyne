@@ -3,12 +3,13 @@ import { describe, it, expect } from 'vitest';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import goldenData from './fixtures/draco-golden/golden-pairs.json';
+import { computeFacts, makeFactProvider } from './helpers/dracoFactsHelper.ts';
 
 describe('Draco Recommender Quality Evaluation Suite', () => {
-  const engine = new ConstraintEngine();
+  const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
 
   it('exposes evaluateCandidate method for scoring testability', () => {
-    const facts = engine.extractFacts({
+    const facts = computeFacts({
       dataset: new Dataset(
         'Test',
         [{ name: 'val', type: ColumnType.NUMERIC }],
@@ -73,7 +74,7 @@ describe('Draco Recommender Quality Evaluation Suite', () => {
       [{ name: 'val1', type: ColumnType.NUMERIC }, { name: 'val2', type: ColumnType.NUMERIC }, { name: 'cat', type: ColumnType.CATEGORICAL }],
       [{ val1: 10, val2: 5, cat: 'A' }, { val1: 20, val2: 15, cat: 'B' }]
     );
-    const facts = engine.extractFacts({ dataset: ds });
+    const facts = computeFacts({ dataset: ds });
 
     const goodSpec = {
       layout: 'GRID_3D' as const,

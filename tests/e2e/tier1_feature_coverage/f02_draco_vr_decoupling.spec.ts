@@ -6,6 +6,7 @@ import { DracoTopologyNode } from '../../../src/draco/DracoTopologyNode.js';
 import { Dataset } from '../../../src/data/Dataset.js';
 import { generateTabularCSV, generateGraphCSV } from '../harness/dataset_fixtures.js';
 import { makeKernelMockBridge } from '../../helpers/kernelMock.js';
+import { makeFactProvider } from '../../helpers/dracoFactsHelper.ts';
 
 // Wave 3: CSVDataParser is deleted. The CSV fixtures are parsed through the
 // kernel mock (canned CSV parser). Parse parity is covered by Rust #[test]s +
@@ -22,7 +23,7 @@ describe('Feature 2: Draco -> VR Upstream Imports Decoupling', () => {
   it('F2-TC1: VRTopologyTranslator synthesizes valid artifact from solver result', () => {
     const csv = generateTabularCSV(10, 4);
     const ds = datasetFromCsv('TabularDS', csv);
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const dataInput = { dataset: ds, topology: TopologyTypes.TABULAR };
     const solverResult = engine.solve(dataInput);
 
@@ -36,7 +37,7 @@ describe('Feature 2: Draco -> VR Upstream Imports Decoupling', () => {
     const scene = new THREE.Scene();
     const csv = generateGraphCSV(5);
     const ds = datasetFromCsv('GraphDS', csv);
-    const node = new DracoTopologyNode(scene, { dataset: ds, topology: TopologyTypes.GRAPH });
+    const node = new DracoTopologyNode(scene, { dataset: ds, topology: TopologyTypes.GRAPH }, undefined, undefined, makeFactProvider());
 
     expect(node.solverResult).toBeDefined();
     expect(node.artifact).toBeDefined();
@@ -47,7 +48,7 @@ describe('Feature 2: Draco -> VR Upstream Imports Decoupling', () => {
     const scene = new THREE.Scene();
     const csv = generateTabularCSV(8, 3);
     const ds = datasetFromCsv('TabularDS2', csv);
-    const node = new DracoTopologyNode(scene, { dataset: ds, topology: TopologyTypes.TABULAR });
+    const node = new DracoTopologyNode(scene, { dataset: ds, topology: TopologyTypes.TABULAR }, undefined, undefined, makeFactProvider());
 
     node.adjustWeight('prefer_grid_for_tabular', 50);
 
@@ -56,7 +57,7 @@ describe('Feature 2: Draco -> VR Upstream Imports Decoupling', () => {
   });
 
   it('F2-TC4: Decoupled ConstraintEngine solves constraints independently of scene state', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const result = engine.solve({ topology: TopologyTypes.TABULAR, rows: [{ a: 1 }, { a: 2 }] });
 
     expect(result.facts).toBeDefined();
@@ -69,7 +70,7 @@ describe('Feature 2: Draco -> VR Upstream Imports Decoupling', () => {
     const scene = new THREE.Scene();
     const csv = generateTabularCSV(5, 3);
     const ds = datasetFromCsv('TabularDS3', csv);
-    const node = new DracoTopologyNode(scene, { dataset: ds, topology: TopologyTypes.TABULAR });
+    const node = new DracoTopologyNode(scene, { dataset: ds, topology: TopologyTypes.TABULAR }, undefined, undefined, makeFactProvider());
 
     const newRows = [{ dim_1: 10, dim_2: 20, dim_3: 30 }];
     const appended = node.appendRows(newRows);

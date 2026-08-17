@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 import {
   applyFilter,
   applySort,
@@ -140,7 +141,7 @@ describe('VR Data Operations', () => {
         { id: 4, category: 'B', value: 40 },
       ]
     );
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     solved = engine.solve({ topology: TopologyTypes.TABULAR, dataset });
     artifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset });
     captureBaseState(artifact);
@@ -221,7 +222,7 @@ describe('VR Data Operations', () => {
         { id: 5, value: 500 },
       ]
     );
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const solved = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds });
     const localArtifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });
     captureBaseState(localArtifact);
@@ -268,7 +269,7 @@ describe('VR Data Operations', () => {
         { id: 4, value: 10000 },
       ]
     );
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const solved = engine.solve({ topology: TopologyTypes.TABULAR, dataset: ds });
     const localArtifact = VRTopologyTranslator.synthesizeArtifact(solved, { dataset: ds });
     captureBaseState(localArtifact);

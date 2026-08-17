@@ -3,10 +3,11 @@ import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.t
 import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { fraudGraph, orgChart, windField } from '../src/data/SampleDatasets.ts';
+import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 
 describe('ConstraintEngine', () => {
   it('solves a hierarchy with radial orbital layout', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const result = engine.solve({
       topology: TopologyTypes.HIERARCHY,
       dataset: orgChart,
@@ -21,7 +22,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('solves a graph with force-directed layout', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const result = engine.solve({
       topology: TopologyTypes.GRAPH,
       dataset: fraudGraph,
@@ -32,7 +33,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('solves a vector field with streamline layout', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const result = engine.solve({
       topology: TopologyTypes.VECTOR_FIELD,
       dataset: windField,
@@ -43,7 +44,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('hard-constrains a graph away from grid layout', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const result = engine.solve({
       topology: TopologyTypes.GRAPH,
       dataset: fraudGraph,
@@ -52,7 +53,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('allows weight tuning to change the winning spec', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const base = engine.solve({
       topology: TopologyTypes.TABULAR,
       dataset: new Dataset(
@@ -77,7 +78,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('extracts scale-aware facts', () => {
-    const engine = new ConstraintEngine({ largeRowThreshold: 10 });
+    const engine = new ConstraintEngine({ largeRowThreshold: 10, factProvider: makeFactProvider({ largeRowThreshold: 10 }) });
     const rows = Array.from({ length: 20 }, (_, i) => ({
       value: i,
       category: String.fromCharCode(65 + (i % 3)),
@@ -103,7 +104,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('prefers instanced point cloud for large tabular datasets', () => {
-    const engine = new ConstraintEngine({ largeRowThreshold: 10 });
+    const engine = new ConstraintEngine({ largeRowThreshold: 10, factProvider: makeFactProvider({ largeRowThreshold: 10 }) });
     const rows = Array.from({ length: 20 }, (_, i) => ({ value: i, category: 'A' }));
     const ds = new Dataset(
       'BigTable',
@@ -120,7 +121,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('prefers aggregate bars for large geo datasets', () => {
-    const engine = new ConstraintEngine({ largeRowThreshold: 10 });
+    const engine = new ConstraintEngine({ largeRowThreshold: 10, factProvider: makeFactProvider({ largeRowThreshold: 10 }) });
     const rows = Array.from({ length: 20 }, (_, i) => ({
       lat: 35 + i * 0.01,
       lon: -118 + i * 0.01,
@@ -141,7 +142,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('prefers cluster volume for high-cardinality color', () => {
-    const engine = new ConstraintEngine({ largeRowThreshold: 100, highCardinalityThreshold: 8 });
+    const engine = new ConstraintEngine({ largeRowThreshold: 100, highCardinalityThreshold: 8, factProvider: makeFactProvider({ largeRowThreshold: 100, highCardinalityThreshold: 8 }) });
     const rows = Array.from({ length: 20 }, (_, i) => ({
       value: i,
       category: String.fromCharCode(65 + i),
@@ -164,7 +165,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('extracts statistical facts for numeric columns', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const ds = new Dataset(
       'Stats',
       [{ name: 'value', type: ColumnType.NUMERIC }],
@@ -180,7 +181,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('computes correlation matrix for multiple numeric columns', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const ds = new Dataset(
       'Correlated',
       [
@@ -202,7 +203,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('reports categorical distribution and entropy', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const ds = new Dataset(
       'Categories',
       [{ name: 'category', type: ColumnType.CATEGORICAL }],
@@ -226,7 +227,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('detects temporal trend direction', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const ds = new Dataset(
       'Trend',
       [
@@ -248,7 +249,7 @@ describe('ConstraintEngine', () => {
   });
 
   it('prefers ORB geometry when outliers are present', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const ds = new Dataset(
       'Outliers',
       [{ name: 'value', type: ColumnType.NUMERIC }],
@@ -266,7 +267,7 @@ describe('ConstraintEngine', () => {
 
 describe('VRTopologyTranslator', () => {
   it('synthesizes a radial hierarchy artifact', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const result = engine.solve({
       topology: TopologyTypes.HIERARCHY,
       dataset: orgChart,
@@ -284,7 +285,7 @@ describe('VRTopologyTranslator', () => {
   });
 
   it('synthesizes a graph artifact with edges', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const result = engine.solve({
       topology: TopologyTypes.GRAPH,
       dataset: fraudGraph,

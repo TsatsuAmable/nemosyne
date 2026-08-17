@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 
 function makeDataset(rows, topology) {
   const columns = [
@@ -13,7 +14,7 @@ function makeDataset(rows, topology) {
 
 describe('Draco live data topology mapping', () => {
   it('resolves TIME_SERIES to TIME_RIBBON', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const ds = makeDataset([
       { time: '2024-01-01T00:00:00Z', value: 10, sensorId: 'A' },
       { time: '2024-01-01T00:01:00Z', value: 12, sensorId: 'A' },
@@ -24,7 +25,7 @@ describe('Draco live data topology mapping', () => {
   });
 
   it('resolves VECTOR_FIELD to VECTOR_STREAMLINE', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const ds = new Dataset(
       'Vectors',
       [
@@ -43,7 +44,7 @@ describe('Draco live data topology mapping', () => {
   });
 
   it('resolves GEO to GEO_SURFACE', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const ds = new Dataset(
       'Geo',
       [
@@ -63,7 +64,7 @@ describe('Draco live data topology mapping', () => {
   });
 
   it('prefers motion for continuous live data', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const ds = makeDataset([{ time: '2024-01-01T00:00:00Z', value: 10, sensorId: 'A' }]);
     const result = engine.solve({ topology: TopologyTypes.TIME_SERIES, dataset: ds });
     expect(result.spec.behavior).not.toBe('STATIC');

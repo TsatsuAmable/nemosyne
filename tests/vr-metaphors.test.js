@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 import {
   applyResonancePulse,
   applyForkPlane,
@@ -38,7 +39,7 @@ function makeGraphDataset(count) {
 
 describe('Interaction metaphors', () => {
   it('includes the six new metaphor interaction types in the constraint channel', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const { dataset, edges } = makeGraphDataset(3);
     const result = engine.solve({ topology: TopologyTypes.GRAPH, dataset, edges });
 
@@ -47,7 +48,7 @@ describe('Interaction metaphors', () => {
   });
 
   it('can solve for each metaphor interaction when weights are tuned', () => {
-    const engine = new ConstraintEngine();
+    const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const { dataset, edges } = makeGraphDataset(3);
     engine.setWeight('match_interaction_to_topology', 0);
     engine.setWeight('prefer_resonance_for_graphs', 100);

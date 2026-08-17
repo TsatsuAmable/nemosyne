@@ -1,15 +1,19 @@
 /**
  * Web Worker Helper for Asynchronous Draco GA Layout Solving.
  *
- * Offloads statistical fact extraction (extractFacts) and Genetic Algorithm layout candidate evaluation
- * off the WebXR main render thread.
+ * Offloads layout candidate evaluation off the WebXR main render thread. Wave
+ * 5: statistical fact extraction is no longer performed inside Draco; the
+ * caller supplies a `FactProvider` (e.g. AtlasCore in production, a canned
+ * helper in tests) so facts come from `kernel.statistics`.
  */
 
 import { ConstraintEngine } from './ConstraintEngine.ts';
-import type { DracoDataInput, SolverResult } from './types.ts';
+import type { DracoDataInput, FactProvider, SolverResult } from './types.ts';
 
 export interface DracoWorkerRequest {
   dataInput: DracoDataInput;
+  /** Wave 5: facts supplier (AtlasCore in production). Required to solve. */
+  factProvider?: FactProvider;
 }
 
 export interface DracoWorkerResponse {
@@ -27,7 +31,10 @@ export class DracoSolverWorker {
     return new Promise((resolve) => {
       const startTime = performance.now();
       setTimeout(() => {
-        const result = this._engine.solve(request.dataInput);
+        const engine = request.factProvider
+          ? new ConstraintEngine({ factProvider: request.factProvider })
+          : this._engine;
+        const result = engine.solve(request.dataInput);
         const solveTimeMs = performance.now() - startTime;
         resolve({
           result,

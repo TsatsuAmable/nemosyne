@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
+import type { DracoDataInput, DracoFacts } from '../../draco/types.ts';
 import { buildTDASummaryGroup } from '../artifacts/TDAPlanes.ts';
 import { ChartPlanePanel } from '../ui/ChartPlanePanel.ts';
 import { DashboardManager } from '../ui/DashboardManager.ts';
 import { TooltipManager } from '../ui/TooltipManager.ts';
 import type { DracoTopologyNode } from '../../draco/DracoTopologyNode.ts';
+import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 import type { Engine } from '../Engine.ts';
 import type { WasmRuntimeBridge } from './types.ts';
 
@@ -15,6 +17,8 @@ export interface RendererLifecycleOptions {
   getOriginalDataset: () => Dataset | null;
   getDracoNode: () => DracoTopologyNode | null;
   getWasmBridge: () => WasmRuntimeBridge | null;
+  /** Wave 5: AtlasCore — the analytical authority supplying Draco facts. */
+  getAtlas: () => AtlasCore | null;
 }
 
 /** Owns renderer-side dataset summaries and dashboard resource lifecycle. */
@@ -25,6 +29,7 @@ export class WorldRendererLifecycle {
   readonly getOriginalDataset: () => Dataset | null;
   readonly getDracoNode: () => DracoTopologyNode | null;
   readonly getWasmBridge: () => WasmRuntimeBridge | null;
+  readonly getAtlas: () => AtlasCore | null;
 
   dashboardPanels: { panel: ChartPlanePanel }[] = [];
   dashboardTooltipTargets: THREE.Mesh[] = [];
@@ -38,6 +43,7 @@ export class WorldRendererLifecycle {
     this.getOriginalDataset = options.getOriginalDataset;
     this.getDracoNode = options.getDracoNode;
     this.getWasmBridge = options.getWasmBridge;
+    this.getAtlas = options.getAtlas;
   }
 
   attachTDASummary(): void {
@@ -69,7 +75,16 @@ export class WorldRendererLifecycle {
     const dataset = this.getOriginalDataset();
     if (!dataset) return;
 
-    const facts = this.getDracoNode()?.engine?.extractFacts?.(dataset) ?? null;
+    // Wave 5: facts come from AtlasCore (kernel.statistics), not from Draco.
+    // `extractFacts` was removed from ConstraintEngine; the dashboard only
+    // reads column counts + hasTimeSeries, which are dataset-shape metadata
+    // (not analytical) when the kernel is unavailable.
+    const atlas = this.getAtlas();
+    let facts: DracoFacts | null = null;
+    if (atlas) {
+      const input: DracoDataInput = { dataset };
+      facts = atlas.dracoFacts(input) ?? null;
+    }
     const numericColumnCount = facts?.numericColumns ?? dataset.numericColumns.length;
     const hasTimeSeries = facts?.hasTimeSeries ?? dataset.temporalColumns.length > 0;
     const panels: ChartPlanePanel[] = [];

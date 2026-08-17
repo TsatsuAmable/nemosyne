@@ -3,11 +3,15 @@ import { ConstraintEngine } from './ConstraintEngine.ts';
 import { VRTopologyTranslator } from './VRTopologyTranslator.ts';
 import { disposeObject } from '../utils/Dispose.ts';
 import { MeshPool } from '../utils/ObjectPool.ts';
-import type { Artifact, DracoDataInput, SolverResult, VRTranslatorOptions } from './types.ts';
+import type { Artifact, DracoDataInput, FactProvider, SolverResult, VRTranslatorOptions } from './types.ts';
 
 /**
  * Manages the lifecycle of a Draco-recommended spatial data artifact:
  * solving, synthesizing, updating, raycast interaction, and live re-solve.
+ *
+ * Wave 5: Draco performs no dataset-derived statistical computation; facts are
+ * supplied by the `factProvider` (AtlasCore in production, a canned helper in
+ * tests). If no provider is configured, `reSolveAndSynthesize` throws.
  */
 export class DracoTopologyNode {
   scene: THREE.Scene;
@@ -23,13 +27,14 @@ export class DracoTopologyNode {
     scene: THREE.Scene,
     dataInput: DracoDataInput,
     position: [number, number, number] = [0, 2.0, -8.0],
-    translatorOptions: VRTranslatorOptions = {}
+    translatorOptions: VRTranslatorOptions = {},
+    factProvider: FactProvider | null = null
   ) {
     this.scene = scene;
     this.dataInput = dataInput;
     this.position = position;
     this.translatorOptions = translatorOptions;
-    this.engine = new ConstraintEngine();
+    this.engine = new ConstraintEngine({ factProvider: factProvider ?? undefined });
     this.reSolveAndSynthesize();
   }
 

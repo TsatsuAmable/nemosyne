@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.ts';
 import { TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 
 describe('DracoTopologyNode', () => {
   let scene;
@@ -35,7 +36,7 @@ describe('DracoTopologyNode', () => {
       topology: TopologyTypes.TABULAR,
       dataset,
       encodings: { color: 'category' },
-    });
+    }, undefined, undefined, makeFactProvider());
 
     expect(node.engine).toBeTruthy();
     expect(node.solverResult).toBeTruthy();
@@ -49,7 +50,7 @@ describe('DracoTopologyNode', () => {
     const node = new DracoTopologyNode(scene, {
       topology: TopologyTypes.TABULAR,
       dataset,
-    });
+    }, undefined, undefined, makeFactProvider());
 
     const firstSpec = node.solverResult.spec;
     const firstRule = node.engine.softConstraints[0];
@@ -66,7 +67,7 @@ describe('DracoTopologyNode', () => {
     const node = new DracoTopologyNode(scene, {
       topology: TopologyTypes.TABULAR,
       dataset,
-    });
+    }, undefined, undefined, makeFactProvider());
 
     const firstGroup = node.group;
     node.reSolveAndSynthesize();
@@ -80,7 +81,7 @@ describe('DracoTopologyNode', () => {
     const node = new DracoTopologyNode(scene, {
       topology: TopologyTypes.TABULAR,
       dataset,
-    });
+    }, undefined, undefined, makeFactProvider());
 
     node.artifact.update = vi.fn();
     node.update(0.016, 1.0);
@@ -92,7 +93,7 @@ describe('DracoTopologyNode', () => {
     const node = new DracoTopologyNode(scene, {
       topology: TopologyTypes.TABULAR,
       dataset,
-    });
+    }, undefined, undefined, makeFactProvider());
 
     // Find a node mesh and cast a ray from slightly in front of it toward it.
     const target = node.artifact.nodeMeshes[0];
@@ -111,7 +112,7 @@ describe('DracoTopologyNode', () => {
     const node = new DracoTopologyNode(scene, {
       topology: TopologyTypes.TABULAR,
       dataset,
-    });
+    }, undefined, undefined, makeFactProvider());
 
     const raycaster = new THREE.Raycaster(
       new THREE.Vector3(10, 10, 10),
@@ -126,7 +127,7 @@ describe('DracoTopologyNode', () => {
     const node = new DracoTopologyNode(scene, {
       topology: TopologyTypes.TABULAR,
       dataset,
-    });
+    }, undefined, undefined, makeFactProvider());
 
     const before = node.dataInput.dataset.rowCount;
     const result = node.appendRows([{ value: 40, category: 'C' }], { mode: 'append' });
@@ -145,7 +146,7 @@ describe('DracoTopologyNode', () => {
         ],
         [{ time: '2026-07-28T00:00:00', value: 1 }]
       ),
-    });
+    }, undefined, undefined, makeFactProvider());
 
     const before = node.dataInput.dataset.rowCount;
     const result = node.appendRows([{ time: '2026-07-28T01:00:00', value: 2 }]);
