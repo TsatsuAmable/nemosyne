@@ -175,7 +175,7 @@ export function buildPersistencePlane(options: TDAPlaneOptions = {}): PanelWithU
 /**
  * Build a mapper graph panel.
  */
-export function buildMapperPlane(options: TDAPlaneOptions = {}): PanelWithUpdate<MapperGraph> {
+export function buildMapperPlane(options: TDAPlaneOptions = {}): PanelWithUpdate<MapperGraph> & { pickNode: (cx: number, cy: number) => unknown | null } {
   const {
     width = DEFAULT_WIDTH,
     height = DEFAULT_HEIGHT,
@@ -192,6 +192,8 @@ export function buildMapperPlane(options: TDAPlaneOptions = {}): PanelWithUpdate
   });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(worldSize[0], worldSize[1]), material);
   mesh.name = 'tda-mapper-plane';
+
+  let nodeHitAreas: { id: unknown; x: number; y: number; r: number }[] = [];
 
   function update(graph: MapperGraph): void {
     drawBackground(ctx, width, height, title);
@@ -231,10 +233,12 @@ export function buildMapperPlane(options: TDAPlaneOptions = {}): PanelWithUpdate
     }
 
     // Nodes.
+    nodeHitAreas = [];
     for (const node of nodes) {
       const p = layout.get(node.id);
       if (!p) continue;
       const r = 8 + Math.min(24, node.size * 3);
+      nodeHitAreas.push({ id: node.id, x: p.x, y: p.y, r });
       ctx.fillStyle = '#ff0055';
       ctx.globalAlpha = 0.85;
       ctx.beginPath();
@@ -250,7 +254,18 @@ export function buildMapperPlane(options: TDAPlaneOptions = {}): PanelWithUpdate
     texture.needsUpdate = true;
   }
 
-  return { mesh, update };
+  function pickNode(cx: number, cy: number): unknown | null {
+    for (const area of nodeHitAreas) {
+      const dx = cx - area.x;
+      const dy = cy - area.y;
+      if (dx * dx + dy * dy <= area.r * area.r) {
+        return area.id;
+      }
+    }
+    return null;
+  }
+
+  return { mesh, update, pickNode };
 }
 
 /**
@@ -327,6 +342,7 @@ export interface TDASummaryGroup {
   mapper: PanelWithUpdate<MapperGraph>;
   betti: PanelWithUpdate<BettiPoint[]>;
   recompute: () => void;
+  pickStructure: (raycaster: THREE.Raycaster) => string | null;
 }
 
 /**
@@ -386,5 +402,24 @@ export function buildTDASummaryGroup(
     atlas.discoverMapperStructures(dataset, mapperParams);
   }
 
-  return { group, persistence, mapper: mapperPanel, betti, recompute };
+  function pickStructure(raycaster: THREE.Raycaster): string | null {
+    const hits = raycaster.intersectObject(mapperPanel.mesh, false);
+    if (hits.length === 0) return null;
+    const uv = hits[0].uv;
+    if (!uv) return null;
+    const cx = uv.x * DEFAULT_WIDTH;
+    const cy = (1 - uv.y) * DEFAULT_HEIGHT;
+    const nodeId = mapperPanel.pickNode(cx, cy);
+    if (nodeId === null) return null;
+    for (const set of atlas?.structures ?? []) {
+      for (const structure of set.structures) {
+        if (structure.evidence.method === 'mapper' && structure.evidence.rank === nodeId) {
+          return structure.id;
+        }
+      }
+    }
+    return null;
+  }
+
+  return { group, persistence, mapper: mapperPanel, betti, recompute, pickStructure };
 }

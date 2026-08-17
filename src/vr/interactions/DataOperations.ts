@@ -125,6 +125,25 @@ export function applySort(artifact: ArtifactRef, sortedDataset: Dataset) {
 }
 
 /**
+ * Sort by row indices: reorder meshes at the given indices along a horizontal
+ * arc, leaving others in place. Structure-ID-driven variant of `applySort`.
+ */
+export function sortByRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
+  const count = rowIndices.length;
+  if (count === 0) return;
+  const radius = 4;
+  const width = Math.min(radius * 2, count * 0.9);
+  for (let i = 0; i < count; i++) {
+    const mesh = artifact.nodeMeshes[rowIndices[i]];
+    if (!mesh) continue;
+    const t = count > 1 ? i / (count - 1) : 0.5;
+    const x = (t - 0.5) * width;
+    const z = -3.5 + Math.cos(t * Math.PI) * 1.2;
+    mesh.position.set(x, mesh.position.y, z);
+  }
+}
+
+/**
  * Apply an aggregate operation: grouped rows merge into a single larger orb/column.
  * For every unique aggregated row, matching original meshes are hidden and a new
  * aggregated marker is scaled by the group size.
@@ -166,6 +185,31 @@ export function applyCluster(artifact: ArtifactRef, clusteredDataset: Dataset) {
 }
 
 /**
+ * Cluster by row-index groups: each group of row indices forms a ring.
+ * Structure-ID-driven variant of `applyCluster` — accepts an array of
+ * row-index arrays (one per cluster) instead of a dataset with `_cluster`.
+ */
+export function clusterByRowIndices(artifact: ArtifactRef, clusters: number[][]) {
+  const baseRadius = 2;
+  const ringStep = 0.8;
+  const centreZ = -3.5;
+  for (let ring = 0; ring < clusters.length; ring++) {
+    const members = clusters[ring];
+    const radius = baseRadius + ring * ringStep;
+    for (let i = 0; i < members.length; i++) {
+      const mesh = artifact.nodeMeshes[members[i]];
+      if (!mesh) continue;
+      const angle = (i / Math.max(members.length, 1)) * Math.PI * 2;
+      mesh.position.set(
+        Math.cos(angle) * radius,
+        mesh.position.y,
+        centreZ + Math.sin(angle) * radius,
+      );
+    }
+  }
+}
+
+/**
  * Apply a hierarchical clustering operation: arrange clusters in dendrogram-like arcs.
  */
 export function applyHierarchicalCluster(artifact: ArtifactRef, clusteredDataset: Dataset) {
@@ -188,6 +232,27 @@ export function applyDensityCluster(artifact: ArtifactRef, clusteredDataset: Dat
  */
 export function applyAnomaly(artifact: ArtifactRef, anomalyDataset: Dataset) {
   applyAnomalyHighlight(artifact, anomalyDataset);
+}
+
+/**
+ * Anomaly by row indices: lift and emphasise meshes at the given indices as
+ * outliers. Structure-ID-driven variant of `applyAnomaly`.
+ */
+export function anomalyByRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
+  const flagged = new Set(rowIndices);
+  for (let i = 0; i < artifact.nodeMeshes.length; i++) {
+    const mesh = artifact.nodeMeshes[i];
+    const mat = getNodeMaterial(mesh);
+    const userData = getNodeUserData(mesh);
+    if (flagged.has(i)) {
+      mesh.scale.setScalar((userData.baseScale ?? 1) * 1.5);
+      if (mat.opacity !== undefined) mat.opacity = 1;
+      mesh.position.y = (userData.baseScale ?? 1) + 0.8;
+    } else {
+      mesh.scale.setScalar(userData.baseScale ?? 1);
+      if (mat.opacity !== undefined) mat.opacity = 0.4;
+    }
+  }
 }
 
 /**

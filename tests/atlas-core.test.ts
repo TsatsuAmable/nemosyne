@@ -488,4 +488,101 @@ describe('AtlasCore', () => {
     expect(mesh1.visible).toBe(true);
     expect(mesh2.visible).toBe(true);
   });
+
+  it('DataOperations sortByRowIndices and clusterByRowIndices reposition meshes', async () => {
+    const { sortByRowIndices, clusterByRowIndices, captureBaseState } = await import('../src/vr/interactions/DataOperations.ts');
+    let setCalls: number[] = [];
+    const makeMesh = () => ({
+      userData: { row: {}, baseScale: 1, baseOpacity: 1 },
+      material: { opacity: 1 },
+      visible: true,
+      scale: { setScalar: (_v: number) => {} },
+      position: { x: 0, y: 0, z: 0, set: (x: number, y: number, z: number) => { setCalls.push(x, y, z); } },
+    });
+    const mesh0 = makeMesh();
+    const mesh1 = makeMesh();
+    const mesh2 = makeMesh();
+    const artifact = { nodeMeshes: [mesh0, mesh1, mesh2] };
+    captureBaseState(artifact as never);
+
+    setCalls = [];
+    sortByRowIndices(artifact as never, [0, 2]);
+    expect(setCalls.length).toBeGreaterThan(0);
+
+    setCalls = [];
+    clusterByRowIndices(artifact as never, [[0, 1], [2]]);
+    expect(setCalls.length).toBeGreaterThan(0);
+  });
+
+  it('DataOperations anomalyByRowIndices lifts flagged meshes', async () => {
+    const { anomalyByRowIndices, captureBaseState } = await import('../src/vr/interactions/DataOperations.ts');
+    const makeMesh = () => ({
+      userData: { row: {}, baseScale: 1, baseOpacity: 1 },
+      material: { opacity: 0.5 },
+      visible: true,
+      scale: { setScalar: (_v: number) => {} },
+      position: { x: 0, y: 0, z: 0 },
+    });
+    const mesh0 = makeMesh();
+    const mesh1 = makeMesh();
+    const artifact = { nodeMeshes: [mesh0, mesh1] };
+    captureBaseState(artifact as never);
+
+    anomalyByRowIndices(artifact as never, [1]);
+    expect(mesh0.material.opacity).toBe(0.4);
+    expect(mesh1.material.opacity).toBe(1);
+    expect(mesh1.position.y).toBeGreaterThan(0);
+  });
+});
+
+describe('Atlas 5 research context + replay', () => {
+  let atlas: AtlasCore;
+  let kernel: any;
+
+  beforeEach(() => {
+    kernel = makeKernelMockBridge();
+    atlas = new AtlasCore({ kernel });
+    atlas.loadDataset(makeDataset());
+  });
+
+  it('recordObservation / recordIntervention append ledger entries', () => {
+    atlas.recordObservation('two clusters dominate');
+    atlas.recordIntervention('isolated rows 0-3');
+
+    const obs = atlas.ledger.filter((e) => e.observation);
+    const intr = atlas.ledger.filter((e) => e.intervention);
+    expect(obs.length).toBe(1);
+    expect(obs[0].observation).toBe('two clusters dominate');
+    expect(intr.length).toBe(1);
+    expect(intr[0].intervention).toBe('isolated rows 0-3');
+  });
+
+  it('NemosyneSession researchContext round-trips through serialize', async () => {
+    const { NemosyneSession } = await import('../src/session/NemosyneSession.ts');
+    const session = new NemosyneSession({ atlas });
+    session.setResearchContext({
+      studyId: 'study-7',
+      researchQuestion: 'does structure persist under reweight?',
+      hypothesis: 'clusters remain stable',
+      variablesOfInterest: ['value'],
+      observerMode: true,
+    });
+    session.recordObservation?.('baseline captured');
+
+    const json = session.serialize();
+    expect(json.researchContext).toMatchObject({
+      studyId: 'study-7',
+      researchQuestion: 'does structure persist under reweight?',
+      hypothesis: 'clusters remain stable',
+      observerMode: true,
+    });
+    expect(json.eventLedger.length).toBe(2);
+    expect(json.eventLedger[1].observation).toBe('baseline captured');
+
+    const restored = NemosyneSession.deserialize(json, new AtlasCore({ kernel }));
+    expect(restored.researchContext.studyId).toBe('study-7');
+    expect(restored.researchContext.observerMode).toBe(true);
+    expect(restored.atlas.ledger.length).toBe(2);
+    expect(restored.atlas.ledger[1].observation).toBe('baseline captured');
+  });
 });

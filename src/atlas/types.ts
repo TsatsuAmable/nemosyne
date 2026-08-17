@@ -174,6 +174,19 @@ export interface ResearchEvent {
 }
 
 /**
+ * Research context for the analytical session. Atlas 5: extends session
+ * persistence with study-level metadata that travels with the ledger.
+ */
+export interface ResearchContext {
+  studyId?: string;
+  researchQuestion?: string;
+  hypothesis?: string;
+  variablesOfInterest?: string[];
+  currentTask?: string;
+  observerMode?: boolean;
+}
+
+/**
  * Snapshot of AtlasCore for serialization. Persisted by
  * {@link NemosyneSession} as part of the schemaVersion-2 session JSON. Field
  * names match the persisted JSON shape (analysisHistory / analysisResults /
@@ -191,6 +204,7 @@ export interface AtlasCoreState {
   activeRecommendation: AtlasRecommendation | null;
   decisionHistory: AtlasRecommendation[];
   structures: StructureSet[];
+  researchContext?: ResearchContext;
 }
 
 /** Re-exported for downstream consumers (NemosyneSession). */

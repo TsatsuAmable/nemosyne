@@ -17,6 +17,7 @@ import type {
   AnalysisSpec,
   AtlasCoreState,
   AtlasRecommendation,
+  ResearchContext,
   ResearchEvent,
 } from '../atlas/types.ts';
 
@@ -50,6 +51,7 @@ export class NemosyneSession {
   private _atlas: AtlasCore;
   private _sessionId: string;
   private _presentation: PresentationState;
+  private _researchContext: ResearchContext;
 
   constructor({ atlas, sessionId }: { atlas: AtlasCore; sessionId?: string }) {
     this._atlas = atlas;
@@ -62,6 +64,7 @@ export class NemosyneSession {
       panelPositions: [],
       entry: { name: 'dataset' },
     };
+    this._researchContext = {};
   }
 
   get atlas(): AtlasCore {
@@ -74,6 +77,22 @@ export class NemosyneSession {
 
   get presentation(): PresentationState {
     return this._presentation;
+  }
+
+  get researchContext(): ResearchContext {
+    return this._researchContext;
+  }
+
+  setResearchContext(ctx: Partial<ResearchContext>): void {
+    this._researchContext = { ...this._researchContext, ...ctx };
+  }
+
+  recordObservation(observation: string): void {
+    this._atlas.recordObservation(observation);
+  }
+
+  recordIntervention(intervention: string): void {
+    this._atlas.recordIntervention(intervention);
   }
 
   setPresentation(partial: Partial<PresentationState>): void {
@@ -103,6 +122,7 @@ export class NemosyneSession {
       activeRecommendation: core.activeRecommendation,
       decisionHistory: core.decisionHistory,
       structures: core.structures,
+      researchContext: this._researchContext,
       presentation: this._presentation,
     };
   }
@@ -118,6 +138,7 @@ export class NemosyneSession {
       panelPositions: json.presentation?.panelPositions ?? [],
       entry: json.entry ?? json.presentation?.entry ?? { name: 'dataset' },
     };
+    this._researchContext = json.researchContext ?? {};
   }
 
   /**
@@ -135,6 +156,7 @@ export class NemosyneSession {
       panelPositions: json.presentation?.panelPositions ?? [],
       entry: json.entry ?? json.presentation?.entry ?? { name: 'dataset' },
     };
+    session._researchContext = json.researchContext ?? {};
     return session;
   }
 }

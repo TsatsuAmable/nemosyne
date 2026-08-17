@@ -464,6 +464,38 @@ export class AtlasCore {
     return this._decisionHistory;
   }
 
+  recordObservation(observation: string): void {
+    this._eventCounter += 1;
+    this._ledger.push({
+      eventId: `${this._sessionId}:${this._eventCounter}`,
+      sessionId: this._sessionId,
+      timestamp: now(),
+      kind: 'analysis',
+      command: { op: 'analysis' },
+      datasetVersion: this._datasetVersion,
+      datasetFingerprint: this.datasetFingerprint ?? '',
+      observation,
+      stateHash: this.datasetSpace?.fingerprint ?? '',
+    });
+    this._invalidateHistoryView();
+  }
+
+  recordIntervention(intervention: string): void {
+    this._eventCounter += 1;
+    this._ledger.push({
+      eventId: `${this._sessionId}:${this._eventCounter}`,
+      sessionId: this._sessionId,
+      timestamp: now(),
+      kind: 'analysis',
+      command: { op: 'analysis' },
+      datasetVersion: this._datasetVersion,
+      datasetFingerprint: this.datasetFingerprint ?? '',
+      intervention,
+      stateHash: this.datasetSpace?.fingerprint ?? '',
+    });
+    this._invalidateHistoryView();
+  }
+
   setRecommendation(rec: AtlasRecommendation | null): void {
     this._activeRecommendation = rec;
   }
