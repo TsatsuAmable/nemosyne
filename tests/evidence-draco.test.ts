@@ -117,10 +117,10 @@ describe('Evidence-Informed Draco Recommender Loop', () => {
       });
     }
 
-    const { adjustedScore, empiricalDelta } = scorer.adjustCandidateScore(mockSpecA, 50);
+    const { adjustedCost, empiricalDelta } = scorer.adjustCandidateScore(mockSpecA, 50);
 
-    // High empirical utility (>0.5) should reduce the penalty score
-    expect(adjustedScore).toBeLessThan(50);
+    // High empirical utility (>0.5) should reduce the penalty cost
+    expect(adjustedCost).toBeLessThan(50);
     expect(empiricalDelta).toBeLessThan(0);
   });
 
@@ -158,13 +158,13 @@ describe('Evidence-Informed Draco Recommender Loop', () => {
     }
 
     const candidates: SolverResult[] = [
-      { spec: mockSpecB, score: 20, explanation: [] },
-      { spec: mockSpecA, score: 25, explanation: [] },
+      { spec: mockSpecB, cost: 20, facts: {} as any },
+      { spec: mockSpecA, cost: 25, facts: {} as any },
     ];
 
     const reRanked = scorer.reRankCandidates(candidates);
 
-    // Even though Spec B had a slightly better initial score (20 vs 25),
+    // Even though Spec B had a slightly better initial cost (20 vs 25),
     // Spec A's overwhelming empirical superiority should rank it first.
     expect(reRanked[0].spec).toEqual(mockSpecA);
   });

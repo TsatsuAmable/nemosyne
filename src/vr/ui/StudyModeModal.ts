@@ -80,7 +80,7 @@ export class StudyModeModal {
       case 'consent':
         return 'Study Briefing: Please review and accept participant consent to begin.';
       case 'instruction':
-        return `Trial ${this.state.trialIndex + 1}/${this.state.totalTrials}: ${this.state.task?.prompt ?? 'Prepare for task'}`;
+        return `Trial ${this.state.trialIndex + 1}/${this.state.totalTrials}: ${this.state.task?.instructions ?? this.state.task?.description ?? 'Prepare for task'}`;
       case 'exploration':
       case 'query':
       case 'selection':

@@ -103,7 +103,7 @@ export class StudyController {
     if (this.runner.isSessionCompleted) {
       this.modal.updateState({
         phase: 'completed',
-        f1Score: metrics.f1,
+        f1Score: metrics.f1Score,
         accuracy: metrics.accuracy,
       });
     } else {

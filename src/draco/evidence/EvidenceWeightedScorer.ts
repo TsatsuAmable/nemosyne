@@ -12,29 +12,29 @@ export class EvidenceWeightedScorer {
   constructor(private evidenceStore: EvidenceStore) {}
 
   /**
-   * Adjusts a candidate Draco recommendation score based on empirical evidence.
-   * In Draco's constraint solver, lower score = fewer constraint violations / higher preference.
+   * Adjusts a candidate Draco recommendation cost based on empirical evidence.
+   * In Draco's constraint solver, lower cost = fewer constraint violations / higher preference.
    */
-  adjustCandidateScore(spec: DracoSpec, baseScore: number): { adjustedScore: number; empiricalDelta: number } {
+  adjustCandidateScore(spec: DracoSpec, baseCost: number): { adjustedCost: number; empiricalDelta: number } {
     const utilityScores = this.evidenceStore.computeUtilityScores();
     const specKey = this.evidenceStore.getSpecKey(spec);
     const evidence = utilityScores.get(specKey);
 
     if (!evidence || evidence.sampleCount === 0) {
-      return { adjustedScore: baseScore, empiricalDelta: 0 };
+      return { adjustedCost: baseCost, empiricalDelta: 0 };
     }
 
     // Confidence weighting based on sample count (approaches 1.0 at N=10)
     const confidenceWeight = Math.min(1.0, evidence.sampleCount / 10);
 
     // Delta relative to baseline neutral utility (0.5)
-    // Positive utility (>0.5) decreases penalty score (better).
-    // Negative utility (<0.5) increases penalty score (worse).
+    // Positive utility (>0.5) decreases penalty cost (better).
+    // Negative utility (<0.5) increases penalty cost (worse).
     const utilityDelta = (evidence.compositeUtility - 0.5) * 30 * confidenceWeight;
-    const adjustedScore = Math.max(0, Math.round(baseScore - utilityDelta));
+    const adjustedCost = Math.max(0, Math.round(baseCost - utilityDelta));
 
     return {
-      adjustedScore,
+      adjustedCost,
       empiricalDelta: Math.round(-utilityDelta),
     };
   }
@@ -44,13 +44,13 @@ export class EvidenceWeightedScorer {
    */
   reRankCandidates(candidates: SolverResult[]): SolverResult[] {
     const scored = candidates.map((cand) => {
-      const { adjustedScore } = this.adjustCandidateScore(cand.spec, cand.score);
+      const { adjustedCost } = this.adjustCandidateScore(cand.spec, cand.cost);
       return {
         ...cand,
-        score: adjustedScore,
+        cost: adjustedCost,
       };
     });
 
-    return scored.sort((a, b) => a.score - b.score);
+    return scored.sort((a, b) => a.cost - b.cost);
   }
 }
