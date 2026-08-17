@@ -1,14 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { Dataset } from '../../../src/data/Dataset.js';
-import { CSVDataParser } from '../../../src/data/CSVDataParser.js';
 import { ConstraintEngine, TopologyTypes } from '../../../src/draco/ConstraintEngine.js';
 import { disposeObject } from '../../../src/utils/Dispose.js';
+import { makeKernelMockBridge } from '../../helpers/kernelMock.js';
 import * as THREE from 'three';
 
 describe('Feature 14: Unit & WASM Test Suite Quality', () => {
   it('F14-TC1: Dataset creation and column schema inferencing execute with 100% deterministic accuracy', () => {
+    // Wave 3: CSVDataParser is deleted; parse via the kernel mock. Parse/type
+    // inference parity is covered by Rust #[test]s + wasm-runtime.test.ts.
     const csv = 'x,y,z,label\n1.0,2.0,3.0,alpha\n4.0,5.0,6.0,beta';
-    const ds = CSVDataParser.parseToDataset('InferDS', csv);
+    const bridge = makeKernelMockBridge();
+    const json = bridge.parseDatasetBytes(new TextEncoder().encode(csv), 'csv');
+    const ds = Dataset.fromJSON(json as any);
 
     expect(ds.rowCount).toBe(2);
     expect(ds.columnCount).toBe(4);

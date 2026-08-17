@@ -4,7 +4,6 @@
  */
 
 import type { ColumnSchema, DatasetJSON } from './types.ts';
-import { CSVDataParser, type CSVParseOptions } from './CSVDataParser.ts';
 
 /**
  * Keys that are stripped from untrusted row objects as defense-in-depth
@@ -138,6 +137,7 @@ export class Dataset {
     return this.numericColumns.length > 0;
   }
 
+  // TODO(Wave 5): delegate to kernel statistics metadata
   rangeOf(name: string): { min: number; max: number } {
     const values = this.getColumnValues(name).filter(
       (v): v is number => typeof v === 'number' && !Number.isNaN(v)
@@ -146,10 +146,12 @@ export class Dataset {
     return { min: Math.min(...values), max: Math.max(...values) };
   }
 
+  // TODO(Wave 5): delegate to kernel statistics metadata
   cardinalityOf(name: string): number {
     return new Set(this.getColumnValues(name)).size;
   }
 
+  // TODO(Wave 5): delegate to kernel statistics metadata
   /** Stable hash for deterministic procedural generation. */
   get fingerprint(): number {
     let h = 0;
@@ -238,10 +240,4 @@ export class Dataset {
     return ds;
   }
 
-  /**
-   * Parse a CSV string directly into a Dataset instance.
-   */
-  static fromCSV(csvText: string, name: string = 'dataset', options?: CSVParseOptions): Dataset {
-    return CSVDataParser.parseToDataset(name, csvText, options);
-  }
 }

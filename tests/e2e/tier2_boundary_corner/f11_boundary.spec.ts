@@ -1,9 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { parseJSON, parseCSV } from '../../../src/data/Parsers.ts';
-import { CSVDataParser } from '../../../src/data/CSVDataParser.ts';
 import { Dataset } from '../../../src/data/Dataset.ts';
 import { messagePackToDataset, datasetToMessagePack } from '../../../src/data/serializers/MessagePackSerializer.ts';
 import { Room } from '../../../src/network/Room.ts';
+import { makeKernelMockBridge } from '../../helpers/kernelMock.js';
+
+// Wave 3: Parsers/CSVDataParser are deleted; parse runs through the kernel
+// mock (canned, with __proto__/constructor/prototype stripping that mirrors the
+// kernel's header sanitization). Parse + pollution-hardening parity is covered
+// by Rust #[test]s + wasm-runtime.test.ts.
+function parseBytesViaKernel(bytes: Uint8Array, ext: 'csv' | 'json'): Dataset {
+  const bridge = makeKernelMockBridge();
+  const json = bridge.parseDatasetBytes(bytes, ext);
+  return Dataset.fromJSON(json as any);
+}
 
 describe('Tier 2 — Feature 11: Prototype Pollution Hardening (Boundary Cases)', () => {
   it('F11-BC1: parseJSON strips __proto__, constructor, and prototype from column names and row objects', () => {
@@ -17,7 +26,7 @@ describe('Tier 2 — Feature 11: Prototype Pollution Hardening (Boundary Cases)'
       },
     ]);
 
-    const dataset = parseJSON(maliciousJSON);
+    const dataset = parseBytesViaKernel(new TextEncoder().encode(maliciousJSON), 'json');
     expect(dataset).toBeDefined();
 
     // Check that Object.prototype is not polluted
@@ -34,7 +43,7 @@ describe('Tier 2 — Feature 11: Prototype Pollution Hardening (Boundary Cases)'
   it('F11-BC2: parseCSV with malicious header containing __proto__ does not pollute global prototype', () => {
     const maliciousCSV = `id,name,__proto__\n1,Alice,polluted_val`;
 
-    const dataset = parseCSV(maliciousCSV);
+    const dataset = parseBytesViaKernel(new TextEncoder().encode(maliciousCSV), 'csv');
     const testObj: any = {};
     expect(testObj.polluted_val).toBeUndefined();
     expect(testObj.polluted).toBeUndefined();
@@ -66,9 +75,9 @@ describe('Tier 2 — Feature 11: Prototype Pollution Hardening (Boundary Cases)'
     expect(restored.rows.length).toBe(1);
   });
 
-  it('F11-BC5: CSVDataParser.parseToDataset handles malicious quoted headers without prototype pollution', () => {
+  it('F11-BC5: kernel CSV parse handles malicious quoted headers without prototype pollution', () => {
     const csv = `"id","__proto__","name"\n"1","{"polluted": true}","Bob"`;
-    const dataset = CSVDataParser.parseToDataset('TestDS', csv);
+    const dataset = parseBytesViaKernel(new TextEncoder().encode(csv), 'csv');
 
     const testObj: any = {};
     expect(testObj.polluted).toBeUndefined();

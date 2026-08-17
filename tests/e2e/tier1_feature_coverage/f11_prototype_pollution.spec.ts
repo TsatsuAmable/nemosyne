@@ -1,13 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { Dataset } from '../../../src/data/Dataset.js';
-import { CSVDataParser } from '../../../src/data/CSVDataParser.js';
 import { Room } from '../../../src/network/Room.ts';
+import { makeKernelMockBridge } from '../../helpers/kernelMock.js';
 import { generatePollutedCSV, generatePollutedJSON } from '../harness/dataset_fixtures.js';
+
+// Wave 3: CSVDataParser is deleted; CSV parsing now runs through the kernel.
+// The mock's canned loadCsv strips __proto__/constructor/prototype from header
+// names and row keys, mirroring the kernel's header sanitization. Parse parity
+// + prototype-pollution hardening parity is covered by Rust #[test]s +
+// wasm-runtime.test.ts.
+function parseCsvViaKernel(csv: string): Dataset {
+  const bridge = makeKernelMockBridge();
+  const json = bridge.parseDatasetBytes(new TextEncoder().encode(csv), 'csv');
+  return Dataset.fromJSON(json as any);
+}
 
 describe('Feature 11: Prototype Pollution Hardening', () => {
   it('F11-TC1: CSV parsing with __proto__ header does not pollute Object prototype', () => {
     const csv = generatePollutedCSV();
-    const ds = CSVDataParser.parseToDataset('PollutedCSV', csv);
+    const ds = parseCsvViaKernel(csv);
 
     expect(ds).toBeDefined();
     // Verify Object prototype is unpolluted
@@ -39,7 +50,7 @@ describe('Feature 11: Prototype Pollution Hardening', () => {
 
   it('F11-TC4: Property lookups on plain object prototypes return undefined for attack keys', () => {
     const csv = generatePollutedCSV();
-    CSVDataParser.parseToDataset('AttackCheck', csv);
+    parseCsvViaKernel(csv);
 
     const testObj: any = {};
     expect(testObj.polluted_proto).toBeUndefined();
@@ -49,7 +60,7 @@ describe('Feature 11: Prototype Pollution Hardening', () => {
   it('F11-TC5: Object.freeze protected structures remain secure during dataset transformations', () => {
     const frozenProto = Object.freeze({ secure: true });
     const csv = generatePollutedCSV();
-    CSVDataParser.parseToDataset('FrozenCheck', csv);
+    parseCsvViaKernel(csv);
 
     expect((frozenProto as any).pollutedAdmin).toBeUndefined();
     expect((frozenProto as any).polluted_value).toBeUndefined();

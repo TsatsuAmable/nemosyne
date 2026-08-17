@@ -5,7 +5,7 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Wave 2 (mandatory WASM, JS analytical fallback removed) implemented and
+- **Last updated:** 2026-08-17 — Wave 3 (delete orphaned JS analytical modules + tests) implemented and
   gated green on branch `rust-kernel-commitment`.
 - **Active sprint:** commit Rust/WASM as the canonical analytical engine and rip out the JS analytical
   layer (no JS fallback), then build Atlas/NemosyneSession on top. Plan: `.claude/plans/groovy-mixing-wolf.md`.
@@ -68,18 +68,49 @@
   a "kernel unavailable aborts cleanly" case. `timeSlice` now slices a window of the CURRENT transformed
   dataset (kernel `slice` runs against the current handle) — more correct than the old JS path which sliced
   the original and discarded prior ops.
-- **Deferred to Wave 3:** chaining `build:wasm` into `build` (requires Netlify/CI Rust toolchain setup);
+- **Deferred to Wave 4:** chaining `build:wasm` into `build` (requires Netlify/CI Rust toolchain setup);
   byte-exact JS `JSON.stringify` number-format parity (when `DatasetSpace` delegates fingerprint to the
-  kernel); deleting the now-orphaned JS analytical modules + their tests.
+  kernel); `Dataset.rangeOf`/`cardinalityOf`/`fingerprint` delegation to kernel statistics metadata
+  (entangled with the AtlasCore/Draco-facts work — TODO(Wave 5) comments left at each call site).
+- **Wave 3 ✅ (delete orphaned JS analytical modules + tests):** `git rm`'d `src/data/DatasetOperations.ts`,
+  `Parsers.ts`, `CSVDataParser.ts`, `CSVParserWorker.ts`, `ArrowBinaryParser.ts`, `TopologyInference.ts`,
+  and `src/analytics/TDAMapper.ts` (empty `src/analytics/` dir removed). No `src/` production code imports
+  any of them (grep-verified); the only remaining `TDAMapper`/`DatasetOperations` mentions are stale prose
+  in docstring comments. `src/data/Encodings.ts` split — deleted `inferEncodings` (moved to Rust in Wave 1),
+  kept the three.js visual helpers `categoricalColor`/`numericColor`/`normalize`; `EncodingMapping` stays
+  owned by `src/data/types.ts`. `src/data/Dataset.ts` lost `static fromCSV` + the `CSVDataParser` import
+  (the kernel parses now); `rangeOf`/`cardinalityOf`/`fingerprint` kept with `TODO(Wave 5)` markers.
+  `src/data/connectors/normalize.ts` inlined a majority-rule `inferType` (NUMERIC/TEMPORAL/CATEGORICAL) for
+  cold-start live-stream column typing (full streaming-via-kernel deferred to Wave 4/6).
+  `src/draco/VRTopologyTranslator.ts` dropped the `inferEncodings` import; both
+  `dataInput.encodings || (dataset ? inferEncodings(dataset) : {})` sites → `dataInput.encodings ?? {}`
+  (downstream falls back to kernel-derived encodings supplied on every production load path).
+  `tests/helpers/kernelMock.js` rewritten as a fully self-contained canned mock (imports only
+  `Dataset`/`ColumnType` — no deleted-module deps); implements canned filter-predicate/sort(no-rename)/
+  aggregate/compare/k_means/hierarchical/dbscan/anomaly_iqr+zscore/slice + statistics + loadCsv/loadJson
+  (strips `__proto__`/`constructor`/`prototype`) + inferTopology + inferEncodings; appends `_cluster`/
+  `_anomaly`/`_anomalyScore` columns to match the real kernel's output schema. JS tests deleted
+  (`dataset-operations`/`parsers`/`csv-parser`/`arrow-ipc`/`topology-inference`/`tda-mapper`/
+  `wasm-operations`/`wasm-arrow-parser`) with porting-rule coverage in Rust `#[test]`s +
+  `wasm-runtime.test.ts`; two topology-parity e2e files (`f01_reverse_import`, `tier2/f01_boundary`) deleted
+  because their assertions encoded JS-specific topology heuristics the canned mock does not replicate
+  (Rust topology coverage is the parity home). ~12 e2e + integration tests converted to inline-constructed
+  Datasets / mock-bridge `parseDatasetBytes`; `world-coverage` sort assertion changed from a name-contains
+  `'sorted'` check to an ascending-order check (kernel sort does not rename). **Honest porting-rule flag:**
+  the `CSVParserWorker.parseAsync` async-worker behaviour has no direct kernel equivalent — the
+  worker-offload path was removed, not migrated; the underlying CSV parse is covered by the Rust kernel.
 - **Last gate result (2026-08-17):** `npm run wasm` exit 0; `cargo test` 61/61 pass; `tsc --noEmit`
   clean; `eslint` 0 errors (~235 pre-existing `no-console` warnings); `npm run test:all` green
-  (cargo 61/61 + Vitest 190 files / 1,345 tests passed, 26 skipped — the wasm-runtime RuntimeBridge
-  parity cases skip in plain jsdom by design; Rust `#[test]`s cover the same logic).
-- **Next:** Wave 3 — delete the orphaned JS analytical modules + tests (`DatasetOperations.ts`,
-  `Parsers.ts`, `CSVDataParser.ts`, `CSVParserWorker.ts`, `ArrowBinaryParser.ts`, `TopologyInference.ts`,
-  `analytics/TDAMapper.ts`; split `Encodings.ts` — keep visual mapping, delete `inferEncodings*`; thin
-  `Dataset.ts` projection + remove `fromCSV`; delete JS tests + porting-rule audit confirming Rust/
-  RuntimeBridge coverage). Update `kernelMock.js` once the JS delegates are gone.
+  (cargo 61/61 + Vitest 180 files passed / 1 skipped / 1,255 tests passed / 26 skipped — the wasm-runtime
+  RuntimeBridge parity cases skip in plain jsdom by design; Rust `#[test]`s cover the same logic).
+- **Next:** Wave 4 — `AtlasCore` (owns the kernel `DatasetHandle` + `DatasetSpace` + analysis chain +
+  `ResearchEvent` provenance ledger; the single analytical authority / only kernel caller) and
+  `NemosyneSession` (authoritative logical session: `datasetVersion`, `datasetFingerprint`, analysis
+  specs+results, recommendation + decision history, exploration state, research ledger, presentation
+  state; `serialize()`/`deserialize()` canonical save format). Refactor `DataOperationController` to issue
+  typed commands to `AtlasCore`; move snapshot authority from `WorldSessionController` to
+  `NemosyneSession.serialize()`. Implement `AnalysisSpec`/`AnalysisResult`/`AtlasRecommendation`/
+  `ResearchEvent` types. Acceptance: scene graph rebuildable from `NemosyneSession.serialize()`.
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files

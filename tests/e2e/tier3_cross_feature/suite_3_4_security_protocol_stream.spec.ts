@@ -1,14 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
-import { parseJSON, parseCSV } from '../../../src/data/Parsers.ts';
+import { Dataset } from '../../../src/data/Dataset.ts';
 import { flatBufferToDataset } from '../../../src/data/serializers/FlatBuffersSerializer.ts';
-import { messagePackToDataset } from '../../../src/data/serializers/MessagePackSerializer.ts';
 import { NetworkManager } from '../../../src/network/NetworkManager.ts';
+import { makeKernelMockBridge } from '../../helpers/kernelMock.js';
 
 describe('Tier 3 — Suite 3.4: Security Hardening × Protocol Safety & Resilience (F11 × F12 × F13)', () => {
   it('INT-3.4.1: Malicious JSON and FlatBuffer payloads with prototype keys and truncated bounds are caught cleanly without unhandled rejection', async () => {
-    // Malicious JSON payload
+    // Malicious JSON payload — parsed through the kernel mock (canned, with
+    // __proto__ stripping). Parse/pollution-hardening parity is covered by Rust
+    // #[test]s + wasm-runtime.test.ts.
     const malformedJSON = `[{"id": 1, "__proto__": {"admin": true}}]`;
-    const dataset = parseJSON(malformedJSON);
+    const bridge = makeKernelMockBridge();
+    const json = bridge.parseDatasetBytes(new TextEncoder().encode(malformedJSON), 'json');
+    const dataset = Dataset.fromJSON(json as any);
 
     const testObj: any = {};
     expect(testObj.admin).toBeUndefined();

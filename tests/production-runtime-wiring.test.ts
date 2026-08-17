@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { Engine } from '../src/vr/Engine.ts';
 import { CollaborativeStateSync } from '../src/network/CollaborativeStateSync.ts';
-import { CSVParserWorker } from '../src/data/CSVParserWorker.ts';
 
 describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening Suite', () => {
   it('wires SceneGraphController and WorkspaceManager onto World instance', async () => {
@@ -43,15 +42,5 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
 
     sync.setDataChannel(mockChannel);
     sync.sendBinaryPose([1, 2, 3], [0, 0, 0, 1]);
-  });
-
-  it('executes CSVParserWorker asynchronously', async () => {
-    const res = await CSVParserWorker.parseAsync({
-      datasetName: 'TestAsync',
-      csvText: 'col1,col2\n10,20\n30,40',
-    });
-
-    expect(res.datasetName).toBe('TestAsync');
-    expect(res.rows.length).toBe(2);
   });
 });

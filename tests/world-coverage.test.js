@@ -169,7 +169,16 @@ describe('World coverage extensions', () => {
     expect(world._transformedDataset.rowCount).toBeLessThan(baseRows);
 
     world.applyDataOperation('sort');
-    expect(world._transformedDataset.name).toContain('sorted');
+    // The kernel sort does NOT rename the dataset (the legacy JS path appended
+    // 'sorted'). Assert ascending ordering on the sort column instead.
+    const sortCol = world._transformedDataset.numericColumns[0]?.name;
+    expect(world._transformedDataset.rowCount).toBeGreaterThan(0);
+    if (sortCol) {
+      const sortedRows = world._transformedDataset.rows;
+      const first = Number(sortedRows[0][sortCol]);
+      const last = Number(sortedRows[sortedRows.length - 1][sortCol]);
+      expect(first).toBeLessThanOrEqual(last);
+    }
 
     world.applyDataOperation('aggregate');
     expect(world._transformedDataset.rowCount).toBeGreaterThan(0);

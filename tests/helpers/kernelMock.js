@@ -1,39 +1,331 @@
 /**
  * Test-only mock of the Rust analytical kernel.
  *
- * Wave 2 makes the Rust kernel the ONLY analytical path in production. This
- * helper exists so World / controller / FileLoader integration tests can
- * exercise orchestration (history, events, UI wiring) in plain jsdom, where the
- * real wasm/pkg is not served. The mock delegates to the still-present JS
- * analytical modules (`DatasetOperations`, `Parsers`, `TopologyInference`) to
- * produce canned, kernel-shaped results. Exact analytical parity is covered by
- * Rust #[test]s + wasm-runtime.test.ts (skipped in plain jsdom by design).
- *
- * This is NOT production code — no `src/` code ever imports this.
+ * Wave 3 deleted the JS analytical modules (`DatasetOperations`, `Parsers`,
+ * `TopologyInference`, `CSVDataParser`, ...). This helper is now fully
+ * self-contained: it implements CANNED analytical logic inline so World /
+ * controller / FileLoader integration tests can exercise orchestration
+ * (history, events, UI wiring, prototype-pollution hardening) in plain jsdom,
+ * where the real wasm/pkg is not served. This is NOT production code — no
+ * `src/` code ever imports this. Exact analytical parity (filter median, sort
+ * order, cluster algorithm, topology inference rules, parser edge cases) is
+ * covered by Rust `#[test]`s + `tests/wasm-runtime.test.ts`.
  */
-import { Dataset } from '../../src/data/Dataset.ts';
-import {
-  filter,
-  sort,
-  aggregate,
-  compare,
-  cluster,
-  hierarchical,
-  dbscan,
-  anomaly,
-  slice,
-} from '../../src/data/DatasetOperations.ts';
-import { parseCSV, parseJSON } from '../../src/data/Parsers.ts';
-import {
-  inferTopology,
-  inferEncodingsForTopology,
-} from '../../src/data/TopologyInference.ts';
+import { Dataset, ColumnType } from '../../src/data/Dataset.ts';
+
+// ---------------------------------------------------------------------------
+// Self-contained canned helpers
+// ---------------------------------------------------------------------------
+
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function stripDangerous(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const out = {};
+  for (const k of Object.keys(obj)) {
+    if (DANGEROUS_KEYS.has(k)) continue;
+    out[k] = obj[k];
+  }
+  return out;
+}
 
 function median(values) {
   if (!values.length) return 0;
   const s = [...values].sort((a, b) => a - b);
   const mid = Math.floor(s.length / 2);
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+function isFiniteNumber(v) {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+function numericOrLex(a, b) {
+  const na = Number(a);
+  const nb = Number(b);
+  if (isFiniteNumber(na) && isFiniteNumber(nb)) return na - nb;
+  return String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0;
+}
+
+/**
+ * Schema-type heuristic for the canned CSV/JSON parsers. Mirrors the kernel's
+ * header/type inference closely enough for the simple fixtures the integration
+ * tests use (numeric vs categorical vs temporal).
+ */
+function inferColumnType(values) {
+  let nonNull = 0;
+  let numeric = 0;
+  let temporal = 0;
+  for (const v of values) {
+    if (v === null || v === undefined || v === '') continue;
+    nonNull++;
+    if (isFiniteNumber(v)) {
+      numeric++;
+    } else if (typeof v === 'string') {
+      const s = v.trim();
+      if (s !== '' && Number.isFinite(Number(s)) && /^-?\d/.test(s)) {
+        numeric++;
+      } else if (!Number.isNaN(Date.parse(s))) {
+        temporal++;
+      }
+    }
+  }
+  if (nonNull === 0) return ColumnType.CATEGORICAL;
+  if (numeric > nonNull / 2) return ColumnType.NUMERIC;
+  if (temporal > nonNull / 2) return ColumnType.TEMPORAL;
+  return ColumnType.CATEGORICAL;
+}
+
+// ---------------------------------------------------------------------------
+// Canned CSV / JSON parsers (good enough for test fixtures; parity in Rust)
+// ---------------------------------------------------------------------------
+
+function splitCsvLine(line) {
+  // Minimal CSV field splitter: handles double-quoted fields with embedded
+  // commas and escaped quotes. Sufficient for the test fixtures.
+  const fields = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      fields.push(cur);
+      cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  fields.push(cur);
+  return fields;
+}
+
+function coerceCell(raw) {
+  if (raw === '') return null;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  const n = Number(raw);
+  if (raw !== '' && Number.isFinite(n) && /^-?\d/.test(raw)) return n;
+  return raw;
+}
+
+function loadCsv(bytes) {
+  const text = new TextDecoder().decode(bytes);
+  const lines = text.split(/\r\n|\n/).filter((l) => l.length > 0);
+  if (lines.length === 0) {
+    return { name: 'dataset', columns: [], rows: [] };
+  }
+  const headerFields = splitCsvLine(lines[0]).map((h) => h.trim()).filter((h) => h !== '' && !DANGEROUS_KEYS.has(h));
+  const columns = headerFields.map((name) => ({ name, type: ColumnType.CATEGORICAL }));
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const fields = splitCsvLine(lines[i]);
+    const row = {};
+    for (let c = 0; c < headerFields.length; c++) {
+      row[headerFields[c]] = coerceCell(fields[c] ?? null);
+    }
+    rows.push(stripDangerous(row));
+  }
+  // Infer column types from parsed rows.
+  for (const col of columns) {
+    col.type = inferColumnType(rows.map((r) => r[col.name]));
+  }
+  return { name: 'dataset', columns, rows };
+}
+
+function loadJson(bytes) {
+  const text = new TextDecoder().decode(bytes);
+  const parsed = JSON.parse(text);
+  const arr = Array.isArray(parsed) ? parsed : parsed?.data ?? [];
+  if (!Array.isArray(arr) || arr.length === 0) {
+    return { name: 'dataset', columns: [], rows: [] };
+  }
+  const rawKeys = Object.keys(arr[0]);
+  const keys = rawKeys.filter((k) => !DANGEROUS_KEYS.has(k));
+  const columns = keys.map((name) => ({
+    name,
+    type: inferColumnType(arr.map((r) => r?.[name])),
+  }));
+  const rows = arr.map((r) => stripDangerous(r));
+  return { name: 'dataset', columns, rows };
+}
+
+// ---------------------------------------------------------------------------
+// Canned operation evaluation (parity in Rust #[test]s + wasm-runtime.test.ts)
+// ---------------------------------------------------------------------------
+
+function evalPredicate(p, row) {
+  if (!p) return true;
+  switch (p.op) {
+    case 'eq': return row[p.column] === p.value;
+    case 'ne': return row[p.column] !== p.value;
+    case 'gt': return Number(row[p.column]) > Number(p.value);
+    case 'gte': return Number(row[p.column]) >= Number(p.value);
+    case 'lt': return Number(row[p.column]) < Number(p.value);
+    case 'lte': return Number(row[p.column]) <= Number(p.value);
+    case 'in': return p.values.includes(row[p.column]);
+    case 'between': {
+      const v = Number(row[p.column]);
+      return v >= Number(p.lo) && v <= Number(p.hi);
+    }
+    case 'isnull': return row[p.column] == null;
+    case 'and': return p.children.every((c) => evalPredicate(c, row));
+    case 'or': return p.children.some((c) => evalPredicate(c, row));
+    case 'not': return !evalPredicate(p.child, row);
+    default: return true;
+  }
+}
+
+function aggregateGroup(groupRows, ag, ds) {
+  const first = { ...groupRows[0] };
+  if (ag) {
+    for (const a of ag) {
+      const vals = groupRows
+        .map((r) => Number(r[a.column]))
+        .filter((v) => Number.isFinite(v));
+      const fn = a.function;
+      const out = a.as || `${a.column}_${fn}`;
+      if (fn === 'sum') first[out] = vals.reduce((s, v) => s + v, 0);
+      else if (fn === 'mean') first[out] = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+      else if (fn === 'median') first[out] = median(vals);
+      else if (fn === 'min') first[out] = vals.length ? Math.min(...vals) : 0;
+      else if (fn === 'max') first[out] = vals.length ? Math.max(...vals) : 0;
+      else if (fn === 'count') first[out] = groupRows.length;
+      else if (fn === 'std') {
+        const m = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+        first[out] = Math.sqrt(vals.reduce((s, v) => s + (v - m) ** 2, 0) / Math.max(1, vals.length));
+      } else if (fn === 'var') {
+        const m = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+        first[out] = vals.reduce((s, v) => s + (v - m) ** 2, 0) / Math.max(1, vals.length);
+      }
+    }
+  } else {
+    // Legacy: sum all numeric columns.
+    for (const col of ds.numericColumns) {
+      first[col.name] = groupRows.reduce((s, r) => s + (Number(r[col.name]) || 0), 0);
+    }
+  }
+  first._count = groupRows.length;
+  return first;
+}
+
+function withColumn(columns, name, type) {
+  if (columns.some((c) => c.name === name)) return columns;
+  return [...columns, { name, type }];
+}
+
+function applyOp(ds, op) {
+  const rows = ds.rows;
+  switch (op.op) {
+    case 'filter': {
+      const kept = op.predicate ? rows.filter((r) => evalPredicate(op.predicate, r)) : rows.slice();
+      return new Dataset(ds.name, ds.columns, kept);
+    }
+    case 'sort': {
+      // The real kernel does NOT rename the dataset on sort.
+      const dir = op.ascending === false ? -1 : 1;
+      const sorted = rows.slice().sort((a, b) => numericOrLex(a[op.column], b[op.column]) * dir);
+      return new Dataset(ds.name, ds.columns, sorted);
+    }
+    case 'aggregate': {
+      const groupBy = op.group_by || (op.group_by_columns || [])[0];
+      if (!groupBy) return ds.clone();
+      const groups = new Map();
+      for (const r of rows) {
+        const key = r[groupBy];
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(r);
+      }
+      const outRows = [...groups.values()].map((g) => aggregateGroup(g, op.aggregators, ds));
+      return new Dataset(ds.name, ds.columns, outRows);
+    }
+    case 'compare': {
+      const groupBy = op.group_by;
+      const measures = op.measures ||
+        ds.numericColumns.filter((c) => c.name !== groupBy).map((c) => c.name);
+      const aRows = rows.filter((r) => String(r[groupBy]) === String(op.group_a));
+      const bRows = rows.filter((r) => String(r[groupBy]) === String(op.group_b));
+      const outRows = measures.map((m) => {
+        const aVals = aRows.map((r) => Number(r[m])).filter((v) => Number.isFinite(v));
+        const bVals = bRows.map((r) => Number(r[m])).filter((v) => Number.isFinite(v));
+        const meanA = aVals.length ? aVals.reduce((s, v) => s + v, 0) / aVals.length : 0;
+        const meanB = bVals.length ? bVals.reduce((s, v) => s + v, 0) / bVals.length : 0;
+        return {
+          _measure: m,
+          _groupA: op.group_a,
+          _groupB: op.group_b,
+          _meanA: meanA,
+          _meanB: meanB,
+          _difference: meanA - meanB,
+          _countA: aVals.length,
+          _countB: bVals.length,
+        };
+      });
+      return new Dataset(ds.name, [], outRows);
+    }
+    case 'k_means': {
+      const k = op.k || 2;
+      const outRows = rows.map((r, i) => ({ ...r, _cluster: i % k }));
+      return new Dataset(ds.name, withColumn(ds.columns, '_cluster', ColumnType.NUMERIC), outRows);
+    }
+    case 'hierarchical': {
+      const k = op.k || 2;
+      const outRows = rows.map((r, i) => ({ ...r, _cluster: i % k }));
+      const result = new Dataset(ds.name, withColumn(ds.columns, '_cluster', ColumnType.NUMERIC), outRows);
+      result._meta = { linkage: op.linkage || 'average', targetClusters: k };
+      return result;
+    }
+    case 'dbscan': {
+      // Canned: trivial cluster assignment + one noise point when min_points > 1.
+      const outRows = rows.map((r, i) => ({ ...r, _cluster: i % 2 }));
+      if (op.min_points > 1 && outRows.length > 0) {
+        outRows[outRows.length - 1]._cluster = -1;
+      }
+      return new Dataset(ds.name, withColumn(ds.columns, '_cluster', ColumnType.NUMERIC), outRows);
+    }
+    case 'anomaly_zscore':
+    case 'anomaly_iqr': {
+      const col = op.column;
+      const vals = rows.map((r) => Number(r[col]));
+      let extremeIdx = 0;
+      let extremeVal = -Infinity;
+      for (let i = 0; i < vals.length; i++) {
+        if (Number.isFinite(vals[i]) && Math.abs(vals[i]) > extremeVal) {
+          extremeVal = Math.abs(vals[i]);
+          extremeIdx = i;
+        }
+      }
+      const outRows = rows.map((r, i) => ({
+        ...r,
+        _anomaly: i === extremeIdx,
+        _anomalyScore: i === extremeIdx ? extremeVal : 0,
+      }));
+      let cols = withColumn(ds.columns, '_anomaly', ColumnType.CATEGORICAL);
+      cols = withColumn(cols, '_anomalyScore', ColumnType.NUMERIC);
+      const result = new Dataset(ds.name, cols, outRows);
+      result._meta = { method: op.op, column: col };
+      return result;
+    }
+    case 'slice': {
+      const start = op.start ?? 0;
+      const end = op.end ?? rows.length;
+      return new Dataset(ds.name, ds.columns, rows.slice(start, end));
+    }
+    default:
+      return ds.clone();
+  }
 }
 
 function factsFor(ds) {
@@ -69,89 +361,41 @@ function factsFor(ds) {
   };
 }
 
-function applyOp(ds, op) {
-  switch (op.op) {
-    case 'filter': {
-      const p = op.predicate;
-      if (!p) return ds.clone();
-      switch (p.op) {
-        case 'gt': return filter(ds, (r) => Number(r[p.column]) > Number(p.value));
-        case 'gte': return filter(ds, (r) => Number(r[p.column]) >= Number(p.value));
-        case 'lt': return filter(ds, (r) => Number(r[p.column]) < Number(p.value));
-        case 'lte': return filter(ds, (r) => Number(r[p.column]) <= Number(p.value));
-        case 'eq': return filter(ds, (r) => r[p.column] === p.value);
-        case 'ne': return filter(ds, (r) => r[p.column] !== p.value);
-        case 'in': return filter(ds, (r) => p.values.includes(r[p.column]));
-        case 'between': return filter(ds, (r) => {
-          const v = Number(r[p.column]);
-          return v >= p.lo && v <= p.hi;
-        });
-        case 'isnull': return filter(ds, (r) => r[p.column] == null);
-        default: return ds.clone();
-      }
-    }
-    case 'sort':
-      return sort(ds, op.column, op.ascending === false ? 'desc' : 'asc');
-    case 'aggregate': {
-      const groupBy = op.group_by || (op.group_by_columns || [])[0];
-      if (!groupBy) return ds.clone();
-      if (op.aggregators) {
-        return aggregate(ds, groupBy, (groupRows) => {
-          const first = { ...groupRows[0] };
-          for (const ag of op.aggregators) {
-            const vals = groupRows.map((r) => Number(r[ag.column])).filter((v) => !Number.isNaN(v));
-            const fn = ag.function;
-            const out = ag.as || `${ag.column}_${fn}`;
-            if (fn === 'sum') first[out] = vals.reduce((s, v) => s + v, 0);
-            else if (fn === 'mean') first[out] = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
-            else if (fn === 'median') first[out] = median(vals);
-            else if (fn === 'min') first[out] = vals.length ? Math.min(...vals) : 0;
-            else if (fn === 'max') first[out] = vals.length ? Math.max(...vals) : 0;
-            else if (fn === 'count') first[out] = groupRows.length;
-            else if (fn === 'std') {
-              const m = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
-              first[out] = Math.sqrt(vals.reduce((s, v) => s + (v - m) ** 2, 0) / Math.max(1, vals.length));
-            } else if (fn === 'var') {
-              const m = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
-              first[out] = vals.reduce((s, v) => s + (v - m) ** 2, 0) / Math.max(1, vals.length);
-            }
-          }
-          first._count = groupRows.length;
-          return first;
-        });
-      }
-      return aggregate(ds, groupBy, (groupRows) => {
-        const first = { ...groupRows[0] };
-        for (const col of ds.numericColumns) {
-          first[col.name] = groupRows.reduce((s, r) => s + (Number(r[col.name]) || 0), 0);
-        }
-        first._count = groupRows.length;
-        return first;
-      });
-    }
-    case 'compare':
-      return compare(ds, op.group_by, op.group_a, op.group_b, op.measures);
-    case 'k_means':
-      return cluster(ds, op.k, op.features || null);
-    case 'hierarchical':
-      return hierarchical(ds, op.features || ds.numericColumns.map((c) => c.name), op.linkage || 'average', op.k);
-    case 'dbscan':
-      return dbscan(ds, op.eps, op.min_points, op.features || ds.numericColumns.map((c) => c.name));
-    case 'anomaly_zscore':
-      return anomaly(ds, op.column, 'zscore', op.sensitivity ?? null);
-    case 'anomaly_iqr':
-      return anomaly(ds, op.column, 'iqr', op.sensitivity ?? null);
-    case 'slice':
-      return slice(ds, op.start, op.end);
-    default:
-      return ds.clone();
-  }
+function cannedInferTopology(ds) {
+  const names = new Set(ds.columns.map((c) => c.name));
+  if (names.has('source') && names.has('target')) return 'GRAPH';
+  if (names.has('lat') && (names.has('lon') || names.has('lng') || names.has('longitude'))) return 'GEO';
+  if (names.has('parent') && names.has('child')) return 'HIERARCHY';
+  if (names.has('level')) return 'HIERARCHY';
+  const temporal = ds.temporalColumns[0]?.name;
+  if (temporal && ds.numericColumns.length > 0) return 'TIME_SERIES';
+  return 'TABULAR';
 }
 
+function cannedInferEncodings(ds, topology) {
+  if (ds.columns.length === 0) return {};
+  const cat = ds.categoricalColumns[0]?.name;
+  const num = ds.numericColumns[0]?.name;
+  const time = ds.temporalColumns[0]?.name;
+  const enc = {};
+  if (cat) enc.color = cat;
+  else if (num) enc.color = num;
+  if (num) enc.size = num;
+  if (time) {
+    enc.pulse = time;
+    enc.time = time;
+  }
+  if (topology === 'GEO' && cat) enc.label = cat;
+  return enc;
+}
+
+// ---------------------------------------------------------------------------
+// Mock bridge factory — keeps the handle-protocol shape callers expect.
+// ---------------------------------------------------------------------------
+
 /**
- * Build a mock `WasmRuntimeBridge` whose `runOperation` maps the kernel
- * `OperationSpec` back to the JS analytical functions and returns canned
- * DatasetJSON via the handle protocol.
+ * Build a mock `WasmRuntimeBridge` whose `runOperation` evaluates canned
+ * analytical logic and returns DatasetJSON via the handle protocol.
  */
 export function makeKernelMockBridge() {
   const store = new Map();
@@ -172,16 +416,14 @@ export function makeKernelMockBridge() {
     loadDatasetJson: (obj) => alloc(obj),
     loadCsv: (bytes) => {
       try {
-        const text = new TextDecoder().decode(bytes);
-        return alloc(parseCSV(text, { maxRows: 100_000 }).toJSON());
+        return alloc(loadCsv(bytes));
       } catch {
         return 0;
       }
     },
     loadJson: (bytes) => {
       try {
-        const text = new TextDecoder().decode(bytes);
-        return alloc(parseJSON(text, { maxRows: 100_000 }).toJSON());
+        return alloc(loadJson(bytes));
       } catch {
         return 0;
       }
@@ -189,7 +431,9 @@ export function makeKernelMockBridge() {
     loadSample: () => 0,
     sampleKeys: () => [],
     getDatasetJson: (handle) => store.get(handle) ?? null,
-    destroyDataset: () => {},
+    destroyDataset: (handle) => {
+      store.delete(handle);
+    },
     runOperation: (handle, op) => {
       const obj = store.get(handle);
       if (!obj) return 0;
@@ -210,35 +454,31 @@ export function makeKernelMockBridge() {
     inferTopology: (handle) => {
       const obj = store.get(handle);
       if (!obj) return null;
-      return inferTopology(Dataset.fromJSON(obj), null);
+      return cannedInferTopology(Dataset.fromJSON(obj));
     },
     inferEncodings: (handle, topology) => {
       const obj = store.get(handle);
       if (!obj) return null;
       const ds = Dataset.fromJSON(obj);
-      const topo = topology ?? inferTopology(ds, null);
-      return inferEncodingsForTopology(ds, topo);
+      const topo = topology ?? cannedInferTopology(ds);
+      return cannedInferEncodings(ds, topo);
     },
     inferSchema: (handle) => store.get(handle)?.columns ?? null,
     datasetFingerprint: () => null,
     parseDatasetBytes: (bytes, ext) => {
-      const handle = ext === 'csv'
-        ? (() => {
-            try {
-              const text = new TextDecoder().decode(bytes);
-              return alloc(parseCSV(text, { maxRows: 100_000 }).toJSON());
-            } catch {
-              return 0;
-            }
-          })()
-        : (() => {
-            try {
-              const text = new TextDecoder().decode(bytes);
-              return alloc(parseJSON(text, { maxRows: 100_000 }).toJSON());
-            } catch {
-              return 0;
-            }
-          })();
+      const handle = ext === 'csv' ? (() => {
+        try {
+          return alloc(loadCsv(bytes));
+        } catch {
+          return 0;
+        }
+      })() : (() => {
+        try {
+          return alloc(loadJson(bytes));
+        } catch {
+          return 0;
+        }
+      })();
       if (!handle) return null;
       const json = store.get(handle) ?? null;
       store.delete(handle);

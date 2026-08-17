@@ -1,11 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
-import { parseCSV, parseJSON } from '../src/data/Parsers.ts';
 import {
   categoricalColor,
   numericColor,
   normalize,
-  inferEncodings,
 } from '../src/data/Encodings.ts';
 import { makeFinancialSeries, makeGeoCities, makeFlowProcess } from '../src/data/SyntheticData.ts';
 import { allSampleDatasets } from '../src/data/SampleDatasets.ts';
@@ -46,30 +44,6 @@ describe('Dataset', () => {
   });
 });
 
-describe('Parsers', () => {
-  it('parses CSV and infers numeric types', () => {
-    const csv = 'name,score\nAlice,92\nBob,87';
-    const ds = parseCSV(csv, { name: 'scores' });
-    expect(ds.rowCount).toBe(2);
-    expect(ds.getColumn('score').type).toBe(ColumnType.NUMERIC);
-    expect(ds.rows[0].score).toBe(92);
-  });
-
-  it('parses JSON arrays', () => {
-    const json = JSON.stringify([
-      { city: 'Berlin', temp: 22 },
-      { city: 'Paris', temp: 24 },
-    ]);
-    const ds = parseJSON(json);
-    expect(ds.rowCount).toBe(2);
-    expect(ds.getColumn('temp').type).toBe(ColumnType.NUMERIC);
-  });
-
-  it('throws on malformed JSON', () => {
-    expect(() => parseJSON('not json')).toThrow();
-  });
-});
-
 describe('Encodings', () => {
   it('normalizes values to [0, 1]', () => {
     expect(normalize(50, 0, 100)).toBe(0.5);
@@ -89,22 +63,6 @@ describe('Encodings', () => {
     const high = numericColor(100, 0, 100, 0x000000, 0xffffff);
     expect(low).toBe(0x000000);
     expect(high).toBe(0xffffff);
-  });
-
-  it('infers default encodings from column types', () => {
-    const ds = new Dataset(
-      'Demo',
-      [
-        { name: 'cat', type: ColumnType.CATEGORICAL },
-        { name: 'val', type: ColumnType.NUMERIC },
-        { name: 'ts', type: ColumnType.TEMPORAL },
-      ],
-      [{ cat: 'A', val: 10, ts: '2026-01-01' }]
-    );
-    const enc = inferEncodings(ds);
-    expect(enc.color).toBe('cat');
-    expect(enc.size).toBe('val');
-    expect(enc.time).toBe('ts');
   });
 });
 
