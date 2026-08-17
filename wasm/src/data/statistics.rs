@@ -173,19 +173,13 @@ fn column_stats(dataset: &Dataset, name: &str) -> ColumnStats {
     let min = values[0];
     let max = values[count - 1];
 
-    // Standardized third & fourth moments (excess kurtosis). Population std.
-    let (skew, kurtosis) = if std > 1e-9 {
-        let mut s3 = 0.0;
-        let mut s4 = 0.0;
-        for v in &values {
-            let z = (v - mean) / std;
-            s3 += z * z * z;
-            s4 += z * z * z * z;
-        }
-        (s3 / count as f64, s4 / count as f64 - 3.0)
-    } else {
-        (0.0, 0.0)
-    };
+    // Standardized third & fourth moments (excess kurtosis) via the
+    // battle-tested `statify` crate (rule 4: no hand-rolled moments). Both
+    // functions return `Result` — `Err` on an empty / insufficient dataset or a
+    // zero variance (division by zero) — so we fall back to 0.0, preserving the
+    // previous degenerate-column behaviour without re-rolling the math.
+    let skew = statify::skewness(&values).unwrap_or(0.0);
+    let kurtosis = statify::kurtosis(&values).unwrap_or(0.0);
 
     let outlier_count = outlier_count(&values, 1.5);
 
