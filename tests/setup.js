@@ -5,7 +5,7 @@
  */
 
 const createLocalStorageMock = () => {
-  let store = new Map();
+  const store = new Map();
   return {
     getItem: (key) => store.get(String(key)) ?? null,
     setItem: (key, val) => store.set(String(key), String(val)),
