@@ -5,9 +5,13 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-18 — CI Security & Workflow Hardening: GitHub Actions least-privilege token
-  permissions (`permissions: contents: read`), automated Dependency Review action on PRs (`actions/dependency-review-action@v4`),
-  and dedicated GitHub CodeQL SAST workflow (`.github/workflows/codeql.yml`) on JavaScript/TypeScript.
+- **Last updated:** 2026-08-18 — Evidence-Informed Draco Recommender & Interactive Study Mode UI complete:
+  Implemented `StudyModeModal.ts` and `StudyController.ts` validated in `tests/study-controller.test.ts` (VR & desktop trial HUD,
+  real-time head-movement distance tracking, node selection routing, NASA-TLX workload survey, and session exports).
+  Implemented `EvidenceStore.ts` and `EvidenceWeightedScorer.ts` validated in `tests/evidence-draco.test.ts` (empirical trial
+  ingestion, composite human performance utility calculation, and Bayesian candidate re-ranking).
+  CI Security & Workflow Hardening: GitHub Actions least-privilege token permissions (`permissions: contents: read`),
+  automated Dependency Review action on PRs (`actions/dependency-review-action@v4`), and CodeQL SAST workflow (`codeql.yml`).
   Atlas 7 complete: Deterministic language and intent explanation layer implemented and validated in `tests/intent-compiler.test.ts`.
   Atlas 6 complete: Controlled experiment harness implemented and validated in `tests/study-harness.test.ts`.
   Collaboration Gateway Security & Architecture Hardening:
@@ -21,8 +25,8 @@
   Atlas 5 complete: end-to-end session-restore gate validated.
   Atlas 4 completion: rowIndices refactor, TDA panel click-to-navigate, full structure-handle lifecycle.
   Wave 6 via PR #130. UX & spatial 3D assets via PR #136; world-aware UX telemetry via PR #137.
-- **Active sprint:** Evidence-Informed Draco Recommender & Interactive Study UI integration. Evolve Draco scoring
-  weights based on empirical study outcomes, and build in-app trial flow for 2D-vs-VR participant evaluation.
+- **Active sprint:** Multi-User Collaborative Exploration & Live Study Replication. Real-time peer avatar synchronization
+  in controlled trials, observer trial monitoring HUD, and empirical data aggregation.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
   research-relevant transforms through the versioned Rust kernel (provenance envelope on every result);
   use battle-tested Rust crates; saved-session compatibility breaks (kernel carries `kernelVersion`).
