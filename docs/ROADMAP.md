@@ -223,6 +223,7 @@
   in its own key/store, small mutable analysis-cursor + presentation state separate; store dataset bytes as
   Arrow/typed arrays via structured clone; call `storage.persist()` + `.estimate()`; consider OPFS for the large
   immutable dataset-bytes tier. Aligns with post-Wave-4 AtlasCore/DatasetSpace; not touched during Wave 5.
+<<<<<<< HEAD
 - **Atlas 3 initial slice ✅ (guidance layer):** `GuidanceEngine` (`src/atlas/GuidanceEngine.ts`)
   consumes `StructureSet` outputs and produces `AtlasRecommendation`s with:
   - Typed `AnalyticalAction` enum (`inspect-cluster`, `inspect-boundary`, `explore-region`,
@@ -256,6 +257,15 @@
   - **Auto-generation trigger:** `_discoverStructuresAndRecommend(operation)` fires after every
     `OPERATION_APPLIED` event — discovers cluster structures after cluster ops, mapper+persistence
     structures after TDA ops, then calls `generateRecommendation()` and marks the panel dirty.
+- **UX & Spatial 3D Assets ✅ (Blender MCP pipeline + 3D spatial UI housings):** Comprehensive review
+  of VR UX completeness and coherence across panels, landmarks, and menus (`VRMenu` & `HandWheelMenu`).
+  Created a suite of production-grade 3D WebXR assets via Blender 5.2 MCP (`SpatialPanelHousing.glb`,
+  `HandWheelHub.glb`, `TechnoCoreMonolith.glb`, `FarcasterGate.glb`, `IceVaultGlyph.glb`, `SpatialActionPuck.glb`)
+  in `public/models/ux/`. Implemented `src/vr/ui/SpatialAssetRegistry.ts` for caching, hierarchy cloning,
+  and headless test fallbacks; enhanced `MovablePanel.ts` and `VRMenu.ts` with 3D beveled spatial housings
+  (chamfered frame, grab handle bar, status LED jewel, dynamic `Screen_Face` UV mapping); enhanced
+  `HandWheelMenu.ts` with the 3D `HandWheelHub` constellation palm dial socket. Tested via
+  `tests/spatial-asset-registry.test.ts` (8 new tests).
 - **Next:** Atlas 4 — continue: refactor all `applyX` to use rowIndices, wire TDA panel
   click-to-navigate, full structure-handle lifecycle. Then gate Atlas 5 on validated embodiment.
 

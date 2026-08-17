@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CanvasTextureCacheManager } from './CanvasTextureCacheManager.ts';
 import { PALETTE, cssHex } from '../palette.ts';
+import { SpatialAssetRegistry } from './SpatialAssetRegistry.ts';
 import type {
   AccessibilityOptions,
   DragState,
@@ -38,6 +39,7 @@ export class MovablePanel {
   texture: THREE.CanvasTexture;
   material: THREE.MeshBasicMaterial;
   mesh: THREE.Mesh;
+  housing: THREE.Group;
   textScale: number;
   highContrast: boolean;
   colorblindMode: string | boolean;
@@ -112,6 +114,12 @@ export class MovablePanel {
     this.mesh = new THREE.Mesh(geom, this.material);
     this.mesh.position.set(...position);
     this.mesh.rotation.x = -tilt;
+
+    // Attach 3D beveled spatial housing backing
+    this.housing = SpatialAssetRegistry.getInstance().createSpatialPanelHousing(worldSize[0], worldSize[1]);
+    this.housing.position.set(0, 0, -0.015);
+    this.mesh.add(this.housing);
+
     if (this.parentGroup && typeof this.parentGroup.add === 'function') {
       this.parentGroup.add(this.mesh);
     }
@@ -337,6 +345,19 @@ export class MovablePanel {
   dispose(): void {
     if (this._disposed) return;
     this._disposed = true;
+    if (this.housing) {
+      this.housing.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const m = child as THREE.Mesh;
+          m.geometry?.dispose();
+          if (Array.isArray(m.material)) {
+            m.material.forEach((mat) => mat.dispose());
+          } else {
+            m.material?.dispose();
+          }
+        }
+      });
+    }
     this.mesh.parent?.remove(this.mesh);
     this.mesh.geometry.dispose();
     this.material.dispose();
