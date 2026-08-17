@@ -69,6 +69,7 @@ export class SelectionDispatcher {
 
     this.feedback.playSelect();
     this.feedback.flashPointer(activePointer);
+    this.feedback.playHaptic(0.6, 40, activePointer as unknown as { gamepad?: { hapticActuators?: Array<{ pulse: (v: number, d: number) => Promise<unknown> }> } });
 
     const hudConsumed = this.registry.dispatchHudClick();
     if (this.onDispatch) {
