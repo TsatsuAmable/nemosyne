@@ -5,18 +5,26 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Atlas 4 completion: rowIndices refactor (`sortByRowIndices`/
+- **Last updated:** 2026-08-17 — Atlas 5 complete: end-to-end session-restore gate validated —
+  a session with structures, research context, recommendation history + decisions, observations,
+  interventions, and spatial state serializes and restores into a fresh World with the VR scene
+  (artefact + operation transform + TDA + structure handles) rebuilt without manual reconstruction.
+  Atlas 4 completion: rowIndices refactor (`sortByRowIndices`/
   `clusterByRowIndices`/`anomalyByRowIndices`), TDA panel click-to-navigate (`pickStructure`
   hit-testing on mapper nodes), full structure-handle lifecycle (rebuild on re-solve via
-  `_rebuildStructureHandles`). Atlas 5 foundations: `ResearchContext` persistence + observation/
-  intervention recording. Atlas 3 guidance layer complete. Atlas 2 structure discovery complete.
+  `_rebuildStructureHandles`). Atlas 3 guidance layer complete. Atlas 2 structure discovery complete.
   Wave 6 via PR #130. UX & spatial 3D assets (Blender MCP pipeline, `SpatialAssetRegistry`,
   3D panel/`HandWheelMenu` housings) via PR #136; world-aware UX telemetry & diagnostics
   (`WorldSpatialContext`, reach-zone + ergonomic scoring, gesture troubleshooting) via PR #137.
-- **Active sprint:** Atlas 5 — research context and replay. Extend session persistence with
-  research context, observations, interventions, and spatial state. Restore path already re-solves
-  the artefact, re-applies the operation transform, and recomputes TDA. Remaining: validate the
-  full session-restore gate end-to-end (serialize -> restore -> VR scene intact).
+  Collaboration Gateway Security & Architecture Hardening:
+  server-authorized roles & structured credentials (escalation-resistant), anti-CSWSH Origin enforcement,
+  IP and peer rate limiting, room idle cleanup, strict runtime message schemas (`SignallingServerCore.ts`),
+  ephemeral `sessionStorage` credentials (`NetworkManager.ts`), CSP hardening (`index.html`), `/__signal`
+  URL query matching fix (`vite.config.js`), orphaned second WebGL context eliminated (`SceneGraphController.ts`),
+  and `IceVaultNode.ts` landmark wired with test coverage.
+- **Active sprint:** Atlas 6 — controlled experiment harness. Add study conditions, tasks, trials,
+  outcomes, counterbalancing, and frozen configuration. Human-performance claims require controlled
+  evidence; telemetry, unit tests, and benchmark utilities alone are not study evidence.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
   research-relevant transforms through the versioned Rust kernel (provenance envelope on every result);
   use battle-tested Rust crates; saved-session compatibility breaks (kernel carries `kernelVersion`).
@@ -262,10 +270,9 @@
   - **Auto-generation trigger:** `_discoverStructuresAndRecommend(operation)` fires after every
     `OPERATION_APPLIED` event — discovers cluster structures after cluster ops, mapper+persistence
     structures after TDA ops, then calls `generateRecommendation()` and marks the panel dirty.
-- **Next:** Atlas 5 — validate the session-restore gate end-to-end: serialize a session with
-  structures, research context, recommendations, observations, interventions, and spatial state,
-  restore it, and confirm the VR scene (artefact + operation transform + TDA + handles) rebuilds
-  without manual reconstruction. Then Atlas 6 (controlled experiment harness).
+- **Next:** Atlas 6 — controlled experiment harness: study conditions, tasks, trials, outcomes,
+  counterbalancing, and frozen configuration. Human-performance claims require controlled evidence;
+  telemetry, unit tests, and benchmark utilities alone are not study evidence.
 - **UX & Spatial 3D Assets ✅ (Blender MCP pipeline + 3D spatial UI housings):** Comprehensive review
   of VR UX completeness and coherence across panels, landmarks, and menus (`VRMenu` & `HandWheelMenu`).
   Created a suite of production-grade 3D WebXR assets via Blender 5.2 MCP (`SpatialPanelHousing.glb`,
@@ -1611,11 +1618,15 @@ CSV/JSON -> schema preview -> DatasetModel -> DatasetSpace -> structures
 6. **Atlas 5 — Research context and replay.** Extend session persistence with DatasetSpace,
    structures, research context, recommendation history, observations, interventions, and spatial
    state. Gate: a session can be restored from serialized state without manual reconstruction.
-   **Status:** foundations landed — `ResearchContext` (studyId/researchQuestion/hypothesis/
+   **Status:** complete ✅ — `ResearchContext` (studyId/researchQuestion/hypothesis/
    variablesOfInterest/observerMode) round-trips through the schemaVersion-2 JSON;
    `recordObservation`/`recordIntervention` populate the ledger's observation/intervention fields;
    restore path re-solves the artefact, re-applies the operation transform, recomputes TDA, and
-   rebuilds structure handles. Remaining: end-to-end restore-gate validation.
+   rebuilds structure handles. End-to-end gate validated in `tests/world.test.js`: a session seeded
+   with structures (cluster analysis + accepted recommendation), research context, observations,
+   interventions, and spatial state (camera + panel pose) restores into a FRESH World with the VR
+   scene (artefact nodeMeshes + structure-ID handles + TDA recompute) rebuilt with no manual
+   reconstruction; structures/decisions/ledger round-trip via the authoritative ledger.
 7. **Atlas 6 — Controlled experiment harness.** Add study conditions, tasks, trials, outcomes,
    counterbalancing, and frozen configuration. Gate: human-performance claims require controlled
    evidence; telemetry, unit tests, and benchmark utilities alone are not study evidence.

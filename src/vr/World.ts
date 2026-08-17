@@ -25,6 +25,8 @@ import {
   applyAnomaly,
   applySlice,
   resetTransforms,
+  isolateRowIndices,
+  resetVisibility,
 } from './interactions/DataOperations.ts';
 import { ControllerGestureMapper } from './interactions/ControllerGestureMapper.ts';
 import { WorldInputCoordinator } from './coordinators/WorldInputCoordinator.ts';
@@ -211,7 +213,12 @@ export class World {
     // subscribers on the same bus.
     this.eventBus = this.engine.eventBus;
 
-    this.sceneGraphController = new SceneGraphController();
+    this.sceneGraphController = new SceneGraphController({
+      renderer: this.engine.renderer,
+      scene: this.engine.scene,
+      camera: this.engine.camera,
+      cameraGroup: this.engine.cameraGroup,
+    });
     this.workspaceManager = new WorkspaceManager(this.engine.scene);
 
     // AtlasCore is the single analytical authority for the operation path
@@ -1116,11 +1123,7 @@ export class World {
 
   private _isolateStructures(rowIndices: number[]): void {
     if (!this.dracoNode?.artifact) return;
-    import('./interactions/DataOperations.ts').then(({ isolateRowIndices }) => {
-      if (this.dracoNode?.artifact) {
-        isolateRowIndices(this.dracoNode.artifact, rowIndices);
-      }
-    });
+    isolateRowIndices(this.dracoNode.artifact, rowIndices);
   }
 
   private _navigateToStructures(rowIndices: number[]): void {
@@ -1142,11 +1145,7 @@ export class World {
 
   private _resetEmbodiment(): void {
     if (!this.dracoNode?.artifact) return;
-    import('./interactions/DataOperations.ts').then(({ resetVisibility }) => {
-      if (this.dracoNode?.artifact) {
-        resetVisibility(this.dracoNode.artifact);
-      }
-    });
+    resetVisibility(this.dracoNode.artifact);
   }
 
   private _executeStructureCommand(structureId: string, action: string): void {
