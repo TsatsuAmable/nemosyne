@@ -66,6 +66,12 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
           callback: () => toggle(world.narrativeStrip),
         },
         {
+          id: 'recommendation',
+          label: 'Guidance',
+          icon: '🧭',
+          callback: () => toggle(world.recommendationPanel),
+        },
+        {
           id: 'recenter',
           label: 'Recenter',
           icon: '🎯',

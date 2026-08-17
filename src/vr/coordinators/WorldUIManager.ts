@@ -21,6 +21,7 @@ import { NarrativeStrip } from '../ui/NarrativeStrip.ts';
 import { MiniOverview } from '../ui/MiniOverview.ts';
 import { PeerPresenceHUD } from '../ui/PeerPresenceHUD.ts';
 import { LoadTestPanel } from '../ui/LoadTestPanel.ts';
+import { RecommendationPanel } from '../ui/RecommendationPanel.ts';
 import type { LoadTestDriver } from '../scalability/LoadTestDriver.ts';
 import type { Engine } from '../Engine.ts';
 import type { WorldEventBusLike } from './types.ts';
@@ -60,6 +61,7 @@ export class WorldUIManager {
   interactionCoach: PanelLike;
   narrativeStrip: PanelLike;
   loadTestPanel: LoadTestPanel;
+  recommendationPanel: RecommendationPanel;
 
   constructor(engine: Engine, analystAnchor: Group, eventBus: WorldEventBusLike, callbacks: WorldUIManagerCallbacks = {}) {
     this.engine = engine;
@@ -244,6 +246,18 @@ export class WorldUIManager {
     this.engine.input.addPanel(this.loadTestPanel);
     this.engine.addUpdatable(this.loadTestPanel);
     this.panelManager.hidePanel(this.loadTestPanel);
+
+    this.recommendationPanel = new RecommendationPanel(engine.cameraGroup, {
+      getRecommendation: () => callbacks.getRecommendation?.() ?? null,
+      onAccept: callbacks.onAcceptRecommendation,
+      onReject: callbacks.onRejectRecommendation,
+      onOverride: callbacks.onOverrideRecommendation,
+      onGenerate: callbacks.onGenerateRecommendation,
+    });
+    this.panelManager.register(this.recommendationPanel);
+    this.engine.input.addPanel(this.recommendationPanel);
+    this.engine.addUpdatable(this.recommendationPanel);
+    this.panelManager.hidePanel(this.recommendationPanel);
   }
 
   /**

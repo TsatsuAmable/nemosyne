@@ -39,6 +39,7 @@ import type {
   EvidenceStatus,
   RecommendationDecision,
   ResearchEvent,
+  VRCommand,
 } from './types.ts';
 import type {
   DracoDataInput,
@@ -50,6 +51,7 @@ import type {
 import { TopologyTypes } from '../types/topology.ts';
 import { mapClusterStructures, mapMapperStructures, mapPersistenceStructures } from './structures.ts';
 import type { StructureSet } from './structures.ts';
+import { generateGuidance } from './GuidanceEngine.ts';
 
 /**
  * Full kernel bridge surface. Extends the duck-typed coordinator subset with
@@ -466,10 +468,48 @@ export class AtlasCore {
     this._activeRecommendation = rec;
   }
 
+  generateRecommendation(): AtlasRecommendation | null {
+    const rec = generateGuidance(this._structures, this.kernelVersion() ?? 'unknown');
+    if (rec) {
+      this._activeRecommendation = rec;
+      this._appendRecommendationEvent('pending');
+    }
+    return rec;
+  }
+
   recordDecision(decision: RecommendationDecision): void {
     if (!this._activeRecommendation) return;
     this._activeRecommendation = { ...this._activeRecommendation, decision };
     this._decisionHistory.push(this._activeRecommendation);
+    this._appendRecommendationEvent(decision);
+  }
+
+  acceptRecommendation(): void {
+    this.recordDecision('accepted');
+  }
+
+  rejectRecommendation(): void {
+    this.recordDecision('rejected');
+  }
+
+  overrideRecommendation(): void {
+    this.recordDecision('overridden');
+  }
+
+  private _appendRecommendationEvent(decision: RecommendationDecision): void {
+    this._eventCounter += 1;
+    this._ledger.push({
+      eventId: `${this._sessionId}:${this._eventCounter}`,
+      sessionId: this._sessionId,
+      timestamp: now(),
+      kind: 'recommendation',
+      command: { op: 'recommendation' },
+      datasetVersion: this._datasetVersion,
+      datasetFingerprint: this.datasetFingerprint ?? '',
+      recommendationDecision: decision,
+      stateHash: this.datasetSpace?.fingerprint ?? '',
+    });
+    this._invalidateHistoryView();
   }
 
   // --- Analytical ops (SOLE kernel callers for the operation path) --------
@@ -992,6 +1032,22 @@ export class AtlasCore {
       if (outputHandle !== 0) kernel.destroyDataset(outputHandle);
       kernel.destroyDataset(inputHandle);
     }
+  }
+
+  recordEmbodimentCommand(command: VRCommand): void {
+    this._eventCounter += 1;
+    this._ledger.push({
+      eventId: `${this._sessionId}:${this._eventCounter}`,
+      sessionId: this._sessionId,
+      timestamp: now(),
+      kind: 'embodiment',
+      command: { op: 'embodiment' },
+      embodimentCommand: command,
+      datasetVersion: this._datasetVersion,
+      datasetFingerprint: this.datasetFingerprint ?? '',
+      stateHash: this.datasetSpace?.fingerprint ?? '',
+    });
+    this._invalidateHistoryView();
   }
 
   /** Rebuild the cached {@link analysisHistory} from the ledger on next access. */

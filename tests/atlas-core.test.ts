@@ -195,7 +195,7 @@ describe('AtlasCore', () => {
   it('recommendations are recorded against the decision history', () => {
     atlas.setRecommendation({
       targetIds: ['x'],
-      action: 'cluster',
+      action: 'inspect-cluster',
       rationale: 'r',
       evidence: 'e',
       confidence: 0.8,
@@ -292,5 +292,153 @@ describe('AtlasCore', () => {
 
     expect(restored.structures).toEqual([discovered]);
     expect(restored.ledger.at(-1)!.structureSet).toEqual(discovered);
+  });
+
+  it('generates guidance from cluster structures with evidence and provenance', () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 2 });
+
+    const rec = atlas.generateRecommendation();
+
+    expect(rec).not.toBeNull();
+    expect(rec!.action).toBe('inspect-cluster');
+    expect(rec!.decision).toBe('pending');
+    expect(rec!.evidenceItems!.length).toBeGreaterThanOrEqual(2);
+    expect(rec!.evidenceItems!.some((e) => e.source.includes('cluster'))).toBe(true);
+    expect(rec!.targetIds).toHaveLength(1);
+    expect(rec!.confidence).toBeGreaterThan(0);
+    expect(rec!.confidence).toBeLessThanOrEqual(1);
+  });
+
+  it('generates inspect-boundary guidance from persistence structures', () => {
+    kernel.computePersistenceIntervals = () => [
+      { birth: 0, death: 3 },
+      { birth: 1, death: 1.5 },
+    ];
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverPersistenceStructures(dataset, { maxDistance: 2 });
+
+    const rec = atlas.generateRecommendation();
+
+    expect(rec).not.toBeNull();
+    expect(rec!.action).toBe('inspect-boundary');
+    expect(rec!.evidenceItems!.some((e) => e.type === 'persistence-score')).toBe(true);
+  });
+
+  it('records accept/reject decisions as recommendation ledger events', () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 2 });
+    atlas.generateRecommendation();
+
+    atlas.acceptRecommendation();
+    expect(atlas.activeRecommendation!.decision).toBe('accepted');
+    expect(atlas.decisionHistory).toHaveLength(1);
+
+    const recEvents = atlas.ledger.filter((e) => e.kind === 'recommendation');
+    expect(recEvents).toHaveLength(2);
+    expect(recEvents[0].recommendationDecision).toBe('pending');
+    expect(recEvents[1].recommendationDecision).toBe('accepted');
+  });
+
+  it('round-trips recommendations through state save/restore', () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 2 });
+    atlas.generateRecommendation();
+    atlas.rejectRecommendation();
+
+    const state = atlas.toState();
+    const restored = new AtlasCore({ kernel: makeKernelMockBridge() });
+    restored.restoreState(state);
+
+    expect(restored.decisionHistory).toEqual(atlas.decisionHistory);
+    expect(restored.activeRecommendation).toEqual(atlas.activeRecommendation);
+    const recEvents = restored.ledger.filter((e) => e.kind === 'recommendation');
+    expect(recEvents).toHaveLength(2);
+  });
+
+  it('generates compare-regions guidance when two clusters have divergent sizes', () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 3 });
+
+    const rec = atlas.generateRecommendation();
+
+    expect(rec).not.toBeNull();
+    expect(rec!.action).toBe('compare-regions');
+    expect(rec!.targetIds).toHaveLength(2);
+    expect(rec!.evidenceItems!.some((e) => e.type === 'cluster-size-delta')).toBe(true);
+    expect(rec!.suggestedEmbodiment).toBe('split-view');
+  });
+
+  it('generates investigate-anomaly guidance for DBSCAN noise cluster', () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'dbscan', eps: 0.5, min_points: 2 });
+
+    const rec = atlas.generateRecommendation();
+
+    expect(rec).not.toBeNull();
+    expect(rec!.action).toBe('investigate-anomaly');
+    expect(rec!.evidenceItems!.some((e) => e.type === 'anomaly-score')).toBe(true);
+    expect(rec!.suggestedEmbodiment).toBe('outlier-orb');
+  });
+
+  it('maps suggestedEmbodiment to Draco soft-constraint reweighting', async () => {
+    const { applyEmbodimentHint } = await import('../src/draco/EmbodimentHints.ts');
+    const { ConstraintEngine } = await import('../src/draco/ConstraintEngine.ts');
+    const engine = new ConstraintEngine();
+    const ruleNames = engine.softConstraints.map((s) => s.name);
+    expect(ruleNames).toContain('prefer_orb_for_outliers');
+    expect(ruleNames).toContain('prefer_cluster_probe_for_large_datasets');
+    expect(ruleNames).toContain('prefer_fork_plane_for_tabular');
+  });
+
+  it('records embodiment commands in the ledger with targetIds', async () => {
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 2 });
+    atlas.generateRecommendation();
+    atlas.acceptRecommendation();
+
+    atlas.recordEmbodimentCommand({
+      action: 'inspect-cluster',
+      targetIds: atlas.activeRecommendation!.targetIds,
+      embodiment: 'highlight-cluster',
+      provenance: atlas.activeRecommendation!.provenance,
+    });
+
+    const embodimentEvents = atlas.ledger.filter((e) => e.kind === 'embodiment');
+    expect(embodimentEvents).toHaveLength(1);
+    expect(embodimentEvents[0].embodimentCommand).toBeTruthy();
+    expect(embodimentEvents[0].embodimentCommand!.targetIds).toEqual(
+      atlas.activeRecommendation!.targetIds,
+    );
+  });
+
+  it('VRCommandExecutor resolves targetIds to rowIndices and executes', async () => {
+    const { VRCommandExecutor } = await import('../src/vr/coordinators/VRCommandExecutor.ts');
+    const dataset = makeDataset();
+    atlas.loadDataset(dataset);
+    atlas.discoverClusterStructures(dataset, { op: 'k_means', k: 2 });
+    atlas.generateRecommendation();
+
+    let isolatedRows: number[] | null = null;
+    const executor = new VRCommandExecutor({
+      atlas,
+      onIsolate: (rows) => { isolatedRows = rows; },
+    });
+
+    const result = executor.executeFromRecommendation();
+    expect(result).toBe(false);
+
+    atlas.acceptRecommendation();
+    const result2 = executor.executeFromRecommendation();
+    expect(result2).toBe(true);
+    expect(isolatedRows).not.toBeNull();
+    expect(isolatedRows!.length).toBeGreaterThan(0);
   });
 });

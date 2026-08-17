@@ -86,7 +86,44 @@ export interface AnalysisResult {
 }
 
 /** Decision recorded against an {@link AtlasRecommendation}. */
-export type RecommendationDecision = 'accepted' | 'rejected' | 'overridden';
+export type RecommendationDecision = 'pending' | 'accepted' | 'rejected' | 'overridden';
+
+/**
+ * Typed analytical action vocabulary for {@link AtlasRecommendation}. Maps to
+ * the structure kinds produced by Atlas 2: clusters → `INSPECT_CLUSTER`,
+ * persistence boundaries → `INSPECT_BOUNDARY`, mapper regions → `EXPLORE_REGION`.
+ */
+export type AnalyticalAction =
+  | 'inspect-cluster'
+  | 'inspect-boundary'
+  | 'explore-region'
+  | 'compare-regions'
+  | 'investigate-anomaly';
+
+/**
+ * Structured evidence item linking a recommendation to a specific
+ * {@link DiscoveredStructure} and its measurable evidence value.
+ */
+export interface AnalyticalEvidence {
+  type: string;
+  value: number;
+  source: string;
+}
+
+/**
+ * Semantic VR embodiment command carrying analytical target IDs and
+ * provenance. Atlas 4: commands operate on analytical IDs (structure IDs)
+ * rather than mutating Three.js state directly. The executor resolves
+ * targetIds to rowIndices via {@link DiscoveredStructure} and applies
+ * embodiment actions through a single scoped artefact applier.
+ */
+export interface VRCommand {
+  action: AnalyticalAction;
+  targetIds: string[];
+  embodiment: string;
+  sourceRecommendationId?: string;
+  provenance?: Provenance | null;
+}
 
 /**
  * Recommender output tracked by AtlasCore. Decisions are recorded against the
@@ -94,17 +131,19 @@ export type RecommendationDecision = 'accepted' | 'rejected' | 'overridden';
  */
 export interface AtlasRecommendation {
   targetIds: string[];
-  action: string;
+  action: AnalyticalAction;
   rationale: string;
   evidence: string;
+  evidenceItems?: AnalyticalEvidence[];
   confidence: number;
   limitations?: string;
   suggestedEmbodiment?: string;
+  provenance?: Provenance | null;
   decision: RecommendationDecision;
 }
 
 /** Kind of a {@link ResearchEvent}. */
-export type ResearchEventKind = 'load' | 'analysis' | 'structure' | 'preview' | 'undo' | 'redo' | 'seek' | 'reset';
+export type ResearchEventKind = 'load' | 'analysis' | 'structure' | 'recommendation' | 'embodiment' | 'preview' | 'undo' | 'redo' | 'seek' | 'reset';
 
 /**
  * Ledger entry recording one state transition of the analytical session. Every
@@ -123,6 +162,7 @@ export interface ResearchEvent {
   command: AnalysisSpec | { op: ResearchEventKind; index?: number };
   result?: AnalysisResult;
   structureSet?: StructureSet;
+  embodimentCommand?: VRCommand;
   datasetVersion: number;
   datasetFingerprint: string;
   recommendationDecision?: RecommendationDecision;

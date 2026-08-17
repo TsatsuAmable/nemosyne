@@ -5,15 +5,14 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-17 — Atlas 2 structure discovery COMPLETE: Mapper, persistence, and
-  cluster structures now flow through a provenance-bearing, stable-ID `StructureSet` contract with
-  ledger-authority session persistence. Wave 6 merged via PR #130 on branch `rust-kernel-commitment`
-  (rebased clean onto `main`, squashing to `main` via PR once CI passes — auto-merge enabled). Wave 5
-  (Draco as pure embodiment consumer) + the statify rule-4 follow-up landed via PR #128; Wave 4
-  (AtlasCore + NemosyneSession) via PR #127; cross-tool model routing lives in local/gitignored
-  `.ai/model-routing/`.
-- **Active sprint:** Atlas 3 — guidance layer gated on reproducible structure outputs (now available
-  from Atlas 2). Rust/WASM remains the canonical analytical engine with no JS fallback.
+- **Last updated:** 2026-08-17 — Atlas 4 initial slice: `VRCommand` type + `VRCommandExecutor`
+  coordinator that resolves `targetIds` → `rowIndices` via `DiscoveredStructure`, executes
+  embodiment actions (isolate/navigate/inspect/compare/reset) with ledger-tracked provenance
+  (`'embodiment'` `ResearchEventKind`). Atlas 3 guidance layer complete. Atlas 2 structure
+  discovery complete. Wave 6 merged via PR #130. Wave 5 + statify via PR #128; Wave 4 via PR #127.
+- **Active sprint:** Atlas 4 — continue semantic VR embodiment: per-structure InPlaceHandles,
+  TDA panel structure-ID addressing, refactor `DataOperations.applyX` to accept rowIndices.
+  Rust/WASM remains the canonical analytical engine with no JS fallback.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
   research-relevant transforms through the versioned Rust kernel (provenance envelope on every result);
   use battle-tested Rust crates; saved-session compatibility breaks (kernel carries `kernelVersion`).
@@ -226,9 +225,42 @@
   in its own key/store, small mutable analysis-cursor + presentation state separate; store dataset bytes as
   Arrow/typed arrays via structured clone; call `storage.persist()` + `.estimate()`; consider OPFS for the large
   immutable dataset-bytes tier. Aligns with post-Wave-4 AtlasCore/DatasetSpace; not touched during Wave 5.
-- **Next:** Atlas 3 — build the guidance layer on top of reproducible structure outputs (Mapper,
-  persistence, cluster `StructureSet`s now available from Atlas 2). Then gate Atlas 4 on validated
-  guidance.
+- **Atlas 3 initial slice ✅ (guidance layer):** `GuidanceEngine` (`src/atlas/GuidanceEngine.ts`)
+  consumes `StructureSet` outputs and produces `AtlasRecommendation`s with:
+  - Typed `AnalyticalAction` enum (`inspect-cluster`, `inspect-boundary`, `explore-region`,
+    `compare-regions`, `investigate-anomaly`) replacing free-form `action: string`.
+  - Structured `AnalyticalEvidence[]` (`{ type, value, source }`) referencing `DiscoveredStructure.id`s,
+    replacing the single `evidence: string` summary (kept for backwards compat).
+  - Propagated `provenance` from `StructureSet` into the recommendation.
+  - `'pending'` decision state so freshly-generated recs don't need a fabricated decision.
+  - `AtlasCore.generateRecommendation()` runs the engine over `this._structures`; convenience methods
+    `acceptRecommendation()` / `rejectRecommendation()` / `overrideRecommendation()` record decisions.
+  - Every recommendation decision appends a `'recommendation'` `ResearchEvent` with
+    `recommendationDecision` populated — closing the audit-trail gap where `recordDecision` previously
+    didn't touch the ledger.
+  - Session serialization round-trips recommendations transparently via existing `AtlasCoreState`.
+  Focused tests: cluster→`inspect-cluster`, persistence→`inspect-boundary`, ledger event verification,
+  state restore round-trip, compare-regions dual-target, investigate-anomaly for DBSCAN noise,
+  embodiment hint rule mapping.
+- **Atlas 3 ✅ (guidance layer — complete):** All three guidance surfaces built and wired:
+  - **Multi-structure rules:** `detectComparison` flags divergent cluster sizes (>15% relative gap)
+    as `compare-regions` with dual `targetIds`; `detectAnomaly` flags DBSCAN noise (label -1) and
+    low-persistence features as `investigate-anomaly`. Priority: anomaly → comparison → single-structure.
+  - **VR UI:** `RecommendationPanel` (`src/vr/ui/RecommendationPanel.ts`) extends `MovablePanel`,
+    renders action/rationale/evidence/confidence-bar/limitations/suggestedEmbodiment, with
+    Accept/Reject/Override buttons (UV hit-test pattern). Wired into `WorldUIManager` (construct/
+    register/hide), `World.ts` (facade + callbacks), `WheelMenuBuilder` (Guidance toggle).
+  - **Draco embodiment wiring:** `EmbodimentHints.ts` maps `suggestedEmbodiment` → Draco
+    soft-constraint reweighting (weight=100): `highlight-cluster`→cluster_volume+cluster_probe,
+    `outlier-orb`→orb_for_outliers, `split-view`→fork_plane_for_tabular, etc. Triggered on
+    `_acceptRecommendation()` via dynamic import (lazy-loaded chunk); `dracoNode.reSolveAndSynthesize()`
+    rebuilds the VR artifact with biased constraints.
+  - **Auto-generation trigger:** `_discoverStructuresAndRecommend(operation)` fires after every
+    `OPERATION_APPLIED` event — discovers cluster structures after cluster ops, mapper+persistence
+    structures after TDA ops, then calls `generateRecommendation()` and marks the panel dirty.
+- **Next:** Atlas 4 — continue semantic VR embodiment: per-structure InPlaceHandles, TDA panel
+  structure-ID addressing, refactor `DataOperations.applyX` to accept `rowIndices` instead of
+  full datasets. Then gate Atlas 5 on validated embodiment commands.
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files

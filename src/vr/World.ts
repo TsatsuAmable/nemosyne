@@ -151,6 +151,7 @@ export class World {
   peerPresenceHUD: PeerPresenceHUD;
   loadTestDriver!: LoadTestDriver;
   loadTestPanel!: LoadTestPanel;
+  recommendationPanel!: import('./ui/RecommendationPanel.ts').RecommendationPanel;
   inputCoordinator: WorldInputCoordinator;
   userModeController: UserModeController;
   comfortSettingsController: ComfortSettingsController;
@@ -295,10 +296,15 @@ export class World {
       telemetryCollector: this.telemetryCollector,
       analysisHistory: this.dataOperationController.analysisHistory,
       loadTestDriver: this.loadTestDriver,
-      onStartLoadTest: (profile) => this.runLoadTest(profile),
-      onStopLoadTest: () => this.stopLoadTest(),
-      onFlushLoadTest: () => this.flushLastLoadTestSummary(),
-    });
+       onStartLoadTest: (profile) => this.runLoadTest(profile),
+       onStopLoadTest: () => this.stopLoadTest(),
+       onFlushLoadTest: () => this.flushLastLoadTestSummary(),
+       getRecommendation: () => this.atlas.activeRecommendation ?? null,
+       onAcceptRecommendation: () => this._acceptRecommendation(),
+       onRejectRecommendation: () => this._rejectRecommendation(),
+       onOverrideRecommendation: () => this._overrideRecommendation(),
+       onGenerateRecommendation: () => this._generateRecommendation(),
+     });
 
     // Legacy facade properties: tests and internal code access panels through
     // `world.*` directly.
@@ -318,6 +324,7 @@ export class World {
     this.miniOverview = this.uiManager.miniOverview;
     this.peerPresenceHUD = this.uiManager.peerPresenceHUD;
     this.loadTestPanel = this.uiManager.loadTestPanel;
+    this.recommendationPanel = this.uiManager.recommendationPanel;
 
     // Input coordinator owns gesture recognition, context-aware suppression, and
     // the mapping from gestures/commands to world actions.
@@ -1049,6 +1056,118 @@ export class World {
     this.uiManager?.panelManager?.togglePanel?.(this.loadTestPanel);
   }
 
+  _toggleRecommendationPanel(): void {
+    this.uiManager?.panelManager?.togglePanel?.(this.recommendationPanel);
+  }
+
+  _generateRecommendation(): void {
+    this.atlas.generateRecommendation();
+    this.recommendationPanel?.markDirty?.();
+  }
+
+  _acceptRecommendation(): void {
+    this.atlas.acceptRecommendation();
+    this._applyEmbodimentHint();
+    this._executeVRCommand();
+    this.recommendationPanel?.markDirty?.();
+  }
+
+  _rejectRecommendation(): void {
+    this.atlas.rejectRecommendation();
+    this.recommendationPanel?.markDirty?.();
+  }
+
+  _overrideRecommendation(): void {
+    this.atlas.overrideRecommendation();
+    this.recommendationPanel?.markDirty?.();
+  }
+
+  private _applyEmbodimentHint(): void {
+    const rec = this.atlas.activeRecommendation;
+    if (!rec?.suggestedEmbodiment || !this.dracoNode) return;
+    import('./../draco/EmbodimentHints.ts').then(({ applyEmbodimentHint }) => {
+      if (this.dracoNode) {
+        applyEmbodimentHint(this.dracoNode, rec.suggestedEmbodiment!);
+      }
+    });
+  }
+
+  private _executeVRCommand(): void {
+    const rec = this.atlas.activeRecommendation;
+    if (!rec || rec.decision !== 'accepted') return;
+    import('./coordinators/VRCommandExecutor.ts').then(({ VRCommandExecutor }) => {
+      const executor = new VRCommandExecutor({
+        atlas: this.atlas,
+        onIsolate: (rowIndices) => this._isolateStructures(rowIndices),
+        onNavigate: (rowIndices) => this._navigateToStructures(rowIndices),
+        onReset: () => this._resetEmbodiment(),
+      });
+      executor.executeFromRecommendation();
+    });
+  }
+
+  private _isolateStructures(rowIndices: number[]): void {
+    if (!this.dracoNode?.artifact?.nodeMeshes) return;
+    const rowSet = new Set(rowIndices);
+    for (const mesh of this.dracoNode.artifact.nodeMeshes) {
+      const row = mesh.userData?.row;
+      if (row) {
+        const rowIdx = this.atlas.dataset.rows.indexOf(row);
+        mesh.visible = rowSet.has(rowIdx);
+      }
+    }
+  }
+
+  private _navigateToStructures(rowIndices: number[]): void {
+    if (!this.dracoNode?.artifact?.nodeMeshes || rowIndices.length === 0) return;
+    let cx = 0, cy = 0, cz = 0, count = 0;
+    for (const mesh of this.dracoNode.artifact.nodeMeshes) {
+      const row = mesh.userData?.row;
+      if (row) {
+        const rowIdx = this.atlas.dataset.rows.indexOf(row);
+        if (rowIndices.includes(rowIdx)) {
+          cx += mesh.position.x;
+          cy += mesh.position.y;
+          cz += mesh.position.z;
+          count++;
+        }
+      }
+    }
+    if (count > 0) {
+      this.engine.cameraGroup.position.set(cx / count, cy / count + 0.5, cz / count + 1.5);
+    }
+  }
+
+  private _resetEmbodiment(): void {
+    if (!this.dracoNode?.artifact?.nodeMeshes) return;
+    for (const mesh of this.dracoNode.artifact.nodeMeshes) {
+      mesh.visible = true;
+    }
+  }
+
+  private _discoverStructuresAndRecommend(operation: string): void {
+    if (!this.atlas.isReady()) return;
+    const dataset = this._transformedDataset ?? this.atlas.dataset;
+    if (!dataset || dataset.rowCount === 0) return;
+
+    if (operation === 'cluster' || operation === 'hierarchical' || operation === 'density') {
+      const opMap: Record<string, string> = {
+        cluster: 'k_means',
+        hierarchical: 'hierarchical',
+        density: 'dbscan',
+      };
+      const opName = opMap[operation] ?? 'k_means';
+      this.atlas.discoverClusterStructures(dataset, { op: opName, k: 3 } as never);
+    } else if (this.tdaRecompute) {
+      const filterValues = dataset.rows.map((r) => Number(r[dataset.columns[0]?.name] ?? 0));
+      this.atlas.discoverMapperStructures(dataset, { featureColumns: [dataset.columns[0]?.name].filter(Boolean), filterValues, bins: 10, overlap: 0.5 });
+      this.atlas.discoverPersistenceStructures(dataset, { featureColumns: [dataset.columns[0]?.name].filter(Boolean), filterValues, maxDistance: 2 });
+    }
+
+    this.atlas.generateRecommendation();
+    this.recommendationPanel?.markDirty?.();
+  }
+
   _togglePeerPresenceHUD(): void {
     const next = !this.peerPresenceHUD.mesh.visible;
     this.peerPresenceHUD.setEnabled(next);
@@ -1465,6 +1584,7 @@ export class World {
         }
         this._updateDashboardDatasets(this._transformedDataset);
         if (this.tdaRecompute && operation !== 'anomaly') this.tdaRecompute();
+        this._discoverStructuresAndRecommend(operation);
         this._updateOperationLog();
         this._updateNarrativeStrip();
         this.vrConsole?.log?.('log', [`Operation: ${operation} → ${rowCount} rows`]);
