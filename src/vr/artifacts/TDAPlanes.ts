@@ -11,7 +11,7 @@
 
 import * as THREE from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
-import type { WasmRuntimeBridge } from '../coordinators/types.ts';
+import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 
 const DEFAULT_WIDTH = 1024;
 const DEFAULT_HEIGHT = 768;
@@ -330,17 +330,17 @@ export interface TDASummaryGroup {
 }
 
 /**
- * Convenience: build a group of TDA summary panels. When a `bridge` is supplied
- * and the kernel is ready, `recompute()` loads the dataset into the kernel and
- * computes persistence / mapper / betti0 via Rust. With no bridge, `recompute()`
- * is a no-op and the panels stay blank — this is the mandatory-kernel
- * unavailable state, NOT a JS analytical fallback.
+ * Convenience: build a group of TDA summary panels. When an `atlas` is supplied
+ * and the kernel is ready, `recompute()` routes persistence / mapper / betti0
+ * through AtlasCore (the single production kernel caller). With no atlas,
+ * `recompute()` is a no-op and the panels stay blank — this is the
+ * mandatory-kernel unavailable state, NOT a JS analytical fallback.
  */
 export function buildTDASummaryGroup(
   dataset: Dataset,
   featureColumns: string[],
   filterColumn: string,
-  bridge?: WasmRuntimeBridge
+  atlas?: AtlasCore | null
 ): TDASummaryGroup {
   const group = new THREE.Group();
   group.name = 'tda-summary-group';
@@ -361,35 +361,29 @@ export function buildTDASummaryGroup(
   group.add(betti.mesh);
 
   function recompute(): void {
-    if (!bridge || !bridge.isReady()) return;
-    const handle = bridge.loadDatasetJson(dataset.toJSON());
-    if (!handle) return;
-    try {
-      const filterValues = dataset.rows.map((r) => Number(r[filterColumn]) || 0);
-      persistence.update(
-        (bridge.computePersistenceIntervals(handle, { featureColumns, filterValues }) ?? []).map(
-          (i) => ({ birth: i.birth, death: i.death ?? null })
-        )
-      );
-      const g = bridge.computeMapperGraph(handle, {
-        featureColumns,
-        filterValues,
-        bins: 10,
-        overlap: 0.5,
-      });
-      const graph: MapperGraph = {
-        nodes: (g?.nodes ?? []).map((n) => ({
-          id: n.id,
-          filterCenter: n.filterCenter,
-          size: n.size,
-        })),
-        edges: (g?.edges ?? []) as [unknown, unknown][],
-      };
-      mapperPanel.update(graph);
-      betti.update(bridge.computeBetti0Curve(handle, { featureColumns, steps: 12 }) ?? []);
-    } finally {
-      bridge.destroyDataset(handle);
-    }
+    if (!atlas || !atlas.isReady()) return;
+    const filterValues = dataset.rows.map((r) => Number(r[filterColumn]) || 0);
+    persistence.update(
+      (atlas.computePersistenceIntervals(dataset, { featureColumns, filterValues }) ?? []).map(
+        (i) => ({ birth: i.birth, death: i.death ?? null })
+      )
+    );
+    const g = atlas.computeMapperGraph(dataset, {
+      featureColumns,
+      filterValues,
+      bins: 10,
+      overlap: 0.5,
+    });
+    const graph: MapperGraph = {
+      nodes: (g?.nodes ?? []).map((n) => ({
+        id: n.id,
+        filterCenter: n.filterCenter,
+        size: n.size,
+      })),
+      edges: (g?.edges ?? []) as [unknown, unknown][],
+    };
+    mapperPanel.update(graph);
+    betti.update(atlas.computeBetti0Curve(dataset, { featureColumns, steps: 12 }) ?? []);
   }
 
   return { group, persistence, mapper: mapperPanel, betti, recompute };

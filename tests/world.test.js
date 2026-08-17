@@ -15,9 +15,9 @@ import { makeKernelMockBridge } from './helpers/kernelMock.js';
 // plain jsdom; analytical parity is covered by Rust tests + wasm-runtime.test.ts.
 function wireKernel(w) {
   const bridge = makeKernelMockBridge();
-  // Wave 4: AtlasCore is the analytical authority; bind the kernel there.
+  // Wave 4/6: AtlasCore is the analytical authority; bind the kernel there.
+  // FileLoader/TDA/sample-load all reach the kernel through AtlasCore.
   w.atlas?.setKernel?.(bridge, 0x3c07);
-  w.loader?.setWasmRuntime?.(bridge, 0x3c07);
   w._wasmRuntime = bridge;
   w._wasmUnavailable = false;
 }

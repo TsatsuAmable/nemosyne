@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { AtlasCore } from '../src/atlas/AtlasCore.ts';
+import { makeKernelMockBridge } from './helpers/kernelMock.js';
 import {
   buildPersistencePlane,
   buildMapperPlane,
@@ -71,5 +73,32 @@ describe('TDAPlanes', () => {
     expect(tda.mapper).toHaveProperty('update');
     expect(tda.betti).toHaveProperty('update');
     expect(() => tda.recompute()).not.toThrow();
+  });
+
+  it('recomputes TDA through AtlasCore when a kernel is wired (Wave 6 routing)', () => {
+    const ds = makeDataset([
+      { x: 0, y: 0 },
+      { x: 1, y: 1 },
+    ]);
+    const atlas = new AtlasCore({ kernel: makeKernelMockBridge() });
+    const persistenceSpy = vi.spyOn(atlas, 'computePersistenceIntervals');
+    const mapperSpy = vi.spyOn(atlas, 'computeMapperGraph');
+    const bettiSpy = vi.spyOn(atlas, 'computeBetti0Curve');
+
+    const tda = buildTDASummaryGroup(ds, ['x', 'y'], 'x', atlas);
+    expect(() => tda.recompute()).not.toThrow();
+
+    expect(persistenceSpy).toHaveBeenCalledWith(
+      ds,
+      expect.objectContaining({ featureColumns: ['x', 'y'] })
+    );
+    expect(mapperSpy).toHaveBeenCalledWith(
+      ds,
+      expect.objectContaining({ featureColumns: ['x', 'y'], bins: 10, overlap: 0.5 })
+    );
+    expect(bettiSpy).toHaveBeenCalledWith(
+      ds,
+      expect.objectContaining({ featureColumns: ['x', 'y'], steps: 12 })
+    );
   });
 });

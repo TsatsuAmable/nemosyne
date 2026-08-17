@@ -3,6 +3,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FileLoaderUI } from '../src/ui/FileLoader.ts';
+import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.js';
 
 const CSV_CONTENT = `value,category
@@ -21,10 +22,11 @@ describe('FileLoaderUI', () => {
 
   beforeEach(() => {
     onLoad = vi.fn();
-    // Wave 2: the analytical kernel is the only parse/topology/encoding path.
-    // Wire a mock kernel so the loader runs in plain jsdom; parse parity is
-    // covered by Rust tests + wasm-runtime.test.ts.
-    loader = new FileLoaderUI({ onLoad, wasmRuntime: makeKernelMockBridge() });
+    // Wave 6: the analytical kernel is the only parse/topology/encoding path,
+    // reached through AtlasCore (the single production kernel caller). Wire a
+    // mock-kernel-backed AtlasCore so the loader runs in plain jsdom; parse
+    // parity is covered by Rust tests + wasm-runtime.test.ts.
+    loader = new FileLoaderUI({ onLoad, atlas: new AtlasCore({ kernel: makeKernelMockBridge() }) });
   });
 
   afterEach(() => {

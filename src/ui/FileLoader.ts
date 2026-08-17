@@ -1,6 +1,6 @@
 import { validateImport, formatValidationResult } from '../data/ImportError.ts';
 import { Dataset } from '../data/Dataset.ts';
-import type { ColumnSchema, DatasetJSON, EncodingMapping, TopologyType } from '../data/types.ts';
+import type { ColumnSchema, TopologyType } from '../data/types.ts';
 import {
   allSampleDatasets,
   getSampleDataset,
@@ -8,6 +8,7 @@ import {
   type SampleDatasetEntry,
 } from '../data/SampleDatasets.ts';
 import { TopologyTypes } from '../draco/ConstraintEngine.ts';
+import type { AtlasCore } from '../atlas/AtlasCore.ts';
 
 /**
  * DOM-based file loader and dataset selector.
@@ -31,52 +32,28 @@ export interface FileLoaderLoadEvent {
 }
 
 /**
- * Slice of the WASM runtime the loader uses. The analytical kernel is the ONLY
- * parse/topology/encoding path; `wasmCapabilities` is kept for telemetry but
- * is never used to route between implementations.
+ * Wave 6: the analytical kernel is the ONLY parse/topology/encoding path and
+ * is reached through {@link AtlasCore} (the single production caller). There
+ * is no JS fallback and no capability routing.
  */
-export interface WasmRuntimeBridge {
-  isReady(): boolean;
-  capabilities?: () => number;
-  loadCsv(bytes: Uint8Array): number;
-  loadJson(bytes: Uint8Array): number;
-  getDatasetJson(handle: number): DatasetJSON | null;
-  destroyDataset(handle: number): void;
-  inferTopology(handle: number): string | null;
-  inferEncodings(handle: number, topology?: string): EncodingMapping | null;
-  parseDatasetBytes?(bytes: Uint8Array, ext: 'csv' | 'json'): DatasetJSON | null;
-}
-
 export interface FileLoaderOptions {
   onLoad: (entry: FileLoaderLoadEvent) => void;
-  wasmRuntime?: WasmRuntimeBridge | null;
-  wasmCapabilities?: number;
+  atlas?: AtlasCore | null;
 }
 
 export class FileLoaderUI {
   onLoad: (entry: FileLoaderLoadEvent) => void;
-  wasmRuntime: WasmRuntimeBridge | null;
-  wasmCapabilities: number;
+  atlas: AtlasCore | null;
   container: HTMLDivElement;
   statusEl!: HTMLDivElement;
   schemaEl!: HTMLDivElement;
   topologySelect!: HTMLSelectElement;
 
-  constructor({ onLoad, wasmRuntime, wasmCapabilities = 0 }: FileLoaderOptions) {
+  constructor({ onLoad, atlas }: FileLoaderOptions) {
     this.onLoad = onLoad;
-    this.wasmRuntime = wasmRuntime ?? null;
-    this.wasmCapabilities = wasmCapabilities;
+    this.atlas = atlas ?? null;
     this.container = this._buildUI();
     document.body.appendChild(this.container);
-  }
-
-  /**
-   * Swap the WASM runtime reference after the runtime has been initialised.
-   * This is called by World when the Rust data layer becomes available.
-   */
-  setWasmRuntime(wasmRuntime: WasmRuntimeBridge | null, wasmCapabilities: number = 0): void {
-    this.wasmRuntime = wasmRuntime;
-    this.wasmCapabilities = wasmCapabilities;
   }
 
   private _buildUI(): HTMLDivElement {
@@ -260,45 +237,30 @@ export class FileLoaderUI {
   }
 
   /**
-   * Parse file bytes through the mandatory Rust kernel and derive topology +
-   * encodings from the kernel before releasing the dataset handle. There is no
-   * JS parse/topology/encoding fallback: if the kernel is unavailable this
-   * throws and the caller surfaces the error.
+   * Parse file bytes through the mandatory kernel (via AtlasCore) and derive
+   * topology + encodings before releasing the transient handle. There is no JS
+   * parse/topology/encoding fallback: if the kernel is unavailable this throws
+   * and the caller surfaces the error.
    */
   private _parseViaKernel(
     bytes: Uint8Array,
     ext: string,
     name: string
   ): { dataset: Dataset; topology: TopologyType; encodings: Record<string, string> } {
-    const bridge = this.wasmRuntime;
-    if (!bridge || typeof bridge.isReady !== 'function' || !bridge.isReady()) {
+    if (!this.atlas) {
       throw new Error('Analytical kernel unavailable — cannot parse file');
     }
     if (ext !== 'csv' && ext !== 'json') {
       throw new Error('Unsupported file type; use .csv or .json');
     }
-    const handle = ext === 'csv' ? bridge.loadCsv(bytes) : bridge.loadJson(bytes);
-    if (handle === 0) {
-      throw new Error('Kernel parser rejected the file');
-    }
-    try {
-      const json = bridge.getDatasetJson(handle);
-      if (!json) {
-        throw new Error('Kernel parser produced no dataset');
-      }
-      const explicitTopology = (this.topologySelect.value as TopologyType) || null;
-      const topology =
-        (explicitTopology as TopologyType) ??
-        (bridge.inferTopology(handle) as TopologyType | null) ??
-        ('TABULAR' as TopologyType);
-      const enc = bridge.inferEncodings(handle, topology as string);
-      const encodings = (enc ?? {}) as unknown as Record<string, string>;
-      const dataset = Dataset.fromJSON(json);
-      dataset.name = name;
-      return { dataset, topology, encodings };
-    } finally {
-      bridge.destroyDataset(handle);
-    }
+    const explicitTopology = (this.topologySelect.value as TopologyType) || null;
+    const { dataset, topology, encodings } = this.atlas.parseBytes(
+      bytes,
+      ext as 'csv' | 'json',
+      explicitTopology
+    );
+    dataset.name = name;
+    return { dataset, topology, encodings };
   }
 
   private _renderSchema(
