@@ -46,11 +46,16 @@ export interface RoomRegistryOptions {
   roomIdleTimeoutMs?: number;
   allowedOrigins?: string[] | ((origin: string) => boolean);
   /**
-   * Optional shared secret or validator required to join a room.
+   * Optional shared secret or validator required to join a room as participant.
    * When set (non-empty), a peer must supply a matching `token` to `handleConnection`;
    * a mismatch is rejected with close code 4001. Comparison is constant-time.
    */
   authToken?: string;
+  /**
+   * Optional shared secret required to join a room strictly as an observer.
+   * When supplied, server strictly locks the peer role to 'observer' preventing escalation.
+   */
+  observerAuthToken?: string;
   /**
    * Optional token authorizer function to decode and validate short-lived,
    * room-scoped tokens or JWTs.
@@ -179,6 +184,7 @@ export function createRoomRegistry({
   roomIdleTimeoutMs = DEFAULT_ROOM_IDLE_TIMEOUT_MS,
   allowedOrigins,
   authToken = '',
+  observerAuthToken = '',
   tokenValidator,
   allowOpenNoToken = true,
 }: RoomRegistryOptions = {}): RoomRegistry {
@@ -271,11 +277,11 @@ export function createRoomRegistry({
       return { authorized: true, role };
     }
 
-    if (authToken) {
+    if (authToken || observerAuthToken) {
       if (typeof token !== 'string') {
         return { authorized: false, role: 'observer', closeCode: 4001, reason: 'token required' };
       }
-      // Check structured claims if provided
+      // 1. Check structured claims if provided
       const claims = parseTokenClaims(token);
       if (claims) {
         if (claims.exp && typeof claims.exp === 'number' && Date.now() > claims.exp) {
@@ -288,10 +294,26 @@ export function createRoomRegistry({
         return { authorized: true, role: serverRole };
       }
 
-      if (!timingSafeEqualString(token, authToken)) {
-        return { authorized: false, role: 'observer', closeCode: 4001, reason: 'invalid token' };
+      // 2. Check dedicated observer secret
+      if (observerAuthToken && timingSafeEqualString(token, observerAuthToken)) {
+        return { authorized: true, role: 'observer' };
       }
-      return { authorized: true, role: requestedRole };
+
+      // 3. Check scoped token format: "secret:observer" or "secret:participant"
+      if (token.includes(':') && authToken) {
+        const [secretPart, rolePart] = token.split(':');
+        if (timingSafeEqualString(secretPart, authToken)) {
+          const enforcedRole: NetworkRole = rolePart === 'observer' ? 'observer' : 'participant';
+          return { authorized: true, role: enforcedRole };
+        }
+      }
+
+      // 4. Standard participant secret
+      if (authToken && timingSafeEqualString(token, authToken)) {
+        return { authorized: true, role: requestedRole === 'observer' ? 'observer' : 'participant' };
+      }
+
+      return { authorized: false, role: 'observer', closeCode: 4001, reason: 'invalid token' };
     }
 
     if (!allowOpenNoToken) {

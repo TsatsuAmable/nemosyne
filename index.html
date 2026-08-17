@@ -1,80 +1,69 @@
 <!DOCTYPE html>
 <html lang="en">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' wss: ws: https: blob: data:; worker-src 'self' blob:; child-src 'self' blob:; object-src 'none';" />
-  <title>Nemosyne Spatial Data Analysis Suite</title>
-  <style>
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #000;
-      font-family: 'Courier New', Courier, monospace;
-    }
-
-    #overlay {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      color: #00ffcc;
-      text-shadow: 0 0 6px #00ffcc;
-      z-index: 100;
-      pointer-events: none;
-      user-select: none;
-    }
-
-    #overlay h1 {
-      margin: 0 0 0.25rem;
-      font-size: 1.25rem;
-      letter-spacing: 0.1em;
-    }
-
-    #overlay p {
-      margin: 0;
-      font-size: 0.85rem;
-      color: #88ccff;
-    }
-
-    #overlay .about {
-      margin-top: 0.5rem;
-      font-size: 0.75rem;
-      color: #ff77aa;
-      max-width: 420px;
-      line-height: 1.4;
-    }
-
-    #overlay a {
-      color: #00ffcc;
-      text-decoration: underline;
-      pointer-events: auto;
-    }
-
-    #telemetry {
-      position: absolute;
-      bottom: 20px;
-      left: 20px;
-      color: #00ffcc;
-      font-size: 0.75rem;
-      z-index: 100;
-      pointer-events: none;
-      user-select: none;
-    }
-
-    canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 1;
-    }
-  </style>
-  <script type="importmap">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nemosyne Spatial Data Analysis Suite</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+        font-family: 'Courier New', Courier, monospace;
+      }
+      #overlay {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        color: #00ffcc;
+        text-shadow: 0 0 6px #00ffcc;
+        z-index: 100;
+        pointer-events: none;
+        user-select: none;
+      }
+      #overlay h1 {
+        margin: 0 0 0.25rem;
+        font-size: 1.25rem;
+        letter-spacing: 0.1em;
+      }
+      #overlay p {
+        margin: 0;
+        font-size: 0.85rem;
+        color: #88ccff;
+      }
+      #overlay .about {
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: #ff77aa;
+        max-width: 420px;
+        line-height: 1.4;
+      }
+      #overlay a {
+        color: #00ffcc;
+        text-decoration: underline;
+        pointer-events: auto;
+      }
+      #telemetry {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        color: #00ffcc;
+        font-size: 0.75rem;
+        z-index: 100;
+        pointer-events: none;
+        user-select: none;
+      }
+      canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+      }
+    </style>
+    <script type="importmap">
       {
         "imports": {
           "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
@@ -82,14 +71,12 @@
         }
       }
     </script>
-</head>
-
-<body>
-  <div id="overlay">
-    <h1>NEMOSYNE // SPATIAL DATA SUITE</h1>
-  </div>
-  <div id="telemetry">initializing…</div>
-  <script type="module" src="./src/main.ts"></script>
-</body>
-
+  </head>
+  <body>
+    <div id="overlay">
+      <h1>NEMOSYNE // SPATIAL DATA SUITE</h1>
+    </div>
+    <div id="telemetry">initializing…</div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
 </html>

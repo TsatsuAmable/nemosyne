@@ -9,6 +9,7 @@ import { DatumPlane } from '../artifacts/DatumPlane.ts';
 import { TechnoCoreNode } from '../artifacts/TechnoCoreNode.ts';
 import { FarcasterPortal } from '../artifacts/FarcasterPortal.ts';
 import { HolographicInspector } from '../artifacts/HolographicInspector.ts';
+import { IceVaultNode } from '../artifacts/IceVaultNode.ts';
 import { WorldTheme } from '../WorldTheme.ts';
 import type { Engine } from '../Engine.ts';
 import type { WorldSceneComposerCallbacks } from './types.ts';
@@ -18,6 +19,7 @@ export class WorldSceneComposer {
   analystAnchor: THREE.Group;
   datum: DatumPlane;
   core: TechnoCoreNode;
+  iceVault: IceVaultNode;
   inspector: HolographicInspector;
   portalA: FarcasterPortal;
   portalB: FarcasterPortal;
@@ -55,6 +57,16 @@ export class WorldSceneComposer {
     this.core = new TechnoCoreNode({ position: [7, 4, -10], scale: 1.2 });
     this.engine.scene.add(this.core.group);
     this.engine.addUpdatable(this.core);
+
+    // Ice Vault landmark: Gibson-style data security / cold storage archive
+    this.iceVault = new IceVaultNode({
+      position: [2.5, 1.6, -2],
+      color: 0x00e5ff,
+      emissive: 0x003344,
+      scale: 0.9,
+    });
+    this.engine.scene.add(this.iceVault.group);
+    this.engine.addUpdatable(this.iceVault);
 
     // Holographic data inspector.
     this.inspector = new HolographicInspector(this.engine);
@@ -128,5 +140,14 @@ export class WorldSceneComposer {
    */
   setPanelDistance(distance: number): void {
     this.panelDistance = distance;
+  }
+
+  dispose(): void {
+    this.iceVault?.dispose();
+    if (this.datum?.mesh) this.engine.scene.remove(this.datum.mesh);
+    if (this.core?.group) this.engine.scene.remove(this.core.group);
+    if (this.iceVault?.group) this.engine.scene.remove(this.iceVault.group);
+    if (this.portalA?.group) this.engine.scene.remove(this.portalA.group);
+    if (this.portalB?.group) this.engine.scene.remove(this.portalB.group);
   }
 }

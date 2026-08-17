@@ -18,6 +18,8 @@ const portArg = args.find((a) => a.startsWith('--port='));
 const PORT = portArg ? parseInt(portArg.split('=')[1], 10) : 5173;
 const tokenArg = args.find((a) => a.startsWith('--token='));
 const AUTH_TOKEN = tokenArg ? tokenArg.split('=')[1] : (process.env.NEMOSYNE_SIGNAL_TOKEN || '');
+const observerTokenArg = args.find((a) => a.startsWith('--observer-token='));
+const OBSERVER_TOKEN = observerTokenArg ? observerTokenArg.split('=')[1] : (process.env.NEMOSYNE_OBSERVER_TOKEN || '');
 // Open (no-token) mode is opt-in for the standalone server so an operator who
 // forgets to set NEMOSYNE_SIGNAL_TOKEN doesn't accidentally run an open relay.
 // Set NEMOSYNE_SIGNAL_ALLOW_OPEN=1 (or pass --allow-open) for frictionless local dev.
@@ -25,7 +27,11 @@ const allowOpenArg = args.find((a) => a.startsWith('--allow-open'));
 const ALLOW_OPEN =
   allowOpenArg !== undefined || process.env.NEMOSYNE_SIGNAL_ALLOW_OPEN === '1';
 
-const registry = createRoomRegistry({ authToken: AUTH_TOKEN, allowOpenNoToken: ALLOW_OPEN });
+const registry = createRoomRegistry({
+  authToken: AUTH_TOKEN,
+  observerAuthToken: OBSERVER_TOKEN,
+  allowOpenNoToken: ALLOW_OPEN,
+});
 
 const wss = new WebSocketServer({ port: PORT });
 

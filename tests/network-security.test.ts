@@ -60,6 +60,51 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
       expect(participantSocket.sent.length).toBe(0);
     });
 
+    it('enforces observer role when client connects with dedicated observerAuthToken', () => {
+      const registry = createRoomRegistry({
+        authToken: 'admin-participant-secret',
+        observerAuthToken: 'viewer-observer-secret',
+      });
+      const observerSocket = makeSocket();
+
+      // Observer supplies observer token but attempts to claim role=participant
+      registry.handleConnection(observerSocket, 'room-obs', 'observer-peer', 'viewer-observer-secret', 'participant');
+      expect(observerSocket.closeCode).toBeUndefined();
+      expect(observerSocket.readyState).toBe(1);
+
+      const participantSocket = makeSocket();
+      registry.handleConnection(participantSocket, 'room-obs', 'participant-peer', 'admin-participant-secret');
+      participantSocket.sent.length = 0;
+
+      // Attempt to broadcast an unauthorized datasetOperation
+      observerSocket.listeners.message[0](
+        JSON.stringify({ to: '*', data: { type: 'datasetOperation', op: 'delete' } })
+      );
+
+      // Server should drop the broadcast because the peer was strictly bound to observer
+      expect(participantSocket.sent.length).toBe(0);
+    });
+
+    it('enforces observer role when using scoped shared-secret format (secret:observer)', () => {
+      const registry = createRoomRegistry({ authToken: 'room-master-key' });
+      const observerSocket = makeSocket();
+
+      // Scoped key with observer restriction but claiming participant
+      registry.handleConnection(observerSocket, 'room-scoped', 'peer-scoped', 'room-master-key:observer', 'participant');
+      expect(observerSocket.closeCode).toBeUndefined();
+      expect(observerSocket.readyState).toBe(1);
+
+      const participantSocket = makeSocket();
+      registry.handleConnection(participantSocket, 'room-scoped', 'peer-normal', 'room-master-key');
+      participantSocket.sent.length = 0;
+
+      observerSocket.listeners.message[0](
+        JSON.stringify({ to: '*', data: { type: 'state', delta: { count: 1 } } })
+      );
+
+      expect(participantSocket.sent.length).toBe(0);
+    });
+
     it('rejects expired room-scoped tokens (close 4001)', () => {
       const registry = createRoomRegistry({ authToken: 'secret' });
       const socket = makeSocket();
