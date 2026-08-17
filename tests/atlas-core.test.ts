@@ -534,3 +534,55 @@ describe('AtlasCore', () => {
     expect(mesh1.position.y).toBeGreaterThan(0);
   });
 });
+
+describe('Atlas 5 research context + replay', () => {
+  let atlas: AtlasCore;
+  let kernel: any;
+
+  beforeEach(() => {
+    kernel = makeKernelMockBridge();
+    atlas = new AtlasCore({ kernel });
+    atlas.loadDataset(makeDataset());
+  });
+
+  it('recordObservation / recordIntervention append ledger entries', () => {
+    atlas.recordObservation('two clusters dominate');
+    atlas.recordIntervention('isolated rows 0-3');
+
+    const obs = atlas.ledger.filter((e) => e.observation);
+    const intr = atlas.ledger.filter((e) => e.intervention);
+    expect(obs.length).toBe(1);
+    expect(obs[0].observation).toBe('two clusters dominate');
+    expect(intr.length).toBe(1);
+    expect(intr[0].intervention).toBe('isolated rows 0-3');
+  });
+
+  it('NemosyneSession researchContext round-trips through serialize', async () => {
+    const { NemosyneSession } = await import('../src/session/NemosyneSession.ts');
+    const session = new NemosyneSession({ atlas });
+    session.setResearchContext({
+      studyId: 'study-7',
+      researchQuestion: 'does structure persist under reweight?',
+      hypothesis: 'clusters remain stable',
+      variablesOfInterest: ['value'],
+      observerMode: true,
+    });
+    session.recordObservation?.('baseline captured');
+
+    const json = session.serialize();
+    expect(json.researchContext).toMatchObject({
+      studyId: 'study-7',
+      researchQuestion: 'does structure persist under reweight?',
+      hypothesis: 'clusters remain stable',
+      observerMode: true,
+    });
+    expect(json.eventLedger.length).toBe(2);
+    expect(json.eventLedger[1].observation).toBe('baseline captured');
+
+    const restored = NemosyneSession.deserialize(json, new AtlasCore({ kernel }));
+    expect(restored.researchContext.studyId).toBe('study-7');
+    expect(restored.researchContext.observerMode).toBe(true);
+    expect(restored.atlas.ledger.length).toBe(2);
+    expect(restored.atlas.ledger[1].observation).toBe('baseline captured');
+  });
+});
