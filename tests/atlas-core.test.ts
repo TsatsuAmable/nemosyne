@@ -386,4 +386,14 @@ describe('AtlasCore', () => {
     expect(rec!.evidenceItems!.some((e) => e.type === 'anomaly-score')).toBe(true);
     expect(rec!.suggestedEmbodiment).toBe('outlier-orb');
   });
+
+  it('maps suggestedEmbodiment to Draco soft-constraint reweighting', async () => {
+    const { applyEmbodimentHint } = await import('../src/draco/EmbodimentHints.ts');
+    const { ConstraintEngine } = await import('../src/draco/ConstraintEngine.ts');
+    const engine = new ConstraintEngine();
+    const ruleNames = engine.softConstraints.map((s) => s.name);
+    expect(ruleNames).toContain('prefer_orb_for_outliers');
+    expect(ruleNames).toContain('prefer_cluster_probe_for_large_datasets');
+    expect(ruleNames).toContain('prefer_fork_plane_for_tabular');
+  });
 });

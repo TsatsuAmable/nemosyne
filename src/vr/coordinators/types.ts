@@ -160,6 +160,11 @@ export interface WorldUIManagerCallbacks {
   onStartLoadTest?: (profile: LoadTestProfile) => void;
   onStopLoadTest?: () => void;
   onFlushLoadTest?: () => void;
+  getRecommendation?: () => import('../../atlas/types.ts').AtlasRecommendation | null;
+  onAcceptRecommendation?: () => void;
+  onRejectRecommendation?: () => void;
+  onOverrideRecommendation?: () => void;
+  onGenerateRecommendation?: () => void;
 }
 
 export interface AccessibilityOptions {
@@ -1088,9 +1093,15 @@ export interface WorldLike {
   guidedTour?: GuidedTourLike;
   dataOperationController?: DataOperationControllerLike;
   loadTestPanel?: PanelLike;
+  recommendationPanel?: PanelLike;
   runLoadTest?(profile?: unknown): void;
   stopLoadTest?(): void;
   _toggleLoadTestPanel?(): void;
+  _toggleRecommendationPanel?(): void;
+  _generateRecommendation?(): void;
+  _acceptRecommendation?(): void;
+  _rejectRecommendation?(): void;
+  _overrideRecommendation?(): void;
   /** TDA summary group (persistence/betti/mapper planes). Hidden by default; shown on lens toggle. */
   tdaGroup?: { visible: boolean } | null;
   /** Toggle the statistical lens (TDA + correlation windows) on/off. */

@@ -151,6 +151,7 @@ export class World {
   peerPresenceHUD: PeerPresenceHUD;
   loadTestDriver!: LoadTestDriver;
   loadTestPanel!: LoadTestPanel;
+  recommendationPanel!: import('./ui/RecommendationPanel.ts').RecommendationPanel;
   inputCoordinator: WorldInputCoordinator;
   userModeController: UserModeController;
   comfortSettingsController: ComfortSettingsController;
@@ -295,10 +296,15 @@ export class World {
       telemetryCollector: this.telemetryCollector,
       analysisHistory: this.dataOperationController.analysisHistory,
       loadTestDriver: this.loadTestDriver,
-      onStartLoadTest: (profile) => this.runLoadTest(profile),
-      onStopLoadTest: () => this.stopLoadTest(),
-      onFlushLoadTest: () => this.flushLastLoadTestSummary(),
-    });
+       onStartLoadTest: (profile) => this.runLoadTest(profile),
+       onStopLoadTest: () => this.stopLoadTest(),
+       onFlushLoadTest: () => this.flushLastLoadTestSummary(),
+       getRecommendation: () => this.atlas.activeRecommendation ?? null,
+       onAcceptRecommendation: () => this._acceptRecommendation(),
+       onRejectRecommendation: () => this._rejectRecommendation(),
+       onOverrideRecommendation: () => this._overrideRecommendation(),
+       onGenerateRecommendation: () => this._generateRecommendation(),
+     });
 
     // Legacy facade properties: tests and internal code access panels through
     // `world.*` directly.
@@ -318,6 +324,7 @@ export class World {
     this.miniOverview = this.uiManager.miniOverview;
     this.peerPresenceHUD = this.uiManager.peerPresenceHUD;
     this.loadTestPanel = this.uiManager.loadTestPanel;
+    this.recommendationPanel = this.uiManager.recommendationPanel;
 
     // Input coordinator owns gesture recognition, context-aware suppression, and
     // the mapping from gestures/commands to world actions.
@@ -1047,6 +1054,41 @@ export class World {
 
   _toggleLoadTestPanel(): void {
     this.uiManager?.panelManager?.togglePanel?.(this.loadTestPanel);
+  }
+
+  _toggleRecommendationPanel(): void {
+    this.uiManager?.panelManager?.togglePanel?.(this.recommendationPanel);
+  }
+
+  _generateRecommendation(): void {
+    this.atlas.generateRecommendation();
+    this.recommendationPanel?.markDirty?.();
+  }
+
+  _acceptRecommendation(): void {
+    this.atlas.acceptRecommendation();
+    this._applyEmbodimentHint();
+    this.recommendationPanel?.markDirty?.();
+  }
+
+  _rejectRecommendation(): void {
+    this.atlas.rejectRecommendation();
+    this.recommendationPanel?.markDirty?.();
+  }
+
+  _overrideRecommendation(): void {
+    this.atlas.overrideRecommendation();
+    this.recommendationPanel?.markDirty?.();
+  }
+
+  private _applyEmbodimentHint(): void {
+    const rec = this.atlas.activeRecommendation;
+    if (!rec?.suggestedEmbodiment || !this.dracoNode) return;
+    import('./../draco/EmbodimentHints.ts').then(({ applyEmbodimentHint }) => {
+      if (this.dracoNode) {
+        applyEmbodimentHint(this.dracoNode, rec.suggestedEmbodiment!);
+      }
+    });
   }
 
   _togglePeerPresenceHUD(): void {
