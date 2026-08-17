@@ -5,10 +5,11 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-18 — Atlas 6 complete: Controlled experiment harness implemented and validated
-  in `tests/study-harness.test.ts` (Latin Square counterbalancing, frozen protocol config matching `docs/study/PROTOCOL.md`,
-  ground-truth accuracy/precision/recall/F1 scoring, 3D navigation distance & interaction telemetry, and signed
-  study session exports). Collaboration Gateway Security & Architecture Hardening:
+- **Last updated:** 2026-08-18 — Atlas 7 complete: Deterministic language and intent explanation layer
+  implemented and validated in `tests/intent-compiler.test.ts` (`IntentCompiler` mapping queries to `Predicate`/`OperationSpec`
+  trees, `StructureExplainer` producing grounded narrative summaries of `AnalysisResult` and `StructureSet` facts with zero hallucinations).
+  Atlas 6 complete: Controlled experiment harness implemented and validated in `tests/study-harness.test.ts`.
+  Collaboration Gateway Security & Architecture Hardening:
   HMAC-SHA256 cryptographically signed room tickets (`SignedTicket.ts`), rejection of unsigned/raw JSON tokens,
   in-band WebSocket authentication (credentials removed from URL query strings in `SignallingChannel.ts`),
   IP auth-failure throttling & brute-force defense, strict protocol schemas & capability-based authorization,
@@ -19,9 +20,8 @@
   Atlas 5 complete: end-to-end session-restore gate validated.
   Atlas 4 completion: rowIndices refactor, TDA panel click-to-navigate, full structure-handle lifecycle.
   Wave 6 via PR #130. UX & spatial 3D assets via PR #136; world-aware UX telemetry via PR #137.
-- **Active sprint:** Atlas 7 — deterministic language and intent explanation layer. Add grounded intent parsing
-  and explanation facilities strictly on top of the deterministic analytical API (LLM interprets/explains, never
-  computes analytical ground-truth).
+- **Active sprint:** Evidence-Informed Draco Recommender & Interactive Study UI integration. Evolve Draco scoring
+  weights based on empirical study outcomes, and build in-app trial flow for 2D-vs-VR participant evaluation.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
   research-relevant transforms through the versioned Rust kernel (provenance envelope on every result);
   use battle-tested Rust crates; saved-session compatibility breaks (kernel carries `kernelVersion`).
