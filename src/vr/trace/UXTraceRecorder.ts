@@ -27,6 +27,11 @@ import * as THREE from 'three';
 import type { HandLike, PanelLike } from '../coordinators/types.ts';
 import type { SelectionDispatchInfo } from '../input/SelectionDispatcher.ts';
 import type { SystemGestureTraceInfo } from '../input/SystemGestureDetector.ts';
+import {
+  WorldSpatialContext,
+  type WorldLandmarkTarget,
+  type WorldSpatialSnapshot,
+} from './WorldSpatialContext.ts';
 
 export type UXTraceHandPinchGating =
   | 'select'
@@ -54,6 +59,8 @@ export interface UXTraceRecorderOptions {
   eventBus?: { on(topic: string, handler: (payload?: unknown) => void): () => void } | null;
   getUIState?: () => Record<string, unknown>;
   extraGazeTargets?: () => THREE.Object3D[];
+  worldLandmarks?: WorldLandmarkTarget[];
+  getWorldContext?: () => WorldSpatialContext;
   sampleHz?: number;
   flushMs?: number;
   endpoint?: string;
@@ -88,6 +95,7 @@ interface TraceContext {
   ptr: TargetInfo & { hand: string | null; driftDeg: number | null };
   hands: Array<{ h: string; pinched: boolean; d: number | null; y: number | null; pose: boolean }>;
   ui: Record<string, unknown>;
+  world: WorldSpatialSnapshot;
 }
 
 const MAX_BUFFER = 1000;
@@ -105,6 +113,7 @@ export class UXTraceRecorder {
   private _engine: TraceEngineDeps;
   private _getUIState?: () => Record<string, unknown>;
   private _extraGazeTargets?: () => THREE.Object3D[];
+  private _worldSpatialContext: WorldSpatialContext;
   private _sampleInterval: number;
   private _flushInterval: number;
   private _endpoint: string;
@@ -143,6 +152,8 @@ export class UXTraceRecorder {
     this._engine = options.engine;
     this._getUIState = options.getUIState;
     this._extraGazeTargets = options.extraGazeTargets;
+    this._worldSpatialContext =
+      options.getWorldContext?.() ?? new WorldSpatialContext(options.worldLandmarks);
     this._sampleInterval = 1 / Math.max(0.5, options.sampleHz ?? 5);
     this._flushInterval = Math.max(0.25, (options.flushMs ?? 1500) / 1000);
     this._endpoint = options.endpoint ?? '/__ux-trace';
@@ -405,9 +416,16 @@ export class UXTraceRecorder {
     }
 
     let hands: TraceContext['hands'] = [];
+    const handPositions: Array<{ pos: THREE.Vector3; handedness: string }> = [];
     try {
       hands = (this._engine.input.hands ?? []).map((h) => {
         const y = (h.rayOrigin as unknown as { y?: number } | undefined)?.y;
+        if (h.rayOrigin && typeof h.rayOrigin === 'object') {
+          const originVec = (h.rayOrigin as THREE.Vector3).clone
+            ? (h.rayOrigin as THREE.Vector3).clone()
+            : new THREE.Vector3((h.rayOrigin as { x?: number }).x ?? 0, y ?? 0, (h.rayOrigin as { z?: number }).z ?? 0);
+          handPositions.push({ pos: originVec, handedness: h.handedness ?? `#${h.index ?? '?'}` });
+        }
         return {
           h: h.handedness ?? `#${h.index ?? '?'}`,
           pinched: h.isPinched?.() ?? !!h.pinched,
@@ -420,7 +438,24 @@ export class UXTraceRecorder {
       this._warnSectionOnce('hands', err);
     }
 
-    return { head, gaze, ptr, hands, ui: this._uiState() };
+    let world: WorldSpatialSnapshot = {
+      zone: 'CENTRAL_PLAZA',
+      nearestLandmark: null,
+      landmarks: [],
+      ergonomics: {},
+    };
+    try {
+      world = this._worldSpatialContext.buildSnapshot(
+        camera,
+        this._engine.headWorldPos ?? this._headPos,
+        handPositions,
+        ptr.driftDeg
+      );
+    } catch (err) {
+      this._warnSectionOnce('world', err);
+    }
+
+    return { head, gaze, ptr, hands, ui: this._uiState(), world };
   }
 
   private _warnSectionOnce(section: string, err: unknown): void {

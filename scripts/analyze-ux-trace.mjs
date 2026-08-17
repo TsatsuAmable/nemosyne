@@ -169,6 +169,55 @@ for (const [sid, recs] of sessions) {
     console.log(`  ${fmtT(w[0].t)} -> ${fmtT(w[w.length - 1].t)}  ${w.map((e) => e.why).join(', ')}`);
   }
 
+  // --- World-aware & Ergonomic Spatial Analysis -----------------------------
+  console.log('\n--- World awareness & Gesture ergonomics ---');
+  const zoneCounts = {};
+  const reachCounts = {};
+  const ergoScores = [];
+  const troubleshootCounts = {};
+
+  for (const c of contexts) {
+    const world = c.ctx?.world;
+    if (!world) continue;
+    if (world.zone) zoneCounts[world.zone] = (zoneCounts[world.zone] ?? 0) + 1;
+    if (world.ergonomics) {
+      for (const p of Object.values(world.ergonomics)) {
+        if (p?.reachZone) reachCounts[p.reachZone] = (reachCounts[p.reachZone] ?? 0) + 1;
+        if (typeof p?.ergonomicScore === 'number') ergoScores.push(p.ergonomicScore);
+        if (p?.troubleshootingFlag && p.troubleshootingFlag !== 'NONE') {
+          troubleshootCounts[p.troubleshootingFlag] = (troubleshootCounts[p.troubleshootingFlag] ?? 0) + 1;
+        }
+      }
+    }
+  }
+
+  const totalZoneSamples = Object.values(zoneCounts).reduce((a, b) => a + b, 0);
+  if (totalZoneSamples > 0) {
+    const zoneStr = Object.entries(zoneCounts)
+      .map(([z, n]) => `${z} (${((100 * n) / totalZoneSamples).toFixed(0)}%)`)
+      .join(', ');
+    console.log(`  palace zones: ${zoneStr}`);
+  }
+
+  const totalReach = Object.values(reachCounts).reduce((a, b) => a + b, 0);
+  if (totalReach > 0) {
+    const reachStr = Object.entries(reachCounts)
+      .map(([r, n]) => `${r} (${((100 * n) / totalReach).toFixed(0)}%)`)
+      .join(', ');
+    const avgScore = ergoScores.length > 0 ? (ergoScores.reduce((a, b) => a + b, 0) / ergoScores.length).toFixed(1) : '-';
+    console.log(`  reach zones:  ${reachStr}`);
+    console.log(`  ergonomic health score: mean=${avgScore}/100 (samples=${ergoScores.length})`);
+  }
+
+  if (Object.keys(troubleshootCounts).length > 0) {
+    console.log('  gesture troubleshooting flags:');
+    for (const [flag, n] of Object.entries(troubleshootCounts)) {
+      console.log(`    ! ${flag.padEnd(30)} ${n}`);
+    }
+  } else {
+    console.log('  gesture troubleshooting flags: none (all gestures within optimal envelope)');
+  }
+
   // --- System / wheel / tour -------------------------------------------------
   console.log('\n--- Discoverability signals ---');
   const sysKinds = {};

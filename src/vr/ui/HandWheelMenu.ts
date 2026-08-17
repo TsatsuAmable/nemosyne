@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SpatialAssetRegistry } from './SpatialAssetRegistry.ts';
 import type {
   AccessibilityOptions,
   FeedbackLike,
@@ -58,6 +59,7 @@ export class HandWheelMenu {
   engine: HandWheelMenuEngine;
   hand: HandLike;
   group: THREE.Group;
+  hub: THREE.Group;
   offset: THREE.Vector3;
 
   categoryRadius: number;
@@ -98,6 +100,10 @@ export class HandWheelMenu {
     this.hand = hand;
     this.group = new THREE.Group();
     this.group.visible = false;
+
+    // Attach 3D central constellation dial hub
+    this.hub = SpatialAssetRegistry.getInstance().createHandWheelHub();
+    this.group.add(this.hub);
 
     if (options.anchorToHand && hand?.group) {
       hand.group.add(this.group);
@@ -714,6 +720,20 @@ export class HandWheelMenu {
 
   dispose(): void {
     this._clearMenu();
+    if (this.hub) {
+      this.hub.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const m = child as THREE.Mesh;
+          m.geometry?.dispose();
+          if (Array.isArray(m.material)) {
+            m.material.forEach((mat) => mat.dispose());
+          } else {
+            m.material?.dispose();
+          }
+        }
+      });
+      this.group.remove(this.hub);
+    }
     if (this._connectorMaterial) {
       this._connectorMaterial.dispose();
       this._connectorMaterial = null;

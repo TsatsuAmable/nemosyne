@@ -10,7 +10,9 @@
   hit-testing on mapper nodes), full structure-handle lifecycle (rebuild on re-solve via
   `_rebuildStructureHandles`). Atlas 5 foundations: `ResearchContext` persistence + observation/
   intervention recording. Atlas 3 guidance layer complete. Atlas 2 structure discovery complete.
-  Wave 6 via PR #130.
+  Wave 6 via PR #130. UX & spatial 3D assets (Blender MCP pipeline, `SpatialAssetRegistry`,
+  3D panel/`HandWheelMenu` housings) via PR #136; world-aware UX telemetry & diagnostics
+  (`WorldSpatialContext`, reach-zone + ergonomic scoring, gesture troubleshooting) via PR #137.
 - **Active sprint:** Atlas 5 — research context and replay. Extend session persistence with
   research context, observations, interventions, and spatial state. Restore path already re-solves
   the artefact, re-applies the operation transform, and recomputes TDA. Remaining: validate the
@@ -264,6 +266,23 @@
   structures, research context, recommendations, observations, interventions, and spatial state,
   restore it, and confirm the VR scene (artefact + operation transform + TDA + handles) rebuilds
   without manual reconstruction. Then Atlas 6 (controlled experiment harness).
+- **UX & Spatial 3D Assets ✅ (Blender MCP pipeline + 3D spatial UI housings):** Comprehensive review
+  of VR UX completeness and coherence across panels, landmarks, and menus (`VRMenu` & `HandWheelMenu`).
+  Created a suite of production-grade 3D WebXR assets via Blender 5.2 MCP (`SpatialPanelHousing.glb`,
+  `HandWheelHub.glb`, `TechnoCoreMonolith.glb`, `FarcasterGate.glb`, `IceVaultGlyph.glb`, `SpatialActionPuck.glb`)
+  in `public/models/ux/`. Implemented `src/vr/ui/SpatialAssetRegistry.ts` for caching, hierarchy cloning,
+  and headless test fallbacks; enhanced `MovablePanel.ts` and `VRMenu.ts` with 3D beveled spatial housings
+  (chamfered frame, grab handle bar, status LED jewel, dynamic `Screen_Face` UV mapping); enhanced
+  `HandWheelMenu.ts` with the 3D `HandWheelHub` constellation palm dial socket. Tested via
+  `tests/spatial-asset-registry.test.ts` (8 new tests).
+- **World-Aware UX Telemetry & Diagnostics ✅:** Upgraded UX telemetry to be world-aware with
+  `src/vr/trace/WorldSpatialContext.ts`. Classifies memory palace spatial zones (`CENTRAL_PLAZA`,
+  `TECHNOCORE_SECTOR`, `FARCASTER_GATEWAY`, `ICE_VAULT_SECTOR`, `ANALYTICAL_GALLERY`), calculates
+  landmark bearing/elevation, evaluates biomechanical reach zones (`SWEET_SPOT`, `NEAR_FIELD`,
+  `EXTENDED`, `PERIPHERAL`), scores ergonomic health (0-100), and flags gesture troubleshooting reasons
+  (`AIM_DRIFT_EXCESSIVE`, `NEAR_FIELD_TRACKING_JITTER`, `PERIPHERAL_CAMERA_BLINDSPOT`, `OUT_OF_REACH_ZONE`).
+  Integrated into `UXTraceRecorder.ts`, live in-VR HUD `InputTelemetry.ts`, and offline analyzer
+  `scripts/analyze-ux-trace.mjs`. Tested via `tests/world-spatial-context.test.ts` (6 new tests).
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files
