@@ -4,6 +4,10 @@
   "description": "A WebXR spatial data analysis suite built on three.js. Transform multi-dimensional datasets into interactive 3D memory palaces.",
   "type": "module",
   "scripts": {
+    "setup": "bash scripts/setup.sh",
+    "setup:mac": "bash scripts/setup-mac.sh",
+    "setup:linux": "bash scripts/setup-linux.sh",
+    "setup:windows": "powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1",
     "wasm": "wasm-pack build wasm --target web --out-dir pkg",
     "wasm:dev": "wasm-pack build wasm --target web --out-dir pkg --dev",
     "build:wasm": "wasm-pack build wasm --target web --out-dir pkg",

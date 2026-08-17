@@ -11,59 +11,56 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}================================================================${NC}"
-echo -e "${BLUE}          Nemosyne Developer Setup for macOS / MacBook          ${NC}"
+echo -e "${BLUE}          Nemosyne Developer Setup for Linux                    ${NC}"
 echo -e "${BLUE}================================================================${NC}"
 
-# 1. Xcode Command Line Tools Check
-echo -e "\n${YELLOW}[1/7] Checking Xcode Command Line Tools...${NC}"
-if xcode-select -p &>/dev/null; then
-    echo -e "${GREEN}✓ Xcode Command Line Tools are already installed.${NC}"
-else
-    echo -e "${YELLOW}Xcode Command Line Tools are missing. Launching installation...${NC}"
-    xcode-select --install
-    echo -e "${RED}Please complete the Xcode Command Line Tools installation dialog, then run this script again.${NC}"
-    exit 1
-fi
-
-# 2. Homebrew Check & Optional Setup
-echo -e "\n${YELLOW}[2/7] Checking Homebrew...${NC}"
-if command -v brew &>/dev/null; then
-    echo -e "${GREEN}✓ Homebrew is installed at $(which brew)${NC}"
-else
-    echo -e "${YELLOW}Homebrew not found. You can install it by running:${NC}"
-    echo -e "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-    echo -e "Would you like this script to install Homebrew for you? (y/N)"
-    read -r response
-    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        # Add brew to path for the current session
-        if [[ -f /opt/homebrew/bin/brew ]]; then
-            eval "$(/opt/homebrew/bin/brew shellenv)"
-        elif [[ -f /usr/local/bin/brew ]]; then
-            eval "$(/usr/local/bin/brew shellenv)"
-        fi
+# 1. System Package Manager & Build Essentials Check
+echo -e "\n${YELLOW}[1/7] Checking build dependencies and C compiler...${NC}"
+if ! command -v gcc &>/dev/null && ! command -v clang &>/dev/null; then
+    echo -e "${YELLOW}C compiler (gcc/clang) not found. Attempting to install build essentials...${NC}"
+    if command -v apt-get &>/dev/null; then
+        sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev curl git openssl
+    elif command -v dnf &>/dev/null; then
+        sudo dnf groupinstall -y "Development Tools" && sudo dnf install -y openssl-devel pkgconfig curl git openssl
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -Sy --needed base-devel openssl pkg-config curl git
+    elif command -v zypper &>/dev/null; then
+        sudo zypper install -t pattern devel_basis && sudo zypper install -y libopenssl-devel pkg-config curl git openssl
+    elif command -v apk &>/dev/null; then
+        sudo apk add build-base openssl-dev pkgconfig curl git openssl
     else
-        echo -e "${RED}Please install Homebrew and re-run this script to continue auto-setup.${NC}"
-        exit 1
+        echo -e "${RED}Unknown package manager. Please manually install gcc, pkg-config, openssl, curl, and git.${NC}"
     fi
+else
+    echo -e "${GREEN}✓ Build essentials / C compiler detected.${NC}"
 fi
 
-# 3. Node.js Check and Dependency Install
-echo -e "\n${YELLOW}[3/7] Checking Node.js...${NC}"
+# 2. Node.js Check and Dependency Install
+echo -e "\n${YELLOW}[2/7] Checking Node.js (v20+ required)...${NC}"
 if command -v node &>/dev/null; then
     NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
     if [ "$NODE_VERSION" -ge 20 ]; then
         echo -e "${GREEN}✓ Node.js $(node -v) is installed.${NC}"
     else
-        echo -e "${YELLOW}Your Node.js version $(node -v) is older than 20. Updating via Homebrew...${NC}"
-        brew install node
+        echo -e "${RED}Your Node.js version $(node -v) is older than 20. Please update Node.js to v20 or later.${NC}"
+        exit 1
     fi
 else
-    echo -e "${YELLOW}Node.js not found. Installing via Homebrew...${NC}"
-    brew install node
+    echo -e "${YELLOW}Node.js not found. Installing via NodeSource (Node 22 LTS)...${NC}"
+    if command -v apt-get &>/dev/null; then
+        curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+    elif command -v dnf &>/dev/null; then
+        curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -
+        sudo dnf install -y nodejs
+    else
+        echo -e "${RED}Please install Node.js v20+ using your package manager (e.g. nvm, fnm, or official package).${NC}"
+        exit 1
+    fi
 fi
 
-echo -e "\n${YELLOW}Installing npm dependencies...${NC}"
+# 3. NPM Dependencies
+echo -e "\n${YELLOW}[3/7] Installing npm dependencies...${NC}"
 npm install
 
 # 4. Rust, rustup, and WebAssembly Target Setup
@@ -84,18 +81,17 @@ else
     fi
 fi
 
-# Ensure cargo is in PATH for this script session
 export PATH="$HOME/.cargo/bin:$PATH"
 
 if command -v cargo &>/dev/null; then
     echo -e "${GREEN}✓ Cargo/Rust $(rustc --version) is ready.${NC}"
 else
-    echo -e "${RED}Error: Rust/Cargo installation failed or is not in PATH. Please run 'source \$HOME/.cargo/env' and try again.${NC}"
+    echo -e "${RED}Error: Rust/Cargo installation failed or is not in PATH.${NC}"
     exit 1
 fi
 
-# Ensure cargo env is persisted in user shell profiles
-for rc in "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.zshenv"; do
+# Ensure cargo env is in user shell profile
+for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
     if [ -f "$rc" ] && ! grep -q "\.cargo/env" "$rc"; then
         echo 'source "$HOME/.cargo/env"' >> "$rc"
     fi
@@ -134,10 +130,10 @@ npm run test:all
 echo -e "\n${GREEN}================================================================${NC}"
 echo -e "${GREEN}         Setup Completed Successfully! Nemosyne is ready!        ${NC}"
 echo -e "${GREEN}================================================================${NC}"
-echo -e "\nTo start developing on your MacBook:"
+echo -e "\nTo start developing on Linux:"
 echo -e "1. Start the Vite development server with WASM compilation enabled:"
 echo -e "   ${BLUE}npm run dev:wasm${NC}"
-echo -e "2. Find your MacBook's IP address (e.g. 192.168.1.50) in the dev output."
+echo -e "2. Find your local IP address in the dev server output."
 echo -e "3. Open your Meta Quest or local browser and navigate to:"
-echo -e "   ${BLUE}https://<your-macbook-ip>:5173${NC}"
+echo -e "   ${BLUE}https://<your-ip>:5173${NC}"
 echo -e "4. Accept the self-signed HTTPS certificate warning and enter VR!"
