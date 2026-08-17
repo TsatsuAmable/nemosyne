@@ -16,6 +16,12 @@
   Wave 6 via PR #130. UX & spatial 3D assets (Blender MCP pipeline, `SpatialAssetRegistry`,
   3D panel/`HandWheelMenu` housings) via PR #136; world-aware UX telemetry & diagnostics
   (`WorldSpatialContext`, reach-zone + ergonomic scoring, gesture troubleshooting) via PR #137.
+  Collaboration Gateway Security & Architecture Hardening:
+  server-authorized roles & structured credentials (escalation-resistant), anti-CSWSH Origin enforcement,
+  IP and peer rate limiting, room idle cleanup, strict runtime message schemas (`SignallingServerCore.ts`),
+  ephemeral `sessionStorage` credentials (`NetworkManager.ts`), CSP hardening (`index.html`), `/__signal`
+  URL query matching fix (`vite.config.js`), orphaned second WebGL context eliminated (`SceneGraphController.ts`),
+  and `IceVaultNode.ts` landmark wired with test coverage.
 - **Active sprint:** Atlas 6 — controlled experiment harness. Add study conditions, tasks, trials,
   outcomes, counterbalancing, and frozen configuration. Human-performance claims require controlled
   evidence; telemetry, unit tests, and benchmark utilities alone are not study evidence.

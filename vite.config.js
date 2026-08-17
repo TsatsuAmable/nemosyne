@@ -127,7 +127,8 @@ function demoStreamPlugin() {
     const wss = new WebSocketServer({ noServer: true });
 
     server.httpServer.on('upgrade', (request, socket, head) => {
-      if (request.url !== '/__demo-stream') return;
+      const pathname = new URL(request.url || '', 'http://localhost').pathname;
+      if (pathname !== '/__demo-stream') return;
       wss.handleUpgrade(request, socket, head, (ws) => {
         ws.send(JSON.stringify({ topology: 'TIME_SERIES', name: 'Demo Sensor Stream', rows: generateRows(12) }));
 
@@ -174,9 +175,9 @@ function signallingPlugin() {
     });
 
     server.httpServer.on('upgrade', (request, socket, head) => {
-      if (request.url !== '/__signal') return;
+      const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
+      if (url.pathname !== '/__signal') return;
       wss.handleUpgrade(request, socket, head, (ws) => {
-        const url = new URL(request.url, `http://${request.headers.host}`);
         const roomId = url.searchParams.get('room') || 'default';
         const peerId = url.searchParams.get('peer') || `peer-${Date.now()}`;
         const token = url.searchParams.get('token') || undefined;
@@ -184,7 +185,7 @@ function signallingPlugin() {
         // is exercised in dev/preview too, matching the standalone server.
         const roleParam = url.searchParams.get('role');
         const role = roleParam === 'observer' || roleParam === 'participant' ? roleParam : undefined;
-        registry.handleConnection(ws, roomId, peerId, token, role);
+        registry.handleConnection(ws, roomId, peerId, token, role, request);
       });
     });
   }
