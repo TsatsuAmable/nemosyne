@@ -53,6 +53,12 @@ export class StreamlineLayout extends LayoutBase {
     const rng = new SeededRandom(seed);
 
     for (let i = 0; i < count; i++) {
+      const row = rows[i] as Record<string, unknown> | undefined;
+      const u = Number(row?.u ?? row?.vx ?? row?.dx);
+      const v = Number(row?.v ?? row?.vy ?? row?.dy);
+      const w = Number(row?.w ?? row?.vz ?? row?.dz);
+      const hasVector = Number.isFinite(u) && Number.isFinite(v) && Number.isFinite(w) && (u !== 0 || v !== 0 || w !== 0);
+
       const start = new THREE.Vector3(
         rng.range(bounds.x[0], bounds.x[1]),
         rng.range(bounds.y[0], bounds.y[1]),
@@ -62,11 +68,13 @@ export class StreamlineLayout extends LayoutBase {
 
       for (let s = 0; s < steps; s++) {
         const prev = points[points.length - 1];
-        const dir = new THREE.Vector3(
-          Math.sin(prev.z * 0.7 + i) * 0.8,
-          0.2 + Math.cos(prev.x * 0.5 + i) * 0.2,
-          -0.6 + Math.sin(prev.y * 0.9 + i) * 0.3
-        ).normalize();
+        const dir = hasVector
+          ? new THREE.Vector3(u, v, w).normalize()
+          : new THREE.Vector3(
+              Math.sin(prev.z * 0.7 + i) * 0.8,
+              0.2 + Math.cos(prev.x * 0.5 + i) * 0.2,
+              -0.6 + Math.sin(prev.y * 0.9 + i) * 0.3
+            ).normalize();
         points.push(prev.clone().add(dir.multiplyScalar(stepSize)));
       }
 

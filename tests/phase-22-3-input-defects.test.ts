@@ -284,34 +284,29 @@ describe('Phase 22.3 Input Defects', () => {
       const locomotion = new Locomotion(mockEngine);
       locomotion.seatedHeightOffset = 0.2; // 20cm offset for seated user
 
-      // Simulate head tracking jitter (bouncing 0.05m up and down)
+      // Initial cameraGroup position is at 0 (floor baseline)
       mockEngine.camera.position.y = 1.5;
-      mockEngine.cameraGroup.position.y = 1.5;
+      mockEngine.cameraGroup.position.y = 0;
 
       const deltaSmall = 0.01; // 10ms frame
 
       // Apply comfort offset multiple times
       for (let i = 0; i < 5; i++) {
-        // Simulate tracking jitter
+        // Simulate head tracking jitter
         mockEngine.camera.position.y = 1.5 + (i % 2 === 0 ? 0.05 : -0.05);
 
         locomotion._applyComfortOffset(deltaSmall);
 
-        // With alpha=0.05 (not 0.2), the cameraGroup.position.y should move smoothly
-        // without oscillating back and forth drastically
-        const targetY = mockEngine.camera.position.y + locomotion.seatedHeightOffset;
+        // With alpha=0.05, cameraGroup.position.y should move smoothly toward seatedHeightOffset
+        const targetY = locomotion.seatedHeightOffset;
         const difference = Math.abs(mockEngine.cameraGroup.position.y - targetY);
 
-        // Difference should decrease over time (convergence)
-        expect(difference).toBeLessThan(0.3); // Should be within reasonable range
+        expect(difference).toBeLessThanOrEqual(0.2); // Within range and converging
       }
 
-      // Check that final position is stable and not oscillating
-      const finalOffset =
-        Math.abs(
-          mockEngine.cameraGroup.position.y - (mockEngine.camera.position.y + locomotion.seatedHeightOffset)
-        ) < 0.05;
-      expect(finalOffset || mockEngine.cameraGroup.position.y > 0).toBe(true); // Converged or valid position
+      // Check that position is progressing toward seatedHeightOffset
+      expect(mockEngine.cameraGroup.position.y).toBeGreaterThan(0);
+      expect(mockEngine.cameraGroup.position.y).toBeLessThanOrEqual(0.2);
     });
 
     it('should use alpha=0.02 for reduced-motion mode to dampen even more', () => {
@@ -327,22 +322,16 @@ describe('Phase 22.3 Input Defects', () => {
       locomotion.reducedMotion = true;
 
       mockEngine.camera.position.y = 1.5;
-      mockEngine.cameraGroup.position.y = 1.5;
+      mockEngine.cameraGroup.position.y = 0;
 
       // With reduced motion, alpha should be 0.02 (even lower)
       locomotion._applyComfortOffset(0.01);
 
-      // In reduced-motion mode, convergence is slower but more stable
-      const targetY = mockEngine.camera.position.y + locomotion.seatedHeightOffset;
-      const stepTaken = Math.abs(
-        mockEngine.cameraGroup.position.y - 1.5 // Initial position
-      );
+      const stepTaken = Math.abs(mockEngine.cameraGroup.position.y - 0);
 
-      // With alpha=0.02, step per frame should be small
-      // Step = (target - current) * Math.min(1, 0.02 * (0.01 * 60))
-      // = (target - current) * Math.min(1, 0.012) = (target - current) * 0.012
+      // With alpha=0.02, step per frame: (0.2 - 0) * (0.02 * 0.01 * 60) = 0.2 * 0.012 = 0.0024m
       const maxExpectedStep = 0.2 * 0.012; // 0.0024m
-      expect(stepTaken).toBeLessThanOrEqual(maxExpectedStep * 1.5); // Allow some tolerance
+      expect(stepTaken).toBeCloseTo(maxExpectedStep, 4);
     });
   });
 });

@@ -164,6 +164,8 @@ export class InputRouter {
 
     // Fallback path when polling misses a pinch.
     hand.onPinchStart = (pointer) => {
+      if (this.pointers.lastHandPinched.get(pointer)) return;
+      this.pointers.lastHandPinched.set(pointer, true);
       if (this.handWheelMenu && pointer === this.handWheelMenu.hand) {
         this.handWheelMenu.toggle();
         return;
@@ -171,6 +173,10 @@ export class InputRouter {
       this.activePointer = pointer;
       this.dispatcher.triggerSelect(pointer);
       this.activePointer = null;
+    };
+
+    hand.onPinchEnd = (pointer) => {
+      this.pointers.lastHandPinched.set(pointer, false);
     };
   }
 

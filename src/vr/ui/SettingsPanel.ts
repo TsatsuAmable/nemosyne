@@ -77,6 +77,7 @@ export class SettingsPanel extends MovablePanel {
     highContrast: false,
     textScale: 1,
     dwellSelection: false,
+    dwellTimeMs: 1200,
     strictBudget: false,
     collabEnabled: false,
     collabRoom: 'default',
@@ -202,6 +203,15 @@ export class SettingsPanel extends MovablePanel {
       { key: 'telemetryEnabled', label: 'Telemetry Opt-in', section: 'PRIVACY' },
       { key: 'highContrast', label: 'High Contrast', section: 'ACCESSIBILITY' },
       { key: 'dwellSelection', label: 'Dwell Select', section: 'ACCESSIBILITY' },
+      {
+        key: 'dwellTimeMs',
+        label: 'Dwell Time',
+        section: 'ACCESSIBILITY',
+        type: 'stepper',
+        min: 400,
+        max: 3000,
+        step: 200,
+      },
       {
         key: 'textScale',
         label: 'Text Scale',

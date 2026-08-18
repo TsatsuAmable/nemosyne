@@ -372,7 +372,7 @@ export class Locomotion {
 
   _applyComfortOffset(delta: number): void {
     if (this.seatedHeightOffset !== 0) {
-      const targetY = this.camera.position.y + this.seatedHeightOffset;
+      const targetY = this.seatedHeightOffset;
       // Do not fight the camera group's own vertical movement; just maintain
       // the configured offset from the tracked head height.
       if (Math.abs(this.cameraGroup.position.y - targetY) > 0.001) {
@@ -646,6 +646,12 @@ export class Locomotion {
   _updateHandGrabMovement(_delta: number): void {
     const hands = this.engine.input.hands;
     if (!hands || hands.length === 0) return;
+
+    const pinchedHands = hands.filter((h) => h.isPinched?.());
+    if (pinchedHands.length >= 2) {
+      this.grabHand = null;
+      return;
+    }
 
     let activeHand: HandLike | null = null;
     for (const hand of hands) {

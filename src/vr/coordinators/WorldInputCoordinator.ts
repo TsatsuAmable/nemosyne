@@ -167,6 +167,8 @@ export class WorldInputCoordinator {
         if (this.engine.locomotion.flightMode) {
           this.engine.locomotion.descend();
           this.callbacks.onLog?.('Flight: descend');
+        } else {
+          this.callbacks.onToggleStatisticalLens?.();
         }
         break;
       case 'pushForward':

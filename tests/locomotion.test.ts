@@ -231,6 +231,6 @@ describe('Locomotion', () => {
     engine.camera.position.y = 1.6;
     locomotion.setSeatedHeightOffset(-0.3);
     locomotion.update(0.016, 0);
-    expect(engine.cameraGroup.position.y).toBeGreaterThan(0);
+    expect(engine.cameraGroup.position.y).toBeLessThan(0);
   });
 });

@@ -20,6 +20,7 @@ import type { ArtifactRef, NodeMaterialLike } from '../coordinators/types.ts';
 interface NodeUserData {
   row: Record<string, unknown>;
   baseScale?: number;
+  baseY?: number;
   baseOpacity?: number;
   baseTransparent?: boolean;
   aggregated?: boolean;
@@ -141,33 +142,37 @@ export function sortByRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
   }
 }
 
-/**
- * Apply an aggregate operation: grouped rows merge into a single larger orb/column.
- * For every unique aggregated row, matching original meshes are hidden and a new
- * aggregated marker is scaled by the group size.
- */
 export function applyAggregate(artifact: ArtifactRef, aggregatedDataset: Dataset) {
-  // For simplicity, hide all original nodes and scale the first node of each
-  // group to represent the aggregate. In a full implementation this would spawn
-  // new aggregate meshes.
-  for (const mesh of artifact.nodeMeshes) {
-    mesh.scale.setScalar(0.05);
-    const mat = getNodeMaterial(mesh);
-    if (mat.opacity !== undefined) mat.opacity = 0.2;
-  }
+  const groupCount = aggregatedDataset.rowCount;
+  const meshCount = artifact.nodeMeshes.length;
 
-  // Placeholder: keep the original dataset name so the operation is traceable.
-  void aggregatedDataset.name;
-  const count = aggregatedDataset.rowCount;
-  if (count > 0 && artifact.nodeMeshes[0]) {
-    const rep = artifact.nodeMeshes[0];
-    const repUser = getNodeUserData(rep);
-    const repMat = getNodeMaterial(rep);
-    rep.scale.setScalar(Math.min(3, 1 + count * 0.15));
-    repMat.opacity = 1;
-    rep.position.set(0, rep.position.y + 0.5, -3.5);
-    repUser.aggregated = true;
-    repUser.aggregateCount = count;
+  for (let i = 0; i < meshCount; i++) {
+    const mesh = artifact.nodeMeshes[i];
+    const mat = getNodeMaterial(mesh);
+    const user = getNodeUserData(mesh);
+
+    if (i < groupCount) {
+      const row = aggregatedDataset.rows[i];
+      const count = Number(
+        (row as Record<string, unknown>)?._count ??
+          (row as Record<string, unknown>)?.count ??
+          Math.max(1, Math.floor(meshCount / groupCount))
+      );
+      const t = groupCount > 1 ? i / (groupCount - 1) : 0.5;
+      const arcWidth = Math.min(6, groupCount * 1.2);
+      const x = (t - 0.5) * arcWidth;
+      const z = -3.5 + Math.cos((t - 0.5) * Math.PI) * 0.8;
+
+      mesh.position.set(x, (user.baseY ?? mesh.position.y) + 0.3, z);
+      mesh.scale.setScalar(Math.min(3, 1 + count * 0.15));
+      if (mat.opacity !== undefined) mat.opacity = 1;
+      user.aggregated = true;
+      user.aggregateCount = count;
+    } else {
+      mesh.scale.setScalar(0.05);
+      if (mat.opacity !== undefined) mat.opacity = 0.2;
+      user.aggregated = false;
+    }
   }
 }
 

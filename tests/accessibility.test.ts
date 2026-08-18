@@ -119,6 +119,6 @@ describe('World accessibility integration', () => {
   it('toggles dwell selection on the input router', () => {
     const spy = vi.spyOn(world!.engine.input, 'setDwellSelection');
     world!.settingsPanel.setSetting('dwellSelection', true);
-    expect(spy).toHaveBeenCalledWith(true);
+    expect(spy).toHaveBeenCalledWith(true, 1200);
   });
 });
