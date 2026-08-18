@@ -48,6 +48,8 @@
   Atlas 5 complete: end-to-end session-restore gate validated.
   Atlas 4 completion: rowIndices refactor, TDA panel click-to-navigate, full structure-handle lifecycle.
   Wave 6 via PR #130. UX & spatial 3D assets via PR #136; world-aware UX telemetry via PR #137.
+- **Flagged Design Issues / Backlog:**
+  - **[VR Session Exit Flow]**: There is currently no in-experience WebXR session termination UI or gesture trigger (leaving the immersive session relies entirely on the Meta Quest OS-level system button / Oculus menu). Planned for next UX sprint: add an explicit "Exit VR" action button on the primary `HandWheelMenu` and `SettingsPanel` (`session.end()`) to allow clean user-initiated exit from within VR.
 - **Active sprint:** Multi-User Collaborative Exploration & Live Study Replication. Real-time peer avatar synchronization
   in controlled trials, observer trial monitoring HUD, and empirical data aggregation.
   Governing rules: no TS analytical production impl; no runtime choice between analytical impls; all
