@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LayoutBase } from './LayoutBase.ts';
 import type { GeoEntry, GeoSurfaceOptions, LayoutEntry } from '../types.ts';
+import { computeGeoSurface3d } from '../../wasm/RuntimeBridge.ts';
 
 /**
  * Map geospatial rows (lat/lon + numeric value) to room-scale positions.
@@ -26,6 +27,38 @@ export class GeoSurfaceLayout extends LayoutBase {
     } = options;
 
     const out: GeoEntry<T>[] = [];
+
+    const longitudes = rows.map((r) => Number((r as Record<string, unknown>)[lonKey as string]));
+    const latitudes = rows.map((r) => Number((r as Record<string, unknown>)[latKey as string]));
+    const values = rows.map((r) => (valueKey ? Number((r as Record<string, unknown>)[valueKey]) || 0 : 0));
+
+    const wasmPositions = computeGeoSurface3d(
+      longitudes,
+      latitudes,
+      values,
+      roomWidth,
+      roomDepth,
+      heightScale,
+      yOffset
+    );
+
+    if (wasmPositions && wasmPositions.length === rows.length * 3) {
+      for (let i = 0; i < rows.length; i++) {
+        out.push({
+          position: new THREE.Vector3(
+            wasmPositions[i * 3 + 0],
+            wasmPositions[i * 3 + 1],
+            wasmPositions[i * 3 + 2]
+          ),
+          row: rows[i],
+          index: i,
+          lon: longitudes[i],
+          lat: latitudes[i],
+          value: values[i],
+        });
+      }
+      return out;
+    }
 
     let minLon = Infinity;
     let maxLon = -Infinity;

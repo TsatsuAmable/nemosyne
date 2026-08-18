@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { LayoutBase } from './LayoutBase.ts';
 import type { DatasetEdge } from '../../data/Dataset.ts';
 import type { ForceDirectedOptions, LayoutEntry } from '../types.ts';
+import { computeForceDirected3d } from '../../wasm/RuntimeBridge.ts';
 
 /**
  * Simple iterative force-directed layout in 3D.
@@ -26,6 +27,30 @@ export class ForceDirected3D extends LayoutBase {
     } = options;
 
     const n = rows.length || 1;
+
+    // Use WASM layout computation when edges are empty or when available
+    if (edges.length === 0) {
+      const wasmPositions = computeForceDirected3d(
+        n,
+        iterations,
+        repulsion,
+        attraction,
+        damping,
+        radius,
+        yOffset
+      );
+      if (wasmPositions && wasmPositions.length === n * 3) {
+        return rows.map((row, i) => ({
+          position: new THREE.Vector3(
+            wasmPositions[i * 3 + 0],
+            wasmPositions[i * 3 + 1],
+            wasmPositions[i * 3 + 2]
+          ),
+          row,
+          index: i,
+        }));
+      }
+    }
 
     const positions: THREE.Vector3[] = [];
     for (let i = 0; i < n; i++) {
