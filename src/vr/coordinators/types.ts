@@ -742,6 +742,10 @@ export interface WorldFacadeForLiveStream {
 }
 
 export interface WorldFacadeForCollaboration {
+  scene?: Scene;
+  engine?: EngineLike;
+  currentEntry?: DatasetLoadEntry | null;
+  annotationManager?: unknown;
   uiManager?: WorldUIManagerLike;
   settingsPanel?: { getAllSettings(): SettingsMap };
   networkPanel?: { setStatus(status: Record<string, unknown>): void };
@@ -763,12 +767,14 @@ export interface NetworkEvent {
 export interface NetworkManagerLike {
   isConnected: boolean;
   roomId: string;
-  room: { getRemoteSnapshot(): unknown[] };
+  room: { getRemoteSnapshot(): unknown[]; getPeerIds?(): string[]; peers?: Map<string, unknown> };
   peerId: string;
   addEventListener(type: string, handler: (event: NetworkEvent) => void): void;
   connect(roomId?: string): Promise<void>;
   disconnect(): void;
   setLocalState(state: Record<string, unknown>): void;
+  broadcastCameraPose?(position: [number, number, number], rotation: [number, number, number, number]): void;
+  kickPeer?(peerId: string): void;
 }
 
 /** Minimal facade for controller gesture mappers used by {@link ControllerGestureBridge}. */
@@ -1022,6 +1028,8 @@ export interface GuidedTourLike {
 /** Collaboration coordinator facade. */
 export interface CollaborationCoordinatorLike {
   isConnected(): boolean;
+  update?(): void;
+  peerAvatarManager?: unknown;
 }
 
 /** Comfort-settings controller facade. */
