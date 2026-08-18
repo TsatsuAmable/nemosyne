@@ -64,9 +64,12 @@ export class GeoSurfaceLayout extends LayoutBase {
     let maxLon = -Infinity;
     let minLat = Infinity;
     let maxLat = -Infinity;
+    let minVal = Infinity;
+    let maxVal = -Infinity;
     for (const row of rows) {
       const lon = Number((row as Record<string, unknown>)[lonKey as string]);
       const lat = Number((row as Record<string, unknown>)[latKey as string]);
+      const val = valueKey ? Number((row as Record<string, unknown>)[valueKey]) : NaN;
       if (Number.isFinite(lon)) {
         minLon = Math.min(minLon, lon);
         maxLon = Math.max(maxLon, lon);
@@ -74,6 +77,10 @@ export class GeoSurfaceLayout extends LayoutBase {
       if (Number.isFinite(lat)) {
         minLat = Math.min(minLat, lat);
         maxLat = Math.max(maxLat, lat);
+      }
+      if (Number.isFinite(val)) {
+        minVal = Math.min(minVal, val);
+        maxVal = Math.max(maxVal, val);
       }
     }
 
@@ -94,7 +101,11 @@ export class GeoSurfaceLayout extends LayoutBase {
         z = (nz - 0.5) * roomDepth;
       }
 
-      const y = yOffset + Math.max(0, value * heightScale);
+      const normalizedY =
+        minVal < maxVal && Number.isFinite(value)
+          ? ((value - minVal) / (maxVal - minVal)) * (heightScale * (maxVal - minVal))
+          : value * heightScale;
+      const y = yOffset + Math.max(0, normalizedY);
 
       out.push({
         position: new THREE.Vector3(x, y, z),

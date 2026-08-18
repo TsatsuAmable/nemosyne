@@ -1407,7 +1407,10 @@ export class World {
     }
 
     this.handWheelMenu?.applyAccessibility?.(options);
-    this.engine.input.setDwellSelection?.(options.dwellSelection ?? false);
+    this.engine.input.setDwellSelection?.(
+      options.dwellSelection ?? false,
+      (settings.dwellTimeMs as number) ?? 1200
+    );
 
     if (this.dracoNode && this.dracoNode.translatorOptions.colorblindMode !== options.colorblindMode) {
       this.dracoNode.translatorOptions.colorblindMode = options.colorblindMode;

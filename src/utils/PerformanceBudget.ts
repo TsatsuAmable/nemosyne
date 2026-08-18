@@ -141,6 +141,17 @@ export class PerformanceBudget {
       });
     }
 
+    const handTrackingMs = typeof snapshot.handTrackingMs === 'number' ? snapshot.handTrackingMs : 0;
+    if (handTrackingMs > this.budgets.handTrackingMs) {
+      violations.push({
+        id: 'handTrackingMs',
+        severity: handTrackingMs > this.budgets.handTrackingMs * 2 ? 'critical' : 'warning',
+        message: `Hand tracking ${handTrackingMs.toFixed(1)} ms exceeds ${this.budgets.handTrackingMs.toFixed(1)} ms budget`,
+        value: handTrackingMs,
+        budget: this.budgets.handTrackingMs,
+      });
+    }
+
     for (const v of violations) {
       const key = `${v.id}:${Math.floor(now / 5000)}`; // throttle identical warnings to 5 s
       if (!this._warned.has(key)) {

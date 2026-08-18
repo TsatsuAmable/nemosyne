@@ -174,8 +174,8 @@ export interface AccessibilityOptions {
   highContrast: boolean;
   colorblindMode: string | boolean;
   reduceMotion?: boolean;
-  dwellEnabled?: boolean;
-  dwellDelayMs?: number;
+  dwellSelection?: boolean;
+  dwellTimeMs?: number;
   [key: string]: unknown;
 }
 
@@ -372,6 +372,7 @@ export interface SettingsMap {
   highContrast: boolean;
   textScale: number;
   dwellSelection: boolean;
+  dwellTimeMs?: number;
   strictBudget: boolean;
   collabEnabled: boolean;
   collabRoom: string;
@@ -493,6 +494,7 @@ export interface PointerLike extends HandLike {
   setRayVisible?(visible: boolean): void;
   onSelect?: ((pointer: PointerLike) => void) | null;
   onPinchStart?: ((pointer: PointerLike) => void) | null;
+  onPinchEnd?: ((pointer: PointerLike) => void) | null;
   isPoseValid?(): boolean;
   update?(
     frame: XRFrame | null,

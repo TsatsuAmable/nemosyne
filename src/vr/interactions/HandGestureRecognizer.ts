@@ -297,15 +297,15 @@ export class HandGestureRecognizer {
   }
 
   private _classify(
-    l: HandPose,
-    r: HandPose,
-    prevL: THREE.Vector3,
-    prevR: THREE.Vector3,
-    prevLDir: THREE.Vector3,
-    prevRDir: THREE.Vector3,
+    dominant: HandPose,
+    nonDominant: HandPose,
+    prevDom: THREE.Vector3,
+    prevNonDom: THREE.Vector3,
+    prevDomDir: THREE.Vector3,
+    prevNonDomDir: THREE.Vector3,
     dt: number
   ): string | null {
-    const bothPinchedNow = l.pinched && r.pinched;
+    const bothPinchedNow = dominant.pinched && nonDominant.pinched;
     const bothPinchedBefore = this._prev.leftPinched && this._prev.rightPinched;
 
     // System gesture: both hands pinch at the same moment.
@@ -315,8 +315,8 @@ export class HandGestureRecognizer {
 
     // Two-hand pinch together / apart.
     if (bothPinchedNow) {
-      const dNow = l.position.distanceTo(r.position);
-      const dPrev = prevL.distanceTo(prevR);
+      const dNow = dominant.position.distanceTo(nonDominant.position);
+      const dPrev = prevDom.distanceTo(prevNonDom);
       const delta = dNow - dPrev;
       if (Math.abs(delta) > this.moveThreshold && delta < 0) return 'pinchTogether';
       if (Math.abs(delta) > this.moveThreshold && delta > 0) return 'pinchApart';
@@ -328,51 +328,54 @@ export class HandGestureRecognizer {
 
     // Two-hand scoop up: both palms facing up and rising together.
     if (
-      l.direction.y > this.palmDotThreshold &&
-      r.direction.y > this.palmDotThreshold
+      dominant.direction.y > this.palmDotThreshold &&
+      nonDominant.direction.y > this.palmDotThreshold
     ) {
-      const dyL = l.position.y - prevL.y;
-      const dyR = r.position.y - prevR.y;
-      if (dyL > 0 && dyR > 0 && Math.min(dyL, dyR) > this.moveThreshold * 0.15) {
+      const dyDom = dominant.position.y - prevDom.y;
+      const dyNonDom = nonDominant.position.y - prevNonDom.y;
+      if (dyDom > 0 && dyNonDom > 0 && Math.min(dyDom, dyNonDom) > this.moveThreshold * 0.15) {
         return 'scoopUp';
       }
     }
 
     // Two-hand scoop down: both palms facing down and lowering together.
     if (
-      l.direction.y < -this.palmDotThreshold &&
-      r.direction.y < -this.palmDotThreshold
+      dominant.direction.y < -this.palmDotThreshold &&
+      nonDominant.direction.y < -this.palmDotThreshold
     ) {
-      const dyL = l.position.y - prevL.y;
-      const dyR = r.position.y - prevR.y;
-      if (dyL < 0 && dyR < 0 && Math.min(-dyL, -dyR) > this.moveThreshold * 0.15) {
+      const dyDom = dominant.position.y - prevDom.y;
+      const dyNonDom = nonDominant.position.y - prevNonDom.y;
+      if (dyDom < 0 && dyNonDom < 0 && Math.min(-dyDom, -dyNonDom) > this.moveThreshold * 0.15) {
         return 'scoopDown';
       }
     }
 
     // Two-hand push forward: both palms facing forward and moving forward.
     if (
-      l.direction.z < -this.palmDotThreshold &&
-      r.direction.z < -this.palmDotThreshold
+      dominant.direction.z < -this.palmDotThreshold &&
+      nonDominant.direction.z < -this.palmDotThreshold
     ) {
-      const dzL = l.position.z - prevL.z;
-      const dzR = r.position.z - prevR.z;
-      if (dzL < -this.moveThreshold * 0.5 && dzR < -this.moveThreshold * 0.5) {
+      const dzDom = dominant.position.z - prevDom.z;
+      const dzNonDom = nonDominant.position.z - prevNonDom.z;
+      if (dzDom < -this.moveThreshold * 0.5 && dzNonDom < -this.moveThreshold * 0.5) {
         return 'pushForward';
       }
     }
 
     // Two-hand rotate: cupped palms facing each other, opposite twist.
-    if (this._palmsFaceEachOther(l, r) && this._oppositeTwist(l, r, prevLDir, prevRDir)) {
-      const twist = this._twistAngle(l, r, prevLDir, prevRDir, dt);
+    if (
+      this._palmsFaceEachOther(dominant, nonDominant) &&
+      this._oppositeTwist(dominant, nonDominant, prevDomDir, prevNonDomDir)
+    ) {
+      const twist = this._twistAngle(dominant, nonDominant, prevDomDir, prevNonDomDir, dt);
       if (twist > 0.15) return 'rotateCW';
       if (twist < -0.15) return 'rotateCCW';
     }
 
     // Dominant open-hand swipe / slice.
-    if (!l.pinched && !r.pinched) {
-      const dx = l.position.x - prevL.x;
-      const dy = l.position.y - prevL.y;
+    if (!dominant.pinched && !nonDominant.pinched) {
+      const dx = dominant.position.x - prevDom.x;
+      const dy = dominant.position.y - prevDom.y;
       const adx = Math.abs(dx);
       const ady = Math.abs(dy);
       if (adx > this.moveThreshold && adx > ady * 1.5) {
@@ -384,7 +387,7 @@ export class HandGestureRecognizer {
     }
 
     // Dominant OK sign: pinch while non-dominant is open and not pinching.
-    if (l.pinched && !r.pinched) {
+    if (dominant.pinched && !nonDominant.pinched) {
       // Require a short hold to distinguish from a selection pinch.
       if (bothPinchedBefore || this._lastGestureName === 'okSign') return null;
       return 'okSign';
