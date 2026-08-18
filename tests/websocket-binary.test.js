@@ -76,4 +76,19 @@ describe('WebSocketAdapter binary frames', () => {
     adapter._ws.dispatchMessage(new ArrayBuffer(8));
     expect(status).toBe('error');
   });
+
+  it('sends in-band auth message on open without appending token to the URL', () => {
+    const adapter = new WebSocketAdapter({
+      url: 'wss://test/stream',
+      authToken: 'secret_token_123',
+    });
+
+    adapter.connect();
+    expect(adapter._ws.url).toBe('wss://test/stream');
+
+    adapter._ws.send = vi.fn();
+    adapter._ws.open();
+
+    expect(adapter._ws.send).toHaveBeenCalledWith(JSON.stringify({ type: 'auth', token: 'secret_token_123' }));
+  });
 });

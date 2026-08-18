@@ -5,7 +5,11 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-18 — Evidence-Informed Draco Recommender & Interactive Study Mode UI complete:
+- **Last updated:** 2026-08-18 — Connector In-Band Auth, Keepalive Reaper & Participant ID Sanitization complete:
+  In-band authentication message support in `WebSocketAdapter.ts` (keeping tokens out of URL query strings), 30s automated
+  ping/pong keepalive sweep and zombie socket reaper in `SignallingServer.mjs`, and strict participant ID input validation
+  in `ExperimentRunner.ts` (`^[a-zA-Z0-9_-]{1,64}$`) preventing injection/traversal.
+  Evidence-Informed Draco Recommender & Interactive Study Mode UI complete:
   Implemented `StudyModeModal.ts` and `StudyController.ts` validated in `tests/study-controller.test.ts` (VR & desktop trial HUD,
   real-time head-movement distance tracking, node selection routing, NASA-TLX workload survey, and session exports).
   Implemented `EvidenceStore.ts` and `EvidenceWeightedScorer.ts` validated in `tests/evidence-draco.test.ts` (empirical trial

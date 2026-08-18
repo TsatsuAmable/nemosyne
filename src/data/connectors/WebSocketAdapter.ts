@@ -34,6 +34,8 @@ export class WebSocketAdapter extends DataConnector {
   reconnect: boolean;
   reconnectDelay: number;
 
+  authToken: string | null;
+
   private _ws: WebSocket | null;
   private _shouldReconnect: boolean;
   private _reconnectTimer: ReturnType<typeof setTimeout> | null;
@@ -52,7 +54,8 @@ export class WebSocketAdapter extends DataConnector {
   }: WebSocketAdapterOptions) {
     super();
     if (!url) throw new Error('WebSocketAdapter requires a url');
-    this.url = authToken ? `${url}?token=${encodeURIComponent(authToken)}` : url;
+    this.url = url;
+    this.authToken = authToken;
     this.topology = topology;
     this.mode = mode;
     this.windowSize = windowSize;
@@ -83,6 +86,14 @@ export class WebSocketAdapter extends DataConnector {
 
     this._ws.addEventListener('open', () => {
       this._setStatus('connected');
+      if (this.authToken) {
+        try {
+          this._ws!.send(JSON.stringify({ type: 'auth', token: this.authToken }));
+        } catch (err) {
+          const e = err as Error;
+          this._setStatus('error', `Auth send failed: ${e?.message || String(err)}`);
+        }
+      }
       for (const msg of this.subscriptions) {
         try {
           this._ws!.send(typeof msg === 'string' ? msg : JSON.stringify(msg));

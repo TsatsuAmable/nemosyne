@@ -184,5 +184,15 @@ describe('Atlas 6: Controlled Experiment Harness', () => {
       expect(studyExport.trials).toHaveLength(expectedTotalTrials);
       expect(studyExport.provenanceHash).toMatch(/^fnv1a-[0-9a-f]+$/);
     });
+
+    it('rejects invalid participant IDs with invalid characters or excessive length', () => {
+      const runner = new ExperimentRunner(FROZEN_STUDY_CONDITIONS, FROZEN_STUDY_TASKS);
+
+      expect(() => runner.startParticipantSession('')).toThrow(/Invalid participantId/);
+      expect(() => runner.startParticipantSession('../etc/passwd')).toThrow(/Invalid participantId/);
+      expect(() => runner.startParticipantSession('P 01 with spaces')).toThrow(/Invalid participantId/);
+      expect(() => runner.startParticipantSession('a'.repeat(65))).toThrow(/Invalid participantId/);
+      expect(() => runner.startParticipantSession('valid-P_01')).not.toThrow();
+    });
   });
 });

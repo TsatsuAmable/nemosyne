@@ -87,15 +87,20 @@ export class ExperimentRunner {
    * Initializes a participant session with counterbalanced condition assignment.
    */
   startParticipantSession(participantId: string, orderOverride?: StudyCondition[]): ParticipantAssignment {
+    const sanitizedId = String(participantId || '').trim();
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(sanitizedId)) {
+      throw new Error(`Invalid participantId: "${participantId}". Must be 1-64 alphanumeric, dash, or underscore characters.`);
+    }
+
     if (orderOverride && orderOverride.length > 0) {
       this._assignment = {
-        participantId,
+        participantId: sanitizedId,
         order: [...orderOverride],
         cohort: 'Custom',
         assignedAt: Date.now(),
       };
     } else {
-      this._assignment = this._counterbalancer.assignParticipant(participantId);
+      this._assignment = this._counterbalancer.assignParticipant(sanitizedId);
     }
 
     this._currentConditionIndex = 0;
