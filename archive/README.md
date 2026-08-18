@@ -12,6 +12,11 @@ implementation status, product direction, study protocol, or operational procedu
 
 ## Archived Groups
 
+- `ROADMAP_PHASES_1-20_COMPLETED.md` — Phases 1–20 (Foundation → Graphics Engine & 90 FPS),
+  archived 2026-08-18 from the live `ROADMAP.md`. Historical record of what was built; not a
+  source of current status. The live roadmap's "Completed phases — Phases 1–20 (archived)"
+  section is the compact index; this file is the per-sprint detail with **BUILT, NOT WIRED**
+  audit notes preserved verbatim.
 - `study-drafts/` contains superseded root duplicates and legacy three-condition/Desktop-3D
   study drafts.
 - `Roadmap to stable alpha release.md` is superseded by `ROADMAP.md`.
