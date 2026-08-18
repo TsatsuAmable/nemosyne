@@ -1,16 +1,24 @@
 # Project documentation index
 
-This repository keeps three separate documentation layers and one historical archive. Archived
-documents are context only and never override the authorities below.
+This repository keeps a single governing product spec, separate implementation/status and
+technical-reference layers, a study layer, and one historical archive. Archived documents are
+context only and never override the authorities below.
 
-## 1. Product governance and implementation
+## Governing spec
+
+- [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md) — the
+  canonical product + implementation spec. Defines target architecture, principles, the Gate 0–7
+  model, release governance, documentation policy, and the Stable Alpha definition. All other
+  product docs are subordinate to this file.
+
+## 1. Product implementation and status
 This layer covers the shipped product, roadmap state, architecture, and engineering decisions.
 
 Canonical files:
-- [ROADMAP.md](ROADMAP.md)
-- [PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md](PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md)
+- [ROADMAP.md](ROADMAP.md) — implementation status; explicitly crosswalked to the vision's Gate 0–7
+  model (see its "Gate model — alignment to the Definitive Vision" section).
 - [MIGRATION.md](MIGRATION.md)
-- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md) — technical reference (layer-by-layer data flow).
 - [STATISTICAL_METHOD_REGISTER.md](STATISTICAL_METHOD_REGISTER.md)
 - [GETTING_STARTED.md](GETTING_STARTED.md)
 - [README.md](../README.md)
@@ -55,21 +63,22 @@ Use this layer to answer:
 
 ## Proposals and research inputs
 
-- [nemosyne-concept-paper-architecture.md](nemosyne-concept-paper-architecture.md) — concept
-  reconciliation and target architecture; subordinate to governance and roadmap.
-- [Nemosyne_Concept_Paper_v1.0.md](Nemosyne_Concept_Paper_v1.0.md) — concept narrative, not
-  implementation status.
-- [USER_STORIES_AND_UX_ANALYSIS.md](USER_STORIES_AND_UX_ANALYSIS.md) — product research input.
+- [USER_STORIES_AND_UX_ANALYSIS.md](USER_STORIES_AND_UX_ANALYSIS.md) — product research input, not
+  an authority.
 
 ## Historical archive
 
 - [Archive index](archive/README.md) — superseded roadmaps, design material, and study drafts.
 
 ## Ownership and authority
-- Product state and engineering status remain authoritative in [docs/ROADMAP.md](ROADMAP.md).
+- Product direction, architecture boundaries, release governance, and documentation policy remain
+  authoritative in [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md).
+- Implementation status remains authoritative in [docs/ROADMAP.md](ROADMAP.md).
+- Technical reference remains authoritative in [docs/ARCHITECTURE.md](ARCHITECTURE.md).
 - Study design remains authoritative in [docs/study](study).
 - Operational data package and consent remain authoritative in [docs/study](study).
 
 No archived document is an active source of truth.
 
-This is intentionally a three-layer model; the layers are related but not interchangeable.
+The governing spec is authoritative; the implementation, study, and technical-reference layers are
+related but subordinate, not interchangeable.

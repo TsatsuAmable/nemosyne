@@ -5,12 +5,25 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Vision-alignment pass — governance docs retired + Gate-0 `src/ai/` cleanup:**
+  Deleted the 3 superseded governance docs (`Nemosyne_Concept_Paper_v1.0.md`,
+  `nemosyne-concept-paper-architecture.md`, `PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md`) and repointed all
+  live references (`README.md`, `docs/GETTING_STARTED.md`, `docs/CURATION_BRIEF.md`,
+  `wasm/src/data/provenance.rs`, `docs/PROJECT_DOCS_INDEX.md`) to
+  `docs/Nemosyne_Definitive_Vision_and_Roadmap.md`, which is now the sole governing spec. Deleted
+  `src/ai/` in full (`DracoWorldModel`, `NeuralConstraintPredictor`, `VoiceCommandListener`) +
+  `tests/ai-neural-predictor.test.ts`, and split `tests/candidate-carousel-draco-ga.test.ts` /
+  `tests/voice-spatial-engine.test.ts` to keep the `RepresentationCarousel` / `SpatialAudioNarrator`
+  tests — closes the P15 duplicate-Draco violation (Gate 0). Added the ROADMAP Gate-model crosswalk +
+  canonical domain terms + stable-release definition (binding phase work to vision §13 Gates 0–7).
+  CLAUDE.md intentionally left untouched.
 - **2026-08-18 — Cleanup pass: dead-code retirement, Rust `draco_solve` cutover staged, lint cleared:**
   - **Retired the legacy `src/ai/Gesture*` trio** (`GestureClassifierModel.ts`, `GestureTrainingWorker.ts`,
     `GestureModelStore.ts`) + their tests, and added an explicit retirement note to **Phase 23** so two
     parallel ONNX-gesture systems cannot coexist at integration time — `modules/gesture-intelligence/`
-    is now the sole gesture-intelligence surface. Updated the two stale `src/ai/` inventory items
-    (now 3 remaining files: `NeuralConstraintPredictor`, `VoiceCommandListener`, `DracoWorldModel`).
+    is now the sole gesture-intelligence surface. (The remaining `src/ai/` files —
+    `NeuralConstraintPredictor`, `VoiceCommandListener`, `DracoWorldModel` — were later deleted in full
+    in the 2026-08-18 vision-alignment pass; see the top Current Status entry.)
   - **Wired the shipped Rust `draco_solve` into `DracoTopologyNode`** behind an opt-in 6th constructor
     arg `useRustSolver` (default `false`). When true, `reSolveAndSynthesize` calls
     `RuntimeBridge.solveDraco(facts)` and builds the `SolverResult` from the Rust spec+cost while
@@ -434,6 +447,72 @@
 1. On pickup: read this block first; jump to the cited sections for detail.
 2. Before stopping: refresh every bullet with current truth.
 3. Keep the block concise; move longer narrative to the relevant sections below.
+
+---
+
+## Gate model — alignment to the Definitive Vision
+
+[`docs/Nemosyne_Definitive_Vision_and_Roadmap.md`](Nemosyne_Definitive_Vision_and_Roadmap.md) is the
+governing product + implementation spec. The crosswalk below binds the existing phase work to the
+vision's Gate 0–7 model (vision §13). ROADMAP retains phase work as implementation detail; the gates
+are the authoritative capability progression.
+
+### Canonical domain terms (vision §4, Gate-0 exit criteria)
+
+- **Investigation** — the principal product object. Today: `NemosyneSession` + `AtlasCore` +
+  `ResearchContext` together carry the seeds (analytical state, event ledger, presentation state).
+  First-class Investigation aggregate = Gate 1.
+- **Task** — the human purpose of the analysis (vision §4.2). Today: carried only as free-form
+  session metadata / UI context. Typed Task/Hypothesis model = Gate 1.
+- **Evidence** — observations, findings, annotations, decision context, provenance (vision §4.4).
+  Today: `ResearchEvent` ledger + `EvidenceStore`/`EvidenceWeightedScorer`. First-class
+  observation/finding/evidence-link model = Gate 4.
+- **Representation** — the system's explicit answer to how the investigation should inhabit spatial
+  form (vision §4.5). Today: `DracoSpec` + `VRTopologyTranslator`. Widened `RepresentationRequirements`
+  + `SpatialStrategy` + rationale artifact = Gate 2.
+
+### Phase → Gate crosswalk
+
+| Gate | Objective | Phase work | Status |
+|---|---|---|---|
+| Gate 0 — Foundations | ambiguity removal, sole analytical authority, canonical names | Phase 21; dead-code retirements (2026-08-18); World facade decommission; `src/ai/` + governance-doc deletion (this pass) | 🟡 in progress (~80% after this pass) |
+| Gate 1 — Understand | first-class Investigation | Atlas 5 foundation; Investigation aggregate **unstarted** | 🔲 |
+| Gate 2 — Represent | explainable, research-safe representation | Rust `draco_solve` shipped + cutover staged (PR #168); `RepresentationRequirements`/`SpatialStrategy` widening + rationale artifact **unstarted** | 🔲 (foundation laid) |
+| Gate 3 — Experience | coherent analyst cockpit | Phase 22 (partial); Phase 24 sprints 24.1–24.9 (all 🔲) | 🔲 |
+| Gate 4 — Investigate | findings + evidence first-class | observation/finding/evidence-link model **unstarted** | 🔲 |
+| Gate 5 — Reproduce | Memory Palace as investigation VCS | session restore ✅; semantic-replay test ✅; branch/compare/share/explain **unstarted** | 🟡 partial |
+| Gate 6 — Study | scientific instrument | StudyModeModal/StudyController proto; unified treatment-freeze + Phase 23 capture **unstarted** | 🟡 partial |
+| Gate 7 — Adaptive research | learning from evidence (post-stable) | deliberately out of stable scope (vision §15) | 🔲 (correctly deferred) |
+
+### Sequencing
+
+The vision's governing implementation strategy (§18): **Investigation trustworthy before
+adaptive; interaction coherent before clever; representation explainable before evolutionary.**
+
+---
+
+## Stable-release definition
+
+The stable release is the **smallest** system satisfying these property groups (vision §14 is
+authoritative):
+
+- **Analytical** — Rust/WASM kernel authoritative; kernel version + provenance recorded; analytical
+  state deterministic and serializable.
+- **Investigation** — Task/Hypothesis exists; Investigation is first-class; evidence + findings
+  persistent; representation decisions explainable.
+- **Spatial** — one coherent navigation model; contextual task surfaces; robust focus/confirmation;
+  acceptable Quest interaction performance.
+- **Research** — 2D control equivalent in task semantics; treatment variables freezable; observer
+  non-mutating; telemetry + outcomes joinable.
+- **Reproducibility** — session restore works; semantic replay works for supported scope;
+  investigation packages identify kernel + schema versions.
+- **Quality** — no lifecycle/resource leaks; collaboration security enforced; representative
+  workloads meet frame budgets; UX acceptance gates pass.
+
+See vision §14 for the authoritative text and §15 for what is explicitly out of stable scope
+(evolutionary/Pareto Draco, neural Draco weight prediction, full gesture personalization loop,
+federated learning, broad voice command system, adaptive representation search, speculative
+Memory Palace world-building).
 
 ---
 
@@ -895,13 +974,13 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
   is risky for graphics code. Align versions or eliminate the explicit mismatch.
 - 🔲 **Review `allowJs: true` (verified).** Source is TS-first now; make the boundary explicit
   (`src` = TS-only; tests/config = JS) rather than a broad compiler permission.
-- 🔲 **Resolve `src/ai/` README staleness + AI-story inconsistency.** `README.md:74` says
-  `ai/ # (planned)` but `src/ai/` holds 3 real files (`NeuralConstraintPredictor`,
-  `VoiceCommandListener`, `DracoWorldModel`) — the gesture trio was deleted 2026-08-18 (see
-  Phase 23). Decide: keep AI emphasis with accurate status, or **remove the AI emphasis for
-  now** (the symbolic Draco recommender is the more interesting, defensible story — don't
-  dilute "transparent representation recommender" into "AI chooses your chart"). If a learned
-  layer comes later, evaluate it against Draco.
+- ✅ **`src/ai/` deleted in full (2026-08-18 vision-alignment pass).** The directory and its 3
+  files (`NeuralConstraintPredictor`, `VoiceCommandListener`, `DracoWorldModel`) are gone; the
+  stale `README.md:74` `ai/ # (planned)` sub-claim no longer exists (the README repo-layout entry
+  was removed in the same pass). Closes the AI-story inconsistency: the symbolic Draco recommender
+  is the defensible story, with no parallel "AI chooses your chart" surface diluting it. If a
+  learned layer comes later, evaluate it against Draco per the vision (§15 places neural Draco
+  weight prediction out of stable scope).
 - 🔲 **Separate semantic mark from visual skin.** Today spatial form and cyberpunk aesthetic
   are entangled. Split `NODE → {crystal, sphere, dot, column}` and `BEAM → {neon, neutral,
   high-contrast}` so the research question "does spatial form help?" can be answered
@@ -980,14 +1059,13 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
 > The six built-but-never-instantiated classes are already recorded (22.3 JIT/frustration, 22.5
 > avatars/companion/annotations). The audit surfaced *additional* dead production code.
 
-- 🔲 **`src/ai/` remainder is production-unwired (P1, verified).** None of the 3 remaining
+- ✅ **`src/ai/` deleted in full (2026-08-18 vision-alignment pass).** All 3 remaining
   `src/ai/*.ts` files (`NeuralConstraintPredictor`, `VoiceCommandListener`, `DracoWorldModel`)
-  is imported anywhere in `src/` outside `src/ai/` itself (grep-confirmed zero); only tests
-  reference them. The gesture trio (`GestureClassifierModel`, `GestureModelStore`,
-  `GestureTrainingWorker`) was deleted 2026-08-18 — see Phase 23. This upgrades the existing
-  "src/ai/ README staleness" item: the remaining AI subsystem is built and unit-tested but
-  never wired into `World`/`Engine`/any coordinator. Decide: wire + integration-test, or
-  delete (the symbolic Draco recommender is the defensible story — see the README item above).
+  were deleted along with `tests/ai-neural-predictor.test.ts`; `tests/candidate-carousel-draco-ga.test.ts`
+  and `tests/voice-spatial-engine.test.ts` were split to keep the `RepresentationCarousel` /
+  `SpatialAudioNarrator` tests. None of the deleted files was imported anywhere in `src/` outside
+  `src/ai/` itself (grep-confirmed zero); only tests referenced them. Closes the P15 duplicate-Draco
+  violation (Gate 0).
 - 🔲 **`src/data/serializers/` is production-unwired (P1, verified).** The barrel
   (`serializers/index.ts`) has zero production importers; `datasetToArrowIPC`/`arrowIPCToDataset`
   are never called in `src/` outside the directory. `@msgpack/msgpack` and `apache-arrow` are
@@ -1360,9 +1438,9 @@ UXI-7 is the gate: the 2026-08-18 replay must reproduce the manual findings.
 > leaving both in place would have produced two parallel ONNX-gesture systems at
 > integration time. The frozen contract in `modules/gesture-intelligence/` is now the
 > **sole** gesture-intelligence surface; Sprint 23.1 wires the host to that module,
-> not to anything in `src/ai/`. The remaining `src/ai/` files
-> (`NeuralConstraintPredictor`, `VoiceCommandListener`, `DracoWorldModel`) are
-> unrelated and still deferred per the dead-code inventory below.
+> not to anything in `src/ai/`. **The entire `src/ai/` directory was deleted in the
+> 2026-08-18 vision-alignment pass** (`NeuralConstraintPredictor`, `VoiceCommandListener`,
+> `DracoWorldModel` + their tests) — closing the P15 duplicate-Draco violation (Gate 0).
 
 ### Architectural direction
 

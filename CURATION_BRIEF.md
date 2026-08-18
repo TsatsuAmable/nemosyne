@@ -63,7 +63,7 @@
 ### 1. **Three-Layer Doc Model**
 - `docs/ROADMAP.md` (product layer) is canonical ✅
 - `docs/study/` (study layer) is canonical ✅
-- `docs/PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md` is the product-direction authority.
+- `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` is the product-direction authority.
 - `docs/USER_STORIES_AND_UX_ANALYSIS.md` remains product research input, not study authority.
 - Historical vision, design, issue, and study drafts are now under `docs/archive/`.
 
