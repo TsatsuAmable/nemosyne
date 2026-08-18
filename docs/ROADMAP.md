@@ -14,6 +14,22 @@
   78/78 module tests green; module typecheck/lint/build clean; real onnxruntime-web integration passes headlessly in node. **NOT yet
   wired into the host** (`src/` never imports it). Added **Phase 23** below: host integration + per-user personalization + global opt-in
   capture→retrain loop (Tier A feature-only corpus; raw positions stay on-device) + central staged retrain + federated/drift research.
+- **2026-08-18 — Phase 24 UX architecture planned (Analyst Cockpit & Interaction Hierarchy):**
+  Cross-verified the 20-point UX architecture review against `src/vr/ui/*`, `InputRouter`, `SystemGestureDetector`,
+  and the 2026-08-18 Quest telemetry. Findings: 4 parallel nav systems CONFIRMED, VRMenu 0.95m×1.45m with 29 buttons
+  CONFIRMED, 57% both-pinch suppression CONFIRMED (logged but not user-visible), 0/41 S2 hits CONFIRMED, UX-001
+  misattributed by the review (cold-start, not aim drift — that's UX-002), no developer mode exists, no panel role
+  system, no NAVIGATE/INTERACT/TRANSFORM/OBSERVE FSM, replay fixture NOT yet built (22.10 🔲). Added **Phase 24**
+  below: 9 sprints — 24.1 interaction-mode FSM + focus vocabulary (foundation, blocks the rest), 24.2 HandWheel
+  three-level categorization + forgiving confirm (gaze+confirm for the 91–100% pointer-miss), 24.3 VRMenu
+  decomposition into dataset-relevant contextual surfaces, 24.4 panel roles taxonomy + diagnostic mode separation +
+  paging, 24.5 dashboard-as-workspace + transient context cards, 24.6 progressive disclosure as architecture
+  (novice/analyst/researcher/developer), 24.7 both-pinch gesture ownership redesign (coupled to Phase 23.1 host
+  wiring), 24.8 calm visual language + status strip + spotlight/context model, 24.9 UX-001..UX-012 as measurable
+  acceptance gates (depends on the 22.10 replay fixture). Phase 24 absorbs/reframes incremental Phase 22 items
+  (22.3 input-correctness, 22.4 zonation, 22.7 task-first, 22.10 inventory) into an architectural frame; grounded
+  in Concept Paper principles P6/P7/P8/P9/P12 and frames the work as study-harness validity (paper Risk 4) not
+  feature work.
 - **Last updated:** 2026-08-18 — Phase 21.5 (Rust/WASM Draco Constraint Engine, Bayesian Evidence, Intent Compiler & Structure Discovery) complete:
   Ported the full Draco symbolic constraint engine to native Rust (`wasm/src/draco/`): 3,168-candidate combinatorial solver with 5 hard constraints
   and 20 weighted soft constraints (`solver.rs`), Bayesian empirical utility prior cost adjustment (`evidence.rs`), and complete type-safe
@@ -419,456 +435,41 @@ This split is deliberate. The layers are related but not interchangeable.
 
 This roadmap follows a phased structure adapted to the current three.js/WebXR runtime core.
 
-### Completed work-streams
-
-Cross-cutting work-streams that are **done** and recorded here (not in
-`.claude/plan.md`) as the single reference:
-
-- **TypeScript migration** ✅ — the entire JS source tree was converted to `.ts`
-  (import maps + Vite; `tsc --noEmit` is a required CI gate). The 7 stale `.js`
-  re-export stubs left behind were removed in the distillation PR.
-- **Docs-site refactor** ✅ — `docs/index.html`, examples, dataset mapping, and
-  use-case blurbs.
-
----
-
-## Phase 1 — Foundation ✅
-
-- [x] Git repository initialized.
-- [x] Working three.js/WebXR runtime on Meta Quest 3S.
-- [x] WebXR session binding compatible with Quest Browser.
-- [x] Controller and hand tracking input routing.
-- [x] Basic telemetry and diagnostic panels.
-- [x] Unit tests with Vitest.
-
-## Phase 2 — Specification ✅
-
-- [x] Draco-style constraint engine.
-- [x] Topology fact extraction (tabular, graph, hierarchy, vector, time-series).
-- [x] Hard/soft constraint rule registration and weighted scoring.
-- [x] Spec serializable as JSON.
-
-## Phase 3 — Core Framework ✅ 🔄
-
-- [x] `Dataset` with typed columns and encodings.
-- [x] `VRTopologyTranslator` synthesizing artefacts.
-- [x] World-space data inspection via DataCard.
-- [x] Independent, moveable HUD panels (`MovablePanel`, `PanelManager`).
-- [x] Live streaming connectors (`WebSocketAdapter`, `PollingAdapter`, `OpenDataSources`).
-- [x] Hand-attached radial wheel menu.
-- [x] HUD panels clustered around a central anchor point.
-- [x] Incremental live-stream updates.
-
-## Phase 4 — Examples & Documentation 🔄
-
-- [x] `README.md`, `docs/ARTEFACTS.md`, `docs/INTERACTIONS.md`, `docs/ARCHITECTURE.md`, `docs/GETTING_STARTED.md`.
-- [x] Complete `docs/ROADMAP.md` and keep it current.
-- [x] Expand built-in sample datasets (financial, geospatial, process-flow).
-
-## Phase 5 — Artefact Library Expansion ✅ 🔄
-
-- [x] Add Column, Orb, Token, Plinth, Beam, Trail, Ring, Field, Zone artefact variants.
-- [x] Add geospatial and flow topologies.
-- [x] Add real force-directed, radial-tree, and time-ribbon layout generators.
-- [x] Add lightweight TDA artefact glyphs (persistence barcode, mapper graph, Betti curve).
-- [x] Add data-operation transforms (filter, aggregate, sort, time-slice, cluster).
-
-## Phase 6 — Real-World Deployments 🔄
-
-- [x] Production build and deployment pipeline (`vite build`, Netlify, Vercel).
-- [x] GitHub Actions CI workflow (`.github/workflows/ci.yml`).
-- [x] Desktop fallback with mouse/keyboard (`DesktopControls`).
-- [x] Efficient data transmission hooks (Apache Arrow IPC, FlatBuffers, MessagePack serializers + `WebSocketAdapter.binaryParser`).
-- [x] Multi-user collaborative memory palaces (see Phase 10B).
-- [x] Neural predictive layer for soft-constraint weight recommendation (see Phase 11).
-
-## Phase 7 — VR Comfort, Scalability & Interaction Metaphors ✅
-
-- [x] Recalibrate panel anchor to ~0.55 m (Meta Quest comfort zone).
-- [x] Detach radial wheel menu from wrist; body-lock it in front of the chest.
-- [x] Add procedural audio + visual selection feedback (`SelectionFeedback`).
-- [x] Build scalable rendering package (`InstancedPointCloud`, `SpatialIndex`, `LODManager`).
-- [x] Add scale-aware facts and hard/soft constraints to `ConstraintEngine`.
-- [x] Add `INSTANCED_POINT_CLOUD`, `CLUSTER_VOLUME`, and `AGGREGATE_BARS` artefact paths.
-- [x] Implement six interaction metaphors: Resonance Pulse, Fork Plane, Chrono Dial, Constellation, Beacon, Aleph.
-- [x] Update tests and documentation for all of the above.
-
-## Phase 8 — Deeper Analytics & TDA Artefacts 🔄
-
-- [x] **Sprint 8.1** — Statistical facts engine (`columnStats`, `correlationMatrix`, `categoryDistribution`, temporal trend/seasonality, outlier detection).
-- [x] **Sprint 8.2** — Advanced clustering (`hierarchical`, `dbscan`, k-means++ seeding, `ClusterTransforms.ts`).
-- [x] **Sprint 8.3** — Anomaly & outlier layer (`anomaly` operation with IQR/Z-score/isolation methods, ORB halo rendering, outlier lens).
-- [x] **Sprint 8.4** — 2D chart planes in VR (`ChartPlane` artefact for bar/line/histogram/box/correlation plots, auto-attached by `VRTopologyTranslator`).
-- [x] **Sprint 8.5** — TDA artefact factory (`TDAMapper`, persistence barcode, mapper graph, Betti curve).
-
-## Phase 9 — Production Polish & Game-Inspired UX ✅
-
-- [x] **Sprint 9.1** — Diegetic data inspector (`HolographicInspector.js`).
-- [x] **Sprint 9.2** — Contextual gaze tooltips (`TooltipManager`).
-- [x] **Sprint 9.3** — Constellation / nested radial menus.
-- [x] **Sprint 9.4** — Spatial dashboard wall with snap zones (`DashboardManager.ts`, `ChartPlanePanel.ts`, dashboard reset in wheel menu).
-- [x] **Sprint 9.5** — Teleport anchors and comfort vignette (`locomotion.teleportToAnchor`, overview/detail anchors).
-- [x] **Sprint 9.6** — Guided tour system (`GuidedTour`, `DefaultTour.js`).
-- [x] **Sprint 9.7** — Dual-hand gestures, analysis history undo/redo, settings panel, feedback customization.
-- [x] **Sprint 9.8** — Hand-pointer anchoring, gesture cooldown/threshold tuning, production test hardening.
-- [x] **Sprint 9.9** — Visual polish and atmosphere presets (`WorldTheme.ts`, ambient particles, portal/TechnoCore glow pulses, dataset-key atmosphere mapping).
-
-----
-
-## Evaluation Checkpoint — End of Phase 9
-
-*Status as of 2026-07-28, written after completing Phase 9. Test counts have grown since; see TEST_READY.md for the current number.*
-
-### Goal delivery
-
-The project’s core thesis — multi-dimensional datasets become interactive 3D memory palaces — is **demonstrated end-to-end**. The constraint-driven Draco pipeline, artefact taxonomy, multi-modal input model, statistical aids, live connectors, and atmosphere layer all work together in a single WebXR/three.js runtime. Most of the foundational vision is implemented and tested, with rough edges and unfinished features remaining — this is a personal, experimental project, not a finished product.
-
-### Strengths
-
-- **Architecture:** Clean separation between Engine, World, artifacts, UI, interactions, and data layers.
-- **Test discipline:** A growing Vitest suite (1191 pass / 9 skip — see TEST_READY.md) makes refactoring safe for a WebXR codebase.
-- **Constraint-driven synthesis:** `DracoTopologyNode` + `ConstraintEngine` turn data facts into layout/interaction/geometry specs rather than hard-coding one chart per dataset.
-- **Unified input:** `HandGestureRecognizer`, `InputRouter`, `HandPointer`, `ControllerPointer`, `DesktopControls` share one model across VR and desktop.
-- **Atmosphere as signal:** Theme presets tied to dataset mood make the environment itself convey information.
-- **Diegetic UI:** Panels, wheel menus, and inspector live in world space, respecting immersion.
-
-### Critical gaps and missing capabilities
-
-1. **Hardware/runtime validation.** Frame time and draw-call budgets are now enforced in-engine with a live Performance panel; Quest Browser GPU memory and hand-tracking latency still need device-specific measurement.
-2. **Broad data ingestion.** No CSV/Excel/Parquet import, SQL/warehouse connectors, schema-mapping UI, or API authentication.
-3. **Output, provenance, and sharing.** Screenshot export, JSON analysis-story export, operation-log panel, and opt-in telemetry are implemented; annotations, bookmarks, shared links, and persistent revision history are still missing.
-4. **Collaboration.** Single-user only; no voice, avatars, synchronized cursors, or shared state.
-5. **Accessibility.** Colorblind palette remapping, text scaling, high-contrast UI mode, and dwell-selection motor alternative are implemented. Audio descriptions and full WCAG-equivalent coverage are still missing.
-6. **Graceful degradation.** GPU context loss, tracking loss mid-gesture, malformed CSVs, and network stalls need explicit recovery paths.
-7. **Evidence of value.** No user studies, task benchmarks, or telemetry to prove spatial analysis improves insight speed/accuracy over 2D tools.
-
-### How it differs from related work
-
-Nemosyne is a personal exploration of metaphor-first, embodied spatial analysis, not a competitor to shipping products. Compared with notebook/BI tools (Tableau, Power BI, Observable) it trades chart grammar, broad connectors, and provenance for immersion and the memory-palace metaphor; compared with one-off three.js/A-Frame viz demos it adds real analysis operations, undo/redo, live data, and tests; compared with enterprise VR analytics (e.g. Virtualitics) it lacks validated studies, connector breadth, and SSO. It is best understood as an experiment, not a replacement for any of these.
-
-### Recommended decision gate before Phase 10
-
-Do **not** jump straight into multi-user collaboration. First satisfy these four prerequisites:
-
-1. **Quest Browser validation pass** — capture frame-time, GPU memory, and hand-tracking latency baselines.
-2. **Canonical file-import flow** — CSV → `Dataset` with encoding inference, so non-developers can use the tool.
-3. **First usability benchmark** — define a repeatable task (e.g., “find the top outlier”) and compare Nemosyne against a 2D dashboard.
-4. **Non-functional requirements baseline** — performance budget, error boundaries, accessibility targets, telemetry, and state persistence.
-
-Only after those four are met should the roadmap choose between **Phase 10A: Validate & Harden** or **Phase 10B: Scale & Collaborate**.
-
-## Phase 10 — Decision Gate: Validate & Harden OR Scale & Collaborate ⏳
-
-*Phase 10 is intentionally a fork. The prerequisites above determine which track is selected.*
-
-### Track A — Validate & Harden (recommended if hardware/provenance gaps are not closed)
-
-- [x] **Sprint 10A.1** — Quest Browser performance profiling and performance budget enforcement.
-- [x] **Sprint 10A.2** — CSV file import with robust parsing, automatic topology/schema inference, and error boundaries (Excel/Parquet deferred to future plugin importers).
-- [x] **Sprint 10A.3** — Session persistence (`IndexedDB`): dataset, camera pose, operation history, settings, tour progress, with auto-save and wheel-menu actions.
-- [x] **Sprint 10A.4** — Export and provenance: PNG/WebP capture of renderer output, downloadable JSON analysis story, in-VR operation log panel.
-- [x] **Sprint 10A.5** — Accessibility pass: colorblind-safe palettes, text scaling, high-contrast, motor-accessible input alternatives.
-- [x] **Sprint 10A.6** — Telemetry and observability: session metrics, gesture counts, frame drops, error rates; opt-in only.
-- [x] **Sprint 10A.7** — Gesture coaching and controller equivalence: running interaction commentary panel, hand-gesture to Meta Quest controller mapping, controller gesture mapper.
-
-### Track B — Scale & Collaborate (recommended only after Track A prerequisites are satisfied)
-
-- [x] **Sprint 10B.1** — Networking foundation (WebRTC data channels, signalling server, room model, wheel-menu join/leave, in-VR network status panel).
-- [x] **Sprint 10B.2** — Free-floating, persisted HUD panels: panels no longer forced into the analyst-anchor arc, drag in cameraGroup local space, positions/visibility saved with the session.
-- [x] **Sprint 10B.3** — Shared state synchronisation (dataset, operations, camera pose, selections).
-- [x] **Sprint 10B.4** — Presence & avatars (voice-less or voice-optional, hand/controller avatar, name tags).
-- [x] **Sprint 10B.5** — Shared annotations, bookmarks, and tours.
-- [x] **Sprint 10B.6** — Asymmetric desktop companion (2D view of the same session for non-VR stakeholders).
-
-### Deferred longer-term work
-
-- [x] Neural predictive layer for soft-constraint weight recommendation (`NeuralConstraintPredictor.ts`).
-- [ ] Direct SQL / data-warehouse connectors.
-- [ ] Scientific user studies comparing spatial vs. 2D analysis workflows.
-
----
-
-## Phase 11 — On-Device AI Intelligence, Low-Token Observability & WebXR Ergonomics ✅
-
-- [x] **Sprint 11.1 — Analyst Torso Anchor & Ergonomics**: Reparented scene anchor to analyst torso (`analystAnchor`) at `~1.35m` chest height, continuously tracking headset position and yaw orientation.
-- [x] **Sprint 11.2 — Dual Vertical Multicoloured Wheel Menus**: Redesigned `HandWheelMenu.ts` into twin vertical arcs on left (`-0.36m`) and right (`+0.36m`) side of torso with wide rectangular pill geometry (`0.24m x 0.075m`), 30px+ fonts, and horizontal action fan-outs.
-- [x] **Sprint 11.3 — Guided Tour Onboarding & Sequential Progression**: Fixed single-step auto-advance guards so tour counts sequentially `1/9` through `9/9`. Added Data Loading, Saving/Exporting, Collaboration, and Data Characteristics demonstration steps.
-- [x] **Sprint 11.4 — On-Device UX Frustration Engine & Low-Token Observability**: Implemented `UXFrustrationAnalyzer.ts` to detect rapid repeated clicking, window thrashing, air-click misses, WASM errors, gesture misfires, and gaze/laser dwell hesitations locally. Generates 8-line token-compressed UX digests.
-- [x] **Sprint 11.5 — Gaze/Laser Dwell & Gesture Confidence Telemetry**: Integrated `recordDwell()` in `SelectionDispatcher.ts` and `recordGestureConfidence()` in `WorldInputCoordinator.ts`.
-- [x] **Sprint 11.6 — Geometry & Material Object Pooling**: Built `MeshPool` in `src/utils/ObjectPool.ts` and `executeInTimeSlices()` async batch execution to eliminate >200ms dataset load spikes.
-- [x] **Sprint 11.7 — Customization Architecture & AI Developer Team**: Defined 4-agent team in `.agents/team.json` (`technical-architect`, `coder`, `qa-engineer`, `reviewer`) and custom Workspace Skill `.agents/skills/vr-accessibility/SKILL.md`.
-
-----
-
-## Phase 12 — AI Tuning, Gesture Validation & UX Feedback Loop Closure ✅
-
-> **Focus:** Close the loop between the intelligence already built (Draco GA, gesture AI, frustration engine) and measurable, user-visible quality. No new major features — deepen, validate, and surface what's already there.
-
-### Sprint 12.1 — Gesture Recognition Validation Harness
-
-Existing coverage in `tests/hand-gesture-recognizer.test.js` tests the recognizer at unit level with synthetic `makePose` stubs, but lacks recorded trajectory fixtures, accuracy assertions, and edge-case coverage.
-
-- [x] `tests/fixtures/gesture-sequences/` — JSON multi-frame trajectory recordings for 6 core gestures: `pinchTogether`, `pinchApart`, `swipeLeft`, `swipeRight`, `scoopUp`, `pushForward`
-- [x] `tests/gesture-recognizer-accuracy.test.ts` — TP rate ≥ 90 %, FP rate ≤ 5 % per gesture, asserted from fixtures
-- [x] `tests/gesture-edge-cases.test.ts` — cooldown boundary, rapid alternation, dual-hand conflict, controller-equivalent parity
-- [x] `GestureConfidenceThresholds` config object in `HandGestureRecognizer` — per-gesture tunable `floor` / `ceiling` replacing magic numbers
-- [x] Update `docs/INTERACTIONS.md` with a gesture confidence spec table
-
-### Sprint 12.2 — Draco Recommender Evaluation Suite
-
-The GA solver runs but its recommendation quality is untested against known-good outputs. `DracoDiagnosticHUD` shows weights live but gives no quality signal back to the analyst.
-
-- [x] `tests/fixtures/draco-golden/` — golden pairs covering all primary topology types (`TABULAR`, `GRAPH`, `HIERARCHY`, `VECTOR_FIELD`, `TIME_SERIES`, `GEO`)
-- [x] `tests/draco-recommender-quality.test.ts` — topology match precision ≥ 80 %, soft-constraint score evaluation on golden set
-- [x] `ConstraintEngine.evaluateCandidate(spec, facts)` public method — exposed for external testability
-- [x] `DracoDiagnosticHUD` improvements: live per-constraint contribution bars, last 5 candidate history, colour-coded score delta (green = improved, red = regressed)
-
-### Sprint 12.3 — AI Module Integration & Fine-Tuning
-
-- [x] **`NeuralConstraintPredictor`** — weight normalization & prediction evaluation
-- [x] **`GestureClassifierModel`** — ONNX bridge & heuristic classification
-- [x] **`UXFrustrationAnalyzer`** threshold calibration: `RAPID_ABANDONMENT` window, `REPEATED_ACTION` floor, `AIR_CLICK_MISS` rate
-
-### Sprint 12.4 — Usability Feedback Loop Closure
-
-> **Audit note (2026-08-14, resolved 2026-08-16):** Components in this sprint were initially **built** (classes + unit tests complete) but not wired. `AdaptiveAssistController` now mounts and drives the three assist surfaces in production; Quest usability validation remains pending. See `docs/AUDIT_PHASES_1_20.md` for the historical baseline.
-
-- [x] **`FrustrationResponseManager`** (`src/vr/ui/FrustrationResponseManager.ts`) — **WIRED in Phase 22.3.** `AdaptiveAssistController` feeds analyzer actions, applies user mode, and parents the card to `analystAnchor`.
-- [x] **`GestureConfidenceHUD`** (`src/vr/ui/GestureConfidenceHUD.ts`) — **WIRED in Phase 22.3.** `AdaptiveAssistController` instantiates, registers, and disposes the per-gesture confidence panel.
-- [x] **`JITGestureHintManager`** (`src/vr/ui/JITGestureHintManager.ts`) — **WIRED in Phase 22.3.** `AdaptiveAssistController` sets the scene and drives diegetic hints from gesture and selection context.
-- [x] `tests/frustration-response.test.ts` — assert hint cards appear within 2 operations of threshold breach; assert threshold adapts to expert mode
-
-### Sprint 12.5 — UI/UX Polish & Data Transition Animations
-
-- [x] **Artefact transition animation** — smooth lerp via `executeInTimeSlices`
-- [x] **Panel visual hierarchy pass** — category-coloured left border strip (analytics `#00ffcc`, settings `#ffaa00`, collaboration `#aa44ff`)
-- [x] **Empty state designs** for `DataCard`, `OperationLog`, `ChartPlane`
-
-### Sprint 12.6 — Analyst Benchmark Suite (Evidence of Value)
-
-*First structured evidence that spatial analysis delivers real analyst benefit.*
-
-| # | Task | Dataset | Success criterion |
-|---|---|---|---|
-| 1 | *Find the top outlier* | Financial scatter | Correct node selected via inspector |
-| 2 | *Identify the dominant cluster* | Geospatial | Correct cluster label confirmed |
-| 3 | *Trace a causal path* | Process-flow hierarchy | Correct leaf-to-root path activated |
-| 4 | *Spot a temporal anomaly* | Time-series | Anomaly node inspected within time budget |
-| 5 | *Compare two encodings* | Any | Both carousel candidates evaluated, one confirmed |
-
-- [x] **`BenchmarkSession`** (`src/utils/BenchmarkSession.ts`) — instruments each task with `timeToFirstCorrectSelection`, `gestureCount`, `operationCount`, `frustrationScoreAtCompletion`
-- [x] Benchmark results exported as JSON alongside the existing analysis story export
-- [x] `tests/benchmark-session.test.ts` — all 5 tasks pass under deterministic simulated input
-
-### Sequencing
-
-```
-12.1 → 12.3  (gesture fixtures feed AI accuracy tests)
-12.2 → 12.3  (golden Draco set feeds predictor eval)
-12.1 + 12.2 → 12.6  (benchmark tasks use both)
-12.4 → 12.5  (feedback polish builds on closed loop)
-```
-
----
-
-## Phase 13 — Real-World Data Ingestion & Provenance Export Infrastructure ✅
-
-> **Focus:** Make Nemosyne production-ready for arbitrary analyst datasets. Enable non-developers to load CSV files with automatic schema inference, support binary Arrow IPC streams, export interactive 3D analysis storybooks, and handle WebGL context loss gracefully.
-
-### Sprint 13.1 — CSV/TSV Auto-Inference & Field Mapping UI
-
-- [x] `CSVDataParser.ts` — robust client-side CSV/TSV parser handling quoted fields, escaped delimiters, missing values, and automatic type inference (`NUMERIC`, `CATEGORICAL`, `TEMPORAL`)
-- [x] `SchemaMappingPanel.ts` — in-VR panel letting analysts confirm column type assignments, cycle types, and apply updated field mappings
-- [x] `tests/csv-parser.test.ts` — test suite verifying quoted field parsing, numeric casting, date detection, and type cycling
-
-### Sprint 13.2 — Apache Arrow IPC & FlatBuffers Binary Parsers
-
-- [x] `ArrowBinaryParser.ts` — zero-copy Apache Arrow IPC stream reader extracting Float32 position buffers directly targeting `InstancedPointCloud` attributes
-- [x] `tests/arrow-ipc.test.ts` — test suite asserting zero-copy memory parsing accuracy
-
-### Sprint 13.3 — Spatial Analysis Storybook & Provenance Export
-
-> **Audit note (2026-08-14):** `AnalysisStorybookExporter.ts` class is **BUILT, NOT WIRED.** Export functionality is implemented in `TelemetryPanel.ts` instead; the class is never instantiated. Decision: either wire the class into TelemetryPanel or consolidate export logic into a single path. For now, export works via TelemetryPanel (not misleading, but terminology "Storybook" vs. "Telemetry" should be clarified).
-
-- [x] `AnalysisStorybookExporter.ts` — **BUILT, NOT WIRED.** Packages session state, dataset snapshot, camera poses, selected filters, annotations, and tour checkpoints into a downloadable JSON/HTML bundle (class complete, tests pass, never instantiated)
-- [x] `TelemetryPanel.ts` — export functionality actively used; exports raw telemetry + session context as JSON
-- [x] `tests/storybook-context-recovery.test.ts` — test suite verifying storybook bundle serialization
-
-### Sprint 13.4 — Session Recovery & WebGL Context Loss Safety
-
-> **Audit note (2026-08-14):** `ContextRecoveryManager.ts` is **BUILT, NOT WIRED.** WebGL context loss handling exists in `Engine.ts` directly (`contextlost`/`contextrestored` listeners) rather than delegated to the manager.
-
-- [x] `ContextRecoveryManager.ts` — **BUILT, NOT WIRED.** Class complete; detects WebGL context loss, preserves state, restores GPU buffers (never instantiated; logic lives in `Engine.ts`)
-- [x] `Engine.ts` — `contextlost`/`contextrestored` event listeners active; context loss recovery working in production
-- [x] `tests/storybook-context-recovery.test.ts` — test suite simulating WebGL context loss and verifying recovery dispatch
-
----
-
-## Phase 14 — WebXR Performance, GPU Caching & Memory Optimization ✅
-
-> **Focus:** Eliminate frame-time spikes and memory allocation garbage collection during WebXR analytics sessions on Meta Quest standalone hardware. Implement dynamic canvas texture diff caching, sub-range GPU buffer updates, and an adaptive 90 FPS frame governor.
-
-### Sprint 14.1 — Canvas Texture GPU Re-Upload Caching
-
-- [x] `CanvasTextureCacheManager.ts` — dirty-rect and content hashing manager for `MovablePanel` and `HandWheelMenu` preventing unnecessary dynamic canvas texture GPU re-uploads during user interaction
-- [x] `tests/canvas-texture-cache.test.ts` — test suite asserting canvas texture upload skip rate > 80% on unchanged UI frames
-
-### Sprint 14.2 — Sub-Range GPU Buffer Updates for InstancedPointCloud
-
-- [x] `InstancedPointCloud` partial buffer update methods (`updateSubRange(offset, count)`) allowing filtered and clustered point subsets to update GPU attribute sub-ranges without full geometry buffer rebuilds
-- [x] `tests/subrange-adaptive-governor.test.ts` — test suite verifying partial GPU attribute buffer updates
-
-### Sprint 14.3 — Adaptive WebXR Frame & Thermal Governor
-
-- [x] `AdaptiveFrameGovernor.ts` — continuously monitors WebXR frame render time; dynamically scales particle counts, LOD culling distances, and shadow resolution when frame time breaches 11.1ms (90 FPS target on Quest 3S)
-- [x] `tests/subrange-adaptive-governor.test.ts` — test suite simulating frame time spikes and verifying governor LOD scaling response
-
----
-
-## Phase 15 — Collaborative Spatial Memory Palaces ✅
-
-> **Focus:** Enable multi-analyst spatial collaboration. Synchronize active datasets, filter states, 3D selection highlights, hand avatars, and spatial pointers across WebRTC peer connections.
-
-### Sprint 15.1 — Multi-User WebRTC Data Channel State Sync
-
-- [x] `CollaborativeStateSync.ts` — P2P WebRTC data channel state synchronizer replicating active dataset selection, filter operations, and camera transform vectors
-- [x] `tests/collaborative-sync.test.ts` — test suite verifying state broadcast and peer delta merging
-
-### Sprint 15.2 — Peer Avatars & Synchronized Spatial Pointers
-
-- [x] `PeerAvatarManager.ts` — renders lightweight headset & hand avatars for connected remote analysts with color-coded laser pointers and gaze target indicators
-- [x] `tests/peer-avatars-annotations.test.ts` — test suite verifying peer avatar transform updates
-
-### Sprint 15.3 — Shared Annotations & Co-Op Benchmark Sessions
-
-- [x] `SharedAnnotationManager.ts` — synchronized 3D spatial pin drop annotations and collaborative benchmark session scoring
-- [x] `tests/peer-avatars-annotations.test.ts` — test suite verifying annotation sync across peer sessions
-
----
-
-## Phase 16 — Voice & Natural Language Spatial Query Engine ✅
-
-> **Focus:** Enable hands-free natural language spatial interaction. Parse spoken voice commands into Nemosyne operations and generate Web Speech API audio narration for analytics discoveries.
-
-### Sprint 16.1 — Web Speech API Natural Language Query Listener
-
-- [x] `VoiceCommandListener.ts` — Web Speech API speech recognition engine parsing spoken voice phrases (*"filter revenue above 200"*, *"show graph view"*, *"reset layout"*) into executable Nemosyne `Operation` commands
-- [x] `tests/voice-spatial-engine.test.ts` — test suite verifying intent classification and query parsing
-
-### Sprint 16.2 — Diegetic Audio Feedback & Narration
-
-- [x] `SpatialAudioNarrator.ts` — Web Speech API speech synthesis engine providing spoken audio narration for operation execution, anomaly alerts, and guided tour steps
-- [x] `tests/voice-spatial-engine.test.ts` — test suite verifying audio narration queueing and speech synthesis options
-
----
-
-## Phase 17 — Architectural Hardening & Structural Refactoring ✅
-
-> **Focus:** Address structural debt, monolithic God objects, main-thread blocking operations, and network fragmentation identified in technical architecture critique.
-
-### Sprint 17.1 — Decompose `World.ts` Monolith
-
-- [x] `SceneGraphController.ts` — extract Three.js scene graph initialization, lighting, camera anchoring, and render loop setup
-- [x] `WorkspaceManager.ts` — extract dataset loading, active layout switching, and artifact registration
-- [x] `tests/world-controllers.test.ts` — test suite verifying decomposed scene graph & workspace controllers
-
-### Sprint 17.2 — Web Worker Offloading for Heavy Computations
-
-> **Audit note (2026-08-14):** Worker classes are **BUILT, NOT WIRED.** Both classes are complete with tests, but the main-thread parsing/solving paths remain active. Workers are never instantiated. Decision: main-thread performance is acceptable for current datasets (100k points load in <200ms); worker offloading can be revisited if main-thread blocking becomes critical. For now, the built workers serve as a reference implementation.
-
-- [x] `CSVParserWorker.ts` — **BUILT, NOT WIRED.** Class complete; would offload CSV/TSV parsing and type inference off the WebXR main render thread (never instantiated; main-thread parser in `FileLoader.ts` used instead)
-- [x] `DracoSolverWorker.ts` — **BUILT, NOT WIRED.** Class complete; would offload statistical fact extraction and Genetic Algorithm constraint solving (never instantiated; main-thread solver in `DracoTopologyNode.ts` used instead)
-- [x] `tests/worker-offloading.test.ts` — test suite verifying async worker message passing and result accuracy
-
-### Sprint 17.3 — Unified WebRTC Networking & Binary Pose Streaming
-
-- [x] `BinaryPoseSerializer.ts` — **WIRED.** Used in `CollaborativeStateSync.ts`; replaces high-frequency 20Hz `JSON.stringify` camera pose broadcasts with compact 32-byte binary `Float32Array` buffers
-- [x] `tests/binary-pose-governor-binding.test.ts` — test suite verifying binary pose serialization and state convergence
-
-### Sprint 17.4 — Connect `AdaptiveFrameGovernor` to Scene Renderers
-
-- [x] Bind `AdaptiveFrameGovernor` `_lodScaleFactor` directly to `InstancedPointCloud` instance counts (`applyLODScale()`)
-- [x] **WIRED.** Governor instantiated in `Engine.ts:82`, actively adjusts LOD during render loop
-- [x] `tests/binary-pose-governor-binding.test.ts` — test suite asserting active scene load shedding when governor throttles
-
----
-
-## Phase 18 — Production Runtime Integration & Worker Hardening ✅
-
-> **Focus:** Wire Phase 17 architectural abstractions into production runtime loops of `World.ts`, `Engine.ts`, `CollaborativeStateSync`, and `InstancedPointCloud`. Implement dedicated Web Workers via Blob URLs and binary pose channel transport.
-
-### Sprint 18.1 — Wire `SceneGraphController` & `WorkspaceManager` into `World.ts`
-
-- [x] Instantiate and delegate scene graph setup, camera positioning, torso updates, and dataset state to `SceneGraphController` and `WorkspaceManager` inside `World.ts`
-- [x] `tests/production-runtime-wiring.test.ts` — test suite asserting `World.ts` delegates to sub-controllers
-
-### Sprint 18.2 — Dedicated Web Workers (`Blob` URL Workers)
-
-- [x] Implement true dedicated Web Workers using Blob URL constructors (`Worker`) in `CSVParserWorker.ts` and `DracoSolverWorker.ts`
-- [x] `tests/production-runtime-wiring.test.ts` — test suite asserting off-thread message passing
-
-### Sprint 18.3 — Binary WebRTC Pose Streaming Transport
-
-- [x] Wire `BinaryPoseSerializer` into `CollaborativeStateSync.ts` to transmit 32-byte ArrayBuffer camera poses instead of JSON strings
-- [x] `tests/production-runtime-wiring.test.ts` — test suite verifying ArrayBuffer transmission over WebRTC data channels
-
-### Sprint 18.4 — Closed-Loop Adaptive Governor Animation Integration
-
-- [x] Connect `AdaptiveFrameGovernor.recordFrame()` inside `Engine.ts` animation loop and push `lodScaleFactor` to active `InstancedPointCloud` instances
-- [x] `tests/production-runtime-wiring.test.ts` — test suite asserting active frame time measurement and reactive point cloud scaling
-
----
-
-## Phase 19 — Architectural Hardening & Zero-Copy Protocol ✅
-
-> **Focus:** Address multi-user peer collision vulnerability in binary pose sync, eliminate per-frame GC allocations via static typed array views, and complete reactive governor event loops.
-
-### Sprint 19.1 — Multi-User Binary Peer ID & Monotonic Sequence Tracking
-
-- [x] Add numeric peer ID header and sequence validation to `BinaryPoseSerializer` and `CollaborativeStateSync.ts` to prevent remote peer state collisions in 3+ user rooms
-- [x] Reuse static ArrayBuffer views to eliminate 3x object allocations per tick during 90Hz pose broadcasts
-- [x] `tests/zero-copy-network-sync.test.ts` — test suite verifying peer ID demuxing and sequence drop protection
-
-### Sprint 19.2 — Closed-Loop Governor Event Dispatch & Reactive Rendering
-
-- [x] Dispatch `WorldTopics.PERFORMANCE_THROTTLE` events when `AdaptiveFrameGovernor` adjusts `_lodScaleFactor`
-- [x] Bind `InstancedPointCloud` and layout particle instances to throttle events reactively
-- [x] `tests/governor-event-loop.test.ts` — test suite asserting reactive scene load shedding under throttle events
-
-### Sprint 19.3 — Delegate Workspace Node Lifecycle to WorkspaceManager
-
-- [x] Delegate dataset node group mounting, layout group cleanup (`clearDataset()`), and artifact node registration to `WorkspaceManager`
-- [x] `tests/workspace-node-lifecycle.test.ts` — test suite verifying workspace dataset node group delegation
-
----
-
-## Phase 20 — Graphics Engine Optimization & 90 FPS WebXR Rendering ✅
-
-> **Focus:** Optimize WebGL render pipeline for Meta Quest 3S (11.1ms / 90 FPS budget). Eliminate per-frame GC allocations, bypass static UI canvas texture re-uploads via DJB2 state hashing, enable Early-Z culling, and harden WebGL context loss recovery.
-
-### Sprint 20.1 — Zero-Allocation Instanced GPU Buffer Pipeline
-
-- [x] Eliminate per-frame object allocations in `InstancedPointCloud.setPoints()`; reuse static `InstancedBufferAttribute` typed arrays and update sub-ranges
-- [x] Enable `depthWrite: true` and `depthTest: true` on instanced point materials to enable Meta Quest 3S TBDR Early-Z culling
-- [x] Fix `DracoTopologyNode` mesh pool release/disposal lifecycle
-- [x] `tests/zero-alloc-instanced-buffer.test.ts` — test suite verifying buffer re-use and sub-range update flags
-
-### Sprint 20.2 — UI Canvas Texture Upload Bypassing
-
-- [x] Integrate `CanvasTextureCacheManager` into `MovablePanel.render()` to compute DJB2 state hashes
-- [x] Bypass `texture.needsUpdate = true` on static UI frames to eliminate 3-6ms GPU upload stalls
-- [x] `tests/zero-alloc-instanced-buffer.test.ts` — test suite verifying texture upload bypass on unchanged UI state
-
-### Sprint 20.3 — Robust WebGL Context Loss & GPU Buffer Recovery
-
-- [x] Consolidate `webglcontextlost` and `webglcontextrestored` handling into `ContextRecoveryManager.ts`
-- [x] Re-flag geometry buffer attributes dirty and force material re-compilation on context recovery
-- [x] `tests/storybook-context-recovery.test.ts` — test suite verifying scene restoration after context loss
-
-### Sprint 20.4 — Closed-Loop 90 FPS Governor Load Shedding
-
-- [x] Measure frame deltas via `XRFrame` timestamps and push `lodScaleFactor` directly into `InstancedPointCloud.applyLODScale()` during `Engine._tick()`
-- [x] `tests/production-runtime-wiring.test.ts` — test suite asserting reactive load shedding under GPU load
+### Completed phases — Phases 1–20 (archived)
+
+> Phases 1–20 are **complete** and have been archived to
+> [`docs/archive/ROADMAP_PHASES_1-20_COMPLETED.md`](archive/ROADMAP_PHASES_1-20_COMPLETED.md)
+> (archived 2026-08-18). That file is the historical record of what was built; it is **not** a
+> source of current status. The compact index below is for navigation only — see the archive for
+> per-sprint detail, test names, and the **BUILT, NOT WIRED** audit notes preserved verbatim.
+
+| Phase | Status | One-line record |
+|-------|--------|-----------------|
+| 1 — Foundation | ✅ | Git repo, three.js/WebXR runtime on Quest 3S, controller + hand input, Vitest. |
+| 2 — Specification | ✅ | Draco-style constraint engine, topology facts, hard/soft scoring, JSON-serializable spec. |
+| 3 — Core Framework | ✅ | `Dataset`, `VRTopologyTranslator`, DataCard, `MovablePanel`/`PanelManager`, live connectors, wheel menu, anchor-clustered HUD. |
+| 4 — Examples & Documentation | ✅ | README, ARTEFACTS, INTERACTIONS, ARCHITECTURE, GETTING_STARTED, sample datasets. |
+| 5 — Artefact Library Expansion | ✅ | Column/Orb/Token/Plinth/Beam/Trail/Ring/Field/Zone, geo + flow topologies, force/radial/time-ribbon layouts, TDA glyphs, data operations. |
+| 6 — Real-World Deployments | ✅ | Vite build + Netlify, GitHub Actions CI, desktop fallback, Arrow/FlatBuffers/MessagePack serializers, multi-user (P10B), neural predictor (P11). |
+| 7 — VR Comfort, Scalability & Metaphors | ✅ | Panel anchor ~0.55 m, body-locked wheel, selection feedback, `InstancedPointCloud`/`SpatialIndex`/`LODManager`, scale facts, 6 interaction metaphors. |
+| 8 — Deeper Analytics & TDA | ✅ | Statistical facts, hierarchical/dbscan/k-means++ clustering, anomaly layer, 2D chart planes, TDA artefact factory. |
+| 9 — Production Polish & Game-Inspired UX | ✅ | HolographicInspector, gaze tooltips, constellation menus, dashboard wall, teleport anchors, guided tour, dual-hand gestures, settings, atmosphere presets. |
+| 9 Evaluation Checkpoint | ✅ | 2026-07-28 checkpoint: thesis demonstrated end-to-end; recorded critical gaps (hardware validation, broad ingestion, output/provenance, collaboration, accessibility, degradation, evidence of value). |
+| 10 — Decision Gate | ✅ | Track A (validate & harden: Quest profiling, CSV import, session persistence, export/provenance, accessibility, telemetry, gesture coaching) + Track B (scale & collaborate: WebRTC, free panels, shared state, avatars, annotations, desktop companion). Deferred: SQL connectors, scientific user studies. |
+| 11 — On-Device AI, Observability & Ergonomics | ✅ | Analyst torso anchor, dual vertical wheel menus, guided tour, `UXFrustrationAnalyzer`, dwell/gesture-confidence telemetry, `MeshPool` + time-sliced batching, 4-agent team. |
+| 12 — AI Tuning, Gesture Validation & UX Loop | ✅ | Gesture fixtures + accuracy tests, Draco golden pairs + quality suite, AI module integration, usability feedback loop (wired in P22.3), UI polish, analyst benchmark suite. |
+| 13 — Real-World Ingestion & Provenance | ✅ | CSV/TSV auto-inference + schema mapping, Arrow IPC parser, storybook export, WebGL context-loss recovery. |
+| 14 — WebXR Performance & GPU Caching | ✅ | Canvas-texture GPU re-upload caching, sub-range `InstancedPointCloud` buffer updates, adaptive frame/thermal governor. |
+| 15 — Collaborative Memory Palaces | ✅ | WebRTC state sync, peer avatars + spatial pointers, shared annotations + co-op benchmark. |
+| 16 — Voice & NL Spatial Query | ✅ | Web Speech API command listener, diegetic audio narration. |
+| 17 — Architectural Hardening | ✅ | `SceneGraphController`/`WorkspaceManager` extraction, web-worker offloading (built, not wired), binary pose streaming, governor scene binding. |
+| 18 — Production Runtime & Worker Hardening | ✅ | Controller delegation into `World.ts`, Blob-URL workers, binary WebRTC pose transport, closed-loop governor integration. |
+| 19 — Hardening & Zero-Copy Protocol | ✅ | Numeric peer ID + monotonic sequence tracking, static ArrayBuffer reuse, governor event dispatch, workspace node lifecycle. |
+| 20 — Graphics Engine & 90 FPS | ✅ | Zero-allocation instanced GPU buffers, Early-Z culling, DJB2 canvas-texture upload bypass, robust WebGL context-loss recovery, closed-loop 90 FPS governor. |
+
+> The **BUILT, NOT WIRED** audit notes from Phases 12.4 / 13.3 / 13.4 / 17.2 are preserved in the
+> archive; their disposition is re-examined by the Phase 22.6 dead-code inventory and the Phase 24
+> architectural plan. The live roadmap (Phases 21–24 + Atlas V5) is authoritative for what remains.
 
 ---
 
@@ -1901,6 +1502,190 @@ routed through the Rust analytical kernel's provenance envelope.
 23.1 and 23.2 are independently shippable user-facing wins (gestures work in-VR;
 per-user tuning). 23.3 is the privacy prerequisite for any global model. 23.4
 makes the global loop real. 23.5 is research-grade and must not block 23.1–23.4.
+
+---
+
+## Phase 24 — UX Architecture: Analyst Cockpit & Interaction Hierarchy 🔲 (new)
+
+> Source: the 2026-08-18 UX architecture review (20-point proposal), cross-verified against
+> the codebase (`WorldUIManager`, `PanelManager`, `MovablePanel`, `HandWheelMenu`, `VRMenu`,
+> `DashboardManager`, `SettingsPanel`, `VRConsole`, `InputRouter`, `SystemGestureDetector`) and
+> the 2026-08-18 Meta Quest session telemetry (`logs/ux-trace.jsonl`, `logs/vr-remote-console.log`).
+> Theme: **stop adding panels; establish one interaction hierarchy so the existing UI primitives
+> become an analyst cockpit.** The thesis is that almost every primitive needed already exists —
+> HandWheel, PanelManager, DashboardManager, MovablePanel, narrative state, UX telemetry — what's
+> missing is a stricter interaction hierarchy. The best UX refactor may delete panels rather than
+> add them.
+
+> Relationship to existing phases: this phase **absorbs and reframes** incremental Phase 22 items
+> (22.3 input-correctness, 22.4 zonation, 22.7 task-first, 22.10 inventory) into an architectural
+> frame; it does not duplicate them. It is coupled to **Phase 23** gesture intelligence: 24.7
+> (both-pinch ownership) and 23.1 (host wiring) share the `InputRouter` gesture dispatch surface.
+> It is grounded in the **Concept Paper** principles: semantic honesty (P6), human agency &
+> reversibility (P8), research observability by design (P9), 2D as a legitimate partner (P7),
+> stable means testable not proven (P12). Framing: these fixes are **study-harness validity work**
+> for the flagship 2D-vs-VR `Find the Fraud` comparison (Concept Paper Risk 4: study contamination),
+> not feature work — the uncontrolled interaction model is a confound that must be removed before
+> the comparison is fair.
+
+### Architectural direction
+
+```text
+                    NEMOSYNE UX
+                        │
+          ┌─────────────┼─────────────┐
+          │             │             │
+       NAVIGATE       WORK          OBSERVE
+       HandWheel    Dashboard       World
+          │             │             │
+      ┌───┼───┐      ┌───┼───┐       │
+    Data View Study  Task Context  Evidence
+                    Panels Cards   Layer
+                       │
+                 Contextual Actions
+
+Interaction State Machine (one authoritative mode at a time)
+   NAVIGATE | INTERACT | TRANSFORM | OBSERVE   (visible to the user)
+        │
+   ├── gaze
+   ├── pointer
+   ├── pinch
+   ├── grab
+   └── keyboard/controller
+```
+
+Three navigation verbs: **Navigate → Wheel, Work → Panel, Observe → World, Recall → Workspace.**
+The launcher ring becomes a secondary "open tools" affordance, not a competing navigation tree.
+The dashboard becomes a workspace, not a menu. Panels become task surfaces, not navigation surfaces.
+
+### Sprint 24.1 — Interaction state machine & focus vocabulary 🔲 (foundation; blocks 24.2–24.7)
+
+> The missing abstraction. Every interactive surface should share one interaction vocabulary
+> and one authoritative mode. Today `InputRouter` uses ad hoc hover/focus logic and many
+> components implement their own local interaction behaviour. This is the structural fix that
+> makes every other sprint cheaper.
+
+- **Interaction-mode FSM.** Introduce an explicit `InteractionMode = NAVIGATE | INTERACT | TRANSFORM | OBSERVE` state machine in `InputRouter` (or a new `InteractionModeController`). One mode active at a time; the current mode is **visible** to the user (compact status strip or HUD chip). Mode transitions are explicit and reversible (Concept Paper P8). This is the UX analogue of the paper's authority-separation principle (Risk 2): no competing sources of interaction truth.
+- **Focus state abstraction.** A shared `FocusState = idle | focused | hovered | armed | confirmed | disabled | busy` vocabulary every interactive surface reports. Today many components implement their own local interaction behaviour — replace with one shared contract so wheel, panels, and world objects share the same semantics.
+- **Both-pinch mode awareness (hook).** `SystemGestureDetector.bothPinched` must not silently suppress (current 57% S2 suppression). The mode FSM owns both-pinch semantics: in `NAVIGATE` it could mean world-transform; in `INTERACT` it means commit; the user sees a mode chip, not a silent swallow. Full redesign in 24.7; this sprint adds the mode-aware hook.
+- **Absorbs 22.3 input-correctness bugs.** The double-toggle/double-fire (`Hands.ts:285` + `InputRouter.ts:329-335`), the `HandGestureRecognizer` dominant-hand index bug, the hand-grab/both-pinch locomotion conflict, and `scoopDown`'s dead-end else branch are all symptoms of no shared interaction grammar. The FSM + focus vocabulary fixes the class of bug, not each instance.
+- **Gates.** `tests/interaction-mode.test.ts` (mode transitions, reversibility, no silent suppression); the FSM is telemetry-instrumented (mode transitions emit trace records for the UXI-7 replay fixture).
+- **Exit.** One authoritative interaction mode at a time, visible to the user; every interactive surface shares one focus vocabulary; the 22.3 input-correctness class is resolved structurally.
+
+### Sprint 24.2 — HandWheel as primary navigation: three-level categorization & forgiving confirm 🔲
+
+- **Three-level wheel.** Re-categorize the wheel around analyst intent: top-level categories `ANALYSE | VIEW | DATA | STUDY | COLLABORATE | SYSTEM`; selecting a category reveals its contextual actions. Panels become task surfaces, not navigation surfaces. The launcher ring becomes a secondary "open tools" affordance, not another competing navigation tree.
+- **Forgiving confirm.** Replace the ray-intersection-fires-action model with `REST → CATEGORY FOCUS → ACTION CONFIRM`. A hovered action shows stronger scale, larger hit target, directional highlight, label expansion, optional 100–150 ms dwell highlight; selection requires an **explicit pinch/trigger**. The menu never punishes an accidental ray intersection. (Note: the 2026-08-18 review's "fires immediately on hit" claim was verified **misleading** — `HandWheelMenu` already requires pinch; the real issue is discoverability + the 91–100% pointer miss rate, not accidental fire. This sprint makes the wheel forgiving against the observed pointer-acquisition failure.)
+- **Gaze + confirm.** The telemetry says the pointer ray misses 91–100% of the time in S1. Add a `gaze target + hand intent` path: look at `Analyse` → it enlarges → pinch anywhere / thumbstick confirm. Precision should increase confidence, not determine success. This is net-new input redundancy (Concept Paper P8 agency), not a regression to fix.
+- **Absorbs 22.1 wheel hover/click work + 22.3 dominant-hand binding.** The 22.1 hover/click ray-mismatch fix stays; this sprint adds the three-level re-categorization and the confirm-state machine on top.
+- **Gates.** `tests/handwheel-confirm.test.ts` (REST→FOCUS→CONFIRM, no action on ray-only intersection, gaze+confirm path); on-device validation that the wheel is usable under the observed pointer-miss conditions.
+- **Exit.** The wheel is the one primary navigation surface; it works under pointer failure via gaze+confirm; no accidental fires.
+
+### Sprint 24.3 — VRMenu decomposition into task-oriented contextual surfaces 🔲
+
+> The clearest concrete UX smell: a 0.95m × 1.45m panel with 29 buttons mixing analytical
+> operations, portal toggle, live connection controls, sources, and datasets. A desktop
+> command palette pasted into a spatial environment.
+
+- **Decompose by intent, not by feature.** Replace the single VRMenu with task-oriented contextual surfaces: `Data` (load/switch/live-source/connect), `Analyse` (filter/compare/cluster/anomalies/aggregate/time-slice), `View` (topology/layout/lens/reset), `Study` (start/pause/mark/record/export), `Portals`. Critically: **do not show all of these at once.** The current dataset's topology determines which actions are available (e.g. `GRAPH` → find communities/detect anomalies/compare groups; `TIME_SERIES` → different actions). This is semantic relevance, not feature completeness.
+- **Retire VRMenu-as-primary.** VRMenu becomes one of several contextual task surfaces (or is deleted) once the wheel (24.2) + context cards (24.5) cover its capabilities. The launcher ring already opens panels individually; the wall-of-buttons is no longer the navigation tree.
+- **Absorbs 22.7 task-first onboarding.** The 6 analysis templates (`AnalysisTemplates.ts`) become the front door: "What are you trying to understand?" → template selects dataset + representation + interaction vocabulary + tour + theme. A guided "Find the Fraud" investigation (5 interactions) replaces the 19-stop tour as the onboarding path — a 19-stop tour is itself a diagnostic that the interaction model is too dense.
+- **Gates.** `tests/vrmenu-decomposition.test.ts` (each intent surface exposes only dataset-relevant actions; no capability is lost vs the 29-button wall); on-device validation that the contextual menus feel relevant, not sparse.
+- **Exit.** No 0.95m × 1.45m command wall; analyst thinks "investigate this dataset" not "access the sixth button in the stack."
+
+### Sprint 24.4 — Panel roles taxonomy + diagnostic mode separation 🔲
+
+- **Panel roles.** Introduce `type PanelRole = 'workspace' | 'task' | 'context' | 'diagnostic' | 'transient' | 'system'`. `PanelManager` enforces UX rules per role: e.g. at most two `task` panels open simultaneously; `diagnostic` panels hidden outside developer mode; `transient` cards auto-dismiss. Mapping: Dataset inspector → task, Recommendation → task, Settings → system, Narrative strip → context, MiniOverview → context, Console → diagnostic, Performance → diagnostic, Network → diagnostic, Dashboard → workspace, Interaction Coach → transient.
+- **Diagnostic UI mode separation.** `RESEARCH MODE` (diagnostic panels disabled), `ANALYST MODE` (diagnostic panels hidden by default), `DEVELOPER MODE` (diagnostic panels available). Today `WorldUIManager` makes VRConsole/Performance/Network/LoadTest first-class residents — appropriate for development, not for research participants. The VRConsole especially should not compete with the visualization. (Note: no developer mode exists today — `userMode` has novice/intermediate/expert only; this sprint adds the mode separation that 24.6 builds on.)
+- **Replace scrollbars with paging.** The 2D-scrollbar-on-3D-surface is the wrong metaphor. For dense analytical content use `PAGE 1/4 [prev][next]` (spatial stability), or swipe/thumbstick-scroll/grab-and-drag. `MovablePanel`'s custom scrollbar is clever but desktop DNA in VR.
+- **Absorbs 22.4 spatial zonation + 22.6 panel declutter.** The three-tier zonation (Central Focus / Peripheral / Wrist HUD) maps onto panel roles (task/context/diagnostic). The "hide all panels / focus mode" affordance (22.6) is the `workspace` role's minimize-all.
+- **Gates.** `tests/panel-roles.test.ts` (role enforcement, max-two-task rule, diagnostic hidden in research mode); on-device validation that the clutter is genuinely reduced.
+- **Exit.** Panels have explicit roles; the manager enforces layout rules; diagnostic UI disappears from the analyst's normal world.
+
+### Sprint 24.5 — Dashboard-as-workspace + transient context cards 🔲
+
+- **Dashboard = workspace, not menu.** `DashboardManager`'s semicircular workspace becomes the persistent workspace: narrative strip (top), evidence/recommendation (sides), main view (center), mini-map/dataset (lower). Contains only things relevant to the current session. The wheel opens tools; the dashboard is where the analyst works.
+- **Transient context cards.** A new ephemeral surface for meaningful moments: dataset loaded → card `[SALES_Q4 · 18,420 rows · GRAPH] [Inspect][Analyse][Save]`; recommendation available → card `[Atlas found a high-confidence community] [View][Explain][Ignore]`. Auto-dismiss. Dramatically reduces the need for permanent panels.
+- **Absorbs 22.5 dashboard lifecycle + 22.7 precision/detail transition.** The dashboard lifecycle disposal (22.5) and the spatial→inspect→expand→2D-detail-card path (22.7) are the workspace's content + handoff; context cards are the transient layer above.
+- **Gates.** `tests/context-cards.test.ts` (card lifecycle, auto-dismiss, action dispatch); on-device validation that cards reduce permanent-panel count.
+- **Exit.** The dashboard is a coherent workspace; transient cards replace several permanent panels.
+
+### Sprint 24.6 — Progressive disclosure as architecture (novice/analyst/researcher/developer) 🔲
+
+> The `userMode = novice` setting is an excellent foothold. This sprint turns it from a cosmetic
+> role-based UI into genuine progressive disclosure as architecture.
+
+- **Four real UI profiles.** Novice (Load/Explore/Analyse/Explain/Undo/Help), Analyst (analysis operators/views/history/evidence/study tools), Researcher (provenance/experiment controls/observation/annotation/counterbalancing/telemetry/export), Developer (performance/console/network/load-test/WASM). Each profile gates which panels, wheel categories, and actions are visible — not cosmetic, structural. The system-toggle and diagnostic panels (24.4) follow the profile.
+- **Replace "Settings" with "Experience".** The current Settings panel is a configuration warehouse (feedback/gesture/telemetry/colorblind/contrast/text/collaboration/userMode/snap/vignette/seated/panelDistance/motion/miniOverview/presence). Restructure as `EXPERIENCE → Comfort | Interaction | Accessibility | Collaboration` with advanced/system settings hidden under `Advanced`. A novice never sees `strictBudget` or `telemetryEnabled` without reason.
+- **Gates.** `tests/progressive-disclosure.test.ts` (per-profile visibility rules, no capability lost vs current, novice never sees developer surfaces); on-device validation with novice + analyst participants.
+- **Exit.** The same runtime presents a calibrated surface to each role; progressive disclosure is structural, not cosmetic.
+
+### Sprint 24.7 — Both-pinch gesture ownership redesign + input redundancy 🔲 (coupled to Phase 23.1)
+
+> The 57% S2 suppression is a gesture conflict, not a microinteraction problem. The system has
+> overlapping meanings for pinch/both-pinch/menu/selection/panel-interaction. A user shouldn't have
+> to understand the gesture state machine to use the application.
+
+- **Explicit gesture ownership.** At any moment one authoritative interaction mode (from 24.1) owns both-pinch: in `WORLD/NAVIGATE` it could mean two-hand transform; in `PANEL/INTERACT` it means commit. The system never silently suppresses and leaves the user wondering whether their hands malfunctioned — a subtle feedback cue (`⊙ selection mode` / `↔ two-hand transform`) is visible.
+- **Coupled to Phase 23.1 host wiring.** The `GestureEngine` from `modules/gesture-intelligence` dispatches gestures through the same `InputRouter` precedence model. Both-pinch is one gesture among six; the mode FSM resolves its meaning. The gesture-intelligence honest-provenance (`source`, `degradedReason`) surfaces in the status strip (24.8).
+- **Input redundancy (accessibility).** Every important action has at least two input paths (gesture + controller, or gaze + gesture). Critical tasks work without precision pointing — directly addresses the 91–100% pointer-target failure. Builds the 22.3 input-parity matrix as a real enforced contract, not a checklist.
+- **Absorbs 22.3 hand-grab/both-pinch conflict + scoopDown dead-end.** The locomotion world-grab taking the first pinched hand with no `bothPinched` awareness, and `scoopDown` having no `else` branch, are both symptoms of no gesture ownership. The mode FSM resolves the class.
+- **Gates.** `tests/gesture-ownership.test.ts` (mode-dependent both-pinch semantics, no silent suppression, redundancy contract per action); on-device validation that both-pinch feels intentional, not stolen.
+- **Exit.** Both-pinch has one meaning per mode, visible to the user; every critical action has a non-precision input path.
+
+### Sprint 24.8 — Calm visual language + status strip + spotlight/context model 🔲
+
+- **Semantic color roles.** Establish `neutral | accent | success | warning | danger | analysis | observation` and constrain the palette. Today the wheel cycles six vivid colors and panels use cyan/magenta/high-contrast framing — if everything glows, nothing has priority. The visual world stays expressive; the UI becomes calmer. Builds on the 22.2 `palette.ts` tokens + 22.2 low-strain/muted presets.
+- **Status strip ("what am I doing?").** A compact persistent strip answering: What am I looking at? What is selected? What mode am I in? What just happened? What can I do next? Example: `GRAPH / 18,420 nodes · MODE: ANALYSE · FOCUS: COMMUNITY 7 · ACTION: COMPARE`. More valuable than another permanent panel; helps observational research because session replays become easier to interpret (Concept Paper P9).
+- **Spotlight + context model.** Redesign the presentation hierarchy around one dominant object: `PRIMARY VIEW ★ analyst focus / secondary contextual UI / tertiary tools + transient controls`. Today dashboard+wheel+mini-overview+peer-HUD+console+metrics+panel+settings+narrative all fight for visual bandwidth. The system is capable of doing much too much simultaneously.
+- **Absorbs 22.4 three-tier zonation + 22.7 navigation-cost instrumentation.** The zonation is the spatial realization of spotlight/context; the navigation-cost instrumentation (analysis_time vs navigation_time) measures whether the spotlight model actually helps.
+- **Gates.** `tests/status-strip.test.ts` (strip content reflects mode/focus/action/last-event); on-device validation that the calmer palette + spotlight model reduces visual-bandwidth contention.
+- **Exit.** The UI has one dominant focus, a calm palette, and a persistent "what am I doing?" answer.
+
+### Sprint 24.9 — UX acceptance gates (UX-001..UX-012 as quality gates) 🔲 (depends on 22.10 replay fixture)
+
+> Turns UX into an engineering discipline. The UXI proposal already identifies the phenomena
+> and proposes stable IDs. This sprint makes them acceptance criteria, not merely analytics.
+
+- **Depends on Phase 22.10 replay fixture.** The 2026-08-18 replay fixture (`tests/fixtures/ux-trace-2026-08-18.jsonl`) must exist and the analyzer must mechanically reproduce the manual findings before any gate is enforced. Without the fixture, every "fix" is unfalsifiable (Concept Paper P12: stable means testable, not proven). This is the prerequisite the 2026-08-18 review's implied safety net does not yet exist.
+- **Per-phenomenon targets.** Convert each UX-00x into a measurable gate. Examples: `UX-004 target acquisition failure → < 5% failed target acquisitions before calling the interaction model stable`; `UX-003 both-pinch stolen → < 10% suppressed-while-gazing ratio`; `UX-001 cold-start → < 10s tFirstJointsValid`. Targets are proposed, tuned against the replay fixture + future sessions, and recorded in `docs/UX_INVENTORY.md` (from 22.10).
+- **Correction note (UX-001 misattribution).** The 2026-08-18 review misattributed UX-001 as "pointer aim drift"; UX-001 is **hand-tracking cold-start** (aim drift is UX-002). The gate for UX-001 is cold-start time, not aim drift. Any fix targeting "aim drift" will not move the UX-001 gate.
+- **Gate enforcement.** The gates are CI checks over the replay analyzer output: a candidate build must not regress any phenomenon below its target. New sessions extend the fixture set; targets tighten as real-session evidence accumulates.
+- **Signal, not verdict.** Consistent with the Concept Paper + the 22.10 non-goal: the gates are triage for study validity, not a UX quality score. A build passing the gates is not "proven good UX" — it is "not regressing against measured friction."
+- **Exit.** UX-001..UX-012 are measurable engineering gates; a build cannot ship if it regresses measured friction; the fixture set grows with each session.
+
+### Cross-cutting invariants (all 24.x sprints)
+
+- **One navigation model.** The HandWheel is the primary navigation surface; the launcher ring is secondary; the dashboard is a workspace; panels are task surfaces. No competing navigation trees.
+- **One interaction grammar.** The mode FSM + focus vocabulary are the single source of interaction truth. No component implements its own local interaction semantics.
+- **No silent suppression.** Any gesture the system swallows is surfaced to the user with a visible mode cue. Both-pinch, system-toggle, and dwell all obey this.
+- **Signal, not conclusion.** UX telemetry + acceptance gates are triage for study validity, not a UX quality verdict (Concept Paper P12, 22.10 non-goal).
+- **2D is a partner, not a loser.** Per Concept Paper P7: UX fixes are framed as removing VR friction so the 2D-vs-VR comparison is fair, not as proving VR superiority. The precision/detail transition (24.5) must not degrade the 2D handoff path.
+- **Delete, don't add.** The best UX refactor may delete several panels rather than build several more. Each sprint's exit criterion includes a net panel-count reduction or a role reclassification, not new permanent surfaces.
+- **Study-harness validity first.** The interaction FSM (24.1), both-pinch ownership (24.7), and the replay fixture (22.10 → 24.9) are prerequisites for the flagship 2D-vs-VR study (Concept Paper Risk 4). They are not feature work; they are confound removal.
+
+### Sequencing
+
+```text
+22.10 (replay fixture) ──▶ 24.9 (acceptance gates depend on the fixture)
+24.1 (FSM + focus vocab) ──▶ 24.2 (wheel confirm) ──▶ 24.3 (VRMenu decompose)
+        │                          │
+        ▼                          ▼
+24.7 (both-pinch ownership) ◀── coupled ──▶ 23.1 (gesture host wiring)
+        │
+        ▼
+24.4 (panel roles + diagnostic modes) ──▶ 24.5 (dashboard + context cards)
+        │                                        │
+        ▼                                        ▼
+24.6 (progressive disclosure)              24.8 (calm visual + status strip)
+```
+
+24.1 is the foundation — it blocks 24.2/24.3/24.7. 24.7 and 23.1 are coupled (same `InputRouter` surface). 24.9 depends on the 22.10 replay fixture. 24.4/24.5/24.6/24.8 are independently shippable once 24.1 lands. The architecture proposal's "P0 interaction model / P1 friction fixes / P1 VRMenu / P2 progressive disclosure / P2 acceptance gates" priority order is preserved: 24.1 is the P0 the proposal names as the biggest UX improvement available.
+
+> **Non-goal:** a prettier dashboard. The proposal's own strongest recommendation: do not
+> redesign Nemosyne as a prettier dashboard — design it as an analyst cockpit with one primary
+> focus, one navigation model, and temporary tools that appear when needed. Several panels should
+> disappear rather than new ones appear.
 
 ---
 
