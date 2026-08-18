@@ -169,6 +169,7 @@ export class WorldUIManager {
     // Settings panel.
     this.settingsPanel = new SettingsPanel(engine.cameraGroup, {
       onChange: callbacks.onSettingChanged,
+      onExitVR: callbacks.onExitVR,
       telemetryCollector: callbacks.telemetryCollector as TelemetryCollectorLike | undefined,
       performanceBudget: engine.performanceBudget as PerformanceBudgetLike,
       datasetTopology: '-',

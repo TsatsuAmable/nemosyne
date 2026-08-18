@@ -38,6 +38,12 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
           callback: () => world._toggleSettingsPanel(),
         },
         {
+          id: 'exit-vr',
+          label: 'Exit VR',
+          icon: '🚪',
+          callback: () => (world.exitVR ? world.exitVR() : world.engine?.exitVR?.()),
+        },
+        {
           id: 'operation-log',
           label: 'Log',
           icon: '📝',

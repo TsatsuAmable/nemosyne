@@ -86,6 +86,7 @@ function makeStubWorld(): { world: WorldLike; spy: Record<string, ReturnType<typ
     loadTemplate: fn('loadTemplate'),
     runLoadTest: fn('runLoadTest'),
     stopLoadTest: fn('stopLoadTest'),
+    exitVR: fn('exitVR'),
   };
 
   return { world: world as unknown as WorldLike, spy };
@@ -168,6 +169,9 @@ describe('WheelMenuBuilder', () => {
 
     find(panels, 'settings').callback();
     expect(spy._toggleSettingsPanel).toHaveBeenCalledTimes(1);
+
+    find(panels, 'exit-vr').callback();
+    expect(spy.exitVR).toHaveBeenCalledTimes(1);
 
     find(panels, 'tour').callback();
     expect(spy.startTour).toHaveBeenCalledTimes(1);

@@ -331,6 +331,7 @@ export class World {
        onRejectRecommendation: () => this._rejectRecommendation(),
        onOverrideRecommendation: () => this._overrideRecommendation(),
        onGenerateRecommendation: () => this._generateRecommendation(),
+       onExitVR: () => this.exitVR(),
      });
 
     // Legacy facade properties: tests and internal code access panels through
@@ -1887,6 +1888,13 @@ export class World {
       result: `${this.dataOperationController.transformedDataset?.rowCount ?? 0} rows`,
     });
     this._requestAutoSave();
+  }
+
+  /**
+   * Gracefully exits immersive VR and returns to 2D desktop mode.
+   */
+  async exitVR(): Promise<void> {
+    await this.engine.exitVR();
   }
 
   /**
