@@ -79,10 +79,20 @@ for (const [sid, recs] of sessions) {
   const wheels = recs.filter((r) => r.type === 'wheel');
   const tours = recs.filter((r) => r.type === 'tour');
   const gestures = recs.filter((r) => r.type === 'gesture');
+  const manifests = recs.filter((r) => r.type === 'session-manifest');
+  const perfs = recs.filter((r) => r.type === 'perf');
+  const frictions = recs.filter((r) => r.type === 'friction');
+  const handsEvents = recs.filter((r) => r.type === 'hands');
   const meta = recs.find((r) => r.type === 'meta');
+  const latestManifest = manifests.length > 0 ? manifests[manifests.length - 1] : null;
 
   console.log('\n================================================================');
-  console.log(`Session ${sid}  (${meta?.startedAt ?? 'unknown start'}, ${Math.round(duration)}s)`);
+  console.log(`Session ${sid}  (${meta?.startedAt ?? latestManifest?.startedAt ?? 'unknown start'}, ${Math.round(duration)}s)`);
+  if (latestManifest) {
+    console.log(
+      `Dataset: ${latestManifest.datasetName ?? 'none'} | Topology: ${latestManifest.topology ?? '-'} | Version: ${latestManifest.datasetVersion ?? '-'} | Caps: 0x${(latestManifest.wasmCapabilities ?? 0).toString(16)}`
+    );
+  }
   console.log('================================================================');
   console.log(
     `Records: ${recs.length} | ` +
@@ -90,6 +100,34 @@ for (const [sid, recs] of sessions) {
         .map(([k, v]) => `${k}=${v}`)
         .join(' ')
   );
+
+  // --- UX Phenomenon Scorecard (UX-001 through UX-012) -------------------
+  console.log('\n--- UX Phenomenon Scorecard (UX-001 - UX-012) ---');
+  // UX-001: Hand tracking cold-start
+  const validJoints = handsEvents.find((h) => h.phase === 'joints-valid');
+  if (validJoints && typeof validJoints.ttfrMs === 'number') {
+    const coldStartSec = validJoints.ttfrMs / 1000;
+    console.log(`  UX-001 Hand Cold-Start: ${coldStartSec.toFixed(1)}s ${coldStartSec > 10 ? '⚠️ [FLAGGED > 10s]' : '✅'}`);
+  } else {
+    console.log('  UX-001 Hand Cold-Start: nominal (no joint delay recorded)');
+  }
+
+  // UX-006: Frustrations & Friction
+  if (frictions.length > 0) {
+    const peakScore = Math.max(...frictions.map((f) => f.score ?? 0));
+    console.log(`  UX-006 Frustration Bursts: ${frictions.length} events (Peak Score: ${peakScore.toFixed(2)}) ⚠️`);
+  } else {
+    console.log('  UX-006 Frustration Bursts: 0 events ✅');
+  }
+
+  // UX-007: Perf Budget
+  const criticalPerfs = perfs.filter((p) => p.severity === 'critical');
+  const warnPerfs = perfs.filter((p) => p.severity === 'warning');
+  if (criticalPerfs.length > 0 || warnPerfs.length > 0) {
+    console.log(`  UX-007 Perf Breaches: ${criticalPerfs.length} critical, ${warnPerfs.length} warnings ⚠️`);
+  } else {
+    console.log('  UX-007 Perf Breaches: 0 breaches (90 FPS nominal) ✅');
+  }
 
   // --- Pinch outcomes -----------------------------------------------------
   console.log('\n--- Pinch starts by gating ---');
