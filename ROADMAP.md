@@ -5,6 +5,12 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Connector API Auth & Study Protocol Data Exporter complete:**
+  - **Connector API Authentication & Scope Gating:** Implemented `ConnectorAuthManager` (`src/network/ConnectorAuth.ts`) validating token scopes (`READ_DATASET | WRITE_DATASET | STREAM_TELEMETRY | ADMIN`), expiration, and 1-second sliding window rate-limiting for external data connectors.
+  - **Study Protocol Data Exporter:** Implemented `StudyDataExporter` (`src/study/StudyDataExporter.ts`) formatting completed 2D-vs-VR study trials into reproducible research bundles and standard participant-level outcome CSVs with accuracy, duration, confidence, and NASA-TLX workload metrics.
+  - **Unit Test Suite:** Added `tests/connector-auth-study-exporter.test.ts` testing auth token validation, scope enforcement, rate limits, and CSV export generation.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 210/210 test files passed (1,424 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — UX Hypothesis Triage, Quest B2 Probe Analyzer & Shareable Session URLs complete:**
   - **UX Frustration Signal & Hypothesis Triage:** Implemented `UXHypothesisTriageEngine` (`src/vr/trace/UXHypothesisTriage.ts`) providing non-dogmatic dual hypotheses (confusion vs deep inspection, acquisition struggle vs enthusiastic exploration) and recommended observational verification checks.
   - **Quest B2 Probe Analyzer:** Implemented `QuestProbeAnalyzer` (`src/vr/scalability/QuestProbeAnalyzer.ts`) evaluating on-device load-test metrics (P95 frame time <= 13.8ms, dropped frame rate <= 5%, JS heap <= 250MB, hand tracking latency) against Quest 3/3S spatial compute budgets.
