@@ -4,7 +4,7 @@
  * branching on mode strings directly.
  */
 
-import type { WorldEventBus } from '../../utils/EventBus.ts';
+import { WorldEventBus, WorldTopics } from '../../utils/EventBus.ts';
 import type { UserMode, UserModeControllerOptions } from './types.ts';
 
 export class UserModeController {
@@ -61,7 +61,7 @@ export class UserModeController {
     }
 
     if (this.eventBus) {
-      this.eventBus.emit('userMode:applied', { mode });
+      this.eventBus.emit(WorldTopics.USER_MODE_APPLIED, { mode });
     }
   }
 

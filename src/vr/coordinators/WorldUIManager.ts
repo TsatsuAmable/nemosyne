@@ -238,7 +238,7 @@ export class WorldUIManager {
     // driver + start/stop/flush callbacks owned by World.
     this.loadTestPanel = new LoadTestPanel(engine.cameraGroup, {
       driver: callbacks.loadTestDriver as LoadTestDriver,
-      eventBus: eventBus,
+      eventBus,
       onStart: callbacks.onStartLoadTest,
       onStop: callbacks.onStopLoadTest,
       onFlush: callbacks.onFlushLoadTest,

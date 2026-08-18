@@ -1,4 +1,10 @@
 /**
+ * @deprecated BUILT, NOT WIRED. This module is complete and tested but is NOT
+ * instantiated by production code — the main-thread solver in
+ * `DracoTopologyNode.ts` is used instead. Tracked in `docs/ROADMAP.md` and
+ * `docs/AUDIT_RECOMMENDATION.md`. Either wire this worker to offload solving
+ * off the render thread, or delete it; do not leave it half-alive.
+ *
  * Web Worker Helper for Asynchronous Draco GA Layout Solving.
  *
  * Offloads layout candidate evaluation off the WebXR main render thread. Wave

@@ -1891,10 +1891,12 @@ export class World {
   }
 
   /**
-   * Gracefully exits immersive VR and returns to 2D desktop mode.
+   * Gracefully exits immersive VR and returns to 2D desktop mode. Resolves to
+   * `true` on a clean exit (or when no session was active), `false` if the
+   * underlying `session.end()` failed — propagated so UI/telemetry can react.
    */
-  async exitVR(): Promise<void> {
-    await this.engine.exitVR();
+  async exitVR(): Promise<boolean> {
+    return this.engine.exitVR();
   }
 
   /**

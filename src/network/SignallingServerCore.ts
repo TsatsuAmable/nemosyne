@@ -4,7 +4,7 @@
  * code.
  *
  * Hardened Collaboration Gateway Core:
- * - Cryptographically signed room tickets (HMAC-SHA256) & verified capabilities.
+ * - Cryptographically signed room tickets (HMAC-SHA256) & role-derived capabilities.
  * - In-band authentication support (keeps credentials out of URL query strings).
  * - Origin enforcement (prevents CSWSH).
  * - Auth-failure IP throttling & brute-force defense.
@@ -42,7 +42,12 @@ export interface TokenClaims {
   room?: string;
   role?: NetworkRole;
   exp?: number;
-  capabilities?: PeerCapability[];
+  // Capabilities are derived server-side from the role via ROLE_CAPABILITIES
+  // and are NOT an authoritative client-supplied claim. The `capabilities`
+  // field is intentionally absent from this interface so a ticket cannot pose
+  // as a capability authority that the server would honour. If a token happens
+  // to carry a `capabilities` claim it is ignored (the index signature below
+  // permits arbitrary JWT claims for extensibility without honouring them).
   [key: string]: unknown;
 }
 
@@ -116,6 +121,19 @@ const ROLE_CAPABILITIES: Record<NetworkRole, PeerCapability[]> = {
   participant: ['webrtc_negotiate', 'state_broadcast', 'data_operation', 'presence'],
   observer: ['webrtc_negotiate', 'presence'],
 };
+
+/**
+ * Safe identifier alphabet and length bound for room/peer ids. Identifiers
+ * are used as Map keys and embedded in relayed JSON, so anything outside this
+ * set is rejected before admission. The network gateway validates these
+ * independently rather than trusting another subsystem to have sanitised them.
+ */
+const IDENTIFIER_MAX_LEN = 128;
+const IDENTIFIER_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+function isValidIdentifier(id: unknown): boolean {
+  if (typeof id !== 'string' || id.length === 0 || id.length > IDENTIFIER_MAX_LEN) return false;
+  return IDENTIFIER_RE.test(id);
+}
 
 /**
  * Strict explicit protocol schema validator for all signalling payloads.
@@ -366,6 +384,23 @@ export function createRoomRegistry({
   ): void {
     const ip = request?.socket?.remoteAddress || '127.0.0.1';
 
+    // 0. Validate room and peer identifiers (charset + length). The network
+    //    gateway validates independently of any other subsystem: identifiers
+    //    are used as Map keys and embedded in relayed JSON, so reject anything
+    //    outside a safe alphabet before admission.
+    if (!isValidIdentifier(roomId)) {
+      try {
+        socket.close?.(4003, 'invalid room id');
+      } catch (_) { /* ignore */ }
+      return;
+    }
+    if (!isValidIdentifier(peerId)) {
+      try {
+        socket.close?.(4003, 'invalid peer id');
+      } catch (_) { /* ignore */ }
+      return;
+    }
+
     // 1. Check IP auth-failure throttling
     if (getAuthFailureCount(ip) >= maxAuthFailures) {
       try {
@@ -415,7 +450,12 @@ export function createRoomRegistry({
       return;
     }
 
-    // Determine initial auth state
+    // Determine initial auth state. A token supplied via the URL query string
+    // authenticates immediately. When a token is required but none is supplied
+    // in the URL, the socket is admitted as unauthenticated and given a short
+    // auth-timeout window to send an in-band `auth` message (see below). This
+    // realises the advertised in-band authentication flow and keeps tokens out
+    // of URL query strings / server logs.
     const needsToken = Boolean(authToken || observerAuthToken || !allowOpenNoToken);
     let initialAuth = false;
     let initialRole: NetworkRole = requestedRole;
@@ -435,11 +475,13 @@ export function createRoomRegistry({
       initialAuth = true;
       initialRole = requestedRole;
     } else {
-      recordAuthFailure(ip);
-      try {
-        socket.close?.(4001, 'token required');
-      } catch (_) { /* ignore */ }
-      return;
+      // No URL token but token is required — admit as unauthenticated and allow
+      // in-band authentication within authTimeoutMs. The peer cannot relay or
+      // observe join/leave traffic until it authenticates (gated below and in
+      // onMessage). IP / total connection limits above still bound the pending
+      // connection pool against abuse.
+      initialAuth = false;
+      initialRole = requestedRole;
     }
 
     // Register peer

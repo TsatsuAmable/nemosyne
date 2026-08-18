@@ -81,12 +81,32 @@ mod allocator {
         }
 
         /// View `len` bytes starting at `ptr` as a shared WASM memory slice.
+        ///
+        /// # Safety
+        /// Caller supplies `(ptr, len)` from the JS host. As defense-in-depth
+        /// against the JS host and `lib.rs` drifting out of sync, this validates
+        /// that `[ptr, ptr+len)` lies within the current linear memory before
+        /// constructing the slice, panicking cleanly instead of producing an
+        /// out-of-bounds reference (which would be UB and could read arbitrary
+        /// memory on non-wasm targets).
         pub unsafe fn view<'a>(ptr: u32, len: u32) -> &'a [u8] {
+            let cap = (core::arch::wasm32::memory_grow(0, 0) as usize) * 65536;
+            let end = (ptr as usize).checked_add(len as usize);
+            assert!(
+                end.is_some_and(|e| e <= cap),
+                "WASM view out of bounds: ptr={ptr} len={len} cap={cap}"
+            );
             core::slice::from_raw_parts(ptr as *const u8, len as usize)
         }
 
-        /// Mutable view into shared WASM memory.
+        /// Mutable view into shared WASM memory. See `view` for bounds checks.
         pub unsafe fn view_mut<'a>(ptr: u32, len: u32) -> &'a mut [u8] {
+            let cap = (core::arch::wasm32::memory_grow(0, 0) as usize) * 65536;
+            let end = (ptr as usize).checked_add(len as usize);
+            assert!(
+                end.is_some_and(|e| e <= cap),
+                "WASM view_mut out of bounds: ptr={ptr} len={len} cap={cap}"
+            );
             core::slice::from_raw_parts_mut(ptr as *mut u8, len as usize)
         }
 
@@ -171,14 +191,33 @@ mod allocator {
         }
 
         /// View `len` bytes starting at `ptr` as a slice into the host buffer.
+        ///
+        /// # Safety
+        /// Defense-in-depth bounds check against the host buffer length so a
+        /// mismatched `(ptr, len)` from `lib.rs` panics rather than reading
+        /// past the buffer.
         pub unsafe fn view<'a>(ptr: u32, len: u32) -> &'a [u8] {
-            let base = HOST_MEMORY.lock().expect("host memory lock").buffer.as_ptr();
+            let guard = HOST_MEMORY.lock().expect("host memory lock");
+            let cap = guard.buffer.len();
+            let base = guard.buffer.as_ptr();
+            let end = (ptr as usize).checked_add(len as usize);
+            assert!(
+                end.is_some_and(|e| e <= cap),
+                "host view out of bounds: ptr={ptr} len={len} cap={cap}"
+            );
             core::slice::from_raw_parts(base.add(ptr as usize), len as usize)
         }
 
-        /// Mutable view into the host buffer.
+        /// Mutable view into the host buffer. See `view` for bounds checks.
         pub unsafe fn view_mut<'a>(ptr: u32, len: u32) -> &'a mut [u8] {
-            let base = HOST_MEMORY.lock().expect("host memory lock").buffer.as_mut_ptr();
+            let mut guard = HOST_MEMORY.lock().expect("host memory lock");
+            let cap = guard.buffer.len();
+            let base = guard.buffer.as_mut_ptr();
+            let end = (ptr as usize).checked_add(len as usize);
+            assert!(
+                end.is_some_and(|e| e <= cap),
+                "host view_mut out of bounds: ptr={ptr} len={len} cap={cap}"
+            );
             core::slice::from_raw_parts_mut(base.add(ptr as usize), len as usize)
         }
 

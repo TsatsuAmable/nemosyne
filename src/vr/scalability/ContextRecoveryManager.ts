@@ -1,4 +1,11 @@
 /**
+ * @deprecated BUILT, NOT WIRED. This module is complete and tested but is NOT
+ * instantiated by production code — WebGL context-loss handling lives in
+ * `Engine.ts` (`_contextLost`/`_contextRestored`) instead. Tracked in
+ * `docs/ROADMAP.md` and `docs/AUDIT_RECOMMENDATION.md`. Either consolidate
+ * `Engine.ts` recovery into this manager or delete it; do not leave it
+ * half-alive.
+ *
  * WebGL Context Loss & Auto-Recovery Manager.
  *
  * Detects `webglcontextlost` events on WebXR/Three.js renderer canvas,

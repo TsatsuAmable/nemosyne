@@ -18,8 +18,7 @@ export type EngineState = 'running' | 'context_lost' | 'paused' | 'disposed';
 export type FrameTask =
   | Updatable
   | { update?(delta?: number, time?: number): void }
-  | ((delta?: number, time?: number) => void)
-  | unknown;
+  | ((delta?: number, time?: number) => void);
 
 /**
  * Core WebXR engine: scene graph, renderer, XR session, input routing,
@@ -88,6 +87,15 @@ export class Engine {
 
   private readonly _onResize = () => this._onWindowResize();
   private readonly _onSessionStart = () => this._handleSessionStart();
+  private readonly _onSessionEnd = () => this._handleSessionEnd();
+
+  // Retained per-session XR visibility handler so it can be detached on
+  // session end / engine disposal. Previously an anonymous arrow was passed
+  // to addEventListener and the reference was lost, leaking the listener if
+  // the XRSession outlived the Engine.
+  private _xrVisibilityHandler: ((event: XRSessionEvent) => void) | null = null;
+  private _xrVisibilitySession: XRSession | null = null;
+  private _sessionStartBound = false;
 
   constructor() {
     this.scene = new THREE.Scene();
@@ -188,25 +196,58 @@ export class Engine {
 
   start(): void {
     if (this.state === 'disposed') return;
+    // Idempotent: a running engine is a no-op. Guards against repeated
+    // sessionstart listener registration and clock restarts.
+    if (this.state === 'running' && this._sessionStartBound) return;
     this.state = 'running';
     this.clock.start();
     this.renderer.setAnimationLoop(() => this._tick());
     this.renderer.xr.addEventListener('sessionstart', this._onSessionStart);
+    this.renderer.xr.addEventListener('sessionend', this._onSessionEnd);
+    this._sessionStartBound = true;
   }
 
   private _handleSessionStart(): void {
     const session = this.renderer.xr.getSession();
-    if (session && !(session as XRSession & { _nemosyneVisibilityHook?: boolean })._nemosyneVisibilityHook) {
-      (session as XRSession & { _nemosyneVisibilityHook?: boolean })._nemosyneVisibilityHook = true;
-      session.addEventListener('visibilitychange', () => {
+    if (session && this._xrVisibilitySession !== session) {
+      // Detach any previous session's visibility listener before binding the
+      // new one (defensive: should not normally happen because _handleSessionEnd
+      // clears the fields, but guards against a second sessionstart without an
+      // intervening sessionend).
+      this._detachXrVisibility();
+
+      const handler = (event: XRSessionEvent) => {
+        void event;
         this._reportSessionStatus(
           session.visibilityState === 'visible'
             ? 'session resumed'
             : `session ${session.visibilityState}`,
           session.visibilityState === 'visible' ? '#00ffcc' : '#ffaa00'
         );
-      });
+      };
+      this._xrVisibilityHandler = handler;
+      this._xrVisibilitySession = session;
+      session.addEventListener('visibilitychange', handler);
     }
+  }
+
+  private _handleSessionEnd(): void {
+    this._detachXrVisibility();
+  }
+
+  private _detachXrVisibility(): void {
+    if (this._xrVisibilitySession && this._xrVisibilityHandler) {
+      try {
+        this._xrVisibilitySession.removeEventListener(
+          'visibilitychange',
+          this._xrVisibilityHandler
+        );
+      } catch (_) {
+        /* session may already be gone */
+      }
+    }
+    this._xrVisibilityHandler = null;
+    this._xrVisibilitySession = null;
   }
 
   _tick(): void {
@@ -274,16 +315,21 @@ export class Engine {
   }
 
   /**
-   * Gracefully ends the active WebXR session if one is running, returning the user to desktop mode.
+   * Gracefully ends the active WebXR session if one is running, returning the
+   * user to desktop mode. Resolves with `true` when the session ended cleanly
+   * (or none was active), `false` when `session.end()` failed so the caller
+   * (UI / telemetry / study instrumentation) can surface the failure instead
+   * of presenting a dead button.
    */
-  async exitVR(): Promise<void> {
+  async exitVR(): Promise<boolean> {
     const session = this.renderer.xr.getSession();
-    if (session) {
-      try {
-        await session.end();
-      } catch (err) {
-        console.warn('[Engine] Error ending WebXR session:', err);
-      }
+    if (!session) return true;
+    try {
+      await session.end();
+      return true;
+    } catch (err) {
+      console.warn('[Engine] Error ending WebXR session:', err);
+      return false;
     }
   }
 
@@ -402,6 +448,9 @@ export class Engine {
   }
 
   _contextRestored(): void {
+    // A context-restored event arriving after dispose() would resurrect a
+    // disposed Engine. Bail before touching state or restarting the loop.
+    if (this.state === 'disposed') return;
     this.state = 'running';
     console.warn('[Engine] WebGL context restored');
     this._reportSessionStatus('GPU context restored', '#00ffcc');
@@ -415,8 +464,13 @@ export class Engine {
     // Clean up window & XR event listeners
     window.removeEventListener('resize', this._onResize);
     this.renderer.xr.removeEventListener('sessionstart', this._onSessionStart);
+    this.renderer.xr.removeEventListener('sessionend', this._onSessionEnd);
     this.renderer.domElement.removeEventListener('webglcontextlost', this._contextLost);
     this.renderer.domElement.removeEventListener('webglcontextrestored', this._contextRestored);
+    // Detach any retained per-session XR visibility listener so an XRSession
+    // that outlives the Engine does not keep the handler (and the Engine
+    // closure) alive.
+    this._detachXrVisibility();
 
     this.updatables.clear();
     this.locomotion.dispose();

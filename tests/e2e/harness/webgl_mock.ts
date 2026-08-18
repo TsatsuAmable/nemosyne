@@ -360,7 +360,7 @@ export function makeExtendedWebGLContext(canvas?: HTMLCanvasElement): any {
 export function installWebGLMock(): void {
   if (typeof HTMLCanvasElement !== 'undefined') {
     Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
-      value: function (type: string) {
+      value (type: string) {
         if (type === 'webgl' || type === 'experimental-webgl' || type === 'webgl2') {
           return makeExtendedWebGLContext(this);
         }

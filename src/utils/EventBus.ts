@@ -34,6 +34,7 @@ export const WorldTopics = {
   LOADTEST_SAMPLE: 'loadtest:sample',
   LOADTEST_STEP: 'loadtest:step',
   LOADTEST_COMPLETE: 'loadtest:complete',
+  USER_MODE_APPLIED: 'userMode:applied',
 } as const;
 
 export type WorldTopicName = (typeof WorldTopics)[keyof typeof WorldTopics];
@@ -49,7 +50,7 @@ export interface NemosyneEventMap {
   'operation:applied': unknown;
   'operation:preview': unknown;
   'operation:clear-preview': void;
-  'history:seek': number;
+  'history:seek': { index: number; operation: string; dataset: unknown };
   'session:autosave-request': void;
   'session:saved': { sessionId?: string; success?: boolean; [key: string]: unknown };
   'gesture:recognized': unknown;
@@ -57,17 +58,17 @@ export interface NemosyneEventMap {
   'input:resumed': void;
   'view:reset': void;
   'data:reset': void;
-  'performance:throttle': { fps?: number; budgetMs?: number; [key: string]: unknown };
+  'performance:throttle': { lodScaleFactor: number; averageFrameTimeMs: number };
   'loadtest:start': unknown;
   'loadtest:sample': unknown;
   'loadtest:step': unknown;
   'loadtest:complete': unknown;
-  [key: string]: unknown;
+  'userMode:applied': { mode: string };
 }
 
 export type EventHandler<T = unknown> = (payload: T) => void;
 
-export class WorldEventBus<TEvents extends Record<string, unknown> = NemosyneEventMap> {
+export class WorldEventBus<TEvents extends object = NemosyneEventMap> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _handlers: Map<string, EventHandler<any>[]>;
   private _debug: boolean;
@@ -78,13 +79,11 @@ export class WorldEventBus<TEvents extends Record<string, unknown> = NemosyneEve
   }
 
   /**
-   * Register a handler for a topic. Returns an unsubscribe function.
+   * Internal core: register a handler for a raw topic string. All public
+   * variants (typed `on` and `onDynamic`) delegate here so the overload
+   * resolution never has to accept an arbitrary string on its typed surface.
    */
-  on<K extends keyof TEvents & string>(topic: K, handler: EventHandler<TEvents[K]>): () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  on(topic: string, handler: EventHandler<any>): () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  on(topic: string, handler: EventHandler<any>): () => void {
+  private _onCore(topic: string, handler: (payload: unknown) => void): () => void {
     if (typeof topic !== 'string' || topic === '') {
       throw new TypeError('Event topic must be a non-empty string');
     }
@@ -99,17 +98,10 @@ export class WorldEventBus<TEvents extends Record<string, unknown> = NemosyneEve
     }
     list.push(handler);
 
-    return () => this.off(topic, handler);
+    return () => this._offCore(topic, handler);
   }
 
-  /**
-   * Remove a handler from a topic.
-   */
-  off<K extends keyof TEvents & string>(topic: K, handler: EventHandler<TEvents[K]>): void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  off(topic: string, handler: EventHandler<any>): void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  off(topic: string, handler: EventHandler<any>): void {
+  private _offCore(topic: string, handler: (payload: unknown) => void): void {
     const list = this._handlers.get(topic);
     if (!list) return;
     const index = list.indexOf(handler);
@@ -118,25 +110,7 @@ export class WorldEventBus<TEvents extends Record<string, unknown> = NemosyneEve
     }
   }
 
-  /**
-   * Remove all handlers for a topic, or all handlers if no topic is given.
-   */
-  removeAll(topic?: (keyof TEvents & string) | string): void {
-    if (topic === undefined) {
-      this._handlers.clear();
-      return;
-    }
-    this._handlers.delete(topic);
-  }
-
-  /**
-   * Emit a payload to all handlers on a topic. Handlers are invoked
-   * synchronously and errors are caught so a bad subscriber cannot break the
-   * rest of the system.
-   */
-  emit<K extends keyof TEvents & string>(topic: K, payload?: TEvents[K]): void;
-  emit(topic: string, payload?: unknown): void;
-  emit(topic: string, payload?: unknown): void {
+  private _emitCore(topic: string, payload: unknown): void {
     if (typeof topic !== 'string' || topic === '') {
       throw new TypeError('Event topic must be a non-empty string');
     }
@@ -159,18 +133,93 @@ export class WorldEventBus<TEvents extends Record<string, unknown> = NemosyneEve
   }
 
   /**
-   * Register a one-time handler. The handler is removed after the first emit.
+   * Register a handler for a typed topic. Returns an unsubscribe function.
+   * Only topics declared in the event map are accepted here; accidental
+   * typos (e.g. `bus.on('operation:aplied', ...)`) are a compile error rather
+   * than a silently-dropped subscription.
+   *
+   * For genuinely dynamic / runtime-computed topics, use {@link onDynamic}.
+   */
+  on<K extends keyof TEvents & string>(topic: K, handler: EventHandler<TEvents[K]>): () => void;
+  on(topic: string, handler: EventHandler<unknown>): () => void {
+    return this._onCore(topic, handler);
+  }
+
+  /**
+   * Register a handler for a dynamic (non-typed) topic. Prefer {@link on}
+   * with a declared topic; this escape hatch exists for runtime-computed
+   * topic names so accidental use is visible at the call site.
+   */
+  onDynamic(topic: string, handler: EventHandler<unknown>): () => void {
+    return this._onCore(topic, handler);
+  }
+
+  /**
+   * Remove a handler from a typed topic.
+   */
+  off<K extends keyof TEvents & string>(topic: K, handler: EventHandler<TEvents[K]>): void;
+  off(topic: string, handler: EventHandler<unknown>): void {
+    this._offCore(topic, handler);
+  }
+
+  /**
+   * Remove a handler from a dynamic topic.
+   */
+  offDynamic(topic: string, handler: EventHandler<unknown>): void {
+    this._offCore(topic, handler);
+  }
+
+  /**
+   * Remove all handlers for a topic, or all handlers if no topic is given.
+   */
+  removeAll(topic?: (keyof TEvents & string) | string): void {
+    if (topic === undefined) {
+      this._handlers.clear();
+      return;
+    }
+    this._handlers.delete(topic);
+  }
+
+  /**
+   * Emit a payload to all handlers on a typed topic. Handlers are invoked
+   * synchronously and errors are caught so a bad subscriber cannot break the
+   * rest of the system.
+   */
+  emit<K extends keyof TEvents & string>(topic: K, payload?: TEvents[K]): void;
+  emit(topic: string, payload?: unknown): void {
+    this._emitCore(topic, payload);
+  }
+
+  /**
+   * Emit a payload to a dynamic (non-typed) topic. Prefer {@link emit} with a
+   * declared topic.
+   */
+  emitDynamic(topic: string, payload?: unknown): void {
+    this._emitCore(topic, payload);
+  }
+
+  /**
+   * Register a one-time handler for a typed topic. The handler is removed
+   * after the first emit.
    */
   once<K extends keyof TEvents & string>(topic: K, handler: EventHandler<TEvents[K]>): () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  once(topic: string, handler: EventHandler<any>): () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  once(topic: string, handler: EventHandler<any>): () => void {
+  once(topic: string, handler: EventHandler<unknown>): () => void {
     const wrapper = (payload: unknown) => {
-      this.off(topic, wrapper);
+      this._offCore(topic, wrapper);
       handler(payload);
     };
-    return this.on(topic, wrapper);
+    return this._onCore(topic, wrapper);
+  }
+
+  /**
+   * Register a one-time handler for a dynamic topic.
+   */
+  onceDynamic(topic: string, handler: EventHandler<unknown>): () => void {
+    const wrapper = (payload: unknown) => {
+      this._offCore(topic, wrapper);
+      handler(payload);
+    };
+    return this._onCore(topic, wrapper);
   }
 
   /**
