@@ -5,6 +5,12 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Layout Data Binding Honesty & Typed Panel Content Handling complete:**
+  - **Streamline & GeoSurface Data Binding:** Updated `StreamlineLayout` (`src/draco/layouts/StreamlineLayout.ts`) and `GeoSurfaceLayout` (`src/draco/layouts/GeoSurfaceLayout.ts`) to read real vector components (`u/v/w`, `vx/vy/vz`, `dx/dy/dz`) and auto-normalize elevation ranges dynamically.
+  - **Typed Panel Content Handler Interface:** Formalized `IPanelContentHandler` in `src/vr/coordinators/types.ts` and refactored `MovablePanel` (`src/vr/ui/MovablePanel.ts`) to eliminate duck-typed `(this as any).handleContentClick` reflection calls.
+  - **Unit Test Suite:** Added `tests/layout-binding-panel-typing.test.ts` testing vector streamline calculation, geo elevation min-max normalization, and typed panel click delegation.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 212/212 test files passed (1,429 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Investigation Branching, Centralized Error Register & Comprehensive Documentation Revamp complete:**
   - **Investigation Graph & Branching Engine:** Implemented `InvestigationBranchManager` (`src/session/InvestigationBranchManager.ts`) transforming linear history into an Investigation DAG supporting named forks, branch diffing, and cross-branch operation comparisons (Gate 5 & Definitive Vision §2.3, §10).
   - **Centralized System Error Register:** Implemented `ErrorRegistry.ts` (`src/types/ErrorRegistry.ts`) and `docs/ERROR_REGISTER.md` establishing typed error definitions, domains (`WASM_KERNEL | DATASET_PARSER | DRACO_SOLVER | SPATIAL_RUNTIME | INTERACTION_FSM | COLLABORATION_NET | SESSION_STORE | RESEARCH_HARNESS`), severities, and user recovery actions.
