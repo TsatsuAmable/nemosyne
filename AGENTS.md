@@ -63,16 +63,16 @@ Run all four before claiming a task done. `lint` and `typecheck` are both blocki
 ## Repo layout facts that aren't obvious from filenames
 
 - App entry: `src/main.ts` bootstraps `src/vr/World.ts`. `index.html` is the Vite entry.
-- **TypeScript-first**: all source under `src/` is `.ts`. Only config (`vite.config.js`,
-  `vitest.config.js`, `eslint.config.js`, `vite-wasm-pack-plugin.js`), `tests/setup.js`, and `.test.js`/`.spec.ts`
-  files are JS/TS-mixed. Don't add new `.js` source under `src/`.
+- **100% Pure TypeScript**: all code under `src/` and `tests/` is `.ts` (`tests/setup.ts`, `tests/*.test.ts`, `tests/**/*.spec.ts`).
+  Only root configs (`vite.config.js`, `vitest.config.js`, `eslint.config.js`, `vite-wasm-pack-plugin.js`) are `.js`.
+  Do not add `.js` files to `src/` or `tests/`.
 - **Rust crate is `wasm/`** (`crate-type = cdylib`, `wasm32-unknown-unknown`, stable toolchain via
   `rust-toolchain.toml`). JS bridge: `src/wasm/` (`RuntimeBridge.ts`, `CommandApplier.ts`). ABI is
   `(ptr, len)` + integer handles only — see `.claude/plan.md` for the full ABI/command-buffer spec.
 - **`tests/e2e/` is a four-tier opaque-box suite** (tier1 feature coverage -> tier4 real-world).
   Shared mocks live in `tests/e2e/harness/` (WebGL, WebXR, fixtures, memory profiler). Run tiers via
   `npm run test:e2e:tierN`. See `TEST_INFRA.md` for the matrix.
-- Tests run in jsdom with a hand-rolled WebGL/Canvas2D mock in `tests/setup.js` (replaces
+- Tests run in jsdom with a hand-rolled WebGL/Canvas2D mock in `tests/setup.ts` (replaces
   `HTMLCanvasElement.prototype.getContext`). three.js initializes against this mock — no real GPU.
   `vitest.config.js` pins `pool: 'forks'`, `maxWorkers: 2` — keep it or the WebGL mock flakes under load.
 
