@@ -90,6 +90,10 @@ export class StatusStripController {
     this._spotlightEntityId = entityId;
   }
 
+  bookmarkEvidence(note = 'Evidence marked'): void {
+    this.recordAction(`BOOKMARK: ${note}`, 'Resume investigation');
+  }
+
   formatStripText(): string {
     const dataPart = `${this._state.topology} / ${this._state.itemCount.toLocaleString()} items`;
     const modePart = `MODE: ${this._state.mode}`;
