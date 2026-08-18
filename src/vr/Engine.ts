@@ -216,6 +216,14 @@ export class Engine {
       // intervening sessionend).
       this._detachXrVisibility();
 
+      try {
+        if (typeof (this.renderer.xr as unknown as { setFoveation?: (f: number) => void }).setFoveation === 'function') {
+          (this.renderer.xr as unknown as { setFoveation: (f: number) => void }).setFoveation(1.0);
+        }
+      } catch (_) {
+        // Ignored if foveation is unsupported in environment
+      }
+
       const handler = (event: XRSessionEvent) => {
         void event;
         this._reportSessionStatus(

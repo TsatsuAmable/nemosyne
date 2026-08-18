@@ -156,11 +156,9 @@ Nemosyne has committed to Rust/WASM as the **canonical analytical engine** — t
 - **ABI surface is `(ptr, len)` and integer handles only.** Exported functions return `u32` handles or `(ptr, len)` pairs; imported functions are limited to logging, timestamps, and telemetry. No `String`/`Vec` cross the hot path.
 - **Shared memory layout:** `WebAssembly.Memory` starts at 128 MB and grows to 512 MB. JS reads typed arrays directly from the WASM buffer. All multi-byte values are little-endian.
 - **Two-tier allocation:** a per-frame bump arena (8–32 MB) for command buffers and transient scratch; a stable heap (`dlmalloc` by default) for datasets, ECS tables, and history.
-- **Command buffer:** packed, 4-byte-aligned `u8` stream with a versioned header and opcode/payload structure. JS `CommandApplier` consumes it once per frame and maps handles to three.js objects.
 - **Scene graph split:** Rust owns the ECS, local transforms, and world-matrix computation. three.js owns the renderable object tree and GPU resources; JS copies precomputed matrices into `Object3D.matrix`.
-- **Instancing thresholds:** ≤ 256 unique meshes use individual `THREE.Mesh`; 257–8,192 use `InstancedMesh`; 8,193–65,536 use a GPU point cloud; larger datasets are binned/LOD'd by the Rust spatial index.
+- **Instancing architecture:** Two-tier rendering: small datasets (≤ 500 rows) render as individual `THREE.Mesh` instances with per-node interaction; larger datasets (> 500 rows) use `InstancedPointCloud` / `InstancedMesh` with spatial indexing and `AdaptiveFrameGovernor` dynamic LOD scaling.
 - **Capability flags are telemetry-only.** `World.ts` reads `wasm.capabilities()` once at startup for diagnostics; no production code routes between Rust and JS analytical paths (there is no JS analytical fallback). Never reintroduce an `if (caps & …)` routing branch. Keep the ordering invariant (`COMMAND_BUFFER` requires `SCENE_RUST`) for when those flags are wired.
-- **Testing porting rule:** every JS test removed must be replaced by a Rust unit test, a `wasm-bindgen-test`, or a JS integration test through `RuntimeBridge.ts` that exercises the same behaviour.
 - **Build loop:** `npm run dev` / `npm run build` invoke `wasm-pack` via `vite-wasm-pack-plugin.js`. Run `npm run wasm` for a manual release build; `cargo test --manifest-path wasm/Cargo.toml` runs the Rust unit tests.
 - **Bundle budgets:** target ≤ 2.5 MB total gzipped at the end of the migration; measure each phase with `twiggy`/`wasm-objdump`.
 
