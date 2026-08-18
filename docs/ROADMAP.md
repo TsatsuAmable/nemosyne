@@ -334,6 +334,14 @@
   (`AIM_DRIFT_EXCESSIVE`, `NEAR_FIELD_TRACKING_JITTER`, `PERIPHERAL_CAMERA_BLINDSPOT`, `OUT_OF_REACH_ZONE`).
   Integrated into `UXTraceRecorder.ts`, live in-VR HUD `InputTelemetry.ts`, and offline analyzer
   `scripts/analyze-ux-trace.mjs`. Tested via `tests/world-spatial-context.test.ts` (6 new tests).
+- **Next (UX track) — Sprint 22.10 🔲: UX Inventory Check & Qualitative-Telemetry Correlation.**
+  Planned 2026-08-18 from the Meta Quest session log analysis (`logs/ux-trace.jsonl` +
+  `logs/vr-remote-console.log`, two sessions 413 s + 202 s). Goal: make the three log streams
+  joinable by `sid` (session manifest), fold perf + friction into the trace, add a canonical UX
+  phenomenon vocabulary (UX-001…UX-012) that ties qualitative experience to telemetry signals,
+  add an annotation/diary channel, and an analyzer that reproduces the findings mechanically.
+  Acceptance gate: a 2026-08-18 replay fixture must reproduce the 156 s cold-start, 57 %
+  both-pinch suppression, and 0-target-hits findings. See Sprint 22.10 below.
 
 ### Prior track (consolidated 2026-08-16)
 - **Gate baseline:** typecheck passed; lint 0 errors (~204–205 warnings); full Vitest coverage 189 files
@@ -1536,6 +1544,151 @@ The GA solver runs but its recommendation quality is untested against known-good
   `cullPositions`; `SpatialIndex.raycast` allocates inside the inner loop. Hoist to reused
   scratch members. Plus `Engine.dispose` listener cleanup is incomplete and `MeshPool.clear` is
   not a full dispose (see the leak item above).
+
+### Sprint 22.10 — UX Inventory Check & Qualitative-Telemetry Correlation 🔲 (new)
+
+> **Started 2026-08-18 (planning).** Theme: **tie qualitative human experience to telemetry so a
+> researcher can cross-reference a diary note to hard data.** The runtime already records a rich
+> correlated trace (`UXTraceRecorder` → `logs/ux-trace.jsonl`) and a console stream
+> (`RemoteDebugStreamer` → `logs/vr-remote-console.log`), plus `logs/loadtest-results.jsonl`. But
+> the three streams are **not joinable by session**, performance + frustration signals **do not
+> reach the UX trace**, the hand-tracking cold-start is **only inferable from log spam**, and there
+> is **no vocabulary** that maps "I couldn't grab the panel" to the records that prove it.
+>
+> Evidence base: the 2026-08-18 Meta Quest session (two sessions, 413 s + 202 s) in
+> `logs/ux-trace.jsonl` + `logs/vr-remote-console.log`, analysed via
+> `scripts/analyze-ux-trace.mjs`. Findings the inventory must reproduce mechanically: 156 s
+> hand-tracking cold-start (S1); pointer ray hit nothing on 91–100 % of pinches; 57 % of S2
+> pinch starts system-suppressed (both-pinch stealing intent while gazing at panels); 0 named-
+> target hits across all 41 selections in S2; 5 + 10 frustration windows; ergonomic score 39/100
+> (S1) with 74 % PERIPHERAL reach. Instrumentation inventory audit confirmed the gaps below.
+
+#### UXI-1 — Session manifest & correlation key
+- 🔲 **`session-manifest` record.** `UXTraceRecorder` emits one `session-manifest` record at
+  start (and re-emits on dataset load) carrying: `sid`, `nemosyneSessionId` (from
+  `NemosyneSession.sessionId`), `datasetName`, `datasetFingerprint`, `datasetVersion`,
+  `topology`, `buildHash` (from `import.meta.env`/Vite define), `wasmCapabilities` (from
+  `wasm.capabilities()`), `ua`, `startedAt`, `sampleHz`. This bridges the current gap where the
+  UX trace `sid` and the `NemosyneSession.sessionId` are independent and never cross-referenced.
+- 🔲 **`logs/session-manifest.jsonl`.** `vite.config.js` `uxTracePlugin` extracts
+  `session-manifest` records and appends them to a dedicated manifest file (same bounded-POST
+  path, one JSON line per manifest) so a session list is readable without scanning the full
+  trace. Every existing record already carries `sid`, so all three log files become joinable by
+  `sid` once the manifest exists.
+- 🔲 **Manifest in the offline analyzer.** `scripts/analyze-ux-trace.mjs` reads the manifest
+  first and prints a session header (dataset, topology, build, capability flags) per `sid`.
+
+#### UXI-2 — Perf & friction folded into the trace
+- 🔲 **`perf` trace records.** `Engine.ts` currently routes `PerformanceBudget` violations only
+  to `console.warn` → remote logs. Add `recorder.recordPerf(violation)` so each violation
+  becomes a `perf` record `{ type:'perf', id, severity, value, budget, frameMs }` correlated by
+  `t` with the 5 Hz context stream. Also emit a periodic `perf` sample (1 Hz) carrying
+  `AdaptiveFrameGovernor.lodScaleFactor` + `throttleCount` + `frameMs` (currently event-bus +
+  in-VR panel only) so jank is visible in the trace, not just the console.
+- 🔲 **`friction` trace records.** Consolidate the two `UXFrustrationAnalyzer` instances (one
+  in `TelemetryCollector`, one wired via `AdaptiveAssistController`) to a single source and emit
+  a `friction` record `{ type:'friction', pattern, severity, score, compactTrail }` whenever the
+  analyzer raises a pattern. The trace then carries the on-device frustration verdict alongside
+  the raw pinches it was derived from, so the offline analyzer doesn't re-derive it.
+- 🔲 **Dead-flag cleanup.** `RAPID_SWIPE_VELOCITY`, `OCCLUSION_BY_PANEL` (in
+  `WorldSpatialContext`), and `REPEATED_RESET` (in `UXFrustrationAnalyzer`) are declared in
+  their type unions but never assigned. Either wire a detection for each or delete the enum
+  members — do not leave dead vocabulary in the inventory.
+
+#### UXI-3 — Explicit hand-tracking lifecycle + cold-start event
+- 🔲 **`hands` lifecycle records.** `Hands.ts` currently surfaces cold-start only via
+  `[HandPointer N] waiting for joints` log spam every 300 frames. Add
+  `recorder.recordHands({ phase: 'connected'|'joints-valid'|'fallback'|'lost', hand, source,
+  jointCount, ttfrMs })` so the trace carries a structured hand-availability timeline. Emit
+  `hands.joints-valid` with `ttfrMs` = time from `session-manifest.start` to first
+  `jointsValid && pose` for that hand — this is the mechanical signal for UX-001.
+- 🔲 **Time-to-first-pinch metric.** Record `tFirstPinch` per session in the manifest; the
+  analyzer reports `tFirstPinch − start` and flags > 10 s (the 2026-08-18 S1 value was 165 s).
+
+#### UXI-4 — UX phenomenon inventory (the vocabulary)
+> The canonical enumerated list a researcher correlates against. Each phenomenon has a stable ID,
+> a human-readable description of the qualitative experience, the telemetry signals that evidence
+> it, and a derivation rule the analyzer implements. The IDs are stable across versions — fields
+> may grow but IDs do not renumber.
+
+| ID | Phenomenon | Qualitative experience | Telemetry signals | Derivation (per session) |
+|----|------------|------------------------|-------------------|--------------------------|
+| UX-001 | Hand-tracking cold-start | "My hands didn't appear for ages at the start" | `hands` lifecycle records; first `pinch.t`; `[HandPointer] waiting for joints` log lines | `tFirstJointsValid − session.start`; flag if > 10 s; severity by duration |
+| UX-002 | Pointer-ray aim drift | "I was looking at the panel but my pinch hit nothing" | `context.ctx.ptr.driftDeg`; `pinch.ctx.ptr.target=null` | share of context samples with `driftDeg > 28` (matches `AIM_DRIFT_EXCESSIVE`); pinches with `ptr.target=null` |
+| UX-003 | Both-pinch intent stolen | "I tried to select with both hands and the menu kept opening" | `pinch.gating=system-suppressed` with `ctx.gaze.kind∈{panel,hud}`; `system.kind=both-pinch` | count of suppressed-while-gazing-panel; ratio `system-suppressed / select` pinch starts |
+| UX-004 | Target acquisition failure | "I couldn't hit the button/panel I wanted" | `selection.hit=callback-only` with `ctx.gaze.target` set; absence of `hit∈{scene,hud}` | session-level scene/hud hit count; per-window `≥3 callback-only while gazing at panel` |
+| UX-005 | Peripheral reach / camera blindspot | "Hands lost tracking when I reached out to the side" | `context.ctx.world.ergonomics[].reachZone=PERIPHERAL`; `PERIPHERAL_CAMERA_BLINDSPOT` flag | share of context samples PERIPHERAL; flag counts |
+| UX-006 | Sustained frustration burst | "I kept trying and nothing worked" | `friction` records; frustration windows (≥2 ineffective inputs in 3 s) | window count + longest window length + peak `friction.score` |
+| UX-007 | Frame-budget breach / jank | "It stuttered or felt janky" | `perf` records; `[PerformanceBudget] critical/warning` log lines | critical/warning counts; max `frameMs`; `lodScaleFactor` trajectory |
+| UX-008 | Dataset load crash | "It crashed when I loaded/switched data" | `[World] loading dataset` followed within 2 s by `[ERROR]` or `[Nemosyne] startup error` | error within 2 s of a load event, joined by `sid+t` to the trace |
+| UX-009 | Live-stream reconnect flapping | "The live feed kept dropping" | `[LiveStreamCoordinator] live stream error` → `connected` cycles | error→connected cycle count; max gap |
+| UX-010 | Tour drop-off | "I didn't finish the tour" | `tour` records: last `step < total` and `active` flips false early | final `step/total < 1` and last active step < total−1 |
+| UX-011 | Wheel-menu stuck open | "The menu wouldn't close" | `wheel` open/close records | `opens ≠ closes` and session ends in `open` |
+| UX-012 | Gesture misfire | "It fired the wrong gesture / misfired" | `gesture.isMisfire=true`; `gesture.confidence < 0.6` | misfire count + per-gesture-name breakdown |
+
+- 🔲 **`docs/UX_INVENTORY.md`** — checked-in canonical version of the table above, with one
+  paragraph per phenomenon defining the derivation precisely (thresholds, window sizes, severity
+  bands). The analyzer loads from this spec so the docs and the code cannot drift.
+
+#### UXI-5 — Qualitative annotation channel
+- 🔲 **`annotation` trace records.** A dev-only in-VR "mark moment" affordance (grip + trigger
+  hold, surfaced in `HandWheelMenu` as "Mark UX moment") emits
+  `recorder.recordAnnotation({ note, phenomenonId?, severity? })`. If the on-device keyboard is
+  unavailable, the record stores an auto-generated timestamped placeholder and the researcher
+  fills the note offline against `sid + t`.
+- 🔲 **Offline session diary.** `scripts/ux-inventory-report.mjs` accepts an optional
+  `--diary sessions/<sid>.md` (free-form markdown with `@t <seconds> <phenomenon-id> <note>`
+  lines) and joins each note to the trace window ±2 s, emitting the note inline beside the
+  matching telemetry in the report. This is the qualitative→quantitative bridge: a human writes
+  "at 165 s my hands finally appeared" and the report shows the `hands.joints-valid` record at
+  t=165.2 s alongside it.
+- 🔲 **No PII.** Annotations are local/dev-only (same self-disable-on-404 path as the rest of
+  the trace); the diary file is gitignored. Record only the note text the researcher types —
+  never auto-capture speech or identifiable content (matches the existing `UXTraceRecorder`
+  privacy stance).
+
+#### UXI-6 — Correlated offline analyzer
+- 🔲 **`scripts/ux-inventory-report.mjs`.** Reads `logs/session-manifest.jsonl`,
+  `logs/ux-trace.jsonl`, `logs/vr-remote-console.log`, `logs/loadtest-results.jsonl`, and the
+  optional diary. Produces, per `sid`: (a) the manifest header; (b) the **inventory checklist** —
+  every UX-00x phenomenon → `occurred: yes/no`, evidence counts, time windows, severity; (c)
+  cross-log correlations (e.g. UX-008 joining a `[World] loading dataset` console line to the
+  trace `t` and the resulting `[ERROR]`); (d) inline diary annotations. Output is markdown +
+  a machine-readable `logs/ux-inventory-<sid>.json`.
+- 🔲 **`scripts/analyze-ux-trace.mjs` delegation.** The existing analyzer keeps its
+  pinch/selection/drift/frustration-window tables; the new report builds on top of it (imports
+  the derivation helpers) rather than duplicating them. One command, one source of truth for
+  each derivation rule.
+
+#### UXI-7 — Tests & validation against the recorded session
+- 🔲 **Derivation unit tests.** `tests/ux-inventory.test.ts` — synthetic traces exercising each
+  phenomenon's derivation rule (cold-start duration, suppression-while-gazing ratio, target-
+  acquisition failure, etc.).
+- 🔲 **Replay fixture from 2026-08-18.** Check in a redacted slice of the real session
+  (`tests/fixtures/ux-trace-2026-08-18.jsonl`, the two `sid`s) and assert the analyzer reproduces
+  the findings above: UX-001 occurred (156 s), UX-003 occurred (57 % suppressed in S2), UX-004
+  occurred (0 scene/hud hits in S2), UX-005 occurred (74 % PERIPHERAL in S1), UX-006 occurred
+  (5 + 10 windows). This is the acceptance gate — the inventory must mechanically reproduce what
+  the manual analysis found.
+- 🔲 **Privacy redaction helper.** `scripts/redact-ux-trace.mjs` strips any `annotation.note`
+  and hashes `ua` before a fixture is checked in, so real-session fixtures can be committed
+  without leaking researcher notes or device fingerprints.
+
+#### Sequencing
+```
+UXI-1 (manifest)  →  UXI-6 (analyzer needs the manifest to join logs)
+UXI-2 (perf/friction into trace)  →  UXI-6 (analyzer derives UX-006/UX-007 from these)
+UXI-3 (hands lifecycle)  →  UXI-4 UX-001 derivation  →  UXI-7 replay assertion
+UXI-4 (vocabulary)  ←  UXI-5 (annotation phenomenonId references the vocabulary IDs)
+UXI-5 (annotation)  →  UXI-6 (diary join)
+UXI-7 is the gate: the 2026-08-18 replay must reproduce the manual findings.
+```
+
+> **Non-goal:** automated UX verdicts. Consistent with the existing caveat (§Planned but not
+> actioned → "UX frustration analyzer as signal, not conclusion"), the inventory is **triage for
+> studies, never a verdict**. It surfaces evidence for a human researcher; it does not score UX
+> quality. The `friction` records and phenomenon occurrences are hypotheses to validate, not
+> conclusions.
 
 ---
 
