@@ -5,6 +5,15 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Investigation Branching, Centralized Error Register & Comprehensive Documentation Revamp complete:**
+  - **Investigation Graph & Branching Engine:** Implemented `InvestigationBranchManager` (`src/session/InvestigationBranchManager.ts`) transforming linear history into an Investigation DAG supporting named forks, branch diffing, and cross-branch operation comparisons (Gate 5 & Definitive Vision §2.3, §10).
+  - **Centralized System Error Register:** Implemented `ErrorRegistry.ts` (`src/types/ErrorRegistry.ts`) and `docs/ERROR_REGISTER.md` establishing typed error definitions, domains (`WASM_KERNEL | DATASET_PARSER | DRACO_SOLVER | SPATIAL_RUNTIME | INTERACTION_FSM | COLLABORATION_NET | SESSION_STORE | RESEARCH_HARNESS`), severities, and user recovery actions.
+  - **Technical Specification Document:** Created `docs/TECHNICAL_SPEC.md` documenting the complete system architecture, data lifecycle, rendering pipeline, and security/performance budgets.
+  - **Comprehensive Codebase Wiki:** Created `docs/WIKI.md` cataloging all core classes, modules, interfaces, coordinators, and functions across the entire repository.
+  - **Updated Getting Started Guide:** Rewrote `docs/GETTING_STARTED.md` covering prerequisites, Quickstart, Phase 24 cockpit controls, HandWheel categories, and 2D-vs-VR study execution.
+  - **Unit Test Suite:** Added `tests/investigation-branching-error-register.test.ts` verifying error registry lookups, branch creation, history appending, and branch divergence diffing.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 211/211 test files passed (1,426 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Connector API Auth & Study Protocol Data Exporter complete:**
   - **Connector API Authentication & Scope Gating:** Implemented `ConnectorAuthManager` (`src/network/ConnectorAuth.ts`) validating token scopes (`READ_DATASET | WRITE_DATASET | STREAM_TELEMETRY | ADMIN`), expiration, and 1-second sliding window rate-limiting for external data connectors.
   - **Study Protocol Data Exporter:** Implemented `StudyDataExporter` (`src/study/StudyDataExporter.ts`) formatting completed 2D-vs-VR study trials into reproducible research bundles and standard participant-level outcome CSVs with accuracy, duration, confidence, and NASA-TLX workload metrics.
