@@ -9,6 +9,7 @@ This layer covers the shipped product, roadmap state, architecture, and engineer
 Canonical files:
 - [ROADMAP.md](ROADMAP.md)
 - [PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md](PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md)
+- [MIGRATION.md](MIGRATION.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
 - [STATISTICAL_METHOD_REGISTER.md](STATISTICAL_METHOD_REGISTER.md)
 - [GETTING_STARTED.md](GETTING_STARTED.md)
@@ -56,8 +57,6 @@ Use this layer to answer:
 
 - [nemosyne-concept-paper-architecture.md](nemosyne-concept-paper-architecture.md) — concept
   reconciliation and target architecture; subordinate to governance and roadmap.
-- [Atlas upgrade of Draco Recommender.md](Atlas%20upgrade%20of%20Draco%20Recommender.md) —
-  subordinate Atlas proposal; not a release specification.
 - [Nemosyne_Concept_Paper_v1.0.md](Nemosyne_Concept_Paper_v1.0.md) — concept narrative, not
   implementation status.
 - [USER_STORIES_AND_UX_ANALYSIS.md](USER_STORIES_AND_UX_ANALYSIS.md) — product research input.

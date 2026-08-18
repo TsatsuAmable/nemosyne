@@ -2,110 +2,91 @@
 
 This document provides a comprehensive technical reference for the **Nemosyne Spatial Data Analysis Suite**, detailing system architecture, component boundaries, class structures, public API contracts, data pipelines, and WebXR spatial ergonomics.
 
-> **TypeScript-first.** All source under `src/` is `.ts` (import maps + Vite; `tsc --noEmit` is a required CI gate). Only config and test-harness files (`vite.config.js`, `vitest.config.js`, `tests/setup.js`, `vite-wasm-pack-plugin.js`) and individual test files remain `.js`/`.mjs`. Migration status of the Rust/WASM compute layer is tracked in [ROADMAP.md](./ROADMAP.md) §Phase 21.
+> **100% Pure TypeScript.** All application source under `src/` and test suites under `tests/` are `.ts` (`tsc --noEmit` and `eslint` are required CI gates). Only root configs (`vite.config.js`, `vitest.config.js`, `eslint.config.js`, `vite-wasm-pack-plugin.js`) remain `.js`.
 
-> **Status note.** This is the current engineering reference for the renderer-centered runtime.
-> Atlas Core, DatasetSpace, provenance-bearing analysis, and deterministic replay are Stable
-> Alpha requirements but remain unimplemented unless `docs/ROADMAP.md` says otherwise. Richer
-> Atlas capabilities remain proposed.
-
-> **Authority note.** Product architecture, release-track decisions, state ownership, and
-> dependency rules are defined in [PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md](PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md).
-> This file describes the current engineering reference and must not imply that Atlas Core or
-> richer proposed Atlas, DatasetSpace, provenance, or replay capabilities are implemented.
+> **Rust/WASM Analytical Kernel Authority.** The Rust analytical kernel (`wasm/`) is the authoritative source for all data parsing, topology inference, clustering, and dataset transformations. There is no JavaScript analytical fallback in production.
 
 ---
 
 ## 1. 🌐 System Overview & Architecture Pipeline
 
-Nemosyne currently maps supported datasets into interactive spatial visualizations using the
-Draco v1 symbolic constraint engine, WebGL/WebXR three.js rendering, and optional WebAssembly
-compute providers. The target direction adds a renderer-independent analytical record and Atlas
-guidance, but those are not current runtime capabilities.
+Nemosyne organizes the spatial data exploration workflow into three distinct architectural layers:
 
 ```
-       Raw Input Data (CSV / JSON / WebSockets / Live Streams)
-                                │
-                                ▼
-         Parsers & Connectors (src/data/ & src/data/connectors/)
-                                │
-                                ▼
-         Dataset Model & Encodings (Dataset.ts & Encodings.ts)
-                                │
-                                ▼
-         Draco Constraint Engine (src/draco/ConstraintEngine.ts)
-          └── Evaluates Hard/Soft Constraints & Ranks Layout Specs
-                                │
-                                ▼
-         VRTopologyTranslator (src/draco/VRTopologyTranslator.ts)
-          └── Maps Specs to 3D Geometry, Colors, Sizes, and Animations
-                                │
-                                ▼
-       ObjectPool & Time-Slicing (src/utils/ObjectPool.ts)
-          └── Geometry/Material Reuse & Micro-task Frame Slicing
-                                │
-                                ▼
-        three.js WebXR Scene Graph & Analyst Torso Anchor
-          ├── DracoTopologyNode (Data Palace)
-          ├── Dual Vertical Wheel Menus (HandWheelMenu.ts)
-          ├── MovablePanel Cluster & Curved Spatial Dashboard
-          └── HolographicInspector & Spatial Landmarks
-                                │
-                                ▼
-       Normalized Input Routing (src/vr/InputRouter.ts & SelectionDispatcher.ts)
-          ├── WebXR Hand Tracking & Controller Laser Rays
-          ├── Dwell Selection Timer & Multi-modal Audio-Haptics
-          └── On-device UX Frustration Analyzer & Telemetry Engine
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. Analysis Runtime (Sole Analytical Authority — Zero Three.js/DOM deps)    │
+│    ├── AtlasCore & DatasetSpace (Deterministic provenance & state ledger)   │
+│    ├── Rust/WASM Analytical Kernel (Parsing, TDA, Clustering, Filtering)    │
+│    └── EvidenceStore & EvidenceWeightedScorer (Empirical Recommender)       │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Analytical Actions / VRCommand Specs
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2. Spatial Runtime (3D Spatial Presentation & Input Layer)                  │
+│    ├── Engine (Three.js WebXR render loop, WebGL2, performance budgets)     │
+│    ├── DracoTopologyNode & Layout Generators (Spatial Data Palaces)         │
+│    ├── Unified Input Routing (Pointers, Hand-tracking, Gesture Recognition)  │
+│    └── Moveable Panel Cluster, Curved Spatial Dashboard & Telemetry         │
+└──────────────────────────────────────▲──────────────────────────────────────┘
+                                       │
+┌──────────────────────────────────────┴──────────────────────────────────────┐
+│ 3. Application Composition Root (Lifecycle Coordination & Command Routing)  │
+│    ├── World (Runtime lifecycle bootstrap, scene composition, facade-free)  │
+│    ├── WorldUIManager (Panels, HUDs, HandWheelMenu, Modals management)      │
+│    ├── NemosyneSession (Deterministic session serialization / hydration)    │
+│    └── WorldSessionController & LiveStreamCoordinator (Collab & Streams)    │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 2. 🧩 Subsystem Class & Component Reference
 
-### 2.1 📊 Data & Serialization Layer (`src/data/`)
+### 2.1 📊 Analytical Core & State Layer (`src/atlas/` & `src/data/`)
 
-The data layer models tabular, graph, geospatial, and time-series data structures, supporting pure functional operations, IndexedDB persistence, and live WebSocket streaming.
+The analysis layer models datasets, manages topological structures, executes analytical operations via the Rust WASM kernel, and maintains an immutable provenance ledger.
+
+#### `AtlasCore.ts`
+- **Class**: `AtlasCore`
+- **Purpose**: Authoritative domain coordinator and provenance engine. Zero Three.js or DOM dependencies.
+- **Key Methods**:
+  - `loadDataset(dataset: Dataset): void`
+  - `applyAnalysis(spec: AnalysisSpec): AnalysisResult`
+  - `recordEmbodimentCommand(command: VRCommand): void`
+  - `toState(): AtlasStateJSON` & `restoreState(state: AtlasStateJSON): void`
+
+#### `DatasetSpace.ts`
+- **Class**: `DatasetSpace`
+- **Purpose**: Tracks dataset versioning, dimensionality, statistical facts, and cryptographic FNV-1a state fingerprints.
+
+#### `EvidenceStore.ts` & `EvidenceWeightedScorer.ts` (`src/draco/evidence/`)
+- **Classes**: `EvidenceStore`, `EvidenceWeightedScorer`
+- **Purpose**: Ingests trial interaction telemetry and calculates empirical utility to Bayesian-re-rank Draco candidate visual layouts.
 
 #### `Dataset.ts`
 - **Class**: `Dataset`
-- **Purpose**: Represents an immutable in-memory dataset with typed columns and metadata.
-- **Key Methods**:
-  - `getColumn(name: string): ColumnSchema | undefined`
-  - `rangeOf(columnName: string): { min: number; max: number }`
-  - `updateRows(newRows: Record<string, unknown>[], mode?: 'append' | 'replace', limit?: number | null): void`
-  - `toJSON(): DatasetJSON`
-
-#### `Parsers.ts`
-- **Functions**: `parseCSV()`, `parseJSON()`, `inferColumnTypes()`
-- **Purpose**: Parses raw CSV text or JSON array buffers and infers numeric, categorical, or temporal schema types.
-
-#### `DatasetOperations.ts`
-- **Functions**: `filter()`, `sort()`, `aggregate()`, `cluster()`, `timeSlice()`, `anomaly()`
-- **Purpose**: Pure transform functions that calculate derived datasets without mutating source rows.
-
-#### `SessionStore.ts`
-- **Class**: `SessionStore`
-- **Purpose**: Asynchronous IndexedDB storage engine for auto-saving analysis history, active encodings, panel positions, and session snapshots.
+- **Purpose**: In-memory representation of typed columns, schemas, and row collections.
 
 ---
 
 ### 2.2 ⚡ WebAssembly Core & Host Bridge (`src/wasm/` & `wasm/`)
 
-The WebAssembly subsystem executes high-performance data transformations and spatial indexing in Rust compiled via `wasm-pack`.
+The WebAssembly subsystem executes high-performance data transformations, topology inference, and spatial graph algorithms in Rust compiled via `wasm-pack`.
 
 #### `RuntimeBridge.ts`
 - **Module**: `RuntimeBridge`
-- **Purpose**: Typed JavaScript bridge managing WASM memory allocation (`allocBytes`, `readBytes`) and execution fallbacks.
+- **Purpose**: Typed JavaScript bridge to the `nemosyne_wasm` module utilizing handle-based memory management and command buffers.
 - **Key Functions**:
-  - `executeOperation(dataset: DatasetJSON, spec: OperationSpec): DatasetJSON`
-  - `loadSampleDataset(name: string): DatasetJSON`
-- **Fault-Tolerance**: Wrapped in JS `try...catch` blocks to auto-fallback to JavaScript calculations on WebAssembly panics.
+  - `runOperation(handle: number, spec: OperationSpec): number`
+  - `getDatasetJson(handle: number): DatasetJSON | null`
+  - `inferTopology(handle: number): TopologyType`
+  - `inferEncodings(handle: number, topology?: TopologyType): EncodingMapping`
 
 ---
 
 ### 2.3 📐 Draco Constraint Recommender (`src/draco/`)
 
-The Draco v1 Embodiment Engine implements symbolic constraint satisfaction for automated VR spatial visualization. Atlas is the proposed analytical guidance layer above it.
+The Draco v1 Embodiment Engine implements symbolic constraint satisfaction for automated VR spatial visualization.
 
 #### `ConstraintEngine.ts`
 - **Class**: `ConstraintEngine`

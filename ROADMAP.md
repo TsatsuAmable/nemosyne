@@ -5,7 +5,12 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-18 — Full TypeScript Migration & World Facade Simplification complete:
+- **Last updated:** 2026-08-18 — Documentation Audit, Netlify Landing Fix & Canon Alignment complete:
+  Fixed `docs/index.html` landing page on Netlify by replacing failing cross-origin iframes with a self-contained spatial runtime HUD,
+  deleted 35 obsolete pre-generated `.html` twins, legacy study draft duplicates, and superseded sprint reports, and synchronized all canonical
+  documents (`docs/ARCHITECTURE.md`, `docs/ANALYTICS.md`, `docs/INTERACTIONS.md`, `docs/PROJECT_DOCS_INDEX.md`, `AGENTS.md`) with the
+  ground truth of the 100% pure TypeScript codebase and Rust WASM analytical kernel.
+  Full TypeScript Migration & World Facade Simplification complete:
   Converted all 63 remaining JavaScript test suites and helpers in `tests/` to pure TypeScript (`.ts`), eliminating all `.js`
   files across `src/` and `tests/`. Completely removed legacy `@deprecated` duplicate properties from `World.ts` class surface
   in favor of canonical domain coordinators and `WorldUIManager`, decoupling presentation controllers and passing all 6 CI gates.

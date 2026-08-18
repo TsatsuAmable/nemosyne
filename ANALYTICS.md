@@ -27,23 +27,23 @@ These facts drive new soft constraints:
 
 ---
 
-## Clustering Operations (`src/data/DatasetOperations.js`)
+## Clustering Operations (Rust WASM Kernel & `src/atlas/`)
 
-All clustering operations return a new `Dataset` with a `_cluster` column so the original data is preserved.
+All clustering operations execute in the Rust WASM kernel (`wasm/src/operations.rs`) and return a new dataset with a `_cluster` column, recorded immutably to the Atlas provenance ledger.
 
-| Function | Method | VR visualisation |
-|----------|--------|------------------|
-| `cluster(dataset, k, features)` | k-means with k-means++ seeding | Nested rings (`ClusterTransforms.applyNestedRings`) |
-| `hierarchical(dataset, features, linkage, targetClusters)` | Agglomerative (single/complete/average) | Dendrogram arcs (`applyDendrogramArc`) |
-| `dbscan(dataset, eps, minPoints, features)` | Density-based | Density clouds + noise sink (`applyDensityCloud`) |
+| Operation | Method | VR visualisation |
+|-----------|--------|------------------|
+| `cluster` | k-means with k-means++ seeding | Nested rings (`ClusterTransforms.applyNestedRings`) |
+| `hierarchical` | Agglomerative (single/complete/average) | Dendrogram arcs (`applyDendrogramArc`) |
+| `dbscan` | Density-based | Density clouds + noise sink (`applyDensityCloud`) |
 
 `Dataset` rows also receive `_meta` on hierarchical and DBSCAN results describing linkage history, eps/minPoints, noise count, etc.
 
 ---
 
-## Anomaly Detection (`DatasetOperations.anomaly`)
+## Anomaly Detection (Rust WASM Kernel)
 
-`anomaly(dataset, columnName, method, sensitivity)` adds `_anomaly` and `_anomalyScore` columns.
+`anomaly` calculates outliers via the WASM kernel and adds `_anomaly` and `_anomalyScore` columns.
 
 | Method | Description |
 |--------|-------------|
@@ -51,7 +51,7 @@ All clustering operations return a new `Dataset` with a `_cluster` column so the
 | `zscore` | Standard-deviation threshold (default `3`). |
 | `isolation` | Lightweight isolation-forest approximation using recursive random splits; score is normalised split depth. |
 
-### VR rendering (`AnomalyTransforms.ts`)
+### VR rendering (`src/vr/interactions/AnomalyTransforms.ts`)
 
 - Outliers receive a pulsing magenta halo (`ensureHalo`) and lift above the dataset.
 - `applyOutlierLens` gathers outliers around a focus point (e.g. the user's hand) while dimming non-outliers.
@@ -63,9 +63,9 @@ The `ConstraintEngine` already flags `hasOutliers` via a robust MAD-based modifi
 
 ---
 
-## Chart Planes in VR (`ChartPlane`)
+## Chart Planes in VR (`ChartPlane.ts`)
 
-`src/vr/artifacts/ChartPlane.js` renders Canvas 2D plots onto a world-space quad:
+`src/vr/artifacts/ChartPlane.ts` renders Canvas 2D plots onto a world-space quad:
 
 | ChartType | Dataset requirement |
 |-----------|---------------------|
@@ -81,21 +81,19 @@ The `ConstraintEngine` includes a low-weight `attach_chart_plane_for_rich_numeri
 
 ---
 
-## TDA Artefacts (`src/analytics/TDAMapper.js`, `src/vr/artifacts/TDAPlanes.js`)
+## TDA Artefacts (Rust WASM & `src/vr/artifacts/TDAPlanes.ts`)
 
-Lightweight, JS-only topological summaries give analysts a shape-first view of their data without leaving VR.
+Topological data analysis summaries give analysts a shape-first view of their data without leaving VR.
 
-### Algorithms
+### Algorithms (Rust WASM Kernel)
 
 | Function | What it computes |
 |----------|------------------|
-| `mapper(rows, featureColumns, filterFn, bins, overlap, linkage)` | Approximate Mapper graph: rows are binned by a 1-D filter function, clustered inside each overlapping bin, and connected when clusters share rows. |
-| `persistenceIntervals(rows, filterFn, featureColumns, maxDistance)` | 0-D persistence intervals for a 1-D filtration; union-find grows components as the filter threshold sweeps outward. |
-| `betti0Curve(rows, featureColumns, samples, maxRadius)` | Number of connected components of a VR-style proximity graph as the radius grows. |
+| `compute_mapper_graph` | Approximate Mapper graph: rows are binned by a 1-D filter function, clustered inside each overlapping bin, and connected when clusters share rows. |
+| `compute_persistence_intervals` | 0-D persistence intervals for a 1-D filtration; union-find grows components as the filter threshold sweeps outward. |
+| `compute_betti_0_curve` | Number of connected components of a VR-style proximity graph as the radius grows. |
 
-These are intentionally fast approximations for live VR datasets, not replacements for full TDA libraries.
-
-### Panels (`TDAPlanes.js`)
+### Panels (`src/vr/artifacts/TDAPlanes.ts`)
 
 `buildTDASummaryGroup(dataset, featureColumns, filterColumn)` creates three world-space canvas panels:
 
