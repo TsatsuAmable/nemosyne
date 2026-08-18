@@ -5,13 +5,6 @@
 > not duplicate state.
 
 
-- **2026-08-18 — Atlas DAG Branching, In-VR Mark Finding Tool & Spatial UI Deep Audit complete:**
-  - **Atlas DAG Branching & Version Control (Gate 5):** Integrated `InvestigationBranchManager` into `AtlasCore` (`src/atlas/AtlasCore.ts`), exposing `branchInvestigation()`, `switchInvestigationBranch()`, and `compareInvestigationBranches()` with full provenance ledger event tracking.
-  - **In-VR "Mark Finding" Evidence Capture Tool (Gate 4):** Implemented `AtlasCore.markFinding()` and `StatusStripController.bookmarkEvidence()` (`src/vr/ui/StatusStripController.ts`) enabling 1-touch spatial finding capture into the research ledger with entity ID, 3D coordinates, and finding notes.
-  - **VR Artefacts & Spatial UI Deep Audit:** Created `docs/VR_ARTEFACTS_AND_SPATIAL_UI_AUDIT.md` benchmarking Nemosyne spatial artefacts against VisionOS, Meta Quest, MRTK3, and IEEE VIS immersive analytics guidelines.
-  - **Unit Test Suite:** Added `tests/atlas-branching-and-mark-finding.test.ts` testing Atlas branch forks, diff comparisons, ledger finding events, and status strip bookmark updates.
-  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 213/213 test files passed (1,432 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
-
 - **2026-08-18 — Layout Data Binding Honesty & Typed Panel Content Handling complete:**
   - **Streamline & GeoSurface Data Binding:** Updated `StreamlineLayout` (`src/draco/layouts/StreamlineLayout.ts`) and `GeoSurfaceLayout` (`src/draco/layouts/GeoSurfaceLayout.ts`) to read real vector components (`u/v/w`, `vx/vy/vz`, `dx/dy/dz`) and auto-normalize elevation ranges dynamically.
   - **Typed Panel Content Handler Interface:** Formalized `IPanelContentHandler` in `src/vr/coordinators/types.ts` and refactored `MovablePanel` (`src/vr/ui/MovablePanel.ts`) to eliminate duck-typed `(this as any).handleContentClick` reflection calls.
