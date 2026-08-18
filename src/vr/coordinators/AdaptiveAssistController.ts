@@ -103,7 +103,7 @@ export class AdaptiveAssistController {
         })
       );
       this._unsubs.push(
-        bus.on('userMode:applied', (payload) => {
+        bus.on(WorldTopics.USER_MODE_APPLIED, (payload) => {
           const mode = (payload as { mode?: string } | undefined)?.mode;
           if (mode === 'novice' || mode === 'intermediate' || mode === 'expert') {
             this.frustrationResponse.setUserMode(mode);

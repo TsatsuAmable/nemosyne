@@ -83,7 +83,7 @@ export class EvidenceStore {
         condition: list[0].condition,
         sampleCount: count,
         meanAccuracy: meanAcc,
-        meanF1: meanF1,
+        meanF1,
         meanDurationMs: meanDuration,
         meanNasaTlx: meanTlx,
         compositeUtility: Math.min(1.0, Math.max(0.0, utility)),

@@ -16,6 +16,7 @@ import type { UXFrustrationAnalyzer } from '../../utils/UXFrustrationAnalyzer.ts
 import type { LoadTestDriver, LoadTestProfile } from '../scalability/LoadTestDriver.ts';
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 import type { NemosyneSession } from '../../session/NemosyneSession.ts';
+import type { NemosyneEventMap } from '../../utils/EventBus.ts';
 
 /** Entry describing a dataset to be loaded into the World. Shared with WorldSessionController. */
 export interface DatasetLoadEntry {
@@ -230,6 +231,8 @@ export interface PanelLike {
   applyAccessibility?(options: AccessibilityOptions): void;
   hide?(): void;
   render?(): void;
+  // Panels registered as Engine updatables are ticked via `update`.
+  update?(delta?: number, time?: number): void;
   getSetting?(key: string): unknown;
   handlePointerDown?(raycaster: Raycaster, pointer: PointerLike): string | null | undefined;
   handlePointerMove?(raycaster: Raycaster, pointer: PointerLike): void;
@@ -289,6 +292,8 @@ export interface HandWheelMenuLike {
   toggle(): void;
   handlePointerClick?(raycaster: Raycaster): boolean | undefined;
   applyAccessibility?(options: AccessibilityOptions): void;
+  // Registered as an Engine updatable; ticked via `update`.
+  update?(delta?: number, time?: number): void;
   onVisibility?: ((visible: boolean, via: 'toggle' | 'show' | 'hide') => void) | null;
 }
 
@@ -636,9 +641,11 @@ export interface PerformanceBudgetLike {
   reset?(): void;
 }
 
-export interface WorldEventBusLike {
-  emit(topic: string, payload?: unknown): void;
-  on(topic: string, handler: (payload: unknown) => void): () => void;
+export interface WorldEventBusLike<TEvents extends object = NemosyneEventMap> {
+  emit<K extends keyof TEvents & string>(topic: K, payload?: TEvents[K]): void;
+  emitDynamic(topic: string, payload?: unknown): void;
+  on<K extends keyof TEvents & string>(topic: K, handler: (payload: TEvents[K]) => void): () => void;
+  onDynamic(topic: string, handler: (payload: unknown) => void): () => void;
 }
 
 export interface WorldInputOptions {
@@ -943,7 +950,7 @@ export interface WorldEngineLike {
   input: { feedback?: WorldFeedbackLike };
   renderer?: { domElement?: { toDataURL(type: string): string } };
   addInteractable(object: Object3D, handlers?: Record<string, unknown>): void;
-  exitVR?(): Promise<void> | void;
+  exitVR?(): Promise<boolean> | void;
   isInVR?(): boolean;
 }
 
@@ -1094,7 +1101,7 @@ export interface WorldLike {
   _leaveCollaborationRoom(): void;
 
   // optional — accessed via optional chaining
-  exitVR?: () => Promise<void> | void;
+  exitVR?: () => Promise<boolean> | void;
   uiManager?: WorldUIManagerLike;
   vrConsole?: VRConsoleLike;
   telemetryCollector?: TelemetryCollectorLike;

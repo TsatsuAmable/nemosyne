@@ -6,7 +6,8 @@ export interface TokenClaims {
   role: NetworkRole;
   exp: number; // Expiration timestamp in milliseconds
   nonce?: string;
-  capabilities?: string[];
+  // Capabilities are derived server-side from `role`; a ticket does not carry
+  // an authoritative capabilities claim (the server would ignore it anyway).
   [key: string]: unknown;
 }
 

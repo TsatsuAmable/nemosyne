@@ -1,4 +1,10 @@
 /**
+ * @deprecated BUILT, NOT WIRED. This module is complete and tested but is NOT
+ * instantiated by production code — export logic is implemented directly in
+ * `TelemetryPanel.ts` instead. Tracked in `docs/ROADMAP.md` and
+ * `docs/AUDIT_RECOMMENDATION.md`. Either wire this exporter into TelemetryPanel
+ * or delete it; do not leave it half-alive.
+ *
  * Spatial Analysis Storybook Exporter.
  *
  * Packages session state, dataset snapshot, camera pose, selected filters,

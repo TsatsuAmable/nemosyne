@@ -87,6 +87,102 @@ describe('Engine Lifecycle & Invariant Hardening', () => {
     engine.dispose();
     expect(engine.updatables.size).toBe(0);
   });
+
+  it('start() is idempotent: repeated calls do not re-register the sessionstart listener', () => {
+    const engine = new Engine();
+    const xrAddSpy = vi.spyOn(engine.renderer.xr, 'addEventListener');
+    const setLoopSpy = vi.spyOn(engine.renderer, 'setAnimationLoop');
+
+    engine.start();
+    const firstSessionStartCount = xrAddSpy.mock.calls.filter(
+      (c) => c[0] === 'sessionstart'
+    ).length;
+    expect(firstSessionStartCount).toBe(1);
+
+    // Repeated start() must be a no-op: no new sessionstart registration.
+    engine.start();
+    engine.start();
+    const repeatedSessionStartCount = xrAddSpy.mock.calls.filter(
+      (c) => c[0] === 'sessionstart'
+    ).length;
+    expect(repeatedSessionStartCount).toBe(1);
+
+    // setAnimationLoop may be called again but the listener must not duplicate.
+    setLoopSpy.mockRestore();
+    xrAddSpy.mockRestore();
+    engine.dispose();
+  });
+
+  it('_contextRestored() is a no-op after dispose() and cannot resurrect the engine', () => {
+    const engine = new Engine();
+    engine.start();
+    const setLoopSpy = vi.spyOn(engine.renderer, 'setAnimationLoop');
+
+    engine.dispose();
+    expect(engine.state).toBe('disposed');
+
+    // A late context-restored event must not un-dispose the engine or restart
+    // the animation loop.
+    setLoopSpy.mockClear();
+    engine._contextRestored();
+    expect(engine.state).toBe('disposed');
+    expect(setLoopSpy).not.toHaveBeenCalled();
+
+    setLoopSpy.mockRestore();
+  });
+
+  it('exitVR() resolves to true on clean exit and false on session.end() failure', async () => {
+    const engine = new Engine();
+    // No active session → treated as already-exited.
+    vi.spyOn(engine.renderer.xr, 'getSession').mockReturnValue(null);
+    await expect(engine.exitVR()).resolves.toBe(true);
+
+    // Active session ending cleanly → true.
+    const okSession = { end: vi.fn().mockResolvedValue(undefined) };
+    engine.renderer.xr.getSession.mockReturnValue(okSession);
+    await expect(engine.exitVR()).resolves.toBe(true);
+    expect(okSession.end).toHaveBeenCalledTimes(1);
+
+    // Active session whose end() rejects → false (caller can surface failure).
+    const failSession = { end: vi.fn().mockRejectedValue(new Error('boom')) };
+    engine.renderer.xr.getSession.mockReturnValue(failSession);
+    await expect(engine.exitVR()).resolves.toBe(false);
+
+    engine.dispose();
+  });
+
+  it('retains the XR visibilitychange handler and detaches it on dispose()', () => {
+    const engine = new Engine();
+    const removeSpies: ReturnType<typeof vi.fn>[] = [];
+    const mockSession = {
+      addEventListener: vi.fn((_type: string, handler: (e: unknown) => void) => {
+        // stash a remove spy keyed off the handler so we can assert detach.
+        const remove = vi.fn();
+        (mockSession as unknown as { _lastHandler: unknown })._lastHandler = handler;
+        removeSpies.push(remove);
+      }),
+      removeEventListener: vi.fn(),
+      visibilityState: 'visible',
+    };
+    vi.spyOn(engine.renderer.xr, 'getSession').mockReturnValue(mockSession as unknown as XRSession);
+
+    // Trigger sessionstart → _handleSessionStart installs a retained handler.
+    engine['_handleSessionStart']();
+    expect(mockSession.addEventListener).toHaveBeenCalledWith(
+      'visibilitychange',
+      expect.any(Function)
+    );
+    const visibilityHandler = mockSession.addEventListener.mock.calls.find(
+      (c) => c[0] === 'visibilitychange'
+    )?.[1];
+
+    engine.dispose();
+    // dispose() must detach the retained visibility handler from the session.
+    expect(mockSession.removeEventListener).toHaveBeenCalledWith(
+      'visibilitychange',
+      visibilityHandler
+    );
+  });
 });
 
 describe('Typed WorldEventBus', () => {

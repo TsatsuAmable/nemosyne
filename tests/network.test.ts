@@ -581,20 +581,107 @@ describe('SignallingServerCore', () => {
     expect(joinsFromA.length).toBe(0);
   });
 
-  it('rejects a join with no token when a token is required (close 4001)', () => {
-    const registry = createRoomRegistry({ authToken: 'secret' });
-    const a = makeSocket();
-    registry.handleConnection(a, 'room1', 'peerA'); // no token arg
-    expect(a.closeCode).toBe(4001);
+  it('admits a no-token join as unauthenticated (in-band auth window) then closes on auth timeout (close 4001)', () => {
+    // A token is required but none is supplied in the URL. The connection is
+    // admitted as unauthenticated so it can send an in-band `auth` message; if
+    // it does not authenticate within the auth-timeout window it is closed.
+    vi.useFakeTimers();
+    try {
+      const registry = createRoomRegistry({ authToken: 'secret', authTimeoutMs: 5000 });
+      const a = makeSocket();
+      registry.handleConnection(a, 'room1', 'peerA'); // no token arg
+      // Admitted pending auth — NOT immediately rejected.
+      expect(a.closeCode).toBeUndefined();
+      expect(a.readyState).toBe(1);
+
+      // Fire the auth timeout.
+      vi.advanceTimersByTime(5000);
+      expect(a.closeCode).toBe(4001);
+      expect(a.closeReason).toBe('auth timeout');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it('rejects an open (no-token) join when allowOpenNoToken is false (standalone prod default)', () => {
+  it('admits an unauthenticated connection when allowOpenNoToken is false, then closes on auth timeout', () => {
     // The standalone SignallingServer sets allowOpenNoToken=false so a forgotten
-    // token env var doesn't expose an open relay.
-    const registry = createRoomRegistry({ allowOpenNoToken: false });
+    // token env var doesn't expose an open relay. The socket is still given the
+    // in-band auth window before being closed.
+    vi.useFakeTimers();
+    try {
+      const registry = createRoomRegistry({ allowOpenNoToken: false, authTimeoutMs: 5000 });
+      const a = makeSocket();
+      registry.handleConnection(a, 'room1', 'peerA');
+      expect(a.closeCode).toBeUndefined();
+      vi.advanceTimersByTime(5000);
+      expect(a.closeCode).toBe(4001);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('authenticates an in-band auth message within the window and then relays joins', () => {
+    vi.useFakeTimers();
+    try {
+      const registry = createRoomRegistry({ authToken: 'secret', authTimeoutMs: 5000 });
+      const a = makeSocket();
+      const b = makeSocket();
+      // a connects with no URL token -> admitted unauthenticated.
+      registry.handleConnection(a, 'room1', 'peerA');
+      expect(a.closeCode).toBeUndefined();
+
+      // b connects with the correct token -> authenticated immediately.
+      registry.handleConnection(b, 'room1', 'peerB', 'secret');
+      // a is not yet authenticated, so b must NOT receive a join from a.
+      const joinsFromA = b.sent.filter((m: string) => JSON.parse(m).data.type === 'join' && JSON.parse(m).from === 'peerA');
+      expect(joinsFromA.length).toBe(0);
+
+      // a sends an in-band auth message with the correct token.
+      a.listeners.message[0](
+        JSON.stringify({ to: 'peerB', data: { type: 'auth', token: 'secret' } })
+      );
+      // a is now authenticated — b should receive a join from a.
+      const joinsFromAAfter = b.sent.filter((m: string) => JSON.parse(m).data.type === 'join' && JSON.parse(m).from === 'peerA');
+      expect(joinsFromAAfter.length).toBe(1);
+
+      // The auth timeout must not later close a now that it is authenticated.
+      vi.advanceTimersByTime(5000);
+      expect(a.closeCode).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects an invalid in-band auth token (close 4001) without admitting the peer', () => {
+    vi.useFakeTimers();
+    try {
+      const registry = createRoomRegistry({ authToken: 'secret', authTimeoutMs: 5000 });
+      const a = makeSocket();
+      registry.handleConnection(a, 'room1', 'peerA');
+      expect(a.closeCode).toBeUndefined();
+
+      a.listeners.message[0](
+        JSON.stringify({ to: 'peerB', data: { type: 'auth', token: 'wrong' } })
+      );
+      expect(a.closeCode).toBe(4001);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects invalid room/peer identifiers (close 4003) before admission', () => {
+    const registry = createRoomRegistry();
     const a = makeSocket();
-    registry.handleConnection(a, 'room1', 'peerA');
-    expect(a.closeCode).toBe(4001);
+    registry.handleConnection(a, 'room with spaces', 'peerA');
+    expect(a.closeCode).toBe(4003);
+
+    const b = makeSocket();
+    registry.handleConnection(b, 'room1', 'peer;inject');
+    expect(b.closeCode).toBe(4003);
+
+    const c = makeSocket();
+    registry.handleConnection(c, 'room1', '');
+    expect(c.closeCode).toBe(4003);
   });
 
   it('still allows an open (no-token) join by default for dev friction', () => {

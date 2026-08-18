@@ -75,12 +75,12 @@ describe('Tier 2 — Feature 2: Draco -> VR Upstream Imports Decoupling (Boundar
     const bus = new WorldEventBus();
     const handler = vi.fn();
     
-    const unsubscribe = bus.on('DRACO_RECOMMENDATION', handler);
-    bus.emit('DRACO_RECOMMENDATION', { layout: 'GRID_3D' });
+    const unsubscribe = bus.onDynamic('DRACO_RECOMMENDATION', handler);
+    bus.emitDynamic('DRACO_RECOMMENDATION', { layout: 'GRID_3D' });
     expect(handler).toHaveBeenCalledTimes(1);
 
     unsubscribe();
-    bus.emit('DRACO_RECOMMENDATION', { layout: 'GRID_3D' });
+    bus.emitDynamic('DRACO_RECOMMENDATION', { layout: 'GRID_3D' });
     expect(handler).toHaveBeenCalledTimes(1);
   });
 });
