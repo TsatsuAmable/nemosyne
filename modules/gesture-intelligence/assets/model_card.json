@@ -1,0 +1,72 @@
+{
+  "name": "gesture_classifier",
+  "version": "1.0.0",
+  "inputName": "trajectory",
+  "outputName": "probs",
+  "featureDim": 56,
+  "classes": [
+    "idle",
+    "pinchTogether",
+    "pinchApart",
+    "scoopUp",
+    "pushForward",
+    "bothPinched"
+  ],
+  "featureSpec": "56-dim: [0..15] left speed mag (|v|/2 clamp1), [16..18] left disp xyz (d/0.5 clamp), [19] left pinch fraction, [20..35] right speed mag, [36..38] right disp xyz, [39] right pinch fraction, [40..55] inter-hand distance series (/1.0), window decimated to 16 frames",
+  "metrics": {
+    "heldOutAccuracy": 0.9111111111111111,
+    "macroF1": 0.9086643900920972,
+    "samples": 5100,
+    "confusion": [
+      [
+        107,
+        4,
+        12,
+        9,
+        18,
+        0
+      ],
+      [
+        0,
+        150,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        149,
+        0,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        0,
+        148,
+        0,
+        0
+      ],
+      [
+        31,
+        2,
+        1,
+        0,
+        116,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        150
+      ]
+    ]
+  },
+  "sha256": "5fb5089e23d6b9e97aad7f5fe5c04f9b6ec3bef22686d4baf25ed39b04214cea"
+}

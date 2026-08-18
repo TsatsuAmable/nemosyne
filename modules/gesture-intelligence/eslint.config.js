@@ -48,6 +48,15 @@ export default [
     },
   },
   {
-    ignores: ['node_modules/', 'dist/', 'coverage/', 'demo/dist/'],
+    ignores: [
+      'node_modules/',
+      'dist/',
+      'coverage/',
+      'demo/dist/',
+      'demo/public/',
+      'training/.venv/',
+      'training/_output/',
+      'assets/',
+    ],
   },
 ];
