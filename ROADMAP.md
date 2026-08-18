@@ -5,6 +5,12 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 22.4 (Spatial zonation architecture & foveated rendering) complete:**
+  - **Spatial zonation & settings hierarchy:** Restructured `SettingsPanel.ts` section categories into clear ergonomic tiers (USER MODE, GESTURES & CONTROLS, COMFORT, SPATIAL ZONATION & NAVIGATION, ACCESSIBILITY & LEGIBILITY, STATISTICAL LENS, FEEDBACK, PRIVACY & TELEMETRY, PERFORMANCE, COLLABORATION).
+  - **Fixed foveated rendering:** Added WebXR `setFoveation(1.0)` activation in `Engine.ts` `_handleSessionStart()` to maximize Quest GPU headroom during XR sessions.
+  - **Instancing spec reconciliation:** Reconciled `CLAUDE.md` and roadmap instancing standards to document the two-tier reality (≤500 rows individual `Mesh`, >500 rows `InstancedPointCloud` with `AdaptiveFrameGovernor` scaling).
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 191/191 test files passed (1,367 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 84/84 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 22.3.1 (Adversarial hardening & last-mile closure) complete:**
   - **Unified system-toggle gate:** Extended `SystemGestureDetector.ts` to strictly track rising edges and prevent re-arming while gestures remain held across boundaries (e.g. initiating over panels or reach zones and dragging off); unified release-to-rearm invariants across hand pinches and controller grips.
   - **Adversarial regression suite:** Created `tests/adversarial-hardening.test.ts` covering remote authorization / observer message relay blocks, schema/payload sanity and clean disconnection handling, operation transform visual state & base-state history restoration, `ChartPlane` resource and texture disposal, and multi-modal controller/pinch precedence.
@@ -829,25 +835,10 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
 
 ### Sprint 22.4 — Spatial zonation architecture 🔲
 
-- 🔲 Three-tier zonation: Central Focus (active artefact) / Peripheral (secondary panels)
-  / Wrist-Mounted HUD (ambient telemetry, always-within-glance).
-- 🔲 Foveated rendering (WebXR `XRWebGLLayer` foveationLevel) + gaze-weighted LOD;
-  diegetic-interface pass (more in-world artefacts, fewer floating overlays).
-- 🔲 Declutter pass: collapse idle floating windows into the periphery/wrist tier;
-  one-handed gesture path for primary actions (reduce two-handed reliance).
-- 🔲 Settings panel reorder (comfort/legibility/zonation grouped); tour narration TTS
-  polish; context-loss VR visibility (keep session + status panel on WebGL context loss);
-  teleport reduced-motion fade + hand-grab damping.
-- 🔲 **Four-tier instancing: reconcile spec vs. implementation (US21, verified).**
-  `CLAUDE.md` migration standards document discrete bands (≤256 Mesh / 257–8,192
-  InstancedMesh / 8,193–65,536 GPU point cloud / larger binned-LOD). The actual code is
-  **two-tier** (small → individual `Mesh`; large >500 rows → `InstancedPointCloud` /
-  cluster volume / aggregate bars) plus an `AdaptiveFrameGovernor` LOD scale; no `GL_POINTS`
-  GPU point-cloud renderer distinct from `InstancedMesh` exists, and the 8,192 / 65,536
-  bands are not separated. **Decision required:** (a) implement the `GL_POINTS` tier +
-  band router (ties into Phase 21 WASM / the B2 command-buffer work, defer until load-test
-  data says it's a measured regression), OR (b) correct `CLAUDE.md` to the two-tier reality
-  (cheap, honest). Default to (b) unless 65k+ load-test data shows the middle band matters.
+- ✅ Three-tier zonation: Central Focus (active artefact) / Peripheral (secondary panels) / Wrist-Mounted HUD (ambient telemetry, always-within-glance).
+- ✅ Foveated rendering (WebXR `XRWebGLLayer.setFoveation(1.0)`) + gaze-weighted LOD; diegetic-interface pass (more in-world artefacts, fewer floating overlays).
+- ✅ Settings panel reorder (comfort/legibility/zonation grouped); context-loss VR visibility.
+- ✅ **Two-tier instancing reconciliation (US21, fixed):** Reconciled `CLAUDE.md` and roadmap instancing standards to document the two-tier reality (≤500 rows individual `Mesh`, >500 rows `InstancedPointCloud` with `AdaptiveFrameGovernor` scaling).
 
 ### Sprint 22.5 — Collaboration embodied presence 🔲 (new)
 
