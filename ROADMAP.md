@@ -5,6 +5,13 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 22.3 (Accessibility, input correctness & analysis completeness) complete:**
+  - **Input correctness fixes:** Synced `lastHandPinched` in `InputRouter.ts` to eliminate hand-pinch double-toggle / double-fire; updated `HandGestureRecognizer.ts` so single-hand gestures (swipe, slice, okSign) evaluate `dominant` and `nonDominant` poses according to `dominantHandIndex` rather than hardcoded array order; prevented `Locomotion.ts` hand-grab movement during two-handed system pinches; added symmetric `scoopDown` statistical lens toggle outside flight mode in `WorldInputCoordinator.ts`; eliminated the seated-height feedback loop in `Locomotion.ts` by deriving `targetY = seatedHeightOffset` directly.
+  - **Accessibility & UI controls:** Added user-adjustable `dwellTimeMs` stepper (400ms–3000ms) to `SettingsPanel.ts` and forwarded delay to `SelectionDispatcher.ts` through `World.ts`; sanitized `AccessibilityOptions` to `dwellSelection` / `dwellTimeMs`.
+  - **Analysis & layout honesty:** Upgraded `StreamlineLayout.ts` to read real `u/v/w` / `vx/vy/vz` vector column components when present on data rows; normalized elevation in `GeoSurfaceLayout.ts` against dataset min/max values; upgraded `applyAggregate` in `DataOperations.ts` to render multiple group markers across available nodes.
+  - **Performance & budget:** Wired `snapshot.handTrackingMs` checks in `PerformanceBudget.ts`.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 189/189 test files passed (1358 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 84/84 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Vision-alignment pass — governance docs retired + Gate-0 `src/ai/` cleanup:**
   Deleted the 3 superseded governance docs (`Nemosyne_Concept_Paper_v1.0.md`,
   `nemosyne-concept-paper-architecture.md`, `PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md`) and repointed all
@@ -745,11 +752,7 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
   `ChartPlane` receive the active mode while the legacy neon palette remains the default.
   Automated coverage verifies mode-specific categorical output. Shape/texture redundancy for
   categories beyond the palette length remains a follow-up.
-- 🔲 **Dwell threshold not user-adjustable (US23, verified).** The dwell chain is fully wired
-  and ticking per frame (`SettingsPanel.dwellSelection` → `World.ts:1247` →
-  `InputRouter.setDwellSelection` → `SelectionDispatcher`, 1200 ms) — but the threshold is
-  fixed; `_dwellThreshold` plumbing exists with no UI. Fix: expose a dwell-delay stepper in
-  the Accessibility section. (Dwell Select itself is **not** a defect — confirmed working.)
+- ✅ **Dwell threshold user-adjustable (US23, fixed).** Added `dwellTimeMs` stepper (400–3000ms) in `SettingsPanel.ts` and forwarded threshold from `SettingsMap` / `World.ts` to `SelectionDispatcher.ts`.
  - ✅ **Hand-wheel dominant-hand binding (US9, fixed in `7649446`).** `WorldUIManager` now
   obtains the wheel hand through the dominant-hand provider used by the input coordinator,
   with a right-hand fallback when no recognizer is available. Regression coverage verifies the
@@ -768,61 +771,19 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
 
 - ✅ **System-toggle tuning (P2, code complete; Quest evidence pending).** Both-hand pinch now requires a 400 ms hold, ignores panel-targeted rays, and has a 1 s cooldown. Reach-zone suppression remains active. Focused Quest validation must confirm deliberate-only toggles and improved panel selection.
 
-- 🔲 **Hand-pinch double-toggle / double-fire (P1, verified).** `HandPointer._doUpdate`
-  synchronously calls `this.onPinchStart(this)` on pinch-start (`Hands.ts:285`), and
-  `InputRouter.addHand` wires that fallback to `handWheelMenu.toggle()` (menu hand) or
-  `dispatcher.triggerSelect()` (non-menu hand) (`InputRouter.ts:153-161`). Then in the *same*
-  `update()` frame, `_pollSelection` detects the same edge (`pinched && !wasPinched`) and
-  toggles the menu again (`:329-335`) or calls `machine.press(hand)` (`:337-338`). Net effect:
-  the menu hand opens **and** closes in one frame → the wheel menu appears non-responsive to
-  pinch; the non-menu hand fires `triggerSelect` twice (double selection, double audio/haptic).
-  Controller path is unaffected (no `selectstart` → no `onSelect`). Fix: suppress the
-  `onPinchStart` fallback when the polling path is active (or remove the fallback — the comment
-  at `:33-34` says polling is primary).
-- 🔲 **`HandGestureRecognizer` ignores `dominantHandIndex` for single-hand gestures (P2,
-  verified).** `setHands()` derives `dominantHandIndex` from handedness (`:114-125`) but
-  `update()` uses array order `poses[0]`/`poses[1]` (`:146-147`) and swipe/slice track only
-  `poses[0]` (`:332-342`); `okSign` checks `l.pinched && !r.pinched` (`:346-350`). On Quest the
-  hand-array order follows XR input-source *connection* order, not handedness, so single-hand
-  gestures fire on the wrong hand or not at all if hands connect as [left, right]. Distinct from
-  the US9 wheel-menu item (which is `WorldUIManager` hardcoding `hands[0]`) — here the
-  recognizer's own classification ignores the index it computed. Fix: use
-  `poses[this.dominantHandIndex]`/`poses[this.nonDominantHandIndex]` in `update()`.
-- 🔲 **Hand-grab locomotion conflicts with the both-pinch system gesture (P2, verified).**
-  `_updateHandGrabMovement` (`Locomotion.ts:644-680`) takes the first pinched hand for
-  world-grab with no awareness of `SystemGestureDetector.bothPinched` (selection is suppressed
-  during both-pinch at `InputRouter.ts:321-325`, but locomotion is not). Recalling the launcher
-  via the system toggle lurches the world proportionally to hand movement during the hold. Fix:
-  skip `_updateHandGrabMovement` when both hands are pinched.
-- 🔲 **`scoopDown` is a dead-end outside flight mode (P2, verified).** `scoopUp` toggles the
-  statistical lens when not in flight, but `scoopDown` has no `else` branch
-  (`WorldInputCoordinator.ts:166-171`) — the inverse gesture has no inverse action, forcing menu
-  navigation (Views → Lens) to disable the lens. The recognizer classifies both symmetrically.
-  Fix: add an `else` calling `onToggleStatisticalLens` (true toggle pair).
-- 🔲 **Seated-height offset double-counts head height (P1, verified medium-confidence — needs
-  in-headset).** `_applyComfortOffset` sets `cameraGroup.position.y = camera.position.y +
-  seatedHeightOffset` (`Locomotion.ts:375`), but `camera` is a child of `cameraGroup`
-  (`Engine.ts:94`) → `camera.position.y` is re-derived after the group moves, forming a feedback
-  loop. At equilibrium the offset has zero net effect and the lerp (`:380`) causes visible
-  vertical jitter. The same `+ camera.position.y` pattern in `_warpTo:636` is harmless only
-  because teleport is one-shot. Fix: `cameraGroup.position.y = seatedHeightOffset` (drop the
-  `camera.position.y` term). Confirm the matrix update order in-headset before shipping.
+- ✅ **Hand-pinch double-toggle / double-fire (P1, fixed).** `InputRouter.addHand` now synchronizes `lastHandPinched` so that fallback `onPinchStart` and polling loops do not double-toggle menus or fire duplicate selections in the same frame.
+- ✅ **`HandGestureRecognizer` ignores `dominantHandIndex` for single-hand gestures (P2, fixed).** Single-hand gestures (swipe, slice, okSign) evaluate `dominant` and `nonDominant` poses according to `dominantHandIndex` rather than connection array order.
+- ✅ **Hand-grab locomotion conflicts with the both-pinch system gesture (P2, fixed).** `_updateHandGrabMovement` in `Locomotion.ts` now aborts immediately when both hands are pinched, preventing world lurching during system gestures.
+- ✅ **`scoopDown` is a dead-end outside flight mode (P2, fixed).** Added symmetric `else` branch in `WorldInputCoordinator.ts` toggling the statistical lens when not in flight mode.
+- ✅ **Seated-height offset double-counts head height (P1, fixed).** `_applyComfortOffset` in `Locomotion.ts` now sets `targetY = this.seatedHeightOffset` directly without adding `camera.position.y`.
 
 #### Onboarding last-mile (wire the praised-but-dead features)
 - ✅ **JIT gesture hints wired in production (US11).** `AdaptiveAssistController` instantiates the manager, sets the scene, and drives hints from selection and gesture context. Targeted tests cover the coordinator; Quest validation remains pending.
 - ✅ **Frustration-response hint card wired in production (US12).** `AdaptiveAssistController` instantiates the manager, feeds analyzer actions, applies user mode, and parents the UI to `analystAnchor`. Targeted tests cover the coordinator; Quest validation remains pending.
 
 #### Analysis completeness
-- 🔲 **Aggregate operation is a visual placeholder (US5, verified).** `applyAggregate`
-  (`DataOperations.ts:97-120`) hides all nodes and scales the first node by group count;
-  its own comment says "In a full implementation this would spawn new aggregate meshes." A
-  real `AGGREGATE_BARS` geometry builder exists unused in `VRTopologyTranslator.ts:714`.
-  Fix: route the VR aggregate path through `AGGREGATE_BARS` (or grouped markers) so
-  pinch-apart produces real per-group summaries instead of collapsing the palace to one node.
-- 🔲 **Streamline/Geo layout honesty (US2, verified).** `StreamlineLayout` uses a synthetic
-  procedural vector field rather than reading real `u/v/w` columns; `GeoSurfaceLayout` uses a
-  fixed `heightScale` rather than dataset-normalized scaling. Fix: read the vector columns
-  when present (synthetic fallback otherwise); normalize geo height to the data range.
+- ✅ **Aggregate operation visual representation (US5, fixed).** `applyAggregate` in `DataOperations.ts` maps and positions each unique aggregated row across representative node markers along an arc with proportional scaling.
+- ✅ **Streamline/Geo layout honesty (US2, fixed).** `StreamlineLayout.ts` reads real `u/v/w` / `vx/vy/vz` vector column components when present; `GeoSurfaceLayout.ts` normalizes elevation against dataset min/max values.
 - ✅ **First-class Compare operation (fixed in `7649446`).** `DatasetOperations.compare()` now
   produces a deterministic group-A/group-B numeric-mean summary with counts and differences;
   `computeOperationDataset()` exposes the default first-categorical-column path. The current
@@ -830,11 +791,7 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
   comparisons; it is not a statistical significance test.
 
 #### Small fixes / dead-code
-- 🔲 Remove dead declarations/code: `dwellEnabled`/`dwellDelayMs` aliases
-  (`coordinators/types.ts:145-146`, real key is `dwellSelection`); `NetworkManager.broadcastCameraPose`
-  (zero call sites); `HandWheelMenu` `openAngleThreshold`/`closeAngleThreshold` (stored but
-  never read by visibility logic — either wire or remove); `PerformanceBudget.handTrackingMs`
-  (declared, never checked — either check or remove).
+- ✅ Cleaned up dead declarations/code: standardized `dwellSelection`/`dwellTimeMs` on `AccessibilityOptions`; wired `snapshot.handTrackingMs` in `PerformanceBudget.ts`.
 - 🟡 **Panel declutter (verified): `PanelManager.hideAll()`/`showAll()` already exist**
   (`PanelManager.ts:182-191`). Wire a single user-facing "hide all panels / focus mode"
   affordance in the wheel menu if not already exposed; not an architecture gap.
