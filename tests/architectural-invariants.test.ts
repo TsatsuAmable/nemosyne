@@ -34,10 +34,9 @@ describe('Architectural Invariants & Domain Boundaries', () => {
 
       // Apply operation
       const result = atlas.applyAnalysis({
-        id: 'spec_filter_1',
         datasetFingerprint: atlas.datasetFingerprint ?? 'fp-mock',
         datasetVersion: atlas.datasetVersion,
-        timestamp: Date.now(),
+        algorithmVersion: '1.0.0',
         operation: {
           op: 'filter',
           params: { column: 'amount', predicate: { op: 'gt', value: 200 } } as any,
@@ -105,9 +104,9 @@ describe('Architectural Invariants & Domain Boundaries', () => {
       atlas.loadDataset(Dataset.fromJSON(sampleDatasetJSON));
 
       const embodimentCmd: VRCommand = {
-        type: 'select_node',
-        targetId: 'tx_03',
-        visualEncoding: { color: '#ff0055', pulse: true },
+        action: 'investigate-anomaly',
+        targetIds: ['tx_03'],
+        embodiment: 'pulse_aura',
       };
 
       atlas.recordEmbodimentCommand(embodimentCmd);
