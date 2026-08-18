@@ -430,8 +430,9 @@ npm run test:coverage
 
 ## 18. Next steps
 
-- Read [`docs/Nemosyne_Concept_Paper_v1.0.md`](Nemosyne_Concept_Paper_v1.0.md) for the current
-  concept narrative; archived vision essays are historical only.
+- Read [`docs/Nemosyne_Definitive_Vision_and_Roadmap.md`](Nemosyne_Definitive_Vision_and_Roadmap.md) for the
+  current governing spec (target architecture, principles, Gate 0–7 model); archived vision
+  essays are historical only.
 - Read [`docs/ARTEFACTS.md`](ARTEFACTS.md) to learn the artefact taxonomy.
 - Read [`docs/INTERACTIONS.md`](INTERACTIONS.md) to learn the gesture vocabulary.
 - Read [`ARCHITECTURE.md`](ARCHITECTURE.md) to see how this project maps data to three.js / WebXR space.

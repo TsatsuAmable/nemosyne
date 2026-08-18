@@ -34,8 +34,8 @@ runs in a Rust/WASM kernel; three.js is the WebGL/WebXR renderer.
 ## Status & direction
 
 Nemosyne is a research instrument under construction, not a finished product. The
-[Concept Paper](./docs/Nemosyne_Concept_Paper_v1.0.md) defines the target and the
-[Roadmap](./docs/ROADMAP.md) tracks progress.
+[Definitive Vision and Roadmap](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) defines the
+target and the [Roadmap](./docs/ROADMAP.md) tracks progress.
 
 ### What has been done
 
@@ -44,7 +44,7 @@ Nemosyne is a research instrument under construction, not a finished product. Th
 - **UX V2.0 (Phase 22, in progress):** low-strain spatial interface, accessibility, input-correctness, security/WASM robustness, GPU lifecycle hygiene, and a UX telemetry inventory that ties qualitative experience to measurable phenomena (UX-001..UX-012).
 - **Standalone gesture intelligence:** `modules/gesture-intelligence/` ships a frozen 56-dim feature vector, heuristic + ONNX classifier with honest provenance, on-device personalization, and a capture→train→deploy pipeline. Architecturally separate — not yet wired into the host.
 
-### What the Concept Paper proposes
+### What the Definitive Vision proposes
 
 Nemosyne explores whether analytical understanding can be constructed as a **persistent spatial artefact**. The Stable Alpha target is the smallest reliable research instrument capable of running a defined **2D-versus-VR `Find the Fraud`** study — not a claim that VR is superior (the paper explicitly does not assume that).
 
@@ -58,7 +58,7 @@ DATASET → Rust Analytical Kernel → Atlas (state/guidance/provenance)
 
 Governing principles: evidence before architecture; whole-dataset embodiment; separate computation, reasoning, embodiment, and perception; explainable automation; semantic honesty; 2D as a legitimate partner; human agency and reversibility; research observability by design; privacy by minimization; stable means testable, not proven.
 
-See [`docs/Nemosyne_Concept_Paper_v1.0.md`](./docs/Nemosyne_Concept_Paper_v1.0.md) for the full paper and [`docs/ROADMAP.md`](./docs/ROADMAP.md) for active and proposed work (Phase 23: gesture-intelligence host integration + global model improvement; Phase 24: UX architecture — analyst cockpit & interaction hierarchy).
+See [`docs/Nemosyne_Definitive_Vision_and_Roadmap.md`](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) for the full governing spec and [`docs/ROADMAP.md`](./docs/ROADMAP.md) for active and proposed work (Phase 23: gesture-intelligence host integration + global model improvement; Phase 24: UX architecture — analyst cockpit & interaction hierarchy).
 
 ---
 
@@ -107,7 +107,6 @@ nemosyne/
 ├── vitest.config.js        # Test config
 ├── src/                    # TypeScript application source (TS-first)
 │   ├── main.ts             # Bootstraps World
-│   ├── ai/                 # On-device model integration (NeuralConstraintPredictor, GestureClassifierModel, VoiceCommandListener, DracoWorldModel, …)
 │   ├── atlas/              # Authoritative analytical-authority layer (AtlasCore + DatasetSpace)
 │   ├── data/               # Dataset (typed projection over kernel DatasetJSON), encodings, connectors, session store
 │   ├── draco/              # Constraint engine, topology translator, layout generators
@@ -133,7 +132,7 @@ nemosyne/
 
 ## Documentation
 
-- [Concept Paper](./docs/Nemosyne_Concept_Paper_v1.0.md) — the defining paper (target architecture, principles, Stable Alpha definition).
+- [Definitive Vision and Roadmap](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) — the governing spec (target architecture, principles, Gate 0–7 model, Stable Alpha definition).
 - [Roadmap](./docs/ROADMAP.md) — current status + Phases 21–24 + Atlas V5 (Phases 1–20 archived).
 - [Getting Started](./docs/GETTING_STARTED.md)
 - [Architecture](./docs/ARCHITECTURE.md)
