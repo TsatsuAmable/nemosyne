@@ -143,6 +143,26 @@ interface WasmInitOutput {
     yOffset: number,
     outPtr: number,
   ): number;
+  draco_solve(factsPtr: number, factsLen: number, outPtr: number, outLen: number): number;
+  draco_evaluate_candidate(
+    inputPtr: number,
+    inputLen: number,
+    outPtr: number,
+    outLen: number,
+  ): number;
+  draco_adjust_evidence(
+    inputPtr: number,
+    inputLen: number,
+    outPtr: number,
+    outLen: number,
+  ): number;
+  intent_compile(inputPtr: number, inputLen: number, outPtr: number, outLen: number): number;
+  atlas_discover_structures(
+    inputPtr: number,
+    inputLen: number,
+    outPtr: number,
+    outLen: number,
+  ): number;
   [key: string]: unknown;
 }
 interface WasmModule {
@@ -972,4 +992,88 @@ export function getCommandBufferBytes(byteLength: number): Uint8Array {
   const ptr = wasmInstance.command_buffer_ptr();
   if (ptr === 0 || byteLength === 0) return new Uint8Array(0);
   return readBytes(ptr, byteLength);
+}
+
+function callJsonAbi(
+  fn: (inPtr: number, inLen: number, outPtr: number, outLen: number) => number,
+  input: unknown,
+): unknown | null {
+  const inputBytes = new TextEncoder().encode(JSON.stringify(input));
+  const { ptr: inPtr, len: inLen } = allocBytes(inputBytes);
+  try {
+    const needed = fn(inPtr, inLen, 0, 0);
+    if (needed === 0) return null;
+    const outPtr = wasmInstance!.alloc(needed);
+    fn(inPtr, inLen, outPtr, needed);
+    const resultBytes = readBytes(outPtr, needed);
+    wasmInstance!.dealloc(outPtr, needed);
+    return JSON.parse(new TextDecoder().decode(resultBytes));
+  } finally {
+    wasmInstance!.dealloc(inPtr, inLen);
+  }
+}
+
+export function solveDraco(facts: Record<string, unknown>): Record<string, unknown> | null {
+  if (!wasmInstance) return null;
+  const factsBytes = new TextEncoder().encode(JSON.stringify(facts));
+  const { ptr: factsPtr, len: factsLen } = allocBytes(factsBytes);
+  try {
+    const needed = wasmInstance.draco_solve(factsPtr, factsLen, 0, 0);
+    if (needed === 0) return null;
+    const outPtr = wasmInstance.alloc(needed);
+    wasmInstance.draco_solve(factsPtr, factsLen, outPtr, needed);
+    const resultBytes = readBytes(outPtr, needed);
+    wasmInstance.dealloc(outPtr, needed);
+    return JSON.parse(new TextDecoder().decode(resultBytes)) as Record<string, unknown>;
+  } finally {
+    wasmInstance.dealloc(factsPtr, factsLen);
+  }
+}
+
+export function evaluateDracoCandidate(
+  facts: Record<string, unknown>,
+  spec: Record<string, unknown>,
+): { valid: boolean; cost: number; violations: string[] } | null {
+  if (!wasmInstance) return null;
+  return callJsonAbi(
+    wasmInstance.draco_evaluate_candidate.bind(wasmInstance),
+    { facts, spec },
+  ) as { valid: boolean; cost: number; violations: string[] } | null;
+}
+
+export function adjustDracoEvidence(
+  baseCost: number,
+  evidence: { sampleCount: number; compositeUtility: number } | null,
+): { adjustedCost: number; delta: number } | null {
+  if (!wasmInstance) return null;
+  return callJsonAbi(
+    wasmInstance.draco_adjust_evidence.bind(wasmInstance),
+    { baseCost, evidence },
+  ) as { adjustedCost: number; delta: number } | null;
+}
+
+export function compileIntent(
+  query: string,
+  schema: { columns: { name: string; kind?: string }[] },
+): Record<string, unknown> | null {
+  if (!wasmInstance) return null;
+  return callJsonAbi(
+    wasmInstance.intent_compile.bind(wasmInstance),
+    { query, schema },
+  ) as Record<string, unknown> | null;
+}
+
+export function discoverStructures(
+  assignments: number[],
+  datumIds: string[],
+  fingerprint: string,
+  version: number,
+  algorithmVersion: string,
+  parameters: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (!wasmInstance) return null;
+  return callJsonAbi(
+    wasmInstance.atlas_discover_structures.bind(wasmInstance),
+    { assignments, datumIds, fingerprint, version, algorithmVersion, parameters },
+  ) as Record<string, unknown> | null;
 }

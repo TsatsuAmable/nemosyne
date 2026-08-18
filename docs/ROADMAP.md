@@ -5,7 +5,15 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-18 — Phase 21.4 (Rust/WASM 3D Spatial Layout Simulation Engine) complete:
+- **Last updated:** 2026-08-18 — Phase 21.5 (Rust/WASM Draco Constraint Engine, Bayesian Evidence, Intent Compiler & Structure Discovery) complete:
+  Ported the full Draco symbolic constraint engine to native Rust (`wasm/src/draco/`): 3,168-candidate combinatorial solver with 5 hard constraints
+  and 20 weighted soft constraints (`solver.rs`), Bayesian empirical utility prior cost adjustment (`evidence.rs`), and complete type-safe
+  `DracoSpec`/`DracoFacts`/`SolverResult` schema (`types.rs`). Implemented deterministic NL intent→AST compiler in Rust (`wasm/src/intent/compiler.rs`)
+  supporting reset, anomaly detection, aggregation, between/comparison/in/eq filters, and clustering intents. Added canonical `StructureSet`
+  generation from TDA Mapper graphs, persistence intervals, and cluster assignments (`wasm/src/data/structure_discovery.rs`). Exposed 5 new WASM
+  ABI exports (`draco_solve`, `draco_evaluate_candidate`, `draco_adjust_evidence`, `intent_compile`, `atlas_discover_structures`) and wired typed
+  TypeScript bridge methods in `src/wasm/RuntimeBridge.ts`. 83/83 Rust tests pass, all CI gates green.
+  Phase 21.4 (Rust/WASM 3D Spatial Layout Simulation Engine) complete:
   Implemented full suite of computational 3D spatial layouts in Rust (`wasm/src/layouts/`): force-directed N-body graph physics (`force_directed.rs`),
   3D volumetric matrix packing (`grid.rs`), concentric conical trees (`radial_tree.rs`), multi-series temporal ribbon curves (`time_ribbon.rs`),
   geospatial room-scale projections (`geo_surface.rs`), and vector field streamline advection (`streamline.rs`).

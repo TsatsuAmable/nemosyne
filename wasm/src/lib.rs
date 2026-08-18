@@ -2,6 +2,8 @@ use wasm_bindgen::prelude::*;
 
 pub mod command_buffer;
 mod data;
+pub mod draco;
+pub mod intent;
 pub mod layouts;
 
 /// Shared memory constants. The WASM module starts at 128 MiB and is allowed
@@ -1273,4 +1275,189 @@ mod tests {
         dataset_destroy(handle);
         dataset_destroy(handle2);
     }
+}
+
+// ─── Draco Constraint Solver ABI ────────────────────────────────────────────
+
+/// Solve the Draco constraint engine for the best VR specification.
+/// Input: JSON-encoded DracoFacts at (facts_ptr, facts_len).
+/// Output: JSON-encoded SolverResult written to (out_ptr, out_len).
+/// Returns the number of bytes needed. If out_len is too small, no write occurs.
+#[no_mangle]
+pub extern "C" fn draco_solve(
+    facts_ptr: u32,
+    facts_len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let facts_bytes = unsafe { allocator::view(facts_ptr, facts_len) };
+    let facts: draco::types::DracoFacts = match serde_json::from_slice(facts_bytes) {
+        Ok(f) => f,
+        Err(_) => return 0,
+    };
+    let result = match draco::solver::solve_draco(facts) {
+        Some(r) => r,
+        None => return 0,
+    };
+    let json = match serde_json::to_vec(&result) {
+        Ok(j) => j,
+        Err(_) => return 0,
+    };
+    let needed = json.len() as u32;
+    if out_len >= needed && out_ptr != 0 {
+        let slice = unsafe { allocator::view_mut(out_ptr, needed) };
+        slice.copy_from_slice(&json);
+    }
+    needed
+}
+
+/// Evaluate a single Draco candidate spec against facts.
+/// Input: JSON at (input_ptr, input_len) with shape {facts, spec}.
+/// Output: JSON at (out_ptr, out_len) with shape {valid, cost, violations}.
+#[no_mangle]
+pub extern "C" fn draco_evaluate_candidate(
+    input_ptr: u32,
+    input_len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let bytes = unsafe { allocator::view(input_ptr, input_len) };
+    #[derive(serde::Deserialize)]
+    struct Input {
+        facts: draco::types::DracoFacts,
+        spec: draco::types::DracoSpec,
+    }
+    let input: Input = match serde_json::from_slice(bytes) {
+        Ok(i) => i,
+        Err(_) => return 0,
+    };
+    let (valid, cost, violations) =
+        draco::solver::evaluate_candidate(&input.facts, &input.spec);
+    let output = serde_json::json!({
+        "valid": valid,
+        "cost": cost,
+        "violations": violations,
+    });
+    let json = serde_json::to_vec(&output).unwrap_or_default();
+    let needed = json.len() as u32;
+    if out_len >= needed && out_ptr != 0 {
+        let slice = unsafe { allocator::view_mut(out_ptr, needed) };
+        slice.copy_from_slice(&json);
+    }
+    needed
+}
+
+/// Adjust a Draco candidate cost with Bayesian evidence.
+/// Input: JSON at (input_ptr, input_len) with shape {baseCost, evidence}.
+/// Output: JSON at (out_ptr, out_len) with shape {adjustedCost, delta}.
+#[no_mangle]
+pub extern "C" fn draco_adjust_evidence(
+    input_ptr: u32,
+    input_len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let bytes = unsafe { allocator::view(input_ptr, input_len) };
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Input {
+        base_cost: f64,
+        evidence: Option<draco::evidence::EmpiricalUtilityEvidence>,
+    }
+    let input: Input = match serde_json::from_slice(bytes) {
+        Ok(i) => i,
+        Err(_) => return 0,
+    };
+    let (adjusted, delta) = draco::evidence::adjust_candidate_cost_with_evidence(
+        input.base_cost,
+        input.evidence.as_ref(),
+    );
+    let output = serde_json::json!({
+        "adjustedCost": adjusted,
+        "delta": delta,
+    });
+    let json = serde_json::to_vec(&output).unwrap_or_default();
+    let needed = json.len() as u32;
+    if out_len >= needed && out_ptr != 0 {
+        let slice = unsafe { allocator::view_mut(out_ptr, needed) };
+        slice.copy_from_slice(&json);
+    }
+    needed
+}
+
+// ─── Intent Compiler ABI ────────────────────────────────────────────────────
+
+/// Compile a natural language query into a deterministic ParsedIntent.
+/// Input: JSON at (input_ptr, input_len) with shape {query, schema}.
+/// Output: JSON at (out_ptr, out_len) with ParsedIntent.
+#[no_mangle]
+pub extern "C" fn intent_compile(
+    input_ptr: u32,
+    input_len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let bytes = unsafe { allocator::view(input_ptr, input_len) };
+    #[derive(serde::Deserialize)]
+    struct Input {
+        query: String,
+        schema: intent::compiler::DatasetSchema,
+    }
+    let input: Input = match serde_json::from_slice(bytes) {
+        Ok(i) => i,
+        Err(_) => return 0,
+    };
+    let result = intent::compiler::compile_intent(&input.query, &input.schema);
+    let json = serde_json::to_vec(&result).unwrap_or_default();
+    let needed = json.len() as u32;
+    if out_len >= needed && out_ptr != 0 {
+        let slice = unsafe { allocator::view_mut(out_ptr, needed) };
+        slice.copy_from_slice(&json);
+    }
+    needed
+}
+
+// ─── Structure Discovery ABI ────────────────────────────────────────────────
+
+/// Discover structures from cluster assignments.
+/// Input: JSON at (input_ptr, input_len) with shape
+///   {assignments, datumIds, fingerprint, version, algorithmVersion, parameters}.
+/// Output: JSON at (out_ptr, out_len) with StructureSet.
+#[no_mangle]
+pub extern "C" fn atlas_discover_structures(
+    input_ptr: u32,
+    input_len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let bytes = unsafe { allocator::view(input_ptr, input_len) };
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Input {
+        assignments: Vec<i32>,
+        datum_ids: Vec<String>,
+        fingerprint: String,
+        version: u32,
+        algorithm_version: String,
+        parameters: serde_json::Value,
+    }
+    let input: Input = match serde_json::from_slice(bytes) {
+        Ok(i) => i,
+        Err(_) => return 0,
+    };
+    let result = data::structure_discovery::map_cluster_structures(
+        &input.assignments,
+        &input.datum_ids,
+        &input.fingerprint,
+        input.version,
+        &input.algorithm_version,
+        &input.parameters,
+    );
+    let json = serde_json::to_vec(&result).unwrap_or_default();
+    let needed = json.len() as u32;
+    if out_len >= needed && out_ptr != 0 {
+        let slice = unsafe { allocator::view_mut(out_ptr, needed) };
+        slice.copy_from_slice(&json);
+    }
+    needed
 }
