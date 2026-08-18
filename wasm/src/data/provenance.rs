@@ -25,7 +25,7 @@ pub const KERNEL_VERSION: &str = "0.2.0";
 /// Provenance envelope attached to every kernel result.
 ///
 /// Field names are camelCased to match the governance contract in
-/// `docs/PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md` and the JS `RuntimeBridge`
+/// `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` and the JS `RuntimeBridge`
 /// consumers, so the JSON crosses the ABI without renaming.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

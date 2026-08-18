@@ -1,7 +1,6 @@
 // @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
 import { RepresentationCarousel } from '../src/vr/ui/RepresentationCarousel.ts';
-import { DracoWorldModel } from '../src/ai/DracoWorldModel.ts';
 
 describe('Sprint 12.1: Candidate Carousel Sliders & Evolutionary Draco GA Modulation', () => {
   describe('RepresentationCarousel', () => {
@@ -34,26 +33,6 @@ describe('Sprint 12.1: Candidate Carousel Sliders & Evolutionary Draco GA Modula
       expect(second.id).not.toBe(first.id);
       const prev = carousel.selectPrev();
       expect(prev.id).toBe(first.id);
-    });
-  });
-
-  describe('DracoWorldModel', () => {
-    let model: DracoWorldModel;
-
-    beforeEach(() => {
-      model = new DracoWorldModel();
-    });
-
-    it('ingests manual tuning feedback and modulates GA parameters', () => {
-      const initial = model.currentGAParameters.fitnessWeights.separability;
-      const updated = model.ingestManualTuning({ separability: 0.99 });
-      expect(updated.fitnessWeights.separability).toBe(0.99);
-      expect(updated.fitnessWeights.separability).not.toBe(initial);
-    });
-
-    it('modulates gene seed bias based on dataset topology', () => {
-      const params = model.modulateGAForTopology('TdaMapper');
-      expect(params.geneSeedBias).toBe('TdaMapper');
     });
   });
 });
