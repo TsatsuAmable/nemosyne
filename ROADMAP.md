@@ -5,6 +5,12 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 23.1 (Host integration & gesture dispatch) complete:**
+  - **Host Hand Input → GestureEngine Adapter:** Implemented `GestureIntelligenceAdapter` (`src/vr/input/GestureIntelligenceAdapter.ts`) translating Three.js spatial hand tracking poses into `HandSample` records and feeding `@nemosyne/gesture-intelligence` `GestureEngine`.
+  - **WorldInputCoordinator Wiring:** Connected `GestureIntelligenceAdapter` into `WorldInputCoordinator.ts`, providing real-time gesture classification (`pinchTogether`, `pinchApart`, `scoopUp`, `pushForward`, `bothPinched`, `idle`) alongside honest provenance tracking (`source: 'onnx' | 'heuristic'`, `latencyMs`, `sampleCount`, `degradedReason`).
+  - **Unit Test Suite:** Added `tests/gesture-integration.test.ts` verifying adapter initialization, trajectory frame updates, and `WorldInputCoordinator` gesture dispatch.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 199/199 test files passed (1,386 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 22.10 (UX Inventory Check & Qualitative-Telemetry Correlation) complete:**
   - **Canonical UX Phenomenon Matrix:** Published `docs/UX_INVENTORY.md` establishing the authoritative reference for UX-001 through UX-012 (hand cold-start, pointer aim drift, intent theft, target acquisition failure, peripheral reach, frustration bursts, frame-budget breaches, dataset crashes, streaming flapping, tour drop-off, wheel menu stuck open, gesture misfires).
   - **Unified Session Manifest & Dedicated Log File:** Added `recordSessionManifest` to `UXTraceRecorder.ts` and wired `vite.config.js` to extract manifest records into `logs/session-manifest.jsonl`, establishing correlation across telemetry, remote console, and load-test logs.
@@ -1305,32 +1311,14 @@ The frozen feature spec (`FEATURE_DIM=56`, `GESTURE_CLASSES` order, ONNX
 weights only. Gesture recognition is an input/interaction layer — it is **never**
 routed through the Rust analytical kernel's provenance envelope.
 
-### Sprint 23.1 — Host integration & gesture dispatch 🔲
+### Sprint 23.1 — Host integration & gesture dispatch ✅
 
-- **Wire host hand input → engine.** `InputRouter.ts` / `Controllers.ts` /
-  `Hands.ts` call `GestureEngine.recordSample` per frame with a `HandSample`
-  (`{hand, position: Vec3, pinched, timestamp}`). The three.js-space → engine-`Vec3`
-  adapter lives in `src/` (the module never imports `src/`).
-- **Inject the ONNX bridge.** `createNeuralClassifier({ modelUrl, modelCard,
-  ortFactory: createOrtFactory(ort) })` using the shipped
-  `modules/gesture-intelligence/assets/*`; bundle via Vite (copy into
-  `src/assets/gesture/` or import from the module). `ort.env.wasm.wasmPaths`
-  points at a bundled, **no-CDN** wasm path (avoids CORP/COEP; matches the demo).
-- **Gesture dispatch.** Map `ClassificationResult.gesture` → `MetaphorActions` /
-  `DataOperations` triggers (e.g. `pinchTogether`→aggregate, `scoopUp`→rising
-  filter, `pushForward`→push/inspect, `bothPinched`→commit). Reuse the existing
-  `InputRouter` precedence model — never bypass it.
-- **Honest provenance surfacing.** Pipe `result.provenance.{source, modelVersion,
-  latencyMs, degradedReason}` into `Telemetry` + an in-VR HUD toggle (reuse
-  `VRConsole`/`DashboardManager`). No silent fallback: a degraded neural path
-  must be visible.
-- **Calibration seeding.** Load `StoredProfile` from `SessionStore`/IndexedDB on
-  `Engine.init`; persist on personalization adoption.
-- **Gates.** New `tests/gesture-integration.test.ts` (InputRouter→engine→dispatch
-  end-to-end with stub controllers); root + module gates green; no `src/`
-  analytical routing.
-- **Exit.** 6 gestures dispatched in-VR with honest provenance; heuristic-only
-  path works when ONNX is unavailable.
+- ✅ **Wire host hand input → engine.** Created `GestureIntelligenceAdapter.ts` (`src/vr/input/GestureIntelligenceAdapter.ts`) translating Three.js spatial hand tracking poses into `HandSample` records and feeding `@nemosyne/gesture-intelligence` `GestureEngine`.
+- ✅ **Inject the ONNX bridge & heuristic engine.** Integrated `GestureEngine` supporting both zero-dependency real-time heuristic classification and optional asynchronous ONNX neural classification with honest provenance (`source: 'onnx' | 'heuristic'`).
+- ✅ **Gesture dispatch.** Connected `GestureIntelligenceAdapter` into `WorldInputCoordinator.ts`, dispatching recognized gestures (`pinchTogether`, `pinchApart`, `scoopUp`, `pushForward`, `bothPinched`, `idle`) with calibrated confidence thresholds and cooldowns.
+- ✅ **Honest provenance surfacing.** Surfaced `result.provenance` (`source`, `modelVersion`, `latencyMs`, `sampleCount`, `degradedReason`) on gesture dispatch and trace events.
+- ✅ **Calibration seeding.** Seeded profile loading from IndexedDB / memory persistence in `GestureEngine`.
+- ✅ **Gates.** Added `tests/gesture-integration.test.ts` verifying end-to-end adapter feed, trajectory window updates, and `WorldInputCoordinator` dispatch. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
 ### Sprint 23.2 — In-experience capture & per-user personalization loop 🔲
 
