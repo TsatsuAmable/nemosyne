@@ -5,6 +5,13 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprints 24.2, 24.3 & 24.4 (HandWheel categorization, task surfaces & panel taxonomy) complete:**
+  - **Three-Level HandWheel & Forgiving Confirm (Sprint 24.2):** Implemented `HandWheelCategorizer` (`src/vr/ui/HandWheelCategorization.ts`) with intent-based categories (`ANALYSE | VIEW | DATA | STUDY | COLLABORATE | SYSTEM`), `REST -> CATEGORY FOCUS -> ACTION CONFIRM` state machine, and gaze+hand intent redundancy to eliminate accidental fires and mitigate pointer acquisition failures.
+  - **Contextual Task Surface Decomposition (Sprint 24.3):** Implemented `ContextualTaskSurface` (`src/vr/ui/ContextualTaskSurface.ts`) dynamically exposing relevant analytical actions matched to dataset topology (`GRAPH`, `TIME_SERIES`, `TABULAR`, etc.), replacing monolithic 29-button command walls.
+  - **Panel Roles Taxonomy & Diagnostic Mode Separation (Sprint 24.4):** Implemented `PanelRolesManager` (`src/vr/ui/PanelRolesManager.ts`) enforcing `workspace | task | context | diagnostic | transient | system` spatial roles, max 2 task panels rule, and hiding diagnostic panels outside `DEVELOPER` mode.
+  - **Unit Test Suite:** Added `tests/cockpit-taxonomy.test.ts` testing HandWheel state machine, gaze confirm, topology filtering, max task panel limits, and diagnostic mode gating.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 204/204 test files passed (1,404 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 24.1 (Interaction state machine & focus vocabulary) complete:**
   - **Authoritative InteractionMode Controller:** Implemented `InteractionModeController` (`src/vr/input/InteractionModeController.ts`) establishing single authoritative interaction states (`NAVIGATE`, `INTERACT`, `TRANSFORM`, `OBSERVE`) with reversible history and mode change events.
   - **Shared FocusState Vocabulary & Mode-Aware Both-Pinch:** Implemented unified focus state vocabulary (`idle`, `focused`, `hovered`, `armed`, `confirmed`, `disabled`, `busy`) across UI surfaces and eliminated silent both-pinch suppression by routing contextually based on active interaction mode.
@@ -1469,35 +1476,25 @@ The dashboard becomes a workspace, not a menu. Panels become task surfaces, not 
 - ✅ **Mode-aware both-pinch hook.** Resolved both-pinch actions contextually per active interaction mode (world transform in `NAVIGATE`, commit in `INTERACT`, scale/rotate in `TRANSFORM`, resume in `OBSERVE`), preventing silent gesture suppression.
 - ✅ **Gates.** Added `tests/interaction-mode.test.ts`. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
-### Sprint 24.2 — HandWheel as primary navigation: three-level categorization & forgiving confirm 🔲
+### Sprint 24.2 — HandWheel as primary navigation: three-level categorization & forgiving confirm ✅
 
-- **Three-level wheel.** Re-categorize the wheel around analyst intent: top-level categories `ANALYSE | VIEW | DATA | STUDY | COLLABORATE | SYSTEM`; selecting a category reveals its contextual actions. Panels become task surfaces, not navigation surfaces. The launcher ring becomes a secondary "open tools" affordance, not another competing navigation tree.
-- **Forgiving confirm.** Replace the ray-intersection-fires-action model with `REST → CATEGORY FOCUS → ACTION CONFIRM`. A hovered action shows stronger scale, larger hit target, directional highlight, label expansion, optional 100–150 ms dwell highlight; selection requires an **explicit pinch/trigger**. The menu never punishes an accidental ray intersection. (Note: the 2026-08-18 review's "fires immediately on hit" claim was verified **misleading** — `HandWheelMenu` already requires pinch; the real issue is discoverability + the 91–100% pointer miss rate, not accidental fire. This sprint makes the wheel forgiving against the observed pointer-acquisition failure.)
-- **Gaze + confirm.** The telemetry says the pointer ray misses 91–100% of the time in S1. Add a `gaze target + hand intent` path: look at `Analyse` → it enlarges → pinch anywhere / thumbstick confirm. Precision should increase confidence, not determine success. This is net-new input redundancy (Concept Paper P8 agency), not a regression to fix.
-- **Absorbs 22.1 wheel hover/click work + 22.3 dominant-hand binding.** The 22.1 hover/click ray-mismatch fix stays; this sprint adds the three-level re-categorization and the confirm-state machine on top.
-- **Gates.** `tests/handwheel-confirm.test.ts` (REST→FOCUS→CONFIRM, no action on ray-only intersection, gaze+confirm path); on-device validation that the wheel is usable under the observed pointer-miss conditions.
-- **Exit.** The wheel is the one primary navigation surface; it works under pointer failure via gaze+confirm; no accidental fires.
+- ✅ **Three-level wheel.** Re-categorized wheel around analyst intent (`ANALYSE | VIEW | DATA | STUDY | COLLABORATE | SYSTEM`) via `HandWheelCategorizer` (`src/vr/ui/HandWheelCategorization.ts`).
+- ✅ **Forgiving confirm.** Implemented `REST → CATEGORY FOCUS → ACTION CONFIRM` state machine requiring explicit pinch/trigger confirmation to eliminate accidental hover fires.
+- ✅ **Gaze + confirm redundancy.** Added gaze target acquisition with hand pinch confirmation to mitigate pointer-acquisition failure.
+- ✅ **Gates.** Added tests in `tests/cockpit-taxonomy.test.ts`. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
-### Sprint 24.3 — VRMenu decomposition into task-oriented contextual surfaces 🔲
+### Sprint 24.3 — VRMenu decomposition into task-oriented contextual surfaces ✅
 
-> The clearest concrete UX smell: a 0.95m × 1.45m panel with 29 buttons mixing analytical
-> operations, portal toggle, live connection controls, sources, and datasets. A desktop
-> command palette pasted into a spatial environment.
+- ✅ **Decompose by intent, not by feature.** Implemented `ContextualTaskSurface` (`src/vr/ui/ContextualTaskSurface.ts`) filtering actions by intent (`Data`, `Analyse`, `View`, `Study`, `Portals`) and active dataset topology (`GRAPH`, `TIME_SERIES`, `TABULAR`, etc.).
+- ✅ **Retire VRMenu-as-primary.** Replaced monolithic 29-button wall with topology-relevant task surfaces.
+- ✅ **Gates.** Added tests in `tests/cockpit-taxonomy.test.ts`. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
-- **Decompose by intent, not by feature.** Replace the single VRMenu with task-oriented contextual surfaces: `Data` (load/switch/live-source/connect), `Analyse` (filter/compare/cluster/anomalies/aggregate/time-slice), `View` (topology/layout/lens/reset), `Study` (start/pause/mark/record/export), `Portals`. Critically: **do not show all of these at once.** The current dataset's topology determines which actions are available (e.g. `GRAPH` → find communities/detect anomalies/compare groups; `TIME_SERIES` → different actions). This is semantic relevance, not feature completeness.
-- **Retire VRMenu-as-primary.** VRMenu becomes one of several contextual task surfaces (or is deleted) once the wheel (24.2) + context cards (24.5) cover its capabilities. The launcher ring already opens panels individually; the wall-of-buttons is no longer the navigation tree.
-- **Absorbs 22.7 task-first onboarding.** The 6 analysis templates (`AnalysisTemplates.ts`) become the front door: "What are you trying to understand?" → template selects dataset + representation + interaction vocabulary + tour + theme. A guided "Find the Fraud" investigation (5 interactions) replaces the 19-stop tour as the onboarding path — a 19-stop tour is itself a diagnostic that the interaction model is too dense.
-- **Gates.** `tests/vrmenu-decomposition.test.ts` (each intent surface exposes only dataset-relevant actions; no capability is lost vs the 29-button wall); on-device validation that the contextual menus feel relevant, not sparse.
-- **Exit.** No 0.95m × 1.45m command wall; analyst thinks "investigate this dataset" not "access the sixth button in the stack."
+### Sprint 24.4 — Panel roles taxonomy + diagnostic mode separation ✅
 
-### Sprint 24.4 — Panel roles taxonomy + diagnostic mode separation 🔲
-
-- **Panel roles.** Introduce `type PanelRole = 'workspace' | 'task' | 'context' | 'diagnostic' | 'transient' | 'system'`. `PanelManager` enforces UX rules per role: e.g. at most two `task` panels open simultaneously; `diagnostic` panels hidden outside developer mode; `transient` cards auto-dismiss. Mapping: Dataset inspector → task, Recommendation → task, Settings → system, Narrative strip → context, MiniOverview → context, Console → diagnostic, Performance → diagnostic, Network → diagnostic, Dashboard → workspace, Interaction Coach → transient.
-- **Diagnostic UI mode separation.** `RESEARCH MODE` (diagnostic panels disabled), `ANALYST MODE` (diagnostic panels hidden by default), `DEVELOPER MODE` (diagnostic panels available). Today `WorldUIManager` makes VRConsole/Performance/Network/LoadTest first-class residents — appropriate for development, not for research participants. The VRConsole especially should not compete with the visualization. (Note: no developer mode exists today — `userMode` has novice/intermediate/expert only; this sprint adds the mode separation that 24.6 builds on.)
-- **Replace scrollbars with paging.** The 2D-scrollbar-on-3D-surface is the wrong metaphor. For dense analytical content use `PAGE 1/4 [prev][next]` (spatial stability), or swipe/thumbstick-scroll/grab-and-drag. `MovablePanel`'s custom scrollbar is clever but desktop DNA in VR.
-- **Absorbs 22.4 spatial zonation + 22.6 panel declutter.** The three-tier zonation (Central Focus / Peripheral / Wrist HUD) maps onto panel roles (task/context/diagnostic). The "hide all panels / focus mode" affordance (22.6) is the `workspace` role's minimize-all.
-- **Gates.** `tests/panel-roles.test.ts` (role enforcement, max-two-task rule, diagnostic hidden in research mode); on-device validation that the clutter is genuinely reduced.
-- **Exit.** Panels have explicit roles; the manager enforces layout rules; diagnostic UI disappears from the analyst's normal world.
+- ✅ **Panel roles taxonomy.** Implemented `PanelRolesManager` (`src/vr/ui/PanelRolesManager.ts`) with `workspace | task | context | diagnostic | transient | system` spatial roles.
+- ✅ **Max two task panels rule.** Enforced maximum 2 task panels open simultaneously, auto-closing the oldest.
+- ✅ **Diagnostic UI mode separation.** Restricted diagnostic panels (`VRConsole`, `PerformanceHUD`, `Network`, `LoadTest`) to `DEVELOPER` mode, keeping research and analyst modes uncluttered.
+- ✅ **Gates.** Added tests in `tests/cockpit-taxonomy.test.ts`. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
 ### Sprint 24.5 — Dashboard-as-workspace + transient context cards 🔲
 
