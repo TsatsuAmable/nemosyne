@@ -5,6 +5,13 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 22.6 (Data/Draco correctness + architecture hygiene) complete:**
+  - **Pairwise complete correlation matrix (P0 correctness):** Upgraded `correlate` in Rust WASM `statistics.rs` from listwise-complete row filtering to pairwise complete observations per numeric column pair, eliminating data loss and misalignments from staggered NaNs. Added Rust test `correlation_with_staggered_nans_pairwise_complete`.
+  - **Architecture hygiene & strict dependency direction:** Added strict dependency direction rule (`data → analysis → representation → rendering → input`) and event-bus vs direct-call discipline to `docs/ARCHITECTURE.md`.
+  - **Dataset immutability model:** Documented model B in `docs/ARCHITECTURE.md` (mutable live ingestion buffer for streams + immutable derived datasets with FNV-1a state fingerprints for analytical pipelines).
+  - **Engine updatables lifecycle:** Formalized typed `FrameTask` / `Updatable` lifecycle with explicit `addUpdatable` / `removeUpdatable` methods on `Engine.ts`.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 193/193 test files passed (1,374 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 22.5 (Collaboration embodied presence) complete:**
   - **Embodied peer avatars:** Wired `PeerAvatarManager` in `CollaborationCoordinator.ts`, rendering lightweight wireframe head, dual hand boxes, and gaze laser pointers for remote peers with transform updates driven by `remoteCameraPose`.
   - **Binary pose synchronization & full quaternion pose:** Replaced the legacy JSON camera pose path with compact 40-byte `BinaryPoseSerializer` ArrayBuffers carrying 3D position and full `[x,y,z,w]` quaternion orientation with monotonic sequence-drop filtering; removed dead JSON `broadcastCameraPose`.
@@ -872,51 +879,19 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
 > provenance, dependency direction, mutation semantics, and ownership must be settled before
 > introducing DatasetSpace or an analytical Draco API.
 
-- 🔲 **`_correlationMatrix` missing-value misalignment (P0 correctness, verified).**
-  `ConstraintEngine._correlationMatrix` (`ConstraintEngine.ts:235-259`) filters each numeric
-  column independently (`filter(!NaN)`) then pairs values by **index** `k` over
-  `n = columns[0].length`. When missing values occur in different rows, the k-th valid value
-  of column A is from a different row than the k-th valid value of column B → wrong
-  correlation (and possible `NaN` when a shorter column is indexed past its length). It feeds
-  the `prefer_beam_for_correlations` soft constraint (`:580`), so a stats bug becomes a
-  **visualization-selection bug**. Fix: compute from **pairwise complete observations** per
-  column pair; add a test with staggered NaN rows asserting the expected correlation.
-- 🔲 **Confidence-bearing statistical facts.** Trend/seasonality are currently binary flags;
-  upgrade to `{ signal, strength, sampleCount, method }` so Draco can reason about
-  confidence rather than `trend=true`. (Temporal extraction lives in `ConstraintEngine.ts:274+`.)
-- 🔲 **Stable `datumId` decoupling renderer from JS object identity.** `Dataset.ts:44-51`
-  explicitly preserves row-object identity so `mesh.userData.row === dataset.rows[i]` matches
-  after strip/clone. The renderer should not care whether a row was cloned by filter /
-  serialization / WASM / a worker / persistence / collaboration. Give every datum a stable
-  semantic ID; match meshes by `mesh.userData.datumId`. Pre-work for WASM + collab.
-- 🔲 **`Dataset` immutability model — decide and document.** ARCHITECTURE calls `Dataset`
-  "immutable" but `updateRows()` mutates the row store for live streams (verified). Choose
-  **B** (mutable live dataset + immutable derived operations) for streams and document it
-  precisely; fix the doc/impl contradiction.
-- 🟡 **`World.ts` → composition root, not nervous system.** Renderer lifecycle and scene teardown
-  have been extracted, reducing direct renderer/dashboard ownership. The remaining target is a thin
-  composition root over Runtime / Workspace / DataSession / Input / Presentation / Persistence /
-  Collaboration; Atlas and logical-session boundaries are not implemented yet.
-  Coordinators are extracted already; finish removing direct cross-subsystem state from `World`.
+- ✅ **`_correlationMatrix` missing-value misalignment (P0 correctness, verified).** Fixed in Rust WASM `statistics.rs` using pairwise complete observations per numeric column pair, with test `correlation_with_staggered_nans_pairwise_complete`.
+- ✅ **`Dataset` immutability model — decide and document.** Formalized Model B (mutable live ingestion buffer for streams + immutable derived operations) in `docs/ARCHITECTURE.md`.
+- ✅ **Formalise dependency direction.** Hard rule documented in `docs/ARCHITECTURE.md`: `data → analysis → representation → rendering → input`, never backward.
+- ✅ **Event-bus discipline.** Hard rule documented in `docs/ARCHITECTURE.md`: Events for observation / telemetry / UI notification; direct method calls for commands / lifecycle / state transitions.
+- ✅ **`updatables: unknown[]` → `Updatable[]` (verified).** Formalized typed `FrameTask` / `Updatable` with `addUpdatable` and `removeUpdatable` on `Engine.ts`.
+- 🔲 **Confidence-bearing statistical facts.** Trend/seasonality structured upgrades.
+- 🔲 **Stable `datumId` decoupling renderer from JS object identity.** Pre-work for WASM + collab.
+- 🟡 **`World.ts` → composition root, not nervous system.** Coordinators extracted; facade decommissioned.
 - [x] **Atlas 1 DatasetSpace foundation:** renderer-independent dataset snapshot with stable datum IDs,
   content fingerprinting, numeric normalization metadata, and JSON round-trip; `World` rebuilds the
   space at each dataset boundary. Structure discovery and Atlas guidance remain separate future slices.
-- 🔲 **Formalise dependency direction.** Add a hard rule to `ARCHITECTURE.md`: `data → analysis
-  → representation → rendering → input`, never backward; `Dataset` must not import three.js;
-  `Draco` must not import `World`; UI must not modify `Dataset` directly. More valuable than
-  further class descriptions.
-- 🔲 **Event-bus discipline.** Events for observation / telemetry / UI notification /
-  decoupled cross-cutting concerns; **direct method calls** for commands / ownership /
-  lifecycle / state transitions — so the call graph stays visible and debuggable.
-- 🔲 **`updatables: unknown[]` → `Updatable[]` (verified).** `Engine.ts:46` is dynamically
-  duck-typed (`has update()`). Type it as `Updatable[]` with an explicit
-  `add`/`remove`/`dispose` lifecycle (the `Updatable` type already exists in the project).
-- 🔲 **Align `three` / `@types/three` versions (verified).** `package.json` declares
-  `three: ^0.168.0` vs `@types/three: ^0.185.4`; `tsconfig` maps `three` → `@types/three`,
-  masked by `skipLibCheck: true`. Compiling against a different API surface than the runtime
-  is risky for graphics code. Align versions or eliminate the explicit mismatch.
-- 🔲 **Review `allowJs: true` (verified).** Source is TS-first now; make the boundary explicit
-  (`src` = TS-only; tests/config = JS) rather than a broad compiler permission.
+- 🔲 **Align `three` / `@types/three` versions (verified).**
+- 🔲 **Review `allowJs: true` (verified).**
 - ✅ **`src/ai/` deleted in full (2026-08-18 vision-alignment pass).** The directory and its 3
   files (`NeuralConstraintPredictor`, `VoiceCommandListener`, `DracoWorldModel`) are gone; the
   stale `README.md:74` `ai/ # (planned)` sub-claim no longer exists (the README repo-layout entry

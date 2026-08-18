@@ -351,58 +351,49 @@ fn correlate(dataset: &Dataset, numeric_names: &[String]) -> Vec<CorrelationPair
     if m < 2 {
         return Vec::new();
     }
-    // Listwise-complete rows: keep only rows where every numeric column is
-    // finite. `n` rows x `m` numeric columns.
-    let mut rows: Vec<Vec<f64>> = Vec::new();
-    for row in &dataset.rows {
-        let mut vals = Vec::with_capacity(m);
-        let mut complete = true;
-        for name in numeric_names {
-            match row.get(name).and_then(|v| v.as_number()) {
-                Some(n) if n.is_finite() => vals.push(n),
-                _ => {
-                    complete = false;
-                    break;
-                }
-            }
-        }
-        if complete {
-            rows.push(vals);
-        }
-    }
-    if rows.is_empty() {
-        return Vec::new();
-    }
-    let n = rows.len();
-    let mat = Array2::from_shape_vec((n, m), rows.into_iter().flatten().collect::<Vec<_>>())
-        .unwrap_or_else(|_| Array2::zeros((0, m)));
-    if mat.nrows() == 0 {
-        return Vec::new();
-    }
-    let means = mat
-        .mean_axis(Axis(0))
-        .unwrap_or_else(|| ndarray::Array1::zeros(m));
-    let centered = &mat - &means;
-    let variances: Vec<f64> = (0..m)
-        .map(|j| centered.column(j).mapv(|x| x * x).mean().unwrap_or(0.0))
-        .collect();
     let mut pairs = Vec::new();
     for i in 0..m {
+        let name_a = &numeric_names[i];
         for j in (i + 1)..m {
-            let std_i = variances[i].sqrt();
-            let std_j = variances[j].sqrt();
-            let denom = std_i * std_j;
-            let value = if denom > 1e-12 {
-                let cov = (&centered.column(i) * &centered.column(j))
-                    .mean()
-                    .unwrap_or(0.0);
-                (cov / denom).clamp(-1.0, 1.0)
+            let name_b = &numeric_names[j];
+            let mut a_vals = Vec::new();
+            let mut b_vals = Vec::new();
+            for row in &dataset.rows {
+                let val_a = row.get(name_a).and_then(|v| v.as_number());
+                let val_b = row.get(name_b).and_then(|v| v.as_number());
+                if let (Some(a), Some(b)) = (val_a, val_b) {
+                    if a.is_finite() && b.is_finite() {
+                        a_vals.push(a);
+                        b_vals.push(b);
+                    }
+                }
+            }
+            let n = a_vals.len();
+            let value = if n >= 2 {
+                let mean_a = a_vals.iter().sum::<f64>() / (n as f64);
+                let mean_b = b_vals.iter().sum::<f64>() / (n as f64);
+                let mut cov = 0.0;
+                let mut var_a = 0.0;
+                let mut var_b = 0.0;
+                for k in 0..n {
+                    let da = a_vals[k] - mean_a;
+                    let db = b_vals[k] - mean_b;
+                    cov += da * db;
+                    var_a += da * da;
+                    var_b += db * db;
+                }
+                let denom = (var_a * var_b).sqrt();
+                if denom > 1e-12 {
+                    (cov / denom).clamp(-1.0, 1.0)
+                } else {
+                    0.0
+                }
             } else {
                 0.0
             };
             pairs.push(CorrelationPair {
-                a: numeric_names[i].clone(),
-                b: numeric_names[j].clone(),
+                a: name_a.clone(),
+                b: name_b.clone(),
                 value,
             });
         }
@@ -502,6 +493,47 @@ mod tests {
             .find(|p| (p.a == "x" && p.b == "y") || (p.a == "y" && p.b == "x"))
             .unwrap();
         assert!((xy.value - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn correlation_with_staggered_nans_pairwise_complete() {
+        let columns = vec![
+            Column::new("a", ColumnType::Numeric),
+            Column::new("b", ColumnType::Numeric),
+            Column::new("c", ColumnType::Numeric),
+        ];
+        // a and b are perfectly correlated: b = 2 * a.
+        // Column c has missing values in different rows, and a/b have missing values in other rows.
+        let mut r1 = HashMap::new();
+        r1.insert("a".to_string(), Value::Number(1.0));
+        r1.insert("b".to_string(), Value::Number(2.0));
+        r1.insert("c".to_string(), Value::Null);
+
+        let mut r2 = HashMap::new();
+        r2.insert("a".to_string(), Value::Number(2.0));
+        r2.insert("b".to_string(), Value::Number(4.0));
+        r2.insert("c".to_string(), Value::Number(10.0));
+
+        let mut r3 = HashMap::new();
+        r3.insert("a".to_string(), Value::Number(3.0));
+        r3.insert("b".to_string(), Value::Number(6.0));
+        r3.insert("c".to_string(), Value::Number(20.0));
+
+        let mut r4 = HashMap::new();
+        r4.insert("a".to_string(), Value::Null);
+        r4.insert("b".to_string(), Value::Number(8.0));
+        r4.insert("c".to_string(), Value::Number(30.0));
+
+        let ds = Dataset::new("staggered", columns, vec![r1, r2, r3, r4]);
+        let facts = compute_statistics(&ds);
+
+        let ab = facts
+            .correlation
+            .iter()
+            .find(|p| (p.a == "a" && p.b == "b") || (p.a == "b" && p.b == "a"))
+            .unwrap();
+        // Pairwise complete rows for (a,b) are r1, r2, r3 -> correlation is 1.0!
+        assert!((ab.value - 1.0).abs() < 1e-9);
     }
 
     #[test]
