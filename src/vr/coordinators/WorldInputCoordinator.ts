@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { HandGestureRecognizer } from '../interactions/HandGestureRecognizer.ts';
+import { GestureIntelligenceAdapter } from '../input/GestureIntelligenceAdapter.ts';
 import {
   spawnPinchFilterHalo,
   spawnScoopLensHalo,
@@ -42,6 +43,7 @@ export class WorldInputCoordinator {
   private _handNearWheelMenu: boolean;
 
   gestureRecognizer: HandGestureRecognizer;
+  gestureAdapter: GestureIntelligenceAdapter;
 
   constructor(engine: Engine | EngineLike, eventBus: WorldEventBusLike, options: WorldInputOptions) {
     this.engine = engine;
@@ -60,6 +62,11 @@ export class WorldInputCoordinator {
       cooldown: 0.65,
       onGesture: (name: string, ctx: Record<string, unknown>) => this.onGesture(name, ctx),
     } as LooseOptions);
+
+    this.gestureAdapter = new GestureIntelligenceAdapter({
+      cooldown: 0.65,
+      onGesture: (name: string, ctx: Record<string, unknown>) => this.onGesture(name, ctx),
+    });
 
     this.engine.addUpdatable({
       update: (delta: number, time: number) => this.update(delta, time),
@@ -82,8 +89,11 @@ export class WorldInputCoordinator {
     if (this.getSetting('gesturesEnabled') === false) return;
     this._updateInputContext();
     if (this._handNearArtefact) return;
-    this.gestureRecognizer.setHands(this.engine.input.hands as unknown as HandLike[]);
+    const hands = (this.engine.input.hands ?? []) as unknown as HandLike[];
+    this.gestureRecognizer.setHands(hands);
     this.gestureRecognizer.update(delta, time);
+    this.gestureAdapter.recordHands(hands, time);
+    this.gestureAdapter.classify(time);
   }
 
   /**
