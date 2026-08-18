@@ -24,9 +24,11 @@
     "rootDir": ".",
     "types": ["vitest/globals", "node", "vite/client"],
     "paths": {
-      "three": ["./node_modules/@types/three"]
+      "three": ["./node_modules/@types/three"],
+      "@nemosyne/gesture-intelligence": ["./modules/gesture-intelligence/src/index.ts"],
+      "@nemosyne/gesture-intelligence/*": ["./modules/gesture-intelligence/src/*"]
     }
   },
-  "include": ["src/**/*", "tests/**/*"],
+  "include": ["src/**/*", "tests/**/*", "modules/gesture-intelligence/src/**/*"],
   "exclude": ["node_modules", "dist", "docs", "wasm"]
 }
