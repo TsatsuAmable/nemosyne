@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SignallingChannel } from '../src/network/SignallingChannel.ts';
 import { Room } from '../src/network/Room.ts';
 import { NetworkManager } from '../src/network/NetworkManager.ts';
+import { BinaryPoseSerializer } from '../src/network/BinaryPoseSerializer.ts';
 import { createRoomRegistry } from '../src/network/SignallingServerCore.ts';
 
 class MockWebSocket extends EventTarget {
@@ -269,11 +270,15 @@ describe('NetworkManager', () => {
     expect(selMsg.type).toBe('selectionSync');
     expect(selMsg.selectedIds).toEqual(['row-1', 'row-2']);
 
-    // 4. broadcastCameraPose (throttled)
-    manager.broadcastCameraPose([0, 1.6, 0], [0, 0, 0, 1], 0);
-    const poseMsg = JSON.parse(channel.messages[channel.messages.length - 1]);
-    expect(poseMsg.type).toBe('cameraPose');
-    expect(poseMsg.position).toEqual([0, 1.6, 0]);
+    // 4. broadcastCameraPose (binary 40-byte buffer)
+    manager.broadcastCameraPose([0, 1.6, 0], [0, 0, 0, 1]);
+    const poseBuffer = channel.messages[channel.messages.length - 1];
+    expect(poseBuffer).toBeInstanceOf(ArrayBuffer);
+    const poseMsg = BinaryPoseSerializer.deserialize(poseBuffer);
+    expect(poseMsg?.position[0]).toBeCloseTo(0, 5);
+    expect(poseMsg?.position[1]).toBeCloseTo(1.6, 5);
+    expect(poseMsg?.position[2]).toBeCloseTo(0, 5);
+    expect(poseMsg?.rotation).toEqual([0, 0, 0, 1]);
   });
 
   it('does not broadcast dataset operations from an observer', () => {

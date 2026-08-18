@@ -717,14 +717,7 @@ export class World {
   }
 
   _broadcastPresence(): void {
-    const nm = this.collaborationCoordinator.networkManager;
-    if (!nm?.isConnected) return;
-    const pos = this.engine.cameraGroup.position;
-    nm.setLocalState({
-      position: { x: pos.x, y: pos.y, z: pos.z },
-      rotationY: this.engine.cameraGroup.rotation.y,
-      dataset: this.currentEntry?.name ?? this.currentEntry?.label ?? '-',
-    });
+    this.collaborationCoordinator?.update?.();
   }
 
   _logInteraction(

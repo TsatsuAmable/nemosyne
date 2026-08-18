@@ -1,5 +1,14 @@
 import { SignallingChannel } from './SignallingChannel.ts';
 import { Room, type NetworkRole } from './Room.ts';
+import { BinaryPoseSerializer } from './BinaryPoseSerializer.ts';
+
+function djb2Hash(str: string): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) ^ str.charCodeAt(i);
+  }
+  return Math.abs(hash) % 0x7fffffff;
+}
 
 /**
  * Manages WebRTC peer connections and a shared room for Nemosyne collaboration.
@@ -55,6 +64,8 @@ export class NetworkManager extends EventTarget {
   peerRoles: Map<string, NetworkRole> = new Map();
   _connected: boolean = false;
   _localState: Record<string, unknown> = {};
+  private _numericPeerId: number;
+  private _poseSequence: number = 0;
 
   constructor({
     signallingUrl,
@@ -75,6 +86,7 @@ export class NetworkManager extends EventTarget {
     this.token = token ?? this._loadStoredToken();
     this.iceServers = iceServers ?? [{ urls: 'stun:stun.l.google.com:19302' }];
     this.maxStateBytes = maxStateBytes;
+    this._numericPeerId = djb2Hash(this.peerId);
 
     this.room = new Room(this.roomId, this.peerId, this.peerName, this.role);
   }
@@ -182,24 +194,7 @@ export class NetworkManager extends EventTarget {
     this._sendToAllOpenChannels(payload);
   }
 
-  /**
-   * Throttled 60Hz/20Hz camera pose synchronization for peer VR presence.
-   */
-  _lastPoseSendTime = 0;
-  broadcastCameraPose(position: number[], rotation: number[], throttleMs: number = 50): void {
-    const now = Date.now();
-    if (now - this._lastPoseSendTime < throttleMs) return;
-    this._lastPoseSendTime = now;
-
-    const payload = JSON.stringify({
-      type: 'cameraPose',
-      peerId: this.peerId,
-      position,
-      rotation,
-      timestamp: now,
-    });
-    this._sendToAllOpenChannels(payload);
-  }
+  // High-frequency binary pose synchronization is handled via broadcastCameraPose().
 
   private _sendToAllOpenChannels(payload: string): void {
     for (const [peerId, channel] of this.channels) {
@@ -338,6 +333,7 @@ export class NetworkManager extends EventTarget {
   _wireChannel(peerId: string, channel: RTCDataChannel, peerRole: NetworkRole = 'participant'): void {
     this.channels.set(peerId, channel);
     this.peerRoles.set(peerId, peerRole);
+    channel.binaryType = 'arraybuffer';
 
     channel.addEventListener('open', () => {
       const peer = this.room.peers.get(peerId) ?? this.room.addPeer(peerId, 'Analyst', peerRole);
@@ -355,6 +351,24 @@ export class NetworkManager extends EventTarget {
     });
 
     channel.addEventListener('message', (event: MessageEvent) => {
+      if (event.data instanceof ArrayBuffer) {
+        const pose = BinaryPoseSerializer.deserialize(event.data);
+        if (pose && BinaryPoseSerializer.validateSequence(pose.peerId, pose.sequence)) {
+          this.dispatchEvent(
+            new CustomEvent('remoteCameraPose', {
+              detail: {
+                peerId,
+                numericPeerId: pose.peerId,
+                position: pose.position,
+                rotation: pose.rotation,
+                timestamp: Date.now(),
+              },
+            })
+          );
+        }
+        return;
+      }
+
       if (new Blob([event.data]).size > this.maxStateBytes) return;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let payload: any;
@@ -443,6 +457,36 @@ export class NetworkManager extends EventTarget {
       this.room.removePeer(peerId);
       this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
     });
+  }
+
+  broadcastCameraPose(position: [number, number, number], rotation: [number, number, number, number]): void {
+    if (!this._connected || this.channels.size === 0) return;
+    const buffer = BinaryPoseSerializer.serialize({
+      peerId: this._numericPeerId,
+      sequence: ++this._poseSequence,
+      position,
+      rotation,
+    });
+    for (const [, channel] of this.channels) {
+      if (channel.readyState === 'open') {
+        try {
+          channel.send(buffer);
+        } catch (_) {
+          // Channel send error; ignore
+        }
+      }
+    }
+  }
+
+  kickPeer(peerId: string): void {
+    const conn = this.connections.get(peerId);
+    if (conn) {
+      this._closePeer(peerId, conn);
+      this.connections.delete(peerId);
+      this.channels.delete(peerId);
+      this.room.removePeer(peerId);
+      this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
+    }
   }
 
   private _validVector(value: unknown, length: number): value is number[] {

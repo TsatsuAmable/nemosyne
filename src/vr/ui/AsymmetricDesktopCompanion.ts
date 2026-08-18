@@ -29,20 +29,22 @@ export class AsymmetricDesktopCompanion {
   private _visible = true;
 
   constructor({
-    container = document.body,
+    container,
     networkManager = null,
     annotationManager = null,
     onFollowPeer,
     onJumpToBookmark,
   }: AsymmetricDesktopCompanionOptions = {}) {
-    this.container = container;
+    this.container = container ?? (typeof document !== 'undefined' ? document.body : (null as unknown as HTMLElement));
     this.networkManager = networkManager;
     this.annotationManager = annotationManager;
     this.onFollowPeer = onFollowPeer;
     this.onJumpToBookmark = onJumpToBookmark;
 
     this.element = this._createDOM();
-    this.container.appendChild(this.element);
+    if (this.container) {
+      this.container.appendChild(this.element);
+    }
 
     if (this.networkManager) {
       this._wireNetwork();
