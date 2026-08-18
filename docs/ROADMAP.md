@@ -5,6 +5,15 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Standalone `modules/gesture-intelligence/` sprint complete (out-of-roadmap, architecturally separate):**
+  Frozen 56-dim feature vector, heuristic + ONNX classifier with **honest provenance** (`source` = the path that produced the numbers;
+  explicit `degradedReason`), biomechanical calibration (speed-EMA + sticky-band hysteresis), on-device personalization (threshold
+  coord-search over replayed F1, adopt only on F1 gain), IndexedDB v2 persistence with visible memory fallback, and a
+  capture→train→deploy pipeline (`CaptureRecorder` → `merge_corpus.ts` → `retrain.ts` → `export_onnx.py`). Trained on **synthetic**
+  data: held-out accuracy 0.9111, macro-F1 0.9087, 24 KB ONNX, all 6 classes predicted; model-card sha256 verified on every `init()`.
+  78/78 module tests green; module typecheck/lint/build clean; real onnxruntime-web integration passes headlessly in node. **NOT yet
+  wired into the host** (`src/` never imports it). Added **Phase 23** below: host integration + per-user personalization + global opt-in
+  capture→retrain loop (Tier A feature-only corpus; raw positions stay on-device) + central staged retrain + federated/drift research.
 - **Last updated:** 2026-08-18 — Phase 21.5 (Rust/WASM Draco Constraint Engine, Bayesian Evidence, Intent Compiler & Structure Discovery) complete:
   Ported the full Draco symbolic constraint engine to native Rust (`wasm/src/draco/`): 3,168-candidate combinatorial solver with 5 hard constraints
   and 20 weighted soft constraints (`solver.rs`), Bayesian empirical utility prior cost adjustment (`evidence.rs`), and complete type-safe
@@ -1689,6 +1698,209 @@ UXI-7 is the gate: the 2026-08-18 replay must reproduce the manual findings.
 > studies, never a verdict**. It surfaces evidence for a human researcher; it does not score UX
 > quality. The `friction` records and phenomenon occurrences are hypotheses to validate, not
 > conclusions.
+
+---
+
+## Phase 23 — Gesture Intelligence: Host Integration & Global Model Improvement 🔲 (new)
+
+> Source: the out-of-roadmap sprint that shipped `modules/gesture-intelligence/` on
+> 2026-08-18. That module is **architecturally separate** (never imported by `src/`,
+> never run through the root test suite) and is **complete and green**: frozen 56-dim
+> feature vector, heuristic + ONNX classifier with honest provenance, biomechanical
+> calibration, on-device personalization (threshold coord-search over replayed F1),
+> and a capture→train→deploy pipeline. Trained on **synthetic** data only: held-out
+> accuracy 0.9111, macro-F1 0.9087, 24 KB ONNX, all 6 classes predicted. **Not yet
+> wired into the host.** This phase wires it in and builds the global learning loop.
+> See `modules/gesture-intelligence/SPRINT.md` + `README.md` for the frozen contract.
+
+### Architectural direction
+
+```text
+Host hand input (Controllers/Hands)
+        │  (adapter lives in src/; module stays host-agnostic)
+        ▼
+GestureEngine (modules/gesture-intelligence)
+   ├─ heuristic classify (sync, every frame)
+   ├─ neural classify (ONNX, debounced; honest source: onnx|heuristic)
+   ├─ personalizer (on-device threshold tuning, adopt only on F1 gain)
+   └─ persistence (StoredProfile in IndexedDB)
+        │
+        ▼
+InputRouter gesture dispatch → MetaphorActions / DataOperations
+        │
+        ▼ (opt-in, consent-gated)
+Tier A feature corpus  ──▶  global ingest  ──▶  central retrain (CI)
+(56-dim features only;       (pseudonymous,      user-disjoint eval,
+ raw positions stay on        rate-capped,        staged deploy via
+ device)                      quota, erasure)     asset replacement +
+                                                  sha256/version verify
+```
+
+The frozen feature spec (`FEATURE_DIM=56`, `GESTURE_CLASSES` order, ONNX
+`[1,56]→[1,6]`) is **not** edited by any sprint below; global retraining changes
+weights only. Gesture recognition is an input/interaction layer — it is **never**
+routed through the Rust analytical kernel's provenance envelope.
+
+### Sprint 23.1 — Host integration & gesture dispatch 🔲
+
+- **Wire host hand input → engine.** `InputRouter.ts` / `Controllers.ts` /
+  `Hands.ts` call `GestureEngine.recordSample` per frame with a `HandSample`
+  (`{hand, position: Vec3, pinched, timestamp}`). The three.js-space → engine-`Vec3`
+  adapter lives in `src/` (the module never imports `src/`).
+- **Inject the ONNX bridge.** `createNeuralClassifier({ modelUrl, modelCard,
+  ortFactory: createOrtFactory(ort) })` using the shipped
+  `modules/gesture-intelligence/assets/*`; bundle via Vite (copy into
+  `src/assets/gesture/` or import from the module). `ort.env.wasm.wasmPaths`
+  points at a bundled, **no-CDN** wasm path (avoids CORP/COEP; matches the demo).
+- **Gesture dispatch.** Map `ClassificationResult.gesture` → `MetaphorActions` /
+  `DataOperations` triggers (e.g. `pinchTogether`→aggregate, `scoopUp`→rising
+  filter, `pushForward`→push/inspect, `bothPinched`→commit). Reuse the existing
+  `InputRouter` precedence model — never bypass it.
+- **Honest provenance surfacing.** Pipe `result.provenance.{source, modelVersion,
+  latencyMs, degradedReason}` into `Telemetry` + an in-VR HUD toggle (reuse
+  `VRConsole`/`DashboardManager`). No silent fallback: a degraded neural path
+  must be visible.
+- **Calibration seeding.** Load `StoredProfile` from `SessionStore`/IndexedDB on
+  `Engine.init`; persist on personalization adoption.
+- **Gates.** New `tests/gesture-integration.test.ts` (InputRouter→engine→dispatch
+  end-to-end with stub controllers); root + module gates green; no `src/`
+  analytical routing.
+- **Exit.** 6 gestures dispatched in-VR with honest provenance; heuristic-only
+  path works when ONNX is unavailable.
+
+### Sprint 23.2 — In-experience capture & per-user personalization loop 🔲
+
+- **Capture UI.** In `HandWheelMenu` / `SettingsPanel`: arm a label, perform the
+  gesture, stop → `CaptureRecorder`. Store raw JSONL to `SessionStore` keyed by
+  `profileId/gesture/captured_<ts>`.
+- **Feedback buttons.** Confirm ✓ / correct ✗ per detected gesture →
+  `engine.reportFeedback`. Every 8 confirms → `personalizer.optimize()` →
+  adopt **only if** `replayF1After > replayF1Before` → persist `StoredProfile`.
+  Show the threshold change to the user (signal, not silent verdict — matches
+  the §Planned-but-not-actioned UX-frustration caveat).
+- **Personalization provenance.** Stamp `replayF1Before/After` + the threshold
+  delta into `Telemetry` so a human can audit which threshold changed and why.
+- **Local retrain stub.** A "Retrain on my captures" button (dev/power-user only)
+  exports the local IndexedDB corpus to `training/_output/captured/<profileId>/`
+  and triggers `retrain.ts` in dev. Production users cannot run python — this is
+  a researcher path, not a release commitment.
+- **Gates.** `tests/gesture-personalization.test.ts` (capture round-trip,
+  feedback→adopt→persist, no-improvement→no-adopt).
+- **Exit.** A user can capture, correct, and have their own thresholds retune
+  within a session, persisted across sessions.
+
+### Sprint 23.3 — Global capture pipeline (opt-in, privacy-preserving upload) 🔲
+
+> Goal: crowd-source labeled captures from all consenting users into a central
+> corpus at global scale **without shipping raw biometric data unredacted**.
+
+- **Consent gate.** Capture upload is **OFF by default**; an explicit toggle in
+  `SettingsPanel` writes `gestureCaptureConsent` to `SessionStore`. No capture
+  leaves the device without it. The consent UI states exactly what is uploaded.
+- **Tier A — feature-only corpus (default for opt-in).** Upload
+  `{features: number[56], label, confirmed, modelVersion, profileHash}` rows.
+  `extract_features.ts` runs **on-device**, so raw hand positions never leave the
+  headset. This is the retraining substrate the MLP already consumes via
+  `exportCorpus()`.
+- **Tier B — raw trajectory corpus (research mode, second explicit consent).**
+  For richer future models (CNN/LSTM needing the raw window). Gated, capped,
+  signed, time-boxed. Default OFF.
+- **Pseudonymous identity.** `profileHash = sha256(consentToken + deviceSalt)` —
+  rotatable, never the raw Quest device ID. Per-profile quota so one user cannot
+  dominate the corpus. Right-to-erasure via a `deleteMyCaptures(profileHash)`
+  endpoint.
+- **Upload transport.** Batched, retry-with-backoff POST to a production ingest
+  service (Netlify function or separate worker — **not** the Vite dev plugin).
+  Dedup by `(profileHash, featuresHash, modelVersion)`; server-side rate limit +
+  size cap, reusing Wave 0 bounding rules.
+- **Provenance per row.** `modelVersion` that produced the gesture + `confirmed`
+  flag, so retraining distinguishes user-endorsed labels from detector outputs.
+- **Gates.** `tests/gesture-upload.test.ts` (consent gating, redaction, dedup,
+  quota); security review (new attack surface → auth, rate limit, payload cap,
+  no PII).
+- **Exit.** Opt-in users contribute feature-level labeled rows to a central
+  corpus; raw positions never leave the device under Tier A.
+
+### Sprint 23.4 — Central retraining service & staged model deployment 🔲
+
+- **Central training job (CI/CD, not on headsets).** Scheduled + on-trigger:
+  pull the merged corpus → `merge_corpus.ts` → `train.py` → `export_onnx.py` →
+  enforce the bar (acc ≥ 0.90, macro-F1 ≥ 0.85, all 6 classes) → candidate
+  `gesture_classifier.onnx` + `model_card.json` with bumped `version` + sha256.
+- **User-disjoint evaluation.** Hold-out split by `profileHash`, never by row,
+  so the test set is user-disjoint. A candidate must beat the incumbent on the
+  held-out user-disjoint set (not just the global held-out) — prevents overfitting
+  to high-volume users. Report per-class F1 + confusion + regression vs incumbent.
+- **Staged deployment.** Candidate → **shadow** (serve both, log disagreements,
+  no dispatch change) → **canary** (small % of users) → **full rollout**. Deploy =
+  replacing the two asset files + bumping `model_card.json.version`; the bridge
+  verifies sha256 + version on next init.
+- **Model-card transparency.** Every shipped card carries `metrics` + `samples`
+  + `confusion`; users can inspect which model version recognizes their gestures
+  and its measured accuracy. Optional: sign `sha256` with an org key so a swapped
+  JSON cannot authorize a tampered model.
+- **Rollback.** Revert to the previous asset pair (kept in `assets/archive/`).
+- **Gates.** Training reproducibility (same corpus + seed → same weights);
+  user-disjoint eval gate; staged-rollout telemetry; rollback drill.
+- **Exit.** Improved models ship to all users via asset replacement, with
+  user-disjoint evaluation and staged rollout — no code changes.
+
+### Sprint 23.5 — Federated learning & drift monitoring 🔲 (research; longer-term)
+
+- **Federated threshold tuning (cheap, privacy-friendly, in scope).** The
+  personalizer already runs on-device; aggregate **anonymous threshold-improvement
+  deltas** across users (not raw data) to set a better global default calibration.
+- **Federated weight updates (research only, not a commitment).** On-device
+  fine-tuning of the MLP is out of scope for the frozen contract; a future spec
+  would re-open the ONNX to accept per-user LoRA-style adapters — requires
+  orchestrator sign-off on the contract. Proposed, not committed.
+- **Drift monitoring.** Track per-user `confirm`/`correct` ratio and
+  `replayF1After` over time; a falling ratio signals the shipped model is drifting
+  from real-world gestures and triggers retrain. Aggregate anonymous drift
+  telemetry to prioritize corpus collection for under-performing classes (the
+  known first target: synthetic idle↔pushForward confusion, driven by retracting
+  pushForward trajectories with near-zero net displacement).
+- **Heuristic vs. neural A/B.** The engine already reports `source`; compare
+  correction rates between `source:'onnx'` and `source:'heuristic'` sessions to
+  decide where the neural path is worth its latency.
+- **Gates.** Drift dashboard (offline analyzer over the corpus); a
+  federated-threshold aggregation job; ethics review (global model from
+  user-derived biometric features → consent, erasure, opt-out, transparency).
+- **Exit.** The global model improves from real-world usage without centralizing
+  raw data; drift is monitored; the loop is auditable end-to-end.
+
+### Cross-cutting invariants (all 23.x sprints)
+
+- The frozen feature spec is not edited without orchestrator sign-off; global
+  retraining changes **weights only**, never the contract.
+- Honest provenance end-to-end: `source` = the path that produced the numbers;
+  `degradedReason` explicit; `modelVersion` surfaced to users; no fabricated
+  confidence.
+- No `src/` production code chooses between analytical paths — gesture recognition
+  is input/interaction, never routed through the Rust analytical kernel's
+  provenance envelope.
+- The module stays architecturally separate: host wiring imports from the
+  module; the module never imports `src/`. Root `vitest.config.js` `exclude`
+  keeps the module out of the host test suite; module gates run independently.
+- Consent is the foundation of the global loop: capture upload OFF by default;
+  raw positions never leave the device under Tier A; right-to-erasure is a hard
+  requirement, not a stretch goal.
+- The shipped model is trained on **synthetic** data; real-world accuracy will be
+  worse until real captures flow through 23.3→23.4. Do not claim production-grade
+  accuracy until the user-disjoint eval gate (23.4) passes on real captures.
+
+### Sequencing
+
+```text
+23.1 (host wiring)  →  23.2 (capture + personalization)  →  23.3 (global upload)
+                                                                │
+                                                                ▼
+                                       23.5 (federated/drift) ← 23.4 (central retrain + staged deploy)
+```
+
+23.1 and 23.2 are independently shippable user-facing wins (gestures work in-VR;
+per-user tuning). 23.3 is the privacy prerequisite for any global model. 23.4
+makes the global loop real. 23.5 is research-grade and must not block 23.1–23.4.
 
 ---
 
