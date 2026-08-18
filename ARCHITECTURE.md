@@ -38,6 +38,21 @@ Nemosyne organizes the spatial data exploration workflow into three distinct arc
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### 1.1 📐 Strict Dependency Direction
+Architectural dependencies flow strictly downward:
+`data → analysis (Atlas / Draco / WASM) → representation → rendering (Engine / three.js) → input / UI`
+- **Zero Graphics Leakage:** The Data (`src/data/`) and Analytical (`src/atlas/`, `wasm/`) layers must **never** import `three`, WebGL, or DOM types.
+- **Renderer Isolation:** `Draco` and `AtlasCore` must **never** import `World`, `Engine`, or scene graph controllers.
+- **State Encapsulation:** Presentation and UI components must **never** modify `Dataset` or `DatasetSpace` directly; all analytical mutations route through typed `VRCommand` specs or `WorldCommandExecutor`.
+
+### 1.2 🔄 Dataset Immutability & Live Streaming Buffer Model
+- **Immutable Analytical Pipeline:** Analytical operations (`filter`, `sort`, `slice`, `aggregate`, `cluster`, `anomaly`) produce new, immutable derived datasets with deterministic FNV-1a content fingerprints and immutable history chains.
+- **Mutable Live Ingestion Buffer:** Live streaming sources (`LiveStreamCoordinator`, `DataConnector`) feed `Dataset.updateRows()` to buffer real-time telemetry into the active row store; discrete spatial palace re-solves capture immutable generational checkpoints in `DatasetSpace`.
+
+### 1.3 📡 Event-Bus vs Direct Call Discipline
+- **`WorldEventBus` (Events):** Used exclusively for decoupled observation, telemetry capture, UI HUD notifications, and cross-cutting telemetry.
+- **Direct Method Calls:** Used for commands, ownership boundaries, rendering lifecycle, resource teardown/disposal, and synchronous state transitions to maintain a visible and deterministic call graph.
+
 ---
 
 ## 2. 🧩 Subsystem Class & Component Reference
