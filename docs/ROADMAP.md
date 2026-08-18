@@ -5,15 +5,15 @@
 > not duplicate state.
 
 
-- **2026-08-18 — Sprint 25.1: Quest Spatial Tracking & Aim-Drift Ergonomics Hardening complete:**
-  - **Pinch-Lock Raycast Stabilization (UX-002):** Implemented `SelectionDispatcher.lockTargetForPinch()` (`src/vr/input/SelectionDispatcher.ts`) stabilizing target intersection across an 80ms release window to absorb 40°–100° physical hand recoil drift.
-  - **HandWheel Menu Toggle Cooldown (650ms):** Added debounce timer in `HandWheelMenu` (`src/vr/ui/HandWheelMenu.ts`) eliminating rapid menu toggle flutter (4 cycles in 6s).
-  - **Diegetic Reach-Zone Suppression Hints:** Added `onSuppressedHint` in `SystemGestureDetector` (`src/vr/input/SystemGestureDetector.ts`) providing actionable feedback when two-handed gestures are suppressed due to high Y reach deltas.
-  - **Unit Test Suite:** Added `tests/sprint-25-1-quest-spatial-tracking-and-drift-hardening.test.ts` testing pinch recoil target lock, toggle debounce, and reach-zone suppression hints.
-  - **Subsequent Planned Milestones:**
-    - *Milestone 25.2 — Quest 3S On-Device Field Trial Suite:* Run physical on-device load-test probe profiles (1k–100k nodes) benchmarking P95 frame times and dropped-frame telemetry.
+- **2026-08-18 — Milestone 25.2: Quest 3S On-Device Field Trial Suite Execution complete:**
+  - **Automated Field Trial Suite:** Implemented `QuestFieldTrialSuite` (`src/vr/scalability/QuestFieldTrialSuite.ts`) automating multi-stage load-test probe execution across dataset scales (1k, 5k, 20k, 50k, 100k nodes) validating Quest 3S physical compute envelopes (72 Hz / 13.88ms frame budget, <5% dropped frames, <250 MB heap).
+  - **Audit Certificate Generator:** Generates verifiable field trial compliance certificates with deterministic hashes for research publication bundles.
+  - **Unit Test Suite:** Added `tests/quest-field-trial-suite.test.ts` testing multi-stage execution, hardware envelope validation, and budget violation reporting.
+  - **Next Planned Milestone:**
     - *Milestone 25.3 — 2D-vs-VR Experimental Study Protocol Execution:* Run multi-participant trial batches and analyze NASA-TLX workload and time-to-insight statistical outcomes.
   - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 214/214 test files passed (1,436 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
+- **2026-08-18 — Sprint 25.1: Quest Spatial Tracking & Aim-Drift Ergonomics Hardening complete:**
 
 - **2026-08-18 — Phase 25: Multimodal Perception Envelope & Engine complete:**
 
