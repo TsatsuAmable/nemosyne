@@ -14,8 +14,6 @@ import { applyNestedRings, applyDendrogramArc, applyDensityCloud } from './Clust
 import {
   applyAnomalyHighlight,
   clearAnomalyHighlight,
-  applyOutlierLens,
-  releaseOutlierLens,
 } from './AnomalyTransforms.ts';
 import type { ArtifactRef, NodeMaterialLike } from '../coordinators/types.ts';
 
@@ -260,24 +258,6 @@ export function anomalyByRowIndices(artifact: ArtifactRef, rowIndices: number[])
  */
 export function clearAnomaly(artifact: ArtifactRef) {
   clearAnomalyHighlight(artifact);
-}
-
-/**
- * Focus an outlier lens around a world-space point.
- */
-export function applyOutlierLensAt(
-  artifact: ArtifactRef,
-  anomalyDataset: Dataset,
-  focusPoint: THREE.Vector3
-) {
-  applyOutlierLens(artifact, anomalyDataset, focusPoint);
-}
-
-/**
- * Release the outlier lens.
- */
-export function releaseOutlierLensAt(artifact: ArtifactRef) {
-  releaseOutlierLens(artifact);
 }
 
 /**
