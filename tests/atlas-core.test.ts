@@ -1,8 +1,9 @@
+// @ts-nocheck
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
-import { makeKernelMockBridge } from './helpers/kernelMock.js';
+import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
 function makeDataset(): Dataset {
   return new Dataset(

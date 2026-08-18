@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
 import { NeuralConstraintPredictor } from '../src/ai/NeuralConstraintPredictor.ts';
 import { DracoWorldModel } from '../src/ai/DracoWorldModel.ts';

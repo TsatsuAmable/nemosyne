@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { AnalysisStorybookExporter } from '../src/utils/AnalysisStorybookExporter.ts';

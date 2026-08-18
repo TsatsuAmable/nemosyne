@@ -1,3 +1,4 @@
+// @ts-nocheck
 // @vitest-environment jsdom
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

@@ -5,7 +5,7 @@ import { VRTopologyTranslator } from '../../../src/draco/VRTopologyTranslator.js
 import { DracoTopologyNode } from '../../../src/draco/DracoTopologyNode.js';
 import { Dataset } from '../../../src/data/Dataset.js';
 import { generateTabularCSV, generateGraphCSV } from '../harness/dataset_fixtures.js';
-import { makeKernelMockBridge } from '../../helpers/kernelMock.js';
+import { makeKernelMockBridge } from '../../helpers/kernelMock.ts';
 import { makeFactProvider } from '../../helpers/dracoFactsHelper.ts';
 
 // Wave 3: CSVDataParser is deleted. The CSV fixtures are parsed through the

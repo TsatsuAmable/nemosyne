@@ -41,7 +41,7 @@ window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
         engine: world.engine,
         eventBus: world.eventBus,
         getUIState: () => ({
-          wheel: world.handWheelMenu?.isVisible?.() ?? false,
+          wheel: world.uiManager?.handWheelMenu?.isVisible?.() ?? false,
           tour: world.guidedTour
             ? {
                 active: world.guidedTour.isActive,
@@ -63,7 +63,9 @@ window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
         recorder.recordSelection(info);
       };
       world.engine.input.systemDetector.onTrace = (info) => recorder.recordSystemGesture(info);
-      world.handWheelMenu.onVisibility = (visible, via) => recorder.recordWheel(visible, via);
+      if (world.uiManager?.handWheelMenu) {
+        world.uiManager.handWheelMenu.onVisibility = (visible: boolean, via: 'toggle' | 'show' | 'hide') => recorder.recordWheel(visible, via);
+      }
     }
 
     if (telemetry) {

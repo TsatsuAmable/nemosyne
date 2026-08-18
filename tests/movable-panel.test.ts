@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
 import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';

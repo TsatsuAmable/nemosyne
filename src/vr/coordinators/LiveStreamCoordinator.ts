@@ -139,12 +139,12 @@ export class LiveStreamCoordinator {
     this._liveUpdateUnsub = this.liveConnector!.onUpdate((update: LiveUpdate) => this._onLiveUpdate(update));
     this._liveStatusUnsub = this.liveConnector!.onStatus((status: string, detail?: string) => {
       console.log(`[LiveStreamCoordinator] live stream ${status}`, detail || '');
-      this.world.vrMenu?.setLiveConnected?.(this.liveConnector?.isConnected?.() ?? false);
-      if (status === 'connected') this.world.vrConsole?.log?.('log', ['Live stream connected']);
+      this.world.uiManager?.vrMenu?.setLiveConnected?.(this.liveConnector?.isConnected?.() ?? false);
+      if (status === 'connected') this.world.uiManager?.vrConsole?.log?.('log', ['Live stream connected']);
       if (status === 'disconnected')
-        this.world.vrConsole?.log?.('log', ['Live stream disconnected']);
+        this.world.uiManager?.vrConsole?.log?.('log', ['Live stream disconnected']);
       if (status === 'error')
-        this.world.vrConsole?.warn?.('warn', [`Live stream error: ${detail}`]);
+        this.world.uiManager?.vrConsole?.warn?.('warn', [`Live stream error: ${detail}`]);
     });
   }
 

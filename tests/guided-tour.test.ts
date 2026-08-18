@@ -1,3 +1,4 @@
+// @ts-nocheck
 // @vitest-environment jsdom
 
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';

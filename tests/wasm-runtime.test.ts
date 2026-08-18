@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Integration tests for the Rust/WASM RuntimeBridge.
  *

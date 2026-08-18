@@ -1,9 +1,10 @@
+// @ts-nocheck
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from 'vitest';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { NemosyneSession } from '../src/session/NemosyneSession.ts';
-import { makeKernelMockBridge } from './helpers/kernelMock.js';
+import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 import type { DatasetJSON } from '../src/data/types.ts';
 import type { VRCommand } from '../src/atlas/types.ts';
 

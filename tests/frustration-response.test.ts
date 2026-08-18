@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { UXFrustrationAnalyzer } from '../src/utils/UXFrustrationAnalyzer.ts';

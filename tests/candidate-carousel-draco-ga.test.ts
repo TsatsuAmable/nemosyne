@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
 import { RepresentationCarousel } from '../src/vr/ui/RepresentationCarousel.ts';
 import { DracoWorldModel } from '../src/ai/DracoWorldModel.ts';

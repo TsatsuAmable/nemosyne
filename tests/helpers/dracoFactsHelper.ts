@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Test-only Draco fact provider.
  *

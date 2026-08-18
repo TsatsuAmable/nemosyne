@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { Dataset } from '../../../src/data/Dataset.ts';
 import { flatBufferToDataset } from '../../../src/data/serializers/FlatBuffersSerializer.ts';
 import { NetworkManager } from '../../../src/network/NetworkManager.ts';
-import { makeKernelMockBridge } from '../../helpers/kernelMock.js';
+import { makeKernelMockBridge } from '../../helpers/kernelMock.ts';
 
 describe('Tier 3 — Suite 3.4: Security Hardening × Protocol Safety & Resilience (F11 × F12 × F13)', () => {
   it('INT-3.4.1: Malicious JSON and FlatBuffer payloads with prototype keys and truncated bounds are caught cleanly without unhandled rejection', async () => {

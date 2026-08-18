@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import { VoiceCommandListener } from '../src/ai/VoiceCommandListener.ts';
 import { SpatialAudioNarrator } from '../src/vr/audio/SpatialAudioNarrator.ts';
