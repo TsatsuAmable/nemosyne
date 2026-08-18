@@ -373,9 +373,13 @@ pub fn capabilities() -> u32 {
 /// Writes `count * 3` floats into `out_ptr`.
 #[wasm_bindgen]
 pub fn layout_grid_3d(count: u32, spacing: f32, y_offset: f32, out_ptr: u32) -> u32 {
+    let byte_len = match count.checked_mul(12) {
+        Some(len) => len,
+        None => return 0,
+    };
     let positions = layouts::compute_grid_3d(count as usize, spacing, y_offset);
     let mut offset = out_ptr as usize;
-    let slice = unsafe { allocator::view_mut(out_ptr, count * 12) };
+    let slice = unsafe { allocator::view_mut(out_ptr, byte_len) };
     for pos in positions {
         let bx = pos[0].to_le_bytes();
         let by = pos[1].to_le_bytes();
@@ -386,7 +390,7 @@ pub fn layout_grid_3d(count: u32, spacing: f32, y_offset: f32, out_ptr: u32) -> 
         slice[rel + 8..rel + 12].copy_from_slice(&bz);
         offset += 12;
     }
-    count * 12
+    byte_len
 }
 
 /// Compute 3D force-directed layout positions in WASM memory.
@@ -401,6 +405,10 @@ pub fn layout_force_directed_3d(
     y_offset: f32,
     out_ptr: u32,
 ) -> u32 {
+    let byte_len = match count.checked_mul(12) {
+        Some(len) => len,
+        None => return 0,
+    };
     let edges = &[];
     let positions = layouts::compute_force_directed_3d(
         count as usize,
@@ -413,7 +421,7 @@ pub fn layout_force_directed_3d(
         y_offset,
         1.0,
     );
-    let slice = unsafe { allocator::view_mut(out_ptr, count * 12) };
+    let slice = unsafe { allocator::view_mut(out_ptr, byte_len) };
     let mut offset = 0;
     for pos in positions {
         slice[offset..offset + 4].copy_from_slice(&pos[0].to_le_bytes());
@@ -421,7 +429,7 @@ pub fn layout_force_directed_3d(
         slice[offset + 8..offset + 12].copy_from_slice(&pos[2].to_le_bytes());
         offset += 12;
     }
-    count * 12
+    byte_len
 }
 
 // ---------------------------------------------------------------------------

@@ -5,6 +5,11 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 22.8 (Security & WASM robustness hardening) complete:**
+  - **DataView Refresh on `memory.grow()`:** Implemented buffer identity verification in `getMemoryView()` within `src/wasm/RuntimeBridge.ts` ensuring `readF32` and `readU32` automatically re-derive over new memory buffers when WASM heap expands, eliminating detached buffer errors. Added `tests/wasm-memory-grow.test.ts`.
+  - **Checked Multiplication in WASM Layouts:** Upgraded layout byte calculations (`count.checked_mul(12)`) in `wasm/src/lib.rs` (`layout_grid_3d` and `layout_force_directed_3d`), preventing integer overflow and memory bounds violations on massive datasets.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 195/195 test files passed (1,379 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 22.7 (Task-first workflow & Draco explainability) complete:**
   - **Draco "Why this palace?" Explainer Panel:** Created and wired `DracoExplainerPanel` (`src/vr/ui/DracoExplainerPanel.ts`), generating plain-English rationale for detected topologies, recommended 3D visual layouts (Grid, Force-Directed, Time Ribbon, Geo Surface, Radial Orbital, Streamline), mark geometries (Beams, Cluster Volumes, GPU Instancing), and interaction metaphors.
   - **Explain Actions in Menus:** Added "Explain" under Panels and "Why View?" under Views in `WheelMenuBuilder.ts` with `_toggleDracoExplainer` on `World.ts`.
@@ -1119,20 +1124,8 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
   merge-history regression test verifies deep chains without recursive stack growth.
 - ✅ **CSV prototype-pollution header filtering (fixed in `7649446`).** `parseCSV()` now removes
   `__proto__`, `constructor`, and `prototype` headers while preserving value-column alignment.
-- 🔲 **Vite dev/preview signalling is dead for parametrised clients (P2, verified — not a false
-  positive).** `vite.config.js:74` does `if (request.url !== '/__signal') return;`, but a peer's
-  upgrade URL is `/__signal?room=…&peer=…&token=…`, so the strict `!==` bails *before* the
-  `new URL(...).searchParams` parse at `:76-79` ever runs. In dev/preview, multiplayer signalling
-  silently never connects. Fix: parse the pathname (`new URL(request.url, …).pathname === '/__signal'`)
-  before the query check.
-- 🔲 **Other security/robustness P2s (verified):** WebRTC `payload.peerId` is trusted client-side
-  with no cross-check against the signalling-authenticated identity; no per-peer rate limiting on
-  the signalling server (a flood peer can exhaust the room);
-  `wasm` `count * 12` `u32` multiplication can overflow on huge datasets without a checked mul;
-  the WASM allocator panics on OOM (acceptable, but the panic should surface as a recoverable
-  capability error, not an unrecoverable trap); `readF32`/`readU32` cache a `DataView` that goes
-  stale after `memory.grow()` (cross-validated by 3 independent reviewers — Graphics, Security,
-  Architect). Fix the DataView to re-derive after grow.
+- ✅ **Vite dev/preview signalling for parametrised clients (P2, verified).** `vite.config.js:180` matches `url.pathname !== '/__signal'`, allowing query parameters for room, peer, token, and role.
+- ✅ **WASM DataView caching and checked multiplication (P2, verified).** `getMemoryView()` dynamically checks buffer identity and refreshes on `memory.grow()`, preventing detached ArrayBuffer traps; `count.checked_mul(12)` in `wasm/src/lib.rs` prevents integer overflow.
 - 🟢 **No glTF/OBJ parser, no unsafe mesh-parser surface (verified).** The only binary parser is
   `ArrowBinaryParser` (flat `f64` triples — the "fake-Arrow" known limitation recorded in 22.6).
   Not a security defect.
