@@ -5,6 +5,13 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Position Semantics, Evidence-Informed Draco Recommender & Hardware Validation Matrix complete:**
+  - **Position Semantic vs Structural vs Layout Discipline:** Implemented `PositionSemanticClassifier` (`src/data/PositionSemanticClassifier.ts`) categorizing spatial coordinates into `SEMANTIC`, `STRUCTURAL`, and `LAYOUT` roles to prevent misleading perceptual inferences (e.g., force-directed layout proximity ≠ metric similarity).
+  - **Evidence-Informed Draco Recommender Loop:** Implemented `EvidenceInformedRecommender` (`src/draco/EvidenceInformedRecommender.ts`) updating layout recommendation utilities based on empirical human performance trials.
+  - **Hardware Validation Matrix Registry:** Implemented `HardwareValidationMatrixRegistry` (`src/types/HardwareValidationMatrix.ts`) formalizing per-headset (Desktop, Quest 3S, Quest 3, Vision Pro) x stress-test dimension (startup, scale, comfort, contrast, tracking) matrix tracking.
+  - **Unit Test Suite:** Added `tests/research-position-draco-hardware.test.ts` testing position contracts, empirical weight adjustments, and hardware suite tracking.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 208/208 test files passed (1,418 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Research Validation, 5-Level Evidence Hierarchy & 2D-vs-VR Study Harness complete:**
   - **5-Level Evidence Hierarchy Registry:** Implemented `EvidenceHierarchyRegistry` (`src/types/EvidenceHierarchy.ts`) enforcing project-wide rigor distinguishing `IMPLEMENTED` → `TESTED` → `USABLE` → `USEFUL` → `SUPERIOR`.
   - **User Journey Score (UX-Cost Composite):** Implemented `UserJourneyScoreCalculator` (`src/vr/trace/UserJourneyScore.ts`) decomposing learning, navigation, interaction, interpretation, and evidence costs.
