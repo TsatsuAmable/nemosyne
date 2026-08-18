@@ -152,7 +152,6 @@ export class WorldTheme {
     if (!this.particles) return;
     const positions = this.particles.geometry.attributes.position.array as Float32Array;
     const speeds = this.particles.geometry.attributes.speed.array as Float32Array;
-    const phases = this.particles.geometry.attributes.phase.array as Float32Array;
     const count = positions.length / 3;
     const pulse = 1 + Math.max(0, activity) * 2;
 

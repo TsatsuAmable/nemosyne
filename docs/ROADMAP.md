@@ -5,6 +5,33 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Cleanup pass: dead-code retirement, Rust `draco_solve` cutover staged, lint cleared:**
+  - **Retired the legacy `src/ai/Gesture*` trio** (`GestureClassifierModel.ts`, `GestureTrainingWorker.ts`,
+    `GestureModelStore.ts`) + their tests, and added an explicit retirement note to **Phase 23** so two
+    parallel ONNX-gesture systems cannot coexist at integration time — `modules/gesture-intelligence/`
+    is now the sole gesture-intelligence surface. Updated the two stale `src/ai/` inventory items
+    (now 3 remaining files: `NeuralConstraintPredictor`, `VoiceCommandListener`, `DracoWorldModel`).
+  - **Wired the shipped Rust `draco_solve` into `DracoTopologyNode`** behind an opt-in 6th constructor
+    arg `useRustSolver` (default `false`). When true, `reSolveAndSynthesize` calls
+    `RuntimeBridge.solveDraco(facts)` and builds the `SolverResult` from the Rust spec+cost while
+    keeping the authoritative TS `DracoFacts`. The TS `ConstraintEngine` stays canonical — this is an
+    explicit developer switch, **not** a runtime capability-routing branch; if the WASM runtime is
+    uninitialised it **throws** rather than silently falling back. `adjustWeight` throws under the
+    Rust path (per-weight tuning not in the current ABI). Cutover (flip default + delete TS path) staged
+    as a follow-up. Covered by 5 new tests in `tests/draco-topology-node.test.ts` (mocked `solveDraco`).
+  - **Walked back the "World Facade Simplification complete" claim** in the Current Status heading —
+    retitle now reads "Full TypeScript Migration complete; World Facade decommission NOT complete",
+    with an explicit note that the earlier heading overstated the work.
+  - **Deleted `DracoSolverWorker`, `AnalysisStorybookExporter`, `ContextRecoveryManager`** + their
+    tests (`worker-offloading.test.ts`, `storybook-context-recovery.test.ts`) — all built-but-never-
+    wired classes with real test coverage. Updated the `DracoSolverWorker` inventory item to ✅.
+  - **Cleared all 75 no-console/unused-var lint warnings in `src/`.** Added `caughtErrorsIgnorePattern:
+    '^_'` to the eslint config (the existing `^_` convention for unused caught errors), file-level
+    `eslint-disable no-console` for the two console-intercepting utilities (`RemoteDebugStreamer`,
+    `VRConsole`), converted diagnostic `console.log` → `console.warn`, and prefixed/removed genuinely
+    unused vars/imports.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint src/` 0 warnings · `npm test` 1367 passed / 26 skipped ·
+    `cargo test --manifest-path wasm/Cargo.toml` 84 passed. Working tree clean on this branch.
 - **2026-08-18 — Standalone `modules/gesture-intelligence/` sprint complete (out-of-roadmap, architecturally separate):**
   Frozen 56-dim feature vector, heuristic + ONNX classifier with **honest provenance** (`source` = the path that produced the numbers;
   explicit `degradedReason`), biomechanical calibration (speed-EMA + sticky-band hysteresis), on-device personalization (threshold
@@ -49,13 +76,14 @@
   deleted 35 obsolete pre-generated `.html` twins, legacy study draft duplicates, and superseded sprint reports, and synchronized all canonical
   documents (`docs/ARCHITECTURE.md`, `docs/ANALYTICS.md`, `docs/INTERACTIONS.md`, `docs/PROJECT_DOCS_INDEX.md`, `AGENTS.md`) with the
   ground truth of the 100% pure TypeScript codebase and Rust WASM analytical kernel.
-  Full TypeScript Migration & World Facade Simplification complete:
+  Full TypeScript Migration complete; World Facade decommission NOT complete:
   Converted all 63 remaining JavaScript test suites and helpers in `tests/` to pure TypeScript (`.ts`), eliminating all `.js`
-  files across `src/` and `tests/`. Wired canonical domain coordinators and `WorldUIManager` behind the `World.ts` facade
-  (presentation controllers decoupled; all 6 CI gates green). The 17 legacy `@deprecated` duplicate accessors on `World.ts`
-  remain as a compatibility shim pending the `MIGRATION.md` removal deadline — the facade decommission itself is NOT yet
-  complete; the coordinators are authoritative and the facade delegates to them, but the deprecated surface has not been
-  deleted.
+  files across `src/` and `tests/` (this part is done). Wired canonical domain coordinators and `WorldUIManager` behind the
+  `World.ts` facade (presentation controllers decoupled; all 6 CI gates green). The 17 legacy `@deprecated` duplicate
+  accessors on `World.ts` remain as a compatibility shim pending the `MIGRATION.md` removal deadline — **the facade
+  decommission itself is NOT complete**: the coordinators are authoritative and the facade delegates to them, but the
+  deprecated surface has not been deleted. (The earlier heading here claimed "World Facade Simplification complete",
+  which overstated the work — only the coordinator wiring is complete, not the decommission.)
   World Facade Deprecation, Domain Boundaries & Architectural Invariants complete:
   Formalized `MIGRATION.md` register with facade deprecation timelines, added `@deprecated` JSDoc annotations across `World.ts`
   legacy getters, and implemented the automated architectural invariant suite in `tests/architectural-invariants.test.ts`
@@ -868,12 +896,12 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
 - 🔲 **Review `allowJs: true` (verified).** Source is TS-first now; make the boundary explicit
   (`src` = TS-only; tests/config = JS) rather than a broad compiler permission.
 - 🔲 **Resolve `src/ai/` README staleness + AI-story inconsistency.** `README.md:74` says
-  `ai/ # (planned)` but `src/ai/` already holds 6 real files (`NeuralConstraintPredictor`,
-  `GestureClassifierModel`, `GestureModelStore`, `GestureTrainingWorker`,
-  `VoiceCommandListener`, `DracoWorldModel`). Decide: keep AI emphasis with accurate status,
-  or **remove the AI emphasis for now** (the symbolic Draco recommender is the more
-  interesting, defensible story — don't dilute "transparent representation recommender" into
-  "AI chooses your chart"). If a learned layer comes later, evaluate it against Draco.
+  `ai/ # (planned)` but `src/ai/` holds 3 real files (`NeuralConstraintPredictor`,
+  `VoiceCommandListener`, `DracoWorldModel`) — the gesture trio was deleted 2026-08-18 (see
+  Phase 23). Decide: keep AI emphasis with accurate status, or **remove the AI emphasis for
+  now** (the symbolic Draco recommender is the more interesting, defensible story — don't
+  dilute "transparent representation recommender" into "AI chooses your chart"). If a learned
+  layer comes later, evaluate it against Draco.
 - 🔲 **Separate semantic mark from visual skin.** Today spatial form and cyberpunk aesthetic
   are entangled. Split `NODE → {crystal, sphere, dot, column}` and `BEAM → {neon, neutral,
   high-contrast}` so the research question "does spatial form help?" can be answered
@@ -907,13 +935,22 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
   predicate and either gate it honestly or remove the dead fact.
 
 #### Architecture hygiene (extended — Principal Architect review, verified 2026-08-11)
-- 🔲 **`DracoSolverWorker` is not a real Web Worker (P1, verified).** `DracoSolverWorker.ts:29`
-  runs `this._engine.solve()` inside `setTimeout(…, 0)` on the main thread (the docstring claims
-  it "offloads … off the WebXR main render thread" — misleading), and `:21` holds a *separate*
-  `ConstraintEngine` singleton from `DracoTopologyNode`'s (`DracoTopologyNode.ts:29`). Adjusting
-  a weight through the worker therefore blocks XR frames and mutates a divergent engine. Either
-  make it a real `Worker` (post `dataInput`, receive `SolverResult`) or delete it and route
-  weight adjustments through `DracoTopologyNode.adjustWeight`.
+- ✅ **`DracoSolverWorker` deleted 2026-08-18 (this pass).** It was never a real Web Worker
+  (`setTimeout(…, 0)` on the main thread, a divergent `ConstraintEngine` singleton) and was
+  never instantiated by production code. Weight adjustments route through
+  `DracoTopologyNode.adjustWeight` as before. (Was P1, verified.)
+- 🟡 **Rust `draco_solve` wired into `DracoTopologyNode` behind an opt-in flag (2026-08-18, this pass).**
+  `DracoTopologyNode` takes a 6th constructor arg `useRustSolver` (default `false`). When true,
+  `reSolveAndSynthesize` calls `RuntimeBridge.solveDraco(facts)` and builds the `SolverResult` from
+  the Rust spec+cost while keeping the authoritative TS `DracoFacts` (the richer shape
+  `VRTopologyTranslator` reads). The TS `ConstraintEngine` remains canonical. This is an explicit
+  developer switch, **not** a runtime capability-routing branch (CLAUDE.md no-routing rule): if the
+  WASM runtime is uninitialised, `solveDraco` returns null and the node **throws** rather than
+  silently falling back. `adjustWeight` throws under the Rust path (per-weight tuning isn't exposed
+  through the current ABI). **Cutover staged:** flip the default to `true` once the Rust path is
+  validated end-to-end against the TS engine on real datasets, then delete the TS `ConstraintEngine`
+  solve path. Covered by `tests/draco-topology-node.test.ts` (Rust path exercised via a mocked
+  `solveDraco`; TS path unchanged).
 - 🔲 **Capability flags duplicated across 4 files with no shared source (P1, verified).** The
   bitfield is re-declared in `wasm/src/lib.rs:293-306`, `World.ts:90`, `FileLoader.ts:18`, and
   `DataOperationController.ts:36` — only a comment keeps them in sync. Introduce a single
@@ -943,12 +980,13 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
 > The six built-but-never-instantiated classes are already recorded (22.3 JIT/frustration, 22.5
 > avatars/companion/annotations). The audit surfaced *additional* dead production code.
 
-- 🔲 **`src/ai/` entire module is production-unwired — 740 lines (P1, verified).** None of the 6
-  `src/ai/*.ts` files (`NeuralConstraintPredictor`, `GestureClassifierModel`, `GestureModelStore`,
-  `GestureTrainingWorker`, `VoiceCommandListener`, `DracoWorldModel`) is imported anywhere in
-  `src/` outside `src/ai/` itself (grep-confirmed zero); only tests reference them. This upgrades
-  the existing "src/ai/ README staleness" item: the whole AI subsystem is built and unit-tested
-  but never wired into `World`/`Engine`/any coordinator. Decide: wire + integration-test, or
+- 🔲 **`src/ai/` remainder is production-unwired (P1, verified).** None of the 3 remaining
+  `src/ai/*.ts` files (`NeuralConstraintPredictor`, `VoiceCommandListener`, `DracoWorldModel`)
+  is imported anywhere in `src/` outside `src/ai/` itself (grep-confirmed zero); only tests
+  reference them. The gesture trio (`GestureClassifierModel`, `GestureModelStore`,
+  `GestureTrainingWorker`) was deleted 2026-08-18 — see Phase 23. This upgrades the existing
+  "src/ai/ README staleness" item: the remaining AI subsystem is built and unit-tested but
+  never wired into `World`/`Engine`/any coordinator. Decide: wire + integration-test, or
   delete (the symbolic Draco recommender is the defensible story — see the README item above).
 - 🔲 **`src/data/serializers/` is production-unwired (P1, verified).** The barrel
   (`serializers/index.ts`) has zero production importers; `datasetToArrowIPC`/`arrowIPCToDataset`
@@ -1313,6 +1351,18 @@ UXI-7 is the gate: the 2026-08-18 replay must reproduce the manual findings.
 > accuracy 0.9111, macro-F1 0.9087, 24 KB ONNX, all 6 classes predicted. **Not yet
 > wired into the host.** This phase wires it in and builds the global learning loop.
 > See `modules/gesture-intelligence/SPRINT.md` + `README.md` for the frozen contract.
+>
+> **Legacy `src/ai/Gesture*` retired 2026-08-18 (this pass).** The three pre-existing
+> gesture prototypes — `src/ai/GestureClassifierModel.ts`, `GestureTrainingWorker.ts`,
+> `GestureModelStore.ts` — plus their tests were **deleted** before Phase 23 wiring begins.
+> They were never imported by production `src/` (grep-confirmed zero), overlapped the
+> new module's contract (ONNX bridge + IndexedDB persistence + personalization), and
+> leaving both in place would have produced two parallel ONNX-gesture systems at
+> integration time. The frozen contract in `modules/gesture-intelligence/` is now the
+> **sole** gesture-intelligence surface; Sprint 23.1 wires the host to that module,
+> not to anything in `src/ai/`. The remaining `src/ai/` files
+> (`NeuralConstraintPredictor`, `VoiceCommandListener`, `DracoWorldModel`) are
+> unrelated and still deferred per the dead-code inventory below.
 
 ### Architectural direction
 

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
-import { Dataset, ColumnType, type ColumnTypeValue } from '../../data/Dataset.ts';
+import { Dataset, ColumnType } from '../../data/Dataset.ts';
 import type { ColumnSchema } from '../../data/types.ts';
 
 export interface SchemaMappingPanelOptions {

@@ -6,6 +6,9 @@
  * the Vite dev server endpoint (`/__remote-logs`).
  */
 
+/* eslint-disable no-console -- this utility's entire purpose is to intercept
+   and restore console.log/info, so referencing them is intentional. */
+
 export interface LogEntry {
   timestamp: string;
   level: 'log' | 'info' | 'warn' | 'error';

@@ -308,7 +308,7 @@ export class Locomotion {
     }
   }
 
-  update(delta: number, time: number): void {
+  update(delta: number, _time: number): void {
     if (this.enabled === false) return;
     this.turnCooldown = Math.max(0, this.turnCooldown - delta);
 
@@ -643,7 +643,7 @@ export class Locomotion {
     }
   }
 
-  _updateHandGrabMovement(delta: number): void {
+  _updateHandGrabMovement(_delta: number): void {
     const hands = this.engine.input.hands;
     if (!hands || hands.length === 0) return;
 

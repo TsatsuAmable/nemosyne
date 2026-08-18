@@ -138,7 +138,7 @@ export class LiveStreamCoordinator {
   _wireLiveConnector(): void {
     this._liveUpdateUnsub = this.liveConnector!.onUpdate((update: LiveUpdate) => this._onLiveUpdate(update));
     this._liveStatusUnsub = this.liveConnector!.onStatus((status: string, detail?: string) => {
-      console.log(`[LiveStreamCoordinator] live stream ${status}`, detail || '');
+      console.warn(`[LiveStreamCoordinator] live stream ${status}`, detail || '');
       this.world.uiManager?.vrMenu?.setLiveConnected?.(this.liveConnector?.isConnected?.() ?? false);
       if (status === 'connected') this.world.uiManager?.vrConsole?.log?.('log', ['Live stream connected']);
       if (status === 'disconnected')

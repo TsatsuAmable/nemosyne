@@ -77,7 +77,7 @@ import { TechnoCoreNode } from './artifacts/TechnoCoreNode.ts';
 import { IceVaultNode } from './artifacts/IceVaultNode.ts';
 import { FarcasterPortal } from './artifacts/FarcasterPortal.ts';
 import { HolographicInspector } from './artifacts/HolographicInspector.ts';
-import type { DatasetJSON, EncodingMapping, TopologyType } from '../data/types.ts';
+import type { TopologyType } from '../data/types.ts';
 import { DatasetSpace } from '../atlas/DatasetSpace.ts';
 import { AtlasCore } from '../atlas/AtlasCore.ts';
 import { NemosyneSession } from '../session/NemosyneSession.ts';
@@ -803,7 +803,7 @@ export class World {
    * "PerformanceBudget critical" frame-spike warning.
    */
   loadDataset(entry: DatasetLoadEntry): void {
-    console.log('[World] loading dataset:', entry.name ?? entry.label, entry.topology);
+    console.warn('[World] loading dataset:', entry.name ?? entry.label, entry.topology);
     this._doLoadDataset(entry);
   }
 

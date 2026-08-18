@@ -32,7 +32,7 @@ export function makeSalesTable(rows: number = 60): Dataset {
   );
 }
 
-export function makeOrgChart(depth: number = 3, branching: number[] = [1, 3, 4, 2]): Dataset {
+export function makeOrgChart(_depth: number = 3, branching: number[] = [1, 3, 4, 2]): Dataset {
   const rows: Record<string, unknown>[] = [];
   let idCounter = 1;
   function addNode(name: string, level: number, parent: number | null): number {

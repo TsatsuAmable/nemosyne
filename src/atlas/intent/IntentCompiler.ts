@@ -6,7 +6,7 @@
  */
 
 import type { DatasetJSON, Predicate, OperationSpec, AggregatorFn } from '../../data/types.ts';
-import type { ParsedIntent, IntentKind } from './types.ts';
+import type { ParsedIntent } from './types.ts';
 
 export class IntentCompiler {
   /**

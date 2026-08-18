@@ -7,6 +7,16 @@ import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.ts';
 import { TopologyTypes } from '../src/draco/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
+import { solveDraco } from '../src/wasm/RuntimeBridge.ts';
+
+// Mock only `solveDraco` on the WASM bridge so the Rust-solver path can be
+// exercised in plain jsdom (the real wasm pkg is HTTP-served and skipped here).
+// All other RuntimeBridge exports (computeGrid3d etc. used by the layout
+// generators) are preserved via importOriginal so TS-path synthesis still works.
+vi.mock('../src/wasm/RuntimeBridge.ts', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, solveDraco: vi.fn() };
+});
 
 describe('DracoTopologyNode', () => {
   let scene;
@@ -153,5 +163,91 @@ describe('DracoTopologyNode', () => {
     const result = node.appendRows([{ time: '2026-07-28T01:00:00', value: 2 }]);
 
     expect(node.dataInput.dataset.rowCount).toBe(before + 1);
+  });
+});
+
+describe('DracoTopologyNode — Rust solver cutover (opt-in)', () => {
+  let scene;
+  let dataset;
+  const dataInput = () => ({
+    topology: TopologyTypes.TABULAR,
+    dataset,
+    encodings: { color: 'category' },
+  });
+
+  beforeEach(() => {
+    scene = new THREE.Scene();
+    dataset = new Dataset(
+      'Tabular',
+      [
+        { name: 'value', type: ColumnType.NUMERIC },
+        { name: 'category', type: ColumnType.CATEGORICAL },
+      ],
+      [
+        { value: 10, category: 'A' },
+        { value: 20, category: 'B' },
+        { value: 30, category: 'A' },
+      ]
+    );
+    solveDraco.mockReset();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('solves via Rust draco_solve when useRustSolver is true', () => {
+    solveDraco.mockReturnValue({
+      facts: { rowCount: 3 },
+      spec: { layout: 'GRID_3D', geometry: 'CUBE_MATRIX', behavior: 'STATIC', interaction: 'INSPECT_CELL' },
+      cost: 42,
+    });
+
+    const node = new DracoTopologyNode(scene, dataInput(), undefined, undefined, makeFactProvider(), true);
+
+    expect(solveDraco).toHaveBeenCalledTimes(1);
+    // The single call happened during construction; verify the spec came from Rust.
+    expect(node.solverResult.spec.layout).toBe('GRID_3D');
+    expect(node.solverResult.spec.geometry).toBe('CUBE_MATRIX');
+    expect(node.solverResult.cost).toBe(42);
+    // The authoritative facts are the TS FactProvider's, not the Rust subset.
+    expect(node.solverResult.facts.rowCount).toBe(3);
+    expect(node.solverResult.facts).toHaveProperty('columnStats');
+    // An artifact was still synthesized from the Rust spec.
+    expect(node.artifact).toBeTruthy();
+    expect(node.group.parent).toBe(scene);
+  });
+
+  it('throws when useRustSolver is true but the WASM runtime is not initialised (null)', () => {
+    solveDraco.mockReturnValue(null);
+    expect(() => new DracoTopologyNode(scene, dataInput(), undefined, undefined, makeFactProvider(), true)).toThrow(
+      /draco_solve returned null/
+    );
+  });
+
+  it('throws when useRustSolver is true but no FactProvider is configured', () => {
+    solveDraco.mockReturnValue({ spec: { layout: 'GRID_3D' }, cost: 1 });
+    expect(() => new DracoTopologyNode(scene, dataInput(), undefined, undefined, null, true)).toThrow(
+      /no facts provided/
+    );
+  });
+
+  it('rejects adjustWeight under the Rust path (not exposed through the ABI)', () => {
+    solveDraco.mockReturnValue({
+      spec: { layout: 'GRID_3D', geometry: 'CUBE_MATRIX', behavior: 'STATIC', interaction: 'INSPECT_CELL' },
+      cost: 1,
+    });
+    const node = new DracoTopologyNode(scene, dataInput(), undefined, undefined, makeFactProvider(), true);
+    expect(() => node.adjustWeight('preferGridForTabular', 10)).toThrow(/not exposed through the Rust draco_solve ABI/);
+  });
+
+  it('re-solve re-invokes the Rust solver', () => {
+    solveDraco.mockReturnValue({
+      spec: { layout: 'GRID_3D', geometry: 'CUBE_MATRIX', behavior: 'STATIC', interaction: 'INSPECT_CELL' },
+      cost: 1,
+    });
+    const node = new DracoTopologyNode(scene, dataInput(), undefined, undefined, makeFactProvider(), true);
+    node.reSolveAndSynthesize();
+    expect(solveDraco).toHaveBeenCalledTimes(2);
   });
 });

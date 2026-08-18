@@ -83,7 +83,7 @@ export class SystemGestureDetector {
       origin0?.y !== undefined &&
       origin1?.y !== undefined
     ) {
-      console.log(
+      console.warn(
         `[SystemGestureDetector] both-pinch suppressed in reach zone (y0=${origin0.y.toFixed(2)}, y1=${origin1.y.toFixed(2)})`
       );
       this.onTrace?.({
@@ -100,7 +100,7 @@ export class SystemGestureDetector {
       now - this._lastBothPinchToggleAt >= this._toggleCooldownMs &&
       now - this._lastSystemToggleAt >= this._toggleCooldownMs
     ) {
-      console.log('[SystemGestureDetector] system toggle fired (both-pinch start)');
+      console.warn('[SystemGestureDetector] system toggle fired (both-pinch start)');
       this.onTrace?.({ kind: 'both-pinch' });
       this.onSystemToggle?.();
       this._lastBothPinchToggleAt = now;
@@ -141,7 +141,7 @@ export class SystemGestureDetector {
       this.onSystemToggle &&
       now - this._lastSystemToggleAt >= this._toggleCooldownMs
     ) {
-      console.log('[SystemGestureDetector] system toggle fired (controller grips)');
+      console.warn('[SystemGestureDetector] system toggle fired (controller grips)');
       this.onTrace?.({ kind: 'grips' });
       this.onSystemToggle();
       this._lastSystemToggleAt = now;
