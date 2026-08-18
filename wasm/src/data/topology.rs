@@ -116,6 +116,7 @@ pub fn infer(dataset: &Dataset) -> Topology {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TdaMapperNode {
     pub id: usize,
     pub row_indices: Vec<usize>,
@@ -126,6 +127,7 @@ pub struct TdaMapperNode {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TdaMapperGraph {
     pub nodes: Vec<TdaMapperNode>,
     pub edges: Vec<(usize, usize)>,
@@ -472,5 +474,32 @@ mod tests {
         let filter_vals = vec![1.0, 2.0];
         let graph = compute_mapper_graph(&ds, &["val"], &filter_vals, 3, 0.3);
         assert!(!graph.nodes.is_empty());
+    }
+
+    /// The TS `TdaMapperNode` interface expects camelCase field names
+    /// (`rowIndices`, `filterCenter`). serde defaults to snake_case, which
+    /// made `JSON.parse(json) as TdaMapperGraph` yield nodes with no
+    /// `rowIndices` and crash `[...node.rowIndices]` on the Quest. Guard the
+    /// ABI contract: the JSON MUST use camelCase.
+    #[test]
+    fn tda_mapper_graph_serializes_camel_case() {
+        let graph = TdaMapperGraph {
+            nodes: vec![TdaMapperNode {
+                id: 0,
+                row_indices: vec![1, 0],
+                level: 2,
+                center: vec![0.5, 0.25],
+                filter_center: 1.5,
+                size: 2,
+            }],
+            edges: vec![(0, 0)],
+        };
+        let json = serde_json::to_string(&graph).expect("serialize");
+        let obj: serde_json::Value = serde_json::from_str(&json).expect("parse");
+        let node = &obj["nodes"][0];
+        assert!(node.get("rowIndices").is_some(), "camelCase rowIndices missing: {json}");
+        assert!(node.get("filterCenter").is_some(), "camelCase filterCenter missing: {json}");
+        assert!(node.get("row_indices").is_none(), "snake_case row_indices leaked: {json}");
+        assert!(node.get("filter_center").is_none(), "snake_case filter_center leaked: {json}");
     }
 }
