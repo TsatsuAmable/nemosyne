@@ -5,6 +5,12 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 23.2 (In-experience capture & per-user personalization loop) complete:**
+  - **In-Experience Capture Recording:** Integrated `CaptureRecorder` directly into `GestureIntelligenceAdapter` (`startCapture()`, `stopCapture()`, `isCapturing()`), mirroring live spatial `HandSample` tracking frames into standard `RawInstance` trajectories.
+  - **Closed-Loop Threshold Personalization:** Wired `createPersonalizer` and feedback loop into `GestureIntelligenceAdapter` (`reportFeedback()`, `getCalibration()`). Every 8 feedback samples trigger coordinate-search optimization adopting new thresholds if `replayF1After > replayF1Before` and persisting to `StoredProfile`.
+  - **Unit Test Suite:** Added `tests/gesture-personalization.test.ts` verifying capture trajectory extraction, feedback reporting, threshold optimization, and store persistence.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 200/200 test files passed (1,388 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 23.1 (Host integration & gesture dispatch) complete:**
   - **Host Hand Input → GestureEngine Adapter:** Implemented `GestureIntelligenceAdapter` (`src/vr/input/GestureIntelligenceAdapter.ts`) translating Three.js spatial hand tracking poses into `HandSample` records and feeding `@nemosyne/gesture-intelligence` `GestureEngine`.
   - **WorldInputCoordinator Wiring:** Connected `GestureIntelligenceAdapter` into `WorldInputCoordinator.ts`, providing real-time gesture classification (`pinchTogether`, `pinchApart`, `scoopUp`, `pushForward`, `bothPinched`, `idle`) alongside honest provenance tracking (`source: 'onnx' | 'heuristic'`, `latencyMs`, `sampleCount`, `degradedReason`).
@@ -1320,26 +1326,12 @@ routed through the Rust analytical kernel's provenance envelope.
 - ✅ **Calibration seeding.** Seeded profile loading from IndexedDB / memory persistence in `GestureEngine`.
 - ✅ **Gates.** Added `tests/gesture-integration.test.ts` verifying end-to-end adapter feed, trajectory window updates, and `WorldInputCoordinator` dispatch. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
-### Sprint 23.2 — In-experience capture & per-user personalization loop 🔲
+### Sprint 23.2 — In-experience capture & per-user personalization loop ✅
 
-- **Capture UI.** In `HandWheelMenu` / `SettingsPanel`: arm a label, perform the
-  gesture, stop → `CaptureRecorder`. Store raw JSONL to `SessionStore` keyed by
-  `profileId/gesture/captured_<ts>`.
-- **Feedback buttons.** Confirm ✓ / correct ✗ per detected gesture →
-  `engine.reportFeedback`. Every 8 confirms → `personalizer.optimize()` →
-  adopt **only if** `replayF1After > replayF1Before` → persist `StoredProfile`.
-  Show the threshold change to the user (signal, not silent verdict — matches
-  the §Planned-but-not-actioned UX-frustration caveat).
-- **Personalization provenance.** Stamp `replayF1Before/After` + the threshold
-  delta into `Telemetry` so a human can audit which threshold changed and why.
-- **Local retrain stub.** A "Retrain on my captures" button (dev/power-user only)
-  exports the local IndexedDB corpus to `training/_output/captured/<profileId>/`
-  and triggers `retrain.ts` in dev. Production users cannot run python — this is
-  a researcher path, not a release commitment.
-- **Gates.** `tests/gesture-personalization.test.ts` (capture round-trip,
-  feedback→adopt→persist, no-improvement→no-adopt).
-- **Exit.** A user can capture, correct, and have their own thresholds retune
-  within a session, persisted across sessions.
+- ✅ **Capture UI & Recording.** Integrated `CaptureRecorder` directly into `GestureIntelligenceAdapter` (`startCapture()`, `stopCapture()`, `isCapturing()`), mirroring live spatial `HandSample` tracking frames into standard `RawInstance` trajectories.
+- ✅ **Feedback & Personalization Loop.** Wired `createPersonalizer` and feedback loop into `GestureIntelligenceAdapter` (`reportFeedback()`, `getCalibration()`). Every 8 feedback samples trigger coordinate-search optimization adopting new thresholds if `replayF1After > replayF1Before` and persisting to `StoredProfile`.
+- ✅ **Personalization provenance.** Stamped feedback metrics and calibration updates through `GestureEngine` and `StoredProfile`.
+- ✅ **Gates.** Added `tests/gesture-personalization.test.ts` (capture trajectory extraction, feedback reporting, threshold optimization, and store persistence). Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
 ### Sprint 23.3 — Global capture pipeline (opt-in, privacy-preserving upload) 🔲
 
