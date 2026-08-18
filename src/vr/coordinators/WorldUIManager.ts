@@ -22,6 +22,7 @@ import { MiniOverview } from '../ui/MiniOverview.ts';
 import { PeerPresenceHUD } from '../ui/PeerPresenceHUD.ts';
 import { LoadTestPanel } from '../ui/LoadTestPanel.ts';
 import { RecommendationPanel } from '../ui/RecommendationPanel.ts';
+import { DracoExplainerPanel } from '../ui/DracoExplainerPanel.ts';
 import type { LoadTestDriver } from '../scalability/LoadTestDriver.ts';
 import type { Engine } from '../Engine.ts';
 import type { WorldEventBusLike } from './types.ts';
@@ -62,6 +63,7 @@ export class WorldUIManager {
   narrativeStrip: PanelLike;
   loadTestPanel: LoadTestPanel;
   recommendationPanel: RecommendationPanel;
+  dracoExplainerPanel: DracoExplainerPanel;
 
   constructor(engine: Engine, analystAnchor: Group, eventBus: WorldEventBusLike, callbacks: WorldUIManagerCallbacks = {}) {
     this.engine = engine;
@@ -259,6 +261,13 @@ export class WorldUIManager {
     this.engine.input.addPanel(this.recommendationPanel);
     this.engine.addUpdatable(this.recommendationPanel);
     this.panelManager.hidePanel(this.recommendationPanel);
+
+    // Draco explainer panel ("Why this palace?").
+    this.dracoExplainerPanel = new DracoExplainerPanel(engine.cameraGroup);
+    this.panelManager.register(this.dracoExplainerPanel);
+    this.engine.input.addPanel(this.dracoExplainerPanel);
+    this.engine.addUpdatable(this.dracoExplainerPanel);
+    this.panelManager.hidePanel(this.dracoExplainerPanel);
   }
 
   /**

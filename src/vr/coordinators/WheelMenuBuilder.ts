@@ -38,6 +38,12 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
           callback: () => world._toggleSettingsPanel(),
         },
         {
+          id: 'draco-explainer',
+          label: 'Explain',
+          icon: '💡',
+          callback: () => world._toggleDracoExplainer?.(),
+        },
+        {
           id: 'exit-vr',
           label: 'Exit VR',
           icon: '🚪',
@@ -234,6 +240,12 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
           label: 'Lens',
           icon: '🔬',
           callback: () => world._toggleStatisticalLens?.(),
+        },
+        {
+          id: 'explain-view',
+          label: 'Why View?',
+          icon: '💡',
+          callback: () => world._toggleDracoExplainer?.(),
         },
       ],
     },

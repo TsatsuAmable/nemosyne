@@ -5,6 +5,11 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 22.7 (Task-first workflow & Draco explainability) complete:**
+  - **Draco "Why this palace?" Explainer Panel:** Created and wired `DracoExplainerPanel` (`src/vr/ui/DracoExplainerPanel.ts`), generating plain-English rationale for detected topologies, recommended 3D visual layouts (Grid, Force-Directed, Time Ribbon, Geo Surface, Radial Orbital, Streamline), mark geometries (Beams, Cluster Volumes, GPU Instancing), and interaction metaphors.
+  - **Explain Actions in Menus:** Added "Explain" under Panels and "Why View?" under Views in `WheelMenuBuilder.ts` with `_toggleDracoExplainer` on `World.ts`.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 194/194 test files passed (1,378 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 22.6 (Data/Draco correctness + architecture hygiene) complete:**
   - **Pairwise complete correlation matrix (P0 correctness):** Upgraded `correlate` in Rust WASM `statistics.rs` from listwise-complete row filtering to pairwise complete observations per numeric column pair, eliminating data loss and misalignments from staggered NaNs. Added Rust test `correlation_with_staggered_nans_pairwise_complete`.
   - **Architecture hygiene & strict dependency direction:** Added strict dependency direction rule (`data → analysis → representation → rendering → input`) and event-bus vs direct-call discipline to `docs/ARCHITECTURE.md`.
@@ -1055,17 +1060,7 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
 > eventually consume a structured `Atlas` guidance object with target, action, rationale, evidence,
 > and confidence; the current diagnostic HUD is not that API.
 
-- 🔲 **Draco "Why this view?" / "Explain this" (P0, verified missing).** There is **no**
-  user-facing explainer. `DracoDiagnosticHUD` is a soft-constraint weight *tuner* for power
-  users (renders LAYOUT/GEOM/BEHAV/COST/DELTA + `adjustWeight`), not an explainer. Add a
-  compact "Why this palace?" panel: detected topology family, community count, edge density,
-  anomalous hubs, and *why* the recommended layout was chosen (e.g. "force-directed preserves
-  local connectivity while separating dense communities"). This turns Draco from invisible
-  magic into explainable analytical assistance — and is research infrastructure (the
-  explanation is a testable claim about what users trust). A universal **"Explain this"**
-  command (select an artefact → "why is this here / what does its size mean / why are these
-  nodes together / why is this an anomaly") bridges Draco, statistics, spatial semantics,
-  accessibility, onboarding, and trust.
+- ✅ **Draco "Why this view?" / "Explain this" (P0, verified).** Added `DracoExplainerPanel` (`src/vr/ui/DracoExplainerPanel.ts`), generating plain-English rationale for detected topologies, 3D layouts, geometry marks, and interaction metaphors; added "Explain" and "Why View?" actions to wheel menu.
 - 🔲 **Task-first onboarding: templates as the front door (P0).** The 6 analysis templates
   (`AnalysisTemplates.ts:27-82`, already wired to the wheel menu + `World.ts:676`) should
   become the entry point — not "Load Dataset" but "What are you trying to understand?" (find

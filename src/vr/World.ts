@@ -1341,6 +1341,15 @@ export class World {
     });
   }
 
+  _toggleDracoExplainer(): void {
+    const panel = this.uiManager?.dracoExplainerPanel;
+    if (!panel) return;
+    this.uiManager.panelManager.togglePanel(panel);
+    if (panel.mesh.visible && this.dracoNode) {
+      panel.setDracoNode(this.dracoNode);
+    }
+  }
+
   _onSettingChanged(key: string, value: unknown): void {
     if (key.startsWith('lens')) {
       this._setStatisticalLensVisible(this._statisticalLensEnabled);

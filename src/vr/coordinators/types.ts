@@ -315,6 +315,7 @@ export interface WorldUIManagerLike {
   peerPresenceHUD?: PanelLike | null;
   loadTestPanel?: PanelLike | null;
   recommendationPanel?: (PanelLike & { markDirty?(): void }) | null;
+  dracoExplainerPanel?: PanelLike | null;
 }
 
 export interface WheelMenuAction {
@@ -1151,4 +1152,6 @@ export interface WorldLike {
   tdaGroup?: { visible: boolean } | null;
   /** Toggle the statistical lens (TDA + correlation windows) on/off. */
   _toggleStatisticalLens?(): void;
+  /** Toggle the Draco "Why this palace?" explainer panel. */
+  _toggleDracoExplainer?(): void;
 }
