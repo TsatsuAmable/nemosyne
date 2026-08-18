@@ -1,6 +1,6 @@
 /**
- * Lightweight typed pub/sub used by the UI refactor for cross-cutting
- * concerns (interaction logging, auto-save, telemetry, UI refresh).
+ * Lightweight strongly-typed pub/sub used by the UI and coordinator layer
+ * for cross-cutting concerns (interaction logging, auto-save, telemetry, UI refresh).
  *
  * Handlers are called synchronously and in registration order. Errors in one
  * handler do not prevent subsequent handlers from running.
@@ -9,8 +9,6 @@
 export interface WorldEventBusOptions {
   debug?: boolean;
 }
-
-export type EventHandler = (payload?: unknown) => void;
 
 export const WorldTopics = {
   INTERACTION: 'interaction',
@@ -38,8 +36,40 @@ export const WorldTopics = {
   LOADTEST_COMPLETE: 'loadtest:complete',
 } as const;
 
-export class WorldEventBus {
-  private _handlers: Map<string, EventHandler[]>;
+export type WorldTopicName = (typeof WorldTopics)[keyof typeof WorldTopics];
+
+export interface NemosyneEventMap {
+  'interaction': unknown;
+  'interaction:log': unknown;
+  'console:log': string;
+  'console:warn': string;
+  'session:capture': unknown;
+  'settings:changed': Record<string, unknown>;
+  'dataset:loaded': unknown;
+  'operation:applied': unknown;
+  'operation:preview': unknown;
+  'operation:clear-preview': void;
+  'history:seek': number;
+  'session:autosave-request': void;
+  'session:saved': { sessionId?: string; success?: boolean; [key: string]: unknown };
+  'gesture:recognized': unknown;
+  'input:paused': void;
+  'input:resumed': void;
+  'view:reset': void;
+  'data:reset': void;
+  'performance:throttle': { fps?: number; budgetMs?: number; [key: string]: unknown };
+  'loadtest:start': unknown;
+  'loadtest:sample': unknown;
+  'loadtest:step': unknown;
+  'loadtest:complete': unknown;
+  [key: string]: unknown;
+}
+
+export type EventHandler<T = unknown> = (payload: T) => void;
+
+export class WorldEventBus<TEvents extends Record<string, unknown> = NemosyneEventMap> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _handlers: Map<string, EventHandler<any>[]>;
   private _debug: boolean;
 
   constructor({ debug = false }: WorldEventBusOptions = {}) {
@@ -50,7 +80,11 @@ export class WorldEventBus {
   /**
    * Register a handler for a topic. Returns an unsubscribe function.
    */
-  on(topic: string, handler: EventHandler): () => void {
+  on<K extends keyof TEvents & string>(topic: K, handler: EventHandler<TEvents[K]>): () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  on(topic: string, handler: EventHandler<any>): () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  on(topic: string, handler: EventHandler<any>): () => void {
     if (typeof topic !== 'string' || topic === '') {
       throw new TypeError('Event topic must be a non-empty string');
     }
@@ -71,7 +105,11 @@ export class WorldEventBus {
   /**
    * Remove a handler from a topic.
    */
-  off(topic: string, handler: EventHandler): void {
+  off<K extends keyof TEvents & string>(topic: K, handler: EventHandler<TEvents[K]>): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  off(topic: string, handler: EventHandler<any>): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  off(topic: string, handler: EventHandler<any>): void {
     const list = this._handlers.get(topic);
     if (!list) return;
     const index = list.indexOf(handler);
@@ -83,7 +121,7 @@ export class WorldEventBus {
   /**
    * Remove all handlers for a topic, or all handlers if no topic is given.
    */
-  removeAll(topic?: string): void {
+  removeAll(topic?: (keyof TEvents & string) | string): void {
     if (topic === undefined) {
       this._handlers.clear();
       return;
@@ -96,6 +134,8 @@ export class WorldEventBus {
    * synchronously and errors are caught so a bad subscriber cannot break the
    * rest of the system.
    */
+  emit<K extends keyof TEvents & string>(topic: K, payload?: TEvents[K]): void;
+  emit(topic: string, payload?: unknown): void;
   emit(topic: string, payload?: unknown): void {
     if (typeof topic !== 'string' || topic === '') {
       throw new TypeError('Event topic must be a non-empty string');
@@ -121,8 +161,12 @@ export class WorldEventBus {
   /**
    * Register a one-time handler. The handler is removed after the first emit.
    */
-  once(topic: string, handler: EventHandler): () => void {
-    const wrapper = (payload?: unknown) => {
+  once<K extends keyof TEvents & string>(topic: K, handler: EventHandler<TEvents[K]>): () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  once(topic: string, handler: EventHandler<any>): () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  once(topic: string, handler: EventHandler<any>): () => void {
+    const wrapper = (payload: unknown) => {
       this.off(topic, wrapper);
       handler(payload);
     };
@@ -132,7 +176,7 @@ export class WorldEventBus {
   /**
    * Return the number of registered handlers for a topic.
    */
-  listenerCount(topic: string): number {
+  listenerCount(topic: (keyof TEvents & string) | string): number {
     const list = this._handlers.get(topic);
     return list ? list.length : 0;
   }
