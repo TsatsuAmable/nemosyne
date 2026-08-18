@@ -23,6 +23,7 @@ import type {
   BettiPoint,
   ColumnSchema,
 } from '../data/types.js';
+export { CapabilityFlags, type CapabilityName } from './capabilities.ts';
 
 /**
  * wasm-bindgen `--target web` exports an `init` function plus the public Rust

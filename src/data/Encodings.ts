@@ -1,14 +1,8 @@
-import * as THREE from 'three';
-import type { Color } from 'three';
-
 /**
  * Utilities to map data values to visual channels:
  * color (categorical hue / numeric sequential), size, pulse, rotation.
  *
- * NOTE: `inferEncodings` (analytical default-encoding selection) has moved to
- * the Rust kernel (`wasm/src/data/encodings.rs`). This module keeps only the
- * visual mapping helpers used by `VRTopologyTranslator`, `ChartPlane`, and the
- * layout generators.
+ * Zero Three.js/DOM dependencies (Strict Dependency Direction).
  */
 
 const PALETTE = [0x00ffcc, 0xff0055, 0xffaa00, 0x00aaff, 0xff00ff, 0x88ff00] as const;
@@ -29,9 +23,16 @@ export function numericColor(
 ): number {
   if (max === min) return low;
   const t = Math.max(0, Math.min(1, (value - min) / (max - min)));
-  const c1: Color = new THREE.Color(low);
-  const c2: Color = new THREE.Color(high);
-  return c1.lerp(c2, t).getHex();
+  const r1 = (low >> 16) & 0xff;
+  const g1 = (low >> 8) & 0xff;
+  const b1 = low & 0xff;
+  const r2 = (high >> 16) & 0xff;
+  const g2 = (high >> 8) & 0xff;
+  const b2 = high & 0xff;
+  const r = Math.round(r1 + (r2 - r1) * t);
+  const g = Math.round(g1 + (g2 - g1) * t);
+  const b = Math.round(b1 + (b2 - b1) * t);
+  return (r << 16) | (g << 8) | b;
 }
 
 export function normalize(value: number, min: number, max: number): number {
