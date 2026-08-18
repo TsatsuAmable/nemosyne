@@ -600,6 +600,18 @@ export interface TelemetryReport {
   };
 }
 
+/**
+ * Typed handler interface for panel content click/interaction delegation.
+ * Replaces dynamic reflection / duck-typing in MovablePanel subclasses.
+ */
+export interface IPanelContentHandler {
+  handleContentClick?(worldRaycaster: Raycaster): void;
+  onPointerDown?(worldRaycaster: Raycaster, pointer: PointerLike): void;
+  onPointerMove?(worldRaycaster: Raycaster, pointer: PointerLike): void;
+  onPointerUp?(worldRaycaster: Raycaster, pointer: PointerLike): void;
+  renderContent?(): void;
+}
+
 export interface TelemetryCollectorLike {
   enabled: boolean;
   frustrationAnalyzer: UXFrustrationAnalyzer;

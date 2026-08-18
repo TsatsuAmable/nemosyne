@@ -5,6 +5,7 @@ import { SpatialAssetRegistry } from './SpatialAssetRegistry.ts';
 import type {
   AccessibilityOptions,
   DragState,
+  IPanelContentHandler,
   MovablePanelOptions,
   PointerLike,
 } from '../coordinators/types.ts';
@@ -18,7 +19,7 @@ interface InternalDragState extends DragState {
  * Base class for analyst-anchored VR panels that can be dragged by a
  * controller ray, minimized/restored, and placed in depth-aware space.
  */
-export class MovablePanel {
+export class MovablePanel implements IPanelContentHandler {
   private static _textureCacheManager: CanvasTextureCacheManager | null = null;
   private _renderGeneration = 0;
   cameraGroup: THREE.Group;
@@ -253,17 +254,17 @@ export class MovablePanel {
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (typeof (this as any).handleContentClick === 'function') {
+    if (typeof this.handleContentClick === 'function') {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (this as any).handleContentClick(worldRaycaster);
+        this.handleContentClick(worldRaycaster);
       } catch (e) {
         console.error('[MovablePanel] handleContentClick error:', e);
       }
     }
     return 'content';
   }
+
+  handleContentClick?(_worldRaycaster: THREE.Raycaster): void;
 
   update(_delta?: number): void {
     if (!this.mesh || !this.mesh.visible) return;
