@@ -17,7 +17,7 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 
 function createRateLimiter({ maxRequests, windowMs }) {
   const hits = new Map();
-  return function allow(ip) {
+  function allow(ip) {
     const now = Date.now();
     const key = ip || 'unknown';
     const times = (hits.get(key) || []).filter((t) => now - t < windowMs);
@@ -28,7 +28,8 @@ function createRateLimiter({ maxRequests, windowMs }) {
     times.push(now);
     hits.set(key, times);
     return true;
-  };
+  }
+  return { allow };
 }
 
 const devPostRateLimiter = createRateLimiter({
