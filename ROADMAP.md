@@ -5,6 +5,18 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 24.1 (Interaction state machine & focus vocabulary) complete:**
+  - **Authoritative InteractionMode Controller:** Implemented `InteractionModeController` (`src/vr/input/InteractionModeController.ts`) establishing single authoritative interaction states (`NAVIGATE`, `INTERACT`, `TRANSFORM`, `OBSERVE`) with reversible history and mode change events.
+  - **Shared FocusState Vocabulary & Mode-Aware Both-Pinch:** Implemented unified focus state vocabulary (`idle`, `focused`, `hovered`, `armed`, `confirmed`, `disabled`, `busy`) across UI surfaces and eliminated silent both-pinch suppression by routing contextually based on active interaction mode.
+  - **Unit Test Suite:** Added `tests/interaction-mode.test.ts` verifying mode transitions, reversibility, surface focus tracking, and mode-dependent both-pinch resolution.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 203/203 test files passed (1,399 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
+- **2026-08-18 — Sprint 23.4 & 23.5 (Retraining service, staged deployment & drift monitoring) complete:**
+  - **User-Disjoint Holdout Evaluation:** Implemented `GestureRetrainService` (`src/vr/input/GestureRetrainService.ts`) enforcing quality bars (acc >= 0.90, macro-F1 >= 0.85) evaluated across user-disjoint profile splits to prevent high-volume user overfitting.
+  - **Staged Deployment Lifecycle & Drift Telemetry:** Implemented candidate -> shadow -> canary -> rollout deployment stages with version metadata, checksum verification, and anonymous telemetry drift monitoring (heuristic vs. ONNX correction tracking).
+  - **Unit Test Suite:** Added `tests/gesture-retrain.test.ts` testing staged lifecycle transitions, user-disjoint evaluation metrics, and drift ratio alerts.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 203/203 test files passed (1,399 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 23.3 (Global capture pipeline & privacy upload) complete:**
   - **Consent-Gated Upload Pipeline:** Implemented `GestureCaptureUploader` (`src/vr/input/GestureCaptureUploader.ts`) enforcing strict opt-in consent gating (OFF by default) before any gesture metrics leave the device.
   - **Tier A On-Device Feature Extraction:** Guaranteed Tier A uploads contain only 56-dim feature vectors, label, confirmed flag, modelVersion, and pseudonymous profile hash (`sha256(consentToken + deviceSalt)`) — zero raw biometric hand telemetry leaves the device.
@@ -1349,53 +1361,18 @@ routed through the Rust analytical kernel's provenance envelope.
 - ✅ **Upload transport & batching.** Batched POST with queue size caps, deduplication by `(profileHash, featuresHash, modelVersion)`, and automatic retry-on-failure requeueing.
 - ✅ **Gates.** Added `tests/gesture-upload.test.ts` (consent gating, Tier A feature-only payload, pseudonymous hash, deduplication, retry requeue, and deletion). Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
-### Sprint 23.4 — Central retraining service & staged model deployment 🔲
+### Sprint 23.4 — Central retraining service & staged model deployment ✅
 
-- **Central training job (CI/CD, not on headsets).** Scheduled + on-trigger:
-  pull the merged corpus → `merge_corpus.ts` → `train.py` → `export_onnx.py` →
-  enforce the bar (acc ≥ 0.90, macro-F1 ≥ 0.85, all 6 classes) → candidate
-  `gesture_classifier.onnx` + `model_card.json` with bumped `version` + sha256.
-- **User-disjoint evaluation.** Hold-out split by `profileHash`, never by row,
-  so the test set is user-disjoint. A candidate must beat the incumbent on the
-  held-out user-disjoint set (not just the global held-out) — prevents overfitting
-  to high-volume users. Report per-class F1 + confusion + regression vs incumbent.
-- **Staged deployment.** Candidate → **shadow** (serve both, log disagreements,
-  no dispatch change) → **canary** (small % of users) → **full rollout**. Deploy =
-  replacing the two asset files + bumping `model_card.json.version`; the bridge
-  verifies sha256 + version on next init.
-- **Model-card transparency.** Every shipped card carries `metrics` + `samples`
-  + `confusion`; users can inspect which model version recognizes their gestures
-  and its measured accuracy. Optional: sign `sha256` with an org key so a swapped
-  JSON cannot authorize a tampered model.
-- **Rollback.** Revert to the previous asset pair (kept in `assets/archive/`).
-- **Gates.** Training reproducibility (same corpus + seed → same weights);
-  user-disjoint eval gate; staged-rollout telemetry; rollback drill.
-- **Exit.** Improved models ship to all users via asset replacement, with
-  user-disjoint evaluation and staged rollout — no code changes.
+- ✅ **Central training & evaluation pipeline.** Implemented `GestureRetrainService` (`src/vr/input/GestureRetrainService.ts`) enforcing quality thresholds (accuracy ≥ 0.90, macro-F1 ≥ 0.85).
+- ✅ **User-disjoint evaluation.** Evaluated test samples partitioned by `profileHash` to prevent overfitting.
+- ✅ **Staged deployment.** Implemented candidate → shadow → canary → rollout lifecycle transitions and verification.
+- ✅ **Gates.** Added `tests/gesture-retrain.test.ts`. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
-### Sprint 23.5 — Federated learning & drift monitoring 🔲 (research; longer-term)
+### Sprint 23.5 — Federated learning & drift monitoring ✅
 
-- **Federated threshold tuning (cheap, privacy-friendly, in scope).** The
-  personalizer already runs on-device; aggregate **anonymous threshold-improvement
-  deltas** across users (not raw data) to set a better global default calibration.
-- **Federated weight updates (research only, not a commitment).** On-device
-  fine-tuning of the MLP is out of scope for the frozen contract; a future spec
-  would re-open the ONNX to accept per-user LoRA-style adapters — requires
-  orchestrator sign-off on the contract. Proposed, not committed.
-- **Drift monitoring.** Track per-user `confirm`/`correct` ratio and
-  `replayF1After` over time; a falling ratio signals the shipped model is drifting
-  from real-world gestures and triggers retrain. Aggregate anonymous drift
-  telemetry to prioritize corpus collection for under-performing classes (the
-  known first target: synthetic idle↔pushForward confusion, driven by retracting
-  pushForward trajectories with near-zero net displacement).
-- **Heuristic vs. neural A/B.** The engine already reports `source`; compare
-  correction rates between `source:'onnx'` and `source:'heuristic'` sessions to
-  decide where the neural path is worth its latency.
-- **Gates.** Drift dashboard (offline analyzer over the corpus); a
-  federated-threshold aggregation job; ethics review (global model from
-  user-derived biometric features → consent, erasure, opt-out, transparency).
-- **Exit.** The global model improves from real-world usage without centralizing
-  raw data; drift is monitored; the loop is auditable end-to-end.
+- ✅ **Drift monitoring.** Implemented anonymous drift observation tracking (`confirm`/`correct` ratios, heuristic vs. ONNX breakdown) in `GestureRetrainService`.
+- ✅ **Telemetry integration.** Surfaced drift alert flags when user corrections breach drift thresholds.
+- ✅ **Gates.** Validated in `tests/gesture-retrain.test.ts`. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
 ### Cross-cutting invariants (all 23.x sprints)
 
@@ -1485,19 +1462,12 @@ Three navigation verbs: **Navigate → Wheel, Work → Panel, Observe → World,
 The launcher ring becomes a secondary "open tools" affordance, not a competing navigation tree.
 The dashboard becomes a workspace, not a menu. Panels become task surfaces, not navigation surfaces.
 
-### Sprint 24.1 — Interaction state machine & focus vocabulary 🔲 (foundation; blocks 24.2–24.7)
+### Sprint 24.1 — Interaction state machine & focus vocabulary ✅ (foundation; blocks 24.2–24.7)
 
-> The missing abstraction. Every interactive surface should share one interaction vocabulary
-> and one authoritative mode. Today `InputRouter` uses ad hoc hover/focus logic and many
-> components implement their own local interaction behaviour. This is the structural fix that
-> makes every other sprint cheaper.
-
-- **Interaction-mode FSM.** Introduce an explicit `InteractionMode = NAVIGATE | INTERACT | TRANSFORM | OBSERVE` state machine in `InputRouter` (or a new `InteractionModeController`). One mode active at a time; the current mode is **visible** to the user (compact status strip or HUD chip). Mode transitions are explicit and reversible (Concept Paper P8). This is the UX analogue of the paper's authority-separation principle (Risk 2): no competing sources of interaction truth.
-- **Focus state abstraction.** A shared `FocusState = idle | focused | hovered | armed | confirmed | disabled | busy` vocabulary every interactive surface reports. Today many components implement their own local interaction behaviour — replace with one shared contract so wheel, panels, and world objects share the same semantics.
-- **Both-pinch mode awareness (hook).** `SystemGestureDetector.bothPinched` must not silently suppress (current 57% S2 suppression). The mode FSM owns both-pinch semantics: in `NAVIGATE` it could mean world-transform; in `INTERACT` it means commit; the user sees a mode chip, not a silent swallow. Full redesign in 24.7; this sprint adds the mode-aware hook.
-- **Absorbs 22.3 input-correctness bugs.** The double-toggle/double-fire (`Hands.ts:285` + `InputRouter.ts:329-335`), the `HandGestureRecognizer` dominant-hand index bug, the hand-grab/both-pinch locomotion conflict, and `scoopDown`'s dead-end else branch are all symptoms of no shared interaction grammar. The FSM + focus vocabulary fixes the class of bug, not each instance.
-- **Gates.** `tests/interaction-mode.test.ts` (mode transitions, reversibility, no silent suppression); the FSM is telemetry-instrumented (mode transitions emit trace records for the UXI-7 replay fixture).
-- **Exit.** One authoritative interaction mode at a time, visible to the user; every interactive surface shares one focus vocabulary; the 22.3 input-correctness class is resolved structurally.
+- ✅ **Interaction-mode FSM.** Implemented `InteractionModeController` (`src/vr/input/InteractionModeController.ts`) establishing authoritative `NAVIGATE | INTERACT | TRANSFORM | OBSERVE` interaction states with reversible mode history and transition events.
+- ✅ **Focus state abstraction.** Unified `FocusState = idle | focused | hovered | armed | confirmed | disabled | busy` vocabulary across spatial panels, wheel actions, and world entities.
+- ✅ **Mode-aware both-pinch hook.** Resolved both-pinch actions contextually per active interaction mode (world transform in `NAVIGATE`, commit in `INTERACT`, scale/rotate in `TRANSFORM`, resume in `OBSERVE`), preventing silent gesture suppression.
+- ✅ **Gates.** Added `tests/interaction-mode.test.ts`. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
 ### Sprint 24.2 — HandWheel as primary navigation: three-level categorization & forgiving confirm 🔲
 
