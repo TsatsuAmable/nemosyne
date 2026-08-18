@@ -1,3 +1,5 @@
+/* eslint-disable no-console -- VRConsole intercepts and restores console.log
+   to mirror browser output into a world-space panel; referencing it is intentional. */
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
 import type { MovablePanelOptions } from '../coordinators/types.ts';

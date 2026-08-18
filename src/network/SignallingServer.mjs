@@ -85,4 +85,4 @@ if (AUTH_TOKEN && OBSERVER_TOKEN) {
 } else if (ALLOW_OPEN) {
   mode = 'OPEN (no token)';
 }
-console.log(`[SignallingServer] listening on ws://localhost:${PORT}/__signal (${mode})`);
+console.warn(`[SignallingServer] listening on ws://localhost:${PORT}/__signal (${mode})`);

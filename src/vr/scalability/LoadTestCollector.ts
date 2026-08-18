@@ -1,7 +1,6 @@
 import type { Updatable } from '../coordinators/types.ts';
 import { DEFAULT_BUDGETS } from '../../utils/PerformanceBudget.ts';
 import {
-  LOAD_TEST_THRESHOLDS,
   computeFrameStats,
   computeVerdict,
   type LoadTestStepSpec,

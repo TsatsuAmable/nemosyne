@@ -276,7 +276,7 @@ export class AtlasCore {
 
   constructor({
     kernel = null,
-    eventBus,
+    eventBus: _eventBus,
     sessionId,
   }: { kernel?: WasmRuntimeBridgeFull | null; eventBus?: WorldEventBus; sessionId?: string } = {}) {
     this._kernel = kernel;

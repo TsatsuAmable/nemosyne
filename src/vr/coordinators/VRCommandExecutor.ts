@@ -1,6 +1,6 @@
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
-import type { DiscoveredStructure, StructureSet } from '../../atlas/structures.ts';
-import type { VRCommand, RecommendationDecision } from '../../atlas/types.ts';
+import type { DiscoveredStructure } from '../../atlas/structures.ts';
+import type { VRCommand } from '../../atlas/types.ts';
 
 export interface VRCommandExecutorOptions {
   atlas: AtlasCore;

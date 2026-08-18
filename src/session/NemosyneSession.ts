@@ -8,17 +8,12 @@
  * entry). Saved-session compatibility BREAKS: schemaVersion 1 is rejected.
  */
 
-import type { DatasetJSON, EncodingMapping } from '../data/types.ts';
-import type { DatasetSpaceJSON } from '../atlas/DatasetSpace.ts';
-import type { HistorySnapshot } from '../data/AnalysisHistory.ts';
+import type { EncodingMapping } from '../data/types.ts';
 import { AtlasCore } from '../atlas/AtlasCore.ts';
 import type {
-  AnalysisResult,
   AnalysisSpec,
   AtlasCoreState,
-  AtlasRecommendation,
   ResearchContext,
-  ResearchEvent,
 } from '../atlas/types.ts';
 
 /** Memory-palace presentation state (camera/settings/tour/theme/panels/entry). */

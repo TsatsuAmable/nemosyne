@@ -416,7 +416,7 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
   }
 
   dispose(): void {
-    for (const [id, mesh] of this.annotationMeshes) {
+    for (const [_id, mesh] of this.annotationMeshes) {
       this.remove(mesh);
       this._disposeGroup(mesh);
     }

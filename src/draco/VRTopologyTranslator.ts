@@ -30,7 +30,6 @@ import type {
   VRGeometry,
   VRInteraction,
   IInstancedPointCloud,
-  IChartPlane,
   InstancedPointCloudFactory,
   ChartPlaneFactory,
   MetaphorActionHandlers,

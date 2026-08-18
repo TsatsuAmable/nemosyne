@@ -208,7 +208,7 @@ export class HandGestureRecognizer {
       this._pauseResumeFired = true;
       this._lastGestureTime = time;
       this._lastGestureName = 'pauseResume';
-      console.log(
+      console.warn(
         `[GestureRecognizer] fire pauseResume dominant=${this.dominant?.handedness ?? '?'} t=${time.toFixed(2)}`
       );
       this.onGesture('pauseResume', {
@@ -222,7 +222,7 @@ export class HandGestureRecognizer {
     if (gesture && this._canFire(gesture, time)) {
       this._lastGestureTime = time;
       this._lastGestureName = gesture;
-      console.log(
+      console.warn(
         `[GestureRecognizer] fire ${gesture} dominant=${this.dominant?.handedness ?? '?'} t=${time.toFixed(2)}`
       );
       this.onGesture(gesture, {
@@ -236,7 +236,7 @@ export class HandGestureRecognizer {
       // Track incomplete scoopDown attempts: if we were in scoopDown state but
       // motion stops, reset the cooldown after a timeout so user can retry.
       if (this._incompleteScoopDownTime === null) {
-        console.log(`[GestureRecognizer] scoopDown incomplete at t=${time.toFixed(2)}`);
+        console.warn(`[GestureRecognizer] scoopDown incomplete at t=${time.toFixed(2)}`);
       }
       this._incompleteScoopDownTime = time;
     }
@@ -246,7 +246,7 @@ export class HandGestureRecognizer {
       this._incompleteScoopDownTime != null &&
       time - this._incompleteScoopDownTime >= this._scoopDownTimeout
     ) {
-      console.log(
+      console.warn(
         `[GestureRecognizer] scoopDown retry unlocked (cooldown reset) t=${time.toFixed(2)}`
       );
       this._lastGestureTime = Math.max(0, time - this.cooldown);

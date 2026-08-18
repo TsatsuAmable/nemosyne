@@ -163,7 +163,7 @@ export class HandPointer implements PointerLike {
 
     // Keep this log minimal; it is useful the first time a hand connects.
     if (!this.jointsValid || this._debugFrame <= 1) {
-      console.log(`[HandPointer ${this.index}] connected`, {
+      console.warn(`[HandPointer ${this.index}] connected`, {
         handedness: this.handedness,
         jointsValid: this.jointsValid,
         jointCount: this.joints ? Object.keys(this.joints).length : 0,
@@ -177,7 +177,7 @@ export class HandPointer implements PointerLike {
       if (alternativeNames) {
         this.joints = alternativeNames;
         this.jointsValid = this._validateJoints();
-        console.log(`[HandPointer ${this.index}] fallback joint names valid=${this.jointsValid}`);
+        console.warn(`[HandPointer ${this.index}] fallback joint names valid=${this.jointsValid}`);
       }
     }
   };
@@ -192,7 +192,7 @@ export class HandPointer implements PointerLike {
       HandPointer._sourceClaims.delete(this._boundSource);
       this._boundSource = null;
     }
-    console.log(`[HandPointer ${this.index}] disconnected`);
+    console.warn(`[HandPointer ${this.index}] disconnected`);
   };
 
   dispose(): void {
@@ -250,7 +250,7 @@ export class HandPointer implements PointerLike {
             this.handedness = source.handedness ?? this.handedness;
             this.jointsValid = this._validateJoints();
             if (this.jointsValid) {
-              console.log(
+              console.warn(
                 `[HandPointer ${this.index}] fallback from inputSource valid=${this.jointsValid} count=${Object.keys(this.joints).length} handedness=${this.handedness}`
               );
             }
@@ -263,7 +263,7 @@ export class HandPointer implements PointerLike {
           const handSourceCount = session?.inputSources
             ? Array.from(session.inputSources).filter((s) => s.hand).length
             : -1;
-          console.log(
+          console.warn(
             `[HandPointer ${this.index}] waiting for joints: handedness=${this.handedness} session=${session ? 'yes' : 'no'} handSources=${handSourceCount} joints=${this.joints ? Object.keys(this.joints).length : 0}`
           );
         }
@@ -281,7 +281,7 @@ export class HandPointer implements PointerLike {
     if (!tip || !thumb) {
       this._noPoseStreak++;
       if (this._noPoseStreak === 150) {
-        console.log(
+        console.warn(
           `[HandPointer ${this.index}] joints valid but no pose for 150 frames (hand untracked or joint type rejected)`
         );
       }
@@ -310,18 +310,18 @@ export class HandPointer implements PointerLike {
 
     if (!this.pinched && d < this.pinchThreshold) {
       this.pinched = true;
-      console.log(
+      console.warn(
         `[HandPointer ${this.index}] pinch start d=${d.toFixed(3)} handedness=${this.handedness} frame=${this._debugFrame}`
       );
       if (this.onPinchStart && this._lastPinchCallbackFrame !== this._debugFrame) {
         this._lastPinchCallbackFrame = this._debugFrame;
         this.onPinchStart(this);
       } else if (this.onPinchStart) {
-        console.log(`[HandPointer ${this.index}] pinch start callback gated (same frame)`);
+        console.warn(`[HandPointer ${this.index}] pinch start callback gated (same frame)`);
       }
     } else if (this.pinched && d > this.releaseThreshold) {
       this.pinched = false;
-      console.log(
+      console.warn(
         `[HandPointer ${this.index}] pinch end d=${d.toFixed(3)} frame=${this._debugFrame}`
       );
       if (this.onPinchEnd && this._lastPinchCallbackFrame !== this._debugFrame) {
@@ -498,7 +498,7 @@ export class HandPointer implements PointerLike {
   private _logJointIssueOnce(message: string): void {
     if (this._lastJointIssueMsg === message) return;
     this._lastJointIssueMsg = message;
-    console.log(`[HandPointer ${this.index}] ${message}`);
+    console.warn(`[HandPointer ${this.index}] ${message}`);
   }
 
   /**
