@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LayoutBase } from './LayoutBase.ts';
 import type { LayoutEntry, TimeSeriesEntry, TimeSeriesRibbonOptions } from '../types.ts';
+import { computeTimeRibbon3d } from '../../wasm/RuntimeBridge.ts';
 
 /**
  * Lay time-series rows out as 3D ribbons. Each series (grouped by seriesKey)
@@ -34,6 +35,24 @@ export class TimeSeriesRibbonLayout extends LayoutBase {
     const ids = Object.keys(series);
     const out: TimeSeriesEntry<T>[] = [];
 
+    // Map series to numeric IDs
+    const seriesIds = rows.map((r) => {
+      const id = ((r as Record<string, unknown>)[seriesKey] as string | number) ?? 'S';
+      return ids.indexOf(String(id));
+    });
+    const timestamps = rows.map((r) => this._timeValue((r as Record<string, unknown>)[timeKey]));
+    const values = rows.map((r) => Number((r as Record<string, unknown>)[valueKey]) || 0);
+
+    const wasmPositions = computeTimeRibbon3d(
+      seriesIds,
+      timestamps,
+      values,
+      xScale,
+      yScale,
+      zSpacing,
+      yOffset
+    );
+
     ids.forEach((id, sIdx) => {
       const sorted = series[id]
         .slice()
@@ -49,8 +68,16 @@ export class TimeSeriesRibbonLayout extends LayoutBase {
         const value = Number((item.row as Record<string, unknown>)[valueKey]) || 0;
         const x = idx * xScale - ((sorted.length - 1) * xScale) / 2;
         const y = yOffset + value * yScale;
+        const pos = wasmPositions && wasmPositions.length === rows.length * 3
+          ? new THREE.Vector3(
+              wasmPositions[item.index * 3 + 0],
+              wasmPositions[item.index * 3 + 1],
+              wasmPositions[item.index * 3 + 2]
+            )
+          : new THREE.Vector3(x, y, z);
+
         out.push({
-          position: new THREE.Vector3(x, y, z),
+          position: pos,
           row: item.row,
           index: item.index,
           seriesId: id,

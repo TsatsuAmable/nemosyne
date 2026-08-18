@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LayoutBase } from './LayoutBase.ts';
 import type { GridLayoutOptions, LayoutEntry } from '../types.ts';
+import { computeGrid3d } from '../../wasm/RuntimeBridge.ts';
 
 /**
  * Pack rows into a 3D grid. Optional sortKey reorders rows before packing.
@@ -27,9 +28,26 @@ export class GridLayout3D extends LayoutBase {
     }
 
     const n = ordered.length || 1;
+    const out: LayoutEntry<T>[] = [];
+
+    const wasmPositions = computeGrid3d(n, spacing, yOffset);
+    if (wasmPositions && wasmPositions.length === n * 3) {
+      for (let i = 0; i < n; i++) {
+        out.push({
+          position: new THREE.Vector3(
+            wasmPositions[i * 3 + 0],
+            wasmPositions[i * 3 + 1],
+            wasmPositions[i * 3 + 2]
+          ),
+          row: ordered[i],
+          index: i,
+        });
+      }
+      return out;
+    }
+
     const cols = Math.ceil(Math.cbrt(n));
     const layers = Math.ceil(n / (cols * cols));
-    const out: LayoutEntry<T>[] = [];
 
     for (let i = 0; i < n; i++) {
       const col = i % cols;

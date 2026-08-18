@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { LayoutBase } from './LayoutBase.ts';
 import { SeededRandom } from '../../utils/SeededRandom.ts';
 import type { LayoutEntry, StreamlineEntry, StreamlineOptions } from '../types.ts';
+import { computeStreamline3d } from '../../wasm/RuntimeBridge.ts';
 
 /**
  * Generate vector-field streamlines as Catmull-Rom curves.
@@ -22,8 +23,34 @@ export class StreamlineLayout extends LayoutBase {
       seed = 1,
     } = options;
 
-    const rng = new SeededRandom(seed);
     const out: StreamlineEntry<T>[] = [];
+    const wasmPositions = computeStreamline3d(count, steps, stepSize, seed);
+
+    if (wasmPositions && wasmPositions.length === count * (steps + 1) * 3) {
+      let offset = 0;
+      for (let i = 0; i < count; i++) {
+        const points: THREE.Vector3[] = [];
+        for (let s = 0; s <= steps; s++) {
+          points.push(
+            new THREE.Vector3(
+              wasmPositions[offset + 0],
+              wasmPositions[offset + 1],
+              wasmPositions[offset + 2]
+            )
+          );
+          offset += 3;
+        }
+        out.push({
+          position: points[0].clone(),
+          points,
+          row: rows[i] ?? ({} as T),
+          index: i,
+        });
+      }
+      return out;
+    }
+
+    const rng = new SeededRandom(seed);
 
     for (let i = 0; i < count; i++) {
       const start = new THREE.Vector3(

@@ -5,7 +5,13 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-18 — Documentation Audit, Netlify Landing Fix & Canon Alignment complete:
+- **Last updated:** 2026-08-18 — Phase 21.4 (Rust/WASM 3D Spatial Layout Simulation Engine) complete:
+  Implemented full suite of computational 3D spatial layouts in Rust (`wasm/src/layouts/`): force-directed N-body graph physics (`force_directed.rs`),
+  3D volumetric matrix packing (`grid.rs`), concentric conical trees (`radial_tree.rs`), multi-series temporal ribbon curves (`time_ribbon.rs`),
+  geospatial room-scale projections (`geo_surface.rs`), and vector field streamline advection (`streamline.rs`).
+  Exposed canonical WASM ABI layout exports in `wasm/src/lib.rs` and wired typed continuous `Float32Array` coordinate buffer bridges through
+  `src/wasm/RuntimeBridge.ts` and `src/draco/layouts/`, eliminating intermediate `THREE.Vector3` object allocations per solve.
+  Documentation Audit, Netlify Landing Fix & Canon Alignment complete:
   Fixed `docs/index.html` landing page on Netlify by replacing failing cross-origin iframes with a self-contained spatial runtime HUD,
   deleted 35 obsolete pre-generated `.html` twins, legacy study draft duplicates, and superseded sprint reports, and synchronized all canonical
   documents (`docs/ARCHITECTURE.md`, `docs/ANALYTICS.md`, `docs/INTERACTIONS.md`, `docs/PROJECT_DOCS_INDEX.md`, `AGENTS.md`) with the

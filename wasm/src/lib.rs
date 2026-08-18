@@ -896,6 +896,142 @@ pub fn data_compute_radial_tree_3d(
     needed as u32
 }
 
+/// Compute 3D time-series ribbon positions.
+#[wasm_bindgen]
+pub fn data_compute_time_ribbon_3d(
+    series_ptr: u32,
+    series_len: u32,
+    times_ptr: u32,
+    times_len: u32,
+    values_ptr: u32,
+    values_len: u32,
+    x_scale: f32,
+    y_scale: f32,
+    z_spacing: f32,
+    y_offset: f32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let series_bytes = unsafe { allocator::view(series_ptr, series_len) };
+    let series_json: serde_json::Value = match serde_json::from_slice(series_bytes) {
+        Ok(v) => v,
+        Err(_) => return 0,
+    };
+    let series = parse_usize_array(&series_json);
+    if series.is_empty() {
+        return 0;
+    }
+
+    let times_bytes = unsafe { allocator::view(times_ptr, times_len) };
+    let times_json: serde_json::Value = serde_json::from_slice(times_bytes).unwrap_or(serde_json::Value::Array(Vec::new()));
+    let times = parse_f64_array(&times_json);
+
+    let values_bytes = unsafe { allocator::view(values_ptr, values_len) };
+    let values_json: serde_json::Value = serde_json::from_slice(values_bytes).unwrap_or(serde_json::Value::Array(Vec::new()));
+    let values = parse_f64_array(&values_json);
+
+    let positions = layouts::compute_time_ribbon_3d(&series, &times, &values, x_scale, y_scale, z_spacing, y_offset);
+    let needed = positions.len() * 12;
+    if (out_len as usize) < needed {
+        return needed as u32;
+    }
+    let slice = unsafe { allocator::view_mut(out_ptr, needed as u32) };
+    let mut offset = 0usize;
+    for pos in positions {
+        slice[offset..offset + 4].copy_from_slice(&pos[0].to_le_bytes());
+        slice[offset + 4..offset + 8].copy_from_slice(&pos[1].to_le_bytes());
+        slice[offset + 8..offset + 12].copy_from_slice(&pos[2].to_le_bytes());
+        offset += 12;
+    }
+    needed as u32
+}
+
+/// Compute 3D geospatial surface positions.
+#[wasm_bindgen]
+pub fn data_compute_geo_surface_3d(
+    lons_ptr: u32,
+    lons_len: u32,
+    lats_ptr: u32,
+    lats_len: u32,
+    values_ptr: u32,
+    values_len: u32,
+    room_width: f32,
+    room_depth: f32,
+    height_scale: f32,
+    y_offset: f32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let lons_bytes = unsafe { allocator::view(lons_ptr, lons_len) };
+    let lons_json: serde_json::Value = match serde_json::from_slice(lons_bytes) {
+        Ok(v) => v,
+        Err(_) => return 0,
+    };
+    let lons = parse_f64_array(&lons_json);
+    if lons.is_empty() {
+        return 0;
+    }
+
+    let lats_bytes = unsafe { allocator::view(lats_ptr, lats_len) };
+    let lats_json: serde_json::Value = serde_json::from_slice(lats_bytes).unwrap_or(serde_json::Value::Array(Vec::new()));
+    let lats = parse_f64_array(&lats_json);
+
+    let values_bytes = unsafe { allocator::view(values_ptr, values_len) };
+    let values_json: serde_json::Value = serde_json::from_slice(values_bytes).unwrap_or(serde_json::Value::Array(Vec::new()));
+    let values = parse_f64_array(&values_json);
+
+    let positions = layouts::compute_geo_surface_3d(&lons, &lats, &values, room_width, room_depth, height_scale, y_offset);
+    let needed = positions.len() * 12;
+    if (out_len as usize) < needed {
+        return needed as u32;
+    }
+    let slice = unsafe { allocator::view_mut(out_ptr, needed as u32) };
+    let mut offset = 0usize;
+    for pos in positions {
+        slice[offset..offset + 4].copy_from_slice(&pos[0].to_le_bytes());
+        slice[offset + 4..offset + 8].copy_from_slice(&pos[1].to_le_bytes());
+        slice[offset + 8..offset + 12].copy_from_slice(&pos[2].to_le_bytes());
+        offset += 12;
+    }
+    needed as u32
+}
+
+/// Compute 3D streamline coordinates. Returns flat points buffer [x0, y0, z0, ...].
+#[wasm_bindgen]
+pub fn data_compute_streamline_3d(
+    count: u32,
+    steps: u32,
+    step_size: f32,
+    seed: u64,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let lines = layouts::compute_streamlines_3d(
+        count as usize,
+        steps as usize,
+        step_size,
+        [-5.0, 0.5, -8.0],
+        [5.0, 4.0, -2.0],
+        seed,
+    );
+    let total_points: usize = lines.iter().map(|l| l.len()).sum();
+    let needed = total_points * 12;
+    if (out_len as usize) < needed {
+        return needed as u32;
+    }
+    let slice = unsafe { allocator::view_mut(out_ptr, needed as u32) };
+    let mut offset = 0usize;
+    for line in lines {
+        for pos in line {
+            slice[offset..offset + 4].copy_from_slice(&pos[0].to_le_bytes());
+            slice[offset + 4..offset + 8].copy_from_slice(&pos[1].to_le_bytes());
+            slice[offset + 8..offset + 12].copy_from_slice(&pos[2].to_le_bytes());
+            offset += 12;
+        }
+    }
+    needed as u32
+}
+
 #[cfg(target_arch = "wasm32")]
 fn log_error(msg: &str) {
     use wasm_bindgen::JsValue;

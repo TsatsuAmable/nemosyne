@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LayoutBase } from './LayoutBase.ts';
 import type { LayoutEntry, RadialEntry, RadialTreeOptions } from '../types.ts';
+import { computeRadialTree3d } from '../../wasm/RuntimeBridge.ts';
 
 /**
  * Place hierarchical rows on concentric rings by level. Parent-child edges
@@ -20,9 +21,11 @@ export class RadialTreeLayout extends LayoutBase {
     } = options;
 
     const byLevel: Record<number, { row: T; index: number }[]> = {};
+    const flatLevels: number[] = [];
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const lvl = Number((row as Record<string, unknown>)[levelKey] ?? 0);
+      flatLevels.push(lvl);
       if (!byLevel[lvl]) byLevel[lvl] = [];
       byLevel[lvl].push({ row, index: i });
     }
@@ -32,6 +35,7 @@ export class RadialTreeLayout extends LayoutBase {
       .sort((a, b) => a - b);
 
     const out: RadialEntry<T>[] = [];
+    const wasmPositions = computeRadialTree3d(flatLevels, ringSpacing, yStep, yOffset);
 
     for (const lvl of levels) {
       const ringRows = byLevel[lvl];
@@ -44,8 +48,16 @@ export class RadialTreeLayout extends LayoutBase {
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
         const item = ringRows[i];
+        const pos = wasmPositions && wasmPositions.length === rows.length * 3
+          ? new THREE.Vector3(
+              wasmPositions[item.index * 3 + 0],
+              wasmPositions[item.index * 3 + 1],
+              wasmPositions[item.index * 3 + 2]
+            )
+          : new THREE.Vector3(x, y, z);
+
         const entry: RadialEntry<T> = {
-          position: new THREE.Vector3(x, y, z),
+          position: pos,
           row: item.row,
           index: item.index,
           level: lvl,

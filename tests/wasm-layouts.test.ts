@@ -1,9 +1,12 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { GridLayout3D } from '../src/draco/layouts/GridLayout3D.ts';
 import { ForceDirected3D } from '../src/draco/layouts/ForceDirected3D.ts';
 import { RadialTreeLayout } from '../src/draco/layouts/RadialTreeLayout.ts';
+import { TimeSeriesRibbonLayout } from '../src/draco/layouts/TimeSeriesRibbonLayout.ts';
+import { GeoSurfaceLayout } from '../src/draco/layouts/GeoSurfaceLayout.ts';
+import { StreamlineLayout } from '../src/draco/layouts/StreamlineLayout.ts';
+import type { StreamlineEntry } from '../src/draco/types.ts';
 
 describe('Spatial Layout Engines', () => {
   it('computes 3D grid layout coordinates for 8 items', () => {
@@ -50,5 +53,58 @@ describe('Spatial Layout Engines', () => {
     expect(result[0].position.x).toBeCloseTo(0.0);
     expect(result[0].position.y).toBeCloseTo(1.2);
     expect(result[0].position.z).toBeCloseTo(0.0);
+  });
+
+  it('computes time series ribbon layout coordinates for multi-series rows', () => {
+    const rows = [
+      { sensor: 'A', time: 10, val: 5 },
+      { sensor: 'A', time: 20, val: 15 },
+      { sensor: 'B', time: 10, val: 8 },
+      { sensor: 'B', time: 20, val: 18 },
+    ];
+
+    const result = TimeSeriesRibbonLayout.compute(rows, {
+      seriesKey: 'sensor',
+      timeKey: 'time',
+      valueKey: 'val',
+      zSpacing: 1.5,
+      yOffset: 1.2,
+    });
+
+    expect(result).toHaveLength(4);
+    expect(result[0].position).toBeInstanceOf(THREE.Vector3);
+  });
+
+  it('computes geo surface layout coordinates for lat/lon points', () => {
+    const rows = [
+      { lon: -122.4, lat: 37.7, val: 100 },
+      { lon: -74.0, lat: 40.7, val: 200 },
+    ];
+
+    const result = GeoSurfaceLayout.compute(rows, {
+      lonKey: 'lon',
+      latKey: 'lat',
+      valueKey: 'val',
+      roomWidth: 6,
+      roomDepth: 3,
+      yOffset: 0.5,
+    });
+
+    expect(result).toHaveLength(2);
+    expect(result[0].position).toBeInstanceOf(THREE.Vector3);
+  });
+
+  it('computes streamline layout coordinates for vector fields', () => {
+    const rows = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    const result = StreamlineLayout.compute(rows, {
+      count: 3,
+      steps: 4,
+      stepSize: 1.5,
+      seed: 42,
+    });
+
+    expect(result).toHaveLength(3);
+    expect((result[0] as unknown as StreamlineEntry).points).toHaveLength(5);
+    expect(result[0].position).toBeInstanceOf(THREE.Vector3);
   });
 });

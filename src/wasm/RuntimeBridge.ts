@@ -96,6 +96,53 @@ interface WasmInitOutput {
     ptr: number,
     len: number,
   ): number;
+  data_compute_time_ribbon_3d(
+    seriesPtr: number,
+    seriesLen: number,
+    timesPtr: number,
+    timesLen: number,
+    valuesPtr: number,
+    valuesLen: number,
+    xScale: number,
+    yScale: number,
+    zSpacing: number,
+    yOffset: number,
+    ptr: number,
+    len: number,
+  ): number;
+  data_compute_geo_surface_3d(
+    lonsPtr: number,
+    lonsLen: number,
+    latsPtr: number,
+    latsLen: number,
+    valuesPtr: number,
+    valuesLen: number,
+    roomWidth: number,
+    roomDepth: number,
+    heightScale: number,
+    yOffset: number,
+    ptr: number,
+    len: number,
+  ): number;
+  data_compute_streamline_3d(
+    count: number,
+    steps: number,
+    stepSize: number,
+    seed: bigint,
+    ptr: number,
+    len: number,
+  ): number;
+  layout_grid_3d(count: number, spacing: number, yOffset: number, outPtr: number): number;
+  layout_force_directed_3d(
+    count: number,
+    iterations: number,
+    repulsion: number,
+    attraction: number,
+    damping: number,
+    radius: number,
+    yOffset: number,
+    outPtr: number,
+  ): number;
   [key: string]: unknown;
 }
 interface WasmModule {
@@ -616,7 +663,7 @@ export function computeRadialTree3d(
   yStep: number,
   yOffset: number,
 ): Float32Array | null {
-  if (!wasmInstance) throw new Error('Runtime not initialised');
+  if (!wasmInstance || levels.length === 0) return null;
   const levelBytes = new TextEncoder().encode(JSON.stringify(levels));
   const { ptr: levelPtr, len: levelLen } = allocBytes(levelBytes);
   try {
@@ -648,6 +695,215 @@ export function computeRadialTree3d(
     }
   } finally {
     deallocBytes(levelPtr, levelLen);
+  }
+}
+
+/**
+ * Compute 3D grid layout positions. Returns a `Float32Array` of `count * 3`
+ * little-endian values (`x,y,z` per node), or `null` on failure.
+ */
+export function computeGrid3d(count: number, spacing: number, yOffset: number): Float32Array | null {
+  if (!wasmInstance || count <= 0) return null;
+  const needed = count * 12;
+  const outPtr = wasmInstance.alloc(needed);
+  try {
+    const written = wasmInstance.layout_grid_3d(count, spacing, yOffset, outPtr);
+    if (written === 0) return null;
+    return new Float32Array(wasmInstance.memory.buffer, outPtr, count * 3).slice();
+  } finally {
+    wasmInstance.dealloc(outPtr, needed);
+  }
+}
+
+/**
+ * Compute 3D force-directed layout positions.
+ */
+export function computeForceDirected3d(
+  count: number,
+  iterations = 120,
+  repulsion = 120,
+  attraction = 0.02,
+  damping = 0.08,
+  radius = 4,
+  yOffset = 1.2,
+): Float32Array | null {
+  if (!wasmInstance || count <= 0) return null;
+  const needed = count * 12;
+  const outPtr = wasmInstance.alloc(needed);
+  try {
+    const written = wasmInstance.layout_force_directed_3d(
+      count,
+      iterations,
+      repulsion,
+      attraction,
+      damping,
+      radius,
+      yOffset,
+      outPtr,
+    );
+    if (written === 0) return null;
+    return new Float32Array(wasmInstance.memory.buffer, outPtr, count * 3).slice();
+  } finally {
+    wasmInstance.dealloc(outPtr, needed);
+  }
+}
+
+/**
+ * Compute 3D time-series ribbon positions.
+ */
+export function computeTimeRibbon3d(
+  seriesIds: number[],
+  timestamps: number[],
+  values: number[],
+  xScale = 0.8,
+  yScale = 0.2,
+  zSpacing = 1.5,
+  yOffset = 1.2,
+): Float32Array | null {
+  if (!wasmInstance || seriesIds.length === 0) return null;
+  const seriesBytes = new TextEncoder().encode(JSON.stringify(seriesIds));
+  const timesBytes = new TextEncoder().encode(JSON.stringify(timestamps));
+  const valuesBytes = new TextEncoder().encode(JSON.stringify(values));
+
+  const { ptr: sPtr, len: sLen } = allocBytes(seriesBytes);
+  const { ptr: tPtr, len: tLen } = allocBytes(timesBytes);
+  const { ptr: vPtr, len: vLen } = allocBytes(valuesBytes);
+
+  try {
+    const needed = wasmInstance.data_compute_time_ribbon_3d(
+      sPtr,
+      sLen,
+      tPtr,
+      tLen,
+      vPtr,
+      vLen,
+      xScale,
+      yScale,
+      zSpacing,
+      yOffset,
+      0,
+      0,
+    );
+    if (needed === 0) return null;
+    const outPtr = wasmInstance.alloc(needed);
+    try {
+      const written = wasmInstance.data_compute_time_ribbon_3d(
+        sPtr,
+        sLen,
+        tPtr,
+        tLen,
+        vPtr,
+        vLen,
+        xScale,
+        yScale,
+        zSpacing,
+        yOffset,
+        outPtr,
+        needed,
+      );
+      if (written === 0) return null;
+      return new Float32Array(wasmInstance.memory.buffer, outPtr, written / 4).slice();
+    } finally {
+      wasmInstance.dealloc(outPtr, needed);
+    }
+  } finally {
+    deallocBytes(sPtr, sLen);
+    deallocBytes(tPtr, tLen);
+    deallocBytes(vPtr, vLen);
+  }
+}
+
+/**
+ * Compute 3D geo-surface positions.
+ */
+export function computeGeoSurface3d(
+  longitudes: number[],
+  latitudes: number[],
+  values: number[],
+  roomWidth = 6,
+  roomDepth = 3,
+  heightScale = 0.05,
+  yOffset = 0.5,
+): Float32Array | null {
+  if (!wasmInstance || longitudes.length === 0) return null;
+  const lonsBytes = new TextEncoder().encode(JSON.stringify(longitudes));
+  const latsBytes = new TextEncoder().encode(JSON.stringify(latitudes));
+  const valuesBytes = new TextEncoder().encode(JSON.stringify(values));
+
+  const { ptr: lonPtr, len: lonLen } = allocBytes(lonsBytes);
+  const { ptr: latPtr, len: latLen } = allocBytes(latsBytes);
+  const { ptr: valPtr, len: valLen } = allocBytes(valuesBytes);
+
+  try {
+    const needed = wasmInstance.data_compute_geo_surface_3d(
+      lonPtr,
+      lonLen,
+      latPtr,
+      latLen,
+      valPtr,
+      valLen,
+      roomWidth,
+      roomDepth,
+      heightScale,
+      yOffset,
+      0,
+      0,
+    );
+    if (needed === 0) return null;
+    const outPtr = wasmInstance.alloc(needed);
+    try {
+      const written = wasmInstance.data_compute_geo_surface_3d(
+        lonPtr,
+        lonLen,
+        latPtr,
+        latLen,
+        valPtr,
+        valLen,
+        roomWidth,
+        roomDepth,
+        heightScale,
+        yOffset,
+        outPtr,
+        needed,
+      );
+      if (written === 0) return null;
+      return new Float32Array(wasmInstance.memory.buffer, outPtr, written / 4).slice();
+    } finally {
+      wasmInstance.dealloc(outPtr, needed);
+    }
+  } finally {
+    deallocBytes(lonPtr, lonLen);
+    deallocBytes(latPtr, latLen);
+    deallocBytes(valPtr, valLen);
+  }
+}
+
+/**
+ * Compute 3D streamline positions.
+ */
+export function computeStreamline3d(
+  count: number,
+  steps = 3,
+  stepSize = 2,
+  seed = 1,
+): Float32Array | null {
+  if (!wasmInstance || count <= 0) return null;
+  const totalPoints = count * (steps + 1);
+  const needed = totalPoints * 12;
+  const outPtr = wasmInstance.alloc(needed);
+  try {
+    const written = wasmInstance.data_compute_streamline_3d(
+      count,
+      steps,
+      stepSize,
+      BigInt(seed),
+      outPtr,
+      needed,
+    );
+    if (written === 0) return null;
+    return new Float32Array(wasmInstance.memory.buffer, outPtr, written / 4).slice();
+  } finally {
+    wasmInstance.dealloc(outPtr, needed);
   }
 }
 
