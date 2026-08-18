@@ -32,6 +32,9 @@ export class SelectionDispatcher {
   private _dwellTimer: ReturnType<typeof setTimeout> | null = null;
   private _dwellTarget: string | null = null;
 
+  private _pinchLockTarget: InteractableEntry | null = null;
+  private _pinchLockExpiry = 0;
+
   constructor(
     registry: InteractableRegistry,
     { onSelectCallback = null }: { onSelectCallback?: ((ray: THREE.Ray) => void) | null } = {}
@@ -40,6 +43,23 @@ export class SelectionDispatcher {
     this.onSelectCallback = onSelectCallback;
 
     this.feedback = new SelectionFeedback();
+  }
+
+  /**
+   * Lock the currently hovered target entry for a short window (e.g. 80ms)
+   * so that physical index-thumb pinch recoil drift (UX-002) does not cause
+   * misclicks on release.
+   */
+  lockTargetForPinch(durationMs = 80): void {
+    if (this.registry.hovered) {
+      this._pinchLockTarget = this.registry.hovered;
+      this._pinchLockExpiry = performance.now() + durationMs;
+    }
+  }
+
+  clearPinchLock(): void {
+    this._pinchLockTarget = null;
+    this._pinchLockExpiry = 0;
   }
 
   setOnSelectCallback(cb: ((ray: THREE.Ray) => void) | null) {
@@ -60,7 +80,7 @@ export class SelectionDispatcher {
 
   /**
    * Trigger selection on the currently hovered scene object or HUD under the
-   * active pointer.
+   * active pointer, honoring pinch recoil lock when active.
    */
   triggerSelect(activePointer: PointerLike | null) {
     if (!activePointer) return;
@@ -72,24 +92,30 @@ export class SelectionDispatcher {
     this.feedback.playHaptic(0.6, 40, activePointer as unknown as { gamepad?: { hapticActuators?: Array<{ pulse: (v: number, d: number) => Promise<unknown> }> } });
 
     const hudConsumed = this.registry.dispatchHudClick();
+    const effectiveHovered =
+      this._pinchLockTarget && performance.now() < this._pinchLockExpiry
+        ? this._pinchLockTarget
+        : this.registry.hovered;
+
     if (this.onDispatch) {
       this.onDispatch({
         hudConsumed,
-        sceneMesh: hudConsumed ? null : this.registry.hovered?.mesh ?? null,
-        sceneData: hudConsumed ? undefined : this.registry.hovered?.data,
-        hadCallback: !!this.registry.hovered?.onSelect || !!this.onSelectCallback,
+        sceneMesh: hudConsumed ? null : effectiveHovered?.mesh ?? null,
+        sceneData: hudConsumed ? undefined : effectiveHovered?.data,
+        hadCallback: !!effectiveHovered?.onSelect || !!this.onSelectCallback,
         pointer: activePointer,
       });
     }
     if (hudConsumed) return;
 
-    if (this.registry.hovered?.onSelect) {
-      this.registry.hovered.onSelect(this.registry.hovered.mesh, this.registry.hovered.data);
+    if (effectiveHovered?.onSelect) {
+      effectiveHovered.onSelect(effectiveHovered.mesh, effectiveHovered.data);
     }
 
     if (this.onSelectCallback) {
       this.onSelectCallback(ray);
     }
+    this.clearPinchLock();
   }
 
   /**

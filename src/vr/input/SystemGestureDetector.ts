@@ -18,6 +18,7 @@ export class SystemGestureDetector {
   registry: PointerRegistry;
   onSystemToggle: (() => void) | null = null;
   onTrace: ((info: SystemGestureTraceInfo) => void) | null = null;
+  onSuppressedHint: ((hint: string) => void) | null = null;
 
   private _lastRawBothPinched = false;
   private _invalidBothPinchHeld = false;
@@ -107,6 +108,7 @@ export class SystemGestureDetector {
         y0: origin0.y,
         y1: origin1.y,
       });
+      this.onSuppressedHint?.('Both-pinch: Align hands horizontally to scale palace');
     }
     this._lastSuppressedBothPinched = rawBothPinched && systemGestureZoneSuppressed;
 
