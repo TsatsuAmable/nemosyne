@@ -45,7 +45,6 @@ export class SelectionFeedback {
   audioContext: AudioContext | null;
 
   private _activeFlashes: Map<PointerLike, FlashState>;
-  private _hitMarker: THREE.Mesh | null;
 
   constructor({
     enabled = true,
@@ -63,7 +62,6 @@ export class SelectionFeedback {
     this._initAudio();
 
     this._activeFlashes = new Map();
-    this._hitMarker = null;
   }
 
   setToggles({ audio, haptic, visual }: { audio?: boolean; haptic?: boolean; visual?: boolean } = {}): void {

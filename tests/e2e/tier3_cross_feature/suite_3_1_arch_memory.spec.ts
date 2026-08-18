@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import * as THREE from 'three';
 import { World } from '../../../src/vr/World.ts';
 import { Dataset } from '../../../src/data/Dataset.ts';
 import { VRTopologyTranslator } from '../../../src/draco/VRTopologyTranslator.ts';
 import { disposeObject } from '../../../src/utils/Dispose.ts';
-import { sharedSphereGeometry, sharedBoxGeometry, MeshPool } from '../../../src/utils/ObjectPool.ts';
+import { sharedSphereGeometry, sharedBoxGeometry } from '../../../src/utils/ObjectPool.ts';
 import { InstancedPointCloud } from '../../../src/vr/scalability/InstancedPointCloud.ts';
 
 describe('Tier 3 — Suite 3.1: Architecture Decoupling × Memory Disposal (F1/F2/F3 × F4/F6)', () => {

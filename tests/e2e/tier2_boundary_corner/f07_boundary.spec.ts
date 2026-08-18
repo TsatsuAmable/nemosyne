@@ -75,7 +75,7 @@ describe('Tier 2 — Feature 7: Edge Draw Call Explosion (LineSegments Boundary 
     const points = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 1, 1)];
     const geom = new THREE.BufferGeometry().setFromPoints(points);
     const mat = new THREE.LineBasicMaterial({ color: 0x00ffcc });
-    const lineSegments = new THREE.LineSegments(geom, mat);
+    new THREE.LineSegments(geom, mat);
 
     geom.dispose();
     mat.dispose();

@@ -171,7 +171,7 @@ export function installWebXRMock(): MockXRSession {
   const activeSession = new MockXRSession('immersive-vr');
   const mockXR = {
     isSessionSupported: (mode: string) => Promise.resolve(mode === 'immersive-vr' || mode === 'inline'),
-    requestSession: (mode: string) => Promise.resolve(activeSession),
+    requestSession: (_mode: string) => Promise.resolve(activeSession),
   };
 
   if (typeof navigator !== 'undefined') {

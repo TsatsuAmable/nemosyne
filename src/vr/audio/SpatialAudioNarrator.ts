@@ -8,7 +8,6 @@
 export class SpatialAudioNarrator {
   private _synth: SpeechSynthesis | null = null;
   private _speechRate = 1.0;
-  private _voice: SpeechSynthesisVoice | null = null;
 
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {

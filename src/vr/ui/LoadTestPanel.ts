@@ -279,7 +279,11 @@ export class LoadTestPanel extends MovablePanel {
     }
   }
 
-  private _drawButton(ctx: CanvasRenderingContext2D, id: string, label: string, x: number, y: number, bw: number, bh: number, active: boolean): void {
+  get lastStep(): LoadTestStepEvent | null {
+    return this._lastStep;
+  }
+
+  private _drawButton(ctx: CanvasRenderingContext2D, _id: string, label: string, x: number, y: number, bw: number, bh: number, active: boolean): void {
     ctx.fillStyle = active ? 'rgba(255, 51, 68, 0.25)' : this.highContrast ? 'rgba(255,255,255,0.9)' : 'rgba(0, 255, 204, 0.15)';
     ctx.fillRect(x, y, bw, bh);
     ctx.strokeStyle = active ? '#ff3344' : this.highContrast ? '#ffffff' : '#00ffcc';

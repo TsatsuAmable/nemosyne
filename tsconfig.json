@@ -6,29 +6,52 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "strict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "allowJs": true,
+    "allowJs": false,
     "resolveJsonModule": true,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist/types",
     "rootDir": ".",
-    "types": ["vitest/globals", "node", "vite/client"],
+    "types": [
+      "vitest/globals",
+      "node",
+      "vite/client"
+    ],
     "paths": {
-      "three": ["./node_modules/@types/three"],
-      "@nemosyne/gesture-intelligence": ["./modules/gesture-intelligence/src/index.ts"],
-      "@nemosyne/gesture-intelligence/*": ["./modules/gesture-intelligence/src/*"]
+      "three": [
+        "./node_modules/@types/three"
+      ],
+      "@nemosyne/gesture-intelligence": [
+        "./modules/gesture-intelligence/src/index.ts"
+      ],
+      "@nemosyne/gesture-intelligence/*": [
+        "./modules/gesture-intelligence/src/*"
+      ]
     }
   },
-  "include": ["src/**/*", "tests/**/*", "modules/gesture-intelligence/src/**/*"],
-  "exclude": ["node_modules", "dist", "docs", "wasm"]
+  "include": [
+    "src/**/*",
+    "tests/**/*",
+    "modules/gesture-intelligence/src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "docs",
+    "wasm"
+  ]
 }

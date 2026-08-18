@@ -18,7 +18,7 @@ describe('Tier 2 — Feature 6: Instanced Buffer Attribute Leaks (Boundary Cases
       scale: 1,
     }));
     cloud.setPoints(items1);
-    const attr1 = cloud.mesh.instanceColor;
+    expect(cloud.mesh.instanceColor).toBeDefined();
 
     const items2 = Array.from({ length: 200 }, (_, i) => ({
       position: [i * 0.2, 0, 0] as [number, number, number],

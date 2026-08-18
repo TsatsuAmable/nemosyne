@@ -41,7 +41,6 @@ export class PanelManager implements PanelManagerLike {
   private _managerDragEnd: WeakMap<PanelLike, () => void> = new WeakMap();
   private _managerHide: WeakMap<PanelLike, () => void> = new WeakMap();
   private _launcherVisible = false;
-  private _tempVec: THREE.Vector3;
 
   constructor(cameraGroup: THREE.Group, options: PanelManagerOptions = {}) {
     this.cameraGroup = cameraGroup;
@@ -68,8 +67,6 @@ export class PanelManager implements PanelManagerLike {
     // forcing them into the analyst anchor's angular slots.
     this.freeFloating = options.freeFloating ?? false;
     this.onChange = options.onChange ?? (() => {});
-
-    this._tempVec = new THREE.Vector3();
   }
 
   /**

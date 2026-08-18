@@ -57,7 +57,6 @@ export class HolographicInspector implements Updatable {
   private _handQuat: THREE.Quaternion;
   private _handDir: THREE.Vector3;
   private _tmpVec: THREE.Vector3;
-  private _tmpVecB: THREE.Vector3;
   private _tmpQuat: THREE.Quaternion;
   private _tmpMat: THREE.Matrix4;
 
@@ -117,7 +116,6 @@ export class HolographicInspector implements Updatable {
     this._handQuat = new THREE.Quaternion();
     this._handDir = new THREE.Vector3();
     this._tmpVec = new THREE.Vector3();
-    this._tmpVecB = new THREE.Vector3();
     this._tmpQuat = new THREE.Quaternion();
     this._tmpMat = new THREE.Matrix4();
 

@@ -43,7 +43,7 @@ describe('Feature 4: Shared Geometry Disposals', () => {
   });
 
   it('F4-TC4: MeshPool.clear purges active meshes without throwing errors', () => {
-    const m1 = MeshPool.instance.acquireSphere();
+    MeshPool.instance.acquireSphere();
     expect(() => MeshPool.instance.clear()).not.toThrow();
   });
 

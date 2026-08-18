@@ -45,7 +45,7 @@ export class OperationLogPanel extends MovablePanel {
     this.render();
   }
 
-  renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
+  renderContent(ctx: CanvasRenderingContext2D, _w: number, contentH: number): void {
     const pad = 18;
     const lineH = 28;
     let y = pad;

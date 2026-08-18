@@ -168,7 +168,7 @@ export class VRTopologyTranslator {
 
     switch (spec.behavior) {
       case 'PULSE_QUANTITATIVE':
-        behaviors.push((delta, time) => {
+        behaviors.push((_delta, time) => {
           nodeMeshes.forEach((m, idx) => {
             const s = 1.0 + Math.sin(time * 3.0 + idx * 0.5) * 0.15;
             m.scale.setScalar(s);
@@ -181,7 +181,7 @@ export class VRTopologyTranslator {
         });
         break;
       case 'WAVE_OSCILLATION':
-        behaviors.push((delta, time) => {
+        behaviors.push((_delta, time) => {
           nodeMeshes.forEach((m, idx) => {
             m.position.y += Math.sin(time * 2.0 + idx * 0.4) * 0.003;
           });
@@ -340,7 +340,7 @@ export class VRTopologyTranslator {
     rows: Record<string, unknown>[],
     dataset: Dataset | undefined,
     encodings: EncodingMapping,
-    rng: SeededRandom,
+    _rng: SeededRandom,
     edges: DatasetEdge[] = []
   ): void {
     const positions = ForceDirected3D.compute(rows, {
@@ -852,8 +852,8 @@ export class VRTopologyTranslator {
     interactionType: VRInteraction,
     group: THREE.Group,
     nodeMeshes: THREE.Mesh[],
-    edgeMeshes: THREE.Line[],
-    rows: Record<string, unknown>[],
+    _edgeMeshes: THREE.Line[],
+    _rows: Record<string, unknown>[],
     edges: DatasetEdge[],
     options?: VRTranslatorOptions
   ): InteractionCallbacks {

@@ -73,7 +73,7 @@ export class GestureRetrainService {
     return this._deployments.get(version);
   }
 
-  promoteDeployment(version: string, targetStage: DeploymentStage, percentage = 100): boolean {
+  promoteDeployment(version: string, targetStage: DeploymentStage, _percentage = 100): boolean {
     const dep = this._deployments.get(version);
     if (!dep) return false;
     dep.stage = targetStage;

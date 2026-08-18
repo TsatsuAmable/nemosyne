@@ -161,7 +161,7 @@ export function makeExtendedWebGLContext(canvas?: HTMLCanvasElement): any {
     getAttachedShaders: () => 0,
     getShaderSource: () => '',
     bindAttribLocation: noOp,
-    getUniformLocation: (prog: any, name: string) => ({ __type: 'uniform', name }),
+    getUniformLocation: (_prog: any, name: string) => ({ __type: 'uniform', name }),
     enableVertexAttribArray: noOp,
     disableVertexAttribArray: noOp,
     vertexAttribPointer: noOp,

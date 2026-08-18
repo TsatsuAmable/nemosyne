@@ -63,8 +63,6 @@ export class ControllerGestureMapper implements ControllerGestureMapperLike {
   // Button state.
   private _buttonPrev = new Map<PointerLike, ButtonState>();
 
-  private _tempVec = new THREE.Vector3();
-
   constructor({
     onGesture = () => {},
     cooldown = 0.65,

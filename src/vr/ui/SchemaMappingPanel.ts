@@ -13,8 +13,6 @@ export class SchemaMappingPanel extends MovablePanel {
   dataset: Dataset;
   workingColumns: ColumnSchema[];
   onApplyMapping?: (updatedDataset: Dataset) => void;
-  private _clickCooldownMs = 300;
-  private _lastClickAt = -300;
 
   constructor(
     cameraGroup: THREE.Group,

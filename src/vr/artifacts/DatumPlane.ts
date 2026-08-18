@@ -28,7 +28,7 @@ export class DatumPlane implements Updatable {
     material.blending = THREE.AdditiveBlending;
   }
 
-  update(delta: number, time: number): void {
+  update(_delta: number, time: number): void {
     const material = singleMaterial(this.mesh.material);
     material.opacity = 0.5 + Math.sin(time * 1.5) * 0.2;
   }

@@ -73,7 +73,6 @@ export class HandGestureRecognizer {
   private _pauseCloseDistance = 0.25;
 
   private _tempA = new THREE.Vector3();
-  private _tempB = new THREE.Vector3();
 
   // Expose which hand is dominant for callers that need to follow it.
   dominant?: HandLike;
@@ -140,7 +139,7 @@ export class HandGestureRecognizer {
     this.nonDominant = this.hands[this.nonDominantHandIndex];
   }
 
-  update(delta: number, time: number) {
+  update(_delta: number, time: number) {
     if (this.hands.length < 1) return;
 
     const poses = this.hands.map((h) => this._readHand(h));
@@ -266,7 +265,7 @@ export class HandGestureRecognizer {
     this.nonDominant = this.hands[this.nonDominantHandIndex] ?? this.dominant;
   }
 
-  private _canFire(gesture: string, time: number) {
+  private _canFire(_gesture: string, time: number) {
     if (time - this._lastGestureTime < this.cooldown) return false;
     return true;
   }

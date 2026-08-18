@@ -11,7 +11,7 @@ import { makeKernelMockBridge } from '../../helpers/kernelMock.ts';
 describe('Tier 4 — Scenario 3: Long-Running VR Spatial Memory Palace & Dynamic Dataset Swapping', () => {
   it('Executes multi-dataset session: loads Dataset A, simulates long run, swaps to Dataset B, and verifies MeshPool static geometry preservation', () => {
     const scene = new THREE.Scene();
-    const workspace = new WorkspaceManager(scene);
+    new WorkspaceManager(scene);
     const bus = new WorldEventBus();
     // Minimal functional artifact so apply()/reset() run the full operation
     // path (captureBaseState -> computeDataset -> applyVisual -> history push)

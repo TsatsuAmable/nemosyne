@@ -10,7 +10,6 @@ import { WorldSpatialContext } from './trace/WorldSpatialContext.ts';
 export class InputTelemetry extends MovablePanel {
   engine: EngineLike;
   lines: string[];
-  private _tempVec: THREE.Vector3;
   private _worldContext: WorldSpatialContext;
 
   constructor(engine: EngineLike) {
@@ -26,7 +25,6 @@ export class InputTelemetry extends MovablePanel {
     this.engine = engine;
     this.lines = [];
 
-    this._tempVec = new THREE.Vector3();
     this._worldContext = new WorldSpatialContext();
   }
 

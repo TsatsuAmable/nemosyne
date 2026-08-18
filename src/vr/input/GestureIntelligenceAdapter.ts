@@ -136,6 +136,10 @@ export class GestureIntelligenceAdapter {
     this._lastResult = null;
   }
 
+  get lastGestureName(): string | null {
+    return this._lastGestureName;
+  }
+
   dispose(): void {
     this._engine.dispose();
   }
