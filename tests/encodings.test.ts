@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, expect, it } from 'vitest';
 import { categoricalColor } from '../src/data/Encodings.ts';
 

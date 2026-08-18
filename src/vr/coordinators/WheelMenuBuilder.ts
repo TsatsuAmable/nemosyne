@@ -10,10 +10,13 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
     onHover: () => world.previewDataOperation(op),
     onLeave: () => world.clearOperationPreview(),
   });
-  // Panels are optional on the World facade (created lazily during World init);
-  // toggle only when the target actually exists.
-  const toggle = (panel: PanelLike | undefined) => {
-    if (panel) world.panelManager.togglePanel(panel);
+  // Panels and managers live on world.uiManager, with fallback for standalone stubs.
+  const pm = world.uiManager?.panelManager ?? (world as unknown as { panelManager?: typeof world.panelManager }).panelManager;
+  const dashboard = world.uiManager?.dashboard ?? (world as unknown as { dashboard?: typeof world.dashboard }).dashboard;
+  const toggle = (panel: PanelLike | null | undefined) => {
+    if (panel && pm) {
+      pm.togglePanel(panel);
+    }
   };
 
   return [
@@ -26,7 +29,7 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
           id: 'launcher',
           label: 'Launcher',
           icon: '🚀',
-          callback: () => world.panelManager.toggleLauncher(),
+          callback: () => pm?.toggleLauncher(),
         },
         {
           id: 'settings',
@@ -38,62 +41,62 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
           id: 'operation-log',
           label: 'Log',
           icon: '📝',
-          callback: () => toggle(world.operationLogPanel),
+          callback: () => toggle(world.uiManager?.operationLogPanel ?? (world as unknown as { operationLogPanel?: PanelLike }).operationLogPanel),
         },
         {
           id: 'telemetry',
           label: 'Telemetry',
           icon: '📊',
-          callback: () => toggle(world.metricsPanel),
+          callback: () => toggle(world.uiManager?.metricsPanel ?? (world as unknown as { metricsPanel?: PanelLike }).metricsPanel),
         },
         {
           id: 'performance',
           label: 'Perf',
           icon: '⏱️',
-          callback: () => toggle(world.performancePanel),
+          callback: () => toggle(world.uiManager?.performancePanel ?? (world as unknown as { performancePanel?: PanelLike }).performancePanel),
         },
         {
           id: 'interaction-coach',
           label: 'Coach',
           icon: '🎓',
-          callback: () => toggle(world.interactionCoach),
+          callback: () => toggle(world.uiManager?.interactionCoach ?? (world as unknown as { interactionCoach?: PanelLike }).interactionCoach),
         },
         { id: 'tour', label: 'Tour', icon: '📍', callback: () => world.startTour() },
         {
           id: 'narrative-strip',
           label: 'Timeline',
           icon: '🎞️',
-          callback: () => toggle(world.narrativeStrip),
+          callback: () => toggle(world.uiManager?.narrativeStrip ?? (world as unknown as { narrativeStrip?: PanelLike }).narrativeStrip),
         },
         {
           id: 'recommendation',
           label: 'Guidance',
           icon: '🧭',
-          callback: () => toggle(world.recommendationPanel),
+          callback: () => toggle(world.uiManager?.recommendationPanel ?? (world as unknown as { recommendationPanel?: PanelLike }).recommendationPanel),
         },
         {
           id: 'recenter',
           label: 'Recenter',
           icon: '🎯',
-          callback: () => world.panelManager.recenter(),
+          callback: () => pm?.recenter(),
         },
         {
           id: 'scroll-dashboard-left',
           label: '◀ Dash',
           icon: '⬅️',
-          callback: () => world.dashboard.scrollBySlots(-1),
+          callback: () => dashboard?.scrollBySlots(-1),
         },
         {
           id: 'scroll-dashboard-right',
           label: 'Dash ▶',
           icon: '➡️',
-          callback: () => world.dashboard.scrollBySlots(1),
+          callback: () => dashboard?.scrollBySlots(1),
         },
         {
           id: 'reset-dashboard',
           label: 'Reset Dash',
           icon: '↺',
-          callback: () => world.dashboard.resetDashboard(),
+          callback: () => dashboard?.resetDashboard(),
         },
         {
           id: 'save-session',
@@ -260,7 +263,7 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
           id: 'collab-panel',
           label: 'Network',
           icon: '🌐',
-          callback: () => toggle(world.networkPanel),
+          callback: () => toggle(world.uiManager?.networkPanel ?? (world as unknown as { networkPanel?: PanelLike }).networkPanel),
         },
       ],
     },

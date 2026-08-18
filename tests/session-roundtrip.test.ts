@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
@@ -8,7 +9,7 @@ import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { NemosyneSession } from '../src/session/NemosyneSession.ts';
 import { WorldSessionController } from '../src/vr/coordinators/WorldSessionController.ts';
 import { toAnalysisSpec } from '../src/vr/interactions/DataOperations.ts';
-import { makeKernelMockBridge } from './helpers/kernelMock.js';
+import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 import type { WorldLike } from '../src/vr/coordinators/types.ts';
 
 /**

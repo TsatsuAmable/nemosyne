@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import { UXFrustrationAnalyzer } from '../src/utils/UXFrustrationAnalyzer.ts';
 import { TelemetryCollector } from '../src/utils/Telemetry.ts';

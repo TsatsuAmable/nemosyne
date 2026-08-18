@@ -64,6 +64,6 @@ export class AnalysisStoryExporter {
     const text = JSON.stringify(data, null, 2);
     const filename = `nemosyne-story-${data.timestamp}.json`;
     downloadText(text, filename, 'application/json');
-    world.vrConsole?.log?.('log', [`Analysis story exported: ${filename}`]);
+    world.uiManager?.vrConsole?.log?.('log', [`Analysis story exported: ${filename}`]);
   }
 }

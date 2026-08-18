@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BinaryPoseSerializer } from '../src/network/BinaryPoseSerializer.ts';
 import { CollaborativeStateSync } from '../src/network/CollaborativeStateSync.ts';

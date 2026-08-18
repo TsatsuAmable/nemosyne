@@ -5,7 +5,7 @@ import { VRTopologyTranslator } from '../../../src/draco/VRTopologyTranslator.ts
 import { AdaptiveFrameGovernor } from '../../../src/vr/scalability/AdaptiveFrameGovernor.ts';
 import { WorldEventBus, WorldTopics } from '../../../src/utils/EventBus.ts';
 import { MovablePanel } from '../../../src/vr/ui/MovablePanel.ts';
-import { makeKernelMockBridge } from '../../helpers/kernelMock.js';
+import { makeKernelMockBridge } from '../../helpers/kernelMock.ts';
 
 describe('Tier 4 — Scenario 1: Large-Scale High-Dimensional Topological Dataset Ingestion & Adaptive Rendering', () => {
   it('Executes full E2E pipeline: parse, infer topology, synthesize spatial scene, adapt frame governor LOD, and inspect UI', () => {

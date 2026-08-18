@@ -138,23 +138,40 @@ export class World {
   portalB: FarcasterPortal;
   telemetryCollector: TelemetryCollectorLike;
   uiManager: WorldUIManager;
+  /** @deprecated Access via `uiManager.panelManager` */
   panelManager: PanelManager;
+  /** @deprecated Access via `uiManager.dashboard` */
   dashboard: DashboardManager;
+  /** @deprecated Access via `uiManager.handWheelMenu` */
   handWheelMenu: HandWheelMenu;
+  /** @deprecated Access via `uiManager.vrMenu` */
   vrMenu: VRMenu;
+  /** @deprecated Access via `uiManager.vrConsole` */
   vrConsole: VRConsole;
+  /** @deprecated Access via `uiManager.telemetryPanel` */
   telemetryPanel: InputTelemetry;
+  /** @deprecated Access via `uiManager.settingsPanel` */
   settingsPanel: SettingsPanel;
+  /** @deprecated Access via `uiManager.operationLogPanel` */
   operationLogPanel: OperationLogPanel;
+  /** @deprecated Access via `uiManager.metricsPanel` */
   metricsPanel: TelemetryPanel;
+  /** @deprecated Access via `uiManager.performancePanel` */
   performancePanel: PerformancePanel;
+  /** @deprecated Access via `uiManager.networkPanel` */
   networkPanel: NetworkPanel;
+  /** @deprecated Access via `uiManager.interactionCoach` */
   interactionCoach: InteractionCoach;
+  /** @deprecated Access via `uiManager.narrativeStrip` */
   narrativeStrip: NarrativeStrip;
+  /** @deprecated Access via `uiManager.miniOverview` */
   miniOverview: MiniOverview;
+  /** @deprecated Access via `uiManager.peerPresenceHUD` */
   peerPresenceHUD: PeerPresenceHUD;
   loadTestDriver!: LoadTestDriver;
+  /** @deprecated Access via `uiManager.loadTestPanel` */
   loadTestPanel!: LoadTestPanel;
+  /** @deprecated Access via `uiManager.recommendationPanel` */
   recommendationPanel!: import('./ui/RecommendationPanel.ts').RecommendationPanel;
   inputCoordinator: WorldInputCoordinator;
   userModeController: UserModeController;

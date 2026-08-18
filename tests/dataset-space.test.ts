@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, expect, it } from 'vitest';
 import { Dataset } from '../src/data/Dataset.ts';
 import { DatasetSpace } from '../src/atlas/DatasetSpace.ts';

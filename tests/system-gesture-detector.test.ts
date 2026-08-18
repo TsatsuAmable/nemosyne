@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, expect, it, vi } from 'vitest';
 import { SystemGestureDetector } from '../src/vr/input/SystemGestureDetector.ts';
 

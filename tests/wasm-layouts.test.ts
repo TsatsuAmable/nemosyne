@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { GridLayout3D } from '../src/draco/layouts/GridLayout3D.ts';

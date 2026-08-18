@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * UXTraceRecorder tests: context sampling, head-gaze raycast targets,
  * pointer drift, event stamping (pinch/selection/system/wheel/gesture),

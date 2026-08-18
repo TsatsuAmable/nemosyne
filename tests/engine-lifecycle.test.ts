@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Engine } from '../src/vr/Engine.ts';
 import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.ts';

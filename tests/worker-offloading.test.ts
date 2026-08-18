@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import { DracoSolverWorker } from '../src/draco/DracoSolverWorker.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';

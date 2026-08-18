@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.ts';

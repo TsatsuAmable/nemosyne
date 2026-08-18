@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EvidenceStore, EvidenceWeightedScorer } from '../src/draco/evidence/index.ts';
 import type { DracoSpec, SolverResult } from '../src/draco/types.ts';

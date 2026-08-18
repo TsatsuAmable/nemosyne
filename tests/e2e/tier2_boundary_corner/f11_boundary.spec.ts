@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Dataset } from '../../../src/data/Dataset.ts';
 import { messagePackToDataset, datasetToMessagePack } from '../../../src/data/serializers/MessagePackSerializer.ts';
 import { Room } from '../../../src/network/Room.ts';
-import { makeKernelMockBridge } from '../../helpers/kernelMock.js';
+import { makeKernelMockBridge } from '../../helpers/kernelMock.ts';
 
 // Wave 3: Parsers/CSVDataParser are deleted; parse runs through the kernel
 // mock (canned, with __proto__/constructor/prototype stripping that mirrors the

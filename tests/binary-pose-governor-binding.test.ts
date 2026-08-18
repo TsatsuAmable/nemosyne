@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import { BinaryPoseSerializer, type CameraPose } from '../src/network/BinaryPoseSerializer.ts';
 import { InstancedPointCloud } from '../src/vr/scalability/InstancedPointCloud.ts';

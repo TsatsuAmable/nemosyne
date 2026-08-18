@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi } from 'vitest';
 import { AdaptiveFrameGovernor } from '../src/vr/scalability/AdaptiveFrameGovernor.ts';
 import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.ts';

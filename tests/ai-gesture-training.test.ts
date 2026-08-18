@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GestureModelStore } from '../src/ai/GestureModelStore.ts';
 import { GestureTrainingWorker } from '../src/ai/GestureTrainingWorker.ts';

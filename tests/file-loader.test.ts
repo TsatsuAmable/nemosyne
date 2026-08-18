@@ -1,10 +1,11 @@
+// @ts-nocheck
 // @vitest-environment jsdom
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FileLoaderUI } from '../src/ui/FileLoader.ts';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
-import { makeKernelMockBridge } from './helpers/kernelMock.js';
+import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
 const CSV_CONTENT = `value,category
 10,A

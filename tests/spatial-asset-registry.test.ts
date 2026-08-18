@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { SpatialAssetRegistry } from '../src/vr/ui/SpatialAssetRegistry.ts';

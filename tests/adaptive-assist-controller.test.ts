@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.ts';

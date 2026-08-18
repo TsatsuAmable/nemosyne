@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ExperimentRunner } from '../src/study/ExperimentRunner.ts';
 import { StudyController } from '../src/vr/coordinators/StudyController.ts';

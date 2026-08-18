@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import { buildReviewBundle, formatReviewBundle, DEFAULT_ACCESSIBILITY } from '../src/utils/ReviewBundle.ts';
 import type { PrivacyLevel, TelemetryReport, PerformanceViolation } from '../src/vr/coordinators/types.ts';

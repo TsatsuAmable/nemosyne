@@ -288,6 +288,27 @@ export interface HandWheelMenuLike {
   toggle(): void;
   handlePointerClick?(raycaster: Raycaster): boolean | undefined;
   applyAccessibility?(options: AccessibilityOptions): void;
+  onVisibility?: ((visible: boolean, via: 'toggle' | 'show' | 'hide') => void) | null;
+}
+
+export interface WorldUIManagerLike {
+  panelManager?: PanelManagerLike;
+  dashboard?: DashboardLike;
+  handWheelMenu?: HandWheelMenuLike;
+  vrMenu?: (PanelLike & { setLiveConnected?(connected: boolean): void }) | null;
+  vrConsole?: VRConsoleLike | null;
+  telemetryPanel?: PanelLike | null;
+  settingsPanel?: (PanelLike & { getAllSettings?(): SettingsMap; getSetting?(key: string): unknown }) | null;
+  operationLogPanel?: PanelLike | null;
+  metricsPanel?: PanelLike | null;
+  performancePanel?: PanelLike | null;
+  networkPanel?: (PanelLike & { setStatus?(status: Record<string, unknown>): void }) | null;
+  interactionCoach?: (PanelLike & { setUserMode?(mode: string): void }) | null;
+  narrativeStrip?: NarrativeStripLike | null;
+  miniOverview?: (PanelLike & { mesh?: Object3D; setEnabled?(enabled: boolean): void }) | null;
+  peerPresenceHUD?: PanelLike | null;
+  loadTestPanel?: PanelLike | null;
+  recommendationPanel?: (PanelLike & { markDirty?(): void }) | null;
 }
 
 export interface WheelMenuAction {
@@ -705,11 +726,13 @@ export interface WorldFacadeForLiveStream {
   dracoNode?: DracoTopologyNodeLike | null;
   currentEntry?: { name?: string; [key: string]: unknown } | null;
   loadDataset(entry: unknown): void;
+  uiManager?: WorldUIManagerLike;
   vrMenu?: { setLiveConnected?(connected: boolean): void };
   vrConsole?: { log?(level: string, args: unknown[]): void; warn?(level: string, args: unknown[]): void };
 }
 
 export interface WorldFacadeForCollaboration {
+  uiManager?: WorldUIManagerLike;
   settingsPanel?: { getAllSettings(): SettingsMap };
   networkPanel?: { setStatus(status: Record<string, unknown>): void };
   vrConsole?: { log?(level: string, args: unknown[]): void };
@@ -1068,6 +1091,7 @@ export interface WorldLike {
   _leaveCollaborationRoom(): void;
 
   // optional — accessed via optional chaining
+  uiManager?: WorldUIManagerLike;
   vrConsole?: VRConsoleLike;
   telemetryCollector?: TelemetryCollectorLike;
   currentEntry?: DatasetLoadEntry | null;

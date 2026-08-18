@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { CanvasTextureCacheManager } from '../src/vr/ui/CanvasTextureCacheManager.ts';

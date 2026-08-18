@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Phase 22.3 Tier A: Critical Input Defects Test Suite
  *

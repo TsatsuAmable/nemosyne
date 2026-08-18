@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Dataset } from '../../../src/data/Dataset.js';
 import { Room } from '../../../src/network/Room.ts';
-import { makeKernelMockBridge } from '../../helpers/kernelMock.js';
+import { makeKernelMockBridge } from '../../helpers/kernelMock.ts';
 import { generatePollutedCSV, generatePollutedJSON } from '../harness/dataset_fixtures.js';
 
 // Wave 3: CSVDataParser is deleted; CSV parsing now runs through the kernel.
