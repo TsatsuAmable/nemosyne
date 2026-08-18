@@ -1502,7 +1502,6 @@ The dashboard becomes a workspace, not a menu. Panels become task surfaces, not 
 - ✅ **Max two task panels rule.** Enforced maximum 2 task panels open simultaneously, auto-closing the oldest.
 - ✅ **Diagnostic UI mode separation.** Restricted diagnostic panels (`VRConsole`, `PerformanceHUD`, `Network`, `LoadTest`) to `DEVELOPER` mode, keeping research and analyst modes uncluttered.
 - ✅ **Gates.** Added tests in `tests/cockpit-taxonomy.test.ts`. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
-
 ### Sprint 24.5 — Dashboard-as-workspace + transient context cards ✅
 
 - ✅ **Transient context cards.** Implemented `TransientContextCardManager` (`src/vr/ui/TransientContextCards.ts`) spawning ephemeral actionable cards (`dataset_loaded`, `recommendation`, `drift_alert`) with auto-dismiss timers.
