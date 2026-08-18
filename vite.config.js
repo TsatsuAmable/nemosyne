@@ -351,6 +351,7 @@ function loadtestResultsPlugin() {
 function uxTracePlugin() {
   const logDir = path.resolve(process.cwd(), 'logs');
   const logFile = path.join(logDir, 'ux-trace.jsonl');
+  const manifestFile = path.join(logDir, 'session-manifest.jsonl');
 
   try {
     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
@@ -366,6 +367,7 @@ function uxTracePlugin() {
         return;
       }
       const lines = [];
+      const manifestLines = [];
       let appended = 0;
       for (const record of batch.records) {
         if (!record || typeof record !== 'object') continue;
@@ -373,9 +375,12 @@ function uxTracePlugin() {
         const line = JSON.stringify(record);
         if (line.length > 16 * 1024) continue; // per-record cap
         lines.push(line);
+        if (record.type === 'session-manifest') {
+          manifestLines.push(line);
+        }
         appended++;
         // Echo interesting events (not 5 Hz context samples) to the terminal.
-        if (['pinch', 'selection', 'gesture', 'system', 'wheel', 'tour'].includes(record.type)) {
+        if (['pinch', 'selection', 'gesture', 'system', 'wheel', 'tour', 'session-manifest', 'perf', 'friction', 'hands'].includes(record.type)) {
           const detail =
             record.type === 'pinch'
               ? `${record.phase} ${record.hand} d=${record.d} -> ${record.gating}`
@@ -387,7 +392,15 @@ function uxTracePlugin() {
                     ? record.kind
                     : record.type === 'wheel'
                       ? `${record.state} via ${record.via}`
-                      : `step ${record.step}/${record.total}`;
+                      : record.type === 'session-manifest'
+                        ? `manifest ${record.datasetName || 'no-dataset'} [${record.topology || '-'}]`
+                        : record.type === 'perf'
+                          ? `perf ${record.severity} frameMs=${record.frameMs} budget=${record.budget}`
+                          : record.type === 'friction'
+                            ? `friction ${record.pattern} score=${record.score}`
+                            : record.type === 'hands'
+                              ? `hands ${record.phase} ${record.hand} ttfr=${record.ttfrMs}ms`
+                              : `step ${record.step}/${record.total}`;
           const ctx = record.ctx || {};
           const gaze = ctx.gaze?.target ? ` gaze=${ctx.gaze.target}` : '';
           const drift = ctx.ptr?.driftDeg != null ? ` drift=${ctx.ptr.driftDeg}°` : '';
@@ -398,6 +411,9 @@ function uxTracePlugin() {
       if (lines.length > 0) {
         try {
           fs.appendFileSync(logFile, lines.join('\n') + '\n', 'utf-8');
+          if (manifestLines.length > 0) {
+            fs.appendFileSync(manifestFile, manifestLines.join('\n') + '\n', 'utf-8');
+          }
         } catch (err) {
           console.error('[ux-trace] failed to append batch:', err);
         }

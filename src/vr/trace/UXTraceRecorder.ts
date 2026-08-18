@@ -41,6 +41,45 @@ export type UXTraceHandPinchGating =
   | 'wheel-release'
   | 'system-suppressed';
 
+export interface SessionManifestInfo {
+  sid?: string;
+  nemosyneSessionId?: string;
+  datasetName?: string;
+  datasetFingerprint?: string;
+  datasetVersion?: string;
+  topology?: string;
+  buildHash?: string;
+  wasmCapabilities?: number;
+  ua?: string;
+  startedAt?: string;
+  sampleHz?: number;
+}
+
+export interface PerfTraceInfo {
+  id?: string;
+  severity: 'warning' | 'critical' | 'nominal';
+  value?: number;
+  budget?: number;
+  frameMs: number;
+  lodScaleFactor?: number;
+  throttleCount?: number;
+}
+
+export interface FrictionTraceInfo {
+  pattern: string;
+  severity: 'mild' | 'moderate' | 'severe';
+  score: number;
+  compactTrail?: string[];
+}
+
+export interface HandsLifecycleTraceInfo {
+  phase: 'connected' | 'joints-valid' | 'fallback' | 'lost';
+  hand: string;
+  source?: string;
+  jointCount?: number;
+  ttfrMs?: number;
+}
+
 interface TraceEngineDeps {
   camera?: THREE.Camera;
   headWorldPos?: THREE.Vector3;
@@ -302,6 +341,49 @@ export class UXTraceRecorder {
     });
   }
 
+  /** Emit session manifest linking UX trace sid with dataset and engine identity. */
+  recordSessionManifest(manifest: Partial<SessionManifestInfo> = {}): void {
+    if (this._disabled) return;
+    this._push({
+      type: 'session-manifest',
+      sid: this._sessionId,
+      startedAt: new Date().toISOString(),
+      sampleHz: round(1 / this._sampleInterval, 2),
+      ua: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      ...manifest,
+    });
+  }
+
+  /** Performance metric or budget violation event. */
+  recordPerf(info: PerfTraceInfo): void {
+    if (this._disabled) return;
+    this._push({
+      type: 'perf',
+      ...info,
+      ctx: this._context(),
+    });
+  }
+
+  /** Frustration and friction pattern event. */
+  recordFriction(info: FrictionTraceInfo): void {
+    if (this._disabled) return;
+    this._push({
+      type: 'friction',
+      ...info,
+      ctx: this._context(),
+    });
+  }
+
+  /** Hand-tracking optical joint lifecycle and cold-start tracking event. */
+  recordHands(info: HandsLifecycleTraceInfo): void {
+    if (this._disabled) return;
+    this._push({
+      type: 'hands',
+      ...info,
+      ctx: this._context(),
+    });
+  }
+
   dispose(): void {
     this._disposed = true;
     for (const unsub of this._unsubs) {
@@ -549,6 +631,11 @@ export class UXTraceRecorder {
             : null;
     const meshName = mesh.name && mesh.name.length > 0 ? mesh.name : mesh.type;
     return dataLabel ? `${dataLabel} (${meshName}#${shortId(mesh.uuid)})` : `${meshName}#${shortId(mesh.uuid)}`;
+  }
+
+  /** Manually flush buffered records immediately. */
+  async flush(): Promise<void> {
+    return this._flush();
   }
 
   private async _flush(): Promise<void> {

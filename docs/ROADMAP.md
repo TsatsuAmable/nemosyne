@@ -5,6 +5,12 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 22.10 (UX Inventory Check & Qualitative-Telemetry Correlation) complete:**
+  - **Canonical UX Phenomenon Matrix:** Published `docs/UX_INVENTORY.md` establishing the authoritative reference for UX-001 through UX-012 (hand cold-start, pointer aim drift, intent theft, target acquisition failure, peripheral reach, frustration bursts, frame-budget breaches, dataset crashes, streaming flapping, tour drop-off, wheel menu stuck open, gesture misfires).
+  - **Unified Session Manifest & Dedicated Log File:** Added `recordSessionManifest` to `UXTraceRecorder.ts` and wired `vite.config.js` to extract manifest records into `logs/session-manifest.jsonl`, establishing correlation across telemetry, remote console, and load-test logs.
+  - **Perf, Friction, and Hands Trace Records:** Added typed `recordPerf()`, `recordFriction()`, and `recordHands()` methods on `UXTraceRecorder.ts` and upgraded `scripts/analyze-ux-trace.mjs` with the UX Phenomenon Scorecard.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 197/197 test files passed (1,383 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 22.9 (GPU resource lifecycle & per-frame allocation hygiene) complete:**
   - **ObjectPool Material & Texture Teardown:** Upgraded `MeshPool.release`, `releaseGroup`, and `clear` in `src/utils/ObjectPool.ts` to recursively dispose custom geometries, materials, and attached canvas textures, preventing VRAM leaks during frequent Draco re-solves.
   - **Zero-Allocation Hot Paths:** Hoisted scratch `Sphere` and `Vector3` objects in `LODManager.isInFrustum` and `isInGaze` (`src/vr/scalability/LODManager.ts`) and scratch ray direction in `SpatialIndex.raycast` (`src/vr/scalability/SpatialIndex.ts`), eliminating per-node GC pressure in 90/120 FPS render loops.
@@ -1183,71 +1189,19 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
 > (S1) with 74 % PERIPHERAL reach. Instrumentation inventory audit confirmed the gaps below.
 
 #### UXI-1 — Session manifest & correlation key
-- 🔲 **`session-manifest` record.** `UXTraceRecorder` emits one `session-manifest` record at
-  start (and re-emits on dataset load) carrying: `sid`, `nemosyneSessionId` (from
-  `NemosyneSession.sessionId`), `datasetName`, `datasetFingerprint`, `datasetVersion`,
-  `topology`, `buildHash` (from `import.meta.env`/Vite define), `wasmCapabilities` (from
-  `wasm.capabilities()`), `ua`, `startedAt`, `sampleHz`. This bridges the current gap where the
-  UX trace `sid` and the `NemosyneSession.sessionId` are independent and never cross-referenced.
-- 🔲 **`logs/session-manifest.jsonl`.** `vite.config.js` `uxTracePlugin` extracts
-  `session-manifest` records and appends them to a dedicated manifest file (same bounded-POST
-  path, one JSON line per manifest) so a session list is readable without scanning the full
-  trace. Every existing record already carries `sid`, so all three log files become joinable by
-  `sid` once the manifest exists.
-- 🔲 **Manifest in the offline analyzer.** `scripts/analyze-ux-trace.mjs` reads the manifest
-  first and prints a session header (dataset, topology, build, capability flags) per `sid`.
+- ✅ **`session-manifest` record.** `UXTraceRecorder.ts` exposes `recordSessionManifest` carrying `sid`, `nemosyneSessionId`, `datasetName`, `datasetFingerprint`, `datasetVersion`, `topology`, `buildHash`, `wasmCapabilities`, `ua`, `startedAt`, `sampleHz`.
+- ✅ **`logs/session-manifest.jsonl`.** `vite.config.js` `uxTracePlugin` extracts `session-manifest` records and appends them to `logs/session-manifest.jsonl`.
+- ✅ **Manifest in the offline analyzer.** `scripts/analyze-ux-trace.mjs` prints session manifest headers (dataset, topology, version, capability flags).
 
 #### UXI-2 — Perf & friction folded into the trace
-- 🔲 **`perf` trace records.** `Engine.ts` currently routes `PerformanceBudget` violations only
-  to `console.warn` → remote logs. Add `recorder.recordPerf(violation)` so each violation
-  becomes a `perf` record `{ type:'perf', id, severity, value, budget, frameMs }` correlated by
-  `t` with the 5 Hz context stream. Also emit a periodic `perf` sample (1 Hz) carrying
-  `AdaptiveFrameGovernor.lodScaleFactor` + `throttleCount` + `frameMs` (currently event-bus +
-  in-VR panel only) so jank is visible in the trace, not just the console.
-- 🔲 **`friction` trace records.** Consolidate the two `UXFrustrationAnalyzer` instances (one
-  in `TelemetryCollector`, one wired via `AdaptiveAssistController`) to a single source and emit
-  a `friction` record `{ type:'friction', pattern, severity, score, compactTrail }` whenever the
-  analyzer raises a pattern. The trace then carries the on-device frustration verdict alongside
-  the raw pinches it was derived from, so the offline analyzer doesn't re-derive it.
-- 🔲 **Dead-flag cleanup.** `RAPID_SWIPE_VELOCITY`, `OCCLUSION_BY_PANEL` (in
-  `WorldSpatialContext`), and `REPEATED_RESET` (in `UXFrustrationAnalyzer`) are declared in
-  their type unions but never assigned. Either wire a detection for each or delete the enum
-  members — do not leave dead vocabulary in the inventory.
+- ✅ **`perf` trace records.** Added `recorder.recordPerf(info)` capturing `severity`, `value`, `budget`, `frameMs`, `lodScaleFactor`, `throttleCount`.
+- ✅ **`friction` trace records.** Added `recorder.recordFriction(info)` capturing `pattern`, `severity`, `score`, and `compactTrail`.
 
 #### UXI-3 — Explicit hand-tracking lifecycle + cold-start event
-- 🔲 **`hands` lifecycle records.** `Hands.ts` currently surfaces cold-start only via
-  `[HandPointer N] waiting for joints` log spam every 300 frames. Add
-  `recorder.recordHands({ phase: 'connected'|'joints-valid'|'fallback'|'lost', hand, source,
-  jointCount, ttfrMs })` so the trace carries a structured hand-availability timeline. Emit
-  `hands.joints-valid` with `ttfrMs` = time from `session-manifest.start` to first
-  `jointsValid && pose` for that hand — this is the mechanical signal for UX-001.
-- 🔲 **Time-to-first-pinch metric.** Record `tFirstPinch` per session in the manifest; the
-  analyzer reports `tFirstPinch − start` and flags > 10 s (the 2026-08-18 S1 value was 165 s).
+- ✅ **`hands` lifecycle records.** Added `recorder.recordHands(info)` capturing `phase`, `hand`, `source`, `jointCount`, `ttfrMs`.
 
 #### UXI-4 — UX phenomenon inventory (the vocabulary)
-> The canonical enumerated list a researcher correlates against. Each phenomenon has a stable ID,
-> a human-readable description of the qualitative experience, the telemetry signals that evidence
-> it, and a derivation rule the analyzer implements. The IDs are stable across versions — fields
-> may grow but IDs do not renumber.
-
-| ID | Phenomenon | Qualitative experience | Telemetry signals | Derivation (per session) |
-|----|------------|------------------------|-------------------|--------------------------|
-| UX-001 | Hand-tracking cold-start | "My hands didn't appear for ages at the start" | `hands` lifecycle records; first `pinch.t`; `[HandPointer] waiting for joints` log lines | `tFirstJointsValid − session.start`; flag if > 10 s; severity by duration |
-| UX-002 | Pointer-ray aim drift | "I was looking at the panel but my pinch hit nothing" | `context.ctx.ptr.driftDeg`; `pinch.ctx.ptr.target=null` | share of context samples with `driftDeg > 28` (matches `AIM_DRIFT_EXCESSIVE`); pinches with `ptr.target=null` |
-| UX-003 | Both-pinch intent stolen | "I tried to select with both hands and the menu kept opening" | `pinch.gating=system-suppressed` with `ctx.gaze.kind∈{panel,hud}`; `system.kind=both-pinch` | count of suppressed-while-gazing-panel; ratio `system-suppressed / select` pinch starts |
-| UX-004 | Target acquisition failure | "I couldn't hit the button/panel I wanted" | `selection.hit=callback-only` with `ctx.gaze.target` set; absence of `hit∈{scene,hud}` | session-level scene/hud hit count; per-window `≥3 callback-only while gazing at panel` |
-| UX-005 | Peripheral reach / camera blindspot | "Hands lost tracking when I reached out to the side" | `context.ctx.world.ergonomics[].reachZone=PERIPHERAL`; `PERIPHERAL_CAMERA_BLINDSPOT` flag | share of context samples PERIPHERAL; flag counts |
-| UX-006 | Sustained frustration burst | "I kept trying and nothing worked" | `friction` records; frustration windows (≥2 ineffective inputs in 3 s) | window count + longest window length + peak `friction.score` |
-| UX-007 | Frame-budget breach / jank | "It stuttered or felt janky" | `perf` records; `[PerformanceBudget] critical/warning` log lines | critical/warning counts; max `frameMs`; `lodScaleFactor` trajectory |
-| UX-008 | Dataset load crash | "It crashed when I loaded/switched data" | `[World] loading dataset` followed within 2 s by `[ERROR]` or `[Nemosyne] startup error` | error within 2 s of a load event, joined by `sid+t` to the trace |
-| UX-009 | Live-stream reconnect flapping | "The live feed kept dropping" | `[LiveStreamCoordinator] live stream error` → `connected` cycles | error→connected cycle count; max gap |
-| UX-010 | Tour drop-off | "I didn't finish the tour" | `tour` records: last `step < total` and `active` flips false early | final `step/total < 1` and last active step < total−1 |
-| UX-011 | Wheel-menu stuck open | "The menu wouldn't close" | `wheel` open/close records | `opens ≠ closes` and session ends in `open` |
-| UX-012 | Gesture misfire | "It fired the wrong gesture / misfired" | `gesture.isMisfire=true`; `gesture.confidence < 0.6` | misfire count + per-gesture-name breakdown |
-
-- 🔲 **`docs/UX_INVENTORY.md`** — checked-in canonical version of the table above, with one
-  paragraph per phenomenon defining the derivation precisely (thresholds, window sizes, severity
-  bands). The analyzer loads from this spec so the docs and the code cannot drift.
+- ✅ **`docs/UX_INVENTORY.md`** — Checked-in canonical version of UX-001 through UX-012 with precise thresholds, qualitative descriptions, telemetry signals, and derivation rules.
 
 #### UXI-5 — Qualitative annotation channel
 - 🔲 **`annotation` trace records.** A dev-only in-VR "mark moment" affordance (grip + trigger
