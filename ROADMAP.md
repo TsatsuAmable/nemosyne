@@ -5,6 +5,13 @@
 > not duplicate state.
 
 
+- **2026-08-18 — UX Hypothesis Triage, Quest B2 Probe Analyzer & Shareable Session URLs complete:**
+  - **UX Frustration Signal & Hypothesis Triage:** Implemented `UXHypothesisTriageEngine` (`src/vr/trace/UXHypothesisTriage.ts`) providing non-dogmatic dual hypotheses (confusion vs deep inspection, acquisition struggle vs enthusiastic exploration) and recommended observational verification checks.
+  - **Quest B2 Probe Analyzer:** Implemented `QuestProbeAnalyzer` (`src/vr/scalability/QuestProbeAnalyzer.ts`) evaluating on-device load-test metrics (P95 frame time <= 13.8ms, dropped frame rate <= 5%, JS heap <= 250MB, hand tracking latency) against Quest 3/3S spatial compute budgets.
+  - **Shareable Session URLs:** Implemented `ShareableSessionURL` (`src/session/ShareableSessionURL.ts`) encoding and decoding URL-safe, self-contained analytical session states for instant peer review, observer attachment, and finding validation.
+  - **Unit Test Suite:** Added `tests/triage-quest-probes-shareable.test.ts` testing hypothesis triage generation, Quest performance budget checks, and shareable URL round-trips.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 209/209 test files passed (1,422 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Position Semantics, Evidence-Informed Draco Recommender & Hardware Validation Matrix complete:**
   - **Position Semantic vs Structural vs Layout Discipline:** Implemented `PositionSemanticClassifier` (`src/data/PositionSemanticClassifier.ts`) categorizing spatial coordinates into `SEMANTIC`, `STRUCTURAL`, and `LAYOUT` roles to prevent misleading perceptual inferences (e.g., force-directed layout proximity ≠ metric similarity).
   - **Evidence-Informed Draco Recommender Loop:** Implemented `EvidenceInformedRecommender` (`src/draco/EvidenceInformedRecommender.ts`) updating layout recommendation utilities based on empirical human performance trials.
