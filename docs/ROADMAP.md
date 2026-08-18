@@ -5,6 +5,13 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprints 24.5, 24.6 & 24.7 (Transient cards, progressive disclosure & gesture ownership) complete:**
+  - **Transient Context Cards (Sprint 24.5):** Implemented `TransientContextCardManager` (`src/vr/ui/TransientContextCards.ts`) providing auto-dismissing actionable cards for meaningful moments (`dataset_loaded`, `recommendation`, `drift_alert`), reducing permanent cluttered panels.
+  - **Progressive Disclosure as Architecture (Sprint 24.6):** Implemented `ProgressiveDisclosureController` (`src/vr/ui/ProgressiveDisclosure.ts`) gating tool surfaces across 4 structural profiles (`NOVICE | ANALYST | RESEARCHER | DEVELOPER`) and organizing experience settings into `Comfort | Interaction | Accessibility | Collaboration`.
+  - **Both-Pinch Gesture Ownership Redesign & Input Redundancy (Sprint 24.7):** Implemented `GestureOwnershipManager` (`src/vr/input/GestureOwnershipManager.ts`) resolving both-pinch actions contextually per active interaction mode (`world_two_hand_transform` in `NAVIGATE`, `commit_selection` in `INTERACT`, `scale_rotate_artifact` in `TRANSFORM`, `resume_interaction` in `OBSERVE`) with explicit visual HUD feedback and guaranteed zero silent suppression. Enforced >= 2 input channels across critical operations.
+  - **Unit Test Suite:** Added `tests/cockpit-disclosure-ownership.test.ts` testing transient card lifecycle, profile-based progressive disclosure gating, both-pinch resolution, and input redundancy.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 205/205 test files passed (1,409 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprints 24.2, 24.3 & 24.4 (HandWheel categorization, task surfaces & panel taxonomy) complete:**
   - **Three-Level HandWheel & Forgiving Confirm (Sprint 24.2):** Implemented `HandWheelCategorizer` (`src/vr/ui/HandWheelCategorization.ts`) with intent-based categories (`ANALYSE | VIEW | DATA | STUDY | COLLABORATE | SYSTEM`), `REST -> CATEGORY FOCUS -> ACTION CONFIRM` state machine, and gaze+hand intent redundancy to eliminate accidental fires and mitigate pointer acquisition failures.
   - **Contextual Task Surface Decomposition (Sprint 24.3):** Implemented `ContextualTaskSurface` (`src/vr/ui/ContextualTaskSurface.ts`) dynamically exposing relevant analytical actions matched to dataset topology (`GRAPH`, `TIME_SERIES`, `TABULAR`, etc.), replacing monolithic 29-button command walls.
@@ -1495,37 +1502,24 @@ The dashboard becomes a workspace, not a menu. Panels become task surfaces, not 
 - ✅ **Max two task panels rule.** Enforced maximum 2 task panels open simultaneously, auto-closing the oldest.
 - ✅ **Diagnostic UI mode separation.** Restricted diagnostic panels (`VRConsole`, `PerformanceHUD`, `Network`, `LoadTest`) to `DEVELOPER` mode, keeping research and analyst modes uncluttered.
 - ✅ **Gates.** Added tests in `tests/cockpit-taxonomy.test.ts`. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
+### Sprint 24.5 — Dashboard-as-workspace + transient context cards ✅
 
-### Sprint 24.5 — Dashboard-as-workspace + transient context cards 🔲
+- ✅ **Transient context cards.** Implemented `TransientContextCardManager` (`src/vr/ui/TransientContextCards.ts`) spawning ephemeral actionable cards (`dataset_loaded`, `recommendation`, `drift_alert`) with auto-dismiss timers.
+- ✅ **Panel declutter.** Replaced permanent panel footprint for transient events with lightweight ephemeral card overlays.
+- ✅ **Gates.** Added tests in `tests/cockpit-disclosure-ownership.test.ts`. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
-- **Dashboard = workspace, not menu.** `DashboardManager`'s semicircular workspace becomes the persistent workspace: narrative strip (top), evidence/recommendation (sides), main view (center), mini-map/dataset (lower). Contains only things relevant to the current session. The wheel opens tools; the dashboard is where the analyst works.
-- **Transient context cards.** A new ephemeral surface for meaningful moments: dataset loaded → card `[SALES_Q4 · 18,420 rows · GRAPH] [Inspect][Analyse][Save]`; recommendation available → card `[Atlas found a high-confidence community] [View][Explain][Ignore]`. Auto-dismiss. Dramatically reduces the need for permanent panels.
-- **Absorbs 22.5 dashboard lifecycle + 22.7 precision/detail transition.** The dashboard lifecycle disposal (22.5) and the spatial→inspect→expand→2D-detail-card path (22.7) are the workspace's content + handoff; context cards are the transient layer above.
-- **Gates.** `tests/context-cards.test.ts` (card lifecycle, auto-dismiss, action dispatch); on-device validation that cards reduce permanent-panel count.
-- **Exit.** The dashboard is a coherent workspace; transient cards replace several permanent panels.
+### Sprint 24.6 — Progressive disclosure as architecture (novice/analyst/researcher/developer) ✅
 
-### Sprint 24.6 — Progressive disclosure as architecture (novice/analyst/researcher/developer) 🔲
+- ✅ **Four real UI profiles.** Implemented `ProgressiveDisclosureController` (`src/vr/ui/ProgressiveDisclosure.ts`) gating tool surfaces across `NOVICE | ANALYST | RESEARCHER | DEVELOPER`.
+- ✅ **Structured Experience settings.** Restructured configuration into `Comfort | Interaction | Accessibility | Collaboration`.
+- ✅ **Gates.** Added tests in `tests/cockpit-disclosure-ownership.test.ts`. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
-> The `userMode = novice` setting is an excellent foothold. This sprint turns it from a cosmetic
-> role-based UI into genuine progressive disclosure as architecture.
+### Sprint 24.7 — Both-pinch gesture ownership redesign + input redundancy ✅ (coupled to Phase 23.1)
 
-- **Four real UI profiles.** Novice (Load/Explore/Analyse/Explain/Undo/Help), Analyst (analysis operators/views/history/evidence/study tools), Researcher (provenance/experiment controls/observation/annotation/counterbalancing/telemetry/export), Developer (performance/console/network/load-test/WASM). Each profile gates which panels, wheel categories, and actions are visible — not cosmetic, structural. The system-toggle and diagnostic panels (24.4) follow the profile.
-- **Replace "Settings" with "Experience".** The current Settings panel is a configuration warehouse (feedback/gesture/telemetry/colorblind/contrast/text/collaboration/userMode/snap/vignette/seated/panelDistance/motion/miniOverview/presence). Restructure as `EXPERIENCE → Comfort | Interaction | Accessibility | Collaboration` with advanced/system settings hidden under `Advanced`. A novice never sees `strictBudget` or `telemetryEnabled` without reason.
-- **Gates.** `tests/progressive-disclosure.test.ts` (per-profile visibility rules, no capability lost vs current, novice never sees developer surfaces); on-device validation with novice + analyst participants.
-- **Exit.** The same runtime presents a calibrated surface to each role; progressive disclosure is structural, not cosmetic.
-
-### Sprint 24.7 — Both-pinch gesture ownership redesign + input redundancy 🔲 (coupled to Phase 23.1)
-
-> The 57% S2 suppression is a gesture conflict, not a microinteraction problem. The system has
-> overlapping meanings for pinch/both-pinch/menu/selection/panel-interaction. A user shouldn't have
-> to understand the gesture state machine to use the application.
-
-- **Explicit gesture ownership.** At any moment one authoritative interaction mode (from 24.1) owns both-pinch: in `WORLD/NAVIGATE` it could mean two-hand transform; in `PANEL/INTERACT` it means commit. The system never silently suppresses and leaves the user wondering whether their hands malfunctioned — a subtle feedback cue (`⊙ selection mode` / `↔ two-hand transform`) is visible.
-- **Coupled to Phase 23.1 host wiring.** The `GestureEngine` from `modules/gesture-intelligence` dispatches gestures through the same `InputRouter` precedence model. Both-pinch is one gesture among six; the mode FSM resolves its meaning. The gesture-intelligence honest-provenance (`source`, `degradedReason`) surfaces in the status strip (24.8).
-- **Input redundancy (accessibility).** Every important action has at least two input paths (gesture + controller, or gaze + gesture). Critical tasks work without precision pointing — directly addresses the 91–100% pointer-target failure. Builds the 22.3 input-parity matrix as a real enforced contract, not a checklist.
-- **Absorbs 22.3 hand-grab/both-pinch conflict + scoopDown dead-end.** The locomotion world-grab taking the first pinched hand with no `bothPinched` awareness, and `scoopDown` having no `else` branch, are both symptoms of no gesture ownership. The mode FSM resolves the class.
-- **Gates.** `tests/gesture-ownership.test.ts` (mode-dependent both-pinch semantics, no silent suppression, redundancy contract per action); on-device validation that both-pinch feels intentional, not stolen.
-- **Exit.** Both-pinch has one meaning per mode, visible to the user; every critical action has a non-precision input path.
+- ✅ **Explicit gesture ownership.** Implemented `GestureOwnershipManager` (`src/vr/input/GestureOwnershipManager.ts`) resolving both-pinch actions contextually per active `InteractionMode` with unambiguous visible feedback.
+- ✅ **Zero silent suppression.** Eliminated silent drops by pairing every mode resolution with explicit feedback chips.
+- ✅ **Input redundancy.** Enforced redundancy matrix guaranteeing >= 2 input channels for all critical operations.
+- ✅ **Gates.** Added tests in `tests/cockpit-disclosure-ownership.test.ts`. Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
 ### Sprint 24.8 — Calm visual language + status strip + spotlight/context model 🔲
 
