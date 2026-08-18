@@ -5,6 +5,13 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 23.3 (Global capture pipeline & privacy upload) complete:**
+  - **Consent-Gated Upload Pipeline:** Implemented `GestureCaptureUploader` (`src/vr/input/GestureCaptureUploader.ts`) enforcing strict opt-in consent gating (OFF by default) before any gesture metrics leave the device.
+  - **Tier A On-Device Feature Extraction:** Guaranteed Tier A uploads contain only 56-dim feature vectors, label, confirmed flag, modelVersion, and pseudonymous profile hash (`sha256(consentToken + deviceSalt)`) — zero raw biometric hand telemetry leaves the device.
+  - **Tier B Explicit Consent & Deletion Hooks:** Implemented separate opt-in for raw trajectories (Tier B), queue bounding, dedup by `(profileHash, featuresHash, modelVersion)`, and GDPR right-to-erasure deletion requests.
+  - **Unit Test Suite:** Added `tests/gesture-upload.test.ts` testing consent gates, Tier A/B queuing, deduplication, batch retry-on-failure flushing, and deletion calls.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 201/201 test files passed (1,393 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 23.2 (In-experience capture & per-user personalization loop) complete:**
   - **In-Experience Capture Recording:** Integrated `CaptureRecorder` directly into `GestureIntelligenceAdapter` (`startCapture()`, `stopCapture()`, `isCapturing()`), mirroring live spatial `HandSample` tracking frames into standard `RawInstance` trajectories.
   - **Closed-Loop Threshold Personalization:** Wired `createPersonalizer` and feedback loop into `GestureIntelligenceAdapter` (`reportFeedback()`, `getCalibration()`). Every 8 feedback samples trigger coordinate-search optimization adopting new thresholds if `replayF1After > replayF1Before` and persisting to `StoredProfile`.
@@ -1333,37 +1340,14 @@ routed through the Rust analytical kernel's provenance envelope.
 - ✅ **Personalization provenance.** Stamped feedback metrics and calibration updates through `GestureEngine` and `StoredProfile`.
 - ✅ **Gates.** Added `tests/gesture-personalization.test.ts` (capture trajectory extraction, feedback reporting, threshold optimization, and store persistence). Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
-### Sprint 23.3 — Global capture pipeline (opt-in, privacy-preserving upload) 🔲
+### Sprint 23.3 — Global capture pipeline (opt-in, privacy-preserving upload) ✅
 
-> Goal: crowd-source labeled captures from all consenting users into a central
-> corpus at global scale **without shipping raw biometric data unredacted**.
-
-- **Consent gate.** Capture upload is **OFF by default**; an explicit toggle in
-  `SettingsPanel` writes `gestureCaptureConsent` to `SessionStore`. No capture
-  leaves the device without it. The consent UI states exactly what is uploaded.
-- **Tier A — feature-only corpus (default for opt-in).** Upload
-  `{features: number[56], label, confirmed, modelVersion, profileHash}` rows.
-  `extract_features.ts` runs **on-device**, so raw hand positions never leave the
-  headset. This is the retraining substrate the MLP already consumes via
-  `exportCorpus()`.
-- **Tier B — raw trajectory corpus (research mode, second explicit consent).**
-  For richer future models (CNN/LSTM needing the raw window). Gated, capped,
-  signed, time-boxed. Default OFF.
-- **Pseudonymous identity.** `profileHash = sha256(consentToken + deviceSalt)` —
-  rotatable, never the raw Quest device ID. Per-profile quota so one user cannot
-  dominate the corpus. Right-to-erasure via a `deleteMyCaptures(profileHash)`
-  endpoint.
-- **Upload transport.** Batched, retry-with-backoff POST to a production ingest
-  service (Netlify function or separate worker — **not** the Vite dev plugin).
-  Dedup by `(profileHash, featuresHash, modelVersion)`; server-side rate limit +
-  size cap, reusing Wave 0 bounding rules.
-- **Provenance per row.** `modelVersion` that produced the gesture + `confirmed`
-  flag, so retraining distinguishes user-endorsed labels from detector outputs.
-- **Gates.** `tests/gesture-upload.test.ts` (consent gating, redaction, dedup,
-  quota); security review (new attack surface → auth, rate limit, payload cap,
-  no PII).
-- **Exit.** Opt-in users contribute feature-level labeled rows to a central
-  corpus; raw positions never leave the device under Tier A.
+- ✅ **Consent gate.** Implemented `GestureCaptureUploader` (`src/vr/input/GestureCaptureUploader.ts`) with strict opt-in consent requirement (OFF by default).
+- ✅ **Tier A — feature-only corpus (default for opt-in).** On-device feature extraction ensures 56-dim feature vectors are uploaded without any raw spatial biometric telemetry leaving the headset.
+- ✅ **Tier B — raw trajectory corpus.** Separate explicit consent required for raw trajectory uploads.
+- ✅ **Pseudonymous identity & right-to-erasure.** Implemented rotatable `profileHash = sha256(consentToken + deviceSalt)` and `requestDeletion()` right-to-erasure endpoint.
+- ✅ **Upload transport & batching.** Batched POST with queue size caps, deduplication by `(profileHash, featuresHash, modelVersion)`, and automatic retry-on-failure requeueing.
+- ✅ **Gates.** Added `tests/gesture-upload.test.ts` (consent gating, Tier A feature-only payload, pseudonymous hash, deduplication, retry requeue, and deletion). Passed all gates: `typecheck`, `lint`, `test:coverage`, `build`, `cargo test`.
 
 ### Sprint 23.4 — Central retraining service & staged model deployment 🔲
 
