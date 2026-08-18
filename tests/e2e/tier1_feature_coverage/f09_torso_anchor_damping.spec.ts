@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import * as THREE from 'three';
-import { Engine } from '../../../src/vr/Engine.js';
-import { WorldSceneComposer } from '../../../src/vr/coordinators/WorldSceneComposer.js';
+import { Engine } from '../../../src/vr/Engine.ts';
+import { WorldSceneComposer } from '../../../src/vr/coordinators/WorldSceneComposer.ts';
 
 describe('Feature 9: Torso Anchor Rotation Damping & Stability', () => {
   it('F9-TC1: WorldSceneComposer creates analystAnchor inside engine cameraGroup', () => {

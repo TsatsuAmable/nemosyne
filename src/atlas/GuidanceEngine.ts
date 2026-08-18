@@ -17,7 +17,7 @@ interface ScoredStructure {
 
 export function generateGuidance(
   structureSets: readonly StructureSet[],
-  kernelVersion: string,
+  _kernelVersion: string,
   options?: GuidanceOptions,
 ): AtlasRecommendation | null {
   const minConfidence = options?.minConfidence ?? 0;

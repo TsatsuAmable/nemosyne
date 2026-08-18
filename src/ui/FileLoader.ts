@@ -149,9 +149,6 @@ export class FileLoaderUI {
     `;
   }
 
-  private _boxStyle(): string {
-    return 'margin-bottom: 12px; padding: 8px; background: rgba(0, 30, 40, 0.6); border: 1px solid #005577; border-radius: 3px; color: #88ccff; font-size: 11px; line-height: 1.4;';
-  }
 
   private _label(text: string): HTMLDivElement {
     const el = document.createElement('div');

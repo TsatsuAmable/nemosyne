@@ -16,7 +16,6 @@ export interface SpatialAssetOptions {
 
 export class SpatialAssetRegistry {
   private static _instance: SpatialAssetRegistry | null = null;
-  private _modelCache = new Map<string, THREE.Object3D>();
 
   static getInstance(): SpatialAssetRegistry {
     if (!SpatialAssetRegistry._instance) {

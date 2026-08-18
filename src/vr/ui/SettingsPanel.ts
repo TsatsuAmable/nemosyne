@@ -530,7 +530,7 @@ export class SettingsPanel extends MovablePanel {
     w: number,
     h: number,
     value: string,
-    choices: string[],
+    _choices: string[],
     bounds: ChoiceBounds
   ): void {
     ctx.fillStyle = 'rgba(60, 60, 80, 0.5)';

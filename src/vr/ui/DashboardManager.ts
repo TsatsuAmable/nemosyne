@@ -89,8 +89,6 @@ export class DashboardManager {
   scrollOffset: number;
   targetScrollOffset: number;
   private _lastScrollOffset: number | null;
-
-  private _tempVec: THREE.Vector3;
   private _tempWorld: THREE.Vector3;
 
   constructor(cameraGroup: THREE.Group, options: DashboardOptions = {}) {
@@ -141,8 +139,6 @@ export class DashboardManager {
     this.scrollOffset = 0;
     this.targetScrollOffset = 0;
     this._lastScrollOffset = null;
-
-    this._tempVec = new THREE.Vector3();
     this._tempWorld = new THREE.Vector3();
 
     this._buildWall();

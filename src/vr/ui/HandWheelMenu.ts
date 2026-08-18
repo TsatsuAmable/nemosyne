@@ -322,6 +322,10 @@ export class HandWheelMenu {
     );
   }
 
+  get pointerAngle(): number | null {
+    return this._pointerAngle;
+  }
+
   /**
    * HUD-compatible click handler used by InputRouter. Ray is in world space.
    * Returns true if a category or action was hit.

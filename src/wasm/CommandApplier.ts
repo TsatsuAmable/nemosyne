@@ -34,6 +34,10 @@ export class CommandApplier {
     this.scene = scene;
   }
 
+  public get targetScene(): THREE.Scene {
+    return this.scene;
+  }
+
   public registerEntity(handle: number, object: THREE.Object3D): void {
     this.entities.set(handle, object);
   }

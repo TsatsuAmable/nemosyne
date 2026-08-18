@@ -116,7 +116,7 @@ export function scaleFont(font: number | string | null | undefined, scale: numbe
   const regex = /(\d+(?:\.\d+)?)\s*px/;
   if (typeof font === 'number') return `${font * scale}px`;
   if (!font || typeof font !== 'string') return font;
-  return font.replace(regex, (match, size) => `${(parseFloat(size) * scale).toFixed(1)}px`);
+  return font.replace(regex, (_match, size) => `${(parseFloat(size) * scale).toFixed(1)}px`);
 }
 
 /**

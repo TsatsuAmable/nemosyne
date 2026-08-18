@@ -33,7 +33,6 @@ export class TechnoCoreNode implements Updatable {
 
   private _dataActivity: number;
   lensMode: LensMode;
-  private _baseCoreColor: THREE.Color;
 
   constructor({ position = [6, 4, -8], scale = 1 }: TechnoCoreNodeOptions = {}) {
     this.group = new THREE.Group();
@@ -83,7 +82,6 @@ export class TechnoCoreNode implements Updatable {
 
     this._dataActivity = 0;
     this.lensMode = 'off';
-    this._baseCoreColor = new THREE.Color(0x00ffff);
   }
 
   setDataActivity(value: number): void {

@@ -98,6 +98,10 @@ export class TooltipManager {
     this._pointerHitTooltip.mesh.name = 'pointer-hit-tooltip';
   }
 
+  get lastPointerHit(): THREE.Intersection<THREE.Object3D> | null {
+    return this._lastPointerHit;
+  }
+
   private _buildPool(): void {
     for (let i = 0; i < this.poolSize; i++) {
       const tooltip = this._createTooltip();

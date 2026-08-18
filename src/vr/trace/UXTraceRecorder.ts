@@ -156,7 +156,6 @@ export class UXTraceRecorder {
   private _sampleInterval: number;
   private _flushInterval: number;
   private _endpoint: string;
-  private _now: () => number;
   private _fetch: NonNullable<UXTraceRecorderOptions['fetchImpl']>;
 
   private _sessionId: string;
@@ -196,7 +195,6 @@ export class UXTraceRecorder {
     this._sampleInterval = 1 / Math.max(0.5, options.sampleHz ?? 5);
     this._flushInterval = Math.max(0.25, (options.flushMs ?? 1500) / 1000);
     this._endpoint = options.endpoint ?? '/__ux-trace';
-    this._now = options.now ?? (() => performance.now());
     this._fetch =
       options.fetchImpl ??
       ((url, init) =>

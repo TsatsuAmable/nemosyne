@@ -56,8 +56,6 @@ export class MovablePanel implements IPanelContentHandler {
   totalContentHeight: number;
   scrollbarWidth: number;
 
-  private _matrix: THREE.Matrix4;
-  private _quat: THREE.Quaternion;
   private _disposed = false;
 
   constructor(cameraGroup: THREE.Group, options: MovablePanelOptions = {}) {
@@ -147,9 +145,6 @@ export class MovablePanel implements IPanelContentHandler {
     this.scrollOffset = 0;
     this.totalContentHeight = 0;
     this.scrollbarWidth = 32;
-
-    this._matrix = new THREE.Matrix4();
-    this._quat = new THREE.Quaternion();
 
     this._resizeMinimizeButton();
     this.render();
@@ -273,7 +268,7 @@ export class MovablePanel implements IPanelContentHandler {
     this.mesh.rotation.x = -this.tilt;
   }
 
-  handlePointerMove(worldRaycaster: THREE.Raycaster, pointer: PointerLike): void {
+  handlePointerMove(_worldRaycaster: THREE.Raycaster, pointer: PointerLike): void {
     if (!this.drag.active || this.drag.pointer !== pointer) return;
 
     const worldRay = pointer.getRay(new THREE.Ray());
@@ -306,7 +301,7 @@ export class MovablePanel implements IPanelContentHandler {
     this.mesh.rotation.x = -this.tilt;
   }
 
-  handlePointerUp(worldRaycaster: THREE.Raycaster, pointer: PointerLike): void {
+  handlePointerUp(_worldRaycaster: THREE.Raycaster, pointer: PointerLike): void {
     if (!this.drag.active || this.drag.pointer !== pointer) return;
     this._endDrag();
   }

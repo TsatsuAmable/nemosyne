@@ -24,14 +24,12 @@ export class PerformanceBudget {
   budgets: Required<PerformanceBudgets>;
   private _violations: PerformanceViolation[];
   private _frameDropWindow: number[];
-  private _lastWindowTime: number;
   private _warned: Set<string>;
 
   constructor(budgets: PerformanceBudgets = {}) {
     this.budgets = { ...DEFAULT_BUDGETS, ...budgets };
     this._violations = [];
     this._frameDropWindow = [];
-    this._lastWindowTime = 0;
     this._warned = new Set();
   }
 
