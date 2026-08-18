@@ -223,7 +223,16 @@ export class HandWheelMenu {
     this._buildMenu();
   }
 
+  private _lastToggleTime = -Infinity;
+  private _toggleCooldownMs = 650;
+
   toggle(): void {
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    if (now - this._lastToggleTime < this._toggleCooldownMs) {
+      return;
+    }
+    this._lastToggleTime = now;
+
     const wasVisible = this.group.visible;
     this.group.visible = !this.group.visible;
     if (wasVisible) {

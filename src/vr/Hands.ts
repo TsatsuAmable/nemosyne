@@ -144,6 +144,7 @@ export class HandPointer implements PointerLike {
   }
 
   private _onConnected = (evt: Event) => {
+    this._trackingLostAt = 0;
     const data = (evt as unknown as { data?: XRConnectionEventData }).data ?? {};
     this.handedness = data.handedness ?? 'none';
 
@@ -183,6 +184,7 @@ export class HandPointer implements PointerLike {
   };
 
   private _onDisconnected = () => {
+    this._trackingLostAt = 0;
     this.jointsValid = false;
     this.joints = null;
     this.pinched = false;
