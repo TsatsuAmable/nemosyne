@@ -5,6 +5,12 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Milestone 25.3: 2D-vs-VR Statistical Analysis Engine & Empirical Study Evaluation complete:**
+  - **Empirical Statistical Analyzer:** Implemented `StudyStatisticalAnalyzer` (`src/study/StudyStatisticalAnalyzer.ts`) computing two-sample t-tests, degrees of freedom, p-value estimates via standard Abramowitz-Stegun error function approximation, and Cohen's d effect sizes across task completion duration, anomaly isolation accuracy, F1 score, confidence, and NASA-TLX workload scores.
+  - **Structured Markdown Report Synthesis:** Synthesizes structured outcome markdown tables comparing 2D desktop controls vs. VR experimental conditions conforming to `docs/study/ANALYSIS_PLAN.md`.
+  - **Unit Test Suite:** Added `tests/study-statistical-analyzer.test.ts` verifying two-sample t-tests, Cohen's d effect magnitude classifications, and experiment evaluation reporting.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 215/215 test files passed (1,438 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Milestone 25.2: Quest 3S On-Device Field Trial Suite Execution complete:**
   - **Automated Field Trial Suite:** Implemented `QuestFieldTrialSuite` (`src/vr/scalability/QuestFieldTrialSuite.ts`) automating multi-stage load-test probe execution across dataset scales (1k, 5k, 20k, 50k, 100k nodes) validating Quest 3S physical compute envelopes (72 Hz / 13.88ms frame budget, <5% dropped frames, <250 MB heap).
   - **Audit Certificate Generator:** Generates verifiable field trial compliance certificates with deterministic hashes for research publication bundles.
