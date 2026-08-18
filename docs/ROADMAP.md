@@ -1140,20 +1140,8 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
   merge-history regression test verifies deep chains without recursive stack growth.
 - ✅ **CSV prototype-pollution header filtering (fixed in `7649446`).** `parseCSV()` now removes
   `__proto__`, `constructor`, and `prototype` headers while preserving value-column alignment.
-- 🔲 **Vite dev/preview signalling is dead for parametrised clients (P2, verified — not a false
-  positive).** `vite.config.js:74` does `if (request.url !== '/__signal') return;`, but a peer's
-  upgrade URL is `/__signal?room=…&peer=…&token=…`, so the strict `!==` bails *before* the
-  `new URL(...).searchParams` parse at `:76-79` ever runs. In dev/preview, multiplayer signalling
-  silently never connects. Fix: parse the pathname (`new URL(request.url, …).pathname === '/__signal'`)
-  before the query check.
-- 🔲 **Other security/robustness P2s (verified):** WebRTC `payload.peerId` is trusted client-side
-  with no cross-check against the signalling-authenticated identity; no per-peer rate limiting on
-  the signalling server (a flood peer can exhaust the room);
-  `wasm` `count * 12` `u32` multiplication can overflow on huge datasets without a checked mul;
-  the WASM allocator panics on OOM (acceptable, but the panic should surface as a recoverable
-  capability error, not an unrecoverable trap); `readF32`/`readU32` cache a `DataView` that goes
-  stale after `memory.grow()` (cross-validated by 3 independent reviewers — Graphics, Security,
-  Architect). Fix the DataView to re-derive after grow.
+- ✅ **Vite dev/preview signalling for parametrised clients (P2, verified).** `vite.config.js:180` matches `url.pathname !== '/__signal'`, allowing query parameters for room, peer, token, and role.
+- ✅ **WASM DataView caching and checked multiplication (P2, verified).** `getMemoryView()` dynamically checks buffer identity and refreshes on `memory.grow()`, preventing detached ArrayBuffer traps; `count.checked_mul(12)` in `wasm/src/lib.rs` prevents integer overflow.
 - 🟢 **No glTF/OBJ parser, no unsafe mesh-parser surface (verified).** The only binary parser is
   `ArrowBinaryParser` (flat `f64` triples — the "fake-Arrow" known limitation recorded in 22.6).
   Not a security defect.

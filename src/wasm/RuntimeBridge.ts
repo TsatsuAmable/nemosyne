@@ -252,6 +252,18 @@ export function refreshMemoryView(): void {
 }
 
 /**
+ * Returns a DataView over the WASM memory buffer, automatically refreshing
+ * if memory.grow() has reallocated the underlying buffer.
+ */
+export function getMemoryView(): DataView {
+  if (!wasmInstance) throw new Error('Runtime not initialised');
+  if (!memoryView || memoryView.buffer !== wasmInstance.memory.buffer) {
+    memoryView = new DataView(wasmInstance.memory.buffer);
+  }
+  return memoryView;
+}
+
+/**
  * @returns The shared WebAssembly memory buffer.
  */
 export function memory(): WebAssembly.Memory {
@@ -312,16 +324,14 @@ export function readString(ptr: number, len: number): string {
  * Read a little-endian f32 value from WASM memory.
  */
 export function readF32(ptr: number): number {
-  if (!memoryView) refreshMemoryView();
-  return memoryView!.getFloat32(ptr, true);
+  return getMemoryView().getFloat32(ptr, true);
 }
 
 /**
  * Read a little-endian u32 value from WASM memory.
  */
 export function readU32(ptr: number): number {
-  if (!memoryView) refreshMemoryView();
-  return memoryView!.getUint32(ptr, true);
+  return getMemoryView().getUint32(ptr, true);
 }
 
 /**
