@@ -16,11 +16,6 @@
 
 import { AnalysisHistory } from '../data/AnalysisHistory.ts';
 import type { HistoryEntry } from '../data/AnalysisHistory.ts';
-import {
-  InvestigationBranchManager,
-  type InvestigationBranch,
-  type BranchComparisonResult,
-} from '../session/InvestigationBranchManager.ts';
 import { Dataset } from '../data/Dataset.ts';
 import type {
   BettiPoint,
@@ -93,7 +88,7 @@ export interface WasmRuntimeBridgeFull {
 function now(): number {
   return (typeof performance !== 'undefined' && performance.now) ? performance.now()
     : (typeof Date !== 'undefined' && Date.now) ? Date.now()
-    : 0;
+      : 0;
 }
 
 function emptyDataset(): Dataset {
@@ -278,7 +273,6 @@ export class AtlasCore {
 
   private _resultCounter = 0;
   private _eventCounter = 0;
-  private _branchManager = new InvestigationBranchManager();
 
   constructor({
     kernel = null,
@@ -1192,74 +1186,4 @@ export class AtlasCore {
     }
     return new DatasetSpace(dataset, { fingerprint });
   }
-
-  // --- Investigation DAG & Branching (Gate 5) -------------------------------
-
-  get branchManager(): InvestigationBranchManager {
-    return this._branchManager;
-  }
-
-  branchInvestigation(branchId: string, name: string, hypothesisNotes = ''): InvestigationBranch {
-    const b = this._branchManager.branch(branchId, name, hypothesisNotes);
-    this._eventCounter += 1;
-    this._ledger.push({
-      eventId: `${this._sessionId}:${this._eventCounter}`,
-      sessionId: this._sessionId,
-      timestamp: now(),
-      kind: 'analysis',
-      command: { op: 'analysis' },
-      datasetVersion: this._datasetVersion,
-      datasetFingerprint: this.datasetFingerprint ?? '',
-      observation: `Branched investigation: ${name} [${branchId}]`,
-      stateHash: this.datasetSpace?.fingerprint ?? '',
-    });
-    this._invalidateHistoryView();
-    return b;
-  }
-
-  switchInvestigationBranch(branchId: string): InvestigationBranch {
-    const b = this._branchManager.switchBranch(branchId);
-    this._eventCounter += 1;
-    this._ledger.push({
-      eventId: `${this._sessionId}:${this._eventCounter}`,
-      sessionId: this._sessionId,
-      timestamp: now(),
-      kind: 'analysis',
-      command: { op: 'analysis' },
-      datasetVersion: this._datasetVersion,
-      datasetFingerprint: this.datasetFingerprint ?? '',
-      observation: `Switched investigation branch: ${branchId}`,
-      stateHash: this.datasetSpace?.fingerprint ?? '',
-    });
-    this._invalidateHistoryView();
-    return b;
-  }
-
-  compareInvestigationBranches(branchAId: string, branchBId: string): BranchComparisonResult {
-    return this._branchManager.compareBranches(branchAId, branchBId);
-  }
-
-  markFinding(finding: {
-    entityId?: string;
-    position?: [number, number, number];
-    note: string;
-    tags?: string[];
-  }): ResearchEvent {
-    this._eventCounter += 1;
-    const event: ResearchEvent = {
-      eventId: `${this._sessionId}:${this._eventCounter}`,
-      sessionId: this._sessionId,
-      timestamp: now(),
-      kind: 'analysis',
-      command: { op: 'analysis' },
-      datasetVersion: this._datasetVersion,
-      datasetFingerprint: this.datasetFingerprint ?? '',
-      observation: `FINDING [${finding.entityId ?? 'general'}]: ${finding.note}`,
-      stateHash: this.datasetSpace?.fingerprint ?? '',
-    };
-    this._ledger.push(event);
-    this._invalidateHistoryView();
-    return event;
-  }
 }
-
