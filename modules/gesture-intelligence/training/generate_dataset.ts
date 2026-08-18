@@ -88,7 +88,8 @@ function buildInstance(
   frames: number,
   leftStart: Vec3,
   rightStart: Vec3,
-  move: (p: number) => { l: Vec3; r: Vec3; lPinch: boolean; rPinch: boolean }
+  move: (p: number) => { l: Vec3; r: Vec3; lPinch: boolean; rPinch: boolean },
+  label: GestureClass
 ): Instance {
   const sigma = rng.range(0.005, 0.02);
   const ease = easeInOut(rng);
@@ -112,7 +113,7 @@ function buildInstance(
       t: Math.round(i * DT_MS),
     });
   }
-  return { left, right, label: 'idle' };
+  return { left, right, label };
 }
 
 function startPose(rng: Rng): { left: Vec3; right: Vec3 } {
@@ -141,7 +142,7 @@ function makeGesture(label: GestureClass, rng: Rng): Instance {
           r: { x: right.x - drift * p, y: right.y, z: right.z },
           lPinch: rng.bool(0.1),
           rPinch: rng.bool(0.1),
-        }));
+        }), 'idle');
       }
       if (variant === 1 || variant === 2) {
         const gesture: GestureClass = variant === 1 ? rng.bool() ? 'pinchTogether' : 'scoopUp' : 'pushForward';
@@ -163,7 +164,7 @@ function makeGesture(label: GestureClass, rng: Rng): Instance {
         r: { x: right.x - (converge / 2) * p, y: right.y, z: right.z },
         lPinch: p >= from,
         rPinch: p >= from,
-      }));
+      }), 'pinchTogether');
     }
     case 'pinchApart': {
       const diverge = rng.range(0.15, 0.35) * scale;
@@ -173,7 +174,7 @@ function makeGesture(label: GestureClass, rng: Rng): Instance {
         r: { x: right.x + (diverge / 2) * p, y: right.y, z: right.z },
         lPinch: p >= from,
         rPinch: p >= from,
-      }));
+      }), 'pinchApart');
     }
     case 'bothPinched': {
       const wobble = rng.range(0, 0.04);
@@ -182,7 +183,7 @@ function makeGesture(label: GestureClass, rng: Rng): Instance {
         r: { x: right.x - wobble * p, y: right.y, z: right.z },
         lPinch: true,
         rPinch: true,
-      }));
+      }), 'bothPinched');
     }
     case 'scoopUp': {
       const rise = rng.range(0.15, 0.45) * scale;
@@ -193,7 +194,7 @@ function makeGesture(label: GestureClass, rng: Rng): Instance {
         r: { x: right.x - lateral * p, y: right.y + rise * p, z: right.z },
         lPinch: rng.bool(pinchProb),
         rPinch: rng.bool(pinchProb),
-      }));
+      }), 'scoopUp');
     }
     case 'pushForward': {
       const push = rng.range(0.15, 0.4) * scale;
@@ -209,7 +210,7 @@ function makeGesture(label: GestureClass, rng: Rng): Instance {
           lPinch: rng.bool(pinchProb),
           rPinch: rng.bool(pinchProb),
         };
-      });
+      }, 'pushForward');
     }
     default: {
       return buildInstance(rng, frames, left, right, () => ({
@@ -217,7 +218,7 @@ function makeGesture(label: GestureClass, rng: Rng): Instance {
         r: right,
         lPinch: false,
         rPinch: false,
-      }));
+      }), 'idle');
     }
   }
 }
@@ -243,8 +244,8 @@ function writeJsonl(path: string, instances: Instance[]): void {
   writeFileSync(path, lines + '\n', 'utf8');
 }
 
-const train = generate(42, 420);
-const test = generate(1337, 90);
+const train = generate(42, 700);
+const test = generate(1337, 150);
 writeJsonl(join(OUT_DIR, 'raw_train.jsonl'), train);
 writeJsonl(join(OUT_DIR, 'raw_test.jsonl'), test);
 console.info(

@@ -13,7 +13,10 @@
     "build": "vite build --config demo/vite.config.ts",
     "demo": "vite --config demo/vite.config.ts",
     "generate:dataset": "tsx training/generate_dataset.ts",
-    "train": "tsx training/train.ts"
+    "extract:features": "tsx training/extract_features.ts",
+    "merge-corpus": "tsx training/merge_corpus.ts",
+    "retrain": "tsx training/retrain.ts",
+    "capture": "tsx training/inspect_captures.ts"
   },
   "peerDependencies": {
     "onnxruntime-web": ">=1.19"

@@ -5,7 +5,7 @@
  * inference can never drift apart.
  */
 
-import { createReadStream, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { createReadStream, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';

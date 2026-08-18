@@ -35,11 +35,11 @@ def load_features(path: pathlib.Path):
 
 class MLP:
     def __init__(self, rng):
-        self.W1 = rng.normal(0, 0.05, (FEATURE_DIM, 32)).astype(np.float32)
-        self.b1 = np.zeros(32, dtype=np.float32)
-        self.W2 = rng.normal(0, 0.05, (32, 16)).astype(np.float32)
-        self.b2 = np.zeros(16, dtype=np.float32)
-        self.W3 = rng.normal(0, 0.05, (16, NUM_CLASSES)).astype(np.float32)
+        self.W1 = rng.normal(0, 0.05, (FEATURE_DIM, 64)).astype(np.float32)
+        self.b1 = np.zeros(64, dtype=np.float32)
+        self.W2 = rng.normal(0, 0.05, (64, 32)).astype(np.float32)
+        self.b2 = np.zeros(32, dtype=np.float32)
+        self.W3 = rng.normal(0, 0.05, (32, NUM_CLASSES)).astype(np.float32)
         self.b3 = np.zeros(NUM_CLASSES, dtype=np.float32)
 
     def forward(self, X):
@@ -99,13 +99,15 @@ def main():
     params = [model.W1, model.b1, model.W2, model.b2, model.W3, model.b3]
     m = [np.zeros_like(p) for p in params]
     v = [np.zeros_like(p) for p in params]
-    lr, beta1, beta2, eps = 1e-3, 0.9, 0.999, 1e-8
-    batch, max_epochs, patience = 64, 400, 30
+    lr, beta1, beta2, eps, wd = 1e-3, 0.9, 0.999, 1e-8, 1e-4
+    batch, max_epochs, patience = 64, 600, 50
+    lr_min = lr * 0.05
 
     best_f1, best_epoch, wait = -1.0, -1, 0
     best = [p.copy() for p in params]
     step = 0
     for epoch in range(max_epochs):
+        lr_t = lr_min + 0.5 * (lr - lr_min) * (1 + np.cos(np.pi * epoch / max_epochs))
         order = rng.permutation(X_train.shape[0])
         for start in range(0, X_train.shape[0], batch):
             idx = order[start : start + batch]
@@ -114,11 +116,12 @@ def main():
             grads = model.backward(Xb, h1, h2, probs, yb)
             step += 1
             for i, (p, g) in enumerate(zip(params, grads)):
+                g = g + wd * p
                 m[i] = beta1 * m[i] + (1 - beta1) * g
                 v[i] = beta2 * v[i] + (1 - beta2) * g * g
                 mhat = m[i] / (1 - beta1**step)
                 vhat = v[i] / (1 - beta2**step)
-                p -= lr * mhat / (np.sqrt(vhat) + eps)
+                p -= lr_t * mhat / (np.sqrt(vhat) + eps)
 
         _, _, test_probs = model.forward(X_test)
         f1 = macro_f1(y_test, test_probs.argmax(axis=1))
