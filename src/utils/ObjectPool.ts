@@ -104,8 +104,27 @@ export class MeshPool implements IMeshPool {
     } else if (mesh.geometry === sharedBoxGeometry) {
       this._boxPool.push(mesh);
     } else {
-      // Custom geometry fallback
+      // Custom geometry and material fallback
       mesh.geometry?.dispose?.();
+      this._disposeMaterial(mesh.material);
+    }
+  }
+
+  /** Helper to dispose a material and any attached textures. */
+  private _disposeMaterial(material: THREE.Material | THREE.Material[] | undefined): void {
+    if (!material) return;
+    if (Array.isArray(material)) {
+      for (const m of material) {
+        if (m && 'map' in m && (m as { map?: THREE.Texture }).map) {
+          (m as { map: THREE.Texture }).map.dispose();
+        }
+        m?.dispose?.();
+      }
+    } else {
+      if ('map' in material && (material as { map?: THREE.Texture }).map) {
+        (material as { map: THREE.Texture }).map.dispose();
+      }
+      material.dispose?.();
     }
   }
 
@@ -126,6 +145,10 @@ export class MeshPool implements IMeshPool {
   clear(): void {
     for (const mesh of [...this._spherePool, ...this._boxPool, ...this._activeMeshes]) {
       mesh.removeFromParent();
+      if (mesh.geometry !== sharedSphereGeometry && mesh.geometry !== sharedBoxGeometry) {
+        mesh.geometry?.dispose?.();
+      }
+      this._disposeMaterial(mesh.material);
     }
     this._spherePool = [];
     this._boxPool = [];
