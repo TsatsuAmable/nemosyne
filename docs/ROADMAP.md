@@ -5,7 +5,12 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-18 — Architecture Stabilisation (Engine Lifecycle, Frame Budget Correctness, Typed EventBus & Invariants) complete:
+- **Last updated:** 2026-08-18 — World Facade Deprecation, Domain Boundaries & Architectural Invariants complete:
+  Formalized `MIGRATION.md` register with facade deprecation timelines, added `@deprecated` JSDoc annotations across `World.ts`
+  legacy getters, and implemented the automated architectural invariant suite in `tests/architectural-invariants.test.ts`
+  (validating Atlas analytical independence without DOM/Three.js, standalone session restore without prior World references,
+  and deterministic embodiment command reproducibility).
+  Engine Lifecycle, Frame Budget Correctness, Typed EventBus & Invariants complete:
   Implemented explicit `EngineState` machine (`running | context_lost | paused | disposed`), unbinding and listener cleanup for `window.resize`,
   `sessionstart`, and `webglcontext` events on `Engine.dispose()`, clean VR button DOM element removal, `Set<FrameTask>` updatables deduplication,
   accurate performance budget measurement in `_tick()`, and generic compile-time event typing via `NemosyneEventMap` in `WorldEventBus.ts`.
