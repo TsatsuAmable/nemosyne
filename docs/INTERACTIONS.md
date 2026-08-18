@@ -20,18 +20,18 @@ Nemosyne defines a small set of **metaphor-accurate** interactions: every gestur
 | Intent | Dataset operation | VR artefact transform | Input |
 |---|---|---|---|
 | **Inspect** | — | Holographic inspector appears near the active hand; node brightens and elevates | Point + pinch/select on node |
-| **Filter** | `Dataset.filter(predicate)` | Non-matching nodes shrink, fade, and fall below the DatumPlane | Wheel menu, filter ring, or `pinchTogether` gesture |
-| **Aggregate** | `Dataset.aggregate(groupBy, aggregator)` | Grouped crystals merge into a larger Orb or Column | Wheel menu or `pinchApart` gesture |
-| **Compare** | `DatasetOperations.compare(groupBy, groupA, groupB, measures)` | A compact group-summary view exposes means, counts, and differences for the selected measures | Canonical 2D precision view; VR guidance foundation |
-| **Sort** | `Dataset.sort(column)` | Nodes reorder along an arc or spiral | Wheel menu or `sliceUp` gesture |
-| **Time Slice** | `Dataset.slice(start, end)` | A cut plane moves through the ribbon; older data dims | Wheel menu or `sliceDown` gesture |
-| **Cluster** | `Dataset.cluster(k)` | Similar nodes attract into a Zone ring | Pinch-drag a node near another |
-| **Hierarchical Cluster** | `DatasetOperations.hierarchical(...)` | Dendrogram arcs arranged by linkage distance | Wheel menu Hierarchical button |
-| **Density Cluster** | `DatasetOperations.dbscan(...)` | Dense groups become clouds; noise sinks below plane | Wheel menu Density button |
-| **Anomaly Highlight** | `DatasetOperations.anomaly(...)` | Outliers lift and pulse with magenta halos | Wheel menu Highlight outliers button |
+| **Filter** | `WASM Kernel filter` | Non-matching nodes shrink, fade, and fall below the DatumPlane | Wheel menu, filter ring, or `pinchTogether` gesture |
+| **Aggregate** | `WASM Kernel aggregate` | Grouped crystals merge into a larger Orb or Column | Wheel menu or `pinchApart` gesture |
+| **Compare** | `AtlasCore / WASM compare` | A compact group-summary view exposes means, counts, and differences for the selected measures | Canonical 2D precision view; VR guidance foundation |
+| **Sort** | `WASM Kernel sort` | Nodes reorder along an arc or spiral | Wheel menu or `sliceUp` gesture |
+| **Time Slice** | `WASM Kernel slice` | A cut plane moves through the ribbon; older data dims | Wheel menu or `sliceDown` gesture |
+| **Cluster** | `WASM Kernel cluster` | Similar nodes attract into a Zone ring | Pinch-drag a node near another |
+| **Hierarchical Cluster** | `WASM Kernel hierarchical` | Dendrogram arcs arranged by linkage distance | Wheel menu Hierarchical button |
+| **Density Cluster** | `WASM Kernel dbscan` | Dense groups become clouds; noise sinks below plane | Wheel menu Density button |
+| **Anomaly Highlight** | `WASM Kernel anomaly` | Outliers lift and pulse with magenta halos | Wheel menu Highlight outliers button |
 | **Outlier Lens** | `applyOutlierLens` | Outliers swarm around the pointing hand | Hold pinch on an outlier cluster |
-| **Live Preview** | `computeOperationDataset` (preview only) | Transient markers show which rows will be kept, removed, reordered, or flagged as outliers before the operation is applied | Hover an operation in the wheel menu or an in-place handle |
-| **Reset** | `Dataset.reset()` | All artefacts return to the solved layout | Wheel menu Reset button or `pushForward` gesture with pinched hands |
+| **Live Preview** | `AtlasCore preview` | Transient markers show which rows will be kept, removed, reordered, or flagged as outliers before the operation is applied | Hover an operation in the wheel menu or an in-place handle |
+| **Reset** | `AtlasCore reset` | All artefacts return to the solved layout | Wheel menu Reset button or `pushForward` gesture with pinched hands |
 | **Reset View** | — | Camera returns to the overview anchor without undoing history | `pushForward` gesture with open hands, or `R` on desktop |
 | **Pause / Resume Input** | — | All gestures are ignored while paused; locomotion and scene selection are disabled | Hold both hands pinched close together for ~1 second, or `P` on desktop |
 | **Undo / Redo** | `AnalysisHistory` rewinds or replays operations | Artefact rebuilds from the stored dataset | `rotateCCW` / `rotateCW` gestures or `Ctrl+Z` / `Ctrl+Y` |
