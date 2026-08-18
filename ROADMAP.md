@@ -948,19 +948,9 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
   validated end-to-end against the TS engine on real datasets, then delete the TS `ConstraintEngine`
   solve path. Covered by `tests/draco-topology-node.test.ts` (Rust path exercised via a mocked
   `solveDraco`; TS path unchanged).
-- 🔲 **Capability flags duplicated across 4 files with no shared source (P1, verified).** The
-  bitfield is re-declared in `wasm/src/lib.rs:293-306`, `World.ts:90`, `FileLoader.ts:18`, and
-  `DataOperationController.ts:36` — only a comment keeps them in sync. Introduce a single
-  `CapabilityFlag` source (Rust `const` + generated/checked TS mirror) so bit drift is caught.
-- 🔲 **`analysisHistory` alias severed on session restore (P1, verified).**
-  `WorldSessionController.ts:96` overwrites `World.analysisHistory` with a fresh object, but the
-  controller's own `_analysisHistory` still points at the old array → undo/redo is stale after a
-  restore. Re-bind the alias or route history access through one owner.
-- 🔲 **`Encodings.ts` imports `three` (P1, verified) — the concrete dependency-direction
-  violation.** `src/data/Encodings.ts:1-2` is the only `src/data/` file importing three.js; it
-  pulls rendering types into the data layer. This is the live instance of the "Dataset must not
-  import three.js" rule above. Extract the render-coupled bits (e.g. color → `THREE.Color`)
-  into the representation layer.
+- ✅ **Capability flags duplicated across 4 files with no shared source (P1, verified).** Centralized in `src/wasm/capabilities.ts` mirroring Rust `wasm/src/lib.rs:335-355` constants.
+- ✅ **`analysisHistory` alias severed on session restore (P1, verified).** Re-bound in `WorldSessionController.ts:106` to route through authoritative `AtlasCore.analysisHistory`.
+- ✅ **`Encodings.ts` imports `three` (P1, verified) — the concrete dependency-direction violation.** Removed `three` import in `src/data/Encodings.ts` and implemented bitwise zero-allocation RGB color interpolation.
 - 🔲 **`CAP_OPERATIONS_RUST` over-promises (P2, verified).** The flag advertises 8 operations
   but `buildWasmOperationSpec` (`DataOperations.ts:293`) only routes 5 — filter/aggregate/anomaly
   never reach WASM. Align the flag with what is actually routed (honesty, matching #81's spirit).
