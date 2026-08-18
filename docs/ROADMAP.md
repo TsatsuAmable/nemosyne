@@ -5,6 +5,14 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 26.1: Semantic vs. Structural Position Discipline & Disambiguation Engine complete:**
+  - **Position Semantics Classifier:** Implemented `PositionSemanticsEngine` (`src/draco/PositionSemantics.ts`) distinguishing `SEMANTIC` (coordinates directly map geographic/temporal/vector variables), `STRUCTURAL` (coordinates expose topological graph edges/clusters), and `ALGORITHMIC_LAYOUT` (procedural grid/ring spacing with no semantic distance equivalence).
+  - **Diegetic Proximity Warning System:** Adds structured warnings to HUD tooltips preventing analysts from falsely assuming that geometric proximity in force-directed graphs or procedural grids implies underlying attribute similarity.
+  - **Unit Test Suite:** Added `tests/position-semantics-discipline.test.ts` testing layout classification, badge color assignment, and HUD warning formatting.
+  - **Next Planned Sprint:**
+    - *Sprint 26.2 — Evidence-Informed Draco Recommender Adaptive Loop:* Implement `DracoEmpiricalTuner` dynamically tuning layout utility costs from empirical study accuracy and workload trials.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 216/216 test files passed (1,441 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Milestone 25.3: 2D-vs-VR Statistical Analysis Engine & Empirical Study Evaluation complete:**
   - **Empirical Statistical Analyzer:** Implemented `StudyStatisticalAnalyzer` (`src/study/StudyStatisticalAnalyzer.ts`) computing two-sample t-tests, degrees of freedom, p-value estimates via standard Abramowitz-Stegun error function approximation, and Cohen's d effect sizes across task completion duration, anomaly isolation accuracy, F1 score, confidence, and NASA-TLX workload scores.
   - **Structured Markdown Report Synthesis:** Synthesizes structured outcome markdown tables comparing 2D desktop controls vs. VR experimental conditions conforming to `docs/study/ANALYSIS_PLAN.md`.
