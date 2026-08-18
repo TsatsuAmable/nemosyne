@@ -14,9 +14,16 @@ import type { HudObject } from './input/InteractableRegistry.ts';
 import type { PerformanceBudgetLike, TelemetryCollectorLike, Updatable } from './coordinators/types.ts';
 import './registerFactories.ts';
 
+export type EngineState = 'running' | 'context_lost' | 'paused' | 'disposed';
+export type FrameTask =
+  | Updatable
+  | { update?(delta?: number, time?: number): void }
+  | ((delta?: number, time?: number) => void)
+  | unknown;
+
 /**
  * Core WebXR engine: scene graph, renderer, XR session, input routing,
- * updatables loop, and disposal.
+ * updatables loop, explicit lifecycle state machine, and clean disposal.
  */
 export class Engine {
   scene: THREE.Scene;
@@ -32,6 +39,11 @@ export class Engine {
   _lastBudgetCheck = 0;
 
   /**
+   * Explicit lifecycle state machine.
+   */
+  state: EngineState = 'running';
+
+  /**
    * Shared event bus. Created by the engine so the AdaptiveFrameGovernor can
    * emit WorldTopics.PERFORMANCE_THROTTLE from the moment it is constructed.
    * `World` reuses this same instance for all coordinators so the governor's
@@ -43,7 +55,7 @@ export class Engine {
   camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
 
-  updatables: unknown[] = [];
+  updatables: Set<FrameTask> = new Set();
   input: InputRouter;
   locomotion: Locomotion;
   desktop: DesktopControls;
@@ -58,6 +70,7 @@ export class Engine {
   onToggleLoadTestPanel: (() => void) | null = null;
   onStartLoadTest: (() => void) | null = null;
 
+  _vrButtonElement: HTMLElement;
   headWorldPos: THREE.Vector3;
 
   _vignetteMesh: THREE.Mesh;
@@ -72,6 +85,9 @@ export class Engine {
    * timing without re-instrumenting the frame loop. 0 until the first tick.
    */
   lastFrameMs = 0;
+
+  private readonly _onResize = () => this._onWindowResize();
+  private readonly _onSessionStart = () => this._handleSessionStart();
 
   constructor() {
     this.scene = new THREE.Scene();
@@ -116,7 +132,8 @@ export class Engine {
     this.renderer.domElement.addEventListener('webglcontextlost', this._contextLost);
     this.renderer.domElement.addEventListener('webglcontextrestored', this._contextRestored);
 
-    document.body.appendChild(NemosyneVRButton.createButton(this.renderer));
+    this._vrButtonElement = NemosyneVRButton.createButton(this.renderer);
+    document.body.appendChild(this._vrButtonElement);
 
     this.input = new InputRouter(this);
     this.locomotion = new Locomotion(this);
@@ -131,7 +148,7 @@ export class Engine {
 
     this._setupControllersAndHands();
 
-    window.addEventListener('resize', () => this._onWindowResize());
+    window.addEventListener('resize', this._onResize);
   }
 
   _setupControllersAndHands(): void {
@@ -147,22 +164,14 @@ export class Engine {
     }
   }
 
-  addUpdatable(obj: unknown): void {
-    if (
-      obj &&
-      typeof obj === 'object' &&
-      'update' in obj &&
-      typeof (obj as { update?: unknown }).update === 'function'
-    ) {
-      this.updatables.push(obj);
-    } else if (typeof obj === 'function') {
-      this.updatables.push(obj);
+  addUpdatable(obj: FrameTask): void {
+    if (obj) {
+      this.updatables.add(obj);
     }
   }
 
-  removeUpdatable(obj: unknown): void {
-    const idx = this.updatables.findIndex((u) => u === obj);
-    if (idx >= 0) this.updatables.splice(idx, 1);
+  removeUpdatable(obj: FrameTask): void {
+    this.updatables.delete(obj);
   }
 
   addInteractable(mesh: THREE.Object3D, handlers: Record<string, unknown> = {}): void {
@@ -178,30 +187,30 @@ export class Engine {
   }
 
   start(): void {
+    if (this.state === 'disposed') return;
+    this.state = 'running';
     this.clock.start();
     this.renderer.setAnimationLoop(() => this._tick());
+    this.renderer.xr.addEventListener('sessionstart', this._onSessionStart);
+  }
 
-    // Listen for XR session visibility changes (e.g., user removes headset,
-    // guardian triggered, tracking lost). We hook here because the session is
-    // created lazily by the VR button.
-    const checkSession = () => {
-      const session = this.renderer.xr.getSession();
-      if (session && !(session as XRSession & { _nemosyneVisibilityHook?: boolean })._nemosyneVisibilityHook) {
-        (session as XRSession & { _nemosyneVisibilityHook?: boolean })._nemosyneVisibilityHook = true;
-        session.addEventListener('visibilitychange', () => {
-          this._reportSessionStatus(
-            session.visibilityState === 'visible'
-              ? 'session resumed'
-              : `session ${session.visibilityState}`,
-            session.visibilityState === 'visible' ? '#00ffcc' : '#ffaa00'
-          );
-        });
-      }
-    };
-    this.renderer.xr.addEventListener('sessionstart', checkSession);
+  private _handleSessionStart(): void {
+    const session = this.renderer.xr.getSession();
+    if (session && !(session as XRSession & { _nemosyneVisibilityHook?: boolean })._nemosyneVisibilityHook) {
+      (session as XRSession & { _nemosyneVisibilityHook?: boolean })._nemosyneVisibilityHook = true;
+      session.addEventListener('visibilitychange', () => {
+        this._reportSessionStatus(
+          session.visibilityState === 'visible'
+            ? 'session resumed'
+            : `session ${session.visibilityState}`,
+          session.visibilityState === 'visible' ? '#00ffcc' : '#ffaa00'
+        );
+      });
+    }
   }
 
   _tick(): void {
+    if (this.state !== 'running') return;
     const frameStart = performance.now();
     try {
       const delta = this.clock.getDelta();
@@ -224,8 +233,8 @@ export class Engine {
 
       for (const u of this.updatables) {
         if (typeof u === 'function') {
-          u();
-        } else if (typeof (u as { update?: unknown }).update === 'function') {
+          u(delta, time);
+        } else if (typeof (u as Updatable).update === 'function') {
           (u as Updatable).update(delta, time);
         }
       }
@@ -241,13 +250,12 @@ export class Engine {
       const now = performance.now();
       if (now - this._lastBudgetCheck >= 1000) {
         this._lastBudgetCheck = now;
-        const frameMs = now - frameStart;
         const snapshot = {
-          frameMs,
-          dropped: frameMs > (this.performanceBudget.budgets?.frameMs ?? 11.11),
+          frameMs: this.lastFrameMs,
+          dropped: this.lastFrameMs > (this.performanceBudget.budgets?.frameMs ?? 11.11),
           rendererInfo: this.renderer.info,
           interactableCount: this.input.interactables.length,
-          updatableCount: this.updatables.length,
+          updatableCount: this.updatables.size,
           panelCount: this.input.panels.length,
           time: this.clock.getElapsedTime(),
         };
@@ -318,35 +326,37 @@ export class Engine {
   _addOriginMarker(): void {
     const markerGroup = new THREE.Group();
 
-    // Small glowing floor ring at the origin. Keep it unobtrusive so it does
-    // not block the view, but visible enough to confirm rendering is working.
-    const ringGeo = new THREE.RingGeometry(0.15, 0.2, 32);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x00ffcc,
-      side: THREE.DoubleSide,
-      depthTest: false,
-      depthWrite: false,
+    // 1. Center pulsing core (small sphere).
+    const coreGeom = new THREE.SphereGeometry(0.04, 16, 16);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0x00ffff,
+      wireframe: true,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.8,
     });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = -Math.PI / 2;
+    const core = new THREE.Mesh(coreGeom, coreMat);
+    core.position.set(0, 0.05, 0);
+    markerGroup.add(core);
+
+    // 2. Floor alignment ring.
+    const ringGeom = new THREE.RingGeometry(0.2, 0.22, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xff0055,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.6,
+    });
+    const ring = new THREE.Mesh(ringGeom, ringMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.01;
     markerGroup.add(ring);
 
-    // Small vertical tick so users can locate the origin in 3D space.
-    const tickGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.3, 8);
-    const tickMat = new THREE.MeshBasicMaterial({
-      color: 0xff00cc,
-      side: THREE.DoubleSide,
-      depthTest: false,
-      depthWrite: false,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const tick = new THREE.Mesh(tickGeo, tickMat);
-    tick.position.y = 0.15;
-    markerGroup.add(tick);
+    // 3. Compact coordinate axes at ground level.
+    const axes = new THREE.AxesHelper(0.3);
+    axes.position.y = 0.01;
+    markerGroup.add(axes);
 
+    markerGroup.name = 'originMarker';
     this.scene.add(markerGroup);
   }
 
@@ -361,6 +371,7 @@ export class Engine {
 
   _contextLost(event: Event): void {
     event.preventDefault();
+    this.state = 'context_lost';
     console.warn('[Engine] WebGL context lost');
     this._reportSessionStatus('GPU context lost — pausing render', '#ffaa00');
     // Stop the animation loop; the renderer will resume automatically once the
@@ -370,20 +381,31 @@ export class Engine {
   }
 
   _contextRestored(): void {
+    this.state = 'running';
     console.warn('[Engine] WebGL context restored');
     this._reportSessionStatus('GPU context restored', '#00ffcc');
     this.renderer.setAnimationLoop(() => this._tick());
   }
 
   dispose(): void {
+    this.state = 'disposed';
     this.renderer.setAnimationLoop(null);
+
+    // Clean up window & XR event listeners
+    window.removeEventListener('resize', this._onResize);
+    this.renderer.xr.removeEventListener('sessionstart', this._onSessionStart);
     this.renderer.domElement.removeEventListener('webglcontextlost', this._contextLost);
     this.renderer.domElement.removeEventListener('webglcontextrestored', this._contextRestored);
+
+    this.updatables.clear();
     this.locomotion.dispose();
     this.desktop.dispose();
     disposeObject(this.scene);
     this.theme.dispose();
     this.renderer.dispose();
+    if (this._vrButtonElement && this._vrButtonElement.parentNode) {
+      this._vrButtonElement.parentNode.removeChild(this._vrButtonElement);
+    }
     if (this.renderer.domElement.parentNode) {
       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
     }

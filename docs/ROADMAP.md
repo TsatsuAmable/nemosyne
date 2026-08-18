@@ -5,7 +5,12 @@
 > not duplicate state.
 
 
-- **Last updated:** 2026-08-18 — Connector In-Band Auth, Keepalive Reaper & Participant ID Sanitization complete:
+- **Last updated:** 2026-08-18 — Architecture Stabilisation (Engine Lifecycle, Frame Budget Correctness, Typed EventBus & Invariants) complete:
+  Implemented explicit `EngineState` machine (`running | context_lost | paused | disposed`), unbinding and listener cleanup for `window.resize`,
+  `sessionstart`, and `webglcontext` events on `Engine.dispose()`, clean VR button DOM element removal, `Set<FrameTask>` updatables deduplication,
+  accurate performance budget measurement in `_tick()`, and generic compile-time event typing via `NemosyneEventMap` in `WorldEventBus.ts`.
+  Validated with 0-leak disposal invariant test suite in `tests/engine-lifecycle.test.ts`.
+  Connector In-Band Auth, Keepalive Reaper & Participant ID Sanitization complete:
   In-band authentication message support in `WebSocketAdapter.ts` (keeping tokens out of URL query strings), 30s automated
   ping/pong keepalive sweep and zombie socket reaper in `SignallingServer.mjs`, and strict participant ID input validation
   in `ExperimentRunner.ts` (`^[a-zA-Z0-9_-]{1,64}$`) preventing injection/traversal.
