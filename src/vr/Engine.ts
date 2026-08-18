@@ -273,6 +273,27 @@ export class Engine {
     }
   }
 
+  /**
+   * Gracefully ends the active WebXR session if one is running, returning the user to desktop mode.
+   */
+  async exitVR(): Promise<void> {
+    const session = this.renderer.xr.getSession();
+    if (session) {
+      try {
+        await session.end();
+      } catch (err) {
+        console.warn('[Engine] Error ending WebXR session:', err);
+      }
+    }
+  }
+
+  /**
+   * Returns true if currently presenting in an active WebXR session.
+   */
+  isInVR(): boolean {
+    return this.renderer.xr.isPresenting;
+  }
+
   _reportTickError(err: unknown): void {
     console.error('[Engine] tick error:', err);
     const telemetry = document.getElementById('telemetry');

@@ -22,6 +22,7 @@ import type {
 
 interface SettingsPanelOptions extends MovablePanelOptions {
   onChange?: (key: string, value: unknown) => void;
+  onExitVR?: () => void;
   telemetryCollector?: TelemetryCollectorLike | null;
   performanceBudget?: PerformanceBudgetLike | null;
   dataset?: Dataset | null;
@@ -103,6 +104,8 @@ export class SettingsPanel extends MovablePanel {
   private _sessionDurationSeconds: number;
   private _userNotes: string;
   private _exportPrivacyLevel: PrivacyLevel;
+  private _onExitVR: (() => void) | null;
+  private _exitVRBounds: { x: number; y: number; w: number; h: number } | null = null;
 
   constructor(cameraGroup: THREE.Group, options: SettingsPanelOptions = {}) {
     super(cameraGroup, {
@@ -119,6 +122,7 @@ export class SettingsPanel extends MovablePanel {
     });
 
     this.onChange = options.onChange ?? (() => {});
+    this._onExitVR = options.onExitVR ?? null;
     this.settings = this._loadSettings();
 
     this._telemetryCollector = options.telemetryCollector ?? null;
@@ -425,6 +429,25 @@ export class SettingsPanel extends MovablePanel {
       toggle: { x: toggleX, y, w: toggleW, h: btnH },
       export: { x: exportX, y, w: exportW, h: btnH },
     };
+
+    // Exit VR button row
+    const exitY = y + btnH + 16;
+    const exitW = this.width - margin * 2;
+    ctx.fillStyle = this.highContrast ? '#ff2244' : 'rgba(255, 34, 68, 0.25)';
+    ctx.fillRect(margin, exitY, exitW, btnH);
+    ctx.strokeStyle = '#ff3366';
+    ctx.lineWidth = this.highContrast ? 3 : 2;
+    ctx.strokeRect(margin, exitY, exitW, btnH);
+    ctx.font = this._scaleFont('bold 18px monospace');
+    ctx.fillStyle = this.highContrast ? '#ffffff' : '#ff99aa';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🚪 EXIT IMMERSIVE VR (RETURN TO 2D)', margin + exitW / 2, exitY + btnH / 2);
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    this._exitVRBounds = { x: margin, y: exitY, w: exitW, h: btnH };
   }
 
   private _exportBundleBounds: {
@@ -582,6 +605,13 @@ export class SettingsPanel extends MovablePanel {
         this._exportReviewBundle();
         return true;
       }
+    }
+
+    // Exit VR button
+    const evb = this._exitVRBounds;
+    if (evb && cx >= evb.x && cx <= evb.x + evb.w && cy >= evb.y && cy <= evb.y + evb.h) {
+      this._onExitVR?.();
+      return true;
     }
 
     return false;

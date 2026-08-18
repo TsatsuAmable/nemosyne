@@ -165,6 +165,7 @@ export interface WorldUIManagerCallbacks {
   onRejectRecommendation?: () => void;
   onOverrideRecommendation?: () => void;
   onGenerateRecommendation?: () => void;
+  onExitVR?: () => void;
 }
 
 export interface AccessibilityOptions {
@@ -942,6 +943,8 @@ export interface WorldEngineLike {
   input: { feedback?: WorldFeedbackLike };
   renderer?: { domElement?: { toDataURL(type: string): string } };
   addInteractable(object: Object3D, handlers?: Record<string, unknown>): void;
+  exitVR?(): Promise<void> | void;
+  isInVR?(): boolean;
 }
 
 /** Settings panel facade (getAllSettings is required; setSetting is optional). */
@@ -1091,6 +1094,7 @@ export interface WorldLike {
   _leaveCollaborationRoom(): void;
 
   // optional — accessed via optional chaining
+  exitVR?: () => Promise<void> | void;
   uiManager?: WorldUIManagerLike;
   vrConsole?: VRConsoleLike;
   telemetryCollector?: TelemetryCollectorLike;

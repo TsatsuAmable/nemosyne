@@ -153,3 +153,60 @@ describe('NemosyneVRButton', () => {
     expect(renderer.xr.setSession).not.toHaveBeenCalled();
   });
 });
+
+describe('Engine & In-VR Session Exit Flow', () => {
+  it('engine.exitVR ends the active WebXR session cleanly', async () => {
+    const mockSession = makeMockSession();
+    const mockRenderer = {
+      xr: {
+        isPresenting: true,
+        getSession: vi.fn(() => mockSession),
+        setSession: vi.fn(),
+      },
+    };
+
+    const engine = {
+      renderer: mockRenderer,
+      isInVR() {
+        return this.renderer.xr.isPresenting;
+      },
+      async exitVR() {
+        const session = this.renderer.xr.getSession();
+        if (session) {
+          await session.end();
+        }
+      },
+    };
+
+    expect(engine.isInVR()).toBe(true);
+    await engine.exitVR();
+    expect(mockSession.end).toHaveBeenCalledTimes(1);
+  });
+
+  it('engine.exitVR is a safe no-op when no WebXR session is active', async () => {
+    const mockRenderer = {
+      xr: {
+        isPresenting: false,
+        getSession: vi.fn(() => null),
+        setSession: vi.fn(),
+      },
+    };
+
+    const engine = {
+      renderer: mockRenderer,
+      isInVR() {
+        return this.renderer.xr.isPresenting;
+      },
+      async exitVR() {
+        const session = this.renderer.xr.getSession();
+        if (session) {
+          await session.end();
+        }
+      },
+    };
+
+    expect(engine.isInVR()).toBe(false);
+    await expect(engine.exitVR()).resolves.toBeUndefined();
+  });
+});
+

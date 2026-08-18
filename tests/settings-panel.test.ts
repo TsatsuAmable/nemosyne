@@ -239,4 +239,18 @@ describe('SettingsPanel', () => {
     expect(filename).toBe('nemosyne-review-bundle.json');
     expect(mime).toBe('application/json');
   });
+
+  it('exit VR button triggers onExitVR callback when clicked', () => {
+    const onExitVR = vi.fn();
+    panel = new SettingsPanel(cameraGroup, { onExitVR });
+    panel.show();
+    panel.mesh.updateMatrixWorld();
+
+    const evb = panel._exitVRBounds;
+    expect(evb).toBeTruthy();
+
+    const hit = panel.handleContentClick(raycastAt(panel, evb.x + evb.w / 2, evb.y + evb.h / 2));
+    expect(hit).toBe(true);
+    expect(onExitVR).toHaveBeenCalledTimes(1);
+  });
 });
