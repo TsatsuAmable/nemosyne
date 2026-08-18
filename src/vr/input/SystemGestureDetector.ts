@@ -19,8 +19,10 @@ export class SystemGestureDetector {
   onSystemToggle: (() => void) | null = null;
   onTrace: ((info: SystemGestureTraceInfo) => void) | null = null;
 
-  private _lastGripSystemToggle = false;
+  private _lastRawBothPinched = false;
+  private _invalidBothPinchHeld = false;
   private _lastRawGrip = false;
+  private _invalidGripHeld = false;
   private _lastSuppressedBothPinched = false;
   private _bothPinchStartAt: number | null = null;
   private _lastBothPinchToggleAt = -Infinity;
@@ -63,18 +65,32 @@ export class SystemGestureDetector {
       this.registry.hands[1].isPinched?.() === true;
     const now = this._now();
     const pointerOverPanel = this.registry.isBestPointerOverPanel?.() ?? false;
-    if (rawBothPinched && !systemGestureZoneSuppressed && !pointerOverPanel) {
+
+    // Track rising edge of both-pinch gesture
+    if (rawBothPinched && !this._lastRawBothPinched) {
+      this._invalidBothPinchHeld = systemGestureZoneSuppressed || pointerOverPanel;
+    } else if (!rawBothPinched) {
+      this._invalidBothPinchHeld = false;
+    }
+    this._lastRawBothPinched = rawBothPinched;
+
+    const validPinchAttempt =
+      rawBothPinched &&
+      !systemGestureZoneSuppressed &&
+      !pointerOverPanel &&
+      !this._invalidBothPinchHeld;
+
+    if (validPinchAttempt) {
       this._bothPinchStartAt ??= now;
     } else {
       this._bothPinchStartAt = null;
     }
+
     const bothPinched =
-      rawBothPinched &&
-      !systemGestureZoneSuppressed &&
-      !pointerOverPanel &&
+      validPinchAttempt &&
       this._bothPinchStartAt !== null &&
       now - this._bothPinchStartAt >= this._bothPinchHoldMs;
-    const suppressSelection = rawBothPinched && !systemGestureZoneSuppressed && !pointerOverPanel;
+    const suppressSelection = validPinchAttempt;
 
     if (
       rawBothPinched &&
@@ -124,20 +140,22 @@ export class SystemGestureDetector {
     }
 
     // System gesture on controllers: both grips pressed together. When only
-    // one controller is available, a single grip works as a fallback. Fire once
-    // per raw press (rising edge) rather than per panel-gated held transition:
-    // gating the held state on pointerOverPanel nulls the start timestamp
-    // while the grip stays pressed, so tracking the toggle on that gated
-    // state would re-arm when the ray leaves the panel and fire a second
-    // toggle from a single held grip. The panel gate still suppresses the
-    // initial fire when the press begins over a panel.
+    // one controller is available, a single grip works as a fallback.
     const bothGrips = gripStates.length >= 2 && gripStates.every(Boolean);
     const singleGrip = gripStates.length === 1 && gripStates[0];
     const rawGrip = bothGrips || singleGrip;
+
+    if (rawGrip && !this._lastRawGrip) {
+      this._invalidGripHeld = pointerOverPanel;
+    } else if (!rawGrip) {
+      this._invalidGripHeld = false;
+    }
+
     if (
       rawGrip &&
       !this._lastRawGrip &&
       !pointerOverPanel &&
+      !this._invalidGripHeld &&
       this.onSystemToggle &&
       now - this._lastSystemToggleAt >= this._toggleCooldownMs
     ) {

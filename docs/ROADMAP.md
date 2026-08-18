@@ -5,6 +5,11 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 22.3.1 (Adversarial hardening & last-mile closure) complete:**
+  - **Unified system-toggle gate:** Extended `SystemGestureDetector.ts` to strictly track rising edges and prevent re-arming while gestures remain held across boundaries (e.g. initiating over panels or reach zones and dragging off); unified release-to-rearm invariants across hand pinches and controller grips.
+  - **Adversarial regression suite:** Created `tests/adversarial-hardening.test.ts` covering remote authorization / observer message relay blocks, schema/payload sanity and clean disconnection handling, operation transform visual state & base-state history restoration, `ChartPlane` resource and texture disposal, and multi-modal controller/pinch precedence.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 190/190 test files passed (1,365 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 84/84 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 22.3 (Accessibility, input correctness & analysis completeness) complete:**
   - **Input correctness fixes:** Synced `lastHandPinched` in `InputRouter.ts` to eliminate hand-pinch double-toggle / double-fire; updated `HandGestureRecognizer.ts` so single-hand gestures (swipe, slice, okSign) evaluate `dominant` and `nonDominant` poses according to `dominantHandIndex` rather than hardcoded array order; prevented `Locomotion.ts` hand-grab movement during two-handed system pinches; added symmetric `scoopDown` statistical lens toggle outside flight mode in `WorldInputCoordinator.ts`; eliminated the seated-height feedback loop in `Locomotion.ts` by deriving `targetY = seatedHeightOffset` directly.
   - **Accessibility & UI controls:** Added user-adjustable `dwellTimeMs` stepper (400ms–3000ms) to `SettingsPanel.ts` and forwarded delay to `SelectionDispatcher.ts` through `World.ts`; sanitized `AccessibilityOptions` to `dwellSelection` / `dwellTimeMs`.
@@ -819,8 +824,8 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
 - [x] **Compare completion:** explicit visual/history restore, dashboard `_difference` remapping, and one-numeric-column/fewer-than-two-group handling manually verified `PASS`; automated coverage remains deferred.
 - 🟡 **Accessibility recolor:** runtime rebuild now updates existing Draco artefacts when colorblind mode changes; ChartPlane bars, lines, histograms, box plots, heatmaps, and dashboard panels use the safe palette. Deferred to the broader UX manual-testing effort.
 - 🟡 **Dashboard lifecycle:** `WorldRendererLifecycle` now owns dashboard rebuild/update/disposal and calls `ChartPlane.dispose()` for textures, materials, geometry, and canvas resources. Targeted lifecycle evidence and full teardown validation remain.
-- 🔲 **Unified system-toggle gate:** apply dwell, cooldown, panel targeting, and release semantics consistently to hand pinches and controller grips; prevent re-arming while a gesture remains held.
-- 🔲 **Adversarial regression coverage:** add tests for remote authorization/schema abuse, Compare rendering/history, existing-scene recoloring, chart disposal, and controller/pinch precedence.
+- ✅ **Unified system-toggle gate:** Extended `SystemGestureDetector.ts` to strictly track rising edges and prevent re-arming while gestures remain held across boundaries; unified release-to-rearm invariants across hand pinches and controller grips.
+- ✅ **Adversarial regression coverage:** Added `tests/adversarial-hardening.test.ts` covering remote authorization / observer message relay blocks, schema/payload sanity and clean disconnection handling, operation transform visual state & base-state history restoration, `ChartPlane` resource and texture disposal, and multi-modal controller/pinch precedence.
 
 ### Sprint 22.4 — Spatial zonation architecture 🔲
 
