@@ -15,11 +15,15 @@ export class SpatialIndex implements SpatialIndexLike {
   cellSize: number;
   private cells: Map<string, SpatialEntry[]>;
   private _tempVec: THREE.Vector3;
+  private _tempClosest: THREE.Vector3;
+  private _scratchRayDir: THREE.Vector3;
 
   constructor(cellSize = 0.5) {
     this.cellSize = cellSize;
     this.cells = new Map();
     this._tempVec = new THREE.Vector3();
+    this._tempClosest = new THREE.Vector3();
+    this._scratchRayDir = new THREE.Vector3();
   }
 
   clear(): void {
@@ -49,27 +53,32 @@ export class SpatialIndex implements SpatialIndexLike {
   }
 
   /**
-   * Find all items within radius of a point.
+   * Return all items within a radius of a given center point.
    */
   queryRadius(center: THREE.Vector3, radius: number): SpatialQueryResult[] {
+    const minX = this._cellCoord(center.x - radius);
+    const maxX = this._cellCoord(center.x + radius);
+    const minY = this._cellCoord(center.y - radius);
+    const maxY = this._cellCoord(center.y + radius);
+    const minZ = this._cellCoord(center.z - radius);
+    const maxZ = this._cellCoord(center.z + radius);
+
     const results: SpatialQueryResult[] = [];
     const r2 = radius * radius;
-    const cellRange = Math.ceil(radius / this.cellSize);
 
-    const cx = this._cellCoord(center.x);
-    const cy = this._cellCoord(center.y);
-    const cz = this._cellCoord(center.z);
-
-    for (let x = cx - cellRange; x <= cx + cellRange; x++) {
-      for (let y = cy - cellRange; y <= cy + cellRange; y++) {
-        for (let z = cz - cellRange; z <= cz + cellRange; z++) {
-          const key = `${x},${y},${z}`;
-          const list = this.cells.get(key);
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        for (let z = minZ; z <= maxZ; z++) {
+          const list = this.cells.get(`${x},${y},${z}`);
           if (!list) continue;
           for (const item of list) {
             const d2 = center.distanceToSquared(item.position);
             if (d2 <= r2) {
-              results.push({ ...item, distance: Math.sqrt(d2) });
+              results.push({
+                position: item.position,
+                data: item.data,
+                distance: Math.sqrt(d2),
+              });
             }
           }
         }
@@ -86,7 +95,7 @@ export class SpatialIndex implements SpatialIndexLike {
   raycast(ray: THREE.Ray, maxDistance = 10, hitRadius = 0.05): SpatialQueryResult | null {
     // Step through cells along the ray and test points inside them.
     const origin = ray.origin;
-    const dir = ray.direction.clone().normalize();
+    const dir = this._scratchRayDir.copy(ray.direction).normalize();
     const cell = this.cellSize;
 
     // Current cell coordinates.
@@ -122,8 +131,8 @@ export class SpatialIndex implements SpatialIndexLike {
         const toPoint = this._tempVec.subVectors(item.position, origin);
         const t = toPoint.dot(dir);
         if (t < 0 || t > bestDist) continue;
-        const closest = new THREE.Vector3().copy(origin).add(dir.clone().multiplyScalar(t));
-        const perp = item.position.distanceTo(closest);
+        this._tempClosest.copy(origin).addScaledVector(dir, t);
+        const perp = item.position.distanceTo(this._tempClosest);
         if (perp <= hitRadius) {
           const dist = origin.distanceTo(item.position);
           if (dist < bestDist) {

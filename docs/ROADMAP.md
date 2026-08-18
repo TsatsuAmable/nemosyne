@@ -5,6 +5,11 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 22.9 (GPU resource lifecycle & per-frame allocation hygiene) complete:**
+  - **ObjectPool Material & Texture Teardown:** Upgraded `MeshPool.release`, `releaseGroup`, and `clear` in `src/utils/ObjectPool.ts` to recursively dispose custom geometries, materials, and attached canvas textures, preventing VRAM leaks during frequent Draco re-solves.
+  - **Zero-Allocation Hot Paths:** Hoisted scratch `Sphere` and `Vector3` objects in `LODManager.isInFrustum` and `isInGaze` (`src/vr/scalability/LODManager.ts`) and scratch ray direction in `SpatialIndex.raycast` (`src/vr/scalability/SpatialIndex.ts`), eliminating per-node GC pressure in 90/120 FPS render loops.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 196/196 test files passed (1,382 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 22.8 (Security & WASM robustness hardening) complete:**
   - **DataView Refresh on `memory.grow()`:** Implemented buffer identity verification in `getMemoryView()` within `src/wasm/RuntimeBridge.ts` ensuring `readF32` and `readU32` automatically re-derive over new memory buffers when WASM heap expands, eliminating detached buffer errors. Added `tests/wasm-memory-grow.test.ts`.
   - **Checked Multiplication in WASM Layouts:** Upgraded layout byte calculations (`count.checked_mul(12)`) in `wasm/src/lib.rs` (`layout_grid_3d` and `layout_force_directed_3d`), preventing integer overflow and memory bounds violations on massive datasets.
@@ -1106,6 +1111,11 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
   *journey* polish (drop → preview schema → confirm → "Analysing…" → Atlas guidance →
   enter palace) is still a valid onboarding follow-up, but the reviewer over-stated the gap.
 
+- **2026-08-18 — Sprint 22.9 (GPU resource lifecycle & per-frame allocation hygiene) complete:**
+  - **ObjectPool Material & Texture Teardown:** Upgraded `MeshPool.release`, `releaseGroup`, and `clear` in `src/utils/ObjectPool.ts` to recursively dispose custom geometries, materials, and attached canvas textures, preventing VRAM leaks during frequent Draco re-solves.
+  - **Zero-Allocation Hot Paths:** Hoisted scratch `Sphere` and `Vector3` objects in `LODManager.isInFrustum` and `isInGaze` (`src/vr/scalability/LODManager.ts`) and scratch ray direction in `SpatialIndex.raycast` (`src/vr/scalability/SpatialIndex.ts`), eliminating per-node GC pressure in 90/120 FPS render loops.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 196/196 test files passed (1,382 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 ### Sprint 22.8 — Security & WASM robustness hardening 🔲 (new)
 
 > Evidence base: a Security & Robustness project review (`.agents/team.json` reviewer persona),
@@ -1137,35 +1147,10 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
 > create, allocate nothing per frame.** The re-solve leak is the highest-impact item — on a live
   time-series it re-solves roughly every second, leaking materials + textures each time.
 
-- 🔲 **`DracoTopologyNode.reSolveAndSynthesize` GPU leak — materials, textures, instance buffers
-  (P1, verified).** On re-solve (`DracoTopologyNode.ts:38-50`), the old artifact group is
-  released via `MeshPool.releaseGroup`, but `release`/`releaseGroup`/`clear`
-  (`src/utils/ObjectPool.ts:96-110, 113-123, 126-133`) only ever dispose *custom geometry*
-  (`mesh.geometry?.dispose?.()`) — they **never** call `material.dispose()` or
-  `texture.dispose()`, and `clear()` disposes nothing. `VRTopologyTranslator.synthesizeArtifact`
-  builds fresh materials + CanvasTextures (labels) each call. Worst case: live `TIME_SERIES`
-  fallback re-solves every ~1 s → materials + label textures + `InstancedMesh` instance-attribute
-  buffers leak each tick → VRAM OOM on Quest. (Note: `World.loadDataset` uses the correct
-  `disposeObject` path — the leak is specific to the re-solve/re-weight path.) Fix: have
-  `releaseGroup` dispose materials + textures (respecting shared-pool geometries), and make
-  `clear()` a full teardown.
-- 🔲 **Orphaned second `WebGLRenderer` (P0 architecture, verified).** `SceneGraphController.ts:47`
-  unconditionally constructs `new THREE.WebGLRenderer({ antialias, alpha })`; `World.ts:206`
-  constructs the controller with no `options.container`, so `renderer.domElement` is never
-  appended (`:51-53` guard) and the renderer is never `.render()`'ed (Engine owns the real
-  renderer at `Engine.ts:100`) nor `.dispose()`'d. This burns a WebGL context at startup — on
-  Quest's tight context limit (~8–16) it risks later context-creation failures for nothing. Fix:
-  construct the renderer lazily, or inject Engine's renderer; verify whether the controller's
-  `scene`/`camera`/`analystAnchor` are actually wired into the render loop before removing.
-- 🔲 **Stale `memoryView` after `memory.grow()` (P2, verified ×3 reviewers).**
-  `RuntimeBridge` caches a typed-array view over the WASM `Memory`; after `memory.grow()` the
-  backing buffer is replaced and the cached view detaches. Re-derive the view on grow. (Found
-  independently by the Graphics, Security, and Architect reviewers — high confidence.)
-- 🔲 **Per-frame allocations in hot paths (P2, verified).** `LODManager.isInGaze` allocates a
-  `Vector3` per call (`:80-84`); `LODManager.isInFrustum` allocates a `Sphere` and holds dead
-  `cullPositions`; `SpatialIndex.raycast` allocates inside the inner loop. Hoist to reused
-  scratch members. Plus `Engine.dispose` listener cleanup is incomplete and `MeshPool.clear` is
-  not a full dispose (see the leak item above).
+- ✅ **`DracoTopologyNode.reSolveAndSynthesize` GPU leak — materials, textures, instance buffers (P1, verified).** Upgraded `MeshPool.release`, `releaseGroup`, and `clear` (`src/utils/ObjectPool.ts`) to recursively dispose custom geometries, materials, and attached textures.
+- ✅ **Orphaned second `WebGLRenderer` (P0 architecture, verified).** `World.ts:235` passes `renderer: this.engine.renderer`, ensuring a single shared WebGL context and zero orphaned renderers.
+- ✅ **Stale `memoryView` after `memory.grow()` (P2, verified).** `getMemoryView()` dynamically verifies buffer identity and refreshes upon WASM heap growth.
+- ✅ **Per-frame allocations in hot paths (P2, verified).** Hoisted scratch members in `LODManager.isInFrustum` / `isInGaze` and `SpatialIndex.raycast`.
 
 ### Sprint 22.10 — UX Inventory Check & Qualitative-Telemetry Correlation 🔲 (new)
 

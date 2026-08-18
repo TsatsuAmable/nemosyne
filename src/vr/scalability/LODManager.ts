@@ -23,6 +23,8 @@ export class LODManager {
 
   private _frustum: THREE.Frustum;
   private _projScreenMatrix: THREE.Matrix4;
+  private _scratchSphere: THREE.Sphere;
+  private _scratchToTarget: THREE.Vector3;
 
   constructor(camera: THREE.Camera | null) {
     this.camera = camera;
@@ -31,6 +33,8 @@ export class LODManager {
     this.frame = 0;
     this._frustum = new THREE.Frustum();
     this._projScreenMatrix = new THREE.Matrix4();
+    this._scratchSphere = new THREE.Sphere();
+    this._scratchToTarget = new THREE.Vector3();
   }
 
   /**
@@ -70,16 +74,17 @@ export class LODManager {
    * Check whether a bounding sphere is inside the camera viewing frustum.
    */
   isInFrustum(position: THREE.Vector3, radius = 0.1): boolean {
-    const sphere = new THREE.Sphere(position, radius);
-    return this._frustum.intersectsSphere(sphere);
+    this._scratchSphere.center.copy(position);
+    this._scratchSphere.radius = radius;
+    return this._frustum.intersectsSphere(this._scratchSphere);
   }
 
   /**
    * Check whether an object is near the center of the user's gaze vector.
    */
   isInGaze(position: THREE.Vector3, maxAngleDegrees = 12): boolean {
-    const toTarget = new THREE.Vector3().subVectors(position, this.headPos).normalize();
-    const angle = Math.acos(Math.max(-1, Math.min(1, this.gazeDir.dot(toTarget))));
+    this._scratchToTarget.subVectors(position, this.headPos).normalize();
+    const angle = Math.acos(Math.max(-1, Math.min(1, this.gazeDir.dot(this._scratchToTarget))));
     return angle <= (maxAngleDegrees * Math.PI) / 180;
   }
 
