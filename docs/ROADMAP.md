@@ -5,6 +5,13 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Research Validation, 5-Level Evidence Hierarchy & 2D-vs-VR Study Harness complete:**
+  - **5-Level Evidence Hierarchy Registry:** Implemented `EvidenceHierarchyRegistry` (`src/types/EvidenceHierarchy.ts`) enforcing project-wide rigor distinguishing `IMPLEMENTED` → `TESTED` → `USABLE` → `USEFUL` → `SUPERIOR`.
+  - **User Journey Score (UX-Cost Composite):** Implemented `UserJourneyScoreCalculator` (`src/vr/trace/UserJourneyScore.ts`) decomposing learning, navigation, interaction, interpretation, and evidence costs.
+  - **2D-vs-VR Comparative Study Experimental Harness:** Implemented `StudyTrialExecutionHarness` (`src/study/StudyHarness.ts`) executing randomized crossover trials across conditions (`2D_CONTROL` vs `VR_EXPERIMENTAL`) with timer, answer capture, confidence, and NASA-TLX workload telemetry.
+  - **Unit Test Suite:** Added `tests/research-validation.test.ts` verifying evidence level progression, UX journey phase breakdown, and study trial lifecycle.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 207/207 test files passed (1,415 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprints 24.8 & 24.9 (Status strip, spotlight model & UX acceptance gates) complete:**
   - **Calm Visual Language & Status Strip (Sprint 24.8):** Implemented `StatusStripController` (`src/vr/ui/StatusStripController.ts`) providing a constrained semantic color palette (`neutral | accent | success | warning | danger | analysis | observation`), persistent "what am I doing?" context answer (`TOPOLOGY · MODE · FOCUS · ACTION`), and spotlight/tertiary presentation hierarchy.
   - **UX Acceptance Quality Gates (Sprint 24.9):** Implemented `UXAcceptanceGateEvaluator` (`src/vr/trace/UXAcceptanceGate.ts`) converting measured UX friction phenomena (UX-001 cold start, UX-002 aim drift, UX-003 both-pinch stolen, UX-004 pointer miss rate) into automated CI acceptance gates.
