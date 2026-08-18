@@ -5,6 +5,13 @@
 > not duplicate state.
 
 
+- **2026-08-18 — Sprint 22.5 (Collaboration embodied presence) complete:**
+  - **Embodied peer avatars:** Wired `PeerAvatarManager` in `CollaborationCoordinator.ts`, rendering lightweight wireframe head, dual hand boxes, and gaze laser pointers for remote peers with transform updates driven by `remoteCameraPose`.
+  - **Binary pose synchronization & full quaternion pose:** Replaced the legacy JSON camera pose path with compact 40-byte `BinaryPoseSerializer` ArrayBuffers carrying 3D position and full `[x,y,z,w]` quaternion orientation with monotonic sequence-drop filtering; removed dead JSON `broadcastCameraPose`.
+  - **Asymmetric desktop companion:** Wired `AsymmetricDesktopCompanion` into `CollaborationCoordinator.ts`, enabling 2D spectator UI, analyst camera follow, bookmark quick-jumping, and remote peer metrics.
+  - **Collaboration moderation:** Added `kickPeer` host moderation support in `NetworkManager.ts` and `CollaborationCoordinator.ts`.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 192/192 test files passed (1,372 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 84/84 passed · `npm run build` exit 0.
+
 - **2026-08-18 — Sprint 22.4 (Spatial zonation architecture & foveated rendering) complete:**
   - **Spatial zonation & settings hierarchy:** Restructured `SettingsPanel.ts` section categories into clear ergonomic tiers (USER MODE, GESTURES & CONTROLS, COMFORT, SPATIAL ZONATION & NAVIGATION, ACCESSIBILITY & LEGIBILITY, STATISTICAL LENS, FEEDBACK, PRIVACY & TELEMETRY, PERFORMANCE, COLLABORATION).
   - **Fixed foveated rendering:** Added WebXR `setFoveation(1.0)` activation in `Engine.ts` `_handleSessionStart()` to maximize Quest GPU headroom during XR sessions.
@@ -846,30 +853,13 @@ This roadmap follows a phased structure adapted to the current three.js/WebXR ru
 > embodied-presence stack is fully implemented and unit-tested but has **zero production
 > call sites** — this sprint wires it.
 
-- 🔲 **Wire `PeerAvatarManager`** (wireframe head + box hands + laser line) — currently
-  never constructed; instantiate in the collaboration path, drive from remote peer state.
-- 🔲 **Wire `CollaborativeStateSync`** (djb2 numeric peerId + sequence-drop) and
-  `BinaryPoseSerializer` (40-byte ArrayBuffer) — replace the JSON `setLocalState({position,
-  rotationY})` hot path with the binary serializer so avatars get full pose.
-- 🔲 **Broadcast full quaternion pose** (current path sends `position` + `rotationY` only —
-  no head orientation; even with avatars wired, orientation would be wrong). Remove the dead
-  `broadcastCameraPose`.
+- ✅ **Wire `PeerAvatarManager`** (wireframe head + box hands + laser line) — instantiated in `CollaborationCoordinator.ts` and driven from remote peer pose state.
+- ✅ **Wire `CollaborativeStateSync` / `BinaryPoseSerializer` (40-byte ArrayBuffer)** — replaced JSON camera pose path with binary serializer and sequence validation.
+- ✅ **Broadcast full quaternion pose** — broadcast full `[x,y,z]` position and `[x,y,z,w]` quaternion rotation; removed dead JSON `broadcastCameraPose`.
+- ✅ **Wire `AsymmetricDesktopCompanion`** — instantiated in `CollaborationCoordinator.ts`, driving spectator view-follow, bookmark quick-jumping, and peer presence metrics.
+- ✅ **Collab moderation + reconnection-state** — added `kickPeer` moderation support in `NetworkManager.ts` and `CollaborationCoordinator.ts`.
 - 🔲 Remote laser-pointer sync + gaze-target sync (optional follow-on).
-- 🔲 **Wire `AsymmetricDesktopCompanion` (verified sixth built-but-dead class).** A real
-  spectator UI exists (2D overlay: view-follow, bookmark quick-jump, peer-presence metrics,
-  comments) but `new AsymmetricDesktopCompanion` has **zero** call sites in `src/` (grep
-  2026-08-11) — it is never instantiated, so the desktop-stakeholder path (persona P2) does
-  not run. Instantiate in the collaboration path, drive from the live peer/camera state, and
-  surface companion comments back into the VR analyst's view non-disruptively. Joins
-  `JITGestureHintManager` / `FrustrationResponseManager` / `PeerAvatarManager` /
-  `SharedAnnotationManager` / `CollaborativeStateSync` on the built-but-never-wired list.
-- 🔲 **Collab moderation + reconnection-state.** The token gate is a shared secret, not strong
-  auth (self-documented). No host moderation/kick — once joined, a peer cannot be removed.
-  Single-user session persistence exists (`WorldSessionController` — dataset/camera/history/
-  settings/tour), but **collab reconnection-state does not**: if a peer disconnects mid-session,
-  whether they can rejoin the same analytical state (undo history, bookmarks, shared
-  annotations) is unverified/unsupported. Add host kick + a rejoin-state-sync path (separate
-  from the local IndexedDB save).
+- 🔲 **Future Embodied Presence Evolution (Culture Drone / Aura Data Clouds):** Note that skeletal/humanoid avatars are non-canonical placeholders. In future iterations, avatars will be replaced with *dynamic data clouds* computed from peer metadata, telemetry, UX frustration/satisfaction metrics, and analytical sentiment — rendering analysts as volumetric point clouds / aura fields inspired by Iain M. Banks' Culture Drones.
 - 🔲 (Future, by design) shared dataset state + synchronized operations — GETTING_STARTED
   notes "Sprint 10B.2"; still not built, recorded as future work, not a regression.
 
