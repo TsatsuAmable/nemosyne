@@ -44,7 +44,30 @@ const registry = createRoomRegistry({
 
 const wss = new WebSocketServer({ port: PORT });
 
+// --- Heartbeat & Zombie Socket Reaper ---------------------------------------
+const HEARTBEAT_INTERVAL_MS = 30_000;
+const heartbeatInterval = setInterval(() => {
+  for (const socket of wss.clients) {
+    if (socket.isAlive === false) {
+      socket.terminate();
+      continue;
+    }
+    socket.isAlive = false;
+    socket.ping();
+  }
+  registry.cleanupIdleRooms();
+}, HEARTBEAT_INTERVAL_MS);
+
+wss.on('close', () => {
+  clearInterval(heartbeatInterval);
+});
+
 wss.on('connection', (socket, req) => {
+  socket.isAlive = true;
+  socket.on('pong', () => {
+    socket.isAlive = true;
+  });
+
   const url = new URL(req.url, `http://${req.headers.host}`);
   const roomId = url.searchParams.get('room') || 'default';
   const peerId = url.searchParams.get('peer') || `peer-${Date.now()}`;
