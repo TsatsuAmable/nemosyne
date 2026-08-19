@@ -85,7 +85,7 @@ The Nemosyne implementation roadmap is organized by architectural gates defined 
   - [ ] Hierarchical `SpatialStrategy` decomposable type.
 - **Exit Criteria:** Given identical Investigation state and frozen study inputs, Draco produces identical spatial strategies with machine-readable explanations of why alternatives were rejected.
 
-### Gate 3 — Experience ✅ (Analyst Cockpit Baseline Complete)
+### Gate 3 — Experience 🔄 (Analyst Cockpit Baseline Complete, Need to Revisit)
 - **Objective:** Deliver a coherent, low-strain analyst cockpit in VR and 2D.
 - **Deliverables:**
   - [x] Authoritative 4-mode `InteractionModeController.ts` (`NAVIGATE | INTERACT | TRANSFORM | OBSERVE`).
@@ -96,7 +96,7 @@ The Nemosyne implementation roadmap is organized by architectural gates defined 
   - [x] `ProgressiveDisclosure.ts` gating (`NOVICE | ANALYST | RESEARCHER | DEVELOPER`).
   - [x] Mode-aware `GestureOwnershipManager.ts` eliminating silent both-pinch suppression.
   - [x] Semantic `StatusStripController.ts` and `UXAcceptanceGate.ts` evaluation suite.
-- **Exit Criteria Met:** A novice can complete the primary investigation journey without encountering pointer aim-drift frustration or gesture collisions.
+- **Exit Criteria NOT Met Need to revisit:** A novice can complete the primary investigation journey without encountering pointer aim-drift frustration or gesture collisions.
 
 ### Gate 4 — Investigate 🔄 (Sprint 27.3)
 - **Objective:** Make findings, observations, and human decisions first-class research evidence.

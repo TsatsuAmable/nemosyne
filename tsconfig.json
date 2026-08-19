@@ -46,6 +46,8 @@
   "include": [
     "src/**/*",
     "tests/**/*",
+    "dev/**/*",
+    "vite.config.ts",
     "modules/gesture-intelligence/src/**/*"
   ],
   "exclude": [
