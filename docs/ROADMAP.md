@@ -210,13 +210,17 @@ graph TD
   - **Typed Event Dispatch (`nanoevents`):** Zero-overhead 100-byte typed event dispatcher.
 - **Exit Gate:** Package creation and unpack tests pass; raycast latency on 50k nodes is <2ms; `cargo test` passes with extended numerical fixtures.
 
-### Sprint 27.3 — Investigation Aggregate & Typed Graph Spine (Gate 1 & Gate 5)
-- **Goal:** Implement the authoritative `Investigation` domain aggregate and typed lineage graph.
+### Sprint 27.3 — Investigation Aggregate, Typed Graph Spine & Vertical Slice Invariant (Gate 1 & Gate 5)
+- **Goal:** Implement the authoritative `Investigation` domain aggregate, typed lineage graph, and the end-to-end "golden path" vertical slice test.
 - **Scope:**
   - Create `Investigation` aggregate owning task, dataset reference, operation chain, evidence ledger, observations, findings, and provenance.
   - Define versioned node and edge vocabulary (`motivates`, `uses-dataset`, `produces`, `observes`, `supports`, `branches-from`).
   - Wire `.nemosyne` package export and import to reconstruct investigations from the typed graph.
-- **Exit Gate:** Replay test suite verifies complete semantic reconstruction across clean environments.
+  - **Canonical Vertical Slice Invariant Test (`tests/golden-path-vertical-slice.test.ts`):** Assert that a complete investigation survives the entire system without semantic drift across fixed hash checkpoints:
+    $$\text{Known Dataset Fixture} \longrightarrow \text{Dataset Fingerprint} \longrightarrow \text{Kernel Result Hashes} \longrightarrow \text{Atlas Event Ledger}$$
+    $$\longrightarrow \text{Draco Recommendation} \longrightarrow \text{Representation Manifest} \longrightarrow \text{Observation} \longrightarrow \text{Finding}$$
+    $$\longrightarrow \text{.nemosyne Package Export} \longrightarrow \text{Clean-Room Replay Verification}$$
+- **Exit Gate:** Vertical slice invariant test passes with 100% deterministic hash parity; replay test suite verifies complete semantic reconstruction across clean environments.
 
 ### Sprint 27.4 — Diegetic Spatial UI, Gesture Tracking & Crash Resilience (Phase 3 Modernization)
 - **Goal:** Modernize spatial UX, replace canvas bitmap blitting, streamline gesture classification, and harden error boundaries.
@@ -237,13 +241,14 @@ graph TD
   - **Privacy & Telemetry Consent:** Guarantee opt-in consent for telemetry, pseudonymous hashing, and GDPR right-to-erasure deletion hooks.
 - **Exit Gate:** Adversarial security test suite passes 100%.
 
-### Sprint 27.6 — Reliability, Memory Leak Prevention & Quest 3S Performance Budget
-- **Goal:** Guarantee rock-solid 72 Hz / 90 Hz rendering on Meta Quest 3S hardware.
+### Sprint 27.6 — Reliability, Memory Leak Prevention, Quest 3S Frame Budget & CI Gate Hardening
+- **Goal:** Guarantee rock-solid 72 Hz / 90 Hz rendering on Meta Quest 3S hardware and enforce blocking CI system-level verification before Stable Alpha.
 - **Scope:**
   - **Zero-Allocation Hot Loops:** Eliminate per-frame scratch object allocations in `three-mesh-bvh`, `LODManager`, and `InputRouter`.
   - **GPU Resource Lifecycle:** Ensure 100% disposal of geometries, materials, and textures on palace rebuilds.
   - **Automated Memory Profiling:** Run automated 4-tier E2E suites verifying JS heap stays <250 MB and 0 memory leaks occur over 1-hour sessions.
-- **Exit Gate:** `npm run test:e2e:tier4` scenario 3 passes with zero memory leaks; frame time P95 <= 13.88 ms on Quest 3S.
+  - **CI Gate Promotion (Golden Path Smoke):** Promote Playwright load smoke / golden path system test (`npm run test:smoke`) from informational to a **strictly blocking CI gate** (`.github/workflows/ci.yml`), guaranteeing production bundle boot and WebGL initialization pass before any merge.
+- **Exit Gate:** `npm run test:e2e:tier4` scenario 3 passes with zero memory leaks; frame time P95 <= 13.88 ms on Quest 3S; blocking CI smoke gate passes green.
 
 ---
 
