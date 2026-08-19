@@ -23,6 +23,9 @@ import { PeerPresenceHUD } from '../ui/PeerPresenceHUD.ts';
 import { LoadTestPanel } from '../ui/LoadTestPanel.ts';
 import { RecommendationPanel } from '../ui/RecommendationPanel.ts';
 import { DracoExplainerPanel } from '../ui/DracoExplainerPanel.ts';
+import { StatusStripController } from '../ui/StatusStripController.ts';
+import { PanelRolesManager, type UIMode } from '../ui/PanelRolesManager.ts';
+import { ContextualTaskSurface } from '../ui/ContextualTaskSurface.ts';
 import type { LoadTestDriver } from '../scalability/LoadTestDriver.ts';
 import type { Engine } from '../Engine.ts';
 import type { WorldEventBusLike } from './types.ts';
@@ -43,6 +46,10 @@ export class WorldUIManager {
   analystAnchor: Group;
   eventBus: WorldEventBusLike;
   callbacks: WorldUIManagerCallbacks;
+
+  statusStrip: StatusStripController;
+  panelRolesManager: PanelRolesManager;
+  contextualTaskSurface: ContextualTaskSurface;
 
   telemetryPanel: InputTelemetry;
   vrConsole: VRConsole;
@@ -68,6 +75,17 @@ export class WorldUIManager {
     this.analystAnchor = analystAnchor;
     this.eventBus = eventBus;
     this.callbacks = callbacks;
+
+    // Persistent status grounding & context spotlight
+    this.statusStrip = new StatusStripController();
+
+    // Panel roles taxonomy & diagnostic gating
+    const initialMode: UIMode =
+      (callbacks.getSetting?.('userMode') as string) === 'expert' ? 'DEVELOPER' : 'ANALYST';
+    this.panelRolesManager = new PanelRolesManager(initialMode);
+
+    // Contextual task-oriented action filter
+    this.contextualTaskSurface = new ContextualTaskSurface();
 
     // DOM telemetry overlay panel.
     this.telemetryPanel = new InputTelemetry(engine);
@@ -266,6 +284,64 @@ export class WorldUIManager {
     this.engine.input.addPanel(this.dracoExplainerPanel);
     this.engine.addUpdatable(this.dracoExplainerPanel);
     this.panelManager.hidePanel(this.dracoExplainerPanel);
+
+    // Register all panels into PanelRolesManager with semantic roles
+    this.panelRolesManager.registerPanel('telemetry', 'Input Telemetry', 'diagnostic');
+    this.panelRolesManager.registerPanel('vrConsole', 'VR Console', 'diagnostic');
+    this.panelRolesManager.registerPanel('vrMenu', 'Main Menu', 'workspace');
+    this.panelRolesManager.registerPanel('settings', 'Settings', 'system');
+    this.panelRolesManager.registerPanel('operationLog', 'Operation Log', 'diagnostic');
+    this.panelRolesManager.registerPanel('metrics', 'Telemetry Metrics', 'diagnostic');
+    this.panelRolesManager.registerPanel('performance', 'Performance Budget', 'diagnostic');
+    this.panelRolesManager.registerPanel('network', 'Collaboration Network', 'diagnostic');
+    this.panelRolesManager.registerPanel('interactionCoach', 'Interaction Coach', 'system');
+    this.panelRolesManager.registerPanel('narrative', 'Narrative Strip', 'context');
+    this.panelRolesManager.registerPanel('loadTest', 'Load Test Panel', 'diagnostic');
+    this.panelRolesManager.registerPanel('recommendation', 'Recommendation Panel', 'task');
+    this.panelRolesManager.registerPanel('dracoExplainer', 'Draco Explainer Panel', 'task');
+  }
+
+  /**
+   * Toggle a panel while respecting its registered panel role (e.g. max 2 task panels,
+   * diagnostic panel UI mode gating).
+   */
+  togglePanelWithRole(id: string, panel: PanelLike): boolean {
+    const isCurrentlyOpen = this.panelRolesManager.isPanelOpen(id);
+    if (isCurrentlyOpen) {
+      this.panelRolesManager.closePanel(id);
+      this.panelManager.hidePanel(panel);
+      return false;
+    }
+
+    const allowed = this.panelRolesManager.openPanel(id);
+    if (!allowed) {
+      this.vrConsole?.log?.('warn', [`Panel [${id}] not permitted in mode ${this.panelRolesManager.uiMode}`]);
+      return false;
+    }
+
+    // Synchronize visibility of registered panels if any were auto-dismissed (e.g. max task panels rule)
+    this._syncPanelVisibilityWithRoles();
+    this.panelManager.showPanel(panel);
+    return true;
+  }
+
+  private _syncPanelVisibilityWithRoles(): void {
+    const rolePanelMap: Record<string, PanelLike> = {
+      recommendation: this.recommendationPanel,
+      dracoExplainer: this.dracoExplainerPanel,
+      telemetry: this.telemetryPanel,
+      vrConsole: this.vrConsole,
+      operationLog: this.operationLogPanel,
+      metrics: this.metricsPanel,
+      performance: this.performancePanel,
+      network: this.networkPanel,
+    };
+
+    for (const [id, p] of Object.entries(rolePanelMap)) {
+      if (!this.panelRolesManager.isPanelOpen(id) && p?.mesh?.visible) {
+        this.panelManager.hidePanel(p);
+      }
+    }
   }
 
   /**

@@ -343,3 +343,118 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
     },
   ];
 }
+
+/**
+ * Builds categorized HandWheel structure aligned with the 6 core intent taxonomy:
+ * ANALYSE | VIEW | DATA | STUDY | COLLABORATE | SYSTEM.
+ */
+export function buildIntentWheelMenuCategories(world: WorldLike): WheelMenuCategory[] {
+  const opItem = (id: string, label: string, icon: string, op: string) => ({
+    id,
+    label,
+    icon,
+    callback: () => world.applyDataOperation(op),
+    onHover: () => world.previewDataOperation(op),
+    onLeave: () => world.clearOperationPreview(),
+  });
+  const pm = world.uiManager?.panelManager;
+  const toggle = (panel: PanelLike | null | undefined) => {
+    if (panel && pm) {
+      pm.togglePanel(panel);
+    }
+  };
+
+  return [
+    {
+      id: 'ANALYSE',
+      label: 'Analyse',
+      icon: '🔎',
+      items: [
+        opItem('filter', 'Filter', '🔎', 'filter'),
+        opItem('sort', 'Sort', '📶', 'sort'),
+        opItem('aggregate', 'Aggregate', '📚', 'aggregate'),
+        opItem('cluster', 'Cluster', '🔷', 'cluster'),
+        opItem('hierarchical', 'Hierarchy', '🌳', 'hierarchical'),
+        opItem('density', 'Density', '⚫', 'density'),
+        opItem('anomaly', 'Anomaly', '⚡', 'anomaly'),
+        opItem('timeSlice', 'Slice', '🕒', 'timeSlice'),
+        { id: 'reset', label: 'Reset', icon: '↺', callback: () => world.resetDataOperation() },
+        { id: 'undo', label: 'Undo', icon: '⮌', callback: () => world.undoAnalysis() },
+        { id: 'redo', label: 'Redo', icon: '⮎', callback: () => world.redoAnalysis() },
+      ],
+    },
+    {
+      id: 'VIEW',
+      label: 'View',
+      icon: '👁️',
+      items: [
+        { id: 'portals', label: 'Portals', icon: '🌀', callback: () => world.setPortalsEnabled(!world.portalsEnabled) },
+        { id: 'theme', label: 'Theme', icon: '🎨', callback: () => world._cycleThemePreset() },
+        { id: 'overview', label: 'Overview', icon: '🗺️', callback: () => world._toggleMiniOverview() },
+        { id: 'lens', label: 'Statistical Lens', icon: '🔬', callback: () => world._toggleStatisticalLens?.() },
+        { id: 'explain', label: 'Why View?', icon: '💡', callback: () => world._toggleDracoExplainer?.() },
+        { id: 'recenter', label: 'Recenter Anchor', icon: '🎯', callback: () => pm?.recenter() },
+      ],
+    },
+    {
+      id: 'DATA',
+      label: 'Data',
+      icon: '💎',
+      items: [
+        { id: 'dataset-cycle', label: 'Next Dataset', icon: '💎', callback: () => world._cycleDataset() },
+        {
+          id: 'live-stream',
+          label: world.isLiveConnected() ? 'Stop Stream' : 'Live Ingest',
+          icon: world.isLiveConnected() ? '⏹️' : '📡',
+          callback: () => (world.isLiveConnected() ? world.disconnectLiveStream() : world.connectLiveStream()),
+        },
+        { id: 'save-session', label: 'Save State', icon: '💾', callback: () => world.saveSession('manual') },
+        { id: 'load-session', label: 'Restore Auto', icon: '⏮️', callback: () => world.loadSession('autosave') },
+      ],
+    },
+    {
+      id: 'STUDY',
+      label: 'Study',
+      icon: '📋',
+      items: [
+        { id: 'mark-moment', label: 'Mark Moment', icon: '📍', callback: () => world.markMoment?.() },
+        { id: 'tour', label: 'Start Tour', icon: '🧭', callback: () => world.startTour() },
+        { id: 'timeline', label: 'Timeline Strip', icon: '🎞️', callback: () => toggle(world.uiManager?.narrativeStrip) },
+        { id: 'guidance', label: 'Guidance', icon: '🧭', callback: () => toggle(world.uiManager?.recommendationPanel) },
+        { id: 'story', label: 'Export Story', icon: '📤', callback: () => world.exportAnalysisStory() },
+        { id: 'screenshot', label: 'Screenshot', icon: '📸', callback: () => world.exportScreenshot() },
+      ],
+    },
+    {
+      id: 'COLLABORATE',
+      label: 'Collab',
+      icon: '👥',
+      items: [
+        {
+          id: 'collab-toggle',
+          label: world.collaborationCoordinator.isConnected() ? 'Leave Room' : 'Join Room',
+          icon: world.collaborationCoordinator.isConnected() ? '🚪' : '🔗',
+          callback: () =>
+            world.collaborationCoordinator.isConnected()
+              ? world._leaveCollaborationRoom()
+              : world._joinCollaborationRoom(),
+        },
+        { id: 'peers', label: 'Peer HUD', icon: '👥', callback: () => world._togglePeerPresenceHUD() },
+        { id: 'network-panel', label: 'Network Panel', icon: '🌐', callback: () => toggle(world.uiManager?.networkPanel) },
+      ],
+    },
+    {
+      id: 'SYSTEM',
+      label: 'System',
+      icon: '⚙️',
+      items: [
+        { id: 'settings', label: 'Settings', icon: '⚙️', callback: () => world._toggleSettingsPanel() },
+        { id: 'console', label: 'VR Console', icon: '📝', callback: () => toggle(world.uiManager?.vrConsole as unknown as PanelLike) },
+        { id: 'perf', label: 'Perf Budget', icon: '⏱️', callback: () => toggle(world.uiManager?.performancePanel) },
+        { id: 'telemetry', label: 'Telemetry', icon: '📊', callback: () => toggle(world.uiManager?.metricsPanel) },
+        { id: 'coach', label: 'Coach', icon: '🎓', callback: () => toggle(world.uiManager?.interactionCoach) },
+        { id: 'exit-vr', label: 'Exit VR', icon: '🚪', callback: () => (world.exitVR ? world.exitVR() : world.engine?.exitVR?.()) },
+      ],
+    },
+  ];
+}

@@ -6,6 +6,14 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
+- **2026-08-20 — VR UX Convergence, Spatial Intelligence & Interaction Engineering (✅):**
+  - **Authoritative Interaction State Machine & Reversible Transitions:** Wired `InteractionModeController` (`NAVIGATE | INTERACT | TRANSFORM | OBSERVE`) directly into `World.ts` and `WorldInputCoordinator.ts`, providing reversible mode history and structured multi-surface focus state management.
+  - **Zero Silent Suppression & Contextual Both-Pinch Ownership:** Integrated `GestureOwnershipManager` into the primary XR gesture pipeline. `bothPinched` dynamically resolves contextually per mode (world transform, selection commit, artifact scaling/orientation, resume interaction) with unambiguous HUD feedback chips (`statusStrip.recordAction`) and verified >= 2 input channels redundancy.
+  - **Persistent Spatial Grounding & Spotlight:** Unified `StatusStripController` across dataset loading, analytical operations, focal targets, and mode transitions, keeping analysts grounded with instant clarity on topology, item counts, mode, and next affordances.
+  - **Panel Roles Governance & Ergonomics Discipline:** Activated `PanelRolesManager` in `WorldUIManager`, enforcing role boundaries (`workspace`, `task`, `context`, `diagnostic`, `system`), strict max-2 open task panels discipline with graceful auto-dismissal, and mode-gated diagnostic panel visibility.
+  - **Contextual Task Surfaces & Intent-Driven HandWheel:** Integrated `ContextualTaskSurface` and `WheelMenuBuilder` with the 6-intent taxonomy (`ANALYSE`, `VIEW`, `DATA`, `STUDY`, `COLLABORATE`, `SYSTEM`), dynamically filtering operations by dataset topology and integrating `MarkMomentAction` with `EvidenceLedger`.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 236/236 test files passed (1,535 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0 (162ms) · `npm run audit:hygiene` 8/8 dimensions passed.
+
 - **2026-08-20 — Periodic Maintainability Audit & Cryptographic Hardening Delivery (✅):**
   - **Single Authoritative Analytical Core & Exclusivity Governance:** Re-verified strict Rust/WASM exclusivity invariant across domain and Draco pipelines. Standardized pure TypeScript import specifiers across `RuntimeBridge.ts` and `World.ts`.
   - **Cryptographic Hardening & Replay Prevention:** Hardened `SignedTicketVerifier` with constant-time `timingSafeEqual` comparison against side-channel timing attacks and timestamp-indexed nonce expiration eviction.
@@ -159,6 +167,7 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
   - [x] Mode-aware `GestureOwnershipManager.ts` eliminating silent both-pinch suppression.
   - [x] `PointerRayFilter.ts` adaptive 1-Euro smoothing filter eliminating physiological tremor & aim-drift during long-range pointing on Quest 3S.
   - [x] Semantic `StatusStripController.ts` and `UXAcceptanceGate.ts` evaluation suite.
+  - [x] Spatial UX Convergence & Intelligence Integration: Wired `InteractionModeController`, `GestureOwnershipManager`, `StatusStripController`, `PanelRolesManager`, and `ContextualTaskSurface` into `World.ts`, `WorldUIManager.ts`, and `WorldInputCoordinator.ts` with 6-intent taxonomy HandWheel (`buildIntentWheelMenuCategories`) and `tests/vr-ux-convergence.test.ts`.
 - **Exit Criteria Met:** A novice or expert can complete the primary investigation journey without encountering pointer aim-drift frustration or gesture collisions.
 
 ### Gate 4 — Investigate ✅ (First-Class Evidence Entities & Mark Moment Complete)

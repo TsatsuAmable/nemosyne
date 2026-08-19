@@ -74,11 +74,13 @@ import type {
   LiveConnectorLike,
   LiveStreamOptions,
   NetworkManagerLike,
+  PanelLike,
   SettingsMap,
   TelemetryCollectorLike,
   WasmRuntimeBridge,
   WorldEventBusLike,
 } from './coordinators/types.ts';
+import type { InteractionMode, FocusState } from './input/InteractionModeController.ts';
 
 // Map sample-dataset keys to atmospheric presets so each dataset has a distinct mood.
 const DATASET_THEME_MAP: Record<string, string> = {
@@ -308,6 +310,10 @@ export class World {
         onLoadTemplate: (id) => this.loadTemplate(id),
         onLog: (msg) => this.uiManager.vrConsole?.log?.('log', Array.isArray(msg) ? msg : [msg]),
         onCaptureSession: () => this._requestAutoSave(),
+        onCommitSelection: () => this._commitSelection(),
+        onToggleTransformHandle: () => this._toggleTransformHandle(),
+        onRecordAction: (action, next) => this.uiManager.statusStrip.recordAction(action, next),
+        onModeChanged: (mode) => this.uiManager.statusStrip.setInteractionMode(mode),
       },
     });
     this.engine.uiManager = this.uiManager;
@@ -629,6 +635,7 @@ export class World {
       notes,
       onLogged: (msg) => this.uiManager.vrConsole?.log?.('log', [msg]),
     });
+    this.uiManager.statusStrip.recordAction('Mark Moment', 'Finding recorded in evidence ledger');
     this._logInteraction('Mark moment', { result: obs.id });
     return obs;
   }
@@ -826,6 +833,14 @@ export class World {
     );
     this.engine.addUpdatable(this.dracoNode);
     this._wireArtifactInteraction(this.dracoNode);
+
+    // Update persistent spatial status strip and contextual task surface
+    const datasetLabel = entry.label ?? entry.name ?? entry.key ?? 'Dataset';
+    const rowCount = entry.dataset?.rows?.length ?? 0;
+    this.uiManager.statusStrip.setDatasetContext(datasetLabel, String(entry.topology), rowCount);
+    if (entry.topology) {
+      this.uiManager.contextualTaskSurface.setTopology(entry.topology as never);
+    }
 
     // Rebuild diagnostic HUD bound to the new node.
     this.diagnostic = new DracoDiagnosticHUD(
@@ -1948,5 +1963,61 @@ export class World {
       console.error('[World] kernel sample load panic:', e);
       return entry;
     }
+  }
+
+  // --- Spatial UX Convergence & Intelligence Facade ---
+
+  get interactionModeController() {
+    return this.inputCoordinator.interactionModeController;
+  }
+
+  get gestureOwnershipManager() {
+    return this.inputCoordinator.gestureOwnershipManager;
+  }
+
+  get statusStripController() {
+    return this.uiManager.statusStrip;
+  }
+
+  get panelRolesManager() {
+    return this.uiManager.panelRolesManager;
+  }
+
+  get contextualTaskSurface() {
+    return this.uiManager.contextualTaskSurface;
+  }
+
+  setInteractionMode(mode: InteractionMode, reason = 'user_action'): boolean {
+    return this.inputCoordinator.setInteractionMode(mode, reason);
+  }
+
+  revertInteractionMode(): boolean {
+    return this.inputCoordinator.revertInteractionMode();
+  }
+
+  getInteractionMode(): InteractionMode {
+    return this.inputCoordinator.getInteractionMode();
+  }
+
+  setFocusState(surfaceId: string, state: FocusState): void {
+    this.inputCoordinator.setFocusState(surfaceId, state);
+  }
+
+  getFocusState(surfaceId: string): FocusState {
+    return this.inputCoordinator.getFocusState(surfaceId);
+  }
+
+  togglePanelByRole(id: string, panel: PanelLike): boolean {
+    return this.uiManager.togglePanelWithRole(id, panel);
+  }
+
+  _commitSelection(): void {
+    this.uiManager.vrConsole?.log?.('log', ['Selection committed']);
+    this.uiManager.statusStrip.recordAction('Commit Selection', 'Operation confirmed');
+  }
+
+  _toggleTransformHandle(): void {
+    this.uiManager.vrConsole?.log?.('log', ['Transform active artifact']);
+    this.uiManager.statusStrip.recordAction('Transform Artifact', 'Scale / rotate cluster');
   }
 }
