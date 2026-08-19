@@ -6,3 +6,4 @@ export { loadtestResultsPlugin } from './loadtest-server.ts';
 export { signallingPlugin } from './signalling-dev-server.ts';
 export { demoStreamPlugin } from './demo-stream-server.ts';
 export { wasmServePlugin } from './wasm-serve-server.ts';
+export { spatialSceneInspectorPlugin } from './spatial-tools/index.ts';
