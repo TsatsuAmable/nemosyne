@@ -6,17 +6,18 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **2026-08-19 — Project Realignment, Standardization Review & Limited Public Testing Preparation:**
-  - **Vision Alignment:** Fully synchronized project direction with the governing [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md).
-  - **Roadmap Archiving:** Archived completed historical sprint records from Phases 21–26 and Waves 0–6 into [docs/archive/ROADMAP_PHASES_21-26_COMPLETED.md](archive/ROADMAP_PHASES_21-26_COMPLETED.md).
-  - **Gate Model Adoption:** Restructured the active roadmap around the definitive Gate 0–7 model (Foundations → Understand → Represent → Experience → Investigate → Reproduce → Study → Adaptive Research).
-  - **Standardization & OSS Adoption Review:** Published [docs/STANDARDIZATION_REVIEW.md](STANDARDIZATION_REVIEW.md) specifying a structured library adoption plan across 13 subsystem domains (`valibot`/`zod`, `fflate`, `three-mesh-bvh`, `three-mesh-ui`, `$3D` recognizer, `@tweenjs/tween.js`, `peerjs-server`, `yjs`, `petgraph`, `statrs`, `colord`, `nanoevents`, and selective `iwsdk` MR adapter) to eliminate **~8,440 lines of custom boilerplate** while keeping client bundle addition strictly `< 45 kB`.
-  - **Engine Architecture Invariant:** Reaffirmed Three.js 0.168.0 and Rust WASM as our core foundation; explicitly rejected engine rewrites (PlayCanvas, Babylon.js, ReactXR) to prevent virtual DOM GC thrashing and protect the 72/90 FPS Quest 3S frame budget.
-  - **Public Testing Release Sprints (Sprints 27.1–27.6):** Defined implementation sprints covering modular contracts, open-source standardization, investigation graph spine, crash resilience, security hardening, and Quest 3S frame-budget reliability.
-  - **Comprehensive Developer Explainer Guide:** Published [docs/DEVELOPER_EXPLAINER.md](DEVELOPER_EXPLAINER.md) detailing architecture, data lifecycles, Rust/WASM ABI, UI FSM, cookbooks, and debugging runbooks.
+- **2026-08-19 — Project Realignment, Standardization Review & Domain Aggregate Architecture:**
+  - **Vision Alignment:** Fully synchronized project direction with the governing [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md) and codified the **Vision Alignment Cardinal Rule** across agent guides.
+  - **Investigation Domain Aggregate Refactor:** Decomposed `AtlasCore` into an Application Service coordinator managing an authoritative `InvestigationAggregate` (`AnalyticalState`, `EvidenceLedger`, `RepresentationState`, `DecisionHistory`, `ResearchContext`, `InvestigationGraph`) under `src/atlas/domain/`.
+  - **Explicit Kernel State & Fallback Elimination:** Formalized `KernelState` (`UNINITIALIZED | INITIALIZING | READY | UNAVAILABLE`) and `KernelUnavailableError`, strictly eliminating any silent JS calculation fallback.
+  - **Event-Sourced Architectural Principle:** Codified the law of *Single Authoritative State & Event-Sourced Determinism* ($\text{Authoritative Investigation} = \text{InvestigationCommand}[] + \text{ImmutableDatasetRef} + \text{Manifest}$; materialized state is disposable cache; Memory Palace is pure spatial projection).
+  - **Dev Server Modularization:** Decomposed monolithic `vite.config.js` into dedicated TypeScript plugins under `dev/` composed by a clean `vite.config.ts`.
+  - **Standardization & OSS Adoption Review:** Published [docs/STANDARDIZATION_REVIEW.md](STANDARDIZATION_REVIEW.md) specifying a structured library adoption plan across 13 subsystem domains to eliminate **~8,440 lines of boilerplate** (<45 kB footprint).
+  - **Engine Architecture Invariant:** Reaffirmed Three.js 0.168.0 and Rust WASM as our core foundation; rejected engine rewrites.
+  - **Developer Explainer Guide:** Published [docs/DEVELOPER_EXPLAINER.md](DEVELOPER_EXPLAINER.md) detailing architecture, data lifecycles, and runbooks.
   - **Next Planned Work:**
-    - *Sprint 27.1 — Subsystem Modularization & Strict Contract Boundaries:* Formalize typed module exports and boundary invariant tests across the 8 principal subsystems.
-  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors (151 test-only `any` warnings) · `npm test` 217/217 test files passed (1,446 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+    - *Sprint 27.1 — Subsystem Modularization & Strict Contract Boundaries:* Formalize typed barrel exports across `src/investigation/`, `src/atlas/`, `src/representation/`, `src/study/`, `src/network/`, `src/perception/`, `src/vr/`, and `src/session/`.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 219/219 test files passed (1,462 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
 
 ---
 
@@ -52,6 +53,46 @@ The Nemosyne implementation roadmap is organized by architectural gates defined 
 | **Session** | Execution context carrying presentation state, temporary UI, and peer presence (reconstructible derived view). | `spatial-runtime/` |
 | **Memory Palace** | Persistent spatial projection of an Investigation; reconstructible from semantic state and representation inputs. | `spatial-runtime/` |
 | **Study** | Controlled experimental container defining treatment boundaries, conditions (2D vs VR), tasks, and protocol. | `research-harness/` |
+
+---
+
+### Core Architectural Principle: Single Authoritative State & Event-Sourced Determinism
+
+> **Architectural Law:** Only ONE state representation is authoritative. Everything else must be strictly derivable and disposable.
+
+To eliminate state divergence, race conditions, and trust ambiguities across the 12+ historic state surfaces (`_current`, `_original`, `_results`, `_ledger`, `_structures`, `_activeRecommendation`, `_decisionHistory`, `AnalysisHistory`, `DatasetSpace`, `NemosyneSession`, collaborative binary state, Three.js scene graph), Nemosyne defines:
+
+$$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mathbf{ImmutableDatasetRef} + \mathbf{EnvironmentManifest}$$
+
+```text
+       Authoritative Event Log: InvestigationCommand[] + Immutable Dataset
+                                      │
+                                      ▼
+             Deterministic Replay Engine (Rust/WASM Kernel)
+                                      │
+                      ┌───────────────┴───────────────┐
+                      ▼                               ▼
+        Authoritative Analytical State     Representation Decision
+       (Computed Tables, Metrics, TDA)    (Draco Constraints, SpatialStrategy)
+                      │                               │
+                      └───────────────┬───────────────┘
+                                      ▼
+                        Semantic Memory Palace Projection
+                    (Ephemeral Disposable Scene Graph / VR UI)
+```
+
+1. **Materialized State as Disposable Cache:** Computed analytical tables, structure sets, UI panel states, and Three.js meshes are non-authoritative caches. They can be dropped and rebuilt from the command log at any time without data loss.
+2. **Deterministic Replay Guarantee:** $\text{Replay}(\text{Command Log}) \longrightarrow \text{Same Analytical State} \longrightarrow \text{Same Representation Decision} \longrightarrow \text{Same Semantic World}$.
+3. **Memory Palace as Pure Spatial Projection:** The Memory Palace is never an independently serialized 3D scene; it is a live spatial projection of the event-sourced investigation.
+
+#### Implementation Target Points
+
+| Implementation Milestone | Target Phase / Sprint | Deliverable & Acceptance Guarantee |
+|---|---|---|
+| **Domain Aggregate Isolation** | **Sprint 27.1 / Gate 1** | `InvestigationAggregate` encapsulates all sub-states; `AnalysisHistory` and `DatasetSpace` are purely derived read-only views. |
+| **Pure Strategy Solvers** | **Sprint 27.2 / Gate 2** | Draco `SpatialStrategy` formulated as a pure deterministic function of `(InvestigationState, EnvironmentManifest)`. |
+| **Headless Replay & `.nemosyne`** | **Sprint 27.3 / Gate 5** | `.nemosyne` packages store only `(DatasetBytes, CommandLog, Manifest)`; headless tests verify bit-for-bit palace reconstruction. |
+| **Frozen Study Telemetry** | **Gate 6 / Study** | Experimental trial replay guarantees exact state matching across 2D control and VR experimental conditions. |
 
 ---
 
