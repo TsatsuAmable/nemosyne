@@ -47,8 +47,7 @@ export interface TrialEvent {
   timestamp: number;
   phase: TrialPhase;
   eventType: 'phase_change' | 'node_select' | 'node_deselect' | 'camera_move' | 'filter_apply' | 'reset' | 'survey_submit';
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  payload?: Record<string, any>;
+  payload?: Record<string, unknown>;
 }
 
 export interface TrialMetrics {

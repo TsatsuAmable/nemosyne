@@ -5,7 +5,9 @@ import * as path from 'path';
 describe('Tier 3 — Suite 3.5: Test Automation × E2E Readiness (F14 × F15)', () => {
   it('INT-3.5.1: Verifies test runner configuration, tier test files presence, and environment isolation', () => {
     const rootDir = process.cwd();
-    const vitestConfig = path.join(rootDir, 'vitest.config.js');
+    const vitestConfig = fs.existsSync(path.join(rootDir, 'vitest.config.ts'))
+      ? path.join(rootDir, 'vitest.config.ts')
+      : path.join(rootDir, 'vitest.config.js');
     expect(fs.existsSync(vitestConfig)).toBe(true);
 
     // Wave 3 deleted the pure-topology-parity tier2 spec (f01_boundary), so the

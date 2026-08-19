@@ -175,4 +175,26 @@ describe('Architectural Invariants & Subsystem Boundaries (Sprint 27.1)', () => 
       expect(latestEvent.embodimentCommand).toEqual(embodimentCmd);
     });
   });
+
+  describe('Invariant 6: Automated Architectural Dependency Enforcement', () => {
+    it('verifies domain layers do not import Three.js, WebXR, or presentation UI', async () => {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+
+      const domainDirs = [
+        path.resolve(process.cwd(), 'src/atlas/domain'),
+      ];
+
+      for (const dir of domainDirs) {
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir).filter((f) => f.endsWith('.ts'));
+          for (const file of files) {
+            const content = fs.readFileSync(path.join(dir, file), 'utf8');
+            expect(content).not.toMatch(/from\s+['"]three['"]/);
+            expect(content).not.toMatch(/from\s+['"].*\/vr\/.*['"]/);
+          }
+        }
+      }
+    });
+  });
 });

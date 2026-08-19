@@ -16,3 +16,9 @@ export {
   type ConsentStatus,
   type ConsentRecord,
 } from './TelemetryConsentManager.ts';
+export {
+  UXFrustrationAnalyzer,
+  type UXEvent,
+  type FrictionPattern,
+  type CompactUXDigest,
+} from '../utils/UXFrustrationAnalyzer.ts';

@@ -16,3 +16,9 @@ export {
   type GestureTemplate,
   type GestureMatchResult,
 } from './GeometricGestureRecognizer.ts';
+export {
+  GESTURE_MAP,
+  gesturesForAction,
+  getGestureMeta,
+  type GestureMeta,
+} from '../../utils/GestureMapping.ts';
