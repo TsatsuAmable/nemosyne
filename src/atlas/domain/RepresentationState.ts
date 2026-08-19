@@ -163,9 +163,19 @@ export function minimalDracoFacts(
   };
 }
 
+import {
+  ConstraintArbiter,
+  createDefaultRequirements,
+  type RepresentationRequirements,
+  type SpatialStrategy,
+} from '../../draco/index.ts';
+
 export class RepresentationState {
   readonly largeRowThreshold = 500;
   readonly highCardinalityThreshold = 12;
+
+  activeStrategy: SpatialStrategy | null = null;
+  activeRequirements: RepresentationRequirements | null = null;
 
   toDracoFacts(input: DracoDataInput, kernelFacts: Facts | null): DracoFacts {
     if (kernelFacts) {
@@ -187,5 +197,19 @@ export class RepresentationState {
     return {
       facts: (input) => this.toDracoFacts(input, factsProvider()),
     };
+  }
+
+  arbitrateStrategy(
+    input: DracoDataInput,
+    kernelFacts: Facts | null,
+    requirements?: RepresentationRequirements,
+    datasetFingerprint?: string,
+  ): SpatialStrategy {
+    const facts = this.toDracoFacts(input, kernelFacts);
+    const req = requirements ?? this.activeRequirements ?? createDefaultRequirements();
+    const strategy = ConstraintArbiter.arbitrate(facts, req, { datasetFingerprint });
+    this.activeStrategy = strategy;
+    this.activeRequirements = req;
+    return strategy;
   }
 }
