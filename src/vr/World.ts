@@ -1905,7 +1905,7 @@ export class World {
   async _initWasmRuntime(): Promise<void> {
     // Load the bridge lazily so that production builds which skip wasm-pack
     // still start without a missing-module error at import time.
-    const bridge = await import('../wasm/RuntimeBridge.js');
+    const bridge = await import('../wasm/RuntimeBridge.ts');
     if (bridge.isReady()) {
       this._wasmRuntime = bridge;
       this._wasmCapabilities = bridge.capabilities();

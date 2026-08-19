@@ -11,6 +11,7 @@ export { createSignedTicket, verifySignedTicket, timingSafeEqualString } from '.
 export type { TokenClaims } from './SignedTicket.ts';
 export {
   SignedTicketVerifier,
+  timingSafeEqual,
   type SignedRoomTicket,
   type TicketVerificationResult,
 } from './SignedTicketVerifier.ts';

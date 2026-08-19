@@ -22,8 +22,17 @@ export interface TicketVerificationResult {
   error?: string;
 }
 
+export function timingSafeEqual(a: string, b: string): boolean {
+  const maxLen = Math.max(a.length, b.length);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < maxLen; i++) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
+
 export class SignedTicketVerifier {
-  private readonly _usedNonces = new Set<string>();
+  private readonly _usedNonces = new Map<string, number>();
 
   /**
    * Produce the canonical signing payload string for a ticket.
@@ -79,12 +88,12 @@ export class SignedTicketVerifier {
     const payload = SignedTicketVerifier.canonicalPayload(ticket);
     const expectedSig = await SignedTicketVerifier._computeHmacSha256(payload, secret);
 
-    if (ticket.signatureHex !== expectedSig) {
+    if (!timingSafeEqual(ticket.signatureHex, expectedSig)) {
       return { valid: false, error: 'Invalid HMAC cryptographic signature' };
     }
 
-    // Mark nonce as consumed
-    this._usedNonces.add(ticket.nonce);
+    // Mark nonce as consumed with its expiration timestamp
+    this._usedNonces.set(ticket.nonce, ticket.expiresAt);
     return { valid: true, ticket };
   }
 
@@ -115,7 +124,21 @@ export class SignedTicketVerifier {
     return (hash >>> 0).toString(16).padStart(64, '0');
   }
 
-  clearExpiredNonces(): void {
-    this._usedNonces.clear();
+  /**
+   * Evict nonces whose ticket expiration timestamp has passed.
+   */
+  clearExpiredNonces(now: number = Date.now()): void {
+    for (const [nonce, expiresAt] of this._usedNonces.entries()) {
+      if (now > expiresAt) {
+        this._usedNonces.delete(nonce);
+      }
+    }
+  }
+
+  /**
+   * Get active nonce count for inspection/telemetry.
+   */
+  get activeNonceCount(): number {
+    return this._usedNonces.size;
   }
 }
