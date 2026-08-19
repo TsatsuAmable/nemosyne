@@ -308,6 +308,7 @@ export class World {
         onCaptureSession: () => this._requestAutoSave(),
       },
     });
+    this.engine.uiManager = this.uiManager;
 
     // User-mode controller applies novice/intermediate/expert policies to the
     // coach, tour, and tooltips.
@@ -505,10 +506,10 @@ export class World {
       resolveTarget: (target: string) => this.tourController.resolveTarget(target),
       checkCondition: (step: TourStep) => this.tourController.checkCondition(step),
       onComplete: () => this.uiManager.vrConsole?.log?.('log', ['Tour complete']),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+    });
     this.engine.addUpdatable(this.guidedTour);
     this.engine.addHudObject(this.guidedTour);
+    this.engine.guidedTour = this.guidedTour;
 
     // Authoritative logical session (Wave 4): wraps AtlasCore + presentation
     // state and owns the schemaVersion-2 snapshot. Constructed before the

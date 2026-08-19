@@ -611,7 +611,7 @@ export interface IPanelContentHandler {
   onPointerDown?(worldRaycaster: Raycaster, pointer: PointerLike): void;
   onPointerMove?(worldRaycaster: Raycaster, pointer: PointerLike): void;
   onPointerUp?(worldRaycaster: Raycaster, pointer: PointerLike): void;
-  renderContent?(): void;
+  renderContent?(ctx: CanvasRenderingContext2D, width: number, height: number): void;
 }
 
 export interface TelemetryCollectorLike {
@@ -624,6 +624,10 @@ export interface TelemetryCollectorLike {
   recordDataset?(name: string, topology: string): void;
   recordOperation?(operation: string): void;
   recordGesture?(name: string): void;
+  recordGestureConfidence?(name: string, confidence: number, isMisfire: boolean): void;
+  recordPanelAction?(title: string, action: string): void;
+  recordMenuAction?(name: string): void;
+  recordDwell?(target: string, duration: number, completed: boolean): void;
   recordError?(err: unknown, isWarning?: boolean): void;
   setEnabled?(value: boolean): void;
 }

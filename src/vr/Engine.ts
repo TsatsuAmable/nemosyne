@@ -11,7 +11,7 @@ import { PerformanceBudget } from '../utils/PerformanceBudget.ts';
 import { WorldEventBus } from '../utils/EventBus.ts';
 import { AdaptiveFrameGovernor } from './scalability/AdaptiveFrameGovernor.ts';
 import type { HudObject } from './input/InteractableRegistry.ts';
-import type { PerformanceBudgetLike, TelemetryCollectorLike, Updatable } from './coordinators/types.ts';
+import type { PerformanceBudgetLike, TelemetryCollectorLike, Updatable, WorldUIManagerLike } from './coordinators/types.ts';
 import './registerFactories.ts';
 
 export type EngineState = 'running' | 'context_lost' | 'paused' | 'disposed';
@@ -31,6 +31,10 @@ export class Engine {
   // Optional telemetry collector. The World sets this once it has created
   // the engine; if unset, frame timing is simply not collected.
   telemetry: TelemetryCollectorLike | null = null;
+
+  // Optional subsystem references attached by World for controls dispatch.
+  uiManager: WorldUIManagerLike | null = null;
+  guidedTour: { next?(): void; previous?(): void } | null = null;
 
   // Performance budget enforcement for Quest Browser profiling.
   performanceBudget: PerformanceBudgetLike;

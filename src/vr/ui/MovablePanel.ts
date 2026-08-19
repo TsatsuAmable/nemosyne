@@ -15,6 +15,19 @@ interface InternalDragState extends DragState {
   planeNormal?: THREE.Vector3;
 }
 
+export interface PanelCameraGroup extends THREE.Group {
+  engine?: {
+    telemetry?: {
+      recordPanelAction?(title: string, action: string): void;
+    };
+    uiManager?: {
+      panelManager?: {
+        showLauncher?(): void;
+      };
+    };
+  };
+}
+
 /**
  * Base class for analyst-anchored VR panels that can be dragged by a
  * controller ray, minimized/restored, and placed in depth-aware space.
@@ -22,8 +35,9 @@ interface InternalDragState extends DragState {
 export class MovablePanel implements IPanelContentHandler {
   private static _textureCacheManager: CanvasTextureCacheManager | null = null;
   private _renderGeneration = 0;
-  cameraGroup: THREE.Group;
+  cameraGroup: PanelCameraGroup;
   parentGroup: THREE.Group | null;
+  renderContent?(ctx: CanvasRenderingContext2D, width: number, height: number): void;
   title: string;
   width: number;
   height: number;
@@ -166,22 +180,14 @@ export class MovablePanel implements IPanelContentHandler {
     }
     this._clampDistance();
     this.render();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (typeof (this.cameraGroup as any)?.engine?.telemetry?.recordPanelAction === 'function') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.cameraGroup as any).engine.telemetry.recordPanelAction(this.title, 'show');
-    }
+    this.cameraGroup?.engine?.telemetry?.recordPanelAction?.(this.title, 'show');
   }
 
   hide() {
     this.mesh.visible = false;
     this.isMinimized = true;
     if (this.onHide) this.onHide();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (typeof (this.cameraGroup as any)?.engine?.telemetry?.recordPanelAction === 'function') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.cameraGroup as any).engine.telemetry.recordPanelAction(this.title, 'hide');
-    }
+    this.cameraGroup?.engine?.telemetry?.recordPanelAction?.(this.title, 'hide');
   }
 
   toggle() {
@@ -205,22 +211,14 @@ export class MovablePanel implements IPanelContentHandler {
     const mb = this.minimizeBtn;
     if (cx >= mb.x && cx <= mb.x + mb.w && cy >= mb.y && cy <= mb.y + mb.h) {
       this.hide();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (typeof (this.cameraGroup as any)?.engine?.uiManager?.panelManager?.showLauncher === 'function') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (this.cameraGroup as any).engine.uiManager.panelManager.showLauncher();
-      }
+      this.cameraGroup?.engine?.uiManager?.panelManager?.showLauncher?.();
       return 'minimize';
     }
 
     // Title bar drag.
     if (cy <= this.titleBarHeight) {
       this._startDrag(pointer, hits[0].point);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (typeof (this.cameraGroup as any)?.engine?.telemetry?.recordPanelAction === 'function') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (this.cameraGroup as any).engine.telemetry.recordPanelAction(this.title, 'drag-start');
-      }
+      this.cameraGroup?.engine?.telemetry?.recordPanelAction?.(this.title, 'drag-start');
       return 'drag';
     }
 
@@ -406,8 +404,7 @@ export class MovablePanel implements IPanelContentHandler {
     const maxScroll = Math.max(0, this.totalContentHeight - containerH);
     if (this.scrollOffset > maxScroll) this.scrollOffset = maxScroll;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (typeof (this as any).renderContent === 'function') {
+    if (typeof this.renderContent === 'function') {
       try {
         if (typeof ctx?.save === 'function') ctx.save();
         if (typeof ctx?.translate === 'function') ctx.translate(0, this.titleBarHeight + 4);
@@ -420,8 +417,7 @@ export class MovablePanel implements IPanelContentHandler {
           ctx.translate(0, -this.scrollOffset);
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (this as any).renderContent(ctx, maxScroll > 0 ? w - this.scrollbarWidth - 10 : w, containerH);
+        this.renderContent(ctx, maxScroll > 0 ? w - this.scrollbarWidth - 10 : w, containerH);
         if (typeof ctx?.restore === 'function') ctx.restore();
       } catch {
         if (typeof ctx?.restore === 'function') {

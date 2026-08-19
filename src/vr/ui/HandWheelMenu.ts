@@ -30,6 +30,7 @@ interface HandWheelMenuEngine {
   camera?: THREE.Camera;
   cameraGroup?: THREE.Group;
   input?: { feedback?: FeedbackLike; pointers?: { getBestPointerRay(): THREE.Ray | null } };
+  telemetry?: { recordMenuAction?(name: string): void } | null;
 }
 
 interface HandWheelMenuOptions {
@@ -360,11 +361,7 @@ export class HandWheelMenu {
       const action = category?.items?.[actionIndex];
       if (action) {
         const name = action.label || action.id || 'menu-action';
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (typeof (this.engine as any)?.telemetry?.recordMenuAction === 'function') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (this.engine as any).telemetry.recordMenuAction(name);
-        }
+        this.engine.telemetry?.recordMenuAction?.(name);
         this.feedback?.playSelect?.();
         if (action.callback) action.callback();
       }
@@ -659,10 +656,8 @@ export class HandWheelMenu {
     
     if (typeof ctx?.beginPath === 'function') {
       ctx.beginPath();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (typeof (ctx as any).roundRect === 'function') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (ctx as any).roundRect(8, 8, width - 16, height - 16, 24);
+      if ('roundRect' in ctx && typeof ctx.roundRect === 'function') {
+        ctx.roundRect(8, 8, width - 16, height - 16, 24);
       } else {
         ctx.rect(8, 8, width - 16, height - 16);
       }
