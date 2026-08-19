@@ -167,6 +167,8 @@ export interface WorldUIManagerCallbacks {
   onOverrideRecommendation?: () => void;
   onGenerateRecommendation?: () => void;
   onExitVR?: () => void;
+  uiMode?: import('../ui/PanelRolesManager.ts').UIMode;
+  onStatusUpdate?: (statusText: string) => void;
 }
 
 export interface AccessibilityOptions {
@@ -690,8 +692,12 @@ export interface InputCallbacks {
   onTogglePeerPresence?: () => void;
   onToggleDesktopPreview?: () => void;
   onLoadTemplate?: (id: string) => void;
-  onLog?: (msg: string) => void;
+  onLog?: (msg: string | string[]) => void;
   onCaptureSession?: () => void;
+  onCommitSelection?: () => void;
+  onToggleTransformHandle?: () => void;
+  onRecordAction?: (action: string, nextAffordance?: string) => void;
+  onModeChanged?: (mode: import('../input/InteractionModeController.ts').InteractionMode) => void;
 }
 
 export interface GestureContext {

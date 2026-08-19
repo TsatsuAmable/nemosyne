@@ -1,10 +1,3 @@
-/**
- * Routes gesture and controller input to the right world action while
- * inferring intent from the current scene context. Owns pause/resume state,
- * hand proximity checks, and the mapping from gesture names to high-level
- * commands.
- */
-
 import * as THREE from 'three';
 import { HandGestureRecognizer } from '../interactions/HandGestureRecognizer.ts';
 import { GestureIntelligenceAdapter } from '../input/GestureIntelligenceAdapter.ts';
@@ -16,6 +9,12 @@ import {
 } from '../interactions/GestureParticleFeedback.ts';
 import { getGestureMeta } from '../../utils/GestureMapping.ts';
 import { WorldEventBus, WorldTopics } from '../../utils/EventBus.ts';
+import {
+  InteractionModeController,
+  type InteractionMode,
+  type FocusState,
+} from '../input/InteractionModeController.ts';
+import { GestureOwnershipManager } from '../input/GestureOwnershipManager.ts';
 import type { Engine } from '../Engine.ts';
 import type {
   ArtifactRef,
@@ -44,6 +43,8 @@ export class WorldInputCoordinator {
 
   gestureRecognizer: HandGestureRecognizer;
   gestureAdapter: GestureIntelligenceAdapter;
+  interactionModeController: InteractionModeController;
+  gestureOwnershipManager: GestureOwnershipManager;
 
   constructor(engine: Engine | EngineLike, eventBus: WorldEventBusLike, options: WorldInputOptions) {
     this.engine = engine;
@@ -67,6 +68,23 @@ export class WorldInputCoordinator {
       cooldown: 0.65,
       onGesture: (name: string, ctx: Record<string, unknown>) => this.onGesture(name, ctx),
     });
+
+    this.interactionModeController = new InteractionModeController({
+      initialMode: 'INTERACT',
+      onModeChange: (event) => {
+        this.eventBus.emit(WorldTopics.INTERACTION, {
+          action: `mode_transition_${event.to.toLowerCase()}`,
+          from: event.from,
+          to: event.to,
+          reason: event.reason,
+        });
+        this.callbacks.onModeChanged?.(event.to);
+        this.callbacks.onRecordAction?.(`MODE: ${event.to}`, `Switched to ${event.to} mode`);
+        this.callbacks.onLog?.(`Interaction Mode: ${event.to} (${event.reason})`);
+      },
+    });
+
+    this.gestureOwnershipManager = new GestureOwnershipManager();
 
     this.engine.addUpdatable({
       update: (delta: number, time: number) => this.update(delta, time),
@@ -138,27 +156,56 @@ export class WorldInputCoordinator {
     const origin = new THREE.Vector3(0, 1.2, -1.2);
 
     switch (name) {
+      case 'bothPinched': {
+        const resolution = this.gestureOwnershipManager.resolveBothPinch(
+          this.interactionModeController.currentMode
+        );
+        this.callbacks.onLog?.([resolution.hudFeedbackChip]);
+        this.callbacks.onRecordAction?.(resolution.hudFeedbackChip);
+
+        switch (resolution.action) {
+          case 'world_two_hand_transform':
+            this.resetView();
+            break;
+          case 'commit_selection':
+            this.callbacks.onCommitSelection?.();
+            break;
+          case 'scale_rotate_artifact':
+            this.callbacks.onToggleTransformHandle?.();
+            break;
+          case 'resume_interaction':
+            this.interactionModeController.setMode('INTERACT', 'gesture_both_pinch');
+            break;
+        }
+        break;
+      }
       case 'pinchTogether':
         if (this.engine?.scene) spawnPinchFilterHalo(this.engine.scene as THREE.Scene, origin);
         this.callbacks.onApplyOperation?.('filter');
+        this.callbacks.onRecordAction?.('Filter Slice', 'Inspect filtered clusters');
         break;
       case 'pinchApart':
         if (this.engine?.scene) spawnPinchFilterHalo(this.engine.scene as THREE.Scene, origin, { color: 0xffaa00 });
         this.callbacks.onApplyOperation?.('aggregate');
+        this.callbacks.onRecordAction?.('Aggregate Metric', 'Inspect aggregation summary');
         break;
       case 'swipeRight':
         this.callbacks.onCycleDataset?.(1);
+        this.callbacks.onRecordAction?.('Cycle Dataset Next');
         break;
       case 'swipeLeft':
         this.callbacks.onCycleDataset?.(-1);
+        this.callbacks.onRecordAction?.('Cycle Dataset Previous');
         break;
       case 'sliceUp':
         if (this.engine?.scene) spawnSliceWavePlane(this.engine.scene as THREE.Scene, origin, 'up');
         this.callbacks.onApplyOperation?.('sort');
+        this.callbacks.onRecordAction?.('Sort Ascending');
         break;
       case 'sliceDown':
         if (this.engine?.scene) spawnSliceWavePlane(this.engine.scene as THREE.Scene, origin, 'down');
         this.callbacks.onApplyOperation?.('timeSlice');
+        this.callbacks.onRecordAction?.('Time Window Slice');
         break;
       case 'scoopUp':
         if (this.engine?.scene) spawnScoopLensHalo(this.engine.scene as THREE.Scene, origin);
@@ -167,6 +214,7 @@ export class WorldInputCoordinator {
           this.callbacks.onLog?.('Flight: ascend');
         } else {
           this.callbacks.onToggleStatisticalLens?.();
+          this.callbacks.onRecordAction?.('Statistical Lens Toggle');
         }
         break;
       case 'scoopDown':
@@ -175,32 +223,61 @@ export class WorldInputCoordinator {
           this.callbacks.onLog?.('Flight: descend');
         } else {
           this.callbacks.onToggleStatisticalLens?.();
+          this.callbacks.onRecordAction?.('Statistical Lens Toggle');
         }
         break;
       case 'pushForward':
         if (this.engine?.scene) spawnResetPulseSphere(this.engine.scene as THREE.Scene, origin);
         if (ctx.openHands) {
           this.resetView();
+          this.callbacks.onRecordAction?.('Reset View Anchor');
         } else {
           this.callbacks.onResetData?.();
+          this.callbacks.onRecordAction?.('Reset Data Filters');
         }
         break;
       case 'rotateCW':
         this.callbacks.onRedo?.();
+        this.callbacks.onRecordAction?.('Redo Operation');
         break;
       case 'rotateCCW':
         this.callbacks.onUndo?.();
+        this.callbacks.onRecordAction?.('Undo Operation');
         break;
       case 'okSign':
         this.callbacks.onToggleSettingsPanel?.();
+        this.callbacks.onRecordAction?.('Toggle Settings');
         break;
       case 'pauseResume':
         this.togglePauseInput();
+        this.callbacks.onRecordAction?.('Toggle Pause Input');
         break;
-      // 'bothPinched' is reserved for the system launcher toggle.
       default:
         break;
     }
+  }
+
+  /**
+   * Authoritative Interaction Mode & Focus State Delegation.
+   */
+  setInteractionMode(mode: InteractionMode, reason = 'user_action'): boolean {
+    return this.interactionModeController.setMode(mode, reason);
+  }
+
+  revertInteractionMode(): boolean {
+    return this.interactionModeController.revertMode();
+  }
+
+  getInteractionMode(): InteractionMode {
+    return this.interactionModeController.currentMode;
+  }
+
+  setFocusState(surfaceId: string, state: FocusState): void {
+    this.interactionModeController.setFocusState(surfaceId, state);
+  }
+
+  getFocusState(surfaceId: string): FocusState {
+    return this.interactionModeController.getFocusState(surfaceId);
   }
 
   /**
