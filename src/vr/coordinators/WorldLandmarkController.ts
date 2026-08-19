@@ -56,14 +56,14 @@ export class WorldLandmarkController {
     if (mode === 'statistical') {
       w._statisticalLensEnabled = true;
       w._setStatisticalLensVisible(true);
-      w.vrConsole?.log?.('log', ['TechnoCore: statistical lens']);
+      w.uiManager?.vrConsole?.log?.('log', ['TechnoCore: statistical lens']);
     } else if (mode === 'anomaly') {
       w.applyDataOperation('anomaly');
-      w.vrConsole?.log?.('log', ['TechnoCore: anomaly lens applied']);
+      w.uiManager?.vrConsole?.log?.('log', ['TechnoCore: anomaly lens applied']);
     } else {
       w._statisticalLensEnabled = false;
       w._setStatisticalLensVisible(false);
-      w.vrConsole?.log?.('log', ['TechnoCore: lens off']);
+      w.uiManager?.vrConsole?.log?.('log', ['TechnoCore: lens off']);
     }
     w._logInteraction('TechnoCore lens', { result: mode });
     w.engine.input.feedback?.playCoreTone?.(mode);

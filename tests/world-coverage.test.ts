@@ -112,11 +112,11 @@ describe('World coverage extensions', () => {
     expect(world.portalsEnabled).toBe(false);
     expect(world.portalA.group.visible).toBe(false);
     expect(world.portalB.group.visible).toBe(false);
-    expect(world.vrMenu.portalsEnabled).toBe(false);
+    expect(world.uiManager.vrMenu.portalsEnabled).toBe(false);
 
     world.setPortalsEnabled(true);
     expect(world.portalA.group.visible).toBe(true);
-    expect(world.vrMenu.portalsEnabled).toBe(true);
+    expect(world.uiManager.vrMenu.portalsEnabled).toBe(true);
   });
 
   it('warps the camera and changes theme colors', () => {

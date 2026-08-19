@@ -117,18 +117,18 @@ describe('World performance integration', () => {
 
   it('creates a performance budget and panel', () => {
     expect(world!.engine.performanceBudget).toBeInstanceOf(PerformanceBudget);
-    expect(world!.performancePanel).toBeTruthy();
-    expect(world!.panelManager.panels).toContain(world!.performancePanel);
+    expect(world!.uiManager.performancePanel).toBeTruthy();
+    expect(world!.uiManager.panelManager.panels).toContain(world!.uiManager.performancePanel);
   });
 
   it('adds a Performance action to the hand wheel menu', () => {
-    const categories = (world!.handWheelMenu as any)._categories as Array<{ id: string; items: Array<{ id: string }> }>;
+    const categories = (world!.uiManager.handWheelMenu as any)._categories as Array<{ id: string; items: Array<{ id: string }> }>;
     const panelsCategory = categories.find((c) => c.id === 'panels');
     expect(panelsCategory?.items.find((i) => i.id === 'performance')).toBeTruthy();
   });
 
   it('toggles strict budget from settings', () => {
-    world!.settingsPanel.setSetting('strictBudget', true);
+    world!.uiManager.settingsPanel.setSetting('strictBudget', true);
     expect((world!.engine.performanceBudget as PerformanceBudget).budgets.frameMs).toBe(13.33);
   });
 

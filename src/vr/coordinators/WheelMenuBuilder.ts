@@ -10,9 +10,9 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
     onHover: () => world.previewDataOperation(op),
     onLeave: () => world.clearOperationPreview(),
   });
-  // Panels and managers live on world.uiManager, with fallback for standalone stubs.
-  const pm = world.uiManager?.panelManager ?? (world as unknown as { panelManager?: typeof world.panelManager }).panelManager;
-  const dashboard = world.uiManager?.dashboard ?? (world as unknown as { dashboard?: typeof world.dashboard }).dashboard;
+  // Panels and managers live on world.uiManager.
+  const pm = world.uiManager?.panelManager;
+  const dashboard = world.uiManager?.dashboard;
   const toggle = (panel: PanelLike | null | undefined) => {
     if (panel && pm) {
       pm.togglePanel(panel);
@@ -53,38 +53,38 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
           id: 'operation-log',
           label: 'Log',
           icon: '📝',
-          callback: () => toggle(world.uiManager?.operationLogPanel ?? (world as unknown as { operationLogPanel?: PanelLike }).operationLogPanel),
+          callback: () => toggle(world.uiManager?.operationLogPanel),
         },
         {
           id: 'telemetry',
           label: 'Telemetry',
           icon: '📊',
-          callback: () => toggle(world.uiManager?.metricsPanel ?? (world as unknown as { metricsPanel?: PanelLike }).metricsPanel),
+          callback: () => toggle(world.uiManager?.metricsPanel),
         },
         {
           id: 'performance',
           label: 'Perf',
           icon: '⏱️',
-          callback: () => toggle(world.uiManager?.performancePanel ?? (world as unknown as { performancePanel?: PanelLike }).performancePanel),
+          callback: () => toggle(world.uiManager?.performancePanel),
         },
         {
           id: 'interaction-coach',
           label: 'Coach',
           icon: '🎓',
-          callback: () => toggle(world.uiManager?.interactionCoach ?? (world as unknown as { interactionCoach?: PanelLike }).interactionCoach),
+          callback: () => toggle(world.uiManager?.interactionCoach),
         },
         { id: 'tour', label: 'Tour', icon: '📍', callback: () => world.startTour() },
         {
           id: 'narrative-strip',
           label: 'Timeline',
           icon: '🎞️',
-          callback: () => toggle(world.uiManager?.narrativeStrip ?? (world as unknown as { narrativeStrip?: PanelLike }).narrativeStrip),
+          callback: () => toggle(world.uiManager?.narrativeStrip),
         },
         {
           id: 'recommendation',
           label: 'Guidance',
           icon: '🧭',
-          callback: () => toggle(world.uiManager?.recommendationPanel ?? (world as unknown as { recommendationPanel?: PanelLike }).recommendationPanel),
+          callback: () => toggle(world.uiManager?.recommendationPanel),
         },
         {
           id: 'recenter',

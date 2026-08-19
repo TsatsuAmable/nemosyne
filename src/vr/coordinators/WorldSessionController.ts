@@ -27,13 +27,13 @@ export class WorldSessionController {
         position: w.engine.cameraGroup.position.toArray() as [number, number, number],
         rotationY: w.engine.cameraGroup.rotation.y,
       },
-      settings: w.settingsPanel?.getAllSettings?.() ?? {},
+      settings: w.uiManager?.settingsPanel?.getAllSettings?.() ?? {},
       tour: {
         stepIndex: w.guidedTour?._stepIndex ?? 0,
         finished: w.guidedTour?._finished ?? true,
       },
       theme: w.engine.theme?.currentPreset ?? 'neonMidnight',
-      panelPositions: w.panelManager?.getPanelPositions?.() ?? [],
+      panelPositions: w.uiManager?.panelManager?.getPanelPositions?.() ?? [],
       entry: {
         name:
           w.currentEntry.name ??
@@ -127,12 +127,14 @@ export class WorldSessionController {
     const settingsData = (presentation.settings ?? s.settings ?? {}) as Record<string, unknown>;
     if (settingsData) {
       for (const [key, value] of Object.entries(settingsData)) {
-        w.settingsPanel?.setSetting?.(key, value);
+        w.uiManager?.settingsPanel?.setSetting?.(key, value);
       }
-      w.comfortSettingsController.apply(w.settingsPanel.getAllSettings());
-      w.comfortSettingsController.applyPanelDistance(
-        w.settingsPanel.getAllSettings().defaultPanelDistance
-      );
+      if (w.uiManager?.settingsPanel) {
+        w.comfortSettingsController.apply(w.uiManager.settingsPanel.getAllSettings());
+        w.comfortSettingsController.applyPanelDistance(
+          w.uiManager.settingsPanel.getAllSettings().defaultPanelDistance
+        );
+      }
     }
 
     const themeName = (presentation.theme ?? s.theme) as string | undefined;
@@ -143,8 +145,8 @@ export class WorldSessionController {
     const panelPositions = (presentation.panelPositions ?? s.panelPositions) as
       | { title?: string; position?: number[]; visible?: boolean }[]
       | undefined;
-    if (panelPositions && w.panelManager) {
-      w.panelManager.setPanelPositions?.(panelPositions);
+    if (panelPositions && w.uiManager?.panelManager) {
+      w.uiManager.panelManager.setPanelPositions?.(panelPositions);
     }
 
     const tourData = (presentation.tour ?? s.tour) as { finished?: boolean; stepIndex?: number } | undefined;

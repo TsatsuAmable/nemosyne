@@ -57,7 +57,7 @@ describe('World.loadTemplate integration', () => {
   });
 
   it('returns false and logs for unknown template ids', () => {
-    const logSpy = vi.spyOn(world.vrConsole, 'log').mockImplementation(() => {});
+    const logSpy = vi.spyOn(world.uiManager.vrConsole, 'log').mockImplementation(() => {});
     const result = world.loadTemplate('unknown-template');
     expect(result).toBe(false);
     expect(logSpy).toHaveBeenCalled();

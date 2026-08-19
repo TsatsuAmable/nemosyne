@@ -55,22 +55,6 @@ import { WorldEventBus, WorldTopics } from '../utils/EventBus.ts';
 import { SceneGraphController } from './coordinators/SceneGraphController.ts';
 import { WorkspaceManager } from './coordinators/WorkspaceManager.ts';
 import { WorldRendererLifecycle } from './coordinators/WorldRendererLifecycle.ts';
-import { InputTelemetry } from './InputTelemetry.ts';
-import { PanelManager } from './ui/PanelManager.ts';
-import { DashboardManager } from './ui/DashboardManager.ts';
-import { HandWheelMenu } from './ui/HandWheelMenu.ts';
-import { VRMenu } from './ui/VRMenu.ts';
-import { VRConsole } from './ui/VRConsole.ts';
-import { SettingsPanel } from './ui/SettingsPanel.ts';
-import { OperationLogPanel } from './ui/OperationLogPanel.ts';
-import { TelemetryPanel } from './ui/TelemetryPanel.ts';
-import { PerformancePanel } from './ui/PerformancePanel.ts';
-import { NetworkPanel } from './ui/NetworkPanel.ts';
-import { InteractionCoach } from './ui/InteractionCoach.ts';
-import { NarrativeStrip } from './ui/NarrativeStrip.ts';
-import { MiniOverview } from './ui/MiniOverview.ts';
-import { PeerPresenceHUD } from './ui/PeerPresenceHUD.ts';
-import { LoadTestPanel } from './ui/LoadTestPanel.ts';
 import { LoadTestDriver, type LoadTestProfile, type LoadTestSummary } from './scalability/LoadTestDriver.ts';
 import { DatumPlane } from './artifacts/DatumPlane.ts';
 import { TechnoCoreNode } from './artifacts/TechnoCoreNode.ts';
@@ -138,41 +122,7 @@ export class World {
   portalB: FarcasterPortal;
   telemetryCollector: TelemetryCollectorLike;
   uiManager: WorldUIManager;
-  /** @deprecated Access via `uiManager.panelManager` */
-  panelManager: PanelManager;
-  /** @deprecated Access via `uiManager.dashboard` */
-  dashboard: DashboardManager;
-  /** @deprecated Access via `uiManager.handWheelMenu` */
-  handWheelMenu: HandWheelMenu;
-  /** @deprecated Access via `uiManager.vrMenu` */
-  vrMenu: VRMenu;
-  /** @deprecated Access via `uiManager.vrConsole` */
-  vrConsole: VRConsole;
-  /** @deprecated Access via `uiManager.telemetryPanel` */
-  telemetryPanel: InputTelemetry;
-  /** @deprecated Access via `uiManager.settingsPanel` */
-  settingsPanel: SettingsPanel;
-  /** @deprecated Access via `uiManager.operationLogPanel` */
-  operationLogPanel: OperationLogPanel;
-  /** @deprecated Access via `uiManager.metricsPanel` */
-  metricsPanel: TelemetryPanel;
-  /** @deprecated Access via `uiManager.performancePanel` */
-  performancePanel: PerformancePanel;
-  /** @deprecated Access via `uiManager.networkPanel` */
-  networkPanel: NetworkPanel;
-  /** @deprecated Access via `uiManager.interactionCoach` */
-  interactionCoach: InteractionCoach;
-  /** @deprecated Access via `uiManager.narrativeStrip` */
-  narrativeStrip: NarrativeStrip;
-  /** @deprecated Access via `uiManager.miniOverview` */
-  miniOverview: MiniOverview;
-  /** @deprecated Access via `uiManager.peerPresenceHUD` */
-  peerPresenceHUD: PeerPresenceHUD;
   loadTestDriver!: LoadTestDriver;
-  /** @deprecated Access via `uiManager.loadTestPanel` */
-  loadTestPanel!: LoadTestPanel;
-  /** @deprecated Access via `uiManager.recommendationPanel` */
-  recommendationPanel!: import('./ui/RecommendationPanel.ts').RecommendationPanel;
   inputCoordinator: WorldInputCoordinator;
   userModeController: UserModeController;
   comfortSettingsController: ComfortSettingsController;
@@ -334,33 +284,13 @@ export class World {
        onExitVR: () => this.exitVR(),
      });
 
-    // Legacy facade properties: tests and internal code access panels through
-    // `world.*` directly.
-    this.panelManager = this.uiManager.panelManager as PanelManager;
-    this.dashboard = this.uiManager.dashboard;
-    this.handWheelMenu = this.uiManager.handWheelMenu as HandWheelMenu;
-    this.vrMenu = this.uiManager.vrMenu;
-    this.vrConsole = this.uiManager.vrConsole;
-    this.telemetryPanel = this.uiManager.telemetryPanel;
-    this.settingsPanel = this.uiManager.settingsPanel as SettingsPanel;
-    this.operationLogPanel = this.uiManager.operationLogPanel as OperationLogPanel;
-    this.metricsPanel = this.uiManager.metricsPanel;
-    this.performancePanel = this.uiManager.performancePanel;
-    this.networkPanel = this.uiManager.networkPanel;
-    this.interactionCoach = this.uiManager.interactionCoach as InteractionCoach;
-    this.narrativeStrip = this.uiManager.narrativeStrip as NarrativeStrip;
-    this.miniOverview = this.uiManager.miniOverview;
-    this.peerPresenceHUD = this.uiManager.peerPresenceHUD;
-    this.loadTestPanel = this.uiManager.loadTestPanel;
-    this.recommendationPanel = this.uiManager.recommendationPanel;
-
     // Input coordinator owns gesture recognition, context-aware suppression, and
     // the mapping from gestures/commands to world actions.
     this.inputCoordinator = new WorldInputCoordinator(this.engine, this.eventBus, {
-      getSetting: (key) => this.settingsPanel?.getSetting?.(key),
+      getSetting: (key) => this.uiManager.settingsPanel?.getSetting?.(key),
       getDracoGroup: () => this.dracoNode?.group ?? null,
       getArtifact: () => this.dracoNode?.artifact ?? null,
-      getHandWheelMenu: () => this.handWheelMenu,
+      getHandWheelMenu: () => this.uiManager.handWheelMenu,
       callbacks: {
         onApplyOperation: (op) => this.dataOperationController.apply(op),
         onCycleDataset: (delta) => this._cycleDataset(delta),
@@ -374,7 +304,7 @@ export class World {
         onTogglePeerPresence: () => this._togglePeerPresenceHUD(),
         onToggleDesktopPreview: () => this._toggleDesktopPreview(),
         onLoadTemplate: (id) => this.loadTemplate(id),
-        onLog: (msg) => this.vrConsole?.log?.('log', Array.isArray(msg) ? msg : [msg]),
+        onLog: (msg) => this.uiManager.vrConsole?.log?.('log', Array.isArray(msg) ? msg : [msg]),
         onCaptureSession: () => this._requestAutoSave(),
       },
     });
@@ -382,17 +312,17 @@ export class World {
     // User-mode controller applies novice/intermediate/expert policies to the
     // coach, tour, and tooltips.
     this.userModeController = new UserModeController(this.eventBus as WorldEventBus, {
-      getUserMode: () => this.settingsPanel?.getSetting?.('userMode') ?? 'novice',
+      getUserMode: () => this.uiManager.settingsPanel?.getSetting?.('userMode') ?? 'novice',
       getTourState: () => ({
         isActive: this.guidedTour?.isActive ?? false,
         isFinished: this.guidedTour?.isFinished ?? false,
       }),
       startTour: () => this.startTour(),
       skipTour: () => this.guidedTour?.skip?.(),
-      setCoachMode: (mode) => this.interactionCoach?.setUserMode?.(mode),
+      setCoachMode: (mode) => this.uiManager.interactionCoach?.setUserMode?.(mode),
       setTourMode: (mode) => this.guidedTour?.setUserMode?.(mode),
       setTooltipEnabled: (enabled) => this.tooltipManager?.setEnabled?.(enabled),
-      hideCoachPanel: () => this.panelManager?.hidePanel?.(this.interactionCoach),
+      hideCoachPanel: () => this.uiManager.panelManager?.hidePanel?.(this.uiManager.interactionCoach),
     });
 
     // Comfort settings controller applies snap turn, vignette, seated height,
@@ -415,7 +345,7 @@ export class World {
 
     this.rendererLifecycle = new WorldRendererLifecycle({
       engine: this.engine,
-      dashboard: this.dashboard,
+      dashboard: this.uiManager.dashboard,
       tooltipManager: this.tooltipManager,
       getOriginalDataset: () => this._originalDataset,
       getDracoNode: () => this.dracoNode,
@@ -424,7 +354,7 @@ export class World {
 
     // In-place operation handles near data artefacts for direct manipulation.
     this.inPlaceHandles = new InPlaceOperationHandles(this.engine.scene, this.engine.camera, {
-      userMode: (this.settingsPanel?.getSetting?.('userMode') as 'novice' | 'expert') ?? 'novice',
+      userMode: (this.uiManager.settingsPanel?.getSetting?.('userMode') as 'novice' | 'expert') ?? 'novice',
       onOperation: (op) => this.dataOperationController.apply(op),
       onOperationHover: (op) => this.dataOperationController.preview(op),
       onOperationLeave: () => this.dataOperationController.clearPreview(),
@@ -562,9 +492,9 @@ export class World {
     this.engine.input.setControllerGestureMapper(this.controllerGestureMapper);
 
     // Apply initial settings to feedback.
-    this._applyFeedbackSettings(this.settingsPanel.getAllSettings());
+    this._applyFeedbackSettings(this.uiManager.settingsPanel.getAllSettings());
     // The settings panel is toggled on demand; do not show it at startup.
-    this.panelManager.hidePanel(this.settingsPanel);
+    this.uiManager.panelManager.hidePanel(this.uiManager.settingsPanel);
 
     // Guided tour: step-by-step spatial onboarding.
     this.tourController = new GuidedTourController(this);
@@ -574,7 +504,7 @@ export class World {
       tour: FIRST_DATASET_TOUR,
       resolveTarget: (target: string) => this.tourController.resolveTarget(target),
       checkCondition: (step: TourStep) => this.tourController.checkCondition(step),
-      onComplete: () => this.vrConsole?.log?.('log', ['Tour complete']),
+      onComplete: () => this.uiManager.vrConsole?.log?.('log', ['Tour complete']),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
     this.engine.addUpdatable(this.guidedTour);
@@ -601,9 +531,9 @@ export class World {
 
     // Apply initial comfort and panel-distance settings from the saved/default
     // settings panel values.
-    this.comfortSettingsController.apply(this.settingsPanel.getAllSettings());
+    this.comfortSettingsController.apply(this.uiManager.settingsPanel.getAllSettings());
     this.comfortSettingsController.applyPanelDistance(
-      this.settingsPanel.getAllSettings().defaultPanelDistance
+      this.uiManager.settingsPanel.getAllSettings().defaultPanelDistance
     );
 
     // Restore cross-platform shared settings asynchronously after the baseline
@@ -659,7 +589,7 @@ export class World {
    * browser download.
    */
   exportScreenshot(format: string = 'png'): void {
-    AnalysisStoryExporter.exportScreenshot(this.engine, this.vrConsole, this._logInteraction, format);
+    AnalysisStoryExporter.exportScreenshot(this.engine, this.uiManager.vrConsole, this._logInteraction, format);
   }
 
   /**
@@ -752,7 +682,7 @@ export class World {
   loadTemplate(templateId: string): boolean {
     const resolved = resolveTemplate(templateId, allSampleDatasets);
     if (!resolved) {
-      this.vrConsole?.log?.('warn', [`Unknown analysis template: ${templateId}`]);
+      this.uiManager.vrConsole?.log?.('warn', [`Unknown analysis template: ${templateId}`]);
       return false;
     }
     const { entry, theme, tourId } = resolved;
@@ -781,7 +711,7 @@ export class World {
       this.startTour();
     }
 
-    this.vrConsole?.log?.('log', [`Template loaded: ${templateId}`]);
+    this.uiManager.vrConsole?.log?.('log', [`Template loaded: ${templateId}`]);
     this._logInteraction('Analysis template', { result: templateId });
     this._captureSession();
     return true;
@@ -871,7 +801,7 @@ export class World {
       dataInput,
       [0, 1.4, -3.5],
       {
-        colorblindMode: this.settingsPanel?.getSetting?.('colorblindMode') ?? 'none',
+        colorblindMode: this.uiManager.settingsPanel?.getSetting?.('colorblindMode') ?? 'none',
       },
       this.atlas.asFactProvider(),
     );
@@ -989,16 +919,16 @@ export class World {
 
     this.engine.input.feedback?.playPortalTone?.(zone, operation);
     this.engine.input.feedback?.playHaptic?.(0.7, 120);
-    this.vrConsole?.log?.('log', [`Farcaster warp: ${zone}${operation ? ` + ${operation}` : ''}`]);
+    this.uiManager.vrConsole?.log?.('log', [`Farcaster warp: ${zone}${operation ? ` + ${operation}` : ''}`]);
     this._logInteraction('Portal warp', { result: `${zone}${operation ? ` + ${operation}` : ''}` });
     this._captureSession();
   }
 
   _togglePanels(): void {
-    this.panelManager.toggleLauncher();
-    this.adaptiveAssist.recordPanelToggle('launcher', this.panelManager.isLauncherVisible());
+    this.uiManager.panelManager.toggleLauncher();
+    this.adaptiveAssist.recordPanelToggle('launcher', this.uiManager.panelManager.isLauncherVisible());
     this._logInteraction('Launcher', {
-      result: this.panelManager.isLauncherVisible() ? 'opened' : 'closed',
+      result: this.uiManager.panelManager.isLauncherVisible() ? 'opened' : 'closed',
     });
   }
 
@@ -1048,13 +978,13 @@ export class World {
         topology: topology as TopologyType,
       }),
     });
-    this.vrConsole?.log?.('log', [`Dataset: ${wasmEntry.label ?? wasmEntry.name}`]);
+    this.uiManager.vrConsole?.log?.('log', [`Dataset: ${wasmEntry.label ?? wasmEntry.name}`]);
     this._logInteraction('Dataset', { result: wasmEntry.label ?? wasmEntry.name });
   }
 
   _cycleThemePreset(): void {
     const name = this.engine.theme.cyclePreset();
-    this.vrConsole?.log?.('log', [`Theme: ${name}`]);
+    this.uiManager.vrConsole?.log?.('log', [`Theme: ${name}`]);
     this._logInteraction('Theme', { result: name });
     this._captureSession();
   }
@@ -1063,7 +993,7 @@ export class World {
     this._statisticalLensEnabled = !this._statisticalLensEnabled;
     this._setStatisticalLensVisible(this._statisticalLensEnabled);
     this.adaptiveAssist.recordPanelToggle('statistical-lens', this._statisticalLensEnabled);
-    this.vrConsole?.log?.('log', [
+    this.uiManager.vrConsole?.log?.('log', [
       `Statistical lens ${this._statisticalLensEnabled ? 'on' : 'off'}`,
     ]);
     this._logInteraction('Statistical lens', {
@@ -1073,42 +1003,42 @@ export class World {
   }
 
   _toggleMiniOverview(): void {
-    const next = !this.miniOverview.mesh.visible;
-    this.miniOverview.setEnabled(next);
-    this.settingsPanel?.setSetting?.('miniOverview', next);
-    this.vrConsole?.log?.('log', [`Mini overview ${next ? 'on' : 'off'}`]);
+    const next = !this.uiManager.miniOverview.mesh.visible;
+    this.uiManager.miniOverview.setEnabled(next);
+    this.uiManager.settingsPanel?.setSetting?.('miniOverview', next);
+    this.uiManager.vrConsole?.log?.('log', [`Mini overview ${next ? 'on' : 'off'}`]);
     this._logInteraction('Mini overview', { result: next ? 'on' : 'off' });
     this._captureSession();
   }
 
   _toggleLoadTestPanel(): void {
-    this.uiManager?.panelManager?.togglePanel?.(this.loadTestPanel);
+    this.uiManager?.panelManager?.togglePanel?.(this.uiManager.loadTestPanel);
   }
 
   _toggleRecommendationPanel(): void {
-    this.uiManager?.panelManager?.togglePanel?.(this.recommendationPanel);
+    this.uiManager?.panelManager?.togglePanel?.(this.uiManager.recommendationPanel);
   }
 
   _generateRecommendation(): void {
     this.atlas.generateRecommendation();
-    this.recommendationPanel?.markDirty?.();
+    this.uiManager.recommendationPanel?.markDirty?.();
   }
 
   _acceptRecommendation(): void {
     this.atlas.acceptRecommendation();
     this._applyEmbodimentHint();
     this._executeVRCommand();
-    this.recommendationPanel?.markDirty?.();
+    this.uiManager.recommendationPanel?.markDirty?.();
   }
 
   _rejectRecommendation(): void {
     this.atlas.rejectRecommendation();
-    this.recommendationPanel?.markDirty?.();
+    this.uiManager.recommendationPanel?.markDirty?.();
   }
 
   _overrideRecommendation(): void {
     this.atlas.overrideRecommendation();
-    this.recommendationPanel?.markDirty?.();
+    this.uiManager.recommendationPanel?.markDirty?.();
   }
 
   private _applyEmbodimentHint(): void {
@@ -1198,7 +1128,7 @@ export class World {
     }
 
     this.atlas.generateRecommendation();
-    this.recommendationPanel?.markDirty?.();
+    this.uiManager.recommendationPanel?.markDirty?.();
     if (this.dracoNode && this.atlas.structures.length > 0) {
       this.inPlaceHandles.buildFromStructures(this.dracoNode, this.atlas.structures as never);
       this.inPlaceHandles.registerInteractables(this.engine.input as never);
@@ -1206,10 +1136,10 @@ export class World {
   }
 
   _togglePeerPresenceHUD(): void {
-    const next = !this.peerPresenceHUD.mesh.visible;
-    this.peerPresenceHUD.setEnabled(next);
-    this.settingsPanel?.setSetting?.('peerPresence', next);
-    this.vrConsole?.log?.('log', [`Peer presence ${next ? 'on' : 'off'}`]);
+    const next = !this.uiManager.peerPresenceHUD.mesh.visible;
+    this.uiManager.peerPresenceHUD.setEnabled(next);
+    this.uiManager.settingsPanel?.setSetting?.('peerPresence', next);
+    this.uiManager.vrConsole?.log?.('log', [`Peer presence ${next ? 'on' : 'off'}`]);
     this._logInteraction('Peer presence', { result: next ? 'on' : 'off' });
     this._captureSession();
   }
@@ -1221,7 +1151,7 @@ export class World {
   _toggleDesktopPreview(): void {
     const isVR = !!this.engine.renderer.xr.getSession();
     if (isVR) {
-      this.vrConsole?.log?.('log', ['Desktop preview is only available outside VR']);
+      this.uiManager.vrConsole?.log?.('log', ['Desktop preview is only available outside VR']);
       return;
     }
 
@@ -1258,7 +1188,7 @@ export class World {
       this.engine.cameraGroup.rotation.y = Math.PI;
       this.engine.camera.rotation.x = -0.25;
       this._orbitControls.update();
-      this.vrConsole?.log?.('log', ['Desktop preview on']);
+      this.uiManager.vrConsole?.log?.('log', ['Desktop preview on']);
     } else {
       if (this._orbitControls) this._orbitControls.enabled = false;
       this.engine.desktop?.enable?.();
@@ -1271,7 +1201,7 @@ export class World {
           this.engine.desktop._applyRotation?.();
         }
       }
-      this.vrConsole?.log?.('log', ['Desktop preview off']);
+      this.uiManager.vrConsole?.log?.('log', ['Desktop preview off']);
     }
     this._logInteraction('Desktop preview', { result: this._desktopPreviewEnabled ? 'on' : 'off' });
     this._captureSession();
@@ -1282,8 +1212,8 @@ export class World {
    * share preferences and the latest analysis story.
    */
   async _saveSharedSettings(): Promise<void> {
-    if (this._disposed || !this.sessionStore || !this.settingsPanel) return;
-    const settings = this.settingsPanel.getAllSettings();
+    if (this._disposed || !this.sessionStore || !this.uiManager.settingsPanel) return;
+    const settings = this.uiManager.settingsPanel.getAllSettings();
     const story = this._buildAnalysisStory();
     try {
       await this.sessionStore.setItem('shared-settings', {
@@ -1303,21 +1233,21 @@ export class World {
    * autosave so the current session can override shared defaults.
    */
   async _loadSharedSettings(): Promise<void> {
-    if (this._disposed || !this.sessionStore || !this.settingsPanel) return;
+    if (this._disposed || !this.sessionStore || !this.uiManager.settingsPanel) return;
     try {
       const shared = await this.sessionStore.getItem('shared-settings');
       if (!shared?.settings) return;
       for (const [key, value] of Object.entries(shared.settings)) {
-        this.settingsPanel.setSetting(key as keyof SettingsMap & string, value as never);
+        this.uiManager.settingsPanel.setSetting(key as keyof SettingsMap & string, value as never);
       }
-      this.comfortSettingsController.apply(this.settingsPanel.getAllSettings());
+      this.comfortSettingsController.apply(this.uiManager.settingsPanel.getAllSettings());
       this.comfortSettingsController.applyPanelDistance(
-        this.settingsPanel.getAllSettings().defaultPanelDistance
+        this.uiManager.settingsPanel.getAllSettings().defaultPanelDistance
       );
-      this._applyFeedbackSettings(this.settingsPanel.getAllSettings());
+      this._applyFeedbackSettings(this.uiManager.settingsPanel.getAllSettings());
       this._applyAccessibilitySettings();
       if (this._disposed) return;
-      this.vrConsole?.log?.('log', ['Shared settings restored']);
+      this.uiManager.vrConsole?.log?.('log', ['Shared settings restored']);
     } catch (err) {
       if (this._disposed) return;
       console.warn('[World] failed to load shared settings:', err);
@@ -1325,19 +1255,19 @@ export class World {
   }
 
   _setStatisticalLensVisible(enabled: boolean): void {
-    const tdaEnabled = enabled && (this.settingsPanel?.getSetting('lensTDA') ?? true);
-    const corrEnabled = enabled && (this.settingsPanel?.getSetting('lensCorrelation') ?? true);
+    const tdaEnabled = enabled && (this.uiManager.settingsPanel?.getSetting('lensTDA') ?? true);
+    const corrEnabled = enabled && (this.uiManager.settingsPanel?.getSetting('lensCorrelation') ?? true);
     if (this.tdaGroup) this.tdaGroup.visible = tdaEnabled;
     const corr = this.dashboardPanels?.find((e) => e.panel?.chartType === 'CORRELATION');
     if (corr?.panel?.mesh) corr.panel.mesh.visible = corrEnabled;
   }
 
   _toggleSettingsPanel(): void {
-    if (!this.settingsPanel) return;
-    this.panelManager.togglePanel(this.settingsPanel);
-    this.adaptiveAssist.recordPanelToggle('settings', this.settingsPanel.mesh.visible);
+    if (!this.uiManager.settingsPanel) return;
+    this.uiManager.panelManager.togglePanel(this.uiManager.settingsPanel);
+    this.adaptiveAssist.recordPanelToggle('settings', this.uiManager.settingsPanel.mesh.visible);
     this._logInteraction('Settings panel', {
-      result: this.settingsPanel.mesh.visible ? 'opened' : 'closed',
+      result: this.uiManager.settingsPanel.mesh.visible ? 'opened' : 'closed',
     });
   }
 
@@ -1354,41 +1284,41 @@ export class World {
     if (key.startsWith('lens')) {
       this._setStatisticalLensVisible(this._statisticalLensEnabled);
     } else if (key.startsWith('feedback')) {
-      this._applyFeedbackSettings(this.settingsPanel.getAllSettings());
+      this._applyFeedbackSettings(this.uiManager.settingsPanel.getAllSettings());
     } else if (key === 'telemetryEnabled') {
       this.telemetryCollector.saveConsent?.(value as boolean);
-      this.vrConsole?.log?.('log', [`Telemetry ${value ? 'enabled' : 'disabled'}`]);
+      this.uiManager.vrConsole?.log?.('log', [`Telemetry ${value ? 'enabled' : 'disabled'}`]);
     } else if (['textScale', 'highContrast', 'colorblindMode', 'dwellSelection'].includes(key)) {
       this._applyAccessibilitySettings();
     } else if (key === 'strictBudget') {
       const budgets = value ? { frameMs: 13.33, droppedFramesPer10s: 2 } : {};
       this.engine.performanceBudget?.setBudgets?.(budgets);
-      this.vrConsole?.log?.('log', [`Performance budget ${value ? 'strict' : 'default'}`]);
+      this.uiManager.vrConsole?.log?.('log', [`Performance budget ${value ? 'strict' : 'default'}`]);
     } else if (key === 'collabEnabled') {
       if (value) this._joinCollaborationRoom();
       else this._leaveCollaborationRoom();
     } else if (key === 'collabRoom') {
-      if (this.settingsPanel.getSetting('collabEnabled')) {
+      if (this.uiManager.settingsPanel.getSetting('collabEnabled')) {
         this._leaveCollaborationRoom();
         this._joinCollaborationRoom(value as string);
       }
     } else if (key === 'userMode') {
       this.userModeController.apply();
-      this.inPlaceHandles?.setUserMode?.(this.settingsPanel.getSetting('userMode') as 'novice' | 'expert');
+      this.inPlaceHandles?.setUserMode?.(this.uiManager.settingsPanel.getSetting('userMode') as 'novice' | 'expert');
     } else if (['snapTurn', 'snapTurnAngle', 'reducedMotion'].includes(key)) {
-      this.comfortSettingsController.apply(this.settingsPanel.getAllSettings());
+      this.comfortSettingsController.apply(this.uiManager.settingsPanel.getAllSettings());
     } else if (key === 'vignette' || key === 'vignetteIntensity') {
-      this.comfortSettingsController.apply(this.settingsPanel.getAllSettings());
+      this.comfortSettingsController.apply(this.uiManager.settingsPanel.getAllSettings());
     } else if (key === 'seatedHeightOffset') {
-      this.comfortSettingsController.apply(this.settingsPanel.getAllSettings());
+      this.comfortSettingsController.apply(this.uiManager.settingsPanel.getAllSettings());
     } else if (key === 'defaultPanelDistance') {
       this.comfortSettingsController.applyPanelDistance(
-        this.settingsPanel.getAllSettings().defaultPanelDistance
+        this.uiManager.settingsPanel.getAllSettings().defaultPanelDistance
       );
     } else if (key === 'miniOverview') {
-      this.miniOverview?.setEnabled?.(value as boolean);
+      this.uiManager.miniOverview?.setEnabled?.(value as boolean);
     } else if (key === 'peerPresence') {
-      this.peerPresenceHUD?.setEnabled?.(value as boolean);
+      this.uiManager.peerPresenceHUD?.setEnabled?.(value as boolean);
     }
     this._saveSharedSettings();
     this._logInteraction('Setting changed', { result: `${key} = ${value}` });
@@ -1396,7 +1326,7 @@ export class World {
   }
 
   _applyAccessibilitySettings(): void {
-    const settings = this.settingsPanel.getAllSettings();
+    const settings = this.uiManager.settingsPanel.getAllSettings();
     const options = {
       textScale: settings.textScale ?? 1,
       highContrast: settings.highContrast ?? false,
@@ -1404,11 +1334,11 @@ export class World {
       dwellSelection: settings.dwellSelection ?? false,
     };
 
-    for (const panel of this.panelManager.panels) {
+    for (const panel of this.uiManager.panelManager.panels) {
       if (panel?.applyAccessibility) panel.applyAccessibility(options);
     }
 
-    this.handWheelMenu?.applyAccessibility?.(options);
+    this.uiManager.handWheelMenu?.applyAccessibility?.(options);
     this.engine.input.setDwellSelection?.(
       options.dwellSelection ?? false,
       (settings.dwellTimeMs as number) ?? 1200
@@ -1476,14 +1406,14 @@ export class World {
     // keeps seek events consistent (Wave 4).
     const frame = this.dataOperationController.undo();
     if (!frame) return;
-    this.vrConsole?.log?.('log', [`Undo: ${frame.operation}`]);
+    this.uiManager.vrConsole?.log?.('log', [`Undo: ${frame.operation}`]);
     this._logInteraction('Undo', { result: frame.operation });
   }
 
   redoAnalysis(): void {
     const frame = this.dataOperationController.redo();
     if (!frame) return;
-    this.vrConsole?.log?.('log', [`Redo: ${frame.operation}`]);
+    this.uiManager.vrConsole?.log?.('log', [`Redo: ${frame.operation}`]);
     this._logInteraction('Redo', { result: frame.operation });
   }
 
@@ -1553,15 +1483,15 @@ export class World {
   _seekAnalysisHistory(index: number): void {
     const frame = this.dataOperationController.seekHistory(index);
     if (!frame) return;
-    this.vrConsole?.log?.('log', [`Rewound to ${frame.operation}`]);
+    this.uiManager.vrConsole?.log?.('log', [`Rewound to ${frame.operation}`]);
     this._logInteraction('Seek history', { result: frame.operation });
     this._captureSession();
   }
 
   _updateNarrativeStrip(): void {
-    this.narrativeStrip?.render?.();
+    this.uiManager.narrativeStrip?.render?.();
     if (this.analysisHistory?.length > 0) {
-      this.panelManager?.showPanel?.(this.narrativeStrip);
+      this.uiManager.panelManager?.showPanel?.(this.uiManager.narrativeStrip);
     }
   }
 
@@ -1571,7 +1501,7 @@ export class World {
       rowCount: f.datasetAfter?.rowCount,
       timestamp: f.timestamp,
     }));
-    this.operationLogPanel?.setEntries(entries);
+    this.uiManager.operationLogPanel?.setEntries(entries);
   }
 
   _subscribeDataOperationEvents(): void {
@@ -1586,7 +1516,7 @@ export class World {
           controller?: string;
           result?: string;
         };
-        this.interactionCoach?.log?.({ action, gesture, controller, result });
+        this.uiManager.interactionCoach?.log?.({ action, gesture, controller, result });
       }
     );
 
@@ -1595,11 +1525,11 @@ export class World {
     });
 
     this.eventBus.on(WorldTopics.CONSOLE_LOG, (args: unknown) => {
-      this.vrConsole?.log?.('log', Array.isArray(args) ? args : [args]);
+      this.uiManager.vrConsole?.log?.('log', Array.isArray(args) ? args : [args]);
     });
 
     this.eventBus.on(WorldTopics.CONSOLE_WARN, (args: unknown) => {
-      this.vrConsole?.log?.('warn', Array.isArray(args) ? args : [args]);
+      this.uiManager.vrConsole?.log?.('warn', Array.isArray(args) ? args : [args]);
     });
 
     // Route interaction events (gestures, commands, settings changes) to the
@@ -1636,7 +1566,7 @@ export class World {
         this._discoverStructuresAndRecommend(operation);
         this._updateOperationLog();
         this._updateNarrativeStrip();
-        this.vrConsole?.log?.('log', [`Operation: ${operation} → ${rowCount} rows`]);
+        this.uiManager.vrConsole?.log?.('log', [`Operation: ${operation} → ${rowCount} rows`]);
         this._logInteraction(operation, { result: `${rowCount} rows` });
         this._requestAutoSave();
       }
@@ -1710,7 +1640,7 @@ export class World {
    */
   runLoadTest(profile?: LoadTestProfile): void {
     // Show the panel so the user sees live progress.
-    this.uiManager?.showPanel?.(this.loadTestPanel);
+    this.uiManager?.showPanel?.(this.uiManager.loadTestPanel);
     this._telemetryConsentBeforeRun = !!this.telemetryCollector?.enabled;
     try {
       this.telemetryCollector?.setEnabled?.(true);
@@ -1806,7 +1736,7 @@ export class World {
     this.portalsEnabled = enabled;
     this.portalA.group.visible = enabled;
     this.portalB.group.visible = enabled;
-    this.vrMenu?.setPortalsEnabled?.(enabled);
+    this.uiManager.vrMenu?.setPortalsEnabled?.(enabled);
     this._logInteraction('Portals', { result: enabled ? 'visible' : 'hidden' });
   }
 
@@ -1886,7 +1816,7 @@ export class World {
     if (this.tdaRecompute) this.tdaRecompute();
     this._updateOperationLog();
     this._updateNarrativeStrip();
-    this.vrConsole?.log?.('log', [
+    this.uiManager.vrConsole?.log?.('log', [
       `Reset transforms → ${this.dataOperationController.transformedDataset?.rowCount ?? 0} rows`,
     ]);
     this._logInteraction('Reset', {
@@ -1941,7 +1871,7 @@ export class World {
       this._wasmCapabilities = 0;
       this._wasmUnavailable = true;
       console.error('[World] analytical kernel unavailable:', err);
-      this.vrConsole?.log?.('error', ['Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.']);
+      this.uiManager.vrConsole?.log?.('error', ['Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.']);
     });
 
     this.engine.start();
@@ -1971,7 +1901,7 @@ export class World {
     this._wasmCapabilities = bridge.capabilities();
     this.atlas.setKernel(bridge, this._wasmCapabilities);
     this._rebuildPalaceWithKernelFacts();
-    this.vrConsole?.log?.('log', [
+    this.uiManager.vrConsole?.log?.('log', [
       `WASM ready — capabilities ${this._wasmCapabilities.toString(2)}`,
     ]);
   }

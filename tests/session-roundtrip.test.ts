@@ -106,6 +106,18 @@ function makeStubWorld(sessionStore: SessionStore): { world: WorldLike; stub: an
     defaultPanelDistance: 1.4,
   };
 
+  const settingsPanel = {
+    getAllSettings: () => ({ ...settings }),
+    setSetting: vi.fn((k: string, v: unknown) => {
+      settings[k] = v;
+    }),
+  };
+  const panelManager = {
+    getPanelPositions: () => [{ title: 'A', position: [1, 2, 3], visible: true }],
+    setPanelPositions: vi.fn(),
+  };
+  const narrativeStrip = { setHistory: vi.fn() };
+
   const stub: any = {
     _disposed: false,
     currentEntry: { dataset: ds, name: 'palace', topology: 'TABULAR', label: 'palace' },
@@ -119,12 +131,7 @@ function makeStubWorld(sessionStore: SessionStore): { world: WorldLike; stub: an
       cameraGroup,
       theme: { currentPreset: 'neonMidnight', applyPreset: vi.fn() },
     },
-    settingsPanel: {
-      getAllSettings: () => ({ ...settings }),
-      setSetting: vi.fn((k: string, v: unknown) => {
-        settings[k] = v;
-      }),
-    },
+    settingsPanel,
     guidedTour: {
       _stepIndex: 2,
       _finished: false,
@@ -132,13 +139,15 @@ function makeStubWorld(sessionStore: SessionStore): { world: WorldLike; stub: an
       _cardGroup: { visible: false },
       _renderStep: vi.fn(),
     },
-    panelManager: {
-      getPanelPositions: () => [{ title: 'A', position: [1, 2, 3], visible: true }],
-      setPanelPositions: vi.fn(),
-    },
+    panelManager,
     comfortSettingsController: { apply: vi.fn(), applyPanelDistance: vi.fn() },
     userModeController: { apply: vi.fn() },
-    narrativeStrip: { setHistory: vi.fn() },
+    narrativeStrip,
+    uiManager: {
+      settingsPanel,
+      panelManager,
+      narrativeStrip,
+    },
     sessionStore,
     vrConsole: { log: vi.fn() },
     _logInteraction: vi.fn(),
@@ -263,7 +272,7 @@ describe('WorldSessionController save/load roundtrip', () => {
 
     // History restored on the shared atlas (real AnalysisHistory).
     expect(stub.atlas.analysisHistory).toBeInstanceOf(AnalysisHistory);
-    expect(stub.narrativeStrip.setHistory).toHaveBeenCalledWith(stub.atlas.analysisHistory);
+    expect(stub.uiManager.narrativeStrip.setHistory).toHaveBeenCalledWith(stub.atlas.analysisHistory);
     expect(stub._restoreDataset).toHaveBeenCalled();
 
     // Camera pose restored.
@@ -271,13 +280,13 @@ describe('WorldSessionController save/load roundtrip', () => {
     expect(stub.engine.cameraGroup.rotation.y).toBeCloseTo(0.7);
 
     // Settings applied + comfort controller re-applied.
-    expect(stub.settingsPanel.setSetting).toHaveBeenCalledWith('userMode', 'intermediate');
+    expect(stub.uiManager.settingsPanel.setSetting).toHaveBeenCalledWith('userMode', 'intermediate');
     expect(stub.comfortSettingsController.apply).toHaveBeenCalledTimes(1);
     expect(stub.comfortSettingsController.applyPanelDistance).toHaveBeenCalledWith(1.4);
 
     // Theme + panel positions restored.
     expect(stub.engine.theme.applyPreset).toHaveBeenCalledWith('neonMidnight');
-    expect(stub.panelManager.setPanelPositions).toHaveBeenCalledWith([
+    expect(stub.uiManager.panelManager.setPanelPositions).toHaveBeenCalledWith([
       { title: 'A', position: [1, 2, 3], visible: true },
     ]);
 
