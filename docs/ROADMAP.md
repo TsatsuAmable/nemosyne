@@ -6,6 +6,15 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
+- **2026-08-20 — Senior Platform Reproducibility, Canonical Digest & Evidence Isolation Hardening (✅):**
+  - **Evidence Isolation & Reconstruction:** Fixed `EvidenceLedger.reset()` to completely clear observations, findings, annotations, and monotonic counters across dataset loads, eliminating state leakage between investigations. Updated `EvidenceLedger.restore()` and `InvestigationAggregate.restoreState()` to reconstitute observations, findings, and annotations from ledger event streams and prevent ID collisions.
+  - **Canonical Cryptographic Investigation Digest (`InvestigationDigest`):** Implemented deterministic canonical JSON serialization (RFC 8785 subset) and cryptographic SHA-256 digest computation (`computeInvestigationDigest`) over schema version, dataset identity, kernel version, immutable dataset, canonical command stream, analytical state, evidence ledger, representation strategy, and research context.
+  - **Adversarial Replay Runner Hardening:** Upgraded `InvestigationReplayRunner` to strictly verify canonical `investigationDigest` and `evidenceSummary`, and eliminated silent fallback matching on unknown event types (`default: eventsMatched += 1`), enforcing 100% discrepancy rejection on tampered datasets, altered output hashes, corrupted digests, or unsupported event kinds.
+  - **Controlled Study Treatment Gating:** Added `adaptiveAssistancePolicy` (`enabled | disabled | frozen | adaptive`) to `StudyTrialSpec` in `StudyHarness.ts` to prevent dynamic assistance from contaminating experimental crossover trials.
+  - **Interaction FSM Preconditions:** Added formal transition validation guards (`validateTransition`) to `InteractionModeController`.
+  - **Subsystem Barrels & Hygiene:** Added `src/investigation/index.ts` public barrel export and integrated into `scripts/audit-hygiene.mjs` (9 subsystem barrels verified).
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 239/239 test files passed (1,544 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0 (174ms) · `npm run audit:hygiene` 8/8 dimensions passed.
+
 - **2026-08-20 — VR UX Convergence, Spatial Intelligence & Interaction Engineering (✅):**
   - **Authoritative Interaction State Machine & Reversible Transitions:** Wired `InteractionModeController` (`NAVIGATE | INTERACT | TRANSFORM | OBSERVE`) directly into `World.ts` and `WorldInputCoordinator.ts`, providing reversible mode history and structured multi-surface focus state management.
   - **Zero Silent Suppression & Contextual Both-Pinch Ownership:** Integrated `GestureOwnershipManager` into the primary XR gesture pipeline. `bothPinched` dynamically resolves contextually per mode (world transform, selection commit, artifact scaling/orientation, resume interaction) with unambiguous HUD feedback chips (`statusStrip.recordAction`) and verified >= 2 input channels redundancy.
@@ -138,9 +147,11 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
 - **Deliverables:**
   - [x] Initial `InvestigationBranchManager.ts` DAG support.
   - [x] Formal `InvestigationAggregate` domain aggregate (`AnalyticalState`, `EvidenceLedger`, `RepresentationState`, `DecisionHistory`, `ResearchContext`, `InvestigationGraph`) under `src/atlas/domain/`.
+  - [x] Complete evidence isolation in `EvidenceLedger.reset()` ensuring zero state leakage between investigations across dataset loads.
+  - [x] Canonical cryptographic `InvestigationDigest` (`src/investigation/InvestigationDigest.ts`) computing deterministic SHA-256 digests over complete semantic state.
   - [x] Deterministic investigation serialization and deserialization independent of Three.js.
-  - [x] `tests/golden-path-vertical-slice.test.ts` asserting 100% semantic identity and zero hash drift across the complete investigation lifecycle.
-- **Exit Criteria Met:** An analyst can initialize an Investigation, execute analytical operations, save it, and reopen it in a headless environment with identical analytical state.
+  - [x] `tests/golden-path-vertical-slice.test.ts` and `tests/investigation-evidence-integrity.test.ts` asserting 100% semantic identity and zero hash drift across the complete investigation lifecycle.
+- **Exit Criteria Met:** An analyst can initialize an Investigation, execute analytical operations, record evidence, save it, and reopen it in a headless environment with identical analytical state.
 
 ### Gate 2 — Represent ✅ (Constraint Arbiter & Spatial Strategy Complete)
 - **Objective:** Make representation selection explicit, explainable, and research-safe.
@@ -176,6 +187,7 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
   - [x] Authoritative append-only `EvidenceLedger` in `src/atlas/domain/EvidenceLedger.ts`.
   - [x] First-class `Observation`, `Finding`, and `Annotation` entity models with spatial observer context (`[x, y, z]` coordinates, orientation, dataset version, focal targets).
   - [x] In-VR "Mark Moment" evidence capture workflow (`MarkMomentAction.ts`, HandWheel menu integration, audio-haptic feedback, diegetic VRConsole logging).
+  - [x] Full evidence reconstruction in `EvidenceLedger.restore()` and state snapshots without duplicate ID collisions.
   - [x] Evidence-to-analysis linking and explainability query graphs.
 - **Exit Criteria Met:** A saved Investigation can explain what was discovered, when, where in space, and by which analytical and human actions.
 
@@ -184,8 +196,9 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
 - **Deliverables:**
   - [x] `InvestigationBranchManager.ts` branch forking and history diffing.
   - [x] `ShareableSessionURL.ts` state serialization.
-  - [x] `.nemosyne` ZIP package schema with `valibot` schema-validated integrity manifests (`datasetFingerprint`, `kernelVersion`, `commandCount`, environment).
-  - [x] `InvestigationReplayRunner.ts` clean-room headless replay verifying bit-for-bit analytical and evidence parity without WebGL/DOM.
+  - [x] `.nemosyne` ZIP package schema with `valibot` schema-validated integrity manifests (`datasetFingerprint`, `kernelVersion`, `commandCount`, `investigationDigest`, `evidenceSummary`).
+  - [x] `InvestigationReplayRunner.ts` clean-room headless replay verifying bit-for-bit analytical, evidence, and canonical digest parity without WebGL/DOM.
+  - [x] Adversarial replay hardening rejecting altered datasets, tampered digests, and unknown event types with 100% discrepancy detection (`tests/investigation-replay-adversarial.test.ts`).
   - [x] 3-level reproducibility verification (Semantic, Analytical, Spatial).
 - **Exit Criteria Met:** A `.nemosyne` package shared between independent runtime instances regenerates the identical analytical state and spatial Memory Palace.
 

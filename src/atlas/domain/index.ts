@@ -21,4 +21,10 @@ export {
   type InvestigationGraphJSON,
 } from './InvestigationGraph.ts';
 export { InvestigationAggregate } from './InvestigationAggregate.ts';
+export {
+  computeInvestigationDigest,
+  computeSha256Hex,
+  canonicalJsonStringify,
+  type CanonicalInvestigationInput,
+} from '../../investigation/index.ts';
 

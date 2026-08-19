@@ -10,6 +10,8 @@
 import type { StudyCondition } from './types.ts';
 export type { StudyCondition };
 
+export type AdaptiveAssistancePolicy = 'enabled' | 'disabled' | 'frozen' | 'adaptive';
+
 export interface StudyTrialSpec {
   trialId: string;
   datasetId: string;
@@ -17,6 +19,7 @@ export interface StudyTrialSpec {
   condition: StudyCondition;
   prompt: string;
   groundTruthAnswer: string;
+  adaptiveAssistancePolicy?: AdaptiveAssistancePolicy;
 }
 
 export interface StudyTrialResponse {

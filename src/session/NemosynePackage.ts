@@ -21,6 +21,14 @@ export const NemosyneManifestSchema = v.object({
   kernelVersion: v.string(),
   createdAt: v.number(),
   commandCount: v.number(),
+  investigationDigest: v.nullish(v.string()),
+  evidenceSummary: v.nullish(
+    v.object({
+      observationsCount: v.number(),
+      findingsCount: v.number(),
+      annotationsCount: v.number(),
+    })
+  ),
   environment: v.object({
     userAgent: v.nullish(v.string()),
     platform: v.nullish(v.string()),

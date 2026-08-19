@@ -252,8 +252,14 @@ export class EvidenceLedger {
     this._ledger = [];
     this._results = [];
     this._structures = [];
+    this._observations = [];
+    this._findings = [];
+    this._annotations = [];
     this._resultCounter = 0;
     this._eventCounter = 0;
+    this._observationCounter = 0;
+    this._findingCounter = 0;
+    this._annotationCounter = 0;
     this.invalidateHistoryView();
   }
 
@@ -261,16 +267,42 @@ export class EvidenceLedger {
     results: AnalysisResult[],
     ledger: ResearchEvent[],
     structures?: StructureSet[],
+    observations?: Observation[],
+    findings?: Finding[],
+    annotations?: Annotation[],
   ): void {
     this._results = results.slice();
     this._ledger = ledger.slice();
-    // The ledger is the authoritative record: rebuild structures from structure events
-    const fromLedger = this._ledger
+
+    // Rebuild structures from authoritative ledger
+    const fromLedgerStructures = this._ledger
       .filter((event) => event.kind === 'structure' && event.structureSet)
       .map((event) => event.structureSet!);
-    this._structures = fromLedger.length > 0 ? fromLedger : (structures?.slice() ?? []);
+    this._structures = fromLedgerStructures.length > 0 ? fromLedgerStructures : (structures?.slice() ?? []);
+
+    // Rebuild observations from authoritative ledger or passed snapshot
+    const fromLedgerObs = this._ledger
+      .filter((event) => event.kind === 'observation' && event.observationEntity)
+      .map((event) => event.observationEntity!);
+    this._observations = fromLedgerObs.length > 0 ? fromLedgerObs : (observations?.slice() ?? []);
+
+    // Rebuild findings from authoritative ledger or passed snapshot
+    const fromLedgerFindings = this._ledger
+      .filter((event) => event.kind === 'finding' && event.findingEntity)
+      .map((event) => event.findingEntity!);
+    this._findings = fromLedgerFindings.length > 0 ? fromLedgerFindings : (findings?.slice() ?? []);
+
+    // Rebuild annotations from authoritative ledger or passed snapshot
+    const fromLedgerAnnots = this._ledger
+      .filter((event) => event.kind === 'annotation' && event.annotationEntity)
+      .map((event) => event.annotationEntity!);
+    this._annotations = fromLedgerAnnots.length > 0 ? fromLedgerAnnots : (annotations?.slice() ?? []);
+
     this._resultCounter = this._results.length;
     this._eventCounter = this._ledger.length;
+    this._observationCounter = this._observations.length;
+    this._findingCounter = this._findings.length;
+    this._annotationCounter = this._annotations.length;
     this.invalidateHistoryView();
   }
 

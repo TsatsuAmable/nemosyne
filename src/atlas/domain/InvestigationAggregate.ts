@@ -16,6 +16,7 @@ import { RepresentationState } from './RepresentationState.ts';
 import { DecisionHistory } from './DecisionHistory.ts';
 import { ResearchContext, type ResearchContextOptions } from './ResearchContext.ts';
 import { InvestigationGraph } from './InvestigationGraph.ts';
+import { computeInvestigationDigest } from '../../investigation/index.ts';
 
 export class InvestigationAggregate {
   readonly analytical: AnalyticalState;
@@ -87,6 +88,9 @@ export class InvestigationAggregate {
       activeRecommendation: this.decisions.activeRecommendation,
       decisionHistory: this.decisions.history.slice(),
       structures: this.ledger.structures.slice(),
+      observations: this.ledger.observations.slice(),
+      findings: this.ledger.findings.slice(),
+      annotations: this.ledger.annotations.slice(),
     };
   }
 
@@ -99,7 +103,14 @@ export class InvestigationAggregate {
     const version = state.datasetVersion ?? 0;
 
     this.analytical.restore(original, current, version, destroyer);
-    this.ledger.restore(state.analysisResults ?? [], state.eventLedger ?? [], state.structures);
+    this.ledger.restore(
+      state.analysisResults ?? [],
+      state.eventLedger ?? [],
+      state.structures,
+      state.observations,
+      state.findings,
+      state.annotations,
+    );
     this.decisions.restore(state.activeRecommendation ?? null, state.decisionHistory ?? []);
     this.graph.reset();
 
@@ -114,6 +125,47 @@ export class InvestigationAggregate {
         timestamp: this.context.now(),
       });
     }
+  }
+
+  /**
+   * Compute the canonical cryptographic digest representing this aggregate's semantic state.
+   */
+  async computeDigest(kernelVersion = 'unknown'): Promise<string> {
+    const fp = this.analytical.getFingerprint() ?? '';
+    const originalFp = this.analytical.originalNullable?.fingerprint ? String(this.analytical.originalNullable.fingerprint) : fp;
+    const commandStream = this.ledger.ledger.map((evt) => ({
+      op: evt.command ? ('op' in evt.command ? evt.command.op : evt.kind) : evt.kind,
+      datasetVersion: evt.datasetVersion,
+      datasetFingerprint: evt.datasetFingerprint,
+    }));
+
+    return computeInvestigationDigest({
+      schemaVersion: 1,
+      datasetFingerprint: fp,
+      kernelVersion,
+      immutableDatasetFingerprint: originalFp,
+      commandStream,
+      analyticalState: {
+        datasetVersion: this.analytical.datasetVersion,
+        datasetFingerprint: fp,
+        rowCount: this.analytical.currentNullable?.rowCount ?? 0,
+        columnCount: this.analytical.currentNullable?.columns?.length ?? 0,
+      },
+      evidenceLedger: {
+        resultsCount: this.ledger.results.length,
+        eventsCount: this.ledger.ledger.length,
+        observationCount: this.ledger.observations.length,
+        findingCount: this.ledger.findings.length,
+        annotationCount: this.ledger.annotations.length,
+        findings: this.ledger.findings.map((f) => ({ id: f.id, title: f.title, confidence: f.confidence })),
+        observations: this.ledger.observations.map((o) => ({ id: o.id, notes: o.notes })),
+      },
+      researchContext: {
+        studyId: this.context.studyId,
+        researchQuestion: this.context.researchQuestion,
+        hypothesis: this.context.hypothesis,
+      },
+    });
   }
 
   /**
