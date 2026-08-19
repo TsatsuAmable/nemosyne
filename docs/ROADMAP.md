@@ -147,9 +147,11 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
 - **Deliverables:**
   - [x] Initial `InvestigationBranchManager.ts` DAG support.
   - [x] Formal `InvestigationAggregate` domain aggregate (`AnalyticalState`, `EvidenceLedger`, `RepresentationState`, `DecisionHistory`, `ResearchContext`, `InvestigationGraph`) under `src/atlas/domain/`.
+  - [x] Complete evidence isolation in `EvidenceLedger.reset()` ensuring zero state leakage between investigations across dataset loads.
+  - [x] Canonical cryptographic `InvestigationDigest` (`src/investigation/InvestigationDigest.ts`) computing deterministic SHA-256 digests over complete semantic state.
   - [x] Deterministic investigation serialization and deserialization independent of Three.js.
-  - [x] `tests/golden-path-vertical-slice.test.ts` asserting 100% semantic identity and zero hash drift across the complete investigation lifecycle.
-- **Exit Criteria Met:** An analyst can initialize an Investigation, execute analytical operations, save it, and reopen it in a headless environment with identical analytical state.
+  - [x] `tests/golden-path-vertical-slice.test.ts` and `tests/investigation-evidence-integrity.test.ts` asserting 100% semantic identity and zero hash drift across the complete investigation lifecycle.
+- **Exit Criteria Met:** An analyst can initialize an Investigation, execute analytical operations, record evidence, save it, and reopen it in a headless environment with identical analytical state.
 
 ### Gate 2 — Represent ✅ (Constraint Arbiter & Spatial Strategy Complete)
 - **Objective:** Make representation selection explicit, explainable, and research-safe.
@@ -185,6 +187,7 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
   - [x] Authoritative append-only `EvidenceLedger` in `src/atlas/domain/EvidenceLedger.ts`.
   - [x] First-class `Observation`, `Finding`, and `Annotation` entity models with spatial observer context (`[x, y, z]` coordinates, orientation, dataset version, focal targets).
   - [x] In-VR "Mark Moment" evidence capture workflow (`MarkMomentAction.ts`, HandWheel menu integration, audio-haptic feedback, diegetic VRConsole logging).
+  - [x] Full evidence reconstruction in `EvidenceLedger.restore()` and state snapshots without duplicate ID collisions.
   - [x] Evidence-to-analysis linking and explainability query graphs.
 - **Exit Criteria Met:** A saved Investigation can explain what was discovered, when, where in space, and by which analytical and human actions.
 
@@ -193,8 +196,9 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
 - **Deliverables:**
   - [x] `InvestigationBranchManager.ts` branch forking and history diffing.
   - [x] `ShareableSessionURL.ts` state serialization.
-  - [x] `.nemosyne` ZIP package schema with `valibot` schema-validated integrity manifests (`datasetFingerprint`, `kernelVersion`, `commandCount`, environment).
-  - [x] `InvestigationReplayRunner.ts` clean-room headless replay verifying bit-for-bit analytical and evidence parity without WebGL/DOM.
+  - [x] `.nemosyne` ZIP package schema with `valibot` schema-validated integrity manifests (`datasetFingerprint`, `kernelVersion`, `commandCount`, `investigationDigest`, `evidenceSummary`).
+  - [x] `InvestigationReplayRunner.ts` clean-room headless replay verifying bit-for-bit analytical, evidence, and canonical digest parity without WebGL/DOM.
+  - [x] Adversarial replay hardening rejecting altered datasets, tampered digests, and unknown event types with 100% discrepancy detection (`tests/investigation-replay-adversarial.test.ts`).
   - [x] 3-level reproducibility verification (Semantic, Analytical, Spatial).
 - **Exit Criteria Met:** A `.nemosyne` package shared between independent runtime instances regenerates the identical analytical state and spatial Memory Palace.
 
