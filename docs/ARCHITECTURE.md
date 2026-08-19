@@ -96,9 +96,9 @@ To achieve this, the architecture maintains a strict separation between **Analyt
 Nemosyne is modularized by **semantic ownership**. Each major subsystem has a defined responsibility, a public contract, an owned class of state or behaviour, and explicit boundaries that prevent it from becoming an alternate authority.
 
 ### 3.1 `investigation` — The Persistent Analytical Model
-- **Ownership:** Owns the persistent investigation aggregate, question/hypothesis, dataset references, immutable analytical states, operation history DAG, evidence ledger, observations, findings, analyst decisions, and conclusion.
-- **Key Boundary:** Does **not** import Three.js, WebXR, WebSockets, or UI components. Callers interact through semantic commands (`ApplyOperation`, `RecordObservation`, `ForkBranch`) and queries.
-- **Key Classes:** `Investigation`, `InvestigationBranchManager`, `EvidenceLedger`, `TaskHypothesis`.
+- **Ownership:** Owns the persistent investigation aggregate, question/hypothesis, dataset references, immutable analytical states, operation history DAG, evidence ledger, observations, findings, annotations, analyst decisions, and conclusion.
+- **Key Boundary:** Does **not** import Three.js, WebXR, WebSockets, or UI components. Callers interact through semantic commands (`ApplyOperation`, `RecordObservation`, `RecordFinding`, `ForkBranch`) and queries.
+- **Key Classes:** `InvestigationAggregate`, `InvestigationGraph`, `InvestigationBranchManager`, `EvidenceLedger` (`Observation`, `Finding`, `Annotation`), `AnalyticalState`, `RepresentationState`, `DecisionHistory`, `ResearchContext`.
 
 ### 3.2 `atlas` — Analytical Application Orchestrator
 - **Ownership:** Owns the application-level orchestration between the Investigation, the Rust/WASM kernel, structure discovery, and representation requirements. Exposes the Constraint Arbiter.
@@ -126,14 +126,14 @@ Nemosyne is modularized by **semantic ownership**. Each major subsystem has a de
 - **Key Classes:** `GestureIntelligenceAdapter`, `GestureEngine` (`modules/gesture-intelligence`), `GestureRetrainService`, `InputTelemetry`.
 
 ### 3.7 `spatial-runtime` & Memory Palace — Spatial Embodiment
-- **Ownership:** Owns WebXR/Three.js rendering, the 4-mode interaction FSM (`NAVIGATE | INTERACT | TRANSFORM | OBSERVE`), forgiving HandWheel navigation, contextual task surfaces, transient cards, spatial assets, and the reconstructible Memory Palace projection.
+- **Ownership:** Owns WebXR/Three.js rendering, the 4-mode interaction FSM (`NAVIGATE | INTERACT | TRANSFORM | OBSERVE`), forgiving HandWheel navigation, contextual task surfaces, transient cards, pointer aim-drift & micro-jitter filtering, spatial assets, in-VR Mark Moment capture, and the reconstructible Memory Palace projection.
 - **Key Boundary:** Spatial state is derived execution state. If discarded, it can be 100% reconstructed from the Investigation and representation manifest.
-- **Key Classes:** `Engine`, `World`, `InteractionModeController`, `HandWheelCategorizer`, `ContextualTaskSurface`, `PanelRolesManager`, `TransientContextCardManager`, `SpatialAssetRegistry`.
+- **Key Classes:** `Engine`, `World`, `PointerRayFilter`, `MarkMomentAction`, `InteractionModeController`, `HandWheelCategorizer`, `ContextualTaskSurface`, `PanelRolesManager`, `TransientContextCardManager`, `SpatialAssetRegistry`.
 
 ### 3.8 `persistence` — Investigation Packages & Containers
-- **Ownership:** Owns serialization formats, `.nemosyne` container package format (ZIP containing manifest, graph, kernel provenance, dataset, and evidence), schema migration, and integrity verification.
+- **Ownership:** Owns serialization formats, `.nemosyne` container package format (ZIP containing manifest, graph, kernel provenance, dataset, and evidence), schema migration, clean-room headless replay, and integrity verification.
 - **Key Boundary:** Serializes and reconstructs the Investigation through its public API without inventing domain semantics.
-- **Key Classes:** `NemosyneSession`, `ShareableSessionURL`, `PackageManifest`, `PackageIntegrityVerifier`.
+- **Key Classes:** `NemosyneSession`, `NemosynePackageManager`, `InvestigationReplayRunner`, `ShareableSessionURL`, `PackageManifest`, `PackageIntegrityVerifier`.
 
 ---
 

@@ -55,13 +55,26 @@ migrating) Rust/WASM compute layer, and an experimental WebRTC collaboration lay
 - Native Rust WASM TDA kernel computing 1D Mapper graphs, 1D-persistence barcode intervals, and Betti-0 radius sample curves (`wasm/src/data/topology.rs`).
 - Diegetic world-space TDA canvas panels (`TDAPlanes.ts`).
 
+### 9. First-Class Evidence Entities & In-VR "Mark Moment" — _shipped_
+- Formal evidence domain models (`Observation`, `Finding`, `Annotation`) preserving 3D observer spatial perspective (`[x, y, z]` coordinates, orientation, active dataset version, focal targets).
+- Append-only `EvidenceLedger` recording attributable investigation provenance and queryable evidence graphs.
+- Diegetic in-VR "Mark Moment" workflow with haptic pulse feedback, visual beacon animation, and HandWheel menu integration.
+
+### 10. Adaptive Pointer Smoothing & Jitter Suppression — _shipped_
+- Velocity-adaptive 1-Euro `PointerRayFilter` smoothing controller/hand rays in WebXR.
+- Eliminates physiological tremor and sensor noise during long-range pointing at 50k point clouds on Meta Quest 3S while maintaining zero perceptible lag during rapid sweeps.
+
+### 11. Headless Investigation Replay & `.nemosyne` Packaging — _shipped_
+- Deterministic `.nemosyne` ZIP package archiving and streaming extraction with `valibot` schema-validated integrity manifests.
+- Clean-room `InvestigationReplayRunner` replaying investigations headlessly against the Rust/WASM kernel and asserting 100% bit-for-bit analytical and evidence parity without WebGL or DOM dependencies.
+
 ---
 
 ## Technical Quality
 
 - **Type safety**: 100% Pure TypeScript (`tsc --noEmit` → 0 errors; `@typescript-eslint/no-explicit-any` enforced as error in `src/`).
-- **Tests**: Vitest suite with 217 test files and 1,446 passing tests.
-- **CI**: GitHub Actions matrix; lint is a blocking gate; `npm run build` must pass.
+- **Tests**: Vitest suite with 234 test files and 1,512 passing tests (0 failures).
+- **CI**: GitHub Actions matrix; lint and typecheck are blocking gates; `npm run build` must pass.
 - **Rust unit tests**: `cargo test --manifest-path wasm/Cargo.toml` (85 unit tests passing).
 
 ---

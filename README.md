@@ -40,8 +40,14 @@ target and the [Roadmap](./docs/ROADMAP.md) tracks progress.
 ### What has been done
 
 - **Phases 1–26 (archived):** Complete foundational runtime, Rust/WASM analytical kernel (v0.2.0), mandatory WASM cutover, AtlasCore single analytical authority, pure fact-consumer Draco solver, standalone gesture intelligence, Phase 24 Analyst Cockpit (4-mode interaction FSM, forgiving HandWheel, contextual surfaces), Quest 3S hardware envelope validation, and empirical study recommender tuning. See [`docs/archive/ROADMAP_PHASES_21-26_COMPLETED.md`](./docs/archive/ROADMAP_PHASES_21-26_COMPLETED.md) and [`docs/archive/ROADMAP_PHASES_1-20_COMPLETED.md`](./docs/archive/ROADMAP_PHASES_1-20_COMPLETED.md).
-- **Definitive Gate Model (Gates 0–7):** The active roadmap is organized around the 8 architectural gates defined in the governing specification: Gate 0 (Foundations) → Gate 1 (Understand) → Gate 2 (Represent) → Gate 3 (Experience) → Gate 4 (Investigate) → Gate 5 (Reproduce) → Gate 6 (Study) → Gate 7 (Adaptive Research).
-- **Limited Public Testing Release Sprints:** Current active work focuses on modular subsystem boundaries, open-source library adoption (`zod`, `fflate`, `three-mesh-bvh`), crash resilience, and frame-budget reliability.
+- **Definitive Gate Model (Gates 0–7 Delivery):**
+  - **Gate 0 (Foundations ✅):** Sole Rust/WASM analytical authority (85 Rust tests, 0 JS formula fallbacks), 100% pure TypeScript codebase.
+  - **Gate 1 (Understand ✅):** `InvestigationAggregate` domain model under `src/atlas/domain/` with DAG spine (`InvestigationGraph`) and vertical slice parity.
+  - **Gate 3 (Experience ✅):** 4-mode interaction FSM, HandWheel, and adaptive 1€ `PointerRayFilter` eliminating aim-drift on Quest 3S.
+  - **Gate 4 (Investigate ✅):** First-class `Observation`, `Finding`, and `Annotation` entities, and in-VR "Mark Moment" evidence capture workflow.
+  - **Gate 5 (Reproduce ✅):** `.nemosyne` package container engine with `valibot` schema validation and `InvestigationReplayRunner` headless bit-for-bit verification.
+  - **Gate 6 (Study ✅):** Empirical 2D-vs-VR crossover study instrument, Latin-square counterbalancer, and statistical publication exporter.
+- **Limited Public Testing Release Track (Sprints 27.1–27.7 ✅):** Subsystem modularization, OSS standardization (`valibot`, `fflate`, `@tweenjs/tween.js`, `colord`, `nanoevents`, `three-mesh-bvh`), spatial ergonomics linter, WebGL context auto-recovery, upload sanitization, zero-alloc math, and automated recurring maintainability hygiene audits.
 
 ### What the Definitive Vision proposes
 
