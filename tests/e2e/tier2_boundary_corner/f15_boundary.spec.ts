@@ -6,7 +6,9 @@ describe('Tier 2 — Feature 15: Requirement-Driven E2E Suite & TEST_READY.md (B
   it('F15-BC1: Project structure includes required configuration files', () => {
     const rootDir = process.cwd();
     const pkgPath = path.join(rootDir, 'package.json');
-    const vitestPath = path.join(rootDir, 'vitest.config.js');
+    const vitestPath = fs.existsSync(path.join(rootDir, 'vitest.config.ts'))
+      ? path.join(rootDir, 'vitest.config.ts')
+      : path.join(rootDir, 'vitest.config.js');
 
     expect(fs.existsSync(pkgPath)).toBe(true);
     expect(fs.existsSync(vitestPath)).toBe(true);
