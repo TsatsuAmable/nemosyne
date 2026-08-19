@@ -6,18 +6,18 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **2026-08-19 — Project Realignment, Standardization Review & Domain Aggregate Architecture:**
+- **2026-08-19 — Project Realignment, Subsystem Modularization & OSS Adoption:**
   - **Vision Alignment:** Fully synchronized project direction with the governing [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md) and codified the **Vision Alignment Cardinal Rule** across agent guides.
   - **Investigation Domain Aggregate Refactor:** Decomposed `AtlasCore` into an Application Service coordinator managing an authoritative `InvestigationAggregate` (`AnalyticalState`, `EvidenceLedger`, `RepresentationState`, `DecisionHistory`, `ResearchContext`, `InvestigationGraph`) under `src/atlas/domain/`.
+  - **Subsystem Modularization (Sprint 27.1 ✅):** Established typed barrel interfaces (`index.ts`) for all 8 subsystems (`atlas`, `draco`, `data`, `network`, `session`, `study`, `wasm`, `vr/perception`), enforcing strict boundary encapsulation.
+  - **OSS Standardization (Sprint 27.2 ✅):** Adopted mature, tree-shakeable OSS libraries (`valibot`, `fflate`, `@tweenjs/tween.js`, `colord`, `nanoevents`, `three-mesh-bvh`, `petgraph`, `statrs`), eliminating hand-rolled boilerplate across `.nemosyne` packaging, colorimetry, spatial animations, and event dispatch.
   - **Explicit Kernel State & Fallback Elimination:** Formalized `KernelState` (`UNINITIALIZED | INITIALIZING | READY | UNAVAILABLE`) and `KernelUnavailableError`, strictly eliminating any silent JS calculation fallback.
   - **Event-Sourced Architectural Principle:** Codified the law of *Single Authoritative State & Event-Sourced Determinism* ($\text{Authoritative Investigation} = \text{InvestigationCommand}[] + \text{ImmutableDatasetRef} + \text{Manifest}$; materialized state is disposable cache; Memory Palace is pure spatial projection).
   - **Dev Server Modularization:** Decomposed monolithic `vite.config.js` into dedicated TypeScript plugins under `dev/` composed by a clean `vite.config.ts`.
-  - **Standardization & OSS Adoption Review:** Published [docs/STANDARDIZATION_REVIEW.md](STANDARDIZATION_REVIEW.md) specifying a structured library adoption plan across 13 subsystem domains to eliminate **~8,440 lines of boilerplate** (<45 kB footprint).
-  - **Engine Architecture Invariant:** Reaffirmed Three.js 0.168.0 and Rust WASM as our core foundation; rejected engine rewrites.
-  - **Developer Explainer Guide:** Published [docs/DEVELOPER_EXPLAINER.md](DEVELOPER_EXPLAINER.md) detailing architecture, data lifecycles, and runbooks.
   - **Next Planned Work:**
-    - *Sprint 27.1 — Subsystem Modularization & Strict Contract Boundaries:* Formalize typed barrel exports across `src/investigation/`, `src/atlas/`, `src/representation/`, `src/study/`, `src/network/`, `src/perception/`, `src/vr/`, and `src/session/`.
-  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 219/219 test files passed (1,462 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+    - *Sprint 27.3 — Investigation Aggregate, Typed Graph Spine & Vertical Slice Invariant:* Authoritative domain graph and end-to-end deterministic hash verification.
+    - *Sprint 27.7 — Recurring Maintainability & Code Hygiene Audit:* Establish automated tech-debt elimination sweeps, dead code pruning, circular dependency guards, and memory leak checks.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 224/224 test files passed (1,475 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0 (161ms).
 
 ---
 
@@ -187,7 +187,8 @@ graph TD
     S3 --> S4["Sprint 27.4: Public Testing Polish & Resilience"]
     S4 --> S5["Sprint 27.5: Security & Network Hardening"]
     S5 --> S6["Sprint 27.6: Reliability & Frame Budgets"]
-    S6 --> PR["LIMITED PUBLIC TESTING RELEASE"]
+    S6 --> S7["Sprint 27.7: Maintainability & Hygiene Gate"]
+    S7 --> PR["LIMITED PUBLIC TESTING RELEASE"]
 ```
 
 ### Sprint 27.1 — Subsystem Modularization & Strict Contract Boundaries
@@ -250,7 +251,44 @@ graph TD
   - **CI Gate Promotion (Golden Path Smoke):** Promote Playwright load smoke / golden path system test (`npm run test:smoke`) from informational to a **strictly blocking CI gate** (`.github/workflows/ci.yml`), guaranteeing production bundle boot and WebGL initialization pass before any merge.
 - **Exit Gate:** `npm run test:e2e:tier4` scenario 3 passes with zero memory leaks; frame time P95 <= 13.88 ms on Quest 3S; blocking CI smoke gate passes green.
 
+### Sprint 27.7 — Recurring Maintainability, Tech Debt & Code Hygiene Protocol
+- **Goal:** Institutionalize continuous hygiene audits to permanently prevent technical debt accumulation, unused/redundant code, dependency drift, and architectural decay.
+- **Scope:**
+  - **Automated Dead Code & Export Pruning (`knip` / `ts-prune`):** Audit and prune unused TypeScript files, uncalled functions, orphan types, and unused npm dependencies.
+  - **Circular Dependency & Boundary Enforcement (`import/no-cycle` / `madge`):** Assert 0 circular module imports across barrels and verify subsystem isolation.
+  - **Code Complexity & God-Object Prevention:** Enforce maximum cyclomatic complexity $\le 15$ and maximum module size $\le 500\text{ LOC}$ per application service.
+  - **WebGL & GPU Resource Teardown Sweep:** Assert 100% disposal coverage for all Three.js geometries, materials, render targets, textures, event listeners, and timers.
+  - **Deprecation & Stale TODO Triage:** Enforce strict expiration dates on all `// TODO` and `// FIXME` comments; eliminate all deprecated API calls.
+  - **Bundle Budget Gate:** Enforce strict client bundle size ceiling ($<500\text{ kB}$ gzip total; $<45\text{ kB}$ per individual subsystem feature).
+- **Exit Gate:** `npm run audit:hygiene` passes with 0 unused exports, 0 circular dependencies, 0 memory leaks, and 0 lint warnings.
+
 ---
+
+## Maintainability, Tech Debt & Code Hygiene Audit Protocol
+
+```text
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                   RECURRING MAINTAINABILITY & HYGIENE AUDIT SUITE                      │
+├──────────────────────────┬─────────────────────────────────────┬───────────────────────┤
+│ Dimension                │ Tooling & Enforcement Mechanism     │ Blocking Threshold    │
+├──────────────────────────┼─────────────────────────────────────┼───────────────────────┤
+│ 1. Dead Code & Exports   │ knip / ts-prune / cargo dead_code   │ 0 orphan files/types  │
+│ 2. Subsystem Boundaries  │ eslint-plugin-import (no-cycle)     │ 0 circular references │
+│ 3. Single Authoritative  │ tests/architectural-invariants      │ 0 duplicate states    │
+│ 4. Complexity & File Cap │ eslint complexity (<= 15)           │ Max 500 LOC/service   │
+│ 5. GPU & Memory Leaks    │ E2E Memory Profiler + disposal test │ 0 un-disposed WebGL   │
+│ 6. Bundle Size Ceiling   │ Vite rollupOptions + size-limit     │ < 500 kB gzip bundle  │
+│ 7. Test Suite Health     │ vitest run (duration audit)         │ 0 flaky / 0 orphaned  │
+│ 8. Rust Kernel Cleanliness│ cargo clippy -- -D warnings        │ 0 clippy warnings     │
+└──────────────────────────┴─────────────────────────────────────┴───────────────────────┘
+```
+
+### Audit Cadence & Triggers
+
+1. **Continuous CI Pre-Merge Gate:** Every PR must pass `typecheck`, `lint` (0 warnings on `no-explicit-any`), `cargo test`, `npm test`, and `npm run build`.
+2. **Inter-Sprint Cadence (Every Sprint End):** Automated execution of `npm run audit:hygiene` to prune dead code, verify bundle sizes, and assert zero circular dependencies before opening a milestone PR.
+3. **Pre-Release Milestone Review:** Comprehensive memory profiling (1-hour simulated VR session), WebGL GPU disposal sweep, and complete vertical slice hash validation before tagging Stable Alpha/Beta.
+
 
 ## Historical Archive References
 
