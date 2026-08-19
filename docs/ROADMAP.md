@@ -17,6 +17,9 @@
   - **Security, Input Sanitization & Network Hardening (Sprint 27.5 ✅):** Implemented `UploadSanitizer` (recursive prototype pollution neutralization, path traversal stripping, size/row caps), `SignedTicketVerifier` (HMAC-SHA256 collaboration room authentication & replay protection), and `TelemetryConsentManager` (GDPR right-to-erasure).
   - **Reliability, Memory Leak Prevention & Quest Frame Budgets (Sprint 27.6 ✅):** Implemented `ZeroAllocMath` scratch pools for GC-free frame loops and `GPUResourceDisposal` deep Three.js hierarchy cascade teardown.
   - **Recurring Maintainability & Hygiene Protocol (Sprint 27.7 ✅):** Codified and automated the 8-dimension maintainability audit protocol via `scripts/audit-hygiene.mjs` and `npm run audit:hygiene`.
+  - **Explicit Kernel State & Fallback Elimination:** Formalized `KernelState` (`UNINITIALIZED | INITIALIZING | READY | UNAVAILABLE`) and `KernelUnavailableError`, strictly eliminating any silent JS calculation fallback.
+  - **Event-Sourced Architectural Principle:** Codified the law of *Single Authoritative State & Event-Sourced Determinism* ($\text{Authoritative Investigation} = \text{InvestigationCommand}[] + \text{ImmutableDatasetRef} + \text{Manifest}$; materialized state is disposable cache; Memory Palace is pure spatial projection).
+  - **Dev Server Modularization:** Decomposed monolithic `vite.config.js` into dedicated TypeScript plugins under `dev/` composed by a clean `vite.config.ts`.
   - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 230/230 test files passed (1,500 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0 (171ms) · `npm run audit:hygiene` 8/8 dimensions passed.
 
 ---

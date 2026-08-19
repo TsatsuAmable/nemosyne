@@ -21,7 +21,6 @@ export const NemosyneManifestSchema = v.object({
   kernelVersion: v.string(),
   createdAt: v.number(),
   commandCount: v.number(),
-  environment: v.object({
     userAgent: v.nullish(v.string()),
     platform: v.nullish(v.string()),
     webxrSupported: v.nullish(v.boolean()),
