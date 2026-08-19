@@ -22,10 +22,10 @@
 
 ### Classes & Modules
 - **`Dataset`** (`src/data/Dataset.ts`): Primary in-memory analytical tabular structure. Owns columns, rows, metadata, and computes content-addressed FNV-1a fingerprints.
-- **`DatasetOperations`** (`src/data/DatasetOperations.ts`): Analytical bridge dispatching operations (`filter`, `sort`, `kmeans`, `dbscan`, `hierarchical`, `anomaly`, `slice`, `aggregate`) to the Rust WASM kernel.
+- **`DataOperationController`** (`src/vr/coordinators/DataOperationController.ts`): Analytical UI coordinator dispatching operations (`filter`, `sort`, `kmeans`, `dbscan`, `hierarchical`, `anomaly`, `slice`, `aggregate`) through `AtlasCore` to the Rust WASM kernel.
 - **`AnalysisHistory`** (`src/data/AnalysisHistory.ts`): Reversible operation frame stack recording transformation parameters and row counts.
 - **`PositionSemanticClassifier`** (`src/data/PositionSemanticClassifier.ts`): Categorizes spatial coordinates into `SEMANTIC`, `STRUCTURAL`, and `LAYOUT` roles to prevent false perceptual inferences.
-- **`Parsers`** (`src/data/Parsers.ts`): Ingests CSV (quoted fields/newlines), JSON array-of-objects, and raw binary ArrayBuffers.
+- **`FileLoader`** (`src/data/FileLoader.ts`): Ingests CSV, JSON, and Arrow binary ArrayBuffers and routes parsing directly through `AtlasCore.parseBytes()` to native Rust WASM parsers (`wasm/src/data/parsers.rs`).
 
 ---
 

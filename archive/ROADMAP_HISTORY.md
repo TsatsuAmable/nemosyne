@@ -5,7 +5,7 @@ live roadmap. It is historical context only. Do not use it to determine current 
 status or planned work.
 
 The live roadmap is [`../ROADMAP.md`](../ROADMAP.md). Product direction and governance are in
-[`../PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md`](../PRODUCT_ARCHITECTURE_AND_GOVERNANCE.md).
+[`../Nemosyne_Definitive_Vision_and_Roadmap.md`](../Nemosyne_Definitive_Vision_and_Roadmap.md).
 
 ## Completed Phase Index
 
@@ -35,8 +35,16 @@ Stable Alpha / Atlas planning cycle:
 | 18 | Runtime integration | Scene/workspace wiring, workers, binary pose, and governor integration |
 | 19 | Zero-copy protocol | Binary peer IDs, event dispatch, workspace lifecycle, and protocol hardening |
 | 20 | Graphics optimization | Instanced buffers, canvas upload, context recovery, and frame shedding |
-| 21.1-21.2 | Rust/WASM foundation and data layer | Tooling and data operations completed; later migration remains gated |
-| 22.1-22.2 | UX convergence and low-strain polish | Quick wins, TDA visibility, tour, controls, and presets completed |
+| 21.1-21.7 | Rust/WASM analytical substrate | Tooling, data, 3D layouts, and Draco constraint solver in WASM |
+| 22.1-22.10 | Low-Strain UX V2.0 & GPU Hygiene | Onboarding, accessibility, embodied avatars, and GPU lifecycle |
+| 23.1-23.5 | Gesture Intelligence & Retraining | Host adapter, personalizer, consent upload, and central retraining |
+| 24.1-24.9 | Analyst Cockpit & Interaction FSM | 4-mode FSM, forgiving HandWheel, contextual surfaces, and status strip |
+| 25.1-25.3 | Perception & Quest Hardware Envelopes | Quest 3S hardware envelope validation and 2D-vs-VR study analysis |
+| 26.1-26.2 | Position Semantics & Empirical Draco | Position discipline HUD warnings and empirical study utility tuner |
+
+For the full sprint-by-sprint completion logs and verification records for Phases 21–26, see:
+- [`ROADMAP_PHASES_21-26_COMPLETED.md`](ROADMAP_PHASES_21-26_COMPLETED.md)
+- [`ROADMAP_PHASES_1-20_COMPLETED.md`](ROADMAP_PHASES_1-20_COMPLETED.md)
 
 These entries describe historical workstreams, not a guarantee that every capability is fully
 wired, production-qualified, or suitable as study evidence. The audit documents retain the

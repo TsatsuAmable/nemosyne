@@ -1,21 +1,21 @@
 # Nemosyne Analytics Layer
 
-The current analytics layer turns Nemosyne from a spatial viewer into a spatial analytics workbench. It extracts statistical facts from datasets, runs clustering and anomaly detection, and feeds the results into the Draco v1 Embodiment Engine so VR layout, geometry, behaviour, and interaction adapt to the data. The proposed Atlas layer will own full-dataset analytical guidance and provenance.
+The analytics layer turns Nemosyne from a spatial viewer into a spatial analytics workbench. It computes statistical facts, clustering, anomaly detection, and topological summaries via the deterministic Rust WASM kernel (`wasm/src/`), feeding the results through `AtlasCore` (`FactProvider`) into the Draco Embodiment Engine so VR layout, geometry, behaviour, and interaction adapt deterministically to the data with full provenance tracking.
 
 ---
 
-## Statistical Facts (`ConstraintEngine.extractFacts`)
+## Statistical Facts (`AtlasCore` as `FactProvider` & Rust Kernel `data_statistics`)
 
-For every dataset the Draco engine computes:
+All statistical facts are computed in the Rust WASM kernel (`wasm/src/data/statistics.rs`) and delivered to Draco through `AtlasCore.dracoFacts()`:
 
-- **`columnStats`** — per numeric column: `mean`, `median`, `stdDev`, `skew`, `kurtosis`, `min`, `max`.
-- **`correlationMatrix`** — Pearson correlation for every numeric column pair.
+- **`columnStats`** — per numeric column: `mean`, `median`, `stdDev`, `skew`, `kurtosis`, `min`, `max`, `outlierCount`.
+- **`correlationMatrix`** — pairwise complete Pearson correlation for every numeric column pair.
 - **`categoryDistribution`** — top categories with counts/fractions and entropy.
 - **`trendDirection`** / **`seasonalityHint`** / **`normalizedSlope`** — temporal trend heuristics.
 - **`hasOutliers`** — robust modified Z-score (MAD) outlier flag.
 - **`hasHighVariance`**, **`numericSkew`**, **`topCategory`** — summary signals used by soft constraints.
 
-These facts drive new soft constraints:
+These facts drive soft constraints in the Draco constraint solver:
 
 | Fact | Preferred VR mapping |
 |------|------------------------|

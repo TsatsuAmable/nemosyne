@@ -74,8 +74,9 @@ To launch the built-in experimental crossover study:
 
 ## 5. Key Documentation Links
 
-- **Technical Architecture Specification:** [`docs/TECHNICAL_SPEC.md`](file:///Users/tsatsuamable/Documents/nemosyne/docs/TECHNICAL_SPEC.md)
+- **Developer Guide & Explainer:** [`docs/DEVELOPER_EXPLAINER.md`](file:///Users/tsatsuamable/Documents/nemosyne/docs/DEVELOPER_EXPLAINER.md)
+- **Technical Architecture Specification:** [`docs/ARCHITECTURE.md`](file:///Users/tsatsuamable/Documents/nemosyne/docs/ARCHITECTURE.md)
 - **Codebase Wiki & Symbol Index:** [`docs/WIKI.md`](file:///Users/tsatsuamable/Documents/nemosyne/docs/WIKI.md)
 - **System Error Register:** [`docs/ERROR_REGISTER.md`](file:///Users/tsatsuamable/Documents/nemosyne/docs/ERROR_REGISTER.md)
 - **Definitive Product Vision & Roadmap:** [`docs/Nemosyne_Definitive_Vision_and_Roadmap.md`](file:///Users/tsatsuamable/Documents/nemosyne/docs/Nemosyne_Definitive_Vision_and_Roadmap.md)
-- **Study Protocol & Crossover Design:** [`docs/study/STUDY_PROTOCOL.md`](file:///Users/tsatsuamable/Documents/nemosyne/docs/study/STUDY_PROTOCOL.md)
+- **Study Protocol & Crossover Design:** [`docs/study/PROTOCOL.md`](file:///Users/tsatsuamable/Documents/nemosyne/docs/study/PROTOCOL.md)
