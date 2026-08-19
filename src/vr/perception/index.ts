@@ -10,3 +10,9 @@ export type {
   VoiceIntentCandidate,
   MultimodalPerceptionSnapshot,
 } from './MultimodalPerceptionEnvelope.ts';
+export {
+  GeometricGestureRecognizer,
+  type Point3D,
+  type GestureTemplate,
+  type GestureMatchResult,
+} from './GeometricGestureRecognizer.ts';
