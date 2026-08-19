@@ -42,7 +42,9 @@ import type {
   DracoDataInput,
   DracoFacts,
   FactProvider,
-} from '../draco/types.ts';
+  RepresentationRequirements,
+  SpatialStrategy,
+} from '../draco/index.ts';
 import { mapClusterStructures, mapMapperStructures, mapPersistenceStructures } from './structures.ts';
 import type { StructureSet } from './structures.ts';
 import { generateGuidance } from './GuidanceEngine.ts';
@@ -729,6 +731,27 @@ export class AtlasCore {
 
   asFactProvider(): FactProvider {
     return this._aggregate.representation.asFactProvider(() => this.facts());
+  }
+
+  get activeSpatialStrategy(): SpatialStrategy | null {
+    return this._aggregate.representation.activeStrategy;
+  }
+
+  arbitrateSpatialStrategy(
+    requirements?: RepresentationRequirements,
+    input?: DracoDataInput,
+  ): SpatialStrategy {
+    const dataInput: DracoDataInput = input ?? {
+      dataset: this.dataset ?? undefined,
+      topology: (this.inferTopology() as TopologyType) ?? undefined,
+      encodings: this.inferEncodings() ?? undefined,
+    };
+    return this._aggregate.representation.arbitrateStrategy(
+      dataInput,
+      this.facts(),
+      requirements,
+      this.datasetFingerprint ?? undefined,
+    );
   }
 
   // --- Serialization & Lifecycle -----------------------------------------
