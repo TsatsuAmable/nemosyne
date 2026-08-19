@@ -28,9 +28,12 @@ import type { DatasetSpaceNormalization } from './DatasetSpace.ts';
 import type {
   AnalysisResult,
   AnalysisSpec,
+  Annotation,
   AtlasCoreState,
   AtlasRecommendation,
   EvidenceStatus,
+  Finding,
+  Observation,
   RecommendationDecision,
   ResearchEvent,
   VRCommand,
@@ -44,7 +47,7 @@ import { mapClusterStructures, mapMapperStructures, mapPersistenceStructures } f
 import type { StructureSet } from './structures.ts';
 import { generateGuidance } from './GuidanceEngine.ts';
 import { KernelUnavailableError } from '../wasm/RuntimeBridge.ts';
-import { InvestigationAggregate } from './domain/index.ts';
+import { InvestigationAggregate, EvidenceLedger } from './domain/index.ts';
 
 export { KernelUnavailableError };
 
@@ -190,6 +193,22 @@ export class AtlasCore {
     return this._aggregate.ledger.ledger;
   }
 
+  get evidenceLedger(): EvidenceLedger {
+    return this._aggregate.ledger;
+  }
+
+  get observations(): readonly Observation[] {
+    return this._aggregate.ledger.observations;
+  }
+
+  get findings(): readonly Finding[] {
+    return this._aggregate.ledger.findings;
+  }
+
+  get annotations(): readonly Annotation[] {
+    return this._aggregate.ledger.annotations;
+  }
+
   get structures(): readonly StructureSet[] {
     return this._aggregate.ledger.structures;
   }
@@ -202,11 +221,61 @@ export class AtlasCore {
     return this._aggregate.decisions.history;
   }
 
-  recordObservation(observation: string): void {
+  recordObservation(
+    observation:
+      | string
+      | (Omit<Observation, 'id' | 'timestamp' | 'datasetFingerprint' | 'datasetVersion'> & {
+          datasetFingerprint?: string;
+          datasetVersion?: number;
+        })
+  ): Observation {
     const fp = this.datasetFingerprint ?? '';
     const stateHash = this.datasetSpace?.fingerprint ?? '';
-    this._aggregate.ledger.recordObservation(
-      observation,
+    const obsObj: Omit<Observation, 'id' | 'timestamp'> =
+      typeof observation === 'string'
+        ? {
+            notes: observation,
+            datasetFingerprint: fp,
+            datasetVersion: this.datasetVersion,
+          }
+        : {
+            ...observation,
+            datasetFingerprint: observation.datasetFingerprint ?? fp,
+            datasetVersion: observation.datasetVersion ?? this.datasetVersion,
+          };
+    return this._aggregate.ledger.recordObservation(
+      obsObj,
+      this._aggregate.sessionId,
+      stateHash,
+      this._aggregate.context.now(),
+    );
+  }
+
+  recordFinding(
+    finding: Omit<Finding, 'id' | 'timestamp' | 'datasetFingerprint' | 'datasetVersion'> & {
+      datasetFingerprint?: string;
+      datasetVersion?: number;
+    }
+  ): Finding {
+    const fp = this.datasetFingerprint ?? '';
+    const stateHash = this.datasetSpace?.fingerprint ?? '';
+    return this._aggregate.ledger.recordFinding(
+      {
+        ...finding,
+        datasetFingerprint: finding.datasetFingerprint ?? fp,
+        datasetVersion: finding.datasetVersion ?? this.datasetVersion,
+      },
+      this._aggregate.sessionId,
+      stateHash,
+      this._aggregate.context.now(),
+    );
+  }
+
+  recordAnnotation(annotation: Omit<Annotation, 'id' | 'timestamp'>): Annotation {
+    const fp = this.datasetFingerprint ?? '';
+    const stateHash = this.datasetSpace?.fingerprint ?? '';
+    return this._aggregate.ledger.recordAnnotation(
+      annotation,
       this._aggregate.sessionId,
       this.datasetVersion,
       fp,

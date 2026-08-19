@@ -47,6 +47,8 @@ import { DataOperationController } from './coordinators/DataOperationController.
 import { WorldUIManager } from './coordinators/WorldUIManager.ts';
 import { WorldSceneComposer } from './coordinators/WorldSceneComposer.ts';
 import { WorldSessionController } from './coordinators/WorldSessionController.ts';
+import { MarkMomentAction } from './interactions/MarkMomentAction.ts';
+import type { Observation } from '../atlas/types.ts';
 import { GuidedTourController } from './coordinators/GuidedTourController.ts';
 import { WorldLandmarkController } from './coordinators/WorldLandmarkController.ts';
 import { AnalysisStoryExporter } from './coordinators/AnalysisStoryExporter.ts';
@@ -613,6 +615,22 @@ export class World {
    */
   downloadAnalysisStory(story: Record<string, unknown> | null = null): void {
     AnalysisStoryExporter.downloadAnalysisStory(this, story);
+  }
+
+  /**
+   * Mark the current spatial/analytical moment as an authoritative Observation.
+   */
+  markMoment(notes?: string): Observation {
+    const obs = MarkMomentAction.execute({
+      atlas: this.atlas,
+      camera: this.engine.camera,
+      scene: this.engine.scene,
+      feedback: this.engine.input.feedback,
+      notes,
+      onLogged: (msg) => this.uiManager.vrConsole?.log?.('log', [msg]),
+    });
+    this._logInteraction('Mark moment', { result: obs.id });
+    return obs;
   }
 
   _updateWorld(_delta: number, _time: number): void {

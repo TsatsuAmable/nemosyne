@@ -142,8 +142,70 @@ export interface AtlasRecommendation {
   decision: RecommendationDecision;
 }
 
+/**
+ * Attributable human or algorithmic observation recorded during an investigation.
+ * Captures spatial perspective, targeted data nodes/clusters, and qualitative insight.
+ */
+export interface Observation {
+  id: string;
+  timestamp: number;
+  author?: string;
+  notes: string;
+  spatialContext?: {
+    position: [number, number, number];
+    rotation?: [number, number, number, number];
+    fov?: number;
+  };
+  targetIds?: string[];
+  rowIndices?: number[];
+  datasetFingerprint: string;
+  datasetVersion: number;
+  tags?: string[];
+}
+
+/**
+ * Validated scientific finding or analytical conclusion supported by evidence.
+ */
+export interface Finding {
+  id: string;
+  timestamp: number;
+  title: string;
+  description: string;
+  confidence: 'preliminary' | 'validated' | 'definitive';
+  observationIds: string[];
+  resultIds: string[];
+  datasetFingerprint: string;
+  datasetVersion: number;
+  author?: string;
+}
+
+/**
+ * Textual or spatial annotation pinned to a node, region, or palace location.
+ */
+export interface Annotation {
+  id: string;
+  timestamp: number;
+  text: string;
+  position: [number, number, number];
+  targetId?: string;
+  author?: string;
+}
+
 /** Kind of a {@link ResearchEvent}. */
-export type ResearchEventKind = 'load' | 'analysis' | 'structure' | 'recommendation' | 'embodiment' | 'preview' | 'undo' | 'redo' | 'seek' | 'reset';
+export type ResearchEventKind =
+  | 'load'
+  | 'analysis'
+  | 'structure'
+  | 'recommendation'
+  | 'embodiment'
+  | 'preview'
+  | 'undo'
+  | 'redo'
+  | 'seek'
+  | 'reset'
+  | 'observation'
+  | 'finding'
+  | 'annotation';
 
 /**
  * Ledger entry recording one state transition of the analytical session. Every
@@ -163,6 +225,9 @@ export interface ResearchEvent {
   result?: AnalysisResult;
   structureSet?: StructureSet;
   embodimentCommand?: VRCommand;
+  observationEntity?: Observation;
+  findingEntity?: Finding;
+  annotationEntity?: Annotation;
   datasetVersion: number;
   datasetFingerprint: string;
   recommendationDecision?: RecommendationDecision;

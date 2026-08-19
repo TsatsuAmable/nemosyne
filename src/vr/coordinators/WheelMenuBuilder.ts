@@ -135,6 +135,12 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
           callback: () => world.exportScreenshot(),
         },
         {
+          id: 'mark-moment',
+          label: 'Mark Moment',
+          icon: '📍',
+          callback: () => world.markMoment?.(),
+        },
+        {
           id: 'export-story',
           label: 'Story',
           icon: '📤',
