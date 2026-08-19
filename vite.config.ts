@@ -6,6 +6,7 @@ import {
   loadtestResultsPlugin,
   uxTracePlugin,
   wasmServePlugin,
+  spatialSceneInspectorPlugin,
   httpsOptions,
 } from './dev/index.ts';
 
@@ -17,6 +18,7 @@ export default defineConfig(({ command }) => ({
     loadtestResultsPlugin(),
     uxTracePlugin(),
     wasmServePlugin(),
+    spatialSceneInspectorPlugin(),
   ],
   server: {
     host: true,
