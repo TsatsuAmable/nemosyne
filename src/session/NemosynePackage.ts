@@ -22,9 +22,9 @@ export const NemosyneManifestSchema = v.object({
   createdAt: v.number(),
   commandCount: v.number(),
   environment: v.object({
-    userAgent: v.optional(v.string()),
-    platform: v.optional(v.string()),
-    webxrSupported: v.optional(v.boolean()),
+    userAgent: v.nullish(v.string()),
+    platform: v.nullish(v.string()),
+    webxrSupported: v.nullish(v.boolean()),
   }),
 });
 
