@@ -1,14 +1,17 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from 'vitest';
-import { AtlasCore } from '../src/atlas/AtlasCore.ts';
-import { Dataset, ColumnType } from '../src/data/Dataset.ts';
-import { NemosyneSession } from '../src/session/NemosyneSession.ts';
+import { AtlasCore, InvestigationAggregate, type WasmRuntimeBridgeFull } from '../src/atlas/index.ts';
+import { Dataset, ColumnType, AnalysisHistory } from '../src/data/index.ts';
+import { NemosyneSession, InvestigationBranchManager } from '../src/session/index.ts';
+import { ConstraintEngine, VRTopologyTranslator, PositionSemanticsEngine } from '../src/draco/index.ts';
+import { NetworkManager, Room, BinaryPoseSerializer } from '../src/network/index.ts';
+import { StudyHarness, Counterbalancer, StudyStatisticalAnalyzer } from '../src/study/index.ts';
+import { KernelUnavailableError, getKernelState } from '../src/wasm/index.ts';
+import { MultimodalPerceptionEngine } from '../src/vr/perception/index.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
-import type { DatasetJSON } from '../src/data/types.ts';
+import type { DatasetJSON } from '../src/data/index.ts';
 import type { VRCommand } from '../src/atlas/types.ts';
 
-describe('Architectural Invariants & Domain Boundaries', () => {
+describe('Architectural Invariants & Subsystem Boundaries (Sprint 27.1)', () => {
   const sampleDatasetJSON: DatasetJSON = {
     name: 'Invariant Test Dataset',
     columns: [
@@ -23,9 +26,47 @@ describe('Architectural Invariants & Domain Boundaries', () => {
     ],
   };
 
-  describe('Invariant 1: Atlas Analytical Authority & Boundary', () => {
+  describe('Invariant 1: Subsystem Barrel Completeness', () => {
+    it('exports all core domain classes cleanly via public barrel interfaces', () => {
+      // Atlas Subsystem
+      expect(AtlasCore).toBeDefined();
+      expect(InvestigationAggregate).toBeDefined();
+
+      // Data Subsystem
+      expect(Dataset).toBeDefined();
+      expect(AnalysisHistory).toBeDefined();
+
+      // Session Subsystem
+      expect(NemosyneSession).toBeDefined();
+      expect(InvestigationBranchManager).toBeDefined();
+
+      // Draco Subsystem
+      expect(ConstraintEngine).toBeDefined();
+      expect(VRTopologyTranslator).toBeDefined();
+      expect(PositionSemanticsEngine).toBeDefined();
+
+      // Network Subsystem
+      expect(NetworkManager).toBeDefined();
+      expect(Room).toBeDefined();
+      expect(BinaryPoseSerializer).toBeDefined();
+
+      // Study Subsystem
+      expect(StudyHarness).toBeDefined();
+      expect(Counterbalancer).toBeDefined();
+      expect(StudyStatisticalAnalyzer).toBeDefined();
+
+      // WASM Subsystem
+      expect(KernelUnavailableError).toBeDefined();
+      expect(typeof getKernelState).toBe('function');
+
+      // Perception Subsystem
+      expect(MultimodalPerceptionEngine).toBeDefined();
+    });
+  });
+
+  describe('Invariant 2: Atlas Analytical Authority & Isolation', () => {
     it('executes analysis and records immutable provenance without Three.js / DOM dependencies', () => {
-      const mockKernel = makeKernelMockBridge() as any;
+      const mockKernel = makeKernelMockBridge() as unknown as WasmRuntimeBridgeFull;
       const atlas = new AtlasCore({ kernel: mockKernel });
       const dataset = Dataset.fromJSON(sampleDatasetJSON);
       atlas.loadDataset(dataset);
@@ -33,21 +74,19 @@ describe('Architectural Invariants & Domain Boundaries', () => {
       expect(atlas.dataset).not.toBeNull();
       expect(atlas.dataset.rowCount).toBe(3);
 
-      // Apply operation
       const result = atlas.applyAnalysis({
         datasetFingerprint: atlas.datasetFingerprint ?? 'fp-mock',
         datasetVersion: atlas.datasetVersion,
         algorithmVersion: '1.0.0',
         operation: {
           op: 'filter',
-          params: { column: 'amount', predicate: { op: 'gt', value: 200 } } as any,
+          params: { column: 'amount', predicate: { op: 'gt', value: 200 } } as Record<string, unknown>,
         },
       });
 
       expect(result).toBeDefined();
       expect(result.dataset.rows.length).toBeGreaterThanOrEqual(1);
 
-      // Verify analytical state in Atlas is authoritative and independent
       expect(atlas.ledger).toHaveLength(2); // 1 load + 1 operation
       expect(atlas.results).toHaveLength(1);
     });
@@ -60,7 +99,6 @@ describe('Architectural Invariants & Domain Boundaries', () => {
       const rowsSnapshot = atlas.dataset.rows;
       expect(rowsSnapshot).toBeDefined();
 
-      // Modifying an external clone/row object does not corrupt Atlas internal state
       const externalClone = JSON.parse(JSON.stringify(rowsSnapshot));
       externalClone[0].amount = 9999999;
 
@@ -68,7 +106,28 @@ describe('Architectural Invariants & Domain Boundaries', () => {
     });
   });
 
-  describe('Invariant 2: Session Restoration Independence', () => {
+  describe('Invariant 3: Single Authoritative State & Event-Sourced Determinism', () => {
+    it('reconstructs AnalysisHistory lazily from ledger events without separate mutable state', () => {
+      const atlas = new AtlasCore();
+      atlas.loadDataset(Dataset.fromJSON(sampleDatasetJSON));
+      atlas.recordObservation('Test observation on data');
+      atlas.recordIntervention('Test intervention on data');
+
+      expect(atlas.ledger).toHaveLength(3);
+
+      const state = atlas.toState();
+      expect(state.eventLedger).toHaveLength(3);
+
+      const restoredAtlas = new AtlasCore();
+      restoredAtlas.restoreState(state);
+
+      expect(restoredAtlas.ledger).toHaveLength(3);
+      expect(restoredAtlas.ledger[1].observation).toBe('Test observation on data');
+      expect(restoredAtlas.ledger[2].intervention).toBe('Test intervention on data');
+    });
+  });
+
+  describe('Invariant 4: Session Restoration Independence', () => {
     it('serializes and deserializes session into a fresh runtime without prior World or Engine references', () => {
       const sourceAtlas = new AtlasCore();
       sourceAtlas.loadDataset(Dataset.fromJSON(sampleDatasetJSON));
@@ -88,7 +147,6 @@ describe('Architectural Invariants & Domain Boundaries', () => {
       expect(serialized.schemaVersion).toBe(2);
       expect(serialized.presentation.theme).toBe('deepNet');
 
-      // Hydrate into completely isolated, fresh instance
       const freshAtlas = new AtlasCore();
       const restoredSession = NemosyneSession.deserialize(serialized, freshAtlas);
 
@@ -99,7 +157,7 @@ describe('Architectural Invariants & Domain Boundaries', () => {
     });
   });
 
-  describe('Invariant 3: Embodiment Command Determinism', () => {
+  describe('Invariant 5: Embodiment Command Determinism', () => {
     it('records and reproduces spatial embodiment commands with full provenance tracking', () => {
       const atlas = new AtlasCore();
       atlas.loadDataset(Dataset.fromJSON(sampleDatasetJSON));
