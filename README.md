@@ -106,29 +106,36 @@ See [TEST_READY.md](./TEST_READY.md) for the current test-count breakdown.
 nemosyne/
 ├── index.html              # App entry point
 ├── package.json
-├── vite.config.js          # Vite + HTTPS dev server + signalling + UX-trace plugin
-├── vitest.config.js        # Test config
+├── vite.config.ts          # Vite + HTTPS dev server + signalling + UX-trace plugin
+├── vitest.config.ts        # Vitest configuration (100% TypeScript)
 ├── src/                    # TypeScript application source (TS-first)
 │   ├── main.ts             # Bootstraps World
-│   ├── atlas/              # Authoritative analytical-authority layer (AtlasCore + DatasetSpace)
+│   ├── atlas/              # Analytical application orchestrator (AtlasCore, investigation graph, evidence ledger)
 │   ├── data/               # Dataset (typed projection over kernel DatasetJSON), encodings, connectors, session store
-│   ├── draco/              # Constraint engine, topology translator, layout generators
-│   ├── network/            # WebRTC/WebSocket collaboration
-│   ├── session/            # NemosyneSession — authoritative logical-session substrate
-│   ├── study/              # Controlled-experiment harness
+│   ├── draco/              # Spatial strategy engine, constraint engine, topology translator, layout generators
+│   ├── network/            # Authenticated transport & WebRTC/WebSocket collaboration
+│   ├── session/            # NemosyneSession — authoritative logical-session & .nemosyne package substrate
+│   ├── study/              # Controlled-experiment research harness (treatment configs, counterbalancing, trials)
 │   ├── types/              # Shared TypeScript types
-│   ├── ui/                 # 2D DOM file loader
-│   ├── utils/              # Telemetry, performance budget, accessibility, UX frustration analyzer, object pool
-│   ├── vr/                 # Engine, World, UI panels, interactions, locomotion, input
+│   ├── ui/                 # 2D DOM file loader & desktop interface
+│   ├── utils/              # Generic utilities (typed event bus, object pools, disposers, seeded RNG)
+│   ├── vr/                 # Spatial runtime & Memory Palace (Engine, World, UI panels, locomotion, input, resilience)
+│   │   ├── animation/      # Spatial tweening & motion transitions
 │   │   ├── artifacts/      # Scene landmarks and data artefacts
-│   │   ├── audio/          # Selection feedback tones
+│   │   ├── audio/          # Selection feedback tones & spatial sound
+│   │   ├── coordinators/   # World subsystem coordinators (UI, session, tour, workspace)
+│   │   ├── input/          # Controller/hand pointer event machine & interaction router
 │   │   ├── interactions/   # Data operations and metaphor actions
-│   │   └── scalability/    # Instanced point cloud, spatial index, LOD
-│   └── wasm/               # Typed JS wrappers over the Rust/WASM kernel (RuntimeBridge)
-├── wasm/                   # Rust crate (data, draco, layouts, intent — compiled via wasm-pack)
+│   │   ├── perception/     # Multimodal perception & geometric gesture recognition
+│   │   ├── resilience/     # WebGL context recovery, diegetic error boundaries, GPU resource disposal
+│   │   ├── scalability/    # Instanced point cloud, BVH spatial index, zero-alloc math, load testing
+│   │   └── ui/             # Spatial HUD panels, dashboard, VR console, hand wheel menu
+│   └── wasm/               # Typed JS wrappers over the Rust/WASM kernel (RuntimeBridge, CommandApplier)
+├── wasm/                   # Rust crate (analytical kernel, Draco constraint solver, TDA layouts — compiled via wasm-pack)
 ├── modules/gesture-intelligence/  # Standalone, pluggable gesture classifier (heuristic + ONNX, architecturally separate)
-├── tests/                  # Vitest + E2E suite
-└── docs/                   # Project docs + GitHub Pages website + Concept Paper + Roadmap
+├── dev/                    # Spatial dev tools (ergonomics linter, 6DoF pose rig, scene inspector)
+├── tests/                  # Vitest unit + four-tier E2E test suite
+└── docs/                   # Project docs + Concept Paper + Roadmap + Study protocol
 ```
 
 ---
