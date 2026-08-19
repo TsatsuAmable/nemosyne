@@ -13,3 +13,6 @@ export type {
 
 export { ShareableSessionURL } from './ShareableSessionURL.ts';
 export type { ShareableSessionPayload } from './ShareableSessionURL.ts';
+
+export { NemosynePackageManager, NemosyneManifestSchema } from './NemosynePackage.ts';
+export type { NemosynePackageManifest, NemosynePackagePayload } from './NemosynePackage.ts';
