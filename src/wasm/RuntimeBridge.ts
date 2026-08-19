@@ -22,7 +22,7 @@ import type {
   PersistenceInterval,
   BettiPoint,
   ColumnSchema,
-} from '../data/types.js';
+} from '../data/types.ts';
 export { CapabilityFlags, type CapabilityName } from './capabilities.ts';
 
 /**

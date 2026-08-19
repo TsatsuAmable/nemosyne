@@ -6,6 +6,12 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
+- **2026-08-20 — Periodic Maintainability Audit & Cryptographic Hardening Delivery (✅):**
+  - **Single Authoritative Analytical Core & Exclusivity Governance:** Re-verified strict Rust/WASM exclusivity invariant across domain and Draco pipelines. Standardized pure TypeScript import specifiers across `RuntimeBridge.ts` and `World.ts`.
+  - **Cryptographic Hardening & Replay Prevention:** Hardened `SignedTicketVerifier` with constant-time `timingSafeEqual` comparison against side-channel timing attacks and timestamp-indexed nonce expiration eviction.
+  - **Coverage Threshold Ratchet:** Increased `vitest.config.ts` coverage thresholds to `75/75/70/60` (with measured baseline exceeding 83% stmt / 70% branch).
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 235/235 test files passed (1,522 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0 (176ms) · `npm run audit:hygiene` 8/8 dimensions passed.
+
 - **2026-08-19 — Gate 2 (Represent) Delivery Completed (Milestone ✅):**
   - **Gate 2 (Represent):** Defined formal `RepresentationRequirements` schema with `valibot` runtime validation and the widened hierarchical `SpatialStrategy` model (`macroLayout`, `datumEncoding`, `interactionStrategy`, `rejectionLog`). Implemented the deterministic `ConstraintArbiter` (`src/draco/ConstraintArbiter.ts`) selecting optimal visual strategies with machine-readable rejection explanations and integrated with `RepresentationState` and `AtlasCore`.
   - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 235/235 test files passed (1,521 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0 (170ms).

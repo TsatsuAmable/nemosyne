@@ -28,8 +28,8 @@ describe('Sprint 27.5 — Security, Input Sanitization & Network Hardening', () 
       const clean = UploadSanitizer.neutralizeObject(maliciousPayload);
 
       expect(clean.name).toBe('safe');
-      expect((clean as any).polluted).toBeUndefined();
-      expect(({} as any).polluted).toBeUndefined();
+      expect((clean as Record<string, unknown>).polluted).toBeUndefined();
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
     });
 
     it('rejects datasets with excess row or column counts', () => {
@@ -92,30 +92,51 @@ describe('Sprint 27.5 — Security, Input Sanitization & Network Hardening', () 
       expect(result.error).toContain('Invalid HMAC cryptographic signature');
     });
 
-    it('prevents replay attacks with the same nonce', async () => {
+    it('prevents replay attacks with the same nonce and selectively evicts expired nonces', async () => {
       const verifier = new SignedTicketVerifier();
       const now = Date.now();
 
-      const ticket = await SignedTicketVerifier.signTicket(
+      const ticket1 = await SignedTicketVerifier.signTicket(
         {
           version: 1,
           sessionId: SESSION_ID,
           participantId: 'user-bob-02',
           role: 'collaborator',
           issuedAt: now,
-          expiresAt: now + 300_000,
+          expiresAt: now + 10_000, // 10s expiration
           nonce: 'nonce-bob-unique-1',
         },
         SECRET
       );
 
-      const res1 = await verifier.verifyTicket(ticket, SECRET, SESSION_ID, now);
+      const ticket2 = await SignedTicketVerifier.signTicket(
+        {
+          version: 1,
+          sessionId: SESSION_ID,
+          participantId: 'user-bob-02',
+          role: 'collaborator',
+          issuedAt: now,
+          expiresAt: now + 100_000, // 100s expiration
+          nonce: 'nonce-bob-unique-2',
+        },
+        SECRET
+      );
+
+      const res1 = await verifier.verifyTicket(ticket1, SECRET, SESSION_ID, now);
       expect(res1.valid).toBe(true);
 
-      // Second replay attempt with identical nonce
-      const res2 = await verifier.verifyTicket(ticket, SECRET, SESSION_ID, now);
-      expect(res2.valid).toBe(false);
-      expect(res2.error).toContain('replay detected');
+      const res2 = await verifier.verifyTicket(ticket2, SECRET, SESSION_ID, now);
+      expect(res2.valid).toBe(true);
+      expect(verifier.activeNonceCount).toBe(2);
+
+      // Replay of ticket1 is rejected
+      const replay = await verifier.verifyTicket(ticket1, SECRET, SESSION_ID, now);
+      expect(replay.valid).toBe(false);
+      expect(replay.error).toContain('replay detected');
+
+      // Clear expired nonces at now + 20s (ticket1 expired, ticket2 active)
+      verifier.clearExpiredNonces(now + 20_000);
+      expect(verifier.activeNonceCount).toBe(1);
     });
   });
 
