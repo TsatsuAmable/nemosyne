@@ -22,12 +22,12 @@ migrating) Rust/WASM compute layer, and an experimental WebRTC collaboration lay
 - Spatial audio feedback (`SelectionFeedback`) — Web Audio selection/hover tones.
 
 ### 2. Draco Constraint Recommender & Layout — _shipped_
-- Symbolic constraint engine (`ConstraintEngine`) that recommends layout, geometry, behavior, and interaction from data topology (a Draco-style recommender, not a heavyweight optimizer).
-- 3D spatial layout generators: `Grid3D`, `ForceDirected3D`, `RadialTree` — currently computed in JS, with native WASM implementations present and under migration.
+- Symbolic constraint engine (`ConstraintEngine`) that evaluates 3,168 candidate visual specifications from dataset facts provided by `AtlasCore` (a Draco-style recommender, not a heavyweight optimizer).
+- 3D spatial layout generators: `Grid3D`, `ForceDirected3D`, `RadialTreeLayout`, `TimeSeriesRibbonLayout`, `StreamlineLayout`, `GeoSurfaceLayout` — with native WASM layout algorithms (`wasm/src/layouts/`).
 - Interactive representation carousel with diegetic weight sliders.
 
 ### 3. Data Operations & History — _shipped_
-- Pure dataset operations: filter, sort, aggregate, cluster (k-means++, DBSCAN, hierarchical), time-slice, anomaly.
+- Pure dataset operations executed in the native Rust WASM kernel: filter, sort, aggregate, cluster (k-means++, DBSCAN, hierarchical), time-slice, anomaly detection.
 - Undo/redo history stack with gesture and keyboard shortcuts.
 - Live-stream connectors (WebSocket / REST polling) feeding incremental palace updates.
 
@@ -35,31 +35,34 @@ migrating) Rust/WASM compute layer, and an experimental WebRTC collaboration lay
 - `InstancedMesh` / GPU point cloud / `SpatialIndex` / `LODManager` paths by dataset size.
 - Geometry & material object pooling (`ObjectPool`) and time-sliced batch execution to reduce load-time frame spikes.
 
-### 5. Rust / WASM Compute Layer — _experimental, in migration_
-- A Rust crate (`wasm/`) with native data parsing, operations, clustering, topology, and layout is being migrated in phases; JS fallbacks remain until each phase's capability flag is enabled.
-- **Command buffer / C-ABI hot path is planned, not yet wired** into the render loop (the `CommandApplier` and opcode definitions exist; the live per-frame command-buffer consumption is a follow-up).
+### 5. Rust / WASM Compute Layer (Analytical Kernel) — _shipped (sole analytical authority)_
+- Native Rust crate (`wasm/`) running data parsing (CSV, JSON, Arrow IPC stream), statistical profiling, clustering, anomaly detection, TDA Mapper graph synthesis, and layout simulation.
+- All analytical operations execute in WebAssembly with cryptographic provenance side-channel envelopes (`{ kernel, kernelVersion, operation, parameters, inputFingerprint, outputFingerprint, timestamp }`).
+- JS analytical fallback was completely removed; Rust is the sole analytical authority.
 
-### 6. Gesture Recognition & JIT Hints — _experimental_
-- 3D joint-trajectory gesture classifier with biomechanical auto-calibration.
-- ONNX runtime bridge is scaffolded with a **heuristic fallback** when no model asset is present; on-device weight retraining is experimental.
-- Just-in-time diegetic gesture hints.
+### 6. Gesture Recognition & JIT Hints (Analyst Cockpit) — _shipped_
+- 3D joint-trajectory gesture classifier with biomechanical auto-calibration and just-in-time hints.
+- 4-mode authoritative interaction FSM (`NAVIGATE | INTERACT | TRANSFORM | OBSERVE`).
+- 3-level radial HandWheel navigation (`ANALYSE | VIEW | DATA | STUDY | COLLABORATE | SYSTEM`) with gaze intent acquisition and pinch confirmation.
+- Ephemeral transient context cards and contextual task surfaces.
 
 ### 7. WebRTC Multi-User Collaboration — _experimental_
 - `NetworkManager` / `SignallingChannel` peer-to-peer data channels sharing camera pose and room presence (data stays local — each peer sees their own dataset).
-- Optional shared-secret token gate and duplicate-peerId rejection on the signalling server (see [GETTING_STARTED.md](./docs/GETTING_STARTED.md#shared-secret-token-optional-recommended-for-non-local-use)).
-- User-presence HUD; user-cloud-avatar scaffolding.
+- Optional shared-secret token gate and duplicate-peerId rejection on the signalling server (see [GETTING_STARTED.md](./docs/GETTING_STARTED.md)).
+- User-presence HUD radar and peer presence indicators.
 
-### 8. Topological Data Analysis — _experimental_
-- TDA mapper graph computation (JS `TDAMapper` and native WASM topology); persistence-barcode / Betti-number tooling is partial and under development.
+### 8. Topological Data Analysis — _shipped_
+- Native Rust WASM TDA kernel computing 1D Mapper graphs, 1D-persistence barcode intervals, and Betti-0 radius sample curves (`wasm/src/data/topology.rs`).
+- Diegetic world-space TDA canvas panels (`TDAPlanes.ts`).
 
 ---
 
 ## Technical Quality
 
-- **Type safety**: full TypeScript (`tsc --noEmit` → 0 errors).
-- **Tests**: Vitest + E2E suite, **1191 pass / 9 skip** — see [TEST_READY.md](./TEST_READY.md) for the current breakdown.
-- **CI**: GitHub Actions matrix (Node 24, active LTS); lint is a required gate; `npm run build` must pass.
-- **Rust unit tests**: `cargo test --manifest-path wasm/Cargo.toml` (28 tests).
+- **Type safety**: 100% Pure TypeScript (`tsc --noEmit` → 0 errors; `@typescript-eslint/no-explicit-any` enforced as error in `src/`).
+- **Tests**: Vitest suite with 217 test files and 1,446 passing tests.
+- **CI**: GitHub Actions matrix; lint is a blocking gate; `npm run build` must pass.
+- **Rust unit tests**: `cargo test --manifest-path wasm/Cargo.toml` (85 unit tests passing).
 
 ---
 

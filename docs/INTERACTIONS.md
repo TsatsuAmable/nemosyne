@@ -66,7 +66,7 @@ The recognizer is used by `World._updateGestures()`; the resulting intent is han
 
 ## Analysis History & Undo/Redo
 
-Every data operation is recorded in an `AnalysisHistory` stack (`src/data/AnalysisHistory.js`). Each frame stores:
+Every data operation is recorded in an `AnalysisHistory` stack (`src/data/AnalysisHistory.ts`). Each frame stores:
 
 - `operation` — the command name (e.g. `filter`, `sort`, `aggregate`).
 - `datasetBefore` / `datasetAfter` — deep clones of the dataset on each side of the operation.

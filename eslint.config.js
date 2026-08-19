@@ -34,7 +34,7 @@ export default [
     },
   },
   {
-    files: ['src/**/*.ts', 'tests/**/*.ts'],
+    files: ['src/**/*.ts', 'tests/**/*.ts', 'dev/**/*.ts', 'vite.config.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {

@@ -1,6 +1,8 @@
 # Nemosyne Artefact Taxonomy
 
-Nemosyne maps data topologies to a family of VR artefacts. Each artefact is chosen by the Draco-style constraint recommender based on the shape of the data.
+> **Architectural Boundary (Principle P5):** Rendering primitives (Crystal, Plinth, Orb, Beam, Column, Trail) are implementation details and transient visual projections synthesized by `VRTopologyTranslator`. They must never become semantic authorities or data identifiers. The canonical semantic model lives in the `Investigation` domain aggregate.
+
+Nemosyne maps data topologies to a family of VR artefacts. Each artefact is chosen by the Draco-style constraint recommender based on the shape of the data and analytical requirements.
 
 ---
 

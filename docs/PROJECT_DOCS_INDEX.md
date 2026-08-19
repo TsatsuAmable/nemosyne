@@ -15,21 +15,26 @@ context only and never override the authorities below.
 This layer covers the shipped product, roadmap state, architecture, and engineering decisions.
 
 Canonical files:
-- [ROADMAP.md](ROADMAP.md) — implementation status; explicitly crosswalked to the vision's Gate 0–7
-  model (see its "Gate model — alignment to the Definitive Vision" section).
+- [ROADMAP.md](ROADMAP.md) — implementation status; structured around the vision's Gate 0–7 model and public testing sprints.
+- [DEVELOPER_EXPLAINER.md](DEVELOPER_EXPLAINER.md) — developer onboarding, codebase mental model, data lifecycle, Rust/WASM ABI, and cookbooks.
+- [ARCHITECTURE.md](ARCHITECTURE.md) — modular subsystems reference, semantic ownership, and boundaries.
+- [STANDARDIZATION_REVIEW.md](STANDARDIZATION_REVIEW.md) — comprehensive open-source standardization audit, library replacements, and reduction of custom maintenance footprint.
+- [OSS_MIGRATION_PROPOSAL.md](OSS_MIGRATION_PROPOSAL.md) — open-source library adoption plan to reduce maintenance footprint.
 - [MIGRATION.md](MIGRATION.md)
-- [ARCHITECTURE.md](ARCHITECTURE.md) — technical reference (layer-by-layer data flow).
 - [STATISTICAL_METHOD_REGISTER.md](STATISTICAL_METHOD_REGISTER.md)
 - [GETTING_STARTED.md](GETTING_STARTED.md)
 - [README.md](../README.md)
 
 Use this layer to answer:
 - What is implemented?
+- How does the system work under the hood?
 - What is active, planned, blocked, or deferred?
 - What is the engineering state of the codebase?
 
 Historical context:
-- [Roadmap history](archive/ROADMAP_HISTORY.md) — completed and superseded phases only; not an active status source
+- [Roadmap history](archive/ROADMAP_HISTORY.md) — completed and superseded phases index
+- [Phases 21–26 completed archive](archive/ROADMAP_PHASES_21-26_COMPLETED.md)
+- [Phases 1–20 completed archive](archive/ROADMAP_PHASES_1-20_COMPLETED.md)
 
 ## 2. Study protocol and research governance
 This layer covers the design of a controlled study, including hypotheses, confounds, equivalence, and analysis rules.

@@ -39,26 +39,29 @@ target and the [Roadmap](./docs/ROADMAP.md) tracks progress.
 
 ### What has been done
 
-- **Phases 1–20 (archived):** the foundational runtime is complete — three.js/WebXR engine, Draco constraint recommender, artefact taxonomy, multi-modal input, live connectors, statistical aids, atmosphere layer, CSV/Arrow ingestion, session persistence, WebRTC collaboration, voice/NL query, architectural hardening, and a 90 FPS adaptive frame governor. See [`docs/archive/ROADMAP_PHASES_1-20_COMPLETED.md`](./docs/archive/ROADMAP_PHASES_1-20_COMPLETED.md) for the per-sprint record.
-- **Rust/WASM analytical kernel (Phase 21, in progress):** the TypeScript analytical layer is removed; the Rust kernel is the sole analytical engine. Data parsing, operations, statistics, topology/encoding inference, TDA, the Draco constraint solver, NL intent compilation, and 3D layout simulation run in Rust; every result carries a provenance envelope. JS keeps WebXR pose polling, rendering, and input.
-- **UX V2.0 (Phase 22, in progress):** low-strain spatial interface, accessibility, input-correctness, security/WASM robustness, GPU lifecycle hygiene, and a UX telemetry inventory that ties qualitative experience to measurable phenomena (UX-001..UX-012).
-- **Standalone gesture intelligence:** `modules/gesture-intelligence/` ships a frozen 56-dim feature vector, heuristic + ONNX classifier with honest provenance, on-device personalization, and a capture→train→deploy pipeline. Architecturally separate — not yet wired into the host.
+- **Phases 1–26 (archived):** Complete foundational runtime, Rust/WASM analytical kernel (v0.2.0), mandatory WASM cutover, AtlasCore single analytical authority, pure fact-consumer Draco solver, standalone gesture intelligence, Phase 24 Analyst Cockpit (4-mode interaction FSM, forgiving HandWheel, contextual surfaces), Quest 3S hardware envelope validation, and empirical study recommender tuning. See [`docs/archive/ROADMAP_PHASES_21-26_COMPLETED.md`](./docs/archive/ROADMAP_PHASES_21-26_COMPLETED.md) and [`docs/archive/ROADMAP_PHASES_1-20_COMPLETED.md`](./docs/archive/ROADMAP_PHASES_1-20_COMPLETED.md).
+- **Definitive Gate Model (Gates 0–7):** The active roadmap is organized around the 8 architectural gates defined in the governing specification: Gate 0 (Foundations) → Gate 1 (Understand) → Gate 2 (Represent) → Gate 3 (Experience) → Gate 4 (Investigate) → Gate 5 (Reproduce) → Gate 6 (Study) → Gate 7 (Adaptive Research).
+- **Limited Public Testing Release Sprints:** Current active work focuses on modular subsystem boundaries, open-source library adoption (`zod`, `fflate`, `three-mesh-bvh`), crash resilience, and frame-budget reliability.
 
 ### What the Definitive Vision proposes
 
-Nemosyne explores whether analytical understanding can be constructed as a **persistent spatial artefact**. The Stable Alpha target is the smallest reliable research instrument capable of running a defined **2D-versus-VR `Find the Fraud`** study — not a claim that VR is superior (the paper explicitly does not assume that).
+Nemosyne explores whether analytical understanding can be constructed as a **persistent spatial artefact**. The primary product entity is the **Investigation** (not the dataset, session, or scene), which preserves the entire analytical reasoning chain, observations, findings, decisions, and representations with cryptographic provenance.
 
 The target architecture:
 
-```
-DATASET → Rust Analytical Kernel → Atlas (state/guidance/provenance)
-       → Draco v1 (whole-dataset spatial embodiment) → Memory Palace (replayable)
-       ↑ Perception / ML (optional; on-device, never mutates authoritative state)
+```text
+DATASET → Rust Analytical Kernel (Computational Authority)
+        → Investigation (Semantic Spine & Meaning)
+        → Atlas (Application Orchestration & Constraints)
+        → Draco (Explainable SpatialStrategy Selection)
+        → Spatial Runtime & Memory Palace (WebXR 3D Projection)
+        ↑ Perception / Gestures (Observational Only)
+        ↑ Research Harness (2D vs VR Treatment Boundary)
 ```
 
-Governing principles: evidence before architecture; whole-dataset embodiment; separate computation, reasoning, embodiment, and perception; explainable automation; semantic honesty; 2D as a legitimate partner; human agency and reversibility; research observability by design; privacy by minimization; stable means testable, not proven.
+Governing principles: Rust as sole analytical authority; Investigation owns meaning; Draco consumes facts; rendering primitives are not authorities; 2D as a legitimate partner; explainable automation; progressive disclosure; and reproducible investigations.
 
-See [`docs/Nemosyne_Definitive_Vision_and_Roadmap.md`](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) for the full governing spec and [`docs/ROADMAP.md`](./docs/ROADMAP.md) for active and proposed work (Phase 23: gesture-intelligence host integration + global model improvement; Phase 24: UX architecture — analyst cockpit & interaction hierarchy).
+See [`docs/Nemosyne_Definitive_Vision_and_Roadmap.md`](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) for the governing specification, [`docs/DEVELOPER_EXPLAINER.md`](./docs/DEVELOPER_EXPLAINER.md) for the developer onboarding guide, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) for active implementation gates.
 
 ---
 
@@ -133,12 +136,16 @@ nemosyne/
 ## Documentation
 
 - [Definitive Vision and Roadmap](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) — the governing spec (target architecture, principles, Gate 0–7 model, Stable Alpha definition).
-- [Roadmap](./docs/ROADMAP.md) — current status + Phases 21–24 + Atlas V5 (Phases 1–20 archived).
+- [Developer Guide & Explainer](./docs/DEVELOPER_EXPLAINER.md) — codebase mental model, data lifecycle, Rust/WASM ABI, and cookbooks.
+- [Roadmap](./docs/ROADMAP.md) — implementation status & Gate 0–7 deliverables (Phases 1–26 archived).
+- [Technical Architecture](./docs/ARCHITECTURE.md) — modular subsystems specification & boundaries.
+- [Open Source Standardization Review](./docs/STANDARDIZATION_REVIEW.md) — comprehensive open-source library evaluation and maintenance footprint reduction.
+- [Open Source Migration Proposal](./docs/OSS_MIGRATION_PROPOSAL.md) — open-source adoption to reduce maintenance footprint.
 - [Getting Started](./docs/GETTING_STARTED.md)
-- [Architecture](./docs/ARCHITECTURE.md)
+- [Codebase Wiki](./docs/WIKI.md)
+- [Error Register](./docs/ERROR_REGISTER.md)
 - [Features](./FEATURES.md)
 - [Artefacts](./docs/ARTEFACTS.md)
-- [Design System](./docs/DESIGN_SYSTEM.md)
 - [Test Readiness](./TEST_READY.md)
 
 ---

@@ -52,11 +52,10 @@ Decision: **Keep, Archive, or Move to `docs/study/`?**
   - [ ] **Defer to Phase 23** (move deadline)
 - [ ] Update `docs/study/version.json` if changes made
 
-### Step 6: Sync Website & HTML (30 min)
-- [ ] Run `npm run docs` or equivalent build command
-- [ ] Verify all `.html` files in `docs/` are regenerated
-- [ ] Spot-check 2–3 pages: `docs/ROADMAP.html`, `docs/GETTING_STARTED.html`
-- [ ] If HTML doesn't match `.md` rendering, troubleshoot `build-html.mjs`
+### Step 6: Sync Landing Page (`docs/index.html`) (15 min)
+- [ ] Check links in `docs/index.html` (navbar, CTA buttons, footer)
+- [ ] Verify that links to `DEVELOPER_EXPLAINER.md`, `ARCHITECTURE.md`, `ROADMAP.md`, and `Nemosyne_Definitive_Vision_and_Roadmap.md` resolve correctly
+- [ ] Ensure aesthetic design and responsive styling remain intact
 
 ### Step 7: Create Refresh Checklist (1 hour, post-phase)
 If docs need refresh:
