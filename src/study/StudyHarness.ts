@@ -7,7 +7,8 @@
  * Emits complete trial outcome records for statistical analysis and hypothesis testing.
  */
 
-export type StudyCondition = '2D_CONTROL' | 'VR_EXPERIMENTAL';
+import type { StudyCondition } from './types.ts';
+export type { StudyCondition };
 
 export interface StudyTrialSpec {
   trialId: string;
@@ -78,3 +79,6 @@ export class StudyTrialExecutionHarness {
     return record;
   }
 }
+
+export const StudyHarness = StudyTrialExecutionHarness;
+

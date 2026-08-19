@@ -5,6 +5,12 @@ Compact ramp-up notes for OpenCode/agent sessions. The authoritative deep-dive i
 (live project state — read its top block first on pickup). This file only captures
 things an agent would otherwise guess wrong.
 
+## Cardinal Rules (Mandatory)
+
+1. **Vision Alignment Governance**: All development instructions, architectures, and features must strictly align with `docs/Nemosyne_Definitive_Vision_and_Roadmap.md`. Any potential drift, deviation, or architectural alternative must be explicitly flagged and approved by the user before proceeding to implementation.
+2. **Feature Branch & PR Discipline**: Never push directly to `main`. Always develop on dedicated feature/fix branches, pass the full CI verification gate, push to origin, and raise a Pull Request.
+3. **Rust/WASM Analytical Exclusivity**: Rust/WASM is the sole and exclusive analytical authority. No quiet JavaScript analytical fallbacks are permitted. When the kernel is unready, the system transitions to an explicit `KernelUnavailable` state.
+
 ## Commands (exact)
 
 ```bash
