@@ -141,11 +141,7 @@ export class SelectionDispatcher {
     if (targetId !== this._dwellTarget) {
       if (this._dwellTarget && this._dwellStartTime > 0) {
         const duration = Date.now() - this._dwellStartTime;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (typeof (this.registry as any)?.engine?.telemetry?.recordDwell === 'function') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (this.registry as any).engine.telemetry.recordDwell(this._dwellTarget, duration, false);
-        }
+        this.registry.engine?.telemetry?.recordDwell?.(this._dwellTarget, duration, false);
       }
 
       this._dwellTarget = targetId;
@@ -155,12 +151,8 @@ export class SelectionDispatcher {
 
       const dwellTarget = target;
       this._dwellTimer = setTimeout(() => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (typeof (this.registry as any)?.engine?.telemetry?.recordDwell === 'function') {
-          const duration = Date.now() - this._dwellStartTime;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (this.registry as any).engine.telemetry.recordDwell(targetId, duration, true);
-        }
+        const duration = Date.now() - this._dwellStartTime;
+        this.registry.engine?.telemetry?.recordDwell?.(targetId, duration, true);
         if (dwellTarget.type === 'panel') {
           dwellTarget.value.handlePointerDown?.(this.registry.raycaster, activePointer);
         } else if (dwellTarget.value.onSelect) {

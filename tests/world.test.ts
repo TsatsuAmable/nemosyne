@@ -185,7 +185,7 @@ describe('World integration', () => {
     expect(world.diagnostic).toBeInstanceOf(DracoDiagnosticHUD);
 
     const panels = world.engine.input.panels;
-    expect(panels).toContain(world.telemetryPanel);
+    expect(panels).toContain(world.uiManager.telemetryPanel);
     expect(panels).toContain(world.diagnostic);
 
     const interactableMeshes = world.engine.input.interactables.map((i) => i.mesh);
@@ -279,22 +279,22 @@ describe('World integration', () => {
     world = new World(); wireKernel(world);
 
     expect(typeof world.engine.input.onSystemToggle).toBe('function');
-    expect(world.panelManager.isLauncherVisible()).toBe(false);
+    expect(world.uiManager.panelManager.isLauncherVisible()).toBe(false);
 
     world.engine.input.onSystemToggle();
-    expect(world.panelManager.isLauncherVisible()).toBe(true);
+    expect(world.uiManager.panelManager.isLauncherVisible()).toBe(true);
 
     world.engine.input.onSystemToggle();
-    expect(world.panelManager.isLauncherVisible()).toBe(false);
+    expect(world.uiManager.panelManager.isLauncherVisible()).toBe(false);
   });
 
   it('creates and registers a hand-attached wheel menu', () => {
     world = new World(); wireKernel(world);
 
-    expect(world.handWheelMenu).toBeTruthy();
-    expect(world.handWheelMenu.engine).toBe(world.engine);
-    expect(world.engine.input.handWheelMenu).toBe(world.handWheelMenu);
-    expect(world.handWheelMenu._categories.length).toBeGreaterThan(0);
+    expect(world.uiManager.handWheelMenu).toBeTruthy();
+    expect(world.uiManager.handWheelMenu.engine).toBe(world.engine);
+    expect(world.engine.input.handWheelMenu).toBe(world.uiManager.handWheelMenu);
+    expect(world.uiManager.handWheelMenu._categories.length).toBeGreaterThan(0);
   });
 
   it('cycles datasets through the hand wheel action', () => {
@@ -312,21 +312,21 @@ describe('World integration', () => {
 
   it('toggles individual panels via PanelManager', () => {
     world = new World(); wireKernel(world);
-    const panel = world.telemetryPanel;
+    const panel = world.uiManager.telemetryPanel;
 
     expect(panel.mesh.visible).toBe(true);
-    world.panelManager.hidePanel(panel);
+    world.uiManager.panelManager.hidePanel(panel);
     expect(panel.mesh.visible).toBe(false);
 
-    world.panelManager.showPanel(panel);
+    world.uiManager.panelManager.showPanel(panel);
     expect(panel.mesh.visible).toBe(true);
   });
 
   it('creates a spatial dashboard with chart panels', () => {
     world = new World(); wireKernel(world);
 
-    expect(world.dashboard).toBeTruthy();
-    expect(world.engine.updatables).toContain(world.dashboard);
+    expect(world.uiManager.dashboard).toBeTruthy();
+    expect(world.engine.updatables).toContain(world.uiManager.dashboard);
     expect(world.dashboardPanels.length).toBeGreaterThan(0);
     for (const entry of world.dashboardPanels) {
       expect(world.engine.input.panels).toContain(entry.panel);
@@ -343,7 +343,7 @@ describe('World integration', () => {
   it('includes a reset dashboard action in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
 
-    const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
+    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
     expect(panelsCategory).toBeTruthy();
     const resetAction = panelsCategory.items.find((i) => i.id === 'reset-dashboard');
     expect(resetAction).toBeTruthy();
@@ -353,15 +353,15 @@ describe('World integration', () => {
   it('creates a semicircle dashboard by default', () => {
     world = new World(); wireKernel(world);
 
-    expect(world.dashboard.layoutMode).toBe('semicircle');
-    expect(world.dashboard.columns).toBeGreaterThan(world.dashboard.visibleColumns);
-    expect(world.dashboard.radius).toBeGreaterThan(1);
+    expect(world.uiManager.dashboard.layoutMode).toBe('semicircle');
+    expect(world.uiManager.dashboard.columns).toBeGreaterThan(world.uiManager.dashboard.visibleColumns);
+    expect(world.uiManager.dashboard.radius).toBeGreaterThan(1);
   });
 
   it('includes scroll dashboard actions in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
 
-    const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
+    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
     expect(panelsCategory).toBeTruthy();
     const leftAction = panelsCategory.items.find((i) => i.id === 'scroll-dashboard-left');
     const rightAction = panelsCategory.items.find((i) => i.id === 'scroll-dashboard-right');
@@ -370,9 +370,9 @@ describe('World integration', () => {
     expect(typeof leftAction.callback).toBe('function');
     expect(typeof rightAction.callback).toBe('function');
 
-    const before = world.dashboard.targetScrollOffset;
+    const before = world.uiManager.dashboard.targetScrollOffset;
     rightAction.callback();
-    expect(world.dashboard.targetScrollOffset).toBeGreaterThan(before);
+    expect(world.uiManager.dashboard.targetScrollOffset).toBeGreaterThan(before);
   });
 
   it('applies a theme preset when loading a dataset by key', () => {
@@ -388,7 +388,7 @@ describe('World integration', () => {
     world = new World(); wireKernel(world);
     const startPreset = world.engine.theme.currentPreset;
 
-    const viewsCategory = world.handWheelMenu._categories.find((c) => c.id === 'views');
+    const viewsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'views');
     const cycleAction = viewsCategory.items.find((i) => i.id === 'cycle-theme');
     expect(cycleAction).toBeTruthy();
 
@@ -484,15 +484,15 @@ describe('World integration', () => {
 
   it('parents HUD managers to the analyst anchor', () => {
     world = new World(); wireKernel(world);
-    expect(world.panelManager._launcherGroup.parent).toBe(world.analystAnchor);
-    expect(world.dashboard.wallGroup.parent).toBe(world.analystAnchor);
-    expect(world.handWheelMenu.group.parent).toBe(world.analystAnchor);
+    expect(world.uiManager.panelManager._launcherGroup.parent).toBe(world.analystAnchor);
+    expect(world.uiManager.dashboard.wallGroup.parent).toBe(world.analystAnchor);
+    expect(world.uiManager.handWheelMenu.group.parent).toBe(world.analystAnchor);
   });
 
   it('includes flight mode actions in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
 
-    const viewsCategory = world.handWheelMenu._categories.find((c) => c.id === 'views');
+    const viewsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'views');
     expect(viewsCategory).toBeTruthy();
     const toggleAction = viewsCategory.items.find((i) => i.id === 'toggle-flight');
     const dropAction = viewsCategory.items.find((i) => i.id === 'drop-to-floor');
@@ -598,8 +598,8 @@ describe('World integration', () => {
     world.applyDataOperation('filter');
 
     // Move a free-floating HUD panel so we can verify its position is persisted.
-    world.panelManager.showPanel(world.metricsPanel);
-    world.metricsPanel.mesh.position.set(0.5, 1.2, -0.8);
+    world.uiManager.panelManager.showPanel(world.uiManager.metricsPanel);
+    world.uiManager.metricsPanel.mesh.position.set(0.5, 1.2, -0.8);
     world.engine.cameraGroup.updateMatrixWorld(true);
 
     await world.saveSession('test');
@@ -615,11 +615,11 @@ describe('World integration', () => {
     expect(restoredWorld.analysisHistory.length).toBeGreaterThan(0);
 
     // Free-floating panel pose and visibility should have been restored.
-    expect(restoredWorld.metricsPanel.mesh.position.x).toBeCloseTo(0.5, 2);
-    expect(restoredWorld.metricsPanel.mesh.position.y).toBeCloseTo(1.2, 2);
-    expect(restoredWorld.metricsPanel.mesh.position.z).toBeCloseTo(-0.8, 2);
-    expect(restoredWorld.metricsPanel.mesh.visible).toBe(true);
-    const savedMetrics = restoredWorld.panelManager
+    expect(restoredWorld.uiManager.metricsPanel.mesh.position.x).toBeCloseTo(0.5, 2);
+    expect(restoredWorld.uiManager.metricsPanel.mesh.position.y).toBeCloseTo(1.2, 2);
+    expect(restoredWorld.uiManager.metricsPanel.mesh.position.z).toBeCloseTo(-0.8, 2);
+    expect(restoredWorld.uiManager.metricsPanel.mesh.visible).toBe(true);
+    const savedMetrics = restoredWorld.uiManager.panelManager
       .getPanelPositions()
       .find((p) => p.title === 'TELEMETRY');
     expect(savedMetrics?.visible).toBe(true);
@@ -651,8 +651,8 @@ describe('World integration', () => {
 
     // 4) Spatial state — camera pose + a free-floating panel.
     world.engine.cameraGroup.position.set(2.5, 1.75, -4.25);
-    world.panelManager.showPanel(world.metricsPanel);
-    world.metricsPanel.mesh.position.set(0.5, 1.2, -0.8);
+    world.uiManager.panelManager.showPanel(world.uiManager.metricsPanel);
+    world.uiManager.metricsPanel.mesh.position.set(0.5, 1.2, -0.8);
     world.engine.cameraGroup.updateMatrixWorld(true);
 
     const savedStructureIds = world.atlas.structures
@@ -706,7 +706,7 @@ describe('World integration', () => {
 
     // Spatial state restored.
     expect(restoredWorld.engine.cameraGroup.position.toArray()).toEqual([2.5, 1.75, -4.25]);
-    const restoredMetrics = restoredWorld.panelManager
+    const restoredMetrics = restoredWorld.uiManager.panelManager
       .getPanelPositions()
       .find((p) => p.title === 'TELEMETRY');
     expect(restoredMetrics?.visible).toBe(true);
@@ -748,7 +748,7 @@ describe('World integration', () => {
 
   it('includes export and operation log actions in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
-    const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
+    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
     expect(panelsCategory).toBeTruthy();
     expect(panelsCategory.items.find((i) => i.id === 'operation-log')).toBeTruthy();
     expect(panelsCategory.items.find((i) => i.id === 'export-screenshot')).toBeTruthy();
@@ -757,19 +757,19 @@ describe('World integration', () => {
 
   it('toggles the operation log panel from the hand wheel menu', () => {
     world = new World(); wireKernel(world);
-    expect(world.operationLogPanel).toBeInstanceOf(OperationLogPanel);
-    expect(world.operationLogPanel.mesh.visible).toBe(false);
+    expect(world.uiManager.operationLogPanel).toBeInstanceOf(OperationLogPanel);
+    expect(world.uiManager.operationLogPanel.mesh.visible).toBe(false);
 
-    const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
+    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
     const action = panelsCategory.items.find((i) => i.id === 'operation-log');
     action.callback();
 
-    expect(world.operationLogPanel.mesh.visible).toBe(true);
+    expect(world.uiManager.operationLogPanel.mesh.visible).toBe(true);
   });
 
   it('updates the operation log panel when operations are applied', () => {
     world = new World(); wireKernel(world);
-    const setEntriesSpy = vi.spyOn(world.operationLogPanel, 'setEntries');
+    const setEntriesSpy = vi.spyOn(world.uiManager.operationLogPanel, 'setEntries');
 
     world.applyDataOperation('filter');
 
@@ -781,7 +781,7 @@ describe('World integration', () => {
 
   it('includes a telemetry action in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
-    const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
+    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
     expect(panelsCategory).toBeTruthy();
     const action = panelsCategory.items.find((i) => i.id === 'telemetry');
     expect(action).toBeTruthy();
@@ -790,13 +790,13 @@ describe('World integration', () => {
 
   it('toggles the telemetry metrics panel from the hand wheel menu', () => {
     world = new World(); wireKernel(world);
-    expect(world.metricsPanel.mesh.visible).toBe(false);
+    expect(world.uiManager.metricsPanel.mesh.visible).toBe(false);
 
-    const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
+    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
     const action = panelsCategory.items.find((i) => i.id === 'telemetry');
     action.callback();
 
-    expect(world.metricsPanel.mesh.visible).toBe(true);
+    expect(world.uiManager.metricsPanel.mesh.visible).toBe(true);
   });
 
   it('records operations in telemetry when enabled', () => {
@@ -848,7 +848,7 @@ describe('World integration', () => {
   it('includes collaboration actions in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
 
-    const collabCategory = world.handWheelMenu._categories.find((c) => c.id === 'collab');
+    const collabCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'collab');
     expect(collabCategory).toBeTruthy();
     expect(collabCategory.items.find((i) => i.id === 'collab-toggle')).toBeTruthy();
     expect(collabCategory.items.find((i) => i.id === 'collab-panel')).toBeTruthy();
@@ -862,7 +862,7 @@ describe('World integration', () => {
 
     try {
       world = new World(); wireKernel(world);
-      const collabCategory = world.handWheelMenu._categories.find((c) => c.id === 'collab');
+      const collabCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'collab');
       const joinAction = collabCategory.items.find((i) => i.id === 'collab-toggle');
 
       const connectPromise = world._joinCollaborationRoom('test-room');
@@ -870,12 +870,12 @@ describe('World integration', () => {
       await connectPromise;
 
       expect(world.networkManager.isConnected).toBe(true);
-      expect(world.networkPanel.status.roomId).toBe('test-room');
-      expect(world.networkPanel.status.connected).toBe(true);
+      expect(world.uiManager.networkPanel.status.roomId).toBe('test-room');
+      expect(world.uiManager.networkPanel.status.connected).toBe(true);
 
       joinAction.callback();
       expect(world.networkManager).toBeNull();
-      expect(world.networkPanel.status.connected).toBe(false);
+      expect(world.uiManager.networkPanel.status.connected).toBe(false);
     } finally {
       globalThis.WebSocket = originalWebSocket;
       globalThis.RTCPeerConnection = originalRTCPeerConnection;
@@ -884,13 +884,13 @@ describe('World integration', () => {
 
   it('toggles the collaboration network panel from the wheel menu', () => {
     world = new World(); wireKernel(world);
-    expect(world.networkPanel.mesh.visible).toBe(false);
+    expect(world.uiManager.networkPanel.mesh.visible).toBe(false);
 
-    const collabCategory = world.handWheelMenu._categories.find((c) => c.id === 'collab');
+    const collabCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'collab');
     const action = collabCategory.items.find((i) => i.id === 'collab-panel');
     action.callback();
 
-    expect(world.networkPanel.mesh.visible).toBe(true);
+    expect(world.uiManager.networkPanel.mesh.visible).toBe(true);
   });
 
   it('broadcasts camera presence when connected', async () => {
@@ -939,7 +939,7 @@ describe('World integration', () => {
 
     try {
       world = new World(); wireKernel(world);
-      world.settingsPanel.setSetting('collabEnabled', true);
+      world.uiManager.settingsPanel.setSetting('collabEnabled', true);
 
       const connected = new Promise((resolve) => {
         world.networkManager.addEventListener('connected', resolve);
@@ -958,23 +958,23 @@ describe('World integration', () => {
 
   it('creates an interaction coach panel', () => {
     world = new World(); wireKernel(world);
-    expect(world.interactionCoach).toBeTruthy();
-    expect(world.panelManager.panels).toContain(world.interactionCoach);
-    expect(world.interactionCoach.mesh.visible).toBe(false);
+    expect(world.uiManager.interactionCoach).toBeTruthy();
+    expect(world.uiManager.panelManager.panels).toContain(world.uiManager.interactionCoach);
+    expect(world.uiManager.interactionCoach.mesh.visible).toBe(false);
   });
 
   it('includes an interaction coach action in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
-    const panelsCategory = world.handWheelMenu._categories.find((c) => c.id === 'panels');
+    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
     const action = panelsCategory.items.find((i) => i.id === 'interaction-coach');
     expect(action).toBeTruthy();
     action.callback();
-    expect(world.interactionCoach.mesh.visible).toBe(true);
+    expect(world.uiManager.interactionCoach.mesh.visible).toBe(true);
   });
 
   it('logs gestures to the interaction coach', () => {
     world = new World(); wireKernel(world);
-    const logSpy = vi.spyOn(world.interactionCoach, 'log');
+    const logSpy = vi.spyOn(world.uiManager.interactionCoach, 'log');
 
     world._onGesture('pinchTogether');
 
@@ -986,7 +986,7 @@ describe('World integration', () => {
 
   it('logs controller gesture context when source is controller', () => {
     world = new World(); wireKernel(world);
-    const logSpy = vi.spyOn(world.interactionCoach, 'log');
+    const logSpy = vi.spyOn(world.uiManager.interactionCoach, 'log');
 
     world._onGesture('rotateCW', { source: 'controller', button: 'B' });
 
@@ -997,7 +997,7 @@ describe('World integration', () => {
 
   it('logs data operations to the interaction coach', () => {
     world = new World(); wireKernel(world);
-    const logSpy = vi.spyOn(world.interactionCoach, 'log');
+    const logSpy = vi.spyOn(world.uiManager.interactionCoach, 'log');
 
     world.applyDataOperation('filter');
 
@@ -1008,7 +1008,7 @@ describe('World integration', () => {
 
   it('logs the launcher toggle to the interaction coach', () => {
     world = new World(); wireKernel(world);
-    const logSpy = vi.spyOn(world.interactionCoach, 'log');
+    const logSpy = vi.spyOn(world.uiManager.interactionCoach, 'log');
 
     world._togglePanels();
 

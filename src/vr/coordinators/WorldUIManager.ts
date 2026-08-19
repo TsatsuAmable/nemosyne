@@ -29,10 +29,8 @@ import type { WorldEventBusLike } from './types.ts';
 import type {
   AccessibilityOptions,
   HandLike,
-  HandWheelMenuLike,
   LooseOptions,
   PanelLike,
-  PanelManagerLike,
   PerformanceBudgetLike,
   TelemetryCollectorLike,
   WheelMenuCategory,
@@ -49,18 +47,18 @@ export class WorldUIManager {
   telemetryPanel: InputTelemetry;
   vrConsole: VRConsole;
   vrMenu: VRMenu;
-  panelManager: PanelManagerLike;
+  panelManager: PanelManager;
   miniOverview: MiniOverview;
   peerPresenceHUD: PeerPresenceHUD;
   dashboard: DashboardManager;
-  handWheelMenu: HandWheelMenuLike;
-  settingsPanel: PanelLike;
-  operationLogPanel: PanelLike;
+  handWheelMenu: HandWheelMenu;
+  settingsPanel: SettingsPanel;
+  operationLogPanel: OperationLogPanel;
   metricsPanel: TelemetryPanel;
   performancePanel: PerformancePanel;
   networkPanel: NetworkPanel;
-  interactionCoach: PanelLike;
-  narrativeStrip: PanelLike;
+  interactionCoach: InteractionCoach;
+  narrativeStrip: NarrativeStrip;
   loadTestPanel: LoadTestPanel;
   recommendationPanel: RecommendationPanel;
   dracoExplainerPanel: DracoExplainerPanel;

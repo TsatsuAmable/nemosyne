@@ -12,9 +12,11 @@ export interface TourTarget {
 export interface GuidedTourEngine {
   cameraGroup: THREE.Group;
   input?: { feedback?: FeedbackLike };
+  sceneComposer?: { analystAnchor?: THREE.Group };
 }
 
 export interface GuidedTourOptions {
+  analystAnchor?: THREE.Group | THREE.Object3D | null;
   tour?: Tour | null;
   feedback?: FeedbackLike | null;
   onComplete?: () => void;
@@ -85,8 +87,7 @@ export class GuidedTour {
 
     this._cardGroup = new THREE.Group();
     this._cardGroup.visible = false;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const parent = (options as any)?.analystAnchor ?? (engine as any)?.sceneComposer?.analystAnchor ?? this.cameraGroup;
+    const parent = options.analystAnchor ?? this.engine.sceneComposer?.analystAnchor ?? this.cameraGroup;
     if (parent) parent.add(this._cardGroup);
 
     this._cardCanvas = document.createElement('canvas');

@@ -40,6 +40,11 @@ export class InteractableRegistry {
 
   hovered: InteractableEntry | null = null;
   suppressSceneSelection = false;
+  engine?: {
+    telemetry?: {
+      recordDwell?(target: string, duration: number, completed: boolean): void;
+    };
+  };
 
   constructor() {
     this.raycaster = new THREE.Raycaster();

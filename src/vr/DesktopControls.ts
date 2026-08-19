@@ -152,18 +152,14 @@ export class DesktopControls {
       }
     }
     if (e.code === 'KeyM' || e.code === 'KeyL' || e.code === 'Backquote') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.engine as any).uiManager?.handWheelMenu?.toggle?.();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.engine as any).uiManager?.panelManager?.toggleLauncher?.();
+      this.engine.uiManager?.handWheelMenu?.toggle?.();
+      this.engine.uiManager?.panelManager?.toggleLauncher?.();
     }
     if (e.code === 'KeyN' || e.code === 'ArrowRight') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.engine as any).guidedTour?.next?.();
+      this.engine.guidedTour?.next?.();
     }
     if (e.code === 'KeyB' || e.code === 'ArrowLeft') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.engine as any).guidedTour?.previous?.();
+      this.engine.guidedTour?.previous?.();
     }
 
     // Desktop undo/redo shortcuts.

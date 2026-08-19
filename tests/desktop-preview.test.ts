@@ -101,7 +101,7 @@ describe('Desktop preview and shared settings', () => {
   });
 
   it('toggles desktop preview when not in XR', () => {
-    const logSpy = vi.spyOn(world.vrConsole, 'log').mockImplementation(() => {});
+    const logSpy = vi.spyOn(world.uiManager.vrConsole, 'log').mockImplementation(() => {});
     world._toggleDesktopPreview();
     expect(world._desktopPreviewEnabled).toBe(true);
     expect(world._orbitControls).not.toBeNull();
@@ -113,7 +113,7 @@ describe('Desktop preview and shared settings', () => {
   });
 
   it('does not toggle desktop preview while in an XR session', () => {
-    const logSpy = vi.spyOn(world.vrConsole, 'log').mockImplementation(() => {});
+    const logSpy = vi.spyOn(world.uiManager.vrConsole, 'log').mockImplementation(() => {});
     vi.spyOn(world.engine.renderer.xr, 'getSession').mockReturnValue({});
     world._toggleDesktopPreview();
     expect(world._desktopPreviewEnabled).toBeUndefined();
@@ -122,7 +122,7 @@ describe('Desktop preview and shared settings', () => {
 
   it('saves shared settings when a setting changes', async () => {
     const saveSpy = vi.spyOn(world.sessionStore, 'setItem').mockResolvedValue();
-    world.settingsPanel.setSetting('textScale', 1.5);
+    world.uiManager.settingsPanel.setSetting('textScale', 1.5);
     // _onSettingChanged is invoked by setSetting; give async _saveSharedSettings a tick.
     await new Promise((r) => setTimeout(r, 10));
     expect(saveSpy).toHaveBeenCalled();
@@ -148,7 +148,7 @@ describe('Desktop preview and shared settings', () => {
     await new Promise((r) => setTimeout(r, 200));
     const loaded = await w2.sessionStore.getItem('shared-settings');
     expect(loaded?.settings?.textScale).toBe(1.75);
-    expect(w2.settingsPanel.getSetting('textScale')).toBe(1.75);
-    expect(w2.settingsPanel.getSetting('highContrast')).toBe(true);
+    expect(w2.uiManager.settingsPanel.getSetting('textScale')).toBe(1.75);
+    expect(w2.uiManager.settingsPanel.getSetting('highContrast')).toBe(true);
   });
 });

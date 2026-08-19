@@ -94,22 +94,22 @@ describe('World accessibility integration', () => {
   });
 
   it('applies text scale to panels when settings change', () => {
-    const panel = world!.panelManager.panels[0] as any;
+    const panel = world!.uiManager.panelManager.panels[0] as any;
     const spy = vi.spyOn(panel, 'applyAccessibility');
-    world!.settingsPanel.setSetting('textScale', 1.5);
+    world!.uiManager.settingsPanel.setSetting('textScale', 1.5);
     expect(spy).toHaveBeenCalled();
     expect(panel.textScale).toBe(1.5);
   });
 
   it('applies high contrast to panels when settings change', () => {
-    const panel = world!.panelManager.panels[0] as any;
-    world!.settingsPanel.setSetting('highContrast', true);
+    const panel = world!.uiManager.panelManager.panels[0] as any;
+    world!.uiManager.settingsPanel.setSetting('highContrast', true);
     expect(panel.highContrast).toBe(true);
   });
 
   it('sets colorblind mode on panels and theme', () => {
-    const panel = world!.panelManager.panels[0] as any;
-    world!.settingsPanel.setSetting('colorblindMode', 'deuteranopia');
+    const panel = world!.uiManager.panelManager.panels[0] as any;
+    world!.uiManager.settingsPanel.setSetting('colorblindMode', 'deuteranopia');
     expect(panel.colorblindMode).toBe('deuteranopia');
     expect(world!.engine.theme.pointLight.color.getHex()).not.toBe(
       WorldTheme.PRESETS.neonMidnight.pointColor
@@ -118,7 +118,7 @@ describe('World accessibility integration', () => {
 
   it('toggles dwell selection on the input router', () => {
     const spy = vi.spyOn(world!.engine.input, 'setDwellSelection');
-    world!.settingsPanel.setSetting('dwellSelection', true);
+    world!.uiManager.settingsPanel.setSetting('dwellSelection', true);
     expect(spy).toHaveBeenCalledWith(true, 1200);
   });
 });

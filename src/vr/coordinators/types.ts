@@ -252,6 +252,8 @@ export interface PanelManagerLike {
   toggleLauncher(): void;
   isLauncherVisible(): boolean;
   handleLauncherHit?(raycaster: Raycaster): PanelLike | null;
+  getPanelPositions?(): { title?: string; position?: number[]; visible?: boolean }[];
+  setPanelPositions?(positions: { title?: string; position?: number[]; visible?: boolean }[]): void;
 }
 
 export interface DashboardCell {
@@ -304,8 +306,8 @@ export interface WorldUIManagerLike {
   vrMenu?: (PanelLike & { setLiveConnected?(connected: boolean): void }) | null;
   vrConsole?: VRConsoleLike | null;
   telemetryPanel?: PanelLike | null;
-  settingsPanel?: (PanelLike & { getAllSettings?(): SettingsMap; getSetting?(key: string): unknown }) | null;
-  operationLogPanel?: PanelLike | null;
+  settingsPanel?: (SettingsPanelLike & PanelLike) | null;
+  operationLogPanel?: (PanelLike & { setEntries?(entries: unknown[]): void; log?(msg: unknown): void }) | null;
   metricsPanel?: PanelLike | null;
   performancePanel?: PanelLike | null;
   networkPanel?: (PanelLike & { setStatus?(status: Record<string, unknown>): void }) | null;
@@ -609,7 +611,7 @@ export interface IPanelContentHandler {
   onPointerDown?(worldRaycaster: Raycaster, pointer: PointerLike): void;
   onPointerMove?(worldRaycaster: Raycaster, pointer: PointerLike): void;
   onPointerUp?(worldRaycaster: Raycaster, pointer: PointerLike): void;
-  renderContent?(): void;
+  renderContent?(ctx: CanvasRenderingContext2D, width: number, height: number): void;
 }
 
 export interface TelemetryCollectorLike {
@@ -622,6 +624,10 @@ export interface TelemetryCollectorLike {
   recordDataset?(name: string, topology: string): void;
   recordOperation?(operation: string): void;
   recordGesture?(name: string): void;
+  recordGestureConfidence?(name: string, confidence: number, isMisfire: boolean): void;
+  recordPanelAction?(title: string, action: string): void;
+  recordMenuAction?(name: string): void;
+  recordDwell?(target: string, duration: number, completed: boolean): void;
   recordError?(err: unknown, isWarning?: boolean): void;
   setEnabled?(value: boolean): void;
 }
@@ -1077,10 +1083,8 @@ export type WorldPanelManagerLike = PanelManagerLike & {
 export interface WorldLike {
   // required — accessed unconditionally
   engine: WorldEngineLike;
+  uiManager: WorldUIManagerLike;
   analysisHistory: AnalysisHistory;
-  settingsPanel: SettingsPanelLike;
-  panelManager: WorldPanelManagerLike;
-  dashboard: DashboardLike;
   sessionStore: SessionStoreLike;
   comfortSettingsController: ComfortSettingsControllerLike;
   userModeController: UserModeControllerLike;
@@ -1125,7 +1129,6 @@ export interface WorldLike {
 
   // optional — accessed via optional chaining
   exitVR?: () => Promise<boolean> | void;
-  uiManager?: WorldUIManagerLike;
   vrConsole?: VRConsoleLike;
   telemetryCollector?: TelemetryCollectorLike;
   currentEntry?: DatasetLoadEntry | null;

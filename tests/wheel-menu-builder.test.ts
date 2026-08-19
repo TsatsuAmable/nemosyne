@@ -24,26 +24,49 @@ function makeStubWorld(): { world: WorldLike; spy: Record<string, ReturnType<typ
     dropToFloor: fn('locomotion.dropToFloor'),
   };
 
+  const panelManager = {
+    togglePanel: fn('panelManager.togglePanel'),
+    toggleLauncher: fn('panelManager.toggleLauncher'),
+    recenter: fn('panelManager.recenter'),
+  };
+  const dashboard = {
+    scrollBySlots: fn('dashboard.scrollBySlots'),
+    resetDashboard: fn('dashboard.resetDashboard'),
+  };
+
+  const opLog = panel();
+  const metPanel = panel();
+  const perfPanel = panel();
+  const coachPanel = panel();
+  const narrStrip = panel();
+  const netPanel = panel();
+  const recPanel = panel();
+
   const world: any = {
-    panelManager: {
-      togglePanel: fn('panelManager.togglePanel'),
-      toggleLauncher: fn('panelManager.toggleLauncher'),
-      recenter: fn('panelManager.recenter'),
+    uiManager: {
+      panelManager,
+      dashboard,
+      operationLogPanel: opLog,
+      metricsPanel: metPanel,
+      performancePanel: perfPanel,
+      interactionCoach: coachPanel,
+      narrativeStrip: narrStrip,
+      networkPanel: netPanel,
+      recommendationPanel: recPanel,
     },
-    dashboard: {
-      scrollBySlots: fn('dashboard.scrollBySlots'),
-      resetDashboard: fn('dashboard.resetDashboard'),
-    },
+    panelManager,
+    dashboard,
     collaborationCoordinator: { isConnected: () => false },
     engine: { locomotion },
 
     // Panel-like targets (truthy so the `toggle` helper actually calls togglePanel).
-    operationLogPanel: panel(),
-    metricsPanel: panel(),
-    performancePanel: panel(),
-    interactionCoach: panel(),
-    narrativeStrip: panel(),
-    networkPanel: panel(),
+    operationLogPanel: opLog,
+    metricsPanel: metPanel,
+    performancePanel: perfPanel,
+    interactionCoach: coachPanel,
+    narrativeStrip: narrStrip,
+    networkPanel: netPanel,
+    recommendationPanel: recPanel,
 
     // Settings / tour / lens.
     _toggleSettingsPanel: fn('_toggleSettingsPanel'),

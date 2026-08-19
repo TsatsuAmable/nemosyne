@@ -104,7 +104,7 @@ describe('World intent inference integration', () => {
   });
 
   it('ignores gestures while input is paused', () => {
-    const logSpy = vi.spyOn(world.vrConsole, 'log').mockImplementation(() => {});
+    const logSpy = vi.spyOn(world.uiManager.vrConsole, 'log').mockImplementation(() => {});
     world._inputPaused = true;
     world._onGesture('swipeRight', { openHands: true });
     expect(logSpy).toHaveBeenCalledWith('log', ['Input paused — gesture ignored']);
