@@ -115,7 +115,7 @@ test('boots and renders a frame in real headless Chromium (WebGL2 via SwiftShade
 
   // (7) The only 404s are resources intentionally absent in the smoke env:
   //       - /wasm/pkg/nemosyne_wasm.js — `npm run build` runs no wasm-pack, so
-  //         RuntimeBridge's HEAD probe 404s and the app falls back to JS.
+  //         RuntimeBridge's HEAD probe 404s and the app enters KernelUnavailable state.
   //       - /__remote-logs — RemoteDebugStreamer POSTs to a Vite dev-only
   //         middleware (remoteLogsPlugin uses configureServer, not preview),
   //         which is absent under `vite preview`.

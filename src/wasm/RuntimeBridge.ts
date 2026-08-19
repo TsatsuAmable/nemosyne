@@ -176,70 +176,147 @@ interface AllocResult {
   len: number;
 }
 
+/**
+ * Explicit system state of the Rust/WASM analytical kernel.
+ *
+ * Architectural Invariant (Vision §5 & Rule AGENTS.md):
+ * The Rust/WASM analytical kernel is the SOLE AND EXCLUSIVE analytical authority.
+ * There is NO JavaScript analytical fallback. When the kernel is unavailable,
+ * the system transitions to an explicit `UNAVAILABLE` state, disabling analytical
+ * execution while permitting non-analytical UI diagnostic shells or import staging.
+ */
+export type KernelState = 'UNINITIALIZED' | 'INITIALIZING' | 'READY' | 'UNAVAILABLE';
+
+/**
+ * Thrown whenever an analytical or kernel operation is attempted while the
+ * Rust/WASM kernel is not in the READY state.
+ */
+export class KernelUnavailableError extends Error {
+  readonly code = 'KERNEL_UNAVAILABLE';
+  readonly state: KernelState;
+  readonly reason: string;
+
+  constructor(
+    reason = 'Analytical kernel unavailable. Rust/WASM is the sole analytical authority.',
+    state: KernelState = 'UNAVAILABLE'
+  ) {
+    super(`[KernelUnavailable] ${reason}`);
+    this.name = 'KernelUnavailableError';
+    this.state = state;
+    this.reason = reason;
+    Object.setPrototypeOf(this, KernelUnavailableError.prototype);
+  }
+}
+
 let wasmInstance: WasmInitOutput | null = null;
 let wasmModule: WasmModule | null = null;
 let memoryView: DataView | null = null;
+let kernelState: KernelState = 'UNINITIALIZED';
+let kernelUnavailableReason: string | null = null;
+
+/**
+ * @returns The current lifecycle state of the Rust/WASM analytical kernel.
+ */
+export function getKernelState(): KernelState {
+  return kernelState;
+}
+
+/**
+ * @returns Diagnostic error string explaining why the kernel is unavailable, if any.
+ */
+export function getKernelUnavailableReason(): string | null {
+  return kernelUnavailableReason;
+}
+
+/**
+ * Assert that the analytical runtime is in the READY state, or throw an explicit KernelUnavailableError.
+ */
+export function requireRuntime(): WasmInitOutput {
+  if (!wasmInstance || kernelState !== 'READY') {
+    throw new KernelUnavailableError(
+      kernelUnavailableReason || 'Analytical kernel has not been initialized (run npm run dev:wasm or build:wasm).',
+      kernelState
+    );
+  }
+  return wasmInstance;
+}
 
 /**
  * Initialise the WASM runtime.
  *
  * The wasm-pack generated module is loaded lazily so that builds which do not
  * run `wasm-pack` still bundle and start without a hard import-time dependency
- * on the generated `wasm/pkg/` directory. When the module is present (dev, or
- * after `npm run build:wasm`) it is fetched and initialised; otherwise the
- * caller can fall back to the JS implementation.
+ * on the generated `wasm/pkg/` directory. When the module is present, it is
+ * fetched and initialised into the `READY` state. If the kernel cannot be
+ * loaded, the system transitions to an explicit `UNAVAILABLE` state with
+ * diagnostic telemetry — NO silent JavaScript analytical fallback is permitted.
  *
- * @param wasmUrl - Optional URL to the `.wasm` binary. When omitted, the
- *   wasm-pack init function fetches it relative to its own JS URL.
+ * @param wasmUrl - Optional URL to the `.wasm` binary.
  * @returns The raw wasm-bindgen exports.
+ * @throws {KernelUnavailableError} If the kernel package or binary is missing or invalid.
  */
 export async function initRuntime(wasmUrl?: string | URL): Promise<WasmModule> {
-  if (wasmModule) return wasmModule;
+  if (wasmModule && kernelState === 'READY') return wasmModule;
+
+  kernelState = 'INITIALIZING';
+  kernelUnavailableReason = null;
 
   // Check if WASM package exists before dynamic import to avoid browser 404 network warnings
   try {
     const check = await fetch('/wasm/pkg/nemosyne_wasm.js', { method: 'HEAD' });
     if (!check.ok) {
-      throw new Error('WASM module package not found (run npm run dev:wasm to enable WASM)');
+      kernelState = 'UNAVAILABLE';
+      kernelUnavailableReason = 'WASM module package not found (run npm run dev:wasm or npm run wasm to enable analytical kernel)';
+      throw new KernelUnavailableError(kernelUnavailableReason, 'UNAVAILABLE');
     }
   } catch (err) {
-    throw new Error(`WASM package unavailable: ${(err as Error).message}`);
+    kernelState = 'UNAVAILABLE';
+    kernelUnavailableReason = `WASM package unavailable: ${(err as Error).message}`;
+    throw new KernelUnavailableError(kernelUnavailableReason, 'UNAVAILABLE');
   }
 
-  const wasmModuleUrl = '/wasm/pkg/nemosyne_wasm.js';
-  const mod = (await import(/* @vite-ignore */ wasmModuleUrl)) as WasmModule;
+  try {
+    const wasmModuleUrl = '/wasm/pkg/nemosyne_wasm.js';
+    const mod = (await import(/* @vite-ignore */ wasmModuleUrl)) as WasmModule;
 
-  // Install the host clock the kernel imports as `nemosyneNowMs` for provenance
-  // timestamps. wasm-bindgen resolves this import from `globalThis` at
-  // instantiation time, so it must be present before `mod.default(...)` runs.
-  (globalThis as unknown as Record<string, unknown>).nemosyneNowMs = () => Date.now();
+    // Install the host clock the kernel imports as `nemosyneNowMs` for provenance
+    // timestamps. wasm-bindgen resolves this import from `globalThis` at
+    // instantiation time, so it must be present before `mod.default(...)` runs.
+    (globalThis as unknown as Record<string, unknown>).nemosyneNowMs = () => Date.now();
 
-  // wasm-pack --target web exports an `init` (default) function that returns
-  // an InitOutput with `memory` as a plain property, not a callable.
-  // The WasmModule interface declares it as Promise<void> for external compat;
-  // cast to WasmInitOutput to access the instance exports.
-  const targetWasmUrl = typeof wasmUrl === 'string' ? wasmUrl : '/wasm/pkg/nemosyne_wasm_bg.wasm';
-  // The wasm-bindgen default() returns InitOutput (memory + exports). The
-  // WasmModule interface declares it as Promise<void> for external compatibility;
-  // double-cast through unknown to access the typed instance properties.
-  wasmInstance = (await (mod.default as unknown as (i: WasmInitInput) => Promise<WasmInitOutput>)(
-    { module_or_path: targetWasmUrl }
-  ));
-  wasmModule = mod;
-  refreshMemoryView();
+    // wasm-pack --target web exports an `init` (default) function that returns
+    // an InitOutput with `memory` as a plain property, not a callable.
+    // The WasmModule interface declares it as Promise<void> for external compat;
+    // cast to WasmInitOutput to access the instance exports.
+    const targetWasmUrl = typeof wasmUrl === 'string' ? wasmUrl : '/wasm/pkg/nemosyne_wasm_bg.wasm';
+    wasmInstance = (await (mod.default as unknown as (i: WasmInitInput) => Promise<WasmInitOutput>)(
+      { module_or_path: targetWasmUrl }
+    ));
+    wasmModule = mod;
+    refreshMemoryView();
 
-  // Seed the runtime. Phase 0 returns a sentinel handle of 1.
-  const handle = wasmInstance.init(0x1234_5678_9abc_def0n);
-  if (handle !== 1) {
-    throw new Error(`Unexpected runtime handle: ${handle}`);
+    // Seed the runtime. Phase 0 returns a sentinel handle of 1.
+    const handle = wasmInstance.init(0x1234_5678_9abc_def0n);
+    if (handle !== 1) {
+      throw new Error(`Unexpected runtime handle: ${handle}`);
+    }
+
+    // Verify the health-check ABI.
+    if (wasmInstance.ping() !== 42) {
+      throw new Error('WASM ping health check failed');
+    }
+
+    kernelState = 'READY';
+    kernelUnavailableReason = null;
+    return mod;
+  } catch (err) {
+    kernelState = 'UNAVAILABLE';
+    kernelUnavailableReason = (err as Error).message;
+    wasmInstance = null;
+    wasmModule = null;
+    if (err instanceof KernelUnavailableError) throw err;
+    throw new KernelUnavailableError(kernelUnavailableReason, 'UNAVAILABLE');
   }
-
-  // Verify the health-check ABI.
-  if (wasmInstance.ping() !== 42) {
-    throw new Error('WASM ping health check failed');
-  }
-
-  return mod;
 }
 
 /**
@@ -952,10 +1029,10 @@ export function call(name: string, ...args: unknown[]): unknown {
 }
 
 /**
- * @returns Whether the WASM runtime has been initialised.
+ * @returns Whether the WASM runtime has been initialised and is in the READY state.
  */
 export function isReady(): boolean {
-  return wasmInstance !== null;
+  return wasmInstance !== null && kernelState === 'READY';
 }
 
 /**

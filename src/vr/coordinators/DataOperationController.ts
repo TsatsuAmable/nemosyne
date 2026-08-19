@@ -29,6 +29,7 @@ import {
   resetTransforms,
 } from '../interactions/DataOperations.ts';
 import { WorldEventBus, WorldTopics } from '../../utils/EventBus.ts';
+import { KernelUnavailableError } from '../../wasm/RuntimeBridge.ts';
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 import type {
   ArtifactRef,
@@ -153,7 +154,7 @@ export class DataOperationController {
    */
   private _computeViaAtlas(operation: string, dataset: Dataset): Dataset {
     if (!this._atlas || !this._atlas.isReady()) {
-      throw new Error('[DataOperationController] analytical kernel unavailable');
+      throw new KernelUnavailableError('[DataOperationController] analytical kernel unavailable — Rust/WASM is the sole analytical authority.');
     }
     const spec = toAnalysisSpec(operation, dataset, this._atlas);
     const result = this._atlas.applyAnalysis(spec);
@@ -198,7 +199,7 @@ export class DataOperationController {
     let previewDataset: Dataset;
     try {
       if (!this._atlas || !this._atlas.isReady()) {
-        throw new Error('[DataOperationController] analytical kernel unavailable');
+        throw new KernelUnavailableError('[DataOperationController] analytical kernel unavailable — Rust/WASM is the sole analytical authority.');
       }
       const spec = toAnalysisSpec(operation, current, this._atlas);
       previewDataset = Dataset.fromJSON(this._atlas.previewAnalysis(spec).dataset);

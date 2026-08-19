@@ -52,6 +52,9 @@ import { TopologyTypes } from '../types/topology.ts';
 import { mapClusterStructures, mapMapperStructures, mapPersistenceStructures } from './structures.ts';
 import type { StructureSet } from './structures.ts';
 import { generateGuidance } from './GuidanceEngine.ts';
+import { KernelUnavailableError } from '../wasm/RuntimeBridge.ts';
+
+export { KernelUnavailableError };
 
 /**
  * Full kernel bridge surface. Extends the duck-typed coordinator subset with
@@ -553,7 +556,7 @@ export class AtlasCore {
    */
   applyAnalysis(spec: AnalysisSpec): AnalysisResult {
     if (!this.isReady()) {
-      throw new Error('[AtlasCore] analytical kernel unavailable');
+      throw new KernelUnavailableError('[AtlasCore] analytical kernel unavailable — Rust/WASM is the sole analytical authority.');
     }
     const kernel = this._kernel!;
     const inputHandle = this._ensureHandle();
@@ -614,7 +617,7 @@ export class AtlasCore {
    */
   previewAnalysis(spec: AnalysisSpec): AnalysisResult {
     if (!this.isReady()) {
-      throw new Error('[AtlasCore] analytical kernel unavailable');
+      throw new KernelUnavailableError('[AtlasCore] analytical kernel unavailable — Rust/WASM is the sole analytical authority.');
     }
     const kernel = this._kernel!;
     const inputHandle = this._ensureHandle();
@@ -705,7 +708,7 @@ export class AtlasCore {
     explicitTopology?: string | null
   ): { dataset: Dataset; topology: TopologyType; encodings: Record<string, string> } {
     if (!this.isReady()) {
-      throw new Error('Analytical kernel unavailable — cannot parse file');
+      throw new KernelUnavailableError('Analytical kernel unavailable — cannot parse file.');
     }
     if (ext !== 'csv' && ext !== 'json') {
       throw new Error('Unsupported file type; use .csv or .json');
