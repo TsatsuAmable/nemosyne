@@ -96,6 +96,10 @@ export class AtlasCore {
     return this._eventBus;
   }
 
+  get sessionId(): string {
+    return this._aggregate.sessionId;
+  }
+
   /**
    * Direct accessor to the underlying authoritative Investigation domain aggregate.
    */

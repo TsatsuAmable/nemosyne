@@ -6,18 +6,21 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
-- **2026-08-19 — Project Realignment, Subsystem Modularization & OSS Adoption:**
+- **2026-08-19 — Limited Public Testing Release Track Completed (Sprints 27.1 – 27.7 ✅):**
   - **Vision Alignment:** Fully synchronized project direction with the governing [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md) and codified the **Vision Alignment Cardinal Rule** across agent guides.
   - **Investigation Domain Aggregate Refactor:** Decomposed `AtlasCore` into an Application Service coordinator managing an authoritative `InvestigationAggregate` (`AnalyticalState`, `EvidenceLedger`, `RepresentationState`, `DecisionHistory`, `ResearchContext`, `InvestigationGraph`) under `src/atlas/domain/`.
   - **Subsystem Modularization (Sprint 27.1 ✅):** Established typed barrel interfaces (`index.ts`) for all 8 subsystems (`atlas`, `draco`, `data`, `network`, `session`, `study`, `wasm`, `vr/perception`), enforcing strict boundary encapsulation.
   - **OSS Standardization (Sprint 27.2 ✅):** Adopted mature, tree-shakeable OSS libraries (`valibot`, `fflate`, `@tweenjs/tween.js`, `colord`, `nanoevents`, `three-mesh-bvh`, `petgraph`, `statrs`), eliminating hand-rolled boilerplate across `.nemosyne` packaging, colorimetry, spatial animations, and event dispatch.
+  - **Spatial Dev Tooling & Ergonomics Suite (`feat/spatial-dev-tooling` ✅):** Implemented dev-only spatial ergonomics linter (comfort zone 0.75m–1.6m, gaze FOV, PPD legibility, Fitts' law target size), synthetic 6DoF pose rig, and Vite spatial scene inspector plugin (0 bytes in production bundle).
+  - **Investigation Graph Spine & Canonical Vertical Slice (Sprint 27.3 ✅):** Implemented typed DAG lineage graph (`InvestigationGraph`), node/edge ontology, and created the end-to-end `tests/golden-path-vertical-slice.test.ts` asserting 100% semantic identity and zero hash drift across the complete investigation lifecycle.
+  - **Diegetic Spatial UI, Gesture Tracking & Crash Resilience (Sprint 27.4 ✅):** Implemented `WebGLContextRecovery` auto-recovery, `DiegeticErrorBoundary` floating VR recovery cards, and `$3D` 1-shot `GeometricGestureRecognizer`.
+  - **Security, Input Sanitization & Network Hardening (Sprint 27.5 ✅):** Implemented `UploadSanitizer` (recursive prototype pollution neutralization, path traversal stripping, size/row caps), `SignedTicketVerifier` (HMAC-SHA256 collaboration room authentication & replay protection), and `TelemetryConsentManager` (GDPR right-to-erasure).
+  - **Reliability, Memory Leak Prevention & Quest Frame Budgets (Sprint 27.6 ✅):** Implemented `ZeroAllocMath` scratch pools for GC-free frame loops and `GPUResourceDisposal` deep Three.js hierarchy cascade teardown.
+  - **Recurring Maintainability & Hygiene Protocol (Sprint 27.7 ✅):** Codified and automated the 8-dimension maintainability audit protocol via `scripts/audit-hygiene.mjs` and `npm run audit:hygiene`.
   - **Explicit Kernel State & Fallback Elimination:** Formalized `KernelState` (`UNINITIALIZED | INITIALIZING | READY | UNAVAILABLE`) and `KernelUnavailableError`, strictly eliminating any silent JS calculation fallback.
   - **Event-Sourced Architectural Principle:** Codified the law of *Single Authoritative State & Event-Sourced Determinism* ($\text{Authoritative Investigation} = \text{InvestigationCommand}[] + \text{ImmutableDatasetRef} + \text{Manifest}$; materialized state is disposable cache; Memory Palace is pure spatial projection).
   - **Dev Server Modularization:** Decomposed monolithic `vite.config.js` into dedicated TypeScript plugins under `dev/` composed by a clean `vite.config.ts`.
-  - **Next Planned Work:**
-    - *Sprint 27.3 — Investigation Aggregate, Typed Graph Spine & Vertical Slice Invariant:* Authoritative domain graph and end-to-end deterministic hash verification.
-    - *Sprint 27.7 — Recurring Maintainability & Code Hygiene Audit:* Establish automated tech-debt elimination sweeps, dead code pruning, circular dependency guards, and memory leak checks.
-  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 224/224 test files passed (1,475 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0 (161ms).
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 230/230 test files passed (1,500 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0 (171ms) · `npm run audit:hygiene` 8/8 dimensions passed.
 
 ---
 

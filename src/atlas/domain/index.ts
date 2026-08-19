@@ -12,5 +12,13 @@ export {
 } from './RepresentationState.ts';
 export { DecisionHistory } from './DecisionHistory.ts';
 export { ResearchContext, type ResearchContextOptions } from './ResearchContext.ts';
-export { InvestigationGraph, type InvestigationNode } from './InvestigationGraph.ts';
+export {
+  InvestigationGraph,
+  type InvestigationNode,
+  type InvestigationNodeKind,
+  type InvestigationEdge,
+  type InvestigationEdgeRelationship,
+  type InvestigationGraphJSON,
+} from './InvestigationGraph.ts';
 export { InvestigationAggregate } from './InvestigationAggregate.ts';
+

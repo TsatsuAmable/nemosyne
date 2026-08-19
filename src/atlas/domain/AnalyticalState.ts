@@ -55,6 +55,17 @@ export class AnalyticalState {
   }
 
   /**
+   * Update the current dataset and advance datasetVersion for a new analytical operation.
+   */
+  advanceDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
+    const next = dataset?.clone?.() ?? emptyDataset();
+    this._current = next;
+    this._datasetVersion += 1;
+    this.invalidateHandle(destroyer);
+    this._invalidateDatasetSpace();
+  }
+
+  /**
    * Update the current dataset without bumping version (e.g. session restore, undo/redo).
    */
   setCurrentDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {

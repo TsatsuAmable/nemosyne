@@ -11,3 +11,8 @@ export { StudyTrialExecutionHarness, StudyHarness } from './StudyHarness.ts';
 export type { StudyTrialSpec, StudyTrialResponse, CompletedTrialRecord } from './StudyHarness.ts';
 export * from './StudyStatisticalAnalyzer.ts';
 export * from './StudyDataExporter.ts';
+export {
+  TelemetryConsentManager,
+  type ConsentStatus,
+  type ConsentRecord,
+} from './TelemetryConsentManager.ts';

@@ -242,7 +242,7 @@ function applyOp(ds, op) {
       return new Dataset(ds.name, ds.columns, sorted);
     }
     case 'aggregate': {
-      const groupBy = op.group_by || (op.group_by_columns || [])[0];
+      const groupBy = op.group_by || op.groupBy || (op.group_by_columns || [])[0];
       if (!groupBy) return ds.clone();
       const groups = new Map();
       for (const r of rows) {
@@ -250,7 +250,8 @@ function applyOp(ds, op) {
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(r);
       }
-      const outRows = [...groups.values()].map((g) => aggregateGroup(g, op.aggregators, ds));
+      const aggregators = op.aggregators || op.aggregations;
+      const outRows = [...groups.values()].map((g) => aggregateGroup(g, aggregators, ds));
       return new Dataset(ds.name, ds.columns, outRows);
     }
     case 'compare': {

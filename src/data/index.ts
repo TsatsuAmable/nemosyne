@@ -36,6 +36,7 @@ export { categoricalColor, numericColor, normalize } from './Encodings.ts';
 export { PositionSemanticClassifier } from './PositionSemanticClassifier.ts';
 export { ColorPaletteEngine } from './ColorPaletteEngine.ts';
 export type { CVDMode, PaletteColor } from './ColorPaletteEngine.ts';
+export { UploadSanitizer, type SanitizationOptions, type SanitizedUploadResult } from './UploadSanitizer.ts';
 
 export type {
   ColumnSchema,
