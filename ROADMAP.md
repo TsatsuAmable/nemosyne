@@ -6,6 +6,12 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
+- **2026-08-19 — Gates 3, 4 & 5 Delivery Completed (Feature Milestone ✅):**
+  - **Gate 4 (Investigate):** Delivered first-class `Observation`, `Finding`, and `Annotation` entity interfaces on `EvidenceLedger` and `AtlasCore`. Implemented the in-VR `MarkMomentAction` capturing spatial observer perspective (`[x, y, z]` position, orientation, dataset version, focal targets), integrated with diegetic VRConsole logging, haptic pulse feedback, and HandWheel menu binding.
+  - **Gate 3 (Experience):** Implemented adaptive 1€ / exponential `PointerRayFilter` over 3D ray origins and directions in `src/vr/input/PointerRayFilter.ts` and wired into `PointerRegistry`. Eliminates hand tremor/micro-jitter during precision pointing at distant 50k point clouds on Meta Quest 3S while maintaining zero perceptible lag during rapid sweeps.
+  - **Gate 5 (Reproduce):** Created clean-room `InvestigationReplayRunner` (`src/session/InvestigationReplayRunner.ts`) to unpack `.nemosyne` archives headlessly (zero WebGL/DOM/Three.js dependency), sequentially replay the `InvestigationCommand[]` event stream against the Rust/WASM kernel, and verify 100% bit-for-bit analytical and evidence parity.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 234/234 test files passed (1,512 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0 (173ms).
+
 - **2026-08-19 — Limited Public Testing Release Track Completed (Sprints 27.1 – 27.7 ✅):**
   - **Vision Alignment:** Fully synchronized project direction with the governing [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md) and codified the **Vision Alignment Cardinal Rule** across agent guides.
   - **Investigation Domain Aggregate Refactor:** Decomposed `AtlasCore` into an Application Service coordinator managing an authoritative `InvestigationAggregate` (`AnalyticalState`, `EvidenceLedger`, `RepresentationState`, `DecisionHistory`, `ResearchContext`, `InvestigationGraph`) under `src/atlas/domain/`.
@@ -268,7 +274,7 @@ graph TD
 ---
 
 ## Maintainability, Tech Debt & Code Hygiene Audit Protocol
-
+Clear/ compact context before running this check
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                   RECURRING MAINTAINABILITY & HYGIENE AUDIT SUITE                      │
