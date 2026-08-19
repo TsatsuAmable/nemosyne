@@ -269,6 +269,9 @@ export interface AtlasCoreState {
   activeRecommendation: AtlasRecommendation | null;
   decisionHistory: AtlasRecommendation[];
   structures: StructureSet[];
+  observations?: Observation[];
+  findings?: Finding[];
+  annotations?: Annotation[];
   researchContext?: ResearchContext;
 }
 

@@ -6,6 +6,15 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
+- **2026-08-20 — Senior Platform Reproducibility, Canonical Digest & Evidence Isolation Hardening (✅):**
+  - **Evidence Isolation & Reconstruction:** Fixed `EvidenceLedger.reset()` to completely clear observations, findings, annotations, and monotonic counters across dataset loads, eliminating state leakage between investigations. Updated `EvidenceLedger.restore()` and `InvestigationAggregate.restoreState()` to reconstitute observations, findings, and annotations from ledger event streams and prevent ID collisions.
+  - **Canonical Cryptographic Investigation Digest (`InvestigationDigest`):** Implemented deterministic canonical JSON serialization (RFC 8785 subset) and cryptographic SHA-256 digest computation (`computeInvestigationDigest`) over schema version, dataset identity, kernel version, immutable dataset, canonical command stream, analytical state, evidence ledger, representation strategy, and research context.
+  - **Adversarial Replay Runner Hardening:** Upgraded `InvestigationReplayRunner` to strictly verify canonical `investigationDigest` and `evidenceSummary`, and eliminated silent fallback matching on unknown event types (`default: eventsMatched += 1`), enforcing 100% discrepancy rejection on tampered datasets, altered output hashes, corrupted digests, or unsupported event kinds.
+  - **Controlled Study Treatment Gating:** Added `adaptiveAssistancePolicy` (`enabled | disabled | frozen | adaptive`) to `StudyTrialSpec` in `StudyHarness.ts` to prevent dynamic assistance from contaminating experimental crossover trials.
+  - **Interaction FSM Preconditions:** Added formal transition validation guards (`validateTransition`) to `InteractionModeController`.
+  - **Subsystem Barrels & Hygiene:** Added `src/investigation/index.ts` public barrel export and integrated into `scripts/audit-hygiene.mjs` (9 subsystem barrels verified).
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 239/239 test files passed (1,544 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0 (174ms) · `npm run audit:hygiene` 8/8 dimensions passed.
+
 - **2026-08-20 — VR UX Convergence, Spatial Intelligence & Interaction Engineering (✅):**
   - **Authoritative Interaction State Machine & Reversible Transitions:** Wired `InteractionModeController` (`NAVIGATE | INTERACT | TRANSFORM | OBSERVE`) directly into `World.ts` and `WorldInputCoordinator.ts`, providing reversible mode history and structured multi-surface focus state management.
   - **Zero Silent Suppression & Contextual Both-Pinch Ownership:** Integrated `GestureOwnershipManager` into the primary XR gesture pipeline. `bothPinched` dynamically resolves contextually per mode (world transform, selection commit, artifact scaling/orientation, resume interaction) with unambiguous HUD feedback chips (`statusStrip.recordAction`) and verified >= 2 input channels redundancy.

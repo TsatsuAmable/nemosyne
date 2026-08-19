@@ -51,8 +51,18 @@ export class InteractionModeController {
     return this._history;
   }
 
-  setMode(targetMode: InteractionMode, reason = 'user_action'): boolean {
+  /**
+   * Validate whether a mode transition is legally permitted.
+   */
+  validateTransition(targetMode: InteractionMode, _context?: { hasSelection?: boolean }): boolean {
+    const validModes: InteractionMode[] = ['NAVIGATE', 'INTERACT', 'TRANSFORM', 'OBSERVE'];
+    if (!validModes.includes(targetMode)) return false;
+    return true;
+  }
+
+  setMode(targetMode: InteractionMode, reason = 'user_action', context?: { hasSelection?: boolean }): boolean {
     if (this._currentMode === targetMode) return false;
+    if (!this.validateTransition(targetMode, context)) return false;
 
     const from = this._currentMode;
     this._history.push(from);

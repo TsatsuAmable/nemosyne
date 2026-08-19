@@ -764,6 +764,10 @@ export class AtlasCore {
     this._aggregate.restoreState(state, (h) => this._kernel?.destroyDataset(h));
   }
 
+  async computeDigest(): Promise<string> {
+    return this._aggregate.computeDigest(this.kernelVersion() ?? 'unknown');
+  }
+
   dispose(): void {
     this._aggregate.dispose((h) => this._kernel?.destroyDataset(h));
   }

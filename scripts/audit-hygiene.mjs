@@ -37,13 +37,13 @@ console.log('===============================================================\n')
 // 1. Dead Code & Orphan Files
 runCheck('Dim 1', 'Dead Code & Orphan Check', () => {
   // Verify all src/ directories have public barrel exports
-  const subsystems = ['atlas', 'draco', 'data', 'network', 'session', 'study', 'wasm', 'vr/perception'];
+  const subsystems = ['atlas', 'draco', 'data', 'network', 'session', 'study', 'wasm', 'vr/perception', 'investigation'];
   for (const sub of subsystems) {
     if (!existsSync(`src/${sub}/index.ts`)) {
       throw new Error(`Missing required subsystem public barrel: src/${sub}/index.ts`);
     }
   }
-  return 'All 8 subsystem barrels intact';
+  return 'All 9 subsystem barrels intact';
 });
 
 // 2. Subsystem Boundaries & Zero Circular References

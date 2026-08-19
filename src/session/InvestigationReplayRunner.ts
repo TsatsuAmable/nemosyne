@@ -20,6 +20,7 @@ export interface ReplayVerificationResult {
   commandsReplayed: number;
   eventsMatched: number;
   finalOutputHash: string;
+  investigationDigest: string;
   evidenceCount: {
     observations: number;
     findings: number;
@@ -78,7 +79,7 @@ export class InvestigationReplayRunner {
     }
 
     // 3. Initialize clean-room AtlasCore
-    const atlas = new AtlasCore({ kernel: this._bridge });
+    const atlas = new AtlasCore({ kernel: this._bridge, sessionId: manifest.sessionId });
     atlas.loadDataset(dataset);
 
     let commandsReplayed = 0;
@@ -91,6 +92,10 @@ export class InvestigationReplayRunner {
       if ('kind' in item) {
         const event = item as ResearchEvent;
         switch (event.kind) {
+          case 'load':
+            // Initial dataset load verified
+            eventsMatched += 1;
+            break;
           case 'analysis': {
             const spec = event.command as AnalysisSpec;
             try {
@@ -112,6 +117,8 @@ export class InvestigationReplayRunner {
             if (event.observationEntity) {
               atlas.recordObservation(event.observationEntity);
               eventsMatched += 1;
+            } else {
+              discrepancies.push(`Malformed observation event at #${i}: missing observationEntity`);
             }
             break;
           }
@@ -119,6 +126,8 @@ export class InvestigationReplayRunner {
             if (event.findingEntity) {
               atlas.recordFinding(event.findingEntity);
               eventsMatched += 1;
+            } else {
+              discrepancies.push(`Malformed finding event at #${i}: missing findingEntity`);
             }
             break;
           }
@@ -126,9 +135,29 @@ export class InvestigationReplayRunner {
             if (event.annotationEntity) {
               atlas.recordAnnotation(event.annotationEntity);
               eventsMatched += 1;
+            } else {
+              discrepancies.push(`Malformed annotation event at #${i}: missing annotationEntity`);
             }
             break;
           }
+          case 'structure':
+            if (event.structureSet) {
+              atlas.evidenceLedger.recordStructure(event.structureSet, manifest.sessionId, event.timestamp);
+              eventsMatched += 1;
+            }
+            break;
+          case 'recommendation':
+            if (event.recommendationDecision) {
+              atlas.recordDecision(event.recommendationDecision);
+              eventsMatched += 1;
+            }
+            break;
+          case 'embodiment':
+            if (event.embodimentCommand) {
+              atlas.recordEmbodimentCommand(event.embodimentCommand);
+              eventsMatched += 1;
+            }
+            break;
           case 'undo':
             atlas.undo();
             eventsMatched += 1;
@@ -137,12 +166,20 @@ export class InvestigationReplayRunner {
             atlas.redo();
             eventsMatched += 1;
             break;
+          case 'seek': {
+            const idx = (event.command as { index?: number })?.index;
+            if (idx !== undefined) {
+              atlas.seekHistory(idx);
+              eventsMatched += 1;
+            }
+            break;
+          }
           case 'reset':
             atlas.resetAnalysis();
             eventsMatched += 1;
             break;
           default:
-            eventsMatched += 1;
+            discrepancies.push(`Unsupported or unrecognized event kind at #${i}: '${(event as { kind: string }).kind}'`);
             break;
         }
       } else {
@@ -159,6 +196,33 @@ export class InvestigationReplayRunner {
     }
 
     const finalOutputHash = atlas.datasetSpace?.fingerprint ?? atlas.datasetFingerprint ?? '';
+    const investigationDigest = await atlas.computeDigest();
+
+    // Verify investigation digest if provided in manifest
+    if (manifest.investigationDigest && manifest.investigationDigest !== investigationDigest) {
+      discrepancies.push(
+        `Investigation digest mismatch: package manifest has '${manifest.investigationDigest}', replayed digest is '${investigationDigest}'`
+      );
+    }
+
+    // Verify evidence summary if provided in manifest
+    if (manifest.evidenceSummary) {
+      if (atlas.evidenceLedger.observations.length !== manifest.evidenceSummary.observationsCount) {
+        discrepancies.push(
+          `Observations count mismatch: manifest expected ${manifest.evidenceSummary.observationsCount}, replay produced ${atlas.evidenceLedger.observations.length}`
+        );
+      }
+      if (atlas.evidenceLedger.findings.length !== manifest.evidenceSummary.findingsCount) {
+        discrepancies.push(
+          `Findings count mismatch: manifest expected ${manifest.evidenceSummary.findingsCount}, replay produced ${atlas.evidenceLedger.findings.length}`
+        );
+      }
+      if (atlas.evidenceLedger.annotations.length !== manifest.evidenceSummary.annotationsCount) {
+        discrepancies.push(
+          `Annotations count mismatch: manifest expected ${manifest.evidenceSummary.annotationsCount}, replay produced ${atlas.evidenceLedger.annotations.length}`
+        );
+      }
+    }
 
     return {
       success: discrepancies.length === 0,
@@ -168,6 +232,7 @@ export class InvestigationReplayRunner {
       commandsReplayed,
       eventsMatched,
       finalOutputHash,
+      investigationDigest,
       evidenceCount: {
         observations: atlas.evidenceLedger.observations.length,
         findings: atlas.evidenceLedger.findings.length,
@@ -191,6 +256,7 @@ export class InvestigationReplayRunner {
       commandsReplayed: 0,
       eventsMatched: 0,
       finalOutputHash: '',
+      investigationDigest: '',
       evidenceCount: { observations: 0, findings: 0, annotations: 0 },
       discrepancies,
     };
