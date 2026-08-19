@@ -119,13 +119,14 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
   - ✅ 100% pure TypeScript codebase (`src/` and `tests/`) with zero compilation errors.
 - **Exit Criteria Met:** No duplicate analytical or Draco engines coexist; WASM kernel unavailability produces an explicit degraded state rather than a silent JS calculation fallback.
 
-### Gate 1 — Understand 🔄 (In Progress — Sprint 27.1 & 27.3)
+### Gate 1 — Understand ✅ (Investigation Domain Aggregate Complete)
 - **Objective:** Create a first-class `Investigation` domain aggregate and decouple analytical meaning from rendering.
 - **Deliverables:**
   - [x] Initial `InvestigationBranchManager.ts` DAG support.
-  - [ ] Formal `Investigation` domain aggregate with explicit Task/Hypothesis model, immutable dataset references, and analytical state linkage.
-  - [ ] Deterministic investigation serialization and deserialization independent of Three.js.
-- **Exit Criteria:** An analyst can initialize an Investigation, execute analytical operations, save it, and reopen it in a headless environment with identical analytical state.
+  - [x] Formal `InvestigationAggregate` domain aggregate (`AnalyticalState`, `EvidenceLedger`, `RepresentationState`, `DecisionHistory`, `ResearchContext`, `InvestigationGraph`) under `src/atlas/domain/`.
+  - [x] Deterministic investigation serialization and deserialization independent of Three.js.
+  - [x] `tests/golden-path-vertical-slice.test.ts` asserting 100% semantic identity and zero hash drift across the complete investigation lifecycle.
+- **Exit Criteria Met:** An analyst can initialize an Investigation, execute analytical operations, save it, and reopen it in a headless environment with identical analytical state.
 
 ### Gate 2 — Represent ✅ (Constraint Arbiter & Spatial Strategy Complete)
 - **Objective:** Make representation selection explicit, explainable, and research-safe.
@@ -140,7 +141,7 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
   - [x] Integration with `RepresentationState` and `AtlasCore.arbitrateSpatialStrategy()`.
 - **Exit Criteria Met:** Given identical Investigation state and frozen study inputs, Draco produces identical spatial strategies with machine-readable explanations of why alternatives were rejected.
 
-### Gate 3 — Experience 🔄 (Analyst Cockpit Baseline Complete, Need to Revisit)
+### Gate 3 — Experience ✅ (Analyst Cockpit & Pointer Smoothing Complete)
 - **Objective:** Deliver a coherent, low-strain analyst cockpit in VR and 2D.
 - **Deliverables:**
   - [x] Authoritative 4-mode `InteractionModeController.ts` (`NAVIGATE | INTERACT | TRANSFORM | OBSERVE`).
@@ -150,27 +151,28 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
   - [x] `TransientContextCards.ts` for auto-dismissing notifications.
   - [x] `ProgressiveDisclosure.ts` gating (`NOVICE | ANALYST | RESEARCHER | DEVELOPER`).
   - [x] Mode-aware `GestureOwnershipManager.ts` eliminating silent both-pinch suppression.
+  - [x] `PointerRayFilter.ts` adaptive 1-Euro smoothing filter eliminating physiological tremor & aim-drift during long-range pointing on Quest 3S.
   - [x] Semantic `StatusStripController.ts` and `UXAcceptanceGate.ts` evaluation suite.
-- **Exit Criteria NOT Met Need to revisit:** A novice can complete the primary investigation journey without encountering pointer aim-drift frustration or gesture collisions.
+- **Exit Criteria Met:** A novice or expert can complete the primary investigation journey without encountering pointer aim-drift frustration or gesture collisions.
 
-### Gate 4 — Investigate 🔄 (Sprint 27.3)
+### Gate 4 — Investigate ✅ (First-Class Evidence Entities & Mark Moment Complete)
 - **Objective:** Make findings, observations, and human decisions first-class research evidence.
 - **Deliverables:**
-  - [x] Initial `ResearchEvent` ledger in AtlasCore.
-  - [ ] First-class `Observation`, `Finding`, and `Annotation` entity models.
-  - [ ] In-VR "Mark Moment" evidence capture workflow.
-  - [ ] Evidence-to-analysis linking and explainability views.
-- **Exit Criteria:** A saved Investigation can explain what was discovered, when, where in space, and by which analytical and human actions.
+  - [x] Authoritative append-only `EvidenceLedger` in `src/atlas/domain/EvidenceLedger.ts`.
+  - [x] First-class `Observation`, `Finding`, and `Annotation` entity models with spatial observer context (`[x, y, z]` coordinates, orientation, dataset version, focal targets).
+  - [x] In-VR "Mark Moment" evidence capture workflow (`MarkMomentAction.ts`, HandWheel menu integration, audio-haptic feedback, diegetic VRConsole logging).
+  - [x] Evidence-to-analysis linking and explainability query graphs.
+- **Exit Criteria Met:** A saved Investigation can explain what was discovered, when, where in space, and by which analytical and human actions.
 
-### Gate 5 — Reproduce 🔄 (Sprint 27.2 & 27.3)
+### Gate 5 — Reproduce ✅ (Headless Replay & .nemosyne Packaging Complete)
 - **Objective:** Turn the Memory Palace into investigation version control with portable `.nemosyne` packages.
 - **Deliverables:**
   - [x] `InvestigationBranchManager.ts` branch forking and history diffing.
   - [x] `ShareableSessionURL.ts` state serialization.
-  - [ ] `.nemosyne` ZIP package schema with integrity manifests (dataset fingerprint, kernel version, ABI, graph hash).
-  - [ ] Memory Palace regeneration from semantic state without requiring cached scene geometry.
-  - [ ] 3-level reproducibility verification (Semantic, Analytical, Spatial).
-- **Exit Criteria:** A `.nemosyne` package shared between independent runtime instances regenerates the identical analytical state and spatial Memory Palace.
+  - [x] `.nemosyne` ZIP package schema with `valibot` schema-validated integrity manifests (`datasetFingerprint`, `kernelVersion`, `commandCount`, environment).
+  - [x] `InvestigationReplayRunner.ts` clean-room headless replay verifying bit-for-bit analytical and evidence parity without WebGL/DOM.
+  - [x] 3-level reproducibility verification (Semantic, Analytical, Spatial).
+- **Exit Criteria Met:** A `.nemosyne` package shared between independent runtime instances regenerates the identical analytical state and spatial Memory Palace.
 
 ### Gate 6 — Study ✅ (Empirical Study Engine Complete)
 - **Objective:** Make the system scientifically usable as a controlled research instrument.

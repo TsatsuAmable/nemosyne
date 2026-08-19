@@ -42,7 +42,10 @@
 ## 3. Atlas & Investigation State
 
 ### Classes & Modules
-- **`AtlasCore`** (`src/atlas/AtlasCore.ts`): Master coordinator owning active dataset state, operation history, and discovered structures independently of Three.js.
+- **`AtlasCore`** (`src/atlas/AtlasCore.ts`): Master Application Service coordinator orchestrating the `InvestigationAggregate` domain model with the Rust/WASM analytical kernel, WorldEventBus, and GuidanceEngine.
+- **`InvestigationAggregate`** (`src/atlas/domain/InvestigationAggregate.ts`): Domain aggregate root encapsulating `AnalyticalState`, `EvidenceLedger`, `RepresentationState`, `DecisionHistory`, `ResearchContext`, and `InvestigationGraph`.
+- **`EvidenceLedger`** (`src/atlas/domain/EvidenceLedger.ts`): Authoritative append-only provenance event stream, storing and linking first-class `Observation`, `Finding`, and `Annotation` entities to dataset versions and analytical transformations.
+- **`InvestigationGraph`** (`src/atlas/domain/InvestigationGraph.ts`): Directed Acyclic Graph (DAG) spine maintaining typed investigation nodes, branch forks, and evidence edges.
 - **`DatasetSpace`** (`src/atlas/DatasetSpace.ts`): Renderer-independent spatial representation with stable datum IDs, spatial provenance, and distance metrics.
 - **`GuidanceEngine`** (`src/atlas/GuidanceEngine.ts`): Generates explainable recommendations exposing target, analytical action, rationale, evidence, and confidence.
 
@@ -64,6 +67,8 @@
 ## 5. Input, Gestures & Locomotion
 
 ### Classes & Modules
+- **`PointerRayFilter`** (`src/vr/input/PointerRayFilter.ts`): Speed-adaptive 1-Euro smoothing filter over 3D ray origins and directions; eliminates hand tremor and aim-drift during long-range pointing on Quest 3S.
+- **`MarkMomentAction`** (`src/vr/interactions/MarkMomentAction.ts`): In-VR spatial evidence capture workflow recording camera pose, dataset state, and focal cluster into an `Observation`.
 - **`InteractionModeController`** (`src/vr/input/InteractionModeController.ts`): Governs authoritative interaction states (`NAVIGATE | INTERACT | TRANSFORM | OBSERVE`).
 - **`GestureOwnershipManager`** (`src/vr/input/GestureOwnershipManager.ts`): Routes both-pinch gestures contextually with zero silent suppression and enforces $\ge 2$ input modalities per operation.
 - **`HandGestureRecognizer`** (`src/vr/interactions/HandGestureRecognizer.ts`): Dual-hand pinch, slice, scoop, push, and rotate gesture detector.
@@ -75,6 +80,8 @@
 ## 6. Session, Replay & Version Control
 
 ### Classes & Modules
+- **`NemosynePackageManager`** (`src/session/NemosynePackage.ts`): `.nemosyne` ZIP package archiver and extractor with `valibot` schema-validated integrity manifests.
+- **`InvestigationReplayRunner`** (`src/session/InvestigationReplayRunner.ts`): Clean-room headless replay and verification engine asserting bit-for-bit analytical and evidence parity without WebGL or DOM.
 - **`InvestigationBranchManager`** (`src/session/InvestigationBranchManager.ts`): Directed Acyclic Graph (DAG) for investigation version control, branch forks, and operation diffing.
 - **`WorldSessionController`** (`src/session/WorldSessionController.ts`): SchemaVersion-2 IndexedDB session persistence and state restore.
 - **`ShareableSessionURL`** (`src/session/ShareableSessionURL.ts`): Encodes and decodes self-contained, URL-safe session states.
