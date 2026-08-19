@@ -5,6 +5,21 @@
 > not duplicate state.
 
 
+- **2026-08-19 — Sprint 26.2: Evidence-Informed Draco Recommender Adaptive Loop complete:**
+  - **Empirical Recommender Tuner:** Implemented `DracoEmpiricalTuner` (`src/draco/evidence/DracoEmpiricalTuner.ts`) connecting empirical study trial outcomes (accuracy, completion duration, and NASA-TLX workload) directly to Draco layout utility weights and topology preference costs.
+  - **Adaptive Preference Scoring:** Promotes spatial representations that demonstrate statistically superior task performance while penalizing configurations with high cognitive workload.
+  - **Unit Test Suite:** Added `tests/draco-empirical-tuner.test.ts` testing empirical weight adjustments, topology preference tuning, and solver override weight synthesis.
+  - **Next Planned Work:**
+    - *Full 4-Tier E2E Regression Pass & Release Packaging:* Run opaque-box E2E test suites and validate production WebXR deployment readiness.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 217/217 test files passed (1,444 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
+- **2026-08-18 — Sprint 26.1: Semantic vs. Structural Position Discipline & Disambiguation Engine complete:**
+  - **Position Semantics Classifier:** Implemented `PositionSemanticsEngine` (`src/draco/PositionSemantics.ts`) distinguishing `SEMANTIC` (coordinates directly map geographic/temporal/vector variables), `STRUCTURAL` (coordinates expose topological graph edges/clusters), and `ALGORITHMIC_LAYOUT` (procedural grid/ring spacing with no semantic distance equivalence).
+  - **Diegetic Proximity Warning System:** Adds structured warnings to HUD tooltips preventing analysts from falsely assuming that geometric proximity in force-directed graphs or procedural grids implies underlying attribute similarity.
+  - **Unit Test Suite:** Added `tests/position-semantics-discipline.test.ts` testing layout classification, badge color assignment, and HUD warning formatting.
+  - **Next Planned Sprint:**
+    - *Sprint 26.2 — Evidence-Informed Draco Recommender Adaptive Loop:* Implement `DracoEmpiricalTuner` dynamically tuning layout utility costs from empirical study accuracy and workload trials.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 216/216 test files passed (1,441 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
 - **2026-08-18 — Milestone 25.3: 2D-vs-VR Statistical Analysis Engine & Empirical Study Evaluation complete:**
   - **Empirical Statistical Analyzer:** Implemented `StudyStatisticalAnalyzer` (`src/study/StudyStatisticalAnalyzer.ts`) computing two-sample t-tests, degrees of freedom, p-value estimates via standard Abramowitz-Stegun error function approximation, and Cohen's d effect sizes across task completion duration, anomaly isolation accuracy, F1 score, confidence, and NASA-TLX workload scores.
   - **Structured Markdown Report Synthesis:** Synthesizes structured outcome markdown tables comparing 2D desktop controls vs. VR experimental conditions conforming to `docs/study/ANALYSIS_PLAN.md`.
@@ -50,7 +65,6 @@
   - **Shareable Session URLs:** Implemented `ShareableSessionURL` (`src/session/ShareableSessionURL.ts`) encoding and decoding URL-safe, self-contained analytical session states for instant peer review, observer attachment, and finding validation.
   - **Unit Test Suite:** Added `tests/triage-quest-probes-shareable.test.ts` testing hypothesis triage generation, Quest performance budget checks, and shareable URL round-trips.
   - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm run test:coverage` 209/209 test files passed (1,422 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
-
 - **2026-08-18 — Position Semantics, Evidence-Informed Draco Recommender & Hardware Validation Matrix complete:**
   - **Position Semantic vs Structural vs Layout Discipline:** Implemented `PositionSemanticClassifier` (`src/data/PositionSemanticClassifier.ts`) categorizing spatial coordinates into `SEMANTIC`, `STRUCTURAL`, and `LAYOUT` roles to prevent misleading perceptual inferences (e.g., force-directed layout proximity ≠ metric similarity).
   - **Evidence-Informed Draco Recommender Loop:** Implemented `EvidenceInformedRecommender` (`src/draco/EvidenceInformedRecommender.ts`) updating layout recommendation utilities based on empirical human performance trials.
