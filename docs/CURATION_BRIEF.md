@@ -12,49 +12,35 @@
 
 | Document | Purpose | Status | Last Updated |
 |---|---|---|---|
-| `docs/ROADMAP.md` | Product state & phase planning | ✅ Active, refreshed 2026-08-14 | Daily (gate updates) |
-| `docs/PROJECT_DOCS_INDEX.md` | Three-layer doc model definition | ✅ Active | 2026-08-14 |
-| `docs/study/` (directory) | Study protocol, analysis plan, consent, governance | ✅ Active (draft) | 2026-08-14 |
-| `README.md` | Quick start, build commands, deployment | ✅ Active | 2026-08-14 |
-| `CLAUDE.md` | Development onboarding + architecture overview | ✅ Active | 2026-08-14 |
-| `.agents/team.json` | AI team configuration | ✅ Active | 2026-08-14 |
-| `.agents/agents.md` | AI team role guide | ✅ Active | 2026-08-14 |
-| `TEST_READY.md` | Test readiness report + E2E tier breakdown | ✅ Active | 2026-08-12 |
+| `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` | Governing product, vision, principles & Gate model | ✅ Authoritative | 2026-08-19 |
+| `docs/ROADMAP.md` | Product state, Gate 0–7 deliverables, active sprints | ✅ Active | 2026-08-19 |
+| `docs/DEVELOPER_EXPLAINER.md` | Codebase mental model, data lifecycle, WASM ABI, cookbooks | ✅ Active | 2026-08-19 |
+| `docs/ARCHITECTURE.md` | Modular subsystems specification & boundaries | ✅ Active | 2026-08-19 |
+| `docs/PROJECT_DOCS_INDEX.md` | Three-layer doc model definition & archive index | ✅ Active | 2026-08-19 |
+| `docs/OSS_MIGRATION_PROPOSAL.md` | Open-source library adoption proposal | ✅ Active | 2026-08-19 |
+| `docs/study/` (directory) | Study protocol, analysis plan, consent, governance | ✅ Active (draft) | 2026-08-19 |
+| `README.md` | Quick start, build commands, deployment | ✅ Active | 2026-08-19 |
+| `CLAUDE.md` | Development onboarding + architecture overview | ✅ Active | 2026-08-19 |
 
-### 🟡 Active but Incomplete (Drafts / Placeholders)
+### 🟡 Technical Reference & Operational Registers
 
-| Document | Purpose | Status | Issues |
+| Document | Purpose | Status | Notes |
 |---|---|---|---|
-| `docs/AUDIT_PHASES_1_20.md` | Phases 1–20 audit (built vs. wired) | 🟡 New, comprehensive | None yet |
-| `docs/AUDIT_RECOMMENDATION.md` | Audit findings + next steps | 🟡 New, executive summary | None yet |
-| `docs/study/PROTOCOL.md` | Study protocol | 🟡 Draft, placeholders | Multiple TBD fields |
-| `docs/study/ANALYSIS_PLAN.md` | Analysis plan | 🟡 Draft, placeholders | Multiple TBD fields |
-| `docs/study/CONFOUNDS.md` | Confound register | 🟡 Draft, placeholders | Multiple TBD fields |
-| `docs/GETTING_STARTED.md` | User onboarding guide | 🟡 Active but outdated | References old UI, needs refresh |
-| `docs/INTERACTIONS.md` | Gesture & interaction reference | 🟡 Active but incomplete | Missing recent Phase 22 gestures |
-| `docs/ARCHITECTURE.md` | System architecture | 🟡 Active target + runtime reference | World.ts composition-root refactor is planned for Stable Alpha |
+| `docs/ERROR_REGISTER.md` | Typed error registry & recovery actions | ✅ Complete | Active reference |
+| `docs/TECHNICAL_SPEC.md` | Technical specification & performance budgets | ✅ Complete | Active reference |
+| `docs/WIKI.md` | Codebase symbol and class dictionary | ✅ Complete | Active reference |
+| `docs/GETTING_STARTED.md` | User and developer onboarding guide | ✅ Complete | Active reference |
+| `docs/INTERACTIONS.md` | Gesture & interaction reference | ✅ Complete | Active reference |
+| `docs/ANALYTICS.md` | Analytics features & TDA summaries | ✅ Complete | Active reference |
+| `docs/DESIGN_SYSTEM.md` | Color, typography, spacing tokens | ✅ Complete | Active reference |
 
-### 🔴 Deprecated / Legacy (Should Be Archived or Removed)
+### 🔴 Historical Archives (`docs/archive/`)
 
-| Document | Purpose | Status | Reason for Removal |
+| Document | Purpose | Status | Reason for Archive |
 |---|---|---|---|
-| `docs/archive/study-drafts/` | Legacy study protocol drafts | 🔴 Archived (2026-08-16) | Superseded by `docs/study/` canonical set |
-| `docs/archive/IDEOLOGY.md` | Project vision essay | Archived | Historical context only |
-| `docs/archive/GAME_UI_INSPIRATION.md` | UI design references | Archived | Historical context only |
-| `docs/archive/GITHUB_ISSUES.md` | Issue tracking guide | Archived | GitHub Issues is the active issue authority |
-| `docs/ARTEFACTS.md` | Artefact taxonomy | 🟡 Outdated | Last major edit ~2026-07-15; Phase 22 additions not reflected |
-| `docs/ANALYTICS.md` | Analytics features | 🟡 Outdated | Last edit ~2026-07-15; TDA on-demand feature not documented |
-| `docs/DESIGN_SYSTEM.md` | Color, typography, spacing tokens | 🟡 Outdated | `WorldTheme` refactor + low-strain presets not reflected; `src/vr/palette.ts` introduced in Phase 22.2 but not documented |
-| `docs/USER_STORIES_AND_UX_ANALYSIS.md` | UX audit findings (29 user stories) | 🟡 Active but position unclear | Excellent research doc, but should it live in `docs/study/` or repo root? Currently confuses product and research layers |
-
-### 📄 Build Artifacts & Auto-Generated (Should Be Ignored)
-
-| File | Status |
-|---|---|
-| `docs/index.html` | Auto-built from `template.html` via `build-html.mjs` |
-| `docs/ROADMAP.html` | Auto-built from `ROADMAP.md` |
-| `docs/GETTING_STARTED.html` | Auto-built from `GETTING_STARTED.md` |
-| (All other `.html` in `docs/`) | Auto-built; changes to `.md` source should be made, not `.html` |
+| `docs/archive/ROADMAP_PHASES_21-26_COMPLETED.md` | Phases 21–26 & Waves 0–6 completed logs | 🔴 Archived (2026-08-19) | Historical record of completed phases |
+| `docs/archive/ROADMAP_PHASES_1-20_COMPLETED.md` | Phases 1–20 completed logs | 🔴 Archived (2026-08-18) | Historical record of early phases |
+| `docs/archive/ROADMAP_HISTORY.md` | Historical phase index | 🔴 Archived | Context only |
 
 ---
 

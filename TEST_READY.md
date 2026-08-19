@@ -9,14 +9,14 @@
 
 | Metric | Value |
 |---|---|
-| `npx tsc --noEmit` | **0 errors** |
-| `npx vitest run` (full suite) | **1272 passed · 9 skipped · 0 failed** (exit 0) |
-| Test files (full suite) | 182 passed · 3 skipped (185) |
+| `npx tsc --noEmit` | **0 errors** (100% Pure TypeScript) |
+| `npx eslint` | **0 errors** (blocking gate) |
+| `cargo test --manifest-path wasm/Cargo.toml` | **85 passed · 0 failed** (exit 0) |
+| `npx vitest run` (full suite) | **1,446 passed · 26 skipped · 0 failed** (217 test files, exit 0) |
 | E2E suite (`tests/e2e`) | **171 passed · 0 failed** across **39 spec files** |
 | E2E runner script | `npm run test:e2e` (`vitest run tests/e2e`) |
 
-The 9 skipped tests / 3 skipped files are pre-existing `it.skip`/`describe.skip`
-markers (not failures); they are unrelated to this gate.
+The 26 skipped tests are jsdom-WASM parity markers that skip in plain jsdom by design when WASM is HTTP-served; they are covered in full by native Rust unit tests under `wasm/`.
 
 ## 2. E2E Tier Breakdown
 

@@ -26,10 +26,10 @@ This repository contains the canonical Nemosyne runtime. The application code, t
 
 - `package.json` — Node.js project metadata and npm scripts.
 - `vite.config.js` — Vite dev/build configuration; also mounts the demo WebSocket stream and the collaboration signalling endpoint.
-- `vitest.config.js` — Test configuration (jsdom environment, `tests/setup.js`).
+- `vitest.config.js` — Test configuration (jsdom environment, `tests/setup.ts`).
 - `index.html` — Application entry point.
-- `src/` — Application source.
-- `tests/` — Vitest test files.
+- `src/` — Application source (100% pure TypeScript).
+- `tests/` — Vitest test files (100% pure TypeScript: `tests/*.test.ts`, `tests/**/*.spec.ts`).
 - `docs/` — Project documentation, GitHub Pages website, and design system.
 
 ## Development commands
@@ -44,7 +44,7 @@ npm run dev      # Vite dev server ONLY (no wasm-pack; WASM lazy-loaded at runti
 npm run dev:wasm # wasm-pack dev build + Vite dev server (use this for full WASM dev)
 npm run build    # Vite production bundle -> dist/ (WASM externalized; succeeds without wasm/pkg)
 npm run preview  # Preview the production bundle
-npm test         # all Vitest tests once (JS only; no Rust toolchain required)
+npm test         # all Vitest tests once (JS/TS only; no Rust toolchain required)
 npm run test:all # cargo test for wasm/ + all Vitest tests once
 npm run test:coverage
 ```
@@ -52,7 +52,7 @@ npm run test:coverage
 Run a single test file:
 
 ```bash
-npx vitest run tests/world.test.js
+npx vitest run tests/world.test.ts
 ```
 
 Run tests in watch mode during development:
@@ -179,17 +179,18 @@ node src/network/SignallingServer.mjs --port=8080
 ## Testing
 
 - Framework: Vitest with jsdom environment.
-- Setup: `tests/setup.js` replaces `HTMLCanvasElement.prototype.getContext` to provide a mock WebGL/Canvas 2D context, allowing three.js to initialize in jsdom.
-- Test files live next to source layers (e.g. `tests/draco.test.js`, `tests/world.test.js`, `tests/dataset-space.test.ts`). The deleted JS analytical tests (`parsers`, `dataset-operations`, `csv-parser`, `arrow-ipc`, `topology-inference`, `tda-mapper`, `wasm-operations`) are covered by Rust `#[test]`s under `wasm/` + `tests/wasm-runtime.test.ts` (RuntimeBridge parity; skips in plain jsdom by design — the pkg is HTTP-served).
-- Tests use `vitest run` (one-shot). Pass a path to run a single file: `npx vitest run tests/world.test.js`.
-- Gate (see `AGENTS.md` §"Required command order" and §"Token-efficient workflow"): `tsc --noEmit` → `eslint` (0 errors) → `npm run test:all` (cargo + Vitest). Porting rule: every JS test removed must be replaced by a Rust `#[test]`, a `wasm-bindgen-test`, or a JS integration test through `RuntimeBridge.ts`.
+- Setup: `tests/setup.ts` replaces `HTMLCanvasElement.prototype.getContext` to provide a mock WebGL/Canvas 2D context, allowing three.js to initialize in jsdom.
+- Test files live in `tests/` (e.g. `tests/draco.test.ts`, `tests/world.test.ts`, `tests/dataset-space.test.ts`). The deleted JS analytical tests are covered by Rust `#[test]`s under `wasm/` + `tests/wasm-runtime.test.ts` (RuntimeBridge parity; skips in plain jsdom by design).
+- Tests use `vitest run` (one-shot). Pass a path to run a single file: `npx vitest run tests/world.test.ts`.
+- Gate (see `AGENTS.md` §"Required command order" and §"Token-efficient workflow"): `tsc --noEmit` → `eslint` (0 errors) → `npm run test:all` (cargo + Vitest).
 
 ## User-facing documentation
 
 - `README.md` — Quick start, build/test commands, deployment notes.
+- `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` — The governing product and implementation specification.
+- `docs/DEVELOPER_EXPLAINER.md` — The developer onboarding and system explainer guide.
 - `docs/GETTING_STARTED.md` — Detailed Quest setup, first interactions, gestures, session saving, telemetry, collaboration, and CSV import format.
-- `docs/ARCHITECTURE.md` — Layer-by-layer architecture and data-flow descriptions.
-- `docs/DESIGN_SYSTEM.md` — Color palette, typography, artefact specifications, animation timing, and spacing tokens.
-- `docs/ROADMAP.md` — Phase-by-phase roadmap. Its **Current Status** block (top of file) is the live project state — read it first.
+- `docs/ARCHITECTURE.md` — Modular subsystems architecture, semantic ownership, and boundaries.
+- `docs/ROADMAP.md` — Gate 0–7 implementation roadmap. Its **Current Status** block (top of file) is the live project state — read it first.
 
 When making changes, keep these documents aligned if they mention the feature, file, or command you touch.
