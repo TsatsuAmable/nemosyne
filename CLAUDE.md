@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Cardinal Rules (Mandatory)
+
+1. **Vision Alignment Governance**: All development instructions, architectures, and features must strictly align with `docs/Nemosyne_Definitive_Vision_and_Roadmap.md`. Any potential drift, deviation, or architectural alternative must be explicitly flagged and approved by the user before proceeding to implementation.
+2. **Feature Branch & PR Discipline**: Never push directly to `main`. Always develop on dedicated feature/fix branches, pass the full CI verification gate, push to origin, and raise a Pull Request.
+3. **Rust/WASM Analytical Exclusivity**: Rust/WASM is the sole and exclusive analytical authority. No quiet JavaScript analytical fallbacks are permitted. When the kernel is unready, the system transitions to an explicit `KernelUnavailable` state.
+
 ## Picking up where you left off
 
 **Read the "Current Status" block at the top of `docs/ROADMAP.md` FIRST.** It is the
