@@ -7,6 +7,9 @@ import { Dataset } from '../../data/Dataset.ts';
 import type {
   AnalysisResult,
   AnalysisSpec,
+  Annotation,
+  Finding,
+  Observation,
   ResearchEvent,
   VRCommand,
 } from '../types.ts';
@@ -16,9 +19,15 @@ export class EvidenceLedger {
   private _ledger: ResearchEvent[] = [];
   private _results: AnalysisResult[] = [];
   private _structures: StructureSet[] = [];
+  private _observations: Observation[] = [];
+  private _findings: Finding[] = [];
+  private _annotations: Annotation[] = [];
   private _historyView: AnalysisHistory | null = null;
   private _resultCounter = 0;
   private _eventCounter = 0;
+  private _observationCounter = 0;
+  private _findingCounter = 0;
+  private _annotationCounter = 0;
 
   get ledger(): readonly ResearchEvent[] {
     return this._ledger;
@@ -32,6 +41,18 @@ export class EvidenceLedger {
     return this._structures;
   }
 
+  get observations(): readonly Observation[] {
+    return this._observations;
+  }
+
+  get findings(): readonly Finding[] {
+    return this._findings;
+  }
+
+  get annotations(): readonly Annotation[] {
+    return this._annotations;
+  }
+
   nextResultId(fp: string, datasetVersion: number, opName: string): string {
     this._resultCounter += 1;
     return `${fp}:${datasetVersion}:${opName}:${this._resultCounter}`;
@@ -39,6 +60,101 @@ export class EvidenceLedger {
 
   addResult(result: AnalysisResult): void {
     this._results.push(result);
+  }
+
+  recordObservation(
+    obs: Omit<Observation, 'id' | 'timestamp'>,
+    sessionId: string,
+    stateHash: string = obs.datasetFingerprint,
+    now: number = Date.now(),
+  ): Observation {
+    this._observationCounter += 1;
+    const observation: Observation = {
+      ...obs,
+      id: `obs:${sessionId}:${this._observationCounter}`,
+      timestamp: now,
+    };
+    this._observations.push(observation);
+    this.appendEvent(
+      {
+        timestamp: now,
+        kind: 'observation',
+        command: { op: 'observation' },
+        observationEntity: observation,
+        datasetVersion: obs.datasetVersion,
+        datasetFingerprint: obs.datasetFingerprint,
+        stateHash,
+        observation: obs.notes,
+      },
+      sessionId,
+    );
+    return observation;
+  }
+
+  recordFinding(
+    findingInput: Omit<Finding, 'id' | 'timestamp'>,
+    sessionId: string,
+    stateHash: string = findingInput.datasetFingerprint,
+    now: number = Date.now(),
+  ): Finding {
+    this._findingCounter += 1;
+    const finding: Finding = {
+      ...findingInput,
+      id: `finding:${sessionId}:${this._findingCounter}`,
+      timestamp: now,
+    };
+    this._findings.push(finding);
+    this.appendEvent(
+      {
+        timestamp: now,
+        kind: 'finding',
+        command: { op: 'finding' },
+        findingEntity: finding,
+        datasetVersion: findingInput.datasetVersion,
+        datasetFingerprint: findingInput.datasetFingerprint,
+        stateHash,
+        observation: findingInput.title,
+      },
+      sessionId,
+    );
+    return finding;
+  }
+
+  recordAnnotation(
+    annotationInput: Omit<Annotation, 'id' | 'timestamp'>,
+    sessionId: string,
+    datasetVersion: number = 0,
+    datasetFingerprint: string = '',
+    stateHash: string = datasetFingerprint,
+    now: number = Date.now(),
+  ): Annotation {
+    this._annotationCounter += 1;
+    const annotation: Annotation = {
+      ...annotationInput,
+      id: `annot:${sessionId}:${this._annotationCounter}`,
+      timestamp: now,
+    };
+    this._annotations.push(annotation);
+    this.appendEvent(
+      {
+        timestamp: now,
+        kind: 'annotation',
+        command: { op: 'annotation' },
+        annotationEntity: annotation,
+        datasetVersion,
+        datasetFingerprint,
+        stateHash,
+        observation: annotationInput.text,
+      },
+      sessionId,
+    );
+    return annotation;
+  }
+
+  findObservationsForFinding(findingId: string): Observation[] {
+    const finding = this._findings.find((f) => f.id === findingId);
+    if (!finding) return [];
+    return this._observations.filter((o) => finding.observationIds.includes(o.id));
   }
 
   appendEvent(
@@ -98,27 +214,6 @@ export class EvidenceLedger {
     );
   }
 
-  recordObservation(
-    observation: string,
-    sessionId: string,
-    datasetVersion: number,
-    datasetFingerprint: string,
-    stateHash: string,
-    now: number,
-  ): void {
-    this.appendEvent(
-      {
-        timestamp: now,
-        kind: 'analysis',
-        command: { op: 'analysis' },
-        datasetVersion,
-        datasetFingerprint,
-        observation,
-        stateHash,
-      },
-      sessionId,
-    );
-  }
 
   recordIntervention(
     intervention: string,

@@ -1103,6 +1103,7 @@ export interface WorldLike {
   undoAnalysis(): void;
   redoAnalysis(): void;
   startTour(): void;
+  markMoment?(notes?: string): unknown;
   exportScreenshot(): void;
   exportAnalysisStory(): void;
   loadTemplate(id: string): void;

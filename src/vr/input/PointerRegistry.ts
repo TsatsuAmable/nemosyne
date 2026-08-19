@@ -7,6 +7,7 @@
  */
 
 import * as THREE from 'three';
+import { PointerRayFilter } from './PointerRayFilter.ts';
 import type { EngineLike, PointerLike } from '../coordinators/types.ts';
 
 interface FallbackPointer extends PointerLike {
@@ -24,6 +25,9 @@ export class PointerRegistry {
   controllerGripPressed = new Map<PointerLike, boolean>();
   lastHandPinched = new Map<PointerLike, boolean>();
   lastBothPinched = false;
+
+  smoothingEnabled = true;
+  private _rayFilters = new Map<PointerLike, PointerRayFilter>();
 
   constructor(engine: EngineLike) {
     this.engine = engine;
@@ -58,6 +62,7 @@ export class PointerRegistry {
     }
     this.controllerTriggerPressed.delete(controller);
     this.controllerGripPressed.delete(controller);
+    this._rayFilters.delete(controller);
   }
 
   removeHand(hand: PointerLike): void {
@@ -66,6 +71,16 @@ export class PointerRegistry {
       this.hands.splice(idx, 1);
     }
     this.lastHandPinched.delete(hand);
+    this._rayFilters.delete(hand);
+  }
+
+  getRayFilter(pointer: PointerLike): PointerRayFilter {
+    let filter = this._rayFilters.get(pointer);
+    if (!filter) {
+      filter = new PointerRayFilter();
+      this._rayFilters.set(pointer, filter);
+    }
+    return filter;
   }
 
   reset(): void {
@@ -73,6 +88,7 @@ export class PointerRegistry {
     this.controllerGripPressed.clear();
     this.lastHandPinched.clear();
     this.lastBothPinched = false;
+    this._rayFilters.forEach((f) => f.reset());
   }
 
   /**
@@ -102,18 +118,21 @@ export class PointerRegistry {
 
   /**
    * Return the best pointer ray for hover/scene raycasting, preferring a
-   * tracked hand over controllers.
+   * tracked hand over controllers. Applies adaptive jitter filtering when enabled.
    */
-  getBestPointerRay(): THREE.Ray | null {
+  getBestPointerRay(timestamp?: number): THREE.Ray | null {
     const activeHand = this.getBestHand();
     if (activeHand) {
-      return activeHand.getRay(new THREE.Ray());
+      const ray = activeHand.getRay(new THREE.Ray());
+      if (Number.isFinite(ray.origin.x) && ray.direction.lengthSq() > 0) {
+        return this.smoothingEnabled ? this.getRayFilter(activeHand).filter(ray, timestamp) : ray;
+      }
     }
 
     for (const c of this.controllers) {
       const ray = c.getRay(new THREE.Ray());
       if (Number.isFinite(ray.origin.x) && ray.direction.lengthSq() > 0) {
-        return ray;
+        return this.smoothingEnabled ? this.getRayFilter(c).filter(ray, timestamp) : ray;
       }
     }
 

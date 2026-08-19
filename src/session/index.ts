@@ -16,3 +16,6 @@ export type { ShareableSessionPayload } from './ShareableSessionURL.ts';
 
 export { NemosynePackageManager, NemosyneManifestSchema } from './NemosynePackage.ts';
 export type { NemosynePackageManifest, NemosynePackagePayload } from './NemosynePackage.ts';
+
+export { InvestigationReplayRunner } from './InvestigationReplayRunner.ts';
+export type { ReplayVerificationResult } from './InvestigationReplayRunner.ts';
