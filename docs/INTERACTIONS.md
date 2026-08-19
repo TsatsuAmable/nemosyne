@@ -34,9 +34,14 @@ Nemosyne defines a small set of **metaphor-accurate** interactions: every gestur
 | **Reset** | `AtlasCore reset` | All artefacts return to the solved layout | Wheel menu Reset button or `pushForward` gesture with pinched hands |
 | **Reset View** | — | Camera returns to the overview anchor without undoing history | `pushForward` gesture with open hands, or `R` on desktop |
 | **Pause / Resume Input** | — | All gestures are ignored while paused; locomotion and scene selection are disabled | Hold both hands pinched close together for ~1 second, or `P` on desktop |
+| **Mark Moment** | `MarkMomentAction` / `AtlasCore` | Captures 3D observer position, rotation, active slice, and focal cluster into an attributable Observation entity with visual beacon and haptics | Wheel menu `📍 Mark Moment` button |
 | **Undo / Redo** | `AnalysisHistory` rewinds or replays operations | Artefact rebuilds from the stored dataset | `rotateCCW` / `rotateCW` gestures or `Ctrl+Z` / `Ctrl+Y` |
 
 ---
+
+## Pointer Ray Smoothing & Precision Acquisition
+
+WebXR pointers utilize `PointerRayFilter` (adaptive 1-Euro smoothing filter) across both controller and hand tracking rays. At slow speeds/dwell, micro-jitter and physiological hand tremor are dampened by $>50\%$ to facilitate single-datum and small cluster selection at distances of $2\text{m}–5\text{m}$. At high angular velocities, smoothing decreases dynamically ($\beta=0.5$) for zero-lag gesture sweeps.
 
 ## Dual-Hand Gesture Commands
 
