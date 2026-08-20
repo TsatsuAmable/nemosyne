@@ -21,3 +21,6 @@ export const TopologyTypes = {
   TIME_SERIES: 'TIME_SERIES',
   GEO: 'GEO',
 } as const;
+
+export type TopologyTypeValue = TopologyType;
+
