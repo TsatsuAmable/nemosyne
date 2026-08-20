@@ -6,6 +6,11 @@
 > update it BEFORE stopping. Other docs (CLAUDE.md, `.agents/`) point here — they do
 > not duplicate state.
 
+- **2026-08-20 — WASM `getrandom` Target Resolution & CI Verification Gate Ratchet (✅):**
+  - **WebAssembly Target Compatibility:** Added `getrandom = { version = "0.2", features = ["js"] }` dependency in `wasm/Cargo.toml`, resolving `wasm32-unknown-unknown` build failures during `npm run wasm:dev` and `npm run dev:wasm`.
+  - **CI Verification Gate Ratchet:** Promoted `playwright-smoke` (real-WebGL headless Playwright smoke against production bundle) and `rust` (`cargo test --manifest-path wasm/Cargo.toml`) to required blocking gates in `.github/workflows/ci.yml` alongside the full Node test suite.
+  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 239/239 test files passed (1,544 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run wasm:dev` exit 0 (13.7s) · `npm run build` exit 0 (240ms) · `npm run audit:hygiene` 8/8 dimensions passed.
+
 - **2026-08-20 — Senior Platform Reproducibility, Canonical Digest & Evidence Isolation Hardening (✅):**
   - **Evidence Isolation & Reconstruction:** Fixed `EvidenceLedger.reset()` to completely clear observations, findings, annotations, and monotonic counters across dataset loads, eliminating state leakage between investigations. Updated `EvidenceLedger.restore()` and `InvestigationAggregate.restoreState()` to reconstitute observations, findings, and annotations from ledger event streams and prevent ID collisions.
   - **Canonical Cryptographic Investigation Digest (`InvestigationDigest`):** Implemented deterministic canonical JSON serialization (RFC 8785 subset) and cryptographic SHA-256 digest computation (`computeInvestigationDigest`) over schema version, dataset identity, kernel version, immutable dataset, canonical command stream, analytical state, evidence ledger, representation strategy, and research context.
