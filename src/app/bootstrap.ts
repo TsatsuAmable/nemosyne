@@ -21,7 +21,11 @@ export async function bootstrapApp(): Promise<AppInstance> {
 
   const telemetry = document.getElementById('telemetry');
   if (telemetry) {
-    telemetry.textContent = 'ready — point and select to inspect';
+    if (world.bootState === 'KERNEL_UNAVAILABLE') {
+      telemetry.textContent = 'analytical kernel unavailable — run npm run wasm:dev';
+    } else {
+      telemetry.textContent = 'ready — point and select to inspect';
+    }
   }
 
   return { world };

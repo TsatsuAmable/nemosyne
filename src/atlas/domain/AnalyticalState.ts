@@ -11,6 +11,14 @@ function emptyDataset(): Dataset {
   return new Dataset('empty', [], []);
 }
 
+export interface KernelCommitOptions {
+  handle: number;
+  dataset: Dataset;
+  fingerprint?: string;
+  provenance?: unknown;
+  versionBump?: boolean;
+}
+
 export class AnalyticalState {
   private _original: Dataset | null = null;
   private _current: Dataset | null = null;
@@ -39,6 +47,10 @@ export class AnalyticalState {
     return this._datasetVersion;
   }
 
+  get currentHandle(): number {
+    return this._currentHandle;
+  }
+
   get hasDataset(): boolean {
     return this._current !== null;
   }
@@ -52,6 +64,29 @@ export class AnalyticalState {
     this._datasetVersion += 1;
     this.invalidateHandle(destroyer);
     this._invalidateDatasetSpace();
+  }
+
+  /**
+   * Atomically commit a new kernel result handle, dataset, and fingerprint, advancing datasetVersion.
+   */
+  commitKernelResult(options: KernelCommitOptions, destroyer?: (handle: number) => void): void {
+    const { handle, dataset, fingerprint, versionBump = true } = options;
+    if (this._currentHandle !== 0 && this._currentHandle !== handle && destroyer) {
+      try {
+        destroyer(this._currentHandle);
+      } catch {
+        // best-effort cleanup
+      }
+    }
+    this._currentHandle = handle;
+    this._current = dataset?.clone?.() ?? emptyDataset();
+    if (versionBump) {
+      this._datasetVersion += 1;
+    }
+    this._invalidateDatasetSpace();
+    if (fingerprint) {
+      this.getDatasetSpace(() => fingerprint);
+    }
   }
 
   /**
@@ -170,6 +205,13 @@ export class AnalyticalState {
       }
     }
     this._currentHandle = outHandle;
+  }
+
+  dispose(destroyer?: (handle: number) => void): void {
+    this.invalidateHandle(destroyer);
+    this._invalidateDatasetSpace();
+    this._original = null;
+    this._current = null;
   }
 
   private _invalidateDatasetSpace(): void {

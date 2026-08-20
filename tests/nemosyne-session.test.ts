@@ -58,7 +58,7 @@ describe('NemosyneSession', () => {
   it('serialize() produces a schemaVersion-2 JSON with the full governance shape', () => {
     const json = session.serialize();
     expect(json.schemaVersion).toBe(2);
-    expect(json.datasetVersion).toBe(1);
+    expect(json.datasetVersion).toBe(2);
     expect(json.datasetFingerprint).toBeTruthy();
     expect(json.originalDataset).toBeTruthy();
     expect(json.currentDataset).toBeTruthy();

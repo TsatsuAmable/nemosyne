@@ -165,10 +165,11 @@ export class PerformanceBudget {
   }
 
   _recordDrop(dropped: boolean, now: number): void {
-    if (!dropped) return;
     const windowStart = now - 10_000;
     this._frameDropWindow = this._frameDropWindow.filter((t) => t >= windowStart);
-    this._frameDropWindow.push(now);
+    if (dropped) {
+      this._frameDropWindow.push(now);
+    }
   }
 
   /** Return the most recent violations. */

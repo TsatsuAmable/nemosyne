@@ -174,10 +174,18 @@ export class LiveStreamCoordinator {
     const rows = update.dataset?.rows ?? [];
     if (rows.length === 0) return;
 
-    this._pendingRows.push(...rows);
-    const merged = [...this.liveRows, ...rows];
-    const limit = this.liveConnector?.windowSize ?? 50;
-    this.liveRows = update.mode === 'window' ? merged.slice(-limit) : merged;
+    if (update.mode === 'replace') {
+      this.liveRows = [...rows];
+      this._pendingRows = [...rows];
+    } else if (update.mode === 'window') {
+      this._pendingRows.push(...rows);
+      const merged = [...this.liveRows, ...rows];
+      const limit = this.liveConnector?.windowSize ?? 50;
+      this.liveRows = merged.slice(-limit);
+    } else {
+      this._pendingRows.push(...rows);
+      this.liveRows = [...this.liveRows, ...rows];
+    }
 
     this._liveUpdatePending = true;
     if (!this._liveFlushTimer) {

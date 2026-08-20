@@ -396,13 +396,21 @@ export class AtlasCore {
       }
       provenance = this.lastProvenance();
       outputHash = kernel.datasetFingerprint?.(outHandle) ?? fnv1aHex(json);
-    } finally {
-      // outHandle will be adopted below
-    }
 
-    this._aggregate.analytical.adoptHandle(outHandle, (h) => this._kernel?.destroyDataset(h));
-    const nextDataset = Dataset.fromJSON(json);
-    this._aggregate.analytical.setCurrentDataset(nextDataset);
+      const nextDataset = Dataset.fromJSON(json);
+      this._aggregate.analytical.commitKernelResult(
+        {
+          handle: outHandle,
+          dataset: nextDataset,
+          fingerprint: outputHash,
+          versionBump: true,
+        },
+        (h: number) => this._kernel?.destroyDataset(h)
+      );
+    } catch (err) {
+      kernel.destroyDataset(outHandle);
+      throw err;
+    }
 
     const fp = this.datasetFingerprint ?? spec.datasetFingerprint;
     const resultId = this._aggregate.ledger.nextResultId(fp, this.datasetVersion, spec.operation.op);
@@ -433,15 +441,43 @@ export class AtlasCore {
       this._aggregate.sessionId,
     );
 
+    const opNodeId = `${this._aggregate.sessionId}:${resultId}`;
+    const prevVersionId = `${this._aggregate.sessionId}:v${this.datasetVersion - 1}`;
+    const nextVersionId = `${this._aggregate.sessionId}:v${this.datasetVersion}`;
+
     this._aggregate.graph.addNode({
-      id: `${this._aggregate.sessionId}:${resultId}`,
-      parentId: `${this._aggregate.sessionId}:v${this.datasetVersion}`,
+      id: opNodeId,
+      kind: 'operation',
+      parentId: prevVersionId,
       datasetVersion: this.datasetVersion,
       datasetFingerprint: fp,
       label: spec.label ?? spec.operation.op,
       operation: spec.operation.op,
       timestamp: this._aggregate.context.now(),
     });
+
+    this._aggregate.graph.addNode({
+      id: nextVersionId,
+      kind: 'dataset_version',
+      parentId: opNodeId,
+      datasetVersion: this.datasetVersion,
+      datasetFingerprint: fp,
+      label: `Dataset v${this.datasetVersion}`,
+      timestamp: this._aggregate.context.now(),
+    });
+
+    if (this._aggregate.graph.getNode(prevVersionId)) {
+      try {
+        this._aggregate.graph.connect(prevVersionId, opNodeId, 'motivates');
+      } catch {
+        // safe connect
+      }
+    }
+    try {
+      this._aggregate.graph.connect(opNodeId, nextVersionId, 'produces');
+    } catch {
+      // safe connect
+    }
 
     return result;
   }

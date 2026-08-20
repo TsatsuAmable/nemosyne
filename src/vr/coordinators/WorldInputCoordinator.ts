@@ -108,10 +108,13 @@ export class WorldInputCoordinator {
     this._updateInputContext();
     if (this._handNearArtefact) return;
     const hands = (this.engine.input.hands ?? []) as unknown as HandLike[];
-    this.gestureRecognizer.setHands(hands);
-    this.gestureRecognizer.update(delta, time);
-    this.gestureAdapter.recordHands(hands, time);
-    this.gestureAdapter.classify(time);
+    if (this.gestureAdapter) {
+      this.gestureAdapter.recordHands(hands, time);
+      this.gestureAdapter.classify(time);
+    } else {
+      this.gestureRecognizer.setHands(hands);
+      this.gestureRecognizer.update(delta, time);
+    }
   }
 
   /**

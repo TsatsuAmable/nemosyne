@@ -46,7 +46,7 @@ export interface ParticipantAssignment {
 export interface TrialEvent {
   timestamp: number;
   phase: TrialPhase;
-  eventType: 'phase_change' | 'node_select' | 'node_deselect' | 'camera_move' | 'filter_apply' | 'reset' | 'survey_submit';
+  eventType: 'phase_change' | 'node_select' | 'node_deselect' | 'camera_move' | 'filter_apply' | 'interaction' | 'reset' | 'survey_submit';
   payload?: Record<string, unknown>;
 }
 

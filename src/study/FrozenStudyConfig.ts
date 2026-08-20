@@ -8,7 +8,8 @@ import { GROUND_TRUTH_FRAUD_IDS } from './StudyDatasets.ts';
 import type { TaskSpec, StudyCondition } from './types.ts';
 
 export const FROZEN_STUDY_NAME = 'Find the Fraud';
-export const FROZEN_PROTOCOL_VERSION = '1.0.0-frozen';
+export const FROZEN_PROTOCOL_VERSION = '1.0.0-draft';
+export const FROZEN_STUDY_STATUS = 'DRAFT' as const;
 
 export const FROZEN_STUDY_CONDITIONS: StudyCondition[] = ['2d_control', 'vr_experimental'];
 
@@ -17,7 +18,7 @@ export const FROZEN_STUDY_TASKS: TaskSpec[] = [
     id: 'task_fraud_detection_1',
     name: 'Identify Fraud Mule Ring',
     datasetType: 'Financial Transaction Network',
-    datasetFingerprint: 'fnv1a-synthetic-fraud-v1',
+    datasetFingerprint: 'draft-synthetic-fraud-v1',
     description: 'Find the coordinated high-risk accounts participating in the circular transaction ring.',
     instructions: 'Explore the dataset, inspect account attributes and transaction structures, and select all accounts belonging to the fraud ring.',
     maxDurationMs: 180000, // 3 minutes
@@ -32,7 +33,7 @@ export const FROZEN_STUDY_TASKS: TaskSpec[] = [
     id: 'task_outlier_detection_2',
     name: 'Detect Isolated Anomaly',
     datasetType: 'Financial Scatter / Anomaly',
-    datasetFingerprint: 'fnv1a-synthetic-outlier-v1',
+    datasetFingerprint: 'draft-synthetic-outlier-v1',
     description: 'Identify the primary outlier account exhibiting anomalous volume relative to its peer group.',
     instructions: 'Locate and select the single highest-deviation account node in the dataset space.',
     maxDurationMs: 120000, // 2 minutes
@@ -43,4 +44,4 @@ export const FROZEN_STUDY_TASKS: TaskSpec[] = [
   },
 ];
 
-export const FROZEN_CONFIG_HASH = 'sha256-nemosyne-study-atlas6-v1-frozen';
+export const FROZEN_CONFIG_HASH = 'draft-study-manifest-unfrozen';

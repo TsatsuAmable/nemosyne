@@ -29,8 +29,11 @@ export class MarkMomentAction {
   static execute(context: MarkMomentContext): Observation {
     const { atlas, camera, scene, feedback, targetIds, rowIndices, notes, tags, onLogged } = context;
 
-    const pos = camera.position;
-    const quat = camera.quaternion;
+    camera.updateMatrixWorld(true);
+    const pos = new THREE.Vector3();
+    const quat = new THREE.Quaternion();
+    camera.getWorldPosition(pos);
+    camera.getWorldQuaternion(quat);
 
     const observation = atlas.recordObservation({
       notes: notes ?? `Marked moment at ${new Date().toLocaleTimeString()}`,

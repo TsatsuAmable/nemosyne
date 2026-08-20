@@ -108,13 +108,11 @@ export class StudyStatisticalAnalyzer {
     conditionA: StudyCondition = '2d_control',
     conditionB: StudyCondition = 'vr_experimental'
   ): HypothesisTestResult {
-    const valsA = trials
-      .filter((t) => t.condition === conditionA && typeof t[metricKey] === 'number')
-      .map((t) => t[metricKey] as number);
+    const trialsA = trials.filter((t) => t.condition === conditionA && typeof t[metricKey] === 'number');
+    const trialsB = trials.filter((t) => t.condition === conditionB && typeof t[metricKey] === 'number');
 
-    const valsB = trials
-      .filter((t) => t.condition === conditionB && typeof t[metricKey] === 'number')
-      .map((t) => t[metricKey] as number);
+    const valsA = trialsA.map((t) => t[metricKey] as number);
+    const valsB = trialsB.map((t) => t[metricKey] as number);
 
     const summaryA = this._computeSummary(valsA);
     const summaryB = this._computeSummary(valsB);
@@ -135,18 +133,53 @@ export class StudyStatisticalAnalyzer {
       };
     }
 
-    const df = summaryA.n + summaryB.n - 2;
-    const pooledVariance =
-      ((summaryA.n - 1) * summaryA.sd ** 2 + (summaryB.n - 1) * summaryB.sd ** 2) / df;
-    const pooledSd = Math.sqrt(pooledVariance);
+    // Attempt paired crossover mapping by participantId and taskId
+    const pairedDiffs: number[] = [];
+    const mapA = new Map<string, number>();
+    for (const t of trialsA) {
+      const key = `${t.participantId}:${t.taskId ?? ''}`;
+      mapA.set(key, t[metricKey] as number);
+    }
+    for (const t of trialsB) {
+      const key = `${t.participantId}:${t.taskId ?? ''}`;
+      if (mapA.has(key)) {
+        const valA = mapA.get(key)!;
+        const valB = t[metricKey] as number;
+        pairedDiffs.push(valB - valA);
+      }
+    }
 
-    const standardError = pooledSd * Math.sqrt(1 / summaryA.n + 1 / summaryB.n);
-    const tStatistic = standardError > 0 ? (summaryB.mean - summaryA.mean) / standardError : 0;
-    const pValueApprox = this._approximatePValue(tStatistic, df);
+    let tStatistic = 0;
+    let df = 0;
+    let cohensD = 0;
+    let pValueApprox = 1.0;
 
-    const cohensD = pooledSd > 0 ? (summaryB.mean - summaryA.mean) / pooledSd : 0;
+    if (pairedDiffs.length >= 2) {
+      // Paired crossover t-test
+      const nPairs = pairedDiffs.length;
+      df = nPairs - 1;
+      const meanDiff = pairedDiffs.reduce((a, b) => a + b, 0) / nPairs;
+      const varianceDiff = pairedDiffs.reduce((acc, d) => acc + (d - meanDiff) ** 2, 0) / df;
+      const sdDiff = Math.sqrt(varianceDiff);
+      const seDiff = sdDiff / Math.sqrt(nPairs);
+
+      tStatistic = seDiff > 1e-9 ? meanDiff / seDiff : 0;
+      cohensD = sdDiff > 1e-9 ? meanDiff / sdDiff : 0;
+      pValueApprox = this._approximatePValue(tStatistic, df);
+    } else {
+      // Independent two-sample fallback
+      df = summaryA.n + summaryB.n - 2;
+      const pooledVariance =
+        ((summaryA.n - 1) * summaryA.sd ** 2 + (summaryB.n - 1) * summaryB.sd ** 2) / df;
+      const pooledSd = Math.sqrt(pooledVariance);
+
+      const standardError = pooledSd * Math.sqrt(1 / summaryA.n + 1 / summaryB.n);
+      tStatistic = standardError > 0 ? (summaryB.mean - summaryA.mean) / standardError : 0;
+      pValueApprox = this._approximatePValue(tStatistic, df);
+      cohensD = pooledSd > 0 ? (summaryB.mean - summaryA.mean) / pooledSd : 0;
+    }
+
     const absD = Math.abs(cohensD);
-
     let effectMagnitude: 'negligible' | 'small' | 'medium' | 'large' = 'negligible';
     if (absD >= 0.8) effectMagnitude = 'large';
     else if (absD >= 0.5) effectMagnitude = 'medium';

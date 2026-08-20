@@ -157,9 +157,10 @@ export class ExperimentRunner {
    * Records selection of a node by the participant.
    */
   selectNode(nodeId: string | number): void {
-    if (this._currentPhase !== 'exploration' && this._currentPhase !== 'query' && this._currentPhase !== 'selection') {
-      this._currentPhase = 'selection';
+    if (this._currentPhase !== 'exploration' && this._currentPhase !== 'selection') {
+      throw new Error(`Cannot select node in phase: ${this._currentPhase}`);
     }
+    this._currentPhase = 'selection';
     this._selectedNodeIds.add(nodeId);
     this._interactionCount++;
     this._logEvent('node_select', { nodeId, totalSelected: this._selectedNodeIds.size });
@@ -169,6 +170,9 @@ export class ExperimentRunner {
    * Deselects a previously selected node.
    */
   deselectNode(nodeId: string | number): void {
+    if (this._currentPhase !== 'exploration' && this._currentPhase !== 'selection') {
+      throw new Error(`Cannot deselect node in phase: ${this._currentPhase}`);
+    }
     this._selectedNodeIds.delete(nodeId);
     this._interactionCount++;
     this._logEvent('node_deselect', { nodeId, totalSelected: this._selectedNodeIds.size });
@@ -178,8 +182,11 @@ export class ExperimentRunner {
    * Records a user interaction event (e.g. filter, warp, inspector hover).
    */
   recordInteraction(type: string, details?: Record<string, unknown>): void {
+    if (this._currentPhase !== 'exploration' && this._currentPhase !== 'selection') {
+      return;
+    }
     this._interactionCount++;
-    this._logEvent('filter_apply', { type, ...details });
+    this._logEvent('interaction', { interactionType: type, ...details });
   }
 
   /**
@@ -204,7 +211,7 @@ export class ExperimentRunner {
    * Submits the participant's selections for the current trial and transitions to survey.
    */
   submitTrialAnswers(): { trialId: string; selectedCount: number } {
-    if (this._currentPhase === 'idle' || this._currentPhase === 'completed' || this._currentPhase === 'survey') {
+    if (this._currentPhase !== 'exploration' && this._currentPhase !== 'selection') {
       throw new Error(`Cannot submit trial answers in phase: ${this._currentPhase}`);
     }
 
@@ -221,6 +228,13 @@ export class ExperimentRunner {
   finalizeTrial(confidenceRating?: number, workloadScore?: number): TrialMetrics {
     if (this._currentPhase !== 'survey') {
       throw new Error(`Cannot finalize trial before survey phase (current: ${this._currentPhase})`);
+    }
+
+    if (confidenceRating !== undefined && (confidenceRating < 1 || confidenceRating > 7 || !Number.isFinite(confidenceRating))) {
+      throw new Error(`Confidence rating out of range [1, 7]: ${confidenceRating}`);
+    }
+    if (workloadScore !== undefined && (workloadScore < 0 || workloadScore > 100 || !Number.isFinite(workloadScore))) {
+      throw new Error(`Workload score out of range [0, 100]: ${workloadScore}`);
     }
 
     const endTime = Date.now();
@@ -319,14 +333,13 @@ export class ExperimentRunner {
       events: [...this._events],
     };
 
-    // Calculate deterministic provenance hash
-    let hash = 0;
+    let hash = 0x811c9dc5;
     const str = JSON.stringify(payload);
     for (let i = 0; i < str.length; i++) {
-      hash = (hash << 5) - hash + str.charCodeAt(i);
-      hash |= 0;
+      hash ^= str.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193) >>> 0;
     }
-    const provenanceHash = `fnv1a-${Math.abs(hash).toString(16)}`;
+    const provenanceHash = `fnv1a-${(hash >>> 0).toString(16)}`;
 
     return {
       ...payload,

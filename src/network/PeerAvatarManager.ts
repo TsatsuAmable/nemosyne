@@ -98,6 +98,16 @@ export class PeerAvatarManager {
     this._avatarMap.delete(peerId);
   }
 
+  clearAll(): void {
+    for (const peerId of Array.from(this._avatarMap.keys())) {
+      this.removePeer(peerId);
+    }
+  }
+
+  dispose(): void {
+    this.clearAll();
+  }
+
   getAvatarCount(): number {
     return this._avatarMap.size;
   }
