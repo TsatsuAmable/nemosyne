@@ -139,6 +139,39 @@ export class InvestigationAggregate {
       datasetFingerprint: evt.datasetFingerprint,
     }));
 
+    const repDecision = this.representation.activeDecision;
+    const repStrategy = this.representation.activeStrategy;
+    const repDecisionPayload = repDecision
+      ? {
+          strategyId: repDecision.embodiment.spatialStrategy.id,
+          representationFamily: repDecision.representationFamily,
+          worldType: repDecision.embodiment.spatialStrategy.worldType,
+          layout: repDecision.embodiment.primaryLayout,
+          geometry: repDecision.embodiment.primaryGeometry,
+          confidence: repDecision.confidence,
+          utilityScore: repDecision.utilityScore,
+          evidence: repDecision.evidence.map((e) => ({
+            fact: e.fact,
+            weight: e.weight,
+            supports: e.supports,
+            source: e.source,
+          })),
+          rejectedAlternatives: repDecision.rejectedAlternatives.map((r) => ({
+            family: r.family,
+            score: r.score,
+            reason: r.reason,
+            hardPassed: r.hardPassed,
+          })),
+        }
+      : repStrategy
+      ? {
+          strategyId: repStrategy.id,
+          worldType: repStrategy.worldType,
+          layout: repStrategy.macroLayout.layout,
+          geometry: repStrategy.datumEncoding.geometry,
+        }
+      : undefined;
+
     return computeInvestigationDigest({
       schemaVersion: 1,
       datasetFingerprint: fp,
@@ -160,6 +193,7 @@ export class InvestigationAggregate {
         findings: this.ledger.findings.map((f) => ({ id: f.id, title: f.title, confidence: f.confidence })),
         observations: this.ledger.observations.map((o) => ({ id: o.id, notes: o.notes })),
       },
+      representationDecision: repDecisionPayload,
       researchContext: {
         studyId: this.context.studyId,
         researchQuestion: this.context.researchQuestion,

@@ -37,9 +37,14 @@ export interface CanonicalInvestigationInput {
   };
   representationDecision?: {
     strategyId?: string;
+    representationFamily?: string;
     worldType?: string;
     layout?: string;
     geometry?: string;
+    confidence?: number;
+    utilityScore?: number;
+    evidence?: Array<{ fact: string; weight: number; supports: boolean; source: string }>;
+    rejectedAlternatives?: Array<{ family: string; score: number; reason: string; hardPassed: boolean }>;
   };
   researchContext?: {
     studyId?: string;

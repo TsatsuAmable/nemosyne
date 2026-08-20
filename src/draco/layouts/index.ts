@@ -5,3 +5,5 @@ export { RadialTreeLayout } from './RadialTreeLayout.ts';
 export { TimeSeriesRibbonLayout } from './TimeSeriesRibbonLayout.ts';
 export { StreamlineLayout } from './StreamlineLayout.ts';
 export { GeoSurfaceLayout } from './GeoSurfaceLayout.ts';
+export { SpectralVolumeLayout } from './SpectralVolumeLayout.ts';
+

@@ -352,10 +352,11 @@ const CAP_TOPOLOGY_RUST: u32 = 1 << 10; // wasm/src/data/topology.rs (infer + TD
 const CAP_TDA_RUST: u32 = 1 << 11; // mapper / persistence / betti0
 const CAP_ENCODINGS_RUST: u32 = 1 << 12; // wasm/src/data/encodings.rs
 const CAP_STATS_RUST: u32 = 1 << 13; // wasm/src/data/statistics.rs (Facts)
+const CAP_SPECTRAL_RUST: u32 = 1 << 14; // wasm/src/data/spectral.rs (FFT)
 
 /// Return the enabled capability set for the current build. Wave 1 advertises
 /// the data/parser/operations subsystems plus the newly-exported
-/// topology/TDA/encodings/stats subsystems. The remaining bits (Draco, scene,
+/// topology/TDA/encodings/stats/spectral subsystems. The remaining bits (Draco, scene,
 /// input, network, command buffer, instancing, telemetry) are reserved until
 /// their subsystem is genuinely migrated; see the constants above.
 #[wasm_bindgen]
@@ -367,6 +368,7 @@ pub fn capabilities() -> u32 {
         | CAP_TDA_RUST
         | CAP_ENCODINGS_RUST
         | CAP_STATS_RUST
+        | CAP_SPECTRAL_RUST
 }
 
 /// Compute 3D grid layout positions in WASM memory.
@@ -758,6 +760,45 @@ pub fn data_statistics(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     write_str_out(&json, out_ptr, out_len)
 }
 
+/// Compute spectral facts via FFT and return as JSON.
+#[wasm_bindgen]
+pub fn data_compute_spectral_facts(
+    handle: u32,
+    time_ptr: u32,
+    time_len: u32,
+    val_ptr: u32,
+    val_len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let (facts_json, input_fp) = match data::with_dataset(handle, |ds| {
+        let time_col = if time_len > 0 {
+            let bytes = unsafe { allocator::view(time_ptr, time_len) };
+            std::str::from_utf8(bytes).unwrap_or("")
+        } else {
+            ""
+        };
+        let val_col = if val_len > 0 {
+            let bytes = unsafe { allocator::view(val_ptr, val_len) };
+            std::str::from_utf8(bytes).unwrap_or("")
+        } else {
+            ""
+        };
+        let facts = data::spectral::compute_spectral_facts(ds, time_col, val_col);
+        (facts, ds.fingerprint())
+    }) {
+        Some(v) => v,
+        None => return 0,
+    };
+    let json = match facts_json {
+        Some(f) => serde_json::to_string(&f).unwrap_or_else(|_| "null".to_string()),
+        None => "null".to_string(),
+    };
+    let output_fp = data::fingerprint::fnv1a_hex(&json);
+    data::provenance::record("spectral_facts", serde_json::Value::Null, &input_fp, &output_fp);
+    write_str_out(&json, out_ptr, out_len)
+}
+
 /// Parse an Arrow IPC payload and return a dataset handle. Returns `0` on error.
 #[wasm_bindgen]
 pub fn data_parse_arrow(ptr: u32, len: u32) -> u32 {
@@ -1113,6 +1154,7 @@ mod tests {
         assert!(caps & CAP_TDA_RUST != 0, "TDA_RUST implemented in Wave 1");
         assert!(caps & CAP_ENCODINGS_RUST != 0, "ENCODINGS_RUST implemented in Wave 1");
         assert!(caps & CAP_STATS_RUST != 0, "STATS_RUST implemented in Wave 1");
+        assert!(caps & CAP_SPECTRAL_RUST != 0, "SPECTRAL_RUST implemented in Phase 5");
         // Honesty lock: reserved / unimplemented bits are NOT advertised. This
         // catches a future regression that re-adds a premature or false claim.
         assert_eq!(caps & CAP_DRACO_RUST, 0, "DRACO_RUST not yet migrated");

@@ -242,7 +242,10 @@ export class Dataset {
     // preserving their identity for downstream row-reference matching.
     const ds = new Dataset(
       typedObj.name || 'dataset',
-      typedObj.columns?.map((c) => ({ name: c.name, type: c.type })) || [],
+      typedObj.columns?.map((c) => ({
+        name: c.name,
+        type: (typeof c.type === 'string' ? c.type.toUpperCase() : c.type) as ColumnTypeValue,
+      })) || [],
       (typedObj.rows ?? []).map(cloneRow)
     );
     if (typedObj.edges) {

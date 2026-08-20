@@ -221,3 +221,14 @@ export interface EncodingMapping {
   time?: string;
   label?: string;
 }
+
+export interface SpectralFacts {
+  dominantFrequencies: number[];
+  spectralEntropy: number;
+  powerSpectrumPeak: number;
+  directionalAnisotropy: number;
+  characteristicScale: number;
+  hasPeriodicity: boolean;
+  periodicityConfidence: number;
+}
+

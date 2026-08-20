@@ -16,7 +16,8 @@ export type VRLayout =
   | 'RADIAL_ORBITAL'
   | 'VECTOR_STREAMLINE'
   | 'TIME_RIBBON'
-  | 'GEO_SURFACE';
+  | 'GEO_SURFACE'
+  | 'SPECTRAL_VOLUME';
 
 /** Available geometry channels produced by the constraint solver. */
 export type VRGeometry =
@@ -30,7 +31,9 @@ export type VRGeometry =
   | 'AGGREGATE_BARS'
   | 'ORB'
   | 'COLUMN'
-  | 'BEAM';
+  | 'BEAM'
+  | 'SPECTRAL_BAR'
+  | 'SPECTRAL_SURFACE';
 
 /** Available behavior channels produced by the constraint solver. */
 export type VRBehavior = 'PULSE_QUANTITATIVE' | 'ORBITAL_SPIN' | 'WAVE_OSCILLATION' | 'STATIC';
@@ -48,7 +51,8 @@ export type VRInteraction =
   | 'CHRONO_DIAL'
   | 'CONSTELLATION'
   | 'BEACON'
-  | 'ALEPH';
+  | 'ALEPH'
+  | 'FREQUENCY_PROBE';
 
 /** A full Draco specification (layout/geometry/behavior/interaction). */
 export interface DracoSpec {

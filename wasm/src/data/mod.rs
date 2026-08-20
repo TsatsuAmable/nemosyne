@@ -6,6 +6,7 @@ pub mod operations;
 pub mod operations_bridge;
 pub mod parsers;
 pub mod provenance;
+pub mod spectral;
 pub mod statistics;
 pub mod structure_discovery;
 pub mod synthetic;

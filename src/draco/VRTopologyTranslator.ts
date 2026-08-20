@@ -13,6 +13,7 @@ import {
   TimeSeriesRibbonLayout,
   StreamlineLayout,
   GeoSurfaceLayout,
+  SpectralVolumeLayout,
 } from './layouts/index.ts';
 import type { Dataset, DatasetEdge } from '../data/Dataset.ts';
 import type { EncodingMapping } from '../data/SampleDatasets.ts';
@@ -154,6 +155,9 @@ export class VRTopologyTranslator {
           break;
         case 'GEO_SURFACE':
           this._buildGeoSurface(group, nodeMeshes, rows, dataset, encodings, rng);
+          break;
+        case 'SPECTRAL_VOLUME':
+          this._buildSpectralVolume(group, nodeMeshes, rows, dataset, encodings, rng);
           break;
       }
     }
@@ -297,6 +301,12 @@ export class VRTopologyTranslator {
         break;
       case 'ZONE':
         geom = new THREE.CylinderGeometry(0.5, 0.5, 0.02, 32, 1, true);
+        break;
+      case 'SPECTRAL_BAR':
+        geom = new THREE.CylinderGeometry(0.08, 0.08, 0.7, 8);
+        break;
+      case 'SPECTRAL_SURFACE':
+        geom = new THREE.PlaneGeometry(0.3, 0.3);
         break;
       default:
         geom = new THREE.IcosahedronGeometry(0.32, 1);
@@ -505,7 +515,7 @@ export class VRTopologyTranslator {
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    const mat = new THREE.LineBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.35 });
+    const mat = new THREE.LineBasicMaterial({ color: 0xff88cc, transparent: true, opacity: 0.35 });
     const lineSegments = new THREE.LineSegments(geo, mat);
     group.add(lineSegments);
     edgeMeshes.push(lineSegments);
@@ -519,16 +529,41 @@ export class VRTopologyTranslator {
     encodings: EncodingMapping,
     _rng: SeededRandom
   ): void {
-    const valueField = encodings.size || dataset?.numericColumns[0]?.name;
     const positions = GeoSurfaceLayout.compute(rows, {
-      valueKey: valueField,
-      yOffset: 0.5,
-    }) as GeoEntry<Record<string, unknown>>[];
-
+      latKey: encodings.size ?? 'lat',
+      lonKey: encodings.color ?? 'lon',
+      valueKey: encodings.pulse ?? 'elevation',
+      roomWidth: 6.0,
+      roomDepth: 6.0,
+      heightScale: 1.2,
+      yOffset: 1.2,
+    });
     for (const p of positions) {
       const mesh = this._makeNode(p.row, dataset, encodings, 'GEO_COLUMN');
       mesh.position.copy(p.position);
-      mesh.scale.y = Math.max(0.1, p.value * 0.05);
+      group.add(mesh);
+      nodeMeshes.push(mesh);
+    }
+  }
+
+  static _buildSpectralVolume(
+    group: THREE.Group,
+    nodeMeshes: THREE.Mesh[],
+    rows: Record<string, unknown>[],
+    dataset: Dataset | undefined,
+    encodings: EncodingMapping,
+    _rng: SeededRandom
+  ): void {
+    const freqKey = encodings.time ?? dataset?.temporalColumns[0]?.name ?? dataset?.numericColumns[0]?.name;
+    const powerKey = encodings.size ?? dataset?.numericColumns[0]?.name;
+    const positions = SpectralVolumeLayout.compute(rows, {
+      frequencyKey: freqKey,
+      powerKey,
+      yOffset: 1.2,
+    });
+    for (const p of positions) {
+      const mesh = this._makeNode(p.row, dataset, encodings, 'SPECTRAL_BAR');
+      mesh.position.copy(p.position);
       group.add(mesh);
       nodeMeshes.push(mesh);
     }
