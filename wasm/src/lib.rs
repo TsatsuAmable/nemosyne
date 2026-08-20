@@ -2,7 +2,8 @@ use wasm_bindgen::prelude::*;
 
 pub mod command_buffer;
 mod data;
-pub mod draco;
+pub mod moneta;
+pub use moneta as draco;
 pub mod intent;
 pub mod layouts;
 
@@ -334,10 +335,8 @@ pub fn update(_delta_ms: f32, _time_ms: f32) -> u32 {
 const CAP_DATASET_RUST: u32 = 1 << 0; // wasm/src/data/dataset.rs
 const CAP_PARSER_RUST: u32 = 1 << 1; // wasm/src/data/parsers.rs
 const CAP_OPERATIONS_RUST: u32 = 1 << 2; // wasm/src/data/operations.rs
-// Reserved (defined for the invariant; NOT advertised until implemented):
-const CAP_DRACO_RUST: u32 = 1 << 3; // reserved — only the layout generators are in
-//   Rust so far (wasm/src/layouts/); the constraint solver + TDA remain JS, so
-//   the Draco subsystem is not yet migrated. Phase 3.
+const CAP_MONETA_RUST: u32 = 1 << 3; // wasm/src/moneta/ (formerly Draco)
+const CAP_DRACO_RUST: u32 = CAP_MONETA_RUST; // backward-compat alias
 const CAP_SCENE_RUST: u32 = 1 << 4; // reserved — scene graph still JS. Phase 2.
 const CAP_INPUT_RUST: u32 = 1 << 5; // reserved — input still JS. Phase 4.
 const CAP_NETWORK_RUST: u32 = 1 << 6; // reserved. Phase 5.
@@ -796,6 +795,26 @@ pub fn data_compute_spectral_facts(
     };
     let output_fp = data::fingerprint::fnv1a_hex(&json);
     data::provenance::record("spectral_facts", serde_json::Value::Null, &input_fp, &output_fp);
+    write_str_out(&json, out_ptr, out_len)
+}
+
+/// Compute full DatasetStructureProfile and return as JSON.
+#[wasm_bindgen]
+pub fn data_compute_structure_profile(
+    handle: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let (profile_json, input_fp) = match data::with_dataset(handle, |ds| {
+        let profile = data::profile::compute_dataset_structure_profile(ds, &ds.fingerprint(), "0.1.0");
+        (profile, ds.fingerprint())
+    }) {
+        Some(v) => v,
+        None => return 0,
+    };
+    let json = serde_json::to_string(&profile_json).unwrap_or_else(|_| "null".to_string());
+    let output_fp = data::fingerprint::fnv1a_hex(&json);
+    data::provenance::record("structure_profile", serde_json::Value::Null, &input_fp, &output_fp);
     write_str_out(&json, out_ptr, out_len)
 }
 

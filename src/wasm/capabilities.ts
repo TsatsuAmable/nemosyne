@@ -9,6 +9,7 @@ export const CapabilityFlags = {
   DATASET_RUST: 1 << 0,
   PARSER_RUST: 1 << 1,
   OPERATIONS_RUST: 1 << 2,
+  MONETA_RUST: 1 << 3,
   DRACO_RUST: 1 << 3,
   SCENE_RUST: 1 << 4,
   INPUT_RUST: 1 << 5,
@@ -20,6 +21,7 @@ export const CapabilityFlags = {
   TDA_RUST: 1 << 11,
   ENCODINGS_RUST: 1 << 12,
   STATS_RUST: 1 << 13,
+  SPECTRAL_RUST: 1 << 14,
 } as const;
 
 export type CapabilityName = keyof typeof CapabilityFlags;

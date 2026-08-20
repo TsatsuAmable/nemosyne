@@ -77,6 +77,11 @@ interface WasmInitOutput {
     ptr: number,
     len: number,
   ): number;
+  data_compute_structure_profile(
+    handle: number,
+    ptr: number,
+    len: number,
+  ): number;
   data_compute_mapper_graph(
     handle: number,
     paramsPtr: number,
@@ -1145,7 +1150,7 @@ function callJsonAbi(
   }
 }
 
-export function solveDraco(facts: Record<string, unknown>): Record<string, unknown> | null {
+export function solveMoneta(facts: Record<string, unknown>): Record<string, unknown> | null {
   if (!wasmInstance) return null;
   const factsBytes = new TextEncoder().encode(JSON.stringify(facts));
   const { ptr: factsPtr, len: factsLen } = allocBytes(factsBytes);
@@ -1162,7 +1167,9 @@ export function solveDraco(facts: Record<string, unknown>): Record<string, unkno
   }
 }
 
-export function evaluateDracoCandidate(
+export const solveDraco = solveMoneta;
+
+export function evaluateMonetaCandidate(
   facts: Record<string, unknown>,
   spec: Record<string, unknown>,
 ): { valid: boolean; cost: number; violations: string[] } | null {
@@ -1173,7 +1180,9 @@ export function evaluateDracoCandidate(
   ) as { valid: boolean; cost: number; violations: string[] } | null;
 }
 
-export function adjustDracoEvidence(
+export const evaluateDracoCandidate = evaluateMonetaCandidate;
+
+export function adjustMonetaEvidence(
   baseCost: number,
   evidence: { sampleCount: number; compositeUtility: number } | null,
 ): { adjustedCost: number; delta: number } | null {
@@ -1182,6 +1191,23 @@ export function adjustDracoEvidence(
     wasmInstance.draco_adjust_evidence.bind(wasmInstance),
     { baseCost, evidence },
   ) as { adjustedCost: number; delta: number } | null;
+}
+
+export const adjustDracoEvidence = adjustMonetaEvidence;
+
+export function computeDatasetStructureProfile(handle: number): Record<string, unknown> | null {
+  if (!wasmInstance) return null;
+  const needed = wasmInstance.data_compute_structure_profile(handle, 0, 0);
+  if (needed === 0) return null;
+  const outPtr = wasmInstance.alloc(needed);
+  try {
+    wasmInstance.data_compute_structure_profile(handle, outPtr, needed);
+    const resultBytes = readBytes(outPtr, needed);
+    const jsonStr = new TextDecoder().decode(resultBytes);
+    return JSON.parse(jsonStr) as Record<string, unknown>;
+  } finally {
+    wasmInstance.dealloc(outPtr, needed);
+  }
 }
 
 export function compileIntent(

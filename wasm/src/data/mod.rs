@@ -5,6 +5,7 @@ pub mod fingerprint;
 pub mod operations;
 pub mod operations_bridge;
 pub mod parsers;
+pub mod profile;
 pub mod provenance;
 pub mod spectral;
 pub mod statistics;

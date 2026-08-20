@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from './Engine.ts';
-import { DracoTopologyNode } from '../draco/DracoTopologyNode.ts';
-import { DracoDiagnosticHUD } from './ui/DracoDiagnosticHUD.ts';
+import { MonetaTopologyNode as DracoTopologyNode } from '../moneta/MonetaTopologyNode.ts';
+import { MonetaDiagnosticHUD as DracoDiagnosticHUD } from './ui/MonetaDiagnosticHUD.ts';
 import { TooltipManager } from './ui/TooltipManager.ts';
 import { ChartPlanePanel } from './ui/ChartPlanePanel.ts';
 import { FileLoaderUI } from '../ui/FileLoader.ts';
@@ -12,7 +12,7 @@ import {
   getDefaultEncodings,
 } from '../data/SampleDatasets.ts';
 import { resolveTemplate } from '../data/AnalysisTemplates.ts';
-import { TopologyTypes } from '../draco/ConstraintEngine.ts';
+import { TopologyTypes } from '../moneta/ConstraintEngine.ts';
 import { disposeObject } from '../utils/Dispose.ts';
 import { LiveStreamCoordinator } from './coordinators/LiveStreamCoordinator.ts';
 import {
@@ -909,10 +909,10 @@ export class World {
       this.tooltipManager.setTargets(dracoNode.artifact.nodeMeshes);
       for (const mesh of dracoNode.artifact.nodeMeshes) {
         this.engine.addInteractable(mesh, {
-          onEnter: (m: THREE.Object3D) => dracoNode.artifact!.interactions.onHover(m as THREE.Mesh),
-          onLeave: (m: THREE.Object3D) => dracoNode.artifact!.interactions.onUnhover(m as THREE.Mesh),
+          onEnter: (m: THREE.Object3D) => dracoNode.artifact?.interactions?.onHover?.(m as THREE.Mesh),
+          onLeave: (m: THREE.Object3D) => dracoNode.artifact?.interactions?.onUnhover?.(m as THREE.Mesh),
           onSelect: (m: THREE.Object3D) => {
-            dracoNode.artifact!.interactions.onSelect(m as THREE.Mesh);
+            dracoNode.artifact?.interactions?.onSelect?.(m as THREE.Mesh);
             this._showDataCard(m as THREE.Mesh);
           },
         });

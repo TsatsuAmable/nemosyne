@@ -143,24 +143,21 @@ export class InvestigationAggregate {
     const repStrategy = this.representation.activeStrategy;
     const repDecisionPayload = repDecision
       ? {
-          strategyId: repDecision.embodiment.spatialStrategy.id,
-          representationFamily: repDecision.representationFamily,
-          worldType: repDecision.embodiment.spatialStrategy.worldType,
-          layout: repDecision.embodiment.primaryLayout,
-          geometry: repDecision.embodiment.primaryGeometry,
-          confidence: repDecision.confidence,
-          utilityScore: repDecision.utilityScore,
-          evidence: repDecision.evidence.map((e) => ({
-            fact: e.fact,
-            weight: e.weight,
-            supports: e.supports,
-            source: e.source,
-          })),
-          rejectedAlternatives: repDecision.rejectedAlternatives.map((r) => ({
+          strategyId: `strategy_${repDecision.chosenCandidateId}`,
+          representationFamily: repDecision.chosenFamily,
+          candidateId: repDecision.chosenCandidateId,
+          layout: repDecision.chosenLayout,
+          confidence: repDecision.confidenceScore,
+          utilityScore: repDecision.confidenceScore,
+          explanation: repDecision.explanation,
+          preserves: repDecision.preserves,
+          loses: repDecision.loses,
+          rankedAlternatives: (repDecision.rankedCandidates ?? []).slice(1).map((r) => ({
+            candidateId: r.candidateId,
             family: r.family,
+            layout: r.layout,
             score: r.score,
-            reason: r.reason,
-            hardPassed: r.hardPassed,
+            disqualified: r.disqualified,
           })),
         }
       : repStrategy

@@ -1,18 +1,28 @@
 /**
- * RepresentationState — manages Draco constraint fact mapping, thresholds, and embodiment metadata.
+ * RepresentationState — manages Moneta constraint fact mapping, thresholds, and embodiment metadata.
  */
 
 import type { Facts } from '../../data/types.ts';
 import type {
   CategoricalDistribution,
-  DracoDataInput,
-  DracoFacts,
+  MonetaDataInput,
+  MonetaFacts,
   FactProvider,
   NumericStats,
-} from '../../draco/types.ts';
+} from '../../moneta/types.ts';
 import { TopologyTypes } from '../../types/topology.ts';
+import {
+  ConstraintArbiter,
+  createDefaultRequirements,
+  type RepresentationRequirements,
+  type SpatialStrategy,
+  type DatasetSignature,
+  type RepresentationDecision,
+  type SpectralFacts,
+  buildDatasetSignature,
+  MonetaHypothesisEngine,
+} from '../../moneta/index.ts';
 
-/** Display-only cluster-count heuristic (embodiment metadata, not analytical). */
 export function estimateClusterCount(
   rowCount: number,
   cardinalityOfColor: number,
@@ -23,17 +33,14 @@ export function estimateClusterCount(
   return Math.min(20, Math.max(1, Math.round(Math.sqrt(rowCount))));
 }
 
-/**
- * Map a kernel Facts block into the DracoFacts shape Draco's constraint rules read.
- */
-export function mapKernelFactsToDraco(
-  input: DracoDataInput,
+export function mapKernelFactsToMoneta(
+  input: MonetaDataInput,
   kf: Facts,
   largeRowThreshold: number,
   highCardinalityThreshold: number,
-): DracoFacts {
+): MonetaFacts {
   const ds = input.dataset;
-  const rowCount = ds?.rowCount ?? input.rows?.length ?? input.nodes?.length ?? kf.rowCount;
+  const rowCount = ds?.rowCount ?? input.rows?.length ?? (input.nodes as unknown[] | undefined)?.length ?? kf.rowCount;
   const edgeCount = input.edges?.length ?? ds?.edges?.length ?? 0;
   const numericCols = ds?.numericColumns ?? [];
   const categoricalCols = ds?.categoricalColumns ?? [];
@@ -53,7 +60,6 @@ export function mapKernelFactsToDraco(
     };
   }
 
-  // Build a symmetric correlation matrix from kernel correlation pairs.
   const correlationMatrix: Record<string, Record<string, number>> = {};
   const numericNames = kf.numeric.map((c) => c.name);
   for (const a of numericNames) {
@@ -92,13 +98,13 @@ export function mapKernelFactsToDraco(
   return {
     topology: input.topology || TopologyTypes.TABULAR,
     rowCount,
-    nodeCount: input.nodes?.length ?? rowCount,
+    nodeCount: (input.nodes as unknown[] | undefined)?.length ?? rowCount,
     edgeCount,
-    depth: input.maxDepth ?? temporalCols.length ?? 1,
+    depth: (input.maxDepth as number | undefined) ?? temporalCols.length ?? 1,
     numericColumns: numericCols.length,
     categoricalColumns: categoricalCols.length,
     temporalColumns: temporalCols.length,
-    hasTimeSeries: input.isTimeSeries || temporalCols.length > 0,
+    hasTimeSeries: (input.isTimeSeries as boolean | undefined) || temporalCols.length > 0,
     hasContinuousValues: numericCols.length > 0,
     density: edgeCount / Math.max(1, rowCount),
     estimatedDensity: rowCount / 64,
@@ -110,7 +116,7 @@ export function mapKernelFactsToDraco(
     columnStats,
     correlationMatrix,
     categoryDistribution,
-    trendDirection: primaryTemporal?.trendDirection ?? 'flat',
+    trendDirection: (primaryTemporal?.trendDirection as 'flat' | 'up' | 'down') ?? 'flat',
     seasonalityHint: primaryTemporal?.seasonalityHint ?? false,
     hasOutliers: outlierCount > 0,
     hasHighVariance: (primaryNumeric?.std ?? 0) > 0,
@@ -119,16 +125,15 @@ export function mapKernelFactsToDraco(
   };
 }
 
-/**
- * Minimal schema-metadata DracoFacts for the no-kernel state (renderer shell).
- */
-export function minimalDracoFacts(
-  input: DracoDataInput,
+export const mapKernelFactsToDraco = mapKernelFactsToMoneta;
+
+export function minimalMonetaFacts(
+  input: MonetaDataInput,
   largeRowThreshold: number,
   highCardinalityThreshold: number,
-): DracoFacts {
+): MonetaFacts {
   const ds = input.dataset;
-  const rowCount = ds?.rowCount ?? input.rows?.length ?? input.nodes?.length ?? 0;
+  const rowCount = ds?.rowCount ?? input.rows?.length ?? (input.nodes as unknown[] | undefined)?.length ?? 0;
   const edgeCount = input.edges?.length ?? ds?.edges?.length ?? 0;
   const numericCols = ds?.numericColumns ?? [];
   const categoricalCols = ds?.categoricalColumns ?? [];
@@ -136,13 +141,13 @@ export function minimalDracoFacts(
   return {
     topology: input.topology || TopologyTypes.TABULAR,
     rowCount,
-    nodeCount: input.nodes?.length ?? rowCount,
+    nodeCount: (input.nodes as unknown[] | undefined)?.length ?? rowCount,
     edgeCount,
-    depth: input.maxDepth ?? temporalCols.length ?? 1,
+    depth: (input.maxDepth as number | undefined) ?? temporalCols.length ?? 1,
     numericColumns: numericCols.length,
     categoricalColumns: categoricalCols.length,
     temporalColumns: temporalCols.length,
-    hasTimeSeries: input.isTimeSeries || temporalCols.length > 0,
+    hasTimeSeries: (input.isTimeSeries as boolean | undefined) || temporalCols.length > 0,
     hasContinuousValues: numericCols.length > 0,
     density: edgeCount / Math.max(1, rowCount),
     estimatedDensity: rowCount / 64,
@@ -163,17 +168,7 @@ export function minimalDracoFacts(
   };
 }
 
-import {
-  ConstraintArbiter,
-  createDefaultRequirements,
-  type RepresentationRequirements,
-  type SpatialStrategy,
-  type DatasetSignature,
-  type RepresentationDecision,
-  type SpectralFacts,
-  buildDatasetSignature,
-  RepresentationHypothesisEngine,
-} from '../../draco/index.ts';
+export const minimalDracoFacts = minimalMonetaFacts;
 
 export class RepresentationState {
   readonly largeRowThreshold = 500;
@@ -184,34 +179,56 @@ export class RepresentationState {
   activeSignature: DatasetSignature | null = null;
   activeDecision: RepresentationDecision | null = null;
 
-  toDracoFacts(input: DracoDataInput, kernelFacts: Facts | null): DracoFacts {
+  toMonetaFacts(input: MonetaDataInput, kernelFacts: Facts | null): MonetaFacts {
     if (kernelFacts) {
-      return mapKernelFactsToDraco(
+      return mapKernelFactsToMoneta(
         input,
         kernelFacts,
         this.largeRowThreshold,
         this.highCardinalityThreshold,
       );
     }
-    return minimalDracoFacts(
+    return minimalMonetaFacts(
       input,
       this.largeRowThreshold,
       this.highCardinalityThreshold,
     );
   }
 
+  toDracoFacts(input: MonetaDataInput, kernelFacts: Facts | null): MonetaFacts {
+    return this.toMonetaFacts(input, kernelFacts);
+  }
+
   toDatasetSignature(
-    input: DracoDataInput,
+    input: MonetaDataInput,
     kernelFacts: Facts | null,
     spectralFacts?: SpectralFacts | null,
     datasetFingerprint?: string,
   ): DatasetSignature {
-    const facts = this.toDracoFacts(input, kernelFacts);
-    return buildDatasetSignature(facts, kernelFacts, spectralFacts, datasetFingerprint);
+    const ds = input.dataset;
+    if (!ds) {
+      throw new Error('Dataset required to build DatasetSignature');
+    }
+    const facts = kernelFacts ?? {
+      rowCount: ds.rowCount ?? 0,
+      columnCount: ds.columnCount ?? 0,
+      numeric: [],
+      correlation: [],
+      categorical: [],
+      temporal: [],
+      temporalStats: [],
+    };
+    return buildDatasetSignature(
+      ds,
+      facts,
+      datasetFingerprint ?? (ds.fingerprint ? String(ds.fingerprint) : 'unknown'),
+      '0.1.0',
+      spectralFacts
+    );
   }
 
   computeDatasetSignature(
-    input: DracoDataInput,
+    input: MonetaDataInput,
     kernelFacts: Facts | null,
     spectralFacts?: SpectralFacts | null,
     datasetFingerprint?: string,
@@ -223,17 +240,17 @@ export class RepresentationState {
 
   asFactProvider(factsProvider: () => Facts | null): FactProvider {
     return {
-      facts: (input) => this.toDracoFacts(input, factsProvider()),
+      facts: (input) => this.toMonetaFacts(input, factsProvider()),
     };
   }
 
   arbitrateStrategy(
-    input: DracoDataInput,
+    input: MonetaDataInput,
     kernelFacts: Facts | null,
     requirements?: RepresentationRequirements,
     datasetFingerprint?: string,
   ): SpatialStrategy {
-    const facts = this.toDracoFacts(input, kernelFacts);
+    const facts = this.toMonetaFacts(input, kernelFacts);
     const req = requirements ?? this.activeRequirements ?? createDefaultRequirements();
     const strategy = ConstraintArbiter.arbitrate(facts, req, { datasetFingerprint });
     this.activeStrategy = strategy;
@@ -242,24 +259,19 @@ export class RepresentationState {
   }
 
   arbitrateRepresentation(
-    input: DracoDataInput,
+    input: MonetaDataInput,
     kernelFacts: Facts | null,
     spectralFacts?: SpectralFacts | null,
     requirements?: RepresentationRequirements,
     datasetFingerprint?: string,
   ): RepresentationDecision {
-    const facts = this.toDracoFacts(input, kernelFacts);
     const req = requirements ?? this.activeRequirements ?? createDefaultRequirements();
     const signature = this.computeDatasetSignature(input, kernelFacts, spectralFacts, datasetFingerprint);
-    const decision = RepresentationHypothesisEngine.reason(facts, kernelFacts, req, {
-      datasetFingerprint,
-      spectralFacts,
-      signature,
-    });
+    const engine = new MonetaHypothesisEngine();
+    const decision = engine.arbitrate(signature, req);
     this.activeDecision = decision;
-    this.activeStrategy = decision.embodiment.spatialStrategy;
+    this.activeStrategy = decision.embodiment?.spatialStrategy;
     this.activeRequirements = req;
     return decision;
   }
 }
-

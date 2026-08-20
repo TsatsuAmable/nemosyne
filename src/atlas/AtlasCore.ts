@@ -39,6 +39,8 @@ import type {
   VRCommand,
 } from './types.ts';
 import type {
+  MonetaDataInput,
+  MonetaFacts,
   DracoDataInput,
   DracoFacts,
   FactProvider,
@@ -47,7 +49,7 @@ import type {
   DatasetSignature,
   RepresentationDecision,
   SpectralFacts,
-} from '../draco/index.ts';
+} from '../moneta/index.ts';
 import { mapClusterStructures, mapMapperStructures, mapPersistenceStructures } from './structures.ts';
 import type { StructureSet } from './structures.ts';
 import { generateGuidance } from './GuidanceEngine.ts';
@@ -736,8 +738,12 @@ export class AtlasCore {
     }
   }
 
+  monetaFacts(input: MonetaDataInput): MonetaFacts | null {
+    return this._aggregate.representation.toMonetaFacts(input, this.facts());
+  }
+
   dracoFacts(input: DracoDataInput): DracoFacts | null {
-    return this._aggregate.representation.toDracoFacts(input, this.facts());
+    return this.monetaFacts(input);
   }
 
   asFactProvider(): FactProvider {
