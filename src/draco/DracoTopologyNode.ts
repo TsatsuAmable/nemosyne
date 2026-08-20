@@ -4,6 +4,7 @@ import { VRTopologyTranslator } from './VRTopologyTranslator.ts';
 import { MeshPool } from '../utils/ObjectPool.ts';
 import { solveDraco } from '../wasm/RuntimeBridge.ts';
 import type { Artifact, DracoDataInput, DracoSpec, FactProvider, SolverResult, VRTranslatorOptions } from './types.ts';
+import type { RepresentationDecision } from './representation/RepresentationDecision.ts';
 
 /**
  * Manages the lifecycle of a Draco-recommended spatial data artifact:
@@ -31,6 +32,7 @@ export class DracoTopologyNode {
   translatorOptions: VRTranslatorOptions;
   engine: ConstraintEngine;
   useRustSolver: boolean;
+  representationDecision: RepresentationDecision | null;
   solverResult!: SolverResult;
   artifact: Artifact | undefined;
   group: THREE.Group | undefined;
@@ -41,7 +43,8 @@ export class DracoTopologyNode {
     position: [number, number, number] = [0, 2.0, -8.0],
     translatorOptions: VRTranslatorOptions = {},
     factProvider: FactProvider | null = null,
-    useRustSolver = false
+    useRustSolver = false,
+    representationDecision: RepresentationDecision | null = null
   ) {
     this.scene = scene;
     this.dataInput = dataInput;
@@ -49,6 +52,12 @@ export class DracoTopologyNode {
     this.translatorOptions = translatorOptions;
     this.engine = new ConstraintEngine({ factProvider: factProvider ?? undefined });
     this.useRustSolver = useRustSolver;
+    this.representationDecision = representationDecision;
+    this.reSolveAndSynthesize();
+  }
+
+  setRepresentationDecision(decision: RepresentationDecision | null): void {
+    this.representationDecision = decision;
     this.reSolveAndSynthesize();
   }
 
@@ -64,7 +73,25 @@ export class DracoTopologyNode {
   }
 
   reSolveAndSynthesize(): void {
-    this.solverResult = this.useRustSolver ? this.solveWithRust() : this.engine.solve(this.dataInput);
+    if (this.representationDecision) {
+      const embodiment = this.representationDecision.embodiment;
+      const facts = this.engine.factProvider?.facts(this.dataInput);
+      if (!facts) {
+        throw new Error('DracoTopologyNode: no facts provided (supply a FactProvider to use representationDecision)');
+      }
+      this.solverResult = {
+        facts,
+        spec: {
+          layout: embodiment.primaryLayout,
+          geometry: embodiment.primaryGeometry,
+          behavior: embodiment.primaryBehavior,
+          interaction: embodiment.primaryInteraction,
+        },
+        cost: this.representationDecision.utilityScore,
+      };
+    } else {
+      this.solverResult = this.useRustSolver ? this.solveWithRust() : this.engine.solve(this.dataInput);
+    }
 
     if (this.artifact) {
       this.scene.remove(this.artifact.group);

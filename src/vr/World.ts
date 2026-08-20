@@ -828,6 +828,10 @@ export class World {
         getDefaultEncodings({ dataset: entry.dataset, topology }),
     };
 
+    const representationDecision = this.atlas?.arbitrateRepresentation
+      ? this.atlas.arbitrateRepresentation(undefined, dataInput)
+      : null;
+
     this.dracoNode = new DracoTopologyNode(
       this.engine.scene,
       dataInput,
@@ -836,6 +840,8 @@ export class World {
         colorblindMode: this.uiManager.settingsPanel?.getSetting?.('colorblindMode') ?? 'none',
       },
       this.atlas.asFactProvider(),
+      false,
+      representationDecision,
     );
     this.engine.addUpdatable(this.dracoNode);
     this._wireArtifactInteraction(this.dracoNode);

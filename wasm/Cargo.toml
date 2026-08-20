@@ -28,6 +28,8 @@ statify = "0.2"
 petgraph = { version = "0.6", default-features = false, features = ["graphmap"] }
 statrs = { version = "0.17", default-features = false }
 getrandom = { version = "0.2", features = ["js"] }
+rustfft = "6.2"
+num-complex = "0.4"
 
 
 # Deterministic, stable allocator for long-running sessions.

@@ -15,16 +15,19 @@ pub enum VRLayout {
     TimeRibbon,
     #[serde(rename = "GEO_SURFACE")]
     GeoSurface,
+    #[serde(rename = "SPECTRAL_VOLUME")]
+    SpectralVolume,
 }
 
 impl VRLayout {
-    pub const ALL: [VRLayout; 6] = [
+    pub const ALL: [VRLayout; 7] = [
         VRLayout::Grid3D,
         VRLayout::ForceDirected3D,
         VRLayout::RadialOrbital,
         VRLayout::VectorStreamline,
         VRLayout::TimeRibbon,
         VRLayout::GeoSurface,
+        VRLayout::SpectralVolume,
     ];
 }
 
@@ -52,10 +55,14 @@ pub enum VRGeometry {
     Column,
     #[serde(rename = "BEAM")]
     Beam,
+    #[serde(rename = "SPECTRAL_BAR")]
+    SpectralBar,
+    #[serde(rename = "SPECTRAL_SURFACE")]
+    SpectralSurface,
 }
 
 impl VRGeometry {
-    pub const ALL: [VRGeometry; 11] = [
+    pub const ALL: [VRGeometry; 13] = [
         VRGeometry::CubeMatrix,
         VRGeometry::IcosaNode,
         VRGeometry::ConicalTree,
@@ -67,6 +74,8 @@ impl VRGeometry {
         VRGeometry::Orb,
         VRGeometry::Column,
         VRGeometry::Beam,
+        VRGeometry::SpectralBar,
+        VRGeometry::SpectralSurface,
     ];
 }
 
@@ -117,10 +126,12 @@ pub enum VRInteraction {
     Beacon,
     #[serde(rename = "ALEPH")]
     Aleph,
+    #[serde(rename = "FREQUENCY_PROBE")]
+    FrequencyProbe,
 }
 
 impl VRInteraction {
-    pub const ALL: [VRInteraction; 12] = [
+    pub const ALL: [VRInteraction; 13] = [
         VRInteraction::InspectCell,
         VRInteraction::TraverseEdge,
         VRInteraction::DrillDown,
@@ -133,6 +144,7 @@ impl VRInteraction {
         VRInteraction::Constellation,
         VRInteraction::Beacon,
         VRInteraction::Aleph,
+        VRInteraction::FrequencyProbe,
     ];
 }
 

@@ -2,7 +2,7 @@
  * Draco / Representation Subsystem — Barrel Export
  */
 
-export { ConstraintEngine } from './ConstraintEngine.ts';
+export { ConstraintEngine, VRChannels } from './ConstraintEngine.ts';
 export { VRTopologyTranslator } from './VRTopologyTranslator.ts';
 export { DracoTopologyNode } from './DracoTopologyNode.ts';
 export { PositionSemanticsEngine } from './PositionSemantics.ts';
@@ -29,6 +29,7 @@ export type {
 
 export * from './layouts/index.ts';
 export * from './evidence/index.ts';
+export * from './representation/index.ts';
 
 export type {
   DracoSpec,

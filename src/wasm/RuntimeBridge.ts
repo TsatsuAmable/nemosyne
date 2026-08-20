@@ -22,6 +22,7 @@ import type {
   PersistenceInterval,
   BettiPoint,
   ColumnSchema,
+  SpectralFacts,
 } from '../data/types.ts';
 export { CapabilityFlags, type CapabilityName } from './capabilities.ts';
 
@@ -67,6 +68,15 @@ interface WasmInitOutput {
   ): number;
   data_infer_schema(handle: number, ptr: number, len: number): number;
   data_statistics(handle: number, ptr: number, len: number): number;
+  data_compute_spectral_facts(
+    handle: number,
+    timePtr: number,
+    timeLen: number,
+    valPtr: number,
+    valLen: number,
+    ptr: number,
+    len: number,
+  ): number;
   data_compute_mapper_graph(
     handle: number,
     paramsPtr: number,
@@ -708,6 +718,40 @@ export function statistics(handle: number): Facts | null {
   const json = readStringExport((p, l) => wasmInstance!.data_statistics(handle, p, l));
   if (!json) return null;
   return JSON.parse(json) as Facts;
+}
+
+/**
+ * Compute FFT-based spectral facts from dataset.
+ */
+export function computeSpectralFacts(
+  handle: number,
+  timeColumn?: string,
+  valueColumn?: string,
+): SpectralFacts | null {
+  let timePtr = 0;
+  let timeLen = 0;
+  if (timeColumn) {
+    const r = allocBytes(new TextEncoder().encode(timeColumn));
+    timePtr = r.ptr;
+    timeLen = r.len;
+  }
+  let valPtr = 0;
+  let valLen = 0;
+  if (valueColumn) {
+    const r = allocBytes(new TextEncoder().encode(valueColumn));
+    valPtr = r.ptr;
+    valLen = r.len;
+  }
+  try {
+    const json = readStringExport((p, l) =>
+      wasmInstance!.data_compute_spectral_facts(handle, timePtr, timeLen, valPtr, valLen, p, l),
+    );
+    if (!json || json === 'null') return null;
+    return JSON.parse(json) as SpectralFacts;
+  } finally {
+    if (timeLen > 0) deallocBytes(timePtr, timeLen);
+    if (valLen > 0) deallocBytes(valPtr, valLen);
+  }
 }
 
 /**

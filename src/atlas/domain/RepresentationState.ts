@@ -168,6 +168,11 @@ import {
   createDefaultRequirements,
   type RepresentationRequirements,
   type SpatialStrategy,
+  type DatasetSignature,
+  type RepresentationDecision,
+  type SpectralFacts,
+  buildDatasetSignature,
+  RepresentationHypothesisEngine,
 } from '../../draco/index.ts';
 
 export class RepresentationState {
@@ -176,6 +181,8 @@ export class RepresentationState {
 
   activeStrategy: SpatialStrategy | null = null;
   activeRequirements: RepresentationRequirements | null = null;
+  activeSignature: DatasetSignature | null = null;
+  activeDecision: RepresentationDecision | null = null;
 
   toDracoFacts(input: DracoDataInput, kernelFacts: Facts | null): DracoFacts {
     if (kernelFacts) {
@@ -191,6 +198,27 @@ export class RepresentationState {
       this.largeRowThreshold,
       this.highCardinalityThreshold,
     );
+  }
+
+  toDatasetSignature(
+    input: DracoDataInput,
+    kernelFacts: Facts | null,
+    spectralFacts?: SpectralFacts | null,
+    datasetFingerprint?: string,
+  ): DatasetSignature {
+    const facts = this.toDracoFacts(input, kernelFacts);
+    return buildDatasetSignature(facts, kernelFacts, spectralFacts, datasetFingerprint);
+  }
+
+  computeDatasetSignature(
+    input: DracoDataInput,
+    kernelFacts: Facts | null,
+    spectralFacts?: SpectralFacts | null,
+    datasetFingerprint?: string,
+  ): DatasetSignature {
+    const signature = this.toDatasetSignature(input, kernelFacts, spectralFacts, datasetFingerprint);
+    this.activeSignature = signature;
+    return signature;
   }
 
   asFactProvider(factsProvider: () => Facts | null): FactProvider {
@@ -212,4 +240,26 @@ export class RepresentationState {
     this.activeRequirements = req;
     return strategy;
   }
+
+  arbitrateRepresentation(
+    input: DracoDataInput,
+    kernelFacts: Facts | null,
+    spectralFacts?: SpectralFacts | null,
+    requirements?: RepresentationRequirements,
+    datasetFingerprint?: string,
+  ): RepresentationDecision {
+    const facts = this.toDracoFacts(input, kernelFacts);
+    const req = requirements ?? this.activeRequirements ?? createDefaultRequirements();
+    const signature = this.computeDatasetSignature(input, kernelFacts, spectralFacts, datasetFingerprint);
+    const decision = RepresentationHypothesisEngine.reason(facts, kernelFacts, req, {
+      datasetFingerprint,
+      spectralFacts,
+      signature,
+    });
+    this.activeDecision = decision;
+    this.activeStrategy = decision.embodiment.spatialStrategy;
+    this.activeRequirements = req;
+    return decision;
+  }
 }
+

@@ -44,6 +44,9 @@ import type {
   FactProvider,
   RepresentationRequirements,
   SpatialStrategy,
+  DatasetSignature,
+  RepresentationDecision,
+  SpectralFacts,
 } from '../draco/index.ts';
 import { mapClusterStructures, mapMapperStructures, mapPersistenceStructures } from './structures.ts';
 import type { StructureSet } from './structures.ts';
@@ -79,6 +82,7 @@ export interface WasmRuntimeBridgeFull {
   computeMapperGraph?(handle: number, params: Record<string, unknown>): TdaMapperGraph | null;
   computePersistenceIntervals?(handle: number, params: Record<string, unknown>): PersistenceInterval[] | null;
   computeBetti0Curve?(handle: number, params: Record<string, unknown>): BettiPoint[] | null;
+  computeSpectralFacts?(handle: number, timeColumn?: string, valueColumn?: string): SpectralFacts | null;
 }
 
 export class AtlasCore {
@@ -626,6 +630,13 @@ export class AtlasCore {
     );
   }
 
+  computeSpectralFacts(timeColumn?: string, valueColumn?: string): SpectralFacts | null {
+    if (!this._kernel?.isReady?.()) return null;
+    const handle = this._ensureHandle();
+    if (handle === 0) return null;
+    return this._kernel.computeSpectralFacts?.(handle, timeColumn, valueColumn) ?? null;
+  }
+
   discoverMapperStructures(dataset: Dataset, params: Record<string, unknown>): StructureSet | null {
     const graph = this.computeMapperGraph(dataset, params);
     if (!graph) return null;
@@ -735,6 +746,50 @@ export class AtlasCore {
 
   get activeSpatialStrategy(): SpatialStrategy | null {
     return this._aggregate.representation.activeStrategy;
+  }
+
+  get activeDatasetSignature(): DatasetSignature | null {
+    return this._aggregate.representation.activeSignature;
+  }
+
+  get activeRepresentationDecision(): RepresentationDecision | null {
+    return this._aggregate.representation.activeDecision;
+  }
+
+  computeDatasetSignature(
+    input?: DracoDataInput,
+    spectralFacts?: SpectralFacts | null,
+  ): DatasetSignature {
+    const dataInput: DracoDataInput = input ?? {
+      dataset: this.dataset ?? undefined,
+      topology: (this.inferTopology() as TopologyType) ?? undefined,
+      encodings: this.inferEncodings() ?? undefined,
+    };
+    return this._aggregate.representation.computeDatasetSignature(
+      dataInput,
+      this.facts(),
+      spectralFacts,
+      this.datasetFingerprint ?? undefined,
+    );
+  }
+
+  arbitrateRepresentation(
+    requirements?: RepresentationRequirements,
+    input?: DracoDataInput,
+    spectralFacts?: SpectralFacts | null,
+  ): RepresentationDecision {
+    const dataInput: DracoDataInput = input ?? {
+      dataset: this.dataset ?? undefined,
+      topology: (this.inferTopology() as TopologyType) ?? undefined,
+      encodings: this.inferEncodings() ?? undefined,
+    };
+    return this._aggregate.representation.arbitrateRepresentation(
+      dataInput,
+      this.facts(),
+      spectralFacts,
+      requirements,
+      this.datasetFingerprint ?? undefined,
+    );
   }
 
   arbitrateSpatialStrategy(

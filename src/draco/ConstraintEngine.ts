@@ -30,6 +30,7 @@ export const VRChannels = {
     'VECTOR_STREAMLINE',
     'TIME_RIBBON',
     'GEO_SURFACE',
+    'SPECTRAL_VOLUME',
   ] as VRLayout[],
   GEOMETRY: [
     'CUBE_MATRIX',
@@ -43,6 +44,8 @@ export const VRChannels = {
     'ORB',
     'COLUMN',
     'BEAM',
+    'SPECTRAL_BAR',
+    'SPECTRAL_SURFACE',
   ] as VRGeometry[],
   BEHAVIOR: ['PULSE_QUANTITATIVE', 'ORBITAL_SPIN', 'WAVE_OSCILLATION', 'STATIC'] as VRBehavior[],
   INTERACTION: [
@@ -58,6 +61,7 @@ export const VRChannels = {
     'CONSTELLATION',
     'BEACON',
     'ALEPH',
+    'FREQUENCY_PROBE',
   ] as VRInteraction[],
 };
 

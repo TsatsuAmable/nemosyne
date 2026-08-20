@@ -66,6 +66,16 @@ export class PositionSemanticsEngine {
           proximityMeaning: 'Temporal co-occurrence and metric value similarity.',
         };
 
+      case 'SPECTRAL_VOLUME':
+        return {
+          type: 'SEMANTIC',
+          layout,
+          badgeLabel: 'SEMANTIC [FREQUENCY]',
+          badgeColor: '#00ffff',
+          description: 'X-axis maps frequency bins, Y-axis maps spectral power, and Z-axis maps time window.',
+          proximityMeaning: 'Harmonic spectral frequency co-occurrence and power density proximity.',
+        };
+
       case 'FORCE_DIRECTED_3D':
         return {
           type: 'STRUCTURAL',
