@@ -74,7 +74,8 @@ export function canonicalJsonStringify(value: unknown): string {
 }
 
 /**
- * Fast cross-platform SHA-256 computation returning a 64-character lowercase hex string.
+ * Strictly authentic SHA-256 computation returning a 64-character lowercase hex string.
+ * Fails closed with CapabilityError if no genuine cryptographic SHA-256 provider is available.
  */
 export async function computeSha256Hex(data: string | Uint8Array): Promise<string> {
   const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
@@ -86,25 +87,17 @@ export async function computeSha256Hex(data: string | Uint8Array): Promise<strin
       .join('');
   }
 
-  // Pure deterministic 64-character fallback hash for lightweight environments without WebCrypto
-  let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a;
-  let h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
-
-  for (let i = 0; i < bytes.length; i++) {
-    const byte = bytes[i];
-    h0 = Math.imul(h0 ^ byte, 0x01000193) >>> 0;
-    h1 = Math.imul(h1 ^ (byte << 1), 0x01000193) >>> 0;
-    h2 = Math.imul(h2 ^ (byte << 2), 0x01000193) >>> 0;
-    h3 = Math.imul(h3 ^ (byte << 3), 0x01000193) >>> 0;
-    h4 = Math.imul(h4 ^ (byte << 4), 0x01000193) >>> 0;
-    h5 = Math.imul(h5 ^ (byte << 5), 0x01000193) >>> 0;
-    h6 = Math.imul(h6 ^ (byte << 6), 0x01000193) >>> 0;
-    h7 = Math.imul(h7 ^ (byte << 7), 0x01000193) >>> 0;
+  // Fallback for Node.js test environment if WebCrypto subtle is absent
+  try {
+    const nodeCrypto = await import('node:crypto');
+    if (nodeCrypto?.createHash) {
+      return nodeCrypto.createHash('sha256').update(bytes).digest('hex');
+    }
+  } catch {
+    // node:crypto not available in browser runtime
   }
 
-  return [h0, h1, h2, h3, h4, h5, h6, h7]
-    .map((h) => (h >>> 0).toString(16).padStart(8, '0'))
-    .join('');
+  throw new Error('CapabilityError: SHA-256 cryptographic digest engine is unavailable in this runtime environment');
 }
 
 /**

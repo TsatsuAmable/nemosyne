@@ -97,10 +97,16 @@ export class DiegeticErrorBoundary {
       this._scene.add(this._errorPanel);
     }
 
-    // Position panel 1.1 meters directly in front of current camera pose (Comfort Zone)
-    const forward = new THREE.Vector3(0, 0, -1.1).applyQuaternion(this._camera.quaternion);
-    this._errorPanel.position.copy(this._camera.position).add(forward);
-    this._errorPanel.quaternion.copy(this._camera.quaternion);
+    // Position panel 1.1 meters directly in front of current camera world pose (Comfort Zone)
+    this._camera.updateMatrixWorld(true);
+    const camPos = new THREE.Vector3();
+    const camQuat = new THREE.Quaternion();
+    this._camera.getWorldPosition(camPos);
+    this._camera.getWorldQuaternion(camQuat);
+
+    const forward = new THREE.Vector3(0, 0, -1.1).applyQuaternion(camQuat);
+    this._errorPanel.position.copy(camPos).add(forward);
+    this._errorPanel.quaternion.copy(camQuat);
     this._errorPanel.userData = { message: errorMessage };
   }
 

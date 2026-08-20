@@ -75,7 +75,36 @@ export class InvestigationGraph {
   }
 
   addEdge(edge: InvestigationEdge): void {
+    if (!this._nodes.has(edge.source)) {
+      throw new Error(`Invalid edge: source node "${edge.source}" does not exist in InvestigationGraph`);
+    }
+    if (!this._nodes.has(edge.target)) {
+      throw new Error(`Invalid edge: target node "${edge.target}" does not exist in InvestigationGraph`);
+    }
+    if (edge.source === edge.target) {
+      throw new Error(`Invalid edge: self-loops are forbidden in InvestigationGraph (node "${edge.source}")`);
+    }
+
+    // Check if adding this edge creates a cycle (DFS reachability from target to source)
+    if (this._isReachable(edge.target, edge.source)) {
+      throw new Error(`CycleDetected: adding edge "${edge.source}" -> "${edge.target}" violates acyclic DAG invariant`);
+    }
+
     this._edges.set(edge.id, edge);
+  }
+
+  private _isReachable(fromNodeId: string, toNodeId: string, visited = new Set<string>()): boolean {
+    if (fromNodeId === toNodeId) return true;
+    if (visited.has(fromNodeId)) return false;
+    visited.add(fromNodeId);
+
+    const outgoing = this.getOutgoingEdges(fromNodeId);
+    for (const edge of outgoing) {
+      if (this._isReachable(edge.target, toNodeId, visited)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   connect(sourceId: string, targetId: string, relationship: InvestigationEdgeRelationship, id?: string): InvestigationEdge {

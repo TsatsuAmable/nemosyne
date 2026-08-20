@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use serde::{Deserialize, Serialize};
 
 use crate::data::column::{Column, ColumnType};
@@ -218,6 +218,371 @@ pub struct DatasetStructureProfile {
     pub provenance: AnalysisProvenance,
 }
 
+fn compute_true_iqr_and_multimodality(values: &[f64]) -> (f64, bool) {
+    if values.len() < 4 {
+        return (0.0, false);
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let n = sorted.len();
+
+    let q1_idx = (0.25 * (n - 1) as f64).round() as usize;
+    let q3_idx = (0.75 * (n - 1) as f64).round() as usize;
+    let iqr = (sorted[q3_idx] - sorted[q1_idx]).max(0.0);
+
+    // Multimodality via 8-bin histogram peak counting with threshold
+    let min = sorted[0];
+    let max = sorted[n - 1];
+    let range = max - min;
+    let mut is_multimodal = false;
+
+    if range > 1e-9 && n >= 12 {
+        let num_bins = 8;
+        let mut bins = vec![0usize; num_bins];
+        for &v in &sorted {
+            let bin = (((v - min) / range) * (num_bins as f64)).floor() as usize;
+            let bin = bin.min(num_bins - 1);
+            bins[bin] += 1;
+        }
+
+        // Count local peaks with valleys
+        let mut peaks = 0;
+        for i in 0..num_bins {
+            let left = if i == 0 { 0 } else { bins[i - 1] };
+            let right = if i + 1 >= num_bins { 0 } else { bins[i + 1] };
+            let count = bins[i];
+            if count > left && count > right && count >= (n / 10) {
+                peaks += 1;
+            }
+        }
+        is_multimodal = peaks >= 2;
+    }
+
+    (iqr, is_multimodal)
+}
+
+fn evaluate_clusters(dataset: &Dataset, numeric_cols: &[String]) -> ClusterProfile {
+    let row_count = dataset.rows.len();
+    if row_count < 6 || numeric_cols.is_empty() {
+        return ClusterProfile {
+            estimated_count: 1,
+            has_clusters: false,
+            separation_score: 0.0,
+            density_variation: 0.0,
+            stability_confidence: 0.0,
+        };
+    }
+
+    // Extract normalized vectors for listwise numeric rows
+    let mut vectors: Vec<Vec<f64>> = Vec::with_capacity(row_count);
+    for row in &dataset.rows {
+        let mut vec = Vec::with_capacity(numeric_cols.len());
+        let mut complete = true;
+        for col in numeric_cols {
+            if let Some(Some(num)) = row.get(col).map(|v| v.as_number()) {
+                if num.is_finite() {
+                    vec.push(num);
+                } else {
+                    complete = false;
+                    break;
+                }
+            } else {
+                complete = false;
+                break;
+            }
+        }
+        if complete {
+            vectors.push(vec);
+        }
+    }
+
+    let n = vectors.len();
+    if n < 6 {
+        return ClusterProfile {
+            estimated_count: 1,
+            has_clusters: false,
+            separation_score: 0.0,
+            density_variation: 0.0,
+            stability_confidence: 0.0,
+        };
+    }
+
+    let dims = numeric_cols.len();
+    // Normalize coordinates to [0, 1]
+    let mut min_val = vec![f64::INFINITY; dims];
+    let mut max_val = vec![f64::NEG_INFINITY; dims];
+    for v in &vectors {
+        for d in 0..dims {
+            if v[d] < min_val[d] { min_val[d] = v[d]; }
+            if v[d] > max_val[d] { max_val[d] = v[d]; }
+        }
+    }
+
+    let mut norm_vectors = Vec::with_capacity(n);
+    for v in &vectors {
+        let mut nv = Vec::with_capacity(dims);
+        for d in 0..dims {
+            let span = max_val[d] - min_val[d];
+            if span > 1e-9 {
+                nv.push((v[d] - min_val[d]) / span);
+            } else {
+                nv.push(0.0);
+            }
+        }
+        norm_vectors.push(nv);
+    }
+
+    // Simple k-means evaluation for k in [2, 3] with silhouette scoring
+    let mut best_k = 1;
+    let mut best_silhouette = -1.0;
+
+    for k in 2..=3.min(n / 2) {
+        // Initialize centroids uniformly along diagonal
+        let mut centroids = vec![vec![0.0; dims]; k];
+        for i in 0..k {
+            let frac = (i as f64 + 0.5) / k as f64;
+            for d in 0..dims {
+                centroids[i][d] = frac;
+            }
+        }
+
+        let mut assignments = vec![0usize; n];
+        for _ in 0..5 {
+            for i in 0..n {
+                let mut min_dist = f64::INFINITY;
+                let mut best_c = 0;
+                for c in 0..k {
+                    let mut d2 = 0.0;
+                    for d in 0..dims {
+                        let diff = norm_vectors[i][d] - centroids[c][d];
+                        d2 += diff * diff;
+                    }
+                    if d2 < min_dist {
+                        min_dist = d2;
+                        best_c = c;
+                    }
+                }
+                assignments[i] = best_c;
+            }
+
+            // Update centroids
+            let mut counts = vec![0usize; k];
+            let mut sums = vec![vec![0.0; dims]; k];
+            for i in 0..n {
+                let c = assignments[i];
+                counts[c] += 1;
+                for d in 0..dims {
+                    sums[c][d] += norm_vectors[i][d];
+                }
+            }
+            for c in 0..k {
+                if counts[c] > 0 {
+                    for d in 0..dims {
+                        centroids[c][d] = sums[c][d] / counts[c] as f64;
+                    }
+                }
+            }
+        }
+
+        // Compute silhouette sample approximation
+        let mut s_sum = 0.0;
+        let mut valid_samples = 0;
+        for i in 0..n.min(50) {
+            let my_c = assignments[i];
+            let mut a_dist = 0.0;
+            let mut a_count = 0;
+            let mut b_dists = vec![0.0; k];
+            let mut b_counts = vec![0usize; k];
+
+            for j in 0..n.min(50) {
+                if i == j { continue; }
+                let other_c = assignments[j];
+                let mut dist = 0.0;
+                for d in 0..dims {
+                    let diff = norm_vectors[i][d] - norm_vectors[j][d];
+                    dist += diff * diff;
+                }
+                dist = dist.sqrt();
+                if other_c == my_c {
+                    a_dist += dist;
+                    a_count += 1;
+                } else {
+                    b_dists[other_c] += dist;
+                    b_counts[other_c] += 1;
+                }
+            }
+
+            if a_count > 0 {
+                let a = a_dist / a_count as f64;
+                let mut b = f64::INFINITY;
+                for c in 0..k {
+                    if c != my_c && b_counts[c] > 0 {
+                        let avg_b = b_dists[c] / b_counts[c] as f64;
+                        if avg_b < b { b = avg_b; }
+                    }
+                }
+                if b.is_finite() && a.max(b) > 1e-9 {
+                    let s = (b - a) / a.max(b);
+                    s_sum += s;
+                    valid_samples += 1;
+                }
+            }
+        }
+
+        let avg_s = if valid_samples > 0 { s_sum / valid_samples as f64 } else { 0.0 };
+        if avg_s > best_silhouette {
+            best_silhouette = avg_s;
+            best_k = k;
+        }
+    }
+
+    let has_clusters = best_silhouette > 0.35 && best_k > 1;
+    ClusterProfile {
+        estimated_count: if has_clusters { best_k } else { 1 },
+        has_clusters,
+        separation_score: if has_clusters { best_silhouette.clamp(0.0, 1.0) } else { 0.0 },
+        density_variation: if has_clusters { 0.25 } else { 0.0 },
+        stability_confidence: if has_clusters { (best_silhouette * 0.9).clamp(0.1, 1.0) } else { 0.0 },
+    }
+}
+
+fn analyze_graph(row_count: usize, edges: &[crate::data::dataset::Edge]) -> (Option<GraphProfile>, Option<HierarchyProfile>) {
+    if edges.is_empty() {
+        return (None, None);
+    }
+
+    let edge_count = edges.len();
+    let mut adj: HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut in_degrees: HashMap<usize, usize> = HashMap::new();
+    let mut nodes = HashSet::new();
+
+    for edge in edges {
+        nodes.insert(edge.source);
+        nodes.insert(edge.target);
+        adj.entry(edge.source).or_default().push(edge.target);
+        *in_degrees.entry(edge.target).or_insert(0) += 1;
+        in_degrees.entry(edge.source).or_insert(0);
+    }
+
+    let node_count = nodes.len().max(row_count);
+
+    // Connected components via BFS
+    let mut visited = HashSet::new();
+    let mut components = 0;
+    for &node in &nodes {
+        if !visited.contains(&node) {
+            components += 1;
+            let mut q = VecDeque::new();
+            q.push_back(node);
+            visited.insert(node);
+            while let Some(curr) = q.pop_front() {
+                if let Some(neighbors) = adj.get(&curr) {
+                    for &nxt in neighbors {
+                        if visited.insert(nxt) {
+                            q.push_back(nxt);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let is_connected = components <= 1 && nodes.len() >= row_count;
+
+    // Cycle detection via DFS with recursion stack
+    let mut has_cycles = false;
+    let mut rec_stack = HashSet::new();
+    let mut dfs_visited = HashSet::new();
+
+    fn dfs_cycle(
+        curr: usize,
+        adj: &HashMap<usize, Vec<usize>>,
+        visited: &mut HashSet<usize>,
+        rec_stack: &mut HashSet<usize>,
+    ) -> bool {
+        visited.insert(curr);
+        rec_stack.insert(curr);
+
+        if let Some(neighbors) = adj.get(&curr) {
+            for &nxt in neighbors {
+                if !visited.contains(&nxt) {
+                    if dfs_cycle(nxt, adj, visited, rec_stack) {
+                        return true;
+                    }
+                } else if rec_stack.contains(&nxt) {
+                    return true;
+                }
+            }
+        }
+
+        rec_stack.remove(&curr);
+        false
+    }
+
+    for &node in &nodes {
+        if !dfs_visited.contains(&node) {
+            if dfs_cycle(node, &adj, &mut dfs_visited, &mut rec_stack) {
+                has_cycles = true;
+                break;
+            }
+        }
+    }
+
+    let is_tree = !has_cycles && (edge_count + 1 == node_count);
+
+    if is_tree {
+        // Find roots (in-degree == 0)
+        let roots: Vec<usize> = in_degrees.iter().filter(|(_, &deg)| deg == 0).map(|(&n, _)| n).collect();
+        let root = roots.first().copied().unwrap_or(0);
+
+        // Compute max depth and branching factor
+        let mut depth_q = VecDeque::new();
+        depth_q.push_back((root, 1usize));
+        let mut max_depth = 1usize;
+        let mut total_branches = 0;
+        let mut branch_nodes = 0;
+
+        while let Some((curr, d)) = depth_q.pop_front() {
+            if d > max_depth { max_depth = d; }
+            if let Some(children) = adj.get(&curr) {
+                let deg = children.len();
+                if deg > 0 {
+                    total_branches += deg;
+                    branch_nodes += 1;
+                    for &c in children {
+                        depth_q.push_back((c, d + 1));
+                    }
+                }
+            }
+        }
+
+        let branching_factor = if branch_nodes > 0 {
+            total_branches as f64 / branch_nodes as f64
+        } else {
+            1.0
+        };
+
+        (
+            None,
+            Some(HierarchyProfile {
+                is_hierarchy: true,
+                depth: max_depth,
+                branching_factor,
+            }),
+        )
+    } else {
+        (
+            Some(GraphProfile {
+                is_graph: true,
+                node_count,
+                edge_count,
+                has_cycles,
+                is_connected,
+            }),
+            None,
+        )
+    }
+}
+
 pub fn compute_dataset_structure_profile(
     dataset: &Dataset,
     dataset_fingerprint: &str,
@@ -232,6 +597,7 @@ pub fn compute_dataset_structure_profile(
     let mut numeric_col_count = 0;
     let mut categorical_col_count = 0;
     let mut temporal_col_count = 0;
+    let mut numeric_col_names = Vec::new();
 
     for col in &dataset.columns {
         let mut missing_in_col = 0;
@@ -250,7 +616,10 @@ pub fn compute_dataset_structure_profile(
         col_missingness.insert(col.name.clone(), frac);
 
         match col.ty {
-            ColumnType::Numeric => numeric_col_count += 1,
+            ColumnType::Numeric => {
+                numeric_col_count += 1;
+                numeric_col_names.push(col.name.clone());
+            }
             ColumnType::Categorical => categorical_col_count += 1,
             ColumnType::Temporal => temporal_col_count += 1,
             _ => {}
@@ -278,6 +647,7 @@ pub fn compute_dataset_structure_profile(
     let mut global_high_variance = false;
     let mut max_skewness: f64 = 0.0;
     let mut constant_columns = 0;
+    let mut max_observed_anomaly_score = 0.0;
 
     for cs in &stats.numeric {
         let abs_skew = cs.skew.abs();
@@ -290,8 +660,26 @@ pub fn compute_dataset_structure_profile(
         if cs.var > 100.0 {
             global_high_variance = true;
         }
-        if cs.min == cs.max {
+        if (cs.max - cs.min).abs() < 1e-9 {
             constant_columns += 1;
+        }
+
+        let raw_values = dataset.get_column_values(&cs.name)
+            .into_iter()
+            .flatten()
+            .filter_map(|v| v.as_number())
+            .filter(|n| n.is_finite())
+            .collect::<Vec<_>>();
+
+        let (iqr, is_multimodal) = compute_true_iqr_and_multimodality(&raw_values);
+
+        if cs.outlier_count > 0 && cs.std > 1e-9 {
+            let max_dev = (cs.max - cs.mean).abs().max((cs.min - cs.mean).abs());
+            let z_score = max_dev / cs.std;
+            let score = (z_score / 5.0).clamp(0.0, 1.0);
+            if score > max_observed_anomaly_score {
+                max_observed_anomaly_score = score;
+            }
         }
 
         numeric_summaries.push(NumericDistributionSummary {
@@ -302,11 +690,11 @@ pub fn compute_dataset_structure_profile(
             variance: cs.var,
             min: cs.min,
             max: cs.max,
-            iqr: (cs.max - cs.min) * 0.5,
+            iqr,
             skewness: cs.skew,
             kurtosis: cs.kurtosis,
             outlier_count: cs.outlier_count,
-            is_multimodal: cs.kurtosis < -1.0,
+            is_multimodal,
             is_heavy_tailed: cs.kurtosis > 3.0,
         });
     }
@@ -402,26 +790,15 @@ pub fn compute_dataset_structure_profile(
         has_high_cardinality,
     };
 
-    // 6. Cluster profile
-    let estimated_cluster_count = if significant_pairs_count > 1 || categorical_col_count > 1 {
-        3
-    } else {
-        1
-    };
-    let clusters = ClusterProfile {
-        estimated_count: estimated_cluster_count,
-        has_clusters: estimated_cluster_count > 1,
-        separation_score: if estimated_cluster_count > 1 { 0.75 } else { 0.1 },
-        density_variation: 0.3,
-        stability_confidence: 0.85,
-    };
+    // 6. Cluster profile via authentic evaluation
+    let clusters = evaluate_clusters(dataset, &numeric_col_names);
 
     // 7. Density profile
     let density = DensityProfile {
-        global_density: if row_count > 50 { 0.6 } else { 0.15 },
-        local_density_variation: 0.25,
-        mode_count: estimated_cluster_count,
-        is_sparse: row_count < 20,
+        global_density: if row_count >= 50 { 0.7 } else if row_count >= 20 { 0.4 } else { 0.15 },
+        local_density_variation: if clusters.has_clusters { 0.3 } else { 0.1 },
+        mode_count: clusters.estimated_count,
+        is_sparse: row_count < 15,
     };
 
     // 8. Temporal & Spectral
@@ -468,34 +845,7 @@ pub fn compute_dataset_structure_profile(
 
     // 9. Graph & Hierarchy
     let (graph, hierarchy) = if let Some(ref edges) = dataset.edges {
-        if !edges.is_empty() {
-            let node_count = row_count;
-            let edge_count = edges.len();
-            let is_tree = edge_count + 1 == node_count;
-            if is_tree {
-                (
-                    None,
-                    Some(HierarchyProfile {
-                        is_hierarchy: true,
-                        depth: 3,
-                        branching_factor: 2.5,
-                    }),
-                )
-            } else {
-                (
-                    Some(GraphProfile {
-                        is_graph: true,
-                        node_count,
-                        edge_count,
-                        has_cycles: true,
-                        is_connected: true,
-                    }),
-                    None,
-                )
-            }
-        } else {
-            (None, None)
-        }
+        analyze_graph(row_count, edges)
     } else {
         (None, None)
     };
@@ -533,7 +883,7 @@ pub fn compute_dataset_structure_profile(
             0.0
         },
         has_anomalies: total_anomalies > 0,
-        max_anomaly_score: if total_anomalies > 0 { 0.8 } else { 0.0 },
+        max_anomaly_score: if total_anomalies > 0 { max_observed_anomaly_score.max(0.2) } else { 0.0 },
     };
 
     let provenance = AnalysisProvenance {

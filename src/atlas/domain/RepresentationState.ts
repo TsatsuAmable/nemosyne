@@ -274,4 +274,9 @@ export class RepresentationState {
     this.activeRequirements = req;
     return decision;
   }
+
+  restoreDecision(decision: RepresentationDecision): void {
+    this.activeDecision = decision;
+    this.activeStrategy = decision.embodiment?.spatialStrategy;
+  }
 }

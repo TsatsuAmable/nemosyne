@@ -91,6 +91,13 @@ export class InvestigationAggregate {
       observations: this.ledger.observations.slice(),
       findings: this.ledger.findings.slice(),
       annotations: this.ledger.annotations.slice(),
+      investigationGraph: this.graph.toJSON(),
+      representationDecision: this.representation.activeDecision,
+      researchContext: {
+        studyId: this.context.studyId,
+        researchQuestion: this.context.researchQuestion,
+        hypothesis: this.context.hypothesis,
+      },
     };
   }
 
@@ -114,7 +121,23 @@ export class InvestigationAggregate {
     this.decisions.restore(state.activeRecommendation ?? null, state.decisionHistory ?? []);
     this.graph.reset();
 
-    if (current) {
+    if (state.investigationGraph && state.investigationGraph.nodes?.length > 0) {
+      for (const node of state.investigationGraph.nodes) {
+        this.graph.addNode(node);
+      }
+      if (state.investigationGraph.edges) {
+        for (const edge of state.investigationGraph.edges) {
+          try {
+            this.graph.addEdge(edge);
+          } catch {
+            // Skip invalid edges on legacy restore
+          }
+        }
+      }
+      if (state.investigationGraph.activeNodeId) {
+        this.graph.setActiveNode(state.investigationGraph.activeNodeId);
+      }
+    } else if (current) {
       const fp = this.analytical.getFingerprint() ?? '';
       this.graph.addNode({
         id: `${this.sessionId}:v${version}`,
@@ -124,6 +147,10 @@ export class InvestigationAggregate {
         label: 'Restored Dataset',
         timestamp: this.context.now(),
       });
+    }
+
+    if (state.representationDecision) {
+      this.representation.restoreDecision(state.representationDecision);
     }
   }
 

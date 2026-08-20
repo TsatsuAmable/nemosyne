@@ -17,6 +17,19 @@ export interface StudyExportBundle {
   trials: CompletedTrialRecord[];
 }
 
+function escapeCsvCell(cell: unknown): string {
+  if (cell == null) return '';
+  let str = String(cell);
+  // Formula injection mitigation
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+  if (/[",\n\r]/.test(str)) {
+    str = `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
 export class StudyDataExporter {
   static createBundle(studyId: string, trials: CompletedTrialRecord[], exportedAt = Date.now()): StudyExportBundle {
     const totalTrials = trials.length;
@@ -54,10 +67,10 @@ export class StudyDataExporter {
 
     const rows = trials.map((t) =>
       [
-        t.trialId,
-        t.datasetId,
-        t.taskType,
-        t.condition,
+        escapeCsvCell(t.trialId),
+        escapeCsvCell(t.datasetId),
+        escapeCsvCell(t.taskType),
+        escapeCsvCell(t.condition),
         t.isCorrect ? '1' : '0',
         t.durationMs.toString(),
         t.confidenceScore.toString(),

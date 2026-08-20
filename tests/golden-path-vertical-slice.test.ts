@@ -64,7 +64,7 @@ describe('Canonical Vertical Slice Invariant — End-to-End Investigation Lifecy
       label: 'Filter Outlier Amount',
     });
     expect(filterResult.dataset?.rows?.length).toBe(9); // TX-008 filtered out
-    expect(atlas.aggregate.analytical.datasetVersion).toBe(1);
+    expect(atlas.aggregate.analytical.datasetVersion).toBe(2);
 
     // Perform Operation 2: Group Aggregation
     const aggResult = atlas.applyAnalysis({
@@ -74,12 +74,12 @@ describe('Canonical Vertical Slice Invariant — End-to-End Investigation Lifecy
         aggregations: [{ column: 'amount', function: 'sum' }],
       },
       datasetFingerprint: initialFingerprint,
-      datasetVersion: 1,
+      datasetVersion: 2,
       algorithmVersion: '1.0.0',
       label: 'Aggregate by Region',
     });
     expect(aggResult.dataset?.rows?.length).toBe(4);
-    expect(atlas.aggregate.analytical.datasetVersion).toBe(1);
+    expect(atlas.aggregate.analytical.datasetVersion).toBe(3);
 
     // -------------------------------------------------------------------------
     // Stage 3: Draco Recommendation & Representation Decision
@@ -104,20 +104,18 @@ describe('Canonical Vertical Slice Invariant — End-to-End Investigation Lifecy
     atlas.recordObservation('Severe Regional Anomaly Identified: TX-008 in South region represents an extreme 50x spike above mean.');
 
     // Connect in InvestigationGraph
-    const rootNodeId = `${atlas.sessionId}:v0`;
-    const anomalyNodeId = `${atlas.sessionId}:v1`;
+    const anomalyNodeId = `${atlas.sessionId}:v2`;
     const findingNodeId = `finding-${Date.now()}`;
 
     atlas.aggregate.graph.addNode({
       id: findingNodeId,
       kind: 'finding',
       parentId: anomalyNodeId,
-      datasetVersion: 1,
+      datasetVersion: 2,
       datasetFingerprint: initialFingerprint,
       label: 'TX-008 Anomaly Finding',
       timestamp: Date.now(),
     });
-    atlas.aggregate.graph.connect(rootNodeId, anomalyNodeId, 'produces');
     atlas.aggregate.graph.connect(anomalyNodeId, findingNodeId, 'supports');
 
     // -------------------------------------------------------------------------

@@ -80,13 +80,7 @@ export class CollaborationCoordinator {
     this.networkManager = null;
 
     if (this.peerAvatarManager) {
-      const peers = this.peerAvatarManager.getAvatarCount();
-      if (peers > 0 && this.world.scene) {
-        // Clear all remaining avatars from scene
-        for (let i = 0; i < peers; i++) {
-          // Handled via removePeer calls or scene teardown
-        }
-      }
+      this.peerAvatarManager.dispose();
       this.peerAvatarManager = null;
     }
 
@@ -117,18 +111,23 @@ export class CollaborationCoordinator {
   }
 
   update(): void {
-    if (!this.networkManager?.isConnected || !this.world.engine?.cameraGroup || !this.world.engine?.camera) return;
+    if (!this.networkManager?.isConnected || !this.world.engine?.camera) return;
 
-    const pos = this.world.engine.cameraGroup.position;
-    const rot = this.world.engine.camera.quaternion;
+    this.world.engine.camera.updateMatrixWorld(true);
+    const pos = new THREE.Vector3();
+    const rot = new THREE.Quaternion();
+    this.world.engine.camera.getWorldPosition(pos);
+    this.world.engine.camera.getWorldQuaternion(rot);
 
     const posArray: [number, number, number] = [pos.x, pos.y, pos.z];
     const rotArray: [number, number, number, number] = [rot.x, rot.y, rot.z, rot.w];
 
+    const groupPos = this.world.engine.cameraGroup?.position ?? pos;
+
     this.networkManager.broadcastCameraPose?.(posArray, rotArray);
     this.networkManager.setLocalState({
-      position: { x: pos.x, y: pos.y, z: pos.z },
-      rotationY: this.world.engine.cameraGroup.rotation.y,
+      position: { x: groupPos.x, y: groupPos.y, z: groupPos.z },
+      rotationY: this.world.engine.cameraGroup?.rotation.y ?? 0,
       dataset: this.world.currentEntry?.name ?? this.world.currentEntry?.label ?? '-',
     });
   }

@@ -175,6 +175,7 @@ export class World {
   dashboardPanels!: { panel: ChartPlanePanel }[];
   _lastLoadTestSummary: LoadTestSummary | null = null;
   _telemetryConsentBeforeRun: boolean | null = null;
+  bootState: 'INITIALIZING' | 'READY' | 'KERNEL_UNAVAILABLE' | 'INCOMPATIBLE' | 'FATAL' = 'INITIALIZING';
 
   constructor() {
     this.engine = new Engine();
@@ -1931,14 +1932,19 @@ export class World {
   async start(): Promise<void> {
     // Initialise the Rust/WASM runtime in parallel with engine start. The
     // kernel is MANDATORY for analytics; if it cannot be loaded the engine
-    // still starts but data ops surface a hard "kernel unavailable" state.
-    const wasmInitPromise = this._initWasmRuntime().catch((err) => {
-      this._wasmRuntime = null;
-      this._wasmCapabilities = 0;
-      this._wasmUnavailable = true;
-      console.error('[World] analytical kernel unavailable:', err);
-      this.uiManager.vrConsole?.log?.('error', ['Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.']);
-    });
+    // transitions to a hard KERNEL_UNAVAILABLE state.
+    const wasmInitPromise = this._initWasmRuntime()
+      .then(() => {
+        this.bootState = 'READY';
+      })
+      .catch((err) => {
+        this._wasmRuntime = null;
+        this._wasmCapabilities = 0;
+        this._wasmUnavailable = true;
+        this.bootState = 'KERNEL_UNAVAILABLE';
+        console.error('[World] analytical kernel unavailable:', err);
+        this.uiManager.vrConsole?.log?.('error', ['Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.']);
+      });
 
     this.engine.start();
 
@@ -1958,15 +1964,22 @@ export class World {
       this._wasmCapabilities = bridge.capabilities();
       this.atlas.setKernel(bridge, this._wasmCapabilities);
       this._rebuildPalaceWithKernelFacts();
+      this.bootState = 'READY';
       return;
     }
 
-    // In dev, Vite serves the wasm-pack output at /wasm/nemosyne_wasm_bg.wasm.
-    await bridge.initRuntime('/wasm/nemosyne_wasm_bg.wasm');
+    try {
+      await bridge.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
+    } catch {
+      // Fallback for legacy dev paths
+      await bridge.initRuntime('/wasm/nemosyne_wasm_bg.wasm');
+    }
+
     this._wasmRuntime = bridge;
     this._wasmCapabilities = bridge.capabilities();
     this.atlas.setKernel(bridge, this._wasmCapabilities);
     this._rebuildPalaceWithKernelFacts();
+    this.bootState = 'READY';
     this.uiManager.vrConsole?.log?.('log', [
       `WASM ready — capabilities ${this._wasmCapabilities.toString(2)}`,
     ]);
