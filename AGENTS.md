@@ -28,13 +28,13 @@ npm run lint              # ESLint (blocking gate; src no-explicit-any is an err
 npx vitest run tests/foo.test.js   # single JS test file
 cargo test --manifest-path wasm/Cargo.toml   # Rust unit tests only
 npm run test:e2e:tier1    # E2E tier 1 (feature coverage); tier2/tier3/tier4 likewise
-npm run test:smoke        # Playwright load smoke (builds dist/ + headless Chromium; informational, NON-blocking)
+npm run test:smoke        # Playwright load smoke (builds dist/ + headless Chromium; REQUIRED blocking gate)
 ```
 
 ## Required command order
 
-CI gate order (from `.github/workflows/ci.yml`): `typecheck -> lint -> test:coverage -> build`.
-Run all four before claiming a task done. `lint` and `typecheck` are both blocking.
+CI gate order (from `.github/workflows/ci.yml`): `typecheck -> lint -> test:coverage -> build` plus required parallel jobs `rust (cargo test)` and `playwright-smoke (npm run test:smoke)`.
+Run all before claiming a task done. All gates are blocking.
 
 ## Critical gotchas
 

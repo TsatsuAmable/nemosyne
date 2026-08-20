@@ -109,9 +109,7 @@ jobs:
           if-no-files-found: ignore
 
   # Real-WebGL load smoke against headless Chromium (WebGL2 via SwiftShader).
-  # Informational / NON-REQUIRED: not in the GitHub branch ruleset (id=20623327)
-  # and cannot block the owner auto-merge flow. Promote to required separately
-  # once stable. See tests/smoke/README.md.
+  # REQUIRED GATE: Must pass in CI alongside Rust unit tests and Node test suite.
   playwright-smoke:
     name: Playwright load smoke
     runs-on: ubuntu-latest
