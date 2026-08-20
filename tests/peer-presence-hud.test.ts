@@ -106,4 +106,31 @@ describe('PeerPresenceHUD', () => {
 
     expect(hud._peerHash).not.toBe(firstHash);
   });
+
+  it('suppresses rendering when no peers are connected', () => {
+    hud = new PeerPresenceHUD(cameraGroup, {
+      getPeers: () => [],
+      getLocalPeerId: () => null,
+    });
+    // User-enabled, but no peers: update() must hide the mesh and skip drawing.
+    expect(hud.mesh.visible).toBe(true);
+    hud.update();
+    expect(hud.mesh.visible).toBe(false);
+    expect(hud._peerHash).toBe('');
+  });
+
+  it('restores visibility when peers appear after an empty period', () => {
+    const peers: PeerInfo[] = [];
+    hud = new PeerPresenceHUD(cameraGroup, {
+      getPeers: () => peers,
+      getLocalPeerId: () => null,
+    });
+    hud.update();
+    expect(hud.mesh.visible).toBe(false);
+
+    peers.push({ peerId: 'p1', name: 'Alice', state: {} });
+    hud.update();
+    expect(hud.mesh.visible).toBe(true);
+    expect(hud._peerHash).not.toBe('');
+  });
 });

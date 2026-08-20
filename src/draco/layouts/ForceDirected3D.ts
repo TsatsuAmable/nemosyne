@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LayoutBase } from './LayoutBase.ts';
+import { LayoutBase, warnKernelLayoutUnavailable } from './LayoutBase.ts';
 import type { DatasetEdge } from '../../data/Dataset.ts';
 import type { ForceDirectedOptions, LayoutEntry } from '../types.ts';
 import { computeForceDirected3d } from '../../wasm/RuntimeBridge.ts';
@@ -52,6 +52,7 @@ export class ForceDirected3D extends LayoutBase {
       }
     }
 
+    warnKernelLayoutUnavailable('ForceDirected3D');
     const positions: THREE.Vector3[] = [];
     for (let i = 0; i < n; i++) {
       const phi = Math.acos(-1 + (2 * i) / Math.max(1, n - 1));

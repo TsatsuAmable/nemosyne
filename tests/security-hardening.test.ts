@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { describe, it, expect, vi } from 'vitest';
 import { UploadSanitizer } from '../src/data/index.ts';
 import { SignedTicketVerifier, type SignedRoomTicket } from '../src/network/index.ts';
 import { TelemetryConsentManager } from '../src/study/index.ts';
@@ -84,7 +85,9 @@ describe('Sprint 27.5 — Security, Input Sanitization & Network Hardening', () 
         issuedAt: now,
         expiresAt: now + 300_000,
         nonce: 'nonce-mallory-1',
-        signatureHex: 'deadbeefcafebabe00000000',
+        // 64-hex (well-formed) but cryptographically wrong signature — exercises
+        // the constant-time comparison path rather than the length check.
+        signatureHex: 'deadbeefcafebabe'.repeat(4),
       };
 
       const result = await verifier.verifyTicket(signedTicket, SECRET, SESSION_ID, now);
@@ -137,6 +140,153 @@ describe('Sprint 27.5 — Security, Input Sanitization & Network Hardening', () 
       // Clear expired nonces at now + 20s (ticket1 expired, ticket2 active)
       verifier.clearExpiredNonces(now + 20_000);
       expect(verifier.activeNonceCount).toBe(1);
+    });
+  });
+
+  describe('SignedTicketVerifier — P0.1 cryptographic authority & fail-closed', () => {
+    const SECRET = 'p0-room-secret-key-aaa-999';
+    const SESSION_ID = 'session-p0-collab';
+
+    async function makeValidTicket(overrides: Partial<SignedRoomTicket> = {}, now = Date.now()) {
+      const payload = {
+        version: 1 as const,
+        sessionId: SESSION_ID,
+        participantId: 'user-p0-01',
+        role: 'analyst' as const,
+        issuedAt: now,
+        expiresAt: now + 300_000,
+        nonce: 'nonce-p0-' + Math.random().toString(36).slice(2),
+        ...overrides,
+      };
+      // If a signatureHex override is provided, skip signing (used for forged cases).
+      if (overrides.signatureHex) {
+        return { ...payload, signatureHex: overrides.signatureHex } as SignedRoomTicket;
+      }
+      // Strip any partial signatureHex from overrides before signing.
+      const { signatureHex: _ignored, ...rest } = overrides as any;
+      return await SignedTicketVerifier.signTicket({ ...payload, ...rest } as any, SECRET);
+    }
+
+    it('verifies a valid HMAC ticket', async () => {
+      const verifier = new SignedTicketVerifier();
+      const now = Date.now();
+      const ticket = await makeValidTicket();
+      const result = await verifier.verifyTicket(ticket, SECRET, SESSION_ID, now);
+      expect(result.valid).toBe(true);
+      expect(result.errorKind).toBeUndefined();
+    });
+
+    it('rejects a malformed (non-hex) signature', async () => {
+      const verifier = new SignedTicketVerifier();
+      const now = Date.now();
+      const ticket = await makeValidTicket({ signatureHex: 'zz'.repeat(32) } as any);
+      const result = await verifier.verifyTicket(ticket, SECRET, SESSION_ID, now);
+      expect(result.valid).toBe(false);
+      expect(result.errorKind).toBe('malformed_signature');
+    });
+
+    it('rejects an incorrect signature length', async () => {
+      const verifier = new SignedTicketVerifier();
+      const now = Date.now();
+      // 28 hex chars — wrong length, valid hex.
+      const ticket = await makeValidTicket({ signatureHex: 'deadbeefcafebabe00000000' } as any);
+      const result = await verifier.verifyTicket(ticket, SECRET, SESSION_ID, now);
+      expect(result.valid).toBe(false);
+      expect(result.errorKind).toBe('malformed_signature');
+    });
+
+    it('rejects a modified payload (participantId tampered)', async () => {
+      const verifier = new SignedTicketVerifier();
+      const now = Date.now();
+      const ticket = await makeValidTicket();
+      // Tamper with a payload field that is covered by the canonical payload but
+      // not separately pre-checked (participantId), keeping a valid 64-hex sig.
+      const tampered: SignedRoomTicket = { ...ticket, participantId: 'user-mallory' };
+      const result = await verifier.verifyTicket(tampered, SECRET, SESSION_ID, now);
+      expect(result.valid).toBe(false);
+      expect(result.errorKind).toBe('invalid_signature');
+    });
+
+    it('rejects a modified signature (one hex char flipped)', async () => {
+      const verifier = new SignedTicketVerifier();
+      const now = Date.now();
+      const ticket = await makeValidTicket();
+      const flipped = ticket.signatureHex.slice(0, -1) + (ticket.signatureHex.endsWith('0') ? '1' : '0');
+      const tampered: SignedRoomTicket = { ...ticket, signatureHex: flipped };
+      const result = await verifier.verifyTicket(tampered, SECRET, SESSION_ID, now);
+      expect(result.valid).toBe(false);
+      expect(result.errorKind).toBe('invalid_signature');
+    });
+
+    it('rejects an expired ticket', async () => {
+      const verifier = new SignedTicketVerifier();
+      const now = Date.now();
+      const ticket = await makeValidTicket({ expiresAt: now - 1000 } as any);
+      const result = await verifier.verifyTicket(ticket, SECRET, SESSION_ID, now);
+      expect(result.valid).toBe(false);
+      expect(result.errorKind).toBe('expired');
+    });
+
+    it('rejects a future-issued ticket', async () => {
+      const verifier = new SignedTicketVerifier();
+      const now = Date.now();
+      const ticket = await makeValidTicket({ issuedAt: now + 120_000 } as any);
+      const result = await verifier.verifyTicket(ticket, SECRET, SESSION_ID, now);
+      expect(result.valid).toBe(false);
+      expect(result.errorKind).toBe('future_issued');
+    });
+
+    it('rejects a replayed nonce', async () => {
+      const verifier = new SignedTicketVerifier();
+      const now = Date.now();
+      const ticket = await makeValidTicket({ nonce: 'nonce-replay-p0' } as any);
+      const first = await verifier.verifyTicket(ticket, SECRET, SESSION_ID, now);
+      expect(first.valid).toBe(true);
+      const replay = await verifier.verifyTicket(ticket, SECRET, SESSION_ID, now);
+      expect(replay.valid).toBe(false);
+      expect(replay.errorKind).toBe('replay');
+    });
+
+    it('returns a capability failure (not a fallback hash) when Web Crypto is unavailable', async () => {
+      const verifier = new SignedTicketVerifier();
+      const now = Date.now();
+      const ticket = await makeValidTicket();
+      // Replace the whole Web Crypto object with one lacking SubtleCrypto.
+      const realCrypto = globalThis.crypto;
+      vi.stubGlobal('crypto', { subtle: undefined });
+      try {
+        const result = await verifier.verifyTicket(ticket, SECRET, SESSION_ID, now);
+        expect(result.valid).toBe(false);
+        expect(result.errorKind).toBe('capability_unavailable');
+        // Critical: the result must not look like "invalid credentials but continue".
+        expect(result.error).not.toContain('replay');
+        expect(result.error).not.toContain('expired');
+      } finally {
+        vi.stubGlobal('crypto', realCrypto);
+      }
+    });
+
+    it('never uses a non-cryptographic fallback: signTicket throws when Web Crypto is unavailable', async () => {
+      const realCrypto = globalThis.crypto;
+      vi.stubGlobal('crypto', { subtle: undefined });
+      try {
+        await expect(
+          SignedTicketVerifier.signTicket(
+            {
+              version: 1,
+              sessionId: SESSION_ID,
+              participantId: 'user-x',
+              role: 'analyst',
+              issuedAt: Date.now(),
+              expiresAt: Date.now() + 1000,
+              nonce: 'nonce-x',
+            },
+            SECRET
+          )
+        ).rejects.toThrow(/Web Crypto HMAC-SHA256 capability unavailable/);
+      } finally {
+        vi.stubGlobal('crypto', realCrypto);
+      }
     });
   });
 

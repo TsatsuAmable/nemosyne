@@ -14,6 +14,28 @@ import type { Dataset } from '../../data/Dataset.ts';
 import type { LayoutEntry } from '../types.ts';
 import { normalize } from '../../data/Encodings.ts';
 
+/**
+ * P20 (No Silent Fallbacks): When the Rust/WASM layout kernel is unavailable,
+ * each layout must explicitly log a degraded-state warning rather than silently
+ * substituting a JS computation. This flag ensures the warning is emitted only
+ * once per layout kind per session to avoid log flooding.
+ */
+const _warnedLayoutKinds = new Set<string>();
+
+/**
+ * Emit a one-time KernelUnavailable warning for the given layout kind. Callers
+ * should invoke this at the point where the WASM path failed and the JS
+ * fallback is about to execute.
+ */
+export function warnKernelLayoutUnavailable(kind: string): void {
+  if (_warnedLayoutKinds.has(kind)) return;
+  _warnedLayoutKinds.add(kind);
+  console.warn(
+    `[Nemosyne:P20] ${kind} layout: Rust/WASM kernel unavailable — using degraded JS spatial fallback. ` +
+    'This is not a silent analytical substitute; the kernel remains the sole analytical authority.'
+  );
+}
+
 export class LayoutBase {
   static compute<T = Record<string, unknown>>(
     _rows: T[] = [],

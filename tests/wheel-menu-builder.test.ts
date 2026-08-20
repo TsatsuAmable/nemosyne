@@ -41,6 +41,8 @@ function makeStubWorld(): { world: WorldLike; spy: Record<string, ReturnType<typ
   const narrStrip = panel();
   const netPanel = panel();
   const recPanel = panel();
+  const schemaMapPanel = panel();
+  const gestureConfPanel = panel();
 
   const world: any = {
     uiManager: {
@@ -53,6 +55,19 @@ function makeStubWorld(): { world: WorldLike; spy: Record<string, ReturnType<typ
       narrativeStrip: narrStrip,
       networkPanel: netPanel,
       recommendationPanel: recPanel,
+      // Lazy panel accessors (return the pre-built stub panels so `toggle` fires).
+      getOrCreateOperationLogPanel: () => opLog,
+      getOrCreateInteractionCoach: () => coachPanel,
+      getOrCreateNarrativeStrip: () => narrStrip,
+      getOrCreateLoadTestPanel: () => panel(),
+      // Superuser / Dev Lab panel accessors + service-class toggles.
+      getOrCreateSchemaMappingPanel: () => schemaMapPanel,
+      getOrCreateGestureConfidenceHUD: () => gestureConfPanel,
+      toggleRepresentationCarousel: fn('toggleRepresentationCarousel'),
+      toggleTransientContextCards: fn('toggleTransientContextCards'),
+      toggleProgressiveDisclosure: fn('toggleProgressiveDisclosure'),
+      toggleFrustrationResponseManager: fn('toggleFrustrationResponseManager'),
+      toggleJITGestureHintManager: fn('toggleJITGestureHintManager'),
     },
     panelManager,
     dashboard,
@@ -76,6 +91,7 @@ function makeStubWorld(): { world: WorldLike; spy: Record<string, ReturnType<typ
     _togglePeerPresenceHUD: fn('_togglePeerPresenceHUD'),
     _toggleDesktopPreview: fn('_toggleDesktopPreview'),
     _toggleLoadTestPanel: fn('_toggleLoadTestPanel'),
+    _toggleDracoDiagnostic: fn('_toggleDracoDiagnostic'),
 
     // Views.
     portalsEnabled: false,
@@ -116,7 +132,7 @@ function makeStubWorld(): { world: WorldLike; spy: Record<string, ReturnType<typ
 }
 
 describe('WheelMenuBuilder', () => {
-  it('builds all seven categories with non-empty item lists', () => {
+  it('builds all eight categories with non-empty item lists', () => {
     const { world } = makeStubWorld();
     const cats = buildWheelMenuCategories(world);
 
@@ -128,6 +144,7 @@ describe('WheelMenuBuilder', () => {
       'collab',
       'ops',
       'loadtest',
+      'superuser',
     ]);
     for (const c of cats) {
       expect(c.items.length).toBeGreaterThan(0);

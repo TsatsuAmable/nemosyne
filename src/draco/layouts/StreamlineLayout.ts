@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LayoutBase } from './LayoutBase.ts';
+import { LayoutBase, warnKernelLayoutUnavailable } from './LayoutBase.ts';
 import { SeededRandom } from '../../utils/SeededRandom.ts';
 import type { LayoutEntry, StreamlineEntry, StreamlineOptions } from '../types.ts';
 import { computeStreamline3d } from '../../wasm/RuntimeBridge.ts';
@@ -50,6 +50,7 @@ export class StreamlineLayout extends LayoutBase {
       return out;
     }
 
+    warnKernelLayoutUnavailable('StreamlineLayout');
     const rng = new SeededRandom(seed);
 
     for (let i = 0; i < count; i++) {

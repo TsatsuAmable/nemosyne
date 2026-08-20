@@ -1,6 +1,6 @@
 // @ts-nocheck
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createRoomRegistry, type SignallingSocket } from '../src/network/SignallingServerCore.ts';
 import { createSignedTicket } from '../src/network/SignedTicket.ts';
 
@@ -186,6 +186,7 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
   describe('Origin Enforcement (Anti-CSWSH)', () => {
     it('permits connections from allowed origins', () => {
       const registry = createRoomRegistry({
+        securityProfile: 'Development',
         allowedOrigins: ['https://nemosyne.world', 'http://localhost:5173'],
       });
       const socket = makeSocket();
@@ -198,6 +199,7 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
 
     it('rejects connections from untrusted origins with 4003 (forbidden origin)', () => {
       const registry = createRoomRegistry({
+        securityProfile: 'Development',
         allowedOrigins: ['https://nemosyne.world'],
       });
       const socket = makeSocket();
@@ -232,7 +234,7 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
     });
 
     it('enforces message rate limits and terminates abusive sockets with 1008', () => {
-      const registry = createRoomRegistry({ maxMessagesPerSecond: 5 });
+      const registry = createRoomRegistry({ securityProfile: 'Development', maxMessagesPerSecond: 5 });
       const socket = makeSocket();
 
       registry.handleConnection(socket, 'room1', 'spammer');
@@ -250,7 +252,7 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
     });
 
     it('enforces maximum simultaneous connections per IP', () => {
-      const registry = createRoomRegistry({ maxConnectionsPerIp: 2 });
+      const registry = createRoomRegistry({ securityProfile: 'Development', maxConnectionsPerIp: 2 });
       const req = { socket: { remoteAddress: '192.168.1.50' } };
 
       const s1 = makeSocket();
@@ -277,7 +279,7 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
 
   describe('Room Lifecycle & Idle Expiration', () => {
     it('tracks room count and cleans up empty rooms after idle timeout', () => {
-      const registry = createRoomRegistry({ roomIdleTimeoutMs: 50 }); // 50ms timeout for test
+      const registry = createRoomRegistry({ securityProfile: 'Development', roomIdleTimeoutMs: 50 }); // 50ms timeout for test
       const a = makeSocket();
 
       registry.handleConnection(a, 'room-expiring', 'peerA');
@@ -298,6 +300,182 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
           resolve();
         }, 60);
       });
+    });
+  });
+
+  describe('P0.2 — Fail-Closed Security Profiles & Startup Diagnostic', () => {
+    it('an unconfigured production registry cannot admit unauthenticated peers', () => {
+      vi.useFakeTimers();
+      try {
+        const registry = createRoomRegistry({ securityProfile: 'Production' });
+        const a = makeSocket();
+        // No token supplied — the peer is admitted pending auth but must NOT
+        // be authenticated. After the auth timeout it is closed with 4001.
+        registry.handleConnection(a, 'room1', 'peerA');
+        expect(a.closeCode).toBeUndefined(); // admitted pending auth, not immediately closed
+        expect(a.readyState).toBe(1);
+
+        // No in-band auth message sent — after timeout the socket is closed.
+        vi.advanceTimersByTime(5000);
+        expect(a.closeCode).toBe(4001);
+        expect(a.closeReason).toBe('auth timeout');
+
+        // The diagnostic must flag the missing auth + origins as unsafe for Production.
+        const diag = registry.getSecurityDiagnostic();
+        expect(diag.profile).toBe('Production');
+        expect(diag.openMode).toBe(false);
+        expect(diag.authTokenConfigured).toBe(false);
+        expect(diag.originEnforcement).toBe(false);
+        expect(diag.ok).toBe(false);
+        expect(diag.warnings.some((w) => w.includes('Production profile requires authentication'))).toBe(true);
+        expect(diag.warnings.some((w) => w.includes('Production profile requires allowedOrigins'))).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('a production registry with authToken + origins is ok and rejects bad tokens', () => {
+      const registry = createRoomRegistry({
+        securityProfile: 'Production',
+        authToken: 'prod-secret',
+        allowedOrigins: ['https://nemosyne.world'],
+      });
+      const diag = registry.getSecurityDiagnostic();
+      expect(diag.ok).toBe(true);
+      expect(diag.warnings).toHaveLength(0);
+
+      // Wrong URL token is ignored in Production (not rejected) — the peer is
+      // admitted pending in-band auth. URL tokens are development-only.
+      const a = makeSocket();
+      registry.handleConnection(a, 'room1', 'peerA', 'wrong-secret', 'participant', {
+        headers: { origin: 'https://nemosyne.world' },
+      });
+      expect(a.closeCode).toBeUndefined(); // admitted pending auth, URL token ignored
+      expect(registry.getTotalPeers()).toBe(0); // not authenticated
+
+      // A wrong in-band auth message IS rejected with 4001.
+      a.listeners.message[0](
+        JSON.stringify({ to: 'peerA', data: { type: 'auth', token: 'wrong-secret' } })
+      );
+      expect(a.closeCode).toBe(4001);
+
+      // Correct in-band auth is admitted.
+      const b = makeSocket();
+      registry.handleConnection(b, 'room1', 'peerB', 'prod-secret', 'participant', {
+        headers: { origin: 'https://nemosyne.world' },
+      });
+      expect(b.closeCode).toBeUndefined(); // admitted pending auth
+      b.listeners.message[0](
+        JSON.stringify({ to: 'peerB', data: { type: 'auth', token: 'prod-secret' } })
+      );
+      expect(b.closeCode).toBeUndefined();
+      expect(registry.getTotalPeers()).toBe(1); // b is now authenticated
+    });
+
+    it('Development profile defaults to open mode and emits a diagnostic warning', () => {
+      const registry = createRoomRegistry({ securityProfile: 'Development' });
+      const diag = registry.getSecurityDiagnostic();
+      expect(diag.profile).toBe('Development');
+      expect(diag.openMode).toBe(true);
+      expect(diag.warnings.some((w) => w.includes('do not deploy this configuration to production'))).toBe(true);
+
+      // Open mode admits a no-token peer as authenticated immediately.
+      const a = makeSocket();
+      registry.handleConnection(a, 'room1', 'peerA');
+      expect(a.closeCode).toBeUndefined();
+      expect(registry.getTotalPeers()).toBe(1); // authenticated
+    });
+
+    it('default (no profile) is fail-closed: open mode is off', () => {
+      const registry = createRoomRegistry({ authToken: 'secret' });
+      const diag = registry.getSecurityDiagnostic();
+      expect(diag.profile).toBe('ResearchPreview');
+      expect(diag.openMode).toBe(false);
+      // With authToken configured, the registry is functional but not open.
+      expect(diag.ok).toBe(true);
+    });
+
+    it('ResearchPreview without auth warns that all connections will be rejected', () => {
+      const registry = createRoomRegistry({ securityProfile: 'ResearchPreview' });
+      const diag = registry.getSecurityDiagnostic();
+      expect(diag.ok).toBe(false);
+      expect(diag.warnings.some((w) => w.includes('all connections will be rejected'))).toBe(true);
+    });
+
+    it('explicitly forcing allowOpenNoToken=true in Production is flagged as a warning', () => {
+      const registry = createRoomRegistry({
+        securityProfile: 'Production',
+        authToken: 'secret',
+        allowedOrigins: ['https://nemosyne.world'],
+        allowOpenNoToken: true,
+      });
+      const diag = registry.getSecurityDiagnostic();
+      expect(diag.ok).toBe(false);
+      expect(diag.warnings.some((w) => w.includes('must not run in open'))).toBe(true);
+    });
+  });
+
+  describe('P0.3 — Eliminate URL-Token Authentication (Production in-band only)', () => {
+    it('Production ignores URL-supplied tokens and requires in-band auth', () => {
+      vi.useFakeTimers();
+      try {
+        const registry = createRoomRegistry({
+          securityProfile: 'Production',
+          authToken: 'prod-secret',
+          allowedOrigins: ['https://nemosyne.world'],
+        });
+        const diag = registry.getSecurityDiagnostic();
+        expect(diag.acceptUrlToken).toBe(false);
+
+        // A peer connects WITH the correct token via the URL parameter, but
+        // Production ignores it — the peer is admitted pending in-band auth.
+        const a = makeSocket();
+        registry.handleConnection(a, 'room1', 'peerA', 'prod-secret', 'participant', {
+          headers: { origin: 'https://nemosyne.world' },
+        });
+        expect(a.closeCode).toBeUndefined(); // admitted pending auth, not rejected
+        expect(registry.getTotalPeers()).toBe(0); // NOT authenticated yet
+
+        // The peer sends an in-band auth message with the correct token.
+        a.listeners.message[0](
+          JSON.stringify({ to: 'peerA', data: { type: 'auth', token: 'prod-secret' } })
+        );
+        expect(registry.getTotalPeers()).toBe(1); // now authenticated
+        expect(a.closeCode).toBeUndefined();
+
+        // The auth timeout must not fire after successful in-band auth.
+        vi.advanceTimersByTime(5000);
+        expect(a.closeCode).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('ResearchPreview still accepts URL-supplied tokens (deprecated but functional)', () => {
+      const registry = createRoomRegistry({
+        authToken: 'preview-secret',
+      });
+      const diag = registry.getSecurityDiagnostic();
+      expect(diag.profile).toBe('ResearchPreview');
+      expect(diag.acceptUrlToken).toBe(true);
+
+      const a = makeSocket();
+      registry.handleConnection(a, 'room1', 'peerA', 'preview-secret');
+      expect(a.closeCode).toBeUndefined();
+      expect(registry.getTotalPeers()).toBe(1); // authenticated via URL token
+    });
+
+    it('Development accepts URL-supplied tokens', () => {
+      const registry = createRoomRegistry({
+        securityProfile: 'Development',
+        authToken: 'dev-secret',
+      });
+      expect(registry.getSecurityDiagnostic().acceptUrlToken).toBe(true);
+
+      const a = makeSocket();
+      registry.handleConnection(a, 'room1', 'peerA', 'dev-secret');
+      expect(a.closeCode).toBeUndefined();
+      expect(registry.getTotalPeers()).toBe(1);
     });
   });
 });

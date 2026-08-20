@@ -8,7 +8,6 @@ import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.ts';
 import { WorldTheme } from '../src/vr/WorldTheme.ts';
 import * as Download from '../src/utils/Download.ts';
-import { OperationLogPanel } from '../src/vr/ui/OperationLogPanel.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
 // Wave 2: the analytical kernel is mandatory in production. Integration tests
@@ -757,8 +756,9 @@ describe('World integration', () => {
 
   it('toggles the operation log panel from the hand wheel menu', () => {
     world = new World(); wireKernel(world);
-    expect(world.uiManager.operationLogPanel).toBeInstanceOf(OperationLogPanel);
-    expect(world.uiManager.operationLogPanel.mesh.visible).toBe(false);
+    const opLog = world.uiManager.getOrCreateOperationLogPanel();
+    expect(opLog).toBeTruthy();
+    expect(opLog.mesh.visible).toBe(false);
 
     const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
     const action = panelsCategory.items.find((i) => i.id === 'operation-log');
@@ -769,7 +769,8 @@ describe('World integration', () => {
 
   it('updates the operation log panel when operations are applied', () => {
     world = new World(); wireKernel(world);
-    const setEntriesSpy = vi.spyOn(world.uiManager.operationLogPanel, 'setEntries');
+    const opLog = world.uiManager.getOrCreateOperationLogPanel();
+    const setEntriesSpy = vi.spyOn(opLog, 'setEntries');
 
     world.applyDataOperation('filter');
 
@@ -956,11 +957,13 @@ describe('World integration', () => {
     }
   });
 
-  it('creates an interaction coach panel', () => {
+  it('creates an interaction coach panel on first access', () => {
     world = new World(); wireKernel(world);
-    expect(world.uiManager.interactionCoach).toBeTruthy();
-    expect(world.uiManager.panelManager.panels).toContain(world.uiManager.interactionCoach);
-    expect(world.uiManager.interactionCoach.mesh.visible).toBe(false);
+    expect(world.uiManager.interactionCoach).toBeNull();
+    const coach = world.uiManager.getOrCreateInteractionCoach();
+    expect(coach).toBeTruthy();
+    expect(world.uiManager.panelManager.panels).toContain(coach);
+    expect(coach.mesh.visible).toBe(false);
   });
 
   it('includes an interaction coach action in the hand wheel menu', () => {
@@ -969,12 +972,13 @@ describe('World integration', () => {
     const action = panelsCategory.items.find((i) => i.id === 'interaction-coach');
     expect(action).toBeTruthy();
     action.callback();
-    expect(world.uiManager.interactionCoach.mesh.visible).toBe(true);
+    expect(world.uiManager.interactionCoach?.mesh.visible).toBe(true);
   });
 
   it('logs gestures to the interaction coach', () => {
     world = new World(); wireKernel(world);
-    const logSpy = vi.spyOn(world.uiManager.interactionCoach, 'log');
+    const coach = world.uiManager.getOrCreateInteractionCoach();
+    const logSpy = vi.spyOn(coach, 'log');
 
     world._onGesture('pinchTogether');
 
@@ -986,7 +990,7 @@ describe('World integration', () => {
 
   it('logs controller gesture context when source is controller', () => {
     world = new World(); wireKernel(world);
-    const logSpy = vi.spyOn(world.uiManager.interactionCoach, 'log');
+    const logSpy = vi.spyOn(world.uiManager.getOrCreateInteractionCoach(), 'log');
 
     world._onGesture('rotateCW', { source: 'controller', button: 'B' });
 
@@ -997,7 +1001,7 @@ describe('World integration', () => {
 
   it('logs data operations to the interaction coach', () => {
     world = new World(); wireKernel(world);
-    const logSpy = vi.spyOn(world.uiManager.interactionCoach, 'log');
+    const logSpy = vi.spyOn(world.uiManager.getOrCreateInteractionCoach(), 'log');
 
     world.applyDataOperation('filter');
 
@@ -1008,7 +1012,7 @@ describe('World integration', () => {
 
   it('logs the launcher toggle to the interaction coach', () => {
     world = new World(); wireKernel(world);
-    const logSpy = vi.spyOn(world.uiManager.interactionCoach, 'log');
+    const logSpy = vi.spyOn(world.uiManager.getOrCreateInteractionCoach(), 'log');
 
     world._togglePanels();
 

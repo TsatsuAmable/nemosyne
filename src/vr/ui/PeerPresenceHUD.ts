@@ -49,6 +49,8 @@ export class PeerPresenceHUD {
   private _camPos: THREE.Vector3;
   private _camDir: THREE.Vector3;
   private _peerPos: THREE.Vector3;
+  /** User preference set via setEnabled(); preserved across peer-driven suppression. */
+  private _userEnabled = true;
 
   constructor(cameraGroup: THREE.Group, options: PeerPresenceHUDOptions = {}) {
     this.cameraGroup = cameraGroup;
@@ -90,12 +92,25 @@ export class PeerPresenceHUD {
   }
 
   setEnabled(enabled: boolean): void {
+    this._userEnabled = enabled;
+    // Peer-driven suppression is resolved in update(); setEnabled only records
+    // the user preference so a disabled HUD never performs getPeers() work.
     this.mesh.visible = enabled;
   }
 
   update(): void {
-    if (!this.mesh.visible) return;
+    // Respect user preference; when disabled there is nothing to draw.
+    if (!this._userEnabled) return;
     const peers = this.getPeers();
+    // Suppress rendering entirely when no peers are connected — avoids a
+    // permanent empty-state panel and saves the per-frame canvas/draw work.
+    if (peers.length === 0) {
+      this.mesh.visible = false;
+      this._peerHash = '';
+      return;
+    }
+    this.mesh.visible = true;
+
     const localId = this.getLocalPeerId();
     const hash = peers.map((p) => `${p.peerId}:${p.name}`).join('|');
     // Also redraw if any peer position changed; checking every frame is cheap

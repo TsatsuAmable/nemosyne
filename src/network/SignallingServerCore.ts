@@ -25,6 +25,35 @@ const DEFAULT_AUTH_WINDOW_MS = 60 * 1000; // 1 minute
 const DEFAULT_AUTH_TIMEOUT_MS = 5000; // 5 seconds to authenticate
 const DEFAULT_ROOM_IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
+/**
+ * Explicit security profile for a room registry. The profile drives fail-closed
+ * defaults so an operator who forgets to configure authentication never accidentally
+ * runs an open relay.
+ *
+ * - `Development`      — frictionless local dev: open (no-token) mode is the default,
+ *                        origin enforcement is optional. Emit a diagnostic so the
+ *                        profile is never silently inherited by production.
+ * - `ResearchPreview`   — authentication required (authToken or tokenValidator);
+ *                        open mode is rejected. Origin enforcement recommended.
+ * - `Production`       — authentication required AND origin enforcement required.
+ *                        Open mode is rejected. A missing authToken or
+ * allowedOrigins is a configuration error diagnosed at startup.
+ */
+export type SecurityProfile = 'Development' | 'ResearchPreview' | 'Production';
+
+export interface SecurityDiagnostic {
+  profile: SecurityProfile;
+  openMode: boolean;
+  acceptUrlToken: boolean;
+  authTokenConfigured: boolean;
+  observerAuthTokenConfigured: boolean;
+  tokenValidatorConfigured: boolean;
+  originEnforcement: boolean;
+  warnings: string[];
+  /** True when the configuration is safe for the active profile. */
+  ok: boolean;
+}
+
 export interface SignallingSocket {
   readyState: number;
   send(data: string): void;
@@ -78,11 +107,26 @@ export interface RoomRegistryOptions {
    */
   tokenValidator?: (token: string, roomId: string) => { valid: boolean; claims?: TokenClaims; error?: string };
   /**
-   * When true (default in dev), a peer may join with no token if no `authToken` is
-   * configured — frictionless local dev. When false, a join with no
-   * configured token is rejected with close 4001 ("token required").
+   * Explicit security profile. When omitted the registry defaults to fail-closed
+   * behaviour (no open mode). Set to `'Development'` to restore frictionless
+   * no-token joins for local dev.
+   */
+  securityProfile?: SecurityProfile;
+  /**
+   * When true, a peer may join with no token if no `authToken` is configured —
+   * frictionless local dev. Defaults to `false` (fail-closed). The
+   * `Development` profile flips this default to `true` unless explicitly set.
    */
   allowOpenNoToken?: boolean;
+  /**
+   * When true, a token supplied via the `handleConnection` `token` parameter
+   * (typically extracted from a URL query string) is accepted for immediate
+   * authentication. When false, URL-supplied tokens are ignored and the peer
+   * must authenticate via an in-band `auth` message — keeping credentials out
+   * of URLs, server logs, and browser history. Defaults to `true` for
+   * Development and ResearchPreview, `false` for Production.
+   */
+  acceptUrlToken?: boolean;
 }
 
 export interface RoomRegistry {
@@ -98,6 +142,8 @@ export interface RoomRegistry {
   getTotalPeers(): number;
   cleanupIdleRooms(): void;
   getAuthFailureCount(ip: string): number;
+  /** Return the resolved security diagnostic for this registry. */
+  getSecurityDiagnostic(): SecurityDiagnostic;
 }
 
 interface RoomPeer {
@@ -212,8 +258,77 @@ export function createRoomRegistry({
   authToken = '',
   observerAuthToken = '',
   tokenValidator,
-  allowOpenNoToken = true,
+  securityProfile,
+  allowOpenNoToken,
+  acceptUrlToken,
 }: RoomRegistryOptions = {}): RoomRegistry {
+  // Resolve the security profile and fail-closed defaults. When no profile is
+  // specified the registry is fail-closed: open mode is OFF and authentication
+  // is required. The Development profile restores the legacy frictionless
+  // default so local dev is not broken.
+  const profile: SecurityProfile = securityProfile ?? 'ResearchPreview';
+  if (allowOpenNoToken === undefined) {
+    allowOpenNoToken = profile === 'Development';
+  }
+  // P0.3: URL-supplied tokens (?token=…) are development-only. In Production the
+  // token parameter to handleConnection is ignored — peers must authenticate
+  // via an in-band `auth` message so credentials never appear in URLs or logs.
+  if (acceptUrlToken === undefined) {
+    acceptUrlToken = profile !== 'Production';
+  }
+
+  const hasAuthToken = typeof authToken === 'string' && authToken.length > 0;
+  const hasObserverAuthToken = typeof observerAuthToken === 'string' && observerAuthToken.length > 0;
+  const hasTokenValidator = typeof tokenValidator === 'function';
+  const hasOriginEnforcement = allowedOrigins !== undefined;
+  const hasAnyAuth = hasAuthToken || hasObserverAuthToken || hasTokenValidator;
+
+  // Build the startup security diagnostic. This is the single function an
+  // operator consults to verify the registry is safe for the active profile.
+  const warnings: string[] = [];
+  if (allowOpenNoToken && profile !== 'Development') {
+    warnings.push(
+      `${profile} profile must not run in open (no-token) mode — allowOpenNoToken was explicitly forced true.`
+    );
+  }
+  if (!hasAnyAuth && !allowOpenNoToken) {
+    warnings.push(
+      'No authentication configured (authToken, observerAuthToken, or tokenValidator) and open mode is disabled — all connections will be rejected after the auth timeout.'
+    );
+  }
+  if (profile === 'Production' && !hasAnyAuth) {
+    warnings.push(
+      'Production profile requires authentication (authToken or tokenValidator) — unauthenticated peers cannot be admitted.'
+    );
+  }
+  if (profile === 'Production' && !hasOriginEnforcement) {
+    warnings.push(
+      'Production profile requires allowedOrigins to prevent cross-site WebSocket hijacking (CSWSH).'
+    );
+  }
+  if (profile === 'Development' && allowOpenNoToken) {
+    warnings.push(
+      'Development profile is running in open (no-token) mode — do not deploy this configuration to production.'
+    );
+  }
+
+  const diagnostic: SecurityDiagnostic = {
+    profile,
+    openMode: allowOpenNoToken,
+    acceptUrlToken,
+    authTokenConfigured: hasAuthToken,
+    observerAuthTokenConfigured: hasObserverAuthToken,
+    tokenValidatorConfigured: hasTokenValidator,
+    originEnforcement: hasOriginEnforcement,
+    warnings,
+    ok: warnings.length === 0,
+  };
+
+  // Emit the diagnostic to the console so an operator sees it at startup.
+  if (warnings.length > 0) {
+    const tag = `[SignallingServer:${profile}]`;
+    for (const w of warnings) console.warn(`${tag} ${w}`);
+  }
   const rooms = new Map<string, Map<string, RoomPeer>>();
   const ipConnectionCounts = new Map<string, number>();
   const ipAuthFailures = new Map<string, { count: number; resetAt: number }>();
@@ -451,16 +566,16 @@ export function createRoomRegistry({
     }
 
     // Determine initial auth state. A token supplied via the URL query string
-    // authenticates immediately. When a token is required but none is supplied
-    // in the URL, the socket is admitted as unauthenticated and given a short
-    // auth-timeout window to send an in-band `auth` message (see below). This
-    // realises the advertised in-band authentication flow and keeps tokens out
-    // of URL query strings / server logs.
+    // authenticates immediately — but only when `acceptUrlToken` is true
+    // (Development / ResearchPreview). In Production, URL-supplied tokens are
+    // ignored so credentials never appear in URLs or server logs; the peer
+    // must authenticate via an in-band `auth` message within the auth-timeout
+    // window.
     const needsToken = Boolean(authToken || observerAuthToken || !allowOpenNoToken);
     let initialAuth = false;
     let initialRole: NetworkRole = requestedRole;
 
-    if (token) {
+    if (token && acceptUrlToken) {
       const authResult = authorizePeer(roomId, token, requestedRole);
       if (!authResult.authorized) {
         recordAuthFailure(ip);
@@ -615,5 +730,5 @@ export function createRoomRegistry({
     }
   }
 
-  return { handleConnection, getRoomCount, getTotalPeers, cleanupIdleRooms, getAuthFailureCount };
+  return { handleConnection, getRoomCount, getTotalPeers, cleanupIdleRooms, getAuthFailureCount, getSecurityDiagnostic: () => diagnostic };
 }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LayoutBase } from './LayoutBase.ts';
+import { LayoutBase, warnKernelLayoutUnavailable } from './LayoutBase.ts';
 import type { LayoutEntry, RadialEntry, RadialTreeOptions } from '../types.ts';
 import { computeRadialTree3d } from '../../wasm/RuntimeBridge.ts';
 
@@ -36,6 +36,9 @@ export class RadialTreeLayout extends LayoutBase {
 
     const out: RadialEntry<T>[] = [];
     const wasmPositions = computeRadialTree3d(flatLevels, ringSpacing, yStep, yOffset);
+    if (!wasmPositions || wasmPositions.length !== rows.length * 3) {
+      warnKernelLayoutUnavailable('RadialTreeLayout');
+    }
 
     for (const lvl of levels) {
       const ringRows = byLevel[lvl];

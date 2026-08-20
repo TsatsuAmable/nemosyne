@@ -11,9 +11,12 @@ export { createSignedTicket, verifySignedTicket, timingSafeEqualString } from '.
 export type { TokenClaims } from './SignedTicket.ts';
 export {
   SignedTicketVerifier,
+  CryptoCapabilityError,
   timingSafeEqual,
+  timingSafeEqualBytes,
   type SignedRoomTicket,
   type TicketVerificationResult,
+  type TicketErrorKind,
 } from './SignedTicketVerifier.ts';
 export { PeerAvatarManager } from './PeerAvatarManager.ts';
 export { CollaborativeStateSync } from './CollaborativeStateSync.ts';

@@ -72,14 +72,26 @@ describe('WorldUIManager', () => {
     expect(ui.vrConsole).toBeTruthy();
     expect(ui.telemetryPanel).toBeTruthy();
     expect(ui.settingsPanel).toBeTruthy();
-    expect(ui.operationLogPanel).toBeTruthy();
     expect(ui.metricsPanel).toBeTruthy();
     expect(ui.performancePanel).toBeTruthy();
     expect(ui.networkPanel).toBeTruthy();
-    expect(ui.interactionCoach).toBeTruthy();
-    expect(ui.narrativeStrip).toBeTruthy();
     expect(ui.miniOverview).toBeTruthy();
     expect(ui.peerPresenceHUD).toBeTruthy();
+    expect(ui.operationLogPanel).toBeNull();
+    expect(ui.interactionCoach).toBeNull();
+    expect(ui.narrativeStrip).toBeNull();
+    expect(ui.loadTestPanel).toBeNull();
+  });
+
+  it('constructs lazy panels on first access via getOrCreate accessors', () => {
+    expect(ui.getOrCreateOperationLogPanel()).toBeTruthy();
+    expect(ui.getOrCreateInteractionCoach()).toBeTruthy();
+    expect(ui.getOrCreateNarrativeStrip()).toBeTruthy();
+    expect(ui.getOrCreateLoadTestPanel()).toBeTruthy();
+    expect(ui.operationLogPanel).toBeTruthy();
+    expect(ui.interactionCoach).toBeTruthy();
+    expect(ui.narrativeStrip).toBeTruthy();
+    expect(ui.loadTestPanel).toBeTruthy();
   });
 
   it('parents the dashboard, launcher, and wheel menu to the analyst anchor', () => {
@@ -119,12 +131,12 @@ describe('WorldUIManager', () => {
   });
 
   it('hides auxiliary panels at startup', () => {
-    expect(ui.operationLogPanel.mesh.visible).toBe(false);
     expect(ui.metricsPanel.mesh.visible).toBe(false);
     expect(ui.performancePanel.mesh.visible).toBe(false);
     expect(ui.networkPanel.mesh.visible).toBe(false);
-    expect(ui.interactionCoach.mesh.visible).toBe(false);
-    expect(ui.narrativeStrip.mesh.visible).toBe(false);
+    expect(ui.getOrCreateOperationLogPanel().mesh.visible).toBe(false);
+    expect(ui.getOrCreateInteractionCoach().mesh.visible).toBe(false);
+    expect(ui.getOrCreateNarrativeStrip().mesh.visible).toBe(false);
   });
 
   it('builds a wheel menu from supplied actions', () => {

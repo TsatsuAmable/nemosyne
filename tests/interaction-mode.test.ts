@@ -56,3 +56,60 @@ describe('Interaction State Machine & Focus Vocabulary (Sprint 24.1)', () => {
     expect(controller.resolveBothPinchAction().action).toBe('resumeInteraction');
   });
 });
+
+describe('P0.4 — Real State Machine: Transition Guards & Negative Tests', () => {
+  it('rejects transitions not in the adjacency table (OBSERVE → TRANSFORM is illegal)', () => {
+    const controller = new InteractionModeController({ initialMode: 'OBSERVE' });
+
+    // OBSERVE can only go to NAVIGATE or INTERACT — not TRANSFORM.
+    expect(controller.validateTransition('TRANSFORM')).toBe(false);
+    expect(controller.setMode('TRANSFORM', 'illegal_jump')).toBe(false);
+    expect(controller.currentMode).toBe('OBSERVE');
+
+    // OBSERVE → INTERACT is legal.
+    expect(controller.setMode('INTERACT', 'resume')).toBe(true);
+    expect(controller.currentMode).toBe('INTERACT');
+
+    // INTERACT → TRANSFORM is now legal.
+    expect(controller.setMode('TRANSFORM', 'begin_transform')).toBe(true);
+  });
+
+  it('rejects TRANSFORM when context explicitly signals no selection', () => {
+    const controller = new InteractionModeController({ initialMode: 'INTERACT' });
+
+    // Without context, TRANSFORM is allowed (backward compat).
+    expect(controller.setMode('TRANSFORM')).toBe(true);
+    expect(controller.currentMode).toBe('TRANSFORM');
+
+    // Go back to INTERACT.
+    controller.setMode('INTERACT');
+
+    // With hasSelection: false, TRANSFORM is rejected.
+    expect(controller.setMode('TRANSFORM', 'no_selection', { hasSelection: false })).toBe(false);
+    expect(controller.currentMode).toBe('INTERACT');
+
+    // With hasSelection: true, TRANSFORM is allowed.
+    expect(controller.setMode('TRANSFORM', 'has_selection', { hasSelection: true })).toBe(true);
+    expect(controller.currentMode).toBe('TRANSFORM');
+  });
+
+  it('resolveBothPinchAction is exhaustive — no default fallthrough', () => {
+    const controller = new InteractionModeController();
+    // Verify every mode produces a defined action.
+    for (const mode of ['NAVIGATE', 'INTERACT', 'TRANSFORM', 'OBSERVE'] as const) {
+      controller.setMode(mode);
+      const result = controller.resolveBothPinchAction();
+      expect(result.action).toBeTruthy();
+      expect(result.description).toBeTruthy();
+    }
+  });
+
+  it('rejects invalid mode values', () => {
+    const controller = new InteractionModeController();
+    // @ts-expect-error — testing invalid input
+    expect(controller.validateTransition('INVALID')).toBe(false);
+    // @ts-expect-error — testing invalid input
+    expect(controller.setMode('INVALID')).toBe(false);
+    expect(controller.currentMode).toBe('INTERACT');
+  });
+});
