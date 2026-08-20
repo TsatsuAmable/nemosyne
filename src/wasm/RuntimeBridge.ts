@@ -276,7 +276,55 @@ export async function initRuntime(wasmUrl?: string | URL): Promise<WasmModule> {
   kernelState = 'INITIALIZING';
   kernelUnavailableReason = null;
 
-  // Check if WASM package exists before dynamic import to avoid browser 404 network warnings
+  const isNode = typeof process !== 'undefined' && Boolean(process.versions?.node);
+
+  if (isNode) {
+    try {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const { pathToFileURL } = await import('node:url');
+
+      const pkgJsPath = path.resolve(process.cwd(), 'wasm/pkg/nemosyne_wasm.js');
+      const wasmFilePath = path.resolve(process.cwd(), 'wasm/pkg/nemosyne_wasm_bg.wasm');
+
+      if (!fs.existsSync(pkgJsPath) || !fs.existsSync(wasmFilePath)) {
+        kernelState = 'UNAVAILABLE';
+        kernelUnavailableReason = 'WASM package not built at wasm/pkg (run npm run wasm:dev)';
+        throw new KernelUnavailableError(kernelUnavailableReason, 'UNAVAILABLE');
+      }
+
+      const mod = (await import(/* @vite-ignore */ pathToFileURL(pkgJsPath).href)) as WasmModule;
+      (globalThis as unknown as Record<string, unknown>).nemosyneNowMs = () => Date.now();
+
+      const wasmBytes = fs.readFileSync(wasmFilePath);
+      wasmInstance = (await (mod.default as unknown as (i: Uint8Array) => Promise<WasmInitOutput>)(
+        wasmBytes
+      ));
+      wasmModule = mod;
+      refreshMemoryView();
+
+      const handle = wasmInstance.init(0x1234_5678_9abc_def0n);
+      if (handle !== 1) {
+        throw new Error(`Unexpected runtime handle: ${handle}`);
+      }
+      if (wasmInstance.ping() !== 42) {
+        throw new Error('WASM ping health check failed');
+      }
+
+      kernelState = 'READY';
+      kernelUnavailableReason = null;
+      return mod;
+    } catch (err) {
+      kernelState = 'UNAVAILABLE';
+      kernelUnavailableReason = (err as Error).message;
+      wasmInstance = null;
+      wasmModule = null;
+      if (err instanceof KernelUnavailableError) throw err;
+      throw new KernelUnavailableError(kernelUnavailableReason, 'UNAVAILABLE');
+    }
+  }
+
+  // Browser path
   try {
     const check = await fetch('/wasm/pkg/nemosyne_wasm.js', { method: 'HEAD' });
     if (!check.ok) {

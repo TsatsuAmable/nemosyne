@@ -17,15 +17,25 @@ export interface StudyExportBundle {
   trials: CompletedTrialRecord[];
 }
 
-function escapeCsvCell(cell: unknown): string {
+function escapeSpreadsheetSafeCell(cell: unknown): string {
   if (cell == null) return '';
   let str = String(cell);
-  // Formula injection mitigation
-  if (/^[=+\-@\t\r]/.test(str)) {
+  // Formula injection mitigation: inspect for leading whitespace + formula triggers (=, +, -, @, \t, \r, control chars)
+  const trimmed = str.trimStart();
+  if (/^[=+\-@\t\r]/.test(trimmed) || (trimmed.length > 0 && trimmed.charCodeAt(0) < 32)) {
     str = `'${str}`;
   }
   if (/[",\n\r]/.test(str)) {
     str = `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function escapeLosslessCsvCell(cell: unknown): string {
+  if (cell == null) return '';
+  const str = String(cell);
+  if (/[",\n\r]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
 }
@@ -52,6 +62,10 @@ export class StudyDataExporter {
   }
 
   static toCSV(trials: CompletedTrialRecord[]): string {
+    return this.toSpreadsheetSafeCSV(trials);
+  }
+
+  static toSpreadsheetSafeCSV(trials: CompletedTrialRecord[]): string {
     const headers = [
       'trial_id',
       'dataset_id',
@@ -67,10 +81,42 @@ export class StudyDataExporter {
 
     const rows = trials.map((t) =>
       [
-        escapeCsvCell(t.trialId),
-        escapeCsvCell(t.datasetId),
-        escapeCsvCell(t.taskType),
-        escapeCsvCell(t.condition),
+        escapeSpreadsheetSafeCell(t.trialId),
+        escapeSpreadsheetSafeCell(t.datasetId),
+        escapeSpreadsheetSafeCell(t.taskType),
+        escapeSpreadsheetSafeCell(t.condition),
+        t.isCorrect ? '1' : '0',
+        t.durationMs.toString(),
+        t.confidenceScore.toString(),
+        t.workloadScore.toString(),
+        t.interactionEventsCount.toString(),
+        t.completedAt.toString(),
+      ].join(',')
+    );
+
+    return [headers.join(','), ...rows].join('\n');
+  }
+
+  static toLosslessCSV(trials: CompletedTrialRecord[]): string {
+    const headers = [
+      'trial_id',
+      'dataset_id',
+      'task_type',
+      'condition',
+      'is_correct',
+      'duration_ms',
+      'confidence_score',
+      'workload_score',
+      'interaction_events_count',
+      'completed_at',
+    ];
+
+    const rows = trials.map((t) =>
+      [
+        escapeLosslessCsvCell(t.trialId),
+        escapeLosslessCsvCell(t.datasetId),
+        escapeLosslessCsvCell(t.taskType),
+        escapeLosslessCsvCell(t.condition),
         t.isCorrect ? '1' : '0',
         t.durationMs.toString(),
         t.confidenceScore.toString(),

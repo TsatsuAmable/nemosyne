@@ -525,12 +525,16 @@ export class AtlasCore {
 
   resetAnalysis(): AnalysisResult | null {
     if (!this._aggregate.analytical.originalNullable) return null;
-    this._aggregate.analytical.setCurrentDataset(
+    const prevVersionId = `${this._aggregate.sessionId}:v${this.datasetVersion}`;
+    this._aggregate.analytical.advanceDataset(
       this._aggregate.analytical.original.clone(),
       (h) => this._kernel?.destroyDataset(h),
     );
 
     const fp = this.datasetFingerprint ?? '';
+    const resetOpId = `reset-${Date.now()}`;
+    const nextVersionId = `${this._aggregate.sessionId}:v${this.datasetVersion}`;
+
     this._aggregate.ledger.appendEvent(
       {
         timestamp: this._aggregate.context.now(),
@@ -542,6 +546,33 @@ export class AtlasCore {
       },
       this._aggregate.sessionId,
     );
+
+    this._aggregate.graph.addNode({
+      id: `${this._aggregate.sessionId}:${resetOpId}`,
+      kind: 'operation',
+      parentId: prevVersionId,
+      datasetVersion: this.datasetVersion,
+      datasetFingerprint: fp,
+      label: 'Reset to Original',
+      operation: 'reset',
+      timestamp: this._aggregate.context.now(),
+    });
+
+    this._aggregate.graph.addNode({
+      id: nextVersionId,
+      kind: 'dataset_version',
+      parentId: `${this._aggregate.sessionId}:${resetOpId}`,
+      datasetVersion: this.datasetVersion,
+      datasetFingerprint: fp,
+      label: `Dataset v${this.datasetVersion} (Reset)`,
+      timestamp: this._aggregate.context.now(),
+    });
+
+    if (this._aggregate.graph.getNode(prevVersionId)) {
+      this._aggregate.graph.connect(prevVersionId, `${this._aggregate.sessionId}:${resetOpId}`, 'motivates');
+    }
+    this._aggregate.graph.connect(`${this._aggregate.sessionId}:${resetOpId}`, nextVersionId, 'produces');
+
     return null;
   }
 
