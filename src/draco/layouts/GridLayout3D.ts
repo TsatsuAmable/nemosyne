@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LayoutBase } from './LayoutBase.ts';
+import { LayoutBase, warnKernelLayoutUnavailable } from './LayoutBase.ts';
 import type { GridLayoutOptions, LayoutEntry } from '../types.ts';
 import { computeGrid3d } from '../../wasm/RuntimeBridge.ts';
 
@@ -46,6 +46,7 @@ export class GridLayout3D extends LayoutBase {
       return out;
     }
 
+    warnKernelLayoutUnavailable('GridLayout3D');
     const cols = Math.ceil(Math.cbrt(n));
     const layers = Math.ceil(n / (cols * cols));
 

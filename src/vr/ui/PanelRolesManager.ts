@@ -14,7 +14,8 @@ export type PanelRole =
   | 'context'
   | 'diagnostic'
   | 'transient'
-  | 'system';
+  | 'system'
+  | 'superuser';
 
 export type UIMode = 'RESEARCH' | 'ANALYST' | 'DEVELOPER';
 
@@ -65,8 +66,8 @@ export class PanelRolesManager {
     const panel = this._panels.get(id);
     if (!panel) return false;
 
-    // Diagnostic panels cannot open unless in DEVELOPER mode
-    if (panel.role === 'diagnostic' && this._uiMode !== 'DEVELOPER') {
+    // Diagnostic and superuser panels cannot open unless in DEVELOPER mode
+    if ((panel.role === 'diagnostic' || panel.role === 'superuser') && this._uiMode !== 'DEVELOPER') {
       return false;
     }
 

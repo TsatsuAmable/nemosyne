@@ -169,6 +169,9 @@ export interface WorldUIManagerCallbacks {
   onExitVR?: () => void;
   uiMode?: import('../ui/PanelRolesManager.ts').UIMode;
   onStatusUpdate?: (statusText: string) => void;
+  /** Accessors for lazy superuser panels that require runtime state. */
+  frustrationAnalyzer?: UXFrustrationAnalyzer | null;
+  getDataset?: () => Dataset | null;
 }
 
 export interface AccessibilityOptions {
@@ -320,6 +323,20 @@ export interface WorldUIManagerLike {
   loadTestPanel?: PanelLike | null;
   recommendationPanel?: (PanelLike & { markDirty?(): void }) | null;
   dracoExplainerPanel?: PanelLike | null;
+  /** Lazy accessors for panels deferred from boot. Construct + register on first call. */
+  getOrCreateOperationLogPanel?(): PanelLike | null;
+  getOrCreateInteractionCoach?(): PanelLike | null;
+  getOrCreateNarrativeStrip?(): NarrativeStripLike | null;
+  getOrCreateLoadTestPanel?(): PanelLike | null;
+  /** Superuser / Dev Lab panel accessors (DEVELOPER mode only). */
+  getOrCreateSchemaMappingPanel?(): PanelLike | null;
+  getOrCreateGestureConfidenceHUD?(): PanelLike | null;
+  /** Superuser service-class toggles (not PanelLike — construct + log for review). */
+  toggleRepresentationCarousel?(): void;
+  toggleTransientContextCards?(): void;
+  toggleProgressiveDisclosure?(): void;
+  toggleFrustrationResponseManager?(): void;
+  toggleJITGestureHintManager?(): void;
 }
 
 export interface WheelMenuAction {
@@ -1176,4 +1193,6 @@ export interface WorldLike {
   _toggleStatisticalLens?(): void;
   /** Toggle the Draco "Why this palace?" explainer panel. */
   _toggleDracoExplainer?(): void;
+  /** Toggle the Draco constraint diagnostic HUD (Dev Lab / superuser). */
+  _toggleDracoDiagnostic?(): void;
 }

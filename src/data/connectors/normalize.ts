@@ -5,10 +5,24 @@ import type { ColumnTypeValue } from '../types.ts';
  * Schema-type heuristic for cold-start live-stream rows; full streaming-via-kernel
  * is deferred to Wave 4/6. File parse type-inference runs in the Rust kernel.
  *
+ * P2/P20 note: This is a TS analytical computation (schema inference) that
+ * duplicates the kernel's `data_infer_schema`. It is an acknowledged temporary
+ * fallback for live-stream cold-start only. When the kernel becomes available
+ * for streaming, this function must be removed and replaced with a kernel
+ * call. A one-time warning is emitted on first use.
+ *
  * Majority-rule: if most non-null values are finite numbers → NUMERIC; else if
  * most parse as dates → TEMPORAL; else → CATEGORICAL. Empty → CATEGORICAL.
  */
+let _warnedInferTypeFallback = false;
 function inferType(values: unknown[]): ColumnTypeValue {
+  if (!_warnedInferTypeFallback) {
+    _warnedInferTypeFallback = true;
+    console.warn(
+      '[Nemosyne:P20] normalize.inferType: Rust/WASM kernel unavailable for live-stream schema inference — ' +
+      'using TS heuristic fallback. This is a temporary degraded state; the kernel remains the sole analytical authority.'
+    );
+  }
   let nonNull = 0;
   let numeric = 0;
   let temporal = 0;

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LayoutBase } from './LayoutBase.ts';
+import { LayoutBase, warnKernelLayoutUnavailable } from './LayoutBase.ts';
 import type { LayoutEntry, TimeSeriesEntry, TimeSeriesRibbonOptions } from '../types.ts';
 import { computeTimeRibbon3d } from '../../wasm/RuntimeBridge.ts';
 
@@ -52,6 +52,9 @@ export class TimeSeriesRibbonLayout extends LayoutBase {
       zSpacing,
       yOffset
     );
+    if (!wasmPositions || wasmPositions.length !== rows.length * 3) {
+      warnKernelLayoutUnavailable('TimeSeriesRibbonLayout');
+    }
 
     ids.forEach((id, sIdx) => {
       const sorted = series[id]

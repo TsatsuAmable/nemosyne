@@ -23,10 +23,20 @@ import { PeerPresenceHUD } from '../ui/PeerPresenceHUD.ts';
 import { LoadTestPanel } from '../ui/LoadTestPanel.ts';
 import { RecommendationPanel } from '../ui/RecommendationPanel.ts';
 import { DracoExplainerPanel } from '../ui/DracoExplainerPanel.ts';
+import { RepresentationCarousel } from '../ui/RepresentationCarousel.ts';
+import { TransientContextCardManager } from '../ui/TransientContextCards.ts';
+import { SchemaMappingPanel } from '../ui/SchemaMappingPanel.ts';
+import { GestureConfidenceHUD } from '../ui/GestureConfidenceHUD.ts';
+import { FrustrationResponseManager } from '../ui/FrustrationResponseManager.ts';
+import { JITGestureHintManager } from '../ui/JITGestureHintManager.ts';
+import { ProgressiveDisclosureController } from '../ui/ProgressiveDisclosure.ts';
 import { StatusStripController } from '../ui/StatusStripController.ts';
 import { PanelRolesManager, type UIMode } from '../ui/PanelRolesManager.ts';
 import { ContextualTaskSurface } from '../ui/ContextualTaskSurface.ts';
 import type { LoadTestDriver } from '../scalability/LoadTestDriver.ts';
+import type { Dataset } from '../../data/Dataset.ts';
+import { Dataset as DatasetClass } from '../../data/Dataset.ts';
+import type { UXFrustrationAnalyzer } from '../../utils/UXFrustrationAnalyzer.ts';
 import type { Engine } from '../Engine.ts';
 import type { WorldEventBusLike } from './types.ts';
 import type {
@@ -60,15 +70,26 @@ export class WorldUIManager {
   dashboard: DashboardManager;
   handWheelMenu: HandWheelMenu;
   settingsPanel: SettingsPanel;
-  operationLogPanel: OperationLogPanel;
+  operationLogPanel: OperationLogPanel | null = null;
   metricsPanel: TelemetryPanel;
   performancePanel: PerformancePanel;
   networkPanel: NetworkPanel;
-  interactionCoach: InteractionCoach;
-  narrativeStrip: NarrativeStrip;
-  loadTestPanel: LoadTestPanel;
+  interactionCoach: InteractionCoach | null = null;
+  narrativeStrip: NarrativeStrip | null = null;
+  loadTestPanel: LoadTestPanel | null = null;
   recommendationPanel: RecommendationPanel;
   dracoExplainerPanel: DracoExplainerPanel;
+
+  // Superuser / Dev Lab — panel subclasses (wired into PanelManager on first access)
+  schemaMappingPanel: SchemaMappingPanel | null = null;
+  gestureConfidenceHUD: GestureConfidenceHUD | null = null;
+
+  // Superuser service classes (not PanelLike — stored for programmatic access only)
+  representationCarousel: RepresentationCarousel | null = null;
+  transientContextCardManager: TransientContextCardManager | null = null;
+  frustrationResponseManager: FrustrationResponseManager | null = null;
+  jitGestureHintManager: JITGestureHintManager | null = null;
+  progressiveDisclosureController: ProgressiveDisclosureController | null = null;
 
   constructor(engine: Engine, analystAnchor: Group, eventBus: WorldEventBusLike, callbacks: WorldUIManagerCallbacks = {}) {
     this.engine = engine;
@@ -196,12 +217,6 @@ export class WorldUIManager {
     this.panelManager.register(this.settingsPanel);
     this.engine.input.addPanel(this.settingsPanel);
 
-    // Operation log panel.
-    this.operationLogPanel = new OperationLogPanel(engine.cameraGroup);
-    this.panelManager.register(this.operationLogPanel);
-    this.engine.input.addPanel(this.operationLogPanel);
-    this.panelManager.hidePanel(this.operationLogPanel);
-
     // Telemetry metrics panel.
     this.metricsPanel = new TelemetryPanel(engine.cameraGroup, {
       telemetry: callbacks.telemetryCollector as TelemetryCollectorLike | undefined,
@@ -232,39 +247,13 @@ export class WorldUIManager {
     this.engine.addUpdatable(this.networkPanel);
     this.panelManager.hidePanel(this.networkPanel);
 
-    // Interaction coach.
-    this.interactionCoach = new InteractionCoach(engine.cameraGroup, {
-      userMode: (callbacks.getSetting?.('userMode') as string | undefined) ?? 'novice',
-    } as LooseOptions);
-    this.panelManager.register(this.interactionCoach);
-    this.engine.input.addPanel(this.interactionCoach);
-    this.engine.addUpdatable(this.interactionCoach);
-    this.panelManager.hidePanel(this.interactionCoach);
-
-    // Narrative breadcrumb strip.
-    this.narrativeStrip = new NarrativeStrip(engine.cameraGroup, {
-      analystAnchor,
-      history: callbacks.analysisHistory,
-      onSeek: callbacks.onSeekHistory,
-    } as LooseOptions);
-    this.panelManager.register(this.narrativeStrip);
-    this.engine.input.addPanel(this.narrativeStrip);
-    this.engine.addUpdatable(this.narrativeStrip);
-    this.panelManager.hidePanel(this.narrativeStrip);
-
-    // Load-test panel (WASM command-buffer decision harness). Bound to the
-    // driver + start/stop/flush callbacks owned by World.
-    this.loadTestPanel = new LoadTestPanel(engine.cameraGroup, {
-      driver: callbacks.loadTestDriver as LoadTestDriver,
-      eventBus,
-      onStart: callbacks.onStartLoadTest,
-      onStop: callbacks.onStopLoadTest,
-      onFlush: callbacks.onFlushLoadTest,
-    });
-    this.panelManager.register(this.loadTestPanel);
-    this.engine.input.addPanel(this.loadTestPanel);
-    this.engine.addUpdatable(this.loadTestPanel);
-    this.panelManager.hidePanel(this.loadTestPanel);
+    // OperationLogPanel, InteractionCoach, NarrativeStrip, and LoadTestPanel are
+    // lazy — constructed on first access via getOrCreate*() to avoid unconditional
+    // boot-time GPU overhead for panels hidden in normal analyst sessions.
+    this.panelRolesManager.registerPanel('operationLog', 'Operation Log', 'diagnostic');
+    this.panelRolesManager.registerPanel('interactionCoach', 'Interaction Coach', 'system');
+    this.panelRolesManager.registerPanel('narrative', 'Narrative Strip', 'context');
+    this.panelRolesManager.registerPanel('loadTest', 'Load Test Panel', 'diagnostic');
 
     this.recommendationPanel = new RecommendationPanel(engine.cameraGroup, {
       getRecommendation: () => callbacks.getRecommendation?.() ?? null,
@@ -285,20 +274,179 @@ export class WorldUIManager {
     this.engine.addUpdatable(this.dracoExplainerPanel);
     this.panelManager.hidePanel(this.dracoExplainerPanel);
 
-    // Register all panels into PanelRolesManager with semantic roles
+    // Register eagerly-constructed panels into PanelRolesManager with semantic roles.
+    // Lazy panels (operationLog, interactionCoach, narrative, loadTest) pre-register
+    // their roles here so the launcher ring can list them before first construction.
     this.panelRolesManager.registerPanel('telemetry', 'Input Telemetry', 'diagnostic');
     this.panelRolesManager.registerPanel('vrConsole', 'VR Console', 'diagnostic');
     this.panelRolesManager.registerPanel('vrMenu', 'Main Menu', 'workspace');
     this.panelRolesManager.registerPanel('settings', 'Settings', 'system');
-    this.panelRolesManager.registerPanel('operationLog', 'Operation Log', 'diagnostic');
     this.panelRolesManager.registerPanel('metrics', 'Telemetry Metrics', 'diagnostic');
     this.panelRolesManager.registerPanel('performance', 'Performance Budget', 'diagnostic');
     this.panelRolesManager.registerPanel('network', 'Collaboration Network', 'diagnostic');
-    this.panelRolesManager.registerPanel('interactionCoach', 'Interaction Coach', 'system');
-    this.panelRolesManager.registerPanel('narrative', 'Narrative Strip', 'context');
-    this.panelRolesManager.registerPanel('loadTest', 'Load Test Panel', 'diagnostic');
     this.panelRolesManager.registerPanel('recommendation', 'Recommendation Panel', 'task');
     this.panelRolesManager.registerPanel('dracoExplainer', 'Draco Explainer Panel', 'task');
+
+    // Superuser / Dev Lab panels — gated to DEVELOPER mode only. Pre-registered
+    // so the Super User wheel category can list them before first construction.
+    // DracoDiagnosticHUD is owned by World (rebuilt per palace) and toggled via
+    // world._toggleDracoDiagnostic, so it is not registered here.
+    this.panelRolesManager.registerPanel('su-schema-mapping', 'Schema Mapping Panel', 'superuser');
+    this.panelRolesManager.registerPanel('su-gesture-confidence', 'Gesture Confidence HUD', 'superuser');
+  }
+
+  getOrCreateOperationLogPanel(): OperationLogPanel {
+    if (!this.operationLogPanel) {
+      this.operationLogPanel = new OperationLogPanel(this.engine.cameraGroup);
+      this.panelManager.register(this.operationLogPanel);
+      this.engine.input.addPanel(this.operationLogPanel);
+      this.panelManager.hidePanel(this.operationLogPanel);
+    }
+    return this.operationLogPanel;
+  }
+
+  getOrCreateInteractionCoach(): InteractionCoach {
+    if (!this.interactionCoach) {
+      this.interactionCoach = new InteractionCoach(this.engine.cameraGroup, {
+        userMode: (this.callbacks.getSetting?.('userMode') as string | undefined) ?? 'novice',
+      } as LooseOptions);
+      this.panelManager.register(this.interactionCoach);
+      this.engine.input.addPanel(this.interactionCoach);
+      this.engine.addUpdatable(this.interactionCoach);
+      this.panelManager.hidePanel(this.interactionCoach);
+    }
+    return this.interactionCoach;
+  }
+
+  getOrCreateNarrativeStrip(): NarrativeStrip {
+    if (!this.narrativeStrip) {
+      this.narrativeStrip = new NarrativeStrip(this.engine.cameraGroup, {
+        analystAnchor: this.analystAnchor,
+        history: this.callbacks.analysisHistory,
+        onSeek: this.callbacks.onSeekHistory,
+      } as LooseOptions);
+      this.panelManager.register(this.narrativeStrip);
+      this.engine.input.addPanel(this.narrativeStrip);
+      this.engine.addUpdatable(this.narrativeStrip);
+      this.panelManager.hidePanel(this.narrativeStrip);
+    }
+    return this.narrativeStrip;
+  }
+
+  getOrCreateLoadTestPanel(): LoadTestPanel {
+    if (!this.loadTestPanel) {
+      this.loadTestPanel = new LoadTestPanel(this.engine.cameraGroup, {
+        driver: this.callbacks.loadTestDriver as LoadTestDriver,
+        eventBus: this.eventBus,
+        onStart: this.callbacks.onStartLoadTest,
+        onStop: this.callbacks.onStopLoadTest,
+        onFlush: this.callbacks.onFlushLoadTest,
+      });
+      this.panelManager.register(this.loadTestPanel);
+      this.engine.input.addPanel(this.loadTestPanel);
+      this.engine.addUpdatable(this.loadTestPanel);
+      this.panelManager.hidePanel(this.loadTestPanel);
+    }
+    return this.loadTestPanel;
+  }
+
+  getOrCreateSchemaMappingPanel(): SchemaMappingPanel {
+    if (!this.schemaMappingPanel) {
+      // Schema mapping requires a Dataset; fall back to an empty placeholder so
+      // the panel chrome can be reviewed in the Dev Lab even before a dataset
+      // is loaded. A real dataset, when available, is wired via getDataset.
+      const ds = (this.callbacks.getDataset?.() as Dataset | null | undefined) ?? this._emptyDataset();
+      this.schemaMappingPanel = new SchemaMappingPanel(this.engine.cameraGroup, {
+        dataset: ds,
+        onApplyMapping: () => {},
+      });
+      this.panelManager.register(this.schemaMappingPanel);
+      this.engine.input.addPanel(this.schemaMappingPanel);
+      this.panelManager.hidePanel(this.schemaMappingPanel);
+    }
+    return this.schemaMappingPanel;
+  }
+
+  getOrCreateGestureConfidenceHUD(): GestureConfidenceHUD {
+    if (!this.gestureConfidenceHUD) {
+      this.gestureConfidenceHUD = new GestureConfidenceHUD(this.engine.cameraGroup);
+      this.panelManager.register(this.gestureConfidenceHUD);
+      this.engine.input.addPanel(this.gestureConfidenceHUD);
+      this.engine.addUpdatable(this.gestureConfidenceHUD);
+      this.panelManager.hidePanel(this.gestureConfidenceHUD);
+    }
+    return this.gestureConfidenceHUD;
+  }
+
+  /** Build a minimal empty Dataset so SchemaMappingPanel chrome renders for review. */
+  private _emptyDataset(): Dataset {
+    return new DatasetClass('empty', [], []);
+  }
+
+  /**
+   * Superuser service-class toggles. These managers are not MovablePanels and are
+   * not registered with PanelManager; they are constructed on first toggle and
+   * logged to the VR console so a developer can review their state. Full visual
+   * integration is deferred (see Dev Lab roadmap item).
+   */
+
+  toggleRepresentationCarousel(): void {
+    if (!this.representationCarousel) {
+      this.representationCarousel = new RepresentationCarousel({ onWeightChange: () => {} });
+    }
+    this.representationCarousel.enabled = !this.representationCarousel.enabled;
+    this.vrConsole?.log?.('log', [
+      `Representation Carousel ${this.representationCarousel.enabled ? 'enabled' : 'disabled'} (review mode)`,
+    ]);
+  }
+
+  toggleTransientContextCards(): void {
+    if (!this.transientContextCardManager) {
+      this.transientContextCardManager = new TransientContextCardManager();
+    }
+    // Spawn a sample review card so the manager's data shape is inspectable.
+    this.transientContextCardManager.spawnDatasetLoadedCard('review', 0, 'review');
+    this.vrConsole?.log?.('log', [
+      `Transient Context Cards active (${this.transientContextCardManager.activeCards.length} card/s)`,
+    ]);
+  }
+
+  toggleProgressiveDisclosure(): void {
+    if (!this.progressiveDisclosureController) {
+      this.progressiveDisclosureController = new ProgressiveDisclosureController('ANALYST');
+    }
+    const profiles: Array<'NOVICE' | 'ANALYST' | 'RESEARCHER' | 'DEVELOPER'> = [
+      'ANALYST',
+      'DEVELOPER',
+      'RESEARCHER',
+      'NOVICE',
+    ];
+    const cur = this.progressiveDisclosureController.profile;
+    const next = profiles[(profiles.indexOf(cur) + 1) % profiles.length];
+    this.progressiveDisclosureController.setProfile(next);
+    this.vrConsole?.log?.('log', [`Progressive Disclosure profile: ${next}`]);
+  }
+
+  toggleFrustrationResponseManager(): void {
+    if (!this.frustrationResponseManager) {
+      const analyzer = (this.callbacks.frustrationAnalyzer as UXFrustrationAnalyzer | null | undefined) ?? null;
+      if (!analyzer) {
+        this.vrConsole?.log?.('warn', ['Frustration Response Manager requires a UXFrustrationAnalyzer (none wired).']);
+        return;
+      }
+      this.frustrationResponseManager = new FrustrationResponseManager(this.engine.cameraGroup, analyzer);
+    }
+    this.vrConsole?.log?.('log', ['Frustration Response Manager constructed (review mode).']);
+  }
+
+  toggleJITGestureHintManager(): void {
+    if (!this.jitGestureHintManager) {
+      this.jitGestureHintManager = new JITGestureHintManager({ enabled: true });
+    }
+    this.jitGestureHintManager.enabled = !this.jitGestureHintManager.enabled;
+    this.vrConsole?.log?.('log', [
+      `JIT Gesture Hints ${this.jitGestureHintManager.enabled ? 'enabled' : 'disabled'} (review mode)`,
+    ]);
   }
 
   /**
@@ -326,7 +474,7 @@ export class WorldUIManager {
   }
 
   private _syncPanelVisibilityWithRoles(): void {
-    const rolePanelMap: Record<string, PanelLike> = {
+    const rolePanelMap: Record<string, PanelLike | null> = {
       recommendation: this.recommendationPanel,
       dracoExplainer: this.dracoExplainerPanel,
       telemetry: this.telemetryPanel,
@@ -335,6 +483,8 @@ export class WorldUIManager {
       metrics: this.metricsPanel,
       performance: this.performancePanel,
       network: this.networkPanel,
+      'su-schema-mapping': this.schemaMappingPanel,
+      'su-gesture-confidence': this.gestureConfidenceHUD,
     };
 
     for (const [id, p] of Object.entries(rolePanelMap)) {

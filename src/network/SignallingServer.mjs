@@ -35,10 +35,19 @@ const ALLOWED_ORIGINS = originsArg
   ? originsArg.split('=')[1].split(',')
   : (process.env.NEMOSYNE_ALLOWED_ORIGINS ? process.env.NEMOSYNE_ALLOWED_ORIGINS.split(',') : undefined);
 
+// Resolve the security profile: open mode is dev-only; a configured token
+// selects ResearchPreview (or Production when origins are also configured).
+// An operator who forgets both token and --allow-open gets a fail-closed
+// registry that rejects unauthenticated connections after the auth timeout.
+const SECURITY_PROFILE = ALLOW_OPEN
+  ? 'Development'
+  : (ALLOWED_ORIGINS ? 'Production' : 'ResearchPreview');
+
 const registry = createRoomRegistry({
   authToken: AUTH_TOKEN,
   observerAuthToken: OBSERVER_TOKEN,
   allowedOrigins: ALLOWED_ORIGINS,
+  securityProfile: SECURITY_PROFILE,
   allowOpenNoToken: ALLOW_OPEN,
 });
 
@@ -71,7 +80,11 @@ wss.on('connection', (socket, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const roomId = url.searchParams.get('room') || 'default';
   const peerId = url.searchParams.get('peer') || `peer-${Date.now()}`;
-  const token = url.searchParams.get('token') || undefined;
+  // P0.3: URL-token auth is development-only. In Production the registry
+  // ignores the ?token= query param — peers must authenticate via in-band
+  // `auth` messages. We still read it here for Development/ResearchPreview
+  // but the registry enforces the profile-based gate.
+  const token = SECURITY_PROFILE === 'Production' ? undefined : (url.searchParams.get('token') || undefined);
   const role = url.searchParams.get('role') === 'observer' ? 'observer' : 'participant';
   registry.handleConnection(socket, roomId, peerId, token, role, req);
 });

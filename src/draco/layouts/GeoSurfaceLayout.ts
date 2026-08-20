@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LayoutBase } from './LayoutBase.ts';
+import { LayoutBase, warnKernelLayoutUnavailable } from './LayoutBase.ts';
 import type { GeoEntry, GeoSurfaceOptions, LayoutEntry } from '../types.ts';
 import { computeGeoSurface3d } from '../../wasm/RuntimeBridge.ts';
 
@@ -60,6 +60,7 @@ export class GeoSurfaceLayout extends LayoutBase {
       return out;
     }
 
+    warnKernelLayoutUnavailable('GeoSurfaceLayout');
     let minLon = Infinity;
     let maxLon = -Infinity;
     let minLat = Infinity;

@@ -17,11 +17,13 @@ export function signallingPlugin(): Plugin {
     const { WebSocketServer } = await import('ws');
     const wss = new WebSocketServer({ noServer: true });
     // Optional shared-secret gate: set NEMOSYNE_SIGNAL_TOKEN to require a
-    // matching ?token= on join. Dev stays frictionless: open (no-token) mode
-    // is explicitly allowed here because this plugin only runs under `vite serve`.
+    // matching ?token= on join. Dev stays frictionless: the Development
+    // security profile enables open (no-token) mode by default. This plugin
+    // only runs under `vite serve` / `vite preview` so it never ships to
+    // production.
     const registry = createRoomRegistry({
       authToken: process.env.NEMOSYNE_SIGNAL_TOKEN || '',
-      allowOpenNoToken: true,
+      securityProfile: 'Development',
     });
 
     server.httpServer.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {

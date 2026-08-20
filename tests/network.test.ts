@@ -442,7 +442,7 @@ describe('SignallingServerCore', () => {
   }
 
   it('relays a direct message between peers', () => {
-    const registry = createRoomRegistry();
+    const registry = createRoomRegistry({ securityProfile: 'Development' });
     const a = makeSocket();
     const b = makeSocket();
 
@@ -459,7 +459,7 @@ describe('SignallingServerCore', () => {
   });
 
   it('overwrites spoofed sender identities on direct messages', () => {
-    const registry = createRoomRegistry();
+    const registry = createRoomRegistry({ securityProfile: 'Development' });
     const a = makeSocket();
     const b = makeSocket();
 
@@ -475,7 +475,7 @@ describe('SignallingServerCore', () => {
   });
 
   it('broadcasts to all room peers', () => {
-    const registry = createRoomRegistry();
+    const registry = createRoomRegistry({ securityProfile: 'Development' });
     const a = makeSocket();
     const b = makeSocket();
     const c = makeSocket();
@@ -493,7 +493,7 @@ describe('SignallingServerCore', () => {
   });
 
   it('overwrites spoofed sender identities on broadcasts', () => {
-    const registry = createRoomRegistry();
+    const registry = createRoomRegistry({ securityProfile: 'Development' });
     const a = makeSocket();
     const b = makeSocket();
 
@@ -509,7 +509,7 @@ describe('SignallingServerCore', () => {
   });
 
   it('blocks observer direct relays except WebRTC negotiation messages', () => {
-    const registry = createRoomRegistry();
+    const registry = createRoomRegistry({ securityProfile: 'Development' });
     const observer = makeSocket();
     const participant = makeSocket();
 
@@ -530,7 +530,7 @@ describe('SignallingServerCore', () => {
   });
 
   it('blocks observer broadcasts except WebRTC negotiation messages', () => {
-    const registry = createRoomRegistry();
+    const registry = createRoomRegistry({ securityProfile: 'Development' });
     const observer = makeSocket();
     const participant = makeSocket();
 
@@ -549,7 +549,7 @@ describe('SignallingServerCore', () => {
   });
 
   it('notifies existing peers on join and leaves', () => {
-    const registry = createRoomRegistry();
+    const registry = createRoomRegistry({ securityProfile: 'Development' });
     const a = makeSocket();
     const b = makeSocket();
 
@@ -675,7 +675,7 @@ describe('SignallingServerCore', () => {
   });
 
   it('rejects invalid room/peer identifiers (close 4003) before admission', () => {
-    const registry = createRoomRegistry();
+    const registry = createRoomRegistry({ securityProfile: 'Development' });
     const a = makeSocket();
     registry.handleConnection(a, 'room with spaces', 'peerA');
     expect(a.closeCode).toBe(4003);
@@ -689,11 +689,22 @@ describe('SignallingServerCore', () => {
     expect(c.closeCode).toBe(4003);
   });
 
-  it('still allows an open (no-token) join by default for dev friction', () => {
-    const registry = createRoomRegistry();
+  it('admits a no-token join in Development profile and is fail-closed by default', () => {
+    // Development profile: open (no-token) mode is the default — frictionless dev.
+    const devRegistry = createRoomRegistry({ securityProfile: 'Development' });
     const a = makeSocket();
-    registry.handleConnection(a, 'room1', 'peerA');
+    devRegistry.handleConnection(a, 'room1', 'peerA');
     expect(a.closeCode).toBeUndefined();
+
+    // Default (no profile): fail-closed — a no-token join is admitted pending
+    // auth but is NOT authenticated. It must not relay messages.
+    const closedRegistry = createRoomRegistry({ authTimeoutMs: 60000 });
+    const b = makeSocket();
+    closedRegistry.handleConnection(b, 'room1', 'peerB');
+    expect(b.closeCode).toBeUndefined(); // admitted pending auth, not immediately closed
+    const diag = closedRegistry.getSecurityDiagnostic();
+    expect(diag.openMode).toBe(false);
+    expect(diag.profile).toBe('ResearchPreview');
   });
 
   it('admits a join with the correct token and relays between peers', () => {
@@ -718,7 +729,7 @@ describe('SignallingServerCore', () => {
   });
 
   it('rejects a duplicate peerId (close 4002) and keeps the existing peer', () => {
-    const registry = createRoomRegistry();
+    const registry = createRoomRegistry({ securityProfile: 'Development' });
     const a = makeSocket();
     const a2 = makeSocket();
 

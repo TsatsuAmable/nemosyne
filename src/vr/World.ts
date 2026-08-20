@@ -286,6 +286,8 @@ export class World {
        onOverrideRecommendation: () => this._overrideRecommendation(),
        onGenerateRecommendation: () => this._generateRecommendation(),
        onExitVR: () => this.exitVR(),
+       frustrationAnalyzer: this.telemetryCollector.frustrationAnalyzer,
+       getDataset: () => this.atlas.dataset,
      });
 
     // Input coordinator owns gesture recognition, context-aware suppression, and
@@ -331,7 +333,11 @@ export class World {
       setCoachMode: (mode) => this.uiManager.interactionCoach?.setUserMode?.(mode),
       setTourMode: (mode) => this.guidedTour?.setUserMode?.(mode),
       setTooltipEnabled: (enabled) => this.tooltipManager?.setEnabled?.(enabled),
-      hideCoachPanel: () => this.uiManager.panelManager?.hidePanel?.(this.uiManager.interactionCoach),
+      hideCoachPanel: () => {
+        if (this.uiManager.interactionCoach) {
+          this.uiManager.panelManager?.hidePanel?.(this.uiManager.interactionCoach);
+        }
+      },
     });
 
     // Comfort settings controller applies snap turn, vignette, seated height,
@@ -1046,7 +1052,7 @@ export class World {
   }
 
   _toggleLoadTestPanel(): void {
-    this.uiManager?.panelManager?.togglePanel?.(this.uiManager.loadTestPanel);
+    this.uiManager?.panelManager?.togglePanel?.(this.uiManager.getOrCreateLoadTestPanel());
   }
 
   _toggleRecommendationPanel(): void {
@@ -1314,6 +1320,21 @@ export class World {
     }
   }
 
+  /**
+   * Toggle the Draco constraint diagnostic HUD (Dev Lab / superuser). World owns
+   * this HUD and rebuilds it per palace, so we toggle its mesh visibility
+   * directly rather than routing through PanelManager. No-op (with a console
+   * hint) when no palace is loaded.
+   */
+  _toggleDracoDiagnostic(): void {
+    if (!this.diagnostic) {
+      this.uiManager?.vrConsole?.log?.('warn', ['Draco Diagnostic HUD requires a loaded dataset/palace.']);
+      return;
+    }
+    this.diagnostic.mesh.visible = !this.diagnostic.mesh.visible;
+    if (this.diagnostic.mesh.visible) this.diagnostic.render?.();
+  }
+
   _onSettingChanged(key: string, value: unknown): void {
     if (key.startsWith('lens')) {
       this._setStatisticalLensVisible(this._statisticalLensEnabled);
@@ -1523,9 +1544,14 @@ export class World {
   }
 
   _updateNarrativeStrip(): void {
-    this.uiManager.narrativeStrip?.render?.();
+    const strip = this.uiManager.narrativeStrip;
+    strip?.render?.();
     if (this.analysisHistory?.length > 0) {
-      this.uiManager.panelManager?.showPanel?.(this.uiManager.narrativeStrip);
+      if (!strip) {
+        this.uiManager.panelManager?.showPanel?.(this.uiManager.getOrCreateNarrativeStrip());
+      } else {
+        this.uiManager.panelManager?.showPanel?.(strip);
+      }
     }
   }
 
@@ -1674,7 +1700,7 @@ export class World {
    */
   runLoadTest(profile?: LoadTestProfile): void {
     // Show the panel so the user sees live progress.
-    this.uiManager?.showPanel?.(this.uiManager.loadTestPanel);
+    this.uiManager?.showPanel?.(this.uiManager.getOrCreateLoadTestPanel());
     this._telemetryConsentBeforeRun = !!this.telemetryCollector?.enabled;
     try {
       this.telemetryCollector?.setEnabled?.(true);

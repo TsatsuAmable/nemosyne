@@ -83,7 +83,7 @@ function createMockPointerRegistry(options: {
 describe('Sprint 22.3.1 Adversarial Hardening Suite', () => {
   describe('1. Remote Authorization & Schema Abuse', () => {
     it('blocks observer peers from relaying application state changes', () => {
-      const registry = createRoomRegistry();
+      const registry = createRoomRegistry({ securityProfile: 'Development' });
       const observerSocket = createMockSocket();
       const participantSocket = createMockSocket();
 
@@ -111,7 +111,7 @@ describe('Sprint 22.3.1 Adversarial Hardening Suite', () => {
     });
 
     it('rejects oversized or malformed payloads and handles peer disconnect cleanly', () => {
-      const registry = createRoomRegistry();
+      const registry = createRoomRegistry({ securityProfile: 'Development' });
       const socket = createMockSocket();
 
       registry.handleConnection(socket as never, {
