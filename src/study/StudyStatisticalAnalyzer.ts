@@ -94,8 +94,10 @@ export class StudyStatisticalAnalyzer {
   private _approximatePValue(t: number, df: number): number {
     if (df <= 0) return 1.0;
     const absT = Math.abs(t);
-    const x = absT / Math.sqrt(1 + (absT * absT) / df);
-    const p = Math.max(0.0001, Math.min(1.0, 2 * (1 - 0.5 * (1 + erf(x / Math.SQRT2)))));
+    if (absT === 0) return 1.0;
+    // Accurate log-transform approximation for Student-t tail probability
+    const z = Math.sqrt(df * Math.log(1 + (absT * absT) / df));
+    const p = Math.max(0.0001, Math.min(1.0, 2 * (1 - 0.5 * (1 + erf(z / Math.SQRT2)))));
     return Math.round(p * 10000) / 10000;
   }
 
@@ -163,9 +165,22 @@ export class StudyStatisticalAnalyzer {
       const sdDiff = Math.sqrt(varianceDiff);
       const seDiff = sdDiff / Math.sqrt(nPairs);
 
-      tStatistic = seDiff > 1e-9 ? meanDiff / seDiff : 0;
-      cohensD = sdDiff > 1e-9 ? meanDiff / sdDiff : 0;
-      pValueApprox = this._approximatePValue(tStatistic, df);
+      if (seDiff > 1e-9) {
+        tStatistic = meanDiff / seDiff;
+        cohensD = sdDiff > 1e-9 ? meanDiff / sdDiff : 0;
+        pValueApprox = this._approximatePValue(tStatistic, df);
+      } else {
+        // Zero-variance case (constant difference across all participant pairs)
+        if (Math.abs(meanDiff) > 1e-9) {
+          tStatistic = meanDiff > 0 ? 999.0 : -999.0;
+          cohensD = meanDiff > 0 ? 999.0 : -999.0;
+          pValueApprox = 0.0;
+        } else {
+          tStatistic = 0.0;
+          cohensD = 0.0;
+          pValueApprox = 1.0;
+        }
+      }
     } else {
       // Independent two-sample fallback
       df = summaryA.n + summaryB.n - 2;

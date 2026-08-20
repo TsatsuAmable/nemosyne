@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import { UXHypothesisTriageEngine } from '../src/vr/trace/UXHypothesisTriage.ts';
 import { QuestProbeAnalyzer } from '../src/vr/scalability/QuestProbeAnalyzer.ts';
@@ -59,8 +58,8 @@ describe('UX Triage, Quest Probe Analyzer & Shareable Session URLs', () => {
     });
   });
 
-  describe('Shareable Session URL', () => {
-    it('encodes and decodes self-contained analytical session states', () => {
+  describe('Shareable Session URL Security & Encoding', () => {
+    it('encodes and decodes self-contained analytical session states, stripping secret authToken', () => {
       const payload = {
         datasetId: 'DATASET_COVID_GRAPH',
         topology: 'GRAPH',
@@ -69,7 +68,7 @@ describe('UX Triage, Quest Probe Analyzer & Shareable Session URLs', () => {
         interactionMode: 'INTERACT',
         focusTarget: 'CLUSTER_3',
         timestamp: 1723980000000,
-        authToken: 'AUTH_SECRET_XYZ',
+        authToken: 'AUTH_SECRET_XYZ', // Should be stripped
       };
 
       const encodedUrl = ShareableSessionURL.encode(payload, 'https://nemosyne.ai/app');
@@ -82,7 +81,47 @@ describe('UX Triage, Quest Probe Analyzer & Shareable Session URLs', () => {
       expect(decoded?.selectedEntityId).toBe('NODE_ALPHA_9');
       expect(decoded?.activeLayout).toBe('force_directed');
       expect(decoded?.interactionMode).toBe('INTERACT');
-      expect(decoded?.authToken).toBe('AUTH_SECRET_XYZ');
+      expect((decoded as unknown as Record<string, unknown>).authToken).toBeUndefined();
+    });
+
+    it('rejects forbidden URL schemes (javascript:, data:, file:, ftp:)', () => {
+      const payload = {
+        datasetId: 'DATASET_TEST',
+        topology: 'SCATTER',
+        activeLayout: 'grid',
+        interactionMode: 'OBSERVE',
+        focusTarget: 'NODE_1',
+        timestamp: 1724000000,
+      };
+
+      expect(() => ShareableSessionURL.encode(payload, 'javascript:alert(1)')).toThrow();
+      expect(() => ShareableSessionURL.encode(payload, 'data:text/html,<script>evil()</script>')).toThrow();
+      expect(() => ShareableSessionURL.encode(payload, 'file:///etc/passwd')).toThrow();
+      expect(() => ShareableSessionURL.encode(payload, 'ftp://evil.com/state')).toThrow();
+
+      expect(ShareableSessionURL.decode('javascript:alert(1)')).toBeNull();
+      expect(ShareableSessionURL.decode('data:text/plain;base64,abc')).toBeNull();
+    });
+
+    it('round-trips full Unicode strings accurately via UTF-8 encoding', () => {
+      const payload = {
+        datasetId: 'データセット_東京_2026 🚀',
+        topology: 'TOPOLOGY_🌐',
+        selectedEntityId: 'ノード_α_1',
+        activeLayout: 'force_directed',
+        interactionMode: 'INTERACT',
+        focusTarget: 'ターゲット',
+        timestamp: 1724000000,
+      };
+
+      const encoded = ShareableSessionURL.encode(payload, 'https://nemosyne.ai/app');
+      const decoded = ShareableSessionURL.decode(encoded);
+
+      expect(decoded).not.toBeNull();
+      expect(decoded?.datasetId).toBe('データセット_東京_2026 🚀');
+      expect(decoded?.topology).toBe('TOPOLOGY_🌐');
+      expect(decoded?.selectedEntityId).toBe('ノード_α_1');
+      expect(decoded?.focusTarget).toBe('ターゲット');
     });
 
     it('returns null on invalid URL or tampered payload', () => {

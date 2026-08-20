@@ -488,42 +488,38 @@ fn analyze_graph(row_count: usize, edges: &[crate::data::dataset::Edge]) -> (Opt
     }
     let is_connected = components <= 1 && nodes.len() >= row_count;
 
-    // Cycle detection via DFS with recursion stack
+    // Cycle detection via iterative 3-state DFS (0 = unvisited, 1 = visiting/rec_stack, 2 = visited)
     let mut has_cycles = false;
-    let mut rec_stack = HashSet::new();
-    let mut dfs_visited = HashSet::new();
+    let mut node_state: HashMap<usize, u8> = HashMap::new();
 
-    fn dfs_cycle(
-        curr: usize,
-        adj: &HashMap<usize, Vec<usize>>,
-        visited: &mut HashSet<usize>,
-        rec_stack: &mut HashSet<usize>,
-    ) -> bool {
-        visited.insert(curr);
-        rec_stack.insert(curr);
+    for &start_node in &nodes {
+        if node_state.get(&start_node).copied().unwrap_or(0) != 0 {
+            continue;
+        }
 
-        if let Some(neighbors) = adj.get(&curr) {
-            for &nxt in neighbors {
-                if !visited.contains(&nxt) {
-                    if dfs_cycle(nxt, adj, visited, rec_stack) {
-                        return true;
-                    }
-                } else if rec_stack.contains(&nxt) {
-                    return true;
+        let mut stack: Vec<(usize, usize)> = vec![(start_node, 0)];
+        node_state.insert(start_node, 1);
+
+        while let Some((curr, next_idx)) = stack.pop() {
+            let neighbors = adj.get(&curr).map(|v| v.as_slice()).unwrap_or(&[]);
+            if next_idx < neighbors.len() {
+                let nxt = neighbors[next_idx];
+                stack.push((curr, next_idx + 1));
+                let nxt_state = node_state.get(&nxt).copied().unwrap_or(0);
+                if nxt_state == 1 {
+                    has_cycles = true;
+                    break;
+                } else if nxt_state == 0 {
+                    node_state.insert(nxt, 1);
+                    stack.push((nxt, 0));
                 }
+            } else {
+                node_state.insert(curr, 2);
             }
         }
 
-        rec_stack.remove(&curr);
-        false
-    }
-
-    for &node in &nodes {
-        if !dfs_visited.contains(&node) {
-            if dfs_cycle(node, &adj, &mut dfs_visited, &mut rec_stack) {
-                has_cycles = true;
-                break;
-            }
+        if has_cycles {
+            break;
         }
     }
 
@@ -626,8 +622,9 @@ pub fn compute_dataset_structure_profile(
         }
     }
 
-    let missing_fraction = if row_count * column_count > 0 {
-        total_missing as f64 / (row_count * column_count) as f64
+    let total_cells = (row_count as u64) * (column_count as u64);
+    let missing_fraction = if total_cells > 0 {
+        total_missing as f64 / total_cells as f64
     } else {
         0.0
     };

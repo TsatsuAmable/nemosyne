@@ -1,7 +1,7 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import { ConnectorAuthManager } from '../src/network/ConnectorAuth.ts';
 import { StudyDataExporter } from '../src/study/StudyDataExporter.ts';
+import type { CompletedTrialRecord } from '../src/study/StudyHarness.ts';
 
 describe('Connector Auth & Study Data Exporter', () => {
   describe('Connector Auth Manager', () => {
@@ -37,12 +37,12 @@ describe('Connector Auth & Study Data Exporter', () => {
 
   describe('Study Data Exporter', () => {
     it('creates analysis bundle and CSV export from trial records', () => {
-      const mockTrials = [
+      const mockTrials: CompletedTrialRecord[] = [
         {
           trialId: 'TRIAL_A',
           datasetId: 'DATA_1',
           taskType: 'anomaly_detection',
-          condition: '2D_CONTROL',
+          condition: '2d_control',
           isCorrect: true,
           durationMs: 8000,
           confidenceScore: 5,
@@ -54,7 +54,7 @@ describe('Connector Auth & Study Data Exporter', () => {
           trialId: 'TRIAL_B',
           datasetId: 'DATA_2',
           taskType: 'topology_discovery',
-          condition: 'VR_EXPERIMENTAL',
+          condition: 'vr_experimental',
           isCorrect: false,
           durationMs: 4000,
           confidenceScore: 3,
@@ -72,8 +72,30 @@ describe('Connector Auth & Study Data Exporter', () => {
 
       const csv = StudyDataExporter.toCSV(mockTrials);
       expect(csv).toContain('trial_id,dataset_id,task_type');
-      expect(csv).toContain('TRIAL_A,DATA_1,anomaly_detection,2D_CONTROL,1,8000,5,40,12');
-      expect(csv).toContain('TRIAL_B,DATA_2,topology_discovery,VR_EXPERIMENTAL,0,4000,3,60,20');
+      expect(csv).toContain('TRIAL_A,DATA_1,anomaly_detection,2d_control,1,8000,5,40,12');
+      expect(csv).toContain('TRIAL_B,DATA_2,topology_discovery,vr_experimental,0,4000,3,60,20');
+    });
+
+    it('neutralizes spreadsheet formula injection with leading whitespace and symbols', () => {
+      const evilTrials: CompletedTrialRecord[] = [
+        {
+          trialId: '  =SUM(1,2)',
+          datasetId: '+cmd|/C calc',
+          taskType: '@evil_formula',
+          condition: '2d_control',
+          isCorrect: true,
+          durationMs: 1000,
+          confidenceScore: 5,
+          workloadScore: 20,
+          interactionEventsCount: 1,
+          completedAt: 1724000000,
+        },
+      ];
+
+      const safeCsv = StudyDataExporter.toSpreadsheetSafeCSV(evilTrials);
+      expect(safeCsv).toContain("'  =SUM(1,2)");
+      expect(safeCsv).toContain("'+cmd|/C calc");
+      expect(safeCsv).toContain("'@evil_formula");
     });
   });
 });

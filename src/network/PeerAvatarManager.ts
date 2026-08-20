@@ -3,6 +3,7 @@
  *
  * Renders lightweight headset & dual-hand avatars for connected remote analysts,
  * complete with color-coded laser pointers and gaze target indicators.
+ * Implements strict GPU geometry/material lifecycle disposal on peer disconnect and room teardown.
  */
 
 import * as THREE from 'three';
@@ -88,6 +89,24 @@ export class PeerAvatarManager {
     avatar.rightHandMesh.position.set(pos[0] + 0.2, pos[1] - 0.25, pos[2] - 0.3);
   }
 
+  private _disposeObject3D(obj: THREE.Object3D): void {
+    obj.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh || (child as THREE.Line).isLine) {
+        const mesh = child as THREE.Mesh;
+        if (mesh.geometry) {
+          mesh.geometry.dispose();
+        }
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((m) => m.dispose());
+          } else {
+            mesh.material.dispose();
+          }
+        }
+      }
+    });
+  }
+
   removePeer(peerId: string): void {
     const avatar = this._avatarMap.get(peerId);
     if (!avatar) return;
@@ -95,6 +114,11 @@ export class PeerAvatarManager {
     this.scene.remove(avatar.headGroup);
     this.scene.remove(avatar.leftHandMesh);
     this.scene.remove(avatar.rightHandMesh);
+
+    this._disposeObject3D(avatar.headGroup);
+    this._disposeObject3D(avatar.leftHandMesh);
+    this._disposeObject3D(avatar.rightHandMesh);
+
     this._avatarMap.delete(peerId);
   }
 

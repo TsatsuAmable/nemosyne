@@ -12,21 +12,15 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import type { OperationSpec } from '../src/data/types.ts';
 import * as bridge from '../src/wasm/RuntimeBridge.ts';
 
-async function loadBridge() {
-  try {
-    await bridge.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
-    return bridge;
-  } catch {
-    return null;
-  }
-}
-
-const maybeDescribe = (await loadBridge()) ? describe : describe.skip;
-
-maybeDescribe('RuntimeBridge integration', () => {
+describe('RuntimeBridge integration', () => {
   beforeAll(async () => {
     if (!bridge.isReady()) {
       await bridge.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
+    }
+    if (!bridge.isReady()) {
+      throw new Error(
+        'RuntimeBridge failed to initialize WASM. Make sure npm run wasm:dev has been run to generate wasm/pkg.'
+      );
     }
   });
 

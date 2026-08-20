@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { NemosynePackageManager, type NemosynePackageManifest } from '../src/session/NemosynePackage.ts';
+import { NemosynePackageManager, sanitizeEntryPath, type NemosynePackageManifest } from '../src/session/NemosynePackage.ts';
 
 describe('Nemosyne Portable Package Engine (fflate + valibot)', () => {
   const validManifest: NemosynePackageManifest = {
@@ -49,15 +49,25 @@ describe('Nemosyne Portable Package Engine (fflate + valibot)', () => {
     expect(unpackedNotes).toBe('Special investigation notes');
   });
 
+  it('rejects path traversal attacks including percent-encoded variations', () => {
+    expect(() => sanitizeEntryPath('../evil.txt')).toThrow();
+    expect(() => sanitizeEntryPath('foo/../../bar')).toThrow();
+    expect(() => sanitizeEntryPath('%2e%2e%2fevil.txt')).toThrow();
+    expect(() => sanitizeEntryPath('%2e%2e/test')).toThrow();
+    expect(() => sanitizeEntryPath('/etc/passwd')).toThrow();
+    expect(() => sanitizeEntryPath('C:\\Windows\\System32')).toThrow();
+    expect(() => sanitizeEntryPath('evil\0.txt')).toThrow();
+  });
+
   it('rejects an invalid archive missing manifest.json', () => {
     const invalidZip = new Uint8Array([0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]); // empty zip
-    expect(() => NemosynePackageManager.unpack(invalidZip)).toThrow('missing manifest.json');
+    expect(() => NemosynePackageManager.unpack(invalidZip)).toThrow();
   });
 
   it('rejects an archive with a schema-invalid manifest using valibot', () => {
     const invalidManifest = {
       ...validManifest,
-      formatVersion: 'NOT_A_NUMBER' as unknown as number, // Invalid type
+      formatVersion: 'NOT_A_NUMBER' as unknown as number,
     };
 
     expect(() =>

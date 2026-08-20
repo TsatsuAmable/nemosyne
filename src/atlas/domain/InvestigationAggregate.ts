@@ -119,25 +119,22 @@ export class InvestigationAggregate {
       state.annotations,
     );
     this.decisions.restore(state.activeRecommendation ?? null, state.decisionHistory ?? []);
-    this.graph.reset();
 
     if (state.investigationGraph && state.investigationGraph.nodes?.length > 0) {
-      for (const node of state.investigationGraph.nodes) {
+      // Validate temporary graph first - throws on cycles or invalid edges before touching live graph
+      const validatedGraph = InvestigationGraph.fromJSON(state.investigationGraph);
+      this.graph.reset();
+      for (const node of validatedGraph.nodes) {
         this.graph.addNode(node);
       }
-      if (state.investigationGraph.edges) {
-        for (const edge of state.investigationGraph.edges) {
-          try {
-            this.graph.addEdge(edge);
-          } catch {
-            // Skip invalid edges on legacy restore
-          }
-        }
+      for (const edge of validatedGraph.edges) {
+        this.graph.addEdge(edge);
       }
-      if (state.investigationGraph.activeNodeId) {
-        this.graph.setActiveNode(state.investigationGraph.activeNodeId);
+      if (validatedGraph.activeNodeId) {
+        this.graph.setActiveNode(validatedGraph.activeNodeId);
       }
     } else if (current) {
+      this.graph.reset();
       const fp = this.analytical.getFingerprint() ?? '';
       this.graph.addNode({
         id: `${this.sessionId}:v${version}`,
@@ -147,6 +144,8 @@ export class InvestigationAggregate {
         label: 'Restored Dataset',
         timestamp: this.context.now(),
       });
+    } else {
+      this.graph.reset();
     }
 
     if (state.representationDecision) {

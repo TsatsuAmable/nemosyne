@@ -71,6 +71,10 @@ export class AnalyticalState {
    */
   commitKernelResult(options: KernelCommitOptions, destroyer?: (handle: number) => void): void {
     const { handle, dataset, fingerprint, versionBump = true } = options;
+    // Step 1: Prepare/clone all JS objects FIRST. If this throws, state and old handle remain intact.
+    const nextDataset = dataset?.clone?.() ?? emptyDataset();
+
+    // Step 2: Clean up old handle if different
     if (this._currentHandle !== 0 && this._currentHandle !== handle && destroyer) {
       try {
         destroyer(this._currentHandle);
@@ -78,8 +82,10 @@ export class AnalyticalState {
         // best-effort cleanup
       }
     }
+
+    // Step 3: Atomic state commit
     this._currentHandle = handle;
-    this._current = dataset?.clone?.() ?? emptyDataset();
+    this._current = nextDataset;
     if (versionBump) {
       this._datasetVersion += 1;
     }

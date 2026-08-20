@@ -1,9 +1,8 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { Dataset } from '../src/data/Dataset.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
-import { computeInvestigationDigest, canonicalJsonStringify } from '../src/investigation/index.ts';
+import { canonicalJsonStringify, CapabilityError } from '../src/investigation/InvestigationDigest.ts';
 
 describe('Canonical Investigation Cryptographic Digest Engine', () => {
   it('produces deterministic canonical JSON stringification regardless of object key order', () => {
@@ -17,6 +16,28 @@ describe('Canonical Investigation Cryptographic Digest Engine', () => {
     expect(strA).toBe('{"a":2,"m":{"nestedA":"hello","nestedB":true},"z":1}');
   });
 
+  it('handles array undefined and negative zero correctly without emitting invalid JSON', () => {
+    const arr = [1, undefined, -0];
+    const str = canonicalJsonStringify(arr);
+    expect(str).toBe('[1,null,0]');
+    expect(JSON.parse(str)).toEqual([1, null, 0]);
+  });
+
+  it('rejects unsupported types like BigInt or cyclical references', () => {
+    expect(() => canonicalJsonStringify({ val: BigInt(123) })).toThrow();
+
+    const cyclic: Record<string, unknown> = { a: 1 };
+    cyclic.self = cyclic;
+    expect(() => canonicalJsonStringify(cyclic)).toThrow('cyclical');
+  });
+
+  it('supports instanceof CapabilityError checks', () => {
+    const err = new CapabilityError('Provider missing');
+    expect(err).toBeInstanceOf(CapabilityError);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.code).toBe('CAPABILITY_UNAVAILABLE');
+  });
+
   it('computes identical 64-character SHA-256 digests for bit-for-bit identical investigations', async () => {
     const bridge1 = makeKernelMockBridge();
     const atlas1 = new AtlasCore({ kernel: bridge1, sessionId: 'session-digest-1' });
@@ -26,7 +47,7 @@ describe('Canonical Investigation Cryptographic Digest Engine', () => {
 
     const rawData = {
       name: 'TimeSeries',
-      columns: [{ name: 'val', type: 'number' }],
+      columns: [{ name: 'val', type: 'number' as const }],
       rows: [{ val: 10 }, { val: 20 }, { val: 30 }],
     };
 
@@ -61,7 +82,7 @@ describe('Canonical Investigation Cryptographic Digest Engine', () => {
     atlas.loadDataset(
       Dataset.fromJSON({
         name: 'Dataset',
-        columns: [{ name: 'x', type: 'number' }],
+        columns: [{ name: 'x', type: 'number' as const }],
         rows: [{ x: 5 }, { x: 15 }],
       })
     );
