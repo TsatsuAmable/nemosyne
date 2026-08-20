@@ -55,7 +55,7 @@ jobs:
   node:
     name: Node ${{ matrix.node-version }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       # Single leg on Node 24 (active LTS, Oct 2025–). Node 20 reached EOL in
       # April 2026 and was dropped; Node 22 is maintenance LTS. The matrix is
@@ -68,6 +68,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
       - name: Set up Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
@@ -76,6 +81,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Build WASM package (dev)
+        run: npm run wasm:dev
 
       - name: Dependency vulnerability audit
         run: npm audit --audit-level=high
@@ -117,6 +125,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
       - name: Set up Node.js 24
         uses: actions/setup-node@v4
