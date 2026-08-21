@@ -62,7 +62,7 @@ function setup() {
         fitnessModelVersion: 'bootstrap-fitness-v1',
         ontologyVersion: 'bootstrap-ontology-v1',
         nilVersion: '1.0.0',
-        representationGraphSchemaVersion: '1.0.0',
+        representationGraphId: 'graph-point',
       },
     }),
   });
