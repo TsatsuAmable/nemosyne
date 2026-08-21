@@ -91,7 +91,8 @@ describe('Phase 5: Spectral Analysis in Rust/WASM & AtlasCore', () => {
       spectralFacts: mockSpectralFacts,
     });
     expect(decision.representationFamily).toBe('FREQUENCY');
-    expect(decision.confidence).toBeGreaterThan(0.5);
+    expect(decision.utilityScore).toBeGreaterThan(0.5);
+    expect(decision.decisionStatus).not.toBe('INFEASIBLE');
     expect(decision.evidence.some((e) => e.fact.includes('spectral'))).toBe(true);
   });
 });
