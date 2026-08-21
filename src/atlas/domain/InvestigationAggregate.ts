@@ -2,7 +2,7 @@
  * InvestigationAggregate — authoritative domain aggregate root encapsulating:
  * - AnalyticalState (dataset versioning, handle allocation, space projection)
  * - EvidenceLedger (append-only provenance stream, results, structures, derived history)
- * - RepresentationState (Draco facts mapping, visual heuristics)
+ * - RepresentationState (Moneta facts mapping and representation decisions)
  * - DecisionHistory (recommendation guidance and auditor decision tracking)
  * - ResearchContext (session identity and provenance timestamps)
  * - InvestigationGraph (DAG of investigation nodes and branch points)
@@ -39,9 +39,7 @@ export class InvestigationAggregate {
     return this.context.sessionId;
   }
 
-  /**
-   * Reset all constituent sub-states on loading a new dataset.
-   */
+  /** Reset all constituent sub-states on loading a new dataset. */
   loadDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
     this.analytical.loadDataset(dataset, destroyer);
     this.ledger.reset();
@@ -58,7 +56,7 @@ export class InvestigationAggregate {
         datasetFingerprint: fp,
         stateHash: fp,
       },
-      this.sessionId,
+      this.sessionId
     );
 
     this.graph.addNode({
@@ -71,9 +69,7 @@ export class InvestigationAggregate {
     });
   }
 
-  /**
-   * Export the serialisable state snapshot of the aggregate.
-   */
+  /** Export the serialisable state snapshot of the aggregate. */
   toState(): AtlasCoreState {
     const space = this.analytical.getDatasetSpace();
     return {
@@ -101,12 +97,12 @@ export class InvestigationAggregate {
     };
   }
 
-  /**
-   * Reconstitute aggregate state from a persisted snapshot.
-   */
+  /** Reconstitute aggregate state from a persisted snapshot. */
   restoreState(state: AtlasCoreState, destroyer?: (handle: number) => void): void {
     const original = state.originalDataset ? Dataset.fromJSON(state.originalDataset) : null;
-    const current = state.currentDataset ? Dataset.fromJSON(state.currentDataset) : original?.clone?.() ?? null;
+    const current = state.currentDataset
+      ? Dataset.fromJSON(state.currentDataset)
+      : (original?.clone?.() ?? null);
     const version = state.datasetVersion ?? 0;
 
     this.analytical.restore(original, current, version, destroyer);
@@ -116,23 +112,16 @@ export class InvestigationAggregate {
       state.structures,
       state.observations,
       state.findings,
-      state.annotations,
+      state.annotations
     );
     this.decisions.restore(state.activeRecommendation ?? null, state.decisionHistory ?? []);
 
     if (state.investigationGraph && state.investigationGraph.nodes?.length > 0) {
-      // Validate temporary graph first - throws on cycles or invalid edges before touching live graph
       const validatedGraph = InvestigationGraph.fromJSON(state.investigationGraph);
       this.graph.reset();
-      for (const node of validatedGraph.nodes) {
-        this.graph.addNode(node);
-      }
-      for (const edge of validatedGraph.edges) {
-        this.graph.addEdge(edge);
-      }
-      if (validatedGraph.activeNodeId) {
-        this.graph.setActiveNode(validatedGraph.activeNodeId);
-      }
+      for (const node of validatedGraph.nodes) this.graph.addNode(node);
+      for (const edge of validatedGraph.edges) this.graph.addEdge(edge);
+      if (validatedGraph.activeNodeId) this.graph.setActiveNode(validatedGraph.activeNodeId);
     } else if (current) {
       this.graph.reset();
       const fp = this.analytical.getFingerprint() ?? '';
@@ -153,12 +142,12 @@ export class InvestigationAggregate {
     }
   }
 
-  /**
-   * Compute the canonical cryptographic digest representing this aggregate's semantic state.
-   */
+  /** Compute the canonical cryptographic digest representing this aggregate's semantic state. */
   async computeDigest(kernelVersion = 'unknown'): Promise<string> {
     const fp = this.analytical.getFingerprint() ?? '';
-    const originalFp = this.analytical.originalNullable?.fingerprint ? String(this.analytical.originalNullable.fingerprint) : fp;
+    const originalFp = this.analytical.originalNullable?.fingerprint
+      ? String(this.analytical.originalNullable.fingerprint)
+      : fp;
     const commandStream = this.ledger.ledger.map((evt) => ({
       op: evt.command ? ('op' in evt.command ? evt.command.op : evt.kind) : evt.kind,
       datasetVersion: evt.datasetVersion,
@@ -173,11 +162,21 @@ export class InvestigationAggregate {
           representationFamily: repDecision.chosenFamily,
           candidateId: repDecision.chosenCandidateId,
           layout: repDecision.chosenLayout,
-          confidence: repDecision.confidenceScore,
-          utilityScore: repDecision.confidenceScore,
+          utilityScore: repDecision.utilityScore,
+          decisionStatus: repDecision.decisionStatus,
+          decisionMargin: repDecision.decisionMargin,
+          fitnessModelVersion: repDecision.fitnessModelVersion,
           explanation: repDecision.explanation,
           preserves: repDecision.preserves,
           loses: repDecision.loses,
+          runnerUp: repDecision.runnerUp
+            ? {
+                candidateId: repDecision.runnerUp.candidateId,
+                family: repDecision.runnerUp.family,
+                layout: repDecision.runnerUp.layout,
+                score: repDecision.runnerUp.score,
+              }
+            : null,
           rankedAlternatives: (repDecision.rankedCandidates ?? []).slice(1).map((r) => ({
             candidateId: r.candidateId,
             family: r.family,
@@ -187,13 +186,13 @@ export class InvestigationAggregate {
           })),
         }
       : repStrategy
-      ? {
-          strategyId: repStrategy.id,
-          worldType: repStrategy.worldType,
-          layout: repStrategy.macroLayout.layout,
-          geometry: repStrategy.datumEncoding.geometry,
-        }
-      : undefined;
+        ? {
+            strategyId: repStrategy.id,
+            worldType: repStrategy.worldType,
+            layout: repStrategy.macroLayout.layout,
+            geometry: repStrategy.datumEncoding.geometry,
+          }
+        : undefined;
 
     return computeInvestigationDigest({
       schemaVersion: 1,
@@ -213,7 +212,11 @@ export class InvestigationAggregate {
         observationCount: this.ledger.observations.length,
         findingCount: this.ledger.findings.length,
         annotationCount: this.ledger.annotations.length,
-        findings: this.ledger.findings.map((f) => ({ id: f.id, title: f.title, confidence: f.confidence })),
+        findings: this.ledger.findings.map((f) => ({
+          id: f.id,
+          title: f.title,
+          confidence: f.confidence,
+        })),
         observations: this.ledger.observations.map((o) => ({ id: o.id, notes: o.notes })),
       },
       representationDecision: repDecisionPayload,
@@ -225,9 +228,7 @@ export class InvestigationAggregate {
     });
   }
 
-  /**
-   * Clean up transient resources.
-   */
+  /** Clean up transient resources. */
   dispose(destroyer?: (handle: number) => void): void {
     this.analytical.invalidateHandle(destroyer);
   }
