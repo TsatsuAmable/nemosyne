@@ -8,6 +8,8 @@
  * - Independence from volatile timestamps, Three.js object UUIDs, or runtime memory handles.
  */
 
+import type { DiscoveryEpisode } from './DiscoveryEpisode.ts';
+
 export class CapabilityError extends Error {
   readonly code: string;
 
@@ -46,6 +48,7 @@ export interface CanonicalInvestigationInput {
     findings?: Array<{ id: string; title: string; confidence: string }>;
     observations?: Array<{ id: string; notes: string }>;
   };
+  discoveryEpisodes?: readonly DiscoveryEpisode[];
   representationDecision?: {
     strategyId?: string;
     representationFamily?: string;
