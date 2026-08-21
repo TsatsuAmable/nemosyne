@@ -1,5 +1,6 @@
 /**
- * RepresentationState — manages Moneta constraint fact mapping, thresholds, and embodiment metadata.
+ * RepresentationState — manages Moneta fact mapping, requirements, decisions,
+ * and embodiment metadata without owning a second representation solver.
  */
 
 import type { Facts } from '../../data/types.ts';
@@ -12,7 +13,6 @@ import type {
 } from '../../moneta/types.ts';
 import { TopologyTypes } from '../../types/topology.ts';
 import {
-  ConstraintArbiter,
   createDefaultRequirements,
   type RepresentationRequirements,
   type SpatialStrategy,
@@ -26,7 +26,7 @@ import {
 export function estimateClusterCount(
   rowCount: number,
   cardinalityOfColor: number,
-  numericColumnCount: number,
+  numericColumnCount: number
 ): number {
   if (cardinalityOfColor > 1 && cardinalityOfColor <= 20) return cardinalityOfColor;
   if (numericColumnCount === 0) return 1;
@@ -37,10 +37,14 @@ export function mapKernelFactsToMoneta(
   input: MonetaDataInput,
   kf: Facts,
   largeRowThreshold: number,
-  highCardinalityThreshold: number,
+  highCardinalityThreshold: number
 ): MonetaFacts {
   const ds = input.dataset;
-  const rowCount = ds?.rowCount ?? input.rows?.length ?? (input.nodes as unknown[] | undefined)?.length ?? kf.rowCount;
+  const rowCount =
+    ds?.rowCount ??
+    input.rows?.length ??
+    (input.nodes as unknown[] | undefined)?.length ??
+    kf.rowCount;
   const edgeCount = input.edges?.length ?? ds?.edges?.length ?? 0;
   const numericCols = ds?.numericColumns ?? [];
   const categoricalCols = ds?.categoricalColumns ?? [];
@@ -64,9 +68,7 @@ export function mapKernelFactsToMoneta(
   const numericNames = kf.numeric.map((c) => c.name);
   for (const a of numericNames) {
     correlationMatrix[a] = {};
-    for (const b of numericNames) {
-      correlationMatrix[a][b] = a === b ? 1 : 0;
-    }
+    for (const b of numericNames) correlationMatrix[a][b] = a === b ? 1 : 0;
   }
   for (const p of kf.correlation) {
     if (!correlationMatrix[p.a]) correlationMatrix[p.a] = {};
@@ -79,20 +81,23 @@ export function mapKernelFactsToMoneta(
   for (const c of kf.categorical) {
     const total = c.top.reduce((s, t) => s + t.count, 0) || kf.rowCount || 1;
     categoryDistribution[c.name] = {
-      topCategories: c.top.map((t) => ({ value: t.value, count: t.count, fraction: t.count / total })),
+      topCategories: c.top.map((t) => ({
+        value: t.value,
+        count: t.count,
+        fraction: t.count / total,
+      })),
       entropy: c.entropy,
     };
   }
 
   const colorCat = colorColumn ? categoryDistribution[colorColumn] : undefined;
   const colorCardinality = colorCat
-    ? kf.categorical.find((c) => c.name === colorColumn)?.cardinality ?? 0
+    ? (kf.categorical.find((c) => c.name === colorColumn)?.cardinality ?? 0)
     : 0;
 
   const primaryNumeric = kf.numeric[0];
   const primaryTemporal = kf.temporalStats[0];
   const outlierCount = primaryNumeric?.outlierCount ?? 0;
-
   const clusterCount = estimateClusterCount(rowCount, colorCardinality, numericCols.length);
 
   return {
@@ -127,13 +132,19 @@ export function mapKernelFactsToMoneta(
 
 export const mapKernelFactsToDraco = mapKernelFactsToMoneta;
 
+/**
+ * Explicit degraded bootstrap facts retained temporarily for pre-kernel scene
+ * construction and legacy tests. These are schema/cardinality observations,
+ * not analytical evidence. V3 Gate 0 tracks removal of this path separately.
+ */
 export function minimalMonetaFacts(
   input: MonetaDataInput,
   largeRowThreshold: number,
-  highCardinalityThreshold: number,
+  highCardinalityThreshold: number
 ): MonetaFacts {
   const ds = input.dataset;
-  const rowCount = ds?.rowCount ?? input.rows?.length ?? (input.nodes as unknown[] | undefined)?.length ?? 0;
+  const rowCount =
+    ds?.rowCount ?? input.rows?.length ?? (input.nodes as unknown[] | undefined)?.length ?? 0;
   const edgeCount = input.edges?.length ?? ds?.edges?.length ?? 0;
   const numericCols = ds?.numericColumns ?? [];
   const categoricalCols = ds?.categoricalColumns ?? [];
@@ -185,14 +196,10 @@ export class RepresentationState {
         input,
         kernelFacts,
         this.largeRowThreshold,
-        this.highCardinalityThreshold,
+        this.highCardinalityThreshold
       );
     }
-    return minimalMonetaFacts(
-      input,
-      this.largeRowThreshold,
-      this.highCardinalityThreshold,
-    );
+    return minimalMonetaFacts(input, this.largeRowThreshold, this.highCardinalityThreshold);
   }
 
   toDracoFacts(input: MonetaDataInput, kernelFacts: Facts | null): MonetaFacts {
@@ -203,12 +210,11 @@ export class RepresentationState {
     input: MonetaDataInput,
     kernelFacts: Facts | null,
     spectralFacts?: SpectralFacts | null,
-    datasetFingerprint?: string,
+    datasetFingerprint?: string
   ): DatasetSignature {
     const ds = input.dataset;
-    if (!ds) {
-      throw new Error('Dataset required to build DatasetSignature');
-    }
+    if (!ds) throw new Error('Dataset required to build DatasetSignature');
+
     const facts = kernelFacts ?? {
       rowCount: ds.rowCount ?? 0,
       columnCount: ds.columnCount ?? 0,
@@ -231,7 +237,7 @@ export class RepresentationState {
     input: MonetaDataInput,
     kernelFacts: Facts | null,
     spectralFacts?: SpectralFacts | null,
-    datasetFingerprint?: string,
+    datasetFingerprint?: string
   ): DatasetSignature {
     const signature = this.toDatasetSignature(input, kernelFacts, spectralFacts, datasetFingerprint);
     this.activeSignature = signature;
@@ -239,23 +245,26 @@ export class RepresentationState {
   }
 
   asFactProvider(factsProvider: () => Facts | null): FactProvider {
-    return {
-      facts: (input) => this.toMonetaFacts(input, factsProvider()),
-    };
+    return { facts: (input) => this.toMonetaFacts(input, factsProvider()) };
   }
 
+  /**
+   * Compatibility facade. There is no independent strategy arbiter in V3:
+   * strategy is derived from the canonical Moneta RepresentationDecision.
+   */
   arbitrateStrategy(
     input: MonetaDataInput,
     kernelFacts: Facts | null,
     requirements?: RepresentationRequirements,
-    datasetFingerprint?: string,
+    datasetFingerprint?: string
   ): SpatialStrategy {
-    const facts = this.toMonetaFacts(input, kernelFacts);
-    const req = requirements ?? this.activeRequirements ?? createDefaultRequirements();
-    const strategy = ConstraintArbiter.arbitrate(facts, req, { datasetFingerprint });
-    this.activeStrategy = strategy;
-    this.activeRequirements = req;
-    return strategy;
+    return this.arbitrateRepresentation(
+      input,
+      kernelFacts,
+      undefined,
+      requirements,
+      datasetFingerprint
+    ).embodiment.spatialStrategy;
   }
 
   arbitrateRepresentation(
@@ -263,20 +272,24 @@ export class RepresentationState {
     kernelFacts: Facts | null,
     spectralFacts?: SpectralFacts | null,
     requirements?: RepresentationRequirements,
-    datasetFingerprint?: string,
+    datasetFingerprint?: string
   ): RepresentationDecision {
     const req = requirements ?? this.activeRequirements ?? createDefaultRequirements();
-    const signature = this.computeDatasetSignature(input, kernelFacts, spectralFacts, datasetFingerprint);
-    const engine = new MonetaHypothesisEngine();
-    const decision = engine.arbitrate(signature, req);
+    const signature = this.computeDatasetSignature(
+      input,
+      kernelFacts,
+      spectralFacts,
+      datasetFingerprint
+    );
+    const decision = new MonetaHypothesisEngine().arbitrate(signature, req);
     this.activeDecision = decision;
-    this.activeStrategy = decision.embodiment?.spatialStrategy;
+    this.activeStrategy = decision.embodiment.spatialStrategy;
     this.activeRequirements = req;
     return decision;
   }
 
   restoreDecision(decision: RepresentationDecision): void {
     this.activeDecision = decision;
-    this.activeStrategy = decision.embodiment?.spatialStrategy;
+    this.activeStrategy = decision.embodiment.spatialStrategy;
   }
 }
