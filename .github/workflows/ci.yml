@@ -59,8 +59,9 @@ jobs:
       - name: Run Rust unit tests
         run: cargo test --manifest-path wasm/Cargo.toml
 
-  # Fast correctness path. A dev WASM package is sufficient for TypeScript and
-  # Vitest, while the release bundle is built concurrently in `build` below.
+  # Fast correctness path. PRs run the complete Vitest suite without V8 coverage
+  # instrumentation; coverage thresholds remain centrally enforced by coverage.yml
+  # on main, nightly, and manual runs.
   node:
     name: Node ${{ matrix.node-version }}
     runs-on: ubuntu-latest
@@ -105,17 +106,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Run tests with coverage
-        run: npm run test:coverage
+      - name: Run full test suite
+        run: npm test
 
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-node${{ matrix.node-version }}
-          path: coverage/
-          if-no-files-found: ignore
-
-  # Build the production artifact in parallel with the long coverage suite.
+  # Build the production artifact in parallel with the Node correctness suite.
   # Playwright consumes this exact artifact, so release WASM + Vite compilation
   # happens once per surviving run rather than once in Node and again in smoke.
   build:
@@ -161,7 +155,7 @@ jobs:
           if-no-files-found: error
 
   # Real-WebGL smoke starts as soon as the production artifact is available and
-  # runs concurrently with any still-running Node coverage work.
+  # runs concurrently with the Node correctness suite.
   playwright-smoke:
     name: Playwright load smoke
     needs: build
