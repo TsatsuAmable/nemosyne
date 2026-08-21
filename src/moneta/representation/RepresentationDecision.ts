@@ -3,6 +3,8 @@ import type { RepresentationFamily } from './RepresentationFamily.ts';
 import type { SemanticRepresentationId, InformationType } from './RepresentationCandidate.ts';
 import type { SpatialStrategy } from '../SpatialStrategy.ts';
 import type { DatasetSignature } from './DatasetSignature.ts';
+import type { RepresentationDecisionStatus } from './DecisionPolicy.ts';
+import type { WeightSensitivityResult } from './SensitivityAnalysis.ts';
 
 export interface ScoreComponent {
   component: string;
@@ -58,6 +60,7 @@ export interface DecisionProvenance {
   version: string;
   datasetFingerprint: string;
   requirementsHash?: string;
+  fitnessModelVersion?: string;
 }
 
 export interface RepresentationDecision {
@@ -65,7 +68,6 @@ export interface RepresentationDecision {
   chosenCandidateId?: SemanticRepresentationId;
   chosenFamily?: RepresentationFamily;
   chosenLayout?: VRLayout;
-  confidenceScore?: number; // 0.0 to 1.0
   explanation?: string;
   rulesEvaluated?: HardConstraintTrace[];
   rankedCandidates?: CandidateScore[];
@@ -75,10 +77,22 @@ export interface RepresentationDecision {
   kernelVersion?: string;
   decisionTimestamp?: number;
 
-  // Compatibility aliases
-  representationFamily: RepresentationFamily;
-  confidence: number;
+  /** V3: utility is an uncalibrated model score, not a probability. */
   utilityScore: number;
+  decisionStatus?: RepresentationDecisionStatus;
+  runnerUp?: CandidateScore | null;
+  decisionMargin?: number | null;
+  decisionRationale?: string;
+  fitnessModelVersion?: string;
+  weightSensitivity?: WeightSensitivityResult;
+
+  /** @deprecated Uncalibrated utility must not be described as confidence. */
+  confidenceScore?: number;
+
+  // Compatibility aliases retained while downstream call sites migrate.
+  representationFamily: RepresentationFamily;
+  /** @deprecated Use utilityScore + decisionStatus. */
+  confidence?: number;
   embodiment: DecisionEmbodiment;
   evidence: DecisionEvidenceItem[];
   rejectedAlternatives: RejectedAlternative[];

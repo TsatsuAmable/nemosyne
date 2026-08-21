@@ -147,14 +147,24 @@ describe('Gate 2 (Represent): ConstraintArbiter Strategy Selection', () => {
 
 describe('Gate 2 (Represent): AtlasCore Integration', () => {
   it('arbitrates spatial strategy directly from AtlasCore', () => {
+    // Build a typed dataset large enough for the CLUSTER_REGIONS candidate
+    // (scale minN=20). Dataset.fromJSON requires column objects with a `type`
+    // and object rows; string columns / array rows would yield undefined types
+    // and a zero-numeric signature, which no candidate can satisfy.
+    const clusterRows = [
+      ...Array.from({ length: 10 }, (_, i) => ({ feat1: 1 + i * 0.1, feat2: 2 + i * 0.1, feat3: 3 + i * 0.1, cluster: 'A' })),
+      ...Array.from({ length: 10 }, (_, i) => ({ feat1: 10 + i * 0.1, feat2: 11 + i * 0.1, feat3: 12 + i * 0.1, cluster: 'B' })),
+      ...Array.from({ length: 10 }, (_, i) => ({ feat1: 20 + i * 0.1, feat2: 21 + i * 0.1, feat3: 22 + i * 0.1, cluster: 'C' })),
+    ];
     const dataset = Dataset.fromJSON({
       name: 'ClusterTest',
-      columns: ['feat1', 'feat2', 'feat3', 'cluster'],
-      rows: [
-        [1.0, 2.0, 3.0, 'A'],
-        [4.0, 5.0, 6.0, 'B'],
+      columns: [
+        { name: 'feat1', type: 'numeric' },
+        { name: 'feat2', type: 'numeric' },
+        { name: 'feat3', type: 'numeric' },
+        { name: 'cluster', type: 'categorical' },
       ],
-      types: { feat1: 'numeric', feat2: 'numeric', feat3: 'numeric', cluster: 'categorical' },
+      rows: clusterRows,
     });
 
     const atlas = new AtlasCore();

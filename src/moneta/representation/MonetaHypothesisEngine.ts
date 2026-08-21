@@ -1,8 +1,13 @@
 /**
- * MonetaHypothesisEngine — 2-Stage Dataset-Centric Analytical Representation Solver.
+ * MonetaHypothesisEngine — V3 bootstrap representation hypothesis solver.
  *
- * Stage 1: Hard Constraint Filtering (dimensionality, topology, scale).
- * Stage 2: Information-Preservation Scoring & Evidence-Informed Ranking.
+ * Stage 1: hard feasibility filtering.
+ * Stage 2: explicit, versioned bootstrap fitness evaluation.
+ * Stage 3: decision policy that may abstain or expose ambiguity.
+ * Stage 4: deterministic local weight-sensitivity analysis.
+ *
+ * The bootstrap model is an engineering prior. Its utility score is not a
+ * calibrated probability and must not be presented as confidence.
  */
 
 import type { VRLayout, VRGeometry, VRBehavior, VRInteraction } from '../types.ts';
@@ -39,7 +44,17 @@ import { buildDatasetSignature } from './SignatureBuilder.ts';
 import { NoFeasibleRepresentationError } from './NoFeasibleRepresentationError.ts';
 import { canonicalJsonStringify } from '../../investigation/InvestigationDigest.ts';
 import { fnv1aHex } from '../../atlas/DatasetSpace.ts';
+import {
+  BootstrapFitnessModel,
+  type BootstrapFitnessWeights,
+} from './FitnessModel.ts';
+import { assessRepresentationDecision } from './DecisionPolicy.ts';
+import { analyzeWinnerSensitivity } from './SensitivityAnalysis.ts';
 
+/**
+ * Backward-compatible weight envelope. New code should prefer
+ * BootstrapFitnessWeights from FitnessModel.ts.
+ */
 export interface HypothesisWeights {
   w_struct: number;
   w_task: number;
@@ -57,6 +72,21 @@ export const DEFAULT_HYPOTHESIS_WEIGHTS: HypothesisWeights = {
   w_density: 0.05,
   w_prior: 0.05,
 };
+
+function toBootstrapWeights(weights: HypothesisWeights): BootstrapFitnessWeights {
+  return {
+    structure: weights.w_struct,
+    task: weights.w_task,
+    scale: weights.w_scale,
+    informationPreservation: weights.w_loss,
+    densityHandling: weights.w_density,
+    configuredPrior: weights.w_prior,
+  };
+}
+
+function candidateKey(candidate: Pick<CandidateScore, 'candidateId' | 'layout'>): string {
+  return `${candidate.candidateId}:${candidate.layout}`;
+}
 
 function geometryForLayout(layout: VRLayout): VRGeometry {
   switch (layout) {
@@ -76,19 +106,11 @@ function geometryForLayout(layout: VRLayout): VRGeometry {
 }
 
 export class MonetaHypothesisEngine {
-  private weights: HypothesisWeights;
+  private readonly fitnessModel: BootstrapFitnessModel;
 
   constructor(weights: Partial<HypothesisWeights> = {}) {
-    this.weights = { ...DEFAULT_HYPOTHESIS_WEIGHTS, ...weights };
-    const total = Object.values(this.weights).reduce((sum, weight) => {
-      if (!Number.isFinite(weight) || weight < 0) {
-        throw new TypeError('Moneta hypothesis weights must be finite non-negative numbers');
-      }
-      return sum + weight;
-    }, 0);
-    if (Math.abs(total - 1) > 1e-9) {
-      throw new RangeError(`Moneta hypothesis weights must sum to 1 (received ${total})`);
-    }
+    const merged = { ...DEFAULT_HYPOTHESIS_WEIGHTS, ...weights };
+    this.fitnessModel = new BootstrapFitnessModel(toBootstrapWeights(merged));
   }
 
   static reason(
@@ -112,8 +134,7 @@ export class MonetaHypothesisEngine {
         0
       );
 
-    const engine = new MonetaHypothesisEngine();
-    return engine.arbitrate(signature, requirements, undefined, facts);
+    return new MonetaHypothesisEngine().arbitrate(signature, requirements, undefined, facts);
   }
 
   public arbitrate(
@@ -128,13 +149,10 @@ export class MonetaHypothesisEngine {
         intent?.task ?? 'explore',
         this.inferScale(signature.cardinality.rowCount)
       );
-    const allCandidates = this.generateCandidates();
-
-    // Stage 1: Hard Constraints
     const hardTraces: HardConstraintTrace[] = [];
     const scoredCandidates: CandidateScore[] = [];
 
-    for (const item of allCandidates) {
+    for (const item of this.generateCandidates()) {
       const candidate = MONETA_REPRESENTATION_CANDIDATES[item.candidateId];
       const check = this.checkHardConstraints(signature, reqs, candidate, item.layout);
 
@@ -159,46 +177,49 @@ export class MonetaHypothesisEngine {
         continue;
       }
 
-      // Stage 2: Information-Preservation Scoring
-      const scoreResult = this.scoreCandidate(signature, reqs, candidate, item.family, item.layout);
-      scoredCandidates.push(scoreResult);
+      scoredCandidates.push(
+        this.scoreCandidateWithModel(
+          this.fitnessModel,
+          signature,
+          reqs,
+          candidate,
+          item.family,
+          item.layout
+        )
+      );
     }
 
-    // Rank candidates
-    scoredCandidates.sort((a, b) => {
-      const scoreDelta = (b.score || 0) - (a.score || 0);
-      if (scoreDelta !== 0) return scoreDelta;
-      return `${a.candidateId}:${a.layout}`.localeCompare(`${b.candidateId}:${b.layout}`);
-    });
+    this.sortCandidates(scoredCandidates);
 
-    const winner = scoredCandidates.find((c) => !c.disqualified);
+    const assessment = assessRepresentationDecision(scoredCandidates);
+    const winner = assessment.winner;
     if (!winner) {
       throw new NoFeasibleRepresentationError(hardTraces, scoredCandidates);
     }
+
+    const weightSensitivity = analyzeWinnerSensitivity(
+      candidateKey(winner),
+      this.fitnessModel.weights,
+      (weights) => this.rankWinnerUnderWeights(signature, reqs, scoredCandidates, weights),
+      0.1
+    );
+
     const candidateDef = MONETA_REPRESENTATION_CANDIDATES[winner.candidateId];
+    const explanation =
+      `${assessment.status}: Moneta ranks ${candidateDef.name} (${winner.layout}) ` +
+      `at utility ${winner.score.toFixed(3)}. ${assessment.rationale} ` +
+      `Under ±10% single-weight perturbations, the winner changes in ` +
+      `${(weightSensitivity.winnerChangeRate * 100).toFixed(1)}% of scenarios. ` +
+      `Preserves: [${candidateDef.preserves.join(', ')}]. ` +
+      `Declared losses: [${candidateDef.loses.join(', ')}].`;
 
-    const explanation = `Moneta selected ${candidateDef.name} (${winner.layout}) with score ${winner.score.toFixed(3)}. Preserves: [${candidateDef.preserves.join(', ')}]. Declared losses: [${candidateDef.loses.join(', ')}].`;
-
-    const primaryGeometry: VRGeometry =
-      winner.layout === 'GEO_SURFACE'
-        ? 'GEO_COLUMN'
-        : winner.layout === 'TIME_RIBBON'
-          ? 'BEAM'
-          : winner.layout === 'SPECTRAL_VOLUME'
-            ? 'SPECTRAL_BAR'
-            : winner.layout === 'RADIAL_ORBITAL'
-              ? 'CONICAL_TREE'
-              : winner.layout === 'FORCE_DIRECTED_3D'
-                ? 'ICOSA_NODE'
-                : 'CUBE_MATRIX';
-
+    const primaryGeometry = geometryForLayout(winner.layout);
     const primaryBehavior: VRBehavior =
       winner.layout === 'TIME_RIBBON'
         ? 'PULSE_QUANTITATIVE'
         : winner.layout === 'RADIAL_ORBITAL'
           ? 'ORBITAL_SPIN'
           : 'STATIC';
-
     const primaryInteraction: VRInteraction =
       winner.layout === 'TIME_RIBBON'
         ? 'HARVEST_STREAM'
@@ -240,6 +261,18 @@ export class MonetaHypothesisEngine {
         supports: true,
         source: 'kernel',
       },
+      {
+        fact: `Fitness model: ${this.fitnessModel.version}`,
+        weight: 0,
+        supports: true,
+        source: 'moneta-config',
+      },
+      {
+        fact: `Weight sensitivity: ${(weightSensitivity.winnerChangeRate * 100).toFixed(1)}% winner changes across ${weightSensitivity.scenarioCount} scenarios`,
+        weight: 0,
+        supports: true,
+        source: 'moneta-sensitivity',
+      },
     ];
 
     if (signature.spectralStructure?.hasPeriodicity) {
@@ -253,29 +286,28 @@ export class MonetaHypothesisEngine {
 
     const seenFamilies = new Set<string>([winner.family]);
     const rejectedAlternatives: RejectedAlternative[] = [];
-    for (const c of scoredCandidates) {
-      if (!seenFamilies.has(c.family)) {
-        seenFamilies.add(c.family);
+    for (const candidate of scoredCandidates) {
+      if (!seenFamilies.has(candidate.family)) {
+        seenFamilies.add(candidate.family);
         rejectedAlternatives.push({
-          family: c.family,
-          score: c.score,
+          family: candidate.family,
+          score: candidate.score,
           reason:
-            c.disqualificationReason ??
-            `Suboptimal information utility score (${c.score.toFixed(3)})`,
-          hardPassed: !c.disqualified,
+            candidate.disqualificationReason ??
+            `Lower bootstrap utility (${candidate.score.toFixed(3)})`,
+          hardPassed: !candidate.disqualified,
         });
       }
     }
 
-    // The pure selection has no wall-clock dependency. Atlas records event time
-    // separately when it appends the decision to the Investigation.
     const now = 0;
     const provenance: DecisionProvenance = {
       generatedAt: now,
       engine: 'MonetaHypothesisEngine',
-      version: '1.0.0',
+      version: '2.1.0-v3-bootstrap',
       datasetFingerprint: signature.provenance.datasetFingerprint,
       requirementsHash,
+      fitnessModelVersion: this.fitnessModel.version,
     };
 
     return {
@@ -283,7 +315,6 @@ export class MonetaHypothesisEngine {
       chosenCandidateId: winner.candidateId,
       chosenFamily: winner.family,
       chosenLayout: winner.layout,
-      confidenceScore: Math.min(1.0, Math.max(0.1, winner.score)),
       explanation,
       rulesEvaluated: hardTraces,
       rankedCandidates: scoredCandidates,
@@ -292,11 +323,14 @@ export class MonetaHypothesisEngine {
       datasetFingerprint: signature.provenance.datasetFingerprint,
       kernelVersion: signature.provenance.kernelVersion,
       decisionTimestamp: now,
-
-      // Compatibility
       representationFamily: winner.family,
-      confidence: Math.min(1.0, Math.max(0.1, winner.score)),
       utilityScore: winner.score,
+      decisionStatus: assessment.status,
+      runnerUp: assessment.runnerUp,
+      decisionMargin: assessment.margin,
+      decisionRationale: assessment.rationale,
+      fitnessModelVersion: this.fitnessModel.version,
+      weightSensitivity,
       embodiment,
       evidence,
       rejectedAlternatives,
@@ -316,10 +350,8 @@ export class MonetaHypothesisEngine {
       layout: VRLayout;
     }> = [];
     for (const family of ALL_REPRESENTATION_FAMILIES) {
-      const layouts = FAMILY_TO_LAYOUTS[family];
-      const candidateIds = FAMILY_TO_CANDIDATE_IDS[family];
-      for (const layout of layouts) {
-        for (const candidateId of candidateIds) {
+      for (const layout of FAMILY_TO_LAYOUTS[family]) {
+        for (const candidateId of FAMILY_TO_CANDIDATE_IDS[family]) {
           results.push({ family, candidateId, layout });
         }
       }
@@ -334,6 +366,37 @@ export class MonetaHypothesisEngine {
     return 'MASSIVE';
   }
 
+  private sortCandidates(candidates: CandidateScore[]): void {
+    candidates.sort((a, b) => {
+      const scoreDelta = b.score - a.score;
+      if (scoreDelta !== 0) return scoreDelta;
+      return candidateKey(a).localeCompare(candidateKey(b));
+    });
+  }
+
+  private rankWinnerUnderWeights(
+    signature: DatasetSignature,
+    reqs: RepresentationRequirements,
+    baselineCandidates: CandidateScore[],
+    weights: BootstrapFitnessWeights
+  ): string | null {
+    const model = new BootstrapFitnessModel(weights);
+    const rescored = baselineCandidates
+      .filter((candidate) => !candidate.disqualified)
+      .map((candidate) =>
+        this.scoreCandidateWithModel(
+          model,
+          signature,
+          reqs,
+          MONETA_REPRESENTATION_CANDIDATES[candidate.candidateId],
+          candidate.family,
+          candidate.layout
+        )
+      );
+    this.sortCandidates(rescored);
+    return rescored[0] ? candidateKey(rescored[0]) : null;
+  }
+
   private checkHardConstraints(
     signature: DatasetSignature,
     reqs: RepresentationRequirements,
@@ -341,15 +404,16 @@ export class MonetaHypothesisEngine {
     layout: VRLayout
   ): { passed: boolean; reason: string } {
     const top = signature.topologicalStructure.topology;
-
     const rowCount = signature.cardinality.rowCount;
     const hardware = reqs.hardwareConstraints;
+
     if (hardware.maxElements !== undefined && rowCount > hardware.maxElements) {
       return {
         passed: false,
         reason: `Dataset has ${rowCount} rows but hardware allows at most ${hardware.maxElements} elements`,
       };
     }
+
     const hasCriticalGoal = (information: import('./RepresentationCandidate.ts').InformationType) =>
       reqs.preservationGoals.some(
         (goal) => goal.information === information && goal.priority === 'CRITICAL'
@@ -360,6 +424,7 @@ export class MonetaHypothesisEngine {
       reqs.requiredStructures.some(
         (requirement) => requirement.type === structure && requirement.importance >= 0.5
       );
+
     for (const goal of reqs.preservationGoals) {
       if (goal.priority === 'CRITICAL' && candidate.loses.includes(goal.information)) {
         return {
@@ -368,6 +433,7 @@ export class MonetaHypothesisEngine {
         };
       }
     }
+
     if (
       candidate.loses.includes('individual-observation-identity') &&
       !reqs.acceptableLoss.allowIdentityLoss &&
@@ -430,33 +496,55 @@ export class MonetaHypothesisEngine {
     if (layout === 'SPECTRAL_VOLUME' && !signature.spectralStructure?.hasPeriodicity) {
       return {
         passed: false,
-        reason:
-          'SpectralVolume layout requires detectable harmonic frequency structure (no spectral structure present)',
+        reason: 'SpectralVolume layout requires detectable harmonic frequency structure',
       };
     }
 
-    for (const c of candidate.constraints) {
+    for (const constraint of candidate.constraints) {
       if (
-        c.requiresTemporal &&
+        constraint.requiresTemporal &&
         !signature.temporalStructure.isTimeSeries &&
         top !== 'TIME_SERIES'
       ) {
-        return { passed: false, reason: c.description };
+        return { passed: false, reason: constraint.description };
       }
-      if (c.requiresGraph && signature.cardinality.edgeCount === 0 && top !== 'GRAPH') {
-        return { passed: false, reason: c.description };
+      if (constraint.requiresGraph && signature.cardinality.edgeCount === 0 && top !== 'GRAPH') {
+        return { passed: false, reason: constraint.description };
       }
-      if (c.requiresHierarchy && top !== 'HIERARCHY' && signature.cardinality.depth <= 1) {
-        return { passed: false, reason: c.description };
+      if (
+        constraint.requiresHierarchy &&
+        top !== 'HIERARCHY' &&
+        signature.cardinality.depth <= 1
+      ) {
+        return { passed: false, reason: constraint.description };
       }
-      if (c.requiresGeospatial && !signature.spatialStructure.isGeospatial && top !== 'GEO') {
-        return { passed: false, reason: c.description };
+      if (
+        constraint.requiresGeospatial &&
+        !signature.spatialStructure.isGeospatial &&
+        top !== 'GEO'
+      ) {
+        return { passed: false, reason: constraint.description };
       }
-      if (c.minDimensions && signature.schema.numericCount < c.minDimensions) {
-        return { passed: false, reason: `Requires at least ${c.minDimensions} numeric dimensions` };
+      if (constraint.minDimensions && signature.schema.numericCount < constraint.minDimensions) {
+        return {
+          passed: false,
+          reason: `Requires at least ${constraint.minDimensions} numeric dimensions`,
+        };
+      }
+      if (constraint.maxDimensions && signature.schema.numericCount > constraint.maxDimensions) {
+        return {
+          passed: false,
+          reason: `Supports at most ${constraint.maxDimensions} numeric dimensions`,
+        };
       }
     }
 
+    if (rowCount < candidate.scaleCharacteristics.minN) {
+      return {
+        passed: false,
+        reason: `Candidate requires at least ${candidate.scaleCharacteristics.minN} rows, received ${rowCount}`,
+      };
+    }
     if (rowCount > candidate.scaleCharacteristics.maxN) {
       return {
         passed: false,
@@ -498,8 +586,10 @@ export class MonetaHypothesisEngine {
       datumEncoding: { geometry, mappings: {}, behavior },
       interactionStrategy: { primaryInteraction: interaction, supportedGestures: [], detailLens },
       score: winner.score,
-      confidence: Math.min(1, Math.max(0, winner.score)),
-      rationale: `Selected ${winner.candidateId} directly from the Moneta ranking.`,
+      // SpatialStrategy retains this compatibility field until that contract is
+      // migrated; it is utility, not calibrated confidence.
+      confidence: winner.score,
+      rationale: `Selected ${winner.candidateId} from ${this.fitnessModel.version} ranking.`,
       rejectionLog: candidates
         .filter((candidate) => candidate !== winner)
         .map((candidate) => ({
@@ -512,160 +602,35 @@ export class MonetaHypothesisEngine {
       provenance: {
         generatedAt: 0,
         engine: 'MonetaHypothesisEngine',
-        version: '1.0.0',
+        version: '2.1.0-v3-bootstrap',
         datasetFingerprint,
         requirementsHash,
       },
     };
   }
 
-  private scoreCandidate(
+  private scoreCandidateWithModel(
+    model: BootstrapFitnessModel,
     signature: DatasetSignature,
     reqs: RepresentationRequirements,
     candidate: import('./RepresentationCandidate.ts').RepresentationCandidate,
     family: RepresentationFamily,
     layout: VRLayout
   ): CandidateScore {
-    const components: ScoreComponent[] = [];
-    const top = signature.topologicalStructure.topology;
-
-    let structScore = 0.4;
-    if (family === 'GRAPH' && (signature.cardinality.edgeCount > 0 || top === 'GRAPH'))
-      structScore = 0.98;
-    else if (family === 'HIERARCHICAL' && (top === 'HIERARCHY' || signature.cardinality.depth > 1))
-      structScore = 0.98;
-    else if (
-      family === 'TEMPORAL' &&
-      (signature.temporalStructure.isTimeSeries || top === 'TIME_SERIES')
-    )
-      structScore = 0.95;
-    else if (
-      family === 'FIELD' &&
-      (signature.spatialStructure.isGeospatial || top === 'VECTOR_FIELD' || top === 'GEO')
-    )
-      structScore = 0.96;
-    else if (family === 'FREQUENCY' && signature.spectralStructure?.hasPeriodicity)
-      structScore = 0.99;
-    else if (
-      family === 'CLUSTER' &&
-      (signature.clusterStructure.hasClusters ||
-        signature.clusterStructure.estimatedCount > 1 ||
-        reqs.task === 'compare-clusters')
-    )
-      structScore = 0.92;
-    else if (
-      family === 'DISTRIBUTION' &&
-      (signature.distribution.highVariance ||
-        signature.distribution.hasOutliers ||
-        signature.distribution.anomalyCount > 0 ||
-        signature.cardinality.rowCount > 300 ||
-        reqs.task === 'identify-outliers' ||
-        reqs.task === 'distribution-analysis')
-    )
-      structScore = 0.9;
-    else if (family === 'POINT')
-      structScore =
-        top === 'TABULAR' &&
-        signature.clusterStructure.estimatedCount <= 1 &&
-        !signature.distribution.hasOutliers &&
-        !signature.temporalStructure.isTimeSeries
-          ? 0.85
-          : 0.4;
-
-    components.push({
-      component: 'structure_match',
-      weight: this.weights.w_struct,
-      rawScore: structScore,
-      weightedScore: structScore * this.weights.w_struct,
-      reason: `Matches dataset structure (${top})`,
-    });
-
-    let taskScore = 0.5;
-    for (const req of reqs.requiredStructures) {
-      if (req.type === 'cluster-separation' && candidate.preserves.includes('cluster-separation'))
-        taskScore += 0.25 * req.importance;
-      if (req.type === 'temporal-order' && candidate.preserves.includes('chronological-order'))
-        taskScore += 0.3 * req.importance;
-      if (req.type === 'hierarchy' && candidate.preserves.includes('hierarchical-parent-child'))
-        taskScore += 0.3 * req.importance;
-      if (
-        req.type === 'anomaly-visibility' &&
-        candidate.preserves.includes('outlier-boundary-visibility')
-      )
-        taskScore += 0.25 * req.importance;
-      if (
-        req.type === 'observation-identity' &&
-        candidate.preserves.includes('individual-observation-identity')
-      )
-        taskScore += 0.25 * req.importance;
-    }
-    taskScore = Math.min(1.0, taskScore);
-
-    components.push({
-      component: 'task_alignment',
-      weight: this.weights.w_task,
-      rawScore: taskScore,
-      weightedScore: taskScore * this.weights.w_task,
-      reason: `Aligned with task: ${reqs.task}`,
-    });
-
-    const N = signature.cardinality.rowCount;
-    let scaleScore = candidate.scaleCharacteristics.scalabilityRating;
-    if (
-      N >= candidate.scaleCharacteristics.optimalN[0] &&
-      N <= candidate.scaleCharacteristics.optimalN[1]
-    ) {
-      scaleScore = 1.0;
-    } else if (N > candidate.scaleCharacteristics.maxN) {
-      scaleScore = 0.2;
-    }
-
-    components.push({
-      component: 'scale_suitability',
-      weight: this.weights.w_scale,
-      rawScore: scaleScore,
-      weightedScore: scaleScore * this.weights.w_scale,
-      reason: `Dataset size N=${N} evaluated against candidate optimal range`,
-    });
-
-    let lossPenalty = 0.0;
-    for (const goal of reqs.preservationGoals) {
-      if (goal.priority === 'CRITICAL' && candidate.loses.includes(goal.information)) {
-        lossPenalty += 0.4;
-      } else if (goal.priority === 'DESIRED' && candidate.loses.includes(goal.information)) {
-        lossPenalty += 0.2;
-      }
-    }
-    const lossScore = Math.max(0.0, 1.0 - lossPenalty);
-
-    components.push({
-      component: 'information_preservation',
-      weight: this.weights.w_loss,
-      rawScore: lossScore,
-      weightedScore: lossScore * this.weights.w_loss,
-      reason: `Preserves critical task information`,
-    });
-
-    let priorScore = 0.5;
-    if (signature.preferredFamilies?.includes(family)) {
-      priorScore = 1.0;
-    }
-
-    components.push({
-      component: 'empirical_prior',
-      weight: this.weights.w_prior,
-      rawScore: priorScore,
-      weightedScore: priorScore * this.weights.w_prior,
-      reason: 'User preference and empirical utility prior',
-    });
-
-    const totalScore = components.reduce((sum, c) => sum + c.weightedScore, 0);
+    const evaluation = model.evaluate(signature, reqs, candidate, family);
+    const components: ScoreComponent[] = evaluation.components.map((component) => ({
+      component: component.dimension,
+      weight: component.weight,
+      rawScore: component.rawScore,
+      weightedScore: component.weightedScore,
+      reason: component.rationale,
+    }));
 
     return {
       family,
       candidateId: candidate.id,
       layout,
-      score: totalScore,
+      score: evaluation.utilityScore,
       components,
       preserves: candidate.preserves,
       loses: candidate.loses,

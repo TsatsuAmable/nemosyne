@@ -5,5 +5,8 @@ export * from './RepresentationDecision.ts';
 export * from './NoFeasibleRepresentationError.ts';
 export * from './RepresentationRequirements.ts';
 export * from './SignatureBuilder.ts';
+export * from './FitnessModel.ts';
+export * from './DecisionPolicy.ts';
+export * from './SensitivityAnalysis.ts';
 export * from './MonetaHypothesisEngine.ts';
 export { MonetaHypothesisEngine as RepresentationHypothesisEngine } from './MonetaHypothesisEngine.ts';

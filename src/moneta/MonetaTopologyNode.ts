@@ -3,7 +3,14 @@ import { ConstraintEngine } from './ConstraintEngine.ts';
 import { VRTopologyTranslator } from './VRTopologyTranslator.ts';
 import { MeshPool } from '../utils/ObjectPool.ts';
 import { solveMoneta, solveDraco } from '../wasm/RuntimeBridge.ts';
-import type { Artifact, MonetaDataInput, MonetaSpec, FactProvider, SolverResult, VRTranslatorOptions } from './types.ts';
+import type {
+  Artifact,
+  MonetaDataInput,
+  MonetaSpec,
+  FactProvider,
+  SolverResult,
+  VRTranslatorOptions,
+} from './types.ts';
 import type { RepresentationDecision } from './representation/RepresentationDecision.ts';
 
 export class MonetaTopologyNode {
@@ -58,7 +65,9 @@ export class MonetaTopologyNode {
     if (this.representationDecision) {
       const facts = this.engine.factProvider?.facts(this.dataInput);
       if (!facts) {
-        throw new Error('MonetaTopologyNode: no facts provided (supply a FactProvider to use representationDecision)');
+        throw new Error(
+          'MonetaTopologyNode: no facts provided (supply a FactProvider to use representationDecision)'
+        );
       }
       const emb = this.representationDecision.embodiment;
       this.solverResult = {
@@ -69,7 +78,9 @@ export class MonetaTopologyNode {
           behavior: emb?.primaryBehavior ?? 'STATIC',
           interaction: emb?.primaryInteraction ?? 'INSPECT_CELL',
         },
-        cost: this.representationDecision.utilityScore ?? (1.0 - (this.representationDecision.confidenceScore ?? 0.8)),
+        // SolverResult still calls this value "cost" for historical reasons.
+        // Do not derive it from confidence: Moneta V3 exposes explicit utility.
+        cost: this.representationDecision.utilityScore,
       };
     } else {
       this.solverResult = this.useRustSolver ? this.solveWithRust() : this.engine.solve(this.dataInput);
@@ -93,7 +104,9 @@ export class MonetaTopologyNode {
   private solveWithRust(): SolverResult {
     const facts = this.engine.factProvider?.facts(this.dataInput) ?? null;
     if (!facts) {
-      throw new Error('MonetaTopologyNode: no facts provided (supply a FactProvider to use the Rust solver)');
+      throw new Error(
+        'MonetaTopologyNode: no facts provided (supply a FactProvider to use the Rust solver)'
+      );
     }
     const solverFn = solveDraco || solveMoneta;
     const rust = solverFn(facts as unknown as Record<string, unknown>);
@@ -109,7 +122,10 @@ export class MonetaTopologyNode {
   }
 
   update(delta: number, time: number): void {
-    if (this.artifact && (this.artifact as unknown as { update?: (d: number, t: number) => void }).update) {
+    if (
+      this.artifact &&
+      (this.artifact as unknown as { update?: (d: number, t: number) => void }).update
+    ) {
       (this.artifact as unknown as { update: (d: number, t: number) => void }).update(delta, time);
     }
     if (this.artifact?.behaviors) {

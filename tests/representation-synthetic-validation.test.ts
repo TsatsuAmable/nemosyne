@@ -16,7 +16,7 @@ describe('Phase 8: Synthetic Dataset Validation Suite', () => {
       );
 
       expect(decision.representationFamily).toBe(fixture.expectedFamily);
-      expect(decision.confidence).toBeGreaterThanOrEqual(fixture.minConfidence);
+      expect(decision.utilityScore).toBeGreaterThanOrEqual(fixture.minConfidence);
       expect(decision.evidence.length).toBeGreaterThan(0);
       expect(decision.rejectedAlternatives.length).toBeGreaterThan(0);
 

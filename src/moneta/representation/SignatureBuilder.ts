@@ -121,7 +121,9 @@ export function buildDatasetSignature(
   let idCount = 0;
 
   for (const col of dataset.columns ?? []) {
-    const nameLower = col.name.toLowerCase();
+    // Column names are optional in several legacy/test fixtures. Treat an absent
+    // name as semantically unknown rather than failing signature construction.
+    const nameLower = String(col.name ?? '').toLowerCase();
     const typeStr = String(col.type).toUpperCase();
     if (typeStr === 'NUMERIC') {
       if (nameLower === 'lat' || nameLower === 'latitude' || nameLower === 'lon' || nameLower === 'longitude') {

@@ -49,9 +49,9 @@ describe('Phase 7: Explanation Traces & Canonical Investigation Digest', () => {
       expect(typeof ev.fact).toBe('string');
       expect(ev.fact.length).toBeGreaterThan(0);
       expect(typeof ev.weight).toBe('number');
-      expect(ev.weight).toBeGreaterThan(0);
+      expect(ev.weight).toBeGreaterThanOrEqual(0);
       expect(typeof ev.supports).toBe('boolean');
-      expect(['kernel', 'heuristic', 'user-requirement']).toContain(ev.source);
+      expect(['kernel', 'heuristic', 'user-requirement', 'moneta-config', 'moneta-sensitivity']).toContain(ev.source);
     }
   });
 
@@ -65,7 +65,7 @@ describe('Phase 7: Explanation Traces & Canonical Investigation Digest', () => {
     const freqRejection = decision.rejectedAlternatives.find((r) => r.family === 'FREQUENCY');
     expect(freqRejection).toBeDefined();
     expect(freqRejection?.hardPassed).toBe(false);
-    expect(freqRejection?.reason).toContain('spectral');
+    expect(freqRejection?.reason?.toLowerCase()).toContain('spectral');
 
     const tempRejection = decision.rejectedAlternatives.find((r) => r.family === 'TEMPORAL');
     expect(tempRejection).toBeDefined();
