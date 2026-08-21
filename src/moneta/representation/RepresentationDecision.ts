@@ -4,6 +4,7 @@ import type { SemanticRepresentationId, InformationType } from './Representation
 import type { SpatialStrategy } from '../SpatialStrategy.ts';
 import type { DatasetSignature } from './DatasetSignature.ts';
 import type { RepresentationDecisionStatus } from './DecisionPolicy.ts';
+import type { WeightSensitivityResult } from './SensitivityAnalysis.ts';
 
 export interface ScoreComponent {
   component: string;
@@ -83,6 +84,7 @@ export interface RepresentationDecision {
   decisionMargin?: number | null;
   decisionRationale?: string;
   fitnessModelVersion?: string;
+  weightSensitivity?: WeightSensitivityResult;
 
   /** @deprecated Uncalibrated utility must not be described as confidence. */
   confidenceScore?: number;
