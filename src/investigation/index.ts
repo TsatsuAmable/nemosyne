@@ -8,3 +8,5 @@ export {
   canonicalJsonStringify,
   type CanonicalInvestigationInput,
 } from './InvestigationDigest.ts';
+export * from './DiscoveryEpisode.ts';
+export * from './DiscoveryEpisodeStore.ts';
