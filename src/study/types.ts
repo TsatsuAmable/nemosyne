@@ -17,6 +17,14 @@ export type TrialPhase =
   | 'survey'
   | 'completed';
 
+export interface StudyRuntimeVersions {
+  kernelVersion: string | null;
+  monetaEngineVersion: string;
+  fitnessModelVersion: string;
+  representationOntologyVersion: string;
+  nilVersion: string;
+}
+
 export interface GroundTruthSpec {
   targetNodeIds: (string | number)[];
   expectedClusterLabel?: string;
@@ -60,22 +68,27 @@ export interface TrialMetrics {
   durationMs: number;
   selectedNodeIds: (string | number)[];
   groundTruthNodeIds: (string | number)[];
-  accuracy: number; // 1.0 if exact match, 0.0 otherwise (or proportion)
-  precision: number; // TP / (TP + FP)
-  recall: number; // TP / (TP + FN)
-  f1Score: number; // 2 * (P * R) / (P + R)
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1Score: number;
   interactionCount: number;
   navigationDistanceMeters: number;
-  confidenceRating?: number; // 1 to 7 Likert scale
-  workloadScore?: number; // 1 to 100 NASA-TLX or raw workload rating
+  confidenceRating?: number;
+  workloadScore?: number;
   completed: boolean;
   exclusions: string[];
+  /** Present on V3 controlled ExperimentRunner output; absent on historical/pre-freeze records. */
+  studyConfigHash?: string;
+  /** Present on V3 controlled ExperimentRunner output; absent on historical/pre-freeze records. */
+  runtimeVersions?: StudyRuntimeVersions;
 }
 
 export interface StudySessionExport {
   studyName: string;
   protocolVersion: string;
   configHash: string;
+  runtimeVersions: StudyRuntimeVersions;
   participantId: string;
   conditionOrder: StudyCondition[];
   sessionStartTime: number;

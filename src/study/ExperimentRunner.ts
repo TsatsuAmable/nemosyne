@@ -2,8 +2,8 @@
  * ExperimentRunner for Nemosyne Atlas 6 Controlled Empirical Studies.
  *
  * Drives the trial lifecycle state machine, real-time telemetry metrics,
- * ground-truth scoring (accuracy, precision, recall, F1), and cryptographically
- * verified session exports.
+ * ground-truth scoring (accuracy, precision, recall, F1), and reproducible
+ * session exports pinned to an explicit study/runtime freeze manifest.
  */
 
 import { Counterbalancer } from './Counterbalancer.ts';
@@ -11,9 +11,16 @@ import {
   FROZEN_STUDY_NAME,
   FROZEN_PROTOCOL_VERSION,
   FROZEN_CONFIG_HASH,
+  FROZEN_STUDY_MANIFEST,
   FROZEN_STUDY_TASKS,
   FROZEN_STUDY_CONDITIONS,
 } from './FrozenStudyConfig.ts';
+import {
+  StudyFreezeGuard,
+  hashStudyFreezeManifest,
+  type StudyFreezeManifest,
+  type StudyRuntimeVersionsProvider,
+} from './StudyFreezeManifest.ts';
 import type {
   StudyCondition,
   TrialPhase,
@@ -23,6 +30,12 @@ import type {
   TrialMetrics,
   StudySessionExport,
 } from './types.ts';
+
+export interface ExperimentRunnerOptions {
+  runtimeVersionsProvider?: StudyRuntimeVersionsProvider;
+  /** Explicit opt-in for pilots/method-development runs that differ from the frozen task/condition manifest. */
+  allowProtocolVariation?: boolean;
+}
 
 export class ExperimentRunner {
   private _counterbalancer: Counterbalancer;
@@ -43,13 +56,43 @@ export class ExperimentRunner {
 
   private _completedTrials: TrialMetrics[] = [];
   private _events: TrialEvent[] = [];
+  private readonly _studyManifest: StudyFreezeManifest;
+  private readonly _freezeGuard: StudyFreezeGuard;
 
   constructor(
     conditions: StudyCondition[] = FROZEN_STUDY_CONDITIONS,
-    tasks: TaskSpec[] = FROZEN_STUDY_TASKS
+    tasks: TaskSpec[] = FROZEN_STUDY_TASKS,
+    options: ExperimentRunnerOptions = {},
   ) {
     this._counterbalancer = new Counterbalancer(conditions);
-    this._tasks = [...tasks];
+    this._tasks = structuredClone(tasks);
+
+    const runtimeVersions = options.runtimeVersionsProvider?.() ?? FROZEN_STUDY_MANIFEST.runtimeVersions;
+    this._studyManifest = {
+      ...structuredClone(FROZEN_STUDY_MANIFEST),
+      conditions: [...conditions],
+      tasks: structuredClone(tasks),
+      runtimeVersions: structuredClone(runtimeVersions),
+    };
+
+    const effectiveHash = hashStudyFreezeManifest(this._studyManifest);
+    const protocolVaries = effectiveHash !== FROZEN_CONFIG_HASH;
+    const runtimeOnlyVariation =
+      hashStudyFreezeManifest({
+        ...this._studyManifest,
+        runtimeVersions: FROZEN_STUDY_MANIFEST.runtimeVersions,
+      }) === FROZEN_CONFIG_HASH;
+
+    if (protocolVaries && !runtimeOnlyVariation && !options.allowProtocolVariation) {
+      throw new Error(
+        'Study protocol variation requires allowProtocolVariation=true; conditions/tasks differ from the declared frozen manifest',
+      );
+    }
+
+    this._freezeGuard = new StudyFreezeGuard(
+      this._studyManifest,
+      options.runtimeVersionsProvider ?? (() => structuredClone(this._studyManifest.runtimeVersions)),
+    );
   }
 
   get currentPhase(): TrialPhase {
@@ -74,7 +117,11 @@ export class ExperimentRunner {
   }
 
   get completedTrials(): TrialMetrics[] {
-    return [...this._completedTrials];
+    return structuredClone(this._completedTrials);
+  }
+
+  get freezeSnapshot() {
+    return this._freezeGuard.snapshot;
   }
 
   get isSessionCompleted(): boolean {
@@ -83,16 +130,19 @@ export class ExperimentRunner {
     return this._completedTrials.length >= totalExpected && this._currentPhase === 'completed';
   }
 
-  /**
-   * Initializes a participant session with counterbalanced condition assignment.
-   */
+  /** Initializes a participant session with counterbalanced condition assignment. */
   startParticipantSession(participantId: string, orderOverride?: StudyCondition[]): ParticipantAssignment {
+    this._assertStudyFreeze();
     const sanitizedId = String(participantId || '').trim();
     if (!/^[a-zA-Z0-9_-]{1,64}$/.test(sanitizedId)) {
       throw new Error(`Invalid participantId: "${participantId}". Must be 1-64 alphanumeric, dash, or underscore characters.`);
     }
 
     if (orderOverride && orderOverride.length > 0) {
+      const allowed = new Set(this._studyManifest.conditions);
+      if (orderOverride.some((condition) => !allowed.has(condition))) {
+        throw new Error('orderOverride contains a condition outside the study manifest');
+      }
       this._assignment = {
         participantId: sanitizedId,
         order: [...orderOverride],
@@ -110,14 +160,18 @@ export class ExperimentRunner {
     this._events = [];
     this._currentPhase = 'idle';
 
-    this._logEvent('phase_change', { phase: 'idle', participantId });
+    this._logEvent('phase_change', {
+      phase: 'idle',
+      participantId: sanitizedId,
+      studyConfigHash: this.freezeSnapshot.configHash,
+      runtimeVersions: this.freezeSnapshot.runtimeVersions,
+    });
     return this._assignment;
   }
 
-  /**
-   * Starts the next trial in the counterbalanced sequence (Instruction phase).
-   */
+  /** Starts the next trial in the counterbalanced sequence (Instruction phase). */
   startNextTrial(): { condition: StudyCondition; task: TaskSpec; phase: TrialPhase } {
+    this._assertStudyFreeze();
     if (!this._assignment) {
       throw new Error('Participant session not initialized. Call startParticipantSession first.');
     }
@@ -137,15 +191,15 @@ export class ExperimentRunner {
       condition,
       taskId: task.id,
       trialStartTime: this._trialStartTime,
+      studyConfigHash: this.freezeSnapshot.configHash,
     });
 
     return { condition, task, phase: this._currentPhase };
   }
 
-  /**
-   * Transitions trial from instructions to active exploration.
-   */
+  /** Transitions trial from instructions to active exploration. */
   beginExploration(): void {
+    this._assertStudyFreeze();
     if (this._currentPhase !== 'instruction') {
       throw new Error(`Cannot transition to exploration from phase: ${this._currentPhase}`);
     }
@@ -153,9 +207,7 @@ export class ExperimentRunner {
     this._logEvent('phase_change', { phase: 'exploration' });
   }
 
-  /**
-   * Records selection of a node by the participant.
-   */
+  /** Records selection of a node by the participant. */
   selectNode(nodeId: string | number): void {
     if (this._currentPhase !== 'exploration' && this._currentPhase !== 'selection') {
       throw new Error(`Cannot select node in phase: ${this._currentPhase}`);
@@ -166,9 +218,7 @@ export class ExperimentRunner {
     this._logEvent('node_select', { nodeId, totalSelected: this._selectedNodeIds.size });
   }
 
-  /**
-   * Deselects a previously selected node.
-   */
+  /** Deselects a previously selected node. */
   deselectNode(nodeId: string | number): void {
     if (this._currentPhase !== 'exploration' && this._currentPhase !== 'selection') {
       throw new Error(`Cannot deselect node in phase: ${this._currentPhase}`);
@@ -178,20 +228,14 @@ export class ExperimentRunner {
     this._logEvent('node_deselect', { nodeId, totalSelected: this._selectedNodeIds.size });
   }
 
-  /**
-   * Records a user interaction event (e.g. filter, warp, inspector hover).
-   */
+  /** Records a user interaction event (e.g. filter, warp, inspector hover). */
   recordInteraction(type: string, details?: Record<string, unknown>): void {
-    if (this._currentPhase !== 'exploration' && this._currentPhase !== 'selection') {
-      return;
-    }
+    if (this._currentPhase !== 'exploration' && this._currentPhase !== 'selection') return;
     this._interactionCount++;
     this._logEvent('interaction', { interactionType: type, ...details });
   }
 
-  /**
-   * Updates participant camera position and accumulates 3D physical navigation distance.
-   */
+  /** Updates participant camera position and accumulates 3D physical navigation distance. */
   updateCameraPosition(x: number, y: number, z: number): void {
     if (this._lastCameraPosition) {
       const [lx, ly, lz] = this._lastCameraPosition;
@@ -199,37 +243,30 @@ export class ExperimentRunner {
       const dy = y - ly;
       const dz = z - lz;
       const stepDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      // Filter out micro-jitter (<1mm) or teleport artifacts (>50m)
-      if (stepDist >= 0.001 && stepDist <= 50.0) {
-        this._navigationDistance += stepDist;
-      }
+      if (stepDist >= 0.001 && stepDist <= 50.0) this._navigationDistance += stepDist;
     }
     this._lastCameraPosition = [x, y, z];
   }
 
-  /**
-   * Submits the participant's selections for the current trial and transitions to survey.
-   */
+  /** Submits selections and transitions to survey. */
   submitTrialAnswers(): { trialId: string; selectedCount: number } {
+    this._assertStudyFreeze();
     if (this._currentPhase !== 'exploration' && this._currentPhase !== 'selection') {
       throw new Error(`Cannot submit trial answers in phase: ${this._currentPhase}`);
     }
 
     this._currentPhase = 'survey';
     this._logEvent('phase_change', { phase: 'survey', selected: Array.from(this._selectedNodeIds) });
-
     const trialId = `trial_${this.currentCondition}_${this.currentTask?.id}_${Date.now()}`;
     return { trialId, selectedCount: this._selectedNodeIds.size };
   }
 
-  /**
-   * Records post-task subjective ratings (confidence and workload) and finalizes the trial metrics.
-   */
+  /** Records subjective ratings and finalizes trial metrics. */
   finalizeTrial(confidenceRating?: number, workloadScore?: number): TrialMetrics {
+    this._assertStudyFreeze();
     if (this._currentPhase !== 'survey') {
       throw new Error(`Cannot finalize trial before survey phase (current: ${this._currentPhase})`);
     }
-
     if (confidenceRating !== undefined && (confidenceRating < 1 || confidenceRating > 7 || !Number.isFinite(confidenceRating))) {
       throw new Error(`Confidence rating out of range [1, 7]: ${confidenceRating}`);
     }
@@ -243,7 +280,6 @@ export class ExperimentRunner {
     const condition = this.currentCondition!;
     const selected = Array.from(this._selectedNodeIds);
     const groundTruth = task.groundTruth.targetNodeIds;
-
     const gtSet = new Set(groundTruth.map(String));
     const selSet = new Set(selected.map(String));
 
@@ -261,15 +297,11 @@ export class ExperimentRunner {
     const precision = tp + fp > 0 ? tp / (tp + fp) : 0;
     const recall = tp + fn > 0 ? tp / (tp + fn) : 0;
     const f1Score = precision + recall > 0 ? (2 * (precision * recall)) / (precision + recall) : 0;
-
-    // Accuracy: exact match = 1.0; otherwise partial Jaccard index
     const accuracy = tp === gtSet.size && fp === 0 ? 1.0 : tp / Math.max(1, gtSet.size + fp);
-
     const exclusions: string[] = [];
-    if (durationMs > task.maxDurationMs) {
-      exclusions.push('TIMEOUT_EXCEEDED');
-    }
+    if (durationMs > task.maxDurationMs) exclusions.push('TIMEOUT_EXCEEDED');
 
+    const freeze = this.freezeSnapshot;
     const metrics: TrialMetrics = {
       trialId: `trial_${condition}_${task.id}_${endTime}`,
       participantId: this._assignment!.participantId,
@@ -290,12 +322,13 @@ export class ExperimentRunner {
       workloadScore,
       completed: true,
       exclusions,
+      studyConfigHash: freeze.configHash,
+      runtimeVersions: freeze.runtimeVersions,
     };
 
     this._completedTrials.push(metrics);
     this._logEvent('survey_submit', { confidenceRating, workloadScore, metrics });
 
-    // Advance task and condition pointers
     this._currentTaskIndex++;
     if (this._currentTaskIndex >= this._tasks.length) {
       this._currentTaskIndex = 0;
@@ -310,27 +343,26 @@ export class ExperimentRunner {
       this._currentPhase = 'idle';
     }
 
-    return metrics;
+    return structuredClone(metrics);
   }
 
-  /**
-   * Exports the entire study session with complete trial metrics, events, and provenance hash.
-   */
+  /** Exports the session with the exact treatment/runtime freeze snapshot. */
   exportStudySession(): StudySessionExport {
-    if (!this._assignment) {
-      throw new Error('No study session to export');
-    }
+    this._assertStudyFreeze();
+    if (!this._assignment) throw new Error('No study session to export');
 
+    const freeze = this.freezeSnapshot;
     const payload = {
       studyName: FROZEN_STUDY_NAME,
       protocolVersion: FROZEN_PROTOCOL_VERSION,
-      configHash: FROZEN_CONFIG_HASH,
+      configHash: freeze.configHash,
+      runtimeVersions: freeze.runtimeVersions,
       participantId: this._assignment.participantId,
       conditionOrder: [...this._assignment.order],
       sessionStartTime: this._sessionStartTime,
       sessionEndTime: this._sessionEndTime || Date.now(),
-      trials: [...this._completedTrials],
-      events: [...this._events],
+      trials: structuredClone(this._completedTrials),
+      events: structuredClone(this._events),
     };
 
     let hash = 0x811c9dc5;
@@ -340,17 +372,14 @@ export class ExperimentRunner {
       hash = Math.imul(hash, 0x01000193) >>> 0;
     }
     const provenanceHash = `fnv1a-${(hash >>> 0).toString(16)}`;
-
-    return {
-      ...payload,
-      provenanceHash,
-    };
+    return { ...payload, provenanceHash };
   }
 
-  private _logEvent(
-    eventType: TrialEvent['eventType'],
-    payload?: Record<string, unknown>
-  ): void {
+  private _assertStudyFreeze(): void {
+    this._freezeGuard.assertCurrent(this._studyManifest);
+  }
+
+  private _logEvent(eventType: TrialEvent['eventType'], payload?: Record<string, unknown>): void {
     this._events.push({
       timestamp: Date.now(),
       phase: this._currentPhase,
