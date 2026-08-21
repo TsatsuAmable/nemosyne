@@ -61,6 +61,8 @@ export interface DecisionProvenance {
   datasetFingerprint: string;
   requirementsHash?: string;
   fitnessModelVersion?: string;
+  /** Exact immutable learned model artifact used for this decision, when applicable. */
+  fitnessModelArtifactHash?: string | null;
 }
 
 export interface RepresentationDecision {
@@ -84,6 +86,8 @@ export interface RepresentationDecision {
   decisionMargin?: number | null;
   decisionRationale?: string;
   fitnessModelVersion?: string;
+  /** Exact immutable learned model artifact used for this decision, when applicable. */
+  fitnessModelArtifactHash?: string | null;
   weightSensitivity?: WeightSensitivityResult;
 
   /** @deprecated Uncalibrated utility must not be described as confidence. */
