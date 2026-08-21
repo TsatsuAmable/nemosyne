@@ -8,6 +8,11 @@ export interface FitnessModelPromotionPolicy {
   requiredMetricName?: string;
   /** Maximum one-sided exact sign-test p-value for candidate wins across independent groups. */
   maximumGroupWinPValue?: number;
+  /**
+   * Minimum leave-one-group-out improvement floor. Defaults to
+   * minimumAbsoluteImprovement so promotion survives removal of any one group.
+   */
+  minimumRobustAbsoluteImprovement?: number;
 }
 
 export type FitnessModelPromotionRejectionReason =
@@ -19,11 +24,14 @@ export type FitnessModelPromotionRejectionReason =
   | 'CANDIDATE_DOES_NOT_BEAT_BOOTSTRAP'
   | 'IMPROVEMENT_BELOW_THRESHOLD'
   | 'MISSING_GROUP_WIN_EVIDENCE'
-  | 'GROUP_WIN_EVIDENCE_NOT_SIGNIFICANT';
+  | 'GROUP_WIN_EVIDENCE_NOT_SIGNIFICANT'
+  | 'MISSING_EFFECT_ROBUSTNESS_EVIDENCE'
+  | 'ROBUST_IMPROVEMENT_BELOW_THRESHOLD';
 
 export interface FitnessModelPromotionAssessment {
   eligible: boolean;
   absoluteImprovement: number;
+  robustImprovementFloor: number | null;
   reasons: readonly FitnessModelPromotionRejectionReason[];
 }
 
@@ -33,6 +41,8 @@ function assertPolicy(policy: FitnessModelPromotionPolicy): void {
   if (!Number.isFinite(policy.minimumAbsoluteImprovement) || policy.minimumAbsoluteImprovement < 0) throw new TypeError('minimumAbsoluteImprovement must be finite and non-negative');
   const maximumPValue = policy.maximumGroupWinPValue ?? 0.05;
   if (!Number.isFinite(maximumPValue) || maximumPValue <= 0 || maximumPValue > 1) throw new TypeError('maximumGroupWinPValue must be within (0, 1]');
+  const robustMinimum = policy.minimumRobustAbsoluteImprovement ?? policy.minimumAbsoluteImprovement;
+  if (!Number.isFinite(robustMinimum) || robustMinimum < 0) throw new TypeError('minimumRobustAbsoluteImprovement must be finite and non-negative');
 }
 
 function hasCompleteGroupWinEvidence(evaluation: FitnessModelArtifact['evaluation']): boolean {
@@ -51,9 +61,9 @@ function hasCompleteGroupWinEvidence(evaluation: FitnessModelArtifact['evaluatio
 
 /**
  * Pure eligibility check for learned model promotion. Passing this gate never
- * activates a model. By default promotion requires both a group-balanced mean
- * improvement and evidence that candidate wins are distributed across
- * independent holdout groups rather than concentrated in a few groups.
+ * activates a model. By default promotion requires a group-balanced mean gain,
+ * distributed wins across independent groups, and an effect that still clears
+ * the declared threshold after removal of any single holdout group.
  */
 export function assessFitnessModelPromotion(
   artifact: FitnessModelArtifact,
@@ -64,6 +74,7 @@ export function assessFitnessModelPromotion(
   const evaluation = artifact.evaluation;
   const requiredMetric = policy.requiredMetricName ?? GROUP_BALANCED_PAIRWISE_METRIC;
   const maximumPValue = policy.maximumGroupWinPValue ?? 0.05;
+  const robustMinimum = policy.minimumRobustAbsoluteImprovement ?? policy.minimumAbsoluteImprovement;
 
   if (artifact.modelKind !== 'pairwise-linear' && artifact.modelKind !== 'ranking-linear') reasons.push('UNSUPPORTED_MODEL_KIND');
   if (evaluation.metricName !== requiredMetric) reasons.push('METRIC_MISMATCH');
@@ -83,5 +94,17 @@ export function assessFitnessModelPromotion(
     reasons.push('GROUP_WIN_EVIDENCE_NOT_SIGNIFICANT');
   }
 
-  return { eligible: reasons.length === 0, absoluteImprovement: improvement, reasons };
+  const robustFloor = evaluation.leaveOneGroupOutImprovementFloor;
+  if (typeof robustFloor !== 'number' || !Number.isFinite(robustFloor)) {
+    reasons.push('MISSING_EFFECT_ROBUSTNESS_EVIDENCE');
+  } else if (robustFloor < robustMinimum) {
+    reasons.push('ROBUST_IMPROVEMENT_BELOW_THRESHOLD');
+  }
+
+  return {
+    eligible: reasons.length === 0,
+    absoluteImprovement: improvement,
+    robustImprovementFloor: typeof robustFloor === 'number' && Number.isFinite(robustFloor) ? robustFloor : null,
+    reasons,
+  };
 }
