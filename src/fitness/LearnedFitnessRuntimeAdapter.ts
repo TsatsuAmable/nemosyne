@@ -44,20 +44,24 @@ function dot(weights: readonly number[], features: readonly number[]): number {
   return weights.reduce((sum, weight, index) => sum + weight * features[index], 0);
 }
 
-/**
- * Opt-in learned post-bootstrap re-ranker.
- *
- * Hard feasibility and feature computation remain owned by Moneta bootstrap
- * logic. This adapter only re-ranks already-feasible candidates when the exact
- * registry-active artifact passes the declared promotion policy.
- */
-export function rankWithActiveLearnedFitnessModel(
+function rankActive(
   registry: FitnessModelRegistry,
   candidates: readonly CandidateScore[],
   policy: FitnessModelPromotionPolicy,
+  expectedArtifactHash?: string,
 ): LearnedFitnessRuntimeSelection {
   const active = registry.active;
   if (!active) throw new Error('No active learned FitnessModel artifact');
+
+  if (expectedArtifactHash !== undefined) {
+    const expected = expectedArtifactHash.trim();
+    if (!expected) throw new TypeError('Expected learned FitnessModel artifact hash must be non-empty');
+    if (active.artifactHash !== expected) {
+      throw new Error(
+        `Active FitnessModel artifact does not match pinned runtime artifact: expected ${expected}, received ${active.artifactHash}`,
+      );
+    }
+  }
 
   const assessment = assessFitnessModelPromotion(active.artifact, policy);
   if (!assessment.eligible) {
@@ -86,4 +90,31 @@ export function rankWithActiveLearnedFitnessModel(
     modelVersion: active.artifact.modelVersion,
     rankedCandidates: ranked,
   };
+}
+
+/**
+ * Opt-in learned post-bootstrap re-ranker using whichever artifact is currently
+ * active in the registry. Operator-controlled code may use this path, but
+ * reproducible study/session execution should prefer the pinned variant below.
+ */
+export function rankWithActiveLearnedFitnessModel(
+  registry: FitnessModelRegistry,
+  candidates: readonly CandidateScore[],
+  policy: FitnessModelPromotionPolicy,
+): LearnedFitnessRuntimeSelection {
+  return rankActive(registry, candidates, policy);
+}
+
+/**
+ * Re-ranks only when the registry-active artifact is exactly the artifact pinned
+ * by runtime/study provenance. A registry promotion or rollback therefore
+ * cannot silently change an already-pinned execution context.
+ */
+export function rankWithPinnedLearnedFitnessModel(
+  registry: FitnessModelRegistry,
+  candidates: readonly CandidateScore[],
+  policy: FitnessModelPromotionPolicy,
+  expectedArtifactHash: string,
+): LearnedFitnessRuntimeSelection {
+  return rankActive(registry, candidates, policy, expectedArtifactHash);
 }
