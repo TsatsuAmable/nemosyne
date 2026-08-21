@@ -72,7 +72,7 @@ export interface HardwareConstraint {
   maxDrawCalls?: number;
   targetFrameRate?: number;
   lowPowerMode?: boolean;
-  deviceTier?: 'quest2' | 'quest3' | 'questpro' | 'desktop' | string;
+  deviceTier?: 'quest2' | 'quest3' | 'questpro' | 'desktop';
   targetFps?: number;
   maxElements?: number;
   preferInstanced?: boolean;
@@ -100,7 +100,12 @@ export interface RepresentationRequirements {
   preservationGoals: PreservationGoal[];
   acceptableLoss: InformationLossBudget;
   scale: 'SMALL' | 'MEDIUM' | 'LARGE' | 'MASSIVE';
-  hardwareConstraints: HardwareConstraint & HardwareConstraint[];
+  /**
+   * A single, serialisable envelope. This used to be an array augmented with
+   * object properties, which caused JSON serialisation (and consequently
+   * decision hashes) to omit the effective hardware limits.
+   */
+  hardwareConstraints: HardwareConstraint;
   dimensionalityRequirements?: DimensionalityRequirement;
   progressiveDisclosure?: ProgressiveDisclosureRequirement;
   maxOcclusionTolerance: number;
@@ -135,21 +140,127 @@ export const PreservationGoalSchema = v.picklist([
   'outlier-isolation',
 ]);
 
-export const HardwareEnvelopeSchema = v.object({
+const FiniteNonNegative = v.pipe(v.number(), v.finite(), v.minValue(0));
+const PositiveInteger = v.pipe(v.number(), v.finite(), v.integer(), v.minValue(1));
+const UnitInterval = v.pipe(v.number(), v.finite(), v.minValue(0), v.maxValue(1));
+
+export const HardwareEnvelopeSchema = v.strictObject({
   deviceTier: v.optional(v.picklist(['quest2', 'quest3', 'questpro', 'desktop'])),
-  targetFps: v.optional(v.number()),
-  maxElements: v.optional(v.number()),
+  targetFps: v.optional(FiniteNonNegative),
+  targetFrameRate: v.optional(FiniteNonNegative),
+  maxElements: v.optional(PositiveInteger),
+  maxVertices: v.optional(PositiveInteger),
+  maxDrawCalls: v.optional(PositiveInteger),
+  lowPowerMode: v.optional(v.boolean()),
   preferInstanced: v.optional(v.boolean()),
 });
 
-export const RepresentationRequirementsSchema = v.object({
+const StructureRequirementSchema = v.strictObject({
+  type: v.picklist([
+    'distribution',
+    'cluster-separation',
+    'density',
+    'temporal-order',
+    'periodicity',
+    'manifold',
+    'hierarchy',
+    'connectivity',
+    'anomaly-visibility',
+    'observation-identity',
+    'group-comparison',
+  ]),
+  importance: UnitInterval,
+});
+
+const PreservationGoalRequirementSchema = v.strictObject({
+  information: v.picklist([
+    'individual-observation-identity',
+    'exact-metric-values',
+    'population-density-distribution',
+    'outlier-boundary-visibility',
+    'cluster-separation',
+    'relational-edge-connectivity',
+    'hierarchical-parent-child',
+    'chronological-order',
+    'harmonic-frequency-structure',
+    'geographic-spatial-adjacency',
+    'aggregate-group-magnitude',
+  ]),
+  priority: v.picklist(['CRITICAL', 'DESIRED', 'OPTIONAL']),
+});
+
+export const RepresentationRequirementsSchema = v.strictObject({
   task: AnalyticalTaskSchema,
   primaryDimensions: v.optional(v.array(v.string())),
   preservationGoal: v.optional(v.string()),
-  scale: v.optional(v.picklist(['SMALL', 'MEDIUM', 'LARGE', 'MASSIVE'])),
-  maxOcclusionTolerance: v.optional(v.number()),
-  interactionBudget: v.optional(v.picklist(['LOW', 'MEDIUM', 'HIGH'])),
+  requiredStructures: v.array(StructureRequirementSchema),
+  preservationGoals: v.array(PreservationGoalRequirementSchema),
+  acceptableLoss: v.strictObject({
+    allowIdentityLoss: v.boolean(),
+    allowExactMetricLoss: v.boolean(),
+    allowClusterLoss: v.boolean(),
+    maxOcclusionTolerance: UnitInterval,
+  }),
+  scale: v.picklist(['SMALL', 'MEDIUM', 'LARGE', 'MASSIVE']),
+  hardwareConstraints: HardwareEnvelopeSchema,
+  dimensionalityRequirements: v.optional(
+    v.strictObject({
+      preferredSpatialAxes: v.pipe(
+        v.number(),
+        v.finite(),
+        v.integer(),
+        v.minValue(1),
+        v.maxValue(3)
+      ),
+      focusDimensions: v.array(v.string()),
+    })
+  ),
+  progressiveDisclosure: v.optional(
+    v.strictObject({
+      enabled: v.boolean(),
+      levels: v.array(
+        v.strictObject({
+          level: v.pipe(v.number(), v.finite(), v.integer(), v.minValue(0)),
+          distanceThreshold: FiniteNonNegative,
+          reveals: v.array(v.string()),
+        })
+      ),
+    })
+  ),
+  maxOcclusionTolerance: UnitInterval,
+  interactionBudget: v.picklist(['LOW', 'MEDIUM', 'HIGH']),
 });
+
+/** Validate all runtime invariants not expressible as local schema fields. */
+export function validateRepresentationRequirements(input: unknown): RepresentationRequirements {
+  const requirements = v.parse(
+    RepresentationRequirementsSchema,
+    input
+  ) as RepresentationRequirements;
+  if (requirements.acceptableLoss.maxOcclusionTolerance !== requirements.maxOcclusionTolerance) {
+    throw new Error(
+      'RepresentationRequirements: acceptableLoss.maxOcclusionTolerance must equal maxOcclusionTolerance'
+    );
+  }
+  if (
+    requirements.progressiveDisclosure?.enabled &&
+    requirements.progressiveDisclosure.levels.length === 0
+  ) {
+    throw new Error(
+      'RepresentationRequirements: enabled progressive disclosure requires at least one level'
+    );
+  }
+  const seenLevels = new Set<number>();
+  for (const level of requirements.progressiveDisclosure?.levels ?? []) {
+    if (seenLevels.has(level.level)) {
+      throw new Error(
+        `RepresentationRequirements: duplicate progressive disclosure level ${level.level}`
+      );
+    }
+    seenLevels.add(level.level);
+  }
+  return requirements;
+}
 
 export function createDefaultIntent(task: AnalyticalTask = 'explore'): AnalyticalIntent {
   const targetStructures: StructureRequirement[] = [];
@@ -233,9 +344,14 @@ export function createDefaultRequirements(
     { information: 'population-density-distribution', priority: 'DESIRED' },
   ];
 
-  if (intent.observationLevel === 'individual') {
-    preservationGoals.unshift({ information: 'individual-observation-identity', priority: 'CRITICAL' });
+  if (task === 'individual-inspection') {
+    preservationGoals.unshift({
+      information: 'individual-observation-identity',
+      priority: 'CRITICAL',
+    });
     preservationGoals.push({ information: 'exact-metric-values', priority: 'CRITICAL' });
+  } else if (task === 'identify-outliers' || task === 'anomaly-detection') {
+    preservationGoals.push({ information: 'outlier-boundary-visibility', priority: 'CRITICAL' });
   } else if (intent.observationLevel === 'group') {
     preservationGoals.unshift({ information: 'cluster-separation', priority: 'CRITICAL' });
     preservationGoals.push({ information: 'aggregate-group-magnitude', priority: 'DESIRED' });
@@ -251,9 +367,6 @@ export function createDefaultRequirements(
     preferInstanced: true,
   };
 
-  const hwArray = [defaultHw] as unknown as HardwareConstraint & HardwareConstraint[];
-  Object.assign(hwArray, defaultHw);
-
   return {
     task,
     primaryDimensions,
@@ -261,12 +374,12 @@ export function createDefaultRequirements(
       task === 'compare-clusters'
         ? 'cluster-separation'
         : task === 'temporal-trend'
-        ? 'temporal-ordering'
-        : task === 'trace-lineage'
-        ? 'hierarchy-depth'
-        : task === 'spatial-proximity'
-        ? 'density-gradient'
-        : 'cluster-separation',
+          ? 'temporal-ordering'
+          : task === 'trace-lineage'
+            ? 'hierarchy-depth'
+            : task === 'spatial-proximity'
+              ? 'density-gradient'
+              : 'cluster-separation',
     requiredStructures: intent.targetStructures,
     preservationGoals,
     acceptableLoss: {
@@ -276,7 +389,7 @@ export function createDefaultRequirements(
       maxOcclusionTolerance: scale === 'LARGE' ? 0.7 : 0.3,
     },
     scale,
-    hardwareConstraints: hwArray,
+    hardwareConstraints: defaultHw,
     maxOcclusionTolerance: scale === 'LARGE' ? 0.7 : 0.3,
     interactionBudget: 'MEDIUM',
   };

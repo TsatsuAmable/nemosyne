@@ -81,7 +81,7 @@
   - **Reliability, Memory Leak Prevention & Quest Frame Budgets (Sprint 27.6 ✅):** Implemented `ZeroAllocMath` scratch pools for GC-free frame loops and `GPUResourceDisposal` deep Three.js hierarchy cascade teardown.
   - **Recurring Maintainability & Hygiene Protocol (Sprint 27.7 ✅):** Codified and automated the 8-dimension maintainability audit protocol via `scripts/audit-hygiene.mjs` and `npm run audit:hygiene`.
   - **Explicit Kernel State & Fallback Elimination:** Formalized `KernelState` (`UNINITIALIZED | INITIALIZING | READY | UNAVAILABLE`) and `KernelUnavailableError`, strictly eliminating any silent JS calculation fallback.
-  - **Event-Sourced Architectural Principle:** Codified the law of *Single Authoritative State & Event-Sourced Determinism* ($\text{Authoritative Investigation} = \text{InvestigationCommand}[] + \text{ImmutableDatasetRef} + \text{Manifest}$; materialized state is disposable cache; Memory Palace is pure spatial projection).
+  - **Event-Sourced Architectural Principle:** Codified the law of _Single Authoritative State & Event-Sourced Determinism_ ($\text{Authoritative Investigation} = \text{InvestigationCommand}[] + \text{ImmutableDatasetRef} + \text{Manifest}$; materialized state is disposable cache; Memory Palace is pure spatial projection).
   - **Dev Server Modularization:** Decomposed monolithic `vite.config.js` into dedicated TypeScript plugins under `dev/` composed by a clean `vite.config.ts`.
   - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 230/230 test files passed (1,500 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0 (171ms) · `npm run audit:hygiene` 8/8 dimensions passed.
 
@@ -109,16 +109,16 @@ The Nemosyne implementation roadmap is organized by architectural gates defined 
 
 ### Canonical Domain Vocabulary (Vision §4)
 
-| Canonical Term | Governing Definition | Owner Subsystem |
-|---|---|---|
-| **Investigation** | The central product object. Persistent, versionable graph of questions, dataset versions, analytical operations, evidence ledger, observations, findings, representation history, decisions, and conclusions. | `investigation/` |
-| **Task / Hypothesis** | The human analytical purpose (anomaly isolation, cluster inspection, temporal drift, comparison). | `investigation/` |
-| **Analytical State** | Authoritative state of analysis computed deterministically by the Rust/WASM kernel. | `atlas/` (orchestrator), Rust kernel (computation) |
-| **Evidence** | Attributable observations, findings, annotations, decision contexts, and analytical proofs (not raw telemetry). | `investigation/` |
-| **Representation** | The explicit spatial strategy (`SpatialStrategy`) satisfying analytical requirements and constraints. | `representation/` (Draco) |
-| **Session** | Execution context carrying presentation state, temporary UI, and peer presence (reconstructible derived view). | `spatial-runtime/` |
-| **Memory Palace** | Persistent spatial projection of an Investigation; reconstructible from semantic state and representation inputs. | `spatial-runtime/` |
-| **Study** | Controlled experimental container defining treatment boundaries, conditions (2D vs VR), tasks, and protocol. | `research-harness/` |
+| Canonical Term        | Governing Definition                                                                                                                                                                                          | Owner Subsystem                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| **Investigation**     | The central product object. Persistent, versionable graph of questions, dataset versions, analytical operations, evidence ledger, observations, findings, representation history, decisions, and conclusions. | `investigation/`                                   |
+| **Task / Hypothesis** | The human analytical purpose (anomaly isolation, cluster inspection, temporal drift, comparison).                                                                                                             | `investigation/`                                   |
+| **Analytical State**  | Authoritative state of analysis computed deterministically by the Rust/WASM kernel.                                                                                                                           | `atlas/` (orchestrator), Rust kernel (computation) |
+| **Evidence**          | Attributable observations, findings, annotations, decision contexts, and analytical proofs (not raw telemetry).                                                                                               | `investigation/`                                   |
+| **Representation**    | The explicit spatial strategy (`SpatialStrategy`) satisfying analytical requirements and constraints.                                                                                                         | `representation/` (Draco)                          |
+| **Session**           | Execution context carrying presentation state, temporary UI, and peer presence (reconstructible derived view).                                                                                                | `spatial-runtime/`                                 |
+| **Memory Palace**     | Persistent spatial projection of an Investigation; reconstructible from semantic state and representation inputs.                                                                                             | `spatial-runtime/`                                 |
+| **Study**             | Controlled experimental container defining treatment boundaries, conditions (2D vs VR), tasks, and protocol.                                                                                                  | `research-harness/`                                |
 
 ---
 
@@ -153,18 +153,19 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
 
 #### Implementation Target Points
 
-| Implementation Milestone | Target Phase / Sprint | Deliverable & Acceptance Guarantee |
-|---|---|---|
-| **Domain Aggregate Isolation** | **Sprint 27.1 / Gate 1** | `InvestigationAggregate` encapsulates all sub-states; `AnalysisHistory` and `DatasetSpace` are purely derived read-only views. |
-| **Pure Strategy Solvers** | **Sprint 27.2 / Gate 2** | Draco `SpatialStrategy` formulated as a pure deterministic function of `(InvestigationState, EnvironmentManifest)`. |
+| Implementation Milestone          | Target Phase / Sprint    | Deliverable & Acceptance Guarantee                                                                                               |
+| --------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Domain Aggregate Isolation**    | **Sprint 27.1 / Gate 1** | `InvestigationAggregate` encapsulates all sub-states; `AnalysisHistory` and `DatasetSpace` are purely derived read-only views.   |
+| **Pure Strategy Solvers**         | **Sprint 27.2 / Gate 2** | Draco `SpatialStrategy` formulated as a pure deterministic function of `(InvestigationState, EnvironmentManifest)`.              |
 | **Headless Replay & `.nemosyne`** | **Sprint 27.3 / Gate 5** | `.nemosyne` packages store only `(DatasetBytes, CommandLog, Manifest)`; headless tests verify bit-for-bit palace reconstruction. |
-| **Frozen Study Telemetry** | **Gate 6 / Study** | Experimental trial replay guarantees exact state matching across 2D control and VR experimental conditions. |
+| **Frozen Study Telemetry**        | **Gate 6 / Study**       | Experimental trial replay guarantees exact state matching across 2D control and VR experimental conditions.                      |
 
 ---
 
 ## Architectural Gates & Deliverables
 
 ### Gate 0 — Foundations & Ambiguity Removal ✅ (Baseline Complete)
+
 - **Objective:** Create one unambiguous architecture, enforce Rust/WASM as the sole analytical authority, and remove competing models.
 - **Key Status:**
   - ✅ Retired legacy `src/ai/` prototypes (`DracoWorldModel`, `NeuralConstraintPredictor`, `VoiceCommandListener`).
@@ -174,6 +175,7 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
 - **Exit Criteria Met:** No duplicate analytical or Draco engines coexist; WASM kernel unavailability produces an explicit degraded state rather than a silent JS calculation fallback.
 
 ### Gate 1 — Understand ✅ (Investigation Domain Aggregate Complete)
+
 - **Objective:** Create a first-class `Investigation` domain aggregate and decouple analytical meaning from rendering.
 - **Deliverables:**
   - [x] Initial `InvestigationBranchManager.ts` DAG support.
@@ -184,20 +186,26 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
   - [x] `tests/golden-path-vertical-slice.test.ts` and `tests/investigation-evidence-integrity.test.ts` asserting 100% semantic identity and zero hash drift across the complete investigation lifecycle.
 - **Exit Criteria Met:** An analyst can initialize an Investigation, execute analytical operations, record evidence, save it, and reopen it in a headless environment with identical analytical state.
 
-### Gate 2 — Represent ✅ (Constraint Arbiter & Spatial Strategy Complete)
-- **Objective:** Make representation selection explicit, explainable, and research-safe.
+### Gate 2 — Represent: Moneta Alignment (in progress)
+
+- **Objective:** Make whole-dataset representation selection task-first, explicit, explainable, research-safe, and reproducible. `Moneta` is the canonical name; `Draco` is a temporary external compatibility alias only.
+- **Current correction:** Earlier completion claims reflected the presence of a TypeScript arbiter and layout toolkit, not the vision's authority and replay criteria. Gate 2 is therefore reopened until the following exit evidence exists.
 - **Deliverables:**
-  - [x] Rust WASM 3D layouts (`force_directed`, `grid`, `time_ribbon`, `geo_surface`, `streamline`, `radial_tree`).
-  - [x] Draco constraint solver in Rust (`wasm/src/draco/solver.rs`) and TypeScript `FactProvider` pattern.
-  - [x] `DracoExplainerPanel.ts` plain-English representation rationale.
-  - [x] Position semantics discipline (`SEMANTIC`, `STRUCTURAL`, `ALGORITHMIC_LAYOUT`).
-  - [x] Formal `RepresentationRequirements` schema (`RepresentationRequirements.ts` using `valibot` schema validation).
-  - [x] Widened hierarchical `SpatialStrategy` decomposable type (`worldType`, `macroLayout`, `datumEncoding`, `interactionStrategy`, `rejectionLog`).
-  - [x] Deterministic `ConstraintArbiter` (`src/draco/ConstraintArbiter.ts`) producing explainable spatial strategies and machine-readable rejection logs.
-  - [x] Integration with `RepresentationState` and `AtlasCore.arbitrateSpatialStrategy()`.
-- **Exit Criteria Met:** Given identical Investigation state and frozen study inputs, Draco produces identical spatial strategies with machine-readable explanations of why alternatives were rejected.
+  - [x] Strict serialisable `RepresentationRequirements` envelope, including hardware constraints, loss budget, dimensions, progressive disclosure, and finite/range validation.
+  - [x] TypeScript hypothesis engine rejects candidates violating critical preservation, acceptable loss, scale, hierarchy, and hardware limits; all-infeasible requests produce a typed `NoFeasibleRepresentationError` rather than a fabricated winner.
+  - [x] A single TypeScript ranking now supplies the embodiment layout, removing the nested-arbiter layout disagreement while Rust migration proceeds.
+  - [ ] Versioned Rust/WASM `moneta_profile` and `moneta_solve` request/result ABI taking validated profile, task, requirements, hardware envelope, treatment, and frozen evidence policy.
+  - [ ] Rust/WASM becomes the live authority; TypeScript may orchestrate/persist/render but must neither infer facts nor re-rank/fallback.
+  - [ ] Full constraint domains: analytical validity, semantic preservation, accessibility, safety, navigation, experiment/study restrictions, treatment assignment, and freeze state.
+  - [ ] Pure semantic `EmbodimentManifest` with Moneta free of Three.js/DOM/WebXR; a spatial-runtime adapter performs scene translation.
+  - [ ] Canonical SHA-256 request/profile/decision hashes; deterministic result with no wall-clock/random dependency and complete ranked constraint trace.
+  - [ ] Representation decisions become append-only Investigation graph/ledger events and `.nemosyne` packages replay full request → profile → decision → embodiment semantics.
+  - [ ] Built-WASM raw-data vertical tests cover profile, solve, Atlas event, package/replay, and renderer commands with zero skips.
+  - [ ] Stable path permits only `NO_ADAPTATION` or a versioned frozen-prior bundle; empirical adaptation remains Research Harness work.
+- **Exit Criteria:** Given identical frozen Investigation state, profile, task, requirements, hardware, treatment, and evidence-policy inputs, Moneta produces a byte-identical Rust/WASM decision or typed infeasibility. The exact decision/embodiment is persisted, replayed cleanly, and adapted by the spatial runtime without reinterpretation.
 
 ### Gate 3 — Experience ✅ (Analyst Cockpit & Pointer Smoothing Complete)
+
 - **Objective:** Deliver a coherent, low-strain analyst cockpit in VR and 2D.
 - **Deliverables:**
   - [x] Authoritative 4-mode `InteractionModeController.ts` (`NAVIGATE | INTERACT | TRANSFORM | OBSERVE`).
@@ -213,6 +221,7 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
 - **Exit Criteria Met:** A novice or expert can complete the primary investigation journey without encountering pointer aim-drift frustration or gesture collisions.
 
 ### Gate 4 — Investigate ✅ (First-Class Evidence Entities & Mark Moment Complete)
+
 - **Objective:** Make findings, observations, and human decisions first-class research evidence.
 - **Deliverables:**
   - [x] Authoritative append-only `EvidenceLedger` in `src/atlas/domain/EvidenceLedger.ts`.
@@ -223,6 +232,7 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
 - **Exit Criteria Met:** A saved Investigation can explain what was discovered, when, where in space, and by which analytical and human actions.
 
 ### Gate 5 — Reproduce ✅ (Headless Replay & .nemosyne Packaging Complete)
+
 - **Objective:** Turn the Memory Palace into investigation version control with portable `.nemosyne` packages.
 - **Deliverables:**
   - [x] `InvestigationBranchManager.ts` branch forking and history diffing.
@@ -234,6 +244,7 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
 - **Exit Criteria Met:** A `.nemosyne` package shared between independent runtime instances regenerates the identical analytical state and spatial Memory Palace.
 
 ### Gate 6 — Study ✅ (Empirical Study Engine Complete)
+
 - **Objective:** Make the system scientifically usable as a controlled research instrument.
 - **Deliverables:**
   - [x] `StudyHarness.ts` randomized crossover trial runner (`2D_CONTROL` vs `VR_EXPERIMENTAL`).
@@ -244,6 +255,7 @@ $$\mathbf{Authoritative\ Investigation} = \mathbf{InvestigationCommand}[] + \mat
 - **Exit Criteria Met:** Synthetic and live trial batches produce joined telemetry, condition, observer, and outcome records with frozen treatment variables.
 
 ### Gate 7 — Adaptive Research ⏳ (Post-Stable Release)
+
 - **Objective:** Learn from empirical human evidence without self-reinforcing bias.
 - **Deliverables:**
   - [x] `DracoEmpiricalTuner.ts` layout utility prior weight adjustment from study accuracy and NASA-TLX workload.
@@ -267,6 +279,7 @@ graph TD
 ```
 
 ### Sprint 27.1 — Subsystem Modularization & Strict Contract Boundaries
+
 - **Goal:** Cleanly separate the 8 principal subsystems, establish barrel exports, and eliminate circular dependencies and direct internal state mutations.
 - **Scope:**
   - Define explicit module boundaries for `src/investigation/`, `src/atlas/`, `src/representation/`, `src/study/`, `src/network/`, `src/perception/`, `src/vr/`, and `src/session/`.
@@ -275,6 +288,7 @@ graph TD
 - **Exit Gate:** `tsc --noEmit` 0 errors, `eslint` 0 errors, architectural invariant suite passes.
 
 ### Sprint 27.2 — Core Open Source Library Adoption (Phase 1 Foundation)
+
 - **Goal:** Import trusted, mature OSS libraries with tree-shaken named imports to replace hand-rolled code and simplify long-term maintenance ([`docs/STANDARDIZATION_REVIEW.md`](STANDARDIZATION_REVIEW.md)).
 - **Scope:**
   - **Schema Validation (`valibot` / `zod`):** Add schema validation for `.nemosyne` package manifests, signed tickets, and study trial configs (<1.8 kB tree-shaken).
@@ -287,6 +301,7 @@ graph TD
 - **Exit Gate:** Package creation and unpack tests pass; raycast latency on 50k nodes is <2ms; `cargo test` passes with extended numerical fixtures.
 
 ### Sprint 27.3 — Investigation Aggregate, Typed Graph Spine & Vertical Slice Invariant (Gate 1 & Gate 5)
+
 - **Goal:** Implement the authoritative `Investigation` domain aggregate, typed lineage graph, and the end-to-end "golden path" vertical slice test.
 - **Scope:**
   - Create `Investigation` aggregate owning task, dataset reference, operation chain, evidence ledger, observations, findings, and provenance.
@@ -299,6 +314,7 @@ graph TD
 - **Exit Gate:** Vertical slice invariant test passes with 100% deterministic hash parity; replay test suite verifies complete semantic reconstruction across clean environments.
 
 ### Sprint 27.4 — Diegetic Spatial UI, Gesture Tracking & Crash Resilience (Phase 3 Modernization)
+
 - **Goal:** Modernize spatial UX, replace canvas bitmap blitting, streamline gesture classification, and harden error boundaries.
 - **Scope:**
   - **MSDF Vector UI & Menus (`three-mesh-ui`):** Replace Canvas 2D bitmap texture uploads with fragment-shader MSDF vector text and Flexbox 3D layouts, saving ~45 MB GPU heap memory on Quest 3S.
@@ -309,6 +325,7 @@ graph TD
 - **Exit Gate:** Simulating WebGL context loss restores state within 1 second; zero unhandled exceptions reach top-level window; text remains pin-sharp at glancing angles in VR.
 
 ### Sprint 27.5 — Security, Input Sanitization & Network Hardening
+
 - **Goal:** Ensure safe operation during public preview testing.
 - **Scope:**
   - **Turnkey WebRTC Signalling (`peerjs-server` / `y-webrtc`):** Standardize peer room brokering, eliminating ~900 lines of custom server code while maintaining zero vendor lock-in.
@@ -318,6 +335,7 @@ graph TD
 - **Exit Gate:** Adversarial security test suite passes 100%.
 
 ### Sprint 27.6 — Reliability, Memory Leak Prevention, Quest 3S Frame Budget & CI Gate Hardening
+
 - **Goal:** Guarantee rock-solid 72 Hz / 90 Hz rendering on Meta Quest 3S hardware and enforce blocking CI system-level verification before Stable Alpha.
 - **Scope:**
   - **Zero-Allocation Hot Loops:** Eliminate per-frame scratch object allocations in `three-mesh-bvh`, `LODManager`, and `InputRouter`.
@@ -327,6 +345,7 @@ graph TD
 - **Exit Gate:** `npm run test:e2e:tier4` scenario 3 passes with zero memory leaks; frame time P95 <= 13.88 ms on Quest 3S; blocking CI smoke gate passes green.
 
 ### Sprint 27.7 — Recurring Maintainability, Tech Debt & Code Hygiene Protocol
+
 - **Goal:** Institutionalize continuous hygiene audits to permanently prevent technical debt accumulation, unused/redundant code, dependency drift, and architectural decay.
 - **Scope:**
   - **Automated Dead Code & Export Pruning (`knip` / `ts-prune`):** Audit and prune unused TypeScript files, uncalled functions, orphan types, and unused npm dependencies.
@@ -340,7 +359,9 @@ graph TD
 ---
 
 ## Maintainability, Tech Debt & Code Hygiene Audit Protocol
+
 Clear/ compact context before running this check
+
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                   RECURRING MAINTAINABILITY & HYGIENE AUDIT SUITE                      │
@@ -364,10 +385,10 @@ Clear/ compact context before running this check
 2. **Inter-Sprint Cadence (Every Sprint End):** Automated execution of `npm run audit:hygiene` to prune dead code, verify bundle sizes, and assert zero circular dependencies before opening a milestone PR.
 3. **Pre-Release Milestone Review:** Comprehensive memory profiling (1-hour simulated VR session), WebGL GPU disposal sweep, and complete vertical slice hash validation before tagging Stable Alpha/Beta.
 
-
 ## Historical Archive References
 
 Completed phases and sprint details from earlier project iterations are preserved in:
+
 - [docs/archive/ROADMAP_PHASES_21-26_COMPLETED.md](archive/ROADMAP_PHASES_21-26_COMPLETED.md) — Phases 21–26 (Rust WASM Kernel, UX V2.0, Gesture Intelligence, Cockpit FSM, Quest Hardware Envelopes, Empirical Recommender Tuning).
 - [docs/archive/ROADMAP_PHASES_1-20_COMPLETED.md](archive/ROADMAP_PHASES_1-20_COMPLETED.md) — Phases 1–20 (Foundations, Spec, Artefact Library, Scaling, Analytics, Collaboration Scaffolding, Graphics Engine).
 - [docs/archive/ROADMAP_HISTORY.md](archive/ROADMAP_HISTORY.md) — Comprehensive archive index and superseded planning models.

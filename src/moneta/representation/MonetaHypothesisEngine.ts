@@ -33,10 +33,12 @@ import {
   type AnalyticalIntent,
 } from './RepresentationRequirements.ts';
 import type { SpatialStrategy } from '../SpatialStrategy.ts';
-import { ConstraintArbiter } from '../ConstraintArbiter.ts';
 import type { MonetaFacts } from '../types.ts';
 import type { Facts } from '../../data/types.ts';
 import { buildDatasetSignature } from './SignatureBuilder.ts';
+import { NoFeasibleRepresentationError } from './NoFeasibleRepresentationError.ts';
+import { canonicalJsonStringify } from '../../investigation/InvestigationDigest.ts';
+import { fnv1aHex } from '../../atlas/DatasetSpace.ts';
 
 export interface HypothesisWeights {
   w_struct: number;
@@ -56,11 +58,37 @@ export const DEFAULT_HYPOTHESIS_WEIGHTS: HypothesisWeights = {
   w_prior: 0.05,
 };
 
+function geometryForLayout(layout: VRLayout): VRGeometry {
+  switch (layout) {
+    case 'GEO_SURFACE':
+      return 'GEO_COLUMN';
+    case 'TIME_RIBBON':
+      return 'BEAM';
+    case 'SPECTRAL_VOLUME':
+      return 'SPECTRAL_BAR';
+    case 'RADIAL_ORBITAL':
+      return 'CONICAL_TREE';
+    case 'FORCE_DIRECTED_3D':
+      return 'ICOSA_NODE';
+    default:
+      return 'CUBE_MATRIX';
+  }
+}
+
 export class MonetaHypothesisEngine {
   private weights: HypothesisWeights;
 
   constructor(weights: Partial<HypothesisWeights> = {}) {
     this.weights = { ...DEFAULT_HYPOTHESIS_WEIGHTS, ...weights };
+    const total = Object.values(this.weights).reduce((sum, weight) => {
+      if (!Number.isFinite(weight) || weight < 0) {
+        throw new TypeError('Moneta hypothesis weights must be finite non-negative numbers');
+      }
+      return sum + weight;
+    }, 0);
+    if (Math.abs(total - 1) > 1e-9) {
+      throw new RangeError(`Moneta hypothesis weights must sum to 1 (received ${total})`);
+    }
   }
 
   static reason(
@@ -80,7 +108,8 @@ export class MonetaHypothesisEngine {
         _kernelFacts,
         options.datasetFingerprint ?? 'unknown',
         '0.1.0',
-        options.spectralFacts
+        options.spectralFacts,
+        0
       );
 
     const engine = new MonetaHypothesisEngine();
@@ -91,9 +120,14 @@ export class MonetaHypothesisEngine {
     signature: DatasetSignature,
     requirements?: RepresentationRequirements,
     intent?: AnalyticalIntent,
-    fallbackFacts?: MonetaFacts
+    _fallbackFacts?: MonetaFacts
   ): RepresentationDecision {
-    const reqs = requirements ?? createDefaultRequirements(intent?.task ?? 'explore', this.inferScale(signature.cardinality.rowCount));
+    const reqs =
+      requirements ??
+      createDefaultRequirements(
+        intent?.task ?? 'explore',
+        this.inferScale(signature.cardinality.rowCount)
+      );
     const allCandidates = this.generateCandidates();
 
     // Stage 1: Hard Constraints
@@ -131,70 +165,59 @@ export class MonetaHypothesisEngine {
     }
 
     // Rank candidates
-    scoredCandidates.sort((a, b) => (b.score || 0) - (a.score || 0));
+    scoredCandidates.sort((a, b) => {
+      const scoreDelta = (b.score || 0) - (a.score || 0);
+      if (scoreDelta !== 0) return scoreDelta;
+      return `${a.candidateId}:${a.layout}`.localeCompare(`${b.candidateId}:${b.layout}`);
+    });
 
-    const winner = scoredCandidates.find((c) => !c.disqualified) ?? scoredCandidates[0];
+    const winner = scoredCandidates.find((c) => !c.disqualified);
+    if (!winner) {
+      throw new NoFeasibleRepresentationError(hardTraces, scoredCandidates);
+    }
     const candidateDef = MONETA_REPRESENTATION_CANDIDATES[winner.candidateId];
 
-    const explanation = `Moneta selected ${candidateDef.name} (${winner.layout}) with score ${winner.score.toFixed(3)}. Preserves: [${candidateDef.preserves.join(', ')}]. Loss budget respected.`;
-
-    const factsToUse: MonetaFacts = fallbackFacts ?? {
-      topology: signature.topologicalStructure.topology,
-      rowCount: signature.cardinality.rowCount,
-      nodeCount: signature.cardinality.rowCount,
-      edgeCount: signature.cardinality.edgeCount,
-      depth: signature.cardinality.depth,
-      numericColumns: signature.schema.numericCount,
-      categoricalColumns: signature.schema.categoricalCount,
-      temporalColumns: signature.schema.temporalCount,
-      hasTimeSeries: signature.temporalStructure.isTimeSeries,
-      hasContinuousValues: signature.schema.numericCount > 0,
-      density: signature.cardinality.edgeCount / Math.max(1, signature.cardinality.rowCount),
-      estimatedDensity: signature.cardinality.rowCount / 64,
-      outlierCount: signature.distribution.anomalyCount,
-      cardinalityOfColor: 0,
-      hasHighCardinality: false,
-      isLargeDataset: signature.cardinality.rowCount > 500,
-      clusterCount: signature.clusterStructure.estimatedCount,
-      columnStats: {},
-      correlationMatrix: {},
-      categoryDistribution: {},
-      trendDirection: signature.temporalStructure.trendDirection,
-      seasonalityHint: signature.temporalStructure.hasSeasonality,
-      hasOutliers: signature.distribution.hasOutliers,
-      hasHighVariance: signature.distribution.highVariance,
-      numericSkew: signature.distribution.maxSkewness,
-      topCategory: null,
-    };
-
-    const spatialStrategy: SpatialStrategy = ConstraintArbiter.arbitrate(factsToUse, reqs, {
-      datasetFingerprint: signature.provenance.datasetFingerprint,
-    });
+    const explanation = `Moneta selected ${candidateDef.name} (${winner.layout}) with score ${winner.score.toFixed(3)}. Preserves: [${candidateDef.preserves.join(', ')}]. Declared losses: [${candidateDef.loses.join(', ')}].`;
 
     const primaryGeometry: VRGeometry =
       winner.layout === 'GEO_SURFACE'
         ? 'GEO_COLUMN'
         : winner.layout === 'TIME_RIBBON'
-        ? 'BEAM'
-        : winner.layout === 'SPECTRAL_VOLUME'
-        ? 'SPECTRAL_BAR'
-        : winner.layout === 'RADIAL_ORBITAL'
-        ? 'CONICAL_TREE'
-        : winner.layout === 'FORCE_DIRECTED_3D'
-        ? 'ICOSA_NODE'
-        : 'CUBE_MATRIX';
+          ? 'BEAM'
+          : winner.layout === 'SPECTRAL_VOLUME'
+            ? 'SPECTRAL_BAR'
+            : winner.layout === 'RADIAL_ORBITAL'
+              ? 'CONICAL_TREE'
+              : winner.layout === 'FORCE_DIRECTED_3D'
+                ? 'ICOSA_NODE'
+                : 'CUBE_MATRIX';
 
     const primaryBehavior: VRBehavior =
-      winner.layout === 'TIME_RIBBON' ? 'PULSE_QUANTITATIVE' : winner.layout === 'RADIAL_ORBITAL' ? 'ORBITAL_SPIN' : 'STATIC';
+      winner.layout === 'TIME_RIBBON'
+        ? 'PULSE_QUANTITATIVE'
+        : winner.layout === 'RADIAL_ORBITAL'
+          ? 'ORBITAL_SPIN'
+          : 'STATIC';
 
     const primaryInteraction: VRInteraction =
       winner.layout === 'TIME_RIBBON'
         ? 'HARVEST_STREAM'
         : winner.layout === 'FORCE_DIRECTED_3D'
-        ? 'TRAVERSE_EDGE'
-        : winner.layout === 'RADIAL_ORBITAL'
-        ? 'DRILL_DOWN'
-        : 'INSPECT_CELL';
+          ? 'TRAVERSE_EDGE'
+          : winner.layout === 'RADIAL_ORBITAL'
+            ? 'DRILL_DOWN'
+            : 'INSPECT_CELL';
+
+    const requirementsHash = fnv1aHex(canonicalJsonStringify(reqs));
+    const spatialStrategy = this.buildSpatialStrategy(
+      winner,
+      primaryGeometry,
+      primaryBehavior,
+      primaryInteraction,
+      signature.provenance.datasetFingerprint,
+      requirementsHash,
+      scoredCandidates
+    );
 
     const embodiment: DecisionEmbodiment = {
       primaryLayout: winner.layout,
@@ -236,18 +259,23 @@ export class MonetaHypothesisEngine {
         rejectedAlternatives.push({
           family: c.family,
           score: c.score,
-          reason: c.disqualificationReason ?? `Suboptimal information utility score (${c.score.toFixed(3)})`,
+          reason:
+            c.disqualificationReason ??
+            `Suboptimal information utility score (${c.score.toFixed(3)})`,
           hardPassed: !c.disqualified,
         });
       }
     }
 
-    const now = Date.now();
+    // The pure selection has no wall-clock dependency. Atlas records event time
+    // separately when it appends the decision to the Investigation.
+    const now = 0;
     const provenance: DecisionProvenance = {
       generatedAt: now,
       engine: 'MonetaHypothesisEngine',
       version: '1.0.0',
       datasetFingerprint: signature.provenance.datasetFingerprint,
+      requirementsHash,
     };
 
     return {
@@ -277,8 +305,16 @@ export class MonetaHypothesisEngine {
     };
   }
 
-  private generateCandidates(): Array<{ family: RepresentationFamily; candidateId: SemanticRepresentationId; layout: VRLayout }> {
-    const results: Array<{ family: RepresentationFamily; candidateId: SemanticRepresentationId; layout: VRLayout }> = [];
+  private generateCandidates(): Array<{
+    family: RepresentationFamily;
+    candidateId: SemanticRepresentationId;
+    layout: VRLayout;
+  }> {
+    const results: Array<{
+      family: RepresentationFamily;
+      candidateId: SemanticRepresentationId;
+      layout: VRLayout;
+    }> = [];
     for (const family of ALL_REPRESENTATION_FAMILIES) {
       const layouts = FAMILY_TO_LAYOUTS[family];
       const candidateIds = FAMILY_TO_CANDIDATE_IDS[family];
@@ -300,36 +336,117 @@ export class MonetaHypothesisEngine {
 
   private checkHardConstraints(
     signature: DatasetSignature,
-    _reqs: RepresentationRequirements,
+    reqs: RepresentationRequirements,
     candidate: import('./RepresentationCandidate.ts').RepresentationCandidate,
     layout: VRLayout
   ): { passed: boolean; reason: string } {
     const top = signature.topologicalStructure.topology;
 
-    if (layout === 'FORCE_DIRECTED_3D' && top !== 'GRAPH' && signature.cardinality.edgeCount === 0 && candidate.id !== 'RELATIONSHIP_GRAPH' && candidate.id !== 'CLUSTER_REGIONS') {
-      return { passed: false, reason: 'ForceDirected requires graph topology or cluster relationships' };
+    const rowCount = signature.cardinality.rowCount;
+    const hardware = reqs.hardwareConstraints;
+    if (hardware.maxElements !== undefined && rowCount > hardware.maxElements) {
+      return {
+        passed: false,
+        reason: `Dataset has ${rowCount} rows but hardware allows at most ${hardware.maxElements} elements`,
+      };
     }
-    if (layout === 'RADIAL_ORBITAL' && top !== 'HIERARCHY' && signature.cardinality.depth <= 1 && candidate.id !== 'HIERARCHICAL_SPACE') {
+    const hasCriticalGoal = (information: import('./RepresentationCandidate.ts').InformationType) =>
+      reqs.preservationGoals.some(
+        (goal) => goal.information === information && goal.priority === 'CRITICAL'
+      );
+    const requiresStructure = (
+      structure: import('./RepresentationRequirements.ts').StructureRequirementType
+    ) =>
+      reqs.requiredStructures.some(
+        (requirement) => requirement.type === structure && requirement.importance >= 0.5
+      );
+    for (const goal of reqs.preservationGoals) {
+      if (goal.priority === 'CRITICAL' && candidate.loses.includes(goal.information)) {
+        return {
+          passed: false,
+          reason: `Candidate loses critical information: ${goal.information}`,
+        };
+      }
+    }
+    if (
+      candidate.loses.includes('individual-observation-identity') &&
+      !reqs.acceptableLoss.allowIdentityLoss &&
+      (hasCriticalGoal('individual-observation-identity') ||
+        requiresStructure('observation-identity'))
+    ) {
+      return { passed: false, reason: 'Identity loss is not acceptable for this request' };
+    }
+    if (
+      candidate.loses.includes('exact-metric-values') &&
+      !reqs.acceptableLoss.allowExactMetricLoss &&
+      hasCriticalGoal('exact-metric-values')
+    ) {
+      return { passed: false, reason: 'Exact metric loss is not acceptable for this request' };
+    }
+    if (
+      candidate.loses.includes('cluster-separation') &&
+      !reqs.acceptableLoss.allowClusterLoss &&
+      (hasCriticalGoal('cluster-separation') || requiresStructure('cluster-separation'))
+    ) {
+      return {
+        passed: false,
+        reason: 'Cluster separation loss is not acceptable for this request',
+      };
+    }
+
+    if (
+      layout === 'FORCE_DIRECTED_3D' &&
+      top !== 'GRAPH' &&
+      signature.cardinality.edgeCount === 0 &&
+      candidate.id !== 'RELATIONSHIP_GRAPH' &&
+      candidate.id !== 'CLUSTER_REGIONS'
+    ) {
+      return {
+        passed: false,
+        reason: 'ForceDirected requires graph topology or cluster relationships',
+      };
+    }
+    if (
+      layout === 'RADIAL_ORBITAL' &&
+      top !== 'HIERARCHY' &&
+      signature.cardinality.depth <= 1 &&
+      candidate.id !== 'HIERARCHICAL_SPACE'
+    ) {
       return { passed: false, reason: 'RadialOrbital requires hierarchical structure' };
     }
     if (layout === 'GEO_SURFACE' && !signature.spatialStructure.isGeospatial && top !== 'GEO') {
       return { passed: false, reason: 'GeoSurface requires geospatial coordinates' };
     }
-    if (layout === 'TIME_RIBBON' && !signature.temporalStructure.isTimeSeries && top !== 'TIME_SERIES') {
+    if (
+      layout === 'TIME_RIBBON' &&
+      !signature.temporalStructure.isTimeSeries &&
+      top !== 'TIME_SERIES'
+    ) {
       return { passed: false, reason: 'TimeRibbon requires temporal time-series structure' };
     }
     if (layout === 'VECTOR_STREAMLINE' && top !== 'VECTOR_FIELD') {
       return { passed: false, reason: 'VectorStreamline layout requires vector field topology' };
     }
     if (layout === 'SPECTRAL_VOLUME' && !signature.spectralStructure?.hasPeriodicity) {
-      return { passed: false, reason: 'SpectralVolume layout requires detectable harmonic frequency structure (no spectral structure present)' };
+      return {
+        passed: false,
+        reason:
+          'SpectralVolume layout requires detectable harmonic frequency structure (no spectral structure present)',
+      };
     }
 
     for (const c of candidate.constraints) {
-      if (c.requiresTemporal && !signature.temporalStructure.isTimeSeries && top !== 'TIME_SERIES') {
+      if (
+        c.requiresTemporal &&
+        !signature.temporalStructure.isTimeSeries &&
+        top !== 'TIME_SERIES'
+      ) {
         return { passed: false, reason: c.description };
       }
       if (c.requiresGraph && signature.cardinality.edgeCount === 0 && top !== 'GRAPH') {
+        return { passed: false, reason: c.description };
+      }
+      if (c.requiresHierarchy && top !== 'HIERARCHY' && signature.cardinality.depth <= 1) {
         return { passed: false, reason: c.description };
       }
       if (c.requiresGeospatial && !signature.spatialStructure.isGeospatial && top !== 'GEO') {
@@ -340,7 +457,66 @@ export class MonetaHypothesisEngine {
       }
     }
 
+    if (rowCount > candidate.scaleCharacteristics.maxN) {
+      return {
+        passed: false,
+        reason: `Candidate supports at most ${candidate.scaleCharacteristics.maxN} rows, received ${rowCount}`,
+      };
+    }
+
     return { passed: true, reason: 'All hard constraints satisfied' };
+  }
+
+  private buildSpatialStrategy(
+    winner: CandidateScore,
+    geometry: VRGeometry,
+    behavior: VRBehavior,
+    interaction: VRInteraction,
+    datasetFingerprint: string,
+    requirementsHash: string,
+    candidates: CandidateScore[]
+  ): SpatialStrategy {
+    const positionSemantics =
+      winner.layout === 'GEO_SURFACE'
+        ? 'SEMANTIC'
+        : winner.layout === 'FORCE_DIRECTED_3D' || winner.layout === 'RADIAL_ORBITAL'
+          ? 'STRUCTURAL'
+          : 'ALGORITHMIC_LAYOUT';
+    const detailLens =
+      winner.layout === 'TIME_RIBBON'
+        ? 'TIME_DIAL'
+        : winner.candidateId === 'CLUSTER_REGIONS'
+          ? 'CLUSTER_ZONE'
+          : winner.candidateId === 'DISTRIBUTION_FIELD'
+            ? 'OUTLIER_HALO'
+            : 'INSPECTOR_SLATE';
+
+    return {
+      id: `strat:${winner.candidateId}_${requirementsHash.slice(0, 8)}`,
+      worldType: winner.layout === 'RADIAL_ORBITAL' ? 'FOCUSED_CHAMBER' : 'ANALYST_COCKPIT',
+      macroLayout: { layout: winner.layout, parameters: {}, positionSemantics },
+      datumEncoding: { geometry, mappings: {}, behavior },
+      interactionStrategy: { primaryInteraction: interaction, supportedGestures: [], detailLens },
+      score: winner.score,
+      confidence: Math.min(1, Math.max(0, winner.score)),
+      rationale: `Selected ${winner.candidateId} directly from the Moneta ranking.`,
+      rejectionLog: candidates
+        .filter((candidate) => candidate !== winner)
+        .map((candidate) => ({
+          strategyId: candidate.candidateId,
+          layout: candidate.layout,
+          geometry: geometryForLayout(candidate.layout),
+          score: candidate.score,
+          reason: candidate.disqualificationReason ?? `Ranked below ${winner.candidateId}`,
+        })),
+      provenance: {
+        generatedAt: 0,
+        engine: 'MonetaHypothesisEngine',
+        version: '1.0.0',
+        datasetFingerprint,
+        requirementsHash,
+      },
+    };
   }
 
   private scoreCandidate(
@@ -354,14 +530,47 @@ export class MonetaHypothesisEngine {
     const top = signature.topologicalStructure.topology;
 
     let structScore = 0.4;
-    if (family === 'GRAPH' && (signature.cardinality.edgeCount > 0 || top === 'GRAPH')) structScore = 0.98;
-    else if (family === 'HIERARCHICAL' && (top === 'HIERARCHY' || signature.cardinality.depth > 1)) structScore = 0.98;
-    else if (family === 'TEMPORAL' && (signature.temporalStructure.isTimeSeries || top === 'TIME_SERIES')) structScore = 0.95;
-    else if (family === 'FIELD' && (signature.spatialStructure.isGeospatial || top === 'VECTOR_FIELD' || top === 'GEO')) structScore = 0.96;
-    else if (family === 'FREQUENCY' && signature.spectralStructure?.hasPeriodicity) structScore = 0.99;
-    else if (family === 'CLUSTER' && (signature.clusterStructure.hasClusters || signature.clusterStructure.estimatedCount > 1 || reqs.task === 'compare-clusters')) structScore = 0.92;
-    else if (family === 'DISTRIBUTION' && (signature.distribution.highVariance || signature.distribution.hasOutliers || signature.distribution.anomalyCount > 0 || signature.cardinality.rowCount > 300 || reqs.task === 'identify-outliers' || reqs.task === 'distribution-analysis')) structScore = 0.90;
-    else if (family === 'POINT') structScore = (top === 'TABULAR' && signature.clusterStructure.estimatedCount <= 1 && !signature.distribution.hasOutliers && !signature.temporalStructure.isTimeSeries) ? 0.85 : 0.40;
+    if (family === 'GRAPH' && (signature.cardinality.edgeCount > 0 || top === 'GRAPH'))
+      structScore = 0.98;
+    else if (family === 'HIERARCHICAL' && (top === 'HIERARCHY' || signature.cardinality.depth > 1))
+      structScore = 0.98;
+    else if (
+      family === 'TEMPORAL' &&
+      (signature.temporalStructure.isTimeSeries || top === 'TIME_SERIES')
+    )
+      structScore = 0.95;
+    else if (
+      family === 'FIELD' &&
+      (signature.spatialStructure.isGeospatial || top === 'VECTOR_FIELD' || top === 'GEO')
+    )
+      structScore = 0.96;
+    else if (family === 'FREQUENCY' && signature.spectralStructure?.hasPeriodicity)
+      structScore = 0.99;
+    else if (
+      family === 'CLUSTER' &&
+      (signature.clusterStructure.hasClusters ||
+        signature.clusterStructure.estimatedCount > 1 ||
+        reqs.task === 'compare-clusters')
+    )
+      structScore = 0.92;
+    else if (
+      family === 'DISTRIBUTION' &&
+      (signature.distribution.highVariance ||
+        signature.distribution.hasOutliers ||
+        signature.distribution.anomalyCount > 0 ||
+        signature.cardinality.rowCount > 300 ||
+        reqs.task === 'identify-outliers' ||
+        reqs.task === 'distribution-analysis')
+    )
+      structScore = 0.9;
+    else if (family === 'POINT')
+      structScore =
+        top === 'TABULAR' &&
+        signature.clusterStructure.estimatedCount <= 1 &&
+        !signature.distribution.hasOutliers &&
+        !signature.temporalStructure.isTimeSeries
+          ? 0.85
+          : 0.4;
 
     components.push({
       component: 'structure_match',
@@ -373,11 +582,22 @@ export class MonetaHypothesisEngine {
 
     let taskScore = 0.5;
     for (const req of reqs.requiredStructures) {
-      if (req.type === 'cluster-separation' && candidate.preserves.includes('cluster-separation')) taskScore += 0.25 * req.importance;
-      if (req.type === 'temporal-order' && candidate.preserves.includes('chronological-order')) taskScore += 0.3 * req.importance;
-      if (req.type === 'hierarchy' && candidate.preserves.includes('hierarchical-parent-child')) taskScore += 0.3 * req.importance;
-      if (req.type === 'anomaly-visibility' && candidate.preserves.includes('outlier-boundary-visibility')) taskScore += 0.25 * req.importance;
-      if (req.type === 'observation-identity' && candidate.preserves.includes('individual-observation-identity')) taskScore += 0.25 * req.importance;
+      if (req.type === 'cluster-separation' && candidate.preserves.includes('cluster-separation'))
+        taskScore += 0.25 * req.importance;
+      if (req.type === 'temporal-order' && candidate.preserves.includes('chronological-order'))
+        taskScore += 0.3 * req.importance;
+      if (req.type === 'hierarchy' && candidate.preserves.includes('hierarchical-parent-child'))
+        taskScore += 0.3 * req.importance;
+      if (
+        req.type === 'anomaly-visibility' &&
+        candidate.preserves.includes('outlier-boundary-visibility')
+      )
+        taskScore += 0.25 * req.importance;
+      if (
+        req.type === 'observation-identity' &&
+        candidate.preserves.includes('individual-observation-identity')
+      )
+        taskScore += 0.25 * req.importance;
     }
     taskScore = Math.min(1.0, taskScore);
 
@@ -391,7 +611,10 @@ export class MonetaHypothesisEngine {
 
     const N = signature.cardinality.rowCount;
     let scaleScore = candidate.scaleCharacteristics.scalabilityRating;
-    if (N >= candidate.scaleCharacteristics.optimalN[0] && N <= candidate.scaleCharacteristics.optimalN[1]) {
+    if (
+      N >= candidate.scaleCharacteristics.optimalN[0] &&
+      N <= candidate.scaleCharacteristics.optimalN[1]
+    ) {
       scaleScore = 1.0;
     } else if (N > candidate.scaleCharacteristics.maxN) {
       scaleScore = 0.2;
