@@ -38,6 +38,21 @@ describe('Moneta V3 live hypothesis engine', () => {
     }
   });
 
+  it('attaches deterministic local weight sensitivity rather than implying certainty', () => {
+    const signature = minimalDatasetSignature(1_200, 4, 0, 0, 'v3-live-sensitivity', 0);
+    signature.clusterStructure.densityVariation = 0.5;
+    const requirements = createDefaultRequirements('explore', 'MEDIUM');
+
+    const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
+
+    expect(decision.weightSensitivity).toBeDefined();
+    expect(decision.weightSensitivity?.scenarioCount).toBe(12);
+    expect(decision.weightSensitivity?.perturbationFraction).toBe(0.1);
+    expect(decision.weightSensitivity?.winnerChangeRate).toBeGreaterThanOrEqual(0);
+    expect(decision.weightSensitivity?.winnerChangeRate).toBeLessThanOrEqual(1);
+    expect(decision.explanation).toMatch(/weight perturbations/i);
+  });
+
   it('keeps deterministic decisions for identical frozen inputs', () => {
     const signature = minimalDatasetSignature(800, 3, 0, 0, 'v3-live-determinism', 0);
     const requirements = createDefaultRequirements('identify-outliers', 'MEDIUM');
@@ -53,6 +68,7 @@ describe('Moneta V3 live hypothesis engine', () => {
     expect(second.utilityScore).toBe(first.utilityScore);
     expect(second.decisionStatus).toBe(first.decisionStatus);
     expect(second.decisionMargin).toBe(first.decisionMargin);
+    expect(second.weightSensitivity).toEqual(first.weightSensitivity);
     expect(second.provenance).toEqual(first.provenance);
   });
 });
