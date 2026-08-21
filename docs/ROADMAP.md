@@ -31,7 +31,7 @@ PR #226 begins the correctness-first migration by making the legacy Draco namesp
 | 0 — Authority reconciliation | **IN PROGRESS** | PR #226 adds a recursive architecture test requiring `src/draco/` to contain Moneta re-export adapters only. Rust and Investigation authority still need broader boundary tests and import/call-site inventory. |
 | 1 — Dataset Evidence | **PARTIAL** | Rust structure/spectral/profile capabilities exist. They must become a typed `DatasetEvidence` contract with complete method/parameter/seed/normalisation/missing-data/version/limitations provenance. |
 | 2 — Representation Language | **NOT COMPLETE** | Existing representation families/candidates are bootstrap inputs. Need primitive registry, versioned ontology, `RepresentationGraph` and composition grammar. |
-| 3 — Moneta correctness | **IN PROGRESS** | PR #226 adds explicit `BootstrapFitnessModel`, active weight normalization, density handling, configured-prior terminology, complete public requirement coverage, utility semantics and decision status/margin. Sensitivity and metamorphic validation remain. |
+| 3 — Moneta correctness | **IN PROGRESS** | PR #226 adds explicit `BootstrapFitnessModel`, active weight normalization, density handling, configured-prior terminology, complete public requirement coverage, utility semantics and decision status/margin, deterministic weight-sensitivity analysis, and FIELD-topology fitness alignment. Metamorphic validation and downstream confidence-terminology cleanup remain. |
 | 4 — NIL | **NOT STARTED AS FIRST-CLASS MODULE** | Existing interaction actions/modes are inputs. Need modality-independent semantic command schema, provenance and replay. |
 | 5 — Discovery | **PARTIAL** | Observation/Finding/Evidence infrastructure exists. Need first-class `DiscoveryEpisode`, hypothesis lifecycle and validation states. |
 | 6 — Human refinement | **PARTIAL / EXPERIMENTAL INPUTS EXIST** | Existing empirical tuning/study outcomes are not yet the V3 judgement pipeline. Need pairwise preference, weight adjustment and discovery-outcome events with provenance. |
@@ -64,7 +64,7 @@ PR #226 begins the correctness-first migration by making the legacy Draco namesp
 - [x] Rename the active preference contribution from “empirical prior” to `configuredPrior`; it is explicitly not an empirical probability.
 - [x] Stop emitting `confidence` / `confidenceScore` from live `RepresentationDecision`; persist utility/status/margin/FitnessModel version through Investigation digest instead.
 - [ ] Remove or rename remaining downstream compatibility fields that still use confidence terminology, including legacy `SpatialStrategy` contracts and study/export consumers where semantically appropriate.
-- [ ] Add deterministic weight sensitivity analysis.
+- [x] Add deterministic weight sensitivity analysis.
 - [ ] Add metamorphic tests: row shuffle invariance; column rename invariance absent semantic change; duplication affects scale/density according to policy.
 - [ ] Validate the representation ontology and bootstrap scores against human outcome evidence before making empirical claims.
 
