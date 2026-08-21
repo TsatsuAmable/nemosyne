@@ -171,6 +171,7 @@ export class BootstrapFitnessModel {
     else if (family === 'HIERARCHICAL' && (top === 'HIERARCHY' || signature.cardinality.depth > 1)) score = 1;
     else if (family === 'TEMPORAL' && (top === 'TIME_SERIES' || signature.temporalStructure.isTimeSeries)) score = 1;
     else if (family === 'FREQUENCY' && signature.spectralStructure?.hasPeriodicity) score = 1;
+    else if (family === 'FIELD' && (top === 'VECTOR_FIELD' || top === 'GEO')) score = 1;
     else if (family === 'CLUSTER' && signature.clusterStructure.hasClusters) score = 0.95;
     else if (family === 'DISTRIBUTION' && (signature.distribution.hasOutliers || signature.distribution.highVariance)) score = 0.9;
 
