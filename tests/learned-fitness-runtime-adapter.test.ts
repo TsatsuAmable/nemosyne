@@ -45,6 +45,10 @@ function artifact(): FitnessModelArtifact {
       metricName: GROUP_BALANCED_PAIRWISE_METRIC,
       holdoutJudgementCount: 40,
       holdoutGroupCount: 12,
+      candidateGroupWins: 10,
+      bootstrapGroupWins: 2,
+      tiedGroups: 0,
+      oneSidedGroupWinPValue: 0.019287109375,
     },
   };
 }
