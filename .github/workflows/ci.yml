@@ -9,6 +9,13 @@ on:
 permissions:
   contents: read
 
+# Rapid PR iteration should not leave obsolete commits consuming runners. A new
+# commit on the same PR/ref cancels the superseded CI run while unrelated PRs
+# continue independently.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   dependency-review:
     name: Dependency Review
@@ -52,6 +59,9 @@ jobs:
       - name: Run Rust unit tests
         run: cargo test --manifest-path wasm/Cargo.toml
 
+  # Fast correctness path. PRs run the complete Vitest suite without V8 coverage
+  # instrumentation; coverage thresholds remain centrally enforced by coverage.yml
+  # on main, nightly, and manual runs.
   node:
     name: Node ${{ matrix.node-version }}
     runs-on: ubuntu-latest
@@ -96,30 +106,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Run tests with coverage
-        run: npm run test:coverage
+      - name: Run full test suite
+        run: npm test
 
-      - name: Run production build
-        run: npm run build
-
-      # Non-blocking visibility into bundle size; a hard gzipped budget is a follow-up.
-      - name: Bundle size report (non-blocking)
-        continue-on-error: true
-        run: |
-          du -sh dist
-          node -e "const fs=require('fs'),zlib=require('zlib'),p=require('path');let t=0;const walk=d=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){const f=p.join(d,e.name);if(e.isDirectory())walk(f);else try{t+=zlib.gzipSync(fs.readFileSync(f)).length}catch{}}};walk('dist');console.log('gzipped total bytes:',t,'('+(t/1048576).toFixed(2)+' MiB)')"
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-node${{ matrix.node-version }}
-          path: coverage/
-          if-no-files-found: ignore
-
-  # Real-WebGL load smoke against headless Chromium (WebGL2 via SwiftShader).
-  # REQUIRED GATE: Must pass in CI alongside Rust unit tests and Node test suite.
-  playwright-smoke:
-    name: Playwright load smoke
+  # Build the production artifact in parallel with the Node correctness suite.
+  # Playwright consumes this exact artifact, so release WASM + Vite compilation
+  # happens once per surviving run rather than once in Node and again in smoke.
+  build:
+    name: Production build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -140,10 +134,58 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build production WASM package
+        run: npm run wasm
+
+      - name: Build Vite production bundle
+        run: npx vite build
+
+      # Non-blocking visibility into bundle size; a hard gzipped budget is a follow-up.
+      - name: Bundle size report (non-blocking)
+        continue-on-error: true
+        run: |
+          du -sh dist
+          node -e "const fs=require('fs'),zlib=require('zlib'),p=require('path');let t=0;const walk=d=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){const f=p.join(d,e.name);if(e.isDirectory())walk(f);else try{t+=zlib.gzipSync(fs.readFileSync(f)).length}catch{}}};walk('dist');console.log('gzipped total bytes:',t,'('+(t/1048576).toFixed(2)+' MiB)')"
+
+      - name: Upload production bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-node24
+          path: dist/
+          if-no-files-found: error
+
+  # Real-WebGL smoke starts as soon as the production artifact is available and
+  # runs concurrently with the Node correctness suite.
+  playwright-smoke:
+    name: Playwright load smoke
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEMOSYNE_SMOKE_PREBUILT: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download production bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-node24
+          path: dist/
+
       - name: Install Playwright browser (Chromium + system deps)
         run: npx playwright install --with-deps chromium
 
-      - name: Run load smoke (builds dist/ + serves via vite preview)
+      - name: Run load smoke against prebuilt dist
         run: npm run test:smoke
 
       - name: Upload Playwright trace on failure

@@ -3,15 +3,16 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright load-smoke configuration.
  *
- * One job: build the production bundle and verify it boots + renders a frame in
- * real headless Chromium (WebGL2 via SwiftShader). This is an informational /
- * non-required CI job — it does NOT block the owner auto-merge flow and is not
- * in the GitHub branch ruleset. See tests/smoke/README.md.
- *
- * The webServer builds dist/ then serves it with `vite preview` over plain HTTP
- * (NEMOSYNE_FORCE_HTTP=1 bypasses local dev certs so the server is HTTP in every
- * environment — headless Chromium needs no TLS, and CI has no certs).
+ * Local runs build the production bundle before verifying that it boots and
+ * renders a frame in real headless Chromium (WebGL2 via SwiftShader). CI sets
+ * NEMOSYNE_SMOKE_PREBUILT=1 and downloads the exact dist/ artifact produced by
+ * the Node job, so the smoke gate validates the already-tested build instead of
+ * compiling WASM and the Vite bundle a second time.
  */
+const previewCommand = process.env.NEMOSYNE_SMOKE_PREBUILT === '1'
+  ? 'npx vite preview --port 4173 --strictPort'
+  : 'npm run build && npx vite preview --port 4173 --strictPort';
+
 export default defineConfig({
   testDir: './tests/smoke',
   fullyParallel: false,
@@ -27,7 +28,7 @@ export default defineConfig({
   },
 
   webServer: {
-    command: 'npm run build && npx vite preview --port 4173 --strictPort',
+    command: previewCommand,
     port: 4173,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
