@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertRuntimeFitnessMode,
   bootstrapRuntimeFitnessMode,
   currentStudyRuntimeVersions,
   pinnedLearnedRuntimeFitnessMode,
   StudyFreezeGuard,
+  type RuntimeFitnessMode,
   type StudyFreezeManifest,
 } from '../src/study/index.ts';
 
@@ -49,5 +51,58 @@ describe('runtime fitness mode policy', () => {
 
   it('rejects a learned runtime identity without an exact artifact hash', () => {
     expect(() => pinnedLearnedRuntimeFitnessMode('learned-v2', '   ')).toThrow(/artifact hash/i);
+  });
+
+  it('rejects a learned runtime identity without a model version', () => {
+    expect(() => pinnedLearnedRuntimeFitnessMode('   ', 'artifact-a')).toThrow(/model version/i);
+  });
+
+  it('rejects unsupported runtime fitness mode schema versions', () => {
+    const invalid = {
+      ...bootstrapRuntimeFitnessMode(),
+      schemaVersion: '2.0.0',
+    } as unknown as RuntimeFitnessMode;
+
+    expect(() => assertRuntimeFitnessMode(invalid)).toThrow(/unsupported.*schema version/i);
+  });
+
+  it('rejects a bootstrap runtime with a non-canonical model version', () => {
+    const invalid = {
+      ...bootstrapRuntimeFitnessMode(),
+      fitnessModelVersion: 'learned-v2',
+    } as unknown as RuntimeFitnessMode;
+
+    expect(() => assertRuntimeFitnessMode(invalid)).toThrow(/canonical bootstrap/i);
+  });
+
+  it('rejects a bootstrap runtime carrying an artifact hash', () => {
+    const invalid = {
+      ...bootstrapRuntimeFitnessMode(),
+      artifactHash: 'artifact-a',
+    } as unknown as RuntimeFitnessMode;
+
+    expect(() => assertRuntimeFitnessMode(invalid)).toThrow(/canonical bootstrap/i);
+  });
+
+  it('rejects a pinned learned runtime with a blank model version', () => {
+    const invalid = {
+      schemaVersion: '1.0.0',
+      mode: 'pinned-learned',
+      fitnessModelVersion: '   ',
+      artifactHash: 'artifact-a',
+    } as RuntimeFitnessMode;
+
+    expect(() => assertRuntimeFitnessMode(invalid)).toThrow(/exact model version and artifact hash/i);
+  });
+
+  it('rejects a pinned learned runtime with a blank artifact hash', () => {
+    const invalid = {
+      schemaVersion: '1.0.0',
+      mode: 'pinned-learned',
+      fitnessModelVersion: 'learned-v2',
+      artifactHash: '   ',
+    } as RuntimeFitnessMode;
+
+    expect(() => assertRuntimeFitnessMode(invalid)).toThrow(/exact model version and artifact hash/i);
   });
 });
