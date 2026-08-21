@@ -18,20 +18,20 @@
 
 Baseline V3 governing merge: `13dd7459555d35ac718710a50f357e022c456731` (`docs: adopt V3 discovery-centric vision and modular implementation plan (#225)`).
 
-Active implementation PR: **#226 — `feature/v3-gate0-moneta-authority`**.
+Active implementation PR: **#227 — `feature/v3-gate0-moneta-authority`**.
 
 The repository retains strong foundations in Rust/WASM analytical authority, Investigation semantics, deterministic/replay infrastructure, Moneta's dataset-aware migration, study controls, VR interaction and package integrity. V3 deliberately reopens architectural completion claims where the old roadmap measured presence of infrastructure rather than the new discovery-centric exit criteria.
 
-PR #226 begins the correctness-first migration by making the legacy Draco namespace mechanically adapter-only, introducing a versioned bootstrap FitnessModel, routing the live Moneta hypothesis engine through that model, and representing ambiguity/abstention explicitly instead of presenting heuristic utility as confidence. Final completion claims remain contingent on CI and the remaining gate criteria below.
+PR #227 begins the correctness-first migration by making the legacy Draco namespace mechanically adapter-only, introducing a versioned bootstrap FitnessModel, routing the live Moneta hypothesis engine through that model, and representing ambiguity/abstention explicitly instead of presenting heuristic utility as confidence. Final completion claims remain contingent on CI and the remaining gate criteria below.
 
 ### Governing V3 gates
 
 | Gate | Status | Current evidence / next exit work |
 |---|---|---|
-| 0 — Authority reconciliation | **IN PROGRESS** | PR #226 adds a recursive architecture test requiring `src/draco/` to contain Moneta re-export adapters only. Rust and Investigation authority still need broader boundary tests and import/call-site inventory. |
+| 0 — Authority reconciliation | **IN PROGRESS** | PR #227 adds a recursive architecture test requiring `src/draco/` to contain Moneta re-export adapters only. Rust and Investigation authority still need broader boundary tests and import/call-site inventory. |
 | 1 — Dataset Evidence | **PARTIAL** | Rust structure/spectral/profile capabilities exist. They must become a typed `DatasetEvidence` contract with complete method/parameter/seed/normalisation/missing-data/version/limitations provenance. |
 | 2 — Representation Language | **NOT COMPLETE** | Existing representation families/candidates are bootstrap inputs. Need primitive registry, versioned ontology, `RepresentationGraph` and composition grammar. |
-| 3 — Moneta correctness | **IN PROGRESS** | PR #226 adds explicit `BootstrapFitnessModel`, active weight normalization, density handling, configured-prior terminology, complete public requirement coverage, utility semantics and decision status/margin, deterministic weight-sensitivity analysis, and FIELD-topology fitness alignment. Metamorphic validation and downstream confidence-terminology cleanup remain. |
+| 3 — Moneta correctness | **IN PROGRESS** | PR #227 adds explicit `BootstrapFitnessModel`, active weight normalization, density handling, configured-prior terminology, complete public requirement coverage, utility semantics and decision status/margin, deterministic weight-sensitivity analysis, and FIELD-topology fitness alignment. Metamorphic validation and downstream confidence-terminology cleanup remain. |
 | 4 — NIL | **NOT STARTED AS FIRST-CLASS MODULE** | Existing interaction actions/modes are inputs. Need modality-independent semantic command schema, provenance and replay. |
 | 5 — Discovery | **PARTIAL** | Observation/Finding/Evidence infrastructure exists. Need first-class `DiscoveryEpisode`, hypothesis lifecycle and validation states. |
 | 6 — Human refinement | **PARTIAL / EXPERIMENTAL INPUTS EXIST** | Existing empirical tuning/study outcomes are not yet the V3 judgement pipeline. Need pairwise preference, weight adjustment and discovery-outcome events with provenance. |
@@ -124,4 +124,4 @@ Detailed historical sprint narratives belong in `docs/archive/ROADMAP_HISTORY.md
 
 ## Pickup instruction
 
-Continue PR #226 until Gate 0 authority tests and the first Moneta correctness slice are CI-clean. Then begin the P1 foundation modules as separate branches where their public contracts no longer depend on unresolved Gate 0 ownership. Do not implement learning or compositional search ahead of the evidence/representation/NIL contracts merely because those later features are more sophisticated. V3's sequence is designed to make the eventual intelligence falsifiable, reproducible and scientifically interpretable.
+Continue PR #227 until Gate 0 authority tests and the first Moneta correctness slice are CI-clean. Then begin the P1 foundation modules as separate branches where their public contracts no longer depend on unresolved Gate 0 ownership. Do not implement learning or compositional search ahead of the evidence/representation/NIL contracts merely because those later features are more sophisticated. V3's sequence is designed to make the eventual intelligence falsifiable, reproducible and scientifically interpretable.
