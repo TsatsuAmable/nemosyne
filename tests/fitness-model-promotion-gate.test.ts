@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { assessFitnessModelPromotion, type FitnessModelArtifact } from '../src/fitness/index.ts';
+import {
+  assessFitnessModelPromotion,
+  GROUP_BALANCED_PAIRWISE_METRIC,
+  type FitnessModelArtifact,
+} from '../src/fitness/index.ts';
 
 function artifact(candidateMetric: number, bootstrapMetric = 0.6, holdoutJudgementCount = 40, holdoutGroupCount = 12): FitnessModelArtifact {
   return {
@@ -15,7 +19,7 @@ function artifact(candidateMetric: number, bootstrapMetric = 0.6, holdoutJudgeme
     evaluation: {
       bootstrapMetric,
       candidateMetric,
-      metricName: 'pairwise-accuracy',
+      metricName: GROUP_BALANCED_PAIRWISE_METRIC,
       holdoutJudgementCount,
       holdoutGroupCount,
     },
@@ -29,7 +33,7 @@ const policy = {
 };
 
 describe('Fitness model promotion eligibility', () => {
-  it('accepts a learned artifact only when it beats bootstrap by the declared margin', () => {
+  it('accepts a learned artifact only when it beats bootstrap by the declared group-balanced margin', () => {
     const result = assessFitnessModelPromotion(artifact(0.7), policy);
     expect(result.eligible).toBe(true);
     expect(result.absoluteImprovement).toBeCloseTo(0.1);
@@ -51,5 +55,18 @@ describe('Fitness model promotion eligibility', () => {
   it('rejects an improvement smaller than the declared threshold', () => {
     const result = assessFitnessModelPromotion(artifact(0.63), policy);
     expect(result.reasons).toContain('IMPROVEMENT_BELOW_THRESHOLD');
+  });
+
+  it('rejects judgement-weighted pairwise accuracy unless explicitly requested', () => {
+    const legacy = artifact(0.8);
+    legacy.evaluation.metricName = 'pairwise-accuracy';
+    expect(assessFitnessModelPromotion(legacy, policy).reasons).toContain('METRIC_MISMATCH');
+
+    expect(
+      assessFitnessModelPromotion(legacy, {
+        ...policy,
+        requiredMetricName: 'pairwise-accuracy',
+      }).eligible,
+    ).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
 import type { FitnessModelArtifact } from './FitnessModelRegistry.ts';
+import { GROUP_BALANCED_PAIRWISE_METRIC } from './GroupBalancedEvaluation.ts';
 
 export interface FitnessModelPromotionPolicy {
   minimumHoldoutJudgements: number;
@@ -40,6 +41,10 @@ function assertPolicy(policy: FitnessModelPromotionPolicy): void {
  * Passing this gate does not activate a model. Registry promotion remains an
  * explicit separate operation so study freezes, operator review, and rollback
  * policy can decide when an eligible artifact becomes live.
+ *
+ * The default metric is group-balanced pairwise accuracy so each independent
+ * dataset+researcher holdout group contributes equally rather than allowing a
+ * prolific group to dominate the promotion decision.
  */
 export function assessFitnessModelPromotion(
   artifact: FitnessModelArtifact,
@@ -48,7 +53,7 @@ export function assessFitnessModelPromotion(
   assertPolicy(policy);
   const reasons: FitnessModelPromotionRejectionReason[] = [];
   const evaluation = artifact.evaluation;
-  const requiredMetric = policy.requiredMetricName ?? 'pairwise-accuracy';
+  const requiredMetric = policy.requiredMetricName ?? GROUP_BALANCED_PAIRWISE_METRIC;
 
   if (artifact.modelKind !== 'pairwise-linear' && artifact.modelKind !== 'ranking-linear') {
     reasons.push('UNSUPPORTED_MODEL_KIND');
