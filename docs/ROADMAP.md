@@ -2,94 +2,95 @@
 
 > **Current implementation-status authority.** Product/research direction and architecture are governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. The executable migration sequence is `docs/IMPLEMENTATION_PLAN_V3.md`. Older Gate/Sprint numbering is historical and does not imply V3 completion.
 
-## Current Status — 21 August 2026
+## Current Status — 22 August 2026
 
 ### V3 implementation underway
 
-- **2026-08-20 — Adversarial Findings Remediation & Cryptographic/Statistical/Lifecycle Hardening (✅, merged from `feat/adversarial-findings-remediation`):**
-  - **Prompt TEST (Test Integrity & Zero-Skip Parity Gates):** Removed conditional skips from `tests/wasm-runtime.test.ts`, wired Node/Vitest filesystem WASM loading in `RuntimeBridge.ts` alongside browser `fetch()`, achieving **26/26 WASM parity tests executing and passing with 0 skipped**. Removed `@ts-nocheck` across touched test suites.
-  - **Prompt SECURITY (Archive, URL, Digest, & Provenance Security):** Hardened `NemosynePackage.ts` with streaming `fflate` Unzip extraction, bounded budgets (`MAX_ARCHIVE_SIZE = 100MB`, `MAX_TOTAL_UNCOMPRESSED = 250MB`, `MAX_ENTRY_COUNT = 1000`, `MAX_SINGLE_ENTRY = 100MB`), and multi-layer percent-encoded path traversal neutralization (`sanitizeEntryPath`). Hardened `ShareableSessionURL.ts` with protocol allowlist (`http:`, `https:`), UTF-8 base64url encoding, and strict schema whitelist stripping secret credentials (`authToken`). Updated `InvestigationDigest.ts` with real `CapabilityError` inheritance, RFC 8259/8785 compliant canonical array `undefined` -> `null` serialization, `-0` normalization, and cycle detection.
-  - **Prompt ATLAS (Atlas Transactions, Investigation DAG, & Monotonic Versions):** Made `AnalyticalState.commitKernelResult` atomic and exception-safe by cloning/preparing JS objects before touching handles. Upgraded `InvestigationGraph.ts` with iterative 3-state DFS cycle detection, outgoing/incoming adjacency index maps, and strict `fromJSON` validation. Made `InvestigationAggregate.restoreState` validate DAG integrity prior to mutating live state. Ensured `AtlasCore.resetAnalysis` monotonically advances `datasetVersion` and attaches reset operation/version nodes.
-  - **Prompt RUST (Rust Structure Profile & WASM Parity):** Upgraded `wasm/src/data/profile.rs` with iterative 3-state DFS cycle detection, 64-bit cell count arithmetic in missingness calculations to eliminate wasm32 overflow risk, and verified deterministic silhouette and clustering metrics against reference vectors.
-  - **Prompt STUDY (Study Protocol Governance, Crossover Statistics, & Exporter):** Upgraded `StudyStatisticalAnalyzer.ts` with exact zero-variance constant difference handling ($p = 0.0$ for deterministic positive/negative improvements) and log-transform approximation for Student-t tail probabilities. Updated `StudyDataExporter.ts` with whitespace-aware formula injection prevention (`/^\s*[=+\-@\t\r]/` + control characters) and dual CSV export functions (`toSpreadsheetSafeCSV` and `toLosslessCSV`).
-  - **Prompt COLLAB & VR (Collaboration Lifecycle, Live Ingestion, & GPU Teardown):** Implemented deep recursive GPU geometry and material disposal in `PeerAvatarManager.ts` on peer disconnect (`removePeer`), `clearAll()`, and `dispose()`, preventing WebGL resource leaks during multi-user sessions.
-  - **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors (166 warnings, test-scoped) · `cargo test` 89/89 passed · `npm test` 248/248 test files passed (1,643 passed / 0 skipped in parity suite) · `npm run build` exit 0.
-- **2026-08-21 — Representation validation suite repair (on `feature/v3-gate0-moneta-authority`):** Fixed the failing Gate 2 AtlasCore integration and synthetic representation validation tests, and closed a FIELD-topology fitness gap in the bootstrap `FitnessModel.scoreStructure` so vector-field/geospatial datasets can select the FIELD family whose `VECTOR_STREAMLINE`/`GEO_SURFACE` layouts are purpose-built for them. Full gate green: `tsc --noEmit` 0 errors · `eslint` 0 errors · `cargo + vitest` 255 files / 1669 tests passed.
+Nemosyne has moved beyond the original Gate 0 Moneta authority repair into the first evidence-governed learning/runtime slices. The important constraint remains unchanged: infrastructure presence is not evidence of empirical validity. Learned Moneta must remain explicit, pinned, reversible and falsifiable until held-out human outcome evidence justifies stronger claims.
+
+Recent merged sequence:
+
+- **#249 — learned-model promotion gate:** requires supported model kind, expected held-out metric, minimum judgement/group counts and a configured improvement over bootstrap before a model is promotion-eligible.
+- **#250/#251 — frozen feature and judgement evidence:** capture exact Moneta candidate feature snapshots and atomically join them to pairwise human judgements without training or activation side effects.
+- **#252 — gated learned runtime re-ranker:** reuses bootstrap raw candidate features and can only re-rank candidates already admitted by Moneta hard constraints.
+- **#254 — exact runtime artifact pin:** reproducible learned execution must match the exact registry-active artifact hash; registry drift fails closed.
+- **#253 — study/runtime fitness provenance:** `RuntimeFitnessMode` and `StudyRuntimeVersions` distinguish bootstrap from exact pinned-learned model version + artifact hash; `StudyFreezeGuard` treats artifact drift as runtime drift.
+
+**Active implementation PR: #255 — `feature/learned-fitness-runtime-opt-in`.** This slice wires pinned learned ranking into the live representation composition boundary as an explicit opt-in while preserving bootstrap as the default and authoritative source of candidate generation, hard constraints and canonical raw features.
 
 Baseline V3 governing merge: `13dd7459555d35ac718710a50f357e022c456731` (`docs: adopt V3 discovery-centric vision and modular implementation plan (#225)`).
-
-Active implementation PR: **#227 — `feature/v3-gate0-moneta-authority`**.
-
-The repository retains strong foundations in Rust/WASM analytical authority, Investigation semantics, deterministic/replay infrastructure, Moneta's dataset-aware migration, study controls, VR interaction and package integrity. V3 deliberately reopens architectural completion claims where the old roadmap measured presence of infrastructure rather than the new discovery-centric exit criteria.
-
-PR #227 begins the correctness-first migration by making the legacy Draco namespace mechanically adapter-only, introducing a versioned bootstrap FitnessModel, routing the live Moneta hypothesis engine through that model, and representing ambiguity/abstention explicitly instead of presenting heuristic utility as confidence. Final completion claims remain contingent on CI and the remaining gate criteria below.
 
 ### Governing V3 gates
 
 | Gate | Status | Current evidence / next exit work |
 |---|---|---|
-| 0 — Authority reconciliation | **IN PROGRESS** | PR #227 adds a recursive architecture test requiring `src/draco/` to contain Moneta re-export adapters only. Rust and Investigation authority still need broader boundary tests and import/call-site inventory. |
-| 1 — Dataset Evidence | **PARTIAL** | Rust structure/spectral/profile capabilities exist. They must become a typed `DatasetEvidence` contract with complete method/parameter/seed/normalisation/missing-data/version/limitations provenance. |
-| 2 — Representation Language | **NOT COMPLETE** | Existing representation families/candidates are bootstrap inputs. Need primitive registry, versioned ontology, `RepresentationGraph` and composition grammar. |
-| 3 — Moneta correctness | **IN PROGRESS** | PR #227 adds explicit `BootstrapFitnessModel`, active weight normalization, density handling, configured-prior terminology, complete public requirement coverage, utility semantics and decision status/margin, deterministic weight-sensitivity analysis, and FIELD-topology fitness alignment. Metamorphic validation and downstream confidence-terminology cleanup remain. |
-| 4 — NIL | **NOT STARTED AS FIRST-CLASS MODULE** | Existing interaction actions/modes are inputs. Need modality-independent semantic command schema, provenance and replay. |
-| 5 — Discovery | **PARTIAL** | Observation/Finding/Evidence infrastructure exists. Need first-class `DiscoveryEpisode`, hypothesis lifecycle and validation states. |
-| 6 — Human refinement | **PARTIAL / EXPERIMENTAL INPUTS EXIST** | Existing empirical tuning/study outcomes are not yet the V3 judgement pipeline. Need pairwise preference, weight adjustment and discovery-outcome events with provenance. |
-| 7 — Learning infrastructure | **DEFERRED UNTIL EVIDENCE CONTRACTS** | Need curated judgement store, holdout discipline and model registry before training. |
-| 8 — Learned Moneta | **DEFERRED** | No claim of empirical validity until held-out comparison against bootstrap heuristics. |
-| 9 — Compositional Moneta | **DEFERRED** | Depends on Gate 2 RepresentationGraph and Gate 3 correctness. |
-| 10 — Adaptive Nemosyne | **DEFERRED** | Depends on validated learning, freeze controls, monitoring and rollback. |
+| 0 — Authority reconciliation | **IN PROGRESS** | Legacy Draco is adapter-only and live Moneta authority has been consolidated. Remaining work: complete import/call-site inventory, remove obsolete compatibility consumers, and prove research-relevant analytical facts originate in Rust/WASM or fail explicitly. |
+| 1 — Dataset Evidence | **PARTIAL** | Typed `DatasetEvidence` and evidence-backed Moneta boundaries exist. Continue expanding authoritative evidence coverage and provenance/replay tests, especially unsupported topology/structure cases. |
+| 2 — Representation Language | **PARTIAL** | Representation ontology, graph contracts and runtime adapters exist. Composition grammar and broader canonical graph coverage remain incomplete. |
+| 3 — Moneta correctness | **IN PROGRESS** | Versioned bootstrap FitnessModel, complete declared scoring dimensions, hard constraints, abstention/status/margin and sensitivity analysis are live. Remaining work includes metamorphic validation and downstream confidence-terminology cleanup. |
+| 4 — NIL | **IN PROGRESS / PARTIAL** | Semantic interaction language and replay foundations exist; continue modality-independent provenance and parity work. |
+| 5 — Discovery | **PARTIAL** | DiscoveryEpisode lifecycle/store infrastructure exists. Continue end-to-end hypothesis validation and headless replay integration. |
+| 6 — Human refinement | **IN PROGRESS** | Pairwise judgement and exact feature-snapshot evidence are now captured transactionally. Outcome-event coverage and stronger curation policy remain. |
+| 7 — Learning infrastructure | **IN PROGRESS** | Registry, immutable artifacts, promotion gate, feature snapshots, judgement joins, rollback history and pinned runtime adapter exist. Holdout discipline and operational curation/monitoring still require evidence and review. |
+| 8 — Learned Moneta | **EARLY OPT-IN, NOT EMPIRICALLY VALIDATED** | #252/#254 provide a gated pinned re-ranker; #255 wires explicit composition-root adoption. Bootstrap remains default. No empirical superiority claim is permitted without held-out comparison against bootstrap. |
+| 9 — Compositional Moneta | **DEFERRED** | Depends on mature RepresentationGraph/grammar and validated Moneta correctness. Do not introduce learned composition search yet. |
+| 10 — Adaptive Nemosyne | **DEFERRED** | Depends on validated learning, freeze controls, monitoring, rollback and study evidence. |
 
 ## Immediate work queue
 
-### P0 — Gate 0 authority reconciliation
+### P0 — Finish authority and correctness boundaries
 
-- [ ] Inventory all `src/draco/` and `src/moneta/` imports, exports and runtime call sites.
-- [ ] Classify Draco code as compatibility adapter, neutral representation contract, renderer helper or obsolete reasoning authority.
-- [ ] Move neutral contracts into `src/representation/` where appropriate.
-- [x] Ensure legacy `src/draco/` is mechanically restricted to Moneta compatibility re-exports.
-- [x] Add an architecture test that fails if implementation/scoring authority is added under `src/draco/`.
-- [ ] Verify all live representation scoring/ranking/selection authority resides in `src/moneta/`, including non-Draco call sites.
-- [ ] Delete obsolete compatibility files once import inventory proves they have no live consumers.
-- [ ] Verify research-relevant analytical facts consumed by Moneta originate in Rust/WASM or fail explicitly.
-- [ ] Verify representation decisions and future model/NIL/discovery provenance persist through Investigation rather than renderer/session state.
+- [ ] Complete inventory of `src/draco/` / `src/moneta/` imports, exports and runtime call sites.
+- [ ] Classify remaining compatibility code as adapter, neutral representation contract, renderer helper or obsolete authority.
+- [x] Mechanically restrict legacy `src/draco/` to Moneta compatibility re-exports and enforce with architecture tests.
+- [ ] Delete obsolete compatibility files once the import inventory proves they have no live consumers.
+- [ ] Verify all research-relevant analytical facts consumed by Moneta originate in Rust/WASM or fail explicitly.
+- [ ] Verify representation/model/NIL/discovery provenance persists through Investigation rather than renderer/session-only state.
+- [ ] Remove or rename remaining downstream `confidence` compatibility fields where they still describe uncalibrated utility.
+- [ ] Add metamorphic tests: row-shuffle invariance; column-rename invariance absent semantic change; duplication changes scale/density according to declared policy.
 
-### P0 — Moneta falsifiability/correctness
+### P0 — Complete safe learned-runtime adoption
 
-- [x] Introduce explicit versioned bootstrap `FitnessModel` and route the live `MonetaHypothesisEngine` through it.
-- [x] Enforce finite non-negative active weights and `sum(activeWeights) == 1` within defined tolerance.
-- [x] Implement the declared density-handling fitness dimension rather than leaving `w_density` dead.
-- [x] Give every declared `StructureRequirementType` a defined task-scoring effect in the bootstrap model.
-- [x] Add `DECISIVE | AMBIGUOUS | INFEASIBLE | UNDERDETERMINED` decision states with winner/runner-up/margin.
-- [x] Rename the active preference contribution from “empirical prior” to `configuredPrior`; it is explicitly not an empirical probability.
-- [x] Stop emitting `confidence` / `confidenceScore` from live `RepresentationDecision`; persist utility/status/margin/FitnessModel version through Investigation digest instead.
-- [ ] Remove or rename remaining downstream compatibility fields that still use confidence terminology, including legacy `SpatialStrategy` contracts and study/export consumers where semantically appropriate.
-- [x] Add deterministic weight sensitivity analysis.
-- [ ] Add metamorphic tests: row shuffle invariance; column rename invariance absent semantic change; duplication affects scale/density according to policy.
-- [ ] Validate the representation ontology and bootstrap scores against human outcome evidence before making empirical claims.
+- [x] Immutable FitnessModel registry with explicit activation/rollback history.
+- [x] Held-out promotion eligibility gate separated from activation.
+- [x] Exact candidate feature snapshots and transactional judgement joins.
+- [x] Post-bootstrap learned re-ranking that preserves hard disqualifications.
+- [x] Exact learned artifact pinning and fail-closed registry drift detection.
+- [x] Study/runtime provenance for exact model version + artifact hash.
+- [ ] Merge #255 after full CI: explicit representation composition-root opt-in, exact decision artifact provenance and no silent fallback.
+- [ ] Add operational monitoring/rollback evidence before any default-runtime discussion.
+- [ ] Validate learned ranking against held-out human discovery outcomes before claiming improvement over bootstrap.
 
-### P1 — Parallel foundation modules after Gate 0 contracts
+### P1 — Parallel foundation modules
 
-The following are intended to proceed in parallel once authority boundaries are stable:
-
-1. **Dataset Evidence:** typed Rust schema + WASM boundary + provenance/replay tests.
-2. **Representation Ontology:** primitive registry + `RepresentationGraph` + grammar + canonical serialization.
-3. **Investigation/Discovery:** `DiscoveryEpisode`, hypothesis lifecycle, validation and headless replay.
-4. **NIL:** semantic command envelope, provenance, modality adapters and replay.
+1. **Dataset Evidence:** expand typed Rust/WASM evidence coverage, provenance and replay parity.
+2. **Representation Ontology:** mature primitive registry, `RepresentationGraph`, grammar and canonical serialization.
+3. **Investigation/Discovery:** strengthen hypothesis lifecycle, validation, outcome evidence and headless replay.
+4. **NIL:** complete semantic command provenance, modality adapters and replay parity.
 
 Persistence and CI evolve continuously across all four.
 
 ### P2 — Integration wave
 
-- Moneta consumes `DatasetEvidence` and Representation Ontology contracts.
+- Moneta consumes authoritative `DatasetEvidence` and Representation Ontology contracts.
 - Existing single-family decisions are represented as simple `RepresentationGraph`s before composition search is introduced.
-- Spatial Runtime becomes the graph embodiment adapter and does not reinterpret Moneta semantics.
+- Spatial Runtime remains the graph embodiment adapter and does not reinterpret Moneta semantics.
 - Research Harness freezes exact Rust/Moneta/Fitness/Ontology/NIL/perception versions.
 - 2D and VR treatments consume equivalent semantic representation contracts.
+- Learned execution remains pinned and opt-in until held-out evidence plus monitoring/rollback justify a governance change.
+
+## Design boundaries
+
+- **Bootstrap is the safe default.** An explicit learned-runtime request must never silently degrade to another learned artifact or silently fall back to bootstrap.
+- **Hard constraints precede learned ranking.** Learned models may reorder feasible candidates; they may not resurrect a bootstrap-disqualified candidate.
+- **Registry activation is not provenance.** Reproducible execution pins an immutable artifact hash and model version in the decision/study runtime state.
+- **Promotion eligibility is not empirical truth.** Passing the promotion gate means the artifact satisfies the declared evidence policy, not that Moneta is universally better.
+- **Learning does not own analytical facts.** Raw research-relevant facts remain Rust/WASM-authoritative; learned ranking consumes frozen Moneta feature evidence.
+- **No compositional/adaptive leapfrogging.** Gate 9/10 sophistication does not substitute for Gate 1–8 falsifiability and validation.
 
 ## Documentation cleanup policy
 
-Every PR touching an architectural area must update active documentation. Superseded active prose is either rewritten to V3 terminology or moved to `docs/archive/` when it has historical value. Obsolete docs without enduring value should be deleted. The repository must not maintain two live descriptions of representation authority, research goals or implementation gates.
+Every PR touching an architectural area must update active documentation. Superseded active prose is rewritten to V3 terminology or moved to `docs/archive/` when it has historical value. Obsolete docs without enduring value should be deleted. The repository must not maintain two live descriptions of representation authority, research goals or implementation gates.
 
 ## Verification baseline
 
@@ -107,21 +108,6 @@ npm run audit:hygiene
 
 Focused correctness/parity tests are mandatory for claimed functionality. A skipped test is not evidence for a claimed gate.
 
-## Recently completed foundations retained from the pre-V3 roadmap
-
-These remain useful inputs to V3, but their old gate labels are historical:
-
-- deterministic Rust/WASM analytical kernel and explicit unavailable/degraded states;
-- Investigation aggregate, DAG, evidence ledger, canonical digest and replay/package hardening;
-- Moneta dataset-aware representation migration and deterministic hard constraints;
-- representation/embodiment separation work;
-- study treatment controls and statistical/export hardening;
-- VR interaction state machine, gesture ownership, spatial grounding and panel-role governance;
-- collaboration authentication/security and lifecycle hardening;
-- CI Rust/WASM/browser parity and hygiene gates.
-
-Detailed historical sprint narratives belong in `docs/archive/ROADMAP_HISTORY.md` rather than this current-status file.
-
 ## Pickup instruction
 
-Continue PR #227 until Gate 0 authority tests and the first Moneta correctness slice are CI-clean. Then begin the P1 foundation modules as separate branches where their public contracts no longer depend on unresolved Gate 0 ownership. Do not implement learning or compositional search ahead of the evidence/representation/NIL contracts merely because those later features are more sophisticated. V3's sequence is designed to make the eventual intelligence falsifiable, reproducible and scientifically interpretable.
+Finish #255 correctness-first. If it is CI-clean, merge the explicit pinned learned-runtime opt-in without changing bootstrap default behavior. The next work should strengthen end-to-end provenance, held-out validation, monitoring/rollback and remaining Gate 0/3 correctness gaps rather than adding more sophisticated learning or compositional search.
