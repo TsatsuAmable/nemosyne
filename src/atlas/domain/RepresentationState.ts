@@ -4,6 +4,8 @@
  */
 
 import type { Facts } from '../../data/types.ts';
+import type { FitnessModelRegistry } from '../../fitness/FitnessModelRegistry.ts';
+import type { FitnessModelPromotionPolicy } from '../../fitness/PromotionGate.ts';
 import type {
   CategoricalDistribution,
   MonetaDataInput,
@@ -13,6 +15,7 @@ import type {
 } from '../../moneta/types.ts';
 import { TopologyTypes } from '../../types/topology.ts';
 import {
+  BOOTSTRAP_FITNESS_MODEL_VERSION,
   createDefaultRequirements,
   type RepresentationRequirements,
   type SpatialStrategy,
@@ -22,6 +25,22 @@ import {
   buildDatasetSignature,
   MonetaHypothesisEngine,
 } from '../../moneta/index.ts';
+import {
+  applyPinnedLearnedFitnessRuntime,
+  type PinnedLearnedMonetaRuntimeConfig,
+} from '../../moneta/representation/LearnedMonetaRuntime.ts';
+
+export type RepresentationFitnessRuntimeIdentity =
+  | {
+      mode: 'bootstrap';
+      fitnessModelVersion: typeof BOOTSTRAP_FITNESS_MODEL_VERSION;
+      artifactHash: null;
+    }
+  | {
+      mode: 'pinned-learned';
+      fitnessModelVersion: string;
+      artifactHash: string;
+    };
 
 export function estimateClusterCount(
   rowCount: number,
@@ -190,6 +209,42 @@ export class RepresentationState {
   activeSignature: DatasetSignature | null = null;
   activeDecision: RepresentationDecision | null = null;
 
+  private learnedRuntime: PinnedLearnedMonetaRuntimeConfig | null = null;
+
+  /** Explicitly opt this representation composition root into pinned learned ranking. */
+  usePinnedLearnedFitnessRuntime(config: {
+    registry: FitnessModelRegistry;
+    policy: FitnessModelPromotionPolicy;
+    artifactHash: string;
+    modelVersion: string;
+  }): void {
+    const artifactHash = config.artifactHash.trim();
+    const modelVersion = config.modelVersion.trim();
+    if (!artifactHash) throw new TypeError('Pinned learned artifact hash must be non-empty');
+    if (!modelVersion) throw new TypeError('Pinned learned model version must be non-empty');
+    this.learnedRuntime = { ...config, artifactHash, modelVersion };
+  }
+
+  /** Restore the canonical bootstrap runtime. This is the default and fallback-free path. */
+  useBootstrapFitnessRuntime(): void {
+    this.learnedRuntime = null;
+  }
+
+  getFitnessRuntimeIdentity(): RepresentationFitnessRuntimeIdentity {
+    if (!this.learnedRuntime) {
+      return {
+        mode: 'bootstrap',
+        fitnessModelVersion: BOOTSTRAP_FITNESS_MODEL_VERSION,
+        artifactHash: null,
+      };
+    }
+    return {
+      mode: 'pinned-learned',
+      fitnessModelVersion: this.learnedRuntime.modelVersion,
+      artifactHash: this.learnedRuntime.artifactHash,
+    };
+  }
+
   toMonetaFacts(input: MonetaDataInput, kernelFacts: Facts | null): MonetaFacts {
     if (kernelFacts) {
       return mapKernelFactsToMoneta(
@@ -281,7 +336,10 @@ export class RepresentationState {
       spectralFacts,
       datasetFingerprint
     );
-    const decision = new MonetaHypothesisEngine().arbitrate(signature, req);
+    const bootstrapDecision = new MonetaHypothesisEngine().arbitrate(signature, req);
+    const decision = this.learnedRuntime
+      ? applyPinnedLearnedFitnessRuntime(bootstrapDecision, this.learnedRuntime)
+      : bootstrapDecision;
     this.activeDecision = decision;
     this.activeStrategy = decision.embodiment.spatialStrategy;
     this.activeRequirements = req;
