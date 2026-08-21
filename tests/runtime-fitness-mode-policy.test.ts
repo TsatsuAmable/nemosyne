@@ -34,18 +34,17 @@ describe('runtime fitness mode policy', () => {
     expect(runtime.fitnessModelArtifactHash).toBe('fnv1a-deadbeef');
   });
 
-  it('detects learned artifact drift during a frozen study', () => {
+  it('detects learned artifact drift before a frozen study begins', () => {
     const declared = currentStudyRuntimeVersions(
       'kernel-1',
       pinnedLearnedRuntimeFitnessMode('learned-v2', 'artifact-a'),
     );
-    const guard = new StudyFreezeGuard(manifest(declared), () =>
+    expect(() => new StudyFreezeGuard(manifest(declared), () =>
       currentStudyRuntimeVersions(
         'kernel-1',
         pinnedLearnedRuntimeFitnessMode('learned-v2', 'artifact-b'),
       ),
-    );
-    expect(() => guard.assertCurrent()).toThrow(/runtime drift/i);
+    )).toThrow(/runtime drift/i);
   });
 
   it('rejects a learned runtime identity without an exact artifact hash', () => {
