@@ -3,6 +3,7 @@ import {
   FITNESS_MODEL_ARTIFACT_SCHEMA_VERSION,
   FitnessModelRegistry,
   rankWithActiveLearnedFitnessModel,
+  rankWithPinnedLearnedFitnessModel,
   type FitnessModelArtifact,
 } from '../src/fitness/index.ts';
 import type { CandidateScore } from '../src/moneta/representation/RepresentationDecision.ts';
@@ -82,5 +83,37 @@ describe('learned fitness runtime adapter', () => {
     registry.promote(registered.artifactHash, 2);
     expect(() => rankWithActiveLearnedFitnessModel(registry, [candidate('POINT_SET', [1, 1, 1, 1, 1, 1], 1)], policy))
       .toThrow(/not promotion-eligible/);
+  });
+
+  it('allows pinned execution only when the active registry artifact matches exactly', () => {
+    const registry = new FitnessModelRegistry();
+    const registered = registry.register(artifact());
+    registry.promote(registered.artifactHash, 2);
+    const result = rankWithPinnedLearnedFitnessModel(
+      registry,
+      [candidate('POINT_SET', [1, 0, 0, 0, 0, 0], 0.5)],
+      policy,
+      registered.artifactHash,
+    );
+    expect(result.artifactHash).toBe(registered.artifactHash);
+  });
+
+  it('rejects pinned execution after registry activation drifts to another artifact', () => {
+    const registry = new FitnessModelRegistry();
+    const first = registry.register(artifact());
+    registry.promote(first.artifactHash, 2);
+
+    const secondArtifact = artifact();
+    secondArtifact.modelVersion = 'learned-v2';
+    secondArtifact.parameters = { weights: [0, 1, 0, 0, 0, 0] };
+    const second = registry.register(secondArtifact);
+    registry.promote(second.artifactHash, 3);
+
+    expect(() => rankWithPinnedLearnedFitnessModel(
+      registry,
+      [candidate('POINT_SET', [1, 0, 0, 0, 0, 0], 0.5)],
+      policy,
+      first.artifactHash,
+    )).toThrow(/does not match pinned runtime artifact/i);
   });
 });
