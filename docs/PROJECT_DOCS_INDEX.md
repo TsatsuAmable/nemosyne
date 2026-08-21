@@ -1,89 +1,66 @@
 # Project documentation index
 
-This repository keeps a single governing product spec, separate implementation/status and
-technical-reference layers, a study layer, and one historical archive. Archived documents are
-context only and never override the authorities below.
+This repository keeps one governing product/research/architecture specification, separate implementation/status and technical-reference layers, a study layer, and a historical archive. Archived documents are context only and never override the authorities below.
 
-## Governing spec
+## Governing specification
 
-- [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md) — the
-  canonical product + implementation spec. Defines target architecture, principles, the Gate 0–7
-  model, release governance, documentation policy, and the Stable Alpha definition. All other
-  product docs are subordinate to this file.
+- [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md) — **V3**, the canonical discovery-centric product, research and architecture specification. It defines the five ontologies, canonical authority boundaries, the 15-module target architecture, V3 Gates 0–10, reproducibility requirements and the path from bootstrap heuristics to validated compositional representation intelligence. All other product documents are subordinate to it.
 
 ## 1. Product implementation and status
-This layer covers the shipped product, roadmap state, architecture, and engineering decisions.
+
+This layer describes the code that exists now and the migration toward V3. It must not restate superseded vision as current direction.
 
 Canonical files:
-- [ROADMAP.md](ROADMAP.md) — implementation status; structured around the vision's Gate 0–7 model and public testing sprints.
-- [DEVELOPER_EXPLAINER.md](DEVELOPER_EXPLAINER.md) — developer onboarding, codebase mental model, data lifecycle, Rust/WASM ABI, and cookbooks.
-- [ARCHITECTURE.md](ARCHITECTURE.md) — modular subsystems reference, semantic ownership, and boundaries.
-- [STANDARDIZATION_REVIEW.md](STANDARDIZATION_REVIEW.md) — comprehensive open-source standardization audit, library replacements, and reduction of custom maintenance footprint.
-- [OSS_MIGRATION_PROPOSAL.md](OSS_MIGRATION_PROPOSAL.md) — open-source library adoption plan to reduce maintenance footprint.
+- [ROADMAP.md](ROADMAP.md) — implementation status and V3 migration workstreams. Historical gate/sprint numbering remains historical evidence only.
+- [IMPLEMENTATION_PLAN_V3.md](IMPLEMENTATION_PLAN_V3.md) — executable V3 module plan, dependency graph, parallel workstreams, verification gates and deletion/migration policy.
+- [DEVELOPER_EXPLAINER.md](DEVELOPER_EXPLAINER.md) — developer onboarding and codebase mental model.
+- [ARCHITECTURE.md](ARCHITECTURE.md) — current modular subsystem reference; where it conflicts with V3, V3 governs until this reference is migrated.
+- [STANDARDIZATION_REVIEW.md](STANDARDIZATION_REVIEW.md) — open-source standardization audit.
+- [OSS_MIGRATION_PROPOSAL.md](OSS_MIGRATION_PROPOSAL.md) — library adoption plan.
 - [MIGRATION.md](MIGRATION.md)
 - [STATISTICAL_METHOD_REGISTER.md](STATISTICAL_METHOD_REGISTER.md)
 - [GETTING_STARTED.md](GETTING_STARTED.md)
 - [README.md](../README.md)
 
-Use this layer to answer:
-- What is implemented?
-- How does the system work under the hood?
-- What is active, planned, blocked, or deferred?
-- What is the engineering state of the codebase?
+Use this layer to answer what is implemented, active, planned, blocked or deferred. Do not infer V3 completion from older completed sprint/gate labels.
 
 Historical context:
-- [Roadmap history](archive/ROADMAP_HISTORY.md) — completed and superseded phases index
+- [Roadmap history](archive/ROADMAP_HISTORY.md)
 - [Phases 21–26 completed archive](archive/ROADMAP_PHASES_21-26_COMPLETED.md)
 - [Phases 1–20 completed archive](archive/ROADMAP_PHASES_1-20_COMPLETED.md)
 
 ## 2. Study protocol and research governance
-This layer covers the design of a controlled study, including hypotheses, confounds, equivalence, and analysis rules.
 
 Canonical files:
-- [docs/study/README.md](study/README.md)
-- [docs/study/PROTOCOL.md](study/PROTOCOL.md)
-- [docs/study/ANALYSIS_PLAN.md](study/ANALYSIS_PLAN.md)
-- [docs/study/CONFOUNDS.md](study/CONFOUNDS.md)
-- [docs/study/REPRESENTATION_EQUIVALENCE.md](study/REPRESENTATION_EQUIVALENCE.md)
+- [study/README.md](study/README.md)
+- [study/PROTOCOL.md](study/PROTOCOL.md)
+- [study/ANALYSIS_PLAN.md](study/ANALYSIS_PLAN.md)
+- [study/CONFOUNDS.md](study/CONFOUNDS.md)
+- [study/REPRESENTATION_EQUIVALENCE.md](study/REPRESENTATION_EQUIVALENCE.md)
 
-Use this layer to answer:
-- What are we testing?
-- What comparisons are pre-registered?
-- What confounds are controlled or recorded?
-- What is the valid interpretation of the result?
+V3 reframes 2D-vs-VR as one controlled experiment within the broader meaningful-discovery programme. Existing protocol documents remain operational inputs but must be revised before being treated as evidence that the V3 research programme is study-ready.
 
-## 3. Study operations, compliance, and reproducibility
-This layer covers participant-facing disclosure, data capture, retention, versioning, and reproducibility.
+## 3. Study operations, compliance and reproducibility
 
 Canonical files:
-- [docs/study/CONSENT.md](study/CONSENT.md)
-- [docs/study/DATA_DICTIONARY.md](study/DATA_DICTIONARY.md)
-- [docs/study/version.json](study/version.json)
-
-Use this layer to answer:
-- What exact data are collected?
-- How is consent handled?
-- What version of the build and dataset generated the data?
-- Can the study be reconstructed later?
+- [study/CONSENT.md](study/CONSENT.md)
+- [study/DATA_DICTIONARY.md](study/DATA_DICTIONARY.md)
+- [study/version.json](study/version.json)
 
 ## Proposals and research inputs
 
-- [USER_STORIES_AND_UX_ANALYSIS.md](USER_STORIES_AND_UX_ANALYSIS.md) — product research input, not
-  an authority.
+- [USER_STORIES_AND_UX_ANALYSIS.md](USER_STORIES_AND_UX_ANALYSIS.md) — product research input, not an authority.
 
 ## Historical archive
 
-- [Archive index](archive/README.md) — superseded roadmaps, design material, and study drafts.
+- [Archive index](archive/README.md) — superseded roadmaps, design material and study drafts.
 
 ## Ownership and authority
-- Product direction, architecture boundaries, release governance, and documentation policy remain
-  authoritative in [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md).
-- Implementation status remains authoritative in [docs/ROADMAP.md](ROADMAP.md).
-- Technical reference remains authoritative in [docs/ARCHITECTURE.md](ARCHITECTURE.md).
-- Study design remains authoritative in [docs/study](study).
-- Operational data package and consent remain authoritative in [docs/study](study).
 
-No archived document is an active source of truth.
+- Product direction, research thesis, architecture boundaries and implementation gates: [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md).
+- Current implementation status: [ROADMAP.md](ROADMAP.md).
+- Executable V3 migration sequencing: [IMPLEMENTATION_PLAN_V3.md](IMPLEMENTATION_PLAN_V3.md).
+- Technical reference: [ARCHITECTURE.md](ARCHITECTURE.md), subordinate to V3 while migration is in progress.
+- Study design and operations: [study/](study/), subordinate to V3 research safeguards.
 
-The governing spec is authoritative; the implementation, study, and technical-reference layers are
-related but subordinate, not interchangeable.
+No archived document is an active source of truth. If an active document conflicts with V3, V3 wins and the conflicting document must be updated or archived as part of the next touching change.
