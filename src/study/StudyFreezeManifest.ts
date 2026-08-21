@@ -96,7 +96,7 @@ export class StudyFreezeGuard {
     this.snapshotValue = {
       configHash: hashStudyFreezeManifest(manifest),
       manifest: clone(manifest),
-      runtimeVersions: clone(runtimeVersionsProvider()),
+      runtimeVersions: clone(manifest.runtimeVersions),
     };
     this.assertCurrent(manifest);
   }
