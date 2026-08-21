@@ -12,4 +12,5 @@ export * from './FitnessModel.ts';
 export * from './DecisionPolicy.ts';
 export * from './SensitivityAnalysis.ts';
 export * from './MonetaHypothesisEngine.ts';
+export * from './EvidenceBackedMoneta.ts';
 export { MonetaHypothesisEngine as RepresentationHypothesisEngine } from './MonetaHypothesisEngine.ts';
