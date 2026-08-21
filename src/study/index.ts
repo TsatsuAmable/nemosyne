@@ -3,6 +3,7 @@
  */
 
 export * from './types.ts';
+export * from './RuntimeFitnessMode.ts';
 export * from './Counterbalancer.ts';
 export * from './StudyDatasets.ts';
 export * from './StudyFreezeManifest.ts';
