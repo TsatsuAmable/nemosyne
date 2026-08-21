@@ -26,38 +26,73 @@ import type { DatasetSpaceJSON } from './DatasetSpace.ts';
 import type { HistorySnapshot } from '../data/AnalysisHistory.ts';
 import type { StructureSet } from './structures.ts';
 
+/**
+ * Typed analytical command wrapping a kernel {@link OperationSpec}. Built by
+ * `toAnalysisSpec` from a high-level operation name plus the live AtlasCore
+ * state (fingerprint, version, kernel version, median thunk).
+ */
 export interface AnalysisSpec {
+  /** Fingerprint of the dataset the spec is built against. */
   datasetFingerprint: string;
+  /** AtlasCore dataset version at spec build time. */
   datasetVersion: number;
+  /** The kernel operation spec (built by `toKernelSpec`). */
   operation: OperationSpec;
+  /** Optional feature subset the analysis targets. */
   featureSelection?: string[];
+  /** Optional role assignments for downstream embodiment. */
   roles?: Record<string, 'color' | 'size' | 'pulse' | 'time' | 'label' | 'filter'>;
+  /** Normalization mode; defaults to 'none'. */
   normalization?: 'none' | 'minmax';
+  /** Missing-value policy; defaults to 'exclude-non-finite'. */
   missingness?: 'exclude-non-finite';
+  /** RNG seed for reproducible stochastic ops (clustering, sampling). */
   seed?: number | null;
+  /** Kernel version captured at spec build time. */
   algorithmVersion: string;
+  /** Human operation name ('filter', 'sort', ...) for history/narrative. */
   label?: string;
 }
 
+/** Evidence classification for an analytical result. */
 export type EvidenceStatus = 'exploratory' | 'validated' | 'confirmatory';
 
+/**
+ * Authoritative result of a single analytical operation. Carries the kernel
+ * provenance envelope (`provenance`), the output dataset, and a deterministic
+ * `resultId`/`outputHash`. `provenance` is `null` only for mock kernels that
+ * emit no envelope — never fabricated.
+ */
 export interface AnalysisResult {
+  /** Deterministic: `${datasetFingerprint}:${datasetVersion}:${operation.op}:${index}`. */
   resultId: string;
   datasetFingerprint: string;
   datasetVersion: number;
   spec: AnalysisSpec;
+  /** The output dataset (post-op) as JSON. */
   dataset: DatasetJSON;
+  /** Kernel statistics over the output, when computed. */
   metrics?: Facts | null;
   diagnostics?: string[];
   warnings?: string[];
+  /** Kernel provenance envelope (from `bridge.kernelProvenance()`). */
   provenance: Provenance | null;
+  /** Kernel version that produced the result. */
   implementationVersion: string;
+  /** Canonical FNV-1a hash over the result dataset. */
   outputHash: string;
+  /** Default 'exploratory'. */
   evidenceStatus: EvidenceStatus;
 }
 
+/** Decision recorded against an {@link AtlasRecommendation}. */
 export type RecommendationDecision = 'pending' | 'accepted' | 'rejected' | 'overridden';
 
+/**
+ * Typed analytical action vocabulary for {@link AtlasRecommendation}. Maps to
+ * the structure kinds produced by Atlas 2: clusters → `INSPECT_CLUSTER`,
+ * persistence boundaries → `INSPECT_BOUNDARY`, mapper regions → `EXPLORE_REGION`.
+ */
 export type AnalyticalAction =
   | 'inspect-cluster'
   | 'inspect-boundary'
@@ -65,12 +100,23 @@ export type AnalyticalAction =
   | 'compare-regions'
   | 'investigate-anomaly';
 
+/**
+ * Structured evidence item linking a recommendation to a specific
+ * {@link DiscoveredStructure} and its measurable evidence value.
+ */
 export interface AnalyticalEvidence {
   type: string;
   value: number;
   source: string;
 }
 
+/**
+ * Semantic VR embodiment command carrying analytical target IDs and
+ * provenance. Atlas 4: commands operate on analytical IDs (structure IDs)
+ * rather than mutating Three.js state directly. The executor resolves
+ * targetIds to rowIndices via {@link DiscoveredStructure} and applies
+ * embodiment actions through a single scoped artefact applier.
+ */
 export interface VRCommand {
   action: AnalyticalAction;
   targetIds: string[];
@@ -79,6 +125,10 @@ export interface VRCommand {
   provenance?: Provenance | null;
 }
 
+/**
+ * Recommender output tracked by AtlasCore. Decisions are recorded against the
+ * ledger so accepted/rejected/overridden recommendations remain auditable.
+ */
 export interface AtlasRecommendation {
   targetIds: string[];
   action: AnalyticalAction;
@@ -92,6 +142,10 @@ export interface AtlasRecommendation {
   decision: RecommendationDecision;
 }
 
+/**
+ * Attributable human or algorithmic observation recorded during an investigation.
+ * Captures spatial perspective, targeted data nodes/clusters, and qualitative insight.
+ */
 export interface Observation {
   id: string;
   timestamp: number;
@@ -109,6 +163,9 @@ export interface Observation {
   tags?: string[];
 }
 
+/**
+ * Validated scientific finding or analytical conclusion supported by evidence.
+ */
 export interface Finding {
   id: string;
   timestamp: number;
@@ -122,6 +179,9 @@ export interface Finding {
   author?: string;
 }
 
+/**
+ * Textual or spatial annotation pinned to a node, region, or palace location.
+ */
 export interface Annotation {
   id: string;
   timestamp: number;
@@ -131,6 +191,7 @@ export interface Annotation {
   author?: string;
 }
 
+/** Kind of a {@link ResearchEvent}. */
 export type ResearchEventKind =
   | 'load'
   | 'analysis'
@@ -146,7 +207,14 @@ export type ResearchEventKind =
   | 'finding'
   | 'annotation';
 
+/**
+ * Ledger entry recording one state transition of the analytical session. Every
+ * analytical result embeds its `AnalysisResult`; cursor moves (undo/redo/seek)
+ * record the index. `stateHash` is the DatasetSpace fingerprint of the
+ * post-state.
+ */
 export interface ResearchEvent {
+  /** Deterministic monotonic id. */
   eventId: string;
   sessionId?: string;
   actor?: string;
@@ -166,9 +234,14 @@ export interface ResearchEvent {
   observation?: string;
   intervention?: string;
   deviation?: string;
+  /** DatasetSpace fingerprint of the post-state. */
   stateHash: string;
 }
 
+/**
+ * Research context for the analytical session. Atlas 5: extends session
+ * persistence with study-level metadata that travels with the ledger.
+ */
 export interface ResearchContext {
   studyId?: string;
   researchQuestion?: string;
@@ -178,6 +251,12 @@ export interface ResearchContext {
   observerMode?: boolean;
 }
 
+/**
+ * Snapshot of AtlasCore for serialization. Persisted by
+ * {@link NemosyneSession} as part of the schemaVersion-2 session JSON. Field
+ * names match the persisted JSON shape (analysisHistory / analysisResults /
+ * eventLedger) so `NemosyneSessionJSON extends AtlasCoreState`.
+ */
 export interface AtlasCoreState {
   datasetVersion: number;
   datasetFingerprint: string | null;
@@ -199,5 +278,6 @@ export interface AtlasCoreState {
   discoveryEpisodes?: import('../investigation/DiscoveryEpisodeStore.ts').DiscoveryEpisodeStoreSnapshot;
 }
 
+/** Re-exported for downstream consumers (NemosyneSession). */
 export type { DatasetSpaceJSON, HistorySnapshot, EncodingMapping, JSONValue };
 export type { DiscoveredStructure, StructureEvidence, StructureKind, StructureSet } from './structures.ts';
