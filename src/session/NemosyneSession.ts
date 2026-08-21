@@ -117,6 +117,12 @@ export class NemosyneSession {
       activeRecommendation: core.activeRecommendation,
       decisionHistory: core.decisionHistory,
       structures: core.structures,
+      observations: core.observations,
+      findings: core.findings,
+      annotations: core.annotations,
+      investigationGraph: core.investigationGraph,
+      representationDecision: core.representationDecision,
+      discoveryEpisodes: core.discoveryEpisodes,
       researchContext: this._researchContext,
       presentation: this._presentation,
     };

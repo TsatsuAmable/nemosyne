@@ -275,6 +275,7 @@ export interface AtlasCoreState {
   researchContext?: ResearchContext;
   investigationGraph?: import('./domain/InvestigationGraph.ts').InvestigationGraphJSON;
   representationDecision?: import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null;
+  discoveryEpisodes?: import('../investigation/DiscoveryEpisodeStore.ts').DiscoveryEpisodeStoreSnapshot;
 }
 
 /** Re-exported for downstream consumers (NemosyneSession). */

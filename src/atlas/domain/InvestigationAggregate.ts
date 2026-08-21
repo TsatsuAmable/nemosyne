@@ -6,6 +6,7 @@
  * - DecisionHistory (recommendation guidance and auditor decision tracking)
  * - ResearchContext (session identity and provenance timestamps)
  * - InvestigationGraph (DAG of investigation nodes and branch points)
+ * - DiscoveryEpisodeStore (validated discovery lifecycle records)
  */
 
 import { Dataset } from '../../data/Dataset.ts';
@@ -16,7 +17,11 @@ import { RepresentationState } from './RepresentationState.ts';
 import { DecisionHistory } from './DecisionHistory.ts';
 import { ResearchContext, type ResearchContextOptions } from './ResearchContext.ts';
 import { InvestigationGraph } from './InvestigationGraph.ts';
-import { computeInvestigationDigest } from '../../investigation/index.ts';
+import {
+  computeInvestigationDigest,
+  DiscoveryEpisodeStore,
+  type DiscoveryEpisodeStoreSnapshot,
+} from '../../investigation/index.ts';
 
 export class InvestigationAggregate {
   readonly analytical: AnalyticalState;
@@ -25,6 +30,7 @@ export class InvestigationAggregate {
   readonly decisions: DecisionHistory;
   readonly context: ResearchContext;
   readonly graph: InvestigationGraph;
+  readonly discoveries: DiscoveryEpisodeStore;
 
   constructor(options: ResearchContextOptions = {}) {
     this.analytical = new AnalyticalState();
@@ -33,6 +39,7 @@ export class InvestigationAggregate {
     this.decisions = new DecisionHistory();
     this.context = new ResearchContext(options);
     this.graph = new InvestigationGraph();
+    this.discoveries = new DiscoveryEpisodeStore();
   }
 
   get sessionId(): string {
@@ -45,6 +52,7 @@ export class InvestigationAggregate {
     this.ledger.reset();
     this.decisions.reset();
     this.graph.reset();
+    this.discoveries.reset();
 
     const fp = this.analytical.getFingerprint() ?? '';
     this.ledger.appendEvent(
@@ -89,6 +97,7 @@ export class InvestigationAggregate {
       annotations: this.ledger.annotations.slice(),
       investigationGraph: this.graph.toJSON(),
       representationDecision: this.representation.activeDecision,
+      discoveryEpisodes: this.discoveries.toJSON(),
       researchContext: {
         studyId: this.context.studyId,
         researchQuestion: this.context.researchQuestion,
@@ -99,6 +108,12 @@ export class InvestigationAggregate {
 
   /** Reconstitute aggregate state from a persisted snapshot. */
   restoreState(state: AtlasCoreState, destroyer?: (handle: number) => void): void {
+    // Validate discovery state before mutating the live aggregate. Older session
+    // snapshots legitimately omit this field and restore to an empty store.
+    const validatedDiscoveries = new DiscoveryEpisodeStore();
+    const discoverySnapshot: DiscoveryEpisodeStoreSnapshot | undefined = state.discoveryEpisodes;
+    if (discoverySnapshot) validatedDiscoveries.restore(discoverySnapshot);
+
     const original = state.originalDataset ? Dataset.fromJSON(state.originalDataset) : null;
     const current = state.currentDataset
       ? Dataset.fromJSON(state.currentDataset)
@@ -146,6 +161,12 @@ export class InvestigationAggregate {
 
     if (state.representationDecision) {
       this.representation.restoreDecision(state.representationDecision);
+    }
+
+    if (discoverySnapshot) {
+      this.discoveries.restore(validatedDiscoveries.toJSON());
+    } else {
+      this.discoveries.reset();
     }
   }
 
@@ -226,6 +247,7 @@ export class InvestigationAggregate {
         })),
         observations: this.ledger.observations.map((o) => ({ id: o.id, notes: o.notes })),
       },
+      discoveryEpisodes: this.discoveries.all(),
       representationDecision: repDecisionPayload,
       researchContext: {
         studyId: this.context.studyId,
