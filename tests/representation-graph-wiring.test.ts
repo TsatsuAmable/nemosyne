@@ -16,15 +16,10 @@ function decision(): RepresentationDecision {
     representationFamily: 'CLUSTER',
     embodiment: {
       primaryLayout: 'GRID_3D',
-      primaryGeometry: 'SPHERE',
+      primaryGeometry: 'CLUSTER_VOLUME',
       primaryBehavior: 'STATIC',
       primaryInteraction: 'CLUSTER_PROBE',
-      spatialStrategy: {
-        layout: 'GRID_3D',
-        geometry: 'SPHERE',
-        behavior: 'STATIC',
-        interaction: 'CLUSTER_PROBE',
-      },
+      spatialStrategy: {} as RepresentationDecision['embodiment']['spatialStrategy'],
     },
     evidence: [],
     rejectedAlternatives: [],
