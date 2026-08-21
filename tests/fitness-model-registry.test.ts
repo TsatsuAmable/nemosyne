@@ -59,8 +59,12 @@ describe('Wave 4 fitness model registry', () => {
     registry.promote(model.artifactHash, 10);
     const snapshot = registry.toJSON();
 
-    const corrupted = structuredClone(snapshot);
-    corrupted.artifacts[0].artifactHash = 'fnv1a-deadbeef';
+    const corrupted = {
+      ...snapshot,
+      artifacts: snapshot.artifacts.map((entry, index) =>
+        index === 0 ? { ...entry, artifactHash: 'fnv1a-deadbeef' } : entry,
+      ),
+    };
 
     const target = new FitnessModelRegistry();
     expect(() => target.restore(corrupted)).toThrow(/hash mismatch/i);
