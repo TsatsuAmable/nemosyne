@@ -1,12 +1,14 @@
 import { fnv1aHex } from '../atlas/DatasetSpace.ts';
 import { NIL_VERSION } from '../interaction/nil/NemosyneInteractionLanguage.ts';
 import {
-  BOOTSTRAP_FITNESS_MODEL_VERSION,
-} from '../moneta/representation/FitnessModel.ts';
-import {
   BOOTSTRAP_REPRESENTATION_ONTOLOGY_VERSION,
 } from '../moneta/representation/RepresentationGraphAdapter.ts';
 import type { StudyCondition, StudyRuntimeVersions, TaskSpec } from './types.ts';
+import {
+  bootstrapRuntimeFitnessMode,
+  pinnedLearnedRuntimeFitnessMode,
+  type RuntimeFitnessMode,
+} from './RuntimeFitnessMode.ts';
 
 export const STUDY_FREEZE_MANIFEST_SCHEMA_VERSION = '1.0.0' as const;
 export const CURRENT_MONETA_ENGINE_VERSION = '2.1.0-v3-bootstrap' as const;
@@ -33,11 +35,15 @@ export interface StudyFreezeSnapshot {
 
 export type StudyRuntimeVersionsProvider = () => StudyRuntimeVersions;
 
-export function currentStudyRuntimeVersions(kernelVersion: string | null = null): StudyRuntimeVersions {
+export function currentStudyRuntimeVersions(
+  kernelVersion: string | null = null,
+  fitnessMode: RuntimeFitnessMode = bootstrapRuntimeFitnessMode(),
+): StudyRuntimeVersions {
   return {
     kernelVersion,
     monetaEngineVersion: CURRENT_MONETA_ENGINE_VERSION,
-    fitnessModelVersion: BOOTSTRAP_FITNESS_MODEL_VERSION,
+    fitnessModelVersion: fitnessMode.fitnessModelVersion,
+    fitnessModelArtifactHash: fitnessMode.artifactHash,
     representationOntologyVersion: BOOTSTRAP_REPRESENTATION_ONTOLOGY_VERSION,
     nilVersion: NIL_VERSION,
   };
@@ -56,9 +62,17 @@ function sameRuntimeVersions(a: StudyRuntimeVersions, b: StudyRuntimeVersions): 
     a.kernelVersion === b.kernelVersion &&
     a.monetaEngineVersion === b.monetaEngineVersion &&
     a.fitnessModelVersion === b.fitnessModelVersion &&
+    (a.fitnessModelArtifactHash ?? null) === (b.fitnessModelArtifactHash ?? null) &&
     a.representationOntologyVersion === b.representationOntologyVersion &&
     a.nilVersion === b.nilVersion
   );
+}
+
+function fitnessModeFromRuntimeVersions(runtime: StudyRuntimeVersions): RuntimeFitnessMode {
+  const artifactHash = runtime.fitnessModelArtifactHash?.trim();
+  return artifactHash
+    ? pinnedLearnedRuntimeFitnessMode(runtime.fitnessModelVersion, artifactHash)
+    : bootstrapRuntimeFitnessMode();
 }
 
 /**
@@ -74,7 +88,10 @@ export class StudyFreezeGuard {
   constructor(
     manifest: StudyFreezeManifest,
     private readonly runtimeVersionsProvider: StudyRuntimeVersionsProvider = () =>
-      currentStudyRuntimeVersions(manifest.runtimeVersions.kernelVersion),
+      currentStudyRuntimeVersions(
+        manifest.runtimeVersions.kernelVersion,
+        fitnessModeFromRuntimeVersions(manifest.runtimeVersions),
+      ),
   ) {
     this.snapshotValue = {
       configHash: hashStudyFreezeManifest(manifest),
@@ -105,6 +122,12 @@ export class StudyFreezeGuard {
 
     if (manifest.protocolStatus === 'FROZEN' && !currentVersions.kernelVersion) {
       throw new Error('Frozen study requires an exact Rust/WASM kernel version');
+    }
+    if (
+      currentVersions.fitnessModelVersion !== bootstrapRuntimeFitnessMode().fitnessModelVersion &&
+      !currentVersions.fitnessModelArtifactHash?.trim()
+    ) {
+      throw new Error('Learned study runtime requires an exact FitnessModel artifact hash');
     }
   }
 }
