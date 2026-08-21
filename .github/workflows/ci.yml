@@ -97,7 +97,10 @@ jobs:
         run: npm run lint
 
       - name: Run tests with coverage
-        run: npm run test:coverage
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:coverage -- --reporter=verbose 2>&1 | tee vitest-output.log
 
       - name: Run production build
         run: npm run build
@@ -109,11 +112,14 @@ jobs:
           du -sh dist
           node -e "const fs=require('fs'),zlib=require('zlib'),p=require('path');let t=0;const walk=d=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){const f=p.join(d,e.name);if(e.isDirectory())walk(f);else try{t+=zlib.gzipSync(fs.readFileSync(f)).length}catch{}}};walk('dist');console.log('gzipped total bytes:',t,'('+(t/1048576).toFixed(2)+' MiB)')"
 
-      - name: Upload coverage report
+      - name: Upload test diagnostics and coverage report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-node${{ matrix.node-version }}
-          path: coverage/
+          path: |
+            vitest-output.log
+            coverage/
           if-no-files-found: ignore
 
   # Real-WebGL load smoke against headless Chromium (WebGL2 via SwiftShader).
