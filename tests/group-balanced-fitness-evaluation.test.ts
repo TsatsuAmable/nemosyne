@@ -62,6 +62,7 @@ describe('group-balanced pairwise holdout evaluation', () => {
     expect(result.bootstrapAccuracy).toBe(0.5);
     expect(result.judgementCount).toBe(101);
     expect(result.groupCount).toBe(2);
+    expect(result.leaveOneGroupOutImprovementFloor).toBe(-1);
     expect(result.groupAccuracies).toEqual([
       {
         partitionGroup: 'dataset-a::researcher-a',
@@ -78,6 +79,18 @@ describe('group-balanced pairwise holdout evaluation', () => {
     ]);
   });
 
+  it('detects a headline improvement that depends on one influential group', () => {
+    const examples = [
+      example('a', 'dataset-a::researcher-a', [1], false),
+      example('b', 'dataset-b::researcher-b', [1], false),
+      example('c', 'dataset-c::researcher-c', [-1], true),
+    ];
+    const result = evaluateGroupBalancedPairwiseWeights(examples, [1]);
+    expect(result.candidateAccuracy - result.bootstrapAccuracy).toBeCloseTo(1 / 3);
+    // Remove either winning group and the remaining mean effect is zero.
+    expect(result.leaveOneGroupOutImprovementFloor).toBe(0);
+  });
+
   it('creates a distinct promotion-ready artifact without mutating training output', () => {
     const trained = artifact();
     const evaluated = withGroupBalancedHoldoutEvaluation(trained, [
@@ -91,7 +104,15 @@ describe('group-balanced pairwise holdout evaluation', () => {
     expect(evaluated.evaluation.bootstrapMetric).toBe(0.5);
     expect(evaluated.evaluation.holdoutJudgementCount).toBe(2);
     expect(evaluated.evaluation.holdoutGroupCount).toBe(2);
-    expect(evaluated.notes).toMatch(/independent partition group contributes equal weight/i);
+    expect(evaluated.evaluation.leaveOneGroupOutImprovementFloor).toBe(0);
+    expect(evaluated.notes).toMatch(/leave-one-group-out improvement floor/i);
+  });
+
+  it('omits a leave-one-group-out floor when only one independent group exists', () => {
+    const evaluated = withGroupBalancedHoldoutEvaluation(artifact(), [
+      example('a', 'dataset-a::researcher-a', [1], false),
+    ]);
+    expect(evaluated.evaluation.leaveOneGroupOutImprovementFloor).toBeUndefined();
   });
 
   it('fails closed on feature-dimension mismatch', () => {
