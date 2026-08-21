@@ -59,6 +59,8 @@ jobs:
       - name: Run Rust unit tests
         run: cargo test --manifest-path wasm/Cargo.toml
 
+  # Fast correctness path. A dev WASM package is sufficient for TypeScript and
+  # Vitest, while the release bundle is built concurrently in `build` below.
   node:
     name: Node ${{ matrix.node-version }}
     runs-on: ubuntu-latest
@@ -89,10 +91,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Build the production WASM package once. Tests consume this same package,
-      # and the later Vite build reuses it instead of invoking wasm-pack again.
-      - name: Build WASM package
-        run: npm run wasm
+      - name: Build WASM package (dev)
+        run: npm run wasm:dev
 
       - name: Dependency vulnerability audit
         run: npm audit --audit-level=high
@@ -108,8 +108,42 @@ jobs:
       - name: Run tests with coverage
         run: npm run test:coverage
 
-      # WASM was already built above. Build only the Vite application bundle.
-      - name: Run production build
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-node${{ matrix.node-version }}
+          path: coverage/
+          if-no-files-found: ignore
+
+  # Build the production artifact in parallel with the long coverage suite.
+  # Playwright consumes this exact artifact, so release WASM + Vite compilation
+  # happens once per surviving run rather than once in Node and again in smoke.
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production WASM package
+        run: npm run wasm
+
+      - name: Build Vite production bundle
         run: npx vite build
 
       # Non-blocking visibility into bundle size; a hard gzipped budget is a follow-up.
@@ -122,22 +156,15 @@ jobs:
       - name: Upload production bundle
         uses: actions/upload-artifact@v4
         with:
-          name: dist-node${{ matrix.node-version }}
+          name: dist-node24
           path: dist/
           if-no-files-found: error
 
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-node${{ matrix.node-version }}
-          path: coverage/
-          if-no-files-found: ignore
-
-  # Real-WebGL smoke validates the exact production artifact emitted by Node.
-  # It remains a separate browser gate, but no longer rebuilds Rust/WASM/Vite.
+  # Real-WebGL smoke starts as soon as the production artifact is available and
+  # runs concurrently with any still-running Node coverage work.
   playwright-smoke:
     name: Playwright load smoke
-    needs: node
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
