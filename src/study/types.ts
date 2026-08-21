@@ -21,6 +21,8 @@ export interface StudyRuntimeVersions {
   kernelVersion: string | null;
   monetaEngineVersion: string;
   fitnessModelVersion: string;
+  /** Exact immutable registry artifact hash when a learned model is pinned. */
+  fitnessModelArtifactHash?: string | null;
   representationOntologyVersion: string;
   nilVersion: string;
 }
