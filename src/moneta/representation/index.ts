@@ -13,4 +13,5 @@ export * from './DecisionPolicy.ts';
 export * from './SensitivityAnalysis.ts';
 export * from './MonetaHypothesisEngine.ts';
 export * from './EvidenceBackedMoneta.ts';
+export * from './LearnedMonetaRuntime.ts';
 export { MonetaHypothesisEngine as RepresentationHypothesisEngine } from './MonetaHypothesisEngine.ts';
