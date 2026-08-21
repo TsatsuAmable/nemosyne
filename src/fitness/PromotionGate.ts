@@ -35,6 +35,20 @@ function assertPolicy(policy: FitnessModelPromotionPolicy): void {
   if (!Number.isFinite(maximumPValue) || maximumPValue <= 0 || maximumPValue > 1) throw new TypeError('maximumGroupWinPValue must be within (0, 1]');
 }
 
+function hasCompleteGroupWinEvidence(evaluation: FitnessModelArtifact['evaluation']): boolean {
+  const candidateWins = evaluation.candidateGroupWins;
+  const bootstrapWins = evaluation.bootstrapGroupWins;
+  const ties = evaluation.tiedGroups;
+  const pValue = evaluation.oneSidedGroupWinPValue;
+  return (
+    typeof candidateWins === 'number' && Number.isSafeInteger(candidateWins) && candidateWins >= 0 &&
+    typeof bootstrapWins === 'number' && Number.isSafeInteger(bootstrapWins) && bootstrapWins >= 0 &&
+    typeof ties === 'number' && Number.isSafeInteger(ties) && ties >= 0 &&
+    candidateWins + bootstrapWins + ties === evaluation.holdoutGroupCount &&
+    typeof pValue === 'number' && Number.isFinite(pValue) && pValue >= 0 && pValue <= 1
+  );
+}
+
 /**
  * Pure eligibility check for learned model promotion. Passing this gate never
  * activates a model. By default promotion requires both a group-balanced mean
@@ -63,12 +77,7 @@ export function assessFitnessModelPromotion(
     else if (improvement < policy.minimumAbsoluteImprovement) reasons.push('IMPROVEMENT_BELOW_THRESHOLD');
   }
 
-  const hasGroupEvidence =
-    Number.isSafeInteger(evaluation.candidateGroupWins) &&
-    Number.isSafeInteger(evaluation.bootstrapGroupWins) &&
-    Number.isSafeInteger(evaluation.tiedGroups) &&
-    Number.isFinite(evaluation.oneSidedGroupWinPValue);
-  if (!hasGroupEvidence) {
+  if (!hasCompleteGroupWinEvidence(evaluation)) {
     reasons.push('MISSING_GROUP_WIN_EVIDENCE');
   } else if ((evaluation.oneSidedGroupWinPValue as number) > maximumPValue) {
     reasons.push('GROUP_WIN_EVIDENCE_NOT_SIGNIFICANT');
