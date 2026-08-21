@@ -12,6 +12,8 @@ import type {
   VRTranslatorOptions,
 } from './types.ts';
 import type { RepresentationDecision } from './representation/RepresentationDecision.ts';
+import type { RepresentationGraph } from './representation/RepresentationGraph.ts';
+import { representationGraphToRuntimeSpec } from './representation/RepresentationGraphRuntimeAdapter.ts';
 
 export class MonetaTopologyNode {
   scene: THREE.Scene;
@@ -21,6 +23,7 @@ export class MonetaTopologyNode {
   engine: ConstraintEngine;
   useRustSolver: boolean;
   representationDecision: RepresentationDecision | null;
+  representationGraph: RepresentationGraph | null;
   solverResult!: SolverResult;
   artifact: Artifact | undefined;
   group: THREE.Group | undefined;
@@ -32,7 +35,8 @@ export class MonetaTopologyNode {
     translatorOptions: VRTranslatorOptions = {},
     factProvider: FactProvider | null = null,
     useRustSolver = false,
-    representationDecision: RepresentationDecision | null = null
+    representationDecision: RepresentationDecision | null = null,
+    representationGraph: RepresentationGraph | null = null
   ) {
     this.scene = scene;
     this.dataInput = dataInput;
@@ -40,16 +44,30 @@ export class MonetaTopologyNode {
     this.translatorOptions = translatorOptions;
     this.engine = new ConstraintEngine({ factProvider: factProvider ?? undefined });
     this.useRustSolver = useRustSolver;
-    this.representationDecision = representationDecision;
+    this.representationDecision = representationGraph ? null : representationDecision;
+    this.representationGraph = representationGraph;
     this.reSolveAndSynthesize();
   }
 
   setRepresentationDecision(decision: RepresentationDecision | null): void {
+    this.representationGraph = null;
     this.representationDecision = decision;
     this.reSolveAndSynthesize();
   }
 
+  setRepresentationGraph(graph: RepresentationGraph | null): void {
+    this.representationDecision = null;
+    this.representationGraph = graph;
+    this.reSolveAndSynthesize();
+  }
+
   adjustWeight(ruleName: string, delta: number): void {
+    if (this.representationGraph || this.representationDecision) {
+      throw new Error(
+        'MonetaTopologyNode: cannot mutate solver weights while rendering an authoritative representation decision/graph. ' +
+          'Adjust Moneta/FitnessModel upstream and provide a new representation.'
+      );
+    }
     if (this.useRustSolver) {
       throw new Error(
         'MonetaTopologyNode: per-weight tuning is not exposed through the Rust draco_solve ABI (moneta_solve). ' +
@@ -62,7 +80,22 @@ export class MonetaTopologyNode {
   }
 
   reSolveAndSynthesize(): void {
-    if (this.representationDecision) {
+    if (this.representationGraph) {
+      const facts = this.engine.factProvider?.facts(this.dataInput);
+      if (!facts) {
+        throw new Error(
+          'MonetaTopologyNode: no facts provided (supply a FactProvider to render RepresentationGraph)'
+        );
+      }
+      const runtime = representationGraphToRuntimeSpec(this.representationGraph);
+      this.solverResult = {
+        facts,
+        spec: runtime.spec,
+        // SolverResult still calls this value "cost" for historical reasons.
+        // RepresentationGraph carries bootstrap utility, not calibrated confidence.
+        cost: runtime.utilityScore,
+      };
+    } else if (this.representationDecision) {
       const facts = this.engine.factProvider?.facts(this.dataInput);
       if (!facts) {
         throw new Error(

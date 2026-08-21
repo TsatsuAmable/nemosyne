@@ -55,6 +55,8 @@ function primaryPrimitive(
       family: decision.chosenFamily ?? decision.representationFamily,
       layout,
       geometry: decision.embodiment.primaryGeometry,
+      behavior: decision.embodiment.primaryBehavior,
+      interaction: decision.embodiment.primaryInteraction,
     },
     interactionAffordances: candidate.interactionCharacteristics.supportedInteractions,
     analyticalDependencies: candidate.supports.map((capability) => `capability:${capability}`),
