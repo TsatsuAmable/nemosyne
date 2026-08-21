@@ -285,9 +285,14 @@ export class ExperimentRunner {
 
     let tp = 0;
     let fp = 0;
-    for (const s of selSet) gtSet.has(s) ? tp++ : fp++;
+    for (const s of selSet) {
+      if (gtSet.has(s)) tp++;
+      else fp++;
+    }
     let fn = 0;
-    for (const g of gtSet) if (!selSet.has(g)) fn++;
+    for (const g of gtSet) {
+      if (!selSet.has(g)) fn++;
+    }
 
     const precision = tp + fp > 0 ? tp / (tp + fp) : 0;
     const recall = tp + fn > 0 ? tp / (tp + fn) : 0;
