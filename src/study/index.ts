@@ -5,6 +5,7 @@
 export * from './types.ts';
 export * from './Counterbalancer.ts';
 export * from './StudyDatasets.ts';
+export * from './StudyFreezeManifest.ts';
 export * from './FrozenStudyConfig.ts';
 export * from './ExperimentRunner.ts';
 export { StudyTrialExecutionHarness, StudyHarness } from './StudyHarness.ts';
