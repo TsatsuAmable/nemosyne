@@ -14,12 +14,14 @@ Materialization fails the affected judgement closed when either candidate snapsh
 
 `trainPairwiseLinearModel` is a deterministic offline logistic pairwise learner over preferred-minus-alternative feature deltas. It consumes only `train` examples and emits a training artifact with judgement-weighted holdout diagnostics. That diagnostic is useful for development but is **not promotion evidence**.
 
-Before promotion, `withGroupBalancedHoldoutEvaluation` must evaluate the frozen model weights on holdout examples grouped by the curation boundary (`dataset fingerprint + researcher`). Accuracy is computed inside each independent group first and then averaged with equal group weight. This prevents a prolific researcher/dataset group from dominating the headline metric simply by contributing many more judgements.
+Before promotion, `withGroupBalancedHoldoutEvaluation` evaluates frozen model weights on holdout examples grouped by the curation boundary (`dataset fingerprint + researcher`). Accuracy is computed inside each independent group first and then averaged with equal group weight. This prevents a prolific group from dominating the headline metric by contributing many more judgements.
 
-The resulting promotion-ready artifact uses `group-balanced-pairwise-accuracy` as its metric and records both holdout judgement count and independent group count. `assessFitnessModelPromotion` requires this group-balanced metric by default. A caller may explicitly request a different metric for exploratory/legacy evaluation, but that choice is protocol-visible rather than an accidental fallback.
+The evaluation also records whether the candidate or bootstrap wins within each independent group. Tied groups are excluded from a one-sided exact sign test of candidate wins versus bootstrap wins. The resulting p-value is persisted in the immutable artifact alongside the win/tie counts. By default `assessFitnessModelPromotion` therefore requires two complementary signals: a minimum group-balanced mean improvement and a group-win sign-test p-value at or below 0.05. A large mean gain concentrated in only a few groups is not sufficient.
+
+The sign test deliberately answers a narrow robustness question: whether wins are consistently distributed across the existing independent partition groups. It does not estimate effect-size uncertainty, repair a bad grouping design, or prove generalization to new researchers/datasets. Discovery-outcome validation remains a separate evidence requirement.
 
 Creating or evaluating an artifact does **not** register or activate it automatically. Registry promotion remains a separate explicit operation after evidence review; runtime activation and historical execution remain pinned to immutable artifact hashes.
 
 ## Research boundary
 
-This module does not invent features from graph IDs, use validation/holdout evidence for fitting, or mutate active Moneta policy. Group balancing does not create statistical independence where none exists; it only prevents unequal judgement counts among already-separated partition groups from changing their relative contribution to the promotion metric. Stronger uncertainty estimates and held-out discovery-outcome validation remain separate evidence requirements.
+This module does not invent features from graph IDs, use validation/holdout evidence for fitting, or mutate active Moneta policy. Group balancing and the sign test operate only on frozen holdout evidence and do not create independence where the curation design does not provide it.
