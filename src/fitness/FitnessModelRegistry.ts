@@ -7,6 +7,14 @@ export interface FitnessModelEvaluationSummary {
   metricName: string;
   holdoutJudgementCount: number;
   holdoutGroupCount: number;
+  /** Independent holdout groups where candidate accuracy exceeds bootstrap. */
+  candidateGroupWins?: number;
+  /** Independent holdout groups where bootstrap accuracy exceeds candidate. */
+  bootstrapGroupWins?: number;
+  /** Independent holdout groups with equal candidate/bootstrap accuracy. */
+  tiedGroups?: number;
+  /** One-sided exact sign-test P(X >= candidateGroupWins | p = 0.5), excluding ties. */
+  oneSidedGroupWinPValue?: number;
 }
 
 export interface FitnessModelArtifact {
@@ -72,6 +80,37 @@ function nonEmpty(value: string): boolean {
   return value.trim().length > 0;
 }
 
+function assertOptionalGroupWinEvidence(evaluation: FitnessModelEvaluationSummary): void {
+  const values = [
+    evaluation.candidateGroupWins,
+    evaluation.bootstrapGroupWins,
+    evaluation.tiedGroups,
+    evaluation.oneSidedGroupWinPValue,
+  ];
+  const supplied = values.filter((value) => value !== undefined).length;
+  if (supplied === 0) return;
+  if (supplied !== values.length) {
+    throw new TypeError('Group-win evaluation evidence must be supplied as a complete set');
+  }
+  const candidateWins = evaluation.candidateGroupWins as number;
+  const bootstrapWins = evaluation.bootstrapGroupWins as number;
+  const tiedGroups = evaluation.tiedGroups as number;
+  for (const [name, value] of [
+    ['candidateGroupWins', candidateWins],
+    ['bootstrapGroupWins', bootstrapWins],
+    ['tiedGroups', tiedGroups],
+  ] as const) {
+    if (!Number.isSafeInteger(value) || value < 0) throw new TypeError(`${name} must be a non-negative safe integer`);
+  }
+  if (candidateWins + bootstrapWins + tiedGroups !== evaluation.holdoutGroupCount) {
+    throw new TypeError('Group-win counts must sum to holdoutGroupCount');
+  }
+  const pValue = evaluation.oneSidedGroupWinPValue as number;
+  if (!Number.isFinite(pValue) || pValue < 0 || pValue > 1) {
+    throw new TypeError('oneSidedGroupWinPValue must be finite within [0, 1]');
+  }
+}
+
 export function assertFitnessModelArtifact(artifact: FitnessModelArtifact): FitnessModelArtifact {
   if (artifact.schemaVersion !== FITNESS_MODEL_ARTIFACT_SCHEMA_VERSION) {
     throw new TypeError(`Unsupported FitnessModelArtifact schema version: ${artifact.schemaVersion}`);
@@ -98,24 +137,17 @@ export function assertFitnessModelArtifact(artifact: FitnessModelArtifact): Fitn
   if (!Number.isSafeInteger(artifact.evaluation.holdoutGroupCount) || artifact.evaluation.holdoutGroupCount < 1) {
     throw new TypeError('holdoutGroupCount must be a positive safe integer');
   }
+  assertOptionalGroupWinEvidence(artifact.evaluation);
   return artifact;
 }
 
-/**
- * Immutable registry for evaluated fitness-model artifacts.
- *
- * Registration never activates a model. Promotion/rollback is an explicit,
- * append-only operation so historical investigations can remain pinned to an
- * exact artifact hash while current policy can be reverted safely.
- */
+/** Immutable registry for evaluated fitness-model artifacts. */
 export class FitnessModelRegistry {
   private readonly artifacts = new Map<string, RegisteredFitnessModel>();
   private readonly activations: FitnessModelActivation[] = [];
   private activeHash: string | null = null;
 
-  get activeArtifactHash(): string | null {
-    return this.activeHash;
-  }
+  get activeArtifactHash(): string | null { return this.activeHash; }
 
   get active(): RegisteredFitnessModel | null {
     if (!this.activeHash) return null;
@@ -131,9 +163,7 @@ export class FitnessModelRegistry {
     const versionCollision = [...this.artifacts.values()].find(
       (entry) => entry.artifact.modelId === artifact.modelId && entry.artifact.modelVersion === artifact.modelVersion,
     );
-    if (versionCollision) {
-      throw new Error(`Model version already registered with different content: ${artifact.modelId}@${artifact.modelVersion}`);
-    }
+    if (versionCollision) throw new Error(`Model version already registered with different content: ${artifact.modelId}@${artifact.modelVersion}`);
     const registered = { artifact: structuredClone(artifact), artifactHash };
     this.artifacts.set(artifactHash, registered);
     return structuredClone(registered);
@@ -149,13 +179,8 @@ export class FitnessModelRegistry {
     this.recordActivation(artifactHash, activatedAt, 'ROLLBACK');
   }
 
-  disable(activatedAt: number): void {
-    this.recordActivation(null, activatedAt, 'DISABLE');
-  }
-
-  history(): readonly FitnessModelActivation[] {
-    return structuredClone(this.activations);
-  }
+  disable(activatedAt: number): void { this.recordActivation(null, activatedAt, 'DISABLE'); }
+  history(): readonly FitnessModelActivation[] { return structuredClone(this.activations); }
 
   toJSON(): FitnessModelRegistrySnapshot {
     return {
@@ -166,47 +191,28 @@ export class FitnessModelRegistry {
   }
 
   restore(snapshot: FitnessModelRegistrySnapshot): void {
-    if (snapshot.schemaVersion !== FITNESS_MODEL_REGISTRY_SCHEMA_VERSION) {
-      throw new Error(`Unsupported FitnessModelRegistry schema version: ${snapshot.schemaVersion}`);
-    }
+    if (snapshot.schemaVersion !== FITNESS_MODEL_REGISTRY_SCHEMA_VERSION) throw new Error(`Unsupported FitnessModelRegistry schema version: ${snapshot.schemaVersion}`);
     const staged = new FitnessModelRegistry();
     for (const entry of snapshot.artifacts) {
       const registered = staged.register(entry.artifact);
-      if (registered.artifactHash !== entry.artifactHash) {
-        throw new Error(`Fitness model artifact hash mismatch: ${entry.artifactHash}`);
-      }
+      if (registered.artifactHash !== entry.artifactHash) throw new Error(`Fitness model artifact hash mismatch: ${entry.artifactHash}`);
     }
     for (const activation of snapshot.activations) {
       if (activation.sequence !== staged.activations.length) throw new Error('Non-contiguous fitness model activation history');
-      if (activation.artifactHash !== null && !staged.artifacts.has(activation.artifactHash)) {
-        throw new Error(`Activation references unknown artifact: ${activation.artifactHash}`);
-      }
-      if (activation.previousArtifactHash !== staged.activeHash) {
-        throw new Error('Fitness model activation history has inconsistent previousArtifactHash');
-      }
+      if (activation.artifactHash !== null && !staged.artifacts.has(activation.artifactHash)) throw new Error(`Activation references unknown artifact: ${activation.artifactHash}`);
+      if (activation.previousArtifactHash !== staged.activeHash) throw new Error('Fitness model activation history has inconsistent previousArtifactHash');
       staged.recordActivation(activation.artifactHash, activation.activatedAt, activation.reason);
     }
-
     this.artifacts.clear();
     for (const [hash, entry] of staged.artifacts) this.artifacts.set(hash, structuredClone(entry));
     this.activations.splice(0, this.activations.length, ...staged.history());
     this.activeHash = staged.activeHash;
   }
 
-  private recordActivation(
-    artifactHash: string | null,
-    activatedAt: number,
-    reason: FitnessModelActivation['reason'],
-  ): void {
+  private recordActivation(artifactHash: string | null, activatedAt: number, reason: FitnessModelActivation['reason']): void {
     if (!Number.isFinite(activatedAt) || activatedAt < 0) throw new TypeError('activatedAt must be finite and non-negative');
     const previousArtifactHash = this.activeHash;
-    this.activations.push({
-      sequence: this.activations.length,
-      activatedAt,
-      artifactHash,
-      reason,
-      previousArtifactHash,
-    });
+    this.activations.push({ sequence: this.activations.length, activatedAt, artifactHash, reason, previousArtifactHash });
     this.activeHash = artifactHash;
   }
 }

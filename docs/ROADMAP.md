@@ -15,9 +15,10 @@ Recent merged sequence:
 - **#252 — gated learned runtime re-ranker:** learned weights may only reorder candidates already admitted by bootstrap hard constraints.
 - **#254 — exact runtime artifact pin:** reproducible learned execution must match the exact active registry artifact hash.
 - **#253 — study/runtime fitness provenance:** frozen studies distinguish bootstrap from exact pinned-learned model version + artifact hash and fail on drift.
-- **#255 — explicit learned-runtime composition opt-in:** the live representation composition boundary can use a pinned learned model, while bootstrap remains the default and continues to own candidate generation, hard constraints and canonical raw features.
+- **#255 — explicit learned-runtime composition opt-in:** live representation composition can use a pinned learned model, while bootstrap remains the default and owns candidate generation, hard constraints and canonical raw features.
+- **#256 — group-balanced holdout evaluation:** independent dataset+researcher groups now contribute equally to the promotion comparison, preventing judgement volume in one group from dominating the headline metric.
 
-**Active implementation PR: #256 — `feature/group-balanced-holdout-evaluation`.** This slice hardens promotion evidence so each independent dataset+researcher holdout group contributes equal weight to the headline comparison against bootstrap. A group with many more judgements can no longer dominate the promotion metric by volume alone.
+**Active implementation PR: #257 — `feature/holdout-group-win-significance`.** This slice adds a second robustness criterion: candidate wins must be distributed across independent holdout groups, measured with a one-sided exact sign test, rather than a large group-balanced mean improvement being concentrated in only a few groups.
 
 Baseline V3 governing merge: `13dd7459555d35ac718710a50f357e022c456731` (`docs: adopt V3 discovery-centric vision and modular implementation plan (#225)`).
 
@@ -32,8 +33,8 @@ Baseline V3 governing merge: `13dd7459555d35ac718710a50f357e022c456731` (`docs: 
 | 4 — NIL | **IN PROGRESS / PARTIAL** | Semantic interaction language and replay foundations exist; continue modality-independent provenance and parity work. |
 | 5 — Discovery | **PARTIAL** | DiscoveryEpisode lifecycle/store infrastructure exists. Continue end-to-end hypothesis validation and headless replay integration. |
 | 6 — Human refinement | **IN PROGRESS** | Pairwise judgement and exact feature-snapshot evidence are captured transactionally. Outcome-event coverage and stronger curation policy remain. |
-| 7 — Learning infrastructure | **IN PROGRESS** | Registry, immutable artifacts, promotion gate, feature snapshots, judgement joins, rollback history, pinned runtime adapter and explicit runtime opt-in exist. #256 hardens holdout evaluation by balancing independent groups. Uncertainty estimates, outcome-linked validation and operational evidence remain. |
-| 8 — Learned Moneta | **EARLY OPT-IN, NOT EMPIRICALLY VALIDATED** | Learned ranking is available only as an exact pinned opt-in. Bootstrap remains default. No superiority claim is permitted without held-out comparison against bootstrap and discovery-outcome evidence. |
+| 7 — Learning infrastructure | **IN PROGRESS** | Registry, immutable artifacts, promotion gate, feature snapshots, judgement joins, rollback history, pinned runtime adapter, explicit opt-in and group-balanced evaluation exist. #257 adds distributed group-win evidence; effect-size uncertainty and outcome-linked validation remain. |
+| 8 — Learned Moneta | **EARLY OPT-IN, NOT EMPIRICALLY VALIDATED** | Learned ranking is available only as an exact pinned opt-in. Bootstrap remains default. No superiority claim is permitted without robust held-out comparison and discovery-outcome evidence. |
 | 9 — Compositional Moneta | **DEFERRED** | Depends on mature RepresentationGraph/grammar and validated Moneta correctness. Do not introduce learned composition search yet. |
 | 10 — Adaptive Nemosyne | **DEFERRED** | Depends on validated learning, freeze controls, monitoring, rollback and study evidence. |
 
@@ -59,8 +60,9 @@ Baseline V3 governing merge: `13dd7459555d35ac718710a50f357e022c456731` (`docs: 
 - [x] Exact learned artifact pinning and fail-closed registry drift detection.
 - [x] Study/runtime provenance for exact model version + artifact hash.
 - [x] Explicit live composition-root opt-in with bootstrap remaining the default (#255).
-- [ ] Merge #256 after full CI: group-balanced holdout comparison so independent partition groups contribute equally to promotion evidence.
-- [ ] Add uncertainty/robustness evidence around held-out improvement rather than relying on a point estimate alone.
+- [x] Group-balanced holdout comparison so independent partition groups contribute equally (#256).
+- [ ] Merge #257 after full CI: require distributed candidate wins across independent groups, with exact sign-test evidence persisted in the artifact.
+- [ ] Add effect-size uncertainty/robustness evidence around the group-balanced improvement rather than relying only on its point estimate and sign consistency.
 - [ ] Validate learned ranking against held-out human discovery outcomes before claiming improvement over bootstrap.
 - [ ] Add operational monitoring/rollback evidence before any default-runtime discussion.
 
@@ -89,6 +91,7 @@ Persistence and CI evolve continuously across all four.
 - **Registry activation is not provenance.** Reproducible execution pins an immutable artifact hash and model version in decision/study state.
 - **Promotion eligibility is not empirical truth.** Passing the gate means the artifact satisfies the declared evidence policy, not that Moneta is universally better.
 - **Holdout groups, not judgement volume, define the comparison unit.** Repeated judgements within one dataset+researcher group must not outweigh another independent group in the headline promotion metric.
+- **Mean improvement and win consistency are distinct.** Promotion should require both worthwhile average improvement and evidence that gains are not confined to a small minority of groups.
 - **Learning does not own analytical facts.** Research-relevant facts remain Rust/WASM-authoritative; learned ranking consumes frozen Moneta feature evidence.
 - **No compositional/adaptive leapfrogging.** Gate 9/10 sophistication does not substitute for Gate 1–8 falsifiability and validation.
 
@@ -114,4 +117,4 @@ Focused correctness/parity tests are mandatory for claimed functionality. A skip
 
 ## Pickup instruction
 
-Finish #256 correctness-first. If CI-clean, merge group-balanced holdout evaluation. The next learning task should quantify robustness/uncertainty of the held-out improvement and connect model evaluation to discovery outcomes before any monitoring-driven adaptive runtime work or default-runtime discussion.
+Finish #257 correctness-first. If CI-clean, merge distributed holdout group-win evidence. The next learning task should quantify effect-size uncertainty and then connect model evaluation to held-out discovery outcomes before any monitoring-driven adaptive runtime work or default-runtime discussion.

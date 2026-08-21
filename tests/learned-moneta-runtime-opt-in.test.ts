@@ -37,6 +37,10 @@ function artifact(modelVersion = 'learned-v1'): FitnessModelArtifact {
       metricName: GROUP_BALANCED_PAIRWISE_METRIC,
       holdoutJudgementCount: 40,
       holdoutGroupCount: 12,
+      candidateGroupWins: 10,
+      bootstrapGroupWins: 2,
+      tiedGroups: 0,
+      oneSidedGroupWinPValue: 0.019287109375,
     },
   };
 }
@@ -70,49 +74,35 @@ describe('pinned learned Moneta runtime composition', () => {
   it('records exact learned model and artifact provenance when explicitly enabled', () => {
     const base = bootstrapDecision();
     const { registry, registered } = activeRegistry();
-
     const decision = applyPinnedLearnedFitnessRuntime(base, {
       registry,
       policy,
       artifactHash: registered.artifactHash,
       modelVersion: 'learned-v1',
     });
-
     expect(decision.fitnessModelVersion).toBe('learned-v1');
     expect(decision.fitnessModelArtifactHash).toBe(registered.artifactHash);
     expect(decision.provenance.fitnessModelVersion).toBe('learned-v1');
     expect(decision.provenance.fitnessModelArtifactHash).toBe(registered.artifactHash);
     expect(decision.provenance.version).toBe(LEARNED_MONETA_RUNTIME_VERSION);
     expect(decision.weightSensitivity).toBeUndefined();
-    expect(decision.evidence).toContainEqual(
-      expect.objectContaining({
-        fact: `Fitness artifact: ${registered.artifactHash}`,
-        source: 'moneta-learned-runtime',
-      }),
-    );
+    expect(decision.evidence).toContainEqual(expect.objectContaining({
+      fact: `Fitness artifact: ${registered.artifactHash}`,
+      source: 'moneta-learned-runtime',
+    }));
   });
 
   it('re-ranks only bootstrap-feasible candidates and never resurrects a hard rejection', () => {
     const base = bootstrapDecision();
     const { registry, registered } = activeRegistry();
-    const disqualifiedBefore = new Set(
-      base.rankedCandidates
-        ?.filter((candidate) => candidate.disqualified)
-        .map((candidate) => `${candidate.candidateId}:${candidate.layout}`),
-    );
-
+    const disqualifiedBefore = new Set(base.rankedCandidates?.filter((candidate) => candidate.disqualified).map((candidate) => `${candidate.candidateId}:${candidate.layout}`));
     const decision = applyPinnedLearnedFitnessRuntime(base, {
       registry,
       policy,
       artifactHash: registered.artifactHash,
       modelVersion: 'learned-v1',
     });
-    const disqualifiedAfter = new Set(
-      decision.rankedCandidates
-        ?.filter((candidate) => candidate.disqualified)
-        .map((candidate) => `${candidate.candidateId}:${candidate.layout}`),
-    );
-
+    const disqualifiedAfter = new Set(decision.rankedCandidates?.filter((candidate) => candidate.disqualified).map((candidate) => `${candidate.candidateId}:${candidate.layout}`));
     expect(disqualifiedAfter).toEqual(disqualifiedBefore);
     expect(decision.rankedCandidates?.[0].disqualified).not.toBe(true);
   });
@@ -122,7 +112,6 @@ describe('pinned learned Moneta runtime composition', () => {
     const { registry, registered: first } = activeRegistry('learned-v1');
     const second = registry.register(artifact('learned-v2'));
     registry.promote(second.artifactHash, 3);
-
     expect(() => applyPinnedLearnedFitnessRuntime(base, {
       registry,
       policy,
@@ -134,7 +123,6 @@ describe('pinned learned Moneta runtime composition', () => {
   it('fails closed when the pinned model version does not match the exact artifact', () => {
     const base = bootstrapDecision();
     const { registry, registered } = activeRegistry('learned-v1');
-
     expect(() => applyPinnedLearnedFitnessRuntime(base, {
       registry,
       policy,
@@ -150,7 +138,6 @@ describe('pinned learned Moneta runtime composition', () => {
     weak.evaluation.candidateMetric = 0.61;
     const registered = registry.register(weak);
     registry.promote(registered.artifactHash, 2);
-
     expect(() => applyPinnedLearnedFitnessRuntime(base, {
       registry,
       policy,
