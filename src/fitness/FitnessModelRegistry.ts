@@ -15,6 +15,12 @@ export interface FitnessModelEvaluationSummary {
   tiedGroups?: number;
   /** One-sided exact sign-test P(X >= candidateGroupWins | p = 0.5), excluding ties. */
   oneSidedGroupWinPValue?: number;
+  /**
+   * Smallest candidate-minus-bootstrap group-balanced improvement after removing
+   * any single independent holdout group. This is a deterministic robustness
+   * bound, not a confidence interval.
+   */
+  leaveOneGroupOutImprovementFloor?: number;
 }
 
 export interface FitnessModelArtifact {
@@ -111,6 +117,17 @@ function assertOptionalGroupWinEvidence(evaluation: FitnessModelEvaluationSummar
   }
 }
 
+function assertOptionalEffectRobustnessEvidence(evaluation: FitnessModelEvaluationSummary): void {
+  const floor = evaluation.leaveOneGroupOutImprovementFloor;
+  if (floor === undefined) return;
+  if (!Number.isFinite(floor) || floor < -1 || floor > 1) {
+    throw new TypeError('leaveOneGroupOutImprovementFloor must be finite within [-1, 1]');
+  }
+  if (evaluation.holdoutGroupCount < 2) {
+    throw new TypeError('leaveOneGroupOutImprovementFloor requires at least two holdout groups');
+  }
+}
+
 export function assertFitnessModelArtifact(artifact: FitnessModelArtifact): FitnessModelArtifact {
   if (artifact.schemaVersion !== FITNESS_MODEL_ARTIFACT_SCHEMA_VERSION) {
     throw new TypeError(`Unsupported FitnessModelArtifact schema version: ${artifact.schemaVersion}`);
@@ -138,6 +155,7 @@ export function assertFitnessModelArtifact(artifact: FitnessModelArtifact): Fitn
     throw new TypeError('holdoutGroupCount must be a positive safe integer');
   }
   assertOptionalGroupWinEvidence(artifact.evaluation);
+  assertOptionalEffectRobustnessEvidence(artifact.evaluation);
   return artifact;
 }
 
