@@ -4,6 +4,7 @@
  * Stage 1: hard feasibility filtering.
  * Stage 2: explicit, versioned bootstrap fitness evaluation.
  * Stage 3: decision policy that may abstain or expose ambiguity.
+ * Stage 4: deterministic local weight-sensitivity analysis.
  *
  * The bootstrap model is an engineering prior. Its utility score is not a
  * calibrated probability and must not be presented as confidence.
@@ -48,6 +49,7 @@ import {
   type BootstrapFitnessWeights,
 } from './FitnessModel.ts';
 import { assessRepresentationDecision } from './DecisionPolicy.ts';
+import { analyzeWinnerSensitivity } from './SensitivityAnalysis.ts';
 
 /**
  * Backward-compatible weight envelope. New code should prefer
@@ -80,6 +82,10 @@ function toBootstrapWeights(weights: HypothesisWeights): BootstrapFitnessWeights
     densityHandling: weights.w_density,
     configuredPrior: weights.w_prior,
   };
+}
+
+function candidateKey(candidate: Pick<CandidateScore, 'candidateId' | 'layout'>): string {
+  return `${candidate.candidateId}:${candidate.layout}`;
 }
 
 function geometryForLayout(layout: VRLayout): VRGeometry {
@@ -172,15 +178,18 @@ export class MonetaHypothesisEngine {
       }
 
       scoredCandidates.push(
-        this.scoreCandidate(signature, reqs, candidate, item.family, item.layout)
+        this.scoreCandidateWithModel(
+          this.fitnessModel,
+          signature,
+          reqs,
+          candidate,
+          item.family,
+          item.layout
+        )
       );
     }
 
-    scoredCandidates.sort((a, b) => {
-      const scoreDelta = b.score - a.score;
-      if (scoreDelta !== 0) return scoreDelta;
-      return `${a.candidateId}:${a.layout}`.localeCompare(`${b.candidateId}:${b.layout}`);
-    });
+    this.sortCandidates(scoredCandidates);
 
     const assessment = assessRepresentationDecision(scoredCandidates);
     const winner = assessment.winner;
@@ -188,10 +197,19 @@ export class MonetaHypothesisEngine {
       throw new NoFeasibleRepresentationError(hardTraces, scoredCandidates);
     }
 
+    const weightSensitivity = analyzeWinnerSensitivity(
+      candidateKey(winner),
+      this.fitnessModel.weights,
+      (weights) => this.rankWinnerUnderWeights(signature, reqs, scoredCandidates, weights),
+      0.1
+    );
+
     const candidateDef = MONETA_REPRESENTATION_CANDIDATES[winner.candidateId];
     const explanation =
       `${assessment.status}: Moneta ranks ${candidateDef.name} (${winner.layout}) ` +
       `at utility ${winner.score.toFixed(3)}. ${assessment.rationale} ` +
+      `Under ±10% single-weight perturbations, the winner changes in ` +
+      `${(weightSensitivity.winnerChangeRate * 100).toFixed(1)}% of scenarios. ` +
       `Preserves: [${candidateDef.preserves.join(', ')}]. ` +
       `Declared losses: [${candidateDef.loses.join(', ')}].`;
 
@@ -249,6 +267,12 @@ export class MonetaHypothesisEngine {
         supports: true,
         source: 'moneta-config',
       },
+      {
+        fact: `Weight sensitivity: ${(weightSensitivity.winnerChangeRate * 100).toFixed(1)}% winner changes across ${weightSensitivity.scenarioCount} scenarios`,
+        weight: 0,
+        supports: true,
+        source: 'moneta-sensitivity',
+      },
     ];
 
     if (signature.spectralStructure?.hasPeriodicity) {
@@ -280,7 +304,7 @@ export class MonetaHypothesisEngine {
     const provenance: DecisionProvenance = {
       generatedAt: now,
       engine: 'MonetaHypothesisEngine',
-      version: '2.0.0-v3-bootstrap',
+      version: '2.1.0-v3-bootstrap',
       datasetFingerprint: signature.provenance.datasetFingerprint,
       requirementsHash,
       fitnessModelVersion: this.fitnessModel.version,
@@ -306,6 +330,7 @@ export class MonetaHypothesisEngine {
       decisionMargin: assessment.margin,
       decisionRationale: assessment.rationale,
       fitnessModelVersion: this.fitnessModel.version,
+      weightSensitivity,
       embodiment,
       evidence,
       rejectedAlternatives,
@@ -339,6 +364,37 @@ export class MonetaHypothesisEngine {
     if (rowCount <= 2000) return 'MEDIUM';
     if (rowCount <= 50_000) return 'LARGE';
     return 'MASSIVE';
+  }
+
+  private sortCandidates(candidates: CandidateScore[]): void {
+    candidates.sort((a, b) => {
+      const scoreDelta = b.score - a.score;
+      if (scoreDelta !== 0) return scoreDelta;
+      return candidateKey(a).localeCompare(candidateKey(b));
+    });
+  }
+
+  private rankWinnerUnderWeights(
+    signature: DatasetSignature,
+    reqs: RepresentationRequirements,
+    baselineCandidates: CandidateScore[],
+    weights: BootstrapFitnessWeights
+  ): string | null {
+    const model = new BootstrapFitnessModel(weights);
+    const rescored = baselineCandidates
+      .filter((candidate) => !candidate.disqualified)
+      .map((candidate) =>
+        this.scoreCandidateWithModel(
+          model,
+          signature,
+          reqs,
+          MONETA_REPRESENTATION_CANDIDATES[candidate.candidateId],
+          candidate.family,
+          candidate.layout
+        )
+      );
+    this.sortCandidates(rescored);
+    return rescored[0] ? candidateKey(rescored[0]) : null;
   }
 
   private checkHardConstraints(
@@ -546,21 +602,22 @@ export class MonetaHypothesisEngine {
       provenance: {
         generatedAt: 0,
         engine: 'MonetaHypothesisEngine',
-        version: '2.0.0-v3-bootstrap',
+        version: '2.1.0-v3-bootstrap',
         datasetFingerprint,
         requirementsHash,
       },
     };
   }
 
-  private scoreCandidate(
+  private scoreCandidateWithModel(
+    model: BootstrapFitnessModel,
     signature: DatasetSignature,
     reqs: RepresentationRequirements,
     candidate: import('./RepresentationCandidate.ts').RepresentationCandidate,
     family: RepresentationFamily,
     layout: VRLayout
   ): CandidateScore {
-    const evaluation = this.fitnessModel.evaluate(signature, reqs, candidate, family);
+    const evaluation = model.evaluate(signature, reqs, candidate, family);
     const components: ScoreComponent[] = evaluation.components.map((component) => ({
       component: component.dimension,
       weight: component.weight,
