@@ -78,8 +78,10 @@ export interface TrialMetrics {
   workloadScore?: number;
   completed: boolean;
   exclusions: string[];
-  studyConfigHash: string;
-  runtimeVersions: StudyRuntimeVersions;
+  /** Present on V3 controlled ExperimentRunner output; absent on historical/pre-freeze records. */
+  studyConfigHash?: string;
+  /** Present on V3 controlled ExperimentRunner output; absent on historical/pre-freeze records. */
+  runtimeVersions?: StudyRuntimeVersions;
 }
 
 export interface StudySessionExport {
