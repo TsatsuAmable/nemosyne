@@ -16,15 +16,19 @@ function collectTypeScriptFiles(directory: string): string[] {
   });
 }
 
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').trim();
+}
+
 describe('V3 Gate 0 representation authority', () => {
   it('keeps legacy src/draco as compatibility adapters only', () => {
     const violations: string[] = [];
 
     for (const file of collectTypeScriptFiles(DRACO_ROOT)) {
-      const source = readFileSync(file, 'utf8').trim();
+      const source = stripComments(readFileSync(file, 'utf8'));
       const repoPath = relative(ROOT, file).replaceAll('\\', '/');
 
-      // Draco remains temporarily for source compatibility, but it may only
+      // Draco remains temporarily for source compatibility, but may only
       // re-export the canonical implementation from src/moneta. No classes,
       // functions, constants, scoring tables or solver logic may live here.
       const statements = source
@@ -34,12 +38,13 @@ describe('V3 Gate 0 representation authority', () => {
 
       const adapterOnly =
         statements.length > 0 &&
-        statements.every(
-          (statement) =>
-            /^(export\s+\*\s+from\s+['"][.]{1,2}\/.+moneta\/.+['"]|export\s+\{[^}]+\}\s+from\s+['"][.]{1,2}\/.+moneta\/.+['"]|export\s+type\s+\{[^}]+\}\s+from\s+['"][.]{1,2}\/.+moneta\/.+['"])$/s.test(
+        statements.every((statement) => {
+          const reExport =
+            /^export\s+(?:\*|\{[\s\S]*\}|type\s+\{[\s\S]*\})\s+from\s+['"]([^'"]+)['"]$/s.exec(
               statement
-            )
-        );
+            );
+          return reExport !== null && reExport[1].includes('moneta/');
+        });
 
       if (!adapterOnly) violations.push(repoPath);
     }
