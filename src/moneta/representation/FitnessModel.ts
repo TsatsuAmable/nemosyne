@@ -1,0 +1,260 @@
+import type { DatasetSignature } from './DatasetSignature.ts';
+import type {
+  RepresentationCandidate,
+  StructureCapability,
+} from './RepresentationCandidate.ts';
+import type {
+  RepresentationRequirements,
+  StructureRequirementType,
+} from './RepresentationRequirements.ts';
+import type { RepresentationFamily } from './RepresentationFamily.ts';
+
+/**
+ * V3 Gate 3 bootstrap model.
+ *
+ * These weights are engineering priors, not empirical probabilities. The model
+ * is deliberately explicit and versioned so later learned models can replace it
+ * without changing the Moneta search contract.
+ */
+export interface BootstrapFitnessWeights {
+  structure: number;
+  task: number;
+  scale: number;
+  informationPreservation: number;
+  densityHandling: number;
+  configuredPrior: number;
+}
+
+export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v1';
+
+export const DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS: BootstrapFitnessWeights = {
+  structure: 0.35,
+  task: 0.25,
+  scale: 0.15,
+  informationPreservation: 0.15,
+  densityHandling: 0.05,
+  configuredPrior: 0.05,
+};
+
+export interface FitnessComponent {
+  dimension: keyof BootstrapFitnessWeights;
+  weight: number;
+  rawScore: number;
+  weightedScore: number;
+  rationale: string;
+}
+
+export interface FitnessEvaluation {
+  modelVersion: string;
+  utilityScore: number;
+  components: FitnessComponent[];
+}
+
+const REQUIREMENT_CAPABILITIES: Record<StructureRequirementType, StructureCapability[]> = {
+  distribution: ['univariate-distribution'],
+  'cluster-separation': ['cluster-partition', 'continuous-density'],
+  density: ['continuous-density'],
+  'temporal-order': ['temporal-sequence'],
+  periodicity: ['periodic-spectrum'],
+  manifold: ['multivariate-correlation', 'continuous-density'],
+  hierarchy: ['tree-hierarchy'],
+  connectivity: ['relational-topology'],
+  'anomaly-visibility': ['anomaly-isolation'],
+  'observation-identity': ['discrete-observations'],
+  'group-comparison': ['aggregate-metrics', 'cluster-partition'],
+};
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+export function validateBootstrapFitnessWeights(
+  weights: BootstrapFitnessWeights
+): BootstrapFitnessWeights {
+  const entries = Object.entries(weights);
+  for (const [name, value] of entries) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new TypeError(`Fitness weight ${name} must be a finite non-negative number`);
+    }
+  }
+
+  const total = entries.reduce((sum, [, value]) => sum + value, 0);
+  if (Math.abs(total - 1) > 1e-9) {
+    throw new RangeError(`Active fitness weights must sum to 1 (received ${total})`);
+  }
+  return { ...weights };
+}
+
+export class BootstrapFitnessModel {
+  readonly version = BOOTSTRAP_FITNESS_MODEL_VERSION;
+  readonly weights: BootstrapFitnessWeights;
+
+  constructor(weights: Partial<BootstrapFitnessWeights> = {}) {
+    this.weights = validateBootstrapFitnessWeights({
+      ...DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS,
+      ...weights,
+    });
+  }
+
+  evaluate(
+    signature: DatasetSignature,
+    requirements: RepresentationRequirements,
+    candidate: RepresentationCandidate,
+    family: RepresentationFamily
+  ): FitnessEvaluation {
+    const components: FitnessComponent[] = [
+      this.component(
+        'structure',
+        this.scoreStructure(signature, requirements, candidate, family),
+        'Alignment with dataset-derived structure and representation family'
+      ),
+      this.component(
+        'task',
+        this.scoreTask(requirements, candidate),
+        'Coverage of every declared structure requirement'
+      ),
+      this.component(
+        'scale',
+        this.scoreScale(signature.cardinality.rowCount, candidate),
+        'Dataset cardinality relative to the candidate scale envelope'
+      ),
+      this.component(
+        'informationPreservation',
+        this.scoreInformationPreservation(requirements, candidate),
+        'Preservation of explicitly requested information'
+      ),
+      this.component(
+        'densityHandling',
+        this.scoreDensityHandling(signature, requirements, candidate),
+        'Ability to expose density where the data or task makes density relevant'
+      ),
+      this.component(
+        'configuredPrior',
+        signature.preferredFamilies?.includes(family) ? 1 : 0.5,
+        'Configured preference prior; not an empirical probability'
+      ),
+    ];
+
+    const utilityScore = clamp01(
+      components.reduce((sum, component) => sum + component.weightedScore, 0)
+    );
+
+    return { modelVersion: this.version, utilityScore, components };
+  }
+
+  private component(
+    dimension: keyof BootstrapFitnessWeights,
+    rawScore: number,
+    rationale: string
+  ): FitnessComponent {
+    const score = clamp01(rawScore);
+    const weight = this.weights[dimension];
+    return {
+      dimension,
+      weight,
+      rawScore: score,
+      weightedScore: score * weight,
+      rationale,
+    };
+  }
+
+  private scoreStructure(
+    signature: DatasetSignature,
+    requirements: RepresentationRequirements,
+    candidate: RepresentationCandidate,
+    family: RepresentationFamily
+  ): number {
+    const top = signature.topologicalStructure.topology;
+    let score = 0.4;
+
+    if (family === 'GRAPH' && (top === 'GRAPH' || signature.cardinality.edgeCount > 0)) score = 1;
+    else if (family === 'HIERARCHICAL' && (top === 'HIERARCHY' || signature.cardinality.depth > 1)) score = 1;
+    else if (family === 'TEMPORAL' && (top === 'TIME_SERIES' || signature.temporalStructure.isTimeSeries)) score = 1;
+    else if (family === 'FREQUENCY' && signature.spectralStructure?.hasPeriodicity) score = 1;
+    else if (family === 'CLUSTER' && signature.clusterStructure.hasClusters) score = 0.95;
+    else if (family === 'DISTRIBUTION' && (signature.distribution.hasOutliers || signature.distribution.highVariance)) score = 0.9;
+
+    const requiredCoverage = requirements.requiredStructures.length === 0
+      ? 1
+      : requirements.requiredStructures.reduce((sum, requirement) => {
+          const capabilities = REQUIREMENT_CAPABILITIES[requirement.type];
+          const covered = capabilities.some((capability) => candidate.supports.includes(capability));
+          return sum + (covered ? requirement.importance : 0);
+        }, 0) /
+        Math.max(
+          Number.EPSILON,
+          requirements.requiredStructures.reduce((sum, requirement) => sum + requirement.importance, 0)
+        );
+
+    return 0.7 * score + 0.3 * requiredCoverage;
+  }
+
+  private scoreTask(
+    requirements: RepresentationRequirements,
+    candidate: RepresentationCandidate
+  ): number {
+    if (requirements.requiredStructures.length === 0) return 1;
+
+    const weightedTotal = requirements.requiredStructures.reduce(
+      (sum, requirement) => sum + requirement.importance,
+      0
+    );
+    if (weightedTotal === 0) return 1;
+
+    const covered = requirements.requiredStructures.reduce((sum, requirement) => {
+      const capabilities = REQUIREMENT_CAPABILITIES[requirement.type];
+      const supports = capabilities.some((capability) => candidate.supports.includes(capability));
+      return sum + (supports ? requirement.importance : 0);
+    }, 0);
+
+    return covered / weightedTotal;
+  }
+
+  private scoreScale(rowCount: number, candidate: RepresentationCandidate): number {
+    const { minN, maxN, optimalN, scalabilityRating } = candidate.scaleCharacteristics;
+    if (rowCount < minN || rowCount > maxN) return 0;
+    if (rowCount >= optimalN[0] && rowCount <= optimalN[1]) return 1;
+    return clamp01(scalabilityRating);
+  }
+
+  private scoreInformationPreservation(
+    requirements: RepresentationRequirements,
+    candidate: RepresentationCandidate
+  ): number {
+    if (requirements.preservationGoals.length === 0) return 1;
+
+    const priorityWeight = { CRITICAL: 1, DESIRED: 0.6, OPTIONAL: 0.25 } as const;
+    let total = 0;
+    let preserved = 0;
+
+    for (const goal of requirements.preservationGoals) {
+      const weight = priorityWeight[goal.priority];
+      total += weight;
+      if (candidate.preserves.includes(goal.information)) preserved += weight;
+      else if (!candidate.loses.includes(goal.information)) preserved += weight * 0.5;
+    }
+
+    return total === 0 ? 1 : preserved / total;
+  }
+
+  private scoreDensityHandling(
+    signature: DatasetSignature,
+    requirements: RepresentationRequirements,
+    candidate: RepresentationCandidate
+  ): number {
+    const densityRequirement = requirements.requiredStructures.find((r) => r.type === 'density');
+    const densityRelevant =
+      (densityRequirement?.importance ?? 0) > 0 ||
+      signature.clusterStructure.densityVariation > 0 ||
+      signature.cardinality.rowCount > 500;
+
+    if (!densityRelevant) return 1;
+
+    const supportsDensity = candidate.supports.includes('continuous-density');
+    const preservesDensity = candidate.preserves.includes('population-density-distribution');
+    if (supportsDensity && preservesDensity) return 1;
+    if (supportsDensity || preservesDensity) return 0.75;
+    if (candidate.loses.includes('population-density-distribution')) return 0;
+    return 0.25;
+  }
+}
