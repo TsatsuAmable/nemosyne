@@ -13,6 +13,12 @@ export interface GroupBalancedPairwiseEvaluation {
   bootstrapGroupWins: number;
   tiedGroups: number;
   oneSidedGroupWinPValue: number;
+  /**
+   * Smallest group-balanced candidate-minus-bootstrap improvement after removing
+   * exactly one independent holdout group. Null when fewer than two groups exist.
+   * This is a deterministic robustness bound, not a confidence interval.
+   */
+  leaveOneGroupOutImprovementFloor: number | null;
   groupAccuracies: readonly {
     partitionGroup: string;
     judgementCount: number;
@@ -54,6 +60,20 @@ export function oneSidedGroupWinSignTest(candidateWins: number, bootstrapWins: n
     if (wins >= candidateWins) tail += probability;
   }
   return Math.min(1, Math.max(0, tail));
+}
+
+function leaveOneGroupOutImprovementFloor(
+  groups: readonly { candidateAccuracy: number; bootstrapAccuracy: number }[],
+): number | null {
+  if (groups.length < 2) return null;
+  const improvements = groups.map((group) => group.candidateAccuracy - group.bootstrapAccuracy);
+  const total = improvements.reduce((sum, improvement) => sum + improvement, 0);
+  let floor = Number.POSITIVE_INFINITY;
+  for (const improvement of improvements) {
+    const leaveOneOutMean = (total - improvement) / (improvements.length - 1);
+    floor = Math.min(floor, leaveOneOutMean);
+  }
+  return floor;
 }
 
 export function evaluateGroupBalancedPairwiseWeights(
@@ -103,11 +123,12 @@ export function evaluateGroupBalancedPairwiseWeights(
     bootstrapGroupWins,
     tiedGroups,
     oneSidedGroupWinPValue: oneSidedGroupWinSignTest(candidateGroupWins, bootstrapGroupWins),
+    leaveOneGroupOutImprovementFloor: leaveOneGroupOutImprovementFloor(groupAccuracies),
     groupAccuracies,
   };
 }
 
-/** Produce a promotion-ready artifact with equal group weighting and group-win evidence. */
+/** Produce a promotion-ready artifact with equal group weighting and robustness evidence. */
 export function withGroupBalancedHoldoutEvaluation(
   artifact: FitnessModelArtifact,
   examples: readonly PairwiseTrainingExample[],
@@ -125,10 +146,13 @@ export function withGroupBalancedHoldoutEvaluation(
       bootstrapGroupWins: evaluation.bootstrapGroupWins,
       tiedGroups: evaluation.tiedGroups,
       oneSidedGroupWinPValue: evaluation.oneSidedGroupWinPValue,
+      ...(evaluation.leaveOneGroupOutImprovementFloor === null
+        ? {}
+        : { leaveOneGroupOutImprovementFloor: evaluation.leaveOneGroupOutImprovementFloor }),
     },
     notes: [
       artifact.notes,
-      `Promotion evaluation: ${GROUP_BALANCED_PAIRWISE_METRIC}; each independent partition group contributes equal weight and group wins are tested with a one-sided exact sign test.`,
+      `Promotion evaluation: ${GROUP_BALANCED_PAIRWISE_METRIC}; each independent partition group contributes equal weight, group wins are tested with a one-sided exact sign test, and the effect is stress-tested by a deterministic leave-one-group-out improvement floor.`,
     ].filter(Boolean).join(' '),
   };
 }
