@@ -62,7 +62,9 @@ describe('NIL execution wiring', () => {
   it('replays a deterministic command stream in sequence', async () => {
     const executor = new NilExecutor();
     const seen: string[] = [];
-    executor.register('SELECT', (cmd) => seen.push(cmd.commandId));
+    executor.register('SELECT', (cmd) => {
+      seen.push(cmd.commandId);
+    });
 
     await executor.replay([command(0), command(1), command(2)]);
     expect(seen).toEqual(['cmd-0', 'cmd-1', 'cmd-2']);
