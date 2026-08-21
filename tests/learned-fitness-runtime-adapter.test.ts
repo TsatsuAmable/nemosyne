@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FITNESS_MODEL_ARTIFACT_SCHEMA_VERSION,
   FitnessModelRegistry,
+  GROUP_BALANCED_PAIRWISE_METRIC,
   rankWithActiveLearnedFitnessModel,
   rankWithPinnedLearnedFitnessModel,
   type FitnessModelArtifact,
@@ -41,7 +42,7 @@ function artifact(): FitnessModelArtifact {
     evaluation: {
       bootstrapMetric: 0.6,
       candidateMetric: 0.8,
-      metricName: 'pairwise-accuracy',
+      metricName: GROUP_BALANCED_PAIRWISE_METRIC,
       holdoutJudgementCount: 40,
       holdoutGroupCount: 12,
     },
