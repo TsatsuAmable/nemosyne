@@ -7,9 +7,9 @@ import type { RepresentationDecision, CandidateScore } from '../src/moneta/repre
 
 function candidate(id: 'POINT_SET' | 'DENSITY_FIELD', raw: readonly number[], score: number): CandidateScore {
   return {
-    family: id === 'POINT_SET' ? 'POINT_CLOUD' : 'DENSITY_FIELD',
+    family: id === 'POINT_SET' ? 'POINT' : 'DISTRIBUTION',
     candidateId: id,
-    layout: 'CARTESIAN',
+    layout: 'GRID_3D',
     score,
     components: MONETA_PAIRWISE_FEATURE_DIMENSIONS.map((component, index) => ({
       component,
@@ -20,13 +20,13 @@ function candidate(id: 'POINT_SET' | 'DENSITY_FIELD', raw: readonly number[], sc
     })),
     preserves: [],
     loses: [],
-  } as CandidateScore;
+  };
 }
 
 function decision(): RepresentationDecision {
   return {
     utilityScore: 0.8,
-    representationFamily: 'POINT_CLOUD',
+    representationFamily: 'POINT',
     embodiment: {} as RepresentationDecision['embodiment'],
     evidence: [],
     rejectedAlternatives: [],
