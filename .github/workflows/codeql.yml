@@ -11,6 +11,12 @@ on:
 permissions:
   contents: read
 
+# Do not spend CodeQL runner time analyzing commits that have already been
+# superseded on the same PR/ref. Scheduled scans remain grouped by their ref.
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: CodeQL SAST (${{ matrix.language }})
