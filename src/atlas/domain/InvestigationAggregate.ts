@@ -117,11 +117,18 @@ export class InvestigationAggregate {
     this.decisions.restore(state.activeRecommendation ?? null, state.decisionHistory ?? []);
 
     if (state.investigationGraph && state.investigationGraph.nodes?.length > 0) {
+      // Validate temporary graph first - throws on cycles or invalid edges before touching live graph
       const validatedGraph = InvestigationGraph.fromJSON(state.investigationGraph);
       this.graph.reset();
-      for (const node of validatedGraph.nodes) this.graph.addNode(node);
-      for (const edge of validatedGraph.edges) this.graph.addEdge(edge);
-      if (validatedGraph.activeNodeId) this.graph.setActiveNode(validatedGraph.activeNodeId);
+      for (const node of validatedGraph.nodes) {
+        this.graph.addNode(node);
+      }
+      for (const edge of validatedGraph.edges) {
+        this.graph.addEdge(edge);
+      }
+      if (validatedGraph.activeNodeId) {
+        this.graph.setActiveNode(validatedGraph.activeNodeId);
+      }
     } else if (current) {
       this.graph.reset();
       const fp = this.analytical.getFingerprint() ?? '';
