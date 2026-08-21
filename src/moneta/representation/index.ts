@@ -4,6 +4,7 @@ export * from './DatasetSignature.ts';
 export * from './RepresentationDecision.ts';
 export * from './RepresentationGraph.ts';
 export * from './RepresentationGraphAdapter.ts';
+export * from './RepresentationGraphRuntimeAdapter.ts';
 export * from './NoFeasibleRepresentationError.ts';
 export * from './RepresentationRequirements.ts';
 export * from './SignatureBuilder.ts';
