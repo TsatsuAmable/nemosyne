@@ -4,7 +4,7 @@
 
 import { Dataset } from '../../data/Dataset.ts';
 import type { DatasetJSON } from '../../data/types.ts';
-import { DatasetSpace } from '../DatasetSpace.ts';
+import { DatasetSpace, fnv1aHex } from '../DatasetSpace.ts';
 import type { DatasetSpaceNormalization } from '../DatasetSpace.ts';
 
 function emptyDataset(): Dataset {
@@ -27,33 +27,13 @@ export class AnalyticalState {
   private _datasetSpace: DatasetSpace | null = null;
   private _datasetSpaceSource: Dataset | null = null;
 
-  get original(): Dataset {
-    return this._original ?? emptyDataset();
-  }
-
-  get originalNullable(): Dataset | null {
-    return this._original;
-  }
-
-  get current(): Dataset {
-    return this._current ?? emptyDataset();
-  }
-
-  get currentNullable(): Dataset | null {
-    return this._current;
-  }
-
-  get datasetVersion(): number {
-    return this._datasetVersion;
-  }
-
-  get currentHandle(): number {
-    return this._currentHandle;
-  }
-
-  get hasDataset(): boolean {
-    return this._current !== null;
-  }
+  get original(): Dataset { return this._original ?? emptyDataset(); }
+  get originalNullable(): Dataset | null { return this._original; }
+  get current(): Dataset { return this._current ?? emptyDataset(); }
+  get currentNullable(): Dataset | null { return this._current; }
+  get datasetVersion(): number { return this._datasetVersion; }
+  get currentHandle(): number { return this._currentHandle; }
+  get hasDataset(): boolean { return this._current !== null; }
 
   loadDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
     this._original = dataset?.clone?.() ?? emptyDataset();
@@ -66,15 +46,9 @@ export class AnalyticalState {
   commitKernelResult(options: KernelCommitOptions, destroyer?: (handle: number) => void): void {
     const { handle, dataset, fingerprint, versionBump = true } = options;
     const nextDataset = dataset?.clone?.() ?? emptyDataset();
-
     if (this._currentHandle !== 0 && this._currentHandle !== handle && destroyer) {
-      try {
-        destroyer(this._currentHandle);
-      } catch {
-        // best-effort cleanup
-      }
+      try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
     }
-
     this._currentHandle = handle;
     this._current = nextDataset;
     if (versionBump) this._datasetVersion += 1;
@@ -97,12 +71,7 @@ export class AnalyticalState {
     if (changed) this._invalidateDatasetSpace();
   }
 
-  restore(
-    original: Dataset | null,
-    current: Dataset | null,
-    version: number,
-    destroyer?: (handle: number) => void,
-  ): void {
+  restore(original: Dataset | null, current: Dataset | null, version: number, destroyer?: (handle: number) => void): void {
     this._original = original;
     this._current = current;
     this._datasetVersion = version;
@@ -128,30 +97,37 @@ export class AnalyticalState {
       try {
         const fp = kernelFingerprintProvider();
         if (fp) return fp;
-      } catch {
-        // fall back to DatasetSpace fingerprint
-      }
+      } catch { /* fall back to DatasetSpace fingerprint */ }
     }
     return this.getDatasetSpace()?.fingerprint ?? null;
   }
 
+  /**
+   * Ensure a kernel handle is allocated for the current dataset.
+   *
+   * Rust defines first-lineage IDs as `<canonical dataset fingerprint>:<row index>`.
+   * When the JS object has no IDs yet, derive that exact ABI identity from the
+   * JSON sent to Rust and hydrate the in-memory rows after a successful load.
+   * This is a transitional metadata handshake until the column-view ABI exposes
+   * row identity directly; it changes no scientific values or dataset version.
+   */
   ensureHandle(loader: (json: DatasetJSON) => number): number {
     if (this._currentHandle !== 0) return this._currentHandle;
     if (!this._current) return 0;
     try {
-      this._currentHandle = loader(this._current.toJSON());
+      const json = this._current.toJSON();
+      const needsIdentity = !this._current.rowIds;
+      this._currentHandle = loader(json);
+      if (this._currentHandle !== 0 && needsIdentity) {
+        const prefix = fnv1aHex(json);
+        this.adoptKernelRowIds(json.rows.map((_, index) => `${prefix}:${index}`));
+      }
     } catch {
       this._currentHandle = 0;
     }
     return this._currentHandle;
   }
 
-  /**
-   * Hydrate the JS dataset with the authoritative Rust observation IDs without
-   * changing scientific content or dataset version. On the first loaded
-   * version, original and current represent the same observations, so both are
-   * hydrated to keep reset/undo semantics stable.
-   */
   adoptKernelRowIds(rowIds: string[]): boolean {
     if (!this._current || !this._current.adoptRowIds(rowIds)) return false;
     if (this._datasetVersion === 1 && this._original && this._original.rowCount === rowIds.length) {
@@ -162,22 +138,14 @@ export class AnalyticalState {
 
   invalidateHandle(destroyer?: (handle: number) => void): void {
     if (this._currentHandle !== 0 && destroyer) {
-      try {
-        destroyer(this._currentHandle);
-      } catch {
-        // best-effort cleanup
-      }
+      try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
     }
     this._currentHandle = 0;
   }
 
   adoptHandle(outHandle: number, destroyer?: (handle: number) => void): void {
     if (this._currentHandle !== 0 && this._currentHandle !== outHandle && destroyer) {
-      try {
-        destroyer(this._currentHandle);
-      } catch {
-        // best-effort cleanup
-      }
+      try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
     }
     this._currentHandle = outHandle;
   }
