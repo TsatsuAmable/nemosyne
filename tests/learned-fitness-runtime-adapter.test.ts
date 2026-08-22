@@ -49,6 +49,7 @@ function artifact(): FitnessModelArtifact {
       bootstrapGroupWins: 2,
       tiedGroups: 0,
       oneSidedGroupWinPValue: 0.019287109375,
+      leaveOneGroupOutImprovementFloor: 0.15,
     },
   };
 }
@@ -84,6 +85,7 @@ describe('learned fitness runtime adapter', () => {
     const registry = new FitnessModelRegistry();
     const weak = artifact();
     weak.evaluation.candidateMetric = 0.61;
+    weak.evaluation.leaveOneGroupOutImprovementFloor = 0.01;
     const registered = registry.register(weak);
     registry.promote(registered.artifactHash, 2);
     expect(() => rankWithActiveLearnedFitnessModel(registry, [candidate('POINT_SET', [1, 1, 1, 1, 1, 1], 1)], policy))

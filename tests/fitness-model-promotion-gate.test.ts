@@ -13,6 +13,7 @@ function artifact(
   holdoutGroupCount = 12,
   candidateGroupWins = Math.max(0, holdoutGroupCount - 2),
   bootstrapGroupWins = Math.min(2, holdoutGroupCount),
+  robustImprovementFloor = candidateMetric - bootstrapMetric,
 ): FitnessModelArtifact {
   const tiedGroups = holdoutGroupCount - candidateGroupWins - bootstrapGroupWins;
   return {
@@ -35,6 +36,7 @@ function artifact(
       bootstrapGroupWins,
       tiedGroups,
       oneSidedGroupWinPValue: oneSidedGroupWinSignTest(candidateGroupWins, bootstrapGroupWins),
+      leaveOneGroupOutImprovementFloor: robustImprovementFloor,
     },
   };
 }
@@ -46,10 +48,11 @@ const policy = {
 };
 
 describe('Fitness model promotion eligibility', () => {
-  it('accepts only a group-balanced improvement distributed across independent holdout groups', () => {
+  it('accepts only a robust group-balanced improvement distributed across independent holdout groups', () => {
     const result = assessFitnessModelPromotion(artifact(0.7), policy);
     expect(result.eligible).toBe(true);
     expect(result.absoluteImprovement).toBeCloseTo(0.1);
+    expect(result.robustImprovementFloor).toBeCloseTo(0.1);
     expect(result.reasons).toEqual([]);
   });
 
@@ -77,6 +80,14 @@ describe('Fitness model promotion eligibility', () => {
     expect(result.reasons).toContain('GROUP_WIN_EVIDENCE_NOT_SIGNIFICANT');
   });
 
+  it('rejects a point estimate that depends on one influential holdout group', () => {
+    const fragile = artifact(0.7, 0.6, 40, 12, 10, 2, 0.02);
+    const result = assessFitnessModelPromotion(fragile, policy);
+    expect(result.absoluteImprovement).toBeCloseTo(0.1);
+    expect(result.robustImprovementFloor).toBeCloseTo(0.02);
+    expect(result.reasons).toContain('ROBUST_IMPROVEMENT_BELOW_THRESHOLD');
+  });
+
   it('fails closed when an artifact has no group-win evidence', () => {
     const missing = artifact(0.8);
     delete missing.evaluation.candidateGroupWins;
@@ -84,6 +95,22 @@ describe('Fitness model promotion eligibility', () => {
     delete missing.evaluation.tiedGroups;
     delete missing.evaluation.oneSidedGroupWinPValue;
     expect(assessFitnessModelPromotion(missing, policy).reasons).toContain('MISSING_GROUP_WIN_EVIDENCE');
+  });
+
+  it('fails closed when an artifact has no effect robustness evidence', () => {
+    const missing = artifact(0.8);
+    delete missing.evaluation.leaveOneGroupOutImprovementFloor;
+    const result = assessFitnessModelPromotion(missing, policy);
+    expect(result.robustImprovementFloor).toBeNull();
+    expect(result.reasons).toContain('MISSING_EFFECT_ROBUSTNESS_EVIDENCE');
+  });
+
+  it('allows a protocol-visible robust-effect threshold distinct from the point-estimate threshold', () => {
+    const result = assessFitnessModelPromotion(artifact(0.7, 0.6, 40, 12, 10, 2, 0.04), {
+      ...policy,
+      minimumRobustAbsoluteImprovement: 0.03,
+    });
+    expect(result.eligible).toBe(true);
   });
 
   it('rejects judgement-weighted pairwise accuracy unless explicitly requested', () => {

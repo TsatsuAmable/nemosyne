@@ -41,6 +41,7 @@ function artifact(modelVersion = 'learned-v1'): FitnessModelArtifact {
       bootstrapGroupWins: 2,
       tiedGroups: 0,
       oneSidedGroupWinPValue: 0.019287109375,
+      leaveOneGroupOutImprovementFloor: 0.15,
     },
   };
 }
@@ -136,6 +137,7 @@ describe('pinned learned Moneta runtime composition', () => {
     const registry = new FitnessModelRegistry();
     const weak = artifact();
     weak.evaluation.candidateMetric = 0.61;
+    weak.evaluation.leaveOneGroupOutImprovementFloor = 0.01;
     const registered = registry.register(weak);
     registry.promote(registered.artifactHash, 2);
     expect(() => applyPinnedLearnedFitnessRuntime(base, {
