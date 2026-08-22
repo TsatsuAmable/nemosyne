@@ -1,5 +1,6 @@
 import { Dataset } from '../data/Dataset.ts';
 import type { ColumnSchema, DatasetJSON } from '../data/types.ts';
+import { canonicalSha256Hex } from '../security/CryptoHash.ts';
 
 export interface DatasetSpaceNormalization {
   min: number;
@@ -7,7 +8,7 @@ export interface DatasetSpaceNormalization {
 }
 
 export interface DatasetSpaceJSON {
-  version: 1;
+  version: 2;
   fingerprint: string;
   datumIds: string[];
   normalization: Record<string, DatasetSpaceNormalization>;
@@ -22,51 +23,20 @@ export interface DatasetSpaceJSON {
 
 /**
  * Optional kernel-derived sources for the space. When supplied, `fingerprint`
- * and `ranges` come from the Rust kernel (byte-parity guaranteed) instead of
- * the JS fallback (`fnv1aHex` + `Dataset.rangeOf`). The kernel is the single
- * analytical implementation; this is a delegation, not a second implementation.
+ * and `ranges` come from the Rust kernel instead of the JS SHA-256 fallback.
  */
 export interface DatasetSpaceSources {
   fingerprint?: string | null;
   ranges?: Record<string, DatasetSpaceNormalization> | null;
 }
 
-/**
- * Locale-independent canonicalization: recursively sorts object keys by UTF-16
- * code units so the fingerprint is stable across devices/runtimes regardless of
- * the default collation (`localeCompare` varies by locale). Exported so AtlasCore
- * can reuse the exact same canonical form for `outputHash`/`stateHash`.
- */
-export function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([a], [b]) => (a > b ? 1 : a < b ? -1 : 0))
-        .map(([key, entry]) => [key, canonicalize(entry)])
-    );
-  }
-  return value;
-}
-
-/**
- * FNV-1a 32-bit hash over the canonicalized JSON of `value`, returned as 8
- * lowercase hex chars. This matches the kernel's dataset fingerprint algorithm
- * so JS-side `outputHash`/`stateHash` stay consistent with
- * `bridge.datasetFingerprint` when the kernel is unavailable.
- */
-export function fnv1aHex(value: unknown): string {
-  const text = JSON.stringify(canonicalize(value));
-  let state = 2166136261;
-  for (let index = 0; index < text.length; index += 1) {
-    state ^= text.charCodeAt(index);
-    state = Math.imul(state, 16777619);
-  }
-  return (state >>> 0).toString(16).padStart(8, '0');
+/** Canonical SHA-256 over JSON-compatible content. */
+export function contentHashHex(value: unknown): string {
+  return canonicalSha256Hex(value);
 }
 
 export class DatasetSpace {
-  readonly version = 1 as const;
+  readonly version = 2 as const;
   readonly dataset: Dataset;
   readonly fingerprint: string;
   readonly datumIds: readonly string[];
@@ -77,11 +47,11 @@ export class DatasetSpace {
   constructor(dataset: Dataset, sources?: DatasetSpaceSources) {
     this.dataset = dataset.clone();
     const datasetJSON = this.dataset.toJSON();
-    this.fingerprint = sources?.fingerprint ?? fnv1aHex(datasetJSON);
+    this.fingerprint = sources?.fingerprint ?? contentHashHex(datasetJSON);
 
     const occurrences = new Map<string, number>();
     this.datumIds = this.dataset.rows.map((row) => {
-      const rowHash = fnv1aHex(row);
+      const rowHash = contentHashHex(row);
       const occurrence = occurrences.get(rowHash) ?? 0;
       occurrences.set(rowHash, occurrence + 1);
       return `${this.fingerprint}:datum-${rowHash}-${occurrence}`;
@@ -127,8 +97,8 @@ export class DatasetSpace {
   }
 
   static fromJSON(snapshot: DatasetSpaceJSON): DatasetSpace {
-    if (snapshot.version !== 1 || snapshot.missingness !== 'exclude-non-finite') {
-      throw new Error('Unsupported DatasetSpace version');
+    if (snapshot.version !== 2 || snapshot.missingness !== 'exclude-non-finite') {
+      throw new Error('Unsupported DatasetSpace version; legacy 32-bit fingerprints must be regenerated');
     }
     const space = new DatasetSpace(Dataset.fromJSON(snapshot.dataset));
     if (
