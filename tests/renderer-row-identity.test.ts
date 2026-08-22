@@ -23,14 +23,14 @@ describe('renderer row identity', () => {
     expect(rendererRowId(row)).toMatch(/^row:\d+$/);
   });
 
-  it('prefers a registered durable Rust-owned row ID', () => {
+  it('uses a registered durable Rust-owned row ID unchanged', () => {
     const row = { id: 'alpha' };
     registerDurableRowId(row, 'abc123:0');
     expect(durableRowId(row)).toBe('abc123:0');
-    expect(rendererRowId(row)).toBe('dataset-row:abc123:0');
+    expect(rendererRowId(row)).toBe('abc123:0');
   });
 
-  it('restores durable identity onto reconstructed Dataset rows', () => {
+  it('restores canonical durable identity onto reconstructed Dataset rows', () => {
     const ds = Dataset.fromJSON({
       name: 'roundtrip',
       columns: [{ name: 'value', type: ColumnType.NUMERIC }],
@@ -38,8 +38,8 @@ describe('renderer row identity', () => {
       rowIds: ['source:0', 'source:1'],
     });
 
-    expect(rendererRowId(ds.rows[0])).toBe('dataset-row:source:0');
-    expect(rendererRowId(ds.rows[1])).toBe('dataset-row:source:1');
+    expect(rendererRowId(ds.rows[0])).toBe('source:0');
+    expect(rendererRowId(ds.rows[1])).toBe('source:1');
     expect(rendererRowId(ds.rows[0])).not.toBe(rendererRowId(ds.rows[1]));
     expect(ds.toJSON().rowIds).toEqual(['source:0', 'source:1']);
   });

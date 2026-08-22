@@ -77,15 +77,30 @@ export class Dataset {
     this._setRowIds(rowIds);
   }
 
-  private _setRowIds(rowIds?: string[]): void {
-    if (!rowIds || rowIds.length !== this.rows.length || rowIds.some((id) => !id)) {
+  private _setRowIds(rowIds?: string[]): boolean {
+    if (
+      !rowIds ||
+      rowIds.length !== this.rows.length ||
+      rowIds.some((id) => typeof id !== 'string' || id.length === 0) ||
+      new Set(rowIds).size !== rowIds.length
+    ) {
       this.rowIds = undefined;
-      return;
+      return false;
     }
     this.rowIds = rowIds.slice();
     for (let i = 0; i < this.rows.length; i++) {
       registerDurableRowId(this.rows[i], this.rowIds[i]);
     }
+    return true;
+  }
+
+  /**
+   * Adopt a validated identity vector supplied by the authoritative Rust
+   * dataset store. This is metadata hydration only: it does not alter row
+   * values, schema, analytical fingerprints, or dataset version.
+   */
+  adoptRowIds(rowIds: string[]): boolean {
+    return this._setRowIds(rowIds);
   }
 
   get rowCount(): number {
@@ -152,16 +167,15 @@ export class Dataset {
    * New JS rows do not yet have Rust lineage IDs, so any existing aligned ID
    * vector is invalidated rather than risk attaching an ID to the wrong row.
    */
-  updateRows(newRows: Record<string, unknown>[], mode: 'append' | 'replace' = 'append', limit: number | null = null): this {
+  updateRows(
+    newRows: Record<string, unknown>[],
+    mode: 'append' | 'replace' = 'append',
+    limit: number | null = null
+  ): this {
     const sanitized = newRows.map(sanitizeRow);
-    if (mode === 'replace') {
-      this.rows = sanitized;
-    } else {
-      this.rows.push(...sanitized);
-    }
-    if (limit != null && this.rows.length > limit) {
-      this.rows = this.rows.slice(-limit);
-    }
+    if (mode === 'replace') this.rows = sanitized;
+    else this.rows.push(...sanitized);
+    if (limit != null && this.rows.length > limit) this.rows = this.rows.slice(-limit);
     this.rowIds = undefined;
     return this;
   }
@@ -176,10 +190,6 @@ export class Dataset {
     );
   }
 
-  /**
-   * Serialize the dataset to a plain JSON-compatible object.
-   * `rowIds` is ABI metadata and deliberately remains outside each row object.
-   */
   toJSON(): DatasetJSON {
     const json: DatasetJSON = {
       name: this.name,
@@ -198,11 +208,8 @@ export class Dataset {
     return json;
   }
 
-  /** Reconstruct a Dataset from a plain JSON object. */
   static fromJSON(obj: DatasetJSON | unknown): Dataset {
-    if (!obj || typeof obj !== 'object') {
-      throw new Error('Dataset.fromJSON requires an object');
-    }
+    if (!obj || typeof obj !== 'object') throw new Error('Dataset.fromJSON requires an object');
     const typedObj = obj as DatasetJSON;
     return new Dataset(
       typedObj.name || 'dataset',
