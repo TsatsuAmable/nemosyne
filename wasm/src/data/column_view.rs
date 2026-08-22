@@ -12,6 +12,42 @@ pub struct PrimitiveColumnView {
 static COLUMN_VIEWS: LazyLock<Mutex<HashMap<(u32, u32), PrimitiveColumnView>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// Allocate JS-visible bytes through Rust's own allocator rather than the
+/// legacy independent bump arena in `lib.rs`.
+///
+/// The legacy arena can overlap allocations performed later by Rust because it
+/// tracks only its own bump pointer over the same linear memory. These exports
+/// provide a migration path that shares allocation ownership with Vec/String/
+/// HashMap and can therefore coexist with analytical heap growth safely.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn host_buffer_alloc(len: u32) -> u32 {
+    use std::alloc::{alloc_zeroed, handle_alloc_error, Layout};
+
+    if len == 0 {
+        return 0;
+    }
+    let layout = Layout::from_size_align(len as usize, 8).expect("valid host buffer layout");
+    let ptr = unsafe { alloc_zeroed(layout) };
+    if ptr.is_null() {
+        handle_alloc_error(layout);
+    }
+    ptr as usize as u32
+}
+
+/// Release a buffer allocated by `host_buffer_alloc`.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn host_buffer_dealloc(ptr: u32, len: u32) {
+    use std::alloc::{dealloc, Layout};
+
+    if ptr == 0 || len == 0 {
+        return;
+    }
+    let layout = Layout::from_size_align(len as usize, 8).expect("valid host buffer layout");
+    unsafe { dealloc(ptr as usize as *mut u8, layout) };
+}
+
 /// Prepare a contiguous f64 + validity buffer for a numeric/epoch-temporal column.
 ///
 /// The transitional columnar dataset is now built once at dataset registration
