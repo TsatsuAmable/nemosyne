@@ -74,22 +74,28 @@ async function loadRuntime() {
     throw new Error('WASM runtime health check failed');
   }
   for (const fn of [
+    'host_buffer_alloc',
+    'host_buffer_dealloc',
     'dataset_primitive_column_len',
     'dataset_primitive_column_values_ptr',
     'dataset_primitive_column_validity_ptr',
   ]) {
     if (typeof wasm[fn] !== 'function') {
-      throw new Error(`WASM primitive-column ABI missing export: ${fn}`);
+      throw new Error(`WASM data-boundary ABI missing export: ${fn}`);
     }
   }
   return wasm;
 }
 
 function allocBytes(wasm, bytes) {
-  const ptr = wasm.alloc(bytes.length);
-  if (!ptr && bytes.length) throw new Error('WASM allocation failed');
+  const ptr = wasm.host_buffer_alloc(bytes.length);
+  if (!ptr && bytes.length) throw new Error('WASM host-buffer allocation failed');
   if (bytes.length) new Uint8Array(wasm.memory.buffer, ptr, bytes.length).set(bytes);
   return ptr;
+}
+
+function freeBytes(wasm, ptr, len) {
+  if (ptr && len) wasm.host_buffer_dealloc(ptr, len);
 }
 
 function loadDataset(wasm, bytes) {
@@ -97,22 +103,22 @@ function loadDataset(wasm, bytes) {
   try {
     return wasm.data_load_dataset_json(ptr, bytes.length);
   } finally {
-    if (bytes.length) wasm.dealloc(ptr, bytes.length);
+    freeBytes(wasm, ptr, bytes.length);
   }
 }
 
 function materializeDataset(wasm, handle) {
   const required = wasm.dataset_to_json(handle, 0, 0);
   if (!required) throw new Error('dataset_to_json returned 0 bytes');
-  const ptr = wasm.alloc(required);
-  if (!ptr) throw new Error('WASM allocation failed for materialisation');
+  const ptr = wasm.host_buffer_alloc(required);
+  if (!ptr) throw new Error('WASM host-buffer allocation failed for materialisation');
   try {
     const written = wasm.dataset_to_json(handle, ptr, required);
     const copied = new Uint8Array(wasm.memory.buffer, ptr, written).slice();
     const text = new TextDecoder().decode(copied);
     return { bytes: written, parsed: JSON.parse(text) };
   } finally {
-    wasm.dealloc(ptr, required);
+    wasm.host_buffer_dealloc(ptr, required);
   }
 }
 
@@ -234,6 +240,7 @@ async function runTier(wasm, tier) {
     primitiveBorrowCacheBuilds: 1,
     primitiveBorrowCacheHits: 1,
     primitiveChecksum: firstBorrow.checksum,
+    hostBufferAllocator: 'rust-global',
   };
 }
 
