@@ -15,6 +15,7 @@ pub mod profile;
 pub mod provenance;
 pub mod spectral;
 pub mod statistics;
+pub mod statistics_columnar;
 pub mod statistics_evidence;
 pub mod structure_discovery;
 pub mod support;
@@ -83,17 +84,18 @@ impl DatasetRegistry {
             .map(|registered| &registered.dataset)
     }
 
+    fn get_registered(&self, handle: u32) -> Option<&RegisteredDataset> {
+        let idx = (handle.wrapping_sub(1)) as usize;
+        self.slots.get(idx).and_then(|slot| slot.as_ref())
+    }
+
     fn get_registered_mut(&mut self, handle: u32) -> Option<&mut RegisteredDataset> {
         let idx = (handle.wrapping_sub(1)) as usize;
         self.slots.get_mut(idx).and_then(|slot| slot.as_mut())
     }
 
     fn get_columnar(&self, handle: u32) -> Option<&ColumnarDataset> {
-        let idx = (handle.wrapping_sub(1)) as usize;
-        self.slots
-            .get(idx)
-            .and_then(|slot| slot.as_ref())
-            .map(|registered| &registered.columnar)
+        self.get_registered(handle).map(|registered| &registered.columnar)
     }
 
     pub fn remove(&mut self, handle: u32) {
@@ -129,6 +131,19 @@ pub fn with_columnar_dataset<T>(
 ) -> Option<T> {
     let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
     reg.get_columnar(handle).map(f)
+}
+
+/// Borrow the compatibility dataset and synchronized columnar sidecar under a
+/// single registry lock. Analytical hot paths use this accessor so they cannot
+/// accidentally observe mismatched generations during the transitional dual
+/// representation phase.
+pub fn with_dataset_and_columnar<T>(
+    handle: u32,
+    f: impl FnOnce(&Dataset, &ColumnarDataset) -> T,
+) -> Option<T> {
+    let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
+    let registered = reg.get_registered(handle)?;
+    Some(f(&registered.dataset, &registered.columnar))
 }
 
 /// Mutably access a dataset by handle.
@@ -183,6 +198,32 @@ mod columnar_registry_tests {
 
         assert_eq!(snapshot.0, vec![1.0, 0.0]);
         assert_eq!(snapshot.1, vec![1, 0]);
+        destroy_dataset(handle);
+    }
+
+    #[test]
+    fn paired_accessor_observes_matching_dataset_and_columnar_generation() {
+        let handle = register_dataset(Dataset::new(
+            "columnar-paired",
+            vec![Column::new("value", ColumnType::Numeric)],
+            vec![row(Value::Number(1.0)), row(Value::Number(2.0))],
+        ));
+
+        let snapshot = with_dataset_and_columnar(handle, |dataset, columnar| {
+            (
+                dataset.row_count(),
+                columnar.row_count(),
+                columnar
+                    .primitive_column(0)
+                    .expect("numeric column")
+                    .values
+                    .clone(),
+            )
+        })
+        .expect("paired registry access");
+
+        assert_eq!(snapshot.0, snapshot.1);
+        assert_eq!(snapshot.2, vec![1.0, 2.0]);
         destroy_dataset(handle);
     }
 
