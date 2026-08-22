@@ -8,6 +8,12 @@ import type { AnalyticalIntent, RepresentationRequirements } from './Representat
 import type { RepresentationDecision } from './RepresentationDecision.ts';
 import type { DatasetSignature } from './DatasetSignature.ts';
 import { MonetaHypothesisEngine } from './MonetaHypothesisEngine.ts';
+import {
+  DEFAULT_MONETA_COMPUTE_BUDGET,
+  assertMonetaWithinComputeBudget,
+  resolveMonetaComputeBudget,
+  type MonetaComputeBudget,
+} from './ScalabilityContract.ts';
 
 const CORE_EVIDENCE_IDS = [
   'cardinality:dataset',
@@ -69,14 +75,6 @@ function assertEqual(actual: unknown, expected: unknown, label: string): void {
   }
 }
 
-/**
- * Prove that the transitional DatasetSignature used by Moneta is backed by the
- * canonical Rust DatasetEvidence envelope rather than synthetic/default facts.
- *
- * This bridge deliberately validates only facts the current DatasetEvidence ABI
- * can establish. Unsupported structure kinds fail closed instead of being
- * inferred in TypeScript.
- */
 export function assertEvidenceBacksSignature(
   evidence: DatasetEvidence,
   signature: DatasetSignature,
@@ -176,13 +174,15 @@ export function assertEvidenceBacksSignature(
   return evidence.evidence.map((item) => item.id);
 }
 
-/**
- * Transitional V3 Moneta entry point. The current scorer still consumes
- * DatasetSignature, but this boundary requires that signature to be backed by
- * authoritative DatasetEvidence before representation reasoning may proceed.
- */
 export class EvidenceBackedMoneta {
-  constructor(private readonly engine = new MonetaHypothesisEngine()) {}
+  private readonly computeBudget: Readonly<MonetaComputeBudget>;
+
+  constructor(
+    private readonly engine = new MonetaHypothesisEngine(),
+    computeBudget: Partial<MonetaComputeBudget> = DEFAULT_MONETA_COMPUTE_BUDGET,
+  ) {
+    this.computeBudget = resolveMonetaComputeBudget(computeBudget);
+  }
 
   arbitrate(
     evidence: DatasetEvidence,
@@ -192,6 +192,14 @@ export class EvidenceBackedMoneta {
   ): EvidenceBoundRepresentationDecision {
     const evidenceIds = assertEvidenceBacksSignature(evidence, signature);
     const decision = this.engine.arbitrate(signature, requirements, intent);
+
+    assertMonetaWithinComputeBudget(
+      {
+        candidateCount: decision.rankedCandidates.length,
+        sensitivityScenarioCount: decision.weightSensitivity.scenarioCount,
+      },
+      this.computeBudget,
+    );
 
     return {
       decision,
