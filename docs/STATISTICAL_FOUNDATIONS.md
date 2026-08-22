@@ -41,6 +41,11 @@ AnalyticalGeometry
 analytical method
     ↓
 EvidenceClaim<T>
+    ├── sample support
+    ├── assumptions
+    ├── uncertainty
+    ├── stability/sensitivity
+    └── limitations
     ↓
 DatasetEvidence
     ↓
@@ -72,6 +77,18 @@ Analytical callers choose an explicit semantic admission policy:
 - `RequireConfirmed`: research-critical analyses require explicit confirmation.
 
 This policy is independent of mathematical metric applicability. A model may be semantically authoritative but mathematically incompatible with a requested geometry, or mathematically compatible but too weakly sourced for a strict research analysis.
+
+## Sample support and missingness
+
+Every research-relevant analytical claim records how much of the dataset actually contributed to the result. `SampleSupport` records total rows, rows used and excluded, analytical column scope, support policy, and counted exclusion reasons.
+
+Support is method-specific. Dataset cardinality must not be copied into a statistic when the method excluded rows. A per-column descriptive statistic can therefore have different support from a two-column Pearson coefficient or a multivariate structural analysis.
+
+Missingness is evidence in its own right. The kernel records per-column observed/missing counts and cross-column missingness patterns. `MCAR`, `MAR`, and `MNAR` are not inferred from missing-value percentages or pattern counts. The mechanism remains `Unknown` unless explicitly declared or established by a separately provenance-bearing model.
+
+A support policy states what the method did, not whether that policy was inferentially valid. `CompleteCase`, for example, records row selection and does not imply complete-case analysis is unbiased.
+
+For numeric methods, support accounting must match actual computational eligibility. Null, non-numeric, and non-finite values excluded by an analyzer must also be excluded from its support count.
 
 ## Applicability states
 
@@ -154,6 +171,8 @@ limitations
 
 A missing uncertainty or stability value means it was not established. It must not be silently converted to zero.
 
+Legacy analytical result structs may be wrapped by evidence adapters while their numerical algorithms and serialized compatibility shapes remain unchanged. This is the preferred migration path when a breaking ABI change is not justified.
+
 ## Advanced methods
 
 Persistent homology, spectral methods, HDBSCAN, HSIC, knockoffs, PoSI, preference learning, counterfactual estimators, and contextual/slate bandits are method families, not governing architecture.
@@ -190,7 +209,8 @@ Initial adversarial fixtures should cover:
 - nonlinear dependence with weak Pearson correlation;
 - Simpson-style subgroup reversal;
 - Gaussian/null data where algorithms may produce accidental structure;
-- deterministic replay of measurement and geometry provenance.
+- deterministic replay of measurement and geometry provenance;
+- missing/null/non-numeric/non-finite observations whose support counts must exactly match analyzer eligibility.
 
 For null datasets the invariant is not that no algorithm may ever return structure. The invariant is that accidental algorithmic structure must not be mislabeled as strong, stable, or independently validated scientific evidence.
 
@@ -200,9 +220,9 @@ For null datasets the invariant is not that no algorithm may ever return structu
 2. Semantic provenance and analytical admission policy.
 3. Analytical applicability and geometry provenance.
 4. Generic evidence claims.
-5. Inventory and rename misleading confidence/significance/stability terminology.
-6. Adapt existing descriptive/correlation/cluster/temporal/spectral outputs into evidence claims without changing their mathematical strength.
-7. Add robust foundational statistics and missingness evidence.
+5. Sample-support and missingness evidence.
+6. Wrap existing descriptive/dependency analyzers with exact evidence support without changing numerical output or legacy ABI.
+7. Add robust foundational statistics.
 8. Add stability/sensitivity machinery.
 9. Expand dependency, dimensionality, temporal, grouped, spatial, compositional, topological, and spectral evidence as domain-conditional analyzers.
 10. Add selection-aware Discovery validation.
