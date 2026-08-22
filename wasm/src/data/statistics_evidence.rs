@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::data::dataset::Dataset;
 use crate::data::evidence::{
@@ -7,7 +7,7 @@ use crate::data::evidence::{
 use crate::data::statistics::{compute_statistics, ColumnStats, CorrelationPair};
 use crate::data::support::finite_numeric_support;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StatisticsEvidence {
     pub numeric: Vec<EvidenceClaim<ColumnStats>>,
