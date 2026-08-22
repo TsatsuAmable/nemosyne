@@ -18,6 +18,8 @@ This document translates V3 into small, independently verifiable engineering wor
 6. Obsolete documentation is updated when salvageable; otherwise it moves to `docs/archive/` only when historical value justifies retention. Stale active documentation is not kept “just in case”.
 7. Research-facing terminology must distinguish heuristic utility from calibrated confidence.
 8. No adaptive/learned behaviour enters the stable research path before its provenance, freeze and evaluation contracts exist.
+9. Work materially proportional to dataset size belongs in Rust/WASM. Moneta consumes compact Rust-derived evidence and bounded representation metadata; it must not require raw-row traversal or full-dataset JavaScript materialisation.
+10. Source cardinality and render cardinality are distinct. Headset hardware budgets constrain reduced/LOD primitives rather than the number of observations held by the analytical kernel.
 
 ## Module target map
 
@@ -92,6 +94,14 @@ These can run concurrently after Wave 0 contracts are fixed.
 - provide initial adapters for existing mouse/controller/gesture actions without changing user-facing behaviour;
 - add modality-equivalence and replay tests.
 
+**W1-E Large-dataset substrate**
+- benchmark deterministic synthetic datasets at 10K, 100K, 1M and 10M rows;
+- separately measure ingest, Rust evidence generation, Rust→JS bytes, JS heap, WASM memory, Moneta decision work and visual reduction cost;
+- finish Rust-owned columnar numeric/temporal storage before categorical encodings;
+- expose handles, compact evidence and typed/GPU-ready buffers rather than routine full-dataset JSON reconstruction;
+- instrument dataset materialisations and row-object reconstruction so accidental O(N) JS paths are visible;
+- establish Rust-side aggregation/LOD before claiming headset-scale support for massive datasets.
+
 ### Wave 2: Moneta correctness and runtime adapters
 
 **W2-A Explicit FitnessModel**
@@ -117,6 +127,14 @@ These can run concurrently after Wave 0 contracts are fixed.
 - freeze exact Moneta/FitnessModel/Ontology/NIL versions;
 - make adaptive behaviour opt-in and protocol-visible;
 - ensure 2D/VR treatments can consume the same semantic RepresentationGraph.
+
+**W2-E Bounded representation reasoning**
+- enforce explicit candidate and sensitivity budgets at the canonical evidence-backed Moneta boundary;
+- prove candidate/sensitivity work is independent of source row count from 10K through 10M fixtures;
+- prohibit canonical Moneta reasoning modules from importing `Dataset` or traversing raw rows;
+- prune impossible families before candidate scoring;
+- add explicit composition/search budgets before Wave 5;
+- return `AMBIGUOUS` or `UNDERDETERMINED` rather than allowing uncontrolled search expansion.
 
 ### Wave 3: Human refinement
 
@@ -182,11 +200,28 @@ Before Gate 3 is considered complete:
 - [ ] no feasible candidate returns `INFEASIBLE`, never a fallback winner;
 - [ ] weak evidence can return `UNDERDETERMINED`;
 - [ ] sensitivity result is deterministic and persisted;
+- [x] evidence-backed candidate and sensitivity work have explicit hard budgets;
+- [x] canonical Moneta reasoning does not import `Dataset` or traverse raw rows;
+- [x] source-row cardinality does not automatically become the MASSIVE visible-element limit;
+- [x] 10K/100K/1M/10M source cardinalities leave Moneta candidate/sensitivity work bounded;
 - [ ] row shuffling leaves representation decision unchanged;
 - [ ] column renaming leaves decision unchanged unless semantic metadata changes;
 - [ ] duplicated observations affect scale/density according to declared policy;
 - [ ] analytical provenance changes when algorithm/version/parameters change;
 - [ ] legacy Draco cannot independently select a representation.
+
+## Large-dataset performance exit criteria
+
+Before Nemosyne claims practical massive-dataset support:
+
+- [ ] canonical storage is Rust-owned and columnar for analytical hot paths;
+- [ ] full-dataset JS row materialisation is exceptional, explicit and instrumented;
+- [ ] compact `DatasetEvidence` transfer size remains approximately invariant with N for fixed schema/evidence configuration;
+- [ ] Moneta candidate/sensitivity work remains bounded independently of N;
+- [ ] Rust→JS transfer bytes are tracked and regressions fail benchmark gates;
+- [ ] 1M and 10M benchmark tiers report ingest time, evidence time, memory and transfer volume;
+- [ ] visual reduction/LOD prevents source row count from determining headset primitive count;
+- [ ] benchmark claims report hardware/runtime context and use scaling envelopes rather than brittle absolute timings.
 
 ## CI gates for every module PR
 
