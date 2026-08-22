@@ -77,6 +77,30 @@ describe('Rust structure profile → DatasetEvidence wiring', () => {
     expect(first.provenance.kernelVersion).toBe('wasm-kernel-3');
     expect(first.provenance.parameters).toEqual({});
     expect(first.provenance.limitations.join(' ')).toMatch(/suite-level provenance/i);
+    expect(first.provenance.limitations.join(' ')).toMatch(/bootstrap heuristics/i);
+  });
+
+  it('narrows misleading legacy Rust names at the canonical evidence boundary', () => {
+    const source = profile();
+    source.correlations.significantPairsCount = 2;
+    source.clusters.hasClusters = true;
+    source.clusters.separationScore = 0.72;
+    source.clusters.stabilityConfidence = 0.648;
+
+    const result = structureProfileToDatasetEvidence(source);
+    const dependency = result.evidence.find((item) => item.id === 'dependency:correlations');
+    const cluster = result.evidence.find((item) => item.id === 'cluster:global');
+
+    expect(dependency?.value).toEqual(expect.objectContaining({ strongCorrelationPairCount: 2 }));
+    expect(JSON.stringify(dependency?.value)).not.toMatch(/significant/i);
+    expect(cluster?.value).toEqual(
+      expect.objectContaining({
+        heuristicPartitionDetected: true,
+        heuristicSeparationScore: 0.72,
+        legacySilhouetteDerivedScore: 0.648,
+      }),
+    );
+    expect(JSON.stringify(cluster?.value)).not.toMatch(/confidence/i);
   });
 
   it('includes optional analytical domains only when Rust emitted them', () => {
@@ -90,7 +114,10 @@ describe('Rust structure profile → DatasetEvidence wiring', () => {
     };
 
     const result = structureProfileToDatasetEvidence(withSpectral);
-    expect(result.evidence.some((item) => item.category === 'spectral')).toBe(true);
+    const spectral = result.evidence.find((item) => item.category === 'spectral');
+    expect(spectral).toBeDefined();
+    expect(spectral?.value).toEqual(expect.objectContaining({ periodicityHeuristicScore: 0.8 }));
+    expect(JSON.stringify(spectral?.value)).not.toMatch(/confidence/i);
     expect(result.evidence.some((item) => item.category === 'temporal')).toBe(false);
   });
 });
