@@ -148,16 +148,17 @@ pub fn with_dataset_and_columnar<T>(
 
 /// Mutably access a dataset by handle.
 ///
-/// Any mutation invalidates borrowed primitive-column caches and rebuilds the
-/// columnar sidecar before the registry lock is released. This keeps the two
-/// transitional representations in parity while callers migrate away from the
-/// row-major compatibility store.
+/// Any mutation invalidates borrowed primitive-column caches immediately, then
+/// rebuilds the columnar sidecar before the registry lock is released. Cache
+/// misses therefore block on the registry lock until a consistent post-mutation
+/// sidecar is available; stale pre-mutation views cannot be returned during a
+/// potentially expensive rebuild.
 pub fn with_dataset_mut<T>(handle: u32, f: impl FnOnce(&mut Dataset) -> T) -> Option<T> {
     let mut reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
     let registered = reg.get_registered_mut(handle)?;
     let result = f(&mut registered.dataset);
-    registered.rebuild_columnar();
     column_view::release_dataset(handle);
+    registered.rebuild_columnar();
     Some(result)
 }
 
