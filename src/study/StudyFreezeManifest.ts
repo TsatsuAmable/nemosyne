@@ -1,8 +1,8 @@
-import { fnv1aHex } from '../atlas/DatasetSpace.ts';
 import { NIL_VERSION } from '../interaction/nil/NemosyneInteractionLanguage.ts';
 import {
   BOOTSTRAP_REPRESENTATION_ONTOLOGY_VERSION,
 } from '../moneta/representation/RepresentationGraphAdapter.ts';
+import { canonicalSha256Hex } from '../security/CryptoHash.ts';
 import type { StudyCondition, StudyRuntimeVersions, TaskSpec } from './types.ts';
 import {
   bootstrapRuntimeFitnessMode,
@@ -54,7 +54,7 @@ function clone<T>(value: T): T {
 }
 
 export function hashStudyFreezeManifest(manifest: StudyFreezeManifest): string {
-  return `fnv1a-${fnv1aHex(manifest)}`;
+  return `sha256-${canonicalSha256Hex(manifest)}`;
 }
 
 function sameRuntimeVersions(a: StudyRuntimeVersions, b: StudyRuntimeVersions): boolean {
