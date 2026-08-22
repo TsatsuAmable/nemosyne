@@ -363,7 +363,7 @@ export function createDefaultRequirements(
     targetFrameRate: 72,
     deviceTier: 'quest3',
     targetFps: 72,
-    maxElements: 100_000,
+    ...(scale === 'MASSIVE' ? {} : { maxElements: 100_000 }),
     preferInstanced: true,
   };
 
@@ -386,11 +386,11 @@ export function createDefaultRequirements(
       allowIdentityLoss: intent.observationLevel !== 'individual' && scale !== 'SMALL',
       allowExactMetricLoss: scale === 'LARGE' || scale === 'MASSIVE',
       allowClusterLoss: false,
-      maxOcclusionTolerance: scale === 'LARGE' ? 0.7 : 0.3,
+      maxOcclusionTolerance: scale === 'LARGE' || scale === 'MASSIVE' ? 0.7 : 0.3,
     },
     scale,
     hardwareConstraints: defaultHw,
-    maxOcclusionTolerance: scale === 'LARGE' ? 0.7 : 0.3,
+    maxOcclusionTolerance: scale === 'LARGE' || scale === 'MASSIVE' ? 0.7 : 0.3,
     interactionBudget: 'MEDIUM',
   };
 }
