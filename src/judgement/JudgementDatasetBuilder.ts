@@ -4,7 +4,9 @@ import {
   type RepresentationJudgement,
 } from './RepresentationJudgement.ts';
 
-export const JUDGEMENT_DATASET_SCHEMA_VERSION = '1.0.0' as const;
+/** Partition algorithm change is scientifically material, so the dataset schema is versioned. */
+export const JUDGEMENT_DATASET_SCHEMA_VERSION = '2.0.0' as const;
+export const JUDGEMENT_PARTITION_ALGORITHM = 'sha256-48-v1' as const;
 
 export type JudgementPartition = 'train' | 'validation' | 'holdout';
 
@@ -42,6 +44,7 @@ export interface ExcludedJudgementRecord {
 
 export interface CuratedJudgementDataset {
   schemaVersion: typeof JUDGEMENT_DATASET_SCHEMA_VERSION;
+  partitionAlgorithm: typeof JUDGEMENT_PARTITION_ALGORITHM;
   policy: JudgementCurationPolicy;
   included: readonly CuratedJudgementRecord[];
   excluded: readonly ExcludedJudgementRecord[];
@@ -150,6 +153,7 @@ export function buildCuratedJudgementDataset(
 
   return {
     schemaVersion: JUDGEMENT_DATASET_SCHEMA_VERSION,
+    partitionAlgorithm: JUDGEMENT_PARTITION_ALGORITHM,
     policy: structuredClone(policy),
     included,
     excluded,
