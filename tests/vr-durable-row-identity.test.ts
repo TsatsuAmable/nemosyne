@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import type { ArtifactRef } from '../src/vr/coordinators/types.ts';
 import {
   applyFilter,
   applySort,
@@ -17,8 +18,11 @@ function meshFor(row: Record<string, unknown>): THREE.Mesh {
   return mesh;
 }
 
-function artifactFor(dataset: Dataset) {
-  return { nodeMeshes: dataset.rows.map(meshFor) };
+function artifactFor(dataset: Dataset): ArtifactRef {
+  const nodeMeshes = dataset.rows.map(meshFor);
+  const group = new THREE.Group();
+  for (const mesh of nodeMeshes) group.add(mesh);
+  return { nodeMeshes, group };
 }
 
 describe('durable row identity across reconstructed VR results', () => {
@@ -163,6 +167,6 @@ describe('durable row identity across reconstructed VR results', () => {
 
     applyNestedRings(artifact, clustered);
 
-    expect(artifact.nodeMeshes.some((mesh: THREE.Mesh) => Math.abs(mesh.position.x) > 0.5)).toBe(true);
+    expect(artifact.nodeMeshes.some((mesh) => Math.abs(mesh.position.x) > 0.5)).toBe(true);
   });
 });
