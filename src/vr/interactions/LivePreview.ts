@@ -100,7 +100,8 @@ export class LivePreview {
     const keptIds = new Set(previewDataset.rows.map(rendererRowId));
     for (const mesh of artifact.nodeMeshes) {
       const row = this._getRow(mesh);
-      const isKept = keptIds.has(rendererRowId(row));
+      const rowId = rendererRowId(row);
+      const isKept = keptIds.has(rowId) || previewDataset.rows.some((candidate) => this._rowsEquivalent(candidate, row));
       const icon = isKept ? '✓' : removeIcon;
       const color = isKept ? '#00ffcc' : '#ff3366';
       const marker = this._createSprite(icon, color);
@@ -115,7 +116,8 @@ export class LivePreview {
     );
     for (let i = 0; i < previewDataset.rows.length; i++) {
       const row = previewDataset.rows[i];
-      const mesh = meshesByRowId.get(rendererRowId(row));
+      const rowId = rendererRowId(row);
+      const mesh = meshesByRowId.get(rowId) ?? artifact.nodeMeshes.find((candidate) => this._rowsEquivalent(this._getRow(candidate), row));
       if (!mesh) continue;
       const rank = i + 1;
       const marker = this._createSprite(String(rank), '#ffcc00');
@@ -129,7 +131,9 @@ export class LivePreview {
       previewDataset.rows.map((row) => [rendererRowId(row), row] as const)
     );
     for (const mesh of artifact.nodeMeshes) {
-      const previewRow = previewRowsById.get(rendererRowId(this._getRow(mesh)));
+      const meshRow = this._getRow(mesh);
+      const previewRow = previewRowsById.get(rendererRowId(meshRow))
+        ?? previewDataset.rows.find((candidate) => this._rowsEquivalent(candidate, meshRow));
       const isOutlier =
         previewRow?._anomaly || previewRow?.anomaly || previewRow?._outlier || previewRow?.outlier;
       if (!isOutlier) continue;
@@ -141,6 +145,24 @@ export class LivePreview {
 
   private _getRow(mesh: THREE.Mesh): Record<string, unknown> {
     return (mesh.userData as { row?: Record<string, unknown> }).row ?? {};
+  }
+
+  /**
+   * Renderer identity is the fast path while rows remain in the same JS object
+   * graph. Kernel/JSON boundaries reconstruct objects, so until Rust supplies a
+   * durable row identity the compatibility path compares user-visible fields.
+   * Underscore-prefixed operation annotations are intentionally ignored.
+   */
+  private _rowsEquivalent(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+    if (a === b) return true;
+    if (rendererRowId(a) === rendererRowId(b)) return true;
+    const keysA = Object.keys(a).filter((key) => !key.startsWith('_'));
+    const keysB = Object.keys(b).filter((key) => !key.startsWith('_'));
+    if (keysA.length !== keysB.length) return false;
+    for (const key of keysA) {
+      if (!keysB.includes(key) || a[key] !== b[key]) return false;
+    }
+    return true;
   }
 
   private _createSprite(text: string, color: string): THREE.Sprite {
