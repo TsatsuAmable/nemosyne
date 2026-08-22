@@ -3,8 +3,6 @@ use std::sync::{LazyLock, Mutex};
 
 use wasm_bindgen::prelude::*;
 
-use crate::data::column::ColumnType;
-
 #[derive(Debug)]
 pub struct PrimitiveColumnView {
     pub values: Vec<f64>,
@@ -16,10 +14,10 @@ static COLUMN_VIEWS: LazyLock<Mutex<HashMap<(u32, u32), PrimitiveColumnView>>> =
 
 /// Prepare a contiguous f64 + validity buffer for a numeric/epoch-temporal column.
 ///
-/// This is deliberately a migration prototype: the canonical Dataset remains
-/// row-major for now, and the contiguous buffer is cached per dataset handle.
-/// The ABI removes JSON materialization for primitive column consumers while we
-/// benchmark whether making this representation canonical is worthwhile.
+/// The transitional columnar dataset is now built once at dataset registration
+/// and kept synchronized after mutable operations. This cache owns a stable copy
+/// for the current ABI so returned pointers remain valid until the handle is
+/// mutated or destroyed; it no longer rescans row HashMaps to construct views.
 pub fn prepare(handle: u32, column_index: u32) -> Option<(u32, u32, u32)> {
     let key = (handle, column_index);
 
@@ -34,27 +32,12 @@ pub fn prepare(handle: u32, column_index: u32) -> Option<(u32, u32, u32)> {
         }
     }
 
-    let view = super::with_dataset(handle, |dataset| {
-        let column = dataset.columns.get(column_index as usize)?;
-        if !matches!(column.ty, ColumnType::Numeric | ColumnType::Temporal) {
-            return None;
-        }
-
-        let mut values = Vec::with_capacity(dataset.rows.len());
-        let mut validity = Vec::with_capacity(dataset.rows.len());
-        for row in &dataset.rows {
-            match row.get(&column.name).and_then(|value| value.as_number()) {
-                Some(value) if value.is_finite() => {
-                    values.push(value);
-                    validity.push(1);
-                }
-                _ => {
-                    values.push(0.0);
-                    validity.push(0);
-                }
-            }
-        }
-        Some(PrimitiveColumnView { values, validity })
+    let view = super::with_columnar_dataset(handle, |columnar| {
+        let column = columnar.primitive_column(column_index as usize)?;
+        Some(PrimitiveColumnView {
+            values: column.values.clone(),
+            validity: column.validity.clone(),
+        })
     })??;
 
     let mut views = COLUMN_VIEWS.lock().expect("column view registry poisoned");
@@ -72,7 +55,7 @@ pub fn dataset_primitive_column_len(handle: u32, column_index: u32) -> u32 {
     prepare(handle, column_index).map(|(_, _, len)| len).unwrap_or(0)
 }
 
-/// Pointer to the cached f64 values buffer. Valid until the dataset handle is destroyed.
+/// Pointer to the cached f64 values buffer. Valid until the dataset handle is mutated or destroyed.
 #[wasm_bindgen]
 pub fn dataset_primitive_column_values_ptr(handle: u32, column_index: u32) -> u32 {
     prepare(handle, column_index)
@@ -88,7 +71,7 @@ pub fn dataset_primitive_column_validity_ptr(handle: u32, column_index: u32) -> 
         .unwrap_or(0)
 }
 
-/// Release cached column views when the owning dataset handle is destroyed.
+/// Release cached column views when the owning dataset is mutated or destroyed.
 pub fn release_dataset(handle: u32) {
     let mut views = COLUMN_VIEWS.lock().expect("column view registry poisoned");
     views.retain(|(dataset_handle, _), _| *dataset_handle != handle);
@@ -99,7 +82,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::data::column::{Column, ColumnType};
-    use crate::data::dataset::Dataset;
+    use crate::data::dataset::{Dataset, RowUpdateMode};
     use crate::data::value::Value;
 
     #[test]
@@ -131,6 +114,26 @@ mod tests {
         let handle = super::super::register_dataset(Dataset::new("view", columns, rows));
         assert!(super::prepare(handle, 0).is_none());
         assert_eq!(super::dataset_primitive_column_len(handle, 0), 0);
+        super::super::destroy_dataset(handle);
+    }
+
+    #[test]
+    fn mutation_invalidates_and_rebuilds_primitive_view_source() {
+        let columns = vec![Column::new("value", ColumnType::Numeric)];
+        let rows = vec![HashMap::from([("value".to_string(), Value::Number(1.0))])];
+        let handle = super::super::register_dataset(Dataset::new("view", columns, rows));
+        assert_eq!(super::dataset_primitive_column_len(handle, 0), 1);
+
+        super::super::with_dataset_mut(handle, |dataset| {
+            dataset.update_rows(
+                vec![HashMap::from([("value".to_string(), Value::Number(2.0))])],
+                RowUpdateMode::Append,
+                None,
+            );
+        })
+        .expect("dataset mutation");
+
+        assert_eq!(super::dataset_primitive_column_len(handle, 0), 2);
         super::super::destroy_dataset(handle);
     }
 }

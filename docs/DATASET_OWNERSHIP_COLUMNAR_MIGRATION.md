@@ -21,6 +21,14 @@ The current system keeps row-major mirrors in TypeScript (`Record<string, unknow
 4. Analytical operations return Rust dataset handles. Full row materialization becomes an explicit compatibility/export operation rather than the normal execution path.
 5. Nullability, categorical dictionaries, text offsets, temporal units and graph edges must round-trip exactly before row-major storage is retired.
 
+## Current migration state
+
+Phase A is complete through durable Rust-owned row identity. Phase B is complete through the deterministic Rust/WASM boundary benchmark harness. Phase C is now in progress with a registry-owned primitive columnar sidecar for numeric and temporal columns.
+
+The Phase C sidecar is intentionally transitional. The compatibility `Dataset.rows` representation remains available, while every registered Rust dataset handle also owns contiguous primitive values plus explicit validity. Mutable handle operations rebuild the sidecar before releasing the registry lock, and the primitive-column WASM view ABI reads from the sidecar instead of rescanning row `HashMap`s.
+
+This is not yet the final single-storage architecture: primitive values exist in both the row-major compatibility store and the columnar sidecar. The purpose of this step is to establish value/missingness parity and remove repeated row scans before making columnar storage canonical.
+
 ## Phases
 
 ### Phase A — remove JS object-reference identity
@@ -61,6 +69,17 @@ Candidate physical representations:
 - nullable: validity bitmap;
 - graph edges: source/target/weight columns + attribute tables.
 
+Current implementation step:
+
+- [x] build contiguous numeric/temporal values plus explicit validity once per registered dataset handle;
+- [x] rebuild the sidecar after mutable dataset operations;
+- [x] source primitive WASM views from the sidecar rather than rescanning row maps;
+- [x] preserve the existing numeric/temporal coercion semantics during migration;
+- [ ] route analytical numeric hot paths through the columnar representation;
+- [ ] add fingerprint/value/null parity fixtures across representative datasets;
+- [ ] benchmark sidecar construction once versus repeated row scans;
+- [ ] make columnar primitive storage canonical after parity and benchmark gates pass.
+
 Exit: analytical parity and fingerprint parity for representative fixtures.
 
 ### Phase D — versioned WASM column-view ABI
@@ -82,6 +101,8 @@ Move live append/replace into Rust-owned buffers, provide versioned view refresh
 ## Verification gates
 
 Each phase requires parity tests for schema, values, nulls, duplicate rows, categorical values, temporal data, edges, fingerprints, operation outputs and session persistence. Performance changes must be benchmarked rather than assumed.
+
+For the Phase C sidecar specifically, CI must prove that registration builds primitive columns correctly, mutations rebuild them, categorical columns are not mis-exposed as primitive f64 views, missing/non-finite values retain explicit validity, and the primitive-view source no longer traverses `Dataset.rows`.
 
 ## Relationship to Moneta and epistemic safeguards
 
