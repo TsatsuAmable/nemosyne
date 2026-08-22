@@ -113,6 +113,15 @@ describe('Evidence-backed Moneta boundary', () => {
     expect(result.decision.datasetFingerprint).toBe(FP);
   });
 
+  it('enforces bounded reasoning at the canonical evidence-backed boundary', () => {
+    const moneta = new EvidenceBackedMoneta(undefined, {
+      maxCandidates: 1,
+      maxSensitivityScenarios: 64,
+    });
+
+    expect(() => moneta.arbitrate(evidence(), signature())).toThrow(/candidate budget exceeded/i);
+  });
+
   it('rejects a signature whose cardinality disagrees with Rust evidence', () => {
     const source = signature();
     source.cardinality.rowCount = 11;
