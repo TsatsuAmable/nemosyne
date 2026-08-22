@@ -181,9 +181,6 @@ function printHuman(result) {
 
 async function main() {
   const { tiers, json } = parseArgs(process.argv.slice(2));
-  if (tiers.includes('10m') && !process.argv.includes('--all') && !process.argv.includes('--tier=10m')) {
-    throw new Error('10m tier must be requested explicitly');
-  }
   const wasm = await loadRuntime();
   const results = [];
   for (const tier of tiers) {
