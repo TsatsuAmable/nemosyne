@@ -16,7 +16,6 @@ describe('Moneta scalability contract', () => {
       const signature = minimalDatasetSignature(rowCount, 3, 1, 0, `scale-${rowCount}`, 0);
       signature.clusterStructure.densityVariation = 0.6;
       const requirements = createDefaultRequirements('distribution-analysis', 'MASSIVE');
-      delete requirements.hardwareConstraints.maxElements;
 
       const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
       const stats = {
@@ -35,6 +34,14 @@ describe('Moneta scalability contract', () => {
     expect(snapshots[0].sensitivityScenarioCount).toBeLessThanOrEqual(
       DEFAULT_MONETA_COMPUTE_BUDGET.maxSensitivityScenarios,
     );
+  });
+
+  it('does not mistake massive source cardinality for the visible element budget', () => {
+    const requirements = createDefaultRequirements('distribution-analysis', 'MASSIVE');
+
+    expect(requirements.hardwareConstraints.maxElements).toBeUndefined();
+    expect(requirements.hardwareConstraints.maxVertices).toBe(500_000);
+    expect(requirements.maxOcclusionTolerance).toBe(0.7);
   });
 
   it('fails closed when bounded reasoning budgets are exceeded', () => {
