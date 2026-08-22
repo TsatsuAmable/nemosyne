@@ -19,8 +19,11 @@ Recent merged sequence:
 - **#256 — group-balanced holdout evaluation:** independent dataset+researcher groups contribute equally to the promotion comparison.
 - **#257 — distributed group-win evidence:** promotion requires candidate gains to be distributed across independent groups via an exact sign test.
 - **#258 — CI fast lane:** superseded runs cancel, production artifacts are reused, and PR correctness tests are separated from scheduled/main coverage assurance.
+- **#259 — robust holdout effect:** promotion now requires leave-one-group-out effect robustness.
+- **#260/#262 — row identity foundations:** durable observation identity is being moved toward Rust ownership without contaminating scientific variables.
+- **#261/#264 — statistical foundations and measurement semantics:** typed measurement, geometry, evidence and semantic provenance contracts now gate analytical claims.
 
-**Active implementation: `feature/holdout-effect-robustness`.** Add a deterministic leave-one-group-out improvement floor so a learned artifact cannot pass promotion merely because one influential holdout group lifts the point estimate above threshold.
+**Active implementation: `feature/moneta-scalability-contract`.** Establish the large-dataset performance boundary: all work materially proportional to dataset size remains Rust/WASM-owned; evidence-backed Moneta operates over compact summaries with bounded candidate and sensitivity budgets independent of row count.
 
 Baseline V3 governing merge: `13dd7459555d35ac718710a50f357e022c456731` (`docs: adopt V3 discovery-centric vision and modular implementation plan (#225)`).
 
@@ -29,18 +32,32 @@ Baseline V3 governing merge: `13dd7459555d35ac718710a50f357e022c456731` (`docs: 
 | Gate | Status | Current evidence / next exit work |
 |---|---|---|
 | 0 — Authority reconciliation | **IN PROGRESS** | Legacy Draco is adapter-only and live Moneta authority has been consolidated. Complete import/call-site inventory, remove obsolete compatibility consumers, and prove research-relevant analytical facts originate in Rust/WASM or fail explicitly. |
-| 1 — Dataset Evidence | **PARTIAL** | Typed evidence-backed Moneta boundaries exist. Continue authoritative Rust/WASM evidence coverage and provenance/replay tests. |
+| 1 — Dataset Evidence | **PARTIAL** | Typed evidence-backed Moneta boundaries exist. Continue authoritative Rust/WASM evidence coverage, compact-transfer guarantees and provenance/replay tests. |
 | 2 — Representation Language | **PARTIAL** | Representation ontology, graph contracts and runtime adapters exist. Composition grammar and broader canonical graph coverage remain incomplete. |
-| 3 — Moneta correctness | **IN PROGRESS** | Versioned bootstrap FitnessModel, scoring dimensions, hard constraints, abstention/status/margin and sensitivity analysis are live. Metamorphic validation, epistemic pattern-fragility signals, and downstream confidence-terminology cleanup remain. |
+| 3 — Moneta correctness | **IN PROGRESS** | Versioned bootstrap FitnessModel, scoring dimensions, hard constraints, abstention/status/margin, sensitivity analysis and bounded compute contracts are live. Metamorphic validation, staged candidate pruning, epistemic pattern-fragility signals, and downstream confidence-terminology cleanup remain. |
 | 4 — NIL | **IN PROGRESS / PARTIAL** | Semantic interaction language and replay foundations exist; continue modality-independent provenance and parity work. |
 | 5 — Discovery | **PARTIAL** | DiscoveryEpisode lifecycle/store infrastructure exists. Continue end-to-end hypothesis validation, falsification prompts, outcome evidence and headless replay integration. |
 | 6 — Human refinement | **IN PROGRESS** | Pairwise judgement and exact feature-snapshot evidence are captured transactionally. Outcome-event coverage and stronger curation policy remain. |
-| 7 — Learning infrastructure | **IN PROGRESS** | Registry, immutable artifacts, promotion gate, feature snapshots, judgement joins, rollback history, pinned runtime adapter, explicit opt-in, group-balanced evaluation and distributed group-win evidence exist. Effect robustness and outcome-linked validation remain. |
+| 7 — Learning infrastructure | **IN PROGRESS** | Registry, immutable artifacts, promotion gate, feature snapshots, judgement joins, rollback history, pinned runtime adapter, explicit opt-in, group-balanced evaluation, distributed group-win evidence and robust holdout effect evidence exist. Outcome-linked validation remains. |
 | 8 — Learned Moneta | **EARLY OPT-IN, NOT EMPIRICALLY VALIDATED** | Learned ranking is available only as an exact pinned opt-in. Bootstrap remains default. No superiority claim is permitted without robust held-out comparison and discovery-outcome evidence. |
-| 9 — Compositional Moneta | **DEFERRED** | Depends on mature RepresentationGraph/grammar and validated Moneta correctness. Do not introduce learned composition search yet. |
+| 9 — Compositional Moneta | **DEFERRED** | Depends on mature RepresentationGraph/grammar, bounded search and validated Moneta correctness. Do not introduce learned composition search yet. |
 | 10 — Adaptive Nemosyne | **DEFERRED** | Depends on validated learning, freeze controls, monitoring, rollback and study evidence. |
 
 ## Immediate work queue
+
+### P0 — Large-dataset performance architecture
+
+- [x] Define a bounded Moneta compute contract for candidate and sensitivity work.
+- [x] Enforce the compute contract at the canonical evidence-backed Moneta boundary.
+- [x] Add regression coverage showing Moneta candidate/sensitivity work remains constant from 10K through 10M source rows.
+- [x] Prevent MASSIVE default requirements from treating source row count as the Quest visible-element budget.
+- [x] Add architecture checks preventing canonical Moneta reasoning modules from importing `Dataset` or traversing raw rows.
+- [ ] Instrument Rust/WASM boundary bytes, dataset materialisations and JS row-object reconstruction.
+- [ ] Establish deterministic benchmark tiers for 10K, 100K, 1M and 10M rows covering ingest, evidence generation, transfer volume, Moneta latency, peak memory and visual reduction.
+- [ ] Finish Rust-owned columnar storage for numeric/temporal data, then categorical encodings, without a mirrored authoritative JS row store.
+- [ ] Make `DatasetEvidence` the canonical compact Rust→Moneta boundary and audit every research-relevant Moneta input for Rust origin.
+- [ ] Add staged family/candidate pruning and explicit composition budgets before Gate 9 search.
+- [ ] Add Rust-side aggregation/LOD and GPU-ready visual buffers so source cardinality is decoupled from rendered primitive count.
 
 ### P0 — Finish authority and correctness boundaries
 
@@ -64,7 +81,7 @@ Baseline V3 governing merge: `13dd7459555d35ac718710a50f357e022c456731` (`docs: 
 - [x] Explicit live composition-root opt-in with bootstrap remaining the default (#255).
 - [x] Group-balanced holdout comparison so independent partition groups contribute equally (#256).
 - [x] Distributed candidate wins across independent groups with exact sign-test evidence (#257).
-- [ ] Require a deterministic leave-one-group-out improvement floor so promotion does not depend on one influential group.
+- [x] Require a deterministic leave-one-group-out improvement floor so promotion does not depend on one influential group (#259).
 - [ ] Validate learned ranking against held-out human discovery outcomes before claiming improvement over bootstrap.
 - [ ] Add operational monitoring/rollback evidence before any default-runtime discussion.
 
@@ -100,6 +117,9 @@ Persistence and CI evolve continuously across all four.
 
 ## Design boundaries
 
+- **Rust owns N-dependent work.** Parsing, storage, filtering, statistics, clustering, topology, spectral analysis, evidence construction, large-data reduction and other work materially proportional to dataset size remain Rust/WASM responsibilities.
+- **Moneta is a bounded control plane.** Canonical representation reasoning consumes compact Rust-derived evidence and investigator semantics; it must not require raw-row traversal or full-dataset JS materialisation.
+- **Source rows are not visible elements.** Headset render budgets constrain reduced/LOD primitives, not the number of observations stored in the analytical dataset.
 - **Bootstrap is the safe default.** An explicit learned-runtime request must never silently switch artifact or silently fall back to bootstrap.
 - **Hard constraints precede learned ranking.** Learned models may reorder feasible candidates; they may not resurrect a bootstrap-disqualified candidate.
 - **Registry activation is not provenance.** Reproducible execution pins an immutable artifact hash and model version in decision/study state.
@@ -133,4 +153,4 @@ Focused correctness/parity tests are mandatory for claimed functionality. A skip
 
 ## Pickup instruction
 
-Finish deterministic holdout effect robustness correctness-first. Then connect learned-model evaluation to held-out discovery outcomes. In parallel, specify the pattern-fragility/apophenia-pressure evidence contract and falsification operations, but do not let that advisory signal influence Moneta ranking until controlled evidence shows that it improves investigator calibration or discovery quality.
+Complete the Moneta scalability contract and benchmark rails first. Then instrument Rust/WASM transfer/materialisation costs and continue the Rust-owned columnar Dataset migration. In parallel, continue authoritative DatasetEvidence coverage and held-out discovery-outcome validation; do not let pattern-fragility signals influence ranking until controlled evidence shows investigator benefit.
