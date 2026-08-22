@@ -4,7 +4,7 @@
 
 import { Dataset } from '../../data/Dataset.ts';
 import type { DatasetJSON } from '../../data/types.ts';
-import { DatasetSpace, contentHashHex } from '../DatasetSpace.ts';
+import { DatasetSpace, datasetContentHashHex } from '../DatasetSpace.ts';
 import type { DatasetSpaceNormalization } from '../DatasetSpace.ts';
 
 function emptyDataset(): Dataset {
@@ -106,8 +106,8 @@ export class AnalyticalState {
    * Ensure a kernel handle is allocated for the current dataset.
    *
    * Rust defines first-lineage IDs as `<canonical dataset fingerprint>:<row index>`.
-   * The browser fallback computes the same canonical SHA-256 identity from the
-   * exact JSON passed to Rust, then hydrates the in-memory rows after load.
+   * The browser fallback computes the same scientific SHA-256 identity from the
+   * exact JSON passed to Rust, excluding rowIds lineage metadata.
    */
   ensureHandle(loader: (json: DatasetJSON) => number): number {
     if (this._currentHandle !== 0) return this._currentHandle;
@@ -117,7 +117,7 @@ export class AnalyticalState {
       const needsIdentity = !this._current.rowIds;
       this._currentHandle = loader(json);
       if (this._currentHandle !== 0 && needsIdentity) {
-        const prefix = contentHashHex(json);
+        const prefix = datasetContentHashHex(json);
         this.adoptKernelRowIds(json.rows.map((_, index) => `${prefix}:${index}`));
       }
     } catch {
