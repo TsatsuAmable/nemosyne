@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
+use wasm_bindgen::prelude::*;
+
 use crate::data::column::ColumnType;
 
 #[derive(Debug)]
@@ -12,7 +14,7 @@ pub struct PrimitiveColumnView {
 static COLUMN_VIEWS: LazyLock<Mutex<HashMap<(u32, u32), PrimitiveColumnView>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Prepare a contiguous f64 + validity buffer for a numeric column.
+/// Prepare a contiguous f64 + validity buffer for a numeric/epoch-temporal column.
 ///
 /// This is deliberately a migration prototype: the canonical Dataset remains
 /// row-major for now, and the contiguous buffer is cached per dataset handle.
@@ -64,6 +66,28 @@ pub fn prepare(handle: u32, column_index: u32) -> Option<(u32, u32, u32)> {
     ))
 }
 
+/// Element count for a primitive column view, or 0 if the handle/index/type is unsupported.
+#[wasm_bindgen]
+pub fn dataset_primitive_column_len(handle: u32, column_index: u32) -> u32 {
+    prepare(handle, column_index).map(|(_, _, len)| len).unwrap_or(0)
+}
+
+/// Pointer to the cached f64 values buffer. Valid until the dataset handle is destroyed.
+#[wasm_bindgen]
+pub fn dataset_primitive_column_values_ptr(handle: u32, column_index: u32) -> u32 {
+    prepare(handle, column_index)
+        .map(|(values_ptr, _, _)| values_ptr)
+        .unwrap_or(0)
+}
+
+/// Pointer to the cached u8 validity buffer (1 = valid, 0 = missing/non-finite).
+#[wasm_bindgen]
+pub fn dataset_primitive_column_validity_ptr(handle: u32, column_index: u32) -> u32 {
+    prepare(handle, column_index)
+        .map(|(_, validity_ptr, _)| validity_ptr)
+        .unwrap_or(0)
+}
+
 /// Release cached column views when the owning dataset handle is destroyed.
 pub fn release_dataset(handle: u32) {
     let mut views = COLUMN_VIEWS.lock().expect("column view registry poisoned");
@@ -92,8 +116,8 @@ mod tests {
         assert_ne!(values_ptr, 0);
         assert_ne!(validity_ptr, 0);
         assert_eq!(len, 3);
+        assert_eq!(super::dataset_primitive_column_len(handle, 0), 3);
 
-        super::release_dataset(handle);
         super::super::destroy_dataset(handle);
     }
 
@@ -106,6 +130,7 @@ mod tests {
         )])];
         let handle = super::super::register_dataset(Dataset::new("view", columns, rows));
         assert!(super::prepare(handle, 0).is_none());
+        assert_eq!(super::dataset_primitive_column_len(handle, 0), 0);
         super::super::destroy_dataset(handle);
     }
 }
