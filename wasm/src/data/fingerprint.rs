@@ -1,47 +1,30 @@
 //! Canonical dataset fingerprint.
 //!
-//! Replaces the divergent `Dataset::fingerprint` `DefaultHasher` (which hashed
-//! only `name + row_count + column_count`) with a content-addressed FNV-1a
-//! hash matching the `DatasetSpace` algorithm: a canonical JSON serialisation
-//! (object keys sorted by UTF-16 code unit) hashed with the 32-bit FNV-1a
-//! prime `16777619` / offset basis `2166136261`, rendered as 8 lowercase hex
-//! digits.
-//!
-//! Byte-for-byte parity with the JS `JSON.stringify(canonicalize(...))` number
-//! formatting (ECMAScript `Number::toString` exponent rules) is implemented in
-//! `write_number` (Wave 6). `DatasetSpace` delegates its fingerprint to the
-//! kernel (`AtlasCore.datasetSpace`), so there is a single implementation; the
-//! kernel and JS substrate emit identical canonical JSON bytes and therefore
-//! identical FNV-1a fingerprints.
+//! Dataset identity is content-addressed with SHA-256 over the canonical JSON
+//! representation shared with the JavaScript `DatasetSpace` substrate. Object
+//! keys are sorted deterministically and number rendering follows ECMAScript
+//! `JSON.stringify` rules so Rust and JS hash identical UTF-8 bytes.
 
 use std::collections::HashMap;
 use std::fmt::Write;
+
+use sha2::{Digest, Sha256};
 
 use crate::data::column::Column;
 use crate::data::dataset::Dataset;
 use crate::data::value::Value;
 
-/// FNV-1a 32-bit over the UTF-16 code units of `text`, matching the JS
-/// `DatasetSpace.hash()` primitive (`state ^= charCodeAt; state = imul(state,
-/// 16777619); return (state >>> 0).toString(16).padStart(8, '0')`).
-pub fn fnv1a_hex(text: &str) -> String {
-    let mut state: u32 = 2_166_136_261;
-    let mut buf = [0u16; 2];
-    for c in text.chars() {
-        for unit in c.encode_utf16(&mut buf) {
-            state ^= *unit as u32;
-            state = state.wrapping_mul(16_777_619);
-        }
-    }
-    format!("{:08x}", state)
+/// SHA-256 over UTF-8 text, rendered as 64 lowercase hex characters.
+pub fn sha256_hex(text: &str) -> String {
+    format!("{:x}", Sha256::digest(text.as_bytes()))
 }
 
-/// Derive a deterministic non-zero `u32` RNG seed from a fingerprint hex
-/// string. Used to pin clustering/anomaly RNG so assignments are reproducible.
+/// Derive a deterministic non-zero `u32` RNG seed from the first 32 digest bits.
+/// The full 256-bit fingerprint remains authoritative for identity; truncation is
+/// only for algorithms whose RNG API accepts a u32 seed.
 pub fn seed_u32(fingerprint: &str) -> u32 {
-    let v = u32::from_str_radix(fingerprint, 16).unwrap_or(0);
-    // Avoid a zero seed (LCG implementations normalise 0 -> 1, but keep this
-    // explicit and stable across consumers).
+    let prefix = fingerprint.get(..8).unwrap_or(fingerprint);
+    let v = u32::from_str_radix(prefix, 16).unwrap_or(0);
     if v == 0 {
         0x9e37_79b9
     } else {
@@ -49,20 +32,18 @@ pub fn seed_u32(fingerprint: &str) -> u32 {
     }
 }
 
-/// Content fingerprint of a dataset: FNV-1a over its canonical JSON.
+/// Content fingerprint of a dataset: SHA-256 over its canonical JSON.
 pub fn dataset_fingerprint(dataset: &Dataset) -> String {
     let mut buf = String::new();
     write_dataset(&mut buf, dataset);
-    fnv1a_hex(&buf)
+    sha256_hex(&buf)
 }
 
-/// Fingerprint of a single row (used for `datumId` derivation). The row is
-/// serialised as an object keyed by column name (sorted), matching
-/// `DatasetSpace`'s per-row `hash(row)`.
+/// Fingerprint of a single row (used for `datumId` derivation).
 pub fn row_fingerprint(row: &HashMap<String, Value>, columns: &[Column]) -> String {
     let mut buf = String::new();
     write_row(&mut buf, row, columns);
-    fnv1a_hex(&buf)
+    sha256_hex(&buf)
 }
 
 // ---------------------------------------------------------------------------
@@ -73,7 +54,6 @@ fn write_dataset(buf: &mut String, ds: &Dataset) {
     // Object keys are emitted in UTF-16 code-unit sorted order:
     // columns < edges < name < rows.
     buf.push('{');
-    // "columns"
     buf.push_str("\"columns\":[");
     for (i, col) in ds.columns.iter().enumerate() {
         if i > 0 {
@@ -86,7 +66,6 @@ fn write_dataset(buf: &mut String, ds: &Dataset) {
         buf.push('}');
     }
     buf.push(']');
-    // "edges" (only if present)
     if let Some(edges) = &ds.edges {
         buf.push_str(",\"edges\":[");
         for (i, edge) in edges.iter().enumerate() {
@@ -97,10 +76,8 @@ fn write_dataset(buf: &mut String, ds: &Dataset) {
         }
         buf.push(']');
     }
-    // "name"
     buf.push_str(",\"name\":");
     write_string(buf, &ds.name);
-    // "rows"
     buf.push_str(",\"rows\":[");
     for (i, row) in ds.rows.iter().enumerate() {
         if i > 0 {
@@ -113,9 +90,8 @@ fn write_dataset(buf: &mut String, ds: &Dataset) {
 }
 
 fn write_row(buf: &mut String, row: &HashMap<String, Value>, columns: &[Column]) {
-    // Sort column names by UTF-16 code unit (Rust `String` byte order matches
-    // UTF-16 code-unit order for BMP keys; supplementary-plane divergence is
-    // documented as a Wave 2 reconciliation item).
+    // Rust String ordering matches UTF-16 code-unit order for BMP keys;
+    // supplementary-plane reconciliation remains a separate canonicalization item.
     let mut names: Vec<&String> = columns.iter().map(|c| &c.name).collect();
     names.sort_by(|a, b| a.cmp(b));
     buf.push('{');
@@ -132,8 +108,6 @@ fn write_row(buf: &mut String, row: &HashMap<String, Value>, columns: &[Column])
 }
 
 fn write_edge(buf: &mut String, edge: &crate::data::dataset::Edge) {
-    // Collect all keys (source, target, weight?, extras) and sort by UTF-16
-    // code unit so the canonical form is stable regardless of insertion order.
     let mut entries: Vec<(String, EdgeVal)> = Vec::new();
     entries.push(("source".to_string(), EdgeVal::UInt(edge.source)));
     entries.push(("target".to_string(), EdgeVal::UInt(edge.target)));
@@ -180,15 +154,7 @@ fn write_uint(buf: &mut String, n: usize) {
 }
 
 fn write_number(buf: &mut String, n: f64) {
-    // Match JS `JSON.stringify` / `Number::toString` number rendering exactly:
-    // - NaN / ±Infinity -> "null"
-    // - ±0 -> "0"
-    // - otherwise the shortest round-trip digits with ECMAScript exponent
-    //   rules. Rust's `{:e}` produces the same shortest round-trip mantissa
-    //   digits as JS (both round-to-shortest on the true value); the exponent
-    //   `E` from `d.dddde±E` positions the decimal point at `k = E + 1`
-    //   (digits to the left of the point). Fixed notation is used when
-    //   `-5 <= k <= 21` (i.e. `1e-6 <= |n| < 1e21`); exponential otherwise.
+    // Match JS `JSON.stringify` / `Number::toString` number rendering exactly.
     if !n.is_finite() {
         buf.push_str("null");
         return;
@@ -209,7 +175,6 @@ fn write_number(buf: &mut String, n: f64) {
     }
 
     if k <= -6 || k > 21 {
-        // Exponential: `d[.ddd]e±X` with X = k - 1.
         buf.push(digits.chars().next().unwrap_or('0'));
         if digits.len() > 1 {
             buf.push('.');
@@ -224,7 +189,6 @@ fn write_number(buf: &mut String, n: f64) {
         return;
     }
 
-    // Fixed notation.
     if k <= 0 {
         buf.push_str("0.");
         for _ in 0..(-k) {
@@ -292,11 +256,11 @@ mod tests {
     }
 
     #[test]
-    fn fnv1a_matches_known_vector() {
-        // FNV-1a 32-bit over the UTF-16 code units of "abc". Verified against
-        // the JS `DatasetSpace.hash()` reference implementation (both produce
-        // `1a47e90b`), so the Rust kernel and the JS substrate agree.
-        assert_eq!(fnv1a_hex("abc"), "1a47e90b");
+    fn sha256_matches_known_vector() {
+        assert_eq!(
+            sha256_hex("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 
     #[test]
@@ -304,13 +268,11 @@ mod tests {
         let a = dataset_fingerprint(&ds());
         let b = dataset_fingerprint(&ds());
         assert_eq!(a, b);
-        assert_eq!(a.len(), 8);
+        assert_eq!(a.len(), 64);
     }
 
     #[test]
     fn dataset_fingerprint_is_content_addressed() {
-        // The old DefaultHasher fingerprint collided on name+shape; the
-        // canonical fingerprint must differ when the data differs.
         let mut other = ds();
         other.rows[0].insert("age".to_string(), Value::Number(31.0));
         assert_ne!(dataset_fingerprint(&ds()), dataset_fingerprint(&other));
@@ -318,11 +280,6 @@ mod tests {
 
     #[test]
     fn fingerprint_is_row_key_order_independent() {
-        // Row objects are canonicalised with sorted column-name keys, so two
-        // rows built with opposite insertion order (and identical content)
-        // produce the same fingerprint. (Column-array order is NOT canonicalised
-        // — arrays preserve order, matching `DatasetSpace.canonicalize` — so a
-        // column-declaration swap is intentionally *not* order-independent.)
         let columns = vec![
             Column::new("name", ColumnType::Categorical),
             Column::new("age", ColumnType::Numeric),
@@ -340,14 +297,13 @@ mod tests {
 
     #[test]
     fn seed_u32_is_nonzero_and_stable() {
-        assert_ne!(seed_u32("00000000"), 0);
-        assert_eq!(seed_u32("deadbeef"), seed_u32("deadbeef"));
+        assert_ne!(seed_u32(&"0".repeat(64)), 0);
+        let fingerprint = sha256_hex("seed");
+        assert_eq!(seed_u32(&fingerprint), seed_u32(&fingerprint));
     }
 
     #[test]
     fn write_number_matches_ecmascript_stringify() {
-        // Expected strings verified against JS `Number.prototype.toString` /
-        // `JSON.stringify` (ECMAScript Number::toString exponent rules).
         let cases: [(f64, &str); 20] = [
             (100.0, "100"),
             (0.1, "0.1"),
@@ -394,10 +350,7 @@ mod tests {
     }
 
     #[test]
-    fn dataset_fingerprint_matches_js_fnv1a() {
-        // The canonical JSON emitted for a realistic dataset must byte-match
-        // JS `JSON.stringify(canonicalize(toJSON()))` so both sides produce the
-        // identical FNV-1a fingerprint (byte-parity contract).
+    fn canonical_dataset_json_preserves_js_number_rules() {
         let columns = vec![
             Column::new("value", ColumnType::Numeric),
             Column::new("note", ColumnType::Categorical),
@@ -420,5 +373,6 @@ mod tests {
         write_dataset(&mut buf, &Dataset::new("parity", columns, rows));
         assert!(buf.contains("0.000001"), "unexpected canonical JSON: {buf}");
         assert!(buf.contains("1e+21"), "unexpected canonical JSON: {buf}");
+        assert_eq!(sha256_hex(&buf).len(), 64);
     }
 }
