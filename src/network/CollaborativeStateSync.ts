@@ -8,6 +8,7 @@
  * Out-of-order / duplicate packets are dropped via BinaryPoseSerializer.validateSequence().
  */
 
+import { sha256Uint31 } from '../security/CryptoHash.ts';
 import { BinaryPoseSerializer } from './BinaryPoseSerializer.ts';
 
 export interface PeerState {
@@ -16,19 +17,6 @@ export interface PeerState {
   cameraPose?: { position: [number, number, number]; rotation: [number, number, number, number] };
   activeFilter?: string;
   lastUpdatedMs: number;
-}
-
-/**
- * Simple djb2 hash of a string, clamped to a non-negative 31-bit integer.
- * Used to derive a stable numeric peer ID from an arbitrary string peer ID.
- */
-function djb2Hash(str: string): number {
-  let hash = 5381;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash) ^ str.charCodeAt(i);
-  }
-  // Mask to 31 bits to guarantee non-negative value (safe for uint32 wire format)
-  return Math.abs(hash) % 0x7fffffff;
 }
 
 export class CollaborativeStateSync {
@@ -40,7 +28,10 @@ export class CollaborativeStateSync {
 
   constructor(localPeerId = `peer-${Math.random().toString(36).slice(2, 8)}`) {
     this.localPeerId = localPeerId;
-    this._numericPeerId = djb2Hash(localPeerId);
+    // BinaryPoseSerializer carries uint32 peer IDs. SHA-256-derived truncation
+    // provides stable collision resistance without pretending to authenticate
+    // the caller-chosen peerId; authentication remains a signalling/ticket concern.
+    this._numericPeerId = sha256Uint31(localPeerId);
   }
 
   setDataChannel(channel: RTCDataChannel): void {
@@ -52,7 +43,6 @@ export class CollaborativeStateSync {
         if (event.data instanceof ArrayBuffer) {
           const pose = BinaryPoseSerializer.deserialize(event.data);
           if (pose) {
-            // Drop out-of-order or duplicate packets via monotonic sequence check
             if (!BinaryPoseSerializer.validateSequence(pose.peerId, pose.sequence)) {
               return;
             }
