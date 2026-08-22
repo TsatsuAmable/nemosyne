@@ -4,6 +4,7 @@
  */
 
 import type { ColumnSchema, DatasetJSON } from './types.ts';
+import { registerDurableRowId } from './RowIdentity.ts';
 
 /**
  * Keys that are stripped from untrusted row objects as defense-in-depth
@@ -41,15 +42,9 @@ function cloneRow(row: Record<string, unknown>): Record<string, unknown> {
 
 /**
  * Strip dangerous keys while PRESERVING reference identity for clean rows.
- * Data-operation visual transforms (`applyFilter`/`applySort`/cluster ops in
- * `src/vr/interactions/`) match meshes to dataset rows by reference equality
- * (`mesh.userData.row === dataset.rows[i]`). Cloning every row in the
- * constructor would break that contract, so only rows that actually carry a
- * dangerous own key are rebuilt; clean rows are returned unchanged. This
- * keeps the prototype-pollution defense intact (dangerous keys are still
- * stripped) without breaking row-reference identity across `Dataset`
- * boundaries (e.g. `filter(dataset)` -> `new Dataset(...)` -> `applyFilter`).
- * Non-object/null input collapses to `{}`.
+ * Clean rows are returned unchanged so renderer bookkeeping can reuse object
+ * identity when no durable Rust row ID is present. Rows carrying dangerous
+ * keys are rebuilt and sanitized.
  */
 function sanitizeRow(row: Record<string, unknown>): Record<string, unknown> {
   if (!row || typeof row !== 'object') return {};
@@ -84,21 +79,33 @@ export class Dataset {
   columns: ColumnSchema[];
   rows: Record<string, unknown>[];
   edges?: DatasetEdge[];
+  /** Durable Rust-owned observation IDs aligned 1:1 with `rows`, when known. */
+  rowIds?: string[];
   _meta?: DatasetMeta;
 
   constructor(
     name: string,
     columns: ColumnSchema[],
     rows: Record<string, unknown>[],
-    edges?: DatasetEdge[]
+    edges?: DatasetEdge[],
+    rowIds?: string[]
   ) {
     this.name = name;
     this.columns = columns;
-    // Sanitize every incoming row at the single chokepoint — this covers
-    // parse/CSV/JSON/msgpack/fromJSON/clone/updateRows paths since they
-    // all funnel through the constructor or call sanitizeRow directly.
     this.rows = rows.map(sanitizeRow);
     this.edges = edges;
+    this._setRowIds(rowIds);
+  }
+
+  private _setRowIds(rowIds?: string[]): void {
+    if (!rowIds || rowIds.length !== this.rows.length || rowIds.some((id) => !id)) {
+      this.rowIds = undefined;
+      return;
+    }
+    this.rowIds = rowIds.slice();
+    for (let i = 0; i < this.rows.length; i++) {
+      registerDurableRowId(this.rows[i], this.rowIds[i]);
+    }
   }
 
   get rowCount(): number {
@@ -176,15 +183,10 @@ export class Dataset {
 
   /**
    * Update rows for live/streaming data.
-   * @param newRows - rows to add or use as replacement
-   * @param mode - 'append' or 'replace'
-   * @param limit - optional max row count (sliding window)
-   * @returns this
+   * New JS rows do not yet have Rust lineage IDs, so any existing aligned ID
+   * vector is invalidated rather than risk attaching an ID to the wrong row.
    */
   updateRows(newRows: Record<string, unknown>[], mode: 'append' | 'replace' = 'append', limit: number | null = null): this {
-    // Sanitize incoming rows before they join the instance store. Live
-    // stream rows are untrusted (e.g. WebSocket sensor data) and must not
-    // carry dangerous keys into downstream consumers.
     const sanitized = newRows.map(sanitizeRow);
     if (mode === 'replace') {
       this.rows = sanitized;
@@ -194,6 +196,7 @@ export class Dataset {
     if (limit != null && this.rows.length > limit) {
       this.rows = this.rows.slice(-limit);
     }
+    this.rowIds = undefined;
     return this;
   }
 
@@ -201,16 +204,15 @@ export class Dataset {
     return new Dataset(
       this.name,
       this.columns.slice(),
-      // Clone (not alias) rows into independent clean objects so mutations to
-      // the clone never leak back into the source. Rows are already sanitized
-      // on construction; cloneRow re-strips dangerous keys defensively.
-      this.rows.map(cloneRow)
+      this.rows.map(cloneRow),
+      this.edges?.map((edge) => ({ ...edge })),
+      this.rowIds?.slice()
     );
   }
 
   /**
    * Serialize the dataset to a plain JSON-compatible object.
-   * This is used for session persistence and import/export.
+   * `rowIds` is ABI metadata and deliberately remains outside each row object.
    */
   toJSON(): DatasetJSON {
     return {
@@ -224,34 +226,27 @@ export class Dataset {
         }
         return copy;
       }),
+      rowIds: this.rowIds?.slice(),
       edges: this.edges ?? undefined,
     };
   }
 
-  /**
-   * Reconstruct a Dataset from a plain JSON object.
-   */
+  /** Reconstruct a Dataset from a plain JSON object. */
   static fromJSON(obj: DatasetJSON | unknown): Dataset {
     if (!obj || typeof obj !== 'object') {
       throw new Error('Dataset.fromJSON requires an object');
     }
     const typedObj = obj as DatasetJSON;
-    // Build independent, sanitized row copies so the reconstructed dataset
-    // never aliases the parsed payload and never carries dangerous keys. The
-    // constructor's sanitizeRow is a no-op on these (already clean) objects,
-    // preserving their identity for downstream row-reference matching.
     const ds = new Dataset(
       typedObj.name || 'dataset',
       typedObj.columns?.map((c) => ({
         name: c.name,
         type: (typeof c.type === 'string' ? c.type.toUpperCase() : c.type) as ColumnTypeValue,
       })) || [],
-      (typedObj.rows ?? []).map(cloneRow)
+      (typedObj.rows ?? []).map(cloneRow),
+      typedObj.edges?.map((e) => ({ ...e })),
+      typedObj.rowIds
     );
-    if (typedObj.edges) {
-      ds.edges = typedObj.edges.map((e) => ({ ...e }));
-    }
     return ds;
   }
-
 }
