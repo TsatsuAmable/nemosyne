@@ -11,6 +11,7 @@
 
 import * as THREE from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
+import { rendererRowId } from '../../data/RowIdentity.ts';
 import type { ArtifactRef } from '../coordinators/types.ts';
 
 interface LivePreviewOptions {
@@ -63,9 +64,7 @@ export class LivePreview {
     this._materialCache.clear();
   }
 
-  /**
-   * Show a preview for the named operation.
-   */
+  /** Show a preview for the named operation. */
   preview(
     operation: string,
     previewDataset: Dataset,
@@ -98,10 +97,10 @@ export class LivePreview {
   }
 
   private _previewKeepRemove(previewDataset: Dataset, artifact: ArtifactRef, removeIcon: string) {
-    const kept = new Set(previewDataset.rows);
+    const keptIds = new Set(previewDataset.rows.map(rendererRowId));
     for (const mesh of artifact.nodeMeshes) {
       const row = this._getRow(mesh);
-      const isKept = this._rowInSet(row, kept);
+      const isKept = keptIds.has(rendererRowId(row));
       const icon = isKept ? '✓' : removeIcon;
       const color = isKept ? '#00ffcc' : '#ff3366';
       const marker = this._createSprite(icon, color);
@@ -111,11 +110,12 @@ export class LivePreview {
   }
 
   private _previewSort(previewDataset: Dataset, artifact: ArtifactRef) {
-    const order = previewDataset.rows;
-    const count = order.length;
-    for (let i = 0; i < count; i++) {
-      const row = order[i];
-      const mesh = artifact.nodeMeshes.find((m) => this._rowsEqual(this._getRow(m), row));
+    const meshesByRowId = new Map(
+      artifact.nodeMeshes.map((mesh) => [rendererRowId(this._getRow(mesh)), mesh] as const)
+    );
+    for (let i = 0; i < previewDataset.rows.length; i++) {
+      const row = previewDataset.rows[i];
+      const mesh = meshesByRowId.get(rendererRowId(row));
       if (!mesh) continue;
       const rank = i + 1;
       const marker = this._createSprite(String(rank), '#ffcc00');
@@ -125,8 +125,11 @@ export class LivePreview {
   }
 
   private _previewAnomaly(previewDataset: Dataset, artifact: ArtifactRef) {
+    const previewRowsById = new Map(
+      previewDataset.rows.map((row) => [rendererRowId(row), row] as const)
+    );
     for (const mesh of artifact.nodeMeshes) {
-      const previewRow = this._findPreviewRow(this._getRow(mesh), previewDataset.rows);
+      const previewRow = previewRowsById.get(rendererRowId(this._getRow(mesh)));
       const isOutlier =
         previewRow?._anomaly || previewRow?.anomaly || previewRow?._outlier || previewRow?.outlier;
       if (!isOutlier) continue;
@@ -136,32 +139,8 @@ export class LivePreview {
     }
   }
 
-  private _findPreviewRow(meshRow: Record<string, unknown>, previewRows: Record<string, unknown>[]) {
-    return previewRows.find((r) => this._rowsEqual(r, meshRow));
-  }
-
-  private _rowInSet(row: Record<string, unknown>, set: Set<Record<string, unknown>>) {
-    for (const r of set) {
-      if (this._rowsEqual(r, row)) return true;
-    }
-    return false;
-  }
-
   private _getRow(mesh: THREE.Mesh): Record<string, unknown> {
     return (mesh.userData as { row?: Record<string, unknown> }).row ?? {};
-  }
-
-  private _rowsEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
-    if (a === b) return true;
-    if (!a || !b) return false;
-    const keysA = Object.keys(a).filter((k) => !k.startsWith('_'));
-    const keysB = Object.keys(b).filter((k) => !k.startsWith('_'));
-    if (keysA.length !== keysB.length) return false;
-    for (const k of keysA) {
-      if (a[k] !== b[k]) return false;
-      if (!keysB.includes(k)) return false;
-    }
-    return true;
   }
 
   private _createSprite(text: string, color: string): THREE.Sprite {
