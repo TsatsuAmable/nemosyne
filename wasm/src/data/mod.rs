@@ -1,7 +1,9 @@
 pub mod column;
 pub mod dataset;
 pub mod encodings;
+pub mod evidence;
 pub mod fingerprint;
+pub mod measurement;
 pub mod operations;
 pub mod operations_bridge;
 pub mod parsers;
