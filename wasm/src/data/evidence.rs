@@ -19,12 +19,79 @@ pub struct AssumptionCheck {
     pub detail: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SupportPolicy {
+    FullDataset,
+    CompleteCase,
+    PairwiseComplete,
+    FilteredSubset,
+    Imputed,
+    Other,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExclusionReasonCount {
+    pub reason: String,
+    pub row_count: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SampleSupport {
     pub total_rows: usize,
     pub rows_used: usize,
     pub rows_excluded: usize,
+    pub columns: Vec<String>,
+    pub policy: SupportPolicy,
+    pub exclusion_reasons: Vec<ExclusionReasonCount>,
+}
+
+impl SampleSupport {
+    pub fn new(
+        total_rows: usize,
+        rows_used: usize,
+        columns: Vec<String>,
+        policy: SupportPolicy,
+        exclusion_reasons: Vec<ExclusionReasonCount>,
+    ) -> Result<Self, String> {
+        if rows_used > total_rows {
+            return Err("rows_used cannot exceed total_rows".to_string());
+        }
+        let rows_excluded = total_rows - rows_used;
+        let explained: usize = exclusion_reasons.iter().map(|reason| reason.row_count).sum();
+        if explained > rows_excluded {
+            return Err("exclusion reason counts cannot exceed rows_excluded".to_string());
+        }
+        Ok(Self {
+            total_rows,
+            rows_used,
+            rows_excluded,
+            columns,
+            policy,
+            exclusion_reasons,
+        })
+    }
+
+    pub fn full_dataset(total_rows: usize, columns: Vec<String>) -> Self {
+        Self {
+            total_rows,
+            rows_used: total_rows,
+            rows_excluded: 0,
+            columns,
+            policy: SupportPolicy::FullDataset,
+            exclusion_reasons: Vec::new(),
+        }
+    }
+
+    pub fn support_fraction(&self) -> f64 {
+        if self.total_rows == 0 {
+            0.0
+        } else {
+            self.rows_used as f64 / self.total_rows as f64
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -113,11 +180,7 @@ mod tests {
             },
             geometry: None,
             assumptions,
-            sample_support: SampleSupport {
-                total_rows: 10,
-                rows_used: 10,
-                rows_excluded: 0,
-            },
+            sample_support: SampleSupport::full_dataset(10, vec!["x".to_string()]),
             uncertainty: None,
             stability: None,
             sensitivity: Vec::new(),
@@ -143,5 +206,36 @@ mod tests {
             detail: "requires study-design metadata".to_string(),
         }]);
         assert!(evidence.has_unresolved_assumptions());
+    }
+
+    #[test]
+    fn sample_support_rejects_impossible_counts() {
+        let result = SampleSupport::new(
+            10,
+            11,
+            vec!["x".to_string()],
+            SupportPolicy::CompleteCase,
+            Vec::new(),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn sample_support_preserves_policy_scope_and_exclusions() {
+        let support = SampleSupport::new(
+            10,
+            7,
+            vec!["x".to_string(), "y".to_string()],
+            SupportPolicy::CompleteCase,
+            vec![ExclusionReasonCount {
+                reason: "missing requested column".to_string(),
+                row_count: 3,
+            }],
+        )
+        .expect("valid support");
+
+        assert_eq!(support.rows_excluded, 3);
+        assert_eq!(support.support_fraction(), 0.7);
+        assert_eq!(support.columns.len(), 2);
     }
 }
