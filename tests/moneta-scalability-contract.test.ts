@@ -18,9 +18,11 @@ describe('Moneta scalability contract', () => {
       const requirements = createDefaultRequirements('distribution-analysis', 'MASSIVE');
 
       const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
+      expect(decision.rankedCandidates).toBeDefined();
+      expect(decision.weightSensitivity).toBeDefined();
       const stats = {
-        candidateCount: decision.rankedCandidates.length,
-        sensitivityScenarioCount: decision.weightSensitivity.scenarioCount,
+        candidateCount: decision.rankedCandidates?.length ?? 0,
+        sensitivityScenarioCount: decision.weightSensitivity?.scenarioCount ?? 0,
       };
       assertMonetaWithinComputeBudget(stats);
       return stats;
