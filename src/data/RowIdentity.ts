@@ -21,15 +21,17 @@ export function durableRowId(row: Record<string, unknown>): string | undefined {
 /**
  * Identity used by renderer/interaction bookkeeping.
  *
- * Prefer the Rust-owned durable observation ID when a row crossed the dataset
- * ABI with one. Otherwise fall back to a process-local WeakMap ID for legacy or
- * purely JS-created rows. Neither form is an analytical variable, and renderer
- * identity must never be included in fingerprints or model evidence.
+ * Prefer the Rust-owned durable observation ID unchanged when a row crossed the
+ * dataset ABI with one. This keeps one canonical semantic identity across the
+ * kernel, dataset hydration, renderer, and interaction layers. Otherwise fall
+ * back to a process-local WeakMap ID for legacy or purely JS-created rows.
+ * Neither form is an analytical variable, and renderer identity must never be
+ * included in fingerprints or model evidence.
  */
 export function rendererRowId(row: Record<string, unknown>): string {
   if (!row || typeof row !== 'object') return 'row:invalid';
   const durable = durableRowIds.get(row);
-  if (durable) return `dataset-row:${durable}`;
+  if (durable) return durable;
   const existing = rendererRowIds.get(row);
   if (existing) return existing;
   const id = `row:${nextRendererRowId++}`;
