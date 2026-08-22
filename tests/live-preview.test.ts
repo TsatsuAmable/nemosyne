@@ -6,11 +6,11 @@ import * as THREE from 'three';
 import { LivePreview } from '../src/vr/interactions/LivePreview.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 
-function makeMesh(name = 'node', value = 0, x = 0, y = 0, z = -2) {
+function makeMesh(row, x = 0, y = 0, z = -2) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2));
-  mesh.name = name;
+  mesh.name = String(row.name ?? 'node');
   mesh.position.set(x, y, z);
-  mesh.userData.row = { name, value };
+  mesh.userData.row = row;
   return mesh;
 }
 
@@ -25,12 +25,18 @@ function makeDataset(rows, name = 'test') {
       { name: 'name', type: ColumnType.CATEGORICAL },
       { name: 'value', type: ColumnType.NUMERIC },
     ],
-    normalizedRows
+    normalizedRows,
+    undefined,
+    normalizedRows.map((_, i) => `${name}:row:${i}`)
   );
 }
 
-function makeArtifactMeshes(rows) {
-  return rows.map((r, i) => makeMesh(r.name, r.value, i, 0, -2));
+/** Simulate renderer rows reconstructed separately from the analytical result. */
+function makeArtifact(dataset) {
+  const reconstructed = Dataset.fromJSON(dataset.toJSON());
+  return {
+    nodeMeshes: reconstructed.rows.map((row, i) => makeMesh(row, i, 0, -2)),
+  };
 }
 
 describe('LivePreview', () => {
@@ -49,95 +55,110 @@ describe('LivePreview', () => {
     preview.clear();
   });
 
-  it('creates keep/remove markers for a filter preview', () => {
-    const rows = [
+  it('creates keep/remove markers for a filter preview across reconstructed rows', () => {
+    const ds = makeDataset([
       { name: 'a', value: 10 },
       { name: 'b', value: 20 },
       { name: 'c', value: 30 },
-    ];
-    const ds = makeDataset(rows);
-    const artifact = { nodeMeshes: makeArtifactMeshes(ds.rows) };
-    // Inline result subset — the test only checks marker COUNT = mesh count.
-    // Exact analytical parity (median filter) is covered by Rust tests + wasm-runtime.test.ts.
+    ]);
+    const artifact = makeArtifact(ds);
     const filtered = new Dataset(
       ds.name,
       ds.columns,
-      ds.rows.filter((r) => Number(r.value) > 10)
+      ds.rows.filter((r) => Number(r.value) > 10),
+      undefined,
+      ds.rowIds?.slice(1)
     );
 
     preview.preview('filter', filtered, ds, artifact);
 
-    expect(preview._markers.length).toBe(artifact.nodeMeshes.length);
-    const sprites = scene.children.filter((c) => c instanceof THREE.Sprite);
-    expect(sprites.length).toBe(3);
+    expect(preview._markers.length).toBe(3);
+    expect(scene.children.filter((c) => c instanceof THREE.Sprite)).toHaveLength(3);
   });
 
-  it('creates rank markers for a sort preview', () => {
-    const rows = [
+  it('creates rank markers for a sort preview across reconstructed rows', () => {
+    const ds = makeDataset([
       { name: 'a', value: 30 },
       { name: 'b', value: 10 },
       { name: 'c', value: 20 },
-    ];
-    const ds = makeDataset(rows);
-    const artifact = { nodeMeshes: makeArtifactMeshes(ds.rows) };
-    // Inline reordered result; visual marker count is all that is asserted.
+    ]);
+    const artifact = makeArtifact(ds);
+    const order = [1, 2, 0];
     const sorted = new Dataset(
       ds.name,
       ds.columns,
-      [...ds.rows].sort((a, b) => a.value - b.value)
+      order.map((i) => ({ ...ds.rows[i] })),
+      undefined,
+      order.map((i) => ds.rowIds[i])
     );
 
     preview.preview('sort', sorted, ds, artifact);
 
-    const sprites = scene.children.filter((c) => c instanceof THREE.Sprite);
-    expect(sprites.length).toBe(3);
+    expect(scene.children.filter((c) => c instanceof THREE.Sprite)).toHaveLength(3);
   });
 
-  it('creates outlier markers for an anomaly preview', () => {
-    const rows = [
+  it('creates the anomaly marker for the correct reconstructed observation', () => {
+    const ds = makeDataset([
       { name: 'a', value: 1 },
       { name: 'b', value: 2 },
       { name: 'c', value: 3 },
-      { name: 'd', value: 4 },
-      { name: 'e', value: 5 },
-      { name: 'f', value: 10000 },
-    ];
-    const ds = makeDataset(rows);
-    const artifact = { nodeMeshes: makeArtifactMeshes(ds.rows) };
-    // Inline anomaly result; the 10000 row is flagged so at least one sprite is drawn.
-    // Exact z-score parity is covered by Rust tests + wasm-runtime.test.ts.
+      { name: 'd', value: 10000 },
+    ]);
+    const artifact = makeArtifact(ds);
     const anomalous = new Dataset(
       ds.name,
       [...ds.columns, { name: '_anomaly', type: ColumnType.BOOLEAN }],
-      ds.rows.map((r) => ({ ...r, _anomaly: r.value > 1000 }))
+      ds.rows.map((r) => ({ ...r, _anomaly: r.value > 1000 })),
+      undefined,
+      ds.rowIds
     );
 
     preview.preview('anomaly', anomalous, ds, artifact);
 
-    const sprites = scene.children.filter((c) => c instanceof THREE.Sprite);
-    expect(sprites.length).toBeGreaterThan(0);
+    expect(scene.children.filter((c) => c instanceof THREE.Sprite)).toHaveLength(1);
+    expect(preview._markers[0].anchorMesh.userData.row.name).toBe('d');
+  });
+
+  it('distinguishes equal-valued duplicate observations by durable ID', () => {
+    const ds = makeDataset([
+      { name: 'same', value: 42 },
+      { name: 'same', value: 42 },
+    ], 'duplicates');
+    const artifact = makeArtifact(ds);
+    const filtered = new Dataset(
+      ds.name,
+      ds.columns,
+      [{ ...ds.rows[1] }],
+      undefined,
+      [ds.rowIds[1]]
+    );
+
+    preview.preview('filter', filtered, ds, artifact);
+
+    const markerKinds = preview._markers.map((marker) => marker.mesh.material);
+    expect(markerKinds).toHaveLength(2);
+    expect(preview._markers[0].anchorMesh.userData.row).not.toBe(preview._markers[1].anchorMesh.userData.row);
   });
 
   it('clears all markers and removes sprites from the scene', () => {
-    const rows = [{ name: 'a', value: 10 }];
-    const ds = makeDataset(rows);
-    const artifact = { nodeMeshes: makeArtifactMeshes(ds.rows) };
-    const filtered = new Dataset(ds.name, ds.columns, ds.rows.filter(() => true));
+    const ds = makeDataset([{ name: 'a', value: 10 }]);
+    const artifact = makeArtifact(ds);
+    const filtered = Dataset.fromJSON(ds.toJSON());
 
     preview.preview('filter', filtered, ds, artifact);
-    expect(scene.children.filter((c) => c instanceof THREE.Sprite).length).toBe(1);
+    expect(scene.children.filter((c) => c instanceof THREE.Sprite)).toHaveLength(1);
 
     preview.clear();
-    expect(scene.children.filter((c) => c instanceof THREE.Sprite).length).toBe(0);
-    expect(preview._markers.length).toBe(0);
+    expect(scene.children.filter((c) => c instanceof THREE.Sprite)).toHaveLength(0);
+    expect(preview._markers).toHaveLength(0);
   });
 
   it('updates marker positions to follow their anchor meshes', () => {
     const ds = makeDataset([{ name: 'a', value: 10 }]);
-    const mesh = makeMesh('a', 10, 0, 1, -2);
-    mesh.userData.row = ds.rows[0];
-    const artifact = { nodeMeshes: [mesh] };
-    const filtered = new Dataset(ds.name, ds.columns, ds.rows.filter(() => true));
+    const artifact = makeArtifact(ds);
+    const mesh = artifact.nodeMeshes[0];
+    mesh.position.y = 1;
+    const filtered = Dataset.fromJSON(ds.toJSON());
 
     preview.preview('filter', filtered, ds, artifact);
     const marker = preview._markers[0];
@@ -152,12 +173,9 @@ describe('LivePreview', () => {
 
   it('does nothing when disabled', () => {
     preview.setEnabled(false);
-    const rows = [{ name: 'a', value: 10 }];
-    const ds = makeDataset(rows);
-    const artifact = { nodeMeshes: makeArtifactMeshes(ds.rows) };
-    const filtered = new Dataset(ds.name, ds.columns, ds.rows.filter(() => true));
-
-    preview.preview('filter', filtered, ds, artifact);
-    expect(preview._markers.length).toBe(0);
+    const ds = makeDataset([{ name: 'a', value: 10 }]);
+    const artifact = makeArtifact(ds);
+    preview.preview('filter', Dataset.fromJSON(ds.toJSON()), ds, artifact);
+    expect(preview._markers).toHaveLength(0);
   });
 });

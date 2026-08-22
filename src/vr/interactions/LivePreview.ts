@@ -44,9 +44,7 @@ export class LivePreview {
 
   setEnabled(enabled: boolean) {
     this.enabled = enabled;
-    for (const m of this._markers) {
-      m.mesh.visible = enabled;
-    }
+    for (const m of this._markers) m.mesh.visible = enabled;
   }
 
   clear() {
@@ -64,24 +62,14 @@ export class LivePreview {
     this._materialCache.clear();
   }
 
-  /** Show a preview for the named operation. */
-  preview(
-    operation: string,
-    previewDataset: Dataset,
-    originalDataset: Dataset,
-    artifact: ArtifactRef
-  ) {
+  preview(operation: string, previewDataset: Dataset, originalDataset: Dataset, artifact: ArtifactRef) {
     this.clear();
     if (!this.enabled || !artifact.nodeMeshes.length) return;
 
     switch (operation) {
       case 'filter':
       case 'timeSlice':
-        this._previewKeepRemove(
-          previewDataset,
-          artifact,
-          operation === 'timeSlice' ? '✂' : '✕'
-        );
+        this._previewKeepRemove(previewDataset, artifact, operation === 'timeSlice' ? '✂' : '✕');
         break;
       case 'sort':
         this._previewSort(previewDataset, artifact);
@@ -99,12 +87,8 @@ export class LivePreview {
   private _previewKeepRemove(previewDataset: Dataset, artifact: ArtifactRef, removeIcon: string) {
     const keptIds = new Set(previewDataset.rows.map(rendererRowId));
     for (const mesh of artifact.nodeMeshes) {
-      const row = this._getRow(mesh);
-      const rowId = rendererRowId(row);
-      const isKept = keptIds.has(rowId) || previewDataset.rows.some((candidate) => this._rowsEquivalent(candidate, row));
-      const icon = isKept ? '✓' : removeIcon;
-      const color = isKept ? '#00ffcc' : '#ff3366';
-      const marker = this._createSprite(icon, color);
+      const isKept = keptIds.has(rendererRowId(this._getRow(mesh)));
+      const marker = this._createSprite(isKept ? '✓' : removeIcon, isKept ? '#00ffcc' : '#ff3366');
       this._attachMarker(marker, mesh);
       marker.userData.isPreview = true;
     }
@@ -115,12 +99,9 @@ export class LivePreview {
       artifact.nodeMeshes.map((mesh) => [rendererRowId(this._getRow(mesh)), mesh] as const)
     );
     for (let i = 0; i < previewDataset.rows.length; i++) {
-      const row = previewDataset.rows[i];
-      const rowId = rendererRowId(row);
-      const mesh = meshesByRowId.get(rowId) ?? artifact.nodeMeshes.find((candidate) => this._rowsEquivalent(this._getRow(candidate), row));
+      const mesh = meshesByRowId.get(rendererRowId(previewDataset.rows[i]));
       if (!mesh) continue;
-      const rank = i + 1;
-      const marker = this._createSprite(String(rank), '#ffcc00');
+      const marker = this._createSprite(String(i + 1), '#ffcc00');
       this._attachMarker(marker, mesh, new THREE.Vector3(0.35, 0.65, 0));
       marker.userData.isPreview = true;
     }
@@ -131,11 +112,8 @@ export class LivePreview {
       previewDataset.rows.map((row) => [rendererRowId(row), row] as const)
     );
     for (const mesh of artifact.nodeMeshes) {
-      const meshRow = this._getRow(mesh);
-      const previewRow = previewRowsById.get(rendererRowId(meshRow))
-        ?? previewDataset.rows.find((candidate) => this._rowsEquivalent(candidate, meshRow));
-      const isOutlier =
-        previewRow?._anomaly || previewRow?.anomaly || previewRow?._outlier || previewRow?.outlier;
+      const previewRow = previewRowsById.get(rendererRowId(this._getRow(mesh)));
+      const isOutlier = previewRow?._anomaly || previewRow?.anomaly || previewRow?._outlier || previewRow?.outlier;
       if (!isOutlier) continue;
       const marker = this._createSprite('⚡', '#ff3366');
       this._attachMarker(marker, mesh, new THREE.Vector3(0, 0.9, 0));
@@ -147,42 +125,20 @@ export class LivePreview {
     return (mesh.userData as { row?: Record<string, unknown> }).row ?? {};
   }
 
-  /**
-   * Renderer identity is the fast path while rows remain in the same JS object
-   * graph. Kernel/JSON boundaries reconstruct objects, so until Rust supplies a
-   * durable row identity the compatibility path compares user-visible fields.
-   * Underscore-prefixed operation annotations are intentionally ignored.
-   */
-  private _rowsEquivalent(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
-    if (a === b) return true;
-    if (rendererRowId(a) === rendererRowId(b)) return true;
-    const keysA = Object.keys(a).filter((key) => !key.startsWith('_'));
-    const keysB = Object.keys(b).filter((key) => !key.startsWith('_'));
-    if (keysA.length !== keysB.length) return false;
-    for (const key of keysA) {
-      if (!keysB.includes(key) || a[key] !== b[key]) return false;
-    }
-    return true;
-  }
-
   private _createSprite(text: string, color: string): THREE.Sprite {
     const key = `${text}|${color}`;
     const cached = this._materialCache.get(key);
-    if (cached) {
-      return new THREE.Sprite(cached);
-    }
+    if (cached) return new THREE.Sprite(cached);
 
     const canvas = document.createElement('canvas');
     canvas.width = 128;
     canvas.height = 128;
     const ctx = (canvas.getContext('2d') || this._createMockContext()) as CanvasRenderingContext2D;
-
     ctx.fillStyle = 'rgba(4, 12, 24, 0.85)';
     ctx.fillRect(0, 0, 128, 128);
     ctx.strokeStyle = color;
     ctx.lineWidth = 6;
     ctx.strokeRect(4, 4, 120, 120);
-
     ctx.font = '64px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -192,38 +148,21 @@ export class LivePreview {
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
-
-    const mat = new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-      opacity: 0.92,
-      depthTest: false,
-      depthWrite: false,
-    });
+    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 0.92, depthTest: false, depthWrite: false });
     this._materialCache.set(key, mat);
     return new THREE.Sprite(mat);
   }
 
-  private _attachMarker(
-    sprite: THREE.Sprite,
-    anchorMesh: THREE.Mesh,
-    offset: THREE.Vector3 | null = null
-  ) {
+  private _attachMarker(sprite: THREE.Sprite, anchorMesh: THREE.Mesh, offset: THREE.Vector3 | null = null) {
     sprite.scale.set(0.3, 0.3, 1);
     this.scene.add(sprite);
-
     anchorMesh.getWorldPosition(this._tempPos);
     const off = offset || this.offset.clone();
     sprite.position.copy(this._tempPos).add(off);
     sprite.updateMatrixWorld();
-
     this._markers.push({ mesh: sprite, anchorMesh, offset: off.clone() });
   }
 
-  /**
-   * Keep preview markers anchored to their artefacts each frame so they remain
-   * valid if the palace animates or the user moves around it.
-   */
   update() {
     for (const marker of this._markers) {
       marker.anchorMesh.getWorldPosition(this._tempPos);
