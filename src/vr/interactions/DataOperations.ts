@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
+import { rendererRowId } from '../../data/RowIdentity.ts';
 import type { OperationSpec } from '../../data/types.ts';
 import type { AnalysisSpec } from '../../atlas/types.ts';
 import { applyNestedRings, applyDendrogramArc, applyDensityCloud } from './ClusterTransforms.ts';
@@ -35,17 +36,18 @@ function getNodeUserData(mesh: THREE.Mesh): NodeUserData {
   return mesh.userData as NodeUserData;
 }
 
-/**
- * Apply a filter operation: rows present in the filtered dataset remain visible,
- * absent rows shrink and fade below the DatumPlane.
- */
+function meshesByRowId(artifact: ArtifactRef): Map<string, THREE.Mesh> {
+  return new Map(
+    artifact.nodeMeshes.map((mesh) => [rendererRowId(getNodeUserData(mesh).row), mesh] as const)
+  );
+}
+
 export function applyFilter(artifact: ArtifactRef, filteredDataset: Dataset) {
-  const kept = new Set(filteredDataset.rows);
+  const kept = new Set(filteredDataset.rows.map(rendererRowId));
   for (const mesh of artifact.nodeMeshes) {
     const userData = getNodeUserData(mesh);
-    const row = userData.row;
     const mat = getNodeMaterial(mesh);
-    if (kept.has(row)) {
+    if (kept.has(rendererRowId(userData.row))) {
       mesh.scale.setScalar(userData.baseScale ?? 1);
       mat.opacity = userData.baseOpacity ?? 1;
       mat.transparent = userData.baseTransparent ?? false;
@@ -58,12 +60,6 @@ export function applyFilter(artifact: ArtifactRef, filteredDataset: Dataset) {
   }
 }
 
-/**
- * Isolate rows by index: meshes at the given row indices remain visible,
- * all others are hidden. This is the structure-ID-driven variant of
- * `applyFilter` — it accepts positional row indices (from
- * `DiscoveredStructure.rowIndices`) instead of a filtered dataset.
- */
 export function isolateRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
   const kept = new Set(rowIndices);
   for (let i = 0; i < artifact.nodeMeshes.length; i++) {
@@ -83,10 +79,6 @@ export function isolateRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
   }
 }
 
-/**
- * Highlight rows by index: meshes at the given row indices are emphasised,
- * others are dimmed but remain visible. Less aggressive than `isolateRowIndices`.
- */
 export function highlightRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
   const highlighted = new Set(rowIndices);
   for (let i = 0; i < artifact.nodeMeshes.length; i++) {
@@ -102,19 +94,14 @@ export function highlightRowIndices(artifact: ArtifactRef, rowIndices: number[])
   }
 }
 
-/**
- * Apply a sort operation: reorder visible nodes along a horizontal arc.
- */
 export function applySort(artifact: ArtifactRef, sortedDataset: Dataset) {
   const order = sortedDataset.rows;
+  const meshIndex = meshesByRowId(artifact);
   const count = order.length;
   const radius = 4;
   const width = Math.min(radius * 2, count * 0.9);
   for (let i = 0; i < count; i++) {
-    const row = order[i];
-    const mesh = artifact.nodeMeshes.find(
-      (m) => getNodeUserData(m).row === row
-    );
+    const mesh = meshIndex.get(rendererRowId(order[i]));
     if (!mesh) continue;
     const t = count > 1 ? i / (count - 1) : 0.5;
     const x = (t - 0.5) * width;
@@ -123,10 +110,6 @@ export function applySort(artifact: ArtifactRef, sortedDataset: Dataset) {
   }
 }
 
-/**
- * Sort by row indices: reorder meshes at the given indices along a horizontal
- * arc, leaving others in place. Structure-ID-driven variant of `applySort`.
- */
 export function sortByRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
   const count = rowIndices.length;
   if (count === 0) return;
@@ -176,9 +159,6 @@ export function applyAggregate(artifact: ArtifactRef, aggregatedDataset: Dataset
   }
 }
 
-/**
- * Apply a cluster operation: move nodes into nested rings grouped by their `_cluster` value.
- */
 export function applyCluster(artifact: ArtifactRef, clusteredDataset: Dataset) {
   applyNestedRings(artifact, clusteredDataset, {
     baseRadius: 2,
@@ -187,11 +167,6 @@ export function applyCluster(artifact: ArtifactRef, clusteredDataset: Dataset) {
   });
 }
 
-/**
- * Cluster by row-index groups: each group of row indices forms a ring.
- * Structure-ID-driven variant of `applyCluster` — accepts an array of
- * row-index arrays (one per cluster) instead of a dataset with `_cluster`.
- */
 export function clusterByRowIndices(artifact: ArtifactRef, clusters: number[][]) {
   const baseRadius = 2;
   const ringStep = 0.8;
@@ -212,9 +187,6 @@ export function clusterByRowIndices(artifact: ArtifactRef, clusters: number[][])
   }
 }
 
-/**
- * Apply a hierarchical clustering operation: arrange clusters in dendrogram-like arcs.
- */
 export function applyHierarchicalCluster(artifact: ArtifactRef, clusteredDataset: Dataset) {
   applyDendrogramArc(artifact, clusteredDataset, {
     baseRadius: 1.2,
@@ -223,24 +195,14 @@ export function applyHierarchicalCluster(artifact: ArtifactRef, clusteredDataset
   });
 }
 
-/**
- * Apply a DBSCAN result: dense clusters become clouds; noise points sink below the plane.
- */
 export function applyDensityCluster(artifact: ArtifactRef, clusteredDataset: Dataset) {
   applyDensityCloud(artifact, clusteredDataset, { spread: 1.4, centreZ: -3.5 });
 }
 
-/**
- * Apply anomaly highlighting: outliers lift and pulse.
- */
 export function applyAnomaly(artifact: ArtifactRef, anomalyDataset: Dataset) {
   applyAnomalyHighlight(artifact, anomalyDataset);
 }
 
-/**
- * Anomaly by row indices: lift and emphasise meshes at the given indices as
- * outliers. Structure-ID-driven variant of `applyAnomaly`.
- */
 export function anomalyByRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
   const flagged = new Set(rowIndices);
   for (let i = 0; i < artifact.nodeMeshes.length; i++) {
@@ -258,26 +220,19 @@ export function anomalyByRowIndices(artifact: ArtifactRef, rowIndices: number[])
   }
 }
 
-/**
- * Clear anomaly highlighting and restore base transforms.
- */
 export function clearAnomaly(artifact: ArtifactRef) {
   clearAnomalyHighlight(artifact);
 }
 
-/**
- * Apply a slice operation: rows inside the slice remain bright; rows outside dim.
- */
 export function applySlice(
   artifact: ArtifactRef,
   slicedDataset: Dataset,
   _originalDataset: Dataset
 ) {
-  const kept = new Set(slicedDataset.rows);
+  const kept = new Set(slicedDataset.rows.map(rendererRowId));
   for (const mesh of artifact.nodeMeshes) {
-    const row = getNodeUserData(mesh).row;
     const mat = getNodeMaterial(mesh);
-    if (kept.has(row)) {
+    if (kept.has(rendererRowId(getNodeUserData(mesh).row))) {
       mesh.scale.setScalar(getNodeUserData(mesh).baseScale ?? 1);
       if (mat.opacity !== undefined) mat.opacity = 1;
     } else {
@@ -287,10 +242,6 @@ export function applySlice(
   }
 }
 
-/**
- * Slice by row indices: keep only the specified row indices visible and bright,
- * dim and shrink the rest. Structure-ID-driven variant of `applySlice`.
- */
 export function sliceByRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
   const kept = new Set(rowIndices);
   for (let i = 0; i < artifact.nodeMeshes.length; i++) {
@@ -307,9 +258,6 @@ export function sliceByRowIndices(artifact: ArtifactRef, rowIndices: number[]) {
   }
 }
 
-/**
- * Store base visual properties on each node mesh so operations can restore them.
- */
 export function captureBaseState(artifact: ArtifactRef) {
   for (const mesh of artifact.nodeMeshes) {
     const userData = getNodeUserData(mesh);
@@ -322,16 +270,6 @@ export function captureBaseState(artifact: ArtifactRef) {
   }
 }
 
-/**
- * Map a high-level operation name to a kernel {@link OperationSpec}. Every
- * operation produces a spec (the kernel is the ONLY analytical path); an
- * operation that cannot be meaningfully applied to the current dataset
- * resolves to an identity slice.
- *
- * `medianOf` is an optional thunk the controller supplies — it calls the
- * kernel statistics pass (median computed in Rust) so the default filter
- * predicate stays rule-compliant (no JS analytical computation).
- */
 export function toKernelSpec(
   operation: string,
   dataset: Dataset,
@@ -341,35 +279,26 @@ export function toKernelSpec(
   switch (operation) {
     case 'filter': {
       const col = dataset.numericColumns[0]?.name;
-      if (!col) {
-        return { op: 'slice', start: 0, end: dataset.rowCount };
-      }
+      if (!col) return { op: 'slice', start: 0, end: dataset.rowCount };
       return {
         op: 'filter',
         predicate: { op: 'gt', column: col, value: medianOf ? medianOf(col) : 0 },
       };
     }
     case 'sort': {
-      const col =
-        dataset.numericColumns[0]?.name || dataset.columns[0]?.name || 'value';
+      const col = dataset.numericColumns[0]?.name || dataset.columns[0]?.name || 'value';
       return { op: 'sort', column: col, ascending: true };
     }
     case 'aggregate': {
       const cat = dataset.categoricalColumns[0]?.name || dataset.columns[0]?.name;
-      if (!cat) {
-        return { op: 'slice', start: 0, end: dataset.rowCount };
-      }
+      if (!cat) return { op: 'slice', start: 0, end: dataset.rowCount };
       return { op: 'aggregate', group_by: cat };
     }
     case 'compare': {
       const groupBy = dataset.categoricalColumns[0]?.name;
-      if (!groupBy) {
-        return { op: 'slice', start: 0, end: dataset.rowCount };
-      }
+      if (!groupBy) return { op: 'slice', start: 0, end: dataset.rowCount };
       const groups = [...new Set(dataset.rows.map((row) => row[groupBy]))];
-      if (groups.length < 2) {
-        return { op: 'slice', start: 0, end: dataset.rowCount };
-      }
+      if (groups.length < 2) return { op: 'slice', start: 0, end: dataset.rowCount };
       return {
         op: 'compare',
         group_by: groupBy,
@@ -389,17 +318,10 @@ export function toKernelSpec(
     }
     case 'anomaly': {
       const col = dataset.numericColumns[0]?.name;
-      if (!col) {
-        return { op: 'slice', start: 0, end: dataset.rowCount };
-      }
+      if (!col) return { op: 'slice', start: 0, end: dataset.rowCount };
       return { op: 'anomaly_zscore', column: col, sensitivity: 2 };
     }
     case 'timeSlice': {
-      // Slice a contiguous window of the CURRENT transformed dataset (the
-      // kernel runs `slice` against the handle built from `dataset`). Bounding
-      // by the current row count keeps the window valid after prior ops;
-      // bounding by the original count would discard those ops and could yield
-      // an empty slice once the view shrinks.
       const start = Math.floor(dataset.rowCount / 2);
       const end = dataset.rowCount;
       return { op: 'slice', start, end };
@@ -409,11 +331,6 @@ export function toKernelSpec(
   }
 }
 
-/**
- * Minimal AtlasCore surface `toAnalysisSpec` reads to wrap a kernel op into a
- * typed {@link AnalysisSpec}. Kept structural so it accepts the real AtlasCore
- * or a stub in tests.
- */
 export interface AnalysisSpecAtlas {
   datasetFingerprint: string | null;
   datasetVersion: number;
@@ -421,12 +338,6 @@ export interface AnalysisSpecAtlas {
   medianFor(column: string): number;
 }
 
-/**
- * Wrap a high-level operation name into a typed {@link AnalysisSpec} for
- * AtlasCore. `toKernelSpec` remains the pure op→OperationSpec mapper; this is
- * the thin governance wrapper that stamps the spec with the live dataset
- * fingerprint/version/kernel-version and the kernel-statistics median thunk.
- */
 export function toAnalysisSpec(
   operation: string,
   dataset: Dataset,
@@ -445,9 +356,6 @@ export function toAnalysisSpec(
   };
 }
 
-/**
- * Reset all artefact meshes to their captured base state.
- */
 export function resetTransforms(artifact: ArtifactRef) {
   for (const mesh of artifact.nodeMeshes) {
     const userData = getNodeUserData(mesh);
@@ -461,12 +369,6 @@ export function resetTransforms(artifact: ArtifactRef) {
   }
 }
 
-/**
- * Reset mesh visibility (un-hide all meshes) without touching scale/opacity.
- * Used after `isolateRowIndices` / `sliceByRowIndices` to restore full visibility.
- */
 export function resetVisibility(artifact: ArtifactRef) {
-  for (const mesh of artifact.nodeMeshes) {
-    mesh.visible = true;
-  }
+  for (const mesh of artifact.nodeMeshes) mesh.visible = true;
 }
