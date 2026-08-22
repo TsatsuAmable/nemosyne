@@ -16,6 +16,12 @@ export interface DatasetJSON {
   name: string;
   columns: ColumnSchema[];
   rows: Record<string, unknown>[];
+  /**
+   * Durable observation identities owned by the Rust dataset lineage.
+   * These are metadata, not scientific variables, and must never participate
+   * in analytical fingerprints or be exposed as user columns.
+   */
+  rowIds?: string[];
   edges?: Array<{
     source: string | number;
     target: string | number;
@@ -231,4 +237,3 @@ export interface SpectralFacts {
   hasPeriodicity: boolean;
   periodicityConfidence: number;
 }
-
