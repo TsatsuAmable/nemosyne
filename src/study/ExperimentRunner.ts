@@ -6,6 +6,7 @@
  * session exports pinned to an explicit study/runtime freeze manifest.
  */
 
+import { canonicalSha256Hex } from '../security/CryptoHash.ts';
 import { Counterbalancer } from './Counterbalancer.ts';
 import {
   FROZEN_STUDY_NAME,
@@ -365,13 +366,7 @@ export class ExperimentRunner {
       events: structuredClone(this._events),
     };
 
-    let hash = 0x811c9dc5;
-    const str = JSON.stringify(payload);
-    for (let i = 0; i < str.length; i++) {
-      hash ^= str.charCodeAt(i);
-      hash = Math.imul(hash, 0x01000193) >>> 0;
-    }
-    const provenanceHash = `fnv1a-${(hash >>> 0).toString(16)}`;
+    const provenanceHash = `sha256-${canonicalSha256Hex(payload)}`;
     return { ...payload, provenanceHash };
   }
 
