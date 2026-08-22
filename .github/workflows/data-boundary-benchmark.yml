@@ -1,0 +1,72 @@
+name: Data Boundary Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: Deterministic dataset tier (10m remains local/provisioned-only)
+        required: true
+        default: 100k
+        type: choice
+        options:
+          - 10k
+          - 100k
+          - 1m
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-boundary-benchmark-${{ github.ref }}-${{ inputs.tier }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build WASM package
+        run: npm run wasm:dev
+
+      - name: Run boundary benchmark
+        env:
+          BENCHMARK_TIER: ${{ inputs.tier }}
+        run: |
+          node --expose-gc scripts/benchmark-data-boundary.mjs --tier="$BENCHMARK_TIER" --json > data-boundary-benchmark.json
+          cat data-boundary-benchmark.json
+
+      - name: Publish summary
+        env:
+          BENCHMARK_TIER: ${{ inputs.tier }}
+        run: |
+          echo "## Rust/WASM data boundary benchmark" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tier: \`$BENCHMARK_TIER\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat data-boundary-benchmark.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-boundary-benchmark-${{ inputs.tier }}
+          path: data-boundary-benchmark.json
+          if-no-files-found: error
+          retention-days: 30
