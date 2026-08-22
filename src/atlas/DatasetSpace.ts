@@ -35,6 +35,13 @@ export function contentHashHex(value: unknown): string {
   return canonicalSha256Hex(value);
 }
 
+/**
+ * @deprecated Compatibility alias for pre-SHA call sites. Despite the historic
+ * name this now returns the canonical SHA-256 digest. New code must use
+ * `contentHashHex`; remove this alias after legacy consumers are migrated.
+ */
+export const fnv1aHex = contentHashHex;
+
 export class DatasetSpace {
   readonly version = 2 as const;
   readonly dataset: Dataset;
