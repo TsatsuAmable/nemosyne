@@ -1,6 +1,13 @@
 name: Data Boundary Benchmark
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/benchmark-data-boundary.mjs'
+      - 'wasm/src/data/**'
+      - 'wasm/src/lib.rs'
+      - '.github/workflows/data-boundary-benchmark.yml'
   workflow_dispatch:
     inputs:
       tier:
@@ -17,7 +24,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: data-boundary-benchmark-${{ github.ref }}-${{ inputs.tier }}
+  group: data-boundary-benchmark-${{ github.event.pull_request.number || github.ref }}-${{ inputs.tier || '10k' }}
   cancel-in-progress: true
 
 jobs:
@@ -47,14 +54,14 @@ jobs:
 
       - name: Run boundary benchmark
         env:
-          BENCHMARK_TIER: ${{ inputs.tier }}
+          BENCHMARK_TIER: ${{ inputs.tier || '10k' }}
         run: |
           node --expose-gc scripts/benchmark-data-boundary.mjs --tier="$BENCHMARK_TIER" --json > data-boundary-benchmark.json
           cat data-boundary-benchmark.json
 
       - name: Publish summary
         env:
-          BENCHMARK_TIER: ${{ inputs.tier }}
+          BENCHMARK_TIER: ${{ inputs.tier || '10k' }}
         run: |
           echo "## Rust/WASM data boundary benchmark" >> "$GITHUB_STEP_SUMMARY"
           echo "Tier: \`$BENCHMARK_TIER\`" >> "$GITHUB_STEP_SUMMARY"
@@ -66,7 +73,7 @@ jobs:
       - name: Upload benchmark result
         uses: actions/upload-artifact@v4
         with:
-          name: data-boundary-benchmark-${{ inputs.tier }}
+          name: data-boundary-benchmark-${{ inputs.tier || '10k' }}
           path: data-boundary-benchmark.json
           if-no-files-found: error
           retention-days: 30
