@@ -10,6 +10,8 @@ const TIERS = Object.freeze({
   '10m': 10_000_000,
 });
 
+const PRIMITIVE_COLUMN_INDICES = Object.freeze([0, 1, 2]);
+
 function parseArgs(argv) {
   const requested = [];
   let json = false;
@@ -71,6 +73,15 @@ async function loadRuntime() {
   if (handle !== 1 || wasm.ping() !== 42) {
     throw new Error('WASM runtime health check failed');
   }
+  for (const fn of [
+    'dataset_primitive_column_len',
+    'dataset_primitive_column_values_ptr',
+    'dataset_primitive_column_validity_ptr',
+  ]) {
+    if (typeof wasm[fn] !== 'function') {
+      throw new Error(`WASM primitive-column ABI missing export: ${fn}`);
+    }
+  }
   return wasm;
 }
 
@@ -105,6 +116,33 @@ function materializeDataset(wasm, handle) {
   }
 }
 
+function consumePrimitiveColumns(wasm, handle, expectedRows) {
+  let logicalBytes = 0;
+  let checksum = 0;
+  let validValues = 0;
+  for (const columnIndex of PRIMITIVE_COLUMN_INDICES) {
+    const len = wasm.dataset_primitive_column_len(handle, columnIndex);
+    if (len !== expectedRows) {
+      throw new Error(`Primitive column ${columnIndex} length ${len} != expected ${expectedRows}`);
+    }
+    const valuesPtr = wasm.dataset_primitive_column_values_ptr(handle, columnIndex);
+    const validityPtr = wasm.dataset_primitive_column_validity_ptr(handle, columnIndex);
+    if (!valuesPtr || !validityPtr) {
+      throw new Error(`Primitive column ${columnIndex} returned an invalid pointer`);
+    }
+    const values = new Float64Array(wasm.memory.buffer, valuesPtr, len);
+    const validity = new Uint8Array(wasm.memory.buffer, validityPtr, len);
+    logicalBytes += values.byteLength + validity.byteLength;
+    for (let i = 0; i < len; i += 1) {
+      if (validity[i]) {
+        checksum += values[i];
+        validValues += 1;
+      }
+    }
+  }
+  return { logicalBytes, checksum, validValues };
+}
+
 function roundMs(value) {
   return Math.round(value * 1000) / 1000;
 }
@@ -131,10 +169,24 @@ async function runTier(wasm, tier) {
   if (!handle) throw new Error(`Rust rejected ${tier} benchmark dataset`);
 
   const wasmBytesAfterLoad = wasm.memory.buffer.byteLength;
+  let firstBorrow;
+  let secondBorrow;
+  let firstBorrowMs;
+  let secondBorrowMs;
+  let wasmBytesAfterFirstBorrow;
   let materialized;
   let materializeMs;
   const materializeHeapStart = heapUsed();
   try {
+    const firstBorrowStart = performance.now();
+    firstBorrow = consumePrimitiveColumns(wasm, handle, rows);
+    firstBorrowMs = performance.now() - firstBorrowStart;
+    wasmBytesAfterFirstBorrow = wasm.memory.buffer.byteLength;
+
+    const secondBorrowStart = performance.now();
+    secondBorrow = consumePrimitiveColumns(wasm, handle, rows);
+    secondBorrowMs = performance.now() - secondBorrowStart;
+
     const materializeStart = performance.now();
     materialized = materializeDataset(wasm, handle);
     materializeMs = performance.now() - materializeStart;
@@ -149,34 +201,54 @@ async function runTier(wasm, tier) {
   if (reconstructedRows !== rows) {
     throw new Error(`Row-count mismatch: expected ${rows}, materialized ${reconstructedRows}`);
   }
+  if (firstBorrow.validValues !== rows * PRIMITIVE_COLUMN_INDICES.length) {
+    throw new Error(`Unexpected primitive validity count ${firstBorrow.validValues}`);
+  }
+  if (secondBorrow.checksum !== firstBorrow.checksum) {
+    throw new Error('Primitive-column checksum changed between first and cached borrow');
+  }
 
   return {
     tier,
     rows,
     columns: dataset.columns.length,
+    primitiveColumns: PRIMITIVE_COLUMN_INDICES.length,
     hostToWasmBytes: jsonBytes.byteLength,
     wasmToHostBytes: materialized.bytes,
+    borrowedPrimitiveLogicalBytes: firstBorrow.logicalBytes,
     reconstructedRowObjects: reconstructedRows,
+    borrowedRowObjects: 0,
     generateMs: roundMs(generateMs),
     stringifyMs: roundMs(stringifyMs),
     rustLoadMs: roundMs(loadMs),
+    firstPrimitiveBorrowAndScanMs: roundMs(firstBorrowMs),
+    cachedPrimitiveBorrowAndScanMs: roundMs(secondBorrowMs),
     materializeAndParseMs: roundMs(materializeMs),
     heapForRowsBytes: Math.max(0, heapAfterRows - heapStart),
     heapForSerializedInputBytes: Math.max(0, heapAfterJson - heapAfterRows),
     heapForMaterializedOutputBytes: Math.max(0, heapAfterMaterialize - materializeHeapStart),
     wasmMemoryBytesAfterLoad: wasmBytesAfterLoad,
+    wasmMemoryBytesAfterFirstBorrow: wasmBytesAfterFirstBorrow,
+    wasmMemoryGrowthForBorrowCacheBytes: Math.max(0, wasmBytesAfterFirstBorrow - wasmBytesAfterLoad),
     materialisations: 1,
+    primitiveBorrowCacheBuilds: 1,
+    primitiveBorrowCacheHits: 1,
+    primitiveChecksum: firstBorrow.checksum,
   };
 }
 
 function printHuman(result) {
   console.log(`\n[${result.tier}] ${result.rows.toLocaleString()} rows`);
-  console.log(`  host -> WASM: ${(result.hostToWasmBytes / 1_048_576).toFixed(2)} MiB`);
-  console.log(`  WASM -> host: ${(result.wasmToHostBytes / 1_048_576).toFixed(2)} MiB`);
-  console.log(`  Rust load: ${result.rustLoadMs.toFixed(3)} ms`);
-  console.log(`  materialize + JSON.parse: ${result.materializeAndParseMs.toFixed(3)} ms`);
-  console.log(`  reconstructed row objects: ${result.reconstructedRowObjects.toLocaleString()}`);
+  console.log(`  host -> WASM JSON: ${(result.hostToWasmBytes / 1_048_576).toFixed(2)} MiB`);
+  console.log(`  WASM -> host full JSON: ${(result.wasmToHostBytes / 1_048_576).toFixed(2)} MiB`);
+  console.log(`  borrowed primitive payload: ${(result.borrowedPrimitiveLogicalBytes / 1_048_576).toFixed(2)} MiB`);
+  console.log(`  Rust load + sidecar build: ${result.rustLoadMs.toFixed(3)} ms`);
+  console.log(`  first primitive borrow + full scan: ${result.firstPrimitiveBorrowAndScanMs.toFixed(3)} ms`);
+  console.log(`  cached primitive borrow + full scan: ${result.cachedPrimitiveBorrowAndScanMs.toFixed(3)} ms`);
+  console.log(`  full materialize + JSON.parse: ${result.materializeAndParseMs.toFixed(3)} ms`);
+  console.log(`  reconstructed row objects: ${result.reconstructedRowObjects.toLocaleString()} vs borrowed ${result.borrowedRowObjects}`);
   console.log(`  WASM memory after load: ${(result.wasmMemoryBytesAfterLoad / 1_048_576).toFixed(2)} MiB`);
+  console.log(`  WASM memory growth for stable borrow cache: ${(result.wasmMemoryGrowthForBorrowCacheBytes / 1_048_576).toFixed(2)} MiB`);
 }
 
 async function main() {
@@ -188,7 +260,7 @@ async function main() {
     results.push(result);
     if (!json) printHuman(result);
   }
-  if (json) console.log(JSON.stringify({ schemaVersion: 1, results }, null, 2));
+  if (json) console.log(JSON.stringify({ schemaVersion: 2, results }, null, 2));
 }
 
 main().catch((error) => {
