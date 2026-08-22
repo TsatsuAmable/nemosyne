@@ -1,0 +1,30 @@
+name: Bootstrap noble hashes lockfile
+
+on:
+  push:
+    branches: [security/hash-integrity-hardening]
+
+permissions:
+  contents: write
+
+jobs:
+  update-lock:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: security/hash-integrity-hardening
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Add audited synchronous SHA-256 dependency
+        run: npm install --save-exact @noble/hashes@2.3.0
+      - name: Commit dependency metadata
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- package.json package-lock.json
+          git commit -m "build(security): add audited SHA-256 dependency"
+          git push origin HEAD:security/hash-integrity-hardening
