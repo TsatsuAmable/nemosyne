@@ -6,6 +6,8 @@ Target architecture: **Rust owns canonical dataset storage; TypeScript borrows v
 
 The current system keeps row-major mirrors in TypeScript (`Record<string, unknown>[]`) and Rust (`Vec<HashMap<String, Value>>`) and routinely materializes Rust operation results back through JSON into a new JS `Dataset`. That duplication is acceptable as a compatibility state, not as the long-term architecture.
 
+Benchmark results quantify implementation quality and regressions; they do not decide whether canonical columnar ownership proceeds. Correctness, semantic parity, and migration safety are the gates for retiring row-major analytical paths.
+
 ## Non-goals
 
 - No flag-day rewrite of the storage engine.
@@ -20,14 +22,17 @@ The current system keeps row-major mirrors in TypeScript (`Record<string, unknow
 3. WASM memory growth may invalidate JS TypedArray views; every borrowed view must therefore be generation/version checked and cheaply re-bindable.
 4. Analytical operations return Rust dataset handles. Full row materialization becomes an explicit compatibility/export operation rather than the normal execution path.
 5. Nullability, categorical dictionaries, text offsets, temporal units and graph edges must round-trip exactly before row-major storage is retired.
+6. Once an analytical domain migrates to columnar storage, there is no silent row-major analytical fallback for that domain.
 
 ## Current migration state
 
-Phase A is complete through durable Rust-owned row identity. Phase B is complete through the deterministic Rust/WASM boundary benchmark harness. Phase C is now in progress with a registry-owned primitive columnar sidecar for numeric and temporal columns.
+Phase A is complete through durable Rust-owned row identity. Phase B is complete through the deterministic Rust/WASM boundary benchmark harness. Phase C is in progress with a registry-owned primitive columnar sidecar for numeric and temporal columns.
 
 The Phase C sidecar is intentionally transitional. The compatibility `Dataset.rows` representation remains available, while every registered Rust dataset handle also owns contiguous primitive values plus explicit validity. Mutable handle operations rebuild the sidecar before releasing the registry lock, and the primitive-column WASM view ABI reads from the sidecar instead of rescanning row `HashMap`s.
 
-This is not yet the final single-storage architecture: primitive values exist in both the row-major compatibility store and the columnar sidecar. The purpose of this step is to establish value/missingness parity and remove repeated row scans before making columnar storage canonical.
+Numeric descriptive statistics and pairwise Pearson correlation now have one canonical columnar implementation. Compatibility callers that only hold a `Dataset` construct a temporary column store and delegate to the same implementation; the former row-major numeric/correlation algorithms are retired rather than retained as fallbacks.
+
+This is not yet the final single-storage architecture: primitive values still exist in both the row-major compatibility store and the columnar sidecar. The remaining work is to migrate temporal, categorical, evidence/support, ingest, and compatibility consumers until row materialization is exceptional rather than canonical.
 
 ## Phases
 
@@ -53,11 +58,11 @@ Measure representative small, medium and large datasets for:
 - renderer preparation time;
 - streaming append/replace cost.
 
-Benchmarks must separate analytical compute from serialization/materialization cost.
+Benchmarks separate analytical compute from serialization/materialization cost. They remain diagnostic and regression evidence, not an architectural veto.
 
-### Phase C — Rust columnar storage prototype
+### Phase C — Rust columnar storage migration
 
-Prototype a `ColumnarDataset` behind the existing Rust dataset API. Start with numeric + temporal columns and a compatibility row-materialization adapter.
+Move dataset-size-dependent analytical work onto `ColumnarDataset` behind the existing Rust dataset API while retaining explicit compatibility row materialization during migration.
 
 Candidate physical representations:
 
@@ -75,12 +80,18 @@ Current implementation step:
 - [x] rebuild the sidecar after mutable dataset operations;
 - [x] source primitive WASM views from the sidecar rather than rescanning row maps;
 - [x] preserve the existing numeric/temporal coercion semantics during migration;
-- [ ] route analytical numeric hot paths through the columnar representation;
+- [x] prove numeric descriptive-statistics parity and pairwise-complete correlation parity;
+- [x] retire the separate row-major numeric/correlation algorithms;
+- [x] make columnar numeric/correlation analysis canonical independent of benchmark outcome;
+- [ ] route the live handle-based statistics export directly through the synchronized sidecar rather than constructing a transient compatibility column store;
+- [ ] migrate numeric/epoch temporal analytics to the columnar representation while preserving string-temporal compatibility explicitly;
+- [ ] add categorical dictionary encoding and migrate categorical statistics;
+- [ ] migrate evidence/support analyzers to canonical columnar accessors;
 - [ ] add fingerprint/value/null parity fixtures across representative datasets;
-- [ ] benchmark sidecar construction once versus repeated row scans;
-- [ ] make columnar primitive storage canonical after parity and benchmark gates pass.
+- [ ] parse/import directly into canonical column storage;
+- [ ] demote row materialization to explicit export/debug/legacy compatibility use.
 
-Exit: analytical parity and fingerprint parity for representative fixtures.
+Exit: dataset-size-dependent analytical paths no longer depend on row-major storage, and compatibility row materialization is not an analytical authority.
 
 ### Phase D — versioned WASM column-view ABI
 
@@ -100,9 +111,9 @@ Move live append/replace into Rust-owned buffers, provide versioned view refresh
 
 ## Verification gates
 
-Each phase requires parity tests for schema, values, nulls, duplicate rows, categorical values, temporal data, edges, fingerprints, operation outputs and session persistence. Performance changes must be benchmarked rather than assumed.
+Each phase requires parity tests for schema, values, nulls, duplicate rows, categorical values, temporal data, edges, fingerprints, operation outputs and session persistence.
 
-For the Phase C sidecar specifically, CI must prove that registration builds primitive columns correctly, mutations rebuild them, categorical columns are not mis-exposed as primitive f64 views, missing/non-finite values retain explicit validity, and the primitive-view source no longer traverses `Dataset.rows`.
+For the columnar analytical cutover specifically, CI must prove that registration builds primitive columns correctly, mutations rebuild them, categorical columns are not mis-exposed as primitive f64 views, missing/non-finite values retain explicit validity, numeric/correlation results preserve their established semantics, and no separate row-major numeric/correlation implementation remains available as a fallback.
 
 ## Relationship to Moneta and epistemic safeguards
 
