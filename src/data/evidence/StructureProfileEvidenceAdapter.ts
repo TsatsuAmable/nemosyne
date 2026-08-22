@@ -18,6 +18,9 @@ import type { RustDatasetStructureProfile } from './RustStructureProfile.ts';
 const PROFILE_PROVENANCE_LIMITATION =
   'Rust DatasetStructureProfile currently exposes suite-level provenance; per-statistic parameter manifests will be added at the kernel ABI.';
 
+const HEURISTIC_TERMINOLOGY_LIMITATION =
+  'Some DatasetStructureProfile values are bootstrap heuristics. Canonical DatasetEvidence uses heuristic terminology and does not interpret them as statistical confidence or significance.';
+
 function provenance(
   profile: RustDatasetStructureProfile,
   method: string,
@@ -31,7 +34,7 @@ function provenance(
     normalization: 'kernel-defined; see DatasetStructureProfile algorithm suite',
     missingDataPolicy: 'kernel-defined; reported separately by missingness profile',
     samplingPolicy: 'full-dataset except kernel-bounded internal approximations',
-    limitations: [PROFILE_PROVENANCE_LIMITATION],
+    limitations: [PROFILE_PROVENANCE_LIMITATION, HEURISTIC_TERMINOLOGY_LIMITATION],
   };
 }
 
@@ -58,7 +61,9 @@ function item(
  * DatasetEvidence transport envelope.
  *
  * No analytical values are recomputed here. This adapter only names, groups,
- * validates, and transports facts already emitted by Rust/WASM.
+ * validates, and transports facts already emitted by Rust/WASM. Legacy Rust
+ * field names that overstate statistical meaning are intentionally translated
+ * to epistemically narrower names at this canonical evidence boundary.
  */
 export function structureProfileToDatasetEvidence(
   profile: RustDatasetStructureProfile,
@@ -122,8 +127,8 @@ export function structureProfileToDatasetEvidence(
       'density-profile',
       {
         globalDensity: profile.density.globalDensity,
-        localDensityVariation: profile.density.localDensityVariation,
-        modeCount: profile.density.modeCount,
+        heuristicLocalDensityVariation: profile.density.localDensityVariation,
+        heuristicModeCount: profile.density.modeCount,
         isSparse: profile.density.isSparse,
       },
       'structure-profile/density',
@@ -134,11 +139,11 @@ export function structureProfileToDatasetEvidence(
       'cluster',
       'cluster-profile',
       {
-        estimatedCount: profile.clusters.estimatedCount,
-        hasClusters: profile.clusters.hasClusters,
-        separationScore: profile.clusters.separationScore,
-        densityVariation: profile.clusters.densityVariation,
-        stabilityConfidence: profile.clusters.stabilityConfidence,
+        heuristicEstimatedCount: profile.clusters.estimatedCount,
+        heuristicPartitionDetected: profile.clusters.hasClusters,
+        heuristicSeparationScore: profile.clusters.separationScore,
+        heuristicDensityVariation: profile.clusters.densityVariation,
+        legacySilhouetteDerivedScore: profile.clusters.stabilityConfidence,
       },
       'structure-profile/clusters',
     ),
@@ -150,7 +155,7 @@ export function structureProfileToDatasetEvidence(
       {
         totalAnomalies: profile.anomalies.totalAnomalies,
         anomalyFraction: profile.anomalies.anomalyFraction,
-        hasAnomalies: profile.anomalies.hasAnomalies,
+        heuristicAnomalyDetected: profile.anomalies.hasAnomalies,
         maxAnomalyScore: profile.anomalies.maxAnomalyScore,
       },
       'structure-profile/anomalies',
@@ -165,11 +170,11 @@ export function structureProfileToDatasetEvidence(
           columnA: pair.columnA,
           columnB: pair.columnB,
           r: pair.r,
-          isStrong: pair.isStrong,
+          isStrongByMagnitudeThreshold: pair.isStrong,
         })),
-        maxCorrelation: profile.correlations.maxCorrelation,
-        significantPairsCount: profile.correlations.significantPairsCount,
-        isRankDeficient: profile.correlations.isRankDeficient,
+        maxAbsolutePearsonCorrelation: profile.correlations.maxCorrelation,
+        strongCorrelationPairCount: profile.correlations.significantPairsCount,
+        heuristicRankDeficiency: profile.correlations.isRankDeficient,
       },
       'structure-profile/correlations',
     ),
@@ -221,12 +226,12 @@ export function structureProfileToDatasetEvidence(
           isTimeSeries: profile.temporal.isTimeSeries,
           timeColumn: profile.temporal.timeColumn,
           trendDirection: profile.temporal.trendDirection,
-          trendStrength: profile.temporal.trendStrength,
-          hasSeasonality: profile.temporal.hasSeasonality,
+          heuristicTrendStrength: profile.temporal.trendStrength,
+          heuristicSeasonalityDetected: profile.temporal.hasSeasonality,
           periodicities: profile.temporal.periodicities.map((periodicity) => ({
             frequency: periodicity.frequency,
             periodSamples: periodicity.periodSamples,
-            confidence: periodicity.confidence,
+            heuristicScore: periodicity.confidence,
           })),
         },
         'structure-profile/temporal',
@@ -245,8 +250,8 @@ export function structureProfileToDatasetEvidence(
           dominantFrequencies: profile.spectral.dominantFrequencies,
           spectralEntropy: profile.spectral.spectralEntropy,
           powerSpectrumPeak: profile.spectral.powerSpectrumPeak,
-          hasPeriodicity: profile.spectral.hasPeriodicity,
-          periodicityConfidence: profile.spectral.periodicityConfidence,
+          heuristicPeriodicityDetected: profile.spectral.hasPeriodicity,
+          periodicityHeuristicScore: profile.spectral.periodicityConfidence,
         },
         'structure-profile/spectral',
       ),
