@@ -11,16 +11,12 @@ export interface TokenClaims {
   [key: string]: unknown;
 }
 
-/**
- * Constant-time string comparison preventing timing side-channel attacks.
- */
+/** Constant-time comparison backed by Node's native crypto implementation. */
 export function timingSafeEqualString(a: string, b: string): boolean {
-  const maxLen = Math.max(a.length, b.length);
-  let diff = a.length ^ b.length;
-  for (let i = 0; i < maxLen; i++) {
-    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-  }
-  return diff === 0;
+  const aBytes = Buffer.from(a, 'utf8');
+  const bBytes = Buffer.from(b, 'utf8');
+  if (aBytes.length !== bBytes.length) return false;
+  return crypto.timingSafeEqual(aBytes, bBytes);
 }
 
 /**
@@ -58,17 +54,14 @@ export function verifySignedTicket(
     return { valid: false, error: 'invalid ticket components' };
   }
 
-  // Compute expected HMAC
   const hmac = crypto.createHmac('sha256', secret);
   hmac.update(payloadB64);
   const expectedSig = hmac.digest('hex');
 
-  // Verify signature in constant time
   if (!timingSafeEqualString(signature, expectedSig)) {
     return { valid: false, error: 'invalid ticket cryptographic signature' };
   }
 
-  // Parse claims
   let claims: TokenClaims;
   try {
     const jsonStr = Buffer.from(payloadB64, 'base64url').toString('utf8');
@@ -77,17 +70,14 @@ export function verifySignedTicket(
     return { valid: false, error: 'corrupt ticket payload JSON' };
   }
 
-  // Check expiration
   if (typeof claims.exp !== 'number' || Date.now() > claims.exp) {
     return { valid: false, error: 'ticket expired' };
   }
 
-  // Check room scope
   if (expectedRoom && claims.room !== expectedRoom) {
     return { valid: false, error: 'ticket room scope mismatch' };
   }
 
-  // Validate role
   if (claims.role !== 'participant' && claims.role !== 'observer') {
     return { valid: false, error: 'invalid role in ticket' };
   }
