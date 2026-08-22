@@ -14,6 +14,17 @@ describe('data boundary benchmark contract', () => {
     expect(source).toContain("'10m': 10_000_000");
   });
 
+  it('compares the primitive borrowed-column ABI with full JSON materialisation', () => {
+    const source = readFileSync(scriptPath, 'utf8');
+    expect(source).toContain('dataset_primitive_column_values_ptr');
+    expect(source).toContain('dataset_primitive_column_validity_ptr');
+    expect(source).toContain('firstPrimitiveBorrowAndScanMs');
+    expect(source).toContain('cachedPrimitiveBorrowAndScanMs');
+    expect(source).toContain('wasmMemoryGrowthForBorrowCacheBytes');
+    expect(source).toContain('borrowedRowObjects: 0');
+    expect(source).toContain('schemaVersion: 2');
+  });
+
   it('fails before touching WASM when an unknown tier is requested', () => {
     const run = spawnSync(process.execPath, [scriptPath, '--tier=bogus'], {
       encoding: 'utf8',
