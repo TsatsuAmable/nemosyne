@@ -22,10 +22,17 @@ This document defines the statistical boundary between raw data, Rust/WASM analy
 
 ## Foundational contracts
 
-The initial Rust contracts are:
+The Rust contracts evolve as:
 
 ```text
-MeasurementModel
+Column storage/schema
+    ↓
+MeasurementModelRecord
+    ├── MeasurementModel
+    ├── semantic status
+    └── provenance basis
+    ↓
+semantic admission policy
     ↓
 metric applicability
     ↓
@@ -40,11 +47,31 @@ DatasetEvidence
 Moneta
 ```
 
-`MeasurementModel` may initially be supplied or conservatively inferred. Unknown semantics must remain `Unknown` rather than being guessed into a stronger type.
+Storage/schema evidence may propose semantics, but it must not silently certify them. Numeric storage does not establish interval, ratio, count, proportion, circular, identifier, or compositional meaning. Categorical storage does not establish nominal versus ordinal meaning. Temporal storage can support an inferred temporal measurement scale but does not establish that observations form a dependent time series.
 
 `AnalyticalGeometry` records the geometry actually used for an analytical result. It is not a claim that the geometry is uniquely correct.
 
 `EvidenceClaim<T>` deliberately does not contain a universal `evidenceStrength` scalar. Sample support, uncertainty, stability, sensitivity, assumptions, and limitations remain separate because they answer different questions and are not naturally commensurate.
+
+## Measurement semantic provenance
+
+Every constructed measurement model carries one of these statuses:
+
+- `Inferred`: suggested from storage/schema evidence only;
+- `Declared`: explicitly supplied by a researcher, dataset manifest, or domain adapter;
+- `Confirmed`: a declaration confirmed for the current analytical context;
+- `Ambiguous`: multiple materially different semantic interpretations remain plausible;
+- `Unknown`: there is no defensible interpretation yet.
+
+The status is not a probability and must never be rendered as statistical confidence.
+
+Analytical callers choose an explicit semantic admission policy:
+
+- `AllowInferred`: inferred semantics may be used, but ambiguous and unknown models fail closed;
+- `RequireDeclared`: only declared or confirmed semantics may drive the analysis;
+- `RequireConfirmed`: research-critical analyses require explicit confirmation.
+
+This policy is independent of mathematical metric applicability. A model may be semantically authoritative but mathematically incompatible with a requested geometry, or mathematically compatible but too weakly sourced for a strict research analysis.
 
 ## Applicability states
 
@@ -170,12 +197,13 @@ For null datasets the invariant is not that no algorithm may ever return structu
 ## Implementation sequence
 
 1. Measurement and observation semantics.
-2. Analytical applicability and geometry provenance.
-3. Generic evidence claims.
-4. Inventory and rename misleading confidence/significance/stability terminology.
-5. Adapt existing descriptive/correlation/cluster/temporal/spectral outputs into evidence claims without changing their mathematical strength.
-6. Add robust foundational statistics and missingness evidence.
-7. Add stability/sensitivity machinery.
-8. Expand dependency, dimensionality, temporal, grouped, spatial, compositional, topological, and spectral evidence as domain-conditional analyzers.
-9. Add selection-aware Discovery validation.
-10. Only then expand learned/counterfactual/adaptive Moneta methods where held-out evidence justifies them.
+2. Semantic provenance and analytical admission policy.
+3. Analytical applicability and geometry provenance.
+4. Generic evidence claims.
+5. Inventory and rename misleading confidence/significance/stability terminology.
+6. Adapt existing descriptive/correlation/cluster/temporal/spectral outputs into evidence claims without changing their mathematical strength.
+7. Add robust foundational statistics and missingness evidence.
+8. Add stability/sensitivity machinery.
+9. Expand dependency, dimensionality, temporal, grouped, spatial, compositional, topological, and spectral evidence as domain-conditional analyzers.
+10. Add selection-aware Discovery validation.
+11. Only then expand learned/counterfactual/adaptive Moneta methods where held-out evidence justifies them.
