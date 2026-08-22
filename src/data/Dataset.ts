@@ -6,14 +6,6 @@
 import type { ColumnSchema, DatasetJSON } from './types.ts';
 import { registerDurableRowId } from './RowIdentity.ts';
 
-/**
- * Keys that are stripped from untrusted row objects as defense-in-depth
- * against per-object prototype pollution. `Object.keys` already skips
- * inherited properties, but we explicitly filter these names too so a
- * malicious row carrying an own `__proto__`/`constructor`/`prototype`
- * data property can never reach downstream code paths (e.g. `Object.assign`
- * or merge operations that invoke the `__proto__` setter).
- */
 const DANGEROUS_ROW_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 function hasDangerousOwnKey(row: Record<string, unknown>): boolean {
@@ -24,12 +16,6 @@ function hasDangerousOwnKey(row: Record<string, unknown>): boolean {
   );
 }
 
-/**
- * Always build a fresh plain object from a row's own enumerable keys, dropping
- * any `__proto__`/`constructor`/`prototype` entries. The result never aliases
- * the source and never carries a dangerous key. Used by `clone`/`fromJSON`
- * where a NEW object is semantically required.
- */
 function cloneRow(row: Record<string, unknown>): Record<string, unknown> {
   if (!row || typeof row !== 'object') return {};
   const out: Record<string, unknown> = {};
@@ -40,12 +26,6 @@ function cloneRow(row: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
-/**
- * Strip dangerous keys while PRESERVING reference identity for clean rows.
- * Clean rows are returned unchanged so renderer bookkeeping can reuse object
- * identity when no durable Rust row ID is present. Rows carrying dangerous
- * keys are rebuilt and sanitized.
- */
 function sanitizeRow(row: Record<string, unknown>): Record<string, unknown> {
   if (!row || typeof row !== 'object') return {};
   if (!hasDangerousOwnKey(row)) return row;
@@ -144,12 +124,6 @@ export class Dataset {
     return this.numericColumns.length > 0;
   }
 
-  // Wave 5/6: min/max for visual channel scaling (VRTopologyTranslator, layouts,
-  // DatasetSpace normalization). These are RENDERER consumers (governing rule:
-  // embodiment logic stays in TS). The analytical source of min/max is kernel
-  // `ColumnStats` via AtlasCore.facts(); DatasetSpace now reads ranges from the
-  // kernel Facts, and this accessor remains only for renderer paths that do not
-  // hold an AtlasCore reference.
   rangeOf(name: string): { min: number; max: number } {
     const values = this.getColumnValues(name).filter(
       (v): v is number => typeof v === 'number' && !Number.isNaN(v)
@@ -158,18 +132,10 @@ export class Dataset {
     return { min: Math.min(...values), max: Math.max(...values) };
   }
 
-  // Wave 5/6: cardinality for the color channel. The analytical source is kernel
-  // `CategoricalStats.cardinality` via AtlasCore.facts(); the former analytical
-  // consumer (ConstraintEngine.extractFacts) was deleted. This accessor now
-  // serves only non-analytical callers (kept for completeness).
   cardinalityOf(name: string): number {
     return new Set(this.getColumnValues(name)).size;
   }
 
-  // Wave 5: numeric hash used only as a renderer seed for SeededRandom
-  // (VRTopologyTranslator/layouts). NOT an analytical fingerprint — the
-  // canonical content fingerprint is kernel `dataset_fingerprint` /
-  // DatasetSpace.fingerprint (FNV-1a). No analytical consumer remains.
   /** Stable hash for deterministic procedural generation. */
   get fingerprint(): number {
     let h = 0;
@@ -205,7 +171,7 @@ export class Dataset {
       this.name,
       this.columns.slice(),
       this.rows.map(cloneRow),
-      this.edges?.map((edge) => ({ ...edge })),
+      undefined,
       this.rowIds?.slice()
     );
   }
@@ -215,7 +181,7 @@ export class Dataset {
    * `rowIds` is ABI metadata and deliberately remains outside each row object.
    */
   toJSON(): DatasetJSON {
-    return {
+    const json: DatasetJSON = {
       name: this.name,
       columns: this.columns.map((c) => ({ name: c.name, type: c.type })),
       rows: this.rows.map((r) => {
@@ -226,9 +192,10 @@ export class Dataset {
         }
         return copy;
       }),
-      rowIds: this.rowIds?.slice(),
       edges: this.edges ?? undefined,
     };
+    if (this.rowIds) json.rowIds = this.rowIds.slice();
+    return json;
   }
 
   /** Reconstruct a Dataset from a plain JSON object. */
@@ -237,7 +204,7 @@ export class Dataset {
       throw new Error('Dataset.fromJSON requires an object');
     }
     const typedObj = obj as DatasetJSON;
-    const ds = new Dataset(
+    return new Dataset(
       typedObj.name || 'dataset',
       typedObj.columns?.map((c) => ({
         name: c.name,
@@ -247,6 +214,5 @@ export class Dataset {
       typedObj.edges?.map((e) => ({ ...e })),
       typedObj.rowIds
     );
-    return ds;
   }
 }
