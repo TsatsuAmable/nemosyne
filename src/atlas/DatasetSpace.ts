@@ -21,24 +21,29 @@ export interface DatasetSpaceJSON {
   dataset: DatasetJSON;
 }
 
-/**
- * Optional kernel-derived sources for the space. When supplied, `fingerprint`
- * and `ranges` come from the Rust kernel instead of the JS SHA-256 fallback.
- */
 export interface DatasetSpaceSources {
   fingerprint?: string | null;
   ranges?: Record<string, DatasetSpaceNormalization> | null;
 }
 
-/** Canonical SHA-256 over JSON-compatible content. */
+/** Canonical SHA-256 over generic JSON-compatible content. */
 export function contentHashHex(value: unknown): string {
   return canonicalSha256Hex(value);
 }
 
 /**
+ * Canonical scientific dataset fingerprint. Durable row IDs are lineage
+ * metadata and must not alter the data-content identity; Rust follows the same
+ * rule when serializing its canonical fingerprint input.
+ */
+export function datasetContentHashHex(dataset: DatasetJSON): string {
+  const { rowIds: _rowIds, ...scientificContent } = dataset;
+  return canonicalSha256Hex(scientificContent);
+}
+
+/**
  * @deprecated Compatibility alias for pre-SHA call sites. Despite the historic
- * name this now returns the canonical SHA-256 digest. New code must use
- * `contentHashHex`; remove this alias after legacy consumers are migrated.
+ * name this now returns canonical SHA-256. New code must use `contentHashHex`.
  */
 export const fnv1aHex = contentHashHex;
 
@@ -54,7 +59,7 @@ export class DatasetSpace {
   constructor(dataset: Dataset, sources?: DatasetSpaceSources) {
     this.dataset = dataset.clone();
     const datasetJSON = this.dataset.toJSON();
-    this.fingerprint = sources?.fingerprint ?? contentHashHex(datasetJSON);
+    this.fingerprint = sources?.fingerprint ?? datasetContentHashHex(datasetJSON);
 
     const occurrences = new Map<string, number>();
     this.datumIds = this.dataset.rows.map((row) => {
@@ -83,8 +88,7 @@ export class DatasetSpace {
   }
 
   normalize(column: ColumnSchema, value: unknown): number | null {
-    if (column.type !== 'NUMERIC' || typeof value !== 'number' || !Number.isFinite(value))
-      return null;
+    if (column.type !== 'NUMERIC' || typeof value !== 'number' || !Number.isFinite(value)) return null;
     const range = this.normalization[column.name];
     if (!range) return null;
     if (range.max === range.min) return 0;
@@ -108,10 +112,7 @@ export class DatasetSpace {
       throw new Error('Unsupported DatasetSpace version; legacy 32-bit fingerprints must be regenerated');
     }
     const space = new DatasetSpace(Dataset.fromJSON(snapshot.dataset));
-    if (
-      space.fingerprint !== snapshot.fingerprint ||
-      space.datumIds.join('|') !== snapshot.datumIds.join('|')
-    ) {
+    if (space.fingerprint !== snapshot.fingerprint || space.datumIds.join('|') !== snapshot.datumIds.join('|')) {
       throw new Error('DatasetSpace fingerprint mismatch');
     }
     return space;
