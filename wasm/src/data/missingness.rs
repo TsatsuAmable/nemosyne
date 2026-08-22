@@ -10,9 +10,9 @@ use crate::data::value::Value;
 #[serde(rename_all = "camelCase")]
 pub enum MissingnessMechanism {
     Unknown,
-    McAr,
+    Mcar,
     Mar,
-    MnAr,
+    Mnar,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -189,8 +189,8 @@ mod tests {
                 Column::new("group", ColumnType::Categorical),
             ],
             vec![
-                row(&[("x", Value::Number(1.0)), ("group", Value::String("a".into()))]),
-                row(&[("x", Value::Null), ("group", Value::String("a".into()))]),
+                row(&[("x", Value::Number(1.0)), ("group", Value::Text("a".into()))]),
+                row(&[("x", Value::Null), ("group", Value::Text("a".into()))]),
                 row(&[("x", Value::Number(3.0)), ("group", Value::Null)]),
             ],
         )
