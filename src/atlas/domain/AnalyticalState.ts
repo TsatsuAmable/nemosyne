@@ -55,9 +55,6 @@ export class AnalyticalState {
     return this._current !== null;
   }
 
-  /**
-   * Load a new dataset as both original and current. Increments datasetVersion.
-   */
   loadDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
     this._original = dataset?.clone?.() ?? emptyDataset();
     this._current = this._original.clone();
@@ -66,15 +63,10 @@ export class AnalyticalState {
     this._invalidateDatasetSpace();
   }
 
-  /**
-   * Atomically commit a new kernel result handle, dataset, and fingerprint, advancing datasetVersion.
-   */
   commitKernelResult(options: KernelCommitOptions, destroyer?: (handle: number) => void): void {
     const { handle, dataset, fingerprint, versionBump = true } = options;
-    // Step 1: Prepare/clone all JS objects FIRST. If this throws, state and old handle remain intact.
     const nextDataset = dataset?.clone?.() ?? emptyDataset();
 
-    // Step 2: Clean up old handle if different
     if (this._currentHandle !== 0 && this._currentHandle !== handle && destroyer) {
       try {
         destroyer(this._currentHandle);
@@ -83,45 +75,28 @@ export class AnalyticalState {
       }
     }
 
-    // Step 3: Atomic state commit
     this._currentHandle = handle;
     this._current = nextDataset;
-    if (versionBump) {
-      this._datasetVersion += 1;
-    }
+    if (versionBump) this._datasetVersion += 1;
     this._invalidateDatasetSpace();
-    if (fingerprint) {
-      this.getDatasetSpace(() => fingerprint);
-    }
+    if (fingerprint) this.getDatasetSpace(() => fingerprint);
   }
 
-  /**
-   * Update the current dataset and advance datasetVersion for a new analytical operation.
-   */
   advanceDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
-    const next = dataset?.clone?.() ?? emptyDataset();
-    this._current = next;
+    this._current = dataset?.clone?.() ?? emptyDataset();
     this._datasetVersion += 1;
     this.invalidateHandle(destroyer);
     this._invalidateDatasetSpace();
   }
 
-  /**
-   * Update the current dataset without bumping version (e.g. session restore, undo/redo).
-   */
   setCurrentDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
     const next = dataset?.clone?.() ?? emptyDataset();
     const changed = this._datasetSpaceSource !== next;
     this._current = next;
     this.invalidateHandle(destroyer);
-    if (changed) {
-      this._invalidateDatasetSpace();
-    }
+    if (changed) this._invalidateDatasetSpace();
   }
 
-  /**
-   * Set raw dataset states (for state restoration).
-   */
   restore(
     original: Dataset | null,
     current: Dataset | null,
@@ -135,30 +110,19 @@ export class AnalyticalState {
     this._invalidateDatasetSpace();
   }
 
-  /**
-   * Compute or retrieve the cached DatasetSpace.
-   */
   getDatasetSpace(
     fingerprintProvider?: () => string | null,
     rangesProvider?: () => Record<string, DatasetSpaceNormalization> | null,
   ): DatasetSpace | null {
     if (!this._current) return null;
-    if (this._datasetSpace && this._datasetSpaceSource === this._current) {
-      return this._datasetSpace;
-    }
+    if (this._datasetSpace && this._datasetSpaceSource === this._current) return this._datasetSpace;
     const fingerprint = fingerprintProvider ? fingerprintProvider() : null;
     const ranges = rangesProvider ? rangesProvider() : null;
-    this._datasetSpace = new DatasetSpace(this._current, {
-      fingerprint,
-      ranges,
-    });
+    this._datasetSpace = new DatasetSpace(this._current, { fingerprint, ranges });
     this._datasetSpaceSource = this._current;
     return this._datasetSpace;
   }
 
-  /**
-   * Compute the active dataset fingerprint.
-   */
   getFingerprint(kernelFingerprintProvider?: () => string | null): string | null {
     if (kernelFingerprintProvider) {
       try {
@@ -171,9 +135,6 @@ export class AnalyticalState {
     return this.getDatasetSpace()?.fingerprint ?? null;
   }
 
-  /**
-   * Ensure a kernel handle is allocated for the current dataset.
-   */
   ensureHandle(loader: (json: DatasetJSON) => number): number {
     if (this._currentHandle !== 0) return this._currentHandle;
     if (!this._current) return 0;
@@ -186,8 +147,19 @@ export class AnalyticalState {
   }
 
   /**
-   * Invalidate and release the current kernel handle.
+   * Hydrate the JS dataset with the authoritative Rust observation IDs without
+   * changing scientific content or dataset version. On the first loaded
+   * version, original and current represent the same observations, so both are
+   * hydrated to keep reset/undo semantics stable.
    */
+  adoptKernelRowIds(rowIds: string[]): boolean {
+    if (!this._current || !this._current.adoptRowIds(rowIds)) return false;
+    if (this._datasetVersion === 1 && this._original && this._original.rowCount === rowIds.length) {
+      this._original.adoptRowIds(rowIds);
+    }
+    return true;
+  }
+
   invalidateHandle(destroyer?: (handle: number) => void): void {
     if (this._currentHandle !== 0 && destroyer) {
       try {
@@ -199,9 +171,6 @@ export class AnalyticalState {
     this._currentHandle = 0;
   }
 
-  /**
-   * Adopt a new output handle and destroy previous.
-   */
   adoptHandle(outHandle: number, destroyer?: (handle: number) => void): void {
     if (this._currentHandle !== 0 && this._currentHandle !== outHandle && destroyer) {
       try {
