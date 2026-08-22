@@ -5,6 +5,7 @@ pub mod evidence;
 pub mod fingerprint;
 pub mod measurement;
 pub mod measurement_inference;
+pub mod missingness;
 pub mod operations;
 pub mod operations_bridge;
 pub mod parsers;
