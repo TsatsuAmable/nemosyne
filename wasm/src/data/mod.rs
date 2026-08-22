@@ -1,4 +1,5 @@
 pub mod column;
+pub mod column_view;
 pub mod dataset;
 pub mod encodings;
 pub mod evidence;
@@ -93,8 +94,9 @@ pub fn with_dataset_mut<T>(handle: u32, f: impl FnOnce(&mut Dataset) -> T) -> Op
     reg.get_mut(handle).map(f)
 }
 
-/// Release a dataset handle.
+/// Release a dataset handle and any cached borrowed-column buffers derived from it.
 pub fn destroy_dataset(handle: u32) {
+    column_view::release_dataset(handle);
     let mut reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
     reg.remove(handle);
 }
