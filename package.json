@@ -30,6 +30,7 @@
     "test:e2e:tier4": "vitest run tests/e2e/tier4_real_world",
     "test:smoke": "playwright test",
     "test:smoke:install": "playwright install --with-deps chromium",
+    "benchmark:data-boundary": "node scripts/benchmark-data-boundary.mjs",
     "audit:hygiene": "node scripts/audit-hygiene.mjs",
     "deploy:netlify": "npm run build && npx netlify deploy --prod --dir=dist"
   },
