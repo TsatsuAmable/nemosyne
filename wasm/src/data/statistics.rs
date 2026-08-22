@@ -260,6 +260,14 @@ fn temporal_stats(dataset: &Dataset, time_column: &str, value_column: Option<&st
                     .bytes()
                     .fold(0f64, |acc, b| acc * 256.0 + b as f64)
             });
+            // Keep the compatibility path aligned with the columnar validity
+            // contract: a numeric/parseable temporal coordinate is admissible
+            // only when finite. Non-numeric temporal text retains the existing
+            // deterministic key-string fallback until temporal parsing policy
+            // is formalized in the kernel.
+            if !key.is_finite() {
+                return None;
+            }
             Some((key, v))
         })
         .collect();
@@ -367,6 +375,7 @@ fn categorical_stats(dataset: &Dataset, name: &str) -> CategoricalStats {
 mod tests {
     use super::*;
     use crate::data::column::{Column, ColumnType};
+    use crate::data::statistics_columnar::temporal_stats_numeric;
 
     fn stats_dataset() -> Dataset {
         let columns = vec![
@@ -516,6 +525,54 @@ mod tests {
     }
 
     #[test]
+    fn non_finite_numeric_temporal_values_match_columnar_validity_policy() {
+        let columns = vec![
+            Column::new("t", ColumnType::Temporal),
+            Column::new("v", ColumnType::Numeric),
+        ];
+        let rows = vec![
+            temporal_row(Value::Number(1.0), 1.0),
+            temporal_row(Value::Number(f64::NAN), 1000.0),
+            temporal_row(Value::Number(2.0), 2.0),
+            temporal_row(Value::Number(f64::INFINITY), 500.0),
+            temporal_row(Value::Text("NaN".to_string()), -1000.0),
+            temporal_row(Value::Number(f64::NEG_INFINITY), 250.0),
+            temporal_row(Value::Number(3.0), 3.0),
+            temporal_row(Value::Number(4.0), 4.0),
+        ];
+        let dataset = Dataset::new("temporal-nonfinite", columns, rows);
+        let clean = Dataset::new(
+            "temporal-clean",
+            vec![
+                Column::new("t", ColumnType::Temporal),
+                Column::new("v", ColumnType::Numeric),
+            ],
+            vec![
+                temporal_row(Value::Number(1.0), 1.0),
+                temporal_row(Value::Number(2.0), 2.0),
+                temporal_row(Value::Number(3.0), 3.0),
+                temporal_row(Value::Number(4.0), 4.0),
+            ],
+        );
+
+        let compatibility = temporal_stats(&dataset, "t", Some("v"));
+        let clean_compatibility = temporal_stats(&clean, "t", Some("v"));
+        assert_eq!(compatibility.trend_direction, clean_compatibility.trend_direction);
+        assert_eq!(compatibility.seasonality_hint, clean_compatibility.seasonality_hint);
+        assert!((compatibility.normalized_slope - clean_compatibility.normalized_slope).abs() < 1e-12);
+
+        let columnar = ColumnarDataset::from_dataset(&dataset);
+        let columnar_stats = temporal_stats_numeric(
+            columnar.primitive_column(0).expect("temporal primitive"),
+            columnar.primitive_column(1).expect("numeric primitive"),
+        );
+        assert_eq!(columnar_stats.observation_count, 4);
+        assert_eq!(compatibility.trend_direction, columnar_stats.trend_direction);
+        assert_eq!(compatibility.seasonality_hint, columnar_stats.seasonality_hint);
+        assert!((compatibility.normalized_slope - columnar_stats.normalized_slope).abs() < 1e-12);
+    }
+
+    #[test]
     fn direct_columnar_and_compatibility_entry_points_match() {
         let dataset = stats_dataset();
         let columnar = ColumnarDataset::from_dataset(&dataset);
@@ -578,6 +635,13 @@ mod tests {
         assert_eq!(facts.numeric.len(), 1);
         assert_eq!(facts.numeric[0].name, "x");
         assert_eq!(facts.numeric[0].count, 0);
+    }
+
+    fn temporal_row(t: Value, v: f64) -> HashMap<String, Value> {
+        HashMap::from([
+            ("t".to_string(), t),
+            ("v".to_string(), Value::Number(v)),
+        ])
     }
 
     fn row2(k: &str, v: &str) -> HashMap<String, Value> {
