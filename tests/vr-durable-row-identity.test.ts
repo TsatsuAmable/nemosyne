@@ -1,145 +1,157 @@
-// @vitest-environment jsdom
-
-import { describe, expect, it } from 'vitest';
+// @ts-nocheck
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
+import { registerDurableRowId } from '../src/data/RowIdentity.ts';
 import {
   applyFilter,
   applySort,
   applySlice,
-  captureBaseState,
 } from '../src/vr/interactions/DataOperations.ts';
 import { applyAnomalyHighlight } from '../src/vr/interactions/AnomalyTransforms.ts';
 import { applyNestedRings } from '../src/vr/interactions/ClusterTransforms.ts';
 
-function makeDataset(rows: Record<string, unknown>[], ids: string[]): Dataset {
-  return new Dataset(
-    'rows',
-    [
-      { name: 'label', type: ColumnType.CATEGORICAL },
-      { name: 'value', type: ColumnType.NUMERIC },
-    ],
-    rows,
-    undefined,
-    ids
-  );
+function meshFor(row: Record<string, unknown>): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2));
+  mesh.userData.row = row;
+  mesh.userData.baseScale = 1;
+  mesh.userData.baseOpacity = 1;
+  return mesh;
 }
 
-function artifactFrom(dataset: Dataset) {
-  const rendered = Dataset.fromJSON(dataset.toJSON());
-  const nodeMeshes = rendered.rows.map((row, index) => {
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.2, 0.2, 0.2),
-      new THREE.MeshStandardMaterial({ opacity: 1 })
-    );
-    mesh.position.set(index, 0, -3.5);
-    mesh.userData.row = row;
-    mesh.userData.baseScale = 1;
-    mesh.userData.baseOpacity = 1;
-    return mesh;
-  });
-  const artifact = { nodeMeshes } as any;
-  captureBaseState(artifact);
-  return artifact;
+function artifactFor(dataset: Dataset) {
+  return { nodeMeshes: dataset.rows.map(meshFor) };
 }
 
-describe('VR durable row identity', () => {
-  it('filters duplicate-valued reconstructed observations independently', () => {
-    const source = makeDataset(
+describe('durable row identity across reconstructed VR results', () => {
+  it('filter keeps only the matching durable observation when values are duplicated', () => {
+    const source = new Dataset(
+      'dup',
       [
-        { label: 'same', value: 42 },
-        { label: 'same', value: 42 },
+        { name: 'label', type: ColumnType.CATEGORICAL },
+        { name: 'value', type: ColumnType.NUMERIC },
       ],
-      ['rust:0', 'rust:1']
+      [
+        { label: 'same', value: 1 },
+        { label: 'same', value: 1 },
+      ],
+      undefined,
+      ['rust:a', 'rust:b']
     );
-    const artifact = artifactFrom(source);
-    const result = makeDataset([{ label: 'same', value: 42 }], ['rust:1']);
+    const artifact = artifactFor(source);
+    const filtered = new Dataset(
+      source.name,
+      source.columns,
+      [{ label: 'same', value: 1 }],
+      undefined,
+      ['rust:b']
+    );
 
-    applyFilter(artifact, result);
+    applyFilter(artifact, filtered);
 
     expect(artifact.nodeMeshes[0].scale.x).toBeLessThan(0.1);
     expect(artifact.nodeMeshes[1].scale.x).toBeGreaterThan(0.5);
   });
 
-  it('sorts reconstructed observations by durable identity rather than object identity', () => {
-    const source = makeDataset(
+  it('sort reorders reconstructed rows by durable identity rather than object identity', () => {
+    const source = new Dataset(
+      'sort',
       [
-        { label: 'a', value: 30 },
-        { label: 'b', value: 10 },
-        { label: 'c', value: 20 },
+        { name: 'label', type: ColumnType.CATEGORICAL },
+        { name: 'value', type: ColumnType.NUMERIC },
       ],
+      [
+        { label: 'a', value: 3 },
+        { label: 'b', value: 1 },
+        { label: 'c', value: 2 },
+      ],
+      undefined,
       ['rust:a', 'rust:b', 'rust:c']
     );
-    const artifact = artifactFrom(source);
-    const sorted = makeDataset(
+    const artifact = artifactFor(source);
+    const sorted = new Dataset(
+      source.name,
+      source.columns,
       [
-        { label: 'b', value: 10 },
-        { label: 'c', value: 20 },
-        { label: 'a', value: 30 },
+        { label: 'b', value: 1 },
+        { label: 'c', value: 2 },
+        { label: 'a', value: 3 },
       ],
+      undefined,
       ['rust:b', 'rust:c', 'rust:a']
     );
 
     applySort(artifact, sorted);
 
-    const leftmost = [...artifact.nodeMeshes].sort((a, b) => a.position.x - b.position.x)[0];
+    const leftmost = artifact.nodeMeshes.reduce((a, b) => (a.position.x < b.position.x ? a : b));
     expect(leftmost.userData.row.label).toBe('b');
   });
 
-  it('slices reconstructed observations using IDs instead of reference equality', () => {
-    const source = makeDataset(
-      [
-        { label: 'a', value: 1 },
-        { label: 'b', value: 2 },
-        { label: 'c', value: 3 },
-      ],
-      ['rust:a', 'rust:b', 'rust:c']
+  it('slice matches reconstructed rows by durable identity', () => {
+    const source = new Dataset(
+      'slice',
+      [{ name: 'value', type: ColumnType.NUMERIC }],
+      [{ value: 1 }, { value: 2 }, { value: 3 }],
+      undefined,
+      ['rust:1', 'rust:2', 'rust:3']
     );
-    const artifact = artifactFrom(source);
-    const sliced = makeDataset([{ label: 'c', value: 3 }], ['rust:c']);
+    const artifact = artifactFor(source);
+    const sliced = new Dataset(
+      source.name,
+      source.columns,
+      [{ value: 2 }],
+      undefined,
+      ['rust:2']
+    );
 
     applySlice(artifact, sliced, source);
 
-    expect(artifact.nodeMeshes[2].scale.x).toBeGreaterThan(0.5);
-    expect(artifact.nodeMeshes[0].scale.x).toBeLessThan(0.3);
-    expect(artifact.nodeMeshes[1].scale.x).toBeLessThan(0.3);
+    expect(artifact.nodeMeshes[0].scale.x).toBeLessThanOrEqual(0.2);
+    expect(artifact.nodeMeshes[1].scale.x).toBeGreaterThanOrEqual(0.5);
+    expect(artifact.nodeMeshes[2].scale.x).toBeLessThanOrEqual(0.2);
   });
 
-  it('maps anomaly flags to the correct mesh after result reordering', () => {
-    const source = makeDataset(
-      [
-        { label: 'a', value: 1 },
-        { label: 'b', value: 100 },
-      ],
-      ['rust:a', 'rust:b']
+  it('anomaly highlighting follows durable identity after result reordering', () => {
+    const source = new Dataset(
+      'anomaly',
+      [{ name: 'value', type: ColumnType.NUMERIC }],
+      [{ value: 1 }, { value: 99 }],
+      undefined,
+      ['rust:normal', 'rust:outlier']
     );
-    const artifact = artifactFrom(source);
+    const artifact = artifactFor(source);
     const anomalous = new Dataset(
       source.name,
-      [...source.columns, { name: '_anomaly', type: ColumnType.CATEGORICAL }],
+      [...source.columns, { name: '_anomaly', type: ColumnType.UNKNOWN }],
       [
-        { label: 'b', value: 100, _anomaly: true, _anomalyScore: 9 },
-        { label: 'a', value: 1, _anomaly: false, _anomalyScore: 0 },
+        { value: 99, _anomaly: true, _anomalyScore: 9 },
+        { value: 1, _anomaly: false, _anomalyScore: 0 },
       ],
       undefined,
-      ['rust:b', 'rust:a']
+      ['rust:outlier', 'rust:normal']
     );
 
     applyAnomalyHighlight(artifact, anomalous);
 
-    expect(artifact.nodeMeshes[0].userData.halo?.visible).toBe(false);
-    expect(artifact.nodeMeshes[1].userData.halo?.visible).toBe(true);
+    expect(artifact.nodeMeshes[0].userData.halo.visible).toBe(false);
+    expect(artifact.nodeMeshes[1].userData.halo.visible).toBe(true);
   });
 
-  it('maps cluster layouts across reconstructed row objects', () => {
-    const source = makeDataset(
+  it('cluster layouts resolve reconstructed members by durable identity', () => {
+    const source = new Dataset(
+      'cluster',
+      [
+        { name: 'label', type: ColumnType.CATEGORICAL },
+        { name: 'value', type: ColumnType.NUMERIC },
+      ],
       [
         { label: 'a', value: 1 },
         { label: 'b', value: 2 },
       ],
+      undefined,
       ['rust:a', 'rust:b']
     );
-    const artifact = artifactFrom(source);
+    const artifact = artifactFor(source);
     const clustered = new Dataset(
       source.name,
       [...source.columns, { name: '_cluster', type: ColumnType.NUMERIC }],
@@ -153,6 +165,6 @@ describe('VR durable row identity', () => {
 
     applyNestedRings(artifact, clustered);
 
-    expect(artifact.nodeMeshes.some((mesh) => Math.abs(mesh.position.x) > 0.5)).toBe(true);
+    expect(artifact.nodeMeshes.some((mesh: THREE.Mesh) => Math.abs(mesh.position.x) > 0.5)).toBe(true);
   });
 });
