@@ -1,13 +1,13 @@
 /**
  * VR anomaly/outlier visualisation transforms.
  *
- * Marks rows flagged by `DatasetOperations.anomaly()` with pulsing halos,
- * lifts them above the dataset, and provides an "outlier lens" that gathers
- * outliers into a local swarm around the pointing hand.
+ * Marks rows flagged by analytical operations with pulsing halos, lifts them
+ * above the dataset, and provides an outlier lens around a focus point.
  */
 
 import * as THREE from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
+import { rendererRowId } from '../../data/RowIdentity.ts';
 import type { ArtifactRef, NodeMaterialLike } from '../coordinators/types.ts';
 
 const HALO_COLOUR = 0xff0055;
@@ -28,22 +28,17 @@ function getNodeUserData(mesh: THREE.Mesh): NodeUserData {
   return mesh.userData as NodeUserData;
 }
 
-/**
- * Apply anomaly highlighting: outliers get an emissive halo mesh and lift up.
- */
 export function applyAnomalyHighlight(artifact: ArtifactRef, anomalyDataset: Dataset) {
   captureBaseState(artifact);
-  // Build a map from row index to anomaly flag/score so we can match rows even
-  // when the anomaly dataset is a clone with new row objects.
-  const flagById = new Map<number, { anomaly: boolean; score: number }>();
-  for (let i = 0; i < anomalyDataset.rowCount; i++) {
-    const row = anomalyDataset.rows[i];
-    flagById.set(i, { anomaly: row._anomaly === true, score: (row._anomalyScore as number | undefined) ?? 0 });
-  }
+  const flagsByRowId = new Map(
+    anomalyDataset.rows.map((row) => [
+      rendererRowId(row),
+      { anomaly: row._anomaly === true, score: (row._anomalyScore as number | undefined) ?? 0 },
+    ] as const)
+  );
 
-  for (let i = 0; i < artifact.nodeMeshes.length && i < anomalyDataset.rowCount; i++) {
-    const mesh = artifact.nodeMeshes[i];
-    const flag = flagById.get(i);
+  for (const mesh of artifact.nodeMeshes) {
+    const flag = flagsByRowId.get(rendererRowId(getNodeUserData(mesh).row));
     if (!flag) continue;
     ensureHalo(mesh);
     const userData = getNodeUserData(mesh);
@@ -61,45 +56,38 @@ export function applyAnomalyHighlight(artifact: ArtifactRef, anomalyDataset: Dat
   }
 }
 
-/**
- * Remove all anomaly halos and restore node transforms.
- */
 export function clearAnomalyHighlight(artifact: ArtifactRef) {
   for (const mesh of artifact.nodeMeshes) {
     const userData = getNodeUserData(mesh);
     const mat = getNodeMaterial(mesh);
-    if (userData.halo) {
-      userData.halo.visible = false;
-    }
+    if (userData.halo) userData.halo.visible = false;
     mesh.position.y = userData.baseY ?? mesh.position.y;
     mesh.scale.setScalar(userData.baseScale ?? 1);
     if (mat.emissive) mat.emissive.setHex(0x000000);
   }
 }
 
-/**
- * Gather outliers into a local swarm around a focus point (e.g. the user's hand).
- * Non-outliers dim.
- */
 export function applyOutlierLens(
   artifact: ArtifactRef,
   anomalyDataset: Dataset,
   focusPoint: THREE.Vector3,
   radius = 0.7
 ) {
-  const outlierRows = new Set(anomalyDataset.rows.filter((r) => r._anomaly === true));
+  const outlierIds = new Set(
+    anomalyDataset.rows.filter((row) => row._anomaly === true).map(rendererRowId)
+  );
   let idx = 0;
-  const count = outlierRows.size;
+  const count = outlierIds.size;
   for (const mesh of artifact.nodeMeshes) {
-    const row = getNodeUserData(mesh).row;
     const mat = getNodeMaterial(mesh);
     const userData = getNodeUserData(mesh);
-    if (outlierRows.has(row)) {
+    if (outlierIds.has(rendererRowId(userData.row))) {
       const angle = count > 1 ? (idx / count) * Math.PI * 2 : 0;
-      const x = focusPoint.x + Math.cos(angle) * radius;
-      const z = focusPoint.z + Math.sin(angle) * radius;
-      const y = focusPoint.y + 0.1 * Math.sin(angle * 3);
-      mesh.position.set(x, y, z);
+      mesh.position.set(
+        focusPoint.x + Math.cos(angle) * radius,
+        focusPoint.y + 0.1 * Math.sin(angle * 3),
+        focusPoint.z + Math.sin(angle) * radius
+      );
       mesh.scale.setScalar((userData.baseScale ?? 1) * 1.4);
       if (mat.opacity !== undefined) mat.opacity = 1;
       ensureHalo(mesh);
@@ -113,16 +101,10 @@ export function applyOutlierLens(
   }
 }
 
-/**
- * Release the outlier lens and restore base state.
- */
 export function releaseOutlierLens(artifact: ArtifactRef) {
   clearAnomalyHighlight(artifact);
 }
 
-/**
- * Update halo pulse animation. Call once per frame.
- */
 export function updateAnomalyPulse(artifact: ArtifactRef, time: number) {
   for (const mesh of artifact.nodeMeshes) {
     const halo = getNodeUserData(mesh).halo;
@@ -130,9 +112,7 @@ export function updateAnomalyPulse(artifact: ArtifactRef, time: number) {
     const scale = 1.4 + 0.2 * Math.sin(time * PULSE_RATE);
     halo.scale.setScalar(scale);
     const haloMat = halo.material as unknown as NodeMaterialLike;
-    if (haloMat.opacity !== undefined) {
-      haloMat.opacity = 0.5 + 0.25 * Math.sin(time * PULSE_RATE);
-    }
+    if (haloMat.opacity !== undefined) haloMat.opacity = 0.5 + 0.25 * Math.sin(time * PULSE_RATE);
   }
 }
 
