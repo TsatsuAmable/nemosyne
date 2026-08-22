@@ -1,5 +1,8 @@
+import { canonicalSha256Hex } from '../security/CryptoHash.ts';
+
 export const FITNESS_MODEL_ARTIFACT_SCHEMA_VERSION = '1.0.0' as const;
-export const FITNESS_MODEL_REGISTRY_SCHEMA_VERSION = '1.0.0' as const;
+/** v2 rejects legacy 32-bit FNV registry snapshots rather than treating them as tamper-evident. */
+export const FITNESS_MODEL_REGISTRY_SCHEMA_VERSION = '2.0.0' as const;
 
 export interface FitnessModelEvaluationSummary {
   bootstrapMetric: number;
@@ -57,29 +60,8 @@ export interface FitnessModelRegistrySnapshot {
   activations: readonly FitnessModelActivation[];
 }
 
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([key, entry]) => [key, canonicalize(entry)]),
-    );
-  }
-  return value;
-}
-
-function fnv1a(text: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return `fnv1a-${hash.toString(16).padStart(8, '0')}`;
-}
-
 export function hashFitnessModelArtifact(artifact: FitnessModelArtifact): string {
-  return fnv1a(JSON.stringify(canonicalize(artifact)));
+  return `sha256-${canonicalSha256Hex(artifact)}`;
 }
 
 function nonEmpty(value: string): boolean {
@@ -209,7 +191,11 @@ export class FitnessModelRegistry {
   }
 
   restore(snapshot: FitnessModelRegistrySnapshot): void {
-    if (snapshot.schemaVersion !== FITNESS_MODEL_REGISTRY_SCHEMA_VERSION) throw new Error(`Unsupported FitnessModelRegistry schema version: ${snapshot.schemaVersion}`);
+    if (snapshot.schemaVersion !== FITNESS_MODEL_REGISTRY_SCHEMA_VERSION) {
+      throw new Error(
+        `Unsupported FitnessModelRegistry schema version: ${snapshot.schemaVersion}; legacy 32-bit registry hashes must be regenerated`,
+      );
+    }
     const staged = new FitnessModelRegistry();
     for (const entry of snapshot.artifacts) {
       const registered = staged.register(entry.artifact);
