@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use serde::Serialize;
 
 use crate::data::column::ColumnType;
-use crate::data::columnar::ColumnarDataset;
+use crate::data::columnar::{ColumnarDataset, PrimitiveColumn};
 use crate::data::dataset::Dataset;
 use crate::data::statistics_columnar::{numeric_stats, pearson_pairwise};
 use crate::data::value::Value;
@@ -89,11 +89,21 @@ pub fn compute_statistics(dataset: &Dataset) -> Facts {
 
 /// Compute the full `Facts` block using the synchronized columnar analytical
 /// substrate for numeric descriptive statistics and pairwise correlation.
+///
+/// Dataset/schema and columnar storage are one analytical generation. Any
+/// mismatch is therefore an invariant violation and must fail loudly rather
+/// than producing partial scientific evidence.
 pub fn compute_statistics_with_columnar(
     dataset: &Dataset,
     columnar: &ColumnarDataset,
 ) -> Facts {
-    debug_assert_eq!(dataset.row_count(), columnar.row_count());
+    assert_eq!(
+        dataset.row_count(),
+        columnar.row_count(),
+        "columnar invariant violation: dataset row count {} != columnar row count {}",
+        dataset.row_count(),
+        columnar.row_count()
+    );
 
     let numeric_columns: Vec<(usize, String)> = dataset
         .columns
@@ -103,12 +113,16 @@ pub fn compute_statistics_with_columnar(
         .map(|(index, column)| (index, column.name.clone()))
         .collect();
 
+    validate_numeric_columnar_invariants(columnar, &numeric_columns, dataset.row_count());
+
     let numeric = numeric_columns
         .iter()
-        .filter_map(|(index, name)| {
-            let primitive = columnar.primitive_column(*index)?;
+        .map(|(index, name)| {
+            let primitive = columnar
+                .primitive_column(*index)
+                .expect("validated numeric primitive column must exist");
             let stats = numeric_stats(primitive);
-            Some(ColumnStats {
+            ColumnStats {
                 name: name.clone(),
                 count: stats.count,
                 sum: stats.sum,
@@ -121,7 +135,7 @@ pub fn compute_statistics_with_columnar(
                 skew: stats.skew,
                 kurtosis: stats.kurtosis,
                 outlier_count: stats.outlier_count,
-            })
+            }
         })
         .collect();
 
@@ -156,6 +170,41 @@ pub fn compute_statistics_with_columnar(
     }
 }
 
+fn validate_numeric_columnar_invariants(
+    columnar: &ColumnarDataset,
+    numeric_columns: &[(usize, String)],
+    expected_rows: usize,
+) {
+    for (index, name) in numeric_columns {
+        let primitive = columnar.primitive_column(*index).unwrap_or_else(|| {
+            panic!(
+                "columnar invariant violation: numeric column '{name}' at schema index {index} is missing from the columnar dataset"
+            )
+        });
+        validate_primitive_column(name, *index, primitive, expected_rows);
+    }
+}
+
+fn validate_primitive_column(
+    name: &str,
+    index: usize,
+    primitive: &PrimitiveColumn,
+    expected_rows: usize,
+) {
+    assert_eq!(
+        primitive.values.len(),
+        expected_rows,
+        "columnar invariant violation: numeric column '{name}' at schema index {index} has {} values for {expected_rows} rows",
+        primitive.values.len()
+    );
+    assert_eq!(
+        primitive.validity.len(),
+        expected_rows,
+        "columnar invariant violation: numeric column '{name}' at schema index {index} has validity length {} for {expected_rows} rows",
+        primitive.validity.len()
+    );
+}
+
 fn correlate_columnar(
     columnar: &ColumnarDataset,
     numeric_columns: &[(usize, String)],
@@ -163,13 +212,13 @@ fn correlate_columnar(
     let mut pairs = Vec::new();
     for i in 0..numeric_columns.len() {
         let (index_a, name_a) = &numeric_columns[i];
-        let Some(column_a) = columnar.primitive_column(*index_a) else {
-            continue;
-        };
+        let column_a = columnar
+            .primitive_column(*index_a)
+            .expect("validated numeric primitive column must exist");
         for (index_b, name_b) in numeric_columns.iter().skip(i + 1) {
-            let Some(column_b) = columnar.primitive_column(*index_b) else {
-                continue;
-            };
+            let column_b = columnar
+                .primitive_column(*index_b)
+                .expect("validated numeric primitive column must exist");
             pairs.push(CorrelationPair {
                 a: name_a.clone(),
                 b: name_b.clone(),
@@ -473,6 +522,62 @@ mod tests {
         let compatibility = serde_json::to_value(compute_statistics(&dataset)).unwrap();
         let direct = serde_json::to_value(compute_statistics_with_columnar(&dataset, &columnar)).unwrap();
         assert_eq!(compatibility, direct);
+    }
+
+    #[test]
+    #[should_panic(expected = "dataset row count")]
+    fn row_count_mismatch_fails_fast() {
+        let dataset = stats_dataset();
+        let shorter = Dataset::new(
+            "shorter",
+            dataset.columns.clone(),
+            dataset.rows.iter().take(3).cloned().collect(),
+        );
+        let columnar = ColumnarDataset::from_dataset(&shorter);
+        let _ = compute_statistics_with_columnar(&dataset, &columnar);
+    }
+
+    #[test]
+    #[should_panic(expected = "is missing from the columnar dataset")]
+    fn missing_numeric_primitive_column_fails_fast() {
+        let dataset = Dataset::new(
+            "numeric-schema",
+            vec![Column::new("x", ColumnType::Numeric)],
+            vec![HashMap::from([("x".to_string(), Value::Number(1.0))])],
+        );
+        let incompatible = Dataset::new(
+            "categorical-sidecar",
+            vec![Column::new("x", ColumnType::Categorical)],
+            vec![HashMap::from([("x".to_string(), Value::Text("1".to_string()))])],
+        );
+        let columnar = ColumnarDataset::from_dataset(&incompatible);
+        let _ = compute_statistics_with_columnar(&dataset, &columnar);
+    }
+
+    #[test]
+    #[should_panic(expected = "validity length")]
+    fn truncated_validity_fails_fast() {
+        let primitive = PrimitiveColumn {
+            values: vec![1.0, 2.0],
+            validity: vec![1],
+        };
+        validate_primitive_column("x", 0, &primitive, 2);
+    }
+
+    #[test]
+    fn all_missing_numeric_column_is_valid_data_not_storage_corruption() {
+        let dataset = Dataset::new(
+            "all-missing",
+            vec![Column::new("x", ColumnType::Numeric)],
+            vec![
+                HashMap::from([("x".to_string(), Value::Null)]),
+                HashMap::from([("x".to_string(), Value::Null)]),
+            ],
+        );
+        let facts = compute_statistics(&dataset);
+        assert_eq!(facts.numeric.len(), 1);
+        assert_eq!(facts.numeric[0].name, "x");
+        assert_eq!(facts.numeric[0].count, 0);
     }
 
     fn row2(k: &str, v: &str) -> HashMap<String, Value> {
