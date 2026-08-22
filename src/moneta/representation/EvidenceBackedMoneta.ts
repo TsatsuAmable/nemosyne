@@ -195,8 +195,8 @@ export class EvidenceBackedMoneta {
 
     assertMonetaWithinComputeBudget(
       {
-        candidateCount: decision.rankedCandidates.length,
-        sensitivityScenarioCount: decision.weightSensitivity.scenarioCount,
+        candidateCount: decision.rankedCandidates?.length ?? 0,
+        sensitivityScenarioCount: decision.weightSensitivity?.scenarioCount ?? 0,
       },
       this.computeBudget,
     );
