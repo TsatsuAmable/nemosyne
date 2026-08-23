@@ -1,17 +1,19 @@
-# Moneta Layout Authority Gaps
+# Moneta Layout Authority Status
 
-This note records blockers discovered while removing JavaScript computational fallbacks from Moneta layouts.
+This note records the layout-authority work completed during the Moneta Migration Completion Sprint.
 
-## Resolved in the current branch
+## Implemented in this branch
 
-`GridLayout3D`, `RadialTreeLayout`, `GeoSurfaceLayout`, `TimeSeriesRibbonLayout`, and `StreamlineLayout` now require a valid Rust/WASM result instead of recomputing the layout in TypeScript.
+`GridLayout3D`, `RadialTreeLayout`, `GeoSurfaceLayout`, `TimeSeriesRibbonLayout`, `StreamlineLayout`, `ForceDirected3D`, and `SpectralVolumeLayout` now require authoritative Rust/WASM coordinate generation instead of recomputing data-derived geometry independently in TypeScript.
 
-`ForceDirected3D` no longer executes its independent JavaScript force simulation. The underlying Rust implementation already accepts weighted edges, but the current WASM/RuntimeBridge export does not expose those edges. Edge-aware calls therefore fail explicitly until that ABI gap is closed.
+Weighted force edges are routed through a dedicated Rust ABI that resolves the existing Rust force-directed implementation rather than falling back to the former JavaScript solver.
 
-## Remaining blocker
-
-`SpectralVolumeLayout` is still a TypeScript-only data-derived layout. No Rust/WASM spectral-volume layout export currently exists. It must be moved into the kernel before the layout-authority migration row can be marked DONE.
+Spectral-volume coordinate generation now has a Rust-owned ABI and deterministic Rust-side implementation.
 
 ## Boundary
 
 Presentation mapping remains TypeScript-owned: converting authoritative coordinate buffers into `THREE.Vector3`, attaching row/index metadata, and constructing renderer objects is allowed. Computing data-derived coordinates independently in TypeScript is not.
+
+## Remaining verification
+
+Before the layout-authority migration row is marked DONE, required CI must prove the new ABI compiles and the focused layout tests must be updated where they previously depended on the JavaScript fallback being available without an initialized kernel.
