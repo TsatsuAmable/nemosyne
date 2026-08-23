@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { GridLayout3D } from '../src/draco/layouts/GridLayout3D.ts';
-import { ForceDirected3D } from '../src/draco/layouts/ForceDirected3D.ts';
-import { RadialTreeLayout } from '../src/draco/layouts/RadialTreeLayout.ts';
-import { TimeSeriesRibbonLayout } from '../src/draco/layouts/TimeSeriesRibbonLayout.ts';
-import { GeoSurfaceLayout } from '../src/draco/layouts/GeoSurfaceLayout.ts';
-import { StreamlineLayout } from '../src/draco/layouts/StreamlineLayout.ts';
-import type { StreamlineEntry } from '../src/draco/types.ts';
+import { GridLayout3D } from '../src/moneta/layouts/GridLayout3D.ts';
+import { ForceDirected3D } from '../src/moneta/layouts/ForceDirected3D.ts';
+import { RadialTreeLayout } from '../src/moneta/layouts/RadialTreeLayout.ts';
+import { TimeSeriesRibbonLayout } from '../src/moneta/layouts/TimeSeriesRibbonLayout.ts';
+import { GeoSurfaceLayout } from '../src/moneta/layouts/GeoSurfaceLayout.ts';
+import { StreamlineLayout } from '../src/moneta/layouts/StreamlineLayout.ts';
+import type { StreamlineEntry } from '../src/moneta/types.ts';
 
 describe('Spatial Layout Engines', () => {
   it('computes 3D grid layout coordinates for 8 items', () => {
