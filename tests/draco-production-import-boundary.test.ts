@@ -19,9 +19,9 @@ describe('Draco production compatibility boundary', () => {
       const relative = path.relative(SRC_ROOT, file).replaceAll(path.sep, '/');
       if (relative.startsWith('draco/')) continue;
       const source = fs.readFileSync(file, 'utf8');
-      if (/(?:from\s+['"]|import\s*\(\s*['"])[^'"]*\/draco\//.test(source)) {
-        offenders.push(relative);
-      }
+      const hasDracoImport = /from\s+(?:'|")[^'"]*\/draco\//.test(source)
+        || /import\s*\(\s*(?:'|")[^'"]*\/draco\//.test(source);
+      if (hasDracoImport) offenders.push(relative);
     }
 
     expect(offenders, 'production code must import Moneta directly; Draco is compatibility-only').toEqual([]);
