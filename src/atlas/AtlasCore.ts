@@ -6,11 +6,15 @@
  * - Orchestrates the domain aggregate (`InvestigationAggregate`).
  * - Manages external analytical kernel interactions (`WasmRuntimeBridgeFull`).
  * - Enforces the invariant: Rust/WASM is the sole analytical authority (no JS analytical fallback).
- * - Routes TDA algorithms, structure discovery, and Draco fact generation.
+ * - Routes TDA algorithms, structure discovery, and Moneta fact generation.
  */
 
 import { Dataset } from '../data/Dataset.ts';
 import type { AnalysisHistory, HistoryEntry } from '../data/AnalysisHistory.ts';
+import type {
+  DatasetEvidence,
+  RustDatasetStructureProfile,
+} from '../data/evidence/index.ts';
 import type {
   BettiPoint,
   DatasetJSON,
@@ -25,6 +29,7 @@ import type {
 import { WorldEventBus } from '../utils/EventBus.ts';
 import { DatasetSpace, fnv1aHex } from './DatasetSpace.ts';
 import type { DatasetSpaceNormalization } from './DatasetSpace.ts';
+import { datasetEvidenceFromKernelProfile } from './MonetaEvidenceAuthority.ts';
 import type {
   AnalysisResult,
   AnalysisSpec,
@@ -85,6 +90,7 @@ export interface WasmRuntimeBridgeFull {
   computePersistenceIntervals?(handle: number, params: Record<string, unknown>): PersistenceInterval[] | null;
   computeBetti0Curve?(handle: number, params: Record<string, unknown>): BettiPoint[] | null;
   computeSpectralFacts?(handle: number, timeColumn?: string, valueColumn?: string): SpectralFacts | null;
+  computeDatasetStructureProfile?(handle: number): RustDatasetStructureProfile | null;
 }
 
 export class AtlasCore {
@@ -764,7 +770,7 @@ export class AtlasCore {
     return structures;
   }
 
-  // --- Facts & Draco FactProvider ----------------------------------------
+  // --- Facts & compatibility FactProvider --------------------------------
 
   facts(): Facts | null {
     if (!this.isReady()) return null;
@@ -775,6 +781,39 @@ export class AtlasCore {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Canonical V3 analytical evidence for representation reasoning. Fails closed
+   * unless the live Rust dataset handle can produce a structure profile whose
+   * identity agrees with the handle fingerprint.
+   */
+  datasetEvidence(): DatasetEvidence {
+    if (!this.isReady()) {
+      throw new KernelUnavailableError(
+        '[AtlasCore] analytical kernel unavailable — Moneta representation reasoning requires Rust DatasetEvidence.',
+      );
+    }
+    const handle = this._ensureHandle();
+    if (handle === 0) {
+      throw new Error('[AtlasCore] kernel rejected input dataset');
+    }
+    const kernel = this._kernel!;
+    if (typeof kernel.computeDatasetStructureProfile !== 'function') {
+      throw new Error(
+        '[AtlasCore] Rust DatasetStructureProfile ABI unavailable — refusing JS analytical fallback.',
+      );
+    }
+    return datasetEvidenceFromKernelProfile(
+      {
+        computeDatasetStructureProfile: (currentHandle) =>
+          kernel.computeDatasetStructureProfile!(currentHandle),
+        datasetFingerprint: kernel.datasetFingerprint
+          ? (currentHandle) => kernel.datasetFingerprint!(currentHandle)
+          : undefined,
+      },
+      handle,
+    );
   }
 
   medianFor(column: string): number {
@@ -813,6 +852,10 @@ export class AtlasCore {
     return this.monetaFacts(input);
   }
 
+  /**
+   * Compatibility/presentation FactProvider. Canonical representation ranking
+   * does not use this surface; it consumes DatasetEvidence via datasetEvidence().
+   */
   asFactProvider(): FactProvider {
     return this._aggregate.representation.asFactProvider(() => this.facts());
   }
@@ -830,55 +873,32 @@ export class AtlasCore {
   }
 
   computeDatasetSignature(
-    input?: DracoDataInput,
-    spectralFacts?: SpectralFacts | null,
+    _input?: DracoDataInput,
+    _spectralFacts?: SpectralFacts | null,
   ): DatasetSignature {
-    const dataInput: DracoDataInput = input ?? {
-      dataset: this.dataset ?? undefined,
-      topology: (this.inferTopology() as TopologyType) ?? undefined,
-      encodings: this.inferEncodings() ?? undefined,
-    };
-    return this._aggregate.representation.computeDatasetSignature(
-      dataInput,
-      this.facts(),
-      spectralFacts,
-      this.datasetFingerprint ?? undefined,
+    return this._aggregate.representation.computeDatasetSignatureFromEvidence(
+      this.datasetEvidence(),
     );
   }
 
   arbitrateRepresentation(
     requirements?: RepresentationRequirements,
-    input?: DracoDataInput,
-    spectralFacts?: SpectralFacts | null,
+    _input?: DracoDataInput,
+    _spectralFacts?: SpectralFacts | null,
   ): RepresentationDecision {
-    const dataInput: DracoDataInput = input ?? {
-      dataset: this.dataset ?? undefined,
-      topology: (this.inferTopology() as TopologyType) ?? undefined,
-      encodings: this.inferEncodings() ?? undefined,
-    };
-    return this._aggregate.representation.arbitrateRepresentation(
-      dataInput,
-      this.facts(),
-      spectralFacts,
+    return this._aggregate.representation.arbitrateRepresentationFromEvidence(
+      this.datasetEvidence(),
       requirements,
-      this.datasetFingerprint ?? undefined,
     );
   }
 
   arbitrateSpatialStrategy(
     requirements?: RepresentationRequirements,
-    input?: DracoDataInput,
+    _input?: DracoDataInput,
   ): SpatialStrategy {
-    const dataInput: DracoDataInput = input ?? {
-      dataset: this.dataset ?? undefined,
-      topology: (this.inferTopology() as TopologyType) ?? undefined,
-      encodings: this.inferEncodings() ?? undefined,
-    };
-    return this._aggregate.representation.arbitrateStrategy(
-      dataInput,
-      this.facts(),
+    return this._aggregate.representation.arbitrateStrategyFromEvidence(
+      this.datasetEvidence(),
       requirements,
-      this.datasetFingerprint ?? undefined,
     );
   }
 
