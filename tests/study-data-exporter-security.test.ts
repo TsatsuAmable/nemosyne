@@ -18,6 +18,10 @@ function trial(overrides: Partial<CompletedTrialRecord> = {}): CompletedTrialRec
   } as CompletedTrialRecord;
 }
 
+function csvCell(value: string): string {
+  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
 describe('StudyDataExporter CSV security', () => {
   it.each([
     ['trialId', '=1+1'],
@@ -27,9 +31,10 @@ describe('StudyDataExporter CSV security', () => {
     ['trialId', '   =HYPERLINK("https://example.invalid")'],
   ] as const)('neutralizes spreadsheet formulas in %s for every public CSV export', (field, payload) => {
     const record = trial({ [field]: payload } as Partial<CompletedTrialRecord>);
+    const expectedCell = csvCell(`'${payload}`);
 
     for (const csv of [StudyDataExporter.toCSV([record]), StudyDataExporter.toSpreadsheetSafeCSV([record]), StudyDataExporter.toLosslessCSV([record])]) {
-      expect(csv).toContain(`'${payload}`);
+      expect(csv).toContain(expectedCell);
     }
   });
 
