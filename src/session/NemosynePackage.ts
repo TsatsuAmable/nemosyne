@@ -5,7 +5,8 @@
  * - Deterministic, zero-dependency ZIP archive creation and streaming extraction using `fflate`.
  * - Strict schema validation of `manifest.json` using `valibot`.
  * - Robust zip-bomb, zip-slip, path-traversal, and decompression budget enforcement.
- * - Integrity guarantees: dataset fingerprint, kernel version ABI compatibility, and command log completeness.
+ * - Integrity guarantees: dataset fingerprint, kernel version ABI compatibility, command log completeness,
+ *   and optional persisted Moneta representation provenance.
  */
 
 import * as v from 'valibot';
@@ -28,6 +29,12 @@ export const NemosyneManifestSchema = v.object({
   createdAt: v.number(),
   commandCount: v.number(),
   investigationDigest: v.nullish(v.string()),
+  representationModel: v.nullish(
+    v.object({
+      fitnessModelVersion: v.string(),
+      fitnessModelArtifactHash: v.nullish(v.string()),
+    })
+  ),
   evidenceSummary: v.nullish(
     v.object({
       observationsCount: v.number(),
@@ -48,6 +55,8 @@ export interface NemosynePackagePayload {
   manifest: NemosynePackageManifest;
   datasetBytes: Uint8Array;
   commandLogBytes: Uint8Array;
+  /** Canonical serialized Moneta RepresentationDecision, when the investigation has one. */
+  representationDecisionBytes?: Uint8Array;
   extraFiles?: Record<string, Uint8Array>;
 }
 
@@ -110,6 +119,10 @@ export class NemosynePackageManager {
       'data/dataset.raw': payload.datasetBytes,
       'investigation/commands.log': payload.commandLogBytes,
     };
+
+    if (payload.representationDecisionBytes) {
+      zipFiles['investigation/representation.json'] = payload.representationDecisionBytes;
+    }
 
     if (payload.extraFiles) {
       for (const [path, data] of Object.entries(payload.extraFiles)) {
@@ -229,6 +242,11 @@ export class NemosynePackageManager {
       throw new Error(`Package manifest declares ${manifestResult.output.commandCount} commands, but investigation/commands.log is empty`);
     }
 
+    const representationDecisionBytes = finalFiles['investigation/representation.json'];
+    if (manifestResult.output.representationModel && !representationDecisionBytes) {
+      throw new Error('Invalid .nemosyne package: manifest declares representation model provenance but investigation/representation.json is missing');
+    }
+
     const extraFiles: Record<string, Uint8Array> = {};
     for (const [path, data] of Object.entries(finalFiles)) {
       if (path.startsWith('extras/')) {
@@ -240,6 +258,7 @@ export class NemosynePackageManager {
       manifest: manifestResult.output,
       datasetBytes,
       commandLogBytes,
+      representationDecisionBytes,
       extraFiles,
     };
   }
