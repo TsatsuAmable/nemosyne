@@ -48,8 +48,8 @@ export interface SpatialStrategy {
   macroLayout: StrategyMacroLayout;
   datumEncoding: StrategyDatumEncoding;
   interactionStrategy: StrategyInteraction;
+  /** Ranking utility from the active FitnessModel. This is not a calibrated probability. */
   score: number;
-  confidence: number;
   rationale: string;
   rejectionLog: StrategyRejectionEntry[];
   provenance: StrategyProvenance;
