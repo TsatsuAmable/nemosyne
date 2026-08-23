@@ -50,6 +50,8 @@ export interface SpatialStrategy {
   interactionStrategy: StrategyInteraction;
   /** Ranking utility from the active FitnessModel. This is not a calibrated probability. */
   score: number;
+  /** @deprecated Compatibility alias for score. Do not present this as statistical confidence. */
+  confidence: number;
   rationale: string;
   rejectionLog: StrategyRejectionEntry[];
   provenance: StrategyProvenance;
