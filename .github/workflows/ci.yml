@@ -14,21 +14,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  dependency-review:
-    name: Dependency Review
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-
   correctness:
-    # Preserve the existing required-check context while consolidating Rust and
-    # Node correctness work into one runner.
+    # Temporary Moneta migration fast lane: keep exactly one PR CI job so the
+    # required check context remains `CI / Node 24` while preserving the core
+    # correctness gate. Broader security, browser, build, benchmark and
+    # coverage assurance remain available on main/scheduled/manual workflows.
     name: Node 24
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -72,9 +62,6 @@ jobs:
       - name: Build WASM package (dev)
         run: npm run wasm:dev
 
-      - name: Dependency vulnerability audit
-        run: npm audit --audit-level=high
-
       - name: Typecheck
         run: npm run typecheck
 
@@ -83,55 +70,3 @@ jobs:
 
       - name: Run full test suite
         run: npm test
-
-  production-smoke:
-    # Preserve the production-build status context while keeping Playwright on
-    # the same runner/artifact to avoid a second install/download cycle.
-    name: Production build
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      NEMOSYNE_SMOKE_PREBUILT: '1'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Set up Node.js 24
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build production WASM package
-        run: npm run wasm
-
-      - name: Build Vite production bundle
-        run: npx vite build
-
-      - name: Bundle size report (non-blocking)
-        continue-on-error: true
-        run: |
-          du -sh dist
-          node -e "const fs=require('fs'),zlib=require('zlib'),p=require('path');let t=0;const walk=d=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){const f=p.join(d,e.name);if(e.isDirectory())walk(f);else try{t+=zlib.gzipSync(fs.readFileSync(f)).length}catch{}}};walk('dist');console.log('gzipped total bytes:',t,'('+(t/1048576).toFixed(2)+' MiB)')"
-
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
-
-      - name: Run load smoke against prebuilt dist
-        run: npm run test:smoke
-
-      - name: Upload Playwright trace on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-smoke-trace
-          path: test-results/
-          if-no-files-found: ignore
