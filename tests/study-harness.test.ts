@@ -183,7 +183,7 @@ describe('Atlas 6: Controlled Experiment Harness', () => {
       expect(studyExport.participantId).toBe('P-200');
       expect(studyExport.conditionOrder).toEqual(assignment.order);
       expect(studyExport.trials).toHaveLength(expectedTotalTrials);
-      expect(studyExport.provenanceHash).toMatch(/^fnv1a-[0-9a-f]+$/);
+      expect(studyExport.provenanceHash).toMatch(/^sha256-[0-9a-f]{64}$/);
     });
 
     it('rejects invalid participant IDs with invalid characters or excessive length', () => {
