@@ -4,7 +4,7 @@
 
 Run a deliberate platform-modernization sprint after the current Moneta scalability/authority P0 slice and before Gate 9 compositional Moneta. Use the open Dependabot PRs as migration inputs rather than an auto-merge queue. Upgrade major dependencies in controlled waves, then retire bespoke implementations where mature libraries measurably improve correctness, security, maintainability, portability, or performance.
 
-Tracking issue: #300.
+Tracking issue: #300. Wave numbering in this backlog is canonical with Issue #300 so cross-references remain stable.
 
 ## Guardrails
 
@@ -27,15 +27,12 @@ Tracking issue: #300.
 - [ ] Add golden/replay fixtures for persisted formats and public/internal APIs where needed.
 - [ ] Record breaking changes, migration notes, benchmark impact, rollback, and replacement opportunities for each major migration.
 
-## Wave 1 — low-risk maintenance
+Completed maintenance before Wave 1:
 
-Candidates: #291 and #290.
+- [x] #291: production patch group (`colord`, `ws`) merged after CI/CodeQL and owner review.
+- [x] #290: development-tooling patch/minor group merged after CI/CodeQL and owner review.
 
-- [ ] #291: validate `colord` numerical changes where CIEDE2000/hue semantics are observable; validate `ws` behavior and security regression coverage.
-- [ ] #290: validate TypeScript-ESLint, Vitest/coverage, Marked, Vite, and Vitest patch/minor updates; compare test runtime and build output to baseline.
-- [ ] Merge only after CI, CodeQL, dependency review, and Copilot review are clean.
-
-## Wave 2 — GitHub Actions / CI platform
+## Wave 1 — GitHub Actions / CI platform
 
 Candidates: #295–#299.
 
@@ -45,7 +42,27 @@ Candidates: #295–#299.
 - [ ] Confirm Node 24 runner requirements are satisfied.
 - [ ] Review workflow scripts for maintained Actions that can replace hand-written orchestration.
 
-## Wave 3 — Rust scientific/data foundations
+## Wave 2 — development toolchain
+
+Candidates: #293 and #294. Safe patch/minor tooling maintenance from #290 is already complete.
+
+- [ ] #294: migrate ESLint/@eslint/js 10 deliberately; account for changed recommended rules, removed deprecated APIs, Node requirements, and config semantics.
+- [ ] #293: treat TypeScript 7 as a compiler/module-resolution migration; validate emitted declarations, WASM bindings, module resolution, editor/tooling compatibility, and public type contracts.
+- [ ] Audit hand-written static checks, guards, and build scripts for replacement by maintained compiler/linter/tooling capabilities.
+- [ ] Ensure test/build runtime does not regress materially.
+
+## Wave 3 — rendering/WebXR
+
+Candidate: #292 (`three` 0.168 → 0.185.x).
+
+- [ ] Audit skipped Three.js releases and breaking behavior.
+- [ ] Validate loaders, raycasting, transforms, materials, instancing, BVH, WebXR lifecycle, controllers/hands, and render loop.
+- [ ] Capture frame-time, draw-call, memory, and bundle-size deltas.
+- [ ] Test representative desktop and headset/WebXR paths.
+- [ ] Audit custom geometry/raycasting/instancing/BVH/WebXR helpers for replacement by maintained APIs where parity/performance are proven.
+- [ ] Preserve NIL and Nemosyne spatial semantics.
+
+## Wave 4 — Rust scientific/data foundations
 
 Candidates: #285–#289.
 
@@ -58,25 +75,12 @@ Suggested sequence: `sha2` → `getrandom` → `statrs` → `petgraph` → `ndar
 - [ ] `ndarray` 0.15 → 0.17: validate layout/stride/view semantics, WASM footprint, and numerical parity.
 - [ ] After each upgrade, audit bespoke statistics, graph traversal, array operations, hashing, and RNG glue for mature-library replacements.
 
-## Wave 4 — development toolchain majors
+## Wave 5 — production patch/minor maintenance
 
-Candidates: #294 and #293.
+Candidate: future grouped production patch/minor PRs. #291 is already complete.
 
-- [ ] #294: migrate ESLint/@eslint/js 10 deliberately; account for changed recommended rules, removed deprecated APIs, Node requirements, and config semantics.
-- [ ] #293: treat TypeScript 7 as a compiler/module-resolution migration; validate emitted declarations, WASM bindings, module resolution, editor/tooling compatibility, and public type contracts.
-- [ ] Audit hand-written static checks, guards, and build scripts for replacement by maintained compiler/linter/tooling capabilities.
-- [ ] Ensure test/build runtime does not regress materially.
-
-## Wave 5 — rendering/WebXR
-
-Candidate: #292 (`three` 0.168 → 0.185.x).
-
-- [ ] Audit skipped Three.js releases and breaking behavior.
-- [ ] Validate loaders, raycasting, transforms, materials, instancing, BVH, WebXR lifecycle, controllers/hands, and render loop.
-- [ ] Capture frame-time, draw-call, memory, and bundle-size deltas.
-- [ ] Test representative desktop and headset/WebXR paths.
-- [ ] Audit custom geometry/raycasting/instancing/BVH/WebXR helpers for replacement by maintained APIs where parity/performance are proven.
-- [ ] Preserve NIL and Nemosyne spatial semantics.
+- [ ] Merge low-risk grouped updates after standard CI/security/Copilot review.
+- [ ] Add focused regression fixtures for behavior-changing patches rather than accepting snapshot churn blindly.
 
 ## Hand-rolled replacement audit
 
