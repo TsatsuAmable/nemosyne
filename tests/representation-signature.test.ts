@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildDatasetSignature } from '../src/draco/representation/SignatureBuilder.ts';
-import type { DracoFacts } from '../src/draco/types.ts';
+import { buildDatasetSignature } from '../src/moneta/representation/SignatureBuilder.ts';
+import type { DracoFacts } from '../src/moneta/types.ts';
 import type { Facts } from '../src/data/types.ts';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { Dataset } from '../src/data/Dataset.ts';
