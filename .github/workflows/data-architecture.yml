@@ -11,6 +11,17 @@ on:
       - 'scripts/profile-data-load.mjs'
       - '.github/workflows/data-architecture.yml'
   workflow_dispatch:
+    inputs:
+      tier:
+        description: Dataset tier for manual diagnostic runs
+        required: true
+        default: scale-gate
+        type: choice
+        options:
+          - scale-gate
+          - 10k
+          - 100k
+          - 1m
 
 permissions:
   contents: read
@@ -23,7 +34,7 @@ jobs:
   data-architecture:
     name: Data architecture
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 75
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,36 +56,65 @@ jobs:
       - name: Build WASM package once
         run: npm run wasm:dev
 
-      - name: Typed-column ingest gate (100K + 1M)
+      - name: Select benchmark tiers
+        id: tiers
+        shell: bash
         run: |
-          node --expose-gc scripts/benchmark-typed-column-ingest.mjs --tier=100k --tier=1m --json > typed-column-ingest.json
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.tier }}" != "scale-gate" ]; then
+            echo "args=--tier=${{ inputs.tier }}" >> "$GITHUB_OUTPUT"
+            echo "label=${{ inputs.tier }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=--tier=100k --tier=1m" >> "$GITHUB_OUTPUT"
+            echo "label=100k + 1m" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Typed-column ingest gate
+        id: typed
+        continue-on-error: true
+        run: |
+          node --expose-gc scripts/benchmark-typed-column-ingest.mjs ${{ steps.tiers.outputs.args }} --json > typed-column-ingest.json
           cat typed-column-ingest.json
 
-      - name: Canonical boundary gate (100K + 1M)
+      - name: Canonical boundary gate
+        id: boundary
+        if: always()
+        continue-on-error: true
         run: |
-          node --expose-gc scripts/benchmark-data-boundary.mjs --tier=100k --tier=1m --json > data-boundary-scale-gate.json
+          node --expose-gc scripts/benchmark-data-boundary.mjs ${{ steps.tiers.outputs.args }} --json > data-boundary-scale-gate.json
           cat data-boundary-scale-gate.json
 
-      - name: Data-load profile (100K + 1M)
+      - name: Data-load profile
+        id: profile
+        if: always()
+        continue-on-error: true
         run: |
-          node --expose-gc scripts/profile-data-load.mjs --tier=100k --tier=1m --json > data-load-profile.json
+          node --expose-gc scripts/profile-data-load.mjs ${{ steps.tiers.outputs.args }} --json > data-load-profile.json
           cat data-load-profile.json
 
-      - name: Publish consolidated summary
+      - name: Publish consolidated summary and validate evidence
         if: always()
+        id: evidence
+        shell: bash
         run: |
           echo '## Data architecture gate' >> "$GITHUB_STEP_SUMMARY"
+          echo "Tiers: ${{ steps.tiers.outputs.label }}" >> "$GITHUB_STEP_SUMMARY"
+          missing=0
           for f in typed-column-ingest.json data-boundary-scale-gate.json data-load-profile.json; do
             echo '' >> "$GITHUB_STEP_SUMMARY"
             echo "### $f" >> "$GITHUB_STEP_SUMMARY"
-            if [ -f "$f" ]; then
+            if [ -s "$f" ]; then
               echo '```json' >> "$GITHUB_STEP_SUMMARY"
               cat "$f" >> "$GITHUB_STEP_SUMMARY"
               echo '```' >> "$GITHUB_STEP_SUMMARY"
             else
-              echo 'No result produced.' >> "$GITHUB_STEP_SUMMARY"
+              echo 'Missing or empty result.' >> "$GITHUB_STEP_SUMMARY"
+              missing=1
             fi
           done
+          if [ "$missing" -ne 0 ]; then
+            echo '::error::One or more data-architecture evidence files are missing or empty.'
+            exit 1
+          fi
 
       - name: Upload data-architecture evidence
         if: always()
@@ -85,5 +125,24 @@ jobs:
             typed-column-ingest.json
             data-boundary-scale-gate.json
             data-load-profile.json
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
+
+      - name: Enforce benchmark results
+        if: always()
+        shell: bash
+        run: |
+          failed=0
+          if [ "${{ steps.typed.outcome }}" != "success" ]; then
+            echo '::error::Typed-column ingest gate failed.'
+            failed=1
+          fi
+          if [ "${{ steps.boundary.outcome }}" != "success" ]; then
+            echo '::error::Canonical boundary gate failed.'
+            failed=1
+          fi
+          if [ "${{ steps.profile.outcome }}" != "success" ]; then
+            echo '::error::Data-load profile failed.'
+            failed=1
+          fi
+          exit "$failed"
