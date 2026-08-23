@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { strToU8 } from 'fflate';
-import { AtlasCore, type WasmRuntimeBridgeFull } from '../src/atlas/AtlasCore.ts';
+import type { WasmRuntimeBridgeFull } from '../src/atlas/AtlasCore.ts';
 import { Dataset } from '../src/data/Dataset.ts';
 import type { RepresentationDecision } from '../src/moneta/representation/RepresentationDecision.ts';
 import {
