@@ -20,7 +20,7 @@ csv = "1.3.1"
 # Battle-tested linear-algebra substrate for the Facts correlation matrix and
 # (in a follow-up Wave 1 sub-commit) linfa/smartcore clustering & isolation
 # forest. Pure Rust, compiles to wasm32-unknown-unknown.
-ndarray = "0.15"
+ndarray = "0.17"
 # Battle-tested descriptive-statistics crate (rule 4): skewness and excess
 # kurtosis come from `statify` rather than hand-rolled standardized moments.
 # Pure Rust, no std-required RNG, compiles to wasm32-unknown-unknown.
