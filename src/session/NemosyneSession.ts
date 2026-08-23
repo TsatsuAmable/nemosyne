@@ -149,6 +149,7 @@ export class NemosyneSession {
 
     const originalDataset = this._atlas.originalDataset;
     const representationDecision = core.representationDecision;
+    const discoveryEpisodes = core.discoveryEpisodes;
     const fitnessModelVersion =
       representationDecision?.fitnessModelVersion ??
       representationDecision?.provenance.fitnessModelVersion;
@@ -161,6 +162,7 @@ export class NemosyneSession {
       kernelVersion: this._atlas.kernelVersion() ?? 'unknown',
       createdAt: typeof Date !== 'undefined' && Date.now ? Date.now() : 0,
       commandCount: core.eventLedger.length,
+      discoveryCount: discoveryEpisodes?.episodes.length ?? 0,
       investigationDigest: await this._atlas.computeDigest(),
       representationModel:
         representationDecision && fitnessModelVersion
@@ -187,6 +189,10 @@ export class NemosyneSession {
       representationDecisionBytes: representationDecision
         ? strToU8(JSON.stringify(representationDecision))
         : undefined,
+      discoveryEpisodesBytes:
+        discoveryEpisodes && discoveryEpisodes.episodes.length > 0
+          ? strToU8(JSON.stringify(discoveryEpisodes))
+          : undefined,
     });
   }
 

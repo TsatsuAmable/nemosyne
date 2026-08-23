@@ -6,7 +6,7 @@
  * - Strict schema validation of `manifest.json` using `valibot`.
  * - Robust zip-bomb, zip-slip, path-traversal, and decompression budget enforcement.
  * - Integrity guarantees: dataset fingerprint, kernel version ABI compatibility, command log completeness,
- *   and optional persisted Moneta representation provenance.
+ *   and optional persisted Moneta representation/discovery provenance.
  */
 
 import * as v from 'valibot';
@@ -28,6 +28,7 @@ export const NemosyneManifestSchema = v.object({
   kernelVersion: v.string(),
   createdAt: v.number(),
   commandCount: v.number(),
+  discoveryCount: v.nullish(v.number()),
   investigationDigest: v.nullish(v.string()),
   representationModel: v.nullish(
     v.object({
@@ -57,6 +58,8 @@ export interface NemosynePackagePayload {
   commandLogBytes: Uint8Array;
   /** Canonical serialized Moneta RepresentationDecision, when the investigation has one. */
   representationDecisionBytes?: Uint8Array;
+  /** Serialized DiscoveryEpisodeStore snapshot, when discoveries have been recorded. */
+  discoveryEpisodesBytes?: Uint8Array;
   extraFiles?: Record<string, Uint8Array>;
 }
 
@@ -122,6 +125,9 @@ export class NemosynePackageManager {
 
     if (payload.representationDecisionBytes) {
       zipFiles['investigation/representation.json'] = payload.representationDecisionBytes;
+    }
+    if (payload.discoveryEpisodesBytes) {
+      zipFiles['investigation/discoveries.json'] = payload.discoveryEpisodesBytes;
     }
 
     if (payload.extraFiles) {
@@ -247,6 +253,11 @@ export class NemosynePackageManager {
       throw new Error('Invalid .nemosyne package: manifest declares representation model provenance but investigation/representation.json is missing');
     }
 
+    const discoveryEpisodesBytes = finalFiles['investigation/discoveries.json'];
+    if ((manifestResult.output.discoveryCount ?? 0) > 0 && !discoveryEpisodesBytes) {
+      throw new Error('Invalid .nemosyne package: manifest declares discoveries but investigation/discoveries.json is missing');
+    }
+
     const extraFiles: Record<string, Uint8Array> = {};
     for (const [path, data] of Object.entries(finalFiles)) {
       if (path.startsWith('extras/')) {
@@ -259,6 +270,7 @@ export class NemosynePackageManager {
       datasetBytes,
       commandLogBytes,
       representationDecisionBytes,
+      discoveryEpisodesBytes,
       extraFiles,
     };
   }

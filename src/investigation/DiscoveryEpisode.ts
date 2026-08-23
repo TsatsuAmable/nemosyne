@@ -25,8 +25,16 @@ export interface DiscoveryAnalyticalTest {
 
 export interface DiscoveryRepresentationContext {
   representationGraphId?: string;
+  /** Stable identity of the exact Moneta decision that framed this discovery. */
   representationDecisionId?: string;
+  /** Fitness-model semantic version used by that decision. */
   fitnessModelVersion?: string;
+  /** Immutable learned-model artifact identity, null/omitted for non-learned ranking. */
+  fitnessModelArtifactHash?: string | null;
+  /** Dataset fingerprint the referenced representation decision was made against. */
+  decisionDatasetFingerprint?: string;
+  /** Evidence item ids from the representation decision that materially framed the discovery. */
+  decisionEvidenceIds?: readonly string[];
   ontologyVersion?: string;
 }
 
@@ -39,6 +47,8 @@ export interface DiscoveryResearcherJudgement {
 
 export interface DiscoveryEpisodeProvenance {
   datasetFingerprint: string;
+  /** Dataset version at the time the discovery record was captured, when available. */
+  datasetVersion?: number;
   kernelVersion: string;
   investigationVersion: string;
   interactionLanguageVersion?: string;
@@ -143,8 +153,38 @@ export function validateDiscoveryEpisode(
     }
   }
 
+  const representation = episode.representationContext;
+  if (representation.representationDecisionId !== undefined && !nonEmpty(representation.representationDecisionId)) {
+    issues.push({ path: 'representationContext.representationDecisionId', message: 'must be non-empty when present' });
+  }
+  if (representation.fitnessModelVersion !== undefined && !nonEmpty(representation.fitnessModelVersion)) {
+    issues.push({ path: 'representationContext.fitnessModelVersion', message: 'must be non-empty when present' });
+  }
+  if (
+    representation.fitnessModelArtifactHash !== undefined &&
+    representation.fitnessModelArtifactHash !== null &&
+    !nonEmpty(representation.fitnessModelArtifactHash)
+  ) {
+    issues.push({ path: 'representationContext.fitnessModelArtifactHash', message: 'must be non-empty when present' });
+  }
+  if (
+    representation.decisionDatasetFingerprint !== undefined &&
+    !nonEmpty(representation.decisionDatasetFingerprint)
+  ) {
+    issues.push({ path: 'representationContext.decisionDatasetFingerprint', message: 'must be non-empty when present' });
+  }
+  if (representation.decisionEvidenceIds?.some((id) => !nonEmpty(id))) {
+    issues.push({ path: 'representationContext.decisionEvidenceIds', message: 'must contain only non-empty ids' });
+  }
+
   if (!nonEmpty(episode.provenance.datasetFingerprint)) {
     issues.push({ path: 'provenance.datasetFingerprint', message: 'must be non-empty' });
+  }
+  if (
+    episode.provenance.datasetVersion !== undefined &&
+    (!Number.isInteger(episode.provenance.datasetVersion) || episode.provenance.datasetVersion < 0)
+  ) {
+    issues.push({ path: 'provenance.datasetVersion', message: 'must be a non-negative integer when present' });
   }
   if (!nonEmpty(episode.provenance.kernelVersion)) {
     issues.push({ path: 'provenance.kernelVersion', message: 'must be non-empty' });
