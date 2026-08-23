@@ -28,15 +28,24 @@ For deterministic 4-column synthetic datasets the harness records:
 
 The borrowed-view scan deliberately touches every primitive value. This prevents an unrealistically cheap benchmark that merely constructs typed-array headers without doing consumer work.
 
+Output schema version 3 also derives decision metrics rather than leaving architectural interpretation implicit:
+
+- full-materialisation / first-borrow speedup;
+- full-materialisation / cached-borrow speedup;
+- full JSON / borrowed logical-payload byte amplification;
+- stable borrow-cache growth / borrowed logical-payload ratio;
+- JS row reconstructions avoided;
+- 100K -> 1M scaling factors for materialisation, first borrow and cached borrow.
+
 These metrics expose the costs we intend to remove. They do not measure renderer FPS, GPU memory or Moneta quality.
 
 ## Deterministic tiers
 
 | Tier | Rows | Normal use |
 | --- | ---: | --- |
-| `10k` | 10,000 | default smoke / developer sanity check |
-| `100k` | 100,000 | routine performance comparison |
-| `1m` | 1,000,000 | large-data architecture gate |
+| `10k` | 10,000 | developer sanity check |
+| `100k` | 100,000 | canonical-columnar scale gate, lower tier |
+| `1m` | 1,000,000 | canonical-columnar scale gate, upper tier |
 | `10m` | 10,000,000 | stress tier; run explicitly on a suitably provisioned machine |
 
 The data generator is deterministic and contains two numeric columns, one numeric-epoch temporal column and one 32-level categorical column. The primitive borrowed-view comparison covers the three numeric/temporal columns; the categorical column deliberately remains outside this ABI.
@@ -49,7 +58,7 @@ Build WASM first:
 npm run wasm:dev
 ```
 
-Then run a tier:
+Then run an individual tier:
 
 ```bash
 npm run benchmark:data-boundary -- --tier=10k
@@ -58,26 +67,32 @@ npm run benchmark:data-boundary -- --tier=1m
 npm run benchmark:data-boundary -- --tier=10m
 ```
 
-For machine-readable output:
+Run the canonical-columnar decision pair in one process:
 
 ```bash
-npm run benchmark:data-boundary -- --tier=100k --json
+node --expose-gc scripts/benchmark-data-boundary.mjs --tier=100k --tier=1m --json
 ```
 
-Output schema version 2 includes both full-materialisation and primitive-borrow metrics. `--all` runs all four tiers and is intentionally not part of ordinary PR CI.
+For machine-readable output, pass `--json`. `--all` runs all four tiers and remains provisioned-machine work rather than ordinary PR CI.
 
-For more stable heap measurements, invoke the script directly with `node --expose-gc scripts/benchmark-data-boundary.mjs ...`.
+## Predeclared decision gate for canonical columnar storage
 
-## Decision gate for canonical columnar storage
+A follow-up PR may promote numeric/temporal columns to canonical Rust columnar storage only when like-for-like 100K and 1M evidence clears the gate encoded in the benchmark before the result is observed.
 
-A later PR may promote numeric/temporal columns to canonical Rust columnar storage only when like-for-like runs demonstrate all of the following:
+The automated gate currently requires:
 
-1. analytical results, fingerprints, durable row identity and provenance remain unchanged;
-2. primitive-column consumers avoid full `dataset_to_json()` materialisation and reconstruct zero JS row objects;
-3. borrowed access scales materially better than full materialisation at 100K and 1M, with 10M used as a provisioned-machine stress confirmation;
-4. the first-borrow cache cost does not merely shift the removed JS allocation into an equally expensive extra Rust/WASM copy;
-5. the measured Rust dual-representation overhead provides a clear reason to eliminate the row-major compatibility store rather than retain both indefinitely;
-6. WASM memory-growth/view rebinding remains correct and tested;
-7. text/categorical/null semantics continue to fail closed or use an explicitly versioned representation.
+1. the borrowed path reconstructs zero JS row objects;
+2. the borrowed scans produce deterministic finite checksums;
+3. cached primitive access at 1M is at least 3x faster than full materialisation + `JSON.parse`;
+4. first borrow at 1M, including stable cache construction, is still faster than full materialisation;
+5. cached-borrow 100K -> 1M scaling is no worse than 1.25x the materialisation scaling factor;
+6. first-borrow 100K -> 1M scaling is no worse than 1.25x the materialisation scaling factor;
+7. stable borrow-cache WASM growth at 1M is no more than 1.5x the logical borrowed primitive payload.
 
-No absolute timing threshold is hard-coded because hosted runners are noisy. Architectural acceptance should compare ratios and scaling behavior on the same machine/runtime. A strong signal is not just a faster typed-array read: it is reduced end-to-end materialisation, fewer duplicated representations, and bounded memory growth.
+A passing run emits `PROMOTE_COLUMNAR_CANDIDATE`; a failed gate emits `HOLD_DUAL_REPRESENTATION`; an invocation missing either 100K or 1M emits `INCOMPLETE`.
+
+These quantitative gates do **not** by themselves authorize deleting compatibility storage. Before the cutover, the implementation must also preserve analytical results, SHA-256 fingerprints, durable row identity, provenance, WASM memory-grow/view rebinding correctness, and explicit text/categorical/null semantics. The benchmark is the performance and duplication gate, not a substitute for correctness parity.
+
+## CI policy
+
+PRs that change the data-boundary benchmark or Rust data boundary run the 100K and 1M tiers together in one GitHub Actions job and publish one `data-boundary-scale-gate` artifact. Manual workflow dispatch remains available for isolated 10K/100K/1M runs. The 10M tier is intentionally local/provisioned-only.
