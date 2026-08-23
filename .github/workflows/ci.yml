@@ -9,36 +9,27 @@ on:
 permissions:
   contents: read
 
-# Rapid PR iteration should not leave obsolete commits consuming runners. A new
-# commit on the same PR/ref cancels the superseded CI run while unrelated PRs
-# continue independently.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  dependency-review:
-    name: Dependency Review
-    if: github.event_name == 'pull_request'
+  correctness:
+    # Temporary Moneta migration fast lane: keep exactly one PR CI job so the
+    # required check context remains `CI / Node 24` while preserving the core
+    # correctness gate. Broader security, browser, build, benchmark and
+    # coverage assurance remain available on main/scheduled/manual workflows.
+    name: Node 24
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-
-  rust:
-    name: Rust unit tests (wasm/)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
       - name: Cache cargo registry + git
         uses: actions/cache@v4
@@ -56,142 +47,26 @@ jobs:
           key: ${{ runner.os }}-wasm-target-${{ hashFiles('wasm/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-wasm-target-
 
-      - name: Run Rust unit tests
-        run: cargo test --manifest-path wasm/Cargo.toml
-
-  # Fast correctness path. PRs run the complete Vitest suite without V8 coverage
-  # instrumentation; coverage thresholds remain centrally enforced by coverage.yml
-  # on main, nightly, and manual runs.
-  node:
-    name: Node ${{ matrix.node-version }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      # Single leg on Node 24 (active LTS, Oct 2025–). Node 20 reached EOL in
-      # April 2026 and was dropped; Node 22 is maintenance LTS. The matrix is
-      # retained (single-element) so a second leg can be re-added trivially if
-      # a cross-version regression signal is ever needed. NOTE: the GitHub
-      # branch-protection required-checks list must list "Node 24" (not 20/22).
-      matrix:
-        node-version: [24]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Set up Node.js ${{ matrix.node-version }}
+      - name: Set up Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          node-version: 24
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Run Rust unit tests
+        run: cargo test --manifest-path wasm/Cargo.toml
+
       - name: Build WASM package (dev)
         run: npm run wasm:dev
 
-      - name: Dependency vulnerability audit
-        run: npm audit --audit-level=high
-
-      - name: Typecheck (tsc --noEmit)
+      - name: Typecheck
         run: npm run typecheck
 
-      # Lint is blocking: all src no-explicit-any errors are resolved; remaining
-      # test any-usage is downgraded to non-blocking warnings (see eslint.config.js).
       - name: Lint
         run: npm run lint
 
       - name: Run full test suite
         run: npm test
-
-  # Build the production artifact in parallel with the Node correctness suite.
-  # Playwright consumes this exact artifact, so release WASM + Vite compilation
-  # happens once per surviving run rather than once in Node and again in smoke.
-  build:
-    name: Production build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Set up Node.js 24
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build production WASM package
-        run: npm run wasm
-
-      - name: Build Vite production bundle
-        run: npx vite build
-
-      # Non-blocking visibility into bundle size; a hard gzipped budget is a follow-up.
-      - name: Bundle size report (non-blocking)
-        continue-on-error: true
-        run: |
-          du -sh dist
-          node -e "const fs=require('fs'),zlib=require('zlib'),p=require('path');let t=0;const walk=d=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){const f=p.join(d,e.name);if(e.isDirectory())walk(f);else try{t+=zlib.gzipSync(fs.readFileSync(f)).length}catch{}}};walk('dist');console.log('gzipped total bytes:',t,'('+(t/1048576).toFixed(2)+' MiB)')"
-
-      - name: Upload production bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-node24
-          path: dist/
-          if-no-files-found: error
-
-  # Real-WebGL smoke starts as soon as the production artifact is available and
-  # runs concurrently with the Node correctness suite.
-  playwright-smoke:
-    name: Playwright load smoke
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      NEMOSYNE_SMOKE_PREBUILT: '1'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js 24
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Download production bundle
-        uses: actions/download-artifact@v4
-        with:
-          name: dist-node24
-          path: dist/
-
-      - name: Install Playwright browser (Chromium + system deps)
-        run: npx playwright install --with-deps chromium
-
-      - name: Run load smoke against prebuilt dist
-        run: npm run test:smoke
-
-      - name: Upload Playwright trace on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-smoke-trace
-          path: test-results/
-          if-no-files-found: ignore

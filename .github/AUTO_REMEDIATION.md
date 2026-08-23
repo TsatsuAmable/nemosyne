@@ -1,52 +1,39 @@
 # PR Auto Remediation
 
-`pr-auto-remediation.yml` reacts to two repository events:
+Automatic PR mutation is currently **disabled**. `.github/workflows/pr-auto-remediation.yml` is a manual, read-only stub and does not react to reviews or CI failures, post comments, commit changes, or push to PR branches.
 
-- a submitted pull-request review from GitHub Copilot or a trusted repository collaborator;
-- a failed run of the `CI` workflow for a same-repository pull request.
+This is deliberate during the Moneta migration-completion sprint. Automatic review/fix loops were creating extra pushes, repeated Copilot reviews, repeated CI starts, and scope expansion from non-blocking findings.
 
-The AI process is intentionally sandboxed. It can read/search/edit the checked-out workspace, but it has no shell, network, GitHub mutation, commit, or push tools. Review text, CI logs, and repository content are treated as untrusted data. A deterministic workflow step rejects edits to GitHub workflow/action files and dependency manifests, runs the project verification gate, and only publishes a passing candidate.
+## Current operating model
 
-## Required repository secrets
+1. Required CI and architecture gates remain authoritative.
+2. Copilot review remains useful for early defect discovery, but findings are classified as `BLOCKER`, `DEFER`, or `SUGGESTION` according to `.github/copilot-instructions.md`.
+3. Only blocker-class findings interrupt the active migration slice.
+4. Valid non-blocking findings are recorded for pre-preview or hardening work instead of spawning automatic code changes.
+5. A PR may merge when required gates are green and all blocker findings have been dispositioned. Non-blocking review ideas do not require implementation in the current PR.
 
-The workflow is inert unless both secrets exist.
+## Why automatic review remediation is paused
 
-### `COPILOT_GITHUB_TOKEN`
+A review-triggered write creates a feedback loop:
 
-Create a fine-grained personal access token for the account that owns the Copilot entitlement.
+`push -> review -> auto-fix push -> CI/re-review -> new comment -> auto-fix push`
 
-Required permission:
+Even when every individual suggestion is reasonable, that loop can reduce throughput and continuously widen PR scope. During migration completion, preserving one implementation thread and one semantic authority is more valuable than opportunistically polishing every adjacent subsystem.
 
-- **Account permission:** Copilot Requests — Read.
+## Future re-enablement criteria
 
-Store it as the Actions repository secret `COPILOT_GITHUB_TOKEN`.
+Do not re-enable automatic mutation merely because credentials are available. A replacement workflow should first prove that it can:
 
-This token is exposed only to the Copilot CLI process. The agent is not given shell, network, or GitHub mutation tools.
+- act only on blocker-class findings with a concrete failure mode;
+- ignore or track `DEFER` and `SUGGESTION` findings without modifying the branch;
+- avoid repeated review/fix cycles on the same semantic issue;
+- run focused ownership-aligned verification rather than the full repository suite for every small edit;
+- preserve the Rust/WASM analytical-authority invariant;
+- never modify workflow/ruleset, dependency, secret/authentication, or deployment policy automatically;
+- cap remediation attempts and fail closed to human inspection.
 
-### `AUTOREMEDIATE_PUSH_TOKEN`
+CI-failure remediation may be reconsidered separately because a required failing gate is already blocker-class by definition. It should still use a bounded attempt count and the smallest verification set capable of proving the fix.
 
-Create a separate fine-grained personal access token scoped only to `TsatsuAmable/nemosyne`.
+## Migration completion policy
 
-Required repository permission:
-
-- **Contents:** Read and write.
-
-Store it as the Actions repository secret `AUTOREMEDIATE_PUSH_TOKEN`.
-
-Do not add Actions, Administration, Secrets, or Pull Requests permissions to this token. It is only exposed to the deterministic `git push` step after local verification succeeds.
-
-## Safety boundaries
-
-Automatic remediation never runs for fork pull requests. It will not automatically modify:
-
-- `.github/workflows/**` or `.github/actions/**`;
-- dependency manifests or lockfiles;
-- secret/authentication handling;
-- deployment/release configuration;
-- branch or ruleset policy.
-
-Those changes are escalated for human handling.
-
-Review remediation is capped at two consecutive `[auto-review-fix]` commits. CI remediation makes at most one `[auto-ci-fix]` attempt for a failing head commit. These limits prevent infinite review/fix and CI/fix loops.
-
-A verified automated push uses the dedicated push token, so GitHub treats it as a normal user-authenticated branch update. Existing pull-request CI and automatic Copilot re-review rules can therefore run on the new head commit.
+The executable cadence and migration ledger live in `docs/MONETA_MIGRATION_COMPLETION_SPRINT.md`. After that sprint is complete, this policy can be revisited as part of pre-preview hardening.
