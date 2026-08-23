@@ -5,6 +5,7 @@ pub mod dataset;
 pub mod encodings;
 pub mod evidence;
 pub mod fingerprint;
+pub mod load_profile;
 pub mod measurement;
 pub mod measurement_inference;
 pub mod missingness;
@@ -64,8 +65,7 @@ impl DatasetRegistry {
         }
     }
 
-    pub fn insert(&mut self, dataset: Dataset) -> u32 {
-        let registered = RegisteredDataset::new(dataset);
+    fn insert_registered(&mut self, registered: RegisteredDataset) -> u32 {
         if let Some(handle) = self.free.pop() {
             let idx = (handle - 1) as usize;
             self.slots[idx] = Some(registered);
@@ -74,6 +74,10 @@ impl DatasetRegistry {
         let handle = self.slots.len() as u32 + 1;
         self.slots.push(Some(registered));
         handle
+    }
+
+    pub fn insert(&mut self, dataset: Dataset) -> u32 {
+        self.insert_registered(RegisteredDataset::new(dataset))
     }
 
     pub fn get(&self, handle: u32) -> Option<&Dataset> {
@@ -116,6 +120,21 @@ impl DatasetRegistry {
 pub fn register_dataset(dataset: Dataset) -> u32 {
     let mut reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
     reg.insert(dataset)
+}
+
+/// Profiled variant used by the ingestion benchmark. It deliberately leaves the
+/// production registration path unchanged while separating sidecar construction
+/// from registry insertion so architecture decisions are based on measured work.
+pub fn register_dataset_profiled(dataset: Dataset) -> (u32, f64, f64) {
+    let build_started = provenance::now_ms();
+    let columnar = ColumnarDataset::from_dataset(&dataset);
+    let columnar_build_ms = provenance::now_ms() - build_started;
+
+    let insert_started = provenance::now_ms();
+    let mut reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
+    let handle = reg.insert_registered(RegisteredDataset { dataset, columnar });
+    let registry_insert_ms = provenance::now_ms() - insert_started;
+    (handle, columnar_build_ms, registry_insert_ms)
 }
 
 /// Look up a dataset by handle.
