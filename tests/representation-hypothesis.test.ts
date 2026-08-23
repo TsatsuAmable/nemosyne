@@ -1,15 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
-  RepresentationHypothesisEngine,
-  ConstraintArbiter,
+  MonetaHypothesisEngine,
   createDefaultRequirements,
-  type DracoFacts,
-} from '../src/draco/index.ts';
+  type MonetaFacts,
+} from '../src/moneta/index.ts';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { Dataset } from '../src/data/Dataset.ts';
 
-describe('Phase 3: RepresentationHypothesisEngine', () => {
-  const baseTabularFacts: DracoFacts = {
+describe('Phase 3: MonetaHypothesisEngine', () => {
+  const baseTabularFacts: MonetaFacts = {
     topology: 'TABULAR',
     rowCount: 50,
     nodeCount: 50,
@@ -39,14 +38,14 @@ describe('Phase 3: RepresentationHypothesisEngine', () => {
   };
 
   it('selects TEMPORAL family when dataset has temporal dimension', () => {
-    const temporalFacts: DracoFacts = {
+    const temporalFacts: MonetaFacts = {
       ...baseTabularFacts,
       temporalColumns: 1,
       hasTimeSeries: true,
       trendDirection: 'up',
     };
     const req = createDefaultRequirements('temporal-trend');
-    const decision = RepresentationHypothesisEngine.reason(temporalFacts, null, req);
+    const decision = MonetaHypothesisEngine.reason(temporalFacts, null, req);
 
     expect(decision.representationFamily).toBe('TEMPORAL');
     expect(decision.utilityScore).toBeGreaterThan(0.5);
@@ -56,21 +55,21 @@ describe('Phase 3: RepresentationHypothesisEngine', () => {
   });
 
   it('selects GRAPH family when dataset has graph topology', () => {
-    const graphFacts: DracoFacts = {
+    const graphFacts: MonetaFacts = {
       ...baseTabularFacts,
       topology: 'GRAPH',
       nodeCount: 40,
       edgeCount: 90,
     };
     const req = createDefaultRequirements('trace-lineage');
-    const decision = RepresentationHypothesisEngine.reason(graphFacts, null, req);
+    const decision = MonetaHypothesisEngine.reason(graphFacts, null, req);
 
     expect(decision.representationFamily).toBe('GRAPH');
     expect(decision.embodiment.primaryLayout).toBe('FORCE_DIRECTED_3D');
   });
 
   it('rejects FREQUENCY when spectralStructure is null', () => {
-    const decision = RepresentationHypothesisEngine.reason(baseTabularFacts, null);
+    const decision = MonetaHypothesisEngine.reason(baseTabularFacts, null);
     const rejectedFreq = decision.rejectedAlternatives.find((r) => r.family === 'FREQUENCY');
     expect(rejectedFreq).toBeDefined();
     expect(rejectedFreq?.hardPassed).toBe(false);
@@ -78,7 +77,7 @@ describe('Phase 3: RepresentationHypothesisEngine', () => {
   });
 
   it('wraps a valid SpatialStrategy with full provenance', () => {
-    const decision = RepresentationHypothesisEngine.reason(baseTabularFacts, null, undefined, {
+    const decision = MonetaHypothesisEngine.reason(baseTabularFacts, null, undefined, {
       datasetFingerprint: 'fp-test-xyz',
     });
 
@@ -108,11 +107,5 @@ describe('Phase 3: RepresentationHypothesisEngine', () => {
     expect(['TEMPORAL', 'POINT']).toContain(decision.representationFamily);
     expect(atlas.activeRepresentationDecision).toBe(decision);
     expect(atlas.activeSpatialStrategy).toBe(decision.embodiment.spatialStrategy);
-  });
-
-  it('preserves backward compatibility with ConstraintArbiter standalone', () => {
-    const strategy = ConstraintArbiter.arbitrate(baseTabularFacts, createDefaultRequirements());
-    expect(strategy).toBeDefined();
-    expect(strategy.macroLayout.layout).toBeDefined();
   });
 });
