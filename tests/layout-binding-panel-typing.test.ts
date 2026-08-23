@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { StreamlineLayout } from '../src/draco/layouts/StreamlineLayout.ts';
-import { GeoSurfaceLayout } from '../src/draco/layouts/GeoSurfaceLayout.ts';
+import { StreamlineLayout } from '../src/moneta/layouts/StreamlineLayout.ts';
+import { GeoSurfaceLayout } from '../src/moneta/layouts/GeoSurfaceLayout.ts';
 import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
 
 describe('Layout Data Binding & Typed Panel Content Handling', () => {
@@ -57,7 +57,6 @@ describe('Layout Data Binding & Typed Panel Content Handling', () => {
       });
 
       const raycaster = new THREE.Raycaster();
-      // Ray from front of panel towards mesh
       raycaster.set(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1));
 
       panel.handlePointerDown(raycaster, {
