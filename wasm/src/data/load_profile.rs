@@ -165,7 +165,7 @@ mod tests {
 
         let profile = read_profile_via_abi();
         assert_eq!(profile["schemaVersion"], 1);
-        assert_eq!(profile["inputBytes"], payload.len());
+        assert_eq!(profile["inputBytes"], payload.len() as u64);
         assert_eq!(profile["rowCount"], 2);
         assert_eq!(profile["columnCount"], 1);
         for field in [
@@ -196,7 +196,7 @@ mod tests {
         let (invalid_ptr, invalid_len) = allocator::copy_bytes(&invalid);
         assert_eq!(data_load_dataset_json_profiled(invalid_ptr, invalid_len), 0);
         let profile = read_profile_via_abi();
-        assert_eq!(profile["inputBytes"], invalid.len());
+        assert_eq!(profile["inputBytes"], invalid.len() as u64);
         assert_eq!(profile["rowCount"], 0);
         assert_eq!(profile["columnCount"], 0);
         allocator::dealloc(invalid_ptr, invalid_len);
