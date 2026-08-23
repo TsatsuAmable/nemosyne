@@ -67,6 +67,7 @@ function buildSpatialStrategy(
   datasetFingerprint: string,
   requirementsHash: string,
   modelVersion: string,
+  modelArtifactHash: string,
 ): SpatialStrategy {
   const geometry = geometryForLayout(winner.layout);
   const behavior = behaviorForLayout(winner.layout);
@@ -111,6 +112,8 @@ function buildSpatialStrategy(
       version: LEARNED_MONETA_RUNTIME_VERSION,
       datasetFingerprint,
       requirementsHash,
+      fitnessModelVersion: modelVersion,
+      fitnessModelArtifactHash: modelArtifactHash,
     },
   };
 }
@@ -187,6 +190,7 @@ export function applyPinnedLearnedFitnessRuntime(
       datasetFingerprint,
       requirementsHash,
       learned.modelVersion,
+      learned.artifactHash,
     ),
   };
 
