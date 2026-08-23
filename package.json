@@ -72,7 +72,7 @@
     "colord": "^2.9.4",
     "fflate": "^0.8.3",
     "nanoevents": "^9.1.0",
-    "three": "^0.168.0",
+    "three": "^0.185.1",
     "three-mesh-bvh": "^0.9.14",
     "valibot": "^1.4.2",
     "ws": "^8.17.0"
