@@ -15,6 +15,10 @@ import {
 } from '../src/moneta/index.ts';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { Dataset } from '../src/data/Dataset.ts';
+import {
+  createMonetaKernelFixture,
+  createMonetaStructureProfile,
+} from './helpers/moneta-kernel-fixture.ts';
 
 describe('Gate 2 (Represent): RepresentationRequirements Schema', () => {
   it('validates valid requirements successfully', () => {
@@ -72,8 +76,19 @@ describe('Gate 2 (Represent): AtlasCore composition', () => {
       ],
       rows: clusterRows,
     });
+    const profile = createMonetaStructureProfile({
+      datasetName: 'ClusterTest',
+      rowCount: 30,
+      columnCount: 4,
+      numericColumns: 3,
+      categoricalColumns: 1,
+      clusterCount: 3,
+      hasClusters: true,
+      separationScore: 0.8,
+      densityVariation: 0.6,
+    });
 
-    const atlas = new AtlasCore();
+    const atlas = new AtlasCore({ kernel: createMonetaKernelFixture(profile) });
     atlas.loadDataset(dataset);
     const req = createDefaultRequirements('compare-clusters', ['feat1', 'feat2', 'feat3']);
 
