@@ -829,7 +829,7 @@ export class World {
         getDefaultEncodings({ dataset: entry.dataset, topology }),
     };
 
-    const representationDecision = this.atlas?.arbitrateRepresentation
+    const representationDecision = this.atlas.isReady()
       ? this.atlas.arbitrateRepresentation(undefined, dataInput)
       : null;
 

@@ -4,6 +4,7 @@
  */
 
 import type { Facts } from '../../data/types.ts';
+import type { DatasetEvidence } from '../../data/evidence/DatasetEvidence.ts';
 import type { FitnessModelRegistry } from '../../fitness/FitnessModelRegistry.ts';
 import type { FitnessModelPromotionPolicy } from '../../fitness/PromotionGate.ts';
 import type {
@@ -24,6 +25,8 @@ import {
   type SpectralFacts,
   buildDatasetSignature,
   MonetaHypothesisEngine,
+  EvidenceBackedMoneta,
+  datasetEvidenceToSignature,
 } from '../../moneta/index.ts';
 import {
   applyPinnedLearnedFitnessRuntime,
@@ -299,6 +302,16 @@ export class RepresentationState {
     return signature;
   }
 
+  /**
+   * Canonical V3 path: construct the representation signature from validated,
+   * provenance-bearing DatasetEvidence emitted by Rust/WASM.
+   */
+  computeDatasetSignatureFromEvidence(evidence: DatasetEvidence): DatasetSignature {
+    const signature = datasetEvidenceToSignature(evidence);
+    this.activeSignature = signature;
+    return signature;
+  }
+
   asFactProvider(factsProvider: () => Facts | null): FactProvider {
     return { facts: (input) => this.toMonetaFacts(input, factsProvider()) };
   }
@@ -344,6 +357,37 @@ export class RepresentationState {
     this.activeStrategy = decision.embodiment.spatialStrategy;
     this.activeRequirements = req;
     return decision;
+  }
+
+  /**
+   * Canonical V3 arbitration path. DatasetEvidence is the analytical source of
+   * truth; no TypeScript-computed analytical placeholder can affect ranking.
+   */
+  arbitrateRepresentationFromEvidence(
+    evidence: DatasetEvidence,
+    requirements?: RepresentationRequirements,
+  ): RepresentationDecision {
+    const req = requirements ?? this.activeRequirements ?? createDefaultRequirements();
+    const signature = this.computeDatasetSignatureFromEvidence(evidence);
+    const bootstrapDecision = new EvidenceBackedMoneta().arbitrate(
+      evidence,
+      signature,
+      req,
+    ).decision;
+    const decision = this.learnedRuntime
+      ? applyPinnedLearnedFitnessRuntime(bootstrapDecision, this.learnedRuntime)
+      : bootstrapDecision;
+    this.activeDecision = decision;
+    this.activeStrategy = decision.embodiment.spatialStrategy;
+    this.activeRequirements = req;
+    return decision;
+  }
+
+  arbitrateStrategyFromEvidence(
+    evidence: DatasetEvidence,
+    requirements?: RepresentationRequirements,
+  ): SpatialStrategy {
+    return this.arbitrateRepresentationFromEvidence(evidence, requirements).embodiment.spatialStrategy;
   }
 
   restoreDecision(decision: RepresentationDecision): void {

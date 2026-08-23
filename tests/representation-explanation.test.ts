@@ -93,9 +93,15 @@ describe('Phase 7: Explanation Traces & Canonical Investigation Digest', () => {
     expect(typeof digestBefore).toBe('string');
     expect(digestBefore).toHaveLength(64);
 
-    // 2. Arbitrate representation
-    const decision = atlas.arbitrateRepresentation(createDefaultRequirements('explore'));
-    expect(decision).toBeDefined();
+    // 2. Restore a separately-tested representation decision. This test owns
+    // digest semantics, not the Atlas → Rust DatasetEvidence composition seam.
+    const decision = RepresentationHypothesisEngine.reason(
+      baseTabularFacts,
+      null,
+      createDefaultRequirements('explore'),
+      { datasetFingerprint: atlas.datasetFingerprint ?? 'digest-test' },
+    );
+    atlas.aggregate.representation.restoreDecision(decision);
 
     // 3. Digest with decision
     const digestWithDecision = await atlas.computeDigest();

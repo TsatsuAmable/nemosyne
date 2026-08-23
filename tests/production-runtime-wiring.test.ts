@@ -14,6 +14,7 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
     expect(world.workspaceManager).toBeDefined();
     expect(world.datasetSpace).toBeDefined();
     expect(world.datasetSpace?.datumIds.length).toBeGreaterThan(0);
+    expect(world.dracoNode.representationDecision).toBeNull();
     expect(world.sceneGraphController.scene).toBeInstanceOf(THREE.Scene);
 
     const disposeSpy = vi.spyOn(world.sceneGraphController, 'dispose');

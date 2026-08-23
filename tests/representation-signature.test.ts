@@ -4,6 +4,10 @@ import type { DracoFacts } from '../src/moneta/types.ts';
 import type { Facts } from '../src/data/types.ts';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { Dataset } from '../src/data/Dataset.ts';
+import {
+  createMonetaKernelFixture,
+  createMonetaStructureProfile,
+} from './helpers/moneta-kernel-fixture.ts';
 
 describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
   it('builds signature from DracoFacts and kernel Facts', () => {
@@ -147,7 +151,14 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
   });
 
   it('computes dataset signature via AtlasCore', () => {
-    const atlas = new AtlasCore();
+    const profile = createMonetaStructureProfile({
+      datasetName: 'test-dataset',
+      rowCount: 5,
+      columnCount: 2,
+      numericColumns: 1,
+      categoricalColumns: 1,
+    });
+    const atlas = new AtlasCore({ kernel: createMonetaKernelFixture(profile) });
     const dataset = Dataset.fromJSON({
       name: 'test-dataset',
       columns: [
@@ -167,6 +178,7 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
     const sig = atlas.computeDatasetSignature();
     expect(sig).toBeDefined();
     expect(sig.cardinality.rowCount).toBe(5);
+    expect(sig.provenance.datasetFingerprint).toBe(profile.provenance.datasetFingerprint);
     expect(atlas.activeDatasetSignature).toBe(sig);
   });
 });

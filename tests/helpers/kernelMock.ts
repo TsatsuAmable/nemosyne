@@ -14,6 +14,7 @@
  */
 import { Dataset, ColumnType } from '../../src/data/Dataset.ts';
 import { fnv1aHex } from '../../src/atlas/DatasetSpace.ts';
+import { createMonetaStructureProfile } from './moneta-kernel-fixture.ts';
 
 // ---------------------------------------------------------------------------
 // Self-contained canned helpers
@@ -534,6 +535,20 @@ export function makeKernelMockBridge() {
     datasetFingerprint: (handle) => {
       const obj = store.get(handle);
       return obj ? fnv1aHex(obj) : null;
+    },
+    computeDatasetStructureProfile: (handle) => {
+      const obj = store.get(handle);
+      if (!obj) return null;
+      const dataset = Dataset.fromJSON(obj);
+      return createMonetaStructureProfile({
+        datasetName: dataset.name,
+        rowCount: dataset.rowCount,
+        columnCount: dataset.columns.length,
+        numericColumns: dataset.numericColumns.length,
+        categoricalColumns: dataset.categoricalColumns.length,
+        temporalColumns: dataset.temporalColumns.length,
+        fingerprint: fnv1aHex(obj),
+      });
     },
     parseDatasetBytes: (bytes, ext) => {
       const handle = ext === 'csv' ? (() => {
