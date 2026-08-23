@@ -10,3 +10,4 @@ export {
 } from './InvestigationDigest.ts';
 export * from './DiscoveryEpisode.ts';
 export * from './DiscoveryEpisodeStore.ts';
+export * from './NoFeasibleRepresentationStore.ts';
