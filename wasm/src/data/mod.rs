@@ -2,6 +2,7 @@ pub mod column;
 pub mod column_view;
 pub mod columnar;
 pub mod columnar_fingerprint;
+pub mod compatibility;
 pub mod dataset;
 pub mod encodings;
 pub mod evidence;
@@ -28,11 +29,13 @@ pub mod value;
 
 pub use dataset::{Dataset, Edge};
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use column::Column;
 use columnar::ColumnarDataset;
 
 static DATASET_REGISTRY: Mutex<DatasetRegistry> = Mutex::new(DatasetRegistry::new());
+static ROW_MATERIALISATIONS: AtomicU64 = AtomicU64::new(0);
 
 struct RegisteredDataset {
     dataset: Option<Dataset>,
@@ -135,6 +138,43 @@ pub fn with_columnar_metadata<T>(handle: u32, f: impl FnOnce(&str, &[Column], &C
     Some(f(&registered.name, &registered.columns, &registered.columnar))
 }
 
+pub fn fingerprint_for_handle(handle: u32) -> Option<Result<String, String>> {
+    let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
+    let registered = reg.get_registered(handle)?;
+    if let Some(dataset) = &registered.dataset {
+        Some(Ok(dataset.fingerprint()))
+    } else {
+        Some(columnar_fingerprint::columnar_dataset_fingerprint(
+            &registered.name,
+            &registered.columns,
+            &registered.columnar,
+        ))
+    }
+}
+
+/// Explicitly build and cache the row-major compatibility representation.
+/// Returns `Ok(false)` when rows were already resident and `Ok(true)` when a
+/// materialisation occurred. Normal columnar accessors never call this.
+pub fn materialize_rows(handle: u32) -> Result<bool, String> {
+    let mut reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
+    let registered = reg.get_registered_mut(handle).ok_or("invalid dataset handle")?;
+    if registered.dataset.is_some() {
+        return Ok(false);
+    }
+    let dataset = compatibility::materialize_dataset(
+        &registered.name,
+        &registered.columns,
+        &registered.columnar,
+    )?;
+    registered.dataset = Some(dataset);
+    ROW_MATERIALISATIONS.fetch_add(1, Ordering::Relaxed);
+    Ok(true)
+}
+
+pub fn row_materialisation_count() -> u64 {
+    ROW_MATERIALISATIONS.load(Ordering::Relaxed)
+}
+
 pub fn with_dataset_and_columnar<T>(handle: u32, f: impl FnOnce(&Dataset, &ColumnarDataset) -> T) -> Option<T> {
     let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
     let registered = reg.get_registered(handle)?;
@@ -174,6 +214,25 @@ mod columnar_registry_tests {
         }).expect("registered columnar dataset");
         assert_eq!(snapshot.0, vec![1.0, 0.0]);
         assert_eq!(snapshot.1, vec![1, 0]);
+        destroy_dataset(handle);
+    }
+
+    #[test]
+    fn explicit_materialisation_is_cached_and_identity_stable() {
+        let columns = vec![Column::new("value", ColumnType::Numeric)];
+        let columnar = ColumnarDataset::from_parts(
+            2,
+            HashMap::from([(0, crate::data::columnar::PrimitiveColumn { values: vec![1.0, 2.0], validity: vec![1, 1] })]),
+            HashMap::new(),
+        ).expect("columnar data");
+        let handle = register_columnar_dataset("typed".into(), columns, columnar);
+        let before = fingerprint_for_handle(handle).unwrap().unwrap();
+        let count_before = row_materialisation_count();
+        assert_eq!(materialize_rows(handle), Ok(true));
+        assert_eq!(materialize_rows(handle), Ok(false));
+        assert_eq!(row_materialisation_count(), count_before + 1);
+        assert!(with_dataset(handle, |_| ()).is_some());
+        assert_eq!(fingerprint_for_handle(handle).unwrap().unwrap(), before);
         destroy_dataset(handle);
     }
 
