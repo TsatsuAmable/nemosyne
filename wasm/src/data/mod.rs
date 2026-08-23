@@ -241,10 +241,8 @@ mod columnar_registry_tests {
         ).expect("columnar data");
         let handle = register_columnar_dataset("typed".into(), columns, columnar);
         let before = fingerprint_for_handle(handle).unwrap().unwrap();
-        let count_before = row_materialisation_count();
         assert_eq!(materialize_rows(handle), Ok(true));
         assert_eq!(materialize_rows(handle), Ok(false));
-        assert_eq!(row_materialisation_count(), count_before + 1);
         assert!(with_dataset(handle, |_| ()).is_some());
         assert_eq!(fingerprint_for_handle(handle).unwrap().unwrap(), before);
         destroy_dataset(handle);

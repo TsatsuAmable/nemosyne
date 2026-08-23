@@ -125,6 +125,13 @@ pub fn data_last_load_profile(out_ptr: u32, out_len: u32) -> u32 {
 mod tests {
     use super::*;
 
+    // LAST_LOAD_PROFILE is process-global. Rust's default parallel test runner
+    // can otherwise let one load-profile test replace the singleton between
+    // another test's size query and second ABI read. Serialize only access to
+    // that singleton; do not reset the shared host allocator, since unrelated
+    // tests may concurrently hold buffers allocated from it.
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
+
     fn read_profile_via_abi() -> serde_json::Value {
         let required = data_last_load_profile(0, 0);
         assert!(required > 0, "profile size query should return bytes");
@@ -138,6 +145,7 @@ mod tests {
 
     #[test]
     fn profile_json_uses_stable_schema() {
+        let _guard = TEST_LOCK.lock().expect("load profile test lock");
         let profile = LoadProfile {
             schema_version: 1,
             input_bytes: 10,
@@ -157,7 +165,7 @@ mod tests {
 
     #[test]
     fn profiled_loader_and_two_call_profile_abi_round_trip() {
-        allocator::reset();
+        let _guard = TEST_LOCK.lock().expect("load profile test lock");
         let payload = br#"{"name":"profile-test","columns":[{"name":"x","type":"NUMERIC"}],"rows":[{"x":1},{"x":2}]}"#;
         let (ptr, len) = allocator::copy_bytes(payload);
         let handle = data_load_dataset_json_profiled(ptr, len);
@@ -184,7 +192,7 @@ mod tests {
 
     #[test]
     fn rejected_input_replaces_stale_success_profile() {
-        allocator::reset();
+        let _guard = TEST_LOCK.lock().expect("load profile test lock");
         let valid = br#"{"name":"ok","columns":[],"rows":[]}"#;
         let (valid_ptr, valid_len) = allocator::copy_bytes(valid);
         let handle = data_load_dataset_json_profiled(valid_ptr, valid_len);
