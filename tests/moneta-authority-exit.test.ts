@@ -22,9 +22,12 @@ describe('Moneta migration authority exit guards', () => {
     expect(engine).not.toMatch(/class\s+ConstraintArbiter/);
   });
 
-  it('documents legacy SpatialStrategy confidence as utility compatibility only', () => {
+  it('does not expose representation utility as statistical confidence', () => {
     const strategy = source('src/moneta/SpatialStrategy.ts');
-    expect(strategy).toMatch(/@deprecated Compatibility alias for score/);
+    const engine = source('src/moneta/representation/MonetaHypothesisEngine.ts');
+    expect(strategy).toMatch(/Ranking utility from the active FitnessModel/);
     expect(strategy).toMatch(/not a calibrated probability/);
+    expect(strategy).not.toMatch(/\bconfidence\s*:/);
+    expect(engine).not.toMatch(/\bconfidence:\s*winner\.score/);
   });
 });
