@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { KernelLayoutUnavailableError, LayoutBase, requireKernelLayoutPositions } from './LayoutBase.ts';
+import { LayoutBase, requireKernelLayoutPositions } from './LayoutBase.ts';
 import type { DatasetEdge } from '../../data/Dataset.ts';
 import type { LayoutEntry } from '../types.ts';
-import { computeForceDirected3d } from '../../wasm/RuntimeBridge.ts';
+import { computeForceDirectedEdges3d } from '../../wasm/LayoutAuthorityBridge.ts';
 
 export interface ForceDirectedOptions {
   edges?: DatasetEdge[];
@@ -30,18 +30,31 @@ export class ForceDirected3D extends LayoutBase {
       damping = 0.08,
       radius = 4,
       yOffset = 1.2,
+      seed = 1,
     } = options;
 
-    if (edges.length > 0) {
-      throw new KernelLayoutUnavailableError(
-        'ForceDirected3D',
-        'edge-aware force layout is not yet exposed by the Rust/WASM authority; refusing the former JS implementation',
-      );
-    }
+    const rowIndex = new Map<unknown, number>();
+    rows.forEach((row, index) => rowIndex.set(this.rowId(row as Record<string, unknown>), index));
+    const indexedEdges = edges.flatMap((edge) => {
+      const source = rowIndex.get(edge.source);
+      const target = rowIndex.get(edge.target);
+      if (source === undefined || target === undefined) return [];
+      return [{ source, target, weight: edge.weight ?? 1 }];
+    });
 
     const positions = requireKernelLayoutPositions(
       'ForceDirected3D',
-      computeForceDirected3d(rows.length, iterations, repulsion, attraction, damping, radius, yOffset),
+      computeForceDirectedEdges3d(
+        rows.length,
+        indexedEdges,
+        iterations,
+        repulsion,
+        attraction,
+        damping,
+        radius,
+        yOffset,
+        seed,
+      ),
       rows.length * 3,
     );
 
