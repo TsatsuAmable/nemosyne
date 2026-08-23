@@ -8,7 +8,6 @@
  * entry). Saved-session compatibility BREAKS: schemaVersion 1 is rejected.
  */
 
-import { strToU8 } from 'fflate';
 import type { EncodingMapping } from '../data/types.ts';
 import { AtlasCore } from '../atlas/AtlasCore.ts';
 import type {
@@ -16,10 +15,8 @@ import type {
   AtlasCoreState,
   ResearchContext,
 } from '../atlas/types.ts';
-import {
-  NemosynePackageManager,
-  type NemosynePackageManifest,
-} from './NemosynePackage.ts';
+import { NemosynePackageManager, type NemosynePackageManifest } from './NemosynePackage.ts';
+import { strToU8 } from 'fflate';
 
 /** Memory-palace presentation state (camera/settings/tour/theme/panels/entry). */
 export interface PresentationState {
@@ -32,9 +29,9 @@ export interface PresentationState {
 }
 
 export interface PortablePackageEnvironment {
-  userAgent?: string;
-  platform?: string;
-  webxrSupported?: boolean;
+  userAgent?: string | null;
+  platform?: string | null;
+  webxrSupported?: boolean | null;
 }
 
 /** Authoritative session JSON (schemaVersion 2). */
@@ -140,9 +137,9 @@ export class NemosyneSession {
   }
 
   /**
-   * Export a portable `.nemosyne` investigation from the authoritative Atlas state.
-   * Representation/model provenance is derived here so callers cannot accidentally
-   * omit the exact Moneta model artifact used by the persisted decision.
+   * Export a self-contained portable investigation package directly from the
+   * authoritative Atlas state. Optional evidence arrays are normalized for
+   * compatibility with older AtlasCoreState snapshots.
    */
   async exportPortablePackage(environment: PortablePackageEnvironment = {}): Promise<Uint8Array> {
     const core = this._atlas.toState();
@@ -176,9 +173,9 @@ export class NemosyneSession {
             }
           : undefined,
       evidenceSummary: {
-        observationsCount: core.observations.length,
-        findingsCount: core.findings.length,
-        annotationsCount: core.annotations.length,
+        observationsCount: core.observations?.length ?? 0,
+        findingsCount: core.findings?.length ?? 0,
+        annotationsCount: core.annotations?.length ?? 0,
       },
       environment,
     };
