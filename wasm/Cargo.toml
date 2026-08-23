@@ -30,7 +30,8 @@ statrs = { version = "0.17", default-features = false }
 getrandom = { version = "0.2", features = ["js"] }
 rustfft = "6.2"
 num-complex = "0.4"
-
+# RustCrypto implementation used for content-addressed analytical fingerprints.
+sha2 = "0.10"
 
 # Deterministic, stable allocator for long-running sessions.
 # wee_alloc is avoided because of known fragmentation issues.

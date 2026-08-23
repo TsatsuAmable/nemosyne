@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { CuratedJudgementDataset } from '../src/judgement/JudgementDatasetBuilder.ts';
+import {
+  JUDGEMENT_DATASET_SCHEMA_VERSION,
+  JUDGEMENT_PARTITION_ALGORITHM,
+  type CuratedJudgementDataset,
+} from '../src/judgement/JudgementDatasetBuilder.ts';
 import type { PairwisePreferenceJudgement } from '../src/judgement/RepresentationJudgement.ts';
 import {
   materializePairwiseDataset,
@@ -34,7 +38,8 @@ function curated(): CuratedJudgementDataset {
   const train = judgement('j1', 'graph-a', 'graph-b');
   const holdout = judgement('j2', 'graph-c', 'graph-d');
   return {
-    schemaVersion: '1.0.0',
+    schemaVersion: JUDGEMENT_DATASET_SCHEMA_VERSION,
+    partitionAlgorithm: JUDGEMENT_PARTITION_ALGORITHM,
     policy: {
       partitionSeed: 'seed',
       trainFraction: 0.7,

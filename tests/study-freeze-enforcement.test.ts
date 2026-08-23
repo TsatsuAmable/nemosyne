@@ -14,7 +14,7 @@ import {
 describe('Study freeze enforcement', () => {
   it('derives a deterministic manifest hash instead of an unfrozen placeholder', () => {
     expect(FROZEN_CONFIG_HASH).toBe(hashStudyFreezeManifest(FROZEN_STUDY_MANIFEST));
-    expect(FROZEN_CONFIG_HASH).toMatch(/^fnv1a-[0-9a-f]{8}$/);
+    expect(FROZEN_CONFIG_HASH).toMatch(/^sha256-[0-9a-f]{64}$/);
     expect(FROZEN_CONFIG_HASH).not.toContain('unfrozen');
   });
 

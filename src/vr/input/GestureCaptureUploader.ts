@@ -7,6 +7,7 @@
  */
 
 import type { GestureClass } from '../../../modules/gesture-intelligence/src/contracts.ts';
+import { sha256Hex } from '../../security/CryptoHash.ts';
 
 export interface TierARecord {
   readonly features: readonly number[];
@@ -37,27 +38,18 @@ export interface UploaderOptions {
   readonly fetchFn?: typeof fetch;
 }
 
-function fnv1aHex(str: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16).padStart(8, '0');
-}
-
+/** Pseudonymous profile identifier; never upload the consent token itself. */
 export function computeProfileHash(consentToken: string, deviceSalt: string): string {
-  return fnv1aHex(`${consentToken}:${deviceSalt}`);
+  return `sha256-${sha256Hex(`${consentToken}:${deviceSalt}`)}`;
 }
 
+/**
+ * Deduplication hash over the existing 1e-4 quantized feature representation.
+ * Quantization semantics are preserved; only the weak 32-bit digest is replaced.
+ */
 export function computeFeaturesHash(features: readonly number[]): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < features.length; i++) {
-    const v = Math.round(features[i] * 10000);
-    hash ^= v;
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16).padStart(8, '0');
+  const quantized = features.map((value) => Math.round(value * 10000));
+  return `sha256-${sha256Hex(JSON.stringify(quantized))}`;
 }
 
 export class GestureCaptureUploader {
@@ -202,7 +194,6 @@ export class GestureCaptureUploader {
       });
 
       if (!res.ok) {
-        // Requeue on failure
         this._tierAQueue.unshift(...batchA);
         this._tierBQueue.unshift(...batchB);
         return { uploadedTierA: 0, uploadedTierB: 0, success: false };

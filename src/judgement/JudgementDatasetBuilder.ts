@@ -1,9 +1,12 @@
+import { sha256UnitInterval } from '../security/CryptoHash.ts';
 import {
   assertRepresentationJudgement,
   type RepresentationJudgement,
 } from './RepresentationJudgement.ts';
 
-export const JUDGEMENT_DATASET_SCHEMA_VERSION = '1.0.0' as const;
+/** Partition algorithm change is scientifically material, so the dataset schema is versioned. */
+export const JUDGEMENT_DATASET_SCHEMA_VERSION = '2.0.0' as const;
+export const JUDGEMENT_PARTITION_ALGORITHM = 'sha256-48-v1' as const;
 
 export type JudgementPartition = 'train' | 'validation' | 'holdout';
 
@@ -41,18 +44,10 @@ export interface ExcludedJudgementRecord {
 
 export interface CuratedJudgementDataset {
   schemaVersion: typeof JUDGEMENT_DATASET_SCHEMA_VERSION;
+  partitionAlgorithm: typeof JUDGEMENT_PARTITION_ALGORITHM;
   policy: JudgementCurationPolicy;
   included: readonly CuratedJudgementRecord[];
   excluded: readonly ExcludedJudgementRecord[];
-}
-
-function fnv1a32(text: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash >>> 0;
 }
 
 function validatePolicy(policy: JudgementCurationPolicy): void {
@@ -68,8 +63,13 @@ function validatePolicy(policy: JudgementCurationPolicy): void {
   }
 }
 
+/**
+ * Deterministic group assignment using SHA-256 as a stable pseudo-random
+ * mapping. The first 48 digest bits map exactly into IEEE-754, avoiding the
+ * weak-distribution assumptions of the previous 32-bit FNV splitter.
+ */
 function partitionFor(group: string, policy: JudgementCurationPolicy): JudgementPartition {
-  const unit = fnv1a32(`${policy.partitionSeed}\u0000${group}`) / 0x1_0000_0000;
+  const unit = sha256UnitInterval(`${policy.partitionSeed}\u0000${group}`);
   if (unit < policy.trainFraction) return 'train';
   if (unit < policy.trainFraction + policy.validationFraction) return 'validation';
   return 'holdout';
@@ -153,6 +153,7 @@ export function buildCuratedJudgementDataset(
 
   return {
     schemaVersion: JUDGEMENT_DATASET_SCHEMA_VERSION,
+    partitionAlgorithm: JUDGEMENT_PARTITION_ALGORITHM,
     policy: structuredClone(policy),
     included,
     excluded,

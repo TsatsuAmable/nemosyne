@@ -1,14 +1,7 @@
 import { SignallingChannel } from './SignallingChannel.ts';
 import { Room, type NetworkRole } from './Room.ts';
 import { BinaryPoseSerializer } from './BinaryPoseSerializer.ts';
-
-function djb2Hash(str: string): number {
-  let hash = 5381;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash) ^ str.charCodeAt(i);
-  }
-  return Math.abs(hash) % 0x7fffffff;
-}
+import { sha256Uint31 } from '../security/CryptoHash.ts';
 
 /**
  * Manages WebRTC peer connections and a shared room for Nemosyne collaboration.
@@ -86,7 +79,9 @@ export class NetworkManager extends EventTarget {
     this.token = token ?? this._loadStoredToken();
     this.iceServers = iceServers ?? [{ urls: 'stun:stun.l.google.com:19302' }];
     this.maxStateBytes = maxStateBytes;
-    this._numericPeerId = djb2Hash(this.peerId);
+    // This only compresses the authenticated/string peer identity into the
+    // uint32 wire field. It does not confer authentication by itself.
+    this._numericPeerId = sha256Uint31(this.peerId);
 
     this.room = new Room(this.roomId, this.peerId, this.peerName, this.role);
   }
