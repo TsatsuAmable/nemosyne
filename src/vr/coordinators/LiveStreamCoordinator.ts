@@ -7,7 +7,7 @@
  * by providing callbacks.
  */
 
-import { TopologyTypes } from '../../draco/ConstraintEngine.ts';
+import { TopologyTypes } from '../../moneta/ConstraintEngine.ts';
 import { WebSocketAdapter } from '../../data/connectors/WebSocketAdapter.ts';
 import { PollingAdapter } from '../../data/connectors/PollingAdapter.ts';
 import { getOpenDataSource } from '../../data/connectors/OpenDataSources.ts';
