@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { AtlasCore, type WasmRuntimeBridgeFull } from '../src/atlas/AtlasCore.ts';
 import { datasetEvidenceFromKernelProfile } from '../src/atlas/MonetaEvidenceAuthority.ts';
 import { RepresentationState } from '../src/atlas/domain/RepresentationState.ts';
+import { Dataset } from '../src/data/Dataset.ts';
+import type { DatasetJSON, Facts } from '../src/data/types.ts';
 import type { RustDatasetStructureProfile } from '../src/data/evidence/index.ts';
 
 function profile(): RustDatasetStructureProfile {
@@ -73,6 +76,61 @@ function profile(): RustDatasetStructureProfile {
   };
 }
 
+function emptyFacts(): Facts {
+  return {
+    rowCount: 128,
+    columnCount: 3,
+    numeric: [],
+    correlation: [],
+    categorical: [],
+    temporal: [],
+    temporalStats: [],
+  };
+}
+
+function kernel(): WasmRuntimeBridgeFull {
+  let loaded: DatasetJSON | null = null;
+  return {
+    isReady: () => true,
+    capabilities: () => 0,
+    loadDatasetJson: (obj) => {
+      loaded = obj;
+      return 7;
+    },
+    loadCsv: () => 0,
+    loadJson: () => 0,
+    loadSample: () => 0,
+    sampleKeys: () => [],
+    getDatasetJson: () => loaded,
+    destroyDataset: () => {},
+    runOperation: () => 0,
+    executeOperation: () => null,
+    statistics: () => emptyFacts(),
+    inferTopology: () => 'TABULAR',
+    inferEncodings: () => ({}),
+    parseDatasetBytes: () => null,
+    kernelVersion: () => 'wasm-kernel-authority-test',
+    datasetFingerprint: () => 'sha256:authority-fixture',
+    computeDatasetStructureProfile: () => profile(),
+  };
+}
+
+function dataset(): Dataset {
+  return Dataset.fromJSON({
+    name: 'authority-fixture',
+    columns: [
+      { name: 'x', type: 'numeric' },
+      { name: 'y', type: 'numeric' },
+      { name: 'group', type: 'categorical' },
+    ],
+    rows: Array.from({ length: 128 }, (_, index) => ({
+      x: index,
+      y: index * 2,
+      group: index % 2 === 0 ? 'A' : 'B',
+    })),
+  });
+}
+
 describe('Atlas → Moneta evidence authority boundary', () => {
   it('transports a Rust structure profile into canonical DatasetEvidence without recomputation', () => {
     const evidence = datasetEvidenceFromKernelProfile(
@@ -137,5 +195,30 @@ describe('Atlas → Moneta evidence authority boundary', () => {
     });
     expect(state.activeDecision).toBe(decision);
     expect(state.activeStrategy).toBe(decision.embodiment.spatialStrategy);
+  });
+
+  it('routes AtlasCore production arbitration through the live Rust structure profile', () => {
+    const atlas = new AtlasCore({ kernel: kernel() });
+    atlas.loadDataset(dataset());
+
+    const decision = atlas.arbitrateRepresentation();
+
+    expect(decision.datasetFingerprint).toBe('sha256:authority-fixture');
+    expect(atlas.activeDatasetSignature?.clusterStructure).toMatchObject({
+      estimatedCount: 4,
+      hasClusters: true,
+      separationScore: 0.8,
+      densityVariation: 0.61,
+    });
+    expect(atlas.activeRepresentationDecision).toBe(decision);
+  });
+
+  it('fails closed when production Atlas lacks the structure-profile ABI', () => {
+    const runtime = kernel();
+    runtime.computeDatasetStructureProfile = undefined;
+    const atlas = new AtlasCore({ kernel: runtime });
+    atlas.loadDataset(dataset());
+
+    expect(() => atlas.arbitrateRepresentation()).toThrow(/structureprofile ABI unavailable/i);
   });
 });
