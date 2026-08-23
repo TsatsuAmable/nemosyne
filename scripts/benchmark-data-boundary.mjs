@@ -153,6 +153,88 @@ function roundMs(value) {
   return Math.round(value * 1000) / 1000;
 }
 
+function roundRatio(value) {
+  if (!Number.isFinite(value)) return null;
+  return Math.round(value * 1000) / 1000;
+}
+
+function safeRatio(numerator, denominator) {
+  return denominator > 0 ? numerator / denominator : Number.POSITIVE_INFINITY;
+}
+
+function addDecisionMetrics(result) {
+  return {
+    ...result,
+    decisionMetrics: {
+      materializeVsFirstBorrowSpeedup: roundRatio(
+        safeRatio(result.materializeAndParseMs, result.firstPrimitiveBorrowAndScanMs),
+      ),
+      materializeVsCachedBorrowSpeedup: roundRatio(
+        safeRatio(result.materializeAndParseMs, result.cachedPrimitiveBorrowAndScanMs),
+      ),
+      fullJsonVsBorrowedPayloadBytes: roundRatio(
+        safeRatio(result.wasmToHostBytes, result.borrowedPrimitiveLogicalBytes),
+      ),
+      hostInputVsBorrowedPayloadBytes: roundRatio(
+        safeRatio(result.hostToWasmBytes, result.borrowedPrimitiveLogicalBytes),
+      ),
+      borrowCacheGrowthVsBorrowedPayload: roundRatio(
+        safeRatio(result.wasmMemoryGrowthForBorrowCacheBytes, result.borrowedPrimitiveLogicalBytes),
+      ),
+      reconstructedRowsAvoided: result.reconstructedRowObjects - result.borrowedRowObjects,
+    },
+  };
+}
+
+function buildScaleDecision(results) {
+  const byTier = new Map(results.map((result) => [result.tier, result]));
+  const required = ['100k', '1m'];
+  const missingTiers = required.filter((tier) => !byTier.has(tier));
+  if (missingTiers.length) {
+    return {
+      status: 'INCOMPLETE',
+      missingTiers,
+      rationale: 'Canonical-columnar promotion requires like-for-like 100K and 1M evidence from the same run.',
+    };
+  }
+
+  const hundredK = byTier.get('100k');
+  const oneM = byTier.get('1m');
+  const materializeScaling = safeRatio(oneM.materializeAndParseMs, hundredK.materializeAndParseMs);
+  const cachedBorrowScaling = safeRatio(oneM.cachedPrimitiveBorrowAndScanMs, hundredK.cachedPrimitiveBorrowAndScanMs);
+  const firstBorrowScaling = safeRatio(oneM.firstPrimitiveBorrowAndScanMs, hundredK.firstPrimitiveBorrowAndScanMs);
+  const cacheGrowthRatio = safeRatio(oneM.wasmMemoryGrowthForBorrowCacheBytes, oneM.borrowedPrimitiveLogicalBytes);
+  const cachedSpeedupAt1m = safeRatio(oneM.materializeAndParseMs, oneM.cachedPrimitiveBorrowAndScanMs);
+  const firstSpeedupAt1m = safeRatio(oneM.materializeAndParseMs, oneM.firstPrimitiveBorrowAndScanMs);
+
+  const gates = {
+    zeroJsRowReconstruction: results.every((result) => result.borrowedRowObjects === 0),
+    deterministicBorrowChecksum: results.every((result) => Number.isFinite(result.primitiveChecksum)),
+    cachedBorrowMateriallyFasterAt1m: cachedSpeedupAt1m >= 3,
+    firstBorrowFasterAt1m: firstSpeedupAt1m > 1,
+    cachedBorrowScalingNoWorseThanMaterialization: cachedBorrowScaling <= materializeScaling * 1.25,
+    firstBorrowScalingNoWorseThanMaterialization: firstBorrowScaling <= materializeScaling * 1.25,
+    cacheGrowthBoundedToLogicalPayload: cacheGrowthRatio <= 1.5,
+  };
+  const passed = Object.values(gates).every(Boolean);
+
+  return {
+    status: passed ? 'PROMOTE_COLUMNAR_CANDIDATE' : 'HOLD_DUAL_REPRESENTATION',
+    gates,
+    ratios: {
+      materializeScaling100kTo1m: roundRatio(materializeScaling),
+      firstBorrowScaling100kTo1m: roundRatio(firstBorrowScaling),
+      cachedBorrowScaling100kTo1m: roundRatio(cachedBorrowScaling),
+      firstBorrowSpeedupAt1m: roundRatio(firstSpeedupAt1m),
+      cachedBorrowSpeedupAt1m: roundRatio(cachedSpeedupAt1m),
+      borrowCacheGrowthVsLogicalPayloadAt1m: roundRatio(cacheGrowthRatio),
+    },
+    rationale: passed
+      ? 'The measured 100K/1M path clears the predeclared scale gates for a follow-up canonical-columnar cutover.'
+      : 'At least one scale or memory gate failed; retain the transitional dual representation and investigate before cutover.',
+  };
+}
+
 async function runTier(wasm, tier) {
   const rows = TIERS[tier];
   global.gc?.();
@@ -214,7 +296,7 @@ async function runTier(wasm, tier) {
     throw new Error('Primitive-column checksum changed between first and cached borrow');
   }
 
-  return {
+  return addDecisionMetrics({
     tier,
     rows,
     columns: dataset.columns.length,
@@ -241,7 +323,7 @@ async function runTier(wasm, tier) {
     primitiveBorrowCacheHits: 1,
     primitiveChecksum: firstBorrow.checksum,
     hostBufferAllocator: 'rust-global',
-  };
+  });
 }
 
 function printHuman(result) {
@@ -256,6 +338,7 @@ function printHuman(result) {
   console.log(`  reconstructed row objects: ${result.reconstructedRowObjects.toLocaleString()} vs borrowed ${result.borrowedRowObjects}`);
   console.log(`  WASM memory after load: ${(result.wasmMemoryBytesAfterLoad / 1_048_576).toFixed(2)} MiB`);
   console.log(`  WASM memory growth for stable borrow cache: ${(result.wasmMemoryGrowthForBorrowCacheBytes / 1_048_576).toFixed(2)} MiB`);
+  console.log(`  materialize / cached-borrow speedup: ${result.decisionMetrics.materializeVsCachedBorrowSpeedup}x`);
 }
 
 async function main() {
@@ -267,7 +350,13 @@ async function main() {
     results.push(result);
     if (!json) printHuman(result);
   }
-  if (json) console.log(JSON.stringify({ schemaVersion: 2, results }, null, 2));
+  const scaleDecision = buildScaleDecision(results);
+  if (!json) {
+    console.log(`\nScale decision: ${scaleDecision.status}`);
+    console.log(`  ${scaleDecision.rationale}`);
+  } else {
+    console.log(JSON.stringify({ schemaVersion: 3, results, scaleDecision }, null, 2));
+  }
 }
 
 main().catch((error) => {
