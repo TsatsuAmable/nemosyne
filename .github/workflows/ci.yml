@@ -41,7 +41,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo registry + git
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -50,7 +50,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-registry-
 
       - name: Cache wasm target
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: wasm/target
           key: ${{ runner.os }}-wasm-target-${{ hashFiles('wasm/Cargo.lock') }}
