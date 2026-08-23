@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { memoryProfiler } from '../harness/memory_profiler.js';
 import { setupE2EEnvironment } from '../setup.js';
 import { getWebGLMockStats } from '../harness/webgl_mock.js';
@@ -43,7 +43,7 @@ describe('Feature 15: Requirement-Driven E2E Suite & TEST_READY.md', () => {
   });
 
   it('F15-TC5: E2E suite tier 1 feature coverage files (f01 to f15) are fully configured', () => {
-    const tier1Dir = fileURLToPath(new URL('./', import.meta.url));
+    const tier1Dir = resolve(process.cwd(), 'tests/e2e/tier1_feature_coverage');
     const filenames = readdirSync(tier1Dir).filter((name) => name.endsWith('.spec.ts'));
 
     for (let feature = 1; feature <= 15; feature += 1) {
