@@ -3,11 +3,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const SRC_ROOT = path.resolve(process.cwd(), 'src');
-const ALLOWED = new Set([
-  'ui/FileLoader.ts',
-  'vr/coordinators/LiveStreamCoordinator.ts',
-  'vr/coordinators/WorldRendererLifecycle.ts',
-]);
 
 function walk(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -18,16 +13,17 @@ function walk(dir: string): string[] {
 }
 
 describe('Draco production compatibility boundary', () => {
-  it('does not allow new production imports from src/draco', () => {
+  it('allows no production imports from src/draco', () => {
     const offenders: string[] = [];
     for (const file of walk(SRC_ROOT)) {
       const relative = path.relative(SRC_ROOT, file).replaceAll(path.sep, '/');
       if (relative.startsWith('draco/')) continue;
       const source = fs.readFileSync(file, 'utf8');
-      if (!/(?:from\s+['\"]|import\s*\(\s*['\"])[^'\"]*\/draco\//.test(source)) continue;
-      if (!ALLOWED.has(relative)) offenders.push(relative);
+      if (/(?:from\s+['\"]|import\s*\(\s*['\"])[^'\"]*\/draco\//.test(source)) {
+        offenders.push(relative);
+      }
     }
 
-    expect(offenders, 'new production Draco imports must use Moneta directly').toEqual([]);
+    expect(offenders, 'production code must import Moneta directly; Draco is compatibility-only').toEqual([]);
   });
 });
