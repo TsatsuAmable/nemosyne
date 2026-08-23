@@ -96,6 +96,18 @@ Treat apophenia as a property of an evidential situation, representation or infe
 - [ ] Keep Moneta's role narrow: it may report how representation choice contributes to pattern fragility, but must not diagnose investigators, suppress findings, or convert heuristic pressure into calibrated probability without empirical validation.
 - [ ] Evaluate whether the signal improves investigator calibration and discovery quality in held-out studies before allowing it to affect ranking or recommendations.
 
+### P0.5 — Dependency and platform modernization sprint
+
+Run after the current Moneta scalability/authority P0 slice and before Gate 9 compositional Moneta. The executable sprint backlog is `docs/DEPENDENCY_MODERNIZATION_BACKLOG.md` and is tracked by #300.
+
+- [ ] Complete Wave 0 baseline/triage and preserve rollback evidence before breaking migrations.
+- [ ] Finish low-risk npm maintenance, then modernize GitHub Actions/CI one subsystem at a time.
+- [ ] Upgrade Rust scientific/data foundations with numerical, determinism, provenance, WASM and performance parity evidence.
+- [ ] Audit hand-rolled statistics, graph, array, hashing/RNG, parsing, CI/build, and spatial/WebXR helpers; replace only where maintained libraries improve fitness without weakening Nemosyne-specific semantics or authority boundaries.
+- [ ] Migrate ESLint/TypeScript majors deliberately, preserving public type/build contracts and test throughput.
+- [ ] Treat the Three.js/WebXR upgrade as a dedicated rendering/runtime migration with headset, frame-time, memory, draw-call and interaction validation.
+- [ ] Do not begin Gate 9 composition search until high-value major upgrades are either merged, explicitly deferred with rationale, or rejected and the replacement audit is complete.
+
 ### P1 — Parallel foundation modules
 
 1. **Dataset Evidence:** expand typed Rust/WASM evidence coverage, provenance and replay parity.
@@ -153,4 +165,4 @@ Focused correctness/parity tests are mandatory for claimed functionality. A skip
 
 ## Pickup instruction
 
-Complete the Moneta scalability contract and benchmark rails first. Then instrument Rust/WASM transfer/materialisation costs and continue the Rust-owned columnar Dataset migration. In parallel, continue authoritative DatasetEvidence coverage and held-out discovery-outcome validation; do not let pattern-fragility signals influence ranking until controlled evidence shows investigator benefit.
+Complete the Moneta scalability contract and benchmark rails first. Then instrument Rust/WASM transfer/materialisation costs and continue the Rust-owned columnar Dataset migration. In parallel, continue authoritative DatasetEvidence coverage and held-out discovery-outcome validation; do not let pattern-fragility signals influence ranking until controlled evidence shows investigator benefit. After the current P0 scalability/authority slice is stable, execute the dependency/platform modernization sprint before Gate 9 compositional Moneta.
