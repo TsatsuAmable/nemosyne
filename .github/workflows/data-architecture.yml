@@ -1,0 +1,89 @@
+name: Data Architecture Gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'wasm/src/data/**'
+      - 'wasm/src/lib.rs'
+      - 'scripts/benchmark-typed-column-ingest.mjs'
+      - 'scripts/benchmark-data-boundary.mjs'
+      - 'scripts/profile-data-load.mjs'
+      - '.github/workflows/data-architecture.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-architecture-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  data-architecture:
+    name: Data architecture
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build WASM package once
+        run: npm run wasm:dev
+
+      - name: Typed-column ingest gate (100K + 1M)
+        run: |
+          node --expose-gc scripts/benchmark-typed-column-ingest.mjs --tier=100k --tier=1m --json > typed-column-ingest.json
+          cat typed-column-ingest.json
+
+      - name: Canonical boundary gate (100K + 1M)
+        run: |
+          node --expose-gc scripts/benchmark-data-boundary.mjs --tier=100k --tier=1m --json > data-boundary-scale-gate.json
+          cat data-boundary-scale-gate.json
+
+      - name: Data-load profile (100K + 1M)
+        run: |
+          node --expose-gc scripts/profile-data-load.mjs --tier=100k --tier=1m --json > data-load-profile.json
+          cat data-load-profile.json
+
+      - name: Publish consolidated summary
+        if: always()
+        run: |
+          echo '## Data architecture gate' >> "$GITHUB_STEP_SUMMARY"
+          for f in typed-column-ingest.json data-boundary-scale-gate.json data-load-profile.json; do
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo "### $f" >> "$GITHUB_STEP_SUMMARY"
+            if [ -f "$f" ]; then
+              echo '```json' >> "$GITHUB_STEP_SUMMARY"
+              cat "$f" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo 'No result produced.' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Upload data-architecture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-architecture-gate
+          path: |
+            typed-column-ingest.json
+            data-boundary-scale-gate.json
+            data-load-profile.json
+          if-no-files-found: warn
+          retention-days: 30
