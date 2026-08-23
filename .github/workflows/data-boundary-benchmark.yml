@@ -24,11 +24,63 @@ permissions:
   contents: read
 
 concurrency:
-  group: data-boundary-benchmark-${{ github.event.pull_request.number || github.ref }}-${{ inputs.tier || '10k' }}
+  group: data-boundary-benchmark-${{ github.event.pull_request.number || github.ref }}-${{ inputs.tier || 'scale-gate' }}
   cancel-in-progress: true
 
 jobs:
-  benchmark:
+  pr-scale-gate:
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        tier: [100k, 1m]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build WASM package
+        run: npm run wasm:dev
+
+      - name: Run boundary scale tier
+        run: |
+          node --expose-gc scripts/benchmark-data-boundary.mjs --tier="${{ matrix.tier }}" --json > data-boundary-benchmark-${{ matrix.tier }}.json
+          cat data-boundary-benchmark-${{ matrix.tier }}.json
+
+      - name: Publish summary
+        run: |
+          echo "## Rust/WASM data boundary benchmark" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tier: \`${{ matrix.tier }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat data-boundary-benchmark-${{ matrix.tier }}.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-boundary-benchmark-${{ matrix.tier }}
+          path: data-boundary-benchmark-${{ matrix.tier }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  dispatched-tier:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -53,27 +105,23 @@ jobs:
         run: npm run wasm:dev
 
       - name: Run boundary benchmark
-        env:
-          BENCHMARK_TIER: ${{ inputs.tier || '10k' }}
         run: |
-          node --expose-gc scripts/benchmark-data-boundary.mjs --tier="$BENCHMARK_TIER" --json > data-boundary-benchmark.json
-          cat data-boundary-benchmark.json
+          node --expose-gc scripts/benchmark-data-boundary.mjs --tier="${{ inputs.tier }}" --json > data-boundary-benchmark-${{ inputs.tier }}.json
+          cat data-boundary-benchmark-${{ inputs.tier }}.json
 
       - name: Publish summary
-        env:
-          BENCHMARK_TIER: ${{ inputs.tier || '10k' }}
         run: |
           echo "## Rust/WASM data boundary benchmark" >> "$GITHUB_STEP_SUMMARY"
-          echo "Tier: \`$BENCHMARK_TIER\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tier: \`${{ inputs.tier }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo '```json' >> "$GITHUB_STEP_SUMMARY"
-          cat data-boundary-benchmark.json >> "$GITHUB_STEP_SUMMARY"
+          cat data-boundary-benchmark-${{ inputs.tier }}.json >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload benchmark result
         uses: actions/upload-artifact@v4
         with:
-          name: data-boundary-benchmark-${{ inputs.tier || '10k' }}
-          path: data-boundary-benchmark.json
+          name: data-boundary-benchmark-${{ inputs.tier }}
+          path: data-boundary-benchmark-${{ inputs.tier }}.json
           if-no-files-found: error
           retention-days: 30
