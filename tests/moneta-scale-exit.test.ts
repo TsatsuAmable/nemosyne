@@ -45,8 +45,8 @@ function runAtScale(rows: number): ScaleOutcome {
     return {
       rows,
       evidenceItems: evidence.evidence.length,
-      evaluatedCandidates: decision.rankedCandidates.length,
-      sensitivityScenarios: decision.weightSensitivity.scenarioCount,
+      evaluatedCandidates: decision.rankedCandidates?.length ?? 0,
+      sensitivityScenarios: decision.weightSensitivity?.scenarioCount ?? null,
       outcome: 'decision',
     };
   } catch (error) {
@@ -75,6 +75,9 @@ describe('Moneta migration scale exit', () => {
     for (const outcome of outcomes) {
       expect(outcome.evidenceItems).toBeLessThan(32);
       expect(outcome.evaluatedCandidates).toBeLessThan(256);
+      if (outcome.outcome === 'decision') {
+        expect(outcome.sensitivityScenarios).not.toBeNull();
+      }
       if (outcome.sensitivityScenarios !== null) {
         expect(outcome.sensitivityScenarios).toBeLessThan(64);
       }
