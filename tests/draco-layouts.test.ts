@@ -11,7 +11,7 @@ import {
   TimeSeriesRibbonLayout,
   StreamlineLayout,
   GeoSurfaceLayout,
-} from '../src/draco/layouts/index.ts';
+} from '../src/moneta/layouts/index.ts';
 
 describe('Draco layout generators', () => {
   it('GridLayout3D packs rows into a cube', () => {
@@ -22,7 +22,6 @@ describe('Draco layout generators', () => {
     for (const p of layout) {
       expect(p.position).toBeInstanceOf(THREE.Vector3);
     }
-    // With 8 rows we get a 2x2x2 grid; extents should be -0.5..0.5 in each axis (plus yOffset).
     const xs = layout.map((p) => p.position.x).sort((a, b) => a - b);
     expect(xs[0]).toBeCloseTo(-0.5, 5);
     expect(xs[xs.length - 1]).toBeCloseTo(0.5, 5);
@@ -144,7 +143,7 @@ describe('Draco layout generators', () => {
     expect(layout.length).toBe(5);
     for (const p of layout) {
       expect(Array.isArray(p.points)).toBe(true);
-      expect(p.points.length).toBe(4); // start + 3 steps
+      expect(p.points.length).toBe(4);
     }
   });
 
