@@ -11,6 +11,7 @@ import { AtlasCore, type WasmRuntimeBridgeFull } from '../atlas/AtlasCore.ts';
 import { Dataset } from '../data/Dataset.ts';
 import type { Provenance } from '../data/types.ts';
 import type { AnalysisSpec, ResearchEvent } from '../atlas/types.ts';
+import type { RepresentationDecision } from '../moneta/representation/RepresentationDecision.ts';
 import { strFromU8 } from 'fflate';
 
 export interface ReplayVerificationResult {
@@ -21,6 +22,7 @@ export interface ReplayVerificationResult {
   commandsReplayed: number;
   eventsMatched: number;
   provenanceEventsVerified: number;
+  representationProvenanceVerified: boolean;
   finalOutputHash: string;
   investigationDigest: string;
   evidenceCount: {
@@ -71,6 +73,80 @@ function compareProvenance(expected: Provenance, actual: Provenance | null): str
   return discrepancies;
 }
 
+function parseRepresentationDecision(bytes: Uint8Array): RepresentationDecision {
+  const parsed: unknown = JSON.parse(strFromU8(bytes));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('representation state must be a JSON object');
+  }
+
+  const candidate = parsed as Partial<RepresentationDecision>;
+  if (typeof candidate.utilityScore !== 'number') {
+    throw new Error('representation state is missing numeric utilityScore');
+  }
+  if (!candidate.provenance || typeof candidate.provenance !== 'object') {
+    throw new Error('representation state is missing provenance');
+  }
+  if (!candidate.embodiment || typeof candidate.embodiment !== 'object') {
+    throw new Error('representation state is missing embodiment');
+  }
+  if (!candidate.embodiment.spatialStrategy || typeof candidate.embodiment.spatialStrategy !== 'object') {
+    throw new Error('representation state is missing embodied spatial strategy');
+  }
+
+  return parsed as RepresentationDecision;
+}
+
+function compareRepresentationProvenance(
+  decision: RepresentationDecision,
+  manifestModel: NemosynePackagePayload['manifest']['representationModel']
+): string[] {
+  const discrepancies: string[] = [];
+  const strategyProvenance = decision.embodiment.spatialStrategy.provenance;
+
+  const versionCopies = [
+    ['decision', decision.fitnessModelVersion],
+    ['decision provenance', decision.provenance.fitnessModelVersion],
+    ['spatial strategy provenance', strategyProvenance?.fitnessModelVersion],
+  ] as const;
+  const artifactCopies = [
+    ['decision', decision.fitnessModelArtifactHash],
+    ['decision provenance', decision.provenance.fitnessModelArtifactHash],
+    ['spatial strategy provenance', strategyProvenance?.fitnessModelArtifactHash],
+  ] as const;
+
+  const expectedVersion =
+    manifestModel?.fitnessModelVersion ??
+    versionCopies.find(([, value]) => typeof value === 'string' && value.length > 0)?.[1];
+  const expectedArtifact = manifestModel
+    ? (manifestModel.fitnessModelArtifactHash ?? null)
+    : (artifactCopies.find(([, value]) => value !== undefined)?.[1] ?? null);
+
+  if (manifestModel && !expectedVersion) {
+    discrepancies.push('manifest representation model is missing fitnessModelVersion');
+  }
+
+  if (expectedVersion) {
+    for (const [source, version] of versionCopies) {
+      if (version !== expectedVersion) {
+        discrepancies.push(
+          `${source} fitnessModelVersion expected '${expectedVersion}', found '${String(version)}'`
+        );
+      }
+    }
+  }
+
+  for (const [source, artifactHash] of artifactCopies) {
+    const normalized = artifactHash ?? null;
+    if (normalized !== expectedArtifact) {
+      discrepancies.push(
+        `${source} fitnessModelArtifactHash expected '${String(expectedArtifact)}', found '${String(normalized)}'`
+      );
+    }
+  }
+
+  return discrepancies;
+}
+
 export class InvestigationReplayRunner {
   private _bridge: WasmRuntimeBridgeFull;
 
@@ -91,7 +167,7 @@ export class InvestigationReplayRunner {
    */
   async replayPayload(payload: NemosynePackagePayload): Promise<ReplayVerificationResult> {
     const discrepancies: string[] = [];
-    const { manifest, datasetBytes, commandLogBytes } = payload;
+    const { manifest, datasetBytes, commandLogBytes, representationDecisionBytes } = payload;
 
     // 1. Parse dataset
     let dataset: Dataset;
@@ -120,7 +196,20 @@ export class InvestigationReplayRunner {
       return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint, discrepancies);
     }
 
-    // 3. Initialize clean-room AtlasCore and verify kernel identity before replay.
+    // 3. Parse persisted representation state before mutating replay state.
+    let representationDecision: RepresentationDecision | null = null;
+    if (representationDecisionBytes) {
+      try {
+        representationDecision = parseRepresentationDecision(representationDecisionBytes);
+      } catch (e) {
+        discrepancies.push(`Failed to parse representation state from package: ${(e as Error).message}`);
+        return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint, discrepancies);
+      }
+    } else if (manifest.representationModel) {
+      discrepancies.push('Manifest declares representation model provenance but no persisted representation decision was provided');
+    }
+
+    // 4. Initialize clean-room AtlasCore and verify kernel identity before replay.
     const atlas = new AtlasCore({ kernel: this._bridge, sessionId: manifest.sessionId });
     atlas.loadDataset(dataset);
 
@@ -134,6 +223,7 @@ export class InvestigationReplayRunner {
     let commandsReplayed = 0;
     let eventsMatched = 0;
     let provenanceEventsVerified = 0;
+    let representationProvenanceVerified = false;
 
     for (let i = 0; i < loggedEvents.length; i++) {
       const item = loggedEvents[i];
@@ -262,6 +352,21 @@ export class InvestigationReplayRunner {
       }
     }
 
+    if (representationDecision) {
+      const representationDiscrepancies = compareRepresentationProvenance(
+        representationDecision,
+        manifest.representationModel
+      );
+      if (representationDiscrepancies.length === 0) {
+        representationProvenanceVerified = true;
+      } else {
+        for (const discrepancy of representationDiscrepancies) {
+          discrepancies.push(`Representation provenance drift: ${discrepancy}`);
+        }
+      }
+      atlas.aggregate.representation.restoreDecision(representationDecision);
+    }
+
     const finalOutputHash = atlas.datasetSpace?.fingerprint ?? atlas.datasetFingerprint ?? '';
     const investigationDigest = await atlas.computeDigest();
 
@@ -299,6 +404,7 @@ export class InvestigationReplayRunner {
       commandsReplayed,
       eventsMatched,
       provenanceEventsVerified,
+      representationProvenanceVerified,
       finalOutputHash,
       investigationDigest,
       evidenceCount: {
@@ -324,6 +430,7 @@ export class InvestigationReplayRunner {
       commandsReplayed: 0,
       eventsMatched: 0,
       provenanceEventsVerified: 0,
+      representationProvenanceVerified: false,
       finalOutputHash: '',
       investigationDigest: '',
       evidenceCount: { observations: 0, findings: 0, annotations: 0 },
