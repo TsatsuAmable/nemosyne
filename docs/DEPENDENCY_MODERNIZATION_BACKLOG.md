@@ -21,6 +21,7 @@ Tracking issue: #300.
 
 ## Wave 0 — baseline and triage
 
+- [x] Add the dependency-modernization sprint explicitly to `docs/ROADMAP.md` at its intended placement: after the current Moneta scalability/authority P0 slice and before Gate 9 compositional Moneta.
 - [ ] Classify every open Dependabot PR as patch/minor, major-compatible, breaking migration, defer, or reject.
 - [ ] Capture CI duration, production build, Playwright smoke, bundle-size, and Rust/WASM benchmark baselines.
 - [ ] Add golden/replay fixtures for persisted formats and public/internal APIs where needed.
