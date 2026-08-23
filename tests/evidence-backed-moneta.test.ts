@@ -13,6 +13,7 @@ import {
   NoFeasibleRepresentationError,
   assertEvidenceBacksSignature,
   createDefaultRequirements,
+  datasetEvidenceToSignature,
   type DatasetSignature,
 } from '../src/moneta/representation/index.ts';
 
@@ -44,7 +45,7 @@ function item(
   };
 }
 
-function evidence(extra: AnalyticalEvidence[] = []): DatasetEvidence {
+function evidence(extra: AnalyticalEvidence[] = [], densityVariation = 0): DatasetEvidence {
   return createDatasetEvidence({
     schemaVersion: DATASET_EVIDENCE_SCHEMA_VERSION,
     datasetFingerprint: FP,
@@ -56,13 +57,46 @@ function evidence(extra: AnalyticalEvidence[] = []): DatasetEvidence {
         numericColumns: 2,
         categoricalColumns: 1,
         temporalColumns: 0,
+        constantColumns: 0,
+        redundantColumns: 0,
+        effectiveDimensions: 3,
       }),
-      item('distribution:numeric', 'distribution', {}),
-      item('density:global', 'density', {}),
-      item('cluster:global', 'cluster', {}),
-      item('anomaly:global', 'anomaly', {}),
-      item('dependency:correlations', 'dependency', {}),
-      item('distribution:categorical', 'distribution', {}),
+      item('distribution:numeric', 'distribution', {
+        summaries: [],
+        globalHasOutliers: false,
+        globalHighVariance: false,
+        maxSkewness: 0,
+      }),
+      item('density:global', 'density', {
+        globalDensity: 1,
+        heuristicLocalDensityVariation: densityVariation,
+        heuristicModeCount: 1,
+        isSparse: false,
+      }),
+      item('cluster:global', 'cluster', {
+        heuristicEstimatedCount: densityVariation > 0 ? 2 : 1,
+        heuristicPartitionDetected: densityVariation > 0,
+        heuristicSeparationScore: densityVariation > 0 ? 0.7 : 0,
+        heuristicDensityVariation: densityVariation,
+        legacySilhouetteDerivedScore: densityVariation > 0 ? 0.7 : 0,
+      }),
+      item('anomaly:global', 'anomaly', {
+        totalAnomalies: 0,
+        anomalyFraction: 0,
+        heuristicAnomalyDetected: false,
+        maxAnomalyScore: 0,
+      }),
+      item('dependency:correlations', 'dependency', {
+        pairs: [],
+        maxAbsolutePearsonCorrelation: 0,
+        strongCorrelationPairCount: 0,
+        heuristicRankDeficiency: false,
+      }),
+      item('distribution:categorical', 'distribution', {
+        summaries: [],
+        meanEntropy: 0,
+        hasHighCardinality: false,
+      }),
       ...extra,
     ],
   });
@@ -78,7 +112,7 @@ function signature(topology: DatasetSignature['topologicalStructure']['topology'
       textCount: 0,
       idCount: 0,
     },
-    cardinality: { rowCount: 10, columnCount: 3, edgeCount: 0, depth: 1 },
+    cardinality: { rowCount: 10, columnCount: 3, edgeCount: 0, depth: 0 },
     distribution: {
       hasOutliers: false,
       outlierFraction: 0,
@@ -114,6 +148,20 @@ describe('Evidence-backed Moneta boundary', () => {
     expect(result.kernelVersion).toBe(KERNEL);
     expect(result.evidenceIds).toContain('cardinality:dataset');
     expect(result.decision.datasetFingerprint).toBe(FP);
+  });
+
+  it('builds decision-relevant signature values directly from Rust evidence', () => {
+    const sourceEvidence = evidence([], 0.8);
+    const authoritative = datasetEvidenceToSignature(sourceEvidence);
+    const provided = structuredClone(authoritative);
+
+    const result = new EvidenceBackedMoneta().arbitrate(sourceEvidence, provided);
+
+    expect(authoritative.clusterStructure.densityVariation).toBe(0.8);
+    expect(authoritative.clusterStructure.separationScore).toBe(0.7);
+    expect(authoritative.clusterStructure.hasClusters).toBe(true);
+    expect(result.decision.datasetSignature.clusterStructure.densityVariation).toBe(0.8);
+    expect(result.decision.datasetSignature.clusterStructure.separationScore).toBe(0.7);
   });
 
   it('preserves authoritative evidence and model identity when Moneta returns NIL', () => {
@@ -155,6 +203,14 @@ describe('Evidence-backed Moneta boundary', () => {
     expect(() => assertEvidenceBacksSignature(evidence(), source)).toThrow(/row count/i);
   });
 
+  it('rejects FitnessModel-relevant density drift instead of scoring caller placeholders', () => {
+    const sourceEvidence = evidence([], 0.8);
+    const source = datasetEvidenceToSignature(sourceEvidence);
+    source.clusterStructure.densityVariation = 0.2;
+
+    expect(() => assertEvidenceBacksSignature(sourceEvidence, source)).toThrow(/density variation/i);
+  });
+
   it('rejects fingerprint drift between evidence and signature', () => {
     const source = signature();
     source.provenance.datasetFingerprint = 'sha256:other';
@@ -163,14 +219,10 @@ describe('Evidence-backed Moneta boundary', () => {
   });
 
   it('requires graph evidence before a GRAPH signature may drive Moneta', () => {
-    expect(() => assertEvidenceBacksSignature(evidence(), signature('GRAPH'))).toThrow(
-      /topology:graph/i,
-    );
+    expect(() => assertEvidenceBacksSignature(evidence(), signature('GRAPH'))).toThrow(/topology/i);
   });
 
   it('validates graph edge count when graph evidence is present', () => {
-    const source = signature('GRAPH');
-    source.cardinality.edgeCount = 12;
     const graphEvidence = item('topology:graph', 'topology', {
       isGraph: true,
       nodeCount: 10,
@@ -178,8 +230,12 @@ describe('Evidence-backed Moneta boundary', () => {
       hasCycles: false,
       isConnected: true,
     });
+    const sourceEvidence = evidence([graphEvidence]);
+    const source = datasetEvidenceToSignature(sourceEvidence);
 
-    expect(assertEvidenceBacksSignature(evidence([graphEvidence]), source)).toContain('topology:graph');
+    expect(source.topologicalStructure.topology).toBe('GRAPH');
+    expect(source.cardinality.edgeCount).toBe(12);
+    expect(assertEvidenceBacksSignature(sourceEvidence, source)).toContain('topology:graph');
   });
 
   it('fails closed for structure kinds the current Rust evidence ABI cannot establish', () => {
