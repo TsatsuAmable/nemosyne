@@ -26,20 +26,16 @@ describe('RuntimeBridge integration', () => {
   it('initialises the runtime and reports Phase 1 capabilities', () => {
     expect(bridge.isReady()).toBe(true);
     const caps = bridge.capabilities();
-    // Phase-1 implemented subsystems are advertised.
-    expect(caps & (1 << 0)).not.toBe(0); // DATASET_RUST
-    expect(caps & (1 << 1)).not.toBe(0); // PARSER_RUST
-    expect(caps & (1 << 2)).not.toBe(0); // OPERATIONS_RUST
-    // Wave 1 analytical subsystems are implemented + exported.
-    expect(caps & (1 << 10)).not.toBe(0); // TOPOLOGY_RUST
-    expect(caps & (1 << 11)).not.toBe(0); // TDA_RUST
-    expect(caps & (1 << 12)).not.toBe(0); // ENCODINGS_RUST
-    expect(caps & (1 << 13)).not.toBe(0); // STATS_RUST
-    // Honesty lock (mirrors the Rust test): reserved / unimplemented bits are
-    // NOT advertised. Spec bitfield: DRACO=1<<3, SCENE=1<<4, COMMAND_BUFFER=1<<7.
-    expect(caps & (1 << 3)).toBe(0); // DRACO_RUST (layouts only; not the full subsystem)
-    expect(caps & (1 << 4)).toBe(0); // SCENE_RUST (scene graph still JS)
-    expect(caps & (1 << 7)).toBe(0); // COMMAND_BUFFER (dormant stub)
+    expect(caps & (1 << 0)).not.toBe(0);
+    expect(caps & (1 << 1)).not.toBe(0);
+    expect(caps & (1 << 2)).not.toBe(0);
+    expect(caps & (1 << 10)).not.toBe(0);
+    expect(caps & (1 << 11)).not.toBe(0);
+    expect(caps & (1 << 12)).not.toBe(0);
+    expect(caps & (1 << 13)).not.toBe(0);
+    expect(caps & (1 << 3)).toBe(0);
+    expect(caps & (1 << 4)).toBe(0);
+    expect(caps & (1 << 7)).toBe(0);
   });
 
   it('reports the canonical kernel version', () => {
@@ -120,18 +116,11 @@ describe('RuntimeBridge integration', () => {
         { x: 10.1, y: 10.1 },
       ],
     };
-    const result = bridge.executeOperation(dataset, {
-      op: 'k_means',
-      k: 2,
-    } as OperationSpec);
+    const result = bridge.executeOperation(dataset, { op: 'k_means', k: 2 } as OperationSpec);
     expect(result).not.toBeNull();
     expect(result!.rows.length).toBe(4);
     expect(result!.columns.some((c) => c.name === '_cluster')).toBe(true);
   });
-
-  // -------------------------------------------------------------------------
-  // Wave 1 analytical-kernel parity cases
-  // -------------------------------------------------------------------------
 
   const peopleDataset = {
     name: 'people',
@@ -193,10 +182,7 @@ describe('RuntimeBridge integration', () => {
   });
 
   it('aggregates with the legacy sum-all-numeric default', () => {
-    const result = bridge.executeOperation(peopleDataset, {
-      op: 'aggregate',
-      group_by: 'team',
-    } as OperationSpec);
+    const result = bridge.executeOperation(peopleDataset, { op: 'aggregate', group_by: 'team' } as OperationSpec);
     expect(result).not.toBeNull();
     expect(result!.rows.length).toBe(2);
     const a = result!.rows.find((r) => r.team === 'A')!;
@@ -225,12 +211,7 @@ describe('RuntimeBridge integration', () => {
     const dataset = {
       name: 'z',
       columns: [{ name: 'v', type: 'NUMERIC' as const }],
-      rows: [
-        { v: 30 },
-        { v: 30 },
-        { v: 30 },
-        { v: 1000 },
-      ],
+      rows: [{ v: 30 }, { v: 30 }, { v: 30 }, { v: 1000 }],
     };
     const result = bridge.executeOperation(dataset, {
       op: 'anomaly_zscore',
@@ -243,10 +224,7 @@ describe('RuntimeBridge integration', () => {
   });
 
   it('detects anomalies with the anomaly_iqr op name', () => {
-    const result = bridge.executeOperation(peopleDataset, {
-      op: 'anomaly_iqr',
-      column: 'age',
-    } as OperationSpec);
+    const result = bridge.executeOperation(peopleDataset, { op: 'anomaly_iqr', column: 'age' } as OperationSpec);
     expect(result).not.toBeNull();
     expect(result!.columns.some((c) => c.name === '_anomaly')).toBe(true);
   });
@@ -273,10 +251,7 @@ describe('RuntimeBridge integration', () => {
       expect(facts!.rowCount).toBe(4);
       const x = facts!.numeric.find((c) => c.name === 'x')!;
       expect(x.mean).toBeCloseTo(2.5, 6);
-      // x and y are perfectly linearly correlated.
-      const xy = facts!.correlation.find(
-        (p) => (p.a === 'x' && p.b === 'y') || (p.a === 'y' && p.b === 'x'),
-      )!;
+      const xy = facts!.correlation.find((p) => (p.a === 'x' && p.b === 'y') || (p.a === 'y' && p.b === 'x'))!;
       expect(xy.value).toBeCloseTo(1, 6);
       const g = facts!.categorical.find((c) => c.name === 'g')!;
       expect(g.cardinality).toBe(2);
@@ -369,7 +344,7 @@ describe('RuntimeBridge integration', () => {
     try {
       const fa = bridge.datasetFingerprint(a);
       const fb = bridge.datasetFingerprint(b);
-      expect(fa).toMatch(/^[0-9a-f]{8}$/);
+      expect(fa).toMatch(/^[0-9a-f]{64}$/);
       expect(fa).toBe(fb);
     } finally {
       bridge.destroyDataset(a);
@@ -388,8 +363,8 @@ describe('RuntimeBridge integration', () => {
       expect(prov!.kernel).toBe('nemosyne-wasm');
       expect(prov!.kernelVersion).toBe('0.2.0');
       expect(prov!.operation).toBe('sort');
-      expect(prov!.inputFingerprint).toMatch(/^[0-9a-f]{8}$/);
-      expect(prov!.outputFingerprint).toMatch(/^[0-9a-f]{8}$/);
+      expect(prov!.inputFingerprint).toMatch(/^[0-9a-f]{64}$/);
+      expect(prov!.outputFingerprint).toMatch(/^[0-9a-f]{64}$/);
       expect(prov!.timestamp).toBeGreaterThan(0);
     } finally {
       bridge.destroyDataset(handle);
@@ -398,7 +373,6 @@ describe('RuntimeBridge integration', () => {
   });
 
   it('parses an Arrow payload into a dataset handle', () => {
-    // 6 little-endian f64s -> 2 rows of (x,y,z).
     const bytes = new Float64Array([0, 1, 2, 3, 4, 5]);
     const handle = bridge.parseArrow(new Uint8Array(bytes.buffer));
     expect(handle).toBeGreaterThan(0);
@@ -442,7 +416,6 @@ describe('RuntimeBridge integration', () => {
       const curve = bridge.computeBetti0Curve(handle, { featureColumns: ['val'], steps: 4 });
       expect(curve).not.toBeNull();
       expect(curve!.length).toBeGreaterThan(0);
-      // At radius 0 each point is its own component (betti0 == row count).
       expect(curve![0].betti0).toBe(3);
     } finally {
       bridge.destroyDataset(handle);
@@ -452,8 +425,7 @@ describe('RuntimeBridge integration', () => {
   it('computes 3D radial-tree positions', () => {
     const positions = bridge.computeRadialTree3d([0, 1, 1, 2], 1.8, 0.8, 1.2);
     expect(positions).not.toBeNull();
-    expect(positions!.length).toBe(12); // 4 nodes * 3 floats
-    // Level-0 node sits at the origin (x=0,z=0), y = y_offset.
+    expect(positions!.length).toBe(12);
     expect(positions![0]).toBeCloseTo(0, 6);
     expect(positions![1]).toBeCloseTo(1.2, 6);
     expect(positions![2]).toBeCloseTo(0, 6);
