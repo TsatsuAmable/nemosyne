@@ -118,6 +118,12 @@ jobs:
               }
             }' "$GITHUB_EVENT_PATH" > .auto-remediation/context.json
 
+      - name: Set up Node.js 24 (Copilot CLI)
+        if: steps.credentials.outputs.ready == 'true' && steps.cycle.outputs.allowed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - name: Install Copilot CLI
         if: steps.credentials.outputs.ready == 'true' && steps.cycle.outputs.allowed == 'true'
         run: npm install --global @github/copilot@1.0.80
