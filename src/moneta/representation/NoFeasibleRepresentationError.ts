@@ -6,6 +6,8 @@ export interface NoFeasibleRepresentationProvenance {
   kernelVersion: string;
   /** Exact analytical evidence ids that bounded representation reasoning. */
   evidenceIds: readonly string[];
+  /** Canonical requirements hash when the arbitration path has already resolved defaults. */
+  requirementsHash?: string;
   /** Caller-supplied requirements, when explicit. */
   requirements?: RepresentationRequirements;
   /** Caller-supplied analytical intent, when explicit. */
