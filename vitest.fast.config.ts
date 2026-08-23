@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
 const FAST_NODE_TESTS = [
+  'tests/analyst-judgement-controller.test.ts',
   'tests/draco-production-import-boundary.test.ts',
   'tests/hygiene-audit.test.ts',
   'tests/moneta-gate0-authority.test.ts',
