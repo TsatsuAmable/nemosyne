@@ -1,15 +1,6 @@
 name: Data Architecture Gate
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'wasm/src/data/**'
-      - 'wasm/src/lib.rs'
-      - 'scripts/benchmark-typed-column-ingest.mjs'
-      - 'scripts/benchmark-data-boundary.mjs'
-      - 'scripts/profile-data-load.mjs'
-      - '.github/workflows/data-architecture.yml'
   workflow_dispatch:
     inputs:
       tier:
@@ -26,8 +17,10 @@ on:
 permissions:
   contents: read
 
+# Temporarily manual-only during the Moneta migration-completion sprint. This
+# keeps benchmark evidence available without adding a routine PR gate.
 concurrency:
-  group: data-architecture-${{ github.event.pull_request.number || github.ref }}
+  group: data-architecture-${{ github.ref }}-${{ inputs.tier || 'scale-gate' }}
   cancel-in-progress: true
 
 jobs:
@@ -60,7 +53,7 @@ jobs:
         id: tiers
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.tier }}" != "scale-gate" ]; then
+          if [ "${{ inputs.tier }}" != "scale-gate" ]; then
             echo "args=--tier=${{ inputs.tier }}" >> "$GITHUB_OUTPUT"
             echo "label=${{ inputs.tier }}" >> "$GITHUB_OUTPUT"
           else
