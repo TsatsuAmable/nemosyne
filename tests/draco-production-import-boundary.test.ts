@@ -19,7 +19,7 @@ describe('Draco production compatibility boundary', () => {
       const relative = path.relative(SRC_ROOT, file).replaceAll(path.sep, '/');
       if (relative.startsWith('draco/')) continue;
       const source = fs.readFileSync(file, 'utf8');
-      if (/(?:from\s+['\"]|import\s*\(\s*['\"])[^'\"]*\/draco\//.test(source)) {
+      if (/(?:from\s+['"]|import\s*\(\s*['"])[^'"]*\/draco\//.test(source)) {
         offenders.push(relative);
       }
     }
