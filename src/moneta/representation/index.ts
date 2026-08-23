@@ -1,6 +1,7 @@
 export * from './RepresentationCandidate.ts';
 export * from './RepresentationFamily.ts';
 export * from './DatasetSignature.ts';
+export * from './DatasetEvidenceSignature.ts';
 export * from './RepresentationDecision.ts';
 export * from './RepresentationGraph.ts';
 export * from './RepresentationGraphAdapter.ts';
