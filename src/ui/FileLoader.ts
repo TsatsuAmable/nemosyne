@@ -7,7 +7,7 @@ import {
   getDefaultEncodings,
   type SampleDatasetEntry,
 } from '../data/SampleDatasets.ts';
-import { TopologyTypes } from '../draco/ConstraintEngine.ts';
+import { TopologyTypes } from '../moneta/ConstraintEngine.ts';
 import type { AtlasCore } from '../atlas/AtlasCore.ts';
 
 /**
