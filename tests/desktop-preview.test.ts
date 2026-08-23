@@ -5,6 +5,13 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import * as THREE from 'three';
 
+async function ensureKernelAfterModuleReset() {
+  const bridge = await import('../src/wasm/RuntimeBridge.ts');
+  if (!bridge.isReady()) {
+    await bridge.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
+  }
+}
+
 /**
  * Minimal in-memory IndexedDB stub for unit testing.
  */
@@ -86,6 +93,7 @@ describe('Desktop preview and shared settings', () => {
 
   beforeEach(async () => {
     vi.resetModules();
+    await ensureKernelAfterModuleReset();
     localStorage.clear();
     originalIndexedDB = global.indexedDB;
     global.indexedDB = makeStubIndexedDB();
@@ -143,6 +151,7 @@ describe('Desktop preview and shared settings', () => {
     expect(direct?.settings?.textScale).toBe(1.75);
 
     vi.resetModules();
+    await ensureKernelAfterModuleReset();
     const { World } = await import('../src/vr/World.ts');
     const w2 = new World();
     await new Promise((r) => setTimeout(r, 200));

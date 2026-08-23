@@ -114,10 +114,10 @@ describe('Audit Pass 2 - Subsystem Resiliency & Bounds Safety', () => {
   });
 
   describe('3. WASM Panic Safety & Memory Allocation Boundaries', () => {
-    it('deallocBytes safely handles zero/null pointers without throwing when uninitialised', () => {
+    it('deallocBytes safely ignores zero/null allocations while the test kernel is initialised', () => {
       expect(() => {
         deallocBytes(0, 0);
-      }).toThrow('Runtime not initialised');
+      }).not.toThrow();
     });
 
     it('CommandApplier safely bounds-checks truncated byte buffer payloads without RangeError', () => {

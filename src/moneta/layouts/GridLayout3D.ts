@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LayoutBase, warnKernelLayoutUnavailable } from './LayoutBase.ts';
+import { LayoutBase, requireKernelLayoutPositions } from './LayoutBase.ts';
 import type { LayoutEntry } from '../types.ts';
 import { computeGrid3d } from '../../wasm/RuntimeBridge.ts';
 
@@ -31,39 +31,21 @@ export class GridLayout3D extends LayoutBase {
       });
     }
 
-    const n = ordered.length || 1;
-    const out: LayoutEntry<T>[] = [];
+    if (ordered.length === 0) return [];
+    const wasmPositions = requireKernelLayoutPositions(
+      'GridLayout3D',
+      computeGrid3d(ordered.length, spacing, yOffset),
+      ordered.length * 3,
+    );
 
-    const wasmPositions = computeGrid3d(n, spacing, yOffset);
-    if (wasmPositions && wasmPositions.length === n * 3) {
-      for (let i = 0; i < n; i++) {
-        out.push({
-          position: new THREE.Vector3(
-            wasmPositions[i * 3 + 0],
-            wasmPositions[i * 3 + 1],
-            wasmPositions[i * 3 + 2]
-          ),
-          row: ordered[i],
-          index: i,
-        });
-      }
-      return out;
-    }
-
-    warnKernelLayoutUnavailable('GridLayout3D');
-    const cols = Math.ceil(Math.cbrt(n));
-    const layers = Math.ceil(n / (cols * cols));
-
-    for (let i = 0; i < n; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols) % cols;
-      const layer = Math.floor(i / (cols * cols));
-      const x = (col - (cols - 1) / 2) * spacing;
-      const y = (row - (cols - 1) / 2) * spacing + yOffset;
-      const z = (layer - (layers - 1) / 2) * spacing;
-      out.push({ position: new THREE.Vector3(x, y, z), row: ordered[i], index: i });
-    }
-
-    return out;
+    return ordered.map((row, i) => ({
+      position: new THREE.Vector3(
+        wasmPositions[i * 3],
+        wasmPositions[i * 3 + 1],
+        wasmPositions[i * 3 + 2],
+      ),
+      row,
+      index: i,
+    }));
   }
 }

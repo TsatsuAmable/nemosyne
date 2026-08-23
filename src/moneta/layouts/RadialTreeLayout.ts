@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LayoutBase, warnKernelLayoutUnavailable } from './LayoutBase.ts';
+import { LayoutBase, requireKernelLayoutPositions } from './LayoutBase.ts';
 import type { RadialEntry } from '../types.ts';
 import { computeRadialTree3d } from '../../wasm/RuntimeBridge.ts';
 
@@ -18,6 +18,8 @@ export class RadialTreeLayout extends LayoutBase {
     rows: T[] = [],
     options: RadialTreeOptions = {}
   ): RadialEntry<T>[] {
+    if (rows.length === 0) return [];
+
     const {
       radiusStep = options.ringSpacing ?? 1.8,
       levelHeight = options.yStep ?? 0.9,
@@ -26,86 +28,50 @@ export class RadialTreeLayout extends LayoutBase {
       levelKey = 'level',
     } = options;
 
-    const n = rows.length || 1;
     const levelsList = rows.map((r) => {
       const l = (r as Record<string, unknown>)[levelKey];
       return typeof l === 'number' ? l : 0;
     });
-
-    const levels: Map<number, number[]> = new Map();
+    const levels = new Map<number, number[]>();
     rows.forEach((r, i) => {
-      const rawL = (r as Record<string, unknown>)[levelKey];
-      const lvl = typeof rawL === 'number' ? rawL : 0;
-      if (!levels.has(lvl)) levels.set(lvl, []);
-      levels.get(lvl)!.push(i);
+      const raw = (r as Record<string, unknown>)[levelKey];
+      const level = typeof raw === 'number' ? raw : 0;
+      const bucket = levels.get(level) ?? [];
+      bucket.push(i);
+      levels.set(level, bucket);
     });
 
-    const wasmPositions = computeRadialTree3d(levelsList, radiusStep, levelHeight, yOffset);
-    if (wasmPositions && wasmPositions.length === n * 3) {
-      return rows.map((row, i) => {
-        const r = row as Record<string, unknown>;
-        const rawL = r[levelKey];
-        const lvl = typeof rawL === 'number' ? rawL : 0;
-        const parentId = r[parentKey];
-        let pIdx =
-          parentId !== undefined
-            ? rows.findIndex((other) => this.rowId(other as Record<string, unknown>) === parentId)
-            : -1;
+    const wasmPositions = requireKernelLayoutPositions(
+      'RadialTreeLayout',
+      computeRadialTree3d(levelsList, radiusStep, levelHeight, yOffset),
+      rows.length * 3,
+    );
 
-        if (pIdx < 0 && lvl > 0 && levels.has(lvl - 1)) {
-          const parentIndices = levels.get(lvl - 1)!;
-          pIdx = parentIndices[0];
-        }
+    return rows.map((row, i) => {
+      const rec = row as Record<string, unknown>;
+      const rawLevel = rec[levelKey];
+      const level = typeof rawLevel === 'number' ? rawLevel : 0;
+      const parentId = rec[parentKey];
+      let parentIndex = parentId !== undefined
+        ? rows.findIndex((other) => this.rowId(other as Record<string, unknown>) === parentId)
+        : -1;
 
-        return {
-          position: new THREE.Vector3(
-            wasmPositions[i * 3 + 0],
-            wasmPositions[i * 3 + 1],
-            wasmPositions[i * 3 + 2]
-          ),
-          row,
-          index: i,
-          level: lvl,
-          parentIndex: pIdx >= 0 ? pIdx : undefined,
-        };
-      });
-    }
+      if (parentIndex < 0 && level > 0) {
+        const candidates = levels.get(level - 1);
+        if (candidates?.length) parentIndex = candidates[0];
+      }
 
-    warnKernelLayoutUnavailable('RadialTreeLayout');
-    const out: RadialEntry<T>[] = new Array(n);
-
-    for (const [lvl, indices] of levels.entries()) {
-      const r = lvl * radiusStep;
-      const count = indices.length;
-      indices.forEach((idx, k) => {
-        const theta = (2 * Math.PI * k) / count;
-        const x = r * Math.cos(theta);
-        const z = r * Math.sin(theta);
-        const y = lvl * levelHeight + yOffset;
-
-        const row = rows[idx];
-        const parentId = (row as Record<string, unknown>)[parentKey];
-        let pIdx =
-          parentId !== undefined
-            ? rows.findIndex((other) => this.rowId(other as Record<string, unknown>) === parentId)
-            : -1;
-
-        if (pIdx < 0 && lvl > 0 && levels.has(lvl - 1)) {
-          const parentIndices = levels.get(lvl - 1)!;
-          const pPos = Math.floor((k / count) * parentIndices.length);
-          pIdx = parentIndices[pPos % parentIndices.length];
-        }
-
-        out[idx] = {
-          position: new THREE.Vector3(x, y, z),
-          row,
-          index: idx,
-          level: lvl,
-          parentIndex: pIdx >= 0 ? pIdx : undefined,
-        };
-      });
-    }
-
-    return out;
+      return {
+        position: new THREE.Vector3(
+          wasmPositions[i * 3],
+          wasmPositions[i * 3 + 1],
+          wasmPositions[i * 3 + 2],
+        ),
+        row,
+        index: i,
+        level,
+        parentIndex: parentIndex >= 0 ? parentIndex : undefined,
+      };
+    });
   }
 }

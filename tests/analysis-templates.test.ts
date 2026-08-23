@@ -6,6 +6,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ANALYSIS_TEMPLATES, resolveTemplate } from '../src/data/AnalysisTemplates.ts';
 import { allSampleDatasets } from '../src/data/SampleDatasets.ts';
 
+async function ensureKernelAfterModuleReset() {
+  const bridge = await import('../src/wasm/RuntimeBridge.ts');
+  if (!bridge.isReady()) {
+    await bridge.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
+  }
+}
+
 describe('AnalysisTemplates', () => {
   it('contains well-defined story templates', () => {
     expect(ANALYSIS_TEMPLATES.length).toBeGreaterThan(0);
@@ -39,6 +46,7 @@ describe('World.loadTemplate integration', () => {
 
   beforeEach(async () => {
     vi.resetModules();
+    await ensureKernelAfterModuleReset();
     const { World } = await import('../src/vr/World.ts');
     world = new World();
     // Wait for async autosave restore to settle.
