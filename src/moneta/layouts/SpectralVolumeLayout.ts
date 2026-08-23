@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { LayoutBase } from './LayoutBase.ts';
+import { LayoutBase, requireKernelLayoutPositions } from './LayoutBase.ts';
 import type { LayoutEntry } from '../types.ts';
+import { computeSpectralVolume3d } from '../../wasm/LayoutAuthorityBridge.ts';
 
 export interface SpectralVolumeOptions {
   radialScale?: number;
@@ -18,6 +19,8 @@ export class SpectralVolumeLayout extends LayoutBase {
     rows: T[] = [],
     options: SpectralVolumeOptions = {}
   ): LayoutEntry<T>[] {
+    if (rows.length === 0) return [];
+
     const {
       radialScale = 3.0,
       heightScale = 2.0,
@@ -28,28 +31,42 @@ export class SpectralVolumeLayout extends LayoutBase {
       phaseKey = 'phase',
     } = options;
     const effectiveHeightScale = powerScale ?? heightScale;
+    const count = rows.length;
 
-    const n = rows.length || 1;
-    const out: LayoutEntry<T>[] = [];
+    const frequencies = rows.map((row, index) => {
+      const value = (row as Record<string, unknown>)[frequencyKey];
+      return typeof value === 'number' ? value : (index + 1) / count;
+    });
+    const powers = rows.map((row) => {
+      const value = (row as Record<string, unknown>)[powerKey];
+      return typeof value === 'number' ? value : 1.0;
+    });
+    const phases = rows.map((row, index) => {
+      const value = (row as Record<string, unknown>)[phaseKey];
+      return typeof value === 'number' ? value : (2 * Math.PI * index) / count;
+    });
 
-    for (let i = 0; i < n; i++) {
-      const row = rows[i] as Record<string, unknown>;
-      const freq = typeof row[frequencyKey] === 'number' ? (row[frequencyKey] as number) : (i + 1) / n;
-      const power = typeof row[powerKey] === 'number' ? (row[powerKey] as number) : 1.0;
-      const phase = typeof row[phaseKey] === 'number' ? (row[phaseKey] as number) : (2 * Math.PI * i) / n;
+    const positions = requireKernelLayoutPositions(
+      'SpectralVolumeLayout',
+      computeSpectralVolume3d(
+        frequencies,
+        powers,
+        phases,
+        radialScale,
+        effectiveHeightScale,
+        yOffset,
+      ),
+      count * 3,
+    );
 
-      const r = freq * radialScale;
-      const x = r * Math.cos(phase);
-      const z = r * Math.sin(phase);
-      const y = power * effectiveHeightScale + yOffset;
-
-      out.push({
-        position: new THREE.Vector3(x, y, z),
-        row: rows[i],
-        index: i,
-      });
-    }
-
-    return out;
+    return rows.map((row, index) => ({
+      position: new THREE.Vector3(
+        positions[index * 3],
+        positions[index * 3 + 1],
+        positions[index * 3 + 2],
+      ),
+      row,
+      index,
+    }));
   }
 }
