@@ -15,14 +15,30 @@ const UI_ONLY_TESTS = [
   'tests/asymmetric-desktop-companion.test.ts',
 ];
 
+const WASM_TESTS = [
+  'tests/accessibility.test.ts',
+  'tests/analysis-templates.test.ts',
+  'tests/desktop-preview.test.ts',
+  'tests/intent-inference.test.ts',
+  'tests/moneta-metamorphic-provenance.test.ts',
+  'tests/performance-budget.test.ts',
+  'tests/production-runtime-wiring.test.ts',
+  'tests/subsystem-resiliency-audit.test.ts',
+  'tests/wasm-layouts.test.ts',
+  'tests/wasm-row-identity.test.ts',
+  'tests/wasm-runtime.test.ts',
+  'tests/world-coverage.test.ts',
+  'tests/world.test.ts',
+];
+
 export default defineConfig({
   test: {
+    name: 'jsdom-integration',
     environment: 'jsdom',
-    setupFiles: ['./tests/setup.ts', './tests/setup-wasm.ts'],
+    setupFiles: ['./tests/setup.ts'],
     globals: false,
-    // tests/smoke is a Playwright suite (real Chromium), not a Vitest suite.
-    // Pure Node contracts and jsdom-only presentation tests run in dedicated
-    // lanes so they do not pay the real-WASM bootstrap cost.
+    // Real WASM is opt-in via vitest.wasm.config.ts. Tests in this lane must
+    // not depend on ambient kernel initialization.
     exclude: [
       'node_modules',
       'dist',
@@ -32,15 +48,15 @@ export default defineConfig({
       'modules',
       ...FAST_NODE_TESTS,
       ...UI_ONLY_TESTS,
+      ...WASM_TESTS,
     ],
-    pool: 'forks',
-    maxWorkers: 2,
+    pool: 'threads',
+    maxWorkers: 4,
     minWorkers: 1,
     testTimeout: 10000,
-    teardownTimeout: 3000,
+    teardownTimeout: 2000,
     coverage: {
       provider: 'v8',
-      // Ratcheted coverage floors (baseline measured at ~83% stmt / 70% branch)
       thresholds: { lines: 75, statements: 75, functions: 70, branches: 60 },
     },
   },
