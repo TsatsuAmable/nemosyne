@@ -30,10 +30,6 @@ concurrency:
 jobs:
   pr-scale-gate:
     if: github.event_name == 'pull_request'
-    strategy:
-      fail-fast: false
-      matrix:
-        tier: [100k, 1m]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -57,25 +53,25 @@ jobs:
       - name: Build WASM package
         run: npm run wasm:dev
 
-      - name: Run boundary scale tier
+      - name: Run 100K and 1M canonical-columnar scale gate
         run: |
-          node --expose-gc scripts/benchmark-data-boundary.mjs --tier="${{ matrix.tier }}" --json > data-boundary-benchmark-${{ matrix.tier }}.json
-          cat data-boundary-benchmark-${{ matrix.tier }}.json
+          node --expose-gc scripts/benchmark-data-boundary.mjs --tier=100k --tier=1m --json > data-boundary-scale-gate.json
+          cat data-boundary-scale-gate.json
 
       - name: Publish summary
         run: |
-          echo "## Rust/WASM data boundary benchmark" >> "$GITHUB_STEP_SUMMARY"
-          echo "Tier: \`${{ matrix.tier }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Rust/WASM canonical-columnar scale gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tiers: \`100k + 1m\` in one WASM runtime" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo '```json' >> "$GITHUB_STEP_SUMMARY"
-          cat data-boundary-benchmark-${{ matrix.tier }}.json >> "$GITHUB_STEP_SUMMARY"
+          cat data-boundary-scale-gate.json >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload benchmark result
         uses: actions/upload-artifact@v4
         with:
-          name: data-boundary-benchmark-${{ matrix.tier }}
-          path: data-boundary-benchmark-${{ matrix.tier }}.json
+          name: data-boundary-scale-gate
+          path: data-boundary-scale-gate.json
           if-no-files-found: error
           retention-days: 30
 
