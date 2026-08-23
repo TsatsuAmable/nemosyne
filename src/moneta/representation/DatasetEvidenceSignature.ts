@@ -110,7 +110,7 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
   const dimensionality = objectValue(required(items, 'schema:dimensionality').value, 'schema:dimensionality');
   const numeric = objectValue(required(items, 'distribution:numeric').value, 'distribution:numeric');
   const categorical = objectValue(required(items, 'distribution:categorical').value, 'distribution:categorical');
-  const density = objectValue(required(items, 'density:global').value, 'density:global');
+  objectValue(required(items, 'density:global').value, 'density:global');
   const clusters = objectValue(required(items, 'cluster:global').value, 'cluster:global');
   const anomalies = objectValue(required(items, 'anomaly:global').value, 'anomaly:global');
   const dependency = objectValue(required(items, 'dependency:correlations').value, 'dependency:correlations');
