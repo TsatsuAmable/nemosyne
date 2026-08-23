@@ -13,10 +13,15 @@ export interface SpectralFacts {
   dominantFrequencies: number[];
   spectralEntropy: number;
   powerSpectrumPeak: number;
-  directionalAnisotropy: number;
-  characteristicScale: number;
+  /** Present only when the analytical source actually computes anisotropy. */
+  directionalAnisotropy?: number;
+  /** Present only when the analytical source actually computes a characteristic scale. */
+  characteristicScale?: number;
   hasPeriodicity: boolean;
-  periodicityConfidence: number;
+  /** @deprecated Legacy kernel field. Prefer periodicityHeuristicScore when the value is heuristic. */
+  periodicityConfidence?: number;
+  /** Epistemically narrow name for a non-calibrated periodicity score. */
+  periodicityHeuristicScore?: number;
 }
 
 export interface DatasetSignatureSchema {
