@@ -86,6 +86,10 @@ describe('pinned learned Moneta runtime composition', () => {
     expect(decision.provenance.fitnessModelVersion).toBe('learned-v1');
     expect(decision.provenance.fitnessModelArtifactHash).toBe(registered.artifactHash);
     expect(decision.provenance.version).toBe(LEARNED_MONETA_RUNTIME_VERSION);
+    expect(decision.embodiment.spatialStrategy.provenance.fitnessModelVersion).toBe('learned-v1');
+    expect(decision.embodiment.spatialStrategy.provenance.fitnessModelArtifactHash).toBe(
+      registered.artifactHash,
+    );
     expect(decision.weightSensitivity).toBeUndefined();
     expect(decision.evidence).toContainEqual(expect.objectContaining({
       fact: `Fitness artifact: ${registered.artifactHash}`,
