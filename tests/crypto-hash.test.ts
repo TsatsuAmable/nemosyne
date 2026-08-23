@@ -22,8 +22,11 @@ describe('shared cryptographic hashing', () => {
     expect(canonicalSha256Hex(a)).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it('fails closed on non-finite and cyclical canonical content', () => {
-    expect(() => canonicalJsonStringify({ value: Number.NaN })).toThrow(/non-finite/i);
+  it('normalizes non-finite numbers and fails closed on cyclical canonical content', () => {
+    expect(canonicalJsonStringify({ value: Number.NaN })).toBe('{"value":null}');
+    expect(canonicalJsonStringify({ value: Number.POSITIVE_INFINITY })).toBe('{"value":null}');
+    expect(canonicalJsonStringify({ value: Number.NEGATIVE_INFINITY })).toBe('{"value":null}');
+
     const cycle: Record<string, unknown> = {};
     cycle.self = cycle;
     expect(() => canonicalJsonStringify(cycle)).toThrow(/cyclical/i);
