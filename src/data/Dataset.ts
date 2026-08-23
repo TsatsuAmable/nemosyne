@@ -8,12 +8,47 @@ import { registerDurableRowId } from './RowIdentity.ts';
 
 const DANGEROUS_ROW_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
-function hasDangerousOwnKey(row: Record<string, unknown>): boolean {
-  return (
-    Object.prototype.hasOwnProperty.call(row, '__proto__') ||
-    Object.prototype.hasOwnProperty.call(row, 'constructor') ||
-    Object.prototype.hasOwnProperty.call(row, 'prototype')
-  );
+function isJsonContainer(value: unknown): value is Record<string, unknown> | unknown[] {
+  if (!value || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return true;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function hasDangerousKeyDeep(value: unknown, seen = new WeakSet<object>()): boolean {
+  if (!isJsonContainer(value)) return false;
+  if (seen.has(value)) return false;
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    return value.some((item) => hasDangerousKeyDeep(item, seen));
+  }
+
+  for (const key of Object.keys(value)) {
+    if (DANGEROUS_ROW_KEYS.has(key) || hasDangerousKeyDeep(value[key], seen)) return true;
+  }
+  return false;
+}
+
+function cloneSanitizedJsonValue(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
+  if (!isJsonContainer(value)) return value;
+  const existing = seen.get(value);
+  if (existing !== undefined) return existing;
+
+  if (Array.isArray(value)) {
+    const out: unknown[] = [];
+    seen.set(value, out);
+    for (const item of value) out.push(cloneSanitizedJsonValue(item, seen));
+    return out;
+  }
+
+  const out: Record<string, unknown> = {};
+  seen.set(value, out);
+  for (const key of Object.keys(value)) {
+    if (DANGEROUS_ROW_KEYS.has(key)) continue;
+    out[key] = cloneSanitizedJsonValue(value[key], seen);
+  }
+  return out;
 }
 
 function cloneRow(row: Record<string, unknown>): Record<string, unknown> {
@@ -21,14 +56,15 @@ function cloneRow(row: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(row)) {
     if (DANGEROUS_ROW_KEYS.has(key)) continue;
-    out[key] = row[key];
+    const value = row[key];
+    out[key] = hasDangerousKeyDeep(value) ? cloneSanitizedJsonValue(value) : value;
   }
   return out;
 }
 
 function sanitizeRow(row: Record<string, unknown>): Record<string, unknown> {
   if (!row || typeof row !== 'object') return {};
-  if (!hasDangerousOwnKey(row)) return row;
+  if (!hasDangerousKeyDeep(row)) return row;
   return cloneRow(row);
 }
 

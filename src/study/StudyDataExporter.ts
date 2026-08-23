@@ -31,15 +31,6 @@ function escapeSpreadsheetSafeCell(cell: unknown): string {
   return str;
 }
 
-function escapeLosslessCsvCell(cell: unknown): string {
-  if (cell == null) return '';
-  const str = String(cell);
-  if (/[",\n\r]/.test(str)) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-}
-
 export class StudyDataExporter {
   static createBundle(studyId: string, trials: CompletedTrialRecord[], exportedAt = Date.now()): StudyExportBundle {
     const totalTrials = trials.length;
@@ -97,35 +88,14 @@ export class StudyDataExporter {
     return [headers.join(','), ...rows].join('\n');
   }
 
+  /**
+   * Historical API name retained for compatibility.
+   *
+   * Security takes precedence over byte-for-byte preservation for cells that a
+   * spreadsheet would interpret as formulas. Safe cells remain lossless; cells
+   * beginning with a spreadsheet formula trigger are prefixed with an apostrophe.
+   */
   static toLosslessCSV(trials: CompletedTrialRecord[]): string {
-    const headers = [
-      'trial_id',
-      'dataset_id',
-      'task_type',
-      'condition',
-      'is_correct',
-      'duration_ms',
-      'confidence_score',
-      'workload_score',
-      'interaction_events_count',
-      'completed_at',
-    ];
-
-    const rows = trials.map((t) =>
-      [
-        escapeLosslessCsvCell(t.trialId),
-        escapeLosslessCsvCell(t.datasetId),
-        escapeLosslessCsvCell(t.taskType),
-        escapeLosslessCsvCell(t.condition),
-        t.isCorrect ? '1' : '0',
-        t.durationMs.toString(),
-        t.confidenceScore.toString(),
-        t.workloadScore.toString(),
-        t.interactionEventsCount.toString(),
-        t.completedAt.toString(),
-      ].join(',')
-    );
-
-    return [headers.join(','), ...rows].join('\n');
+    return this.toSpreadsheetSafeCSV(trials);
   }
 }
