@@ -76,8 +76,10 @@ export function parseDatasetBytes(bytes: Uint8Array, ext: 'csv' | 'json'): Datas
 export function executeOperation(datasetObj: DatasetJSON, op: OperationSpec): DatasetJSON | null {
   const inputHandle = loadDatasetJson(datasetObj);
   if (inputHandle === 0) return null;
-  const outputHandle = runOperation(inputHandle, op);
+
+  let outputHandle = 0;
   try {
+    outputHandle = runOperation(inputHandle, op);
     if (outputHandle === 0) return null;
     return getDatasetJson(outputHandle);
   } finally {
