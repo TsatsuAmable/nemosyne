@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 
-const dataDir = fileURLToPath(new URL('../../../src/data/', import.meta.url));
+const dataDir = resolve(process.cwd(), 'src/data');
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -15,7 +14,7 @@ function sourceFiles(dir: string): string[] {
 
 function moduleSpecifiers(source: string): string[] {
   const specifiers: string[] = [];
-  const pattern = /(?:from\s+|import\s*\()\s*['"]([^'"]+)['"]/g;
+  const pattern = /(?:from\s+|import\s*(?:\(\s*)?)['"]([^'"]+)['"]/g;
   for (const match of source.matchAll(pattern)) specifiers.push(match[1]);
   return specifiers;
 }
@@ -49,9 +48,10 @@ describe('Feature 1: Data layer remains independent of recommendation and VR lay
     }
   });
 
-  it('F01-TC5: the decoupling guard covers both static and dynamic imports', () => {
-    expect(moduleSpecifiers("import x from '../moneta/x'; import('../vr/y')")).toEqual([
+  it('F01-TC5: the decoupling guard covers static, side-effect, and dynamic imports', () => {
+    expect(moduleSpecifiers("import x from '../moneta/x'; import '../data/setup'; import('../vr/y')")).toEqual([
       '../moneta/x',
+      '../data/setup',
       '../vr/y',
     ]);
   });
