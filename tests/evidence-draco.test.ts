@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
-import { EvidenceStore, EvidenceWeightedScorer } from '../src/draco/evidence/index.ts';
-import type { DracoSpec, SolverResult } from '../src/draco/types.ts';
+import { EvidenceStore, EvidenceWeightedScorer } from '../src/moneta/evidence/index.ts';
+import type { DracoSpec, SolverResult } from '../src/moneta/types.ts';
 import type { StudySessionExport } from '../src/study/types.ts';
 
 describe('Evidence-Informed Draco Recommender Loop', () => {
@@ -100,7 +100,6 @@ describe('Evidence-Informed Draco Recommender Loop', () => {
   });
 
   it('adjusts Draco candidate scores based on empirical evidence', () => {
-    // Populate store with 10 high-utility trials for Spec A
     for (let i = 0; i < 10; i++) {
       store.recordOutcome({
         trialId: `t-${i}`,
@@ -120,13 +119,11 @@ describe('Evidence-Informed Draco Recommender Loop', () => {
 
     const { adjustedCost, empiricalDelta } = scorer.adjustCandidateScore(mockSpecA, 50);
 
-    // High empirical utility (>0.5) should reduce the penalty cost
     expect(adjustedCost).toBeLessThan(50);
     expect(empiricalDelta).toBeLessThan(0);
   });
 
   it('re-ranks candidates placing empirically superior specs first', () => {
-    // Populate store with high utility for Spec A and low utility for Spec B
     for (let i = 0; i < 10; i++) {
       store.recordOutcome({
         trialId: `t-a-${i}`,
@@ -164,9 +161,6 @@ describe('Evidence-Informed Draco Recommender Loop', () => {
     ];
 
     const reRanked = scorer.reRankCandidates(candidates);
-
-    // Even though Spec B had a slightly better initial cost (20 vs 25),
-    // Spec A's overwhelming empirical superiority should rank it first.
     expect(reRanked[0].spec).toEqual(mockSpecA);
   });
 });

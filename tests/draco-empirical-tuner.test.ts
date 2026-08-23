@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect } from 'vitest';
-import { DracoEmpiricalTuner } from '../src/draco/evidence/DracoEmpiricalTuner.ts';
-import type { EmpiricalOutcome } from '../src/draco/evidence/types.ts';
+import { DracoEmpiricalTuner } from '../src/moneta/evidence/MonetaEmpiricalTuner.ts';
+import type { EmpiricalOutcome } from '../src/moneta/evidence/types.ts';
 
 describe('Draco Empirical Tuner & Adaptive Solver Loop (Sprint 26.2)', () => {
   function makeOutcome(

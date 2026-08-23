@@ -45,56 +45,62 @@ If not, defer it.
 
 Avoid opportunistic cleanup, adjacent refactors, dependency modernization, broad architecture reviews, and repository-wide audits while a migration row is active.
 
-## Migration ledger
+## Migration ledger — reconciled 23 August 2026
 
 | Capability / invariant | Current state | Exit condition | Status |
 |---|---|---|---|
-| Legacy Draco authority | restricted to compatibility re-exports by architecture tests | no independent Draco solver/scorer/reasoning implementation remains | DONE |
-| Draco import/call-site inventory | incomplete | every live `src/draco` import/export/call site classified as adapter, neutral contract, renderer helper, or obsolete | ACTIVE |
-| Obsolete Draco compatibility files | retained pending inventory | files with no required live consumer deleted; remaining compatibility is explicit and minimal | NEXT |
-| Rust analytical fact authority | partially established | every research-relevant fact consumed by Moneta is Rust/WASM-derived or fails explicitly | ACTIVE |
-| Moneta scale boundary | bounded candidate/sensitivity contract exists | no Moneta reasoning module traverses raw rows or performs N-dependent JS work | ACTIVE |
-| Moneta computational JS fallbacks | some layouts still contain degraded JS computation | scale-sensitive/data-derived layout computation is Rust-owned; UI may retain last-known-good presentation but not recompute analytical geometry independently | ACTIVE |
-| Fitness/scoring authority | bootstrap/learned model infrastructure present | scoring/ranking semantics have one authoritative implementation and focused invariant tests | ACTIVE |
-| Representation/provenance continuity | representation decisions persist; exact learned artifact identity is now being bound into canonical investigation digests | representation/model/NIL/discovery provenance persists through Investigation and replay | ACTIVE |
-| Downstream confidence terminology | partial compatibility remains | uncalibrated utility is no longer presented as statistical confidence | NEXT |
-| Metamorphic correctness | incomplete | row shuffle, valid semantic rename, and declared duplication/scale policies are tested at the authoritative layer | NEXT |
-| Draco public migration surface | compatibility retained | remaining public compatibility is documented, tested, and ready for eventual removal without hidden second authority | NEXT |
-| End-to-end migration integration | incomplete | representative datasets flow Rust evidence -> Moneta -> representation runtime with deterministic provenance and no legacy authority path | FINAL |
-| Large-dataset migration validation | architecture contract present | migration passes focused benchmark tiers and does not rematerialize full data or execute N-dependent Moneta JS work | FINAL |
+| Legacy Draco authority | architecture tests restrict Draco to compatibility aliases/re-exports; production imports Moneta directly | no independent Draco solver/scorer/reasoning implementation remains | **DONE** |
+| Draco import/call-site inventory | production inventory complete; no production consumer imports `src/draco/**` | every live Draco call site classified | **DONE** |
+| Obsolete Draco compatibility files | deep `layouts/`, `representation/` and `evidence/` mirrors removed in the current exit slice | remaining compatibility is explicit and minimal | **ACTIVE** |
+| Rust analytical fact authority | major analytical/evidence/layout paths are Rust/WASM-owned, but the complete research-fact origin audit is not yet recorded | every research-relevant fact consumed by Moneta is Rust/WASM-derived or fails explicitly | **NEXT** |
+| Moneta scale boundary | bounded candidate/sensitivity contract is executable for 10K, 100K, 1M and 10M cardinality signatures; canonical reasoning modules are guarded from raw-row traversal | no Moneta reasoning module traverses raw rows or performs N-dependent JS work | **DONE** |
+| Moneta computational JS fallbacks | #315 moved data-derived layout computation to Rust/WASM and fail-closed kernel boundaries | scale-sensitive/data-derived computation is Rust-owned; UI does not recompute analytical geometry independently | **DONE** |
+| Fitness/scoring authority | bootstrap hard constraints precede learned ranking; exact learned provenance is pinned and invalid provenance fails closed | scoring/ranking semantics have one production authority with invariant tests | **DONE** |
+| Representation/provenance continuity | #324-#332 persist and replay-verify analytical, representation, model, discovery and NIL provenance | representation/model/NIL/discovery provenance survives Investigation and replay | **DONE** |
+| Downstream confidence terminology | compatibility and investigator-facing uses remain to audit | uncalibrated utility is no longer presented as statistical confidence | **NEXT** |
+| Metamorphic correctness | row order, semantic rename, duplication/scale and exact provenance contracts are covered | declared metamorphic policies are executable at the authoritative/boundary layer | **DONE** |
+| Draco public migration surface | production imports are gone; deep mirrors are being removed; top-level compatibility aliases remain | retained compatibility is documented, tested and ready for eventual removal | **ACTIVE** |
+| End-to-end migration integration | provenance pieces exist, but the single representative Rust -> Moneta -> runtime -> portable replay migration proof remains to be assembled | representative datasets flow Rust evidence -> Moneta -> runtime/replay with deterministic provenance and no legacy authority path | **FINAL** |
+| Large-dataset migration validation | columnar/data-plane and bounded reasoning evidence exist; current-main benchmark matrix remains to run | focused 10K-10M tiers prove no full-data JS rematerialisation or N-dependent Moneta work | **FINAL** |
 
-Update this table in PRs that change a migration state. Keep only one or two `ACTIVE` rows when possible.
+Keep only one or two `ACTIVE` rows when possible. Current active rows are the two facets of Draco compatibility collapse; scientific terminology/authority work follows immediately afterward.
 
 ## Execution sequence
 
-### Slice 1 — Authority inventory and layout boundary
+### Slice 1 — Authority inventory and layout boundary — COMPLETE
 
-- complete Draco/Moneta import and call-site inventory;
-- remove or quarantine obsolete compatibility consumers;
-- eliminate Moneta data-derived computational JS fallbacks that duplicate Rust layout work;
-- add architecture tests that prevent recurrence;
-- keep presentation-only fallback limited to last-known-good or explicitly non-analytical UI state.
+- production Draco/Moneta import inventory completed;
+- production consumers moved to Moneta;
+- data-derived layout computation moved to Rust/WASM;
+- architecture tests prevent production Draco imports and JS analytical fallback recurrence.
 
-### Slice 2 — Fitness, scoring, and recommendation convergence
+### Slice 2 — Fitness, scoring, recommendation and provenance convergence — COMPLETE FOR MIGRATION
 
-- establish one scoring/ranking semantic authority;
-- ensure bootstrap hard constraints precede learned ranking;
-- keep candidate and sensitivity budgets bounded independently of source row count;
-- retain only thin JS/WASM contract tests above authoritative Rust tests.
+- one bootstrap/learned ranking contract established;
+- bootstrap hard constraints precede learned ranking;
+- candidate and sensitivity budgets are independent of source row count;
+- exact learned artifact identity is pinned;
+- representation/model/discovery/NIL provenance survives portable Investigation replay;
+- metamorphic correctness contracts are live.
 
-### Slice 3 — Draco compatibility collapse
+This does **not** mean learned Moneta is empirically superior. Held-out discovery-outcome validation remains post-migration scientific work.
 
-- convert remaining required Draco entry points to explicit Moneta aliases/adapters;
-- delete obsolete Draco implementation files after inventory proves no live consumers;
-- add architecture/import tests that prohibit reintroduction of independent Draco authority.
+### Slice 3 — Draco compatibility collapse — ACTIVE
 
-### Slice 4 — Integration and migration exit
+- remove obsolete deep compatibility mirrors;
+- migrate ordinary tests to Moneta imports;
+- retain only deliberate top-level compatibility aliases/facade needed to prove legacy import continuity;
+- document removal conditions;
+- preserve architecture/import tests that prohibit independent Draco authority.
 
-- prove authoritative Rust evidence -> Moneta reasoning -> representation runtime end to end;
-- prove investigation/replay provenance survives the path;
-- run migration-level performance tiers and representative integration tests;
-- clean remaining uncalibrated `confidence` compatibility terminology required for the migration contract;
-- mark migration rows DONE.
+### Slice 4 — Integration and migration exit — NEXT
+
+- audit research-relevant Moneta inputs for Rust/WASM analytical origin;
+- clean remaining uncalibrated `confidence` terminology;
+- prove authoritative Rust evidence -> Moneta reasoning -> representation runtime -> Investigation -> `.nemosyne` replay end to end;
+- run 10K/100K/1M/10M performance tiers and memory/transfer evidence;
+- run browser/WebXR smoke and final blocker sweep;
+- mark remaining migration rows DONE only on evidence.
 
 ## Verification cadence
 
@@ -139,7 +145,7 @@ Use the cheapest layer capable of proving the property.
 
 Prefer coherent vertical PRs over microscopic PRs. Target one migration slice or a meaningful sub-slice per PR, with multiple small commits where useful.
 
-Avoid one-line PR chains that repeatedly pay checkout, CI, Copilot review, rebase, and merge overhead unless isolation is needed for a genuinely high-risk change.
+Avoid one-line PR chains that repeatedly pay checkout, CI, review, rebase and merge overhead unless isolation is needed for a genuinely high-risk change.
 
 ## Review handling
 
@@ -153,8 +159,6 @@ For every finding:
 4. record valid deferred work without expanding the PR;
 5. resolve obsolete/outdated/non-blocking threads once dispositioned so conversation-resolution rules do not turn suggestions into accidental merge gates.
 
-Do not automatically push a fix merely because Copilot found something valid. Automatic review-remediation remains disabled during this sprint.
-
 ## Migration exit criteria
 
 The sprint is complete when:
@@ -164,8 +168,9 @@ The sprint is complete when:
 - Moneta consumes authoritative Rust/WASM evidence for research-relevant facts;
 - no scale-sensitive or duplicated data-derived computation silently falls back to JavaScript;
 - scoring/ranking and representation selection have one semantic authority with executable invariants;
+- representation/model/NIL/discovery provenance survives Investigation and clean-room replay;
 - representative end-to-end migration tests and required CI are green;
-- large-dataset performance boundaries remain intact;
+- large-dataset performance boundaries remain intact on current `main`;
 - all blocker-class review findings are resolved or shown obsolete.
 
-At that point, reopen pre-preview and hardening queues in priority order.
+At that point, reopen private-preview, scientific-validation and hardening queues in the order defined by `docs/ROADMAP.md`.
