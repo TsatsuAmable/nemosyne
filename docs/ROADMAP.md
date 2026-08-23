@@ -59,6 +59,26 @@ Baseline V3 governing merge: `13dd7459555d35ac718710a50f357e022c456731` (`docs: 
 - [ ] Add staged family/candidate pruning and explicit composition budgets before Gate 9 search.
 - [ ] Add Rust-side aggregation/LOD and GPU-ready visual buffers so source cardinality is decoupled from rendered primitive count.
 
+### P0 — Rust-first test architecture and feedback latency
+
+**Goal:** move exhaustive correctness tests to the lowest authoritative layer capable of proving each property. This is not a blanket rewrite of browser/application tests in Rust. Rust-owned analytical behaviour is tested exhaustively in Rust; TypeScript/browser suites become intentionally thin contract, integration, rendering and interaction layers.
+
+- [ ] Establish a test inventory by architectural ownership: Rust analytical/data authority, Rust↔WASM contract, TypeScript application/runtime, rendering/WebXR, and end-to-end user journeys.
+- [ ] Record a baseline for wall-clock duration, CPU time and duplicated setup across `cargo test`, Vitest, WASM contract tests and Playwright before migration.
+- [ ] Define and enforce the placement rule: **if a behaviour can be completely verified without a browser or JavaScript runtime and its implementation belongs to the Rust domain, its exhaustive correctness tests belong in Rust.**
+- [ ] Migrate dataset validation/canonicalisation, measurement semantics, statistical calculations, Moneta scoring/ranking, FitnessModel rules, evidence construction, hashing/canonical serialization, graph algorithms and other Rust-owned behavioural matrices from JS-driven tests to direct Rust tests where equivalent authority exists.
+- [ ] Add Rust property/metamorphic testing for numerical and structural invariants, including row-order invariance, valid semantic renaming invariance, finite-number requirements, canonical serialization, deterministic replay and declared duplication/scale policies.
+- [ ] For each migrated behavioural matrix, retain only the minimum JS/WASM contract coverage needed to prove value conversion, typed-array/memory-view semantics, error propagation and exported API compatibility.
+- [ ] Do not migrate tests whose subject is inherently TypeScript/browser behaviour: React/application state, Three.js rendering, WebXR/controller/gesture integration, workers, browser lifecycle, accessibility or complete user journeys.
+- [ ] Delete redundant TypeScript cases only after the replacement Rust tests and retained boundary contract test demonstrate equivalent or stronger coverage; no test deletion may rely solely on language-level assumptions.
+- [ ] Add architecture checks preventing exhaustive Rust-owned analytical behaviour from being re-specified independently in TypeScript test fixtures or shadow implementations.
+- [ ] Split routine PR verification into fast, ownership-aligned lanes: focused Rust correctness, TypeScript/application correctness, lint/type checks and focused boundary contracts; reserve broad coverage aggregation and heavyweight browser/device suites for appropriate main/scheduled/affected-path gates.
+- [ ] Introduce Rust-side benchmarks/performance regression tests separately from correctness tests so timing variance does not make the fast correctness gate flaky.
+- [ ] Measure post-migration feedback latency and require a material reduction from the recorded baseline without reducing coverage thresholds or losing boundary/E2E protection.
+- [ ] Document the steady-state test pyramid and ownership rules in contributor/agent guidance so new tests default to the correct architectural layer.
+
+**Exit criteria:** authoritative analytical behaviour has one primary exhaustive specification beside the Rust implementation; JS/WASM tests verify boundaries rather than duplicate algorithms; browser/WebXR behaviours remain tested at their native layer; coverage assurance is preserved; and measured PR feedback latency improves materially against the pre-migration baseline.
+
 ### P0 — Finish authority and correctness boundaries
 
 - [ ] Complete inventory of `src/draco/` / `src/moneta/` imports, exports and runtime call sites.
@@ -130,7 +150,8 @@ Persistence and CI evolve continuously across all four.
 ## Design boundaries
 
 - **Rust owns N-dependent work.** Parsing, storage, filtering, statistics, clustering, topology, spectral analysis, evidence construction, large-data reduction and other work materially proportional to dataset size remain Rust/WASM responsibilities.
-- **Moneta is a bounded control plane.** Canonical representation reasoning consumes compact Rust-derived evidence and investigator semantics; it must not require raw-row traversal or full-dataset JS materialisation.
+- **Tests live with authority.** Exhaustive correctness tests belong at the lowest authoritative layer capable of proving the property. Rust-owned analytical semantics are specified primarily in Rust; higher layers test contracts and integration rather than independently reproducing those algorithms.
+- **Boundary coverage is irreducible.** Moving authoritative tests into Rust must not remove the small set of JS/WASM, browser, rendering, WebXR and end-to-end tests needed to prove cross-layer behaviour.
 - **Source rows are not visible elements.** Headset render budgets constrain reduced/LOD primitives, not the number of observations stored in the analytical dataset.
 - **Bootstrap is the safe default.** An explicit learned-runtime request must never silently switch artifact or silently fall back to bootstrap.
 - **Hard constraints precede learned ranking.** Learned models may reorder feasible candidates; they may not resurrect a bootstrap-disqualified candidate.
@@ -149,20 +170,21 @@ Every PR touching an architectural area must update active documentation. Supers
 
 ## Verification baseline
 
-Every implementation PR should run, as applicable:
+Every implementation PR should run the smallest ownership-aligned set that proves its claims, as applicable:
 
 ```text
+cargo test                    # Rust analytical/data correctness
+focused Vitest                # TypeScript application/runtime correctness
+focused JS/WASM contracts     # exported boundary and memory/value semantics
 tsc --noEmit
 eslint
-npm test
-cargo test
 npm run wasm:dev
 npm run build
 npm run audit:hygiene
 ```
 
-Focused correctness/parity tests are mandatory for claimed functionality. A skipped test is not evidence for a claimed gate. Coverage assurance runs separately on `main`/schedule so PR feedback remains fast without abandoning centralized coverage thresholds.
+Broad `npm test`, workspace-wide coverage aggregation, Playwright/WebXR integration and performance benchmark suites remain mandatory where affected or at their designated main/scheduled gates, but should not be duplicated on every push when a narrower deterministic gate proves the changed property. Focused correctness/parity tests are mandatory for claimed functionality. A skipped test is not evidence for a claimed gate. Coverage assurance runs separately on `main`/schedule so PR feedback remains fast without abandoning centralized coverage thresholds.
 
 ## Pickup instruction
 
-Complete the Moneta scalability contract and benchmark rails first. Then instrument Rust/WASM transfer/materialisation costs and continue the Rust-owned columnar Dataset migration. In parallel, continue authoritative DatasetEvidence coverage and held-out discovery-outcome validation; do not let pattern-fragility signals influence ranking until controlled evidence shows investigator benefit. After the current P0 scalability/authority slice is stable, execute the dependency/platform modernization sprint before Gate 9 compositional Moneta.
+Complete the Moneta scalability contract and benchmark rails first. In parallel, baseline current test-suite costs and begin the Rust-first test inventory/migration with Rust-owned analytical behaviours that currently pay unnecessary JS/WASM setup costs. Then instrument Rust/WASM transfer/materialisation costs and continue the Rust-owned columnar Dataset migration. Continue authoritative DatasetEvidence coverage and held-out discovery-outcome validation; do not let pattern-fragility signals influence ranking until controlled evidence shows investigator benefit. After the current P0 scalability/authority and test-architecture slices are stable, execute the dependency/platform modernization sprint before Gate 9 compositional Moneta.
