@@ -1,6 +1,7 @@
 pub mod column;
 pub mod column_view;
 pub mod columnar;
+pub mod columnar_fingerprint;
 pub mod dataset;
 pub mod encodings;
 pub mod evidence;
@@ -28,21 +29,37 @@ pub mod value;
 pub use dataset::{Dataset, Edge};
 
 use std::sync::Mutex;
+use column::Column;
 use columnar::ColumnarDataset;
 
 static DATASET_REGISTRY: Mutex<DatasetRegistry> = Mutex::new(DatasetRegistry::new());
 
 struct RegisteredDataset {
-    dataset: Dataset,
+    dataset: Option<Dataset>,
+    name: String,
+    columns: Vec<Column>,
     columnar: ColumnarDataset,
 }
 
 impl RegisteredDataset {
     fn new(dataset: Dataset) -> Self {
+        let name = dataset.name.clone();
+        let columns = dataset.columns.clone();
         let columnar = ColumnarDataset::from_dataset(&dataset);
-        Self { dataset, columnar }
+        Self { dataset: Some(dataset), name, columns, columnar }
     }
-    fn rebuild_columnar(&mut self) { self.columnar = ColumnarDataset::from_dataset(&self.dataset); }
+
+    fn columnar_only(name: String, columns: Vec<Column>, columnar: ColumnarDataset) -> Self {
+        Self { dataset: None, name, columns, columnar }
+    }
+
+    fn rebuild_columnar(&mut self) {
+        if let Some(dataset) = &self.dataset {
+            self.name = dataset.name.clone();
+            self.columns = dataset.columns.clone();
+            self.columnar = ColumnarDataset::from_dataset(dataset);
+        }
+    }
 }
 
 pub struct DatasetRegistry {
@@ -62,8 +79,11 @@ impl DatasetRegistry {
         handle
     }
     pub fn insert(&mut self, dataset: Dataset) -> u32 { self.insert_registered(RegisteredDataset::new(dataset)) }
+    pub fn insert_columnar(&mut self, name: String, columns: Vec<Column>, columnar: ColumnarDataset) -> u32 {
+        self.insert_registered(RegisteredDataset::columnar_only(name, columns, columnar))
+    }
     pub fn get(&self, handle: u32) -> Option<&Dataset> {
-        self.slots.get(handle.wrapping_sub(1) as usize).and_then(|slot| slot.as_ref()).map(|registered| &registered.dataset)
+        self.slots.get(handle.wrapping_sub(1) as usize).and_then(|slot| slot.as_ref()).and_then(|registered| registered.dataset.as_ref())
     }
     fn get_registered(&self, handle: u32) -> Option<&RegisteredDataset> {
         self.slots.get(handle.wrapping_sub(1) as usize).and_then(|slot| slot.as_ref())
@@ -84,13 +104,19 @@ pub fn register_dataset(dataset: Dataset) -> u32 {
     DATASET_REGISTRY.lock().expect("dataset registry poisoned").insert(dataset)
 }
 
+pub fn register_columnar_dataset(name: String, columns: Vec<Column>, columnar: ColumnarDataset) -> u32 {
+    DATASET_REGISTRY.lock().expect("dataset registry poisoned").insert_columnar(name, columns, columnar)
+}
+
 pub fn register_dataset_profiled(dataset: Dataset) -> (u32, f64, f64) {
     let build_started = provenance::now_ms();
     let columnar = ColumnarDataset::from_dataset(&dataset);
     let columnar_build_ms = provenance::now_ms() - build_started;
     let insert_started = provenance::now_ms();
+    let name = dataset.name.clone();
+    let columns = dataset.columns.clone();
     let mut reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
-    let handle = reg.insert_registered(RegisteredDataset { dataset, columnar });
+    let handle = reg.insert_registered(RegisteredDataset { dataset: Some(dataset), name, columns, columnar });
     let registry_insert_ms = provenance::now_ms() - insert_started;
     (handle, columnar_build_ms, registry_insert_ms)
 }
@@ -103,16 +129,22 @@ pub fn with_columnar_dataset<T>(handle: u32, f: impl FnOnce(&ColumnarDataset) ->
     DATASET_REGISTRY.lock().expect("dataset registry poisoned").get_columnar(handle).map(f)
 }
 
+pub fn with_columnar_metadata<T>(handle: u32, f: impl FnOnce(&str, &[Column], &ColumnarDataset) -> T) -> Option<T> {
+    let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
+    let registered = reg.get_registered(handle)?;
+    Some(f(&registered.name, &registered.columns, &registered.columnar))
+}
+
 pub fn with_dataset_and_columnar<T>(handle: u32, f: impl FnOnce(&Dataset, &ColumnarDataset) -> T) -> Option<T> {
     let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
     let registered = reg.get_registered(handle)?;
-    Some(f(&registered.dataset, &registered.columnar))
+    Some(f(registered.dataset.as_ref()?, &registered.columnar))
 }
 
 pub fn with_dataset_mut<T>(handle: u32, f: impl FnOnce(&mut Dataset) -> T) -> Option<T> {
     let mut reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
     let registered = reg.get_registered_mut(handle)?;
-    let result = f(&mut registered.dataset);
+    let result = f(registered.dataset.as_mut()?);
     column_view::release_dataset(handle);
     registered.rebuild_columnar();
     Some(result)
@@ -142,6 +174,20 @@ mod columnar_registry_tests {
         }).expect("registered columnar dataset");
         assert_eq!(snapshot.0, vec![1.0, 0.0]);
         assert_eq!(snapshot.1, vec![1, 0]);
+        destroy_dataset(handle);
+    }
+
+    #[test]
+    fn columnar_only_registration_uses_normal_handles_without_row_storage() {
+        let columns = vec![Column::new("value", ColumnType::Numeric)];
+        let columnar = ColumnarDataset::from_parts(
+            2,
+            HashMap::from([(0, crate::data::columnar::PrimitiveColumn { values: vec![1.0, 2.0], validity: vec![1, 1] })]),
+            HashMap::new(),
+        ).expect("columnar data");
+        let handle = register_columnar_dataset("typed".into(), columns, columnar);
+        assert!(with_dataset(handle, |_| ()).is_none());
+        assert_eq!(with_columnar_metadata(handle, |name, columns, data| (name.to_string(), columns.len(), data.row_count())), Some(("typed".into(), 1, 2)));
         destroy_dataset(handle);
     }
 
