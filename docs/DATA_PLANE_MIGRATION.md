@@ -14,11 +14,12 @@ The 1M-row profile has shown that this path can take tens of seconds and exceed 
 
 Before adding Arrow or another binary dependency, the profiler must identify which Rust phase dominates:
 
-1. compatibility dataset build: UTF-8/JSON decode, row objects, value conversion, row identity handling;
-2. columnar sidecar construction: row-major to primitive/categorical vectors;
-3. registry insertion/other fixed overhead.
+1. UTF-8 validation of the incoming compatibility payload;
+2. compatibility dataset construction: JSON decoding, row-object/value materialisation, and row identity handling;
+3. columnar sidecar construction: row-major to primitive/categorical vectors;
+4. registry insertion/other fixed overhead.
 
-If compatibility construction dominates, the next experiment will ingest typed column buffers directly and compare them against JSON at 100K and 1M. If sidecar construction dominates, the next experiment will build column vectors during ingestion rather than walking row maps afterward.
+If UTF-8 validation dominates, transport encoding itself needs attention before changing storage. If compatibility dataset construction dominates, the next experiment will ingest typed column buffers directly and compare them against JSON at 100K and 1M. If sidecar construction dominates, the next experiment will build column vectors during ingestion rather than walking row maps afterward.
 
 ## Architectural boundary
 

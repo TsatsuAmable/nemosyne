@@ -140,8 +140,10 @@ async function profileVariant(tier, withRowIds) {
   const handle = loadDataset(wasm, bytes);
   const loadMs = performance.now() - loadStart;
   if (!handle) throw new Error(`${tier} ${withRowIds ? 'with' : 'without'} rowIds rejected`);
-  const rustPhases = readLoadProfile(wasm);
+  // Snapshot memory immediately after ingestion. Reading the diagnostic profile
+  // uses a temporary WASM output buffer and must not contaminate load growth.
   const afterLoadMemory = wasm.memory.buffer.byteLength;
+  const rustPhases = readLoadProfile(wasm);
 
   try {
     const acquireStart = performance.now();
@@ -191,6 +193,7 @@ function buildDiagnosis(results) {
     if (!generated || !supplied) return { tier, status: 'INCOMPLETE' };
     const phases = generated.rustPhases;
     const dominantPhase = [
+      ['utf8ValidationMs', phases.utf8ValidationMs],
       ['compatibilityDatasetBuildMs', phases.compatibilityDatasetBuildMs],
       ['columnarSidecarBuildMs', phases.columnarSidecarBuildMs],
       ['registryInsertMs', phases.registryInsertMs],
@@ -207,11 +210,13 @@ function buildDiagnosis(results) {
       dominantRustPhase: dominantPhase,
       dominantRustPhaseShare: round(phases[dominantPhase] / phases.totalRustLoadMs),
       inference:
-        dominantPhase === 'compatibilityDatasetBuildMs'
-          ? 'JSON_ROW_COMPATIBILITY_BUILD_DOMINATES'
-          : dominantPhase === 'columnarSidecarBuildMs'
-            ? 'ROW_TO_COLUMNAR_RECONSTRUCTION_DOMINATES'
-            : 'REGISTRY_OR_OTHER_COST_DOMINATES',
+        dominantPhase === 'utf8ValidationMs'
+          ? 'UTF8_VALIDATION_DOMINATES'
+          : dominantPhase === 'compatibilityDatasetBuildMs'
+            ? 'JSON_ROW_COMPATIBILITY_BUILD_DOMINATES'
+            : dominantPhase === 'columnarSidecarBuildMs'
+              ? 'ROW_TO_COLUMNAR_RECONSTRUCTION_DOMINATES'
+              : 'REGISTRY_OR_OTHER_COST_DOMINATES',
     };
   });
 }

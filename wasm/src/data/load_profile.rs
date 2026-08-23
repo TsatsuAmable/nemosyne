@@ -125,6 +125,17 @@ pub fn data_last_load_profile(out_ptr: u32, out_len: u32) -> u32 {
 mod tests {
     use super::*;
 
+    fn read_profile_via_abi() -> serde_json::Value {
+        let required = data_last_load_profile(0, 0);
+        assert!(required > 0, "profile size query should return bytes");
+        let out_ptr = allocator::alloc(required);
+        let written = data_last_load_profile(out_ptr, required);
+        assert_eq!(written, required);
+        let bytes = unsafe { allocator::view(out_ptr, written) }.to_vec();
+        allocator::dealloc(out_ptr, required);
+        serde_json::from_slice(&bytes).expect("profile ABI returns JSON")
+    }
+
     #[test]
     fn profile_json_uses_stable_schema() {
         let profile = LoadProfile {
@@ -142,5 +153,52 @@ mod tests {
         assert_eq!(json["schemaVersion"], 1);
         assert_eq!(json["compatibilityDatasetBuildMs"], 2.0);
         assert_eq!(json["columnarSidecarBuildMs"], 3.0);
+    }
+
+    #[test]
+    fn profiled_loader_and_two_call_profile_abi_round_trip() {
+        allocator::reset();
+        let payload = br#"{"name":"profile-test","columns":[{"name":"x","type":"NUMERIC"}],"rows":[{"x":1},{"x":2}]}"#;
+        let (ptr, len) = allocator::copy_bytes(payload);
+        let handle = data_load_dataset_json_profiled(ptr, len);
+        assert!(handle > 0, "profiled loader should register dataset");
+
+        let profile = read_profile_via_abi();
+        assert_eq!(profile["schemaVersion"], 1);
+        assert_eq!(profile["inputBytes"], payload.len() as u64);
+        assert_eq!(profile["rowCount"], 2);
+        assert_eq!(profile["columnCount"], 1);
+        for field in [
+            "utf8ValidationMs",
+            "compatibilityDatasetBuildMs",
+            "columnarSidecarBuildMs",
+            "registryInsertMs",
+            "totalRustLoadMs",
+        ] {
+            assert!(profile[field].as_f64().is_some(), "{field} must be numeric");
+        }
+
+        data::destroy_dataset(handle);
+        allocator::dealloc(ptr, len);
+    }
+
+    #[test]
+    fn rejected_input_replaces_stale_success_profile() {
+        allocator::reset();
+        let valid = br#"{"name":"ok","columns":[],"rows":[]}"#;
+        let (valid_ptr, valid_len) = allocator::copy_bytes(valid);
+        let handle = data_load_dataset_json_profiled(valid_ptr, valid_len);
+        assert!(handle > 0);
+        data::destroy_dataset(handle);
+        allocator::dealloc(valid_ptr, valid_len);
+
+        let invalid = [0xff, 0xfe, 0xfd];
+        let (invalid_ptr, invalid_len) = allocator::copy_bytes(&invalid);
+        assert_eq!(data_load_dataset_json_profiled(invalid_ptr, invalid_len), 0);
+        let profile = read_profile_via_abi();
+        assert_eq!(profile["inputBytes"], invalid.len() as u64);
+        assert_eq!(profile["rowCount"], 0);
+        assert_eq!(profile["columnCount"], 0);
+        allocator::dealloc(invalid_ptr, invalid_len);
     }
 }
