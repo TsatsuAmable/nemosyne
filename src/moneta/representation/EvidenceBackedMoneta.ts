@@ -37,6 +37,11 @@ export function assertEvidenceBacksSignature(
   signature: DatasetSignature,
 ): readonly string[] {
   assertDatasetEvidence(evidence);
+  if (signature.topologicalStructure.topology === 'VECTOR_FIELD') {
+    throw new Error(
+      'DatasetEvidence cannot yet establish VECTOR_FIELD topology: the Rust structure-profile ABI lacks vector-field evidence',
+    );
+  }
   const authoritative = datasetEvidenceToSignature(evidence);
   assertDecisionRelevantSignatureMatchesEvidence(signature, authoritative);
   return evidence.evidence.map((item) => item.id);
