@@ -22,7 +22,19 @@ describe('data boundary benchmark contract', () => {
     expect(source).toContain('cachedPrimitiveBorrowAndScanMs');
     expect(source).toContain('wasmMemoryGrowthForBorrowCacheBytes');
     expect(source).toContain('borrowedRowObjects: 0');
-    expect(source).toContain('schemaVersion: 2');
+    expect(source).toContain('schemaVersion: 3');
+  });
+
+  it('predeclares the 100K/1M canonical-columnar decision gates', () => {
+    const source = readFileSync(scriptPath, 'utf8');
+    expect(source).toContain("const required = ['100k', '1m']");
+    expect(source).toContain('PROMOTE_COLUMNAR_CANDIDATE');
+    expect(source).toContain('HOLD_DUAL_REPRESENTATION');
+    expect(source).toContain('cachedBorrowMateriallyFasterAt1m');
+    expect(source).toContain('firstBorrowFasterAt1m');
+    expect(source).toContain('cacheGrowthBoundedToLogicalPayload');
+    expect(source).toContain('cachedBorrowScalingNoWorseThanMaterialization');
+    expect(source).toContain('reconstructedRowsAvoided');
   });
 
   it('fails before touching WASM when an unknown tier is requested', () => {
