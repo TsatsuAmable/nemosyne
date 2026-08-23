@@ -90,7 +90,7 @@ export interface WasmRuntimeBridgeFull {
   computePersistenceIntervals?(handle: number, params: Record<string, unknown>): PersistenceInterval[] | null;
   computeBetti0Curve?(handle: number, params: Record<string, unknown>): BettiPoint[] | null;
   computeSpectralFacts?(handle: number, timeColumn?: string, valueColumn?: string): SpectralFacts | null;
-  computeDatasetStructureProfile?(handle: number): RustDatasetStructureProfile | null;
+  computeDatasetStructureProfile?(handle: number): RustDatasetStructureProfile | Record<string, unknown> | null;
 }
 
 export class AtlasCore {
