@@ -96,9 +96,11 @@ pub fn columnar_dataset_fingerprint(
     let mut order: Vec<usize> = (0..columns.len()).collect();
     order.sort_by(|a, b| cmp_utf16(&columns[*a].name, &columns[*b].name));
 
+    let mut row_json = String::new();
     for row in 0..dataset.row_count() {
         if row > 0 { update(&mut hasher, ","); }
-        let mut row_json = String::from("{");
+        row_json.clear();
+        row_json.push('{');
         for (position, column_index) in order.iter().enumerate() {
             if position > 0 { row_json.push(','); }
             let column = &columns[*column_index];
