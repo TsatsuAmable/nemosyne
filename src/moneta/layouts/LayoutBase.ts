@@ -6,15 +6,28 @@ import type { Dataset } from '../../data/Dataset.ts';
 import type { LayoutEntry } from '../types.ts';
 import { normalize } from '../../data/Encodings.ts';
 
-const _warnedLayoutKinds = new Set<string>();
+export class KernelLayoutUnavailableError extends Error {
+  readonly layoutKind: string;
 
-export function warnKernelLayoutUnavailable(kind: string): void {
-  if (_warnedLayoutKinds.has(kind)) return;
-  _warnedLayoutKinds.add(kind);
-  console.warn(
-    `[Nemosyne:P20] ${kind} layout: Rust/WASM kernel unavailable — using degraded JS spatial fallback. ` +
-    'This is not a silent analytical substitute; the kernel remains the sole analytical authority.'
-  );
+  constructor(layoutKind: string, detail = 'Rust/WASM kernel returned no authoritative layout') {
+    super(`[Nemosyne:Moneta] ${layoutKind}: ${detail}`);
+    this.name = 'KernelLayoutUnavailableError';
+    this.layoutKind = layoutKind;
+  }
+}
+
+export function requireKernelLayoutPositions(
+  kind: string,
+  positions: Float32Array | null,
+  expectedLength: number,
+): Float32Array {
+  if (!positions || positions.length !== expectedLength) {
+    throw new KernelLayoutUnavailableError(
+      kind,
+      `expected ${expectedLength} coordinate values from Rust/WASM, received ${positions?.length ?? 0}`,
+    );
+  }
+  return positions;
 }
 
 export class LayoutBase {
