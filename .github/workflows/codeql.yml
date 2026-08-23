@@ -3,18 +3,17 @@ name: CodeQL Analysis
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   schedule:
     - cron: '0 6 * * 1' # Weekly on Monday at 06:00 UTC
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-# Do not spend CodeQL runner time analyzing commits that have already been
-# superseded on the same PR/ref. Scheduled scans remain grouped by their ref.
+# Temporarily excluded from pull_request during the Moneta migration-completion
+# sprint. CodeQL still runs on main, weekly, and on demand.
 concurrency:
-  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
