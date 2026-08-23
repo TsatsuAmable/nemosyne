@@ -21,7 +21,7 @@ describe('Moneta scoring ownership', () => {
     expect(source).toContain('Apply a pinned learned model only after bootstrap Moneta has generated');
     expect(source).toContain('enforced hard constraints');
     expect(source).toContain('rankWithPinnedLearnedFitnessModel');
-    expect(source).not.toMatch(/from ['"][^'"]*data\/Dataset/);
+    expect(source).not.toMatch(/data\/Dataset/);
   });
 
   it('does not silently fall back when learned provenance is invalid', () => {
