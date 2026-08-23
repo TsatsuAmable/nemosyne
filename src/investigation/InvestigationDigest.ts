@@ -54,11 +54,33 @@ export interface CanonicalInvestigationInput {
   representationDecision?: {
     strategyId?: string;
     representationFamily?: string;
+    candidateId?: string;
     worldType?: string;
     layout?: string;
     geometry?: string;
     confidence?: number;
     utilityScore?: number;
+    decisionStatus?: string;
+    decisionMargin?: number | null;
+    fitnessModelVersion?: string;
+    /** Exact immutable learned model artifact used to produce the representation. */
+    fitnessModelArtifactHash?: string | null;
+    explanation?: string;
+    preserves?: readonly string[];
+    loses?: readonly string[];
+    runnerUp?: {
+      candidateId?: string;
+      family?: string;
+      layout?: string;
+      score: number;
+    } | null;
+    rankedAlternatives?: Array<{
+      candidateId?: string;
+      family: string;
+      layout: string;
+      score: number;
+      disqualified?: boolean;
+    }>;
     evidence?: Array<{ fact: string; weight: number; supports: boolean; source: string }>;
     rejectedAlternatives?: Array<{ family: string; score: number; reason: string; hardPassed: boolean }>;
   };
