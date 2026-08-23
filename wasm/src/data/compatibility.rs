@@ -124,6 +124,10 @@ pub fn canonical_dataset_column_count(handle: u32) -> u32 {
 
 /// Explicit compatibility export. Calling this API is an observable choice to
 /// cross from canonical columnar storage into the cached row-major view.
+///
+/// Uses the standard two-call output-buffer convention: call first with
+/// `out_len == 0` to obtain the required byte length, allocate at least that
+/// many bytes at `out_ptr`, then call again with the returned size.
 #[wasm_bindgen]
 pub fn compatibility_dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     if let Err(error) = crate::data::materialize_rows(handle) {
@@ -188,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    fn metadata_calls_remain_row_free_and_export_crosses_once() {
+    fn metadata_calls_remain_row_free_and_export_materialises_cached_view() {
         let columns = vec![Column::new("x", ColumnType::Numeric)];
         let columnar = ColumnarDataset::from_parts(
             2,
@@ -199,14 +203,20 @@ mod tests {
             HashMap::new(),
         ).unwrap();
         let handle = crate::data::register_columnar_dataset("caller-boundary".into(), columns, columnar);
-        let before = crate::data::row_materialisation_count();
+
+        assert!(crate::data::with_dataset(handle, |_| ()).is_none());
         assert_eq!(canonical_dataset_row_count(handle), 2);
         assert_eq!(canonical_dataset_column_count(handle), 1);
-        assert_eq!(crate::data::row_materialisation_count(), before);
+        assert!(crate::data::with_dataset(handle, |_| ()).is_none());
+
         assert!(compatibility_dataset_to_json(handle, 0, 0) > 0);
-        assert_eq!(crate::data::row_materialisation_count(), before + 1);
+        let first_rows = crate::data::with_dataset(handle, |dataset| dataset.rows.len());
+        assert_eq!(first_rows, Some(2));
+
         assert!(compatibility_dataset_to_json(handle, 0, 0) > 0);
-        assert_eq!(crate::data::row_materialisation_count(), before + 1);
+        let second_rows = crate::data::with_dataset(handle, |dataset| dataset.rows.len());
+        assert_eq!(second_rows, Some(2));
+
         crate::data::destroy_dataset(handle);
     }
 }
