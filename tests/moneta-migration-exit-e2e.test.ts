@@ -90,8 +90,8 @@ describe('Moneta migration exit end-to-end authority', () => {
       },
       provenance: {
         datasetFingerprint: fingerprint,
-        datasetVersion: atlas.version,
-        kernelVersion: decision.kernelVersion,
+        datasetVersion: 1,
+        kernelVersion: decision.kernelVersion ?? profile.provenance.kernelVersion,
         investigationVersion: '1',
         randomSeeds: {},
       },
