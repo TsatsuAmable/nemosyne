@@ -150,6 +150,7 @@ Persistence and CI evolve continuously across all four.
 ## Design boundaries
 
 - **Rust owns N-dependent work.** Parsing, storage, filtering, statistics, clustering, topology, spectral analysis, evidence construction, large-data reduction and other work materially proportional to dataset size remain Rust/WASM responsibilities.
+- **Moneta is a bounded control plane.** Canonical representation reasoning consumes compact Rust-derived evidence and investigator semantics; it must not require raw-row traversal or full-dataset JS materialisation.
 - **Tests live with authority.** Exhaustive correctness tests belong at the lowest authoritative layer capable of proving the property. Rust-owned analytical semantics are specified primarily in Rust; higher layers test contracts and integration rather than independently reproducing those algorithms.
 - **Boundary coverage is irreducible.** Moving authoritative tests into Rust must not remove the small set of JS/WASM, browser, rendering, WebXR and end-to-end tests needed to prove cross-layer behaviour.
 - **Source rows are not visible elements.** Headset render budgets constrain reduced/LOD primitives, not the number of observations stored in the analytical dataset.
@@ -173,11 +174,11 @@ Every PR touching an architectural area must update active documentation. Supers
 Every implementation PR should run the smallest ownership-aligned set that proves its claims, as applicable:
 
 ```text
-cargo test                    # Rust analytical/data correctness
-focused Vitest                # TypeScript application/runtime correctness
-focused JS/WASM contracts     # exported boundary and memory/value semantics
-tsc --noEmit
-eslint
+node scripts/cargo-test.mjs                  # Rust analytical/data correctness
+npx vitest run <affected-test-files...>      # focused TypeScript/application correctness
+npx vitest run <affected-wasm-contracts...>  # focused JS/WASM boundary contracts
+npm run typecheck
+npm run lint
 npm run wasm:dev
 npm run build
 npm run audit:hygiene
