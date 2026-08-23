@@ -36,6 +36,10 @@ export interface StrategyProvenance {
   version: string;
   datasetFingerprint: string;
   requirementsHash: string;
+  /** Exact fitness model semantic version used to rank this strategy, when known. */
+  fitnessModelVersion?: string;
+  /** Immutable learned-model artifact identity, present only for pinned learned ranking. */
+  fitnessModelArtifactHash?: string | null;
 }
 
 export interface SpatialStrategy {
