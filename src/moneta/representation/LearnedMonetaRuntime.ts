@@ -5,10 +5,13 @@ import {
 } from '../../fitness/LearnedFitnessRuntimeAdapter.ts';
 import type { FitnessModelRegistry } from '../../fitness/FitnessModelRegistry.ts';
 import type { FitnessModelPromotionPolicy } from '../../fitness/PromotionGate.ts';
+import { canonicalJsonStringify } from '../../investigation/InvestigationDigest.ts';
+import { fnv1aHex } from '../../atlas/DatasetSpace.ts';
 import { assessRepresentationDecision } from './DecisionPolicy.ts';
 import {
   MONETA_REPRESENTATION_CANDIDATES,
 } from './RepresentationCandidate.ts';
+import { NoFeasibleRepresentationError } from './NoFeasibleRepresentationError.ts';
 import type {
   CandidateScore,
   DecisionEmbodiment,
@@ -171,14 +174,31 @@ export function applyPinnedLearnedFitnessRuntime(
   const rankedCandidates = learned.rankedCandidates.map((candidate) => structuredClone(candidate));
   const assessment = assessRepresentationDecision(rankedCandidates);
   const winner = assessment.winner;
-  if (!winner) throw new Error('Pinned learned FitnessModel produced no feasible representation');
+  const requirementsHash = bootstrapDecision.provenance.requirementsHash;
+  const datasetFingerprint = bootstrapDecision.provenance.datasetFingerprint;
+
+  if (!winner) {
+    throw new NoFeasibleRepresentationError(
+      bootstrapDecision.rulesEvaluated ?? [],
+      rankedCandidates,
+      {
+        datasetFingerprint,
+        kernelVersion:
+          bootstrapDecision.kernelVersion ?? bootstrapDecision.datasetSignature.provenance.kernelVersion,
+        evidenceIds: [],
+        requirementsHash,
+        fitnessModelVersion: learned.modelVersion,
+        fitnessModelArtifactHash: learned.artifactHash,
+        sourceDecisionId: bootstrapDecision.id,
+        sourceDecisionEvidenceHash: fnv1aHex(canonicalJsonStringify(bootstrapDecision.evidence)),
+      },
+    );
+  }
 
   const definition = MONETA_REPRESENTATION_CANDIDATES[winner.candidateId];
-  const requirementsHash = bootstrapDecision.provenance.requirementsHash;
   if (!requirementsHash?.trim()) {
     throw new Error('Bootstrap RepresentationDecision is missing requirements provenance');
   }
-  const datasetFingerprint = bootstrapDecision.provenance.datasetFingerprint;
   const embodiment: DecisionEmbodiment = {
     primaryLayout: winner.layout,
     primaryGeometry: geometryForLayout(winner.layout),
