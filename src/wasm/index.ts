@@ -15,14 +15,9 @@ export {
   capabilities,
   kernelVersion,
   kernelProvenance,
-  datasetRowCount,
-  datasetColumnCount,
   destroyDataset,
   loadDatasetJson,
-  getDatasetJson,
-  parseDatasetBytes,
   runOperation,
-  executeOperation,
   statistics,
   datasetFingerprint,
   inferSchema,
@@ -38,6 +33,15 @@ export {
   computeGeoSurface3d,
   computeStreamline3d,
 } from './RuntimeBridge.ts';
+
+export {
+  datasetRowCount,
+  datasetColumnCount,
+  rowMaterialisationCount,
+  getDatasetJson,
+  parseDatasetBytes,
+  executeOperation,
+} from './ColumnarBoundary.ts';
 
 export type { KernelState } from './RuntimeBridge.ts';
 
