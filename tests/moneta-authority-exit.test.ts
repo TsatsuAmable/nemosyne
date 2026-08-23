@@ -30,4 +30,10 @@ describe('Moneta migration authority exit guards', () => {
     expect(strategy).not.toMatch(/\bconfidence\s*:/);
     expect(engine).not.toMatch(/\bconfidence:\s*winner\.score/);
   });
+
+  it('keeps Draco as one explicit compatibility facade instead of a shadow module tree', () => {
+    const dracoDir = path.resolve(root, 'src/draco');
+    expect(fs.readdirSync(dracoDir).sort()).toEqual(['index.ts']);
+    expect(source('src/draco/index.ts')).toMatch(/export \* from '\.\.\/moneta\/index\.ts'/);
+  });
 });
