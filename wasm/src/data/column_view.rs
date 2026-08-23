@@ -1,16 +1,4 @@
-use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex};
-
 use wasm_bindgen::prelude::*;
-
-#[derive(Debug)]
-pub struct PrimitiveColumnView {
-    pub values: Vec<f64>,
-    pub validity: Vec<u8>,
-}
-
-static COLUMN_VIEWS: LazyLock<Mutex<HashMap<(u32, u32), PrimitiveColumnView>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Allocate JS-visible bytes through Rust's own allocator rather than the
 /// legacy independent bump arena in `lib.rs`.
@@ -48,41 +36,23 @@ pub fn host_buffer_dealloc(ptr: u32, len: u32) {
     unsafe { dealloc(ptr as usize as *mut u8, layout) };
 }
 
-/// Prepare a contiguous f64 + validity buffer for a numeric/epoch-temporal column.
+/// Borrow the existing contiguous f64 + validity buffers for a
+/// numeric/epoch-temporal column.
 ///
-/// The transitional columnar dataset is now built once at dataset registration
-/// and kept synchronized after mutable operations. This cache owns a stable copy
-/// for the current ABI so returned pointers remain valid until the handle is
-/// mutated or destroyed; it no longer rescans row HashMaps to construct views.
+/// The returned addresses point directly into the registered `ColumnarDataset`;
+/// no additional stable-view cache or vector clone is created. The pointers are
+/// valid until that dataset handle is mutated or destroyed. Both operations take
+/// the dataset-registry lock before replacing/dropping the columnar vectors, so
+/// `prepare` cannot race with a rebuild while deriving the addresses.
 pub fn prepare(handle: u32, column_index: u32) -> Option<(u32, u32, u32)> {
-    let key = (handle, column_index);
-
-    {
-        let views = COLUMN_VIEWS.lock().expect("column view registry poisoned");
-        if let Some(view) = views.get(&key) {
-            return Some((
-                view.values.as_ptr() as usize as u32,
-                view.validity.as_ptr() as usize as u32,
-                view.values.len() as u32,
-            ));
-        }
-    }
-
-    let view = super::with_columnar_dataset(handle, |columnar| {
+    super::with_columnar_dataset(handle, |columnar| {
         let column = columnar.primitive_column(column_index as usize)?;
-        Some(PrimitiveColumnView {
-            values: column.values.clone(),
-            validity: column.validity.clone(),
-        })
-    })??;
-
-    let mut views = COLUMN_VIEWS.lock().expect("column view registry poisoned");
-    let view = views.entry(key).or_insert(view);
-    Some((
-        view.values.as_ptr() as usize as u32,
-        view.validity.as_ptr() as usize as u32,
-        view.values.len() as u32,
-    ))
+        Some((
+            column.values.as_ptr() as usize as u32,
+            column.validity.as_ptr() as usize as u32,
+            column.values.len() as u32,
+        ))
+    })?
 }
 
 /// Element count for a primitive column view, or 0 if the handle/index/type is unsupported.
@@ -91,7 +61,7 @@ pub fn dataset_primitive_column_len(handle: u32, column_index: u32) -> u32 {
     prepare(handle, column_index).map(|(_, _, len)| len).unwrap_or(0)
 }
 
-/// Pointer to the cached f64 values buffer. Valid until the dataset handle is mutated or destroyed.
+/// Pointer to the Rust-owned f64 values buffer. Valid until the dataset handle is mutated or destroyed.
 #[wasm_bindgen]
 pub fn dataset_primitive_column_values_ptr(handle: u32, column_index: u32) -> u32 {
     prepare(handle, column_index)
@@ -99,7 +69,7 @@ pub fn dataset_primitive_column_values_ptr(handle: u32, column_index: u32) -> u3
         .unwrap_or(0)
 }
 
-/// Pointer to the cached u8 validity buffer (1 = valid, 0 = missing/non-finite).
+/// Pointer to the Rust-owned u8 validity buffer (1 = valid, 0 = missing/non-finite).
 #[wasm_bindgen]
 pub fn dataset_primitive_column_validity_ptr(handle: u32, column_index: u32) -> u32 {
     prepare(handle, column_index)
@@ -107,11 +77,13 @@ pub fn dataset_primitive_column_validity_ptr(handle: u32, column_index: u32) -> 
         .unwrap_or(0)
 }
 
-/// Release cached column views when the owning dataset is mutated or destroyed.
-pub fn release_dataset(handle: u32) {
-    let mut views = COLUMN_VIEWS.lock().expect("column view registry poisoned");
-    views.retain(|(dataset_handle, _), _| *dataset_handle != handle);
-}
+/// Compatibility hook retained for mutation/destruction call sites.
+///
+/// Primitive views are now direct borrows into `ColumnarDataset`, so there is no
+/// auxiliary cache to release. Mutation still rebuilds the sidecar before the
+/// registry lock is released, which naturally invalidates previously returned
+/// addresses at the documented lifetime boundary.
+pub fn release_dataset(_handle: u32) {}
 
 #[cfg(test)]
 mod tests {
@@ -141,6 +113,30 @@ mod tests {
     }
 
     #[test]
+    fn primitive_view_points_directly_at_registered_columnar_storage() {
+        let columns = vec![Column::new("value", ColumnType::Numeric)];
+        let rows = vec![
+            HashMap::from([("value".to_string(), Value::Number(1.0))]),
+            HashMap::from([("value".to_string(), Value::Number(2.0))]),
+        ];
+        let handle = super::super::register_dataset(Dataset::new("direct-view", columns, rows));
+        let prepared = super::prepare(handle, 0).expect("view");
+        let source = super::super::with_columnar_dataset(handle, |columnar| {
+            let column = columnar.primitive_column(0).expect("numeric column");
+            (
+                column.values.as_ptr() as usize as u32,
+                column.validity.as_ptr() as usize as u32,
+                column.values.len() as u32,
+            )
+        })
+        .expect("columnar dataset");
+
+        assert_eq!(prepared, source);
+        assert_eq!(super::prepare(handle, 0), Some(source));
+        super::super::destroy_dataset(handle);
+    }
+
+    #[test]
     fn categorical_columns_are_not_exposed_as_f64_views() {
         let columns = vec![Column::new("category", ColumnType::Categorical)];
         let rows = vec![HashMap::from([(
@@ -154,7 +150,7 @@ mod tests {
     }
 
     #[test]
-    fn mutation_invalidates_and_rebuilds_primitive_view_source() {
+    fn mutation_rebuilds_direct_primitive_view_source() {
         let columns = vec![Column::new("value", ColumnType::Numeric)];
         let rows = vec![HashMap::from([("value".to_string(), Value::Number(1.0))])];
         let handle = super::super::register_dataset(Dataset::new("view", columns, rows));
@@ -169,7 +165,17 @@ mod tests {
         })
         .expect("dataset mutation");
 
-        assert_eq!(super::dataset_primitive_column_len(handle, 0), 2);
+        let (_, _, len) = super::prepare(handle, 0).expect("rebuilt view");
+        assert_eq!(len, 2);
+        let values = super::super::with_columnar_dataset(handle, |columnar| {
+            columnar
+                .primitive_column(0)
+                .expect("numeric column")
+                .values
+                .clone()
+        })
+        .expect("columnar dataset");
+        assert_eq!(values, vec![1.0, 2.0]);
         super::super::destroy_dataset(handle);
     }
 }
