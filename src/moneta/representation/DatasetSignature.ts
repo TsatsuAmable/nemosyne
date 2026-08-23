@@ -28,9 +28,12 @@ export interface DatasetSignatureSchema {
   numericCount: number;
   categoricalCount: number;
   temporalCount: number;
-  geoCount: number;
-  textCount: number;
-  idCount: number;
+  /** Optional because the current Rust dimensionality profile reports geospatiality separately. */
+  geoCount?: number;
+  /** Optional until the Rust structure-profile ABI classifies text columns explicitly. */
+  textCount?: number;
+  /** Optional until the Rust structure-profile ABI classifies identifier columns explicitly. */
+  idCount?: number;
 }
 
 export interface DatasetSignatureCardinality {
