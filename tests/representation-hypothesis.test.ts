@@ -87,7 +87,7 @@ describe('Phase 3: MonetaHypothesisEngine', () => {
     expect(decision.datasetSignature.provenance.datasetFingerprint).toBe('fp-test-xyz');
   });
 
-  it('integrates with AtlasCore arbitrateRepresentation()', () => {
+  it('fails closed at AtlasCore arbitrateRepresentation() without Rust DatasetEvidence', () => {
     const atlas = new AtlasCore();
     const dataset = Dataset.fromJSON({
       name: 'test-atlas-rep',
@@ -102,10 +102,9 @@ describe('Phase 3: MonetaHypothesisEngine', () => {
     });
     atlas.loadDataset(dataset);
 
-    const decision = atlas.arbitrateRepresentation(createDefaultRequirements('temporal-trend'));
-    expect(decision).toBeDefined();
-    expect(['TEMPORAL', 'POINT']).toContain(decision.representationFamily);
-    expect(atlas.activeRepresentationDecision).toBe(decision);
-    expect(atlas.activeSpatialStrategy).toBe(decision.embodiment.spatialStrategy);
+    expect(() =>
+      atlas.arbitrateRepresentation(createDefaultRequirements('temporal-trend')),
+    ).toThrow(/analytical kernel unavailable|DatasetEvidence/i);
+    expect(atlas.activeRepresentationDecision).toBeNull();
   });
 });
