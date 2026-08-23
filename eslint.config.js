@@ -34,7 +34,7 @@ export default [
     },
   },
   {
-    files: ['src/**/*.ts', 'tests/**/*.ts', 'dev/**/*.ts', 'vite.config.ts'],
+    files: ['src/**/*.ts', 'tests/**/*.ts', 'dev/**/*.ts', 'vite.config.ts', 'vitest*.config.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -47,7 +47,10 @@ export default [
     rules: {
       ...tsPlugin.configs.recommended.rules,
       'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
       '@typescript-eslint/no-explicit-any': 'error',
     },
   },

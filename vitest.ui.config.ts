@@ -15,7 +15,6 @@ export default defineConfig({
     globals: false,
     pool: 'threads',
     maxWorkers: 4,
-    minWorkers: 1,
     testTimeout: 10000,
     teardownTimeout: 2000,
   },
