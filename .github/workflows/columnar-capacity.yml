@@ -1,0 +1,54 @@
+name: Columnar Capacity Envelope
+
+on:
+  pull_request:
+    paths:
+      - 'wasm/src/data/**'
+      - 'scripts/benchmark-columnar-capacity.mjs'
+      - '.github/workflows/columnar-capacity.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  capacity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run wasm:dev
+      - name: Characterize 10M tall, 1M wide, and 1M high-cardinality cases
+        run: |
+          node --expose-gc scripts/benchmark-columnar-capacity.mjs --json > columnar-capacity.json
+          cat columnar-capacity.json
+      - name: Publish summary
+        if: always()
+        run: |
+          echo '## Columnar capacity envelope' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f columnar-capacity.json ]; then
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat columnar-capacity.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Capacity benchmark did not produce an artifact.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: columnar-capacity-envelope
+          path: columnar-capacity.json
+          if-no-files-found: warn
+          retention-days: 30
