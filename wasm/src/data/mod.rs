@@ -30,7 +30,7 @@ pub mod value;
 pub use dataset::{Dataset, Edge};
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use column::Column;
 use columnar::ColumnarDataset;
 
@@ -41,26 +41,26 @@ struct RegisteredDataset {
     dataset: Option<Dataset>,
     name: String,
     columns: Vec<Column>,
-    columnar: ColumnarDataset,
+    columnar: Arc<ColumnarDataset>,
 }
 
 impl RegisteredDataset {
     fn new(dataset: Dataset) -> Self {
         let name = dataset.name.clone();
         let columns = dataset.columns.clone();
-        let columnar = ColumnarDataset::from_dataset(&dataset);
+        let columnar = Arc::new(ColumnarDataset::from_dataset(&dataset));
         Self { dataset: Some(dataset), name, columns, columnar }
     }
 
     fn columnar_only(name: String, columns: Vec<Column>, columnar: ColumnarDataset) -> Self {
-        Self { dataset: None, name, columns, columnar }
+        Self { dataset: None, name, columns, columnar: Arc::new(columnar) }
     }
 
     fn rebuild_columnar(&mut self) {
         if let Some(dataset) = &self.dataset {
             self.name = dataset.name.clone();
             self.columns = dataset.columns.clone();
-            self.columnar = ColumnarDataset::from_dataset(dataset);
+            self.columnar = Arc::new(ColumnarDataset::from_dataset(dataset));
         }
     }
 }
@@ -94,7 +94,7 @@ impl DatasetRegistry {
     fn get_registered_mut(&mut self, handle: u32) -> Option<&mut RegisteredDataset> {
         self.slots.get_mut(handle.wrapping_sub(1) as usize).and_then(|slot| slot.as_mut())
     }
-    fn get_columnar(&self, handle: u32) -> Option<&ColumnarDataset> { self.get_registered(handle).map(|registered| &registered.columnar) }
+    fn get_columnar(&self, handle: u32) -> Option<&ColumnarDataset> { self.get_registered(handle).map(|registered| registered.columnar.as_ref()) }
     pub fn remove(&mut self, handle: u32) {
         let idx = handle.wrapping_sub(1) as usize;
         if let Some(slot) = self.slots.get_mut(idx) {
@@ -113,7 +113,7 @@ pub fn register_columnar_dataset(name: String, columns: Vec<Column>, columnar: C
 
 pub fn register_dataset_profiled(dataset: Dataset) -> (u32, f64, f64) {
     let build_started = provenance::now_ms();
-    let columnar = ColumnarDataset::from_dataset(&dataset);
+    let columnar = Arc::new(ColumnarDataset::from_dataset(&dataset));
     let columnar_build_ms = provenance::now_ms() - build_started;
     let insert_started = provenance::now_ms();
     let name = dataset.name.clone();
@@ -135,7 +135,7 @@ pub fn with_columnar_dataset<T>(handle: u32, f: impl FnOnce(&ColumnarDataset) ->
 pub fn with_columnar_metadata<T>(handle: u32, f: impl FnOnce(&str, &[Column], &ColumnarDataset) -> T) -> Option<T> {
     let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
     let registered = reg.get_registered(handle)?;
-    Some(f(&registered.name, &registered.columns, &registered.columnar))
+    Some(f(&registered.name, &registered.columns, registered.columnar.as_ref()))
 }
 
 pub fn fingerprint_for_handle(handle: u32) -> Option<Result<String, String>> {
@@ -147,7 +147,7 @@ pub fn fingerprint_for_handle(handle: u32) -> Option<Result<String, String>> {
         Some(columnar_fingerprint::columnar_dataset_fingerprint(
             &registered.name,
             &registered.columns,
-            &registered.columnar,
+            registered.columnar.as_ref(),
         ))
     }
 }
@@ -155,17 +155,31 @@ pub fn fingerprint_for_handle(handle: u32) -> Option<Result<String, String>> {
 /// Explicitly build and cache the row-major compatibility representation.
 /// Returns `Ok(false)` when rows were already resident and `Ok(true)` when a
 /// materialisation occurred. Normal columnar accessors never call this.
+///
+/// The expensive O(rows × columns) build runs outside the global registry lock.
+/// `Arc::ptr_eq` acts as a generation token: if the handle is destroyed/reused or
+/// its canonical columnar generation changes while materialisation is running,
+/// the result is discarded rather than installed into a different dataset.
 pub fn materialize_rows(handle: u32) -> Result<bool, String> {
+    let (name, columns, columnar) = {
+        let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
+        let registered = reg.get_registered(handle).ok_or("invalid dataset handle")?;
+        if registered.dataset.is_some() {
+            return Ok(false);
+        }
+        (registered.name.clone(), registered.columns.clone(), Arc::clone(&registered.columnar))
+    };
+
+    let dataset = compatibility::materialize_dataset(&name, &columns, columnar.as_ref())?;
+
     let mut reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
-    let registered = reg.get_registered_mut(handle).ok_or("invalid dataset handle")?;
+    let registered = reg.get_registered_mut(handle).ok_or("dataset handle was destroyed during materialisation")?;
     if registered.dataset.is_some() {
         return Ok(false);
     }
-    let dataset = compatibility::materialize_dataset(
-        &registered.name,
-        &registered.columns,
-        &registered.columnar,
-    )?;
+    if !Arc::ptr_eq(&registered.columnar, &columnar) {
+        return Err("dataset generation changed during materialisation".into());
+    }
     registered.dataset = Some(dataset);
     ROW_MATERIALISATIONS.fetch_add(1, Ordering::Relaxed);
     Ok(true)
@@ -178,7 +192,7 @@ pub fn row_materialisation_count() -> u64 {
 pub fn with_dataset_and_columnar<T>(handle: u32, f: impl FnOnce(&Dataset, &ColumnarDataset) -> T) -> Option<T> {
     let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
     let registered = reg.get_registered(handle)?;
-    Some(f(registered.dataset.as_ref()?, &registered.columnar))
+    Some(f(registered.dataset.as_ref()?, registered.columnar.as_ref()))
 }
 
 pub fn with_dataset_mut<T>(handle: u32, f: impl FnOnce(&mut Dataset) -> T) -> Option<T> {
