@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LayoutBase, warnKernelLayoutUnavailable } from './LayoutBase.ts';
+import { LayoutBase, requireKernelLayoutPositions } from './LayoutBase.ts';
 import type { TimeSeriesEntry } from '../types.ts';
 import { computeTimeRibbon3d } from '../../wasm/RuntimeBridge.ts';
 
@@ -20,125 +20,66 @@ export class TimeSeriesRibbonLayout extends LayoutBase {
   ): TimeSeriesEntry<T>[] {
     if (!rows.length) return [];
 
-    // Auto-detect keys if default is not in first row
     const first = rows[0] as Record<string, unknown>;
-    const timeKey =
-      options.timeKey ??
-      ('time' in first ? 'time' : 'timestamp' in first ? 'timestamp' : 'date' in first ? 'date' : 'time');
-    const valueKey =
-      options.valueKey ??
-      ('value' in first ? 'value' : 'val' in first ? 'val' : 'temperature' in first ? 'temperature' : 'value');
-    const seriesKey =
-      options.seriesKey ??
-      ('sensorId' in first ? 'sensorId' : 'series' in first ? 'series' : 'seriesId' in first ? 'seriesId' : 'series');
+    const timeKey = options.timeKey ?? ('time' in first ? 'time' : 'timestamp' in first ? 'timestamp' : 'date' in first ? 'date' : 'time');
+    const valueKey = options.valueKey ?? ('value' in first ? 'value' : 'val' in first ? 'val' : 'temperature' in first ? 'temperature' : 'value');
+    const seriesKey = options.seriesKey ?? ('sensorId' in first ? 'sensorId' : 'series' in first ? 'series' : 'seriesId' in first ? 'seriesId' : 'series');
+    const { xScale = 0.08, yScale = 2.5, zSpacing = 1.2, yOffset = 0.4 } = options;
 
-    const {
-      xScale = 0.08,
-      yScale = 2.5,
-      zSpacing = 1.2,
-      yOffset = 0.4,
-    } = options;
-
-    const parseTime = (val: unknown, fallbackIdx: number): number => {
-      if (typeof val === 'number') return val;
-      if (typeof val === 'string') {
-        const parsed = Date.parse(val);
-        if (!isNaN(parsed)) return parsed;
+    const parseTime = (value: unknown, fallbackIdx: number): number => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'string') {
+        const parsed = Date.parse(value);
+        if (Number.isFinite(parsed)) return parsed;
       }
       return fallbackIdx;
     };
 
-    // Group rows by series
-    const seriesGroups = new Map<string, Array<{ row: T; origIndex: number; timeVal: number; numVal: number }>>();
-    rows.forEach((r, i) => {
-      const rec = r as Record<string, unknown>;
-      const s = rec[seriesKey] !== undefined ? String(rec[seriesKey]) : 'default';
-      const timeVal = parseTime(rec[timeKey], i);
-      const numVal = typeof rec[valueKey] === 'number' ? (rec[valueKey] as number) : 0;
-
-      if (!seriesGroups.has(s)) {
-        seriesGroups.set(s, []);
-      }
-      seriesGroups.get(s)!.push({ row: r, origIndex: i, timeVal, numVal });
+    const groups = new Map<string, Array<{ row: T; origIndex: number; timeVal: number; numVal: number }>>();
+    rows.forEach((row, i) => {
+      const rec = row as Record<string, unknown>;
+      const seriesId = rec[seriesKey] !== undefined ? String(rec[seriesKey]) : 'default';
+      const bucket = groups.get(seriesId) ?? [];
+      bucket.push({
+        row,
+        origIndex: i,
+        timeVal: parseTime(rec[timeKey], i),
+        numVal: typeof rec[valueKey] === 'number' ? rec[valueKey] as number : 0,
+      });
+      groups.set(seriesId, bucket);
     });
+    for (const group of groups.values()) group.sort((a, b) => a.timeVal - b.timeVal);
 
-    // Sort each group by time
-    for (const group of seriesGroups.values()) {
-      group.sort((a, b) => a.timeVal - b.timeVal);
-    }
-
-    const n = rows.length;
-    const seriesArr = new Uint32Array(n);
-    const timesArr = new Float64Array(n);
-    const valuesArr = new Float64Array(n);
-
-    let idx = 0;
-    let sIdx = 0;
-    for (const group of seriesGroups.values()) {
+    const seriesIds: number[] = [];
+    const timestamps: number[] = [];
+    const values: number[] = [];
+    let seriesIndex = 0;
+    for (const group of groups.values()) {
       for (const item of group) {
-        seriesArr[idx] = sIdx;
-        timesArr[idx] = item.timeVal;
-        valuesArr[idx] = item.numVal;
-        idx++;
+        seriesIds.push(seriesIndex);
+        timestamps.push(item.timeVal);
+        values.push(item.numVal);
       }
-      sIdx++;
+      seriesIndex++;
     }
 
-    const wasmPositions = computeTimeRibbon3d(
-      Array.from(seriesArr),
-      Array.from(timesArr),
-      Array.from(valuesArr),
-      xScale,
-      yScale,
-      zSpacing,
-      yOffset
+    const wasmPositions = requireKernelLayoutPositions(
+      'TimeSeriesRibbonLayout',
+      computeTimeRibbon3d(seriesIds, timestamps, values, xScale, yScale, zSpacing, yOffset),
+      rows.length * 3,
     );
 
-    if (wasmPositions && wasmPositions.length === n * 3) {
-      const out: TimeSeriesEntry<T>[] = [];
-      let globalIdx = 0;
-      let seriesIndex = 0;
-
-      for (const [seriesId, group] of seriesGroups.entries()) {
-        group.forEach((item, pointIndex) => {
-          out.push({
-            position: new THREE.Vector3(
-              wasmPositions[globalIdx * 3 + 0],
-              wasmPositions[globalIdx * 3 + 1],
-              wasmPositions[globalIdx * 3 + 2]
-            ),
-            row: item.row,
-            index: item.origIndex,
-            pointIndex,
-            seriesIndex,
-            seriesId,
-            timestamp: item.timeVal,
-            value: item.numVal,
-          });
-          globalIdx++;
-        });
-        seriesIndex++;
-      }
-      return out;
-    }
-
-    warnKernelLayoutUnavailable('TimeSeriesRibbonLayout');
     const out: TimeSeriesEntry<T>[] = [];
-    let seriesIndex = 0;
-
-    for (const [seriesId, group] of seriesGroups.entries()) {
-      const minT = group[0]?.timeVal ?? 0;
-      const maxT = group[group.length - 1]?.timeVal ?? minT;
-      const tSpan = maxT - minT || 1;
-
+    let globalIndex = 0;
+    seriesIndex = 0;
+    for (const [seriesId, group] of groups.entries()) {
       group.forEach((item, pointIndex) => {
-        const normT = (item.timeVal - minT) / tSpan;
-        const x = (normT - 0.5) * group.length * xScale;
-        const y = item.numVal * yScale + yOffset;
-        const z = (seriesIndex - (seriesGroups.size - 1) / 2) * zSpacing;
-
         out.push({
-          position: new THREE.Vector3(x, y, z),
+          position: new THREE.Vector3(
+            wasmPositions[globalIndex * 3],
+            wasmPositions[globalIndex * 3 + 1],
+            wasmPositions[globalIndex * 3 + 2],
+          ),
           row: item.row,
           index: item.origIndex,
           pointIndex,
@@ -147,10 +88,10 @@ export class TimeSeriesRibbonLayout extends LayoutBase {
           timestamp: item.timeVal,
           value: item.numVal,
         });
+        globalIndex++;
       });
       seriesIndex++;
     }
-
     return out;
   }
 }
