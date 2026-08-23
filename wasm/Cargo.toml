@@ -25,7 +25,7 @@ ndarray = "0.15"
 # kurtosis come from `statify` rather than hand-rolled standardized moments.
 # Pure Rust, no std-required RNG, compiles to wasm32-unknown-unknown.
 statify = "0.2"
-petgraph = { version = "0.6", default-features = false, features = ["graphmap"] }
+petgraph = { version = "0.8", default-features = false, features = ["graphmap"] }
 statrs = { version = "0.17", default-features = false }
 getrandom = { version = "0.2", features = ["js"] }
 rustfft = "6.2"
