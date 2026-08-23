@@ -194,6 +194,7 @@ export class InvestigationAggregate {
           decisionStatus: repDecision.decisionStatus,
           decisionMargin: repDecision.decisionMargin,
           fitnessModelVersion: repDecision.fitnessModelVersion,
+          fitnessModelArtifactHash: repDecision.fitnessModelArtifactHash ?? null,
           explanation: repDecision.explanation,
           preserves: repDecision.preserves,
           loses: repDecision.loses,
