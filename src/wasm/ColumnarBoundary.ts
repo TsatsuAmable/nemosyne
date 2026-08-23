@@ -1,8 +1,6 @@
 import type { DatasetJSON, OperationSpec } from '../data/types.ts';
 import {
-  allocBytes,
   call,
-  deallocBytes,
   destroyDataset,
   loadCsv,
   loadDatasetJson,
@@ -44,15 +42,14 @@ export function getDatasetJson(handle: number): DatasetJSON | null {
   const required = Number(call('compatibility_dataset_to_json', handle, 0, 0) ?? 0);
   if (required === 0) return null;
 
-  const allocation = allocBytes(new Uint8Array(required));
+  const ptr = Number(call('alloc', required) ?? 0);
+  if (ptr === 0) throw new Error('WASM alloc returned 0');
   try {
-    const written = Number(
-      call('compatibility_dataset_to_json', handle, allocation.ptr, allocation.len) ?? 0,
-    );
-    if (written === 0 || written > allocation.len) return null;
-    return JSON.parse(readString(allocation.ptr, written)) as DatasetJSON;
+    const written = Number(call('compatibility_dataset_to_json', handle, ptr, required) ?? 0);
+    if (written === 0 || written > required) return null;
+    return JSON.parse(readString(ptr, written)) as DatasetJSON;
   } finally {
-    deallocBytes(allocation.ptr, allocation.len);
+    call('dealloc', ptr, required);
   }
 }
 
