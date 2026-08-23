@@ -6,9 +6,7 @@ export function canonicalJsonStringify(value: unknown, seen = new WeakSet<object
   if (value === undefined || value === null) return 'null';
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      throw new TypeError(`Cannot canonically serialize non-finite number: ${value}`);
-    }
+    if (!Number.isFinite(value)) return 'null';
     return Object.is(value, -0) ? '0' : JSON.stringify(value);
   }
   if (typeof value === 'string') return JSON.stringify(value);
