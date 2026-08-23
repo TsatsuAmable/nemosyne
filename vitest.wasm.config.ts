@@ -1,21 +1,9 @@
 import { defineConfig } from 'vitest/config';
 
-const FAST_NODE_TESTS = [
-  'tests/analyst-judgement-controller.test.ts',
-  'tests/draco-production-import-boundary.test.ts',
-  'tests/hygiene-audit.test.ts',
-  'tests/moneta-gate0-authority.test.ts',
-  'tests/moneta-layout-authority.test.ts',
-  'tests/moneta-scoring-ownership.test.ts',
-];
-
-const UI_ONLY_TESTS = [
-  'tests/adaptive-assist-controller.test.ts',
-  'tests/ai-gesture-jit-hints.test.ts',
-  'tests/asymmetric-desktop-companion.test.ts',
-];
-
-const WASM_TESTS = [
+// A test must justify real Rust/WASM startup by appearing here. Keep this list
+// intentionally small: analytical correctness belongs in Rust, while ordinary
+// TypeScript/UI behavior belongs in the Node or jsdom-only lanes.
+export const WASM_TESTS = [
   'tests/accessibility.test.ts',
   'tests/analysis-templates.test.ts',
   'tests/chart-plane-integration.test.ts',
@@ -53,30 +41,14 @@ const WASM_TESTS = [
 
 export default defineConfig({
   test: {
-    name: 'jsdom-integration',
+    name: 'real-wasm-boundary',
     environment: 'jsdom',
-    setupFiles: ['./tests/setup.ts'],
+    include: WASM_TESTS,
+    setupFiles: ['./tests/setup.ts', './tests/setup-wasm.ts'],
     globals: false,
-    // Real WASM is opt-in via vitest.wasm.config.ts. Tests in this lane must
-    // not depend on ambient kernel initialization.
-    exclude: [
-      'node_modules',
-      'dist',
-      '.claude',
-      'wasm',
-      'tests/smoke',
-      'modules',
-      ...FAST_NODE_TESTS,
-      ...UI_ONLY_TESTS,
-      ...WASM_TESTS,
-    ],
-    pool: 'threads',
-    maxWorkers: 4,
+    pool: 'forks',
+    maxWorkers: 2,
     testTimeout: 10000,
-    teardownTimeout: 2000,
-    coverage: {
-      provider: 'v8',
-      thresholds: { lines: 75, statements: 75, functions: 70, branches: 60 },
-    },
+    teardownTimeout: 3000,
   },
 });

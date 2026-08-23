@@ -48,6 +48,7 @@
     "tests/**/*",
     "dev/**/*",
     "vite.config.ts",
+    "vitest*.config.ts",
     "modules/gesture-intelligence/src/**/*"
   ],
   "exclude": [
