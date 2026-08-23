@@ -2,23 +2,20 @@
  * NemosyneSession — the authoritative logical session.
  *
  * Wave 4: snapshot authority moves here from WorldSessionController. The
- * schemaVersion-2 JSON persists the AtlasCore state (dataset, DatasetSpace,
- * provenance ledger, analysis results chain, recommendation decisions) plus
- * the memory-palace presentation state (camera/settings/tour/theme/panels/
- * entry). Saved-session compatibility BREAKS: schemaVersion 1 is rejected.
+ * schemaVersion-2 JSON persists the AtlasCore state plus presentation state.
  */
 
 import type { EncodingMapping } from '../data/types.ts';
 import { AtlasCore } from '../atlas/AtlasCore.ts';
-import type {
-  AnalysisSpec,
-  AtlasCoreState,
-  ResearchContext,
-} from '../atlas/types.ts';
+import type { AnalysisSpec, AtlasCoreState, ResearchContext } from '../atlas/types.ts';
+import {
+  NoFeasibleRepresentationStore,
+  type NoFeasibleRepresentationRecord,
+  type NoFeasibleRepresentationStoreSnapshot,
+} from '../investigation/NoFeasibleRepresentationStore.ts';
 import { NemosynePackageManager, type NemosynePackageManifest } from './NemosynePackage.ts';
 import { strToU8 } from 'fflate';
 
-/** Memory-palace presentation state (camera/settings/tour/theme/panels/entry). */
 export interface PresentationState {
   camera: { position: [number, number, number]; rotationY: number };
   settings: Record<string, unknown>;
@@ -34,20 +31,21 @@ export interface PortablePackageEnvironment {
   webxrSupported?: boolean | null;
 }
 
-/** Authoritative session JSON (schemaVersion 2). */
 export interface NemosyneSessionJSON extends AtlasCoreState {
   schemaVersion: 2;
   savedAt: number;
   entry: PresentationState['entry'];
-  /** Derived from `analysisResults.map(r => r.spec)`. */
   analysisSpecs: AnalysisSpec[];
   presentation: PresentationState;
+  nilOutcomes?: NoFeasibleRepresentationStoreSnapshot;
 }
 
 function now(): number {
-  return (typeof performance !== 'undefined' && performance.now) ? performance.now()
-    : (typeof Date !== 'undefined' && Date.now) ? Date.now()
-    : 0;
+  return (typeof performance !== 'undefined' && performance.now)
+    ? performance.now()
+    : (typeof Date !== 'undefined' && Date.now)
+      ? Date.now()
+      : 0;
 }
 
 export class NemosyneSession {
@@ -55,6 +53,7 @@ export class NemosyneSession {
   private _sessionId: string;
   private _presentation: PresentationState;
   private _researchContext: ResearchContext;
+  private _nilOutcomes = new NoFeasibleRepresentationStore();
 
   constructor({ atlas, sessionId }: { atlas: AtlasCore; sessionId?: string }) {
     this._atlas = atlas;
@@ -70,33 +69,22 @@ export class NemosyneSession {
     this._researchContext = {};
   }
 
-  get atlas(): AtlasCore {
-    return this._atlas;
-  }
-
-  get sessionId(): string {
-    return this._sessionId;
-  }
-
-  get presentation(): PresentationState {
-    return this._presentation;
-  }
-
-  get researchContext(): ResearchContext {
-    return this._researchContext;
-  }
+  get atlas(): AtlasCore { return this._atlas; }
+  get sessionId(): string { return this._sessionId; }
+  get presentation(): PresentationState { return this._presentation; }
+  get researchContext(): ResearchContext { return this._researchContext; }
+  get nilOutcomes(): readonly NoFeasibleRepresentationRecord[] { return this._nilOutcomes.all(); }
 
   setResearchContext(ctx: Partial<ResearchContext>): void {
     this._researchContext = { ...this._researchContext, ...ctx };
   }
 
-  recordObservation(observation: string): void {
-    this._atlas.recordObservation(observation);
+  recordNoFeasibleRepresentation(record: NoFeasibleRepresentationRecord): void {
+    this._nilOutcomes.record(record);
   }
 
-  recordIntervention(intervention: string): void {
-    this._atlas.recordIntervention(intervention);
-  }
+  recordObservation(observation: string): void { this._atlas.recordObservation(observation); }
+  recordIntervention(intervention: string): void { this._atlas.recordIntervention(intervention); }
 
   setPresentation(partial: Partial<PresentationState>): void {
     if (partial.camera) this._presentation.camera = partial.camera as PresentationState['camera'];
@@ -131,16 +119,12 @@ export class NemosyneSession {
       investigationGraph: core.investigationGraph,
       representationDecision: core.representationDecision,
       discoveryEpisodes: core.discoveryEpisodes,
+      nilOutcomes: this._nilOutcomes.toJSON(),
       researchContext: this._researchContext,
       presentation: this._presentation,
     };
   }
 
-  /**
-   * Export a self-contained portable investigation package directly from the
-   * authoritative Atlas state. Optional evidence arrays are normalized for
-   * compatibility with older AtlasCoreState snapshots.
-   */
   async exportPortablePackage(environment: PortablePackageEnvironment = {}): Promise<Uint8Array> {
     const core = this._atlas.toState();
     if (!core.originalDataset) {
@@ -150,6 +134,7 @@ export class NemosyneSession {
     const originalDataset = this._atlas.originalDataset;
     const representationDecision = core.representationDecision;
     const discoveryEpisodes = core.discoveryEpisodes;
+    const nilOutcomes = this._nilOutcomes.toJSON();
     const fitnessModelVersion =
       representationDecision?.fitnessModelVersion ??
       representationDecision?.provenance.fitnessModelVersion;
@@ -163,6 +148,7 @@ export class NemosyneSession {
       createdAt: typeof Date !== 'undefined' && Date.now ? Date.now() : 0,
       commandCount: core.eventLedger.length,
       discoveryCount: discoveryEpisodes?.episodes.length ?? 0,
+      nilOutcomeCount: nilOutcomes.outcomes.length,
       investigationDigest: await this._atlas.computeDigest(),
       representationModel:
         representationDecision && fitnessModelVersion
@@ -193,12 +179,15 @@ export class NemosyneSession {
         discoveryEpisodes && discoveryEpisodes.episodes.length > 0
           ? strToU8(JSON.stringify(discoveryEpisodes))
           : undefined,
+      nilOutcomesBytes:
+        nilOutcomes.outcomes.length > 0 ? strToU8(JSON.stringify(nilOutcomes)) : undefined,
     });
   }
 
-  /** Restore atlas state + presentation in place on the shared atlas. */
   loadFromJSON(json: NemosyneSessionJSON): void {
     this._atlas.restoreState(json);
+    this._nilOutcomes.reset();
+    if (json.nilOutcomes) this._nilOutcomes.restore(json.nilOutcomes);
     this._presentation = {
       camera: json.presentation?.camera ?? { position: [0, 0, 0], rotationY: 0 },
       settings: json.presentation?.settings ?? {},
@@ -210,13 +199,10 @@ export class NemosyneSession {
     this._researchContext = json.researchContext ?? {};
   }
 
-  /**
-   * Reconstruct a NemosyneSession from a serialized JSON, restoring the passed
-   * atlas in place. The returned session wraps the same atlas instance.
-   */
   static deserialize(json: NemosyneSessionJSON, atlas: AtlasCore): NemosyneSession {
     atlas.restoreState(json);
     const session = new NemosyneSession({ atlas });
+    if (json.nilOutcomes) session._nilOutcomes.restore(json.nilOutcomes);
     session._presentation = {
       camera: json.presentation?.camera ?? { position: [0, 0, 0], rotationY: 0 },
       settings: json.presentation?.settings ?? {},
