@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
-import type { DracoDataInput, DracoFacts } from '../../draco/types.ts';
+import type { DracoDataInput, DracoFacts } from '../../moneta/types.ts';
 import { buildTDASummaryGroup } from '../artifacts/TDAPlanes.ts';
 import { ChartPlanePanel } from '../ui/ChartPlanePanel.ts';
 import { DashboardManager } from '../ui/DashboardManager.ts';
 import { TooltipManager } from '../ui/TooltipManager.ts';
-import type { DracoTopologyNode } from '../../draco/DracoTopologyNode.ts';
+import type { MonetaTopologyNode as DracoTopologyNode } from '../../moneta/MonetaTopologyNode.ts';
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 import type { Engine } from '../Engine.ts';
 
