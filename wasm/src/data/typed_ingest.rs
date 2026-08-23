@@ -50,6 +50,11 @@ fn parse_with_schema(bytes: &[u8]) -> Result<ParsedTypedDataset, String> {
     if reader.take(4)? != MAGIC { return Err("typed payload magic mismatch".into()); }
     let row_count = reader.u32()? as usize;
     let column_count = reader.u32()? as usize;
+    // Every encoded column needs at least a one-byte kind and a two-byte string
+    // length prefix. Reject impossible untrusted counts before any preallocation.
+    if column_count > reader.remaining() / 3 {
+        return Err("typed column count exceeds remaining payload".into());
+    }
     let mut primitive_columns = HashMap::new();
     let mut categorical_columns = HashMap::new();
     let mut columns = Vec::with_capacity(column_count);
@@ -163,12 +168,22 @@ pub fn typed_primitive_validity_ptr(handle: u32, column_index: u32) -> u32 {
 }
 
 /// Canonical SHA-256 identity for a typed/columnar-first handle. Empty string
-/// signals an invalid handle or unsupported schema.
+/// signals an invalid handle or unsupported schema; internal failures are logged.
 #[wasm_bindgen]
 pub fn typed_dataset_fingerprint(handle: u32) -> String {
-    with_columnar_metadata(handle, |name, columns, columnar| {
+    match with_columnar_metadata(handle, |name, columns, columnar| {
         crate::data::columnar_fingerprint::columnar_dataset_fingerprint(name, columns, columnar)
-    }).and_then(Result::ok).unwrap_or_default()
+    }) {
+        Some(Ok(fingerprint)) => fingerprint,
+        Some(Err(error)) => {
+            crate::log_error(&format!("typed_dataset_fingerprint failed for handle {handle}: {error}"));
+            String::new()
+        }
+        None => {
+            crate::log_error(&format!("typed_dataset_fingerprint failed: invalid dataset handle {handle}"));
+            String::new()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -266,6 +281,14 @@ mod tests {
         let column = dataset.primitive_column(0).unwrap();
         assert_eq!(column.values, vec![0.0, 0.0, 1.0]);
         assert_eq!(column.validity, vec![0, 0, 1]);
+    }
+
+    #[test]
+    fn rejects_impossible_column_preallocation_before_allocating() {
+        let mut bytes = MAGIC.to_vec();
+        push_u32(&mut bytes, 0);
+        push_u32(&mut bytes, u32::MAX);
+        assert!(parse_with_schema(&bytes).is_err());
     }
 
     #[test]
