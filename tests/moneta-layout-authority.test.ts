@@ -10,6 +10,7 @@ const DATA_DERIVED_LAYOUTS = [
   'TimeSeriesRibbonLayout.ts',
   'StreamlineLayout.ts',
   'GeoSurfaceLayout.ts',
+  'SpectralVolumeLayout.ts',
 ];
 
 describe('Moneta layout analytical authority', () => {
@@ -21,8 +22,15 @@ describe('Moneta layout analytical authority', () => {
     }
   });
 
-  it('uses the explicit kernel-result guard at the Rust-owned layout boundary', () => {
-    for (const name of ['GridLayout3D.ts', 'ForceDirected3D.ts', 'RadialTreeLayout.ts', 'TimeSeriesRibbonLayout.ts', 'GeoSurfaceLayout.ts']) {
+  it('uses an explicit kernel-result guard at every Rust-owned layout boundary', () => {
+    for (const name of [
+      'GridLayout3D.ts',
+      'ForceDirected3D.ts',
+      'RadialTreeLayout.ts',
+      'TimeSeriesRibbonLayout.ts',
+      'GeoSurfaceLayout.ts',
+      'SpectralVolumeLayout.ts',
+    ]) {
       const source = fs.readFileSync(path.join(LAYOUT_DIR, name), 'utf8');
       expect(source).toContain('requireKernelLayoutPositions');
     }
