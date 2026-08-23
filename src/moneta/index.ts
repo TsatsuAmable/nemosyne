@@ -1,6 +1,5 @@
 export * from './types.ts';
 export * from './ConstraintEngine.ts';
-export * from './ConstraintArbiter.ts';
 export * from './VRTopologyTranslator.ts';
 export * from './MonetaTopologyNode.ts';
 export * from './SpatialStrategy.ts';
