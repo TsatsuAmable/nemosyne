@@ -6,6 +6,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { HandGestureRecognizer } from '../src/vr/interactions/HandGestureRecognizer.ts';
 import * as THREE from 'three';
 
+async function ensureKernelAfterModuleReset() {
+  const bridge = await import('../src/wasm/RuntimeBridge.ts');
+  if (!bridge.isReady()) {
+    await bridge.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
+  }
+}
+
 describe('HandGestureRecognizer intent inference', () => {
   let recognizer;
   let gestures;
@@ -86,6 +93,7 @@ describe('World intent inference integration', () => {
 
   beforeEach(async () => {
     vi.resetModules();
+    await ensureKernelAfterModuleReset();
     const { World } = await import('../src/vr/World.ts');
     world = new World();
     await new Promise((r) => setTimeout(r, 50));
