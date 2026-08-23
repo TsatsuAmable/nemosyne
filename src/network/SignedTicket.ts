@@ -15,8 +15,13 @@ export interface TokenClaims {
 export function timingSafeEqualString(a: string, b: string): boolean {
   const aBytes = Buffer.from(a, 'utf8');
   const bBytes = Buffer.from(b, 'utf8');
-  if (aBytes.length !== bBytes.length) return false;
-  return crypto.timingSafeEqual(aBytes, bBytes);
+  const length = Math.max(aBytes.length, bBytes.length);
+  const paddedA = Buffer.alloc(length);
+  const paddedB = Buffer.alloc(length);
+  aBytes.copy(paddedA);
+  bBytes.copy(paddedB);
+  const equalBytes = crypto.timingSafeEqual(paddedA, paddedB);
+  return equalBytes && aBytes.length === bBytes.length;
 }
 
 /**
