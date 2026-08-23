@@ -4,7 +4,9 @@
 //! only when a compatibility consumer explicitly requests them.
 
 use std::collections::HashMap;
+use wasm_bindgen::prelude::*;
 
+use crate::allocator;
 use crate::data::column::{Column, ColumnType};
 use crate::data::columnar::ColumnarDataset;
 use crate::data::dataset::Dataset;
@@ -109,6 +111,45 @@ pub fn materialize_dataset(
     })
 }
 
+/// Columnar-native metadata access. These calls must never materialise rows.
+#[wasm_bindgen]
+pub fn canonical_dataset_row_count(handle: u32) -> u32 {
+    crate::data::with_columnar_dataset(handle, |dataset| dataset.row_count() as u32).unwrap_or(0)
+}
+
+#[wasm_bindgen]
+pub fn canonical_dataset_column_count(handle: u32) -> u32 {
+    crate::data::with_columnar_metadata(handle, |_name, columns, _dataset| columns.len() as u32).unwrap_or(0)
+}
+
+/// Explicit compatibility export. Calling this API is an observable choice to
+/// cross from canonical columnar storage into the cached row-major view.
+#[wasm_bindgen]
+pub fn compatibility_dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    if let Err(error) = crate::data::materialize_rows(handle) {
+        crate::log_error(&format!("compatibility_dataset_to_json failed: {error}"));
+        return 0;
+    }
+    crate::data::with_dataset(handle, |dataset| {
+        let json = dataset.to_js_json();
+        let bytes = json.as_bytes();
+        if out_len == 0 {
+            return bytes.len() as u32;
+        }
+        let write_len = std::cmp::min(bytes.len(), out_len as usize);
+        let slice = unsafe { allocator::view_mut(out_ptr, write_len as u32) };
+        slice.copy_from_slice(&bytes[..write_len]);
+        write_len as u32
+    }).unwrap_or(0)
+}
+
+/// Diagnostic counter used by host/tests to enforce that columnar-native paths
+/// stay row-free. Saturates at u32::MAX for ABI simplicity.
+#[wasm_bindgen]
+pub fn compatibility_row_materialisation_count() -> u32 {
+    crate::data::row_materialisation_count().min(u32::MAX as u64) as u32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,5 +185,28 @@ mod tests {
         assert_eq!(dataset.rows[1]["x"], Value::Null);
         assert_eq!(dataset.rows[1]["cohort"], Value::Text("b".into()));
         assert!(dataset.row_ids.is_empty());
+    }
+
+    #[test]
+    fn metadata_calls_remain_row_free_and_export_crosses_once() {
+        let columns = vec![Column::new("x", ColumnType::Numeric)];
+        let columnar = ColumnarDataset::from_parts(
+            2,
+            HashMap::from([(
+                0,
+                PrimitiveColumn { values: vec![1.0, 2.0], validity: vec![1, 1] },
+            )]),
+            HashMap::new(),
+        ).unwrap();
+        let handle = crate::data::register_columnar_dataset("caller-boundary".into(), columns, columnar);
+        let before = crate::data::row_materialisation_count();
+        assert_eq!(canonical_dataset_row_count(handle), 2);
+        assert_eq!(canonical_dataset_column_count(handle), 1);
+        assert_eq!(crate::data::row_materialisation_count(), before);
+        assert!(compatibility_dataset_to_json(handle, 0, 0) > 0);
+        assert_eq!(crate::data::row_materialisation_count(), before + 1);
+        assert!(compatibility_dataset_to_json(handle, 0, 0) > 0);
+        assert_eq!(crate::data::row_materialisation_count(), before + 1);
+        crate::data::destroy_dataset(handle);
     }
 }
