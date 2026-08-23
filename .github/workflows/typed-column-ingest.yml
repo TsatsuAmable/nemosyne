@@ -1,0 +1,43 @@
+name: Typed Column Ingest
+
+on:
+  pull_request:
+    paths:
+      - 'wasm/src/data/**'
+      - 'scripts/benchmark-typed-column-ingest.mjs'
+      - '.github/workflows/typed-column-ingest.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run wasm:dev
+      - name: Run 100K and 1M typed-column comparison
+        run: |
+          node --expose-gc scripts/benchmark-typed-column-ingest.mjs --tier=100k --tier=1m --json > typed-column-ingest.json
+          cat typed-column-ingest.json
+      - name: Publish summary
+        run: |
+          echo '## Typed-column data-plane spike' >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat typed-column-ingest.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: typed-column-ingest
+          path: typed-column-ingest.json
+          retention-days: 30
