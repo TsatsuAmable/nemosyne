@@ -49,7 +49,7 @@
     "jsdom": "^29.1.1",
     "marked": "^18.0.7",
     "prettier": "^3.5.0",
-    "typescript": "^5.7.3",
+    "typescript": "^7.0.2",
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
     "wasm-pack": "^0.15.0"
