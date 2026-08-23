@@ -7,12 +7,48 @@ import { InvestigationReplayRunner } from '../src/session/InvestigationReplayRun
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 import { strToU8 } from 'fflate';
 
+/**
+ * Replay verification now treats kernel identity and provenance as part of the
+ * reproducibility contract. The general-purpose canned kernel intentionally
+ * does not manufacture provenance, so this suite wraps it with the minimal
+ * deterministic provenance behavior required to model a replay-capable kernel.
+ */
+function makeReplayKernelMockBridge() {
+  const base = makeKernelMockBridge();
+  let lastProvenance = null;
+
+  return {
+    ...base,
+    kernelVersion: () => '0.2.0',
+    kernelProvenance: () => lastProvenance,
+    runOperation: (handle, op) => {
+      const inputFingerprint = base.datasetFingerprint(handle);
+      const outHandle = base.runOperation(handle, op);
+      if (outHandle === 0) {
+        lastProvenance = null;
+        return 0;
+      }
+      const outputFingerprint = base.datasetFingerprint(outHandle);
+      lastProvenance = {
+        kernel: 'nemosyne-wasm',
+        kernelVersion: '0.2.0',
+        operation: op.op,
+        parameters: op,
+        inputFingerprint: inputFingerprint ?? '',
+        outputFingerprint: outputFingerprint ?? '',
+        timestamp: Date.now(),
+      };
+      return outHandle;
+    },
+  };
+}
+
 describe('Investigation Replay Runner Adversarial & Tamper Verification', () => {
   let mockBridge: any;
   let runner: InvestigationReplayRunner;
 
   beforeEach(() => {
-    mockBridge = makeKernelMockBridge();
+    mockBridge = makeReplayKernelMockBridge();
     runner = new InvestigationReplayRunner(mockBridge);
   });
 
@@ -67,9 +103,10 @@ describe('Investigation Replay Runner Adversarial & Tamper Verification', () => 
     });
 
     const replayResult = await runner.replayArchive(packageBytes);
-    expect(replayResult.success).toBe(true);
+    expect(replayResult.success, replayResult.discrepancies.join('\n')).toBe(true);
     expect(replayResult.discrepancies.length).toBe(0);
     expect(replayResult.eventsMatched).toBeGreaterThan(0);
+    expect(replayResult.provenanceEventsVerified).toBe(1);
     expect(replayResult.investigationDigest).toBe(digest);
     expect(replayResult.evidenceCount.observations).toBe(1);
     expect(replayResult.evidenceCount.findings).toBe(1);

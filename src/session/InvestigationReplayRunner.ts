@@ -9,6 +9,7 @@
 import { NemosynePackageManager, type NemosynePackagePayload } from './NemosynePackage.ts';
 import { AtlasCore, type WasmRuntimeBridgeFull } from '../atlas/AtlasCore.ts';
 import { Dataset } from '../data/Dataset.ts';
+import type { Provenance } from '../data/types.ts';
 import type { AnalysisSpec, ResearchEvent } from '../atlas/types.ts';
 import { strFromU8 } from 'fflate';
 
@@ -19,6 +20,7 @@ export interface ReplayVerificationResult {
   datasetFingerprint: string;
   commandsReplayed: number;
   eventsMatched: number;
+  provenanceEventsVerified: number;
   finalOutputHash: string;
   investigationDigest: string;
   evidenceCount: {
@@ -27,6 +29,46 @@ export interface ReplayVerificationResult {
     annotations: number;
   };
   discrepancies: string[];
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`)
+    .join(',')}}`;
+}
+
+function compareProvenance(expected: Provenance, actual: Provenance | null): string[] {
+  if (!actual) return ['replay kernel emitted no provenance'];
+
+  const discrepancies: string[] = [];
+  const fields: Array<keyof Pick<Provenance, 'kernel' | 'kernelVersion' | 'operation' | 'inputFingerprint' | 'outputFingerprint'>> = [
+    'kernel',
+    'kernelVersion',
+    'operation',
+    'inputFingerprint',
+    'outputFingerprint',
+  ];
+
+  for (const field of fields) {
+    if (actual[field] !== expected[field]) {
+      discrepancies.push(`${field} expected '${expected[field]}', replay produced '${actual[field]}'`);
+    }
+  }
+
+  if (stableJson(actual.parameters) !== stableJson(expected.parameters)) {
+    discrepancies.push(
+      `parameters expected ${stableJson(expected.parameters)}, replay produced ${stableJson(actual.parameters)}`
+    );
+  }
+
+  if (!(expected.timestamp > 0)) discrepancies.push('recorded provenance timestamp is invalid');
+  if (!(actual.timestamp > 0)) discrepancies.push('replay provenance timestamp is invalid');
+
+  return discrepancies;
 }
 
 export class InvestigationReplayRunner {
@@ -78,12 +120,20 @@ export class InvestigationReplayRunner {
       return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint, discrepancies);
     }
 
-    // 3. Initialize clean-room AtlasCore
+    // 3. Initialize clean-room AtlasCore and verify kernel identity before replay.
     const atlas = new AtlasCore({ kernel: this._bridge, sessionId: manifest.sessionId });
     atlas.loadDataset(dataset);
 
+    const replayKernelVersion = atlas.kernelVersion();
+    if (replayKernelVersion && manifest.kernelVersion && replayKernelVersion !== manifest.kernelVersion) {
+      discrepancies.push(
+        `Kernel version mismatch: package manifest has '${manifest.kernelVersion}', replay kernel is '${replayKernelVersion}'`
+      );
+    }
+
     let commandsReplayed = 0;
     let eventsMatched = 0;
+    let provenanceEventsVerified = 0;
 
     for (let i = 0; i < loggedEvents.length; i++) {
       const item = loggedEvents[i];
@@ -101,13 +151,30 @@ export class InvestigationReplayRunner {
             try {
               const res = atlas.applyAnalysis(spec);
               commandsReplayed += 1;
+              let eventMatches = true;
+
               if (event.result?.outputHash && res.outputHash !== event.result.outputHash) {
                 discrepancies.push(
                   `Output hash drift at event #${i} (${spec.label ?? spec.operation.op}): expected ${event.result.outputHash}, computed ${res.outputHash}`
                 );
-              } else {
-                eventsMatched += 1;
+                eventMatches = false;
               }
+
+              if (event.result?.provenance) {
+                const provenanceDiscrepancies = compareProvenance(event.result.provenance, res.provenance);
+                if (provenanceDiscrepancies.length === 0) {
+                  provenanceEventsVerified += 1;
+                } else {
+                  eventMatches = false;
+                  for (const provenanceDiscrepancy of provenanceDiscrepancies) {
+                    discrepancies.push(
+                      `Provenance drift at event #${i} (${spec.label ?? spec.operation.op}): ${provenanceDiscrepancy}`
+                    );
+                  }
+                }
+              }
+
+              if (eventMatches) eventsMatched += 1;
             } catch (err) {
               discrepancies.push(`Replay execution failure at event #${i}: ${(err as Error).message}`);
             }
@@ -231,6 +298,7 @@ export class InvestigationReplayRunner {
       datasetFingerprint: manifest.datasetFingerprint,
       commandsReplayed,
       eventsMatched,
+      provenanceEventsVerified,
       finalOutputHash,
       investigationDigest,
       evidenceCount: {
@@ -255,6 +323,7 @@ export class InvestigationReplayRunner {
       datasetFingerprint,
       commandsReplayed: 0,
       eventsMatched: 0,
+      provenanceEventsVerified: 0,
       finalOutputHash: '',
       investigationDigest: '',
       evidenceCount: { observations: 0, findings: 0, annotations: 0 },
