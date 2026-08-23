@@ -56,7 +56,7 @@ Avoid opportunistic cleanup, adjacent refactors, dependency modernization, broad
 | Moneta scale boundary | bounded candidate/sensitivity contract exists | no Moneta reasoning module traverses raw rows or performs N-dependent JS work | ACTIVE |
 | Moneta computational JS fallbacks | some layouts still contain degraded JS computation | scale-sensitive/data-derived layout computation is Rust-owned; UI may retain last-known-good presentation but not recompute analytical geometry independently | ACTIVE |
 | Fitness/scoring authority | bootstrap/learned model infrastructure present | scoring/ranking semantics have one authoritative implementation and focused invariant tests | ACTIVE |
-| Representation/provenance continuity | partial | representation/model/NIL/discovery provenance persists through Investigation and replay | NEXT |
+| Representation/provenance continuity | representation decisions persist; exact learned artifact identity is now being bound into canonical investigation digests | representation/model/NIL/discovery provenance persists through Investigation and replay | ACTIVE |
 | Downstream confidence terminology | partial compatibility remains | uncalibrated utility is no longer presented as statistical confidence | NEXT |
 | Metamorphic correctness | incomplete | row shuffle, valid semantic rename, and declared duplication/scale policies are tested at the authoritative layer | NEXT |
 | Draco public migration surface | compatibility retained | remaining public compatibility is documented, tested, and ready for eventual removal without hidden second authority | NEXT |
