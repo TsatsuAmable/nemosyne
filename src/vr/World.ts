@@ -267,29 +267,29 @@ export class World {
       onPanelChange: () => this._requestAutoSave(),
       onSettingChanged: (key, value) => this._onSettingChanged(key, value),
       onSeekHistory: (index) => this._seekAnalysisHistory(index),
-       getNodeMeshes: () => this.dracoNode?.artifact?.nodeMeshes ?? [],
-       getDominantHand: () => {
-         const index = this.inputCoordinator?.gestureRecognizer?.dominantHandIndex;
-         return this.engine.input.hands[index ?? 0] as unknown as HandLike | null;
-       },
-       getPeers: () => this.networkManager?.room?.getRemoteSnapshot() ?? [],
+      getNodeMeshes: () => this.dracoNode?.artifact?.nodeMeshes ?? [],
+      getDominantHand: () => {
+        const index = this.inputCoordinator?.gestureRecognizer?.dominantHandIndex;
+        return this.engine.input.hands[index ?? 0] as unknown as HandLike | null;
+      },
+      getPeers: () => this.networkManager?.room?.getRemoteSnapshot() ?? [],
       getLocalPeerId: () => this.networkManager?.peerId ?? null,
       getSetting: (key) => this.uiManager?.settingsPanel?.getSetting?.(key),
       telemetryCollector: this.telemetryCollector,
       analysisHistory: this.dataOperationController.analysisHistory,
       loadTestDriver: this.loadTestDriver,
-       onStartLoadTest: (profile) => this.runLoadTest(profile),
-       onStopLoadTest: () => this.stopLoadTest(),
-       onFlushLoadTest: () => this.flushLastLoadTestSummary(),
-       getRecommendation: () => this.atlas.activeRecommendation ?? null,
-       onAcceptRecommendation: () => this._acceptRecommendation(),
-       onRejectRecommendation: () => this._rejectRecommendation(),
-       onOverrideRecommendation: () => this._overrideRecommendation(),
-       onGenerateRecommendation: () => this._generateRecommendation(),
-       onExitVR: () => this.exitVR(),
-       frustrationAnalyzer: this.telemetryCollector.frustrationAnalyzer,
-       getDataset: () => this.atlas.dataset,
-     });
+      onStartLoadTest: (profile) => this.runLoadTest(profile),
+      onStopLoadTest: () => this.stopLoadTest(),
+      onFlushLoadTest: () => this.flushLastLoadTestSummary(),
+      getRecommendation: () => this.atlas.activeRecommendation ?? null,
+      onAcceptRecommendation: () => this._acceptRecommendation(),
+      onRejectRecommendation: () => this._rejectRecommendation(),
+      onOverrideRecommendation: () => this._overrideRecommendation(),
+      onGenerateRecommendation: () => this._generateRecommendation(),
+      onExitVR: () => this.exitVR(),
+      frustrationAnalyzer: this.telemetryCollector.frustrationAnalyzer,
+      getDataset: () => this.atlas.dataset,
+    });
 
     // Input coordinator owns gesture recognition, context-aware suppression, and
     // the mapping from gestures/commands to world actions.
@@ -1091,7 +1091,7 @@ export class World {
   private _applyEmbodimentHint(): void {
     const rec = this.atlas.activeRecommendation;
     if (!rec?.suggestedEmbodiment || !this.dracoNode) return;
-    import('./../draco/EmbodimentHints.ts').then(({ applyEmbodimentHint }) => {
+    import('./../moneta/EmbodimentHints.ts').then(({ applyEmbodimentHint }) => {
       if (this.dracoNode) {
         applyEmbodimentHint(this.dracoNode, rec.suggestedEmbodiment!);
       }
@@ -1767,9 +1767,9 @@ export class World {
       // eslint-disable-next-line no-console
       console.log(
         `[LOAD TEST] ${summary.profileName} | XR=${summary.xrActive} | ` +
-          `sufficientTo=${summary.verdict.jsPathSufficientTo} ` +
-          `warrantedAt=${summary.verdict.commandBufferWarrantedAt} | ` +
-          summary.verdict.recommendation
+        `sufficientTo=${summary.verdict.jsPathSufficientTo} ` +
+        `warrantedAt=${summary.verdict.commandBufferWarrantedAt} | ` +
+        summary.verdict.recommendation
       );
     } catch {
       // ignore
@@ -1792,8 +1792,8 @@ export class World {
       dissatisfactionScore: typeof digest?.dissatisfactionScore === 'number' ? (digest.dissatisfactionScore as number) : 0,
       detectedPatterns: Array.isArray(digest?.detectedPatterns)
         ? (digest.detectedPatterns as Array<{ name?: string } | string>).map((p) =>
-            typeof p === 'string' ? p : p?.name ?? 'pattern'
-          )
+          typeof p === 'string' ? p : p?.name ?? 'pattern'
+        )
         : [],
       telemetryConsentEnabled: !!this.telemetryCollector?.enabled,
     };
