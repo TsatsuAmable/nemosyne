@@ -1,4 +1,4 @@
-import { VRTopologyTranslator } from '../draco/VRTopologyTranslator.ts';
+import { VRTopologyTranslator } from '../moneta/VRTopologyTranslator.ts';
 import { InstancedPointCloud } from './scalability/InstancedPointCloud.ts';
 import { ChartPlane } from './artifacts/ChartPlane.ts';
 import * as MetaphorActions from './interactions/MetaphorActions.ts';
