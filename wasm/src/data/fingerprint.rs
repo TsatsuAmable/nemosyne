@@ -5,6 +5,7 @@
 //! keys are sorted deterministically and number rendering follows ECMAScript
 //! `JSON.stringify` rules so Rust and JS hash identical UTF-8 bytes.
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -53,6 +54,13 @@ pub fn row_fingerprint(row: &HashMap<String, Value>, columns: &[Column]) -> Stri
     sha256_hex(&buf)
 }
 
+/// JavaScript's default string sort compares UTF-16 code units, whereas Rust's
+/// `String::cmp` compares UTF-8 bytes. Canonical hashing must use the JS rule so
+/// supplementary-plane keys produce byte-identical canonical JSON in both runtimes.
+fn cmp_utf16(a: &str, b: &str) -> Ordering {
+    a.encode_utf16().cmp(b.encode_utf16())
+}
+
 fn write_dataset(buf: &mut String, ds: &Dataset) {
     buf.push('{');
     buf.push_str("\"columns\":[");
@@ -86,7 +94,7 @@ fn write_dataset(buf: &mut String, ds: &Dataset) {
 
 fn write_row(buf: &mut String, row: &HashMap<String, Value>, columns: &[Column]) {
     let mut names: Vec<&String> = columns.iter().map(|c| &c.name).collect();
-    names.sort_by(|a, b| a.cmp(b));
+    names.sort_by(|a, b| cmp_utf16(a, b));
     buf.push('{');
     for (i, name) in names.iter().enumerate() {
         if i > 0 { buf.push(','); }
@@ -104,7 +112,7 @@ fn write_edge(buf: &mut String, edge: &crate::data::dataset::Edge) {
     entries.push(("target".to_string(), EdgeVal::UInt(edge.target)));
     if let Some(w) = edge.weight { entries.push(("weight".to_string(), EdgeVal::Float(w))); }
     for (k, v) in &edge.extra { entries.push((k.clone(), EdgeVal::Value(v.clone()))); }
-    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    entries.sort_by(|a, b| cmp_utf16(&a.0, &b.0));
     buf.push('{');
     for (i, (k, v)) in entries.iter().enumerate() {
         if i > 0 { buf.push(','); }
@@ -225,6 +233,14 @@ mod tests {
         let mut r2 = HashMap::new(); r2.insert("age".to_string(), Value::Number(30.0)); r2.insert("name".to_string(), Value::Text("Alice".to_string()));
         let a = Dataset::new("sample", columns.clone(), vec![r1]); let b = Dataset::new("sample", columns, vec![r2]);
         assert_eq!(dataset_fingerprint(&a), dataset_fingerprint(&b));
+    }
+
+    #[test]
+    fn utf16_key_order_matches_javascript_default_sort() {
+        let bmp = "\u{e000}";
+        let supplementary = "\u{10000}";
+        assert_eq!(cmp_utf16(supplementary, bmp), Ordering::Less);
+        assert_eq!(supplementary.encode_utf16().collect::<Vec<_>>(), vec![0xd800, 0xdc00]);
     }
 
     #[test]
