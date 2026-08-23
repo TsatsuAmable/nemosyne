@@ -15,6 +15,8 @@ import type {
   AtlasCoreState,
   ResearchContext,
 } from '../atlas/types.ts';
+import { NemosynePackageManager, type NemosynePackageManifest } from './NemosynePackage.ts';
+import { strToU8 } from 'fflate';
 
 /** Memory-palace presentation state (camera/settings/tour/theme/panels/entry). */
 export interface PresentationState {
@@ -24,6 +26,12 @@ export interface PresentationState {
   theme: string;
   panelPositions: Array<unknown>;
   entry: { name: string; topology?: string; encodings?: EncodingMapping; maxDepth?: number };
+}
+
+export interface PortablePackageEnvironment {
+  userAgent?: string | null;
+  platform?: string | null;
+  webxrSupported?: boolean | null;
 }
 
 /** Authoritative session JSON (schemaVersion 2). */
@@ -126,6 +134,60 @@ export class NemosyneSession {
       researchContext: this._researchContext,
       presentation: this._presentation,
     };
+  }
+
+  /**
+   * Export a self-contained portable investigation package directly from the
+   * authoritative Atlas state. Optional evidence arrays are normalized for
+   * compatibility with older AtlasCoreState snapshots.
+   */
+  async exportPortablePackage(environment: PortablePackageEnvironment = {}): Promise<Uint8Array> {
+    const core = this._atlas.toState();
+    if (!core.originalDataset) {
+      throw new Error('Cannot export portable investigation without an original dataset');
+    }
+
+    const originalDataset = this._atlas.originalDataset;
+    const representationDecision = core.representationDecision;
+    const fitnessModelVersion =
+      representationDecision?.fitnessModelVersion ??
+      representationDecision?.provenance.fitnessModelVersion;
+
+    const manifest: NemosynePackageManifest = {
+      formatVersion: 1,
+      sessionId: this._sessionId,
+      datasetFingerprint: String(originalDataset.fingerprint),
+      datasetName: originalDataset.name,
+      kernelVersion: this._atlas.kernelVersion() ?? 'unknown',
+      createdAt: typeof Date !== 'undefined' && Date.now ? Date.now() : 0,
+      commandCount: core.eventLedger.length,
+      investigationDigest: await this._atlas.computeDigest(),
+      representationModel:
+        representationDecision && fitnessModelVersion
+          ? {
+              fitnessModelVersion,
+              fitnessModelArtifactHash:
+                representationDecision.fitnessModelArtifactHash ??
+                representationDecision.provenance.fitnessModelArtifactHash ??
+                null,
+            }
+          : undefined,
+      evidenceSummary: {
+        observationsCount: core.observations?.length ?? 0,
+        findingsCount: core.findings?.length ?? 0,
+        annotationsCount: core.annotations?.length ?? 0,
+      },
+      environment,
+    };
+
+    return NemosynePackageManager.pack({
+      manifest,
+      datasetBytes: strToU8(JSON.stringify(core.originalDataset)),
+      commandLogBytes: strToU8(JSON.stringify(core.eventLedger)),
+      representationDecisionBytes: representationDecision
+        ? strToU8(JSON.stringify(representationDecision))
+        : undefined,
+    });
   }
 
   /** Restore atlas state + presentation in place on the shared atlas. */
