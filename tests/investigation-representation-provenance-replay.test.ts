@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { strToU8 } from 'fflate';
-import type { WasmRuntimeBridgeFull } from '../src/atlas/AtlasCore.ts';
+import { AtlasCore, type WasmRuntimeBridgeFull } from '../src/atlas/AtlasCore.ts';
 import { Dataset } from '../src/data/Dataset.ts';
 import type { RepresentationDecision } from '../src/moneta/representation/RepresentationDecision.ts';
 import {
@@ -8,6 +8,7 @@ import {
   type NemosynePackageManifest,
 } from '../src/session/NemosynePackage.ts';
 import { InvestigationReplayRunner } from '../src/session/InvestigationReplayRunner.ts';
+import { NemosyneSession } from '../src/session/NemosyneSession.ts';
 
 const MODEL_VERSION = 'learned-v7';
 const MODEL_ARTIFACT = 'sha256:model-a';
@@ -76,12 +77,16 @@ function createReplayBridge(): WasmRuntimeBridgeFull {
   };
 }
 
-function buildArchive(manifestArtifactHash = MODEL_ARTIFACT): Uint8Array {
-  const dataset = Dataset.fromJSON({
+function createDataset(): Dataset {
+  return Dataset.fromJSON({
     name: 'portable-representation',
     topology: 'TABULAR',
     columns: [{ name: 'value', type: 'float', values: [1, 2, 3] }],
   });
+}
+
+function buildArchive(manifestArtifactHash = MODEL_ARTIFACT): Uint8Array {
+  const dataset = createDataset();
   const decision = representationDecision();
   const manifest: NemosynePackageManifest = {
     formatVersion: 1,
@@ -125,6 +130,23 @@ describe('portable Moneta representation provenance', () => {
     expect(result.success).toBe(true);
     expect(result.representationProvenanceVerified).toBe(true);
     expect(result.discrepancies).toEqual([]);
+  });
+
+  it('exports representation provenance automatically from the authoritative session state', async () => {
+    const atlas = new AtlasCore({ sessionId: 'portable-representation-session' });
+    atlas.loadDataset(createDataset());
+    atlas.aggregate.representation.restoreDecision(representationDecision());
+    const session = new NemosyneSession({ atlas, sessionId: atlas.sessionId });
+
+    const unpacked = NemosynePackageManager.unpack(
+      await session.exportPortablePackage({ platform: 'headless', webxrSupported: false })
+    );
+
+    expect(unpacked.manifest.representationModel).toEqual({
+      fitnessModelVersion: MODEL_VERSION,
+      fitnessModelArtifactHash: MODEL_ARTIFACT,
+    });
+    expect(unpacked.representationDecisionBytes).toBeInstanceOf(Uint8Array);
   });
 
   it('fails closed when package model identity drifts from the persisted decision', async () => {
