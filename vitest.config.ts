@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'jsdom',
-    setupFiles: ['./tests/setup.ts'],
+    setupFiles: ['./tests/setup.ts', './tests/setup-wasm.ts'],
     globals: false,
     // tests/smoke is a Playwright suite (real Chromium), not a Vitest suite —
     // exclude it so `vitest run` doesn't try to load @playwright/test under jsdom.
