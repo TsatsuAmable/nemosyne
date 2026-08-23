@@ -145,24 +145,4 @@ mod tests {
         assert_eq!(dataset.rows[1]["cohort"], Value::Text("b".into()));
         assert!(dataset.row_ids.is_empty());
     }
-
-    #[test]
-    fn rejects_truncated_validity_as_corruption() {
-        let columns = vec![Column::new("x", ColumnType::Numeric)];
-        // Construct directly so this test exercises the compatibility boundary's
-        // defensive validation independently of ColumnarDataset::from_parts.
-        let valid = ColumnarDataset::from_parts(
-            2,
-            HashMap::from([(0, PrimitiveColumn { values: vec![1.0, 2.0], validity: vec![1, 1] })]),
-            HashMap::new(),
-        ).unwrap();
-        let mut broken = valid.clone();
-        // from_parts already protects this invariant, so verify the public
-        // materialiser accepts the valid shape; malformed construction remains
-        // covered by ColumnarDataset's own invariant tests.
-        assert!(materialize_dataset("valid", &columns, &broken).is_ok());
-        // Keep the clone live so future internal test helpers can mutate it if
-        // ColumnarDataset exposes a corruption fixture without weakening prod API.
-        let _ = &mut broken;
-    }
 }
