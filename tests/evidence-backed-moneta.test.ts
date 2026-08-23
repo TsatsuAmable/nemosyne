@@ -8,8 +8,11 @@ import {
   type JsonValue,
 } from '../src/data/evidence/index.ts';
 import {
+  BOOTSTRAP_FITNESS_MODEL_VERSION,
   EvidenceBackedMoneta,
+  NoFeasibleRepresentationError,
   assertEvidenceBacksSignature,
+  createDefaultRequirements,
   type DatasetSignature,
 } from '../src/moneta/representation/index.ts';
 
@@ -111,6 +114,29 @@ describe('Evidence-backed Moneta boundary', () => {
     expect(result.kernelVersion).toBe(KERNEL);
     expect(result.evidenceIds).toContain('cardinality:dataset');
     expect(result.decision.datasetFingerprint).toBe(FP);
+  });
+
+  it('preserves authoritative evidence and model identity when Moneta returns NIL', () => {
+    const requirements = createDefaultRequirements('individual-inspection');
+    requirements.hardwareConstraints = { ...requirements.hardwareConstraints, maxElements: 1 };
+
+    try {
+      new EvidenceBackedMoneta().arbitrate(evidence(), signature(), requirements);
+      throw new Error('expected NIL outcome');
+    } catch (error) {
+      expect(error).toBeInstanceOf(NoFeasibleRepresentationError);
+      const nil = error as NoFeasibleRepresentationError;
+      expect(nil.provenance).toMatchObject({
+        datasetFingerprint: FP,
+        kernelVersion: KERNEL,
+        fitnessModelVersion: BOOTSTRAP_FITNESS_MODEL_VERSION,
+        fitnessModelArtifactHash: null,
+      });
+      expect(nil.provenance?.evidenceIds).toContain('cardinality:dataset');
+      expect(nil.provenance?.requirements?.hardwareConstraints.maxElements).toBe(1);
+      expect(nil.nearMisses.length).toBeGreaterThan(0);
+      expect(nil.traces.some((trace) => !trace.passed)).toBe(true);
+    }
   });
 
   it('enforces bounded reasoning at the canonical evidence-backed boundary', () => {

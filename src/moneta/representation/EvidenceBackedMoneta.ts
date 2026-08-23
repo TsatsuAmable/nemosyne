@@ -8,6 +8,8 @@ import type { AnalyticalIntent, RepresentationRequirements } from './Representat
 import type { RepresentationDecision } from './RepresentationDecision.ts';
 import type { DatasetSignature } from './DatasetSignature.ts';
 import { MonetaHypothesisEngine } from './MonetaHypothesisEngine.ts';
+import { BOOTSTRAP_FITNESS_MODEL_VERSION } from './FitnessModel.ts';
+import { NoFeasibleRepresentationError } from './NoFeasibleRepresentationError.ts';
 import {
   DEFAULT_MONETA_COMPUTE_BUDGET,
   assertMonetaWithinComputeBudget,
@@ -191,7 +193,23 @@ export class EvidenceBackedMoneta {
     intent?: AnalyticalIntent,
   ): EvidenceBoundRepresentationDecision {
     const evidenceIds = assertEvidenceBacksSignature(evidence, signature);
-    const decision = this.engine.arbitrate(signature, requirements, intent);
+    let decision: RepresentationDecision;
+    try {
+      decision = this.engine.arbitrate(signature, requirements, intent);
+    } catch (error) {
+      if (error instanceof NoFeasibleRepresentationError) {
+        throw error.withProvenance({
+          datasetFingerprint: evidence.datasetFingerprint,
+          kernelVersion: evidence.kernelVersion,
+          evidenceIds,
+          requirements: requirements ? structuredClone(requirements) : undefined,
+          intent: intent ? structuredClone(intent) : undefined,
+          fitnessModelVersion: BOOTSTRAP_FITNESS_MODEL_VERSION,
+          fitnessModelArtifactHash: null,
+        });
+      }
+      throw error;
+    }
 
     assertMonetaWithinComputeBudget(
       {
