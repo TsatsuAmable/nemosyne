@@ -4,9 +4,9 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `ddcf2ab` (includes #356).**
+**Current `main`: `142b793` (includes #357).**
 
-**Active implementation:** `feat/quest-telemetry`. Merged #356 and hosted run [32710537108](https://github.com/TsatsuAmable/nemosyne/actions/runs/32710537108) reproduce three 10M passes with canonical fingerprint median/max at 4.30/5.20 seconds, evidence generation at 1.25/2.22 seconds and retained WASM at exactly 640,221,184 bytes, with 3,240-byte transfer, identity/checksum parity and zero row materialisations. The active branch instruments evidence-grade physical Quest collection for XR cadence, render cost, memory, sustained-performance proxy, load latency and actual reduction/LOD output; it also repairs the ESLint 10 peer conflict introduced by #343. The complete local gate is green: clean `npm ci`, typecheck, lint with zero errors, coverage at 81.21/69.75/78.23/83.76, production build, 169 Rust tests and the real-Chromium smoke test. The physical Quest 3S run remains pending.
+**Active implementation:** `chore/consolidate-dependency-updates`. The Dependabot wave from #285-#299 and #343-#351 is consolidated behind one clean Node 24 install and full verification gate. GitHub Actions, npm runtime/tooling and Rust crate majors are combined; TypeScript 7.0.2 remains upstream-blocked by `typescript-eslint <6.1`, so the branch advances to the highest supported release, TypeScript 6.0.3, without peer overrides. Local typecheck, lint with zero errors, coverage at 80.71/69.70/78.17/83.19 across 1,892 tests, production build, 169 Rust tests, the full integration/real-WASM suite and real-Chromium smoke are green. Physical Quest 3S collection remains the next product-validation task after dependency maintenance lands.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 

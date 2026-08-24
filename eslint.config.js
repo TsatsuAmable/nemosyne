@@ -1,7 +1,8 @@
 import js from '@eslint/js';
 import globals from 'globals';
-import importPlugin from 'eslint-plugin-import';
-import vitest from 'eslint-plugin-vitest';
+import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescript';
+import { createNodeResolver, importX } from 'eslint-plugin-import-x';
+import vitest from '@vitest/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 
@@ -18,17 +19,21 @@ export default [
       },
     },
     plugins: {
-      import: importPlugin,
+      'import-x': importX,
       vitest,
+    },
+    settings: {
+      'import-x/resolver-next': [createTypeScriptImportResolver(), createNodeResolver()],
     },
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       'no-var': 'error',
+      'no-useless-assignment': 'off',
       'prefer-const': 'error',
       'object-shorthand': 'warn',
-      'import/no-cycle': 'error',
-      'import/no-unresolved': 'off',
+      'import-x/no-cycle': 'error',
+      'import-x/no-unresolved': 'off',
       'vitest/no-disabled-tests': 'warn',
       'vitest/no-focused-tests': 'error',
     },

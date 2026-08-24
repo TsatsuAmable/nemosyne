@@ -11,6 +11,7 @@ use sha2::{Digest, Sha256};
 
 use crate::data::column::{Column, ColumnType};
 use crate::data::columnar::{CategoricalColumn, ColumnarDataset, PrimitiveColumn};
+use crate::data::fingerprint::digest_hex;
 
 const HASH_CHUNK_TARGET_BYTES: usize = 64 * 1024;
 
@@ -200,7 +201,7 @@ pub fn columnar_dataset_fingerprint(
     }
     update(&mut hasher, &row_json);
     update(&mut hasher, "]}");
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(digest_hex(&hasher.finalize()))
 }
 
 #[cfg(test)]

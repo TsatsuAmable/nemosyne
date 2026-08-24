@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -32,7 +32,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Cache cargo registry + git
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -41,14 +41,14 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-registry-
 
       - name: Cache wasm target
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: wasm/target
           key: ${{ runner.os }}-wasm-target-${{ hashFiles('wasm/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-wasm-target-
 
       - name: Set up Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
