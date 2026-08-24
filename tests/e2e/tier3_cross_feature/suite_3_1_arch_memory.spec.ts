@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { World } from '../../../src/vr/World.ts';
 import { Dataset } from '../../../src/data/Dataset.ts';
-import { VRTopologyTranslator } from '../../../src/draco/VRTopologyTranslator.ts';
+import { VRTopologyTranslator } from '../../../src/moneta/VRTopologyTranslator.ts';
 import { disposeObject } from '../../../src/utils/Dispose.ts';
 import { sharedSphereGeometry, sharedBoxGeometry } from '../../../src/utils/ObjectPool.ts';
 import { InstancedPointCloud } from '../../../src/vr/scalability/InstancedPointCloud.ts';
