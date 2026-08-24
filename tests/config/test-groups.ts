@@ -5,6 +5,7 @@ export const FAST_NODE_TESTS = [
   'tests/moneta-gate0-authority.test.ts',
   'tests/moneta-layout-authority.test.ts',
   'tests/moneta-scoring-ownership.test.ts',
+  'tests/runtime-bridge-module-boundaries.test.ts',
   'tests/world-lifecycle-owner.test.ts',
 ];
 
@@ -37,6 +38,7 @@ export const WASM_TESTS = [
   'tests/performance-budget.test.ts',
   'tests/production-runtime-wiring.test.ts',
   'tests/representation-topology-node.test.ts',
+  'tests/runtime-bridge-concurrency.test.ts',
   'tests/subsystem-resiliency-audit.test.ts',
   'tests/vr-data-operations.test.ts',
   'tests/vr-metaphors.test.ts',
