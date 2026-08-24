@@ -42,6 +42,8 @@ struct RegisteredDataset {
     name: String,
     columns: Vec<Column>,
     columnar: Arc<ColumnarDataset>,
+    fingerprint: Option<String>,
+    structure_profile_json: Option<String>,
 }
 
 impl RegisteredDataset {
@@ -49,11 +51,25 @@ impl RegisteredDataset {
         let name = dataset.name.clone();
         let columns = dataset.columns.clone();
         let columnar = Arc::new(ColumnarDataset::from_dataset(&dataset));
-        Self { dataset: Some(dataset), name, columns, columnar }
+        Self {
+            dataset: Some(dataset),
+            name,
+            columns,
+            columnar,
+            fingerprint: None,
+            structure_profile_json: None,
+        }
     }
 
     fn columnar_only(name: String, columns: Vec<Column>, columnar: ColumnarDataset) -> Self {
-        Self { dataset: None, name, columns, columnar: Arc::new(columnar) }
+        Self {
+            dataset: None,
+            name,
+            columns,
+            columnar: Arc::new(columnar),
+            fingerprint: None,
+            structure_profile_json: None,
+        }
     }
 
     fn rebuild_columnar(&mut self) {
@@ -61,6 +77,8 @@ impl RegisteredDataset {
             self.name = dataset.name.clone();
             self.columns = dataset.columns.clone();
             self.columnar = Arc::new(ColumnarDataset::from_dataset(dataset));
+            self.fingerprint = None;
+            self.structure_profile_json = None;
         }
     }
 }
@@ -119,7 +137,14 @@ pub fn register_dataset_profiled(dataset: Dataset) -> (u32, f64, f64) {
     let name = dataset.name.clone();
     let columns = dataset.columns.clone();
     let mut reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
-    let handle = reg.insert_registered(RegisteredDataset { dataset: Some(dataset), name, columns, columnar });
+    let handle = reg.insert_registered(RegisteredDataset {
+        dataset: Some(dataset),
+        name,
+        columns,
+        columnar,
+        fingerprint: None,
+        structure_profile_json: None,
+    });
     let registry_insert_ms = provenance::now_ms() - insert_started;
     (handle, columnar_build_ms, registry_insert_ms)
 }
@@ -136,6 +161,58 @@ pub fn with_columnar_metadata<T>(handle: u32, f: impl FnOnce(&str, &[Column], &C
     let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
     let registered = reg.get_registered(handle)?;
     Some(f(&registered.name, &registered.columns, registered.columnar.as_ref()))
+}
+
+pub fn columnar_snapshot(handle: u32) -> Option<(String, Vec<Column>, Arc<ColumnarDataset>)> {
+    let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
+    let registered = reg.get_registered(handle)?;
+    Some((
+        registered.name.clone(),
+        registered.columns.clone(),
+        Arc::clone(&registered.columnar),
+    ))
+}
+
+pub fn cached_structure_profile_json(handle: u32) -> Option<String> {
+    let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
+    reg.get_registered(handle)?.structure_profile_json.clone()
+}
+
+pub fn cached_fingerprint(handle: u32) -> Option<String> {
+    let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
+    reg.get_registered(handle)?.fingerprint.clone()
+}
+
+pub fn cache_fingerprint(
+    handle: u32,
+    expected_generation: &Arc<ColumnarDataset>,
+    fingerprint: String,
+) -> bool {
+    let mut reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
+    let Some(registered) = reg.get_registered_mut(handle) else {
+        return false;
+    };
+    if !Arc::ptr_eq(&registered.columnar, expected_generation) {
+        return false;
+    }
+    registered.fingerprint = Some(fingerprint);
+    true
+}
+
+pub fn cache_structure_profile_json(
+    handle: u32,
+    expected_generation: &Arc<ColumnarDataset>,
+    json: String,
+) -> bool {
+    let mut reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
+    let Some(registered) = reg.get_registered_mut(handle) else {
+        return false;
+    };
+    if !Arc::ptr_eq(&registered.columnar, expected_generation) {
+        return false;
+    }
+    registered.structure_profile_json = Some(json);
+    true
 }
 
 pub fn fingerprint_for_handle(handle: u32) -> Option<Result<String, String>> {
@@ -274,9 +351,14 @@ mod columnar_registry_tests {
     #[test]
     fn mutable_dataset_operations_rebuild_columnar_sidecar() {
         let handle = register_dataset(Dataset::new("columnar-update", vec![Column::new("value", ColumnType::Numeric)], vec![row(Value::Number(1.0))]));
+        let (_, _, generation) = columnar_snapshot(handle).expect("columnar generation");
+        assert!(cache_fingerprint(handle, &generation, "cached-fingerprint".into()));
+        assert!(cache_structure_profile_json(handle, &generation, "{}".into()));
         with_dataset_mut(handle, |dataset| { dataset.update_rows(vec![row(Value::Number(2.0))], RowUpdateMode::Append, None); }).expect("dataset mutation");
         let snapshot = with_columnar_dataset(handle, |columnar| columnar.primitive_column(0).expect("numeric column").values.clone()).expect("registered columnar dataset");
         assert_eq!(snapshot, vec![1.0, 2.0]);
+        assert!(cached_fingerprint(handle).is_none());
+        assert!(cached_structure_profile_json(handle).is_none());
         destroy_dataset(handle);
     }
 }

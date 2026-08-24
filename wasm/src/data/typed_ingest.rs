@@ -12,7 +12,10 @@ use wasm_bindgen::prelude::*;
 use crate::allocator;
 use crate::data::column::{Column, ColumnType};
 use crate::data::columnar::{CategoricalColumn, ColumnarDataset, PrimitiveColumn};
-use crate::data::{destroy_dataset, register_columnar_dataset, with_columnar_dataset, with_columnar_metadata};
+use crate::data::{
+    cache_fingerprint, cached_fingerprint, columnar_snapshot, destroy_dataset,
+    register_columnar_dataset, with_columnar_dataset,
+};
 
 const MAGIC: &[u8; 4] = b"NTC1";
 const DEFAULT_DATASET_NAME: &str = "typed-column-dataset";
@@ -171,16 +174,30 @@ pub fn typed_primitive_validity_ptr(handle: u32, column_index: u32) -> u32 {
 /// signals an invalid handle or unsupported schema; internal failures are logged.
 #[wasm_bindgen]
 pub fn typed_dataset_fingerprint(handle: u32) -> String {
-    match with_columnar_metadata(handle, |name, columns, columnar| {
-        crate::data::columnar_fingerprint::columnar_dataset_fingerprint(name, columns, columnar)
-    }) {
-        Some(Ok(fingerprint)) => fingerprint,
-        Some(Err(error)) => {
-            crate::log_error(&format!("typed_dataset_fingerprint failed for handle {handle}: {error}"));
-            String::new()
+    if let Some(fingerprint) = cached_fingerprint(handle) {
+        return fingerprint;
+    }
+    let Some((name, columns, columnar)) = columnar_snapshot(handle) else {
+        crate::log_error(&format!("typed_dataset_fingerprint failed: invalid dataset handle {handle}"));
+        return String::new();
+    };
+    match crate::data::columnar_fingerprint::columnar_dataset_fingerprint(
+        &name,
+        &columns,
+        columnar.as_ref(),
+    ) {
+        Ok(fingerprint) => {
+            if cache_fingerprint(handle, &columnar, fingerprint.clone()) {
+                fingerprint
+            } else {
+                crate::log_error(&format!(
+                    "typed_dataset_fingerprint discarded stale generation for handle {handle}"
+                ));
+                String::new()
+            }
         }
-        None => {
-            crate::log_error(&format!("typed_dataset_fingerprint failed: invalid dataset handle {handle}"));
+        Err(error) => {
+            crate::log_error(&format!("typed_dataset_fingerprint failed for handle {handle}: {error}"));
             String::new()
         }
     }
