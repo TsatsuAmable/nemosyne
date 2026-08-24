@@ -4,9 +4,9 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `d9aa6cfe46fffaaa9a36175954bd8a996da02d37` (#352).**
+**Current `main`: `8565ecde5587653a33e537c6b33e9cb8b5273b8d` (includes #353).**
 
-**Active implementation:** `fix/columnar-structure-profile`, stacked on the open Rust/JS boundary-envelope PR #353 as draft PR #354. The 24 August local gate is green: typecheck, lint, coverage (1,883 tests), release build, 162 Rust tests and Playwright smoke all passed. Hosted full-matrix run [32704932983](https://github.com/TsatsuAmable/nemosyne/actions/runs/32704932983) also passed. Next is bounded fingerprint/spectral evidence and physical Quest 3S qualification. The measured local blockers are 10.7-second cold fingerprinting, 3.2-second evidence generation and approximately 1.25 GB retained WASM memory at 10M; the hosted 10M reproduction measured 14.1 seconds, 4.0 seconds and the same retained memory respectively.
+**Active implementation:** `fix/columnar-structure-profile-main`, restacked directly on current `main` after automated PR #354 landed in #353's already-closed source branch. The 24 August local gate is green: typecheck, lint, coverage (1,883 tests), release build, 162 Rust tests and Playwright smoke all passed. Hosted full-matrix run [32704932983](https://github.com/TsatsuAmable/nemosyne/actions/runs/32704932983) also passed. Next is bounded fingerprint/spectral evidence and physical Quest 3S qualification. The measured local blockers are 10.7-second cold fingerprinting, 3.2-second evidence generation and approximately 1.25 GB retained WASM memory at 10M; the hosted 10M reproduction measured 14.1 seconds, 4.0 seconds and the same retained memory respectively.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
