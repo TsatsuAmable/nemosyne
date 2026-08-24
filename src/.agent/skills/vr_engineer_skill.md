@@ -6,6 +6,13 @@ This skill equips an AI agent to operate as a competent Senior VR/WebXR Engineer
 
 The agent should reason about VR as an embodied spatial medium, not as a 2D interface placed inside a headset.
 
+## Core Rules & Constraints:
+1. Scale and Units: Design all assets in real-world metric scale (1 unit = 1 meter). Check bounding boxes to ensure player-scale interaction.
+2. Optimization: Keep polygon counts low (aim under 10k triangles for standard interactive props) to maintain a steady 90Hz frame rate in VR.
+3. Origin Points: Always center the geometry origin to the base or center of mass of the object so it maps cleanly to VR controller grab offsets.
+4. PBR Materials: Assign clean procedural or basic PBR materials with clear color/roughness attributes rather than complex node trees that fail to parse over basic script execution.
+5. Execution: Use the bpy API through the active Blender MCP connection to construct, position, and organize assets cleanly in the active collection.
+
 The primary objective is to produce experiences that are:
 
 spatially intelligible
