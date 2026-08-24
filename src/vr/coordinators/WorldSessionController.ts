@@ -1,7 +1,42 @@
 import { Dataset } from '../../data/Dataset.ts';
-import { NemosyneSession } from '../../session/NemosyneSession.ts';
+import type { AtlasCore } from '../../atlas/AtlasCore.ts';
+import type { NemosyneSession } from '../../session/NemosyneSession.ts';
 import type { DatasetJSON, EncodingMapping } from '../../data/types.ts';
-import type { DatasetLoadEntry, WorldLike } from './types.ts';
+import type {
+  ComfortSettingsControllerLike,
+  DatasetLoadEntry,
+  DracoNodeFacadeLike,
+  GuidedTourLike,
+  LogInteraction,
+  NarrativeStripLike,
+  SessionStoreLike,
+  UserModeControllerLike,
+  VRConsoleLike,
+  WorldEngineLike,
+  WorldUIManagerLike,
+} from './types.ts';
+
+export interface WorldSessionHost {
+  atlas: Pick<AtlasCore, 'analysisHistory'>;
+  session: Pick<NemosyneSession, 'loadFromJSON' | 'serialize' | 'setPresentation'>;
+  sessionStore: SessionStoreLike;
+  engine: Pick<WorldEngineLike, 'cameraGroup' | 'theme'>;
+  uiManager: Pick<WorldUIManagerLike, 'panelManager' | 'settingsPanel'>;
+  comfortSettingsController: ComfortSettingsControllerLike;
+  userModeController: UserModeControllerLike;
+  currentEntry?: DatasetLoadEntry | null;
+  dracoNode?: DracoNodeFacadeLike | null;
+  narrativeStrip?: NarrativeStripLike | null;
+  guidedTour?: GuidedTourLike;
+  vrConsole?: VRConsoleLike;
+  _originalDataset?: Dataset | null;
+  _transformedDataset?: Dataset | null;
+  _disposed?: boolean;
+  loadDataset(entry: DatasetLoadEntry): void;
+  _logInteraction: LogInteraction;
+  _updateNarrativeStrip(): void;
+  _restoreDataset(dataset: Dataset | null, operation: string): void;
+}
 
 /**
  * Thin save/load trigger delegating to {@link NemosyneSession} +
@@ -10,12 +45,12 @@ import type { DatasetLoadEntry, WorldLike } from './types.ts';
  * hands it to the session for serialization, and re-wires World on restore.
  */
 export class WorldSessionController {
-  private _world: WorldLike;
+  private _world: WorldSessionHost;
   private _sessionAutoSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private _disposed = false;
   private _generation = 0;
 
-  constructor(world: WorldLike) {
+  constructor(world: WorldSessionHost) {
     this._world = world;
   }
 

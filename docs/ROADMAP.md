@@ -4,19 +4,20 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `c2e6243` (includes merged PR #365). Active branch: `refactor/runtimebridge-abi-handle-families`.**
+**Current `main`: `4bcfea1` (includes merged PR #366). Active branch: `refactor/coordinator-consumer-contracts`.**
 
-**Next checkpoint:** merge the `RuntimeBridge` ABI-family split, then decompose coordinator contracts
-by consumer. Production spatial acceleration and the real-browser analyst journey remain the next
-independent P1-high implementations. Physical execution remains deferred until a Quest 3S is
-available; even a completed measurement remains `deviceQualifiedAt10m: false` until governed review.
+**Next checkpoint:** merge the consumer-owned coordinator contracts, then separate Atlas orchestration
+from analytical evidence adapters. Production spatial acceleration and the real-browser analyst
+journey remain the next independent P1-high implementations. Physical execution remains deferred
+until a Quest 3S is available; even a completed measurement remains `deviceQualifiedAt10m: false`
+until governed review.
 
-**Last gate:** green locally on 24 August 2026 for `refactor/runtimebridge-abi-handle-families`.
-Typecheck and lint passed (0 errors, 170 pre-existing warnings); all 314 coverage files and 1,931
-tests passed at 82.28% statements, 70.36% branches, 79.23% functions and 84.76% lines; the production
-WASM/Vite build passed; all 170 Rust tests passed; and the real Chromium/WebGL smoke passed. The
-preceding PR #365 hosted CodeQL, core correctness, Rust, downloaded-artifact Chromium smoke,
-read-only approval gate and `Node 24` aggregate are green. Pages remains deployed with
+**Last gate:** green locally on 24 August 2026 for `refactor/coordinator-consumer-contracts`.
+Typecheck and lint passed (0 errors, 170 pre-existing warnings); all 315 coverage files and 1,936
+tests passed at 82.30% statements, 70.38% branches, 79.26% functions and 84.79% lines; the production
+WASM/Vite build passed; all 170 Rust tests passed; and the real Chromium/WebGL smoke passed. Merged
+PR #366 hosted CodeQL, core correctness, Rust, downloaded-artifact Chromium smoke, read-only
+approval gate and `Node 24` aggregate are green. Pages remains deployed with
 `nemosyne.world` domain-verified and HTTPS-enforced.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
@@ -127,14 +128,20 @@ reinitializes the Rust authority before recovery. Three-cycle real-WASM World re
 kernel-handle allocation and exact DOM/engine cleanup. This closes ARCH-02 and completes the first
 lifecycle seam of ARCH-01.
 
-### G. Runtime authority and ABI-family boundaries
+### G. Runtime authority, ABI-family and coordinator boundaries
 
-The current branch reduces `RuntimeBridge.ts` to a stable, logic-free compatibility facade over
+PR #366 reduces `RuntimeBridge.ts` to a stable, logic-free compatibility facade over
 separate lifecycle, memory, dataset-handle, layout and kernel-contract modules. `RuntimeState.ts` is
 the sole mutable readiness/instance owner; family-scoped accessors enforce dependency boundaries;
 and initialization is deduplicated and generation-fenced so a stale attempt cannot restore authority
 after invalidation. Fast source contracts freeze the pre-split facade and module direction, while a
-real-WASM concurrency test proves fresh recovery wins over superseded initialization. Coordinator,
+real-WASM concurrency test proves fresh recovery wins over superseded initialization.
+
+The current branch removes the shared `WorldLike` god-object facade and co-locates host, callback,
+option, live-stream and collaboration ports with their owning coordinators. Every World-facing
+consumer exposes only the root and nested capabilities it actually uses; `World` derives its kernel
+type directly from the authoritative `RuntimeBridge` module. A fast architecture contract freezes
+these surfaces and forbids reintroduction of the shared World facade or coordinator-to-World imports.
 Atlas orchestration and topology-embodiment decomposition remain open.
 
 ## Governing V3 gate status
@@ -193,7 +200,7 @@ The full evidence and dispositions are in
 [PRE_P1_SYSTEMATIC_AUDIT.md](PRE_P1_SYSTEMATIC_AUDIT.md). This is the live implementation queue:
 
 - [ ] **PERF-04 / blocker:** run and govern the physical Quest 3S 10M browser qualification.
-- [ ] **ARCH-01 / high:** lifecycle ownership is merged and the `RuntimeBridge` ABI-family split is complete locally; coordinator contracts, Atlas orchestration and topology embodiment remain.
+- [ ] **ARCH-01 / high:** lifecycle ownership and the `RuntimeBridge` ABI-family split are merged; consumer-owned coordinator contracts are complete locally; Atlas orchestration and topology embodiment remain.
 - [x] **ARCH-02 / high:** explicit idempotent UI/world ownership, disposal and started real-WASM recreation contracts implemented on `refactor/world-lifecycle-owner`.
 - [ ] **PERF-03 / high:** benchmark and wire one production spatial accelerator; delete the redundant built-only index.
 - [ ] **UX-02 / high:** implement a real-browser load → Moneta/NIL → investigation → export → replay journey.
@@ -359,7 +366,7 @@ migration benchmark tiers when scale-sensitive code changes
 
 ## Near-term execution order
 
-1. Merge the `RuntimeBridge` ABI-family boundary, then split coordinator contracts by consumer.
+1. Merge the consumer-owned coordinator contracts, then separate Atlas orchestration from analytical evidence adapters.
 2. Run physical Quest 3S 10M and interaction qualification when hardware is available.
 3. Continue the audit's P1-high browser-journey, security and spatial-query work.
 4. Reopen the minimal private-preview decision only after blockers/high findings are governed.

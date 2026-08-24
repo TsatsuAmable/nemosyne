@@ -2,8 +2,47 @@ import * as THREE from 'three';
 import { NetworkManager } from '../../network/NetworkManager.ts';
 import { PeerAvatarManager } from '../../network/PeerAvatarManager.ts';
 import { AsymmetricDesktopCompanion } from '../ui/AsymmetricDesktopCompanion.ts';
-import type { SharedAnnotationManager, SpatialBookmark } from '../interactions/SharedAnnotationManager.ts';
-import type { LooseOptions, NetworkEvent, NetworkManagerLike, WorldFacadeForCollaboration } from './types.ts';
+import type {
+  SharedAnnotationManager,
+  SpatialBookmark,
+} from '../interactions/SharedAnnotationManager.ts';
+import type { DatasetLoadEntry, EngineLike, LooseOptions, WorldUIManagerLike } from './types.ts';
+
+export interface CollaborationHost {
+  scene?: THREE.Scene;
+  engine?: Pick<EngineLike, 'camera' | 'cameraGroup'>;
+  currentEntry?: DatasetLoadEntry | null;
+  annotationManager?: unknown;
+  uiManager?: Pick<WorldUIManagerLike, 'networkPanel' | 'settingsPanel' | 'vrConsole'>;
+  telemetryCollector?: { recordOperation?(name: string): void };
+  _logInteraction(action: string, details?: Record<string, unknown>): void;
+  _buildWheelMenu(): void;
+}
+
+export interface NetworkEvent {
+  type: string;
+  peerId?: string;
+  name?: string;
+  detail?: Record<string, unknown>;
+  data?: unknown;
+  [key: string]: unknown;
+}
+
+export interface NetworkManagerLike {
+  isConnected: boolean;
+  roomId: string;
+  room: { getRemoteSnapshot(): unknown[]; getPeerIds?(): string[]; peers?: Map<string, unknown> };
+  peerId: string;
+  addEventListener(type: string, handler: (event: NetworkEvent) => void): void;
+  connect(roomId?: string): Promise<void>;
+  disconnect(): void;
+  setLocalState(state: Record<string, unknown>): void;
+  broadcastCameraPose?(
+    position: [number, number, number],
+    rotation: [number, number, number, number]
+  ): void;
+  kickPeer?(peerId: string): void;
+}
 
 /**
  * Owns WebRTC/WebSocket collaboration state, avatar meshes, spectator companion,
@@ -13,12 +52,12 @@ import type { LooseOptions, NetworkEvent, NetworkManagerLike, WorldFacadeForColl
  * the monolithic surface area for the future Rust/WASM networking port.
  */
 export class CollaborationCoordinator {
-  world: WorldFacadeForCollaboration;
+  world: CollaborationHost;
   networkManager: NetworkManagerLike | null;
   peerAvatarManager: PeerAvatarManager | null = null;
   desktopCompanion: AsymmetricDesktopCompanion | null = null;
 
-  constructor({ world }: { world: WorldFacadeForCollaboration }) {
+  constructor({ world }: { world: CollaborationHost }) {
     this.world = world;
     this.networkManager = null;
   }
@@ -31,8 +70,13 @@ export class CollaborationCoordinator {
 
   async joinCollaborationRoom(roomId: string | null = null): Promise<void> {
     if (this.networkManager?.isConnected) return;
-    const settings = (this.world.uiManager?.settingsPanel?.getAllSettings?.() ?? {}) as Record<string, unknown>;
-    const targetRoom = (roomId ?? (settings.collabRoom as string | undefined) ?? 'default') as string;
+    const settings = (this.world.uiManager?.settingsPanel?.getAllSettings?.() ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const targetRoom = (roomId ??
+      (settings.collabRoom as string | undefined) ??
+      'default') as string;
     this.networkManager = new NetworkManager({
       signallingUrl: this._defaultSignallingUrl(),
       roomId: targetRoom,
@@ -147,7 +191,10 @@ export class CollaborationCoordinator {
       this.desktopCompanion?.render();
     });
     this.networkManager.addEventListener('disconnected', () => {
-      this.world.uiManager?.networkPanel?.setStatus?.({ connected: false, lastEvent: 'Disconnected' });
+      this.world.uiManager?.networkPanel?.setStatus?.({
+        connected: false,
+        lastEvent: 'Disconnected',
+      });
       this.world.uiManager?.vrConsole?.log?.('log', ['Collaboration: left room']);
       this.world.telemetryCollector?.recordOperation?.('network-disconnect');
       this.world._buildWheelMenu();
@@ -184,11 +231,13 @@ export class CollaborationCoordinator {
       this.desktopCompanion?.render();
     });
     this.networkManager.addEventListener('remoteCameraPose', (e: NetworkEvent) => {
-      const detail = e.detail as {
-        peerId?: string;
-        position?: [number, number, number];
-        rotation?: [number, number, number, number];
-      } | undefined;
+      const detail = e.detail as
+        | {
+            peerId?: string;
+            position?: [number, number, number];
+            rotation?: [number, number, number, number];
+          }
+        | undefined;
       if (detail?.peerId && detail.position && detail.rotation && this.peerAvatarManager) {
         this.peerAvatarManager.updatePeerTransforms({
           peerId: detail.peerId,

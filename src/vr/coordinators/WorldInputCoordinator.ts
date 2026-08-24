@@ -22,11 +22,38 @@ import type {
   GestureContext,
   HandLike,
   HandWheelMenuLike,
-  InputCallbacks,
   LooseOptions,
   WorldEventBusLike,
-  WorldInputOptions,
 } from './types.ts';
+
+export interface InputCallbacks {
+  onApplyOperation?: (op: string) => void;
+  onCycleDataset?: (delta: number) => void;
+  onResetData?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  onToggleStatisticalLens?: () => void;
+  onToggleSettingsPanel?: () => void;
+  onTogglePanels?: () => void;
+  onToggleMiniOverview?: () => void;
+  onTogglePeerPresence?: () => void;
+  onToggleDesktopPreview?: () => void;
+  onLoadTemplate?: (id: string) => void;
+  onLog?: (msg: string | string[]) => void;
+  onCaptureSession?: () => void;
+  onCommitSelection?: () => void;
+  onToggleTransformHandle?: () => void;
+  onRecordAction?: (action: string, nextAffordance?: string) => void;
+  onModeChanged?: (mode: InteractionMode) => void;
+}
+
+export interface WorldInputOptions {
+  getSetting?: (key: string) => unknown;
+  getDracoGroup?: () => THREE.Object3D | null;
+  getArtifact?: () => ArtifactRef | null;
+  getHandWheelMenu?: () => HandWheelMenuLike | null;
+  callbacks?: InputCallbacks;
+}
 
 export class WorldInputCoordinator {
   engine: Engine | EngineLike;
@@ -46,7 +73,11 @@ export class WorldInputCoordinator {
   interactionModeController: InteractionModeController;
   gestureOwnershipManager: GestureOwnershipManager;
 
-  constructor(engine: Engine | EngineLike, eventBus: WorldEventBusLike, options: WorldInputOptions) {
+  constructor(
+    engine: Engine | EngineLike,
+    eventBus: WorldEventBusLike,
+    options: WorldInputOptions
+  ) {
     this.engine = engine;
     this.eventBus = eventBus ?? new WorldEventBus();
     this.getSetting = options.getSetting ?? (() => undefined);
@@ -188,7 +219,8 @@ export class WorldInputCoordinator {
         this.callbacks.onRecordAction?.('Filter Slice', 'Inspect filtered clusters');
         break;
       case 'pinchApart':
-        if (this.engine?.scene) spawnPinchFilterHalo(this.engine.scene as THREE.Scene, origin, { color: 0xffaa00 });
+        if (this.engine?.scene)
+          spawnPinchFilterHalo(this.engine.scene as THREE.Scene, origin, { color: 0xffaa00 });
         this.callbacks.onApplyOperation?.('aggregate');
         this.callbacks.onRecordAction?.('Aggregate Metric', 'Inspect aggregation summary');
         break;
@@ -206,7 +238,8 @@ export class WorldInputCoordinator {
         this.callbacks.onRecordAction?.('Sort Ascending');
         break;
       case 'sliceDown':
-        if (this.engine?.scene) spawnSliceWavePlane(this.engine.scene as THREE.Scene, origin, 'down');
+        if (this.engine?.scene)
+          spawnSliceWavePlane(this.engine.scene as THREE.Scene, origin, 'down');
         this.callbacks.onApplyOperation?.('timeSlice');
         this.callbacks.onRecordAction?.('Time Window Slice');
         break;

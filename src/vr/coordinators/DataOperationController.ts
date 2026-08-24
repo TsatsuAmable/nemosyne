@@ -13,7 +13,7 @@
  * non-throwing; no JS analytical fallback exists.
  */
 
-import { AnalysisHistory } from '../../data/AnalysisHistory.ts';
+import { AnalysisHistory, type HistoryEntry } from '../../data/AnalysisHistory.ts';
 import { Dataset } from '../../data/Dataset.ts';
 import {
   applyFilter,
@@ -31,14 +31,14 @@ import {
 import { WorldEventBus, WorldTopics } from '../../utils/EventBus.ts';
 import { KernelUnavailableError } from '../../wasm/RuntimeBridge.ts';
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
-import type {
-  ArtifactRef,
-  DataOperationControllerOptions,
-  HistoryEntry,
-  VisualApplier,
-  VisualOperation,
-  WorldEventBusLike,
-} from './types.ts';
+import type { ArtifactRef, VisualApplier, VisualOperation, WorldEventBusLike } from './types.ts';
+
+export interface DataOperationControllerOptions {
+  eventBus?: WorldEventBusLike;
+  getArtifact?: () => ArtifactRef | null;
+  maxHistoryFrames?: number;
+  atlas?: AtlasCore | null;
+}
 
 const VISUAL_APPLIERS: Record<string, VisualApplier> = {
   filter: applyFilter as VisualApplier,
@@ -60,7 +60,12 @@ export class DataOperationController {
   _localOriginal: Dataset | null;
   _localTransformed: Dataset | null;
 
-  constructor({ eventBus, getArtifact, maxHistoryFrames = 50, atlas = null }: DataOperationControllerOptions = {}) {
+  constructor({
+    eventBus,
+    getArtifact,
+    maxHistoryFrames = 50,
+    atlas = null,
+  }: DataOperationControllerOptions = {}) {
     this.eventBus = eventBus ?? new WorldEventBus();
     this.getArtifact = getArtifact ?? (() => null);
     this._atlas = atlas;
@@ -154,7 +159,9 @@ export class DataOperationController {
    */
   private _computeViaAtlas(operation: string, dataset: Dataset): Dataset {
     if (!this._atlas || !this._atlas.isReady()) {
-      throw new KernelUnavailableError('[DataOperationController] analytical kernel unavailable — Rust/WASM is the sole analytical authority.');
+      throw new KernelUnavailableError(
+        '[DataOperationController] analytical kernel unavailable — Rust/WASM is the sole analytical authority.'
+      );
     }
     const spec = toAnalysisSpec(operation, dataset, this._atlas);
     const result = this._atlas.applyAnalysis(spec);
@@ -199,7 +206,9 @@ export class DataOperationController {
     let previewDataset: Dataset;
     try {
       if (!this._atlas || !this._atlas.isReady()) {
-        throw new KernelUnavailableError('[DataOperationController] analytical kernel unavailable — Rust/WASM is the sole analytical authority.');
+        throw new KernelUnavailableError(
+          '[DataOperationController] analytical kernel unavailable — Rust/WASM is the sole analytical authority.'
+        );
       }
       const spec = toAnalysisSpec(operation, current, this._atlas);
       previewDataset = Dataset.fromJSON(this._atlas.previewAnalysis(spec).dataset);
@@ -244,7 +253,9 @@ export class DataOperationController {
   /** Undo the most recent operation. */
   undo(): HistoryEntry | null {
     if (!this.analysisHistory.canUndo) return null;
-    const frame = (this._atlas ? this._atlas.undo() : this._fallbackHistory.undo()) as HistoryEntry | null;
+    const frame = (
+      this._atlas ? this._atlas.undo() : this._fallbackHistory.undo()
+    ) as HistoryEntry | null;
     if (!frame) return null;
     this.eventBus.emit(WorldTopics.HISTORY_SEEK, {
       index: this.analysisHistory.currentIndex,
@@ -257,7 +268,9 @@ export class DataOperationController {
   /** Redo the next operation. */
   redo(): HistoryEntry | null {
     if (!this.analysisHistory.canRedo) return null;
-    const frame = (this._atlas ? this._atlas.redo() : this._fallbackHistory.redo()) as HistoryEntry | null;
+    const frame = (
+      this._atlas ? this._atlas.redo() : this._fallbackHistory.redo()
+    ) as HistoryEntry | null;
     if (!frame) return null;
     this.eventBus.emit(WorldTopics.HISTORY_SEEK, {
       index: this.analysisHistory.currentIndex,
@@ -269,9 +282,7 @@ export class DataOperationController {
 
   /** Jump to a specific history frame. */
   seekHistory(index: number): HistoryEntry | null {
-    const frame = this._atlas
-      ? this._atlas.seekHistory(index)
-      : this._fallbackHistory.seek(index);
+    const frame = this._atlas ? this._atlas.seekHistory(index) : this._fallbackHistory.seek(index);
     if (!frame) return null;
     this.eventBus.emit(WorldTopics.HISTORY_SEEK, {
       index: this.analysisHistory.currentIndex,

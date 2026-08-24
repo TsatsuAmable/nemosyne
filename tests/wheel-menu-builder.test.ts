@@ -2,20 +2,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { buildWheelMenuCategories } from '../src/vr/coordinators/WheelMenuBuilder.ts';
+import {
+  buildWheelMenuCategories,
+  type WheelMenuHost,
+} from '../src/vr/coordinators/WheelMenuBuilder.ts';
 import { ANALYSIS_TEMPLATES } from '../src/data/AnalysisTemplates.ts';
-import type { WorldLike } from '../src/vr/coordinators/types.ts';
 
 /**
- * Builds a stub WorldLike whose every callable member is a vi.fn spy, so each
+ * Builds a stub WheelMenuHost whose every callable member is a vi.fn spy, so each
  * wheel-menu callback can be invoked and its wiring verified at runtime (tsc
  * only guarantees the method exists on the facade — it does not guarantee the
  * callback actually delegates to it).
  */
-function makeStubWorld(): { world: WorldLike; spy: Record<string, ReturnType<typeof vi.fn>> } {
+function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType<typeof vi.fn>> } {
   const spy: Record<string, ReturnType<typeof vi.fn>> = {};
   const fn = (name: string) => (spy[name] = vi.fn());
-  const panel = () => ({ mesh: new THREE.Object3D() } as any);
+  const panel = () => ({ mesh: new THREE.Object3D() }) as any;
 
   const locomotion = {
     toggleTeleport: fn('locomotion.toggleTeleport'),
@@ -128,7 +130,7 @@ function makeStubWorld(): { world: WorldLike; spy: Record<string, ReturnType<typ
     exitVR: fn('exitVR'),
   };
 
-  return { world: world as unknown as WorldLike, spy };
+  return { world: world as unknown as WheelMenuHost, spy };
 }
 
 describe('WheelMenuBuilder', () => {
@@ -172,7 +174,10 @@ describe('WheelMenuBuilder', () => {
 
     // Track call counts so we can confirm at least one spy fired per callback.
     const spyNames = Object.keys(spy);
-    const countsBefore = spyNames.reduce((m, n) => ((m[n] = spy[n].mock.calls.length), m), {} as Record<string, number>);
+    const countsBefore = spyNames.reduce(
+      (m, n) => ((m[n] = spy[n].mock.calls.length), m),
+      {} as Record<string, number>
+    );
 
     for (const c of cats) {
       for (const item of c.items) {

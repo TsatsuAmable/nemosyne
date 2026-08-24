@@ -4,7 +4,7 @@
  * through legacy facade properties so existing tests remain valid.
  */
 
-import type { Group } from 'three';
+import type { Group, Mesh } from 'three';
 import { InputTelemetry } from '../InputTelemetry.ts';
 import { VRConsole } from '../ui/VRConsole.ts';
 import { VRMenu } from '../ui/VRMenu.ts';
@@ -33,7 +33,7 @@ import { ProgressiveDisclosureController } from '../ui/ProgressiveDisclosure.ts'
 import { StatusStripController } from '../ui/StatusStripController.ts';
 import { PanelRolesManager, type UIMode } from '../ui/PanelRolesManager.ts';
 import { ContextualTaskSurface } from '../ui/ContextualTaskSurface.ts';
-import type { LoadTestDriver } from '../scalability/LoadTestDriver.ts';
+import type { LoadTestDriver, LoadTestProfile } from '../scalability/LoadTestDriver.ts';
 import type { Dataset } from '../../data/Dataset.ts';
 import { Dataset as DatasetClass } from '../../data/Dataset.ts';
 import type { UXFrustrationAnalyzer } from '../../utils/UXFrustrationAnalyzer.ts';
@@ -47,9 +47,51 @@ import type {
   PerformanceBudgetLike,
   TelemetryCollectorLike,
   WheelMenuCategory,
-  WorldUIManagerCallbacks,
 } from './types.ts';
 import { DEFAULT_ACCESSIBILITY } from './types.ts';
+
+export interface WorldUIManagerCallbacks {
+  onLoadDataset?: (entry: unknown) => void;
+  onTogglePortals?: (enabled: boolean) => void;
+  onConnectStream?: () => void;
+  onDisconnectStream?: () => void;
+  onSelectLiveSource?: (sourceKey: string) => void;
+  onFilter?: () => void;
+  onSort?: () => void;
+  onAggregate?: () => void;
+  onCluster?: () => void;
+  onHierarchicalCluster?: () => void;
+  onDensityCluster?: () => void;
+  onAnomaly?: () => void;
+  onTimeSlice?: () => void;
+  onCompare?: () => void;
+  onReset?: () => void;
+  onPanelChange?: () => void;
+  onSettingChanged?: (key: string, value: unknown) => void;
+  onSeekHistory?: (index: number) => void;
+  getNodeMeshes?: () => Mesh[];
+  getDominantHand?: () => HandLike | null;
+  getPeers?: () => unknown[];
+  getLocalPeerId?: () => string | null;
+  getSetting?: (key: string) => unknown;
+  telemetryCollector?: unknown;
+  analysisHistory?: unknown;
+  loadTestDriver?: LoadTestDriver;
+  onStartLoadTest?: (profile: LoadTestProfile) => void;
+  onStopLoadTest?: () => void;
+  onFlushLoadTest?: () => void;
+  onStartQuestBoundary?: () => void;
+  getRecommendation?: () => import('../../atlas/types.ts').AtlasRecommendation | null;
+  onAcceptRecommendation?: () => void;
+  onRejectRecommendation?: () => void;
+  onOverrideRecommendation?: () => void;
+  onGenerateRecommendation?: () => void;
+  onExitVR?: () => void;
+  uiMode?: UIMode;
+  onStatusUpdate?: (statusText: string) => void;
+  frustrationAnalyzer?: UXFrustrationAnalyzer | null;
+  getDataset?: () => Dataset | null;
+}
 
 interface AdaptiveAssistLike {
   confidenceHUD: GestureConfidenceHUD;

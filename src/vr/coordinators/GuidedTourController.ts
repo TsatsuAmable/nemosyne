@@ -1,11 +1,36 @@
 import * as THREE from 'three';
-import type { WorldLike } from './types.ts';
 import type { TourStep } from '../../data/DefaultTour.ts';
+import type {
+  DataOperationControllerLike,
+  DatumLike,
+  DracoNodeFacadeLike,
+  GuidedTourLike,
+  WorldUIManagerLike,
+} from './types.ts';
+
+export interface GuidedTourHost {
+  datum?: DatumLike;
+  dracoNode?: DracoNodeFacadeLike | null;
+  uiManager: Pick<
+    WorldUIManagerLike,
+    | 'handWheelMenu'
+    | 'loadTestPanel'
+    | 'narrativeStrip'
+    | 'operationLogPanel'
+    | 'peerPresenceHUD'
+    | 'settingsPanel'
+    | 'vrMenu'
+  >;
+  inspector?: { active?: boolean };
+  dataOperationController?: DataOperationControllerLike;
+  tdaGroup?: { visible: boolean } | null;
+  guidedTour?: GuidedTourLike;
+}
 
 export class GuidedTourController {
-  private _world: WorldLike;
+  private _world: GuidedTourHost;
 
-  constructor(world: WorldLike) {
+  constructor(world: GuidedTourHost) {
     this._world = world;
   }
 
@@ -21,7 +46,9 @@ export class GuidedTourController {
           ? { object: w.dracoNode.artifact.nodeMeshes[0] }
           : null;
       case 'wheel-menu':
-        return w.uiManager?.handWheelMenu?.group ? { object: w.uiManager.handWheelMenu.group } : null;
+        return w.uiManager?.handWheelMenu?.group
+          ? { object: w.uiManager.handWheelMenu.group }
+          : null;
       case 'wheel-ops': {
         const ops = (
           w.uiManager?.handWheelMenu as unknown as { _categories: { id: string }[] }
@@ -35,27 +62,43 @@ export class GuidedTourController {
       case 'dashboard':
         return { position: new THREE.Vector3(0, 1.45, -1.35) };
       case 'data-loader':
-        return w.uiManager?.vrMenu?.mesh ? { object: w.uiManager.vrMenu.mesh } : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
+        return w.uiManager?.vrMenu?.mesh
+          ? { object: w.uiManager.vrMenu.mesh }
+          : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
       case 'session-export':
-        return w.uiManager?.operationLogPanel?.mesh ? { object: w.uiManager.operationLogPanel.mesh } : { position: new THREE.Vector3(0.5, 1.4, -0.9) };
+        return w.uiManager?.operationLogPanel?.mesh
+          ? { object: w.uiManager.operationLogPanel.mesh }
+          : { position: new THREE.Vector3(0.5, 1.4, -0.9) };
       case 'peer-collaboration':
-        return w.uiManager?.peerPresenceHUD?.mesh ? { object: w.uiManager.peerPresenceHUD.mesh } : { position: new THREE.Vector3(-0.9, 1.35, -0.7) };
+        return w.uiManager?.peerPresenceHUD?.mesh
+          ? { object: w.uiManager.peerPresenceHUD.mesh }
+          : { position: new THREE.Vector3(-0.9, 1.35, -0.7) };
       case 'draco-transform':
-        return w.uiManager?.vrMenu?.mesh ? { object: w.uiManager.vrMenu.mesh } : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
+        return w.uiManager?.vrMenu?.mesh
+          ? { object: w.uiManager.vrMenu.mesh }
+          : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
       case 'tda-lens':
         // TDA group sits at (0, 1.6, -3.5); resolve to that position (the group
         // itself has no resolvable mesh on the facade).
         return { position: new THREE.Vector3(0, 1.6, -3.5) };
       case 'comfort-settings':
-        return w.uiManager?.settingsPanel?.mesh ? { object: w.uiManager.settingsPanel.mesh } : { position: new THREE.Vector3(0.3, 1.4, -0.9) };
+        return w.uiManager?.settingsPanel?.mesh
+          ? { object: w.uiManager.settingsPanel.mesh }
+          : { position: new THREE.Vector3(0.3, 1.4, -0.9) };
       case 'live-stream':
-        return w.uiManager?.vrMenu?.mesh ? { object: w.uiManager.vrMenu.mesh } : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
+        return w.uiManager?.vrMenu?.mesh
+          ? { object: w.uiManager.vrMenu.mesh }
+          : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
       case 'load-test':
-        return w.uiManager?.loadTestPanel?.mesh ? { object: w.uiManager.loadTestPanel.mesh } : { position: new THREE.Vector3(0.9, 1.4, -0.9) };
+        return w.uiManager?.loadTestPanel?.mesh
+          ? { object: w.uiManager.loadTestPanel.mesh }
+          : { position: new THREE.Vector3(0.9, 1.4, -0.9) };
       case 'theme-preset':
         return { position: new THREE.Vector3(0, 1.5, -0.8) };
       case 'narrative-timeline':
-        return w.uiManager?.narrativeStrip?.mesh ? { object: w.uiManager.narrativeStrip.mesh } : { position: new THREE.Vector3(0, 1.2, -0.7) };
+        return w.uiManager?.narrativeStrip?.mesh
+          ? { object: w.uiManager.narrativeStrip.mesh }
+          : { position: new THREE.Vector3(0, 1.2, -0.7) };
       default:
         return null;
     }
