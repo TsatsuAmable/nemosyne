@@ -40,14 +40,6 @@ export interface NemosyneSessionJSON extends AtlasCoreState {
   nilOutcomes?: NoFeasibleRepresentationStoreSnapshot;
 }
 
-function now(): number {
-  return (typeof performance !== 'undefined' && performance.now)
-    ? performance.now()
-    : (typeof Date !== 'undefined' && Date.now)
-      ? Date.now()
-      : 0;
-}
-
 export class NemosyneSession {
   private _atlas: AtlasCore;
   private _sessionId: string;
@@ -57,7 +49,7 @@ export class NemosyneSession {
 
   constructor({ atlas, sessionId }: { atlas: AtlasCore; sessionId?: string }) {
     this._atlas = atlas;
-    this._sessionId = sessionId ?? `session-${now()}`;
+    this._sessionId = sessionId ?? atlas.sessionId;
     this._presentation = {
       camera: { position: [0, 0, 0], rotationY: 0 },
       settings: {},

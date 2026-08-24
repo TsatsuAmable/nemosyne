@@ -112,6 +112,49 @@ describe('Investigation Replay Runner Adversarial & Tamper Verification', () => 
     expect(replayResult.evidenceCount.findings).toBe(1);
   });
 
+  it('preserves recorded dataset versions when a replay starts from a fresh aggregate', async () => {
+    const atlas = new AtlasCore({ kernel: mockBridge, sessionId: 'versioned-session' });
+    atlas.loadDataset(Dataset.fromJSON({
+      name: 'Priming Dataset',
+      columns: [{ name: 'x', type: 'number' }],
+      rows: [{ x: 1 }],
+    }));
+    const dataset = Dataset.fromJSON({
+      name: 'Versioned Dataset',
+      columns: [{ name: 'revenue', type: 'number' }],
+      rows: [{ revenue: 1000 }, { revenue: 2500 }],
+    });
+    atlas.loadDataset(dataset);
+    atlas.applyAnalysis({
+      datasetFingerprint: atlas.datasetFingerprint!,
+      datasetVersion: atlas.datasetVersion,
+      operation: { op: 'filter', column: 'revenue', min: 2000 },
+      algorithmVersion: '0.2.0',
+    });
+
+    const digest = await atlas.computeDigest();
+    const packageBytes = NemosynePackageManager.pack({
+      manifest: {
+        formatVersion: 1,
+        sessionId: atlas.sessionId,
+        datasetFingerprint: String(dataset.fingerprint),
+        datasetName: dataset.name,
+        kernelVersion: '0.2.0',
+        createdAt: Date.now(),
+        commandCount: atlas.ledger.length,
+        investigationDigest: digest,
+        evidenceSummary: { observationsCount: 0, findingsCount: 0, annotationsCount: 0 },
+        environment: { userAgent: 'test-agent' },
+      },
+      datasetBytes: strToU8(JSON.stringify(dataset.toJSON())),
+      commandLogBytes: strToU8(JSON.stringify(atlas.ledger)),
+    });
+
+    const replayResult = await runner.replayArchive(packageBytes);
+    expect(replayResult.success, replayResult.discrepancies.join('\n')).toBe(true);
+    expect(replayResult.investigationDigest).toBe(digest);
+  });
+
   it('detects adversarial dataset tampering', async () => {
     const dataset = Dataset.fromJSON({
       name: 'TamperedDataset',

@@ -282,6 +282,21 @@ export class InvestigationReplayRunner {
 
     const atlas = new AtlasCore({ kernel: this._bridge, sessionId: manifest.sessionId });
     atlas.loadDataset(dataset);
+    const recordedLoad = loggedEvents.find(
+      (item): item is ResearchEvent => 'kind' in item && item.kind === 'load',
+    );
+    if (recordedLoad && recordedLoad.datasetVersion !== atlas.datasetVersion) {
+      const replayState = atlas.toState();
+      atlas.restoreState({
+        ...replayState,
+        datasetVersion: recordedLoad.datasetVersion,
+        eventLedger: replayState.eventLedger.map((event) =>
+          event.kind === 'load'
+            ? { ...event, datasetVersion: recordedLoad.datasetVersion }
+            : event,
+        ),
+      });
+    }
     const replayKernelVersion = atlas.kernelVersion();
     if (replayKernelVersion && manifest.kernelVersion && replayKernelVersion !== manifest.kernelVersion) {
       discrepancies.push(`Kernel version mismatch: package manifest has '${manifest.kernelVersion}', replay kernel is '${replayKernelVersion}'`);
@@ -340,7 +355,11 @@ export class InvestigationReplayRunner {
             if (event.structureSet) { atlas.evidenceLedger.recordStructure(event.structureSet, manifest.sessionId, event.timestamp); eventsMatched += 1; }
             break;
           case 'recommendation':
-            if (event.recommendationDecision) { atlas.recordDecision(event.recommendationDecision); eventsMatched += 1; }
+            if (event.recommendationDecision) {
+              const { eventId: _eventId, sessionId: _sessionId, ...replayEvent } = event;
+              atlas.evidenceLedger.appendEvent(replayEvent, manifest.sessionId);
+              eventsMatched += 1;
+            }
             break;
           case 'embodiment':
             if (event.embodimentCommand) { atlas.recordEmbodimentCommand(event.embodimentCommand); eventsMatched += 1; }

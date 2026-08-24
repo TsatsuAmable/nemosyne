@@ -80,6 +80,10 @@ import type { TopologyType } from '../data/types.ts';
 import { DatasetSpace } from '../atlas/DatasetSpace.ts';
 import { AtlasCore } from '../atlas/AtlasCore.ts';
 import { NemosyneSession } from '../session/NemosyneSession.ts';
+import {
+  InvestigationReplayRunner,
+  type ReplayVerificationResult,
+} from '../session/InvestigationReplayRunner.ts';
 import type {
   ArtifactRef,
   DatasetLoadEntry,
@@ -698,6 +702,14 @@ export class World {
    */
   downloadAnalysisStory(story: Record<string, unknown> | null = null): void {
     AnalysisStoryExporter.downloadAnalysisStory(this, story);
+  }
+
+  async replayPortableInvestigation(bytes: Uint8Array): Promise<ReplayVerificationResult> {
+    const runtime = this._wasmRuntime;
+    if (!runtime || !this.atlas.isReady()) {
+      throw new Error('Analytical kernel unavailable; cannot verify investigation replay');
+    }
+    return new InvestigationReplayRunner(runtime).replayArchive(bytes);
   }
 
   /**
