@@ -4,9 +4,9 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `205c81f` (includes #362). Active fix branch: `fix/ci-gate-enforcement`.**
+**Current `main`: `7bd59a2` (includes #362 and #363). No active implementation branch.**
 
-**Next checkpoint:** merge the CI-integrity follow-up discovered while closing the [pre-P1 systematic audit](PRE_P1_SYSTEMATIC_AUDIT.md). PR #362 landed the audit, but owner auto-approval merged it before its checks completed. The follow-up makes approval read-only and runs a repository-owned zero-finding CodeQL SARIF gate because GitHub code scanning is not enabled. Physical execution remains deferred until a Quest 3S is available; even a completed measurement remains `deviceQualifiedAt10m: false` until governed review.
+**Next checkpoint:** execute the ordered P1 hardening queue in the [pre-P1 systematic audit](PRE_P1_SYSTEMATIC_AUDIT.md), beginning with lifecycle ownership/recovery, production selection acceleration and real-browser analyst journeys. The CI-integrity follow-up is merged: approval is read-only and CodeQL enforces zero-finding SARIF evidence without relying on GitHub code scanning. Physical execution remains deferred until a Quest 3S is available; even a completed measurement remains `deviceQualifiedAt10m: false` until governed review.
 
 **Last gate:** green on 24 August 2026. The audit baseline passed local typecheck, lint (0 errors,
 170 recorded warnings), coverage, production build, 170 Rust tests, real Chromium prebuilt-bundle
@@ -14,7 +14,8 @@ smoke, 8/8 hygiene dimensions, workflow YAML, active documentation links and des
 page inspection. Follow-up PR #363 at `6414b9c` then passed hosted coverage (310 files, 1,904 tests;
 81.07% statements, 69.74% branches, 78.43% functions and 83.58% lines), production build, 170 Rust
 tests, artifact-fed Chromium smoke, zero-finding CodeQL SARIF enforcement, read-only approval and the
-`Node 24` aggregate. Manual merge and final Pages publication remain pending.
+`Node 24` aggregate. PR #363 was manually merged after this current-head gate; GitHub Pages deployment
+32736255129 then passed, with `nemosyne.world` configured, domain-verified and HTTPS-enforced.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
