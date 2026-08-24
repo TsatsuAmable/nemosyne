@@ -93,7 +93,7 @@ adb forward tcp:5173 tcp:5173
 
 ## Architecture overview
 
-Nemosyne is a three.js/WebXR spatial data analysis runtime. It maps multi-dimensional datasets into interactive 3D "memory palaces" using a Draco-style constraint recommender and an artefact taxonomy.
+Nemosyne is a discovery and reproducibility system with a three.js/WebXR spatial runtime. Rust/WASM establishes analytical evidence, Moneta reasons over bounded representation candidates, and the runtime embodies the selected representation without becoming an analytical authority.
 
 High-level data flow:
 
@@ -104,7 +104,7 @@ Raw Data (CSV/JSON/Live Stream)
          ↓
    Dataset (TS projection over kernel DatasetJSON)
          ↓
-  Draco Constraint Engine
+  Moneta Representation Constraint Engine
          ↓
    Layout / Geometry / Behavior Spec
          ↓
@@ -123,11 +123,11 @@ Raw Data (CSV/JSON/Live Stream)
 
 - `src/data/` — `Dataset` (thin typed projection over kernel `DatasetJSON`), `Encodings` (three.js visual mapping only — `categoricalColor`/`numericColor`/`normalize`; analytical `inferEncodings` lives in the kernel), `AnalysisHistory` (undo/redo cursor), `SessionStore` (IndexedDB KV), `SampleDatasets`, `types`, and live connectors (`WebSocketAdapter`, `PollingAdapter`, `OpenDataSources`). Parsing and analytical operations are NO longer implemented here — they run in the Rust kernel.
 - `src/wasm/` — `RuntimeBridge.ts` (typed JS wrappers over the Rust/WASM kernel; production code calls these wrappers, not the kernel directly) and `CommandApplier.ts` (dormant command-buffer consumer).
-- `src/atlas/` and `src/session/` — the authoritative session substrate (`DatasetSpace` is the renderer-independent, versioned, FNV-1a-fingerprinted datum substrate; `AtlasCore` + `NemosyneSession` are the authoritative analytical-authority + logical-session layer). See `docs/ROADMAP.md` §Current Status for build/wire status.
-- `src/draco/` — `ConstraintEngine` (symbolic recommender), `VRTopologyTranslator` (spec → three.js artefact group), `DracoTopologyNode` (solve → synthesize → place), and layout generators under `src/draco/layouts/`. (The `DracoDiagnosticHUD` soft-weight tuner now lives in `src/vr/ui/`.)
+- `src/atlas/` and `src/session/` — the authoritative discovery/session substrate. `AtlasCore` orchestrates the investigation aggregate; `RustAnalyticalEvidenceAdapter` owns raw Rust handles, parser/TDA calls and evidence validation; `DatasetSpace` is the renderer-independent, versioned datum substrate; `NemosyneSession` is the logical-session layer.
+- `src/moneta/` — representation reasoning and spatial embodiment contracts. `ConstraintEngine` ranks bounded representation candidates; `MonetaTopologyNode` coordinates solve → synthesize → place; `VRTopologyTranslator` is a compatibility/composition facade over focused owners under `src/moneta/embodiment/`; layout generators live under `src/moneta/layouts/` and obtain data-derived coordinates only through the Rust kernel.
 - `src/vr/` — Core WebXR runtime.
   - `Engine.ts` — three.js scene, renderer, XR session, animation loop, updatables.
-  - `World.ts` — composes the scene: datum plane, landmarks, Draco palace, HUD, menu, live connectors.
+  - `World.ts` — composes the scene: datum plane, landmarks, spatial representations, HUD, menu, and live connectors.
   - `InputRouter.ts`, `Controllers.ts`, `Hands.ts` — normalized controller, hand-tracking, and desktop input.
   - `Locomotion.ts` — teleport anchors, ground movement, and flight mode.
   - `DesktopControls.ts` — mouse/keyboard fallback.

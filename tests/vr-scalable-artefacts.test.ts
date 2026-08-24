@@ -1,7 +1,7 @@
 // @ts-nocheck
 // @vitest-environment jsdom
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { VRTopologyTranslator } from '../src/moneta/VRTopologyTranslator.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
@@ -64,6 +64,40 @@ describe('VRTopologyTranslator scalable artefacts', () => {
     expect(artifact.nodeMeshes.length).toBe(1);
     expect(artifact.nodeMeshes[0]).toBeInstanceOf(THREE.InstancedMesh);
     expect(artifact.nodeMeshes[0].count).toBe(50);
+  });
+
+  it('honors the per-synthesis point-cloud factory over the registered default', () => {
+    const ds = makeGridDataset(4);
+    const setPoints = vi.fn();
+    const factory = vi.fn((count, geometry) => ({
+      mesh: new THREE.InstancedMesh(
+        geometry,
+        new THREE.MeshBasicMaterial({ color: 0xffffff }),
+        count
+      ),
+      setPoints,
+    }));
+    const artifact = VRTopologyTranslator.synthesizeArtifact(
+      {
+        facts: { rowCount: 4, topology: 'TABULAR', isLargeDataset: true },
+        spec: {
+          layout: 'GRID_3D',
+          geometry: 'INSTANCED_POINT_CLOUD',
+          behavior: 'STATIC',
+          interaction: 'CLUSTER_PROBE',
+        },
+        cost: 0,
+      },
+      {
+        topology: 'TABULAR',
+        dataset: ds,
+        encodings: { color: 'category', size: 'value' },
+      },
+      { pointCloudFactory: factory }
+    );
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(setPoints).toHaveBeenCalledTimes(1);
+    expect(artifact.nodeMeshes[0]).toBeInstanceOf(THREE.InstancedMesh);
   });
 
   it('builds cluster volumes from a high-cardinality categorical encoding', () => {

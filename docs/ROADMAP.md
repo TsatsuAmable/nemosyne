@@ -4,22 +4,19 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `e1069a0` (includes merged PR #372). Active branch: `perf/spatial-accelerator-exit`.**
+**Current `main`: `55ca56f` (includes merged PR #373). Active branch: `refactor/atlas-topology-separation`.**
 
-**Next checkpoint:** land the completed PERF-03 spatial-selection exit, then complete the remaining
-ARCH-01 Atlas orchestration and topology-embodiment split. Physical execution remains deferred
-until a Quest 3S is available; even a completed measurement remains `deviceQualifiedAt10m: false`
-until governed review.
+**Next checkpoint:** land the completed ARCH-01 Atlas/spatial-embodiment ownership split, then close
+the available RES-01 checked-output and malformed-handle resilience work. Physical execution remains
+deferred until a Quest 3S is available; even a completed measurement remains
+`deviceQualifiedAt10m: false` until governed review.
 
-**Last gate:** green locally on 24 August 2026 for `perf/spatial-accelerator-exit`.
-Typecheck and lint passed (0 errors, 170 pre-existing warnings); all 317 coverage files and 1,941
-tests passed at 82.29% statements, 70.48% branches, 79.20% functions and 84.77% lines; the
-production WASM/Vite build passed; all 170 Rust tests passed; and both real Chromium/WebGL smoke
-journeys passed. The
-sequential Apple M1 Pro crossover benchmark preserved first-hit parity at every object and geometry
-tier, with the production thresholds conservatively set to 64 objects and 128 triangles. Merged PR
-#372 hosted CodeQL, core correctness, Rust, downloaded-artifact Chromium smoke, read-only approval
-gate and `Node 24` aggregate are green. Pages remains deployed with `nemosyne.world`
+**Last gate:** green locally on 24 August 2026 for `refactor/atlas-topology-separation`. Typecheck
+and lint passed (0 errors, 170 pre-existing warnings); all 319 coverage files / 1,948 tests passed at
+82.28% statements, 70.44% branches, 79.28% functions and 84.79% lines; the production WASM/Vite
+build passed; all 170 Rust tests passed; and both real Chromium/WebGL smoke journeys passed. Merged
+PR #373 hosted CodeQL, core correctness, Rust, downloaded-artifact Chromium smoke, read-only
+approval gate and `Node 24` aggregate are green. Pages remains deployed with `nemosyne.world`
 domain-verified and HTTPS-enforced.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
@@ -144,7 +141,13 @@ option, live-stream and collaboration ports with their owning coordinators. Ever
 consumer exposes only the root and nested capabilities it actually uses; `World` derives its kernel
 type directly from the authoritative `RuntimeBridge` module. A fast architecture contract freezes
 these surfaces and forbids reintroduction of the shared World facade or coordinator-to-World imports.
-Atlas orchestration and topology-embodiment decomposition remain open.
+ARCH-01 is complete on the current branch. `AtlasCore` remains the discovery-loop application
+facade while `RustAnalyticalEvidenceAdapter` exclusively owns raw analytical handles, parser/TDA
+dispatch, structure-profile validation and ABI-failure translation. `VRTopologyTranslator` is now a
+206-line compatibility/composition facade over separate classic-layout, scalable-geometry,
+interaction and live-time-ribbon owners. Dependency-direction contracts prevent either spatial
+owner from acquiring analytical authority, and behavior tests cover temporary-handle cleanup,
+per-synthesis factory precedence and computed radial-parent edge embodiment.
 
 ## Governing V3 gate status
 
@@ -202,7 +205,7 @@ The full evidence and dispositions are in
 [PRE_P1_SYSTEMATIC_AUDIT.md](PRE_P1_SYSTEMATIC_AUDIT.md). This is the live implementation queue:
 
 - [ ] **PERF-04 / blocker:** run and govern the physical Quest 3S 10M browser qualification.
-- [ ] **ARCH-01 / high:** lifecycle ownership and the `RuntimeBridge` ABI-family split are merged; consumer-owned coordinator contracts are complete locally; the analytical kernel port is now isolated, while Atlas orchestration and topology embodiment remain.
+- [x] **ARCH-01 / high:** lifecycle, RuntimeBridge ABI families and consumer-owned coordinator contracts are merged; raw Rust evidence/handle work is isolated behind the fail-closed Atlas adapter, and topology embodiment is split into focused layout, scalable geometry, interaction and live-update owners behind a compatibility facade.
 - [x] **ARCH-02 / high:** explicit idempotent UI/world ownership, disposal and started real-WASM recreation contracts implemented on `refactor/world-lifecycle-owner`.
 - [x] **PERF-03 / high:** `three-mesh-bvh` now owns production controller, desktop and trace scene selection above measured object/geometry crossover thresholds; lifecycle, transform invalidation, recursive ownership and first-hit parity are covered, and the unused uniform-grid index is deleted. Physical Quest crossover remains PERF-04 evidence.
 - [x] **UX-02 / high:** the real-browser desktop journey now covers sample load → explicit Moneta decision or persisted NIL → Rust-backed analysis → observation → `.nemosyne` export/import → clean-room replay, including bounded accessible tamper failure and successful retry without mutating the source investigation.
@@ -368,9 +371,9 @@ migration benchmark tiers when scale-sensitive code changes
 
 ## Near-term execution order
 
-1. Separate Atlas orchestration from analytical evidence adapters, then split topology embodiment into focused production owners.
+1. Close RES-01 checked-output, host-allocation cleanup and malformed-handle resilience work.
 2. Run physical Quest 3S 10M and interaction qualification when hardware is available.
-3. Continue the audit's P1-high resilience, security and maintainability work.
+3. Continue the audit's remaining P1-high security and maintainability work.
 4. Reopen the minimal private-preview decision only after blockers/high findings are governed.
 5. Continue discovery/outcome studies and learned-Moneta empirical validation.
 6. Begin RepresentationGraph/compositional Moneta only after its stated prerequisites.
