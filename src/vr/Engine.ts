@@ -11,7 +11,12 @@ import { PerformanceBudget } from '../utils/PerformanceBudget.ts';
 import { WorldEventBus } from '../utils/EventBus.ts';
 import { AdaptiveFrameGovernor } from './scalability/AdaptiveFrameGovernor.ts';
 import type { HudObject } from './input/InteractableRegistry.ts';
-import type { PerformanceBudgetLike, TelemetryCollectorLike, Updatable, WorldUIManagerLike } from './coordinators/types.ts';
+import type {
+  PerformanceBudgetLike,
+  TelemetryCollectorLike,
+  Updatable,
+  WorldUIManagerLike,
+} from './coordinators/types.ts';
 import './registerFactories.ts';
 
 export type EngineState = 'running' | 'context_lost' | 'paused' | 'disposed';
@@ -200,17 +205,28 @@ export class Engine {
     this.input.addHudObject(obj);
   }
 
+  removeHudObject(obj: HudObject): void {
+    this.input.removeHudObject(obj);
+  }
+
   start(): void {
     if (this.state === 'disposed') return;
-    // Idempotent: a running engine is a no-op. Guards against repeated
-    // sessionstart listener registration and clock restarts.
     if (this.state === 'running' && this._sessionStartBound) return;
     this.state = 'running';
     this.clock.start();
     this.renderer.setAnimationLoop(() => this._tick());
-    this.renderer.xr.addEventListener('sessionstart', this._onSessionStart);
-    this.renderer.xr.addEventListener('sessionend', this._onSessionEnd);
-    this._sessionStartBound = true;
+    if (!this._sessionStartBound) {
+      this.renderer.xr.addEventListener('sessionstart', this._onSessionStart);
+      this.renderer.xr.addEventListener('sessionend', this._onSessionEnd);
+      this._sessionStartBound = true;
+    }
+  }
+
+  pause(): void {
+    if (this.state === 'disposed' || this.state === 'paused') return;
+    this.state = 'paused';
+    this.renderer.setAnimationLoop(null);
+    this.clock.stop();
   }
 
   private _handleSessionStart(): void {
@@ -225,7 +241,10 @@ export class Engine {
       this._detachXrVisibility();
 
       try {
-        if (typeof (this.renderer.xr as unknown as { setFoveation?: (f: number) => void }).setFoveation === 'function') {
+        if (
+          typeof (this.renderer.xr as unknown as { setFoveation?: (f: number) => void })
+            .setFoveation === 'function'
+        ) {
           (this.renderer.xr as unknown as { setFoveation: (f: number) => void }).setFoveation(1.0);
         }
       } catch (_) {
@@ -470,7 +489,7 @@ export class Engine {
   _contextRestored(): void {
     // A context-restored event arriving after dispose() would resurrect a
     // disposed Engine. Bail before touching state or restarting the loop.
-    if (this.state === 'disposed') return;
+    if (this.state === 'disposed' || this.state === 'paused') return;
     this.state = 'running';
     console.warn('[Engine] WebGL context restored');
     this._reportSessionStatus('GPU context restored', '#00ffcc');
@@ -478,6 +497,7 @@ export class Engine {
   }
 
   dispose(): void {
+    if (this.state === 'disposed') return;
     this.state = 'disposed';
     this.renderer.setAnimationLoop(null);
 
@@ -485,6 +505,7 @@ export class Engine {
     window.removeEventListener('resize', this._onResize);
     this.renderer.xr.removeEventListener('sessionstart', this._onSessionStart);
     this.renderer.xr.removeEventListener('sessionend', this._onSessionEnd);
+    this._sessionStartBound = false;
     this.renderer.domElement.removeEventListener('webglcontextlost', this._contextLost);
     this.renderer.domElement.removeEventListener('webglcontextrestored', this._contextRestored);
     // Detach any retained per-session XR visibility listener so an XRSession
@@ -495,6 +516,7 @@ export class Engine {
     this.updatables.clear();
     this.locomotion.dispose();
     this.desktop.dispose();
+    this.input.dispose();
     disposeObject(this.scene);
     this.theme.dispose();
     this.renderer.dispose();
@@ -518,9 +540,10 @@ export class Engine {
 
   _createMockContext(): CanvasRenderingContext2D {
     return {
-      createRadialGradient: () => ({
-        addColorStop: () => {},
-      }) as unknown as CanvasGradient,
+      createRadialGradient: () =>
+        ({
+          addColorStop: () => {},
+        }) as unknown as CanvasGradient,
       fillRect: () => {},
     } as unknown as CanvasRenderingContext2D;
   }

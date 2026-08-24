@@ -8,6 +8,7 @@ import { TooltipManager } from '../ui/TooltipManager.ts';
 import type { MonetaTopologyNode as DracoTopologyNode } from '../../moneta/MonetaTopologyNode.ts';
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 import type { Engine } from '../Engine.ts';
+import { disposeObject } from '../../utils/Dispose.ts';
 
 export interface RendererLifecycleOptions {
   engine: Engine;
@@ -44,7 +45,7 @@ export class WorldRendererLifecycle {
 
   attachTDASummary(): void {
     if (this.tdaGroup) {
-      this.engine.scene.remove(this.tdaGroup);
+      disposeObject(this.tdaGroup);
       this.tdaGroup = null;
       this.tdaRecompute = null;
     }
@@ -86,23 +87,29 @@ export class WorldRendererLifecycle {
     const panels: ChartPlanePanel[] = [];
 
     if (numericColumnCount > 1 || dataset.numericColumns.length > 1) {
-      panels.push(new ChartPlanePanel(this.engine.cameraGroup, dataset, {
-        title: 'Correlation Matrix',
-        chartType: 'CORRELATION',
-      }));
+      panels.push(
+        new ChartPlanePanel(this.engine.cameraGroup, dataset, {
+          title: 'Correlation Matrix',
+          chartType: 'CORRELATION',
+        })
+      );
     }
     if (hasTimeSeries || dataset.temporalColumns.length > 0) {
-      panels.push(new ChartPlanePanel(this.engine.cameraGroup, dataset, {
-        title: 'Time Series',
-        chartType: 'LINE',
-      }));
+      panels.push(
+        new ChartPlanePanel(this.engine.cameraGroup, dataset, {
+          title: 'Time Series',
+          chartType: 'LINE',
+        })
+      );
     }
     if (panels.length === 0 && dataset.numericColumns.length > 0) {
-      panels.push(new ChartPlanePanel(this.engine.cameraGroup, dataset, {
-        title: `Distribution of ${dataset.numericColumns[0].name}`,
-        chartType: 'HISTOGRAM',
-        column: dataset.numericColumns[0].name,
-      }));
+      panels.push(
+        new ChartPlanePanel(this.engine.cameraGroup, dataset, {
+          title: `Distribution of ${dataset.numericColumns[0].name}`,
+          chartType: 'HISTOGRAM',
+          column: dataset.numericColumns[0].name,
+        })
+      );
     }
 
     for (const panel of panels) {
@@ -160,7 +167,9 @@ export class WorldRendererLifecycle {
 
     for (const { panel } of this.dashboardPanels) {
       this.dashboard.unregisterPanel(panel);
-      this.engine.input.panels = this.engine.input.panels.filter((candidate) => candidate !== panel);
+      this.engine.input.panels = this.engine.input.panels.filter(
+        (candidate) => candidate !== panel
+      );
       panel.dispose();
     }
     this.dashboardPanels = [];
@@ -168,7 +177,7 @@ export class WorldRendererLifecycle {
 
   dispose(): void {
     this.disposeDashboard();
-    if (this.tdaGroup) this.engine.scene.remove(this.tdaGroup);
+    if (this.tdaGroup) disposeObject(this.tdaGroup);
     this.tdaGroup = null;
     this.tdaRecompute = null;
   }

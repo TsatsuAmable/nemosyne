@@ -53,7 +53,13 @@ function createFakeIndexedDB() {
 
   const factory: any = {
     open: () => {
-      const r: any = { onerror: null, onsuccess: null, onupgradeneeded: null, error: null, result: db };
+      const r: any = {
+        onerror: null,
+        onsuccess: null,
+        onupgradeneeded: null,
+        error: null,
+        result: db,
+      };
       Promise.resolve().then(() => {
         if (r.onupgradeneeded) r.onupgradeneeded({ target: r, oldVersion: 0 });
         if (r.onsuccess) r.onsuccess({ target: r });
@@ -76,6 +82,16 @@ function makeDataset(name: string): Dataset {
       { id: 2, value: 20 },
     ]
   );
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 /** Builds a stub WorldLike backed by REAL Dataset/AtlasCore/NemosyneSession
@@ -242,7 +258,9 @@ describe('WorldSessionController save/load roundtrip', () => {
     expect(snap.presentation.camera.position).toEqual([1.5, 2.0, -3.0]);
     expect(snap.presentation.camera.rotationY).toBeCloseTo(0.7);
     expect(snap.presentation.settings.userMode).toBe('intermediate');
-    expect(snap.presentation.panelPositions).toEqual([{ title: 'A', position: [1, 2, 3], visible: true }]);
+    expect(snap.presentation.panelPositions).toEqual([
+      { title: 'A', position: [1, 2, 3], visible: true },
+    ]);
     expect(snap.originalDataset).toBeTruthy();
     expect(snap.currentDataset).toBeTruthy();
     expect(snap.analysisHistory).toBeTruthy();
@@ -272,7 +290,9 @@ describe('WorldSessionController save/load roundtrip', () => {
 
     // History restored on the shared atlas (real AnalysisHistory).
     expect(stub.atlas.analysisHistory).toBeInstanceOf(AnalysisHistory);
-    expect(stub.uiManager.narrativeStrip.setHistory).toHaveBeenCalledWith(stub.atlas.analysisHistory);
+    expect(stub.uiManager.narrativeStrip.setHistory).toHaveBeenCalledWith(
+      stub.atlas.analysisHistory
+    );
     expect(stub._restoreDataset).toHaveBeenCalled();
 
     // Camera pose restored.
@@ -280,7 +300,10 @@ describe('WorldSessionController save/load roundtrip', () => {
     expect(stub.engine.cameraGroup.rotation.y).toBeCloseTo(0.7);
 
     // Settings applied + comfort controller re-applied.
-    expect(stub.uiManager.settingsPanel.setSetting).toHaveBeenCalledWith('userMode', 'intermediate');
+    expect(stub.uiManager.settingsPanel.setSetting).toHaveBeenCalledWith(
+      'userMode',
+      'intermediate'
+    );
     expect(stub.comfortSettingsController.apply).toHaveBeenCalledTimes(1);
     expect(stub.comfortSettingsController.applyPanelDistance).toHaveBeenCalledWith(1.4);
 
@@ -296,6 +319,26 @@ describe('WorldSessionController save/load roundtrip', () => {
     expect(stub.guidedTour._finished).toBe(false);
     expect(stub.guidedTour._cardGroup.visible).toBe(true);
     expect(stub.guidedTour._renderStep).toHaveBeenCalled();
+  });
+
+  it('invalidates a deferred session load before disposal can mutate Atlas or World', async () => {
+    await controller.saveSession('late');
+    const snapshot = await store.loadSession('late');
+    const load = deferred<typeof snapshot>();
+    const loadFromJSON = vi.spyOn(stub.session, 'loadFromJSON');
+    const datasetVersion = stub.atlas.datasetVersion;
+    stub.sessionStore.loadSession = vi.fn(() => load.promise);
+
+    const pending = controller.loadSession('late');
+    controller.dispose();
+    controller.dispose();
+    load.resolve(snapshot);
+
+    await expect(pending).resolves.toBe(false);
+    expect(loadFromJSON).not.toHaveBeenCalled();
+    expect(stub.loadDataset).not.toHaveBeenCalled();
+    expect(stub._restoreDataset).not.toHaveBeenCalled();
+    expect(stub.atlas.datasetVersion).toBe(datasetVersion);
   });
 
   it('deleteSession delegates to the store', async () => {

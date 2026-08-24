@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { WorldTopics } from '../src/utils/EventBus.ts';
 import {
   QuestBoundaryProbe,
@@ -151,5 +151,101 @@ describe('Quest 10M Rust boundary probe', () => {
     expect(summary.xrActive).toBe(false);
     expect(summary.qualification.evidencePathAvailableAt10m).toBe(false);
     expect(summary.qualification.deviceQualifiedAt10m).toBe(false);
+  });
+
+  it('dispose immediately releases an allocated host buffer and visibility listener exactly once', () => {
+    const runtime = makeRuntime();
+    const runtimeCall = vi.spyOn(runtime, 'call');
+    const session = {
+      visibilityState: 'visible',
+      frameRate: 72,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    const events: Array<{ topic: string; payload?: unknown }> = [];
+    const probe = new QuestBoundaryProbe(
+      {
+        renderer: {
+          xr: { getSession: () => session },
+          getContext: () => null,
+        },
+      },
+      { emit: (topic, payload) => events.push({ topic, payload }) },
+      {
+        runtime,
+        scenario: { rows: 2, primitiveColumns: 1, categoricalCardinality: 1, buildChunkRows: 2 },
+      }
+    );
+
+    expect(probe.run()).toBe(true);
+    probe.update();
+    probe.update();
+    probe.update();
+    probe.update();
+    expect(probe.phase).toBe('INGESTING');
+
+    probe.dispose();
+    probe.dispose();
+
+    expect(probe.phase).toBe('COMPLETE');
+    expect(runtimeCall.mock.calls.filter(([name]) => name === 'host_buffer_dealloc')).toHaveLength(
+      1
+    );
+    expect(
+      runtimeCall.mock.calls.filter(([name]) => name === 'typed_dataset_destroy')
+    ).toHaveLength(0);
+    expect(session.removeEventListener).toHaveBeenCalledTimes(1);
+    expect(session.removeEventListener).toHaveBeenCalledWith(
+      'visibilitychange',
+      expect.any(Function)
+    );
+    const summaries = events.filter((event) => event.topic === WorldTopics.QUEST_BOUNDARY_COMPLETE);
+    expect(summaries).toHaveLength(1);
+    expect((summaries[0].payload as QuestBoundarySummary).outcome.status).toBe('aborted');
+    expect(probe.run()).toBe(false);
+  });
+
+  it('dispose immediately destroys an ingested dataset handle exactly once', () => {
+    const runtime = makeRuntime();
+    const runtimeCall = vi.spyOn(runtime, 'call');
+    const session = {
+      visibilityState: 'visible',
+      frameRate: 72,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    const probe = new QuestBoundaryProbe(
+      {
+        renderer: {
+          xr: { getSession: () => session },
+          getContext: () => null,
+        },
+      },
+      { emit: vi.fn() },
+      {
+        runtime,
+        scenario: { rows: 2, primitiveColumns: 1, categoricalCardinality: 1, buildChunkRows: 2 },
+      }
+    );
+
+    expect(probe.run()).toBe(true);
+    probe.update();
+    probe.update();
+    probe.update();
+    probe.update();
+    probe.update();
+    expect(probe.phase).toBe('FINGERPRINTING');
+    runtimeCall.mockClear();
+
+    probe.dispose();
+    probe.dispose();
+
+    expect(runtimeCall.mock.calls.filter(([name]) => name === 'typed_dataset_destroy')).toEqual([
+      ['typed_dataset_destroy', 7],
+    ]);
+    expect(runtimeCall.mock.calls.filter(([name]) => name === 'host_buffer_dealloc')).toHaveLength(
+      0
+    );
+    expect(session.removeEventListener).toHaveBeenCalledTimes(1);
   });
 });

@@ -7,8 +7,11 @@ export type { CapabilityName } from './capabilities.ts';
 
 export {
   KernelUnavailableError,
+  KernelAbiError,
+  isKernelFatalError,
   getKernelState,
   getKernelUnavailableReason,
+  invalidateRuntime,
   requireRuntime,
   initRuntime,
   isReady,

@@ -45,6 +45,8 @@ export class FileLoaderUI {
   onLoad: (entry: FileLoaderLoadEvent) => void;
   atlas: AtlasCore | null;
   container: HTMLDivElement;
+  private _disposed = false;
+  private _generation = 0;
   statusEl!: HTMLDivElement;
   schemaEl!: HTMLDivElement;
   topologySelect!: HTMLSelectElement;
@@ -149,7 +151,6 @@ export class FileLoaderUI {
     `;
   }
 
-
   private _label(text: string): HTMLDivElement {
     const el = document.createElement('div');
     el.textContent = text;
@@ -179,6 +180,8 @@ export class FileLoaderUI {
   }
 
   private _emitSample(entry: SampleDatasetEntry): void {
+    if (this._disposed) return;
+    this._generation += 1;
     this._status(`Loaded sample: ${entry.label}`);
     this.onLoad({
       name: entry.label,
@@ -190,7 +193,8 @@ export class FileLoaderUI {
   }
 
   private async _handleFile(file: File | undefined): Promise<void> {
-    if (!file) return;
+    if (!file || this._disposed) return;
+    const generation = ++this._generation;
     // Reject oversized files before reading them into memory. `file.size` is
     // present on all evergreen browsers; guard for the rare undefined case.
     if (typeof file.size === 'number' && file.size > MAX_IMPORT_BYTES) {
@@ -200,7 +204,16 @@ export class FileLoaderUI {
       this._clearSchema();
       return;
     }
-    const text = await file.text();
+    let text: string;
+    try {
+      text = await file.text();
+    } catch (err: unknown) {
+      if (!this._isCurrent(generation)) return;
+      this._status(`Error reading file: ${err instanceof Error ? err.message : String(err)}`);
+      this._clearSchema();
+      return;
+    }
+    if (!this._isCurrent(generation)) return;
     const ext = file.name.toLowerCase().split('.').pop() ?? '';
     const bytes = new TextEncoder().encode(text);
 
@@ -208,23 +221,28 @@ export class FileLoaderUI {
     try {
       parsed = this._parseViaKernel(bytes, ext, file.name);
     } catch (err: unknown) {
+      if (!this._isCurrent(generation)) return;
       this._status(`Error parsing file: ${err instanceof Error ? err.message : String(err)}`);
       this._clearSchema();
       return;
     }
+    if (!this._isCurrent(generation)) return;
 
     const { dataset, topology, encodings } = parsed;
 
     const validation = validateImport(dataset, { maxRows: 100_000, maxColumns: 1_000 });
     const message = formatValidationResult(validation);
     if (!validation.ok) {
+      if (!this._isCurrent(generation)) return;
       this._status(message || 'Import failed.');
       this._clearSchema();
       return;
     }
 
+    if (!this._isCurrent(generation)) return;
     this._renderSchema(dataset, topology, encodings, validation.warnings);
     this._status(message || `Loaded ${dataset.rowCount} rows from ${file.name} as ${topology}`);
+    if (!this._isCurrent(generation)) return;
     this.onLoad({
       name: file.name,
       topology,
@@ -332,5 +350,17 @@ export class FileLoaderUI {
 
   show(): void {
     this.container.style.display = 'block';
+  }
+
+  private _isCurrent(generation: number): boolean {
+    return !this._disposed && generation === this._generation;
+  }
+
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    this._generation += 1;
+    this.atlas = null;
+    this.container.remove();
   }
 }

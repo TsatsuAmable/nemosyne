@@ -264,6 +264,7 @@ export class QuestBoundaryProbe {
   private _runId = '';
   private _lastProgressPhase: QuestBoundaryPhase | null = null;
   private _lastProgressPercent = -1;
+  private _disposed = false;
 
   constructor(
     private readonly _engine: QuestBoundaryEngineLike,
@@ -283,7 +284,7 @@ export class QuestBoundaryProbe {
   }
 
   run(): boolean {
-    if (this.running) return false;
+    if (this._disposed || this.running) return false;
     this._reset();
     this._startedAt = performance.now();
     this._lastFrameAt = this._startedAt;
@@ -323,7 +324,30 @@ export class QuestBoundaryProbe {
   }
 
   stop(): void {
-    if (this.running) this._abortRequested = true;
+    if (!this.running) return;
+    this._abortRequested = true;
+    this._outcomeStatus = 'aborted';
+    this._failurePhase = this.phase;
+    try {
+      this._cleanupResources();
+    } finally {
+      this._finish();
+    }
+  }
+
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    if (this.running) {
+      this.stop();
+    } else {
+      this._visibility?.finish();
+      this._visibility = null;
+      this._cleanupResources();
+    }
+    this._layout = null;
+    this._frameIntervalsMs = [];
+    this._heapSamples = [];
   }
 
   update(): void {
@@ -468,8 +492,9 @@ export class QuestBoundaryProbe {
       this._wasmAfterLoadBytes = this._runtime.memory().buffer.byteLength;
     } finally {
       if (this._inputPtr !== 0) {
-        this._runtime.call('host_buffer_dealloc', this._inputPtr, payloadLength);
+        const inputPtr = this._inputPtr;
         this._inputPtr = 0;
+        this._runtime.call('host_buffer_dealloc', inputPtr, payloadLength);
       }
       this._payload = null;
       this._payloadView = null;
@@ -587,25 +612,41 @@ export class QuestBoundaryProbe {
   }
 
   private _cleanupResources(): void {
+    let cleanupError: unknown = null;
     if (this._inputPtr !== 0) {
+      const inputPtr = this._inputPtr;
       const length = this._payload?.byteLength ?? 0;
-      this._runtime.call('host_buffer_dealloc', this._inputPtr, length);
       this._inputPtr = 0;
+      try {
+        this._runtime.call('host_buffer_dealloc', inputPtr, length);
+      } catch (error) {
+        cleanupError = error;
+      }
     }
     if (this._handle !== 0) {
-      this._runtime.call('typed_dataset_destroy', this._handle);
+      const handle = this._handle;
       this._handle = 0;
+      try {
+        this._runtime.call('typed_dataset_destroy', handle);
+      } catch (error) {
+        cleanupError ??= error;
+      }
     }
     this._payload = null;
     this._payloadView = null;
-    if (this._runtime.isReady() && this._rowMaterialisationsBefore !== null) {
-      this._evidence.rowMaterialisations =
-        Number(this._runtime.call('compatibility_row_materialisation_count') ?? 0) -
-        this._rowMaterialisationsBefore;
+    try {
+      if (this._runtime.isReady() && this._rowMaterialisationsBefore !== null) {
+        this._evidence.rowMaterialisations =
+          Number(this._runtime.call('compatibility_row_materialisation_count') ?? 0) -
+          this._rowMaterialisationsBefore;
+      }
+      this._wasmAfterDestroyBytes = this._runtime.isReady()
+        ? this._runtime.memory().buffer.byteLength
+        : null;
+    } catch (error) {
+      cleanupError ??= error;
     }
-    this._wasmAfterDestroyBytes = this._runtime.isReady()
-      ? this._runtime.memory().buffer.byteLength
-      : null;
+    if (cleanupError !== null) throw cleanupError;
   }
 
   private _fail(error: unknown): void {

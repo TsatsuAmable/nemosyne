@@ -96,6 +96,8 @@ export class WorldUIManager {
   frustrationResponseManager: FrustrationResponseManager | null = null;
   jitGestureHintManager: JITGestureHintManager | null = null;
   progressiveDisclosureController: ProgressiveDisclosureController | null = null;
+  private _borrowedResources = new Set<object>();
+  private _disposed = false;
 
   constructor(
     engine: Engine,
@@ -407,6 +409,9 @@ export class WorldUIManager {
     this.gestureConfidenceHUD = controller.confidenceHUD;
     this.frustrationResponseManager = controller.frustrationResponse;
     this.jitGestureHintManager = controller.jitHints;
+    this._borrowedResources.add(controller.confidenceHUD);
+    this._borrowedResources.add(controller.frustrationResponse);
+    this._borrowedResources.add(controller.jitHints);
     this.panelManager.register(controller.confidenceHUD);
   }
 
@@ -584,5 +589,48 @@ export class WorldUIManager {
 
   get isLauncherVisible(): boolean {
     return this.panelManager.isLauncherVisible();
+  }
+
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+
+    const panels = new Set(this.panelManager.panels);
+    for (const panel of panels) {
+      this.engine.removeUpdatable(panel);
+      this.engine.input.removePanel(panel);
+      this.panelManager.unregister(panel);
+      if (!this._borrowedResources.has(panel)) panel.dispose?.();
+    }
+
+    this.engine.removeUpdatable(this.miniOverview);
+    this.engine.removeUpdatable(this.peerPresenceHUD);
+    this.engine.removeUpdatable(this.dashboard);
+    this.engine.removeUpdatable(this.handWheelMenu);
+    this.engine.removeHudObject(this.handWheelMenu);
+    this.engine.input.setHandWheelMenu(null);
+    this.engine.input.setPanelManager(null);
+
+    this.miniOverview.dispose();
+    this.peerPresenceHUD.dispose();
+    this.dashboard.dispose();
+    this.handWheelMenu.dispose();
+    this.panelManager.dispose();
+
+    if (this.representationCarousel && !this._borrowedResources.has(this.representationCarousel)) {
+      this.representationCarousel.dispose();
+    }
+    if (
+      this.frustrationResponseManager &&
+      !this._borrowedResources.has(this.frustrationResponseManager)
+    ) {
+      this.frustrationResponseManager.dispose();
+    }
+    if (this.jitGestureHintManager && !this._borrowedResources.has(this.jitGestureHintManager)) {
+      this.jitGestureHintManager.dispose();
+    }
+
+    if (this.engine.uiManager === this) this.engine.uiManager = null;
+    this._borrowedResources.clear();
   }
 }

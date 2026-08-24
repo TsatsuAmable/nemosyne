@@ -151,6 +151,7 @@ export class LoadTestDriver implements Updatable {
   private _device: QuestRuntimeEnvironment | null = null;
   private _visibilityTracker: QuestVisibilityTracker | null = null;
   private _runId = '';
+  private _disposed = false;
 
   constructor(
     private readonly _world: LoadTestWorldLike,
@@ -162,6 +163,7 @@ export class LoadTestDriver implements Updatable {
 
   /** Begin a run. If no profile given, uses the default staircase. */
   run(profile: LoadTestProfile = DEFAULT_LOAD_TEST_PROFILE): void {
+    if (this._disposed) return;
     if (this.phase !== 'IDLE' && this.phase !== 'COMPLETE') {
       // Already running; ignore.
       return;
@@ -172,9 +174,10 @@ export class LoadTestDriver implements Updatable {
     this._steps = [];
     this._aborted = false;
     this._startedAt = performance.now();
-    this._runId = typeof globalThis.crypto?.randomUUID === 'function'
-      ? globalThis.crypto.randomUUID()
-      : `quest-run-${Date.now()}-${Math.round(this._startedAt)}`;
+    this._runId =
+      typeof globalThis.crypto?.randomUUID === 'function'
+        ? globalThis.crypto.randomUUID()
+        : `quest-run-${Date.now()}-${Math.round(this._startedAt)}`;
     this._device = captureQuestRuntimeEnvironment(
       this._engine,
       profile.deviceTarget ?? 'UNDECLARED'
@@ -192,12 +195,23 @@ export class LoadTestDriver implements Updatable {
   /** Abort a running test; emits COMPLETE with whatever was collected. */
   stop(): void {
     if (this.phase === 'IDLE' || this.phase === 'COMPLETE') return;
-    if (this.phase === 'MEASURING') {
-      // Capture the partial step too.
-      this._finishStep(true);
-    }
     this._aborted = true;
+    if (this.phase === 'MEASURING') {
+      this._finishStep(true, false);
+    }
     this._finishRun();
+  }
+
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    if (this.phase !== 'IDLE' && this.phase !== 'COMPLETE') {
+      this.stop();
+    } else {
+      this._visibilityTracker?.finish();
+      this._visibilityTracker = null;
+    }
+    this.collector.reset();
   }
 
   /** Engine updatable hook — drives the state machine. */
@@ -228,7 +242,7 @@ export class LoadTestDriver implements Updatable {
 
   get currentStep(): LoadTestStepSpec | null {
     return this.phase === 'MEASURING' || this.phase === 'SETTLING'
-      ? this._profile.steps[this._stepIndex - 1] ?? null
+      ? (this._profile.steps[this._stepIndex - 1] ?? null)
       : null;
   }
 
@@ -288,7 +302,7 @@ export class LoadTestDriver implements Updatable {
     });
   }
 
-  private _finishStep(partial: boolean): void {
+  private _finishStep(partial: boolean, continueRun = true): void {
     const specInfo = this._world.getActiveSpecInfo?.() ?? null;
     const result = this.collector.endStep({
       specGeometry: specInfo?.geometry,
@@ -307,7 +321,7 @@ export class LoadTestDriver implements Updatable {
       result,
       partial,
     });
-    this._runNextStep();
+    if (continueRun) this._runNextStep();
   }
 
   private _finishRun(): void {

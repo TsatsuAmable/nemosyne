@@ -5,7 +5,6 @@
  */
 
 import { World } from '../vr/World.ts';
-import { initRuntime } from '../wasm/RuntimeBridge.ts';
 import { setupDevTraceRecorder } from './devTrace.ts';
 
 export interface AppInstance {
@@ -13,7 +12,6 @@ export interface AppInstance {
 }
 
 export async function bootstrapApp(): Promise<AppInstance> {
-  await initRuntime();
   const world = new World();
   await world.start();
 

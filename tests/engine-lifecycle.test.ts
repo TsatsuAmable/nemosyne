@@ -113,6 +113,37 @@ describe('Engine Lifecycle & Invariant Hardening', () => {
     engine.dispose();
   });
 
+  it('pause() is idempotent and a resumed start does not duplicate XR listeners', () => {
+    const engine = new Engine();
+    const xrAddSpy = vi.spyOn(engine.renderer.xr, 'addEventListener');
+    const setLoopSpy = vi.spyOn(engine.renderer, 'setAnimationLoop');
+
+    engine.start();
+    engine.pause();
+    engine.pause();
+
+    expect(engine.state).toBe('paused');
+    expect(setLoopSpy).toHaveBeenLastCalledWith(null);
+
+    engine.start();
+    expect(engine.state).toBe('running');
+    expect(xrAddSpy.mock.calls.filter((call) => call[0] === 'sessionstart')).toHaveLength(1);
+    engine.dispose();
+  });
+
+  it('dispose() is idempotent and releases renderer resources once', () => {
+    const engine = new Engine();
+    const rendererDispose = vi.spyOn(engine.renderer, 'dispose');
+    const themeDispose = vi.spyOn(engine.theme, 'dispose');
+
+    engine.dispose();
+    engine.dispose();
+
+    expect(rendererDispose).toHaveBeenCalledOnce();
+    expect(themeDispose).toHaveBeenCalledOnce();
+    expect(engine.state).toBe('disposed');
+  });
+
   it('_contextRestored() is a no-op after dispose() and cannot resurrect the engine', () => {
     const engine = new Engine();
     engine.start();

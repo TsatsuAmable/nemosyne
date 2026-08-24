@@ -11,10 +11,7 @@
 
 import { Dataset } from '../data/Dataset.ts';
 import type { AnalysisHistory, HistoryEntry } from '../data/AnalysisHistory.ts';
-import type {
-  DatasetEvidence,
-  RustDatasetStructureProfile,
-} from '../data/evidence/index.ts';
+import type { DatasetEvidence, RustDatasetStructureProfile } from '../data/evidence/index.ts';
 import type {
   BettiPoint,
   DatasetJSON,
@@ -55,10 +52,18 @@ import type {
   RepresentationDecision,
   SpectralFacts,
 } from '../moneta/index.ts';
-import { mapClusterStructures, mapMapperStructures, mapPersistenceStructures } from './structures.ts';
+import {
+  mapClusterStructures,
+  mapMapperStructures,
+  mapPersistenceStructures,
+} from './structures.ts';
 import type { StructureSet } from './structures.ts';
 import { generateGuidance } from './GuidanceEngine.ts';
-import { KernelUnavailableError } from '../wasm/RuntimeBridge.ts';
+import {
+  KernelAbiError,
+  KernelUnavailableError,
+  isKernelFatalError,
+} from '../wasm/RuntimeBridge.ts';
 import { InvestigationAggregate, EvidenceLedger } from './domain/index.ts';
 
 export { KernelUnavailableError };
@@ -87,10 +92,19 @@ export interface WasmRuntimeBridgeFull {
   datasetFingerprint?(handle: number): string | null;
   inferSchema?(handle: number): unknown;
   computeMapperGraph?(handle: number, params: Record<string, unknown>): TdaMapperGraph | null;
-  computePersistenceIntervals?(handle: number, params: Record<string, unknown>): PersistenceInterval[] | null;
+  computePersistenceIntervals?(
+    handle: number,
+    params: Record<string, unknown>
+  ): PersistenceInterval[] | null;
   computeBetti0Curve?(handle: number, params: Record<string, unknown>): BettiPoint[] | null;
-  computeSpectralFacts?(handle: number, timeColumn?: string, valueColumn?: string): SpectralFacts | null;
-  computeDatasetStructureProfile?(handle: number): RustDatasetStructureProfile | Record<string, unknown> | null;
+  computeSpectralFacts?(
+    handle: number,
+    timeColumn?: string,
+    valueColumn?: string
+  ): SpectralFacts | null;
+  computeDatasetStructureProfile?(
+    handle: number
+  ): RustDatasetStructureProfile | Record<string, unknown> | null;
 }
 
 export class AtlasCore {
@@ -98,15 +112,24 @@ export class AtlasCore {
   private _kernel: WasmRuntimeBridgeFull | null;
   private _capabilities = 0;
   private _eventBus: WorldEventBus | null;
+  private readonly _onKernelFailure:
+    ((error: KernelAbiError | KernelUnavailableError) => void) | null;
 
   constructor({
     kernel = null,
     eventBus = null,
     sessionId,
-  }: { kernel?: WasmRuntimeBridgeFull | null; eventBus?: WorldEventBus | null; sessionId?: string } = {}) {
+    onKernelFailure = null,
+  }: {
+    kernel?: WasmRuntimeBridgeFull | null;
+    eventBus?: WorldEventBus | null;
+    sessionId?: string;
+    onKernelFailure?: ((error: KernelAbiError | KernelUnavailableError) => void) | null;
+  } = {}) {
     this._aggregate = new InvestigationAggregate({ sessionId });
     this._kernel = kernel;
     this._eventBus = eventBus;
+    this._onKernelFailure = onKernelFailure;
   }
 
   get eventBus(): WorldEventBus | null {
@@ -127,9 +150,10 @@ export class AtlasCore {
   // --- Kernel binding & status -------------------------------------------
 
   setKernel(kernel: WasmRuntimeBridgeFull | null, capabilities = 0): void {
+    const previousKernel = this._kernel;
+    this._aggregate.analytical.invalidateHandle((handle) => previousKernel?.destroyDataset(handle));
     this._kernel = kernel;
     this._capabilities = capabilities;
-    this._aggregate.analytical.invalidateHandle((h) => this._kernel?.destroyDataset(h));
   }
 
   get capabilities(): number {
@@ -137,7 +161,9 @@ export class AtlasCore {
   }
 
   isReady(): boolean {
-    return this._kernel != null && (typeof this._kernel.isReady !== 'function' || this._kernel.isReady());
+    return (
+      this._kernel != null && (typeof this._kernel.isReady !== 'function' || this._kernel.isReady())
+    );
   }
 
   kernelVersion(): string | null {
@@ -181,7 +207,7 @@ export class AtlasCore {
   get datasetSpace(): DatasetSpace | null {
     return this._aggregate.analytical.getDatasetSpace(
       () => this._kernelFingerprint(),
-      () => this._kernelRanges(),
+      () => this._kernelRanges()
     );
   }
 
@@ -261,7 +287,7 @@ export class AtlasCore {
       obsObj,
       this._aggregate.sessionId,
       stateHash,
-      this._aggregate.context.now(),
+      this._aggregate.context.now()
     );
   }
 
@@ -281,7 +307,7 @@ export class AtlasCore {
       },
       this._aggregate.sessionId,
       stateHash,
-      this._aggregate.context.now(),
+      this._aggregate.context.now()
     );
   }
 
@@ -294,7 +320,7 @@ export class AtlasCore {
       this.datasetVersion,
       fp,
       stateHash,
-      this._aggregate.context.now(),
+      this._aggregate.context.now()
     );
   }
 
@@ -307,7 +333,7 @@ export class AtlasCore {
       this.datasetVersion,
       fp,
       stateHash,
-      this._aggregate.context.now(),
+      this._aggregate.context.now()
     );
   }
 
@@ -320,7 +346,7 @@ export class AtlasCore {
       this.datasetVersion,
       fp,
       stateHash,
-      this._aggregate.context.now(),
+      this._aggregate.context.now()
     );
   }
 
@@ -371,7 +397,7 @@ export class AtlasCore {
         recommendationDecision: decision,
         stateHash,
       },
-      this._aggregate.sessionId,
+      this._aggregate.sessionId
     );
   }
 
@@ -379,7 +405,9 @@ export class AtlasCore {
 
   applyAnalysis(spec: AnalysisSpec): AnalysisResult {
     if (!this.isReady()) {
-      throw new KernelUnavailableError('[AtlasCore] analytical kernel unavailable — Rust/WASM is the sole analytical authority.');
+      throw new KernelUnavailableError(
+        '[AtlasCore] analytical kernel unavailable — Rust/WASM is the sole analytical authority.'
+      );
     }
     const kernel = this._kernel!;
     const inputHandle = this._ensureHandle();
@@ -387,7 +415,9 @@ export class AtlasCore {
       throw new Error('[AtlasCore] kernel rejected input dataset');
     }
 
-    const outHandle = kernel.runOperation(inputHandle, spec.operation);
+    const outHandle = this._callKernel('runOperation', () =>
+      kernel.runOperation(inputHandle, spec.operation)
+    );
     if (outHandle === 0) {
       throw new Error(`[AtlasCore] kernel op "${spec.operation.op}" failed`);
     }
@@ -396,7 +426,7 @@ export class AtlasCore {
     let provenance: Provenance | null;
     let outputHash: string;
     try {
-      json = kernel.getDatasetJson(outHandle);
+      json = this._callKernel('getDatasetJson', () => kernel.getDatasetJson(outHandle));
       if (!json) {
         throw new Error(`[AtlasCore] kernel produced no output for "${spec.operation.op}"`);
       }
@@ -419,7 +449,11 @@ export class AtlasCore {
     }
 
     const fp = this.datasetFingerprint ?? spec.datasetFingerprint;
-    const resultId = this._aggregate.ledger.nextResultId(fp, this.datasetVersion, spec.operation.op);
+    const resultId = this._aggregate.ledger.nextResultId(
+      fp,
+      this.datasetVersion,
+      spec.operation.op
+    );
     const result: AnalysisResult = {
       resultId,
       datasetFingerprint: fp,
@@ -444,7 +478,7 @@ export class AtlasCore {
         datasetFingerprint: fp,
         stateHash: this.datasetSpace?.fingerprint ?? '',
       },
-      this._aggregate.sessionId,
+      this._aggregate.sessionId
     );
 
     const opNodeId = `${this._aggregate.sessionId}:${resultId}`;
@@ -490,7 +524,9 @@ export class AtlasCore {
 
   previewAnalysis(spec: AnalysisSpec): AnalysisResult {
     if (!this.isReady()) {
-      throw new KernelUnavailableError('[AtlasCore] analytical kernel unavailable — Rust/WASM is the sole analytical authority.');
+      throw new KernelUnavailableError(
+        '[AtlasCore] analytical kernel unavailable — Rust/WASM is the sole analytical authority.'
+      );
     }
     const kernel = this._kernel!;
     const inputHandle = this._ensureHandle();
@@ -498,19 +534,25 @@ export class AtlasCore {
       throw new Error('[AtlasCore] kernel rejected input dataset');
     }
 
-    const outHandle = kernel.runOperation(inputHandle, spec.operation);
+    const outHandle = this._callKernel('previewOperation', () =>
+      kernel.runOperation(inputHandle, spec.operation)
+    );
     if (outHandle === 0) {
       throw new Error(`[AtlasCore] kernel preview "${spec.operation.op}" failed`);
     }
     try {
-      const json = kernel.getDatasetJson(outHandle);
+      const json = this._callKernel('getDatasetJson', () => kernel.getDatasetJson(outHandle));
       if (!json) {
         throw new Error(`[AtlasCore] kernel produced no preview for "${spec.operation.op}"`);
       }
       const provenance = this.lastProvenance();
       const outputHash = kernel.datasetFingerprint?.(outHandle) ?? fnv1aHex(json);
       const fp = this.datasetFingerprint ?? spec.datasetFingerprint;
-      const resultId = this._aggregate.ledger.nextResultId(fp, this.datasetVersion, spec.operation.op);
+      const resultId = this._aggregate.ledger.nextResultId(
+        fp,
+        this.datasetVersion,
+        spec.operation.op
+      );
       const result: AnalysisResult = {
         resultId,
         datasetFingerprint: fp,
@@ -532,9 +574,8 @@ export class AtlasCore {
   resetAnalysis(): AnalysisResult | null {
     if (!this._aggregate.analytical.originalNullable) return null;
     const prevVersionId = `${this._aggregate.sessionId}:v${this.datasetVersion}`;
-    this._aggregate.analytical.advanceDataset(
-      this._aggregate.analytical.original.clone(),
-      (h) => this._kernel?.destroyDataset(h),
+    this._aggregate.analytical.advanceDataset(this._aggregate.analytical.original.clone(), (h) =>
+      this._kernel?.destroyDataset(h)
     );
 
     const fp = this.datasetFingerprint ?? '';
@@ -550,7 +591,7 @@ export class AtlasCore {
         datasetFingerprint: fp,
         stateHash: this.datasetSpace?.fingerprint ?? '',
       },
-      this._aggregate.sessionId,
+      this._aggregate.sessionId
     );
 
     this._aggregate.graph.addNode({
@@ -575,9 +616,17 @@ export class AtlasCore {
     });
 
     if (this._aggregate.graph.getNode(prevVersionId)) {
-      this._aggregate.graph.connect(prevVersionId, `${this._aggregate.sessionId}:${resetOpId}`, 'motivates');
+      this._aggregate.graph.connect(
+        prevVersionId,
+        `${this._aggregate.sessionId}:${resetOpId}`,
+        'motivates'
+      );
     }
-    this._aggregate.graph.connect(`${this._aggregate.sessionId}:${resetOpId}`, nextVersionId, 'produces');
+    this._aggregate.graph.connect(
+      `${this._aggregate.sessionId}:${resetOpId}`,
+      nextVersionId,
+      'produces'
+    );
 
     return null;
   }
@@ -595,7 +644,7 @@ export class AtlasCore {
         datasetFingerprint: this.datasetFingerprint ?? '',
         stateHash: this.datasetSpace?.fingerprint ?? '',
       },
-      this._aggregate.sessionId,
+      this._aggregate.sessionId
     );
     return entry;
   }
@@ -613,7 +662,7 @@ export class AtlasCore {
         datasetFingerprint: this.datasetFingerprint ?? '',
         stateHash: this.datasetSpace?.fingerprint ?? '',
       },
-      this._aggregate.sessionId,
+      this._aggregate.sessionId
     );
     return entry;
   }
@@ -631,7 +680,7 @@ export class AtlasCore {
         datasetFingerprint: this.datasetFingerprint ?? '',
         stateHash: this.datasetSpace?.fingerprint ?? '',
       },
-      this._aggregate.sessionId,
+      this._aggregate.sessionId
     );
     return entry;
   }
@@ -641,7 +690,7 @@ export class AtlasCore {
   parseBytes(
     bytes: Uint8Array,
     ext: 'csv' | 'json',
-    explicitTopology?: string | null,
+    explicitTopology?: string | null
   ): { dataset: Dataset; topology: TopologyType; encodings: Record<string, string> } {
     if (!this.isReady()) {
       throw new KernelUnavailableError('Analytical kernel unavailable — cannot parse file.');
@@ -650,20 +699,26 @@ export class AtlasCore {
       throw new Error('Unsupported file type; use .csv or .json');
     }
     const kernel = this._kernel!;
-    const handle = ext === 'csv' ? kernel.loadCsv(bytes) : kernel.loadJson(bytes);
+    const handle = this._callKernel('parseDataset', () =>
+      ext === 'csv' ? kernel.loadCsv(bytes) : kernel.loadJson(bytes)
+    );
     if (handle === 0) {
       throw new Error('Kernel parser rejected the file');
     }
     try {
-      const json = kernel.getDatasetJson(handle);
+      const json = this._callKernel('getDatasetJson', () => kernel.getDatasetJson(handle));
       if (!json) {
         throw new Error('Kernel parser produced no dataset');
       }
       const topology =
         (explicitTopology as TopologyType | null) ??
-        (kernel.inferTopology(handle) as TopologyType | null) ??
+        (this._callKernel('inferTopology', () =>
+          kernel.inferTopology(handle)
+        ) as TopologyType | null) ??
         ('TABULAR' as TopologyType);
-      const enc = kernel.inferEncodings(handle, topology as string);
+      const enc = this._callKernel('inferEncodings', () =>
+        kernel.inferEncodings(handle, topology as string)
+      );
       const encodings = (enc ?? {}) as unknown as Record<string, string>;
       return { dataset: Dataset.fromJSON(json), topology, encodings };
     } finally {
@@ -686,22 +741,28 @@ export class AtlasCore {
 
   computePersistenceIntervals(
     dataset: Dataset,
-    params: Record<string, unknown>,
+    params: Record<string, unknown>
   ): PersistenceInterval[] | null {
-    return this._tdaCall(dataset, params, (handle) =>
-      this._kernel?.computePersistenceIntervals?.(handle, params) ?? null
+    return this._tdaCall(
+      dataset,
+      params,
+      (handle) => this._kernel?.computePersistenceIntervals?.(handle, params) ?? null
     );
   }
 
   computeMapperGraph(dataset: Dataset, params: Record<string, unknown>): TdaMapperGraph | null {
-    return this._tdaCall(dataset, params, (handle) =>
-      this._kernel?.computeMapperGraph?.(handle, params) ?? null
+    return this._tdaCall(
+      dataset,
+      params,
+      (handle) => this._kernel?.computeMapperGraph?.(handle, params) ?? null
     );
   }
 
   computeBetti0Curve(dataset: Dataset, params: Record<string, unknown>): BettiPoint[] | null {
-    return this._tdaCall(dataset, params, (handle) =>
-      this._kernel?.computeBetti0Curve?.(handle, params) ?? null
+    return this._tdaCall(
+      dataset,
+      params,
+      (handle) => this._kernel?.computeBetti0Curve?.(handle, params) ?? null
     );
   }
 
@@ -723,15 +784,19 @@ export class AtlasCore {
       this.datasetFingerprint === space.fingerprint ? this.datasetVersion : 0,
       this.kernelVersion() ?? 'unknown',
       params,
-      this.lastProvenance(),
+      this.lastProvenance()
     );
-    this._aggregate.ledger.recordStructure(structures, this._aggregate.sessionId, this._aggregate.context.now());
+    this._aggregate.ledger.recordStructure(
+      structures,
+      this._aggregate.sessionId,
+      this._aggregate.context.now()
+    );
     return structures;
   }
 
   discoverPersistenceStructures(
     dataset: Dataset,
-    params: Record<string, unknown>,
+    params: Record<string, unknown>
   ): StructureSet | null {
     const intervals = this.computePersistenceIntervals(dataset, params);
     if (!intervals) return null;
@@ -742,9 +807,13 @@ export class AtlasCore {
       this.datasetFingerprint === space.fingerprint ? this.datasetVersion : 0,
       this.kernelVersion() ?? 'unknown',
       params,
-      this.lastProvenance(),
+      this.lastProvenance()
     );
-    this._aggregate.ledger.recordStructure(structures, this._aggregate.sessionId, this._aggregate.context.now());
+    this._aggregate.ledger.recordStructure(
+      structures,
+      this._aggregate.sessionId,
+      this._aggregate.context.now()
+    );
     return structures;
   }
 
@@ -764,9 +833,13 @@ export class AtlasCore {
       this.datasetFingerprint === space.fingerprint ? this.datasetVersion : 0,
       this.kernelVersion() ?? 'unknown',
       operation,
-      result.provenance,
+      result.provenance
     );
-    this._aggregate.ledger.recordStructure(structures, this._aggregate.sessionId, this._aggregate.context.now());
+    this._aggregate.ledger.recordStructure(
+      structures,
+      this._aggregate.sessionId,
+      this._aggregate.context.now()
+    );
     return structures;
   }
 
@@ -778,7 +851,8 @@ export class AtlasCore {
     if (handle === 0) return null;
     try {
       return this._kernel!.statistics(handle);
-    } catch {
+    } catch (error) {
+      this._notifyKernelFailure('statistics', error);
       return null;
     }
   }
@@ -791,7 +865,7 @@ export class AtlasCore {
   datasetEvidence(): DatasetEvidence {
     if (!this.isReady()) {
       throw new KernelUnavailableError(
-        '[AtlasCore] analytical kernel unavailable — Moneta representation reasoning requires Rust DatasetEvidence.',
+        '[AtlasCore] analytical kernel unavailable — Moneta representation reasoning requires Rust DatasetEvidence.'
       );
     }
     const handle = this._ensureHandle();
@@ -801,7 +875,7 @@ export class AtlasCore {
     const kernel = this._kernel!;
     if (typeof kernel.computeDatasetStructureProfile !== 'function') {
       throw new Error(
-        '[AtlasCore] Rust DatasetStructureProfile ABI unavailable — refusing JS analytical fallback.',
+        '[AtlasCore] Rust DatasetStructureProfile ABI unavailable — refusing JS analytical fallback.'
       );
     }
     return datasetEvidenceFromKernelProfile(
@@ -812,7 +886,7 @@ export class AtlasCore {
           ? (currentHandle) => kernel.datasetFingerprint!(currentHandle)
           : undefined,
       },
-      handle,
+      handle
     );
   }
 
@@ -828,7 +902,8 @@ export class AtlasCore {
     if (handle === 0) return null;
     try {
       return this._kernel!.inferTopology(handle);
-    } catch {
+    } catch (error) {
+      this._notifyKernelFailure('inferTopology', error);
       return null;
     }
   }
@@ -839,7 +914,8 @@ export class AtlasCore {
     if (handle === 0) return null;
     try {
       return this._kernel!.inferEncodings(handle, topology);
-    } catch {
+    } catch (error) {
+      this._notifyKernelFailure('inferEncodings', error);
       return null;
     }
   }
@@ -874,31 +950,31 @@ export class AtlasCore {
 
   computeDatasetSignature(
     _input?: DracoDataInput,
-    _spectralFacts?: SpectralFacts | null,
+    _spectralFacts?: SpectralFacts | null
   ): DatasetSignature {
     return this._aggregate.representation.computeDatasetSignatureFromEvidence(
-      this.datasetEvidence(),
+      this.datasetEvidence()
     );
   }
 
   arbitrateRepresentation(
     requirements?: RepresentationRequirements,
     _input?: DracoDataInput,
-    _spectralFacts?: SpectralFacts | null,
+    _spectralFacts?: SpectralFacts | null
   ): RepresentationDecision {
     return this._aggregate.representation.arbitrateRepresentationFromEvidence(
       this.datasetEvidence(),
-      requirements,
+      requirements
     );
   }
 
   arbitrateSpatialStrategy(
     requirements?: RepresentationRequirements,
-    _input?: DracoDataInput,
+    _input?: DracoDataInput
   ): SpatialStrategy {
     return this._aggregate.representation.arbitrateStrategyFromEvidence(
       this.datasetEvidence(),
-      requirements,
+      requirements
     );
   }
 
@@ -925,8 +1001,28 @@ export class AtlasCore {
   private _ensureHandle(): number {
     return this._aggregate.analytical.ensureHandle((json) => {
       if (!this.isReady()) return 0;
-      return this._kernel!.loadDatasetJson(json);
+      return this._callKernel('loadDatasetJson', () => this._kernel!.loadDatasetJson(json));
     });
+  }
+
+  private _callKernel<T>(operation: string, call: () => T): T {
+    try {
+      return call();
+    } catch (error) {
+      throw this._notifyKernelFailure(operation, error);
+    }
+  }
+
+  private _notifyKernelFailure(
+    operation: string,
+    error: unknown
+  ): KernelAbiError | KernelUnavailableError {
+    const failure =
+      error instanceof KernelUnavailableError || isKernelFatalError(error)
+        ? error
+        : new KernelAbiError(operation, error);
+    this._onKernelFailure?.(failure);
+    return failure;
   }
 
   private _kernelFingerprint(): string | null {
@@ -964,7 +1060,7 @@ export class AtlasCore {
   private _tdaCall<T>(
     dataset: Dataset,
     _params: Record<string, unknown>,
-    compute: (handle: number) => T | null,
+    compute: (handle: number) => T | null
   ): T | null {
     if (!this.isReady()) return null;
     const kernel = this._kernel!;
@@ -982,7 +1078,7 @@ export class AtlasCore {
 
   private _clusterCall(
     dataset: Dataset,
-    operation: OperationSpec,
+    operation: OperationSpec
   ): { rows: Record<string, unknown>[]; provenance: Provenance | null } | null {
     if (!this.isReady()) return null;
     const kernel = this._kernel!;

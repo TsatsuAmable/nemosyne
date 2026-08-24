@@ -40,6 +40,7 @@ export class MiniOverview {
   private _camDir: THREE.Vector3;
   _bounds: THREE.Box2;
   private _tempV2: THREE.Vector2;
+  private _disposed = false;
 
   constructor(cameraGroup: THREE.Group, options: MiniOverviewOptions = {}) {
     this.title = options.title ?? 'Overview';
@@ -83,6 +84,17 @@ export class MiniOverview {
 
   setEnabled(enabled: boolean): void {
     this.mesh.visible = enabled;
+  }
+
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    this.mesh.parent?.remove(this.mesh);
+    this.mesh.geometry.dispose();
+    this.material.dispose();
+    this.texture.dispose();
+    this.canvas.width = 1;
+    this.canvas.height = 1;
   }
 
   update(): void {

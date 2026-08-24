@@ -57,6 +57,7 @@ describe('WorldUIManager', () => {
   });
 
   afterEach(() => {
+    ui?.dispose();
     engine.dispose();
     const button = document.getElementById('nemosyne-vr-button');
     if (button?.parentNode) button.parentNode.removeChild(button);
@@ -109,6 +110,61 @@ describe('WorldUIManager', () => {
 
     ui.toggleJITGestureHintManager();
     expect(jitHints.enabled).toBe(false);
+  });
+
+  it('detaches and disposes every owned UI resource exactly once', () => {
+    ui.getOrCreateOperationLogPanel();
+    ui.getOrCreateInteractionCoach();
+    ui.getOrCreateNarrativeStrip();
+    ui.getOrCreateLoadTestPanel();
+    ui.getOrCreateSchemaMappingPanel();
+    ui.getOrCreateGestureConfidenceHUD();
+    ui.toggleRepresentationCarousel();
+    ui.toggleJITGestureHintManager();
+
+    const dashboardDispose = vi.spyOn(ui.dashboard, 'dispose');
+    const wheelDispose = vi.spyOn(ui.handWheelMenu, 'dispose');
+    const overviewDispose = vi.spyOn(ui.miniOverview, 'dispose');
+    const presenceDispose = vi.spyOn(ui.peerPresenceHUD, 'dispose');
+    const panelManagerDispose = vi.spyOn(ui.panelManager, 'dispose');
+    const registeredPanels = [...ui.panelManager.panels];
+
+    ui.dispose();
+    ui.dispose();
+
+    expect(dashboardDispose).toHaveBeenCalledOnce();
+    expect(wheelDispose).toHaveBeenCalledOnce();
+    expect(overviewDispose).toHaveBeenCalledOnce();
+    expect(presenceDispose).toHaveBeenCalledOnce();
+    expect(panelManagerDispose).toHaveBeenCalledOnce();
+    expect(ui.panelManager.panels).toEqual([]);
+    expect(engine.input.panels).toEqual([]);
+    expect(engine.input.handWheelMenu).toBeNull();
+    expect(engine.input.panelManager).toBeNull();
+    expect(engine.input.hudObjects).not.toContain(ui.handWheelMenu);
+    for (const panel of registeredPanels) expect(engine.updatables).not.toContain(panel);
+    expect(engine.updatables).not.toContain(ui.dashboard);
+    expect(engine.updatables).not.toContain(ui.handWheelMenu);
+    expect(engine.updatables).not.toContain(ui.miniOverview);
+    expect(engine.updatables).not.toContain(ui.peerPresenceHUD);
+  });
+
+  it('detaches borrowed adaptive-assist resources without disposing them', () => {
+    const confidenceHUD = new GestureConfidenceHUD(anchor);
+    const confidenceDispose = vi.spyOn(confidenceHUD, 'dispose');
+    const frustrationResponse = { update: vi.fn(), dispose: vi.fn() };
+    const jitHints = { enabled: true, dispose: vi.fn() };
+    engine.input.addPanel(confidenceHUD);
+
+    ui.bindAdaptiveAssist({ confidenceHUD, frustrationResponse, jitHints });
+    ui.dispose();
+
+    expect(engine.input.panels).not.toContain(confidenceHUD);
+    expect(ui.panelManager.panels).not.toContain(confidenceHUD);
+    expect(confidenceDispose).not.toHaveBeenCalled();
+    expect(frustrationResponse.dispose).not.toHaveBeenCalled();
+    expect(jitHints.dispose).not.toHaveBeenCalled();
+    confidenceHUD.dispose();
   });
 
   it('parents the dashboard, launcher, and wheel menu to the analyst anchor', () => {

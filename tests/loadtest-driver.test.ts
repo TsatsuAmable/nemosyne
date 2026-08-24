@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   LoadTestDriver,
   DEFAULT_LOAD_TEST_PROFILE,
@@ -22,20 +22,30 @@ function makeEngine(frameMs: number): LoadTestDriverEngineLike {
   return {
     lastFrameMs: frameMs,
     renderer: {
-      info: { render: { calls: 10, triangles: 100, points: 0, lines: 0 }, memory: { geometries: 1, textures: 0 } },
+      info: {
+        render: { calls: 10, triangles: 100, points: 0, lines: 0 },
+        memory: { geometries: 1, textures: 0 },
+      },
       xr: { getSession: () => null },
     },
   };
 }
 
-function makeWorld(tracker: { count: number; entries: unknown[] }, events: { topic: string; payload?: unknown }[]): LoadTestWorldLike {
+function makeWorld(
+  tracker: { count: number; entries: unknown[] },
+  events: { topic: string; payload?: unknown }[]
+): LoadTestWorldLike {
   return {
     loadDataset(entry) {
       tracker.count++;
       tracker.entries.push(entry);
     },
     getActiveSpecInfo: () => ({ geometry: 'point', layout: 'grid' }),
-    eventBus: { emit(topic, payload) { events.push({ topic, payload }); } },
+    eventBus: {
+      emit(topic, payload) {
+        events.push({ topic, payload });
+      },
+    },
   };
 }
 
@@ -139,8 +149,10 @@ describe('LoadTestDriver state machine', () => {
     await wait(40);
     driver.update(0.016, 0);
 
-    const summary = events.find((e) => e.topic === WorldTopics.LOADTEST_COMPLETE)!
-      .payload as { verdict: { commandBufferWarrantedAt: number | null; jsPathSufficientTo: number | null }; steps: { grade: string }[] };
+    const summary = events.find((e) => e.topic === WorldTopics.LOADTEST_COMPLETE)!.payload as {
+      verdict: { commandBufferWarrantedAt: number | null; jsPathSufficientTo: number | null };
+      steps: { grade: string }[];
+    };
     expect(summary.steps.every((s) => s.grade === 'red')).toBe(true);
     expect(summary.verdict.commandBufferWarrantedAt).toBe(1_000);
     expect(summary.verdict.jsPathSufficientTo).toBeNull();
@@ -163,8 +175,10 @@ describe('LoadTestDriver state machine', () => {
     driver.update(0.016, 0); // → MEASURING step 1
     driver.stop();
     expect(driver.phase).toBe('COMPLETE');
-    const summary = events.find((e) => e.topic === WorldTopics.LOADTEST_COMPLETE)!
-      .payload as { aborted: boolean; steps: unknown[] };
+    const summary = events.find((e) => e.topic === WorldTopics.LOADTEST_COMPLETE)!.payload as {
+      aborted: boolean;
+      steps: unknown[];
+    };
     expect(summary.aborted).toBe(true);
     expect(summary.steps.length).toBe(1);
   });
@@ -183,25 +197,95 @@ describe('LoadTestDriver state machine', () => {
       steps: [{ topology: 'TABULAR', rowCount: 1_000, durationSec: 0.01 }],
     };
     const events: { topic: string; payload?: unknown }[] = [];
-    const driver = new LoadTestDriver(
-      makeWorld({ count: 0, entries: [] }, events),
-      makeEngine(8)
-    );
+    const driver = new LoadTestDriver(makeWorld({ count: 0, entries: [] }, events), makeEngine(8));
     driver.run(profile);
     driver.update(0.016, 0);
     await wait(20);
     driver.update(0.016, 0);
     const summary = events.find((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)!
       .payload as {
-        version: string;
-        device: { declaredDeviceTarget: string; identityBasis: string };
-        collection: Record<string, boolean | string>;
-      };
+      version: string;
+      device: { declaredDeviceTarget: string; identityBasis: string };
+      collection: Record<string, boolean | string>;
+    };
     expect(summary.version).toBe('2');
     expect(summary.device.declaredDeviceTarget).toBe('META_QUEST_3S');
     expect(summary.device.identityBasis).toBe('investigator-declared');
     expect(summary.collection.rawFrameTraceIncluded).toBe(false);
     expect(summary.collection.datasetRowsIncluded).toBe(false);
     expect(summary.collection.cameraPosesIncluded).toBe(false);
+  });
+
+  it('dispose aborts during settling and detaches visibility without another frame', () => {
+    const session = {
+      visibilityState: 'visible',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    const engine = makeEngine(8);
+    engine.renderer.xr.getSession = () => session;
+    const tracker = { count: 0, entries: [] as unknown[] };
+    const events: { topic: string; payload?: unknown }[] = [];
+    const driver = new LoadTestDriver(makeWorld(tracker, events), engine);
+    const profile: LoadTestProfile = {
+      name: 'dispose-settling',
+      settleSec: 60,
+      steps: [
+        { topology: 'TABULAR', rowCount: 10, durationSec: 60 },
+        { topology: 'TABULAR', rowCount: 20, durationSec: 60 },
+      ],
+    };
+
+    driver.run(profile);
+    expect(driver.phase).toBe('SETTLING');
+    expect(tracker.count).toBe(1);
+
+    driver.dispose();
+    driver.dispose();
+    driver.update(0.016, 0);
+
+    expect(driver.phase).toBe('COMPLETE');
+    expect(tracker.count).toBe(1);
+    expect(session.removeEventListener).toHaveBeenCalledTimes(1);
+    const summaries = events.filter((event) => event.topic === WorldTopics.LOADTEST_COMPLETE);
+    expect(summaries).toHaveLength(1);
+    expect((summaries[0].payload as { aborted: boolean }).aborted).toBe(true);
+    driver.run(profile);
+    expect(tracker.count).toBe(1);
+  });
+
+  it('stop aborts a measuring step without loading the next dataset and cleans up exactly once', () => {
+    const session = {
+      visibilityState: 'visible',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    const engine = makeEngine(8);
+    engine.renderer.xr.getSession = () => session;
+    const tracker = { count: 0, entries: [] as unknown[] };
+    const events: { topic: string; payload?: unknown }[] = [];
+    const driver = new LoadTestDriver(makeWorld(tracker, events), engine);
+    const profile: LoadTestProfile = {
+      name: 'dispose-measuring',
+      settleSec: 0,
+      steps: [
+        { topology: 'TABULAR', rowCount: 10, durationSec: 60 },
+        { topology: 'TABULAR', rowCount: 20, durationSec: 60 },
+      ],
+    };
+
+    driver.run(profile);
+    driver.update(0.016, 0);
+    expect(driver.phase).toBe('MEASURING');
+    driver.stop();
+    driver.dispose();
+    driver.stop();
+
+    expect(driver.phase).toBe('COMPLETE');
+    expect(tracker.count).toBe(1);
+    expect(driver.steps).toHaveLength(1);
+    expect(driver.steps[0].reasons[0]).toBe('step aborted early');
+    expect(session.removeEventListener).toHaveBeenCalledTimes(1);
+    expect(events.filter((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)).toHaveLength(1);
   });
 });

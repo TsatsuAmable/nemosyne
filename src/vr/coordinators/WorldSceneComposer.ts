@@ -13,6 +13,7 @@ import { IceVaultNode } from '../artifacts/IceVaultNode.ts';
 import { WorldTheme } from '../WorldTheme.ts';
 import type { Engine } from '../Engine.ts';
 import type { WorldSceneComposerCallbacks } from './types.ts';
+import { disposeObject } from '../../utils/Dispose.ts';
 
 export class WorldSceneComposer {
   engine: Engine;
@@ -32,6 +33,7 @@ export class WorldSceneComposer {
    * controller writes, silently making the Panel Distance setting a no-op.
    */
   panelDistance = 0;
+  private _disposed = false;
 
   /**
    * @param engine
@@ -116,11 +118,7 @@ export class WorldSceneComposer {
     // panelDistance is applied as a forward (-Z) offset so the workspace sits at
     // the user's chosen reading distance rather than at the headset.
     const torsoY = Math.max(0.8, cam.position.y - 0.25);
-    this.analystAnchor.position.set(
-      cam.position.x,
-      torsoY,
-      cam.position.z - this.panelDistance,
-    );
+    this.analystAnchor.position.set(cam.position.x, torsoY, cam.position.z - this.panelDistance);
 
     // Torso orientation tracking: damped lerp toward headset yaw (Y-axis).
     const headEuler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -143,11 +141,21 @@ export class WorldSceneComposer {
   }
 
   dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    this.engine.removeUpdatable(this);
+    this.engine.removeUpdatable(this.datum);
+    this.engine.removeUpdatable(this.core);
+    this.engine.removeUpdatable(this.iceVault);
+    this.engine.removeUpdatable(this.inspector);
+    this.engine.removeUpdatable(this.portalA);
+    this.engine.removeUpdatable(this.portalB);
+    disposeObject(this.datum?.mesh);
+    disposeObject(this.core?.group);
     this.iceVault?.dispose();
-    if (this.datum?.mesh) this.engine.scene.remove(this.datum.mesh);
-    if (this.core?.group) this.engine.scene.remove(this.core.group);
-    if (this.iceVault?.group) this.engine.scene.remove(this.iceVault.group);
-    if (this.portalA?.group) this.engine.scene.remove(this.portalA.group);
-    if (this.portalB?.group) this.engine.scene.remove(this.portalB.group);
+    disposeObject(this.inspector?.mesh);
+    disposeObject(this.portalA?.group);
+    disposeObject(this.portalB?.group);
+    this.analystAnchor.parent?.remove(this.analystAnchor);
   }
 }
