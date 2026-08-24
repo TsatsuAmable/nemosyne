@@ -29,6 +29,9 @@ describe('Rust JS boundary benchmark contract', () => {
     expect(source).toContain('EVIDENCE_PATH_AVAILABLE_AT_10M');
     expect(source).toContain('deviceQualifiedAt10m');
     expect(source).toContain('evidenceGenerationMsAt10m');
+    expect(source).toContain('MEASURED_REPETITION_ENVELOPE');
+    expect(source).toContain('coefficientOfVariation');
+    expect(source).toContain('requestedRunsPerScenario');
     expect(source).toContain('COLUMNAR_CAPACITY_ONLY');
     expect(source).toContain('INCOMPLETE_NO_10M_SCENARIO');
     expect(source).toContain('schemaVersion: 2');
@@ -39,6 +42,8 @@ describe('Rust JS boundary benchmark contract', () => {
     expect(workflow).toContain('name: Rust JS Boundary Envelope');
     expect(workflow).toContain('npm run wasm:dev');
     expect(workflow).toContain('scripts/benchmark-columnar-capacity.mjs --json');
+    expect(workflow).toContain('--scenario=tall10m --repeat=3 --json');
+    expect(workflow).toContain('rust-js-boundary-repeat-10m.json');
     expect(workflow).toContain('name: rust-js-boundary-envelope');
   });
 
@@ -48,6 +53,15 @@ describe('Rust JS boundary benchmark contract', () => {
     });
     expect(run.status).toBe(1);
     expect(run.stderr).toMatch(/unknown scenario bogus/);
+    expect(run.stderr).not.toMatch(/run npm run wasm:dev first/);
+  });
+
+  it('rejects invalid repeat counts before loading WASM', () => {
+    const run = spawnSync(process.execPath, [scriptPath, '--repeat=0'], {
+      encoding: 'utf8',
+    });
+    expect(run.status).toBe(1);
+    expect(run.stderr).toMatch(/invalid repeat count 0/);
     expect(run.stderr).not.toMatch(/run npm run wasm:dev first/);
   });
 });

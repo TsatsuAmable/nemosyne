@@ -25,7 +25,14 @@ function parseArgs(argv) {
       );
     }
   }
-  return { scenarios, json: argv.includes('--json') };
+  const repeatArg = argv.find((arg) => arg.startsWith('--repeat='));
+  const repeat = repeatArg ? Number(repeatArg.slice(9)) : 1;
+  if (!Number.isInteger(repeat) || repeat < 1 || repeat > 10) {
+    throw new Error(
+      `invalid repeat count ${repeatArg?.slice(9) ?? ''}; expected an integer from 1 to 10`
+    );
+  }
+  return { scenarios, json: argv.includes('--json'), repeat };
 }
 
 function pushString(parts, value) {
@@ -259,9 +266,51 @@ async function runScenario(name) {
   };
 }
 
+function metricSummary(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mean = sorted.reduce((sum, value) => sum + value, 0) / sorted.length;
+  const variance = sorted.reduce((sum, value) => sum + (value - mean) ** 2, 0) / sorted.length;
+  const percentile = (fraction) => sorted[Math.ceil(fraction * sorted.length) - 1];
+  return {
+    minimum: sorted[0],
+    median: percentile(0.5),
+    p95: percentile(0.95),
+    maximum: sorted[sorted.length - 1],
+    mean,
+    coefficientOfVariation: mean > 0 ? Math.sqrt(variance) / mean : 0,
+  };
+}
+
+function repetitionSummary(results, repeat) {
+  const byScenario = {};
+  for (const scenario of [...new Set(results.map((result) => result.scenario))]) {
+    const runs = results.filter((result) => result.scenario === scenario);
+    byScenario[scenario] = {
+      runs: runs.length,
+      coldFingerprintMs: metricSummary(runs.map((result) => result.first.fingerprintMs)),
+      evidenceGenerationMs: metricSummary(
+        runs.map((result) => result.structureProfile.sizeProbeMs)
+      ),
+      retainedWasmBytesAfterDestroy: metricSummary(
+        runs.map((result) => result.cleanup.pagesRetainedAfterDestroyBytes)
+      ),
+      fingerprintParityAll: runs.every((result) => result.reload.fingerprintParity),
+      checksumParityAll: runs.every((result) => result.reload.checksumParity),
+      zeroEvidenceRowMaterialisations: runs.every(
+        (result) => result.structureProfile.rowMaterialisations === 0
+      ),
+    };
+  }
+  return {
+    status: repeat >= 3 ? 'MEASURED_REPETITION_ENVELOPE' : 'SINGLE_RUN_ONLY',
+    requestedRunsPerScenario: repeat,
+    byScenario,
+  };
+}
+
 function boundaryAssessment(results) {
-  const tenMillion = results.find((result) => result.scenario === 'tall10m');
-  if (!tenMillion) {
+  const tenMillionRuns = results.filter((result) => result.scenario === 'tall10m');
+  if (tenMillionRuns.length === 0) {
     return {
       status: 'INCOMPLETE_NO_10M_SCENARIO',
       maximumVerifiedResidentRows: Math.max(0, ...results.map((result) => result.rows)),
@@ -272,10 +321,19 @@ function boundaryAssessment(results) {
       rowMaterialisationsForEvidence: null,
     };
   }
-  const residentColumnarAt10m = Boolean(
-    tenMillion.reload.checksumParity && tenMillion.reload.fingerprintParity
+  const residentColumnarAt10m = tenMillionRuns.every(
+    (result) => result.reload.checksumParity && result.reload.fingerprintParity
   );
-  const authoritativeEvidenceAt10m = tenMillion.structureProfile.status === 'AVAILABLE';
+  const authoritativeEvidenceAt10m = tenMillionRuns.every(
+    (result) => result.structureProfile.status === 'AVAILABLE'
+  );
+  const fingerprint = metricSummary(tenMillionRuns.map((result) => result.first.fingerprintMs));
+  const evidence = metricSummary(
+    tenMillionRuns.map((result) => result.structureProfile.sizeProbeMs)
+  );
+  const writeDecode = metricSummary(
+    tenMillionRuns.map((result) => result.structureProfile.writeDecodeMs)
+  );
   return {
     status:
       residentColumnarAt10m && authoritativeEvidenceAt10m
@@ -283,31 +341,43 @@ function boundaryAssessment(results) {
         : residentColumnarAt10m
           ? 'COLUMNAR_CAPACITY_ONLY'
           : 'BELOW_10M_RESIDENT_CAPACITY',
-    maximumVerifiedResidentRows: residentColumnarAt10m ? tenMillion.rows : null,
+    maximumVerifiedResidentRows: residentColumnarAt10m ? tenMillionRuns[0].rows : null,
     residentColumnarAt10m,
     authoritativeEvidenceAt10m,
     deviceQualifiedAt10m: false,
     authoritativeEvidenceAvailableInAnyScenario: results.some(
       (result) => result.structureProfile.status === 'AVAILABLE'
     ),
-    rustToJsEvidenceTransferBytes: tenMillion.structureProfile.transferBytes,
+    rustToJsEvidenceTransferBytes: Math.max(
+      ...tenMillionRuns.map((result) => result.structureProfile.transferBytes)
+    ),
     rowMaterialisationsForEvidence: results.reduce(
       (sum, result) => sum + result.structureProfile.rowMaterialisations,
       0
     ),
-    coldFingerprintMsAt10m: tenMillion.first.fingerprintMs,
-    evidenceGenerationMsAt10m: tenMillion.structureProfile.sizeProbeMs,
-    evidenceWriteDecodeMsAt10m: tenMillion.structureProfile.writeDecodeMs,
+    coldFingerprintMsAt10m: fingerprint.median,
+    evidenceGenerationMsAt10m: evidence.median,
+    evidenceWriteDecodeMsAt10m: writeDecode.median,
     fingerprintToRustLoadRatioAt10m:
-      tenMillion.first.fingerprintMs / Math.max(0.0001, tenMillion.first.rustLoadMs),
-    retainedWasmBytesAfter10mDestroy: tenMillion.cleanup.pagesRetainedAfterDestroyBytes,
+      fingerprint.median /
+      Math.max(
+        0.0001,
+        metricSummary(tenMillionRuns.map((result) => result.first.rustLoadMs)).median
+      ),
+    retainedWasmBytesAfter10mDestroy: Math.max(
+      ...tenMillionRuns.map((result) => result.cleanup.pagesRetainedAfterDestroyBytes)
+    ),
   };
 }
 
 async function main() {
-  const { scenarios, json } = parseArgs(process.argv.slice(2));
+  const { scenarios, json, repeat } = parseArgs(process.argv.slice(2));
   const results = [];
-  for (const scenario of scenarios) results.push(await runScenario(scenario));
+  for (const scenario of scenarios) {
+    for (let iteration = 1; iteration <= repeat; iteration += 1) {
+      results.push({ ...(await runScenario(scenario)), iteration });
+    }
+  }
   const cpus = os.cpus();
   const output = {
     schemaVersion: 2,
@@ -322,6 +392,7 @@ async function main() {
       wasmAddressModel: 'wasm32 linear memory',
     },
     assessment: boundaryAssessment(results),
+    repetition: repetitionSummary(results, repeat),
     results,
   };
   if (json) console.log(JSON.stringify(output, null, 2));

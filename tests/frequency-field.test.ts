@@ -136,12 +136,19 @@ describe('Phase 6: FrequencyField Representation and Renderer', () => {
 
     const mockSpectral: SpectralFacts = {
       dominantFrequencies: [0.0625],
-      spectralEntropy: 0.20,
+      spectralEntropy: 0.2,
       powerSpectrumPeak: 0.82,
       directionalAnisotropy: 0.0,
       characteristicScale: 16.0,
       hasPeriodicity: true,
-      periodicityConfidence: 0.90,
+      periodicityConfidence: 0.9,
+      method: 'full-series-fft',
+      observedCount: 64,
+      transformLength: 64,
+      sourceObservationsPerBin: 1,
+      frequencyResolution: 1 / 64,
+      maximumFrequency: 0.5,
+      windowFunction: 'hann',
     };
 
     const decision = RepresentationHypothesisEngine.reason(mockFacts, null, undefined, {

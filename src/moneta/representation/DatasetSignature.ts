@@ -22,6 +22,13 @@ export interface SpectralFacts {
   periodicityConfidence?: number;
   /** Epistemically narrow name for a non-calibrated periodicity score. */
   periodicityHeuristicScore?: number;
+  method?: string;
+  observedCount?: number;
+  transformLength?: number;
+  sourceObservationsPerBin?: number;
+  frequencyResolution?: number;
+  maximumFrequency?: number;
+  windowFunction?: string;
 }
 
 export interface DatasetSignatureSchema {

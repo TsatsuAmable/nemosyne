@@ -4,9 +4,9 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `8565ecde5587653a33e537c6b33e9cb8b5273b8d` (includes #353).**
+**Current `main`: `69983cfe6c7bdc2505ca872086e8498f4f83a7c4` (includes #355).**
 
-**Active implementation:** `fix/columnar-structure-profile-main`, restacked directly on current `main` after automated PR #354 landed in #353's already-closed source branch. The 24 August local gate is green: typecheck, lint, coverage (1,883 tests), release build, 162 Rust tests and Playwright smoke all passed. Hosted full-matrix run [32704932983](https://github.com/TsatsuAmable/nemosyne/actions/runs/32704932983) also passed. Next is bounded fingerprint/spectral evidence and physical Quest 3S qualification. The measured local blockers are 10.7-second cold fingerprinting, 3.2-second evidence generation and approximately 1.25 GB retained WASM memory at 10M; the hosted 10M reproduction measured 14.1 seconds, 4.0 seconds and the same retained memory respectively.
+**Active implementation:** `perf/bounded-spectral-evidence`. The merged #355 gate and hosted run [32705530788](https://github.com/TsatsuAmable/nemosyne/actions/runs/32705530788) are green. The bounded-evidence branch passes the complete local gate: typecheck, lint with zero errors, coverage (1,884 tests), production build, 169 Rust tests and the real-Chromium smoke test. A three-run local 10M envelope measures canonical fingerprint median/max at 3.39/3.92 seconds, evidence generation at 0.84/1.73 seconds and retained WASM at exactly 640,221,184 bytes, with 3,240-byte transfer and zero row materialisations. Next is repeated hosted characterization and physical Quest 3S qualification.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
@@ -17,7 +17,7 @@ Nemosyne has moved from experimental architecture repair into migration-exit and
 5. Investigation state is reproducible and portable through `.nemosyne`, including analytical provenance, representation/model identity, discoveries and NIL outcomes.
 6. Learned Moneta remains explicit, pinned, reversible and opt-in. Infrastructure readiness is not evidence of empirical superiority.
 
-The Draco-to-Moneta authority migration exit conditions are proven. A post-exit performance audit found that this does not yet establish practical 10M end-to-end performance. Typed-column ingest, identity and borrowed scans work at 10M, and the follow-up columnar-native Rust `DatasetStructureProfile` now closes the row-free evidence-path discontinuity. The immediate blocker is therefore the **10M fingerprint/evidence memory-and-latency envelope**, followed by physical Meta Quest 3S browser qualification, after which the critical path reopens at **P1 Minimal private preview**. Broader scientific validation, security/reliability hardening and VR/UI/UX outcome work remain active programmes.
+The Draco-to-Moneta authority migration exit conditions are proven. A post-exit performance audit found that this does not yet establish practical 10M end-to-end performance. Typed-column ingest, exact canonical identity and borrowed scans work at 10M, and the columnar-native Rust `DatasetStructureProfile` closes the row-free evidence-path discontinuity. The current branch materially reduces the local fingerprint/evidence envelope while making bounded spectral and clustering estimators provenance-explicit. Repeated provisioned evidence and physical Meta Quest 3S browser qualification remain blocking before the critical path reopens at **P1 Minimal private preview**. Broader scientific validation, security/reliability hardening and VR/UI/UX outcome work remain active programmes.
 
 ## What has landed
 

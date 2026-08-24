@@ -23,7 +23,7 @@ export interface MonetaStructureProfileFixtureOptions {
 }
 
 export function createMonetaStructureProfile(
-  options: MonetaStructureProfileFixtureOptions,
+  options: MonetaStructureProfileFixtureOptions
 ): RustDatasetStructureProfile {
   const temporalColumns = options.temporalColumns ?? 0;
   const clusterCount = options.clusterCount ?? 1;
@@ -62,6 +62,15 @@ export function createMonetaStructureProfile(
       separationScore: options.separationScore ?? (hasClusters ? 0.8 : 0),
       densityVariation,
       stabilityConfidence: hasClusters ? 0.8 : 1,
+      method: 'full-complete-row-kmeans',
+      eligibleObservationCount: options.rowCount,
+      sampleCount: options.rowCount,
+      samplingSeed: null,
+      sourceObservationsPerSample: 1,
+      normalization: 'per-dimension-min-max-over-all-complete-rows',
+      maximumCandidateClusters: 3,
+      iterations: 5,
+      silhouetteSampleCount: Math.min(options.rowCount, 50),
     },
     density: {
       globalDensity: 0.5,
@@ -101,7 +110,7 @@ export function createMonetaStructureProfile(
 }
 
 export function createMonetaKernelFixture(
-  profile: RustDatasetStructureProfile,
+  profile: RustDatasetStructureProfile
 ): WasmRuntimeBridgeFull {
   let loaded: DatasetJSON | null = null;
   let lastProvenance: Provenance | null = null;
