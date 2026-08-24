@@ -6,7 +6,7 @@ import {
   minimalDatasetSignature,
   type DatasetSignature,
   type RepresentationDecision,
-} from '../src/draco/index.ts';
+} from '../src/moneta/index.ts';
 
 describe('Phase 1: Representation Ontology Types', () => {
   it('defines 9 representation families', () => {
@@ -96,7 +96,6 @@ describe('Phase 1: Representation Ontology Types', () => {
             detailLens: 'INSPECTOR_SLATE',
           },
           score: 8.5,
-          confidence: 0.95,
           rationale: 'Optimal grid representation',
           rejectionLog: [],
           provenance: {

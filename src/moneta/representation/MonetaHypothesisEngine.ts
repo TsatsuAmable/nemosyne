@@ -586,9 +586,6 @@ export class MonetaHypothesisEngine {
       datumEncoding: { geometry, mappings: {}, behavior },
       interactionStrategy: { primaryInteraction: interaction, supportedGestures: [], detailLens },
       score: winner.score,
-      // SpatialStrategy retains this compatibility field until that contract is
-      // migrated; it is utility, not calibrated confidence.
-      confidence: winner.score,
       rationale: `Selected ${winner.candidateId} from ${this.fitnessModel.version} ranking.`,
       rejectionLog: candidates
         .filter((candidate) => candidate !== winner)
@@ -605,6 +602,7 @@ export class MonetaHypothesisEngine {
         version: '2.1.0-v3-bootstrap',
         datasetFingerprint,
         requirementsHash,
+        fitnessModelVersion: this.fitnessModel.version,
       },
     };
   }

@@ -3,7 +3,7 @@
 
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
+import { VRTopologyTranslator } from '../src/moneta/VRTopologyTranslator.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 
 function makeDataset(rows) {

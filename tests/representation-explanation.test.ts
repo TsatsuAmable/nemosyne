@@ -5,7 +5,7 @@ import {
   RepresentationHypothesisEngine,
   createDefaultRequirements,
   type DracoFacts,
-} from '../src/draco/index.ts';
+} from '../src/moneta/index.ts';
 
 describe('Phase 7: Explanation Traces & Canonical Investigation Digest', () => {
   const baseTabularFacts: DracoFacts = {

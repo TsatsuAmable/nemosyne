@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { InstancedPointCloud } from '../src/vr/scalability/InstancedPointCloud.ts';
-import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.ts';
+import { MonetaTopologyNode as DracoTopologyNode } from '../src/moneta/MonetaTopologyNode.ts';
 import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
 import { CanvasTextureCacheManager } from '../src/vr/ui/CanvasTextureCacheManager.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';

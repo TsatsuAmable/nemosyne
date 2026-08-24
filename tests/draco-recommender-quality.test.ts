@@ -1,7 +1,7 @@
 // @ts-nocheck
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from 'vitest';
-import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
+import { ConstraintEngine, TopologyTypes } from '../src/moneta/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import goldenData from './fixtures/draco-golden/golden-pairs.json';
 import { computeFacts, makeFactProvider } from './helpers/dracoFactsHelper.ts';
