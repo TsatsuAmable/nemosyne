@@ -4,6 +4,7 @@ test('desktop analyst controls complete the visible evidence and export path', a
   await page.goto('/');
   await expect(page.locator('#analyst-journey-controls')).toBeVisible();
   await expect(page.locator('#analyst-journey-status')).toHaveText('Ready');
+  await expect(page.locator('#analyst-replay-package')).toBeDisabled();
 
   await page.locator('#analyst-load-sample').click();
   await expect(page.locator('#analyst-journey-status')).toContainText('Loaded');
@@ -19,4 +20,8 @@ test('desktop analyst controls complete the visible evidence and export path', a
   const artifact = await download;
   expect(artifact.suggestedFilename()).toBe('nemosyne-investigation.nemosyne');
   await expect(page.locator('#analyst-journey-status')).toContainText('Investigation exported');
+  await expect(page.locator('#analyst-replay-package')).toBeEnabled();
+
+  await page.locator('#analyst-replay-package').click();
+  await expect(page.locator('#analyst-journey-status')).toContainText('Replay verified');
 });

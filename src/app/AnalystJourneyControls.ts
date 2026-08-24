@@ -29,6 +29,8 @@ export function mountAnalystJourneyControls(world: World): AnalystJourneyControl
   status.textContent = 'Ready';
   root.append(status);
 
+  let lastExport: Uint8Array | null = null;
+
   const button = (id: string, label: string, action: () => void | Promise<void>) => {
     const element = document.createElement('button');
     element.id = id;
@@ -54,15 +56,38 @@ export function mountAnalystJourneyControls(world: World): AnalystJourneyControl
     const observation = world.markMoment('Recorded from desktop analyst controls');
     status.textContent = `Observation recorded: ${observation.id}`;
   });
+  const replayButton = document.createElement('button');
+  replayButton.id = 'analyst-replay-package';
+  replayButton.type = 'button';
+  replayButton.textContent = 'Replay investigation';
+  replayButton.disabled = true;
+  replayButton.addEventListener('click', () => {
+    if (!lastExport) return;
+    world
+      .replayPortableInvestigation(lastExport)
+      .then((result) => {
+        if (!result.success) {
+          throw new Error(result.discrepancies.join('; ') || 'Replay verification failed');
+        }
+        status.textContent = `Replay verified (${result.eventsMatched} events)`;
+      })
+      .catch((error: unknown) => {
+        status.textContent = `Error: ${error instanceof Error ? error.message : String(error)}`;
+      });
+  });
+
   button('analyst-export-package', 'Export investigation', async () => {
     const bytes = await world.session.exportPortablePackage({
       userAgent: navigator.userAgent,
       platform: navigator.platform,
       webxrSupported: 'xr' in navigator,
     });
+    lastExport = bytes;
+    replayButton.disabled = false;
     downloadPackage(bytes, 'nemosyne-investigation.nemosyne');
     status.textContent = `Investigation exported (${bytes.byteLength} bytes)`;
   });
+  root.append(replayButton);
 
   document.body.append(root);
   return { dispose: () => root.remove() };
