@@ -32,6 +32,7 @@ export const WASM_TESTS = [
   'tests/vr-scalable-artefacts.test.ts',
   'tests/vr-topology-translator-live.test.ts',
   'tests/wasm-layouts.test.ts',
+  'tests/wasm-columnar-structure-profile.test.ts',
   'tests/wasm-row-identity.test.ts',
   'tests/wasm-runtime.test.ts',
   'tests/world-coverage.test.ts',

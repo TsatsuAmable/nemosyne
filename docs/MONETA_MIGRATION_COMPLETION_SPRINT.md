@@ -4,7 +4,7 @@
 
 Finish the Draco-to-Moneta migration without weakening correctness, reproducibility, security, performance, or scientific validity.
 
-The migration is now in exit verification. New work interrupts the critical path only when it demonstrates a correctness, Rust-authority, reproducibility, compatibility, required-CI, large-dataset, or XR hot-path blocker.
+The migration completed its exit checkpoint on 24 August 2026. Subsequent work may reopen the migration only when it demonstrates a correctness, Rust-authority, reproducibility, compatibility, required-CI, large-dataset, or XR hot-path regression.
 
 ## Fixed architectural decisions
 
@@ -14,24 +14,24 @@ The migration is now in exit verification. New work interrupts the critical path
 4. **Legacy Draco is compatibility surface only.**
 5. **Source cardinality is decoupled from rendered primitive count.**
 
-## Migration ledger — reconciled 23 August 2026 after #338
+## Migration ledger — reconciled 24 August 2026 after #342
 
 | Capability / invariant | Current evidence | Exit condition | Status |
 |---|---|---|---|
 | Legacy Draco authority | architecture tests prohibit independent Draco analytical authority; production imports Moneta | no independent Draco solver/scorer/reasoning implementation | **DONE** |
 | Draco import/call-site inventory | production inventory complete; no production consumer depends on Draco analytical modules | every live Draco call site classified | **DONE** |
-| Obsolete Draco compatibility files | deep mirrors were removed in #334; #340 collapses remaining one-line top-level shims to `src/draco/index.ts` | one explicit compatibility facade only | **IN PR #340** |
+| Obsolete Draco compatibility files | deep mirrors were removed in #334; #340 collapsed remaining one-line top-level shims to `src/draco/index.ts` | one explicit compatibility facade only | **DONE** |
 | Rust analytical fact authority | #336 reconstructs signatures from canonical DatasetEvidence; #338 routes production Atlas through validated Rust `DatasetStructureProfile`/DatasetEvidence and fails closed without it; pre-WASM World supplies no analytical decision | every research-relevant fact consumed by production Moneta is Rust/WASM-derived or the operation fails explicitly | **DONE** |
-| Moneta scale boundary | candidate/sensitivity budgets are independent of source row count and reasoning modules do not receive raw rows | no Moneta reasoning module traverses raw rows or performs N-dependent JS work | **DONE; CURRENT-MAIN MATRIX IN PR #342** |
+| Moneta scale boundary | #342 proves bounded evidence, candidates and sensitivity at 10K, 100K, 1M and 10M rows without source-row payloads | no Moneta reasoning module traverses raw rows or performs N-dependent JS work | **DONE** |
 | Moneta computational JS fallbacks | #315 moved data-derived layout computation to Rust/WASM; #338 closes production fact-origin fallback | scale-sensitive/data-derived computation is Rust-owned | **DONE** |
 | Fitness/scoring authority | #335 removed obsolete `ConstraintArbiter`; versioned FitnessModel is the sole bootstrap authority and learned ranking remains downstream of hard constraints | one production scoring/ranking authority | **DONE** |
 | Representation/provenance continuity | #324-#332 persist and replay analytical, representation, learned-model, discovery and NIL provenance | representation/model/NIL/discovery provenance survives Investigation and clean-room replay | **DONE** |
-| Downstream confidence terminology | decisions expose utility/status/margin; #340 removes the remaining `SpatialStrategy.confidence` alias that duplicated utility | uncalibrated utility is never presented as statistical confidence | **IN PR #340** |
+| Downstream confidence terminology | decisions expose utility/status/margin; #340 removed the remaining `SpatialStrategy.confidence` alias that duplicated utility | uncalibrated utility is never presented as statistical confidence | **DONE** |
 | Metamorphic correctness | row-order, semantic-rename, duplication/scale and provenance contracts are executable | declared metamorphic policies are covered at authoritative/boundary layer | **DONE** |
-| Draco public migration surface | production imports are gone; #340 reduces legacy source compatibility to one documented facade | retained compatibility is explicit, minimal and tested | **IN PR #340** |
-| End-to-end migration integration | component provenance tests exist; #341 composes Rust-profile evidence → Atlas/Moneta decision → SpatialStrategy → Discovery → `.nemosyne` → clean-room replay | one representative authoritative composition proof is green | **IN PR #341** |
-| Large-dataset migration validation | #305/#306 establish typed-column ingest/capacity evidence; #342 adds current-main 10K/100K/1M/10M bounded-Moneta invariants without JS row materialisation | current-main evidence proves bounded Moneta work and no full-data JS rematerialisation | **IN PR #342; CAPACITY BENCHMARK REFRESH REMAINS** |
-| Browser/WebXR migration checkpoint | #338 restored explicit pre-kernel presentation-only startup; broad runtime tests remain | representative browser/WebXR smoke is green on migration-exit main | **FINAL** |
+| Draco public migration surface | production imports are gone; #340 reduced legacy source compatibility to one documented facade | retained compatibility is explicit, minimal and tested | **DONE** |
+| End-to-end migration integration | #341 composes Rust-profile evidence → Atlas/Moneta decision → SpatialStrategy → Discovery → `.nemosyne` → clean-room replay | one representative authoritative composition proof is green | **DONE** |
+| Large-dataset migration validation | #342 proves bounded reasoning on current main; capacity run 32698495825 characterizes the real Rust/WASM 10M tall, 1M wide and 1M high-cardinality boundaries | current-main evidence proves bounded Moneta work and no full-data JS rematerialisation | **DONE** |
+| Browser/WebXR migration checkpoint | #338 restored explicit presentation-only construction; the checkpoint proves authoritative rebuild after real WASM readiness and production WebGL2/WASM boot through the WebXR entry surface | representative browser/WebXR-entry smoke is green on migration-exit main | **DONE** |
 
 ## What #336 and #338 closed
 
@@ -43,9 +43,9 @@ The final fact-origin audit had found that production representation could still
 
 Legacy `SignatureBuilder`/minimal facts may remain only as explicitly non-authoritative compatibility or isolated-test scaffolding. They are not a production Moneta decision path.
 
-## Current parallel exit work
+## Landed exit work
 
-### PR #340 — terminology and Draco facade exit
+### PR #340 — terminology and Draco facade exit — merged
 
 - remove the deprecated `SpatialStrategy.confidence` utility alias;
 - keep utility represented as `score` / `utilityScore`, with decision status and margin carrying ambiguity information;
@@ -54,7 +54,7 @@ Legacy `SignatureBuilder`/minimal facts may remain only as explicitly non-author
 - add architecture tests preventing utility-as-confidence and Draco shadow-module regression;
 - migrate any CI-discovered legacy deep imports to canonical Moneta paths rather than restoring shims.
 
-### PR #341 — authoritative end-to-end replay proof
+### PR #341 — authoritative end-to-end replay proof — merged
 
 Prove the successful composition path without hand-authoring the representation decision:
 
@@ -62,7 +62,7 @@ Prove the successful composition path without hand-authoring the representation 
 
 Existing #332 tests remain the focused NIL and tamper/drift proof.
 
-### PR #342 — 10K to 10M scale exit matrix
+### PR #342 — 10K to 10M scale exit matrix — merged
 
 - exercise compact authoritative profiles at 10K, 100K, 1M and 10M source cardinalities;
 - prove evidence size and candidate enumeration remain bounded as N increases;
@@ -70,13 +70,23 @@ Existing #332 tests remain the focused NIL and tamper/drift proof.
 - prove the Moneta authority payload contains metadata, not source-row arrays;
 - complement, rather than duplicate, #305/#306 typed-column capacity benchmarks.
 
-## Remaining final work after #340-#342
+## Exit checkpoint evidence
 
-1. Refresh the real Rust/WASM columnar capacity benchmark on current `main` at the migration checkpoint. Do not manufacture 10M JavaScript row objects.
-2. Run the representative browser/WebXR smoke path, including startup before WASM readiness and authoritative rebuild after readiness.
-3. Sweep current review threads and required CI for blocker-class findings.
-4. If those gates pass, mark every migration row DONE and close the Draco-to-Moneta migration sprint.
-5. Reopen private-preview/productization, scientific validation, security/reliability hardening, and VR/UI/UX outcome work in the order defined by `docs/ROADMAP.md`.
+The checkpoint is anchored to current-main SHA `0a9afb3221a0690bc6c576bdd64f9f161bb970c4` (#342).
+
+1. **Rust/WASM capacity:** GitHub Actions run [32698495825](https://github.com/TsatsuAmable/nemosyne/actions/runs/32698495825) completed successfully. All three reloads preserved checksum identity. The 10M-tall scenario used a 320,000,000-byte logical core, loaded in 271.5 ms and recorded 640,221,184 bytes of first-run WASM growth; the 1M-wide scenario used a 275,000,000-byte logical core and 550,305,792 bytes of first-run growth; the 1M high-cardinality scenario used a 32,000,000-byte logical core and 73,269,248 bytes of first-run growth. The artifact is capacity characterization, not a production-promotion threshold.
+2. **Kernel lifecycle:** `tests/production-runtime-wiring.test.ts` constructs World before Atlas readiness, observes a presentation-only node with no RepresentationDecision, starts real WASM, then verifies replacement with a decision bound to the live Rust dataset fingerprint.
+3. **Production browser:** `tests/smoke/load.spec.ts` boots the production bundle in real headless Chromium/WebGL2, renders a frame, attaches the WebXR entry button, requires 200 responses for both generated WASM assets and treats kernel-unavailability console output as a failure.
+4. **Review and CI sweep:** PRs #333-#338 and #340-#342 are merged with no review threads. Required CI and approval gates for #340, #341 and #342 are green; #342's CI run 32695772659 includes Rust tests, a dev WASM build, typecheck, lint and the full test suite.
+5. **Checkpoint gate:** typecheck, lint, coverage (305 files / 1,877 tests; 81.14% statements, 69.48% branches), production build, 160 Rust tests and Playwright smoke all passed on the checkpoint branch.
+
+The Draco-to-Moneta migration sprint is complete. The next critical-path work is private-preview/productization, followed in parallel by the scientific validation, security/reliability hardening and VR/UI/UX outcome programmes ordered in `docs/ROADMAP.md`.
+
+## Post-exit performance finding
+
+The migration checkpoint proved 10M resident columnar capacity, not practical 10M end-to-end performance. The subsequent Rust/JS boundary envelope, independently reproduced by GitHub Actions run [32701995846](https://github.com/TsatsuAmable/nemosyne/actions/runs/32701995846), found that the columnar-only handle can ingest, identify, scan and reload 10M rows, but cannot produce the authoritative DatasetStructureProfile required by Moneta. The request fails closed with zero row materialisations and zero evidence bytes transferred. Migration authority remains closed; the practical massive-data claim is blocked on columnar-native evidence generation and the follow-up physical-device browser/LOD envelope tracked in `docs/ROADMAP.md`.
+
+The columnar profile follow-up closes that ABI discontinuity without reopening migration authority: the row-free Rust profile matches the row-backed contract and transfers approximately 2.7 KB at 10M. Hosted run [32704932983](https://github.com/TsatsuAmable/nemosyne/actions/runs/32704932983) reproduces the complete matrix and zero-materialisation evidence path. It also confirms the next performance limit: cold fingerprinting/evidence generation take approximately 10.7/3.2 seconds locally and 14.1/4.0 seconds on the hosted runner, while both retain approximately 1.25 GB of WASM memory. These are product/device blockers tracked in `docs/ROADMAP.md`, not a reversal of the completed authority migration.
 
 ## Verification cadence
 

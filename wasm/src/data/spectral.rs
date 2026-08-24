@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
 
 use crate::data::column::ColumnType;
+use crate::data::columnar::PrimitiveColumn;
 use crate::data::dataset::Dataset;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -40,6 +41,14 @@ pub fn compute_spectral_facts(
         .filter_map(|r| r.get(col_name).and_then(|v| v.as_number()))
         .collect();
 
+    compute_spectral_facts_from_values(values)
+}
+
+pub fn compute_spectral_facts_columnar(column: &PrimitiveColumn) -> Option<SpectralFacts> {
+    compute_spectral_facts_from_values(column.finite_values().collect())
+}
+
+fn compute_spectral_facts_from_values(values: Vec<f64>) -> Option<SpectralFacts> {
     let n = values.len();
     if n < 4 {
         return None;
