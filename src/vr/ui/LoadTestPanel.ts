@@ -5,6 +5,7 @@ import { WorldTopics } from '../../utils/EventBus.ts';
 import type { WorldEventBusLike, MovablePanelOptions } from '../coordinators/types.ts';
 import {
   DEFAULT_LOAD_TEST_PROFILE,
+  QUEST_3S_QUALIFICATION_PROFILE,
   type LoadTestDriver,
   type LoadTestProfile,
   type LoadTestSummary,
@@ -264,6 +265,7 @@ export class LoadTestPanel extends MovablePanel {
     // Row 2: Start (full), Stop, Flush, Download.
     const actions: { id: string; label: string }[] = [
       { id: 'start-full', label: 'START FULL' },
+      { id: 'start-quest', label: 'QUEST 3S' },
       { id: 'stop', label: 'STOP' },
       { id: 'flush', label: 'FLUSH LOG' },
       { id: 'download', label: 'DOWNLOAD' },
@@ -325,6 +327,9 @@ export class LoadTestPanel extends MovablePanel {
     switch (id) {
       case 'start-full':
         this._start(DEFAULT_LOAD_TEST_PROFILE);
+        break;
+      case 'start-quest':
+        this._start(QUEST_3S_QUALIFICATION_PROFILE);
         break;
       case 'stop':
         this._onStop?.();

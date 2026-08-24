@@ -8,6 +8,7 @@ import {
   type StepGpuStats,
   type StepResult,
 } from './LoadTestThresholds.ts';
+import { computeSustainedPerformanceProxy } from './QuestTelemetry.ts';
 
 /**
  * Per-frame trace collector for the VR load-test harness.
@@ -39,7 +40,18 @@ interface RendererInfoLike {
 /** Minimal Engine surface the collector depends on. */
 export interface LoadTestEngineLike {
   lastFrameMs: number;
+  frameIntervalMs?: number;
+  frameGovernor?: {
+    getMetrics(): {
+      lodScaleFactor: number;
+      throttleCount: number;
+    };
+  };
   renderer: { info: RendererInfoLike };
+}
+
+export interface LoadTestRuntimeProbe {
+  getWasmMemoryBytes?(): number | null;
 }
 
 interface GpuAccumulator {
@@ -66,6 +78,17 @@ function maxOf(arr: number[]): number {
   return arr.length === 0 ? 0 : Math.max(...arr);
 }
 
+function nullableMax(values: number[], start: number | null, end: number | null): number | null {
+  const candidates = [...values];
+  if (start !== null) candidates.push(start);
+  if (end !== null) candidates.push(end);
+  return candidates.length === 0 ? null : Math.max(...candidates);
+}
+
+function nullableDelta(start: number | null, end: number | null): number | null {
+  return start === null || end === null ? null : end - start;
+}
+
 /** Read Chromium-only `performance.memory.usedJSHeapSize`; undefined elsewhere. */
 function heapUsed(): number | null {
   const mem = (performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory;
@@ -74,28 +97,45 @@ function heapUsed(): number | null {
 
 export class LoadTestCollector implements Updatable {
   private _frameMs: number[] = [];
+  private _frameIntervalsMs: number[] = [];
   private _gpu: GpuAccumulator = emptyGpuAcc();
   private _heapStart: number | null = null;
   private _heapSamples: number[] = [];
+  private _wasmStart: number | null = null;
+  private _wasmSamples: number[] = [];
+  private _lodScaleSamples: number[] = [];
+  private _governorThrottleStart = 0;
   private _criticalFrames = 0;
   private _active = false;
   private _stepStart = 0;
   private _currentSpec: LoadTestStepSpec | null = null;
 
-  constructor(private readonly _engine: LoadTestEngineLike) {}
+  constructor(
+    private readonly _engine: LoadTestEngineLike,
+    private readonly _runtimeProbe: LoadTestRuntimeProbe = {}
+  ) {}
 
   /** Engine updatable hook: records one frame iff a step is active. */
   update(_delta: number, _time: number): void {
     if (!this._active) return;
-    this.recordFrame(this._engine.lastFrameMs, this._engine.renderer.info);
+    this.recordFrame(
+      this._engine.lastFrameMs,
+      this._engine.renderer.info,
+      this._engine.frameIntervalMs ?? 0
+    );
   }
 
   /** Clear all buffers (called at the start of a run). */
   reset(): void {
     this._frameMs = [];
+    this._frameIntervalsMs = [];
     this._gpu = emptyGpuAcc();
     this._heapStart = null;
     this._heapSamples = [];
+    this._wasmStart = null;
+    this._wasmSamples = [];
+    this._lodScaleSamples = [];
+    this._governorThrottleStart = 0;
     this._criticalFrames = 0;
     this._active = false;
     this._stepStart = 0;
@@ -105,18 +145,26 @@ export class LoadTestCollector implements Updatable {
   /** Begin measuring a step. */
   startStep(spec: LoadTestStepSpec): void {
     this._frameMs = [];
+    this._frameIntervalsMs = [];
     this._gpu = emptyGpuAcc();
     this._heapSamples = [];
+    this._wasmSamples = [];
+    this._lodScaleSamples = [];
     this._criticalFrames = 0;
     this._heapStart = heapUsed();
+    this._wasmStart = this._runtimeProbe.getWasmMemoryBytes?.() ?? null;
+    this._governorThrottleStart = this._engine.frameGovernor?.getMetrics().throttleCount ?? 0;
     this._stepStart = performance.now();
     this._currentSpec = spec;
     this._active = true;
   }
 
   /** Record one frame's measurements. Public so it can be driven in tests. */
-  recordFrame(frameMs: number, info: RendererInfoLike): void {
+  recordFrame(frameMs: number, info: RendererInfoLike, frameIntervalMs = 0): void {
     this._frameMs.push(frameMs);
+    if (frameIntervalMs > 0 && Number.isFinite(frameIntervalMs)) {
+      this._frameIntervalsMs.push(frameIntervalMs);
+    }
 
     const render = info?.render ?? {};
     this._gpu.calls.push(render.calls ?? 0);
@@ -129,6 +177,10 @@ export class LoadTestCollector implements Updatable {
 
     const heap = heapUsed();
     if (heap !== null) this._heapSamples.push(heap);
+    const wasmBytes = this._runtimeProbe.getWasmMemoryBytes?.() ?? null;
+    if (wasmBytes !== null) this._wasmSamples.push(wasmBytes);
+    const governor = this._engine.frameGovernor?.getMetrics();
+    if (governor) this._lodScaleSamples.push(governor.lodScaleFactor);
 
     // Critical-budget proxy, mirroring PerformanceBudget's 2x rule for the
     // gates that have a critical tier (frameMs, drawCalls). A frame that trips
@@ -140,9 +192,17 @@ export class LoadTestCollector implements Updatable {
   }
 
   /** Stop measuring and compute the StepResult (stats + verdict). */
-  endStep(opts: { warnings?: number; errors?: number; specGeometry?: string; specLayout?: string } = {}): StepResult {
+  endStep(opts: {
+    warnings?: number;
+    errors?: number;
+    specGeometry?: string;
+    specLayout?: string;
+    renderedNodeCount?: number;
+    loadDurationMs?: number;
+  } = {}): StepResult {
     this._active = false;
     const frames = computeFrameStats(this._frameMs);
+    const frameCadence = computeFrameStats(this._frameIntervalsMs);
     const gpu: StepGpuStats = {
       drawCallsMax: maxOf(this._gpu.calls),
       drawCallsAvg: avg(this._gpu.calls),
@@ -156,17 +216,57 @@ export class LoadTestCollector implements Updatable {
       texturesMax: maxOf(this._gpu.textures),
     };
     const heapEnd = heapUsed();
-    const heapDeltaBytes =
-      this._heapStart !== null && heapEnd !== null ? heapEnd - this._heapStart : null;
+    const wasmEnd = this._runtimeProbe.getWasmMemoryBytes?.() ?? null;
+    const heapDeltaBytes = nullableDelta(this._heapStart, heapEnd);
+    const governor = this._engine.frameGovernor?.getMetrics();
+    const governorThrottleEvents = Math.max(
+      0,
+      (governor?.throttleCount ?? this._governorThrottleStart) - this._governorThrottleStart
+    );
 
-    const verdict = computeVerdict({ frames, criticalViolations: this._criticalFrames });
+    const verdictFrames = frameCadence.frameCount > 0 ? frameCadence : frames;
+    const verdict = computeVerdict({
+      frames: verdictFrames,
+      criticalViolations: this._criticalFrames,
+    });
 
     const spec = this._currentSpec ?? { topology: 'TABULAR', rowCount: 0, durationSec: 0 };
     return {
       spec,
       frames,
+      frameCadence,
       gpu,
       heapDeltaBytes,
+      memory: {
+        jsHeapStartBytes: this._heapStart,
+        jsHeapPeakBytes: nullableMax(this._heapSamples, this._heapStart, heapEnd),
+        jsHeapEndBytes: heapEnd,
+        jsHeapDeltaBytes: heapDeltaBytes,
+        wasmStartBytes: this._wasmStart,
+        wasmPeakBytes: nullableMax(this._wasmSamples, this._wasmStart, wasmEnd),
+        wasmEndBytes: wasmEnd,
+        wasmDeltaBytes: nullableDelta(this._wasmStart, wasmEnd),
+      },
+      representation: {
+        sourceRowCount: spec.rowCount,
+        renderedNodeCount: opts.renderedNodeCount ?? null,
+        renderedFraction:
+          typeof opts.renderedNodeCount === 'number' && spec.rowCount > 0
+            ? opts.renderedNodeCount / spec.rowCount
+            : null,
+        geometry: opts.specGeometry ?? null,
+        layout: opts.specLayout ?? null,
+        governorLodScaleMinimum:
+          this._lodScaleSamples.length > 0 ? Math.min(...this._lodScaleSamples) : null,
+        governorLodScaleFinal: governor?.lodScaleFactor ?? null,
+        governorThrottleEvents,
+      },
+      sustainedPerformance: computeSustainedPerformanceProxy(
+        this._frameIntervalsMs,
+        this._frameMs,
+        governorThrottleEvents
+      ),
+      loadDurationMs: opts.loadDurationMs ?? 0,
       criticalViolations: this._criticalFrames,
       warnings: opts.warnings ?? 0,
       errors: opts.errors ?? 0,

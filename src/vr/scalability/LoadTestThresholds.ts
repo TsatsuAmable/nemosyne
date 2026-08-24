@@ -49,6 +49,28 @@ export interface StepGpuStats {
   texturesMax: number;
 }
 
+export interface StepMemoryStats {
+  jsHeapStartBytes: number | null;
+  jsHeapPeakBytes: number | null;
+  jsHeapEndBytes: number | null;
+  jsHeapDeltaBytes: number | null;
+  wasmStartBytes: number | null;
+  wasmPeakBytes: number | null;
+  wasmEndBytes: number | null;
+  wasmDeltaBytes: number | null;
+}
+
+export interface StepRepresentationStats {
+  sourceRowCount: number;
+  renderedNodeCount: number | null;
+  renderedFraction: number | null;
+  geometry: string | null;
+  layout: string | null;
+  governorLodScaleMinimum: number | null;
+  governorLodScaleFinal: number | null;
+  governorThrottleEvents: number;
+}
+
 /** One step of a staircase run, after measurement + verdict. */
 export interface LoadTestStepSpec {
   topology: string;
@@ -60,9 +82,14 @@ export interface LoadTestStepSpec {
 export interface StepResult {
   spec: LoadTestStepSpec;
   frames: StepFrameStats;
+  frameCadence: StepFrameStats;
   gpu: StepGpuStats;
   /** JS heap delta across the step (Chromium `performance.memory`); null if unsupported. */
   heapDeltaBytes: number | null;
+  memory: StepMemoryStats;
+  representation: StepRepresentationStats;
+  sustainedPerformance: import('./QuestTelemetry.ts').SustainedPerformanceProxy;
+  loadDurationMs: number;
   /** Count of *critical* PerformanceBudget violations observed during the step. */
   criticalViolations: number;
   warnings: number;

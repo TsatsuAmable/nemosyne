@@ -241,7 +241,16 @@ export class World {
         getActiveSpecInfo: () => this._getActiveSpecInfo(),
         eventBus: this.eventBus as WorldEventBusLike,
       },
-      this.engine
+      this.engine,
+      {
+        getWasmMemoryBytes: () => {
+          try {
+            return this._wasmRuntime?.memory?.().buffer.byteLength ?? null;
+          } catch {
+            return null;
+          }
+        },
+      }
     );
     this.engine.addUpdatable(this.loadTestDriver);
     this.engine.telemetry = this.telemetryCollector;
@@ -1694,10 +1703,22 @@ export class World {
   // --- Load-test harness (WASM command-buffer decision) ---
 
   /** Read the geometry/layout the Draco solver actually picked for the current palace. */
-  _getActiveSpecInfo(): { geometry?: string; layout?: string } | null {
+  _getActiveSpecInfo(): {
+    geometry?: string;
+    layout?: string;
+    renderedNodeCount?: number;
+  } | null {
     const spec = this.dracoNode?.solverResult?.spec;
     if (!spec) return null;
-    return { geometry: String(spec.geometry), layout: String(spec.layout) };
+    const renderedNodeCount = this.dracoNode?.artifact?.nodeMeshes?.reduce(
+      (total, mesh) => total + (mesh instanceof THREE.InstancedMesh ? mesh.count : 1),
+      0
+    );
+    return {
+      geometry: String(spec.geometry),
+      layout: String(spec.layout),
+      renderedNodeCount,
+    };
   }
 
   /**
