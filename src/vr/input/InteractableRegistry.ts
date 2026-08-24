@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import type { FeedbackLike, PanelLike } from '../coordinators/types.ts';
+import { BVHSpatialAccelerator } from '../scalability/BVHSpatialAccelerator.ts';
 
 export interface InteractableEntry {
   mesh: THREE.Object3D;
@@ -56,13 +57,16 @@ export class InteractableRegistry {
   }
 
   set interactables(value: InteractableEntry[]) {
+    for (const entry of this._interactables) this._disposeSpatialAcceleration(entry.mesh);
     this._interactables = value;
     this._interactableMeshes = value.map((entry) => entry.mesh);
+    for (const entry of value) this._prepareSpatialAcceleration(entry.mesh);
   }
 
   addInteractable(mesh: THREE.Object3D, handlers: Partial<InteractableEntry> = {}) {
     this._interactables.push({ mesh, ...handlers });
     this._interactableMeshes.push(mesh);
+    this._prepareSpatialAcceleration(mesh);
   }
 
   removeInteractable(mesh: THREE.Object3D) {
@@ -70,6 +74,7 @@ export class InteractableRegistry {
     if (idx >= 0) {
       this._interactables.splice(idx, 1);
       this._interactableMeshes.splice(idx, 1);
+      this._disposeSpatialAcceleration(mesh);
     }
   }
 
@@ -93,11 +98,24 @@ export class InteractableRegistry {
 
   clear() {
     this.clearHover();
+    for (const entry of this._interactables) this._disposeSpatialAcceleration(entry.mesh);
     this._interactables = [];
     this._interactableMeshes = [];
     this.hudObjects = [];
     this.panels = [];
     this.suppressSceneSelection = false;
+  }
+
+  private _prepareSpatialAcceleration(object: THREE.Object3D): void {
+    if (object instanceof THREE.Mesh && object.geometry) {
+      BVHSpatialAccelerator.buildTree(object);
+    }
+  }
+
+  private _disposeSpatialAcceleration(object: THREE.Object3D): void {
+    if (object instanceof THREE.Mesh && object.geometry) {
+      BVHSpatialAccelerator.disposeTree(object);
+    }
   }
 
   setSuppressSceneSelection(enabled: boolean) {
