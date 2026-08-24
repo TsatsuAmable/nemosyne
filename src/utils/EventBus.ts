@@ -34,13 +34,16 @@ export const WorldTopics = {
   LOADTEST_SAMPLE: 'loadtest:sample',
   LOADTEST_STEP: 'loadtest:step',
   LOADTEST_COMPLETE: 'loadtest:complete',
+  QUEST_BOUNDARY_START: 'quest-boundary:start',
+  QUEST_BOUNDARY_PROGRESS: 'quest-boundary:progress',
+  QUEST_BOUNDARY_COMPLETE: 'quest-boundary:complete',
   USER_MODE_APPLIED: 'userMode:applied',
 } as const;
 
 export type WorldTopicName = (typeof WorldTopics)[keyof typeof WorldTopics];
 
 export interface NemosyneEventMap {
-  'interaction': unknown;
+  interaction: unknown;
   'interaction:log': unknown;
   'console:log': string;
   'console:warn': string;
@@ -63,6 +66,9 @@ export interface NemosyneEventMap {
   'loadtest:sample': unknown;
   'loadtest:step': unknown;
   'loadtest:complete': unknown;
+  'quest-boundary:start': unknown;
+  'quest-boundary:progress': unknown;
+  'quest-boundary:complete': unknown;
   'userMode:applied': { mode: string };
 }
 

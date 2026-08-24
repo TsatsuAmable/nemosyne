@@ -91,7 +91,12 @@ export class WorldUIManager {
   jitGestureHintManager: JITGestureHintManager | null = null;
   progressiveDisclosureController: ProgressiveDisclosureController | null = null;
 
-  constructor(engine: Engine, analystAnchor: Group, eventBus: WorldEventBusLike, callbacks: WorldUIManagerCallbacks = {}) {
+  constructor(
+    engine: Engine,
+    analystAnchor: Group,
+    eventBus: WorldEventBusLike,
+    callbacks: WorldUIManagerCallbacks = {}
+  ) {
     this.engine = engine;
     this.analystAnchor = analystAnchor;
     this.eventBus = eventBus;
@@ -158,7 +163,9 @@ export class WorldUIManager {
       position: [0.9, 1.35, -0.7],
       size: 0.5,
     } as LooseOptions);
-    this.miniOverview.setEnabled((callbacks.getSetting?.('miniOverview') as boolean | undefined) ?? true);
+    this.miniOverview.setEnabled(
+      (callbacks.getSetting?.('miniOverview') as boolean | undefined) ?? true
+    );
     this.engine.addUpdatable(this.miniOverview);
 
     // Peer-presence HUD for collaboration.
@@ -169,7 +176,9 @@ export class WorldUIManager {
       position: [-0.9, 1.35, -0.7],
       size: 0.5,
     } as LooseOptions);
-    this.peerPresenceHUD.setEnabled((callbacks.getSetting?.('peerPresence') as boolean | undefined) ?? true);
+    this.peerPresenceHUD.setEnabled(
+      (callbacks.getSetting?.('peerPresence') as boolean | undefined) ?? true
+    );
     this.engine.addUpdatable(this.peerPresenceHUD);
 
     // Curved analyst dashboard.
@@ -192,15 +201,21 @@ export class WorldUIManager {
     this.engine.addUpdatable(this.dashboard);
 
     // Hand-attached radial wheel menu.
-    const dominantHand = callbacks.getDominantHand?.() ??
-      (engine.input.hands.find((hand) => hand.handedness === 'right') as unknown as HandLike | undefined);
-    this.handWheelMenu = new HandWheelMenu(engine, dominantHand as HandLike, {
-      feedback: engine.input.feedback,
-      analystAnchor,
-      openAngleThreshold: Math.PI / 8,
-      closeAngleThreshold: Math.PI * 0.75,
-      hoverDelayMs: 120,
-    } as LooseOptions);
+    const dominantHand =
+      callbacks.getDominantHand?.() ??
+      (engine.input.hands.find((hand) => hand.handedness === 'right') as unknown as
+        HandLike | undefined);
+    this.handWheelMenu = new HandWheelMenu(
+      engine,
+      dominantHand as HandLike,
+      {
+        feedback: engine.input.feedback,
+        analystAnchor,
+        openAngleThreshold: Math.PI / 8,
+        closeAngleThreshold: Math.PI * 0.75,
+        hoverDelayMs: 120,
+      } as LooseOptions
+    );
     this.engine.addUpdatable(this.handWheelMenu);
     this.engine.addHudObject(this.handWheelMenu);
     this.engine.input.setHandWheelMenu(this.handWheelMenu);
@@ -292,7 +307,11 @@ export class WorldUIManager {
     // DracoDiagnosticHUD is owned by World (rebuilt per palace) and toggled via
     // world._toggleDracoDiagnostic, so it is not registered here.
     this.panelRolesManager.registerPanel('su-schema-mapping', 'Schema Mapping Panel', 'superuser');
-    this.panelRolesManager.registerPanel('su-gesture-confidence', 'Gesture Confidence HUD', 'superuser');
+    this.panelRolesManager.registerPanel(
+      'su-gesture-confidence',
+      'Gesture Confidence HUD',
+      'superuser'
+    );
   }
 
   getOrCreateOperationLogPanel(): OperationLogPanel {
@@ -339,6 +358,7 @@ export class WorldUIManager {
         driver: this.callbacks.loadTestDriver as LoadTestDriver,
         eventBus: this.eventBus,
         onStart: this.callbacks.onStartLoadTest,
+        onStartBoundary: this.callbacks.onStartQuestBoundary,
         onStop: this.callbacks.onStopLoadTest,
         onFlush: this.callbacks.onFlushLoadTest,
       });
@@ -355,7 +375,8 @@ export class WorldUIManager {
       // Schema mapping requires a Dataset; fall back to an empty placeholder so
       // the panel chrome can be reviewed in the Dev Lab even before a dataset
       // is loaded. A real dataset, when available, is wired via getDataset.
-      const ds = (this.callbacks.getDataset?.() as Dataset | null | undefined) ?? this._emptyDataset();
+      const ds =
+        (this.callbacks.getDataset?.() as Dataset | null | undefined) ?? this._emptyDataset();
       this.schemaMappingPanel = new SchemaMappingPanel(this.engine.cameraGroup, {
         dataset: ds,
         onApplyMapping: () => {},
@@ -429,12 +450,18 @@ export class WorldUIManager {
 
   toggleFrustrationResponseManager(): void {
     if (!this.frustrationResponseManager) {
-      const analyzer = (this.callbacks.frustrationAnalyzer as UXFrustrationAnalyzer | null | undefined) ?? null;
+      const analyzer =
+        (this.callbacks.frustrationAnalyzer as UXFrustrationAnalyzer | null | undefined) ?? null;
       if (!analyzer) {
-        this.vrConsole?.log?.('warn', ['Frustration Response Manager requires a UXFrustrationAnalyzer (none wired).']);
+        this.vrConsole?.log?.('warn', [
+          'Frustration Response Manager requires a UXFrustrationAnalyzer (none wired).',
+        ]);
         return;
       }
-      this.frustrationResponseManager = new FrustrationResponseManager(this.engine.cameraGroup, analyzer);
+      this.frustrationResponseManager = new FrustrationResponseManager(
+        this.engine.cameraGroup,
+        analyzer
+      );
     }
     this.vrConsole?.log?.('log', ['Frustration Response Manager constructed (review mode).']);
   }
@@ -463,7 +490,9 @@ export class WorldUIManager {
 
     const allowed = this.panelRolesManager.openPanel(id);
     if (!allowed) {
-      this.vrConsole?.log?.('warn', [`Panel [${id}] not permitted in mode ${this.panelRolesManager.uiMode}`]);
+      this.vrConsole?.log?.('warn', [
+        `Panel [${id}] not permitted in mode ${this.panelRolesManager.uiMode}`,
+      ]);
       return false;
     }
 

@@ -7,11 +7,35 @@
  * boundaries that have not yet been typed.
  */
 
-import type { BufferGeometry, Camera, Clock, Color, Group, Mesh, Object3D, Ray, Raycaster, Scene, Vector3, WebGLRenderer } from 'three';
+import type {
+  BufferGeometry,
+  Camera,
+  Clock,
+  Color,
+  Group,
+  Mesh,
+  Object3D,
+  Ray,
+  Raycaster,
+  Scene,
+  Vector3,
+  WebGLRenderer,
+} from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
 import type { AnalysisHistory } from '../../data/AnalysisHistory.ts';
 import type { LiveUpdate } from '../../data/connectors/DataConnector.ts';
-import type { DatasetJSON, EncodingMapping, Facts, OperationSpec, Provenance, ColumnSchema, TdaMapperGraph, PersistenceInterval, BettiPoint, TopologyType } from '../../data/types.ts';
+import type {
+  DatasetJSON,
+  EncodingMapping,
+  Facts,
+  OperationSpec,
+  Provenance,
+  ColumnSchema,
+  TdaMapperGraph,
+  PersistenceInterval,
+  BettiPoint,
+  TopologyType,
+} from '../../data/types.ts';
 import type { UXFrustrationAnalyzer } from '../../utils/UXFrustrationAnalyzer.ts';
 import type { LoadTestDriver, LoadTestProfile } from '../scalability/LoadTestDriver.ts';
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
@@ -41,10 +65,10 @@ export type VisualOperation =
   | 'aggregate'
   | 'cluster'
   | 'hierarchical'
-   | 'density'
-   | 'anomaly'
-   | 'timeSlice'
-   | 'compare';
+  | 'density'
+  | 'anomaly'
+  | 'timeSlice'
+  | 'compare';
 
 export type LensMode = 'off' | 'statistical' | 'anomaly';
 
@@ -107,7 +131,10 @@ export interface WasmRuntimeBridge {
   inferEncodings(handle: number, topology?: string): EncodingMapping | null;
   parseDatasetBytes(bytes: Uint8Array, ext: 'csv' | 'json'): DatasetJSON | null;
   computeMapperGraph(handle: number, params: Record<string, unknown>): TdaMapperGraph | null;
-  computePersistenceIntervals(handle: number, params: Record<string, unknown>): PersistenceInterval[] | null;
+  computePersistenceIntervals(
+    handle: number,
+    params: Record<string, unknown>
+  ): PersistenceInterval[] | null;
   computeBetti0Curve(handle: number, params: Record<string, unknown>): BettiPoint[] | null;
   memory?(): WebAssembly.Memory;
   // Full-surface members (AtlasCore reads these; optional so duck-typed mocks
@@ -162,6 +189,7 @@ export interface WorldUIManagerCallbacks {
   onStartLoadTest?: (profile: LoadTestProfile) => void;
   onStopLoadTest?: () => void;
   onFlushLoadTest?: () => void;
+  onStartQuestBoundary?: () => void;
   getRecommendation?: () => import('../../atlas/types.ts').AtlasRecommendation | null;
   onAcceptRecommendation?: () => void;
   onRejectRecommendation?: () => void;
@@ -313,7 +341,8 @@ export interface WorldUIManagerLike {
   vrConsole?: VRConsoleLike | null;
   telemetryPanel?: PanelLike | null;
   settingsPanel?: (SettingsPanelLike & PanelLike) | null;
-  operationLogPanel?: (PanelLike & { setEntries?(entries: unknown[]): void; log?(msg: unknown): void }) | null;
+  operationLogPanel?:
+    (PanelLike & { setEntries?(entries: unknown[]): void; log?(msg: unknown): void }) | null;
   metricsPanel?: PanelLike | null;
   performancePanel?: PanelLike | null;
   networkPanel?: (PanelLike & { setStatus?(status: Record<string, unknown>): void }) | null;
@@ -685,7 +714,10 @@ export interface PerformanceBudgetLike {
 export interface WorldEventBusLike<TEvents extends object = NemosyneEventMap> {
   emit<K extends keyof TEvents & string>(topic: K, payload?: TEvents[K]): void;
   emitDynamic(topic: string, payload?: unknown): void;
-  on<K extends keyof TEvents & string>(topic: K, handler: (payload: TEvents[K]) => void): () => void;
+  on<K extends keyof TEvents & string>(
+    topic: K,
+    handler: (payload: TEvents[K]) => void
+  ): () => void;
   onDynamic(topic: string, handler: (payload: unknown) => void): () => void;
 }
 
@@ -781,7 +813,10 @@ export interface WorldFacadeForLiveStream {
   loadDataset(entry: unknown): void;
   uiManager?: WorldUIManagerLike;
   vrMenu?: { setLiveConnected?(connected: boolean): void };
-  vrConsole?: { log?(level: string, args: unknown[]): void; warn?(level: string, args: unknown[]): void };
+  vrConsole?: {
+    log?(level: string, args: unknown[]): void;
+    warn?(level: string, args: unknown[]): void;
+  };
 }
 
 export interface WorldFacadeForCollaboration {
@@ -816,7 +851,10 @@ export interface NetworkManagerLike {
   connect(roomId?: string): Promise<void>;
   disconnect(): void;
   setLocalState(state: Record<string, unknown>): void;
-  broadcastCameraPose?(position: [number, number, number], rotation: [number, number, number, number]): void;
+  broadcastCameraPose?(
+    position: [number, number, number],
+    rotation: [number, number, number, number]
+  ): void;
   kickPeer?(peerId: string): void;
 }
 

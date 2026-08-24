@@ -57,7 +57,12 @@ import { WorldEventBus, WorldTopics } from '../utils/EventBus.ts';
 import { SceneGraphController } from './coordinators/SceneGraphController.ts';
 import { WorkspaceManager } from './coordinators/WorkspaceManager.ts';
 import { WorldRendererLifecycle } from './coordinators/WorldRendererLifecycle.ts';
-import { LoadTestDriver, type LoadTestProfile, type LoadTestSummary } from './scalability/LoadTestDriver.ts';
+import {
+  LoadTestDriver,
+  type LoadTestProfile,
+  type LoadTestSummary,
+} from './scalability/LoadTestDriver.ts';
+import { QuestBoundaryProbe, type QuestBoundarySummary } from './scalability/QuestBoundaryProbe.ts';
 import { DatumPlane } from './artifacts/DatumPlane.ts';
 import { TechnoCoreNode } from './artifacts/TechnoCoreNode.ts';
 import { IceVaultNode } from './artifacts/IceVaultNode.ts';
@@ -127,6 +132,7 @@ export class World {
   telemetryCollector: TelemetryCollectorLike;
   uiManager: WorldUIManager;
   loadTestDriver!: LoadTestDriver;
+  questBoundaryProbe!: QuestBoundaryProbe;
   inputCoordinator: WorldInputCoordinator;
   userModeController: UserModeController;
   comfortSettingsController: ComfortSettingsController;
@@ -174,8 +180,10 @@ export class World {
   tdaRecompute!: (() => void) | null;
   dashboardPanels!: { panel: ChartPlanePanel }[];
   _lastLoadTestSummary: LoadTestSummary | null = null;
+  _lastQuestBoundarySummary: QuestBoundarySummary | null = null;
   _telemetryConsentBeforeRun: boolean | null = null;
-  bootState: 'INITIALIZING' | 'READY' | 'KERNEL_UNAVAILABLE' | 'INCOMPATIBLE' | 'FATAL' = 'INITIALIZING';
+  bootState: 'INITIALIZING' | 'READY' | 'KERNEL_UNAVAILABLE' | 'INCOMPATIBLE' | 'FATAL' =
+    'INITIALIZING';
 
   constructor() {
     this.engine = new Engine();
@@ -253,6 +261,8 @@ export class World {
       }
     );
     this.engine.addUpdatable(this.loadTestDriver);
+    this.questBoundaryProbe = new QuestBoundaryProbe(this.engine, this.eventBus);
+    this.engine.addUpdatable(this.questBoundaryProbe);
     this.engine.telemetry = this.telemetryCollector;
 
     // UI manager owns all HUD panels, dashboard, and wheel menu. It is created
@@ -288,6 +298,7 @@ export class World {
       analysisHistory: this.dataOperationController.analysisHistory,
       loadTestDriver: this.loadTestDriver,
       onStartLoadTest: (profile) => this.runLoadTest(profile),
+      onStartQuestBoundary: () => this.runQuestBoundaryProbe(),
       onStopLoadTest: () => this.stopLoadTest(),
       onFlushLoadTest: () => this.flushLastLoadTestSummary(),
       getRecommendation: () => this.atlas.activeRecommendation ?? null,
@@ -352,7 +363,11 @@ export class World {
 
     // Comfort settings controller applies snap turn, vignette, seated height,
     // and panel distance to the engine/locomotion and analyst anchor.
-    this.comfortSettingsController = new ComfortSettingsController(this.engine, this.analystAnchor, this.sceneComposer);
+    this.comfortSettingsController = new ComfortSettingsController(
+      this.engine,
+      this.analystAnchor,
+      this.sceneComposer
+    );
 
     this.adaptiveAssist = new AdaptiveAssistController({
       engine: this.engine,
@@ -379,11 +394,13 @@ export class World {
 
     // In-place operation handles near data artefacts for direct manipulation.
     this.inPlaceHandles = new InPlaceOperationHandles(this.engine.scene, this.engine.camera, {
-      userMode: (this.uiManager.settingsPanel?.getSetting?.('userMode') as 'novice' | 'expert') ?? 'novice',
+      userMode:
+        (this.uiManager.settingsPanel?.getSetting?.('userMode') as 'novice' | 'expert') ?? 'novice',
       onOperation: (op) => this.dataOperationController.apply(op),
       onOperationHover: (op) => this.dataOperationController.preview(op),
       onOperationLeave: () => this.dataOperationController.clearPreview(),
-      onStructureCommand: (structureId, action) => this._executeStructureCommand(structureId, action),
+      onStructureCommand: (structureId, action) =>
+        this._executeStructureCommand(structureId, action),
     });
     this.engine.addUpdatable({
       update: (delta: number, time: number) =>
@@ -429,7 +446,8 @@ export class World {
 
     // Loader UI.
     this.loader = new FileLoaderUI({
-      onLoad: (entry: unknown) => this.loadDataset(this._maybeLoadSampleFromWasm(entry as DatasetLoadEntry)),
+      onLoad: (entry: unknown) =>
+        this.loadDataset(this._maybeLoadSampleFromWasm(entry as DatasetLoadEntry)),
       atlas: this.atlas,
     });
 
@@ -614,7 +632,12 @@ export class World {
    * browser download.
    */
   exportScreenshot(format: string = 'png'): void {
-    AnalysisStoryExporter.exportScreenshot(this.engine, this.uiManager.vrConsole, this._logInteraction, format);
+    AnalysisStoryExporter.exportScreenshot(
+      this.engine,
+      this.uiManager.vrConsole,
+      this._logInteraction,
+      format
+    );
   }
 
   /**
@@ -731,8 +754,7 @@ export class World {
     const fullEntry: DatasetLoadEntry = {
       key: entry.key,
       name: entry.label,
-      topology:
-        TopologyTypes[entry.topology as keyof typeof TopologyTypes] ?? entry.topology,
+      topology: TopologyTypes[entry.topology as keyof typeof TopologyTypes] ?? entry.topology,
       dataset: entry.dataset,
       maxDepth: entry.depth ?? 1,
       encodings: getDefaultEncodings({
@@ -774,7 +796,6 @@ export class World {
 
   /** Internal implementation called after the current frame yields. */
   _doLoadDataset(entry: DatasetLoadEntry): void {
-
     // Switch atmosphere to match dataset mood, if a preset is mapped.
     const presetName = entry.key && DATASET_THEME_MAP[entry.key];
     const preset = presetName ? WorldTheme.PRESETS[presetName] : null;
@@ -851,7 +872,7 @@ export class World {
       },
       this.atlas.asFactProvider(),
       false,
-      representationDecision,
+      representationDecision
     );
     this.engine.addUpdatable(this.dracoNode);
     this._wireArtifactInteraction(this.dracoNode);
@@ -874,7 +895,10 @@ export class World {
     this.analystAnchor.add(this.diagnostic.mesh);
 
     this.currentEntry = entry;
-    this.telemetryCollector?.recordDataset?.(entry.name ?? entry.label ?? 'dataset', entry.topology);
+    this.telemetryCollector?.recordDataset?.(
+      entry.name ?? entry.label ?? 'dataset',
+      entry.topology
+    );
 
     // Attach optional TDA summary group for numeric datasets.
     this._attachTDASummary();
@@ -919,8 +943,10 @@ export class World {
       this.tooltipManager.setTargets(dracoNode.artifact.nodeMeshes);
       for (const mesh of dracoNode.artifact.nodeMeshes) {
         this.engine.addInteractable(mesh, {
-          onEnter: (m: THREE.Object3D) => dracoNode.artifact?.interactions?.onHover?.(m as THREE.Mesh),
-          onLeave: (m: THREE.Object3D) => dracoNode.artifact?.interactions?.onUnhover?.(m as THREE.Mesh),
+          onEnter: (m: THREE.Object3D) =>
+            dracoNode.artifact?.interactions?.onHover?.(m as THREE.Mesh),
+          onLeave: (m: THREE.Object3D) =>
+            dracoNode.artifact?.interactions?.onUnhover?.(m as THREE.Mesh),
           onSelect: (m: THREE.Object3D) => {
             dracoNode.artifact?.interactions?.onSelect?.(m as THREE.Mesh);
             this._showDataCard(m as THREE.Mesh);
@@ -948,7 +974,10 @@ export class World {
     this._rebuildStructureHandles(dracoNode);
   }
 
-  private _rebuildStructureHandles(dracoNode: { artifact?: { nodeMeshes?: THREE.Mesh[] } | undefined; dataInput?: { topology?: string } | undefined }): void {
+  private _rebuildStructureHandles(dracoNode: {
+    artifact?: { nodeMeshes?: THREE.Mesh[] } | undefined;
+    dataInput?: { topology?: string } | undefined;
+  }): void {
     if (this.atlas.structures.length > 0) {
       this.inPlaceHandles.buildFromStructures(dracoNode as never, this.atlas.structures as never);
     } else {
@@ -975,14 +1004,19 @@ export class World {
 
     this.engine.input.feedback?.playPortalTone?.(zone, operation);
     this.engine.input.feedback?.playHaptic?.(0.7, 120);
-    this.uiManager.vrConsole?.log?.('log', [`Farcaster warp: ${zone}${operation ? ` + ${operation}` : ''}`]);
+    this.uiManager.vrConsole?.log?.('log', [
+      `Farcaster warp: ${zone}${operation ? ` + ${operation}` : ''}`,
+    ]);
     this._logInteraction('Portal warp', { result: `${zone}${operation ? ` + ${operation}` : ''}` });
     this._captureSession();
   }
 
   _togglePanels(): void {
     this.uiManager.panelManager.toggleLauncher();
-    this.adaptiveAssist.recordPanelToggle('launcher', this.uiManager.panelManager.isLauncherVisible());
+    this.adaptiveAssist.recordPanelToggle(
+      'launcher',
+      this.uiManager.panelManager.isLauncherVisible()
+    );
     this._logInteraction('Launcher', {
       result: this.uiManager.panelManager.isLauncherVisible() ? 'opened' : 'closed',
     });
@@ -1021,8 +1055,7 @@ export class World {
       dataset: entry.dataset,
       maxDepth: entry.depth,
     } as DatasetLoadEntry);
-    const topology =
-      TopologyTypes[entry.topology as keyof typeof TopologyTypes] ?? entry.topology;
+    const topology = TopologyTypes[entry.topology as keyof typeof TopologyTypes] ?? entry.topology;
     this.loadDataset({
       key: wasmEntry.key,
       name: wasmEntry.label ?? wasmEntry.name,
@@ -1128,7 +1161,10 @@ export class World {
 
   private _navigateToStructures(rowIndices: number[]): void {
     if (!this.dracoNode?.artifact?.nodeMeshes || rowIndices.length === 0) return;
-    let cx = 0, cy = 0, cz = 0, count = 0;
+    let cx = 0,
+      cy = 0,
+      cz = 0,
+      count = 0;
     for (let i = 0; i < this.dracoNode.artifact.nodeMeshes.length; i++) {
       if (rowIndices.includes(i)) {
         const mesh = this.dracoNode.artifact.nodeMeshes[i];
@@ -1179,8 +1215,17 @@ export class World {
       this.atlas.discoverClusterStructures(dataset, { op: opName, k: 3 } as never);
     } else if (this.tdaRecompute) {
       const filterValues = dataset.rows.map((r) => Number(r[dataset.columns[0]?.name] ?? 0));
-      this.atlas.discoverMapperStructures(dataset, { featureColumns: [dataset.columns[0]?.name].filter(Boolean), filterValues, bins: 10, overlap: 0.5 });
-      this.atlas.discoverPersistenceStructures(dataset, { featureColumns: [dataset.columns[0]?.name].filter(Boolean), filterValues, maxDistance: 2 });
+      this.atlas.discoverMapperStructures(dataset, {
+        featureColumns: [dataset.columns[0]?.name].filter(Boolean),
+        filterValues,
+        bins: 10,
+        overlap: 0.5,
+      });
+      this.atlas.discoverPersistenceStructures(dataset, {
+        featureColumns: [dataset.columns[0]?.name].filter(Boolean),
+        filterValues,
+        maxDistance: 2,
+      });
     }
 
     this.atlas.generateRecommendation();
@@ -1312,7 +1357,8 @@ export class World {
 
   _setStatisticalLensVisible(enabled: boolean): void {
     const tdaEnabled = enabled && (this.uiManager.settingsPanel?.getSetting('lensTDA') ?? true);
-    const corrEnabled = enabled && (this.uiManager.settingsPanel?.getSetting('lensCorrelation') ?? true);
+    const corrEnabled =
+      enabled && (this.uiManager.settingsPanel?.getSetting('lensCorrelation') ?? true);
     if (this.tdaGroup) this.tdaGroup.visible = tdaEnabled;
     const corr = this.dashboardPanels?.find((e) => e.panel?.chartType === 'CORRELATION');
     if (corr?.panel?.mesh) corr.panel.mesh.visible = corrEnabled;
@@ -1344,7 +1390,9 @@ export class World {
    */
   _toggleDracoDiagnostic(): void {
     if (!this.diagnostic) {
-      this.uiManager?.vrConsole?.log?.('warn', ['Draco Diagnostic HUD requires a loaded dataset/palace.']);
+      this.uiManager?.vrConsole?.log?.('warn', [
+        'Draco Diagnostic HUD requires a loaded dataset/palace.',
+      ]);
       return;
     }
     this.diagnostic.mesh.visible = !this.diagnostic.mesh.visible;
@@ -1364,7 +1412,9 @@ export class World {
     } else if (key === 'strictBudget') {
       const budgets = value ? { frameMs: 13.33, droppedFramesPer10s: 2 } : {};
       this.engine.performanceBudget?.setBudgets?.(budgets);
-      this.uiManager.vrConsole?.log?.('log', [`Performance budget ${value ? 'strict' : 'default'}`]);
+      this.uiManager.vrConsole?.log?.('log', [
+        `Performance budget ${value ? 'strict' : 'default'}`,
+      ]);
     } else if (key === 'collabEnabled') {
       if (value) this._joinCollaborationRoom();
       else this._leaveCollaborationRoom();
@@ -1375,7 +1425,9 @@ export class World {
       }
     } else if (key === 'userMode') {
       this.userModeController.apply();
-      this.inPlaceHandles?.setUserMode?.(this.uiManager.settingsPanel.getSetting('userMode') as 'novice' | 'expert');
+      this.inPlaceHandles?.setUserMode?.(
+        this.uiManager.settingsPanel.getSetting('userMode') as 'novice' | 'expert'
+      );
     } else if (['snapTurn', 'snapTurnAngle', 'reducedMotion'].includes(key)) {
       this.comfortSettingsController.apply(this.uiManager.settingsPanel.getAllSettings());
     } else if (key === 'vignette' || key === 'vignetteIntensity') {
@@ -1415,7 +1467,10 @@ export class World {
       (settings.dwellTimeMs as number) ?? 1200
     );
 
-    if (this.dracoNode && this.dracoNode.translatorOptions.colorblindMode !== options.colorblindMode) {
+    if (
+      this.dracoNode &&
+      this.dracoNode.translatorOptions.colorblindMode !== options.colorblindMode
+    ) {
       this.dracoNode.translatorOptions.colorblindMode = options.colorblindMode;
       this.dracoNode.reSolveAndSynthesize();
       // A full re-solve rebuilds the artefact from the dataset but drops the
@@ -1583,18 +1638,15 @@ export class World {
   _subscribeDataOperationEvents(): void {
     // Cross-cutting subscribers: keep logging, telemetry, and auto-save out of
     // feature methods by reacting to events instead of calling World directly.
-    this.eventBus.on(
-      WorldTopics.INTERACTION_LOG,
-      (payload: unknown) => {
-        const { action, gesture, controller, result } = payload as {
-          action: string;
-          gesture?: string;
-          controller?: string;
-          result?: string;
-        };
-        this.uiManager.interactionCoach?.log?.({ action, gesture, controller, result });
-      }
-    );
+    this.eventBus.on(WorldTopics.INTERACTION_LOG, (payload: unknown) => {
+      const { action, gesture, controller, result } = payload as {
+        action: string;
+        gesture?: string;
+        controller?: string;
+        result?: string;
+      };
+      this.uiManager.interactionCoach?.log?.({ action, gesture, controller, result });
+    });
 
     this.eventBus.on(WorldTopics.SESSION_CAPTURE, () => {
       this._requestAutoSave();
@@ -1610,74 +1662,62 @@ export class World {
 
     // Route interaction events (gestures, commands, settings changes) to the
     // interaction coach and telemetry so individual callers do not need to.
-    this.eventBus.on(
-      WorldTopics.INTERACTION,
-      (payload: unknown) => {
-        const { action, gesture, controller, result } = payload as {
-          action: string;
-          gesture?: string;
-          controller?: string;
-          result?: string;
-        };
-        this.eventBus.emit(WorldTopics.INTERACTION_LOG, { action, gesture, controller, result });
-      }
-    );
+    this.eventBus.on(WorldTopics.INTERACTION, (payload: unknown) => {
+      const { action, gesture, controller, result } = payload as {
+        action: string;
+        gesture?: string;
+        controller?: string;
+        result?: string;
+      };
+      this.eventBus.emit(WorldTopics.INTERACTION_LOG, { action, gesture, controller, result });
+    });
 
     this.eventBus.on(WorldTopics.GESTURE_RECOGNIZED, (payload: unknown) => {
       const { name } = payload as { name: string };
       this.telemetryCollector?.recordGesture?.(name);
     });
 
-    this.eventBus.on(
-      WorldTopics.OPERATION_APPLIED,
-      (payload: unknown) => {
-        const { operation, rowCount } = payload as { operation: string; rowCount?: number };
-        this.telemetryCollector?.recordOperation?.(operation);
-        if (operation === 'compare') {
-          // Compare changes the dataset shape, so rebuild the Draco artefact.
-          this._restoreDataset(this._transformedDataset, operation);
-        }
-        this._updateDashboardDatasets(this._transformedDataset);
-        if (this.tdaRecompute && operation !== 'anomaly') this.tdaRecompute();
-        this._discoverStructuresAndRecommend(operation);
-        this._updateOperationLog();
-        this._updateNarrativeStrip();
-        this.uiManager.vrConsole?.log?.('log', [`Operation: ${operation} → ${rowCount} rows`]);
-        this._logInteraction(operation, { result: `${rowCount} rows` });
-        this._requestAutoSave();
+    this.eventBus.on(WorldTopics.OPERATION_APPLIED, (payload: unknown) => {
+      const { operation, rowCount } = payload as { operation: string; rowCount?: number };
+      this.telemetryCollector?.recordOperation?.(operation);
+      if (operation === 'compare') {
+        // Compare changes the dataset shape, so rebuild the Draco artefact.
+        this._restoreDataset(this._transformedDataset, operation);
       }
-    );
+      this._updateDashboardDatasets(this._transformedDataset);
+      if (this.tdaRecompute && operation !== 'anomaly') this.tdaRecompute();
+      this._discoverStructuresAndRecommend(operation);
+      this._updateOperationLog();
+      this._updateNarrativeStrip();
+      this.uiManager.vrConsole?.log?.('log', [`Operation: ${operation} → ${rowCount} rows`]);
+      this._logInteraction(operation, { result: `${rowCount} rows` });
+      this._requestAutoSave();
+    });
 
-    this.eventBus.on(
-      WorldTopics.OPERATION_PREVIEW,
-      (payload: unknown) => {
-        const {
-          operation,
-          previewDataset,
-          originalDataset,
-          artifact,
-        } = payload as {
-          operation: string;
-          previewDataset: Dataset;
-          originalDataset: Dataset | null;
-          artifact: ArtifactRef;
-        };
-        this.livePreview.preview(operation, previewDataset, originalDataset ?? previewDataset, artifact);
-      }
-    );
+    this.eventBus.on(WorldTopics.OPERATION_PREVIEW, (payload: unknown) => {
+      const { operation, previewDataset, originalDataset, artifact } = payload as {
+        operation: string;
+        previewDataset: Dataset;
+        originalDataset: Dataset | null;
+        artifact: ArtifactRef;
+      };
+      this.livePreview.preview(
+        operation,
+        previewDataset,
+        originalDataset ?? previewDataset,
+        artifact
+      );
+    });
 
     this.eventBus.on(WorldTopics.OPERATION_CLEAR_PREVIEW, () => {
       this.livePreview.clear();
     });
 
-    this.eventBus.on(
-      WorldTopics.HISTORY_SEEK,
-      (payload: unknown) => {
-        const { operation, dataset } = payload as { operation: string; dataset: Dataset };
-        this._restoreDataset(dataset, operation);
-        this._updateNarrativeStrip();
-      }
-    );
+    this.eventBus.on(WorldTopics.HISTORY_SEEK, (payload: unknown) => {
+      const { operation, dataset } = payload as { operation: string; dataset: Dataset };
+      this._restoreDataset(dataset, operation);
+      this._updateNarrativeStrip();
+    });
 
     this.eventBus.on(WorldTopics.SESSION_AUTOSAVE_REQUEST, () => {
       this._requestAutoSave();
@@ -1693,6 +1733,12 @@ export class World {
       this._lastLoadTestSummary = summary;
       this._enrichAndFlushLoadTestSummary(summary);
       this._restoreTelemetryConsent();
+    });
+
+    this.eventBus.on(WorldTopics.QUEST_BOUNDARY_COMPLETE, (payload: unknown) => {
+      const summary = payload as QuestBoundarySummary;
+      this._lastQuestBoundarySummary = summary;
+      this._flushQuestBoundarySummary(summary);
     });
   }
 
@@ -1727,6 +1773,8 @@ export class World {
    * perf trace is captured independently by the LoadTestCollector.
    */
   runLoadTest(profile?: LoadTestProfile): void {
+    if (this.questBoundaryProbe.running) return;
+    this._lastQuestBoundarySummary = null;
     // Show the panel so the user sees live progress.
     this.uiManager?.showPanel?.(this.uiManager.getOrCreateLoadTestPanel());
     this._telemetryConsentBeforeRun = !!this.telemetryCollector?.enabled;
@@ -1738,15 +1786,49 @@ export class World {
     this.loadTestDriver.run(profile);
   }
 
+  runQuestBoundaryProbe(): void {
+    if (this.loadTestDriver.phase !== 'IDLE' && this.loadTestDriver.phase !== 'COMPLETE') return;
+    this._lastLoadTestSummary = null;
+    this.uiManager?.showPanel?.(this.uiManager.getOrCreateLoadTestPanel());
+    this.questBoundaryProbe.run();
+  }
+
   /** Abort a running load test. */
   stopLoadTest(): void {
     this.loadTestDriver.stop();
+    this.questBoundaryProbe.stop();
   }
 
   /** Re-POST the last completed summary to the local dev-server log endpoint. */
   flushLastLoadTestSummary(): void {
     if (this._lastLoadTestSummary) {
       this._enrichAndFlushLoadTestSummary(this._lastLoadTestSummary);
+    }
+    if (this._lastQuestBoundarySummary) {
+      this._flushQuestBoundarySummary(this._lastQuestBoundarySummary);
+    }
+  }
+
+  _flushQuestBoundarySummary(summary: QuestBoundarySummary): void {
+    try {
+      void fetch('/__loadtest-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(summary),
+      }).catch(() => {});
+    } catch {
+      return;
+    }
+    try {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[QUEST 10M] status=${summary.outcome.status} | ` +
+          `evidence=${summary.qualification.evidencePathAvailableAt10m} | ` +
+          `maxGapMs=${summary.maximumFrameGapMs ?? 'unknown'} | ` +
+          `auditGate=${summary.qualification.promotionBlockedByAudits}`
+      );
+    } catch {
+      return;
     }
   }
 
@@ -1788,9 +1870,9 @@ export class World {
       // eslint-disable-next-line no-console
       console.log(
         `[LOAD TEST] ${summary.profileName} | XR=${summary.xrActive} | ` +
-        `sufficientTo=${summary.verdict.jsPathSufficientTo} ` +
-        `warrantedAt=${summary.verdict.commandBufferWarrantedAt} | ` +
-        summary.verdict.recommendation
+          `sufficientTo=${summary.verdict.jsPathSufficientTo} ` +
+          `warrantedAt=${summary.verdict.commandBufferWarrantedAt} | ` +
+          summary.verdict.recommendation
       );
     } catch {
       // ignore
@@ -1809,12 +1891,16 @@ export class World {
     };
     const digest = tc?.frustrationAnalyzer?.getCompactDigest?.();
     return {
-      frictionLevel: typeof digest?.frictionLevel === 'string' ? (digest.frictionLevel as string) : 'unknown',
-      dissatisfactionScore: typeof digest?.dissatisfactionScore === 'number' ? (digest.dissatisfactionScore as number) : 0,
+      frictionLevel:
+        typeof digest?.frictionLevel === 'string' ? (digest.frictionLevel as string) : 'unknown',
+      dissatisfactionScore:
+        typeof digest?.dissatisfactionScore === 'number'
+          ? (digest.dissatisfactionScore as number)
+          : 0,
       detectedPatterns: Array.isArray(digest?.detectedPatterns)
         ? (digest.detectedPatterns as Array<{ name?: string } | string>).map((p) =>
-          typeof p === 'string' ? p : p?.name ?? 'pattern'
-        )
+            typeof p === 'string' ? p : (p?.name ?? 'pattern')
+          )
         : [],
       telemetryConsentEnabled: !!this.telemetryCollector?.enabled,
     };
@@ -1964,7 +2050,9 @@ export class World {
         this._wasmUnavailable = true;
         this.bootState = 'KERNEL_UNAVAILABLE';
         console.error('[World] analytical kernel unavailable:', err);
-        this.uiManager.vrConsole?.log?.('error', ['Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.']);
+        this.uiManager.vrConsole?.log?.('error', [
+          'Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.',
+        ]);
       });
 
     this.engine.start();

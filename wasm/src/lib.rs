@@ -663,6 +663,12 @@ pub fn dataset_fingerprint(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     write_str_out(&fp, out_ptr, out_len)
 }
 
+#[wasm_bindgen]
+pub fn data_typed_dataset_fingerprint(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    let fingerprint = data::typed_ingest::typed_dataset_fingerprint(handle);
+    write_str_out(&fingerprint, out_ptr, out_len)
+}
+
 /// Infer a dataset's topology and return the topology name string
 /// (`TABULAR`/`HIERARCHY`/`GRAPH`/`TIME_SERIES`/`VECTOR_FIELD`/`GEO`/`FLOW`).
 #[wasm_bindgen]
@@ -1411,6 +1417,38 @@ mod tests {
         assert_eq!(profile["columnCount"], 2);
         assert_eq!(profile["categorical"]["summaries"][0]["cardinality"], 2);
         assert_eq!(data::row_materialisation_count(), materialisations_before);
+        dealloc(out, required);
+        dataset_destroy(handle);
+    }
+
+    #[test]
+    fn typed_fingerprint_uses_the_output_buffer_abi() {
+        let columns = vec![data::column::Column::new(
+            "x",
+            data::column::ColumnType::Numeric,
+        )];
+        let columnar = data::columnar::ColumnarDataset::from_parts(
+            2,
+            std::collections::HashMap::from([(
+                0,
+                data::columnar::PrimitiveColumn {
+                    values: vec![1.0, 2.0],
+                    validity: vec![1, 1],
+                },
+            )]),
+            std::collections::HashMap::new(),
+        )
+        .expect("valid columnar dataset");
+        let handle = data::register_columnar_dataset("typed-fingerprint".to_string(), columns, columnar);
+
+        let required = data_typed_dataset_fingerprint(handle, 0, 0);
+        assert_eq!(required, 64);
+        let out = alloc(required);
+        assert_eq!(data_typed_dataset_fingerprint(handle, out, required), required);
+        let fingerprint = std::str::from_utf8(unsafe { allocator::view(out, required) })
+            .expect("fingerprint utf8");
+        assert!(fingerprint.bytes().all(|byte| byte.is_ascii_hexdigit()));
+
         dealloc(out, required);
         dataset_destroy(handle);
     }

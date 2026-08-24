@@ -11,6 +11,10 @@ import {
   type LoadTestSummary,
 } from '../scalability/LoadTestDriver.ts';
 import type { StepFrameStats, VerdictGrade } from '../scalability/LoadTestThresholds.ts';
+import type {
+  QuestBoundaryProgress,
+  QuestBoundarySummary,
+} from '../scalability/QuestBoundaryProbe.ts';
 
 /** Live sample payload emitted on LOADTEST_SAMPLE. */
 interface LoadTestSample {
@@ -30,7 +34,12 @@ interface LoadTestStepEvent {
   stepIndex: number;
   totalSteps: number;
   spec?: { topology: string; rowCount: number; durationSec: number; label?: string };
-  result?: { grade: VerdictGrade; reasons: string[]; spec: { rowCount: number }; frames: StepFrameStats };
+  result?: {
+    grade: VerdictGrade;
+    reasons: string[];
+    spec: { rowCount: number };
+    frames: StepFrameStats;
+  };
   partial?: boolean;
 }
 
@@ -39,6 +48,7 @@ interface LoadTestPanelOptions extends MovablePanelOptions {
   eventBus: WorldEventBusLike;
   /** Start a run with the given profile (World wraps telemetry-consent around it). */
   onStart?: (profile: LoadTestProfile) => void;
+  onStartBoundary?: () => void;
   onStop?: () => void;
   /** Re-POST the last summary to the local dev-server log endpoint. */
   onFlush?: () => void;
@@ -90,11 +100,16 @@ const SIZE_PRESETS: { id: string; label: string; profile: LoadTestProfile }[] = 
 export class LoadTestPanel extends MovablePanel {
   private readonly _driver: LoadTestDriver;
   private readonly _onStart?: (profile: LoadTestProfile) => void;
+  private readonly _onStartBoundary?: () => void;
   private readonly _onStop?: () => void;
   private readonly _onFlush?: () => void;
   private _lastSample: LoadTestSample | null = null;
   private _lastStep: LoadTestStepEvent | null = null;
   private _lastSummary: LoadTestSummary | null = null;
+  private _lastBoundarySummary: QuestBoundarySummary | null = null;
+  private _lastDownloadPayload: LoadTestSummary | QuestBoundarySummary | null = null;
+  private _boundaryProgress: QuestBoundaryProgress | null = null;
+  private _boundaryRunning = false;
   private _dirty = true;
   private _buttons: BtnRect[] = [];
   private _unsubs: Array<() => void> = [];
@@ -114,6 +129,7 @@ export class LoadTestPanel extends MovablePanel {
     });
     this._driver = options.driver;
     this._onStart = options.onStart;
+    this._onStartBoundary = options.onStartBoundary;
     this._onStop = options.onStop;
     this._onFlush = options.onFlush;
 
@@ -135,7 +151,30 @@ export class LoadTestPanel extends MovablePanel {
     this._unsubs.push(
       bus.on(WorldTopics.LOADTEST_COMPLETE, (p) => {
         this._lastSummary = p as LoadTestSummary;
+        this._lastDownloadPayload = this._lastSummary;
         this._lastSample = null;
+        this._dirty = true;
+      })
+    );
+    this._unsubs.push(
+      bus.on(WorldTopics.QUEST_BOUNDARY_START, () => {
+        this._boundaryRunning = true;
+        this._lastBoundarySummary = null;
+        this._lastDownloadPayload = null;
+        this._dirty = true;
+      })
+    );
+    this._unsubs.push(
+      bus.on(WorldTopics.QUEST_BOUNDARY_PROGRESS, (p) => {
+        this._boundaryProgress = p as QuestBoundaryProgress;
+        this._dirty = true;
+      })
+    );
+    this._unsubs.push(
+      bus.on(WorldTopics.QUEST_BOUNDARY_COMPLETE, (p) => {
+        this._boundaryRunning = false;
+        this._lastBoundarySummary = p as QuestBoundarySummary;
+        this._lastDownloadPayload = this._lastBoundarySummary;
         this._dirty = true;
       })
     );
@@ -166,6 +205,10 @@ export class LoadTestPanel extends MovablePanel {
     return this._lastSummary;
   }
 
+  get lastBoundarySummary(): QuestBoundarySummary | null {
+    return this._lastBoundarySummary;
+  }
+
   renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
     const pad = 20;
     const lineH = 26;
@@ -189,8 +232,19 @@ export class LoadTestPanel extends MovablePanel {
     ctx.font = this._scaleFont('15px monospace');
     ctx.fillStyle = '#ccffff';
     const stepLabel = cur ? `${cur.label ?? cur.rowCount} (${cur.topology})` : '-';
-    ctx.fillText(`Phase: ${phase}`, pad + 8, y + lineH);
-    ctx.fillText(`Step: ${idx}/${total}  ${stepLabel}`, pad + 8, y + lineH * 2);
+    const boundary = this._boundaryProgress;
+    ctx.fillText(
+      this._boundaryRunning && boundary ? `Phase: QUEST 10M ${boundary.phase}` : `Phase: ${phase}`,
+      pad + 8,
+      y + lineH
+    );
+    ctx.fillText(
+      this._boundaryRunning && boundary
+        ? `Fixture: ${boundary.progressPercent.toFixed(1)}%`
+        : `Step: ${idx}/${total}  ${stepLabel}`,
+      pad + 8,
+      y + lineH * 2
+    );
     y += lineH * 2 + 8;
 
     // --- LIVE METRICS (from last sample) ---
@@ -202,13 +256,38 @@ export class LoadTestPanel extends MovablePanel {
     const s = this._lastSample;
     ctx.font = this._scaleFont('15px monospace');
     ctx.fillStyle = '#ccffff';
-    if (s) {
+    if (this._boundaryRunning && boundary) {
+      ctx.fillText(`Rust boundary phase: ${boundary.phase}`, pad + 8, y + lineH);
+      ctx.fillText(
+        `Synthetic column fill: ${boundary.progressPercent.toFixed(1)}%`,
+        pad + 8,
+        y + lineH * 2
+      );
+      ctx.fillText('Frame gaps and WASM memory are being recorded.', pad + 8, y + lineH * 3);
+      y += lineH * 3 + 8;
+    } else if (s) {
       const f = s.frames;
       const progress = Math.min(100, (s.elapsedMs / (s.spec.durationSec * 1000)) * 100);
-      ctx.fillText(`p50 ${f.p50Ms.toFixed(1)}  p95 ${f.p95Ms.toFixed(1)}  p99 ${f.p99Ms.toFixed(1)} ms`, pad + 8, y + lineH);
-      ctx.fillText(`fps ${f.fpsAvg.toFixed(0)}  dropped ${f.droppedPct.toFixed(1)}%  gc-spikes ${f.gcSpikes}`, pad + 8, y + lineH * 2);
-      ctx.fillText(`draw ${s.gpu.drawCalls}  tri ${s.gpu.triangles}  pts ${s.gpu.points}  lines ${s.gpu.lines}`, pad + 8, y + lineH * 3);
-      ctx.fillText(`frames ${s.frameCount}  progress ${progress.toFixed(0)}%  crit ${s.criticalFrames}`, pad + 8, y + lineH * 4);
+      ctx.fillText(
+        `p50 ${f.p50Ms.toFixed(1)}  p95 ${f.p95Ms.toFixed(1)}  p99 ${f.p99Ms.toFixed(1)} ms`,
+        pad + 8,
+        y + lineH
+      );
+      ctx.fillText(
+        `fps ${f.fpsAvg.toFixed(0)}  dropped ${f.droppedPct.toFixed(1)}%  gc-spikes ${f.gcSpikes}`,
+        pad + 8,
+        y + lineH * 2
+      );
+      ctx.fillText(
+        `draw ${s.gpu.drawCalls}  tri ${s.gpu.triangles}  pts ${s.gpu.points}  lines ${s.gpu.lines}`,
+        pad + 8,
+        y + lineH * 3
+      );
+      ctx.fillText(
+        `frames ${s.frameCount}  progress ${progress.toFixed(0)}%  crit ${s.criticalFrames}`,
+        pad + 8,
+        y + lineH * 4
+      );
       y += lineH * 4 + 8;
     } else {
       ctx.fillText('Idle — select a size to start.', pad + 8, y + lineH);
@@ -221,8 +300,30 @@ export class LoadTestPanel extends MovablePanel {
     ctx.fillText('// VERDICT', pad, y + lineH);
     y += lineH + 4;
 
+    const boundarySummary = this._lastBoundarySummary;
     const summary = this._lastSummary;
-    if (summary) {
+    if (boundarySummary && this._lastDownloadPayload === boundarySummary) {
+      ctx.font = this._scaleFont('15px monospace');
+      ctx.fillStyle = boundarySummary.outcome.status === 'completed' ? '#88ffcc' : '#ff6677';
+      ctx.fillText(
+        `10M boundary: ${boundarySummary.outcome.status.toUpperCase()}`,
+        pad + 8,
+        y + lineH
+      );
+      ctx.fillText(
+        `WASM retained: ${boundarySummary.memory.retainedWasmGrowthBytes ?? 'unknown'} bytes`,
+        pad + 8,
+        y + lineH * 2
+      );
+      ctx.fillText(
+        `Max XR frame gap: ${boundarySummary.maximumFrameGapMs?.toFixed(1) ?? 'unknown'} ms`,
+        pad + 8,
+        y + lineH * 3
+      );
+      ctx.fillStyle = '#ffcc00';
+      ctx.fillText('Device qualification remains blocked pending audits.', pad + 8, y + lineH * 4);
+      y += lineH * 4 + 8;
+    } else if (summary) {
       ctx.font = this._scaleFont('15px monospace');
       for (const step of summary.steps) {
         const color = GRADE_COLOR[step.grade] ?? '#ccffff';
@@ -236,7 +337,15 @@ export class LoadTestPanel extends MovablePanel {
       // Overall recommendation.
       ctx.fillStyle = '#88ffcc';
       ctx.font = this._scaleFont('bold 15px monospace');
-      y = this._wrapText(ctx, summary.verdict.recommendation, pad + 8, y, w - pad * 2 - 8, lineH, contentH - 130);
+      y = this._wrapText(
+        ctx,
+        summary.verdict.recommendation,
+        pad + 8,
+        y,
+        w - pad * 2 - 8,
+        lineH,
+        contentH - 130
+      );
       y += 6;
     } else {
       ctx.font = this._scaleFont('15px monospace');
@@ -254,7 +363,9 @@ export class LoadTestPanel extends MovablePanel {
     const btnH = 38;
     const gap = 8;
     // Row 1: size presets (6 buttons).
-    const presetW = Math.floor((w - pad * 2 - gap * (SIZE_PRESETS.length - 1)) / SIZE_PRESETS.length);
+    const presetW = Math.floor(
+      (w - pad * 2 - gap * (SIZE_PRESETS.length - 1)) / SIZE_PRESETS.length
+    );
     const y1 = contentH - btnH * 2 - pad - gap;
     for (let i = 0; i < SIZE_PRESETS.length; i++) {
       const p = SIZE_PRESETS[i];
@@ -266,6 +377,7 @@ export class LoadTestPanel extends MovablePanel {
     const actions: { id: string; label: string }[] = [
       { id: 'start-full', label: 'START FULL' },
       { id: 'start-quest', label: 'QUEST 3S' },
+      { id: 'start-quest-10m', label: 'QUEST 10M' },
       { id: 'stop', label: 'STOP' },
       { id: 'flush', label: 'FLUSH LOG' },
       { id: 'download', label: 'DOWNLOAD' },
@@ -275,7 +387,10 @@ export class LoadTestPanel extends MovablePanel {
     for (let i = 0; i < actions.length; i++) {
       const a = actions[i];
       const x = pad + i * (actionW + gap);
-      const active = a.id === 'stop' && this._driver.phase !== 'IDLE' && this._driver.phase !== 'COMPLETE';
+      const active =
+        a.id === 'stop' &&
+        (this._boundaryRunning ||
+          (this._driver.phase !== 'IDLE' && this._driver.phase !== 'COMPLETE'));
       this._drawButton(ctx, a.id, a.label, x, y2, actionW, btnH, active);
       this._buttons.push({ id: a.id, x, y: y2, w: actionW, h: btnH });
     }
@@ -285,8 +400,21 @@ export class LoadTestPanel extends MovablePanel {
     return this._lastStep;
   }
 
-  private _drawButton(ctx: CanvasRenderingContext2D, _id: string, label: string, x: number, y: number, bw: number, bh: number, active: boolean): void {
-    ctx.fillStyle = active ? 'rgba(255, 51, 68, 0.25)' : this.highContrast ? 'rgba(255,255,255,0.9)' : 'rgba(0, 255, 204, 0.15)';
+  private _drawButton(
+    ctx: CanvasRenderingContext2D,
+    _id: string,
+    label: string,
+    x: number,
+    y: number,
+    bw: number,
+    bh: number,
+    active: boolean
+  ): void {
+    ctx.fillStyle = active
+      ? 'rgba(255, 51, 68, 0.25)'
+      : this.highContrast
+        ? 'rgba(255,255,255,0.9)'
+        : 'rgba(0, 255, 204, 0.15)';
     ctx.fillRect(x, y, bw, bh);
     ctx.strokeStyle = active ? '#ff3344' : this.highContrast ? '#ffffff' : '#00ffcc';
     ctx.lineWidth = this.highContrast ? 3 : 2;
@@ -331,6 +459,9 @@ export class LoadTestPanel extends MovablePanel {
       case 'start-quest':
         this._start(QUEST_3S_QUALIFICATION_PROFILE);
         break;
+      case 'start-quest-10m':
+        this._startBoundary();
+        break;
       case 'stop':
         this._onStop?.();
         break;
@@ -347,6 +478,8 @@ export class LoadTestPanel extends MovablePanel {
 
   private _start(profile: LoadTestProfile): void {
     this._lastSummary = null;
+    this._lastBoundarySummary = null;
+    this._lastDownloadPayload = null;
     this._lastSample = null;
     this._dirty = true;
     if (this._onStart) {
@@ -357,11 +490,29 @@ export class LoadTestPanel extends MovablePanel {
     this.render();
   }
 
+  private _startBoundary(): void {
+    this._lastSummary = null;
+    this._lastBoundarySummary = null;
+    this._lastDownloadPayload = null;
+    this._lastSample = null;
+    this._dirty = true;
+    this._onStartBoundary?.();
+    this.render();
+  }
+
   private _downloadSummary(): void {
-    const summary = this._lastSummary;
+    const summary = this._lastDownloadPayload;
     if (!summary) return;
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
-    downloadText(JSON.stringify(summary, null, 2), `nemosyne-loadtest-${ts}.json`, 'application/json').catch(() => {});
+    const prefix =
+      summary.profileName === 'quest-3s-rust-boundary-10m'
+        ? 'nemosyne-quest-boundary'
+        : 'nemosyne-loadtest';
+    downloadText(
+      JSON.stringify(summary, null, 2),
+      `${prefix}-${ts}.json`,
+      'application/json'
+    ).catch(() => {});
   }
 
   private _truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {

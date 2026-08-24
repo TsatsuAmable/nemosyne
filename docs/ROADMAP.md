@@ -4,9 +4,9 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `142b793` (includes #357).**
+**Current `main`: `2423a99` (includes #358).**
 
-**Active implementation:** `chore/consolidate-dependency-updates`. The Dependabot wave from #285-#299 and #343-#351 is consolidated behind one clean Node 24 install and full verification gate. GitHub Actions, npm runtime/tooling and Rust crate majors are combined; TypeScript 7.0.2 remains upstream-blocked by `typescript-eslint <6.1`, so the branch advances to the highest supported release, TypeScript 6.0.3, without peer overrides. Local typecheck, lint with zero errors, coverage at 80.71/69.70/78.17/83.19 across 1,892 tests, production build, 169 Rust tests, the full integration/real-WASM suite and real-Chromium smoke are green. Physical Quest 3S collection remains the next product-validation task after dependency maintenance lands.
+**Active implementation:** `perf/quest-10m-boundary`. Dependency maintenance landed in #358. The current branch adds an explicit physical-Quest-browser probe for the real 10M typed-column Rust/WASM boundary, separate from the existing 250K render/LOD staircase. It records incremental synthetic-fixture construction, host copy, Rust ingest, exact fingerprint, authoritative structure profile, borrowed scans, WASM retention, XR frame gaps and visibility without JavaScript row rematerialisation. The local gate is green: typecheck; lint with zero errors; coverage at 80.76/69.61/78.10/83.24 across 1,898 tests; production build; 170 Rust tests; the focused real-WASM ABI test; and real-Chromium smoke. Physical execution is deferred until a Quest 3S is available. A completed measurement remains `deviceQualifiedAt10m: false` and cannot reopen P1 until the project-owner-selected audits are also complete.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
@@ -108,19 +108,19 @@ For the migration contract, representation/model/NIL/discovery provenance contin
 
 ## Governing V3 gate status
 
-| Gate | Status | Current evidence | Remaining exit work |
-|---|---|---|---|
-| 0 - Authority reconciliation | **MIGRATION EXIT COMPLETE** | Draco is one compatibility facade; production imports Moneta; Rust-owned layouts, facts and boundary guards are live. | Maintain the architecture guards; remove the facade only through a separately governed compatibility decision. |
-| 1 - Dataset Evidence | **MIGRATION AUTHORITY COMPLETE / SCIENCE ACTIVE** | Production Moneta consumes validated Rust-owned DatasetEvidence; compact-transfer and current-main capacity evidence are recorded. | Continue measurement-semantics and scientific-evidence maturity work beyond the migration. |
-| 2 - Representation Language | **PARTIAL** | Representation contracts, candidate families, graph concepts and runtime embodiment exist. | Mature canonical RepresentationGraph/grammar before compositional search. |
-| 3 - Moneta correctness | **MIGRATION EXIT COMPLETE** | Hard constraints, bounded ranking, abstention, decision margin, sensitivity, learned pinning, metamorphic contracts and authoritative end-to-end replay are live. | Extend outcome validation and representation-language maturity without weakening the proven authority boundary. |
-| 4 - NIL | **MIGRATION PROVENANCE COMPLETE / PRODUCT PARTIAL** | Typed NIL provenance persists through session/package/replay. | Complete semantic modality parity, UX and investigator workflows. |
-| 5 - Discovery | **INFRASTRUCTURE ADVANCED / SCIENCE PARTIAL** | DiscoveryEpisode lifecycle, persistence and replay verification exist. | Add falsification workflows, outcome evidence and controlled discovery-quality studies. |
-| 6 - Human refinement | **IN PROGRESS** | Pairwise judgement plus exact candidate feature evidence exists. | Expand outcome events, curation policy and study coverage. |
-| 7 - Learning infrastructure | **ADVANCED** | Registry, promotion policy, pinning, rollback and robust grouped evaluation exist. | Add outcome-linked evaluation and operational monitoring evidence. |
-| 8 - Learned Moneta | **EARLY OPT-IN, NOT EMPIRICALLY VALIDATED** | Pinned learned re-ranking is available without replacing bootstrap constraints. | Demonstrate held-out benefit on investigator/discovery outcomes before discussing default use. |
-| 9 - Compositional Moneta | **DEFERRED** | Preconditions partly exist. | Wait for RepresentationGraph/grammar maturity, bounded search and Gate 0-8 evidence. |
-| 10 - Adaptive Nemosyne | **DEFERRED** | Governance foundations exist. | Requires validated learning, freeze controls, monitoring, rollback and longitudinal evidence. |
+| Gate                         | Status                                              | Current evidence                                                                                                                                                  | Remaining exit work                                                                                             |
+| ---------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| 0 - Authority reconciliation | **MIGRATION EXIT COMPLETE**                         | Draco is one compatibility facade; production imports Moneta; Rust-owned layouts, facts and boundary guards are live.                                             | Maintain the architecture guards; remove the facade only through a separately governed compatibility decision.  |
+| 1 - Dataset Evidence         | **MIGRATION AUTHORITY COMPLETE / SCIENCE ACTIVE**   | Production Moneta consumes validated Rust-owned DatasetEvidence; compact-transfer and current-main capacity evidence are recorded.                                | Continue measurement-semantics and scientific-evidence maturity work beyond the migration.                      |
+| 2 - Representation Language  | **PARTIAL**                                         | Representation contracts, candidate families, graph concepts and runtime embodiment exist.                                                                        | Mature canonical RepresentationGraph/grammar before compositional search.                                       |
+| 3 - Moneta correctness       | **MIGRATION EXIT COMPLETE**                         | Hard constraints, bounded ranking, abstention, decision margin, sensitivity, learned pinning, metamorphic contracts and authoritative end-to-end replay are live. | Extend outcome validation and representation-language maturity without weakening the proven authority boundary. |
+| 4 - NIL                      | **MIGRATION PROVENANCE COMPLETE / PRODUCT PARTIAL** | Typed NIL provenance persists through session/package/replay.                                                                                                     | Complete semantic modality parity, UX and investigator workflows.                                               |
+| 5 - Discovery                | **INFRASTRUCTURE ADVANCED / SCIENCE PARTIAL**       | DiscoveryEpisode lifecycle, persistence and replay verification exist.                                                                                            | Add falsification workflows, outcome evidence and controlled discovery-quality studies.                         |
+| 6 - Human refinement         | **IN PROGRESS**                                     | Pairwise judgement plus exact candidate feature evidence exists.                                                                                                  | Expand outcome events, curation policy and study coverage.                                                      |
+| 7 - Learning infrastructure  | **ADVANCED**                                        | Registry, promotion policy, pinning, rollback and robust grouped evaluation exist.                                                                                | Add outcome-linked evaluation and operational monitoring evidence.                                              |
+| 8 - Learned Moneta           | **EARLY OPT-IN, NOT EMPIRICALLY VALIDATED**         | Pinned learned re-ranking is available without replacing bootstrap constraints.                                                                                   | Demonstrate held-out benefit on investigator/discovery outcomes before discussing default use.                  |
+| 9 - Compositional Moneta     | **DEFERRED**                                        | Preconditions partly exist.                                                                                                                                       | Wait for RepresentationGraph/grammar maturity, bounded search and Gate 0-8 evidence.                            |
+| 10 - Adaptive Nemosyne       | **DEFERRED**                                        | Governance foundations exist.                                                                                                                                     | Requires validated learning, freeze controls, monitoring, rollback and longitudinal evidence.                   |
 
 ## Critical path: finish the Draco to Moneta migration
 
@@ -174,7 +174,7 @@ Prove:
 
 ### P0.4 - Large-dataset migration validation
 
-**Authority/evidence path complete; physical-device qualification blocked.** #342 proves bounded Moneta candidate/sensitivity work, the capacity artifact proves resident typed-column operation at 10M, and #356 bounds and repeatedly reproduces the row-free authoritative DatasetStructureProfile envelope. The active Quest telemetry branch prepares evidence-grade WebXR profiling on the P1 hardware matrix; an actual physical Quest 3S run remains required.
+**Authority/evidence path complete; physical-device qualification blocked.** #342 proves bounded Moneta candidate/sensitivity work, the capacity artifact proves resident typed-column operation at 10M, #356 bounds and repeatedly reproduces the row-free authoritative DatasetStructureProfile envelope, and #357 provides evidence-grade WebXR render/LOD telemetry. The active 10M boundary branch adds the missing physical-browser execution path; an actual physical Quest 3S run remains required.
 
 Run deterministic tiers at **10K, 100K, 1M and 10M rows**, measuring:
 
@@ -217,7 +217,9 @@ After P0.1-P0.4:
 - [x] Reproduce the available 10M evidence path on the provisioned hosted runner (run 32704932983).
 - [x] Add and reproduce an evidence/fingerprint regression envelope across three provisioned 10M runs (run 32710537108).
 - [x] Instrument the physical Quest run for XR cadence, render cost, memory, sustained-performance drift, visibility, build/device identity and actual reduction/LOD output.
+- [x] Add an explicit, row-free Quest-browser 10M boundary probe for typed ingest, identity, authoritative evidence, borrowed scans, retained WASM memory and XR main-thread stalls.
 - [ ] Run the browser envelope on a physical Meta Quest 3S, measuring frame time, memory pressure, thermal behaviour and reduction/LOD output; then extend to the remaining P1 hardware matrix.
+- [ ] Complete the project-owner-selected pre-P1 audits and record their findings before any device-qualification result reopens product promotion.
 
 **Exit:** a 10M columnar handle reaches bounded Moneta reasoning through compact authoritative evidence without JavaScript row reconstruction, and its measured envelope is acceptable for the declared preview hardware.
 
@@ -237,7 +239,7 @@ This track supports the critical path but must not weaken correctness.
 
 ## After migration: private preview and productization
 
-Once the migration exit gates are green, reopen the product track in this order.
+Once the migration exit gates, physical Quest evidence and project-owner-selected audits are green, reopen the product track in this order.
 
 ### P1 - Minimal private preview
 

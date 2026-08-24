@@ -30,6 +30,7 @@ function rayHitButton(panel: LoadTestPanel, id: string): THREE.Raycaster {
 describe('LoadTestPanel button dispatch', () => {
   let panel: LoadTestPanel;
   let onStart: ReturnType<typeof vi.fn>;
+  let onStartBoundary: ReturnType<typeof vi.fn>;
   let onStop: ReturnType<typeof vi.fn>;
   let onFlush: ReturnType<typeof vi.fn>;
   let handlers: Record<string, Array<(p: unknown) => void>>;
@@ -38,6 +39,7 @@ describe('LoadTestPanel button dispatch', () => {
   beforeEach(() => {
     vi.mocked(downloadText).mockClear();
     onStart = vi.fn();
+    onStartBoundary = vi.fn();
     onStop = vi.fn();
     onFlush = vi.fn();
     handlers = {};
@@ -51,6 +53,7 @@ describe('LoadTestPanel button dispatch', () => {
       driver: { phase: 'IDLE' } as any,
       eventBus: eventBus as any,
       onStart: onStart as any,
+      onStartBoundary: onStartBoundary as any,
       onStop: onStop as any,
       onFlush: onFlush as any,
     });
@@ -58,7 +61,7 @@ describe('LoadTestPanel button dispatch', () => {
     panel.mesh.updateMatrixWorld();
   });
 
-  it('exposes the six size presets plus the five action buttons', () => {
+  it('exposes the six size presets plus the render and 10M boundary actions', () => {
     const ids = (panel as any)._buttons.map((b: any) => b.id);
     expect(ids).toContain('size:1k');
     expect(ids).toContain('size:8k');
@@ -68,6 +71,7 @@ describe('LoadTestPanel button dispatch', () => {
     expect(ids).toContain('size:full');
     expect(ids).toContain('start-full');
     expect(ids).toContain('start-quest');
+    expect(ids).toContain('start-quest-10m');
     expect(ids).toContain('stop');
     expect(ids).toContain('flush');
     expect(ids).toContain('download');
@@ -101,6 +105,12 @@ describe('LoadTestPanel button dispatch', () => {
     expect(onStart).toHaveBeenLastCalledWith(QUEST_3S_QUALIFICATION_PROFILE);
   });
 
+  it('starts the dedicated Quest 10M Rust boundary probe', () => {
+    panel.handleContentClick(rayHitButton(panel, 'start-quest-10m'));
+    expect(onStartBoundary).toHaveBeenCalledTimes(1);
+    expect(onStart).not.toHaveBeenCalled();
+  });
+
   it('clicking stop / flush dispatches to the provided callbacks', () => {
     expect(panel.handleContentClick(rayHitButton(panel, 'stop'))).toBe(true);
     expect(onStop).toHaveBeenCalledTimes(1);
@@ -116,7 +126,11 @@ describe('LoadTestPanel button dispatch', () => {
 
     // Emit a completion summary through the event bus subscription.
     // (LoadTestSummary.verdict is an object carrying a recommendation string.)
-    const summary = { verdict: { recommendation: 'Palace scales to 250k.' }, grade: 'green', steps: [] };
+    const summary = {
+      verdict: { recommendation: 'Palace scales to 250k.' },
+      grade: 'green',
+      steps: [],
+    };
     handlers[WorldTopics.LOADTEST_COMPLETE][0](summary);
     panel.update(); // flush dirty -> re-render (keeps _lastSummary)
 
@@ -126,6 +140,22 @@ describe('LoadTestPanel button dispatch', () => {
     expect(filename).toMatch(/^nemosyne-loadtest-.*\.json$/);
     expect(mime).toBe('application/json');
     expect(JSON.parse(body)).toEqual(summary);
+  });
+
+  it('downloads the latest Quest boundary summary separately from render telemetry', () => {
+    const summary = {
+      profileName: 'quest-3s-rust-boundary-10m',
+      outcome: { status: 'completed' },
+      memory: { retainedWasmGrowthBytes: 123 },
+      maximumFrameGapMs: 45,
+      qualification: { promotionBlockedByAudits: true },
+    };
+    handlers[WorldTopics.QUEST_BOUNDARY_COMPLETE][0](summary);
+    panel.update();
+
+    expect(panel.handleContentClick(rayHitButton(panel, 'download'))).toBe(true);
+    const [, filename] = vi.mocked(downloadText).mock.calls[0];
+    expect(filename).toMatch(/^nemosyne-quest-boundary-.*\.json$/);
   });
 
   it('returns false for a click that hits no button', () => {
