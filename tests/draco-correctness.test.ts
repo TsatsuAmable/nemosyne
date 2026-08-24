@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { ConstraintEngine } from '../src/draco/ConstraintEngine.ts';
+import { ConstraintEngine } from '../src/moneta/ConstraintEngine.ts';
 import { Engine } from '../src/vr/Engine.ts';
 
 describe('Sprint 22.6 Data/Draco Correctness & Architecture Hygiene', () => {

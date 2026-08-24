@@ -3,8 +3,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.ts';
-import { TopologyTypes } from '../src/draco/ConstraintEngine.ts';
+import { MonetaTopologyNode as DracoTopologyNode } from '../src/moneta/MonetaTopologyNode.ts';
+import { TopologyTypes } from '../src/moneta/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 import { solveDraco } from '../src/wasm/RuntimeBridge.ts';

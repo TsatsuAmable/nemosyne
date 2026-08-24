@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { InputRouter } from '../src/vr/InputRouter.ts';
 import { Locomotion } from '../src/vr/Locomotion.ts';
 import { DracoDiagnosticHUD } from '../src/vr/ui/DracoDiagnosticHUD.ts';
-import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
+import { ConstraintEngine, TopologyTypes } from '../src/moneta/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 import { InputTelemetry } from '../src/vr/InputTelemetry.ts';

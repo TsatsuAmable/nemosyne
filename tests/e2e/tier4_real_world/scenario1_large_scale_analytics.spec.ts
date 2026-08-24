@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { Dataset } from '../../../src/data/Dataset.ts';
-import { VRTopologyTranslator } from '../../../src/draco/VRTopologyTranslator.ts';
+import { VRTopologyTranslator } from '../../../src/moneta/VRTopologyTranslator.ts';
 import { AdaptiveFrameGovernor } from '../../../src/vr/scalability/AdaptiveFrameGovernor.ts';
 import { WorldEventBus, WorldTopics } from '../../../src/utils/EventBus.ts';
 import { MovablePanel } from '../../../src/vr/ui/MovablePanel.ts';
