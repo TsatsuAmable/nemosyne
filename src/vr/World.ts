@@ -377,6 +377,7 @@ export class World {
       analyzer: this.telemetryCollector.frustrationAnalyzer,
       isAssistEnabled: () => this.telemetryCollector.enabled,
     });
+    this.uiManager.bindAdaptiveAssist(this.adaptiveAssist);
 
     this.tooltipManager = new TooltipManager(this.engine.camera);
     this.tooltipManager.mount(this.engine.scene);

@@ -34,7 +34,8 @@ export interface SceneHit {
 export class InteractableRegistry {
   raycaster: THREE.Raycaster;
 
-  interactables: InteractableEntry[] = [];
+  private _interactables: InteractableEntry[] = [];
+  private _interactableMeshes: THREE.Object3D[] = [];
   hudObjects: HudObject[] = [];
   panels: PanelLike[] = [];
 
@@ -50,13 +51,26 @@ export class InteractableRegistry {
     this.raycaster = new THREE.Raycaster();
   }
 
+  get interactables(): InteractableEntry[] {
+    return this._interactables;
+  }
+
+  set interactables(value: InteractableEntry[]) {
+    this._interactables = value;
+    this._interactableMeshes = value.map((entry) => entry.mesh);
+  }
+
   addInteractable(mesh: THREE.Object3D, handlers: Partial<InteractableEntry> = {}) {
-    this.interactables.push({ mesh, ...handlers });
+    this._interactables.push({ mesh, ...handlers });
+    this._interactableMeshes.push(mesh);
   }
 
   removeInteractable(mesh: THREE.Object3D) {
-    const idx = this.interactables.findIndex((i) => i.mesh === mesh);
-    if (idx >= 0) this.interactables.splice(idx, 1);
+    const idx = this._interactables.findIndex((i) => i.mesh === mesh);
+    if (idx >= 0) {
+      this._interactables.splice(idx, 1);
+      this._interactableMeshes.splice(idx, 1);
+    }
   }
 
   addHudObject(obj: HudObject) {
@@ -99,13 +113,10 @@ export class InteractableRegistry {
    */
   raycastScene(): SceneHit | null {
     if (this.suppressSceneSelection) return null;
-    const hits = this.raycaster.intersectObjects(
-      this.interactables.map((i) => i.mesh),
-      false
-    );
+    const hits = this.raycaster.intersectObjects(this._interactableMeshes, false);
     if (hits.length > 0) {
       const hit = hits[0].object;
-      const entry = this.interactables.find((i) => i.mesh === hit) ?? null;
+      const entry = this._interactables.find((i) => i.mesh === hit) ?? null;
       if (entry) return { entry, distance: hits[0].distance };
     }
     return null;

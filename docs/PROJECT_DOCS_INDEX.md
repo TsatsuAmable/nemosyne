@@ -11,12 +11,12 @@ This repository keeps one governing product/research/architecture specification,
 This layer describes the code that exists now and the migration toward V3. It must not restate superseded vision as current direction.
 
 Canonical files:
+
 - [ROADMAP.md](ROADMAP.md) — implementation status and V3 migration workstreams. Historical gate/sprint numbering remains historical evidence only.
-- [IMPLEMENTATION_PLAN_V3.md](IMPLEMENTATION_PLAN_V3.md) — executable V3 module plan, dependency graph, parallel workstreams, verification gates and deletion/migration policy.
+- [IMPLEMENTATION_PLAN_V3.md](IMPLEMENTATION_PLAN_V3.md) — V3 module sequencing, dependency graph, verification gates and deletion/migration policy; `ROADMAP.md` governs live status.
 - [DEVELOPER_EXPLAINER.md](DEVELOPER_EXPLAINER.md) — developer onboarding and codebase mental model.
 - [ARCHITECTURE.md](ARCHITECTURE.md) — current modular subsystem reference; where it conflicts with V3, V3 governs until this reference is migrated.
-- [STANDARDIZATION_REVIEW.md](STANDARDIZATION_REVIEW.md) — open-source standardization audit.
-- [OSS_MIGRATION_PROPOSAL.md](OSS_MIGRATION_PROPOSAL.md) — library adoption plan.
+- [PRE_P1_SYSTEMATIC_AUDIT.md](PRE_P1_SYSTEMATIC_AUDIT.md) — current adversarial architecture, UX/VR, performance, resilience, security, maintainability, test, use-case and documentation audit.
 - [MIGRATION.md](MIGRATION.md)
 - [STATISTICAL_METHOD_REGISTER.md](STATISTICAL_METHOD_REGISTER.md)
 - [GETTING_STARTED.md](GETTING_STARTED.md)
@@ -25,6 +25,7 @@ Canonical files:
 Use this layer to answer what is implemented, active, planned, blocked or deferred. Do not infer V3 completion from older completed sprint/gate labels.
 
 Historical context:
+
 - [Roadmap history](archive/ROADMAP_HISTORY.md)
 - [Phases 21–26 completed archive](archive/ROADMAP_PHASES_21-26_COMPLETED.md)
 - [Phases 1–20 completed archive](archive/ROADMAP_PHASES_1-20_COMPLETED.md)
@@ -32,6 +33,7 @@ Historical context:
 ## 2. Study protocol and research governance
 
 Canonical files:
+
 - [study/README.md](study/README.md)
 - [study/PROTOCOL.md](study/PROTOCOL.md)
 - [study/ANALYSIS_PLAN.md](study/ANALYSIS_PLAN.md)
@@ -43,13 +45,10 @@ V3 reframes 2D-vs-VR as one controlled experiment within the broader meaningful-
 ## 3. Study operations, compliance and reproducibility
 
 Canonical files:
+
 - [study/CONSENT.md](study/CONSENT.md)
 - [study/DATA_DICTIONARY.md](study/DATA_DICTIONARY.md)
 - [study/version.json](study/version.json)
-
-## Proposals and research inputs
-
-- [USER_STORIES_AND_UX_ANALYSIS.md](USER_STORIES_AND_UX_ANALYSIS.md) — product research input, not an authority.
 
 ## Historical archive
 

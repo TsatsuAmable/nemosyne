@@ -3,31 +3,25 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Site-nemosyne.world-brightgreen?logo=github)](https://nemosyne.world)
 
-> **A personal, experimental WebXR project — not a maintained product or npm package.**
-> Nemosyne is a solo exploration of spatial data analysis in VR. Expect rough edges,
-> unfinished features, and breaking changes. Nothing here is published to npm or
-> supported for external use.
+> **Experimental alpha research software — not a validated scientific instrument,
+> maintained product or npm package.** Expect incomplete workflows and breaking changes.
 
-A WebXR / three.js runtime that maps multi-dimensional datasets into interactive 3D
-"memory palaces" using a Draco-style constraint recommender and an artefact taxonomy
-(Crystal, Column, Orb, Plinth, Beam, Trail, Ring, Field, Zone). Analytical computation
-runs in a Rust/WASM kernel; three.js is the WebGL/WebXR renderer.
+Nemosyne investigates whether representation intelligence can help people find meaningful,
+reproducible structure in data without encouraging false discovery. Rust/WASM owns analytical facts;
+Moneta selects or abstains from bounded representation hypotheses; desktop and WebXR embody the same
+investigation and provenance model.
 
 ---
 
-## What it does
+## What exists now
 
-- Loads tabular, hierarchical, graph, time-series, vector-field, and geospatial datasets.
-- Uses a symbolic constraint recommender (Draco-style) to choose layout, geometry, behavior, and interaction based on data topology.
-- Renders the result as a memory-palace-style 3D VR world anchored to the analyst torso (`analystAnchor`).
-- Supports Meta Quest hand tracking and controllers, plus a desktop fallback with mouse/keyboard.
-- Provides free-floating persisted HUD panels, Dual Vertical Wheel Menus, and a curved analyst dashboard.
-- Includes an on-device UX frustration analyzer, gaze/laser dwell-time tracking, and low-token telemetry digests.
-- Uses geometry & material object pooling and micro-task time slicing to reduce dataset-load frame spikes.
-- Tracks every data operation on an undo/redo history stack with gesture and keyboard shortcuts.
-- Connects to live streaming datasets/APIs via WebSocket or REST polling adapters.
-- Saves/restores sessions via IndexedDB and exports screenshots + analysis stories as JSON.
-- Ships a standalone, pluggable gesture-intelligence module (`modules/gesture-intelligence/`) — a frozen 56-dim feature vector with a heuristic + ONNX neural classifier, on-device personalization, and a capture→train→deploy pipeline.
+- Typed-column ingest, identity, statistics, structural evidence, clustering, topology, reduction and data-derived layouts in the Rust/WASM kernel.
+- Bounded Moneta representation decisions with hard constraints, provenance, sensitivity evidence, learned-model pinning and typed NIL/abstention outcomes.
+- Desktop, controller and hand-input foundations over one three.js/WebXR investigation runtime.
+- Inspectable observations, findings, annotations and discovery episodes.
+- Portable `.nemosyne` sessions with representation/model identity and clean-room replay verification.
+- Authenticated signalling, peer-presence and study/telemetry foundations that still require private-preview qualification.
+- A row-free 10M Rust/JS evidence path and Quest telemetry collection; physical Quest 3S execution remains pending.
 
 ---
 
@@ -37,37 +31,20 @@ Nemosyne is a research instrument under construction, not a finished product. Th
 [Definitive Vision and Roadmap](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) defines the
 target and the [Roadmap](./docs/ROADMAP.md) tracks progress.
 
-### What has been done
-
-- **Phases 1–26 (archived):** Complete foundational runtime, Rust/WASM analytical kernel (v0.2.0), mandatory WASM cutover, AtlasCore single analytical authority, pure fact-consumer Draco solver, standalone gesture intelligence, Phase 24 Analyst Cockpit (4-mode interaction FSM, forgiving HandWheel, contextual surfaces), Quest 3S hardware envelope validation, and empirical study recommender tuning. See [`docs/archive/ROADMAP_PHASES_21-26_COMPLETED.md`](./docs/archive/ROADMAP_PHASES_21-26_COMPLETED.md) and [`docs/archive/ROADMAP_PHASES_1-20_COMPLETED.md`](./docs/archive/ROADMAP_PHASES_1-20_COMPLETED.md).
-- **Definitive Gate Model (Gates 0–7 Delivery):**
-  - **Gate 0 (Foundations ✅):** Sole Rust/WASM analytical authority (85 Rust tests, 0 JS formula fallbacks), 100% pure TypeScript codebase.
-  - **Gate 1 (Understand ✅):** `InvestigationAggregate` domain model under `src/atlas/domain/` with DAG spine (`InvestigationGraph`) and vertical slice parity.
-  - **Gate 3 (Experience ✅):** 4-mode interaction FSM, HandWheel, and adaptive 1€ `PointerRayFilter` eliminating aim-drift on Quest 3S.
-  - **Gate 4 (Investigate ✅):** First-class `Observation`, `Finding`, and `Annotation` entities, and in-VR "Mark Moment" evidence capture workflow.
-  - **Gate 5 (Reproduce ✅):** `.nemosyne` package container engine with `valibot` schema validation and `InvestigationReplayRunner` headless bit-for-bit verification.
-  - **Gate 6 (Study ✅):** Empirical 2D-vs-VR crossover study instrument, Latin-square counterbalancer, and statistical publication exporter.
-- **Limited Public Testing Release Track (Sprints 27.1–27.7 ✅):** Subsystem modularization, OSS standardization (`valibot`, `fflate`, `@tweenjs/tween.js`, `colord`, `nanoevents`, `three-mesh-bvh`), spatial ergonomics linter, WebGL context auto-recovery, upload sanitization, zero-alloc math, and automated recurring maintainability hygiene audits.
-
-### What the Definitive Vision proposes
-
-Nemosyne explores whether analytical understanding can be constructed as a **persistent spatial artefact**. The primary product entity is the **Investigation** (not the dataset, session, or scene), which preserves the entire analytical reasoning chain, observations, findings, decisions, and representations with cryptographic provenance.
-
-The target architecture:
+The governing architecture is:
 
 ```text
-DATASET → Rust Analytical Kernel (Computational Authority)
-        → Investigation (Semantic Spine & Meaning)
-        → Atlas (Application Orchestration & Constraints)
-        → Draco (Explainable SpatialStrategy Selection)
-        → Spatial Runtime & Memory Palace (WebXR 3D Projection)
-        ↑ Perception / Gestures (Observational Only)
-        ↑ Research Harness (2D vs VR Treatment Boundary)
+typed data → Rust/WASM analytical facts and identity
+           → compact DatasetEvidence
+           → Moneta RepresentationDecision or NIL
+           → desktop/WebXR embodiment
+           → Investigation provenance and portable replay
 ```
 
-Governing principles: Rust as sole analytical authority; Investigation owns meaning; Draco consumes facts; rendering primitives are not authorities; 2D as a legitimate partner; explainable automation; progressive disclosure; and reproducible investigations.
-
-See [`docs/Nemosyne_Definitive_Vision_and_Roadmap.md`](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) for the governing specification, [`docs/DEVELOPER_EXPLAINER.md`](./docs/DEVELOPER_EXPLAINER.md) for the developer onboarding guide, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) for active implementation gates.
+The Draco name remains only as a governed compatibility facade. Production code imports Moneta
+directly. The [Definitive Vision](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) governs direction,
+the [Roadmap](./docs/ROADMAP.md) records live status, and the
+[Pre-P1 Audit](./docs/PRE_P1_SYSTEMATIC_AUDIT.md) records current blockers and implementation work.
 
 ---
 
@@ -118,14 +95,15 @@ nemosyne/
 │   ├── main.ts             # Bootstraps World
 │   ├── atlas/              # Analytical application orchestrator (AtlasCore, investigation graph, evidence ledger)
 │   ├── data/               # Dataset (typed projection over kernel DatasetJSON), encodings, connectors, session store
-│   ├── draco/              # Spatial strategy engine, constraint engine, topology translator, layout generators
+│   ├── draco/              # Governed compatibility facade only
+│   ├── moneta/             # Representation hypotheses, bounded selection, provenance and embodiment adapters
 │   ├── network/            # Authenticated transport & WebRTC/WebSocket collaboration
 │   ├── session/            # NemosyneSession — authoritative logical-session & .nemosyne package substrate
 │   ├── study/              # Controlled-experiment research harness (treatment configs, counterbalancing, trials)
 │   ├── types/              # Shared TypeScript types
 │   ├── ui/                 # 2D DOM file loader & desktop interface
 │   ├── utils/              # Generic utilities (typed event bus, object pools, disposers, seeded RNG)
-│   ├── vr/                 # Spatial runtime & Memory Palace (Engine, World, UI panels, locomotion, input, resilience)
+│   ├── vr/                 # Desktop/WebXR embodiment (Engine, World, UI, locomotion, input, resilience)
 │   │   ├── animation/      # Spatial tweening & motion transitions
 │   │   ├── artifacts/      # Scene landmarks and data artefacts
 │   │   ├── audio/          # Selection feedback tones & spatial sound
@@ -137,7 +115,7 @@ nemosyne/
 │   │   ├── scalability/    # Instanced point cloud, BVH spatial index, zero-alloc math, load testing
 │   │   └── ui/             # Spatial HUD panels, dashboard, VR console, hand wheel menu
 │   └── wasm/               # Typed JS wrappers over the Rust/WASM kernel (RuntimeBridge, CommandApplier)
-├── wasm/                   # Rust crate (analytical kernel, Draco constraint solver, TDA layouts — compiled via wasm-pack)
+├── wasm/                   # Rust analytical kernel and authoritative layouts, compiled via wasm-pack
 ├── modules/gesture-intelligence/  # Standalone, pluggable gesture classifier (heuristic + ONNX, architecturally separate)
 ├── dev/                    # Spatial dev tools (ergonomics linter, 6DoF pose rig, scene inspector)
 ├── tests/                  # Vitest unit + four-tier E2E test suite
@@ -148,14 +126,12 @@ nemosyne/
 
 ## Documentation
 
-- [Definitive Vision and Roadmap](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) — the governing spec (target architecture, principles, Gate 0–7 model, Stable Alpha definition).
+- [Definitive Vision and Roadmap](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) — governing product, research and architecture specification.
 - [Developer Guide & Explainer](./docs/DEVELOPER_EXPLAINER.md) — codebase mental model, data lifecycle, Rust/WASM ABI, and cookbooks.
-- [Roadmap](./docs/ROADMAP.md) — implementation status & Gate 0–7 deliverables (Phases 1–26 archived).
+- [Roadmap](./docs/ROADMAP.md) — current implementation status, blockers and planned work.
 - [Technical Architecture](./docs/ARCHITECTURE.md) — modular subsystems specification & boundaries.
-- [Open Source Standardization Review](./docs/STANDARDIZATION_REVIEW.md) — comprehensive open-source library evaluation and maintenance footprint reduction.
-- [Open Source Migration Proposal](./docs/OSS_MIGRATION_PROPOSAL.md) — open-source adoption to reduce maintenance footprint.
+- [Pre-P1 Systematic Audit](./docs/PRE_P1_SYSTEMATIC_AUDIT.md) — current adversarial review, implementation fixes and governed risk backlog.
 - [Getting Started](./docs/GETTING_STARTED.md)
-- [Codebase Wiki](./docs/WIKI.md)
 - [Error Register](./docs/ERROR_REGISTER.md)
 - [Features](./FEATURES.md)
 - [Artefacts](./docs/ARTEFACTS.md)

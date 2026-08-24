@@ -6,12 +6,12 @@ A tabular memory palace built from the `sales-table` sample dataset.
 
 `src/data/SyntheticData.js` generates 60 sales rows with:
 
-| id | region | product | units | price | revenue | discount |
-|---|---|---|---|---|---|---|
-| S1 | North | Widget | 123 | 10 | 1230 | 0 |
-| ... | ... | ... | ... | ... | ... | ... |
+| id  | region | product | units | price | revenue | discount |
+| --- | ------ | ------- | ----- | ----- | ------- | -------- |
+| S1  | North  | Widget  | 123   | 10    | 1230    | 0        |
+| ... | ...    | ...     | ...   | ...   | ...     | ...      |
 
-The Draco engine infers **TABULAR** and places one crystal per row on category plinths. Because the dataset has several numeric columns, a **ChartPlane** is auto-attached with a default chart type.
+Moneta consumes Rust-owned tabular evidence and can select category plinths with a bounded visual reduction. A **ChartPlane** may provide a complementary aggregate view.
 
 ## Artefacts generated
 

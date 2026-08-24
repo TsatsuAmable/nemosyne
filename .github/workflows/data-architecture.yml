@@ -17,8 +17,7 @@ on:
 permissions:
   contents: read
 
-# Temporarily manual-only during the Moneta migration-completion sprint. This
-# keeps benchmark evidence available without adding a routine PR gate.
+# Manual evidence workflow for scale tiers that are too expensive for routine PR CI.
 concurrency:
   group: data-architecture-${{ github.ref }}-${{ inputs.tier || 'scale-gate' }}
   cancel-in-progress: true

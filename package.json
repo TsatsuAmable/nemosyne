@@ -1,7 +1,7 @@
 {
   "name": "nemosyne",
   "version": "1.0.0-alpha.1",
-  "description": "A WebXR spatial data analysis suite built on three.js. Transform multi-dimensional datasets into interactive 3D memory palaces.",
+  "description": "An experimental research instrument for inspectable, reproducible data investigation across desktop and WebXR.",
   "type": "module",
   "scripts": {
     "setup": "bash scripts/setup.sh",
@@ -67,7 +67,7 @@
     "vr",
     "data-visualization",
     "spatial-analysis",
-    "memory-palace",
+    "reproducible-research",
     "nemosyne"
   ],
   "license": "MIT",

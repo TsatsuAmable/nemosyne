@@ -1,4 +1,4 @@
-# Dependency Modernization Sprint Backlog
+# Dependency Modernization Sprint Backlog (completed historical plan)
 
 ## Objective
 

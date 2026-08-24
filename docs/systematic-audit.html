@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Systematic Audit - Nemosyne</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <meta name="theme-color" content="#0a0a0f">
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+    <div class="temporal-grid"></div>
+    <nav>
+        <a href="index.html" class="logo"><div class="logo-symbol"></div><span>Nemosyne</span></a>
+        <ul class="nav-links">
+            <li><a href="developer-explainer.html">Developer Guide</a></li>
+            <li><a href="architecture.html">Architecture</a></li>
+            <li><a href="roadmap.html">Roadmap</a></li>
+            <li><a href="vision.html">Vision</a></li>
+        </ul>
+        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <main style="padding: 9rem 5% 6rem; min-height: 100vh; position: relative; z-index: 1;">
+        <article class="markdown-content">
+            <a href="index.html" class="back-link">Back to nemosyne.world</a>
+            <span class="tag">24 August 2026</span>
+            <h1>Pre-P1 systematic audit</h1>
+            <blockquote>P1 remains blocked. The implementation has a coherent authority boundary, but physical Meta Quest 3S qualification and the open high-severity findings must be resolved before private preview.</blockquote>
+            <h2>What this audit covered</h2>
+            <p>Architecture, UI/UX and VR coherence, performance, resilience, security, maintainability, dependency fitness, test quality, workflow runtime, six end-to-end use cases, and documentation accuracy.</p>
+            <h2>Fixed in the audit</h2>
+            <ul>
+                <li>Restored coverage, production build, Rust, CodeQL, and real Chromium smoke as required pull-request evidence.</li>
+                <li>Enforced streaming archive limits during decompression.</li>
+                <li>Removed avoidable hand-wheel and selection raycast allocations.</li>
+                <li>Unified adaptive-assistance controls with the production instances.</li>
+                <li>Centralized test-lane ownership and removed a duplicated real-WASM run.</li>
+                <li>Archived superseded documentation and refreshed public claims.</li>
+            </ul>
+            <h2>Promotion blockers</h2>
+            <ul>
+                <li>Physical Quest 3S 10M-row performance, memory, thermal, and interaction qualification.</li>
+                <li>Lifecycle decomposition and explicit idempotent disposal.</li>
+                <li>A real-browser load-to-replay analyst journey.</li>
+                <li>Kernel/ABI fuzzing, fault recovery, and sustained collaboration qualification.</li>
+                <li>Production spatial-query acceleration backed by device evidence.</li>
+            </ul>
+            <p>The implementation queue and severity order are maintained in the <a href="roadmap.html">public roadmap</a>.</p>
+            <p><a href="https://github.com/TsatsuAmable/nemosyne/blob/main/docs/PRE_P1_SYSTEMATIC_AUDIT.md" target="_blank" rel="noopener">Read the complete findings register on GitHub</a></p>
+        </article>
+    </main>
+    <footer>
+        <div class="footer-moon">◈</div><div class="footer-tagline">Nemosyne</div><div class="footer-domain">nemosyne.world</div>
+        <p class="footer-text">Evidence first: implemented, tested, qualified, and validated are different claims.</p>
+        <p class="copyright">© 2026 Tsatsu Amable. Released under MIT License.</p>
+    </footer>
+</body>
+</html>

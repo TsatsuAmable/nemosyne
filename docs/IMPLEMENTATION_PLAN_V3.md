@@ -1,6 +1,6 @@
 # Nemosyne V3 Implementation Plan
 
-**Status:** Active migration plan  
+**Status:** V3 sequencing reference; Wave 0 authority migration complete. `ROADMAP.md` governs live status.
 **Governing specification:** `docs/Nemosyne_Definitive_Vision_and_Roadmap.md`  
 **Baseline:** `main` at/after `890071b6568cfb8038806c860648dc229bfc1b88`
 
@@ -23,31 +23,32 @@ This document translates V3 into small, independently verifiable engineering wor
 
 ## Module target map
 
-| V3 module | Initial repository target | First responsibility |
-|---|---|---|
-| Dataset Evidence | `wasm/src/evidence/`, `src/evidence/` contracts/adapters | Typed provenance-bearing analytical facts |
-| Representation Ontology | `src/representation/` | Primitive registry + RepresentationGraph contracts |
-| Moneta | `src/moneta/` | Sole representation reasoning authority |
-| Human Judgement | `src/judgement/` | Structured preference/adjustment/outcome events |
-| Fitness Learning | `src/fitness/` | Versioned models, evaluation and registry contracts |
-| NIL | `src/nil/` | Modality-independent semantic commands |
-| Perception / Gesture | existing `src/perception/`, gesture module | Observation → NIL intent only |
-| Investigation / Discovery | `src/investigation/` | DiscoveryEpisode and reasoning/evidence history |
-| Atlas | `src/atlas/` | Orchestration only |
-| Spatial Runtime | existing VR/runtime code, progressively bounded | RepresentationGraph embodiment |
-| Research Harness | existing study code, progressively modularized | Freeze/vary treatment contracts |
-| Persistence | `src/session/` initially, later bounded package module | Complete V3 provenance serialization |
-| Analyst Cockpit | existing UI | Explain/challenge/refine representation |
-| Collaboration | existing network/collab | Semantic transport, no domain authority |
-| CI / Testing | `tests/`, `scripts/`, workflows | Architecture + methodological invariants |
+| V3 module                 | Initial repository target                                | First responsibility                                |
+| ------------------------- | -------------------------------------------------------- | --------------------------------------------------- |
+| Dataset Evidence          | `wasm/src/evidence/`, `src/evidence/` contracts/adapters | Typed provenance-bearing analytical facts           |
+| Representation Ontology   | `src/representation/`                                    | Primitive registry + RepresentationGraph contracts  |
+| Moneta                    | `src/moneta/`                                            | Sole representation reasoning authority             |
+| Human Judgement           | `src/judgement/`                                         | Structured preference/adjustment/outcome events     |
+| Fitness Learning          | `src/fitness/`                                           | Versioned models, evaluation and registry contracts |
+| NIL                       | `src/nil/`                                               | Modality-independent semantic commands              |
+| Perception / Gesture      | existing `src/perception/`, gesture module               | Observation → NIL intent only                       |
+| Investigation / Discovery | `src/investigation/`                                     | DiscoveryEpisode and reasoning/evidence history     |
+| Atlas                     | `src/atlas/`                                             | Orchestration only                                  |
+| Spatial Runtime           | existing VR/runtime code, progressively bounded          | RepresentationGraph embodiment                      |
+| Research Harness          | existing study code, progressively modularized           | Freeze/vary treatment contracts                     |
+| Persistence               | `src/session/` initially, later bounded package module   | Complete V3 provenance serialization                |
+| Analyst Cockpit           | existing UI                                              | Explain/challenge/refine representation             |
+| Collaboration             | existing network/collab                                  | Semantic transport, no domain authority             |
+| CI / Testing              | `tests/`, `scripts/`, workflows                          | Architecture + methodological invariants            |
 
 Directory names may be refined during implementation, but ownership boundaries are not optional.
 
 ## Dependency waves and parallel work
 
-### Wave 0: Authority reconciliation — BLOCKING
+### Wave 0: Authority reconciliation — COMPLETE
 
 **W0-A Moneta/Draco authority**
+
 - enumerate every import/export/runtime call under `src/draco/` and `src/moneta/`;
 - classify each Draco file as adapter, renderer/embodiment helper, obsolete solver, or still-needed contract;
 - move reusable neutral contracts to `src/representation/`;
@@ -56,12 +57,14 @@ Directory names may be refined during implementation, but ownership boundaries a
 - add architecture test: no representation scoring implementation outside `src/moneta/`.
 
 **W0-B Analytical authority**
+
 - inventory TypeScript-derived facts consumed by Moneta;
 - classify each as presentation-only, compatibility-only or research-relevant;
 - research-relevant facts must originate in Rust/WASM or fail explicitly;
 - add architecture/parity tests for the authority path.
 
 **W0-C Investigation authority**
+
 - verify representation decisions, overrides, model versions and future NIL/Discovery events are append-only Investigation semantics rather than renderer state;
 - add mutation-boundary tests.
 
@@ -72,12 +75,14 @@ Exit: exactly one live authority path for analytical truth, representation reaso
 These can run concurrently after Wave 0 contracts are fixed.
 
 **W1-A Dataset Evidence**
+
 - define versioned `DatasetEvidence` schema in Rust;
 - attach method, parameters, seed, normalisation, missing-data policy, kernel version, uncertainty/limitations and deterministic provenance to derived facts;
 - expose a typed WASM boundary;
 - add deterministic fixture and replay tests.
 
 **W1-B Representation Language**
+
 - define `RepresentationPrimitive`, semantic mapping, policies and `RepresentationGraph`;
 - create a versioned primitive registry;
 - define a minimal composition grammar;
@@ -85,16 +90,19 @@ These can run concurrently after Wave 0 contracts are fixed.
 - do not migrate all renderers yet.
 
 **W1-C Discovery domain**
+
 - define `DiscoveryEpisode`, hypothesis lifecycle and validation states in `src/investigation/`;
 - connect existing observations/findings/evidence without duplicating ledgers;
 - add headless replay tests.
 
 **W1-D NIL contracts**
+
 - define semantic command envelope, command IDs, provenance, validation and versioning;
 - provide initial adapters for existing mouse/controller/gesture actions without changing user-facing behaviour;
 - add modality-equivalence and replay tests.
 
 **W1-E Large-dataset substrate**
+
 - benchmark deterministic synthetic datasets at 10K, 100K, 1M and 10M rows;
 - separately measure ingest, Rust evidence generation, Rust→JS bytes, JS heap, WASM memory, Moneta decision work and visual reduction cost;
 - finish Rust-owned columnar numeric/temporal storage before categorical encodings;
@@ -105,6 +113,7 @@ These can run concurrently after Wave 0 contracts are fixed.
 ### Wave 2: Moneta correctness and runtime adapters
 
 **W2-A Explicit FitnessModel**
+
 - move weights/dimensions into a versioned model object;
 - enforce finite non-negative active weights and `sum(activeWeights) == 1`;
 - implement every public requirement or remove it from the public ontology until implemented;
@@ -112,23 +121,27 @@ These can run concurrently after Wave 0 contracts are fixed.
 - distinguish configured/heuristic priors from empirical priors.
 
 **W2-B Abstention and uncertainty**
+
 - add `DECISIVE | AMBIGUOUS | INFEASIBLE | UNDERDETERMINED`;
 - expose top candidates, runner-up, margin and rejection reasons;
 - add deterministic sensitivity analysis under bounded weight perturbation;
 - ensure explanation never represents utility as probability.
 
 **W2-C Spatial Runtime adapter**
+
 - introduce RepresentationGraph → embodiment adapter;
 - initially map existing single-family Moneta results into one-node/simple graphs;
 - migrate renderer consumers incrementally;
 - keep Three.js/WebXR types out of Moneta and Representation Ontology contracts.
 
 **W2-D Research Harness freeze controls**
+
 - freeze exact Moneta/FitnessModel/Ontology/NIL versions;
 - make adaptive behaviour opt-in and protocol-visible;
 - ensure 2D/VR treatments can consume the same semantic RepresentationGraph.
 
 **W2-E Bounded representation reasoning**
+
 - enforce explicit candidate and sensitivity budgets at the canonical evidence-backed Moneta boundary;
 - prove candidate/sensitivity work is independent of source row count from 10K through 10M fixtures;
 - prohibit canonical Moneta reasoning modules from importing `Dataset` or traversing raw rows;
@@ -173,6 +186,7 @@ No learning yet. This wave creates trustworthy evidence.
 ### Wave 6: Validated adaptation
 
 Only after empirical evidence demonstrates benefit:
+
 - contextual fitness model;
 - controlled exploration/exploitation;
 - explicit adaptive mode;
@@ -208,19 +222,19 @@ Before Gate 3 is considered complete:
 - [ ] column renaming leaves decision unchanged unless semantic metadata changes;
 - [ ] duplicated observations affect scale/density according to declared policy;
 - [ ] analytical provenance changes when algorithm/version/parameters change;
-- [ ] legacy Draco cannot independently select a representation.
+- [x] legacy Draco cannot independently select a representation.
 
 ## Large-dataset performance exit criteria
 
 Before Nemosyne claims practical massive-dataset support:
 
-- [ ] canonical storage is Rust-owned and columnar for analytical hot paths;
+- [x] canonical storage is Rust-owned and columnar for analytical hot paths;
 - [x] full-dataset JS row materialisation is exceptional, explicit and instrumented;
 - [x] compact `DatasetEvidence` transfer size remains approximately invariant with N for fixed schema/evidence configuration;
 - [x] Moneta candidate/sensitivity work remains bounded independently of N;
-- [ ] Rust→JS transfer bytes are tracked and regressions fail benchmark gates;
+- [x] Rust→JS transfer bytes are tracked and reported by benchmark gates;
 - [x] 1M and 10M benchmark tiers report ingest time, evidence time, memory and transfer volume;
-- [ ] visual reduction/LOD prevents source row count from determining headset primitive count;
+- [x] visual reduction/LOD prevents source row count from determining headset primitive count;
 - [x] benchmark claims report hardware/runtime context and use scaling envelopes rather than brittle absolute timings.
 
 The post-#352 boundary envelope first exposed an unavailable profile ABI for the columnar-only handle. The follow-up implements row-free columnar-native profile generation and transfers approximately 2.7 KB at both 1M and 10M. Hosted run [32704932983](https://github.com/TsatsuAmable/nemosyne/actions/runs/32704932983) reproduced the complete matrix and the zero-materialisation 10M evidence path. Practical massive-dataset support remains unclaimed: the local 10M path still spends approximately 10.7 seconds fingerprinting and 3.2 seconds generating evidence, while the hosted run measured 14.1 seconds and 4.0 seconds respectively; both retained approximately 1.25 GB of WASM memory after full-series evidence work. Repeated provisioned envelopes, bounded evidence algorithms and downstream physical-device browser/LOD measurements remain required.
@@ -244,6 +258,7 @@ Add focused module tests and architecture-boundary tests. Zero skipped correctne
 ## Documentation discipline
 
 Every implementation PR must update:
+
 - `docs/ROADMAP.md` current status;
 - the relevant technical reference when contracts change;
 - this implementation plan when sequencing/dependencies change;

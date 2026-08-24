@@ -1,4 +1,4 @@
-# Moneta Migration Completion Sprint
+# Moneta Migration Completion Sprint (archived exit ledger)
 
 ## Purpose
 

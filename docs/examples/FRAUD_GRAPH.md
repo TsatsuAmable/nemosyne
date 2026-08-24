@@ -6,16 +6,16 @@ A graph memory palace built from the `fraud-graph` sample dataset.
 
 `src/data/SampleDatasets.ts` defines eight transactions with `amount`, `isFraud`, and `hour` fields, plus weighted edges between related transactions.
 
-| id | amount | isFraud | hour |
-|---|---|---|---|
-| A | 120 | false | 9 |
-| B | 8500 | true | 2 |
-| C | 300 | false | 14 |
-| D | 9200 | true | 3 |
-| ... | ... | ... | ... |
-| H | 11000 | true | 1 |
+| id  | amount | isFraud | hour |
+| --- | ------ | ------- | ---- |
+| A   | 120    | false   | 9    |
+| B   | 8500   | true    | 2    |
+| C   | 300    | false   | 14   |
+| D   | 9200   | true    | 3    |
+| ... | ...    | ...     | ...  |
+| H   | 11000  | true    | 1    |
 
-The Draco engine detects the `edges` array and the `isFraud` categorical column, infers **GRAPH**, and produces a constellation of connected crystal nodes. High-amount transactions become larger **Orb** nodes.
+Moneta consumes Rust-owned graph/categorical evidence and can select a constellation of connected crystal nodes. High-amount transactions become larger **Orb** nodes.
 
 ## Artefacts generated
 

@@ -45,8 +45,6 @@ interface HandWheelMenuOptions {
   actionRadius?: number;
   nodeSize?: number;
   actionSpread?: number;
-  openAngleThreshold?: number;
-  closeAngleThreshold?: number;
   hoverDelayMs?: number;
   feedback?: FeedbackLike;
 }
@@ -67,8 +65,6 @@ export class HandWheelMenu {
   actionRadius: number;
   nodeSize: number;
   actionSpread: number;
-  openAngleThreshold: number;
-  closeAngleThreshold: number;
   hoverDelayMs: number;
   feedback: FeedbackLike | null;
 
@@ -82,7 +78,8 @@ export class HandWheelMenu {
   colorblindMode: string | boolean;
 
   private _cameraPos: THREE.Vector3;
-  private _pointerAngle: number | null;
+  private _inverseWorld: THREE.Matrix4;
+  private _hoverScale: THREE.Vector3;
   private _hoverStart: { category: string | null; action: HoverTarget | null; at: number };
   private _lastHovered: { category: string | null; action: HoverTarget | null };
   private _previousHoveredAction: WheelMenuAction | null;
@@ -90,6 +87,7 @@ export class HandWheelMenu {
   private _categories: WheelMenuCategory[];
   private _categoryMeshes: THREE.Mesh[];
   private _actionMeshes: THREE.Mesh[];
+  private _allMeshes: THREE.Mesh[];
   private _connectorLines: THREE.LineSegments | null;
   private _connectorMaterial: THREE.LineBasicMaterial | null;
   private _raycaster: THREE.Raycaster;
@@ -130,18 +128,18 @@ export class HandWheelMenu {
     this.nodeSize = options.nodeSize ?? 0.065;
     this.actionSpread = options.actionSpread ?? Math.PI / 2.2;
 
-    this.openAngleThreshold = options.openAngleThreshold ?? 0;
-    this.closeAngleThreshold = options.closeAngleThreshold ?? Infinity;
     this.hoverDelayMs = options.hoverDelayMs ?? 0;
 
     this.feedback = options.feedback ?? engine?.input?.feedback ?? null;
 
     this._cameraPos = new THREE.Vector3();
-    this._pointerAngle = null;
+    this._inverseWorld = new THREE.Matrix4();
+    this._hoverScale = new THREE.Vector3(1, 1, 1);
     this._hoverStart = { category: null, action: null, at: 0 };
     this._categories = [];
     this._categoryMeshes = [];
     this._actionMeshes = [];
+    this._allMeshes = [];
     this._connectorLines = null;
     this._connectorMaterial = null;
     this._raycaster = new THREE.Raycaster();
@@ -228,7 +226,8 @@ export class HandWheelMenu {
   private _toggleCooldownMs = 650;
 
   toggle(): void {
-    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const now =
+      typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     if (now - this._lastToggleTime < this._toggleCooldownMs) {
       return;
     }
@@ -292,39 +291,8 @@ export class HandWheelMenu {
     this.engine.camera.getWorldPosition(this._cameraPos);
     this.group.lookAt(this._cameraPos);
 
-    this._updatePointerAngle();
     this._updateHover();
     this._updateVisibility();
-  }
-
-  /**
-   * Record the current pointer angle relative to the wheel center.
-   *
-   * Sources the ray from the active pointer (controller/hand ray via
-   * `engine.input.pointers.getBestPointerRay()`) — the same ray used for click
-   * selection — so the open/close zone logic agrees with where the user is
-   * pointing rather than where they are looking. When no pointer is active the
-   * angle is cleared (null), which the zone helpers treat as "no constraint".
-   */
-  _updatePointerAngle(): void {
-    if (!this.group || !this.engine || !this.engine.camera) return;
-    this.group.updateMatrixWorld();
-    const ray = this.engine.input?.pointers?.getBestPointerRay?.();
-    if (!ray) {
-      this._pointerAngle = null;
-      return;
-    }
-    this._raycaster.ray.origin.copy(ray.origin);
-    this._raycaster.ray.direction.copy(ray.direction);
-    this._raycaster.ray.applyMatrix4(new THREE.Matrix4().copy(this.group.matrixWorld).invert());
-    this._pointerAngle = Math.atan2(
-      this._raycaster.ray.direction.y,
-      this._raycaster.ray.direction.x
-    );
-  }
-
-  get pointerAngle(): number | null {
-    return this._pointerAngle;
   }
 
   /**
@@ -334,11 +302,10 @@ export class HandWheelMenu {
   handlePointerClick(raycaster: THREE.Raycaster): boolean {
     if (!this.group.visible) return false;
 
-    const allMeshes = [...this._categoryMeshes, ...this._actionMeshes];
-    if (allMeshes.length === 0) return false;
+    if (this._allMeshes.length === 0) return false;
 
     this.group.updateMatrixWorld(true);
-    const hits = raycaster.intersectObjects(allMeshes, false);
+    const hits = raycaster.intersectObjects(this._allMeshes, false);
     if (hits.length === 0) return false;
 
     const hit = hits[0].object as THREE.Mesh;
@@ -356,7 +323,10 @@ export class HandWheelMenu {
     }
 
     if (kind === 'action') {
-      const { categoryId, actionIndex } = hit.userData as { categoryId: string; actionIndex: number };
+      const { categoryId, actionIndex } = hit.userData as {
+        categoryId: string;
+        actionIndex: number;
+      };
       const category = this._categories.find((c) => c.id === categoryId);
       const action = category?.items?.[actionIndex];
       if (action) {
@@ -394,7 +364,7 @@ export class HandWheelMenu {
 
       // Vertical position calculation: centered vertically around y = 0
       const posX = isLeft ? -0.36 : 0.36;
-      const posY = (colTotal > 1 ? (colIndex - (colTotal - 1) / 2) : 0) * 0.085;
+      const posY = (colTotal > 1 ? colIndex - (colTotal - 1) / 2 : 0) * 0.085;
 
       const colorHex = palette[i % palette.length];
       const material = new THREE.MeshBasicMaterial({
@@ -418,6 +388,7 @@ export class HandWheelMenu {
       mesh.userData.baseScale = 1;
       this.group.add(mesh);
       this._categoryMeshes.push(mesh);
+      this._allMeshes.push(mesh);
     }
   }
 
@@ -446,6 +417,7 @@ export class HandWheelMenu {
         mesh.visible = false;
         this.group.add(mesh);
         this._actionMeshes.push(mesh);
+        this._allMeshes.push(mesh);
       }
     }
   }
@@ -491,9 +463,9 @@ export class HandWheelMenu {
     if (ray) {
       this._raycaster.ray.origin.copy(ray.origin);
       this._raycaster.ray.direction.copy(ray.direction);
-      this._raycaster.ray.applyMatrix4(new THREE.Matrix4().copy(this.group.matrixWorld).invert());
-      const allMeshes = [...this._categoryMeshes, ...this._actionMeshes];
-      const hits = this._raycaster.intersectObjects(allMeshes, false);
+      this._inverseWorld.copy(this.group.matrixWorld).invert();
+      this._raycaster.ray.applyMatrix4(this._inverseWorld);
+      const hits = this._raycaster.intersectObjects(this._allMeshes, false);
       if (hits.length > 0) {
         const hit = hits[0].object as THREE.Mesh;
         if (hit.userData.kind === 'category') {
@@ -564,7 +536,8 @@ export class HandWheelMenu {
 
   _applyHover(mesh: THREE.Mesh, isHover: boolean): void {
     const targetScale = isHover ? 1.08 : 1;
-    mesh.scale.lerp(new THREE.Vector3(targetScale, targetScale, 1), 0.25);
+    this._hoverScale.set(targetScale, targetScale, 1);
+    mesh.scale.lerp(this._hoverScale, 0.25);
     const material = mesh.material as THREE.MeshBasicMaterial;
     material.opacity = isHover ? 1 : 0.85;
   }
@@ -605,7 +578,7 @@ export class HandWheelMenu {
 
     // Expand action pills horizontally outward (left to the left, right to the right)
     const offsetX = isLeft ? -0.25 : +0.25;
-    const offsetY = (count > 1 ? (index - (count - 1) / 2) : 0) * 0.075;
+    const offsetY = (count > 1 ? index - (count - 1) / 2 : 0) * 0.075;
 
     mesh.position.set(catMesh.position.x + offsetX, catMesh.position.y + offsetY, 0);
   }
@@ -639,8 +612,10 @@ export class HandWheelMenu {
     accentColor: number = 0x00ffcc
   ): THREE.CanvasTexture {
     const { label = '', icon = null } =
-      item != null && typeof item === 'object' ? (item as { label?: string; icon?: string }) : { label: item };
-    
+      item != null && typeof item === 'object'
+        ? (item as { label?: string; icon?: string })
+        : { label: item };
+
     const width = 512;
     const height = 160;
     const canvas = document.createElement('canvas');
@@ -653,7 +628,7 @@ export class HandWheelMenu {
     // Dark pill background with vibrant category accent border
     const hexStr = '#' + accentColor.toString(16).padStart(6, '0');
     ctx.fillStyle = this.highContrast ? '#050a12' : 'rgba(10, 18, 32, 0.94)';
-    
+
     if (typeof ctx?.beginPath === 'function') {
       ctx.beginPath();
       if ('roundRect' in ctx && typeof ctx.roundRect === 'function') {
@@ -716,6 +691,7 @@ export class HandWheelMenu {
     }
     this._categoryMeshes = [];
     this._actionMeshes = [];
+    this._allMeshes = [];
     this._categoryMaterials = [];
     this._actionMaterials = [];
 

@@ -6,13 +6,13 @@ A process-flow memory palace built from the `flow-process` sample dataset.
 
 `src/data/SyntheticData.js` generates six pipeline stages with `throughput` and `latency`, plus weighted skip edges.
 
-| id | stage | label | throughput | latency |
-|---|---|---|---|---|
-| S0 | 0 | Stage 1 | 342 | 87 |
-| S1 | 1 | Stage 2 | 891 | 45 |
-| ... | ... | ... | ... | ... |
+| id  | stage | label   | throughput | latency |
+| --- | ----- | ------- | ---------- | ------- |
+| S0  | 0     | Stage 1 | 342        | 87      |
+| S1  | 1     | Stage 2 | 891        | 45      |
+| ... | ...   | ...     | ...        | ...     |
 
-The Draco engine sees weighted `edges` and infers **GRAPH**. The translator uses a constrained channel layout that reads like a left-to-right pipeline.
+Moneta consumes Rust-owned weighted-edge evidence and can select a constrained channel layout that reads like a left-to-right pipeline.
 
 ## Artefacts generated
 

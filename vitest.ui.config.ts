@@ -1,10 +1,5 @@
 import { defineConfig } from 'vitest/config';
-
-export const UI_ONLY_TESTS = [
-  'tests/adaptive-assist-controller.test.ts',
-  'tests/ai-gesture-jit-hints.test.ts',
-  'tests/asymmetric-desktop-companion.test.ts',
-];
+import { UI_ONLY_TESTS } from './tests/config/test-groups.ts';
 
 export default defineConfig({
   test: {

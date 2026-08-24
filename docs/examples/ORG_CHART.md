@@ -6,13 +6,13 @@ A hierarchical memory palace built from the `org-chart` sample dataset.
 
 `src/data/SyntheticData.js` generates a four-level organization tree with `id`, `name`, `level`, `parent`, `employees`, and `budget`.
 
-| id | name | level | parent | employees | budget |
-|---|---|---|---|---|---|
-| 1 | CEO | 0 | null | 67 | 2.8M |
-| 2 | VP-A | 1 | 1 | 42 | 1.5M |
-| ... | ... | ... | ... | ... | ... |
+| id  | name | level | parent | employees | budget |
+| --- | ---- | ----- | ------ | --------- | ------ |
+| 1   | CEO  | 0     | null   | 67        | 2.8M   |
+| 2   | VP-A | 1     | 1      | 42        | 1.5M   |
+| ... | ...  | ...   | ...    | ...       | ...    |
 
-The Draco engine infers **HIERARCHY** from the `parent`/`level` columns and lays out a radial tree on tiered rings.
+Moneta consumes Rust-owned hierarchy evidence and can select an authoritative radial-tree layout on tiered rings.
 
 ## Artefacts generated
 

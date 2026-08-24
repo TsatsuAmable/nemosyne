@@ -2,7 +2,7 @@
 // @vitest-environment jsdom
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
 import { DashboardManager } from '../src/vr/ui/DashboardManager.ts';
@@ -27,11 +27,18 @@ describe('Regression Protection: MatrixWorld Null Safety', () => {
     expect(() => mgr.registerPanel(mockPanelNoMesh as any)).not.toThrow();
   });
 
-  it('prevents HandWheelMenu._updatePointerAngle and _updateHover from crashing when camera or group is missing', () => {
+  it('skips HandWheel hover raycasting until both camera and group are available', () => {
     const engineMock = { camera: null, renderer: null };
     const coordinatorMock = {} as any;
     const menu = new HandWheelMenu(engineMock as any, coordinatorMock);
-    expect(() => menu._updatePointerAngle()).not.toThrow();
-    expect(() => menu._updateHover()).not.toThrow();
+    const intersectObjects = vi.spyOn(menu._raycaster, 'intersectObjects');
+
+    menu._updateHover();
+    expect(intersectObjects).not.toHaveBeenCalled();
+
+    engineMock.camera = new THREE.PerspectiveCamera();
+    menu.group = null;
+    menu._updateHover();
+    expect(intersectObjects).not.toHaveBeenCalled();
   });
 });

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nemosyne - an experimental WebXR data project</title>
+    <title>Nemosyne - a reproducible data investigation project</title>
 
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230a0a0f' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='50' y='68' font-family='serif' font-size='55' fill='%23d4af37' text-anchor='middle'%3E%26%239672%3B%3C/text%3E%3C/svg%3E">
@@ -29,8 +29,8 @@
         <ul class="nav-links">
             <li><a href="#runtime">Runtime</a></li>
             <li><a href="#features">Capabilities</a></li>
-            <li><a href="DEVELOPER_EXPLAINER.md">Developer Guide</a></li>
-            <li><a href="ARCHITECTURE.md">Architecture</a></li>
+            <li><a href="developer-explainer.html">Developer Guide</a></li>
+            <li><a href="architecture.html">Architecture</a></li>
             <li><a href="https://github.com/TsatsuAmable/nemosyne#readme" target="_blank" rel="noopener">Docs</a></li>
             <li><a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener" style="color: var(--memory-gold);">Live App ↗</a></li>
         </ul>
@@ -54,26 +54,26 @@
         </div>
 
         <div class="hero-content">
-            <div class="badge">Personal - Experimental</div>
+            <div class="badge">Open - Experimental</div>
             <h1>
-                Map data into<br>
-                <span class="nemosyne">3D memory palaces</span>
+                From data to<br>
+                <span class="nemosyne">defensible discovery</span>
             </h1>
             <p class="hero-subtitle">
-                Nemosyne is a three.js/WebXR spatial data analysis project. Explore data as interactive artefacts, inspect relationships in space, and use embodied input to find patterns.
+                Nemosyne is an open research instrument for turning analytical evidence into investigations people can inspect, challenge, and replay across desktop and WebXR.
             </p>
             <p class="hero-subtitle" style="opacity: 0.7; margin-top: 0.5rem;">
-                A personal research project, not a maintained product or npm package.
+                Alpha research software, not a validated instrument or commercial product. Meta Quest 3S device qualification is still pending.
             </p>
 
             <div class="tech-stack">
                 <div class="tech-badge aframe">
                     <span>▲</span>
-                    <span>Built on three.js</span>
+                    <span>Rust/WASM authority</span>
                 </div>
                 <div class="tech-badge d3">
                     <span>◈</span>
-                    <span>WebXR Native</span>
+                    <span>Desktop + WebXR</span>
                 </div>
             </div>
         </div>
@@ -83,20 +83,20 @@
         <div class="vr-container">
             <div class="vr-info">
                 <span class="section-tag">The Runtime</span>
-                <h2>Analysis with a sense of place</h2>
+                <h2>Investigation with a sense of place</h2>
                 <p>
-                    Nemosyne turns structured and streaming data into a spatial workspace. The runtime separates analytical operations from their visual embodiment so the same findings can be inspected through different views.
+                    Nemosyne keeps analytical evidence, decisions, annotations, and session history together so a finding can be traced and reproduced instead of merely presented.
                 </p>
                 <p>
-                    Quest hand tracking and controllers are supported directly. Desktop input provides a practical fallback for development, accessibility, and recovery.
+                    The same investigation model is available on desktop and through WebXR. Quest hand and controller paths are implemented, but physical-device performance and interaction qualification remain open work.
                 </p>
                 <div class="vr-controls">
                     <h4>Designed for</h4>
                     <ul>
-                        <li>Exploration of complex relationships</li>
-                        <li>World-space inspection and comparison</li>
-                        <li>Embodied filtering and transformation</li>
-                        <li>Reproducible analytical sessions</li>
+                        <li>Evidence-backed discovery</li>
+                        <li>Hypotheses that can be challenged</li>
+                        <li>Reproducible investigation sessions</li>
+                        <li>Comparable desktop and WebXR workflows</li>
                     </ul>
                 </div>
             </div>
@@ -104,19 +104,19 @@
             <div class="aframe-container" style="display: flex; width: 100%; height: 100%; min-height: 480px; flex-direction: column; background: linear-gradient(135deg, #050508 0%, #0a0a15 100%); border: 1px solid rgba(0, 212, 170, 0.2); border-radius: 12px; overflow: hidden; position: relative; justify-content: center; align-items: center; text-align: center; padding: 2.5rem;">
                 <div style="position: absolute; top: 1rem; left: 1.5rem; display: flex; align-items: center; gap: 0.5rem; font-family: monospace; font-size: 0.8rem; color: var(--datasphere-cyan);">
                     <span style="display: inline-block; width: 8px; height: 8px; background: var(--datasphere-cyan); border-radius: 50%; box-shadow: 0 0 8px var(--datasphere-cyan);"></span>
-                    SYSTEM ONLINE • SPATIAL ANALYTICS RUNTIME
+                    SYSTEM ONLINE • EXPERIMENTAL INVESTIGATION RUNTIME
                 </div>
                 <div style="max-width: 520px; z-index: 1;">
                     <div style="font-size: 3.5rem; margin-bottom: 1rem; filter: drop-shadow(0 0 16px rgba(212, 175, 55, 0.4));">◈</div>
-                    <h3 style="font-family: 'Cinzel', serif; font-size: 1.8rem; margin-bottom: 0.75rem; color: var(--lunar-silver); letter-spacing: 0.05em;">Nemosyne Spatial Suite</h3>
+                    <h3 style="font-family: 'Cinzel', serif; font-size: 1.8rem; margin-bottom: 0.75rem; color: var(--lunar-silver); letter-spacing: 0.05em;">Nemosyne Investigation Suite</h3>
                     <p style="color: var(--gray); font-size: 0.95rem; margin-bottom: 1.75rem; line-height: 1.6;">
-                        High-dimensional topology mapping, Rust analytical kernel, Draco recommender, and WebXR spatial embodiment.
+                        Rust/WASM evidence, bounded Moneta representation or explicit abstention, and portable investigation replay across desktop and WebXR.
                     </p>
                     <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
                         <a href="https://nemosyne-analysis-suite.netlify.app/" target="_blank" rel="noopener" class="github-btn" style="background: linear-gradient(135deg, var(--memory-gold), #b89628); color: #050508; font-weight: 600; text-decoration: none; padding: 0.75rem 1.5rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 20px rgba(212, 175, 55, 0.3);">
                             <span>🚀</span> Launch Live Suite
                         </a>
-                        <a href="DEVELOPER_EXPLAINER.md" class="github-btn" style="text-decoration: none; padding: 0.75rem 1.25rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.5rem; border: 1px solid var(--datasphere-cyan);">
+                        <a href="developer-explainer.html" class="github-btn" style="text-decoration: none; padding: 0.75rem 1.25rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.5rem; border: 1px solid var(--datasphere-cyan);">
                             <span>🛠️</span> Developer Guide
                         </a>
                         <a href="https://github.com/TsatsuAmable/nemosyne" target="_blank" rel="noopener" class="github-btn" style="text-decoration: none; padding: 0.75rem 1.25rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.5rem;">
@@ -132,42 +132,42 @@
         <div class="container">
             <div class="section-header">
                 <span class="section-tag">Capabilities</span>
-                <h2>From data to understanding</h2>
+                <h2>From evidence to reproducible insight</h2>
                 <p class="section-subtitle">
-                    A compact runtime for turning data, analysis, and spatial interaction into one inspectable workspace.
+                    Implemented foundations for inspecting analytical evidence, recording decisions, and replaying how an investigation reached its conclusions.
                 </p>
             </div>
 
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">🎯</div>
-                    <h3>Spatial Data Mapping</h3>
-                    <p>Map CSV, JSON, and live-stream data into interactive 3D artefacts for embodied exploration and inspection.</p>
+                    <h3>Rust/WASM Evidence</h3>
+                    <p>The Rust/WASM kernel is the sole analytical authority. If it is unavailable, Nemosyne reports that state instead of quietly changing methods.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🔮</div>
-                    <h3>Draco v1 Embodiment</h3>
-                    <p>A symbolic constraint engine selects layout, geometry, behaviour, and interaction from topology and statistical facts.</p>
+                    <h3>Moneta Representation</h3>
+                    <p>Moneta selects bounded representations from kernel evidence and records its reasoning, or abstains when the evidence is insufficient.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🤝</div>
-                    <h3>Collaborative Spaces</h3>
-                    <p>WebRTC/WebSocket foundations support shared memory palaces, peer presence, annotations, and guided tours.</p>
+                    <h3>Investigation Provenance</h3>
+                    <p>Decisions, annotations, transforms, and evidence references travel with the investigation so findings can be inspected and challenged.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">⚡</div>
-                    <h3>WebXR Native</h3>
-                    <p>Runs directly on three.js and WebXR with Quest hand tracking, controllers, and a desktop recovery path.</p>
+                    <h3>Desktop + WebXR</h3>
+                    <p>Desktop, controller, and hand-input foundations share one investigation model, with physical Quest qualification explicitly pending.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🧩</div>
-                    <h3>Spatial Workspaces</h3>
-                    <p>Moveable HUD panels, a curved analyst dashboard, session persistence, and world-space inspection keep analysis legible.</p>
+                    <h3>Portable Replay</h3>
+                    <p>Versioned Nemosyne packages preserve datasets, investigation state, provenance, and integrity checks for controlled replay.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">📊</div>
-                    <h3>Analytical Operations</h3>
-                    <p>Filter, aggregate, sort, cluster, detect anomalies, inspect correlations, and expose TDA summaries in context.</p>
+                    <h3>Research Instrumentation</h3>
+                    <p>Telemetry, study protocols, accessibility foundations, and explicit qualification gates support evaluation without overstating readiness.</p>
                 </div>
             </div>
         </div>
@@ -178,14 +178,14 @@
         <div class="footer-tagline">Nemosyne</div>
         <div class="footer-domain">nemosyne.world</div>
         <p class="footer-text">
-            A spatial investigation environment for analytical reasoning and human-computer interaction study.
+            An open research instrument for evidence-backed, inspectable, and reproducible data investigation.
         </p>
         <p style="margin-top: 0.5rem; font-size: 0.85rem;">
-            <a href="DEVELOPER_EXPLAINER.md" style="color: var(--datasphere-cyan); text-decoration: none; margin: 0 0.5rem;">Developer Explainer</a> •
-            <a href="STANDARDIZATION_REVIEW.md" style="color: var(--lunar-silver); text-decoration: none; margin: 0 0.5rem;">Standardization Review</a> •
-            <a href="ARCHITECTURE.md" style="color: var(--lunar-silver); text-decoration: none; margin: 0 0.5rem;">Architecture</a> •
-            <a href="ROADMAP.md" style="color: var(--lunar-silver); text-decoration: none; margin: 0 0.5rem;">Roadmap</a> •
-            <a href="Nemosyne_Definitive_Vision_and_Roadmap.md" style="color: var(--memory-gold); text-decoration: none; margin: 0 0.5rem;">Definitive Vision</a>
+            <a href="developer-explainer.html" style="color: var(--datasphere-cyan); text-decoration: none; margin: 0 0.5rem;">Developer Explainer</a> •
+            <a href="systematic-audit.html" style="color: var(--lunar-silver); text-decoration: none; margin: 0 0.5rem;">Systematic Audit</a> •
+            <a href="architecture.html" style="color: var(--lunar-silver); text-decoration: none; margin: 0 0.5rem;">Architecture</a> •
+            <a href="roadmap.html" style="color: var(--lunar-silver); text-decoration: none; margin: 0 0.5rem;">Roadmap</a> •
+            <a href="vision.html" style="color: var(--memory-gold); text-decoration: none; margin: 0 0.5rem;">Definitive Vision</a>
         </p>
         <p class="copyright">
             © 2026 Tsatsu Amable. Released under MIT License.

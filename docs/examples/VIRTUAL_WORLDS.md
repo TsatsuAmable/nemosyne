@@ -6,12 +6,12 @@ A process-flow memory palace for game-world telemetry, using the `flow-process` 
 
 Game levels and pipelines share the same shape as process-flow graphs: stages, edges, throughput, and latency. The `flow-process` dataset from `src/data/SyntheticData.js` acts as a stand-in for level telemetry:
 
-| id | stage | label | throughput | latency |
-|---|---|---|---|---|
-| S0 | 0 | Stage 1 | 342 | 87 |
-| ... | ... | ... | ... | ... |
+| id  | stage | label   | throughput | latency |
+| --- | ----- | ------- | ---------- | ------- |
+| S0  | 0     | Stage 1 | 342        | 87      |
+| ... | ...   | ...     | ...        | ...     |
 
-The Draco engine infers **GRAPH** and lays out a channel-style flow graph with weighted beams.
+Moneta consumes Rust-owned graph evidence and can select a channel-style flow graph with weighted beams.
 
 ## Artefacts generated
 

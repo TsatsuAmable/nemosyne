@@ -6,12 +6,12 @@ A vector-field memory palace built from the `wind-field` sample dataset.
 
 `src/data/SyntheticData.js` generates 40 sample vectors with position (`x`, `y`, `z`), direction (`u`, `v`, `w`), and derived `magnitude`.
 
-| id | x | y | z | u | v | w | magnitude |
-|---|---|---|---|---|---|---|---|
-| V0 | 2.3 | 1.2 | -4.1 | 0.6 | -0.1 | 0.7 | 0.92 |
-| ... | ... | ... | ... | ... | ... | ... | ... |
+| id  | x   | y   | z    | u   | v    | w   | magnitude |
+| --- | --- | --- | ---- | --- | ---- | --- | --------- |
+| V0  | 2.3 | 1.2 | -4.1 | 0.6 | -0.1 | 0.7 | 0.92      |
+| ... | ... | ... | ...  | ... | ...  | ... | ...       |
 
-The Draco engine detects `u`/`v`/`w` vector components, infers **VECTOR_FIELD**, and renders flow-ray streamlines coloured by magnitude.
+When the Rust evidence contract supports the required vector components, Moneta can select flow-ray streamlines coloured by magnitude; unsupported evidence must produce an explicit NIL outcome.
 
 ## Artefacts generated
 

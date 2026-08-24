@@ -1,12 +1,17 @@
 # Nemosyne Roadmap & Implementation Status
 
-> **Current implementation-status authority.** Product and research direction are governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This document records the current implementation state, critical-path work and planned post-migration programme. `docs/MONETA_MIGRATION_COMPLETION_SPRINT.md` is the executable exit ledger for the Draco to Moneta migration.
+> **Current implementation-status authority.** Product and research direction are governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This document records the current implementation state and planned programme. Completed migration detail is preserved in `docs/archive/`.
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `d3d4bed` (includes #359).**
+**Current `main`: `24d3373` (includes #361). Active audit branch: `audit/pre-p1-systematic-review`.**
 
-**Next checkpoint:** pre-P1 audits. Dependency maintenance landed in #358 and the physical-Quest-browser 10M typed-column Rust/WASM boundary probe landed in #359 with local and hosted CI green. The probe is separate from the existing 250K render/LOD staircase and records incremental synthetic-fixture construction, host copy, Rust ingest, exact fingerprint, authoritative structure profile, borrowed scans, WASM retention, XR frame gaps and visibility without JavaScript row rematerialisation. Physical execution remains deferred until a Quest 3S is available. Audit scope and findings must be recorded before Option 4/P1 work begins; even a completed device measurement remains `deviceQualifiedAt10m: false` until that governed decision.
+**Next checkpoint:** close the [pre-P1 systematic audit](PRE_P1_SYSTEMATIC_AUDIT.md). Dependency maintenance landed in #358, the physical-Quest-browser 10M boundary probe in #359, and VR asset constraints in #361. The audit restores the full required CI gate, hardens streaming package import, removes avoidable frame allocations, unifies production adaptive-assist UI state, centralizes test ownership and refreshes public documentation. Physical execution remains deferred until a Quest 3S is available; even a completed measurement remains `deviceQualifiedAt10m: false` until governed review.
+
+**Last local gate:** green on 24 August 2026 — typecheck; lint (0 errors, 170 recorded
+warnings); coverage (310 files, 1,903 tests); production build; 170 Rust tests; real Chromium
+prebuilt-bundle smoke; 8/8 hygiene dimensions; workflow YAML; active documentation links and
+desktop/mobile public-page inspection. Hosted CI and Pages publication remain pending.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
@@ -122,106 +127,21 @@ For the migration contract, representation/model/NIL/discovery provenance contin
 | 9 - Compositional Moneta     | **DEFERRED**                                        | Preconditions partly exist.                                                                                                                                       | Wait for RepresentationGraph/grammar maturity, bounded search and Gate 0-8 evidence.                            |
 | 10 - Adaptive Nemosyne       | **DEFERRED**                                        | Governance foundations exist.                                                                                                                                     | Requires validated learning, freeze controls, monitoring, rollback and longitudinal evidence.                   |
 
-## Critical path: finish the Draco to Moneta migration
+## Completed P0 migration programme (archived)
 
-### P0.1 - Reconcile and collapse legacy compatibility
+The Draco-to-Moneta authority migration, scientific terminology audit, authoritative end-to-end
+composition/replay proof and row-free 10M Rust/JS boundary implementation are complete. The detailed
+exit ledger is preserved in
+[archive/MONETA_MIGRATION_COMPLETION_SPRINT_2026-08-24.md](archive/MONETA_MIGRATION_COMPLETION_SPRINT_2026-08-24.md).
 
-- [x] Restrict Draco to compatibility aliases/re-exports.
-- [x] Eliminate production imports from `src/draco/**`.
-- [x] Complete production import/call-site inventory.
-- [x] Classify every remaining Draco compatibility file as required public alias or obsolete.
-- [x] Delete obsolete aliases/files with no live compatibility consumer.
-- [x] Document the intentionally retained public compatibility surface and removal conditions.
-- [x] Keep architecture tests preventing any independent Draco solver/scorer/layout authority.
+Two promotion gates remain outside the completed migration programme:
 
-**Exit:** `src/draco/**` contains only deliberately retained compatibility exports, with no hidden implementation authority.
+- [ ] Run the instrumented browser envelope on a physical Meta Quest 3S and govern the result.
+- [ ] Close or explicitly accept every blocker/high finding in
+      [PRE_P1_SYSTEMATIC_AUDIT.md](PRE_P1_SYSTEMATIC_AUDIT.md).
 
-### P0.2 - Scientific terminology and authority audit
-
-- [x] Replace investigator-facing uses of uncalibrated `confidence` that actually mean model utility or ranking score.
-- [x] Preserve compatibility fields only where required and mark them deprecated.
-- [x] Distinguish utility score, decision margin, uncertainty evidence and genuinely calibrated confidence.
-- [x] Audit every research-relevant fact entering Moneta and record its Rust/WASM evidence source.
-- [x] Fail explicitly for unsupported fact types rather than reconstructing them heuristically in JS.
-- [x] Confirm bootstrap and learned scoring/ranking semantics have a single production authority.
-
-**Exit:** no UI or persisted scientific claim implies calibration that the model does not provide; no research fact has a shadow JS authority.
-
-### P0.3 - Final end-to-end migration proof
-
-**Complete in #341 and the migration checkpoint.** The executable composition proof starts from a real Rust structure profile, derives DatasetEvidence and the Moneta decision, embodies the SpatialStrategy, persists discovery and Investigation state, exports `.nemosyne` and verifies clean-room replay. The checkpoint additionally proves that a presentation-only pre-kernel World is replaced by an authoritative decision after real WASM readiness.
-
-Create representative executable tests covering multiple topology/data families through:
-
-```text
-Rust/WASM data + evidence
-        -> Moneta bounded reasoning
-        -> RepresentationDecision or NIL
-        -> SpatialStrategy/runtime embodiment
-        -> Discovery/Investigation state
-        -> .nemosyne export
-        -> clean-room replay
-```
-
-Prove:
-
-- deterministic decision/provenance identity;
-- no production Draco authority path;
-- hard constraints remain authoritative before learned ranking;
-- model artifact drift fails closed;
-- unsupported analytical evidence fails explicitly;
-- replay reconstructs the same canonical investigation identity.
-
-### P0.4 - Large-dataset migration validation
-
-**Authority/evidence path complete; physical-device qualification blocked.** #342 proves bounded Moneta candidate/sensitivity work, the capacity artifact proves resident typed-column operation at 10M, #356 bounds and repeatedly reproduces the row-free authoritative DatasetStructureProfile envelope, and #357 provides evidence-grade WebXR render/LOD telemetry. The active 10M boundary branch adds the missing physical-browser execution path; an actual physical Quest 3S run remains required.
-
-Run deterministic tiers at **10K, 100K, 1M and 10M rows**, measuring:
-
-- ingest time;
-- Rust evidence-generation time;
-- Rust-to-JS transfer bytes;
-- number of dataset materialisations;
-- JS row-object reconstruction count;
-- Moneta reasoning latency and candidate/sensitivity counts;
-- WASM and browser memory growth;
-- reduction/LOD output size;
-- renderable primitive budget and WebXR frame behaviour where applicable.
-
-Required invariants:
-
-- Moneta latency is bounded independently of source cardinality after evidence generation;
-- no full-data JS rematerialisation is needed for normal representation reasoning;
-- no N-dependent Moneta JS loop appears;
-- visual reduction prevents source cardinality from directly becoming draw/primitive cardinality;
-- failures remain explicit rather than falling back to expensive JS computation.
-
-### P0.5 - Migration exit declaration
-
-After P0.1-P0.4:
-
-- [x] reconcile `docs/MONETA_MIGRATION_COMPLETION_SPRINT.md` to evidence on `main`;
-- [x] run full relevant CI, architecture gates and coverage assurance;
-- [x] run representative production-browser/WebXR-entry smoke;
-- [x] sweep unresolved blocker-class review findings;
-- [x] mark the migration complete only if every exit invariant is proven.
-
-### Post-exit blocker - 10M Rust/JS evidence boundary
-
-- [x] Measure typed payload build, host copy, Rust ingest, borrowed scans, identity and WASM memory from 10K through 10M.
-- [x] Verify checksum/fingerprint-stable destroy and reload at 10M.
-- [x] Verify the current columnar evidence request fails closed with zero row materialisations.
-- [x] Implement columnar-native Rust DatasetStructureProfile generation with row-backed parity and zero compatibility materialisations.
-- [x] Measure local 1M/10M evidence-generation latency and compact Rust-to-JS transfer bytes.
-- [x] Bound full-series fingerprint/spectral evidence latency and reduce the approximately 1.25 GB retained 10M WASM envelope before device qualification.
-- [x] Reproduce the available 10M evidence path on the provisioned hosted runner (run 32704932983).
-- [x] Add and reproduce an evidence/fingerprint regression envelope across three provisioned 10M runs (run 32710537108).
-- [x] Instrument the physical Quest run for XR cadence, render cost, memory, sustained-performance drift, visibility, build/device identity and actual reduction/LOD output.
-- [x] Add an explicit, row-free Quest-browser 10M boundary probe for typed ingest, identity, authoritative evidence, borrowed scans, retained WASM memory and XR main-thread stalls.
-- [ ] Run the browser envelope on a physical Meta Quest 3S, measuring frame time, memory pressure, thermal behaviour and reduction/LOD output; then extend to the remaining P1 hardware matrix.
-- [ ] Complete the project-owner-selected pre-P1 audits and record their findings before any device-qualification result reopens product promotion.
-
-**Exit:** a 10M columnar handle reaches bounded Moneta reasoning through compact authoritative evidence without JavaScript row reconstruction, and its measured envelope is acceptable for the declared preview hardware.
+**Exit for product promotion:** the 10M evidence envelope is acceptable for the declared preview
+hardware and every pre-P1 risk has a recorded disposition.
 
 ## Parallel engineering track: test/runtime efficiency
 
@@ -230,16 +150,41 @@ This track supports the critical path but must not weaken correctness.
 - [x] Separate fast Node, focused jsdom UI, ordinary integration and explicit real-WASM suites.
 - [x] Remove ambient WASM startup from JS-only suites.
 - [x] Move representative layout correctness to Rust authority and shrink duplicate JS numerical assertions.
-- [ ] Centralize test-group manifests used by integration and WASM configs.
+- [x] Centralize test-group manifests used by integration and WASM configs.
 - [ ] Reclassify mixed test files so only actual kernel boundaries pay WASM startup.
 - [ ] Port remaining exhaustive Rust-owned analytical assertions to Rust or delete duplicates once equivalent coverage is proven.
-- [ ] Record CI/test wall-clock baseline and post-split measurements.
+- [x] Record the local lane baseline in the pre-P1 audit; add hosted critical-path comparison after this PR.
 - [ ] Add Rust-side performance benchmarks separately from deterministic correctness gates.
 - [ ] Document the steady-state ownership rule in contributor/agent guidance.
 
 ## After migration: private preview and productization
 
 Once the migration exit gates, physical Quest evidence and project-owner-selected audits are green, reopen the product track in this order.
+
+### Pre-P1 audit implementation backlog
+
+The full evidence and dispositions are in
+[PRE_P1_SYSTEMATIC_AUDIT.md](PRE_P1_SYSTEMATIC_AUDIT.md). This is the live implementation queue:
+
+- [ ] **PERF-04 / blocker:** run and govern the physical Quest 3S 10M browser qualification.
+- [ ] **ARCH-01 / high:** split `World`, `RuntimeBridge`, coordinator contracts, Atlas orchestration and topology embodiment along lifecycle/authority seams.
+- [ ] **ARCH-02 / high:** add explicit idempotent UI/world ownership, disposal and recreation contracts.
+- [ ] **PERF-03 / high:** benchmark and wire one production spatial accelerator; delete the redundant built-only index.
+- [ ] **UX-02 / high:** implement a real-browser load → Moneta/NIL → investigation → export → replay journey.
+- [ ] **UX-03 / high:** execute controller, hand and desktop semantic-parity tasks on physical hardware.
+- [ ] **RES-01 / high:** inject kernel/ABI failure and prove bounded cleanup plus recoverable UX.
+- [ ] **RES-02 / high:** qualify two-browser collaboration across partition, reconnect and role violations.
+- [ ] **SEC-02 / high:** inventory Rust `unsafe` and fuzz malformed ABI buffers, handles and exhaustion.
+- [ ] **MAINT-01 / high:** remove `@ts-nocheck` from package, bridge, World and Moneta boundary tests first.
+- [ ] **PERF-05 / medium:** profile allocations and GC across representative sustained interactions.
+- [ ] **UX-04 / medium:** expose command availability and disabled reasons in every input modality.
+- [ ] **UX-05 / medium:** benchmark canvas-panel legibility/performance/accessibility against a maintained XR UI library.
+- [ ] **UX-06 / medium:** fix the 390 px header collision and add design-approved reduced-motion, focus, contrast and local-font resilience without changing the public visual identity.
+- [ ] **SEC-03 / low:** review duplicate Cargo transitive majors during Rust modernization.
+- [ ] **MAINT-02 / medium:** replace weak generic assertions in blocker/high-path tests with exact contracts.
+- [ ] **MAINT-05 / medium:** classify and reduce the 170-warning lint baseline, then enforce a non-increasing budget.
+- [ ] **MAINT-06 / medium:** eliminate Rust deprecation/dead-code/unused-unsafe warning debt, governing any fingerprint change as a versioned provenance migration.
+- [ ] **DOC-03 / medium:** remove remaining investigator-facing Draco-era terminology while retaining the governed compatibility facade.
 
 ### P1 - Minimal private preview
 
@@ -332,9 +277,10 @@ Do not begin until learning has outcome evidence and operational governance.
 
 ## Dependency and platform modernization
 
-Tracked separately by `docs/DEPENDENCY_MODERNIZATION_BACKLOG.md` and issue #300. Resume after migration exit unless a dependency is itself a blocker.
+The consolidated dependency update landed in #358; its completed plan is archived. Future updates
+are evidence-led maintenance rather than a standing migration wave.
 
-- [ ] complete low-risk npm and GitHub Actions maintenance;
+- [x] complete the consolidated npm, Cargo and GitHub Actions maintenance in #358;
 - [ ] modernize Rust scientific/data libraries with numerical, provenance, determinism and WASM parity evidence;
 - [ ] replace hand-rolled infrastructure only where a maintained library improves fitness without weakening Nemosyne semantics;
 - [ ] migrate ESLint/TypeScript majors deliberately;
@@ -387,12 +333,10 @@ migration benchmark tiers when scale-sensitive code changes
 
 ## Near-term execution order
 
-1. **Migration exit reconciliation and Draco compatibility deletion.**
-2. **Confidence terminology + Rust analytical-fact authority audit.**
-3. **Representative end-to-end Moneta migration proof.**
-4. **10K-10M deterministic scale/performance validation.**
-5. **Declare migration complete only if all exit gates pass.**
-6. **Private-preview productization, security and VR/UI readiness.**
-7. **Discovery/outcome studies and learned-Moneta empirical validation.**
-8. **RepresentationGraph/compositional Moneta.**
-9. **Adaptive Nemosyne only after evidence and governance prerequisites.**
+1. Close this systematic audit through local/hosted CI and Pages publication.
+2. Run physical Quest 3S 10M and interaction qualification when hardware is available.
+3. Implement the audit's P1-high lifecycle, browser-journey, security and spatial-query work.
+4. Reopen the minimal private-preview decision only after blockers/high findings are governed.
+5. Continue discovery/outcome studies and learned-Moneta empirical validation.
+6. Begin RepresentationGraph/compositional Moneta only after its stated prerequisites.
+7. Begin Adaptive Nemosyne only after evidence and governance prerequisites.

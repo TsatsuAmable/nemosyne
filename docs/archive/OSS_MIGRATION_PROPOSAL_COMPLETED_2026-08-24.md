@@ -1,4 +1,4 @@
-# Open Source Library Adoption & Maintenance Footprint Reduction Proposal
+# Open Source Library Adoption & Maintenance Footprint Reduction Proposal (completed and archived)
 
 **Status:** Approved Architectural Proposal  
 **Target Release:** Limited Public Testing Release (Sprints 27.1–27.6)  
