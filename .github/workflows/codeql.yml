@@ -23,7 +23,6 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
-      security-events: write
       actions: read
 
     strategy:
@@ -44,6 +43,22 @@ jobs:
           build-mode: ${{ matrix.build-mode }}
 
       - name: Perform CodeQL Analysis
+        id: analyze
         uses: github/codeql-action/analyze@v4
         with:
           category: '/language:${{ matrix.language }}'
+          output: codeql-results
+          upload: never
+          upload-database: false
+
+      - name: Enforce zero CodeQL findings
+        run: jq -e '([.runs[].results[]?] | length) == 0' codeql-results/javascript.sarif
+
+      - name: Upload CodeQL SARIF evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: codeql-sarif-${{ matrix.language }}
+          path: codeql-results
+          if-no-files-found: error
+          retention-days: 30
