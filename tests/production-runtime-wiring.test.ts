@@ -3,12 +3,36 @@ import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { Engine } from '../src/vr/Engine.ts';
 import { CollaborativeStateSync } from '../src/network/CollaborativeStateSync.ts';
+import { WorldTopics } from '../src/utils/EventBus.ts';
+import * as runtimeBridge from '../src/wasm/RuntimeBridge.ts';
 
 describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening Suite', () => {
+  it('stages the initial dataset until World initializes an unavailable kernel', async () => {
+    runtimeBridge.invalidateRuntime(new Error('fresh browser runtime'));
+    const { World } = await import('../src/vr/World.ts');
+    const world = new World();
+
+    expect(world.bootState).toBe('INITIALIZING');
+    expect(world.currentEntry.key).toBe('supply-chain');
+    expect(world.dracoNode).toBeNull();
+
+    try {
+      await world.start();
+      expect(world.bootState).toBe('READY');
+      expect(world.dracoNode).not.toBeNull();
+      expect(world.dracoNode.representationDecision).not.toBeNull();
+    } finally {
+      await world.dispose();
+    }
+  });
+
   it('rebuilds the presentation-only palace with an authoritative decision after kernel readiness', async () => {
     const { World } = await import('../src/vr/World.ts');
     const world = new World();
     const presentationNode = world.dracoNode;
+    const versionBefore = world.atlas.datasetVersion;
+    const ledgerBefore = [...world.atlas.ledger];
+    const historyBefore = world.atlas.analysisHistory.length;
 
     expect(world.atlas.isReady()).toBe(false);
     expect(presentationNode.representationDecision).toBeNull();
@@ -23,6 +47,64 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
       expect(world.dracoNode.representationDecision?.datasetFingerprint).toBe(
         world.atlas.datasetFingerprint
       );
+      expect(world.atlas.datasetVersion).toBe(versionBefore);
+      expect(world.atlas.ledger[0]).toEqual(ledgerBefore[0]);
+      expect(world.atlas.analysisHistory.length).toBe(historyBefore);
+
+      const ledgerAfterStart = [...world.atlas.ledger];
+      const authoritativeNode = world.dracoNode;
+      const operationApplied = vi.fn();
+      world.eventBus.on(WorldTopics.OPERATION_APPLIED, operationApplied);
+      const liveRuntime = world._wasmRuntime;
+      world.atlas.setKernel(
+        {
+          ...liveRuntime,
+          isReady: () => true,
+          runOperation: () => {
+            throw new WebAssembly.RuntimeError('injected ABI trap');
+          },
+        },
+        world._wasmCapabilities
+      );
+
+      world.applyDataOperation('sort');
+      expect(world.bootState).toBe('KERNEL_UNAVAILABLE');
+      expect(world.atlas.isReady()).toBe(false);
+      expect(world._wasmCapabilities).toBe(0);
+      expect(world._wasmUnavailable).toBe(true);
+      expect(runtimeBridge.getKernelState()).toBe('UNAVAILABLE');
+      expect(operationApplied).not.toHaveBeenCalled();
+
+      await world.recoverKernel();
+      expect(world.bootState).toBe('READY');
+      expect(runtimeBridge.getKernelState()).toBe('READY');
+      expect(world.atlas.isReady()).toBe(true);
+      expect(world._wasmUnavailable).toBe(false);
+      expect(world.dracoNode).not.toBe(authoritativeNode);
+      expect(world.atlas.datasetVersion).toBe(versionBefore);
+      expect(world.atlas.ledger).toEqual(ledgerAfterStart);
+      expect(world.atlas.analysisHistory.length).toBe(historyBefore);
+    } finally {
+      await world.dispose();
+    }
+  });
+
+  it('retains the current presentation when authoritative recovery construction fails', async () => {
+    const { World } = await import('../src/vr/World.ts');
+    const world = new World();
+    try {
+      await world.start();
+      const currentNode = world.dracoNode;
+      const currentGroup = currentNode.group;
+      vi.spyOn(world.atlas, 'arbitrateRepresentation').mockImplementationOnce(() => {
+        throw new WebAssembly.RuntimeError('injected representation failure');
+      });
+
+      expect(() => world._rebuildPalaceWithKernelFacts()).toThrow(
+        'injected representation failure'
+      );
+      expect(world.dracoNode).toBe(currentNode);
+      expect(world.engine.scene.children).toContain(currentGroup);
     } finally {
       await world.dispose();
     }

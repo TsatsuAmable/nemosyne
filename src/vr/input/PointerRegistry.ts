@@ -91,6 +91,13 @@ export class PointerRegistry {
     this._rayFilters.forEach((f) => f.reset());
   }
 
+  clear(): void {
+    this.reset();
+    this.controllers.length = 0;
+    this.hands.length = 0;
+    this._rayFilters.clear();
+  }
+
   /**
    * Update each hand pointer for the current XR frame.
    */
@@ -183,10 +190,7 @@ export class PointerRegistry {
    * Match a ControllerPointer to the XRInputSource that represents it.
    * Falls back to index order among non-hand sources if handedness is unknown.
    */
-  findSourceForController(
-    controller: PointerLike,
-    sources: XRInputSource[]
-  ): XRInputSource | null {
+  findSourceForController(controller: PointerLike, sources: XRInputSource[]): XRInputSource | null {
     if (!Array.isArray(sources)) return null;
     if (controller.handedness && controller.handedness !== 'none') {
       const match = sources.find(

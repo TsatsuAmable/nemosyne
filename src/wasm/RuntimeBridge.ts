@@ -31,7 +31,9 @@ export { CapabilityFlags, type CapabilityName } from './capabilities.ts';
  * API. We keep this interface intentionally loose because the ABI is versioned
  * by capability flags, not by TypeScript types.
  */
-interface WasmInitInput { module_or_path?: string | URL | Request | Response | BufferSource | WebAssembly.Module; }
+interface WasmInitInput {
+  module_or_path?: string | URL | Request | Response | BufferSource | WebAssembly.Module;
+}
 /** Mirrors the InitOutput interface from wasm-bindgen --target web. */
 interface WasmInitOutput {
   memory: WebAssembly.Memory;
@@ -64,7 +66,7 @@ interface WasmInitOutput {
     topoPtr: number,
     topoLen: number,
     ptr: number,
-    len: number,
+    len: number
   ): number;
   data_infer_schema(handle: number, ptr: number, len: number): number;
   data_statistics(handle: number, ptr: number, len: number): number;
@@ -75,33 +77,29 @@ interface WasmInitOutput {
     valPtr: number,
     valLen: number,
     ptr: number,
-    len: number,
+    len: number
   ): number;
-  data_compute_structure_profile(
-    handle: number,
-    ptr: number,
-    len: number,
-  ): number;
+  data_compute_structure_profile(handle: number, ptr: number, len: number): number;
   data_compute_mapper_graph(
     handle: number,
     paramsPtr: number,
     paramsLen: number,
     ptr: number,
-    len: number,
+    len: number
   ): number;
   data_compute_persistence_intervals(
     handle: number,
     paramsPtr: number,
     paramsLen: number,
     ptr: number,
-    len: number,
+    len: number
   ): number;
   data_compute_betti0_curve(
     handle: number,
     paramsPtr: number,
     paramsLen: number,
     ptr: number,
-    len: number,
+    len: number
   ): number;
   data_compute_radial_tree_3d(
     levelsPtr: number,
@@ -110,7 +108,7 @@ interface WasmInitOutput {
     yStep: number,
     yOffset: number,
     ptr: number,
-    len: number,
+    len: number
   ): number;
   data_compute_time_ribbon_3d(
     seriesPtr: number,
@@ -124,7 +122,7 @@ interface WasmInitOutput {
     zSpacing: number,
     yOffset: number,
     ptr: number,
-    len: number,
+    len: number
   ): number;
   data_compute_geo_surface_3d(
     lonsPtr: number,
@@ -138,7 +136,7 @@ interface WasmInitOutput {
     heightScale: number,
     yOffset: number,
     ptr: number,
-    len: number,
+    len: number
   ): number;
   data_compute_streamline_3d(
     count: number,
@@ -146,7 +144,7 @@ interface WasmInitOutput {
     stepSize: number,
     seed: bigint,
     ptr: number,
-    len: number,
+    len: number
   ): number;
   layout_grid_3d(count: number, spacing: number, yOffset: number, outPtr: number): number;
   layout_force_directed_3d(
@@ -157,27 +155,22 @@ interface WasmInitOutput {
     damping: number,
     radius: number,
     yOffset: number,
-    outPtr: number,
+    outPtr: number
   ): number;
   draco_solve(factsPtr: number, factsLen: number, outPtr: number, outLen: number): number;
   draco_evaluate_candidate(
     inputPtr: number,
     inputLen: number,
     outPtr: number,
-    outLen: number,
+    outLen: number
   ): number;
-  draco_adjust_evidence(
-    inputPtr: number,
-    inputLen: number,
-    outPtr: number,
-    outLen: number,
-  ): number;
+  draco_adjust_evidence(inputPtr: number, inputLen: number, outPtr: number, outLen: number): number;
   intent_compile(inputPtr: number, inputLen: number, outPtr: number, outLen: number): number;
   atlas_discover_structures(
     inputPtr: number,
     inputLen: number,
     outPtr: number,
-    outLen: number,
+    outLen: number
   ): number;
   [key: string]: unknown;
 }
@@ -223,6 +216,26 @@ export class KernelUnavailableError extends Error {
   }
 }
 
+export class KernelAbiError extends Error {
+  readonly code = 'KERNEL_ABI_FAILURE';
+  readonly fatal = true;
+
+  constructor(
+    readonly operation: string,
+    readonly cause: unknown
+  ) {
+    super(
+      `[KernelAbiFailure] ${operation}: ${cause instanceof Error ? cause.message : String(cause)}`
+    );
+    this.name = 'KernelAbiError';
+    Object.setPrototypeOf(this, KernelAbiError.prototype);
+  }
+}
+
+export function isKernelFatalError(error: unknown): error is KernelAbiError {
+  return error instanceof KernelAbiError;
+}
+
 let wasmInstance: WasmInitOutput | null = null;
 let wasmModule: WasmModule | null = null;
 let memoryView: DataView | null = null;
@@ -243,13 +256,22 @@ export function getKernelUnavailableReason(): string | null {
   return kernelUnavailableReason;
 }
 
+export function invalidateRuntime(reason: unknown): void {
+  kernelState = 'UNAVAILABLE';
+  kernelUnavailableReason = reason instanceof Error ? reason.message : String(reason);
+  wasmInstance = null;
+  wasmModule = null;
+  memoryView = null;
+}
+
 /**
  * Assert that the analytical runtime is in the READY state, or throw an explicit KernelUnavailableError.
  */
 export function requireRuntime(): WasmInitOutput {
   if (!wasmInstance || kernelState !== 'READY') {
     throw new KernelUnavailableError(
-      kernelUnavailableReason || 'Analytical kernel has not been initialized (run npm run dev:wasm or build:wasm).',
+      kernelUnavailableReason ||
+        'Analytical kernel has not been initialized (run npm run dev:wasm or build:wasm).',
       kernelState
     );
   }
@@ -297,9 +319,9 @@ export async function initRuntime(wasmUrl?: string | URL): Promise<WasmModule> {
       (globalThis as unknown as Record<string, unknown>).nemosyneNowMs = () => Date.now();
 
       const wasmBytes = fs.readFileSync(wasmFilePath);
-      wasmInstance = (await (mod.default as unknown as (i: Uint8Array) => Promise<WasmInitOutput>)(
+      wasmInstance = await (mod.default as unknown as (i: Uint8Array) => Promise<WasmInitOutput>)(
         wasmBytes
-      ));
+      );
       wasmModule = mod;
       refreshMemoryView();
 
@@ -329,7 +351,8 @@ export async function initRuntime(wasmUrl?: string | URL): Promise<WasmModule> {
     const check = await fetch('/wasm/pkg/nemosyne_wasm.js', { method: 'HEAD' });
     if (!check.ok) {
       kernelState = 'UNAVAILABLE';
-      kernelUnavailableReason = 'WASM module package not found (run npm run dev:wasm or npm run wasm to enable analytical kernel)';
+      kernelUnavailableReason =
+        'WASM module package not found (run npm run dev:wasm or npm run wasm to enable analytical kernel)';
       throw new KernelUnavailableError(kernelUnavailableReason, 'UNAVAILABLE');
     }
   } catch (err) {
@@ -352,9 +375,9 @@ export async function initRuntime(wasmUrl?: string | URL): Promise<WasmModule> {
     // The WasmModule interface declares it as Promise<void> for external compat;
     // cast to WasmInitOutput to access the instance exports.
     const targetWasmUrl = typeof wasmUrl === 'string' ? wasmUrl : '/wasm/pkg/nemosyne_wasm_bg.wasm';
-    wasmInstance = (await (mod.default as unknown as (i: WasmInitInput) => Promise<WasmInitOutput>)(
-      { module_or_path: targetWasmUrl }
-    ));
+    wasmInstance = await (mod.default as unknown as (i: WasmInitInput) => Promise<WasmInitOutput>)({
+      module_or_path: targetWasmUrl,
+    });
     wasmModule = mod;
     refreshMemoryView();
 
@@ -691,7 +714,8 @@ function readStringExport(invoke: (outPtr: number, outLen: number) => number): s
 function tdaCall(
   handle: number,
   params: Record<string, unknown>,
-  exportName: 'data_compute_mapper_graph' | 'data_compute_persistence_intervals' | 'data_compute_betti0_curve',
+  exportName:
+    'data_compute_mapper_graph' | 'data_compute_persistence_intervals' | 'data_compute_betti0_curve'
 ): string | null {
   const paramBytes = new TextEncoder().encode(JSON.stringify(params));
   const { ptr: paramPtr, len: paramLen } = allocBytes(paramBytes);
@@ -702,7 +726,7 @@ function tdaCall(
         pp: number,
         pl: number,
         p: number,
-        l: number,
+        l: number
       ) => number;
       return fn(handle, paramPtr, paramLen, outPtr, outLen);
     });
@@ -750,7 +774,7 @@ export function inferEncodings(handle: number, topology?: string): EncodingMappi
   }
   try {
     const json = readStringExport((p, l) =>
-      wasmInstance!.data_infer_encodings(handle, topoPtr, topoLen, p, l),
+      wasmInstance!.data_infer_encodings(handle, topoPtr, topoLen, p, l)
     );
     if (!json) return null;
     return JSON.parse(json) as EncodingMapping;
@@ -779,7 +803,7 @@ export function statistics(handle: number): Facts | null {
 export function computeSpectralFacts(
   handle: number,
   timeColumn?: string,
-  valueColumn?: string,
+  valueColumn?: string
 ): SpectralFacts | null {
   let timePtr = 0;
   let timeLen = 0;
@@ -797,7 +821,7 @@ export function computeSpectralFacts(
   }
   try {
     const json = readStringExport((p, l) =>
-      wasmInstance!.data_compute_spectral_facts(handle, timePtr, timeLen, valPtr, valLen, p, l),
+      wasmInstance!.data_compute_spectral_facts(handle, timePtr, timeLen, valPtr, valLen, p, l)
     );
     if (!json || json === 'null') return null;
     return JSON.parse(json) as SpectralFacts;
@@ -826,7 +850,7 @@ export function parseArrow(bytes: Uint8Array): number {
  */
 export function computeMapperGraph(
   handle: number,
-  params: Record<string, unknown>,
+  params: Record<string, unknown>
 ): TdaMapperGraph | null {
   const json = tdaCall(handle, params, 'data_compute_mapper_graph');
   if (!json) return null;
@@ -839,7 +863,7 @@ export function computeMapperGraph(
  */
 export function computePersistenceIntervals(
   handle: number,
-  params: Record<string, unknown>,
+  params: Record<string, unknown>
 ): PersistenceInterval[] | null {
   const json = tdaCall(handle, params, 'data_compute_persistence_intervals');
   if (!json) return null;
@@ -851,7 +875,7 @@ export function computePersistenceIntervals(
  */
 export function computeBetti0Curve(
   handle: number,
-  params: Record<string, unknown>,
+  params: Record<string, unknown>
 ): BettiPoint[] | null {
   const json = tdaCall(handle, params, 'data_compute_betti0_curve');
   if (!json) return null;
@@ -866,7 +890,7 @@ export function computeRadialTree3d(
   levels: number[],
   ringSpacing: number,
   yStep: number,
-  yOffset: number,
+  yOffset: number
 ): Float32Array | null {
   if (!wasmInstance || levels.length === 0) return null;
   const levelBytes = new TextEncoder().encode(JSON.stringify(levels));
@@ -879,7 +903,7 @@ export function computeRadialTree3d(
       yStep,
       yOffset,
       0,
-      0,
+      0
     );
     if (needed === 0) return null;
     const outPtr = wasmInstance.alloc(needed);
@@ -891,7 +915,7 @@ export function computeRadialTree3d(
         yStep,
         yOffset,
         outPtr,
-        needed,
+        needed
       );
       if (written === 0) return null;
       return new Float32Array(wasmInstance.memory.buffer, outPtr, written / 4).slice();
@@ -907,7 +931,11 @@ export function computeRadialTree3d(
  * Compute 3D grid layout positions. Returns a `Float32Array` of `count * 3`
  * little-endian values (`x,y,z` per node), or `null` on failure.
  */
-export function computeGrid3d(count: number, spacing: number, yOffset: number): Float32Array | null {
+export function computeGrid3d(
+  count: number,
+  spacing: number,
+  yOffset: number
+): Float32Array | null {
   if (!wasmInstance || count <= 0) return null;
   const needed = count * 12;
   const outPtr = wasmInstance.alloc(needed);
@@ -930,7 +958,7 @@ export function computeForceDirected3d(
   attraction = 0.02,
   damping = 0.08,
   radius = 4,
-  yOffset = 1.2,
+  yOffset = 1.2
 ): Float32Array | null {
   if (!wasmInstance || count <= 0) return null;
   const needed = count * 12;
@@ -944,7 +972,7 @@ export function computeForceDirected3d(
       damping,
       radius,
       yOffset,
-      outPtr,
+      outPtr
     );
     if (written === 0) return null;
     return new Float32Array(wasmInstance.memory.buffer, outPtr, count * 3).slice();
@@ -963,7 +991,7 @@ export function computeTimeRibbon3d(
   xScale = 0.8,
   yScale = 0.2,
   zSpacing = 1.5,
-  yOffset = 1.2,
+  yOffset = 1.2
 ): Float32Array | null {
   if (!wasmInstance || seriesIds.length === 0) return null;
   const seriesBytes = new TextEncoder().encode(JSON.stringify(seriesIds));
@@ -987,7 +1015,7 @@ export function computeTimeRibbon3d(
       zSpacing,
       yOffset,
       0,
-      0,
+      0
     );
     if (needed === 0) return null;
     const outPtr = wasmInstance.alloc(needed);
@@ -1004,7 +1032,7 @@ export function computeTimeRibbon3d(
         zSpacing,
         yOffset,
         outPtr,
-        needed,
+        needed
       );
       if (written === 0) return null;
       return new Float32Array(wasmInstance.memory.buffer, outPtr, written / 4).slice();
@@ -1028,7 +1056,7 @@ export function computeGeoSurface3d(
   roomWidth = 6,
   roomDepth = 3,
   heightScale = 0.05,
-  yOffset = 0.5,
+  yOffset = 0.5
 ): Float32Array | null {
   if (!wasmInstance || longitudes.length === 0) return null;
   const lonsBytes = new TextEncoder().encode(JSON.stringify(longitudes));
@@ -1052,7 +1080,7 @@ export function computeGeoSurface3d(
       heightScale,
       yOffset,
       0,
-      0,
+      0
     );
     if (needed === 0) return null;
     const outPtr = wasmInstance.alloc(needed);
@@ -1069,7 +1097,7 @@ export function computeGeoSurface3d(
         heightScale,
         yOffset,
         outPtr,
-        needed,
+        needed
       );
       if (written === 0) return null;
       return new Float32Array(wasmInstance.memory.buffer, outPtr, written / 4).slice();
@@ -1090,7 +1118,7 @@ export function computeStreamline3d(
   count: number,
   steps = 3,
   stepSize = 2,
-  seed = 1,
+  seed = 1
 ): Float32Array | null {
   if (!wasmInstance || count <= 0) return null;
   const totalPoints = count * (steps + 1);
@@ -1103,7 +1131,7 @@ export function computeStreamline3d(
       stepSize,
       BigInt(seed),
       outPtr,
-      needed,
+      needed
     );
     if (written === 0) return null;
     return new Float32Array(wasmInstance.memory.buffer, outPtr, written / 4).slice();
@@ -1154,24 +1182,24 @@ export function debugFillPattern(len: number): Uint8Array {
 }
 
 /**
-  * Return the WASM command buffer pointer.
-  *
-  * **Dormant:** the command buffer is not implemented; the Rust export returns
-  * `0` as the "not implemented" sentinel (see `command_buffer_ptr` doc in
-  * `wasm/src/lib.rs`). No `src/` caller invokes this; it exists for the future
-  * `SCENE_RUST` + `COMMAND_BUFFER` cutover.
-  */
+ * Return the WASM command buffer pointer.
+ *
+ * **Dormant:** the command buffer is not implemented; the Rust export returns
+ * `0` as the "not implemented" sentinel (see `command_buffer_ptr` doc in
+ * `wasm/src/lib.rs`). No `src/` caller invokes this; it exists for the future
+ * `SCENE_RUST` + `COMMAND_BUFFER` cutover.
+ */
 export function commandBufferPtr(): number {
   if (!wasmInstance) throw new Error('Runtime not initialised');
   return wasmInstance.command_buffer_ptr();
 }
 
 /**
-  * Read the raw bytes of the current WASM frame command buffer.
-  *
-  * **Dormant:** `command_buffer_ptr()` returns `0`, so this returns an empty
-  * buffer (the `ptr === 0` short-circuit). No `src/` caller invokes this.
-  */
+ * Read the raw bytes of the current WASM frame command buffer.
+ *
+ * **Dormant:** `command_buffer_ptr()` returns `0`, so this returns an empty
+ * buffer (the `ptr === 0` short-circuit). No `src/` caller invokes this.
+ */
 export function getCommandBufferBytes(byteLength: number): Uint8Array {
   if (!wasmInstance) throw new Error('Runtime not initialised');
   const ptr = wasmInstance.command_buffer_ptr();
@@ -1181,7 +1209,7 @@ export function getCommandBufferBytes(byteLength: number): Uint8Array {
 
 function callJsonAbi(
   fn: (inPtr: number, inLen: number, outPtr: number, outLen: number) => number,
-  input: unknown,
+  input: unknown
 ): unknown | null {
   const inputBytes = new TextEncoder().encode(JSON.stringify(input));
   const { ptr: inPtr, len: inLen } = allocBytes(inputBytes);
@@ -1219,26 +1247,27 @@ export const solveDraco = solveMoneta;
 
 export function evaluateMonetaCandidate(
   facts: Record<string, unknown>,
-  spec: Record<string, unknown>,
+  spec: Record<string, unknown>
 ): { valid: boolean; cost: number; violations: string[] } | null {
   if (!wasmInstance) return null;
-  return callJsonAbi(
-    wasmInstance.draco_evaluate_candidate.bind(wasmInstance),
-    { facts, spec },
-  ) as { valid: boolean; cost: number; violations: string[] } | null;
+  return callJsonAbi(wasmInstance.draco_evaluate_candidate.bind(wasmInstance), { facts, spec }) as {
+    valid: boolean;
+    cost: number;
+    violations: string[];
+  } | null;
 }
 
 export const evaluateDracoCandidate = evaluateMonetaCandidate;
 
 export function adjustMonetaEvidence(
   baseCost: number,
-  evidence: { sampleCount: number; compositeUtility: number } | null,
+  evidence: { sampleCount: number; compositeUtility: number } | null
 ): { adjustedCost: number; delta: number } | null {
   if (!wasmInstance) return null;
-  return callJsonAbi(
-    wasmInstance.draco_adjust_evidence.bind(wasmInstance),
-    { baseCost, evidence },
-  ) as { adjustedCost: number; delta: number } | null;
+  return callJsonAbi(wasmInstance.draco_adjust_evidence.bind(wasmInstance), {
+    baseCost,
+    evidence,
+  }) as { adjustedCost: number; delta: number } | null;
 }
 
 export const adjustDracoEvidence = adjustMonetaEvidence;
@@ -1260,13 +1289,13 @@ export function computeDatasetStructureProfile(handle: number): Record<string, u
 
 export function compileIntent(
   query: string,
-  schema: { columns: { name: string; kind?: string }[] },
+  schema: { columns: { name: string; kind?: string }[] }
 ): Record<string, unknown> | null {
   if (!wasmInstance) return null;
-  return callJsonAbi(
-    wasmInstance.intent_compile.bind(wasmInstance),
-    { query, schema },
-  ) as Record<string, unknown> | null;
+  return callJsonAbi(wasmInstance.intent_compile.bind(wasmInstance), { query, schema }) as Record<
+    string,
+    unknown
+  > | null;
 }
 
 export function discoverStructures(
@@ -1275,11 +1304,15 @@ export function discoverStructures(
   fingerprint: string,
   version: number,
   algorithmVersion: string,
-  parameters: Record<string, unknown>,
+  parameters: Record<string, unknown>
 ): Record<string, unknown> | null {
   if (!wasmInstance) return null;
-  return callJsonAbi(
-    wasmInstance.atlas_discover_structures.bind(wasmInstance),
-    { assignments, datumIds, fingerprint, version, algorithmVersion, parameters },
-  ) as Record<string, unknown> | null;
+  return callJsonAbi(wasmInstance.atlas_discover_structures.bind(wasmInstance), {
+    assignments,
+    datumIds,
+    fingerprint,
+    version,
+    algorithmVersion,
+    parameters,
+  }) as Record<string, unknown> | null;
 }

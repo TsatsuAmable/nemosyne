@@ -63,7 +63,12 @@ function makeMockBridge() {
       };
     }
     if (op.op === 'aggregate') {
-      return { ...input, rows: [{ _count: rows.length, id: 0, value: rows.reduce((s, r) => s + Number(r.value), 0) }] };
+      return {
+        ...input,
+        rows: [
+          { _count: rows.length, id: 0, value: rows.reduce((s, r) => s + Number(r.value), 0) },
+        ],
+      };
     }
     // slice / unknown → identity
     return input;
@@ -95,7 +100,17 @@ function makeMockBridge() {
       columnCount: 2,
       numeric: [
         { name: 'id', count: 4, sum: 10, mean: 2.5, median: 2.5, std: 1, var: 1, min: 1, max: 4 },
-        { name: 'value', count: 4, sum: 100, mean: 25, median: 25, std: 11, var: 125, min: 10, max: 40 },
+        {
+          name: 'value',
+          count: 4,
+          sum: 100,
+          mean: 25,
+          median: 25,
+          std: 11,
+          var: 125,
+          min: 10,
+          max: 40,
+        },
       ],
       correlation: [],
       categorical: [],
@@ -151,6 +166,32 @@ describe('DataOperationController', () => {
     expect(controller.transformedDataset.rowCount).toBeLessThan(4);
     expect(controller.analysisHistory.length).toBe(1);
     expect(controller.analysisHistory.current().operation).toBe('filter');
+  });
+
+  it('reports a thrown ABI failure but not a valid domain rejection', () => {
+    const onKernelFailure = vi.fn();
+    const failureAtlas = new AtlasCore({ kernel: mockBridge, eventBus, onKernelFailure });
+    const failureController = new DataOperationController({
+      eventBus,
+      getArtifact: () => artifact,
+      atlas: failureAtlas,
+    });
+    failureController.setOriginalDataset(dataset);
+
+    mockBridge.runOperation = () => 0;
+    failureController.apply('sort');
+    expect(onKernelFailure).not.toHaveBeenCalled();
+
+    mockBridge.runOperation = () => {
+      throw new WebAssembly.RuntimeError('ABI trap');
+    };
+    failureController.apply('sort');
+    expect(onKernelFailure).toHaveBeenCalledOnce();
+    expect(onKernelFailure.mock.calls[0][0]).toMatchObject({
+      code: 'KERNEL_ABI_FAILURE',
+      fatal: true,
+      operation: 'runOperation',
+    });
   });
 
   it('emits operation:applied events', () => {

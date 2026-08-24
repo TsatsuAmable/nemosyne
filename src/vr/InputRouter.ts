@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { PointerRegistry } from './input/PointerRegistry.ts';
-import { InteractableRegistry, type InteractableEntry, type HudObject } from './input/InteractableRegistry.ts';
+import {
+  InteractableRegistry,
+  type InteractableEntry,
+  type HudObject,
+} from './input/InteractableRegistry.ts';
 import { PointerEventMachine } from './input/PointerEventMachine.ts';
 import { SystemGestureDetector } from './input/SystemGestureDetector.ts';
 import { SelectionDispatcher } from './input/SelectionDispatcher.ts';
@@ -192,6 +196,10 @@ export class InputRouter {
     this.registry.addHudObject(obj);
   }
 
+  removeHudObject(obj: HudObject): void {
+    this.registry.removeHudObject(obj);
+  }
+
   addPanel(panel: PanelLike): void {
     this.registry.addPanel(panel);
   }
@@ -200,12 +208,12 @@ export class InputRouter {
     this.registry.removePanel(panel);
   }
 
-  setPanelManager(manager: PanelManagerLike): void {
+  setPanelManager(manager: PanelManagerLike | null): void {
     this.panelManager = manager;
     this.machine.panelManager = manager;
   }
 
-  setHandWheelMenu(menu: HandWheelMenuLike): void {
+  setHandWheelMenu(menu: HandWheelMenuLike | null): void {
     this.handWheelMenu = menu;
   }
 
@@ -216,6 +224,22 @@ export class InputRouter {
 
   setSuppressSceneSelection(enabled: boolean): void {
     this.registry.setSuppressSceneSelection(enabled);
+  }
+
+  dispose(): void {
+    const pointers = new Set([...this.pointers.controllers, ...this.pointers.hands]);
+    for (const pointer of pointers) pointer.dispose?.();
+    this.pointers.clear();
+    this.feedback.dispose?.();
+    this.registry.clear();
+    this.panelManager = null;
+    this.machine.panelManager = null;
+    this.handWheelMenu = null;
+    this.setControllerGestureMapper(null);
+    this.activePointer = null;
+    this.onSelectCallback = null;
+    this.onSystemToggle = null;
+    this.onHandPinchEdge = null;
   }
 
   /** Return the pointer object that triggered the most recent selection. */

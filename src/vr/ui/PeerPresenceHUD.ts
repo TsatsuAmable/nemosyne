@@ -51,6 +51,7 @@ export class PeerPresenceHUD {
   private _peerPos: THREE.Vector3;
   /** User preference set via setEnabled(); preserved across peer-driven suppression. */
   private _userEnabled = true;
+  private _disposed = false;
 
   constructor(cameraGroup: THREE.Group, options: PeerPresenceHUDOptions = {}) {
     this.cameraGroup = cameraGroup;
@@ -96,6 +97,17 @@ export class PeerPresenceHUD {
     // Peer-driven suppression is resolved in update(); setEnabled only records
     // the user preference so a disabled HUD never performs getPeers() work.
     this.mesh.visible = enabled;
+  }
+
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    this.mesh.parent?.remove(this.mesh);
+    this.mesh.geometry.dispose();
+    this.material.dispose();
+    this.texture.dispose();
+    this.canvas.width = 1;
+    this.canvas.height = 1;
   }
 
   update(): void {

@@ -41,6 +41,7 @@ export class PanelManager implements PanelManagerLike {
   private _managerDragEnd: WeakMap<PanelLike, () => void> = new WeakMap();
   private _managerHide: WeakMap<PanelLike, () => void> = new WeakMap();
   private _launcherVisible = false;
+  private _disposed = false;
 
   constructor(cameraGroup: THREE.Group, options: PanelManagerOptions = {}) {
     this.cameraGroup = cameraGroup;
@@ -145,6 +146,7 @@ export class PanelManager implements PanelManagerLike {
     if (launcher) {
       this._launcherGroup.remove(launcher.mesh);
       launcher.mesh.geometry.dispose();
+      launcher.texture.dispose();
       const mat = launcher.mesh.material;
       if (Array.isArray(mat)) {
         for (const m of mat) m.dispose();
@@ -153,6 +155,15 @@ export class PanelManager implements PanelManagerLike {
       }
       this._launchers = this._launchers.filter((l) => l !== launcher);
     }
+  }
+
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    for (const panel of [...this.panels]) this.unregister(panel);
+    this._launcherGroup.parent?.remove(this._launcherGroup);
+    this._launchers = [];
+    this._launcherVisible = false;
   }
 
   /**
@@ -265,7 +276,9 @@ export class PanelManager implements PanelManagerLike {
   /**
    * Restore panel positions and visibility from a serialized snapshot.
    */
-  setPanelPositions(data: Array<{ title?: string; position?: number[]; visible?: boolean }> = []): void {
+  setPanelPositions(
+    data: Array<{ title?: string; position?: number[]; visible?: boolean }> = []
+  ): void {
     this.cameraGroup?.updateMatrixWorld(true);
     for (const item of data) {
       const panel = this.panels.find((p) => p.title === item.title);

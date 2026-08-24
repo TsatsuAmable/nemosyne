@@ -122,6 +122,7 @@ export interface WasmRuntimeBridge {
   getDatasetJson(handle: number): DatasetJSON | null;
   destroyDataset(handle: number): void;
   initRuntime(url?: string): Promise<WasmModule>;
+  invalidateRuntime?(reason: unknown): void;
   loadDatasetJson(obj: DatasetJSON): number;
   loadCsv(bytes: Uint8Array): number;
   loadJson(bytes: Uint8Array): number;
@@ -274,11 +275,13 @@ export interface PanelLike {
   onHide?: (() => void) | null;
   onDragDelta?: ((delta: Vector3) => void) | null;
   onDragEnd?: (() => void) | null;
+  dispose?(): void;
 }
 
 export interface PanelManagerLike {
   panels: PanelLike[];
   register(panel: PanelLike): void;
+  unregister?(panel: PanelLike): void;
   showPanel(panel: PanelLike): void;
   hidePanel(panel: PanelLike): void;
   togglePanel(panel: PanelLike): void;
@@ -288,6 +291,7 @@ export interface PanelManagerLike {
   handleLauncherHit?(raycaster: Raycaster): PanelLike | null;
   getPanelPositions?(): { title?: string; position?: number[]; visible?: boolean }[];
   setPanelPositions?(positions: { title?: string; position?: number[]; visible?: boolean }[]): void;
+  dispose?(): void;
 }
 
 export interface DashboardCell {
@@ -331,6 +335,7 @@ export interface HandWheelMenuLike {
   // Registered as an Engine updatable; ticked via `update`.
   update?(delta?: number, time?: number): void;
   onVisibility?: ((visible: boolean, via: 'toggle' | 'show' | 'hide') => void) | null;
+  dispose?(): void;
 }
 
 export interface WorldUIManagerLike {
@@ -353,6 +358,7 @@ export interface WorldUIManagerLike {
   loadTestPanel?: PanelLike | null;
   recommendationPanel?: (PanelLike & { markDirty?(): void }) | null;
   dracoExplainerPanel?: PanelLike | null;
+  dispose?(): void;
   /** Lazy accessors for panels deferred from boot. Construct + register on first call. */
   getOrCreateOperationLogPanel?(): PanelLike | null;
   getOrCreateInteractionCoach?(): PanelLike | null;
@@ -511,9 +517,10 @@ export interface InputRouterLike {
   controllers: PointerLike[];
   feedback: FeedbackLike;
   panels: PanelLike[];
-  setPanelManager(manager: PanelManagerLike): void;
+  removePanel?(panel: PanelLike): void;
+  setPanelManager(manager: PanelManagerLike | null): void;
   addPanel(panel: PanelLike): void;
-  setHandWheelMenu(menu: HandWheelMenuLike): void;
+  setHandWheelMenu(menu: HandWheelMenuLike | null): void;
   setSuppressSceneSelection?(enabled: boolean): void;
   raycaster: { ray: Ray };
   raycastPanels?(): { panel: PanelLike; distance: number } | null;
@@ -547,6 +554,7 @@ export interface PointerLike extends HandLike {
   onSelect?: ((pointer: PointerLike) => void) | null;
   onPinchStart?: ((pointer: PointerLike) => void) | null;
   onPinchEnd?: ((pointer: PointerLike) => void) | null;
+  dispose?(): void;
   isPoseValid?(): boolean;
   update?(
     frame: XRFrame | null,
@@ -567,6 +575,7 @@ export interface FeedbackLike {
   setToggles?(toggles: { audio?: boolean; haptic?: boolean; visual?: boolean }): void;
   showHitMarker?(scene: Scene, position: Vector3, color: number, durationMs: number): void;
   flashPointer?(pointer: PointerLike): void;
+  dispose?(): void;
 }
 
 export interface LocomotionLike {

@@ -17,6 +17,16 @@ const JSON_CONTENT = JSON.stringify([
   { value: 20, category: 'B' },
 ]);
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('FileLoaderUI', () => {
   let onLoad: any;
   let loader: FileLoaderUI;
@@ -31,9 +41,7 @@ describe('FileLoaderUI', () => {
   });
 
   afterEach(() => {
-    if (loader.container?.parentNode) {
-      loader.container.parentNode.removeChild(loader.container);
-    }
+    loader.dispose();
     vi.restoreAllMocks();
   });
 
@@ -91,6 +99,26 @@ describe('FileLoaderUI', () => {
     const entry = onLoad.mock.calls[0][0];
     expect(entry.name).toBe('data.json');
     expect(entry.dataset.rowCount).toBe(2);
+  });
+
+  it('invalidates a deferred file read before disposal can emit or parse', async () => {
+    const text = deferred<string>();
+    const parseBytes = vi.spyOn(loader.atlas!, 'parseBytes');
+    const file = {
+      name: 'late.csv',
+      size: CSV_CONTENT.length,
+      text: vi.fn(() => text.promise),
+    } as File;
+
+    const pending = loader._handleFile(file);
+    loader.dispose();
+    loader.dispose();
+    text.resolve(CSV_CONTENT);
+    await pending;
+
+    expect(parseBytes).not.toHaveBeenCalled();
+    expect(onLoad).not.toHaveBeenCalled();
+    expect(loader.container.isConnected).toBe(false);
   });
 
   it('auto-detects topology from CSV schema', async () => {

@@ -12,6 +12,8 @@ import type { DatasetLoadEntry, WorldLike } from './types.ts';
 export class WorldSessionController {
   private _world: WorldLike;
   private _sessionAutoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private _disposed = false;
+  private _generation = 0;
 
   constructor(world: WorldLike) {
     this._world = world;
@@ -19,7 +21,8 @@ export class WorldSessionController {
 
   async saveSession(id: string = 'autosave'): Promise<void> {
     const w = this._world;
-    if (w._disposed || !w.currentEntry?.dataset || !w.dracoNode) return;
+    const generation = this._generation;
+    if (!this._isCurrent(generation) || !w.currentEntry?.dataset || !w.dracoNode) return;
 
     // Refresh the session presentation from the live world state.
     w.session.setPresentation({
@@ -35,11 +38,7 @@ export class WorldSessionController {
       theme: w.engine.theme?.currentPreset ?? 'neonMidnight',
       panelPositions: w.uiManager?.panelManager?.getPanelPositions?.() ?? [],
       entry: {
-        name:
-          w.currentEntry.name ??
-          w._originalDataset?.name ??
-          w.currentEntry.label ??
-          'dataset',
+        name: w.currentEntry.name ?? w._originalDataset?.name ?? w.currentEntry.label ?? 'dataset',
         topology: w.currentEntry.topology,
         encodings: w.currentEntry.encodings,
         maxDepth: w.currentEntry.maxDepth,
@@ -50,21 +49,26 @@ export class WorldSessionController {
 
     try {
       await w.sessionStore.saveSession(id, snapshot as unknown as Record<string, unknown>);
+      if (!this._isCurrent(generation)) return;
       w.vrConsole?.log?.('log', [`Session saved: ${id}`]);
       w._logInteraction('Save session', { result: id });
     } catch (err) {
-      if (w._disposed) return;
+      if (!this._isCurrent(generation)) return;
       console.warn('[World] failed to save session:', err);
       w.vrConsole?.log?.('warn', [`Session save failed: ${(err as Error).message}`]);
     }
   }
 
   async loadSession(id: string = 'autosave'): Promise<boolean> {
+    return this._loadSession(id, this._generation);
+  }
+
+  private async _loadSession(id: string, generation: number): Promise<boolean> {
     const w = this._world;
-    if (w._disposed) return false;
+    if (!this._isCurrent(generation)) return false;
     const snapshot = await w.sessionStore.loadSession(id);
+    if (!this._isCurrent(generation)) return false;
     if (!snapshot) {
-      if (w._disposed) return false;
       w.vrConsole?.log?.('log', [`No saved session: ${id}`]);
       return false;
     }
@@ -72,7 +76,6 @@ export class WorldSessionController {
     const s = snapshot as Record<string, unknown>;
     const originalDataset = (s.originalDataset as DatasetJSON | null) ?? null;
     if (!originalDataset) {
-      if (w._disposed) return false;
       w.vrConsole?.log?.('warn', [`Session ${id} has no dataset`]);
       return false;
     }
@@ -93,11 +96,14 @@ export class WorldSessionController {
       encodings: entryData.encodings as EncodingMapping | undefined,
     };
 
+    if (!this._isCurrent(generation)) return false;
+
     // Rebuild the Draco palace from the original dataset first. loadDataset
     // routes through AtlasCore.loadDataset which resets the ledger/results/
     // history; restore the persisted atlas state AFTERWARDS so the provenance
     // chain + cursor survive.
     w.loadDataset(entry);
+    if (!this._isCurrent(generation)) return false;
     w.session.loadFromJSON(s as unknown as Parameters<NemosyneSession['loadFromJSON']>[0]);
 
     // Point the current dataset at the restored transformed state.
@@ -143,13 +149,13 @@ export class WorldSessionController {
     }
 
     const panelPositions = (presentation.panelPositions ?? s.panelPositions) as
-      | { title?: string; position?: number[]; visible?: boolean }[]
-      | undefined;
+      { title?: string; position?: number[]; visible?: boolean }[] | undefined;
     if (panelPositions && w.uiManager?.panelManager) {
       w.uiManager.panelManager.setPanelPositions?.(panelPositions);
     }
 
-    const tourData = (presentation.tour ?? s.tour) as { finished?: boolean; stepIndex?: number } | undefined;
+    const tourData = (presentation.tour ?? s.tour) as
+      { finished?: boolean; stepIndex?: number } | undefined;
     if (w.guidedTour && tourData && !tourData.finished) {
       w.guidedTour._stepIndex = tourData.stepIndex ?? 0;
       w.guidedTour._finished = false;
@@ -158,51 +164,61 @@ export class WorldSessionController {
       w.guidedTour._renderStep();
     }
 
-    if (w._disposed) return true;
+    if (!this._isCurrent(generation)) return false;
     w.vrConsole?.log?.('log', [`Session restored: ${id}`]);
     return true;
   }
 
   async deleteSession(id: string): Promise<void> {
     const w = this._world;
-    if (w._disposed) return;
+    const generation = this._generation;
+    if (!this._isCurrent(generation)) return;
     try {
       await w.sessionStore.deleteSession(id);
+      if (!this._isCurrent(generation)) return;
       w.vrConsole?.log?.('log', [`Session deleted: ${id}`]);
     } catch (err) {
-      if (w._disposed) return;
+      if (!this._isCurrent(generation)) return;
       console.warn('[World] failed to delete session:', err);
     }
   }
 
   requestAutoSave(): void {
-    const w = this._world;
-    if (w._disposed) return;
+    if (!this._isCurrent(this._generation)) return;
     if (this._sessionAutoSaveTimer) clearTimeout(this._sessionAutoSaveTimer);
     this._sessionAutoSaveTimer = setTimeout(() => this.saveSession('autosave'), 2000);
   }
 
   async restoreAutoSave(): Promise<unknown> {
     const w = this._world;
+    const generation = this._generation;
+    if (!this._isCurrent(generation)) return;
     try {
       const has = await w.sessionStore.hasSession('autosave');
+      if (!this._isCurrent(generation)) return;
       if (!has) return;
-      if (w._disposed) return;
       w.vrConsole?.log?.('log', ['Restoring autosave...']);
-      const restored = await this.loadSession('autosave');
-      if (restored && !w._disposed) w.userModeController.apply();
+      const restored = await this._loadSession('autosave', generation);
+      if (restored && this._isCurrent(generation)) w.userModeController.apply();
       return restored;
     } catch (err) {
-      if (w._disposed) return;
+      if (!this._isCurrent(generation)) return;
       console.warn('[World] autosave restore failed:', err);
     }
     return;
   }
 
   dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    this._generation += 1;
     if (this._sessionAutoSaveTimer) {
       clearTimeout(this._sessionAutoSaveTimer);
       this._sessionAutoSaveTimer = null;
     }
+  }
+
+  private _isCurrent(generation: number): boolean {
+    return !this._disposed && !this._world._disposed && generation === this._generation;
   }
 }

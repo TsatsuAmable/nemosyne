@@ -77,6 +77,11 @@ export class InteractableRegistry {
     this.hudObjects.push(obj);
   }
 
+  removeHudObject(obj: HudObject) {
+    const index = this.hudObjects.indexOf(obj);
+    if (index >= 0) this.hudObjects.splice(index, 1);
+  }
+
   addPanel(panel: PanelLike) {
     this.panels.push(panel);
   }
@@ -84,6 +89,15 @@ export class InteractableRegistry {
   removePanel(panel: PanelLike) {
     const index = this.panels.indexOf(panel);
     if (index >= 0) this.panels.splice(index, 1);
+  }
+
+  clear() {
+    this.clearHover();
+    this._interactables = [];
+    this._interactableMeshes = [];
+    this.hudObjects = [];
+    this.panels = [];
+    this.suppressSceneSelection = false;
   }
 
   setSuppressSceneSelection(enabled: boolean) {

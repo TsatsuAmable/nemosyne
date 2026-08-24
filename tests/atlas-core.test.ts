@@ -1,6 +1,6 @@
 // @ts-nocheck
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
@@ -191,6 +191,22 @@ describe('AtlasCore', () => {
     const liveBefore = destroyed.length;
     atlas2.dispose();
     expect(destroyed.length).toBeGreaterThan(liveBefore);
+  });
+
+  it('destroys a live handle through the previous kernel before rebinding', () => {
+    const previousKernel = makeKernelMockBridge();
+    const replacementKernel = makeKernelMockBridge();
+    const previousDestroy = vi.spyOn(previousKernel, 'destroyDataset');
+    const replacementDestroy = vi.spyOn(replacementKernel, 'destroyDataset');
+    const reboundAtlas = new AtlasCore({ kernel: previousKernel });
+
+    reboundAtlas.loadDataset(makeDataset());
+    expect(reboundAtlas.datasetFingerprint).toBeTruthy();
+    reboundAtlas.setKernel(replacementKernel, 7);
+
+    expect(previousDestroy).toHaveBeenCalledOnce();
+    expect(replacementDestroy).not.toHaveBeenCalled();
+    expect(reboundAtlas.capabilities).toBe(7);
   });
 
   it('recommendations are recorded against the decision history', () => {
@@ -416,7 +432,7 @@ describe('AtlasCore', () => {
     expect(embodimentEvents).toHaveLength(1);
     expect(embodimentEvents[0].embodimentCommand).toBeTruthy();
     expect(embodimentEvents[0].embodimentCommand!.targetIds).toEqual(
-      atlas.activeRecommendation!.targetIds,
+      atlas.activeRecommendation!.targetIds
     );
   });
 
@@ -430,7 +446,9 @@ describe('AtlasCore', () => {
     let isolatedRows: number[] | null = null;
     const executor = new VRCommandExecutor({
       atlas,
-      onIsolate: (rows) => { isolatedRows = rows; },
+      onIsolate: (rows) => {
+        isolatedRows = rows;
+      },
     });
 
     const result = executor.executeFromRecommendation();
@@ -453,7 +471,9 @@ describe('AtlasCore', () => {
     let isolatedRows: number[] | null = null;
     const executor = new VRCommandExecutor({
       atlas,
-      onIsolate: (rows) => { isolatedRows = rows; },
+      onIsolate: (rows) => {
+        isolatedRows = rows;
+      },
     });
 
     const result = executor.sliceByStructure(structureId);
@@ -467,7 +487,8 @@ describe('AtlasCore', () => {
   });
 
   it('DataOperations isolateRowIndices and resetVisibility work on artifact', async () => {
-    const { isolateRowIndices, resetVisibility, captureBaseState } = await import('../src/vr/interactions/DataOperations.ts');
+    const { isolateRowIndices, resetVisibility, captureBaseState } =
+      await import('../src/vr/interactions/DataOperations.ts');
     const makeMesh = () => ({
       userData: { row: {}, baseScale: 1, baseOpacity: 1 },
       material: { opacity: 1 },
@@ -491,14 +512,22 @@ describe('AtlasCore', () => {
   });
 
   it('DataOperations sortByRowIndices and clusterByRowIndices reposition meshes', async () => {
-    const { sortByRowIndices, clusterByRowIndices, captureBaseState } = await import('../src/vr/interactions/DataOperations.ts');
+    const { sortByRowIndices, clusterByRowIndices, captureBaseState } =
+      await import('../src/vr/interactions/DataOperations.ts');
     let setCalls: number[] = [];
     const makeMesh = () => ({
       userData: { row: {}, baseScale: 1, baseOpacity: 1 },
       material: { opacity: 1 },
       visible: true,
       scale: { setScalar: (_v: number) => {} },
-      position: { x: 0, y: 0, z: 0, set: (x: number, y: number, z: number) => { setCalls.push(x, y, z); } },
+      position: {
+        x: 0,
+        y: 0,
+        z: 0,
+        set: (x: number, y: number, z: number) => {
+          setCalls.push(x, y, z);
+        },
+      },
     });
     const mesh0 = makeMesh();
     const mesh1 = makeMesh();
@@ -516,7 +545,8 @@ describe('AtlasCore', () => {
   });
 
   it('DataOperations anomalyByRowIndices lifts flagged meshes', async () => {
-    const { anomalyByRowIndices, captureBaseState } = await import('../src/vr/interactions/DataOperations.ts');
+    const { anomalyByRowIndices, captureBaseState } =
+      await import('../src/vr/interactions/DataOperations.ts');
     const makeMesh = () => ({
       userData: { row: {}, baseScale: 1, baseOpacity: 1 },
       material: { opacity: 0.5 },

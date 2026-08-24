@@ -5,6 +5,7 @@ export const FAST_NODE_TESTS = [
   'tests/moneta-gate0-authority.test.ts',
   'tests/moneta-layout-authority.test.ts',
   'tests/moneta-scoring-ownership.test.ts',
+  'tests/world-lifecycle-owner.test.ts',
 ];
 
 export const UI_ONLY_TESTS = [
@@ -46,6 +47,7 @@ export const WASM_TESTS = [
   'tests/wasm-row-identity.test.ts',
   'tests/wasm-runtime.test.ts',
   'tests/world-coverage.test.ts',
+  'tests/world-recreation-lifecycle.test.ts',
   'tests/world.test.ts',
   'tests/zero-alloc-instanced-buffer.test.ts',
 ];

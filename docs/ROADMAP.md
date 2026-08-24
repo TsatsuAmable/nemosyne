@@ -4,18 +4,21 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `7bd59a2` (includes #362 and #363). No active implementation branch.**
+**Current `main`: `322585d` (includes #362-#364). PR #365 is open from `refactor/world-lifecycle-owner`.**
 
-**Next checkpoint:** execute the ordered P1 hardening queue in the [pre-P1 systematic audit](PRE_P1_SYSTEMATIC_AUDIT.md), beginning with lifecycle ownership/recovery, production selection acceleration and real-browser analyst journeys. The CI-integrity follow-up is merged: approval is read-only and CodeQL enforces zero-finding SARIF evidence without relying on GitHub code scanning. Physical execution remains deferred until a Quest 3S is available; even a completed measurement remains `deviceQualifiedAt10m: false` until governed review.
+**Next checkpoint:** merge the first lifecycle-ownership/recovery slice, then split `RuntimeBridge`
+by ABI handle family behind its single readiness state machine. Production spatial acceleration and
+the real-browser analyst journey remain the next independent P1-high implementations. Physical
+execution remains deferred until a Quest 3S is available; even a completed measurement remains
+`deviceQualifiedAt10m: false` until governed review.
 
-**Last gate:** green on 24 August 2026. The audit baseline passed local typecheck, lint (0 errors,
-170 recorded warnings), coverage, production build, 170 Rust tests, real Chromium prebuilt-bundle
-smoke, 8/8 hygiene dimensions, workflow YAML, active documentation links and desktop/mobile public
-page inspection. Follow-up PR #363 at `6414b9c` then passed hosted coverage (310 files, 1,904 tests;
-81.07% statements, 69.74% branches, 78.43% functions and 83.58% lines), production build, 170 Rust
-tests, artifact-fed Chromium smoke, zero-finding CodeQL SARIF enforcement, read-only approval and the
-`Node 24` aggregate. PR #363 was manually merged after this current-head gate; GitHub Pages deployment
-32736255129 then passed, with `nemosyne.world` configured, domain-verified and HTTPS-enforced.
+**Last gate:** green locally on 24 August 2026 for `refactor/world-lifecycle-owner`. Typecheck and
+lint passed (0 errors, 170 pre-existing warnings); coverage passed at 82.12% statements, 70.17%
+branches, 79.22% functions and 84.69% lines; production build passed; all 170 Rust tests passed; and
+the real Chromium/WebGL smoke passed. PR #365 then passed hosted CodeQL, core correctness, 170
+Rust tests, downloaded-artifact Chromium smoke, the read-only approval gate and the `Node 24`
+aggregate. The preceding #363 and #364 hosted gates and Pages deployment are also green, with
+`nemosyne.world` domain-verified and HTTPS-enforced.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
@@ -115,6 +118,16 @@ The #324-#332 sequence closed most of the investigation provenance chain:
 
 For the migration contract, representation/model/NIL/discovery provenance continuity is now substantially complete. Broader discovery science and NIL modality work remain separate product/research concerns.
 
+### F. Lifecycle ownership and kernel recovery
+
+The active lifecycle slice introduces one idempotent World boot/recovery/disposal owner, explicit
+aggregate UI and scene teardown, synchronous cleanup for active load and Quest-boundary probes, and
+generation cancellation for late file/session/kernel work. A trapped Atlas ABI call now invalidates
+the shared runtime, transitions to `KERNEL_UNAVAILABLE`, preserves the last viable presentation and
+reinitializes the Rust authority before recovery. Three-cycle real-WASM World recreation verifies
+kernel-handle allocation and exact DOM/engine cleanup. This closes ARCH-02 locally and completes the
+first lifecycle seam of ARCH-01; broader RuntimeBridge and contract decomposition remains open.
+
 ## Governing V3 gate status
 
 | Gate                         | Status                                              | Current evidence                                                                                                                                                  | Remaining exit work                                                                                             |
@@ -171,12 +184,12 @@ The full evidence and dispositions are in
 [PRE_P1_SYSTEMATIC_AUDIT.md](PRE_P1_SYSTEMATIC_AUDIT.md). This is the live implementation queue:
 
 - [ ] **PERF-04 / blocker:** run and govern the physical Quest 3S 10M browser qualification.
-- [ ] **ARCH-01 / high:** split `World`, `RuntimeBridge`, coordinator contracts, Atlas orchestration and topology embodiment along lifecycle/authority seams.
-- [ ] **ARCH-02 / high:** add explicit idempotent UI/world ownership, disposal and recreation contracts.
+- [ ] **ARCH-01 / high:** lifecycle owner complete locally; split `RuntimeBridge`, coordinator contracts, Atlas orchestration and topology embodiment along the remaining authority seams.
+- [x] **ARCH-02 / high:** explicit idempotent UI/world ownership, disposal and started real-WASM recreation contracts implemented on `refactor/world-lifecycle-owner`.
 - [ ] **PERF-03 / high:** benchmark and wire one production spatial accelerator; delete the redundant built-only index.
 - [ ] **UX-02 / high:** implement a real-browser load → Moneta/NIL → investigation → export → replay journey.
 - [ ] **UX-03 / high:** execute controller, hand and desktop semantic-parity tasks on physical hardware.
-- [ ] **RES-01 / high:** inject kernel/ABI failure and prove bounded cleanup plus recoverable UX.
+- [ ] **RES-01 / high:** production ABI-trap invalidation/recovery and bounded lifecycle cleanup are covered; extend this into the sustained malformed-handle/panic fault campaign.
 - [ ] **RES-02 / high:** qualify two-browser collaboration across partition, reconnect and role violations.
 - [ ] **SEC-02 / high:** inventory Rust `unsafe` and fuzz malformed ABI buffers, handles and exhaustion.
 - [ ] **MAINT-01 / high:** remove `@ts-nocheck` from package, bridge, World and Moneta boundary tests first.
@@ -339,7 +352,7 @@ migration benchmark tiers when scale-sensitive code changes
 
 1. Close this systematic audit through local/hosted CI and Pages publication.
 2. Run physical Quest 3S 10M and interaction qualification when hardware is available.
-3. Implement the audit's P1-high lifecycle, browser-journey, security and spatial-query work.
+3. Continue the audit's P1-high RuntimeBridge decomposition, browser-journey, security and spatial-query work.
 4. Reopen the minimal private-preview decision only after blockers/high findings are governed.
 5. Continue discovery/outcome studies and learned-Moneta empirical validation.
 6. Begin RepresentationGraph/compositional Moneta only after its stated prerequisites.

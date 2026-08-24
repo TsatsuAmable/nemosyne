@@ -57,6 +57,7 @@ import { WorldEventBus, WorldTopics } from '../utils/EventBus.ts';
 import { SceneGraphController } from './coordinators/SceneGraphController.ts';
 import { WorkspaceManager } from './coordinators/WorkspaceManager.ts';
 import { WorldRendererLifecycle } from './coordinators/WorldRendererLifecycle.ts';
+import { WorldLifecycleOwner, type WorldBootState } from './coordinators/WorldLifecycleOwner.ts';
 import {
   LoadTestDriver,
   type LoadTestProfile,
@@ -86,6 +87,7 @@ import type {
   WorldEventBusLike,
 } from './coordinators/types.ts';
 import type { InteractionMode, FocusState } from './input/InteractionModeController.ts';
+import { KernelLayoutUnavailableError } from '../moneta/layouts/LayoutBase.ts';
 
 // Map sample-dataset keys to atmospheric presets so each dataset has a distinct mood.
 const DATASET_THEME_MAP: Record<string, string> = {
@@ -161,6 +163,7 @@ export class World {
   _handNearWheelMenu!: boolean;
   sessionStore: SessionStore;
   _initPromises: Promise<unknown>[];
+  _autosaveRestoreStarted: boolean;
   _disposed: boolean;
   _statisticalLensEnabled: boolean;
   controllerGestureMapper: ControllerGestureMapper;
@@ -171,6 +174,7 @@ export class World {
   sceneGraphController: SceneGraphController;
   workspaceManager: WorkspaceManager;
   rendererLifecycle: WorldRendererLifecycle;
+  lifecycle: WorldLifecycleOwner;
   _desktopPreviewSavedPose!: { position: THREE.Vector3; yaw: number; pitch: number } | null;
   _orbitControls!: OrbitControls | null;
   dracoNode!: DracoTopologyNode | null;
@@ -182,8 +186,10 @@ export class World {
   _lastLoadTestSummary: LoadTestSummary | null = null;
   _lastQuestBoundarySummary: QuestBoundarySummary | null = null;
   _telemetryConsentBeforeRun: boolean | null = null;
-  bootState: 'INITIALIZING' | 'READY' | 'KERNEL_UNAVAILABLE' | 'INCOMPATIBLE' | 'FATAL' =
-    'INITIALIZING';
+
+  get bootState(): WorldBootState {
+    return this.lifecycle.state;
+  }
 
   constructor() {
     this.engine = new Engine();
@@ -207,7 +213,11 @@ export class World {
     // (Wave 4). It owns the kernel handle, the provenance ledger, the analysis
     // results chain, and the AnalysisHistory undo/redo cursor. The kernel is
     // bound later in `_initWasmRuntime`.
-    this.atlas = new AtlasCore({ kernel: null, eventBus: this.eventBus as WorldEventBus });
+    this.atlas = new AtlasCore({
+      kernel: null,
+      eventBus: this.eventBus as WorldEventBus,
+      onKernelFailure: (error) => this.markKernelUnavailable(error),
+    });
 
     // Data-operation controller owns dataset mutation, analysis history, and
     // the operation → visual-transform mapping. It issues typed AnalysisSpec
@@ -507,7 +517,17 @@ export class World {
 
     // Track async initialization work so tests can wait for it during teardown.
     this._initPromises = [];
+    this._autosaveRestoreStarted = false;
     this._disposed = false;
+    this.lifecycle = new WorldLifecycleOwner({
+      startEngine: () => this.engine.start(),
+      initializeKernel: (generation) => this._initWasmRuntime(generation),
+      onKernelUnavailable: (error) => this._onKernelUnavailable(error),
+      onDisposing: () => {
+        this._disposed = true;
+      },
+      teardown: () => this._teardown(),
+    });
 
     // Wire desktop/VR keyboard undo/redo to the analysis history.
     this.engine.onUndo = () => this.undoAnalysis();
@@ -565,9 +585,15 @@ export class World {
     // Track whether the guided tour has been auto-started for novice users.
     this._tourAutoStarted = false;
 
-    // Load default sample, then restore an autosave if one exists.
-    this.loadDataset(DEFAULT_DATASET_ENTRY);
-    this._initPromises.push(this._restoreAutoSave());
+    try {
+      this.loadDataset(DEFAULT_DATASET_ENTRY);
+    } catch (error) {
+      if (!(error instanceof KernelLayoutUnavailableError)) throw error;
+      this.currentEntry = DEFAULT_DATASET_ENTRY;
+      this.dracoNode = null;
+      this.diagnostic = null;
+      console.warn('[World] initial dataset staged until the analytical kernel is ready');
+    }
 
     // Apply the initial user mode (novice by default) to the coach, tooltips,
     // and tour visibility.
@@ -622,6 +648,12 @@ export class World {
 
   async _restoreAutoSave(): Promise<unknown> {
     return this.sessionController.restoreAutoSave();
+  }
+
+  async _restoreAutoSaveOnce(): Promise<void> {
+    if (this._autosaveRestoreStarted || this._disposed) return;
+    this._autosaveRestoreStarted = true;
+    await this._restoreAutoSave();
   }
 
   _captureSession(): void {
@@ -796,44 +828,19 @@ export class World {
   }
 
   /** Internal implementation called after the current frame yields. */
-  _doLoadDataset(entry: DatasetLoadEntry): void {
-    // Switch atmosphere to match dataset mood, if a preset is mapped.
+  _doLoadDataset(
+    entry: DatasetLoadEntry,
+    {
+      preserveAnalyticalState = false,
+      preserveAuxiliaryPresentation = false,
+    }: {
+      preserveAnalyticalState?: boolean;
+      preserveAuxiliaryPresentation?: boolean;
+    } = {}
+  ): void {
     const presetName = entry.key && DATASET_THEME_MAP[entry.key];
     const preset = presetName ? WorldTheme.PRESETS[presetName] : null;
-    if (presetName) {
-      this.engine.theme.applyPreset(presetName);
-    }
-
-    // Recolor portals to match the active atmosphere preset.
-    if (preset) {
-      this.portalA?.setColor?.(preset.pointColor);
-      this.portalB?.setColor?.(preset.pointColor);
-    }
-
-    // Pulse portals when the dataset is dynamic or anomaly-rich.
     const activity = entry.topology === 'TIME_SERIES' || entry.topology === 'ANOMALY' ? 0.75 : 0.35;
-    this.portalA?.setDataActivity?.(activity);
-    this.portalB?.setDataActivity?.(activity);
-
-    // Tear down previous Draco node, diagnostic HUD, and in-place handles.
-    if (this.dracoNode) {
-      this.engine.removeUpdatable(this.dracoNode);
-      this.inPlaceHandles.unregisterInteractables(this.engine.input);
-      this.inPlaceHandles.clear();
-      if (this.dracoNode.artifact) {
-        for (const mesh of this.dracoNode.artifact.nodeMeshes) {
-          this.engine.removeInteractable(mesh);
-        }
-      }
-      disposeObject(this.dracoNode.group!);
-      this.dracoNode = null;
-    }
-
-    if (this.diagnostic) {
-      this.engine.input.panels = this.engine.input.panels.filter((p) => p !== this.diagnostic);
-      disposeObject(this.diagnostic.mesh);
-      this.diagnostic = null;
-    }
 
     // Preserve original state so data operations can be reset. Setting
     // `_originalDataset` routes through AtlasCore.loadDataset (resets ledger,
@@ -842,8 +849,14 @@ export class World {
     // Wave 5: this must happen BEFORE the Draco palace build so
     // `atlas.inferEncodings` and `atlas.asFactProvider` see the new dataset's
     // kernel handle (statistics + encodings come from the kernel, not JS).
-    this._originalDataset = entry.dataset?.clone?.() ?? null;
-    this._transformedDataset = this._originalDataset?.clone?.() ?? null;
+    if (!preserveAnalyticalState) {
+      this._originalDataset = entry.dataset?.clone?.() ?? null;
+      this._transformedDataset = this._originalDataset?.clone?.() ?? null;
+    }
+
+    const embodiedDataset = preserveAnalyticalState
+      ? this.atlas.dataset
+      : (this._transformedDataset ?? entry.dataset);
 
     // Build new Draco palace.
     const topology = entry.topology as TopologyType;
@@ -852,19 +865,19 @@ export class World {
     const kernelEncodings = this.atlas.inferEncodings(topology) ?? undefined;
     const dataInput = {
       topology,
-      dataset: entry.dataset,
+      dataset: embodiedDataset,
       maxDepth: entry.maxDepth,
       encodings:
         entry.encodings ??
         kernelEncodings ??
-        getDefaultEncodings({ dataset: entry.dataset, topology }),
+        getDefaultEncodings({ dataset: embodiedDataset, topology }),
     };
 
     const representationDecision = this.atlas.isReady()
       ? this.atlas.arbitrateRepresentation(undefined, dataInput)
       : null;
 
-    this.dracoNode = new DracoTopologyNode(
+    const nextDracoNode = new DracoTopologyNode(
       this.engine.scene,
       dataInput,
       [0, 1.4, -3.5],
@@ -875,12 +888,38 @@ export class World {
       false,
       representationDecision
     );
+
+    if (presetName) this.engine.theme.applyPreset(presetName);
+    if (preset) {
+      this.portalA?.setColor?.(preset.pointColor);
+      this.portalB?.setColor?.(preset.pointColor);
+    }
+    this.portalA?.setDataActivity?.(activity);
+    this.portalB?.setDataActivity?.(activity);
+
+    if (this.dracoNode) {
+      this.engine.removeUpdatable(this.dracoNode);
+      this.inPlaceHandles.unregisterInteractables(this.engine.input);
+      this.inPlaceHandles.clear();
+      if (this.dracoNode.artifact) {
+        for (const mesh of this.dracoNode.artifact.nodeMeshes) {
+          this.engine.removeInteractable(mesh);
+        }
+      }
+      disposeObject(this.dracoNode.group!);
+    }
+    if (this.diagnostic) {
+      this.engine.input.removePanel(this.diagnostic);
+      this.diagnostic.dispose();
+    }
+
+    this.dracoNode = nextDracoNode;
     this.engine.addUpdatable(this.dracoNode);
     this._wireArtifactInteraction(this.dracoNode);
 
     // Update persistent spatial status strip and contextual task surface
     const datasetLabel = entry.label ?? entry.name ?? entry.key ?? 'Dataset';
-    const rowCount = entry.dataset?.rows?.length ?? 0;
+    const rowCount = embodiedDataset?.rows?.length ?? 0;
     this.uiManager.statusStrip.setDatasetContext(datasetLabel, String(entry.topology), rowCount);
     if (entry.topology) {
       this.uiManager.contextualTaskSurface.setTopology(entry.topology as never);
@@ -895,17 +934,20 @@ export class World {
     this.engine.input.addPanel(this.diagnostic);
     this.analystAnchor.add(this.diagnostic.mesh);
 
-    this.currentEntry = entry;
-    this.telemetryCollector?.recordDataset?.(
-      entry.name ?? entry.label ?? 'dataset',
-      entry.topology
-    );
+    if (!preserveAnalyticalState) {
+      this.currentEntry = entry;
+      this.telemetryCollector?.recordDataset?.(
+        entry.name ?? entry.label ?? 'dataset',
+        entry.topology
+      );
+    }
 
-    // Attach optional TDA summary group for numeric datasets.
-    this._attachTDASummary();
-
-    // Rebuild dashboard chart panels for the new dataset.
-    this._buildDashboard();
+    if (!preserveAuxiliaryPresentation) {
+      this._attachTDASummary();
+      this._buildDashboard();
+    } else {
+      this._updateDashboardDatasets(embodiedDataset);
+    }
 
     // Sync statistical-lens visibility with the current setting.
     this._setStatisticalLensVisible(this._statisticalLensEnabled);
@@ -919,7 +961,10 @@ export class World {
    */
   _rebuildPalaceWithKernelFacts(): void {
     if (!this.currentEntry || this._disposed) return;
-    this.loadDataset(this.currentEntry);
+    this._doLoadDataset(this.currentEntry, {
+      preserveAnalyticalState: true,
+      preserveAuxiliaryPresentation: this._wasmUnavailable,
+    });
   }
 
   _attachTDASummary(): void {
@@ -1338,6 +1383,7 @@ export class World {
     if (this._disposed || !this.sessionStore || !this.uiManager.settingsPanel) return;
     try {
       const shared = await this.sessionStore.getItem('shared-settings');
+      if (this._disposed) return;
       if (!shared?.settings) return;
       for (const [key, value] of Object.entries(shared.settings)) {
         this.uiManager.settingsPanel.setSetting(key as keyof SettingsMap & string, value as never);
@@ -2014,67 +2060,112 @@ export class World {
    * this, but tests need it to avoid timers, live streams, and collaboration
    * connections logging after the environment has been torn down.
    */
-  async dispose(): Promise<void> {
-    if (this._disposed) return;
-    this._disposed = true;
-
-    // Stop any pending auto-save and live flushes before they log.
-    this.sessionController?.dispose?.();
-    this.atlas?.dispose?.();
-    this.liveStreamCoordinator?.disconnectLiveStream?.();
-    this.collaborationCoordinator?.leaveCollaborationRoom?.();
-
-    // Detach telemetry global listeners so late window errors are not recorded.
-    this.telemetryCollector?.setEnabled?.(false);
-    this.adaptiveAssist?.dispose();
-    this.rendererLifecycle?.dispose();
-    this.sceneGraphController.dispose();
-
-    // Wait for async init work to finish so it cannot log after disposal.
-    await Promise.allSettled(this._initPromises);
-    this._initPromises = [];
-
-    this.engine.dispose();
+  dispose(): Promise<void> {
+    return this.lifecycle.dispose();
   }
 
-  async start(): Promise<void> {
-    // Initialise the Rust/WASM runtime in parallel with engine start. The
-    // kernel is MANDATORY for analytics; if it cannot be loaded the engine
-    // transitions to a hard KERNEL_UNAVAILABLE state.
-    const wasmInitPromise = this._initWasmRuntime()
-      .then(() => {
-        this.bootState = 'READY';
-      })
-      .catch((err) => {
-        this._wasmRuntime = null;
-        this._wasmCapabilities = 0;
-        this._wasmUnavailable = true;
-        this.bootState = 'KERNEL_UNAVAILABLE';
-        console.error('[World] analytical kernel unavailable:', err);
-        this.uiManager.vrConsole?.log?.('error', [
-          'Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.',
-        ]);
-      });
+  async _teardown(): Promise<void> {
+    const failures: unknown[] = [];
+    const run = async (action: () => void | Promise<void>) => {
+      try {
+        await action();
+      } catch (error) {
+        failures.push(error);
+      }
+    };
 
-    this.engine.start();
+    await run(() => this.engine.pause());
+    await run(() => this.loadTestDriver?.dispose());
+    await run(() => this.questBoundaryProbe?.dispose());
+    await run(() => this.sessionController?.dispose?.());
+    await run(() => this.liveStreamCoordinator?.disconnectLiveStream?.());
+    await run(() => this.collaborationCoordinator?.leaveCollaborationRoom?.());
+    await run(() => this.telemetryCollector?.setEnabled?.(false));
+    await run(() => this.rendererLifecycle?.dispose());
+    await run(() => this.livePreview?.clear());
+    await run(() => this.inPlaceHandles?.clear());
+    await run(() => {
+      if (this.dracoNode?.artifact) {
+        for (const mesh of this.dracoNode.artifact.nodeMeshes) {
+          this.engine.removeInteractable(mesh);
+        }
+      }
+      if (this.dracoNode) {
+        this.engine.removeUpdatable(this.dracoNode);
+        disposeObject(this.dracoNode.group!);
+        this.dracoNode = null;
+      }
+      if (this.diagnostic) {
+        this.engine.input.removePanel(this.diagnostic);
+        this.diagnostic.dispose();
+        this.diagnostic = null;
+      }
+    });
+    await run(() => this.adaptiveAssist?.dispose());
+    await run(() => this.engine.removeUpdatable(this.guidedTour));
+    await run(() => this.engine.removeHudObject(this.guidedTour));
+    await run(() => this.guidedTour?.dispose());
+    this.engine.guidedTour = null;
+    await run(() => this.uiManager?.dispose());
+    await run(() => this.tooltipManager?.dispose());
+    await run(() => this.sceneComposer?.dispose());
+    await run(() => this.sceneGraphController.dispose());
+    for (const promise of this._initPromises) void Promise.resolve(promise).catch(() => {});
+    this._initPromises = [];
+    await run(() => this.loader?.dispose());
+    await run(() => this.atlas?.dispose?.());
+    await run(() => this.engine.input.setControllerGestureMapper(null));
+    await run(() => this.engine.eventBus.removeAll());
+    await run(() => this.engine.dispose());
 
-    await wasmInitPromise;
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'World teardown failed');
+    }
+  }
+
+  start(): Promise<void> {
+    return this.lifecycle.start();
+  }
+
+  recoverKernel(): Promise<void> {
+    return this.lifecycle.recoverKernel();
+  }
+
+  markKernelUnavailable(error: unknown): void {
+    this.lifecycle.markKernelUnavailable(error);
+  }
+
+  _onKernelUnavailable(error: unknown): void {
+    const runtime = this._wasmRuntime;
+    this.atlas.setKernel(null, 0);
+    runtime?.invalidateRuntime?.(error);
+    this._wasmRuntime = null;
+    this._wasmCapabilities = 0;
+    this._wasmUnavailable = true;
+    console.error('[World] analytical kernel unavailable:', error);
+    this.uiManager.vrConsole?.log?.('error', [
+      'Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.',
+    ]);
   }
 
   /**
    * Initialise the WASM runtime and record the enabled capability set. Throws
    * on failure; the caller (start()) surfaces the unavailable state.
    */
-  async _initWasmRuntime(): Promise<void> {
+  async _initWasmRuntime(generation: number): Promise<void> {
     // Load the bridge lazily so that production builds which skip wasm-pack
     // still start without a missing-module error at import time.
     const bridge = await import('../wasm/RuntimeBridge.ts');
+    if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
     if (bridge.isReady()) {
+      const capabilities = bridge.capabilities();
+      if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
       this._wasmRuntime = bridge;
-      this._wasmCapabilities = bridge.capabilities();
+      this._wasmCapabilities = capabilities;
       this.atlas.setKernel(bridge, this._wasmCapabilities);
       this._rebuildPalaceWithKernelFacts();
-      this.bootState = 'READY';
+      this._wasmUnavailable = false;
+      await this._restoreAutoSaveOnce();
       return;
     }
 
@@ -2085,11 +2176,17 @@ export class World {
       await bridge.initRuntime('/wasm/nemosyne_wasm_bg.wasm');
     }
 
+    if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
+
+    const capabilities = bridge.capabilities();
+    if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
     this._wasmRuntime = bridge;
-    this._wasmCapabilities = bridge.capabilities();
+    this._wasmCapabilities = capabilities;
     this.atlas.setKernel(bridge, this._wasmCapabilities);
     this._rebuildPalaceWithKernelFacts();
-    this.bootState = 'READY';
+    this._wasmUnavailable = false;
+    await this._restoreAutoSaveOnce();
+    if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
     this.uiManager.vrConsole?.log?.('log', [
       `WASM ready — capabilities ${this._wasmCapabilities.toString(2)}`,
     ]);
