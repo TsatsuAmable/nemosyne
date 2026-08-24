@@ -133,16 +133,19 @@ function compareDiscoveryProvenance(
   decision: RepresentationDecision | null,
 ): string[] {
   const discrepancies: string[] = [];
+  const expectedDatasetFingerprint =
+    manifest.analyticalDatasetFingerprint ?? manifest.datasetFingerprint;
+  const expectedKernelVersion = manifest.analyticalKernelVersion ?? manifest.kernelVersion;
   if (snapshot.episodes.length !== (manifest.discoveryCount ?? snapshot.episodes.length)) {
     discrepancies.push(`discovery count expected ${String(manifest.discoveryCount)}, found ${snapshot.episodes.length}`);
   }
   for (const episode of snapshot.episodes) {
     const prefix = `Discovery ${episode.discoveryId}`;
-    if (episode.provenance.datasetFingerprint !== manifest.datasetFingerprint) {
-      discrepancies.push(`${prefix} dataset fingerprint expected '${manifest.datasetFingerprint}', found '${episode.provenance.datasetFingerprint}'`);
+    if (episode.provenance.datasetFingerprint !== expectedDatasetFingerprint) {
+      discrepancies.push(`${prefix} dataset fingerprint expected '${expectedDatasetFingerprint}', found '${episode.provenance.datasetFingerprint}'`);
     }
-    if (episode.provenance.kernelVersion !== manifest.kernelVersion) {
-      discrepancies.push(`${prefix} kernel version expected '${manifest.kernelVersion}', found '${episode.provenance.kernelVersion}'`);
+    if (episode.provenance.kernelVersion !== expectedKernelVersion) {
+      discrepancies.push(`${prefix} kernel version expected '${expectedKernelVersion}', found '${episode.provenance.kernelVersion}'`);
     }
     const ctx = episode.representationContext;
     if (ctx.representationDecisionId) {
@@ -178,17 +181,20 @@ function compareNilProvenance(
   decision: RepresentationDecision | null,
 ): string[] {
   const discrepancies: string[] = [];
+  const expectedDatasetFingerprint =
+    manifest.analyticalDatasetFingerprint ?? manifest.datasetFingerprint;
+  const expectedKernelVersion = manifest.analyticalKernelVersion ?? manifest.kernelVersion;
   if (snapshot.outcomes.length !== (manifest.nilOutcomeCount ?? snapshot.outcomes.length)) {
     discrepancies.push(`NIL outcome count expected ${String(manifest.nilOutcomeCount)}, found ${snapshot.outcomes.length}`);
   }
   for (const outcome of snapshot.outcomes) {
     const prefix = `NIL ${outcome.nilId}`;
     const provenance = outcome.provenance;
-    if (provenance.datasetFingerprint !== manifest.datasetFingerprint) {
-      discrepancies.push(`${prefix} dataset fingerprint expected '${manifest.datasetFingerprint}', found '${provenance.datasetFingerprint}'`);
+    if (provenance.datasetFingerprint !== expectedDatasetFingerprint) {
+      discrepancies.push(`${prefix} dataset fingerprint expected '${expectedDatasetFingerprint}', found '${provenance.datasetFingerprint}'`);
     }
-    if (provenance.kernelVersion !== manifest.kernelVersion) {
-      discrepancies.push(`${prefix} kernel version expected '${manifest.kernelVersion}', found '${provenance.kernelVersion}'`);
+    if (provenance.kernelVersion !== expectedKernelVersion) {
+      discrepancies.push(`${prefix} kernel version expected '${expectedKernelVersion}', found '${provenance.kernelVersion}'`);
     }
     if (provenance.sourceDecisionId) {
       if (!decision) {

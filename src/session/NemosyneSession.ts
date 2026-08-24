@@ -127,6 +127,7 @@ export class NemosyneSession {
     const representationDecision = core.representationDecision;
     const discoveryEpisodes = core.discoveryEpisodes;
     const nilOutcomes = this._nilOutcomes.toJSON();
+    const nilProvenance = nilOutcomes.outcomes[0]?.provenance;
     const fitnessModelVersion =
       representationDecision?.fitnessModelVersion ??
       representationDecision?.provenance.fitnessModelVersion;
@@ -135,8 +136,12 @@ export class NemosyneSession {
       formatVersion: 1,
       sessionId: this._sessionId,
       datasetFingerprint: String(originalDataset.fingerprint),
+      analyticalDatasetFingerprint:
+        representationDecision?.datasetFingerprint ?? nilProvenance?.datasetFingerprint,
       datasetName: originalDataset.name,
       kernelVersion: this._atlas.kernelVersion() ?? 'unknown',
+      analyticalKernelVersion:
+        representationDecision?.kernelVersion ?? nilProvenance?.kernelVersion,
       createdAt: typeof Date !== 'undefined' && Date.now ? Date.now() : 0,
       commandCount: core.eventLedger.length,
       discoveryCount: discoveryEpisodes?.episodes.length ?? 0,
