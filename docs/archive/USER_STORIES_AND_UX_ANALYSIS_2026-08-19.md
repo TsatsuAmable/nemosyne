@@ -1,4 +1,4 @@
-# Nemosyne — User Stories, Use Cases & Evidence-Based Gap/UX Analysis
+# Nemosyne — User Stories, Use Cases & Evidence-Based Gap/UX Analysis (archived)
 
 > **Method.** User stories and use cases are derived from the project's *stated* goals and
 > features (`README.md` "What it does", `FEATURES.md`, `docs/GETTING_STARTED.md`,

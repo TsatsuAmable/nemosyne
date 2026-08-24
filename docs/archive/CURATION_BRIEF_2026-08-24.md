@@ -1,4 +1,4 @@
-# Documentation Curator Brief
+# Documentation Curator Brief (completed and archived)
 
 **Agent Role:** Documentation Manager & Context Hygiene  
 **Primary Objective:** Clean up, organize, and maintain a lean, authoritative document set aligned with product state  
@@ -50,7 +50,7 @@
 - `docs/ROADMAP.md` (product layer) is canonical ✅
 - `docs/study/` (study layer) is canonical ✅
 - `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` is the product-direction authority.
-- `docs/USER_STORIES_AND_UX_ANALYSIS.md` remains product research input, not study authority.
+- The archived `docs/archive/USER_STORIES_AND_UX_ANALYSIS_2026-08-19.md` is historical product research input, not study authority.
 - Historical vision, design, issue, and study drafts are now under `docs/archive/`.
 
 **Action:** Keep active authorities in the index; do not promote proposals or research inputs to
@@ -114,7 +114,7 @@ Current model from `docs/PROJECT_DOCS_INDEX.md`:
    - ✅ `docs/study/CONFOUNDS.md` (draft, placeholders)
    - ✅ `docs/study/CONSENT.md` (template present)
    - ✅ `docs/study/REPRESENTATION_EQUIVALENCE.md` (template present)
-   - ❓ `docs/USER_STORIES_AND_UX_ANALYSIS.md` (should this move here?)
+   - Historical user-story material remains in `docs/archive/`; current use cases are audited in `docs/PRE_P1_SYSTEMATIC_AUDIT.md`.
 
 3. **Operations & Reproducibility** — Data dictionary, versioning, session store
    - ✅ `docs/study/DATA_DICTIONARY.md` (template present)

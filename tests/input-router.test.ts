@@ -140,6 +140,16 @@ describe('InputRouter controller system toggle', () => {
     expect(router.hovered).toBeNull();
   });
 
+  it('keeps scene raycast targets synchronized when the facade replaces interactables', () => {
+    const mesh = new THREE.Object3D();
+    const intersectObjects = vi.spyOn(router.raycaster, 'intersectObjects').mockReturnValue([]);
+
+    router.interactables = [{ mesh }];
+    router.registry.raycastScene();
+
+    expect(intersectObjects).toHaveBeenCalledWith([mesh], false);
+  });
+
   it('fires a global select callback', () => {
     const selectCb = vi.fn();
     router.onSelectCallback = selectCb;

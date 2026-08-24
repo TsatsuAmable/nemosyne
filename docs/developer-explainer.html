@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developer Guide - Nemosyne</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <meta name="theme-color" content="#0a0a0f">
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+    <div class="temporal-grid"></div>
+    <nav>
+        <a href="index.html" class="logo"><div class="logo-symbol"></div><span>Nemosyne</span></a>
+        <ul class="nav-links">
+            <li><a href="architecture.html">Architecture</a></li>
+            <li><a href="roadmap.html">Roadmap</a></li>
+            <li><a href="systematic-audit.html">Audit</a></li>
+            <li><a href="vision.html">Vision</a></li>
+        </ul>
+        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <main style="padding: 9rem 5% 6rem; min-height: 100vh; position: relative; z-index: 1;">
+        <article class="markdown-content">
+            <a href="index.html" class="back-link">Back to nemosyne.world</a>
+            <span class="tag">Developer guide</span>
+            <h1>Build and extend Nemosyne</h1>
+            <blockquote>Rust/WASM is the sole analytical authority. TypeScript orchestrates, persists, and embodies evidence; it must never provide a quiet analytical fallback.</blockquote>
+            <h2>Start locally</h2>
+            <pre><code>npm install
+npm run wasm:dev
+npm run dev:wasm</code></pre>
+            <p>WebXR requires a secure context. Desktop development can run over HTTP, while headset testing needs trusted HTTPS and a reachable development host.</p>
+            <h2>Authority boundary</h2>
+            <ol>
+                <li>Typed data enters the Rust/WASM kernel.</li>
+                <li>The kernel emits compact evidence and canonical identity.</li>
+                <li>Moneta chooses a bounded representation or records NIL.</li>
+                <li>TypeScript embodies the decision and records investigation provenance.</li>
+                <li>A <code>.nemosyne</code> package preserves the session for verified replay.</li>
+            </ol>
+            <h2>Required verification</h2>
+            <pre><code>npm run typecheck
+npm run lint
+npm run test:coverage
+npm run build
+cargo test --manifest-path wasm/Cargo.toml
+npm run test:smoke</code></pre>
+            <p>The current implementation status and exact next work live in the <a href="roadmap.html">public roadmap</a>. Architectural constraints are summarized in the <a href="architecture.html">architecture guide</a>.</p>
+            <p><a href="https://github.com/TsatsuAmable/nemosyne/blob/main/docs/DEVELOPER_EXPLAINER.md" target="_blank" rel="noopener">Read the full source guide on GitHub</a></p>
+        </article>
+    </main>
+    <footer>
+        <div class="footer-moon">◈</div><div class="footer-tagline">Nemosyne</div><div class="footer-domain">nemosyne.world</div>
+        <p class="footer-text">Open research software for inspectable and reproducible data investigation.</p>
+        <p class="copyright">© 2026 Tsatsu Amable. Released under MIT License.</p>
+    </footer>
+</body>
+</html>

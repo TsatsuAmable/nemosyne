@@ -10,12 +10,19 @@
  */
 
 import * as v from 'valibot';
-import { zipSync, unzipSync, strToU8, strFromU8, Unzip, type UnzipFile } from 'fflate';
+import { zipSync, strToU8, strFromU8, Unzip, UnzipInflate, type UnzipFile } from 'fflate';
 
 export const MAX_ARCHIVE_SIZE = 100 * 1024 * 1024;
 export const MAX_TOTAL_UNCOMPRESSED = 250 * 1024 * 1024;
 export const MAX_SINGLE_ENTRY = 100 * 1024 * 1024;
 export const MAX_ENTRY_COUNT = 1000;
+
+export interface NemosynePackageReadLimits {
+  archiveBytes?: number;
+  totalUncompressedBytes?: number;
+  singleEntryBytes?: number;
+  entryCount?: number;
+}
 
 export const NemosyneManifestSchema = v.object({
   formatVersion: v.number(),
@@ -82,7 +89,9 @@ export function sanitizeEntryPath(rawPath: string): string {
   }
   const normalized = decoded.replace(/\\/g, '/');
   if (normalized.startsWith('/') || /^[a-zA-Z]:/.test(normalized) || normalized.startsWith('//')) {
-    throw new Error(`Invalid archive entry path: absolute or drive-relative paths are forbidden (${rawPath})`);
+    throw new Error(
+      `Invalid archive entry path: absolute or drive-relative paths are forbidden (${rawPath})`
+    );
   }
   for (const part of normalized.split('/')) {
     if (part === '..' || part === '.' || part.includes('%2e') || part.includes('%2E')) {
@@ -119,75 +128,90 @@ export class NemosynePackageManager {
     return zipSync(zipFiles, { level: 6 });
   }
 
-  static unpack(archiveBytes: Uint8Array): NemosynePackagePayload {
-    if (archiveBytes.byteLength > MAX_ARCHIVE_SIZE) {
-      throw new Error(`Package archive exceeds maximum allowed size (${archiveBytes.byteLength} > ${MAX_ARCHIVE_SIZE} bytes)`);
+  static unpack(
+    archiveBytes: Uint8Array,
+    limits: NemosynePackageReadLimits = {}
+  ): NemosynePackagePayload {
+    const archiveLimit = limits.archiveBytes ?? MAX_ARCHIVE_SIZE;
+    const totalLimit = limits.totalUncompressedBytes ?? MAX_TOTAL_UNCOMPRESSED;
+    const singleEntryLimit = limits.singleEntryBytes ?? MAX_SINGLE_ENTRY;
+    const entryCountLimit = limits.entryCount ?? MAX_ENTRY_COUNT;
+
+    if (archiveBytes.byteLength > archiveLimit) {
+      throw new Error(
+        `Package archive exceeds maximum allowed size (${archiveBytes.byteLength} > ${archiveLimit} bytes)`
+      );
     }
     if (archiveBytes.byteLength === 0) throw new Error('Invalid archive: empty file');
 
     const unzippedFiles: Record<string, Uint8Array> = {};
+    const seenEntryPaths = new Set<string>();
     let totalUncompressed = 0;
     let entryCount = 0;
-    let syncFallback = false;
-
-    try {
-      const uz = new Unzip((file: UnzipFile) => {
-        entryCount++;
-        if (entryCount > MAX_ENTRY_COUNT) {
-          throw new Error(`Package contains too many files (${entryCount} > ${MAX_ENTRY_COUNT})`);
-        }
-        const cleanName = sanitizeEntryPath(file.name);
-        const chunks: Uint8Array[] = [];
-        let fileBytes = 0;
-        file.ondata = (err, chunk, final) => {
-          if (err) throw err;
-          if (chunk) {
-            fileBytes += chunk.byteLength;
-            totalUncompressed += chunk.byteLength;
-            if (fileBytes > MAX_SINGLE_ENTRY) {
-              throw new Error(`File entry "${cleanName}" exceeds maximum single entry size (${fileBytes} > ${MAX_SINGLE_ENTRY} bytes)`);
-            }
-            if (totalUncompressed > MAX_TOTAL_UNCOMPRESSED) {
-              throw new Error(`Package exceeds maximum uncompressed size budget (${totalUncompressed} > ${MAX_TOTAL_UNCOMPRESSED} bytes)`);
-            }
-            chunks.push(chunk);
-          }
-          if (final) {
-            const combined = new Uint8Array(fileBytes);
-            let offset = 0;
-            for (const c of chunks) {
-              combined.set(c, offset);
-              offset += c.byteLength;
-            }
-            unzippedFiles[cleanName] = combined;
-          }
-        };
-        file.start();
-      });
-      uz.push(archiveBytes, true);
-    } catch (e) {
-      if (e instanceof Error && (e.message.includes('exceeds') || e.message.includes('Invalid archive entry path'))) {
-        throw e;
+    const uz = new Unzip((file: UnzipFile) => {
+      entryCount++;
+      if (entryCount > entryCountLimit) {
+        throw new Error(`Package contains too many files (${entryCount} > ${entryCountLimit})`);
       }
-      syncFallback = true;
-    }
+      const cleanName = sanitizeEntryPath(file.name);
+      if (seenEntryPaths.has(cleanName)) {
+        throw new Error(`Package contains duplicate file entry "${cleanName}"`);
+      }
+      seenEntryPaths.add(cleanName);
+      const chunks: Uint8Array[] = [];
+      let fileBytes = 0;
+      file.ondata = (err, chunk, final) => {
+        if (err) throw err;
+        if (chunk) {
+          fileBytes += chunk.byteLength;
+          totalUncompressed += chunk.byteLength;
+          if (fileBytes > singleEntryLimit) {
+            throw new Error(
+              `File entry "${cleanName}" exceeds maximum single entry size (${fileBytes} > ${singleEntryLimit} bytes)`
+            );
+          }
+          if (totalUncompressed > totalLimit) {
+            throw new Error(
+              `Package exceeds maximum uncompressed size budget (${totalUncompressed} > ${totalLimit} bytes)`
+            );
+          }
+          chunks.push(chunk);
+        }
+        if (final) {
+          const combined = new Uint8Array(fileBytes);
+          let offset = 0;
+          for (const c of chunks) {
+            combined.set(c, offset);
+            offset += c.byteLength;
+          }
+          unzippedFiles[cleanName] = combined;
+        }
+      };
+      file.start();
+    });
+    uz.register(UnzipInflate);
+    uz.push(archiveBytes, true);
 
-    const finalFiles = syncFallback ? unzipSync(archiveBytes) : unzippedFiles;
+    const finalFiles = unzippedFiles;
     const entryKeys = Object.keys(finalFiles);
-    if (entryKeys.length > MAX_ENTRY_COUNT) {
-      throw new Error(`Package contains too many files (${entryKeys.length} > ${MAX_ENTRY_COUNT})`);
+    if (entryKeys.length > entryCountLimit) {
+      throw new Error(`Package contains too many files (${entryKeys.length} > ${entryCountLimit})`);
     }
 
     let verifiedTotal = 0;
     for (const key of entryKeys) {
       sanitizeEntryPath(key);
       const len = finalFiles[key].byteLength;
-      if (len > MAX_SINGLE_ENTRY) {
-        throw new Error(`File entry "${key}" exceeds maximum single entry size (${len} > ${MAX_SINGLE_ENTRY} bytes)`);
+      if (len > singleEntryLimit) {
+        throw new Error(
+          `File entry "${key}" exceeds maximum single entry size (${len} > ${singleEntryLimit} bytes)`
+        );
       }
       verifiedTotal += len;
-      if (verifiedTotal > MAX_TOTAL_UNCOMPRESSED) {
-        throw new Error(`Package exceeds maximum uncompressed size budget (${verifiedTotal} > ${MAX_TOTAL_UNCOMPRESSED} bytes)`);
+      if (verifiedTotal > totalLimit) {
+        throw new Error(
+          `Package exceeds maximum uncompressed size budget (${verifiedTotal} > ${totalLimit} bytes)`
+        );
       }
     }
 
@@ -208,20 +232,28 @@ export class NemosynePackageManager {
     }
     const commandLogBytes = finalFiles['investigation/commands.log'] ?? new Uint8Array(0);
     if (manifestResult.output.commandCount > 0 && commandLogBytes.byteLength === 0) {
-      throw new Error(`Package manifest declares ${manifestResult.output.commandCount} commands, but investigation/commands.log is empty`);
+      throw new Error(
+        `Package manifest declares ${manifestResult.output.commandCount} commands, but investigation/commands.log is empty`
+      );
     }
 
     const representationDecisionBytes = finalFiles['investigation/representation.json'];
     if (manifestResult.output.representationModel && !representationDecisionBytes) {
-      throw new Error('Invalid .nemosyne package: manifest declares representation model provenance but investigation/representation.json is missing');
+      throw new Error(
+        'Invalid .nemosyne package: manifest declares representation model provenance but investigation/representation.json is missing'
+      );
     }
     const discoveryEpisodesBytes = finalFiles['investigation/discoveries.json'];
     if ((manifestResult.output.discoveryCount ?? 0) > 0 && !discoveryEpisodesBytes) {
-      throw new Error('Invalid .nemosyne package: manifest declares discoveries but investigation/discoveries.json is missing');
+      throw new Error(
+        'Invalid .nemosyne package: manifest declares discoveries but investigation/discoveries.json is missing'
+      );
     }
     const nilOutcomesBytes = finalFiles['investigation/nil-outcomes.json'];
     if ((manifestResult.output.nilOutcomeCount ?? 0) > 0 && !nilOutcomesBytes) {
-      throw new Error('Invalid .nemosyne package: manifest declares NIL outcomes but investigation/nil-outcomes.json is missing');
+      throw new Error(
+        'Invalid .nemosyne package: manifest declares NIL outcomes but investigation/nil-outcomes.json is missing'
+      );
     }
 
     const extraFiles: Record<string, Uint8Array> = {};

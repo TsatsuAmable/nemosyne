@@ -6,13 +6,13 @@ A geospatial memory palace built from the `geo-cities` sample dataset.
 
 `src/data/SyntheticData.js` generates 20 global cities with lat/lon, population, and GDP:
 
-| name | lat | lon | population | gdp |
-|---|---|---|---|---|
-| New York | 40.7 | -74.0 | 8 | 312 |
-| London | 51.5 | -0.1 | 9 | 478 |
-| ... | ... | ... | ... | ... |
+| name     | lat  | lon   | population | gdp |
+| -------- | ---- | ----- | ---------- | --- |
+| New York | 40.7 | -74.0 | 8          | 312 |
+| London   | 51.5 | -0.1  | 9          | 478 |
+| ...      | ...  | ...   | ...        | ... |
 
-The Draco engine detects `lat`/`lon`, infers **GEO**, and maps the points to a room-scale geo-surface with columns and zone boundaries.
+Moneta consumes Rust-owned geospatial evidence and can map the points to a room-scale geo-surface with columns and zone boundaries.
 
 ## Artefacts generated
 

@@ -6,12 +6,12 @@ A market-session memory palace built from the `financial-series` sample dataset.
 
 `src/data/SyntheticData.js` generates 48 hourly OHLCV candles for the `MEMO` symbol:
 
-| time | symbol | open | high | low | close | volume |
-|---|---|---|---|---|---|---|
-| 2026-07-28T00:00:00 | MEMO | 103.42 | 105.10 | 101.80 | 104.15 | 4782 |
-| ... | ... | ... | ... | ... | ... | ... |
+| time                | symbol | open   | high   | low    | close  | volume |
+| ------------------- | ------ | ------ | ------ | ------ | ------ | ------ |
+| 2026-07-28T00:00:00 | MEMO   | 103.42 | 105.10 | 101.80 | 104.15 | 4782   |
+| ...                 | ...    | ...    | ...    | ...    | ...    | ...    |
 
-The Draco engine infers **TIME_SERIES** and lays the candles out as a temporal ribbon. High-volume ticks become larger tokens.
+Moneta selects a feasible **TIME_SERIES** representation and the Rust layout places candles on a temporal ribbon. High-volume ticks become larger tokens.
 
 ## Artefacts generated
 

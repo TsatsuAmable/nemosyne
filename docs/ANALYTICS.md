@@ -1,12 +1,12 @@
 # Nemosyne Analytics Layer
 
-The analytics layer turns Nemosyne from a spatial viewer into a spatial analytics workbench. It computes statistical facts, clustering, anomaly detection, and topological summaries via the deterministic Rust WASM kernel (`wasm/src/`), feeding the results through `AtlasCore` (`FactProvider`) into the Draco Embodiment Engine so VR layout, geometry, behaviour, and interaction adapt deterministically to the data with full provenance tracking.
+The analytics layer computes statistical facts, clustering, anomaly detection, topological summaries and data-derived layouts in the deterministic Rust/WASM kernel (`wasm/src/`). `AtlasCore.datasetEvidence()` validates the compact kernel structure profile for bounded Moneta representation reasoning. Desktop and WebXR then embody the resulting decision with provenance; they do not recompute analytical facts.
 
 ---
 
-## Statistical Facts (`AtlasCore` as `FactProvider` & Rust Kernel `data_statistics`)
+## Statistical facts (Rust kernel and `DatasetEvidence`)
 
-All statistical facts are computed in the Rust WASM kernel (`wasm/src/data/statistics.rs`) and delivered to Draco through `AtlasCore.dracoFacts()`:
+All statistical facts are computed in the Rust/WASM kernel. Production Moneta consumes the validated `DatasetEvidence` path. `AtlasCore.dracoFacts()` remains compatibility-only:
 
 - **`columnStats`** — per numeric column: `mean`, `median`, `stdDev`, `skew`, `kurtosis`, `min`, `max`, `outlierCount`.
 - **`correlationMatrix`** — pairwise complete Pearson correlation for every numeric column pair.
@@ -15,15 +15,15 @@ All statistical facts are computed in the Rust WASM kernel (`wasm/src/data/stati
 - **`hasOutliers`** — robust modified Z-score (MAD) outlier flag.
 - **`hasHighVariance`**, **`numericSkew`**, **`topCategory`** — summary signals used by soft constraints.
 
-These facts drive soft constraints in the Draco constraint solver:
+These facts inform bounded Moneta feasibility and utility rules:
 
-| Fact | Preferred VR mapping |
-|------|------------------------|
-| Outliers present | `ORB` geometry with pulsing halo |
-| High variance (tabular) | `COLUMN` geometry |
-| Strong correlation | `BEAM` geometry |
-| Temporal trend | `CHRONO_DIAL` interaction |
-| Seasonality hint | `WAVE_OSCILLATION` behaviour |
+| Fact                    | Preferred VR mapping             |
+| ----------------------- | -------------------------------- |
+| Outliers present        | `ORB` geometry with pulsing halo |
+| High variance (tabular) | `COLUMN` geometry                |
+| Strong correlation      | `BEAM` geometry                  |
+| Temporal trend          | `CHRONO_DIAL` interaction        |
+| Seasonality hint        | `WAVE_OSCILLATION` behaviour     |
 
 ---
 
@@ -31,11 +31,11 @@ These facts drive soft constraints in the Draco constraint solver:
 
 All clustering operations execute in the Rust WASM kernel (`wasm/src/operations.rs`) and return a new dataset with a `_cluster` column, recorded immutably to the Atlas provenance ledger.
 
-| Operation | Method | VR visualisation |
-|-----------|--------|------------------|
-| `cluster` | k-means with k-means++ seeding | Nested rings (`ClusterTransforms.applyNestedRings`) |
-| `hierarchical` | Agglomerative (single/complete/average) | Dendrogram arcs (`applyDendrogramArc`) |
-| `dbscan` | Density-based | Density clouds + noise sink (`applyDensityCloud`) |
+| Operation      | Method                                  | VR visualisation                                    |
+| -------------- | --------------------------------------- | --------------------------------------------------- |
+| `cluster`      | k-means with k-means++ seeding          | Nested rings (`ClusterTransforms.applyNestedRings`) |
+| `hierarchical` | Agglomerative (single/complete/average) | Dendrogram arcs (`applyDendrogramArc`)              |
+| `dbscan`       | Density-based                           | Density clouds + noise sink (`applyDensityCloud`)   |
 
 `Dataset` rows also receive `_meta` on hierarchical and DBSCAN results describing linkage history, eps/minPoints, noise count, etc.
 
@@ -45,10 +45,10 @@ All clustering operations execute in the Rust WASM kernel (`wasm/src/operations.
 
 `anomaly` calculates outliers via the WASM kernel and adds `_anomaly` and `_anomalyScore` columns.
 
-| Method | Description |
-|--------|-------------|
-| `iqr` | Interquartile range; sensitivity scales the whisker distance (default `1.5`). |
-| `zscore` | Standard-deviation threshold (default `3`). |
+| Method      | Description                                                                                                |
+| ----------- | ---------------------------------------------------------------------------------------------------------- |
+| `iqr`       | Interquartile range; sensitivity scales the whisker distance (default `1.5`).                              |
+| `zscore`    | Standard-deviation threshold (default `3`).                                                                |
 | `isolation` | Lightweight isolation-forest approximation using recursive random splits; score is normalised split depth. |
 
 ### VR rendering (`src/vr/interactions/AnomalyTransforms.ts`)
@@ -59,7 +59,7 @@ All clustering operations execute in the Rust WASM kernel (`wasm/src/operations.
 
 ### Outlier recommender rule
 
-The `ConstraintEngine` already flags `hasOutliers` via a robust MAD-based modified Z-score and prefers `ORB` geometry when outliers are present.
+The Moneta `ConstraintEngine` consumes the kernel-derived outlier evidence and can prefer an `ORB` embodiment when feasible.
 
 ---
 
@@ -67,13 +67,13 @@ The `ConstraintEngine` already flags `hasOutliers` via a robust MAD-based modifi
 
 `src/vr/artifacts/ChartPlane.ts` renders Canvas 2D plots onto a world-space quad:
 
-| ChartType | Dataset requirement |
-|-----------|---------------------|
-| `BAR` | Numeric column + optional categorical label |
-| `LINE` | Temporal + numeric columns |
-| `HISTOGRAM` | Single numeric column |
-| `BOX` | Single numeric column (5+ values) |
-| `CORRELATION` | Two or more numeric columns |
+| ChartType     | Dataset requirement                         |
+| ------------- | ------------------------------------------- |
+| `BAR`         | Numeric column + optional categorical label |
+| `LINE`        | Temporal + numeric columns                  |
+| `HISTOGRAM`   | Single numeric column                       |
+| `BOX`         | Single numeric column (5+ values)           |
+| `CORRELATION` | Two or more numeric columns                 |
 
 Chart planes are auto-attached by `VRTopologyTranslator` when the dataset has multiple numeric columns or a temporal column. They update in place when the dataset changes, so they work with live streams and data operations.
 
@@ -87,20 +87,20 @@ Topological data analysis summaries give analysts a shape-first view of their da
 
 ### Algorithms (Rust WASM Kernel)
 
-| Function | What it computes |
-|----------|------------------|
-| `compute_mapper_graph` | Approximate Mapper graph: rows are binned by a 1-D filter function, clustered inside each overlapping bin, and connected when clusters share rows. |
-| `compute_persistence_intervals` | 0-D persistence intervals for a 1-D filtration; union-find grows components as the filter threshold sweeps outward. |
-| `compute_betti_0_curve` | Number of connected components of a VR-style proximity graph as the radius grows. |
+| Function                        | What it computes                                                                                                                                   |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compute_mapper_graph`          | Approximate Mapper graph: rows are binned by a 1-D filter function, clustered inside each overlapping bin, and connected when clusters share rows. |
+| `compute_persistence_intervals` | 0-D persistence intervals for a 1-D filtration; union-find grows components as the filter threshold sweeps outward.                                |
+| `compute_betti_0_curve`         | Number of connected components of a VR-style proximity graph as the radius grows.                                                                  |
 
 ### Panels (`src/vr/artifacts/TDAPlanes.ts`)
 
 `buildTDASummaryGroup(dataset, featureColumns, filterColumn)` creates three world-space canvas panels:
 
-| Panel | Visual |
-|-------|--------|
+| Panel               | Visual                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------- |
 | Persistence barcode | Horizontal bars with birth/death ticks; infinite deaths are filtered out of the finite view. |
-| Mapper graph | Nodes laid out on a circle ordered by filter centre; edges drawn when bins overlap. |
-| Betti-0 curve | Connected-component count vs. proximity radius. |
+| Mapper graph        | Nodes laid out on a circle ordered by filter centre; edges drawn when bins overlap.          |
+| Betti-0 curve       | Connected-component count vs. proximity radius.                                              |
 
 The group is auto-attached by `World._attachTDASummary()` for datasets with numeric columns and recomputes after each non-anomaly data operation. Each panel exposes `update(data)` so it can also be driven by the diagnostic HUD or live streams.

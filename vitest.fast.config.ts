@@ -1,13 +1,5 @@
 import { defineConfig } from 'vitest/config';
-
-const FAST_NODE_TESTS = [
-  'tests/analyst-judgement-controller.test.ts',
-  'tests/draco-production-import-boundary.test.ts',
-  'tests/hygiene-audit.test.ts',
-  'tests/moneta-gate0-authority.test.ts',
-  'tests/moneta-layout-authority.test.ts',
-  'tests/moneta-scoring-ownership.test.ts',
-];
+import { FAST_NODE_TESTS } from './tests/config/test-groups.ts';
 
 export default defineConfig({
   test: {

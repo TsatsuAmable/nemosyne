@@ -6,13 +6,13 @@ Real-time sensor monitoring using the `sensor-stream` sample dataset and the bui
 
 `src/data/SampleDatasets.ts` defines an IoT sensor time-series with hourly temperature and vibration readings for two sensors:
 
-| time | sensorId | temperature | vibration |
-|---|---|---|---|
-| 2026-07-28T00:00:00 | S1 | 22.1 | 0.04 |
-| 2026-07-28T01:00:00 | S1 | 22.4 | 0.05 |
-| ... | ... | ... | ... |
+| time                | sensorId | temperature | vibration |
+| ------------------- | -------- | ----------- | --------- |
+| 2026-07-28T00:00:00 | S1       | 22.1        | 0.04      |
+| 2026-07-28T01:00:00 | S1       | 22.4        | 0.05      |
+| ...                 | ...      | ...         | ...       |
 
-The Draco engine sees the `time` and numeric columns, infers **TIME_SERIES**, and lays the data out as a time ribbon with token markers.
+Moneta consumes Rust-owned temporal evidence, selects a feasible **TIME_SERIES** representation, and embodies a time ribbon with token markers.
 
 ## Artefacts generated
 

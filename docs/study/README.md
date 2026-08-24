@@ -5,6 +5,7 @@ Status: Draft package — canonical structure, not yet frozen for collection.
 This directory is the canonical source for the study protocol and operational governance associated with the Nemosyne experimental work. It is intentionally separate from the product-roadmap and engineering documentation in [docs/ROADMAP.md](../ROADMAP.md).
 
 ## Purpose
+
 This package keeps three things separate:
 
 1. Product governance and implementation status
@@ -14,6 +15,7 @@ This package keeps three things separate:
 Those are related, but they are not equivalent documents and they should not be merged.
 
 ## Structure
+
 - [PROTOCOL.md](PROTOCOL.md) — study purpose, conditions, participant flow, researcher role, and limitations
 - [ANALYSIS_PLAN.md](ANALYSIS_PLAN.md) — frozen comparison plan and missing-data rules
 - [CONFOUNDS.md](CONFOUNDS.md) — known confounds, controls, and residual risk
@@ -23,12 +25,15 @@ Those are related, but they are not equivalent documents and they should not be 
 - [version.json](version.json) — release binding for build, protocol, and dataset identity
 
 ## Authority model
+
 - The product roadmap remains authoritative for engineering status.
 - This study package remains authoritative for methodological and operational decisions.
 - No file in this directory should be edited casually after an experiment is frozen; any change after freeze must be documented as a protocol deviation.
 
 ## Freeze policy
+
 A study package is considered frozen only after:
+
 - protocol content is complete
 - the analysis plan is fixed before collection begins
 - consent and data dictionary are aligned to the actual recorded fields
@@ -39,7 +44,3 @@ task artifact, order/carry-over handling, exclusions, missing-data rules, multip
 Atlas Core provider/version are fixed. Atlas Core is part of the Stable Alpha analytical substrate
 and must be identical across both study conditions. Richer adaptive guidance and exploratory
 analytical structures remain out of scope unless separately versioned and registered.
-
-## Legacy note
-Earlier draft files are archived under [docs/archive/study-drafts](../archive/study-drafts/)
-and should be treated as historical notes only. They are not canonical.

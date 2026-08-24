@@ -1,6 +1,6 @@
 # Nemosyne — Open Source Standardization Review & Library Adoption Assessment
 
-**Status:** Proposed Architecture Review & Library Adoption Blueprint  
+**Archived status:** historical proposal; superseded by `../PRE_P1_SYSTEMATIC_AUDIT.md`.
 **Date:** 19 August 2026  
 **License Requirement:** Open Source (MIT preferred / Apache-2.0 compatible), zero proprietary lock-in, active developer ecosystem.  
 **Governing Authority:** [Nemosyne_Definitive_Vision_and_Roadmap.md](file:///Users/tsatsuamable/Documents/nemosyne/docs/Nemosyne_Definitive_Vision_and_Roadmap.md)

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture - Nemosyne</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <meta name="theme-color" content="#0a0a0f">
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+    <div class="temporal-grid"></div>
+    <nav>
+        <a href="index.html" class="logo"><div class="logo-symbol"></div><span>Nemosyne</span></a>
+        <ul class="nav-links">
+            <li><a href="developer-explainer.html">Developer Guide</a></li>
+            <li><a href="roadmap.html">Roadmap</a></li>
+            <li><a href="systematic-audit.html">Audit</a></li>
+            <li><a href="vision.html">Vision</a></li>
+        </ul>
+        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <main style="padding: 9rem 5% 6rem; min-height: 100vh; position: relative; z-index: 1;">
+        <article class="markdown-content">
+            <a href="index.html" class="back-link">Back to nemosyne.world</a>
+            <span class="tag">Architecture</span>
+            <h1>One analytical authority, multiple ways to investigate</h1>
+            <p>Nemosyne separates analytical truth from representation and interaction. That boundary keeps desktop and WebXR experiences comparable without allowing device capability to change the analysis.</p>
+            <h2>Production flow</h2>
+            <pre><code>typed data
+  → Rust/WASM facts + canonical identity
+  → compact DatasetEvidence
+  → Moneta representation decision or NIL
+  → TypeScript/three.js embodiment
+  → investigation provenance
+  → verified .nemosyne replay</code></pre>
+            <h2>Layer responsibilities</h2>
+            <table>
+                <thead><tr><th>Layer</th><th>Owns</th><th>Does not own</th></tr></thead>
+                <tbody>
+                    <tr><td>Rust/WASM</td><td>Analytical facts, identity, scale-sensitive computation</td><td>Presentation or interaction policy</td></tr>
+                    <tr><td>Moneta</td><td>Bounded representation reasoning and abstention</td><td>Inventing analytical facts</td></tr>
+                    <tr><td>TypeScript</td><td>Orchestration, persistence, UI, WebXR embodiment</td><td>Independent analytical fallback</td></tr>
+                    <tr><td>Investigation</td><td>Decisions, discoveries, evidence references, replay</td><td>Unversioned hidden state</td></tr>
+                </tbody>
+            </table>
+            <h2>Failure policy</h2>
+            <p>If the kernel is unavailable, the runtime enters an explicit <code>KernelUnavailable</code> state. Capability flags describe telemetry and migration state; they do not select a JavaScript analytical route.</p>
+            <h2>Current architectural risks</h2>
+            <p>Large lifecycle coordinators, incomplete aggregate disposal, and linear production ray queries are the highest-priority structural risks. Their governed implementations are listed in the <a href="roadmap.html">roadmap</a>.</p>
+            <p><a href="https://github.com/TsatsuAmable/nemosyne/blob/main/docs/ARCHITECTURE.md" target="_blank" rel="noopener">Read the full architecture reference on GitHub</a></p>
+        </article>
+    </main>
+    <footer>
+        <div class="footer-moon">◈</div><div class="footer-tagline">Nemosyne</div><div class="footer-domain">nemosyne.world</div>
+        <p class="footer-text">Rust/WASM evidence, bounded representation, and portable investigation replay.</p>
+        <p class="copyright">© 2026 Tsatsu Amable. Released under MIT License.</p>
+    </footer>
+</body>
+</html>

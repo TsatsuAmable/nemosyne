@@ -6,16 +6,16 @@ A hierarchical memory palace built from the `supply-chain` sample dataset.
 
 `src/data/SampleDatasets.ts` defines a three-level supply chain:
 
-| name | level | region | inventory | riskScore |
-|---|---|---|---|---|
-| North America Hub | 0 | Americas | 12000 | 0.20 |
-| EU Hub | 0 | Europe | 9800 | 0.35 |
-| Asia Hub | 0 | Asia | 15400 | 0.15 |
-| NYC Warehouse | 1 | Americas | 3400 | 0.40 |
-| ... | ... | ... | ... | ... |
-| Seoul DC | 2 | Asia | 1500 | 0.60 |
+| name              | level | region   | inventory | riskScore |
+| ----------------- | ----- | -------- | --------- | --------- |
+| North America Hub | 0     | Americas | 12000     | 0.20      |
+| EU Hub            | 0     | Europe   | 9800      | 0.35      |
+| Asia Hub          | 0     | Asia     | 15400     | 0.15      |
+| NYC Warehouse     | 1     | Americas | 3400      | 0.40      |
+| ...               | ...   | ...      | ...       | ...       |
+| Seoul DC          | 2     | Asia     | 1500      | 0.60      |
 
-The Draco constraint engine detects the `level` and `region` columns, infers **HIERARCHY**, and emits a radial-tree palace with conical nodes on plinth rings and beam parent-child edges.
+Moneta consumes Rust-owned hierarchy evidence and can select a radial-tree representation with conical nodes on plinth rings and beam parent-child edges.
 
 ## Artefacts generated
 

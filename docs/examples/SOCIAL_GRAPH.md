@@ -4,13 +4,13 @@ A graph memory palace built from the `social-graph` sample dataset.
 
 ## What it shows
 
-`src/data/SyntheticData.js` generates 24 nodes with `group` and `influence` plus random edges. The Draco engine detects `edges`, infers **GRAPH**, and runs a force-directed 3D layout.
+`src/data/SyntheticData.ts` generates 24 nodes with `group` and `influence` plus random edges. Moneta consumes Rust-owned graph evidence and can select the authoritative force-directed 3D layout.
 
-| id | group | influence |
-|---|---|---|
-| N0 | A | 452 |
-| N1 | B | 891 |
-| ... | ... | ... |
+| id  | group | influence |
+| --- | ----- | --------- |
+| N0  | A     | 452       |
+| N1  | B     | 891       |
+| ... | ...   | ...       |
 
 ## Artefacts generated
 

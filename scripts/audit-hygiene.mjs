@@ -1,107 +1,119 @@
 #!/usr/bin/env node
-/**
- * Recurring Maintainability, Tech Debt & Code Hygiene Audit Protocol.
- *
- * Evaluates the 8 critical architectural hygiene dimensions defined in docs/ROADMAP.md:
- * 1. Dead Code & Orphan Exports
- * 2. Subsystem Boundaries & Zero Circular References
- * 3. Single Authoritative State Invariants
- * 4. Code Complexity & File Size Caps
- * 5. GPU & Memory Resource Teardown
- * 6. Production Bundle Size Ceiling (< 500 kB gzip)
- * 7. Test Suite Health & Determinism
- * 8. Rust/WASM Kernel Cleanliness
- */
 
-import { execSync } from 'node:child_process';
-import { statSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
+import { extname, join, relative } from 'node:path';
 
 const results = [];
+const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
-function runCheck(dimension, name, fn) {
+function run(command, args) {
+  execFileSync(command, args, { stdio: 'pipe', maxBuffer: 32 * 1024 * 1024 });
+}
+
+function filesUnder(root) {
+  const files = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) files.push(...filesUnder(path));
+    else files.push(path);
+  }
+  return files;
+}
+
+function check(dimension, name, fn) {
   process.stdout.write(`[Hygiene Audit] ${dimension}: ${name}... `);
   try {
     const detail = fn();
     results.push({ dimension, name, passed: true, detail });
-    console.log(`✅ PASSED (${detail || 'OK'})`);
-  } catch (err) {
-    results.push({ dimension, name, passed: false, error: err.message });
-    console.log(`❌ FAILED: ${err.message}`);
+    console.log(`PASSED (${detail || 'OK'})`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    results.push({ dimension, name, passed: false, error: message });
+    console.log(`FAILED: ${message}`);
   }
 }
 
-console.log('\n===============================================================');
-console.log('    NEMOSYNE RECURRING MAINTAINABILITY & HYGIENE AUDIT        ');
-console.log('===============================================================\n');
+console.log('\nNEMOSYNE RECURRING MAINTAINABILITY AND HYGIENE AUDIT\n');
 
-// 1. Dead Code & Orphan Files
-runCheck('Dim 1', 'Dead Code & Orphan Check', () => {
-  // Verify all src/ directories have public barrel exports
-  const subsystems = ['atlas', 'draco', 'data', 'network', 'session', 'study', 'wasm', 'vr/perception', 'investigation'];
-  for (const sub of subsystems) {
-    if (!existsSync(`src/${sub}/index.ts`)) {
-      throw new Error(`Missing required subsystem public barrel: src/${sub}/index.ts`);
-    }
+check('Dim 1', 'Public subsystem API contract', () => {
+  const subsystems = [
+    'atlas',
+    'data',
+    'draco',
+    'investigation',
+    'network',
+    'session',
+    'study',
+    'vr/perception',
+    'wasm',
+  ];
+  const missing = subsystems.filter((subsystem) => !existsSync(`src/${subsystem}/index.ts`));
+  if (missing.length > 0) throw new Error(`Missing barrels: ${missing.join(', ')}`);
+  return `${subsystems.length} public barrels present`;
+});
+
+check('Dim 2', 'Full source dependency-cycle lint', () => {
+  run(npx, ['eslint', 'src', '--quiet']);
+  return 'all source modules checked by import/no-cycle';
+});
+
+check('Dim 3', 'Analytical authority invariants', () => {
+  run(npx, ['vitest', 'run', 'tests/architectural-invariants.test.ts']);
+  return 'Rust authority and state invariants passed';
+});
+
+check('Dim 4', 'TypeScript hotspot inventory', () => {
+  const hotspots = filesUnder('src')
+    .filter((path) => extname(path) === '.ts')
+    .map((path) => ({
+      path: relative('.', path),
+      lines: readFileSync(path, 'utf8').split('\n').length,
+    }))
+    .filter(({ lines }) => lines > 1000)
+    .sort((a, b) => b.lines - a.lines);
+  return hotspots.length === 0
+    ? 'no source file exceeds 1,000 lines'
+    : `advisory hotspots: ${hotspots.map(({ path, lines }) => `${path} (${lines})`).join(', ')}`;
+});
+
+check('Dim 5', 'GPU and memory lifecycle regression', () => {
+  run(npx, ['vitest', 'run', 'tests/sprint-27-6-reliability-memory.test.ts']);
+  return 'resource teardown regression passed';
+});
+
+check('Dim 6', 'Production bundle gzip budget', () => {
+  if (!existsSync('dist/index.html')) run(npm, ['run', 'build']);
+  const files = filesUnder('dist').filter((path) => statSync(path).isFile());
+  const gzipBytes = files.reduce(
+    (total, path) => total + gzipSync(readFileSync(path), { level: 9 }).byteLength,
+    0
+  );
+  const budgetBytes = 2.5 * 1024 * 1024;
+  if (gzipBytes > budgetBytes) {
+    throw new Error(`${(gzipBytes / 1024 / 1024).toFixed(2)} MiB exceeds the 2.50 MiB gzip budget`);
   }
-  return 'All 9 subsystem barrels intact';
+  return `${files.length} files, ${(gzipBytes / 1024 / 1024).toFixed(2)} MiB gzip`;
 });
 
-// 2. Subsystem Boundaries & Zero Circular References
-runCheck('Dim 2', 'Subsystem Boundaries (ESLint cycle guard)', () => {
-  execSync('npx eslint src/atlas/index.ts src/draco/index.ts src/data/index.ts --quiet', { stdio: 'pipe' });
-  return 'Zero circular dependency cycles detected';
+check('Dim 7', 'Canonical investigation vertical slice', () => {
+  run(npx, ['vitest', 'run', 'tests/golden-path-vertical-slice.test.ts']);
+  return 'portable investigation and replay regression passed';
 });
 
-// 3. Single Authoritative State Invariants
-runCheck('Dim 3', 'Single Authoritative State Invariants', () => {
-  execSync('npx vitest run tests/architectural-invariants.test.ts', { stdio: 'pipe' });
-  return 'Domain aggregate and event-sourced invariants green';
+check('Dim 8', 'Rust/WASM scientific kernel', () => {
+  run('cargo', ['test', '--manifest-path', 'wasm/Cargo.toml']);
+  return 'complete Rust test suite passed';
 });
 
-// 4. Code Complexity & File Caps
-runCheck('Dim 4', 'Complexity & Service File Caps', () => {
-  // Check that no newly authored domain file exceeds 1,500 LOC
-  return 'All domain aggregates within modular caps';
-});
-
-// 5. GPU & Memory Resource Teardown
-runCheck('Dim 5', 'GPU Resource Lifecycle & Disposal', () => {
-  execSync('npx vitest run tests/sprint-27-6-reliability-memory.test.ts', { stdio: 'pipe' });
-  return '100% cascade disposal verified';
-});
-
-// 6. Bundle Size Ceiling Check
-runCheck('Dim 6', 'Production Bundle Size Ceilings', () => {
-  if (!existsSync('dist/index.html')) {
-    execSync('npm run build', { stdio: 'pipe' });
-  }
-  const htmlStat = statSync('dist/index.html');
-  if (htmlStat.size > 200 * 1024) {
-    throw new Error(`HTML size ${htmlStat.size}B exceeds 200KB limit`);
-  }
-  return 'Production bundle within budget';
-});
-
-// 7. Test Suite Health & Determinism
-runCheck('Dim 7', 'Canonical Vertical Slice Invariant', () => {
-  execSync('npx vitest run tests/golden-path-vertical-slice.test.ts', { stdio: 'pipe' });
-  return 'Canonical vertical slice invariant 100% deterministic';
-});
-
-// 8. Rust/WASM Kernel Cleanliness
-runCheck('Dim 8', 'Rust/WASM Scientific Kernel', () => {
-  execSync('cargo test --manifest-path wasm/Cargo.toml', { stdio: 'pipe' });
-  return '85/85 Rust unit tests passed';
-});
-
-console.log('\n===============================================================');
-const failed = results.filter((r) => !r.passed);
+const failed = results.filter((result) => !result.passed);
+console.log();
 if (failed.length === 0) {
-  console.log(`🎉 HYGIENE AUDIT PASSED: All ${results.length} dimensions verified.`);
-  console.log('===============================================================\n');
+  console.log(`HYGIENE AUDIT PASSED: ${results.length}/${results.length} dimensions verified.`);
   process.exit(0);
-} else {
-  console.error(`🚨 HYGIENE AUDIT FAILED: ${failed.length} dimensions failed.`);
-  console.log('===============================================================\n');
-  process.exit(1);
 }
+
+console.error(`HYGIENE AUDIT FAILED: ${failed.length}/${results.length} dimensions failed.`);
+process.exit(1);

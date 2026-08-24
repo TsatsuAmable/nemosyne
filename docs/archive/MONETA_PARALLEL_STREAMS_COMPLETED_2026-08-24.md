@@ -1,4 +1,4 @@
-# Moneta Parallel Migration Streams
+# Moneta Parallel Migration Streams (completed and archived)
 
 The migration is currently split into two independent implementation streams:
 

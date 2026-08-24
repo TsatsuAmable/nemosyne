@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { WorldUIManager } from '../src/vr/coordinators/WorldUIManager.ts';
 import { WorldEventBus } from '../src/utils/EventBus.ts';
 import { Engine } from '../src/vr/Engine.ts';
+import { GestureConfidenceHUD } from '../src/vr/ui/GestureConfidenceHUD.ts';
 
 describe('WorldUIManager', () => {
   let engine;
@@ -94,6 +95,22 @@ describe('WorldUIManager', () => {
     expect(ui.loadTestPanel).toBeTruthy();
   });
 
+  it('uses the production adaptive-assist components in the Dev Lab controls', () => {
+    const confidenceHUD = new GestureConfidenceHUD(anchor);
+    const frustrationResponse = { update: vi.fn() };
+    const jitHints = { enabled: true };
+
+    ui.bindAdaptiveAssist({ confidenceHUD, frustrationResponse, jitHints });
+
+    expect(ui.getOrCreateGestureConfidenceHUD()).toBe(confidenceHUD);
+    expect(ui.frustrationResponseManager).toBe(frustrationResponse);
+    expect(ui.jitGestureHintManager).toBe(jitHints);
+    expect(ui.panelManager.panels).toContain(confidenceHUD);
+
+    ui.toggleJITGestureHintManager();
+    expect(jitHints.enabled).toBe(false);
+  });
+
   it('parents the dashboard, launcher, and wheel menu to the analyst anchor', () => {
     expect(ui.panelManager._launcherGroup.parent).toBe(anchor);
     expect(ui.dashboard.wallGroup.parent).toBe(anchor);
@@ -182,8 +199,16 @@ describe('WorldUIManager', () => {
 
     ui.applyAccessibility({ textScale: 1.5, highContrast: true });
 
-    expect(panelSpy).toHaveBeenCalledWith({ textScale: 1.5, highContrast: true, colorblindMode: 'none' });
-    expect(wheelSpy).toHaveBeenCalledWith({ textScale: 1.5, highContrast: true, colorblindMode: 'none' });
+    expect(panelSpy).toHaveBeenCalledWith({
+      textScale: 1.5,
+      highContrast: true,
+      colorblindMode: 'none',
+    });
+    expect(wheelSpy).toHaveBeenCalledWith({
+      textScale: 1.5,
+      highContrast: true,
+      colorblindMode: 'none',
+    });
   });
 
   it('reads initial mini-overview setting from callback', () => {

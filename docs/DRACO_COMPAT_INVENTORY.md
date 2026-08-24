@@ -1,6 +1,6 @@
 # Draco Compatibility Inventory
 
-This inventory is scoped to the Moneta Migration Completion Sprint. `src/draco/**` is compatibility surface only; production code imports Moneta directly.
+This is the current compatibility contract after the completed Moneta migration. `src/draco/**` is compatibility surface only; production code imports Moneta directly.
 
 ## Production consumers
 

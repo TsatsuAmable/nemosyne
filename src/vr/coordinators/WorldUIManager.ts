@@ -51,6 +51,12 @@ import type {
 } from './types.ts';
 import { DEFAULT_ACCESSIBILITY } from './types.ts';
 
+interface AdaptiveAssistLike {
+  confidenceHUD: GestureConfidenceHUD;
+  frustrationResponse: FrustrationResponseManager;
+  jitHints: JITGestureHintManager;
+}
+
 export class WorldUIManager {
   engine: Engine;
   analystAnchor: Group;
@@ -211,8 +217,6 @@ export class WorldUIManager {
       {
         feedback: engine.input.feedback,
         analystAnchor,
-        openAngleThreshold: Math.PI / 8,
-        closeAngleThreshold: Math.PI * 0.75,
         hoverDelayMs: 120,
       } as LooseOptions
     );
@@ -399,6 +403,13 @@ export class WorldUIManager {
     return this.gestureConfidenceHUD;
   }
 
+  bindAdaptiveAssist(controller: AdaptiveAssistLike): void {
+    this.gestureConfidenceHUD = controller.confidenceHUD;
+    this.frustrationResponseManager = controller.frustrationResponse;
+    this.jitGestureHintManager = controller.jitHints;
+    this.panelManager.register(controller.confidenceHUD);
+  }
+
   /** Build a minimal empty Dataset so SchemaMappingPanel chrome renders for review. */
   private _emptyDataset(): Dataset {
     return new DatasetClass('empty', [], []);
@@ -463,7 +474,7 @@ export class WorldUIManager {
         analyzer
       );
     }
-    this.vrConsole?.log?.('log', ['Frustration Response Manager constructed (review mode).']);
+    this.vrConsole?.log?.('log', ['Frustration Response Manager active.']);
   }
 
   toggleJITGestureHintManager(): void {
@@ -472,7 +483,7 @@ export class WorldUIManager {
     }
     this.jitGestureHintManager.enabled = !this.jitGestureHintManager.enabled;
     this.vrConsole?.log?.('log', [
-      `JIT Gesture Hints ${this.jitGestureHintManager.enabled ? 'enabled' : 'disabled'} (review mode)`,
+      `JIT Gesture Hints ${this.jitGestureHintManager.enabled ? 'enabled' : 'disabled'}`,
     ]);
   }
 

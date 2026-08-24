@@ -1,6 +1,6 @@
 # Nemosyne Interaction Vocabulary
 
-Nemosyne defines a small set of **metaphor-accurate** interactions: every gesture performs a dataset operation *and* a matching VR artefact transform.
+Nemosyne defines a small set of **metaphor-accurate** interactions: every gesture performs a dataset operation _and_ a matching VR artefact transform.
 
 ---
 
@@ -17,25 +17,25 @@ Nemosyne defines a small set of **metaphor-accurate** interactions: every gestur
 
 ## Data Operation → Artefact Transform Mapping
 
-| Intent | Dataset operation | VR artefact transform | Input |
-|---|---|---|---|
-| **Inspect** | — | Holographic inspector appears near the active hand; node brightens and elevates | Point + pinch/select on node |
-| **Filter** | `WASM Kernel filter` | Non-matching nodes shrink, fade, and fall below the DatumPlane | Wheel menu, filter ring, or `pinchTogether` gesture |
-| **Aggregate** | `WASM Kernel aggregate` | Grouped crystals merge into a larger Orb or Column | Wheel menu or `pinchApart` gesture |
-| **Compare** | `AtlasCore / WASM compare` | A compact group-summary view exposes means, counts, and differences for the selected measures | Canonical 2D precision view; VR guidance foundation |
-| **Sort** | `WASM Kernel sort` | Nodes reorder along an arc or spiral | Wheel menu or `sliceUp` gesture |
-| **Time Slice** | `WASM Kernel slice` | A cut plane moves through the ribbon; older data dims | Wheel menu or `sliceDown` gesture |
-| **Cluster** | `WASM Kernel cluster` | Similar nodes attract into a Zone ring | Pinch-drag a node near another |
-| **Hierarchical Cluster** | `WASM Kernel hierarchical` | Dendrogram arcs arranged by linkage distance | Wheel menu Hierarchical button |
-| **Density Cluster** | `WASM Kernel dbscan` | Dense groups become clouds; noise sinks below plane | Wheel menu Density button |
-| **Anomaly Highlight** | `WASM Kernel anomaly` | Outliers lift and pulse with magenta halos | Wheel menu Highlight outliers button |
-| **Outlier Lens** | `applyOutlierLens` | Outliers swarm around the pointing hand | Hold pinch on an outlier cluster |
-| **Live Preview** | `AtlasCore preview` | Transient markers show which rows will be kept, removed, reordered, or flagged as outliers before the operation is applied | Hover an operation in the wheel menu or an in-place handle |
-| **Reset** | `AtlasCore reset` | All artefacts return to the solved layout | Wheel menu Reset button or `pushForward` gesture with pinched hands |
-| **Reset View** | — | Camera returns to the overview anchor without undoing history | `pushForward` gesture with open hands, or `R` on desktop |
-| **Pause / Resume Input** | — | All gestures are ignored while paused; locomotion and scene selection are disabled | Hold both hands pinched close together for ~1 second, or `P` on desktop |
-| **Mark Moment** | `MarkMomentAction` / `AtlasCore` | Captures 3D observer position, rotation, active slice, and focal cluster into an attributable Observation entity with visual beacon and haptics | Wheel menu `📍 Mark Moment` button |
-| **Undo / Redo** | `AnalysisHistory` rewinds or replays operations | Artefact rebuilds from the stored dataset | `rotateCCW` / `rotateCW` gestures or `Ctrl+Z` / `Ctrl+Y` |
+| Intent                   | Dataset operation                               | VR artefact transform                                                                                                                           | Input                                                                   |
+| ------------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Inspect**              | —                                               | Holographic inspector appears near the active hand; node brightens and elevates                                                                 | Point + pinch/select on node                                            |
+| **Filter**               | `WASM Kernel filter`                            | Non-matching nodes shrink, fade, and fall below the DatumPlane                                                                                  | Wheel menu, filter ring, or `pinchTogether` gesture                     |
+| **Aggregate**            | `WASM Kernel aggregate`                         | Grouped crystals merge into a larger Orb or Column                                                                                              | Wheel menu or `pinchApart` gesture                                      |
+| **Compare**              | `AtlasCore / WASM compare`                      | A compact group-summary view exposes means, counts, and differences for the selected measures                                                   | Canonical 2D precision view; VR guidance foundation                     |
+| **Sort**                 | `WASM Kernel sort`                              | Nodes reorder along an arc or spiral                                                                                                            | Wheel menu or `sliceUp` gesture                                         |
+| **Time Slice**           | `WASM Kernel slice`                             | A cut plane moves through the ribbon; older data dims                                                                                           | Wheel menu or `sliceDown` gesture                                       |
+| **Cluster**              | `WASM Kernel cluster`                           | Similar nodes attract into a Zone ring                                                                                                          | Pinch-drag a node near another                                          |
+| **Hierarchical Cluster** | `WASM Kernel hierarchical`                      | Dendrogram arcs arranged by linkage distance                                                                                                    | Wheel menu Hierarchical button                                          |
+| **Density Cluster**      | `WASM Kernel dbscan`                            | Dense groups become clouds; noise sinks below plane                                                                                             | Wheel menu Density button                                               |
+| **Anomaly Highlight**    | `WASM Kernel anomaly`                           | Outliers lift and pulse with magenta halos                                                                                                      | Wheel menu Highlight outliers button                                    |
+| **Outlier Lens**         | `applyOutlierLens`                              | Outliers swarm around the pointing hand                                                                                                         | Hold pinch on an outlier cluster                                        |
+| **Live Preview**         | `AtlasCore preview`                             | Transient markers show which rows will be kept, removed, reordered, or flagged as outliers before the operation is applied                      | Hover an operation in the wheel menu or an in-place handle              |
+| **Reset**                | `AtlasCore reset`                               | All artefacts return to the solved layout                                                                                                       | Wheel menu Reset button or `pushForward` gesture with pinched hands     |
+| **Reset View**           | —                                               | Camera returns to the overview anchor without undoing history                                                                                   | `pushForward` gesture with open hands, or `R` on desktop                |
+| **Pause / Resume Input** | —                                               | All gestures are ignored while paused; locomotion and scene selection are disabled                                                              | Hold both hands pinched close together for ~1 second, or `P` on desktop |
+| **Mark Moment**          | `MarkMomentAction` / `AtlasCore`                | Captures 3D observer position, rotation, active slice, and focal cluster into an attributable Observation entity with visual beacon and haptics | Wheel menu `📍 Mark Moment` button                                      |
+| **Undo / Redo**          | `AnalysisHistory` rewinds or replays operations | Artefact rebuilds from the stored dataset                                                                                                       | `rotateCCW` / `rotateCW` gestures or `Ctrl+Z` / `Ctrl+Y`                |
 
 ---
 
@@ -47,23 +47,23 @@ WebXR pointers utilize `PointerRayFilter` (adaptive 1-Euro smoothing filter) acr
 
 `src/vr/interactions/HandGestureRecognizer.ts` reads both tracked hands each frame and maps simple pose patterns to analysis commands. Gestures are deliberately conservative: each has a cooldown and a clear displacement threshold so accidental motion does not spam commands.
 
-| Gesture | Hands | Mapped action |
-|---|---|---|
-| **bothPinched** | Both hands pinch simultaneously | System toggle: show/hide the launcher ring |
-| **pinchTogether** | Both hands pinched and moving closer | Apply **filter** |
-| **pinchApart** | Both hands pinched and moving apart | Apply **aggregate** |
-| **swipeRight** | Dominant open-hand swipe right | Next dataset |
-| **swipeLeft** | Dominant open-hand swipe left | Previous dataset |
-| **sliceUp** | Dominant open-hand slice up | Apply **sort** |
-| **sliceDown** | Dominant open-hand slice down | Apply **timeSlice** |
-| **scoopUp** | Both palms up, rising together | Toggle the **statistical lens** (TDA summary + correlation matrix); in flight mode, **ascend** |
-| **scoopDown** | Both palms down, lowering together | In flight mode, **descend** |
-| **pushForward (pinched)** | Both palms forward, pushing away | **Reset** data operations |
-| **pushForward (open)** | Both open palms forward, pushing away | **Reset** view to overview |
-| **rotateCW** | Cupped hands twisting clockwise | **Redo** the last undone analysis operation |
-| **rotateCCW** | Cupped hands twisting counter-clockwise | **Undo** the last analysis operation |
-| **okSign** | Dominant pinch while non-dominant is open | Toggle the **settings panel** |
-| **pauseResume** | Pinch both index fingers close together and hold ~1 s | **Pause / resume** all input |
+| Gesture                   | Hands                                                 | Mapped action                                                                                  |
+| ------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **bothPinched**           | Both hands pinch simultaneously                       | System toggle: show/hide the launcher ring                                                     |
+| **pinchTogether**         | Both hands pinched and moving closer                  | Apply **filter**                                                                               |
+| **pinchApart**            | Both hands pinched and moving apart                   | Apply **aggregate**                                                                            |
+| **swipeRight**            | Dominant open-hand swipe right                        | Next dataset                                                                                   |
+| **swipeLeft**             | Dominant open-hand swipe left                         | Previous dataset                                                                               |
+| **sliceUp**               | Dominant open-hand slice up                           | Apply **sort**                                                                                 |
+| **sliceDown**             | Dominant open-hand slice down                         | Apply **timeSlice**                                                                            |
+| **scoopUp**               | Both palms up, rising together                        | Toggle the **statistical lens** (TDA summary + correlation matrix); in flight mode, **ascend** |
+| **scoopDown**             | Both palms down, lowering together                    | In flight mode, **descend**                                                                    |
+| **pushForward (pinched)** | Both palms forward, pushing away                      | **Reset** data operations                                                                      |
+| **pushForward (open)**    | Both open palms forward, pushing away                 | **Reset** view to overview                                                                     |
+| **rotateCW**              | Cupped hands twisting clockwise                       | **Redo** the last undone analysis operation                                                    |
+| **rotateCCW**             | Cupped hands twisting counter-clockwise               | **Undo** the last analysis operation                                                           |
+| **okSign**                | Dominant pinch while non-dominant is open             | Toggle the **settings panel**                                                                  |
+| **pauseResume**           | Pinch both index fingers close together and hold ~1 s | **Pause / resume** all input                                                                   |
 
 The recognizer is used by `World._updateGestures()`; the resulting intent is handled by `World._onGesture()`.
 
@@ -89,11 +89,11 @@ You can step through history with:
 
 `src/vr/ui/SettingsPanel.ts` is a movable, camera-rig-attached panel that lets analysts customize:
 
-| Section | Options |
-|---|---|
+| Section              | Options                                                          |
+| -------------------- | ---------------------------------------------------------------- |
 | **Statistical Lens** | Toggle the TDA summary group and/or the correlation matrix panel |
-| **Feedback** | Enable/disable audio, haptic, and visual feedback independently |
-| **Gestures** | Enable/disable the dual-hand gesture recognizer |
+| **Feedback**         | Enable/disable audio, haptic, and visual feedback independently  |
+| **Gestures**         | Enable/disable the dual-hand gesture recognizer                  |
 
 Settings are persisted to `localStorage` under `nemosyne-vr-settings` and applied immediately via `World._onSettingChanged()`.
 
@@ -102,19 +102,23 @@ Settings are persisted to `localStorage` under `nemosyne-vr-settings` and applie
 ## Gesture Details
 
 ### Point + pinch / select
+
 - **Controller**: trigger click while pointing.
 - **Hand tracking**: extend index finger and pinch thumb+index.
 - Used for inspect, menu selection, and button presses.
 
 ### Two-hand pinch + pull
+
 - Pinch an artefact with each hand, then pull hands apart or together.
 - Pulling apart expands/untangles; pulling together aggregates.
 
 ### Horizontal / vertical hand swipe
+
 - Swipe horizontally across the palace to cycle sort keys.
 - Swipe vertically to move a time-slice plane forward/backward.
 
 ### Body-locked constellation wheel menu
+
 - Pinch the menu hand to toggle a two-level constellation wheel that floats body-locked in front of the chest at ~0.55 m.
 - Inner ring: categories (Templates, Panels, Views, Live, Collab, Ops).
 - Outer ring: actions within the hovered or selected category.
@@ -129,10 +133,10 @@ Settings are persisted to `localStorage` under `nemosyne-vr-settings` and applie
 
 For common topologies, small world-space badges appear near the data palace so you can act without opening the wheel menu:
 
-| Topology | Handles | Badge |
-|---|---|---|
+| Topology                    | Handles      | Badge  |
+| --------------------------- | ------------ | ------ |
 | **TABULAR** / **HIERARCHY** | Filter, Sort | 🔎, 📶 |
-| **TIME_SERIES** | Time Slice | 🕒 |
+| **TIME_SERIES**             | Time Slice   | 🕒     |
 
 The handles fade in when your pointer or hand is nearby and are hidden in expert mode. Selecting a handle applies the same operation as the wheel menu.
 
@@ -153,14 +157,14 @@ Ready-made **analysis stories** (`src/data/AnalysisTemplates.js`) bundle a sampl
 
 Open the **Templates** category in the constellation wheel menu and pick a story:
 
-| Template | Dataset | Theme | Tour |
-|---|---|---|---|
-| Factory Floor Monitoring | IoT sensor stream | `coolDepth` | first dataset |
-| Fraud Investigation | Fraud transaction graph | `warmAnomaly` | first dataset |
-| Sales Performance Review | Sales table | `daylightGlobe` | first dataset |
-| Organizational Cost Audit | Org chart | `neonMidnight` | first dataset |
-| Market Session Replay | Financial candle series | `daylightGlobe` | first dataset |
-| Geospatial Benchmark | Global cities | `coolDepth` | first dataset |
+| Template                  | Dataset                 | Theme           | Tour          |
+| ------------------------- | ----------------------- | --------------- | ------------- |
+| Factory Floor Monitoring  | IoT sensor stream       | `coolDepth`     | first dataset |
+| Fraud Investigation       | Fraud transaction graph | `warmAnomaly`   | first dataset |
+| Sales Performance Review  | Sales table             | `daylightGlobe` | first dataset |
+| Organizational Cost Audit | Org chart               | `neonMidnight`  | first dataset |
+| Market Session Replay     | Financial candle series | `daylightGlobe` | first dataset |
+| Geospatial Benchmark      | Global cities           | `coolDepth`     | first dataset |
 
 A template loads the dataset, applies the matching visual theme, and starts the default guided tour so the gesture and operation vocabulary are introduced in context.
 
@@ -182,31 +186,31 @@ This is useful for preparing a dataset, configuring settings, or demonstrating t
 
 ## System Controls
 
-| Function | Default input |
-|---|---|
-| Toggle wheel menu | Controller grip (hold) or two-hand pinch |
-| Toggle individual panel | Wheel menu → panel button, or launcher ring |
-| Drag panel | Point at title bar, hold trigger/pinch, move |
-| Scroll dashboard | Wheel menu → Panels → Scroll Left / Right |
-| Re-center panels | Wheel menu → Recenter |
-| Reset dashboard | Wheel menu → Panels → Reset Dashboard |
-| Switch dataset | Wheel menu → Views → Dataset, or `swipeRight` / `swipeLeft` gesture |
-| Connect live stream | Wheel menu → Live → Start/Stop Live |
-| Toggle Farcaster portals | Wheel menu → Views → Portals |
-| Cycle TechnoCore lens hub | Point + pinch the TechnoCore |
-| Walk through Farcaster portal | Step into a portal to warp + apply its data operation |
-| Toggle statistical lens | `scoopUp` gesture (when not in flight mode), Settings Panel, or TechnoCore `statistical` lens |
-| Cycle atmosphere theme | Wheel menu → Views → Cycle Theme |
-| Undo / redo operation | `rotateCCW` / `rotateCW`, or `Ctrl+Z` / `Ctrl+Y` |
-| Open settings panel | `okSign` gesture |
-| Start guided tour | Wheel menu → Panels → Tour |
-| Filter / aggregate / sort / time-slice | `pinchTogether`, `pinchApart`, `sliceUp`, `sliceDown` |
-| Reset data operations | `pushForward` gesture with pinched hands |
-| Reset view | `pushForward` gesture with open hands, or `R` on desktop |
-| Pause / resume input | Hold both hands pinched close together for ~1 s, or `P` on desktop |
-| Toggle 3D flight mode | Wheel menu → Views → Toggle Flight |
-| Ascend / descend in flight mode | Right thumbstick up/down, or `scoopUp` / `scoopDown` gesture |
-| Drop to floor | Wheel menu → Views → Drop to Floor |
+| Function                               | Default input                                                                                 |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Toggle wheel menu                      | Controller grip (hold) or two-hand pinch                                                      |
+| Toggle individual panel                | Wheel menu → panel button, or launcher ring                                                   |
+| Drag panel                             | Point at title bar, hold trigger/pinch, move                                                  |
+| Scroll dashboard                       | Wheel menu → Panels → Scroll Left / Right                                                     |
+| Re-center panels                       | Wheel menu → Recenter                                                                         |
+| Reset dashboard                        | Wheel menu → Panels → Reset Dashboard                                                         |
+| Switch dataset                         | Wheel menu → Views → Dataset, or `swipeRight` / `swipeLeft` gesture                           |
+| Connect live stream                    | Wheel menu → Live → Start/Stop Live                                                           |
+| Toggle Farcaster portals               | Wheel menu → Views → Portals                                                                  |
+| Cycle TechnoCore lens hub              | Point + pinch the TechnoCore                                                                  |
+| Walk through Farcaster portal          | Step into a portal to warp + apply its data operation                                         |
+| Toggle statistical lens                | `scoopUp` gesture (when not in flight mode), Settings Panel, or TechnoCore `statistical` lens |
+| Cycle atmosphere theme                 | Wheel menu → Views → Cycle Theme                                                              |
+| Undo / redo operation                  | `rotateCCW` / `rotateCW`, or `Ctrl+Z` / `Ctrl+Y`                                              |
+| Open settings panel                    | `okSign` gesture                                                                              |
+| Start guided tour                      | Wheel menu → Panels → Tour                                                                    |
+| Filter / aggregate / sort / time-slice | `pinchTogether`, `pinchApart`, `sliceUp`, `sliceDown`                                         |
+| Reset data operations                  | `pushForward` gesture with pinched hands                                                      |
+| Reset view                             | `pushForward` gesture with open hands, or `R` on desktop                                      |
+| Pause / resume input                   | Hold both hands pinched close together for ~1 s, or `P` on desktop                            |
+| Toggle 3D flight mode                  | Wheel menu → Views → Toggle Flight                                                            |
+| Ascend / descend in flight mode        | Right thumbstick up/down, or `scoopUp` / `scoopDown` gesture                                  |
+| Drop to floor                          | Wheel menu → Views → Drop to Floor                                                            |
 
 ---
 
@@ -224,7 +228,7 @@ These checks run each frame in `World._updateInputContext()` and update `InputRo
 
 ## Guided Tour
 
-`src/vr/ui/GuidedTour.ts` plays a step-by-step spatial tutorial authored as JSON. The default tour (`src/data/DefaultTour.ts`) introduces the datum plane, Draco palace, node inspection, the constellation wheel menu, two-hand gestures, the settings panel, and the curved dashboard.
+`src/vr/ui/GuidedTour.ts` plays a step-by-step spatial tutorial authored as JSON. The default tour (`src/data/DefaultTour.ts`) introduces the datum plane, represented investigation, node inspection, constellation wheel menu, two-hand gestures, settings panel and curved dashboard.
 
 - Tours advance manually via `next()` / `previous()` or automatically when a step's condition is satisfied.
 - Each step displays a camera-rig-attached instruction card and a pulsing highlight ring around the target.
@@ -242,7 +246,7 @@ Available presets: `neonMidnight`, `daylightGlobe`, `coolDepth`, `warmAnomaly`, 
 - The **Cycle Theme** wheel-menu action lets the user browse presets manually; the current choice is logged to the VR Console.
 - `TechnoCoreNode` and `FarcasterPortal` intensify their glow/pulse when data activity is high, tying the visuals to live or dynamic datasets.
 
-----
+---
 
 ## Functional Landmarks
 
@@ -272,20 +276,20 @@ The TechnoCore and Farcaster portals are no longer purely decorative set dressin
   - **Portal A (Deep Net)** — applies the `anomaly` operation and warps to the deep-net zone.
   - **Portal B (Local Matrix)** — applies `reset` and returns the camera to the origin.
 
-----
+---
 
 ## Phase 7 Interaction Metaphors
 
 Beyond the core operations, Nemosyne defines six spatial metaphors for reasoning about data. They are available as `interaction` spec values and are triggered on node selection.
 
-| Metaphor | Effect | Best For |
-|---|---|---|
-| **RESONANCE_PULSE** | Expanding rings travel from the selected node to its graph neighbours. | Graphs / networks |
-| **FORK_PLANE** | A translucent plane bisects the artefact, highlighting the selected item's half-space. | Tabular / spatial partitions |
-| **CHRONO_DIAL** | A rotating clock-face ring appears around a time-series point. | Time-series |
-| **CONSTELLATION** | Ephemeral lines connect the selected node to up to eight related nodes. | Networks / similarity |
-| **BEACON** | A vertical light column rises from the selected point. | Geo / dense tabular spaces |
-| **ALEPH** | All other visible nodes briefly flash a connection to the selected node. | Dense graphs |
+| Metaphor            | Effect                                                                                 | Best For                     |
+| ------------------- | -------------------------------------------------------------------------------------- | ---------------------------- |
+| **RESONANCE_PULSE** | Expanding rings travel from the selected node to its graph neighbours.                 | Graphs / networks            |
+| **FORK_PLANE**      | A translucent plane bisects the artefact, highlighting the selected item's half-space. | Tabular / spatial partitions |
+| **CHRONO_DIAL**     | A rotating clock-face ring appears around a time-series point.                         | Time-series                  |
+| **CONSTELLATION**   | Ephemeral lines connect the selected node to up to eight related nodes.                | Networks / similarity        |
+| **BEACON**          | A vertical light column rises from the selected point.                                 | Geo / dense tabular spaces   |
+| **ALEPH**           | All other visible nodes briefly flash a connection to the selected node.               | Dense graphs                 |
 
 The metaphors are implemented in `src/vr/interactions/MetaphorActions.ts` and wired into `VRTopologyTranslator`. By default the constraint engine still prefers base interactions (`TRAVERSE_EDGE`, `INSPECT_CELL`, etc.); tuning the metaphor soft-constraint weights selects them.
 
@@ -328,7 +332,7 @@ Only a small pool of tooltips is active at once, so dense datasets do not turn i
 - Chart panels are created automatically from the active dataset (`ChartPlanePanel.ts`) and update when data operations run.
 - The constellation wheel menu provides **Scroll Left**, **Scroll Right**, and **Reset Dashboard** actions under Panels.
 
-This borrows the cockpit-style panel layout from *Elite Dangerous* and *No Man's Sky* (information arranged in world space around the pilot) and the carousel paging common in VR game menus (*Echo VR*, console radial menus). The grid itself is inspired by the Google VR Constellation Menu and *Starblood Arena* circular HUD: a regular angular arrangement that builds spatial muscle memory.
+This borrows the cockpit-style panel layout from _Elite Dangerous_ and _No Man's Sky_ (information arranged in world space around the pilot) and the carousel paging common in VR game menus (_Echo VR_, console radial menus). The grid itself is inspired by the Google VR Constellation Menu and _Starblood Arena_ circular HUD: a regular angular arrangement that builds spatial muscle memory.
 
 ---
 
@@ -375,12 +379,12 @@ Each channel can be toggled independently in the **Settings Panel** or programma
 
 The goal is to make data operations feel like physical actions in a place:
 
-- **Filtering** should feel like *removing* objects from view.
-- **Aggregating** should feel like *merging* objects.
-- **Sorting** should feel like *rearranging* objects on a shelf.
-- **Time-slicing** should feel like *cutting through* a stream.
-- **Clustering** should feel like *gathering* similar objects; hierarchical clustering unfolds like a dendrogram, while density clustering separates dense clouds from noise.
-- **Anomaly highlighting** should feel like *spotlights* on records that break the pattern.
+- **Filtering** should feel like _removing_ objects from view.
+- **Aggregating** should feel like _merging_ objects.
+- **Sorting** should feel like _rearranging_ objects on a shelf.
+- **Time-slicing** should feel like _cutting through_ a stream.
+- **Clustering** should feel like _gathering_ similar objects; hierarchical clustering unfolds like a dendrogram, while density clustering separates dense clouds from noise.
+- **Anomaly highlighting** should feel like _spotlights_ on records that break the pattern.
 - **Outlier lens** should feel like pulling suspects to the front of the room for inspection.
 
 This spatial-motor mapping is intended to offload working memory to the body and the environment.

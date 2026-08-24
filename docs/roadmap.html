@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roadmap - Nemosyne</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <meta name="theme-color" content="#0a0a0f">
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+    <div class="temporal-grid"></div>
+    <nav>
+        <a href="index.html" class="logo"><div class="logo-symbol"></div><span>Nemosyne</span></a>
+        <ul class="nav-links">
+            <li><a href="developer-explainer.html">Developer Guide</a></li>
+            <li><a href="architecture.html">Architecture</a></li>
+            <li><a href="systematic-audit.html">Audit</a></li>
+            <li><a href="vision.html">Vision</a></li>
+        </ul>
+        <a href="https://github.com/TsatsuAmable/nemosyne" class="github-btn" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <main style="padding: 9rem 5% 6rem; min-height: 100vh; position: relative; z-index: 1;">
+        <article class="markdown-content">
+            <a href="index.html" class="back-link">Back to nemosyne.world</a>
+            <span class="tag">Current status</span>
+            <h1>Roadmap to a qualified research preview</h1>
+            <p>The Rust/WASM authority migration is complete. Nemosyne is now in pre-P1 hardening and qualification; feature count does not substitute for evidence that the full investigation works safely on its target hardware.</p>
+            <h2>Next implementation order</h2>
+            <ol>
+                <li><strong>Qualify the device boundary.</strong> Run the instrumented 10M-row and interaction protocols on physical Meta Quest 3S hardware.</li>
+                <li><strong>Close lifecycle risk.</strong> Split oversized coordinators along authority and ownership seams; prove disposal and recreation.</li>
+                <li><strong>Prove the user journey.</strong> Exercise visible controls from data load through Moneta/NIL, investigation, export, and replay in a real browser.</li>
+                <li><strong>Harden hostile boundaries.</strong> Fuzz the Rust ABI and package inputs; inject kernel, signalling, and reconnection faults.</li>
+                <li><strong>Measure spatial performance.</strong> Select one production query accelerator from device benchmarks and remove redundant paths.</li>
+            </ol>
+            <h2>Private preview gate</h2>
+            <p>P1 can reopen only after blocker and high-severity audit findings have governed dispositions, the full CI gate remains green, and target-device evidence is reviewed. Learned ranking and future adaptive representation remain opt-in and must not bypass evidence policy.</p>
+            <h2>Evidence vocabulary</h2>
+            <ul>
+                <li><strong>Built:</strong> a component and tests exist.</li>
+                <li><strong>Wired:</strong> production instantiates the component.</li>
+                <li><strong>Qualified:</strong> the declared environment and protocol pass.</li>
+                <li><strong>Validated:</strong> research evidence supports the intended human outcome.</li>
+            </ul>
+            <p><a href="systematic-audit.html">Review the audit summary</a> or <a href="https://github.com/TsatsuAmable/nemosyne/blob/main/docs/ROADMAP.md" target="_blank" rel="noopener">read the live engineering roadmap on GitHub</a>.</p>
+        </article>
+    </main>
+    <footer>
+        <div class="footer-moon">◈</div><div class="footer-tagline">Nemosyne</div><div class="footer-domain">nemosyne.world</div>
+        <p class="footer-text">Qualification before promotion; evidence before claims.</p>
+        <p class="copyright">© 2026 Tsatsu Amable. Released under MIT License.</p>
+    </footer>
+</body>
+</html>

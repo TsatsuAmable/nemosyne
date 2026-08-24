@@ -1,7 +1,7 @@
 # Audit Complete: Phases 1–20 "Built vs. Wired" Analysis
 
 **Date:** 2026-08-14  
-**Status:** ✅ Complete — Ready for decision
+**Archived status:** historical snapshot; superseded by `../PRE_P1_SYSTEMATIC_AUDIT.md`.
 
 **Status refresh:** 2026-08-16 — Phase 22.3 Tier B wiring is complete for
 `FrustrationResponseManager`, `JITGestureHintManager`, and `GestureConfidenceHUD` via

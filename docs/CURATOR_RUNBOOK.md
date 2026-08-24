@@ -9,6 +9,7 @@
 ## Phase Completion Audit (What to Do After Each Phase)
 
 ### Step 1: Update Roadmap Current Status Block (15 min)
+
 - [ ] Read `docs/ROADMAP.md` Current Status block
 - [ ] Update these bullets with fresh state:
   - Last updated date
@@ -20,6 +21,7 @@
 - [ ] Keep block ≤ 30 lines; move narrative to phase sections
 
 ### Step 2: Identify Changed Features (30 min)
+
 - [ ] Run `git log --oneline -20` to see merged PRs since last audit
 - [ ] List all user-facing feature changes (gestures, UI, settings, etc.)
 - [ ] Cross-reference against these docs:
@@ -30,20 +32,25 @@
   - `docs/GETTING_STARTED.md` (user onboarding)
 
 ### Step 3: Flag Stale Docs (30 min)
+
 For each doc identified as changed:
+
 - [ ] Is the doc still accurate?
   - If **yes:** Mark as "refreshed" and update last-edit date
   - If **no:** Mark as 🟡 outdated and add a staleness note
 - [ ] Create issues or notes for refresh work (post-phase)
 
 ### Step 4: Audit Orphaned Docs (30 min)
+
 Check these regularly:
+
 - [x] Historical vision/design/issue notes moved to `docs/archive/`.
 - [ ] Any other files in `docs/` not explicitly canonical?
 
 Decision: **Keep, Archive, or Move to `docs/study/`?**
 
 ### Step 5: Study Package Freeze (1 hour or defer)
+
 - [ ] Review `docs/study/PROTOCOL.md`, `ANALYSIS_PLAN.md`, `CONFOUNDS.md`
 - [ ] Count TBD / placeholder fields
 - [ ] Decision:
@@ -53,12 +60,15 @@ Decision: **Keep, Archive, or Move to `docs/study/`?**
 - [ ] Update `docs/study/version.json` if changes made
 
 ### Step 6: Sync Landing Page (`docs/index.html`) (15 min)
+
 - [ ] Check links in `docs/index.html` (navbar, CTA buttons, footer)
 - [ ] Verify that links to `DEVELOPER_EXPLAINER.md`, `ARCHITECTURE.md`, `ROADMAP.md`, and `Nemosyne_Definitive_Vision_and_Roadmap.md` resolve correctly
 - [ ] Ensure aesthetic design and responsive styling remain intact
 
 ### Step 7: Create Refresh Checklist (1 hour, post-phase)
+
 If docs need refresh:
+
 - [ ] Create issues for each stale doc
 - [ ] Assign to documentation_curator agent
 - [ ] Link to this runbook
@@ -71,12 +81,14 @@ If docs need refresh:
 Run once per month or on-demand to keep docs lean.
 
 ### Task 1: Context Clutter Review (30 min)
+
 - [ ] Check file sizes: `du -sh docs/* | sort -rh`
 - [ ] Any files >100 KB that aren't expected?
 - [ ] Are there any new generated or build artifacts in `docs/`?
 - [ ] Archive if needed (move to `docs/_archive/` or delete)
 
 ### Task 2: Three-Layer Model Alignment (30 min)
+
 - [ ] Do all docs in `docs/` clearly belong to one of:
   - Product Governance (roadmap, features, architecture)
   - Study Protocol (research design, protocols, governance)
@@ -85,16 +97,19 @@ Run once per month or on-demand to keep docs lean.
 - [ ] Update `docs/PROJECT_DOCS_INDEX.md` if alignment changed
 
 ### Task 3: Outdated Content Sweep (1 hour)
+
 - [ ] Grep for Phase or date references: `grep -r "2026-06" docs/`
 - [ ] For each old date, check if that phase/work is still current
 - [ ] If outdated, flag with staleness note or refresh
 
 ### Task 4: Broken Links & References (30 min)
+
 - [ ] Run `find docs/ -name "*.md" -exec grep -l "\[.*\](.*)" {} \;`
 - [ ] Spot-check 5 cross-references for dead links
 - [ ] If dead, update or remove reference
 
 ### Task 5: Canonical Source Verification (30 min)
+
 - [ ] Is `docs/ROADMAP.md` the single source of truth? ✅
 - [ ] Are older sprint/phase docs archived or deleted? ✅
 - [ ] Are there duplicate facts in different docs? → Remove redundancy
@@ -107,6 +122,7 @@ Run once per month or on-demand to keep docs lean.
 When a doc is flagged as outdated and assigned to refresh:
 
 ### For `docs/INTERACTIONS.md`
+
 - [ ] Run `git log --oneline -- src/vr/interactions/ src/vr/ui/HandWheelMenu.ts | head -10`
 - [ ] Review recent gesture/menu changes
 - [ ] Update gesture table: new gestures, retired gestures, changes to existing
@@ -115,6 +131,7 @@ When a doc is flagged as outdated and assigned to refresh:
 - [ ] Update last-revised date and Phase number
 
 ### For `docs/DESIGN_SYSTEM.md`
+
 - [ ] Check `src/vr/palette.ts` (new in Phase 22.2)
 - [ ] List all theme presets from `src/vr/WorldTheme.ts`
 - [ ] Update color token table
@@ -123,19 +140,22 @@ When a doc is flagged as outdated and assigned to refresh:
 - [ ] Update last-revised date and Phase number
 
 ### For `docs/ARTEFACTS.md`
-- [ ] Review `src/vr/artifacts/` and `src/draco/` for new artifact types
+
+- [ ] Review `src/vr/artifacts/` and `src/moneta/` for new artefact types
 - [ ] Update taxonomy
 - [ ] Flag any visual placeholders (e.g., aggregate operation)
 - [ ] Link to relevant user stories if gaps exist
 - [ ] Update last-revised date and Phase number
 
 ### For `docs/ANALYTICS.md`
+
 - [ ] Note TDA on-demand feature (Phase 22.2)
-- [ ] List all statistical features in `src/draco/` and `src/analytics/`
+- [ ] List analytical evidence in `wasm/src/` and representation consumers in `src/moneta/`
 - [ ] Link to TDA plane documentation
 - [ ] Update last-revised date and Phase number
 
 ### For `docs/ARCHITECTURE.md`
+
 - [ ] Review `src/vr/World.ts` and coordinators (Phase 17)
 - [ ] Update component diagram or description
 - [ ] Note SceneGraphController, WorkspaceManager, etc.
@@ -143,6 +163,7 @@ When a doc is flagged as outdated and assigned to refresh:
 - [ ] Update last-revised date and Phase number
 
 ### For `docs/GETTING_STARTED.md`
+
 - [ ] Check current Quest setup process
 - [ ] Update any UI paths or settings locations
 - [ ] List current gesture set and panel layout
@@ -177,18 +198,22 @@ Does it describe current product features or guidance?
 ## Common Patterns
 
 ### Pattern 1: Doc Updated in One Phase, Not Refreshed in Next
+
 **Example:** `docs/INTERACTIONS.md` updated in Phase 12, not touched in Phase 22  
 **Action:** Add to refresh checklist; prioritize in next month's audit
 
 ### Pattern 2: Feature Implemented but Doc Is Placeholder
+
 **Example:** `docs/study/PROTOCOL.md` has TBD fields 6 months later  
 **Action:** Either fill immediately or formally defer; don't leave in limbo
 
 ### Pattern 3: Orphaned Design Doc
+
 **Example:** archived design notes — no recent design decisions reference them
 **Action:** Archive to `docs/archive/`; not in main context
 
 ### Pattern 4: Auto-Generated HTML Stale
+
 **Example:** `docs/ROADMAP.html` doesn't match current `docs/ROADMAP.md`  
 **Action:** Run build; add pre-commit hook to regenerate on `.md` change
 

@@ -1,4 +1,4 @@
-# Nemosyne — Technical Specification Document
+# Nemosyne — Technical Specification Document (archived)
 
 **Version:** 5.0 (Governing Technical Architecture)  
 **Date:** 18 August 2026  
