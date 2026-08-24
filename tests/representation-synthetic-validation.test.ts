@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { SYNTHETIC_FIXTURES } from './synthetic/representation-fixtures.ts';
-import { RepresentationHypothesisEngine } from '../src/draco/index.ts';
+import { RepresentationHypothesisEngine } from '../src/moneta/index.ts';
 
 describe('Phase 8: Synthetic Dataset Validation Suite', () => {
   describe.each(SYNTHETIC_FIXTURES)('$name ($expectedFamily)', (fixture) => {

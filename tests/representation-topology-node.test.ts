@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { DracoTopologyNode } from '../src/draco/DracoTopologyNode.ts';
+import { MonetaTopologyNode as DracoTopologyNode } from '../src/moneta/MonetaTopologyNode.ts';
 import {
   RepresentationHypothesisEngine,
   createDefaultRequirements,
   type DracoFacts,
   type FactProvider,
-} from '../src/draco/index.ts';
+} from '../src/moneta/index.ts';
 
 describe('Phase 4: Integrate RepresentationDecision into DracoTopologyNode', () => {
   const scene = new THREE.Scene();

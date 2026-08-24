@@ -10,7 +10,7 @@ import {
   type DracoDataInput,
   type SpectralFacts,
   type DracoFacts,
-} from '../src/draco/index.ts';
+} from '../src/moneta/index.ts';
 
 describe('Phase 6: FrequencyField Representation and Renderer', () => {
   it('computes valid 3D positions via SpectralVolumeLayout', () => {

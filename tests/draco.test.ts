@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect } from 'vitest';
-import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
-import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
+import { ConstraintEngine, TopologyTypes } from '../src/moneta/ConstraintEngine.ts';
+import { VRTopologyTranslator } from '../src/moneta/VRTopologyTranslator.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { fraudGraph, orgChart, windField } from '../src/data/SampleDatasets.ts';
 import { makeFactProvider } from './helpers/dracoFactsHelper.ts';

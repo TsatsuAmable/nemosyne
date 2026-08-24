@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { AtlasCore, InvestigationAggregate, type WasmRuntimeBridgeFull } from '../src/atlas/index.ts';
 import { Dataset, ColumnType, AnalysisHistory } from '../src/data/index.ts';
 import { NemosyneSession, InvestigationBranchManager } from '../src/session/index.ts';
-import { ConstraintEngine, VRTopologyTranslator, PositionSemanticsEngine } from '../src/draco/index.ts';
+import { ConstraintEngine, VRTopologyTranslator, PositionSemanticsEngine } from '../src/moneta/index.ts';
 import { NetworkManager, Room, BinaryPoseSerializer } from '../src/network/index.ts';
 import { StudyHarness, Counterbalancer, StudyStatisticalAnalyzer } from '../src/study/index.ts';
 import { KernelUnavailableError, getKernelState } from '../src/wasm/index.ts';
