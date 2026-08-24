@@ -17,7 +17,15 @@ use crate::data::value::Value;
 
 /// SHA-256 over UTF-8 text, rendered as 64 lowercase hex characters.
 pub fn sha256_hex(text: &str) -> String {
-    format!("{:x}", Sha256::digest(text.as_bytes()))
+    digest_hex(&Sha256::digest(text.as_bytes()))
+}
+
+pub(crate) fn digest_hex(digest: &[u8]) -> String {
+    let mut output = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut output, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    output
 }
 
 /// Deprecated compatibility alias for callers not yet renamed. Despite the
