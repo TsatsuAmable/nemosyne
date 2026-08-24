@@ -6,9 +6,11 @@
 
 import { World } from '../vr/World.ts';
 import { setupDevTraceRecorder } from './devTrace.ts';
+import { mountAnalystJourneyControls, type AnalystJourneyControlsHandle } from './AnalystJourneyControls.ts';
 
 export interface AppInstance {
   world: World;
+  analystJourneyControls: AnalystJourneyControlsHandle;
 }
 
 export async function bootstrapApp(): Promise<AppInstance> {
@@ -28,5 +30,5 @@ export async function bootstrapApp(): Promise<AppInstance> {
     }
   }
 
-  return { world };
+  return { world, analystJourneyControls: mountAnalystJourneyControls(world) };
 }

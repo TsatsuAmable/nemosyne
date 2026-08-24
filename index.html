@@ -77,6 +77,37 @@
       <h1>NEMOSYNE // SPATIAL DATA SUITE</h1>
     </div>
     <div id="telemetry">initializing…</div>
+    <style>
+      #analyst-journey-controls {
+        position: fixed;
+        z-index: 10;
+        right: 1rem;
+        bottom: 1rem;
+        display: grid;
+        gap: 0.4rem;
+        max-width: 18rem;
+        padding: 0.8rem;
+        color: #d8fff6;
+        background: rgba(5, 15, 25, 0.9);
+        border: 1px solid rgba(0, 255, 204, 0.45);
+        font: 12px monospace;
+      }
+      #analyst-journey-controls h2,
+      #analyst-journey-controls p {
+        margin: 0;
+      }
+      #analyst-journey-controls button {
+        padding: 0.45rem 0.6rem;
+        color: inherit;
+        background: rgba(0, 255, 204, 0.12);
+        border: 1px solid rgba(0, 255, 204, 0.4);
+        cursor: pointer;
+      }
+      #analyst-journey-controls button:focus-visible {
+        outline: 2px solid #fff;
+        outline-offset: 2px;
+      }
+    </style>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>
