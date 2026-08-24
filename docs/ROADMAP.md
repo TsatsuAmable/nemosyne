@@ -4,7 +4,7 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `322585d` (includes #362-#364). Active implementation branch: `refactor/world-lifecycle-owner`.**
+**Current `main`: `322585d` (includes #362-#364). Draft PR #365 is open from `refactor/world-lifecycle-owner`.**
 
 **Next checkpoint:** merge the first lifecycle-ownership/recovery slice, then split `RuntimeBridge`
 by ABI handle family behind its single readiness state machine. Production spatial acceleration and
@@ -15,9 +15,10 @@ execution remains deferred until a Quest 3S is available; even a completed measu
 **Last gate:** green locally on 24 August 2026 for `refactor/world-lifecycle-owner`. Typecheck and
 lint passed (0 errors, 170 pre-existing warnings); coverage passed at 82.12% statements, 70.17%
 branches, 79.22% functions and 84.69% lines; production build passed; all 170 Rust tests passed; and
-the real Chromium/WebGL smoke passed. Hosted PR evidence is pending publication. The preceding #363
-and #364 hosted gates and Pages deployment are green, with `nemosyne.world` domain-verified and
-HTTPS-enforced.
+the real Chromium/WebGL smoke passed. Draft PR #365 then passed hosted CodeQL, core correctness, 170
+Rust tests, downloaded-artifact Chromium smoke, the read-only approval gate and the `Node 24`
+aggregate. The preceding #363 and #364 hosted gates and Pages deployment are also green, with
+`nemosyne.world` domain-verified and HTTPS-enforced.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
