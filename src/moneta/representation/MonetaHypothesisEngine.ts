@@ -602,6 +602,7 @@ export class MonetaHypothesisEngine {
         version: '2.1.0-v3-bootstrap',
         datasetFingerprint,
         requirementsHash,
+        fitnessModelVersion: this.fitnessModel.version,
       },
     };
   }

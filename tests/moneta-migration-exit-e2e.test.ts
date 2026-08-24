@@ -53,6 +53,14 @@ describe('Moneta migration exit end-to-end authority', () => {
     const decision = atlas.arbitrateRepresentation();
     const strategy = decision.embodiment.spatialStrategy;
 
+    atlas.applyAnalysis({
+      datasetFingerprint: fingerprint,
+      datasetVersion: atlas.datasetVersion,
+      operation: { op: 'sort', column: 'x', ascending: true },
+      algorithmVersion: profile.provenance.kernelVersion,
+      label: 'sort',
+    });
+
     expect(decision.datasetFingerprint).toBe(fingerprint);
     expect(decision.datasetSignature.clusterStructure).toMatchObject({
       estimatedCount: 4,
