@@ -160,7 +160,14 @@ async function archive(): Promise<Uint8Array> {
 
 describe('portable discovery + NIL replay provenance', () => {
   it('restores discoveries and verifies representation/NIL identities end to end', async () => {
-    const result = await new InvestigationReplayRunner(bridge()).replayArchive(await archive());
+    const bytes = await archive();
+    const unpacked = NemosynePackageManager.unpack(bytes);
+    expect(unpacked.manifest.analyticalDatasetFingerprint).toBe(
+      unpacked.manifest.datasetFingerprint,
+    );
+    expect(unpacked.manifest.analyticalKernelVersion).toBe('unknown');
+
+    const result = await new InvestigationReplayRunner(bridge()).replayArchive(bytes);
     expect(result.success, result.discrepancies.join('\n')).toBe(true);
     expect(result.representationProvenanceVerified).toBe(true);
     expect(result.discoveryProvenanceVerified).toBe(1);

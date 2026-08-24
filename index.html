@@ -86,7 +86,9 @@
         display: grid;
         gap: 0.4rem;
         max-width: 18rem;
+        max-height: calc(100vh - 2rem);
         padding: 0.8rem;
+        overflow: auto;
         color: #d8fff6;
         background: rgba(5, 15, 25, 0.9);
         border: 1px solid rgba(0, 255, 204, 0.45);
@@ -96,14 +98,31 @@
       #analyst-journey-controls p {
         margin: 0;
       }
-      #analyst-journey-controls button {
+      #analyst-journey-controls label {
+        color: rgba(216, 255, 246, 0.8);
+      }
+      #analyst-journey-controls button,
+      #analyst-journey-controls input {
         padding: 0.45rem 0.6rem;
         color: inherit;
         background: rgba(0, 255, 204, 0.12);
         border: 1px solid rgba(0, 255, 204, 0.4);
+        box-sizing: border-box;
+        font: inherit;
+      }
+      #analyst-journey-controls input {
+        min-width: 0;
+        width: 100%;
+      }
+      #analyst-journey-controls button {
         cursor: pointer;
       }
-      #analyst-journey-controls button:focus-visible {
+      #analyst-journey-status[data-state='error'],
+      #analyst-representation-outcome[data-state='nil'] {
+        color: #ff9eb7;
+      }
+      #analyst-journey-controls button:focus-visible,
+      #analyst-journey-controls input:focus-visible {
         outline: 2px solid #fff;
         outline-offset: 2px;
       }

@@ -4,19 +4,18 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `116aa25` (includes merged PR #370). Active branch: `ux/analyst-clean-room-replay`.**
+**Current `main`: `e15562a` (includes merged PR #371). Active branch: `ux/analyst-nil-tamper-recovery`.**
 
-**Next checkpoint:** land clean-room analyst replay, then complete explicit Moneta/NIL and
-failure/recovery paths for the full analyst journey. In parallel, complete the Atlas
-orchestration/topology-embodiment split and select one production spatial accelerator. Physical
-execution remains deferred until a Quest 3S is available; even a completed measurement remains
-`deviceQualifiedAt10m: false` until governed review.
+**Next checkpoint:** land the completed analyst journey, then verify the remaining PERF-03 exit
+work around the production BVH and redundant built-only index before completing the Atlas
+orchestration/topology-embodiment split. Physical execution remains deferred until a Quest 3S is
+available; even a completed measurement remains `deviceQualifiedAt10m: false` until governed review.
 
-**Last gate:** green locally on 24 August 2026 for `ux/analyst-clean-room-replay`.
-Typecheck and lint passed (0 errors, 170 pre-existing warnings); all 316 coverage files and 1,938
-tests passed at 82.29% statements, 70.39% branches, 79.25% functions and 84.78% lines; the production
+**Last gate:** green locally on 24 August 2026 for `ux/analyst-nil-tamper-recovery`.
+Typecheck and lint passed (0 errors, 170 pre-existing warnings); all 317 coverage files and 1,942
+tests passed at 82.28% statements, 70.43% branches, 79.21% functions and 84.76% lines; the production
 WASM/Vite build passed; all 170 Rust tests passed; and both real Chromium/WebGL smoke journeys
-passed. Merged PR #370 hosted CodeQL, core correctness, Rust, downloaded-artifact Chromium smoke,
+passed. Merged PR #371 hosted CodeQL, core correctness, Rust, downloaded-artifact Chromium smoke,
 read-only approval gate and `Node 24` aggregate are green. Pages remains deployed with
 `nemosyne.world` domain-verified and HTTPS-enforced.
 
@@ -203,7 +202,7 @@ The full evidence and dispositions are in
 - [ ] **ARCH-01 / high:** lifecycle ownership and the `RuntimeBridge` ABI-family split are merged; consumer-owned coordinator contracts are complete locally; the analytical kernel port is now isolated, while Atlas orchestration and topology embodiment remain.
 - [x] **ARCH-02 / high:** explicit idempotent UI/world ownership, disposal and started real-WASM recreation contracts implemented on `refactor/world-lifecycle-owner`.
 - [ ] **PERF-03 / high:** benchmark and wire one production spatial accelerator; delete the redundant built-only index.
-- [ ] **UX-02 / high:** visible desktop controls now cover sample load → Rust-backed evidence → observation → `.nemosyne` export → clean-room replay in real Chromium. Extend them to explicit Moneta/NIL outcomes, tampered-package UX, and broader failure/recovery states.
+- [x] **UX-02 / high:** the real-browser desktop journey now covers sample load → explicit Moneta decision or persisted NIL → Rust-backed analysis → observation → `.nemosyne` export/import → clean-room replay, including bounded accessible tamper failure and successful retry without mutating the source investigation.
 - [ ] **UX-03 / high:** execute controller, hand and desktop semantic-parity tasks on physical hardware.
 - [ ] **RES-01 / high:** production ABI-trap invalidation/recovery, initialization race fencing and bounded lifecycle cleanup are covered; extend this into checked two-call output contracts, exception-safe host allocation cleanup and the sustained malformed-handle/panic fault campaign.
 - [ ] **RES-02 / high:** qualify two-browser collaboration across partition, reconnect and role violations.
