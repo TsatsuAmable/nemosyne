@@ -4,9 +4,9 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `2423a99` (includes #358).**
+**Current `main`: `d3d4bed` (includes #359).**
 
-**Active implementation:** `perf/quest-10m-boundary`. Dependency maintenance landed in #358. The current branch adds an explicit physical-Quest-browser probe for the real 10M typed-column Rust/WASM boundary, separate from the existing 250K render/LOD staircase. It records incremental synthetic-fixture construction, host copy, Rust ingest, exact fingerprint, authoritative structure profile, borrowed scans, WASM retention, XR frame gaps and visibility without JavaScript row rematerialisation. The local gate is green: typecheck; lint with zero errors; coverage at 80.76/69.61/78.10/83.24 across 1,898 tests; production build; 170 Rust tests; the focused real-WASM ABI test; and real-Chromium smoke. Physical execution is deferred until a Quest 3S is available. A completed measurement remains `deviceQualifiedAt10m: false` and cannot reopen P1 until the project-owner-selected audits are also complete.
+**Next checkpoint:** pre-P1 audits. Dependency maintenance landed in #358 and the physical-Quest-browser 10M typed-column Rust/WASM boundary probe landed in #359 with local and hosted CI green. The probe is separate from the existing 250K render/LOD staircase and records incremental synthetic-fixture construction, host copy, Rust ingest, exact fingerprint, authoritative structure profile, borrowed scans, WASM retention, XR frame gaps and visibility without JavaScript row rematerialisation. Physical execution remains deferred until a Quest 3S is available. Audit scope and findings must be recorded before Option 4/P1 work begins; even a completed device measurement remains `deviceQualifiedAt10m: false` until that governed decision.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
