@@ -6,8 +6,9 @@
 
 **Current `main`: `4bcfea1` (includes merged PR #366). Active branch: `refactor/coordinator-consumer-contracts`.**
 
-**Next checkpoint:** merge the consumer-owned coordinator contracts, then separate Atlas orchestration
-from analytical evidence adapters. Production spatial acceleration and the real-browser analyst
+**Next checkpoint:** merge the consumer-owned coordinator contracts, then complete the Atlas
+orchestration/analytical-evidence adapter split. The kernel port is now isolated under
+`src/atlas/adapters/AnalyticalKernelPort.ts`; production spatial acceleration and the real-browser analyst
 journey remain the next independent P1-high implementations. Physical execution remains deferred
 until a Quest 3S is available; even a completed measurement remains `deviceQualifiedAt10m: false`
 until governed review.
@@ -200,7 +201,7 @@ The full evidence and dispositions are in
 [PRE_P1_SYSTEMATIC_AUDIT.md](PRE_P1_SYSTEMATIC_AUDIT.md). This is the live implementation queue:
 
 - [ ] **PERF-04 / blocker:** run and govern the physical Quest 3S 10M browser qualification.
-- [ ] **ARCH-01 / high:** lifecycle ownership and the `RuntimeBridge` ABI-family split are merged; consumer-owned coordinator contracts are complete locally; Atlas orchestration and topology embodiment remain.
+- [ ] **ARCH-01 / high:** lifecycle ownership and the `RuntimeBridge` ABI-family split are merged; consumer-owned coordinator contracts are complete locally; the analytical kernel port is now isolated, while Atlas orchestration and topology embodiment remain.
 - [x] **ARCH-02 / high:** explicit idempotent UI/world ownership, disposal and started real-WASM recreation contracts implemented on `refactor/world-lifecycle-owner`.
 - [ ] **PERF-03 / high:** benchmark and wire one production spatial accelerator; delete the redundant built-only index.
 - [ ] **UX-02 / high:** implement a real-browser load → Moneta/NIL → investigation → export → replay journey.

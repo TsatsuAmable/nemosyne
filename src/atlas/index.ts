@@ -4,6 +4,7 @@
 
 export { AtlasCore } from './AtlasCore.ts';
 export type { WasmRuntimeBridgeFull } from './AtlasCore.ts';
+export type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 
 export { DatasetSpace } from './DatasetSpace.ts';
 export { generateGuidance } from './GuidanceEngine.ts';
