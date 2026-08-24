@@ -82,6 +82,10 @@ The checkpoint is anchored to current-main SHA `0a9afb3221a0690bc6c576bdd64f9f16
 
 The Draco-to-Moneta migration sprint is complete. The next critical-path work is private-preview/productization, followed in parallel by the scientific validation, security/reliability hardening and VR/UI/UX outcome programmes ordered in `docs/ROADMAP.md`.
 
+## Post-exit performance finding
+
+The migration checkpoint proved 10M resident columnar capacity, not practical 10M end-to-end performance. The subsequent Rust/JS boundary envelope found that the columnar-only handle can ingest, identify, scan and reload 10M rows, but cannot produce the authoritative DatasetStructureProfile required by Moneta. The request fails closed with zero row materialisations and zero evidence bytes transferred. Migration authority remains closed; the practical massive-data claim is blocked on columnar-native evidence generation and the follow-up browser/LOD envelope tracked in `docs/ROADMAP.md`.
+
 ## Verification cadence
 
 Use the cheapest layer capable of proving the property.
