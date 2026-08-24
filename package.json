@@ -36,6 +36,7 @@
     "test:smoke:install": "playwright install --with-deps chromium",
     "benchmark:data-boundary": "node scripts/benchmark-data-boundary.mjs",
     "benchmark:rust-js-boundary": "node --expose-gc scripts/benchmark-columnar-capacity.mjs",
+    "analyze:quest-telemetry": "node scripts/analyze-quest-telemetry.mjs",
     "audit:hygiene": "node scripts/audit-hygiene.mjs",
     "deploy:netlify": "npm run build && npx netlify deploy --prod --dir=dist"
   },
@@ -47,7 +48,7 @@
     "@typescript-eslint/eslint-plugin": "^8.24.0",
     "@typescript-eslint/parser": "^8.24.0",
     "@vitest/coverage-v8": "^4.1.10",
-    "eslint": "^10.8.1",
+    "eslint": "^9.20.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-vitest": "^0.5.4",
     "globals": "^15.14.0",

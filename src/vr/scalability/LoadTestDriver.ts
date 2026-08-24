@@ -3,7 +3,11 @@ import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
 import type { DatasetLoadEntry, Updatable } from '../coordinators/types.ts';
 import type { TopologyType } from '../../data/types.ts';
 import { WorldTopics } from '../../utils/EventBus.ts';
-import { LoadTestCollector, type LoadTestEngineLike } from './LoadTestCollector.ts';
+import {
+  LoadTestCollector,
+  type LoadTestEngineLike,
+  type LoadTestRuntimeProbe,
+} from './LoadTestCollector.ts';
 import {
   LOAD_TEST_THRESHOLDS,
   computeOverallVerdict,
@@ -11,6 +15,13 @@ import {
   type OverallVerdict,
   type StepResult,
 } from './LoadTestThresholds.ts';
+import {
+  QuestVisibilityTracker,
+  captureQuestRuntimeEnvironment,
+  type QuestDeviceTarget,
+  type QuestRuntimeEnvironment,
+  type QuestVisibilityTelemetry,
+} from './QuestTelemetry.ts';
 
 /**
  * Staircase load-test driver for the WASM command-buffer decision.
@@ -36,10 +47,13 @@ export interface LoadTestProfile {
   steps: LoadTestStepSpec[];
   /** Seconds to wait after load before measuring (lets the load spike pass). */
   settleSec?: number;
+  deviceTarget?: QuestDeviceTarget;
 }
 
 export interface LoadTestSummary {
   version: string;
+  runId: string;
+  recordedAt: number;
   profileName: string;
   startedAt: number;
   finishedAt: number;
@@ -50,6 +64,15 @@ export interface LoadTestSummary {
   steps: StepResult[];
   verdict: OverallVerdict;
   thresholds: typeof LOAD_TEST_THRESHOLDS;
+  device: QuestRuntimeEnvironment;
+  visibility: QuestVisibilityTelemetry;
+  collection: {
+    mode: 'bounded-on-device-aggregates';
+    rawFrameTraceIncluded: false;
+    datasetRowsIncluded: false;
+    cameraPosesIncluded: false;
+    temperatureSensorAvailable: false;
+  };
   /**
    * Usability aggregates attached by World on completion (friction score/level/
    * patterns — no raw interaction trail). Optional because the driver itself is
@@ -67,13 +90,20 @@ export interface LoadTestSummary {
 export interface LoadTestWorldLike {
   loadDataset(entry: DatasetLoadEntry): void;
   /** Read the geometry/layout the Draco solver actually picked, if available. */
-  getActiveSpecInfo?(): { geometry?: string; layout?: string } | null;
+  getActiveSpecInfo?(): {
+    geometry?: string;
+    layout?: string;
+    renderedNodeCount?: number;
+  } | null;
   eventBus: { emit(topic: string, payload?: unknown): void };
 }
 
 /** Engine surface the driver needs: collector's needs + `xr.getSession()` for the xrActive flag. */
 export interface LoadTestDriverEngineLike extends LoadTestEngineLike {
-  renderer: LoadTestEngineLike['renderer'] & { xr: { getSession(): unknown } };
+  renderer: LoadTestEngineLike['renderer'] & {
+    xr: { getSession(): unknown };
+    getContext?: () => unknown;
+  };
 }
 
 /** Default staircase: TABULAR 1k → 8k → 65k → 100k → 250k (stretch). */
@@ -86,6 +116,19 @@ export const DEFAULT_LOAD_TEST_PROFILE: LoadTestProfile = {
     { topology: 'TABULAR', rowCount: 65_000, durationSec: 30, label: '65k' },
     { topology: 'TABULAR', rowCount: 100_000, durationSec: 30, label: '100k' },
     { topology: 'TABULAR', rowCount: 250_000, durationSec: 30, label: '250k (stretch)' },
+  ],
+};
+
+export const QUEST_3S_QUALIFICATION_PROFILE: LoadTestProfile = {
+  name: 'quest-3s-qualification',
+  deviceTarget: 'META_QUEST_3S',
+  settleSec: 5,
+  steps: [
+    { topology: 'TABULAR', rowCount: 1_000, durationSec: 30, label: '1k baseline' },
+    { topology: 'TABULAR', rowCount: 8_000, durationSec: 30, label: '8k baseline' },
+    { topology: 'TABULAR', rowCount: 65_000, durationSec: 45, label: '65k scale' },
+    { topology: 'TABULAR', rowCount: 100_000, durationSec: 300, label: '100k soak' },
+    { topology: 'TABULAR', rowCount: 250_000, durationSec: 60, label: '250k stretch' },
   ],
 };
 
@@ -104,12 +147,17 @@ export class LoadTestDriver implements Updatable {
   private _aborted = false;
   private _steps: StepResult[] = [];
   private _settleMs = 2000;
+  private _currentLoadDurationMs = 0;
+  private _device: QuestRuntimeEnvironment | null = null;
+  private _visibilityTracker: QuestVisibilityTracker | null = null;
+  private _runId = '';
 
   constructor(
     private readonly _world: LoadTestWorldLike,
-    private readonly _engine: LoadTestDriverEngineLike
+    private readonly _engine: LoadTestDriverEngineLike,
+    runtimeProbe: LoadTestRuntimeProbe = {}
   ) {
-    this.collector = new LoadTestCollector(_engine);
+    this.collector = new LoadTestCollector(_engine, runtimeProbe);
   }
 
   /** Begin a run. If no profile given, uses the default staircase. */
@@ -124,6 +172,14 @@ export class LoadTestDriver implements Updatable {
     this._steps = [];
     this._aborted = false;
     this._startedAt = performance.now();
+    this._runId = typeof globalThis.crypto?.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `quest-run-${Date.now()}-${Math.round(this._startedAt)}`;
+    this._device = captureQuestRuntimeEnvironment(
+      this._engine,
+      profile.deviceTarget ?? 'UNDECLARED'
+    );
+    this._visibilityTracker = new QuestVisibilityTracker(this._engine.renderer.xr.getSession());
     this.collector.reset();
     this._world.eventBus.emit(WorldTopics.LOADTEST_START, {
       profileName: profile.name ?? 'custom',
@@ -201,11 +257,13 @@ export class LoadTestDriver implements Updatable {
     // Load synchronously through the clean World.loadDataset path. The heavy
     // allocation happens here, inside the settle window (not measured).
     const entry = this._buildEntry(spec);
+    const loadStartedAt = performance.now();
     try {
       this._world.loadDataset(entry);
     } catch (err) {
       console.error('[LoadTestDriver] loadDataset failed for step', spec, err);
     }
+    this._currentLoadDurationMs = performance.now() - loadStartedAt;
     this.phase = 'SETTLING';
     this._phaseStartMs = performance.now();
     this._world.eventBus.emit(WorldTopics.LOADTEST_STEP, {
@@ -235,6 +293,8 @@ export class LoadTestDriver implements Updatable {
     const result = this.collector.endStep({
       specGeometry: specInfo?.geometry,
       specLayout: specInfo?.layout,
+      renderedNodeCount: specInfo?.renderedNodeCount,
+      loadDurationMs: this._currentLoadDurationMs,
     });
     if (partial) {
       result.reasons = ['step aborted early', ...result.reasons];
@@ -254,8 +314,16 @@ export class LoadTestDriver implements Updatable {
     this.phase = 'COMPLETE';
     this._finishedAt = performance.now();
     const verdict = computeOverallVerdict(this._steps);
+    const visibility = this._visibilityTracker?.finish() ?? {
+      interruptionCount: 0,
+      interruptedDurationMs: 0,
+      finalVisibilityState: null,
+    };
+    this._visibilityTracker = null;
     const summary: LoadTestSummary = {
-      version: '1',
+      version: '2',
+      runId: this._runId,
+      recordedAt: Date.now(),
       profileName: this._profile.name ?? 'custom',
       startedAt: this._startedAt,
       finishedAt: this._finishedAt,
@@ -266,6 +334,17 @@ export class LoadTestDriver implements Updatable {
       steps: this._steps,
       verdict,
       thresholds: LOAD_TEST_THRESHOLDS,
+      device:
+        this._device ??
+        captureQuestRuntimeEnvironment(this._engine, this._profile.deviceTarget ?? 'UNDECLARED'),
+      visibility,
+      collection: {
+        mode: 'bounded-on-device-aggregates',
+        rawFrameTraceIncluded: false,
+        datasetRowsIncluded: false,
+        cameraPosesIncluded: false,
+        temperatureSensorAvailable: false,
+      },
     };
     this._world.eventBus.emit(WorldTopics.LOADTEST_COMPLETE, summary);
   }

@@ -4,9 +4,9 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `69983cfe6c7bdc2505ca872086e8498f4f83a7c4` (includes #355).**
+**Current `main`: `ddcf2ab` (includes #356).**
 
-**Active implementation:** `perf/bounded-spectral-evidence`. The merged #355 gate and hosted run [32705530788](https://github.com/TsatsuAmable/nemosyne/actions/runs/32705530788) are green. The bounded-evidence branch passes the complete local gate: typecheck, lint with zero errors, coverage (1,884 tests), production build, 169 Rust tests and the real-Chromium smoke test. A three-run local 10M envelope measures canonical fingerprint median/max at 3.39/3.92 seconds, evidence generation at 0.84/1.73 seconds and retained WASM at exactly 640,221,184 bytes, with 3,240-byte transfer and zero row materialisations. Next is repeated hosted characterization and physical Quest 3S qualification.
+**Active implementation:** `feat/quest-telemetry`. Merged #356 and hosted run [32710537108](https://github.com/TsatsuAmable/nemosyne/actions/runs/32710537108) reproduce three 10M passes with canonical fingerprint median/max at 4.30/5.20 seconds, evidence generation at 1.25/2.22 seconds and retained WASM at exactly 640,221,184 bytes, with 3,240-byte transfer, identity/checksum parity and zero row materialisations. The active branch instruments evidence-grade physical Quest collection for XR cadence, render cost, memory, sustained-performance proxy, load latency and actual reduction/LOD output; it also repairs the ESLint 10 peer conflict introduced by #343. The complete local gate is green: clean `npm ci`, typecheck, lint with zero errors, coverage at 81.21/69.75/78.23/83.76, production build, 169 Rust tests and the real-Chromium smoke test. The physical Quest 3S run remains pending.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
@@ -17,7 +17,7 @@ Nemosyne has moved from experimental architecture repair into migration-exit and
 5. Investigation state is reproducible and portable through `.nemosyne`, including analytical provenance, representation/model identity, discoveries and NIL outcomes.
 6. Learned Moneta remains explicit, pinned, reversible and opt-in. Infrastructure readiness is not evidence of empirical superiority.
 
-The Draco-to-Moneta authority migration exit conditions are proven. A post-exit performance audit found that this does not yet establish practical 10M end-to-end performance. Typed-column ingest, exact canonical identity and borrowed scans work at 10M, and the columnar-native Rust `DatasetStructureProfile` closes the row-free evidence-path discontinuity. The current branch materially reduces the local fingerprint/evidence envelope while making bounded spectral and clustering estimators provenance-explicit. Repeated provisioned evidence and physical Meta Quest 3S browser qualification remain blocking before the critical path reopens at **P1 Minimal private preview**. Broader scientific validation, security/reliability hardening and VR/UI/UX outcome work remain active programmes.
+The Draco-to-Moneta authority migration exit conditions are proven. A post-exit performance audit found that this does not yet establish practical 10M end-to-end performance. Typed-column ingest, exact canonical identity and borrowed scans work at 10M, and the columnar-native Rust `DatasetStructureProfile` closes the row-free evidence-path discontinuity. The current branch materially reduces and repeatedly reproduces the fingerprint/evidence envelope while making bounded spectral and clustering estimators provenance-explicit. Physical Meta Quest 3S browser qualification remains blocking before the critical path reopens at **P1 Minimal private preview**. Broader scientific validation, security/reliability hardening and VR/UI/UX outcome work remain active programmes.
 
 ## What has landed
 
@@ -174,7 +174,7 @@ Prove:
 
 ### P0.4 - Large-dataset migration validation
 
-**Authority/evidence path complete; practical 10M performance blocked.** #342 proves bounded Moneta candidate/sensitivity work, the capacity artifact proves resident typed-column operation at 10M, and the columnar-native follow-up produces the compact authoritative DatasetStructureProfile without row reconstruction. The remaining blocker is the measured full-series fingerprint/evidence latency and approximately 1.25 GB retained WASM envelope, followed by WebXR profiling on the P1 hardware matrix.
+**Authority/evidence path complete; physical-device qualification blocked.** #342 proves bounded Moneta candidate/sensitivity work, the capacity artifact proves resident typed-column operation at 10M, and #356 bounds and repeatedly reproduces the row-free authoritative DatasetStructureProfile envelope. The active Quest telemetry branch prepares evidence-grade WebXR profiling on the P1 hardware matrix; an actual physical Quest 3S run remains required.
 
 Run deterministic tiers at **10K, 100K, 1M and 10M rows**, measuring:
 
@@ -213,9 +213,10 @@ After P0.1-P0.4:
 - [x] Verify the current columnar evidence request fails closed with zero row materialisations.
 - [x] Implement columnar-native Rust DatasetStructureProfile generation with row-backed parity and zero compatibility materialisations.
 - [x] Measure local 1M/10M evidence-generation latency and compact Rust-to-JS transfer bytes.
-- [ ] Bound full-series fingerprint/spectral evidence latency and the approximately 1.25 GB retained 10M WASM envelope before device qualification.
+- [x] Bound full-series fingerprint/spectral evidence latency and reduce the approximately 1.25 GB retained 10M WASM envelope before device qualification.
 - [x] Reproduce the available 10M evidence path on the provisioned hosted runner (run 32704932983).
-- [ ] Add an evidence/fingerprint performance regression envelope based on repeated provisioned runs.
+- [x] Add and reproduce an evidence/fingerprint regression envelope across three provisioned 10M runs (run 32710537108).
+- [x] Instrument the physical Quest run for XR cadence, render cost, memory, sustained-performance drift, visibility, build/device identity and actual reduction/LOD output.
 - [ ] Run the browser envelope on a physical Meta Quest 3S, measuring frame time, memory pressure, thermal behaviour and reduction/LOD output; then extend to the remaining P1 hardware matrix.
 
 **Exit:** a 10M columnar handle reaches bounded Moneta reasoning through compact authoritative evidence without JavaScript row reconstruction, and its measured envelope is acceptable for the declared preview hardware.

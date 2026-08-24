@@ -88,6 +88,8 @@ export class Engine {
    * timing without re-instrumenting the frame loop. 0 until the first tick.
    */
   lastFrameMs = 0;
+  frameIntervalMs = 0;
+  private _lastFrameStartedAt = 0;
 
   private readonly _onResize = () => this._onWindowResize();
   private readonly _onSessionStart = () => this._handleSessionStart();
@@ -212,6 +214,8 @@ export class Engine {
   }
 
   private _handleSessionStart(): void {
+    this._lastFrameStartedAt = 0;
+    this.frameIntervalMs = 0;
     const session = this.renderer.xr.getSession();
     if (session && this._xrVisibilitySession !== session) {
       // Detach any previous session's visibility listener before binding the
@@ -244,6 +248,8 @@ export class Engine {
   }
 
   private _handleSessionEnd(): void {
+    this._lastFrameStartedAt = 0;
+    this.frameIntervalMs = 0;
     this._detachXrVisibility();
   }
 
@@ -265,6 +271,8 @@ export class Engine {
   _tick(): void {
     if (this.state !== 'running') return;
     const frameStart = performance.now();
+    this.frameIntervalMs = this._lastFrameStartedAt > 0 ? frameStart - this._lastFrameStartedAt : 0;
+    this._lastFrameStartedAt = frameStart;
     try {
       const delta = this.clock.getDelta();
       const time = this.clock.getElapsedTime();

@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   LoadTestDriver,
   DEFAULT_LOAD_TEST_PROFILE,
+  QUEST_3S_QUALIFICATION_PROFILE,
   type LoadTestProfile,
   type LoadTestWorldLike,
   type LoadTestDriverEngineLike,
@@ -172,5 +173,35 @@ describe('LoadTestDriver state machine', () => {
     const rowCounts = DEFAULT_LOAD_TEST_PROFILE.steps.map((s) => s.rowCount);
     expect(rowCounts).toEqual([1_000, 8_000, 65_000, 100_000, 250_000]);
     expect(DEFAULT_LOAD_TEST_PROFILE.steps.every((s) => s.topology === 'TABULAR')).toBe(true);
+  });
+
+  it('declares the physical Quest 3S soak profile and emits privacy-bounded metadata', async () => {
+    const profile: LoadTestProfile = {
+      name: QUEST_3S_QUALIFICATION_PROFILE.name,
+      deviceTarget: 'META_QUEST_3S',
+      settleSec: 0,
+      steps: [{ topology: 'TABULAR', rowCount: 1_000, durationSec: 0.01 }],
+    };
+    const events: { topic: string; payload?: unknown }[] = [];
+    const driver = new LoadTestDriver(
+      makeWorld({ count: 0, entries: [] }, events),
+      makeEngine(8)
+    );
+    driver.run(profile);
+    driver.update(0.016, 0);
+    await wait(20);
+    driver.update(0.016, 0);
+    const summary = events.find((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)!
+      .payload as {
+        version: string;
+        device: { declaredDeviceTarget: string; identityBasis: string };
+        collection: Record<string, boolean | string>;
+      };
+    expect(summary.version).toBe('2');
+    expect(summary.device.declaredDeviceTarget).toBe('META_QUEST_3S');
+    expect(summary.device.identityBasis).toBe('investigator-declared');
+    expect(summary.collection.rawFrameTraceIncluded).toBe(false);
+    expect(summary.collection.datasetRowsIncluded).toBe(false);
+    expect(summary.collection.cameraPosesIncluded).toBe(false);
   });
 });

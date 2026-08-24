@@ -3,7 +3,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { LoadTestPanel } from '../src/vr/ui/LoadTestPanel.ts';
-import { DEFAULT_LOAD_TEST_PROFILE } from '../src/vr/scalability/LoadTestDriver.ts';
+import {
+  DEFAULT_LOAD_TEST_PROFILE,
+  QUEST_3S_QUALIFICATION_PROFILE,
+} from '../src/vr/scalability/LoadTestDriver.ts';
 import { WorldTopics } from '../src/utils/EventBus.ts';
 import { downloadText } from '../src/utils/Download.ts';
 
@@ -55,7 +58,7 @@ describe('LoadTestPanel button dispatch', () => {
     panel.mesh.updateMatrixWorld();
   });
 
-  it('exposes the six size presets plus the four action buttons', () => {
+  it('exposes the six size presets plus the five action buttons', () => {
     const ids = (panel as any)._buttons.map((b: any) => b.id);
     expect(ids).toContain('size:1k');
     expect(ids).toContain('size:8k');
@@ -64,6 +67,7 @@ describe('LoadTestPanel button dispatch', () => {
     expect(ids).toContain('size:250k');
     expect(ids).toContain('size:full');
     expect(ids).toContain('start-full');
+    expect(ids).toContain('start-quest');
     expect(ids).toContain('stop');
     expect(ids).toContain('flush');
     expect(ids).toContain('download');
@@ -90,6 +94,11 @@ describe('LoadTestPanel button dispatch', () => {
     onStart.mockClear();
     panel.handleContentClick(rayHitButton(panel, 'start-full'));
     expect(onStart).toHaveBeenLastCalledWith(DEFAULT_LOAD_TEST_PROFILE);
+  });
+
+  it('starts the declared Quest 3S qualification profile', () => {
+    panel.handleContentClick(rayHitButton(panel, 'start-quest'));
+    expect(onStart).toHaveBeenLastCalledWith(QUEST_3S_QUALIFICATION_PROFILE);
   });
 
   it('clicking stop / flush dispatches to the provided callbacks', () => {

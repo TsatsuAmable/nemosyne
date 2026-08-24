@@ -109,6 +109,7 @@ export interface WasmRuntimeBridge {
   computeMapperGraph(handle: number, params: Record<string, unknown>): TdaMapperGraph | null;
   computePersistenceIntervals(handle: number, params: Record<string, unknown>): PersistenceInterval[] | null;
   computeBetti0Curve(handle: number, params: Record<string, unknown>): BettiPoint[] | null;
+  memory?(): WebAssembly.Memory;
   // Full-surface members (AtlasCore reads these; optional so duck-typed mocks
   // that omit them still satisfy the interface — null/undefined is tolerated).
   kernelVersion?(): string | null;

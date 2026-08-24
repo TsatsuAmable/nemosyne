@@ -186,7 +186,7 @@ The repository enforces architectural integrity via automated suites:
 - **`tests/architectural-invariants.test.ts`:** Asserts analytical independence (AtlasCore operates without DOM/Three.js) and session restore determinism.
 - **`tests/adversarial-hardening.test.ts`:** Validates network authorization, signed ticket tampering rejection, and input sanitization.
 - **`tests/engine-lifecycle.test.ts`:** Validates zero-leak WebGL disposal and resource cleanup.
-- **`tests/quest-field-trial-suite.test.ts`:** Enforces Quest 3S hardware envelopes (72 Hz / 13.88ms frame budget, <250 MB heap).
+- **`tests/quest-field-trial-suite.test.ts`:** Enforces Quest 3S hardware envelopes only when every configured stage supplies declared, active on-device WebXR measurements; simulated qualification evidence is rejected.
 
 To verify the entire system against CI gates:
 ```bash
