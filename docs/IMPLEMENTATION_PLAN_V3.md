@@ -223,7 +223,7 @@ Before Nemosyne claims practical massive-dataset support:
 - [ ] visual reduction/LOD prevents source row count from determining headset primitive count;
 - [x] benchmark claims report hardware/runtime context and use scaling envelopes rather than brittle absolute timings.
 
-The post-#352 boundary envelope first exposed an unavailable profile ABI for the columnar-only handle. The follow-up implements row-free columnar-native profile generation and transfers approximately 2.7 KB at both 1M and 10M. Practical massive-dataset support remains unclaimed: the local 10M path still spends approximately 10.7 seconds fingerprinting and 3.2 seconds generating evidence, while full-series evidence work raises retained WASM memory to approximately 1.25 GB. Provisioned repetition, bounded evidence algorithms and downstream physical-device browser/LOD measurements remain required.
+The post-#352 boundary envelope first exposed an unavailable profile ABI for the columnar-only handle. The follow-up implements row-free columnar-native profile generation and transfers approximately 2.7 KB at both 1M and 10M. Hosted run [32704932983](https://github.com/TsatsuAmable/nemosyne/actions/runs/32704932983) reproduced the complete matrix and the zero-materialisation 10M evidence path. Practical massive-dataset support remains unclaimed: the local 10M path still spends approximately 10.7 seconds fingerprinting and 3.2 seconds generating evidence, while the hosted run measured 14.1 seconds and 4.0 seconds respectively; both retained approximately 1.25 GB of WASM memory after full-series evidence work. Repeated provisioned envelopes, bounded evidence algorithms and downstream physical-device browser/LOD measurements remain required.
 
 ## CI gates for every module PR
 

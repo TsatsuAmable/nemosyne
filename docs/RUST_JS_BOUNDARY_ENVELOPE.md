@@ -75,13 +75,15 @@ The next local checkpoint implements the columnar-native profile and uses genera
 
 The status is now `EVIDENCE_PATH_AVAILABLE_AT_10M`, with `deviceQualifiedAt10m: false`. The output matches the row-backed Rust profile on an equivalent mixed numeric, temporal, categorical and missing-value fixture. Cluster evaluation streams columnar buffers rather than reconstructing rows.
 
+GitHub Actions run [32704932983](https://github.com/TsatsuAmable/nemosyne/actions/runs/32704932983) reproduced the available evidence path across the complete matrix on Node 24.19.0, Linux x64, two logical Intel Xeon Platinum 8573C CPUs and approximately 8 GiB host memory. At 10M it copied the payload in 76.01 ms, loaded it in Rust in 187.51 ms, fingerprinted it in 14,060.8 ms and generated the profile in 4,014.4 ms. The write/decode step took 5.76 ms, transferred 2,689 bytes and materialised zero rows. Retained WASM memory after destroy was again 1,254,621,184 bytes. The hosted assessment is `EVIDENCE_PATH_AVAILABLE_AT_10M` with `deviceQualifiedAt10m: false`; it is reproducibility evidence, not a Quest 3S proxy.
+
 The boundary is still **not device ready**:
 
 - cold fingerprinting remains linear and takes approximately 10.7 seconds at 10M on the local development machine;
 - full-series evidence generation takes approximately 3.2 seconds at 10M;
 - full-series evidence work raises retained wasm32 linear memory to approximately 1.25 GB;
 - the result has not run in Quest Browser on a physical Meta Quest 3S;
-- the new path still requires a hosted reproducibility run before its development-baseline evidence is complete.
+- repeated provisioned runs are still required to define a regression envelope rather than a single-run threshold.
 
 ## Consequence
 

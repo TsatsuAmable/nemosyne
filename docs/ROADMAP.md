@@ -6,7 +6,7 @@
 
 **Current `main`: `d9aa6cfe46fffaaa9a36175954bd8a996da02d37` (#352).**
 
-**Active implementation:** `fix/columnar-structure-profile`, stacked on the open Rust/JS boundary-envelope PR #353. The 24 August local gate is green: typecheck, lint, coverage (1,883 tests), release build, 162 Rust tests and Playwright smoke all passed. Next is the hosted full-matrix reproduction, then bounded fingerprint/spectral evidence and physical Quest 3S qualification. The measured blockers are 10.7-second cold fingerprinting, 3.2-second evidence generation and approximately 1.25 GB retained WASM memory at 10M on the local Apple M1 Pro baseline.
+**Active implementation:** `fix/columnar-structure-profile`, stacked on the open Rust/JS boundary-envelope PR #353 as draft PR #354. The 24 August local gate is green: typecheck, lint, coverage (1,883 tests), release build, 162 Rust tests and Playwright smoke all passed. Hosted full-matrix run [32704932983](https://github.com/TsatsuAmable/nemosyne/actions/runs/32704932983) also passed. Next is bounded fingerprint/spectral evidence and physical Quest 3S qualification. The measured local blockers are 10.7-second cold fingerprinting, 3.2-second evidence generation and approximately 1.25 GB retained WASM memory at 10M; the hosted 10M reproduction measured 14.1 seconds, 4.0 seconds and the same retained memory respectively.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
@@ -214,7 +214,7 @@ After P0.1-P0.4:
 - [x] Implement columnar-native Rust DatasetStructureProfile generation with row-backed parity and zero compatibility materialisations.
 - [x] Measure local 1M/10M evidence-generation latency and compact Rust-to-JS transfer bytes.
 - [ ] Bound full-series fingerprint/spectral evidence latency and the approximately 1.25 GB retained 10M WASM envelope before device qualification.
-- [ ] Reproduce the available 10M evidence path on the provisioned hosted runner.
+- [x] Reproduce the available 10M evidence path on the provisioned hosted runner (run 32704932983).
 - [ ] Add an evidence/fingerprint performance regression envelope based on repeated provisioned runs.
 - [ ] Run the browser envelope on a physical Meta Quest 3S, measuring frame time, memory pressure, thermal behaviour and reduction/LOD output; then extend to the remaining P1 hardware matrix.
 
