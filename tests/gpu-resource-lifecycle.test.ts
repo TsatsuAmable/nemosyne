@@ -3,7 +3,6 @@ import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { MeshPool } from '../src/utils/ObjectPool.ts';
 import { LODManager } from '../src/vr/scalability/LODManager.ts';
-import { SpatialIndex } from '../src/vr/scalability/SpatialIndex.ts';
 
 describe('GPU Resource Lifecycle & Per-Frame Allocation Hygiene', () => {
   it('disposes custom geometry, material, and textures on release and clear', () => {
@@ -44,17 +43,5 @@ describe('GPU Resource Lifecycle & Per-Frame Allocation Hygiene', () => {
     expect(lod.isInFrustum(targetPos, 0.2)).toBe(true);
     expect(lod.isInGaze(targetPos, 15)).toBe(true);
     expect(lod.levelFor(targetPos)).toBe(1);
-  });
-
-  it('SpatialIndex performs raycast without per-item Vector3 allocations in inner loop', () => {
-    const spatial = new SpatialIndex(1.0);
-    spatial.insert(new THREE.Vector3(0, 0, -2), { id: 'node-1' });
-    spatial.insert(new THREE.Vector3(0, 0, -4), { id: 'node-2' });
-
-    const ray = new THREE.Ray(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1));
-
-    const hit = spatial.raycast(ray, 5, 0.5);
-    expect(hit).toBeDefined();
-    expect(hit?.data).toEqual({ id: 'node-1' });
   });
 });

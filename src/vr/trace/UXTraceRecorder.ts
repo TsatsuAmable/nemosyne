@@ -90,6 +90,10 @@ interface TraceEngineDeps {
     panels: PanelLike[];
     interactables: Array<{ mesh: THREE.Object3D; data?: unknown }>;
     pointers?: { getBestPointerRay(): THREE.Ray | null };
+    raycastScene?(raycaster: THREE.Raycaster, options?: { ignoreSuppression?: boolean }): {
+      entry: { mesh: THREE.Object3D; data?: unknown };
+      distance: number;
+    } | null;
   };
 }
 
@@ -572,10 +576,17 @@ export class UXTraceRecorder {
       }
     }
 
-    const interactables = (this._engine.input.interactables ?? []).filter(
-      (i) => i?.mesh
-    );
-    if (interactables.length > 0) {
+    const indexedHit = this._engine.input.raycastScene?.(this._raycaster, {
+      ignoreSuppression: true,
+    });
+    if (indexedHit && (best.dist === null || indexedHit.distance < best.dist)) {
+      best = {
+        target: this._describeMesh(indexedHit.entry.mesh, indexedHit.entry.data),
+        kind: 'scene',
+        dist: round(indexedHit.distance),
+      };
+    } else if (!this._engine.input.raycastScene) {
+      const interactables = (this._engine.input.interactables ?? []).filter((i) => i?.mesh);
       const hits = this._raycaster.intersectObjects(
         interactables.map((i) => i.mesh),
         false

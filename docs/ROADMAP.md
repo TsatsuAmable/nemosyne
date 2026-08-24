@@ -4,20 +4,23 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `e15562a` (includes merged PR #371). Active branch: `ux/analyst-nil-tamper-recovery`.**
+**Current `main`: `e1069a0` (includes merged PR #372). Active branch: `perf/spatial-accelerator-exit`.**
 
-**Next checkpoint:** land the completed analyst journey, then verify the remaining PERF-03 exit
-work around the production BVH and redundant built-only index before completing the Atlas
-orchestration/topology-embodiment split. Physical execution remains deferred until a Quest 3S is
-available; even a completed measurement remains `deviceQualifiedAt10m: false` until governed review.
+**Next checkpoint:** land the completed PERF-03 spatial-selection exit, then complete the remaining
+ARCH-01 Atlas orchestration and topology-embodiment split. Physical execution remains deferred
+until a Quest 3S is available; even a completed measurement remains `deviceQualifiedAt10m: false`
+until governed review.
 
-**Last gate:** green locally on 24 August 2026 for `ux/analyst-nil-tamper-recovery`.
-Typecheck and lint passed (0 errors, 170 pre-existing warnings); all 317 coverage files and 1,942
-tests passed at 82.28% statements, 70.43% branches, 79.21% functions and 84.76% lines; the production
-WASM/Vite build passed; all 170 Rust tests passed; and both real Chromium/WebGL smoke journeys
-passed. Merged PR #371 hosted CodeQL, core correctness, Rust, downloaded-artifact Chromium smoke,
-read-only approval gate and `Node 24` aggregate are green. Pages remains deployed with
-`nemosyne.world` domain-verified and HTTPS-enforced.
+**Last gate:** green locally on 24 August 2026 for `perf/spatial-accelerator-exit`.
+Typecheck and lint passed (0 errors, 170 pre-existing warnings); all 317 coverage files and 1,941
+tests passed at 82.29% statements, 70.48% branches, 79.20% functions and 84.77% lines; the
+production WASM/Vite build passed; all 170 Rust tests passed; and both real Chromium/WebGL smoke
+journeys passed. The
+sequential Apple M1 Pro crossover benchmark preserved first-hit parity at every object and geometry
+tier, with the production thresholds conservatively set to 64 objects and 128 triangles. Merged PR
+#372 hosted CodeQL, core correctness, Rust, downloaded-artifact Chromium smoke, read-only approval
+gate and `Node 24` aggregate are green. Pages remains deployed with `nemosyne.world`
+domain-verified and HTTPS-enforced.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
@@ -201,7 +204,7 @@ The full evidence and dispositions are in
 - [ ] **PERF-04 / blocker:** run and govern the physical Quest 3S 10M browser qualification.
 - [ ] **ARCH-01 / high:** lifecycle ownership and the `RuntimeBridge` ABI-family split are merged; consumer-owned coordinator contracts are complete locally; the analytical kernel port is now isolated, while Atlas orchestration and topology embodiment remain.
 - [x] **ARCH-02 / high:** explicit idempotent UI/world ownership, disposal and started real-WASM recreation contracts implemented on `refactor/world-lifecycle-owner`.
-- [ ] **PERF-03 / high:** benchmark and wire one production spatial accelerator; delete the redundant built-only index.
+- [x] **PERF-03 / high:** `three-mesh-bvh` now owns production controller, desktop and trace scene selection above measured object/geometry crossover thresholds; lifecycle, transform invalidation, recursive ownership and first-hit parity are covered, and the unused uniform-grid index is deleted. Physical Quest crossover remains PERF-04 evidence.
 - [x] **UX-02 / high:** the real-browser desktop journey now covers sample load → explicit Moneta decision or persisted NIL → Rust-backed analysis → observation → `.nemosyne` export/import → clean-room replay, including bounded accessible tamper failure and successful retry without mutating the source investigation.
 - [ ] **UX-03 / high:** execute controller, hand and desktop semantic-parity tasks on physical hardware.
 - [ ] **RES-01 / high:** production ABI-trap invalidation/recovery, initialization race fencing and bounded lifecycle cleanup are covered; extend this into checked two-call output contracts, exception-safe host allocation cleanup and the sustained malformed-handle/panic fault campaign.
@@ -365,9 +368,9 @@ migration benchmark tiers when scale-sensitive code changes
 
 ## Near-term execution order
 
-1. Merge the consumer-owned coordinator contracts, then separate Atlas orchestration from analytical evidence adapters.
+1. Separate Atlas orchestration from analytical evidence adapters, then split topology embodiment into focused production owners.
 2. Run physical Quest 3S 10M and interaction qualification when hardware is available.
-3. Continue the audit's P1-high browser-journey, security and spatial-query work.
+3. Continue the audit's P1-high resilience, security and maintainability work.
 4. Reopen the minimal private-preview decision only after blockers/high findings are governed.
 5. Continue discovery/outcome studies and learned-Moneta empirical validation.
 6. Begin RepresentationGraph/compositional Moneta only after its stated prerequisites.

@@ -36,6 +36,7 @@
     "test:smoke:install": "playwright install --with-deps chromium",
     "benchmark:data-boundary": "node scripts/benchmark-data-boundary.mjs",
     "benchmark:rust-js-boundary": "node --expose-gc scripts/benchmark-columnar-capacity.mjs",
+    "benchmark:spatial-accelerator": "node scripts/benchmark-spatial-accelerator.mjs",
     "analyze:quest-telemetry": "node scripts/analyze-quest-telemetry.mjs",
     "audit:hygiene": "node scripts/audit-hygiene.mjs",
     "deploy:netlify": "npm run build && npx netlify deploy --prod --dir=dist"

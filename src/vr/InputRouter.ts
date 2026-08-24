@@ -4,6 +4,7 @@ import {
   InteractableRegistry,
   type InteractableEntry,
   type HudObject,
+  type SceneHit,
 } from './input/InteractableRegistry.ts';
 import { PointerEventMachine } from './input/PointerEventMachine.ts';
 import { SystemGestureDetector } from './input/SystemGestureDetector.ts';
@@ -190,6 +191,17 @@ export class InputRouter {
 
   removeInteractable(mesh: THREE.Object3D): void {
     this.registry.removeInteractable(mesh);
+  }
+
+  invalidateSpatialAcceleration(): void {
+    this.registry.invalidateSpatialAcceleration();
+  }
+
+  raycastScene(
+    raycaster?: THREE.Raycaster,
+    options?: { ignoreSuppression?: boolean }
+  ): SceneHit | null {
+    return this.registry.raycastScene(raycaster, options);
   }
 
   addHudObject(obj: HudObject): void {

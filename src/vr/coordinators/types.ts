@@ -632,27 +632,6 @@ export interface ControllerGestureMapperLike {
   update(controllers: PointerLike[], session: XRSession | null, time: number): void;
 }
 
-/** Entry stored in a {@link SpatialIndex} cell. */
-export interface SpatialEntry {
-  position: Vector3;
-  data: unknown;
-}
-
-/** Minimal facade for the uniform-grid spatial index. */
-export interface SpatialIndexLike {
-  cellSize: number;
-  insert(position: Vector3, data: unknown): void;
-  insertAll(items: SpatialEntry[]): void;
-  queryRadius(center: Vector3, radius: number): SpatialQueryResult[];
-  raycast(ray: Ray, maxDistance?: number, hitRadius?: number): SpatialQueryResult | null;
-  clear(): void;
-}
-
-/** Result returned by spatial queries, including computed distance. */
-export interface SpatialQueryResult extends SpatialEntry {
-  distance: number;
-}
-
 /** Numeric LOD level returned by {@link LODManager.levelFor}. */
 export type LODLevel = 0 | 1 | 2;
 
