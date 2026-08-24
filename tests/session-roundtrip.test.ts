@@ -7,10 +7,12 @@ import { AnalysisHistory } from '../src/data/AnalysisHistory.ts';
 import { SessionStore } from '../src/data/SessionStore.ts';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { NemosyneSession } from '../src/session/NemosyneSession.ts';
-import { WorldSessionController } from '../src/vr/coordinators/WorldSessionController.ts';
+import {
+  WorldSessionController,
+  type WorldSessionHost,
+} from '../src/vr/coordinators/WorldSessionController.ts';
 import { toAnalysisSpec } from '../src/vr/interactions/DataOperations.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
-import type { WorldLike } from '../src/vr/coordinators/types.ts';
 
 /**
  * Minimal in-memory IndexedDB fake. Implements just the surface the
@@ -94,10 +96,10 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-/** Builds a stub WorldLike backed by REAL Dataset/AtlasCore/NemosyneSession
+/** Builds a stub WorldSessionHost backed by REAL Dataset/AtlasCore/NemosyneSession
  *  + three.js objects so the controller's serialize/deserialize roundtrip is
  *  genuine. Wave 4: snapshot authority lives on NemosyneSession. */
-function makeStubWorld(sessionStore: SessionStore): { world: WorldLike; stub: any } {
+function makeStubWorld(sessionStore: SessionStore): { world: WorldSessionHost; stub: any } {
   const ds = makeDataset('palace');
 
   // Real AtlasCore with the mock kernel; load the dataset so the ledger + a
@@ -172,7 +174,7 @@ function makeStubWorld(sessionStore: SessionStore): { world: WorldLike; stub: an
     _updateNarrativeStrip: vi.fn(),
   };
 
-  return { world: stub as unknown as WorldLike, stub };
+  return { world: stub as unknown as WorldSessionHost, stub };
 }
 
 describe('SessionStore persistence (fake IndexedDB)', () => {
@@ -233,7 +235,7 @@ describe('WorldSessionController save/load roundtrip', () => {
   let idb: ReturnType<typeof createFakeIndexedDB>;
   let store: SessionStore;
   let stub: any;
-  let world: WorldLike;
+  let world: WorldSessionHost;
   let controller: WorldSessionController;
 
   beforeEach(() => {

@@ -12,8 +12,11 @@ import { HolographicInspector } from '../artifacts/HolographicInspector.ts';
 import { IceVaultNode } from '../artifacts/IceVaultNode.ts';
 import { WorldTheme } from '../WorldTheme.ts';
 import type { Engine } from '../Engine.ts';
-import type { WorldSceneComposerCallbacks } from './types.ts';
 import { disposeObject } from '../../utils/Dispose.ts';
+
+export interface WorldSceneComposerCallbacks {
+  onWarp?: (zone: string, pos: number[], operation: string | null) => void;
+}
 
 export class WorldSceneComposer {
   engine: Engine;

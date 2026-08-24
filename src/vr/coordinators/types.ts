@@ -23,23 +23,8 @@ import type {
 } from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
 import type { AnalysisHistory } from '../../data/AnalysisHistory.ts';
-import type { LiveUpdate } from '../../data/connectors/DataConnector.ts';
-import type {
-  DatasetJSON,
-  EncodingMapping,
-  Facts,
-  OperationSpec,
-  Provenance,
-  ColumnSchema,
-  TdaMapperGraph,
-  PersistenceInterval,
-  BettiPoint,
-  TopologyType,
-} from '../../data/types.ts';
+import type { EncodingMapping, TopologyType } from '../../data/types.ts';
 import type { UXFrustrationAnalyzer } from '../../utils/UXFrustrationAnalyzer.ts';
-import type { LoadTestDriver, LoadTestProfile } from '../scalability/LoadTestDriver.ts';
-import type { AtlasCore } from '../../atlas/AtlasCore.ts';
-import type { NemosyneSession } from '../../session/NemosyneSession.ts';
 import type { NemosyneEventMap } from '../../utils/EventBus.ts';
 
 /** Entry describing a dataset to be loaded into the World. Shared with WorldSessionController. */
@@ -106,102 +91,6 @@ export interface OperationStrategy {
 
 export interface VisualApplier {
   (artifact: ArtifactRef, dataset: Dataset, originalDataset?: Dataset): void;
-}
-
-/** Minimal wasm-bindgen export surface returned by RuntimeBridge.initRuntime. */
-export interface WasmModule {
-  default(url?: string | URL): Promise<void>;
-  [key: string]: unknown;
-}
-
-export interface WasmRuntimeBridge {
-  isReady(): boolean;
-  capabilities(): number;
-  executeOperation(datasetJSON: unknown, spec: OperationSpec): DatasetJSON | null;
-  loadSample(key: string): number;
-  getDatasetJson(handle: number): DatasetJSON | null;
-  destroyDataset(handle: number): void;
-  initRuntime(url?: string): Promise<WasmModule>;
-  invalidateRuntime?(reason: unknown): void;
-  loadDatasetJson(obj: DatasetJSON): number;
-  loadCsv(bytes: Uint8Array): number;
-  loadJson(bytes: Uint8Array): number;
-  runOperation(handle: number, op: OperationSpec): number;
-  statistics(handle: number): Facts | null;
-  inferTopology(handle: number): string | null;
-  inferEncodings(handle: number, topology?: string): EncodingMapping | null;
-  parseDatasetBytes(bytes: Uint8Array, ext: 'csv' | 'json'): DatasetJSON | null;
-  computeMapperGraph(handle: number, params: Record<string, unknown>): TdaMapperGraph | null;
-  computePersistenceIntervals(
-    handle: number,
-    params: Record<string, unknown>
-  ): PersistenceInterval[] | null;
-  computeBetti0Curve(handle: number, params: Record<string, unknown>): BettiPoint[] | null;
-  memory?(): WebAssembly.Memory;
-  // Full-surface members (AtlasCore reads these; optional so duck-typed mocks
-  // that omit them still satisfy the interface — null/undefined is tolerated).
-  kernelVersion?(): string | null;
-  kernelProvenance?(): Provenance | null;
-  datasetFingerprint?(handle: number): string | null;
-  inferSchema?(handle: number): ColumnSchema[] | null;
-}
-
-export interface DataOperationControllerOptions {
-  eventBus?: WorldEventBusLike;
-  getArtifact?: () => ArtifactRef | null;
-  maxHistoryFrames?: number;
-  /** AtlasCore — the analytical authority. Optional so no-atlas smoke tests work. */
-  atlas?: AtlasCore | null;
-}
-
-export interface HistoryEntry {
-  operation: string;
-  dataset: Dataset;
-  parameters: Record<string, unknown>;
-}
-
-export interface WorldUIManagerCallbacks {
-  onLoadDataset?: (entry: unknown) => void;
-  onTogglePortals?: (enabled: boolean) => void;
-  onConnectStream?: () => void;
-  onDisconnectStream?: () => void;
-  onSelectLiveSource?: (sourceKey: string) => void;
-  onFilter?: () => void;
-  onSort?: () => void;
-  onAggregate?: () => void;
-  onCluster?: () => void;
-  onHierarchicalCluster?: () => void;
-  onDensityCluster?: () => void;
-  onAnomaly?: () => void;
-  onTimeSlice?: () => void;
-  onCompare?: () => void;
-  onReset?: () => void;
-  onPanelChange?: () => void;
-  onSettingChanged?: (key: string, value: unknown) => void;
-  onSeekHistory?: (index: number) => void;
-  getNodeMeshes?: () => Mesh[];
-  getDominantHand?: () => HandLike | null;
-  getPeers?: () => unknown[];
-  getLocalPeerId?: () => string | null;
-  getSetting?: (key: string) => unknown;
-  telemetryCollector?: unknown;
-  analysisHistory?: unknown;
-  loadTestDriver?: LoadTestDriver;
-  onStartLoadTest?: (profile: LoadTestProfile) => void;
-  onStopLoadTest?: () => void;
-  onFlushLoadTest?: () => void;
-  onStartQuestBoundary?: () => void;
-  getRecommendation?: () => import('../../atlas/types.ts').AtlasRecommendation | null;
-  onAcceptRecommendation?: () => void;
-  onRejectRecommendation?: () => void;
-  onOverrideRecommendation?: () => void;
-  onGenerateRecommendation?: () => void;
-  onExitVR?: () => void;
-  uiMode?: import('../ui/PanelRolesManager.ts').UIMode;
-  onStatusUpdate?: (statusText: string) => void;
-  /** Accessors for lazy superuser panels that require runtime state. */
-  frustrationAnalyzer?: UXFrustrationAnalyzer | null;
-  getDataset?: () => Dataset | null;
 }
 
 export interface AccessibilityOptions {
@@ -730,141 +619,12 @@ export interface WorldEventBusLike<TEvents extends object = NemosyneEventMap> {
   onDynamic(topic: string, handler: (payload: unknown) => void): () => void;
 }
 
-export interface WorldInputOptions {
-  getSetting?: (key: string) => unknown;
-  getDracoGroup?: () => Object3D | null;
-  getArtifact?: () => ArtifactRef | null;
-  getHandWheelMenu?: () => HandWheelMenuLike | null;
-  callbacks?: InputCallbacks;
-}
-
-export interface InputCallbacks {
-  onApplyOperation?: (op: string) => void;
-  onCycleDataset?: (delta: number) => void;
-  onResetData?: () => void;
-  onUndo?: () => void;
-  onRedo?: () => void;
-  onToggleStatisticalLens?: () => void;
-  onToggleSettingsPanel?: () => void;
-  onTogglePanels?: () => void;
-  onToggleMiniOverview?: () => void;
-  onTogglePeerPresence?: () => void;
-  onToggleDesktopPreview?: () => void;
-  onLoadTemplate?: (id: string) => void;
-  onLog?: (msg: string | string[]) => void;
-  onCaptureSession?: () => void;
-  onCommitSelection?: () => void;
-  onToggleTransformHandle?: () => void;
-  onRecordAction?: (action: string, nextAffordance?: string) => void;
-  onModeChanged?: (mode: import('../input/InteractionModeController.ts').InteractionMode) => void;
-}
-
 export interface GestureContext {
   source?: 'hand' | 'controller' | string;
   button?: string;
   input?: string;
   openHands?: boolean;
   [key: string]: unknown;
-}
-
-export interface WorldSceneComposerCallbacks {
-  onWarp?: (zone: string, pos: number[], operation: string | null) => void;
-}
-
-export interface UserModeControllerOptions {
-  getUserMode: () => UserMode | string;
-  getTourState: () => { isActive: boolean; isFinished: boolean };
-  startTour: () => void;
-  skipTour: () => void;
-  setCoachMode: (mode: UserMode | string) => void;
-  setTourMode: (mode: UserMode | string) => void;
-  setTooltipEnabled: (enabled: boolean) => void;
-  hideCoachPanel: () => void;
-}
-
-export interface ComfortSettings {
-  snapTurn?: boolean;
-  snapTurnAngle?: number;
-  reducedMotion?: boolean;
-  seatedHeightOffset?: number;
-  vignette?: boolean;
-  vignetteIntensity?: number;
-  defaultPanelDistance?: number;
-}
-
-export interface LiveStreamOptions {
-  topology?: string;
-  mode?: 'window' | 'replace' | string;
-  windowSize?: number;
-}
-
-export interface DracoTopologyNodeLike {
-  artifact?: ArtifactRef | null;
-  appendRows?(
-    rows: Record<string, unknown>[],
-    options?: { mode?: string; limit?: number | null }
-  ): boolean;
-}
-
-export interface LiveConnectorLike {
-  topology?: string;
-  windowSize?: number;
-  isConnected(): boolean;
-  connect(): void;
-  disconnect(): void;
-  onUpdate(fn: (update: LiveUpdate) => void): () => void;
-  onStatus(fn: (status: string, detail?: string) => void): () => void;
-}
-
-export interface WorldFacadeForLiveStream {
-  dracoNode?: DracoTopologyNodeLike | null;
-  currentEntry?: { name?: string; [key: string]: unknown } | null;
-  loadDataset(entry: unknown): void;
-  uiManager?: WorldUIManagerLike;
-  vrMenu?: { setLiveConnected?(connected: boolean): void };
-  vrConsole?: {
-    log?(level: string, args: unknown[]): void;
-    warn?(level: string, args: unknown[]): void;
-  };
-}
-
-export interface WorldFacadeForCollaboration {
-  scene?: Scene;
-  engine?: EngineLike;
-  currentEntry?: DatasetLoadEntry | null;
-  annotationManager?: unknown;
-  uiManager?: WorldUIManagerLike;
-  settingsPanel?: { getAllSettings(): SettingsMap };
-  networkPanel?: { setStatus(status: Record<string, unknown>): void };
-  vrConsole?: { log?(level: string, args: unknown[]): void };
-  telemetryCollector?: { recordOperation?(name: string): void };
-  _logInteraction(action: string, details?: Record<string, unknown>): void;
-  _buildWheelMenu(): void;
-}
-
-export interface NetworkEvent {
-  type: string;
-  peerId?: string;
-  name?: string;
-  detail?: Record<string, unknown>;
-  data?: unknown;
-  [key: string]: unknown;
-}
-
-export interface NetworkManagerLike {
-  isConnected: boolean;
-  roomId: string;
-  room: { getRemoteSnapshot(): unknown[]; getPeerIds?(): string[]; peers?: Map<string, unknown> };
-  peerId: string;
-  addEventListener(type: string, handler: (event: NetworkEvent) => void): void;
-  connect(roomId?: string): Promise<void>;
-  disconnect(): void;
-  setLocalState(state: Record<string, unknown>): void;
-  broadcastCameraPose?(
-    position: [number, number, number],
-    rotation: [number, number, number, number]
-  ): void;
-  kickPeer?(peerId: string): void;
 }
 
 /** Minimal facade for controller gesture mappers used by {@link ControllerGestureBridge}. */
@@ -994,18 +754,6 @@ export interface ReviewBundleOptions {
   sessionDurationSeconds?: number;
   sessionSnapshot?: unknown;
 }
-
-// ---------------------------------------------------------------------------
-// WorldLike facade — the slice of the World god-object accessed by the VR
-// coordinators. The coordinators are duck-typed against `World` and currently
-// hold an unwired reference (typed `any` to avoid an `import/no-cycle`), so this
-// structural facade replaces that `any` with real types without importing the
-// real `World`. Members are required where a coordinator accesses them
-// unconditionally (no `?.`) and optional where it uses optional chaining. This
-// is the staging ground for finishing the World.ts extraction (audit item M1):
-// when the coordinators are wired in, `new XxxController(this)` will require
-// `World` to satisfy this interface, and the facade is tightened then.
-// ---------------------------------------------------------------------------
 
 /** World-space console facade used for log/warn calls. */
 export interface VRConsoleLike {
@@ -1145,102 +893,3 @@ export type WorldPanelManagerLike = PanelManagerLike & {
   getPanelPositions?(): PanelPosition[];
   setPanelPositions?(positions: PanelPosition[]): void;
 };
-
-/**
- * Structural facade of the World god-object as seen by the VR coordinators.
- * Captures only the accessed surface; see the block comment above for the
- * required/optional convention and the World.ts extraction plan.
- */
-export interface WorldLike {
-  // required — accessed unconditionally
-  engine: WorldEngineLike;
-  uiManager: WorldUIManagerLike;
-  analysisHistory: AnalysisHistory;
-  sessionStore: SessionStoreLike;
-  comfortSettingsController: ComfortSettingsControllerLike;
-  userModeController: UserModeControllerLike;
-  core: CoreNodeLike;
-  tooltipManager: TooltipManagerLike;
-  collaborationCoordinator: CollaborationCoordinatorLike;
-  /** AtlasCore — the analytical authority (Wave 4). */
-  atlas: AtlasCore;
-  /** Authoritative logical session (Wave 4). */
-  session: NemosyneSession;
-  loadDataset(entry: DatasetLoadEntry): void;
-  applyDataOperation(operation: string): void;
-  previewDataOperation(operation: string): void;
-  clearOperationPreview(): void;
-  resetDataOperation(): void;
-  undoAnalysis(): void;
-  redoAnalysis(): void;
-  startTour(): void;
-  markMoment?(notes?: string): unknown;
-  exportScreenshot(): void;
-  exportAnalysisStory(): void;
-  loadTemplate(id: string): void;
-  setPortalsEnabled(enabled: boolean): void;
-  isLiveConnected(): boolean;
-  connectLiveStream(): void;
-  disconnectLiveStream(): void;
-  saveSession(id: string): void;
-  loadSession(id: string): void;
-  deleteSession(id: string): void;
-  _logInteraction: LogInteraction;
-  _captureSession(): void;
-  _setStatisticalLensVisible(visible: boolean): void;
-  _updateNarrativeStrip(): void;
-  _restoreDataset(dataset: Dataset | null, operation: string): void;
-  _cycleDataset(): void;
-  _cycleThemePreset(): void;
-  _toggleSettingsPanel(): void;
-  _toggleMiniOverview(): void;
-  _togglePeerPresenceHUD(): void;
-  _toggleDesktopPreview(): void;
-  _joinCollaborationRoom(): void;
-  _leaveCollaborationRoom(): void;
-
-  // optional — accessed via optional chaining
-  exitVR?: () => Promise<boolean> | void;
-  vrConsole?: VRConsoleLike;
-  telemetryCollector?: TelemetryCollectorLike;
-  currentEntry?: DatasetLoadEntry | null;
-  _disposed?: boolean;
-  _statisticalLensEnabled?: boolean;
-  _originalDataset?: Dataset | null;
-  _transformedDataset?: Dataset | null;
-  portalsEnabled?: boolean;
-  narrativeStrip?: NarrativeStripLike;
-  operationLogPanel?: PanelLike;
-  metricsPanel?: PanelLike;
-  performancePanel?: PanelLike;
-  interactionCoach?: PanelLike;
-  networkPanel?: PanelLike;
-  peerPresenceHUD?: PanelLike;
-  vrMenu?: PanelLike;
-  datum?: DatumLike;
-  dracoNode?: DracoNodeFacadeLike | null;
-  handWheelMenu?: HandWheelMenuLike;
-  inspector?: { active?: boolean };
-  portalA?: PortalLike;
-  portalB?: PortalLike;
-  guidedTour?: GuidedTourLike;
-  dataOperationController?: DataOperationControllerLike;
-  loadTestPanel?: PanelLike;
-  recommendationPanel?: PanelLike;
-  runLoadTest?(profile?: unknown): void;
-  stopLoadTest?(): void;
-  _toggleLoadTestPanel?(): void;
-  _toggleRecommendationPanel?(): void;
-  _generateRecommendation?(): void;
-  _acceptRecommendation?(): void;
-  _rejectRecommendation?(): void;
-  _overrideRecommendation?(): void;
-  /** TDA summary group (persistence/betti/mapper planes). Hidden by default; shown on lens toggle. */
-  tdaGroup?: { visible: boolean } | null;
-  /** Toggle the statistical lens (TDA + correlation windows) on/off. */
-  _toggleStatisticalLens?(): void;
-  /** Toggle the Draco "Why this palace?" explainer panel. */
-  _toggleDracoExplainer?(): void;
-  /** Toggle the Draco constraint diagnostic HUD (Dev Lab / superuser). */
-  _toggleDracoDiagnostic?(): void;
-}

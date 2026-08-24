@@ -14,7 +14,11 @@ import {
 import { resolveTemplate } from '../data/AnalysisTemplates.ts';
 import { TopologyTypes } from '../moneta/ConstraintEngine.ts';
 import { disposeObject } from '../utils/Dispose.ts';
-import { LiveStreamCoordinator } from './coordinators/LiveStreamCoordinator.ts';
+import {
+  LiveStreamCoordinator,
+  type LiveConnectorLike,
+  type LiveStreamOptions,
+} from './coordinators/LiveStreamCoordinator.ts';
 import {
   applyFilter,
   applySort,
@@ -42,7 +46,10 @@ import { WorldTheme } from './WorldTheme.ts';
 import { TelemetryCollector } from '../utils/Telemetry.ts';
 import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.ts';
 import { LivePreview } from './interactions/LivePreview.ts';
-import { CollaborationCoordinator } from './coordinators/CollaborationCoordinator.ts';
+import {
+  CollaborationCoordinator,
+  type NetworkManagerLike,
+} from './coordinators/CollaborationCoordinator.ts';
 import { DataOperationController } from './coordinators/DataOperationController.ts';
 import { WorldUIManager } from './coordinators/WorldUIManager.ts';
 import { WorldSceneComposer } from './coordinators/WorldSceneComposer.ts';
@@ -77,17 +84,15 @@ import type {
   ArtifactRef,
   DatasetLoadEntry,
   HandLike,
-  LiveConnectorLike,
-  LiveStreamOptions,
-  NetworkManagerLike,
   PanelLike,
   SettingsMap,
   TelemetryCollectorLike,
-  WasmRuntimeBridge,
   WorldEventBusLike,
 } from './coordinators/types.ts';
 import type { InteractionMode, FocusState } from './input/InteractionModeController.ts';
 import { KernelLayoutUnavailableError } from '../moneta/layouts/LayoutBase.ts';
+
+type WorldRuntimeBridge = typeof import('../wasm/RuntimeBridge.ts');
 
 // Map sample-dataset keys to atmospheric presets so each dataset has a distinct mood.
 const DATASET_THEME_MAP: Record<string, string> = {
@@ -145,7 +150,7 @@ export class World {
   portalsEnabled: boolean;
   _datasetCycleIndex: number;
   _wasmCapabilities: number;
-  _wasmRuntime: WasmRuntimeBridge | null;
+  _wasmRuntime: WorldRuntimeBridge | null;
   _wasmUnavailable: boolean;
   liveStreamCoordinator: LiveStreamCoordinator;
   collaborationCoordinator: CollaborationCoordinator;

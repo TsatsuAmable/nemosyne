@@ -5,7 +5,18 @@
  */
 
 import { WorldEventBus, WorldTopics } from '../../utils/EventBus.ts';
-import type { UserMode, UserModeControllerOptions } from './types.ts';
+import type { UserMode } from './types.ts';
+
+export interface UserModeControllerOptions {
+  getUserMode: () => UserMode | string;
+  getTourState: () => { isActive: boolean; isFinished: boolean };
+  startTour: () => void;
+  skipTour: () => void;
+  setCoachMode: (mode: UserMode | string) => void;
+  setTourMode: (mode: UserMode | string) => void;
+  setTooltipEnabled: (enabled: boolean) => void;
+  hideCoachPanel: () => void;
+}
 
 export class UserModeController {
   eventBus: WorldEventBus | null;

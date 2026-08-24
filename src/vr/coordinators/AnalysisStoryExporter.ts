@@ -1,6 +1,24 @@
 import { downloadDataUrl, downloadText } from '../../utils/Download.ts';
-import type { HistoryFrame } from '../../data/AnalysisHistory.ts';
-import type { LogInteraction, VRConsoleLike, WorldEngineLike, WorldLike } from './types.ts';
+import type { AnalysisHistory, HistoryFrame } from '../../data/AnalysisHistory.ts';
+import type { Dataset } from '../../data/Dataset.ts';
+import type {
+  DatasetLoadEntry,
+  LogInteraction,
+  TelemetryCollectorLike,
+  VRConsoleLike,
+  WorldEngineLike,
+} from './types.ts';
+
+export interface AnalysisStoryHost {
+  analysisHistory?: Pick<AnalysisHistory, 'frames'>;
+  currentEntry?: Pick<DatasetLoadEntry, 'name' | 'topology'> | null;
+  _originalDataset?: Pick<Dataset, 'name' | 'rowCount'> | null;
+  _transformedDataset?: Pick<Dataset, 'rowCount'> | null;
+  engine?: Pick<WorldEngineLike, 'cameraGroup' | 'theme'>;
+  telemetryCollector?: Pick<TelemetryCollectorLike, 'getReport'>;
+  uiManager?: { vrConsole?: VRConsoleLike | null };
+  _logInteraction?: LogInteraction;
+}
 
 export class AnalysisStoryExporter {
   static exportScreenshot(
@@ -29,7 +47,7 @@ export class AnalysisStoryExporter {
     }
   }
 
-  static buildAnalysisStory(world: WorldLike): Record<string, unknown> {
+  static buildAnalysisStory(world: AnalysisStoryHost): Record<string, unknown> {
     const frames = world.analysisHistory?.frames() ?? [];
     return {
       version: 1,
@@ -52,14 +70,17 @@ export class AnalysisStoryExporter {
     };
   }
 
-  static exportAnalysisStory(world: WorldLike): Record<string, unknown> {
+  static exportAnalysisStory(world: AnalysisStoryHost): Record<string, unknown> {
     const story = this.buildAnalysisStory(world);
     this.downloadAnalysisStory(world, story);
     world._logInteraction?.('Export story', { result: `nemosyne-story-${story.timestamp}.json` });
     return story;
   }
 
-  static downloadAnalysisStory(world: WorldLike, story: Record<string, unknown> | null = null): void {
+  static downloadAnalysisStory(
+    world: AnalysisStoryHost,
+    story: Record<string, unknown> | null = null
+  ): void {
     const data = story ?? this.buildAnalysisStory(world);
     const text = JSON.stringify(data, null, 2);
     const filename = `nemosyne-story-${data.timestamp}.json`;

@@ -5,8 +5,17 @@
 
 import type { Group } from 'three';
 import type { Engine } from '../Engine.ts';
-import type { ComfortSettings } from './types.ts';
 import type { WorldSceneComposer } from './WorldSceneComposer.ts';
+
+export interface ComfortSettings {
+  snapTurn?: boolean;
+  snapTurnAngle?: number;
+  reducedMotion?: boolean;
+  seatedHeightOffset?: number;
+  vignette?: boolean;
+  vignetteIntensity?: number;
+  defaultPanelDistance?: number;
+}
 
 export class ComfortSettingsController {
   engine: Engine;

@@ -15,10 +15,41 @@ import { rowsToDataset } from '../../data/connectors/normalize.ts';
 import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
 import type { TopologyType } from '../../data/types.ts';
 import type { LiveUpdate } from '../../data/connectors/DataConnector.ts';
-import type { LiveConnectorLike, LiveStreamOptions, WorldFacadeForLiveStream } from './types.ts';
+import type { ArtifactRef, WorldUIManagerLike } from './types.ts';
+
+export interface LiveStreamOptions {
+  topology?: string;
+  mode?: 'window' | 'replace' | string;
+  windowSize?: number;
+}
+
+export interface LiveTopologyNode {
+  artifact?: ArtifactRef | null;
+  appendRows?(
+    rows: Record<string, unknown>[],
+    options?: { mode?: string; limit?: number | null }
+  ): boolean;
+}
+
+export interface LiveConnectorLike {
+  topology?: string;
+  windowSize?: number;
+  isConnected(): boolean;
+  connect(): void;
+  disconnect(): void;
+  onUpdate(fn: (update: LiveUpdate) => void): () => void;
+  onStatus(fn: (status: string, detail?: string) => void): () => void;
+}
+
+export interface LiveStreamHost {
+  dracoNode?: LiveTopologyNode | null;
+  currentEntry?: { name?: string; [key: string]: unknown } | null;
+  loadDataset(entry: unknown): void;
+  uiManager?: Pick<WorldUIManagerLike, 'vrConsole' | 'vrMenu'>;
+}
 
 export class LiveStreamCoordinator {
-  world: WorldFacadeForLiveStream;
+  world: LiveStreamHost;
 
   liveConnector: LiveConnectorLike | null;
   liveRows: Record<string, unknown>[];
@@ -28,7 +59,7 @@ export class LiveStreamCoordinator {
   private _liveUpdateUnsub: (() => void) | null;
   private _liveStatusUnsub: (() => void) | null;
 
-  constructor({ world }: { world: WorldFacadeForLiveStream }) {
+  constructor({ world }: { world: LiveStreamHost }) {
     this.world = world;
 
     this.liveConnector = null;
@@ -97,7 +128,10 @@ export class LiveStreamCoordinator {
         } | null,
       });
     } else {
-      console.warn('[LiveStreamCoordinator] unsupported transport:', (source as { transport?: string }).transport);
+      console.warn(
+        '[LiveStreamCoordinator] unsupported transport:',
+        (source as { transport?: string }).transport
+      );
       return false;
     }
 
@@ -112,7 +146,11 @@ export class LiveStreamCoordinator {
    */
   connectLiveStream(
     url = this._demoStreamUrl(),
-    { topology = TopologyTypes.TIME_SERIES, mode = 'window', windowSize = 50 }: LiveStreamOptions = {}
+    {
+      topology = TopologyTypes.TIME_SERIES,
+      mode = 'window',
+      windowSize = 50,
+    }: LiveStreamOptions = {}
   ): boolean {
     if (typeof WebSocket === 'undefined') {
       console.warn('[LiveStreamCoordinator] WebSocket not available in this environment');
@@ -136,11 +174,16 @@ export class LiveStreamCoordinator {
   }
 
   _wireLiveConnector(): void {
-    this._liveUpdateUnsub = this.liveConnector!.onUpdate((update: LiveUpdate) => this._onLiveUpdate(update));
+    this._liveUpdateUnsub = this.liveConnector!.onUpdate((update: LiveUpdate) =>
+      this._onLiveUpdate(update)
+    );
     this._liveStatusUnsub = this.liveConnector!.onStatus((status: string, detail?: string) => {
       console.warn(`[LiveStreamCoordinator] live stream ${status}`, detail || '');
-      this.world.uiManager?.vrMenu?.setLiveConnected?.(this.liveConnector?.isConnected?.() ?? false);
-      if (status === 'connected') this.world.uiManager?.vrConsole?.log?.('log', ['Live stream connected']);
+      this.world.uiManager?.vrMenu?.setLiveConnected?.(
+        this.liveConnector?.isConnected?.() ?? false
+      );
+      if (status === 'connected')
+        this.world.uiManager?.vrConsole?.log?.('log', ['Live stream connected']);
       if (status === 'disconnected')
         this.world.uiManager?.vrConsole?.log?.('log', ['Live stream disconnected']);
       if (status === 'error')

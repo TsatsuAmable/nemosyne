@@ -1,7 +1,74 @@
 import { ANALYSIS_TEMPLATES } from '../../data/AnalysisTemplates.ts';
-import type { PanelLike, WheelMenuCategory, WorldLike } from './types.ts';
+import type {
+  CollaborationCoordinatorLike,
+  PanelLike,
+  WheelMenuCategory,
+  WorldEngineLike,
+  WorldUIManagerLike,
+} from './types.ts';
 
-export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] {
+export interface WheelMenuHost {
+  uiManager: Pick<
+    WorldUIManagerLike,
+    | 'dashboard'
+    | 'getOrCreateGestureConfidenceHUD'
+    | 'getOrCreateInteractionCoach'
+    | 'getOrCreateNarrativeStrip'
+    | 'getOrCreateOperationLogPanel'
+    | 'getOrCreateSchemaMappingPanel'
+    | 'interactionCoach'
+    | 'metricsPanel'
+    | 'narrativeStrip'
+    | 'networkPanel'
+    | 'panelManager'
+    | 'performancePanel'
+    | 'recommendationPanel'
+    | 'toggleFrustrationResponseManager'
+    | 'toggleJITGestureHintManager'
+    | 'toggleProgressiveDisclosure'
+    | 'toggleRepresentationCarousel'
+    | 'toggleTransientContextCards'
+    | 'vrConsole'
+  >;
+  engine: Pick<WorldEngineLike, 'exitVR' | 'locomotion'>;
+  collaborationCoordinator: CollaborationCoordinatorLike;
+  portalsEnabled?: boolean;
+  exitVR?(): Promise<boolean> | void;
+  applyDataOperation(operation: string): void;
+  previewDataOperation(operation: string): void;
+  clearOperationPreview(): void;
+  resetDataOperation(): void;
+  undoAnalysis(): void;
+  redoAnalysis(): void;
+  saveSession(id: string): void;
+  loadSession(id: string): void;
+  deleteSession(id: string): void;
+  exportScreenshot(): void;
+  markMoment?(notes?: string): unknown;
+  exportAnalysisStory(): void;
+  loadTemplate(id: string): void;
+  setPortalsEnabled(enabled: boolean): void;
+  isLiveConnected(): boolean;
+  connectLiveStream(): void;
+  disconnectLiveStream(): void;
+  startTour(): void;
+  runLoadTest?(profile?: unknown): void;
+  stopLoadTest?(): void;
+  _cycleDataset(): void;
+  _cycleThemePreset(): void;
+  _toggleSettingsPanel(): void;
+  _toggleMiniOverview(): void;
+  _togglePeerPresenceHUD(): void;
+  _toggleDesktopPreview(): void;
+  _joinCollaborationRoom(): void;
+  _leaveCollaborationRoom(): void;
+  _toggleLoadTestPanel?(): void;
+  _toggleStatisticalLens?(): void;
+  _toggleDracoExplainer?(): void;
+  _toggleDracoDiagnostic?(): void;
+}
+
+export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategory[] {
   const opItem = (id: string, label: string, icon: string, op: string) => ({
     id,
     label,
@@ -287,7 +354,11 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
           id: 'collab-panel',
           label: 'Network',
           icon: '🌐',
-          callback: () => toggle(world.uiManager?.networkPanel ?? (world as unknown as { networkPanel?: PanelLike }).networkPanel),
+          callback: () =>
+            toggle(
+              world.uiManager?.networkPanel ??
+                (world as unknown as { networkPanel?: PanelLike }).networkPanel
+            ),
         },
       ],
     },
@@ -403,7 +474,7 @@ export function buildWheelMenuCategories(world: WorldLike): WheelMenuCategory[] 
  * Builds categorized HandWheel structure aligned with the 6 core intent taxonomy:
  * ANALYSE | VIEW | DATA | STUDY | COLLABORATE | SYSTEM.
  */
-export function buildIntentWheelMenuCategories(world: WorldLike): WheelMenuCategory[] {
+export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuCategory[] {
   const opItem = (id: string, label: string, icon: string, op: string) => ({
     id,
     label,
@@ -443,11 +514,31 @@ export function buildIntentWheelMenuCategories(world: WorldLike): WheelMenuCateg
       label: 'View',
       icon: '👁️',
       items: [
-        { id: 'portals', label: 'Portals', icon: '🌀', callback: () => world.setPortalsEnabled(!world.portalsEnabled) },
+        {
+          id: 'portals',
+          label: 'Portals',
+          icon: '🌀',
+          callback: () => world.setPortalsEnabled(!world.portalsEnabled),
+        },
         { id: 'theme', label: 'Theme', icon: '🎨', callback: () => world._cycleThemePreset() },
-        { id: 'overview', label: 'Overview', icon: '🗺️', callback: () => world._toggleMiniOverview() },
-        { id: 'lens', label: 'Statistical Lens', icon: '🔬', callback: () => world._toggleStatisticalLens?.() },
-        { id: 'explain', label: 'Why View?', icon: '💡', callback: () => world._toggleDracoExplainer?.() },
+        {
+          id: 'overview',
+          label: 'Overview',
+          icon: '🗺️',
+          callback: () => world._toggleMiniOverview(),
+        },
+        {
+          id: 'lens',
+          label: 'Statistical Lens',
+          icon: '🔬',
+          callback: () => world._toggleStatisticalLens?.(),
+        },
+        {
+          id: 'explain',
+          label: 'Why View?',
+          icon: '💡',
+          callback: () => world._toggleDracoExplainer?.(),
+        },
         { id: 'recenter', label: 'Recenter Anchor', icon: '🎯', callback: () => pm?.recenter() },
       ],
     },
@@ -456,15 +547,31 @@ export function buildIntentWheelMenuCategories(world: WorldLike): WheelMenuCateg
       label: 'Data',
       icon: '💎',
       items: [
-        { id: 'dataset-cycle', label: 'Next Dataset', icon: '💎', callback: () => world._cycleDataset() },
+        {
+          id: 'dataset-cycle',
+          label: 'Next Dataset',
+          icon: '💎',
+          callback: () => world._cycleDataset(),
+        },
         {
           id: 'live-stream',
           label: world.isLiveConnected() ? 'Stop Stream' : 'Live Ingest',
           icon: world.isLiveConnected() ? '⏹️' : '📡',
-          callback: () => (world.isLiveConnected() ? world.disconnectLiveStream() : world.connectLiveStream()),
+          callback: () =>
+            world.isLiveConnected() ? world.disconnectLiveStream() : world.connectLiveStream(),
         },
-        { id: 'save-session', label: 'Save State', icon: '💾', callback: () => world.saveSession('manual') },
-        { id: 'load-session', label: 'Restore Auto', icon: '⏮️', callback: () => world.loadSession('autosave') },
+        {
+          id: 'save-session',
+          label: 'Save State',
+          icon: '💾',
+          callback: () => world.saveSession('manual'),
+        },
+        {
+          id: 'load-session',
+          label: 'Restore Auto',
+          icon: '⏮️',
+          callback: () => world.loadSession('autosave'),
+        },
       ],
     },
     {
@@ -472,12 +579,37 @@ export function buildIntentWheelMenuCategories(world: WorldLike): WheelMenuCateg
       label: 'Study',
       icon: '📋',
       items: [
-        { id: 'mark-moment', label: 'Mark Moment', icon: '📍', callback: () => world.markMoment?.() },
+        {
+          id: 'mark-moment',
+          label: 'Mark Moment',
+          icon: '📍',
+          callback: () => world.markMoment?.(),
+        },
         { id: 'tour', label: 'Start Tour', icon: '🧭', callback: () => world.startTour() },
-        { id: 'timeline', label: 'Timeline Strip', icon: '🎞️', callback: () => toggle(world.uiManager?.narrativeStrip) },
-        { id: 'guidance', label: 'Guidance', icon: '🧭', callback: () => toggle(world.uiManager?.recommendationPanel) },
-        { id: 'story', label: 'Export Story', icon: '📤', callback: () => world.exportAnalysisStory() },
-        { id: 'screenshot', label: 'Screenshot', icon: '📸', callback: () => world.exportScreenshot() },
+        {
+          id: 'timeline',
+          label: 'Timeline Strip',
+          icon: '🎞️',
+          callback: () => toggle(world.uiManager?.narrativeStrip),
+        },
+        {
+          id: 'guidance',
+          label: 'Guidance',
+          icon: '🧭',
+          callback: () => toggle(world.uiManager?.recommendationPanel),
+        },
+        {
+          id: 'story',
+          label: 'Export Story',
+          icon: '📤',
+          callback: () => world.exportAnalysisStory(),
+        },
+        {
+          id: 'screenshot',
+          label: 'Screenshot',
+          icon: '📸',
+          callback: () => world.exportScreenshot(),
+        },
       ],
     },
     {
@@ -494,8 +626,18 @@ export function buildIntentWheelMenuCategories(world: WorldLike): WheelMenuCateg
               ? world._leaveCollaborationRoom()
               : world._joinCollaborationRoom(),
         },
-        { id: 'peers', label: 'Peer HUD', icon: '👥', callback: () => world._togglePeerPresenceHUD() },
-        { id: 'network-panel', label: 'Network Panel', icon: '🌐', callback: () => toggle(world.uiManager?.networkPanel) },
+        {
+          id: 'peers',
+          label: 'Peer HUD',
+          icon: '👥',
+          callback: () => world._togglePeerPresenceHUD(),
+        },
+        {
+          id: 'network-panel',
+          label: 'Network Panel',
+          icon: '🌐',
+          callback: () => toggle(world.uiManager?.networkPanel),
+        },
       ],
     },
     {
@@ -503,12 +645,42 @@ export function buildIntentWheelMenuCategories(world: WorldLike): WheelMenuCateg
       label: 'System',
       icon: '⚙️',
       items: [
-        { id: 'settings', label: 'Settings', icon: '⚙️', callback: () => world._toggleSettingsPanel() },
-        { id: 'console', label: 'VR Console', icon: '📝', callback: () => toggle(world.uiManager?.vrConsole as unknown as PanelLike) },
-        { id: 'perf', label: 'Perf Budget', icon: '⏱️', callback: () => toggle(world.uiManager?.performancePanel) },
-        { id: 'telemetry', label: 'Telemetry', icon: '📊', callback: () => toggle(world.uiManager?.metricsPanel) },
-        { id: 'coach', label: 'Coach', icon: '🎓', callback: () => toggle(world.uiManager?.interactionCoach) },
-        { id: 'exit-vr', label: 'Exit VR', icon: '🚪', callback: () => (world.exitVR ? world.exitVR() : world.engine?.exitVR?.()) },
+        {
+          id: 'settings',
+          label: 'Settings',
+          icon: '⚙️',
+          callback: () => world._toggleSettingsPanel(),
+        },
+        {
+          id: 'console',
+          label: 'VR Console',
+          icon: '📝',
+          callback: () => toggle(world.uiManager?.vrConsole as unknown as PanelLike),
+        },
+        {
+          id: 'perf',
+          label: 'Perf Budget',
+          icon: '⏱️',
+          callback: () => toggle(world.uiManager?.performancePanel),
+        },
+        {
+          id: 'telemetry',
+          label: 'Telemetry',
+          icon: '📊',
+          callback: () => toggle(world.uiManager?.metricsPanel),
+        },
+        {
+          id: 'coach',
+          label: 'Coach',
+          icon: '🎓',
+          callback: () => toggle(world.uiManager?.interactionCoach),
+        },
+        {
+          id: 'exit-vr',
+          label: 'Exit VR',
+          icon: '🚪',
+          callback: () => (world.exitVR ? world.exitVR() : world.engine?.exitVR?.()),
+        },
       ],
     },
   ];

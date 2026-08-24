@@ -11,7 +11,7 @@
 
 import { Dataset } from '../data/Dataset.ts';
 import type { AnalysisHistory, HistoryEntry } from '../data/AnalysisHistory.ts';
-import type { DatasetEvidence, RustDatasetStructureProfile } from '../data/evidence/index.ts';
+import type { DatasetEvidence } from '../data/evidence/index.ts';
 import type {
   BettiPoint,
   DatasetJSON,
@@ -65,47 +65,10 @@ import {
   isKernelFatalError,
 } from '../wasm/RuntimeBridge.ts';
 import { InvestigationAggregate, EvidenceLedger } from './domain/index.ts';
+import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 
 export { KernelUnavailableError };
-
-/**
- * Full kernel bridge surface required by AtlasCore.
- */
-export interface WasmRuntimeBridgeFull {
-  isReady(): boolean;
-  capabilities(): number;
-  loadDatasetJson(obj: DatasetJSON): number;
-  loadCsv(bytes: Uint8Array): number;
-  loadJson(bytes: Uint8Array): number;
-  loadSample(key: string): number;
-  sampleKeys(): string[];
-  getDatasetJson(handle: number): DatasetJSON | null;
-  destroyDataset(handle: number): void;
-  runOperation(handle: number, op: OperationSpec): number;
-  executeOperation(datasetJSON: unknown, spec: OperationSpec): DatasetJSON | null;
-  statistics(handle: number): Facts | null;
-  inferTopology(handle: number): string | null;
-  inferEncodings(handle: number, topology?: string): EncodingMapping | null;
-  parseDatasetBytes(bytes: Uint8Array, ext: 'csv' | 'json'): DatasetJSON | null;
-  kernelVersion?(): string | null;
-  kernelProvenance?(): Provenance | null;
-  datasetFingerprint?(handle: number): string | null;
-  inferSchema?(handle: number): unknown;
-  computeMapperGraph?(handle: number, params: Record<string, unknown>): TdaMapperGraph | null;
-  computePersistenceIntervals?(
-    handle: number,
-    params: Record<string, unknown>
-  ): PersistenceInterval[] | null;
-  computeBetti0Curve?(handle: number, params: Record<string, unknown>): BettiPoint[] | null;
-  computeSpectralFacts?(
-    handle: number,
-    timeColumn?: string,
-    valueColumn?: string
-  ): SpectralFacts | null;
-  computeDatasetStructureProfile?(
-    handle: number
-  ): RustDatasetStructureProfile | Record<string, unknown> | null;
-}
+export type WasmRuntimeBridgeFull = AnalyticalKernelPort;
 
 export class AtlasCore {
   private readonly _aggregate: InvestigationAggregate;

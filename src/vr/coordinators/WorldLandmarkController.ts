@@ -1,9 +1,33 @@
-import type { WorldLike } from './types.ts';
+import type {
+  CoreNodeLike,
+  DatumLike,
+  LogInteraction,
+  PortalLike,
+  TooltipManagerLike,
+  WorldEngineLike,
+  WorldUIManagerLike,
+} from './types.ts';
+
+export interface WorldLandmarkHost {
+  core: CoreNodeLike;
+  datum?: DatumLike;
+  portalA?: PortalLike;
+  portalB?: PortalLike;
+  tooltipManager: TooltipManagerLike;
+  engine: Pick<WorldEngineLike, 'addInteractable' | 'input'>;
+  uiManager: Pick<WorldUIManagerLike, 'vrConsole'>;
+  _statisticalLensEnabled?: boolean;
+  _setStatisticalLensVisible(visible: boolean): void;
+  applyDataOperation(operation: string): void;
+  resetDataOperation(): void;
+  _logInteraction: LogInteraction;
+  _captureSession(): void;
+}
 
 export class WorldLandmarkController {
-  private _world: WorldLike;
+  private _world: WorldLandmarkHost;
 
-  constructor(world: WorldLike) {
+  constructor(world: WorldLandmarkHost) {
     this._world = world;
   }
 
