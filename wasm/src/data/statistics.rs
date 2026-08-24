@@ -9,10 +9,13 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::data::column::ColumnType;
+use crate::data::column::{Column, ColumnType};
 use crate::data::columnar::{ColumnarDataset, PrimitiveColumn};
 use crate::data::dataset::Dataset;
-use crate::data::statistics_columnar::{numeric_stats, pearson_pairwise};
+use crate::data::statistics_columnar::{
+    categorical_stats as columnar_categorical_stats, numeric_stats, pearson_pairwise,
+    temporal_stats_numeric,
+};
 use crate::data::value::Value;
 
 #[derive(Debug, Clone, Serialize)]
@@ -168,6 +171,136 @@ pub fn compute_statistics_with_columnar(
         temporal: temporal_names,
         temporal_stats,
     }
+}
+
+pub fn compute_statistics_from_columnar(
+    columns: &[Column],
+    columnar: &ColumnarDataset,
+) -> Result<Facts, String> {
+    let row_count = columnar.row_count();
+    let numeric_columns: Vec<(usize, String)> = columns
+        .iter()
+        .enumerate()
+        .filter(|(_, column)| column.ty == ColumnType::Numeric)
+        .map(|(index, column)| (index, column.name.clone()))
+        .collect();
+    validate_numeric_columnar_invariants(columnar, &numeric_columns, row_count);
+
+    let numeric = numeric_columns
+        .iter()
+        .map(|(index, name)| {
+            let stats = numeric_stats(
+                columnar
+                    .primitive_column(*index)
+                    .expect("validated numeric primitive column must exist"),
+            );
+            ColumnStats {
+                name: name.clone(),
+                count: stats.count,
+                sum: stats.sum,
+                mean: stats.mean,
+                median: stats.median,
+                std: stats.std,
+                var: stats.var,
+                min: stats.min,
+                max: stats.max,
+                skew: stats.skew,
+                kurtosis: stats.kurtosis,
+                outlier_count: stats.outlier_count,
+            }
+        })
+        .collect();
+    let correlation = correlate_columnar(columnar, &numeric_columns);
+
+    let mut categorical = Vec::new();
+    for (index, column) in columns.iter().enumerate() {
+        if column.ty != ColumnType::Categorical {
+            continue;
+        }
+        let source = columnar.categorical_column(index).ok_or_else(|| {
+            format!(
+                "columnar invariant violation: categorical column '{}' at schema index {index} is missing",
+                column.name
+            )
+        })?;
+        if source.codes.len() != row_count || source.validity.len() != row_count {
+            return Err(format!(
+                "columnar invariant violation: categorical column '{}' length does not match {row_count} rows",
+                column.name
+            ));
+        }
+        let stats = columnar_categorical_stats(source);
+        categorical.push(CategoricalStats {
+            name: column.name.clone(),
+            cardinality: stats.cardinality,
+            entropy: stats.entropy,
+            top: stats
+                .top
+                .into_iter()
+                .map(|bucket| CategoryCount {
+                    value: bucket.value,
+                    count: bucket.count,
+                })
+                .collect(),
+        });
+    }
+
+    let temporal: Vec<String> = columns
+        .iter()
+        .filter(|column| column.ty == ColumnType::Temporal)
+        .map(|column| column.name.clone())
+        .collect();
+    let value_column = numeric_columns.first();
+    let mut temporal_stats = Vec::new();
+    for (time_index, time_column) in columns
+        .iter()
+        .enumerate()
+        .filter(|(_, column)| column.ty == ColumnType::Temporal)
+    {
+        let Some((value_index, value_name)) = value_column else {
+            temporal_stats.push(TemporalStats {
+                column: time_column.name.clone(),
+                value_column: String::new(),
+                trend_direction: "flat".to_string(),
+                seasonality_hint: false,
+                normalized_slope: 0.0,
+            });
+            continue;
+        };
+        let time = columnar.primitive_column(time_index).ok_or_else(|| {
+            format!(
+                "columnar invariant violation: temporal column '{}' at schema index {time_index} is missing",
+                time_column.name
+            )
+        })?;
+        let values = columnar
+            .primitive_column(*value_index)
+            .expect("validated numeric primitive column must exist");
+        if time.values.len() != row_count || time.validity.len() != row_count {
+            return Err(format!(
+                "columnar invariant violation: temporal column '{}' length does not match {row_count} rows",
+                time_column.name
+            ));
+        }
+        let stats = temporal_stats_numeric(time, values);
+        temporal_stats.push(TemporalStats {
+            column: time_column.name.clone(),
+            value_column: value_name.clone(),
+            trend_direction: stats.trend_direction,
+            seasonality_hint: stats.seasonality_hint,
+            normalized_slope: stats.normalized_slope,
+        });
+    }
+
+    Ok(Facts {
+        row_count,
+        column_count: columns.len(),
+        numeric,
+        correlation,
+        categorical,
+        temporal,
+        temporal_stats,
+    })
 }
 
 fn validate_numeric_columnar_invariants(

@@ -267,6 +267,7 @@ function boundaryAssessment(results) {
       maximumVerifiedResidentRows: Math.max(0, ...results.map((result) => result.rows)),
       residentColumnarAt10m: null,
       authoritativeEvidenceAt10m: null,
+      deviceQualifiedAt10m: null,
       rustToJsEvidenceTransferBytes: null,
       rowMaterialisationsForEvidence: null,
     };
@@ -278,13 +279,14 @@ function boundaryAssessment(results) {
   return {
     status:
       residentColumnarAt10m && authoritativeEvidenceAt10m
-        ? 'END_TO_END_10M_BOUNDARY_READY'
+        ? 'EVIDENCE_PATH_AVAILABLE_AT_10M'
         : residentColumnarAt10m
           ? 'COLUMNAR_CAPACITY_ONLY'
           : 'BELOW_10M_RESIDENT_CAPACITY',
     maximumVerifiedResidentRows: residentColumnarAt10m ? tenMillion.rows : null,
     residentColumnarAt10m,
     authoritativeEvidenceAt10m,
+    deviceQualifiedAt10m: false,
     authoritativeEvidenceAvailableInAnyScenario: results.some(
       (result) => result.structureProfile.status === 'AVAILABLE'
     ),
@@ -294,6 +296,8 @@ function boundaryAssessment(results) {
       0
     ),
     coldFingerprintMsAt10m: tenMillion.first.fingerprintMs,
+    evidenceGenerationMsAt10m: tenMillion.structureProfile.sizeProbeMs,
+    evidenceWriteDecodeMsAt10m: tenMillion.structureProfile.writeDecodeMs,
     fingerprintToRustLoadRatioAt10m:
       tenMillion.first.fingerprintMs / Math.max(0.0001, tenMillion.first.rustLoadMs),
     retainedWasmBytesAfter10mDestroy: tenMillion.cleanup.pagesRetainedAfterDestroyBytes,

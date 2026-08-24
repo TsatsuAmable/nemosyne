@@ -26,7 +26,9 @@ describe('Rust JS boundary benchmark contract', () => {
     expect(source).toContain('maximumVerifiedResidentRows');
     expect(source).toContain('fingerprintToRustLoadRatioAt10m');
     expect(source).toContain('retainedWasmBytesAfter10mDestroy');
-    expect(source).toContain('END_TO_END_10M_BOUNDARY_READY');
+    expect(source).toContain('EVIDENCE_PATH_AVAILABLE_AT_10M');
+    expect(source).toContain('deviceQualifiedAt10m');
+    expect(source).toContain('evidenceGenerationMsAt10m');
     expect(source).toContain('COLUMNAR_CAPACITY_ONLY');
     expect(source).toContain('INCOMPLETE_NO_10M_SCENARIO');
     expect(source).toContain('schemaVersion: 2');

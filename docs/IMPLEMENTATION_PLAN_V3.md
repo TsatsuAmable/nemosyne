@@ -215,15 +215,15 @@ Before Gate 3 is considered complete:
 Before Nemosyne claims practical massive-dataset support:
 
 - [ ] canonical storage is Rust-owned and columnar for analytical hot paths;
-- [ ] full-dataset JS row materialisation is exceptional, explicit and instrumented;
-- [ ] compact `DatasetEvidence` transfer size remains approximately invariant with N for fixed schema/evidence configuration;
+- [x] full-dataset JS row materialisation is exceptional, explicit and instrumented;
+- [x] compact `DatasetEvidence` transfer size remains approximately invariant with N for fixed schema/evidence configuration;
 - [x] Moneta candidate/sensitivity work remains bounded independently of N;
 - [ ] Rust→JS transfer bytes are tracked and regressions fail benchmark gates;
-- [ ] 1M and 10M benchmark tiers report ingest time, evidence time, memory and transfer volume;
+- [x] 1M and 10M benchmark tiers report ingest time, evidence time, memory and transfer volume;
 - [ ] visual reduction/LOD prevents source row count from determining headset primitive count;
-- [ ] benchmark claims report hardware/runtime context and use scaling envelopes rather than brittle absolute timings.
+- [x] benchmark claims report hardware/runtime context and use scaling envelopes rather than brittle absolute timings.
 
-The post-#352 boundary envelope proves 10M resident typed-column capacity but exposes a blocking discontinuity: `data_compute_structure_profile` is unavailable for the columnar-only handle, with zero row materialisations and zero authoritative evidence bytes transferred. Canonical fingerprinting also dominates the local 10M path at approximately 10.6 seconds. Practical massive-dataset support remains unclaimed until columnar-native evidence generation, transfer and downstream browser/LOD measurements close these unchecked criteria.
+The post-#352 boundary envelope first exposed an unavailable profile ABI for the columnar-only handle. The follow-up implements row-free columnar-native profile generation and transfers approximately 2.7 KB at both 1M and 10M. Practical massive-dataset support remains unclaimed: the local 10M path still spends approximately 10.7 seconds fingerprinting and 3.2 seconds generating evidence, while full-series evidence work raises retained WASM memory to approximately 1.25 GB. Provisioned repetition, bounded evidence algorithms and downstream physical-device browser/LOD measurements remain required.
 
 ## CI gates for every module PR
 

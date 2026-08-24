@@ -43,7 +43,7 @@ For each scenario the artifact records:
 
 The final assessment is one of:
 
-- `END_TO_END_10M_BOUNDARY_READY`: resident columnar operation and authoritative compact evidence are both available at 10M;
+- `EVIDENCE_PATH_AVAILABLE_AT_10M`: resident columnar operation and authoritative compact evidence are both available at 10M, without implying device qualification;
 - `COLUMNAR_CAPACITY_ONLY`: 10M resident operation succeeds but authoritative evidence is unavailable for that handle;
 - `BELOW_10M_RESIDENT_CAPACITY`: the 10M resident/reload invariants fail;
 - `INCOMPLETE_NO_10M_SCENARIO`: an isolated developer run did not include the 10M tier.
@@ -64,16 +64,27 @@ The 10M reload preserved checksum and fingerprint identity, required no addition
 
 GitHub Actions run [32701995846](https://github.com/TsatsuAmable/nemosyne/actions/runs/32701995846) completed the full matrix on Node 24.19.0, Linux x64, four logical Intel Xeon Platinum 8573C CPUs and approximately 16 GiB host memory. The 10M case copied in 74.41 ms, loaded in Rust in 203.58 ms, scanned in 118.26 ms and fingerprinted in 13,036.4 ms. Its reload retained checksum and fingerprint identity with no additional WASM growth. The assessment remained `COLUMNAR_CAPACITY_ONLY`; this hosted result is reproducibility evidence, not a Quest 3S proxy.
 
-The boundary is **not end-to-end ready**:
+## Columnar profile follow-up
 
-- `data_compute_structure_profile` returns unavailable for the columnar-only handle at 10K, 1M and 10M;
-- the probe causes zero compatibility row materialisations, so it fails closed rather than silently constructing rows;
-- Rust-to-JS authoritative evidence transfer is therefore 0 bytes because no evidence is produced;
-- canonical fingerprinting scales linearly and dominates the measured 10M path at approximately 10.6 seconds cold and on reload;
-- destroyed dataset pages remain retained by wasm32 linear memory, with approximately 640 MB retained after the 10M case.
+The next local checkpoint implements the columnar-native profile and uses generation-scoped caches so the ABI size probe computes the evidence once and the write call reuses the serialized result.
+
+| Tier     | Cold fingerprint | Evidence generation | Write + decode | Evidence transfer | Rows materialised | Retained WASM after destroy |
+| -------- | ---------------: | ------------------: | -------------: | ----------------: | ----------------: | --------------------------: |
+| 1M tall  |       1,036.6 ms |            322.8 ms |        0.29 ms |           2,668 B |                 0 |                96,600,064 B |
+| 10M tall |      10,664.8 ms |          3,239.3 ms |        0.31 ms |           2,689 B |                 0 |             1,254,621,184 B |
+
+The status is now `EVIDENCE_PATH_AVAILABLE_AT_10M`, with `deviceQualifiedAt10m: false`. The output matches the row-backed Rust profile on an equivalent mixed numeric, temporal, categorical and missing-value fixture. Cluster evaluation streams columnar buffers rather than reconstructing rows.
+
+The boundary is still **not device ready**:
+
+- cold fingerprinting remains linear and takes approximately 10.7 seconds at 10M on the local development machine;
+- full-series evidence generation takes approximately 3.2 seconds at 10M;
+- full-series evidence work raises retained wasm32 linear memory to approximately 1.25 GB;
+- the result has not run in Quest Browser on a physical Meta Quest 3S;
+- the new path still requires a hosted reproducibility run before its development-baseline evidence is complete.
 
 ## Consequence
 
-Nemosyne may claim demonstrated 10M **resident columnar capacity on the measured development machine**, but it must not claim practical 10M end-to-end representation performance or Quest 3S support. The next blocking work is to provide a columnar-native Rust `DatasetStructureProfile`, re-run this envelope to measure real evidence latency and transfer bytes, and then execute the browser benchmark on a physical Quest 3S while recording frame time, memory pressure, thermal behaviour and reduction/LOD output.
+Nemosyne may claim demonstrated 10M **resident columnar capacity and a row-free authoritative evidence path on the measured development machine**, but it must not claim practical 10M representation performance or Quest 3S support. The next blocking work is to bound or reduce full-series fingerprint/spectral evidence cost, establish repeated provisioned regression envelopes, and execute the browser benchmark on a physical Quest 3S while recording frame time, memory pressure, thermal behaviour and reduction/LOD output.
 
 The superseded `benchmark:data-boundary` 10M tier is not a substitute. It intentionally creates and rematerializes 10M JavaScript row objects to characterize the former compatibility boundary, which violates the current large-data hot-path invariant.
