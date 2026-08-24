@@ -60,6 +60,10 @@ The first checkpoint run used Node 25.6.1 on an 8-core Apple M1 Pro with 16 GiB 
 
 The 10M reload preserved checksum and fingerprint identity, required no additional WASM growth and scanned in 112.75 ms. This proves resident typed-column capacity at 10M on the measured machine.
 
+## Hosted checkpoint finding
+
+GitHub Actions run [32701995846](https://github.com/TsatsuAmable/nemosyne/actions/runs/32701995846) completed the full matrix on Node 24.19.0, Linux x64, four logical Intel Xeon Platinum 8573C CPUs and approximately 16 GiB host memory. The 10M case copied in 74.41 ms, loaded in Rust in 203.58 ms, scanned in 118.26 ms and fingerprinted in 13,036.4 ms. Its reload retained checksum and fingerprint identity with no additional WASM growth. The assessment remained `COLUMNAR_CAPACITY_ONLY`; this hosted result is reproducibility evidence, not a Quest 3S proxy.
+
 The boundary is **not end-to-end ready**:
 
 - `data_compute_structure_profile` returns unavailable for the columnar-only handle at 10K, 1M and 10M;
