@@ -1,6 +1,12 @@
 import type { WasmRuntimeBridgeFull } from '../../src/atlas/AtlasCore.ts';
 import type { RustDatasetStructureProfile } from '../../src/data/evidence/index.ts';
-import type { DatasetJSON, Facts } from '../../src/data/types.ts';
+import type {
+  DatasetJSON,
+  Facts,
+  JSONValue,
+  OperationSpec,
+  Provenance,
+} from '../../src/data/types.ts';
 
 export interface MonetaStructureProfileFixtureOptions {
   datasetName: string;
@@ -98,6 +104,7 @@ export function createMonetaKernelFixture(
   profile: RustDatasetStructureProfile,
 ): WasmRuntimeBridgeFull {
   let loaded: DatasetJSON | null = null;
+  let lastProvenance: Provenance | null = null;
 
   const facts = (): Facts => ({
     rowCount: profile.rowCount,
@@ -122,13 +129,25 @@ export function createMonetaKernelFixture(
     sampleKeys: () => [],
     getDatasetJson: () => loaded,
     destroyDataset: () => {},
-    runOperation: () => 0,
+    runOperation: (_handle: number, operation: OperationSpec) => {
+      lastProvenance = {
+        kernel: 'nemosyne-wasm',
+        kernelVersion: profile.provenance.kernelVersion,
+        operation: operation.op,
+        parameters: operation as unknown as JSONValue,
+        inputFingerprint: profile.provenance.datasetFingerprint,
+        outputFingerprint: profile.provenance.datasetFingerprint,
+        timestamp: profile.provenance.timestampMs,
+      };
+      return 8;
+    },
     executeOperation: () => null,
     statistics: facts,
     inferTopology: () => 'TABULAR',
     inferEncodings: () => ({}),
     parseDatasetBytes: () => null,
     kernelVersion: () => profile.provenance.kernelVersion,
+    kernelProvenance: () => lastProvenance,
     datasetFingerprint: () => profile.provenance.datasetFingerprint,
     computeDatasetStructureProfile: () => profile,
   };

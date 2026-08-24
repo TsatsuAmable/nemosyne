@@ -2,201 +2,113 @@
 
 ## Purpose
 
-Finish the Draco-to-Moneta migration quickly without materially weakening correctness, reproducibility, security, performance, or scientific validity.
+Finish the Draco-to-Moneta migration without weakening correctness, reproducibility, security, performance, or scientific validity.
 
-This sprint is the critical path. New findings do not interrupt it unless they are migration blockers under the policy below.
+The migration completed its exit checkpoint on 24 August 2026. Subsequent work may reopen the migration only when it demonstrates a correctness, Rust-authority, reproducibility, compatibility, required-CI, large-dataset, or XR hot-path regression.
 
 ## Fixed architectural decisions
-
-During this sprint, do not reopen these decisions without evidence that the architecture cannot meet the product requirement:
 
 1. **Rust/WASM is the sole analytical and scale-sensitive computational authority.**
 2. **Moneta owns bounded representation reasoning over compact Rust-derived evidence.**
 3. **TypeScript/JavaScript orchestrates, presents, and adapts; it does not maintain an independent analytical implementation.**
-4. **Legacy Draco is compatibility surface only and must converge toward aliases/re-exports, then removal where consumers permit.**
+4. **Legacy Draco is compatibility surface only.**
 5. **Source cardinality is decoupled from rendered primitive count.**
 
-## Blocker policy
+## Migration ledger — reconciled 24 August 2026 after #342
 
-A finding may interrupt the current migration slice only if it demonstrates one or more of:
-
-- incorrect or non-deterministic analytical/representation results;
-- security, privacy, data-integrity, or reproducibility failure;
-- Rust/WASM authority violation, including duplicated JS analytical/layout computation or scale-sensitive JS work;
-- required Draco compatibility breakage or creation of a second implementation;
-- material large-dataset or XR hot-path regression;
-- failing required type/build/test/architecture/integration gate.
-
-Everything else is classified as:
-
-- **DEFER — pre-preview:** valid resilience, UX, collaboration, API cleanup, or operational issue that should be fixed before broader use but does not invalidate the migration.
-- **DEFER — hardening:** fuzzing, Miri/fuzz/property campaigns, broad cleanup, additional diagnostics, speculative future-proofing, and similar engineering improvements.
-- **SUGGESTION:** optional improvement with no demonstrated failure mode.
-
-A valid deferred issue is not ignored. It is simply prevented from hijacking the migration critical path.
-
-## Work rule
-
-Before starting work, ask:
-
-> Does this advance a migration-ledger row toward DONE, or fix a blocker preventing one from advancing?
-
-If not, defer it.
-
-Avoid opportunistic cleanup, adjacent refactors, dependency modernization, broad architecture reviews, and repository-wide audits while a migration row is active.
-
-## Migration ledger — reconciled 23 August 2026
-
-| Capability / invariant | Current state | Exit condition | Status |
+| Capability / invariant | Current evidence | Exit condition | Status |
 |---|---|---|---|
-| Legacy Draco authority | architecture tests restrict Draco to compatibility aliases/re-exports; production imports Moneta directly | no independent Draco solver/scorer/reasoning implementation remains | **DONE** |
-| Draco import/call-site inventory | production inventory complete; no production consumer imports `src/draco/**` | every live Draco call site classified | **DONE** |
-| Obsolete Draco compatibility files | deep `layouts/`, `representation` and `evidence` mirrors are gone; remaining top-level shims are compatibility-only | remaining compatibility is explicit and minimal | **ACTIVE** |
-| Rust analytical fact authority | exit audit found canonical Atlas representation still permits pre-kernel `minimalMonetaFacts`/empty-`Facts` synthesis, and `SignatureBuilder` still supplies placeholder analytical values such as cluster separation/density | every research-relevant fact consumed by Moneta is Rust/WASM-derived or the operation fails explicitly | **ACTIVE** |
-| Moneta scale boundary | bounded candidate/sensitivity contract is executable for 10K, 100K, 1M and 10M cardinality signatures; canonical reasoning modules are guarded from raw-row traversal | no Moneta reasoning module traverses raw rows or performs N-dependent JS work | **DONE** |
-| Moneta computational JS fallbacks | #315 moved data-derived layout computation to Rust/WASM and fail-closed kernel boundaries | scale-sensitive/data-derived computation is Rust-owned; UI does not recompute analytical geometry independently | **DONE** |
-| Fitness/scoring authority | exit audit found and removed the obsolete independent `ConstraintArbiter`; canonical representation ranking is now the versioned `MonetaHypothesisEngine`/FitnessModel path, with learned ranking downstream of bootstrap hard constraints | scoring/ranking semantics have one production authority with invariant tests | **DONE** |
-| Representation/provenance continuity | #324-#332 persist and replay-verify analytical, representation, model, discovery and NIL provenance | representation/model/NIL/discovery provenance survives Investigation and replay | **DONE** |
-| Downstream confidence terminology | `RepresentationDecision` exposes utility/status/margin correctly; audit found a deprecated `SpatialStrategy.confidence` compatibility alias that duplicates utility and must be removed from persisted/public consumers | uncalibrated utility is no longer presented as statistical confidence | **ACTIVE** |
-| Metamorphic correctness | row order, semantic rename, duplication/scale and exact provenance contracts are covered | declared metamorphic policies are executable at the authoritative/boundary layer | **DONE** |
-| Draco public migration surface | production imports are gone and deep mirrors are removed; top-level compatibility aliases remain while ordinary tests are migrated | retained compatibility is documented, tested and ready for eventual removal | **ACTIVE** |
-| End-to-end migration integration | provenance pieces exist, but the single representative Rust -> Moneta -> runtime -> portable replay migration proof remains to be assembled after the fact-origin boundary is fixed | representative datasets flow Rust evidence -> Moneta -> runtime/replay with deterministic provenance and no legacy authority path | **FINAL** |
-| Large-dataset migration validation | columnar/data-plane and bounded reasoning evidence exist; current-main benchmark matrix remains to run | focused 10K-10M tiers prove no full-data JS rematerialisation or N-dependent Moneta work | **FINAL** |
+| Legacy Draco authority | architecture tests prohibit independent Draco analytical authority; production imports Moneta | no independent Draco solver/scorer/reasoning implementation | **DONE** |
+| Draco import/call-site inventory | production inventory complete; no production consumer depends on Draco analytical modules | every live Draco call site classified | **DONE** |
+| Obsolete Draco compatibility files | deep mirrors were removed in #334; #340 collapsed remaining one-line top-level shims to `src/draco/index.ts` | one explicit compatibility facade only | **DONE** |
+| Rust analytical fact authority | #336 reconstructs signatures from canonical DatasetEvidence; #338 routes production Atlas through validated Rust `DatasetStructureProfile`/DatasetEvidence and fails closed without it; pre-WASM World supplies no analytical decision | every research-relevant fact consumed by production Moneta is Rust/WASM-derived or the operation fails explicitly | **DONE** |
+| Moneta scale boundary | #342 proves bounded evidence, candidates and sensitivity at 10K, 100K, 1M and 10M rows without source-row payloads | no Moneta reasoning module traverses raw rows or performs N-dependent JS work | **DONE** |
+| Moneta computational JS fallbacks | #315 moved data-derived layout computation to Rust/WASM; #338 closes production fact-origin fallback | scale-sensitive/data-derived computation is Rust-owned | **DONE** |
+| Fitness/scoring authority | #335 removed obsolete `ConstraintArbiter`; versioned FitnessModel is the sole bootstrap authority and learned ranking remains downstream of hard constraints | one production scoring/ranking authority | **DONE** |
+| Representation/provenance continuity | #324-#332 persist and replay analytical, representation, learned-model, discovery and NIL provenance | representation/model/NIL/discovery provenance survives Investigation and clean-room replay | **DONE** |
+| Downstream confidence terminology | decisions expose utility/status/margin; #340 removed the remaining `SpatialStrategy.confidence` alias that duplicated utility | uncalibrated utility is never presented as statistical confidence | **DONE** |
+| Metamorphic correctness | row-order, semantic-rename, duplication/scale and provenance contracts are executable | declared metamorphic policies are covered at authoritative/boundary layer | **DONE** |
+| Draco public migration surface | production imports are gone; #340 reduced legacy source compatibility to one documented facade | retained compatibility is explicit, minimal and tested | **DONE** |
+| End-to-end migration integration | #341 composes Rust-profile evidence → Atlas/Moneta decision → SpatialStrategy → Discovery → `.nemosyne` → clean-room replay | one representative authoritative composition proof is green | **DONE** |
+| Large-dataset migration validation | #342 proves bounded reasoning on current main; capacity run 32698495825 characterizes the real Rust/WASM 10M tall, 1M wide and 1M high-cardinality boundaries | current-main evidence proves bounded Moneta work and no full-data JS rematerialisation | **DONE** |
+| Browser/WebXR migration checkpoint | #338 restored explicit presentation-only construction; the checkpoint proves authoritative rebuild after real WASM readiness and production WebGL2/WASM boot through the WebXR entry surface | representative browser/WebXR-entry smoke is green on migration-exit main | **DONE** |
 
-### Exit-audit blockers discovered 23 August 2026
+## What #336 and #338 closed
 
-The final authority audit found three migration blockers that were not visible in the earlier ledger:
+The final fact-origin audit had found that production representation could still be built from synthesized TypeScript facts and placeholder signature values. That blocker is now closed:
 
-1. `src/moneta/ConstraintArbiter.ts` was a second heuristic representation scorer and converted heuristic utility directly into a field named `confidence`. It has no production caller and is removed in the current authority-exit slice.
-2. `RepresentationState` intentionally builds a provisional representation before WASM is ready by using `minimalMonetaFacts`/empty analytical facts. `World` later rebuilds after kernel initialization, but the provisional result is not clearly marked as non-analytical. The next slice must replace this with an explicit pre-kernel presentation state rather than silently executing analytical Moneta semantics.
-3. `SignatureBuilder` still fills research-relevant signature fields with fixed placeholders (`separationScore`, `densityVariation`, fallback entropy/rank-deficiency values). The Rust `DatasetStructureProfile` and canonical `DatasetEvidence` transport already expose authoritative values, but the production Atlas→Moneta composition root does not consume that evidence yet.
+- #336 makes canonical DatasetEvidence reconstruct the DatasetSignature consumed by FitnessModel ranking, so caller-supplied analytical placeholders cannot override evidence;
+- #338 connects Atlas to the existing Rust structure-profile ABI, validates the raw transport payload, binds profile identity to the live Rust dataset handle, and fails closed on missing/malformed evidence or fingerprint drift;
+- `World` no longer emits an analytical representation before WASM is ready. Its pre-kernel construction passes no RepresentationDecision and authoritative arbitration occurs only after Atlas is ready.
 
-Therefore **Rust analytical fact authority remains ACTIVE** until the structure-profile/DatasetEvidence path is wired into production and the legacy synthesized-signature path is fenced to compatibility/tests.
+Legacy `SignatureBuilder`/minimal facts may remain only as explicitly non-authoritative compatibility or isolated-test scaffolding. They are not a production Moneta decision path.
 
-## Execution sequence
+## Landed exit work
 
-### Slice 1 — Authority inventory and layout boundary — COMPLETE
+### PR #340 — terminology and Draco facade exit — merged
 
-- production Draco/Moneta import inventory completed;
-- production consumers moved to Moneta;
-- data-derived layout computation moved to Rust/WASM;
-- architecture tests prevent production Draco imports and JS analytical fallback recurrence.
+- remove the deprecated `SpatialStrategy.confidence` utility alias;
+- keep utility represented as `score` / `utilityScore`, with decision status and margin carrying ambiguity information;
+- preserve genuine statistical confidence, interval/confidence-level and participant/gesture confidence concepts where semantically valid;
+- collapse `src/draco` to the single `index.ts` compatibility facade;
+- add architecture tests preventing utility-as-confidence and Draco shadow-module regression;
+- migrate any CI-discovered legacy deep imports to canonical Moneta paths rather than restoring shims.
 
-### Slice 2 — Fitness, scoring, recommendation and provenance convergence — COMPLETE FOR MIGRATION
+### PR #341 — authoritative end-to-end replay proof — merged
 
-- obsolete independent `ConstraintArbiter` removed during exit audit;
-- one bootstrap/learned ranking contract remains;
-- bootstrap hard constraints precede learned ranking;
-- candidate and sensitivity budgets are independent of source row count;
-- exact learned artifact identity is pinned;
-- representation/model/discovery/NIL provenance survives portable Investigation replay;
-- metamorphic correctness contracts are live.
+Prove the successful composition path without hand-authoring the representation decision:
 
-This does **not** mean learned Moneta is empirically superior. Held-out discovery-outcome validation remains post-migration scientific work.
+`Rust structure-profile evidence → DatasetEvidence → AtlasCore/Moneta → RepresentationDecision → SpatialStrategy → DiscoveryEpisode → Investigation → .nemosyne → clean-room replay`
 
-### Slice 3 — Draco compatibility collapse — ACTIVE
+Existing #332 tests remain the focused NIL and tamper/drift proof.
 
-- deep compatibility mirrors removed;
-- ordinary tests continue migrating to Moneta imports;
-- retain only deliberate top-level compatibility aliases/facade needed to prove legacy import continuity;
-- document removal conditions;
-- preserve architecture/import tests that prohibit independent Draco authority.
+### PR #342 — 10K to 10M scale exit matrix — merged
 
-### Slice 4A — Rust DatasetEvidence production boundary — NEXT CRITICAL SLICE
+- exercise compact authoritative profiles at 10K, 100K, 1M and 10M source cardinalities;
+- prove evidence size and candidate enumeration remain bounded as N increases;
+- bound sensitivity scenario count for successful decisions;
+- prove the Moneta authority payload contains metadata, not source-row arrays;
+- complement, rather than duplicate, #305/#306 typed-column capacity benchmarks.
 
-- expose the existing Rust `data_compute_structure_profile` ABI through the TypeScript runtime bridge;
-- add the structure-profile operation to the Atlas kernel interface;
-- adapt the Rust profile into canonical `DatasetEvidence` without recomputation;
-- build the `DatasetSignature` from provenance-bearing evidence rather than placeholder analytical values;
-- require production representation arbitration to use this evidence-backed path;
-- keep `minimalMonetaFacts` and legacy signature synthesis explicitly non-authoritative and unavailable to production Moneta decisions;
-- preserve pre-kernel UI startup as a clearly non-analytical presentation state, then replace it with the authoritative representation after WASM becomes ready;
-- add mismatch/tamper tests for every FitnessModel-relevant evidence field.
+## Exit checkpoint evidence
 
-### Slice 4B — Terminology and compatibility exit
+The checkpoint is anchored to current-main SHA `0a9afb3221a0690bc6c576bdd64f9f161bb970c4` (#342).
 
-- remove the deprecated `SpatialStrategy.confidence` alias once remaining consumers are migrated; use utility plus `decisionStatus`/`decisionMargin` instead;
-- migrate remaining top-level Draco test imports and reduce `src/draco` toward a single intentional facade;
-- keep participant confidence ratings, gesture recognition confidence, and genuine interval/confidence-level semantics unchanged.
+1. **Rust/WASM capacity:** GitHub Actions run [32698495825](https://github.com/TsatsuAmable/nemosyne/actions/runs/32698495825) completed successfully. All three reloads preserved checksum identity. The 10M-tall scenario used a 320,000,000-byte logical core, loaded in 271.5 ms and recorded 640,221,184 bytes of first-run WASM growth; the 1M-wide scenario used a 275,000,000-byte logical core and 550,305,792 bytes of first-run growth; the 1M high-cardinality scenario used a 32,000,000-byte logical core and 73,269,248 bytes of first-run growth. The artifact is capacity characterization, not a production-promotion threshold.
+2. **Kernel lifecycle:** `tests/production-runtime-wiring.test.ts` constructs World before Atlas readiness, observes a presentation-only node with no RepresentationDecision, starts real WASM, then verifies replacement with a decision bound to the live Rust dataset fingerprint.
+3. **Production browser:** `tests/smoke/load.spec.ts` boots the production bundle in real headless Chromium/WebGL2, renders a frame, attaches the WebXR entry button, requires 200 responses for both generated WASM assets and treats kernel-unavailability console output as a failure.
+4. **Review and CI sweep:** PRs #333-#338 and #340-#342 are merged with no review threads. Required CI and approval gates for #340, #341 and #342 are green; #342's CI run 32695772659 includes Rust tests, a dev WASM build, typecheck, lint and the full test suite.
+5. **Checkpoint gate:** typecheck, lint, coverage (305 files / 1,877 tests; 81.14% statements, 69.48% branches), production build, 160 Rust tests and Playwright smoke all passed on the checkpoint branch.
 
-### Slice 4C — Integration and migration exit
+The Draco-to-Moneta migration sprint is complete. The next critical-path work is private-preview/productization, followed in parallel by the scientific validation, security/reliability hardening and VR/UI/UX outcome programmes ordered in `docs/ROADMAP.md`.
 
-- prove authoritative Rust evidence -> Moneta reasoning -> representation runtime -> Investigation -> `.nemosyne` replay end to end;
-- run 10K/100K/1M/10M performance tiers and memory/transfer evidence;
-- run browser/WebXR smoke and final blocker sweep;
-- mark remaining migration rows DONE only on evidence.
+## Post-exit performance finding
+
+The migration checkpoint proved 10M resident columnar capacity, not practical 10M end-to-end performance. The subsequent Rust/JS boundary envelope, independently reproduced by GitHub Actions run [32701995846](https://github.com/TsatsuAmable/nemosyne/actions/runs/32701995846), found that the columnar-only handle can ingest, identify, scan and reload 10M rows, but cannot produce the authoritative DatasetStructureProfile required by Moneta. The request fails closed with zero row materialisations and zero evidence bytes transferred. Migration authority remains closed; the practical massive-data claim is blocked on columnar-native evidence generation and the follow-up physical-device browser/LOD envelope tracked in `docs/ROADMAP.md`.
 
 ## Verification cadence
 
 Use the cheapest layer capable of proving the property.
 
-### Per edit / tight loop
-
-- compiler/typecheck for the affected language;
-- directly affected tests;
-- focused architecture invariant when authority boundaries changed.
-
-### Per coherent commit
-
-- focused Moneta/Draco tests for the changed slice;
-- Rust tests for Rust-owned behavior;
-- focused JS/WASM boundary tests when ABI behavior changed;
-- lint/type checks for changed application code.
-
-### Per PR
-
-- required repository CI gates;
-- broader integration only for affected surfaces;
-- benchmark evidence only when a hot path or scale contract changed.
-
-### Migration checkpoint / before declaring the sprint complete
-
-- full relevant test suite and coverage assurance;
-- broad architecture checks;
-- representative browser/WebXR smoke path;
-- deterministic benchmark tiers and memory/transfer evidence;
-- unresolved blocker review sweep.
-
-### Post-migration hardening
-
-- broad WASM `unsafe` audit;
-- Miri/fuzz/property campaigns not already required for a migration blocker;
-- kernel panic/recovery architecture beyond immediate containment needs;
-- collaboration and unrelated subsystem cleanup;
-- dependency/platform modernization not required by the migration.
-
-## PR sizing
-
-Prefer coherent vertical PRs over microscopic PRs. Target one migration slice or a meaningful sub-slice per PR, with multiple small commits where useful.
-
-Avoid one-line PR chains that repeatedly pay checkout, CI, review, rebase and merge overhead unless isolation is needed for a genuinely high-risk change.
-
-## Review handling
-
-Review comments are evidence, not commands.
-
-For every finding:
-
-1. verify it against the current head;
-2. classify it `BLOCKER`, `DEFER`, or `SUGGESTION`;
-3. fix blockers with the smallest change and focused regression evidence;
-4. record valid deferred work without expanding the PR;
-5. resolve obsolete/outdated/non-blocking threads once dispositioned so conversation-resolution rules do not turn suggestions into accidental merge gates.
+- **Per edit:** type/compiler check, directly affected tests, focused architecture invariant.
+- **Per coherent PR:** required CI, relevant Rust tests, JS/WASM boundary tests only where the ABI is involved.
+- **Migration checkpoint:** full relevant suite, architecture guards, deterministic scale/capacity evidence, browser/WebXR smoke, unresolved blocker review sweep.
+- **Post-migration hardening:** broader fuzz/Miri/property campaigns, kernel recovery hardening, collaboration cleanup, dependency/platform modernization, and other valid work not required for migration correctness.
 
 ## Migration exit criteria
 
-The sprint is complete when:
+The sprint is complete only when:
 
-- Draco contains no independent analytical/representation reasoning authority;
-- all required legacy Draco surfaces are explicit, thin Moneta compatibility adapters or removed;
-- Moneta consumes authoritative Rust/WASM evidence for every research-relevant fact;
+- Draco contains no independent analytical/representation reasoning authority and retained compatibility is one explicit facade;
+- every research-relevant fact consumed by production Moneta is Rust/WASM-derived or fails closed;
 - pre-kernel UI construction is explicitly non-analytical and cannot emit an authoritative representation decision;
 - no scale-sensitive or duplicated data-derived computation silently falls back to JavaScript;
-- scoring/ranking and representation selection have one semantic authority with executable invariants;
+- scoring/ranking and representation selection have one semantic authority;
 - uncalibrated utility is never surfaced as statistical confidence;
-- representation/model/NIL/discovery provenance survives Investigation and clean-room replay;
-- representative end-to-end migration tests and required CI are green;
-- large-dataset performance boundaries remain intact on current `main`;
-- all blocker-class review findings are resolved or shown obsolete.
+- representation/model/NIL/discovery provenance survives portable Investigation replay;
+- the representative authoritative end-to-end migration test is green;
+- current-main 10K-10M bounded-reasoning and Rust/WASM capacity evidence are green;
+- representative browser/WebXR smoke is green;
+- all blocker-class review findings are resolved or demonstrated obsolete.
 
-At that point, reopen private-preview, scientific-validation and hardening queues in the order defined by `docs/ROADMAP.md`.
+At that point the migration is complete, not merely feature-complete.

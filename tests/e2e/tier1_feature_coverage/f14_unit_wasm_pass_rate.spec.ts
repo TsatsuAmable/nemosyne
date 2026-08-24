@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Dataset } from '../../../src/data/Dataset.js';
-import { ConstraintEngine, TopologyTypes } from '../../../src/draco/ConstraintEngine.js';
+import { ConstraintEngine, TopologyTypes } from '../../../src/moneta/ConstraintEngine.js';
 import { disposeObject } from '../../../src/utils/Dispose.js';
 import { makeKernelMockBridge } from '../../helpers/kernelMock.ts';
 import { makeFactProvider } from '../../helpers/dracoFactsHelper.ts';

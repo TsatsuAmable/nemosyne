@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { VRTopologyTranslator } from '../../../src/draco/VRTopologyTranslator.ts';
-import { DracoTopologyNode } from '../../../src/draco/DracoTopologyNode.ts';
-import { ConstraintEngine } from '../../../src/draco/ConstraintEngine.ts';
+import { VRTopologyTranslator } from '../../../src/moneta/VRTopologyTranslator.ts';
+import { MonetaTopologyNode as DracoTopologyNode } from '../../../src/moneta/MonetaTopologyNode.ts';
+import { ConstraintEngine } from '../../../src/moneta/ConstraintEngine.ts';
 import { Dataset } from '../../../src/data/Dataset.ts';
 import { WorldEventBus } from '../../../src/utils/EventBus.ts';
 import { computeFacts, makeFactProvider } from '../../helpers/dracoFactsHelper.ts';

@@ -3,8 +3,8 @@ import type {
   SpectralFacts,
   RepresentationRequirements,
   RepresentationFamily,
-} from '../../src/draco/index.ts';
-import { createDefaultRequirements } from '../../src/draco/index.ts';
+} from '../../src/moneta/index.ts';
+import { createDefaultRequirements } from '../../src/moneta/index.ts';
 
 export interface SyntheticFixture {
   name: string;

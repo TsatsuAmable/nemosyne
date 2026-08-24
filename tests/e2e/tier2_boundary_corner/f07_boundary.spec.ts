@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { VRTopologyTranslator } from '../../../src/draco/VRTopologyTranslator.ts';
+import { VRTopologyTranslator } from '../../../src/moneta/VRTopologyTranslator.ts';
 import { Dataset } from '../../../src/data/Dataset.ts';
 
 describe('Tier 2 — Feature 7: Edge Draw Call Explosion (LineSegments Boundary Cases)', () => {

@@ -2,9 +2,9 @@
 
 > **Current implementation-status authority.** Product and research direction are governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This document records the current implementation state, critical-path work and planned post-migration programme. `docs/MONETA_MIGRATION_COMPLETION_SPRINT.md` is the executable exit ledger for the Draco to Moneta migration.
 
-## Status snapshot - 23 August 2026
+## Status snapshot - 24 August 2026
 
-**Current `main`: `c95a15d79e71f19dd9789c76ea744138072e739a` (#332).**
+**Current `main`: `d9aa6cfe46fffaaa9a36175954bd8a996da02d37` (#352).**
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
@@ -15,7 +15,7 @@ Nemosyne has moved from experimental architecture repair into migration-exit and
 5. Investigation state is reproducible and portable through `.nemosyne`, including analytical provenance, representation/model identity, discoveries and NIL outcomes.
 6. Learned Moneta remains explicit, pinned, reversible and opt-in. Infrastructure readiness is not evidence of empirical superiority.
 
-The immediate programme is no longer feature expansion. It is to prove the remaining migration exit conditions, remove obsolete compatibility, validate scale, then reopen the private-preview and productization backlog.
+The Draco-to-Moneta authority migration exit conditions are proven. A post-exit performance audit found that this does not yet establish practical 10M end-to-end performance: typed-column ingest, identity and borrowed scans work at 10M, but the compact Rust `DatasetStructureProfile` is unavailable for a columnar-only handle. The immediate blocker is therefore the **Rust/JS authoritative evidence boundary**, after which the critical path reopens at **P1 Minimal private preview**. Broader scientific validation, security/reliability hardening and VR/UI/UX outcome work remain active programmes.
 
 ## What has landed
 
@@ -39,7 +39,7 @@ Merged work through #249-#264 established:
 
 The #305-#312 migration wave established the Rust-owned columnar direction and removed the previous mirrored row-major authority model from the critical data path. The architecture now targets Rust-resident columnar storage with JS borrowing typed views or compact evidence rather than synchronising duplicate authoritative row stores.
 
-Evidence already collected during this wave includes approximately 255x faster 1M-row ingest and roughly 19x lower WASM memory growth versus the prior JSON-row path, with 10M-row resident operation demonstrated as practical in the benchmark work. These are strong directional results, but the formal migration-exit benchmark matrix still needs to be rerun against current `main`.
+Evidence collected during this wave includes approximately 255x faster 1M-row ingest and roughly 19x lower WASM memory growth versus the prior JSON-row path. The migration checkpoint reran the real Rust/WASM columnar capacity workflow against `0a9afb3`: 10M tall, 1M wide and 1M high-cardinality scenarios completed with checksum-stable reloads. The follow-up Rust/JS boundary envelope adds 10K/100K/1M/10M scaling, host-copy time, canonical fingerprint time and authoritative-evidence transfer. Its local Apple M1 Pro 10M checkpoint loaded the 320,000,000-byte logical core in 131.5 ms after a 114.4 ms cold host copy and scanned it in 109.2 ms, but canonical fingerprinting took 10.6 seconds and the columnar handle produced no DatasetStructureProfile. Hosted run [32701995846](https://github.com/TsatsuAmable/nemosyne/actions/runs/32701995846) independently returned `COLUMNAR_CAPACITY_ONLY` on Linux x64, with 203.6 ms Rust ingest, 118.3 ms scan and 13.0 s fingerprinting at 10M. Both are development baselines, not Meta Quest 3S proxies; physical-device browser profiling remains required. See `docs/RUST_JS_BOUNDARY_ENVELOPE.md`.
 
 Current scale invariants:
 
@@ -50,15 +50,19 @@ Current scale invariants:
 
 ### C. Moneta authority convergence
 
-The migration-completion wave materially changed the authority boundary:
+The migration-completion wave materially changed and then closed the authority boundary:
 
 - **#315:** data-derived layouts became Rust/WASM-authoritative and fail closed when the kernel layout result is unavailable.
 - **#316:** Draco production imports collapsed to Moneta; `src/draco/**` became compatibility-only and an architecture gate prevents production reintroduction.
 - **#317:** scoring ownership invariants lock bootstrap hard constraints ahead of learned ranking and prevent fallback on invalid learned provenance.
 - **#318:** metamorphic/provenance contracts cover row-order invariance, semantic column renaming, duplication/scale policy and exact operation provenance.
 - **#319:** ordinary layout tests moved off Draco compatibility and duplicate JS numerical layout assertions were reduced in favour of Rust authority tests.
+- **#333-#338:** reconciled the exit plan, collapsed legacy mirrors and duplicate scoring, made DatasetEvidence reconstruct analytical signatures, derived representation identity from Rust evidence and cut production Atlas/Moneta facts over to validated Rust structure profiles.
+- **#340:** removed utility-as-confidence terminology and reduced Draco to one documented compatibility facade.
+- **#341:** proved the authoritative Rust-evidence-to-clean-room-replay composition path.
+- **#342:** proved bounded Moneta work at 10K, 100K, 1M and 10M rows without JavaScript row rematerialisation.
 
-The remaining migration work is therefore proof and deletion, not creation of another solver or scoring layer.
+The final checkpoint adds successful current-main capacity characterization, production-browser WASM loading/rendering and presentation-only-to-authoritative lifecycle proof. No independent Draco solver, scorer, layout or analytical fact path remains.
 
 ### D. Test architecture and CI feedback latency
 
@@ -104,10 +108,10 @@ For the migration contract, representation/model/NIL/discovery provenance contin
 
 | Gate | Status | Current evidence | Remaining exit work |
 |---|---|---|---|
-| 0 - Authority reconciliation | **NEAR EXIT** | Draco is compatibility-only; production imports Moneta; Rust-owned layouts and boundary guards are live. | Delete obsolete Draco compatibility files and run the final authority inventory. |
-| 1 - Dataset Evidence | **ACTIVE / ADVANCED** | Typed DatasetEvidence, Rust-owned analytical facts and columnar data-plane work exist. | Audit every research-relevant Moneta input for Rust origin or explicit failure; complete compact-transfer and benchmark evidence. |
+| 0 - Authority reconciliation | **MIGRATION EXIT COMPLETE** | Draco is one compatibility facade; production imports Moneta; Rust-owned layouts, facts and boundary guards are live. | Maintain the architecture guards; remove the facade only through a separately governed compatibility decision. |
+| 1 - Dataset Evidence | **MIGRATION AUTHORITY COMPLETE / SCIENCE ACTIVE** | Production Moneta consumes validated Rust-owned DatasetEvidence; compact-transfer and current-main capacity evidence are recorded. | Continue measurement-semantics and scientific-evidence maturity work beyond the migration. |
 | 2 - Representation Language | **PARTIAL** | Representation contracts, candidate families, graph concepts and runtime embodiment exist. | Mature canonical RepresentationGraph/grammar before compositional search. |
-| 3 - Moneta correctness | **NEAR MIGRATION EXIT** | Hard constraints, bounded ranking, abstention, decision margin, sensitivity, learned pinning and metamorphic contracts are live. | Remove misleading downstream confidence terminology and run final end-to-end authority tests. |
+| 3 - Moneta correctness | **MIGRATION EXIT COMPLETE** | Hard constraints, bounded ranking, abstention, decision margin, sensitivity, learned pinning, metamorphic contracts and authoritative end-to-end replay are live. | Extend outcome validation and representation-language maturity without weakening the proven authority boundary. |
 | 4 - NIL | **MIGRATION PROVENANCE COMPLETE / PRODUCT PARTIAL** | Typed NIL provenance persists through session/package/replay. | Complete semantic modality parity, UX and investigator workflows. |
 | 5 - Discovery | **INFRASTRUCTURE ADVANCED / SCIENCE PARTIAL** | DiscoveryEpisode lifecycle, persistence and replay verification exist. | Add falsification workflows, outcome evidence and controlled discovery-quality studies. |
 | 6 - Human refinement | **IN PROGRESS** | Pairwise judgement plus exact candidate feature evidence exists. | Expand outcome events, curation policy and study coverage. |
@@ -123,25 +127,27 @@ For the migration contract, representation/model/NIL/discovery provenance contin
 - [x] Restrict Draco to compatibility aliases/re-exports.
 - [x] Eliminate production imports from `src/draco/**`.
 - [x] Complete production import/call-site inventory.
-- [ ] Classify every remaining Draco compatibility file as required public alias or obsolete.
-- [ ] Delete obsolete aliases/files with no live compatibility consumer.
-- [ ] Document the intentionally retained public compatibility surface and removal conditions.
-- [ ] Keep architecture tests preventing any independent Draco solver/scorer/layout authority.
+- [x] Classify every remaining Draco compatibility file as required public alias or obsolete.
+- [x] Delete obsolete aliases/files with no live compatibility consumer.
+- [x] Document the intentionally retained public compatibility surface and removal conditions.
+- [x] Keep architecture tests preventing any independent Draco solver/scorer/layout authority.
 
 **Exit:** `src/draco/**` contains only deliberately retained compatibility exports, with no hidden implementation authority.
 
 ### P0.2 - Scientific terminology and authority audit
 
-- [ ] Replace investigator-facing uses of uncalibrated `confidence` that actually mean model utility or ranking score.
-- [ ] Preserve compatibility fields only where required and mark them deprecated.
-- [ ] Distinguish utility score, decision margin, uncertainty evidence and genuinely calibrated confidence.
-- [ ] Audit every research-relevant fact entering Moneta and record its Rust/WASM evidence source.
-- [ ] Fail explicitly for unsupported fact types rather than reconstructing them heuristically in JS.
-- [ ] Confirm bootstrap and learned scoring/ranking semantics have a single production authority.
+- [x] Replace investigator-facing uses of uncalibrated `confidence` that actually mean model utility or ranking score.
+- [x] Preserve compatibility fields only where required and mark them deprecated.
+- [x] Distinguish utility score, decision margin, uncertainty evidence and genuinely calibrated confidence.
+- [x] Audit every research-relevant fact entering Moneta and record its Rust/WASM evidence source.
+- [x] Fail explicitly for unsupported fact types rather than reconstructing them heuristically in JS.
+- [x] Confirm bootstrap and learned scoring/ranking semantics have a single production authority.
 
 **Exit:** no UI or persisted scientific claim implies calibration that the model does not provide; no research fact has a shadow JS authority.
 
 ### P0.3 - Final end-to-end migration proof
+
+**Complete in #341 and the migration checkpoint.** The executable composition proof starts from a real Rust structure profile, derives DatasetEvidence and the Moneta decision, embodies the SpatialStrategy, persists discovery and Investigation state, exports `.nemosyne` and verifies clean-room replay. The checkpoint additionally proves that a presentation-only pre-kernel World is replaced by an authoritative decision after real WASM readiness.
 
 Create representative executable tests covering multiple topology/data families through:
 
@@ -165,6 +171,8 @@ Prove:
 - replay reconstructs the same canonical investigation identity.
 
 ### P0.4 - Large-dataset migration validation
+
+**Authority/capacity proof complete; practical 10M performance blocked.** #342 proves bounded Moneta candidate/sensitivity work when compact evidence exists, and the Rust/WASM capacity artifact proves resident typed-column operation at 10M. The live columnar handle cannot yet produce the authoritative DatasetStructureProfile needed to reach Moneta, so evidence latency/transfer and end-to-end 10M performance remain unproven. WebXR hardware profiling remains part of P1's supported-device matrix after this boundary is closed.
 
 Run deterministic tiers at **10K, 100K, 1M and 10M rows**, measuring:
 
@@ -190,11 +198,23 @@ Required invariants:
 
 After P0.1-P0.4:
 
-- [ ] reconcile `docs/MONETA_MIGRATION_COMPLETION_SPRINT.md` to evidence on `main`;
-- [ ] run full relevant CI, architecture gates and coverage assurance;
-- [ ] run representative browser/WebXR smoke;
-- [ ] sweep unresolved blocker-class review findings;
-- [ ] mark the migration complete only if every exit invariant is proven.
+- [x] reconcile `docs/MONETA_MIGRATION_COMPLETION_SPRINT.md` to evidence on `main`;
+- [x] run full relevant CI, architecture gates and coverage assurance;
+- [x] run representative production-browser/WebXR-entry smoke;
+- [x] sweep unresolved blocker-class review findings;
+- [x] mark the migration complete only if every exit invariant is proven.
+
+### Post-exit blocker - 10M Rust/JS evidence boundary
+
+- [x] Measure typed payload build, host copy, Rust ingest, borrowed scans, identity and WASM memory from 10K through 10M.
+- [x] Verify checksum/fingerprint-stable destroy and reload at 10M.
+- [x] Verify the current columnar evidence request fails closed with zero row materialisations.
+- [ ] Implement columnar-native Rust DatasetStructureProfile generation.
+- [ ] Measure 1M/10M evidence-generation latency and compact Rust-to-JS transfer bytes.
+- [ ] Add an evidence/fingerprint performance regression envelope based on repeated provisioned runs.
+- [ ] Run the browser envelope on a physical Meta Quest 3S, measuring frame time, memory pressure, thermal behaviour and reduction/LOD output; then extend to the remaining P1 hardware matrix.
+
+**Exit:** a 10M columnar handle reaches bounded Moneta reasoning through compact authoritative evidence without JavaScript row reconstruction, and its measured envelope is acceptable for the declared preview hardware.
 
 ## Parallel engineering track: test/runtime efficiency
 

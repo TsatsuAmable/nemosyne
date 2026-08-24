@@ -22,9 +22,18 @@ describe('Moneta migration authority exit guards', () => {
     expect(engine).not.toMatch(/class\s+ConstraintArbiter/);
   });
 
-  it('documents legacy SpatialStrategy confidence as utility compatibility only', () => {
+  it('does not expose representation utility as statistical confidence', () => {
     const strategy = source('src/moneta/SpatialStrategy.ts');
-    expect(strategy).toMatch(/@deprecated Compatibility alias for score/);
+    const engine = source('src/moneta/representation/MonetaHypothesisEngine.ts');
+    expect(strategy).toMatch(/Ranking utility from the active FitnessModel/);
     expect(strategy).toMatch(/not a calibrated probability/);
+    expect(strategy).not.toMatch(/\bconfidence\s*:/);
+    expect(engine).not.toMatch(/\bconfidence:\s*winner\.score/);
+  });
+
+  it('keeps Draco as one explicit compatibility facade instead of a shadow module tree', () => {
+    const dracoDir = path.resolve(root, 'src/draco');
+    expect(fs.readdirSync(dracoDir).sort()).toEqual(['index.ts']);
+    expect(source('src/draco/index.ts')).toMatch(/export \* from '\.\.\/moneta\/index\.ts'/);
   });
 });

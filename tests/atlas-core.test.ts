@@ -389,8 +389,8 @@ describe('AtlasCore', () => {
   });
 
   it('maps suggestedEmbodiment to Draco soft-constraint reweighting', async () => {
-    const { applyEmbodimentHint } = await import('../src/draco/EmbodimentHints.ts');
-    const { ConstraintEngine } = await import('../src/draco/ConstraintEngine.ts');
+    const { applyEmbodimentHint } = await import('../src/moneta/EmbodimentHints.ts');
+    const { ConstraintEngine } = await import('../src/moneta/ConstraintEngine.ts');
     const engine = new ConstraintEngine();
     const ruleNames = engine.softConstraints.map((s) => s.name);
     expect(ruleNames).toContain('prefer_orb_for_outliers');

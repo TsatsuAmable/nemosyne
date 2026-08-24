@@ -5,8 +5,8 @@ import { DataOperationController } from '../src/vr/coordinators/DataOperationCon
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
-import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
-import { VRTopologyTranslator } from '../src/draco/VRTopologyTranslator.ts';
+import { ConstraintEngine, TopologyTypes } from '../src/moneta/ConstraintEngine.ts';
+import { VRTopologyTranslator } from '../src/moneta/VRTopologyTranslator.ts';
 import { captureBaseState } from '../src/vr/interactions/DataOperations.ts';
 
 function makeArtifact() {

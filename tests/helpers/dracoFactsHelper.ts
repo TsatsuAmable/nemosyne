@@ -21,7 +21,7 @@ import type {
   FactProvider,
   NumericStats,
   TrendDirection,
-} from '../../src/draco/types.ts';
+} from '../../src/moneta/types.ts';
 
 function numericStats(values: number[]): NumericStats {
   const n = values.length;

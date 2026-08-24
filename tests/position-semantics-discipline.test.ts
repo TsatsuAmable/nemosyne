@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, it, expect } from 'vitest';
-import { PositionSemanticsEngine } from '../src/draco/PositionSemantics.ts';
+import { PositionSemanticsEngine } from '../src/moneta/PositionSemantics.ts';
 
 describe('Position Semantics Discipline & Disambiguation (Sprint 26.1)', () => {
   it('correctly classifies SEMANTIC spatial layouts (GeoSurface, Streamline, TimeRibbon)', () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { ConstraintEngine, TopologyTypes } from '../../../src/draco/ConstraintEngine.js';
-import { VRTopologyTranslator } from '../../../src/draco/VRTopologyTranslator.js';
+import { ConstraintEngine, TopologyTypes } from '../../../src/moneta/ConstraintEngine.js';
+import { VRTopologyTranslator } from '../../../src/moneta/VRTopologyTranslator.js';
 import { Dataset } from '../../../src/data/Dataset.js';
 import { makeFactProvider } from '../../helpers/dracoFactsHelper.ts';
 
