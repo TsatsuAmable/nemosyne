@@ -17,6 +17,7 @@ Canonical files:
 - [DEVELOPER_EXPLAINER.md](DEVELOPER_EXPLAINER.md) — developer onboarding and codebase mental model.
 - [ARCHITECTURE.md](ARCHITECTURE.md) — current modular subsystem reference; where it conflicts with V3, V3 governs until this reference is migrated.
 - [PRE_P1_SYSTEMATIC_AUDIT.md](PRE_P1_SYSTEMATIC_AUDIT.md) — current adversarial architecture, UX/VR, performance, resilience, security, maintainability, test, use-case and documentation audit.
+- [AI_XR_AGENT_HARNESS_SPEC.md](AI_XR_AGENT_HARNESS_SPEC.md) — proposed implementation specification for agent-operated WebXR verification and a consented, observer-first AI presence; subordinate to V3 and not implementation authorization by itself.
 - [MIGRATION.md](MIGRATION.md)
 - [STATISTICAL_METHOD_REGISTER.md](STATISTICAL_METHOD_REGISTER.md)
 - [GETTING_STARTED.md](GETTING_STARTED.md)
