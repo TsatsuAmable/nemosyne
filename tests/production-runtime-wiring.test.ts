@@ -5,6 +5,29 @@ import { Engine } from '../src/vr/Engine.ts';
 import { CollaborativeStateSync } from '../src/network/CollaborativeStateSync.ts';
 
 describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening Suite', () => {
+  it('rebuilds the presentation-only palace with an authoritative decision after kernel readiness', async () => {
+    const { World } = await import('../src/vr/World.ts');
+    const world = new World();
+    const presentationNode = world.dracoNode;
+
+    expect(world.atlas.isReady()).toBe(false);
+    expect(presentationNode.representationDecision).toBeNull();
+
+    try {
+      await world.start();
+
+      expect(world.bootState).toBe('READY');
+      expect(world.atlas.isReady()).toBe(true);
+      expect(world.dracoNode).not.toBe(presentationNode);
+      expect(world.dracoNode.representationDecision).not.toBeNull();
+      expect(world.dracoNode.representationDecision?.datasetFingerprint).toBe(
+        world.atlas.datasetFingerprint
+      );
+    } finally {
+      await world.dispose();
+    }
+  });
+
   it('wires SceneGraphController and WorkspaceManager onto World instance', async () => {
     // Dynamically import World to ensure full constructor execution
     const { World } = await import('../src/vr/World.ts');

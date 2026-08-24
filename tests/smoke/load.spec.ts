@@ -10,7 +10,6 @@ import { test, expect } from '@playwright/test';
  * three.js `render` path against a no-op mock, this test proves the *built app*
  * actually boots and renders a frame against a real GL implementation.
  *
- * Informational / non-required: this does not block the owner auto-merge flow.
  * See tests/smoke/README.md.
  */
 test('boots and renders a frame in real headless Chromium (WebGL2 via SwiftShader)', async ({
@@ -26,21 +25,22 @@ test('boots and renders a frame in real headless Chromium (WebGL2 via SwiftShade
   // real console.error is not buried, while the URL check still catches a
   // genuinely broken asset.
   const notFoundUrls: string[] = [];
+  const wasmResponses: Array<{ url: string; status: number }> = [];
   page.on('response', (response) => {
     if (response.status() === 404) notFoundUrls.push(response.url());
+    if (response.url().includes('/wasm/pkg/nemosyne_wasm')) {
+      wasmResponses.push({ url: response.url(), status: response.status() });
+    }
   });
 
-  // Application console.error gate. The expected WASM-unavailable path emits a
-  // console.error ('[World] analytical kernel unavailable:') when wasm is absent
-  // in the smoke bundle — browser-generated resource-404 text and expected kernel
-  // unavailable errors are dropped here (the underlying URLs are asserted in
-  // assertion 7); any remaining console.error is a regression.
+  // Application console.error gate. Browser-generated resource-404 text is
+  // checked through the response URL gate below; every application error,
+  // including kernel unavailability, is a regression in the production build.
   const consoleErrors: string[] = [];
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return;
     const text = msg.text();
     if (text.startsWith('Failed to load resource: the server responded with a status of')) return;
-    if (text.startsWith('[World] analytical kernel unavailable:')) return;
     consoleErrors.push(text);
   });
 
@@ -109,19 +109,27 @@ test('boots and renders a frame in real headless Chromium (WebGL2 via SwiftShade
   // (5) No uncaught exceptions during boot/render.
   expect(pageErrors, `uncaught page errors: ${pageErrors.join(' | ')}`).toEqual([]);
 
-  // (6) No application console.error. The WASM-unavailable state and
-  //     browser resource-404 text are filtered above and asserted by URL next.
+  // (6) No application console.error. Browser resource-404 text is filtered
+  //     above and asserted by URL next.
   expect(consoleErrors, `unexpected console.error: ${consoleErrors.join(' | ')}`).toEqual([]);
 
-  // (7) The only 404s are resources intentionally absent in the smoke env:
-  //       - /wasm/pkg/nemosyne_wasm.js — `npm run build` runs no wasm-pack, so
-  //         RuntimeBridge's HEAD probe 404s and the app enters KernelUnavailable state.
+  // (7) The only 404 is a resource intentionally absent in the smoke env:
   //       - /__remote-logs — RemoteDebugStreamer POSTs to a Vite dev-only
   //         middleware (remoteLogsPlugin uses configureServer, not preview),
   //         which is absent under `vite preview`.
   //     Any other 404 is a broken asset / real regression.
-  const expected404 = (url: string): boolean =>
-    url.endsWith('/wasm/pkg/nemosyne_wasm.js') || url.endsWith('/__remote-logs');
+  const expected404 = (url: string): boolean => url.endsWith('/__remote-logs');
   const unexpected404 = notFoundUrls.filter((url) => !expected404(url));
   expect(unexpected404, `unexpected 404 responses: ${unexpected404.join(' | ')}`).toEqual([]);
+
+  expect(
+    wasmResponses.some(
+      ({ url, status }) => url.endsWith('/wasm/pkg/nemosyne_wasm.js') && status === 200
+    )
+  ).toBe(true);
+  expect(
+    wasmResponses.some(
+      ({ url, status }) => url.endsWith('/wasm/pkg/nemosyne_wasm_bg.wasm') && status === 200
+    )
+  ).toBe(true);
 });
