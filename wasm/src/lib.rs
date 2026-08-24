@@ -805,16 +805,68 @@ pub fn data_compute_structure_profile(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let (profile_json, input_fp) = match data::with_dataset(handle, |ds| {
-        let profile = data::profile::compute_dataset_structure_profile(ds, &ds.fingerprint(), "0.1.0");
-        (profile, ds.fingerprint())
-    }) {
-        Some(v) => v,
-        None => return 0,
+    if let Some(json) = data::cached_structure_profile_json(handle) {
+        return write_str_out(&json, out_ptr, out_len);
+    }
+    let Some((snapshot_name, snapshot_columns, snapshot_columnar)) =
+        data::columnar_snapshot(handle)
+    else {
+        return 0;
+    };
+    let row_profile = data::with_dataset(handle, |ds| {
+        let fingerprint = ds.fingerprint();
+        let profile =
+            data::profile::compute_dataset_structure_profile(ds, &fingerprint, "0.1.0");
+        (profile, fingerprint)
+    });
+    let (profile_json, input_fp) = match row_profile {
+        Some(value) => value,
+        None => {
+            let input_fp = if let Some(fingerprint) = data::cached_fingerprint(handle) {
+                fingerprint
+            } else {
+                let fingerprint = match data::columnar_fingerprint::columnar_dataset_fingerprint(
+                    &snapshot_name,
+                    &snapshot_columns,
+                    snapshot_columnar.as_ref(),
+                ) {
+                    Ok(fingerprint) => fingerprint,
+                    Err(error) => {
+                        log_error(&format!(
+                            "data_compute_structure_profile fingerprint failed for handle {handle}: {error}"
+                        ));
+                        return 0;
+                    }
+                };
+                if !data::cache_fingerprint(handle, &snapshot_columnar, fingerprint.clone()) {
+                    return 0;
+                }
+                fingerprint
+            };
+            let profile = match data::profile::compute_columnar_dataset_structure_profile(
+                &snapshot_name,
+                &snapshot_columns,
+                snapshot_columnar.as_ref(),
+                &input_fp,
+                "0.1.0",
+            ) {
+                Ok(profile) => profile,
+                Err(error) => {
+                    log_error(&format!(
+                        "data_compute_structure_profile failed for handle {handle}: {error}"
+                    ));
+                    return 0;
+                }
+            };
+            (profile, input_fp)
+        }
     };
     let json = serde_json::to_string(&profile_json).unwrap_or_else(|_| "null".to_string());
     let output_fp = data::fingerprint::fnv1a_hex(&json);
     data::provenance::record("structure_profile", serde_json::Value::Null, &input_fp, &output_fp);
+    if !data::cache_structure_profile_json(handle, &snapshot_columnar, json.clone()) {
+        return 0;
+    }
     write_str_out(&json, out_ptr, out_len)
 }
 
@@ -1315,6 +1367,52 @@ mod tests {
         assert_eq!(dataset_column_count(handle), 7);
         dataset_destroy(handle);
         dealloc(ptr, len);
+    }
+
+    #[test]
+    fn columnar_structure_profile_abi_is_row_free() {
+        let columns = vec![
+            data::column::Column::new("x", data::column::ColumnType::Numeric),
+            data::column::Column::new("cohort", data::column::ColumnType::Categorical),
+        ];
+        let columnar = data::columnar::ColumnarDataset::from_parts(
+            4,
+            std::collections::HashMap::from([(
+                0,
+                data::columnar::PrimitiveColumn {
+                    values: vec![1.0, 2.0, 3.0, 4.0],
+                    validity: vec![1, 1, 1, 1],
+                },
+            )]),
+            std::collections::HashMap::from([(
+                1,
+                data::columnar::CategoricalColumn {
+                    dictionary: vec!["A".to_string(), "B".to_string()],
+                    codes: vec![0, 1, 0, 1],
+                    validity: vec![1, 1, 1, 1],
+                },
+            )]),
+        )
+        .expect("valid columnar dataset");
+        let handle = data::register_columnar_dataset("row-free".to_string(), columns, columnar);
+        let materialisations_before = data::row_materialisation_count();
+
+        let required = data_compute_structure_profile(handle, 0, 0);
+        assert!(required > 0);
+        assert!(data::cached_structure_profile_json(handle).is_some());
+        let out = alloc(required);
+        assert_eq!(data_compute_structure_profile(handle, out, required), required);
+        let profile: serde_json::Value = serde_json::from_slice(unsafe {
+            allocator::view(out, required)
+        })
+        .expect("profile JSON");
+
+        assert_eq!(profile["rowCount"], 4);
+        assert_eq!(profile["columnCount"], 2);
+        assert_eq!(profile["categorical"]["summaries"][0]["cardinality"], 2);
+        assert_eq!(data::row_materialisation_count(), materialisations_before);
+        dealloc(out, required);
+        dataset_destroy(handle);
     }
 
     #[test]

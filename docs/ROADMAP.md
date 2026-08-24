@@ -4,7 +4,9 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `d9aa6cfe46fffaaa9a36175954bd8a996da02d37` (#352).**
+**Current `main`: `8565ecde5587653a33e537c6b33e9cb8b5273b8d` (includes #353).**
+
+**Active implementation:** `fix/columnar-structure-profile-main`, restacked directly on current `main` after automated PR #354 landed in #353's already-closed source branch. The 24 August local gate is green: typecheck, lint, coverage (1,883 tests), release build, 162 Rust tests and Playwright smoke all passed. Hosted full-matrix run [32704932983](https://github.com/TsatsuAmable/nemosyne/actions/runs/32704932983) also passed. Next is bounded fingerprint/spectral evidence and physical Quest 3S qualification. The measured local blockers are 10.7-second cold fingerprinting, 3.2-second evidence generation and approximately 1.25 GB retained WASM memory at 10M; the hosted 10M reproduction measured 14.1 seconds, 4.0 seconds and the same retained memory respectively.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
@@ -15,7 +17,7 @@ Nemosyne has moved from experimental architecture repair into migration-exit and
 5. Investigation state is reproducible and portable through `.nemosyne`, including analytical provenance, representation/model identity, discoveries and NIL outcomes.
 6. Learned Moneta remains explicit, pinned, reversible and opt-in. Infrastructure readiness is not evidence of empirical superiority.
 
-The Draco-to-Moneta authority migration exit conditions are proven. A post-exit performance audit found that this does not yet establish practical 10M end-to-end performance: typed-column ingest, identity and borrowed scans work at 10M, but the compact Rust `DatasetStructureProfile` is unavailable for a columnar-only handle. The immediate blocker is therefore the **Rust/JS authoritative evidence boundary**, after which the critical path reopens at **P1 Minimal private preview**. Broader scientific validation, security/reliability hardening and VR/UI/UX outcome work remain active programmes.
+The Draco-to-Moneta authority migration exit conditions are proven. A post-exit performance audit found that this does not yet establish practical 10M end-to-end performance. Typed-column ingest, identity and borrowed scans work at 10M, and the follow-up columnar-native Rust `DatasetStructureProfile` now closes the row-free evidence-path discontinuity. The immediate blocker is therefore the **10M fingerprint/evidence memory-and-latency envelope**, followed by physical Meta Quest 3S browser qualification, after which the critical path reopens at **P1 Minimal private preview**. Broader scientific validation, security/reliability hardening and VR/UI/UX outcome work remain active programmes.
 
 ## What has landed
 
@@ -39,7 +41,7 @@ Merged work through #249-#264 established:
 
 The #305-#312 migration wave established the Rust-owned columnar direction and removed the previous mirrored row-major authority model from the critical data path. The architecture now targets Rust-resident columnar storage with JS borrowing typed views or compact evidence rather than synchronising duplicate authoritative row stores.
 
-Evidence collected during this wave includes approximately 255x faster 1M-row ingest and roughly 19x lower WASM memory growth versus the prior JSON-row path. The migration checkpoint reran the real Rust/WASM columnar capacity workflow against `0a9afb3`: 10M tall, 1M wide and 1M high-cardinality scenarios completed with checksum-stable reloads. The follow-up Rust/JS boundary envelope adds 10K/100K/1M/10M scaling, host-copy time, canonical fingerprint time and authoritative-evidence transfer. Its local Apple M1 Pro 10M checkpoint loaded the 320,000,000-byte logical core in 131.5 ms after a 114.4 ms cold host copy and scanned it in 109.2 ms, but canonical fingerprinting took 10.6 seconds and the columnar handle produced no DatasetStructureProfile. Hosted run [32701995846](https://github.com/TsatsuAmable/nemosyne/actions/runs/32701995846) independently returned `COLUMNAR_CAPACITY_ONLY` on Linux x64, with 203.6 ms Rust ingest, 118.3 ms scan and 13.0 s fingerprinting at 10M. Both are development baselines, not Meta Quest 3S proxies; physical-device browser profiling remains required. See `docs/RUST_JS_BOUNDARY_ENVELOPE.md`.
+Evidence collected during this wave includes approximately 255x faster 1M-row ingest and roughly 19x lower WASM memory growth versus the prior JSON-row path. The migration checkpoint reran the real Rust/WASM columnar capacity workflow against `0a9afb3`: 10M tall, 1M wide and 1M high-cardinality scenarios completed with checksum-stable reloads. The Rust/JS boundary envelope adds 10K/100K/1M/10M scaling, host-copy time, canonical fingerprint time and authoritative-evidence transfer. Initial local and hosted checkpoints returned `COLUMNAR_CAPACITY_ONLY`. The columnar-native follow-up now transfers a row-free 2,689-byte profile at 10M, but the local Apple M1 Pro baseline spends 10.7 seconds fingerprinting and 3.2 seconds generating evidence, with retained WASM memory reaching approximately 1.25 GB. This is not a Meta Quest 3S proxy; provisioned repetition and physical-device browser profiling remain required. See `docs/RUST_JS_BOUNDARY_ENVELOPE.md`.
 
 Current scale invariants:
 
@@ -172,7 +174,7 @@ Prove:
 
 ### P0.4 - Large-dataset migration validation
 
-**Authority/capacity proof complete; practical 10M performance blocked.** #342 proves bounded Moneta candidate/sensitivity work when compact evidence exists, and the Rust/WASM capacity artifact proves resident typed-column operation at 10M. The live columnar handle cannot yet produce the authoritative DatasetStructureProfile needed to reach Moneta, so evidence latency/transfer and end-to-end 10M performance remain unproven. WebXR hardware profiling remains part of P1's supported-device matrix after this boundary is closed.
+**Authority/evidence path complete; practical 10M performance blocked.** #342 proves bounded Moneta candidate/sensitivity work, the capacity artifact proves resident typed-column operation at 10M, and the columnar-native follow-up produces the compact authoritative DatasetStructureProfile without row reconstruction. The remaining blocker is the measured full-series fingerprint/evidence latency and approximately 1.25 GB retained WASM envelope, followed by WebXR profiling on the P1 hardware matrix.
 
 Run deterministic tiers at **10K, 100K, 1M and 10M rows**, measuring:
 
@@ -209,8 +211,10 @@ After P0.1-P0.4:
 - [x] Measure typed payload build, host copy, Rust ingest, borrowed scans, identity and WASM memory from 10K through 10M.
 - [x] Verify checksum/fingerprint-stable destroy and reload at 10M.
 - [x] Verify the current columnar evidence request fails closed with zero row materialisations.
-- [ ] Implement columnar-native Rust DatasetStructureProfile generation.
-- [ ] Measure 1M/10M evidence-generation latency and compact Rust-to-JS transfer bytes.
+- [x] Implement columnar-native Rust DatasetStructureProfile generation with row-backed parity and zero compatibility materialisations.
+- [x] Measure local 1M/10M evidence-generation latency and compact Rust-to-JS transfer bytes.
+- [ ] Bound full-series fingerprint/spectral evidence latency and the approximately 1.25 GB retained 10M WASM envelope before device qualification.
+- [x] Reproduce the available 10M evidence path on the provisioned hosted runner (run 32704932983).
 - [ ] Add an evidence/fingerprint performance regression envelope based on repeated provisioned runs.
 - [ ] Run the browser envelope on a physical Meta Quest 3S, measuring frame time, memory pressure, thermal behaviour and reduction/LOD output; then extend to the remaining P1 hardware matrix.
 
