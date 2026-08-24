@@ -1,22 +1,28 @@
+#[cfg(any(target_arch = "wasm32", test))]
 use std::collections::HashMap;
+#[cfg(any(target_arch = "wasm32", test))]
 use std::sync::{Mutex, OnceLock};
 use wasm_bindgen::prelude::*;
 
+#[cfg(any(target_arch = "wasm32", test))]
 struct HostBuffer {
     bytes: Box<[u8]>,
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
 impl HostBuffer {
     fn len(&self) -> usize {
         self.bytes.len()
     }
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
 #[derive(Default)]
 struct HostBufferRegistry {
     allocations: HashMap<u32, HostBuffer>,
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
 impl HostBufferRegistry {
     fn insert(&mut self, ptr: u32, buffer: HostBuffer) -> bool {
         if ptr == 0 || self.allocations.contains_key(&ptr) {
@@ -42,6 +48,7 @@ impl HostBufferRegistry {
     }
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
 fn host_buffer_registry() -> &'static Mutex<HostBufferRegistry> {
     static REGISTRY: OnceLock<Mutex<HostBufferRegistry>> = OnceLock::new();
     REGISTRY.get_or_init(|| Mutex::new(HostBufferRegistry::default()))
@@ -67,7 +74,11 @@ pub fn host_buffer_alloc(len: u32) -> u32 {
         .lock()
         .expect("host buffer registry lock")
         .insert(ptr, HostBuffer { bytes });
-    if inserted { ptr } else { 0 }
+    if inserted {
+        ptr
+    } else {
+        0
+    }
 }
 
 /// Release a buffer allocated by `host_buffer_alloc` only when both pointer and
@@ -121,7 +132,9 @@ pub fn prepare(handle: u32, column_index: u32) -> Option<(u32, u32, u32)> {
 /// Element count for a primitive column view, or 0 if the handle/index/type is unsupported.
 #[wasm_bindgen]
 pub fn dataset_primitive_column_len(handle: u32, column_index: u32) -> u32 {
-    prepare(handle, column_index).map(|(_, _, len)| len).unwrap_or(0)
+    prepare(handle, column_index)
+        .map(|(_, _, len)| len)
+        .unwrap_or(0)
 }
 
 /// Pointer to the Rust-owned f64 values buffer. Valid until the dataset handle is mutated or destroyed.
