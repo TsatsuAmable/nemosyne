@@ -32,18 +32,23 @@ describe('Quest telemetry analysis command', () => {
         cameraPosesIncluded: false,
       },
       visibility: { interruptionCount: 1 },
-      steps: [{
-        frameCadence: { p95Ms, p99Ms: p95Ms + 1, droppedPct: 2 },
-        memory: { jsHeapPeakBytes: 100, wasmPeakBytes: 200 },
-        sustainedPerformance: { classification: 'stable', p95DriftPercent: 3 },
-        representation: {
-          governorLodScaleMinimum: 0.8,
-          renderedFraction: 0.5,
-          governorThrottleEvents: 2,
+      steps: [
+        {
+          frameCadence: { p95Ms, p99Ms: p95Ms + 1, droppedPct: 2 },
+          memory: { jsHeapPeakBytes: 100, wasmPeakBytes: 200 },
+          sustainedPerformance: { classification: 'stable', p95DriftPercent: 3 },
+          representation: {
+            governorLodScaleMinimum: 0.8,
+            renderedFraction: 0.5,
+            governorThrottleEvents: 2,
+          },
         },
-      }],
+      ],
     });
-    writeFileSync(reportPath, `${JSON.stringify(makeReport(12))}\n${JSON.stringify(makeReport(14))}\n`);
+    writeFileSync(
+      reportPath,
+      `${JSON.stringify(makeReport(12))}\n${JSON.stringify(makeReport(14))}\n`
+    );
     const output = execFileSync(
       process.execPath,
       [resolve('scripts/analyze-quest-telemetry.mjs'), reportPath],
@@ -56,5 +61,71 @@ describe('Quest telemetry analysis command', () => {
     expect(group.worstFrameCadenceP95Ms).toBe(14);
     expect(group.maximumWasmPeakBytes).toBe(200);
     expect(group.totalGovernorThrottleEvents).toBe(4);
+  });
+
+  it('aggregates 10M Rust boundary evidence without issuing device qualification', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'nemosyne-quest-boundary-'));
+    directories.push(directory);
+    const reportPath = join(directory, 'boundary.json');
+    const report = {
+      version: '1',
+      profileName: 'quest-3s-rust-boundary-10m',
+      xrActive: true,
+      device: {
+        declaredDeviceTarget: 'META_QUEST_3S',
+        identityBasis: 'investigator-declared',
+        buildId: 'abc123',
+        declaredFirmwareVersion: 'test-fw',
+        userAgent: 'Quest Browser test',
+        xr: { nominalFrameRateHz: 72 },
+      },
+      visibility: { interruptionCount: 0 },
+      scenario: { rows: 10_000_000 },
+      outcome: { status: 'completed', failurePhase: null },
+      timings: {
+        payloadBuildMs: 100,
+        hostAllocationAndCopyMs: 200,
+        rustLoadMs: 300,
+        fingerprintMs: 400,
+        structureProfileMs: 500,
+        coldBorrowedScanMs: 600,
+        warmBorrowedScanMs: 550,
+      },
+      memory: {
+        jsHeapPeakBytes: 700,
+        wasmAfterLoadBytes: 800,
+        retainedWasmGrowthBytes: 900,
+      },
+      evidence: {
+        structureProfileRowCount: 10_000_000,
+        rowMaterialisations: 0,
+        checksumParity: true,
+      },
+      maximumFrameGapMs: 1000,
+      qualification: {
+        evidencePathAvailableAt10m: true,
+        deviceQualifiedAt10m: false,
+        promotionBlockedByAudits: true,
+      },
+      collection: {
+        rawFrameTraceIncluded: false,
+        datasetRowsIncluded: false,
+        cameraPosesIncluded: false,
+      },
+    };
+    writeFileSync(reportPath, JSON.stringify(report));
+    const output = execFileSync(
+      process.execPath,
+      [resolve('scripts/analyze-quest-telemetry.mjs'), reportPath],
+      { encoding: 'utf8' }
+    );
+    const result = JSON.parse(output);
+    expect(result.validBoundaryReportCount).toBe(1);
+    const group = Object.values(result.boundaryGroups)[0] as Record<string, unknown>;
+    expect(group.evidencePathAvailableRunCount).toBe(1);
+    expect(group.maximumFingerprintMs).toBe(400);
+    expect(group.maximumFrameGapMs).toBe(1000);
+    expect(group.deviceQualifiedAt10m).toBe(false);
+    expect(group.promotionBlockedByAudits).toBe(true);
   });
 });

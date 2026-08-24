@@ -74,6 +74,18 @@ describe('columnar DatasetStructureProfile real-WASM boundary', () => {
     const before = rowMaterialisationCount();
 
     try {
+      const fingerprintBytes = Number(bridge.call('data_typed_dataset_fingerprint', handle, 0, 0));
+      expect(fingerprintBytes).toBe(64);
+      const fingerprintPtr = Number(bridge.call('host_buffer_alloc', fingerprintBytes));
+      try {
+        const written = Number(
+          bridge.call('data_typed_dataset_fingerprint', handle, fingerprintPtr, fingerprintBytes)
+        );
+        expect(written).toBe(fingerprintBytes);
+        expect(bridge.readString(fingerprintPtr, written)).toMatch(/^[0-9a-f]{64}$/);
+      } finally {
+        bridge.call('host_buffer_dealloc', fingerprintPtr, fingerprintBytes);
+      }
       const profile = bridge.computeDatasetStructureProfile(handle);
       expect(profile).not.toBeNull();
       expect(profile?.rowCount).toBe(8);

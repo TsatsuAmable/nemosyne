@@ -84,24 +84,24 @@ The analytical-core-v3 follow-up keeps canonical SHA-256 identity exact while re
 
 The local Apple M1 Pro full matrix measured the following 10M tall result after those changes:
 
-| Metric | Result |
-| --- | ---: |
-| Canonical fingerprint | 3,383.4 ms |
-| Evidence generation | 834.3 ms |
-| Evidence write/decode | 0.30 ms |
-| Evidence transfer | 3,240 B |
-| Rows materialised | 0 |
+| Metric                      |        Result |
+| --------------------------- | ------------: |
+| Canonical fingerprint       |    3,383.4 ms |
+| Evidence generation         |      834.3 ms |
+| Evidence write/decode       |       0.30 ms |
+| Evidence transfer           |       3,240 B |
+| Rows materialised           |             0 |
 | Retained WASM after destroy | 640,221,184 B |
 
 A separate three-run 10M local envelope measured fingerprint median/max at 3,385.3/3,921.6 ms, evidence median/max at 839.1/1,734.3 ms and exactly 640,221,184 retained bytes in every run. The first evidence invocation includes process/WASM warm-up; the maximum remains part of the reported envelope. Fingerprint/checksum reload parity held in every run and no evidence request materialised rows.
 
 GitHub Actions run [32710537108](https://github.com/TsatsuAmable/nemosyne/actions/runs/32710537108) reproduced the full matrix and the three-run 10M envelope on Node 24.19.0, Linux x64, two logical AMD EPYC 7763 CPUs and approximately 8 GiB host memory:
 
-| Repeated 10M metric | Minimum | Median | Maximum / p95 | Coefficient of variation |
-| --- | ---: | ---: | ---: | ---: |
-| Canonical fingerprint | 4,275.4 ms | 4,298.6 ms | 5,198.7 ms | 0.094 |
-| Evidence generation | 1,234.6 ms | 1,247.4 ms | 2,221.1 ms | 0.295 |
-| Retained WASM after destroy | 640,221,184 B | 640,221,184 B | 640,221,184 B | 0 |
+| Repeated 10M metric         |       Minimum |        Median | Maximum / p95 | Coefficient of variation |
+| --------------------------- | ------------: | ------------: | ------------: | -----------------------: |
+| Canonical fingerprint       |    4,275.4 ms |    4,298.6 ms |    5,198.7 ms |                    0.094 |
+| Evidence generation         |    1,234.6 ms |    1,247.4 ms |    2,221.1 ms |                    0.295 |
+| Retained WASM after destroy | 640,221,184 B | 640,221,184 B | 640,221,184 B |                        0 |
 
 All three hosted runs retained fingerprint/checksum reload parity, transferred 3,240 bytes, materialised zero rows for evidence and returned `EVIDENCE_PATH_AVAILABLE_AT_10M` with `deviceQualifiedAt10m: false`.
 
@@ -117,6 +117,6 @@ The boundary is still **not device ready**:
 
 Nemosyne may claim demonstrated and provisioned-run-reproduced 10M **resident columnar capacity and a row-free authoritative evidence path**, plus a materially improved analytical-core-v3 envelope. It must not claim Quest 3S support. The next blocking work is to execute the browser benchmark on a physical Quest 3S while recording first-run latency, frame time, memory pressure, thermal behaviour and reduction/LOD output.
 
-The physical run is collected through the real WebXR load-test loop described in `docs/QUEST_3S_TELEMETRY.md`. It records temperature-unavailable sustained-performance proxies explicitly and cannot emit a qualification certificate from simulated measurements.
+The physical work is collected through two real WebXR paths described in `docs/QUEST_3S_TELEMETRY.md`: the render/LOD staircase and the separate row-free 10M typed-column boundary probe. The latter incrementally constructs the fixed synthetic payload, then records synchronous boundary latency, retained WASM memory and resulting XR frame gaps. Both paths record temperature-unavailable sustained-performance evidence explicitly and cannot emit a qualification certificate. Physical execution remains deferred until a Quest 3S is available, and P1 remains blocked by the project-owner-selected audits even after collection.
 
 The superseded `benchmark:data-boundary` 10M tier is not a substitute. It intentionally creates and rematerializes 10M JavaScript row objects to characterize the former compatibility boundary, which violates the current large-data hot-path invariant.
