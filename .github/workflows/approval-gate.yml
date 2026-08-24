@@ -8,8 +8,8 @@ on:
     types: [submitted, dismissed]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 jobs:
   approval-gate:
@@ -46,12 +46,3 @@ jobs:
             echo "::error::Blocked until the repository owner approves this PR."
             exit 1
           fi
-
-      - name: Enable auto-merge when approved
-        if: steps.gate.outputs.approved == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PR_NUMBER='${{ github.event.pull_request.number }}'
-          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash \
-            || echo "Auto-merge not enabled (fork, draft, or already merged)."

@@ -4,14 +4,16 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `24d3373` (includes #361). Active audit branch: `audit/pre-p1-systematic-review`.**
+**Current `main`: `205c81f` (includes #362). Active fix branch: `fix/ci-gate-enforcement`.**
 
-**Next checkpoint:** close the [pre-P1 systematic audit](PRE_P1_SYSTEMATIC_AUDIT.md). Dependency maintenance landed in #358, the physical-Quest-browser 10M boundary probe in #359, and VR asset constraints in #361. The audit restores the full required CI gate, hardens streaming package import, removes avoidable frame allocations, unifies production adaptive-assist UI state, centralizes test ownership and refreshes public documentation. Physical execution remains deferred until a Quest 3S is available; even a completed measurement remains `deviceQualifiedAt10m: false` until governed review.
+**Next checkpoint:** merge the CI-integrity follow-up discovered while closing the [pre-P1 systematic audit](PRE_P1_SYSTEMATIC_AUDIT.md). PR #362 landed the audit, but owner auto-approval merged it before its checks completed. The follow-up makes approval read-only and runs a repository-owned zero-finding CodeQL SARIF gate because GitHub code scanning is not enabled. Physical execution remains deferred until a Quest 3S is available; even a completed measurement remains `deviceQualifiedAt10m: false` until governed review.
 
-**Last local gate:** green on 24 August 2026 — typecheck; lint (0 errors, 170 recorded
-warnings); coverage (310 files, 1,903 tests); production build; 170 Rust tests; real Chromium
-prebuilt-bundle smoke; 8/8 hygiene dimensions; workflow YAML; active documentation links and
-desktop/mobile public-page inspection. Hosted CI and Pages publication remain pending.
+**Last gate:** the audit baseline is green on 24 August 2026 — typecheck; lint (0 errors, 170
+recorded warnings); coverage (310 files, 1,903 tests); production build; 170 Rust tests; real
+Chromium prebuilt-bundle smoke; 8/8 hygiene dimensions; workflow YAML; active documentation links
+and desktop/mobile public-page inspection. The #362 hosted core, Rust and Chromium jobs also passed
+after the premature merge. The follow-up's focused workflow regression (4 tests), typecheck, lint
+and YAML parse pass locally; its hosted gate and final Pages publication remain pending.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
 
