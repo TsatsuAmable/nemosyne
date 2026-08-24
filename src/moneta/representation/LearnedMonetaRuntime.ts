@@ -97,8 +97,6 @@ function buildSpatialStrategy(
     datumEncoding: { geometry, mappings: {}, behavior },
     interactionStrategy: { primaryInteraction: interaction, supportedGestures: [], detailLens },
     score: winner.score,
-    // Compatibility field retained by SpatialStrategy. This is utility, not calibrated confidence.
-    confidence: winner.score,
     rationale: `Selected ${winner.candidateId} from pinned learned FitnessModel ${modelVersion}.`,
     rejectionLog: candidates
       .filter((candidate) => candidate !== winner)

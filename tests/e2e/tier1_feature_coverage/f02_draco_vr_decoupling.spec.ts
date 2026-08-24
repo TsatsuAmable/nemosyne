@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { ConstraintEngine, TopologyTypes } from '../../../src/draco/ConstraintEngine.js';
-import { VRTopologyTranslator } from '../../../src/draco/VRTopologyTranslator.js';
-import { DracoTopologyNode } from '../../../src/draco/DracoTopologyNode.js';
+import { ConstraintEngine, TopologyTypes } from '../../../src/moneta/ConstraintEngine.js';
+import { VRTopologyTranslator } from '../../../src/moneta/VRTopologyTranslator.js';
+import { MonetaTopologyNode } from '../../../src/moneta/MonetaTopologyNode.js';
 import { Dataset } from '../../../src/data/Dataset.js';
 import { generateTabularCSV, generateGraphCSV } from '../harness/dataset_fixtures.js';
 import { makeKernelMockBridge } from '../../helpers/kernelMock.ts';
@@ -10,7 +10,7 @@ import { makeFactProvider } from '../../helpers/dracoFactsHelper.ts';
 
 // Wave 3: CSVDataParser is deleted. The CSV fixtures are parsed through the
 // kernel mock (canned CSV parser). Parse parity is covered by Rust #[test]s +
-// wasm-runtime.test.ts; these cases assert Draco/VR decoupling, not parsing.
+// wasm-runtime.test.ts; these cases assert Moneta/VR decoupling, not parsing.
 function datasetFromCsv(name: string, csv: string): Dataset {
   const bridge = makeKernelMockBridge();
   const json = bridge.parseDatasetBytes(new TextEncoder().encode(csv), 'csv');
@@ -19,7 +19,7 @@ function datasetFromCsv(name: string, csv: string): Dataset {
   return ds;
 }
 
-describe('Feature 2: Draco -> VR Upstream Imports Decoupling', () => {
+describe('Feature 2: Moneta -> VR Upstream Imports Decoupling', () => {
   it('F2-TC1: VRTopologyTranslator synthesizes valid artifact from solver result', () => {
     const csv = generateTabularCSV(10, 4);
     const ds = datasetFromCsv('TabularDS', csv);
@@ -33,22 +33,22 @@ describe('Feature 2: Draco -> VR Upstream Imports Decoupling', () => {
     expect(artifact.nodeMeshes.length).toBeGreaterThan(0);
   });
 
-  it('F2-TC2: DracoTopologyNode creates node in scene without direct UI coupling', () => {
+  it('F2-TC2: MonetaTopologyNode creates node in scene without direct UI coupling', () => {
     const scene = new THREE.Scene();
     const csv = generateGraphCSV(5);
     const ds = datasetFromCsv('GraphDS', csv);
-    const node = new DracoTopologyNode(scene, { dataset: ds, topology: TopologyTypes.GRAPH }, undefined, undefined, makeFactProvider());
+    const node = new MonetaTopologyNode(scene, { dataset: ds, topology: TopologyTypes.GRAPH }, undefined, undefined, makeFactProvider());
 
     expect(node.solverResult).toBeDefined();
     expect(node.artifact).toBeDefined();
     expect(scene.children.length).toBeGreaterThan(0);
   });
 
-  it('F2-TC3: DracoTopologyNode allows soft constraint weight adjustments and re-solves cleanly', () => {
+  it('F2-TC3: MonetaTopologyNode allows soft constraint weight adjustments and re-solves cleanly', () => {
     const scene = new THREE.Scene();
     const csv = generateTabularCSV(8, 3);
     const ds = datasetFromCsv('TabularDS2', csv);
-    const node = new DracoTopologyNode(scene, { dataset: ds, topology: TopologyTypes.TABULAR }, undefined, undefined, makeFactProvider());
+    const node = new MonetaTopologyNode(scene, { dataset: ds, topology: TopologyTypes.TABULAR }, undefined, undefined, makeFactProvider());
 
     node.adjustWeight('prefer_grid_for_tabular', 50);
 
@@ -66,11 +66,11 @@ describe('Feature 2: Draco -> VR Upstream Imports Decoupling', () => {
     expect(result.spec.geometry).toBeDefined();
   });
 
-  it('F2-TC5: DracoTopologyNode supports appending rows to artifacts', () => {
+  it('F2-TC5: MonetaTopologyNode supports appending rows to artifacts', () => {
     const scene = new THREE.Scene();
     const csv = generateTabularCSV(5, 3);
     const ds = datasetFromCsv('TabularDS3', csv);
-    const node = new DracoTopologyNode(scene, { dataset: ds, topology: TopologyTypes.TABULAR }, undefined, undefined, makeFactProvider());
+    const node = new MonetaTopologyNode(scene, { dataset: ds, topology: TopologyTypes.TABULAR }, undefined, undefined, makeFactProvider());
 
     const newRows = [{ dim_1: 10, dim_2: 20, dim_3: 30 }];
     const appended = node.appendRows(newRows);

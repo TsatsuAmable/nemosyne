@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import { PositionSemanticClassifier } from '../src/data/PositionSemanticClassifier.ts';
-import { EvidenceInformedRecommender } from '../src/draco/EvidenceInformedRecommender.ts';
+import { EvidenceInformedRecommender } from '../src/moneta/EvidenceInformedRecommender.ts';
 import { HardwareValidationMatrixRegistry } from '../src/types/HardwareValidationMatrix.ts';
 
 describe('Position Semantics, Evidence-Informed Draco & Hardware Matrix', () => {

@@ -6,7 +6,7 @@ import {
   RepresentationHypothesisEngine,
   type SpectralFacts,
   type DracoFacts,
-} from '../src/draco/index.ts';
+} from '../src/moneta/index.ts';
 
 describe('Phase 5: Spectral Analysis in Rust/WASM & AtlasCore', () => {
   const mockSpectralFacts: SpectralFacts = {

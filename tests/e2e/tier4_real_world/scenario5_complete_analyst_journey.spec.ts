@@ -3,8 +3,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { Dataset } from '../../../src/data/Dataset.ts';
-import { ConstraintEngine } from '../../../src/draco/ConstraintEngine.ts';
-import { VRTopologyTranslator } from '../../../src/draco/VRTopologyTranslator.ts';
+import { ConstraintEngine } from '../../../src/moneta/ConstraintEngine.ts';
+import { VRTopologyTranslator } from '../../../src/moneta/VRTopologyTranslator.ts';
 import { AtlasCore } from '../../../src/atlas/AtlasCore.ts';
 import { DataOperationController } from '../../../src/vr/coordinators/DataOperationController.ts';
 import { WorldEventBus, WorldTopics } from '../../../src/utils/EventBus.ts';

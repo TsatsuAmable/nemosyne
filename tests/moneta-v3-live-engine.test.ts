@@ -14,6 +14,9 @@ describe('Moneta V3 live hypothesis engine', () => {
 
     expect(decision.fitnessModelVersion).toBe('bootstrap-fitness-v1');
     expect(decision.provenance.fitnessModelVersion).toBe('bootstrap-fitness-v1');
+    expect(decision.embodiment.spatialStrategy.provenance.fitnessModelVersion).toBe(
+      'bootstrap-fitness-v1'
+    );
     expect(winner?.components.map((component) => component.component)).toContain('densityHandling');
     expect(winner?.components.map((component) => component.component)).toContain('configuredPrior');
     expect(winner?.components.map((component) => component.component)).not.toContain('empirical_prior');

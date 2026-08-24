@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, it, expect } from 'vitest';
-import { ConstraintEngine, TopologyTypes } from '../src/draco/ConstraintEngine.ts';
+import { ConstraintEngine, TopologyTypes } from '../src/moneta/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 
