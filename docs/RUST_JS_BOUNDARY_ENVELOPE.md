@@ -24,9 +24,10 @@ Run an isolated tier while developing:
 npm run benchmark:rust-js-boundary -- --scenario=tall10k --json
 npm run benchmark:rust-js-boundary -- --scenario=tall1m --json
 npm run benchmark:rust-js-boundary -- --scenario=tall10m --json
+npm run benchmark:rust-js-boundary -- --scenario=tall10m --repeat=3 --json
 ```
 
-The scheduled/manual `Rust JS Boundary Envelope` workflow runs the complete 10K-through-10M matrix and publishes the `rust-js-boundary-envelope` artifact.
+The scheduled/manual `Rust JS Boundary Envelope` workflow runs the complete 10K-through-10M matrix plus three 10M repetitions and publishes both reports in the `rust-js-boundary-envelope` artifact.
 
 ## Measured contract
 
@@ -77,16 +78,34 @@ The status is now `EVIDENCE_PATH_AVAILABLE_AT_10M`, with `deviceQualifiedAt10m: 
 
 GitHub Actions run [32704932983](https://github.com/TsatsuAmable/nemosyne/actions/runs/32704932983) reproduced the available evidence path across the complete matrix on Node 24.19.0, Linux x64, two logical Intel Xeon Platinum 8573C CPUs and approximately 8 GiB host memory. At 10M it copied the payload in 76.01 ms, loaded it in Rust in 187.51 ms, fingerprinted it in 14,060.8 ms and generated the profile in 4,014.4 ms. The write/decode step took 5.76 ms, transferred 2,689 bytes and materialised zero rows. Retained WASM memory after destroy was again 1,254,621,184 bytes. The hosted assessment is `EVIDENCE_PATH_AVAILABLE_AT_10M` with `deviceQualifiedAt10m: false`; it is reproducibility evidence, not a Quest 3S proxy.
 
+## Bounded evidence and streaming identity follow-up
+
+The in-progress analytical-core-v3 follow-up keeps canonical SHA-256 identity exact while removing avoidable per-cell lookup, encoding and small-hash-update overhead. Spectral evidence uses an explicitly reported full-series FFT through 65,536 observations and deterministic contiguous mean-pooling of the full observed sequence above that limit. Bootstrap cluster evidence uses all complete rows through 65,536 and a fixed-seed content-hash bottom-k sample of 65,536 complete rows above that limit; canonical sample ordering makes the estimator row-order invariant, and full-population min/max bounds remain authoritative. Both estimators report their method, support, reduction or sample ratio, parameters and limitations through the Rust profile and canonical DatasetEvidence provenance.
+
+The local Apple M1 Pro full matrix measured the following 10M tall result after those changes:
+
+| Metric | Result |
+| --- | ---: |
+| Canonical fingerprint | 3,383.4 ms |
+| Evidence generation | 834.3 ms |
+| Evidence write/decode | 0.30 ms |
+| Evidence transfer | 3,240 B |
+| Rows materialised | 0 |
+| Retained WASM after destroy | 640,221,184 B |
+
+A separate three-run 10M local envelope measured fingerprint median/max at 3,385.3/3,921.6 ms, evidence median/max at 839.1/1,734.3 ms and exactly 640,221,184 retained bytes in every run. The first evidence invocation includes process/WASM warm-up; the maximum remains part of the reported envelope. Fingerprint/checksum reload parity held in every run and no evidence request materialised rows.
+
+This improves the merged local baseline from approximately 10.7 seconds fingerprint, 3.2 seconds evidence and 1.25 GB retained WASM. It does not change the scientific identity contract, declare a universal latency threshold or qualify a headset.
+
 The boundary is still **not device ready**:
 
-- cold fingerprinting remains linear and takes approximately 10.7 seconds at 10M on the local development machine;
-- full-series evidence generation takes approximately 3.2 seconds at 10M;
-- full-series evidence work raises retained wasm32 linear memory to approximately 1.25 GB;
+- exact canonical fingerprinting remains linear in canonical content size;
+- the new repeated envelope has not yet been reproduced on the provisioned hosted runner;
 - the result has not run in Quest Browser on a physical Meta Quest 3S;
-- repeated provisioned runs are still required to define a regression envelope rather than a single-run threshold.
+- Quest Browser memory pressure, first-run latency, thermal behaviour and frame-time interaction remain unknown.
 
 ## Consequence
 
-Nemosyne may claim demonstrated 10M **resident columnar capacity and a row-free authoritative evidence path on the measured development machine**, but it must not claim practical 10M representation performance or Quest 3S support. The next blocking work is to bound or reduce full-series fingerprint/spectral evidence cost, establish repeated provisioned regression envelopes, and execute the browser benchmark on a physical Quest 3S while recording frame time, memory pressure, thermal behaviour and reduction/LOD output.
+Nemosyne may claim demonstrated 10M **resident columnar capacity and a row-free authoritative evidence path on the measured development machine**, plus a materially improved local analytical-core-v3 envelope. It must not claim Quest 3S support. The next blocking work is to reproduce the repeated regression envelope on the provisioned runner and execute the browser benchmark on a physical Quest 3S while recording first-run latency, frame time, memory pressure, thermal behaviour and reduction/LOD output.
 
 The superseded `benchmark:data-boundary` 10M tier is not a substitute. It intentionally creates and rematerializes 10M JavaScript row objects to characterize the former compatibility boundary, which violates the current large-data hot-path invariant.

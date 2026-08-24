@@ -79,7 +79,20 @@ describe('columnar DatasetStructureProfile real-WASM boundary', () => {
       expect(profile?.rowCount).toBe(8);
       expect(profile?.columnCount).toBe(3);
       expect(profile?.provenance).toMatchObject({
-        algorithmSuite: 'nemosyne-rust-analytical-core-v1',
+        algorithmSuite: 'nemosyne-rust-analytical-core-v3',
+      });
+      expect(profile?.clusters).toMatchObject({
+        method: 'full-complete-row-kmeans',
+        eligibleObservationCount: 8,
+        sampleCount: 8,
+        samplingSeed: null,
+        sourceObservationsPerSample: 1,
+      });
+      expect(profile?.spectral).toMatchObject({
+        method: 'full-series-fft',
+        observedCount: 8,
+        transformLength: 8,
+        sourceObservationsPerBin: 1,
       });
       expect(rowMaterialisationCount()).toBe(before);
     } finally {

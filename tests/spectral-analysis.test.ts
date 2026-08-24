@@ -17,6 +17,13 @@ describe('Phase 5: Spectral Analysis in Rust/WASM & AtlasCore', () => {
     characteristicScale: 16.0,
     hasPeriodicity: true,
     periodicityConfidence: 0.88,
+    method: 'full-series-fft',
+    observedCount: 64,
+    transformLength: 64,
+    sourceObservationsPerBin: 1,
+    frequencyResolution: 1 / 64,
+    maximumFrequency: 0.5,
+    windowFunction: 'hann',
   };
 
   it('returns null for computeSpectralFacts when kernel is not configured', () => {

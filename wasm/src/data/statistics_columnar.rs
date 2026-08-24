@@ -24,6 +24,8 @@ pub struct ColumnarNumericStats {
     pub skew: f64,
     pub kurtosis: f64,
     pub outlier_count: usize,
+    pub iqr: f64,
+    pub is_multimodal: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -65,6 +67,8 @@ pub fn numeric_stats(column: &PrimitiveColumn) -> ColumnarNumericStats {
             skew: 0.0,
             kurtosis: 0.0,
             outlier_count: 0,
+            iqr: 0.0,
+            is_multimodal: false,
         };
     }
 
@@ -72,13 +76,18 @@ pub fn numeric_stats(column: &PrimitiveColumn) -> ColumnarNumericStats {
     let sum: f64 = values.iter().sum();
     let mean = sum / count as f64;
     let median = median_of(&values);
-    let var = values.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / count as f64;
+    let var = values
+        .iter()
+        .map(|value| (value - mean).powi(2))
+        .sum::<f64>()
+        / count as f64;
     let std = var.sqrt();
     let min = values[0];
     let max = values[count - 1];
     let skew = statify::skewness(&values).unwrap_or(0.0);
     let kurtosis = statify::kurtosis(&values).unwrap_or(0.0);
     let outlier_count = outlier_count(&values, 1.5);
+    let (iqr, is_multimodal) = iqr_and_multimodality(&values);
 
     ColumnarNumericStats {
         count,
@@ -92,7 +101,45 @@ pub fn numeric_stats(column: &PrimitiveColumn) -> ColumnarNumericStats {
         skew,
         kurtosis,
         outlier_count,
+        iqr,
+        is_multimodal,
     }
+}
+
+fn iqr_and_multimodality(sorted: &[f64]) -> (f64, bool) {
+    let n = sorted.len();
+    if n < 4 {
+        return (0.0, false);
+    }
+    let q1_idx = (0.25 * (n - 1) as f64).round() as usize;
+    let q3_idx = (0.75 * (n - 1) as f64).round() as usize;
+    let iqr = (sorted[q3_idx] - sorted[q1_idx]).max(0.0);
+    let min = sorted[0];
+    let max = sorted[n - 1];
+    let range = max - min;
+    if range <= 1e-9 || n < 12 {
+        return (iqr, false);
+    }
+
+    let mut bins = [0usize; 8];
+    for value in sorted {
+        let bin =
+            ((((value - min) / range) * bins.len() as f64).floor() as usize).min(bins.len() - 1);
+        bins[bin] += 1;
+    }
+    let mut peaks = 0;
+    for index in 0..bins.len() {
+        let left = if index == 0 { 0 } else { bins[index - 1] };
+        let right = if index + 1 == bins.len() {
+            0
+        } else {
+            bins[index + 1]
+        };
+        if bins[index] > left && bins[index] > right && bins[index] >= n / 10 {
+            peaks += 1;
+        }
+    }
+    (iqr, peaks >= 2)
 }
 
 /// Pearson correlation over pairwise-complete finite rows.
@@ -108,31 +155,34 @@ pub fn pearson_pairwise(a: &PrimitiveColumn, b: &PrimitiveColumn) -> f64 {
         .min(b.values.len())
         .min(b.validity.len());
 
-    let mut a_vals = Vec::new();
-    let mut b_vals = Vec::new();
+    let mut n = 0usize;
+    let mut sum_a = 0.0;
+    let mut sum_b = 0.0;
     for index in 0..len {
         if a.validity[index] != 0 && b.validity[index] != 0 {
-            a_vals.push(a.values[index]);
-            b_vals.push(b.values[index]);
+            n += 1;
+            sum_a += a.values[index];
+            sum_b += b.values[index];
         }
     }
 
-    let n = a_vals.len();
     if n < 2 {
         return 0.0;
     }
 
-    let mean_a = a_vals.iter().sum::<f64>() / n as f64;
-    let mean_b = b_vals.iter().sum::<f64>() / n as f64;
+    let mean_a = sum_a / n as f64;
+    let mean_b = sum_b / n as f64;
     let mut covariance = 0.0;
     let mut variance_a = 0.0;
     let mut variance_b = 0.0;
-    for index in 0..n {
-        let da = a_vals[index] - mean_a;
-        let db = b_vals[index] - mean_b;
+    for index in 0..len {
+        if a.validity[index] != 0 && b.validity[index] != 0 {
+            let da = a.values[index] - mean_a;
+            let db = b.values[index] - mean_b;
         covariance += da * db;
         variance_a += da * da;
         variance_b += db * db;
+    }
     }
 
     let denominator = (variance_a * variance_b).sqrt();
@@ -210,43 +260,149 @@ pub fn temporal_stats_numeric(
         .min(values.values.len())
         .min(values.validity.len());
 
-    let mut keyed = Vec::new();
+    let mut observation_count = 0usize;
+    let mut value_sum = 0.0;
+    let mut value_min = f64::INFINITY;
+    let mut value_max = f64::NEG_INFINITY;
+    let mut previous_time: Option<f64> = None;
+    let mut is_time_ordered = true;
+    for index in 0..len {
+        if time.validity[index] != 0 && values.validity[index] != 0 {
+            let time_value = time.values[index];
+            let value = values.values[index];
+            if previous_time.is_some_and(|previous| {
+                previous
+                    .partial_cmp(&time_value)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    == std::cmp::Ordering::Greater
+            }) {
+                is_time_ordered = false;
+            }
+            previous_time = Some(time_value);
+            observation_count += 1;
+            value_sum += value;
+            value_min = value_min.min(value);
+            value_max = value_max.max(value);
+        }
+    }
+
+    if observation_count < 3 {
+        return ColumnarTemporalStats {
+            trend_direction: "flat".to_string(),
+            seasonality_hint: false,
+            normalized_slope: 0.0,
+            observation_count,
+        };
+    }
+
+    if is_time_ordered {
+        let values_in_time_order = || {
+            (0..len)
+                .filter(|index| time.validity[*index] != 0 && values.validity[*index] != 0)
+                .map(|index| values.values[index])
+        };
+        let y_mean = value_sum / observation_count as f64;
+        let x_mean = (observation_count - 1) as f64 / 2.0;
+        let mut numerator = 0.0;
+        let mut denominator = 0.0;
+        for (index, value) in values_in_time_order().enumerate() {
+            numerator += (index as f64 - x_mean) * (value - y_mean);
+            denominator += (index as f64 - x_mean).powi(2);
+        }
+
+        let lag = ((observation_count as f64) / 4.0).floor().max(1.0) as usize;
+        let mut covariance = 0.0;
+        let mut variance_a = 0.0;
+        let mut variance_b = 0.0;
+        for (a, b) in values_in_time_order()
+            .take(observation_count - lag)
+            .zip(values_in_time_order().skip(lag))
+        {
+            let a = a - y_mean;
+            let b = b - y_mean;
+            covariance += a * b;
+            variance_a += a * a;
+            variance_b += b * b;
+        }
+
+        return assemble_temporal_stats(
+            observation_count,
+            numerator,
+            denominator,
+            value_min,
+            value_max,
+            covariance,
+            variance_a,
+            variance_b,
+        );
+    }
+
+    let mut keyed = Vec::with_capacity(observation_count);
     for index in 0..len {
         if time.validity[index] != 0 && values.validity[index] != 0 {
             keyed.push((time.values[index], values.values[index]));
         }
     }
     keyed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-    let series: Vec<f64> = keyed.iter().map(|(_, value)| *value).collect();
-    let n = series.len();
-
-    if n < 3 {
-        return ColumnarTemporalStats {
-            trend_direction: "flat".to_string(),
-            seasonality_hint: false,
-            normalized_slope: 0.0,
-            observation_count: n,
-        };
-    }
-
+    let n = keyed.len();
     let x_mean = (n - 1) as f64 / 2.0;
-    let y_mean = series.iter().sum::<f64>() / n as f64;
+    let y_mean = keyed.iter().map(|(_, value)| value).sum::<f64>() / n as f64;
     let mut numerator = 0.0;
     let mut denominator = 0.0;
-    for (index, value) in series.iter().enumerate() {
+    for (index, (_, value)) in keyed.iter().enumerate() {
         numerator += (index as f64 - x_mean) * (value - y_mean);
         denominator += (index as f64 - x_mean).powi(2);
     }
+    let min = keyed
+        .iter()
+        .map(|(_, value)| *value)
+        .fold(f64::INFINITY, f64::min);
+    let max = keyed
+        .iter()
+        .map(|(_, value)| *value)
+        .fold(f64::NEG_INFINITY, f64::max);
+
+    let lag = ((n as f64) / 4.0).floor().max(1.0) as usize;
+    let mut covariance = 0.0;
+    let mut variance_a = 0.0;
+    let mut variance_b = 0.0;
+    for index in 0..(n - lag) {
+        let a = keyed[index].1 - y_mean;
+        let b = keyed[index + lag].1 - y_mean;
+        covariance += a * b;
+        variance_a += a * a;
+        variance_b += b * b;
+    }
+
+    assemble_temporal_stats(
+        n,
+        numerator,
+        denominator,
+        min,
+        max,
+        covariance,
+        variance_a,
+        variance_b,
+    )
+}
+
+fn assemble_temporal_stats(
+    observation_count: usize,
+    numerator: f64,
+    denominator: f64,
+    min: f64,
+    max: f64,
+    covariance: f64,
+    variance_a: f64,
+    variance_b: f64,
+) -> ColumnarTemporalStats {
     let slope = if denominator > 0.0 {
         numerator / denominator
     } else {
         0.0
     };
-    let min = series.iter().copied().fold(f64::INFINITY, f64::min);
-    let max = series.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     let range = max - min;
     let normalized_slope = if range > 0.0 { slope / range } else { 0.0 };
-
     let trend_direction = if normalized_slope > 0.01 {
         "up"
     } else if normalized_slope < -0.01 {
@@ -254,18 +410,6 @@ pub fn temporal_stats_numeric(
     } else {
         "flat"
     };
-
-    let lag = ((n as f64) / 4.0).floor().max(1.0) as usize;
-    let mut covariance = 0.0;
-    let mut variance_a = 0.0;
-    let mut variance_b = 0.0;
-    for index in 0..(n - lag) {
-        let a = series[index] - y_mean;
-        let b = series[index + lag] - y_mean;
-        covariance += a * b;
-        variance_a += a * a;
-        variance_b += b * b;
-    }
     let autocorrelation = if variance_a > 0.0 && variance_b > 0.0 {
         covariance / (variance_a * variance_b).sqrt()
     } else {
@@ -276,7 +420,7 @@ pub fn temporal_stats_numeric(
         trend_direction: trend_direction.to_string(),
         seasonality_hint: autocorrelation > 0.5,
         normalized_slope,
-        observation_count: n,
+        observation_count,
     }
 }
 
@@ -307,7 +451,10 @@ fn outlier_count(sorted: &[f64], iqr_multiplier: f64) -> usize {
         let iqr = q3 - q1;
         let lower = q1 - iqr_multiplier * iqr;
         let upper = q3 + iqr_multiplier * iqr;
-        return sorted.iter().filter(|value| **value < lower || **value > upper).count();
+        return sorted
+            .iter()
+            .filter(|value| **value < lower || **value > upper)
+            .count();
     }
 
     sorted
@@ -379,6 +526,21 @@ mod tests {
         assert_eq!(actual.skew, legacy.skew);
         assert_eq!(actual.kurtosis, legacy.kurtosis);
         assert_eq!(actual.outlier_count, legacy.outlier_count);
+    }
+
+    #[test]
+    fn numeric_distribution_shape_reuses_the_sorted_statistics_buffer() {
+        let mut values = vec![0.0; 20];
+        values.extend(vec![10.0; 20]);
+        let column = PrimitiveColumn {
+            validity: vec![1; values.len()],
+            values,
+        };
+
+        let actual = numeric_stats(&column);
+
+        assert_eq!(actual.iqr, 10.0);
+        assert!(actual.is_multimodal);
     }
 
     #[test]
@@ -478,5 +640,23 @@ mod tests {
         assert_eq!(actual.observation_count, 2);
         assert_eq!(actual.trend_direction, "flat");
         assert_eq!(actual.normalized_slope, 0.0);
+    }
+
+    #[test]
+    fn unordered_numeric_temporal_stats_retain_sorted_time_semantics() {
+        let time = PrimitiveColumn {
+            values: vec![40.0, 10.0, 30.0, 20.0, 50.0, 60.0],
+            validity: vec![1; 6],
+        };
+        let values = PrimitiveColumn {
+            values: vec![4.0, 1.0, 3.0, 2.0, 5.0, 6.0],
+            validity: vec![1; 6],
+        };
+
+        let actual = temporal_stats_numeric(&time, &values);
+
+        assert_eq!(actual.observation_count, 6);
+        assert_eq!(actual.trend_direction, "up");
+        assert!((actual.normalized_slope - 0.2).abs() < 1e-12);
     }
 }

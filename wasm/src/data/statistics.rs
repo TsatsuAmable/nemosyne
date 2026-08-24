@@ -33,6 +33,8 @@ pub struct ColumnStats {
     pub skew: f64,
     pub kurtosis: f64,
     pub outlier_count: usize,
+    pub iqr: f64,
+    pub is_multimodal: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -96,10 +98,7 @@ pub fn compute_statistics(dataset: &Dataset) -> Facts {
 /// Dataset/schema and columnar storage are one analytical generation. Any
 /// mismatch is therefore an invariant violation and must fail loudly rather
 /// than producing partial scientific evidence.
-pub fn compute_statistics_with_columnar(
-    dataset: &Dataset,
-    columnar: &ColumnarDataset,
-) -> Facts {
+pub fn compute_statistics_with_columnar(dataset: &Dataset, columnar: &ColumnarDataset) -> Facts {
     assert_eq!(
         dataset.row_count(),
         columnar.row_count(),
@@ -138,6 +137,8 @@ pub fn compute_statistics_with_columnar(
                 skew: stats.skew,
                 kurtosis: stats.kurtosis,
                 outlier_count: stats.outlier_count,
+                iqr: stats.iqr,
+                is_multimodal: stats.is_multimodal,
             }
         })
         .collect();
@@ -207,6 +208,8 @@ pub fn compute_statistics_from_columnar(
                 skew: stats.skew,
                 kurtosis: stats.kurtosis,
                 outlier_count: stats.outlier_count,
+                iqr: stats.iqr,
+                is_multimodal: stats.is_multimodal,
             }
         })
         .collect();
@@ -365,7 +368,11 @@ fn correlate_columnar(
 /// Trend direction + seasonality hint for a temporal column paired with a
 /// numeric value column. String-temporal handling remains row-materialized in
 /// this transitional phase; epoch/numeric temporal migration is next.
-fn temporal_stats(dataset: &Dataset, time_column: &str, value_column: Option<&str>) -> TemporalStats {
+fn temporal_stats(
+    dataset: &Dataset,
+    time_column: &str,
+    value_column: Option<&str>,
+) -> TemporalStats {
     let value_col = match value_column {
         Some(c) => c.to_string(),
         None => {
@@ -613,8 +620,11 @@ mod tests {
     fn skew_and_kurtosis_for_symmetric_data_are_near_zero() {
         let columns = vec![Column::new("x", ColumnType::Numeric)];
         let rows = vec![
-            row2("x", "1.0"), row2("x", "2.0"), row2("x", "3.0"),
-            row2("x", "4.0"), row2("x", "5.0"),
+            row2("x", "1.0"),
+            row2("x", "2.0"),
+            row2("x", "3.0"),
+            row2("x", "4.0"),
+            row2("x", "5.0"),
         ];
         let ds = Dataset::new("sym", columns, rows);
         let facts = compute_statistics(&ds);
@@ -627,8 +637,11 @@ mod tests {
     fn outlier_count_flags_extreme_value() {
         let columns = vec![Column::new("x", ColumnType::Numeric)];
         let rows = vec![
-            row2("x", "1.0"), row2("x", "2.0"), row2("x", "3.0"),
-            row2("x", "4.0"), row2("x", "100.0"),
+            row2("x", "1.0"),
+            row2("x", "2.0"),
+            row2("x", "3.0"),
+            row2("x", "4.0"),
+            row2("x", "100.0"),
         ];
         let ds = Dataset::new("out", columns, rows);
         let facts = compute_statistics(&ds);
@@ -652,7 +665,11 @@ mod tests {
             .collect();
         let ds = Dataset::new("ts", columns, rows);
         let facts = compute_statistics(&ds);
-        let t = facts.temporal_stats.iter().find(|s| s.column == "t").unwrap();
+        let t = facts
+            .temporal_stats
+            .iter()
+            .find(|s| s.column == "t")
+            .unwrap();
         assert_eq!(t.trend_direction, "up");
         assert!(t.normalized_slope > 0.0);
     }
@@ -690,9 +707,17 @@ mod tests {
 
         let compatibility = temporal_stats(&dataset, "t", Some("v"));
         let clean_compatibility = temporal_stats(&clean, "t", Some("v"));
-        assert_eq!(compatibility.trend_direction, clean_compatibility.trend_direction);
-        assert_eq!(compatibility.seasonality_hint, clean_compatibility.seasonality_hint);
-        assert!((compatibility.normalized_slope - clean_compatibility.normalized_slope).abs() < 1e-12);
+        assert_eq!(
+            compatibility.trend_direction,
+            clean_compatibility.trend_direction
+        );
+        assert_eq!(
+            compatibility.seasonality_hint,
+            clean_compatibility.seasonality_hint
+        );
+        assert!(
+            (compatibility.normalized_slope - clean_compatibility.normalized_slope).abs() < 1e-12
+        );
 
         let columnar = ColumnarDataset::from_dataset(&dataset);
         let columnar_stats = temporal_stats_numeric(
@@ -700,8 +725,14 @@ mod tests {
             columnar.primitive_column(1).expect("numeric primitive"),
         );
         assert_eq!(columnar_stats.observation_count, 4);
-        assert_eq!(compatibility.trend_direction, columnar_stats.trend_direction);
-        assert_eq!(compatibility.seasonality_hint, columnar_stats.seasonality_hint);
+        assert_eq!(
+            compatibility.trend_direction,
+            columnar_stats.trend_direction
+        );
+        assert_eq!(
+            compatibility.seasonality_hint,
+            columnar_stats.seasonality_hint
+        );
         assert!((compatibility.normalized_slope - columnar_stats.normalized_slope).abs() < 1e-12);
     }
 
@@ -710,7 +741,8 @@ mod tests {
         let dataset = stats_dataset();
         let columnar = ColumnarDataset::from_dataset(&dataset);
         let compatibility = serde_json::to_value(compute_statistics(&dataset)).unwrap();
-        let direct = serde_json::to_value(compute_statistics_with_columnar(&dataset, &columnar)).unwrap();
+        let direct =
+            serde_json::to_value(compute_statistics_with_columnar(&dataset, &columnar)).unwrap();
         assert_eq!(compatibility, direct);
     }
 
@@ -738,7 +770,10 @@ mod tests {
         let incompatible = Dataset::new(
             "categorical-sidecar",
             vec![Column::new("x", ColumnType::Categorical)],
-            vec![HashMap::from([("x".to_string(), Value::Text("1".to_string()))])],
+            vec![HashMap::from([(
+                "x".to_string(),
+                Value::Text("1".to_string()),
+            )])],
         );
         let columnar = ColumnarDataset::from_dataset(&incompatible);
         let _ = compute_statistics_with_columnar(&dataset, &columnar);
@@ -771,10 +806,7 @@ mod tests {
     }
 
     fn temporal_row(t: Value, v: f64) -> HashMap<String, Value> {
-        HashMap::from([
-            ("t".to_string(), t),
-            ("v".to_string(), Value::Number(v)),
-        ])
+        HashMap::from([("t".to_string(), t), ("v".to_string(), Value::Number(v))])
     }
 
     fn row2(k: &str, v: &str) -> HashMap<String, Value> {

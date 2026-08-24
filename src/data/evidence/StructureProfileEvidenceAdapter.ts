@@ -11,12 +11,12 @@ import type { RustDatasetStructureProfile } from './RustStructureProfile.ts';
 
 /**
  * Provenance limitation carried forward from the current Rust structure-profile
- * ABI. The kernel exposes one suite-level provenance record today, not a full
- * per-statistic parameter manifest. We state that limitation instead of
- * manufacturing false precision at the TypeScript boundary.
+ * ABI. The kernel exposes suite-level provenance plus explicit manifests for
+ * bounded clustering and spectral estimators, not yet every statistic. We
+ * state that limitation instead of manufacturing false precision here.
  */
 const PROFILE_PROVENANCE_LIMITATION =
-  'Rust DatasetStructureProfile currently exposes suite-level provenance; per-statistic parameter manifests will be added at the kernel ABI.';
+  'Rust DatasetStructureProfile exposes suite-level provenance by default; bounded spectral and clustering estimators additionally expose parameter manifests at the kernel ABI.';
 
 const HEURISTIC_TERMINOLOGY_LIMITATION =
   'Some DatasetStructureProfile values are bootstrap heuristics. Canonical DatasetEvidence uses heuristic terminology and does not interpret them as statistical confidence or significance.';
@@ -24,17 +24,24 @@ const HEURISTIC_TERMINOLOGY_LIMITATION =
 function provenance(
   profile: RustDatasetStructureProfile,
   method: string,
+  parameters: Readonly<Record<string, JsonValue>> = {},
+  samplingPolicy = 'full-dataset except kernel-bounded internal approximations',
+  methodLimitations: readonly string[] = []
 ): AnalyticalMethodProvenance {
   return {
     method,
     methodVersion: profile.provenance.algorithmSuite,
     kernelVersion: profile.provenance.kernelVersion,
-    parameters: {},
+    parameters,
     deterministic: true,
     normalization: 'kernel-defined; see DatasetStructureProfile algorithm suite',
     missingDataPolicy: 'kernel-defined; reported separately by missingness profile',
-    samplingPolicy: 'full-dataset except kernel-bounded internal approximations',
-    limitations: [PROFILE_PROVENANCE_LIMITATION, HEURISTIC_TERMINOLOGY_LIMITATION],
+    samplingPolicy,
+    limitations: [
+      PROFILE_PROVENANCE_LIMITATION,
+      HEURISTIC_TERMINOLOGY_LIMITATION,
+      ...methodLimitations,
+    ],
   };
 }
 
@@ -45,13 +52,16 @@ function item(
   name: string,
   value: JsonValue,
   method: string,
+  parameters: Readonly<Record<string, JsonValue>> = {},
+  samplingPolicy = 'full-dataset except kernel-bounded internal approximations',
+  methodLimitations: readonly string[] = []
 ): AnalyticalEvidence {
   return {
     id,
     category,
     name,
     value,
-    provenance: provenance(profile, method),
+    provenance: provenance(profile, method, parameters, samplingPolicy, methodLimitations),
     uncertainty: { kind: 'none' },
   };
 }
@@ -66,7 +76,7 @@ function item(
  * to epistemically narrower names at this canonical evidence boundary.
  */
 export function structureProfileToDatasetEvidence(
-  profile: RustDatasetStructureProfile,
+  profile: RustDatasetStructureProfile
 ): DatasetEvidence {
   const evidence: AnalyticalEvidence[] = [
     item(
@@ -75,7 +85,7 @@ export function structureProfileToDatasetEvidence(
       'cardinality',
       'dataset-cardinality',
       { rowCount: profile.rowCount, columnCount: profile.columnCount },
-      'structure-profile/cardinality',
+      'structure-profile/cardinality'
     ),
     item(
       profile,
@@ -91,7 +101,7 @@ export function structureProfileToDatasetEvidence(
         redundantColumns: profile.dimensionality.redundantColumns,
         effectiveDimensions: profile.dimensionality.effectiveDimensions,
       },
-      'structure-profile/dimensionality',
+      'structure-profile/dimensionality'
     ),
     item(
       profile,
@@ -118,7 +128,7 @@ export function structureProfileToDatasetEvidence(
         globalHighVariance: profile.distributions.globalHighVariance,
         maxSkewness: profile.distributions.maxSkewness,
       },
-      'structure-profile/distributions',
+      'structure-profile/distributions'
     ),
     item(
       profile,
@@ -131,7 +141,7 @@ export function structureProfileToDatasetEvidence(
         heuristicModeCount: profile.density.modeCount,
         isSparse: profile.density.isSparse,
       },
-      'structure-profile/density',
+      'structure-profile/density'
     ),
     item(
       profile,
@@ -144,8 +154,34 @@ export function structureProfileToDatasetEvidence(
         heuristicSeparationScore: profile.clusters.separationScore,
         heuristicDensityVariation: profile.clusters.densityVariation,
         legacySilhouetteDerivedScore: profile.clusters.stabilityConfidence,
+        method: profile.clusters.method,
+        eligibleObservationCount: profile.clusters.eligibleObservationCount,
+        sampleCount: profile.clusters.sampleCount,
+        samplingSeed: profile.clusters.samplingSeed,
+        sourceObservationsPerSample: profile.clusters.sourceObservationsPerSample,
+        normalization: profile.clusters.normalization,
+        maximumCandidateClusters: profile.clusters.maximumCandidateClusters,
+        iterations: profile.clusters.iterations,
+        silhouetteSampleCount: profile.clusters.silhouetteSampleCount,
       },
       'structure-profile/clusters',
+      {
+        estimator: profile.clusters.method,
+        eligibleObservationCount: profile.clusters.eligibleObservationCount,
+        sampleCount: profile.clusters.sampleCount,
+        samplingSeed: profile.clusters.samplingSeed,
+        sourceObservationsPerSample: profile.clusters.sourceObservationsPerSample,
+        normalization: profile.clusters.normalization,
+        maximumCandidateClusters: profile.clusters.maximumCandidateClusters,
+        iterations: profile.clusters.iterations,
+        silhouetteSampleCount: profile.clusters.silhouetteSampleCount,
+      },
+      profile.clusters.sourceObservationsPerSample <= 1
+        ? 'full complete-row population'
+        : 'fixed-seed content-hash bottom-k sample of complete rows; full population used for normalization bounds',
+      [
+        'Cluster count and separation are bootstrap k-means heuristics over candidate k=2..3; bounded runs inherit fixed-seed bottom-k sampling error.',
+      ]
     ),
     item(
       profile,
@@ -158,7 +194,7 @@ export function structureProfileToDatasetEvidence(
         heuristicAnomalyDetected: profile.anomalies.hasAnomalies,
         maxAnomalyScore: profile.anomalies.maxAnomalyScore,
       },
-      'structure-profile/anomalies',
+      'structure-profile/anomalies'
     ),
     item(
       profile,
@@ -176,7 +212,7 @@ export function structureProfileToDatasetEvidence(
         strongCorrelationPairCount: profile.correlations.significantPairsCount,
         heuristicRankDeficiency: profile.correlations.isRankDeficient,
       },
-      'structure-profile/correlations',
+      'structure-profile/correlations'
     ),
     item(
       profile,
@@ -198,7 +234,7 @@ export function structureProfileToDatasetEvidence(
         meanEntropy: profile.categorical.meanEntropy,
         hasHighCardinality: profile.categorical.hasHighCardinality,
       },
-      'structure-profile/categorical',
+      'structure-profile/categorical'
     ),
     item(
       profile,
@@ -211,7 +247,7 @@ export function structureProfileToDatasetEvidence(
         hasMissingness: profile.missingness.hasMissingness,
         columnMissingness: profile.missingness.columnMissingness,
       },
-      'structure-profile/missingness',
+      'structure-profile/missingness'
     ),
   ];
 
@@ -234,8 +270,8 @@ export function structureProfileToDatasetEvidence(
             heuristicScore: periodicity.confidence,
           })),
         },
-        'structure-profile/temporal',
-      ),
+        'structure-profile/temporal'
+      )
     );
   }
 
@@ -252,9 +288,31 @@ export function structureProfileToDatasetEvidence(
           powerSpectrumPeak: profile.spectral.powerSpectrumPeak,
           heuristicPeriodicityDetected: profile.spectral.hasPeriodicity,
           periodicityHeuristicScore: profile.spectral.periodicityConfidence,
+          method: profile.spectral.method,
+          observedCount: profile.spectral.observedCount,
+          transformLength: profile.spectral.transformLength,
+          sourceObservationsPerBin: profile.spectral.sourceObservationsPerBin,
+          frequencyResolution: profile.spectral.frequencyResolution,
+          maximumFrequency: profile.spectral.maximumFrequency,
+          windowFunction: profile.spectral.windowFunction,
         },
         'structure-profile/spectral',
-      ),
+        {
+          estimator: profile.spectral.method,
+          observedCount: profile.spectral.observedCount,
+          transformLength: profile.spectral.transformLength,
+          sourceObservationsPerBin: profile.spectral.sourceObservationsPerBin,
+          frequencyResolution: profile.spectral.frequencyResolution,
+          maximumFrequency: profile.spectral.maximumFrequency,
+          windowFunction: profile.spectral.windowFunction,
+        },
+        profile.spectral.sourceObservationsPerBin === 1
+          ? 'full observed sequence; one exact FFT'
+          : 'full observed sequence; deterministic contiguous mean-pooling before bounded FFT',
+        [
+          'Mean pooling preserves full-sequence coverage but suppresses frequencies above the reported maximumFrequency.',
+        ]
+      )
     );
   }
 
@@ -272,8 +330,8 @@ export function structureProfileToDatasetEvidence(
           hasCycles: profile.graph.hasCycles,
           isConnected: profile.graph.isConnected,
         },
-        'structure-profile/graph',
-      ),
+        'structure-profile/graph'
+      )
     );
   }
 
@@ -289,8 +347,8 @@ export function structureProfileToDatasetEvidence(
           depth: profile.hierarchy.depth,
           branchingFactor: profile.hierarchy.branchingFactor,
         },
-        'structure-profile/hierarchy',
-      ),
+        'structure-profile/hierarchy'
+      )
     );
   }
 
@@ -307,8 +365,8 @@ export function structureProfileToDatasetEvidence(
           latColumn: profile.spatial.latColumn,
           lonColumn: profile.spatial.lonColumn,
         },
-        'structure-profile/spatial',
-      ),
+        'structure-profile/spatial'
+      )
     );
   }
 

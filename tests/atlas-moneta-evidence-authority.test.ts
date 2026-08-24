@@ -38,6 +38,15 @@ function profile(): RustDatasetStructureProfile {
       separationScore: 0.8,
       densityVariation: 0.61,
       stabilityConfidence: 0.72,
+      method: 'full-complete-row-kmeans',
+      eligibleObservationCount: 128,
+      sampleCount: 128,
+      samplingSeed: null,
+      sourceObservationsPerSample: 1,
+      normalization: 'per-dimension-min-max-over-all-complete-rows',
+      maximumCandidateClusters: 3,
+      iterations: 5,
+      silhouetteSampleCount: 50,
     },
     density: {
       globalDensity: 0.4,
@@ -138,7 +147,7 @@ describe('Atlas → Moneta evidence authority boundary', () => {
         computeDatasetStructureProfile: () => profile(),
         datasetFingerprint: () => 'sha256:authority-fixture',
       },
-      7,
+      7
     );
 
     expect(evidence.datasetFingerprint).toBe('sha256:authority-fixture');
@@ -153,24 +162,18 @@ describe('Atlas → Moneta evidence authority boundary', () => {
           computeDatasetStructureProfile: () => profile(),
           datasetFingerprint: () => 'sha256:different-live-handle',
         },
-        7,
-      ),
+        7
+      )
     ).toThrow(/fingerprint drift/i);
   });
 
   it('rejects invalid or unavailable Rust dataset handles', () => {
     expect(() =>
-      datasetEvidenceFromKernelProfile(
-        { computeDatasetStructureProfile: () => profile() },
-        0,
-      ),
+      datasetEvidenceFromKernelProfile({ computeDatasetStructureProfile: () => profile() }, 0)
     ).toThrow(/valid Rust dataset handle/i);
 
     expect(() =>
-      datasetEvidenceFromKernelProfile(
-        { computeDatasetStructureProfile: () => null },
-        7,
-      ),
+      datasetEvidenceFromKernelProfile({ computeDatasetStructureProfile: () => null }, 7)
     ).toThrow(/structureprofile unavailable/i);
   });
 
@@ -180,7 +183,7 @@ describe('Atlas → Moneta evidence authority boundary', () => {
         computeDatasetStructureProfile: () => profile(),
         datasetFingerprint: () => 'sha256:authority-fixture',
       },
-      7,
+      7
     );
     const state = new RepresentationState();
 

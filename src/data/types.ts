@@ -51,7 +51,8 @@ export interface OperationSpec {
  * JSON value shared across the analytical ABI. Mirrors the Rust `Value` /
  * `serde_json::Value` the kernel accepts in predicate leaves.
  */
-export type JSONValue = null | boolean | number | string | JSONValue[] | { [key: string]: JSONValue };
+export type JSONValue =
+  null | boolean | number | string | JSONValue[] | { [key: string]: JSONValue };
 
 // ---------------------------------------------------------------------------
 // Filter predicate DSL (serialisable, reproducible — no opaque closures)
@@ -236,4 +237,11 @@ export interface SpectralFacts {
   characteristicScale: number;
   hasPeriodicity: boolean;
   periodicityConfidence: number;
+  method: string;
+  observedCount: number;
+  transformLength: number;
+  sourceObservationsPerBin: number;
+  frequencyResolution: number;
+  maximumFrequency: number;
+  windowFunction: string;
 }

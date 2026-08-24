@@ -58,6 +58,15 @@ export interface RustClusterProfile {
   separationScore: number;
   densityVariation: number;
   stabilityConfidence: number;
+  method: string;
+  eligibleObservationCount: number;
+  sampleCount: number;
+  samplingSeed: number | null;
+  sourceObservationsPerSample: number;
+  normalization: string;
+  maximumCandidateClusters: number;
+  iterations: number;
+  silhouetteSampleCount: number;
 }
 
 export interface RustDensityProfile {
@@ -143,6 +152,13 @@ export interface RustSpectralProfile {
   powerSpectrumPeak: number;
   hasPeriodicity: boolean;
   periodicityConfidence: number;
+  method: string;
+  observedCount: number;
+  transformLength: number;
+  sourceObservationsPerBin: number;
+  frequencyResolution: number;
+  maximumFrequency: number;
+  windowFunction: string;
 }
 
 export interface RustAnalysisProvenance {

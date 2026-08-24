@@ -31,7 +31,9 @@ jobs:
       - name: Characterize the 10K through 10M Rust JS boundary
         run: |
           node --expose-gc scripts/benchmark-columnar-capacity.mjs --json > rust-js-boundary.json
+          node --expose-gc scripts/benchmark-columnar-capacity.mjs --scenario=tall10m --repeat=3 --json > rust-js-boundary-repeat-10m.json
           cat rust-js-boundary.json
+          cat rust-js-boundary-repeat-10m.json
       - name: Publish summary
         if: always()
         run: |
@@ -43,10 +45,20 @@ jobs:
           else
             echo 'Boundary benchmark did not produce an artifact.' >> "$GITHUB_STEP_SUMMARY"
           fi
+          if [ -f rust-js-boundary-repeat-10m.json ]; then
+            echo '### Repeated 10M envelope' >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat rust-js-boundary-repeat-10m.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Repeated 10M benchmark did not produce an artifact.' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: rust-js-boundary-envelope
-          path: rust-js-boundary.json
+          path: |
+            rust-js-boundary.json
+            rust-js-boundary-repeat-10m.json
           if-no-files-found: warn
           retention-days: 30

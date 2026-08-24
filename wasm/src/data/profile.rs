@@ -1,5 +1,5 @@
-use std::collections::{HashMap, HashSet, VecDeque};
 use serde::{Deserialize, Serialize};
+use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 
 use crate::data::column::{Column, ColumnType};
 use crate::data::columnar::{ColumnarDataset, PrimitiveColumn};
@@ -7,9 +7,7 @@ use crate::data::dataset::Dataset;
 use crate::data::spectral::{
     compute_spectral_facts, compute_spectral_facts_columnar, SpectralFacts,
 };
-use crate::data::statistics::{
-    compute_statistics, compute_statistics_from_columnar, Facts,
-};
+use crate::data::statistics::{compute_statistics, compute_statistics_from_columnar, Facts};
 use crate::data::value::Value;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -77,6 +75,15 @@ pub struct ClusterProfile {
     pub separation_score: f64,
     pub density_variation: f64,
     pub stability_confidence: f64,
+    pub method: String,
+    pub eligible_observation_count: usize,
+    pub sample_count: usize,
+    pub sampling_seed: Option<u32>,
+    pub source_observations_per_sample: f64,
+    pub normalization: String,
+    pub maximum_candidate_clusters: usize,
+    pub iterations: usize,
+    pub silhouette_sample_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -186,6 +193,13 @@ pub struct SpectralProfile {
     pub power_spectrum_peak: f64,
     pub has_periodicity: bool,
     pub periodicity_confidence: f64,
+    pub method: String,
+    pub observed_count: usize,
+    pub transform_length: usize,
+    pub source_observations_per_bin: f64,
+    pub frequency_resolution: f64,
+    pub maximum_frequency: f64,
+    pub window_function: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -223,47 +237,61 @@ pub struct DatasetStructureProfile {
     pub provenance: AnalysisProvenance,
 }
 
-fn compute_true_iqr_and_multimodality(values: &[f64]) -> (f64, bool) {
-    if values.len() < 4 {
-        return (0.0, false);
+const MAX_CLUSTER_SAMPLE_ROWS: usize = 65_536;
+const CLUSTER_SAMPLING_SEED: u32 = 0x4e4d_5359;
+const CLUSTER_ITERATIONS: usize = 5;
+const MAX_CANDIDATE_CLUSTERS: usize = 3;
+const MAX_SILHOUETTE_SAMPLE_ROWS: usize = 50;
+
+struct ClusterSample {
+    key: (u64, u64),
+    values: Vec<f64>,
+}
+
+fn mix_cluster_hash(state: u64, input: u64) -> u64 {
+    let mut value = state ^ input.wrapping_add(0x9e37_79b9_7f4a_7c15);
+    value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^ (value >> 31)
+}
+
+fn cluster_sample_key(values: &[f64]) -> (u64, u64) {
+    let mut primary = CLUSTER_SAMPLING_SEED as u64;
+    let mut secondary = !(CLUSTER_SAMPLING_SEED as u64);
+    for (dimension, value) in values.iter().enumerate() {
+        let bits = value.to_bits();
+        primary = mix_cluster_hash(primary, bits ^ dimension as u64);
+        secondary = mix_cluster_hash(secondary, bits.rotate_left(23) ^ dimension as u64);
     }
-    let mut sorted = values.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let n = sorted.len();
+    (primary, secondary)
+}
 
-    let q1_idx = (0.25 * (n - 1) as f64).round() as usize;
-    let q3_idx = (0.75 * (n - 1) as f64).round() as usize;
-    let iqr = (sorted[q3_idx] - sorted[q1_idx]).max(0.0);
-
-    // Multimodality via 8-bin histogram peak counting with threshold
-    let min = sorted[0];
-    let max = sorted[n - 1];
-    let range = max - min;
-    let mut is_multimodal = false;
-
-    if range > 1e-9 && n >= 12 {
-        let num_bins = 8;
-        let mut bins = vec![0usize; num_bins];
-        for &v in &sorted {
-            let bin = (((v - min) / range) * (num_bins as f64)).floor() as usize;
-            let bin = bin.min(num_bins - 1);
-            bins[bin] += 1;
-        }
-
-        // Count local peaks with valleys
-        let mut peaks = 0;
-        for i in 0..num_bins {
-            let left = if i == 0 { 0 } else { bins[i - 1] };
-            let right = if i + 1 >= num_bins { 0 } else { bins[i + 1] };
-            let count = bins[i];
-            if count > left && count > right && count >= (n / 10) {
-                peaks += 1;
-            }
-        }
-        is_multimodal = peaks >= 2;
+fn empty_cluster_profile(
+    method: &str,
+    eligible_observation_count: usize,
+    sample_count: usize,
+    sampling_seed: Option<u32>,
+) -> ClusterProfile {
+    ClusterProfile {
+        estimated_count: 1,
+        has_clusters: false,
+        separation_score: 0.0,
+        density_variation: 0.0,
+        stability_confidence: 0.0,
+        method: method.to_string(),
+        eligible_observation_count,
+        sample_count,
+        sampling_seed,
+        source_observations_per_sample: if sample_count > 0 {
+            eligible_observation_count as f64 / sample_count as f64
+        } else {
+            0.0
+        },
+        normalization: "per-dimension-min-max-over-all-complete-rows".to_string(),
+        maximum_candidate_clusters: MAX_CANDIDATE_CLUSTERS,
+        iterations: CLUSTER_ITERATIONS,
+        silhouette_sample_count: sample_count.min(MAX_SILHOUETTE_SAMPLE_ROWS),
     }
-
-    (iqr, is_multimodal)
 }
 
 fn evaluate_clusters_from_accessor(
@@ -271,14 +299,8 @@ fn evaluate_clusters_from_accessor(
     dimensions: usize,
     mut value_at: impl FnMut(usize, usize) -> Option<f64>,
 ) -> ClusterProfile {
-    if row_count < 6 || dimensions == 0 {
-        return ClusterProfile {
-            estimated_count: 1,
-            has_clusters: false,
-            separation_score: 0.0,
-            density_variation: 0.0,
-            stability_confidence: 0.0,
-        };
+    if dimensions == 0 {
+        return empty_cluster_profile("not-applicable", 0, 0, None);
     }
 
     let mut min_val = vec![f64::INFINITY; dimensions];
@@ -306,20 +328,79 @@ fn evaluate_clusters_from_accessor(
         }
     }
 
+    let sample_count = complete_rows.min(MAX_CLUSTER_SAMPLE_ROWS);
+    let is_bounded = complete_rows > MAX_CLUSTER_SAMPLE_ROWS;
+    let method = if is_bounded {
+        "fixed-seed-bottom-k-complete-row-kmeans"
+    } else {
+        "full-complete-row-kmeans"
+    };
+    let sampling_seed = is_bounded.then_some(CLUSTER_SAMPLING_SEED);
     if complete_rows < 6 {
-        return ClusterProfile {
-            estimated_count: 1,
-            has_clusters: false,
-            separation_score: 0.0,
-            density_variation: 0.0,
-            stability_confidence: 0.0,
+        return empty_cluster_profile(method, complete_rows, sample_count, sampling_seed);
+    }
+
+    let mut selected = Vec::with_capacity(sample_count);
+    let mut priorities = BinaryHeap::with_capacity(sample_count);
+    for row in 0..row_count {
+        let mut complete = true;
+        for dimension in 0..dimensions {
+            match value_at(row, dimension) {
+                Some(value) if value.is_finite() => values[dimension] = value,
+                _ => {
+                    complete = false;
+                    break;
+                }
+            }
+        }
+        if !complete {
+            continue;
+        }
+        let key = cluster_sample_key(&values);
+        if selected.len() < sample_count {
+            let index = selected.len();
+            selected.push(ClusterSample {
+                key,
+                values: values.clone(),
+            });
+            if is_bounded {
+                priorities.push((key, index));
+            }
+        } else if let Some(&((maximum_primary, maximum_secondary), index)) = priorities.peek() {
+            if key < (maximum_primary, maximum_secondary) {
+                priorities.pop();
+                selected[index] = ClusterSample {
+                    key,
+                    values: values.clone(),
+                };
+                priorities.push((key, index));
+            }
+        }
+    }
+    selected.sort_by(|a, b| {
+        a.key.cmp(&b.key).then_with(|| {
+            a.values
+                .iter()
+                .map(|value| value.to_bits())
+                .cmp(b.values.iter().map(|value| value.to_bits()))
+        })
+    });
+    let mut samples: Vec<Vec<f64>> = selected.into_iter().map(|sample| sample.values).collect();
+    for sample in &mut samples {
+        for dimension in 0..dimensions {
+            let span = max_val[dimension] - min_val[dimension];
+            sample[dimension] = if span > 1e-9 {
+                (sample[dimension] - min_val[dimension]) / span
+            } else {
+                0.0
         };
+    }
     }
 
     let mut best_k = 1;
     let mut best_silhouette = -1.0;
 
-    for k in 2..=3.min(complete_rows / 2) {
+    for k in 2..=MAX_CANDIDATE_CLUSTERS.min(samples.len() / 2) {
         let mut centroids = vec![vec![0.0; dimensions]; k];
         for (index, centroid) in centroids.iter_mut().enumerate() {
             let fraction = (index as f64 + 0.5) / k as f64;
@@ -328,33 +409,16 @@ fn evaluate_clusters_from_accessor(
             }
         }
 
-        let mut normalized = vec![0.0; dimensions];
-        for _ in 0..5 {
+        for _ in 0..CLUSTER_ITERATIONS {
             let mut counts = vec![0usize; k];
             let mut sums = vec![vec![0.0; dimensions]; k];
-            for row in 0..row_count {
-                let mut complete = true;
-                for dimension in 0..dimensions {
-                    let Some(value) = value_at(row, dimension).filter(|value| value.is_finite()) else {
-                        complete = false;
-                        break;
-                    };
-                    let span = max_val[dimension] - min_val[dimension];
-                    normalized[dimension] = if span > 1e-9 {
-                        (value - min_val[dimension]) / span
-                    } else {
-                        0.0
-                    };
-                }
-                if !complete {
-                    continue;
-                }
+            for sample in &samples {
                 let mut min_dist = f64::INFINITY;
                 let mut best_cluster = 0;
                 for (cluster, centroid) in centroids.iter().enumerate() {
                     let mut d2 = 0.0;
                     for dimension in 0..dimensions {
-                        let diff = normalized[dimension] - centroid[dimension];
+                        let diff = sample[dimension] - centroid[dimension];
                         d2 += diff * diff;
                     }
                     if d2 < min_dist {
@@ -364,7 +428,7 @@ fn evaluate_clusters_from_accessor(
                 }
                 counts[best_cluster] += 1;
                 for dimension in 0..dimensions {
-                    sums[best_cluster][dimension] += normalized[dimension];
+                    sums[best_cluster][dimension] += sample[dimension];
                 }
             }
             for cluster in 0..k {
@@ -377,29 +441,15 @@ fn evaluate_clusters_from_accessor(
             }
         }
 
-        let mut samples = Vec::with_capacity(complete_rows.min(50));
-        for row in 0..row_count {
-            let mut complete = true;
-            for dimension in 0..dimensions {
-                let Some(value) = value_at(row, dimension).filter(|value| value.is_finite()) else {
-                    complete = false;
-                    break;
-                };
-                let span = max_val[dimension] - min_val[dimension];
-                normalized[dimension] = if span > 1e-9 {
-                    (value - min_val[dimension]) / span
-                } else {
-                    0.0
-                };
-            }
-            if complete {
-                samples.push(normalized.clone());
-                if samples.len() == 50 {
-                    break;
-                }
-            }
-        }
-        let assignments: Vec<usize> = samples
+        let silhouette_count = samples.len().min(MAX_SILHOUETTE_SAMPLE_ROWS);
+        let silhouette_samples: Vec<&Vec<f64>> = (0..silhouette_count)
+            .map(|index| {
+                let rank = (((index * 2 + 1) as u64 * samples.len() as u64)
+                    / (silhouette_count * 2) as u64) as usize;
+                &samples[rank.min(samples.len() - 1)]
+            })
+            .collect();
+        let assignments: Vec<usize> = silhouette_samples
             .iter()
             .map(|sample| {
                 centroids
@@ -427,19 +477,21 @@ fn evaluate_clusters_from_accessor(
 
         let mut s_sum = 0.0;
         let mut valid_samples = 0;
-        for i in 0..samples.len() {
+        for i in 0..silhouette_samples.len() {
             let my_c = assignments[i];
             let mut a_dist = 0.0;
             let mut a_count = 0;
             let mut b_dists = vec![0.0; k];
             let mut b_counts = vec![0usize; k];
 
-            for j in 0..samples.len() {
-                if i == j { continue; }
+            for j in 0..silhouette_samples.len() {
+                if i == j {
+                    continue;
+                }
                 let other_c = assignments[j];
                 let mut dist = 0.0;
                 for dimension in 0..dimensions {
-                    let diff = samples[i][dimension] - samples[j][dimension];
+                    let diff = silhouette_samples[i][dimension] - silhouette_samples[j][dimension];
                     dist += diff * diff;
                 }
                 dist = dist.sqrt();
@@ -458,7 +510,9 @@ fn evaluate_clusters_from_accessor(
                 for c in 0..k {
                     if c != my_c && b_counts[c] > 0 {
                         let avg_b = b_dists[c] / b_counts[c] as f64;
-                        if avg_b < b { b = avg_b; }
+                        if avg_b < b {
+                            b = avg_b;
+                        }
                     }
                 }
                 if b.is_finite() && a.max(b) > 1e-9 {
@@ -469,7 +523,11 @@ fn evaluate_clusters_from_accessor(
             }
         }
 
-        let avg_s = if valid_samples > 0 { s_sum / valid_samples as f64 } else { 0.0 };
+        let avg_s = if valid_samples > 0 {
+            s_sum / valid_samples as f64
+        } else {
+            0.0
+        };
         if avg_s > best_silhouette {
             best_silhouette = avg_s;
             best_k = k;
@@ -480,9 +538,26 @@ fn evaluate_clusters_from_accessor(
     ClusterProfile {
         estimated_count: if has_clusters { best_k } else { 1 },
         has_clusters,
-        separation_score: if has_clusters { best_silhouette.clamp(0.0, 1.0) } else { 0.0 },
+        separation_score: if has_clusters {
+            best_silhouette.clamp(0.0, 1.0)
+        } else {
+            0.0
+        },
         density_variation: if has_clusters { 0.25 } else { 0.0 },
-        stability_confidence: if has_clusters { (best_silhouette * 0.9).clamp(0.1, 1.0) } else { 0.0 },
+        stability_confidence: if has_clusters {
+            (best_silhouette * 0.9).clamp(0.1, 1.0)
+        } else {
+            0.0
+        },
+        method: method.to_string(),
+        eligible_observation_count: complete_rows,
+        sample_count,
+        sampling_seed,
+        source_observations_per_sample: complete_rows as f64 / sample_count as f64,
+        normalization: "per-dimension-min-max-over-all-complete-rows".to_string(),
+        maximum_candidate_clusters: MAX_CANDIDATE_CLUSTERS,
+        iterations: CLUSTER_ITERATIONS,
+        silhouette_sample_count: samples.len().min(MAX_SILHOUETTE_SAMPLE_ROWS),
     }
 }
 
@@ -512,7 +587,10 @@ fn evaluate_clusters_columnar(
     })
 }
 
-fn analyze_graph(row_count: usize, edges: &[crate::data::dataset::Edge]) -> (Option<GraphProfile>, Option<HierarchyProfile>) {
+fn analyze_graph(
+    row_count: usize,
+    edges: &[crate::data::dataset::Edge],
+) -> (Option<GraphProfile>, Option<HierarchyProfile>) {
     if edges.is_empty() {
         return (None, None);
     }
@@ -593,7 +671,11 @@ fn analyze_graph(row_count: usize, edges: &[crate::data::dataset::Edge]) -> (Opt
 
     if is_tree {
         // Find roots (in-degree == 0)
-        let roots: Vec<usize> = in_degrees.iter().filter(|(_, &deg)| deg == 0).map(|(&n, _)| n).collect();
+        let roots: Vec<usize> = in_degrees
+            .iter()
+            .filter(|(_, &deg)| deg == 0)
+            .map(|(&n, _)| n)
+            .collect();
         let root = roots.first().copied().unwrap_or(0);
 
         // Compute max depth and branching factor
@@ -604,7 +686,9 @@ fn analyze_graph(row_count: usize, edges: &[crate::data::dataset::Edge]) -> (Opt
         let mut branch_nodes = 0;
 
         while let Some((curr, d)) = depth_q.pop_front() {
-            if d > max_depth { max_depth = d; }
+            if d > max_depth {
+                max_depth = d;
+            }
             if let Some(children) = adj.get(&curr) {
                 let deg = children.len();
                 if deg > 0 {
@@ -707,18 +791,7 @@ pub fn compute_dataset_structure_profile(
         hierarchy,
         dataset_fingerprint,
         kernel_version,
-        |name| {
-            dataset
-                .get_column_values(name)
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_number)
-                .filter(|value| value.is_finite())
-                .collect()
-        },
-        |time_column, value_column| {
-            compute_spectral_facts(dataset, time_column, value_column)
-        },
+        |time_column, value_column| compute_spectral_facts(dataset, time_column, value_column),
     )
 }
 
@@ -802,19 +875,10 @@ pub fn compute_columnar_dataset_structure_profile(
         None,
         dataset_fingerprint,
         kernel_version,
-        |name| {
+        |_time_column, value_column| {
             let index = columns
                 .iter()
-                .position(|column| column.name == name)
-                .expect("statistics column must exist in schema");
-            columnar
-                .primitive_column(index)
-                .expect("validated numeric primitive column must exist")
-                .finite_values()
-                .collect()
-        },
-        |_time_column, value_column| {
-            let index = columns.iter().position(|column| column.name == value_column)?;
+                .position(|column| column.name == value_column)?;
             compute_spectral_facts_columnar(columnar.primitive_column(index)?)
         },
     ))
@@ -831,7 +895,6 @@ fn assemble_structure_profile(
     hierarchy: Option<HierarchyProfile>,
     dataset_fingerprint: &str,
     kernel_version: &str,
-    mut numeric_values: impl FnMut(&str) -> Vec<f64>,
     mut spectral_facts: impl FnMut(&str, &str) -> Option<SpectralFacts>,
 ) -> DatasetStructureProfile {
     let column_count = columns.len();
@@ -870,9 +933,6 @@ fn assemble_structure_profile(
             constant_columns += 1;
         }
 
-        let raw_values = numeric_values(&cs.name);
-        let (iqr, is_multimodal) = compute_true_iqr_and_multimodality(&raw_values);
-
         if cs.outlier_count > 0 && cs.std > 1e-9 {
             let max_dev = (cs.max - cs.mean).abs().max((cs.min - cs.mean).abs());
             let z_score = max_dev / cs.std;
@@ -890,11 +950,11 @@ fn assemble_structure_profile(
             variance: cs.var,
             min: cs.min,
             max: cs.max,
-            iqr,
+            iqr: cs.iqr,
             skewness: cs.skew,
             kurtosis: cs.kurtosis,
             outlier_count: cs.outlier_count,
-            is_multimodal,
+            is_multimodal: cs.is_multimodal,
             is_heavy_tailed: cs.kurtosis > 3.0,
         });
     }
@@ -988,7 +1048,13 @@ fn assemble_structure_profile(
     };
 
     let density = DensityProfile {
-        global_density: if row_count >= 50 { 0.7 } else if row_count >= 20 { 0.4 } else { 0.15 },
+        global_density: if row_count >= 50 {
+            0.7
+        } else if row_count >= 20 {
+            0.4
+        } else {
+            0.15
+        },
         local_density_variation: if clusters.has_clusters { 0.3 } else { 0.1 },
         mode_count: clusters.estimated_count,
         is_sparse: row_count < 15,
@@ -1003,6 +1069,13 @@ fn assemble_structure_profile(
             power_spectrum_peak: s.power_spectrum_peak,
             has_periodicity: s.has_periodicity,
             periodicity_confidence: s.periodicity_confidence,
+            method: s.method.clone(),
+            observed_count: s.observed_count,
+            transform_length: s.transform_length,
+            source_observations_per_bin: s.source_observations_per_bin,
+            frequency_resolution: s.frequency_resolution,
+            maximum_frequency: s.maximum_frequency,
+            window_function: s.window_function.clone(),
         });
 
         let periodicities = if let Some(ref s) = spectral_profile {
@@ -1066,14 +1139,18 @@ fn assemble_structure_profile(
             0.0
         },
         has_anomalies: total_anomalies > 0,
-        max_anomaly_score: if total_anomalies > 0 { max_observed_anomaly_score.max(0.2) } else { 0.0 },
+        max_anomaly_score: if total_anomalies > 0 {
+            max_observed_anomaly_score.max(0.2)
+        } else {
+            0.0
+        },
     };
 
     let provenance = AnalysisProvenance {
         kernel_version: kernel_version.to_string(),
         dataset_fingerprint: dataset_fingerprint.to_string(),
         timestamp_ms: 0,
-        algorithm_suite: "nemosyne-rust-analytical-core-v1".to_string(),
+        algorithm_suite: "nemosyne-rust-analytical-core-v3".to_string(),
     };
 
     DatasetStructureProfile {
@@ -1108,7 +1185,14 @@ mod tests {
             let mut row = HashMap::new();
             row.insert("x".to_string(), Value::Number(i as f64));
             row.insert("y".to_string(), Value::Number((i * 2) as f64));
-            row.insert("cat".to_string(), Value::Text(if i % 2 == 0 { "A".to_string() } else { "B".to_string() }));
+            row.insert(
+                "cat".to_string(),
+                Value::Text(if i % 2 == 0 {
+                    "A".to_string()
+                } else {
+                    "B".to_string()
+                }),
+            );
             rows.push(row);
         }
 
@@ -1168,8 +1252,7 @@ mod tests {
         let fingerprint = dataset.fingerprint();
         let columnar = ColumnarDataset::from_dataset(&dataset);
 
-        let row_profile =
-            compute_dataset_structure_profile(&dataset, &fingerprint, "0.1.0");
+        let row_profile = compute_dataset_structure_profile(&dataset, &fingerprint, "0.1.0");
         let columnar_profile = compute_columnar_dataset_structure_profile(
             &dataset.name,
             &dataset.columns,
@@ -1180,5 +1263,47 @@ mod tests {
         .expect("columnar profile");
 
         assert_eq!(columnar_profile, row_profile);
+    }
+
+    #[test]
+    fn bounded_cluster_estimator_is_deterministic_and_provenance_explicit() {
+        let row_count = MAX_CLUSTER_SAMPLE_ROWS + 4_096;
+        let evaluate = || {
+            evaluate_clusters_from_accessor(row_count, 2, |row, dimension| {
+                let permuted = row.wrapping_mul(2_654_435_761) % row_count;
+                let cluster = if permuted < row_count / 2 { 0.0 } else { 10.0 };
+                Some(cluster + dimension as f64 * 0.1 + (permuted % 17) as f64 * 0.001)
+            })
+        };
+
+        let first = evaluate();
+        let second = evaluate();
+
+        assert_eq!(first, second);
+        assert_eq!(first.method, "fixed-seed-bottom-k-complete-row-kmeans");
+        assert_eq!(first.eligible_observation_count, row_count);
+        assert_eq!(first.sample_count, MAX_CLUSTER_SAMPLE_ROWS);
+        assert_eq!(first.sampling_seed, Some(CLUSTER_SAMPLING_SEED));
+        assert!(first.source_observations_per_sample > 1.0);
+        assert_eq!(first.iterations, CLUSTER_ITERATIONS);
+        assert_eq!(first.silhouette_sample_count, MAX_SILHOUETTE_SAMPLE_ROWS);
+        assert!(first.has_clusters);
+    }
+
+    #[test]
+    fn bounded_cluster_estimator_is_row_order_invariant() {
+        let row_count = MAX_CLUSTER_SAMPLE_ROWS + 4_096;
+        let value = |row: usize, dimension: usize| {
+            let cluster = if row % 2 == 0 { 0.0 } else { 10.0 };
+            cluster + dimension as f64 * 0.1 + (row % 31) as f64 * 0.001
+        };
+        let forward = evaluate_clusters_from_accessor(row_count, 2, |row, dimension| {
+            Some(value(row, dimension))
+        });
+        let reversed = evaluate_clusters_from_accessor(row_count, 2, |row, dimension| {
+            Some(value(row_count - row - 1, dimension))
+        });
+
+        assert_eq!(forward, reversed);
     }
 }
