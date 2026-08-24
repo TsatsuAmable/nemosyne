@@ -4,7 +4,7 @@
  *
  * Responsibilities:
  * - Orchestrates the domain aggregate (`InvestigationAggregate`).
- * - Manages external analytical kernel interactions (`WasmRuntimeBridgeFull`).
+ * - Delegates external analytical kernel interactions to `RustAnalyticalEvidenceAdapter`.
  * - Enforces the invariant: Rust/WASM is the sole analytical authority (no JS analytical fallback).
  * - Routes TDA algorithms, structure discovery, and Moneta fact generation.
  */
@@ -26,7 +26,6 @@ import type {
 import { WorldEventBus } from '../utils/EventBus.ts';
 import { DatasetSpace, fnv1aHex } from './DatasetSpace.ts';
 import type { DatasetSpaceNormalization } from './DatasetSpace.ts';
-import { datasetEvidenceFromKernelProfile } from './MonetaEvidenceAuthority.ts';
 import type {
   AnalysisResult,
   AnalysisSpec,
@@ -59,24 +58,19 @@ import {
 } from './structures.ts';
 import type { StructureSet } from './structures.ts';
 import { generateGuidance } from './GuidanceEngine.ts';
-import {
-  KernelAbiError,
-  KernelUnavailableError,
-  isKernelFatalError,
-} from '../wasm/RuntimeBridge.ts';
+import { KernelAbiError, KernelUnavailableError } from '../wasm/RuntimeBridge.ts';
 import { InvestigationAggregate, EvidenceLedger } from './domain/index.ts';
 import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
+import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidenceAdapter.ts';
 
 export { KernelUnavailableError };
 export type WasmRuntimeBridgeFull = AnalyticalKernelPort;
 
 export class AtlasCore {
   private readonly _aggregate: InvestigationAggregate;
-  private _kernel: WasmRuntimeBridgeFull | null;
+  private readonly _analytics: RustAnalyticalEvidenceAdapter;
   private _capabilities = 0;
   private _eventBus: WorldEventBus | null;
-  private readonly _onKernelFailure:
-    ((error: KernelAbiError | KernelUnavailableError) => void) | null;
 
   constructor({
     kernel = null,
@@ -90,9 +84,8 @@ export class AtlasCore {
     onKernelFailure?: ((error: KernelAbiError | KernelUnavailableError) => void) | null;
   } = {}) {
     this._aggregate = new InvestigationAggregate({ sessionId });
-    this._kernel = kernel;
+    this._analytics = new RustAnalyticalEvidenceAdapter(kernel, onKernelFailure);
     this._eventBus = eventBus;
-    this._onKernelFailure = onKernelFailure;
   }
 
   get eventBus(): WorldEventBus | null {
@@ -113,9 +106,8 @@ export class AtlasCore {
   // --- Kernel binding & status -------------------------------------------
 
   setKernel(kernel: WasmRuntimeBridgeFull | null, capabilities = 0): void {
-    const previousKernel = this._kernel;
-    this._aggregate.analytical.invalidateHandle((handle) => previousKernel?.destroyDataset(handle));
-    this._kernel = kernel;
+    this._aggregate.analytical.invalidateHandle((handle) => this._analytics.destroyDataset(handle));
+    this._analytics.setKernel(kernel);
     this._capabilities = capabilities;
   }
 
@@ -124,31 +116,21 @@ export class AtlasCore {
   }
 
   isReady(): boolean {
-    return (
-      this._kernel != null && (typeof this._kernel.isReady !== 'function' || this._kernel.isReady())
-    );
+    return this._analytics.isReady();
   }
 
   kernelVersion(): string | null {
-    try {
-      return this._kernel?.kernelVersion?.() ?? null;
-    } catch {
-      return null;
-    }
+    return this._analytics.kernelVersion();
   }
 
   lastProvenance(): Provenance | null {
-    try {
-      return this._kernel?.kernelProvenance?.() ?? null;
-    } catch {
-      return null;
-    }
+    return this._analytics.lastProvenance();
   }
 
   // --- Dataset Lifecycle --------------------------------------------------
 
   loadDataset(dataset: Dataset): void {
-    this._aggregate.loadDataset(dataset, (h) => this._kernel?.destroyDataset(h));
+    this._aggregate.loadDataset(dataset, (handle) => this._analytics.destroyDataset(handle));
   }
 
   setOriginalDataset(dataset: Dataset): void {
@@ -156,7 +138,9 @@ export class AtlasCore {
   }
 
   setCurrentDataset(dataset: Dataset): void {
-    this._aggregate.analytical.setCurrentDataset(dataset, (h) => this._kernel?.destroyDataset(h));
+    this._aggregate.analytical.setCurrentDataset(dataset, (handle) =>
+      this._analytics.destroyDataset(handle)
+    );
   }
 
   get originalDataset(): Dataset {
@@ -372,15 +356,12 @@ export class AtlasCore {
         '[AtlasCore] analytical kernel unavailable — Rust/WASM is the sole analytical authority.'
       );
     }
-    const kernel = this._kernel!;
     const inputHandle = this._ensureHandle();
     if (inputHandle === 0) {
       throw new Error('[AtlasCore] kernel rejected input dataset');
     }
 
-    const outHandle = this._callKernel('runOperation', () =>
-      kernel.runOperation(inputHandle, spec.operation)
-    );
+    const outHandle = this._analytics.runOperation(inputHandle, spec.operation, 'runOperation');
     if (outHandle === 0) {
       throw new Error(`[AtlasCore] kernel op "${spec.operation.op}" failed`);
     }
@@ -389,12 +370,12 @@ export class AtlasCore {
     let provenance: Provenance | null;
     let outputHash: string;
     try {
-      json = this._callKernel('getDatasetJson', () => kernel.getDatasetJson(outHandle));
+      json = this._analytics.readDataset(outHandle);
       if (!json) {
         throw new Error(`[AtlasCore] kernel produced no output for "${spec.operation.op}"`);
       }
       provenance = this.lastProvenance();
-      outputHash = kernel.datasetFingerprint?.(outHandle) ?? fnv1aHex(json);
+      outputHash = this._analytics.outputFingerprint(outHandle, json);
 
       const nextDataset = Dataset.fromJSON(json);
       this._aggregate.analytical.commitKernelResult(
@@ -404,10 +385,10 @@ export class AtlasCore {
           fingerprint: outputHash,
           versionBump: true,
         },
-        (h: number) => this._kernel?.destroyDataset(h)
+        (handle: number) => this._analytics.destroyDataset(handle)
       );
     } catch (err) {
-      kernel.destroyDataset(outHandle);
+      this._analytics.destroyDataset(outHandle);
       throw err;
     }
 
@@ -491,25 +472,22 @@ export class AtlasCore {
         '[AtlasCore] analytical kernel unavailable — Rust/WASM is the sole analytical authority.'
       );
     }
-    const kernel = this._kernel!;
     const inputHandle = this._ensureHandle();
     if (inputHandle === 0) {
       throw new Error('[AtlasCore] kernel rejected input dataset');
     }
 
-    const outHandle = this._callKernel('previewOperation', () =>
-      kernel.runOperation(inputHandle, spec.operation)
-    );
+    const outHandle = this._analytics.runOperation(inputHandle, spec.operation, 'previewOperation');
     if (outHandle === 0) {
       throw new Error(`[AtlasCore] kernel preview "${spec.operation.op}" failed`);
     }
     try {
-      const json = this._callKernel('getDatasetJson', () => kernel.getDatasetJson(outHandle));
+      const json = this._analytics.readDataset(outHandle);
       if (!json) {
         throw new Error(`[AtlasCore] kernel produced no preview for "${spec.operation.op}"`);
       }
       const provenance = this.lastProvenance();
-      const outputHash = kernel.datasetFingerprint?.(outHandle) ?? fnv1aHex(json);
+      const outputHash = this._analytics.outputFingerprint(outHandle, json);
       const fp = this.datasetFingerprint ?? spec.datasetFingerprint;
       const resultId = this._aggregate.ledger.nextResultId(
         fp,
@@ -530,7 +508,7 @@ export class AtlasCore {
       };
       return result;
     } finally {
-      kernel.destroyDataset(outHandle);
+      this._analytics.destroyDataset(outHandle);
     }
   }
 
@@ -538,7 +516,7 @@ export class AtlasCore {
     if (!this._aggregate.analytical.originalNullable) return null;
     const prevVersionId = `${this._aggregate.sessionId}:v${this.datasetVersion}`;
     this._aggregate.analytical.advanceDataset(this._aggregate.analytical.original.clone(), (h) =>
-      this._kernel?.destroyDataset(h)
+      this._analytics.destroyDataset(h)
     );
 
     const fp = this.datasetFingerprint ?? '';
@@ -661,79 +639,38 @@ export class AtlasCore {
     if (ext !== 'csv' && ext !== 'json') {
       throw new Error('Unsupported file type; use .csv or .json');
     }
-    const kernel = this._kernel!;
-    const handle = this._callKernel('parseDataset', () =>
-      ext === 'csv' ? kernel.loadCsv(bytes) : kernel.loadJson(bytes)
-    );
-    if (handle === 0) {
-      throw new Error('Kernel parser rejected the file');
-    }
-    try {
-      const json = this._callKernel('getDatasetJson', () => kernel.getDatasetJson(handle));
-      if (!json) {
-        throw new Error('Kernel parser produced no dataset');
-      }
-      const topology =
-        (explicitTopology as TopologyType | null) ??
-        (this._callKernel('inferTopology', () =>
-          kernel.inferTopology(handle)
-        ) as TopologyType | null) ??
-        ('TABULAR' as TopologyType);
-      const enc = this._callKernel('inferEncodings', () =>
-        kernel.inferEncodings(handle, topology as string)
-      );
-      const encodings = (enc ?? {}) as unknown as Record<string, string>;
-      return { dataset: Dataset.fromJSON(json), topology, encodings };
-    } finally {
-      kernel.destroyDataset(handle);
-    }
+    const parsed = this._analytics.parseDataset(bytes, ext, explicitTopology);
+    return {
+      dataset: Dataset.fromJSON(parsed.dataset),
+      topology: parsed.topology,
+      encodings: parsed.encodings,
+    };
   }
 
   loadSample(key: string): Dataset | null {
-    if (!this.isReady() || !key) return null;
-    const kernel = this._kernel!;
-    const handle = kernel.loadSample(key);
-    if (handle === 0) return null;
-    try {
-      const json = kernel.getDatasetJson(handle);
-      return json ? Dataset.fromJSON(json) : null;
-    } finally {
-      kernel.destroyDataset(handle);
-    }
+    const dataset = this._analytics.loadSample(key);
+    return dataset ? Dataset.fromJSON(dataset) : null;
   }
 
   computePersistenceIntervals(
     dataset: Dataset,
     params: Record<string, unknown>
   ): PersistenceInterval[] | null {
-    return this._tdaCall(
-      dataset,
-      params,
-      (handle) => this._kernel?.computePersistenceIntervals?.(handle, params) ?? null
-    );
+    return this._analytics.computePersistenceIntervals(dataset.toJSON(), params);
   }
 
   computeMapperGraph(dataset: Dataset, params: Record<string, unknown>): TdaMapperGraph | null {
-    return this._tdaCall(
-      dataset,
-      params,
-      (handle) => this._kernel?.computeMapperGraph?.(handle, params) ?? null
-    );
+    return this._analytics.computeMapperGraph(dataset.toJSON(), params);
   }
 
   computeBetti0Curve(dataset: Dataset, params: Record<string, unknown>): BettiPoint[] | null {
-    return this._tdaCall(
-      dataset,
-      params,
-      (handle) => this._kernel?.computeBetti0Curve?.(handle, params) ?? null
-    );
+    return this._analytics.computeBetti0Curve(dataset.toJSON(), params);
   }
 
   computeSpectralFacts(timeColumn?: string, valueColumn?: string): SpectralFacts | null {
-    if (!this._kernel?.isReady?.()) return null;
+    if (!this.isReady()) return null;
     const handle = this._ensureHandle();
-    if (handle === 0) return null;
-    return this._kernel.computeSpectralFacts?.(handle, timeColumn, valueColumn) ?? null;
+    return this._analytics.computeSpectralFacts(handle, timeColumn, valueColumn);
   }
 
   discoverMapperStructures(dataset: Dataset, params: Record<string, unknown>): StructureSet | null {
@@ -812,12 +749,7 @@ export class AtlasCore {
     if (!this.isReady()) return null;
     const handle = this._ensureHandle();
     if (handle === 0) return null;
-    try {
-      return this._kernel!.statistics(handle);
-    } catch (error) {
-      this._notifyKernelFailure('statistics', error);
-      return null;
-    }
+    return this._analytics.statistics(handle);
   }
 
   /**
@@ -835,22 +767,7 @@ export class AtlasCore {
     if (handle === 0) {
       throw new Error('[AtlasCore] kernel rejected input dataset');
     }
-    const kernel = this._kernel!;
-    if (typeof kernel.computeDatasetStructureProfile !== 'function') {
-      throw new Error(
-        '[AtlasCore] Rust DatasetStructureProfile ABI unavailable — refusing JS analytical fallback.'
-      );
-    }
-    return datasetEvidenceFromKernelProfile(
-      {
-        computeDatasetStructureProfile: (currentHandle) =>
-          kernel.computeDatasetStructureProfile!(currentHandle),
-        datasetFingerprint: kernel.datasetFingerprint
-          ? (currentHandle) => kernel.datasetFingerprint!(currentHandle)
-          : undefined,
-      },
-      handle
-    );
+    return this._analytics.datasetEvidence(handle);
   }
 
   medianFor(column: string): number {
@@ -863,24 +780,14 @@ export class AtlasCore {
     if (!this.isReady()) return null;
     const handle = this._ensureHandle();
     if (handle === 0) return null;
-    try {
-      return this._kernel!.inferTopology(handle);
-    } catch (error) {
-      this._notifyKernelFailure('inferTopology', error);
-      return null;
-    }
+    return this._analytics.inferTopology(handle);
   }
 
   inferEncodings(topology?: string): EncodingMapping | null {
     if (!this.isReady()) return null;
     const handle = this._ensureHandle();
     if (handle === 0) return null;
-    try {
-      return this._kernel!.inferEncodings(handle, topology);
-    } catch (error) {
-      this._notifyKernelFailure('inferEncodings', error);
-      return null;
-    }
+    return this._analytics.inferEncodings(handle, topology);
   }
 
   monetaFacts(input: MonetaDataInput): MonetaFacts | null {
@@ -948,7 +855,7 @@ export class AtlasCore {
   }
 
   restoreState(state: AtlasCoreState): void {
-    this._aggregate.restoreState(state, (h) => this._kernel?.destroyDataset(h));
+    this._aggregate.restoreState(state, (handle) => this._analytics.destroyDataset(handle));
   }
 
   async computeDigest(): Promise<string> {
@@ -956,7 +863,7 @@ export class AtlasCore {
   }
 
   dispose(): void {
-    this._aggregate.dispose((h) => this._kernel?.destroyDataset(h));
+    this._aggregate.dispose((handle) => this._analytics.destroyDataset(handle));
   }
 
   // --- Internal Helpers --------------------------------------------------
@@ -964,50 +871,22 @@ export class AtlasCore {
   private _ensureHandle(): number {
     return this._aggregate.analytical.ensureHandle((json) => {
       if (!this.isReady()) return 0;
-      return this._callKernel('loadDatasetJson', () => this._kernel!.loadDatasetJson(json));
+      return this._analytics.loadDataset(json);
     });
-  }
-
-  private _callKernel<T>(operation: string, call: () => T): T {
-    try {
-      return call();
-    } catch (error) {
-      throw this._notifyKernelFailure(operation, error);
-    }
-  }
-
-  private _notifyKernelFailure(
-    operation: string,
-    error: unknown
-  ): KernelAbiError | KernelUnavailableError {
-    const failure =
-      error instanceof KernelUnavailableError || isKernelFatalError(error)
-        ? error
-        : new KernelAbiError(operation, error);
-    this._onKernelFailure?.(failure);
-    return failure;
   }
 
   private _kernelFingerprint(): string | null {
     if (!this.isReady()) return null;
     const handle = this._ensureHandle();
     if (handle === 0) return null;
-    try {
-      return this._kernel?.datasetFingerprint?.(handle) ?? null;
-    } catch {
-      return null;
-    }
+    return this._analytics.fingerprint(handle);
   }
 
   private _kernelFingerprintDirect(): string | null {
     if (!this.isReady()) return null;
     const handle = this._ensureHandle();
     if (handle === 0) return null;
-    try {
-      return this._kernel?.datasetFingerprint?.(handle) ?? null;
-    } catch {
-      return null;
-    }
+    return this._analytics.fingerprint(handle);
   }
 
   private _kernelRanges(): Record<string, DatasetSpaceNormalization> | null {
@@ -1020,62 +899,18 @@ export class AtlasCore {
     return ranges;
   }
 
-  private _tdaCall<T>(
-    dataset: Dataset,
-    _params: Record<string, unknown>,
-    compute: (handle: number) => T | null
-  ): T | null {
-    if (!this.isReady()) return null;
-    const kernel = this._kernel!;
-    let handle = 0;
-    try {
-      handle = kernel.loadDatasetJson(dataset.toJSON());
-      if (handle === 0) return null;
-      const result = compute(handle);
-      this.lastProvenance();
-      return result;
-    } finally {
-      if (handle !== 0) kernel.destroyDataset(handle);
-    }
-  }
-
   private _clusterCall(
     dataset: Dataset,
     operation: OperationSpec
   ): { rows: Record<string, unknown>[]; provenance: Provenance | null } | null {
-    if (!this.isReady()) return null;
-    const kernel = this._kernel!;
-    const inputHandle = kernel.loadDatasetJson(dataset.toJSON());
-    if (inputHandle === 0) return null;
-    let outputHandle = 0;
-    try {
-      outputHandle = kernel.runOperation(inputHandle, operation);
-      if (outputHandle === 0) return null;
-      const result = kernel.getDatasetJson(outputHandle);
-      if (!result) return null;
-      return { rows: result.rows, provenance: this.lastProvenance() };
-    } finally {
-      if (outputHandle !== 0) kernel.destroyDataset(outputHandle);
-      kernel.destroyDataset(inputHandle);
-    }
+    return this._analytics.computeCluster(dataset.toJSON(), operation);
   }
 
   private _spaceForDataset(dataset: Dataset): DatasetSpace {
     if (this.dataset && this.datasetFingerprint === fnv1aHex(dataset.toJSON())) {
       return this.datasetSpace ?? new DatasetSpace(dataset);
     }
-    let fingerprint: string | null = null;
-    if (this.isReady()) {
-      const kernel = this._kernel!;
-      const handle = kernel.loadDatasetJson(dataset.toJSON());
-      if (handle !== 0) {
-        try {
-          fingerprint = kernel.datasetFingerprint?.(handle) ?? null;
-        } finally {
-          kernel.destroyDataset(handle);
-        }
-      }
-    }
+    const fingerprint = this._analytics.fingerprintDataset(dataset.toJSON());
     return new DatasetSpace(dataset, { fingerprint });
   }
 }

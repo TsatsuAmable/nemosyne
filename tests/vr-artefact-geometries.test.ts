@@ -79,4 +79,17 @@ describe('VRTopologyTranslator artefact geometries', () => {
     const b = VRTopologyTranslator._makeNode({ id: 'B', value: 2 }, ds, { color: 'id' }, 'ORB');
     expect(a.material.color.getHex()).not.toBe(b.material.color.getHex());
   });
+
+  it('embodies computed radial parent ownership as an edge', () => {
+    const group = new THREE.Group();
+    const parent = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+    const child = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+    parent.position.set(0, 0, 0);
+    child.position.set(1, 1, 0);
+    child.userData.parentIndex = 0;
+    const edges = [];
+    VRTopologyTranslator._buildParentEdges(group, edges, [parent, child]);
+    expect(edges).toHaveLength(1);
+    expect(group.children).toContain(edges[0]);
+  });
 });
