@@ -4,20 +4,19 @@
 
 ## Status snapshot - 24 August 2026
 
-**Current `main`: `322585d` (includes #362-#364). PR #365 is open from `refactor/world-lifecycle-owner`.**
+**Current `main`: `c2e6243` (includes merged PR #365). Active branch: `refactor/runtimebridge-abi-handle-families`.**
 
-**Next checkpoint:** merge the first lifecycle-ownership/recovery slice, then split `RuntimeBridge`
-by ABI handle family behind its single readiness state machine. Production spatial acceleration and
-the real-browser analyst journey remain the next independent P1-high implementations. Physical
-execution remains deferred until a Quest 3S is available; even a completed measurement remains
-`deviceQualifiedAt10m: false` until governed review.
+**Next checkpoint:** merge the `RuntimeBridge` ABI-family split, then decompose coordinator contracts
+by consumer. Production spatial acceleration and the real-browser analyst journey remain the next
+independent P1-high implementations. Physical execution remains deferred until a Quest 3S is
+available; even a completed measurement remains `deviceQualifiedAt10m: false` until governed review.
 
-**Last gate:** green locally on 24 August 2026 for `refactor/world-lifecycle-owner`. Typecheck and
-lint passed (0 errors, 170 pre-existing warnings); coverage passed at 82.12% statements, 70.17%
-branches, 79.22% functions and 84.69% lines; production build passed; all 170 Rust tests passed; and
-the real Chromium/WebGL smoke passed. PR #365 then passed hosted CodeQL, core correctness, 170
-Rust tests, downloaded-artifact Chromium smoke, the read-only approval gate and the `Node 24`
-aggregate. The preceding #363 and #364 hosted gates and Pages deployment are also green, with
+**Last gate:** green locally on 24 August 2026 for `refactor/runtimebridge-abi-handle-families`.
+Typecheck and lint passed (0 errors, 170 pre-existing warnings); all 314 coverage files and 1,931
+tests passed at 82.28% statements, 70.36% branches, 79.23% functions and 84.76% lines; the production
+WASM/Vite build passed; all 170 Rust tests passed; and the real Chromium/WebGL smoke passed. The
+preceding PR #365 hosted CodeQL, core correctness, Rust, downloaded-artifact Chromium smoke,
+read-only approval gate and `Node 24` aggregate are green. Pages remains deployed with
 `nemosyne.world` domain-verified and HTTPS-enforced.
 
 Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
@@ -120,13 +119,23 @@ For the migration contract, representation/model/NIL/discovery provenance contin
 
 ### F. Lifecycle ownership and kernel recovery
 
-The active lifecycle slice introduces one idempotent World boot/recovery/disposal owner, explicit
+PR #365 introduced one idempotent World boot/recovery/disposal owner, explicit
 aggregate UI and scene teardown, synchronous cleanup for active load and Quest-boundary probes, and
 generation cancellation for late file/session/kernel work. A trapped Atlas ABI call now invalidates
 the shared runtime, transitions to `KERNEL_UNAVAILABLE`, preserves the last viable presentation and
 reinitializes the Rust authority before recovery. Three-cycle real-WASM World recreation verifies
-kernel-handle allocation and exact DOM/engine cleanup. This closes ARCH-02 locally and completes the
-first lifecycle seam of ARCH-01; broader RuntimeBridge and contract decomposition remains open.
+kernel-handle allocation and exact DOM/engine cleanup. This closes ARCH-02 and completes the first
+lifecycle seam of ARCH-01.
+
+### G. Runtime authority and ABI-family boundaries
+
+The current branch reduces `RuntimeBridge.ts` to a stable, logic-free compatibility facade over
+separate lifecycle, memory, dataset-handle, layout and kernel-contract modules. `RuntimeState.ts` is
+the sole mutable readiness/instance owner; family-scoped accessors enforce dependency boundaries;
+and initialization is deduplicated and generation-fenced so a stale attempt cannot restore authority
+after invalidation. Fast source contracts freeze the pre-split facade and module direction, while a
+real-WASM concurrency test proves fresh recovery wins over superseded initialization. Coordinator,
+Atlas orchestration and topology-embodiment decomposition remain open.
 
 ## Governing V3 gate status
 
@@ -184,12 +193,12 @@ The full evidence and dispositions are in
 [PRE_P1_SYSTEMATIC_AUDIT.md](PRE_P1_SYSTEMATIC_AUDIT.md). This is the live implementation queue:
 
 - [ ] **PERF-04 / blocker:** run and govern the physical Quest 3S 10M browser qualification.
-- [ ] **ARCH-01 / high:** lifecycle owner complete locally; split `RuntimeBridge`, coordinator contracts, Atlas orchestration and topology embodiment along the remaining authority seams.
+- [ ] **ARCH-01 / high:** lifecycle ownership is merged and the `RuntimeBridge` ABI-family split is complete locally; coordinator contracts, Atlas orchestration and topology embodiment remain.
 - [x] **ARCH-02 / high:** explicit idempotent UI/world ownership, disposal and started real-WASM recreation contracts implemented on `refactor/world-lifecycle-owner`.
 - [ ] **PERF-03 / high:** benchmark and wire one production spatial accelerator; delete the redundant built-only index.
 - [ ] **UX-02 / high:** implement a real-browser load → Moneta/NIL → investigation → export → replay journey.
 - [ ] **UX-03 / high:** execute controller, hand and desktop semantic-parity tasks on physical hardware.
-- [ ] **RES-01 / high:** production ABI-trap invalidation/recovery and bounded lifecycle cleanup are covered; extend this into the sustained malformed-handle/panic fault campaign.
+- [ ] **RES-01 / high:** production ABI-trap invalidation/recovery, initialization race fencing and bounded lifecycle cleanup are covered; extend this into checked two-call output contracts, exception-safe host allocation cleanup and the sustained malformed-handle/panic fault campaign.
 - [ ] **RES-02 / high:** qualify two-browser collaboration across partition, reconnect and role violations.
 - [ ] **SEC-02 / high:** inventory Rust `unsafe` and fuzz malformed ABI buffers, handles and exhaustion.
 - [ ] **MAINT-01 / high:** remove `@ts-nocheck` from package, bridge, World and Moneta boundary tests first.
@@ -350,9 +359,9 @@ migration benchmark tiers when scale-sensitive code changes
 
 ## Near-term execution order
 
-1. Close this systematic audit through local/hosted CI and Pages publication.
+1. Merge the `RuntimeBridge` ABI-family boundary, then split coordinator contracts by consumer.
 2. Run physical Quest 3S 10M and interaction qualification when hardware is available.
-3. Continue the audit's P1-high RuntimeBridge decomposition, browser-journey, security and spatial-query work.
+3. Continue the audit's P1-high browser-journey, security and spatial-query work.
 4. Reopen the minimal private-preview decision only after blockers/high findings are governed.
 5. Continue discovery/outcome studies and learned-Moneta empirical validation.
 6. Begin RepresentationGraph/compositional Moneta only after its stated prerequisites.

@@ -1,13 +1,12 @@
 import type { DatasetJSON, OperationSpec } from '../data/types.ts';
+import { call, readString } from './runtime/MemoryAbi.ts';
 import {
-  call,
   destroyDataset,
   loadCsv,
   loadDatasetJson,
   loadJson,
-  readString,
   runOperation,
-} from './RuntimeBridge.ts';
+} from './runtime/DatasetHandleBridge.ts';
 
 /**
  * Columnar-native metadata accessor. This is the application-facing row-count

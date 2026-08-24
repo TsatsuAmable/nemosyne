@@ -1,4 +1,5 @@
-import { allocBytes, deallocBytes, requireRuntime } from './RuntimeBridge.ts';
+import { allocBytes, deallocBytes } from './runtime/MemoryAbi.ts';
+import { requireRuntime } from './runtime/RuntimeState.ts';
 
 interface LayoutAuthorityExports {
   memory: WebAssembly.Memory;
@@ -16,7 +17,7 @@ interface LayoutAuthorityExports {
     yOffset: number,
     seed: number,
     outPtr: number,
-    outLen: number,
+    outLen: number
   ): number;
   layout_spectral_volume_3d(
     inputPtr: number,
@@ -25,7 +26,7 @@ interface LayoutAuthorityExports {
     heightScale: number,
     yOffset: number,
     outPtr: number,
-    outLen: number,
+    outLen: number
   ): number;
 }
 
@@ -33,9 +34,7 @@ function runtime(): LayoutAuthorityExports {
   return requireRuntime() as unknown as LayoutAuthorityExports;
 }
 
-function readF32Result(
-  invoke: (outPtr: number, outLen: number) => number,
-): Float32Array | null {
+function readF32Result(invoke: (outPtr: number, outLen: number) => number): Float32Array | null {
   const wasm = runtime();
   const needed = invoke(0, 0);
   if (!Number.isSafeInteger(needed) || needed <= 0 || needed % 4 !== 0) return null;
@@ -66,7 +65,7 @@ export function computeForceDirectedEdges3d(
   damping = 0.08,
   radius = 4,
   yOffset = 1.2,
-  seed = 1,
+  seed = 1
 ): Float32Array | null {
   if (count <= 0) return null;
   const edgeBytes = new TextEncoder().encode(JSON.stringify(edges));
@@ -85,8 +84,8 @@ export function computeForceDirectedEdges3d(
         yOffset,
         seed,
         outPtr,
-        outLen,
-      ),
+        outLen
+      )
     );
   } finally {
     deallocBytes(ptr, len);
@@ -99,7 +98,7 @@ export function computeSpectralVolume3d(
   phases: readonly number[],
   radialScale: number,
   heightScale: number,
-  yOffset: number,
+  yOffset: number
 ): Float32Array | null {
   if (frequencies.length === 0) return null;
   const inputBytes = new TextEncoder().encode(JSON.stringify({ frequencies, powers, phases }));
@@ -113,8 +112,8 @@ export function computeSpectralVolume3d(
         heightScale,
         yOffset,
         outPtr,
-        outLen,
-      ),
+        outLen
+      )
     );
   } finally {
     deallocBytes(ptr, len);
