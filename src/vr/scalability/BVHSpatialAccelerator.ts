@@ -11,16 +11,31 @@ import {
   acceleratedRaycast,
   computeBoundsTree,
   disposeBoundsTree,
+  ObjectBVH,
 } from 'three-mesh-bvh';
 
-// Augment Three.js BufferGeometry and Mesh prototypes once at module load
 let bvhInitialized = false;
+export const MIN_GEOMETRY_BVH_PRIMITIVES = 128;
+export const MIN_OBJECT_BVH_PRIMITIVES = 64;
+export const MAX_EXPANDED_OBJECT_BVH_INSTANCES = 16_384;
 
 export function initializeBVH(): void {
   if (bvhInitialized) return;
-  (THREE.BufferGeometry.prototype as unknown as { computeBoundsTree: typeof computeBoundsTree }).computeBoundsTree = computeBoundsTree;
-  (THREE.BufferGeometry.prototype as unknown as { disposeBoundsTree: typeof disposeBoundsTree }).disposeBoundsTree = disposeBoundsTree;
-  (THREE.Mesh.prototype as unknown as { raycast: typeof acceleratedRaycast }).raycast = acceleratedRaycast;
+  (
+    THREE.BufferGeometry.prototype as unknown as {
+      computeBoundsTree: typeof computeBoundsTree;
+    }
+  ).computeBoundsTree = computeBoundsTree;
+  (
+    THREE.BufferGeometry.prototype as unknown as {
+      disposeBoundsTree: typeof disposeBoundsTree;
+    }
+  ).disposeBoundsTree = disposeBoundsTree;
+  (
+    THREE.Mesh.prototype as unknown as {
+      raycast: typeof acceleratedRaycast;
+    }
+  ).raycast = acceleratedRaycast;
   bvhInitialized = true;
 }
 
@@ -38,6 +53,51 @@ export class BVHSpatialAccelerator {
       mesh.geometry.computeBoundsTree(options);
     }
     return mesh.geometry.boundsTree;
+  }
+
+  static geometryPrimitiveCount(geometry: THREE.BufferGeometry): number {
+    const elementCount = geometry.index?.count ?? geometry.getAttribute('position')?.count ?? 0;
+    return Math.floor(elementCount / 3);
+  }
+
+  static shouldBuildGeometryTree(mesh: THREE.Mesh): boolean {
+    return this.geometryPrimitiveCount(mesh.geometry) >= MIN_GEOMETRY_BVH_PRIMITIVES;
+  }
+
+  static objectPrimitiveCount(objects: THREE.Object3D[]): number {
+    const leaves = new Set<THREE.Object3D>();
+    let count = 0;
+    for (const root of objects) {
+      root.traverse((object) => {
+        const candidate = object as THREE.Object3D & {
+          isMesh?: boolean;
+          isLine?: boolean;
+          isPoints?: boolean;
+          isInstancedMesh?: boolean;
+          isBatchedMesh?: boolean;
+          count?: number;
+          instanceCount?: number;
+        };
+        if (!candidate.isMesh && !candidate.isLine && !candidate.isPoints) return;
+        if (leaves.has(object)) return;
+        leaves.add(object);
+        if (candidate.isInstancedMesh) {
+          count += candidate.count ?? 0;
+        } else if (candidate.isBatchedMesh) {
+          count += candidate.instanceCount ?? 0;
+        } else {
+          count += 1;
+        }
+      });
+    }
+    return count;
+  }
+
+  static buildObjectTree(objects: THREE.Object3D[], includeInstances = true): ObjectBVH {
+    initializeBVH();
+    return new ObjectBVH(objects, { targetLeafSize: 1, includeInstances } as ConstructorParameters<
+      typeof ObjectBVH
+    >[1]);
   }
 
   /**

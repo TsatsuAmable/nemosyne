@@ -1220,6 +1220,7 @@ export class World {
   private _isolateStructures(rowIndices: number[]): void {
     if (!this.dracoNode?.artifact) return;
     isolateRowIndices(this.dracoNode.artifact, rowIndices);
+    this.engine.input.invalidateSpatialAcceleration();
   }
 
   private _navigateToStructures(rowIndices: number[]): void {
@@ -1743,6 +1744,7 @@ export class World {
 
     this.eventBus.on(WorldTopics.OPERATION_APPLIED, (payload: unknown) => {
       const { operation, rowCount } = payload as { operation: string; rowCount?: number };
+      this.engine.input.invalidateSpatialAcceleration();
       this.telemetryCollector?.recordOperation?.(operation);
       if (operation === 'compare') {
         // Compare changes the dataset shape, so rebuild the Draco artefact.

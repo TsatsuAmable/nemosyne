@@ -7,8 +7,13 @@
  */
 
 import * as THREE from 'three';
+import type { ObjectBVH } from 'three-mesh-bvh';
 import type { FeedbackLike, PanelLike } from '../coordinators/types.ts';
-import { BVHSpatialAccelerator } from '../scalability/BVHSpatialAccelerator.ts';
+import {
+  BVHSpatialAccelerator,
+  MAX_EXPANDED_OBJECT_BVH_INSTANCES,
+  MIN_OBJECT_BVH_PRIMITIVES,
+} from '../scalability/BVHSpatialAccelerator.ts';
 
 export interface InteractableEntry {
   mesh: THREE.Object3D;
@@ -37,6 +42,17 @@ export class InteractableRegistry {
 
   private _interactables: InteractableEntry[] = [];
   private _interactableMeshes: THREE.Object3D[] = [];
+  private _entryByRoot = new Map<THREE.Object3D, InteractableEntry>();
+  private _entryGeometries = new Map<
+    InteractableEntry,
+    Array<{ geometry: THREE.BufferGeometry; mesh: THREE.Mesh }>
+  >();
+  private _geometryReferences = new Map<THREE.BufferGeometry, { count: number; owned: boolean }>();
+  private _objectBvh: ObjectBVH | null = null;
+  private _objectBvhDirty = true;
+  private _indexedRoots: THREE.Object3D[] = [];
+  private _fallbackRoots: THREE.Object3D[] = [];
+  private _sceneIntersections: THREE.Intersection[] = [];
   hudObjects: HudObject[] = [];
   panels: PanelLike[] = [];
 
@@ -57,24 +73,37 @@ export class InteractableRegistry {
   }
 
   set interactables(value: InteractableEntry[]) {
-    for (const entry of this._interactables) this._disposeSpatialAcceleration(entry.mesh);
+    for (const entry of this._interactables) this._releaseSpatialAcceleration(entry);
     this._interactables = value;
     this._interactableMeshes = value.map((entry) => entry.mesh);
-    for (const entry of value) this._prepareSpatialAcceleration(entry.mesh);
+    this._entryByRoot.clear();
+    for (const entry of value) {
+      if (!this._entryByRoot.has(entry.mesh)) this._entryByRoot.set(entry.mesh, entry);
+      this._retainSpatialAcceleration(entry);
+    }
+    this.invalidateSpatialAcceleration();
   }
 
   addInteractable(mesh: THREE.Object3D, handlers: Partial<InteractableEntry> = {}) {
-    this._interactables.push({ mesh, ...handlers });
+    const entry = { mesh, ...handlers };
+    this._interactables.push(entry);
     this._interactableMeshes.push(mesh);
-    this._prepareSpatialAcceleration(mesh);
+    if (!this._entryByRoot.has(mesh)) this._entryByRoot.set(mesh, entry);
+    this._retainSpatialAcceleration(entry);
+    this.invalidateSpatialAcceleration();
   }
 
   removeInteractable(mesh: THREE.Object3D) {
     const idx = this._interactables.findIndex((i) => i.mesh === mesh);
     if (idx >= 0) {
+      const removed = this._interactables[idx];
       this._interactables.splice(idx, 1);
       this._interactableMeshes.splice(idx, 1);
-      this._disposeSpatialAcceleration(mesh);
+      this._releaseSpatialAcceleration(removed);
+      const replacement = this._interactables.find((entry) => entry.mesh === mesh);
+      if (replacement) this._entryByRoot.set(mesh, replacement);
+      else this._entryByRoot.delete(mesh);
+      this.invalidateSpatialAcceleration();
     }
   }
 
@@ -98,24 +127,104 @@ export class InteractableRegistry {
 
   clear() {
     this.clearHover();
-    for (const entry of this._interactables) this._disposeSpatialAcceleration(entry.mesh);
+    for (const entry of this._interactables) this._releaseSpatialAcceleration(entry);
     this._interactables = [];
     this._interactableMeshes = [];
+    this._entryByRoot.clear();
+    this._entryGeometries.clear();
+    this._geometryReferences.clear();
+    this.invalidateSpatialAcceleration();
     this.hudObjects = [];
     this.panels = [];
     this.suppressSceneSelection = false;
   }
 
-  private _prepareSpatialAcceleration(object: THREE.Object3D): void {
-    if (object instanceof THREE.Mesh && object.geometry) {
-      BVHSpatialAccelerator.buildTree(object);
-    }
+  invalidateSpatialAcceleration(): void {
+    this._objectBvh = null;
+    this._objectBvhDirty = true;
   }
 
-  private _disposeSpatialAcceleration(object: THREE.Object3D): void {
-    if (object instanceof THREE.Mesh && object.geometry) {
-      BVHSpatialAccelerator.disposeTree(object);
+  private _retainSpatialAcceleration(entry: InteractableEntry): void {
+    const retained: Array<{ geometry: THREE.BufferGeometry; mesh: THREE.Mesh }> = [];
+    entry.mesh.traverse((child) => {
+      if (!(child instanceof THREE.Mesh) || !child.geometry) return;
+      if (!BVHSpatialAccelerator.shouldBuildGeometryTree(child)) return;
+      const geometry = child.geometry;
+      retained.push({ geometry, mesh: child });
+      const existing = this._geometryReferences.get(geometry);
+      if (existing) {
+        existing.count += 1;
+        return;
+      }
+      const owned = !geometry.boundsTree;
+      BVHSpatialAccelerator.buildTree(child);
+      this._geometryReferences.set(geometry, { count: 1, owned });
+    });
+    this._entryGeometries.set(entry, retained);
+  }
+
+  private _releaseSpatialAcceleration(entry: InteractableEntry): void {
+    for (const retained of this._entryGeometries.get(entry) ?? []) {
+      const reference = this._geometryReferences.get(retained.geometry);
+      if (!reference) continue;
+      reference.count -= 1;
+      if (reference.count > 0) continue;
+      if (reference.owned) BVHSpatialAccelerator.disposeTree(retained.mesh);
+      this._geometryReferences.delete(retained.geometry);
     }
+    this._entryGeometries.delete(entry);
+  }
+
+  private _isObjectBvhCandidate(object: THREE.Object3D): boolean {
+    const candidate = object as THREE.Object3D & {
+      isMesh?: boolean;
+      isLine?: boolean;
+      isPoints?: boolean;
+    };
+    const renderable =
+      candidate.isMesh === true || candidate.isLine === true || candidate.isPoints === true;
+    if (!renderable || object.layers.mask !== 1) return false;
+    let hasRenderableDescendant = false;
+    object.traverse((descendant) => {
+      if (descendant === object) return;
+      const child = descendant as THREE.Object3D & {
+        isMesh?: boolean;
+        isLine?: boolean;
+        isPoints?: boolean;
+      };
+      if (child.isMesh || child.isLine || child.isPoints) hasRenderableDescendant = true;
+    });
+    return !hasRenderableDescendant;
+  }
+
+  private _ensureObjectBvh(): void {
+    if (!this._objectBvhDirty) return;
+    this._objectBvhDirty = false;
+    this._indexedRoots = [];
+    this._fallbackRoots = [];
+    for (const object of this._interactableMeshes) {
+      object.updateWorldMatrix(true, true);
+      if (this._isObjectBvhCandidate(object)) this._indexedRoots.push(object);
+      else this._fallbackRoots.push(object);
+    }
+    const primitiveCount = BVHSpatialAccelerator.objectPrimitiveCount(this._indexedRoots);
+    this._objectBvh =
+      primitiveCount >= MIN_OBJECT_BVH_PRIMITIVES
+        ? BVHSpatialAccelerator.buildObjectTree(
+            this._indexedRoots,
+            primitiveCount <= MAX_EXPANDED_OBJECT_BVH_INSTANCES
+          )
+        : null;
+  }
+
+  private _entryForHit(object: THREE.Object3D): InteractableEntry | null {
+    let current: THREE.Object3D | null = object;
+    while (current) {
+      const entry = this._entryByRoot.get(current);
+      if (entry) return entry;
+      current = current.parent;
+    }
+    return null;
   }
 
   setSuppressSceneSelection(enabled: boolean) {
@@ -143,12 +252,29 @@ export class InteractableRegistry {
    * Raycast against scene interactables and return the first hit entry and its
    * distance, or null when scene selection is suppressed or nothing is hit.
    */
-  raycastScene(): SceneHit | null {
-    if (this.suppressSceneSelection) return null;
-    const hits = this.raycaster.intersectObjects(this._interactableMeshes, false);
+  raycastScene(
+    raycaster = this.raycaster,
+    options: { ignoreSuppression?: boolean } = {}
+  ): SceneHit | null {
+    if (this.suppressSceneSelection && !options.ignoreSuppression) return null;
+    this._ensureObjectBvh();
+    this._sceneIntersections.length = 0;
+    const objectBvh = raycaster.layers.mask === 1 ? this._objectBvh : null;
+    (
+      raycaster as THREE.Raycaster & {
+        firstHitOnly?: boolean;
+      }
+    ).firstHitOnly = objectBvh !== null;
+    if (objectBvh) {
+      objectBvh.raycast(raycaster, this._sceneIntersections);
+      raycaster.intersectObjects(this._fallbackRoots, true, this._sceneIntersections);
+      this._sceneIntersections.sort((a, b) => a.distance - b.distance);
+    } else {
+      raycaster.intersectObjects(this._interactableMeshes, true, this._sceneIntersections);
+    }
+    const hits = this._sceneIntersections;
     if (hits.length > 0) {
-      const hit = hits[0].object;
-      const entry = this._interactables.find((i) => i.mesh === hit) ?? null;
+      const entry = this._entryForHit(hits[0].object);
       if (entry) return { entry, distance: hits[0].distance };
     }
     return null;

@@ -233,15 +233,18 @@ export class DesktopControls {
 
     // Hit-test panels and scene interactables to place the cursor and set
     // ray length for the router's laser visuals.
-    const panelMeshes = this.engine.input.panels.map((p: { mesh?: THREE.Object3D | null }) => p.mesh);
-    const interactableMeshes = this.engine.input.interactables.map(
-      (i: { mesh?: THREE.Object3D | null }) => i.mesh
+    const panelMeshes = this.engine.input.panels.map(
+      (p: { mesh?: THREE.Object3D | null }) => p.mesh
     );
-    const hits = this.raycaster.intersectObjects(
-      [...panelMeshes, ...interactableMeshes].filter((m): m is THREE.Object3D => !!m),
+    const panelHits = this.raycaster.intersectObjects(
+      panelMeshes.filter((mesh): mesh is THREE.Object3D => !!mesh),
       false
     );
-    const dist = hits.length > 0 ? hits[0].distance : this._cursorDistance;
+    const sceneHit = this.engine.input.raycastScene(this.raycaster);
+    const panelDistance = panelHits[0]?.distance ?? Number.POSITIVE_INFINITY;
+    const sceneDistance = sceneHit?.distance ?? Number.POSITIVE_INFINITY;
+    const nearestDistance = Math.min(panelDistance, sceneDistance);
+    const dist = Number.isFinite(nearestDistance) ? nearestDistance : this._cursorDistance;
 
     const end = new THREE.Vector3()
       .copy(this.raycaster.ray.origin)

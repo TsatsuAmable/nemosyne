@@ -147,7 +147,7 @@ describe('InputRouter controller system toggle', () => {
     router.interactables = [{ mesh }];
     router.registry.raycastScene();
 
-    expect(intersectObjects).toHaveBeenCalledWith([mesh], false);
+    expect(intersectObjects).toHaveBeenCalledWith([mesh], true, expect.any(Array));
   });
 
   it('fires a global select callback', () => {
