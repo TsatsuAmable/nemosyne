@@ -10,7 +10,10 @@ Controlled Nemosyne studies must make the treatment configuration reproducible a
 - Moneta engine version;
 - bootstrap FitnessModel version;
 - Representation Ontology version;
-- NIL version.
+- NIL version;
+- participant-facing UI treatment version (`uiTreatmentVersion` — panel-layout
+  revision, intent-wheel taxonomy and reference-frame policy; see
+  [`UI_TREATMENT.md`](UI_TREATMENT.md)).
 
 The manifest is deterministically fingerprinted. The current protocol remains `DRAFT`; it must not be promoted to `FROZEN` until an exact Rust/WASM kernel version is supplied.
 

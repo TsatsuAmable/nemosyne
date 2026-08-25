@@ -69,3 +69,12 @@ export const PANEL_LAYOUT = {
 } satisfies Record<string, Vec3>;
 
 export type PanelLayoutKey = keyof typeof PANEL_LAYOUT;
+
+/**
+ * Participant-facing UI treatment identity for the vision §14 freeze contract:
+ * panel defaults = C1′ revision 3 (torso-locked), command surface = intent
+ * wheel v1 (+ SUPERUSER annex), reference-frame policy = BODY_LOCKED with
+ * head lock reserved for transient alerts. Bump whenever any participant-facing
+ * spatial arrangement changes and record it in docs/study/UI_TREATMENT.md.
+ */
+export const UI_TREATMENT_VERSION = 'panel-layout/3+intent-wheel/1+frames/torso-locked' as const;
