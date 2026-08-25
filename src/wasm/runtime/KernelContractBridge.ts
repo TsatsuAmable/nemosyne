@@ -1,5 +1,12 @@
 import type { Provenance } from '../../data/types.ts';
-import { allocBytes, readBytes, readString } from './MemoryAbi.ts';
+import {
+  allocBuffer,
+  allocBytes,
+  deallocBuffer,
+  deallocBytes,
+  readBytes,
+  readString,
+} from './MemoryAbi.ts';
 import { getKernelContractExports as getRuntimeExports } from './RuntimeState.ts';
 import type { KernelContractExports, MemoryAbiExports } from './RuntimeExports.ts';
 
@@ -10,14 +17,14 @@ function readStringExport(
   invoke: (outPtr: number, outLen: number) => number
 ): string | null {
   const required = invoke(0, 0);
-  if (required === 0) return null;
-  const ptr = wasm.alloc(required);
+  if (!Number.isSafeInteger(required) || required <= 0) return null;
+  const allocation = allocBuffer(required);
   try {
-    const written = invoke(ptr, required);
-    if (written === 0) return null;
-    return readString(ptr, written);
+    const written = invoke(allocation.ptr, allocation.len);
+    if (written !== required) return null;
+    return readString(allocation.ptr, written);
   } finally {
-    wasm.dealloc(ptr, required);
+    deallocBuffer(allocation.ptr, allocation.len);
   }
 }
 
@@ -30,14 +37,18 @@ function callJsonAbi(
   const { ptr: inPtr, len: inLen } = allocBytes(inputBytes);
   try {
     const needed = fn(inPtr, inLen, 0, 0);
-    if (needed === 0) return null;
-    const outPtr = wasm.alloc(needed);
-    fn(inPtr, inLen, outPtr, needed);
-    const resultBytes = readBytes(outPtr, needed);
-    wasm.dealloc(outPtr, needed);
-    return JSON.parse(new TextDecoder().decode(resultBytes));
+    if (!Number.isSafeInteger(needed) || needed <= 0) return null;
+    const output = allocBuffer(needed);
+    try {
+      const written = fn(inPtr, inLen, output.ptr, output.len);
+      if (written !== needed) return null;
+      const resultBytes = readBytes(output.ptr, written);
+      return JSON.parse(new TextDecoder().decode(resultBytes));
+    } finally {
+      deallocBuffer(output.ptr, output.len);
+    }
   } finally {
-    wasm.dealloc(inPtr, inLen);
+    deallocBytes(inPtr, inLen);
   }
 }
 
@@ -64,14 +75,18 @@ export function solveMoneta(facts: Record<string, unknown>): Record<string, unkn
   const { ptr: factsPtr, len: factsLen } = allocBytes(factsBytes);
   try {
     const needed = wasm.draco_solve(factsPtr, factsLen, 0, 0);
-    if (needed === 0) return null;
-    const outPtr = wasm.alloc(needed);
-    wasm.draco_solve(factsPtr, factsLen, outPtr, needed);
-    const resultBytes = readBytes(outPtr, needed);
-    wasm.dealloc(outPtr, needed);
-    return JSON.parse(new TextDecoder().decode(resultBytes)) as Record<string, unknown>;
+    if (!Number.isSafeInteger(needed) || needed <= 0) return null;
+    const output = allocBuffer(needed);
+    try {
+      const written = wasm.draco_solve(factsPtr, factsLen, output.ptr, output.len);
+      if (written !== needed) return null;
+      const resultBytes = readBytes(output.ptr, written);
+      return JSON.parse(new TextDecoder().decode(resultBytes)) as Record<string, unknown>;
+    } finally {
+      deallocBuffer(output.ptr, output.len);
+    }
   } finally {
-    wasm.dealloc(factsPtr, factsLen);
+    deallocBytes(factsPtr, factsLen);
   }
 }
 
