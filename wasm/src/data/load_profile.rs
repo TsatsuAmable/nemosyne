@@ -64,10 +64,12 @@ fn write_str_out(s: &str, out_ptr: u32, out_len: u32) -> u32 {
     if required == 0 {
         return 0;
     }
-    if out_ptr == 0 || out_len < required {
+    if out_len < required {
         return required;
     }
-    let slice = unsafe { allocator::view_mut(out_ptr, required) };
+    let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, required) }) else {
+        return 0;
+    };
     slice.copy_from_slice(bytes);
     required
 }
@@ -77,7 +79,10 @@ fn write_str_out(s: &str, out_ptr: u32, out_len: u32) -> u32 {
 #[wasm_bindgen]
 pub fn data_load_dataset_json_profiled(ptr: u32, len: u32) -> u32 {
     let total_started = data::provenance::now_ms();
-    let bytes = unsafe { allocator::view(ptr, len) };
+    let Some(bytes) = (unsafe { allocator::try_view(ptr, len) }) else {
+        record_error(len as usize);
+        return 0;
+    };
 
     let utf8_started = data::provenance::now_ms();
     let json = match std::str::from_utf8(bytes) {
@@ -130,11 +135,6 @@ pub fn data_last_load_profile(out_ptr: u32, out_len: u32) -> u32 {
 mod tests {
     use super::*;
 
-    // LAST_LOAD_PROFILE is process-global. Rust's default parallel test runner
-    // can otherwise let one load-profile test replace the singleton between
-    // another test's size query and second ABI read. Serialize only access to
-    // that singleton; do not reset the shared host allocator, since unrelated
-    // tests may concurrently hold buffers allocated from it.
     static TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn read_profile_via_abi() -> serde_json::Value {
