@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const boundarySource = readFileSync('src/wasm/ColumnarBoundary.ts', 'utf8');
 const barrelSource = readFileSync('src/wasm/index.ts', 'utf8');
+const portSource = readFileSync('src/atlas/adapters/AnalyticalKernelPort.ts', 'utf8');
 
 describe('runtime columnar host boundary', () => {
   it('routes metadata through canonical columnar exports', () => {
@@ -20,5 +21,7 @@ describe('runtime columnar host boundary', () => {
 
   it('publishes application-facing dataset helpers from the boundary adapter', () => {
     expect(barrelSource).toMatch(/datasetRowCount,[\s\S]*datasetColumnCount,[\s\S]*rowMaterialisationCount,[\s\S]*getDatasetJson,[\s\S]*parseDatasetBytes,[\s\S]*executeOperation,[\s\S]*from '\.\/ColumnarBoundary\.ts'/);
+    expect(barrelSource).toContain('loadTypedColumns');
+    expect(portSource).toContain('loadTypedColumns');
   });
 });

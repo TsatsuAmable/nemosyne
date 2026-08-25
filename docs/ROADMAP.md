@@ -8,11 +8,11 @@
 
 **Design packet:** PR #402 is merged. Its decision records (`docs/decisions/P1A_COLUMNAR_TDA_ACCESS.md`, `P1B_ASYNC_ANALYTICAL_RUNTIME.md`, `P1C_SPARSE_TOPOLOGY.md`, `P1D_F_PERCEPTUAL_FITNESS_AND_SEMANTIC_RESOLUTION.md`) are the binding implementation specifications for their tranches — not landed code and not completed exit evidence. P1-A exit evidence is still pending; the P1-B/P1-C designs are preserved but deprioritised behind the P1-R/P1-U convergence gates.
 
-**Roadmap correction:** #400 advanced the analytical checkpoint to P1-B too early. PR #395 closed the production JavaScript rematerialisation paths, but the final P1-A exit condition remains: a typed/columnar-only ingest handle is registered without a row-major `Dataset`, while the current TDA exports still resolve through `with_dataset(handle, ...)`. Supported TDA therefore does not yet execute directly against that columnar-only capability.
+**P1-A final exit:** completed. Typed/columnar-only handles execute persistence intervals, Mapper graph and Betti-0 curves directly in Rust without row rematerialisation, with `ingestMode: "columnar_only"` provenance recorded. Verified across R1–R8, W1–W4, A1–A3, and S1–S3 gates.
 
 **Product convergence finding:** the architecture is ahead of the visible product. Moneta's semantic ontology can choose density, distribution, cluster, aggregate, manifold, temporal, hierarchical, graph and multiscale representations, but the current embodiment path still commonly resolves data into row-oriented geometry. `VRTopologyTranslator` still consumes `dataset.rows`; `ScalableTopologyEmbodiment` can create one instanced mesh item per observation; and some aggregate rendering paths fall back to the point cloud. The current `RepresentationGraphAdapter` is explicitly a compatibility adapter rather than the runtime embodiment authority. The result is that semantically different Moneta decisions can still collapse into variations of "put the records somewhere in 3D".
 
-**Next checkpoint:** complete the final P1-A exit tranche first. Immediately afterwards, prioritise representation embodiment convergence and whole-product investigation UX convergence before deeper runtime optimisation. P1-B/P1-C remain required technical tranches, and PR #402's designs should be preserved, but Nemosyne should not optimise point-per-row rendering before proving that Moneta's richer semantic choices become genuinely different, useful spatial representations.
+**Next checkpoint:** prioritise representation embodiment convergence (P1-R) and whole-product investigation UX (P1-U) convergence before deeper runtime optimisation. P1-B/P1-C remain required technical tranches, and PR #402's designs should be preserved, but Nemosyne should not optimise point-per-row rendering before proving that Moneta's richer semantic choices become genuinely different, useful spatial representations.
 
 **Active development wave:** P1 analytical responsiveness, representation embodiment and whole-product spatial fitness. See [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md) for the analytical dependency programme; this roadmap interleaves product-convergence gates where they are required to validate the product thesis.
 
@@ -119,7 +119,11 @@ PR #395 completed the production-side TDA boundary closure:
 - filtration construction moved out of JavaScript raw-row traversal and into Rust column access;
 - architecture and behavioural tests freeze those production JS boundary invariants.
 
-One P1-A exit condition remains. Typed-column ingest deliberately registers a columnar-only capability with no row-major `Dataset`; current TDA exports still call `with_dataset(handle, ...)`, so that capability cannot yet run supported TDA directly. P1-A exits only when persistence, Mapper and Betti-0 operate on the typed/columnar handle without reconstructing rows.
+- typed/columnar-only handles execute persistence intervals, Mapper graph, and Betti-0 directly via `FeatureSpace` and `columnar_snapshot(handle)` without row materialisation;
+- TDA provenance records `ingestMode: "columnar_only" | "row_major"` alongside the exact input fingerprint;
+- `AtlasCore` and `TDAPlanes` route `compute*ForCurrent` natively on columnar handles.
+
+The P1-A exit gate is complete across all criteria (R1–R8, W1–W4, A1–A3, S1–S3).
 
 ### Test architecture and feedback latency
 

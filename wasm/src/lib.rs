@@ -803,6 +803,52 @@ fn parse_usize_array(v: &serde_json::Value) -> Vec<usize> {
         .unwrap_or_default()
 }
 
+/// Resolve a TDA `FeatureSpace` plus the provenance input fingerprint and ingest
+/// mode for `handle`.
+///
+/// The row-major path is tried first and is byte-identical to the pre-columnar
+/// TDA exports (same `FeatureSpace::from_rows` gather, same `ds.fingerprint()`).
+/// When the handle is columnar-only (no row-major `Dataset` slot), the fallback
+/// builds the feature space directly from the resident primitive `f64` buffers
+/// via `FeatureSpace::from_columnar` and fingerprints it with
+/// `columnar_dataset_fingerprint` — no row materialisation occurs. Categorical
+/// feature columns fail closed (`UnsupportedColumnKind`) and surface as a 0
+/// return with a logged side-channel message.
+fn tda_space(
+    handle: u32,
+    feature_columns: &[String],
+) -> Option<(data::topology::FeatureSpace, String, &'static str)> {
+    let fc_refs: Vec<&str> = feature_columns.iter().map(|s| s.as_str()).collect();
+    if let Some((space, fp)) = data::with_dataset(handle, |ds| {
+        (
+            data::topology::FeatureSpace::from_rows(ds, &fc_refs),
+            ds.fingerprint(),
+        )
+    }) {
+        return Some((space, fp, "row_major"));
+    }
+    let (name, columns, columnar) = data::columnar_snapshot(handle)?;
+    let space = match data::topology::FeatureSpace::from_columnar(&columns, columnar.as_ref(), &fc_refs) {
+        Ok(space) => space,
+        Err(error) => {
+            log_error(&format!("tda columnar fallback failed for handle {handle}: {error}"));
+            return None;
+        }
+    };
+    let input_fp = match data::columnar_fingerprint::columnar_dataset_fingerprint(
+        &name,
+        &columns,
+        columnar.as_ref(),
+    ) {
+        Ok(fp) => fp,
+        Err(error) => {
+            log_error(&format!("tda columnar fingerprint failed for handle {handle}: {error}"));
+            return None;
+        }
+    };
+    Some((space, input_fp, "columnar_only"))
+}
+
 #[wasm_bindgen]
 pub fn data_compute_mapper_graph(
     handle: u32,
@@ -825,20 +871,14 @@ pub fn data_compute_mapper_graph(
     let filter_values = parse_f64_array(params.get("filterValues").unwrap_or(&serde_json::Value::Null));
     let bins = params.get("bins").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
     let overlap = params.get("overlap").and_then(|v| v.as_f64()).unwrap_or(0.3);
-    let fc_refs: Vec<&str> = feature_columns.iter().map(|s| s.as_str()).collect();
 
-    let (graph, input_fp) = match data::with_dataset(handle, |ds| {
-        (
-            data::topology::compute_mapper_graph(ds, &fc_refs, &filter_values, bins, overlap),
-            ds.fingerprint(),
-        )
-    }) {
-        Some(v) => v,
-        None => return 0,
+    let Some((space, input_fp, ingest_mode)) = tda_space(handle, &feature_columns) else {
+        return 0;
     };
+    let graph = data::topology::compute_mapper_graph_space(&space, &filter_values, bins, overlap);
     let json = serde_json::to_string(&graph).unwrap_or_else(|_| "{}".to_string());
     let output_fp = data::fingerprint::fnv1a_hex(&json);
-    data::provenance::record("compute_mapper_graph", params, &input_fp, &output_fp);
+    data::provenance::record_with_ingest("compute_mapper_graph", params, &input_fp, &output_fp, Some(ingest_mode));
     write_str_out(&json, out_ptr, out_len)
 }
 
@@ -863,20 +903,14 @@ pub fn data_compute_persistence_intervals(
     let feature_columns = parse_string_array(params.get("featureColumns").unwrap_or(&serde_json::Value::Null));
     let filter_values = parse_f64_array(params.get("filterValues").unwrap_or(&serde_json::Value::Null));
     let max_distance = params.get("maxDistance").and_then(|v| v.as_f64()).unwrap_or(1.0);
-    let fc_refs: Vec<&str> = feature_columns.iter().map(|s| s.as_str()).collect();
 
-    let (intervals, input_fp) = match data::with_dataset(handle, |ds| {
-        (
-            data::topology::compute_persistence_intervals(ds, &fc_refs, &filter_values, max_distance),
-            ds.fingerprint(),
-        )
-    }) {
-        Some(v) => v,
-        None => return 0,
+    let Some((space, input_fp, ingest_mode)) = tda_space(handle, &feature_columns) else {
+        return 0;
     };
+    let intervals = data::topology::compute_persistence_intervals_space(&space, &filter_values, max_distance);
     let json = serde_json::to_string(&intervals).unwrap_or_else(|_| "[]".to_string());
     let output_fp = data::fingerprint::fnv1a_hex(&json);
-    data::provenance::record("compute_persistence_intervals", params, &input_fp, &output_fp);
+    data::provenance::record_with_ingest("compute_persistence_intervals", params, &input_fp, &output_fp, Some(ingest_mode));
     write_str_out(&json, out_ptr, out_len)
 }
 
@@ -900,20 +934,14 @@ pub fn data_compute_betti0_curve(
     };
     let feature_columns = parse_string_array(params.get("featureColumns").unwrap_or(&serde_json::Value::Null));
     let steps = params.get("steps").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
-    let fc_refs: Vec<&str> = feature_columns.iter().map(|s| s.as_str()).collect();
 
-    let (curve, input_fp) = match data::with_dataset(handle, |ds| {
-        (
-            data::topology::compute_betti0_curve(ds, &fc_refs, steps),
-            ds.fingerprint(),
-        )
-    }) {
-        Some(v) => v,
-        None => return 0,
+    let Some((space, input_fp, ingest_mode)) = tda_space(handle, &feature_columns) else {
+        return 0;
     };
+    let curve = data::topology::compute_betti0_curve_space(&space, steps);
     let json = serde_json::to_string(&curve).unwrap_or_else(|_| "[]".to_string());
     let output_fp = data::fingerprint::fnv1a_hex(&json);
-    data::provenance::record("compute_betti0_curve", params, &input_fp, &output_fp);
+    data::provenance::record_with_ingest("compute_betti0_curve", params, &input_fp, &output_fp, Some(ingest_mode));
     write_str_out(&json, out_ptr, out_len)
 }
 
@@ -1368,6 +1396,151 @@ mod tests {
         assert!(fingerprint.bytes().all(|byte| byte.is_ascii_hexdigit()));
 
         dealloc(out, required);
+        dataset_destroy(handle);
+    }
+
+    /// Drive a TDA export with a params JSON and return its output JSON. Uses
+    /// the two-call (required -> write) ABI exactly like `structure_profile`.
+    fn call_tda_export(
+        export: fn(u32, u32, u32, u32, u32) -> u32,
+        handle: u32,
+        params: &[u8],
+    ) -> String {
+        let (p_ptr, p_len) = allocator::copy_bytes(params);
+        let required = export(handle, p_ptr, p_len, 0, 0);
+        assert!(required > 0, "TDA export produced no output");
+        let out = alloc(required);
+        let written = export(handle, p_ptr, p_len, out, required);
+        assert_eq!(written, required);
+        let json = std::str::from_utf8(unsafe { allocator::view(out, written) })
+            .expect("tda output utf8")
+            .to_string();
+        dealloc(out, required);
+        dealloc(p_ptr, p_len);
+        json
+    }
+
+    /// R7 + R8 (columnar side): a columnar-only handle runs all three TDA ops,
+    /// records `ingestMode: "columnar_only"` with the columnar fingerprint, and
+    /// never increments the row-materialisation counter.
+    #[test]
+    fn r7_r8_columnar_tda_provenance_and_no_materialisation() {
+        let columns = vec![
+            data::column::Column::new("x", data::column::ColumnType::Numeric),
+            data::column::Column::new("y", data::column::ColumnType::Numeric),
+        ];
+        let columnar = data::columnar::ColumnarDataset::from_parts(
+            4,
+            std::collections::HashMap::from([
+                (
+                    0,
+                    data::columnar::PrimitiveColumn {
+                        values: vec![0.0, 1.0, 2.0, 3.0],
+                        validity: vec![1, 1, 1, 1],
+                    },
+                ),
+                (
+                    1,
+                    data::columnar::PrimitiveColumn {
+                        values: vec![0.0, 0.5, 1.0, 1.0],
+                        validity: vec![1, 1, 1, 1],
+                    },
+                ),
+            ]),
+            std::collections::HashMap::new(),
+        )
+        .expect("valid columnar dataset");
+        let handle = data::register_columnar_dataset("col-tda".to_string(), columns, columnar);
+        // A columnar-only handle has no row-major Dataset slot.
+        assert!(data::with_dataset(handle, |_| ()).is_none());
+
+        // Recompute the columnar fingerprint from the registered snapshot so it
+        // matches what the export records as its input fingerprint.
+        let (_, snap_cols, snap_columnar) = data::columnar_snapshot(handle).expect("snapshot");
+        let real_col_fp = data::columnar_fingerprint::columnar_dataset_fingerprint(
+            "col-tda",
+            &snap_cols,
+            snap_columnar.as_ref(),
+        )
+        .expect("columnar fingerprint");
+
+        let mapper_params = br#"{"featureColumns":["x","y"],"bins":4,"overlap":0.3}"#;
+        let persistence_params = br#"{"featureColumns":["x","y"],"maxDistance":1.0}"#;
+        let betti_params = br#"{"featureColumns":["x","y"],"steps":8}"#;
+
+        let materialisations_before = data::row_materialisation_count();
+        let cases: [(&str, &[u8]); 3] = [
+            ("compute_mapper_graph", mapper_params),
+            ("compute_persistence_intervals", persistence_params),
+            ("compute_betti0_curve", betti_params),
+        ];
+        for (op, params) in cases {
+            let export = match op {
+                "compute_mapper_graph" => data_compute_mapper_graph,
+                "compute_persistence_intervals" => data_compute_persistence_intervals,
+                _ => data_compute_betti0_curve,
+            };
+            data::provenance::clear();
+            let json = call_tda_export(export, handle, params);
+            assert!(!json.is_empty(), "{op} produced empty output");
+            let provenance: serde_json::Value =
+                serde_json::from_str(&data::provenance::last_json()).expect("provenance json");
+            assert_eq!(
+                provenance["ingestMode"], "columnar_only",
+                "{op} must record columnar_only ingest mode"
+            );
+            assert_eq!(
+                provenance["inputFingerprint"], real_col_fp,
+                "{op} must record the columnar fingerprint"
+            );
+            assert_eq!(provenance["operation"], op);
+        }
+        assert_eq!(
+            data::row_materialisation_count(),
+            materialisations_before,
+            "columnar TDA must not materialise rows"
+        );
+
+        dataset_destroy(handle);
+    }
+
+    /// R7 (row side): a row-major handle still records `ingestMode: "row_major"`
+    /// with the row-major fingerprint — byte-identical to the pre-columnar TDA
+    /// exports.
+    #[test]
+    fn r7_row_major_tda_provenance_stays_row_major() {
+        let mut r0 = std::collections::HashMap::new();
+        r0.insert("x".to_string(), data::value::Value::Number(0.0));
+        r0.insert("y".to_string(), data::value::Value::Number(0.0));
+        let mut r1 = std::collections::HashMap::new();
+        r1.insert("x".to_string(), data::value::Value::Number(1.0));
+        r1.insert("y".to_string(), data::value::Value::Number(0.5));
+        let mut r2 = std::collections::HashMap::new();
+        r2.insert("x".to_string(), data::value::Value::Number(2.0));
+        r2.insert("y".to_string(), data::value::Value::Number(1.0));
+        let mut r3 = std::collections::HashMap::new();
+        r3.insert("x".to_string(), data::value::Value::Number(3.0));
+        r3.insert("y".to_string(), data::value::Value::Number(1.0));
+        let dataset = data::dataset::Dataset::new(
+            "row-tda",
+            vec![
+                data::column::Column::new("x", data::column::ColumnType::Numeric),
+                data::column::Column::new("y", data::column::ColumnType::Numeric),
+            ],
+            vec![r0, r1, r2, r3],
+        );
+        let row_fp = dataset.fingerprint();
+        let handle = data::register_dataset(dataset);
+
+        let mapper_params = br#"{"featureColumns":["x","y"],"bins":4,"overlap":0.3}"#;
+        data::provenance::clear();
+        let json = call_tda_export(data_compute_mapper_graph, handle, mapper_params);
+        assert!(!json.is_empty());
+        let provenance: serde_json::Value =
+            serde_json::from_str(&data::provenance::last_json()).expect("provenance json");
+        assert_eq!(provenance["ingestMode"], "row_major");
+        assert_eq!(provenance["inputFingerprint"], row_fp);
+
         dataset_destroy(handle);
     }
 

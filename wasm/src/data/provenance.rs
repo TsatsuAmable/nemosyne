@@ -37,6 +37,14 @@ pub struct Provenance {
     pub input_fingerprint: String,
     pub output_fingerprint: String,
     pub timestamp: f64,
+    /// Substrate that produced the result: `"row_major"` or `"columnar_only"`.
+    /// Absent on operations that do not distinguish ingest substrates, so the
+    /// provenance JSON for every non-TDA envelope is unchanged. TDA ops
+    /// (`compute_mapper_graph`, `compute_persistence_intervals`,
+    /// `compute_betti0_curve`) always set this so replay can tell which
+    /// substrate produced a result.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ingest_mode: Option<String>,
 }
 
 static LAST_PROVENANCE: Mutex<Option<String>> = Mutex::new(None);
@@ -49,6 +57,19 @@ pub fn record(
     input_fingerprint: &str,
     output_fingerprint: &str,
 ) {
+    record_with_ingest(operation, parameters, input_fingerprint, output_fingerprint, None);
+}
+
+/// Record a provenance envelope that also names the ingest substrate. TDA
+/// exports use this so a row-major and a columnar-only handle that produce the
+/// same analytical output still carry distinguishable, replayable provenance.
+pub fn record_with_ingest(
+    operation: &str,
+    parameters: serde_json::Value,
+    input_fingerprint: &str,
+    output_fingerprint: &str,
+    ingest_mode: Option<&str>,
+) {
     let envelope = Provenance {
         kernel: KERNEL_NAME,
         kernel_version: KERNEL_VERSION,
@@ -57,6 +78,7 @@ pub fn record(
         input_fingerprint: input_fingerprint.to_string(),
         output_fingerprint: output_fingerprint.to_string(),
         timestamp: now_ms(),
+        ingest_mode: ingest_mode.map(|s| s.to_string()),
     };
     let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
     if let Ok(mut slot) = LAST_PROVENANCE.lock() {

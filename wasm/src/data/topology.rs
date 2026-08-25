@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use serde::Serialize;
+use crate::data::column::Column;
+use crate::data::columnar::ColumnarDataset;
 use crate::data::dataset::Dataset;
 use crate::data::value::Value;
 
@@ -149,31 +151,139 @@ fn euclidean_dist(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b.iter()).map(|(x, y)| (x - y) * (x - y)).sum::<f64>().sqrt()
 }
 
+/// Borrowed numeric point source for TDA. Implementations never materialize
+/// row maps (`HashMap<String, Value>`): the row path gathers `f64` points
+/// exactly as the legacy algorithm bodies did; the columnar path reads the
+/// primitive `f64` buffers directly from `ColumnarDataset`. Categorical /
+/// dictionary feature columns are out of scope for TDA and fail closed.
+#[derive(Debug, Clone)]
+pub struct FeatureSpace {
+    row_count: usize,
+    /// `points[i]` is the gathered feature vector for row `i` (row-major
+    /// layout, identical to the legacy `values: Vec<Vec<f64>>` local).
+    points: Vec<Vec<f64>>,
+    /// First feature column's per-row values — the filtration fallback used
+    /// when explicit `filter_values` are omitted or length-mismatched. Empty
+    /// when there are no feature columns, matching the legacy
+    /// `resolve_filter_values` empty-vector contract.
+    first_feature: Vec<f64>,
+}
+
+/// Typed errors for the columnar TDA path. Surfaced by exports as a 0 return
+/// plus a `log_error` side-channel message; never a panic, never partial output.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ColumnarTdaError {
+    UnknownColumn(String),
+    UnsupportedColumnKind(String),
+}
+
+impl std::fmt::Display for ColumnarTdaError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ColumnarTdaError::UnknownColumn(name) => {
+                write!(f, "feature column {name:?} not found in dataset schema")
+            }
+            ColumnarTdaError::UnsupportedColumnKind(name) => {
+                write!(
+                    f,
+                    "feature column {name:?} is categorical/non-numeric; TDA requires numeric or temporal columns"
+                )
+            }
+        }
+    }
+}
+
+impl FeatureSpace {
+    /// Row-major path. Gathers exactly as the legacy algorithm bodies did:
+    /// `row.get(col).and_then(|v| v.as_number()).unwrap_or(0.0)` per feature.
+    /// Byte-identical behaviour to the pre-columnar TDA implementation.
+    pub fn from_rows(dataset: &Dataset, feature_columns: &[&str]) -> Self {
+        let points: Vec<Vec<f64>> = dataset
+            .rows
+            .iter()
+            .map(|r| {
+                feature_columns
+                    .iter()
+                    .map(|col| r.get(*col).and_then(|v| v.as_number()).unwrap_or(0.0))
+                    .collect()
+            })
+            .collect();
+        let first_feature = if feature_columns.is_empty() {
+            Vec::new()
+        } else {
+            points.iter().map(|p| p[0]).collect()
+        };
+        Self {
+            row_count: dataset.row_count(),
+            points,
+            first_feature,
+        }
+    }
+
+    /// Columnar-only path. Reads primitive `f64` buffers directly from the
+    /// resident `ColumnarDataset` — no row maps are built and the row-major
+    /// `Dataset` slot is never consulted. Dictionary/categorical feature
+    /// columns fail closed with `UnsupportedColumnKind`; expanding categorical
+    /// support is a governed P1-C/P2 decision, not smuggled in here.
+    pub fn from_columnar(
+        columns: &[Column],
+        columnar: &ColumnarDataset,
+        feature_columns: &[&str],
+    ) -> Result<Self, ColumnarTdaError> {
+        let mut feature_buffers: Vec<Vec<f64>> = Vec::with_capacity(feature_columns.len());
+        for name in feature_columns {
+            let index = columns
+                .iter()
+                .position(|c| &c.name == name)
+                .ok_or_else(|| ColumnarTdaError::UnknownColumn(name.to_string()))?;
+            match columnar.primitive_column(index) {
+                Some(primitive) => feature_buffers.push(primitive.values.clone()),
+                None => return Err(ColumnarTdaError::UnsupportedColumnKind(name.to_string())),
+            }
+        }
+        let row_count = columnar.row_count();
+        let first_feature = match feature_buffers.first() {
+            Some(buf) => buf.clone(),
+            None => Vec::new(),
+        };
+        // Transpose into row-major points to keep the algorithm bodies
+        // byte-identical with the row path (they index `points[i]`).
+        let points: Vec<Vec<f64>> = (0..row_count)
+            .map(|i| feature_buffers.iter().map(|buf| buf[i]).collect())
+            .collect();
+        Ok(Self {
+            row_count,
+            points,
+            first_feature,
+        })
+    }
+
+    pub fn row_count(&self) -> usize {
+        self.row_count
+    }
+}
+
 /// Resolve the filtration vector inside the Rust analytical authority.
 ///
 /// Explicit `filter_values` remain supported for compatibility and tests. When
-/// they are omitted, the first feature column becomes the filtration column.
-/// Production Atlas/TDA uses this mode so UI code never traverses raw rows to
-/// manufacture an analytical input vector.
-fn resolve_filter_values(
-    dataset: &Dataset,
-    feature_columns: &[&str],
+/// they are omitted (or length-mismatched), the first feature column becomes the
+/// filtration column. Production Atlas/TDA uses this mode so UI code never
+/// traverses raw rows to manufacture an analytical input vector.
+fn resolve_filter_values_space(
+    space: &FeatureSpace,
     filter_values: &[f64],
 ) -> Vec<f64> {
-    if filter_values.len() == dataset.row_count() {
+    if filter_values.len() == space.row_count {
         return filter_values.to_vec();
     }
-    let Some(filter_column) = feature_columns.first() else {
-        return Vec::new();
-    };
-    dataset
-        .get_column_values(filter_column)
-        .into_iter()
-        .map(|value| value.and_then(|v| v.as_number()).unwrap_or(0.0))
-        .collect()
+    space.first_feature.clone()
 }
 
 /// Compute TDA Mapper graph over dataset numeric feature columns.
+///
+/// Row-major convenience wrapper: builds a `FeatureSpace` from the dataset and
+/// delegates to `compute_mapper_graph_space`. Behaviour is byte-identical to
+/// the pre-columnar implementation; kept for direct callers and tests.
 pub fn compute_mapper_graph(
     dataset: &Dataset,
     feature_columns: &[&str],
@@ -181,24 +291,28 @@ pub fn compute_mapper_graph(
     bins: usize,
     overlap: f64,
 ) -> TdaMapperGraph {
-    let filter_values = resolve_filter_values(dataset, feature_columns, filter_values);
-    if dataset.row_count() == 0 || filter_values.len() != dataset.row_count() {
+    let space = FeatureSpace::from_rows(dataset, feature_columns);
+    compute_mapper_graph_space(&space, filter_values, bins, overlap)
+}
+
+/// Columnar-native Mapper graph over a borrowed `FeatureSpace`. This is the
+/// substrate-agnostic core: the row path and the columnar-only path both arrive
+/// here, so the algorithm runs identically regardless of ingest mode.
+pub fn compute_mapper_graph_space(
+    space: &FeatureSpace,
+    filter_values: &[f64],
+    bins: usize,
+    overlap: f64,
+) -> TdaMapperGraph {
+    let filter_values = resolve_filter_values_space(space, filter_values);
+    if space.row_count == 0 || filter_values.len() != space.row_count {
         return TdaMapperGraph {
             nodes: Vec::new(),
             edges: Vec::new(),
         };
     }
 
-    let values: Vec<Vec<f64>> = dataset
-        .rows
-        .iter()
-        .map(|r| {
-            feature_columns
-                .iter()
-                .map(|col| r.get(*col).and_then(|v| v.as_number()).unwrap_or(0.0))
-                .collect()
-        })
-        .collect();
+    let values: &[Vec<f64>] = &space.points;
 
     let f_min = filter_values.iter().copied().fold(f64::INFINITY, f64::min);
     let f_max = filter_values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
@@ -211,7 +325,7 @@ pub fn compute_mapper_graph(
         let lo = f_min + i as f64 * step - overlap * step;
         let hi = lo + step + 2.0 * overlap * step;
 
-        let bucket: Vec<usize> = (0..dataset.row_count())
+        let bucket: Vec<usize> = (0..space.row_count)
             .filter(|&idx| filter_values[idx] >= lo && filter_values[idx] <= hi)
             .collect();
 
@@ -295,28 +409,32 @@ pub fn compute_mapper_graph(
 }
 
 /// Compute 1D persistence intervals using Union-Find.
+///
+/// Row-major convenience wrapper; byte-identical to the pre-columnar
+/// implementation. Delegates to `compute_persistence_intervals_space`.
 pub fn compute_persistence_intervals(
     dataset: &Dataset,
     feature_columns: &[&str],
     filter_values: &[f64],
     max_distance: f64,
 ) -> Vec<PersistenceInterval> {
-    let n = dataset.row_count();
-    let filter_values = resolve_filter_values(dataset, feature_columns, filter_values);
+    let space = FeatureSpace::from_rows(dataset, feature_columns);
+    compute_persistence_intervals_space(&space, filter_values, max_distance)
+}
+
+/// Columnar-native persistence intervals over a borrowed `FeatureSpace`.
+pub fn compute_persistence_intervals_space(
+    space: &FeatureSpace,
+    filter_values: &[f64],
+    max_distance: f64,
+) -> Vec<PersistenceInterval> {
+    let n = space.row_count;
+    let filter_values = resolve_filter_values_space(space, filter_values);
     if n == 0 || filter_values.len() != n {
         return Vec::new();
     }
 
-    let values: Vec<Vec<f64>> = dataset
-        .rows
-        .iter()
-        .map(|r| {
-            feature_columns
-                .iter()
-                .map(|col| r.get(*col).and_then(|v| v.as_number()).unwrap_or(0.0))
-                .collect()
-        })
-        .collect();
+    let values: &[Vec<f64>] = &space.points;
 
     let mut indices: Vec<usize> = (0..n).collect();
     indices.sort_by(|&a, &b| filter_values[a].partial_cmp(&filter_values[b]).unwrap_or(std::cmp::Ordering::Equal));
@@ -358,30 +476,35 @@ pub fn compute_persistence_intervals(
         }
     }
 
+    intervals.sort_by(|a, b| a.birth.partial_cmp(&b.birth).unwrap_or(std::cmp::Ordering::Equal));
+
     intervals
 }
 
 /// Compute Betti-0 curve over distance radius steps.
+///
+/// Row-major convenience wrapper; byte-identical to the pre-columnar
+/// implementation. Delegates to `compute_betti0_curve_space`.
 pub fn compute_betti0_curve(
     dataset: &Dataset,
     feature_columns: &[&str],
     steps: usize,
 ) -> Vec<BettiPoint> {
-    let n = dataset.row_count();
+    let space = FeatureSpace::from_rows(dataset, feature_columns);
+    compute_betti0_curve_space(&space, steps)
+}
+
+/// Columnar-native Betti-0 curve over a borrowed `FeatureSpace`.
+pub fn compute_betti0_curve_space(
+    space: &FeatureSpace,
+    steps: usize,
+) -> Vec<BettiPoint> {
+    let n = space.row_count;
     if n == 0 {
         return Vec::new();
     }
 
-    let values: Vec<Vec<f64>> = dataset
-        .rows
-        .iter()
-        .map(|r| {
-            feature_columns
-                .iter()
-                .map(|col| r.get(*col).and_then(|v| v.as_number()).unwrap_or(0.0))
-                .collect()
-        })
-        .collect();
+    let values: &[Vec<f64>] = &space.points;
 
     let mut max_d = 0.0f64;
     for i in 0..n {
@@ -543,5 +666,143 @@ mod tests {
         assert!(node.get("filterCenter").is_some(), "camelCase filterCenter missing: {json}");
         assert!(node.get("row_indices").is_none(), "snake_case row_indices leaked: {json}");
         assert!(node.get("filter_center").is_none(), "snake_case filter_center leaked: {json}");
+    }
+}
+
+#[cfg(test)]
+mod columnar_tda_tests {
+    use super::*;
+    use crate::data::column::ColumnType;
+    use crate::data::columnar::ColumnarDataset;
+
+    /// A dataset with two numeric feature columns, including a row with a
+    /// missing value in `x` (so the columnar validity bitmap is exercised).
+    /// The columnar sidecar is built via `from_dataset` so both substrates see
+    /// byte-identical normalization (invalid -> 0.0).
+    fn parity_fixture() -> (Dataset, ColumnarDataset, Vec<&'static str>) {
+        let cols = vec![
+            Column::new("x", ColumnType::Numeric),
+            Column::new("y", ColumnType::Numeric),
+        ];
+        let mut r0 = HashMap::new();
+        r0.insert("x".to_string(), Value::Number(0.0));
+        r0.insert("y".to_string(), Value::Number(0.0));
+        let mut r1 = HashMap::new();
+        r1.insert("x".to_string(), Value::Number(1.0));
+        r1.insert("y".to_string(), Value::Number(0.5));
+        let mut r2 = HashMap::new();
+        r2.insert("y".to_string(), Value::Number(1.0)); // missing x
+        let mut r3 = HashMap::new();
+        r3.insert("x".to_string(), Value::Number(1.0));
+        r3.insert("y".to_string(), Value::Number(1.0));
+        let ds = Dataset::new("parity", cols, vec![r0, r1, r2, r3]);
+        let columnar = ColumnarDataset::from_dataset(&ds);
+        (ds, columnar, vec!["x", "y"])
+    }
+
+    fn spaces() -> (FeatureSpace, FeatureSpace) {
+        let (ds, columnar, fc) = parity_fixture();
+        let row_space = FeatureSpace::from_rows(&ds, &fc);
+        let col_space = FeatureSpace::from_columnar(&ds.columns, &columnar, &fc).expect("columnar feature space");
+        (row_space, col_space)
+    }
+
+    #[test]
+    fn r1_columnar_mapper_parity() {
+        let (row_space, col_space) = spaces();
+        let row_graph = compute_mapper_graph_space(&row_space, &[], 4, 0.3);
+        let col_graph = compute_mapper_graph_space(&col_space, &[], 4, 0.3);
+        assert_eq!(row_graph.nodes.len(), col_graph.nodes.len());
+        assert_eq!(row_graph.edges, col_graph.edges);
+        for (rn, cn) in row_graph.nodes.iter().zip(col_graph.nodes.iter()) {
+            assert_eq!(rn.id, cn.id);
+            assert_eq!(rn.row_indices, cn.row_indices);
+            assert_eq!(rn.level, cn.level);
+            assert_eq!(rn.center, cn.center);
+            assert_eq!(rn.filter_center, cn.filter_center);
+            assert_eq!(rn.size, cn.size);
+        }
+    }
+
+    #[test]
+    fn r2_columnar_persistence_parity() {
+        let (row_space, col_space) = spaces();
+        let row_iv = compute_persistence_intervals_space(&row_space, &[], 1.0);
+        let col_iv = compute_persistence_intervals_space(&col_space, &[], 1.0);
+        assert_eq!(row_iv.len(), col_iv.len());
+        for (r, c) in row_iv.iter().zip(col_iv.iter()) {
+            assert_eq!(r.birth, c.birth);
+            assert_eq!(r.death, c.death);
+        }
+    }
+
+    #[test]
+    fn r3_columnar_betti0_parity() {
+        let (row_space, col_space) = spaces();
+        let row_curve = compute_betti0_curve_space(&row_space, 8);
+        let col_curve = compute_betti0_curve_space(&col_space, 8);
+        assert_eq!(row_curve.len(), col_curve.len());
+        for (r, c) in row_curve.iter().zip(col_curve.iter()) {
+            assert_eq!(r.radius, c.radius);
+            assert_eq!(r.betti0, c.betti0);
+        }
+    }
+
+    #[test]
+    fn r4_columnar_filtration_derivation_parity() {
+        let (row_space, col_space) = spaces();
+        // No explicit filterValues -> first feature column drives filtration,
+        // and the derived vectors must match exactly across substrates.
+        assert_eq!(row_space.first_feature, col_space.first_feature);
+        let row_graph = compute_mapper_graph_space(&row_space, &[], 4, 0.3);
+        let col_graph = compute_mapper_graph_space(&col_space, &[], 4, 0.3);
+        assert_eq!(row_graph.nodes.len(), col_graph.nodes.len());
+    }
+
+    #[test]
+    fn r5_columnar_unsupported_column_kind_fails_closed() {
+        let cols = vec![
+            Column::new("x", ColumnType::Numeric),
+            Column::new("cohort", ColumnType::Categorical),
+        ];
+        let columnar = ColumnarDataset::from_parts(
+            2,
+            std::collections::HashMap::from([(
+                0,
+                crate::data::columnar::PrimitiveColumn {
+                    values: vec![0.0, 1.0],
+                    validity: vec![1, 1],
+                },
+            )]),
+            std::collections::HashMap::from([(
+                1,
+                crate::data::columnar::CategoricalColumn {
+                    dictionary: vec!["A".to_string(), "B".to_string()],
+                    codes: vec![0, 1],
+                    validity: vec![1, 1],
+                },
+            )]),
+        )
+        .expect("valid columnar dataset");
+        let err = FeatureSpace::from_columnar(&cols, &columnar, &["cohort"])
+            .expect_err("categorical feature column must fail closed");
+        assert_eq!(err, ColumnarTdaError::UnsupportedColumnKind("cohort".into()));
+
+        let err = FeatureSpace::from_columnar(&cols, &columnar, &["missing"])
+            .expect_err("unknown feature column must fail closed");
+        assert_eq!(err, ColumnarTdaError::UnknownColumn("missing".into()));
+    }
+
+    #[test]
+    fn r6_columnar_validity_bitmap_matches_row_missing_value_handling() {
+        // Row with a missing `x` becomes 0.0 in the row path (unwrap_or(0.0)) and
+        // 0.0 with validity 0 in the columnar sidecar. Both substrates must
+        // produce the identical gathered point (no row dropped, no divergence).
+        let (row_space, col_space) = spaces();
+        assert_eq!(row_space.row_count, col_space.row_count);
+        assert_eq!(row_space.points, col_space.points);
+        // Row index 2 is the missing-x row: its x feature is 0.0 in both paths.
+        assert_eq!(row_space.points[2][0], 0.0);
+        assert_eq!(col_space.points[2][0], 0.0);
     }
 }

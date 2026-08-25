@@ -86,4 +86,52 @@ describe('Atlas handle-native TDA routing', () => {
     expect(loadDatasetJson).toHaveBeenCalledTimes(loadsBefore);
     expect(mapper).toHaveBeenLastCalledWith(currentHandle, params);
   });
+
+  it('A1: columnar current runs TDA without calling loadDatasetJson or toJSON', () => {
+    const kernel = makeKernelMockBridge();
+    const loadDatasetJson = vi.spyOn(kernel, 'loadDatasetJson');
+    const loadTypedColumns = vi.spyOn(kernel, 'loadTypedColumns');
+    const persistence = vi.spyOn(kernel, 'computePersistenceIntervals');
+    const mapper = vi.spyOn(kernel, 'computeMapperGraph');
+    const betti = vi.spyOn(kernel, 'computeBetti0Curve');
+    const atlas = new AtlasCore({ kernel });
+
+    const dummyPayload = new Uint8Array([78, 84, 67, 49, 0, 0, 0, 0]);
+    const handle = atlas.loadTypedDataset(dummyPayload, 'columnar-test');
+    expect(handle).toBeGreaterThan(0);
+    expect(loadTypedColumns).toHaveBeenCalledTimes(1);
+    expect(loadDatasetJson).not.toHaveBeenCalled();
+
+    const persistenceParams = { featureColumns: ['x', 'y'], maxDistance: 2 };
+    const mapperParams = { featureColumns: ['x', 'y'], bins: 4, overlap: 0.25 };
+    const bettiParams = { featureColumns: ['x', 'y'], steps: 8 };
+
+    atlas.computePersistenceIntervalsForCurrent(persistenceParams);
+    atlas.computeMapperGraphForCurrent(mapperParams);
+    atlas.computeBetti0CurveForCurrent(bettiParams);
+
+    expect(loadDatasetJson).not.toHaveBeenCalled();
+    expect(persistence).toHaveBeenCalledWith(handle, persistenceParams);
+    expect(mapper).toHaveBeenCalledWith(handle, mapperParams);
+    expect(betti).toHaveBeenCalledWith(handle, bettiParams);
+  });
+
+  it('A2: currency by handle token and handle invalidation on replacement', () => {
+    const kernel = makeKernelMockBridge();
+    const destroyDataset = vi.spyOn(kernel, 'destroyDataset');
+    const mapper = vi.spyOn(kernel, 'computeMapperGraph');
+    const atlas = new AtlasCore({ kernel });
+
+    const dummyPayload = new Uint8Array([78, 84, 67, 49, 0, 0, 0, 0]);
+    const colHandle = atlas.loadTypedDataset(dummyPayload, 'columnar-test');
+    expect(atlas.hasDataset).toBe(true);
+
+    const params = { featureColumns: ['x', 'y'], bins: 4, overlap: 0.25 };
+    atlas.computeMapperGraphForCurrent(params);
+    expect(mapper).toHaveBeenCalledWith(colHandle, params);
+
+    // Replace with a standard row dataset
+    atlas.loadDataset(makeDataset('next'));
+    expect(destroyDataset).toHaveBeenCalledWith(colHandle);
+  });
 });

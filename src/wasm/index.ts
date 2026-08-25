@@ -20,6 +20,7 @@ export {
   kernelProvenance,
   destroyDataset,
   loadDatasetJson,
+  loadTypedColumns,
   runOperation,
   statistics,
   datasetFingerprint,
@@ -50,3 +51,11 @@ export type { KernelState } from './RuntimeBridge.ts';
 
 export { CommandApplier, COMMAND_MAGIC, COMMAND_VERSION } from './CommandApplier.ts';
 export type { ParsedCommand } from './CommandApplier.ts';
+
+export { encodeTypedColumnsPayload } from './TypedColumnsCodec.ts';
+export type {
+  TypedDatasetInput,
+  ColumnInput,
+  NumericColumnInput,
+  CategoricalColumnInput,
+} from './TypedColumnsCodec.ts';
