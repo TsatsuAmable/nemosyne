@@ -84,9 +84,14 @@ Semantics must be byte-identical to today on exact mode: same radii, same tie-br
 - Record in the provenance `parameters` echo: `neighbourhoodMode`, `gridCell`/`radius`, `landmarkSeed`/`landmarkCount` (when used), `neighbourhoodBuildDigest`, plus `implementationVersion` (the existing `KERNEL_VERSION` bump covers it; do not fork version schemes). Output fingerprints change when mode changes — that is correct (different computation), and replay must surface it as a governed provenance migration.
 - The TS result shapes (`TdaMapperGraph`, `PersistenceInterval`, `BettiPoint`) gain **no new required fields**; mode visibility rides the provenance envelope (`kernelProvenance`), consistent with P1-A's `ingestMode` addition.
 
-### 2.4 Deliberate flag — persistence deaths
+### 2.4 Recorded decision — persistence deaths are emitted in this tranche
 
-`compute_persistence_intervals` currently emits births with `death: None` always. Union over a sorted CSR edge list makes deaths computable for free. **Flag for user decision before implementation**: emitting real deaths changes output shape/semantics (ANALYTICS.md says "0-D persistence intervals…" without claiming deaths) and every output fingerprint. Recommendation: record deaths in the same tranche but behind the `KERNEL_VERSION` bump, with `docs/ANALYTICS.md` updated in the same PR. The P1 doc does not mandate it — leave the default as the implementer finds it unless the user approves the change.
+`compute_persistence_intervals` currently emits births with `death: None` always (`topology.rs:355-359`). Union over a sorted CSR edge list makes deaths computable for free, and **the user has approved emitting real H0 deaths** (2026-08-25) with a `KERNEL_VERSION` bump. Consequences, all obligatory:
+
+- `PersistenceInterval.death` becomes populated; components that never merge by `max_distance` keep `death: None` (infinite bars — an explicit, documented value, not an accident).
+- `docs/ANALYTICS.md` op-table entry for persistence is rewritten in the same PR to state death semantics and the merge rule (single-linkage ε = `max_distance`, filter-ordered union).
+- All output fingerprints change → governed provenance migration note in the PR (MAINT-06 discipline); replay of pre-tranche recordings fails closed on fingerprint mismatch, which is the intended behaviour.
+- The change lands atomically with the substrate refactor — never a separate "births-only CSR" intermediate PR, so no output shape oscillates twice.
 
 ---
 
@@ -100,7 +105,8 @@ Semantics must be byte-identical to today on exact mode: same radii, same tie-br
 | C2 | dual-input equivalence | `PointCloud::from_dataset` vs `from_columnar` on the same logical data → identical `dist_sq` matrix (ties into P1-A R1-R4 fixtures). |
 | C3 | grid-sparse soundness | Sparse index never *misses* a pair within ε (soundness = exact superset guarantee): for adversarial clouds (clusters on cell boundaries, uniform, 1-heavy tails), sparse CSR filtered exactly equals exact CSR for the same ε. |
 | C4 | determinism | Same inputs → byte-identical CSR and identical `build_digest` across runs (two builds in-process). |
-| C5 | op parity on exact mode | Betti-0/persistence/Mapper/DBSCAN results through the substrate are structurally identical to pre-refactor outputs on the existing unit fixtures (no fixture content changes). |
+| C5 | op parity on exact mode | Betti-0/Mapper/DBSCAN results through the substrate are structurally identical to pre-refactor outputs on the existing unit fixtures (no fixture content changes). **Exception by approved decision §2.4:** persistence intervals gain real deaths; parity is asserted on births + component count, with deaths verified by C5b. |
+| C5b | persistence death semantics | On fixed-seed small fixtures: deaths equal the known merge filtration values of a naive reference implementation (brute-force union-find over the sorted edge list); every component merged within ε has `death ≤ max_distance`; never-merged components keep `death: None`; lifetimes non-negative; bars ordered stably (birth asc, then death desc tie-break — recorded in ANALYTICS.md). |
 | C6 | Betti-0 monotone sanity | Curve is non-increasing in radius, ends at 1 component at ε ≥ max-d (property, holds pre- and post-refactor). |
 | C7 | provenance | Provenance `parameters` contains mode + digest; `KERNEL_VERSION` bumped once for the tranche. |
 | C8 | sparse-vs-exact stability contract (small-N reference) | For N ≤ 2 000 reference fixtures, sparse-mode Mapper/persistence/Betti-0 within declared error contracts vs exact: identical connected-component counts for Betti-0; Mapper node/edge Jaccard ≥ 0.95; persistence births set-equal after quantization. Contracts predeclared in the PR description and in `docs/ANALYTICS.md`. |
