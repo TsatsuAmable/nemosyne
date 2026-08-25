@@ -141,6 +141,50 @@ export class RustAnalyticalEvidenceAdapter {
     }
   }
 
+  /**
+   * Handle-native TDA entry points.
+   *
+   * Atlas owns the durable current dataset handle. These methods deliberately
+   * consume that capability directly so callers can avoid Dataset.toJSON() ->
+   * loadDatasetJson() rematerialisation before an analytical operation.
+   */
+  computePersistenceIntervalsForHandle(
+    handle: number,
+    params: Record<string, unknown>
+  ): PersistenceInterval[] | null {
+    return this._withHandle(
+      handle,
+      'computePersistenceIntervals',
+      (kernel, currentHandle) => kernel.computePersistenceIntervals?.(currentHandle, params) ?? null
+    );
+  }
+
+  computeMapperGraphForHandle(
+    handle: number,
+    params: Record<string, unknown>
+  ): TdaMapperGraph | null {
+    return this._withHandle(
+      handle,
+      'computeMapperGraph',
+      (kernel, currentHandle) => kernel.computeMapperGraph?.(currentHandle, params) ?? null
+    );
+  }
+
+  computeBetti0CurveForHandle(
+    handle: number,
+    params: Record<string, unknown>
+  ): BettiPoint[] | null {
+    return this._withHandle(
+      handle,
+      'computeBetti0Curve',
+      (kernel, currentHandle) => kernel.computeBetti0Curve?.(currentHandle, params) ?? null
+    );
+  }
+
+  /**
+   * Transitional DatasetJSON TDA wrappers retained for compatibility while
+   * Atlas callers move to the durable handle-native seam above.
+   */
   computePersistenceIntervals(
     dataset: DatasetJSON,
     params: Record<string, unknown>
@@ -259,6 +303,17 @@ export class RustAnalyticalEvidenceAdapter {
     }
   }
 
+  private _withHandle<T>(
+    handle: number,
+    operation: string,
+    compute: (kernel: AnalyticalKernelPort, handle: number) => T | null
+  ): T | null {
+    if (!this.isReady() || handle === 0) return null;
+    const result = this._call(operation, () => compute(this._kernel!, handle));
+    this.lastProvenance();
+    return result;
+  }
+
   private _withDataset<T>(
     dataset: DatasetJSON,
     operation: string,
@@ -269,9 +324,7 @@ export class RustAnalyticalEvidenceAdapter {
     const handle = this._call('loadDatasetJson', () => kernel.loadDatasetJson(dataset));
     if (handle === 0) return null;
     try {
-      const result = this._call(operation, () => compute(kernel, handle));
-      this.lastProvenance();
-      return result;
+      return this._withHandle(handle, operation, compute);
     } finally {
       kernel.destroyDataset(handle);
     }
