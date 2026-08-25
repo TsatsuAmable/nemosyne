@@ -15,6 +15,7 @@ export default defineConfig({
       '.claude',
       'wasm',
       'tests/smoke',
+      'tests/collaboration-browser',
       'modules',
       ...FAST_NODE_TESTS,
       ...UI_ONLY_TESTS,
