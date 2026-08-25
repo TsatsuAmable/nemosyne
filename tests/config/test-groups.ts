@@ -1,5 +1,6 @@
 export const FAST_NODE_TESTS = [
   'tests/analyst-judgement-controller.test.ts',
+  'tests/collaboration-recovery.test.ts',
   'tests/coordinator-consumer-contracts.test.ts',
   'tests/draco-production-import-boundary.test.ts',
   'tests/hygiene-audit.test.ts',
