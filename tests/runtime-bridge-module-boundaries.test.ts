@@ -10,6 +10,10 @@ import * as state from '../src/wasm/runtime/RuntimeState.ts';
 
 const runtimeDirectory = resolve(process.cwd(), 'src/wasm/runtime');
 const facadeSource = readFileSync(resolve(process.cwd(), 'src/wasm/RuntimeBridge.ts'), 'utf8');
+const layoutAuthoritySource = readFileSync(
+  resolve(process.cwd(), 'src/wasm/LayoutAuthorityBridge.ts'),
+  'utf8'
+);
 const runtimeSources = readdirSync(runtimeDirectory)
   .filter((file) => file.endsWith('.ts'))
   .map((file) => ({ file, source: readFileSync(resolve(runtimeDirectory, file), 'utf8') }));
@@ -33,6 +37,7 @@ const publicFacadeExports = [
   'KernelUnavailableError',
   'adjustDracoEvidence',
   'adjustMonetaEvidence',
+  'allocBuffer',
   'allocBytes',
   'call',
   'capabilities',
@@ -52,6 +57,7 @@ const publicFacadeExports = [
   'datasetColumnCount',
   'datasetFingerprint',
   'datasetRowCount',
+  'deallocBuffer',
   'deallocBytes',
   'debugFillPattern',
   'destroyDataset',
@@ -64,6 +70,7 @@ const publicFacadeExports = [
   'getKernelState',
   'getKernelUnavailableReason',
   'getMemoryView',
+  'hostBufferAllocationCount',
   'inferEncodings',
   'inferSchema',
   'inferTopology',
@@ -123,6 +130,9 @@ describe('RuntimeBridge module boundaries', () => {
     const contracts = readFileSync(resolve(runtimeDirectory, 'RuntimeExports.ts'), 'utf8');
     expect(contracts).toMatch(/interface RuntimeLifecycleExports/);
     expect(contracts).toMatch(/interface MemoryAbiExports/);
+    expect(contracts).toMatch(/host_buffer_alloc/);
+    expect(contracts).toMatch(/host_buffer_dealloc/);
+    expect(contracts).toMatch(/host_buffer_allocation_count/);
     expect(contracts).toMatch(/interface DatasetHandleExports/);
     expect(contracts).toMatch(/interface LayoutAbiExports/);
     expect(contracts).toMatch(/interface KernelContractExports/);
@@ -134,6 +144,20 @@ describe('RuntimeBridge module boundaries', () => {
     for (const file of ['DatasetHandleBridge.ts', 'LayoutAbi.ts', 'KernelContractBridge.ts']) {
       expect(sources[file], file).not.toMatch(/\bWasmRuntimeExports\b/);
     }
+  });
+
+  it('keeps production bridge payloads on the Rust-tracked host-buffer allocator', () => {
+    const sources = Object.fromEntries(runtimeSources.map(({ file, source }) => [file, source]));
+    expect(sources['MemoryAbi.ts']).toMatch(/host_buffer_alloc/);
+    expect(sources['MemoryAbi.ts']).toMatch(/host_buffer_dealloc/);
+    expect(sources['MemoryAbi.ts']).toMatch(/host_buffer_allocation_count/);
+
+    for (const file of ['DatasetHandleBridge.ts', 'LayoutAbi.ts', 'KernelContractBridge.ts']) {
+      expect(sources[file], file).not.toMatch(/\bwasm\.alloc\(/);
+      expect(sources[file], file).not.toMatch(/\bwasm\.dealloc\(/);
+    }
+    expect(layoutAuthoritySource).not.toMatch(/\bwasm\.alloc\(/);
+    expect(layoutAuthoritySource).not.toMatch(/\bwasm\.dealloc\(/);
   });
 
   it('keeps compatibility aliases as identity-only adapters', () => {
