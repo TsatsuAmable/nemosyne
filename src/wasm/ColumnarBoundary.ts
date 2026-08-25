@@ -1,5 +1,9 @@
 import type { DatasetJSON, OperationSpec } from '../data/types.ts';
-import { call, readString } from './runtime/MemoryAbi.ts';
+import {
+  allocBuffer,
+  deallocBuffer,
+  readString,
+} from './runtime/MemoryAbi.ts';
 import {
   destroyDataset,
   loadCsv,
@@ -7,6 +11,7 @@ import {
   loadJson,
   runOperation,
 } from './runtime/DatasetHandleBridge.ts';
+import { call } from './runtime/MemoryAbi.ts';
 
 /**
  * Columnar-native metadata accessor. This is the application-facing row-count
@@ -39,16 +44,17 @@ export function rowMaterialisationCount(): number {
  */
 export function getDatasetJson(handle: number): DatasetJSON | null {
   const required = Number(call('compatibility_dataset_to_json', handle, 0, 0) ?? 0);
-  if (required === 0) return null;
+  if (!Number.isSafeInteger(required) || required <= 0) return null;
 
-  const ptr = Number(call('alloc', required) ?? 0);
-  if (ptr === 0) throw new Error('WASM alloc returned 0');
+  const allocation = allocBuffer(required);
   try {
-    const written = Number(call('compatibility_dataset_to_json', handle, ptr, required) ?? 0);
-    if (written === 0 || written > required) return null;
-    return JSON.parse(readString(ptr, written)) as DatasetJSON;
+    const written = Number(
+      call('compatibility_dataset_to_json', handle, allocation.ptr, allocation.len) ?? 0
+    );
+    if (written !== required) return null;
+    return JSON.parse(readString(allocation.ptr, written)) as DatasetJSON;
   } finally {
-    call('dealloc', ptr, required);
+    deallocBuffer(allocation.ptr, allocation.len);
   }
 }
 
