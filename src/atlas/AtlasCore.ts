@@ -660,24 +660,18 @@ export class AtlasCore {
     dataset: Dataset,
     params: Record<string, unknown>
   ): PersistenceInterval[] | null {
-    if (dataset === this._aggregate.analytical.currentNullable) {
-      return this._analytics.computePersistenceIntervalsForHandle(this._ensureHandle(), params);
-    }
-    return this._analytics.computePersistenceIntervals(dataset.toJSON(), params);
+    const handle = this._requireCurrentTdaHandle(dataset);
+    return this._analytics.computePersistenceIntervalsForHandle(handle, params);
   }
 
   computeMapperGraph(dataset: Dataset, params: Record<string, unknown>): TdaMapperGraph | null {
-    if (dataset === this._aggregate.analytical.currentNullable) {
-      return this._analytics.computeMapperGraphForHandle(this._ensureHandle(), params);
-    }
-    return this._analytics.computeMapperGraph(dataset.toJSON(), params);
+    const handle = this._requireCurrentTdaHandle(dataset);
+    return this._analytics.computeMapperGraphForHandle(handle, params);
   }
 
   computeBetti0Curve(dataset: Dataset, params: Record<string, unknown>): BettiPoint[] | null {
-    if (dataset === this._aggregate.analytical.currentNullable) {
-      return this._analytics.computeBetti0CurveForHandle(this._ensureHandle(), params);
-    }
-    return this._analytics.computeBetti0Curve(dataset.toJSON(), params);
+    const handle = this._requireCurrentTdaHandle(dataset);
+    return this._analytics.computeBetti0CurveForHandle(handle, params);
   }
 
   computeSpectralFacts(timeColumn?: string, valueColumn?: string): SpectralFacts | null {
@@ -880,6 +874,15 @@ export class AtlasCore {
   }
 
   // --- Internal Helpers --------------------------------------------------
+
+  private _requireCurrentTdaHandle(dataset: Dataset): number {
+    if (dataset !== this._aggregate.analytical.currentNullable) {
+      throw new Error(
+        '[AtlasCore] TDA requires the current Atlas dataset; load or set the dataset explicitly before analysis.'
+      );
+    }
+    return this._ensureHandle();
+  }
 
   private _ensureHandle(): number {
     return this._aggregate.analytical.ensureHandle((json) => {
