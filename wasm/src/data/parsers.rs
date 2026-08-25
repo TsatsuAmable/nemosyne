@@ -251,6 +251,80 @@ mod tests {
         assert_eq!(ds.column_count(), 3);
         assert_eq!(ds.get_column("x").unwrap().ty, ColumnType::Numeric);
     }
+
+    fn assert_bounded(result: Result<Dataset, String>) {
+        if let Ok(dataset) = result {
+            assert!(dataset.row_count() <= DEFAULT_MAX_ROWS);
+            assert!(dataset.column_count() <= DEFAULT_MAX_COLUMNS);
+        }
+    }
+
+    fn assert_parsers_do_not_panic(bytes: &[u8]) {
+        let csv = std::panic::catch_unwind(|| parse_csv(bytes, "fuzz-csv"));
+        assert!(csv.is_ok(), "CSV parser panicked for {} bytes", bytes.len());
+        assert_bounded(csv.expect("CSV parser panic already checked"));
+
+        let json = std::panic::catch_unwind(|| parse_json(bytes, "fuzz-json"));
+        assert!(json.is_ok(), "JSON parser panicked for {} bytes", bytes.len());
+        assert_bounded(json.expect("JSON parser panic already checked"));
+
+        let arrow = std::panic::catch_unwind(|| parse_arrow(bytes, "fuzz-arrow"));
+        assert!(arrow.is_ok(), "Arrow parser panicked for {} bytes", bytes.len());
+        assert_bounded(arrow.expect("Arrow parser panic already checked"));
+    }
+
+    fn xorshift64(state: &mut u64) -> u64 {
+        *state ^= *state << 13;
+        *state ^= *state >> 7;
+        *state ^= *state << 17;
+        *state
+    }
+
+    #[test]
+    fn malformed_input_corpus_never_panics_and_stays_bounded() {
+        let fixed_payloads: Vec<Vec<u8>> = vec![
+            Vec::new(),
+            vec![0],
+            vec![0xff; 32],
+            b"\"unterminated".to_vec(),
+            b"a,b\n1,\"unterminated".to_vec(),
+            b"[{\"x\":".to_vec(),
+            b"[null, true, false]".to_vec(),
+            b"{}{}{}".to_vec(),
+            (0_u8..=255).collect(),
+        ];
+        for payload in &fixed_payloads {
+            assert_parsers_do_not_panic(payload);
+        }
+
+        let mut state = 0x4e45_4d4f_5359_4e45_u64;
+        for _ in 0..256 {
+            let len = (xorshift64(&mut state) as usize) % 513;
+            let mut payload = vec![0_u8; len];
+            for byte in &mut payload {
+                *byte = xorshift64(&mut state) as u8;
+            }
+            assert_parsers_do_not_panic(&payload);
+        }
+    }
+
+    #[test]
+    fn column_bombs_fail_within_declared_parser_bounds() {
+        let csv_headers = (0..=DEFAULT_MAX_COLUMNS)
+            .map(|index| format!("c{index}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let csv = parse_csv(csv_headers.as_bytes(), "column-bomb-csv");
+        assert!(csv.is_err());
+
+        let mut object = serde_json::Map::new();
+        for index in 0..=DEFAULT_MAX_COLUMNS {
+            object.insert(format!("c{index}"), serde_json::Value::Null);
+        }
+        let json_bytes = serde_json::to_vec(&vec![serde_json::Value::Object(object)]).unwrap();
+        let json = parse_json(&json_bytes, "column-bomb-json");
+        assert!(json.is_err());
+    }
 }
 
 fn json_to_value(v: Option<&serde_json::Value>) -> Value {
