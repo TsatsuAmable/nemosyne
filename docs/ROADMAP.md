@@ -4,16 +4,17 @@
 
 ## Status snapshot — 25 August 2026
 
-**Current main:** `adb10e8` — includes #392 (C1′ panel zoning + torso-frame
-consolidation), #393 (task-oriented intent wheel + novice vocabulary + final
-frame fixes) and #394 (UI treatment declared in the study freeze manifest).
-No active feature branch; working tree clean.
+**Implementation baseline before this docs-only sync:** `e4bb7cb` — includes #395
+(P1-A handle-native TDA closure) plus #397-#399 (bounded maintainability cleanup:
+stronger deterministic randomness/IDs, single event-bus authority and audited
+share-link base64url handling). The implementation critical path is clear of
+open feature work at this checkpoint.
 
-**Next checkpoint:** resume the analytical critical path at execution-order
-item 2 — remove JavaScript raw-row/filter preprocessing from production TDA
-and prove row-free execution. Remaining VR/UI/UX blockers are physical:
-Quest 3S qualification session (now validating tiers + wheel + frames in one
-pass) and Threads/F5 deferred to P1-F.
+**Next checkpoint:** begin P1-B asynchronous analytical runtime work at
+execution-order item 1 — define the request/version/cancellation contract and
+generation fencing before moving expensive analysis behind a dedicated Worker.
+Remaining VR/UI/UX blockers are physical: Quest 3S qualification (validating
+tiers + wheel + frames in one pass) and Threads/F5 deferred to P1-F.
 
 **Active development wave:** P1 analytical responsiveness and spatial fitness. See [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
 
@@ -110,6 +111,18 @@ The #385-#389 sequence materially closed the available RES-02 browser/runtime ga
 
 Cross-device/hostile-network qualification remains a preview-hardening concern, not an excuse to weaken the now-proven browser authority contracts.
 
+### P1-A handle-native analytical boundary
+
+PR #395 completed the production TDA boundary closure:
+
+- Atlas persistence, Mapper and Betti-0 route through the durable current Rust dataset handle;
+- non-current TDA datasets fail closed before serialisation or transient reload;
+- production TDA no longer performs `Dataset.toJSON()` round trips;
+- filtration construction moved out of JavaScript raw-row traversal and into Rust column access;
+- architecture and behavioural tests freeze the row-free production boundary.
+
+P1-A is complete. The analytical critical path now advances to P1-B asynchronous execution and temporal authority.
+
 ### Test architecture and feedback latency
 
 The test pyramid is split by ownership:
@@ -171,13 +184,13 @@ The detailed audit evidence remains in `PRE_P1_SYSTEMATIC_AUDIT.md`. The roadmap
 
 **ACTIVE.** Detailed acceptance criteria and dependency order are in [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
 
-### P1-A Handle-native analytical boundary
+### P1-A Handle-native analytical boundary — COMPLETE (#395)
 
 - [x] establish tested handle-native TDA adapter entry points;
-- [ ] route Atlas TDA through the durable current Rust handle;
-- [ ] remove production TDA `Dataset.toJSON()` round trips;
-- [ ] move TDA filter construction from JS raw rows to Rust column access;
-- [ ] prove supported TDA works without row rematerialisation.
+- [x] route Atlas TDA through the durable current Rust handle;
+- [x] remove production TDA `Dataset.toJSON()` round trips;
+- [x] move TDA filter construction from JS raw rows to Rust column access;
+- [x] prove supported production TDA works without JavaScript row rematerialisation.
 
 ### P1-B Asynchronous analytical runtime
 
@@ -247,8 +260,9 @@ Deliver a controlled, observable deployment suitable for investigator research/u
 
 ## P1 — VR/UI/UX fitness
 
-Progress on branch `feat/vr-panel-blender-prototypes` (not yet merged; Gate F research
-review and Quest 3S device validation required before promotion):
+The frozen panel/intent-wheel treatment work is merged on `main` through #394.
+Gate F research review for the controlled panel treatment is complete; Quest 3S
+device validation remains required before preview promotion.
 
 - [x] spatial-audit + hypothesis + Blender prototype comparison for panel arrangement completed as a recorded decision (`docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md`, evidence tier 4);
 - [x] C1′ role-aware depth-tier zoning implemented as panel default positions with invariant tests (`src/vr/ui/panelLayout.ts`, `tests/panel-layout.test.ts`);
@@ -364,16 +378,14 @@ physical Quest qualification for promotion-critical device claims
 
 ## Near-term execution order
 
-1. Land the handle-native TDA seam and route Atlas TDA through its durable Rust dataset handle.
-2. Remove JavaScript raw-row/filter preprocessing from production TDA and prove row-free execution.
-3. Add the asynchronous analytical execution boundary with version fencing and cancellation; measure transfer cost before shared memory.
-4. Replace quadratic topology hot paths with a reusable sparse-neighbourhood strategy and explicit approximation provenance.
-5. Add 3D-native Moneta perceptual fitness.
-6. Complete actionable NIL/ambiguity/remediation workflows.
-7. Add semantic target resolution and Memory Palace focus+context hierarchy.
-8. Continue bounded MAINT-01 typing cleanup in parallel where it does not distract from the critical path.
-9. Run PERF-04 and UX-03 physical Quest qualification as soon as hardware is available.
-10. Govern every remaining blocker/high audit finding and reopen the minimal-private-preview promotion decision.
-11. Continue discovery/outcome studies and learned-Moneta empirical validation.
-12. Begin RepresentationGraph/compositional Moneta only after P1 prerequisites are satisfied.
-13. Begin Adaptive Nemosyne only after evidence and governance prerequisites are satisfied.
+1. **P1-B — ACTIVE:** define request/version/cancellation contracts and generation fencing, then isolate expensive analysis behind a dedicated Worker; measure transfer cost before shared memory.
+2. **P1-C:** replace quadratic topology hot paths with a reusable sparse-neighbourhood strategy and explicit approximation provenance.
+3. **P1-D:** add 3D-native Moneta perceptual fitness.
+4. **P1-E:** complete actionable NIL/ambiguity/remediation workflows.
+5. **P1-F:** add semantic target resolution and Memory Palace focus+context hierarchy.
+6. Continue bounded MAINT-01 typing cleanup in parallel where it does not distract from the critical path.
+7. Run PERF-04 and UX-03 physical Quest qualification as soon as hardware is available.
+8. Govern every remaining blocker/high audit finding and reopen the minimal-private-preview promotion decision.
+9. Continue discovery/outcome studies and learned-Moneta empirical validation.
+10. Begin RepresentationGraph/compositional Moneta only after P1 prerequisites are satisfied.
+11. Begin Adaptive Nemosyne only after evidence and governance prerequisites are satisfied.
