@@ -22,10 +22,7 @@ import type { DatasetHandleExports, MemoryAbiExports } from './RuntimeExports.ts
 
 type DatasetHandleRuntime = DatasetHandleExports & MemoryAbiExports;
 
-function readStringExport(
-  wasm: DatasetHandleRuntime,
-  invoke: (outPtr: number, outLen: number) => number
-): string | null {
+function readStringExport(invoke: (outPtr: number, outLen: number) => number): string | null {
   const required = invoke(0, 0);
   if (!Number.isSafeInteger(required) || required <= 0) return null;
   const { ptr, len } = allocBuffer(required);
@@ -48,7 +45,7 @@ function tdaCall(
   const paramBytes = new TextEncoder().encode(JSON.stringify(params));
   const { ptr: paramPtr, len: paramLen } = allocBytes(paramBytes);
   try {
-    return readStringExport(wasm, (outPtr, outLen) => {
+    return readStringExport((outPtr, outLen) => {
       const fn = wasm[exportName] as (
         h: number,
         pp: number,
@@ -183,12 +180,12 @@ export function executeOperation(datasetObj: DatasetJSON, op: OperationSpec): Da
 
 export function datasetFingerprint(handle: number): string | null {
   const wasm = getRuntimeExports();
-  return readStringExport(wasm, (ptr, len) => wasm.dataset_fingerprint(handle, ptr, len));
+  return readStringExport((ptr, len) => wasm.dataset_fingerprint(handle, ptr, len));
 }
 
 export function inferTopology(handle: number): string | null {
   const wasm = getRuntimeExports();
-  return readStringExport(wasm, (ptr, len) => wasm.data_infer_topology(handle, ptr, len));
+  return readStringExport((ptr, len) => wasm.data_infer_topology(handle, ptr, len));
 }
 
 export function inferEncodings(handle: number, topology?: string): EncodingMapping | null {
@@ -201,7 +198,7 @@ export function inferEncodings(handle: number, topology?: string): EncodingMappi
     topoLen = allocation.len;
   }
   try {
-    const json = readStringExport(wasm, (ptr, len) =>
+    const json = readStringExport((ptr, len) =>
       wasm.data_infer_encodings(handle, topoPtr, topoLen, ptr, len)
     );
     if (!json) return null;
@@ -213,14 +210,14 @@ export function inferEncodings(handle: number, topology?: string): EncodingMappi
 
 export function inferSchema(handle: number): ColumnSchema[] | null {
   const wasm = getRuntimeExports();
-  const json = readStringExport(wasm, (ptr, len) => wasm.data_infer_schema(handle, ptr, len));
+  const json = readStringExport((ptr, len) => wasm.data_infer_schema(handle, ptr, len));
   if (!json) return null;
   return JSON.parse(json) as ColumnSchema[];
 }
 
 export function statistics(handle: number): Facts | null {
   const wasm = getRuntimeExports();
-  const json = readStringExport(wasm, (ptr, len) => wasm.data_statistics(handle, ptr, len));
+  const json = readStringExport((ptr, len) => wasm.data_statistics(handle, ptr, len));
   if (!json) return null;
   return JSON.parse(json) as Facts;
 }
@@ -246,7 +243,7 @@ export function computeSpectralFacts(
     valueLen = allocation.len;
   }
   try {
-    const json = readStringExport(wasm, (ptr, len) =>
+    const json = readStringExport((ptr, len) =>
       wasm.data_compute_spectral_facts(handle, timePtr, timeLen, valuePtr, valueLen, ptr, len)
     );
     if (!json || json === 'null') return null;
