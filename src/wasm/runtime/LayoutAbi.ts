@@ -1,4 +1,9 @@
-import { allocBytes, deallocBytes } from './MemoryAbi.ts';
+import {
+  allocBuffer,
+  allocBytes,
+  deallocBuffer,
+  deallocBytes,
+} from './MemoryAbi.ts';
 import { getLayoutAbiExports as getRuntimeExports } from './RuntimeState.ts';
 import type {
   LayoutAbiExports,
@@ -34,7 +39,7 @@ export function computeRadialTree3d(
       0
     );
     if (needed === 0) return null;
-    const outPtr = wasm.alloc(needed);
+    const { ptr: outPtr, len: outLen } = allocBuffer(needed);
     try {
       const written = wasm.data_compute_radial_tree_3d(
         levelPtr,
@@ -43,12 +48,12 @@ export function computeRadialTree3d(
         yStep,
         yOffset,
         outPtr,
-        needed
+        outLen
       );
-      if (written === 0) return null;
+      if (written === 0 || written > outLen) return null;
       return new Float32Array(wasm.memory.buffer, outPtr, written / 4).slice();
     } finally {
-      wasm.dealloc(outPtr, needed);
+      deallocBuffer(outPtr, outLen);
     }
   } finally {
     deallocBytes(levelPtr, levelLen);
@@ -68,13 +73,13 @@ export function computeGrid3d(
   }
   if (count <= 0) return null;
   const needed = count * 12;
-  const outPtr = wasm.alloc(needed);
+  const { ptr: outPtr, len: outLen } = allocBuffer(needed);
   try {
     const written = wasm.layout_grid_3d(count, spacing, yOffset, outPtr);
-    if (written === 0) return null;
+    if (written !== outLen) return null;
     return new Float32Array(wasm.memory.buffer, outPtr, count * 3).slice();
   } finally {
-    wasm.dealloc(outPtr, needed);
+    deallocBuffer(outPtr, outLen);
   }
 }
 
@@ -95,7 +100,7 @@ export function computeForceDirected3d(
   }
   if (count <= 0) return null;
   const needed = count * 12;
-  const outPtr = wasm.alloc(needed);
+  const { ptr: outPtr, len: outLen } = allocBuffer(needed);
   try {
     const written = wasm.layout_force_directed_3d(
       count,
@@ -107,10 +112,10 @@ export function computeForceDirected3d(
       yOffset,
       outPtr
     );
-    if (written === 0) return null;
+    if (written !== outLen) return null;
     return new Float32Array(wasm.memory.buffer, outPtr, count * 3).slice();
   } finally {
-    wasm.dealloc(outPtr, needed);
+    deallocBuffer(outPtr, outLen);
   }
 }
 
@@ -153,7 +158,7 @@ export function computeTimeRibbon3d(
       0
     );
     if (needed === 0) return null;
-    const outPtr = wasm.alloc(needed);
+    const { ptr: outPtr, len: outLen } = allocBuffer(needed);
     try {
       const written = wasm.data_compute_time_ribbon_3d(
         seriesPtr,
@@ -167,12 +172,12 @@ export function computeTimeRibbon3d(
         zSpacing,
         yOffset,
         outPtr,
-        needed
+        outLen
       );
-      if (written === 0) return null;
+      if (written === 0 || written > outLen) return null;
       return new Float32Array(wasm.memory.buffer, outPtr, written / 4).slice();
     } finally {
-      wasm.dealloc(outPtr, needed);
+      deallocBuffer(outPtr, outLen);
     }
   } finally {
     deallocBytes(seriesPtr, seriesLen);
@@ -220,7 +225,7 @@ export function computeGeoSurface3d(
       0
     );
     if (needed === 0) return null;
-    const outPtr = wasm.alloc(needed);
+    const { ptr: outPtr, len: outLen } = allocBuffer(needed);
     try {
       const written = wasm.data_compute_geo_surface_3d(
         longitudePtr,
@@ -234,12 +239,12 @@ export function computeGeoSurface3d(
         heightScale,
         yOffset,
         outPtr,
-        needed
+        outLen
       );
-      if (written === 0) return null;
+      if (written === 0 || written > outLen) return null;
       return new Float32Array(wasm.memory.buffer, outPtr, written / 4).slice();
     } finally {
-      wasm.dealloc(outPtr, needed);
+      deallocBuffer(outPtr, outLen);
     }
   } finally {
     deallocBytes(longitudePtr, longitudeLen);
@@ -263,7 +268,7 @@ export function computeStreamline3d(
   if (count <= 0) return null;
   const totalPoints = count * (steps + 1);
   const needed = totalPoints * 12;
-  const outPtr = wasm.alloc(needed);
+  const { ptr: outPtr, len: outLen } = allocBuffer(needed);
   try {
     const written = wasm.data_compute_streamline_3d(
       count,
@@ -271,11 +276,11 @@ export function computeStreamline3d(
       stepSize,
       BigInt(seed),
       outPtr,
-      needed
+      outLen
     );
-    if (written === 0) return null;
+    if (written === 0 || written > outLen) return null;
     return new Float32Array(wasm.memory.buffer, outPtr, written / 4).slice();
   } finally {
-    wasm.dealloc(outPtr, needed);
+    deallocBuffer(outPtr, outLen);
   }
 }
