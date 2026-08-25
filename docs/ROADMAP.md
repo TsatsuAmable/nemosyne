@@ -1,95 +1,109 @@
 # Nemosyne Roadmap & Implementation Status
 
-> **Current implementation-status authority.** Product and research direction are governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This document records the current implementation state and planned programme. Completed migration detail is preserved in `docs/archive/`.
+> **Current implementation-status authority.** Product and research direction are governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This document records current implementation state, programme order and promotion gates. Completed migration detail is preserved in `docs/archive/`.
 
-## Status snapshot - 25 August 2026
+## Status snapshot — 25 August 2026
 
-**Current `main`: `d42c0ac` (merged PR #388). Active branch: `security/server-owned-collaboration-lifecycle` (at `8e570d1` plus test-suite alignment for the role-hardened join lifecycle).**
+**Current main:** includes merged PR #389, completing the collaboration signalling-authority follow-up to #388.
 
-**Next checkpoint:** land the completed ARCH-01 Atlas/spatial-embodiment ownership split, then close
-the available RES-01 checked-output and malformed-handle resilience work. Physical execution remains
-deferred until a Quest 3S is available; even a completed measurement remains
-`deviceQualifiedAt10m: false` until governed review.
+**Active development wave:** P1 analytical responsiveness and spatial fitness. See [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
 
-**Last gate:** green locally on 25 August 2026 for `security/server-owned-collaboration-lifecycle`.
-`tsc --noEmit` clean, `eslint` 0 errors (171 pre-existing warnings), `npm run test:all` green after
-aligning five signalling-lifecycle tests to the fail-closed join contract (joins must carry a valid
-server-resolved `role`; roleless/malformed joins are rejected per `c379c74`). Prior snapshot: 24 August
-2026 for `refactor/atlas-topology-separation`. Typecheck
-and lint passed (0 errors, 170 pre-existing warnings); all 319 coverage files / 1,948 tests passed at
-82.28% statements, 70.44% branches, 79.28% functions and 84.79% lines; the production WASM/Vite
-build passed; all 170 Rust tests passed; and both real Chromium/WebGL smoke journeys passed. Merged
-PR #373 hosted CodeQL, core correctness, Rust, downloaded-artifact Chromium smoke, read-only
-approval gate and `Node 24` aggregate are green. Pages remains deployed with `nemosyne.world`
-domain-verified and HTTPS-enforced.
+**Physical promotion blocker:** the governed Meta Quest 3S browser/performance and interaction qualification remains outstanding. Desktop/browser CI is necessary evidence but cannot qualify headset behaviour.
 
-Nemosyne has moved from experimental architecture repair into migration-exit and productization preparation. The core analytical direction is now stable:
+Nemosyne has exited the Draco-to-Moneta authority migration and is now in **private-preview preparation**. The core architecture is stable:
 
-1. Rust/WASM owns analytical facts, scale-sensitive computation and data-derived layout computation.
+1. Rust/WASM owns canonical analytical data, N-dependent computation, analytical facts and data-derived layout/reduction.
 2. Moneta owns bounded representation reasoning over compact evidence and investigator semantics.
-3. TypeScript/JavaScript owns orchestration, persistence, presentation and UI, not an independent analytical implementation.
-4. Draco is compatibility surface only. Production code imports Moneta directly.
-5. Investigation state is reproducible and portable through `.nemosyne`, including analytical provenance, representation/model identity, discoveries and NIL outcomes.
-6. Learned Moneta remains explicit, pinned, reversible and opt-in. Infrastructure readiness is not evidence of empirical superiority.
-
-The Draco-to-Moneta authority migration exit conditions are proven. A post-exit performance audit found that this does not yet establish practical 10M end-to-end performance. Typed-column ingest, exact canonical identity and borrowed scans work at 10M, and the columnar-native Rust `DatasetStructureProfile` closes the row-free evidence-path discontinuity. The current branch materially reduces and repeatedly reproduces the fingerprint/evidence envelope while making bounded spectral and clustering estimators provenance-explicit. Physical Meta Quest 3S browser qualification remains blocking before the critical path reopens at **P1 Minimal private preview**. Broader scientific validation, security/reliability hardening and VR/UI/UX outcome work remain active programmes.
+3. TypeScript/JavaScript owns orchestration, persistence, presentation and interaction, not an independent analytical implementation.
+4. Atlas owns investigation orchestration and durable analytical handles.
+5. Draco is compatibility surface only. Production code imports Moneta directly.
+6. `.nemosyne` preserves investigation, representation/model identity, analytical provenance, discoveries and NIL outcomes.
+7. Learned Moneta remains explicit, pinned, reversible and opt-in until held-out investigator/discovery outcomes demonstrate benefit.
 
 ## What has landed
 
-### A. Scientific and learning foundations
+### Scientific and learning foundations
 
-Merged work through #249-#264 established:
+The #249-#264 sequence established immutable FitnessModel artefacts, explicit promotion/activation separation, frozen candidate feature evidence, pairwise judgement infrastructure, exact learned-model pinning, grouped held-out evaluation, durable row identity and stronger measurement/geometry contracts.
 
-- immutable FitnessModel artifacts and a promotion gate separated from activation;
-- frozen Moneta candidate feature snapshots and transactional joins to human pairwise judgement;
-- learned re-ranking only after bootstrap candidate generation and hard-constraint filtering;
-- exact learned artifact pinning and fail-closed registry/model drift;
-- study/runtime model provenance;
-- explicit learned-runtime opt-in while bootstrap remains the default;
-- group-balanced held-out comparison, distributed group-win evidence and leave-one-group-out robustness;
-- durable row-identity foundations;
-- typed measurement semantics, geometry/evidence contracts and stronger statistical foundations.
+Remaining scientific work is outcome-facing: measurement-type enforcement, discovery-quality validation, calibrated statistical claims where appropriate, falsification workflows and investigator-facing skepticism support.
 
-**Remaining scientific work:** held-out discovery-outcome validation, calibrated statistical claims where appropriate, stronger measurement-type enforcement across all analyses, and investigator-facing skepticism/falsification support.
+### Rust-owned data plane and scale architecture
 
-### B. Rust-owned data plane and large-data architecture
-
-The #305-#312 migration wave established the Rust-owned columnar direction and removed the previous mirrored row-major authority model from the critical data path. The architecture now targets Rust-resident columnar storage with JS borrowing typed views or compact evidence rather than synchronising duplicate authoritative row stores.
-
-Evidence collected during this wave includes approximately 255x faster 1M-row ingest and roughly 19x lower WASM memory growth versus the prior JSON-row path. The migration checkpoint reran the real Rust/WASM columnar capacity workflow against `0a9afb3`: 10M tall, 1M wide and 1M high-cardinality scenarios completed with checksum-stable reloads. The Rust/JS boundary envelope adds 10K/100K/1M/10M scaling, host-copy time, canonical fingerprint time and authoritative-evidence transfer. Initial local and hosted checkpoints returned `COLUMNAR_CAPACITY_ONLY`. The columnar-native follow-up now transfers a row-free 2,689-byte profile at 10M, but the local Apple M1 Pro baseline spends 10.7 seconds fingerprinting and 3.2 seconds generating evidence, with retained WASM memory reaching approximately 1.25 GB. This is not a Meta Quest 3S proxy; provisioned repetition and physical-device browser profiling remain required. See `docs/RUST_JS_BOUNDARY_ENVELOPE.md`.
-
-Current scale invariants:
+The #305-#312 migration wave established Rust-resident columnar authority and removed the previous mirrored row-major model from the critical data path. Current scale invariants are:
 
 - source row count is decoupled from rendered primitive count;
-- Moneta candidate and sensitivity work is explicitly bounded;
-- canonical Moneta modules may not traverse raw rows or import `Dataset` as an analytical dependency;
-- no large-data failure may silently trigger an expensive JS analytical fallback.
+- Moneta candidate and sensitivity work is bounded;
+- canonical Moneta modules do not traverse raw rows;
+- no large-data failure may trigger an expensive JavaScript analytical fallback;
+- analytical provenance must state any approximation or reduction mode.
 
-### C. Moneta authority convergence
+Typed-column ingest, exact canonical identity, borrowed primitive scans and row-free DatasetStructureProfile evidence have been demonstrated at large scale. Physical Quest qualification remains necessary before turning those host-side measurements into a preview hardware claim.
 
-The migration-completion wave materially changed and then closed the authority boundary:
+### Moneta authority convergence
 
-- **#315:** data-derived layouts became Rust/WASM-authoritative and fail closed when the kernel layout result is unavailable.
-- **#316:** Draco production imports collapsed to Moneta; `src/draco/**` became compatibility-only and an architecture gate prevents production reintroduction.
-- **#317:** scoring ownership invariants lock bootstrap hard constraints ahead of learned ranking and prevent fallback on invalid learned provenance.
-- **#318:** metamorphic/provenance contracts cover row-order invariance, semantic column renaming, duplication/scale policy and exact operation provenance.
-- **#319:** ordinary layout tests moved off Draco compatibility and duplicate JS numerical layout assertions were reduced in favour of Rust authority tests.
-- **#333-#338:** reconciled the exit plan, collapsed legacy mirrors and duplicate scoring, made DatasetEvidence reconstruct analytical signatures, derived representation identity from Rust evidence and cut production Atlas/Moneta facts over to validated Rust structure profiles.
-- **#340:** removed utility-as-confidence terminology and reduced Draco to one documented compatibility facade.
-- **#341:** proved the authoritative Rust-evidence-to-clean-room-replay composition path.
-- **#342:** proved bounded Moneta work at 10K, 100K, 1M and 10M rows without JavaScript row rematerialisation.
+The #315-#342 sequence completed production authority convergence:
 
-The final checkpoint adds successful current-main capacity characterization, production-browser WASM loading/rendering and presentation-only-to-authoritative lifecycle proof. No independent Draco solver, scorer, layout or analytical fact path remains.
+- Rust owns data-derived layouts and analytical facts;
+- production Draco imports collapsed to Moneta;
+- hard constraints precede learned ranking;
+- row-order/rename/duplication/scale metamorphic and provenance contracts are live;
+- production Atlas/Moneta facts consume validated Rust evidence;
+- utility is not labelled confidence;
+- clean-room replay verifies authoritative decision/evidence composition;
+- bounded Moneta work is proven through 10M-row evidence inputs without JavaScript row rematerialisation.
 
-### D. Test architecture and CI feedback latency
+No independent production Draco solver, scorer, layout or analytical fact path remains.
 
-The test runner has been split by actual architectural ownership:
+### Reproducibility and investigation provenance
 
-- **#320:** introduced a fast Node lane for pure TypeScript/contract tests.
-- **#322:** separated focused jsdom UI tests from real-WASM integration.
-- **#323:** made real-WASM suites explicit rather than allowing ambient WASM startup in ordinary jsdom tests.
+The #324-#332 sequence substantially closed the portable provenance chain:
 
-Current intended pyramid:
+- analytical replay verifies operation provenance and output identity;
+- representation/model identity survives embodiment and `.nemosyne` export/import;
+- DiscoveryEpisode records persist portably;
+- NIL/no-feasible-representation is a typed reproducible outcome;
+- discovery/NIL/model/evidence drift fails closed during replay.
+
+Broader discovery science and investigator-facing NIL workflows remain P1 work.
+
+### Runtime ownership, ABI resilience and recovery
+
+PRs #365-#366 established explicit World lifecycle ownership, generation-fenced recovery, RuntimeBridge ABI-family separation and focused coordinator/application boundaries.
+
+The #375-#384 hardening wave then materially closed the available RES-01/SEC-02 code-executable gaps:
+
+- Rust-tracked host-buffer ownership replaced unsafe caller-fabricated deallocation metadata;
+- production bridges use tracked host allocations;
+- two-call output contracts are atomic and exact-length checked;
+- raw host-facing ranges fail closed unless owned;
+- stale dataset handles cannot regain authority after destroy or runtime recovery;
+- dataset registry storage scales with live datasets rather than lifetime churn;
+- runtime generations revoke old analytical capabilities and provenance;
+- repeated real-WASM recovery cycles prove cleanup and stale-capability rejection;
+- the Rust `unsafe` surface is inventoried and frozen;
+- deterministic malformed parser/buffer/handle/exhaustion corpora are covered.
+
+Long-running fuzz/Miri/device endurance remain explicit hardening evidence lanes rather than ordinary PR blockers.
+
+### Collaboration resilience and authority
+
+The #385-#389 sequence materially closed the available RES-02 browser/runtime gaps:
+
+- signalling reconnect uses bounded backoff with queued negotiation recovery;
+- two real Chromium contexts prove partition, WebRTC re-establishment and state convergence;
+- observer mutation denial survives reconnect/channel replacement;
+- signalling-issued role authority survives RTC churn;
+- stale transport callbacks cannot erase newer transports;
+- deterministic offer ownership avoids reconnect glare;
+- join/leave lifecycle authority is server-owned;
+- malformed or forged peer lifecycle messages fail closed.
+
+Cross-device/hostile-network qualification remains a preview-hardening concern, not an excuse to weaken the now-proven browser authority contracts.
+
+### Test architecture and feedback latency
+
+The test pyramid is split by ownership:
 
 ```text
 Playwright / WebXR smoke         small, expensive, user-path focused
@@ -98,189 +112,158 @@ WASM boundary tests              small ABI/provenance seam
 Rust unit/property/metamorphic   exhaustive analytical authority
 ```
 
-Remaining test work:
+Remaining efficiency work:
 
-- measure post-split CI wall-clock improvement against the pre-split baseline;
-- centralize the duplicated real-WASM test allowlist so config cannot drift;
-- audit the enlarged WASM allowlist and split mixed presentation/kernel suites where practical;
-- continue deleting or migrating duplicate JS assertions for Rust-owned mathematics;
-- preserve browser/WebXR and cross-language boundary tests rather than rewriting them in Rust.
-
-### E. Reproducibility and portable investigation provenance
-
-The #324-#332 sequence closed most of the investigation provenance chain:
-
-- analytical replay compares operation provenance and output identity;
-- learned model version and immutable artifact hash survive Moneta decision embodiment;
-- learned artifact identity participates in the canonical investigation digest;
-- `.nemosyne` persists the representation decision and model identity;
-- DiscoveryEpisode records persist portably;
-- NIL/no-feasible-representation is a typed reproducible outcome rather than a fabricated recommendation;
-- discovery and NIL records are restored and cross-verified during clean-room replay;
-- replay fails closed on model-artifact, decision-evidence or provenance drift.
-
-For the migration contract, representation/model/NIL/discovery provenance continuity is now substantially complete. Broader discovery science and NIL modality work remain separate product/research concerns.
-
-### F. Lifecycle ownership and kernel recovery
-
-PR #365 introduced one idempotent World boot/recovery/disposal owner, explicit
-aggregate UI and scene teardown, synchronous cleanup for active load and Quest-boundary probes, and
-generation cancellation for late file/session/kernel work. A trapped Atlas ABI call now invalidates
-the shared runtime, transitions to `KERNEL_UNAVAILABLE`, preserves the last viable presentation and
-reinitializes the Rust authority before recovery. Three-cycle real-WASM World recreation verifies
-kernel-handle allocation and exact DOM/engine cleanup. This closes ARCH-02 and completes the first
-lifecycle seam of ARCH-01.
-
-### G. Runtime authority, ABI-family and coordinator boundaries
-
-PR #366 reduces `RuntimeBridge.ts` to a stable, logic-free compatibility facade over
-separate lifecycle, memory, dataset-handle, layout and kernel-contract modules. `RuntimeState.ts` is
-the sole mutable readiness/instance owner; family-scoped accessors enforce dependency boundaries;
-and initialization is deduplicated and generation-fenced so a stale attempt cannot restore authority
-after invalidation. Fast source contracts freeze the pre-split facade and module direction, while a
-real-WASM concurrency test proves fresh recovery wins over superseded initialization.
-
-The current branch removes the shared `WorldLike` god-object facade and co-locates host, callback,
-option, live-stream and collaboration ports with their owning coordinators. Every World-facing
-consumer exposes only the root and nested capabilities it actually uses; `World` derives its kernel
-type directly from the authoritative `RuntimeBridge` module. A fast architecture contract freezes
-these surfaces and forbids reintroduction of the shared World facade or coordinator-to-World imports.
-ARCH-01 is complete on the current branch. `AtlasCore` remains the discovery-loop application
-facade while `RustAnalyticalEvidenceAdapter` exclusively owns raw analytical handles, parser/TDA
-dispatch, structure-profile validation and ABI-failure translation. `VRTopologyTranslator` is now a
-206-line compatibility/composition facade over separate classic-layout, scalable-geometry,
-interaction and live-time-ribbon owners. Dependency-direction contracts prevent either spatial
-owner from acquiring analytical authority, and behavior tests cover temporary-handle cleanup,
-per-synthesis factory precedence and computed radial-parent edge embodiment.
+- [ ] reclassify mixed suites so only actual kernel boundaries pay WASM startup;
+- [ ] port/delete remaining duplicate JS assertions for Rust-owned mathematics once equivalent Rust coverage is proven;
+- [ ] add Rust-side performance benchmarks separately from deterministic correctness gates;
+- [ ] document steady-state test/authority ownership in contributor and agent guidance.
 
 ## Governing V3 gate status
 
-| Gate                         | Status                                              | Current evidence                                                                                                                                                  | Remaining exit work                                                                                             |
-| ---------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| 0 - Authority reconciliation | **MIGRATION EXIT COMPLETE**                         | Draco is one compatibility facade; production imports Moneta; Rust-owned layouts, facts and boundary guards are live.                                             | Maintain the architecture guards; remove the facade only through a separately governed compatibility decision.  |
-| 1 - Dataset Evidence         | **MIGRATION AUTHORITY COMPLETE / SCIENCE ACTIVE**   | Production Moneta consumes validated Rust-owned DatasetEvidence; compact-transfer and current-main capacity evidence are recorded.                                | Continue measurement-semantics and scientific-evidence maturity work beyond the migration.                      |
-| 2 - Representation Language  | **PARTIAL**                                         | Representation contracts, candidate families, graph concepts and runtime embodiment exist.                                                                        | Mature canonical RepresentationGraph/grammar before compositional search.                                       |
-| 3 - Moneta correctness       | **MIGRATION EXIT COMPLETE**                         | Hard constraints, bounded ranking, abstention, decision margin, sensitivity, learned pinning, metamorphic contracts and authoritative end-to-end replay are live. | Extend outcome validation and representation-language maturity without weakening the proven authority boundary. |
-| 4 - NIL                      | **MIGRATION PROVENANCE COMPLETE / PRODUCT PARTIAL** | Typed NIL provenance persists through session/package/replay.                                                                                                     | Complete semantic modality parity, UX and investigator workflows.                                               |
-| 5 - Discovery                | **INFRASTRUCTURE ADVANCED / SCIENCE PARTIAL**       | DiscoveryEpisode lifecycle, persistence and replay verification exist.                                                                                            | Add falsification workflows, outcome evidence and controlled discovery-quality studies.                         |
-| 6 - Human refinement         | **IN PROGRESS**                                     | Pairwise judgement plus exact candidate feature evidence exists.                                                                                                  | Expand outcome events, curation policy and study coverage.                                                      |
-| 7 - Learning infrastructure  | **ADVANCED**                                        | Registry, promotion policy, pinning, rollback and robust grouped evaluation exist.                                                                                | Add outcome-linked evaluation and operational monitoring evidence.                                              |
-| 8 - Learned Moneta           | **EARLY OPT-IN, NOT EMPIRICALLY VALIDATED**         | Pinned learned re-ranking is available without replacing bootstrap constraints.                                                                                   | Demonstrate held-out benefit on investigator/discovery outcomes before discussing default use.                  |
-| 9 - Compositional Moneta     | **DEFERRED**                                        | Preconditions partly exist.                                                                                                                                       | Wait for RepresentationGraph/grammar maturity, bounded search and Gate 0-8 evidence.                            |
-| 10 - Adaptive Nemosyne       | **DEFERRED**                                        | Governance foundations exist.                                                                                                                                     | Requires validated learning, freeze controls, monitoring, rollback and longitudinal evidence.                   |
+| Gate | Status | Remaining exit work |
+| --- | --- | --- |
+| 0 — Authority reconciliation | **MIGRATION EXIT COMPLETE** | Maintain architecture guards; remove Draco facade only through a governed compatibility decision. |
+| 1 — Dataset Evidence | **MIGRATION AUTHORITY COMPLETE / SCIENCE ACTIVE** | Continue measurement semantics and evidence maturity. |
+| 2 — Representation Language | **PARTIAL** | Mature canonical RepresentationGraph/grammar before compositional search. |
+| 3 — Moneta correctness | **MIGRATION EXIT COMPLETE** | Add outcome validation and embodied perceptual fitness without weakening authority boundaries. |
+| 4 — NIL | **PROVENANCE COMPLETE / PRODUCT PARTIAL** | Complete actionable modality-parity UX and investigator workflows. |
+| 5 — Discovery | **INFRASTRUCTURE ADVANCED / SCIENCE PARTIAL** | Add falsification workflows, outcome evidence and controlled discovery-quality studies. |
+| 6 — Human refinement | **IN PROGRESS** | Expand outcome events, curation policy and study coverage. |
+| 7 — Learning infrastructure | **ADVANCED** | Add outcome-linked evaluation and operational monitoring evidence. |
+| 8 — Learned Moneta | **EARLY OPT-IN / NOT EMPIRICALLY VALIDATED** | Demonstrate held-out investigator/discovery benefit before considering default use. |
+| 9 — Compositional Moneta | **DEFERRED** | Wait for RepresentationGraph/grammar maturity, bounded search and Gate 0-8 evidence. |
+| 10 — Adaptive Nemosyne | **DEFERRED** | Requires validated learning, freeze controls, monitoring, rollback and longitudinal evidence. |
 
-## Completed P0 migration programme (archived)
+## Pre-P1 promotion ledger
 
-The Draco-to-Moneta authority migration, scientific terminology audit, authoritative end-to-end
-composition/replay proof and row-free 10M Rust/JS boundary implementation are complete. The detailed
-exit ledger is preserved in
-[archive/MONETA_MIGRATION_COMPLETION_SPRINT_2026-08-24.md](archive/MONETA_MIGRATION_COMPLETION_SPRINT_2026-08-24.md).
+The detailed audit evidence remains in `PRE_P1_SYSTEMATIC_AUDIT.md`. The roadmap interpretation is:
 
-Two promotion gates remain outside the completed migration programme:
-
-- [ ] Run the instrumented browser envelope on a physical Meta Quest 3S and govern the result.
-- [ ] Close or explicitly accept every blocker/high finding in
-      [PRE_P1_SYSTEMATIC_AUDIT.md](PRE_P1_SYSTEMATIC_AUDIT.md).
-
-**Exit for product promotion:** the 10M evidence envelope is acceptable for the declared preview
-hardware and every pre-P1 risk has a recorded disposition.
-
-## Parallel engineering track: test/runtime efficiency
-
-This track supports the critical path but must not weaken correctness.
-
-- [x] Separate fast Node, focused jsdom UI, ordinary integration and explicit real-WASM suites.
-- [x] Remove ambient WASM startup from JS-only suites.
-- [x] Move representative layout correctness to Rust authority and shrink duplicate JS numerical assertions.
-- [x] Centralize test-group manifests used by integration and WASM configs.
-- [ ] Reclassify mixed test files so only actual kernel boundaries pay WASM startup.
-- [ ] Port remaining exhaustive Rust-owned analytical assertions to Rust or delete duplicates once equivalent coverage is proven.
-- [x] Record the local lane baseline in the pre-P1 audit; add hosted critical-path comparison after this PR.
-- [ ] Add Rust-side performance benchmarks separately from deterministic correctness gates.
-- [ ] Document the steady-state ownership rule in contributor/agent guidance.
-
-## After migration: private preview and productization
-
-Once the migration exit gates, physical Quest evidence and project-owner-selected audits are green, reopen the product track in this order.
-
-### Pre-P1 audit implementation backlog
-
-The full evidence and dispositions are in
-[PRE_P1_SYSTEMATIC_AUDIT.md](PRE_P1_SYSTEMATIC_AUDIT.md). This is the live implementation queue:
-
-- [ ] **PERF-04 / blocker:** run and govern the physical Quest 3S 10M browser qualification.
-- [x] **ARCH-01 / high:** lifecycle, RuntimeBridge ABI families and consumer-owned coordinator contracts are merged; raw Rust evidence/handle work is isolated behind the fail-closed Atlas adapter, and topology embodiment is split into focused layout, scalable geometry, interaction and live-update owners behind a compatibility facade.
-- [x] **ARCH-02 / high:** explicit idempotent UI/world ownership, disposal and started real-WASM recreation contracts implemented on `refactor/world-lifecycle-owner`.
-- [x] **PERF-03 / high:** `three-mesh-bvh` now owns production controller, desktop and trace scene selection above measured object/geometry crossover thresholds; lifecycle, transform invalidation, recursive ownership and first-hit parity are covered, and the unused uniform-grid index is deleted. Physical Quest crossover remains PERF-04 evidence.
-- [x] **UX-02 / high:** the real-browser desktop journey now covers sample load → explicit Moneta decision or persisted NIL → Rust-backed analysis → observation → `.nemosyne` export/import → clean-room replay, including bounded accessible tamper failure and successful retry without mutating the source investigation.
+- [ ] **PERF-04 / blocker:** run and govern physical Quest 3S 10M browser qualification.
+- [x] **ARCH-01 / high:** Atlas/runtime/spatial ownership boundaries are explicit and guarded.
+- [x] **ARCH-02 / high:** World/UI/kernel lifecycle ownership and recovery are explicit and idempotent.
+- [x] **PERF-03 / high:** production scene selection uses measured BVH crossover behaviour; physical crossover validation remains under PERF-04.
+- [x] **UX-02 / high:** real-browser desktop investigation/replay/tamper journey is covered.
 - [ ] **UX-03 / high:** execute controller, hand and desktop semantic-parity tasks on physical hardware.
-- [ ] **RES-01 / high:** production ABI-trap invalidation/recovery, initialization race fencing and bounded lifecycle cleanup are covered; extend this into checked two-call output contracts, exception-safe host allocation cleanup and the sustained malformed-handle/panic fault campaign.
-- [ ] **RES-02 / high:** qualify two-browser collaboration across partition, reconnect and role violations.
-- [ ] **SEC-02 / high:** inventory Rust `unsafe` and fuzz malformed ABI buffers, handles and exhaustion.
-- [ ] **MAINT-01 / high:** remove `@ts-nocheck` from package, bridge, World and Moneta boundary tests first.
-- [ ] **PERF-05 / medium:** profile allocations and GC across representative sustained interactions.
+- [x] **RES-01 / high, code-executable scope:** checked output, host allocation ownership, malformed handles and sustained generation recovery are covered. Device/endurance residuals remain evidence lanes.
+- [x] **RES-02 / high, browser scope:** partition/reconnect/state convergence/role violation and server-owned lifecycle authority are covered through #389. Cross-device/hostile-network residuals remain preview hardening.
+- [x] **SEC-02 / high, deterministic CI scope:** unsafe inventory plus bounded malformed parser/buffer/handle/exhaustion campaigns are covered. Long-running fuzz/Miri remain separate hardening lanes.
+- [ ] **MAINT-01 / high:** continue removing `@ts-nocheck` from package, bridge, World and Moneta boundary tests; #388 started the highest-value runtime boundary.
+- [ ] **PERF-05 / medium:** profile allocations/GC and sustained analytical scheduling across representative interactions.
 - [ ] **UX-04 / medium:** expose command availability and disabled reasons in every input modality.
 - [ ] **UX-05 / medium:** benchmark canvas-panel legibility/performance/accessibility against a maintained XR UI library.
-- [ ] **UX-06 / medium:** fix the 390 px header collision and add design-approved reduced-motion, focus, contrast and local-font resilience without changing the public visual identity.
-- [ ] **SEC-03 / low:** review duplicate Cargo transitive majors during Rust modernization.
+- [ ] **UX-06 / medium:** fix the 390 px header collision and add reduced-motion, focus, contrast and local-font resilience without changing public visual identity.
 - [ ] **MAINT-02 / medium:** replace weak generic assertions in blocker/high-path tests with exact contracts.
-- [ ] **MAINT-05 / medium:** classify and reduce the 170-warning lint baseline, then enforce a non-increasing budget.
-- [ ] **MAINT-06 / medium:** eliminate Rust deprecation/dead-code/unused-unsafe warning debt, governing any fingerprint change as a versioned provenance migration.
-- [ ] **DOC-03 / medium:** remove remaining investigator-facing Draco-era terminology while retaining the governed compatibility facade.
+- [ ] **MAINT-05 / medium:** classify/reduce lint-warning debt and enforce a non-increasing budget.
+- [ ] **MAINT-06 / medium:** eliminate Rust warning debt, governing fingerprint-affecting changes as provenance migrations.
+- [ ] **DOC-03 / medium:** remove remaining investigator-facing Draco terminology while retaining the compatibility facade.
 
-### P1 - Minimal private preview
+## P1 — Analytical responsiveness and spatial fitness
 
-Deliver a controlled, observable deployment suitable for investigator research and usability testing rather than broad public launch.
+**ACTIVE.** Detailed acceptance criteria and dependency order are in [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
+
+### P1-A Handle-native analytical boundary
+
+- [x] establish tested handle-native TDA adapter entry points;
+- [ ] route Atlas TDA through the durable current Rust handle;
+- [ ] remove production TDA `Dataset.toJSON()` round trips;
+- [ ] move TDA filter construction from JS raw rows to Rust column access;
+- [ ] prove supported TDA works without row rematerialisation.
+
+### P1-B Asynchronous analytical runtime
+
+- [ ] define request/version/cancellation contracts;
+- [ ] isolate expensive analysis behind a dedicated Web Worker;
+- [ ] reject stale results after dataset/kernel/session generation changes;
+- [ ] preserve fail-closed kernel recovery across the worker boundary;
+- [ ] measure transfer/scheduling before considering shared memory;
+- [ ] add SharedArrayBuffer/WASM threads/SIMD only where profiling demonstrates value.
+
+### P1-C Sparse topology scalability
+
+- [ ] replace repeated all-pairs/bucket-pair work with a reusable sparse-neighbourhood substrate;
+- [ ] reuse it across Mapper, H0/Betti-0 and compatible clustering paths;
+- [ ] introduce governed exact/sparse/landmark modes with explicit provenance;
+- [ ] validate approximation/stability against exact small-data references;
+- [ ] benchmark scale separately from deterministic correctness gates.
+
+### P1-D 3D-native Moneta perceptual fitness
+
+- [ ] activate existing occlusion/cognitive-load candidate priors;
+- [ ] add versioned measured perceptual evidence for actual embodiments;
+- [ ] include projected overlap, hidden-mark fraction, glyph size, crowding, depth ambiguity, spatial extent and viewpoint travel;
+- [ ] evaluate stability over a bounded nearby-view envelope;
+- [ ] preserve the distinction between measured evidence, engineering priors and statistical confidence.
+
+### P1-E Actionable NIL/ambiguity
+
+- [ ] distinguish `INFEASIBLE`, `UNDERDETERMINED` and `AMBIGUOUS` investigator states;
+- [ ] surface machine traces and readable explanations;
+- [ ] expose near misses and exact blocking requirements;
+- [ ] offer evidence-supported remediation without silently relaxing scientific constraints;
+- [ ] persist remediation and resulting decisions into investigation provenance.
+
+### P1-F Semantic targeting and Memory Palace focus+context
+
+- [ ] resolve hand/ray intent against analytical structures rather than arbitrary geometry alone;
+- [ ] add salience/confidence ranking plus hysteresis and precision escape hatches;
+- [ ] support observation, cluster/region, Mapper, persistence and investigation-artifact targets;
+- [ ] use the hierarchy investigation -> dataset -> structure -> region/cluster -> observation for semantic zoom;
+- [ ] preserve stable spatial identity while representation resolution changes.
+
+## P1 — Minimal private preview
+
+Deliver a controlled, observable deployment suitable for investigator research/usability testing rather than broad public launch.
 
 - [ ] define supported browsers/headsets and a small tested hardware matrix;
-- [ ] deploy a reproducible preview environment with versioned frontend/WASM artifacts;
-- [ ] add authentication/access control appropriate to a private cohort;
-- [ ] define data-retention, upload, deletion and privacy policy for research datasets;
-- [ ] add explicit consent/telemetry controls for usability and research instrumentation;
-- [ ] establish crash/error/performance telemetry that avoids leaking dataset contents;
-- [ ] add health checks, rollback procedure and release provenance;
-- [ ] validate `.nemosyne` import/export compatibility across preview releases;
-- [ ] implement onboarding, sample investigations and clear unsupported-feature states;
-- [ ] run a small investigator cohort and feed structured findings into the roadmap.
+- [ ] deploy reproducible versioned frontend/WASM artefacts;
+- [ ] add authentication/access control for a private cohort;
+- [ ] define dataset retention/upload/deletion/privacy policy;
+- [ ] add explicit consent/telemetry controls;
+- [ ] establish dataset-safe crash/error/performance telemetry;
+- [ ] add health checks, rollback and release provenance;
+- [ ] validate `.nemosyne` compatibility across preview releases;
+- [ ] implement onboarding, sample investigations and unsupported-feature states;
+- [ ] run a small investigator cohort and feed structured evidence into the roadmap.
 
-### P1 - Security and reliability hardening
+## P1 — Security and reliability hardening
 
-- [ ] re-run architecture/security threat review against the deployed preview boundary;
-- [ ] validate untrusted dataset parsing, archive limits, zip/path traversal defences and resource budgets;
-- [ ] harden CSP, dependency/supply-chain controls and release integrity;
-- [ ] audit WASM memory lifecycle, handle ownership and failure recovery;
-- [ ] ensure analytical kernel failures cannot silently produce plausible-looking substitute results;
-- [ ] add backup/export/recovery procedures for user-created investigation artefacts;
-- [ ] establish vulnerability/update response policy for preview dependencies.
+- [ ] re-run threat review against the deployed preview boundary;
+- [ ] validate untrusted dataset/archive limits, traversal defences and resource budgets;
+- [ ] harden CSP, supply-chain controls and release integrity;
+- [ ] ensure kernel failure cannot silently produce plausible-looking substitute results;
+- [ ] add backup/export/recovery procedures for user-created investigations;
+- [ ] establish preview vulnerability/update policy;
+- [ ] run deeper fuzz/Miri/device-endurance campaigns outside the ordinary PR critical path.
 
-### P1 - VR/UI/UX fitness
+## P1 — VR/UI/UX fitness
 
-- [ ] run the Senior VR/UI/UX heuristic review on the current product rather than historical prototypes;
+- [ ] run the Senior VR/UI/UX heuristic review on the current product;
 - [ ] validate comfortable locomotion, scale legibility, reach, occlusion, focus and spatial hierarchy on target headsets;
-- [ ] keep desktop/2D interaction semantically equivalent where possible rather than building a second research workflow;
+- [ ] keep desktop/2D interaction semantically equivalent where possible;
 - [ ] improve progressive disclosure, gesture discoverability and error recovery;
-- [ ] validate frame-time, draw-call, memory and interaction budgets with representative large investigations;
-- [ ] use Blender-assisted asset/UI work only where it materially improves spatial comprehension, not as decoration;
-- [ ] conduct task-based investigator usability studies and record decisions in reproducible research evidence.
+- [ ] validate frame-time, draw-call, memory, analytical scheduling and interaction budgets with representative investigations;
+- [ ] use Blender-assisted asset/UI work only where it materially improves spatial comprehension;
+- [ ] conduct task-based investigator studies and preserve decisions/evidence reproducibly.
 
-### P1 - Investigation and discovery science
+## P1 — Investigation and discovery science
 
 - [ ] complete hypothesis -> test -> support/refute/inconclusive workflows;
 - [ ] add explicit falsification operations and alternative-representation checks;
 - [ ] connect findings to exact analytical evidence and representation context;
-- [ ] capture discovery outcome events suitable for held-out evaluation;
+- [ ] capture discovery outcomes suitable for held-out evaluation;
 - [ ] evaluate whether Moneta improves discovery quality, time-to-insight, error rate and reproducibility versus baselines;
-- [ ] support shareable `.nemosyne` investigations as reproducible memory-palace graphs between investigators.
+- [ ] support shareable `.nemosyne` investigations as reproducible Memory Palace graphs.
 
 ## Scientific validity programme
 
 ### Measurement semantics and statistics
 
-- [ ] complete scale-type/measurement-type coverage beyond storage types;
+- [ ] complete scale/measurement-type coverage beyond storage types;
 - [ ] enforce appropriate geometry for compositional, circular, grouped/repeated and other non-Euclidean structures;
 - [ ] distinguish descriptive statistics, inferential uncertainty and model utility;
 - [ ] introduce calibration/coverage claims only when backed by an explicit statistical procedure;
-- [ ] add false-positive/multiple-comparison controls where workflows create selection pressure;
+- [ ] add multiple-comparison/selection-pressure controls where required;
 - [ ] expand Rust property/metamorphic tests for statistical and measurement invariants.
 
 ### Pattern fragility / apophenia pressure
@@ -288,97 +271,88 @@ Deliver a controlled, observable deployment suitable for investigator research a
 Treat this as evidence about a claim/analysis, never a psychological score for an investigator.
 
 - [ ] define a versioned pattern-fragility evidence contract;
-- [ ] include inspectable dimensions such as representation dependence, degrees of freedom, selection opportunity, perturbation instability, subgroup sparsity, null-model plausibility and independent corroboration;
+- [ ] include representation dependence, degrees of freedom, selection opportunity, perturbation instability, subgroup sparsity, null-model plausibility and independent corroboration;
 - [ ] attach concrete falsification actions to elevated dimensions;
-- [ ] persist the evidence and performed checks in Investigation/Discovery provenance;
-- [ ] keep it advisory until controlled studies show that it improves investigator calibration and discovery quality;
-- [ ] never convert heuristic pattern pressure into a probability/confidence claim without empirical calibration.
+- [ ] persist evidence and performed checks in Investigation/Discovery provenance;
+- [ ] keep it advisory until controlled studies show improved investigator calibration/discovery quality;
+- [ ] never convert heuristic pattern pressure into probability/confidence without empirical calibration.
 
-## Representation evolution after the preview foundation
+## P2 — RepresentationGraph and compositional Moneta
 
-### P2 - RepresentationGraph and compositional Moneta
-
-Prerequisites: migration complete, RepresentationGraph/grammar mature, performance budgets explicit, learned ranking empirically evaluated.
+**DEFERRED until P1 foundations and stated prerequisites are met.**
 
 - [ ] represent existing single-family outputs as canonical simple graphs first;
-- [ ] finalize primitive registry, graph schema, grammar and canonical serialization;
+- [ ] finalise primitive registry, graph schema, grammar and canonical serialisation;
 - [ ] define bounded composition search and pruning budgets;
 - [ ] preserve information-loss and hard-constraint reasoning through composition;
-- [ ] make spatial runtime a pure graph embodiment adapter;
+- [ ] make the spatial runtime a pure graph embodiment adapter;
 - [ ] add deterministic replay/provenance for composed representations;
 - [ ] only then evaluate learned composition ranking.
 
-### P3 - Adaptive Nemosyne
+## P3 — Adaptive Nemosyne
 
-Do not begin until learning has outcome evidence and operational governance.
+**DEFERRED until learning has outcome evidence and operational governance.**
 
 - [ ] freeze exact model/ontology/NIL/perception versions in study state;
 - [ ] add monitoring, rollback and user-visible adaptation controls;
 - [ ] separate investigator preference adaptation from scientific evidence authority;
-- [ ] run controlled longitudinal studies before enabling autonomous adaptation.
+- [ ] run controlled longitudinal studies before autonomous adaptation.
 
-## Dependency and platform modernization
+## Dependency and platform modernisation
 
-The consolidated dependency update landed in #358; its completed plan is archived. Future updates
-are evidence-led maintenance rather than a standing migration wave.
+The consolidated dependency update landed in #358. Future updates are evidence-led maintenance rather than a standing migration wave.
 
-- [x] complete the consolidated npm, Cargo and GitHub Actions maintenance in #358;
-- [ ] modernize Rust scientific/data libraries with numerical, provenance, determinism and WASM parity evidence;
+- [ ] modernise Rust scientific/data libraries with numerical, provenance, determinism and WASM parity evidence;
 - [ ] replace hand-rolled infrastructure only where a maintained library improves fitness without weakening Nemosyne semantics;
 - [ ] migrate ESLint/TypeScript majors deliberately;
-- [ ] treat Three.js/WebXR upgrades as dedicated runtime migrations with headset and performance validation.
-
-## Deferred hardening queue
-
-After private-preview blockers and critical product work:
-
-- broad WASM `unsafe` audit;
-- Miri/fuzz/property campaigns beyond migration-required invariants;
-- deeper kernel panic/recovery architecture;
-- additional diagnostics and observability;
-- collaboration/multi-user features;
-- broader dependency modernization;
-- non-critical API cleanup and naming migrations;
-- expanded device/browser matrix and long-duration soak testing.
+- [ ] treat Three.js/WebXR upgrades as dedicated runtime migrations with headset/performance validation.
 
 ## Fixed design boundaries
 
 - **Rust owns N-dependent work.** Parsing, storage, filtering, statistics, clustering, topology, spectral analysis, evidence construction, data-derived layout and large-data reduction remain Rust/WASM responsibilities.
+- **Atlas owns durable analytical capabilities.** Reuse canonical handles instead of serialising the same dataset back into Rust.
 - **Moneta is a bounded control plane.** It reasons over compact evidence and semantics, never raw full-dataset traversal.
-- **JS presents and orchestrates.** It must not reconstruct a shadow analytical authority.
-- **Tests live with authority.** Exhaustive mathematical/analytical tests belong beside Rust-owned behaviour; higher layers verify seams, presentation and user interaction.
+- **JS presents, orchestrates and schedules.** It must not reconstruct a shadow analytical authority.
+- **Tests live with authority.** Exhaustive mathematics belongs beside Rust-owned behaviour; higher layers verify seams, presentation and interaction.
 - **Boundary tests remain mandatory.** Rust-first testing does not replace WASM ABI, browser, WebXR or end-to-end verification.
-- **Source rows are not render primitives.** LOD/reduction is a first-class architecture requirement.
-- **Bootstrap is the safe default.** Learned ranking must be exact, pinned and explicit.
-- **Hard constraints precede learning.** Learned ranking cannot resurrect an infeasible candidate.
-- **Model activation is not empirical truth.** Promotion only proves the declared evidence policy was met.
-- **Learning never owns research facts.** Frozen learned features consume Rust-derived evidence.
+- **Source rows are not render primitives.** LOD/reduction is first-class architecture.
+- **Approximation is evidence.** Sparse/landmark/approximate modes must be explicit in provenance.
+- **Bootstrap is the safe Moneta default.** Learned ranking remains exact, pinned and explicit.
+- **Hard constraints precede learning.** Learning cannot resurrect an infeasible candidate.
+- **Learning never owns research facts.** Learned features consume Rust-derived evidence.
 - **Skepticism targets claims, not people.** Pattern-fragility signals must be explainable and actionable.
-- **No Gate 9/10 leapfrogging.** Composition/adaptation cannot substitute for correctness, reproducibility and outcome evidence.
+- **No Gate 9/10 leapfrogging.** Composition/adaptation cannot substitute for correctness, reproducibility, spatial fitness or outcome evidence.
 
 ## Verification cadence
 
-For each PR, use the cheapest authoritative layer that proves the claim. Before migration exit or preview release, run the broad checkpoint:
+For each PR, use the cheapest authoritative layer that proves the claim. Before private-preview promotion, run the broad checkpoint:
 
 ```text
 cargo test / Rust property tests
 focused JS/WASM boundary tests
 TypeScript typecheck + lint
 fast Node + focused UI + integration + explicit WASM suites
-architecture/import authority gates
+architecture/import/row-materialisation authority gates
 portable investigation replay/tamper tests
 coverage assurance
 production build
 browser/WebXR smoke
-migration benchmark tiers when scale-sensitive code changes
+scale benchmarks when scale-sensitive code changes
+physical Quest qualification for promotion-critical device claims
 ```
 
 ## Near-term execution order
 
-1. Close RES-01 checked-output, host-allocation cleanup and malformed-handle resilience work.
-2. Run physical Quest 3S 10M and interaction qualification when hardware is available.
-3. Continue the audit's remaining P1-high security and maintainability work.
-4. Reopen the minimal private-preview decision only after blockers/high findings are governed.
-5. Continue discovery/outcome studies and learned-Moneta empirical validation.
-6. Begin RepresentationGraph/compositional Moneta only after its stated prerequisites.
-7. Begin Adaptive Nemosyne only after evidence and governance prerequisites.
+1. Land the handle-native TDA seam and route Atlas TDA through its durable Rust dataset handle.
+2. Remove JavaScript raw-row/filter preprocessing from production TDA and prove row-free execution.
+3. Add the asynchronous analytical execution boundary with version fencing and cancellation; measure transfer cost before shared memory.
+4. Replace quadratic topology hot paths with a reusable sparse-neighbourhood strategy and explicit approximation provenance.
+5. Add 3D-native Moneta perceptual fitness.
+6. Complete actionable NIL/ambiguity/remediation workflows.
+7. Add semantic target resolution and Memory Palace focus+context hierarchy.
+8. Continue bounded MAINT-01 typing cleanup in parallel where it does not distract from the critical path.
+9. Run PERF-04 and UX-03 physical Quest qualification as soon as hardware is available.
+10. Govern every remaining blocker/high audit finding and reopen the minimal-private-preview promotion decision.
+11. Continue discovery/outcome studies and learned-Moneta empirical validation.
+12. Begin RepresentationGraph/compositional Moneta only after P1 prerequisites are satisfied.
+13. Begin Adaptive Nemosyne only after evidence and governance prerequisites are satisfied.
