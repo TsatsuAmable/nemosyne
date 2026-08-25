@@ -287,8 +287,11 @@ mod tests {
     }
 
     #[test]
-    fn reserved_high_bit_and_zero_are_never_valid_handles() {
+    fn malformed_handle_encodings_are_rejected() {
         assert!(DatasetRegistry::decode(0).is_none());
+        assert!(DatasetRegistry::decode(1).is_none(), "generation zero is invalid");
+        assert!(DatasetRegistry::decode(1 << HANDLE_INDEX_BITS).is_none(), "index zero is invalid");
+        assert!(DatasetRegistry::decode(HANDLE_RESERVED_MASK).is_none(), "reserved high bit is invalid");
         assert!(DatasetRegistry::decode(u32::MAX).is_none());
         assert!(DatasetRegistry::encode(MAX_DATASET_SLOTS - 1, HANDLE_MAX_GENERATION)
             .is_some_and(|handle| handle <= i32::MAX as u32));
