@@ -27,7 +27,7 @@ export class SharedAnnotationManager {
   }
 
   addAnnotation(position: [number, number, number], text: string, authorPeerId = 'local'): SpatialAnnotation {
-    const id = `pin-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const id = `pin-${crypto.randomUUID()}`;
     const annotation: SpatialAnnotation = {
       id,
       authorPeerId,

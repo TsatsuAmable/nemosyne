@@ -26,7 +26,7 @@ export class CollaborativeStateSync {
   private _poseSequence = 0;
   private _numericPeerId: number;
 
-  constructor(localPeerId = `peer-${Math.random().toString(36).slice(2, 8)}`) {
+  constructor(localPeerId = `peer-${crypto.randomUUID()}`) {
     this.localPeerId = localPeerId;
     // BinaryPoseSerializer carries uint32 peer IDs. SHA-256-derived truncation
     // provides stable collision resistance without pretending to authenticate
