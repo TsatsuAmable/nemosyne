@@ -262,8 +262,16 @@ export class NetworkManager extends EventTarget {
       this.signalling?.sendSignal(peerId, { type: 'offer', sdp: offer.sdp });
     } catch (err) {
       console.warn(`[NetworkManager] Initiate connection with ${peerId} failed:`, err);
-      this._closePeer(peerId, conn);
-      if (this.connections.get(peerId) === conn) this.connections.delete(peerId);
+      if (this.connections.get(peerId) === conn) {
+        this._closePeer(peerId, conn);
+        this.connections.delete(peerId);
+      } else {
+        try {
+          conn.close();
+        } catch (_) {
+          // Superseded connection is already closed.
+        }
+      }
     }
   }
 
@@ -299,8 +307,16 @@ export class NetworkManager extends EventTarget {
       this.signalling?.sendSignal(peerId, { type: 'answer', sdp: answer.sdp });
     } catch (err) {
       console.warn(`[NetworkManager] Handle offer from ${peerId} failed:`, err);
-      this._closePeer(peerId, conn);
-      if (this.connections.get(peerId) === conn) this.connections.delete(peerId);
+      if (this.connections.get(peerId) === conn) {
+        this._closePeer(peerId, conn);
+        this.connections.delete(peerId);
+      } else {
+        try {
+          conn.close();
+        } catch (_) {
+          // Superseded connection is already closed.
+        }
+      }
     }
   }
 
