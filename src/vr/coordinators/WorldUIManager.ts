@@ -32,6 +32,7 @@ import { JITGestureHintManager } from '../ui/JITGestureHintManager.ts';
 import { ProgressiveDisclosureController } from '../ui/ProgressiveDisclosure.ts';
 import { StatusStripController } from '../ui/StatusStripController.ts';
 import { PanelRolesManager, type UIMode } from '../ui/PanelRolesManager.ts';
+import { PANEL_LAYOUT, toAnchorLocal, type Vec3 } from '../ui/panelLayout.ts';
 import { ContextualTaskSurface } from '../ui/ContextualTaskSurface.ts';
 import type { LoadTestDriver, LoadTestProfile } from '../scalability/LoadTestDriver.ts';
 import type { Dataset } from '../../data/Dataset.ts';
@@ -97,6 +98,22 @@ interface AdaptiveAssistLike {
   confidenceHUD: GestureConfidenceHUD;
   frustrationResponse: FrustrationResponseManager;
   jitHints: JITGestureHintManager;
+}
+
+/**
+ * Apply a PANEL_LAYOUT default to a constructed panel: both the live mesh
+ * position and MovablePanel's `defaultPosition` (reset-to-home) follow the
+ * layout. See docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md.
+ */
+function applyPanelLayout(
+  panel: { mesh: { position: { set(x: number, y: number, z: number): unknown } } },
+  position: Vec3
+): void {
+  panel.mesh.position.set(position[0], position[1], position[2]);
+  const movable = panel as unknown as {
+    defaultPosition?: { set(x: number, y: number, z: number): unknown };
+  };
+  movable.defaultPosition?.set(position[0], position[1], position[2]);
 }
 
 export class WorldUIManager {
@@ -165,10 +182,12 @@ export class WorldUIManager {
 
     // DOM telemetry overlay panel.
     this.telemetryPanel = new InputTelemetry(engine);
+    applyPanelLayout(this.telemetryPanel, PANEL_LAYOUT.inputTelemetry);
     this.engine.addUpdatable(this.telemetryPanel);
 
     // In-VR console log.
     this.vrConsole = new VRConsole(engine.cameraGroup);
+    applyPanelLayout(this.vrConsole, PANEL_LAYOUT.vrConsole);
     this.engine.addUpdatable(this.vrConsole);
 
     // Main operation / dataset menu.
@@ -190,6 +209,7 @@ export class WorldUIManager {
       onReset: callbacks.onReset,
     } as LooseOptions);
     this.engine.addUpdatable(this.vrMenu);
+    applyPanelLayout(this.vrMenu, PANEL_LAYOUT.vrMenu);
 
     // Panel manager owns the launcher ring and per-panel visibility.
     this.panelManager = new PanelManager(engine.cameraGroup, {
@@ -206,11 +226,12 @@ export class WorldUIManager {
     this.engine.input.addPanel(this.vrMenu);
 
     // Mini-overview / mini-map showing palace and camera frustum.
+    // Position is anchor-local (near tier); see finding F1 in the decision record.
     this.miniOverview = new MiniOverview(engine.cameraGroup, {
       followAnchor: analystAnchor,
       getNodeMeshes: callbacks.getNodeMeshes,
       getCamera: () => engine.camera,
-      position: [0.9, 1.35, -0.7],
+      position: [...PANEL_LAYOUT.miniOverview],
       size: 0.5,
     } as LooseOptions);
     this.miniOverview.setEnabled(
@@ -223,7 +244,7 @@ export class WorldUIManager {
       followAnchor: analystAnchor,
       getPeers: callbacks.getPeers,
       getLocalPeerId: callbacks.getLocalPeerId,
-      position: [-0.9, 1.35, -0.7],
+      position: [...PANEL_LAYOUT.peerPresenceHUD],
       size: 0.5,
     } as LooseOptions);
     this.peerPresenceHUD.setEnabled(
@@ -277,6 +298,7 @@ export class WorldUIManager {
       datasetTopology: '-',
     });
     this.engine.addUpdatable(this.settingsPanel);
+    applyPanelLayout(this.settingsPanel, PANEL_LAYOUT.settingsPanel);
     this.panelManager.register(this.settingsPanel);
     this.engine.input.addPanel(this.settingsPanel);
 
@@ -290,6 +312,7 @@ export class WorldUIManager {
     this.engine.input.addPanel(this.metricsPanel);
     this.engine.addUpdatable(this.metricsPanel);
     this.panelManager.hidePanel(this.metricsPanel);
+    applyPanelLayout(this.metricsPanel, PANEL_LAYOUT.telemetryPanel);
 
     // Performance budget panel.
     this.performancePanel = new PerformancePanel(engine.cameraGroup, {
@@ -300,6 +323,7 @@ export class WorldUIManager {
     this.engine.input.addPanel(this.performancePanel);
     this.engine.addUpdatable(this.performancePanel);
     this.panelManager.hidePanel(this.performancePanel);
+    applyPanelLayout(this.performancePanel, PANEL_LAYOUT.performancePanel);
 
     // Collaboration network panel.
     this.networkPanel = new NetworkPanel(engine.cameraGroup, {
@@ -309,6 +333,7 @@ export class WorldUIManager {
     this.engine.input.addPanel(this.networkPanel);
     this.engine.addUpdatable(this.networkPanel);
     this.panelManager.hidePanel(this.networkPanel);
+    applyPanelLayout(this.networkPanel, PANEL_LAYOUT.networkPanel);
 
     // OperationLogPanel, InteractionCoach, NarrativeStrip, and LoadTestPanel are
     // lazy — constructed on first access via getOrCreate*() to avoid unconditional
@@ -329,9 +354,11 @@ export class WorldUIManager {
     this.engine.input.addPanel(this.recommendationPanel);
     this.engine.addUpdatable(this.recommendationPanel);
     this.panelManager.hidePanel(this.recommendationPanel);
+    applyPanelLayout(this.recommendationPanel, PANEL_LAYOUT.recommendationPanel);
 
     // Draco explainer panel ("Why this palace?").
     this.dracoExplainerPanel = new DracoExplainerPanel(engine.cameraGroup);
+    applyPanelLayout(this.dracoExplainerPanel, PANEL_LAYOUT.monetaExplainerPanel);
     this.panelManager.register(this.dracoExplainerPanel);
     this.engine.input.addPanel(this.dracoExplainerPanel);
     this.engine.addUpdatable(this.dracoExplainerPanel);
@@ -365,6 +392,7 @@ export class WorldUIManager {
   getOrCreateOperationLogPanel(): OperationLogPanel {
     if (!this.operationLogPanel) {
       this.operationLogPanel = new OperationLogPanel(this.engine.cameraGroup);
+      applyPanelLayout(this.operationLogPanel, PANEL_LAYOUT.operationLogPanel);
       this.panelManager.register(this.operationLogPanel);
       this.engine.input.addPanel(this.operationLogPanel);
       this.panelManager.hidePanel(this.operationLogPanel);
@@ -378,6 +406,7 @@ export class WorldUIManager {
         userMode: (this.callbacks.getSetting?.('userMode') as string | undefined) ?? 'novice',
       } as LooseOptions);
       this.panelManager.register(this.interactionCoach);
+      applyPanelLayout(this.interactionCoach, PANEL_LAYOUT.interactionCoach);
       this.engine.input.addPanel(this.interactionCoach);
       this.engine.addUpdatable(this.interactionCoach);
       this.panelManager.hidePanel(this.interactionCoach);
@@ -393,6 +422,8 @@ export class WorldUIManager {
         onSeek: this.callbacks.onSeekHistory,
       } as LooseOptions);
       this.panelManager.register(this.narrativeStrip);
+      // Anchor-parented: place via anchor-local near-low slot (finding F1).
+      applyPanelLayout(this.narrativeStrip, toAnchorLocal(PANEL_LAYOUT.narrativeStrip));
       this.engine.input.addPanel(this.narrativeStrip);
       this.engine.addUpdatable(this.narrativeStrip);
       this.panelManager.hidePanel(this.narrativeStrip);
@@ -411,6 +442,7 @@ export class WorldUIManager {
         onFlush: this.callbacks.onFlushLoadTest,
       });
       this.panelManager.register(this.loadTestPanel);
+      applyPanelLayout(this.loadTestPanel, PANEL_LAYOUT.loadTestPanel);
       this.engine.input.addPanel(this.loadTestPanel);
       this.engine.addUpdatable(this.loadTestPanel);
       this.panelManager.hidePanel(this.loadTestPanel);
@@ -430,6 +462,7 @@ export class WorldUIManager {
         onApplyMapping: () => {},
       });
       this.panelManager.register(this.schemaMappingPanel);
+      applyPanelLayout(this.schemaMappingPanel, PANEL_LAYOUT.schemaMappingPanel);
       this.engine.input.addPanel(this.schemaMappingPanel);
       this.panelManager.hidePanel(this.schemaMappingPanel);
     }
@@ -439,6 +472,7 @@ export class WorldUIManager {
   getOrCreateGestureConfidenceHUD(): GestureConfidenceHUD {
     if (!this.gestureConfidenceHUD) {
       this.gestureConfidenceHUD = new GestureConfidenceHUD(this.engine.cameraGroup);
+      applyPanelLayout(this.gestureConfidenceHUD, PANEL_LAYOUT.gestureConfidenceHUD);
       this.panelManager.register(this.gestureConfidenceHUD);
       this.engine.input.addPanel(this.gestureConfidenceHUD);
       this.engine.addUpdatable(this.gestureConfidenceHUD);

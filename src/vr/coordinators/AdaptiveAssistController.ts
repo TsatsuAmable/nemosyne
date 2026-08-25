@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import { FrustrationResponseManager } from '../ui/FrustrationResponseManager.ts';
 import { JITGestureHintManager } from '../ui/JITGestureHintManager.ts';
 import { GestureConfidenceHUD } from '../ui/GestureConfidenceHUD.ts';
+import { PANEL_LAYOUT, toAnchorLocal } from '../ui/panelLayout.ts';
 import type { UXFrustrationAnalyzer } from '../../utils/UXFrustrationAnalyzer.ts';
 import { WorldTopics } from '../../utils/EventBus.ts';
 import type { WorldEventBusLike } from './types.ts';
@@ -89,7 +90,11 @@ export class AdaptiveAssistController {
     this.jitHints = new JITGestureHintManager({ enabled: true });
     this.jitHints.setScene(options.scene);
 
-    this.confidenceHUD = new GestureConfidenceHUD(options.analystAnchor);
+    // Anchor-parented: pass the anchor-local far-tier slot (finding F1).
+    this.confidenceHUD = new GestureConfidenceHUD(
+      options.analystAnchor,
+      toAnchorLocal(PANEL_LAYOUT.gestureConfidenceHUD)
+    );
     if (options.hudVisible === false) this.confidenceHUD.mesh.visible = false;
     options.engine.input.addPanel(this.confidenceHUD);
     options.analystAnchor.add(this.confidenceHUD.mesh);
