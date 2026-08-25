@@ -1,39 +1,113 @@
+#[cfg(any(target_arch = "wasm32", test))]
+use std::collections::HashMap;
+#[cfg(any(target_arch = "wasm32", test))]
+use std::sync::{Mutex, OnceLock};
 use wasm_bindgen::prelude::*;
 
-/// Allocate JS-visible bytes through Rust's own allocator rather than the
-/// legacy independent bump arena in `lib.rs`.
+#[cfg(any(target_arch = "wasm32", test))]
+struct HostBuffer {
+    bytes: Box<[u8]>,
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+impl HostBuffer {
+    fn len(&self) -> usize {
+        self.bytes.len()
+    }
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+#[derive(Default)]
+struct HostBufferRegistry {
+    allocations: HashMap<u32, HostBuffer>,
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+impl HostBufferRegistry {
+    fn insert(&mut self, ptr: u32, buffer: HostBuffer) -> bool {
+        if ptr == 0 || self.allocations.contains_key(&ptr) {
+            return false;
+        }
+        self.allocations.insert(ptr, buffer);
+        true
+    }
+
+    fn remove_exact(&mut self, ptr: u32, len: u32) -> bool {
+        let Some(allocation) = self.allocations.get(&ptr) else {
+            return false;
+        };
+        if allocation.len() != len as usize {
+            return false;
+        }
+        self.allocations.remove(&ptr);
+        true
+    }
+
+    fn len(&self) -> usize {
+        self.allocations.len()
+    }
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+fn host_buffer_registry() -> &'static Mutex<HostBufferRegistry> {
+    static REGISTRY: OnceLock<Mutex<HostBufferRegistry>> = OnceLock::new();
+    REGISTRY.get_or_init(|| Mutex::new(HostBufferRegistry::default()))
+}
+
+/// Allocate JS-visible bytes through Rust's own allocator and retain ownership
+/// until an exact matching `host_buffer_dealloc` call releases them.
 ///
-/// The legacy arena can overlap allocations performed later by Rust because it
-/// tracks only its own bump pointer over the same linear memory. These exports
-/// provide a migration path that shares allocation ownership with Vec/String/
-/// HashMap and can therefore coexist with analytical heap growth safely.
+/// Keeping the `Box<[u8]>` in a Rust-side registry means malformed pointers,
+/// mismatched lengths and duplicate frees never reach the global allocator.
+/// The JS host receives only a borrowed linear-memory offset into a live Rust
+/// allocation.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn host_buffer_alloc(len: u32) -> u32 {
-    use std::alloc::{alloc_zeroed, handle_alloc_error, Layout};
-
     if len == 0 {
         return 0;
     }
-    let layout = Layout::from_size_align(len as usize, 8).expect("valid host buffer layout");
-    let ptr = unsafe { alloc_zeroed(layout) };
-    if ptr.is_null() {
-        handle_alloc_error(layout);
+
+    let mut bytes = vec![0_u8; len as usize].into_boxed_slice();
+    let ptr = bytes.as_mut_ptr() as usize as u32;
+    let inserted = host_buffer_registry()
+        .lock()
+        .expect("host buffer registry lock")
+        .insert(ptr, HostBuffer { bytes });
+    if inserted {
+        ptr
+    } else {
+        0
     }
-    ptr as usize as u32
 }
 
-/// Release a buffer allocated by `host_buffer_alloc`.
+/// Release a buffer allocated by `host_buffer_alloc` only when both pointer and
+/// length match the tracked allocation exactly.
+///
+/// Unknown, stale, duplicate or mismatched frees are deliberately ignored so
+/// untrusted ABI input cannot fabricate allocator metadata and trigger undefined
+/// behaviour.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn host_buffer_dealloc(ptr: u32, len: u32) {
-    use std::alloc::{dealloc, Layout};
-
     if ptr == 0 || len == 0 {
         return;
     }
-    let layout = Layout::from_size_align(len as usize, 8).expect("valid host buffer layout");
-    unsafe { dealloc(ptr as usize as *mut u8, layout) };
+    let _ = host_buffer_registry()
+        .lock()
+        .expect("host buffer registry lock")
+        .remove_exact(ptr, len);
+}
+
+/// Diagnostic count used by resilience tests to prove host-side buffers are not
+/// leaked across success and failure paths.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn host_buffer_allocation_count() -> u32 {
+    host_buffer_registry()
+        .lock()
+        .expect("host buffer registry lock")
+        .len() as u32
 }
 
 /// Borrow the existing contiguous f64 + validity buffers for a
@@ -58,7 +132,9 @@ pub fn prepare(handle: u32, column_index: u32) -> Option<(u32, u32, u32)> {
 /// Element count for a primitive column view, or 0 if the handle/index/type is unsupported.
 #[wasm_bindgen]
 pub fn dataset_primitive_column_len(handle: u32, column_index: u32) -> u32 {
-    prepare(handle, column_index).map(|(_, _, len)| len).unwrap_or(0)
+    prepare(handle, column_index)
+        .map(|(_, _, len)| len)
+        .unwrap_or(0)
 }
 
 /// Pointer to the Rust-owned f64 values buffer. Valid until the dataset handle is mutated or destroyed.
@@ -92,6 +168,53 @@ mod tests {
     use crate::data::column::{Column, ColumnType};
     use crate::data::dataset::{Dataset, RowUpdateMode};
     use crate::data::value::Value;
+
+    use super::{HostBuffer, HostBufferRegistry};
+
+    #[test]
+    fn host_buffer_registry_rejects_mismatched_and_duplicate_frees() {
+        let mut registry = HostBufferRegistry::default();
+        assert!(registry.insert(
+            64,
+            HostBuffer {
+                bytes: vec![0_u8; 16].into_boxed_slice(),
+            }
+        ));
+        assert_eq!(registry.len(), 1);
+
+        assert!(!registry.remove_exact(64, 8));
+        assert_eq!(registry.len(), 1);
+        assert!(!registry.remove_exact(65, 16));
+        assert_eq!(registry.len(), 1);
+
+        assert!(registry.remove_exact(64, 16));
+        assert_eq!(registry.len(), 0);
+        assert!(!registry.remove_exact(64, 16));
+    }
+
+    #[test]
+    fn host_buffer_registry_rejects_zero_and_duplicate_pointers() {
+        let mut registry = HostBufferRegistry::default();
+        assert!(!registry.insert(
+            0,
+            HostBuffer {
+                bytes: vec![0_u8; 8].into_boxed_slice(),
+            }
+        ));
+        assert!(registry.insert(
+            32,
+            HostBuffer {
+                bytes: vec![0_u8; 8].into_boxed_slice(),
+            }
+        ));
+        assert!(!registry.insert(
+            32,
+            HostBuffer {
+                bytes: vec![0_u8; 8].into_boxed_slice(),
+            }
+        ));
+        assert_eq!(registry.len(), 1);
+    }
 
     #[test]
     fn primitive_view_preserves_missingness_separately_from_values() {
