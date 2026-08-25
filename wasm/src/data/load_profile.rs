@@ -58,13 +58,18 @@ fn last_json() -> String {
 
 fn write_str_out(s: &str, out_ptr: u32, out_len: u32) -> u32 {
     let bytes = s.as_bytes();
-    if out_len == 0 {
-        return bytes.len() as u32;
+    let Ok(required) = u32::try_from(bytes.len()) else {
+        return 0;
+    };
+    if required == 0 {
+        return 0;
     }
-    let write_len = std::cmp::min(bytes.len(), out_len as usize);
-    let slice = unsafe { allocator::view_mut(out_ptr, write_len as u32) };
-    slice.copy_from_slice(&bytes[..write_len]);
-    write_len as u32
+    if out_ptr == 0 || out_len < required {
+        return required;
+    }
+    let slice = unsafe { allocator::view_mut(out_ptr, required) };
+    slice.copy_from_slice(bytes);
+    required
 }
 
 /// Diagnostic twin of `data_load_dataset_json` that records phase timings.
@@ -188,6 +193,34 @@ mod tests {
 
         data::destroy_dataset(handle);
         allocator::dealloc(ptr, len);
+    }
+
+    #[test]
+    fn undersized_profile_output_reports_required_size_without_partial_write() {
+        let _guard = TEST_LOCK.lock().expect("load profile test lock");
+        record(&LoadProfile {
+            schema_version: 1,
+            input_bytes: 42,
+            utf8_validation_ms: 1.0,
+            compatibility_dataset_build_ms: 2.0,
+            columnar_sidecar_build_ms: 3.0,
+            registry_insert_ms: 4.0,
+            total_rust_load_ms: 10.0,
+            row_count: 2,
+            column_count: 1,
+        });
+
+        let required = data_last_load_profile(0, 0);
+        assert!(required > 1);
+        let out_ptr = allocator::alloc(required);
+        unsafe { allocator::view_mut(out_ptr, required) }.fill(0xa5);
+
+        let reported = data_last_load_profile(out_ptr, required - 1);
+        assert_eq!(reported, required);
+        assert!(unsafe { allocator::view(out_ptr, required) }
+            .iter()
+            .all(|byte| *byte == 0xa5));
+        allocator::dealloc(out_ptr, required);
     }
 
     #[test]
