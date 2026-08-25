@@ -211,15 +211,21 @@ describe('WASM ABI hardening', () => {
     }
   });
 
-  it('revokes live dataset authority and stale provenance across analytical generations', () => {
+  it('revokes live dataset authority and retags handles across analytical generations', () => {
     const input = bridge.loadDatasetJson(tinyDataset('generation-before', 7));
     expect(input).toBeGreaterThan(0);
     const output = bridge.runOperation(input, { op: 'sort', column: 'x' });
     expect(output).toBeGreaterThan(input);
     expect(bridge.kernelProvenance()).not.toBeNull();
 
-    const previousMaxHandle = Math.max(input, output);
-    expect(callNumber('data_reset_runtime_generation')).toBe(1);
+    const sequenceBits = 20;
+    const sequenceMask = (1 << sequenceBits) - 1;
+    const currentGeneration = input >>> sequenceBits;
+    expect(output >>> sequenceBits).toBe(currentGeneration);
+    const nextGeneration = currentGeneration + 1;
+    expect(nextGeneration).toBeLessThan(1 << 11);
+
+    expect(callNumber('data_reset_runtime_generation', nextGeneration)).toBe(1);
     expect(callNumber('dataset_row_count', input)).toBe(0);
     expect(callNumber('dataset_row_count', output)).toBe(0);
     expect(bridge.kernelProvenance()).toBeNull();
@@ -228,7 +234,10 @@ describe('WASM ABI hardening', () => {
     expect(() => bridge.destroyDataset(output)).not.toThrow();
 
     const next = bridge.loadDatasetJson(tinyDataset('generation-after', 9));
-    expect(next).toBeGreaterThan(previousMaxHandle);
+    expect(next >>> sequenceBits).toBe(nextGeneration);
+    expect(next & sequenceMask).toBe(1);
+    expect(next).not.toBe(input);
+    expect(next).not.toBe(output);
     try {
       expect(callNumber('dataset_row_count', next)).toBe(1);
       expect(callNumber('dataset_row_count', input)).toBe(0);
