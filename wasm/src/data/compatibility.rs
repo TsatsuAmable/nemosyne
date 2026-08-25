@@ -17,9 +17,6 @@ pub fn materialize_dataset(
     columns: &[Column],
     columnar: &ColumnarDataset,
 ) -> Result<Dataset, String> {
-    // Validate complete column buffers up front. A short validity buffer is
-    // corruption, not scientific missingness, and must never be normalised to
-    // null values by the compatibility layer.
     for (column_index, column) in columns.iter().enumerate() {
         match column.ty {
             ColumnType::Numeric | ColumnType::Temporal => {
@@ -97,11 +94,6 @@ pub fn materialize_dataset(
         rows.push(row);
     }
 
-    // Compatibility rows are a view, not a new scientific lineage. Avoid
-    // Dataset::new here because it fingerprints the entire reconstructed row
-    // store solely to seed row IDs, doubling O(rows × columns) work. Row IDs
-    // remain deferred until a genuinely row-identity-dependent operation asks
-    // the Dataset to establish them.
     Ok(Dataset {
         name: name.to_string(),
         columns: columns.to_vec(),
@@ -129,7 +121,7 @@ pub fn canonical_dataset_column_count(handle: u32) -> u32 {
 /// `out_len == 0` to obtain the required byte length, allocate at least that
 /// many bytes at `out_ptr`, then call again with the returned size. An
 /// undersized second buffer receives no partial payload and is told the full
-/// required size again.
+/// required size again. An invalid or stale output capability returns `0`.
 #[wasm_bindgen]
 pub fn compatibility_dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     if let Err(error) = crate::data::materialize_rows(handle) {
@@ -145,10 +137,12 @@ pub fn compatibility_dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) ->
         if required == 0 {
             return 0;
         }
-        if out_ptr == 0 || out_len < required {
+        if out_len < required {
             return required;
         }
-        let slice = unsafe { allocator::view_mut(out_ptr, required) };
+        let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, required) }) else {
+            return 0;
+        };
         slice.copy_from_slice(bytes);
         required
     }).unwrap_or(0)
