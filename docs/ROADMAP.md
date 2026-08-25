@@ -4,13 +4,17 @@
 
 ## Status snapshot — 25 August 2026
 
-**Implementation baseline:** `e4bb7cb` — the latest code-bearing main before docs-only #400. It includes #395 (production TDA JS-rematerialisation closure) plus #397-#399 (bounded maintainability cleanup: stronger deterministic randomness/IDs, single event-bus authority and audited share-link base64url handling).
+**Current main:** `b17f340` — #401 is merged and restores the final P1-A typed/columnar TDA exit gate. The latest code-bearing baseline remains `e4bb7cb`, which includes #395 (production TDA JS-rematerialisation closure) plus #397-#399 (bounded maintainability cleanup: stronger deterministic randomness/IDs, single event-bus authority and audited share-link base64url handling).
+
+**In-flight design packet:** PR #402 is open against `main @ b17f340`. It is docs-only and specifies implementation designs for the P1-A final exit plus P1-B, P1-C and P1-D/F. Treat those decision records as in-flight implementation specifications, not as landed code or completed exit evidence.
 
 **Roadmap correction:** #400 advanced the analytical checkpoint to P1-B too early. PR #395 closed the production JavaScript rematerialisation paths, but the final P1-A exit condition remains: a typed/columnar-only ingest handle is registered without a row-major `Dataset`, while the current TDA exports still resolve through `with_dataset(handle, ...)`. Supported TDA therefore does not yet execute directly against that columnar-only capability.
 
-**Next checkpoint:** complete the final P1-A exit tranche — make persistence, Mapper and Betti-0 execute against typed/columnar-only canonical handles without row rematerialisation, and prove that boundary with real-WASM/architecture coverage. P1-B asynchronous execution follows immediately after that proof. Remaining VR/UI/UX blockers are physical: Quest 3S qualification (validating tiers + wheel + frames in one pass) and Threads/F5 deferred to P1-F.
+**Product convergence finding:** the architecture is ahead of the visible product. Moneta's semantic ontology can choose density, distribution, cluster, aggregate, manifold, temporal, hierarchical, graph and multiscale representations, but the current embodiment path still commonly resolves data into row-oriented geometry. `VRTopologyTranslator` still consumes `dataset.rows`; `ScalableTopologyEmbodiment` can create one instanced mesh item per observation; and some aggregate rendering paths fall back to the point cloud. The current `RepresentationGraphAdapter` is explicitly a compatibility adapter rather than the runtime embodiment authority. The result is that semantically different Moneta decisions can still collapse into variations of "put the records somewhere in 3D".
 
-**Active development wave:** P1 analytical responsiveness and spatial fitness. See [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
+**Next checkpoint:** complete the final P1-A exit tranche first. Immediately afterwards, prioritise representation embodiment convergence and whole-product investigation UX convergence before deeper runtime optimisation. P1-B/P1-C remain required technical tranches, and PR #402's designs should be preserved, but Nemosyne should not optimise point-per-row rendering before proving that Moneta's richer semantic choices become genuinely different, useful spatial representations.
+
+**Active development wave:** P1 analytical responsiveness, representation embodiment and whole-product spatial fitness. See [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md) for the analytical dependency programme; this roadmap interleaves product-convergence gates where they are required to validate the product thesis.
 
 **Physical promotion blocker:** the governed Meta Quest 3S browser/performance and interaction qualification remains outstanding. Desktop/browser CI is necessary evidence but cannot qualify headset behaviour.
 
@@ -141,8 +145,8 @@ Remaining efficiency work:
 | --- | --- | --- |
 | 0 — Authority reconciliation | **MIGRATION EXIT COMPLETE** | Maintain architecture guards; remove Draco facade only through a governed compatibility decision. |
 | 1 — Dataset Evidence | **MIGRATION AUTHORITY COMPLETE / SCIENCE ACTIVE** | Continue measurement semantics and evidence maturity. |
-| 2 — Representation Language | **PARTIAL** | Mature canonical RepresentationGraph/grammar before compositional search. |
-| 3 — Moneta correctness | **MIGRATION EXIT COMPLETE** | Add outcome validation and embodied perceptual fitness without weakening authority boundaries. |
+| 2 — Representation Language | **PARTIAL** | Mature canonical RepresentationGraph/grammar before compositional search; first make current single-winner semantic candidates faithfully executable in the embodiment runtime. |
+| 3 — Moneta correctness | **MIGRATION EXIT COMPLETE / PRODUCT EMBODIMENT PARTIAL** | Make chosen semantic representations visibly faithful, then add outcome validation and embodied perceptual fitness without weakening authority boundaries. |
 | 4 — NIL | **PROVENANCE COMPLETE / PRODUCT PARTIAL** | Complete actionable modality-parity UX and investigator workflows. |
 | 5 — Discovery | **INFRASTRUCTURE ADVANCED / SCIENCE PARTIAL** | Add falsification workflows, outcome evidence and controlled discovery-quality studies. |
 | 6 — Human refinement | **IN PROGRESS** | Expand outcome events, curation policy and study coverage. |
@@ -176,7 +180,7 @@ The detailed audit evidence remains in `PRE_P1_SYSTEMATIC_AUDIT.md`. The roadmap
 
 ## P1 — Analytical responsiveness and spatial fitness
 
-**ACTIVE.** Detailed acceptance criteria and dependency order are in [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
+**ACTIVE.** Detailed analytical acceptance criteria and dependency order are in [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md). PR #402 adds in-flight design-first specifications for P1-A/B/C/D/F; no completion claim is implied until implementation evidence lands.
 
 ### P1-A Handle-native analytical boundary — FINAL EXIT IN PROGRESS
 
@@ -187,6 +191,39 @@ The detailed audit evidence remains in `PRE_P1_SYSTEMATIC_AUDIT.md`. The roadmap
 - [x] move TDA filter construction from JS raw rows to Rust column access;
 - [x] freeze the production no-rematerialisation boundary with architecture/source tests;
 - [ ] prove the typed/columnar-only ingest handle can execute persistence, Mapper and Betti-0 without row rematerialisation.
+
+## P1 — Product convergence gates
+
+These gates are inserted into execution priority after the narrow P1-A exit. They do not replace the analytical P1-B/P1-C work and they do not pull open-ended compositional Moneta forward from P2. Their purpose is to ensure Nemosyne is optimising the right product abstraction.
+
+### P1-R Representation embodiment convergence — PRODUCT-CRITICAL
+
+Goal: a Moneta semantic decision must survive translation into a genuinely corresponding spatial representation. Individual observations are one possible detail primitive, not the universal renderer output.
+
+- [ ] audit every current Moneta semantic candidate against its actual `VRTopologyTranslator`/embodiment output and classify `faithful`, `partial`, `point-fallback` or `unimplemented`;
+- [ ] forbid silent fallback from a non-point candidate to point-per-row geometry; unsupported embodiments must fail closed or surface an explicit alternative rather than fabricate semantic equivalence;
+- [ ] implement faithful first-class embodiments for currently semantic-only/partial families, prioritising density/distribution fields, cluster regions, aggregate volumes, manifold structure and multiscale fields alongside existing temporal/hierarchical/graph/field forms;
+- [ ] make aggregation, structure and reduction first-class spatial products at scale; observation-level marks appear through drill-down/progressive detail rather than being emitted universally;
+- [ ] ensure a large-N density/aggregate/cluster candidate does not create O(N) independent visible objects unless that point-level detail is explicitly requested and governed;
+- [ ] make the current single-winner RepresentationGraph primitive executable enough to drive embodiment semantics without enabling P2 compositional search early;
+- [ ] require Moneta explanation/provenance to describe what the investigator can actually see and manipulate, including any reduction/aggregation mode;
+- [ ] add architecture/integration tests proving non-point candidates cannot regress to point-cloud fallback and scale tests that bound render-primitive growth independently of source row count;
+- [ ] demonstrate at least two analytically plausible candidate families whose embodied outputs are visibly and interactively distinct before treating P1-D perceptual ranking as product-valid.
+
+### P1-U Whole-product investigation UX convergence — PRODUCT-CRITICAL
+
+Goal: the interface behaves as one sparse spatial investigation environment rather than a collection of locally improved panels, widgets and point clouds.
+
+- [ ] design and test the complete investigator journey: load -> orient -> explore/ask -> manipulate representation -> inspect structure -> test/falsify -> compare -> capture finding -> navigate Memory Palace -> share/replay;
+- [ ] run a whole-product Senior VR/UI/UX audit against those tasks, not only isolated panel/wheel heuristics;
+- [ ] remove, merge or demote persistent UI objects that do not directly serve an investigator task; the sparse cyberspace world and the data/analytical structures remain the visual focus;
+- [ ] colocate controls with the semantic object or structure they affect where practical instead of creating a floating-dashboard archipelago;
+- [ ] define Technocore as a useful manipulable analytical/control object with explicit investigator functions; no decorative world object receives persistent prominence without a task role;
+- [ ] make novice state radically sparse through progressive disclosure while preserving expert fast paths, inspectability and manual precision escape hatches;
+- [ ] preserve desktop/XR semantic parity for core investigation operations while allowing modality-appropriate mechanics;
+- [ ] prototype the end-to-end journey before polishing isolated components; use Blender only where geometry/asset prototyping materially improves spatial comprehension;
+- [ ] treat changes to study-frozen default UI/representation behaviour as controlled-treatment modifications and update the freeze manifest before promotion;
+- [ ] establish task-level usability evidence for comprehension, discoverability, error recovery, time-to-orientation and time-to-insight before private-preview promotion.
 
 ### P1-B Asynchronous analytical runtime
 
@@ -206,6 +243,8 @@ The detailed audit evidence remains in `PRE_P1_SYSTEMATIC_AUDIT.md`. The roadmap
 - [ ] benchmark scale separately from deterministic correctness gates.
 
 ### P1-D 3D-native Moneta perceptual fitness
+
+P1-D may use PR #402's design work, but product-valid ranking depends on P1-R exposing genuinely different embodied alternatives rather than scoring several semantic labels that collapse to similar point geometry.
 
 - [ ] activate existing occlusion/cognitive-load candidate priors;
 - [ ] add versioned measured perceptual evidence for actual embodiments;
@@ -256,9 +295,7 @@ Deliver a controlled, observable deployment suitable for investigator research/u
 
 ## P1 — VR/UI/UX fitness
 
-The frozen panel/intent-wheel treatment work is merged on `main` through #394.
-Gate F research review for the controlled panel treatment is complete; Quest 3S
-device validation remains required before preview promotion.
+The frozen panel/intent-wheel treatment work is merged on `main` through #394. Gate F research review for the controlled panel treatment is complete; Quest 3S device validation remains required before preview promotion. Those local improvements are not a claim that the whole-product UX is fit: P1-U now owns the end-to-end convergence gate.
 
 - [x] spatial-audit + hypothesis + Blender prototype comparison for panel arrangement completed as a recorded decision (`docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md`, evidence tier 4);
 - [x] C1′ role-aware depth-tier zoning implemented as panel default positions with invariant tests (`src/vr/ui/panelLayout.ts`, `tests/panel-layout.test.ts`);
@@ -269,6 +306,7 @@ device validation remains required before preview promotion.
 - [x] novice command vocabulary surfaced on the wheel (spec §6.1): Move (teleport/flight/floor), Undo/Redo, Return-to-Overview;
 - [x] HolographicInspector and FrustrationResponseManager moved off the retired rig frame onto world/torso frames per spec §5;
 - [x] declare frozen panel-layout revision 3 + intent wheel in `docs/study/` before the next study session (`UI_TREATMENT.md`; enforced via `uiTreatmentVersion` in the freeze manifest);
+- [ ] complete P1-U whole-product task-flow convergence before treating local component improvements as overall UX fitness;
 - [ ] run the full Senior VR/UI/UX heuristic review on the product beyond the panel/wheel audit;
 - [ ] validate comfortable locomotion, scale legibility, reach, occlusion, focus and spatial hierarchy on target headsets;
 - [ ] keep desktop/2D interaction semantically equivalent where possible;
@@ -310,7 +348,7 @@ Treat this as evidence about a claim/analysis, never a psychological score for a
 
 ## P2 — RepresentationGraph and compositional Moneta
 
-**DEFERRED until P1 foundations and stated prerequisites are met.**
+**DEFERRED until P1 foundations and stated prerequisites are met.** P1-R may make the current single-winner graph primitive executable as an embodiment contract, but must not introduce open-ended composition/search ahead of this gate.
 
 - [ ] represent existing single-family outputs as canonical simple graphs first;
 - [ ] finalise primitive registry, graph schema, grammar and canonical serialisation;
@@ -343,10 +381,13 @@ The consolidated dependency update landed in #358. Future updates are evidence-l
 - **Rust owns N-dependent work.** Parsing, storage, filtering, statistics, clustering, topology, spectral analysis, evidence construction, data-derived layout and large-data reduction remain Rust/WASM responsibilities.
 - **Atlas owns durable analytical capabilities.** Reuse canonical handles instead of serialising the same dataset back into Rust.
 - **Moneta is a bounded control plane.** It reasons over compact evidence and semantics, never raw full-dataset traversal.
+- **Semantic representation must survive embodiment.** A non-point Moneta candidate may not silently degrade into point-per-row geometry merely because the renderer lacks a faithful primitive.
+- **Observations are detail, not universal geometry.** At investigation scale, aggregate, density, cluster, field, topology and other structure-level representations are first-class; individual observations appear when analytically or interactively appropriate.
 - **JS presents, orchestrates and schedules.** It must not reconstruct a shadow analytical authority.
 - **Tests live with authority.** Exhaustive mathematics belongs beside Rust-owned behaviour; higher layers verify seams, presentation and interaction.
 - **Boundary tests remain mandatory.** Rust-first testing does not replace WASM ABI, browser, WebXR or end-to-end verification.
-- **Source rows are not render primitives.** LOD/reduction is first-class architecture.
+- **Source rows are not render primitives.** LOD/reduction is first-class architecture, and render-object growth must be governed independently of source N.
+- **The world is an interface, not scenery.** Persistent spatial objects, including Technocore, must have a clear investigator function; sparse cyberspace keeps data and analytical structure visually dominant.
 - **Approximation is evidence.** Sparse/landmark/approximate modes must be explicit in provenance.
 - **Bootstrap is the safe Moneta default.** Learned ranking remains exact, pinned and explicit.
 - **Hard constraints precede learning.** Learning cannot resurrect an infeasible candidate.
@@ -374,15 +415,17 @@ physical Quest qualification for promotion-critical device claims
 
 ## Near-term execution order
 
-1. **P1-A — FINAL EXIT:** make persistence, Mapper and Betti-0 operate directly on the typed/columnar-only canonical handle without reconstructing a row-major `Dataset`; add real-WASM and architecture coverage proving no row materialisation.
-2. **P1-B:** define request/version/cancellation contracts and generation fencing, then isolate expensive analysis behind a dedicated Worker; measure transfer cost before shared memory.
-3. **P1-C:** replace quadratic topology hot paths with a reusable sparse-neighbourhood strategy and explicit approximation provenance.
-4. **P1-D:** add 3D-native Moneta perceptual fitness.
-5. **P1-E:** complete actionable NIL/ambiguity/remediation workflows.
-6. **P1-F:** add semantic target resolution and Memory Palace focus+context hierarchy.
-7. Continue bounded MAINT-01 typing cleanup in parallel where it does not distract from the critical path.
-8. Run PERF-04 and UX-03 physical Quest qualification as soon as hardware is available.
-9. Govern every remaining blocker/high audit finding and reopen the minimal-private-preview promotion decision.
-10. Continue discovery/outcome studies and learned-Moneta empirical validation.
-11. Begin RepresentationGraph/compositional Moneta only after P1 prerequisites are satisfied.
-12. Begin Adaptive Nemosyne only after evidence and governance prerequisites are satisfied.
+1. **P1-A — FINAL EXIT:** make persistence, Mapper and Betti-0 operate directly on the typed/columnar-only canonical handle without reconstructing a row-major `Dataset`; add real-WASM and architecture coverage proving no row materialisation. Use PR #402's P1-A design after it is reviewed/landed, without treating the design document itself as exit evidence.
+2. **P1-R — REPRESENTATION EMBODIMENT CONVERGENCE:** audit and close semantic-to-spatial gaps so density/distribution/cluster/aggregate/manifold/multiscale and other non-point choices cannot silently collapse to point-per-row rendering. Establish bounded primitive growth and executable single-winner representation semantics.
+3. **P1-U — WHOLE-PRODUCT UX CONVERGENCE:** rebuild the investigation journey around task flow, sparse spatial context, progressive disclosure and useful semantic objects; make Technocore functional and validate the end-to-end experience rather than isolated UI components.
+4. **P1-B:** define request/version/cancellation contracts and generation fencing, then isolate expensive analysis behind a dedicated Worker; measure transfer cost before shared memory. Preserve PR #402's design unless implementation evidence invalidates it.
+5. **P1-C:** replace quadratic topology hot paths with a reusable sparse-neighbourhood strategy and explicit approximation provenance. Preserve PR #402's design and separately adjudicate any fingerprint-changing persistence-death semantics before implementation.
+6. **P1-D:** add 3D-native Moneta perceptual fitness after P1-R exposes genuine embodied alternatives; treat default-ranking changes as study-treatment changes where applicable.
+7. **P1-E:** complete actionable NIL/ambiguity/remediation workflows.
+8. **P1-F:** add semantic target resolution and Memory Palace focus+context hierarchy, using PR #402's semantic-resolution design where it survives review.
+9. Continue bounded MAINT-01 typing cleanup in parallel where it does not distract from the critical path.
+10. Run PERF-04 and UX-03 physical Quest qualification as soon as hardware is available, with the converged representation/UX treatment rather than qualifying a soon-to-be-replaced point-centric experience.
+11. Govern every remaining blocker/high audit finding and reopen the minimal-private-preview promotion decision.
+12. Continue discovery/outcome studies and learned-Moneta empirical validation.
+13. Begin RepresentationGraph/compositional Moneta only after P1 prerequisites are satisfied.
+14. Begin Adaptive Nemosyne only after evidence and governance prerequisites are satisfied.
