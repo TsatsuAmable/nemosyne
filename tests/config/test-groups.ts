@@ -40,6 +40,7 @@ export const WASM_TESTS = [
   'tests/production-runtime-wiring.test.ts',
   'tests/representation-topology-node.test.ts',
   'tests/runtime-bridge-concurrency.test.ts',
+  'tests/runtime-recovery-endurance.test.ts',
   'tests/subsystem-resiliency-audit.test.ts',
   'tests/vr-data-operations.test.ts',
   'tests/vr-metaphors.test.ts',
