@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from './Engine.ts';
 import { MonetaTopologyNode as DracoTopologyNode } from '../moneta/MonetaTopologyNode.ts';
 import { MonetaDiagnosticHUD as DracoDiagnosticHUD } from './ui/MonetaDiagnosticHUD.ts';
-import { PANEL_LAYOUT, toAnchorLocal } from './ui/panelLayout.ts';
+import { PANEL_LAYOUT } from './ui/panelLayout.ts';
 import { TooltipManager } from './ui/TooltipManager.ts';
 import { ChartPlanePanel } from './ui/ChartPlanePanel.ts';
 import { FileLoaderUI } from '../ui/FileLoader.ts';
@@ -944,12 +944,11 @@ export class World {
     }
 
     // Rebuild diagnostic HUD bound to the new node. The mesh is re-parented
-    // into the torso anchor below, so the position must be anchor-local
-    // (finding F1, docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md).
+    // into the torso anchor below; PANEL_LAYOUT is anchor-local (revision 3).
     this.diagnostic = new DracoDiagnosticHUD(
       this.engine.cameraGroup,
       this.dracoNode,
-      [...toAnchorLocal(PANEL_LAYOUT.monetaDiagnosticHUD)]
+      [...PANEL_LAYOUT.monetaDiagnosticHUD]
     );
     this.engine.input.addPanel(this.diagnostic);
     this.analystAnchor.add(this.diagnostic.mesh);

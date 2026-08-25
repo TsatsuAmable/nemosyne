@@ -6,6 +6,11 @@
 
 **Current main:** includes merged PR #389, completing the collaboration signalling-authority follow-up to #388.
 
+**Active branch:** `feat/vr-panel-blender-prototypes` — C1′ depth-tier panel defaults plus
+revision-3 single-reference-frame consolidation (all persistent panels torso-locked to
+`analystAnchor`; see `docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md` §8). Gates green locally
+25 August 2026: typecheck, lint (0 errors), 297 JS tests, Vite build; Rust untouched.
+
 **Active development wave:** P1 analytical responsiveness and spatial fitness. See [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
 
 **Physical promotion blocker:** the governed Meta Quest 3S browser/performance and interaction qualification remains outstanding. Desktop/browser CI is necessary evidence but cannot qualify headset behaviour.

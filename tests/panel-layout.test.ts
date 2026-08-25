@@ -1,18 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import {
   PANEL_LAYOUT,
-  toAnchorLocal,
   fanSlot,
   ANCHOR_TORSO_WORLD_Y,
 } from '../src/vr/ui/panelLayout.ts';
 
 const dist = (p: readonly number[]) => Math.hypot(p[0], p[2]);
 
-describe('panelLayout (C1′ role-aware depth tiers)', () => {
+describe('panelLayout (C1′ role-aware depth tiers, torso-locked)', () => {
   it('fanSlot places panels on the forward −Z arc', () => {
-    const p = fanSlot(30, 1.15, 1.55);
+    const p = fanSlot(30, 1.15, 0.2);
     expect(p[0]).toBeCloseTo(0.575, 2);
-    expect(p[1]).toBe(1.55);
+    expect(p[1]).toBe(0.2);
     expect(p[2]).toBeCloseTo(-0.996, 3); // forward = −Z
   });
 
@@ -49,20 +48,23 @@ describe('panelLayout (C1′ role-aware depth tiers)', () => {
     }
   });
 
-  it('toAnchorLocal converts world y/z into torso-anchor space', () => {
-    const world: [number, number, number] = [0.5, 1.3, -0.6];
-    expect(toAnchorLocal(world)).toEqual([0.5, 1.3 - ANCHOR_TORSO_WORLD_Y, -0.6]);
-    expect(toAnchorLocal(world, 1.2)).toEqual([0.5, 1.3 - ANCHOR_TORSO_WORLD_Y, 0.6]);
+  it('is expressed uniformly in torso-anchor-local space (single reference frame)', () => {
+    // Anchor-local heights must map into a comfortable world band:
+    // world y = ANCHOR_TORSO_WORLD_Y (≈1.35) + local y ∈ [0.75, 1.70] m.
+    for (const [key, p] of Object.entries(PANEL_LAYOUT)) {
+      const worldY = ANCHOR_TORSO_WORLD_Y + p[1];
+      expect(worldY, `${key} renders at ${worldY} m`).toBeGreaterThanOrEqual(0.75);
+      expect(worldY, `${key} renders at ${worldY} m`).toBeLessThanOrEqual(1.7);
+    }
   });
 
-  it('near-tier overlays land at reachable eye-height when anchor-parented (F1)', () => {
-    // World height = anchor torso y (1.35 at eye 1.6) + local y.
+  it('near-tier overlays sit inside per-arm reach (< 0.9 m) at chest-to-eye height (F1)', () => {
     for (const key of ['miniOverview', 'peerPresenceHUD'] as const) {
       const local = PANEL_LAYOUT[key];
       const worldY = ANCHOR_TORSO_WORLD_Y + local[1];
       expect(worldY).toBeGreaterThanOrEqual(1.0);
       expect(worldY).toBeLessThanOrEqual(1.7);
-      expect(Math.hypot(local[0], local[2])).toBeLessThanOrEqual(0.9);
+      expect(dist(local)).toBeLessThanOrEqual(0.9);
     }
   });
 });

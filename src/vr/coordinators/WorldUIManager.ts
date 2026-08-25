@@ -32,7 +32,7 @@ import { JITGestureHintManager } from '../ui/JITGestureHintManager.ts';
 import { ProgressiveDisclosureController } from '../ui/ProgressiveDisclosure.ts';
 import { StatusStripController } from '../ui/StatusStripController.ts';
 import { PanelRolesManager, type UIMode } from '../ui/PanelRolesManager.ts';
-import { PANEL_LAYOUT, toAnchorLocal, type Vec3 } from '../ui/panelLayout.ts';
+import { PANEL_LAYOUT, type Vec3 } from '../ui/panelLayout.ts';
 import { ContextualTaskSurface } from '../ui/ContextualTaskSurface.ts';
 import type { LoadTestDriver, LoadTestProfile } from '../scalability/LoadTestDriver.ts';
 import type { Dataset } from '../../data/Dataset.ts';
@@ -181,17 +181,17 @@ export class WorldUIManager {
     this.contextualTaskSurface = new ContextualTaskSurface();
 
     // DOM telemetry overlay panel.
-    this.telemetryPanel = new InputTelemetry(engine);
+    this.telemetryPanel = new InputTelemetry(engine, this.analystAnchor);
     applyPanelLayout(this.telemetryPanel, PANEL_LAYOUT.inputTelemetry);
     this.engine.addUpdatable(this.telemetryPanel);
 
     // In-VR console log.
-    this.vrConsole = new VRConsole(engine.cameraGroup);
+    this.vrConsole = new VRConsole(this.analystAnchor);
     applyPanelLayout(this.vrConsole, PANEL_LAYOUT.vrConsole);
     this.engine.addUpdatable(this.vrConsole);
 
     // Main operation / dataset menu.
-    this.vrMenu = new VRMenu(engine.cameraGroup, {
+    this.vrMenu = new VRMenu(this.analystAnchor, {
       onLoadDataset: callbacks.onLoadDataset,
       onTogglePortals: callbacks.onTogglePortals,
       onConnectStream: callbacks.onConnectStream,
@@ -227,7 +227,7 @@ export class WorldUIManager {
 
     // Mini-overview / mini-map showing palace and camera frustum.
     // Position is anchor-local (near tier); see finding F1 in the decision record.
-    this.miniOverview = new MiniOverview(engine.cameraGroup, {
+    this.miniOverview = new MiniOverview(this.analystAnchor, {
       followAnchor: analystAnchor,
       getNodeMeshes: callbacks.getNodeMeshes,
       getCamera: () => engine.camera,
@@ -240,7 +240,7 @@ export class WorldUIManager {
     this.engine.addUpdatable(this.miniOverview);
 
     // Peer-presence HUD for collaboration.
-    this.peerPresenceHUD = new PeerPresenceHUD(engine.cameraGroup, {
+    this.peerPresenceHUD = new PeerPresenceHUD(this.analystAnchor, {
       followAnchor: analystAnchor,
       getPeers: callbacks.getPeers,
       getLocalPeerId: callbacks.getLocalPeerId,
@@ -290,7 +290,7 @@ export class WorldUIManager {
     this.engine.input.setHandWheelMenu(this.handWheelMenu);
 
     // Settings panel.
-    this.settingsPanel = new SettingsPanel(engine.cameraGroup, {
+    this.settingsPanel = new SettingsPanel(this.analystAnchor, {
       onChange: callbacks.onSettingChanged,
       onExitVR: callbacks.onExitVR,
       telemetryCollector: callbacks.telemetryCollector as TelemetryCollectorLike | undefined,
@@ -303,7 +303,7 @@ export class WorldUIManager {
     this.engine.input.addPanel(this.settingsPanel);
 
     // Telemetry metrics panel.
-    this.metricsPanel = new TelemetryPanel(engine.cameraGroup, {
+    this.metricsPanel = new TelemetryPanel(this.analystAnchor, {
       telemetry: callbacks.telemetryCollector as TelemetryCollectorLike | undefined,
       budget: engine.performanceBudget as PerformanceBudgetLike,
       datasetTopology: '-',
@@ -315,7 +315,7 @@ export class WorldUIManager {
     applyPanelLayout(this.metricsPanel, PANEL_LAYOUT.telemetryPanel);
 
     // Performance budget panel.
-    this.performancePanel = new PerformancePanel(engine.cameraGroup, {
+    this.performancePanel = new PerformancePanel(this.analystAnchor, {
       budget: engine.performanceBudget as PerformanceBudgetLike,
       telemetry: callbacks.telemetryCollector as TelemetryCollectorLike | undefined,
     });
@@ -326,7 +326,7 @@ export class WorldUIManager {
     applyPanelLayout(this.performancePanel, PANEL_LAYOUT.performancePanel);
 
     // Collaboration network panel.
-    this.networkPanel = new NetworkPanel(engine.cameraGroup, {
+    this.networkPanel = new NetworkPanel(this.analystAnchor, {
       roomId: '-',
     });
     this.panelManager.register(this.networkPanel);
@@ -343,7 +343,7 @@ export class WorldUIManager {
     this.panelRolesManager.registerPanel('narrative', 'Narrative Strip', 'context');
     this.panelRolesManager.registerPanel('loadTest', 'Load Test Panel', 'diagnostic');
 
-    this.recommendationPanel = new RecommendationPanel(engine.cameraGroup, {
+    this.recommendationPanel = new RecommendationPanel(this.analystAnchor, {
       getRecommendation: () => callbacks.getRecommendation?.() ?? null,
       onAccept: callbacks.onAcceptRecommendation,
       onReject: callbacks.onRejectRecommendation,
@@ -357,7 +357,7 @@ export class WorldUIManager {
     applyPanelLayout(this.recommendationPanel, PANEL_LAYOUT.recommendationPanel);
 
     // Draco explainer panel ("Why this palace?").
-    this.dracoExplainerPanel = new DracoExplainerPanel(engine.cameraGroup);
+    this.dracoExplainerPanel = new DracoExplainerPanel(this.analystAnchor);
     applyPanelLayout(this.dracoExplainerPanel, PANEL_LAYOUT.monetaExplainerPanel);
     this.panelManager.register(this.dracoExplainerPanel);
     this.engine.input.addPanel(this.dracoExplainerPanel);
@@ -391,7 +391,7 @@ export class WorldUIManager {
 
   getOrCreateOperationLogPanel(): OperationLogPanel {
     if (!this.operationLogPanel) {
-      this.operationLogPanel = new OperationLogPanel(this.engine.cameraGroup);
+      this.operationLogPanel = new OperationLogPanel(this.analystAnchor);
       applyPanelLayout(this.operationLogPanel, PANEL_LAYOUT.operationLogPanel);
       this.panelManager.register(this.operationLogPanel);
       this.engine.input.addPanel(this.operationLogPanel);
@@ -402,7 +402,7 @@ export class WorldUIManager {
 
   getOrCreateInteractionCoach(): InteractionCoach {
     if (!this.interactionCoach) {
-      this.interactionCoach = new InteractionCoach(this.engine.cameraGroup, {
+      this.interactionCoach = new InteractionCoach(this.analystAnchor, {
         userMode: (this.callbacks.getSetting?.('userMode') as string | undefined) ?? 'novice',
       } as LooseOptions);
       this.panelManager.register(this.interactionCoach);
@@ -416,14 +416,14 @@ export class WorldUIManager {
 
   getOrCreateNarrativeStrip(): NarrativeStrip {
     if (!this.narrativeStrip) {
-      this.narrativeStrip = new NarrativeStrip(this.engine.cameraGroup, {
+      this.narrativeStrip = new NarrativeStrip(this.analystAnchor, {
         analystAnchor: this.analystAnchor,
         history: this.callbacks.analysisHistory,
         onSeek: this.callbacks.onSeekHistory,
       } as LooseOptions);
       this.panelManager.register(this.narrativeStrip);
       // Anchor-parented: place via anchor-local near-low slot (finding F1).
-      applyPanelLayout(this.narrativeStrip, toAnchorLocal(PANEL_LAYOUT.narrativeStrip));
+      applyPanelLayout(this.narrativeStrip, PANEL_LAYOUT.narrativeStrip);
       this.engine.input.addPanel(this.narrativeStrip);
       this.engine.addUpdatable(this.narrativeStrip);
       this.panelManager.hidePanel(this.narrativeStrip);
@@ -433,7 +433,7 @@ export class WorldUIManager {
 
   getOrCreateLoadTestPanel(): LoadTestPanel {
     if (!this.loadTestPanel) {
-      this.loadTestPanel = new LoadTestPanel(this.engine.cameraGroup, {
+      this.loadTestPanel = new LoadTestPanel(this.analystAnchor, {
         driver: this.callbacks.loadTestDriver as LoadTestDriver,
         eventBus: this.eventBus,
         onStart: this.callbacks.onStartLoadTest,
@@ -457,7 +457,7 @@ export class WorldUIManager {
       // is loaded. A real dataset, when available, is wired via getDataset.
       const ds =
         (this.callbacks.getDataset?.() as Dataset | null | undefined) ?? this._emptyDataset();
-      this.schemaMappingPanel = new SchemaMappingPanel(this.engine.cameraGroup, {
+      this.schemaMappingPanel = new SchemaMappingPanel(this.analystAnchor, {
         dataset: ds,
         onApplyMapping: () => {},
       });
@@ -471,7 +471,7 @@ export class WorldUIManager {
 
   getOrCreateGestureConfidenceHUD(): GestureConfidenceHUD {
     if (!this.gestureConfidenceHUD) {
-      this.gestureConfidenceHUD = new GestureConfidenceHUD(this.engine.cameraGroup);
+      this.gestureConfidenceHUD = new GestureConfidenceHUD(this.analystAnchor);
       applyPanelLayout(this.gestureConfidenceHUD, PANEL_LAYOUT.gestureConfidenceHUD);
       this.panelManager.register(this.gestureConfidenceHUD);
       this.engine.input.addPanel(this.gestureConfidenceHUD);

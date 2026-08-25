@@ -122,3 +122,37 @@ validation, which remains blocking per ROADMAP.
 - **Gate F (research validity):** spatial arrangement is part of treatment; runtime change needs research review before merge.
 - **Gate D (state authority):** reviving the fan must not create a second position authority alongside free-floating drag; fan = defaults only, drag/serialization stays authoritative.
 - Device validation (Quest 3S) remains blocking per ROADMAP; this is spatial-prototype evidence (tier 4), not device evidence (tier 1).
+
+---
+
+## 8. Revision 3 (25 August 2026) — single reference-frame consolidation
+
+**Directive:** the project owner withdrew any camera-vs-torso preference and delegated the
+choice ("choose what is best for the most seamless experience").
+
+**Decision: every persistent panel is BODY_LOCKED to the torso anchor
+(`WorldSceneComposer.analystAnchor`, damped yaw). No panel is parented to the camera/rig
+frame (`engine.cameraGroup`) anymore. Head/camera lock remains reserved for transient
+comfort/system alerts only (UX spec §5).**
+
+Rationale (vr_engineer skill §5/§6/§20; UX spec P10/§29):
+
+1. Body-fixed slots are landmarks — survey knowledge survives gaze scanning; camera-locked
+   slots move with the view and destroy mapability.
+2. Damped torso tracking avoids visual-vestibular conflict and eases through snap turns
+   instead of jumping with the rig (orientation preservation, spec P10).
+3. One frame eliminates the mixed-space foot-gun that caused finding F1 and the
+   GestureConfidenceHUD dual-parent divergence; `panelLayout.ts` is now uniformly
+   anchor-local and the compiler/test layer enforces it.
+
+Implementation: all `WorldUIManager` panel constructions pass `this.analystAnchor`;
+`InputTelemetry` accepts an explicit parent; `AdaptiveAssistController` and the
+`MonetaDiagnosticHUD` rebuild path consume anchor-local slots directly;
+`toAnchorLocal` was removed (table pre-converted). Drag/recentering and layout
+serialization remain the user override authority (Gate D unchanged).
+
+Note: this supersedes the §5 wiring table where it disagreed with the shipped
+`panelLayout.ts` (mid/far slot assignments were refined during implementation); the code
+table plus `tests/panel-layout.test.ts` invariants are authoritative for exact slots.
+
+Research classification: unchanged — CONTROLLED-TREATMENT MODIFICATION candidate.
