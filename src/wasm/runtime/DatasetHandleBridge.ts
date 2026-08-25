@@ -9,7 +9,14 @@ import type {
   SpectralFacts,
   TdaMapperGraph,
 } from '../../data/types.ts';
-import { allocBytes, deallocBytes, readBytes, readString } from './MemoryAbi.ts';
+import {
+  allocBuffer,
+  allocBytes,
+  deallocBuffer,
+  deallocBytes,
+  readBytes,
+  readString,
+} from './MemoryAbi.ts';
 import { getDatasetHandleExports as getRuntimeExports } from './RuntimeState.ts';
 import type { DatasetHandleExports, MemoryAbiExports } from './RuntimeExports.ts';
 
@@ -20,14 +27,14 @@ function readStringExport(
   invoke: (outPtr: number, outLen: number) => number
 ): string | null {
   const required = invoke(0, 0);
-  if (required === 0) return null;
-  const ptr = wasm.alloc(required);
+  if (!Number.isSafeInteger(required) || required <= 0) return null;
+  const { ptr, len } = allocBuffer(required);
   try {
-    const written = invoke(ptr, required);
-    if (written === 0) return null;
+    const written = invoke(ptr, len);
+    if (written !== required) return null;
     return readString(ptr, written);
   } finally {
-    wasm.dealloc(ptr, required);
+    deallocBuffer(ptr, len);
   }
 }
 
@@ -62,7 +69,7 @@ export function loadCsv(bytes: Uint8Array): number {
   try {
     return wasm.data_load_csv(ptr, len);
   } finally {
-    wasm.dealloc(ptr, len);
+    deallocBytes(ptr, len);
   }
 }
 
@@ -72,7 +79,7 @@ export function loadJson(bytes: Uint8Array): number {
   try {
     return wasm.data_load_json(ptr, len);
   } finally {
-    wasm.dealloc(ptr, len);
+    deallocBytes(ptr, len);
   }
 }
 
@@ -83,20 +90,20 @@ export function loadSample(key: string): number {
   try {
     return wasm.data_load_sample(ptr, len);
   } finally {
-    wasm.dealloc(ptr, len);
+    deallocBytes(ptr, len);
   }
 }
 
 export function sampleKeys(): string[] {
   const wasm = getRuntimeExports();
-  const len = 256;
-  const ptr = wasm.alloc(len);
+  const allocation = allocBuffer(256);
   try {
-    const written = wasm.data_sample_keys(ptr, len);
-    const value = readString(ptr, written);
+    const written = wasm.data_sample_keys(allocation.ptr, allocation.len);
+    if (written <= 0 || written > allocation.len) return [];
+    const value = readString(allocation.ptr, written);
     return value.split(',').filter(Boolean);
   } finally {
-    wasm.dealloc(ptr, len);
+    deallocBuffer(allocation.ptr, allocation.len);
   }
 }
 
@@ -126,14 +133,15 @@ export function parseDatasetBytes(bytes: Uint8Array, ext: 'csv' | 'json'): Datas
 export function getDatasetJson(handle: number): DatasetJSON | null {
   const wasm = getRuntimeExports();
   const required = wasm.dataset_to_json(handle, 0, 0);
-  if (required === 0) return null;
-  const ptr = wasm.alloc(required);
+  if (!Number.isSafeInteger(required) || required <= 0) return null;
+  const allocation = allocBuffer(required);
   try {
-    const written = wasm.dataset_to_json(handle, ptr, required);
-    const json = readString(ptr, written);
+    const written = wasm.dataset_to_json(handle, allocation.ptr, allocation.len);
+    if (written !== required) return null;
+    const json = readString(allocation.ptr, written);
     return JSON.parse(json) as DatasetJSON;
   } finally {
-    wasm.dealloc(ptr, required);
+    deallocBuffer(allocation.ptr, allocation.len);
   }
 }
 
@@ -144,7 +152,7 @@ export function loadDatasetJson(obj: DatasetJSON): number {
   try {
     return wasm.data_load_dataset_json(ptr, len);
   } finally {
-    wasm.dealloc(ptr, len);
+    deallocBytes(ptr, len);
   }
 }
 
@@ -155,7 +163,7 @@ export function runOperation(handle: number, op: OperationSpec): number {
   try {
     return wasm.data_operation(handle, ptr, len);
   } finally {
-    wasm.dealloc(ptr, len);
+    deallocBytes(ptr, len);
   }
 }
 
@@ -297,13 +305,14 @@ export function computeDatasetStructureProfile(handle: number): Record<string, u
     return null;
   }
   const needed = wasm.data_compute_structure_profile(handle, 0, 0);
-  if (needed === 0) return null;
-  const outPtr = wasm.alloc(needed);
+  if (!Number.isSafeInteger(needed) || needed <= 0) return null;
+  const allocation = allocBuffer(needed);
   try {
-    wasm.data_compute_structure_profile(handle, outPtr, needed);
-    const resultBytes = readBytes(outPtr, needed);
+    const written = wasm.data_compute_structure_profile(handle, allocation.ptr, allocation.len);
+    if (written !== needed) return null;
+    const resultBytes = readBytes(allocation.ptr, written);
     return JSON.parse(new TextDecoder().decode(resultBytes)) as Record<string, unknown>;
   } finally {
-    wasm.dealloc(outPtr, needed);
+    deallocBuffer(allocation.ptr, allocation.len);
   }
 }
