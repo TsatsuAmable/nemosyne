@@ -1,10 +1,13 @@
-import { allocBytes, deallocBytes } from './runtime/MemoryAbi.ts';
+import {
+  allocBuffer,
+  allocBytes,
+  deallocBuffer,
+  deallocBytes,
+} from './runtime/MemoryAbi.ts';
 import { requireRuntime } from './runtime/RuntimeState.ts';
 
 interface LayoutAuthorityExports {
   memory: WebAssembly.Memory;
-  alloc(len: number): number;
-  dealloc(ptr: number, len: number): void;
   layout_force_directed_edges_3d(
     count: number,
     edgesPtr: number,
@@ -39,14 +42,14 @@ function readF32Result(invoke: (outPtr: number, outLen: number) => number): Floa
   const needed = invoke(0, 0);
   if (!Number.isSafeInteger(needed) || needed <= 0 || needed % 4 !== 0) return null;
 
-  const outPtr = wasm.alloc(needed);
-  if (outPtr === 0) return null;
+  const allocation = allocBuffer(needed);
+  if (allocation.ptr === 0) return null;
   try {
-    const written = invoke(outPtr, needed);
+    const written = invoke(allocation.ptr, allocation.len);
     if (written !== needed) return null;
-    return new Float32Array(wasm.memory.buffer, outPtr, written / 4).slice();
+    return new Float32Array(wasm.memory.buffer, allocation.ptr, written / 4).slice();
   } finally {
-    wasm.dealloc(outPtr, needed);
+    deallocBuffer(allocation.ptr, allocation.len);
   }
 }
 

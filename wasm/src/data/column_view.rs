@@ -5,12 +5,27 @@ use std::sync::{Mutex, OnceLock};
 use wasm_bindgen::prelude::*;
 
 #[cfg(any(target_arch = "wasm32", test))]
+const MAX_HOST_BUFFER_BYTES: usize = (crate::MAX_MEMORY_PAGES as usize) * 65_536;
+
+#[cfg(any(target_arch = "wasm32", test))]
 struct HostBuffer {
     bytes: Box<[u8]>,
 }
 
 #[cfg(any(target_arch = "wasm32", test))]
 impl HostBuffer {
+    fn zeroed(len: usize) -> Option<Self> {
+        if len == 0 || len > MAX_HOST_BUFFER_BYTES {
+            return None;
+        }
+        let mut bytes = Vec::new();
+        bytes.try_reserve_exact(len).ok()?;
+        bytes.resize(len, 0);
+        Some(Self {
+            bytes: bytes.into_boxed_slice(),
+        })
+    }
+
     fn len(&self) -> usize {
         self.bytes.len()
     }
@@ -59,21 +74,21 @@ fn host_buffer_registry() -> &'static Mutex<HostBufferRegistry> {
 ///
 /// Keeping the `Box<[u8]>` in a Rust-side registry means malformed pointers,
 /// mismatched lengths and duplicate frees never reach the global allocator.
-/// The JS host receives only a borrowed linear-memory offset into a live Rust
-/// allocation.
+/// Oversized or unreservable requests fail closed with `0` instead of forcing
+/// an allocator trap. The JS host receives only a borrowed linear-memory offset
+/// into a live Rust allocation.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn host_buffer_alloc(len: u32) -> u32 {
-    if len == 0 {
+    let Some(mut buffer) = HostBuffer::zeroed(len as usize) else {
         return 0;
-    }
+    };
 
-    let mut bytes = vec![0_u8; len as usize].into_boxed_slice();
-    let ptr = bytes.as_mut_ptr() as usize as u32;
+    let ptr = buffer.bytes.as_mut_ptr() as usize as u32;
     let inserted = host_buffer_registry()
         .lock()
         .expect("host buffer registry lock")
-        .insert(ptr, HostBuffer { bytes });
+        .insert(ptr, buffer);
     if inserted {
         ptr
     } else {
@@ -169,17 +184,19 @@ mod tests {
     use crate::data::dataset::{Dataset, RowUpdateMode};
     use crate::data::value::Value;
 
-    use super::{HostBuffer, HostBufferRegistry};
+    use super::{HostBuffer, HostBufferRegistry, MAX_HOST_BUFFER_BYTES};
+
+    #[test]
+    fn host_buffer_allocation_rejects_zero_and_oversized_requests() {
+        assert!(HostBuffer::zeroed(0).is_none());
+        assert!(HostBuffer::zeroed(MAX_HOST_BUFFER_BYTES + 1).is_none());
+        assert_eq!(HostBuffer::zeroed(32).expect("small buffer").len(), 32);
+    }
 
     #[test]
     fn host_buffer_registry_rejects_mismatched_and_duplicate_frees() {
         let mut registry = HostBufferRegistry::default();
-        assert!(registry.insert(
-            64,
-            HostBuffer {
-                bytes: vec![0_u8; 16].into_boxed_slice(),
-            }
-        ));
+        assert!(registry.insert(64, HostBuffer::zeroed(16).expect("buffer")));
         assert_eq!(registry.len(), 1);
 
         assert!(!registry.remove_exact(64, 8));
@@ -195,24 +212,9 @@ mod tests {
     #[test]
     fn host_buffer_registry_rejects_zero_and_duplicate_pointers() {
         let mut registry = HostBufferRegistry::default();
-        assert!(!registry.insert(
-            0,
-            HostBuffer {
-                bytes: vec![0_u8; 8].into_boxed_slice(),
-            }
-        ));
-        assert!(registry.insert(
-            32,
-            HostBuffer {
-                bytes: vec![0_u8; 8].into_boxed_slice(),
-            }
-        ));
-        assert!(!registry.insert(
-            32,
-            HostBuffer {
-                bytes: vec![0_u8; 8].into_boxed_slice(),
-            }
-        ));
+        assert!(!registry.insert(0, HostBuffer::zeroed(8).expect("buffer")));
+        assert!(registry.insert(32, HostBuffer::zeroed(8).expect("buffer")));
+        assert!(!registry.insert(32, HostBuffer::zeroed(8).expect("buffer")));
         assert_eq!(registry.len(), 1);
     }
 
