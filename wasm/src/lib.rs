@@ -283,42 +283,23 @@ pub fn update(_delta_ms: f32, _time_ms: f32) -> u32 {
 // ---------------------------------------------------------------------------
 // Capability flags — gradual cutover registry (realigned to .claude/plan.md §6)
 // ---------------------------------------------------------------------------
-//
-// The bitfield matches the spec exactly. Only subsystems whose primary path is
-// genuinely migrated to Rust AND exercised by JS routing are *advertised* in
-// `capabilities()`; the rest are defined so the ordering invariant
-// (`COMMAND_BUFFER` requires `SCENE_RUST`) is expressible and testable, but are
-// NOT advertised until their subsystem is implemented. See plan.md §758-766 for
-// the per-phase default set (Phase 1 = `DATASET_RUST | PARSER_RUST |
-// OPERATIONS_RUST`).
-//
-// Implemented + advertised (Phase 1):
-const CAP_DATASET_RUST: u32 = 1 << 0; // wasm/src/data/dataset.rs
-const CAP_PARSER_RUST: u32 = 1 << 1; // wasm/src/data/parsers.rs
-const CAP_OPERATIONS_RUST: u32 = 1 << 2; // wasm/src/data/operations.rs
-const CAP_MONETA_RUST: u32 = 1 << 3; // wasm/src/moneta/ (formerly Draco)
-const CAP_DRACO_RUST: u32 = CAP_MONETA_RUST; // backward-compat alias
-const CAP_SCENE_RUST: u32 = 1 << 4; // reserved — scene graph still JS. Phase 2.
-const CAP_INPUT_RUST: u32 = 1 << 5; // reserved — input still JS. Phase 4.
-const CAP_NETWORK_RUST: u32 = 1 << 6; // reserved. Phase 5.
-const CAP_COMMAND_BUFFER: u32 = 1 << 7; // reserved — dormant stub; enabled once
-//   `SCENE_RUST` is set (ordering invariant). Phase 2.
-const CAP_INSTANCING: u32 = 1 << 8; // reserved. Phase 2.
-const CAP_WASM_TELEMETRY: u32 = 1 << 9; // reserved. Phase 6.
-// Wave 1 analytical-kernel subsystems — implemented and exported now. These
-// remain *diagnostic telemetry only* until Wave 2 removes the JS routing: the
-// bits describe what the kernel can do, not what `src/` chooses at runtime.
-const CAP_TOPOLOGY_RUST: u32 = 1 << 10; // wasm/src/data/topology.rs (infer + TDA)
-const CAP_TDA_RUST: u32 = 1 << 11; // mapper / persistence / betti0
-const CAP_ENCODINGS_RUST: u32 = 1 << 12; // wasm/src/data/encodings.rs
-const CAP_STATS_RUST: u32 = 1 << 13; // wasm/src/data/statistics.rs (Facts)
-const CAP_SPECTRAL_RUST: u32 = 1 << 14; // wasm/src/data/spectral.rs (FFT)
+const CAP_DATASET_RUST: u32 = 1 << 0;
+const CAP_PARSER_RUST: u32 = 1 << 1;
+const CAP_OPERATIONS_RUST: u32 = 1 << 2;
+const CAP_MONETA_RUST: u32 = 1 << 3;
+const CAP_DRACO_RUST: u32 = CAP_MONETA_RUST;
+const CAP_SCENE_RUST: u32 = 1 << 4;
+const CAP_INPUT_RUST: u32 = 1 << 5;
+const CAP_NETWORK_RUST: u32 = 1 << 6;
+const CAP_COMMAND_BUFFER: u32 = 1 << 7;
+const CAP_INSTANCING: u32 = 1 << 8;
+const CAP_WASM_TELEMETRY: u32 = 1 << 9;
+const CAP_TOPOLOGY_RUST: u32 = 1 << 10;
+const CAP_TDA_RUST: u32 = 1 << 11;
+const CAP_ENCODINGS_RUST: u32 = 1 << 12;
+const CAP_STATS_RUST: u32 = 1 << 13;
+const CAP_SPECTRAL_RUST: u32 = 1 << 14;
 
-/// Return the enabled capability set for the current build. Wave 1 advertises
-/// the data/parser/operations subsystems plus the newly-exported
-/// topology/TDA/encodings/stats/spectral subsystems. The remaining bits (Draco, scene,
-/// input, network, command buffer, instancing, telemetry) are reserved until
-/// their subsystem is genuinely migrated; see the constants above.
 #[wasm_bindgen]
 pub fn capabilities() -> u32 {
     CAP_DATASET_RUST
@@ -331,8 +312,6 @@ pub fn capabilities() -> u32 {
         | CAP_SPECTRAL_RUST
 }
 
-/// Compute 3D grid layout positions in WASM memory.
-/// Writes `count * 3` floats into `out_ptr`.
 #[wasm_bindgen]
 pub fn layout_grid_3d(count: u32, spacing: f32, y_offset: f32, out_ptr: u32) -> u32 {
     let byte_len = match count.checked_mul(12) {
@@ -357,7 +336,6 @@ pub fn layout_grid_3d(count: u32, spacing: f32, y_offset: f32, out_ptr: u32) -> 
     byte_len
 }
 
-/// Compute 3D force-directed layout positions in WASM memory.
 #[wasm_bindgen]
 pub fn layout_force_directed_3d(
     count: u32,
@@ -398,21 +376,12 @@ pub fn layout_force_directed_3d(
     byte_len
 }
 
-// ---------------------------------------------------------------------------
-// Phase 1 — data layer exports
-// ---------------------------------------------------------------------------
-
-/// Parse CSV bytes from shared WASM memory and return a dataset handle.
-///
-/// # Safety
-/// `ptr` must point to `len` valid UTF-8 bytes readable by the JS host.
 #[wasm_bindgen]
 pub fn data_load_csv(ptr: u32, len: u32) -> u32 {
     let Some(bytes) = (unsafe { allocator::try_view(ptr, len) }) else {
         return 0;
     };
-    let name = "csv";
-    match data::parsers::parse_csv(bytes, name) {
+    match data::parsers::parse_csv(bytes, "csv") {
         Ok(dataset) => data::register_dataset(dataset),
         Err(e) => {
             log_error(&format!("data_load_csv failed: {}", e));
@@ -421,17 +390,12 @@ pub fn data_load_csv(ptr: u32, len: u32) -> u32 {
     }
 }
 
-/// Parse JSON bytes from shared WASM memory and return a dataset handle.
-///
-/// # Safety
-/// `ptr` must point to `len` valid UTF-8 bytes readable by the JS host.
 #[wasm_bindgen]
 pub fn data_load_json(ptr: u32, len: u32) -> u32 {
     let Some(bytes) = (unsafe { allocator::try_view(ptr, len) }) else {
         return 0;
     };
-    let name = "json";
-    match data::parsers::parse_json(bytes, name) {
+    match data::parsers::parse_json(bytes, "json") {
         Ok(dataset) => data::register_dataset(dataset),
         Err(e) => {
             log_error(&format!("data_load_json failed: {}", e));
@@ -440,24 +404,24 @@ pub fn data_load_json(ptr: u32, len: u32) -> u32 {
     }
 }
 
-/// Return the number of rows in a dataset. Returns `0` for invalid handles.
 #[wasm_bindgen]
 pub fn dataset_row_count(handle: u32) -> u32 {
     data::with_dataset(handle, |ds| ds.row_count() as u32).unwrap_or(0)
 }
 
-/// Return the number of columns in a dataset. Returns `0` for invalid handles.
 #[wasm_bindgen]
 pub fn dataset_column_count(handle: u32) -> u32 {
     data::with_dataset(handle, |ds| ds.column_count() as u32).unwrap_or(0)
 }
 
-/// Release a dataset handle and its Rust-owned resources.
 #[wasm_bindgen]
 pub fn dataset_destroy(handle: u32) {
     data::destroy_dataset(handle);
 }
 
+/// Shared atomic two-call output helper. A short buffer gets the required size
+/// with no write. If the caller claims a large-enough buffer, its pointer must be
+/// a live owned capability or the call fails closed with `0`.
 fn write_bytes_out(bytes: &[u8], out_ptr: u32, out_len: u32) -> u32 {
     let Ok(required) = u32::try_from(bytes.len()) else {
         return 0;
@@ -465,7 +429,7 @@ fn write_bytes_out(bytes: &[u8], out_ptr: u32, out_len: u32) -> u32 {
     if required == 0 {
         return 0;
     }
-    if out_ptr == 0 || out_len < required {
+    if out_len < required {
         return required;
     }
     let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, required) }) else {
@@ -475,9 +439,6 @@ fn write_bytes_out(bytes: &[u8], out_ptr: u32, out_len: u32) -> u32 {
     required
 }
 
-/// Serialize a dataset to a JS-compatible JSON string using the atomic two-call
-/// output contract: an undersized or zero output buffer receives no partial data
-/// and the function returns the required byte count.
 #[wasm_bindgen]
 pub fn dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     data::with_dataset(handle, |ds| {
@@ -487,8 +448,6 @@ pub fn dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     .unwrap_or(0)
 }
 
-/// Load a JS `Dataset.toJSON()` object back into the Rust data layer and
-/// return a dataset handle. Returns `0` if the JSON or host range is invalid.
 #[wasm_bindgen]
 pub fn data_load_dataset_json(ptr: u32, len: u32) -> u32 {
     let Some(bytes) = (unsafe { allocator::try_view(ptr, len) }) else {
@@ -507,7 +466,6 @@ pub fn data_load_dataset_json(ptr: u32, len: u32) -> u32 {
     }
 }
 
-/// Apply a generic data operation to a dataset and return a new dataset handle.
 #[wasm_bindgen]
 pub fn data_operation(handle: u32, op_ptr: u32, op_len: u32) -> u32 {
     let Some(op_bytes) = (unsafe { allocator::try_view(op_ptr, op_len) }) else {
@@ -536,7 +494,6 @@ pub fn data_operation(handle: u32, op_ptr: u32, op_len: u32) -> u32 {
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
         .to_string();
-
     let input_fp = data::with_dataset(handle, |ds| ds.fingerprint()).unwrap_or_default();
     let result = data::with_dataset(handle, |ds| data::operations_bridge::apply(ds, op));
     match result {
@@ -553,7 +510,6 @@ pub fn data_operation(handle: u32, op_ptr: u32, op_len: u32) -> u32 {
     }
 }
 
-/// Load a built-in sample dataset by key and return a dataset handle.
 #[wasm_bindgen]
 pub fn data_load_sample(key_ptr: u32, key_len: u32) -> u32 {
     let Some(key_bytes) = (unsafe { allocator::try_view(key_ptr, key_len) }) else {
@@ -572,18 +528,11 @@ pub fn data_load_sample(key_ptr: u32, key_len: u32) -> u32 {
     }
 }
 
-/// Write the comma-separated list of available sample keys using the standard
-/// atomic two-call output contract.
 #[wasm_bindgen]
 pub fn data_sample_keys(out_ptr: u32, out_len: u32) -> u32 {
     let keys = "supply-chain,fraud-graph,sensor-stream,sales-table,org-chart,wind-field,social-graph,financial-series,geo-cities,flow-process";
     write_bytes_out(keys.as_bytes(), out_ptr, out_len)
 }
-
-// ---------------------------------------------------------------------------
-// Wave 1 — analytical kernel exports (topology / TDA / encodings / stats /
-// arrow / radial tree / fingerprint / provenance)
-// ---------------------------------------------------------------------------
 
 fn write_str_out(s: &str, out_ptr: u32, out_len: u32) -> u32 {
     write_bytes_out(s.as_bytes(), out_ptr, out_len)
@@ -994,7 +943,7 @@ pub fn data_compute_radial_tree_3d(
     let Ok(needed) = u32::try_from(needed) else {
         return 0;
     };
-    if out_ptr == 0 || out_len < needed {
+    if out_len < needed {
         return needed;
     }
     let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, needed) }) else {
@@ -1060,7 +1009,7 @@ pub fn data_compute_time_ribbon_3d(
     let Ok(needed) = u32::try_from(needed) else {
         return 0;
     };
-    if out_ptr == 0 || out_len < needed {
+    if out_len < needed {
         return needed;
     }
     let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, needed) }) else {
@@ -1126,7 +1075,7 @@ pub fn data_compute_geo_surface_3d(
     let Ok(needed) = u32::try_from(needed) else {
         return 0;
     };
-    if out_ptr == 0 || out_len < needed {
+    if out_len < needed {
         return needed;
     }
     let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, needed) }) else {
@@ -1164,7 +1113,7 @@ pub fn data_compute_streamline_3d(
     let Ok(needed) = u32::try_from(needed) else {
         return 0;
     };
-    if out_ptr == 0 || out_len < needed {
+    if out_len < needed {
         return needed;
     }
     let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, needed) }) else {
@@ -1211,7 +1160,7 @@ mod tests {
         assert!(caps & CAP_TOPOLOGY_RUST != 0, "TOPOLOGY_RUST implemented in Wave 1");
         assert!(caps & CAP_TDA_RUST != 0, "TDA_RUST implemented in Wave 1");
         assert!(caps & CAP_ENCODINGS_RUST != 0, "ENCODINGS_RUST implemented in Wave 1");
-        assert!(caps & CAP_STATS_RUST != 0, "STATS_RUST implemented in Phase 5");
+        assert!(caps & CAP_STATS_RUST != 0, "STATS_RUST implemented in Wave 1");
         assert!(caps & CAP_SPECTRAL_RUST != 0, "SPECTRAL_RUST implemented in Phase 5");
         assert_eq!(caps & CAP_DRACO_RUST, 0, "DRACO_RUST not yet migrated");
         assert_eq!(caps & CAP_SCENE_RUST, 0, "SCENE_RUST not yet migrated");
@@ -1327,7 +1276,7 @@ mod tests {
             "geo-cities",
             "flow-process",
         ] {
-            assert!(s.contains(key), "missing sample key: {}", key);
+            assert!(s.contains(key, ), "missing sample key: {}", key);
         }
         dealloc(buf, required);
     }
@@ -1490,8 +1439,6 @@ mod tests {
     }
 }
 
-// ─── Draco Constraint Solver ABI ────────────────────────────────────────────
-
 #[no_mangle]
 pub extern "C" fn draco_solve(
     facts_ptr: u32,
@@ -1578,8 +1525,6 @@ pub extern "C" fn draco_adjust_evidence(
     write_bytes_out(&json, out_ptr, out_len)
 }
 
-// ─── Intent Compiler ABI ────────────────────────────────────────────────────
-
 #[no_mangle]
 pub extern "C" fn intent_compile(
     input_ptr: u32,
@@ -1603,8 +1548,6 @@ pub extern "C" fn intent_compile(
     let json = serde_json::to_vec(&result).unwrap_or_default();
     write_bytes_out(&json, out_ptr, out_len)
 }
-
-// ─── Structure Discovery ABI ────────────────────────────────────────────────
 
 #[no_mangle]
 pub extern "C" fn atlas_discover_structures(
