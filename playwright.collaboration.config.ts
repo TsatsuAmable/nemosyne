@@ -10,8 +10,8 @@ import { defineConfig, devices } from '@playwright/test';
  * channels under deliberate transport faults.
  */
 export default defineConfig({
-  testDir: './tests/smoke',
-  testMatch: 'collaboration-recovery.spec.ts',
+  testDir: './tests/collaboration-browser',
+  testMatch: 'recovery.spec.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
