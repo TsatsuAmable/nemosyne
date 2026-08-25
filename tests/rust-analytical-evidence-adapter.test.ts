@@ -46,4 +46,32 @@ describe('RustAnalyticalEvidenceAdapter', () => {
     expect(onFailure).toHaveBeenCalledWith(expect.any(KernelAbiError));
     expect(destroy).toHaveBeenCalledTimes(1);
   });
+
+  it('runs TDA directly against an existing Rust dataset handle without reloading rows', () => {
+    const kernel = makeKernelMockBridge();
+    const loadDatasetJson = vi.spyOn(kernel, 'loadDatasetJson');
+    const destroy = vi.spyOn(kernel, 'destroyDataset');
+    const mapper = vi.spyOn(kernel, 'computeMapperGraph').mockReturnValue({
+      nodes: [],
+      edges: [],
+    });
+    const persistence = vi.spyOn(kernel, 'computePersistenceIntervals').mockReturnValue([]);
+    const betti = vi.spyOn(kernel, 'computeBetti0Curve').mockReturnValue([]);
+    const adapter = new RustAnalyticalEvidenceAdapter(
+      kernel as unknown as AnalyticalKernelPort,
+      null
+    );
+    const handle = 123;
+    const params = { featureColumns: ['x', 'y'], filterColumn: 'x' };
+
+    expect(adapter.computeMapperGraphForHandle(handle, params)).toEqual({ nodes: [], edges: [] });
+    expect(adapter.computePersistenceIntervalsForHandle(handle, params)).toEqual([]);
+    expect(adapter.computeBetti0CurveForHandle(handle, params)).toEqual([]);
+
+    expect(mapper).toHaveBeenCalledWith(handle, params);
+    expect(persistence).toHaveBeenCalledWith(handle, params);
+    expect(betti).toHaveBeenCalledWith(handle, params);
+    expect(loadDatasetJson).not.toHaveBeenCalled();
+    expect(destroy).not.toHaveBeenCalled();
+  });
 });
