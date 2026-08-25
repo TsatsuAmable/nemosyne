@@ -16,6 +16,7 @@ pub mod operations_bridge;
 pub mod parsers;
 pub mod profile;
 pub mod provenance;
+mod registry;
 pub mod spectral;
 pub mod statistics;
 pub mod statistics_columnar;
@@ -33,93 +34,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use column::Column;
 use columnar::ColumnarDataset;
+use registry::{DatasetRegistry, RegisteredDataset};
 
 static DATASET_REGISTRY: Mutex<DatasetRegistry> = Mutex::new(DatasetRegistry::new());
 static ROW_MATERIALISATIONS: AtomicU64 = AtomicU64::new(0);
-
-struct RegisteredDataset {
-    dataset: Option<Dataset>,
-    name: String,
-    columns: Vec<Column>,
-    columnar: Arc<ColumnarDataset>,
-    fingerprint: Option<String>,
-    structure_profile_json: Option<String>,
-}
-
-impl RegisteredDataset {
-    fn new(dataset: Dataset) -> Self {
-        let name = dataset.name.clone();
-        let columns = dataset.columns.clone();
-        let columnar = Arc::new(ColumnarDataset::from_dataset(&dataset));
-        Self {
-            dataset: Some(dataset),
-            name,
-            columns,
-            columnar,
-            fingerprint: None,
-            structure_profile_json: None,
-        }
-    }
-
-    fn columnar_only(name: String, columns: Vec<Column>, columnar: ColumnarDataset) -> Self {
-        Self {
-            dataset: None,
-            name,
-            columns,
-            columnar: Arc::new(columnar),
-            fingerprint: None,
-            structure_profile_json: None,
-        }
-    }
-
-    fn rebuild_columnar(&mut self) {
-        if let Some(dataset) = &self.dataset {
-            self.name = dataset.name.clone();
-            self.columns = dataset.columns.clone();
-            self.columnar = Arc::new(ColumnarDataset::from_dataset(dataset));
-            self.fingerprint = None;
-            self.structure_profile_json = None;
-        }
-    }
-}
-
-pub struct DatasetRegistry {
-    slots: Vec<Option<RegisteredDataset>>,
-    free: Vec<u32>,
-}
-
-impl DatasetRegistry {
-    pub const fn new() -> Self { Self { slots: Vec::new(), free: Vec::new() } }
-    fn insert_registered(&mut self, registered: RegisteredDataset) -> u32 {
-        if let Some(handle) = self.free.pop() {
-            self.slots[(handle - 1) as usize] = Some(registered);
-            return handle;
-        }
-        let handle = self.slots.len() as u32 + 1;
-        self.slots.push(Some(registered));
-        handle
-    }
-    pub fn insert(&mut self, dataset: Dataset) -> u32 { self.insert_registered(RegisteredDataset::new(dataset)) }
-    pub fn insert_columnar(&mut self, name: String, columns: Vec<Column>, columnar: ColumnarDataset) -> u32 {
-        self.insert_registered(RegisteredDataset::columnar_only(name, columns, columnar))
-    }
-    pub fn get(&self, handle: u32) -> Option<&Dataset> {
-        self.slots.get(handle.wrapping_sub(1) as usize).and_then(|slot| slot.as_ref()).and_then(|registered| registered.dataset.as_ref())
-    }
-    fn get_registered(&self, handle: u32) -> Option<&RegisteredDataset> {
-        self.slots.get(handle.wrapping_sub(1) as usize).and_then(|slot| slot.as_ref())
-    }
-    fn get_registered_mut(&mut self, handle: u32) -> Option<&mut RegisteredDataset> {
-        self.slots.get_mut(handle.wrapping_sub(1) as usize).and_then(|slot| slot.as_mut())
-    }
-    fn get_columnar(&self, handle: u32) -> Option<&ColumnarDataset> { self.get_registered(handle).map(|registered| registered.columnar.as_ref()) }
-    pub fn remove(&mut self, handle: u32) {
-        let idx = handle.wrapping_sub(1) as usize;
-        if let Some(slot) = self.slots.get_mut(idx) {
-            if slot.is_some() { *slot = None; self.free.push(handle); }
-        }
-    }
-}
 
 pub fn register_dataset(dataset: Dataset) -> u32 {
     DATASET_REGISTRY.lock().expect("dataset registry poisoned").insert(dataset)
@@ -234,9 +152,9 @@ pub fn fingerprint_for_handle(handle: u32) -> Option<Result<String, String>> {
 /// materialisation occurred. Normal columnar accessors never call this.
 ///
 /// The expensive O(rows × columns) build runs outside the global registry lock.
-/// `Arc::ptr_eq` acts as a generation token: if the handle is destroyed/reused or
-/// its canonical columnar generation changes while materialisation is running,
-/// the result is discarded rather than installed into a different dataset.
+/// The generation-tagged handle and `Arc::ptr_eq` token jointly prevent a
+/// destroyed/reused handle or changed columnar generation from receiving a
+/// stale materialisation result.
 pub fn materialize_rows(handle: u32) -> Result<bool, String> {
     let (name, columns, columnar) = {
         let reg = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
@@ -284,6 +202,12 @@ pub fn with_dataset_mut<T>(handle: u32, f: impl FnOnce(&mut Dataset) -> T) -> Op
 pub fn destroy_dataset(handle: u32) {
     column_view::release_dataset(handle);
     DATASET_REGISTRY.lock().expect("dataset registry poisoned").remove(handle);
+}
+
+/// Start a fresh dataset-handle generation for runtime recovery. Existing
+/// handles remain permanently stale even when their underlying slots are reused.
+pub fn reset_dataset_registry() {
+    DATASET_REGISTRY.lock().expect("dataset registry poisoned").reset();
 }
 
 #[cfg(test)]
