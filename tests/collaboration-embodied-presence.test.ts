@@ -91,7 +91,10 @@ describe('Sprint 22.5 Collaboration Embodied Presence', () => {
         addEventListener: vi.fn(),
       } as unknown as RTCDataChannel;
 
-      nm._wireChannel('remote-peer-2', mockChannel);
+      // Signalling admission is the role authority: channels wired without an
+      // admitted role are rejected and their messages dropped.
+      nm.peerRoles.set('remote-peer-2', 'participant');
+      nm._wireChannel('remote-peer-2', mockChannel, 'participant');
 
       // Find the message event listener
       const messageCall = vi.mocked(mockChannel.addEventListener).mock.calls.find(
