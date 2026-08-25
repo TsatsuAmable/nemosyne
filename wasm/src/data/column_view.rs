@@ -58,6 +58,27 @@ impl HostBufferRegistry {
         true
     }
 
+    fn contains_range(&self, ptr: u32, len: u32) -> bool {
+        if ptr == 0 || len == 0 {
+            return false;
+        }
+        let start = ptr as usize;
+        let Some(end) = start.checked_add(len as usize) else {
+            return false;
+        };
+        self.allocations.iter().any(|(&base_ptr, allocation)| {
+            let base = base_ptr as usize;
+            let Some(allocation_end) = base.checked_add(allocation.len()) else {
+                return false;
+            };
+            start >= base && end <= allocation_end
+        })
+    }
+
+    fn clear(&mut self) {
+        self.allocations.clear();
+    }
+
     fn len(&self) -> usize {
         self.allocations.len()
     }
@@ -112,6 +133,28 @@ pub fn host_buffer_dealloc(ptr: u32, len: u32) {
         .lock()
         .expect("host buffer registry lock")
         .remove_exact(ptr, len);
+}
+
+/// Return whether `[ptr, ptr + len)` lies wholly inside one currently live
+/// JS-visible host buffer. This is deliberately not exported to JavaScript: it
+/// is the Rust-side capability check used before constructing slices from raw
+/// host-provided offsets.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn host_buffer_contains_range(ptr: u32, len: u32) -> bool {
+    host_buffer_registry()
+        .lock()
+        .expect("host buffer registry lock")
+        .contains_range(ptr, len)
+}
+
+/// Drop every tracked host allocation when the WASM runtime is reinitialised.
+/// Old pointers then become stale capabilities and fail subsequent range checks.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn host_buffer_reset() {
+    host_buffer_registry()
+        .lock()
+        .expect("host buffer registry lock")
+        .clear();
 }
 
 /// Diagnostic count used by resilience tests to prove host-side buffers are not
@@ -216,6 +259,24 @@ mod tests {
         assert!(registry.insert(32, HostBuffer::zeroed(8).expect("buffer")));
         assert!(!registry.insert(32, HostBuffer::zeroed(8).expect("buffer")));
         assert_eq!(registry.len(), 1);
+    }
+
+    #[test]
+    fn host_buffer_registry_accepts_only_live_owned_subranges() {
+        let mut registry = HostBufferRegistry::default();
+        assert!(registry.insert(100, HostBuffer::zeroed(16).expect("buffer")));
+
+        assert!(registry.contains_range(100, 16));
+        assert!(registry.contains_range(104, 8));
+        assert!(!registry.contains_range(0, 1));
+        assert!(!registry.contains_range(100, 0));
+        assert!(!registry.contains_range(99, 1));
+        assert!(!registry.contains_range(112, 8));
+        assert!(!registry.contains_range(u32::MAX, 2));
+
+        registry.clear();
+        assert!(!registry.contains_range(100, 1));
+        assert_eq!(registry.len(), 0);
     }
 
     #[test]
