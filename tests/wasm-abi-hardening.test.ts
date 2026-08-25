@@ -5,6 +5,14 @@ function callNumber(name: string, ...args: unknown[]): number {
   return Number(bridge.call(name, ...args) ?? 0);
 }
 
+function tinyDataset(name: string, value: number) {
+  return {
+    name,
+    columns: [{ name: 'x', type: 'NUMERIC' as const }],
+    rows: [{ x: value }],
+  };
+}
+
 describe('WASM ABI hardening', () => {
   beforeAll(async () => {
     if (!bridge.isReady()) {
@@ -52,11 +60,7 @@ describe('WASM ABI hardening', () => {
 
   it('does not partially write an undersized compatibility JSON result', () => {
     const baseline = bridge.hostBufferAllocationCount();
-    const handle = bridge.loadDatasetJson({
-      name: 'atomic-compatibility-output',
-      columns: [{ name: 'x', type: 'NUMERIC' }],
-      rows: [{ x: 7 }],
-    });
+    const handle = bridge.loadDatasetJson(tinyDataset('atomic-compatibility-output', 7));
     expect(handle).toBeGreaterThan(0);
 
     try {
@@ -175,6 +179,94 @@ describe('WASM ABI hardening', () => {
     expect(required).toBeGreaterThan(0);
     expect(callNumber('kernel_version', 8, required)).toBe(0);
     expect(callNumber('kernel_version', 0, required)).toBe(0);
+  });
+
+  it('keeps destroyed dataset handles permanently stale across churn', () => {
+    const staleHandles: number[] = [];
+    let previousHandle = 0;
+
+    for (let index = 0; index < 128; index += 1) {
+      const handle = bridge.loadDatasetJson(tinyDataset(`handle-${index}`, index));
+      expect(handle).toBeGreaterThan(previousHandle);
+      expect(callNumber('dataset_row_count', handle)).toBe(1);
+
+      bridge.destroyDataset(handle);
+      staleHandles.push(handle);
+      expect(callNumber('dataset_row_count', handle)).toBe(0);
+      expect(callNumber('canonical_dataset_row_count', handle)).toBe(0);
+      previousHandle = handle;
+    }
+
+    const live = bridge.loadDatasetJson(tinyDataset('live-after-churn', 999));
+    expect(live).toBeGreaterThan(previousHandle);
+    try {
+      expect(callNumber('dataset_row_count', live)).toBe(1);
+      for (const stale of staleHandles) {
+        expect(callNumber('dataset_row_count', stale)).toBe(0);
+        expect(callNumber('canonical_dataset_row_count', stale)).toBe(0);
+        expect(callNumber('data_compute_structure_profile', stale, 0, 0)).toBe(0);
+      }
+    } finally {
+      bridge.destroyDataset(live);
+    }
+  });
+
+  it('survives a bounded malformed-pointer corpus without leaking or trapping', () => {
+    const baseline = bridge.hostBufferAllocationCount();
+    const memoryEnd = bridge.memory().buffer.byteLength - 1;
+    const pointerCorpus = [0, 1, 8, memoryEnd, 0xffff_fff0, 0xffff_ffff];
+
+    for (const ptr of pointerCorpus) {
+      for (const len of [1, 2, 8, 0xffff_ffff]) {
+        expect(() => callNumber('fill_pattern', ptr, len)).not.toThrow();
+        expect(callNumber('fill_pattern', ptr, len)).toBe(0);
+        expect(() => callNumber('data_load_json', ptr, len)).not.toThrow();
+        expect(callNumber('data_load_json', ptr, len)).toBe(0);
+        expect(() => callNumber('data_load_typed_columns', ptr, len)).not.toThrow();
+        expect(callNumber('data_load_typed_columns', ptr, len)).toBe(0);
+      }
+    }
+
+    const required = callNumber('kernel_version', 0, 0);
+    for (const ptr of pointerCorpus) {
+      expect(() => callNumber('kernel_version', ptr, required)).not.toThrow();
+      expect(callNumber('kernel_version', ptr, required)).toBe(0);
+    }
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+  });
+
+  it('survives deterministic malformed JSON mutations with exact cleanup', () => {
+    const baseline = bridge.hostBufferAllocationCount();
+    const seed = new TextEncoder().encode('[{"x":1},{"x":2}]');
+
+    for (let mutation = 0; mutation < 64; mutation += 1) {
+      const bytes = seed.slice();
+      const index = mutation % bytes.length;
+      bytes[index] = (bytes[index] + mutation * 37 + 1) & 0xff;
+      const allocation = bridge.allocBytes(bytes);
+      let handle = 0;
+      try {
+        expect(() => {
+          handle = callNumber('data_load_json', allocation.ptr, allocation.len);
+        }).not.toThrow();
+      } finally {
+        bridge.deallocBytes(allocation.ptr, allocation.len);
+        if (handle !== 0) bridge.destroyDataset(handle);
+      }
+      expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+    }
+  });
+
+  it('survives repeated allocation/free cycles without retaining host buffers', () => {
+    const baseline = bridge.hostBufferAllocationCount();
+
+    for (let index = 0; index < 512; index += 1) {
+      const len = (index % 64) + 1;
+      const allocation = bridge.allocBuffer(len);
+      expect(callNumber('fill_pattern', allocation.ptr, allocation.len)).toBe(len);
+      bridge.deallocBuffer(allocation.ptr, allocation.len);
+      expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+    }
   });
 
   it('revokes all prior host-buffer capabilities when init starts a new generation', () => {
