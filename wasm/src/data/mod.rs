@@ -39,11 +39,14 @@ static DATASET_REGISTRY: LazyLock<Mutex<DatasetRegistry>> =
     LazyLock::new(|| Mutex::new(DatasetRegistry::new()));
 static ROW_MATERIALISATIONS: AtomicU64 = AtomicU64::new(0);
 
-/// Keep the high bit permanently outside the dataset-handle capability space.
-/// This preserves the established `0xffff_ffff` invalid-handle sentinel and
-/// avoids signed/unsigned surprises at host boundaries while still allowing
-/// more than two billion monotonically issued handles per runtime lifetime.
-const MAX_DATASET_HANDLE: u32 = i32::MAX as u32;
+/// Dataset handles are 31-bit opaque capabilities. The upper 11 usable bits
+/// identify the host runtime generation and the lower 20 bits identify one
+/// dataset within that generation. Bit 31 remains permanently invalid so
+/// `0xffff_ffff` and signed/unsigned boundary mistakes fail closed.
+const HANDLE_SEQUENCE_BITS: u32 = 20;
+const HANDLE_SEQUENCE_MASK: u32 = (1 << HANDLE_SEQUENCE_BITS) - 1;
+const HANDLE_MAX_GENERATION: u32 = (1 << 11) - 1;
+const HANDLE_RESERVED_MASK: u32 = 1 << 31;
 
 struct RegisteredDataset {
     dataset: Option<Dataset>,
@@ -91,37 +94,52 @@ impl RegisteredDataset {
     }
 }
 
-/// Dataset handles remain monotonic, never-reused capabilities for one WASM
-/// module lifetime. Only live datasets consume registry storage: destroying a
-/// dataset drops its registry entry while the independent `next_handle`
-/// counter preserves stale-handle invalidity across runtime generations.
+/// Only live datasets consume registry storage. Public handles are tagged with
+/// the host runtime generation, so a stale numeric handle from an earlier WASM
+/// instance cannot alias a dataset in a recovered instance even when both local
+/// registries start from their first sequence number.
 pub struct DatasetRegistry {
     entries: HashMap<u32, RegisteredDataset>,
-    next_handle: u32,
+    generation: u32,
+    next_sequence: u32,
 }
 
 impl DatasetRegistry {
     pub fn new() -> Self {
         Self {
             entries: HashMap::new(),
-            next_handle: 1,
+            generation: 1,
+            next_sequence: 1,
         }
     }
 
     #[cfg(test)]
-    fn with_next_handle(next_handle: u32) -> Self {
+    fn with_generation_and_sequence(generation: u32, next_sequence: u32) -> Self {
         Self {
             entries: HashMap::new(),
-            next_handle,
+            generation,
+            next_sequence,
         }
     }
 
-    fn take_next_handle(&mut self) -> Option<u32> {
-        let handle = self.next_handle;
-        if handle == 0 || handle > MAX_DATASET_HANDLE {
+    fn encode_handle(generation: u32, sequence: u32) -> Option<u32> {
+        if generation == 0
+            || generation > HANDLE_MAX_GENERATION
+            || sequence == 0
+            || sequence > HANDLE_SEQUENCE_MASK
+        {
             return None;
         }
-        self.next_handle = handle + 1;
+        let handle = (generation << HANDLE_SEQUENCE_BITS) | sequence;
+        if handle == 0 || handle & HANDLE_RESERVED_MASK != 0 {
+            return None;
+        }
+        Some(handle)
+    }
+
+    fn take_next_handle(&mut self) -> Option<u32> {
+        let handle = Self::encode_handle(self.generation, self.next_sequence)?;
+        self.next_sequence = self.next_sequence.saturating_add(1);
         Some(handle)
     }
 
@@ -149,14 +167,14 @@ impl DatasetRegistry {
     }
 
     fn get_registered(&self, handle: u32) -> Option<&RegisteredDataset> {
-        if handle == 0 || handle > MAX_DATASET_HANDLE {
+        if handle == 0 || handle & HANDLE_RESERVED_MASK != 0 {
             return None;
         }
         self.entries.get(&handle)
     }
 
     fn get_registered_mut(&mut self, handle: u32) -> Option<&mut RegisteredDataset> {
-        if handle == 0 || handle > MAX_DATASET_HANDLE {
+        if handle == 0 || handle & HANDLE_RESERVED_MASK != 0 {
             return None;
         }
         self.entries.get_mut(&handle)
@@ -168,17 +186,28 @@ impl DatasetRegistry {
     }
 
     pub fn remove(&mut self, handle: u32) {
-        if handle == 0 || handle > MAX_DATASET_HANDLE {
+        if handle == 0 || handle & HANDLE_RESERVED_MASK != 0 {
             return;
         }
         self.entries.remove(&handle);
     }
 
-    /// Drop every live dataset while preserving the monotonic capability
-    /// counter. A pre-reset handle therefore stays stale even if the same WASM
-    /// module instance is reinitialised and starts accepting new datasets.
-    fn reset_live_entries(&mut self) {
+    /// Move the registry into the host-provided runtime generation and drop all
+    /// live analytical authority. A strictly newer generation may restart its
+    /// local sequence at one because the generation tag makes old handles
+    /// non-aliasing. Repeating the same generation preserves the sequence so a
+    /// duplicate reset cannot resurrect an earlier handle. Decreasing or
+    /// exhausted generation tokens fail closed after clearing live entries.
+    fn reset_generation(&mut self, generation: u32) -> bool {
         self.entries.clear();
+        if generation == 0 || generation > HANDLE_MAX_GENERATION || generation < self.generation {
+            return false;
+        }
+        if generation > self.generation {
+            self.generation = generation;
+            self.next_sequence = 1;
+        }
+        true
     }
 
     #[cfg(test)]
@@ -352,19 +381,18 @@ pub fn destroy_dataset(handle: u32) {
     DATASET_REGISTRY.lock().expect("dataset registry poisoned").remove(handle);
 }
 
-/// Begin a fresh analytical runtime generation on the current WASM module.
-/// Live dataset authority and the provenance side-channel are cleared, while
-/// the monotonic handle counter deliberately remains advanced so handles from a
-/// previous generation can never alias newly loaded datasets.
+/// Begin a fresh analytical runtime generation. Dataset capabilities include the
+/// host generation token, so stale numeric handles remain invalid whether
+/// recovery reuses the current WASM module or instantiates a fresh one.
 #[wasm_bindgen::prelude::wasm_bindgen]
-pub fn data_reset_runtime_generation() -> u32 {
-    {
+pub fn data_reset_runtime_generation(generation: u32) -> u32 {
+    let reset = {
         let mut registry = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
-        registry.reset_live_entries();
-    }
+        registry.reset_generation(generation)
+    };
     provenance::clear();
     ROW_MATERIALISATIONS.store(0, Ordering::Relaxed);
-    1
+    u32::from(reset)
 }
 
 #[cfg(test)]
@@ -384,14 +412,19 @@ mod columnar_registry_tests {
     }
 
     #[test]
-    fn handle_allocation_is_checked_and_reserves_high_bit() {
-        let mut registry = DatasetRegistry::with_next_handle(MAX_DATASET_HANDLE);
-        let final_handle = registry.insert(local_dataset("final"));
-        assert_eq!(final_handle, MAX_DATASET_HANDLE);
-        assert_eq!(registry.insert(local_dataset("exhausted")), 0);
-        assert!(registry.get(u32::MAX).is_none());
-        assert!(registry.get(1 << 31).is_none());
-        assert_eq!(registry.get(final_handle).map(|dataset| dataset.name.as_str()), Some("final"));
+    fn handle_encoding_reserves_high_bit_and_bounds_generation_and_sequence() {
+        assert_eq!(
+            DatasetRegistry::encode_handle(1, 1),
+            Some((1 << HANDLE_SEQUENCE_BITS) | 1)
+        );
+        assert_eq!(
+            DatasetRegistry::encode_handle(HANDLE_MAX_GENERATION, HANDLE_SEQUENCE_MASK),
+            Some(i32::MAX as u32)
+        );
+        assert!(DatasetRegistry::encode_handle(0, 1).is_none());
+        assert!(DatasetRegistry::encode_handle(HANDLE_MAX_GENERATION + 1, 1).is_none());
+        assert!(DatasetRegistry::encode_handle(1, 0).is_none());
+        assert!(DatasetRegistry::encode_handle(1, HANDLE_SEQUENCE_MASK + 1).is_none());
     }
 
     #[test]
@@ -412,24 +445,50 @@ mod columnar_registry_tests {
     }
 
     #[test]
-    fn runtime_reset_drops_live_entries_without_rewinding_handle_capabilities() {
+    fn newer_runtime_generation_retags_capabilities_and_releases_live_entries() {
         let mut registry = DatasetRegistry::new();
         let before = registry.insert(local_dataset("before"));
         assert_eq!(registry.live_len(), 1);
-        registry.reset_live_entries();
+        assert!(registry.reset_generation(2));
         assert_eq!(registry.live_len(), 0);
         assert!(registry.get(before).is_none());
 
         let after = registry.insert(local_dataset("after"));
-        assert!(after > before);
         assert_ne!(after, before);
+        assert!(after > before);
         assert_eq!(registry.get(after).map(|dataset| dataset.name.as_str()), Some("after"));
     }
 
     #[test]
-    fn exhaustion_does_not_disturb_the_last_live_handle() {
-        let mut registry = DatasetRegistry::with_next_handle(MAX_DATASET_HANDLE);
+    fn repeated_same_generation_reset_never_rewinds_sequence() {
+        let mut registry = DatasetRegistry::new();
+        let before = registry.insert(local_dataset("before"));
+        assert!(registry.reset_generation(1));
+        let after = registry.insert(local_dataset("after"));
+        assert!(after > before);
+        assert_ne!(after, before);
+        assert!(registry.get(before).is_none());
+    }
+
+    #[test]
+    fn invalid_or_decreasing_generation_fails_closed() {
+        let mut registry = DatasetRegistry::new();
+        let first = registry.insert(local_dataset("first"));
+        assert!(!registry.reset_generation(0));
+        assert_eq!(registry.live_len(), 0);
+        assert!(registry.get(first).is_none());
+        assert!(registry.reset_generation(2));
+        let second = registry.insert(local_dataset("second"));
+        assert!(!registry.reset_generation(1));
+        assert!(registry.get(second).is_none());
+        assert!(!registry.reset_generation(HANDLE_MAX_GENERATION + 1));
+    }
+
+    #[test]
+    fn per_generation_sequence_exhaustion_does_not_disturb_live_handles() {
+        let mut registry = DatasetRegistry::with_generation_and_sequence(1, HANDLE_SEQUENCE_MASK);
         let final_handle = registry.insert(local_dataset("live"));
+        assert_ne!(final_handle, 0);
         assert_eq!(registry.insert(local_dataset("rejected")), 0);
         assert_eq!(registry.live_len(), 1);
         assert_eq!(registry.get(final_handle).map(|dataset| dataset.name.as_str()), Some("live"));
