@@ -12,6 +12,9 @@ export interface RuntimeLifecycleExports {
 export interface MemoryAbiExports {
   alloc(len: number): number;
   dealloc(ptr: number, len: number): void;
+  host_buffer_alloc(len: number): number;
+  host_buffer_dealloc(ptr: number, len: number): void;
+  host_buffer_allocation_count(): number;
   fill_pattern(ptr: number, len: number): number;
   command_buffer_ptr(): number;
   update(deltaMs: number, timeMs: number): number;
