@@ -29,13 +29,21 @@ pub mod value;
 
 pub use dataset::{Dataset, Edge};
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use column::Column;
 use columnar::ColumnarDataset;
 
-static DATASET_REGISTRY: Mutex<DatasetRegistry> = Mutex::new(DatasetRegistry::new());
+static DATASET_REGISTRY: LazyLock<Mutex<DatasetRegistry>> =
+    LazyLock::new(|| Mutex::new(DatasetRegistry::new()));
 static ROW_MATERIALISATIONS: AtomicU64 = AtomicU64::new(0);
+
+/// Keep the high bit permanently outside the dataset-handle capability space.
+/// This preserves the established `0xffff_ffff` invalid-handle sentinel and
+/// avoids signed/unsigned surprises at host boundaries while still allowing
+/// more than two billion monotonically issued handles per runtime lifetime.
+const MAX_DATASET_HANDLE: u32 = i32::MAX as u32;
 
 struct RegisteredDataset {
     dataset: Option<Dataset>,
@@ -83,29 +91,48 @@ impl RegisteredDataset {
     }
 }
 
-/// Convert the current slot count into the next one-based public handle without
-/// permitting `u32` wraparound into the invalid `0` sentinel.
-fn handle_for_slot_count(slot_count: usize) -> Option<u32> {
-    let one_based = slot_count.checked_add(1)?;
-    u32::try_from(one_based).ok()
-}
-
-/// Dataset handles are monotonic capabilities for the lifetime of a WASM
-/// runtime. Destroyed slots remain tombstones and are deliberately not reused:
-/// otherwise a stale JS handle could silently become authority over a different
-/// dataset with unrelated provenance.
+/// Dataset handles remain monotonic, never-reused capabilities for one WASM
+/// runtime lifetime. Unlike the tombstone vector, only live datasets consume
+/// registry storage: destroying a dataset drops its registry entry while the
+/// independent `next_handle` counter preserves stale-handle invalidity.
 pub struct DatasetRegistry {
-    slots: Vec<Option<RegisteredDataset>>,
+    entries: HashMap<u32, RegisteredDataset>,
+    next_handle: u32,
 }
 
 impl DatasetRegistry {
-    pub const fn new() -> Self { Self { slots: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            entries: HashMap::new(),
+            next_handle: 1,
+        }
+    }
+
+    #[cfg(test)]
+    fn with_next_handle(next_handle: u32) -> Self {
+        Self {
+            entries: HashMap::new(),
+            next_handle,
+        }
+    }
+
+    fn take_next_handle(&mut self) -> Option<u32> {
+        let handle = self.next_handle;
+        if handle == 0 || handle > MAX_DATASET_HANDLE {
+            return None;
+        }
+        self.next_handle = handle + 1;
+        Some(handle)
+    }
 
     fn insert_registered(&mut self, registered: RegisteredDataset) -> u32 {
-        let Some(handle) = handle_for_slot_count(self.slots.len()) else {
+        let Some(handle) = self.take_next_handle() else {
             return 0;
         };
-        self.slots.push(Some(registered));
+        if self.entries.contains_key(&handle) {
+            return 0;
+        }
+        self.entries.insert(handle, registered);
         handle
     }
 
@@ -118,22 +145,21 @@ impl DatasetRegistry {
     }
 
     pub fn get(&self, handle: u32) -> Option<&Dataset> {
-        self.slots
-            .get(handle.wrapping_sub(1) as usize)
-            .and_then(|slot| slot.as_ref())
-            .and_then(|registered| registered.dataset.as_ref())
+        self.get_registered(handle)?.dataset.as_ref()
     }
 
     fn get_registered(&self, handle: u32) -> Option<&RegisteredDataset> {
-        self.slots
-            .get(handle.wrapping_sub(1) as usize)
-            .and_then(|slot| slot.as_ref())
+        if handle == 0 || handle > MAX_DATASET_HANDLE {
+            return None;
+        }
+        self.entries.get(&handle)
     }
 
     fn get_registered_mut(&mut self, handle: u32) -> Option<&mut RegisteredDataset> {
-        self.slots
-            .get_mut(handle.wrapping_sub(1) as usize)
-            .and_then(|slot| slot.as_mut())
+        if handle == 0 || handle > MAX_DATASET_HANDLE {
+            return None;
+        }
+        self.entries.get_mut(&handle)
     }
 
     fn get_columnar(&self, handle: u32) -> Option<&ColumnarDataset> {
@@ -142,10 +168,15 @@ impl DatasetRegistry {
     }
 
     pub fn remove(&mut self, handle: u32) {
-        let idx = handle.wrapping_sub(1) as usize;
-        if let Some(slot) = self.slots.get_mut(idx) {
-            *slot = None;
+        if handle == 0 || handle > MAX_DATASET_HANDLE {
+            return;
         }
+        self.entries.remove(&handle);
+    }
+
+    #[cfg(test)]
+    fn live_len(&self) -> usize {
+        self.entries.len()
     }
 }
 
@@ -326,13 +357,45 @@ mod columnar_registry_tests {
         HashMap::from([("value".to_string(), value)])
     }
 
+    fn local_dataset(name: &str) -> Dataset {
+        Dataset::new(name, Vec::new(), Vec::new())
+    }
+
     #[test]
-    fn handle_conversion_is_checked_and_never_wraps_to_zero() {
-        assert_eq!(handle_for_slot_count(0), Some(1));
-        assert_eq!(handle_for_slot_count((u32::MAX - 1) as usize), Some(u32::MAX));
-        if usize::BITS > 32 {
-            assert_eq!(handle_for_slot_count(u32::MAX as usize), None);
-        }
+    fn handle_allocation_is_checked_and_reserves_high_bit() {
+        let mut registry = DatasetRegistry::with_next_handle(MAX_DATASET_HANDLE);
+        let final_handle = registry.insert(local_dataset("final"));
+        assert_eq!(final_handle, MAX_DATASET_HANDLE);
+        assert_eq!(registry.insert(local_dataset("exhausted")), 0);
+        assert!(registry.get(u32::MAX).is_none());
+        assert!(registry.get(1 << 31).is_none());
+        assert_eq!(registry.get(final_handle).map(|dataset| dataset.name.as_str()), Some("final"));
+    }
+
+    #[test]
+    fn destroyed_handle_releases_registry_storage_without_becoming_reusable() {
+        let mut registry = DatasetRegistry::new();
+        let first = registry.insert(local_dataset("first"));
+        assert_eq!(registry.live_len(), 1);
+        registry.remove(first);
+        assert_eq!(registry.live_len(), 0);
+        assert!(registry.get(first).is_none());
+
+        let second = registry.insert(local_dataset("second"));
+        assert!(second > first);
+        assert_ne!(second, first);
+        assert_eq!(registry.live_len(), 1);
+        assert!(registry.get(first).is_none());
+        assert_eq!(registry.get(second).map(|dataset| dataset.name.as_str()), Some("second"));
+    }
+
+    #[test]
+    fn exhaustion_does_not_disturb_the_last_live_handle() {
+        let mut registry = DatasetRegistry::with_next_handle(MAX_DATASET_HANDLE);
+        let final_handle = registry.insert(local_dataset("live"));
+        assert_eq!(registry.insert(local_dataset("rejected")), 0);
+        assert_eq!(registry.live_len(), 1);
+        assert_eq!(registry.get(final_handle).map(|dataset| dataset.name.as_str()), Some("live"));
     }
 
     #[test]
