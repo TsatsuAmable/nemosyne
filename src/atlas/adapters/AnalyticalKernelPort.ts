@@ -22,6 +22,8 @@ export interface AnalyticalKernelPort {
   loadDatasetJson(obj: DatasetJSON): number;
   loadCsv(bytes: Uint8Array): number;
   loadJson(bytes: Uint8Array): number;
+  loadTypedColumns?(payload: ArrayBuffer | Uint8Array, name?: string): number;
+  supportsTypedColumnIngest?(): boolean;
   loadSample(key: string): number;
   sampleKeys(): string[];
   getDatasetJson(handle: number): DatasetJSON | null;

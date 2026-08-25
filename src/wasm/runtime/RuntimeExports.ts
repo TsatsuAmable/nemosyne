@@ -25,6 +25,13 @@ export interface DatasetHandleExports {
   data_load_csv(ptr: number, len: number): number;
   data_load_json(ptr: number, len: number): number;
   data_load_dataset_json(ptr: number, len: number): number;
+  data_load_typed_columns(ptr: number, len: number): number;
+  data_load_typed_columns_named(
+    ptr: number,
+    len: number,
+    namePtr: number,
+    nameLen: number
+  ): number;
   data_load_sample(ptr: number, len: number): number;
   data_sample_keys(ptr: number, len: number): number;
   dataset_row_count(handle: number): number;

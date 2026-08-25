@@ -37,6 +37,7 @@ export {
 export {
   loadCsv,
   loadJson,
+  loadTypedColumns,
   loadSample,
   sampleKeys,
   datasetRowCount,

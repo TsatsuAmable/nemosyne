@@ -77,6 +77,37 @@ export class InvestigationAggregate {
     });
   }
 
+  /** Reset all constituent sub-states on loading a new typed/columnar dataset. */
+  loadTypedDataset(handle: number, fingerprint: string, destroyer?: (handle: number) => void): void {
+    this.analytical.adoptColumnarHandle(handle, { fingerprint }, destroyer);
+    this.ledger.reset();
+    this.decisions.reset();
+    this.graph.reset();
+    this.discoveries.reset();
+
+    const fp = fingerprint || (this.analytical.getFingerprint() ?? '');
+    this.ledger.appendEvent(
+      {
+        timestamp: this.context.now(),
+        kind: 'load',
+        command: { op: 'load' },
+        datasetVersion: this.analytical.datasetVersion,
+        datasetFingerprint: fp,
+        stateHash: fp,
+      },
+      this.sessionId
+    );
+
+    this.graph.addNode({
+      id: `${this.sessionId}:v${this.analytical.datasetVersion}`,
+      parentId: null,
+      datasetVersion: this.analytical.datasetVersion,
+      datasetFingerprint: fp,
+      label: 'Initial Dataset (Columnar)',
+      timestamp: this.context.now(),
+    });
+  }
+
   /** Export the serialisable state snapshot of the aggregate. */
   toState(): AtlasCoreState {
     const space = this.analytical.getDatasetSpace();

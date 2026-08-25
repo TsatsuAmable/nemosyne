@@ -79,6 +79,21 @@ export class RustAnalyticalEvidenceAdapter {
     return this._call('loadDatasetJson', () => this._kernel!.loadDatasetJson(dataset));
   }
 
+  supportsTypedColumnIngest(): boolean {
+    return (
+      this.isReady() &&
+      (typeof this._kernel?.supportsTypedColumnIngest === 'function'
+        ? this._kernel.supportsTypedColumnIngest()
+        : typeof this._kernel?.loadTypedColumns === 'function')
+    );
+  }
+
+  loadTypedColumns(payload: ArrayBuffer | Uint8Array, name?: string): number {
+    if (!this.isReady()) return 0;
+    if (typeof this._kernel?.loadTypedColumns !== 'function') return 0;
+    return this._call('loadTypedColumns', () => this._kernel!.loadTypedColumns!(payload, name));
+  }
+
   runOperation(handle: number, operation: OperationSpec, label: string): number {
     return this._call(label, () => this._kernel!.runOperation(handle, operation));
   }

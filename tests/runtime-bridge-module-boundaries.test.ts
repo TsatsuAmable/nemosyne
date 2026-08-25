@@ -88,6 +88,7 @@ const publicFacadeExports = [
   'loadDatasetJson',
   'loadJson',
   'loadSample',
+  'loadTypedColumns',
   'memory',
   'parseArrow',
   'parseDatasetBytes',

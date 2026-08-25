@@ -133,6 +133,19 @@ export class AtlasCore {
     this._aggregate.loadDataset(dataset, (handle) => this._analytics.destroyDataset(handle));
   }
 
+  loadTypedDataset(payload: ArrayBuffer | Uint8Array, name?: string): number {
+    if (!this.isReady()) {
+      throw new KernelUnavailableError('Analytical kernel unavailable — cannot load typed columns.');
+    }
+    const handle = this._analytics.loadTypedColumns(payload, name);
+    if (handle === 0) {
+      throw new Error('Kernel rejected typed columns payload.');
+    }
+    const fp = this._analytics.fingerprint(handle) ?? '';
+    this._aggregate.loadTypedDataset(handle, fp, (h) => this._analytics.destroyDataset(h));
+    return handle;
+  }
+
   setOriginalDataset(dataset: Dataset): void {
     this.loadDataset(dataset);
   }
@@ -656,22 +669,45 @@ export class AtlasCore {
     return dataset ? Dataset.fromJSON(dataset) : null;
   }
 
+  computePersistenceIntervalsForCurrent(
+    params: Record<string, unknown>
+  ): PersistenceInterval[] | null {
+    if (!this.isReady()) return null;
+    const handle = this._ensureHandle();
+    if (handle === 0) return null;
+    return this._analytics.computePersistenceIntervalsForHandle(handle, params);
+  }
+
+  computeMapperGraphForCurrent(params: Record<string, unknown>): TdaMapperGraph | null {
+    if (!this.isReady()) return null;
+    const handle = this._ensureHandle();
+    if (handle === 0) return null;
+    return this._analytics.computeMapperGraphForHandle(handle, params);
+  }
+
+  computeBetti0CurveForCurrent(params: Record<string, unknown>): BettiPoint[] | null {
+    if (!this.isReady()) return null;
+    const handle = this._ensureHandle();
+    if (handle === 0) return null;
+    return this._analytics.computeBetti0CurveForHandle(handle, params);
+  }
+
   computePersistenceIntervals(
     dataset: Dataset,
     params: Record<string, unknown>
   ): PersistenceInterval[] | null {
-    const handle = this._requireCurrentTdaHandle(dataset);
-    return this._analytics.computePersistenceIntervalsForHandle(handle, params);
+    this._requireCurrentTdaHandle(dataset);
+    return this.computePersistenceIntervalsForCurrent(params);
   }
 
   computeMapperGraph(dataset: Dataset, params: Record<string, unknown>): TdaMapperGraph | null {
-    const handle = this._requireCurrentTdaHandle(dataset);
-    return this._analytics.computeMapperGraphForHandle(handle, params);
+    this._requireCurrentTdaHandle(dataset);
+    return this.computeMapperGraphForCurrent(params);
   }
 
   computeBetti0Curve(dataset: Dataset, params: Record<string, unknown>): BettiPoint[] | null {
-    const handle = this._requireCurrentTdaHandle(dataset);
-    return this._analytics.computeBetti0CurveForHandle(handle, params);
+    this._requireCurrentTdaHandle(dataset);
+    return this.computeBetti0CurveForCurrent(params);
   }
 
   computeSpectralFacts(timeColumn?: string, valueColumn?: string): SpectralFacts | null {

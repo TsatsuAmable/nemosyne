@@ -84,27 +84,24 @@ describe('TDAPlanes', () => {
     const atlas = new AtlasCore({ kernel: makeKernelMockBridge() });
     atlas.loadDataset(source);
     const current = atlas.dataset;
-    const persistenceSpy = vi.spyOn(atlas, 'computePersistenceIntervals');
-    const mapperSpy = vi.spyOn(atlas, 'computeMapperGraph');
-    const bettiSpy = vi.spyOn(atlas, 'computeBetti0Curve');
+    const persistenceSpy = vi.spyOn(atlas, 'computePersistenceIntervalsForCurrent');
+    const mapperSpy = vi.spyOn(atlas, 'computeMapperGraphForCurrent');
+    const bettiSpy = vi.spyOn(atlas, 'computeBetti0CurveForCurrent');
 
     const tda = buildTDASummaryGroup(current, ['x', 'y'], 'x', atlas);
     expect(() => tda.recompute()).not.toThrow();
 
     expect(persistenceSpy).toHaveBeenCalledWith(
-      current,
       expect.objectContaining({ featureColumns: ['x', 'y'] })
     );
     expect(mapperSpy).toHaveBeenCalledWith(
-      current,
       expect.objectContaining({ featureColumns: ['x', 'y'], bins: 10, overlap: 0.5 })
     );
     expect(bettiSpy).toHaveBeenCalledWith(
-      current,
       expect.objectContaining({ featureColumns: ['x', 'y'], steps: 12 })
     );
 
-    for (const [, params] of [
+    for (const [params] of [
       ...persistenceSpy.mock.calls,
       ...mapperSpy.mock.calls,
       ...bettiSpy.mock.calls,

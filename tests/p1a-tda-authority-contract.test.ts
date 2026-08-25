@@ -16,7 +16,11 @@ describe('P1-A TDA analytical authority contract', () => {
 
     const tdaBoundary = atlas.slice(start, end);
     expect(tdaBoundary).not.toContain('dataset.toJSON()');
+    expect(tdaBoundary).not.toContain('loadDatasetJson');
     expect(tdaBoundary).toContain('_requireCurrentTdaHandle(dataset)');
+    expect(tdaBoundary).toContain('computePersistenceIntervalsForCurrent');
+    expect(tdaBoundary).toContain('computeMapperGraphForCurrent');
+    expect(tdaBoundary).toContain('computeBetti0CurveForCurrent');
     expect(tdaBoundary).toContain('computePersistenceIntervalsForHandle');
     expect(tdaBoundary).toContain('computeMapperGraphForHandle');
     expect(tdaBoundary).toContain('computeBetti0CurveForHandle');

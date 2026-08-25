@@ -80,6 +80,26 @@ export function loadJson(bytes: Uint8Array): number {
   }
 }
 
+export function loadTypedColumns(payload: ArrayBuffer | Uint8Array, name?: string): number {
+  const wasm = getRuntimeExports();
+  const bytes = payload instanceof Uint8Array ? payload : new Uint8Array(payload);
+  const { ptr, len } = allocBytes(bytes);
+  try {
+    if (name) {
+      const nameBytes = new TextEncoder().encode(name);
+      const { ptr: namePtr, len: nameLen } = allocBytes(nameBytes);
+      try {
+        return wasm.data_load_typed_columns_named(ptr, len, namePtr, nameLen);
+      } finally {
+        deallocBytes(namePtr, nameLen);
+      }
+    }
+    return wasm.data_load_typed_columns(ptr, len);
+  } finally {
+    deallocBytes(ptr, len);
+  }
+}
+
 export function loadSample(key: string): number {
   const wasm = getRuntimeExports();
   const bytes = new TextEncoder().encode(key);

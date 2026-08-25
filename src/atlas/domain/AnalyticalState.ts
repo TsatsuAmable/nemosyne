@@ -26,6 +26,7 @@ export class AnalyticalState {
   private _currentHandle = 0;
   private _datasetSpace: DatasetSpace | null = null;
   private _datasetSpaceSource: Dataset | null = null;
+  private _columnarFingerprint: string | null = null;
 
   get original(): Dataset { return this._original ?? emptyDataset(); }
   get originalNullable(): Dataset | null { return this._original; }
@@ -33,7 +34,12 @@ export class AnalyticalState {
   get currentNullable(): Dataset | null { return this._current; }
   get datasetVersion(): number { return this._datasetVersion; }
   get currentHandle(): number { return this._currentHandle; }
-  get hasDataset(): boolean { return this._current !== null; }
+  get hasDataset(): boolean { return this._current !== null || this._currentHandle !== 0; }
+  get isHandleOnly(): boolean { return this._current === null && this._currentHandle !== 0; }
+
+  isCurrentHandleOnly(): boolean {
+    return this._current === null && this._currentHandle !== 0;
+  }
 
   private _sourceRef: WeakRef<Dataset> | null = null;
 
@@ -115,6 +121,7 @@ export class AnalyticalState {
         if (fp) return fp;
       } catch { /* fall back to DatasetSpace fingerprint */ }
     }
+    if (this._columnarFingerprint) return this._columnarFingerprint;
     return this.getDatasetSpace()?.fingerprint ?? null;
   }
 
@@ -155,6 +162,7 @@ export class AnalyticalState {
       try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
     }
     this._currentHandle = 0;
+    this._columnarFingerprint = null;
   }
 
   adoptHandle(outHandle: number, destroyer?: (handle: number) => void): void {
@@ -162,6 +170,23 @@ export class AnalyticalState {
       try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
     }
     this._currentHandle = outHandle;
+  }
+
+  adoptColumnarHandle(
+    handle: number,
+    meta?: { fingerprint?: string; name?: string },
+    destroyer?: (handle: number) => void
+  ): void {
+    this._sourceRef = null;
+    this._original = null;
+    this._current = null;
+    if (this._currentHandle !== 0 && this._currentHandle !== handle && destroyer) {
+      try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
+    }
+    this._currentHandle = handle;
+    this._columnarFingerprint = meta?.fingerprint ?? null;
+    this._datasetVersion += 1;
+    this._invalidateDatasetSpace();
   }
 
   dispose(destroyer?: (handle: number) => void): void {

@@ -394,12 +394,12 @@ export function buildTDASummaryGroup(
     const tdaParams = { featureColumns: orderedFeatureColumns };
 
     persistence.update(
-      (atlas.computePersistenceIntervals(dataset, tdaParams) ?? []).map(
+      (atlas.computePersistenceIntervalsForCurrent(tdaParams) ?? []).map(
         (i) => ({ birth: i.birth, death: i.death ?? null })
       )
     );
     const mapperParams = { ...tdaParams, bins: 10, overlap: 0.5 };
-    const g = atlas.computeMapperGraph(dataset, mapperParams);
+    const g = atlas.computeMapperGraphForCurrent(mapperParams);
     const graph: MapperGraph = {
       nodes: (g?.nodes ?? []).map((n) => ({
         id: n.id,
@@ -409,10 +409,14 @@ export function buildTDASummaryGroup(
       edges: (g?.edges ?? []) as [unknown, unknown][],
     };
     mapperPanel.update(graph);
-    betti.update(atlas.computeBetti0Curve(dataset, { featureColumns: orderedFeatureColumns, steps: 12 }) ?? []);
+    betti.update(
+      atlas.computeBetti0CurveForCurrent({ featureColumns: orderedFeatureColumns, steps: 12 }) ?? []
+    );
 
-    atlas.discoverPersistenceStructures(dataset, tdaParams);
-    atlas.discoverMapperStructures(dataset, mapperParams);
+    if (dataset) {
+      atlas.discoverPersistenceStructures(dataset, tdaParams);
+      atlas.discoverMapperStructures(dataset, mapperParams);
+    }
   }
 
   function pickStructure(raycaster: THREE.Raycaster): string | null {

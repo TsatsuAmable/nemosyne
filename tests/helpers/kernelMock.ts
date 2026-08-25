@@ -482,6 +482,12 @@ export function makeKernelMockBridge() {
     kernelProvenance: () => null,
     initRuntime: () => Promise.resolve({}),
     loadDatasetJson: (obj) => alloc(obj),
+    loadTypedColumns: (payload, name) => {
+      const h = next++;
+      store.set(h, { name: name ?? 'typed-dataset', columns: [], rows: [] });
+      return h;
+    },
+    supportsTypedColumnIngest: () => true,
     loadCsv: (bytes) => {
       try {
         return alloc(loadCsv(bytes));
