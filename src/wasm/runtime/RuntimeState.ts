@@ -115,6 +115,8 @@ export function getKernelContractExports(): MemoryAbiExports & KernelContractExp
 function ready(instance: WasmRuntimeExports, mod: WasmModule, generation: number): WasmModule {
   const handle = instance.init(0x1234_5678_9abc_def0n);
   if (handle !== 1) throw new Error(`Unexpected runtime handle: ${handle}`);
+  const reset = instance.data_reset_runtime_generation();
+  if (reset !== 1) throw new Error(`Unexpected runtime generation reset result: ${reset}`);
   if (instance.ping() !== 42) throw new Error('WASM ping health check failed');
   if (generation !== runtimeGeneration) {
     throw new KernelUnavailableError('Kernel initialization superseded by runtime invalidation.');
