@@ -3,8 +3,13 @@ use serde::Deserialize;
 use super::compute_force_directed_3d;
 
 fn write_positions(positions: &[[f32; 3]], out_ptr: u32, out_len: u32) -> u32 {
-    let needed = positions.len().saturating_mul(3).saturating_mul(std::mem::size_of::<f32>());
-    let needed = u32::try_from(needed).unwrap_or(0);
+    let needed = positions
+        .len()
+        .saturating_mul(3)
+        .saturating_mul(std::mem::size_of::<f32>());
+    let Ok(needed) = u32::try_from(needed) else {
+        return 0;
+    };
     if needed == 0 {
         return 0;
     }
@@ -12,7 +17,9 @@ fn write_positions(positions: &[[f32; 3]], out_ptr: u32, out_len: u32) -> u32 {
         return needed;
     }
 
-    let out = unsafe { crate::allocator::view_mut(out_ptr, needed) };
+    let Some(out) = (unsafe { crate::allocator::try_view_mut(out_ptr, needed) }) else {
+        return 0;
+    };
     for (index, position) in positions.iter().enumerate() {
         let base = index * 12;
         out[base..base + 4].copy_from_slice(&position[0].to_le_bytes());
@@ -57,7 +64,9 @@ pub extern "C" fn layout_force_directed_edges_3d(
         return 0;
     }
 
-    let edges_bytes = unsafe { crate::allocator::view(edges_ptr, edges_len) };
+    let Some(edges_bytes) = (unsafe { crate::allocator::try_view(edges_ptr, edges_len) }) else {
+        return 0;
+    };
     let parsed: Vec<WeightedEdge> = match serde_json::from_slice(edges_bytes) {
         Ok(edges) => edges,
         Err(_) => return 0,
@@ -101,7 +110,9 @@ pub extern "C" fn layout_spectral_volume_3d(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let input_bytes = unsafe { crate::allocator::view(input_ptr, input_len) };
+    let Some(input_bytes) = (unsafe { crate::allocator::try_view(input_ptr, input_len) }) else {
+        return 0;
+    };
     let input: SpectralVolumeInput = match serde_json::from_slice(input_bytes) {
         Ok(input) => input,
         Err(_) => return 0,
