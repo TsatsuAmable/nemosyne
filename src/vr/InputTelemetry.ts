@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Group } from 'three';
 import { MovablePanel } from './ui/MovablePanel.ts';
 import type { EngineLike, HandLike, PointerLike } from './coordinators/types.ts';
 import { WorldSpatialContext } from './trace/WorldSpatialContext.ts';
@@ -12,8 +13,8 @@ export class InputTelemetry extends MovablePanel {
   lines: string[];
   private _worldContext: WorldSpatialContext;
 
-  constructor(engine: EngineLike) {
-    super(engine.cameraGroup, {
+  constructor(engine: EngineLike, parent?: Group) {
+    super(parent ?? engine.cameraGroup, {
       title: 'INPUT TELEMETRY',
       width: 960,
       height: 640,
