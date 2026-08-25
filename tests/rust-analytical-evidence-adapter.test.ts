@@ -49,18 +49,19 @@ describe('RustAnalyticalEvidenceAdapter', () => {
 
   it('runs TDA directly against an existing Rust dataset handle without reloading rows', () => {
     const kernel = makeKernelMockBridge();
+    const kernelPort = kernel as unknown as AnalyticalKernelPort;
     const loadDatasetJson = vi.spyOn(kernel, 'loadDatasetJson');
     const destroy = vi.spyOn(kernel, 'destroyDataset');
-    const mapper = vi.spyOn(kernel, 'computeMapperGraph').mockReturnValue({
+    const mapper = vi.fn((_handle: number, _params: Record<string, unknown>) => ({
       nodes: [],
       edges: [],
-    });
-    const persistence = vi.spyOn(kernel, 'computePersistenceIntervals').mockReturnValue([]);
-    const betti = vi.spyOn(kernel, 'computeBetti0Curve').mockReturnValue([]);
-    const adapter = new RustAnalyticalEvidenceAdapter(
-      kernel as unknown as AnalyticalKernelPort,
-      null
-    );
+    }));
+    const persistence = vi.fn((_handle: number, _params: Record<string, unknown>) => []);
+    const betti = vi.fn((_handle: number, _params: Record<string, unknown>) => []);
+    kernelPort.computeMapperGraph = mapper;
+    kernelPort.computePersistenceIntervals = persistence;
+    kernelPort.computeBetti0Curve = betti;
+    const adapter = new RustAnalyticalEvidenceAdapter(kernelPort, null);
     const handle = 123;
     const params = { featureColumns: ['x', 'y'], filterColumn: 'x' };
 
