@@ -4,17 +4,11 @@
 
 ## Status snapshot — 25 August 2026
 
-**Implementation baseline before this docs-only sync:** `e4bb7cb` — includes #395
-(P1-A handle-native TDA closure) plus #397-#399 (bounded maintainability cleanup:
-stronger deterministic randomness/IDs, single event-bus authority and audited
-share-link base64url handling). The implementation critical path is clear of
-open feature work at this checkpoint.
+**Implementation baseline:** `e4bb7cb` — the latest code-bearing main before docs-only #400. It includes #395 (production TDA JS-rematerialisation closure) plus #397-#399 (bounded maintainability cleanup: stronger deterministic randomness/IDs, single event-bus authority and audited share-link base64url handling).
 
-**Next checkpoint:** begin P1-B asynchronous analytical runtime work at
-execution-order item 1 — define the request/version/cancellation contract and
-generation fencing before moving expensive analysis behind a dedicated Worker.
-Remaining VR/UI/UX blockers are physical: Quest 3S qualification (validating
-tiers + wheel + frames in one pass) and Threads/F5 deferred to P1-F.
+**Roadmap correction:** #400 advanced the analytical checkpoint to P1-B too early. PR #395 closed the production JavaScript rematerialisation paths, but the final P1-A exit condition remains: a typed/columnar-only ingest handle is registered without a row-major `Dataset`, while the current TDA exports still resolve through `with_dataset(handle, ...)`. Supported TDA therefore does not yet execute directly against that columnar-only capability.
+
+**Next checkpoint:** complete the final P1-A exit tranche — make persistence, Mapper and Betti-0 execute against typed/columnar-only canonical handles without row rematerialisation, and prove that boundary with real-WASM/architecture coverage. P1-B asynchronous execution follows immediately after that proof. Remaining VR/UI/UX blockers are physical: Quest 3S qualification (validating tiers + wheel + frames in one pass) and Threads/F5 deferred to P1-F.
 
 **Active development wave:** P1 analytical responsiveness and spatial fitness. See [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
 
@@ -113,15 +107,15 @@ Cross-device/hostile-network qualification remains a preview-hardening concern, 
 
 ### P1-A handle-native analytical boundary
 
-PR #395 completed the production TDA boundary closure:
+PR #395 completed the production-side TDA boundary closure:
 
 - Atlas persistence, Mapper and Betti-0 route through the durable current Rust dataset handle;
 - non-current TDA datasets fail closed before serialisation or transient reload;
 - production TDA no longer performs `Dataset.toJSON()` round trips;
 - filtration construction moved out of JavaScript raw-row traversal and into Rust column access;
-- architecture and behavioural tests freeze the row-free production boundary.
+- architecture and behavioural tests freeze those production JS boundary invariants.
 
-P1-A is complete. The analytical critical path now advances to P1-B asynchronous execution and temporal authority.
+One P1-A exit condition remains. Typed-column ingest deliberately registers a columnar-only capability with no row-major `Dataset`; current TDA exports still call `with_dataset(handle, ...)`, so that capability cannot yet run supported TDA directly. P1-A exits only when persistence, Mapper and Betti-0 operate on the typed/columnar handle without reconstructing rows.
 
 ### Test architecture and feedback latency
 
@@ -184,13 +178,15 @@ The detailed audit evidence remains in `PRE_P1_SYSTEMATIC_AUDIT.md`. The roadmap
 
 **ACTIVE.** Detailed acceptance criteria and dependency order are in [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
 
-### P1-A Handle-native analytical boundary — COMPLETE (#395)
+### P1-A Handle-native analytical boundary — FINAL EXIT IN PROGRESS
 
 - [x] establish tested handle-native TDA adapter entry points;
 - [x] route Atlas TDA through the durable current Rust handle;
+- [x] reject non-current TDA datasets before serialisation/transient reload;
 - [x] remove production TDA `Dataset.toJSON()` round trips;
 - [x] move TDA filter construction from JS raw rows to Rust column access;
-- [x] prove supported production TDA works without JavaScript row rematerialisation.
+- [x] freeze the production no-rematerialisation boundary with architecture/source tests;
+- [ ] prove the typed/columnar-only ingest handle can execute persistence, Mapper and Betti-0 without row rematerialisation.
 
 ### P1-B Asynchronous analytical runtime
 
@@ -378,14 +374,15 @@ physical Quest qualification for promotion-critical device claims
 
 ## Near-term execution order
 
-1. **P1-B — ACTIVE:** define request/version/cancellation contracts and generation fencing, then isolate expensive analysis behind a dedicated Worker; measure transfer cost before shared memory.
-2. **P1-C:** replace quadratic topology hot paths with a reusable sparse-neighbourhood strategy and explicit approximation provenance.
-3. **P1-D:** add 3D-native Moneta perceptual fitness.
-4. **P1-E:** complete actionable NIL/ambiguity/remediation workflows.
-5. **P1-F:** add semantic target resolution and Memory Palace focus+context hierarchy.
-6. Continue bounded MAINT-01 typing cleanup in parallel where it does not distract from the critical path.
-7. Run PERF-04 and UX-03 physical Quest qualification as soon as hardware is available.
-8. Govern every remaining blocker/high audit finding and reopen the minimal-private-preview promotion decision.
-9. Continue discovery/outcome studies and learned-Moneta empirical validation.
-10. Begin RepresentationGraph/compositional Moneta only after P1 prerequisites are satisfied.
-11. Begin Adaptive Nemosyne only after evidence and governance prerequisites are satisfied.
+1. **P1-A — FINAL EXIT:** make persistence, Mapper and Betti-0 operate directly on the typed/columnar-only canonical handle without reconstructing a row-major `Dataset`; add real-WASM and architecture coverage proving no row materialisation.
+2. **P1-B:** define request/version/cancellation contracts and generation fencing, then isolate expensive analysis behind a dedicated Worker; measure transfer cost before shared memory.
+3. **P1-C:** replace quadratic topology hot paths with a reusable sparse-neighbourhood strategy and explicit approximation provenance.
+4. **P1-D:** add 3D-native Moneta perceptual fitness.
+5. **P1-E:** complete actionable NIL/ambiguity/remediation workflows.
+6. **P1-F:** add semantic target resolution and Memory Palace focus+context hierarchy.
+7. Continue bounded MAINT-01 typing cleanup in parallel where it does not distract from the critical path.
+8. Run PERF-04 and UX-03 physical Quest qualification as soon as hardware is available.
+9. Govern every remaining blocker/high audit finding and reopen the minimal-private-preview promotion decision.
+10. Continue discovery/outcome studies and learned-Moneta empirical validation.
+11. Begin RepresentationGraph/compositional Moneta only after P1 prerequisites are satisfied.
+12. Begin Adaptive Nemosyne only after evidence and governance prerequisites are satisfied.
