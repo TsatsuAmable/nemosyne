@@ -353,7 +353,7 @@ export interface TDASummaryGroup {
  * mandatory-kernel unavailable state, NOT a JS analytical fallback.
  */
 export function buildTDASummaryGroup(
-  dataset: Dataset,
+  _dataset: Dataset,
   featureColumns: string[],
   filterColumn: string,
   atlas?: AtlasCore | null
@@ -378,6 +378,10 @@ export function buildTDASummaryGroup(
 
   function recompute(): void {
     if (!atlas || !atlas.isReady()) return;
+    // Analytical authority: always route the CURRENT Atlas dataset. A captured
+    // constructor-time instance goes stale after any operation/restore, and
+    // AtlasCore correctly refuses TDA on non-current datasets (P1-A guard).
+    const dataset = atlas.dataset;
 
     // Rust derives the filtration vector from the first feature column when
     // explicit filterValues are absent. Keep the requested filter column first

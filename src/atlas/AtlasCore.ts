@@ -876,12 +876,18 @@ export class AtlasCore {
   // --- Internal Helpers --------------------------------------------------
 
   private _requireCurrentTdaHandle(dataset: Dataset): number {
-    if (dataset !== this._aggregate.analytical.currentNullable) {
-      throw new Error(
-        '[AtlasCore] TDA requires the current Atlas dataset; load or set the dataset explicitly before analysis.'
-      );
+    const analytical = this._aggregate.analytical;
+    // loadDataset/setCurrentDataset defensively clone and ensureHandle()
+    // adopts lineage rowIds onto the working instance, so the caller's
+    // reference is never the working copy. Accept the exact instance the
+    // caller handed over (WeakRef-tracked) or the live working copy —
+    // without serializing or rematerialising either.
+    if (dataset === analytical.currentNullable || analytical.matchesLoadedSource(dataset)) {
+      return this._ensureHandle();
     }
-    return this._ensureHandle();
+    throw new Error(
+      '[AtlasCore] TDA requires the current Atlas dataset; load or set the dataset explicitly before analysis.'
+    );
   }
 
   private _ensureHandle(): number {
