@@ -5,6 +5,8 @@
  * into compact URL-safe parameters for instant sharing, peer review, and observer attachment.
  */
 
+import { base64, base64url } from '@scure/base';
+
 export interface ShareableSessionPayload {
   version: number;
   datasetId: string;
@@ -22,28 +24,14 @@ export class ShareableSessionURL {
   private static readonly ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 
   private static _bytesToBase64Url(bytes: Uint8Array): string {
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    const b64 = typeof btoa === 'function' ? btoa(binary) : Buffer.from(bytes).toString('base64');
-    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return base64url.encode(bytes);
   }
 
   private static _base64UrlToBytes(base64Url: string): Uint8Array {
-    let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    while (base64.length % 4 !== 0) {
-      base64 += '=';
-    }
-    if (typeof atob === 'function') {
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      return bytes;
-    }
-    return new Uint8Array(Buffer.from(base64, 'base64'));
+    // Tolerant decoder: accepts padded and unpadded share links (legacy shim
+    // emitted unpadded; @scure/base emits padded) and both base64 alphabets.
+    const std = base64Url.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
+    return base64.decode(std + '='.repeat((4 - (std.length % 4)) % 4));
   }
 
   static encode(
