@@ -6,13 +6,11 @@
 
 **Current main:** includes merged PR #389, completing the collaboration signalling-authority follow-up to #388.
 
-**Active branch:** `feat/vr-wheel-task-orientation` — UX-review quick wins from the
-spec-vs-runtime audit of `Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md`:
-production HandWheel converged onto the task/intent taxonomy (§7), novice vocabulary
-completed (§6.1 Move/Undo/Return), HolographicInspector + FrustrationResponseManager
-moved off the retired rig frame (§5 reference frames). #392 merged 25 August 2026 with
-project-owner Gate F sign-off; panel layout revision 3 is the current participant-facing
-spatial arrangement.
+**Active branch:** `feat/study-ui-treatment-declaration` — declares the frozen
+participant-facing UI treatment (panel-layout revision 3 + intent wheel v1 +
+torso-frame policy) as `uiTreatmentVersion` in the study freeze manifest,
+making UI drift fail closed mid-session (vision §14). #393 merged 25 August
+2026.
 
 **Active development wave:** P1 analytical responsiveness and spatial fitness. See [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
 
@@ -257,7 +255,7 @@ review and Quest 3S device validation required before promotion):
 - [x] production HandWheel converged onto the task/intent taxonomy (spec §7) with a separate SUPERUSER annex (skill §24 participant/observer separation); legacy subsystem builder retained only for backwards compatibility;
 - [x] novice command vocabulary surfaced on the wheel (spec §6.1): Move (teleport/flight/floor), Undo/Redo, Return-to-Overview;
 - [x] HolographicInspector and FrustrationResponseManager moved off the retired rig frame onto world/torso frames per spec §5;
-- [ ] declare frozen panel-layout revision 3 + intent wheel in `docs/study/` before the next study session;
+- [x] declare frozen panel-layout revision 3 + intent wheel in `docs/study/` before the next study session (`UI_TREATMENT.md`; enforced via `uiTreatmentVersion` in the freeze manifest);
 - [ ] run the full Senior VR/UI/UX heuristic review on the product beyond the panel/wheel audit;
 - [ ] validate comfortable locomotion, scale legibility, reach, occlusion, focus and spatial hierarchy on target headsets;
 - [ ] keep desktop/2D interaction semantically equivalent where possible;
