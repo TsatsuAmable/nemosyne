@@ -378,8 +378,17 @@ export function buildTDASummaryGroup(
 
   function recompute(): void {
     if (!atlas || !atlas.isReady()) return;
-    const filterValues = dataset.rows.map((r) => Number(r[filterColumn]) || 0);
-    const tdaParams = { featureColumns, filterValues };
+
+    // Rust derives the filtration vector from the first feature column when
+    // explicit filterValues are absent. Keep the requested filter column first
+    // so analytical preprocessing remains inside the Rust authority rather than
+    // traversing Dataset.rows in presentation code.
+    const orderedFeatureColumns = [
+      filterColumn,
+      ...featureColumns.filter((column) => column !== filterColumn),
+    ];
+    const tdaParams = { featureColumns: orderedFeatureColumns };
+
     persistence.update(
       (atlas.computePersistenceIntervals(dataset, tdaParams) ?? []).map(
         (i) => ({ birth: i.birth, death: i.death ?? null })
@@ -396,7 +405,7 @@ export function buildTDASummaryGroup(
       edges: (g?.edges ?? []) as [unknown, unknown][],
     };
     mapperPanel.update(graph);
-    betti.update(atlas.computeBetti0Curve(dataset, { featureColumns, steps: 12 }) ?? []);
+    betti.update(atlas.computeBetti0Curve(dataset, { featureColumns: orderedFeatureColumns, steps: 12 }) ?? []);
 
     atlas.discoverPersistenceStructures(dataset, tdaParams);
     atlas.discoverMapperStructures(dataset, mapperParams);
