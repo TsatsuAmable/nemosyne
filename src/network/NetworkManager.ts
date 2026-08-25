@@ -54,6 +54,7 @@ export class NetworkManager extends EventTarget {
   signalling: SignallingChannel | null = null;
   connections: Map<string, RTCPeerConnection> = new Map();
   channels: Map<string, RTCDataChannel> = new Map();
+  /** Roles are authoritative signalling state, not data-channel claims. */
   peerRoles: Map<string, NetworkRole> = new Map();
   _connected: boolean = false;
   _localState: Record<string, unknown> = {};
@@ -211,28 +212,38 @@ export class NetworkManager extends EventTarget {
     else if (data.type === 'ice') this._handleIce(from, data);
     else if (data.type === 'join') {
       const role = this._validRole(data.role) ? data.role : 'participant';
-      if (this.peerRoles.has(from)) return;
+      // The signalling server is the authority for a remote peer's role. Keep
+      // this identity across transient RTC churn; only a signalling leave or an
+      // explicit local disconnect revokes it.
       this.peerRoles.set(from, role);
-      this._initiateConnection(from, role);
+      this.room.updatePeerRole(from, role);
+      if (this._shouldInitiateConnection(from, role)) {
+        void this._initiateConnection(from, role);
+      }
     } else if (data.type === 'leave') {
       this._handleLeave(from);
     }
   }
 
   _handleLeave(peerId: string): void {
+    const hadPeer =
+      this.peerRoles.has(peerId) ||
+      this.connections.has(peerId) ||
+      this.channels.has(peerId) ||
+      this.room.peers.has(peerId);
     const conn = this.connections.get(peerId);
-    if (conn) {
-      this._closePeer(peerId, conn);
-      this.connections.delete(peerId);
-      this.channels.delete(peerId);
-      this.peerRoles.delete(peerId);
-      this.room.removePeer(peerId);
+    if (conn) this._closePeer(peerId, conn);
+    this.connections.delete(peerId);
+    this.channels.delete(peerId);
+    this.peerRoles.delete(peerId);
+    this.room.removePeer(peerId);
+    if (hadPeer) {
       this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
     }
   }
 
-  async _initiateConnection(peerId: string, peerRole: NetworkRole = 'participant'): Promise<void> {
-    if (peerId === this.peerId) return;
+  async _initiateConnection(peerId: string, peerRole: NetworkRole): Promise<void> {
+    if (peerId === this.peerId || this.peerRoles.get(peerId) !== peerRole) return;
     const existing = this.connections.get(peerId);
     if (existing) {
       this._closePeer(peerId, existing);
@@ -245,17 +256,32 @@ export class NetworkManager extends EventTarget {
       this._wireChannel(peerId, channel, peerRole);
 
       const offer = await conn.createOffer();
+      if (this.connections.get(peerId) !== conn) return;
       await conn.setLocalDescription(offer);
+      if (this.connections.get(peerId) !== conn) return;
       this.signalling?.sendSignal(peerId, { type: 'offer', sdp: offer.sdp });
     } catch (err) {
       console.warn(`[NetworkManager] Initiate connection with ${peerId} failed:`, err);
-      this._closePeer(peerId, conn);
-      this.connections.delete(peerId);
+      if (this.connections.get(peerId) === conn) {
+        this._closePeer(peerId, conn);
+        this.connections.delete(peerId);
+      } else {
+        try {
+          conn.close();
+        } catch (_) {
+          // Superseded connection is already closed.
+        }
+      }
     }
   }
 
   async _handleOffer(peerId: string, { sdp }: { sdp: string }): Promise<void> {
     if (peerId === this.peerId) return;
+    const peerRole = this.peerRoles.get(peerId);
+    // Refuse negotiation from peers that have not been admitted by signalling,
+    // and ignore glare from the side that is not designated to create offers.
+    if (!peerRole || this._shouldInitiateConnection(peerId, peerRole)) return;
+
     const existing = this.connections.get(peerId);
     if (existing) {
       this._closePeer(peerId, existing);
@@ -264,19 +290,33 @@ export class NetworkManager extends EventTarget {
     this.connections.set(peerId, conn);
 
     conn.addEventListener('datachannel', (event: Event) => {
+      if (this.connections.get(peerId) !== conn) return;
+      const currentRole = this.peerRoles.get(peerId);
+      if (!currentRole) return;
       const channelEvt = event as RTCDataChannelEvent;
-      this._wireChannel(peerId, channelEvt.channel, this.peerRoles.get(peerId) ?? 'participant');
+      this._wireChannel(peerId, channelEvt.channel, currentRole);
     });
 
     try {
       await conn.setRemoteDescription({ type: 'offer', sdp });
+      if (this.connections.get(peerId) !== conn) return;
       const answer = await conn.createAnswer();
+      if (this.connections.get(peerId) !== conn) return;
       await conn.setLocalDescription(answer);
+      if (this.connections.get(peerId) !== conn) return;
       this.signalling?.sendSignal(peerId, { type: 'answer', sdp: answer.sdp });
     } catch (err) {
       console.warn(`[NetworkManager] Handle offer from ${peerId} failed:`, err);
-      this._closePeer(peerId, conn);
-      this.connections.delete(peerId);
+      if (this.connections.get(peerId) === conn) {
+        this._closePeer(peerId, conn);
+        this.connections.delete(peerId);
+      } else {
+        try {
+          conn.close();
+        } catch (_) {
+          // Superseded connection is already closed.
+        }
+      }
     }
   }
 
@@ -304,6 +344,7 @@ export class NetworkManager extends EventTarget {
     const conn = new RTCPeerConnection({ iceServers: this.iceServers });
 
     conn.addEventListener('icecandidate', (event: RTCPeerConnectionIceEvent) => {
+      if (this.connections.get(peerId) !== conn) return;
       if (event.candidate) {
         this.signalling?.sendSignal(peerId, {
           type: 'ice',
@@ -313,6 +354,7 @@ export class NetworkManager extends EventTarget {
     });
 
     conn.addEventListener('connectionstatechange', () => {
+      if (this.connections.get(peerId) !== conn) return;
       if (conn.connectionState === 'disconnected' || conn.connectionState === 'failed') {
         this._closePeer(peerId, conn);
         this.connections.delete(peerId);
@@ -325,13 +367,29 @@ export class NetworkManager extends EventTarget {
     return conn;
   }
 
-  _wireChannel(peerId: string, channel: RTCDataChannel, peerRole: NetworkRole = 'participant'): void {
+  _wireChannel(peerId: string, channel: RTCDataChannel, peerRole: NetworkRole): void {
+    if (this.peerRoles.get(peerId) !== peerRole) {
+      try {
+        channel.close();
+      } catch (_) {
+        // The transport may already be gone; the missing authoritative role is
+        // sufficient reason to reject the channel.
+      }
+      return;
+    }
+
     this.channels.set(peerId, channel);
-    this.peerRoles.set(peerId, peerRole);
     channel.binaryType = 'arraybuffer';
 
     channel.addEventListener('open', () => {
-      const peer = this.room.peers.get(peerId) ?? this.room.addPeer(peerId, 'Analyst', peerRole);
+      if (this.channels.get(peerId) !== channel) return;
+      const currentRole = this.peerRoles.get(peerId);
+      if (!currentRole) return;
+      const existingPeer = this.room.peers.get(peerId);
+      if (existingPeer) {
+        this.room.updatePeerRole(peerId, currentRole);
+      }
+      const peer = existingPeer ?? this.room.addPeer(peerId, 'Analyst', currentRole);
       if (peer) {
         this.dispatchEvent(new CustomEvent('peerJoined', { detail: peer }));
       }
@@ -346,6 +404,10 @@ export class NetworkManager extends EventTarget {
     });
 
     channel.addEventListener('message', (event: MessageEvent) => {
+      if (this.channels.get(peerId) !== channel) return;
+      const authoritativeRole = this.peerRoles.get(peerId);
+      if (!authoritativeRole) return;
+
       if (event.data instanceof ArrayBuffer) {
         const pose = BinaryPoseSerializer.deserialize(event.data);
         if (pose && BinaryPoseSerializer.validateSequence(pose.peerId, pose.sequence)) {
@@ -383,12 +445,11 @@ export class NetworkManager extends EventTarget {
         );
       } else if (
         payload.type === 'delta' &&
+        authoritativeRole === 'participant' &&
         typeof payload.topic === 'string' &&
         SHARED_DELTA_TOPICS.has(payload.topic) &&
         this._validRemoteObject(payload.data)
       ) {
-        const role = this.room.peers.get(peerId)?.role;
-        if (role !== 'participant') return;
         this.dispatchEvent(
           new CustomEvent('stateDelta', {
             detail: {
@@ -401,7 +462,7 @@ export class NetworkManager extends EventTarget {
         );
       } else if (
         payload.type === 'datasetOperation' &&
-        this.room.peers.get(peerId)?.role === 'participant' &&
+        authoritativeRole === 'participant' &&
         this._validRemoteObject(payload.op)
       ) {
         this.dispatchEvent(
@@ -447,8 +508,10 @@ export class NetworkManager extends EventTarget {
     });
 
     channel.addEventListener('close', () => {
+      // A superseded channel may close after its replacement is already live.
+      // Never let that stale callback delete the replacement or its role.
+      if (this.channels.get(peerId) !== channel) return;
       this.channels.delete(peerId);
-      this.peerRoles.delete(peerId);
       this.room.removePeer(peerId);
       this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
     });
@@ -474,12 +537,18 @@ export class NetworkManager extends EventTarget {
   }
 
   kickPeer(peerId: string): void {
+    const hadPeer =
+      this.peerRoles.has(peerId) ||
+      this.connections.has(peerId) ||
+      this.channels.has(peerId) ||
+      this.room.peers.has(peerId);
     const conn = this.connections.get(peerId);
-    if (conn) {
-      this._closePeer(peerId, conn);
-      this.connections.delete(peerId);
-      this.channels.delete(peerId);
-      this.room.removePeer(peerId);
+    if (conn) this._closePeer(peerId, conn);
+    this.connections.delete(peerId);
+    this.channels.delete(peerId);
+    this.peerRoles.delete(peerId);
+    this.room.removePeer(peerId);
+    if (hadPeer) {
       this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
     }
   }
@@ -498,6 +567,14 @@ export class NetworkManager extends EventTarget {
     return value === 'participant' || value === 'observer';
   }
 
+  _shouldInitiateConnection(peerId: string, peerRole: NetworkRole): boolean {
+    // Participant↔observer rooms have an obvious offer owner: the participant.
+    // Equal-role peers use stable identity ordering. This gives every pair one
+    // offerer and one answerer, avoiding dual-offer glare on join/reconnect.
+    if (this.role !== peerRole) return this.role === 'participant';
+    return this.peerId.localeCompare(peerId) < 0;
+  }
+
   _closePeer(peerId: string, conn: RTCPeerConnection): void {
     try {
       conn.close();
@@ -505,7 +582,6 @@ export class NetworkManager extends EventTarget {
       // Connection may already be closed; ignore.
     }
     this.channels.delete(peerId);
-    this.peerRoles.delete(peerId);
     this.room.removePeer(peerId);
   }
 
