@@ -113,10 +113,24 @@ export function getKernelContractExports(): MemoryAbiExports & KernelContractExp
 }
 
 function ready(instance: WasmRuntimeExports, mod: WasmModule, generation: number): WasmModule {
+  if (generation !== runtimeGeneration) {
+    throw new KernelUnavailableError('Kernel initialization superseded by runtime invalidation.');
+  }
+
   const handle = instance.init(0x1234_5678_9abc_def0n);
   if (handle !== 1) throw new Error(`Unexpected runtime handle: ${handle}`);
-  const reset = instance.data_reset_runtime_generation();
-  if (reset !== 1) throw new Error(`Unexpected runtime generation reset result: ${reset}`);
+
+  // Rust reserves generation 0 as invalid. Host generation 0 is the first
+  // initialization attempt, so publish one-based generation tags into opaque
+  // dataset capabilities. The tag survives fresh WASM instantiation because it
+  // is owned by this host lifecycle, not by Rust module-local state.
+  const capabilityGeneration = generation + 1;
+  const reset = instance.data_reset_runtime_generation(capabilityGeneration);
+  if (reset !== 1) {
+    throw new Error(
+      `Unexpected runtime generation reset result: ${reset} for generation ${capabilityGeneration}`
+    );
+  }
   if (instance.ping() !== 42) throw new Error('WASM ping health check failed');
   if (generation !== runtimeGeneration) {
     throw new KernelUnavailableError('Kernel initialization superseded by runtime invalidation.');
