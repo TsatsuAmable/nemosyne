@@ -79,7 +79,7 @@ describe('Atlas handle-native TDA routing', () => {
     expect(foreignToJson).not.toHaveBeenCalled();
     expect(loadDatasetJson).toHaveBeenCalledTimes(loadsBefore);
     expect(destroyDataset).toHaveBeenCalledTimes(destroysBefore);
-    expect(mapper).not.toHaveBeenCalledWith(expect.not.stringMatching(''), params);
+    expect(mapper).not.toHaveBeenCalled();
 
     // Rejection must not revoke or replace Atlas's durable current capability.
     atlas.computeMapperGraph(atlas.dataset, params);
