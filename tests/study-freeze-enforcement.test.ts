@@ -80,6 +80,17 @@ describe('Study freeze enforcement', () => {
     expect(() => runner.startNextTrial()).toThrow(/runtime drift/i);
   });
 
+  it('fails closed when the participant-facing UI treatment drifts mid-session', () => {
+    let versions = currentStudyRuntimeVersions('wasm-test-1');
+    const runner = new ExperimentRunner(FROZEN_STUDY_CONDITIONS, FROZEN_STUDY_TASKS, {
+      runtimeVersionsProvider: () => structuredClone(versions),
+    });
+
+    runner.startParticipantSession('P-ui-drift');
+    versions = { ...versions, uiTreatmentVersion: 'panel-layout/4+intent-wheel/1' };
+    expect(() => runner.startNextTrial()).toThrow(/runtime drift/i);
+  });
+
   it('requires an exact kernel version before a protocol can claim FROZEN status', () => {
     const frozen = {
       ...structuredClone(FROZEN_STUDY_MANIFEST),

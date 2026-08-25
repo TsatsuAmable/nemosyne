@@ -1,4 +1,5 @@
 import { NIL_VERSION } from '../interaction/nil/NemosyneInteractionLanguage.ts';
+import { UI_TREATMENT_VERSION } from '../vr/ui/panelLayout.ts';
 import {
   BOOTSTRAP_REPRESENTATION_ONTOLOGY_VERSION,
 } from '../moneta/representation/RepresentationGraphAdapter.ts';
@@ -46,6 +47,7 @@ export function currentStudyRuntimeVersions(
     fitnessModelArtifactHash: fitnessMode.artifactHash,
     representationOntologyVersion: BOOTSTRAP_REPRESENTATION_ONTOLOGY_VERSION,
     nilVersion: NIL_VERSION,
+    uiTreatmentVersion: UI_TREATMENT_VERSION,
   };
 }
 
@@ -64,7 +66,8 @@ function sameRuntimeVersions(a: StudyRuntimeVersions, b: StudyRuntimeVersions): 
     a.fitnessModelVersion === b.fitnessModelVersion &&
     (a.fitnessModelArtifactHash ?? null) === (b.fitnessModelArtifactHash ?? null) &&
     a.representationOntologyVersion === b.representationOntologyVersion &&
-    a.nilVersion === b.nilVersion
+    a.nilVersion === b.nilVersion &&
+    a.uiTreatmentVersion === b.uiTreatmentVersion
   );
 }
 

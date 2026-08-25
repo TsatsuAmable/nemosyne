@@ -25,6 +25,12 @@ export interface StudyRuntimeVersions {
   fitnessModelArtifactHash?: string | null;
   representationOntologyVersion: string;
   nilVersion: string;
+  /**
+   * Participant-facing UI treatment identity: panel-layout revision, command
+   * surface taxonomy and reference-frame policy (vision §14 — spatial
+   * arrangement is part of treatment; see docs/study/UI_TREATMENT.md).
+   */
+  uiTreatmentVersion: string;
 }
 
 export interface GroundTruthSpec {
