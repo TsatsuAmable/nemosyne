@@ -211,7 +211,10 @@ export class NetworkManager extends EventTarget {
     else if (data.type === 'answer') this._handleAnswer(from, data);
     else if (data.type === 'ice') this._handleIce(from, data);
     else if (data.type === 'join') {
-      const role = this._validRole(data.role) ? data.role : 'participant';
+      // A join without an explicit, valid server-resolved role cannot establish
+      // authority. Never upgrade malformed lifecycle traffic to participant.
+      if (!this._validRole(data.role)) return;
+      const role = data.role;
       // The signalling server is the authority for a remote peer's role. Keep
       // this identity across transient RTC churn; only a signalling leave or an
       // explicit local disconnect revokes it.
