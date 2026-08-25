@@ -4,9 +4,9 @@
 
 ## Status snapshot — 25 August 2026
 
-**Current main:** `b17f340` — #401 is merged and restores the final P1-A typed/columnar TDA exit gate. The latest code-bearing baseline remains `e4bb7cb`, which includes #395 (production TDA JS-rematerialisation closure) plus #397-#399 (bounded maintainability cleanup: stronger deterministic randomness/IDs, single event-bus authority and audited share-link base64url handling).
+**Current main:** `2840ade`. #401 restored the final P1-A typed/columnar TDA exit gate; #402 landed the first-pass implementation designs for the P1-A final exit plus P1-B, P1-C and P1-D/F as binding decision records; #403 re-prioritised representation embodiment (P1-R) and whole-product UX (P1-U) convergence ahead of P1-B/C. The latest code-bearing baseline remains `e4bb7cb`, which includes #395 (production TDA JS-rematerialisation closure) plus #397-#399 (bounded maintainability cleanup: stronger deterministic randomness/IDs, single event-bus authority and audited share-link base64url handling).
 
-**In-flight design packet:** PR #402 is open against `main @ b17f340`. It is docs-only and specifies implementation designs for the P1-A final exit plus P1-B, P1-C and P1-D/F. Treat those decision records as in-flight implementation specifications, not as landed code or completed exit evidence.
+**Design packet:** PR #402 is merged. Its decision records (`docs/decisions/P1A_COLUMNAR_TDA_ACCESS.md`, `P1B_ASYNC_ANALYTICAL_RUNTIME.md`, `P1C_SPARSE_TOPOLOGY.md`, `P1D_F_PERCEPTUAL_FITNESS_AND_SEMANTIC_RESOLUTION.md`) are the binding implementation specifications for their tranches — not landed code and not completed exit evidence. P1-A exit evidence is still pending; the P1-B/P1-C designs are preserved but deprioritised behind the P1-R/P1-U convergence gates.
 
 **Roadmap correction:** #400 advanced the analytical checkpoint to P1-B too early. PR #395 closed the production JavaScript rematerialisation paths, but the final P1-A exit condition remains: a typed/columnar-only ingest handle is registered without a row-major `Dataset`, while the current TDA exports still resolve through `with_dataset(handle, ...)`. Supported TDA therefore does not yet execute directly against that columnar-only capability.
 
@@ -180,7 +180,7 @@ The detailed audit evidence remains in `PRE_P1_SYSTEMATIC_AUDIT.md`. The roadmap
 
 ## P1 — Analytical responsiveness and spatial fitness
 
-**ACTIVE.** Detailed analytical acceptance criteria and dependency order are in [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md). PR #402 adds in-flight design-first specifications for P1-A/B/C/D/F; no completion claim is implied until implementation evidence lands.
+**ACTIVE.** Detailed analytical acceptance criteria and dependency order are in [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md). PR #402 landed design-first specifications for P1-A/B/C/D/F as binding decision records; no completion claim is implied until implementation evidence lands.
 
 ### P1-A Handle-native analytical boundary — FINAL EXIT IN PROGRESS
 
@@ -415,7 +415,7 @@ physical Quest qualification for promotion-critical device claims
 
 ## Near-term execution order
 
-1. **P1-A — FINAL EXIT:** make persistence, Mapper and Betti-0 operate directly on the typed/columnar-only canonical handle without reconstructing a row-major `Dataset`; add real-WASM and architecture coverage proving no row materialisation. Use PR #402's P1-A design after it is reviewed/landed, without treating the design document itself as exit evidence.
+1. **P1-A — FINAL EXIT:** make persistence, Mapper and Betti-0 operate directly on the typed/columnar-only canonical handle without reconstructing a row-major `Dataset`; add real-WASM and architecture coverage proving no row materialisation. Use PR #402's landed P1-A design, without treating the design document itself as exit evidence.
 2. **P1-R — REPRESENTATION EMBODIMENT CONVERGENCE:** audit and close semantic-to-spatial gaps so density/distribution/cluster/aggregate/manifold/multiscale and other non-point choices cannot silently collapse to point-per-row rendering. Establish bounded primitive growth and executable single-winner representation semantics.
 3. **P1-U — WHOLE-PRODUCT UX CONVERGENCE:** rebuild the investigation journey around task flow, sparse spatial context, progressive disclosure and useful semantic objects; make Technocore functional and validate the end-to-end experience rather than isolated UI components.
 4. **P1-B:** define request/version/cancellation contracts and generation fencing, then isolate expensive analysis behind a dedicated Worker; measure transfer cost before shared memory. Preserve PR #402's design unless implementation evidence invalidates it.
