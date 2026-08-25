@@ -353,9 +353,9 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
       };
 
       const categories = buildIntentWheelMenuCategories(stubWorld);
-      expect(categories.length).toBe(6);
+      expect(categories.length).toBe(7);
       const catIds = categories.map((c) => c.id);
-      expect(catIds).toEqual(['ANALYSE', 'VIEW', 'DATA', 'STUDY', 'COLLABORATE', 'SYSTEM']);
+      expect(catIds).toEqual(['ANALYSE', 'VIEW', 'DATA', 'STUDY', 'COLLABORATE', 'SYSTEM', 'SUPERUSER']);
 
       // Study category contains Mark Moment
       const studyCat = categories.find((c) => c.id === 'STUDY');
@@ -364,6 +364,41 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
 
       markMomentItem?.callback();
       expect(markMomentSpy).toHaveBeenCalled();
+    });
+
+    it('exposes the required novice vocabulary (UX spec §6.1: Move, Undo/Redo, Return)', () => {
+      const stubWorld: any = {
+        uiManager: { panelManager: { togglePanel: vi.fn(), toggleLauncher: vi.fn() } },
+        collaborationCoordinator: { isConnected: () => false },
+        engine: {
+          locomotion: {
+            teleportToAnchor: vi.fn(),
+            toggleTeleport: vi.fn(),
+            toggleFlight: vi.fn(),
+            dropToFloor: vi.fn(),
+          },
+        },
+        applyDataOperation: vi.fn(),
+        previewDataOperation: vi.fn(),
+        clearOperationPreview: vi.fn(),
+        isLiveConnected: () => false,
+        undoAnalysis: vi.fn(),
+        redoAnalysis: vi.fn(),
+        resetDataOperation: vi.fn(),
+      };
+
+      const categories = buildIntentWheelMenuCategories(stubWorld);
+      const itemIds = categories.flatMap((c) => c.items.map((i) => i.id));
+      expect(itemIds).toContain('return-overview');
+      expect(itemIds).toContain('undo');
+      expect(itemIds).toContain('redo');
+      expect(itemIds).toContain('teleport-toggle');
+
+      const returnItem = categories
+        .flatMap((c) => c.items)
+        .find((i) => i.id === 'return-overview');
+      returnItem?.callback();
+      expect(stubWorld.engine.locomotion.teleportToAnchor).toHaveBeenCalledWith('overview');
     });
 
     it('maintains backwards compatibility for legacy buildWheelMenuCategories', () => {

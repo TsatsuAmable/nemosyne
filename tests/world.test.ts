@@ -342,9 +342,9 @@ describe('World integration', () => {
   it('includes a reset dashboard action in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
 
-    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
-    expect(panelsCategory).toBeTruthy();
-    const resetAction = panelsCategory.items.find((i) => i.id === 'reset-dashboard');
+    const viewCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'VIEW');
+    expect(viewCategory).toBeTruthy();
+    const resetAction = viewCategory.items.find((i) => i.id === 'dash-reset');
     expect(resetAction).toBeTruthy();
     expect(typeof resetAction.callback).toBe('function');
   });
@@ -360,10 +360,10 @@ describe('World integration', () => {
   it('includes scroll dashboard actions in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
 
-    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
-    expect(panelsCategory).toBeTruthy();
-    const leftAction = panelsCategory.items.find((i) => i.id === 'scroll-dashboard-left');
-    const rightAction = panelsCategory.items.find((i) => i.id === 'scroll-dashboard-right');
+    const viewCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'VIEW');
+    expect(viewCategory).toBeTruthy();
+    const leftAction = viewCategory.items.find((i) => i.id === 'dash-left');
+    const rightAction = viewCategory.items.find((i) => i.id === 'dash-right');
     expect(leftAction).toBeTruthy();
     expect(rightAction).toBeTruthy();
     expect(typeof leftAction.callback).toBe('function');
@@ -387,8 +387,8 @@ describe('World integration', () => {
     world = new World(); wireKernel(world);
     const startPreset = world.engine.theme.currentPreset;
 
-    const viewsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'views');
-    const cycleAction = viewsCategory.items.find((i) => i.id === 'cycle-theme');
+    const viewCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'VIEW');
+    const cycleAction = viewCategory.items.find((i) => i.id === 'theme');
     expect(cycleAction).toBeTruthy();
 
     cycleAction.callback();
@@ -491,10 +491,10 @@ describe('World integration', () => {
   it('includes flight mode actions in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
 
-    const viewsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'views');
-    expect(viewsCategory).toBeTruthy();
-    const toggleAction = viewsCategory.items.find((i) => i.id === 'toggle-flight');
-    const dropAction = viewsCategory.items.find((i) => i.id === 'drop-to-floor');
+    const viewCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'VIEW');
+    expect(viewCategory).toBeTruthy();
+    const toggleAction = viewCategory.items.find((i) => i.id === 'toggle-flight');
+    const dropAction = viewCategory.items.find((i) => i.id === 'drop-to-floor');
     expect(toggleAction).toBeTruthy();
     expect(dropAction).toBeTruthy();
     expect(typeof toggleAction.callback).toBe('function');
@@ -747,11 +747,12 @@ describe('World integration', () => {
 
   it('includes export and operation log actions in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
-    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
-    expect(panelsCategory).toBeTruthy();
-    expect(panelsCategory.items.find((i) => i.id === 'operation-log')).toBeTruthy();
-    expect(panelsCategory.items.find((i) => i.id === 'export-screenshot')).toBeTruthy();
-    expect(panelsCategory.items.find((i) => i.id === 'export-story')).toBeTruthy();
+    const categories = world.uiManager.handWheelMenu._categories;
+    const systemCategory = categories.find((c) => c.id === 'SYSTEM');
+    const studyCategory = categories.find((c) => c.id === 'STUDY');
+    expect(systemCategory?.items.find((i) => i.id === 'operation-log')).toBeTruthy();
+    expect(studyCategory?.items.find((i) => i.id === 'screenshot')).toBeTruthy();
+    expect(studyCategory?.items.find((i) => i.id === 'story')).toBeTruthy();
   });
 
   it('toggles the operation log panel from the hand wheel menu', () => {
@@ -760,8 +761,8 @@ describe('World integration', () => {
     expect(opLog).toBeTruthy();
     expect(opLog.mesh.visible).toBe(false);
 
-    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
-    const action = panelsCategory.items.find((i) => i.id === 'operation-log');
+    const systemCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'SYSTEM');
+    const action = systemCategory.items.find((i) => i.id === 'operation-log');
     action.callback();
 
     expect(world.uiManager.operationLogPanel.mesh.visible).toBe(true);
@@ -782,9 +783,9 @@ describe('World integration', () => {
 
   it('includes a telemetry action in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
-    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
-    expect(panelsCategory).toBeTruthy();
-    const action = panelsCategory.items.find((i) => i.id === 'telemetry');
+    const systemCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'SYSTEM');
+    expect(systemCategory).toBeTruthy();
+    const action = systemCategory.items.find((i) => i.id === 'telemetry');
     expect(action).toBeTruthy();
     expect(typeof action.callback).toBe('function');
   });
@@ -793,8 +794,8 @@ describe('World integration', () => {
     world = new World(); wireKernel(world);
     expect(world.uiManager.metricsPanel.mesh.visible).toBe(false);
 
-    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
-    const action = panelsCategory.items.find((i) => i.id === 'telemetry');
+    const systemCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'SYSTEM');
+    const action = systemCategory.items.find((i) => i.id === 'telemetry');
     action.callback();
 
     expect(world.uiManager.metricsPanel.mesh.visible).toBe(true);
@@ -849,10 +850,10 @@ describe('World integration', () => {
   it('includes collaboration actions in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
 
-    const collabCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'collab');
+    const collabCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'COLLABORATE');
     expect(collabCategory).toBeTruthy();
     expect(collabCategory.items.find((i) => i.id === 'collab-toggle')).toBeTruthy();
-    expect(collabCategory.items.find((i) => i.id === 'collab-panel')).toBeTruthy();
+    expect(collabCategory.items.find((i) => i.id === 'network-panel')).toBeTruthy();
   });
 
   it('joins and leaves a collaboration room through the wheel menu', async () => {
@@ -863,7 +864,7 @@ describe('World integration', () => {
 
     try {
       world = new World(); wireKernel(world);
-      const collabCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'collab');
+      const collabCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'COLLABORATE');
       const joinAction = collabCategory.items.find((i) => i.id === 'collab-toggle');
 
       const connectPromise = world._joinCollaborationRoom('test-room');
@@ -887,8 +888,8 @@ describe('World integration', () => {
     world = new World(); wireKernel(world);
     expect(world.uiManager.networkPanel.mesh.visible).toBe(false);
 
-    const collabCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'collab');
-    const action = collabCategory.items.find((i) => i.id === 'collab-panel');
+    const collabCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'COLLABORATE');
+    const action = collabCategory.items.find((i) => i.id === 'network-panel');
     action.callback();
 
     expect(world.uiManager.networkPanel.mesh.visible).toBe(true);
@@ -968,8 +969,8 @@ describe('World integration', () => {
 
   it('includes an interaction coach action in the hand wheel menu', () => {
     world = new World(); wireKernel(world);
-    const panelsCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'panels');
-    const action = panelsCategory.items.find((i) => i.id === 'interaction-coach');
+    const studyCategory = world.uiManager.handWheelMenu._categories.find((c) => c.id === 'STUDY');
+    const action = studyCategory.items.find((i) => i.id === 'coach');
     expect(action).toBeTruthy();
     action.callback();
     expect(world.uiManager.interactionCoach?.mesh.visible).toBe(true);

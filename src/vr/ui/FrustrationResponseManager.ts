@@ -14,8 +14,8 @@ export class FrustrationResponseManager {
   private _dissatisfactionThreshold = 0.20;
   private _userMode: 'novice' | 'intermediate' | 'expert' = 'novice';
 
-  constructor(cameraGroup: THREE.Group, analyzer: UXFrustrationAnalyzer) {
-    this._cameraGroup = cameraGroup;
+  constructor(anchor: THREE.Group, analyzer: UXFrustrationAnalyzer) {
+    this._cameraGroup = anchor;
     this._analyzer = analyzer;
 
     this._canvas = document.createElement('canvas');
@@ -48,7 +48,7 @@ export class FrustrationResponseManager {
     });
 
     this._hintMesh = new THREE.Mesh(geo, mat);
-    this._hintMesh.position.set(0, -0.2, -1.0); // Slightly below gaze
+    this._hintMesh.position.set(0, -0.2, -1.0); // Torso-anchor-local: below eye-line, body-locked (UX spec §5 comfort alert)
     this._hintMesh.visible = false;
     this._cameraGroup.add(this._hintMesh);
   }

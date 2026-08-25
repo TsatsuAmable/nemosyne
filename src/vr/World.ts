@@ -60,7 +60,7 @@ import type { Observation } from '../atlas/types.ts';
 import { GuidedTourController } from './coordinators/GuidedTourController.ts';
 import { WorldLandmarkController } from './coordinators/WorldLandmarkController.ts';
 import { AnalysisStoryExporter } from './coordinators/AnalysisStoryExporter.ts';
-import { buildWheelMenuCategories } from './coordinators/WheelMenuBuilder.ts';
+import { buildIntentWheelMenuCategories } from './coordinators/WheelMenuBuilder.ts';
 import { WorldEventBus, WorldTopics } from '../utils/EventBus.ts';
 import { SceneGraphController } from './coordinators/SceneGraphController.ts';
 import { WorkspaceManager } from './coordinators/WorkspaceManager.ts';
@@ -1811,7 +1811,7 @@ export class World {
   }
 
   _buildWheelMenu(): void {
-    this.uiManager.buildWheelMenu(buildWheelMenuCategories(this));
+    this.uiManager.buildWheelMenu(buildIntentWheelMenuCategories(this));
   }
 
   // --- Load-test harness (WASM command-buffer decision) ---

@@ -88,7 +88,10 @@ export class HolographicInspector implements Updatable {
     this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(worldSize[0], worldSize[1]), this.material);
     this.mesh.name = 'holographic-inspector';
     this.mesh.visible = false;
-    if (this.cameraGroup) this.cameraGroup.add(this.mesh);
+    // Reference frame: WORLD_LOCKED transient whose pose follows the active hand
+    // each frame in world space (UX spec §5 "Holographic Inspector"). Callers
+    // must mount() into the scene — never parent to the camera rig, or the
+    // world-space targets assigned in update() would drift under locomotion.
 
     this.active = false;
     this.data = null;
