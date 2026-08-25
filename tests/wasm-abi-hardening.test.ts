@@ -211,6 +211,42 @@ describe('WASM ABI hardening', () => {
     }
   });
 
+  it('revokes live dataset authority and retags handles across analytical generations', () => {
+    const input = bridge.loadDatasetJson(tinyDataset('generation-before', 7));
+    expect(input).toBeGreaterThan(0);
+    const output = bridge.runOperation(input, { op: 'sort', column: 'x' });
+    expect(output).toBeGreaterThan(input);
+    expect(bridge.kernelProvenance()).not.toBeNull();
+
+    const sequenceBits = 20;
+    const sequenceMask = (1 << sequenceBits) - 1;
+    const currentGeneration = input >>> sequenceBits;
+    expect(output >>> sequenceBits).toBe(currentGeneration);
+    const nextGeneration = currentGeneration + 1;
+    expect(nextGeneration).toBeLessThan(1 << 11);
+
+    expect(callNumber('data_reset_runtime_generation', nextGeneration)).toBe(1);
+    expect(callNumber('dataset_row_count', input)).toBe(0);
+    expect(callNumber('dataset_row_count', output)).toBe(0);
+    expect(bridge.kernelProvenance()).toBeNull();
+
+    expect(() => bridge.destroyDataset(input)).not.toThrow();
+    expect(() => bridge.destroyDataset(output)).not.toThrow();
+
+    const next = bridge.loadDatasetJson(tinyDataset('generation-after', 9));
+    expect(next >>> sequenceBits).toBe(nextGeneration);
+    expect(next & sequenceMask).toBe(1);
+    expect(next).not.toBe(input);
+    expect(next).not.toBe(output);
+    try {
+      expect(callNumber('dataset_row_count', next)).toBe(1);
+      expect(callNumber('dataset_row_count', input)).toBe(0);
+      expect(callNumber('dataset_row_count', output)).toBe(0);
+    } finally {
+      bridge.destroyDataset(next);
+    }
+  });
+
   it('survives a bounded malformed-pointer corpus without leaking or trapping', () => {
     const baseline = bridge.hostBufferAllocationCount();
     const memoryEnd = bridge.memory().buffer.byteLength - 1;
