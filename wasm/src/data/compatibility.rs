@@ -127,7 +127,9 @@ pub fn canonical_dataset_column_count(handle: u32) -> u32 {
 ///
 /// Uses the standard two-call output-buffer convention: call first with
 /// `out_len == 0` to obtain the required byte length, allocate at least that
-/// many bytes at `out_ptr`, then call again with the returned size.
+/// many bytes at `out_ptr`, then call again with the returned size. An
+/// undersized second buffer receives no partial payload and is told the full
+/// required size again.
 #[wasm_bindgen]
 pub fn compatibility_dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     if let Err(error) = crate::data::materialize_rows(handle) {
@@ -137,13 +139,18 @@ pub fn compatibility_dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) ->
     crate::data::with_dataset(handle, |dataset| {
         let json = dataset.to_js_json();
         let bytes = json.as_bytes();
-        if out_len == 0 {
-            return bytes.len() as u32;
+        let Ok(required) = u32::try_from(bytes.len()) else {
+            return 0;
+        };
+        if required == 0 {
+            return 0;
         }
-        let write_len = std::cmp::min(bytes.len(), out_len as usize);
-        let slice = unsafe { allocator::view_mut(out_ptr, write_len as u32) };
-        slice.copy_from_slice(&bytes[..write_len]);
-        write_len as u32
+        if out_ptr == 0 || out_len < required {
+            return required;
+        }
+        let slice = unsafe { allocator::view_mut(out_ptr, required) };
+        slice.copy_from_slice(bytes);
+        required
     }).unwrap_or(0)
 }
 
@@ -217,6 +224,33 @@ mod tests {
         let second_rows = crate::data::with_dataset(handle, |dataset| dataset.rows.len());
         assert_eq!(second_rows, Some(2));
 
+        crate::data::destroy_dataset(handle);
+    }
+
+    #[test]
+    fn undersized_compatibility_output_is_not_partially_written() {
+        let columns = vec![Column::new("x", ColumnType::Numeric)];
+        let columnar = ColumnarDataset::from_parts(
+            1,
+            HashMap::from([(
+                0,
+                PrimitiveColumn { values: vec![7.0], validity: vec![1] },
+            )]),
+            HashMap::new(),
+        ).unwrap();
+        let handle = crate::data::register_columnar_dataset("atomic-output".into(), columns, columnar);
+        let required = compatibility_dataset_to_json(handle, 0, 0);
+        assert!(required > 1);
+
+        let out_ptr = allocator::alloc(required);
+        unsafe { allocator::view_mut(out_ptr, required) }.fill(0xa5);
+        let reported = compatibility_dataset_to_json(handle, out_ptr, required - 1);
+        assert_eq!(reported, required);
+        assert!(unsafe { allocator::view(out_ptr, required) }
+            .iter()
+            .all(|byte| *byte == 0xa5));
+
+        allocator::dealloc(out_ptr, required);
         crate::data::destroy_dataset(handle);
     }
 }
