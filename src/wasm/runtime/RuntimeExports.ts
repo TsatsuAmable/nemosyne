@@ -5,7 +5,7 @@ export interface WasmInitInput {
 export interface RuntimeLifecycleExports {
   memory: WebAssembly.Memory;
   init(seed: bigint): number;
-  data_reset_runtime_generation(): number;
+  data_reset_runtime_generation(generation: number): number;
   ping(): number;
   capabilities(): number;
 }
