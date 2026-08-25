@@ -182,7 +182,7 @@ function isValidIdentifier(id: unknown): boolean {
 }
 
 /**
- * Strict explicit protocol schema validator for all signalling payloads.
+ * Strict explicit protocol schema validator for all peer-originated signalling payloads.
  */
 function isValidSignallingPayload(data: unknown): boolean {
   if (data == null || typeof data !== 'object' || Array.isArray(data)) return false;
@@ -199,8 +199,10 @@ function isValidSignallingPayload(data: unknown): boolean {
     case 'ice':
       return obj.candidate !== undefined;
     case 'join':
-      return obj.role === undefined || obj.role === 'participant' || obj.role === 'observer';
     case 'leave':
+      // Presence lifecycle is server-owned. Peers must never be able to forge
+      // admission, role changes, or departure notifications.
+      return false;
     case 'ping':
     case 'pong':
       return true;
@@ -228,9 +230,6 @@ function getRequiredCapability(message: unknown): PeerCapability | null {
     case 'ping':
     case 'pong':
       return 'webrtc_negotiate';
-    case 'join':
-    case 'leave':
-      return 'presence';
     case 'state':
     case 'annotations_add':
     case 'annotations_remove':
