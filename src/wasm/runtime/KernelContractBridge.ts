@@ -12,10 +12,7 @@ import type { KernelContractExports, MemoryAbiExports } from './RuntimeExports.t
 
 type KernelContractRuntime = KernelContractExports & MemoryAbiExports;
 
-function readStringExport(
-  wasm: KernelContractRuntime,
-  invoke: (outPtr: number, outLen: number) => number
-): string | null {
+function readStringExport(invoke: (outPtr: number, outLen: number) => number): string | null {
   const required = invoke(0, 0);
   if (!Number.isSafeInteger(required) || required <= 0) return null;
   const allocation = allocBuffer(required);
@@ -29,7 +26,6 @@ function readStringExport(
 }
 
 function callJsonAbi(
-  wasm: KernelContractRuntime,
   fn: (inPtr: number, inLen: number, outPtr: number, outLen: number) => number,
   input: unknown
 ): unknown | null {
@@ -54,12 +50,12 @@ function callJsonAbi(
 
 export function kernelVersion(): string | null {
   const wasm = getRuntimeExports();
-  return readStringExport(wasm, (ptr, len) => wasm.kernel_version(ptr, len));
+  return readStringExport((ptr, len) => wasm.kernel_version(ptr, len));
 }
 
 export function kernelProvenance(): Provenance | null {
   const wasm = getRuntimeExports();
-  const json = readStringExport(wasm, (ptr, len) => wasm.kernel_provenance(ptr, len));
+  const json = readStringExport((ptr, len) => wasm.kernel_provenance(ptr, len));
   if (!json) return null;
   return JSON.parse(json) as Provenance;
 }
@@ -102,7 +98,7 @@ export function evaluateMonetaCandidate(
   } catch {
     return null;
   }
-  return callJsonAbi(wasm, wasm.draco_evaluate_candidate.bind(wasm), { facts, spec }) as {
+  return callJsonAbi(wasm.draco_evaluate_candidate.bind(wasm), { facts, spec }) as {
     valid: boolean;
     cost: number;
     violations: string[];
@@ -121,7 +117,7 @@ export function adjustMonetaEvidence(
   } catch {
     return null;
   }
-  return callJsonAbi(wasm, wasm.draco_adjust_evidence.bind(wasm), {
+  return callJsonAbi(wasm.draco_adjust_evidence.bind(wasm), {
     baseCost,
     evidence,
   }) as { adjustedCost: number; delta: number } | null;
@@ -139,7 +135,7 @@ export function compileIntent(
   } catch {
     return null;
   }
-  return callJsonAbi(wasm, wasm.intent_compile.bind(wasm), { query, schema }) as Record<
+  return callJsonAbi(wasm.intent_compile.bind(wasm), { query, schema }) as Record<
     string,
     unknown
   > | null;
@@ -159,7 +155,7 @@ export function discoverStructures(
   } catch {
     return null;
   }
-  return callJsonAbi(wasm, wasm.atlas_discover_structures.bind(wasm), {
+  return callJsonAbi(wasm.atlas_discover_structures.bind(wasm), {
     assignments,
     datumIds,
     fingerprint,
