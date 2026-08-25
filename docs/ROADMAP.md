@@ -4,13 +4,16 @@
 
 ## Status snapshot — 25 August 2026
 
-**Current main:** includes merged PR #389, completing the collaboration signalling-authority follow-up to #388.
+**Current main:** `adb10e8` — includes #392 (C1′ panel zoning + torso-frame
+consolidation), #393 (task-oriented intent wheel + novice vocabulary + final
+frame fixes) and #394 (UI treatment declared in the study freeze manifest).
+No active feature branch; working tree clean.
 
-**Active branch:** `feat/study-ui-treatment-declaration` — declares the frozen
-participant-facing UI treatment (panel-layout revision 3 + intent wheel v1 +
-torso-frame policy) as `uiTreatmentVersion` in the study freeze manifest,
-making UI drift fail closed mid-session (vision §14). #393 merged 25 August
-2026.
+**Next checkpoint:** resume the analytical critical path at execution-order
+item 2 — remove JavaScript raw-row/filter preprocessing from production TDA
+and prove row-free execution. Remaining VR/UI/UX blockers are physical:
+Quest 3S qualification session (now validating tiers + wheel + frames in one
+pass) and Threads/F5 deferred to P1-F.
 
 **Active development wave:** P1 analytical responsiveness and spatial fitness. See [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
 
