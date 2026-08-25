@@ -14,6 +14,10 @@ const layoutAuthoritySource = readFileSync(
   resolve(process.cwd(), 'src/wasm/LayoutAuthorityBridge.ts'),
   'utf8'
 );
+const columnarBoundarySource = readFileSync(
+  resolve(process.cwd(), 'src/wasm/ColumnarBoundary.ts'),
+  'utf8'
+);
 const runtimeSources = readdirSync(runtimeDirectory)
   .filter((file) => file.endsWith('.ts'))
   .map((file) => ({ file, source: readFileSync(resolve(runtimeDirectory, file), 'utf8') }));
@@ -158,6 +162,10 @@ describe('RuntimeBridge module boundaries', () => {
     }
     expect(layoutAuthoritySource).not.toMatch(/\bwasm\.alloc\(/);
     expect(layoutAuthoritySource).not.toMatch(/\bwasm\.dealloc\(/);
+    expect(columnarBoundarySource).not.toMatch(/call\(['"]alloc['"]/);
+    expect(columnarBoundarySource).not.toMatch(/call\(['"]dealloc['"]/);
+    expect(columnarBoundarySource).toMatch(/allocBuffer/);
+    expect(columnarBoundarySource).toMatch(/deallocBuffer/);
   });
 
   it('keeps compatibility aliases as identity-only adapters', () => {
