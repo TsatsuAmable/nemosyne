@@ -2,16 +2,20 @@
 
 > **Current implementation-status authority.** Product and research direction are governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This document records the current implementation state and planned programme. Completed migration detail is preserved in `docs/archive/`.
 
-## Status snapshot - 24 August 2026
+## Status snapshot - 25 August 2026
 
-**Current `main`: `55ca56f` (includes merged PR #373). Active branch: `refactor/atlas-topology-separation`.**
+**Current `main`: `d42c0ac` (merged PR #388). Active branch: `security/server-owned-collaboration-lifecycle` (at `8e570d1` plus test-suite alignment for the role-hardened join lifecycle).**
 
 **Next checkpoint:** land the completed ARCH-01 Atlas/spatial-embodiment ownership split, then close
 the available RES-01 checked-output and malformed-handle resilience work. Physical execution remains
 deferred until a Quest 3S is available; even a completed measurement remains
 `deviceQualifiedAt10m: false` until governed review.
 
-**Last gate:** green locally on 24 August 2026 for `refactor/atlas-topology-separation`. Typecheck
+**Last gate:** green locally on 25 August 2026 for `security/server-owned-collaboration-lifecycle`.
+`tsc --noEmit` clean, `eslint` 0 errors (171 pre-existing warnings), `npm run test:all` green after
+aligning five signalling-lifecycle tests to the fail-closed join contract (joins must carry a valid
+server-resolved `role`; roleless/malformed joins are rejected per `c379c74`). Prior snapshot: 24 August
+2026 for `refactor/atlas-topology-separation`. Typecheck
 and lint passed (0 errors, 170 pre-existing warnings); all 319 coverage files / 1,948 tests passed at
 82.28% statements, 70.44% branches, 79.28% functions and 84.79% lines; the production WASM/Vite
 build passed; all 170 Rust tests passed; and both real Chromium/WebGL smoke journeys passed. Merged
