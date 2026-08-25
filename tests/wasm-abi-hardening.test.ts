@@ -122,4 +122,70 @@ describe('WASM ABI hardening', () => {
 
     expect(bridge.hostBufferAllocationCount()).toBe(baseline);
   });
+
+  it('routes legacy alloc/dealloc exports through tracked ownership', () => {
+    const baseline = bridge.hostBufferAllocationCount();
+    const ptr = callNumber('alloc', 16);
+    expect(ptr).toBeGreaterThan(0);
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline + 1);
+
+    bridge.call('dealloc', ptr, 15);
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline + 1);
+
+    bridge.call('dealloc', ptr, 16);
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+    expect(() => bridge.call('dealloc', ptr, 16)).not.toThrow();
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+  });
+
+  it('rejects arbitrary and overlong host ranges without trapping', () => {
+    expect(() => bridge.call('fill_pattern', 8, 8)).not.toThrow();
+    expect(callNumber('fill_pattern', 8, 8)).toBe(0);
+    expect(callNumber('data_load_json', 8, 8)).toBe(0);
+    expect(callNumber('data_load_csv', 8, 8)).toBe(0);
+    expect(callNumber('data_load_typed_columns', 8, 8)).toBe(0);
+
+    const allocation = bridge.allocBuffer(8);
+    try {
+      expect(callNumber('data_load_json', allocation.ptr, allocation.len + 1)).toBe(0);
+      expect(callNumber('fill_pattern', allocation.ptr, allocation.len + 1)).toBe(0);
+    } finally {
+      bridge.deallocBuffer(allocation.ptr, allocation.len);
+    }
+  });
+
+  it('permits a live interior subrange but not bytes outside its allocation', () => {
+    const allocation = bridge.allocBuffer(16);
+    try {
+      const bytes = new Uint8Array(bridge.memory().buffer, allocation.ptr, allocation.len);
+      bytes.fill(0xa5);
+
+      expect(callNumber('fill_pattern', allocation.ptr + 4, 4)).toBe(4);
+      expect(Array.from(bytes.slice(0, 4))).toEqual([0xa5, 0xa5, 0xa5, 0xa5]);
+      expect(Array.from(bytes.slice(4, 8))).toEqual([0, 1, 2, 3]);
+      expect(Array.from(bytes.slice(8))).toEqual(new Array(8).fill(0xa5));
+      expect(callNumber('fill_pattern', allocation.ptr + 12, 8)).toBe(0);
+    } finally {
+      bridge.deallocBuffer(allocation.ptr, allocation.len);
+    }
+  });
+
+  it('rejects an unowned output pointer instead of treating it as a size query', () => {
+    const required = callNumber('kernel_version', 0, 0);
+    expect(required).toBeGreaterThan(0);
+    expect(callNumber('kernel_version', 8, required)).toBe(0);
+    expect(callNumber('kernel_version', 0, required)).toBe(0);
+  });
+
+  it('revokes all prior host-buffer capabilities when init starts a new generation', () => {
+    expect(bridge.hostBufferAllocationCount()).toBe(0);
+    const allocation = bridge.allocBuffer(8);
+    expect(bridge.hostBufferAllocationCount()).toBe(1);
+    new Uint8Array(bridge.memory().buffer, allocation.ptr, allocation.len).fill(0xa5);
+
+    expect(callNumber('init', 0x1234n)).toBe(1);
+    expect(bridge.hostBufferAllocationCount()).toBe(0);
+    expect(callNumber('fill_pattern', allocation.ptr, allocation.len)).toBe(0);
+    expect(() => bridge.deallocBuffer(allocation.ptr, allocation.len)).not.toThrow();
+  });
 });
