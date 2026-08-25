@@ -551,7 +551,7 @@ export class WorldUIManager {
         return;
       }
       this.frustrationResponseManager = new FrustrationResponseManager(
-        this.engine.cameraGroup,
+        this.analystAnchor,
         analyzer
       );
     }

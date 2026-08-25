@@ -123,8 +123,8 @@ describe('World performance integration', () => {
 
   it('adds a Performance action to the hand wheel menu', () => {
     const categories = (world!.uiManager.handWheelMenu as any)._categories as Array<{ id: string; items: Array<{ id: string }> }>;
-    const panelsCategory = categories.find((c) => c.id === 'panels');
-    expect(panelsCategory?.items.find((i) => i.id === 'performance')).toBeTruthy();
+    const systemCategory = categories.find((c) => c.id === 'SYSTEM');
+    expect(systemCategory?.items.find((i) => i.id === 'perf')).toBeTruthy();
   });
 
   it('toggles strict budget from settings', () => {

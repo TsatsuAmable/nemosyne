@@ -6,11 +6,13 @@
 
 **Current main:** includes merged PR #389, completing the collaboration signalling-authority follow-up to #388.
 
-**Active branch:** `feat/vr-panel-blender-prototypes` (rebased over #391) — C1′ depth-tier
-panel defaults plus revision-3 single-reference-frame consolidation (all persistent panels
-torso-locked to `analystAnchor`; see `docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md` §8).
-Situated under **P1 — VR/UI/UX fitness** below. Gates green locally 25 August 2026 after
-rebase: typecheck clean, lint 0 errors, 297 JS tests, Vite build; Rust untouched.
+**Active branch:** `feat/vr-wheel-task-orientation` — UX-review quick wins from the
+spec-vs-runtime audit of `Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md`:
+production HandWheel converged onto the task/intent taxonomy (§7), novice vocabulary
+completed (§6.1 Move/Undo/Return), HolographicInspector + FrustrationResponseManager
+moved off the retired rig frame (§5 reference frames). #392 merged 25 August 2026 with
+project-owner Gate F sign-off; panel layout revision 3 is the current participant-facing
+spatial arrangement.
 
 **Active development wave:** P1 analytical responsiveness and spatial fitness. See [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
 
@@ -250,8 +252,13 @@ review and Quest 3S device validation required before promotion):
 - [x] spatial-audit + hypothesis + Blender prototype comparison for panel arrangement completed as a recorded decision (`docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md`, evidence tier 4);
 - [x] C1′ role-aware depth-tier zoning implemented as panel default positions with invariant tests (`src/vr/ui/panelLayout.ts`, `tests/panel-layout.test.ts`);
 - [x] single-reference-frame consolidation: every persistent panel BODY_LOCKED to the torso anchor, head/camera lock reserved for transient alerts (decision §8);
-- [ ] merge behind research review of the CONTROLLED-TREATMENT MODIFICATION classification;
-- [ ] run the full Senior VR/UI/UX heuristic review on the product beyond the panel-layout audit;
+- [x] merged as #392 after project-owner research review of the CONTROLLED-TREATMENT MODIFICATION classification (Gate F sign-off, 25 August 2026);
+- [x] spec-vs-runtime UX audit completed (reference-frame register, heuristic findings F1–F5, competence scores; 25 August 2026 session);
+- [x] production HandWheel converged onto the task/intent taxonomy (spec §7) with a separate SUPERUSER annex (skill §24 participant/observer separation); legacy subsystem builder retained only for backwards compatibility;
+- [x] novice command vocabulary surfaced on the wheel (spec §6.1): Move (teleport/flight/floor), Undo/Redo, Return-to-Overview;
+- [x] HolographicInspector and FrustrationResponseManager moved off the retired rig frame onto world/torso frames per spec §5;
+- [ ] declare frozen panel-layout revision 3 + intent wheel in `docs/study/` before the next study session;
+- [ ] run the full Senior VR/UI/UX heuristic review on the product beyond the panel/wheel audit;
 - [ ] validate comfortable locomotion, scale legibility, reach, occlusion, focus and spatial hierarchy on target headsets;
 - [ ] keep desktop/2D interaction semantically equivalent where possible;
 - [ ] improve progressive disclosure, gesture discoverability and error recovery;

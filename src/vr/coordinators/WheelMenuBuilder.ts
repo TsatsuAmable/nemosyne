@@ -69,6 +69,8 @@ export interface WheelMenuHost {
 }
 
 export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategory[] {
+  // Legacy subsystem-oriented layout, retained for backwards compatibility only.
+  // Production uses buildIntentWheelMenuCategories (UX spec §7 task orientation).
   const opItem = (id: string, label: string, icon: string, op: string) => ({
     id,
     label,
@@ -471,8 +473,12 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
 }
 
 /**
- * Builds categorized HandWheel structure aligned with the 6 core intent taxonomy:
- * ANALYSE | VIEW | DATA | STUDY | COLLABORATE | SYSTEM.
+ * Builds the production HandWheel, aligned with the 6 core intent taxonomy
+ * (ANALYSE | VIEW | DATA | STUDY | COLLABORATE | SYSTEM — UX spec §7
+ * "task-oriented rather than subsystem-oriented") plus an explicit SUPERUSER
+ * annex so observer/diagnostic tooling stays out of the participant command
+ * surface (vr_engineer skill §24). Novice vocabulary coverage per UX spec §6.1:
+ * Move → VIEW; Undo/Redo → ANALYSE; Return → VIEW.
  */
 export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuCategory[] {
   const opItem = (id: string, label: string, icon: string, op: string) => ({
@@ -484,6 +490,7 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
     onLeave: () => world.clearOperationPreview(),
   });
   const pm = world.uiManager?.panelManager;
+  const dashboard = world.uiManager?.dashboard;
   const toggle = (panel: PanelLike | null | undefined) => {
     if (panel && pm) {
       pm.togglePanel(panel);
@@ -505,6 +512,8 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
         opItem('anomaly', 'Anomaly', '⚡', 'anomaly'),
         opItem('timeSlice', 'Slice', '🕒', 'timeSlice'),
         { id: 'reset', label: 'Reset', icon: '↺', callback: () => world.resetDataOperation() },
+        // Undo/Return are required novice vocabulary (UX spec §6.1). These are
+        // safe no-ops when history is empty; see legacy note in buildWheelMenu.
         { id: 'undo', label: 'Undo', icon: '⮌', callback: () => world.undoAnalysis() },
         { id: 'redo', label: 'Redo', icon: '⮎', callback: () => world.redoAnalysis() },
       ],
@@ -515,6 +524,12 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
       icon: '👁️',
       items: [
         {
+          id: 'return-overview',
+          label: 'Return',
+          icon: '🎯',
+          callback: () => world.engine.locomotion.teleportToAnchor('overview'),
+        },
+        {
           id: 'portals',
           label: 'Portals',
           icon: '🌀',
@@ -523,7 +538,7 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
         { id: 'theme', label: 'Theme', icon: '🎨', callback: () => world._cycleThemePreset() },
         {
           id: 'overview',
-          label: 'Overview',
+          label: 'Overview Map',
           icon: '🗺️',
           callback: () => world._toggleMiniOverview(),
         },
@@ -539,7 +554,67 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           icon: '💡',
           callback: () => world._toggleDracoExplainer?.(),
         },
-        { id: 'recenter', label: 'Recenter Anchor', icon: '🎯', callback: () => pm?.recenter() },
+        { id: 'recenter', label: 'Recenter Panels', icon: '🧲', callback: () => pm?.recenter() },
+        {
+          id: 'dash-left',
+          label: '◀ Dash',
+          icon: '⬅️',
+          callback: () => dashboard?.scrollBySlots(-1),
+        },
+        {
+          id: 'dash-right',
+          label: 'Dash ▶',
+          icon: '➡️',
+          callback: () => dashboard?.scrollBySlots(1),
+        },
+        {
+          id: 'dash-reset',
+          label: 'Reset Dash',
+          icon: '↺',
+          callback: () => dashboard?.resetDashboard(),
+        },
+        {
+          id: 'teleport-toggle',
+          label: 'Teleport',
+          icon: '📡',
+          callback: () => world.engine.locomotion.toggleTeleport(),
+        },
+        {
+          id: 'teleport-detail',
+          label: 'Go Detail',
+          icon: '🔎',
+          callback: () => world.engine.locomotion.teleportToAnchor('detail'),
+        },
+        {
+          id: 'teleport-north',
+          label: 'Go North',
+          icon: '⬆️',
+          callback: () => world.engine.locomotion.teleportToAnchor('north'),
+        },
+        {
+          id: 'teleport-south',
+          label: 'Go South',
+          icon: '⬇️',
+          callback: () => world.engine.locomotion.teleportToAnchor('south'),
+        },
+        {
+          id: 'toggle-flight',
+          label: 'Flight',
+          icon: '🚀',
+          callback: () => world.engine.locomotion.toggleFlight(),
+        },
+        {
+          id: 'drop-to-floor',
+          label: 'Floor',
+          icon: '🧱',
+          callback: () => world.engine.locomotion.dropToFloor(),
+        },
+        {
+          id: 'desktop-preview',
+          label: 'Preview',
+          icon: '🖥️',
+          callback: () => world._toggleDesktopPreview(),
+        },
       ],
     },
     {
@@ -572,6 +647,12 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           icon: '⏮️',
           callback: () => world.loadSession('autosave'),
         },
+        {
+          id: 'new-session',
+          label: 'New Session',
+          icon: '🆕',
+          callback: () => world.deleteSession('autosave'),
+        },
       ],
     },
     {
@@ -587,10 +668,16 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
         },
         { id: 'tour', label: 'Start Tour', icon: '🧭', callback: () => world.startTour() },
         {
+          id: 'coach',
+          label: 'Coach',
+          icon: '🎓',
+          callback: () => toggle(world.uiManager?.getOrCreateInteractionCoach?.()),
+        },
+        {
           id: 'timeline',
           label: 'Timeline Strip',
           icon: '🎞️',
-          callback: () => toggle(world.uiManager?.narrativeStrip),
+          callback: () => toggle(world.uiManager?.getOrCreateNarrativeStrip?.()),
         },
         {
           id: 'guidance',
@@ -652,9 +739,21 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           callback: () => world._toggleSettingsPanel(),
         },
         {
+          id: 'launcher',
+          label: 'Launcher',
+          icon: '🚀',
+          callback: () => pm?.toggleLauncher(),
+        },
+        {
+          id: 'operation-log',
+          label: 'Operation Log',
+          icon: '📝',
+          callback: () => toggle(world.uiManager?.getOrCreateOperationLogPanel?.()),
+        },
+        {
           id: 'console',
           label: 'VR Console',
-          icon: '📝',
+          icon: '🖥️',
           callback: () => toggle(world.uiManager?.vrConsole as unknown as PanelLike),
         },
         {
@@ -670,16 +769,86 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           callback: () => toggle(world.uiManager?.metricsPanel),
         },
         {
-          id: 'coach',
-          label: 'Coach',
-          icon: '🎓',
-          callback: () => toggle(world.uiManager?.interactionCoach),
-        },
-        {
           id: 'exit-vr',
           label: 'Exit VR',
           icon: '🚪',
           callback: () => (world.exitVR ? world.exitVR() : world.engine?.exitVR?.()),
+        },
+      ],
+    },
+    {
+      // Superuser/observer annex (skill §24): diagnostics and load tooling that
+      // must never sit in the participant command surface. Hidden by default via
+      // progressive disclosure; also reachable through Settings.
+      id: 'SUPERUSER',
+      label: 'Dev Lab',
+      icon: '🔬',
+      items: [
+        {
+          id: 'su-representation-carousel',
+          label: 'Rep Carousel',
+          icon: '🎠',
+          callback: () => world.uiManager?.toggleRepresentationCarousel?.(),
+        },
+        {
+          id: 'su-transient-context-cards',
+          label: 'Context Cards',
+          icon: '🃏',
+          callback: () => world.uiManager?.toggleTransientContextCards?.(),
+        },
+        {
+          id: 'su-progressive-disclosure',
+          label: 'Disclosure',
+          icon: '📂',
+          callback: () => world.uiManager?.toggleProgressiveDisclosure?.(),
+        },
+        {
+          id: 'su-schema-mapping',
+          label: 'Schema Map',
+          icon: '🗂️',
+          callback: () => toggle(world.uiManager?.getOrCreateSchemaMappingPanel?.()),
+        },
+        {
+          id: 'su-draco-diagnostic',
+          label: 'Draco Diag',
+          icon: '🩺',
+          callback: () => world._toggleDracoDiagnostic?.(),
+        },
+        {
+          id: 'su-gesture-confidence',
+          label: 'Gest Conf',
+          icon: '✋',
+          callback: () => toggle(world.uiManager?.getOrCreateGestureConfidenceHUD?.()),
+        },
+        {
+          id: 'su-frustration-response',
+          label: 'Frustration',
+          icon: '😤',
+          callback: () => world.uiManager?.toggleFrustrationResponseManager?.(),
+        },
+        {
+          id: 'su-jit-gesture-hints',
+          label: 'JIT Hints',
+          icon: '👻',
+          callback: () => world.uiManager?.toggleJITGestureHintManager?.(),
+        },
+        {
+          id: 'su-loadtest-panel',
+          label: 'Load Panel',
+          icon: '📊',
+          callback: () => world._toggleLoadTestPanel?.(),
+        },
+        {
+          id: 'su-loadtest-start',
+          label: 'Load Start',
+          icon: '▶️',
+          callback: () => world.runLoadTest?.(),
+        },
+        {
+          id: 'su-loadtest-stop',
+          label: 'Load Stop',
+          icon: '⏹️',
+          callback: () => world.stopLoadTest?.(),
         },
       ],
     },
