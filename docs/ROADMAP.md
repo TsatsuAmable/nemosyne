@@ -6,10 +6,11 @@
 
 **Current main:** includes merged PR #389, completing the collaboration signalling-authority follow-up to #388.
 
-**Active branch:** `feat/vr-panel-blender-prototypes` — C1′ depth-tier panel defaults plus
-revision-3 single-reference-frame consolidation (all persistent panels torso-locked to
-`analystAnchor`; see `docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md` §8). Gates green locally
-25 August 2026: typecheck, lint (0 errors), 297 JS tests, Vite build; Rust untouched.
+**Active branch:** `feat/vr-panel-blender-prototypes` (rebased over #391) — C1′ depth-tier
+panel defaults plus revision-3 single-reference-frame consolidation (all persistent panels
+torso-locked to `analystAnchor`; see `docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md` §8).
+Situated under **P1 — VR/UI/UX fitness** below. Gates green locally 25 August 2026 after
+rebase: typecheck clean, lint 0 errors, 297 JS tests, Vite build; Rust untouched.
 
 **Active development wave:** P1 analytical responsiveness and spatial fitness. See [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md).
 
@@ -243,7 +244,14 @@ Deliver a controlled, observable deployment suitable for investigator research/u
 
 ## P1 — VR/UI/UX fitness
 
-- [ ] run the Senior VR/UI/UX heuristic review on the current product;
+Progress on branch `feat/vr-panel-blender-prototypes` (not yet merged; Gate F research
+review and Quest 3S device validation required before promotion):
+
+- [x] spatial-audit + hypothesis + Blender prototype comparison for panel arrangement completed as a recorded decision (`docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md`, evidence tier 4);
+- [x] C1′ role-aware depth-tier zoning implemented as panel default positions with invariant tests (`src/vr/ui/panelLayout.ts`, `tests/panel-layout.test.ts`);
+- [x] single-reference-frame consolidation: every persistent panel BODY_LOCKED to the torso anchor, head/camera lock reserved for transient alerts (decision §8);
+- [ ] merge behind research review of the CONTROLLED-TREATMENT MODIFICATION classification;
+- [ ] run the full Senior VR/UI/UX heuristic review on the product beyond the panel-layout audit;
 - [ ] validate comfortable locomotion, scale legibility, reach, occlusion, focus and spatial hierarchy on target headsets;
 - [ ] keep desktop/2D interaction semantically equivalent where possible;
 - [ ] improve progressive disclosure, gesture discoverability and error recovery;
