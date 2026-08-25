@@ -92,9 +92,9 @@ impl RegisteredDataset {
 }
 
 /// Dataset handles remain monotonic, never-reused capabilities for one WASM
-/// runtime lifetime. Unlike the tombstone vector, only live datasets consume
-/// registry storage: destroying a dataset drops its registry entry while the
-/// independent `next_handle` counter preserves stale-handle invalidity.
+/// module lifetime. Only live datasets consume registry storage: destroying a
+/// dataset drops its registry entry while the independent `next_handle`
+/// counter preserves stale-handle invalidity across runtime generations.
 pub struct DatasetRegistry {
     entries: HashMap<u32, RegisteredDataset>,
     next_handle: u32,
@@ -172,6 +172,13 @@ impl DatasetRegistry {
             return;
         }
         self.entries.remove(&handle);
+    }
+
+    /// Drop every live dataset while preserving the monotonic capability
+    /// counter. A pre-reset handle therefore stays stale even if the same WASM
+    /// module instance is reinitialised and starts accepting new datasets.
+    fn reset_live_entries(&mut self) {
+        self.entries.clear();
     }
 
     #[cfg(test)]
@@ -345,6 +352,21 @@ pub fn destroy_dataset(handle: u32) {
     DATASET_REGISTRY.lock().expect("dataset registry poisoned").remove(handle);
 }
 
+/// Begin a fresh analytical runtime generation on the current WASM module.
+/// Live dataset authority and the provenance side-channel are cleared, while
+/// the monotonic handle counter deliberately remains advanced so handles from a
+/// previous generation can never alias newly loaded datasets.
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn data_reset_runtime_generation() -> u32 {
+    {
+        let mut registry = DATASET_REGISTRY.lock().expect("dataset registry poisoned");
+        registry.reset_live_entries();
+    }
+    provenance::clear();
+    ROW_MATERIALISATIONS.store(0, Ordering::Relaxed);
+    1
+}
+
 #[cfg(test)]
 mod columnar_registry_tests {
     use std::collections::HashMap;
@@ -387,6 +409,21 @@ mod columnar_registry_tests {
         assert_eq!(registry.live_len(), 1);
         assert!(registry.get(first).is_none());
         assert_eq!(registry.get(second).map(|dataset| dataset.name.as_str()), Some("second"));
+    }
+
+    #[test]
+    fn runtime_reset_drops_live_entries_without_rewinding_handle_capabilities() {
+        let mut registry = DatasetRegistry::new();
+        let before = registry.insert(local_dataset("before"));
+        assert_eq!(registry.live_len(), 1);
+        registry.reset_live_entries();
+        assert_eq!(registry.live_len(), 0);
+        assert!(registry.get(before).is_none());
+
+        let after = registry.insert(local_dataset("after"));
+        assert!(after > before);
+        assert_ne!(after, before);
+        assert_eq!(registry.get(after).map(|dataset| dataset.name.as_str()), Some("after"));
     }
 
     #[test]
