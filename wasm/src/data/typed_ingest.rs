@@ -53,8 +53,6 @@ fn parse_with_schema(bytes: &[u8]) -> Result<ParsedTypedDataset, String> {
     if reader.take(4)? != MAGIC { return Err("typed payload magic mismatch".into()); }
     let row_count = reader.u32()? as usize;
     let column_count = reader.u32()? as usize;
-    // Every encoded column needs at least a one-byte kind and a two-byte string
-    // length prefix. Reject impossible untrusted counts before any preallocation.
     if column_count > reader.remaining() / 3 {
         return Err("typed column count exceeds remaining payload".into());
     }
@@ -108,7 +106,10 @@ fn load_named(bytes: &[u8], name: String) -> Result<u32, String> {
 
 #[wasm_bindgen]
 pub fn data_load_typed_columns(ptr: u32, len: u32) -> u32 {
-    let bytes = unsafe { allocator::view(ptr, len) };
+    let Some(bytes) = (unsafe { allocator::try_view(ptr, len) }) else {
+        crate::log_error("data_load_typed_columns failed: invalid or stale host buffer range");
+        return 0;
+    };
     match load_named(bytes, DEFAULT_DATASET_NAME.to_string()) {
         Ok(handle) => handle,
         Err(error) => {
@@ -122,8 +123,14 @@ pub fn data_load_typed_columns(ptr: u32, len: u32) -> u32 {
 /// dataset metadata supplied separately from the bulk data-plane payload.
 #[wasm_bindgen]
 pub fn data_load_typed_columns_named(ptr: u32, len: u32, name_ptr: u32, name_len: u32) -> u32 {
-    let bytes = unsafe { allocator::view(ptr, len) };
-    let name_bytes = unsafe { allocator::view(name_ptr, name_len) };
+    let Some(bytes) = (unsafe { allocator::try_view(ptr, len) }) else {
+        crate::log_error("data_load_typed_columns_named failed: invalid or stale payload range");
+        return 0;
+    };
+    let Some(name_bytes) = (unsafe { allocator::try_view(name_ptr, name_len) }) else {
+        crate::log_error("data_load_typed_columns_named failed: invalid or stale dataset-name range");
+        return 0;
+    };
     let name = match std::str::from_utf8(name_bytes) {
         Ok(value) => value.to_string(),
         Err(_) => {

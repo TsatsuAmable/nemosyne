@@ -14,13 +14,11 @@ pub const MAX_MEMORY_PAGES: u32 = 8192; // 512 MiB
 
 /// Target-specific allocation helpers.
 ///
-/// On `wasm32` this is a bump allocator over the shared WebAssembly memory,
-/// using `core::arch::wasm32::memory_grow` to expand the heap. This is the
-/// production implementation used by the JS host.
-///
-/// On the host (x86_64, etc.) this falls back to the system allocator so that
-/// `cargo test` can exercise the same public API and pure-Rust logic without
-/// requiring a WASM test runner in Phase 0.
+/// On `wasm32`, host-visible allocations are owned by the Rust host-buffer
+/// registry. Raw pointer views are accepted only when the requested range lies
+/// inside one live tracked allocation. On native test targets, the historical
+/// bounded arena remains available so pure Rust tests can exercise the ABI
+/// without a WASM runner.
 mod allocator {
     #[cfg(target_arch = "wasm32")]
     pub use wasm::*;
@@ -30,88 +28,58 @@ mod allocator {
 
     #[cfg(target_arch = "wasm32")]
     mod wasm {
-        use crate::{INITIAL_MEMORY_PAGES, MAX_MEMORY_PAGES};
-
-        static mut BUMP: usize = 0;
-
         pub fn reset() {
-            let current_pages = unsafe { core::arch::wasm32::memory_grow(0, 0) };
-            let base = (current_pages * 65536) as usize;
-            unsafe { BUMP = base; }
+            crate::data::column_view::host_buffer_reset();
         }
 
         pub fn alloc(len: u32) -> u32 {
-            let len = len as usize;
-            if len == 0 {
-                return 0;
-            }
-
-            unsafe {
-                let aligned_len = (len + 7) & !7;
-                let ptr = BUMP;
-                let end = ptr + aligned_len;
-                let max = (MAX_MEMORY_PAGES as usize) * 65536;
-                if end > max {
-                    panic!("allocator out of memory");
-                }
-
-                let current_pages = core::arch::wasm32::memory_grow(0, 0);
-                let current_bytes = current_pages * 65536;
-                if end > current_bytes as usize {
-                    let needed_pages = ((end - 1) / 65536 + 1) as usize;
-                    let delta = needed_pages.saturating_sub(current_pages as usize);
-                    let max_delta = (MAX_MEMORY_PAGES - current_pages as u32) as usize;
-                    if delta > max_delta {
-                        panic!("allocator cannot grow memory further");
-                    }
-                    core::arch::wasm32::memory_grow(0, delta as usize);
-                }
-
-                BUMP = end;
-                ptr as u32
-            }
+            crate::data::column_view::host_buffer_alloc(len)
         }
 
         pub fn dealloc(ptr: u32, len: u32) {
-            unsafe {
-                let aligned_len = ((len as usize) + 7) & !7;
-                if (BUMP - aligned_len) == (ptr as usize) {
-                    BUMP -= aligned_len;
-                }
+            crate::data::column_view::host_buffer_dealloc(ptr, len);
+        }
+
+        /// Fallible shared view over a live Rust-tracked host allocation.
+        /// Zero-length reads are represented by the canonical empty slice and
+        /// never construct a Rust reference from a null host pointer.
+        pub unsafe fn try_view<'a>(ptr: u32, len: u32) -> Option<&'a [u8]> {
+            if len == 0 {
+                return Some(&[]);
             }
+            if !crate::data::column_view::host_buffer_contains_range(ptr, len) {
+                return None;
+            }
+            Some(core::slice::from_raw_parts(ptr as *const u8, len as usize))
         }
 
-        /// View `len` bytes starting at `ptr` as a shared WASM memory slice.
-        ///
-        /// # Safety
-        /// Caller supplies `(ptr, len)` from the JS host. As defense-in-depth
-        /// against the JS host and `lib.rs` drifting out of sync, this validates
-        /// that `[ptr, ptr+len)` lies within the current linear memory before
-        /// constructing the slice, panicking cleanly instead of producing an
-        /// out-of-bounds reference (which would be UB and could read arbitrary
-        /// memory on non-wasm targets).
+        /// Fallible mutable view over a live Rust-tracked host allocation.
+        pub unsafe fn try_view_mut<'a>(ptr: u32, len: u32) -> Option<&'a mut [u8]> {
+            if len == 0 {
+                return Some(core::slice::from_raw_parts_mut(
+                    core::ptr::NonNull::<u8>::dangling().as_ptr(),
+                    0,
+                ));
+            }
+            if !crate::data::column_view::host_buffer_contains_range(ptr, len) {
+                return None;
+            }
+            Some(core::slice::from_raw_parts_mut(ptr as *mut u8, len as usize))
+        }
+
+        /// Internal compatibility view. Production host-facing ABIs should use
+        /// `try_view` and return a sentinel on failure rather than trapping.
         pub unsafe fn view<'a>(ptr: u32, len: u32) -> &'a [u8] {
-            let cap = (core::arch::wasm32::memory_grow(0, 0) as usize) * 65536;
-            let end = (ptr as usize).checked_add(len as usize);
-            assert!(
-                end.is_some_and(|e| e <= cap),
-                "WASM view out of bounds: ptr={ptr} len={len} cap={cap}"
-            );
-            core::slice::from_raw_parts(ptr as *const u8, len as usize)
+            try_view(ptr, len).expect("unowned or stale WASM input range")
         }
 
-        /// Mutable view into shared WASM memory. See `view` for bounds checks.
+        /// Internal compatibility mutable view. Production host-facing ABIs
+        /// should use `try_view_mut` so malformed output pointers fail closed.
         pub unsafe fn view_mut<'a>(ptr: u32, len: u32) -> &'a mut [u8] {
-            let cap = (core::arch::wasm32::memory_grow(0, 0) as usize) * 65536;
-            let end = (ptr as usize).checked_add(len as usize);
-            assert!(
-                end.is_some_and(|e| e <= cap),
-                "WASM view_mut out of bounds: ptr={ptr} len={len} cap={cap}"
-            );
-            core::slice::from_raw_parts_mut(ptr as *mut u8, len as usize)
+            try_view_mut(ptr, len).expect("unowned or stale WASM output range")
         }
 
-        /// Allocate and copy `src` into WASM memory. Returns `(ptr, len)`.
+        /// Allocate and copy `src` into tracked WASM memory. Returns `(ptr, len)`.
         pub fn copy_bytes(src: &[u8]) -> (u32, u32) {
             let len = src.len() as u32;
             let ptr = alloc(len);
@@ -171,7 +139,7 @@ mod allocator {
 
             fn dealloc(&mut self, ptr: u32, len: u32) {
                 let aligned_len = ((len as usize) + 7) & !7;
-                if (self.bump - aligned_len) == (ptr as usize) {
+                if aligned_len <= self.bump && (self.bump - aligned_len) == (ptr as usize) {
                     self.bump -= aligned_len;
                 }
             }
@@ -191,35 +159,45 @@ mod allocator {
             HOST_MEMORY.lock().expect("host memory lock").dealloc(ptr, len);
         }
 
-        /// View `len` bytes starting at `ptr` as a slice into the host buffer.
-        ///
-        /// # Safety
-        /// Defense-in-depth bounds check against the host buffer length so a
-        /// mismatched `(ptr, len)` from `lib.rs` panics rather than reading
-        /// past the buffer.
-        pub unsafe fn view<'a>(ptr: u32, len: u32) -> &'a [u8] {
+        pub unsafe fn try_view<'a>(ptr: u32, len: u32) -> Option<&'a [u8]> {
+            if len == 0 {
+                return Some(&[]);
+            }
             let guard = HOST_MEMORY.lock().expect("host memory lock");
             let cap = guard.buffer.len();
             let base = guard.buffer.as_ptr();
-            let end = (ptr as usize).checked_add(len as usize);
-            assert!(
-                end.is_some_and(|e| e <= cap),
-                "host view out of bounds: ptr={ptr} len={len} cap={cap}"
-            );
-            core::slice::from_raw_parts(base.add(ptr as usize), len as usize)
+            let end = (ptr as usize).checked_add(len as usize)?;
+            if end > cap {
+                return None;
+            }
+            Some(core::slice::from_raw_parts(base.add(ptr as usize), len as usize))
         }
 
-        /// Mutable view into the host buffer. See `view` for bounds checks.
-        pub unsafe fn view_mut<'a>(ptr: u32, len: u32) -> &'a mut [u8] {
+        pub unsafe fn try_view_mut<'a>(ptr: u32, len: u32) -> Option<&'a mut [u8]> {
+            if len == 0 {
+                return Some(core::slice::from_raw_parts_mut(
+                    core::ptr::NonNull::<u8>::dangling().as_ptr(),
+                    0,
+                ));
+            }
             let mut guard = HOST_MEMORY.lock().expect("host memory lock");
             let cap = guard.buffer.len();
             let base = guard.buffer.as_mut_ptr();
-            let end = (ptr as usize).checked_add(len as usize);
-            assert!(
-                end.is_some_and(|e| e <= cap),
-                "host view_mut out of bounds: ptr={ptr} len={len} cap={cap}"
-            );
-            core::slice::from_raw_parts_mut(base.add(ptr as usize), len as usize)
+            let end = (ptr as usize).checked_add(len as usize)?;
+            if end > cap {
+                return None;
+            }
+            Some(core::slice::from_raw_parts_mut(base.add(ptr as usize), len as usize))
+        }
+
+        /// View `len` bytes starting at `ptr` as a slice into the host buffer.
+        pub unsafe fn view<'a>(ptr: u32, len: u32) -> &'a [u8] {
+            try_view(ptr, len).expect("host view out of bounds")
+        }
+
+        /// Mutable view into the host buffer.
+        pub unsafe fn view_mut<'a>(ptr: u32, len: u32) -> &'a mut [u8] {
+            try_view_mut(ptr, len).expect("host view_mut out of bounds")
         }
 
         /// Allocate and copy `src` into the host buffer. Returns `(ptr, len)`.
@@ -233,14 +211,8 @@ mod allocator {
     }
 }
 
-/// Initialise the runtime and the WASM memory layout.
-///
-/// Returns a runtime handle. For Phase 0 this is always `1` because only one
-/// runtime instance is supported per module. Future phases will return a real
-/// generation-indexed handle.
-///
-/// # Safety
-/// Must be called once before any other exported function.
+/// Initialise the runtime and invalidate every host-buffer capability issued by
+/// the previous generation.
 #[wasm_bindgen]
 pub fn init(_seed: u64) -> u32 {
     allocator::reset();
@@ -249,25 +221,15 @@ pub fn init(_seed: u64) -> u32 {
 
 // wasm-bindgen automatically exports `memory` on the module instance.
 
-/// Allocate `len` bytes from the bump arena.
-///
-/// Returns the byte offset in WASM memory. The JS host must later call
-/// `dealloc(ptr, len)` to release the region back to the arena.
-///
-/// # Safety
-/// `len` must be > 0. The returned pointer is 8-byte aligned.
+/// Compatibility allocation export. On WASM this is now an alias of the
+/// Rust-tracked host-buffer allocator rather than a separate bump arena.
 #[wasm_bindgen]
 pub fn alloc(len: u32) -> u32 {
     allocator::alloc(len)
 }
 
-/// Release a previous `alloc` allocation back to the bump arena.
-///
-/// # Safety
-/// `ptr` and `len` must match a previous successful call to `alloc` and the
-/// caller must not use the memory afterwards. For Phase 0 this resets the
-/// bump pointer if this allocation was the most recent one; otherwise it is a
-/// no-op. Later phases replace this with a real heap allocator.
+/// Compatibility deallocation export. Unknown, stale or mismatched WASM frees
+/// are ignored by the tracked ownership registry.
 #[wasm_bindgen]
 pub fn dealloc(ptr: u32, len: u32) {
     allocator::dealloc(ptr, len);
@@ -280,14 +242,13 @@ pub fn ping() -> u32 {
     42
 }
 
-/// Write a test pattern into the allocation so the JS host can verify
-/// zero-copy reads. Returns the number of bytes written.
-///
-/// # Safety
-/// `ptr` must point to a region of at least `len` bytes that the JS host owns.
+/// Write a test pattern into a live host allocation. Malformed or stale ranges
+/// fail closed with `0` rather than constructing an invalid Rust slice.
 #[wasm_bindgen]
 pub fn fill_pattern(ptr: u32, len: u32) -> u32 {
-    let slice = unsafe { allocator::view_mut(ptr, len) };
+    let Some(slice) = (unsafe { allocator::try_view_mut(ptr, len) }) else {
+        return 0;
+    };
     for (i, byte) in slice.iter_mut().enumerate() {
         *byte = (i % 256) as u8;
     }
@@ -322,42 +283,23 @@ pub fn update(_delta_ms: f32, _time_ms: f32) -> u32 {
 // ---------------------------------------------------------------------------
 // Capability flags — gradual cutover registry (realigned to .claude/plan.md §6)
 // ---------------------------------------------------------------------------
-//
-// The bitfield matches the spec exactly. Only subsystems whose primary path is
-// genuinely migrated to Rust AND exercised by JS routing are *advertised* in
-// `capabilities()`; the rest are defined so the ordering invariant
-// (`COMMAND_BUFFER` requires `SCENE_RUST`) is expressible and testable, but are
-// NOT advertised until their subsystem is implemented. See plan.md §758-766 for
-// the per-phase default set (Phase 1 = `DATASET_RUST | PARSER_RUST |
-// OPERATIONS_RUST`).
-//
-// Implemented + advertised (Phase 1):
-const CAP_DATASET_RUST: u32 = 1 << 0; // wasm/src/data/dataset.rs
-const CAP_PARSER_RUST: u32 = 1 << 1; // wasm/src/data/parsers.rs
-const CAP_OPERATIONS_RUST: u32 = 1 << 2; // wasm/src/data/operations.rs
-const CAP_MONETA_RUST: u32 = 1 << 3; // wasm/src/moneta/ (formerly Draco)
-const CAP_DRACO_RUST: u32 = CAP_MONETA_RUST; // backward-compat alias
-const CAP_SCENE_RUST: u32 = 1 << 4; // reserved — scene graph still JS. Phase 2.
-const CAP_INPUT_RUST: u32 = 1 << 5; // reserved — input still JS. Phase 4.
-const CAP_NETWORK_RUST: u32 = 1 << 6; // reserved. Phase 5.
-const CAP_COMMAND_BUFFER: u32 = 1 << 7; // reserved — dormant stub; enabled once
-//   `SCENE_RUST` is set (ordering invariant). Phase 2.
-const CAP_INSTANCING: u32 = 1 << 8; // reserved. Phase 2.
-const CAP_WASM_TELEMETRY: u32 = 1 << 9; // reserved. Phase 6.
-// Wave 1 analytical-kernel subsystems — implemented and exported now. These
-// remain *diagnostic telemetry only* until Wave 2 removes the JS routing: the
-// bits describe what the kernel can do, not what `src/` chooses at runtime.
-const CAP_TOPOLOGY_RUST: u32 = 1 << 10; // wasm/src/data/topology.rs (infer + TDA)
-const CAP_TDA_RUST: u32 = 1 << 11; // mapper / persistence / betti0
-const CAP_ENCODINGS_RUST: u32 = 1 << 12; // wasm/src/data/encodings.rs
-const CAP_STATS_RUST: u32 = 1 << 13; // wasm/src/data/statistics.rs (Facts)
-const CAP_SPECTRAL_RUST: u32 = 1 << 14; // wasm/src/data/spectral.rs (FFT)
+const CAP_DATASET_RUST: u32 = 1 << 0;
+const CAP_PARSER_RUST: u32 = 1 << 1;
+const CAP_OPERATIONS_RUST: u32 = 1 << 2;
+const CAP_MONETA_RUST: u32 = 1 << 3;
+const CAP_DRACO_RUST: u32 = CAP_MONETA_RUST;
+const CAP_SCENE_RUST: u32 = 1 << 4;
+const CAP_INPUT_RUST: u32 = 1 << 5;
+const CAP_NETWORK_RUST: u32 = 1 << 6;
+const CAP_COMMAND_BUFFER: u32 = 1 << 7;
+const CAP_INSTANCING: u32 = 1 << 8;
+const CAP_WASM_TELEMETRY: u32 = 1 << 9;
+const CAP_TOPOLOGY_RUST: u32 = 1 << 10;
+const CAP_TDA_RUST: u32 = 1 << 11;
+const CAP_ENCODINGS_RUST: u32 = 1 << 12;
+const CAP_STATS_RUST: u32 = 1 << 13;
+const CAP_SPECTRAL_RUST: u32 = 1 << 14;
 
-/// Return the enabled capability set for the current build. Wave 1 advertises
-/// the data/parser/operations subsystems plus the newly-exported
-/// topology/TDA/encodings/stats/spectral subsystems. The remaining bits (Draco, scene,
-/// input, network, command buffer, instancing, telemetry) are reserved until
-/// their subsystem is genuinely migrated; see the constants above.
 #[wasm_bindgen]
 pub fn capabilities() -> u32 {
     CAP_DATASET_RUST
@@ -370,8 +312,6 @@ pub fn capabilities() -> u32 {
         | CAP_SPECTRAL_RUST
 }
 
-/// Compute 3D grid layout positions in WASM memory.
-/// Writes `count * 3` floats into `out_ptr`.
 #[wasm_bindgen]
 pub fn layout_grid_3d(count: u32, spacing: f32, y_offset: f32, out_ptr: u32) -> u32 {
     let byte_len = match count.checked_mul(12) {
@@ -380,7 +320,9 @@ pub fn layout_grid_3d(count: u32, spacing: f32, y_offset: f32, out_ptr: u32) -> 
     };
     let positions = layouts::compute_grid_3d(count as usize, spacing, y_offset);
     let mut offset = out_ptr as usize;
-    let slice = unsafe { allocator::view_mut(out_ptr, byte_len) };
+    let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, byte_len) }) else {
+        return 0;
+    };
     for pos in positions {
         let bx = pos[0].to_le_bytes();
         let by = pos[1].to_le_bytes();
@@ -394,7 +336,6 @@ pub fn layout_grid_3d(count: u32, spacing: f32, y_offset: f32, out_ptr: u32) -> 
     byte_len
 }
 
-/// Compute 3D force-directed layout positions in WASM memory.
 #[wasm_bindgen]
 pub fn layout_force_directed_3d(
     count: u32,
@@ -422,7 +363,9 @@ pub fn layout_force_directed_3d(
         y_offset,
         1.0,
     );
-    let slice = unsafe { allocator::view_mut(out_ptr, byte_len) };
+    let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, byte_len) }) else {
+        return 0;
+    };
     let mut offset = 0;
     for pos in positions {
         slice[offset..offset + 4].copy_from_slice(&pos[0].to_le_bytes());
@@ -433,19 +376,12 @@ pub fn layout_force_directed_3d(
     byte_len
 }
 
-// ---------------------------------------------------------------------------
-// Phase 1 — data layer exports
-// ---------------------------------------------------------------------------
-
-/// Parse CSV bytes from shared WASM memory and return a dataset handle.
-///
-/// # Safety
-/// `ptr` must point to `len` valid UTF-8 bytes readable by the JS host.
 #[wasm_bindgen]
 pub fn data_load_csv(ptr: u32, len: u32) -> u32 {
-    let bytes = unsafe { allocator::view(ptr, len) };
-    let name = "csv";
-    match data::parsers::parse_csv(bytes, name) {
+    let Some(bytes) = (unsafe { allocator::try_view(ptr, len) }) else {
+        return 0;
+    };
+    match data::parsers::parse_csv(bytes, "csv") {
         Ok(dataset) => data::register_dataset(dataset),
         Err(e) => {
             log_error(&format!("data_load_csv failed: {}", e));
@@ -454,15 +390,12 @@ pub fn data_load_csv(ptr: u32, len: u32) -> u32 {
     }
 }
 
-/// Parse JSON bytes from shared WASM memory and return a dataset handle.
-///
-/// # Safety
-/// `ptr` must point to `len` valid UTF-8 bytes readable by the JS host.
 #[wasm_bindgen]
 pub fn data_load_json(ptr: u32, len: u32) -> u32 {
-    let bytes = unsafe { allocator::view(ptr, len) };
-    let name = "json";
-    match data::parsers::parse_json(bytes, name) {
+    let Some(bytes) = (unsafe { allocator::try_view(ptr, len) }) else {
+        return 0;
+    };
+    match data::parsers::parse_json(bytes, "json") {
         Ok(dataset) => data::register_dataset(dataset),
         Err(e) => {
             log_error(&format!("data_load_json failed: {}", e));
@@ -471,50 +404,55 @@ pub fn data_load_json(ptr: u32, len: u32) -> u32 {
     }
 }
 
-/// Return the number of rows in a dataset. Returns `0` for invalid handles.
 #[wasm_bindgen]
 pub fn dataset_row_count(handle: u32) -> u32 {
     data::with_dataset(handle, |ds| ds.row_count() as u32).unwrap_or(0)
 }
 
-/// Return the number of columns in a dataset. Returns `0` for invalid handles.
 #[wasm_bindgen]
 pub fn dataset_column_count(handle: u32) -> u32 {
     data::with_dataset(handle, |ds| ds.column_count() as u32).unwrap_or(0)
 }
 
-/// Release a dataset handle and its Rust-owned resources.
 #[wasm_bindgen]
 pub fn dataset_destroy(handle: u32) {
     data::destroy_dataset(handle);
 }
 
-/// Serialize a dataset to a JS-compatible JSON string.
-///
-/// Call with `out_len == 0` to get the required byte length, allocate that
-/// many bytes, then call again to write the JSON. Returns the number of bytes
-/// written (or required).
+/// Shared atomic two-call output helper. A short buffer gets the required size
+/// with no write. If the caller claims a large-enough buffer, its pointer must be
+/// a live owned capability or the call fails closed with `0`.
+fn write_bytes_out(bytes: &[u8], out_ptr: u32, out_len: u32) -> u32 {
+    let Ok(required) = u32::try_from(bytes.len()) else {
+        return 0;
+    };
+    if required == 0 {
+        return 0;
+    }
+    if out_len < required {
+        return required;
+    }
+    let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, required) }) else {
+        return 0;
+    };
+    slice.copy_from_slice(bytes);
+    required
+}
+
 #[wasm_bindgen]
 pub fn dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     data::with_dataset(handle, |ds| {
         let json = ds.to_js_json();
-        let bytes = json.as_bytes();
-        if out_len == 0 {
-            return bytes.len() as u32;
-        }
-        let write_len = std::cmp::min(bytes.len(), out_len as usize);
-        let slice = unsafe { allocator::view_mut(out_ptr, write_len as u32) };
-        slice.copy_from_slice(&bytes[..write_len]);
-        write_len as u32
+        write_bytes_out(json.as_bytes(), out_ptr, out_len)
     })
     .unwrap_or(0)
 }
 
-/// Load a JS `Dataset.toJSON()` object back into the Rust data layer and
-/// return a dataset handle. Returns `0` if the JSON is invalid.
 #[wasm_bindgen]
 pub fn data_load_dataset_json(ptr: u32, len: u32) -> u32 {
-    let bytes = unsafe { allocator::view(ptr, len) };
+    let Some(bytes) = (unsafe { allocator::try_view(ptr, len) }) else {
+        return 0;
+    };
     let json = match std::str::from_utf8(bytes) {
         Ok(s) => s,
         Err(_) => return 0,
@@ -528,21 +466,15 @@ pub fn data_load_dataset_json(ptr: u32, len: u32) -> u32 {
     }
 }
 
-/// Apply a generic data operation to a dataset and return a new dataset handle.
-///
-/// `op_ptr` / `op_len` point to a UTF-8 JSON object with a top-level `op`
-/// field. See `data::operations_bridge::Operation` for supported shapes.
-/// Returns `0` on parse or execution failure. On success the kernel records a
-/// provenance envelope (read it via `kernel_provenance`).
 #[wasm_bindgen]
 pub fn data_operation(handle: u32, op_ptr: u32, op_len: u32) -> u32 {
-    let op_bytes = unsafe { allocator::view(op_ptr, op_len) };
+    let Some(op_bytes) = (unsafe { allocator::try_view(op_ptr, op_len) }) else {
+        return 0;
+    };
     let op_json = match std::str::from_utf8(op_bytes) {
         Ok(s) => s,
         Err(_) => return 0,
     };
-    // Parse once as a raw JSON value (for provenance `parameters`) and again as
-    // the typed `Operation` (for execution). `from_value` consumes, so clone.
     let raw: serde_json::Value = match serde_json::from_str(op_json) {
         Ok(v) => v,
         Err(e) => {
@@ -562,24 +494,12 @@ pub fn data_operation(handle: u32, op_ptr: u32, op_len: u32) -> u32 {
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
         .to_string();
-
-    // Input fingerprint (separate lock acquisition — no re-entrancy with apply).
     let input_fp = data::with_dataset(handle, |ds| ds.fingerprint()).unwrap_or_default();
-
-    // Apply the operation inside the registry lock, then release the lock and only
-    // then register the result. Calling `register_dataset` from inside the
-    // `with_dataset` closure would re-enter the same `DATASET_REGISTRY` Mutex,
-    // which is non-reentrant and would deadlock.
     let result = data::with_dataset(handle, |ds| data::operations_bridge::apply(ds, op));
     match result {
         Some(Ok(new_dataset)) => {
             let output_fp = new_dataset.fingerprint();
-            data::provenance::record(
-                &operation_name,
-                raw,
-                &input_fp,
-                &output_fp,
-            );
+            data::provenance::record(&operation_name, raw, &input_fp, &output_fp);
             data::register_dataset(new_dataset)
         }
         Some(Err(e)) => {
@@ -590,11 +510,11 @@ pub fn data_operation(handle: u32, op_ptr: u32, op_len: u32) -> u32 {
     }
 }
 
-/// Load a built-in sample dataset by key and return a dataset handle.
-/// Returns `0` if the key is unknown.
 #[wasm_bindgen]
 pub fn data_load_sample(key_ptr: u32, key_len: u32) -> u32 {
-    let key_bytes = unsafe { allocator::view(key_ptr, key_len) };
+    let Some(key_bytes) = (unsafe { allocator::try_view(key_ptr, key_len) }) else {
+        return 0;
+    };
     let key = match std::str::from_utf8(key_bytes) {
         Ok(k) => k,
         Err(_) => return 0,
@@ -608,55 +528,26 @@ pub fn data_load_sample(key_ptr: u32, key_len: u32) -> u32 {
     }
 }
 
-/// Write the comma-separated list of available sample keys into `out_ptr`.
-/// The host must `alloc` at least 256 bytes. Returns the number of bytes written.
 #[wasm_bindgen]
 pub fn data_sample_keys(out_ptr: u32, out_len: u32) -> u32 {
     let keys = "supply-chain,fraud-graph,sensor-stream,sales-table,org-chart,wind-field,social-graph,financial-series,geo-cities,flow-process";
-    let bytes = keys.as_bytes();
-    let write_len = std::cmp::min(bytes.len(), out_len as usize);
-    let slice = unsafe { allocator::view_mut(out_ptr, write_len as u32) };
-    slice.copy_from_slice(&bytes[..write_len]);
-    write_len as u32
+    write_bytes_out(keys.as_bytes(), out_ptr, out_len)
 }
 
-// ---------------------------------------------------------------------------
-// Wave 1 — analytical kernel exports (topology / TDA / encodings / stats /
-// arrow / radial tree / fingerprint / provenance)
-// ---------------------------------------------------------------------------
-//
-// String/JSON results use the same two-call `(out_ptr, out_len)` protocol as
-// `dataset_to_json`: call with `out_len == 0` to query the required byte
-// length, allocate, then call again to write. Every result-bearing call
-// records a provenance envelope readable via `kernel_provenance`.
-
-/// Write a UTF-8 string into the caller-provided buffer using the two-call
-/// size-query protocol. Returns bytes written, or the required length when
-/// `out_len == 0`.
 fn write_str_out(s: &str, out_ptr: u32, out_len: u32) -> u32 {
-    let bytes = s.as_bytes();
-    if out_len == 0 {
-        return bytes.len() as u32;
-    }
-    let write_len = std::cmp::min(bytes.len(), out_len as usize);
-    let slice = unsafe { allocator::view_mut(out_ptr, write_len as u32) };
-    slice.copy_from_slice(&bytes[..write_len]);
-    write_len as u32
+    write_bytes_out(s.as_bytes(), out_ptr, out_len)
 }
 
-/// Return the canonical kernel version string (`KERNEL_VERSION`).
 #[wasm_bindgen]
 pub fn kernel_version(out_ptr: u32, out_len: u32) -> u32 {
     write_str_out(data::provenance::KERNEL_VERSION, out_ptr, out_len)
 }
 
-/// Return the last recorded provenance envelope as a JSON string (or `""`).
 #[wasm_bindgen]
 pub fn kernel_provenance(out_ptr: u32, out_len: u32) -> u32 {
     write_str_out(&data::provenance::last_json(), out_ptr, out_len)
 }
 
-/// Return the canonical FNV-1a fingerprint of a dataset (8 hex chars).
 #[wasm_bindgen]
 pub fn dataset_fingerprint(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     let fp = data::with_dataset(handle, |ds| ds.fingerprint()).unwrap_or_default();
@@ -669,8 +560,6 @@ pub fn data_typed_dataset_fingerprint(handle: u32, out_ptr: u32, out_len: u32) -
     write_str_out(&fingerprint, out_ptr, out_len)
 }
 
-/// Infer a dataset's topology and return the topology name string
-/// (`TABULAR`/`HIERARCHY`/`GRAPH`/`TIME_SERIES`/`VECTOR_FIELD`/`GEO`/`FLOW`).
 #[wasm_bindgen]
 pub fn data_infer_topology(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     let (topo, input_fp) = match data::with_dataset(handle, |ds| {
@@ -690,8 +579,6 @@ pub fn data_infer_topology(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     write_str_out(&name, out_ptr, out_len)
 }
 
-/// Infer the logical encoding mapping. Pass `topo_len == 0` for the
-/// topology-unaware default, or a topology name for the topology-aware variant.
 #[wasm_bindgen]
 pub fn data_infer_encodings(
     handle: u32,
@@ -700,15 +587,17 @@ pub fn data_infer_encodings(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let (enc, input_fp, params) = match data::with_dataset(handle, |ds| {
-        let explicit = if topo_len > 0 {
-            let bytes = unsafe { allocator::view(topo_ptr, topo_len) };
-            std::str::from_utf8(bytes)
-                .ok()
-                .and_then(data::topology::parse_topology)
-        } else {
-            None
+    let explicit = if topo_len > 0 {
+        let Some(bytes) = (unsafe { allocator::try_view(topo_ptr, topo_len) }) else {
+            return 0;
         };
+        std::str::from_utf8(bytes)
+            .ok()
+            .and_then(data::topology::parse_topology)
+    } else {
+        None
+    };
+    let (enc, input_fp, params) = match data::with_dataset(handle, |ds| {
         let enc = match explicit {
             Some(t) => data::encodings::infer_encodings_for_topology(ds, t),
             None => data::encodings::infer_encodings(ds),
@@ -728,16 +617,13 @@ pub fn data_infer_encodings(
     write_str_out(&json, out_ptr, out_len)
 }
 
-/// Return the column schema as JSON: `[{"name":"…","type":"NUMERIC"}, …]`.
 #[wasm_bindgen]
 pub fn data_infer_schema(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     let (schema_json, input_fp) = match data::with_dataset(handle, |ds| {
         let arr: Vec<serde_json::Value> = ds
             .columns
             .iter()
-            .map(|c| {
-                serde_json::json!({ "name": c.name, "type": c.ty.as_str() })
-            })
+            .map(|c| serde_json::json!({ "name": c.name, "type": c.ty.as_str() }))
             .collect();
         (serde_json::Value::Array(arr), ds.fingerprint())
     }) {
@@ -750,7 +636,6 @@ pub fn data_infer_schema(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     write_str_out(&json, out_ptr, out_len)
 }
 
-/// Compute the full `Facts` statistics block and return it as JSON.
 #[wasm_bindgen]
 pub fn data_statistics(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     let (facts, input_fp) = match data::with_dataset(handle, |ds| {
@@ -765,7 +650,6 @@ pub fn data_statistics(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     write_str_out(&json, out_ptr, out_len)
 }
 
-/// Compute spectral facts via FFT and return as JSON.
 #[wasm_bindgen]
 pub fn data_compute_spectral_facts(
     handle: u32,
@@ -776,20 +660,30 @@ pub fn data_compute_spectral_facts(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
+    let time_col = if time_len > 0 {
+        let Some(bytes) = (unsafe { allocator::try_view(time_ptr, time_len) }) else {
+            return 0;
+        };
+        match std::str::from_utf8(bytes) {
+            Ok(value) => value.to_string(),
+            Err(_) => return 0,
+        }
+    } else {
+        String::new()
+    };
+    let val_col = if val_len > 0 {
+        let Some(bytes) = (unsafe { allocator::try_view(val_ptr, val_len) }) else {
+            return 0;
+        };
+        match std::str::from_utf8(bytes) {
+            Ok(value) => value.to_string(),
+            Err(_) => return 0,
+        }
+    } else {
+        String::new()
+    };
     let (facts_json, input_fp) = match data::with_dataset(handle, |ds| {
-        let time_col = if time_len > 0 {
-            let bytes = unsafe { allocator::view(time_ptr, time_len) };
-            std::str::from_utf8(bytes).unwrap_or("")
-        } else {
-            ""
-        };
-        let val_col = if val_len > 0 {
-            let bytes = unsafe { allocator::view(val_ptr, val_len) };
-            std::str::from_utf8(bytes).unwrap_or("")
-        } else {
-            ""
-        };
-        let facts = data::spectral::compute_spectral_facts(ds, time_col, val_col);
+        let facts = data::spectral::compute_spectral_facts(ds, &time_col, &val_col);
         (facts, ds.fingerprint())
     }) {
         Some(v) => v,
@@ -804,7 +698,6 @@ pub fn data_compute_spectral_facts(
     write_str_out(&json, out_ptr, out_len)
 }
 
-/// Compute full DatasetStructureProfile and return as JSON.
 #[wasm_bindgen]
 pub fn data_compute_structure_profile(
     handle: u32,
@@ -814,15 +707,13 @@ pub fn data_compute_structure_profile(
     if let Some(json) = data::cached_structure_profile_json(handle) {
         return write_str_out(&json, out_ptr, out_len);
     }
-    let Some((snapshot_name, snapshot_columns, snapshot_columnar)) =
-        data::columnar_snapshot(handle)
+    let Some((snapshot_name, snapshot_columns, snapshot_columnar)) = data::columnar_snapshot(handle)
     else {
         return 0;
     };
     let row_profile = data::with_dataset(handle, |ds| {
         let fingerprint = ds.fingerprint();
-        let profile =
-            data::profile::compute_dataset_structure_profile(ds, &fingerprint, "0.1.0");
+        let profile = data::profile::compute_dataset_structure_profile(ds, &fingerprint, "0.1.0");
         (profile, fingerprint)
     });
     let (profile_json, input_fp) = match row_profile {
@@ -876,10 +767,11 @@ pub fn data_compute_structure_profile(
     write_str_out(&json, out_ptr, out_len)
 }
 
-/// Parse an Arrow IPC payload and return a dataset handle. Returns `0` on error.
 #[wasm_bindgen]
 pub fn data_parse_arrow(ptr: u32, len: u32) -> u32 {
-    let bytes = unsafe { allocator::view(ptr, len) };
+    let Some(bytes) = (unsafe { allocator::try_view(ptr, len) }) else {
+        return 0;
+    };
     match data::parsers::parse_arrow(bytes, "arrow") {
         Ok(dataset) => data::register_dataset(dataset),
         Err(e) => {
@@ -911,9 +803,6 @@ fn parse_usize_array(v: &serde_json::Value) -> Vec<usize> {
         .unwrap_or_default()
 }
 
-/// Compute the TDA Mapper graph. `params` JSON:
-/// `{"featureColumns":["x",…],"filterValues":[…],"bins":N,"overlap":F}`.
-/// Returns `{nodes:[…],edges:[[a,b],…]}` JSON.
 #[wasm_bindgen]
 pub fn data_compute_mapper_graph(
     handle: u32,
@@ -922,7 +811,9 @@ pub fn data_compute_mapper_graph(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let params_bytes = unsafe { allocator::view(params_ptr, params_len) };
+    let Some(params_bytes) = (unsafe { allocator::try_view(params_ptr, params_len) }) else {
+        return 0;
+    };
     let params: serde_json::Value = match serde_json::from_slice(params_bytes) {
         Ok(v) => v,
         Err(e) => {
@@ -951,8 +842,6 @@ pub fn data_compute_mapper_graph(
     write_str_out(&json, out_ptr, out_len)
 }
 
-/// Compute 1D persistence intervals. `params` JSON:
-/// `{"featureColumns":[…],"filterValues":[…],"maxDistance":F}`.
 #[wasm_bindgen]
 pub fn data_compute_persistence_intervals(
     handle: u32,
@@ -961,7 +850,9 @@ pub fn data_compute_persistence_intervals(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let params_bytes = unsafe { allocator::view(params_ptr, params_len) };
+    let Some(params_bytes) = (unsafe { allocator::try_view(params_ptr, params_len) }) else {
+        return 0;
+    };
     let params: serde_json::Value = match serde_json::from_slice(params_bytes) {
         Ok(v) => v,
         Err(e) => {
@@ -989,7 +880,6 @@ pub fn data_compute_persistence_intervals(
     write_str_out(&json, out_ptr, out_len)
 }
 
-/// Compute the Betti-0 curve. `params` JSON: `{"featureColumns":[…],"steps":N}`.
 #[wasm_bindgen]
 pub fn data_compute_betti0_curve(
     handle: u32,
@@ -998,7 +888,9 @@ pub fn data_compute_betti0_curve(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let params_bytes = unsafe { allocator::view(params_ptr, params_len) };
+    let Some(params_bytes) = (unsafe { allocator::try_view(params_ptr, params_len) }) else {
+        return 0;
+    };
     let params: serde_json::Value = match serde_json::from_slice(params_bytes) {
         Ok(v) => v,
         Err(e) => {
@@ -1025,9 +917,6 @@ pub fn data_compute_betti0_curve(
     write_str_out(&json, out_ptr, out_len)
 }
 
-/// Compute 3D radial-tree positions. `levels_ptr`/`levels_len` point to a JSON
-/// array of node levels (e.g. `[0,1,1,2]`). Writes `count * 3` little-endian
-/// f32 values into `out_ptr`. Returns the number of bytes written.
 #[wasm_bindgen]
 pub fn data_compute_radial_tree_3d(
     levels_ptr: u32,
@@ -1038,7 +927,9 @@ pub fn data_compute_radial_tree_3d(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let level_bytes = unsafe { allocator::view(levels_ptr, levels_len) };
+    let Some(level_bytes) = (unsafe { allocator::try_view(levels_ptr, levels_len) }) else {
+        return 0;
+    };
     let levels_json: serde_json::Value = match serde_json::from_slice(level_bytes) {
         Ok(v) => v,
         Err(_) => return 0,
@@ -1048,11 +939,16 @@ pub fn data_compute_radial_tree_3d(
         return 0;
     }
     let positions = layouts::compute_radial_tree_3d(&levels, ring_spacing, y_step, y_offset);
-    let needed = positions.len() * 12;
-    if (out_len as usize) < needed {
-        return needed as u32;
+    let needed = positions.len().saturating_mul(12);
+    let Ok(needed) = u32::try_from(needed) else {
+        return 0;
+    };
+    if out_len < needed {
+        return needed;
     }
-    let slice = unsafe { allocator::view_mut(out_ptr, needed as u32) };
+    let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, needed) }) else {
+        return 0;
+    };
     let mut offset = 0usize;
     for pos in positions {
         slice[offset..offset + 4].copy_from_slice(&pos[0].to_le_bytes());
@@ -1060,10 +956,9 @@ pub fn data_compute_radial_tree_3d(
         slice[offset + 8..offset + 12].copy_from_slice(&pos[2].to_le_bytes());
         offset += 12;
     }
-    needed as u32
+    needed
 }
 
-/// Compute 3D time-series ribbon positions.
 #[wasm_bindgen]
 pub fn data_compute_time_ribbon_3d(
     series_ptr: u32,
@@ -1079,7 +974,9 @@ pub fn data_compute_time_ribbon_3d(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let series_bytes = unsafe { allocator::view(series_ptr, series_len) };
+    let Some(series_bytes) = (unsafe { allocator::try_view(series_ptr, series_len) }) else {
+        return 0;
+    };
     let series_json: serde_json::Value = match serde_json::from_slice(series_bytes) {
         Ok(v) => v,
         Err(_) => return 0,
@@ -1089,20 +986,35 @@ pub fn data_compute_time_ribbon_3d(
         return 0;
     }
 
-    let times_bytes = unsafe { allocator::view(times_ptr, times_len) };
-    let times_json: serde_json::Value = serde_json::from_slice(times_bytes).unwrap_or(serde_json::Value::Array(Vec::new()));
+    let Some(times_bytes) = (unsafe { allocator::try_view(times_ptr, times_len) }) else {
+        return 0;
+    };
+    let times_json: serde_json::Value = match serde_json::from_slice(times_bytes) {
+        Ok(value) => value,
+        Err(_) => return 0,
+    };
     let times = parse_f64_array(&times_json);
 
-    let values_bytes = unsafe { allocator::view(values_ptr, values_len) };
-    let values_json: serde_json::Value = serde_json::from_slice(values_bytes).unwrap_or(serde_json::Value::Array(Vec::new()));
+    let Some(values_bytes) = (unsafe { allocator::try_view(values_ptr, values_len) }) else {
+        return 0;
+    };
+    let values_json: serde_json::Value = match serde_json::from_slice(values_bytes) {
+        Ok(value) => value,
+        Err(_) => return 0,
+    };
     let values = parse_f64_array(&values_json);
 
     let positions = layouts::compute_time_ribbon_3d(&series, &times, &values, x_scale, y_scale, z_spacing, y_offset);
-    let needed = positions.len() * 12;
-    if (out_len as usize) < needed {
-        return needed as u32;
+    let needed = positions.len().saturating_mul(12);
+    let Ok(needed) = u32::try_from(needed) else {
+        return 0;
+    };
+    if out_len < needed {
+        return needed;
     }
-    let slice = unsafe { allocator::view_mut(out_ptr, needed as u32) };
+    let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, needed) }) else {
+        return 0;
+    };
     let mut offset = 0usize;
     for pos in positions {
         slice[offset..offset + 4].copy_from_slice(&pos[0].to_le_bytes());
@@ -1110,10 +1022,9 @@ pub fn data_compute_time_ribbon_3d(
         slice[offset + 8..offset + 12].copy_from_slice(&pos[2].to_le_bytes());
         offset += 12;
     }
-    needed as u32
+    needed
 }
 
-/// Compute 3D geospatial surface positions.
 #[wasm_bindgen]
 pub fn data_compute_geo_surface_3d(
     lons_ptr: u32,
@@ -1129,7 +1040,9 @@ pub fn data_compute_geo_surface_3d(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let lons_bytes = unsafe { allocator::view(lons_ptr, lons_len) };
+    let Some(lons_bytes) = (unsafe { allocator::try_view(lons_ptr, lons_len) }) else {
+        return 0;
+    };
     let lons_json: serde_json::Value = match serde_json::from_slice(lons_bytes) {
         Ok(v) => v,
         Err(_) => return 0,
@@ -1139,20 +1052,35 @@ pub fn data_compute_geo_surface_3d(
         return 0;
     }
 
-    let lats_bytes = unsafe { allocator::view(lats_ptr, lats_len) };
-    let lats_json: serde_json::Value = serde_json::from_slice(lats_bytes).unwrap_or(serde_json::Value::Array(Vec::new()));
+    let Some(lats_bytes) = (unsafe { allocator::try_view(lats_ptr, lats_len) }) else {
+        return 0;
+    };
+    let lats_json: serde_json::Value = match serde_json::from_slice(lats_bytes) {
+        Ok(value) => value,
+        Err(_) => return 0,
+    };
     let lats = parse_f64_array(&lats_json);
 
-    let values_bytes = unsafe { allocator::view(values_ptr, values_len) };
-    let values_json: serde_json::Value = serde_json::from_slice(values_bytes).unwrap_or(serde_json::Value::Array(Vec::new()));
+    let Some(values_bytes) = (unsafe { allocator::try_view(values_ptr, values_len) }) else {
+        return 0;
+    };
+    let values_json: serde_json::Value = match serde_json::from_slice(values_bytes) {
+        Ok(value) => value,
+        Err(_) => return 0,
+    };
     let values = parse_f64_array(&values_json);
 
     let positions = layouts::compute_geo_surface_3d(&lons, &lats, &values, room_width, room_depth, height_scale, y_offset);
-    let needed = positions.len() * 12;
-    if (out_len as usize) < needed {
-        return needed as u32;
+    let needed = positions.len().saturating_mul(12);
+    let Ok(needed) = u32::try_from(needed) else {
+        return 0;
+    };
+    if out_len < needed {
+        return needed;
     }
-    let slice = unsafe { allocator::view_mut(out_ptr, needed as u32) };
+    let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, needed) }) else {
+        return 0;
+    };
     let mut offset = 0usize;
     for pos in positions {
         slice[offset..offset + 4].copy_from_slice(&pos[0].to_le_bytes());
@@ -1160,10 +1088,9 @@ pub fn data_compute_geo_surface_3d(
         slice[offset + 8..offset + 12].copy_from_slice(&pos[2].to_le_bytes());
         offset += 12;
     }
-    needed as u32
+    needed
 }
 
-/// Compute 3D streamline coordinates. Returns flat points buffer [x0, y0, z0, ...].
 #[wasm_bindgen]
 pub fn data_compute_streamline_3d(
     count: u32,
@@ -1182,11 +1109,16 @@ pub fn data_compute_streamline_3d(
         seed,
     );
     let total_points: usize = lines.iter().map(|l| l.len()).sum();
-    let needed = total_points * 12;
-    if (out_len as usize) < needed {
-        return needed as u32;
+    let needed = total_points.saturating_mul(12);
+    let Ok(needed) = u32::try_from(needed) else {
+        return 0;
+    };
+    if out_len < needed {
+        return needed;
     }
-    let slice = unsafe { allocator::view_mut(out_ptr, needed as u32) };
+    let Some(slice) = (unsafe { allocator::try_view_mut(out_ptr, needed) }) else {
+        return 0;
+    };
     let mut offset = 0usize;
     for line in lines {
         for pos in line {
@@ -1196,7 +1128,7 @@ pub fn data_compute_streamline_3d(
             offset += 12;
         }
     }
-    needed as u32
+    needed
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -1222,28 +1154,20 @@ mod tests {
     #[test]
     fn capabilities_returns_phase_1_flags() {
         let caps = capabilities();
-        // Phase-1 implemented subsystems are advertised.
         assert!(caps & CAP_DATASET_RUST != 0);
         assert!(caps & CAP_PARSER_RUST != 0);
         assert!(caps & CAP_OPERATIONS_RUST != 0);
-        // Wave 1 analytical subsystems are now implemented + exported.
         assert!(caps & CAP_TOPOLOGY_RUST != 0, "TOPOLOGY_RUST implemented in Wave 1");
         assert!(caps & CAP_TDA_RUST != 0, "TDA_RUST implemented in Wave 1");
         assert!(caps & CAP_ENCODINGS_RUST != 0, "ENCODINGS_RUST implemented in Wave 1");
         assert!(caps & CAP_STATS_RUST != 0, "STATS_RUST implemented in Wave 1");
         assert!(caps & CAP_SPECTRAL_RUST != 0, "SPECTRAL_RUST implemented in Phase 5");
-        // Honesty lock: reserved / unimplemented bits are NOT advertised. This
-        // catches a future regression that re-adds a premature or false claim.
         assert_eq!(caps & CAP_DRACO_RUST, 0, "DRACO_RUST not yet migrated");
         assert_eq!(caps & CAP_SCENE_RUST, 0, "SCENE_RUST not yet migrated");
         assert_eq!(caps & CAP_COMMAND_BUFFER, 0, "COMMAND_BUFFER is dormant");
         assert_eq!(caps & CAP_INSTANCING, 0, "INSTANCING not yet migrated");
     }
 
-    /// The spec ordering invariant: `COMMAND_BUFFER` must not be advertised
-    /// unless `SCENE_RUST` is also set (plan.md §751: "enabled once Scene is
-    /// Rust"). Encoded here so a future PR that enables `COMMAND_BUFFER`
-    /// without `SCENE_RUST` fails CI.
     fn enforce_command_buffer_ordering(caps: u32) -> bool {
         if caps & CAP_COMMAND_BUFFER != 0 {
             caps & CAP_SCENE_RUST != 0
@@ -1254,20 +1178,13 @@ mod tests {
 
     #[test]
     fn command_buffer_requires_scene_rust_invariant() {
-        // The real advertised set satisfies the invariant (COMMAND_BUFFER is off).
         assert!(enforce_command_buffer_ordering(capabilities()));
-        // A synthetic set with COMMAND_BUFFER but no SCENE_RUST violates it.
         assert!(!enforce_command_buffer_ordering(CAP_COMMAND_BUFFER));
-        // COMMAND_BUFFER together with SCENE_RUST satisfies it.
-        assert!(enforce_command_buffer_ordering(
-            CAP_COMMAND_BUFFER | CAP_SCENE_RUST
-        ));
+        assert!(enforce_command_buffer_ordering(CAP_COMMAND_BUFFER | CAP_SCENE_RUST));
     }
 
     #[test]
     fn command_buffer_ptr_is_dormant_zero() {
-        // The command buffer is dormant: command_buffer_ptr() returns the 0
-        // sentinel, not a Vec heap pointer. See command_buffer_ptr doc comment.
         assert_eq!(command_buffer_ptr(), 0);
     }
 
@@ -1340,10 +1257,11 @@ mod tests {
 
     #[test]
     fn data_sample_keys_writes_list() {
-        let buf_len = 256;
-        let buf = alloc(buf_len);
-        let written = data_sample_keys(buf, buf_len);
-        assert!(written > 0);
+        let required = data_sample_keys(0, 0);
+        assert!(required > 0);
+        let buf = alloc(required);
+        let written = data_sample_keys(buf, required);
+        assert_eq!(written, required);
         let slice = unsafe { allocator::view(buf, written) };
         let s = std::str::from_utf8(slice).expect("utf8");
         for key in [
@@ -1358,9 +1276,9 @@ mod tests {
             "geo-cities",
             "flow-process",
         ] {
-            assert!(s.contains(key), "missing sample key: {}", key);
+            assert!(s.contains(key, ), "missing sample key: {}", key);
         }
-        dealloc(buf, buf_len);
+        dealloc(buf, required);
     }
 
     #[test]
@@ -1521,12 +1439,6 @@ mod tests {
     }
 }
 
-// ─── Draco Constraint Solver ABI ────────────────────────────────────────────
-
-/// Solve the Draco constraint engine for the best VR specification.
-/// Input: JSON-encoded DracoFacts at (facts_ptr, facts_len).
-/// Output: JSON-encoded SolverResult written to (out_ptr, out_len).
-/// Returns the number of bytes needed. If out_len is too small, no write occurs.
 #[no_mangle]
 pub extern "C" fn draco_solve(
     facts_ptr: u32,
@@ -1534,7 +1446,9 @@ pub extern "C" fn draco_solve(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let facts_bytes = unsafe { allocator::view(facts_ptr, facts_len) };
+    let Some(facts_bytes) = (unsafe { allocator::try_view(facts_ptr, facts_len) }) else {
+        return 0;
+    };
     let facts: draco::types::DracoFacts = match serde_json::from_slice(facts_bytes) {
         Ok(f) => f,
         Err(_) => return 0,
@@ -1547,17 +1461,9 @@ pub extern "C" fn draco_solve(
         Ok(j) => j,
         Err(_) => return 0,
     };
-    let needed = json.len() as u32;
-    if out_len >= needed && out_ptr != 0 {
-        let slice = unsafe { allocator::view_mut(out_ptr, needed) };
-        slice.copy_from_slice(&json);
-    }
-    needed
+    write_bytes_out(&json, out_ptr, out_len)
 }
 
-/// Evaluate a single Draco candidate spec against facts.
-/// Input: JSON at (input_ptr, input_len) with shape {facts, spec}.
-/// Output: JSON at (out_ptr, out_len) with shape {valid, cost, violations}.
 #[no_mangle]
 pub extern "C" fn draco_evaluate_candidate(
     input_ptr: u32,
@@ -1565,7 +1471,9 @@ pub extern "C" fn draco_evaluate_candidate(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let bytes = unsafe { allocator::view(input_ptr, input_len) };
+    let Some(bytes) = (unsafe { allocator::try_view(input_ptr, input_len) }) else {
+        return 0;
+    };
     #[derive(serde::Deserialize)]
     struct Input {
         facts: draco::types::DracoFacts,
@@ -1575,25 +1483,16 @@ pub extern "C" fn draco_evaluate_candidate(
         Ok(i) => i,
         Err(_) => return 0,
     };
-    let (valid, cost, violations) =
-        draco::solver::evaluate_candidate(&input.facts, &input.spec);
+    let (valid, cost, violations) = draco::solver::evaluate_candidate(&input.facts, &input.spec);
     let output = serde_json::json!({
         "valid": valid,
         "cost": cost,
         "violations": violations,
     });
     let json = serde_json::to_vec(&output).unwrap_or_default();
-    let needed = json.len() as u32;
-    if out_len >= needed && out_ptr != 0 {
-        let slice = unsafe { allocator::view_mut(out_ptr, needed) };
-        slice.copy_from_slice(&json);
-    }
-    needed
+    write_bytes_out(&json, out_ptr, out_len)
 }
 
-/// Adjust a Draco candidate cost with Bayesian evidence.
-/// Input: JSON at (input_ptr, input_len) with shape {baseCost, evidence}.
-/// Output: JSON at (out_ptr, out_len) with shape {adjustedCost, delta}.
 #[no_mangle]
 pub extern "C" fn draco_adjust_evidence(
     input_ptr: u32,
@@ -1601,7 +1500,9 @@ pub extern "C" fn draco_adjust_evidence(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let bytes = unsafe { allocator::view(input_ptr, input_len) };
+    let Some(bytes) = (unsafe { allocator::try_view(input_ptr, input_len) }) else {
+        return 0;
+    };
     #[derive(serde::Deserialize)]
     #[serde(rename_all = "camelCase")]
     struct Input {
@@ -1621,19 +1522,9 @@ pub extern "C" fn draco_adjust_evidence(
         "delta": delta,
     });
     let json = serde_json::to_vec(&output).unwrap_or_default();
-    let needed = json.len() as u32;
-    if out_len >= needed && out_ptr != 0 {
-        let slice = unsafe { allocator::view_mut(out_ptr, needed) };
-        slice.copy_from_slice(&json);
-    }
-    needed
+    write_bytes_out(&json, out_ptr, out_len)
 }
 
-// ─── Intent Compiler ABI ────────────────────────────────────────────────────
-
-/// Compile a natural language query into a deterministic ParsedIntent.
-/// Input: JSON at (input_ptr, input_len) with shape {query, schema}.
-/// Output: JSON at (out_ptr, out_len) with ParsedIntent.
 #[no_mangle]
 pub extern "C" fn intent_compile(
     input_ptr: u32,
@@ -1641,7 +1532,9 @@ pub extern "C" fn intent_compile(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let bytes = unsafe { allocator::view(input_ptr, input_len) };
+    let Some(bytes) = (unsafe { allocator::try_view(input_ptr, input_len) }) else {
+        return 0;
+    };
     #[derive(serde::Deserialize)]
     struct Input {
         query: String,
@@ -1653,20 +1546,9 @@ pub extern "C" fn intent_compile(
     };
     let result = intent::compiler::compile_intent(&input.query, &input.schema);
     let json = serde_json::to_vec(&result).unwrap_or_default();
-    let needed = json.len() as u32;
-    if out_len >= needed && out_ptr != 0 {
-        let slice = unsafe { allocator::view_mut(out_ptr, needed) };
-        slice.copy_from_slice(&json);
-    }
-    needed
+    write_bytes_out(&json, out_ptr, out_len)
 }
 
-// ─── Structure Discovery ABI ────────────────────────────────────────────────
-
-/// Discover structures from cluster assignments.
-/// Input: JSON at (input_ptr, input_len) with shape
-///   {assignments, datumIds, fingerprint, version, algorithmVersion, parameters}.
-/// Output: JSON at (out_ptr, out_len) with StructureSet.
 #[no_mangle]
 pub extern "C" fn atlas_discover_structures(
     input_ptr: u32,
@@ -1674,7 +1556,9 @@ pub extern "C" fn atlas_discover_structures(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let bytes = unsafe { allocator::view(input_ptr, input_len) };
+    let Some(bytes) = (unsafe { allocator::try_view(input_ptr, input_len) }) else {
+        return 0;
+    };
     #[derive(serde::Deserialize)]
     #[serde(rename_all = "camelCase")]
     struct Input {
@@ -1698,10 +1582,5 @@ pub extern "C" fn atlas_discover_structures(
         &input.parameters,
     );
     let json = serde_json::to_vec(&result).unwrap_or_default();
-    let needed = json.len() as u32;
-    if out_len >= needed && out_ptr != 0 {
-        let slice = unsafe { allocator::view_mut(out_ptr, needed) };
-        slice.copy_from_slice(&json);
-    }
-    needed
+    write_bytes_out(&json, out_ptr, out_len)
 }
