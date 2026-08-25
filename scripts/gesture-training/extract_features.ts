@@ -9,8 +9,8 @@ import { createReadStream, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
-import { GESTURE_CLASSES, type GestureClass, type HandFrame } from '../src/contracts.ts';
-import { extractFeatures } from '../src/features.ts';
+import { GESTURE_CLASSES, type GestureClass, type HandFrame } from '../../src/gesture/contracts.ts';
+import { extractFeatures } from '../../src/gesture/features.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(HERE, '_output');

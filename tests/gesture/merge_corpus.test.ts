@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { mergeCorpus } from '../training/merge_corpus.ts';
-import type { RawInstance } from '../src/capture.ts';
+import { mergeCorpus } from '../../scripts/gesture-training/merge_corpus.ts';
+import type { RawInstance } from '../../src/gesture/capture.ts';
 
 function fakeInstance(label: RawInstance['label'], n: number): RawInstance {
   const left = [];

@@ -11,8 +11,8 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { GestureClass } from '../src/contracts.ts';
-import type { RawInstance, RawPoint } from '../src/capture.ts';
+import type { GestureClass } from '../../src/gesture/contracts.ts';
+import type { RawInstance, RawPoint } from '../../src/gesture/capture.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '_output');

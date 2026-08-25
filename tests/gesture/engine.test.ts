@@ -1,5 +1,6 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { createGestureEngine } from '../src/engine.ts';
+import { createGestureEngine } from '../../src/gesture/engine.ts';
 import type {
   GesturePersistence,
   GestureEngine,
@@ -9,7 +10,7 @@ import type {
   PersonalizerPort,
   PersonalizationResult,
   StoredProfile,
-} from '../src/contracts.ts';
+} from '../../src/gesture/contracts.ts';
 
 const clock = () => 0;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CaptureRecorder, serializeRawJsonl, type RawInstance } from '../src/capture.ts';
-import type { HandSample } from '../src/contracts.ts';
+import { CaptureRecorder, serializeRawJsonl, type RawInstance } from '../../src/gesture/capture.ts';
+import type { HandSample } from '../../src/gesture/contracts.ts';
 
 function sample(hand: 'left' | 'right', i: number, pinched = false): HandSample {
   return {

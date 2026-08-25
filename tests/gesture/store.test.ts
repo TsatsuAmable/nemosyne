@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
-import { createPersistence, deleteDatabase } from '../src/store.ts';
-import type { StoredProfile } from '../src/contracts.ts';
+import { createPersistence, deleteDatabase } from '../../src/gesture/store.ts';
+import type { StoredProfile } from '../../src/gesture/contracts.ts';
 
 let dbNameSeq = 0;
 const nextDbName = (): string => `gesture_store_test_${++dbNameSeq}`;

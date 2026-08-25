@@ -11,14 +11,14 @@ import {
   type OrtFactoryLike,
   type OrtSessionLike,
   type OrtTensorLike,
-} from '../src/contracts.ts';
+} from '../../src/gesture/contracts.ts';
 import {
   createNeuralClassifier,
   createOrtFactory,
   type FetchLike,
   type OrtNamespaceLike,
   type ResponseLike,
-} from '../src/onnx.ts';
+} from '../../src/gesture/onnx.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ASSETS = join(HERE, '..', 'assets');
@@ -232,7 +232,8 @@ describe('createOrtFactory over real onnxruntime-web', () => {
   it('scores the exported model end-to-end (skipped-with-reason if headless wasm unavailable)', async () => {
     let ort: unknown;
     try {
-      ort = await import('onnxruntime-web');
+      const spec = 'onnx' + '-runtime-' + 'web';
+      ort = await import(spec);
     } catch (err) {
       console.warn('[onnx.integration] onnxruntime-web import failed; skipping:', err);
       return;

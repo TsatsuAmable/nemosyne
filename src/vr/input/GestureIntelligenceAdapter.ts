@@ -21,7 +21,7 @@ import {
   type HandSample,
   type Provenance,
   type RawInstance,
-} from '../../../modules/gesture-intelligence/src/index.ts';
+} from '../../gesture/index.ts';
 import type { HandLike } from '../coordinators/types.ts';
 
 export interface GestureIntelligenceAdapterOptions extends EngineOptions {

@@ -7,7 +7,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GESTURE_CLASSES } from '../src/contracts.ts';
+import { GESTURE_CLASSES } from '../../src/gesture/contracts.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '_output');

@@ -1,7 +1,0 @@
-node_modules/
-dist/
-coverage/
-.venv/
-training/_output/
-demo/public/ort-wasm/
-*.log

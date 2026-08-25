@@ -36,10 +36,10 @@
         "./node_modules/@types/three"
       ],
       "@nemosyne/gesture-intelligence": [
-        "./modules/gesture-intelligence/src/index.ts"
+        "./src/gesture/index.ts"
       ],
       "@nemosyne/gesture-intelligence/*": [
-        "./modules/gesture-intelligence/src/*"
+        "./src/gesture/*"
       ]
     }
   },
@@ -47,9 +47,9 @@
     "src/**/*",
     "tests/**/*",
     "dev/**/*",
+    "scripts/**/*.ts",
     "vite.config.ts",
-    "vitest*.config.ts",
-    "modules/gesture-intelligence/src/**/*"
+    "vitest*.config.ts"
   ],
   "exclude": [
     "node_modules",

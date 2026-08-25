@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createCalibrationState } from '../src/calibration.ts';
-import { createPersonalizer } from '../src/personalizer.ts';
-import type { FeedbackSample, GestureClass } from '../src/contracts.ts';
+import { createCalibrationState } from '../../src/gesture/calibration.ts';
+import { createPersonalizer } from '../../src/gesture/personalizer.ts';
+import type { FeedbackSample, GestureClass } from '../../src/gesture/contracts.ts';
 
 function scoopFeatures(strong = true): Float32Array {
   const f = new Float32Array(56);

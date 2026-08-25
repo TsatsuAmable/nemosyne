@@ -4,8 +4,8 @@ import {
   effectiveMoveThreshold,
   speedMultiplier,
   updateCalibration,
-} from '../src/calibration.ts';
-import type { HandFrame, HandSample } from '../src/contracts.ts';
+} from '../../src/gesture/calibration.ts';
+import type { HandFrame, HandSample } from '../../src/gesture/contracts.ts';
 
 const clock = () => 1234;
 

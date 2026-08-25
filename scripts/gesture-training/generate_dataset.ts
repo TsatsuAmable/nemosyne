@@ -10,7 +10,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GESTURE_CLASSES, type GestureClass } from '../src/contracts.ts';
+import { GESTURE_CLASSES, type GestureClass } from '../../src/gesture/contracts.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(HERE, '_output');
@@ -86,8 +86,8 @@ function easeInOut(rng: Rng): (t: number) => number {
 function buildInstance(
   rng: Rng,
   frames: number,
-  leftStart: Vec3,
-  rightStart: Vec3,
+  _leftStart: Vec3,
+  _rightStart: Vec3,
   move: (p: number) => { l: Vec3; r: Vec3; lPinch: boolean; rPinch: boolean },
   label: GestureClass
 ): Instance {

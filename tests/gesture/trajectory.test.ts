@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { TrajectoryBuffer } from '../src/trajectory.ts';
-import type { HandSample } from '../src/contracts.ts';
+import { TrajectoryBuffer } from '../../src/gesture/trajectory.ts';
+import type { HandSample } from '../../src/gesture/contracts.ts';
 
 function sample(hand: string, x: number, t: number, pinched = false): HandSample {
   return { hand, position: { x, y: 0, z: 0 }, pinched, timestamp: t };

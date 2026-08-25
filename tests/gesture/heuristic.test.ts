@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { classifyHeuristic, idleConfidence } from '../src/heuristic.ts';
-import { createCalibrationState } from '../src/calibration.ts';
-import { GESTURE_CLASSES, type GestureClass } from '../src/contracts.ts';
+import { classifyHeuristic, idleConfidence } from '../../src/gesture/heuristic.ts';
+import { createCalibrationState } from '../../src/gesture/calibration.ts';
+import { GESTURE_CLASSES, type GestureClass } from '../../src/gesture/contracts.ts';
 
 function featuresFor(gesture: GestureClass, magnitude = 0.3): Float32Array {
   const f = new Float32Array(56);

@@ -6,7 +6,7 @@
  * bounded batching, and deduplication.
  */
 
-import type { GestureClass } from '../../../modules/gesture-intelligence/src/contracts.ts';
+import type { GestureClass } from '../../gesture/contracts.ts';
 import { sha256Hex } from '../../security/CryptoHash.ts';
 
 export interface TierARecord {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { decimate, extractFeatures } from '../src/features.ts';
-import type { HandFrame } from '../src/contracts.ts';
+import { decimate, extractFeatures } from '../../src/gesture/features.ts';
+import type { HandFrame } from '../../src/gesture/contracts.ts';
 
 function frame(
   x: number,

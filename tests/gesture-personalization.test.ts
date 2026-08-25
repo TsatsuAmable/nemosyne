@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { GestureIntelligenceAdapter } from '../src/vr/input/GestureIntelligenceAdapter.ts';
-import { createPersistence } from '../modules/gesture-intelligence/src/store.ts';
+import { createPersistence } from '../src/gesture/store.ts';
 
 describe('In-Experience Gesture Capture & Personalization Loop', () => {
   it('captures raw gesture trajectories and formats raw instances', () => {

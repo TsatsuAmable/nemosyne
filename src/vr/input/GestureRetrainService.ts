@@ -13,7 +13,7 @@ import {
   GESTURE_CLASSES,
   type GestureClass,
   type ModelCard,
-} from '../../../modules/gesture-intelligence/src/contracts.ts';
+} from '../../gesture/contracts.ts';
 
 export type DeploymentStage = 'candidate' | 'shadow' | 'canary' | 'rollout' | 'archived';
 
