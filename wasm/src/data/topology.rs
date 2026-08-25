@@ -405,6 +405,8 @@ pub fn compute_mapper_graph_space(
         }
     }
 
+    edges.sort();
+
     TdaMapperGraph { nodes, edges }
 }
 

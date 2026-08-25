@@ -88,7 +88,10 @@ function candidateKey(candidate: Pick<CandidateScore, 'candidateId' | 'layout'>)
   return `${candidate.candidateId}:${candidate.layout}`;
 }
 
-function geometryForLayout(layout: VRLayout): VRGeometry {
+function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentationId): VRGeometry {
+  if (candidateId === 'AGGREGATE_VOLUME') return 'AGGREGATE_BARS';
+  if (candidateId === 'CLUSTER_REGIONS') return 'CLUSTER_VOLUME';
+  if (candidateId === 'DENSITY_FIELD' || candidateId === 'DISTRIBUTION_FIELD') return 'DENSITY_FIELD';
   switch (layout) {
     case 'GEO_SURFACE':
       return 'GEO_COLUMN';
@@ -213,7 +216,7 @@ export class MonetaHypothesisEngine {
       `Preserves: [${candidateDef.preserves.join(', ')}]. ` +
       `Declared losses: [${candidateDef.loses.join(', ')}].`;
 
-    const primaryGeometry = geometryForLayout(winner.layout);
+    const primaryGeometry = geometryForLayout(winner.layout, winner.candidateId);
     const primaryBehavior: VRBehavior =
       winner.layout === 'TIME_RIBBON'
         ? 'PULSE_QUANTITATIVE'
