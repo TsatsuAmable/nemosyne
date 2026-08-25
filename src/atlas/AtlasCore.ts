@@ -151,6 +151,10 @@ export class AtlasCore {
     return this._aggregate.analytical.current;
   }
 
+  get hasDataset(): boolean {
+    return this._aggregate.analytical.hasDataset;
+  }
+
   get datasetSpace(): DatasetSpace | null {
     return this._aggregate.analytical.getDatasetSpace(
       () => this._kernelFingerprint(),
@@ -656,14 +660,23 @@ export class AtlasCore {
     dataset: Dataset,
     params: Record<string, unknown>
   ): PersistenceInterval[] | null {
+    if (dataset === this._aggregate.analytical.currentNullable) {
+      return this._analytics.computePersistenceIntervalsForHandle(this._ensureHandle(), params);
+    }
     return this._analytics.computePersistenceIntervals(dataset.toJSON(), params);
   }
 
   computeMapperGraph(dataset: Dataset, params: Record<string, unknown>): TdaMapperGraph | null {
+    if (dataset === this._aggregate.analytical.currentNullable) {
+      return this._analytics.computeMapperGraphForHandle(this._ensureHandle(), params);
+    }
     return this._analytics.computeMapperGraph(dataset.toJSON(), params);
   }
 
   computeBetti0Curve(dataset: Dataset, params: Record<string, unknown>): BettiPoint[] | null {
+    if (dataset === this._aggregate.analytical.currentNullable) {
+      return this._analytics.computeBetti0CurveForHandle(this._ensureHandle(), params);
+    }
     return this._analytics.computeBetti0Curve(dataset.toJSON(), params);
   }
 

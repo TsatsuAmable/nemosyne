@@ -50,7 +50,8 @@ export class WorldRendererLifecycle {
       this.tdaRecompute = null;
     }
 
-    const dataset = this.getOriginalDataset();
+    const atlas = this.getAtlas();
+    const dataset = atlas?.hasDataset ? atlas.dataset : this.getOriginalDataset();
     if (!dataset || dataset.numericColumns.length === 0) return;
 
     const numericNames = dataset.numericColumns.map((column) => column.name);
@@ -58,7 +59,7 @@ export class WorldRendererLifecycle {
       dataset,
       numericNames.slice(0, 3),
       numericNames[0],
-      this.getAtlas()
+      atlas
     );
     this.tdaGroup = summary.group;
     this.tdaRecompute = summary.recompute;
