@@ -18,6 +18,13 @@ function repoPath(path: string): string {
   return relative(repoRoot, path).replaceAll('\\', '/');
 }
 
+function productionSource(source: string): string {
+  // Raw allocator helpers remain useful inside native-only tests for inspecting
+  // sentinel buffers. SEC-02 governs the host-facing production boundary, so
+  // exclude the conventional trailing cfg(test) module from those assertions.
+  return source.replace(/\n#\[cfg\(test\)\]\s*\nmod tests\s*\{[\s\S]*$/, '');
+}
+
 const sources = rustFiles(wasmSourceRoot).map((path) => ({
   path: repoPath(path),
   source: readFileSync(path, 'utf8'),
@@ -34,7 +41,7 @@ const expectedUnsafeFiles = [
 describe('Rust/WASM unsafe inventory', () => {
   it('keeps the unsafe source set explicit and non-expanding', () => {
     const actualUnsafeFiles = sources
-      .filter(({ source }) => /\bunsafe\s*(?:fn|\{)/.test(source))
+      .filter(({ source }) => /\bunsafe\s*(?:fn|\{)/.test(productionSource(source)))
       .map(({ path }) => path);
 
     expect(actualUnsafeFiles).toEqual([...expectedUnsafeFiles]);
@@ -43,13 +50,14 @@ describe('Rust/WASM unsafe inventory', () => {
   it('keeps host-facing raw ranges on fallible tracked ownership checks', () => {
     for (const { path, source } of sources) {
       if (path === 'wasm/src/lib.rs') continue;
-      expect(source, path).not.toMatch(/allocator::view\s*\(/);
-      expect(source, path).not.toMatch(/allocator::view_mut\s*\(/);
+      const production = productionSource(source);
+      expect(production, path).not.toMatch(/allocator::view\s*\(/);
+      expect(production, path).not.toMatch(/allocator::view_mut\s*\(/);
     }
   });
 
   it('does not reconstruct caller-controlled global allocator metadata', () => {
-    const joined = sources.map(({ source }) => source).join('\n');
+    const joined = sources.map(({ source }) => productionSource(source)).join('\n');
     expect(joined).not.toMatch(/std::alloc::[^;\n]*\bdealloc\b/);
     expect(joined).not.toMatch(/\bdealloc\s*\([^)]*Layout/);
     expect(joined).not.toMatch(/\balloc_zeroed\b/);
