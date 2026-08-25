@@ -122,6 +122,9 @@ jobs:
           NEMOSYNE_SMOKE_PREBUILT: '1'
         run: npm run test:smoke
 
+      - name: Run collaboration recovery smoke
+        run: npm run test:smoke:collaboration
+
   required:
     name: Node 24
     if: ${{ always() }}
