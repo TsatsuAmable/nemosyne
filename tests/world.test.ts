@@ -911,7 +911,7 @@ describe('World integration', () => {
         JSON.stringify({
           roomId: 'presence-room',
           from: 'peerB',
-          data: { type: 'join' },
+          data: { type: 'join', role: 'participant' },
         })
       );
 

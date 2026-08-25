@@ -215,7 +215,7 @@ describe('NetworkManager', () => {
     mockWs._open();
     await promise;
 
-    mockWs._message({ roomId: 'room1', from: 'peerB', data: { type: 'join' } });
+    mockWs._message({ roomId: 'room1', from: 'peerB', data: { type: 'join', role: 'participant' } });
 
     expect(manager.connections.has('peerB')).toBe(true);
   });
@@ -228,7 +228,7 @@ describe('NetworkManager', () => {
     mockWs._open();
     await promise;
 
-    mockWs._message({ roomId: 'room1', from: 'peerB', data: { type: 'join' } });
+    mockWs._message({ roomId: 'room1', from: 'peerB', data: { type: 'join', role: 'participant' } });
     const channel = manager.channels.get('peerB') as unknown as MockDataChannel;
     channel.readyState = 'open';
     channel.dispatchEvent(new Event('open'));
@@ -245,7 +245,7 @@ describe('NetworkManager', () => {
     mockWs._open();
     await promise;
 
-    mockWs._message({ roomId: 'room1', from: 'peerB', data: { type: 'join' } });
+    mockWs._message({ roomId: 'room1', from: 'peerB', data: { type: 'join', role: 'participant' } });
     const channel = manager.channels.get('peerB') as unknown as MockDataChannel;
     channel.readyState = 'open';
     channel.dispatchEvent(new Event('open'));
@@ -305,7 +305,7 @@ describe('NetworkManager', () => {
     mockWs._open();
     await promise;
 
-    mockWs._message({ roomId: 'room1', from: 'peerB', data: { type: 'join' } });
+    mockWs._message({ roomId: 'room1', from: 'peerB', data: { type: 'join', role: 'participant' } });
     const channel = manager.channels.get('peerB') as unknown as MockDataChannel;
     channel.readyState = 'open';
     channel.dispatchEvent(new Event('open'));
