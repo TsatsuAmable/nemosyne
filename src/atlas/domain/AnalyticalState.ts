@@ -35,7 +35,19 @@ export class AnalyticalState {
   get currentHandle(): number { return this._currentHandle; }
   get hasDataset(): boolean { return this._current !== null; }
 
+  private _sourceRef: WeakRef<Dataset> | null = null;
+
+  /**
+   * True when `dataset` is the exact instance a caller handed to
+   * loadDataset/setCurrentDataset/advanceDataset. WeakRef: identity check
+   * only — never retains the caller's copy and never serializes it.
+   */
+  matchesLoadedSource(dataset: Dataset): boolean {
+    return this._sourceRef?.deref() === dataset;
+  }
+
   loadDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
+    this._sourceRef = dataset ? new WeakRef(dataset) : null;
     this._original = dataset?.clone?.() ?? emptyDataset();
     this._current = this._original.clone();
     this._datasetVersion += 1;
@@ -45,6 +57,7 @@ export class AnalyticalState {
 
   commitKernelResult(options: KernelCommitOptions, destroyer?: (handle: number) => void): void {
     const { handle, dataset, fingerprint, versionBump = true } = options;
+    this._sourceRef = null;
     const nextDataset = dataset?.clone?.() ?? emptyDataset();
     if (this._currentHandle !== 0 && this._currentHandle !== handle && destroyer) {
       try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
@@ -57,6 +70,7 @@ export class AnalyticalState {
   }
 
   advanceDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
+    this._sourceRef = dataset ? new WeakRef(dataset) : null;
     this._current = dataset?.clone?.() ?? emptyDataset();
     this._datasetVersion += 1;
     this.invalidateHandle(destroyer);
@@ -64,6 +78,7 @@ export class AnalyticalState {
   }
 
   setCurrentDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
+    this._sourceRef = dataset ? new WeakRef(dataset) : null;
     const next = dataset?.clone?.() ?? emptyDataset();
     const changed = this._datasetSpaceSource !== next;
     this._current = next;
@@ -72,6 +87,7 @@ export class AnalyticalState {
   }
 
   restore(original: Dataset | null, current: Dataset | null, version: number, destroyer?: (handle: number) => void): void {
+    this._sourceRef = null;
     this._original = original;
     this._current = current;
     this._datasetVersion = version;

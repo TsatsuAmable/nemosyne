@@ -76,30 +76,40 @@ describe('TDAPlanes', () => {
     expect(() => tda.recompute()).not.toThrow();
   });
 
-  it('recomputes TDA through AtlasCore when a kernel is wired (Wave 6 routing)', () => {
-    const ds = makeDataset([
+  it('recomputes TDA through the current Atlas capability without JS filter materialisation', () => {
+    const source = makeDataset([
       { x: 0, y: 0 },
       { x: 1, y: 1 },
     ]);
     const atlas = new AtlasCore({ kernel: makeKernelMockBridge() });
+    atlas.loadDataset(source);
+    const current = atlas.dataset;
     const persistenceSpy = vi.spyOn(atlas, 'computePersistenceIntervals');
     const mapperSpy = vi.spyOn(atlas, 'computeMapperGraph');
     const bettiSpy = vi.spyOn(atlas, 'computeBetti0Curve');
 
-    const tda = buildTDASummaryGroup(ds, ['x', 'y'], 'x', atlas);
+    const tda = buildTDASummaryGroup(current, ['x', 'y'], 'x', atlas);
     expect(() => tda.recompute()).not.toThrow();
 
     expect(persistenceSpy).toHaveBeenCalledWith(
-      ds,
+      current,
       expect.objectContaining({ featureColumns: ['x', 'y'] })
     );
     expect(mapperSpy).toHaveBeenCalledWith(
-      ds,
+      current,
       expect.objectContaining({ featureColumns: ['x', 'y'], bins: 10, overlap: 0.5 })
     );
     expect(bettiSpy).toHaveBeenCalledWith(
-      ds,
+      current,
       expect.objectContaining({ featureColumns: ['x', 'y'], steps: 12 })
     );
+
+    for (const [, params] of [
+      ...persistenceSpy.mock.calls,
+      ...mapperSpy.mock.calls,
+      ...bettiSpy.mock.calls,
+    ]) {
+      expect(params).not.toHaveProperty('filterValues');
+    }
   });
 });

@@ -149,6 +149,30 @@ fn euclidean_dist(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b.iter()).map(|(x, y)| (x - y) * (x - y)).sum::<f64>().sqrt()
 }
 
+/// Resolve the filtration vector inside the Rust analytical authority.
+///
+/// Explicit `filter_values` remain supported for compatibility and tests. When
+/// they are omitted, the first feature column becomes the filtration column.
+/// Production Atlas/TDA uses this mode so UI code never traverses raw rows to
+/// manufacture an analytical input vector.
+fn resolve_filter_values(
+    dataset: &Dataset,
+    feature_columns: &[&str],
+    filter_values: &[f64],
+) -> Vec<f64> {
+    if filter_values.len() == dataset.row_count() {
+        return filter_values.to_vec();
+    }
+    let Some(filter_column) = feature_columns.first() else {
+        return Vec::new();
+    };
+    dataset
+        .get_column_values(filter_column)
+        .into_iter()
+        .map(|value| value.and_then(|v| v.as_number()).unwrap_or(0.0))
+        .collect()
+}
+
 /// Compute TDA Mapper graph over dataset numeric feature columns.
 pub fn compute_mapper_graph(
     dataset: &Dataset,
@@ -157,6 +181,7 @@ pub fn compute_mapper_graph(
     bins: usize,
     overlap: f64,
 ) -> TdaMapperGraph {
+    let filter_values = resolve_filter_values(dataset, feature_columns, filter_values);
     if dataset.row_count() == 0 || filter_values.len() != dataset.row_count() {
         return TdaMapperGraph {
             nodes: Vec::new(),
@@ -277,6 +302,7 @@ pub fn compute_persistence_intervals(
     max_distance: f64,
 ) -> Vec<PersistenceInterval> {
     let n = dataset.row_count();
+    let filter_values = resolve_filter_values(dataset, feature_columns, filter_values);
     if n == 0 || filter_values.len() != n {
         return Vec::new();
     }
@@ -474,6 +500,22 @@ mod tests {
         let filter_vals = vec![1.0, 2.0];
         let graph = compute_mapper_graph(&ds, &["val"], &filter_vals, 3, 0.3);
         assert!(!graph.nodes.is_empty());
+    }
+
+    #[test]
+    fn tda_derives_filtration_from_first_feature_when_explicit_values_are_omitted() {
+        let cols = vec![Column::new("val", ColumnType::Numeric)];
+        let mut row0 = HashMap::new();
+        row0.insert("val".to_string(), Value::Number(1.0));
+        let mut row1 = HashMap::new();
+        row1.insert("val".to_string(), Value::Number(2.0));
+        let ds = Dataset::new("tda", cols, vec![row0, row1]);
+
+        let graph = compute_mapper_graph(&ds, &["val"], &[], 3, 0.3);
+        let intervals = compute_persistence_intervals(&ds, &["val"], &[], 1.0);
+
+        assert!(!graph.nodes.is_empty());
+        assert!(!intervals.is_empty());
     }
 
     /// The TS `TdaMapperNode` interface expects camelCase field names

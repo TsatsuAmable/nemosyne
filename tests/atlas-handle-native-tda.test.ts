@@ -55,7 +55,7 @@ describe('Atlas handle-native TDA routing', () => {
     expect(betti).toHaveBeenCalledWith(currentHandle, bettiParams);
   });
 
-  it('explicitly uses a temporary Rust dataset for a non-current compatibility request', () => {
+  it('rejects a non-current dataset before serialisation or transient Rust loading', () => {
     const kernel = makeKernelMockBridge();
     const loadDatasetJson = vi.spyOn(kernel, 'loadDatasetJson');
     const destroyDataset = vi.spyOn(kernel, 'destroyDataset');
@@ -66,22 +66,24 @@ describe('Atlas handle-native TDA routing', () => {
     expect(atlas.datasetFingerprint).toBeTruthy();
     const currentHandle = loadDatasetJson.mock.results[0].value;
     const foreign = makeDataset('foreign', 100);
+    const foreignToJson = vi.spyOn(foreign, 'toJSON');
     const params = { featureColumns: ['x', 'y'], bins: 3, overlap: 0.2 };
 
     const loadsBefore = loadDatasetJson.mock.calls.length;
     const destroysBefore = destroyDataset.mock.calls.length;
-    atlas.computeMapperGraph(foreign, params);
 
-    expect(loadDatasetJson).toHaveBeenCalledTimes(loadsBefore + 1);
-    expect(destroyDataset).toHaveBeenCalledTimes(destroysBefore + 1);
-    const transientHandle = loadDatasetJson.mock.results.at(-1)?.value;
-    expect(transientHandle).not.toBe(currentHandle);
-    expect(mapper).toHaveBeenLastCalledWith(transientHandle, params);
+    expect(() => atlas.computeMapperGraph(foreign, params)).toThrow(
+      /TDA requires the current Atlas dataset/
+    );
 
-    // The compatibility call must not revoke or replace Atlas's durable current capability.
-    const loadsAfterForeignCall = loadDatasetJson.mock.calls.length;
+    expect(foreignToJson).not.toHaveBeenCalled();
+    expect(loadDatasetJson).toHaveBeenCalledTimes(loadsBefore);
+    expect(destroyDataset).toHaveBeenCalledTimes(destroysBefore);
+    expect(mapper).not.toHaveBeenCalled();
+
+    // Rejection must not revoke or replace Atlas's durable current capability.
     atlas.computeMapperGraph(atlas.dataset, params);
-    expect(loadDatasetJson).toHaveBeenCalledTimes(loadsAfterForeignCall);
+    expect(loadDatasetJson).toHaveBeenCalledTimes(loadsBefore);
     expect(mapper).toHaveBeenLastCalledWith(currentHandle, params);
   });
 });
