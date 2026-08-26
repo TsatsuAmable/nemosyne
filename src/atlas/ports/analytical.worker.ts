@@ -1,4 +1,6 @@
 import type {
+  AnalyticalDatasetRegistration,
+  AnalyticalExecutionFence,
   AnalyticalExecutionRequest,
   AnalyticalExecutionResult,
 } from './AnalyticalExecutionPort.ts';
@@ -6,50 +8,164 @@ import * as bridge from '../../wasm/RuntimeBridge.ts';
 import type { DatasetJSON, OperationSpec } from '../../data/types.ts';
 
 const handleMap = new Map<string, number>();
-const fence: { generation?: number; datasetVersion?: number } = {};
+const fence: { generation?: number; datasetVersion?: number; datasetFingerprint?: string } = {};
+
+function destroyHandle(handle: number): void {
+  try {
+    bridge.destroyDataset(handle);
+  } catch {
+    // best-effort worker-local cleanup
+  }
+}
+
+function clearRegisteredHandles(retainFingerprint?: string): void {
+  for (const [fingerprint, handle] of handleMap.entries()) {
+    if (retainFingerprint && fingerprint === retainFingerprint) continue;
+    destroyHandle(handle);
+    handleMap.delete(fingerprint);
+  }
+}
+
+function replaceRegisteredHandle(fingerprint: string, handle: number): void {
+  for (const existing of handleMap.values()) {
+    if (existing !== handle) destroyHandle(existing);
+  }
+  handleMap.clear();
+  handleMap.set(fingerprint, handle);
+}
+
+function isSuperseded(
+  generation: number,
+  datasetVersion: number,
+): boolean {
+  return (
+    (fence.generation !== undefined && generation < fence.generation) ||
+    (fence.datasetVersion !== undefined && datasetVersion < fence.datasetVersion)
+  );
+}
 
 function requireRegisteredHandle(req: AnalyticalExecutionRequest, handle: number | undefined): number {
   if (!handle || handle === 0) {
     throw new Error(
       `Worker dataset ${req.dataset.fingerprint} is not registered; ` +
-        'the request must include a datasetPayload on first use in this worker generation.'
+        'register the dataset in this worker generation before analytical execution.'
     );
   }
   return handle;
 }
 
+async function ensureBridgeReady(): Promise<void> {
+  if (!bridge.isReady()) await bridge.initRuntime();
+}
+
+function loadRegistrationPayload(registration: AnalyticalDatasetRegistration): number {
+  if (registration.payload.type === 'typed') {
+    return bridge.loadTypedColumns(
+      registration.payload.data as ArrayBuffer | Uint8Array,
+      registration.payload.name
+    );
+  }
+  return bridge.loadDatasetJson(registration.payload.data as DatasetJSON);
+}
+
+async function registerDataset(registration: AnalyticalDatasetRegistration): Promise<void> {
+  if (isSuperseded(registration.generation, registration.dataset.version)) {
+    throw new Error(
+      `Worker dataset registration superseded for ${registration.dataset.fingerprint}`
+    );
+  }
+
+  await ensureBridgeReady();
+  const existing = handleMap.get(registration.dataset.fingerprint);
+  if (existing && existing !== 0) {
+    const fingerprint = bridge.datasetFingerprint(existing);
+    if (fingerprint !== registration.dataset.fingerprint) {
+      clearRegisteredHandles();
+      throw new Error(
+        `Worker cached dataset fingerprint mismatch: expected ${registration.dataset.fingerprint}, ` +
+          `received ${fingerprint ?? 'null'}`
+      );
+    }
+    return;
+  }
+
+  const handle = loadRegistrationPayload(registration);
+  if (!handle || handle === 0) {
+    throw new Error(`Worker kernel rejected dataset ${registration.dataset.fingerprint}`);
+  }
+
+  const registeredFingerprint = bridge.datasetFingerprint(handle);
+  if (registeredFingerprint !== registration.dataset.fingerprint) {
+    destroyHandle(handle);
+    throw new Error(
+      `Worker dataset fingerprint mismatch: expected ${registration.dataset.fingerprint}, ` +
+        `received ${registeredFingerprint ?? 'null'}`
+    );
+  }
+
+  replaceRegisteredHandle(registration.dataset.fingerprint, handle);
+}
+
 self.onmessage = async (ev: MessageEvent) => {
   const data = ev.data as {
-    type: 'EXECUTE' | 'SUPERSEDE';
+    type: 'EXECUTE' | 'SUPERSEDE' | 'REGISTER';
     request?: AnalyticalExecutionRequest;
-    fence?: { generation?: number; datasetVersion?: number };
+    registration?: AnalyticalDatasetRegistration;
+    fence?: AnalyticalExecutionFence;
   };
 
   if (!data) return;
 
   if (data.type === 'SUPERSEDE' && data.fence) {
-    if (data.fence.generation !== undefined && (fence.generation === undefined || data.fence.generation > fence.generation)) {
-      fence.generation = data.fence.generation;
-      for (const h of handleMap.values()) {
-        try {
-          bridge.destroyDataset(h);
-        } catch {
-          // ignore cleanup failures
-        }
-      }
-      handleMap.clear();
-    }
+    const generationAdvanced =
+      data.fence.generation !== undefined &&
+      (fence.generation === undefined || data.fence.generation > fence.generation);
+    const datasetAdvanced =
+      data.fence.datasetVersion !== undefined &&
+      (fence.datasetVersion === undefined || data.fence.datasetVersion > fence.datasetVersion);
+
+    if (data.fence.generation !== undefined) fence.generation = data.fence.generation;
     if (data.fence.datasetVersion !== undefined) fence.datasetVersion = data.fence.datasetVersion;
+    if (data.fence.datasetFingerprint !== undefined) {
+      fence.datasetFingerprint = data.fence.datasetFingerprint;
+    }
+
+    if (generationAdvanced) {
+      clearRegisteredHandles();
+    } else if (datasetAdvanced) {
+      clearRegisteredHandles(data.fence.datasetFingerprint);
+    }
+    return;
+  }
+
+  if (data.type === 'REGISTER' && data.registration) {
+    const registration = data.registration;
+    try {
+      await registerDataset(registration);
+      self.postMessage({
+        type: 'REGISTERED',
+        registrationId: registration.registrationId,
+        generation: registration.generation,
+        datasetVersion: registration.dataset.version,
+        datasetFingerprint: registration.dataset.fingerprint,
+      });
+    } catch (err: unknown) {
+      self.postMessage({
+        type: 'REGISTERED',
+        registrationId: registration.registrationId,
+        generation: registration.generation,
+        datasetVersion: registration.dataset.version,
+        datasetFingerprint: registration.dataset.fingerprint,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     return;
   }
 
   if (data.type === 'EXECUTE' && data.request) {
     const req = data.request;
 
-    if (
-      (fence.generation !== undefined && req.generation < fence.generation) ||
-      (fence.datasetVersion !== undefined && req.dataset.version < fence.datasetVersion)
-    ) {
+    if (isSuperseded(req.generation, req.dataset.version)) {
       const supersededResult: AnalyticalExecutionResult = {
         requestId: req.requestId,
         generation: req.generation,
@@ -62,35 +178,18 @@ self.onmessage = async (ev: MessageEvent) => {
     }
 
     try {
-      if (!bridge.isReady()) {
-        await bridge.initRuntime();
-      }
+      await ensureBridgeReady();
 
       let handle = handleMap.get(req.dataset.fingerprint);
       if (handle === undefined && req.datasetPayload) {
-        if (req.datasetPayload.type === 'typed') {
-          handle = bridge.loadTypedColumns(
-            req.datasetPayload.data as ArrayBuffer | Uint8Array,
-            req.datasetPayload.name
-          );
-        } else if (req.datasetPayload.type === 'json') {
-          handle = bridge.loadDatasetJson(req.datasetPayload.data as DatasetJSON);
-        }
-
-        if (!handle || handle === 0) {
-          throw new Error(`Worker kernel rejected dataset ${req.dataset.fingerprint}`);
-        }
-
-        const registeredFingerprint = bridge.datasetFingerprint(handle);
-        if (registeredFingerprint !== req.dataset.fingerprint) {
-          bridge.destroyDataset(handle);
-          throw new Error(
-            `Worker dataset fingerprint mismatch: expected ${req.dataset.fingerprint}, ` +
-              `received ${registeredFingerprint ?? 'null'}`
-          );
-        }
-
-        handleMap.set(req.dataset.fingerprint, handle);
+        const compatibilityRegistration: AnalyticalDatasetRegistration = {
+          registrationId: `compat-${req.requestId}`,
+          dataset: req.dataset,
+          generation: req.generation,
+          payload: req.datasetPayload,
+        };
+        await registerDataset(compatibilityRegistration);
+        handle = handleMap.get(req.dataset.fingerprint);
       }
 
       const registeredHandle = requireRegisteredHandle(req, handle);
@@ -127,18 +226,25 @@ self.onmessage = async (ev: MessageEvent) => {
           if (outHandle === 0) {
             throw new Error('Worker kernel operation returned an invalid output handle');
           }
+
+          let adopted = false;
           try {
             const outJson = bridge.getDatasetJson(outHandle);
             if (!outJson) {
               throw new Error('Worker kernel operation produced no dataset output');
             }
-            const outFingerprint = bridge.datasetFingerprint(outHandle) ?? req.dataset.fingerprint;
+            const outFingerprint = bridge.datasetFingerprint(outHandle);
+            if (!outFingerprint) {
+              throw new Error('Worker kernel operation produced no authoritative output fingerprint');
+            }
+            replaceRegisteredHandle(outFingerprint, outHandle);
+            adopted = true;
             value = {
               dataset: outJson,
               outputFingerprint: outFingerprint,
             };
           } finally {
-            bridge.destroyDataset(outHandle);
+            if (!adopted) destroyHandle(outHandle);
           }
           break;
         }
