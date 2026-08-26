@@ -1,4 +1,5 @@
 import type {
+  AnalyticalDatasetIdentity,
   AnalyticalDatasetRegistration,
   AnalyticalExecutionFence,
   AnalyticalExecutionPort,
@@ -50,6 +51,12 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
 
   get isAsync(): boolean {
     return true;
+  }
+
+  hasRegisteredDataset(dataset: AnalyticalDatasetIdentity, generation: number): boolean {
+    if (this._disposed) return false;
+    if (this._isStale(generation, dataset.version, dataset.fingerprint)) return false;
+    return this._registered.has(this._registrationKey(generation, dataset.fingerprint));
   }
 
   private _registrationKey(generation: number, fingerprint: string): string {
