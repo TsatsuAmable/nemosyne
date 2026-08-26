@@ -103,12 +103,12 @@ describe('GitHubCorpusConnector', () => {
   });
 
   it('hands verified CSV bytes directly to the Rust/WASM kernel loader', async () => {
-    const loadCsv = vi.fn(() => 42);
+    const loadCsv = vi.fn((_bytes: Uint8Array) => 42);
     const kernel = { loadCsv } as unknown as AnalyticalKernelPort;
     const connector = new GitHubCorpusConnector({ fetchImpl: fetchFor(catalog()) });
     await expect(connector.loadIntoKernel(kernel, { datasetId: 'synthetic.test', tier: 'smoke' })).resolves.toBe(42);
     expect(loadCsv).toHaveBeenCalledTimes(1);
-    expect(Array.from(loadCsv.mock.calls[0][0] as Uint8Array)).toEqual(Array.from(CSV));
+    expect(Array.from(loadCsv.mock.calls[0][0])).toEqual(Array.from(CSV));
   });
 
   it('routes NTC1 artifacts only through typed-column ingest and fails closed if unsupported', async () => {
