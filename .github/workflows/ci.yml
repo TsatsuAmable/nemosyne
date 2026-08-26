@@ -14,8 +14,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  correctness:
-    name: Core correctness
+  static:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+  coverage:
+    name: Vitest coverage
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -46,14 +69,25 @@ jobs:
       - name: Build WASM package for tests
         run: npm run wasm:dev
 
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
       - name: Test with coverage thresholds
         run: npm run test:coverage
+
+  production-build:
+    name: Production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build production bundle
         run: npm run build
@@ -92,7 +126,7 @@ jobs:
 
   playwright-smoke:
     name: Chromium production smoke
-    needs: correctness
+    needs: production-build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -128,15 +162,19 @@ jobs:
   required:
     name: Node 24
     if: ${{ always() }}
-    needs: [correctness, rust, playwright-smoke]
+    needs: [static, coverage, production-build, rust, playwright-smoke]
     runs-on: ubuntu-latest
     steps:
       - name: Enforce required jobs
         env:
-          CORRECTNESS_RESULT: ${{ needs.correctness.result }}
+          STATIC_RESULT: ${{ needs.static.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
+          BUILD_RESULT: ${{ needs.production-build.result }}
           RUST_RESULT: ${{ needs.rust.result }}
           SMOKE_RESULT: ${{ needs.playwright-smoke.result }}
         run: |
-          test "$CORRECTNESS_RESULT" = success
+          test "$STATIC_RESULT" = success
+          test "$COVERAGE_RESULT" = success
+          test "$BUILD_RESULT" = success
           test "$RUST_RESULT" = success
           test "$SMOKE_RESULT" = success
