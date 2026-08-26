@@ -6,7 +6,12 @@ use crate::data::value::Value;
 
 /// Filter rows by a predicate on `Value`.
 pub fn filter(dataset: &Dataset, predicate: impl Fn(&HashMap<String, Value>) -> bool) -> Dataset {
-    let rows: Vec<HashMap<String, Value>> = dataset.rows.iter().filter(|r| predicate(r)).cloned().collect();
+    let rows: Vec<HashMap<String, Value>> = dataset
+        .rows
+        .iter()
+        .filter(|r| predicate(r))
+        .cloned()
+        .collect();
     dataset.clone_with_rows(rows, "[filtered]")
 }
 
@@ -22,9 +27,7 @@ pub fn sort(dataset: &Dataset, column_name: &str, ascending: bool) -> Dataset {
         if bv.is_none() {
             return std::cmp::Ordering::Less;
         }
-        let av = av.unwrap();
-        let bv = bv.unwrap();
-        let ord = compare_values(av, bv);
+        let ord = compare_values(av.unwrap(), bv.unwrap());
         if ascending { ord } else { ord.reverse() }
     });
     dataset.clone_with_rows(rows, &format!("[sorted: {}]", column_name))
@@ -32,7 +35,9 @@ pub fn sort(dataset: &Dataset, column_name: &str, ascending: bool) -> Dataset {
 
 fn compare_values(a: &Value, b: &Value) -> std::cmp::Ordering {
     match (a.as_number(), b.as_number()) {
-        (Some(an), Some(bn)) => an.partial_cmp(&bn).unwrap_or(std::cmp::Ordering::Equal),
+        (Some(an), Some(bn)) => an
+            .partial_cmp(&bn)
+            .unwrap_or(std::cmp::Ordering::Equal),
         _ => a.to_key_string().cmp(&b.to_key_string()),
     }
 }
@@ -63,7 +68,10 @@ pub fn slice(dataset: &Dataset, start: usize, end: usize) -> Dataset {
 }
 
 /// Default numeric aggregator: sum all numeric columns, keep group key.
-pub fn default_sum_aggregator(group_by: &str, group_rows: &[&HashMap<String, Value>]) -> HashMap<String, Value> {
+pub fn default_sum_aggregator(
+    group_by: &str,
+    group_rows: &[&HashMap<String, Value>],
+) -> HashMap<String, Value> {
     let mut result = HashMap::new();
     if let Some(first) = group_rows.first() {
         if let Some(key) = first.get(group_by) {
@@ -76,7 +84,9 @@ pub fn default_sum_aggregator(group_by: &str, group_rows: &[&HashMap<String, Val
                 continue;
             }
             if let Some(n) = v.as_number() {
-                let entry = result.entry(k.clone()).or_insert_with(|| Value::Number(0.0));
+                let entry = result
+                    .entry(k.clone())
+                    .or_insert_with(|| Value::Number(0.0));
                 if let Value::Number(acc) = entry {
                     *acc += n;
                 }
@@ -121,14 +131,8 @@ pub fn anomaly_iqr(dataset: &Dataset, column_name: &str, sensitivity: f64) -> Da
     }
 
     let mut columns = dataset.columns.clone();
-    ensure_column(&mut columns,
-        "_anomaly",
-        ColumnType::Categorical,
-    );
-    ensure_column(&mut columns,
-        "_anomalyScore",
-        ColumnType::Numeric,
-    );
+    ensure_column(&mut columns, "_anomaly", ColumnType::Categorical);
+    ensure_column(&mut columns, "_anomalyScore", ColumnType::Numeric);
 
     let mut result = dataset.clone_with_rows(rows, "[anomaly:iqr]");
     result.columns = columns;
@@ -157,48 +161,96 @@ fn ensure_column(columns: &mut Vec<Column>, name: &str, ty: ColumnType) {
 }
 
 // ---------------------------------------------------------------------------
-// Clustering
+// Metric clustering
 // ---------------------------------------------------------------------------
+
+/// Gather a single complete-case matrix for Euclidean clustering operations.
+/// A source row is admitted only when every selected feature is finite. The
+/// accompanying index vector is the sole mapping from local metric rows back to
+/// source observations. Missing values are never manufactured as geometric 0.
+fn complete_case_matrix(
+    dataset: &Dataset,
+    feature_names: &[String],
+) -> (Vec<Vec<f64>>, Vec<usize>) {
+    let mut values = Vec::new();
+    let mut source_row_indices = Vec::new();
+
+    for (source_row, row) in dataset.rows.iter().enumerate() {
+        let mut point = Vec::with_capacity(feature_names.len());
+        let mut eligible = true;
+        for name in feature_names {
+            match row.get(name).and_then(|value| value.as_number()) {
+                Some(value) if value.is_finite() => point.push(value),
+                _ => {
+                    eligible = false;
+                    break;
+                }
+            }
+        }
+        if eligible {
+            source_row_indices.push(source_row);
+            values.push(point);
+        }
+    }
+
+    (values, source_row_indices)
+}
+
+/// Apply local cluster assignments back to source rows. Rows excluded by the
+/// complete-case metric policy retain an explicit null cluster value; they are
+/// neither a real cluster nor DBSCAN noise.
+fn cluster_result(
+    dataset: &Dataset,
+    source_row_indices: &[usize],
+    assignments: &[i32],
+    name_suffix: &str,
+) -> Dataset {
+    debug_assert_eq!(source_row_indices.len(), assignments.len());
+    let mut rows = dataset.rows.clone();
+    for row in &mut rows {
+        row.insert("_cluster".to_string(), Value::Null);
+    }
+    for (&source_row, &assignment) in source_row_indices.iter().zip(assignments) {
+        if let Some(row) = rows.get_mut(source_row) {
+            row.insert("_cluster".to_string(), Value::Number(assignment as f64));
+        }
+    }
+    let mut columns = dataset.columns.clone();
+    ensure_column(&mut columns, "_cluster", ColumnType::Numeric);
+    let mut result = dataset.clone_with_rows(rows, name_suffix);
+    result.columns = columns;
+    result
+}
 
 /// K-means clustering on numeric columns. Adds a `_cluster` column.
 pub fn k_means(dataset: &Dataset, k: usize, feature_columns: Option<&[&str]>) -> Dataset {
     let numeric_names: Vec<String> = feature_columns
         .map(|cols| cols.iter().map(|c| c.to_string()).collect())
-        .unwrap_or_else(|| dataset.numeric_columns().into_iter().map(|c| c.name.clone()).collect());
+        .unwrap_or_else(|| {
+            dataset
+                .numeric_columns()
+                .into_iter()
+                .map(|c| c.name.clone())
+                .collect()
+        });
 
     if numeric_names.is_empty() {
-        let mut rows = dataset.rows.clone();
-        for row in &mut rows {
-            row.insert("_cluster".to_string(), Value::Number(0.0));
-        }
-        let mut columns = dataset.columns.clone();
-        ensure_column(&mut columns, "_cluster", ColumnType::Numeric);
-        let mut result = dataset.clone_with_rows(rows, "[clustered]");
-        result.columns = columns;
-        return result;
+        let source_rows: Vec<usize> = (0..dataset.row_count()).collect();
+        let assignments = vec![0i32; source_rows.len()];
+        return cluster_result(dataset, &source_rows, &assignments, "[clustered]");
     }
 
-    let values: Vec<Vec<f64>> = dataset
-        .rows
-        .iter()
-        .map(|r| {
-            numeric_names
-                .iter()
-                .map(|name| r.get(name).and_then(|v| v.as_number()).unwrap_or(0.0))
-                .collect()
-        })
-        .collect();
+    let (values, source_rows) = complete_case_matrix(dataset, &numeric_names);
+    if values.is_empty() {
+        return cluster_result(dataset, &[], &[], "[clustered]");
+    }
 
     let effective_k = k.min(values.len()).max(1);
     let mut rng = Lcg::new(dataset.fingerprint_seed());
-    let mut centroids = kmeans_plus_plus(&values,
-        effective_k,
-        &mut rng,
-    );
+    let mut centroids = kmeans_plus_plus(&values, effective_k, &mut rng);
 
     let mut assignments = vec![0usize; values.len()];
     for _ in 0..20 {
-        // Assign.
         for (i, v) in values.iter().enumerate() {
             let mut best = 0usize;
             let mut best_dist = f64::INFINITY;
@@ -212,7 +264,6 @@ pub fn k_means(dataset: &Dataset, k: usize, feature_columns: Option<&[&str]>) ->
             assignments[i] = best;
         }
 
-        // Recompute centroids.
         let dim = numeric_names.len();
         let mut new_centroids: Vec<Vec<f64>> =
             centroids.iter().map(|_| vec![0.0; dim]).collect();
@@ -235,15 +286,8 @@ pub fn k_means(dataset: &Dataset, k: usize, feature_columns: Option<&[&str]>) ->
         centroids = new_centroids;
     }
 
-    let mut rows = dataset.rows.clone();
-    for (i, row) in rows.iter_mut().enumerate() {
-        row.insert("_cluster".to_string(), Value::Number(assignments[i] as f64));
-    }
-    let mut columns = dataset.columns.clone();
-    ensure_column(&mut columns, "_cluster", ColumnType::Numeric);
-    let mut result = dataset.clone_with_rows(rows, "[clustered]");
-    result.columns = columns;
-    result
+    let assignments: Vec<i32> = assignments.into_iter().map(|v| v as i32).collect();
+    cluster_result(dataset, &source_rows, &assignments, "[clustered]")
 }
 
 fn squared_euclidean(a: &[f64], b: &[f64]) -> f64 {
@@ -345,30 +389,24 @@ pub fn hierarchical(
 ) -> Dataset {
     let numeric_names: Vec<String> = feature_columns
         .map(|cols| cols.iter().map(|c| c.to_string()).collect())
-        .unwrap_or_else(|| dataset.numeric_columns().into_iter().map(|c| c.name.clone()).collect());
+        .unwrap_or_else(|| {
+            dataset
+                .numeric_columns()
+                .into_iter()
+                .map(|c| c.name.clone())
+                .collect()
+        });
 
     if numeric_names.is_empty() || dataset.row_count() == 0 {
-        let mut rows = dataset.rows.clone();
-        for row in &mut rows {
-            row.insert("_cluster".to_string(), Value::Number(0.0));
-        }
-        let mut columns = dataset.columns.clone();
-        ensure_column(&mut columns, "_cluster", ColumnType::Numeric);
-        let mut result = dataset.clone_with_rows(rows, "[hierarchical]");
-        result.columns = columns;
-        return result;
+        let source_rows: Vec<usize> = (0..dataset.row_count()).collect();
+        let assignments = vec![0i32; source_rows.len()];
+        return cluster_result(dataset, &source_rows, &assignments, "[hierarchical]");
     }
 
-    let values: Vec<Vec<f64>> = dataset
-        .rows
-        .iter()
-        .map(|r| {
-            numeric_names
-                .iter()
-                .map(|name| r.get(name).and_then(|v| v.as_number()).unwrap_or(0.0))
-                .collect()
-        })
-        .collect();
+    let (values, source_rows) = complete_case_matrix(dataset, &numeric_names);
+    if values.is_empty() {
+        return cluster_result(dataset, &[], &[], "[hierarchical]");
+    }
     let n = values.len();
 
     #[derive(Clone)]
@@ -390,8 +428,17 @@ pub fn hierarchical(
     let mut history: Vec<(usize, usize, f64)> = Vec::new();
     let mut next_id = n;
 
-    fn cluster_distance(a: &Cluster, b: &Cluster, values: &[Vec<f64>], linkage: &str) -> f64 {
-        let mut best = if linkage == "single" { f64::INFINITY } else { f64::NEG_INFINITY };
+    fn cluster_distance(
+        a: &Cluster,
+        b: &Cluster,
+        values: &[Vec<f64>],
+        linkage: &str,
+    ) -> f64 {
+        let mut best = if linkage == "single" {
+            f64::INFINITY
+        } else {
+            f64::NEG_INFINITY
+        };
         let mut total = 0.0;
         let mut pairs = 0usize;
         for &i in &a.members {
@@ -412,11 +459,7 @@ pub fn hierarchical(
             }
         }
         if linkage == "average" {
-            if pairs > 0 {
-                total / pairs as f64
-            } else {
-                0.0
-            }
+            if pairs > 0 { total / pairs as f64 } else { 0.0 }
         } else {
             best
         }
@@ -431,7 +474,7 @@ pub fn hierarchical(
                 centroid[d] += val;
             }
         }
-        for val in centroid.iter_mut() {
+        for val in &mut centroid {
             *val /= members.len() as f64;
         }
         Cluster {
@@ -462,7 +505,7 @@ pub fn hierarchical(
         next_id += 1;
     }
 
-    // Cut dendrogram.
+    // Cut dendrogram using the original deterministic history contract.
     let mut parent_of: Vec<i64> = vec![-1; n];
     for (a, b, _) in &history {
         let node = next_id;
@@ -501,18 +544,13 @@ pub fn hierarchical(
         }
     }
 
-    let mut rows = dataset.rows.clone();
-    for (i, row) in rows.iter_mut().enumerate() {
-        row.insert("_cluster".to_string(), Value::Number(assignments[i] as f64));
-    }
-    let mut columns = dataset.columns.clone();
-    ensure_column(&mut columns, "_cluster", ColumnType::Numeric);
-    let mut result = dataset.clone_with_rows(rows, "[hierarchical]");
-    result.columns = columns;
-    result
+    let assignments: Vec<i32> = assignments.into_iter().map(|v| v as i32).collect();
+    cluster_result(dataset, &source_rows, &assignments, "[hierarchical]")
 }
 
-/// DBSCAN clustering on numeric columns. Adds a `_cluster` column; noise is `-1`.
+/// DBSCAN clustering on numeric columns. Adds a `_cluster` column; valid-point
+/// noise is `-1`, while source rows excluded by missing selected features are
+/// explicitly `null`.
 pub fn dbscan(
     dataset: &Dataset,
     eps: f64,
@@ -521,28 +559,32 @@ pub fn dbscan(
 ) -> Dataset {
     let numeric_names: Vec<String> = feature_columns
         .map(|cols| cols.iter().map(|c| c.to_string()).collect())
-        .unwrap_or_else(|| dataset.numeric_columns().into_iter().map(|c| c.name.clone()).collect());
+        .unwrap_or_else(|| {
+            dataset
+                .numeric_columns()
+                .into_iter()
+                .map(|c| c.name.clone())
+                .collect()
+        });
 
     if numeric_names.is_empty() {
-        let mut rows = dataset.rows.clone();
-        for row in &mut rows {
-            row.insert("_cluster".to_string(), Value::Number(0.0));
-        }
-        let mut columns = dataset.columns.clone();
-        ensure_column(&mut columns, "_cluster", ColumnType::Numeric);
-        let mut result = dataset.clone_with_rows(rows, "[dbscan]");
-        result.columns = columns;
-        return result;
+        let source_rows: Vec<usize> = (0..dataset.row_count()).collect();
+        let assignments = vec![0i32; source_rows.len()];
+        return cluster_result(dataset, &source_rows, &assignments, "[dbscan]");
     }
 
-    let feature_strings: Vec<String> = numeric_names.iter().map(|s| s.to_string()).collect();
-    let cloud = match crate::data::neighbourhood::PointCloud::from_dataset(dataset, &feature_strings) {
-        Ok(c) => c,
+    let cloud = match crate::data::neighbourhood::PointCloud::from_dataset(dataset, &numeric_names) {
+        Ok(cloud) => cloud,
         Err(_) => return dataset.clone(),
     };
     let n = cloud.n;
+    if n == 0 {
+        return cluster_result(dataset, &[], &[], "[dbscan]");
+    }
+
     let (csr, _) = if n > 8192 {
-        crate::data::neighbourhood::GridSparseIndex::new(eps).radius_neighbourhood(&cloud, eps)
+        crate::data::neighbourhood::GridSparseIndex::new(eps)
+            .radius_neighbourhood(&cloud, eps)
     } else {
         crate::data::neighbourhood::ExactIndex.radius_neighbourhood(&cloud, eps)
     };
@@ -581,18 +623,13 @@ pub fn dbscan(
         cluster_id += 1;
     }
 
-    let mut rows = dataset.rows.clone();
-    for (i, row) in rows.iter_mut().enumerate() {
-        row.insert(
-            "_cluster".to_string(),
-            Value::Number(labels[i].unwrap_or(-1) as f64),
-        );
-    }
-    let mut columns = dataset.columns.clone();
-    ensure_column(&mut columns, "_cluster", ColumnType::Numeric);
-    let mut result = dataset.clone_with_rows(rows, "[dbscan]");
-    result.columns = columns;
-    result
+    let assignments: Vec<i32> = labels.into_iter().map(|label| label.unwrap_or(-1)).collect();
+    cluster_result(
+        dataset,
+        &cloud.source_row_indices,
+        &assignments,
+        "[dbscan]",
+    )
 }
 
 #[cfg(test)]
@@ -628,7 +665,10 @@ mod tests {
     fn filter_keeps_matching_rows() {
         let ds = sample_dataset();
         let filtered = filter(&ds, |r| {
-            r.get("age").and_then(|v| v.as_number()).map(|a| a > 26.0).unwrap_or(false)
+            r.get("age")
+                .and_then(|v| v.as_number())
+                .map(|a| a > 26.0)
+                .unwrap_or(false)
         });
         assert_eq!(filtered.row_count(), 1);
     }
@@ -651,7 +691,6 @@ mod tests {
         let aggregated = aggregate(&ds, "name", |group| default_sum_aggregator("name", group));
         assert_eq!(aggregated.row_count(), 2);
     }
-
 
     #[test]
     fn slice_returns_subrange() {
@@ -682,7 +721,6 @@ mod tests {
         for node in 1..=depth {
             parent_of[node - 1] = node as i64;
         }
-
         assert_eq!(leaves(depth, 1, &parent_of), vec![0]);
     }
 
@@ -691,5 +729,67 @@ mod tests {
         let ds = sample_dataset();
         let clustered = dbscan(&ds, 10.0, 1, None);
         assert_eq!(clustered.row_count(), 2);
+    }
+
+    fn missing_metric_fixture() -> Dataset {
+        Dataset::new(
+            "missing-metric",
+            vec![
+                Column::new("x", ColumnType::Numeric),
+                Column::new("y", ColumnType::Numeric),
+            ],
+            vec![
+                HashMap::from([
+                    ("x".to_string(), Value::Number(0.0)),
+                    ("y".to_string(), Value::Number(0.0)),
+                ]),
+                HashMap::from([
+                    ("x".to_string(), Value::Null),
+                    ("y".to_string(), Value::Number(0.1)),
+                ]),
+                HashMap::from([
+                    ("x".to_string(), Value::Number(0.2)),
+                    ("y".to_string(), Value::Number(0.2)),
+                ]),
+            ],
+        )
+    }
+
+    fn assert_middle_row_excluded(clustered: &Dataset) {
+        assert!(matches!(
+            clustered.rows[1].get("_cluster"),
+            Some(Value::Null)
+        ));
+        assert!(matches!(
+            clustered.rows[0].get("_cluster"),
+            Some(Value::Number(_))
+        ));
+        assert!(matches!(
+            clustered.rows[2].get("_cluster"),
+            Some(Value::Number(_))
+        ));
+    }
+
+    #[test]
+    fn rf007_kmeans_excludes_missing_feature_tuple_instead_of_zero_imputing() {
+        let clustered = k_means(&missing_metric_fixture(), 1, Some(&["x", "y"]));
+        assert_middle_row_excluded(&clustered);
+    }
+
+    #[test]
+    fn rf007_hierarchical_excludes_missing_feature_tuple_instead_of_zero_imputing() {
+        let clustered = hierarchical(
+            &missing_metric_fixture(),
+            Some(&["x", "y"]),
+            "average",
+            1,
+        );
+        assert_middle_row_excluded(&clustered);
+    }
+
+    #[test]
+    fn rf007_dbscan_excluded_row_is_null_not_noise_or_another_rows_label() {
+        let clustered = dbscan(&missing_metric_fixture(), 1.0, 1, Some(&["x", "y"]));
+        assert_middle_row_excluded(&clustered);
     }
 }
