@@ -17,6 +17,7 @@ fn reduction_bin_end(bin: usize, transform_length: usize, observed_count: usize)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SpectralFacts {
     /// Frequencies in cycles per time-coordinate unit when a temporal axis is
     /// supplied, otherwise cycles per implicit observation index.
@@ -397,6 +398,34 @@ mod tests {
         assert!((facts.dominant_frequencies[0] - 0.125).abs() < 0.01);
         assert!((facts.characteristic_scale - 8.0).abs() < 0.1);
         assert!((facts.maximum_frequency - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn spectral_facts_serialize_camel_case_for_wasm_abi() {
+        let dataset = regular_sine_dataset(1.0);
+        let facts = compute_spectral_facts(&dataset, "time", "value").expect("regular series");
+        let json = serde_json::to_value(facts).expect("serialize spectral facts");
+
+        for field in [
+            "dominantFrequencies",
+            "spectralEntropy",
+            "powerSpectrumPeak",
+            "directionalAnisotropy",
+            "characteristicScale",
+            "hasPeriodicity",
+            "periodicityConfidence",
+            "observedCount",
+            "transformLength",
+            "sourceObservationsPerBin",
+            "frequencyResolution",
+            "maximumFrequency",
+            "windowFunction",
+        ] {
+            assert!(json.get(field).is_some(), "missing camelCase ABI field {field}");
+        }
+        assert!(json.get("dominant_frequencies").is_none());
+        assert!(json.get("source_observations_per_bin").is_none());
+        assert!(json.get("frequency_resolution").is_none());
     }
 
     #[test]
