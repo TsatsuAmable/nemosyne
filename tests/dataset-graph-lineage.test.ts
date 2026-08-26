@@ -97,4 +97,26 @@ describe('RF-044 graph lineage preservation', () => {
     expect(source.edges?.[0]?.weight).toBe(0.75);
     expect(source.edges?.[0]?.metadata).toEqual({ source: 'sensor-a' });
   });
+
+  it('clears positional graph topology when streaming rows are replaced', () => {
+    const source = graphDataset();
+
+    source.updateRows([{ value: 10 }, { value: 20 }], 'replace');
+
+    expect(source.rows).toEqual([{ value: 10 }, { value: 20 }]);
+    expect(source.edges).toBeUndefined();
+    expect(source.rowIds).toBeUndefined();
+  });
+
+  it('drops evicted positional edges and remaps survivors for a rolling append window', () => {
+    const source = graphDataset();
+
+    source.updateRows([{ value: 4 }], 'append', 3);
+
+    expect(source.rows).toEqual([{ value: 2 }, { value: 3 }, { value: 4 }]);
+    expect(source.edges).toEqual([
+      { source: 0, target: 1, weight: 1.25, relation: 'derived' },
+    ]);
+    expect(source.rowIds).toBeUndefined();
+  });
 });
