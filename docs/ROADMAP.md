@@ -246,15 +246,13 @@ Goal: the interface behaves as one sparse spatial investigation environment rath
 - [x] validate approximation/stability against exact small-data references (`tests/sparse-topology-scalability.test.ts`);
 - [x] benchmark scale separately from deterministic correctness gates.
 
-### P1-D 3D-native Moneta perceptual fitness
+### P1-D 3D-native Moneta perceptual fitness — COMPLETED
 
-P1-D may use PR #402's design work, but product-valid ranking depends on P1-R exposing genuinely different embodied alternatives rather than scoring several semantic labels that collapse to similar point geometry.
-
-- [ ] activate existing occlusion/cognitive-load candidate priors;
-- [ ] add versioned measured perceptual evidence for actual embodiments;
-- [ ] include projected overlap, hidden-mark fraction, glyph size, crowding, depth ambiguity, spatial extent and viewpoint travel;
-- [ ] evaluate stability over a bounded nearby-view envelope;
-- [ ] preserve the distinction between measured evidence, engineering priors and statistical confidence.
+- [x] activate existing occlusion/cognitive-load candidate priors (`src/moneta/representation/FitnessModel.ts`);
+- [x] add versioned measured perceptual evidence for actual embodiments (`src/moneta/evidence/PerceptualFitnessEvidence.ts`);
+- [x] include projected overlap, hidden-mark fraction, glyph size, crowding, depth ambiguity, spatial extent and viewpoint travel (`src/vr/perception/PerceptualFitnessSampler.ts`);
+- [x] evaluate stability over a bounded nearby-view envelope (`tests/perceptual-fitness.test.ts`);
+- [x] preserve the distinction between measured evidence, engineering priors and statistical confidence.
 
 ### P1-E Actionable NIL/ambiguity
 

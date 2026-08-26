@@ -44,6 +44,7 @@ import { buildDatasetSignature } from './SignatureBuilder.ts';
 import { NoFeasibleRepresentationError } from './NoFeasibleRepresentationError.ts';
 import { canonicalJsonStringify } from '../../investigation/InvestigationDigest.ts';
 import { fnv1aHex } from '../../atlas/DatasetSpace.ts';
+import type { PerceptualFitnessEvidence } from '../evidence/PerceptualFitnessEvidence.ts';
 import {
   BootstrapFitnessModel,
   type BootstrapFitnessWeights,
@@ -62,15 +63,17 @@ export interface HypothesisWeights {
   w_loss: number;
   w_density: number;
   w_prior: number;
+  w_perceptual?: number;
 }
 
 export const DEFAULT_HYPOTHESIS_WEIGHTS: HypothesisWeights = {
-  w_struct: 0.35,
+  w_struct: 0.30,
   w_task: 0.25,
   w_scale: 0.15,
   w_loss: 0.15,
   w_density: 0.05,
   w_prior: 0.05,
+  w_perceptual: 0.05,
 };
 
 function toBootstrapWeights(weights: HypothesisWeights): BootstrapFitnessWeights {
@@ -81,6 +84,7 @@ function toBootstrapWeights(weights: HypothesisWeights): BootstrapFitnessWeights
     informationPreservation: weights.w_loss,
     densityHandling: weights.w_density,
     configuredPrior: weights.w_prior,
+    perceptualFitness: weights.w_perceptual ?? 0.05,
   };
 }
 
@@ -109,11 +113,33 @@ function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentatio
 }
 
 export class MonetaHypothesisEngine {
-  private readonly fitnessModel: BootstrapFitnessModel;
+  readonly version = '2.1.0-v3-bootstrap';
+  readonly fitnessModel: BootstrapFitnessModel;
+  private readonly fitnessModelArtifactHash: string | null;
 
-  constructor(weights: Partial<HypothesisWeights> = {}) {
-    const merged = { ...DEFAULT_HYPOTHESIS_WEIGHTS, ...weights };
-    this.fitnessModel = new BootstrapFitnessModel(toBootstrapWeights(merged));
+  constructor(
+    modelOrWeights?: BootstrapFitnessModel | Partial<HypothesisWeights> | Partial<BootstrapFitnessWeights>,
+    fitnessModelArtifactHash: string | null = null
+  ) {
+    if (modelOrWeights instanceof BootstrapFitnessModel) {
+      this.fitnessModel = modelOrWeights;
+    } else if (
+      modelOrWeights &&
+      ('w_struct' in modelOrWeights ||
+        'w_task' in modelOrWeights ||
+        'w_scale' in modelOrWeights ||
+        'w_loss' in modelOrWeights)
+    ) {
+      const merged = { ...DEFAULT_HYPOTHESIS_WEIGHTS, ...modelOrWeights };
+      this.fitnessModel = new BootstrapFitnessModel(toBootstrapWeights(merged));
+    } else if (modelOrWeights) {
+      this.fitnessModel = new BootstrapFitnessModel(
+        modelOrWeights as Partial<BootstrapFitnessWeights>
+      );
+    } else {
+      this.fitnessModel = new BootstrapFitnessModel();
+    }
+    this.fitnessModelArtifactHash = fitnessModelArtifactHash;
   }
 
   static reason(
@@ -124,6 +150,7 @@ export class MonetaHypothesisEngine {
       datasetFingerprint?: string;
       spectralFacts?: import('./DatasetSignature.ts').SpectralFacts | null;
       signature?: DatasetSignature;
+      perceptualEvidence?: PerceptualFitnessEvidence | Map<string, PerceptualFitnessEvidence> | Record<string, PerceptualFitnessEvidence>;
     } = {}
   ): RepresentationDecision {
     const signature =
@@ -137,14 +164,24 @@ export class MonetaHypothesisEngine {
         0
       );
 
-    return new MonetaHypothesisEngine().arbitrate(signature, requirements, undefined, facts);
+    return new MonetaHypothesisEngine().arbitrate(signature, requirements, undefined, facts, options.perceptualEvidence);
+  }
+
+  public static arbitrate(
+    signature: DatasetSignature,
+    requirements?: RepresentationRequirements,
+    facts?: MonetaFacts,
+    perceptualEvidence?: PerceptualFitnessEvidence | Map<string, PerceptualFitnessEvidence> | Record<string, PerceptualFitnessEvidence>
+  ): RepresentationDecision {
+    return new MonetaHypothesisEngine().arbitrate(signature, requirements, undefined, facts, perceptualEvidence);
   }
 
   public arbitrate(
     signature: DatasetSignature,
     requirements?: RepresentationRequirements,
     intent?: AnalyticalIntent,
-    _fallbackFacts?: MonetaFacts
+    _fallbackFacts?: MonetaFacts,
+    perceptualEvidence?: PerceptualFitnessEvidence | Map<string, PerceptualFitnessEvidence> | Record<string, PerceptualFitnessEvidence>
   ): RepresentationDecision {
     const reqs =
       requirements ??
@@ -155,9 +192,30 @@ export class MonetaHypothesisEngine {
     const hardTraces: HardConstraintTrace[] = [];
     const scoredCandidates: CandidateScore[] = [];
 
+    // Normalize perceptual evidence into a lookup map
+    const perceptualMap = new Map<string, PerceptualFitnessEvidence>();
+    if (perceptualEvidence) {
+      if (perceptualEvidence instanceof Map) {
+        for (const [k, v] of perceptualEvidence.entries()) {
+          perceptualMap.set(k, v);
+        }
+      } else if (
+        'candidateId' in perceptualEvidence &&
+        typeof (perceptualEvidence as PerceptualFitnessEvidence).candidateId === 'string'
+      ) {
+        const ev = perceptualEvidence as PerceptualFitnessEvidence;
+        perceptualMap.set(ev.candidateId, ev);
+      } else {
+        for (const [k, v] of Object.entries(perceptualEvidence)) {
+          perceptualMap.set(k, v as PerceptualFitnessEvidence);
+        }
+      }
+    }
+
     for (const item of this.generateCandidates()) {
       const candidate = MONETA_REPRESENTATION_CANDIDATES[item.candidateId];
-      const check = this.checkHardConstraints(signature, reqs, candidate, item.layout);
+      const candidateEvidence = perceptualMap.get(item.candidateId);
+      const check = this.checkHardConstraints(signature, reqs, candidate, item.layout, candidateEvidence);
 
       hardTraces.push({
         ruleName: `${item.candidateId}_on_${item.layout}`,
@@ -187,7 +245,8 @@ export class MonetaHypothesisEngine {
           reqs,
           candidate,
           item.family,
-          item.layout
+          item.layout,
+          candidateEvidence
         )
       );
     }
@@ -287,6 +346,23 @@ export class MonetaHypothesisEngine {
       });
     }
 
+    const winnerPerceptual = perceptualMap.get(winner.candidateId);
+    if (winnerPerceptual) {
+      evidence.push({
+        fact: `Perceptual fitness: ${winnerPerceptual.source} (occlusion resistance ${winnerPerceptual.priors.occlusionResistance.toFixed(2)})`,
+        weight: this.fitnessModel.weights.perceptualFitness,
+        supports: true,
+        source: winnerPerceptual.source === 'measured' ? 'measured' : 'prior',
+      });
+    } else {
+      evidence.push({
+        fact: `Perceptual fitness: prior (occlusion resistance ${candidateDef.interactionCharacteristics.occlusionResistance.toFixed(2)}, cognitive load ${candidateDef.interactionCharacteristics.cognitiveLoad.toFixed(2)})`,
+        weight: this.fitnessModel.weights.perceptualFitness,
+        supports: true,
+        source: 'prior',
+      });
+    }
+
     const seenFamilies = new Set<string>([winner.family]);
     const rejectedAlternatives: RejectedAlternative[] = [];
     for (const candidate of scoredCandidates) {
@@ -311,6 +387,9 @@ export class MonetaHypothesisEngine {
       datasetFingerprint: signature.provenance.datasetFingerprint,
       requirementsHash,
       fitnessModelVersion: this.fitnessModel.version,
+      fitnessModelArtifactHash: this.fitnessModelArtifactHash,
+      perceptualModelVersion: 'perceptual-fitness-v1',
+      perceptualDeviceClass: winnerPerceptual?.measured?.deviceClass ?? 'desktop',
     };
 
     return {
@@ -333,6 +412,7 @@ export class MonetaHypothesisEngine {
       decisionMargin: assessment.margin,
       decisionRationale: assessment.rationale,
       fitnessModelVersion: this.fitnessModel.version,
+      perceptualModelVersion: 'perceptual-fitness-v1',
       weightSensitivity,
       embodiment,
       evidence,
@@ -404,7 +484,8 @@ export class MonetaHypothesisEngine {
     signature: DatasetSignature,
     reqs: RepresentationRequirements,
     candidate: import('./RepresentationCandidate.ts').RepresentationCandidate,
-    layout: VRLayout
+    layout: VRLayout,
+    candidateEvidence?: PerceptualFitnessEvidence
   ): { passed: boolean; reason: string } {
     const top = signature.topologicalStructure.topology;
     const rowCount = signature.cardinality.rowCount;
@@ -415,6 +496,15 @@ export class MonetaHypothesisEngine {
         passed: false,
         reason: `Dataset has ${rowCount} rows but hardware allows at most ${hardware.maxElements} elements`,
       };
+    }
+
+    if (reqs.maxOcclusionTolerance !== undefined && candidateEvidence?.source === 'measured' && candidateEvidence.measured) {
+      if (candidateEvidence.measured.hiddenMarkFraction > reqs.maxOcclusionTolerance) {
+        return {
+          passed: false,
+          reason: `Candidate hidden mark fraction ${candidateEvidence.measured.hiddenMarkFraction.toFixed(2)} exceeds maximum occlusion tolerance ${reqs.maxOcclusionTolerance.toFixed(2)}`,
+        };
+      }
     }
 
     const hasCriticalGoal = (information: import('./RepresentationCandidate.ts').InformationType) =>
@@ -616,9 +706,10 @@ export class MonetaHypothesisEngine {
     reqs: RepresentationRequirements,
     candidate: import('./RepresentationCandidate.ts').RepresentationCandidate,
     family: RepresentationFamily,
-    layout: VRLayout
+    layout: VRLayout,
+    candidateEvidence?: PerceptualFitnessEvidence
   ): CandidateScore {
-    const evaluation = model.evaluate(signature, reqs, candidate, family);
+    const evaluation = model.evaluate(signature, reqs, candidate, family, candidateEvidence);
     const components: ScoreComponent[] = evaluation.components.map((component) => ({
       component: component.dimension,
       weight: component.weight,
