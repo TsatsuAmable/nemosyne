@@ -12,7 +12,7 @@ use std::fmt::Write;
 use sha2::{Digest, Sha256};
 
 use crate::data::column::Column;
-use crate::data::dataset::Dataset;
+use crate::data::dataset::{Dataset, EdgeEndpoint};
 use crate::data::value::Value;
 
 /// SHA-256 over UTF-8 text, rendered as 64 lowercase hex characters.
@@ -124,8 +124,14 @@ fn write_row(buf: &mut String, row: &HashMap<String, Value>, columns: &[Column])
 
 fn write_edge(buf: &mut String, edge: &crate::data::dataset::Edge) {
     let mut entries: Vec<(String, EdgeVal)> = Vec::new();
-    entries.push(("source".to_string(), EdgeVal::UInt(edge.source)));
-    entries.push(("target".to_string(), EdgeVal::UInt(edge.target)));
+    entries.push((
+        "source".to_string(),
+        EdgeVal::Endpoint(edge.source.clone()),
+    ));
+    entries.push((
+        "target".to_string(),
+        EdgeVal::Endpoint(edge.target.clone()),
+    ));
     if let Some(w) = edge.weight {
         entries.push(("weight".to_string(), EdgeVal::Float(w)));
     }
@@ -141,7 +147,7 @@ fn write_edge(buf: &mut String, edge: &crate::data::dataset::Edge) {
         write_string(buf, k);
         buf.push(':');
         match v {
-            EdgeVal::UInt(n) => write_uint(buf, *n),
+            EdgeVal::Endpoint(endpoint) => write_edge_endpoint(buf, endpoint),
             EdgeVal::Float(f) => write_number(buf, *f),
             EdgeVal::Json(value) => write_json_value(buf, value),
         }
@@ -150,9 +156,16 @@ fn write_edge(buf: &mut String, edge: &crate::data::dataset::Edge) {
 }
 
 enum EdgeVal {
-    UInt(usize),
+    Endpoint(EdgeEndpoint),
     Float(f64),
     Json(serde_json::Value),
+}
+
+fn write_edge_endpoint(buf: &mut String, endpoint: &EdgeEndpoint) {
+    match endpoint {
+        EdgeEndpoint::Index(index) => write_uint(buf, *index),
+        EdgeEndpoint::Id(id) => write_string(buf, id),
+    }
 }
 
 fn write_value(buf: &mut String, v: &Value) {
@@ -372,6 +385,25 @@ mod tests {
         b.edges = Some(vec![edge_b]);
 
         assert_eq!(dataset_fingerprint(&a), dataset_fingerprint(&b));
+    }
+
+    #[test]
+    fn endpoint_json_type_changes_the_fingerprint() {
+        let mut numeric = ds();
+        numeric.edges = Some(vec![Edge::new(0, 1)]);
+
+        let mut string = ds();
+        string.edges = Some(vec![Edge::new_id("0", "1")]);
+
+        assert_ne!(dataset_fingerprint(&numeric), dataset_fingerprint(&string));
+    }
+
+    #[test]
+    fn string_endpoint_fingerprint_matches_its_canonical_json() {
+        let mut dataset = ds();
+        dataset.edges = Some(vec![Edge::new_id("Alice", "Bob")]);
+        let canonical_json = "{\"columns\":[{\"name\":\"name\",\"type\":\"CATEGORICAL\"},{\"name\":\"age\",\"type\":\"NUMERIC\"}],\"edges\":[{\"source\":\"Alice\",\"target\":\"Bob\"}],\"name\":\"sample\",\"rows\":[{\"age\":30,\"name\":\"Alice\"},{\"age\":25,\"name\":\"Bob\"}]}";
+        assert_eq!(dataset_fingerprint(&dataset), sha256_hex(canonical_json));
     }
 
     #[test]
