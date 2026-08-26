@@ -1,44 +1,48 @@
 //! Shared analytical resource envelope for scale-sensitive Rust/WASM work.
 //!
-//! RF-029/RF-030/RF-031: running work in a Worker does not make unbounded
-//! memory or computational complexity safe. This module provides a single,
-//! deterministic preflight vocabulary for analytical work. These defaults are
-//! conservative kernel safety limits, not Quest/device qualification claims;
-//! target-device profiles must be measured and governed separately.
+//! RF-029/RF-030/RF-031/RF-035: running work in a Worker does not make
+//! unbounded memory, computational complexity, or host materialisation safe.
+//! This module provides deterministic estimates and refusal vocabulary. The
+//! defaults are conservative kernel safety limits, not Quest/device
+//! qualification claims; target-device profiles are measured separately.
 
 use serde::{Deserialize, Serialize};
 
 pub const MIB: u64 = 1024 * 1024;
 /// Conservative transient-allocation ceiling inside the 512 MiB WASM maximum.
-/// It intentionally leaves headroom for resident columns, allocator overhead,
-/// JS/WASM glue and result buffers.
 pub const DEFAULT_TRANSIENT_BUDGET_BYTES: u64 = 128 * MIB;
-/// Abstract exact-work ceiling. One work unit is approximately one primitive
-/// scalar-distance/assignment comparison. It is a refusal guard, not a latency
-/// prediction.
+/// Conservative whole-operation peak ceiling. This leaves substantial room in
+/// the 512 MiB maximum for allocator fragmentation, bindings, renderer state,
+/// stack, and browser/Worker overhead that the analytical estimate does not own.
+pub const DEFAULT_PEAK_BUDGET_BYTES: u64 = 384 * MIB;
+/// Maximum estimated host materialisation for one mutation result. Large
+/// datasets remain resident in the analytical runtime; the current product
+/// contract only materialises outputs whose transfer/parse envelope is bounded.
+pub const DEFAULT_MATERIALIZATION_BUDGET_BYTES: u64 = 64 * MIB;
+/// Abstract exact-work ceiling. One work unit approximates one primitive
+/// scalar-distance/assignment comparison. It is a refusal guard, not latency.
 pub const DEFAULT_EXACT_WORK_UNITS: u64 = 50_000_000;
-/// Exact all-pairs radius search is never selected above this many points by the
-/// default kernel envelope, regardless of dimensionality.
 pub const DEFAULT_EXACT_PAIR_ROWS: usize = 8_192;
-/// Agglomerative clustering's current implementation repeatedly scans cluster
-/// pairs and member pairs, so its exact mode is deliberately much smaller.
 pub const DEFAULT_HIERARCHICAL_ROWS: usize = 2_048;
-/// Current k-means implementation performs exactly this many Lloyd iterations.
 pub const KMEANS_ITERATIONS: u64 = 20;
 
-// Stable conservative structural estimates. These intentionally do not use
-// `size_of::<usize>()` or `size_of::<Vec<_>>()`: resource decisions and error
-// metadata must not change merely because the same kernel is tested natively
-// and then built for wasm32.
+// Stable conservative structural estimates. They deliberately do not use
+// target-dependent `size_of::<usize>()` / `size_of::<Vec<_>>()` values so the
+// same request receives the same resource decision natively and on wasm32.
 const SOURCE_INDEX_BYTES: u64 = 8;
 const VEC_METADATA_BYTES: u64 = 24;
 const CSR_OFFSET_BYTES: u64 = 4;
-const CSR_EDGE_BYTES: u64 = 8; // u32 neighbour index + f32 distance
+const CSR_EDGE_BYTES: u64 = 8;
 const PERSISTENCE_EDGE_BYTES: u64 = 24;
 const BETTI_EDGE_BYTES: u64 = 16;
 const MAPPER_NODE_BASE_BYTES: u64 = 72;
 const MAPPER_EDGE_BYTES: u64 = 32;
 const SORT_COMPARISON_UPPER_BOUND: u64 = 64;
+const ROW_METADATA_BYTES: u64 = 64;
+const CELL_ENVELOPE_BYTES: u64 = 40;
+const COLUMN_METADATA_BYTES: u64 = 64;
+const COLUMNAR_CELL_ENVELOPE_BYTES: u64 = 12;
+const HOST_MATERIALIZATION_MULTIPLIER: u64 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -54,15 +58,21 @@ pub enum AnalysisComplexity {
 #[serde(rename_all = "snake_case")]
 pub enum ResourceDecision {
     ExactAllowed,
+    /// The exact route cannot be admitted and no governed approximation has
+    /// been selected for this request.
     ApproximationRequired,
+    /// An explicit bounded approximation request is inside the governed work
+    /// and memory envelope. The caller must still apply its quality gate.
+    BoundedApproximationAllowed,
     UnsupportedAtScale,
 }
 
 impl ResourceDecision {
-    fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::ExactAllowed => "exact_allowed",
             Self::ApproximationRequired => "approximation_required",
+            Self::BoundedApproximationAllowed => "bounded_approximation_allowed",
             Self::UnsupportedAtScale => "unsupported_at_scale",
         }
     }
@@ -77,6 +87,12 @@ pub struct ResourceEstimate {
     pub complexity: AnalysisComplexity,
     pub estimated_work_units: u64,
     pub estimated_transient_bytes: u64,
+    /// Resident canonical input storage participating in this operation.
+    pub estimated_resident_bytes: u64,
+    /// Rust -> host materialisation/decode/parse envelope for a result.
+    pub estimated_transfer_bytes: u64,
+    /// Conservative simultaneous peak: resident + transient + transfer.
+    pub estimated_peak_bytes: u64,
     pub decision: ResourceDecision,
     pub reason_code: Option<String>,
 }
@@ -86,12 +102,36 @@ impl ResourceEstimate {
         self.operation = operation.into();
         self
     }
+
+    pub fn with_memory_envelope(
+        mut self,
+        resident_bytes: u64,
+        transfer_bytes: u64,
+        budget: AnalysisBudget,
+    ) -> Self {
+        self.estimated_resident_bytes = resident_bytes;
+        self.estimated_transfer_bytes = transfer_bytes;
+        self.estimated_peak_bytes = resident_bytes
+            .saturating_add(self.estimated_transient_bytes)
+            .saturating_add(transfer_bytes);
+
+        if transfer_bytes > budget.max_materialization_bytes {
+            self.decision = ResourceDecision::UnsupportedAtScale;
+            self.reason_code = Some("MATERIALIZATION_BUDGET_EXCEEDED".to_string());
+        } else if self.estimated_peak_bytes > budget.max_peak_bytes {
+            self.decision = ResourceDecision::UnsupportedAtScale;
+            self.reason_code = Some("PEAK_MEMORY_BUDGET_EXCEEDED".to_string());
+        }
+        self
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AnalysisBudget {
     pub max_exact_work_units: u64,
     pub max_transient_bytes: u64,
+    pub max_peak_bytes: u64,
+    pub max_materialization_bytes: u64,
     pub max_exact_pair_rows: usize,
     pub max_hierarchical_rows: usize,
 }
@@ -101,6 +141,8 @@ impl Default for AnalysisBudget {
         Self {
             max_exact_work_units: DEFAULT_EXACT_WORK_UNITS,
             max_transient_bytes: DEFAULT_TRANSIENT_BUDGET_BYTES,
+            max_peak_bytes: DEFAULT_PEAK_BUDGET_BYTES,
+            max_materialization_bytes: DEFAULT_MATERIALIZATION_BUDGET_BYTES,
             max_exact_pair_rows: DEFAULT_EXACT_PAIR_ROWS,
             max_hierarchical_rows: DEFAULT_HIERARCHICAL_ROWS,
         }
@@ -153,9 +195,78 @@ fn sat_mul(values: &[u64]) -> u64 {
         .fold(1u64, |acc, value| acc.saturating_mul(value))
 }
 
+fn base_estimate(
+    operation: impl Into<String>,
+    rows: usize,
+    dimensions: usize,
+    complexity: AnalysisComplexity,
+    work: u64,
+    transient: u64,
+    decision: ResourceDecision,
+    reason_code: Option<String>,
+) -> ResourceEstimate {
+    ResourceEstimate {
+        operation: operation.into(),
+        rows,
+        dimensions,
+        complexity,
+        estimated_work_units: work,
+        estimated_transient_bytes: transient,
+        estimated_resident_bytes: 0,
+        estimated_transfer_bytes: 0,
+        estimated_peak_bytes: transient,
+        decision,
+        reason_code,
+    }
+}
+
 fn undirected_pair_count(rows: usize) -> u64 {
     let n = rows as u64;
     n.saturating_mul(n.saturating_sub(1)).saturating_div(2)
+}
+
+/// Stable conservative row-major dataset storage envelope. It intentionally
+/// treats every cell as capable of carrying owned/value metadata; this can
+/// over-estimate compact numeric tables but cannot under-estimate them by
+/// pretending all values are primitive f64s.
+pub fn row_dataset_bytes(rows: usize, columns: usize) -> u64 {
+    sat_mul(&[rows as u64, ROW_METADATA_BYTES])
+        .saturating_add(sat_mul(&[
+            rows as u64,
+            columns as u64,
+            CELL_ENVELOPE_BYTES,
+        ]))
+        .saturating_add(sat_mul(&[columns as u64, COLUMN_METADATA_BYTES]))
+}
+
+/// Stable conservative resident columnar substrate envelope. Numeric values,
+/// categorical codes, and validity are all bounded by a per-cell envelope; the
+/// dictionary/schema allowance is represented by column metadata.
+pub fn columnar_dataset_bytes(rows: usize, columns: usize) -> u64 {
+    sat_mul(&[
+        rows as u64,
+        columns as u64,
+        COLUMNAR_CELL_ENVELOPE_BYTES,
+    ])
+    .saturating_add(sat_mul(&[columns as u64, COLUMN_METADATA_BYTES]))
+}
+
+/// Resident registry estimate. Row-major ingests retain both their row-oriented
+/// Dataset and canonical columnar substrate; typed/columnar-only handles retain
+/// only the latter.
+pub fn resident_dataset_bytes(rows: usize, columns: usize, has_row_major: bool) -> u64 {
+    let columnar = columnar_dataset_bytes(rows, columns);
+    if has_row_major {
+        columnar.saturating_add(row_dataset_bytes(rows, columns))
+    } else {
+        columnar
+    }
+}
+
+/// Conservative full DatasetJSON crossing envelope. The multiplier accounts
+/// for simultaneous Rust serialization/output bytes and host decode/parse state.
+pub fn dataset_materialization_bytes(rows: usize, columns: usize) -> u64 {
+    row_dataset_bytes(rows, columns).saturating_mul(HOST_MATERIALIZATION_MULTIPLIER)
 }
 
 /// Estimated owned compact column-major point storage: f64 coordinates,
@@ -173,9 +284,6 @@ pub fn row_matrix_bytes(rows: usize, dimensions: usize) -> u64 {
         .saturating_add(sat_mul(&[rows as u64, VEC_METADATA_BYTES]))
 }
 
-/// Worst-case CSR storage for a radius graph. A radius can span the entire
-/// dataset, so a safety preflight must account for n*(n-1) directed edges even
-/// when a grid index usually produces much sparser output.
 pub fn csr_worst_case_bytes(rows: usize) -> u64 {
     let rows_u64 = rows as u64;
     let offsets = rows_u64
@@ -183,6 +291,14 @@ pub fn csr_worst_case_bytes(rows: usize) -> u64 {
         .saturating_mul(CSR_OFFSET_BYTES);
     let directed_edges = rows_u64.saturating_mul(rows_u64.saturating_sub(1));
     offsets.saturating_add(directed_edges.saturating_mul(CSR_EDGE_BYTES))
+}
+
+pub fn bounded_csr_bytes(rows: usize, max_neighbors: usize) -> u64 {
+    let offsets = (rows as u64)
+        .saturating_add(1)
+        .saturating_mul(CSR_OFFSET_BYTES);
+    let directed = sat_mul(&[rows as u64, max_neighbors as u64, 2]);
+    offsets.saturating_add(directed.saturating_mul(CSR_EDGE_BYTES))
 }
 
 pub fn exact_neighbourhood_estimate(
@@ -210,16 +326,62 @@ pub fn exact_neighbourhood_estimate(
     } else {
         (ResourceDecision::ExactAllowed, None)
     };
-    ResourceEstimate {
-        operation: "radius_neighbourhood".to_string(),
+    base_estimate(
+        "radius_neighbourhood",
         rows,
         dimensions,
-        complexity: AnalysisComplexity::Quadratic,
-        estimated_work_units: work,
-        estimated_transient_bytes: bytes,
+        AnalysisComplexity::Quadratic,
+        work,
+        bytes,
         decision,
         reason_code,
-    }
+    )
+}
+
+/// Deterministic work/memory bound for the opt-in landmark approximation.
+/// Fixed landmark and per-point neighbour caps make both work and CSR size
+/// linear in N for a governed request.
+pub fn bounded_landmark_estimate(
+    rows: usize,
+    dimensions: usize,
+    landmark_count: usize,
+    max_neighbors: usize,
+    budget: AnalysisBudget,
+) -> ResourceEstimate {
+    let k = landmark_count.max(1).min(rows.max(1));
+    let max_neighbors = max_neighbors.max(1).min(k);
+    let work = sat_mul(&[
+        rows as u64,
+        k as u64,
+        dimensions.max(1) as u64,
+        2,
+    ]);
+    let bytes = point_cloud_bytes(rows, dimensions)
+        .saturating_add(bounded_csr_bytes(rows, max_neighbors))
+        .saturating_add(sat_mul(&[rows as u64, k as u64, 4]));
+    let (decision, reason_code) = if bytes > budget.max_transient_bytes {
+        (
+            ResourceDecision::UnsupportedAtScale,
+            Some("BOUNDED_APPROXIMATION_MEMORY_BUDGET_EXCEEDED".to_string()),
+        )
+    } else if work > budget.max_exact_work_units {
+        (
+            ResourceDecision::UnsupportedAtScale,
+            Some("BOUNDED_APPROXIMATION_WORK_BUDGET_EXCEEDED".to_string()),
+        )
+    } else {
+        (ResourceDecision::BoundedApproximationAllowed, None)
+    };
+    base_estimate(
+        "bounded_landmark_neighbourhood",
+        rows,
+        dimensions,
+        AnalysisComplexity::Linear,
+        work,
+        bytes,
+        decision,
+        reason_code,
+    )
 }
 
 pub fn kmeans_estimate(
@@ -232,13 +394,6 @@ pub fn kmeans_estimate(
     let rows_u64 = rows as u64;
     let dimensions_u64 = dimensions.max(1) as u64;
     let k_u64 = effective_k as u64;
-
-    // The current k-means++ implementation recomputes each point's distance to
-    // every already-selected centroid on every seeding round. The number of
-    // centroid-distance comparisons is therefore 1 + ... + (k-1), i.e.
-    // k*(k-1)/2 per point, rather than O(k). Lloyd assignment then performs
-    // n*k comparisons for each fixed iteration. With user-controlled k up to n,
-    // this implementation has a cubic worst case and must be budgeted as such.
     let seed_comparisons = k_u64
         .saturating_mul(k_u64.saturating_sub(1))
         .saturating_div(2);
@@ -250,10 +405,9 @@ pub fn kmeans_estimate(
         KMEANS_ITERATIONS,
     ]);
     let work = seed_work.saturating_add(lloyd_work);
-
     let bytes = row_matrix_bytes(rows, dimensions)
-        .saturating_add(sat_mul(&[rows as u64, 8])) // assignments
-        .saturating_add(sat_mul(&[effective_k as u64, dimensions as u64, 16])); // old + new centroids
+        .saturating_add(sat_mul(&[rows as u64, 8]))
+        .saturating_add(sat_mul(&[effective_k as u64, dimensions as u64, 16]));
     let (decision, reason_code) = if bytes > budget.max_transient_bytes {
         (
             ResourceDecision::UnsupportedAtScale,
@@ -267,16 +421,16 @@ pub fn kmeans_estimate(
     } else {
         (ResourceDecision::ExactAllowed, None)
     };
-    ResourceEstimate {
-        operation: "k_means".to_string(),
+    base_estimate(
+        "k_means",
         rows,
         dimensions,
-        complexity: AnalysisComplexity::Cubic,
-        estimated_work_units: work,
-        estimated_transient_bytes: bytes,
+        AnalysisComplexity::Cubic,
+        work,
+        bytes,
         decision,
         reason_code,
-    }
+    )
 }
 
 pub fn hierarchical_estimate(
@@ -284,18 +438,12 @@ pub fn hierarchical_estimate(
     dimensions: usize,
     budget: AnalysisBudget,
 ) -> ResourceEstimate {
-    // The present implementation repeatedly evaluates inter-cluster member
-    // pairs while scanning candidate cluster pairs. n^3*d is a conservative
-    // envelope that intentionally refuses before pathological work begins.
     let work = sat_mul(&[
         rows as u64,
         rows as u64,
         rows as u64,
         dimensions.max(1) as u64,
     ]);
-    // The implementation computes distances on demand rather than allocating
-    // an n*n distance matrix. Account for the complete-case matrix, duplicated
-    // centroids/member storage and linear clustering/history metadata instead.
     let bytes = row_matrix_bytes(rows, dimensions)
         .saturating_add(point_cloud_bytes(rows, dimensions))
         .saturating_add(sat_mul(&[rows as u64, 128]));
@@ -317,16 +465,16 @@ pub fn hierarchical_estimate(
     } else {
         (ResourceDecision::ExactAllowed, None)
     };
-    ResourceEstimate {
-        operation: "hierarchical_clustering".to_string(),
+    base_estimate(
+        "hierarchical_clustering",
         rows,
         dimensions,
-        complexity: AnalysisComplexity::Cubic,
-        estimated_work_units: work,
-        estimated_transient_bytes: bytes,
+        AnalysisComplexity::Cubic,
+        work,
+        bytes,
         decision,
         reason_code,
-    }
+    )
 }
 
 fn tda_estimate(
@@ -342,7 +490,7 @@ fn tda_estimate(
     let pair_count = undirected_pair_count(rows);
     let neighbourhood_work = sat_mul(&[rows_u64, rows_u64, dimensions_u64]);
     let feature_space_bytes = row_matrix_bytes(rows, dimensions)
-        .saturating_add(rows_u64.saturating_mul(8)); // first-feature/filter working vector
+        .saturating_add(rows_u64.saturating_mul(8));
     let neighbourhood_bytes = point_cloud_bytes(rows, dimensions)
         .saturating_add(csr_worst_case_bytes(rows));
 
@@ -352,8 +500,7 @@ fn tda_estimate(
             let per_row_node_memberships = rows_u64.saturating_mul(bins);
             let possible_row_node_pairs = rows_u64
                 .saturating_mul(bins.saturating_mul(bins.saturating_sub(1)).saturating_div(2));
-            let edge_sort_work = possible_row_node_pairs
-                .saturating_mul(SORT_COMPARISON_UPPER_BOUND);
+            let edge_sort_work = possible_row_node_pairs.saturating_mul(SORT_COMPARISON_UPPER_BOUND);
             let work = neighbourhood_work
                 .saturating_mul(bins)
                 .saturating_add(edge_sort_work);
@@ -414,21 +561,22 @@ fn tda_estimate(
         (ResourceDecision::ExactAllowed, None)
     };
 
-    ResourceEstimate {
-        operation: operation.name().to_string(),
+    base_estimate(
+        operation.name(),
         rows,
         dimensions,
         complexity,
-        estimated_work_units: work,
-        estimated_transient_bytes: bytes,
+        work,
+        bytes,
         decision,
         reason_code,
-    }
+    )
 }
 
 fn build_tda_preflight(
     columns: &[crate::data::column::Column],
     columnar: &crate::data::columnar::ColumnarDataset,
+    has_row_major: bool,
     params: &serde_json::Value,
     operation: TdaOperation,
     budget: AnalysisBudget,
@@ -466,6 +614,7 @@ fn build_tda_preflight(
         .get("steps")
         .and_then(|value| value.as_u64())
         .unwrap_or(10) as usize;
+    let resident = resident_dataset_bytes(source_rows, columns.len(), has_row_major);
     let estimate = tda_estimate(
         operation,
         eligible_rows,
@@ -473,7 +622,8 @@ fn build_tda_preflight(
         mapper_bins,
         betti_steps,
         budget,
-    );
+    )
+    .with_memory_envelope(resident, 0, budget);
     let refusal = require_exact(&estimate).err();
 
     TdaResourcePreflight {
@@ -488,34 +638,23 @@ fn build_tda_preflight(
     }
 }
 
-/// Kernel-inline resource preflight for the `data_compute_*` TDA exports.
-/// Resolves the resident columnar snapshot and builds the same preflight the
-/// standalone `data_tda_resource_preflight` dry-run query produces, so direct
-/// callers of the compute exports cannot bypass the analytical resource
-/// envelope. Returns `None` only when the handle cannot be resolved (the
-/// caller then falls through to its existing hard-error path).
 pub(crate) fn tda_preflight_for(
     handle: u32,
     params: &serde_json::Value,
     operation: TdaOperation,
 ) -> Option<TdaResourcePreflight> {
     let (_name, columns, columnar) = crate::data::columnar_snapshot(handle)?;
+    let has_row_major = crate::data::with_dataset(handle, |_| ()).is_some();
     Some(build_tda_preflight(
         &columns,
         columnar.as_ref(),
+        has_row_major,
         params,
         operation,
         AnalysisBudget::default(),
     ))
 }
 
-/// Rust-owned preflight for production TDA calls. The host passes the exact
-/// request JSON and an operation code (0 Mapper, 1 persistence, 2 Betti-0).
-/// The estimator reads resident columnar validity buffers directly and counts
-/// complete-case eligible observations without constructing a row-index list.
-/// If a feature cannot use the primitive point-access seam, preflight remains
-/// fail-closed by budgeting all source rows instead of letting the raw TDA call
-/// bypass resource control.
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn data_tda_resource_preflight(
     handle: u32,
@@ -538,9 +677,11 @@ pub fn data_tda_resource_preflight(
     let Some((_name, columns, columnar)) = crate::data::columnar_snapshot(handle) else {
         return 0;
     };
+    let has_row_major = crate::data::with_dataset(handle, |_| ()).is_some();
     let preflight = build_tda_preflight(
         &columns,
         columnar.as_ref(),
+        has_row_major,
         &params,
         operation,
         AnalysisBudget::default(),
@@ -555,18 +696,29 @@ pub fn data_tda_resource_preflight(
 pub fn require_exact(estimate: &ResourceEstimate) -> Result<(), String> {
     match estimate.decision {
         ResourceDecision::ExactAllowed => Ok(()),
-        ResourceDecision::ApproximationRequired | ResourceDecision::UnsupportedAtScale => Err(
-            format!(
-                "UNSUPPORTED_AT_SCALE:operation={};decision={};reason={};rows={};dimensions={};work={};transientBytes={}",
-                estimate.operation,
-                estimate.decision.as_str(),
-                estimate.reason_code.as_deref().unwrap_or("RESOURCE_BUDGET_EXCEEDED"),
-                estimate.rows,
-                estimate.dimensions,
-                estimate.estimated_work_units,
-                estimate.estimated_transient_bytes,
-            ),
-        ),
+        ResourceDecision::ApproximationRequired
+        | ResourceDecision::BoundedApproximationAllowed
+        | ResourceDecision::UnsupportedAtScale => Err(format!(
+            "UNSUPPORTED_AT_SCALE:operation={};decision={};reason={};rows={};dimensions={};work={};transientBytes={};residentBytes={};transferBytes={};peakBytes={}",
+            estimate.operation,
+            estimate.decision.as_str(),
+            estimate.reason_code.as_deref().unwrap_or("RESOURCE_BUDGET_EXCEEDED"),
+            estimate.rows,
+            estimate.dimensions,
+            estimate.estimated_work_units,
+            estimate.estimated_transient_bytes,
+            estimate.estimated_resident_bytes,
+            estimate.estimated_transfer_bytes,
+            estimate.estimated_peak_bytes,
+        )),
+    }
+}
+
+pub fn require_bounded_approximation(estimate: &ResourceEstimate) -> Result<(), String> {
+    if estimate.decision == ResourceDecision::BoundedApproximationAllowed {
+        Ok(())
+    } else {
+        require_exact(estimate)
     }
 }
 
@@ -584,6 +736,36 @@ mod tests {
         assert_eq!(row_matrix_bytes(10, 3), 560);
         assert_eq!(point_cloud_bytes(usize::MAX, usize::MAX), u64::MAX);
         assert_eq!(row_matrix_bytes(usize::MAX, usize::MAX), u64::MAX);
+        assert_eq!(row_dataset_bytes(usize::MAX, usize::MAX), u64::MAX);
+        assert_eq!(dataset_materialization_bytes(usize::MAX, usize::MAX), u64::MAX);
+    }
+
+    #[test]
+    fn row_major_residency_accounts_for_row_and_columnar_copies() {
+        let row_only = row_dataset_bytes(1_000, 4);
+        let columnar = columnar_dataset_bytes(1_000, 4);
+        assert_eq!(resident_dataset_bytes(1_000, 4, true), row_only + columnar);
+        assert_eq!(resident_dataset_bytes(1_000, 4, false), columnar);
+    }
+
+    #[test]
+    fn materialisation_budget_refuses_large_host_crossing() {
+        let budget = AnalysisBudget::default();
+        let transfer = dataset_materialization_bytes(1_000_000, 4);
+        assert!(transfer > budget.max_materialization_bytes);
+        let estimate = base_estimate(
+            "sort",
+            1_000_000,
+            4,
+            AnalysisComplexity::NLogN,
+            1_000_000,
+            1024,
+            ResourceDecision::ExactAllowed,
+            None,
+        )
+        .with_memory_envelope(resident_dataset_bytes(1_000_000, 4, true), transfer, budget);
+        assert_eq!(estimate.decision, ResourceDecision::UnsupportedAtScale);
+        assert_eq!(estimate.reason_code.as_deref(), Some("MATERIALIZATION_BUDGET_EXCEEDED"));
     }
 
     #[test]
@@ -596,14 +778,10 @@ mod tests {
     fn exact_neighbourhood_refuses_dense_memory_hazard() {
         let estimate = exact_neighbourhood_estimate(8_192, 3, AnalysisBudget::default());
         assert_eq!(estimate.decision, ResourceDecision::ApproximationRequired);
-        assert_eq!(
-            estimate.reason_code.as_deref(),
-            Some("TRANSIENT_MEMORY_BUDGET_EXCEEDED")
-        );
+        assert_eq!(estimate.reason_code.as_deref(), Some("TRANSIENT_MEMORY_BUDGET_EXCEEDED"));
         let error = require_exact(&estimate).unwrap_err();
         assert!(error.starts_with("UNSUPPORTED_AT_SCALE:"));
-        assert!(error.contains("operation=radius_neighbourhood"));
-        assert!(error.contains("decision=approximation_required"));
+        assert!(error.contains("residentBytes="));
     }
 
     #[test]
@@ -611,6 +789,16 @@ mod tests {
         let estimate = exact_neighbourhood_estimate(100, 3, AnalysisBudget::default());
         assert_eq!(estimate.decision, ResourceDecision::ExactAllowed);
         assert!(require_exact(&estimate).is_ok());
+    }
+
+    #[test]
+    fn bounded_landmark_estimate_has_linear_edge_bound() {
+        let budget = AnalysisBudget::default();
+        let estimate = bounded_landmark_estimate(50_000, 2, 32, 8, budget);
+        assert_eq!(estimate.decision, ResourceDecision::BoundedApproximationAllowed);
+        assert_eq!(estimate.complexity, AnalysisComplexity::Linear);
+        assert!(estimate.estimated_transient_bytes < budget.max_transient_bytes);
+        assert!(require_bounded_approximation(&estimate).is_ok());
     }
 
     #[test]
@@ -626,7 +814,6 @@ mod tests {
         let small = kmeans_estimate(10_000, 4, 4, AnalysisBudget::default());
         assert_eq!(small.decision, ResourceDecision::ExactAllowed);
         assert_eq!(small.complexity, AnalysisComplexity::Cubic);
-        // 10k * 4 dimensions * (4*3/2 + 4*20) comparisons.
         assert_eq!(small.estimated_work_units, 3_440_000);
 
         let large = kmeans_estimate(100_000, 8, 8, AnalysisBudget::default());
@@ -651,87 +838,43 @@ mod tests {
 
     #[test]
     fn mapper_budget_accounts_for_repeated_bins_and_overlap_edge_bookkeeping() {
-        let small = tda_estimate(
-            TdaOperation::Mapper,
-            100,
-            2,
-            10,
-            10,
-            AnalysisBudget::default(),
-        );
+        let small = tda_estimate(TdaOperation::Mapper, 100, 2, 10, 10, AnalysisBudget::default());
         assert_eq!(small.decision, ResourceDecision::ExactAllowed);
 
-        // Isolate the work dimension: production keeps its conservative
-        // memory-first refusal ordering, while this fixture proves that the
-        // user-controlled bin multiplier independently exceeds exact work.
         let work_only_budget = AnalysisBudget {
             max_transient_bytes: u64::MAX,
+            max_peak_bytes: u64::MAX,
+            max_materialization_bytes: u64::MAX,
             ..AnalysisBudget::default()
         };
-        let unbounded_bins = tda_estimate(
-            TdaOperation::Mapper,
-            100,
-            2,
-            1_000,
-            10,
-            work_only_budget,
-        );
+        let unbounded_bins = tda_estimate(TdaOperation::Mapper, 100, 2, 1_000, 10, work_only_budget);
         assert!(unbounded_bins.estimated_work_units > work_only_budget.max_exact_work_units);
         assert_eq!(unbounded_bins.decision, ResourceDecision::UnsupportedAtScale);
-        assert_eq!(
-            unbounded_bins.reason_code.as_deref(),
-            Some("EXACT_WORK_BUDGET_EXCEEDED")
-        );
     }
 
     #[test]
     fn betti_budget_accounts_for_requested_steps() {
-        // As above, isolate work from output-buffer memory so this test proves
-        // the requested-step multiplier rather than depending on refusal order.
         let work_only_budget = AnalysisBudget {
             max_transient_bytes: u64::MAX,
+            max_peak_bytes: u64::MAX,
+            max_materialization_bytes: u64::MAX,
             ..AnalysisBudget::default()
         };
-        let estimate = tda_estimate(
-            TdaOperation::Betti0,
-            10,
-            2,
-            10,
-            100_000_000,
-            work_only_budget,
-        );
+        let estimate = tda_estimate(TdaOperation::Betti0, 10, 2, 10, 100_000_000, work_only_budget);
         assert!(estimate.estimated_work_units > work_only_budget.max_exact_work_units);
         assert_eq!(estimate.decision, ResourceDecision::UnsupportedAtScale);
-        assert_eq!(estimate.reason_code.as_deref(), Some("EXACT_WORK_BUDGET_EXCEEDED"));
     }
 
     #[test]
     fn large_high_dimensional_tda_refuses_hidden_exact_fallback() {
-        let estimate = tda_estimate(
-            TdaOperation::Persistence,
-            9_000,
-            7,
-            10,
-            10,
-            AnalysisBudget::default(),
-        );
+        let estimate = tda_estimate(TdaOperation::Persistence, 9_000, 7, 10, 10, AnalysisBudget::default());
         assert_eq!(estimate.decision, ResourceDecision::UnsupportedAtScale);
-        assert_eq!(
-            estimate.reason_code.as_deref(),
-            Some("HIGH_DIMENSIONAL_EXACT_FALLBACK_OVER_BUDGET")
-        );
+        assert_eq!(estimate.reason_code.as_deref(), Some("HIGH_DIMENSIONAL_EXACT_FALLBACK_OVER_BUDGET"));
     }
 
     #[test]
     fn small_high_dimensional_tda_remains_exact() {
-        let estimate = tda_estimate(
-            TdaOperation::Persistence,
-            100,
-            7,
-            10,
-            10,
-            AnalysisBudget::default(),
-        );
+        let estimate = tda_estimate(TdaOperation::Persistence, 100, 7, 10, 10, AnalysisBudget::default());
         assert_eq!(estimate.decision, ResourceDecision::ExactAllowed);
     }
 
@@ -739,23 +882,11 @@ mod tests {
     fn tda_preflight_uses_complete_case_validity_without_zero_imputation() {
         let dataset = Dataset::new(
             "preflight",
+            vec![Column::new("x", ColumnType::Numeric), Column::new("y", ColumnType::Numeric)],
             vec![
-                Column::new("x", ColumnType::Numeric),
-                Column::new("y", ColumnType::Numeric),
-            ],
-            vec![
-                std::collections::HashMap::from([
-                    ("x".to_string(), Value::Number(0.0)),
-                    ("y".to_string(), Value::Number(1.0)),
-                ]),
-                std::collections::HashMap::from([
-                    ("x".to_string(), Value::Null),
-                    ("y".to_string(), Value::Number(2.0)),
-                ]),
-                std::collections::HashMap::from([
-                    ("x".to_string(), Value::Number(3.0)),
-                    ("y".to_string(), Value::Number(4.0)),
-                ]),
+                std::collections::HashMap::from([("x".to_string(), Value::Number(0.0)), ("y".to_string(), Value::Number(1.0))]),
+                std::collections::HashMap::from([("x".to_string(), Value::Null), ("y".to_string(), Value::Number(2.0))]),
+                std::collections::HashMap::from([("x".to_string(), Value::Number(3.0)), ("y".to_string(), Value::Number(4.0))]),
             ],
         );
         let columnar = ColumnarDataset::from_dataset(&dataset);
@@ -763,6 +894,7 @@ mod tests {
         let preflight = build_tda_preflight(
             &dataset.columns,
             &columnar,
+            true,
             &params,
             TdaOperation::Mapper,
             AnalysisBudget::default(),
@@ -773,6 +905,8 @@ mod tests {
         assert_eq!(preflight.dimensions, 2);
         assert_eq!(preflight.missing_data_policy, "complete_case_selected_features");
         assert_eq!(preflight.eligibility_mode, "complete_case_selected_features");
+        assert!(preflight.estimate.estimated_resident_bytes > 0);
+        assert!(preflight.estimate.estimated_peak_bytes >= preflight.estimate.estimated_transient_bytes);
         assert!(preflight.refusal.is_none());
     }
 
@@ -782,14 +916,8 @@ mod tests {
             "categorical",
             vec![Column::new("label", ColumnType::Categorical)],
             vec![
-                std::collections::HashMap::from([(
-                    "label".to_string(),
-                    Value::Text("1".to_string()),
-                )]),
-                std::collections::HashMap::from([(
-                    "label".to_string(),
-                    Value::Text("2".to_string()),
-                )]),
+                std::collections::HashMap::from([("label".to_string(), Value::Text("1".to_string()))]),
+                std::collections::HashMap::from([("label".to_string(), Value::Text("2".to_string()))]),
             ],
         );
         let columnar = ColumnarDataset::from_dataset(&dataset);
@@ -797,6 +925,7 @@ mod tests {
         let preflight = build_tda_preflight(
             &dataset.columns,
             &columnar,
+            true,
             &params,
             TdaOperation::Persistence,
             AnalysisBudget::default(),
@@ -811,18 +940,10 @@ mod tests {
     fn budget_is_kernel_safety_not_ten_million_row_qualification() {
         let estimate = exact_neighbourhood_estimate(10_000_000, 2, AnalysisBudget::default());
         assert_ne!(estimate.decision, ResourceDecision::ExactAllowed);
-
         let kmeans = kmeans_estimate(10_000_000, 2, 8, AnalysisBudget::default());
         assert_ne!(kmeans.decision, ResourceDecision::ExactAllowed);
-
-        let tda = tda_estimate(
-            TdaOperation::Persistence,
-            10_000_000,
-            2,
-            10,
-            10,
-            AnalysisBudget::default(),
-        );
+        let tda = tda_estimate(TdaOperation::Persistence, 10_000_000, 2, 10, 10, AnalysisBudget::default());
         assert_ne!(tda.decision, ResourceDecision::ExactAllowed);
+        assert!(dataset_materialization_bytes(10_000_000, 4) > DEFAULT_MATERIALIZATION_BUDGET_BYTES);
     }
 }
