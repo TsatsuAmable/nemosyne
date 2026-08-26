@@ -4,24 +4,32 @@ Nemosyne keeps a small set of authoritative documents and a larger body of subor
 
 ## Governing authorities
 
-- [`Nemosyne_Definitive_Vision_and_Roadmap.md`](Nemosyne_Definitive_Vision_and_Roadmap.md) — canonical product, research, and architecture direction.
-- [`ROADMAP.md`](ROADMAP.md) — canonical live implementation status, programme order, Stream A/B/C state, and review findings.
-- [`../AGENTS.md`](../AGENTS.md) — canonical tool-neutral engineering/agent contract.
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — active technical reference, subordinate to the governing vision where migration remains incomplete.
+- [`Nemosyne_Definitive_Vision_and_Roadmap.md`](Nemosyne_Definitive_Vision_and_Roadmap.md) - canonical product, research, and architecture direction.
+- [`ROADMAP.md`](ROADMAP.md) - canonical live implementation status, programme order, Stream A/B/C state, and review findings.
+- [`../AGENTS.md`](../AGENTS.md) - canonical tool-neutral engineering/agent contract.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) - active technical reference, subordinate to the governing vision where migration remains incomplete.
 
 Executable facts such as commands, dependency/tool versions, CI topology, coverage thresholds, and package metadata are authoritative only in their executable configuration (`package.json`, workflows, test configs, toolchain files, and source). Documentation should link to those sources instead of copying values that can drift.
 
+## Engineering governance
+
+- [`../CONTRIBUTING.md`](../CONTRIBUTING.md) - contribution and verification workflow.
+- [`../SECURITY.md`](../SECURITY.md) - vulnerability reporting and security model.
+- [`OWNERSHIP.md`](OWNERSHIP.md) - semantic ownership and specialist review map.
+- [`RFC_PROCESS.md`](RFC_PROCESS.md) - lightweight threshold for durable architecture/trust-boundary changes.
+- [`architecture/decisions/README.md`](architecture/decisions/README.md) - accepted Architecture Decision Records.
+
 ## Implementation and engineering reference
 
-- [`IMPLEMENTATION_PLAN_V3.md`](IMPLEMENTATION_PLAN_V3.md) — V3 sequencing and dependency structure; `ROADMAP.md` governs live status.
-- [`DEVELOPER_EXPLAINER.md`](DEVELOPER_EXPLAINER.md) — developer onboarding and codebase mental model.
-- [`MIGRATION.md`](MIGRATION.md) — migration reference where still applicable.
-- [`CI_TEST_ACCELERATION_STRATEGY.md`](CI_TEST_ACCELERATION_STRATEGY.md) — CI evidence/latency strategy and measured sharding work.
-- [`STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`](STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md) — Stream A implementation quality contract.
-- [`STREAM_C_SECURITY_ASSURANCE.md`](STREAM_C_SECURITY_ASSURANCE.md) — Stream C security/live-path assurance programme.
-- [`STATISTICAL_METHOD_REGISTER.md`](STATISTICAL_METHOD_REGISTER.md) — governed statistical method inventory.
-- [`GETTING_STARTED.md`](GETTING_STARTED.md) — user/developer setup reference.
-- [`../README.md`](../README.md) — repository entry point.
+- [`IMPLEMENTATION_PLAN_V3.md`](IMPLEMENTATION_PLAN_V3.md) - V3 sequencing and dependency structure; `ROADMAP.md` governs live status.
+- [`DEVELOPER_EXPLAINER.md`](DEVELOPER_EXPLAINER.md) - developer onboarding and codebase mental model.
+- [`MIGRATION.md`](MIGRATION.md) - migration reference where still applicable.
+- [`CI_TEST_ACCELERATION_STRATEGY.md`](CI_TEST_ACCELERATION_STRATEGY.md) - CI evidence/latency strategy and measured sharding work.
+- [`STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`](STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md) - Stream A implementation quality contract.
+- [`STREAM_C_SECURITY_ASSURANCE.md`](STREAM_C_SECURITY_ASSURANCE.md) - Stream C security/live-path assurance programme.
+- [`STATISTICAL_METHOD_REGISTER.md`](STATISTICAL_METHOD_REGISTER.md) - governed statistical method inventory.
+- [`GETTING_STARTED.md`](GETTING_STARTED.md) - user/developer setup reference.
+- [`../README.md`](../README.md) - repository entry point.
 
 These documents may describe current implementation but must not override the governing authorities above.
 
@@ -46,9 +54,9 @@ Study material is operational research governance; it does not override product/
 
 ## Historical archive
 
-- [`archive/README.md`](archive/README.md) — archive index.
+- [`archive/README.md`](archive/README.md) - archive index.
 - Historical roadmaps, completed sprint plans, superseded designs, audits, and point-in-time readiness reports belong under `archive/`.
-- The former root `TEST_READY.md` and `TEST_INFRA.md` are archived as point-in-time reports because their counts, naming, and test architecture no longer describe the live suite.
+- The former root `TEST_READY.md`, `TEST_INFRA.md`, and `draco_viso.md` are archived because their counts, naming, or migration assumptions no longer describe the live project.
 
 ## Documentation rules
 

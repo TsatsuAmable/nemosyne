@@ -1,10 +1,10 @@
 ## Summary
 
-Describe what changed and why. Keep this focused on user, investigator, or engineering impact.
+Describe what changed and why. Keep this focused on user, investigator, scientific, security, or engineering impact.
 
-## Migration slice
+## Programme / finding
 
-If this contributes to the Moneta migration, name the migration-ledger row advanced by this PR. If it does not advance a migration row or fix a blocker, explain why it belongs on the critical path.
+Name the roadmap workstream, RF finding, or bounded maintenance goal advanced by this PR. If none applies, state the concrete engineering reason for the change.
 
 ## Risk surface
 
@@ -16,10 +16,19 @@ Check every area materially affected by this change:
 - [ ] WebXR / VR interaction or spatial UI
 - [ ] Rendering performance or large-dataset performance
 - [ ] Security, privacy, permissions, or untrusted input
-- [ ] Build, CI, deployment, or dependencies
+- [ ] Build, CI, deployment, dependencies, or supply chain
+- [ ] Documentation / engineering governance
 - [ ] None of the above
 
 For checked areas, briefly state the main failure mode considered and how it was mitigated.
+
+## Architecture governance
+
+- [ ] This change does not alter a durable architecture/trust/public-format decision.
+- [ ] An existing ADR governs this change: `ADR-____`.
+- [ ] This change requires/implements an RFC or new ADR; link it here.
+
+Follow `docs/RFC_PROCESS.md` for the small set of changes that require an RFC.
 
 ## Focused verification
 
@@ -29,8 +38,10 @@ Run the smallest ownership-aligned checks that prove this PR's claims. The full 
 - [ ] Focused affected tests
 - [ ] Rust tests when Rust-owned behavior changed
 - [ ] Focused JS/WASM boundary tests when the boundary changed
+- [ ] Production-path test for a claimed runtime/security/scientific property
 - [ ] Relevant build or WebXR/browser smoke test when that surface changed
 - [ ] Benchmark/performance evidence when a hot path materially changed
+- [ ] `npm run docs:check` when governance/canonical docs changed
 
 List the exact commands/checks run and their results.
 
@@ -40,10 +51,10 @@ What invariant, expected behavior, or acceptance criterion demonstrates that thi
 
 ## Review disposition
 
-Review findings use the migration-completion policy:
+Review findings use the project-wide policy in `.github/copilot-instructions.md`:
 
-- **BLOCKER** — correctness, security, reproducibility/data integrity, Rust-authority, required compatibility, material performance, or required-gate failure. Fix before merge.
-- **DEFER** — valid pre-preview/hardening work that does not invalidate this slice. Track it; do not expand this PR.
-- **SUGGESTION** — optional improvement with no demonstrated failure mode. Non-blocking.
+- **BLOCKER** - demonstrated correctness, security/privacy, reproducibility/data-integrity, analytical-authority, material performance, or required-gate failure. Fix before merge.
+- **DEFER** - valid work that does not invalidate this change. Track it without recursively expanding the PR.
+- **SUGGESTION** - optional improvement with no demonstrated failure mode.
 
-Call out deliberate tradeoffs and known deferred work. Reviewers should stay inside the declared scope unless they identify a BLOCKER.
+Call out deliberate tradeoffs and known deferred work. Reviewers should stay inside the declared scope unless they identify a blocker to the changed path.

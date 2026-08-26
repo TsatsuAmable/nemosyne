@@ -32,12 +32,8 @@ if (!existsSync(resolve(root, manifestPath))) {
       fail(`invalid manifest entry: ${JSON.stringify(document)}`);
       continue;
     }
-    if (!allowedStatuses.has(document.status)) {
-      fail(`unsupported status '${document.status}' for ${document.path}`);
-    }
-    if (!existsSync(resolve(root, document.path))) {
-      fail(`manifest path does not exist: ${document.path}`);
-    }
+    if (!allowedStatuses.has(document.status)) fail(`unsupported status '${document.status}' for ${document.path}`);
+    if (!existsSync(resolve(root, document.path))) fail(`manifest path does not exist: ${document.path}`);
     if (document.status === 'historical' && !document.path.startsWith('docs/archive/')) {
       fail(`historical document must live under docs/archive/: ${document.path}`);
     }
@@ -49,10 +45,22 @@ if (!existsSync(resolve(root, manifestPath))) {
   }
 }
 
-for (const obsoleteRootDoc of ['TEST_READY.md', 'TEST_INFRA.md']) {
+for (const obsoleteRootDoc of ['TEST_READY.md', 'TEST_INFRA.md', 'draco_viso.md']) {
   if (existsSync(resolve(root, obsoleteRootDoc))) {
-    fail(`${obsoleteRootDoc} is a stale point-in-time report and must remain archived`);
+    fail(`${obsoleteRootDoc} is historical material and must remain archived`);
   }
+}
+
+const requiredGovernance = [
+  'CONTRIBUTING.md',
+  'SECURITY.md',
+  '.github/CODEOWNERS',
+  'docs/OWNERSHIP.md',
+  'docs/RFC_PROCESS.md',
+  'docs/architecture/decisions/README.md',
+];
+for (const file of requiredGovernance) {
+  if (!existsSync(resolve(root, file))) fail(`missing governance file: ${file}`);
 }
 
 const instructionFiles = [
@@ -83,6 +91,21 @@ if (!read('.github/copilot-instructions.md').includes('AGENTS.md')) {
   fail('.github/copilot-instructions.md must defer to AGENTS.md');
 }
 
+const codeowners = read('.github/CODEOWNERS');
+if (!codeowners.includes('@TsatsuAmable')) fail('CODEOWNERS must name the actual repository owner');
+
+const adrIndex = read('docs/architecture/decisions/README.md');
+for (const adr of [
+  '0001-rust-wasm-analytical-authority.md',
+  '0002-runtime-local-handles-and-durable-identity.md',
+  '0003-production-path-evidence.md',
+  '0004-executable-configuration-authority.md',
+]) {
+  const path = `docs/architecture/decisions/${adr}`;
+  if (!existsSync(resolve(root, path))) fail(`missing foundational ADR: ${path}`);
+  if (!adrIndex.includes(adr)) fail(`ADR index does not reference ${adr}`);
+}
+
 const packageJson = JSON.parse(read('package.json'));
 if (packageJson.scripts?.['docs:check'] !== 'node scripts/check-docs.mjs') {
   fail('package.json must expose docs:check as node scripts/check-docs.mjs');
@@ -109,7 +132,16 @@ function checkMarkdownLinks(path) {
   }
 }
 
-checkMarkdownLinks('docs/PROJECT_DOCS_INDEX.md');
+for (const path of [
+  'docs/PROJECT_DOCS_INDEX.md',
+  'CONTRIBUTING.md',
+  'SECURITY.md',
+  'docs/OWNERSHIP.md',
+  'docs/RFC_PROCESS.md',
+  'docs/architecture/decisions/README.md',
+]) {
+  checkMarkdownLinks(path);
+}
 
 if (failures.length > 0) {
   console.error('DOCUMENTATION INTEGRITY FAILED');
@@ -118,4 +150,4 @@ if (failures.length > 0) {
 }
 
 console.log('DOCUMENTATION INTEGRITY PASSED');
-console.log('Manifest paths, authority rules, stale-instruction guards, and index links are valid.');
+console.log('Manifest, governance files, ADR index, stale-instruction guards, and checked links are valid.');

@@ -1,4 +1,4 @@
-# CI & Test Acceleration Strategy
+# CI and Test Acceleration Strategy
 
 ## Goal
 
@@ -8,167 +8,115 @@ The governing principle is:
 
 > **Accelerate scheduling before reducing proof.** Parallelize independent evidence, remove duplicate execution, cache expensive build products, and shard only when all authoritative results still converge into the required merge gate.
 
+Executable CI topology lives in `.github/workflows/ci.yml`. Coverage thresholds and inclusion policy live in `vitest.coverage.config.ts`. This document records strategy and measured evidence, not duplicate machine configuration.
+
 ## Quality invariants
 
 CI acceleration must not:
 
-- lower global coverage thresholds;
+- lower or bypass the canonical global coverage policy;
 - delete authoritative tests merely because they are slow;
 - replace production-path tests with mocks;
 - make changed-files-only selection the sole required merge gate;
-- turn flaky failures into allowed passes;
-- move security, scientific-semantics, provenance, parser-boundary, worker-lifecycle, or production-path correctness tests out of the PR gate without an equivalent deterministic PR regression;
+- turn flaky failures into allowed passes or hide them behind automatic retries;
+- move deterministic security, scientific-semantics, provenance, parser-boundary, Worker-lifecycle, or production-path regressions out of PR CI without equivalent required evidence;
 - treat scheduled fuzz/soak evidence as a substitute for deterministic merge-gate correctness.
 
-## Phase 1 - Parallelize the existing proof graph
+## Phase 1: independent proof tracks
 
-**Status:** landed in #437 and verified green on the merged implementation.
+**Status:** LANDED in #437.
 
-The previous CI job serialized:
+The old monolithic CI path serialized static analysis, full coverage, production build, and browser smoke. #437 split these into independent proof tracks with a strict final `Node 24` fan-in. Browser smoke can now begin as soon as the tested production bundle exists instead of waiting behind the coverage suite.
 
-1. WASM build,
-2. typecheck,
-3. lint,
-4. the full coverage suite,
-5. production build,
-6. browser smoke only after all of the above.
+No test or required evidence class was removed.
 
-These proofs do not all depend on each other. The CI graph is therefore split into independent jobs:
+## Phase 2: sharded Vitest with merged global coverage
 
-- **Static analysis:** `npm ci` -> typecheck -> lint.
-- **Vitest coverage:** full deterministic coverage proof.
-- **Production build:** build the same Vite production bundle and publish it as the smoke-test artifact.
-- **Rust kernel:** run the existing Rust unit suite.
-- **Chromium production smoke:** begin as soon as the production-build artifact exists rather than waiting for coverage/static analysis.
-- **Node 24 aggregate gate:** remain required and fail unless every authoritative track succeeds.
+**Status:** IMPLEMENTATION LANDED / REVIEW ACTIVE via #438.
 
-No test was removed and no threshold was changed in Phase 1. The trade-off is somewhat higher parallel runner consumption in exchange for lower wall-clock feedback and earlier independent browser evidence.
+### Baseline before sharding
 
-## Phase 2 - Profile and shard Vitest with merged global coverage
+A representative successful #437 coverage run executed:
 
-**Status:** implementation active under RF-033.
+- 311 test files;
+- 1,661 tests;
+- 343.31 seconds Vitest wall time;
+- 2,087.65 seconds aggregate test execution;
+- 82.59% statement, 76.73% branch, 86.36% function, and 83.66% line coverage.
 
-### Measured baseline
+These are dated measurements, not policy values.
 
-The successful #437 coverage job establishes the initial baseline for the current deterministic coverage suite:
+### Landed design
 
-- 311 test files passed;
-- 1,661 tests passed;
-- Vitest wall time: 343.31 seconds;
-- aggregate test execution reported by Vitest: 2,087.65 seconds;
-- global coverage: 82.59% statements, 76.73% branches, 86.36% functions, 83.66% lines.
+#438 introduced:
 
-The long tail is materially skewed: several individual files take roughly 14-51 seconds while many complete in well under one second. Test execution is therefore the dominant critical-path cost once the WASM package is available.
+1. one cached development WASM build published as an artifact;
+2. three independent coverage shards consuming the identical WASM artifact;
+3. test failures remaining fatal on every shard;
+4. shard-local coverage collection without pretending a partial shard can satisfy repository-global coverage policy;
+5. Vitest blob-report merge in the aggregate `Vitest coverage` job;
+6. canonical global coverage enforcement only after the complete distributed result is reconstructed;
+7. the existing required `Node 24` fan-in remaining dependent on that aggregate result.
 
-### Initial sharding design
+The first live attempt failed closed and exposed three CI-mechanics defects: global thresholds being applied to partial shards, hidden report artifacts being skipped, and a WASM cache key hashing a nonexistent file. Those were fixed before #438 landed.
 
-Start with **three Vitest shards**. Three is intentionally conservative: Vitest already parallelizes within one runner, so excessive cross-runner sharding can spend substantially more runner minutes for diminishing wall-clock benefit.
+### Verification evidence
 
-The first live sharded run exposed three CI-mechanics issues before aggregate verification:
+The successful #438 run reconstructed exactly the same 311 files and 1,661 tests as the unsharded baseline and reproduced the baseline coverage values above. Full required CI completed in about 3m07s versus about 4m22s for the representative Phase 1 run, roughly a 29% wall-time reduction even on the first cold-cache sharded run.
 
-1. the canonical global thresholds were correctly applied by Vitest to each partial shard, causing every shard to fail even though partial-shard coverage is not a meaningful repository-wide quality measure;
-2. the dot-prefixed `.vitest-reports` directory was skipped by `actions/upload-artifact` because hidden files are excluded by default;
-3. the existing WASM cache key hashed a nonexistent `wasm/Cargo.lock`, producing the degenerate key `Linux-wasm-target-`; a stable Rust toolchain refresh then caused each shard to spend roughly 37 seconds rebuilding the same WASM package.
+A same-commit warm-cache rerun also passed. The corrected WASM cache key hit successfully and avoided repeating the full cold compilation across all three shards.
 
-The corrected design therefore separates collection from enforcement and removes duplicated WASM compilation:
+Phase 2 remains **REVIEW ACTIVE**, not `VERIFIED COMPLETE`, until normal post-merge runs establish stable latency, runner-minute cost, and flake behavior across a broader sample.
 
-1. **Coverage WASM package:** build the development WASM package once, with a cache keyed from the actual `wasm/Cargo.toml` and `rust-toolchain.toml`, then publish `wasm/pkg` as an artifact.
-2. **Three coverage shards:** download the identical WASM artifact, execute one third of the deterministic suite, collect coverage, and emit a non-hidden blob report. Test failures remain fatal. A narrowly scoped `NEMOSYNE_COVERAGE_REPORT_ONLY=1` flag suppresses only the repository-global coverage threshold check while a partial shard is being collected.
-3. **Aggregate `Vitest coverage`:** fail unless every shard succeeded, download all three blob reports, merge them with Vitest, and run the canonical coverage config without the report-only flag.
-4. **Required `Node 24`:** continue to depend on the aggregate `Vitest coverage` result exactly as before.
+## Phase 3: remove duplicate execution and separate endurance evidence
 
-This follows Vitest's supported distributed-testing model: shards emit blob reports with coverage and the final merge reconstructs the complete test and coverage result.
+**Status:** ACTIVE.
 
-### Coverage authority
+The next optimization should remove redundant work before adding more shards. In particular, the standalone `.github/workflows/coverage.yml` currently performs another full unsharded coverage run on every push to `main`, immediately after required PR CI has already reconstructed and enforced full merged coverage. The useful scheduled/manual assurance role should be preserved, but duplicate post-merge execution should be removed.
 
-The repository's canonical global thresholds are unchanged:
-
-- statements: 75%;
-- lines: 75%;
-- functions: 70%;
-- branches: 60%.
-
-They remain defined in `vitest.coverage.config.ts` and are enforced by the merged aggregate. The report-only shard mode does not define substitute thresholds and is never used by the aggregate required check.
-
-A partial shard is not a coverage-policy decision. It is one fragment of the evidence needed to calculate the global decision. Applying global thresholds independently to each fragment would be mathematically incorrect because each shard intentionally executes only a subset of the tests.
-
-### WASM fan-out rationale
-
-The first live run showed that duplicating the WASM build can be expensive when the toolchain/cache changes: one shard spent about 37 seconds compiling the development package. Building the package once and fanning out the artifact removes two redundant Rust/WASM builds without changing the tested binary within the shard set.
-
-The cache key now hashes files that actually exist, `wasm/Cargo.toml` and `rust-toolchain.toml`, rather than the nonexistent `wasm/Cargo.lock`. Cache effectiveness and toolchain-refresh behavior remain measured evidence, not assumptions.
-
-### Acceptance evidence for Phase 2
-
-Before RF-033 can treat sharding as landed, verify on the live PR path that:
-
-- all three shards collectively execute the complete current coverage suite;
-- the merged report has the expected total test-file/test counts for that commit;
-- merged global coverage is consistent with the unsharded baseline, allowing only explainable source/test changes;
-- the unchanged 75/75/70/60 global thresholds are enforced by the merged aggregate;
-- shard failure makes `Vitest coverage` and therefore `Node 24` fail;
-- the shared WASM artifact is present and verified before each shard executes;
-- CodeQL, Rust, production build, and Chromium smoke remain unchanged authoritative gates;
-- no tests are silently filtered out by sharding;
-- required-gate wall time improves enough to justify additional runner minutes.
-
-After several representative runs, rebalance shard count only from measured durations and runner-cost evidence.
-
-## Phase 3 - Separate deterministic merge proof from exploratory endurance evidence
-
-Some workloads are intrinsically unsuitable for every PR, including long fuzz campaigns, extended soak/endurance tests, large performance sweeps, and repeated physical-device qualification.
-
-They may run on scheduled/manual workflows only when all of the following hold:
-
-- the PR gate retains deterministic boundary and regression tests for the same safety property;
-- any fuzz/soak-discovered defect is converted into a deterministic PR regression;
-- scheduled failure is visible and owned rather than ignored;
-- performance/device claims remain blocked until the required measured evidence exists.
-
-Suitable scheduled evidence includes:
+Long-running workloads are appropriate for scheduled/manual assurance when deterministic PR regressions continue to protect the same property. Examples include:
 
 - extended Rust parser/WASM ABI fuzz campaigns;
-- long worker/runtime recovery soak;
-- large-scale resource-envelope sweeps;
-- repeated browser/device qualification matrices.
+- Worker/runtime recovery soak;
+- large resource-envelope sweeps;
+- repeated physical-device/browser qualification;
+- long statistical simulation/calibration campaigns.
 
-Unsuitable candidates for removal from the PR gate include:
+Any defect found by exploratory fuzz/soak work should become a deterministic PR regression where feasible.
 
-- authentication/authorization admission tests;
-- replay and malformed-input regressions;
-- statistical/scientific invariant tests;
-- provenance identity and replay correctness;
-- deterministic worker generation/staleness/failure tests;
-- parser safety regressions discovered by fuzzing;
-- production browser smoke.
+## Test flake policy
+
+- Do not use blind automatic retries to turn a required correctness failure green.
+- Record and investigate repeated nondeterministic failures rather than normalizing them.
+- A known flake that can mask a blocker should be treated as engineering debt with an owner and removal criterion.
+- Duration-aware shard balancing should use several normal CI runs, not one anomalous measurement.
+- If tests are quarantined for diagnosis, equivalent deterministic protection must remain in the required gate for the affected safety property.
 
 ## Developer feedback tiers
 
-The repository can expose faster local commands without redefining the merge gate:
+1. **Edit loop:** targeted test or relevant fast project while coding.
+2. **Pre-push:** ownership-aligned type/lint/test checks.
+3. **PR gate:** full authoritative parallel proof, merged global coverage, Rust, CodeQL, and production browser smoke.
+4. **Scheduled assurance:** fuzz, soak, broad performance campaigns, and physical-device qualification.
 
-1. **Edit loop:** targeted test file or existing fast project while coding.
-2. **Pre-push:** typecheck/lint plus the most relevant deterministic project(s).
-3. **PR gate:** all parallel authoritative jobs, full merged coverage, Rust, CodeQL, and production browser smoke.
-4. **Scheduled assurance:** fuzz, soak, broad performance campaigns, and other long-running evidence.
-
-Fast local feedback is a convenience. It is not promotion evidence.
+Fast feedback is a convenience. It is not promotion evidence.
 
 ## Metrics
 
-Track at least:
+Track trends for:
 
 - time to first actionable failure;
-- time to required `Node 24` completion;
-- coverage-suite wall time;
-- maximum and spread of shard wall times;
-- WASM-build wall time and cache hit rate;
+- time to required fan-in completion;
+- coverage-suite and shard wall time;
+- maximum shard imbalance;
+- WASM-build time and cache effectiveness;
 - browser-smoke start delay and duration;
 - total runner minutes per PR;
 - flaky rerun rate;
-- percentage of merged defects that should have been caught by an existing required test.
+- escaped defects that an existing required test should have caught.
 
-Optimize primarily for time to first actionable failure and required-gate wall time while keeping escaped-defect and flaky-rerun rates flat or improving.
+Optimize for feedback latency and resource efficiency while keeping escaped-defect and flake rates flat or improving.
 
 ## Relationship to RF-033
 
-This strategy is the execution plan for RF-033 CI/test-architecture work. Phase 1 removed unnecessary serialization and landed in #437. Phase 2 addresses the heavy Vitest critical path with measured three-way sharding, one shared WASM build, and merged authoritative coverage. Phase 3 prevents exploratory assurance workloads from clogging normal development while preserving deterministic PR proof.
+This strategy is the execution record for RF-033. #437 landed the independent proof graph; #438 landed three-way sharding, one shared WASM build, and merged authoritative coverage. The remaining review work is operational measurement, shard balancing if supported by evidence, duplicate-work removal, and clean separation of deterministic PR proof from exploratory endurance assurance.
