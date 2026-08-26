@@ -243,7 +243,7 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     );
 
     expect(source).toContain('requireRegisteredHandle');
-    expect(source).toContain('the request must include a datasetPayload on first use');
+    expect(source).toContain('is not registered');
     expect(source).toContain('Worker dataset fingerprint mismatch');
   });
 
