@@ -62,6 +62,14 @@ impl PointCloud {
     }
 
     /// Construct point cloud from ColumnarDataset without materialising row objects.
+    ///
+    /// RF-007: lookup + validity semantics are delegated to the shared
+    /// `point_access` substrate, which borrows the primitive buffers and trusts
+    /// the columnar primitive invariant (validity 0 ⇒ stored 0.0, all finite).
+    /// The previous path cloned each buffer and re-normalized per element; this
+    /// path clones once from the borrowed slice and drops the redundant
+    /// normalize. Output is byte-identical for any dataset that honours the
+    /// invariant (all public `ColumnarDataset` constructors do).
     pub fn from_columnar(
         columns: &[Column],
         dataset: &ColumnarDataset,
@@ -75,34 +83,21 @@ impl PointCloud {
             return Err(PointCloudError::NoFeatureColumns);
         }
 
-        let d = feature_columns.len();
-        let mut column_vecs = Vec::with_capacity(d);
-
-        for col_name in feature_columns {
-            let index = columns
-                .iter()
-                .position(|c| &c.name == col_name)
-                .ok_or_else(|| PointCloudError::MissingColumn(col_name.clone()))?;
-
-            match dataset.primitive_column(index) {
-                Some(prim) => {
-                    let mut vals = prim.values.clone();
-                    for i in 0..n {
-                        let is_valid = prim.validity.get(i).copied().unwrap_or(0) != 0;
-                        if !is_valid || !vals[i].is_finite() {
-                            vals[i] = 0.0;
-                        }
-                    }
-                    column_vecs.push(vals);
+        let refs: Vec<&str> = feature_columns.iter().map(|s| s.as_str()).collect();
+        let column_vecs = crate::data::point_access::owned_feature_columns(columns, dataset, &refs)
+            .map_err(|err| match err {
+                crate::data::point_access::PointAccessError::MissingColumn(name) => {
+                    PointCloudError::MissingColumn(name)
                 }
-                None => return Err(PointCloudError::UnsupportedColumnType(col_name.clone())),
-            }
-        }
+                crate::data::point_access::PointAccessError::UnsupportedColumnKind(name) => {
+                    PointCloudError::UnsupportedColumnType(name)
+                }
+            })?;
 
         Ok(Self {
+            d: feature_columns.len(),
             columns: column_vecs,
             n,
-            d,
         })
     }
 
@@ -678,5 +673,88 @@ mod tests {
         };
         let diag = cloud.bounding_box_diagonal();
         assert!((diag - 5.0).abs() < 1e-6);
+    }
+
+    /// RF-007: PointCloud and FeatureSpace share the same point-access
+    /// substrate, so a columnar dataset with a missing value must yield the
+    /// identical normalized column in both substrates (invalid ⇒ 0.0).
+    #[test]
+    fn c7_rf007_shared_substrate_columnar_validity_parity() {
+        use crate::data::column::{Column as DataColumn, ColumnType};
+        use crate::data::columnar::ColumnarDataset;
+        use crate::data::dataset::Dataset;
+        use crate::data::topology::FeatureSpace;
+        use crate::data::value::Value;
+
+        let cols = vec![
+            DataColumn::new("x", ColumnType::Numeric),
+            DataColumn::new("y", ColumnType::Numeric),
+        ];
+        let rows = vec![
+            HashMap::from([
+                ("x".to_string(), Value::Number(0.0)),
+                ("y".to_string(), Value::Number(0.0)),
+            ]),
+            HashMap::from([
+                ("x".to_string(), Value::Null),
+                ("y".to_string(), Value::Number(1.0)),
+            ]),
+            HashMap::from([
+                ("x".to_string(), Value::Number(2.0)),
+                ("y".to_string(), Value::Number(2.0)),
+            ]),
+        ];
+        let ds = Dataset::new("parity", cols, rows);
+        let columnar = ColumnarDataset::from_dataset(&ds);
+
+        let cloud =
+            PointCloud::from_columnar(&ds.columns, &columnar, &["x".to_string(), "y".to_string()])
+                .expect("point cloud");
+        let space =
+            FeatureSpace::from_columnar(&ds.columns, &columnar, &["x", "y"]).expect("feature space");
+
+        // PointCloud is column-major; FeatureSpace is row-major. Both must
+        // agree element-for-element on the normalized values, including the
+        // missing-x row (1) which the invariant forces to 0.0.
+        assert_eq!(cloud.n, space.row_count());
+        for i in 0..cloud.n {
+            for j in 0..cloud.d {
+                assert_eq!(cloud.columns[j][i], space.points()[i][j]);
+            }
+        }
+        // The missing-x row is normalized to 0.0 in both substrates.
+        assert_eq!(cloud.columns[0][1], 0.0);
+        assert_eq!(space.points()[1][0], 0.0);
+    }
+
+    /// RF-007: PointCloud::from_columnar trusts the columnar primitive
+    /// invariant rather than re-normalizing; a non-finite input that survived
+    /// ingest must still be normalized to 0.0 via the invariant (from_parts
+    /// enforces it).
+    #[test]
+    fn c8_rf007_from_parts_invariant_normalizes_nonfinite() {
+        use crate::data::columnar::{ColumnarDataset, PrimitiveColumn};
+        use crate::data::column::{Column as DataColumn, ColumnType};
+        let cols = vec![DataColumn::new("x", ColumnType::Numeric)];
+        // from_parts must normalize the NaN to 0.0 with validity 0.
+        let columnar = ColumnarDataset::from_parts(
+            2,
+            std::collections::HashMap::from([(
+                0,
+                PrimitiveColumn {
+                    values: vec![1.0, f64::NAN],
+                    validity: vec![1, 1],
+                },
+            )]),
+            std::collections::HashMap::new(),
+        )
+        .expect("from_parts");
+        let prim = columnar.primitive_column(0).unwrap();
+        assert!(prim.values.iter().all(|v| v.is_finite()));
+        assert_eq!(prim.values[1], 0.0);
+        assert_eq!(prim.validity[1], 0);
+
+        let cloud = PointCloud::from_columnar(&cols, &columnar, &["x".to_string()]).unwrap();
+        assert_eq!(cloud.columns[0], &[1.0, 0.0]);
     }
 }
