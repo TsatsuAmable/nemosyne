@@ -1,20 +1,40 @@
 import { Dataset, ColumnType } from './Dataset.ts';
 
 /**
+ * Small deterministic PRNG for synthetic demo/test data only.
+ * This is deliberately not suitable for security-sensitive randomness.
+ */
+function deterministicRandom(seed: string): () => number {
+  let state = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    state ^= seed.charCodeAt(i);
+    state = Math.imul(state, 16777619);
+  }
+  return () => {
+    state += 0x6d2b79f5;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
  * Utilities for generating deterministic synthetic datasets for demos and tests.
  */
 
 export function makeSalesTable(rows: number = 60): Dataset {
+  const random = deterministicRandom(`sales:${rows}`);
   const regions = ['North', 'South', 'East', 'West'];
   const products = ['Widget', 'Gadget', 'Thingama', 'Doohickey'];
   const rows_: Record<string, unknown>[] = [];
   for (let i = 0; i < rows; i++) {
     const region = regions[i % regions.length];
     const product = products[i % products.length];
-    const units = Math.floor(20 + Math.random() * 480);
+    const units = Math.floor(20 + random() * 480);
     const price = 10 + (i % 5) * 5;
     const revenue = units * price;
-    const discount = Math.random() > 0.8 ? 0.2 : 0;
+    const discount = random() > 0.8 ? 0.2 : 0;
     rows_.push({ id: `S${i + 1}`, region, product, units, price, revenue, discount });
   }
   return new Dataset(
@@ -33,12 +53,13 @@ export function makeSalesTable(rows: number = 60): Dataset {
 }
 
 export function makeOrgChart(_depth: number = 3, branching: number[] = [1, 3, 4, 2]): Dataset {
+  const random = deterministicRandom(`org:${_depth}:${branching.join(',')}`);
   const rows: Record<string, unknown>[] = [];
   let idCounter = 1;
   function addNode(name: string, level: number, parent: number | null): number {
     const id = idCounter++;
-    const employees = Math.floor(5 + Math.random() * 95);
-    const budget = employees * (10000 + Math.random() * 50000);
+    const employees = Math.floor(5 + random() * 95);
+    const budget = employees * (10000 + random() * 50000);
     rows.push({ id, name, level, parent, employees, budget });
     return id;
   }
@@ -75,16 +96,17 @@ export function makeOrgChart(_depth: number = 3, branching: number[] = [1, 3, 4,
 }
 
 export function makeWindField(count: number = 40): Dataset {
+  const random = deterministicRandom(`wind:${count}`);
   const rows: Record<string, unknown>[] = [];
   for (let i = 0; i < count; i++) {
     rows.push({
       id: `V${i}`,
-      x: Math.random() * 10 - 5,
-      y: Math.random() * 4,
-      z: Math.random() * -10,
-      u: Math.random() * 2 - 1,
-      v: Math.random() * 0.5 - 0.25,
-      w: Math.random() * 2 - 1,
+      x: random() * 10 - 5,
+      y: random() * 4,
+      z: random() * -10,
+      u: random() * 2 - 1,
+      v: random() * 0.5 - 0.25,
+      w: random() * 2 - 1,
       magnitude: 0,
     });
   }
@@ -111,22 +133,23 @@ export function makeWindField(count: number = 40): Dataset {
 }
 
 export function makeSocialGraph(nodes: number = 24): Dataset {
+  const random = deterministicRandom(`social:${nodes}`);
   const rows: Record<string, unknown>[] = [];
   const groups = ['A', 'B', 'C', 'D'];
   for (let i = 0; i < nodes; i++) {
     rows.push({
       id: `N${i}`,
       group: groups[i % groups.length],
-      influence: Math.floor(10 + Math.random() * 990),
+      influence: Math.floor(10 + random() * 990),
     });
   }
   const edges = [];
   for (let i = 0; i < nodes; i++) {
-    const connections = 1 + Math.floor(Math.random() * 3);
+    const connections = 1 + Math.floor(random() * 3);
     for (let j = 0; j < connections; j++) {
-      const target = Math.floor(Math.random() * nodes);
+      const target = Math.floor(random() * nodes);
       if (target !== i) {
-        edges.push({ source: `N${i}`, target: `N${target}`, weight: Math.random() });
+        edges.push({ source: `N${i}`, target: `N${target}`, weight: random() });
       }
     }
   }
@@ -147,15 +170,16 @@ export function makeSocialGraph(nodes: number = 24): Dataset {
  * Generate a financial candle-like time-series: open/high/low/close per tick.
  */
 export function makeFinancialSeries(ticks: number = 48, symbol: string = 'MEMO'): Dataset {
+  const random = deterministicRandom(`financial:${ticks}:${symbol}`);
   const rows: Record<string, unknown>[] = [];
-  let price = 100 + Math.random() * 50;
+  let price = 100 + random() * 50;
   for (let i = 0; i < ticks; i++) {
     const open = price;
-    const change = (Math.random() - 0.48) * 4;
+    const change = (random() - 0.48) * 4;
     const close = Math.max(10, open + change);
-    const high = Math.max(open, close) + Math.random() * 2;
-    const low = Math.min(open, close) - Math.random() * 2;
-    const volume = Math.floor(1000 + Math.random() * 9000);
+    const high = Math.max(open, close) + random() * 2;
+    const low = Math.min(open, close) - random() * 2;
+    const volume = Math.floor(1000 + random() * 9000);
     rows.push({
       time: `2026-07-28T${String(i).padStart(2, '0')}:00:00`,
       symbol,
@@ -192,6 +216,7 @@ interface CitySeed {
  * Generate global city geospatial data with lat/lon and a numeric value.
  */
 export function makeGeoCities(count: number = 20): Dataset {
+  const random = deterministicRandom(`geo:${count}`);
   const cities: CitySeed[] = [
     { name: 'New York', lat: 40.7, lon: -74.0 },
     { name: 'London', lat: 51.5, lon: -0.1 },
@@ -216,8 +241,8 @@ export function makeGeoCities(count: number = 20): Dataset {
   ];
   const rows = cities.slice(0, count).map((c) => ({
     ...c,
-    population: Math.floor(2 + Math.random() * 18),
-    gdp: Math.floor(50 + Math.random() * 450),
+    population: Math.floor(2 + random() * 18),
+    gdp: Math.floor(50 + random() * 450),
   }));
   return new Dataset(
     'Global Cities',
@@ -236,28 +261,29 @@ export function makeGeoCities(count: number = 20): Dataset {
  * Generate a process-flow / supply-chain graph with weighted edges.
  */
 export function makeFlowProcess(stages: number = 6): Dataset {
+  const random = deterministicRandom(`flow:${stages}`);
   const rows: Record<string, unknown>[] = [];
   for (let i = 0; i < stages; i++) {
     rows.push({
       id: `S${i}`,
       stage: i,
       label: `Stage ${i + 1}`,
-      throughput: Math.floor(50 + Math.random() * 950),
-      latency: Math.floor(10 + Math.random() * 200),
+      throughput: Math.floor(50 + random() * 950),
+      latency: Math.floor(10 + random() * 200),
     });
   }
   const edges = [];
   for (let i = 0; i < stages - 1; i++) {
-    edges.push({ source: `S${i}`, target: `S${i + 1}`, weight: 1 + Math.random() * 2 });
-    if (Math.random() > 0.6) {
+    edges.push({ source: `S${i}`, target: `S${i + 1}`, weight: 1 + random() * 2 });
+    if (random() > 0.6) {
       const skip = Math.min(stages - 1, i + 2);
-      edges.push({ source: `S${i}`, target: `S${skip}`, weight: Math.random() });
+      edges.push({ source: `S${i}`, target: `S${skip}`, weight: random() });
     }
   }
   const ds = new Dataset(
     'Process Flow',
     [
-      { name: 'id', type: ColumnType.CATEGORICAL },
+      { name: 'id', type: ColumnType.NUMERIC },
       { name: 'stage', type: ColumnType.NUMERIC },
       { name: 'label', type: ColumnType.CATEGORICAL },
       { name: 'throughput', type: ColumnType.NUMERIC },
