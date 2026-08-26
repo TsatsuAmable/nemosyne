@@ -40,6 +40,7 @@ const publicFacadeExports = [
   'CapabilityFlags',
   'KernelAbiError',
   'KernelUnavailableError',
+  'UnsupportedAtScaleError',
   'adjustDracoEvidence',
   'adjustMonetaEvidence',
   'allocBuffer',
@@ -141,11 +142,14 @@ describe('RuntimeBridge module boundaries', () => {
     expect(contracts).toMatch(/host_buffer_dealloc/);
     expect(contracts).toMatch(/host_buffer_allocation_count/);
     expect(contracts).toMatch(/interface DatasetHandleExports/);
+    expect(contracts).toMatch(/data_tda_resource_preflight/);
     expect(contracts).toMatch(/interface LayoutAbiExports/);
     expect(contracts).toMatch(/interface KernelContractExports/);
 
     const sources = Object.fromEntries(runtimeSources.map(({ file, source }) => [file, source]));
     expect(sources['DatasetHandleBridge.ts']).toMatch(/getDatasetHandleExports/);
+    expect(sources['DatasetHandleBridge.ts']).toMatch(/data_tda_resource_preflight/);
+    expect(sources['DatasetHandleBridge.ts']).toMatch(/UnsupportedAtScaleError/);
     expect(sources['LayoutAbi.ts']).toMatch(/getLayoutAbiExports/);
     expect(sources['KernelContractBridge.ts']).toMatch(/getKernelContractExports/);
     for (const file of ['DatasetHandleBridge.ts', 'LayoutAbi.ts', 'KernelContractBridge.ts']) {
