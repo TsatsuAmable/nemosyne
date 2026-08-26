@@ -141,7 +141,7 @@ export class NearFieldInteractor {
   private _handlePressMove(
     state: PointerTouchState,
     panel: PanelLike,
-    hit: THREE.Intersection
+    _hit: THREE.Intersection
   ): void {
     if (typeof panel.handlePointerMove === 'function') {
       panel.handlePointerMove(this._raycaster, state.pointer);

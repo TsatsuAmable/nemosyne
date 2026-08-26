@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { Text, Component } from '@pmndrs/uikit';
 import { SpatialUIRoot } from '../../src/vr/ui-system/SpatialUIRoot.ts';
 import { SpatialPanel } from '../../src/vr/ui-system/SpatialPanel.ts';
 import { NearFieldInteractor } from '../../src/vr/interactions/near/NearFieldInteractor.ts';

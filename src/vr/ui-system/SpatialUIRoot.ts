@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Fullscreen, type FullscreenProperties, type Component } from '@pmndrs/uikit';
+import { Fullscreen, Component, type FullscreenProperties } from '@pmndrs/uikit';
 
 /**
  * SpatialUIRoot wraps pmndrs/uikit Fullscreen to serve as the root container
