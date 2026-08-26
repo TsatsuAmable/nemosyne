@@ -85,13 +85,20 @@ The `ConstraintEngine` includes a low-weight `attach_chart_plane_for_rich_numeri
 
 Topological data analysis summaries give analysts a shape-first view of their data without leaving VR.
 
-### Algorithms (Rust WASM Kernel)
+### Algorithms (Rust WASM Kernel & `wasm/src/data/neighbourhood.rs`)
+
+All topological summaries run over the unified `PointCloud` and `RaggedNeighbourhood` CSR sparse substrate, supporting `Exact` and `GridSparse` neighbourhood modes.
 
 | Function                        | What it computes                                                                                                                                   |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `compute_mapper_graph`          | Approximate Mapper graph: rows are binned by a 1-D filter function, clustered inside each overlapping bin, and connected when clusters share rows. |
-| `compute_persistence_intervals` | 0-D persistence intervals for a 1-D filtration; union-find grows components as the filter threshold sweeps outward.                                |
-| `compute_betti_0_curve`         | Number of connected components of a VR-style proximity graph as the radius grows.                                                                  |
+| `compute_mapper_graph`          | Mapper graph: rows are binned by a 1-D filter function, clustered inside overlapping bins via `RaggedNeighbourhood`, and connected when clusters share rows. |
+| `compute_persistence_intervals` | $H_0$ persistence intervals for single-linkage filtration over sorted CSR edges; computes exact births and merge deaths; unmerged components retain `death: None` (infinite persistence bars). |
+| `compute_betti_0_curve`         | $Betti_0$ connected-component count curve as proximity radius sweeps outward, computed via single-pass edge-sorted Union-Find over CSR.                                                                  |
+
+### Substrate Modes
+
+- **`exact`**: Brute-force all-pairs comparison within radius $\epsilon$ (default for $N \le 8,192$).
+- **`sparse`**: Deterministic grid hashing with multi-cell neighbor traversal and exact distance validation for high-throughput scaling without point loss.
 
 ### Panels (`src/vr/artifacts/TDAPlanes.ts`)
 

@@ -437,11 +437,45 @@ pub fn compute_persistence_intervals_space(
     }
 
     let values: &[Vec<f64>] = &space.points;
+    let d_dim = if values.is_empty() { 0 } else { values[0].len() };
 
-    let mut indices: Vec<usize> = (0..n).collect();
-    indices.sort_by(|&a, &b| filter_values[a].partial_cmp(&filter_values[b]).unwrap_or(std::cmp::Ordering::Equal));
+    let mut columns = vec![Vec::with_capacity(n); d_dim];
+    for p in values {
+        for (dim, &val) in p.iter().enumerate() {
+            columns[dim].push(val);
+        }
+    }
+    let cloud = crate::data::neighbourhood::PointCloud {
+        columns,
+        n,
+        d: d_dim,
+    };
+
+    let (csr, _) = if n > 8192 {
+        crate::data::neighbourhood::GridSparseIndex::new(max_distance).radius_neighbourhood(&cloud, max_distance)
+    } else {
+        crate::data::neighbourhood::ExactIndex.radius_neighbourhood(&cloud, max_distance)
+    };
+
+    // Extract all edges within max_distance and order by maximum filtration value of endpoints
+    let mut edges: Vec<(usize, usize, f64)> = Vec::new();
+    for u in 0..n {
+        for (v, _) in csr.neighbors(u) {
+            if u < v {
+                let edge_filt = filter_values[u].max(filter_values[v]);
+                edges.push((u, v, edge_filt));
+            }
+        }
+    }
+    edges.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+
+    // Union-find tracking component birth and root
+    struct Component {
+        birth: f64,
+    }
 
     let mut parent: Vec<usize> = (0..n).collect();
+    let mut comp: Vec<Component> = (0..n).map(|i| Component { birth: filter_values[i] }).collect();
 
     fn find(parent: &mut [usize], mut i: usize) -> usize {
         while parent[i] != i {
@@ -452,33 +486,52 @@ pub fn compute_persistence_intervals_space(
     }
 
     let mut intervals = Vec::new();
-    let mut born_at: HashMap<usize, f64> = HashMap::new();
 
-    for &i in &indices {
-        let root = find(&mut parent, i);
-        born_at.entry(root).or_insert(filter_values[i]);
+    for (u, v, edge_filt) in edges {
+        let ru = find(&mut parent, u);
+        let rv = find(&mut parent, v);
+        if ru != rv {
+            // Elder rule: older component (earlier birth) survives, younger dies
+            let (survivor, dying) = if comp[ru].birth < comp[rv].birth {
+                (ru, rv)
+            } else if comp[rv].birth < comp[ru].birth {
+                (rv, ru)
+            } else if ru < rv {
+                (ru, rv)
+            } else {
+                (rv, ru)
+            };
 
-        for &j in &indices {
-            if filter_values[j] - filter_values[i] > max_distance {
-                break;
-            }
-            if euclidean_dist(&values[i], &values[j]) <= max_distance {
-                let ri = find(&mut parent, i);
-                let rj = find(&mut parent, j);
-                if ri != rj {
-                    parent[ri] = rj;
-                }
-            }
+            // Dying component emits persistence interval [birth, death]
+            intervals.push(PersistenceInterval {
+                birth: comp[dying].birth,
+                death: Some(edge_filt),
+            });
+
+            parent[dying] = survivor;
         }
     }
 
-    for (&root, &birth) in &born_at {
-        if parent[root] == root {
-            intervals.push(PersistenceInterval { birth, death: None });
+    // Surviving root components remain alive (death: None - infinite bars)
+    for i in 0..n {
+        if parent[i] == i {
+            intervals.push(PersistenceInterval {
+                birth: comp[i].birth,
+                death: None,
+            });
         }
     }
 
-    intervals.sort_by(|a, b| a.birth.partial_cmp(&b.birth).unwrap_or(std::cmp::Ordering::Equal));
+    intervals.sort_by(|a, b| {
+        a.birth.partial_cmp(&b.birth)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| match (a.death, b.death) {
+                (Some(d1), Some(d2)) => d2.partial_cmp(&d1).unwrap_or(std::cmp::Ordering::Equal),
+                (None, Some(_)) => std::cmp::Ordering::Less,
+                (Some(_), None) => std::cmp::Ordering::Greater,
+                (None, None) => std::cmp::Ordering::Equal,
+            })
+    });
 
     intervals
 }
@@ -507,11 +560,24 @@ pub fn compute_betti0_curve_space(
     }
 
     let values: &[Vec<f64>] = &space.points;
+    let d_dim = if values.is_empty() { 0 } else { values[0].len() };
+
+    let mut columns = vec![Vec::with_capacity(n); d_dim];
+    for p in values {
+        for (dim, &val) in p.iter().enumerate() {
+            columns[dim].push(val);
+        }
+    }
+    let cloud = crate::data::neighbourhood::PointCloud {
+        columns,
+        n,
+        d: d_dim,
+    };
 
     let mut max_d = 0.0f64;
     for i in 0..n {
         for j in (i + 1)..n {
-            let d = euclidean_dist(&values[i], &values[j]);
+            let d = cloud.dist(i, j);
             if d > max_d {
                 max_d = d;
             }
@@ -519,7 +585,26 @@ pub fn compute_betti0_curve_space(
     }
 
     let step_size = (max_d / steps.max(1) as f64).max(0.1);
-    let mut points = Vec::with_capacity(steps);
+    let effective_max_r = steps as f64 * step_size;
+
+    let (csr, _) = if n > 8192 {
+        crate::data::neighbourhood::GridSparseIndex::new(effective_max_r).radius_neighbourhood(&cloud, effective_max_r)
+    } else {
+        crate::data::neighbourhood::ExactIndex.radius_neighbourhood(&cloud, effective_max_r)
+    };
+
+    // Extract unique undirected edges (u, v, dist) with u < v
+    let mut edges: Vec<(usize, usize, f32)> = Vec::new();
+    for u in 0..n {
+        for (v, dist) in csr.neighbors(u) {
+            if u < v {
+                edges.push((u, v, dist));
+            }
+        }
+    }
+    edges.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut points = Vec::with_capacity(steps + 1);
 
     for s in 0..=steps {
         let r = s as f64 * step_size;
@@ -533,22 +618,24 @@ pub fn compute_betti0_curve_space(
             i
         }
 
-        for i in 0..n {
-            for j in (i + 1)..n {
-                if euclidean_dist(&values[i], &values[j]) <= r {
-                    let ri = find(&mut parent, i);
-                    let rj = find(&mut parent, j);
-                    if ri != rj {
-                        parent[ri] = rj;
-                    }
-                }
+        let r_f32 = (r + 1e-6) as f32;
+        let mut num_components = n;
+
+        for &(u, v, dist) in &edges {
+            if dist > r_f32 {
+                break;
+            }
+            let ru = find(&mut parent, u);
+            let rv = find(&mut parent, v);
+            if ru != rv {
+                parent[ru] = rv;
+                num_components -= 1;
             }
         }
 
-        let components: HashSet<usize> = (0..n).map(|i| find(&mut parent, i)).collect();
         points.push(BettiPoint {
             radius: r,
-            betti0: components.len(),
+            betti0: num_components,
         });
     }
 
@@ -668,6 +755,50 @@ mod tests {
         assert!(node.get("filterCenter").is_some(), "camelCase filterCenter missing: {json}");
         assert!(node.get("row_indices").is_none(), "snake_case row_indices leaked: {json}");
         assert!(node.get("filter_center").is_none(), "snake_case filter_center leaked: {json}");
+    }
+
+    #[test]
+    fn c5b_persistence_death_semantics() {
+        let cols = vec![Column::new("val", ColumnType::Numeric)];
+        let mut rows = Vec::new();
+        // Points at x = 0.0, 1.0, 5.0 with filtration values = 0.0, 1.0, 5.0
+        for &v in &[0.0, 1.0, 5.0] {
+            let mut r = HashMap::new();
+            r.insert("val".to_string(), Value::Number(v));
+            rows.push(r);
+        }
+        let ds = Dataset::new("tda_persist", cols, rows);
+        let intervals = compute_persistence_intervals(&ds, &["val"], &[0.0, 1.0, 5.0], 2.0);
+
+        // Point 0.0 and 1.0 are within max_distance 2.0 -> component born at 1.0 dies at 1.0 when merging with 0.0
+        // Point 5.0 is beyond 2.0 distance from 0/1 -> never merges (death: None)
+        // Root component 0.0 never dies (death: None)
+        assert_eq!(intervals.len(), 3);
+        assert_eq!(intervals[0].birth, 0.0);
+        assert_eq!(intervals[0].death, None);
+        assert_eq!(intervals[1].birth, 1.0);
+        assert_eq!(intervals[1].death, Some(1.0));
+        assert_eq!(intervals[2].birth, 5.0);
+        assert_eq!(intervals[2].death, None);
+    }
+
+    #[test]
+    fn c6_betti0_monotone_sanity() {
+        let cols = vec![Column::new("x", ColumnType::Numeric)];
+        let mut rows = Vec::new();
+        for i in 0..20 {
+            let mut r = HashMap::new();
+            r.insert("x".to_string(), Value::Number(i as f64));
+            rows.push(r);
+        }
+        let ds = Dataset::new("tda_betti", cols, rows);
+        let curve = compute_betti0_curve(&ds, &["x"], 10);
+
+        assert!(!curve.is_empty());
+        for i in 1..curve.len() {
+            assert!(curve[i].betti0 <= curve[i - 1].betti0, "Betti0 curve must be non-increasing");
+        }
+        assert_eq!(curve.last().unwrap().betti0, 1, "At max radius all points merge to 1 component");
     }
 }
 
