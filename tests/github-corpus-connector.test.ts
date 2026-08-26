@@ -82,6 +82,22 @@ describe('GitHubCorpusConnector', () => {
     await expect(connector.fetchCatalog()).rejects.toThrow(/repository mismatch/);
   });
 
+  it('fails closed on malformed numeric artifact metadata', async () => {
+    const doc = catalog();
+    doc.datasets[0].artifacts[0].rows = -1;
+    const connector = new GitHubCorpusConnector({ fetchImpl: fetchFor(doc) });
+    await expect(connector.fetchCatalog()).rejects.toThrow(/Artifact rows.*non-negative safe integer/);
+
+    const docWithInvalidBytes = catalog();
+    docWithInvalidBytes.datasets[0].artifacts[0].bytes = Number.NaN;
+    const connectorWithInvalidBytes = new GitHubCorpusConnector({
+      fetchImpl: fetchFor(docWithInvalidBytes),
+    });
+    await expect(connectorWithInvalidBytes.fetchCatalog()).rejects.toThrow(
+      /Artifact bytes.*non-negative safe integer/,
+    );
+  });
+
   it('fails closed on SHA-256 drift', async () => {
     const doc = catalog();
     doc.datasets[0].artifacts[0].sha256 = '0'.repeat(64);
@@ -102,6 +118,37 @@ describe('GitHubCorpusConnector', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('cancels a streaming artifact as soon as observed bytes exceed the ceiling', async () => {
+    const doc = catalog();
+    delete doc.datasets[0].artifacts[0].bytes;
+    const cancel = vi.fn();
+    let artifactRequested = false;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifests/catalog.json')) {
+        return response(JSON.stringify(doc), { status: 200 }, url);
+      }
+      artifactRequested = true;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1, 2, 3, 4]));
+          controller.enqueue(new Uint8Array([5, 6, 7, 8, 9]));
+        },
+        cancel(reason) {
+          cancel(reason);
+        },
+      });
+      return response(stream, { status: 200 }, url);
+    }) as unknown as typeof fetch;
+
+    const connector = new GitHubCorpusConnector({ fetchImpl, maxArtifactBytes: 8 });
+    const loaded = await connector.fetchCatalog();
+    const selection = connector.selectArtifact(loaded, 'synthetic.test', 'smoke');
+    await expect(connector.fetchArtifactBytes(selection)).rejects.toThrow(/exceeds byte limit/);
+    expect(artifactRequested).toBe(true);
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
   it('hands verified CSV bytes directly to the Rust/WASM kernel loader', async () => {
     const loadCsv = vi.fn((_bytes: Uint8Array) => 42);
     const kernel = { loadCsv } as unknown as AnalyticalKernelPort;
@@ -109,6 +156,28 @@ describe('GitHubCorpusConnector', () => {
     await expect(connector.loadIntoKernel(kernel, { datasetId: 'synthetic.test', tier: 'smoke' })).resolves.toBe(42);
     expect(loadCsv).toHaveBeenCalledTimes(1);
     expect(Array.from(loadCsv.mock.calls[0][0])).toEqual(Array.from(CSV));
+  });
+
+  it('fails closed when the kernel rejects a verified corpus artifact', async () => {
+    const kernel = { loadCsv: vi.fn(() => 0) } as unknown as AnalyticalKernelPort;
+    const connector = new GitHubCorpusConnector({ fetchImpl: fetchFor(catalog()) });
+    await expect(
+      connector.loadIntoKernel(kernel, { datasetId: 'synthetic.test', tier: 'smoke' }),
+    ).rejects.toThrow(/Kernel rejected corpus artifact synthetic\.test\/smoke\/primary/);
+  });
+
+  it('fails closed when an accepted handle has no authoritative fingerprint', async () => {
+    const destroyDataset = vi.fn();
+    const kernel = {
+      loadCsv: vi.fn(() => 42),
+      datasetFingerprint: vi.fn(() => null),
+      destroyDataset,
+    } as unknown as AnalyticalKernelPort;
+    const connector = new GitHubCorpusConnector({ fetchImpl: fetchFor(catalog()) });
+    await expect(
+      connector.loadIntoKernel(kernel, { datasetId: 'synthetic.test', tier: 'smoke' }),
+    ).rejects.toThrow(/produced no dataset fingerprint/);
+    expect(destroyDataset).toHaveBeenCalledWith(42);
   });
 
   it('routes NTC1 artifacts only through typed-column ingest and fails closed if unsupported', async () => {
