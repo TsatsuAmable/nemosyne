@@ -10,7 +10,14 @@ function graphDataset(): Dataset {
     [{ name: 'value', type: ColumnType.NUMERIC }],
     [{ value: 10 }, { value: 20 }, { value: 30 }],
     [
-      { source: 0, target: 1, weight: 0.5, relation: 'observed' },
+      {
+        source: 0,
+        target: 1,
+        weight: 0.5,
+        relation: 'observed',
+        active: true,
+        metadata: { source: 'sensor-a', tags: ['primary', 'reviewed'] },
+      },
       { source: 1, target: 2, weight: 1.5, relation: 'derived' },
     ]
   );
@@ -28,7 +35,7 @@ describe('RF-044 Atlas to real WASM graph lineage', () => {
     }
   });
 
-  it('preserves explicit edges, scalar attributes, and canonical content identity through Atlas loading', () => {
+  it('preserves explicit edges, arbitrary JSON attributes, and canonical content identity through Atlas loading', () => {
     const source = graphDataset();
     const atlas = new AtlasCore({ kernel: bridge });
 
