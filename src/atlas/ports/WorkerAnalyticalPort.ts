@@ -80,7 +80,11 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     }
 
     return new Promise<AnalyticalExecutionResult<T>>((resolve, reject) => {
-      this._pending.set(req.requestId, { resolve, reject, req });
+      this._pending.set(req.requestId, {
+        resolve: resolve as (res: AnalyticalExecutionResult) => void,
+        reject,
+        req,
+      });
       try {
         this._worker.postMessage({ type: 'EXECUTE', request: req });
       } catch (err: unknown) {
