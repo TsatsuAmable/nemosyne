@@ -56,47 +56,47 @@ The successful #437 coverage job establishes the initial baseline for the curren
 - 1,661 tests passed;
 - Vitest wall time: 343.31 seconds;
 - aggregate test execution reported by Vitest: 2,087.65 seconds;
-- cached WASM dev build itself: approximately 1.4 seconds;
 - global coverage: 82.59% statements, 76.73% branches, 86.36% functions, 83.66% lines.
 
-The long tail is materially skewed: several individual files take roughly 14-51 seconds while many complete in well under one second. The test execution, not the cached WASM compilation, is therefore the dominant critical-path cost.
+The long tail is materially skewed: several individual files take roughly 14-51 seconds while many complete in well under one second. Test execution is therefore the dominant critical-path cost once the WASM package is available.
 
 ### Initial sharding design
 
 Start with **three Vitest shards**. Three is intentionally conservative: Vitest already parallelizes within one runner, so excessive cross-runner sharding can spend substantially more runner minutes for diminishing wall-clock benefit.
 
-Each shard:
+The first live sharded run exposed three CI-mechanics issues before aggregate verification:
 
-1. performs the same deterministic checkout/toolchain/dependency setup;
-2. builds the cached development WASM package;
-3. runs `vitest run --coverage --shard=<n>/3 --reporter=blob` against the canonical coverage config;
-4. uploads its blob report as an immutable per-shard artifact.
+1. the canonical global thresholds were correctly applied by Vitest to each partial shard, causing every shard to fail even though partial-shard coverage is not a meaningful repository-wide quality measure;
+2. the dot-prefixed `.vitest-reports` directory was skipped by `actions/upload-artifact` because hidden files are excluded by default;
+3. the existing WASM cache key hashed a nonexistent `wasm/Cargo.lock`, producing the degenerate key `Linux-wasm-target-`; a stable Rust toolchain refresh then caused each shard to spend roughly 37 seconds rebuilding the same WASM package.
 
-A separate aggregate `Vitest coverage` job:
+The corrected design therefore separates collection from enforcement and removes duplicated WASM compilation:
 
-1. fails closed unless every shard succeeded;
-2. downloads all shard reports;
-3. merges them with Vitest `--merge-reports` and coverage enabled;
-4. evaluates the canonical `vitest.coverage.config.ts` global thresholds over the merged result.
+1. **Coverage WASM package:** build the development WASM package once, with a cache keyed from the actual `wasm/Cargo.toml` and `rust-toolchain.toml`, then publish `wasm/pkg` as an artifact.
+2. **Three coverage shards:** download the identical WASM artifact, execute one third of the deterministic suite, collect coverage, and emit a non-hidden blob report. Test failures remain fatal. A narrowly scoped `NEMOSYNE_COVERAGE_REPORT_ONLY=1` flag suppresses only the repository-global coverage threshold check while a partial shard is being collected.
+3. **Aggregate `Vitest coverage`:** fail unless every shard succeeded, download all three blob reports, merge them with Vitest, and run the canonical coverage config without the report-only flag.
+4. **Required `Node 24`:** continue to depend on the aggregate `Vitest coverage` result exactly as before.
 
-The aggregate retains the existing job name `Vitest coverage`, and the required `Node 24` fan-in still depends on that aggregate. The merge gate therefore continues to require the complete deterministic suite rather than any individual shard.
+This follows Vitest's supported distributed-testing model: shards emit blob reports with coverage and the final merge reconstructs the complete test and coverage result.
 
-### Why WASM is not a serial prep job in the first sharded design
+### Coverage authority
 
-The measured cached WASM build is approximately 1.4 seconds, while runner setup and the test suite dominate elapsed time. A shared preparation job would force every shard to wait for another checkout/toolchain/npm/artifact round trip before tests could begin. The first sharding tranche therefore duplicates the cheap cached WASM build in exchange for immediate shard parallelism.
+The repository's canonical global thresholds are unchanged:
 
-If later measurements show WASM setup or dependency restoration becoming material, introduce a reusable artifact only when its fan-out benefit exceeds the serial dependency and artifact-transfer cost.
+- statements: 75%;
+- lines: 75%;
+- functions: 70%;
+- branches: 60%.
 
-### Coverage rule
+They remain defined in `vitest.coverage.config.ts` and are enforced by the merged aggregate. The report-only shard mode does not define substitute thresholds and is never used by the aggregate required check.
 
-Per-shard percentages are not the quality gate because each shard sees only part of the codebase. The gate must evaluate **merged global coverage** against the repository's existing thresholds:
+A partial shard is not a coverage-policy decision. It is one fragment of the evidence needed to calculate the global decision. Applying global thresholds independently to each fragment would be mathematically incorrect because each shard intentionally executes only a subset of the tests.
 
-- statements: 50%;
-- lines: 50%;
-- functions: 50%;
-- branches: 40%.
+### WASM fan-out rationale
 
-Those values remain defined by `vitest.coverage.config.ts`. They are not lowered, duplicated as a weaker authoritative policy, or replaced by per-shard thresholds.
+The first live run showed that duplicating the WASM build can be expensive when the toolchain/cache changes: one shard spent about 37 seconds compiling the development package. Building the package once and fanning out the artifact removes two redundant Rust/WASM builds without changing the tested binary within the shard set.
+
+The cache key now hashes files that actually exist, `wasm/Cargo.toml` and `rust-toolchain.toml`, rather than the nonexistent `wasm/Cargo.lock`. Cache effectiveness and toolchain-refresh behavior remain measured evidence, not assumptions.
 
 ### Acceptance evidence for Phase 2
 
@@ -105,8 +105,9 @@ Before RF-033 can treat sharding as landed, verify on the live PR path that:
 - all three shards collectively execute the complete current coverage suite;
 - the merged report has the expected total test-file/test counts for that commit;
 - merged global coverage is consistent with the unsharded baseline, allowing only explainable source/test changes;
-- the unchanged global thresholds are enforced by the merged aggregate;
+- the unchanged 75/75/70/60 global thresholds are enforced by the merged aggregate;
 - shard failure makes `Vitest coverage` and therefore `Node 24` fail;
+- the shared WASM artifact is present and verified before each shard executes;
 - CodeQL, Rust, production build, and Chromium smoke remain unchanged authoritative gates;
 - no tests are silently filtered out by sharding;
 - required-gate wall time improves enough to justify additional runner minutes.
@@ -170,4 +171,4 @@ Optimize primarily for time to first actionable failure and required-gate wall t
 
 ## Relationship to RF-033
 
-This strategy is the execution plan for RF-033 CI/test-architecture work. Phase 1 removed unnecessary serialization and landed in #437. Phase 2 addresses the heavy Vitest critical path with measured three-way sharding and merged authoritative coverage. Phase 3 prevents exploratory assurance workloads from clogging normal development while preserving deterministic PR proof.
+This strategy is the execution plan for RF-033 CI/test-architecture work. Phase 1 removed unnecessary serialization and landed in #437. Phase 2 addresses the heavy Vitest critical path with measured three-way sharding, one shared WASM build, and merged authoritative coverage. Phase 3 prevents exploratory assurance workloads from clogging normal development while preserving deterministic PR proof.
