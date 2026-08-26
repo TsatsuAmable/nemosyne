@@ -18,6 +18,7 @@ use serde::Deserialize;
 use crate::data::column::{Column, ColumnType};
 use crate::data::dataset::Dataset;
 use crate::data::operations;
+use crate::data::resource_budget::{self, AnalysisBudget};
 use crate::data::value::Value;
 
 // ---------------------------------------------------------------------------
@@ -113,7 +114,7 @@ fn cmp_num(row: &HashMap<String, Value>, column: &str, pred: impl Fn(f64) -> boo
     row.get(column)
         .and_then(|v| v.as_number())
         .filter(|n| n.is_finite())
-        .map(|n| pred(n))
+        .map(pred)
         .unwrap_or(false)
 }
 
@@ -268,6 +269,61 @@ fn default_linkage() -> String {
     "average".to_string()
 }
 
+/// Resource preflight deliberately uses source-row count rather than trying to
+/// reproduce complete-case eligibility here. That can conservatively refuse a
+/// dataset with extensive missingness, but it cannot under-estimate work before
+/// the canonical clustering implementation gathers its metric matrix.
+fn metric_dimensions(dataset: &Dataset, features: Option<&[String]>) -> usize {
+    match features {
+        Some(names) => names.len(),
+        None => dataset.numeric_columns().len(),
+    }
+}
+
+fn preflight_kmeans(dataset: &Dataset, k: usize, features: Option<&[String]>) -> Result<(), String> {
+    let dimensions = metric_dimensions(dataset, features);
+    if dataset.row_count() == 0 || dimensions == 0 {
+        return Ok(());
+    }
+    let estimate = resource_budget::kmeans_estimate(
+        dataset.row_count(),
+        dimensions,
+        k,
+        AnalysisBudget::default(),
+    );
+    resource_budget::require_exact(&estimate)
+}
+
+fn preflight_hierarchical(dataset: &Dataset, features: Option<&[String]>) -> Result<(), String> {
+    let dimensions = metric_dimensions(dataset, features);
+    if dataset.row_count() == 0 || dimensions == 0 {
+        return Ok(());
+    }
+    let estimate = resource_budget::hierarchical_estimate(
+        dataset.row_count(),
+        dimensions,
+        AnalysisBudget::default(),
+    );
+    resource_budget::require_exact(&estimate)
+}
+
+fn preflight_dbscan(dataset: &Dataset, features: Option<&[String]>) -> Result<(), String> {
+    let dimensions = metric_dimensions(dataset, features);
+    if dataset.row_count() == 0 || dimensions == 0 {
+        return Ok(());
+    }
+    // The current exact/grid neighbourhood implementations both emit a CSR
+    // graph whose worst-case edge payload is dense. Until a governed bounded
+    // adjacency/approximation mode exists, DBSCAN must fail closed when that
+    // output or its work can exceed the shared kernel envelope.
+    let estimate = resource_budget::exact_neighbourhood_estimate(
+        dataset.row_count(),
+        dimensions,
+        AnalysisBudget::default(),
+    );
+    resource_budget::require_exact(&estimate)
+}
+
 /// Apply a generic operation to a dataset and return the transformed dataset.
 pub fn apply(dataset: &Dataset, op: Operation) -> Result<Dataset, String> {
     match op {
@@ -326,19 +382,40 @@ pub fn apply(dataset: &Dataset, op: Operation) -> Result<Dataset, String> {
             Ok(anomaly_zscore(dataset, &column, sensitivity))
         }
         Operation::KMeans { k, features } => {
+            preflight_kmeans(dataset, k, features.as_deref())?;
             let feature_refs: Option<Vec<&str>> =
                 features.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect());
             Ok(operations::k_means(dataset, k, feature_refs.as_deref()))
         }
-        Operation::Hierarchical { k, linkage, features } => {
+        Operation::Hierarchical {
+            k,
+            linkage,
+            features,
+        } => {
+            preflight_hierarchical(dataset, features.as_deref())?;
             let feature_refs: Option<Vec<&str>> =
                 features.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect());
-            Ok(operations::hierarchical(dataset, feature_refs.as_deref(), &linkage, k))
+            Ok(operations::hierarchical(
+                dataset,
+                feature_refs.as_deref(),
+                &linkage,
+                k,
+            ))
         }
-        Operation::Dbscan { eps, min_points, features } => {
+        Operation::Dbscan {
+            eps,
+            min_points,
+            features,
+        } => {
+            preflight_dbscan(dataset, features.as_deref())?;
             let feature_refs: Option<Vec<&str>> =
                 features.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect());
-            Ok(operations::dbscan(dataset, eps, min_points, feature_refs.as_deref()))
+            Ok(operations::dbscan(
+                dataset,
+                eps,
+                min_points,
+                feature_refs.as_deref(),
+            ))
         }
     }
 }
@@ -346,13 +423,22 @@ pub fn apply(dataset: &Dataset, op: Operation) -> Result<Dataset, String> {
 fn legacy_range_predicate(column: String, min: Option<f64>, max: Option<f64>) -> Predicate {
     let mut children = Vec::new();
     if let Some(lo) = min {
-        children.push(Predicate::Gte { column: column.clone(), value: lo });
+        children.push(Predicate::Gte {
+            column: column.clone(),
+            value: lo,
+        });
     }
     if let Some(hi) = max {
-        children.push(Predicate::Lte { column: column.clone(), value: hi });
+        children.push(Predicate::Lte {
+            column: column.clone(),
+            value: hi,
+        });
     }
     match children.len() {
-        0 => Predicate::In { column, values: Vec::new() }, // matches nothing
+        0 => Predicate::In {
+            column,
+            values: Vec::new(),
+        }, // matches nothing
         1 => children.into_iter().next().unwrap(),
         _ => Predicate::And { children },
     }
@@ -422,7 +508,10 @@ fn apply_aggregate(
         out_rows.push(r);
     }
 
-    let mut result = dataset.clone_with_rows(out_rows, &format!("[aggregated by {}]", group_keys.join(",")));
+    let mut result = dataset.clone_with_rows(
+        out_rows,
+        &format!("[aggregated by {}]", group_keys.join(",")),
+    );
     result.columns = out_columns;
     Ok(result)
 }
@@ -482,7 +571,10 @@ fn apply_compare(
     let mut rows_a: Vec<&HashMap<String, Value>> = Vec::new();
     let mut rows_b: Vec<&HashMap<String, Value>> = Vec::new();
     for row in &dataset.rows {
-        let key = row.get(group_by).map(|v| v.to_key_string()).unwrap_or_default();
+        let key = row
+            .get(group_by)
+            .map(|v| v.to_key_string())
+            .unwrap_or_default();
         if key == group_a {
             rows_a.push(row);
         } else if key == group_b {
@@ -521,19 +613,31 @@ fn apply_compare(
             _ => None,
         };
         let mut r = HashMap::new();
-        r.insert(group_by.to_string(), Value::Text(format!("{} vs {}", group_a, group_b)));
+        r.insert(
+            group_by.to_string(),
+            Value::Text(format!("{} vs {}", group_a, group_b)),
+        );
         r.insert("_measure".to_string(), Value::Text(measure.clone()));
         r.insert("_groupA".to_string(), Value::Text(group_a.to_string()));
         r.insert("_groupB".to_string(), Value::Text(group_b.to_string()));
         r.insert("_meanA".to_string(), num_or_null(mean_a));
         r.insert("_meanB".to_string(), num_or_null(mean_b));
         r.insert("_difference".to_string(), num_or_null(difference));
-        r.insert("_countA".to_string(), Value::Number(vals_a.len() as f64));
-        r.insert("_countB".to_string(), Value::Number(vals_b.len() as f64));
+        r.insert(
+            "_countA".to_string(),
+            Value::Number(vals_a.len() as f64),
+        );
+        r.insert(
+            "_countB".to_string(),
+            Value::Number(vals_b.len() as f64),
+        );
         out_rows.push(r);
     }
 
-    let mut result = dataset.clone_with_rows(out_rows, &format!("[compare {} vs {}]", group_a, group_b));
+    let mut result = dataset.clone_with_rows(
+        out_rows,
+        &format!("[compare {} vs {}]", group_a, group_b),
+    );
     result.columns = columns;
     Ok(result)
 }
@@ -576,7 +680,11 @@ fn anomaly_zscore(dataset: &Dataset, column_name: &str, threshold: Option<f64>) 
     let mut rows = dataset.rows.clone();
     for row in &mut rows {
         let (score, flag) = if std > 0.0 {
-            if let Some(v) = row.get(column_name).and_then(|v| v.as_number()).filter(|n| n.is_finite()) {
+            if let Some(v) = row
+                .get(column_name)
+                .and_then(|v| v.as_number())
+                .filter(|n| n.is_finite())
+            {
                 let z = (v - mean) / std;
                 (z, z.abs() > threshold)
             } else {
@@ -653,6 +761,20 @@ mod tests {
         r
     }
 
+    fn numeric_dataset(row_count: usize, dimensions: usize) -> Dataset {
+        let columns: Vec<Column> = (0..dimensions)
+            .map(|d| Column::new(format!("x{d}"), ColumnType::Numeric))
+            .collect();
+        let rows = (0..row_count)
+            .map(|r| {
+                (0..dimensions)
+                    .map(|d| (format!("x{d}"), Value::Number((r + d) as f64)))
+                    .collect::<HashMap<_, _>>()
+            })
+            .collect();
+        Dataset::new("scale-fixture", columns, rows)
+    }
+
     #[test]
     fn predicate_dsl_eq_and_between() {
         let ds = sample();
@@ -691,7 +813,11 @@ mod tests {
         let parsed: Operation = serde_json::from_str(op).unwrap();
         let result = apply(&ds, parsed).unwrap();
         assert_eq!(result.row_count(), 2);
-        let a = result.rows.iter().find(|r| r.get("team").and_then(|v| v.as_text()) == Some("A")).unwrap();
+        let a = result
+            .rows
+            .iter()
+            .find(|r| r.get("team").and_then(|v| v.as_text()) == Some("A"))
+            .unwrap();
         assert!((a.get("avgAge").and_then(|v| v.as_number()).unwrap() - 35.0).abs() < 1e-9);
         assert_eq!(a.get("maxAge").and_then(|v| v.as_number()), Some(40.0));
         assert_eq!(a.get("n").and_then(|v| v.as_number()), Some(2.0));
@@ -705,7 +831,11 @@ mod tests {
         let result = apply(&ds, parsed).unwrap();
         assert_eq!(result.row_count(), 2);
         // Legacy aggregator sums numeric columns (age) per group.
-        let a = result.rows.iter().find(|r| r.get("team").and_then(|v| v.as_text()) == Some("A")).unwrap();
+        let a = result
+            .rows
+            .iter()
+            .find(|r| r.get("team").and_then(|v| v.as_text()) == Some("A"))
+            .unwrap();
         assert_eq!(a.get("age").and_then(|v| v.as_number()), Some(70.0));
     }
 
@@ -720,7 +850,10 @@ mod tests {
         assert_eq!(r.get("_measure").and_then(|v| v.as_text()), Some("age"));
         assert_eq!(r.get("_meanA").and_then(|v| v.as_number()), Some(35.0));
         assert_eq!(r.get("_meanB").and_then(|v| v.as_number()), Some(30.0));
-        assert_eq!(r.get("_difference").and_then(|v| v.as_number()), Some(5.0));
+        assert_eq!(
+            r.get("_difference").and_then(|v| v.as_number()),
+            Some(5.0)
+        );
         assert_eq!(r.get("_countA").and_then(|v| v.as_number()), Some(2.0));
     }
 
@@ -743,7 +876,11 @@ mod tests {
         let flags: Vec<bool> = result
             .rows
             .iter()
-            .map(|r| r.get("_anomaly").map(|v| matches!(v, Value::Bool(true))).unwrap_or(false))
+            .map(|r| {
+                r.get("_anomaly")
+                    .map(|v| matches!(v, Value::Bool(true)))
+                    .unwrap_or(false)
+            })
             .collect();
         assert_eq!(flags, vec![false, false, false, true]);
     }
@@ -762,5 +899,53 @@ mod tests {
         let parsed: Operation = serde_json::from_str(op).unwrap();
         let result = apply(&ds, parsed).unwrap();
         assert!(result.get_column("_anomaly").is_some());
+    }
+
+    #[test]
+    fn scale_preflight_rejects_pathological_hierarchical_work() {
+        let ds = numeric_dataset(500, 2);
+        let parsed: Operation = serde_json::from_str(
+            r#"{"op":"hierarchical","k":2,"linkage":"average"}"#,
+        )
+        .unwrap();
+        let error = apply(&ds, parsed).unwrap_err();
+        assert!(error.starts_with("UNSUPPORTED_AT_SCALE:"));
+        assert!(error.contains("operation=hierarchical_clustering"));
+        assert!(error.contains("reason=EXACT_WORK_BUDGET_EXCEEDED"));
+    }
+
+    #[test]
+    fn scale_preflight_rejects_dbscan_dense_csr_hazard() {
+        let ds = numeric_dataset(5_000, 1);
+        let parsed: Operation =
+            serde_json::from_str(r#"{"op":"dbscan","eps":1.0,"min_points":3}"#).unwrap();
+        let error = apply(&ds, parsed).unwrap_err();
+        assert!(error.starts_with("UNSUPPORTED_AT_SCALE:"));
+        assert!(error.contains("operation=radius_neighbourhood"));
+        assert!(error.contains("reason=TRANSIENT_MEMORY_BUDGET_EXCEEDED"));
+    }
+
+    #[test]
+    fn scale_preflight_rejects_kmeans_work_before_matrix_allocation() {
+        let ds = numeric_dataset(5_000, 16);
+        let parsed: Operation =
+            serde_json::from_str(r#"{"op":"k_means","k":32}"#).unwrap();
+        let error = apply(&ds, parsed).unwrap_err();
+        assert!(error.starts_with("UNSUPPORTED_AT_SCALE:"));
+        assert!(error.contains("operation=k_means"));
+        assert!(error.contains("reason=EXACT_WORK_BUDGET_EXCEEDED"));
+    }
+
+    #[test]
+    fn scale_preflight_preserves_small_clustering_operations() {
+        let ds = numeric_dataset(20, 2);
+        for spec in [
+            r#"{"op":"k_means","k":2}"#,
+            r#"{"op":"hierarchical","k":2,"linkage":"average"}"#,
+            r#"{"op":"dbscan","eps":2.0,"min_points":1}"#,
+        ] {
+            let parsed: Operation = serde_json::from_str(spec).unwrap();
+            assert!(apply(&ds, parsed).is_ok(), "small operation must remain admitted: {spec}");
+        }
     }
 }
