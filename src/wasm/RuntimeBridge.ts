@@ -36,6 +36,7 @@ export {
 } from './runtime/MemoryAbi.ts';
 
 export {
+  UnsupportedAtScaleError,
   loadCsv,
   loadJson,
   loadTypedColumns,
@@ -60,6 +61,9 @@ export {
   computePersistenceIntervals,
   computeBetti0Curve,
   computeDatasetStructureProfile,
+  type AnalyticalResourceDecision,
+  type AnalyticalResourceEstimate,
+  type TdaResourcePreflight,
 } from './runtime/DatasetHandleBridge.ts';
 
 export {

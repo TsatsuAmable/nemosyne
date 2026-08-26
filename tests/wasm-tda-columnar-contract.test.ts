@@ -37,4 +37,28 @@ describe('S3: WASM TDA columnar authority contract', () => {
     expect(spaceSlice).not.toContain('HashMap<String, Value>');
     expect(spaceSlice).toContain('from_columnar');
   });
+
+  it('requires the production TDA bridge to consult the Rust-owned resource envelope first', () => {
+    const budgetSource = source('../wasm/src/data/resource_budget.rs');
+    const runtimeExports = source('../src/wasm/runtime/RuntimeExports.ts');
+    const bridgeSource = source('../src/wasm/runtime/DatasetHandleBridge.ts');
+
+    expect(budgetSource).toContain('pub fn data_tda_resource_preflight');
+    expect(budgetSource).toContain('borrowed_feature_columns');
+    expect(budgetSource).toContain('HIGH_DIMENSIONAL_EXACT_FALLBACK_OVER_BUDGET');
+    expect(budgetSource).toContain('mapper_bins');
+    expect(budgetSource).toContain('betti_steps');
+    expect(runtimeExports).toContain('data_tda_resource_preflight');
+
+    const tdaCallStart = bridgeSource.indexOf('function tdaCall');
+    const loadCsvStart = bridgeSource.indexOf('export function loadCsv', tdaCallStart);
+    expect(tdaCallStart).toBeGreaterThan(0);
+    expect(loadCsvStart).toBeGreaterThan(tdaCallStart);
+    const tdaCallSlice = bridgeSource.slice(tdaCallStart, loadCsvStart);
+    expect(tdaCallSlice).toContain('readTdaPreflight');
+    expect(tdaCallSlice).toContain('UnsupportedAtScaleError');
+    expect(tdaCallSlice.indexOf('readTdaPreflight')).toBeLessThan(
+      tdaCallSlice.indexOf('wasm[exportName]')
+    );
+  });
 });
