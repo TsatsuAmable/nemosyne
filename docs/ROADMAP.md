@@ -296,9 +296,9 @@ Review exit work:
 - [ ] record exact reduction/estimation/layout method and parameters in provenance;
 - [ ] demonstrate mathematically faithful, visibly/interactively distinct alternatives before P1-D ranking is product-valid.
 
-### P1-U Whole-product investigation UX convergence — IMPLEMENTATION LANDED / REVIEW ACTIVE
+### P1-U Whole-product investigation UX convergence — IMPLEMENTATION PARTIAL / REVIEW ACTIVE
 
-Landed first-pass work includes the 10-phase journey model, coordinator, task-surface policy, TechnoCore state model, semantic targeting/focus-context foundations, body-locked panel treatment, task-oriented HandWheel treatment, and integration coverage.
+Landed first-pass work includes the 10-phase journey model, coordinator, task-surface policy, TechnoCore state model, semantic targeting/focus-context foundations, body-locked panel treatment, task-oriented HandWheel treatment, and integration coverage. The converged design-system programme below is new planned work and is not yet implemented as a whole.
 
 **Normative implementation guide:** [`Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`](Nemosyne_VR_UI_Design_System_and_Agent_Spec.md). The guide defines the target interaction grammar, visual system, spatial reference frames, component contracts, Direct Touch behavior, accessibility/comfort constraints, performance rules and agent acceptance gates. The roadmap below turns that specification into bounded implementation tranches.
 
