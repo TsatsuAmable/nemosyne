@@ -19,7 +19,7 @@ export class Button extends Container {
     let bg: number = COLOR_TOKENS.surface.raised;
     let hoverBg: number = COLOR_TOKENS.surface.border;
     let activeBg: number = COLOR_TOKENS.interaction.focus;
-    let textColor: number = COLOR_TOKENS.text.primary;
+    const textColor: number = COLOR_TOKENS.text.primary;
     let borderColor: number = COLOR_TOKENS.surface.border;
 
     if (variant === 'primary') {

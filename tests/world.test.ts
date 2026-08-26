@@ -87,7 +87,7 @@ class MockRTCPeerConnection extends EventTarget {
     this._channel = null;
   }
 
-  createDataChannel(label, options) {
+  createDataChannel(_label, _options) {
     this._channel = new MockDataChannel();
     return this._channel;
   }

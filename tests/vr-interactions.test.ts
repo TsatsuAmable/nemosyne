@@ -86,7 +86,7 @@ function makeMockHand({
     direction: direction.clone(),
     pinched,
     pinchDistance: pinched ? 0.02 : 0.1,
-    setRayLength(length) {},
+    setRayLength(_length) {},
     getRay(target) {
       target.origin.copy(this.origin);
       target.direction.copy(this.direction);
