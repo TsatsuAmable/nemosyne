@@ -4,11 +4,13 @@
 
 ## Status snapshot — 26 August 2026
 
-**Current remote main at roadmap branch cut:** `4e8dde8` (`feat(ui): implement P1-U1 near/far interaction and direct touch substrate` — #444 merged). Since the prior status snapshot at #439, #440 refreshed refusal-provenance status, #441 added documentation-integrity enforcement, #442 formalised engineering governance, #443 hardened CI supply-chain pinning and removed duplicate coverage work, and #444 landed the first Direct Touch/near-field UI substrate. Static resource limits remain kernel safety guards, not Quest qualification and not evidence of generic 10M-row support.
+**Current remote main at roadmap branch cut:** `b7e8627` (`fix(rf044): preserve graph lineage across Dataset, Atlas and WASM` — #453 merged). Since the prior status snapshot at #439, #440 refreshed refusal-provenance status, #441 added documentation-integrity enforcement, #442 formalised engineering governance, #443 hardened CI supply-chain pinning and removed duplicate coverage work, #444 landed the first Direct Touch/near-field UI substrate, and #453 landed the first RF-044 graph-lineage repair. Static resource limits remain kernel safety guards, not Quest qualification and not evidence of generic 10M-row support.
 
 **Latest adversarial review:** the 26 August review of `main@4e8dde8` found two new blocker-class truth/correctness defects and seven additional high/medium remediation items. In particular, `Dataset.clone()` drops graph edges before ordinary Atlas/Rust processing; `SignatureBuilder` still fabricates analytical-looking defaults that can bias Moneta; portable investigation identity/digest/replay semantics are weaker than their cryptographic framing suggests; JS still contains large-N argument/copy cliffs; and the newly merged P1-U0/P1-U1 claims outrun the implementation/evidence. These are recorded as RF-044 through RF-052 below. P1-U0 and P1-U1 are therefore reclassified to **IMPLEMENTATION PARTIAL / REVIEW ACTIVE** pending their explicit exit evidence.
 
-**Reprioritised Stream-B critical path:** (1) **CURRENT: RF-044 graph lineage integrity** because source topology can be silently erased before Rust authority; (2) **RF-045 analytical-signature truth** integrated with RF-001/RF-002/RF-036 so unknown evidence is never replaced by plausible constants; (3) **RF-046/RF-047/RF-048 provenance identity and replay integrity** so `.nemosyne` packages cryptographically commit the semantic investigation actually replayed; (4) RF-029/RF-030/RF-031/RF-035 plus **RF-051** for the complete analytical resource/memory envelope, including JS-side N-dependent cliffs; (5) RF-001/RF-002 representation truth after upstream evidence is trustworthy; (6) **RF-049/RF-050** to correct P1-U0/U1 before later UI tranches depend on them, then RF-005/RF-006/RF-008/RF-027; (7) RF-015/RF-033 production evidence and **RF-052** governance truthfulness; (8) physical Quest 3S qualification; (9) private-preview hardening. Stream C continues in parallel on RF-037 through RF-043. The dependency rule is: **preserved source data → truthful analytical evidence → reproducible identity/replay → bounded computation → faithful representation → coherent investigator UX → physical XR proof → private preview.**
+**Production-wiring audit:** the 26 August audit of `main@3aa5b6e` found that source-level construction is not equivalent to a deployable capability. The mandatory WASM kernel is generated under `wasm/pkg` while Netlify publishes only `dist`; the active Vite build externalises `/wasm/pkg/nemosyne_wasm.js` but does not copy that package into the published tree. Collaboration and the default demo live stream point to same-origin `/__signal` and `/__demo-stream` endpoints that exist only in Vite dev/preview middleware, and several security/maintainability abstractions remain off-path or barrel-exported without a product consumer. RF-053 through RF-056 and the post-UI P1-W tranche below own this work. Per the requested sequencing, P1-W starts after P1-U converges and must close before private-preview promotion.
+
+**Reprioritised Stream-B critical path:** (1) **CURRENT: RF-044 graph lineage integrity** because source topology can be silently erased before Rust authority; (2) **RF-045 analytical-signature truth** integrated with RF-001/RF-002/RF-036 so unknown evidence is never replaced by plausible constants; (3) **RF-046/RF-047/RF-048 provenance identity and replay integrity** so `.nemosyne` packages cryptographically commit the semantic investigation actually replayed; (4) RF-029/RF-030/RF-031/RF-035 plus **RF-051** for the complete analytical resource/memory envelope, including JS-side N-dependent cliffs; (5) RF-001/RF-002 representation truth after upstream evidence is trustworthy; (6) **RF-049/RF-050** to correct P1-U0/U1 before later UI tranches depend on them, then RF-005/RF-006/RF-008/RF-027; (7) RF-015/RF-033 production evidence and **RF-052** governance truthfulness; (8) physical Quest 3S qualification; (9) **post-UI P1-W production wiring** under RF-053 through RF-056; (10) private-preview hardening. Stream C continues in parallel on RF-037 through RF-043. The dependency rule is: **preserved source data → truthful analytical evidence → reproducible identity/replay → bounded computation → faithful representation → coherent investigator UX → physical XR proof → production wiring → private preview.**
 
 **Current interpretation:** P1-A, P1-B, P1-C, P1-D, P1-E and P1-F contain material implementation advances but remain **IMPLEMENTATION LANDED / REVIEW ACTIVE**, not `VERIFIED COMPLETE`. P1-U remains **IMPLEMENTATION PARTIAL / REVIEW ACTIVE**; P1-U0/P1-U1 specifically are reopened by RF-050/RF-049. The dominant risks are source-data corruption at clone/transport boundaries, scientifically invalid or fabricated evidence, incomplete durable identity/replay commitments, memory/transport cliffs, security-authority/live-path assurance gaps and product/device evidence gaps. Stream A may continue only where these defects are not dependencies; Stream B fixes correctness/evidence foundations; Stream C independently hardens security/privacy-sensitive live boundaries.
 
@@ -147,6 +149,10 @@ Stream C operating principles:
 | RF-050 | P1-U0 / UI substrate evidence | Medium | The UIKit benchmark used to justify P1-U0 adoption is a synthetic desktop/jsdom/WebGL-style loop. It measures init time, JS heap delta, scene objects, update timing and disposal counters but does not measure the roadmap-claimed Quest-relevant text legibility, draw calls, clipping, real scroll interaction, headset frame pacing or sustained GC behavior. | Reclassify current benchmark as synthetic engineering evidence, not Quest/device evidence. Keep UIKit adoption provisional if otherwise architecturally sound, but measure the missing UX-05 properties in the real production bundle and representative panels, then on Quest 3S under U9. Freeze dependency choice only when measured draw calls/frame pacing/legibility/scroll/clipping/disposal evidence is recorded. |
 | RF-051 | P1-A/P1-B / JavaScript scale cliffs | High | Even with Rust owning analytical work, ordinary JS preprocessing still contains N-dependent cliffs: `Dataset.rangeOf()` materializes values and spreads them into `Math.min/Math.max`, append uses spread into `push`, and DatasetSpace clones/hashes rows and may compute ranges in JS. These can hit browser argument/memory limits before Rust's resource envelope helps. | Integrate with RF-029/RF-035: replace spread-based bulk operations with bounded loops/chunks; move authoritative range/fingerprint/identity work to Rust or bounded typed-column views; avoid full DatasetSpace clones/materialisation on large/handle-only datasets; audit all `...array`, `Array.from`, row-map and JSON round-trip paths on large-N flows. Add browser/WASM capacity regressions just below/above supported workload profiles and measure JS heap/GC/transfer as part of end-to-end qualification. |
 | RF-052 | Engineering governance / merge evidence | Medium | The active main ruleset is named as an approval gate but currently requires zero approving reviews; the separate Continuous Copilot Review ruleset is disabled. CI is meaningful and green, but branch-rule wording/behavior can imply independent review that is not actually enforced. | Decide the intended governance explicitly. Either require at least one independent approval for governed feature/semantic changes, or rename/document the rule so zero approvals is not presented as an approval gate and enforce independent Stream-B review at promotion instead. Keep automated review non-blocking if needed for cadence, but require resolved material review threads. Add a periodic ruleset/config check to RF-009/RF-034 so repository policy cannot silently drift from documented governance. |
+| RF-053 | P1-W / production WASM deployment | **Blocker for preview** | `npm run build` generates `wasm/pkg`, Netlify publishes only `dist`, and the active Vite configuration externalises `/wasm/pkg/nemosyne_wasm.js` without copying the generated JS/WASM package into the published tree. The dormant `vite-wasm-pack-plugin.js` is not registered and copies to `dist/wasm`, which still disagrees with the runtime's `/wasm/pkg/...` URLs. A clean production artifact can therefore boot without its mandatory analytical authority. | Establish one production artifact topology and make the build fail closed unless the generated glue and `.wasm` binary are present at the exact runtime URLs. Remove or repair the dormant plugin, add manifest/hash/MIME checks, serve the clean `dist` artifact in CI, and prove real kernel initialization plus one authoritative analytical operation without a JS substitute. |
+| RF-054 | P1-W / production service wiring | High | Collaboration and the default demo live stream are constructed from the production `World`, but default to same-origin `/__signal` and `/__demo-stream`; those endpoints are implemented only by Vite dev/preview middleware. Netlify has no function, redirect or deployed service contract for either path. UI affordances can therefore advertise capabilities that have no production backend. | Decide the supported preview topology for each service. Deploy and route an authenticated signalling service and a governed live-stream source, or capability-gate/remove the corresponding production affordance. Close RF-037/RF-038 on the actual deployed signalling admission path; define health, timeout/retry, origin, rate-limit, observability and failure-state contracts; prove connection and explicit-unavailable behavior from a clean production bundle. |
+| RF-055 | P1-W / capability and implementation hygiene | High | Several apparently finished systems are off the production call graph or only barrel-exported: replay-safe ticket verification, study/statistics and consent flows, `UploadSanitizer`, connector auth, command-buffer application, `CollaborativeStateSync`, shareable URLs, colour-palette logic, GitHub corpus ingest, fake Arrow parsing and custom serializer prototypes. This creates false assurance, duplicate authority and maintenance/security exposure. | Build a capability-to-entry-point inventory. For each item, either wire the governed implementation through a real product path with end-to-end evidence, replace hand-rolled protocol/statistics/security code with a maintained fit-for-purpose dependency where semantics permit, or delete/quarantine it from production exports and documentation. RF-037/RF-039/RF-040 remain authoritative for ticket, upload and consent security rather than simply wiring unsafe helpers. |
+| RF-056 | P1-W / release evidence | High | Current tests can prove helpers and dev middleware while missing the shape of the published artifact and its external service dependencies. There is no single promotion test that verifies the built frontend, WASM kernel, Worker path, advertised capabilities and required service boundaries together. | Add a production-wiring release gate: build from a clean checkout; validate artifact contents and hashes; serve only `dist`; initialize real WASM and a real module Worker; exercise a representative load/analysis/export/replay journey; test deployed or contract-faithful signalling/live-stream services; assert capability-hidden/explicit failure behavior when optional services are absent; record release provenance and rollback evidence. |
 
 ## Adversarial remediation programme — 26 August 2026
 
@@ -658,6 +664,49 @@ Review exit work:
 - [ ] close **RF-008** with real Playwright + Quest product-path evidence under P1-U9;
 - [ ] collect task-level comprehension/discoverability/recovery/falsification/finding/share evidence before verification.
 
+### P1-W Production wiring convergence — DEFERRED UNTIL P1-U0..P1-U9 COMPLETE
+
+Purpose: turn the converged investigator interface into an honestly deployable system. This tranche begins after the UI tranche is complete so service contracts and capability gates are fitted to the stable product surface rather than repeatedly rewritten during panel/input migration. Inventory and design may be prepared earlier, but production wiring, promotion claims and endpoint exposure belong here.
+
+#### P1-W0 — immutable frontend/WASM artifact — RF-053
+
+- [ ] choose and document one canonical deployed URL layout for wasm-pack JS glue and the `.wasm` binary;
+- [ ] make `npm run build` copy both artifacts into that exact location under `dist`, removing or repairing the unused conflicting plugin;
+- [ ] fail the build when either artifact is absent, stale or mismatched; record content hashes and release identity;
+- [ ] verify correct JavaScript/WASM MIME types, cache policy and cross-origin isolation headers from a server exposing only the production artifact;
+- [ ] prove browser startup, real kernel readiness, Worker registration and at least one Rust-authoritative analysis from a clean checkout with no pre-existing `wasm/pkg` state or JS analytical fallback.
+
+#### P1-W1 — deployed service boundaries — RF-054 with RF-037/RF-038
+
+- [ ] classify collaboration and each live-data source as preview-required, optional or unsupported; the UI must derive availability from the deployed capability contract;
+- [ ] deploy or proxy the supported signalling endpoint and replace dev-only assumptions with explicit environment/configuration contracts;
+- [ ] converge onto the replay-resistant versioned ticket authority, exact role allowlist and nonce lifetime; prove replay rejection through the deployed admission path;
+- [ ] deploy a governed live-stream source where required, or hide/disable demo-stream affordances with an explicit unavailable state;
+- [ ] define origin/authentication, TLS, rate limiting, payload/resource limits, backpressure, reconnect, health, observability and failure semantics for every network boundary;
+- [ ] verify successful and failed connections from the clean production bundle rather than Vite dev/preview middleware.
+
+#### P1-W2 — capability/call-graph reconciliation — RF-055
+
+- [ ] create a machine-checkable inventory mapping every advertised capability and public export to its browser/server entry point, authority, deployment dependency and product-path test;
+- [ ] classify each off-path implementation as `wire`, `replace`, `quarantine` or `delete`, with an owner and evidence requirement;
+- [ ] do not wire unsafe helpers merely to satisfy reachability: RF-039 owns real upload-ingress policy and RF-040 owns consent/telemetry lifecycle redesign;
+- [ ] replace fake Arrow/FlatBuffers/MessagePack and security/statistics primitives with maintained libraries where interoperability or correctness is claimed, otherwise remove the claim/export;
+- [ ] remove duplicate WebSocket lifecycle and ticket authorities after the canonical implementations own all consumers;
+- [ ] add import/reachability guards preventing security-critical or standards-labelled shadow implementations from returning unnoticed.
+
+#### P1-W3 — production release qualification — RF-056
+
+- [ ] add a CI job that builds from a clean checkout, inspects `dist`, serves only `dist` and fails on missing mandatory artifacts or unexpected remote runtime dependencies;
+- [ ] run a real browser journey through load -> kernel analysis -> representation -> save/export -> clean-room replay, including Worker execution and explicit kernel-unavailable behavior;
+- [ ] exercise required network services against deployed or contract-faithful production instances and verify capability-gated behavior when optional services are absent;
+- [ ] add health/readiness checks that distinguish frontend availability, kernel readiness and external-service readiness;
+- [ ] record release manifest, source SHA, WASM hash, configuration schema, compatibility result and rollback target;
+- [ ] conduct an independent adversarial production-path review before promotion.
+
+**Entry gate:** P1-U0 through P1-U9 are implementation-complete and their converged UI/product-path evidence agrees; no production service is wired to a UI surface that is still being structurally replaced.
+
+**Exit gate:** RF-053 through RF-056 are closed; applicable RF-037 through RF-040 security/privacy authorities are closed or explicitly risk-accepted; every visible production capability has a real deployed path or an honest unavailable state; the clean published artifact initializes the Rust/WASM authority and passes the release journey; rollback and release provenance are demonstrated. Only then may the minimal private preview be promoted.
+
 ### P1-B Asynchronous analytical runtime — IMPLEMENTATION LANDED / REVIEW ACTIVE
 
 Landed implementation evidence now includes #417's production Worker installation, real generation fencing, fingerprint-keyed dataset registration, authoritative output fingerprints, async presentation adoption and replay-parity repairs.
@@ -746,12 +795,14 @@ Review exit work:
 Deliver a controlled, observable deployment suitable for investigator research/usability testing rather than broad public launch.
 
 - [ ] define supported browsers/headsets and a small tested hardware matrix;
-- [ ] deploy reproducible versioned frontend/WASM artifacts;
+- [ ] complete post-UI P1-W and close RF-053 through RF-056;
+- [ ] deploy reproducible versioned frontend/WASM artifacts through the RF-053 artifact contract;
 - [ ] add authentication/access control for a private cohort;
 - [ ] define dataset retention/upload/deletion/privacy policy;
 - [ ] add explicit consent/telemetry controls;
 - [ ] establish dataset-safe crash/error/performance telemetry;
 - [ ] add health checks, rollback and release provenance;
+- [ ] expose only capabilities backed by deployed services; capability-gate optional collaboration/live-stream features under RF-054;
 - [ ] validate `.nemosyne` compatibility across preview releases, including RF-046/RF-047/RF-048 digest/replay/identity migrations;
 - [ ] implement onboarding, sample investigations and unsupported-feature states;
 - [ ] run a small investigator cohort and feed structured evidence into the roadmap.
@@ -874,6 +925,8 @@ The consolidated dependency update landed in #358. Future updates are evidence-l
 - **JS presents, orchestrates and schedules.** It must not reconstruct a shadow analytical authority, and supported-scale paths may not hide unbounded row materialisation before/after Rust.
 - **Tests live with authority.** Exhaustive mathematics belongs beside Rust-owned behavior; higher layers verify seams, presentation and interaction.
 - **Production-path evidence governs shipped claims.** An isolated helper, mock or unit test cannot by itself prove a production property; the real authoritative entry point/call graph must demonstrate the behavior where the claim applies.
+- **A visible capability requires a deployed dependency.** A constructed client, exported helper or dev-only endpoint is not a production capability. Every visible feature must have a healthy deployed path or an explicit unavailable/capability-gated state.
+- **The published artifact is the product boundary.** Mandatory WASM, Worker and runtime assets must be present, integrity-bound and exercised from the clean deployable output; success from the source tree or Vite middleware is insufficient.
 - **Interaction completion means semantic parity.** Mouse, controller ray, hand ray and direct touch may differ mechanically, but required operations must produce one governed semantic action with explicit capture/cancel/commit behavior.
 - **Boundary tests remain mandatory.** Rust-first testing does not replace WASM ABI, browser, WebXR or end-to-end verification.
 - **Source rows are not render primitives or analytical reduction inputs.** LOD/reduction is first-class architecture, and render-object growth must be governed independently of source N.
@@ -908,8 +961,10 @@ portable investigation replay/tamper tests including refusal/remediation
 digest semantic-field mutation/tamper tests
 coverage assurance
 production build
+clean-dist artifact manifest/hash/MIME verification and real WASM initialization
 browser/WebXR product-path smoke
 real Worker/WASM integration for async analytical paths
+deployed or contract-faithful signalling/live-stream boundary tests with capability-unavailable cases
 real sparse-mode exact-vs-approximation parity/stability tests
 scale benchmarks measuring complete JS + Worker + WASM algorithm and peak memory
 security admission/ingress tests through the live production path
@@ -928,6 +983,7 @@ independent review pass over the resulting merged implementation
 4. Do not introduce scale claims or exact high-D work that bypasses the RF-029/RF-051 complete resource envelope.
 5. Continue bounded maintenance/dependency work that does not distract from promotion blockers.
 6. P1-U2/U3/U4 may scaffold where useful, but no modality-parity/completion claim should depend on P1-U1 until RF-049 closes; U0 device evidence remains under RF-050/U9. Do not begin P2 RepresentationGraph composition or P3 adaptation until reviewed prerequisites are satisfied.
+7. After P1-U0 through P1-U9 converge, execute P1-W in order: immutable WASM artifact -> deployed service boundaries -> off-path capability reconciliation -> clean production release qualification. Do not promote the private preview before P1-W exits.
 
 ### Stream B — review and fix-forward
 
@@ -939,8 +995,9 @@ independent review pass over the resulting merged implementation
 6. **RF-015 + RF-033 — production evidence architecture.** Real Worker/WASM timings and independent browser-smoke signal; measure the now-parallel/sharded CI graph without reducing proof.
 7. **RF-052 + RF-009/RF-034 — governance truth.** Align branch-rule names/review policy/current-main status with actual enforcement; keep automated review from becoming a false or unnecessary blocker.
 8. **Physical XR qualification — RF-026 residual + RF-049/RF-050 + PERF-04 + UX-03.** Quest 3S controllers/hands/desktop semantic parity, comfort, frame/memory budgets and target-device task evidence; P1-U9 owns UI-specific execution/evidence.
-9. **Private-preview hardening.** Auth/access control, retention/privacy, consent/telemetry, release/rollback/recovery and compatibility only after applicable blocker/high scientific, provenance, product and Stream-C findings close or are explicitly risk-accepted.
-10. Review each new Stream A merge immediately and append/fix RF findings in the same cadence.
+9. **P1-W / RF-053 through RF-056 — post-UI production wiring.** After P1-U convergence, publish the mandatory WASM authority correctly, wire or capability-gate network services, reconcile off-path/duplicate implementations, then prove the clean production artifact and deployed boundaries end to end.
+10. **Private-preview hardening.** Auth/access control, retention/privacy, consent/telemetry, release/rollback/recovery and compatibility only after P1-W and applicable blocker/high scientific, provenance, product and Stream-C findings close or are explicitly risk-accepted.
+11. Review each new Stream A merge immediately and append/fix RF findings in the same cadence.
 
 ### Stream C — security authority and live-path assurance
 
@@ -955,6 +1012,7 @@ independent review pass over the resulting merged implementation
 ### Convergence / promotion
 
 - Run PERF-04 and UX-03 physical Quest qualification on the converged P1-U treatment only after RF-049 has repaired interaction semantics and RF-050 defines the missing device evidence.
+- Execute P1-W only after P1-U0 through P1-U9 converge; require RF-053 through RF-056 closure before private-preview promotion.
 - Re-run blocker/high security, architecture, scientific, provenance and UX review before private-preview promotion.
 - Require applicable Stream C blocker/high findings to be closed or explicitly risk-accepted with evidence before private-preview promotion.
 - Require RF-044/RF-045 and RF-046/RF-047/RF-048 to close before making strong graph-science or reproducible-investigation integrity claims.
