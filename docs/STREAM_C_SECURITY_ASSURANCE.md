@@ -31,6 +31,22 @@ Unit tests remain necessary, but they are not sufficient evidence for a shipped-
 - Performance claims must measure the complete production workload, including preprocessing, copies, scheduling, allocation, and presentation costs.
 - UX completion claims must demonstrate the real interaction trigger, visible response, completion state, recovery, and context preservation.
 
+## Adversarial implementation cycle
+
+Stream C inherits the project-wide adversarial implementation protocol in `AGENTS.md`. Security/privacy/trust changes are **high-risk by default**; only purely editorial or demonstrably mechanical non-semantic changes may use the low-risk exemption.
+
+Before implementing a Stream C fix, record:
+
+1. the security/privacy invariant that must hold;
+2. the live ingress/admission/storage/egress path and canonical authority that must enforce it;
+3. attacker-controlled inputs, fail-open possibilities, replay/race/lifecycle states, duplicate-authority risks, privacy lifecycle gaps, and resource-exhaustion cases that could invalidate the design;
+4. the production-path tests or hostile cases that would falsify the proposed design; and
+5. non-goals plus any risk intentionally deferred.
+
+After implementation and focused verification, perform a distinct adversarial pass over the real production path. Try the original attack cases and at least one newly inferred attack derived from the final code. Verify that helper-only tests have not been mistaken for live enforcement, that failures remain fail-closed, and that no security hardening introduced a shadow analytical/parser authority.
+
+Use an independent reviewer/agent when available. An unresolved blocker discovered by the post-implementation review prevents merge; valid adjacent work is recorded as `DEFER` rather than recursively widening the current security PR.
+
 ## Stream C operating rules
 
 1. **One authoritative security protocol per boundary.** Do not retain parallel cryptographic or authorization implementations with divergent schemas or semantics.
@@ -42,6 +58,7 @@ Unit tests remain necessary, but they are not sufficient evidence for a shipped-
 7. **Supply-chain trust should be minimal and explicit.** Remove third-party runtime origins when the production build already bundles the dependency.
 8. **Unsafe and parser boundaries require fuzz evidence.** Raw `unsafe`, `unwrap`, or `expect` counts are not vulnerabilities by themselves; attacker-reachable boundary behavior is what must be proved.
 9. **A green security helper test is never accepted as live enforcement evidence by itself.**
+10. **Every high-risk security change receives both pre-implementation and post-implementation adversarial review.** A green CI run does not substitute for either pass.
 
 ## Active Stream C findings
 
@@ -171,6 +188,7 @@ Stream C is not complete merely because RF-037 through RF-043 are closed individ
 - privacy/compliance wording matches actual lifecycle behavior;
 - unnecessary runtime supply-chain trust has been removed;
 - deterministic regressions exist for every fuzz-found security/correctness defect;
+- every high-risk security change has a recorded pre-implementation adversarial contract and post-implementation adversarial disposition;
 - Stream B independently re-reviews the resulting live paths.
 
 ## Relationship to the master roadmap
