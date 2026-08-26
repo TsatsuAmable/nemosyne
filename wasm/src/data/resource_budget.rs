@@ -108,7 +108,7 @@ impl Default for AnalysisBudget {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TdaOperation {
+pub(crate) enum TdaOperation {
     Mapper,
     Persistence,
     Betti0,
@@ -486,6 +486,27 @@ fn build_tda_preflight(
         estimate,
         refusal,
     }
+}
+
+/// Kernel-inline resource preflight for the `data_compute_*` TDA exports.
+/// Resolves the resident columnar snapshot and builds the same preflight the
+/// standalone `data_tda_resource_preflight` dry-run query produces, so direct
+/// callers of the compute exports cannot bypass the analytical resource
+/// envelope. Returns `None` only when the handle cannot be resolved (the
+/// caller then falls through to its existing hard-error path).
+pub(crate) fn tda_preflight_for(
+    handle: u32,
+    params: &serde_json::Value,
+    operation: TdaOperation,
+) -> Option<TdaResourcePreflight> {
+    let (_name, columns, columnar) = crate::data::columnar_snapshot(handle)?;
+    Some(build_tda_preflight(
+        &columns,
+        columnar.as_ref(),
+        params,
+        operation,
+        AnalysisBudget::default(),
+    ))
 }
 
 /// Rust-owned preflight for production TDA calls. The host passes the exact

@@ -38,7 +38,7 @@ describe('S3: WASM TDA columnar authority contract', () => {
     expect(spaceSlice).toContain('from_columnar');
   });
 
-  it('requires the production TDA bridge to consult the Rust-owned resource envelope first', () => {
+  it('requires the production TDA bridge to translate the kernel-inline resource refusal', () => {
     const budgetSource = source('../wasm/src/data/resource_budget.rs');
     const runtimeExports = source('../src/wasm/runtime/RuntimeExports.ts');
     const bridgeSource = source('../src/wasm/runtime/DatasetHandleBridge.ts');
@@ -50,15 +50,26 @@ describe('S3: WASM TDA columnar authority contract', () => {
     expect(budgetSource).toContain('betti_steps');
     expect(runtimeExports).toContain('data_tda_resource_preflight');
 
+    // Enforcement is kernel-inline: tdaCall invokes the Rust export (which
+    // refuses over-budget work in-band) and then translates the refusal
+    // envelope to UnsupportedAtScaleError. It must NOT run a separate host-side
+    // preflight, so direct/raw callers cannot bypass the envelope.
     const tdaCallStart = bridgeSource.indexOf('function tdaCall');
+    const dryRunStart = bridgeSource.indexOf('export function tdaResourcePreflight', tdaCallStart);
     const loadCsvStart = bridgeSource.indexOf('export function loadCsv', tdaCallStart);
     expect(tdaCallStart).toBeGreaterThan(0);
-    expect(loadCsvStart).toBeGreaterThan(tdaCallStart);
-    const tdaCallSlice = bridgeSource.slice(tdaCallStart, loadCsvStart);
-    expect(tdaCallSlice).toContain('readTdaPreflight');
+    expect(dryRunStart).toBeGreaterThan(tdaCallStart);
+    expect(loadCsvStart).toBeGreaterThan(dryRunStart);
+    const tdaCallSlice = bridgeSource.slice(tdaCallStart, dryRunStart);
+    expect(tdaCallSlice).not.toContain('readTdaPreflight');
+    expect(tdaCallSlice).toContain('parseTdaRefusalEnvelope');
     expect(tdaCallSlice).toContain('UnsupportedAtScaleError');
-    expect(tdaCallSlice.indexOf('readTdaPreflight')).toBeLessThan(
-      tdaCallSlice.indexOf('wasm[exportName]')
+    expect(tdaCallSlice.indexOf('wasm[exportName]')).toBeLessThan(
+      tdaCallSlice.indexOf('parseTdaRefusalEnvelope')
     );
+
+    // The standalone preflight remains available as a dry-run query.
+    const dryRunSlice = bridgeSource.slice(dryRunStart, loadCsvStart);
+    expect(dryRunSlice).toContain('readTdaPreflight');
   });
 });
