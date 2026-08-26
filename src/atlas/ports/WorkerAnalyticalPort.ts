@@ -60,11 +60,15 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
       fence.datasetVersion !== undefined &&
       (this._fence.datasetVersion === undefined || fence.datasetVersion > this._fence.datasetVersion);
 
-    if (fence.generation !== undefined) this._fence.generation = fence.generation;
-    if (fence.datasetVersion !== undefined) this._fence.datasetVersion = fence.datasetVersion;
-    if (fence.datasetFingerprint !== undefined) {
-      this._fence.datasetFingerprint = fence.datasetFingerprint;
-    }
+    this._fence = {
+      generation: fence.generation !== undefined ? fence.generation : this._fence.generation,
+      datasetVersion:
+        fence.datasetVersion !== undefined ? fence.datasetVersion : this._fence.datasetVersion,
+      datasetFingerprint:
+        fence.datasetFingerprint !== undefined
+          ? fence.datasetFingerprint
+          : this._fence.datasetFingerprint,
+    };
 
     if (generationAdvanced) {
       this._registered.clear();
