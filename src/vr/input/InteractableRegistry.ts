@@ -266,12 +266,58 @@ export class InteractableRegistry {
   /**
    * Raycast against scene interactables and return the first hit entry and its
    * distance, or null when scene selection is suppressed or nothing is hit.
+   * Uses the BVH `firstHitOnly` early-exit when accelerated, as this is the
+   * per-frame hot path.
    */
   raycastScene(
     raycaster = this.raycaster,
     options: { ignoreSuppression?: boolean } = {}
   ): SceneHit | null {
     if (this.suppressSceneSelection && !options.ignoreSuppression) return null;
+    const intersections = this._raycastSceneIntersections(raycaster, true);
+    if (intersections.length > 0) {
+      const entry = this._entryForHit(intersections[0].object);
+      if (entry) return { entry, distance: intersections[0].distance };
+    }
+    return null;
+  }
+
+  /**
+   * RF-025: Raycast against scene interactables and return EVERY hit entry,
+   * sorted by ascending distance, deduplicated by interactable entry.
+   *
+   * The semantic target resolver needs the full hit list (not just the nearest
+   * hit) so it can rank and coerce structure targets over raw observations.
+   * `raycastScene()` keeps its BVH early-exit; this method always collects all
+   * intersections.
+   */
+  raycastSceneAll(
+    raycaster = this.raycaster,
+    options: { ignoreSuppression?: boolean } = {}
+  ): SceneHit[] {
+    if (this.suppressSceneSelection && !options.ignoreSuppression) return [];
+    const intersections = this._raycastSceneIntersections(raycaster, false);
+
+    const out: SceneHit[] = [];
+    const seen = new Set<InteractableEntry>();
+    for (const intersection of intersections) {
+      const entry = this._entryForHit(intersection.object);
+      if (!entry || seen.has(entry)) continue;
+      seen.add(entry);
+      out.push({ entry, distance: intersection.distance });
+    }
+    out.sort((a, b) => a.distance - b.distance);
+    return out;
+  }
+
+  /**
+   * Shared raycast + sort against scene interactables. `firstOnly` enables the
+   * BVH early-exit for the nearest-hit hot path.
+   */
+  private _raycastSceneIntersections(
+    raycaster: THREE.Raycaster,
+    firstOnly: boolean
+  ): THREE.Intersection[] {
     this._ensureObjectBvh();
     this._sceneIntersections.length = 0;
     const objectBvh = raycaster.layers.mask === 1 ? this._objectBvh : null;
@@ -279,7 +325,7 @@ export class InteractableRegistry {
       raycaster as THREE.Raycaster & {
         firstHitOnly?: boolean;
       }
-    ).firstHitOnly = objectBvh !== null;
+    ).firstHitOnly = firstOnly && objectBvh !== null;
     if (objectBvh) {
       objectBvh.raycast(raycaster, this._sceneIntersections);
       raycaster.intersectObjects(this._fallbackRoots, true, this._sceneIntersections);
@@ -287,12 +333,7 @@ export class InteractableRegistry {
     } else {
       raycaster.intersectObjects(this._interactableMeshes, true, this._sceneIntersections);
     }
-    const hits = this._sceneIntersections;
-    if (hits.length > 0) {
-      const entry = this._entryForHit(hits[0].object);
-      if (entry) return { entry, distance: hits[0].distance };
-    }
-    return null;
+    return this._sceneIntersections;
   }
 
   /**

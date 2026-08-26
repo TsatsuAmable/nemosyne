@@ -29,6 +29,12 @@ export interface WorldSessionHost {
   narrativeStrip?: NarrativeStripLike | null;
   guidedTour?: GuidedTourLike;
   vrConsole?: VRConsoleLike;
+  /** RF-025: P1-F focus/context controller whose state is persisted/restored. */
+  focusContext?: {
+    exportState(): { currentLevel: string; focusedStructureId: string | null };
+    restoreState(state: { currentLevel: string; focusedStructureId: string | null }): void;
+    clearFocus(): void;
+  } | null;
   _originalDataset?: Dataset | null;
   _transformedDataset?: Dataset | null;
   _disposed?: boolean;
@@ -78,6 +84,9 @@ export class WorldSessionController {
         encodings: w.currentEntry.encodings,
         maxDepth: w.currentEntry.maxDepth,
       },
+      // RF-025: persist the durable focus/context snapshot so the Memory Palace
+      // restores the focused structure across sessions.
+      focus: w.focusContext?.exportState() ?? undefined,
     });
 
     const snapshot = w.session.serialize();
@@ -197,6 +206,23 @@ export class WorldSessionController {
       w.guidedTour._active = true;
       w.guidedTour._cardGroup.visible = true;
       w.guidedTour._renderStep();
+    }
+
+    // RF-025: restore the durable focus/context snapshot. `restoreState`
+    // validates the level/structureId pair and fails closed for impossible
+    // states, so a stale or corrupt snapshot cannot corrupt the controller.
+    const focusData = presentation.focus as
+      { currentLevel?: string; focusedStructureId?: string | null } | undefined;
+    if (w.focusContext && focusData && typeof focusData.currentLevel === 'string') {
+      try {
+        w.focusContext.restoreState({
+          currentLevel: focusData.currentLevel as never,
+          focusedStructureId: focusData.focusedStructureId ?? null,
+        });
+      } catch {
+        // A corrupt/incompatible focus snapshot must not abort session restore.
+        w.focusContext.clearFocus();
+      }
     }
 
     if (!this._isCurrent(generation)) return false;
