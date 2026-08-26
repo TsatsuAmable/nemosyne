@@ -895,7 +895,7 @@ fn assemble_structure_profile(
     let mut global_high_variance = false;
     let mut max_skewness: f64 = 0.0;
     let mut constant_columns = 0;
-    let mut max_observed_anomaly_score = 0.0;
+    let mut max_observed_anomaly_score: f64 = 0.0;
     for stats in &stats.numeric {
         let abs_skew = stats.skew.abs();
         max_skewness = max_skewness.max(abs_skew);
