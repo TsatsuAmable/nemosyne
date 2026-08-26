@@ -17,7 +17,7 @@ Read these in order when they are relevant:
 ## Mandatory engineering boundaries
 
 1. **Vision alignment:** changes must align with the governing vision. Material alternatives or direction changes must be surfaced explicitly rather than slipped into implementation.
-2. **Feature branch and PR discipline:** never push directly to `main`. Develop on a focused branch, verify the claims, and raise a PR.
+2. **Feature branch and PR discipline:** live-check remote `main` before starting implementation, never push directly to `main`, develop on a focused branch, verify the claims, re-check remote `main` before raising or finalizing the PR, and sync/reconcile drift when necessary.
 3. **Rust/WASM analytical authority:** Rust/WASM owns canonical analytical data, N-dependent analysis, statistical/scientific computation, topology, clustering, and scale-sensitive reductions. TypeScript owns orchestration, interaction, persistence adapters, and rendering. Do not add a shadow analytical implementation or silent JavaScript fallback.
 4. **Runtime-local handles are capabilities:** a WASM handle belongs only to the runtime instance that created it. Cross-runtime identity uses durable fingerprints and explicit registration.
 5. **Scientific honesty:** names such as confidence, significance, probability, density, manifold, uncertainty, or fit must match the mathematics actually computed. Missing/invalid values must not silently become legitimate numeric observations.
@@ -29,6 +29,52 @@ Read these in order when they are relevant:
 A product property is not considered landed merely because an isolated helper, mock, module, or unit test demonstrates it. When a property governs a production path, evidence must exercise the real production entry point and the authoritative call graph or boundary responsible for enforcing it.
 
 This applies to security, correctness, scientific semantics, privacy/compliance, performance, recovery, concurrency, provenance, persistence, and UX state. Unit tests remain necessary, but they are not sufficient evidence for a shipped-capability claim.
+
+## Adversarial implementation protocol
+
+Implementation work uses a **pre-implementation adversarial review -> implementation -> post-implementation adversarial review** cycle. The purpose is to attack assumptions before they harden into code and then attack the resulting code rather than merely checking whether it resembles the plan.
+
+### Risk classification
+
+A pre-implementation adversarial review is mandatory when a change touches any of the following, or closes a blocker/high review finding:
+
+- analytical, statistical, scientific, measurement, Moneta, or representation semantics;
+- Rust/WASM/TypeScript authority, ABI, data ownership, or cross-runtime boundaries;
+- dataset identity, graph/topology preservation, serialization, persistence, provenance, export/import, digest, or replay;
+- security, privacy, authentication/authorization, untrusted input, supply-chain trust, or public network/persistence formats;
+- worker/concurrency, recovery, lifecycle generations, cancellation, stale-state handling, or durable mutation;
+- large-N complexity, memory/resource envelopes, copies/transfers, rendering hot paths, or performance claims;
+- WebXR input, Direct Touch/grab, controller/hand/mouse semantic parity, locomotion, persistent spatial UI, accessibility, or other core interaction grammar;
+- an architectural/trust/public-format decision that may require an RFC/ADR.
+
+Purely editorial prose, formatting-only changes, comments, or demonstrably mechanical refactors with unchanged semantics may use a **low-risk exemption**. The PR must state why the exemption is safe. If risk is uncertain, perform the review.
+
+### Pre-implementation adversarial contract
+
+Before writing the implementation for high-risk work, record a compact contract in the working notes or PR description containing:
+
+1. **Invariant:** the exact property that must be true when the change is correct.
+2. **Authority and production path:** which layer owns the truth and which real entry point/call path must enforce it.
+3. **Failure modes:** the most plausible ways the design could silently corrupt data, drift authority, mislead the investigator, fail at scale, fail during recovery, or pass tests while production remains wrong.
+4. **Falsifying evidence:** the cheapest authoritative tests/checks that would disprove the design if those assumptions are false. Prefer writing or identifying these before implementation.
+5. **Non-goals/dependencies:** what this change deliberately does not solve and which upstream/downstream claims must not be promoted by it.
+
+If the pre-review reveals that the planned fix requires a material architecture, trust, scientific-semantics, public-format, or interaction-grammar change, stop and follow the RFC/ADR process before implementation.
+
+### Post-implementation adversarial review
+
+After focused verification, perform a distinct adversarial pass before claiming completion or `VERIFIED COMPLETE`:
+
+- compare the diff and real production call path against the pre-implementation invariant rather than against the code's own abstractions;
+- actively try the listed failure modes plus at least one newly inferred failure mode;
+- inspect whether tests would fail if the forbidden behavior were reintroduced and whether mocks are being mistaken for production evidence;
+- check authority, output identity, provenance, failure semantics, lifecycle/recovery, complexity/peak memory, and user-visible semantics where applicable;
+- classify discovered items as `BLOCKER`, `DEFER`, or `SUGGESTION`; fix blockers before merge and record valid deferred work without recursively expanding scope;
+- reclassify roadmap/completion claims downward when the evidence does not support them.
+
+Use an independent reviewer/agent for the post-implementation pass when available. If the same agent must self-review, explicitly switch to the adversarial contract and search for ways its own design assumptions could be wrong rather than restating the implementation rationale.
+
+A green CI run does not substitute for either adversarial pass on high-risk work.
 
 ## Development and verification
 
@@ -51,13 +97,13 @@ npm run audit:hygiene
 
 The required CI graph is defined only by `.github/workflows/ci.yml`. Coverage policy is defined only by `vitest.coverage.config.ts`. Rust toolchain policy is defined by `rust-toolchain.toml`. Dependency versions are defined by the package manifests and lockfiles.
 
-During iteration, run the smallest ownership-aligned checks that can disprove the current change quickly. Before claiming completion, obtain the required production-path and CI evidence for the affected risk surface. Do not weaken tests, coverage, assertions, or architecture simply to obtain a green run.
+During iteration, run the smallest ownership-aligned checks that can disprove the current change quickly. For high-risk work, derive those checks from the pre-implementation adversarial contract. Before claiming completion, obtain the required production-path and CI evidence for the affected risk surface and complete the post-implementation adversarial review. Do not weaken tests, coverage, assertions, or architecture simply to obtain a green run.
 
 ## Three-stream operating model
 
-- **Stream A:** forward implementation under `docs/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`.
-- **Stream B:** independent adversarial review and fix-forward. Green CI is necessary evidence, not proof of architectural or scientific completion.
-- **Stream C:** security authority and live-path assurance under `docs/STREAM_C_SECURITY_ASSURANCE.md`.
+- **Stream A:** forward implementation under `docs/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`, including the mandatory pre/post adversarial cycle for high-risk work.
+- **Stream B:** independent adversarial review and fix-forward. Green CI is necessary evidence, not proof of architectural or scientific completion; Stream B may reopen earlier completion claims when evidence is insufficient.
+- **Stream C:** security authority and live-path assurance under `docs/STREAM_C_SECURITY_ASSURANCE.md`; security-sensitive implementation is high-risk by default and follows the same pre/post adversarial cycle.
 
 Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requires implementation plus independent review evidence.
 
@@ -73,8 +119,9 @@ Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requ
 ## Review and handoff discipline
 
 - Review diffs and production call paths, not just newly introduced helpers.
+- For high-risk changes, handoff/PR material must contain the pre-implementation adversarial contract, verification evidence, post-implementation adversarial disposition, and honest residual risk.
 - Prefer one high-confidence finding over several speculative comments.
-- Block merges for demonstrated correctness, security, reproducibility, authority, material performance, or required-gate failures. Track valid non-blocking work without recursively expanding PR scope.
+- Block merges for demonstrated correctness, security, reproducibility, authority, material performance, required-process, or required-gate failures. Track valid non-blocking work without recursively expanding PR scope.
 - Record exact verification evidence and honest residual risk. Never fabricate a pass or treat a skipped/unrun check as green.
 - Keep PRs narrow enough that the independent review can reason about the semantic change.
 

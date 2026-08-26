@@ -8,22 +8,55 @@ Nemosyne is an experimental scientific/WebXR research instrument. Contributions 
 2. Read the current status block at the top of `docs/ROADMAP.md`.
 3. Read the governing vision when the change affects product direction, scientific semantics, architecture, or UX.
 4. Inspect the real production call path before adding a new abstraction or helper.
+5. Classify the change under the adversarial implementation protocol in `AGENTS.md`. For high-risk work, record the pre-implementation adversarial contract before writing the implementation. For a low-risk exemption, state why the change is demonstrably non-semantic.
 
 Executable configuration is authoritative for commands, versions, CI topology, and coverage policy. Use `package.json`, `.github/workflows/`, the Vitest configs, and `rust-toolchain.toml` rather than copying values from prose.
 
+## Adversarial implementation cycle
+
+High-risk work uses this sequence:
+
+```text
+live-check remote main
+        ↓
+pre-implementation adversarial contract
+        ↓
+identify falsifying tests/checks
+        ↓
+implement the smallest coherent change
+        ↓
+focused authoritative verification
+        ↓
+post-implementation adversarial review
+        ↓
+fix BLOCKER findings / record DEFER items
+        ↓
+re-check remote main and raise/finalize PR
+```
+
+The pre-implementation contract records the invariant, canonical authority/production path, likely failure modes, falsifying evidence, and non-goals/dependencies. The post-implementation review attacks the final code and real call path rather than merely confirming that the implementation matches its own design.
+
+Use an independent agent/reviewer for the post-implementation pass when available. If the implementer must self-review, explicitly switch to falsification and look for evidence that the design assumptions are wrong.
+
+Purely editorial prose, formatting-only changes, comments, or demonstrably mechanical refactors with unchanged semantics may use the low-risk exemption. When uncertain, perform the review.
+
 ## Branch and PR discipline
 
+- Live-check remote `main` before starting a branch and again before raising/finalizing the PR.
 - Do not push directly to `main`.
 - Keep a PR focused on one coherent semantic change.
 - Describe the risk surface and the invariant the change is intended to preserve or establish.
+- For high-risk work, include the pre-implementation adversarial contract and post-implementation adversarial disposition in the PR.
 - Prefer fix-forward work on the current architecture over parallel shadow implementations.
 - Do not weaken tests, coverage, scientific semantics, security checks, or architectural boundaries to obtain a green build.
 
 ## Verification
 
-Run the smallest ownership-aligned checks while iterating. Before claiming completion, obtain the production-path and CI evidence appropriate to the affected surface.
+Run the smallest ownership-aligned checks while iterating. For high-risk work, derive those checks from the failure modes in the pre-implementation adversarial contract. Before claiming completion, obtain the production-path and CI evidence appropriate to the affected surface and perform the post-implementation adversarial review.
 
 A helper or unit test does not prove a shipped property when the live runtime uses a different entry point. Security, scientific, persistence, recovery, concurrency, performance, and UX claims require evidence through the production boundary responsible for enforcing them.
+
+A green CI result does not by itself satisfy the adversarial implementation protocol or justify `VERIFIED COMPLETE`.
 
 Useful entry points are listed in `package.json`, including `typecheck`, `lint`, `docs:check`, focused test suites, full coverage, browser smoke, and the hygiene audit.
 
@@ -39,6 +72,8 @@ Useful entry points are listed in `package.json`, including `typecheck`, `lint`,
 ## When an RFC is required
 
 Follow `docs/RFC_PROCESS.md` before implementation when a proposed change materially alters an architectural or trust boundary, public persistence/network format, scientific semantics, or the interaction grammar listed there. Ordinary bug fixes and bounded implementation work do not require an RFC.
+
+If the pre-implementation adversarial review reveals that a seemingly bounded fix actually changes one of those governed boundaries, stop implementation and use the RFC/ADR process first.
 
 Accepted architectural decisions are recorded under `docs/architecture/decisions/`. Do not silently reverse an accepted ADR. Supersede it with a new decision record when the architecture genuinely changes.
 

@@ -4,9 +4,27 @@
 
 ## Prime directive
 
-**Write production-ready code with complete error handling, real production wiring, correct ownership, explicit semantics, and authoritative tests. Do not use shortcuts, placeholders, fake implementations, silent fallbacks, or evidence that proves only a mock of the claimed production path.**
+**Attack the design before implementing it, then write production-ready code with complete error handling, real production wiring, correct ownership, explicit semantics, authoritative tests, and a second adversarial review of the result. Do not use shortcuts, placeholders, fake implementations, silent fallbacks, or evidence that proves only a mock of the claimed production path.**
 
-A task is not complete because a type, class, worker, renderer, state machine, test, or API exists. It is complete only when the intended user/runtime path actually uses it and the governing acceptance behavior is demonstrated.
+A task is not complete because a type, class, worker, renderer, state machine, test, or API exists. It is complete only when the intended user/runtime path actually uses it, the governing acceptance behavior is demonstrated, and the post-implementation adversarial review finds no unresolved blocker.
+
+## 0. Adversarial review before implementation
+
+Stream A follows the project-wide adversarial implementation protocol in `AGENTS.md`.
+
+Before writing code for high-risk work, the implementing agent must create a compact **pre-implementation adversarial contract** containing:
+
+1. **Invariant:** the exact behavior/property that must hold when the change is correct.
+2. **Authority and production path:** the canonical owner plus the live entry point/call path that must enforce the property.
+3. **Failure modes:** how the proposal could silently corrupt data, drift authority, mislead the investigator, fail at scale or recovery, or pass an isolated test while production remains wrong.
+4. **Falsifying evidence:** the cheapest authoritative tests/checks that would expose those failures; identify or write these before implementation where practical.
+5. **Non-goals/dependencies:** what remains deliberately out of scope and which dependent claims must not be promoted by this tranche.
+
+High-risk includes blocker/high roadmap findings and changes touching scientific/analytical semantics, Rust/WASM boundaries, dataset identity/provenance/replay, security/privacy/trust, concurrency/recovery, large-N/resource behavior, or WebXR/core interaction semantics. Purely editorial or demonstrably mechanical non-semantic changes may claim the low-risk exemption defined in `AGENTS.md`.
+
+The pre-review is intentionally bounded. It must improve the implementation slice, not expand the slice into a repository-wide audit. Valid adjacent work becomes `DEFER` unless it blocks the changed path.
+
+If the pre-review discovers that the proposed implementation changes a durable architecture/trust boundary, public persistence/network format, scientific semantic contract, or governed interaction grammar, stop and use the RFC/ADR process before coding.
 
 ## 1. Implement the behavior, not the scaffolding
 
@@ -133,16 +151,18 @@ A task is not complete because a type, class, worker, renderer, state machine, t
 
 Before marking a roadmap item complete, the Stream A worker must answer all of these:
 
-1. What exact production entry point uses this implementation?
-2. What canonical authority owns the data/result/lifecycle involved?
-3. What happens on every important failure and stale-state path?
-4. What proof shows the real production path, not a mock or unused abstraction, executes correctly?
-5. What edge cases would make the result plausible but wrong?
-6. Does any semantic/UX/scientific claim exceed what is actually implemented?
-7. What is the complexity and peak-memory behavior at the target scale?
-8. Are output identity and provenance correct after the operation?
-9. Would the added regression tests fail if the discovered bug were reintroduced?
-10. Is there any shortcut, placeholder, hard-coded authority value, silent fallback, swallowed error, or deferred wiring still present?
+1. What pre-implementation invariant, authority path, failure modes, falsifying evidence, and non-goals governed this implementation?
+2. What exact production entry point uses this implementation?
+3. What canonical authority owns the data/result/lifecycle involved?
+4. What happens on every important failure and stale-state path?
+5. What proof shows the real production path, not a mock or unused abstraction, executes correctly?
+6. What edge cases would make the result plausible but wrong?
+7. Does any semantic/UX/scientific claim exceed what is actually implemented?
+8. What is the complexity and peak-memory behavior at the target scale?
+9. Are output identity and provenance correct after the operation?
+10. Would the added regression tests fail if the discovered bug were reintroduced?
+11. What did the post-implementation adversarial review try to break, and what did it find?
+12. Is there any shortcut, placeholder, hard-coded authority value, silent fallback, swallowed error, or deferred wiring still present?
 
 If any answer is unknown or unresolved, do **not** mark the tranche `COMPLETED`. Use `IMPLEMENTATION PARTIAL` or `IMPLEMENTATION LANDED / REVIEW ACTIVE` and list the remaining work explicitly.
 
@@ -150,13 +170,29 @@ If any answer is unknown or unresolved, do **not** mark the tranche `COMPLETED`.
 
 Every Stream A implementation PR should state:
 
+- **Pre-implementation adversarial contract:** invariant, authority/production path, primary failure modes, falsifying evidence and non-goals/dependencies; or the explicit low-risk exemption and rationale.
 - **Production path changed:** exact entry points and consumers now using the implementation.
 - **Authority/ownership:** which layer owns computation, identity, lifecycle, and persistence.
 - **Failure behavior:** how invalid input, unavailable dependencies, stale state, recovery, and disposal behave.
 - **Scale behavior:** expected complexity, allocations/copies and any approximation threshold.
 - **Evidence:** separate mock/unit, Rust/WASM boundary, browser/Worker, XR/device, benchmark, and research evidence without conflating them.
+- **Post-implementation adversarial review:** what was attacked after implementation, which blockers were fixed, and which valid residuals were deferred.
 - **Known residuals:** anything deliberately left incomplete, with roadmap IDs/checklist items.
 - **Completion status:** `IMPLEMENTATION PARTIAL`, `IMPLEMENTATION LANDED`, or evidence supporting `VERIFIED COMPLETE`. Do not use "complete" merely because CI is green.
+
+## 15. Post-implementation adversarial review
+
+After focused tests are green and before the PR is described as complete:
+
+1. Re-read the pre-implementation contract without using the implementation as the definition of correctness.
+2. Trace the changed property through the real production path and inspect all changed authority boundaries.
+3. Exercise every listed failure mode plus at least one failure mode inferred from the final code that was not in the original plan.
+4. Verify that the relevant tests would fail if the prohibited behavior were restored, and distinguish mock evidence from real boundary/product evidence.
+5. Check for silent defaults, lossy copies, stale identities, missing provenance, hidden fallback, lifecycle leaks, complexity cliffs, modality drift, or narrowed semantics.
+6. Classify findings as `BLOCKER`, `DEFER`, or `SUGGESTION`. Fix blockers before merge. Record valid deferred work without recursively widening the PR.
+7. Reassess the roadmap/status claim. Downgrade it when implementation or evidence is narrower than the exit gate.
+
+Prefer a different agent/reviewer from the implementer. When that is unavailable, the implementing agent must explicitly switch from implementation defense to falsification: search for evidence that the design is wrong, not reasons it is probably right.
 
 ## Review heuristic
 
