@@ -204,7 +204,7 @@ export class UXTraceRecorder {
       ((url, init) =>
         fetch(url, init as RequestInit) as unknown as Promise<{ ok: boolean; status: number }>);
 
-    this._sessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    this._sessionId = crypto.randomUUID();
 
     if (options.eventBus) {
       const bus = options.eventBus;
@@ -507,7 +507,11 @@ export class UXTraceRecorder {
         if (h.rayOrigin && typeof h.rayOrigin === 'object') {
           const originVec = (h.rayOrigin as THREE.Vector3).clone
             ? (h.rayOrigin as THREE.Vector3).clone()
-            : new THREE.Vector3((h.rayOrigin as { x?: number }).x ?? 0, y ?? 0, (h.rayOrigin as { z?: number }).z ?? 0);
+            : new THREE.Vector3(
+                (h.rayOrigin as { x?: number }).x ?? 0,
+                y ?? 0,
+                (h.rayOrigin as { z?: number }).z ?? 0
+              );
           handPositions.push({ pos: originVec, handedness: h.handedness ?? `#${h.index ?? '?'}` });
         }
         return {
@@ -639,7 +643,9 @@ export class UXTraceRecorder {
             ? String(d.id)
             : null;
     const meshName = mesh.name && mesh.name.length > 0 ? mesh.name : mesh.type;
-    return dataLabel ? `${dataLabel} (${meshName}#${shortId(mesh.uuid)})` : `${meshName}#${shortId(mesh.uuid)}`;
+    return dataLabel
+      ? `${dataLabel} (${meshName}#${shortId(mesh.uuid)})`
+      : `${meshName}#${shortId(mesh.uuid)}`;
   }
 
   /** Manually flush buffered records immediately. */
