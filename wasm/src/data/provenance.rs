@@ -16,10 +16,9 @@ use serde::Serialize;
 /// Canonical kernel identifier carried on every provenance envelope.
 pub const KERNEL_NAME: &str = "nemosyne-wasm";
 
-/// Bumped on any analytical algorithm change. `0.2.0` is the Wave 1 canonical
-/// versioned ABI: provenance envelope, canonical FNV-1a fingerprint, full
-/// predicate/aggregator parity, exported topology/TDA/arrow/encodings.
-pub const KERNEL_VERSION: &str = "0.2.0";
+/// Bumped on any analytical algorithm change. `0.3.0` adds governed analytical
+/// resource envelopes and an opt-in bounded-neighbourhood approximation mode.
+pub const KERNEL_VERSION: &str = "0.3.0";
 
 /// Provenance envelope attached to every kernel result.
 ///
@@ -44,19 +43,54 @@ pub struct Provenance {
     /// substrate produced a result.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ingest_mode: Option<String>,
-    /// Outcome of the call. Absent on success (kept out of the JSON so success
-    /// envelopes are byte-identical). Set to `"refused"` on a kernel-inline
-    /// resource refusal so the durable ledger can distinguish a refusal
-    /// provenance from a successful one. A refusal provenance also sets
-    /// `output_fingerprint` to the empty string (no output produced). The
-    /// refusal reason itself travels in the accompanying
-    /// `TdaResourcePreflight.refusal`, not here.
+    /// Outcome of the call. Absent on success. Set to `"refused"` on a
+    /// kernel-inline resource refusal; refusal envelopes have no output
+    /// fingerprint because no result was produced.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub outcome: Option<String>,
 }
 
 thread_local! {
     static LAST_PROVENANCE: RefCell<Option<String>> = const { RefCell::new(None) };
+    /// Resource/approximation evidence produced inside the pure operation
+    /// dispatcher before `lib.rs` records the successful result. Keeping this
+    /// separate from LAST_PROVENANCE lets the existing integer-handle ABI stay
+    /// unchanged while still binding exact-vs-approximation evidence to the
+    /// success envelope that `data_operation` records immediately afterwards.
+    static PENDING_OPERATION_EVIDENCE: RefCell<Option<serde_json::Value>> = const { RefCell::new(None) };
+}
+
+/// Publish evidence that belongs to the next successful generic operation.
+/// The next `record`/`record_with_ingest` call consumes it exactly once.
+pub fn set_pending_operation_evidence(evidence: serde_json::Value) {
+    PENDING_OPERATION_EVIDENCE.with(|slot| {
+        *slot.borrow_mut() = Some(evidence);
+    });
+}
+
+/// Clear any unconsumed operation evidence. Dispatchers call this before a new
+/// operation so a failed/non-resource call cannot inherit stale evidence.
+pub fn clear_pending_operation_evidence() {
+    PENDING_OPERATION_EVIDENCE.with(|slot| {
+        *slot.borrow_mut() = None;
+    });
+}
+
+fn merge_pending_operation_evidence(mut parameters: serde_json::Value) -> serde_json::Value {
+    let pending = PENDING_OPERATION_EVIDENCE.with(|slot| slot.borrow_mut().take());
+    let Some(evidence) = pending else {
+        return parameters;
+    };
+    match &mut parameters {
+        serde_json::Value::Object(map) => {
+            map.insert("resourceEvidence".to_string(), evidence);
+            parameters
+        }
+        _ => serde_json::json!({
+            "request": parameters,
+            "resourceEvidence": evidence,
+        }),
+    }
 }
 
 /// Record the provenance envelope for the most recent kernel call. The JS host
@@ -84,7 +118,7 @@ pub fn record_with_ingest(
         kernel: KERNEL_NAME,
         kernel_version: KERNEL_VERSION,
         operation: operation.to_string(),
-        parameters,
+        parameters: merge_pending_operation_evidence(parameters),
         input_fingerprint: input_fingerprint.to_string(),
         output_fingerprint: output_fingerprint.to_string(),
         timestamp: now_ms(),
@@ -98,20 +132,15 @@ pub fn record_with_ingest(
 }
 
 /// Record a refusal provenance envelope: `outcome = "refused"`,
-/// `output_fingerprint = ""`, `ingest_mode = None`. Used by the kernel-inline
-/// TDA resource guard so a refusal carries the same authority as a successful
-/// result. Stores the envelope in `LAST_PROVENANCE` and returns it so the
-/// caller can embed it in the in-band refusal envelope.
-///
-/// Side-channel safety: success-path `last_json()` reads in the host all happen
-/// after a successful call returns; on a refusal the TS `_call` throws before
-/// any success-path read, so a refusal envelope cannot contaminate a success
-/// consumer. The next successful call overwrites it.
+/// `output_fingerprint = ""`, `ingest_mode = None`. Used by kernel-inline
+/// resource guards so a refusal carries the same authority as a successful
+/// result. Refusal parameters include the structured resource preflight.
 pub fn record_refusal(
     operation: &str,
     parameters: serde_json::Value,
     input_fingerprint: &str,
 ) -> Provenance {
+    clear_pending_operation_evidence();
     let envelope = Provenance {
         kernel: KERNEL_NAME,
         kernel_version: KERNEL_VERSION,
@@ -133,9 +162,7 @@ pub fn record_refusal(
 /// Return the last recorded provenance envelope as a JSON string (or `""` if
 /// no kernel call has been made yet).
 pub fn last_json() -> String {
-    LAST_PROVENANCE.with(|slot| {
-        slot.borrow().clone().unwrap_or_default()
-    })
+    LAST_PROVENANCE.with(|slot| slot.borrow().clone().unwrap_or_default())
 }
 
 /// Clear the side-channel. Used by tests for deterministic isolation.
@@ -143,25 +170,17 @@ pub fn clear() {
     LAST_PROVENANCE.with(|slot| {
         *slot.borrow_mut() = None;
     });
+    clear_pending_operation_evidence();
 }
 
 // ---------------------------------------------------------------------------
 // Timestamp source
 // ---------------------------------------------------------------------------
-//
-// The WASM target has no clock. Per `.claude/plan.md` the imported-function
-// surface is limited to logging, timestamps, and telemetry, so the kernel
-// imports a single `nemosyneNowMs` global that the JS host
-// (`RuntimeBridge.initRuntime`) installs as `globalThis.nemosyneNowMs =
-// () => Date.now()` before any analytical call. On the host target `cargo test`
-// falls back to `SystemTime` so the same logic is exercised without a WASM
-// runner.
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 extern "C" {
-    /// JS-provided monotonic-ish wall clock in milliseconds. Installed by
-    /// `RuntimeBridge.initRuntime`.
+    /// JS-provided wall clock in milliseconds. Installed by RuntimeBridge.
     #[wasm_bindgen::prelude::wasm_bindgen(js_name = nemosyneNowMs)]
     fn now_ms_js() -> f64;
 }
@@ -212,6 +231,21 @@ mod tests {
     }
 
     #[test]
+    fn pending_resource_evidence_is_consumed_once() {
+        clear();
+        set_pending_operation_evidence(serde_json::json!({"mode": "bounded", "edgeRecall": 0.95}));
+        record("dbscan", serde_json::json!({"eps": 1.0}), "in", "out");
+        let first: serde_json::Value = serde_json::from_str(&last_json()).unwrap();
+        assert_eq!(first["parameters"]["resourceEvidence"]["mode"], "bounded");
+        assert_eq!(first["parameters"]["resourceEvidence"]["edgeRecall"], 0.95);
+
+        record("sort", serde_json::json!({"column": "x"}), "in2", "out2");
+        let second: serde_json::Value = serde_json::from_str(&last_json()).unwrap();
+        assert!(second["parameters"].get("resourceEvidence").is_none());
+        clear();
+    }
+
+    #[test]
     fn clear_empties_side_channel() {
         record("ping", serde_json::Value::Null, "a", "b");
         clear();
@@ -220,7 +254,6 @@ mod tests {
 
     #[test]
     fn success_envelope_has_no_outcome_key() {
-        // Byte-identity guard: adding `outcome` must not change success JSON.
         clear();
         record_with_ingest(
             "compute_mapper_graph",
@@ -232,8 +265,6 @@ mod tests {
         let json = last_json();
         let v: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert!(v.get("outcome").is_none(), "success envelope must not carry outcome");
-        assert!(v.get("outcome").is_none());
-        // object-level check: the key is literally absent
         assert!(!json.contains("\"outcome\""));
         clear();
     }
