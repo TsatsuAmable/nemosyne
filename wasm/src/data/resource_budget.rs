@@ -141,6 +141,7 @@ pub struct TdaResourcePreflight {
     pub excluded_rows: usize,
     pub dimensions: usize,
     pub missing_data_policy: String,
+    pub eligibility_mode: String,
     pub estimate: ResourceEstimate,
     pub refusal: Option<String>,
 }
@@ -391,7 +392,7 @@ fn tda_estimate(
         }
     };
 
-    let high_dimensional_exact_fallback = rows > DEFAULT_EXACT_PAIR_ROWS && dimensions > 6;
+    let high_dimensional_exact_fallback = rows > budget.max_exact_pair_rows && dimensions > 6;
     let (decision, reason_code) = if high_dimensional_exact_fallback
         && (bytes > budget.max_transient_bytes || work > budget.max_exact_work_units)
     {
@@ -431,23 +432,32 @@ fn build_tda_preflight(
     params: &serde_json::Value,
     operation: TdaOperation,
     budget: AnalysisBudget,
-) -> Result<TdaResourcePreflight, String> {
+) -> TdaResourcePreflight {
     let feature_names: Vec<&str> = params
         .get("featureColumns")
         .and_then(|value| value.as_array())
         .map(|values| values.iter().filter_map(|value| value.as_str()).collect())
         .unwrap_or_default();
-    let borrowed = crate::data::point_access::borrowed_feature_columns(
-        columns,
-        columnar,
-        &feature_names,
-    )
-    .map_err(|error| error.to_string())?;
     let source_rows = columnar.row_count();
-    let eligible_rows = (0..source_rows)
-        .filter(|&row| borrowed.iter().all(|column| column.is_valid(row)))
-        .count();
-    let dimensions = borrowed.len();
+    let (eligible_rows, dimensions, eligibility_mode) =
+        match crate::data::point_access::borrowed_feature_columns(
+            columns,
+            columnar,
+            &feature_names,
+        ) {
+            Ok(borrowed) => (
+                (0..source_rows)
+                    .filter(|&row| borrowed.iter().all(|column| column.is_valid(row)))
+                    .count(),
+                borrowed.len(),
+                "complete_case_selected_features",
+            ),
+            Err(_) => (
+                source_rows,
+                feature_names.len(),
+                "conservative_source_rows_preflight",
+            ),
+        };
     let mapper_bins = params
         .get("bins")
         .and_then(|value| value.as_u64())
@@ -466,27 +476,25 @@ fn build_tda_preflight(
     );
     let refusal = require_exact(&estimate).err();
 
-    Ok(TdaResourcePreflight {
+    TdaResourcePreflight {
         source_rows,
         eligible_rows,
         excluded_rows: source_rows.saturating_sub(eligible_rows),
         dimensions,
         missing_data_policy: crate::data::topology::TDA_MISSING_DATA_POLICY.to_string(),
+        eligibility_mode: eligibility_mode.to_string(),
         estimate,
         refusal,
-    })
+    }
 }
 
 /// Rust-owned preflight for production TDA calls. The host passes the exact
 /// request JSON and an operation code (0 Mapper, 1 persistence, 2 Betti-0).
-/// The estimator reads the resident columnar validity buffers directly, counts
-/// complete-case eligible observations without constructing a row-index list,
-/// and returns a compact decision envelope through the standard two-call ABI.
-///
-/// A malformed request, invalid handle or unsupported feature selection returns
-/// the ordinary zero sentinel so existing validation behavior remains owned by
-/// the TDA export itself. A valid resource refusal is returned as JSON and must
-/// be surfaced by the host rather than converted into an empty topology result.
+/// The estimator reads resident columnar validity buffers directly and counts
+/// complete-case eligible observations without constructing a row-index list.
+/// If a feature cannot use the primitive point-access seam, preflight remains
+/// fail-closed by budgeting all source rows instead of letting the raw TDA call
+/// bypass resource control.
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn data_tda_resource_preflight(
     handle: u32,
@@ -509,16 +517,13 @@ pub fn data_tda_resource_preflight(
     let Some((_name, columns, columnar)) = crate::data::columnar_snapshot(handle) else {
         return 0;
     };
-    let preflight = match build_tda_preflight(
+    let preflight = build_tda_preflight(
         &columns,
         columnar.as_ref(),
         &params,
         operation,
         AnalysisBudget::default(),
-    ) {
-        Ok(value) => value,
-        Err(_) => return 0,
-    };
+    );
     let json = match serde_json::to_string(&preflight) {
         Ok(value) => value,
         Err(_) => return 0,
@@ -725,14 +730,45 @@ mod tests {
             &params,
             TdaOperation::Mapper,
             AnalysisBudget::default(),
-        )
-        .unwrap();
+        );
         assert_eq!(preflight.source_rows, 3);
         assert_eq!(preflight.eligible_rows, 2);
         assert_eq!(preflight.excluded_rows, 1);
         assert_eq!(preflight.dimensions, 2);
         assert_eq!(preflight.missing_data_policy, "complete_case_selected_features");
+        assert_eq!(preflight.eligibility_mode, "complete_case_selected_features");
         assert!(preflight.refusal.is_none());
+    }
+
+    #[test]
+    fn feature_borrow_failure_uses_conservative_source_rows_instead_of_bypassing_guard() {
+        let dataset = Dataset::new(
+            "categorical",
+            vec![Column::new("label", ColumnType::Categorical)],
+            vec![
+                std::collections::HashMap::from([(
+                    "label".to_string(),
+                    Value::Text("1".to_string()),
+                )]),
+                std::collections::HashMap::from([(
+                    "label".to_string(),
+                    Value::Text("2".to_string()),
+                )]),
+            ],
+        );
+        let columnar = ColumnarDataset::from_dataset(&dataset);
+        let params = serde_json::json!({ "featureColumns": ["label"] });
+        let preflight = build_tda_preflight(
+            &dataset.columns,
+            &columnar,
+            &params,
+            TdaOperation::Persistence,
+            AnalysisBudget::default(),
+        );
+        assert_eq!(preflight.eligible_rows, 2);
+        assert_eq!(preflight.excluded_rows, 0);
+        assert_eq!(preflight.dimensions, 1);
+        assert_eq!(preflight.eligibility_mode, "conservative_source_rows_preflight");
     }
 
     #[test]
