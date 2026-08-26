@@ -119,7 +119,7 @@ fn write_edge(buf: &mut String, edge: &crate::data::dataset::Edge) {
     entries.push(("source".to_string(), EdgeVal::UInt(edge.source)));
     entries.push(("target".to_string(), EdgeVal::UInt(edge.target)));
     if let Some(w) = edge.weight { entries.push(("weight".to_string(), EdgeVal::Float(w))); }
-    for (k, v) in &edge.extra { entries.push((k.clone(), EdgeVal::Value(v.clone()))); }
+    for (k, v) in &edge.extra { entries.push((k.clone(), EdgeVal::Json(v.clone()))); }
     entries.sort_by(|a, b| cmp_utf16(&a.0, &b.0));
     buf.push('{');
     for (i, (k, v)) in entries.iter().enumerate() {
@@ -129,13 +129,13 @@ fn write_edge(buf: &mut String, edge: &crate::data::dataset::Edge) {
         match v {
             EdgeVal::UInt(n) => write_uint(buf, *n),
             EdgeVal::Float(f) => write_number(buf, *f),
-            EdgeVal::Value(val) => write_value(buf, val),
+            EdgeVal::Json(value) => write_json_value(buf, value),
         }
     }
     buf.push('}');
 }
 
-enum EdgeVal { UInt(usize), Float(f64), Value(Value) }
+enum EdgeVal { UInt(usize), Float(f64), Json(serde_json::Value) }
 
 fn write_value(buf: &mut String, v: &Value) {
     match v {
@@ -143,6 +143,37 @@ fn write_value(buf: &mut String, v: &Value) {
         Value::Bool(b) => buf.push_str(if *b { "true" } else { "false" }),
         Value::Number(n) => write_number(buf, *n),
         Value::Text(s) => write_string(buf, s),
+    }
+}
+
+fn write_json_value(buf: &mut String, value: &serde_json::Value) {
+    match value {
+        serde_json::Value::Null => buf.push_str("null"),
+        serde_json::Value::Bool(value) => buf.push_str(if *value { "true" } else { "false" }),
+        serde_json::Value::Number(value) => {
+            value.as_f64().map_or_else(|| buf.push_str("null"), |number| write_number(buf, number));
+        }
+        serde_json::Value::String(value) => write_string(buf, value),
+        serde_json::Value::Array(values) => {
+            buf.push('[');
+            for (index, value) in values.iter().enumerate() {
+                if index > 0 { buf.push(','); }
+                write_json_value(buf, value);
+            }
+            buf.push(']');
+        }
+        serde_json::Value::Object(values) => {
+            let mut keys: Vec<&String> = values.keys().collect();
+            keys.sort_by(|a, b| cmp_utf16(a, b));
+            buf.push('{');
+            for (index, key) in keys.iter().enumerate() {
+                if index > 0 { buf.push(','); }
+                write_string(buf, key);
+                buf.push(':');
+                write_json_value(buf, &values[*key]);
+            }
+            buf.push('}');
+        }
     }
 }
 
@@ -203,7 +234,8 @@ fn write_string(buf: &mut String, s: &str) {
 mod tests {
     use super::*;
     use crate::data::column::{Column, ColumnType};
-    use crate::data::dataset::Dataset;
+    use crate::data::dataset::{Dataset, Edge};
+    use serde_json::json;
 
     fn ds() -> Dataset {
         let columns = vec![Column::new("name", ColumnType::Categorical), Column::new("age", ColumnType::Numeric)];
@@ -240,6 +272,21 @@ mod tests {
         let mut r1 = HashMap::new(); r1.insert("name".to_string(), Value::Text("Alice".to_string())); r1.insert("age".to_string(), Value::Number(30.0));
         let mut r2 = HashMap::new(); r2.insert("age".to_string(), Value::Number(30.0)); r2.insert("name".to_string(), Value::Text("Alice".to_string()));
         let a = Dataset::new("sample", columns.clone(), vec![r1]); let b = Dataset::new("sample", columns, vec![r2]);
+        assert_eq!(dataset_fingerprint(&a), dataset_fingerprint(&b));
+    }
+
+    #[test]
+    fn edge_json_object_key_order_is_canonical() {
+        let mut a = ds();
+        let mut edge_a = Edge::new(0, 1);
+        edge_a.extra.insert("metadata".to_string(), json!({"z": 2, "a": [true, "x"]}));
+        a.edges = Some(vec![edge_a]);
+
+        let mut b = ds();
+        let mut edge_b = Edge::new(0, 1);
+        edge_b.extra.insert("metadata".to_string(), json!({"a": [true, "x"], "z": 2}));
+        b.edges = Some(vec![edge_b]);
+
         assert_eq!(dataset_fingerprint(&a), dataset_fingerprint(&b));
     }
 
