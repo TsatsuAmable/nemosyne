@@ -38,6 +38,10 @@ import {
   type AnalyticalIntent,
 } from './RepresentationRequirements.ts';
 import type { SpatialStrategy } from '../SpatialStrategy.ts';
+import {
+  diagnoseInvestigatorOutcome,
+  type InvestigatorActionableOutcome,
+} from './ActionableNil.ts';
 import type { MonetaFacts } from '../types.ts';
 import type { Facts } from '../../data/types.ts';
 import { buildDatasetSignature } from './SignatureBuilder.ts';
@@ -420,6 +424,41 @@ export class MonetaHypothesisEngine {
       provenance,
       datasetSignature: signature,
     };
+  }
+
+  /**
+   * Evaluates representation candidates and returns a structured actionable outcome
+   * even when no representation is feasible, exposing near-misses and safe remediation.
+   */
+  diagnose(
+    signature: DatasetSignature,
+    requirements?: RepresentationRequirements,
+    intent?: AnalyticalIntent,
+    fallbackFacts?: MonetaFacts,
+    perceptualEvidence?: PerceptualFitnessEvidence | Map<string, PerceptualFitnessEvidence> | Record<string, PerceptualFitnessEvidence>
+  ): InvestigatorActionableOutcome {
+    const reqs =
+      requirements ??
+      createDefaultRequirements(
+        intent?.task ?? 'explore',
+        this.inferScale(signature.cardinality.rowCount)
+      );
+
+    try {
+      const decision = this.arbitrate(
+        signature,
+        reqs,
+        intent,
+        fallbackFacts,
+        perceptualEvidence
+      );
+      return diagnoseInvestigatorOutcome(signature, reqs, decision);
+    } catch (err) {
+      if (err instanceof NoFeasibleRepresentationError) {
+        return diagnoseInvestigatorOutcome(signature, reqs, err);
+      }
+      throw err;
+    }
   }
 
   private generateCandidates(): Array<{

@@ -254,13 +254,13 @@ Goal: the interface behaves as one sparse spatial investigation environment rath
 - [x] evaluate stability over a bounded nearby-view envelope (`tests/perceptual-fitness.test.ts`);
 - [x] preserve the distinction between measured evidence, engineering priors and statistical confidence.
 
-### P1-E Actionable NIL/ambiguity
+### P1-E Actionable NIL/ambiguity — COMPLETED
 
-- [ ] distinguish `INFEASIBLE`, `UNDERDETERMINED` and `AMBIGUOUS` investigator states;
-- [ ] surface machine traces and readable explanations;
-- [ ] expose near misses and exact blocking requirements;
-- [ ] offer evidence-supported remediation without silently relaxing scientific constraints;
-- [ ] persist remediation and resulting decisions into investigation provenance.
+- [x] distinguish `INFEASIBLE`, `UNDERDETERMINED` and `AMBIGUOUS` investigator states (`src/moneta/representation/ActionableNil.ts`);
+- [x] surface machine traces and readable explanations (`src/moneta/representation/ActionableNil.ts`);
+- [x] expose near misses and exact blocking requirements (`src/moneta/representation/ActionableNil.ts`);
+- [x] offer evidence-supported remediation without silently relaxing scientific constraints (`tests/actionable-nil-ambiguity.test.ts`);
+- [x] persist remediation and resulting decisions into investigation provenance.
 
 ### P1-F Semantic targeting and Memory Palace focus+context — COMPLETED
 
