@@ -1,9 +1,22 @@
-import type { AnalyticalExecutionRequest, AnalyticalExecutionResult } from './AnalyticalExecutionPort.ts';
+import type {
+  AnalyticalExecutionRequest,
+  AnalyticalExecutionResult,
+} from './AnalyticalExecutionPort.ts';
 import * as bridge from '../../wasm/RuntimeBridge.ts';
 import type { DatasetJSON, OperationSpec } from '../../data/types.ts';
 
 const handleMap = new Map<string, number>();
 const fence: { generation?: number; datasetVersion?: number } = {};
+
+function requireRegisteredHandle(req: AnalyticalExecutionRequest, handle: number | undefined): number {
+  if (!handle || handle === 0) {
+    throw new Error(
+      `Worker dataset ${req.dataset.fingerprint} is not registered; ` +
+        'the request must include a datasetPayload on first use in this worker generation.'
+    );
+  }
+  return handle;
+}
 
 self.onmessage = async (ev: MessageEvent) => {
   const data = ev.data as {
@@ -23,7 +36,6 @@ self.onmessage = async (ev: MessageEvent) => {
   if (data.type === 'EXECUTE' && data.request) {
     const req = data.request;
 
-    // Check fence
     if (
       (fence.generation !== undefined && req.generation < fence.generation) ||
       (fence.datasetVersion !== undefined && req.dataset.version < fence.datasetVersion)
@@ -44,7 +56,6 @@ self.onmessage = async (ev: MessageEvent) => {
         await bridge.initRuntime();
       }
 
-      // Manage dataset handle in worker
       let handle = handleMap.get(req.dataset.fingerprint);
       if (handle === undefined && req.datasetPayload) {
         if (req.datasetPayload.type === 'typed') {
@@ -55,46 +66,69 @@ self.onmessage = async (ev: MessageEvent) => {
         } else if (req.datasetPayload.type === 'json') {
           handle = bridge.loadDatasetJson(req.datasetPayload.data as DatasetJSON);
         }
-        if (handle && handle !== 0) {
-          handleMap.set(req.dataset.fingerprint, handle);
+
+        if (!handle || handle === 0) {
+          throw new Error(`Worker kernel rejected dataset ${req.dataset.fingerprint}`);
         }
+
+        const registeredFingerprint = bridge.datasetFingerprint(handle);
+        if (registeredFingerprint !== req.dataset.fingerprint) {
+          bridge.destroyDataset(handle);
+          throw new Error(
+            `Worker dataset fingerprint mismatch: expected ${req.dataset.fingerprint}, ` +
+              `received ${registeredFingerprint ?? 'null'}`
+          );
+        }
+
+        handleMap.set(req.dataset.fingerprint, handle);
       }
 
+      const registeredHandle = requireRegisteredHandle(req, handle);
       let value: unknown = null;
+
       switch (req.operation) {
         case 'tda.persistence':
-          if (handle) value = bridge.computePersistenceIntervals(handle, req.params);
+          value = bridge.computePersistenceIntervals(registeredHandle, req.params);
           break;
         case 'tda.mapper':
-          if (handle) value = bridge.computeMapperGraph(handle, req.params);
+          value = bridge.computeMapperGraph(registeredHandle, req.params);
           break;
         case 'tda.betti0':
-          if (handle) value = bridge.computeBetti0Curve(handle, req.params);
+          value = bridge.computeBetti0Curve(registeredHandle, req.params);
           break;
         case 'statistics':
-          if (handle) value = bridge.statistics(handle);
+          value = bridge.statistics(registeredHandle);
           break;
         case 'spectralFacts':
-          if (handle) {
-            value = bridge.computeSpectralFacts(
-              handle,
-              req.params.timeColumn as string | undefined,
-              req.params.valueColumn as string | undefined
-            );
-          }
+          value = bridge.computeSpectralFacts(
+            registeredHandle,
+            req.params.timeColumn as string | undefined,
+            req.params.valueColumn as string | undefined
+          );
           break;
-        case 'operation':
-          if (handle && req.params.operation) {
-            const outHandle = bridge.runOperation(handle, req.params.operation as OperationSpec);
-            if (outHandle !== 0) {
-              const outJson = bridge.getDatasetJson(outHandle);
-              bridge.destroyDataset(outHandle);
-              value = outJson;
+        case 'operation': {
+          if (!req.params.operation) {
+            throw new Error('Worker operation request is missing params.operation');
+          }
+          const outHandle = bridge.runOperation(
+            registeredHandle,
+            req.params.operation as OperationSpec
+          );
+          if (outHandle === 0) {
+            throw new Error('Worker kernel operation returned an invalid output handle');
+          }
+          try {
+            value = bridge.getDatasetJson(outHandle);
+            if (!value) {
+              throw new Error('Worker kernel operation produced no dataset output');
             }
+          } finally {
+            bridge.destroyDataset(outHandle);
           }
           break;
+        }
         default:
-          break;
+          throw new Error(`Unsupported analytical worker operation: ${req.operation}`);
       }
 
       const provenance = bridge.kernelProvenance ? bridge.kernelProvenance() : null;
