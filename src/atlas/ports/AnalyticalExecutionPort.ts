@@ -9,6 +9,22 @@ export type AnalyticalOperationKind =
   | 'spectralFacts'
   | 'cluster';
 
+export interface AnalyticalDatasetPayload {
+  readonly type: 'typed' | 'json';
+  readonly data: ArrayBuffer | Uint8Array | unknown;
+  readonly name?: string;
+}
+
+export interface AnalyticalDatasetRegistration {
+  readonly registrationId: string;
+  readonly dataset: {
+    readonly fingerprint: string;
+    readonly version: number;
+  };
+  readonly generation: number;
+  readonly payload: AnalyticalDatasetPayload;
+}
+
 export interface AnalyticalExecutionRequest {
   readonly requestId: string;
   readonly operation: AnalyticalOperationKind;
@@ -19,11 +35,12 @@ export interface AnalyticalExecutionRequest {
   readonly generation: number;
   readonly handle?: number;
   readonly params: Record<string, unknown>;
-  readonly datasetPayload?: {
-    readonly type: 'typed' | 'json';
-    readonly data: ArrayBuffer | Uint8Array | unknown;
-    readonly name?: string;
-  };
+  /**
+   * Compatibility-only first-use payload. Production Worker callers should
+   * register explicitly through registerDataset() so concurrent operations do
+   * not clone the same large dataset multiple times.
+   */
+  readonly datasetPayload?: AnalyticalDatasetPayload;
 }
 
 export interface AnalyticalExecutionResult<T = unknown> {
@@ -36,8 +53,23 @@ export interface AnalyticalExecutionResult<T = unknown> {
   readonly error?: string;
 }
 
+export interface AnalyticalExecutionFence {
+  readonly generation?: number;
+  readonly datasetVersion?: number;
+  /** Current dataset identity after a version transition, when known. */
+  readonly datasetFingerprint?: string;
+}
+
 export interface AnalyticalExecutionPort {
   execute<T>(req: AnalyticalExecutionRequest): Promise<AnalyticalExecutionResult<T>>;
-  supersede(fence: { generation?: number; datasetVersion?: number }): void;
+  supersede(fence: AnalyticalExecutionFence): void;
+  /**
+   * Worker-local registration keyed by canonical fingerprint and runtime
+   * generation. Async production ports must implement this; inline ports may
+   * omit it because they share the caller's kernel instance/handle space.
+   */
+  registerDataset?(registration: AnalyticalDatasetRegistration): Promise<void>;
+  /** Release worker/listener resources owned by this port. */
+  dispose?(): void;
   readonly isAsync: boolean;
 }
