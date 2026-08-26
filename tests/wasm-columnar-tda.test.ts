@@ -29,6 +29,19 @@ describe('columnar TDA real-WASM boundary', () => {
     });
   }
 
+  function highDimensionalPayload(rowCount = 9_000, dimensions = 7): Uint8Array {
+    const validity = new Array<number>(rowCount).fill(1);
+    return encodeTypedColumnsPayload({
+      rowCount,
+      columns: Array.from({ length: dimensions }, (_, dimension) => ({
+        name: `x${dimension}`,
+        type: 'numeric' as const,
+        values: Array.from({ length: rowCount }, (_, row) => row * 0.01 + dimension),
+        validity,
+      })),
+    });
+  }
+
   function sampleRowMajorJson() {
     return {
       name: 'row-tda',
@@ -160,5 +173,42 @@ describe('columnar TDA real-WASM boundary', () => {
     expect(
       bridge.computeMapperGraph(invalidHandle, { featureColumns: ['x', 'y'], bins: 4, overlap: 0.3 })
     ).toBeNull();
+  });
+
+  it('W5: Rust preflight rejects high-dimensional exact fallback before TDA execution', () => {
+    const rowCount = 9_000;
+    const dimensions = 7;
+    const payload = highDimensionalPayload(rowCount, dimensions);
+    const handle = bridge.loadTypedColumns(payload, 'rf030-high-d');
+    expect(handle).toBeGreaterThan(0);
+
+    try {
+      const featureColumns = Array.from({ length: dimensions }, (_, index) => `x${index}`);
+      let caught: unknown;
+      try {
+        bridge.computePersistenceIntervals(handle, {
+          featureColumns,
+          maxDistance: 1.0,
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(bridge.UnsupportedAtScaleError);
+      const error = caught as bridge.UnsupportedAtScaleError;
+      expect(error.code).toBe('UNSUPPORTED_AT_SCALE');
+      expect(error.preflight.sourceRows).toBe(rowCount);
+      expect(error.preflight.eligibleRows).toBe(rowCount);
+      expect(error.preflight.excludedRows).toBe(0);
+      expect(error.preflight.dimensions).toBe(dimensions);
+      expect(error.preflight.eligibilityMode).toBe('complete_case_selected_features');
+      expect(error.preflight.estimate.operation).toBe('compute_persistence_intervals');
+      expect(error.preflight.estimate.reasonCode).toBe(
+        'HIGH_DIMENSIONAL_EXACT_FALLBACK_OVER_BUDGET'
+      );
+      expect(error.message).toContain('UNSUPPORTED_AT_SCALE');
+    } finally {
+      bridge.destroyDataset(handle);
+    }
   });
 });
