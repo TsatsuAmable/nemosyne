@@ -49,6 +49,7 @@ export interface TdaResourcePreflight {
   excludedRows: number;
   dimensions: number;
   missingDataPolicy: string;
+  eligibilityMode: 'complete_case_selected_features' | 'conservative_source_rows_preflight';
   estimate: AnalyticalResourceEstimate;
   refusal: string | null;
 }
@@ -64,6 +65,7 @@ export class UnsupportedAtScaleError extends Error {
     );
     this.name = 'UnsupportedAtScaleError';
     this.preflight = preflight;
+    Object.setPrototypeOf(this, UnsupportedAtScaleError.prototype);
   }
 }
 
@@ -96,7 +98,9 @@ function parseTdaPreflight(json: string): TdaResourcePreflight {
     typeof parsed.estimate.operation !== 'string' ||
     typeof parsed.estimate.decision !== 'string' ||
     typeof parsed.eligibleRows !== 'number' ||
-    typeof parsed.sourceRows !== 'number'
+    typeof parsed.sourceRows !== 'number' ||
+    (parsed.eligibilityMode !== 'complete_case_selected_features' &&
+      parsed.eligibilityMode !== 'conservative_source_rows_preflight')
   ) {
     throw new Error('Invalid TDA resource preflight payload from Rust kernel');
   }
