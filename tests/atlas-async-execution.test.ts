@@ -13,6 +13,8 @@ import type {
   AnalyticalExecutionRequest,
   AnalyticalExecutionResult,
 } from '../src/atlas/ports/AnalyticalExecutionPort.ts';
+import { NemosyneSession } from '../src/session/NemosyneSession.ts';
+import { InvestigationReplayRunner } from '../src/session/InvestigationReplayRunner.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
 function createMockWorkerTransport(): WorkerTransport & {
@@ -241,7 +243,7 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     );
 
     expect(source).toContain('requireRegisteredHandle');
-    expect(source).toContain('the request must include a datasetPayload on first use');
+    expect(source).toContain('is not registered');
     expect(source).toContain('Worker dataset fingerprint mismatch');
   });
 
@@ -266,5 +268,142 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
 
     expect(res.requestId).toBe('areq-inline-1');
     expect(res.value).toBeDefined();
+  });
+
+  it('B7: AtlasCore threads runtime generation into async requests and supersession', async () => {
+    const transport = createMockWorkerTransport();
+    const port = new WorkerAnalyticalPort(transport);
+    const kernel = makeKernelMockBridge();
+    const atlas = new AtlasCore({ kernel: kernel as any });
+    atlas.setExecutionPort(port);
+    atlas.setGeneration(42);
+
+    const ds = new Dataset(
+      'GenDS',
+      [{ name: 'x', type: ColumnType.NUMERIC }],
+      [{ x: 1 }, { x: 2 }]
+    );
+    atlas.loadDataset(ds);
+
+    const promise = atlas.computePersistenceIntervalsAsync({});
+    expect(transport.postedMessages.length).toBeGreaterThan(0);
+    const lastMsg = transport.postedMessages[transport.postedMessages.length - 1] as {
+      type: string;
+      request: AnalyticalExecutionRequest;
+    };
+    expect(lastMsg.type).toBe('EXECUTE');
+    expect(lastMsg.request.generation).toBe(42);
+
+    transport.simulateResult({
+      requestId: lastMsg.request.requestId,
+      generation: 42,
+      datasetVersion: atlas.datasetVersion,
+      datasetFingerprint: atlas.datasetFingerprint ?? '',
+      value: [{ birth: 0, death: 1 }],
+    });
+
+    const result = await promise;
+    expect(result).toEqual([{ birth: 0, death: 1 }]);
+  });
+
+  it('B8: applyAnalysisAsync uses output fingerprint from worker result', async () => {
+    const transport = createMockWorkerTransport();
+    const port = new WorkerAnalyticalPort(transport);
+    const kernel = makeKernelMockBridge();
+    const atlas = new AtlasCore({ kernel: kernel as any });
+    atlas.setExecutionPort(port);
+
+    const ds = new Dataset(
+      'OpDS',
+      [{ name: 'val', type: ColumnType.NUMERIC }],
+      [{ val: 10 }, { val: 20 }]
+    );
+    atlas.loadDataset(ds);
+
+    const promise = atlas.applyAnalysisAsync({
+      operation: { op: 'filter', predicate: { type: 'comparison', column: 'val', op: 'gt', value: 15 } },
+      datasetFingerprint: atlas.datasetFingerprint ?? '',
+      datasetVersion: atlas.datasetVersion,
+      algorithmVersion: '1.0.0',
+    });
+
+    const lastMsg = transport.postedMessages[transport.postedMessages.length - 1] as {
+      type: string;
+      request: AnalyticalExecutionRequest;
+    };
+    expect(lastMsg.request.operation).toBe('operation');
+
+    const outDS = new Dataset('FilteredDS', [{ name: 'val', type: ColumnType.NUMERIC }], [{ val: 20 }]);
+    transport.simulateResult({
+      requestId: lastMsg.request.requestId,
+      generation: 1,
+      datasetVersion: atlas.datasetVersion,
+      datasetFingerprint: atlas.datasetFingerprint ?? '',
+      value: {
+        dataset: outDS.toJSON(),
+        outputFingerprint: 'fp_explicit_output_456',
+      },
+    });
+
+    const result = await promise;
+    expect(result.outputHash).toBe('fp_explicit_output_456');
+    expect(result.dataset.rows).toHaveLength(1);
+  });
+
+  it('B9: package exported after async analysis replays cleanly and verifies digest', async () => {
+    const bridge = makeKernelMockBridge();
+    const transport = createMockWorkerTransport();
+    const port = new WorkerAnalyticalPort(transport);
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.setExecutionPort(port);
+
+    const ds = new Dataset(
+      'ReplayDS',
+      [{ name: 'val', type: ColumnType.NUMERIC }],
+      [{ val: 10 }, { val: 20 }, { val: 30 }]
+    );
+    atlas.loadDataset(ds);
+
+    const promise = atlas.applyAnalysisAsync({
+      operation: { op: 'filter', predicate: { type: 'comparison', column: 'val', op: 'gt', value: 15 } },
+      datasetFingerprint: atlas.datasetFingerprint ?? '',
+      datasetVersion: atlas.datasetVersion,
+      algorithmVersion: '1.0.0',
+    });
+
+    const lastMsg = transport.postedMessages[transport.postedMessages.length - 1] as {
+      type: string;
+      request: AnalyticalExecutionRequest;
+    };
+
+    const outHandle = bridge.runOperation(1, {
+      op: 'filter',
+      predicate: { type: 'comparison', column: 'val', op: 'gt', value: 15 },
+    } as never);
+    const outDSJson = bridge.getDatasetJson(outHandle);
+    const outFingerprint = bridge.datasetFingerprint(outHandle) ?? 'fp_filtered_123';
+    const outProvenance = bridge.kernelProvenance ? bridge.kernelProvenance() : null;
+    transport.simulateResult({
+      requestId: lastMsg.request.requestId,
+      generation: 1,
+      datasetVersion: atlas.datasetVersion,
+      datasetFingerprint: atlas.datasetFingerprint ?? '',
+      value: {
+        dataset: outDSJson,
+        outputFingerprint: outFingerprint,
+      },
+      provenance: outProvenance,
+    });
+
+    await promise;
+
+    const session = new NemosyneSession({ atlas });
+    const pkgBytes = await session.exportPortablePackage();
+    const runner = new InvestigationReplayRunner(bridge);
+    const replayResult = await runner.replayArchive(pkgBytes);
+
+    expect(replayResult.discrepancies).toEqual([]);
+    expect(replayResult.success).toBe(true);
+    expect(replayResult.eventsMatched).toBe(2);
   });
 });

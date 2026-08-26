@@ -108,7 +108,9 @@ export class DataOperationController {
   /** Set the transformed dataset directly (session restore / _restoreDataset). */
   setTransformedDataset(dataset: Dataset): void {
     if (this._atlas) {
-      this._atlas.setCurrentDataset(dataset);
+      if (this._atlas.dataset !== dataset) {
+        this._atlas.setCurrentDataset(dataset);
+      }
       return;
     }
     this._localTransformed = dataset?.clone?.() ?? null;
@@ -118,6 +120,13 @@ export class DataOperationController {
    * Apply a named operation to the current transformed dataset and artifact.
    */
   apply(operation: VisualOperation | string): void {
+    if (this._atlas?.executionPort?.isAsync) {
+      this.applyAsync(operation).catch((err) => {
+        console.error(`[DataOperationController] async apply failed for "${operation}":`, err);
+      });
+      return;
+    }
+
     const artifact = this.getArtifact();
     if (!this.originalDataset || !artifact) return;
 
@@ -141,7 +150,50 @@ export class DataOperationController {
       return;
     }
 
-    this.setTransformedDataset(next);
+    if (!this._atlas) {
+      this.setTransformedDataset(next);
+    }
+    this.applyVisual(operation, this.transformedDataset!);
+    this.clearPreview();
+    this.eventBus.emit(WorldTopics.OPERATION_APPLIED, {
+      operation,
+      datasetBefore,
+      datasetAfter: next,
+      rowCount: next.rowCount,
+    });
+    this.eventBus.emit(WorldTopics.SESSION_AUTOSAVE_REQUEST);
+  }
+
+  async applyAsync(operation: VisualOperation | string): Promise<void> {
+    const artifact = this.getArtifact();
+    if (!this.originalDataset || !artifact) return;
+
+    if (!this.transformedDataset) {
+      this.setTransformedDataset(this.originalDataset.clone());
+    }
+    const current = this.transformedDataset;
+    if (!current) return;
+
+    const datasetBefore = current.clone();
+    captureBaseState(artifact);
+
+    let next: Dataset;
+    try {
+      if (this._atlas?.executionPort?.isAsync) {
+        const spec = toAnalysisSpec(operation, current, this._atlas);
+        const result = await this._atlas.applyAnalysisAsync(spec);
+        next = Dataset.fromJSON(result.dataset);
+      } else {
+        next = this._computeViaAtlas(operation, current);
+      }
+    } catch (err) {
+      console.error(`[DataOperationController] apply failed for "${operation}":`, err);
+      return;
+    }
+
+    if (!this._atlas) {
+      this.setTransformedDataset(next);
+    }
     this.applyVisual(operation, this.transformedDataset!);
     this.clearPreview();
     this.eventBus.emit(WorldTopics.OPERATION_APPLIED, {

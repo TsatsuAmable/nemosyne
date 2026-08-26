@@ -392,30 +392,75 @@ export function buildTDASummaryGroup(
       ...featureColumns.filter((column) => column !== filterColumn),
     ];
     const tdaParams = { featureColumns: orderedFeatureColumns };
-
-    persistence.update(
-      (atlas.computePersistenceIntervalsForCurrent(tdaParams) ?? []).map(
-        (i) => ({ birth: i.birth, death: i.death ?? null })
-      )
-    );
     const mapperParams = { ...tdaParams, bins: 10, overlap: 0.5 };
-    const g = atlas.computeMapperGraphForCurrent(mapperParams);
-    const graph: MapperGraph = {
-      nodes: (g?.nodes ?? []).map((n) => ({
-        id: n.id,
-        filterCenter: n.filterCenter,
-        size: n.size,
-      })),
-      edges: (g?.edges ?? []) as [unknown, unknown][],
-    };
-    mapperPanel.update(graph);
-    betti.update(
-      atlas.computeBetti0CurveForCurrent({ featureColumns: orderedFeatureColumns, steps: 12 }) ?? []
-    );
 
-    if (dataset) {
-      atlas.discoverPersistenceStructures(dataset, tdaParams);
-      atlas.discoverMapperStructures(dataset, mapperParams);
+    if (atlas.executionPort?.isAsync) {
+      const currentVersion = atlas.datasetVersion;
+      const currentFingerprint = atlas.datasetFingerprint;
+
+      Promise.all([
+        atlas.computePersistenceIntervalsAsync(tdaParams),
+        atlas.computeMapperGraphAsync(mapperParams),
+        atlas.computeBetti0CurveAsync({ featureColumns: orderedFeatureColumns, steps: 12 }),
+      ])
+        .then(([pIntervals, g, bettiPoints]) => {
+          if (
+            atlas.datasetVersion !== currentVersion ||
+            atlas.datasetFingerprint !== currentFingerprint
+          ) {
+            return;
+          }
+          if (pIntervals) {
+            persistence.update(
+              pIntervals.map((i) => ({ birth: i.birth, death: i.death ?? null }))
+            );
+          }
+          if (g) {
+            const graph: MapperGraph = {
+              nodes: (g.nodes ?? []).map((n) => ({
+                id: n.id,
+                filterCenter: n.filterCenter,
+                size: n.size,
+              })),
+              edges: (g.edges ?? []) as [unknown, unknown][],
+            };
+            mapperPanel.update(graph);
+          }
+          if (bettiPoints) {
+            betti.update(bettiPoints);
+          }
+          if (dataset) {
+            atlas.discoverPersistenceStructures(dataset, tdaParams);
+            atlas.discoverMapperStructures(dataset, mapperParams);
+          }
+        })
+        .catch((err) => {
+          console.warn('[TDAPlanes] async TDA execution error:', err);
+        });
+    } else {
+      persistence.update(
+        (atlas.computePersistenceIntervalsForCurrent(tdaParams) ?? []).map(
+          (i) => ({ birth: i.birth, death: i.death ?? null })
+        )
+      );
+      const g = atlas.computeMapperGraphForCurrent(mapperParams);
+      const graph: MapperGraph = {
+        nodes: (g?.nodes ?? []).map((n) => ({
+          id: n.id,
+          filterCenter: n.filterCenter,
+          size: n.size,
+        })),
+        edges: (g?.edges ?? []) as [unknown, unknown][],
+      };
+      mapperPanel.update(graph);
+      betti.update(
+        atlas.computeBetti0CurveForCurrent({ featureColumns: orderedFeatureColumns, steps: 12 }) ?? []
+      );
+
+      if (dataset) {
+        atlas.discoverPersistenceStructures(dataset, tdaParams);
+        atlas.discoverMapperStructures(dataset, mapperParams);
+      }
     }
   }
 

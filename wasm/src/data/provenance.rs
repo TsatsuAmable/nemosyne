@@ -10,8 +10,7 @@
 //! `kernelVersion` is bumped whenever an analytical algorithm changes; saved
 //! sessions break across a version bump (pre-alpha pivot, accepted).
 
-use std::sync::Mutex;
-
+use std::cell::RefCell;
 use serde::Serialize;
 
 /// Canonical kernel identifier carried on every provenance envelope.
@@ -47,7 +46,9 @@ pub struct Provenance {
     pub ingest_mode: Option<String>,
 }
 
-static LAST_PROVENANCE: Mutex<Option<String>> = Mutex::new(None);
+thread_local! {
+    static LAST_PROVENANCE: RefCell<Option<String>> = const { RefCell::new(None) };
+}
 
 /// Record the provenance envelope for the most recent kernel call. The JS host
 /// reads it via `kernel_provenance` immediately after a result-bearing call.
@@ -81,26 +82,24 @@ pub fn record_with_ingest(
         ingest_mode: ingest_mode.map(|s| s.to_string()),
     };
     let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
-    if let Ok(mut slot) = LAST_PROVENANCE.lock() {
-        *slot = Some(json);
-    }
+    LAST_PROVENANCE.with(|slot| {
+        *slot.borrow_mut() = Some(json);
+    });
 }
 
 /// Return the last recorded provenance envelope as a JSON string (or `""` if
 /// no kernel call has been made yet).
 pub fn last_json() -> String {
-    LAST_PROVENANCE
-        .lock()
-        .ok()
-        .and_then(|slot| slot.clone())
-        .unwrap_or_default()
+    LAST_PROVENANCE.with(|slot| {
+        slot.borrow().clone().unwrap_or_default()
+    })
 }
 
 /// Clear the side-channel. Used by tests for deterministic isolation.
 pub fn clear() {
-    if let Ok(mut slot) = LAST_PROVENANCE.lock() {
-        *slot = None;
-    }
+    LAST_PROVENANCE.with(|slot| {
+        *slot.borrow_mut() = None;
+    });
 }
 
 // ---------------------------------------------------------------------------

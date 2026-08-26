@@ -1,4 +1,6 @@
 import type {
+  AnalyticalDatasetRegistration,
+  AnalyticalExecutionFence,
   AnalyticalExecutionPort,
   AnalyticalExecutionRequest,
   AnalyticalExecutionResult,
@@ -12,18 +14,28 @@ export interface WorkerTransport {
   terminate?(): void;
 }
 
+interface PendingExecution {
+  resolve: (res: AnalyticalExecutionResult<unknown>) => void;
+  reject: (err: Error) => void;
+  req: AnalyticalExecutionRequest;
+}
+
+interface PendingRegistration {
+  resolve: () => void;
+  reject: (err: Error) => void;
+  registration: AnalyticalDatasetRegistration;
+  key: string;
+}
+
 export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
   private readonly _worker: WorkerTransport;
-  private readonly _pending = new Map<
-    string,
-    {
-      resolve: (res: AnalyticalExecutionResult<unknown>) => void;
-      reject: (err: Error) => void;
-      req: AnalyticalExecutionRequest;
-    }
-  >();
-  private _fence: { generation?: number; datasetVersion?: number } = {};
+  private readonly _pending = new Map<string, PendingExecution>();
+  private readonly _pendingRegistrations = new Map<string, PendingRegistration>();
+  private readonly _registrationPromises = new Map<string, Promise<void>>();
+  private readonly _registered = new Set<string>();
+  private _fence: AnalyticalExecutionFence = {};
   private _onKernelFailure?: ((err: Error) => void) | null;
+  private _disposed = false;
 
   constructor(worker: WorkerTransport, onKernelFailure?: ((err: Error) => void) | null) {
     this._worker = worker;
@@ -36,9 +48,39 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     return true;
   }
 
-  supersede(fence: { generation?: number; datasetVersion?: number }): void {
-    if (fence.generation !== undefined) this._fence.generation = fence.generation;
-    if (fence.datasetVersion !== undefined) this._fence.datasetVersion = fence.datasetVersion;
+  private _registrationKey(generation: number, fingerprint: string): string {
+    return `${generation}\u0000${fingerprint}`;
+  }
+
+  supersede(fence: AnalyticalExecutionFence): void {
+    const generationAdvanced =
+      fence.generation !== undefined &&
+      (this._fence.generation === undefined || fence.generation > this._fence.generation);
+    const datasetAdvanced =
+      fence.datasetVersion !== undefined &&
+      (this._fence.datasetVersion === undefined || fence.datasetVersion > this._fence.datasetVersion);
+
+    this._fence = {
+      generation: fence.generation !== undefined ? fence.generation : this._fence.generation,
+      datasetVersion:
+        fence.datasetVersion !== undefined ? fence.datasetVersion : this._fence.datasetVersion,
+      datasetFingerprint:
+        fence.datasetFingerprint !== undefined
+          ? fence.datasetFingerprint
+          : this._fence.datasetFingerprint,
+    };
+
+    if (generationAdvanced) {
+      this._registered.clear();
+    } else if (datasetAdvanced && fence.datasetFingerprint) {
+      const currentKey = this._registrationKey(
+        this._fence.generation ?? 1,
+        fence.datasetFingerprint
+      );
+      for (const key of [...this._registered]) {
+        if (key !== currentKey) this._registered.delete(key);
+      }
+    }
 
     try {
       this._worker.postMessage({ type: 'SUPERSEDE', fence: this._fence });
@@ -65,7 +107,49 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     }
   }
 
+  registerDataset(registration: AnalyticalDatasetRegistration): Promise<void> {
+    if (this._disposed) {
+      return Promise.reject(new KernelUnavailableError('Analytical worker port is disposed'));
+    }
+
+    const key = this._registrationKey(
+      registration.generation,
+      registration.dataset.fingerprint
+    );
+    if (this._registered.has(key)) return Promise.resolve();
+
+    const existing = this._registrationPromises.get(key);
+    if (existing) return existing;
+
+    const promise = new Promise<void>((resolve, reject) => {
+      this._pendingRegistrations.set(registration.registrationId, {
+        resolve,
+        reject,
+        registration,
+        key,
+      });
+      try {
+        this._worker.postMessage({ type: 'REGISTER', registration });
+      } catch (err: unknown) {
+        this._pendingRegistrations.delete(registration.registrationId);
+        const error = new KernelUnavailableError(
+          `Worker dataset registration failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+        this._onKernelFailure?.(error);
+        reject(error);
+      }
+    }).finally(() => {
+      this._registrationPromises.delete(key);
+    });
+
+    this._registrationPromises.set(key, promise);
+    return promise;
+  }
+
   execute<T>(req: AnalyticalExecutionRequest): Promise<AnalyticalExecutionResult<T>> {
+    if (this._disposed) {
+      return Promise.reject(new KernelUnavailableError('Analytical worker port is disposed'));
+    }
     if (
       (this._fence.generation !== undefined && req.generation < this._fence.generation) ||
       (this._fence.datasetVersion !== undefined && req.dataset.version < this._fence.datasetVersion)
@@ -98,9 +182,62 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     });
   }
 
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    const error = new KernelUnavailableError('Analytical worker port disposed');
+
+    for (const pending of this._pending.values()) pending.reject(error);
+    for (const pending of this._pendingRegistrations.values()) pending.reject(error);
+    this._pending.clear();
+    this._pendingRegistrations.clear();
+    this._registrationPromises.clear();
+    this._registered.clear();
+
+    this._worker.onmessage = null;
+    this._worker.onerror = null;
+    try {
+      this._worker.terminate?.();
+    } catch {
+      // best-effort worker teardown
+    }
+  }
+
   private _handleMessage(ev: MessageEvent): void {
-    const data = ev.data as { type: string; result?: AnalyticalExecutionResult };
-    if (!data || data.type !== 'RESULT' || !data.result) return;
+    const data = ev.data as {
+      type: string;
+      result?: AnalyticalExecutionResult;
+      registrationId?: string;
+      generation?: number;
+      datasetVersion?: number;
+      datasetFingerprint?: string;
+      error?: string;
+    };
+    if (!data) return;
+
+    if (data.type === 'REGISTERED' && data.registrationId) {
+      const pending = this._pendingRegistrations.get(data.registrationId);
+      if (!pending) return;
+      this._pendingRegistrations.delete(data.registrationId);
+
+      if (data.error) {
+        const error = new KernelUnavailableError(data.error);
+        this._onKernelFailure?.(error);
+        pending.reject(error);
+        return;
+      }
+
+      const stale =
+        (this._fence.generation !== undefined &&
+          pending.registration.generation < this._fence.generation) ||
+        (this._fence.datasetVersion !== undefined &&
+          pending.registration.dataset.version < this._fence.datasetVersion);
+      if (!stale) this._registered.add(pending.key);
+      pending.resolve();
+      return;
+    }
+
+    if (data.type !== 'RESULT' || !data.result) return;
 
     const result = data.result;
     const pending = this._pending.get(result.requestId);
@@ -130,6 +267,14 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
       return;
     }
 
+    const value = result.value;
+    if (value && typeof value === 'object' && 'outputFingerprint' in value) {
+      const outputFingerprint = (value as { outputFingerprint?: unknown }).outputFingerprint;
+      if (typeof outputFingerprint === 'string' && outputFingerprint) {
+        this._registered.add(this._registrationKey(result.generation, outputFingerprint));
+      }
+    }
+
     pending.resolve(result);
   }
 
@@ -138,9 +283,11 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     const kernelErr = new KernelUnavailableError(message);
     this._onKernelFailure?.(kernelErr);
 
-    for (const [, pending] of this._pending.entries()) {
-      pending.reject(kernelErr);
-    }
+    for (const pending of this._pending.values()) pending.reject(kernelErr);
+    for (const pending of this._pendingRegistrations.values()) pending.reject(kernelErr);
     this._pending.clear();
+    this._pendingRegistrations.clear();
+    this._registrationPromises.clear();
+    this._registered.clear();
   }
 }

@@ -80,6 +80,7 @@ import { HolographicInspector } from './artifacts/HolographicInspector.ts';
 import type { TopologyType } from '../data/types.ts';
 import { DatasetSpace } from '../atlas/DatasetSpace.ts';
 import { AtlasCore } from '../atlas/AtlasCore.ts';
+import { WorkerAnalyticalPort, type WorkerTransport } from '../atlas/ports/WorkerAnalyticalPort.ts';
 import { NemosyneSession } from '../session/NemosyneSession.ts';
 import {
   InvestigationReplayRunner,
@@ -2178,12 +2179,29 @@ export class World {
     // still start without a missing-module error at import time.
     const bridge = await import('../wasm/RuntimeBridge.ts');
     if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
+
+    if (typeof Worker !== 'undefined' && typeof window !== 'undefined') {
+      try {
+        const worker = new Worker(
+          new URL('../atlas/ports/analytical.worker.ts', import.meta.url),
+          { type: 'module' }
+        );
+        const port = new WorkerAnalyticalPort(
+          worker as unknown as WorkerTransport,
+          (err) => this.markKernelUnavailable(err)
+        );
+        this.atlas.setExecutionPort(port);
+      } catch (workerErr) {
+        console.warn('[World] WorkerAnalyticalPort unavailable, defaulting to inline port:', workerErr);
+      }
+    }
+
     if (bridge.isReady()) {
       const capabilities = bridge.capabilities();
       if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
       this._wasmRuntime = bridge;
       this._wasmCapabilities = capabilities;
-      this.atlas.setKernel(bridge, this._wasmCapabilities);
+      this.atlas.setKernel(bridge, this._wasmCapabilities, generation);
       this._rebuildPalaceWithKernelFacts();
       this._wasmUnavailable = false;
       await this._restoreAutoSaveOnce();
@@ -2203,7 +2221,7 @@ export class World {
     if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
     this._wasmRuntime = bridge;
     this._wasmCapabilities = capabilities;
-    this.atlas.setKernel(bridge, this._wasmCapabilities);
+    this.atlas.setKernel(bridge, this._wasmCapabilities, generation);
     this._rebuildPalaceWithKernelFacts();
     this._wasmUnavailable = false;
     await this._restoreAutoSaveOnce();

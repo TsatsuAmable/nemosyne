@@ -5,6 +5,7 @@ export {
   KernelAbiError,
   isKernelFatalError,
   getKernelState,
+  getRuntimeGeneration,
   getKernelUnavailableReason,
   invalidateRuntime,
   requireRuntime,
