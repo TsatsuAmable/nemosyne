@@ -8,6 +8,7 @@ import { extname, join, relative } from 'node:path';
 const results = [];
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const node = process.execPath;
 
 function run(command, args) {
   execFileSync(command, args, { stdio: 'pipe', maxBuffer: 32 * 1024 * 1024 });
@@ -38,7 +39,12 @@ function check(dimension, name, fn) {
 
 console.log('\nNEMOSYNE RECURRING MAINTAINABILITY AND HYGIENE AUDIT\n');
 
-check('Dim 1', 'Public subsystem API contract', () => {
+check('Dim 1', 'Documentation authority and staleness', () => {
+  run(node, ['scripts/check-docs.mjs']);
+  return 'documentation manifest, links, and stale-instruction guards passed';
+});
+
+check('Dim 2', 'Public subsystem API contract', () => {
   const subsystems = [
     'atlas',
     'data',
@@ -55,17 +61,17 @@ check('Dim 1', 'Public subsystem API contract', () => {
   return `${subsystems.length} public barrels present`;
 });
 
-check('Dim 2', 'Full source dependency-cycle lint', () => {
+check('Dim 3', 'Full source dependency-cycle lint', () => {
   run(npx, ['eslint', 'src', '--quiet']);
   return 'all source modules checked by import/no-cycle';
 });
 
-check('Dim 3', 'Analytical authority invariants', () => {
+check('Dim 4', 'Analytical authority invariants', () => {
   run(npx, ['vitest', 'run', 'tests/architectural-invariants.test.ts']);
   return 'Rust authority and state invariants passed';
 });
 
-check('Dim 4', 'TypeScript hotspot inventory', () => {
+check('Dim 5', 'TypeScript hotspot inventory', () => {
   const hotspots = filesUnder('src')
     .filter((path) => extname(path) === '.ts')
     .map((path) => ({
@@ -79,12 +85,12 @@ check('Dim 4', 'TypeScript hotspot inventory', () => {
     : `advisory hotspots: ${hotspots.map(({ path, lines }) => `${path} (${lines})`).join(', ')}`;
 });
 
-check('Dim 5', 'GPU and memory lifecycle regression', () => {
+check('Dim 6', 'GPU and memory lifecycle regression', () => {
   run(npx, ['vitest', 'run', 'tests/sprint-27-6-reliability-memory.test.ts']);
   return 'resource teardown regression passed';
 });
 
-check('Dim 6', 'Production bundle gzip budget', () => {
+check('Dim 7', 'Production bundle gzip budget', () => {
   if (!existsSync('dist/index.html')) run(npm, ['run', 'build']);
   const files = filesUnder('dist').filter((path) => statSync(path).isFile());
   const gzipBytes = files.reduce(
@@ -98,12 +104,12 @@ check('Dim 6', 'Production bundle gzip budget', () => {
   return `${files.length} files, ${(gzipBytes / 1024 / 1024).toFixed(2)} MiB gzip`;
 });
 
-check('Dim 7', 'Canonical investigation vertical slice', () => {
+check('Dim 8', 'Canonical investigation vertical slice', () => {
   run(npx, ['vitest', 'run', 'tests/golden-path-vertical-slice.test.ts']);
   return 'portable investigation and replay regression passed';
 });
 
-check('Dim 8', 'Rust/WASM scientific kernel', () => {
+check('Dim 9', 'Rust/WASM scientific kernel', () => {
   run('cargo', ['test', '--manifest-path', 'wasm/Cargo.toml']);
   return 'complete Rust test suite passed';
 });

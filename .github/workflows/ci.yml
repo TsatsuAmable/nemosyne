@@ -37,6 +37,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Documentation integrity
+        run: npm run docs:check
+
   coverage-wasm:
     name: Coverage WASM package
     runs-on: ubuntu-latest

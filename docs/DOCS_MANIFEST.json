@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "lastReviewed": "2026-08-26",
+  "statuses": ["canonical", "active", "historical"],
+  "documents": [
+    {
+      "path": "docs/Nemosyne_Definitive_Vision_and_Roadmap.md",
+      "status": "canonical",
+      "authority": "product-research-architecture",
+      "owner": "product-research"
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "status": "canonical",
+      "authority": "implementation-status",
+      "owner": "engineering"
+    },
+    {
+      "path": "AGENTS.md",
+      "status": "canonical",
+      "authority": "engineering-agent-contract",
+      "owner": "engineering"
+    },
+    {
+      "path": "docs/PROJECT_DOCS_INDEX.md",
+      "status": "canonical",
+      "authority": "documentation-index",
+      "owner": "documentation"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "status": "active",
+      "authority": "architecture-reference",
+      "owner": "architecture"
+    },
+    {
+      "path": "docs/IMPLEMENTATION_PLAN_V3.md",
+      "status": "active",
+      "authority": "implementation-sequencing",
+      "owner": "engineering"
+    },
+    {
+      "path": "docs/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md",
+      "status": "active",
+      "authority": "stream-a-quality",
+      "owner": "engineering"
+    },
+    {
+      "path": "docs/STREAM_C_SECURITY_ASSURANCE.md",
+      "status": "active",
+      "authority": "stream-c-security",
+      "owner": "security"
+    },
+    {
+      "path": "docs/CI_TEST_ACCELERATION_STRATEGY.md",
+      "status": "active",
+      "authority": "ci-strategy",
+      "owner": "engineering"
+    },
+    {
+      "path": "docs/STATISTICAL_METHOD_REGISTER.md",
+      "status": "active",
+      "authority": "statistical-methods",
+      "owner": "research"
+    },
+    {
+      "path": "docs/study/README.md",
+      "status": "active",
+      "authority": "study-index",
+      "owner": "research"
+    },
+    {
+      "path": "docs/archive/TEST_READY_2026-08-26.md",
+      "status": "historical",
+      "authority": "historical-test-readiness",
+      "owner": "archive"
+    },
+    {
+      "path": "docs/archive/TEST_INFRA_2026-08-26.md",
+      "status": "historical",
+      "authority": "historical-test-infrastructure",
+      "owner": "archive"
+    }
+  ]
+}

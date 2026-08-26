@@ -1,183 +1,83 @@
-# AGENTS.md
+# Nemosyne engineering agent contract
 
-Compact ramp-up notes for OpenCode/agent sessions. The authoritative deep-dive is
-`CLAUDE.md` (architecture, conventions) and `docs/ROADMAP.md` §Current Status
-(live project state — read its top block first on pickup). This file only captures
-things an agent would otherwise guess wrong.
+This is the canonical tool-neutral engineering contract for AI-assisted work in this repository. Tool-specific files such as `CLAUDE.md` and `.github/copilot-instructions.md` must defer to this file instead of restating project facts.
 
-## Cardinal Rules (Mandatory)
+## Sources of truth
 
-1. **Vision Alignment Governance**: All development instructions, architectures, and features must strictly align with `docs/Nemosyne_Definitive_Vision_and_Roadmap.md`. Any potential drift, deviation, or architectural alternative must be explicitly flagged and approved by the user before proceeding to implementation.
-2. **Feature Branch & PR Discipline**: Never push directly to `main`. Always develop on dedicated feature/fix branches, pass the full CI verification gate, push to origin, and raise a Pull Request.
-3. **Rust/WASM Analytical Exclusivity**: Rust/WASM is the sole and exclusive analytical authority. No quiet JavaScript analytical fallbacks are permitted. When the kernel is unready, the system transitions to an explicit `KernelUnavailable` state.
+Read these in order when they are relevant:
 
-## Commands (exact)
+1. `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` — product, research, and architecture direction.
+2. `docs/ROADMAP.md` — live implementation status, review findings, and current programme order.
+3. `docs/ARCHITECTURE.md` — current technical reference, subordinate to the governing vision while migration is active.
+4. Executable configuration — `package.json`, `.github/workflows/*.yml`, `vitest*.config.ts`, `rust-toolchain.toml`, and source code are authoritative for commands, versions, thresholds, and runtime behavior.
+5. `docs/PROJECT_DOCS_INDEX.md` and `docs/DOCS_MANIFEST.json` — documentation authority and lifecycle.
+
+**Executable configuration wins over duplicated prose facts.** Do not copy dependency versions, coverage thresholds, CI job topology, test counts, or other machine-readable values into agent instructions. If prose conflicts with executable configuration, fix or archive the prose.
+
+## Mandatory engineering boundaries
+
+1. **Vision alignment:** changes must align with the governing vision. Material alternatives or direction changes must be surfaced explicitly rather than slipped into implementation.
+2. **Feature branch and PR discipline:** never push directly to `main`. Develop on a focused branch, verify the claims, and raise a PR.
+3. **Rust/WASM analytical authority:** Rust/WASM owns canonical analytical data, N-dependent analysis, statistical/scientific computation, topology, clustering, and scale-sensitive reductions. TypeScript owns orchestration, interaction, persistence adapters, and rendering. Do not add a shadow analytical implementation or silent JavaScript fallback.
+4. **Runtime-local handles are capabilities:** a WASM handle belongs only to the runtime instance that created it. Cross-runtime identity uses durable fingerprints and explicit registration.
+5. **Scientific honesty:** names such as confidence, significance, probability, density, manifold, uncertainty, or fit must match the mathematics actually computed. Missing/invalid values must not silently become legitimate numeric observations.
+6. **Reproducibility:** investigator-visible transformations, analytical decisions, approximation/refusal outcomes, and model identity must remain deterministic or explicitly provenance-bearing.
+7. **Fail closed at trust boundaries:** malformed, ambiguous, stale, replayed, unsupported, or untrusted input must not silently become a more privileged or scientifically plausible state.
+
+## Production-path evidence rule
+
+A product property is not considered landed merely because an isolated helper, mock, module, or unit test demonstrates it. When a property governs a production path, evidence must exercise the real production entry point and the authoritative call graph or boundary responsible for enforcing it.
+
+This applies to security, correctness, scientific semantics, privacy/compliance, performance, recovery, concurrency, provenance, persistence, and UX state. Unit tests remain necessary, but they are not sufficient evidence for a shipped-capability claim.
+
+## Development and verification
+
+Use scripts from `package.json`; do not reconstruct commands from old documentation. Common entry points include:
 
 ```bash
-npm install
-npm run wasm:dev          # build Rust/WASM dev crate -> wasm/pkg/ (required for dev:full WASM work)
-npm run wasm              # release WASM build
-npm run dev               # Vite dev server ONLY (no wasm-pack; WASM optional, lazy-loaded at runtime)
-npm run dev:wasm          # wasm-pack dev build + Vite dev server
-npm run build             # Vite production bundle -> dist/ (WASM externalized; succeeds without wasm/pkg)
-npm test                  # Vitest JS-only (does NOT touch Rust; wasm/ is excluded in vitest.config.js)
-npm run test:all          # cargo test --manifest-path wasm/Cargo.toml && vitest run
-npm run test:coverage     # Vitest with v8 coverage (CI uses this; thresholds: 70/70/65/55)
-npm run typecheck         # tsc --noEmit  (REQUIRED gate; CI fails on this)
-npm run lint              # ESLint (blocking gate; src no-explicit-any is an error)
-npx vitest run tests/foo.test.js   # single JS test file
-cargo test --manifest-path wasm/Cargo.toml   # Rust unit tests only
-npm run test:e2e:tier1    # E2E tier 1 (feature coverage); tier2/tier3/tier4 likewise
-npm run test:smoke        # Playwright load smoke (builds dist/ + headless Chromium; REQUIRED blocking gate)
+npm ci
+npm run wasm:dev
+npm run build
+npm run typecheck
+npm run lint
+npm test
+npm run test:all
+npm run test:coverage
+npm run test:smoke
+npm run test:smoke:collaboration
+npm run docs:check
+npm run audit:hygiene
 ```
 
-## Required command order
+The required CI graph is defined only by `.github/workflows/ci.yml`. Coverage policy is defined only by `vitest.coverage.config.ts`. Rust toolchain policy is defined by `rust-toolchain.toml`. Dependency versions are defined by the package manifests and lockfiles.
 
-CI gate order (from `.github/workflows/ci.yml`): `typecheck -> lint -> test:coverage -> build` plus required parallel jobs `rust (cargo test)` and `playwright-smoke (npm run test:smoke)`.
-Run all before claiming a task done. All gates are blocking.
+During iteration, run the smallest ownership-aligned checks that can disprove the current change quickly. Before claiming completion, obtain the required production-path and CI evidence for the affected risk surface. Do not weaken tests, coverage, assertions, or architecture simply to obtain a green run.
 
-## Critical gotchas
+## Three-stream operating model
 
-- **JS-only `npm test` skips Rust.** `vitest.config.js` excludes `wasm/`, `.claude/`, `tests/smoke`.
-  Rust tests live under `wasm/src` and run via `cargo test` / `npm run test:all`.
-- **`tests/smoke` is Playwright, not Vitest.** Excluded from `vitest run`; use `npm run test:smoke`.
-  Requires `npx playwright install --with-deps chromium` first. Real-WebGL headless smoke against
-  the production build over plain HTTP (`NEMOSYNE_FORCE_HTTP=1`).
-- **WebXR needs HTTPS in local dev.** Self-signed certs in `certs/` (gitignored) or dev server refuses
-  to serve TLS. Generate: `mkdir certs && openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem
-  -out certs/cert.pem -subj "/CN=localhost" -nodes`. Without certs, `npm run dev` still boots over HTTP
-  (warns) — fine for non-VR desktop fallback, useless for Quest.
-- **three.js is CDN-loaded via import map, NOT bundled.** `index.html` maps `three` ->
-  `https://unpkg.com/three@0.168.0/build/three.module.js`. The npm `three@0.168.0` dep is for type
-  resolution and WASM-side tests only. Pin matches `tsconfig.json` `paths`. Do not "fix" by importing
-  from `node_modules` paths unless you change the import map too.
-- **WASM is optional for the BUILD, mandatory for analytics at runtime.** `vite.config.js`
-  rollupOptions.external `/wasm/pkg/nemosyne_wasm.js` so `npm run build` succeeds even when
-  `wasm/pkg/` is absent. At runtime `World.ts` requires the kernel: if it's missing/unready, World
-  surfaces a hard "analytical kernel unavailable" state (VRConsole error) — there is **no JS
-  analytical fallback** and capability flags are telemetry-only (never used to route). Never
-  reintroduce a JS analytical path or an `if (caps & …)` routing branch. (Rust/WASM commitment
-  sprint; see `docs/ROADMAP.md` §Current Status.)
-- **Cross-Origin headers are set in dev.** `vite.config.js` emits `COOP: same-origin` /
-  `COEP: require-corp`. Adding cross-origin assets (CDN fonts, images) may require CORP headers or
-  they will be blocked under COEP.
-- **Demo + signalling endpoints mount on the Vite dev/preview server** at `/__demo-stream`, `/__signal`,
-  `/__remote-logs`, `/__loadtest-results` (serve-mode only; not in the production bundle). Production
-  signalling: `node src/network/SignallingServer.mjs --port=8080 [--token=PARTICIPANT_SECRET] [--observer-token=OBSERVER_SECRET]`.
-  `NEMOSYNE_SIGNAL_TOKEN` gates `/__signal` in dev when set.
+- **Stream A:** forward implementation under `docs/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`.
+- **Stream B:** independent adversarial review and fix-forward. Green CI is necessary evidence, not proof of architectural or scientific completion.
+- **Stream C:** security authority and live-path assurance under `docs/STREAM_C_SECURITY_ASSURANCE.md`.
 
-## Repo layout facts that aren't obvious from filenames
+Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requires implementation plus independent review evidence.
 
-- App entry: `src/main.ts` bootstraps `src/vr/World.ts`. `index.html` is the Vite entry.
-- **100% Pure TypeScript**: all code under `src/` and `tests/` is `.ts` (`tests/setup.ts`, `tests/*.test.ts`, `tests/**/*.spec.ts`).
-  Only root configs (`vite.config.js`, `vitest.config.js`, `eslint.config.js`, `vite-wasm-pack-plugin.js`) are `.js`.
-  Do not add `.js` files to `src/` or `tests/`.
-- **Rust crate is `wasm/`** (`crate-type = cdylib`, `wasm32-unknown-unknown`, stable toolchain via
-  `rust-toolchain.toml`). JS bridge: `src/wasm/` (`RuntimeBridge.ts`, `CommandApplier.ts`). ABI is
-  `(ptr, len)` + integer handles only — see `.claude/plan.md` for the full ABI/command-buffer spec.
-- **`tests/e2e/` is a four-tier opaque-box suite** (tier1 feature coverage -> tier4 real-world).
-  Shared mocks live in `tests/e2e/harness/` (WebGL, WebXR, fixtures, memory profiler). Run tiers via
-  `npm run test:e2e:tierN`. See `TEST_INFRA.md` for the matrix.
-- Tests run in jsdom with a hand-rolled WebGL/Canvas2D mock in `tests/setup.ts` (replaces
-  `HTMLCanvasElement.prototype.getContext`). three.js initializes against this mock — no real GPU.
-  `vitest.config.js` pins `pool: 'forks'`, `maxWorkers: 2` — keep it or the WebGL mock flakes under load.
+## Documentation discipline
 
-## Style/convention enforcement
+- `docs/PROJECT_DOCS_INDEX.md` defines human-facing authority; `docs/DOCS_MANIFEST.json` is the machine-readable lifecycle map.
+- Historical reports and superseded plans belong under `docs/archive/`; they must never be treated as current authority.
+- Do not create a new status document when the information belongs in `ROADMAP.md`, the findings ledger, an ADR, or an existing technical reference.
+- Do not duplicate executable facts in prose. Link to the source instead.
+- Any change to a canonical document, agent contract, CI policy, or documentation authority must pass `npm run docs:check`.
+- When touching stale documentation, update it or archive it in the same change rather than preserving contradictory truth.
 
-- ESLint `src/**/*.ts`: `@typescript-eslint/no-explicit-any` is an **error** (not warning). `no-console`
-  warns (allowed: `console.warn`, `console.error`). `import/no-cycle` is an error.
-- ESLint `tests/**/*.ts`: `no-explicit-any` downgraded to **warn** (test-only). Don't ratchet these to errors.
-- ESLint `tests/**/*.ts`: `vitest/no-focused-tests` is an error (no `it.only`/`describe.only` in JS suites).
-- Prettier: single quotes, trailing comma `es5`, printWidth 100, LF. `.editorconfig` matches (2-space, LF, trim trailing ws except in `.md`).
-- No code comments unless explicitly requested (repo convention).
-- Don't commit `wasm/pkg/`, `dist/`, `target/`, `certs/`, `logs/`, or `.claude/` — all gitignored.
+## Review and handoff discipline
 
-## Project state discipline
+- Review diffs and production call paths, not just newly introduced helpers.
+- Prefer one high-confidence finding over several speculative comments.
+- Block merges for demonstrated correctness, security, reproducibility, authority, material performance, or required-gate failures. Track valid non-blocking work without recursively expanding PR scope.
+- Record exact verification evidence and honest residual risk. Never fabricate a pass or treat a skipped/unrun check as green.
+- Keep PRs narrow enough that the independent review can reason about the semantic change.
 
-- `docs/ROADMAP.md` §**Current Status** (top of file) is the single source of truth for branch, working-tree state,
-  last gate result, next task, and blockers. **Read it first on pickup; refresh it before stopping**.
-- **Doc split is three-layer and NOT interchangeable**: product/engineering state -> `docs/ROADMAP.md`;
-  study protocol + operational reproducibility -> `docs/study/`. Never treat roadmap docs and study docs
-  as the same source of truth.
-- The roadmap distinguishes "component built" (✅ class+tests exist) from "wired into runtime" (🔙 instantiated
-  in production). Several components are built-only — do not assume a completed roadmap phase means it runs.
-- Phase 21 (Rust/WASM migration) is gated by capability flags enabled phase-by-phase. Never enable
-  `COMMAND_BUFFER` before `SCENE_RUST`. Migration plan + ABI standards live in `.claude/plan.md`.
+## Local-only agent configuration
 
-## Token-efficient workflow (standard practice)
-
-Apply to any agent working on this repo — solo or multi-agent. Keep context and tool spend low
-without losing correctness.
-
-- **Compact context at every commit boundary.** Once a task is committed and the gate is green,
-  drop stale implementation detail from working context before the next task; carry forward only
-  durable facts (governing rules, plan, last commit sha, next task). A green commit is a clean
-  forget-point.
-- **Don't re-read files you just edited.** Edit/Write tools confirm success and track file state;
-  re-reading to "verify" wastes context.
-- **Review diffs, not whole files.** `git diff --stat` for the overview, then read only the
-  suspicious hunks. Full-file reads only when the file is unfamiliar.
-- **Grep-verify instead of re-read.** A targeted grep contract ("`grep -rn 'if (caps &' src/` ==
-  0") beats a 2000-token read. Record the contract next to the finding so re-verification is a
-  one-liner next cycle.
-- **Tail tool output.** `npm test 2>&1 | tail -20`, `git log --oneline -5` — not full streams.
-- **Skip gate layers the change didn't touch, mid-iteration.** If a change didn't touch `wasm/`,
-  the `cargo test` result carries forward; re-run only the affected layers while iterating. (The
-  full gate order in "Required command order" still must pass before claiming a task done.)
-- **Brief precisely, then review the diff.** When delegating to a sub-agent, give a file-by-file
-  spec upfront; review only the resulting diff, not the agent's intermediate reads. A tight brief
-  that prevents a wrong implementation saves the rework.
-- **Resume a dead sub-agent, don't relaunch.** If a sub-agent hits a limit/error, resume it
-  (keeping its context) rather than spawning fresh — avoids re-reading the substrate.
-- **Persist substrate maps, don't re-derive them.** Load-bearing codebase facts (fingerprint
-  algorithms, kernel-call paths, facade wiring, ABI) belong in docs/memory, not re-discovered each
-  task.
-- **Put the audit log in the commit body.** Porting-rule mappings, deviations, and gate results
-  live in git history — no extra doc to maintain or load into context.
-- **Batch per-task doc/memory edits to one pass at commit time.** Don't update docs incrementally
-  mid-task.
-- **Ask sub-agents for structured reports** — "exact gate results + file-by-file one-line summary +
-  honest deviations" — not narratives.
-
-## Model routing (cross-tool)
-
-Provider selection for coding-agent work lives in the **local** `.ai/model-routing/`
-folder (gitignored, like `.agents/` and `.claude/`) so Claude Code, OpenCode, and
-Antigravity on the same machine read the same definitions:
-
-- `.ai/model-routing/model-routes.json` — four provider groups (`ollama-cloud`, `google`,
-  `opencode-go`, `opencode-zen`), task-class → preferred/fallback routing, switch triggers.
-- `.ai/model-routing/README.md` — the decision procedure (classify task → look up routing →
-  evaluate triggers → dispatch → fallback on failure → record attribution).
-- `.ai/model-routing/tool-mappings.md` — how to wire the groups into each tool's native config.
-
-**Manifest only — dispatch is unchanged.** The folder standardizes *which provider to pick*
-(and *when to switch*, e.g. on a 429); it does not alter how any harness spawns agents.
-Before heavy sub-agent fan-out, consult it and prefer `ollama-cloud` for bulk work, falling
-over to `google`/`opencode-zen` on rate-limit or for reasoning/long-context tasks. Model IDs
-in the manifest are editable placeholders (see its `_verify` field) — confirm against each
-provider's current catalog.
-
-## Multi-agent team workflow (`.agents/`)
-
-Full definitions: `.agents/agents.md` (working model) and `.agents/team.json` (machine-readable config,
-role roster, capabilities). Note: `.agents/` is gitignored — local-only config. Key rules:
-
-- **Two execution modes.** `one_off` for small bounded work (one coder + one adversarial reviewer,
-  diff-scoped, no milestone gate). `orchestrated` for milestones: architect defines scope/handoff ->
-  coder implements -> reviewer checks correctness/risk -> auditor independently re-runs validation.
-- **Default pipeline is lean**: architect -> coder -> reviewer -> auditor. Specialist reviewers are
-  engaged ONLY when their domain risk is material:
-  - `graphics_reviewer` — render lifecycle, disposal, instancing, frame-time (WebGL/three.js changes)
-  - `architecture_reviewer` — layer boundaries, state ownership, TS/three.js <-> WASM boundary
-  - `security_reviewer` — parsers, buffers, network boundaries, malformed input, prototype pollution
-  - `statistician` / `product_manager` / `documentation_curator` — study design, roadmap fit, doc hygiene
-- **Budget/context discipline**: reserve >= 30% of budget for the final verification gate; if remaining
-  budget drops below 25% before the gate, stop exploring and checkpoint. Reviewers/auditors work from
-  `git diff` + compact handoff, NOT full-tree re-reads. Checkpoint after milestones (verdict, exact
-  commands run, pass/fail, next steps) instead of restarting from scratch.
-- **Integrity rules (hard)**: no fake pass results, no fabricated validation output, no weakened
-  assertions, no implementations that bypass real logic to satisfy a test. The auditor must re-run the
-  validation path independently and report fresh evidence — never claim completion without it.
-- **Anti-patterns**: full-tree reads by every agent, multi-reviewer fan-out on small tasks, re-reading
-  the repo after a checkpoint, claiming completion without fresh validation output.
+Local `.agents/`, `.claude/`, and `.ai/` directories may contain harness/model-routing details and are not repository authority. They must not override this contract, the governing vision, the live roadmap, or executable configuration.
