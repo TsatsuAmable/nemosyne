@@ -85,7 +85,16 @@ impl PointCloud {
                 .ok_or_else(|| PointCloudError::MissingColumn(col_name.clone()))?;
 
             match dataset.primitive_column(index) {
-                Some(prim) => column_vecs.push(prim.values.clone()),
+                Some(prim) => {
+                    let mut vals = prim.values.clone();
+                    for i in 0..n {
+                        let is_valid = prim.validity.get(i).copied().unwrap_or(0) != 0;
+                        if !is_valid || !vals[i].is_finite() {
+                            vals[i] = 0.0;
+                        }
+                    }
+                    column_vecs.push(vals);
+                }
                 None => return Err(PointCloudError::UnsupportedColumnType(col_name.clone())),
             }
         }
@@ -95,6 +104,32 @@ impl PointCloud {
             n,
             d,
         })
+    }
+
+    /// Compute the Euclidean diagonal of the axis-aligned bounding box covering all points.
+    /// Runs in O(n · d) time and provides a tight upper bound for maximum pairwise distance.
+    pub fn bounding_box_diagonal(&self) -> f64 {
+        if self.n <= 1 || self.d == 0 {
+            return 0.0;
+        }
+        let mut sum_sq = 0.0;
+        for col in &self.columns {
+            let mut min_val = f64::INFINITY;
+            let mut max_val = f64::NEG_INFINITY;
+            for &val in col {
+                if val < min_val {
+                    min_val = val;
+                }
+                if val > max_val {
+                    max_val = val;
+                }
+            }
+            if min_val.is_finite() && max_val.is_finite() && max_val >= min_val {
+                let span = max_val - min_val;
+                sum_sq += span * span;
+            }
+        }
+        sum_sq.sqrt()
     }
 
     /// Squared Euclidean distance between points i and j.
@@ -235,6 +270,15 @@ impl GridSparseIndex {
     pub fn radius_neighbourhood(&self, cloud: &PointCloud, eps: f64) -> (RaggedNeighbourhood, NeighbourhoodMeta) {
         let n = cloud.n;
         let d = cloud.d;
+
+        // When d > 6, 3^d grid cell enumeration becomes exponential (3^7 = 2187)
+        // and omitting diagonal cells drops valid edges (RF-018 blocker).
+        // To guarantee mathematical soundness across all dimensions, d > 6 falls back
+        // to exact neighbor search.
+        if d > 6 {
+            return ExactIndex.radius_neighbourhood(cloud, eps);
+        }
+
         let eps_sq = eps * eps;
         let cell = if self.cell_size > 0.0 { self.cell_size } else { eps.max(0.0001) };
 
@@ -258,7 +302,7 @@ impl GridSparseIndex {
 
         offsets.push(0);
 
-        // Precompute neighbor cell offsets for dimension d
+        // Precompute full neighbor cell offsets for dimension d
         let neighbor_offsets = generate_neighbor_offsets(d);
 
         for i in 0..n {
@@ -313,24 +357,142 @@ impl NeighbourIndex for GridSparseIndex {
     }
 }
 
+/// Deterministic landmark-based approximate neighbourhood index.
+///
+/// **Approximate**: uses farthest-point sampling to place K landmarks across the
+/// point cloud, then connects points sharing at least one landmark within radius
+/// `eps`. Edges between points that do not share any landmark are not reported
+/// even if the two points are within `eps`. This is by design — landmark mode
+/// trades recall for O(K·N) build time vs O(N²) for exact search.
+/// The `seed` controls the initial point (LCG); subsequent landmarks are chosen
+/// by greedy farthest-point sampling for maximal coverage spread.
+pub struct LandmarkIndex {
+    pub seed: u32,
+    pub count: usize,
+}
+
+impl LandmarkIndex {
+    pub fn new(seed: u32, count: usize) -> Self {
+        Self { seed, count }
+    }
+
+    pub fn radius_neighbourhood(&self, cloud: &PointCloud, eps: f64) -> (RaggedNeighbourhood, NeighbourhoodMeta) {
+        let n = cloud.n;
+        let d = cloud.d;
+        let eps_sq = eps * eps;
+        let k = self.count.min(n).max(1);
+
+        // Select K landmarks using greedy farthest-point sampling for coverage.
+        // Seed controls the deterministic initial point via a single LCG step.
+        let mut landmarks: Vec<usize> = Vec::with_capacity(k);
+
+        if k == n {
+            landmarks.extend(0..n);
+        } else {
+            let lcg_start = (self.seed as u64).wrapping_mul(6364136223846793005).wrapping_add(1);
+            let first = (lcg_start as usize) % n;
+            landmarks.push(first);
+
+            // dist_to_set[i] = min squared distance from point i to any chosen landmark.
+            let mut dist_to_set: Vec<f64> = (0..n).map(|i| cloud.dist_sq(i, first)).collect();
+
+            while landmarks.len() < k {
+                // Pick the point with the maximum distance to the current landmark set.
+                let next = dist_to_set
+                    .iter()
+                    .enumerate()
+                    .filter(|&(i, _)| !landmarks.contains(&i))
+                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                    .map(|(i, _)| i)
+                    .unwrap_or(0);
+                landmarks.push(next);
+
+                // Update min distances with the newly added landmark.
+                for i in 0..n {
+                    let d_sq = cloud.dist_sq(i, next);
+                    if d_sq < dist_to_set[i] {
+                        dist_to_set[i] = d_sq;
+                    }
+                }
+            }
+        }
+
+        // For each point, record which landmarks are within radius eps.
+        // Build per-landmark buckets to avoid O(N × k × N) inner scan.
+        let mut landmark_buckets: Vec<Vec<usize>> = vec![Vec::new(); k];
+        for (l_idx, &landmark_pt) in landmarks.iter().enumerate() {
+            for i in 0..n {
+                if cloud.dist_sq(i, landmark_pt) <= eps_sq {
+                    landmark_buckets[l_idx].push(i);
+                }
+            }
+        }
+
+        // Build inverse: point → landmark indices it belongs to
+        let mut point_to_landmarks: Vec<Vec<usize>> = vec![Vec::new(); n];
+        for (l_idx, bucket) in landmark_buckets.iter().enumerate() {
+            for &pt in bucket {
+                point_to_landmarks[pt].push(l_idx);
+            }
+        }
+
+        // Connect points sharing at least one landmark, subject to eps distance check.
+        let mut offsets = Vec::with_capacity(n + 1);
+        let mut indices = Vec::new();
+        let mut dists = Vec::new();
+        offsets.push(0);
+
+        for i in 0..n {
+            let mut seen = std::collections::HashSet::new();
+            let mut neighbors: Vec<(u32, f32)> = Vec::new();
+
+            for &l_idx in &point_to_landmarks[i] {
+                for &j in &landmark_buckets[l_idx] {
+                    if j == i || !seen.insert(j) {
+                        continue;
+                    }
+                    let d_sq = cloud.dist_sq(i, j);
+                    if d_sq <= eps_sq {
+                        neighbors.push((j as u32, d_sq.sqrt() as f32));
+                    }
+                }
+            }
+
+            neighbors.sort_by_key(|&(j, _)| j);
+
+            for (j, dist) in neighbors {
+                indices.push(j);
+                dists.push(dist);
+            }
+            offsets.push(indices.len() as u32);
+        }
+
+        let build_digest = compute_build_digest("landmark", n, d, eps, (self.seed as u64) ^ ((k as u64) << 32));
+        let meta = NeighbourhoodMeta {
+            mode: NeighbourhoodMode::Landmark {
+                seed: self.seed,
+                count: k,
+            },
+            n,
+            d,
+            radius: eps,
+            build_digest,
+        };
+
+        (RaggedNeighbourhood::new(offsets, indices, dists), meta)
+    }
+}
+
+impl NeighbourIndex for LandmarkIndex {
+    fn radius_neighbourhood(&self, cloud: &PointCloud, eps: f64) -> (RaggedNeighbourhood, NeighbourhoodMeta) {
+        self.radius_neighbourhood(cloud, eps)
+    }
+}
+
 fn generate_neighbor_offsets(d: usize) -> Vec<Vec<i64>> {
     if d == 0 {
         return vec![vec![]];
     }
-    if d > 6 {
-        // For higher dimensions, cap neighbor search to immediate axis-aligned and center
-        let mut res = vec![vec![0; d]];
-        for dim in 0..d {
-            let mut plus = vec![0; d];
-            plus[dim] = 1;
-            res.push(plus);
-            let mut minus = vec![0; d];
-            minus[dim] = -1;
-            res.push(minus);
-        }
-        return res;
-    }
-
     let mut result = vec![vec![]];
     for _ in 0..d {
         let mut next = Vec::new();
@@ -395,6 +557,33 @@ mod tests {
     }
 
     #[test]
+    fn c2_high_dimensional_diagonal_parity_rf018() {
+        // Test in 7D where points are diagonal neighbours
+        let d = 7;
+        let mut pt_a = vec![0.7; d];
+        let mut pt_b = vec![1.1; d];
+        let mut columns = vec![Vec::new(); d];
+        for dim in 0..d {
+            columns[dim].push(pt_a[dim]);
+            columns[dim].push(pt_b[dim]);
+        }
+        let cloud = PointCloud {
+            columns,
+            n: 2,
+            d,
+        };
+
+        let exact_idx = ExactIndex;
+        let (csr_exact, _) = exact_idx.radius_neighbourhood(&cloud, 1.2);
+
+        let sparse_idx = GridSparseIndex::new(1.0);
+        let (csr_sparse, _) = sparse_idx.radius_neighbourhood(&cloud, 1.2);
+
+        assert_eq!(csr_exact.offsets, csr_sparse.offsets);
+        assert_eq!(csr_exact.indices, csr_sparse.indices);
+    }
+
+    #[test]
     fn c3_grid_sparse_soundness() {
         let mut col = Vec::new();
         for i in 0..100 {
@@ -430,5 +619,64 @@ mod tests {
 
         assert_eq!(csr1, csr2);
         assert_eq!(meta1.build_digest, meta2.build_digest);
+    }
+
+    #[test]
+    fn c5_landmark_mode_determinism() {
+        let mut col1 = Vec::new();
+        let mut col2 = Vec::new();
+        for i in 0..30 {
+            col1.push(i as f64 * 0.2);
+            col2.push((30 - i) as f64 * 0.2);
+        }
+        let cloud = PointCloud {
+            columns: vec![col1, col2],
+            n: 30,
+            d: 2,
+        };
+
+        let lm = LandmarkIndex::new(42, 5);
+        let (csr1, meta1) = lm.radius_neighbourhood(&cloud, 1.0);
+        let (csr2, meta2) = lm.radius_neighbourhood(&cloud, 1.0);
+
+        assert_eq!(csr1, csr2);
+        assert_eq!(meta1.build_digest, meta2.build_digest);
+        assert_eq!(meta1.mode, NeighbourhoodMode::Landmark { seed: 42, count: 5 });
+    }
+
+    #[test]
+    fn c5b_landmark_farthest_sampling_spreads_landmarks() {
+        // Two tight clusters far apart. With k=2, farthest-point sampling must
+        // pick one landmark in each cluster; random selection might not.
+        let mut col = Vec::new();
+        for i in 0..10 {
+            col.push(i as f64 * 0.05); // cluster A: [0, 0.45]
+        }
+        for i in 0..10 {
+            col.push(100.0 + i as f64 * 0.05); // cluster B: [100, 100.45]
+        }
+        let cloud = PointCloud { columns: vec![col], n: 20, d: 1 };
+
+        let lm = LandmarkIndex::new(0, 2);
+        let (csr, _) = lm.radius_neighbourhood(&cloud, 0.2);
+
+        // Points in cluster A must see neighbours within cluster A.
+        let a_neighbors: usize = (0..10).map(|i| csr.neighbors(i).count()).sum();
+        assert!(a_neighbors > 0, "cluster A points should have neighbours");
+
+        // Points in cluster B must see neighbours within cluster B.
+        let b_neighbors: usize = (10..20).map(|i| csr.neighbors(i).count()).sum();
+        assert!(b_neighbors > 0, "cluster B points should have neighbours");
+    }
+
+    #[test]
+    fn c6_bounding_box_diagonal_property() {
+        let cloud = PointCloud {
+            columns: vec![vec![0.0, 3.0], vec![0.0, 4.0]],
+            n: 2,
+            d: 2,
+        };
+        let diag = cloud.bounding_box_diagonal();
+        assert!((diag - 5.0).abs() < 1e-6);
     }
 }
