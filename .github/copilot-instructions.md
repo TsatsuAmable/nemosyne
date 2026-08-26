@@ -4,11 +4,30 @@ Project-wide engineering invariants are defined in `AGENTS.md`. Review Nemosyne 
 
 Every review finding must begin with exactly one disposition:
 
-- **BLOCKER:** must be fixed before merge because it demonstrates a concrete correctness, security/privacy, reproducibility/data-integrity, analytical-authority, material performance, or required-gate failure.
+- **BLOCKER:** must be fixed before merge because it demonstrates a concrete correctness, security/privacy, reproducibility/data-integrity, analytical-authority, material performance, required-process, or required-gate failure.
 - **DEFER:** valid work that should be tracked but does not invalidate the current change.
 - **SUGGESTION:** optional improvement with no demonstrated failure mode.
 
 Do not use blocking language for speculation, naming/style preferences, broad refactors, future-proofing, optional diagnostics, or test expansion without a demonstrated risk. Prefer silence over low-confidence review noise and do not repeat an existing finding in a new form.
+
+## Adversarial implementation protocol review
+
+Apply the pre/post adversarial implementation protocol from `AGENTS.md` to implementation PRs.
+
+For a high-risk change, verify that the PR or linked working material identifies:
+
+- the invariant the change is intended to establish or preserve;
+- the canonical authority and real production path that must enforce it;
+- concrete failure modes that could make the implementation plausible but wrong;
+- falsifying tests/checks at the cheapest authoritative layer;
+- non-goals/dependencies that prevent the tranche from overclaiming completion; and
+- a post-implementation adversarial disposition describing what was attacked after implementation, blockers fixed, and valid residuals deferred.
+
+A missing or content-free adversarial contract on high-risk work is a required-process failure. Do not accept checkbox text that merely paraphrases the implementation. The contract must be capable of falsifying the design.
+
+For a claimed low-risk exemption, verify that the change is genuinely editorial, formatting-only, comment-only, or mechanically non-semantic. If the diff affects runtime behavior, authority, evidence, persistence, security, performance, or interaction semantics, the exemption is invalid.
+
+The post-implementation pass should attack the final production call path and test strength. Look specifically for a failure mode that the original pre-review did not anticipate. Green CI does not substitute for this review.
 
 ## Review priorities
 
@@ -52,6 +71,7 @@ Do not use blocking language for speculation, naming/style preferences, broad re
    - Require regression coverage for blocker-class bug fixes when feasible.
    - Prefer boundary, property, differential, invariant, and real production-path tests over snapshots or mock-only existence proofs.
    - For JS/Rust boundaries, tests should prove one semantic authority rather than two implementations agreeing accidentally.
+   - Check that the tests would fail if the failure mode named in the pre-implementation adversarial contract were reintroduced.
 
 ## Scope
 
