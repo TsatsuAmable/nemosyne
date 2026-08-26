@@ -34,6 +34,11 @@ const SOURCE_INDEX_BYTES: u64 = 8;
 const VEC_METADATA_BYTES: u64 = 24;
 const CSR_OFFSET_BYTES: u64 = 4;
 const CSR_EDGE_BYTES: u64 = 8; // u32 neighbour index + f32 distance
+const PERSISTENCE_EDGE_BYTES: u64 = 24;
+const BETTI_EDGE_BYTES: u64 = 16;
+const MAPPER_NODE_BASE_BYTES: u64 = 72;
+const MAPPER_EDGE_BYTES: u64 = 32;
+const SORT_COMPARISON_UPPER_BOUND: u64 = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -102,11 +107,54 @@ impl Default for AnalysisBudget {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TdaOperation {
+    Mapper,
+    Persistence,
+    Betti0,
+}
+
+impl TdaOperation {
+    fn from_code(code: u32) -> Option<Self> {
+        match code {
+            0 => Some(Self::Mapper),
+            1 => Some(Self::Persistence),
+            2 => Some(Self::Betti0),
+            _ => None,
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Mapper => "compute_mapper_graph",
+            Self::Persistence => "compute_persistence_intervals",
+            Self::Betti0 => "compute_betti0_curve",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TdaResourcePreflight {
+    pub source_rows: usize,
+    pub eligible_rows: usize,
+    pub excluded_rows: usize,
+    pub dimensions: usize,
+    pub missing_data_policy: String,
+    pub estimate: ResourceEstimate,
+    pub refusal: Option<String>,
+}
+
 fn sat_mul(values: &[u64]) -> u64 {
     values
         .iter()
         .copied()
         .fold(1u64, |acc, value| acc.saturating_mul(value))
+}
+
+fn undirected_pair_count(rows: usize) -> u64 {
+    let n = rows as u64;
+    n.saturating_mul(n.saturating_sub(1)).saturating_div(2)
 }
 
 /// Estimated owned compact column-major point storage: f64 coordinates,
@@ -280,6 +328,204 @@ pub fn hierarchical_estimate(
     }
 }
 
+fn tda_estimate(
+    operation: TdaOperation,
+    rows: usize,
+    dimensions: usize,
+    mapper_bins: usize,
+    betti_steps: usize,
+    budget: AnalysisBudget,
+) -> ResourceEstimate {
+    let rows_u64 = rows as u64;
+    let dimensions_u64 = dimensions.max(1) as u64;
+    let pair_count = undirected_pair_count(rows);
+    let neighbourhood_work = sat_mul(&[rows_u64, rows_u64, dimensions_u64]);
+    let feature_space_bytes = row_matrix_bytes(rows, dimensions)
+        .saturating_add(rows_u64.saturating_mul(8)); // first-feature/filter working vector
+    let neighbourhood_bytes = point_cloud_bytes(rows, dimensions)
+        .saturating_add(csr_worst_case_bytes(rows));
+
+    let (work, bytes, complexity) = match operation {
+        TdaOperation::Mapper => {
+            let bins = mapper_bins.max(1) as u64;
+            let per_row_node_memberships = rows_u64.saturating_mul(bins);
+            let possible_row_node_pairs = rows_u64
+                .saturating_mul(bins.saturating_mul(bins.saturating_sub(1)).saturating_div(2));
+            let edge_sort_work = possible_row_node_pairs
+                .saturating_mul(SORT_COMPARISON_UPPER_BOUND);
+            let work = neighbourhood_work
+                .saturating_mul(bins)
+                .saturating_add(edge_sort_work);
+            let node_bytes = per_row_node_memberships.saturating_mul(
+                MAPPER_NODE_BASE_BYTES.saturating_add(dimensions_u64.saturating_mul(8)),
+            );
+            let row_to_node_bytes = per_row_node_memberships.saturating_mul(16);
+            let edge_bytes = possible_row_node_pairs.saturating_mul(MAPPER_EDGE_BYTES);
+            let bytes = feature_space_bytes
+                .saturating_add(neighbourhood_bytes)
+                .saturating_add(node_bytes)
+                .saturating_add(row_to_node_bytes)
+                .saturating_add(edge_bytes);
+            (work, bytes, AnalysisComplexity::Cubic)
+        }
+        TdaOperation::Persistence => {
+            let sort_work = pair_count.saturating_mul(SORT_COMPARISON_UPPER_BOUND);
+            let work = neighbourhood_work.saturating_add(sort_work);
+            let bytes = feature_space_bytes
+                .saturating_add(neighbourhood_bytes)
+                .saturating_add(pair_count.saturating_mul(PERSISTENCE_EDGE_BYTES))
+                .saturating_add(rows_u64.saturating_mul(64));
+            (work, bytes, AnalysisComplexity::Quadratic)
+        }
+        TdaOperation::Betti0 => {
+            let sort_work = pair_count.saturating_mul(SORT_COMPARISON_UPPER_BOUND);
+            let work = neighbourhood_work
+                .saturating_add(sort_work)
+                .saturating_add(betti_steps as u64);
+            let bytes = feature_space_bytes
+                .saturating_add(neighbourhood_bytes)
+                .saturating_add(pair_count.saturating_mul(BETTI_EDGE_BYTES))
+                .saturating_add((betti_steps as u64).saturating_add(1).saturating_mul(16))
+                .saturating_add(rows_u64.saturating_mul(32));
+            (work, bytes, AnalysisComplexity::Quadratic)
+        }
+    };
+
+    let high_dimensional_exact_fallback = rows > DEFAULT_EXACT_PAIR_ROWS && dimensions > 6;
+    let (decision, reason_code) = if high_dimensional_exact_fallback
+        && (bytes > budget.max_transient_bytes || work > budget.max_exact_work_units)
+    {
+        (
+            ResourceDecision::UnsupportedAtScale,
+            Some("HIGH_DIMENSIONAL_EXACT_FALLBACK_OVER_BUDGET".to_string()),
+        )
+    } else if bytes > budget.max_transient_bytes {
+        (
+            ResourceDecision::UnsupportedAtScale,
+            Some("TRANSIENT_MEMORY_BUDGET_EXCEEDED".to_string()),
+        )
+    } else if work > budget.max_exact_work_units {
+        (
+            ResourceDecision::UnsupportedAtScale,
+            Some("EXACT_WORK_BUDGET_EXCEEDED".to_string()),
+        )
+    } else {
+        (ResourceDecision::ExactAllowed, None)
+    };
+
+    ResourceEstimate {
+        operation: operation.name().to_string(),
+        rows,
+        dimensions,
+        complexity,
+        estimated_work_units: work,
+        estimated_transient_bytes: bytes,
+        decision,
+        reason_code,
+    }
+}
+
+fn build_tda_preflight(
+    columns: &[crate::data::column::Column],
+    columnar: &crate::data::columnar::ColumnarDataset,
+    params: &serde_json::Value,
+    operation: TdaOperation,
+    budget: AnalysisBudget,
+) -> Result<TdaResourcePreflight, String> {
+    let feature_names: Vec<&str> = params
+        .get("featureColumns")
+        .and_then(|value| value.as_array())
+        .map(|values| values.iter().filter_map(|value| value.as_str()).collect())
+        .unwrap_or_default();
+    let borrowed = crate::data::point_access::borrowed_feature_columns(
+        columns,
+        columnar,
+        &feature_names,
+    )
+    .map_err(|error| error.to_string())?;
+    let source_rows = columnar.row_count();
+    let eligible_rows = (0..source_rows)
+        .filter(|&row| borrowed.iter().all(|column| column.is_valid(row)))
+        .count();
+    let dimensions = borrowed.len();
+    let mapper_bins = params
+        .get("bins")
+        .and_then(|value| value.as_u64())
+        .unwrap_or(10) as usize;
+    let betti_steps = params
+        .get("steps")
+        .and_then(|value| value.as_u64())
+        .unwrap_or(10) as usize;
+    let estimate = tda_estimate(
+        operation,
+        eligible_rows,
+        dimensions,
+        mapper_bins,
+        betti_steps,
+        budget,
+    );
+    let refusal = require_exact(&estimate).err();
+
+    Ok(TdaResourcePreflight {
+        source_rows,
+        eligible_rows,
+        excluded_rows: source_rows.saturating_sub(eligible_rows),
+        dimensions,
+        missing_data_policy: crate::data::topology::TDA_MISSING_DATA_POLICY.to_string(),
+        estimate,
+        refusal,
+    })
+}
+
+/// Rust-owned preflight for production TDA calls. The host passes the exact
+/// request JSON and an operation code (0 Mapper, 1 persistence, 2 Betti-0).
+/// The estimator reads the resident columnar validity buffers directly, counts
+/// complete-case eligible observations without constructing a row-index list,
+/// and returns a compact decision envelope through the standard two-call ABI.
+///
+/// A malformed request, invalid handle or unsupported feature selection returns
+/// the ordinary zero sentinel so existing validation behavior remains owned by
+/// the TDA export itself. A valid resource refusal is returned as JSON and must
+/// be surfaced by the host rather than converted into an empty topology result.
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn data_tda_resource_preflight(
+    handle: u32,
+    params_ptr: u32,
+    params_len: u32,
+    operation_code: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let Some(operation) = TdaOperation::from_code(operation_code) else {
+        return 0;
+    };
+    let Some(params_bytes) = (unsafe { crate::allocator::try_view(params_ptr, params_len) }) else {
+        return 0;
+    };
+    let params: serde_json::Value = match serde_json::from_slice(params_bytes) {
+        Ok(value) => value,
+        Err(_) => return 0,
+    };
+    let Some((_name, columns, columnar)) = crate::data::columnar_snapshot(handle) else {
+        return 0;
+    };
+    let preflight = match build_tda_preflight(
+        &columns,
+        columnar.as_ref(),
+        &params,
+        operation,
+        AnalysisBudget::default(),
+    ) {
+        Ok(value) => value,
+        Err(_) => return 0,
+    };
+    let json = match serde_json::to_string(&preflight) {
+        Ok(value) => value,
+        Err(_) => return 0,
+    };
+    crate::write_str_out(&json, out_ptr, out_len)
+}
+
 pub fn require_exact(estimate: &ResourceEstimate) -> Result<(), String> {
     match estimate.decision {
         ResourceDecision::ExactAllowed => Ok(()),
@@ -301,6 +547,10 @@ pub fn require_exact(estimate: &ResourceEstimate) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::column::{Column, ColumnType};
+    use crate::data::columnar::ColumnarDataset;
+    use crate::data::dataset::Dataset;
+    use crate::data::value::Value;
 
     #[test]
     fn memory_estimates_are_stable_and_saturating() {
@@ -374,11 +624,133 @@ mod tests {
     }
 
     #[test]
+    fn mapper_budget_accounts_for_repeated_bins_and_overlap_edge_bookkeeping() {
+        let small = tda_estimate(
+            TdaOperation::Mapper,
+            100,
+            2,
+            10,
+            10,
+            AnalysisBudget::default(),
+        );
+        assert_eq!(small.decision, ResourceDecision::ExactAllowed);
+
+        let unbounded_bins = tda_estimate(
+            TdaOperation::Mapper,
+            100,
+            2,
+            1_000,
+            10,
+            AnalysisBudget::default(),
+        );
+        assert_eq!(unbounded_bins.decision, ResourceDecision::UnsupportedAtScale);
+        assert_eq!(
+            unbounded_bins.reason_code.as_deref(),
+            Some("EXACT_WORK_BUDGET_EXCEEDED")
+        );
+    }
+
+    #[test]
+    fn betti_budget_accounts_for_requested_steps() {
+        let estimate = tda_estimate(
+            TdaOperation::Betti0,
+            10,
+            2,
+            10,
+            100_000_000,
+            AnalysisBudget::default(),
+        );
+        assert_eq!(estimate.decision, ResourceDecision::UnsupportedAtScale);
+        assert_eq!(estimate.reason_code.as_deref(), Some("EXACT_WORK_BUDGET_EXCEEDED"));
+    }
+
+    #[test]
+    fn large_high_dimensional_tda_refuses_hidden_exact_fallback() {
+        let estimate = tda_estimate(
+            TdaOperation::Persistence,
+            9_000,
+            7,
+            10,
+            10,
+            AnalysisBudget::default(),
+        );
+        assert_eq!(estimate.decision, ResourceDecision::UnsupportedAtScale);
+        assert_eq!(
+            estimate.reason_code.as_deref(),
+            Some("HIGH_DIMENSIONAL_EXACT_FALLBACK_OVER_BUDGET")
+        );
+    }
+
+    #[test]
+    fn small_high_dimensional_tda_remains_exact() {
+        let estimate = tda_estimate(
+            TdaOperation::Persistence,
+            100,
+            7,
+            10,
+            10,
+            AnalysisBudget::default(),
+        );
+        assert_eq!(estimate.decision, ResourceDecision::ExactAllowed);
+    }
+
+    #[test]
+    fn tda_preflight_uses_complete_case_validity_without_zero_imputation() {
+        let dataset = Dataset::new(
+            "preflight",
+            vec![
+                Column::new("x", ColumnType::Numeric),
+                Column::new("y", ColumnType::Numeric),
+            ],
+            vec![
+                std::collections::HashMap::from([
+                    ("x".to_string(), Value::Number(0.0)),
+                    ("y".to_string(), Value::Number(1.0)),
+                ]),
+                std::collections::HashMap::from([
+                    ("x".to_string(), Value::Null),
+                    ("y".to_string(), Value::Number(2.0)),
+                ]),
+                std::collections::HashMap::from([
+                    ("x".to_string(), Value::Number(3.0)),
+                    ("y".to_string(), Value::Number(4.0)),
+                ]),
+            ],
+        );
+        let columnar = ColumnarDataset::from_dataset(&dataset);
+        let params = serde_json::json!({ "featureColumns": ["x", "y"], "bins": 10 });
+        let preflight = build_tda_preflight(
+            &dataset.columns,
+            &columnar,
+            &params,
+            TdaOperation::Mapper,
+            AnalysisBudget::default(),
+        )
+        .unwrap();
+        assert_eq!(preflight.source_rows, 3);
+        assert_eq!(preflight.eligible_rows, 2);
+        assert_eq!(preflight.excluded_rows, 1);
+        assert_eq!(preflight.dimensions, 2);
+        assert_eq!(preflight.missing_data_policy, "complete_case_selected_features");
+        assert!(preflight.refusal.is_none());
+    }
+
+    #[test]
     fn budget_is_kernel_safety_not_ten_million_row_qualification() {
         let estimate = exact_neighbourhood_estimate(10_000_000, 2, AnalysisBudget::default());
         assert_ne!(estimate.decision, ResourceDecision::ExactAllowed);
 
         let kmeans = kmeans_estimate(10_000_000, 2, 8, AnalysisBudget::default());
         assert_ne!(kmeans.decision, ResourceDecision::ExactAllowed);
+
+        let tda = tda_estimate(
+            TdaOperation::Persistence,
+            10_000_000,
+            2,
+            10,
+            10,
+            AnalysisBudget::default(),
+        );
+        assert_ne!(tda.decision, ResourceDecision::ExactAllowed);
     }
 }
