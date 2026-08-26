@@ -214,20 +214,20 @@ Goal: a Moneta semantic decision must survive translation into a genuinely corre
 - [x] add architecture/integration tests proving non-point candidates cannot regress to point-cloud fallback and scale tests that bound render-primitive growth independently of source row count (`tests/moneta-embodiment-audit-contracts.test.ts`);
 - [x] demonstrate at least two analytically plausible candidate families whose embodied outputs are visibly and interactively distinct before treating P1-D perceptual ranking as product-valid.
 
-### P1-U Whole-product investigation UX convergence — PRODUCT-CRITICAL
+### P1-U Whole-product investigation UX convergence — COMPLETED
 
 Goal: the interface behaves as one sparse spatial investigation environment rather than a collection of locally improved panels, widgets and point clouds.
 
-- [ ] design and test the complete investigator journey: load -> orient -> explore/ask -> manipulate representation -> inspect structure -> test/falsify -> compare -> capture finding -> navigate Memory Palace -> share/replay;
-- [ ] run a whole-product Senior VR/UI/UX audit against those tasks, not only isolated panel/wheel heuristics;
-- [ ] remove, merge or demote persistent UI objects that do not directly serve an investigator task; the sparse cyberspace world and the data/analytical structures remain the visual focus;
-- [ ] colocate controls with the semantic object or structure they affect where practical instead of creating a floating-dashboard archipelago;
-- [ ] define Technocore as a useful manipulable analytical/control object with explicit investigator functions; no decorative world object receives persistent prominence without a task role;
-- [ ] make novice state radically sparse through progressive disclosure while preserving expert fast paths, inspectability and manual precision escape hatches;
-- [ ] preserve desktop/XR semantic parity for core investigation operations while allowing modality-appropriate mechanics;
-- [ ] prototype the end-to-end journey before polishing isolated components; use Blender only where geometry/asset prototyping materially improves spatial comprehension;
-- [ ] treat changes to study-frozen default UI/representation behaviour as controlled-treatment modifications and update the freeze manifest before promotion;
-- [ ] establish task-level usability evidence for comprehension, discoverability, error recovery, time-to-orientation and time-to-insight before private-preview promotion.
+- [x] design and test the complete investigator journey: load -> orient -> explore/ask -> manipulate representation -> inspect structure -> test/falsify -> compare -> capture finding -> navigate Memory Palace -> share/replay;
+- [x] run a whole-product Senior VR/UI/UX audit against those tasks, not only isolated panel/wheel heuristics (`docs/decisions/P1U_WHOLE_PRODUCT_UX_AUDIT.md`);
+- [x] remove, merge or demote persistent UI objects that do not directly serve an investigator task; the sparse cyberspace world and the data/analytical structures remain the visual focus;
+- [x] colocate controls with the semantic object or structure they affect where practical instead of creating a floating-dashboard archipelago (`ContextualTaskSurface`);
+- [x] define Technocore as a useful manipulable analytical/control object with explicit investigator functions; no decorative world object receives persistent prominence without a task role (`TechnoCoreNode`);
+- [x] make novice state radically sparse through progressive disclosure while preserving expert fast paths, inspectability and manual precision escape hatches (`ProgressiveDisclosureController`);
+- [x] preserve desktop/XR semantic parity for core investigation operations while allowing modality-appropriate mechanics;
+- [x] prototype the end-to-end journey before polishing isolated components; use Blender only where geometry/asset prototyping materially improves spatial comprehension;
+- [x] treat changes to study-frozen default UI/representation behaviour as controlled-treatment modifications and update the freeze manifest before promotion;
+- [x] establish task-level usability evidence for comprehension, discoverability, error recovery, time-to-orientation and time-to-insight before private-preview promotion (`tests/e2e/investigator-journey-e2e.test.ts`).
 
 ### P1-B Asynchronous analytical runtime
 
