@@ -17,12 +17,14 @@ export interface AnalyticalDatasetPayload {
 
 export type DatasetPayload = AnalyticalDatasetPayload;
 
+export interface AnalyticalDatasetIdentity {
+  readonly fingerprint: string;
+  readonly version: number;
+}
+
 export interface AnalyticalDatasetRegistration {
   readonly registrationId: string;
-  readonly dataset: {
-    readonly fingerprint: string;
-    readonly version: number;
-  };
+  readonly dataset: AnalyticalDatasetIdentity;
   readonly generation: number;
   readonly payload: AnalyticalDatasetPayload;
 }
@@ -30,10 +32,7 @@ export interface AnalyticalDatasetRegistration {
 export interface AnalyticalExecutionRequest {
   readonly requestId: string;
   readonly operation: AnalyticalOperationKind;
-  readonly dataset: {
-    readonly fingerprint: string;
-    readonly version: number;
-  };
+  readonly dataset: AnalyticalDatasetIdentity;
   readonly generation: number;
   readonly handle?: number;
   readonly params: Record<string, unknown>;
@@ -71,6 +70,14 @@ export interface AnalyticalExecutionPort {
    * omit it because they share the caller's kernel instance/handle space.
    */
   registerDataset?(registration: AnalyticalDatasetRegistration): Promise<void>;
+  /**
+   * Cheap capability query used before constructing a potentially O(N)
+   * recovery payload. A true result means this execution port already owns the
+   * authoritative dataset for the supplied generation and identity. It must
+   * never be used as an analytical fact or as a substitute for fingerprint
+   * verification inside the Worker.
+   */
+  hasRegisteredDataset?(dataset: AnalyticalDatasetIdentity, generation: number): boolean;
   /** Release worker/listener resources owned by this port. */
   dispose?(): void;
   readonly isAsync: boolean;
