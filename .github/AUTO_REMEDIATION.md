@@ -2,7 +2,7 @@
 
 Automatic PR mutation is currently **disabled**. This is an engineering-safety policy, not a migration-specific exception.
 
-The governing project contract is `AGENTS.md`; review dispositions are defined in `.github/copilot-instructions.md`.
+The governing project contract is `AGENTS.md`; review dispositions are defined in `.github/copilot-instructions.md`. Any present or future remediation agent inherits the adversarial implementation protocol from `AGENTS.md` rather than bypassing it because the mutation is automated.
 
 ## Current operating model
 
@@ -11,6 +11,7 @@ The governing project contract is `AGENTS.md`; review dispositions are defined i
 3. Only blocker-class findings should automatically interrupt the active implementation slice.
 4. Valid non-blocking findings are recorded in the appropriate roadmap/findings stream rather than spawning branch mutations.
 5. A PR may merge only when required gates are green and blocker findings have been dispositioned; green CI alone does not imply `VERIFIED COMPLETE`.
+6. High-risk remediation follows the same pre-implementation adversarial contract and post-implementation adversarial review as human-directed implementation work.
 
 ## Why automatic mutation remains disabled
 
@@ -25,9 +26,11 @@ Even when individual suggestions are reasonable, that loop can reduce throughput
 Do not enable automatic mutation merely because credentials are available. A future workflow must first prove that it can:
 
 - act only on blocker-class findings with a concrete failure mode;
+- construct or inherit the required adversarial contract before mutating high-risk code, including invariant, authority path, failure modes, falsifying evidence and non-goals;
 - ignore or track `DEFER` and `SUGGESTION` findings without modifying the branch;
 - deduplicate semantically equivalent findings;
 - run focused ownership-aligned verification before full fan-in;
+- perform a distinct post-mutation adversarial pass rather than treating the successful patch or green CI as proof;
 - preserve Rust/WASM analytical authority and production-path evidence requirements;
 - never automatically modify workflow/ruleset, dependency, secret/authentication, or deployment policy;
 - cap remediation attempts and fail closed to human inspection;
