@@ -24,10 +24,12 @@ For checked areas, briefly state the main failure mode considered and how it was
 
 ## Adversarial implementation contract
 
-Follow the risk classification in `AGENTS.md`.
+Follow the risk classification in `AGENTS.md`. **Select exactly one** of the following:
 
 - [ ] **High-risk change:** the pre-implementation adversarial contract below was completed before implementation.
 - [ ] **Low-risk exemption:** this change is purely editorial/formatting/comment-only or demonstrably mechanical with unchanged semantics. Explain why below.
+
+Selecting both or neither is not a valid disposition for an implementation PR.
 
 ### Pre-implementation adversarial contract
 
