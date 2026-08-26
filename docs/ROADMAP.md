@@ -334,30 +334,30 @@ Landed first-pass work includes the 10-phase journey model, coordinator, task-su
 
 **Programme rule:** one tranche or a tightly coupled sub-tranche should be the normal PR unit. Preserve `InputRouter` as input-orchestration authority, Atlas/investigation as semantic/provenance authority, Rust/WASM as analytical authority and Three.js as spatial embodiment. UIKit or any pointer library may provide rendering/event mechanics but must not become a second semantic command authority. P1-U becomes `VERIFIED COMPLETE` only after P1-U0 through P1-U9 are complete, RF-005/RF-006/RF-008/RF-027 are closed, and physical Quest evidence agrees.
 
-#### P1-U0 — UI design-system contract and substrate decision — IMPLEMENTATION PARTIAL
+#### P1-U0 — UI design-system contract and substrate decision — IMPLEMENTATION LANDED
 
 Purpose: establish one enforceable visual/component system before migrating surfaces.
 
-- [ ] benchmark the current canvas/bespoke panel path against vanilla `@pmndrs/uikit` on Quest-relevant workloads under UX-05; measure text legibility, draw calls, allocations/GC, scrolling, clipping and disposal rather than adopting a library by taste;
-- [ ] if the benchmark supports adoption, create a Nemosyne-owned `src/vr/ui-system/` wrapper with `tokens`, `theme`, `SpatialUIRoot`, `SpatialPanel`, generic controls, interaction adapters and accessibility controllers; otherwise implement equivalent Nemosyne-owned contracts without a second framework;
-- [ ] encode the design guide's surface, typography, spacing, motion, target-size and reference-frame tokens; keep data encodings independent of the UI palette;
-- [ ] require every component to declare semantic purpose, reference frame, supported modalities and consequence/undo behavior;
-- [ ] add architecture guards proving generic UI controls cannot import analytical kernels/Moneta internals or maintain parallel analytical state;
-- [ ] add lifecycle tests for UI-root disposal, texture/material/listener cleanup and World recovery/reinitialisation.
+- [x] benchmark the current canvas/bespoke panel path against vanilla `@pmndrs/uikit` on Quest-relevant workloads under UX-05; measure text legibility, draw calls, allocations/GC, scrolling, clipping and disposal rather than adopting a library by taste;
+- [x] if the benchmark supports adoption, create a Nemosyne-owned `src/vr/ui-system/` wrapper with `tokens`, `theme`, `SpatialUIRoot`, `SpatialPanel`, generic controls, interaction adapters and accessibility controllers; otherwise implement equivalent Nemosyne-owned contracts without a second framework;
+- [x] encode the design guide's surface, typography, spacing, motion, target-size and reference-frame tokens; keep data encodings independent of the UI palette;
+- [x] require every component to declare semantic purpose, reference frame, supported modalities and consequence/undo behavior;
+- [x] add architecture guards proving generic UI controls cannot import analytical kernels/Moneta internals or maintain parallel analytical state;
+- [x] add lifecycle tests for UI-root disposal, texture/material/listener cleanup and World recovery/reinitialisation.
 
 **Exit gate:** a minimal panel/control fixture renders with the Nemosyne visual tokens, survives teardown/recovery without leaks, and preserves existing authority boundaries. Dependency choice is justified by measured evidence and recorded as a decision, not implicit package drift.
 
-#### P1-U1 — unified near/far interaction and Direct Touch substrate — IMPLEMENTATION PARTIAL
+#### P1-U1 — unified near/far interaction and Direct Touch substrate — IMPLEMENTATION LANDED
 
 Purpose: make Direct Touch, Direct Grab, controller/hand ray and desktop input resolve through one semantic interaction path.
 
-- [ ] implement `NearFieldInteractor` from WebXR hand/controller-tip poses with configurable near envelopes; reserve index fingertip as the precision poke point where available;
-- [ ] implement the modality priority `captured manipulation > direct touch > direct grab > controller-tip direct > distance ray > mouse > dwell fallback`;
-- [ ] implement hysteretic near/far switching around the default ~0.55 m near envelope; fade/suppress the corresponding far ray when near intent is unambiguous and restore it smoothly on retreat;
-- [ ] implement `FAR -> NEAR_HOVER -> CONTACT -> PRESS -> COMMIT -> RELEASE -> RECOVER`, including drag and pre-commit cancel paths; commit on threshold/release rather than first collision;
-- [ ] add pointer capture, cancellation, occlusion, panel-before-scene precedence and one-semantic-action-per-commit guarantees;
-- [ ] add visual proximity/contact/commit feedback and optional audio/haptics without treating simulated pressure as a scientific signal;
-- [ ] preserve current ray smoothing, semantic coercion and raw-observation precision escape hatch for dense data.
+- [x] implement `NearFieldInteractor` from WebXR hand/controller-tip poses with configurable near envelopes; reserve index fingertip as the precision poke point where available;
+- [x] implement the modality priority `captured manipulation > direct touch > direct grab > controller-tip direct > distance ray > mouse > dwell fallback`;
+- [x] implement hysteretic near/far switching around the default ~0.55 m near envelope; fade/suppress the corresponding far ray when near intent is unambiguous and restore it smoothly on retreat;
+- [x] implement `FAR -> NEAR_HOVER -> CONTACT -> PRESS -> COMMIT -> RELEASE -> RECOVER`, including drag and pre-commit cancel paths; commit on threshold/release rather than first collision;
+- [x] add pointer capture, cancellation, occlusion, panel-before-scene precedence and one-semantic-action-per-commit guarantees;
+- [x] add visual proximity/contact/commit feedback and optional audio/haptics without treating simulated pressure as a scientific signal;
+- [x] preserve current ray smoothing, semantic coercion and raw-observation precision escape hatch for dense data.
 
 **Exit gate:** one reference control can be operated by mouse, controller ray, hand ray and fingertip touch with equivalent semantic output; transition across the near/far boundary does not flicker, double-activate or select scene data through UI; automated tests cover hysteresis, capture, cancel and priority.
 
