@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { datasetContentHashHex } from '../src/atlas/DatasetSpace.ts';
+import { assertRustDatasetStructureProfile } from '../src/atlas/MonetaEvidenceAuthority.ts';
 import { ColumnType, Dataset } from '../src/data/Dataset.ts';
 import { structureProfileToDatasetEvidence } from '../src/data/evidence/index.ts';
 import { datasetEvidenceToSignature } from '../src/moneta/representation/index.ts';
@@ -47,10 +48,8 @@ function stringEndpointGraphDataset(): Dataset {
   );
 }
 
-function expectCanonicalMonetaGraph(
-  profile: NonNullable<ReturnType<typeof bridge.computeDatasetStructureProfile>>,
-  expectedEdgeCount: number
-): void {
+function expectCanonicalMonetaGraph(profile: unknown, expectedEdgeCount: number): void {
+  assertRustDatasetStructureProfile(profile);
   const evidence = structureProfileToDatasetEvidence(profile);
   const signature = datasetEvidenceToSignature(evidence);
   expect(signature.cardinality.edgeCount).toBe(expectedEdgeCount);
@@ -99,7 +98,7 @@ describe('RF-044 Atlas to real WASM graph lineage', () => {
         isConnected: true,
       });
       expect(profile?.hierarchy).toBeNull();
-      expectCanonicalMonetaGraph(profile!, 2);
+      expectCanonicalMonetaGraph(profile, 2);
     } finally {
       bridge.destroyDataset(handle);
     }
@@ -131,7 +130,7 @@ describe('RF-044 Atlas to real WASM graph lineage', () => {
         isConnected: true,
       });
       expect(profile?.hierarchy).toBeNull();
-      expectCanonicalMonetaGraph(profile!, 1);
+      expectCanonicalMonetaGraph(profile, 1);
     } finally {
       bridge.destroyDataset(handle);
     }
