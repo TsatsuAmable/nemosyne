@@ -1,0 +1,17 @@
+# Nemosyne currently has one repository owner. Semantic review roles are documented
+# in docs/OWNERSHIP.md; these entries make ownership explicit at the GitHub layer.
+
+* @TsatsuAmable
+
+/wasm/ @TsatsuAmable
+/src/atlas/ @TsatsuAmable
+/src/investigation/ @TsatsuAmable
+/src/session/ @TsatsuAmable
+/src/moneta/ @TsatsuAmable
+/src/network/ @TsatsuAmable
+/src/vr/ @TsatsuAmable
+/docs/study/ @TsatsuAmable
+/docs/architecture/decisions/ @TsatsuAmable
+/.github/workflows/ @TsatsuAmable
+/SECURITY.md @TsatsuAmable
+/AGENTS.md @TsatsuAmable

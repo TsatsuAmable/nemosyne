@@ -34,6 +34,36 @@
       "owner": "architecture"
     },
     {
+      "path": "CONTRIBUTING.md",
+      "status": "active",
+      "authority": "contribution-process",
+      "owner": "engineering"
+    },
+    {
+      "path": "SECURITY.md",
+      "status": "active",
+      "authority": "security-reporting-policy",
+      "owner": "security"
+    },
+    {
+      "path": "docs/OWNERSHIP.md",
+      "status": "active",
+      "authority": "semantic-ownership-map",
+      "owner": "engineering"
+    },
+    {
+      "path": "docs/RFC_PROCESS.md",
+      "status": "active",
+      "authority": "architecture-change-process",
+      "owner": "architecture"
+    },
+    {
+      "path": "docs/architecture/decisions/README.md",
+      "status": "active",
+      "authority": "architecture-decisions-index",
+      "owner": "architecture"
+    },
+    {
       "path": "docs/IMPLEMENTATION_PLAN_V3.md",
       "status": "active",
       "authority": "implementation-sequencing",
@@ -79,6 +109,12 @@
       "path": "docs/archive/TEST_INFRA_2026-08-26.md",
       "status": "historical",
       "authority": "historical-test-infrastructure",
+      "owner": "archive"
+    },
+    {
+      "path": "docs/archive/DRACO_REPRESENTATION_REASONING_PLAN.md",
+      "status": "historical",
+      "authority": "historical-draco-representation-plan",
       "owner": "archive"
     }
   ]
