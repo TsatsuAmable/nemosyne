@@ -87,7 +87,11 @@ export interface DatasetEdge {
 }
 
 function cloneEdge(edge: DatasetEdge): DatasetEdge {
-  return { ...edge };
+  const copy = { ...edge };
+  for (const key of Object.keys(copy)) {
+    copy[key] = cloneSanitizedJsonValue(copy[key]);
+  }
+  return copy;
 }
 
 export interface DatasetMeta {
@@ -242,7 +246,7 @@ export class Dataset {
         }
         return copy;
       }),
-      edges: this.edges ?? undefined,
+      edges: this.edges?.map(cloneEdge),
     };
     if (this.rowIds) json.rowIds = this.rowIds.slice();
     return json;
