@@ -77,14 +77,61 @@ export class AtlasCore {
   private _executionPort: AnalyticalExecutionPort | null = null;
   private _generation = 1;
   private _requestSeq = 0;
+  /**
+   * Exact payload capable of reconstructing the current analytical dataset in
+   * another WASM instance. Typed inputs remain typed; row-backed datasets use
+   * their canonical DatasetJSON. This is registration material, not a second
+   * analytical implementation.
+   */
+  private _workerDatasetPayload: DatasetPayload | null = null;
+
+  private _cloneTypedPayload(payload: ArrayBuffer | Uint8Array): ArrayBuffer | Uint8Array {
+    return payload instanceof Uint8Array ? payload.slice() : payload.slice(0);
+  }
+
+  private _setWorkerPayloadFromDataset(dataset: Dataset | null): void {
+    this._workerDatasetPayload = dataset
+      ? { type: 'json', data: dataset.toJSON(), name: dataset.name }
+      : null;
+  }
 
   private _workerRegistrationPayload(): DatasetPayload | undefined {
-    if (!this.dataset) return undefined;
-    return {
-      type: 'json',
-      data: this.dataset.toJSON(),
-      name: this.dataset.name,
-    };
+    if (this._workerDatasetPayload) return this._workerDatasetPayload;
+    const current = this._aggregate.analytical.currentNullable;
+    if (!current) return undefined;
+    this._setWorkerPayloadFromDataset(current);
+    return this._workerDatasetPayload ?? undefined;
+  }
+
+  private async _registerCurrentDatasetInWorker(
+    fingerprint: string,
+    version: number
+  ): Promise<boolean> {
+    const port = this._executionPort;
+    if (!port?.isAsync) return true;
+    if (!port.registerDataset) {
+      throw new KernelUnavailableError(
+        '[AtlasCore] asynchronous analytical port cannot register worker-local datasets.'
+      );
+    }
+    const payload = this._workerRegistrationPayload();
+    if (!payload) {
+      throw new KernelUnavailableError(
+        `[AtlasCore] no worker registration payload is available for dataset ${fingerprint}.`
+      );
+    }
+    const generation = this._generation;
+    await port.registerDataset({
+      registrationId: `areg-${++this._requestSeq}`,
+      dataset: { fingerprint, version },
+      generation,
+      payload,
+    });
+    return (
+      generation === this._generation &&
+      version === this.datasetVersion &&
+      fingerprint === (this.datasetFingerprint ?? '')
+    );
   }
 
   constructor({
@@ -111,7 +158,17 @@ export class AtlasCore {
   }
 
   setExecutionPort(port: AnalyticalExecutionPort | null): void {
+    if (this._executionPort === port) return;
+    this._executionPort?.dispose?.();
     this._executionPort = port;
+    if (port) {
+      const fingerprint = this.datasetFingerprint ?? undefined;
+      port.supersede({
+        generation: this._generation,
+        datasetVersion: this.datasetVersion,
+        datasetFingerprint: fingerprint,
+      });
+    }
   }
 
   get generation(): number {
@@ -119,6 +176,9 @@ export class AtlasCore {
   }
 
   setGeneration(generation: number): void {
+    if (!Number.isSafeInteger(generation) || generation <= 0) {
+      throw new Error('[AtlasCore] runtime generation must be a positive safe integer.');
+    }
     this._generation = generation;
   }
 
@@ -143,15 +203,19 @@ export class AtlasCore {
     this._aggregate.analytical.invalidateHandle((handle) => this._analytics.destroyDataset(handle));
     this._analytics.setKernel(kernel);
     this._capabilities = capabilities;
-    this._generation = generation;
+    this.setGeneration(generation);
     if (kernel) {
       if (!this._executionPort || !this._executionPort.isAsync) {
-        this._executionPort = new InlineAnalyticalPort(kernel);
+        this.setExecutionPort(new InlineAnalyticalPort(kernel));
       }
     } else {
-      this._executionPort = null;
+      this.setExecutionPort(null);
     }
-    this._executionPort?.supersede({ generation: this._generation, datasetVersion: this.datasetVersion });
+    this._executionPort?.supersede({
+      generation: this._generation,
+      datasetVersion: this.datasetVersion,
+      datasetFingerprint: this.datasetFingerprint ?? undefined,
+    });
   }
 
   get capabilities(): number {
@@ -174,20 +238,36 @@ export class AtlasCore {
 
   loadDataset(dataset: Dataset): void {
     this._aggregate.loadDataset(dataset, (handle) => this._analytics.destroyDataset(handle));
-    this._executionPort?.supersede({ generation: 1, datasetVersion: this.datasetVersion });
+    const fingerprint = this.datasetFingerprint ?? undefined;
+    this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
+    this._executionPort?.supersede({
+      generation: this._generation,
+      datasetVersion: this.datasetVersion,
+      datasetFingerprint: fingerprint,
+    });
   }
 
   loadTypedDataset(payload: ArrayBuffer | Uint8Array, name?: string): number {
     if (!this.isReady()) {
       throw new KernelUnavailableError('Analytical kernel unavailable — cannot load typed columns.');
     }
+    const workerCopy = this._cloneTypedPayload(payload);
     const handle = this._analytics.loadTypedColumns(payload, name);
     if (handle === 0) {
       throw new Error('Kernel rejected typed columns payload.');
     }
-    const fp = this._analytics.fingerprint(handle) ?? '';
+    const fp = this._analytics.fingerprint(handle);
+    if (!fp) {
+      this._analytics.destroyDataset(handle);
+      throw new Error('Kernel accepted typed columns but produced no authoritative fingerprint.');
+    }
     this._aggregate.loadTypedDataset(handle, fp, (h) => this._analytics.destroyDataset(h));
-    this._executionPort?.supersede({ generation: 1, datasetVersion: this.datasetVersion });
+    this._workerDatasetPayload = { type: 'typed', data: workerCopy, name };
+    this._executionPort?.supersede({
+      generation: this._generation,
+      datasetVersion: this.datasetVersion,
+      datasetFingerprint: fp,
+    });
     return handle;
   }
 
@@ -199,7 +279,13 @@ export class AtlasCore {
     this._aggregate.analytical.setCurrentDataset(dataset, (handle) =>
       this._analytics.destroyDataset(handle)
     );
-    this._executionPort?.supersede({ generation: 1, datasetVersion: this.datasetVersion });
+    const fingerprint = this.datasetFingerprint ?? undefined;
+    this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
+    this._executionPort?.supersede({
+      generation: this._generation,
+      datasetVersion: this.datasetVersion,
+      datasetFingerprint: fingerprint,
+    });
   }
 
   get originalDataset(): Dataset {
@@ -419,6 +505,10 @@ export class AtlasCore {
         '[AtlasCore] analytical kernel unavailable — Rust/WASM is the sole analytical authority.'
       );
     }
+    const inputFingerprint = this.datasetFingerprint ?? '';
+    if (spec.datasetFingerprint && spec.datasetFingerprint !== inputFingerprint) {
+      throw new Error('[AtlasCore] analysis spec targets a non-current dataset fingerprint.');
+    }
     const inputHandle = this._ensureHandle();
     if (inputHandle === 0) {
       throw new Error('[AtlasCore] kernel rejected input dataset');
@@ -432,7 +522,6 @@ export class AtlasCore {
     let json: DatasetJSON | null;
     let provenance: Provenance | null;
     let outputHash: string;
-    const fp = spec.datasetFingerprint || (this.datasetFingerprint ?? '');
     try {
       json = this._analytics.readDataset(outHandle);
       if (!json) {
@@ -451,19 +540,20 @@ export class AtlasCore {
         },
         (handle: number) => this._analytics.destroyDataset(handle)
       );
+      this._setWorkerPayloadFromDataset(nextDataset);
     } catch (err) {
       this._analytics.destroyDataset(outHandle);
       throw err;
     }
 
     const resultId = this._aggregate.ledger.nextResultId(
-      fp,
+      outputHash,
       this.datasetVersion,
       spec.operation.op
     );
     const result: AnalysisResult = {
       resultId,
-      datasetFingerprint: fp,
+      datasetFingerprint: outputHash,
       datasetVersion: this.datasetVersion,
       spec,
       dataset: json,
@@ -482,8 +572,8 @@ export class AtlasCore {
         command: spec,
         result,
         datasetVersion: this.datasetVersion,
-        datasetFingerprint: fp,
-        stateHash: this.datasetSpace?.fingerprint ?? '',
+        datasetFingerprint: outputHash,
+        stateHash: outputHash,
       },
       this._aggregate.sessionId
     );
@@ -497,7 +587,7 @@ export class AtlasCore {
       kind: 'operation',
       parentId: prevVersionId,
       datasetVersion: this.datasetVersion,
-      datasetFingerprint: fp,
+      datasetFingerprint: outputHash,
       label: spec.label ?? spec.operation.op,
       operation: spec.operation.op,
       timestamp: this._aggregate.context.now(),
@@ -508,7 +598,7 @@ export class AtlasCore {
       kind: 'dataset_version',
       parentId: opNodeId,
       datasetVersion: this.datasetVersion,
-      datasetFingerprint: fp,
+      datasetFingerprint: outputHash,
       label: `Dataset v${this.datasetVersion}`,
       timestamp: this._aggregate.context.now(),
     });
@@ -579,35 +669,56 @@ export class AtlasCore {
     if (!this._executionPort?.isAsync) {
       return this.applyAnalysis(spec);
     }
-    const fp = spec.datasetFingerprint || (this.datasetFingerprint ?? '');
+    const inputFingerprint = this.datasetFingerprint ?? '';
+    if (!inputFingerprint) {
+      throw new KernelUnavailableError('[AtlasCore] current dataset has no authoritative fingerprint.');
+    }
+    if (spec.datasetFingerprint && spec.datasetFingerprint !== inputFingerprint) {
+      throw new Error('[AtlasCore] async analysis spec targets a non-current dataset fingerprint.');
+    }
     const version = this.datasetVersion;
+    const generation = this._generation;
+    if (!(await this._registerCurrentDatasetInWorker(inputFingerprint, version))) {
+      throw new Error(`[AtlasCore] async op "${spec.operation.op}" superseded before dispatch`);
+    }
     const reqId = `areq-${++this._requestSeq}`;
-    const payload = this._workerRegistrationPayload();
 
-    const res = await this._executionPort.execute<DatasetJSON | { dataset: DatasetJSON; outputFingerprint?: string }>({
+    const res = await this._executionPort.execute<{
+      dataset: DatasetJSON;
+      outputFingerprint: string;
+    }>({
       requestId: reqId,
       operation: 'operation',
-      dataset: { fingerprint: fp, version },
-      generation: this._generation,
+      dataset: { fingerprint: inputFingerprint, version },
+      generation,
       params: { operation: spec.operation },
-      datasetPayload: payload,
     });
 
     if (
+      generation !== this._generation ||
       res.datasetVersion !== this.datasetVersion ||
-      res.datasetFingerprint !== (this.datasetFingerprint ?? '') ||
+      res.datasetFingerprint !== inputFingerprint ||
+      inputFingerprint !== (this.datasetFingerprint ?? '') ||
       !res.value
     ) {
       throw new Error(`[AtlasCore] async op "${spec.operation.op}" superseded or failed`);
     }
 
-    const json = (res.value && typeof res.value === 'object' && 'dataset' in res.value)
-      ? (res.value as { dataset: DatasetJSON }).dataset
-      : (res.value as DatasetJSON);
+    if (
+      typeof res.value !== 'object' ||
+      !('dataset' in res.value) ||
+      !('outputFingerprint' in res.value) ||
+      typeof res.value.outputFingerprint !== 'string' ||
+      !res.value.outputFingerprint
+    ) {
+      throw new KernelUnavailableError(
+        `[AtlasCore] async op "${spec.operation.op}" produced no authoritative output fingerprint.`
+      );
+    }
+
+    const json = res.value.dataset;
+    const outputHash = res.value.outputFingerprint;
     const nextDataset = Dataset.fromJSON(json);
-    const outputHash = (res.value && typeof res.value === 'object' && 'outputFingerprint' in res.value)
-      ? ((res.value as { outputFingerprint?: string }).outputFingerprint ?? fnv1aHex(JSON.stringify(json.rows)))
-      : fnv1aHex(JSON.stringify(json.rows));
 
     this._aggregate.analytical.commitKernelResult(
       {
@@ -618,17 +729,22 @@ export class AtlasCore {
       },
       (handle: number) => this._analytics.destroyDataset(handle)
     );
-    this._executionPort.supersede({ generation: this._generation, datasetVersion: this.datasetVersion });
+    this._setWorkerPayloadFromDataset(nextDataset);
+    this._executionPort.supersede({
+      generation: this._generation,
+      datasetVersion: this.datasetVersion,
+      datasetFingerprint: outputHash,
+    });
 
     const resultId = this._aggregate.ledger.nextResultId(
-      fp,
+      outputHash,
       this.datasetVersion,
       spec.operation.op
     );
 
     const result: AnalysisResult = {
       resultId,
-      datasetFingerprint: fp,
+      datasetFingerprint: outputHash,
       datasetVersion: this.datasetVersion,
       spec,
       dataset: json,
@@ -647,8 +763,8 @@ export class AtlasCore {
         command: spec,
         result,
         datasetVersion: this.datasetVersion,
-        datasetFingerprint: fp,
-        stateHash: this.datasetSpace?.fingerprint ?? '',
+        datasetFingerprint: outputHash,
+        stateHash: outputHash,
       },
       this._aggregate.sessionId
     );
@@ -662,7 +778,7 @@ export class AtlasCore {
       kind: 'operation',
       parentId: prevVersionId,
       datasetVersion: this.datasetVersion,
-      datasetFingerprint: fp,
+      datasetFingerprint: outputHash,
       label: spec.label ?? spec.operation.op,
       operation: spec.operation.op,
       timestamp: this._aggregate.context.now(),
@@ -673,7 +789,7 @@ export class AtlasCore {
       kind: 'dataset_version',
       parentId: opNodeId,
       datasetVersion: this.datasetVersion,
-      datasetFingerprint: fp,
+      datasetFingerprint: outputHash,
       label: `Dataset v${this.datasetVersion}`,
       timestamp: this._aggregate.context.now(),
     });
@@ -702,6 +818,12 @@ export class AtlasCore {
     );
 
     const fp = this.datasetFingerprint ?? '';
+    this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
+    this._executionPort?.supersede({
+      generation: this._generation,
+      datasetVersion: this.datasetVersion,
+      datasetFingerprint: fp || undefined,
+    });
     const resetOpId = `reset-${Date.now()}`;
     const nextVersionId = `${this._aggregate.sessionId}:v${this.datasetVersion}`;
 
@@ -878,27 +1000,27 @@ export class AtlasCore {
   async computePersistenceIntervalsAsync(
     params: Record<string, unknown>
   ): Promise<PersistenceInterval[] | null> {
-    if (!this._executionPort) return this.computePersistenceIntervalsForCurrent(params);
-    const handle = this._ensureHandle();
-    if (handle === 0) return null;
+    if (!this._executionPort?.isAsync) return this.computePersistenceIntervalsForCurrent(params);
     const fp = this.datasetFingerprint ?? '';
+    if (!fp) return null;
     const version = this.datasetVersion;
+    const generation = this._generation;
+    if (!(await this._registerCurrentDatasetInWorker(fp, version))) return null;
     const reqId = `areq-${++this._requestSeq}`;
-    const payload = this._workerRegistrationPayload();
 
     const res = await this._executionPort.execute<PersistenceInterval[]>({
       requestId: reqId,
       operation: 'tda.persistence',
       dataset: { fingerprint: fp, version },
-      generation: this._generation,
-      handle,
+      generation,
       params,
-      datasetPayload: payload,
     });
 
     if (
+      generation !== this._generation ||
       res.datasetVersion !== this.datasetVersion ||
-      res.datasetFingerprint !== (this.datasetFingerprint ?? '')
+      res.datasetFingerprint !== fp ||
+      fp !== (this.datasetFingerprint ?? '')
     ) {
       return null;
     }
@@ -908,27 +1030,27 @@ export class AtlasCore {
   async computeMapperGraphAsync(
     params: Record<string, unknown>
   ): Promise<TdaMapperGraph | null> {
-    if (!this._executionPort) return this.computeMapperGraphForCurrent(params);
-    const handle = this._ensureHandle();
-    if (handle === 0) return null;
+    if (!this._executionPort?.isAsync) return this.computeMapperGraphForCurrent(params);
     const fp = this.datasetFingerprint ?? '';
+    if (!fp) return null;
     const version = this.datasetVersion;
+    const generation = this._generation;
+    if (!(await this._registerCurrentDatasetInWorker(fp, version))) return null;
     const reqId = `areq-${++this._requestSeq}`;
-    const payload = this._workerRegistrationPayload();
 
     const res = await this._executionPort.execute<TdaMapperGraph>({
       requestId: reqId,
       operation: 'tda.mapper',
       dataset: { fingerprint: fp, version },
-      generation: this._generation,
-      handle,
+      generation,
       params,
-      datasetPayload: payload,
     });
 
     if (
+      generation !== this._generation ||
       res.datasetVersion !== this.datasetVersion ||
-      res.datasetFingerprint !== (this.datasetFingerprint ?? '')
+      res.datasetFingerprint !== fp ||
+      fp !== (this.datasetFingerprint ?? '')
     ) {
       return null;
     }
@@ -938,27 +1060,27 @@ export class AtlasCore {
   async computeBetti0CurveAsync(
     params: Record<string, unknown>
   ): Promise<BettiPoint[] | null> {
-    if (!this._executionPort) return this.computeBetti0CurveForCurrent(params);
-    const handle = this._ensureHandle();
-    if (handle === 0) return null;
+    if (!this._executionPort?.isAsync) return this.computeBetti0CurveForCurrent(params);
     const fp = this.datasetFingerprint ?? '';
+    if (!fp) return null;
     const version = this.datasetVersion;
+    const generation = this._generation;
+    if (!(await this._registerCurrentDatasetInWorker(fp, version))) return null;
     const reqId = `areq-${++this._requestSeq}`;
-    const payload = this._workerRegistrationPayload();
 
     const res = await this._executionPort.execute<BettiPoint[]>({
       requestId: reqId,
       operation: 'tda.betti0',
       dataset: { fingerprint: fp, version },
-      generation: this._generation,
-      handle,
+      generation,
       params,
-      datasetPayload: payload,
     });
 
     if (
+      generation !== this._generation ||
       res.datasetVersion !== this.datasetVersion ||
-      res.datasetFingerprint !== (this.datasetFingerprint ?? '')
+      res.datasetFingerprint !== fp ||
+      fp !== (this.datasetFingerprint ?? '')
     ) {
       return null;
     }
@@ -1154,6 +1276,12 @@ export class AtlasCore {
 
   restoreState(state: AtlasCoreState): void {
     this._aggregate.restoreState(state, (handle) => this._analytics.destroyDataset(handle));
+    this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
+    this._executionPort?.supersede({
+      generation: this._generation,
+      datasetVersion: this.datasetVersion,
+      datasetFingerprint: this.datasetFingerprint ?? undefined,
+    });
   }
 
   async computeDigest(): Promise<string> {
@@ -1161,6 +1289,9 @@ export class AtlasCore {
   }
 
   dispose(): void {
+    this._executionPort?.dispose?.();
+    this._executionPort = null;
+    this._workerDatasetPayload = null;
     this._aggregate.dispose((handle) => this._analytics.destroyDataset(handle));
   }
 
