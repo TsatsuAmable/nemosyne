@@ -3,9 +3,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import './setup-wasm.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
-import { AtlasCore } from '../src/atlas/AtlasCore.ts';
+import { AtlasCore, KernelUnavailableError } from '../src/atlas/AtlasCore.ts';
 import { InlineAnalyticalPort } from '../src/atlas/ports/InlineAnalyticalPort.ts';
-import { WorkerAnalyticalPort, type WorkerTransport } from '../src/atlas/ports/WorkerAnalyticalPort.ts';
+import {
+  WorkerAnalyticalPort,
+  type WorkerTransport,
+} from '../src/atlas/ports/WorkerAnalyticalPort.ts';
 import type {
   AnalyticalExecutionRequest,
   AnalyticalExecutionResult,
@@ -39,20 +42,16 @@ function createMockWorkerTransport(): WorkerTransport & {
       postedMessages.push(msg);
     },
     simulateResult(result: AnalyticalExecutionResult) {
-      if (onmessage) {
-        onmessage(new MessageEvent('message', { data: { type: 'RESULT', result } }));
-      }
+      onmessage?.(new MessageEvent('message', { data: { type: 'RESULT', result } }));
     },
     simulateError(error: Error) {
-      if (onerror) {
-        onerror(error);
-      }
+      onerror?.(error);
     },
   };
 }
 
 describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
-  it('B1: request carries monotonic requestId and fencing triple', async () => {
+  it('B1: request carries request identity and fencing triple', async () => {
     const transport = createMockWorkerTransport();
     const port = new WorkerAnalyticalPort(transport);
 
@@ -65,7 +64,7 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     };
 
     const promise = port.execute(req);
-    expect(transport.postedMessages.length).toBe(1);
+    expect(transport.postedMessages).toHaveLength(1);
     expect(transport.postedMessages[0]).toEqual({ type: 'EXECUTE', request: req });
 
     transport.simulateResult({
@@ -78,11 +77,10 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
 
     const res = await promise;
     expect(res.requestId).toBe('areq-1');
-    expect(res.value).toBeDefined();
     expect(res.value).toEqual([{ birth: 0.1, death: 0.5, persistence: 0.4 }]);
   });
 
-  it('B2: stale generation discarded mid-flight', async () => {
+  it('B2: stale generation is discarded mid-flight', async () => {
     const transport = createMockWorkerTransport();
     const port = new WorkerAnalyticalPort(transport);
 
@@ -95,8 +93,6 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     };
 
     const promise = port.execute(req);
-
-    // Invalidate kernel / bump generation
     port.supersede({ generation: 2 });
 
     transport.simulateResult({
@@ -111,7 +107,7 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     expect(res.value).toBeNull();
   });
 
-  it('B3: stale dataset version discarded', async () => {
+  it('B3: stale dataset version is discarded', async () => {
     const transport = createMockWorkerTransport();
     const port = new WorkerAnalyticalPort(transport);
 
@@ -124,8 +120,6 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     };
 
     const promise = port.execute(req);
-
-    // Bump dataset version
     port.supersede({ datasetVersion: 2 });
 
     transport.simulateResult({
@@ -146,13 +140,17 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     const port = atlas.executionPort!;
     const supersedeSpy = vi.spyOn(port, 'supersede');
 
-    const ds = new Dataset('TestDS', [{ name: 'x', type: ColumnType.NUMERIC }], [{ x: 1 }]);
+    const ds = new Dataset(
+      'TestDS',
+      [{ name: 'x', type: ColumnType.NUMERIC }],
+      [{ x: 1 }]
+    );
     atlas.loadDataset(ds);
 
     expect(supersedeSpy).toHaveBeenCalled();
   });
 
-  it('B5: worker failure fails closed without silent fallback', async () => {
+  it('B5: worker transport failure rejects with KernelUnavailableError and triggers failure funnel', async () => {
     const transport = createMockWorkerTransport();
     const failureSpy = vi.fn();
     const port = new WorkerAnalyticalPort(transport, failureSpy);
@@ -166,14 +164,42 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     };
 
     const promise = port.execute(req);
+    const rejection = expect(promise).rejects.toBeInstanceOf(KernelUnavailableError);
     transport.simulateError(new Error('Worker OOM crash'));
 
-    const res = await promise;
-    expect(res.value).toBeNull();
-    expect(failureSpy).toHaveBeenCalled();
+    await rejection;
+    expect(failureSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('W1: async TDA parity with real WASM / synchronous bridge', async () => {
+  it('B5b: worker-reported analytical errors reject instead of becoming ambiguous null results', async () => {
+    const transport = createMockWorkerTransport();
+    const failureSpy = vi.fn();
+    const port = new WorkerAnalyticalPort(transport, failureSpy);
+
+    const req: AnalyticalExecutionRequest = {
+      requestId: 'areq-worker-error',
+      operation: 'tda.mapper',
+      dataset: { fingerprint: 'fp_missing', version: 1 },
+      generation: 1,
+      params: {},
+    };
+
+    const promise = port.execute(req);
+    const rejection = expect(promise).rejects.toBeInstanceOf(KernelUnavailableError);
+    transport.simulateResult({
+      requestId: req.requestId,
+      generation: req.generation,
+      datasetVersion: req.dataset.version,
+      datasetFingerprint: req.dataset.fingerprint,
+      value: null,
+      error: 'Worker dataset fp_missing is not registered',
+    });
+
+    await rejection;
+    expect(failureSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('W1: async Atlas API is parity-compatible on the inline transport', async () => {
     const kernel = makeKernelMockBridge();
     const atlas = new AtlasCore({ kernel: kernel as any });
 
@@ -189,6 +215,7 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     ], rows);
 
     atlas.loadDataset(dataset);
+    expect(atlas.executionPort?.isAsync).toBe(false);
 
     const syncIntervals = atlas.computePersistenceIntervalsForCurrent({});
     const asyncIntervals = await atlas.computePersistenceIntervalsAsync({});
@@ -196,7 +223,7 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     expect(asyncIntervals).toEqual(syncIntervals);
   });
 
-  it('S1: WorkerAnalyticalPort does not import direct computation from RuntimeBridge', () => {
+  it('S1: WorkerAnalyticalPort is transport-only and does not import analytical compute functions', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/atlas/ports/WorkerAnalyticalPort.ts'),
       'utf8'
@@ -207,12 +234,27 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     expect(source).not.toContain('computeBetti0Curve');
   });
 
+  it('S2: worker fails closed when a dataset is not registered in its own WASM instance', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/atlas/ports/analytical.worker.ts'),
+      'utf8'
+    );
+
+    expect(source).toContain('requireRegisteredHandle');
+    expect(source).toContain('the request must include a datasetPayload on first use');
+    expect(source).toContain('Worker dataset fingerprint mismatch');
+  });
+
   it('B6: InlineAnalyticalPort executes operations synchronously', async () => {
     const kernel = makeKernelMockBridge();
     const port = new InlineAnalyticalPort(kernel as any);
     expect(port.isAsync).toBe(false);
 
-    const ds = new Dataset('InlineDS', [{ name: 'val', type: ColumnType.NUMERIC }], [{ val: 10 }]);
+    const ds = new Dataset(
+      'InlineDS',
+      [{ name: 'val', type: ColumnType.NUMERIC }],
+      [{ val: 10 }]
+    );
     const res = await port.execute({
       requestId: 'areq-inline-1',
       operation: 'statistics',
