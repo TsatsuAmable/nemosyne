@@ -71,11 +71,11 @@ pub fn compute_spectral_facts(
     }?;
 
     let time_name = if !time_column.is_empty() {
-        dataset
+        let column = dataset
             .columns
             .iter()
-            .find(|column| column.name == time_column && column.ty == ColumnType::Temporal)
-            .map(|column| column.name.as_str())
+            .find(|column| column.name == time_column && column.ty == ColumnType::Temporal)?;
+        Some(column.name.as_str())
     } else {
         dataset
             .columns
@@ -426,6 +426,13 @@ mod tests {
         assert!(json.get("dominant_frequencies").is_none());
         assert!(json.get("source_observations_per_bin").is_none());
         assert!(json.get("frequency_resolution").is_none());
+    }
+
+    #[test]
+    fn explicit_invalid_time_column_fails_closed() {
+        let dataset = regular_sine_dataset(1.0);
+        assert!(compute_spectral_facts(&dataset, "missing_time", "value").is_none());
+        assert!(compute_spectral_facts(&dataset, "value", "value").is_none());
     }
 
     #[test]
