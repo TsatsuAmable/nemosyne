@@ -76,6 +76,13 @@ pub struct ResourceEstimate {
     pub reason_code: Option<String>,
 }
 
+impl ResourceEstimate {
+    pub fn with_operation(mut self, operation: impl Into<String>) -> Self {
+        self.operation = operation.into();
+        self
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AnalysisBudget {
     pub max_exact_work_units: u64,
@@ -174,6 +181,9 @@ pub fn kmeans_estimate(
 ) -> ResourceEstimate {
     let effective_k = k.max(1).min(rows.max(1));
     // k-means++ contributes another O(n*k*d) pass before the fixed Lloyd loop.
+    // Because k is user-controlled and may grow with n, the governed worst-case
+    // complexity class is quadratic even though ordinary fixed-k runs are linear
+    // in rows for fixed dimensions and iteration count.
     let work = sat_mul(&[
         rows as u64,
         dimensions.max(1) as u64,
@@ -200,7 +210,7 @@ pub fn kmeans_estimate(
         operation: "k_means".to_string(),
         rows,
         dimensions,
-        complexity: AnalysisComplexity::Linear,
+        complexity: AnalysisComplexity::Quadratic,
         estimated_work_units: work,
         estimated_transient_bytes: bytes,
         decision,
@@ -316,9 +326,18 @@ mod tests {
     }
 
     #[test]
+    fn estimate_can_name_owning_operation_without_changing_budget_math() {
+        let estimate = exact_neighbourhood_estimate(100, 3, AnalysisBudget::default())
+            .with_operation("compute_betti0_curve");
+        assert_eq!(estimate.operation, "compute_betti0_curve");
+        assert_eq!(estimate.decision, ResourceDecision::ExactAllowed);
+    }
+
+    #[test]
     fn kmeans_budget_accounts_for_matrix_and_fixed_iterations() {
         let small = kmeans_estimate(10_000, 4, 4, AnalysisBudget::default());
         assert_eq!(small.decision, ResourceDecision::ExactAllowed);
+        assert_eq!(small.complexity, AnalysisComplexity::Quadratic);
 
         let large = kmeans_estimate(100_000, 8, 8, AnalysisBudget::default());
         assert_eq!(large.decision, ResourceDecision::UnsupportedAtScale);
