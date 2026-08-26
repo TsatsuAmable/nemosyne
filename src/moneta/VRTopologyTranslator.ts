@@ -81,6 +81,8 @@ export class VRTopologyTranslator {
         edges,
         options
       );
+    } else if (spec.geometry === 'DENSITY_FIELD') {
+      scalable.buildDensityField(group, nodeMeshes, rows, dataset, encodings, spec, edges);
     } else {
       switch (spec.layout) {
         case 'GRID_3D':

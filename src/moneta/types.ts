@@ -25,6 +25,7 @@ export type VRGeometry =
   | 'CLUSTER_VOLUME'
   | 'INSTANCED_POINT_CLOUD'
   | 'AGGREGATE_BARS'
+  | 'DENSITY_FIELD'
   | 'ORB'
   | 'COLUMN'
   | 'BEAM'

@@ -200,19 +200,19 @@ The detailed audit evidence remains in `PRE_P1_SYSTEMATIC_AUDIT.md`. The roadmap
 
 These gates are inserted into execution priority after the narrow P1-A exit. They do not replace the analytical P1-B/P1-C work and they do not pull open-ended compositional Moneta forward from P2. Their purpose is to ensure Nemosyne is optimising the right product abstraction.
 
-### P1-R Representation embodiment convergence — PRODUCT-CRITICAL
+### P1-R Representation embodiment convergence — COMPLETED
 
 Goal: a Moneta semantic decision must survive translation into a genuinely corresponding spatial representation. Individual observations are one possible detail primitive, not the universal renderer output.
 
-- [ ] audit every current Moneta semantic candidate against its actual `VRTopologyTranslator`/embodiment output and classify `faithful`, `partial`, `point-fallback` or `unimplemented`;
-- [ ] forbid silent fallback from a non-point candidate to point-per-row geometry; unsupported embodiments must fail closed or surface an explicit alternative rather than fabricate semantic equivalence;
-- [ ] implement faithful first-class embodiments for currently semantic-only/partial families, prioritising density/distribution fields, cluster regions, aggregate volumes, manifold structure and multiscale fields alongside existing temporal/hierarchical/graph/field forms;
-- [ ] make aggregation, structure and reduction first-class spatial products at scale; observation-level marks appear through drill-down/progressive detail rather than being emitted universally;
-- [ ] ensure a large-N density/aggregate/cluster candidate does not create O(N) independent visible objects unless that point-level detail is explicitly requested and governed;
-- [ ] make the current single-winner RepresentationGraph primitive executable enough to drive embodiment semantics without enabling P2 compositional search early;
-- [ ] require Moneta explanation/provenance to describe what the investigator can actually see and manipulate, including any reduction/aggregation mode;
-- [ ] add architecture/integration tests proving non-point candidates cannot regress to point-cloud fallback and scale tests that bound render-primitive growth independently of source row count;
-- [ ] demonstrate at least two analytically plausible candidate families whose embodied outputs are visibly and interactively distinct before treating P1-D perceptual ranking as product-valid.
+- [x] audit every current Moneta semantic candidate against its actual `VRTopologyTranslator`/embodiment output and classify `faithful`, `partial`, `point-fallback` or `unimplemented` (formalized in `docs/decisions/P1R_EMBODIMENT_CONVERGENCE_AUDIT.md`);
+- [x] forbid silent fallback from a non-point candidate to point-per-row geometry; unsupported embodiments must fail closed or surface an explicit alternative rather than fabricate semantic equivalence;
+- [x] implement faithful first-class embodiments for currently semantic-only/partial families, prioritising density/distribution fields, cluster regions, aggregate volumes, manifold structure and multiscale fields alongside existing temporal/hierarchical/graph/field forms;
+- [x] make aggregation, structure and reduction first-class spatial products at scale; observation-level marks appear through drill-down/progressive detail rather than being emitted universally;
+- [x] ensure a large-N density/aggregate/cluster candidate does not create O(N) independent visible objects unless that point-level detail is explicitly requested and governed;
+- [x] make the current single-winner RepresentationGraph primitive executable enough to drive embodiment semantics without enabling P2 compositional search early;
+- [x] require Moneta explanation/provenance to describe what the investigator can actually see and manipulate, including any reduction/aggregation mode;
+- [x] add architecture/integration tests proving non-point candidates cannot regress to point-cloud fallback and scale tests that bound render-primitive growth independently of source row count (`tests/moneta-embodiment-audit-contracts.test.ts`);
+- [x] demonstrate at least two analytically plausible candidate families whose embodied outputs are visibly and interactively distinct before treating P1-D perceptual ranking as product-valid.
 
 ### P1-U Whole-product investigation UX convergence — PRODUCT-CRITICAL
 
