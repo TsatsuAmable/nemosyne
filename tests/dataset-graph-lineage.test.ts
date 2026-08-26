@@ -9,7 +9,13 @@ function graphDataset(): Dataset {
     [{ name: 'value', type: ColumnType.NUMERIC }],
     [{ value: 1 }, { value: 2 }, { value: 3 }],
     [
-      { source: 0, target: 1, weight: 0.75, relation: 'observed' },
+      {
+        source: 0,
+        target: 1,
+        weight: 0.75,
+        relation: 'observed',
+        metadata: { source: 'sensor-a' },
+      },
       { source: 1, target: 2, weight: 1.25, relation: 'derived' },
     ],
     ['rust:a', 'rust:b', 'rust:c']
@@ -29,6 +35,7 @@ describe('RF-044 graph lineage preservation', () => {
     expectGraphPreserved(clone, source);
     expect(clone.edges).not.toBe(source.edges);
     expect(clone.edges?.[0]).not.toBe(source.edges?.[0]);
+    expect(clone.edges?.[0]?.metadata).not.toBe(source.edges?.[0]?.metadata);
   });
 
   it('preserves graph lineage through every clone-mediated AnalyticalState transition', () => {
@@ -63,5 +70,24 @@ describe('RF-044 graph lineage preservation', () => {
     expect(handle).toBe(23);
     expect(loaded?.edges).toEqual(source.edges);
     expect(loaded?.rowIds).toEqual(source.rowIds);
+  });
+
+  it('does not expose live graph state through the serialized DatasetJSON payload', () => {
+    const source = graphDataset();
+    const json = source.toJSON();
+
+    expect(json.edges).toEqual(source.edges);
+    expect(json.edges).not.toBe(source.edges);
+    expect(json.edges?.[0]).not.toBe(source.edges?.[0]);
+    expect(json.edges?.[0]?.metadata).not.toBe(source.edges?.[0]?.metadata);
+
+    if (json.edges?.[0]) {
+      json.edges[0].weight = 99;
+      const metadata = json.edges[0].metadata as { source: string };
+      metadata.source = 'mutated';
+    }
+
+    expect(source.edges?.[0]?.weight).toBe(0.75);
+    expect(source.edges?.[0]?.metadata).toEqual({ source: 'sensor-a' });
   });
 });
