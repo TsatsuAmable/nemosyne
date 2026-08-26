@@ -201,4 +201,49 @@ describe('P1-D: 3D-Native Perceptual Fitness Contracts', () => {
     expect(comp).toBeDefined();
     expect(comp?.rationale).not.toMatch(/confidence/i);
   });
+
+  it('D9: zero-mark embodiments cannot receive ideal measured evidence', () => {
+    const sampler = new PerceptualFitnessSampler();
+    const candidate = MONETA_REPRESENTATION_CANDIDATES.POINT_SET;
+    expect(() =>
+      sampler.sample(
+        {
+          candidate,
+          datasetFingerprint: 'mock-fp',
+          markPositions: [],
+        },
+        {
+          position: new THREE.Vector3(0, 0, 2),
+          gazeDirection: new THREE.Vector3(0, 0, -1),
+        }
+      )
+    ).toThrow(/zero marks/);
+  });
+
+  it('D10: bounded perceptual sampling is invariant to mark input order', () => {
+    const sampler = new PerceptualFitnessSampler();
+    const candidate = MONETA_REPRESENTATION_CANDIDATES.POINT_SET;
+    const marks = Array.from({ length: 150 }, (_, i) =>
+      new THREE.Vector3(
+        ((i * 37) % 31) * 0.03 - 0.45,
+        ((i * 17) % 23) * 0.025 - 0.25,
+        -1 - (i % 19) * 0.04
+      )
+    );
+    const anchor = {
+      position: new THREE.Vector3(0, 0, 2),
+      gazeDirection: new THREE.Vector3(0.25, 0.05, -1).normalize(),
+    };
+
+    const forward = sampler.sample(
+      { candidate, datasetFingerprint: 'mock-fp', markPositions: marks },
+      anchor
+    );
+    const reversed = sampler.sample(
+      { candidate, datasetFingerprint: 'mock-fp', markPositions: marks.slice().reverse() },
+      anchor
+    );
+
+    expect(reversed.measured).toEqual(forward.measured);
+  });
 });

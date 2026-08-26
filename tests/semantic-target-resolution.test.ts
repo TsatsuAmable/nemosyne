@@ -15,7 +15,7 @@ function createDummyMesh(x: number, y: number, z: number): THREE.Mesh {
 
 describe('P1-F: Semantic Target Resolution & Focus/Context Contracts', () => {
   it('F1: semantic preference — structure target coerced over raw observation within assistance radius', () => {
-    const resolver = new SemanticTargetResolver({}, 0.1); // 10cm assistance radius
+    const resolver = new SemanticTargetResolver({}, 0.1);
 
     const obsMesh = createDummyMesh(0, 0, 1.0);
     const structMesh = createDummyMesh(0, 0, 1.05);
@@ -37,7 +37,7 @@ describe('P1-F: Semantic Target Resolution & Focus/Context Contracts', () => {
 
     const rawHits: SceneHit[] = [
       { entry: obsEntry, distance: 1.0 },
-      { entry: structEntry, distance: 1.05 }, // 5cm difference <= 10cm assistance radius
+      { entry: structEntry, distance: 1.05 },
     ];
 
     const ray = new THREE.Ray(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 1));
@@ -54,13 +54,18 @@ describe('P1-F: Semantic Target Resolution & Focus/Context Contracts', () => {
     const meshA = createDummyMesh(0, 0, 1.0);
     const meshB = createDummyMesh(0, 0, 1.5);
 
-    const entryA: InteractableEntry = { mesh: meshA, semantic: { kind: 'cluster-region', salience: 0.9 } };
-    const entryB: InteractableEntry = { mesh: meshB, semantic: { kind: 'cluster-region', salience: 0.8 } };
+    const entryA: InteractableEntry = {
+      mesh: meshA,
+      semantic: { kind: 'cluster-region', salience: 0.9 },
+    };
+    const entryB: InteractableEntry = {
+      mesh: meshB,
+      semantic: { kind: 'cluster-region', salience: 0.8 },
+    };
 
     const ray = new THREE.Ray(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 1));
     const t0 = 1000;
 
-    // Frame 1: Hit A closer and higher salience -> A held
     const hits1: SceneHit[] = [
       { entry: entryA, distance: 1.0 },
       { entry: entryB, distance: 1.5 },
@@ -68,7 +73,6 @@ describe('P1-F: Semantic Target Resolution & Focus/Context Contracts', () => {
     const r1 = resolver.rank(hits1, ray, undefined, undefined, t0);
     expect(r1?.entry).toBe(entryA);
 
-    // Frame 2: Hit B is now closer (0.5 vs 1.5), so scoreB > scoreA, but does not beat A by 1.5x margin -> A stays held
     const hits2: SceneHit[] = [
       { entry: entryB, distance: 0.5 },
       { entry: entryA, distance: 1.5 },
@@ -76,7 +80,6 @@ describe('P1-F: Semantic Target Resolution & Focus/Context Contracts', () => {
     const r2 = resolver.rank(hits2, ray, undefined, undefined, t0 + 16);
     expect(r2?.entry).toBe(entryA);
 
-    // After 1200ms dwell expiration, B wins cleanly
     const r3 = resolver.rank(hits2, ray, undefined, undefined, t0 + 1300);
     expect(r3?.entry).toBe(entryB);
   });
@@ -90,7 +93,6 @@ describe('P1-F: Semantic Target Resolution & Focus/Context Contracts', () => {
       { entry: { mesh: structMesh, semantic: { kind: 'mapper-node' } }, distance: 1.05 },
     ];
 
-    // When assistance is disabled (raw picking), first geometric hit is consumed directly
     const rawPick = rawHits[0].entry;
     expect(rawPick.semantic?.kind).toBe('observation');
   });
@@ -117,29 +119,24 @@ describe('P1-F: Semantic Target Resolution & Focus/Context Contracts', () => {
     expect(target?.structureId).toBe('struct_persistence_h0_c1');
   });
 
-  it('F5: focus hierarchy — step transitions and anchor transform preservation', () => {
+  it('F5: focus hierarchy — semantic drill-down requires structure identity and preserves anchor', () => {
     const controller = new FocusContextController();
     expect(controller.currentLevel).toBe('dataset');
 
-    // Drill down step by step
-    expect(controller.drillDown()).toBe('structure');
-    expect(controller.drillDown()).toBe('region');
-    expect(controller.drillDown()).toBe('observation');
+    // A controller cannot invent a structure merely because the user asks to drill down.
+    expect(controller.drillDown()).toBe('dataset');
 
-    // Overview steps up
-    expect(controller.overview()).toBe('region');
-    expect(controller.overview()).toBe('structure');
-    expect(controller.overview()).toBe('dataset');
-
-    // Focus structure with anchor transform
     const anchor = new THREE.Matrix4().makeTranslation(1.5, 0.5, -2.0);
     controller.focusStructure('cluster_alpha', anchor);
     expect(controller.currentLevel).toBe('structure');
     expect(controller.focusedStructureId).toBe('cluster_alpha');
-    expect(controller.anchorMatrix).toBeDefined();
     expect(controller.anchorMatrix?.equals(anchor)).toBe(true);
 
-    // Distance band updates
+    expect(controller.drillDown()).toBe('region');
+    expect(controller.drillDown()).toBe('observation');
+    expect(controller.overview()).toBe('region');
+    expect(controller.overview()).toBe('structure');
+
     expect(controller.updateByDistance(4.0)).toBe('dataset');
     expect(controller.updateByDistance(2.0)).toBe('structure');
     expect(controller.updateByDistance(0.8)).toBe('observation');
@@ -156,7 +153,10 @@ describe('P1-F: Semantic Target Resolution & Focus/Context Contracts', () => {
         distance: 1.5,
       },
     ];
-    const ray = new THREE.Ray(new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 1, 1).normalize());
+    const ray = new THREE.Ray(
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(1, 1, 1).normalize()
+    );
 
     const deskTarget = resolverDesktop.rank(hits, ray);
     const xrTarget = resolverXR.rank(hits, ray);
@@ -187,5 +187,39 @@ describe('P1-F: Semantic Target Resolution & Focus/Context Contracts', () => {
     expect(resolver.rank([], ray)).toBeNull();
     expect(resolver.heldTarget).toBeNull();
     resolver.clearHold();
+  });
+
+  it('F9: semantic coercion compares structure distance to nearest observation, not hit array order', () => {
+    const resolver = new SemanticTargetResolver({}, 0.1);
+    const command = { mesh: createDummyMesh(0, 0, 0.4), semantic: { kind: 'command' as const } };
+    const observation = {
+      mesh: createDummyMesh(0, 0, 1.0),
+      data: { row: 1 },
+      semantic: { kind: 'observation' as const },
+    };
+    const structure = {
+      mesh: createDummyMesh(0, 0, 1.05),
+      semantic: { kind: 'mapper-node' as const, structureId: 'mapper-1', salience: 1 },
+    };
+    const ray = new THREE.Ray(new THREE.Vector3(), new THREE.Vector3(0, 0, 1));
+
+    const resolved = resolver.rank(
+      [
+        { entry: command, distance: 0.4 },
+        { entry: observation, distance: 1.0 },
+        { entry: structure, distance: 1.05 },
+      ],
+      ray
+    );
+
+    expect(resolved?.kind).toBe('mapper-node');
+  });
+
+  it('F10: restore fails closed for impossible semantic focus state', () => {
+    const controller = new FocusContextController();
+    expect(() =>
+      controller.restoreState({ currentLevel: 'observation', focusedStructureId: null })
+    ).toThrow(/requires a focusedStructureId/);
+    expect(() => controller.updateByDistance(Number.NaN)).toThrow(/finite and non-negative/);
   });
 });

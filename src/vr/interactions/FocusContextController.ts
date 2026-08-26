@@ -21,6 +21,14 @@ export interface FocusContextState {
   anchorMatrix: THREE.Matrix4 | null;
 }
 
+function isFocusLevel(value: unknown): value is FocusLevel {
+  return typeof value === 'string' && HIERARCHY_ORDER.includes(value as FocusLevel);
+}
+
+function levelRequiresStructure(level: FocusLevel): boolean {
+  return level === 'structure' || level === 'region' || level === 'observation';
+}
+
 export class FocusContextController {
   private _currentLevel: FocusLevel = 'dataset';
   private _focusedStructureId: string | null = null;
@@ -42,11 +50,12 @@ export class FocusContextController {
    * Set focused structure with its persistent anchor transform.
    */
   focusStructure(structureId: string, anchorMatrix?: THREE.Matrix4): void {
+    if (!structureId.trim()) {
+      throw new TypeError('FocusContextController requires a non-empty structureId');
+    }
     this._focusedStructureId = structureId;
     this._currentLevel = 'structure';
-    if (anchorMatrix) {
-      this._anchorMatrix = anchorMatrix.clone();
-    }
+    this._anchorMatrix = anchorMatrix ? anchorMatrix.clone() : null;
   }
 
   /**
@@ -59,13 +68,18 @@ export class FocusContextController {
   }
 
   /**
-   * Step down the hierarchy toward deeper detail.
+   * Step down the hierarchy toward deeper detail. Deeper semantic levels require
+   * an actual focused structure; a bare controller cannot invent one.
    */
   drillDown(): FocusLevel {
     const idx = HIERARCHY_ORDER.indexOf(this._currentLevel);
-    if (idx < HIERARCHY_ORDER.length - 1) {
-      this._currentLevel = HIERARCHY_ORDER[idx + 1];
+    if (idx >= HIERARCHY_ORDER.length - 1) return this._currentLevel;
+
+    const next = HIERARCHY_ORDER[idx + 1];
+    if (levelRequiresStructure(next) && !this._focusedStructureId) {
+      return this._currentLevel;
     }
+    this._currentLevel = next;
     return this._currentLevel;
   }
 
@@ -78,6 +92,7 @@ export class FocusContextController {
       this._currentLevel = HIERARCHY_ORDER[idx - 1];
       if (this._currentLevel === 'dataset' || this._currentLevel === 'investigation') {
         this._focusedStructureId = null;
+        this._anchorMatrix = null;
       }
     }
     return this._currentLevel;
@@ -85,11 +100,18 @@ export class FocusContextController {
 
   /**
    * Update focus level by distance-to-target band.
-   *   > 3.5m -> dataset
-   *   1.2m - 3.5m -> structure
-   *   < 1.2m -> observation
+   * A distance alone cannot create semantic focus; without a focused structure
+   * the controller remains at dataset context.
    */
   updateByDistance(distanceMeters: number): FocusLevel {
+    if (!Number.isFinite(distanceMeters) || distanceMeters < 0) {
+      throw new TypeError('FocusContextController distance must be finite and non-negative');
+    }
+    if (!this._focusedStructureId) {
+      this._currentLevel = 'dataset';
+      return this._currentLevel;
+    }
+
     if (distanceMeters > 3.5) {
       this._currentLevel = 'dataset';
     } else if (distanceMeters >= 1.2) {
@@ -102,7 +124,8 @@ export class FocusContextController {
 
   /**
    * Export minimal reproducible investigation state.
-   * Persists structureId and level only when a meaningful structure is focused.
+   * Camera pose / anchor matrix remain presentation state and are intentionally
+   * excluded from the portable investigation state.
    */
   exportState(): { currentLevel: FocusLevel; focusedStructureId: string | null } {
     return {
@@ -112,10 +135,26 @@ export class FocusContextController {
   }
 
   /**
-   * Restore focus state.
+   * Restore validated semantic focus state. Deeper levels require a durable
+   * structure identity; broad levels cannot retain a stale structure identity.
    */
   restoreState(state: { currentLevel: FocusLevel; focusedStructureId: string | null }): void {
+    if (!state || !isFocusLevel(state.currentLevel)) {
+      throw new TypeError('FocusContextController restore state has invalid currentLevel');
+    }
+    if (state.focusedStructureId !== null && !state.focusedStructureId.trim()) {
+      throw new TypeError('FocusContextController restore state has invalid focusedStructureId');
+    }
+    if (levelRequiresStructure(state.currentLevel) && !state.focusedStructureId) {
+      throw new TypeError(
+        `Focus level ${state.currentLevel} requires a focusedStructureId`
+      );
+    }
+
     this._currentLevel = state.currentLevel;
-    this._focusedStructureId = state.focusedStructureId;
+    this._focusedStructureId = levelRequiresStructure(state.currentLevel)
+      ? state.focusedStructureId
+      : null;
+    this._anchorMatrix = null;
   }
 }
