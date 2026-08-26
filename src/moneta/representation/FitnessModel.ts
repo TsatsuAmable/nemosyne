@@ -8,6 +8,7 @@ import type {
   StructureRequirementType,
 } from './RepresentationRequirements.ts';
 import type { RepresentationFamily } from './RepresentationFamily.ts';
+import type { PerceptualFitnessEvidence } from '../evidence/PerceptualFitnessEvidence.ts';
 
 /**
  * V3 Gate 3 bootstrap model.
@@ -23,17 +24,19 @@ export interface BootstrapFitnessWeights {
   informationPreservation: number;
   densityHandling: number;
   configuredPrior: number;
+  perceptualFitness: number;
 }
 
 export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v1';
 
 export const DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS: BootstrapFitnessWeights = {
-  structure: 0.35,
+  structure: 0.30,
   task: 0.25,
   scale: 0.15,
   informationPreservation: 0.15,
   densityHandling: 0.05,
   configuredPrior: 0.05,
+  perceptualFitness: 0.05,
 };
 
 export interface FitnessComponent {
@@ -100,8 +103,11 @@ export class BootstrapFitnessModel {
     signature: DatasetSignature,
     requirements: RepresentationRequirements,
     candidate: RepresentationCandidate,
-    family: RepresentationFamily
+    family: RepresentationFamily,
+    perceptualEvidence?: PerceptualFitnessEvidence
   ): FitnessEvaluation {
+    const perceptual = this.scorePerceptual(candidate, perceptualEvidence);
+
     const components: FitnessComponent[] = [
       this.component(
         'structure',
@@ -133,6 +139,11 @@ export class BootstrapFitnessModel {
         signature.preferredFamilies?.includes(family) ? 1 : 0.5,
         'Configured preference prior; not an empirical probability'
       ),
+      this.component(
+        'perceptualFitness',
+        perceptual.score,
+        perceptual.rationale
+      ),
     ];
 
     const utilityScore = clamp01(
@@ -140,6 +151,32 @@ export class BootstrapFitnessModel {
     );
 
     return { modelVersion: this.version, utilityScore, components };
+  }
+
+  private scorePerceptual(
+    candidate: RepresentationCandidate,
+    evidence?: PerceptualFitnessEvidence
+  ): { score: number; rationale: string } {
+    if (evidence?.source === 'measured' && evidence.measured) {
+      const m = evidence.measured;
+      const score = clamp01(
+        (1 - m.projectedOverlapFraction) * 0.3 +
+        (1 - m.hiddenMarkFraction) * 0.3 +
+        (1 - m.depthOrderAmbiguityFraction) * 0.2 +
+        clamp01(m.medianProjectedGlyphSizePx / 32) * 0.2
+      );
+      return {
+        score,
+        rationale: `Measured perceptual fitness across ${m.viewpointEnvelope.length}-pose viewpoint envelope (${m.deviceClass})`,
+      };
+    }
+
+    const { occlusionResistance, cognitiveLoad } = candidate.interactionCharacteristics;
+    const score = clamp01(occlusionResistance * 0.6 + (1 - cognitiveLoad) * 0.4);
+    return {
+      score,
+      rationale: 'Engineering prior based on candidate occlusion resistance and cognitive load',
+    };
   }
 
   private component(
