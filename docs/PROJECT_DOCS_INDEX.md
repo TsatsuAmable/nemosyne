@@ -1,66 +1,60 @@
 # Project documentation index
 
-This repository keeps one governing product/research/architecture specification, separate implementation/status and technical-reference layers, a study layer, and a historical archive. Archived documents are context only and never override the authorities below.
+Nemosyne keeps a small set of authoritative documents and a larger body of subordinate reference/history. The machine-readable lifecycle map is [`DOCS_MANIFEST.json`](DOCS_MANIFEST.json). Archived documents are context only and never override active authorities.
 
-## Governing specification
+## Governing authorities
 
-- [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md) — **V3**, the canonical discovery-centric product, research and architecture specification. It defines the five ontologies, canonical authority boundaries, the 15-module target architecture, V3 Gates 0–10, reproducibility requirements and the path from bootstrap heuristics to validated compositional representation intelligence. All other product documents are subordinate to it.
+- [`Nemosyne_Definitive_Vision_and_Roadmap.md`](Nemosyne_Definitive_Vision_and_Roadmap.md) — canonical product, research, and architecture direction.
+- [`ROADMAP.md`](ROADMAP.md) — canonical live implementation status, programme order, Stream A/B/C state, and review findings.
+- [`../AGENTS.md`](../AGENTS.md) — canonical tool-neutral engineering/agent contract.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — active technical reference, subordinate to the governing vision where migration remains incomplete.
 
-## 1. Product implementation and status
+Executable facts such as commands, dependency/tool versions, CI topology, coverage thresholds, and package metadata are authoritative only in their executable configuration (`package.json`, workflows, test configs, toolchain files, and source). Documentation should link to those sources instead of copying values that can drift.
 
-This layer describes the code that exists now and the migration toward V3. It must not restate superseded vision as current direction.
+## Implementation and engineering reference
 
-Canonical files:
+- [`IMPLEMENTATION_PLAN_V3.md`](IMPLEMENTATION_PLAN_V3.md) — V3 sequencing and dependency structure; `ROADMAP.md` governs live status.
+- [`DEVELOPER_EXPLAINER.md`](DEVELOPER_EXPLAINER.md) — developer onboarding and codebase mental model.
+- [`MIGRATION.md`](MIGRATION.md) — migration reference where still applicable.
+- [`CI_TEST_ACCELERATION_STRATEGY.md`](CI_TEST_ACCELERATION_STRATEGY.md) — CI evidence/latency strategy and measured sharding work.
+- [`STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`](STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md) — Stream A implementation quality contract.
+- [`STREAM_C_SECURITY_ASSURANCE.md`](STREAM_C_SECURITY_ASSURANCE.md) — Stream C security/live-path assurance programme.
+- [`STATISTICAL_METHOD_REGISTER.md`](STATISTICAL_METHOD_REGISTER.md) — governed statistical method inventory.
+- [`GETTING_STARTED.md`](GETTING_STARTED.md) — user/developer setup reference.
+- [`../README.md`](../README.md) — repository entry point.
 
-- [ROADMAP.md](ROADMAP.md) — implementation status and V3 migration workstreams. Historical gate/sprint numbering remains historical evidence only.
-- [IMPLEMENTATION_PLAN_V3.md](IMPLEMENTATION_PLAN_V3.md) — V3 module sequencing, dependency graph, verification gates and deletion/migration policy; `ROADMAP.md` governs live status.
-- [DEVELOPER_EXPLAINER.md](DEVELOPER_EXPLAINER.md) — developer onboarding and codebase mental model.
-- [ARCHITECTURE.md](ARCHITECTURE.md) — current modular subsystem reference; where it conflicts with V3, V3 governs until this reference is migrated.
-- [PRE_P1_SYSTEMATIC_AUDIT.md](PRE_P1_SYSTEMATIC_AUDIT.md) — current adversarial architecture, UX/VR, performance, resilience, security, maintainability, test, use-case and documentation audit.
-- [AI_XR_AGENT_HARNESS_SPEC.md](AI_XR_AGENT_HARNESS_SPEC.md) — proposed implementation specification for agent-operated WebXR verification and a consented, observer-first AI presence; subordinate to V3 and not implementation authorization by itself.
-- [MIGRATION.md](MIGRATION.md)
-- [STATISTICAL_METHOD_REGISTER.md](STATISTICAL_METHOD_REGISTER.md)
-- [GETTING_STARTED.md](GETTING_STARTED.md)
-- [README.md](../README.md)
+These documents may describe current implementation but must not override the governing authorities above.
 
-Use this layer to answer what is implemented, active, planned, blocked or deferred. Do not infer V3 completion from older completed sprint/gate labels.
+## Product and spatial interaction reference
 
-Historical context:
+- [`Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md`](Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md)
+- [`Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`](Nemosyne_VR_UI_Design_System_and_Agent_Spec.md)
+- [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md)
 
-- [Roadmap history](archive/ROADMAP_HISTORY.md)
-- [Phases 21–26 completed archive](archive/ROADMAP_PHASES_21-26_COMPLETED.md)
-- [Phases 1–20 completed archive](archive/ROADMAP_PHASES_1-20_COMPLETED.md)
+## Study and research governance
 
-## 2. Study protocol and research governance
+- [`study/README.md`](study/README.md)
+- [`study/PROTOCOL.md`](study/PROTOCOL.md)
+- [`study/ANALYSIS_PLAN.md`](study/ANALYSIS_PLAN.md)
+- [`study/CONFOUNDS.md`](study/CONFOUNDS.md)
+- [`study/REPRESENTATION_EQUIVALENCE.md`](study/REPRESENTATION_EQUIVALENCE.md)
+- [`study/CONSENT.md`](study/CONSENT.md)
+- [`study/DATA_DICTIONARY.md`](study/DATA_DICTIONARY.md)
+- [`study/version.json`](study/version.json)
 
-Canonical files:
-
-- [study/README.md](study/README.md)
-- [study/PROTOCOL.md](study/PROTOCOL.md)
-- [study/ANALYSIS_PLAN.md](study/ANALYSIS_PLAN.md)
-- [study/CONFOUNDS.md](study/CONFOUNDS.md)
-- [study/REPRESENTATION_EQUIVALENCE.md](study/REPRESENTATION_EQUIVALENCE.md)
-
-V3 reframes 2D-vs-VR as one controlled experiment within the broader meaningful-discovery programme. Existing protocol documents remain operational inputs but must be revised before being treated as evidence that the V3 research programme is study-ready.
-
-## 3. Study operations, compliance and reproducibility
-
-Canonical files:
-
-- [study/CONSENT.md](study/CONSENT.md)
-- [study/DATA_DICTIONARY.md](study/DATA_DICTIONARY.md)
-- [study/version.json](study/version.json)
+Study material is operational research governance; it does not override product/architecture authority.
 
 ## Historical archive
 
-- [Archive index](archive/README.md) — superseded roadmaps, design material and study drafts.
+- [`archive/README.md`](archive/README.md) — archive index.
+- Historical roadmaps, completed sprint plans, superseded designs, audits, and point-in-time readiness reports belong under `archive/`.
+- The former root `TEST_READY.md` and `TEST_INFRA.md` are archived as point-in-time reports because their counts, naming, and test architecture no longer describe the live suite.
 
-## Ownership and authority
+## Documentation rules
 
-- Product direction, research thesis, architecture boundaries and implementation gates: [Nemosyne_Definitive_Vision_and_Roadmap.md](Nemosyne_Definitive_Vision_and_Roadmap.md).
-- Current implementation status: [ROADMAP.md](ROADMAP.md).
-- Executable V3 migration sequencing: [IMPLEMENTATION_PLAN_V3.md](IMPLEMENTATION_PLAN_V3.md).
-- Technical reference: [ARCHITECTURE.md](ARCHITECTURE.md), subordinate to V3 while migration is in progress.
-- Study design and operations: [study/](study/), subordinate to V3 research safeguards.
-
-No archived document is an active source of truth. If an active document conflicts with V3, V3 wins and the conflicting document must be updated or archived as part of the next touching change.
+1. A document may have only one lifecycle/authority classification in `DOCS_MANIFEST.json`.
+2. Canonical authorities should be few. New status documents should normally update `ROADMAP.md` instead.
+3. Historical documents must live under `archive/` and may not be cited as current authority.
+4. Machine-readable facts are not duplicated in agent prose.
+5. Any change to documentation authority or engineering instructions must pass `npm run docs:check`.
+6. If an active document conflicts with a governing authority, update or archive it as part of the next touching change.
