@@ -15,12 +15,27 @@ import {
   MIN_OBJECT_BVH_PRIMITIVES,
 } from '../scalability/BVHSpatialAccelerator.ts';
 
+export type SemanticTargetKind =
+  | 'observation'
+  | 'cluster-region'
+  | 'mapper-node'
+  | 'persistence-structure'
+  | 'investigation-artifact'
+  | 'command';
+
+export interface SemanticTargetMeta {
+  kind: SemanticTargetKind;
+  structureId?: string;
+  salience?: number;
+}
+
 export interface InteractableEntry {
   mesh: THREE.Object3D;
   onEnter?(mesh: THREE.Object3D): void;
   onLeave?(mesh: THREE.Object3D): void;
   onSelect?(mesh: THREE.Object3D, data?: unknown): void;
   data?: unknown;
+  semantic?: SemanticTargetMeta;
 }
 
 export interface HudObject {
