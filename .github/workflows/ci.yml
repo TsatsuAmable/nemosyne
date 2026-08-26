@@ -37,10 +37,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
-  coverage:
-    name: Vitest coverage
+  coverage-wasm:
+    name: Coverage WASM package
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -50,12 +50,15 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Cache wasm target
+      - name: Cache WASM build inputs
         uses: actions/cache@v6
         with:
-          path: wasm/target
-          key: ${{ runner.os }}-wasm-target-${{ hashFiles('wasm/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-wasm-target-
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            wasm/target
+          key: ${{ runner.os }}-wasm-dev-${{ hashFiles('wasm/Cargo.toml', 'rust-toolchain.toml') }}
+          restore-keys: ${{ runner.os }}-wasm-dev-
 
       - name: Set up Node.js 24
         uses: actions/setup-node@v7
@@ -66,11 +69,106 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build WASM package for tests
+      - name: Build development WASM package once
         run: npm run wasm:dev
 
-      - name: Test with coverage thresholds
-        run: npm run test:coverage
+      - name: Upload coverage WASM package
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-wasm-package
+          path: wasm/pkg
+          if-no-files-found: error
+          retention-days: 7
+
+  coverage-shard:
+    name: Vitest coverage shard ${{ matrix.shard }}/3
+    needs: coverage-wasm
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download coverage WASM package
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-wasm-package
+          path: wasm/pkg
+
+      - name: Verify coverage WASM package
+        run: test -s wasm/pkg/nemosyne_wasm_bg.wasm
+
+      - name: Run coverage shard
+        env:
+          NEMOSYNE_COVERAGE_REPORT_ONLY: '1'
+        run: >-
+          npx vitest run
+          --coverage
+          --config vitest.coverage.config.ts
+          --shard=${{ matrix.shard }}/3
+          --reporter=blob
+          --outputFile=vitest-shard-reports/blob-${{ matrix.shard }}.json
+
+      - name: Upload shard report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: vitest-coverage-shard-${{ matrix.shard }}
+          path: vitest-shard-reports
+          if-no-files-found: error
+          retention-days: 7
+
+  coverage:
+    name: Vitest coverage
+    if: ${{ always() }}
+    needs: coverage-shard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Enforce shard success
+        env:
+          SHARDS_RESULT: ${{ needs.coverage-shard.result }}
+        run: test "$SHARDS_RESULT" = success
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download shard reports
+        uses: actions/download-artifact@v8
+        with:
+          pattern: vitest-coverage-shard-*
+          path: vitest-shard-reports
+          merge-multiple: true
+
+      - name: Merge coverage and enforce global thresholds
+        run: >-
+          npx vitest
+          --merge-reports=vitest-shard-reports
+          --config vitest.coverage.config.ts
+          --reporter=default
+          --coverage
 
   production-build:
     name: Production build
@@ -118,7 +216,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             wasm/target
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('wasm/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('wasm/Cargo.toml', 'rust-toolchain.toml') }}
           restore-keys: ${{ runner.os }}-cargo-test-
 
       - name: Run Rust unit tests
