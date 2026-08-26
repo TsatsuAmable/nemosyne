@@ -22,7 +22,7 @@ import type { DatasetHandleExports, MemoryAbiExports } from './RuntimeExports.ts
 
 type DatasetHandleRuntime = DatasetHandleExports & MemoryAbiExports;
 
-type TdaExportName =
+export type TdaExportName =
   | 'data_compute_mapper_graph'
   | 'data_compute_persistence_intervals'
   | 'data_compute_betti0_curve';
@@ -149,6 +149,23 @@ function readTdaPreflight(
   return json ? parseTdaPreflight(json) : null;
 }
 
+function parseTdaRefusalEnvelope(json: string): TdaResourcePreflight | null {
+  // The Rust `data_compute_*` exports run the resource preflight inline and, on
+  // refusal, write `{ unsupportedAtScale: true, preflight: <TdaResourcePreflight> }`
+  // instead of a result. Valid TDA results (a mapper graph object, persistence /
+  // Betti arrays) never carry this marker, so detection is unambiguous and a
+  // normal result is returned untouched.
+  try {
+    const value = JSON.parse(json) as { unsupportedAtScale?: unknown; preflight?: unknown };
+    if (value && value.unsupportedAtScale === true && value.preflight) {
+      return parseTdaPreflight(JSON.stringify(value.preflight));
+    }
+  } catch {
+    // Not JSON or wrong shape — treat as a normal result.
+  }
+  return null;
+}
+
 function tdaCall(
   wasm: DatasetHandleRuntime,
   handle: number,
@@ -158,12 +175,11 @@ function tdaCall(
   const paramBytes = new TextEncoder().encode(JSON.stringify(params));
   const { ptr: paramPtr, len: paramLen } = allocBytes(paramBytes);
   try {
-    const preflight = readTdaPreflight(wasm, handle, paramPtr, paramLen, exportName);
-    if (preflight?.refusal) {
-      throw new UnsupportedAtScaleError(preflight);
-    }
-
-    return readStringExport((outPtr, outLen) => {
+    // Enforcement is kernel-inline: the Rust export refuses over-budget work
+    // in-band before any expensive TDA computation, so direct/raw callers cannot
+    // bypass the analytical resource envelope. The standalone preflight remains
+    // available as a dry-run query via tdaResourcePreflight.
+    const json = readStringExport((outPtr, outLen) => {
       const fn = wasm[exportName] as (
         h: number,
         pp: number,
@@ -173,6 +189,34 @@ function tdaCall(
       ) => number;
       return fn(handle, paramPtr, paramLen, outPtr, outLen);
     });
+    if (!json) return null;
+    const refusal = parseTdaRefusalEnvelope(json);
+    if (refusal) {
+      throw new UnsupportedAtScaleError(refusal);
+    }
+    return json;
+  } finally {
+    deallocBytes(paramPtr, paramLen);
+  }
+}
+
+/**
+ * Dry-run resource preflight for a TDA operation. Calls the standalone
+ * `data_tda_resource_preflight` kernel query without executing the compute, so
+ * the investigator can be shown scale/eligibility evidence before requesting a
+ * result. The production compute path enforces the same envelope inline inside
+ * the Rust `data_compute_*` exports.
+ */
+export function tdaResourcePreflight(
+  handle: number,
+  params: Record<string, unknown>,
+  exportName: TdaExportName
+): TdaResourcePreflight | null {
+  const wasm = getRuntimeExports();
+  const paramBytes = new TextEncoder().encode(JSON.stringify(params));
+  const { ptr: paramPtr, len: paramLen } = allocBytes(paramBytes);
+  try {
+    return readTdaPreflight(wasm, handle, paramPtr, paramLen, exportName);
   } finally {
     deallocBytes(paramPtr, paramLen);
   }

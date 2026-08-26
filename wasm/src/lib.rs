@@ -867,6 +867,19 @@ pub fn data_compute_mapper_graph(
             return 0;
         }
     };
+    // Kernel-inline resource envelope: refuse in-band before any expensive TDA
+    // work so direct/raw callers cannot bypass the analytical budget. The host
+    // bridge also surfaces this as UnsupportedAtScaleError; the standalone
+    // data_tda_resource_preflight remains as a dry-run query.
+    if let Some(preflight) =
+        data::resource_budget::tda_preflight_for(handle, &params, data::resource_budget::TdaOperation::Mapper)
+    {
+        if preflight.refusal.is_some() {
+            let envelope = serde_json::json!({ "unsupportedAtScale": true, "preflight": preflight });
+            let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
+            return write_str_out(&json, out_ptr, out_len);
+        }
+    }
     let feature_columns = parse_string_array(params.get("featureColumns").unwrap_or(&serde_json::Value::Null));
     let filter_values = parse_f64_array(params.get("filterValues").unwrap_or(&serde_json::Value::Null));
     let bins = params.get("bins").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
@@ -900,6 +913,16 @@ pub fn data_compute_persistence_intervals(
             return 0;
         }
     };
+    // Kernel-inline resource envelope (see data_compute_mapper_graph).
+    if let Some(preflight) =
+        data::resource_budget::tda_preflight_for(handle, &params, data::resource_budget::TdaOperation::Persistence)
+    {
+        if preflight.refusal.is_some() {
+            let envelope = serde_json::json!({ "unsupportedAtScale": true, "preflight": preflight });
+            let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
+            return write_str_out(&json, out_ptr, out_len);
+        }
+    }
     let feature_columns = parse_string_array(params.get("featureColumns").unwrap_or(&serde_json::Value::Null));
     let filter_values = parse_f64_array(params.get("filterValues").unwrap_or(&serde_json::Value::Null));
     let max_distance = params.get("maxDistance").and_then(|v| v.as_f64()).unwrap_or(1.0);
@@ -932,6 +955,16 @@ pub fn data_compute_betti0_curve(
             return 0;
         }
     };
+    // Kernel-inline resource envelope (see data_compute_mapper_graph).
+    if let Some(preflight) =
+        data::resource_budget::tda_preflight_for(handle, &params, data::resource_budget::TdaOperation::Betti0)
+    {
+        if preflight.refusal.is_some() {
+            let envelope = serde_json::json!({ "unsupportedAtScale": true, "preflight": preflight });
+            let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
+            return write_str_out(&json, out_ptr, out_len);
+        }
+    }
     let feature_columns = parse_string_array(params.get("featureColumns").unwrap_or(&serde_json::Value::Null));
     let steps = params.get("steps").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
 
