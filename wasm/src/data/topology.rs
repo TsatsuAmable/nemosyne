@@ -225,31 +225,40 @@ impl FeatureSpace {
     /// `Dataset` slot is never consulted. Dictionary/categorical feature
     /// columns fail closed with `UnsupportedColumnKind`; expanding categorical
     /// support is a governed P1-C/P2 decision, not smuggled in here.
+    ///
+    /// RF-007: the columnar primitive invariant (validity 0 ⇒ stored 0.0, all
+    /// finite) is enforced at ingest, so this path borrows the primitive
+    /// buffers via the shared `point_access` substrate and transposes from the
+    /// borrows. It no longer clones each primitive buffer into a throwaway
+    /// intermediate, halving the per-column allocation during construction.
+    /// Output is byte-identical to the previous clone-then-transpose path.
     pub fn from_columnar(
         columns: &[Column],
         columnar: &ColumnarDataset,
         feature_columns: &[&str],
     ) -> Result<Self, ColumnarTdaError> {
-        let mut feature_buffers: Vec<Vec<f64>> = Vec::with_capacity(feature_columns.len());
-        for name in feature_columns {
-            let index = columns
-                .iter()
-                .position(|c| &c.name == name)
-                .ok_or_else(|| ColumnarTdaError::UnknownColumn(name.to_string()))?;
-            match columnar.primitive_column(index) {
-                Some(primitive) => feature_buffers.push(primitive.values.clone()),
-                None => return Err(ColumnarTdaError::UnsupportedColumnKind(name.to_string())),
+        let borrowed = crate::data::point_access::borrowed_feature_columns(
+            columns,
+            columnar,
+            feature_columns,
+        )
+        .map_err(|err| match err {
+            crate::data::point_access::PointAccessError::MissingColumn(name) => {
+                ColumnarTdaError::UnknownColumn(name)
             }
-        }
+            crate::data::point_access::PointAccessError::UnsupportedColumnKind(name) => {
+                ColumnarTdaError::UnsupportedColumnKind(name)
+            }
+        })?;
         let row_count = columnar.row_count();
-        let first_feature = match feature_buffers.first() {
-            Some(buf) => buf.clone(),
+        let first_feature = match borrowed.first() {
+            Some(buf) => buf.to_vec(),
             None => Vec::new(),
         };
         // Transpose into row-major points to keep the algorithm bodies
         // byte-identical with the row path (they index `points[i]`).
         let points: Vec<Vec<f64>> = (0..row_count)
-            .map(|i| feature_buffers.iter().map(|buf| buf[i]).collect())
+            .map(|i| borrowed.iter().map(|buf| buf[i]).collect())
             .collect();
         Ok(Self {
             row_count,
@@ -260,6 +269,13 @@ impl FeatureSpace {
 
     pub fn row_count(&self) -> usize {
         self.row_count
+    }
+
+    /// Borrow the row-major gathered points. Exposed so the shared point-access
+    /// substrate (RF-007) cross-substrate parity tests can read FeatureSpace
+    /// without duplicating storage.
+    pub fn points(&self) -> &[Vec<f64>] {
+        &self.points
     }
 }
 
@@ -990,5 +1006,35 @@ mod columnar_tda_tests {
         // Row index 2 is the missing-x row: its x feature is 0.0 in both paths.
         assert_eq!(row_space.points[2][0], 0.0);
         assert_eq!(col_space.points[2][0], 0.0);
+    }
+
+    /// RF-007: the columnar path now borrows primitive buffers via the shared
+    /// `point_access` substrate instead of cloning each buffer into a throwaway
+    /// intermediate. The transposed points must be byte-identical to a manual
+    /// borrow-then-transpose reference (no value divergence, no clone fallout).
+    #[test]
+    fn r7_rf007_columnar_path_borrows_without_intermediate_clone() {
+        let (ds, columnar, fc) = parity_fixture();
+        let space = FeatureSpace::from_columnar(&ds.columns, &columnar, &fc).expect("feature space");
+
+        // Manual reference: borrow each primitive buffer directly and transpose,
+        // which is exactly what the shared substrate does. The produced points
+        // must match the FeatureSpace output element-for-element.
+        let borrowed: Vec<&[f64]> = fc
+            .iter()
+            .map(|name| {
+                let idx = ds.columns.iter().position(|c| c.name == *name).unwrap();
+                columnar.primitive_column(idx).unwrap().values.as_slice()
+            })
+            .collect();
+        let n = columnar.row_count();
+        for i in 0..n {
+            for (j, buf) in borrowed.iter().enumerate() {
+                assert_eq!(space.points[i][j], buf[i]);
+            }
+        }
+        // The public accessor exposes the same borrowed view.
+        assert_eq!(space.points().len(), n);
+        assert_eq!(space.points(), &space.points);
     }
 }
