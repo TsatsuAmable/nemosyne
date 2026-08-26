@@ -4,7 +4,7 @@ import { ColumnType, Dataset } from '../src/data/Dataset.ts';
 import type { DatasetJSON } from '../src/data/types.ts';
 
 function graphDataset(): Dataset {
-  return new Dataset(
+  const dataset = new Dataset(
     'graph-lineage',
     [{ name: 'value', type: ColumnType.NUMERIC }],
     [{ value: 1 }, { value: 2 }, { value: 3 }],
@@ -20,11 +20,14 @@ function graphDataset(): Dataset {
     ],
     ['rust:a', 'rust:b', 'rust:c']
   );
+  dataset._meta = { displayLabel: 'graph A', panel: { pinned: true } };
+  return dataset;
 }
 
 function expectGraphPreserved(actual: Dataset, expected: Dataset): void {
   expect(actual.edges).toEqual(expected.edges);
   expect(actual.rowIds).toEqual(expected.rowIds);
+  expect(actual._meta).toEqual(expected._meta);
 }
 
 describe('RF-044 graph lineage preservation', () => {
@@ -36,6 +39,8 @@ describe('RF-044 graph lineage preservation', () => {
     expect(clone.edges).not.toBe(source.edges);
     expect(clone.edges?.[0]).not.toBe(source.edges?.[0]);
     expect(clone.edges?.[0]?.metadata).not.toBe(source.edges?.[0]?.metadata);
+    expect(clone._meta).not.toBe(source._meta);
+    expect(clone._meta?.panel).not.toBe(source._meta?.panel);
   });
 
   it('preserves graph lineage through every clone-mediated AnalyticalState transition', () => {
@@ -56,7 +61,7 @@ describe('RF-044 graph lineage preservation', () => {
     expectGraphPreserved(state.current, source);
   });
 
-  it('hands the intact graph to the kernel loader after normal Atlas loading', () => {
+  it('hands the intact scientific graph to the kernel loader after normal Atlas loading', () => {
     const source = graphDataset();
     const state = new AnalyticalState();
     let loaded: DatasetJSON | undefined;
@@ -70,6 +75,8 @@ describe('RF-044 graph lineage preservation', () => {
     expect(handle).toBe(23);
     expect(loaded?.edges).toEqual(source.edges);
     expect(loaded?.rowIds).toEqual(source.rowIds);
+    expect('meta' in (loaded as unknown as Record<string, unknown>)).toBe(false);
+    expect('_meta' in (loaded as unknown as Record<string, unknown>)).toBe(false);
   });
 
   it('does not expose live graph state through the serialized DatasetJSON payload', () => {
