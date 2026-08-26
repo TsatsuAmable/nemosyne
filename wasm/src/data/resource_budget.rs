@@ -180,16 +180,28 @@ pub fn kmeans_estimate(
     budget: AnalysisBudget,
 ) -> ResourceEstimate {
     let effective_k = k.max(1).min(rows.max(1));
-    // k-means++ contributes another O(n*k*d) pass before the fixed Lloyd loop.
-    // Because k is user-controlled and may grow with n, the governed worst-case
-    // complexity class is quadratic even though ordinary fixed-k runs are linear
-    // in rows for fixed dimensions and iteration count.
-    let work = sat_mul(&[
-        rows as u64,
-        dimensions.max(1) as u64,
-        effective_k as u64,
-        KMEANS_ITERATIONS.saturating_add(1),
+    let rows_u64 = rows as u64;
+    let dimensions_u64 = dimensions.max(1) as u64;
+    let k_u64 = effective_k as u64;
+
+    // The current k-means++ implementation recomputes each point's distance to
+    // every already-selected centroid on every seeding round. The number of
+    // centroid-distance comparisons is therefore 1 + ... + (k-1), i.e.
+    // k*(k-1)/2 per point, rather than O(k). Lloyd assignment then performs
+    // n*k comparisons for each fixed iteration. With user-controlled k up to n,
+    // this implementation has a cubic worst case and must be budgeted as such.
+    let seed_comparisons = k_u64
+        .saturating_mul(k_u64.saturating_sub(1))
+        .saturating_div(2);
+    let seed_work = sat_mul(&[rows_u64, dimensions_u64, seed_comparisons]);
+    let lloyd_work = sat_mul(&[
+        rows_u64,
+        dimensions_u64,
+        k_u64,
+        KMEANS_ITERATIONS,
     ]);
+    let work = seed_work.saturating_add(lloyd_work);
+
     let bytes = row_matrix_bytes(rows, dimensions)
         .saturating_add(sat_mul(&[rows as u64, 8])) // assignments
         .saturating_add(sat_mul(&[effective_k as u64, dimensions as u64, 16])); // old + new centroids
@@ -210,7 +222,7 @@ pub fn kmeans_estimate(
         operation: "k_means".to_string(),
         rows,
         dimensions,
-        complexity: AnalysisComplexity::Quadratic,
+        complexity: AnalysisComplexity::Cubic,
         estimated_work_units: work,
         estimated_transient_bytes: bytes,
         decision,
@@ -334,14 +346,24 @@ mod tests {
     }
 
     #[test]
-    fn kmeans_budget_accounts_for_matrix_and_fixed_iterations() {
+    fn kmeans_budget_accounts_for_naive_kmeans_plus_plus_and_lloyd_iterations() {
         let small = kmeans_estimate(10_000, 4, 4, AnalysisBudget::default());
         assert_eq!(small.decision, ResourceDecision::ExactAllowed);
-        assert_eq!(small.complexity, AnalysisComplexity::Quadratic);
+        assert_eq!(small.complexity, AnalysisComplexity::Cubic);
+        // 10k * 4 dimensions * (4*3/2 + 4*20) comparisons.
+        assert_eq!(small.estimated_work_units, 3_440_000);
 
         let large = kmeans_estimate(100_000, 8, 8, AnalysisBudget::default());
         assert_eq!(large.decision, ResourceDecision::UnsupportedAtScale);
         assert_eq!(large.reason_code.as_deref(), Some("EXACT_WORK_BUDGET_EXCEEDED"));
+    }
+
+    #[test]
+    fn kmeans_user_controlled_k_exposes_cubic_scale_cliff() {
+        let estimate = kmeans_estimate(2_000, 2, 2_000, AnalysisBudget::default());
+        assert_eq!(estimate.complexity, AnalysisComplexity::Cubic);
+        assert_eq!(estimate.decision, ResourceDecision::UnsupportedAtScale);
+        assert_eq!(estimate.reason_code.as_deref(), Some("EXACT_WORK_BUDGET_EXCEEDED"));
     }
 
     #[test]
