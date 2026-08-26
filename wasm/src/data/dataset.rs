@@ -6,7 +6,7 @@ use crate::data::column::{Column, ColumnType};
 use crate::data::value::Value;
 
 /// A dataset edge. Mirrors the JS `DatasetEdge` open struct: `source`/`target`
-/// row indices, an optional `weight`, and any extra string-keyed attributes.
+/// row indices, an optional `weight`, and arbitrary JSON-compatible attributes.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Edge {
     pub source: usize,
@@ -14,7 +14,7 @@ pub struct Edge {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub weight: Option<f64>,
     #[serde(flatten)]
-    pub extra: HashMap<String, Value>,
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 impl Edge {
@@ -296,7 +296,7 @@ impl Dataset {
                         if k == "source" || k == "target" || k == "weight" {
                             continue;
                         }
-                        extra.insert(k.clone(), js_value_to_value(v));
+                        extra.insert(k.clone(), v.clone());
                     }
                     Some(Edge { source, target, weight, extra })
                 })
@@ -400,6 +400,7 @@ pub enum RowUpdateMode {
 #[cfg(test)]
 mod row_identity_tests {
     use super::*;
+    use serde_json::json;
 
     fn row(value: f64) -> HashMap<String, Value> {
         let mut row = HashMap::new();
@@ -446,5 +447,27 @@ mod row_identity_tests {
         let json = ds.to_js_json();
         let roundtrip = Dataset::from_js_json(&json).expect("roundtrip");
         assert_eq!(roundtrip.row_ids, ds.row_ids);
+    }
+
+    #[test]
+    fn json_roundtrip_preserves_edge_attributes_without_value_enum_wrappers() {
+        let input = json!({
+            "name": "graph",
+            "columns": [{"name": "value", "type": "NUMERIC"}],
+            "rows": [{"value": 1}, {"value": 2}],
+            "edges": [{
+                "source": 0,
+                "target": 1,
+                "weight": 0.75,
+                "relation": "observed",
+                "active": true,
+                "metadata": {"source": "sensor-a", "tags": ["a", "b"]}
+            }]
+        });
+        let ds = Dataset::from_js_json(&input.to_string()).expect("parse graph");
+        let output: serde_json::Value = serde_json::from_str(&ds.to_js_json()).expect("serialize graph");
+        assert_eq!(output["edges"][0]["relation"], json!("observed"));
+        assert_eq!(output["edges"][0]["active"], json!(true));
+        assert_eq!(output["edges"][0]["metadata"], json!({"source": "sensor-a", "tags": ["a", "b"]}));
     }
 }
