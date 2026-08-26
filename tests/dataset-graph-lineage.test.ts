@@ -1,0 +1,122 @@
+import { describe, expect, it } from 'vitest';
+import { AnalyticalState } from '../src/atlas/domain/AnalyticalState.ts';
+import { ColumnType, Dataset } from '../src/data/Dataset.ts';
+import type { DatasetJSON } from '../src/data/types.ts';
+
+function graphDataset(): Dataset {
+  const dataset = new Dataset(
+    'graph-lineage',
+    [{ name: 'value', type: ColumnType.NUMERIC }],
+    [{ value: 1 }, { value: 2 }, { value: 3 }],
+    [
+      {
+        source: 0,
+        target: 1,
+        weight: 0.75,
+        relation: 'observed',
+        metadata: { source: 'sensor-a' },
+      },
+      { source: 1, target: 2, weight: 1.25, relation: 'derived' },
+    ],
+    ['rust:a', 'rust:b', 'rust:c']
+  );
+  dataset._meta = { displayLabel: 'graph A', panel: { pinned: true } };
+  return dataset;
+}
+
+function expectGraphPreserved(actual: Dataset, expected: Dataset): void {
+  expect(actual.edges).toEqual(expected.edges);
+  expect(actual.rowIds).toEqual(expected.rowIds);
+  expect(actual._meta).toEqual(expected._meta);
+}
+
+describe('RF-044 graph lineage preservation', () => {
+  it('preserves weighted and attributed edges when Dataset is cloned', () => {
+    const source = graphDataset();
+    const clone = source.clone();
+
+    expectGraphPreserved(clone, source);
+    expect(clone.edges).not.toBe(source.edges);
+    expect(clone.edges?.[0]).not.toBe(source.edges?.[0]);
+    expect(clone.edges?.[0]?.metadata).not.toBe(source.edges?.[0]?.metadata);
+    expect(clone._meta).not.toBe(source._meta);
+    expect(clone._meta?.panel).not.toBe(source._meta?.panel);
+  });
+
+  it('preserves graph lineage through every clone-mediated AnalyticalState transition', () => {
+    const source = graphDataset();
+    const state = new AnalyticalState();
+
+    state.loadDataset(source);
+    expectGraphPreserved(state.original, source);
+    expectGraphPreserved(state.current, source);
+
+    state.advanceDataset(source);
+    expectGraphPreserved(state.current, source);
+
+    state.setCurrentDataset(source);
+    expectGraphPreserved(state.current, source);
+
+    state.commitKernelResult({ handle: 17, dataset: source, versionBump: false });
+    expectGraphPreserved(state.current, source);
+  });
+
+  it('hands the intact scientific graph to the kernel loader after normal Atlas loading', () => {
+    const source = graphDataset();
+    const state = new AnalyticalState();
+    let loaded: DatasetJSON | undefined;
+
+    state.loadDataset(source);
+    const handle = state.ensureHandle((json) => {
+      loaded = json;
+      return 23;
+    });
+
+    expect(handle).toBe(23);
+    expect(loaded?.edges).toEqual(source.edges);
+    expect(loaded?.rowIds).toEqual(source.rowIds);
+    expect('meta' in (loaded as unknown as Record<string, unknown>)).toBe(false);
+    expect('_meta' in (loaded as unknown as Record<string, unknown>)).toBe(false);
+  });
+
+  it('does not expose live graph state through the serialized DatasetJSON payload', () => {
+    const source = graphDataset();
+    const json = source.toJSON();
+
+    expect(json.edges).toEqual(source.edges);
+    expect(json.edges).not.toBe(source.edges);
+    expect(json.edges?.[0]).not.toBe(source.edges?.[0]);
+    expect(json.edges?.[0]?.metadata).not.toBe(source.edges?.[0]?.metadata);
+
+    if (json.edges?.[0]) {
+      json.edges[0].weight = 99;
+      const metadata = json.edges[0].metadata as { source: string };
+      metadata.source = 'mutated';
+    }
+
+    expect(source.edges?.[0]?.weight).toBe(0.75);
+    expect(source.edges?.[0]?.metadata).toEqual({ source: 'sensor-a' });
+  });
+
+  it('clears positional graph topology when streaming rows are replaced', () => {
+    const source = graphDataset();
+
+    source.updateRows([{ value: 10 }, { value: 20 }], 'replace');
+
+    expect(source.rows).toEqual([{ value: 10 }, { value: 20 }]);
+    expect(source.edges).toBeUndefined();
+    expect(source.rowIds).toBeUndefined();
+  });
+
+  it('drops evicted positional edges and remaps survivors for a rolling append window', () => {
+    const source = graphDataset();
+
+    source.updateRows([{ value: 4 }], 'append', 3);
+
+    expect(source.rows).toEqual([{ value: 2 }, { value: 3 }, { value: 4 }]);
+    expect(source.edges).toEqual([
+      { source: 0, target: 1, weight: 1.25, relation: 'derived' },
+    ]);
+    expect(source.rowIds).toBeUndefined();
+  });
+});

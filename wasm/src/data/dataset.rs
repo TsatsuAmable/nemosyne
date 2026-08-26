@@ -6,7 +6,7 @@ use crate::data::column::{Column, ColumnType};
 use crate::data::value::Value;
 
 /// A dataset edge. Mirrors the JS `DatasetEdge` open struct: `source`/`target`
-/// row indices, an optional `weight`, and any extra string-keyed attributes.
+/// row indices, an optional `weight`, and arbitrary JSON-compatible attributes.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Edge {
     pub source: usize,
@@ -14,7 +14,7 @@ pub struct Edge {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub weight: Option<f64>,
     #[serde(flatten)]
-    pub extra: HashMap<String, Value>,
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 impl Edge {
@@ -48,7 +48,11 @@ pub struct Dataset {
 pub type RowIndex = usize;
 
 impl Dataset {
-    pub fn new(name: impl Into<String>, columns: Vec<Column>, rows: Vec<HashMap<String, Value>>) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        columns: Vec<Column>,
+        rows: Vec<HashMap<String, Value>>,
+    ) -> Self {
         let mut dataset = Self {
             name: name.into(),
             columns,
@@ -77,15 +81,24 @@ impl Dataset {
     }
 
     pub fn numeric_columns(&self) -> Vec<&Column> {
-        self.columns.iter().filter(|c| c.ty == ColumnType::Numeric).collect()
+        self.columns
+            .iter()
+            .filter(|c| c.ty == ColumnType::Numeric)
+            .collect()
     }
 
     pub fn categorical_columns(&self) -> Vec<&Column> {
-        self.columns.iter().filter(|c| c.ty == ColumnType::Categorical).collect()
+        self.columns
+            .iter()
+            .filter(|c| c.ty == ColumnType::Categorical)
+            .collect()
     }
 
     pub fn temporal_columns(&self) -> Vec<&Column> {
-        self.columns.iter().filter(|c| c.ty == ColumnType::Temporal).collect()
+        self.columns
+            .iter()
+            .filter(|c| c.ty == ColumnType::Temporal)
+            .collect()
     }
 
     pub fn has_numeric(&self) -> bool {
@@ -131,9 +144,10 @@ impl Dataset {
         crate::data::fingerprint::seed_u32(&self.fingerprint())
     }
 
-    /// Append or replace rows for live streams while keeping the identity vector
-    /// aligned. Replacement starts a new lineage; append preserves existing IDs
-    /// and allocates IDs only for new observations.
+    /// Append or replace rows for live streams while keeping identity and
+    /// positional graph endpoints aligned. Replacement starts a new lineage and
+    /// clears topology. Append preserves existing edges; when a rolling limit
+    /// drops a prefix, surviving positional edges are remapped to the retained rows.
     pub fn update_rows(
         &mut self,
         new_rows: Vec<HashMap<String, Value>>,
@@ -154,12 +168,15 @@ impl Dataset {
             }
             RowUpdateMode::Replace => {
                 self.rows = new_rows;
+                self.edges = None;
                 self.reset_row_ids();
             }
         }
         if let Some(limit) = limit {
             if self.rows.len() > limit {
                 let start = self.rows.len() - limit;
+                let retained_source_indices: Vec<usize> = (start..self.rows.len()).collect();
+                self.edges = self.remap_edges_for_source_indices(&retained_source_indices);
                 self.rows = self.rows.split_off(start);
                 self.row_ids = self.row_ids.split_off(start);
             }
@@ -167,9 +184,10 @@ impl Dataset {
     }
 
     /// Clone with transformed rows. When every output row corresponds to one
-    /// source observation on the original scientific columns, preserve the
-    /// source IDs in output order. Otherwise the output is a genuinely derived
-    /// dataset and receives a fresh deterministic identity lineage.
+    /// source observation on the original scientific columns, preserve source
+    /// IDs and remap positional graph endpoints into output order. Edges whose
+    /// endpoints were removed are dropped. If the output rows are genuinely
+    /// derived, topology is cleared rather than attached to unrelated rows.
     pub fn clone_with_rows(
         &self,
         rows: Vec<HashMap<String, Value>>,
@@ -181,11 +199,13 @@ impl Dataset {
 
         let mut used = vec![false; self.rows.len()];
         let mut carried = Vec::with_capacity(copy.rows.len());
+        let mut source_indices = Vec::with_capacity(copy.rows.len());
         let can_carry = self.has_valid_row_ids()
             && copy.rows.iter().all(|out_row| {
                 if let Some(index) = self.find_matching_source_row(out_row, &used) {
                     used[index] = true;
                     carried.push(self.row_ids[index].clone());
+                    source_indices.push(index);
                     true
                 } else {
                     false
@@ -194,10 +214,36 @@ impl Dataset {
 
         if can_carry && carried.len() == copy.rows.len() {
             copy.row_ids = carried;
+            copy.edges = self.remap_edges_for_source_indices(&source_indices);
         } else {
+            copy.edges = None;
             copy.reset_row_ids();
         }
         copy
+    }
+
+    fn remap_edges_for_source_indices(&self, source_indices: &[usize]) -> Option<Vec<Edge>> {
+        let edges = self.edges.as_ref()?;
+        let mut old_to_new = vec![None; self.rows.len()];
+        for (new_index, source_index) in source_indices.iter().copied().enumerate() {
+            if source_index < old_to_new.len() {
+                old_to_new[source_index] = Some(new_index);
+            }
+        }
+
+        Some(
+            edges
+                .iter()
+                .filter_map(|edge| {
+                    let source = old_to_new.get(edge.source).copied().flatten()?;
+                    let target = old_to_new.get(edge.target).copied().flatten()?;
+                    let mut remapped = edge.clone();
+                    remapped.source = source;
+                    remapped.target = target;
+                    Some(remapped)
+                })
+                .collect(),
+        )
     }
 
     fn find_matching_source_row(
@@ -283,22 +329,33 @@ impl Dataset {
                     let source = obj
                         .get("source")
                         .and_then(|v| v.as_u64())
-                        .or_else(|| obj.get("source").and_then(|v| v.as_str()).and_then(|s| s.parse::<u64>().ok()))?
-                        as usize;
+                        .or_else(|| {
+                            obj.get("source")
+                                .and_then(|v| v.as_str())
+                                .and_then(|s| s.parse::<u64>().ok())
+                        })? as usize;
                     let target = obj
                         .get("target")
                         .and_then(|v| v.as_u64())
-                        .or_else(|| obj.get("target").and_then(|v| v.as_str()).and_then(|s| s.parse::<u64>().ok()))?
-                        as usize;
+                        .or_else(|| {
+                            obj.get("target")
+                                .and_then(|v| v.as_str())
+                                .and_then(|s| s.parse::<u64>().ok())
+                        })? as usize;
                     let weight = obj.get("weight").and_then(|v| v.as_f64());
                     let mut extra = HashMap::new();
                     for (k, v) in obj {
                         if k == "source" || k == "target" || k == "weight" {
                             continue;
                         }
-                        extra.insert(k.clone(), js_value_to_value(v));
+                        extra.insert(k.clone(), v.clone());
                     }
-                    Some(Edge { source, target, weight, extra })
+                    Some(Edge {
+                        source,
+                        target,
+                        weight,
+                        extra,
+                    })
                 })
                 .collect()
         });
@@ -306,7 +363,11 @@ impl Dataset {
         let row_ids: Vec<String> = root
             .get("rowIds")
             .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
             .unwrap_or_default();
 
         let mut dataset = Self {
@@ -335,7 +396,10 @@ impl Dataset {
             .map(|c| {
                 let mut col = JsonMap::new();
                 col.insert("name".to_string(), JsonValue::String(c.name.clone()));
-                col.insert("type".to_string(), JsonValue::String(c.ty.as_str().to_string()));
+                col.insert(
+                    "type".to_string(),
+                    JsonValue::String(c.ty.as_str().to_string()),
+                );
                 JsonValue::Object(col)
             })
             .collect();
@@ -356,7 +420,13 @@ impl Dataset {
         root.insert("rows".to_string(), JsonValue::Array(rows));
         root.insert(
             "rowIds".to_string(),
-            JsonValue::Array(self.row_ids.iter().cloned().map(JsonValue::String).collect()),
+            JsonValue::Array(
+                self.row_ids
+                    .iter()
+                    .cloned()
+                    .map(JsonValue::String)
+                    .collect(),
+            ),
         );
 
         if let Some(edges) = &self.edges {
@@ -400,6 +470,7 @@ pub enum RowUpdateMode {
 #[cfg(test)]
 mod row_identity_tests {
     use super::*;
+    use serde_json::json;
 
     fn row(value: f64) -> HashMap<String, Value> {
         let mut row = HashMap::new();
@@ -413,6 +484,16 @@ mod row_identity_tests {
             vec![Column::new("value", ColumnType::Numeric)],
             vec![row(2.0), row(1.0), row(2.0)],
         )
+    }
+
+    fn graph_dataset() -> Dataset {
+        let mut dataset = Dataset::new(
+            "graph",
+            vec![Column::new("value", ColumnType::Numeric)],
+            vec![row(2.0), row(1.0), row(3.0)],
+        );
+        dataset.edges = Some(vec![Edge::new(0, 1), Edge::new(1, 2)]);
+        dataset
     }
 
     #[test]
@@ -437,7 +518,54 @@ mod row_identity_tests {
         let ds = dataset();
         let original = ds.row_ids.clone();
         let sorted = crate::data::operations::sort(&ds, "value", true);
-        assert_eq!(sorted.row_ids, vec![original[1].clone(), original[0].clone(), original[2].clone()]);
+        assert_eq!(
+            sorted.row_ids,
+            vec![
+                original[1].clone(),
+                original[0].clone(),
+                original[2].clone()
+            ]
+        );
+    }
+
+    #[test]
+    fn sorting_remaps_positional_graph_endpoints() {
+        let ds = graph_dataset();
+        let sorted = crate::data::operations::sort(&ds, "value", true);
+        assert_eq!(
+            sorted.edges,
+            Some(vec![Edge::new(1, 0), Edge::new(0, 2)])
+        );
+    }
+
+    #[test]
+    fn filtering_drops_removed_graph_endpoints_and_remaps_survivors() {
+        let ds = graph_dataset();
+        let filtered = crate::data::operations::filter(&ds, |row| {
+            row.get("value").and_then(Value::as_number) != Some(2.0)
+        });
+        assert_eq!(filtered.edges, Some(vec![Edge::new(0, 1)]));
+    }
+
+    #[test]
+    fn genuinely_derived_rows_clear_graph_topology() {
+        let ds = graph_dataset();
+        let derived = ds.clone_with_rows(vec![row(99.0)], "[derived]");
+        assert_eq!(derived.edges, None);
+    }
+
+    #[test]
+    fn replacing_live_rows_clears_graph_topology() {
+        let mut ds = graph_dataset();
+        ds.update_rows(vec![row(10.0), row(20.0)], RowUpdateMode::Replace, None);
+        assert_eq!(ds.edges, None);
+    }
+
+    #[test]
+    fn rolling_append_remaps_edges_after_prefix_eviction() {
+        let mut ds = graph_dataset();
+        ds.update_rows(vec![row(4.0)], RowUpdateMode::Append, Some(3));
+        assert_eq!(ds.edges, Some(vec![Edge::new(0, 1)]));
     }
 
     #[test]
@@ -446,5 +574,31 @@ mod row_identity_tests {
         let json = ds.to_js_json();
         let roundtrip = Dataset::from_js_json(&json).expect("roundtrip");
         assert_eq!(roundtrip.row_ids, ds.row_ids);
+    }
+
+    #[test]
+    fn json_roundtrip_preserves_edge_attributes_without_value_enum_wrappers() {
+        let input = json!({
+            "name": "graph",
+            "columns": [{"name": "value", "type": "NUMERIC"}],
+            "rows": [{"value": 1}, {"value": 2}],
+            "edges": [{
+                "source": 0,
+                "target": 1,
+                "weight": 0.75,
+                "relation": "observed",
+                "active": true,
+                "metadata": {"source": "sensor-a", "tags": ["a", "b"]}
+            }]
+        });
+        let ds = Dataset::from_js_json(&input.to_string()).expect("parse graph");
+        let output: serde_json::Value =
+            serde_json::from_str(&ds.to_js_json()).expect("serialize graph");
+        assert_eq!(output["edges"][0]["relation"], json!("observed"));
+        assert_eq!(output["edges"][0]["active"], json!(true));
+        assert_eq!(
+            output["edges"][0]["metadata"],
+            json!({"source": "sensor-a", "tags": ["a", "b"]})
+        );
     }
 }

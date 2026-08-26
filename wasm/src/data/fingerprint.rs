@@ -73,7 +73,9 @@ fn write_dataset(buf: &mut String, ds: &Dataset) {
     buf.push('{');
     buf.push_str("\"columns\":[");
     for (i, col) in ds.columns.iter().enumerate() {
-        if i > 0 { buf.push(','); }
+        if i > 0 {
+            buf.push(',');
+        }
         buf.push_str("{\"name\":");
         write_string(buf, &col.name);
         buf.push_str(",\"type\":");
@@ -84,7 +86,9 @@ fn write_dataset(buf: &mut String, ds: &Dataset) {
     if let Some(edges) = &ds.edges {
         buf.push_str(",\"edges\":[");
         for (i, edge) in edges.iter().enumerate() {
-            if i > 0 { buf.push(','); }
+            if i > 0 {
+                buf.push(',');
+            }
             write_edge(buf, edge);
         }
         buf.push(']');
@@ -93,7 +97,9 @@ fn write_dataset(buf: &mut String, ds: &Dataset) {
     write_string(buf, &ds.name);
     buf.push_str(",\"rows\":[");
     for (i, row) in ds.rows.iter().enumerate() {
-        if i > 0 { buf.push(','); }
+        if i > 0 {
+            buf.push(',');
+        }
         write_row(buf, row, &ds.columns);
     }
     buf.push(']');
@@ -105,7 +111,9 @@ fn write_row(buf: &mut String, row: &HashMap<String, Value>, columns: &[Column])
     names.sort_by(|a, b| cmp_utf16(a, b));
     buf.push('{');
     for (i, name) in names.iter().enumerate() {
-        if i > 0 { buf.push(','); }
+        if i > 0 {
+            buf.push(',');
+        }
         write_string(buf, name);
         buf.push(':');
         let val = row.get(*name).unwrap_or(&Value::Null);
@@ -118,24 +126,34 @@ fn write_edge(buf: &mut String, edge: &crate::data::dataset::Edge) {
     let mut entries: Vec<(String, EdgeVal)> = Vec::new();
     entries.push(("source".to_string(), EdgeVal::UInt(edge.source)));
     entries.push(("target".to_string(), EdgeVal::UInt(edge.target)));
-    if let Some(w) = edge.weight { entries.push(("weight".to_string(), EdgeVal::Float(w))); }
-    for (k, v) in &edge.extra { entries.push((k.clone(), EdgeVal::Value(v.clone()))); }
+    if let Some(w) = edge.weight {
+        entries.push(("weight".to_string(), EdgeVal::Float(w)));
+    }
+    for (k, v) in &edge.extra {
+        entries.push((k.clone(), EdgeVal::Json(v.clone())));
+    }
     entries.sort_by(|a, b| cmp_utf16(&a.0, &b.0));
     buf.push('{');
     for (i, (k, v)) in entries.iter().enumerate() {
-        if i > 0 { buf.push(','); }
+        if i > 0 {
+            buf.push(',');
+        }
         write_string(buf, k);
         buf.push(':');
         match v {
             EdgeVal::UInt(n) => write_uint(buf, *n),
             EdgeVal::Float(f) => write_number(buf, *f),
-            EdgeVal::Value(val) => write_value(buf, val),
+            EdgeVal::Json(value) => write_json_value(buf, value),
         }
     }
     buf.push('}');
 }
 
-enum EdgeVal { UInt(usize), Float(f64), Value(Value) }
+enum EdgeVal {
+    UInt(usize),
+    Float(f64),
+    Json(serde_json::Value),
+}
 
 fn write_value(buf: &mut String, v: &Value) {
     match v {
@@ -146,34 +164,92 @@ fn write_value(buf: &mut String, v: &Value) {
     }
 }
 
-fn write_uint(buf: &mut String, n: usize) { let _ = write!(buf, "{}", n); }
+fn write_json_value(buf: &mut String, value: &serde_json::Value) {
+    match value {
+        serde_json::Value::Null => buf.push_str("null"),
+        serde_json::Value::Bool(value) => buf.push_str(if *value { "true" } else { "false" }),
+        serde_json::Value::Number(value) => {
+            if let Some(number) = value.as_f64() {
+                write_number(buf, number);
+            } else {
+                buf.push_str("null");
+            }
+        }
+        serde_json::Value::String(value) => write_string(buf, value),
+        serde_json::Value::Array(values) => {
+            buf.push('[');
+            for (index, value) in values.iter().enumerate() {
+                if index > 0 {
+                    buf.push(',');
+                }
+                write_json_value(buf, value);
+            }
+            buf.push(']');
+        }
+        serde_json::Value::Object(values) => {
+            let mut keys: Vec<&String> = values.keys().collect();
+            keys.sort_by(|a, b| cmp_utf16(a, b));
+            buf.push('{');
+            for (index, key) in keys.iter().enumerate() {
+                if index > 0 {
+                    buf.push(',');
+                }
+                write_string(buf, key);
+                buf.push(':');
+                write_json_value(buf, &values[*key]);
+            }
+            buf.push('}');
+        }
+    }
+}
+
+fn write_uint(buf: &mut String, n: usize) {
+    let _ = write!(buf, "{}", n);
+}
 
 fn write_number(buf: &mut String, n: f64) {
-    if !n.is_finite() { buf.push_str("null"); return; }
-    if n == 0.0 { buf.push('0'); return; }
+    if !n.is_finite() {
+        buf.push_str("null");
+        return;
+    }
+    if n == 0.0 {
+        buf.push('0');
+        return;
+    }
     let neg = n < 0.0;
     let sci = format!("{:e}", n.abs());
     let (mantissa, exp_str) = sci.split_once('e').unwrap_or((sci.as_str(), "0"));
     let exp: i32 = exp_str.parse().unwrap_or(0);
     let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
     let k = exp + 1;
-    if neg { buf.push('-'); }
+    if neg {
+        buf.push('-');
+    }
     if k <= -6 || k > 21 {
         buf.push(digits.chars().next().unwrap_or('0'));
-        if digits.len() > 1 { buf.push('.'); buf.push_str(&digits[1..]); }
+        if digits.len() > 1 {
+            buf.push('.');
+            buf.push_str(&digits[1..]);
+        }
         let e = k - 1;
         buf.push('e');
-        if e >= 0 { buf.push('+'); }
+        if e >= 0 {
+            buf.push('+');
+        }
         let _ = write!(buf, "{}", e);
         return;
     }
     if k <= 0 {
         buf.push_str("0.");
-        for _ in 0..(-k) { buf.push('0'); }
+        for _ in 0..(-k) {
+            buf.push('0');
+        }
         buf.push_str(&digits);
     } else if (k as usize) >= digits.len() {
         buf.push_str(&digits);
-        for _ in 0..((k as usize) - digits.len()) { buf.push('0'); }
+        for _ in 0..((k as usize) - digits.len()) {
+            buf.push('0');
+        }
     } else {
         buf.push_str(&digits[..k as usize]);
         buf.push('.');
@@ -192,7 +268,9 @@ fn write_string(buf: &mut String, s: &str) {
             '\t' => buf.push_str("\\t"),
             '\u{08}' => buf.push_str("\\b"),
             '\u{0c}' => buf.push_str("\\f"),
-            c if (c as u32) < 0x20 => { let _ = write!(buf, "\\u{:04x}", c as u32); }
+            c if (c as u32) < 0x20 => {
+                let _ = write!(buf, "\\u{:04x}", c as u32);
+            }
             c => buf.push(c),
         }
     }
@@ -203,43 +281,96 @@ fn write_string(buf: &mut String, s: &str) {
 mod tests {
     use super::*;
     use crate::data::column::{Column, ColumnType};
-    use crate::data::dataset::Dataset;
+    use crate::data::dataset::{Dataset, Edge};
+    use serde_json::json;
 
     fn ds() -> Dataset {
-        let columns = vec![Column::new("name", ColumnType::Categorical), Column::new("age", ColumnType::Numeric)];
+        let columns = vec![
+            Column::new("name", ColumnType::Categorical),
+            Column::new("age", ColumnType::Numeric),
+        ];
         let rows = vec![
-            { let mut r = HashMap::new(); r.insert("name".to_string(), Value::Text("Alice".to_string())); r.insert("age".to_string(), Value::Number(30.0)); r },
-            { let mut r = HashMap::new(); r.insert("name".to_string(), Value::Text("Bob".to_string())); r.insert("age".to_string(), Value::Number(25.0)); r },
+            {
+                let mut r = HashMap::new();
+                r.insert("name".to_string(), Value::Text("Alice".to_string()));
+                r.insert("age".to_string(), Value::Number(30.0));
+                r
+            },
+            {
+                let mut r = HashMap::new();
+                r.insert("name".to_string(), Value::Text("Bob".to_string()));
+                r.insert("age".to_string(), Value::Number(25.0));
+                r
+            },
         ];
         Dataset::new("sample", columns, rows)
     }
 
     #[test]
     fn sha256_matches_known_vector() {
-        assert_eq!(sha256_hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        assert_eq!(
+            sha256_hex("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 
     #[test]
-    fn compatibility_alias_is_sha256() { assert_eq!(fnv1a_hex("abc"), sha256_hex("abc")); }
+    fn compatibility_alias_is_sha256() {
+        assert_eq!(fnv1a_hex("abc"), sha256_hex("abc"));
+    }
 
     #[test]
     fn dataset_fingerprint_is_deterministic() {
-        let a = dataset_fingerprint(&ds()); let b = dataset_fingerprint(&ds());
-        assert_eq!(a, b); assert_eq!(a.len(), 64);
+        let a = dataset_fingerprint(&ds());
+        let b = dataset_fingerprint(&ds());
+        assert_eq!(a, b);
+        assert_eq!(a.len(), 64);
     }
 
     #[test]
     fn dataset_fingerprint_is_content_addressed() {
-        let mut other = ds(); other.rows[0].insert("age".to_string(), Value::Number(31.0));
+        let mut other = ds();
+        other
+            .rows[0]
+            .insert("age".to_string(), Value::Number(31.0));
         assert_ne!(dataset_fingerprint(&ds()), dataset_fingerprint(&other));
     }
 
     #[test]
     fn fingerprint_is_row_key_order_independent() {
-        let columns = vec![Column::new("name", ColumnType::Categorical), Column::new("age", ColumnType::Numeric)];
-        let mut r1 = HashMap::new(); r1.insert("name".to_string(), Value::Text("Alice".to_string())); r1.insert("age".to_string(), Value::Number(30.0));
-        let mut r2 = HashMap::new(); r2.insert("age".to_string(), Value::Number(30.0)); r2.insert("name".to_string(), Value::Text("Alice".to_string()));
-        let a = Dataset::new("sample", columns.clone(), vec![r1]); let b = Dataset::new("sample", columns, vec![r2]);
+        let columns = vec![
+            Column::new("name", ColumnType::Categorical),
+            Column::new("age", ColumnType::Numeric),
+        ];
+        let mut r1 = HashMap::new();
+        r1.insert("name".to_string(), Value::Text("Alice".to_string()));
+        r1.insert("age".to_string(), Value::Number(30.0));
+        let mut r2 = HashMap::new();
+        r2.insert("age".to_string(), Value::Number(30.0));
+        r2.insert("name".to_string(), Value::Text("Alice".to_string()));
+        let a = Dataset::new("sample", columns.clone(), vec![r1]);
+        let b = Dataset::new("sample", columns, vec![r2]);
+        assert_eq!(dataset_fingerprint(&a), dataset_fingerprint(&b));
+    }
+
+    #[test]
+    fn edge_json_object_key_order_is_canonical() {
+        let mut a = ds();
+        let mut edge_a = Edge::new(0, 1);
+        edge_a.extra.insert(
+            "metadata".to_string(),
+            json!({"z": 2, "a": [true, "x"]}),
+        );
+        a.edges = Some(vec![edge_a]);
+
+        let mut b = ds();
+        let mut edge_b = Edge::new(0, 1);
+        edge_b.extra.insert(
+            "metadata".to_string(),
+            json!({"a": [true, "x"], "z": 2}),
+        );
+        b.edges = Some(vec![edge_b]);
+
         assert_eq!(dataset_fingerprint(&a), dataset_fingerprint(&b));
     }
 
@@ -248,26 +379,63 @@ mod tests {
         let bmp = "\u{e000}";
         let supplementary = "\u{10000}";
         assert_eq!(cmp_utf16(supplementary, bmp), Ordering::Less);
-        assert_eq!(supplementary.encode_utf16().collect::<Vec<_>>(), vec![0xd800, 0xdc00]);
+        assert_eq!(
+            supplementary.encode_utf16().collect::<Vec<_>>(),
+            vec![0xd800, 0xdc00]
+        );
     }
 
     #[test]
     fn seed_u32_is_nonzero_and_stable() {
         assert_ne!(seed_u32(&"0".repeat(64)), 0);
-        let fingerprint = sha256_hex("seed"); assert_eq!(seed_u32(&fingerprint), seed_u32(&fingerprint));
+        let fingerprint = sha256_hex("seed");
+        assert_eq!(seed_u32(&fingerprint), seed_u32(&fingerprint));
     }
 
     #[test]
     fn write_number_matches_ecmascript_stringify() {
-        let cases: [(f64, &str); 20] = [(100.0,"100"),(0.1,"0.1"),(1e-7,"1e-7"),(1e-6,"0.000001"),(9.9e-7,"9.9e-7"),(1e21,"1e+21"),(1e20,"100000000000000000000"),(123.456,"123.456"),(1.5,"1.5"),(f64::MAX,"1.7976931348623157e+308"),(f64::from_bits(1),"5e-324"),(30.0,"30"),(250.0,"250"),(0.5,"0.5"),(1e-5,"0.00001"),(2.0,"2"),(1.23e-5,"0.0000123"),(-1.5,"-1.5"),(1.234_567_890_123_456_8e29,"1.2345678901234568e+29"),(0.0,"0")];
-        for (val, expected) in cases { let mut buf=String::new(); write_number(&mut buf,val); assert_eq!(buf,expected,"write_number({val:?})"); }
+        let cases: [(f64, &str); 20] = [
+            (100.0, "100"),
+            (0.1, "0.1"),
+            (1e-7, "1e-7"),
+            (1e-6, "0.000001"),
+            (9.9e-7, "9.9e-7"),
+            (1e21, "1e+21"),
+            (1e20, "100000000000000000000"),
+            (123.456, "123.456"),
+            (1.5, "1.5"),
+            (f64::MAX, "1.7976931348623157e+308"),
+            (f64::from_bits(1), "5e-324"),
+            (30.0, "30"),
+            (250.0, "250"),
+            (0.5, "0.5"),
+            (1e-5, "0.00001"),
+            (2.0, "2"),
+            (1.23e-5, "0.0000123"),
+            (-1.5, "-1.5"),
+            (1.234_567_890_123_456_8e29, "1.2345678901234568e+29"),
+            (0.0, "0"),
+        ];
+        for (val, expected) in cases {
+            let mut buf = String::new();
+            write_number(&mut buf, val);
+            assert_eq!(buf, expected, "write_number({val:?})");
+        }
     }
 
     #[test]
     fn write_number_non_finite_and_zero() {
-        let mut buf=String::new(); write_number(&mut buf,f64::NAN); assert_eq!(buf,"null");
-        buf.clear(); write_number(&mut buf,f64::INFINITY); assert_eq!(buf,"null");
-        buf.clear(); write_number(&mut buf,f64::NEG_INFINITY); assert_eq!(buf,"null");
-        buf.clear(); write_number(&mut buf,-0.0); assert_eq!(buf,"0");
+        let mut buf = String::new();
+        write_number(&mut buf, f64::NAN);
+        assert_eq!(buf, "null");
+        buf.clear();
+        write_number(&mut buf, f64::INFINITY);
+        assert_eq!(buf, "null");
+        buf.clear();
+        write_number(&mut buf, f64::NEG_INFINITY);
+        assert_eq!(buf, "null");
+        buf.clear();
+        write_number(&mut buf, -0.0);
+        assert_eq!(buf, "0");
     }
 }

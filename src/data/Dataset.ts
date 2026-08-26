@@ -86,6 +86,43 @@ export interface DatasetEdge {
   [key: string]: unknown;
 }
 
+function cloneEdge(edge: DatasetEdge): DatasetEdge {
+  const copy = { ...edge };
+  for (const key of Object.keys(copy)) {
+    copy[key] = cloneSanitizedJsonValue(copy[key]);
+  }
+  return copy;
+}
+
+function remapEdgesAfterPrefixEviction(
+  edges: DatasetEdge[] | undefined,
+  start: number,
+  previousRowCount: number
+): DatasetEdge[] | undefined {
+  if (!edges) return undefined;
+  return edges.flatMap((edge) => {
+    if (typeof edge.source !== 'number' || typeof edge.target !== 'number') {
+      return [cloneEdge(edge)];
+    }
+    if (
+      edge.source < start ||
+      edge.target < start ||
+      edge.source >= previousRowCount ||
+      edge.target >= previousRowCount
+    ) {
+      return [];
+    }
+    const copy = cloneEdge(edge);
+    copy.source = edge.source - start;
+    copy.target = edge.target - start;
+    return [copy];
+  });
+}
+
+/**
+ * Non-scientific adapter/presentation metadata. Analytical or provenance-bearing
+ * meaning must live in governed dataset/schema/evidence contracts, not `_meta`.
+ */
 export interface DatasetMeta {
   [key: string]: unknown;
 }
@@ -97,6 +134,7 @@ export class Dataset {
   edges?: DatasetEdge[];
   /** Durable Rust-owned observation IDs aligned 1:1 with `rows`, when known. */
   rowIds?: string[];
+  /** Non-scientific adapter/presentation metadata; excluded from DatasetJSON. */
   _meta?: DatasetMeta;
 
   constructor(
@@ -109,7 +147,7 @@ export class Dataset {
     this.name = name;
     this.columns = columns;
     this.rows = rows.map(sanitizeRow);
-    this.edges = edges;
+    this.edges = edges?.map(cloneEdge);
     this._setRowIds(rowIds);
   }
 
@@ -199,7 +237,12 @@ export class Dataset {
   }
 
   /**
-   * Update rows for live/streaming data.
+   * Update rows for live/streaming data. Replacement clears graph topology
+   * because the new rows have no established endpoint lineage. Append keeps
+   * existing edges; when a rolling limit evicts a prefix, surviving positional
+   * endpoints are shifted to the retained rows. Stable string endpoints are
+   * copied unchanged because they are not positional indices.
+   *
    * New JS rows do not yet have Rust lineage IDs, so any existing aligned ID
    * vector is invalidated rather than risk attaching an ID to the wrong row.
    */
@@ -209,21 +252,34 @@ export class Dataset {
     limit: number | null = null
   ): this {
     const sanitized = newRows.map(sanitizeRow);
-    if (mode === 'replace') this.rows = sanitized;
-    else this.rows.push(...sanitized);
-    if (limit != null && this.rows.length > limit) this.rows = this.rows.slice(-limit);
+    if (mode === 'replace') {
+      this.rows = sanitized;
+      this.edges = undefined;
+    } else {
+      this.rows.push(...sanitized);
+    }
+    if (limit != null && this.rows.length > limit) {
+      const previousRowCount = this.rows.length;
+      const start = previousRowCount - limit;
+      this.edges = remapEdgesAfterPrefixEviction(this.edges, start, previousRowCount);
+      this.rows = this.rows.slice(start);
+    }
     this.rowIds = undefined;
     return this;
   }
 
   clone(): Dataset {
-    return new Dataset(
+    const copy = new Dataset(
       this.name,
       this.columns.slice(),
       this.rows.map(cloneRow),
-      undefined,
+      this.edges,
       this.rowIds?.slice()
     );
+    if (this._meta) {
+      copy._meta = cloneSanitizedJsonValue(this._meta) as DatasetMeta;
+    }
+    return copy;
   }
 
   toJSON(): DatasetJSON {
@@ -238,7 +294,7 @@ export class Dataset {
         }
         return copy;
       }),
-      edges: this.edges ?? undefined,
+      edges: this.edges?.map(cloneEdge),
     };
     if (this.rowIds) json.rowIds = this.rowIds.slice();
     return json;
@@ -254,7 +310,7 @@ export class Dataset {
         type: (typeof c.type === 'string' ? c.type.toUpperCase() : c.type) as ColumnTypeValue,
       })) || [],
       (typedObj.rows ?? []).map(cloneRow),
-      typedObj.edges?.map((e) => ({ ...e })),
+      typedObj.edges?.map(cloneEdge),
       typedObj.rowIds
     );
   }
