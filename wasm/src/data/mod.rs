@@ -18,6 +18,7 @@ pub mod parsers;
 pub mod point_access;
 pub mod profile;
 pub mod provenance;
+pub mod resource_budget;
 pub mod spectral;
 pub mod statistics;
 pub mod statistics_columnar;
