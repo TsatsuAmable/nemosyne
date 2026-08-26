@@ -61,6 +61,14 @@ export interface DatasetHandleExports {
     len: number
   ): number;
   data_compute_structure_profile(handle: number, ptr: number, len: number): number;
+  data_tda_resource_preflight(
+    handle: number,
+    paramsPtr: number,
+    paramsLen: number,
+    operationCode: number,
+    ptr: number,
+    len: number
+  ): number;
   data_compute_mapper_graph(
     handle: number,
     paramsPtr: number,
