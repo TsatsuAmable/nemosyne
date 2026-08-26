@@ -11,6 +11,7 @@ export interface WorkerTransport {
   postMessage(message: unknown, transfer?: Transferable[]): void;
   onmessage: ((ev: MessageEvent) => void) | null;
   onerror: ((ev: ErrorEvent | unknown) => void) | null;
+  onmessageerror?: ((ev: MessageEvent | unknown) => void) | null;
   terminate?(): void;
 }
 
@@ -42,6 +43,9 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     this._onKernelFailure = onKernelFailure;
     this._worker.onmessage = this._handleMessage.bind(this);
     this._worker.onerror = this._handleError.bind(this);
+    if ('onmessageerror' in this._worker) {
+      this._worker.onmessageerror = this._handleMessageError.bind(this);
+    }
   }
 
   get isAsync(): boolean {
@@ -52,13 +56,31 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     return `${generation}\u0000${fingerprint}`;
   }
 
+  private _isStale(
+    generation: number,
+    datasetVersion: number,
+    datasetFingerprint: string
+  ): boolean {
+    return (
+      (this._fence.generation !== undefined && generation < this._fence.generation) ||
+      (this._fence.datasetVersion !== undefined && datasetVersion < this._fence.datasetVersion) ||
+      (this._fence.datasetFingerprint !== undefined &&
+        datasetFingerprint !== this._fence.datasetFingerprint)
+    );
+  }
+
   supersede(fence: AnalyticalExecutionFence): void {
+    if (this._disposed) return;
+
     const generationAdvanced =
       fence.generation !== undefined &&
       (this._fence.generation === undefined || fence.generation > this._fence.generation);
     const datasetAdvanced =
       fence.datasetVersion !== undefined &&
       (this._fence.datasetVersion === undefined || fence.datasetVersion > this._fence.datasetVersion);
+    const fingerprintChanged =
+      fence.datasetFingerprint !== undefined &&
+      fence.datasetFingerprint !== this._fence.datasetFingerprint;
 
     this._fence = {
       generation: fence.generation !== undefined ? fence.generation : this._fence.generation,
@@ -72,7 +94,7 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
 
     if (generationAdvanced) {
       this._registered.clear();
-    } else if (datasetAdvanced && fence.datasetFingerprint) {
+    } else if ((datasetAdvanced || fingerprintChanged) && fence.datasetFingerprint) {
       const currentKey = this._registrationKey(
         this._fence.generation ?? 1,
         fence.datasetFingerprint
@@ -91,9 +113,11 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
 
     for (const [id, pending] of this._pending.entries()) {
       if (
-        (this._fence.generation !== undefined && pending.req.generation < this._fence.generation) ||
-        (this._fence.datasetVersion !== undefined &&
-          pending.req.dataset.version < this._fence.datasetVersion)
+        this._isStale(
+          pending.req.generation,
+          pending.req.dataset.version,
+          pending.req.dataset.fingerprint
+        )
       ) {
         this._pending.delete(id);
         pending.resolve({
@@ -105,11 +129,36 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         });
       }
     }
+
+    // Registration is fenced too. A stale registration is superseded rather
+    // than reported as a kernel failure; callers re-check identity after await.
+    for (const [id, pending] of this._pendingRegistrations.entries()) {
+      if (
+        this._isStale(
+          pending.registration.generation,
+          pending.registration.dataset.version,
+          pending.registration.dataset.fingerprint
+        )
+      ) {
+        this._pendingRegistrations.delete(id);
+        pending.resolve();
+      }
+    }
   }
 
   registerDataset(registration: AnalyticalDatasetRegistration): Promise<void> {
     if (this._disposed) {
       return Promise.reject(new KernelUnavailableError('Analytical worker port is disposed'));
+    }
+
+    if (
+      this._isStale(
+        registration.generation,
+        registration.dataset.version,
+        registration.dataset.fingerprint
+      )
+    ) {
+      return Promise.resolve();
     }
 
     const key = this._registrationKey(
@@ -121,6 +170,12 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     const existing = this._registrationPromises.get(key);
     if (existing) return existing;
 
+    // Resolve the registration promise as soon as the worker acknowledges the
+    // dataset (or rejects it). Awaiting the base promise — rather than a
+    // `.finally`-derived one — lets the registering caller resume in the same
+    // microtask round as a fast-path caller; the `.finally` is attached for its
+    // cleanup side effect only (map eviction on settle), so reject/stale/supersede
+    // paths still evict the in-flight entry without an extra await layer.
     const promise = new Promise<void>((resolve, reject) => {
       this._pendingRegistrations.set(registration.registrationId, {
         resolve,
@@ -138,7 +193,8 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         this._onKernelFailure?.(error);
         reject(error);
       }
-    }).finally(() => {
+    });
+    promise.finally(() => {
       this._registrationPromises.delete(key);
     });
 
@@ -150,10 +206,7 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     if (this._disposed) {
       return Promise.reject(new KernelUnavailableError('Analytical worker port is disposed'));
     }
-    if (
-      (this._fence.generation !== undefined && req.generation < this._fence.generation) ||
-      (this._fence.datasetVersion !== undefined && req.dataset.version < this._fence.datasetVersion)
-    ) {
+    if (this._isStale(req.generation, req.dataset.version, req.dataset.fingerprint)) {
       return Promise.resolve({
         requestId: req.requestId,
         generation: req.generation,
@@ -184,8 +237,13 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
 
   dispose(): void {
     if (this._disposed) return;
+    this._disposeWithError(new KernelUnavailableError('Analytical worker port disposed'), false);
+  }
+
+  private _disposeWithError(error: KernelUnavailableError, notifyFailure: boolean): void {
+    if (this._disposed) return;
     this._disposed = true;
-    const error = new KernelUnavailableError('Analytical worker port disposed');
+    if (notifyFailure) this._onKernelFailure?.(error);
 
     for (const pending of this._pending.values()) pending.reject(error);
     for (const pending of this._pendingRegistrations.values()) pending.reject(error);
@@ -196,6 +254,7 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
 
     this._worker.onmessage = null;
     this._worker.onerror = null;
+    if ('onmessageerror' in this._worker) this._worker.onmessageerror = null;
     try {
       this._worker.terminate?.();
     } catch {
@@ -213,7 +272,7 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
       datasetFingerprint?: string;
       error?: string;
     };
-    if (!data) return;
+    if (!data || this._disposed) return;
 
     if (data.type === 'REGISTERED' && data.registrationId) {
       const pending = this._pendingRegistrations.get(data.registrationId);
@@ -227,11 +286,25 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         return;
       }
 
-      const stale =
-        (this._fence.generation !== undefined &&
-          pending.registration.generation < this._fence.generation) ||
-        (this._fence.datasetVersion !== undefined &&
-          pending.registration.dataset.version < this._fence.datasetVersion);
+      const expected = pending.registration;
+      if (
+        data.generation !== expected.generation ||
+        data.datasetVersion !== expected.dataset.version ||
+        data.datasetFingerprint !== expected.dataset.fingerprint
+      ) {
+        const error = new KernelUnavailableError(
+          `Worker registration acknowledgement mismatch for ${expected.dataset.fingerprint}`
+        );
+        this._onKernelFailure?.(error);
+        pending.reject(error);
+        return;
+      }
+
+      const stale = this._isStale(
+        expected.generation,
+        expected.dataset.version,
+        expected.dataset.fingerprint
+      );
       if (!stale) this._registered.add(pending.key);
       pending.resolve();
       return;
@@ -253,10 +326,19 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     }
 
     if (
-      (this._fence.generation !== undefined && result.generation < this._fence.generation) ||
-      (this._fence.datasetVersion !== undefined &&
-        result.datasetVersion < this._fence.datasetVersion)
+      result.generation !== pending.req.generation ||
+      result.datasetVersion !== pending.req.dataset.version ||
+      result.datasetFingerprint !== pending.req.dataset.fingerprint
     ) {
+      const kernelErr = new KernelUnavailableError(
+        `Worker analytical result identity mismatch for ${pending.req.requestId}`
+      );
+      this._onKernelFailure?.(kernelErr);
+      pending.reject(kernelErr);
+      return;
+    }
+
+    if (this._isStale(result.generation, result.datasetVersion, result.datasetFingerprint)) {
       pending.resolve({
         requestId: result.requestId,
         generation: result.generation,
@@ -280,14 +362,13 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
 
   private _handleError(ev: ErrorEvent | unknown): void {
     const message = (ev as ErrorEvent)?.message ?? 'Worker analytical execution failed';
-    const kernelErr = new KernelUnavailableError(message);
-    this._onKernelFailure?.(kernelErr);
+    this._disposeWithError(new KernelUnavailableError(message), true);
+  }
 
-    for (const pending of this._pending.values()) pending.reject(kernelErr);
-    for (const pending of this._pendingRegistrations.values()) pending.reject(kernelErr);
-    this._pending.clear();
-    this._pendingRegistrations.clear();
-    this._registrationPromises.clear();
-    this._registered.clear();
+  private _handleMessageError(_ev: MessageEvent | unknown): void {
+    this._disposeWithError(
+      new KernelUnavailableError('Worker analytical message deserialization failed'),
+      true
+    );
   }
 }

@@ -37,10 +37,12 @@ function replaceRegisteredHandle(fingerprint: string, handle: number): void {
 function isSuperseded(
   generation: number,
   datasetVersion: number,
+  datasetFingerprint: string,
 ): boolean {
   return (
     (fence.generation !== undefined && generation < fence.generation) ||
-    (fence.datasetVersion !== undefined && datasetVersion < fence.datasetVersion)
+    (fence.datasetVersion !== undefined && datasetVersion < fence.datasetVersion) ||
+    (fence.datasetFingerprint !== undefined && datasetFingerprint !== fence.datasetFingerprint)
   );
 }
 
@@ -69,7 +71,13 @@ function loadRegistrationPayload(registration: AnalyticalDatasetRegistration): n
 }
 
 async function registerDataset(registration: AnalyticalDatasetRegistration): Promise<void> {
-  if (isSuperseded(registration.generation, registration.dataset.version)) {
+  if (
+    isSuperseded(
+      registration.generation,
+      registration.dataset.version,
+      registration.dataset.fingerprint,
+    )
+  ) {
     throw new Error(
       `Worker dataset registration superseded for ${registration.dataset.fingerprint}`
     );
@@ -123,6 +131,9 @@ self.onmessage = async (ev: MessageEvent) => {
     const datasetAdvanced =
       data.fence.datasetVersion !== undefined &&
       (fence.datasetVersion === undefined || data.fence.datasetVersion > fence.datasetVersion);
+    const fingerprintChanged =
+      data.fence.datasetFingerprint !== undefined &&
+      data.fence.datasetFingerprint !== fence.datasetFingerprint;
 
     if (data.fence.generation !== undefined) fence.generation = data.fence.generation;
     if (data.fence.datasetVersion !== undefined) fence.datasetVersion = data.fence.datasetVersion;
@@ -132,7 +143,7 @@ self.onmessage = async (ev: MessageEvent) => {
 
     if (generationAdvanced) {
       clearRegisteredHandles();
-    } else if (datasetAdvanced) {
+    } else if (datasetAdvanced || fingerprintChanged) {
       clearRegisteredHandles(data.fence.datasetFingerprint);
     }
     return;
@@ -165,7 +176,7 @@ self.onmessage = async (ev: MessageEvent) => {
   if (data.type === 'EXECUTE' && data.request) {
     const req = data.request;
 
-    if (isSuperseded(req.generation, req.dataset.version)) {
+    if (isSuperseded(req.generation, req.dataset.version, req.dataset.fingerprint)) {
       const supersededResult: AnalyticalExecutionResult = {
         requestId: req.requestId,
         generation: req.generation,
