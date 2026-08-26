@@ -14,6 +14,7 @@ import type {
   VRCommand,
 } from '../types.ts';
 import type { StructureSet } from '../structures.ts';
+import type { RemediationProvenance } from '../../moneta/representation/ActionableNil.ts';
 
 export class EvidenceLedger {
   private _ledger: ResearchEvent[] = [];
@@ -149,6 +150,40 @@ export class EvidenceLedger {
       sessionId,
     );
     return annotation;
+  }
+
+  /**
+   * RF-027: append a durable, replayable remediation event to the ledger. The
+   * event carries the full remediation → old requirements → new requirements
+   * → resulting decision chain, so `.nemosyne` export/import can replay why a
+   * requirement changed. Scientific permissibility and device feasibility are
+   * recorded separately on the embedded {@link RemediationProvenance}.
+   */
+  recordRemediation(
+    provenance: RemediationProvenance,
+    sessionId: string,
+    datasetVersion: number = 0,
+    stateHash: string = provenance.datasetFingerprint,
+  ): ResearchEvent {
+    return this.appendEvent(
+      {
+        timestamp: provenance.timestamp,
+        kind: 'remediation',
+        command: { op: 'remediation' },
+        remediationEvent: provenance,
+        datasetVersion,
+        datasetFingerprint: provenance.datasetFingerprint,
+        stateHash,
+      },
+      sessionId,
+    );
+  }
+
+  /** RF-027: replay view over remediation events recorded in this ledger. */
+  remediationEvents(): RemediationProvenance[] {
+    return this._ledger
+      .filter((event) => event.kind === 'remediation' && event.remediationEvent)
+      .map((event) => event.remediationEvent as RemediationProvenance);
   }
 
   findObservationsForFinding(findingId: string): Observation[] {

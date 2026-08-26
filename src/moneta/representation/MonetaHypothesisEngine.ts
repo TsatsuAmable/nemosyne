@@ -60,6 +60,7 @@ import {
 } from './FitnessModel.ts';
 import { assessRepresentationDecision } from './DecisionPolicy.ts';
 import { analyzeWinnerSensitivity } from './SensitivityAnalysis.ts';
+import type { HardConstraintCode } from './HardConstraintCode.ts';
 
 /**
  * Backward-compatible weight envelope. New code should prefer
@@ -220,6 +221,7 @@ export class MonetaHypothesisEngine {
         ruleName: `${item.candidateId}_on_${item.layout}`,
         passed: check.passed,
         reason: check.reason,
+        code: check.code,
       });
 
       if (!check.passed) {
@@ -231,6 +233,7 @@ export class MonetaHypothesisEngine {
           components: [],
           disqualified: true,
           disqualificationReason: check.reason,
+          disqualificationCode: check.code,
           preserves: candidate.preserves,
           loses: candidate.loses,
         });
@@ -592,7 +595,7 @@ export class MonetaHypothesisEngine {
     candidate: import('./RepresentationCandidate.ts').RepresentationCandidate,
     layout: VRLayout,
     candidateEvidence?: PerceptualFitnessEvidence
-  ): { passed: boolean; reason: string } {
+  ): { passed: boolean; reason: string; code?: HardConstraintCode } {
     const top = signature.topologicalStructure.topology;
     const rowCount = signature.cardinality.rowCount;
     const hardware = reqs.hardwareConstraints;
@@ -601,6 +604,7 @@ export class MonetaHypothesisEngine {
       return {
         passed: false,
         reason: `Dataset has ${rowCount} rows but hardware allows at most ${hardware.maxElements} elements`,
+        code: 'hardware-element-budget',
       };
     }
 
@@ -609,6 +613,7 @@ export class MonetaHypothesisEngine {
         return {
           passed: false,
           reason: `Candidate frustum exclusion fraction ${candidateEvidence.measured.frustumExclusionFraction.toFixed(2)} exceeds maximum frustum exclusion tolerance ${reqs.maxFrustumExclusionTolerance.toFixed(2)}`,
+          code: 'frustum-exclusion',
         };
       }
     }
@@ -629,6 +634,7 @@ export class MonetaHypothesisEngine {
         return {
           passed: false,
           reason: `Candidate loses critical information: ${goal.information}`,
+          code: 'information-loss-critical',
         };
       }
     }
@@ -639,14 +645,14 @@ export class MonetaHypothesisEngine {
       (hasCriticalGoal('individual-observation-identity') ||
         requiresStructure('observation-identity'))
     ) {
-      return { passed: false, reason: 'Identity loss is not acceptable for this request' };
+      return { passed: false, reason: 'Identity loss is not acceptable for this request', code: 'identity-loss' };
     }
     if (
       candidate.loses.includes('exact-metric-values') &&
       !reqs.acceptableLoss.allowExactMetricLoss &&
       hasCriticalGoal('exact-metric-values')
     ) {
-      return { passed: false, reason: 'Exact metric loss is not acceptable for this request' };
+      return { passed: false, reason: 'Exact metric loss is not acceptable for this request', code: 'exact-metric-loss' };
     }
     if (
       candidate.loses.includes('cluster-separation') &&
@@ -656,6 +662,7 @@ export class MonetaHypothesisEngine {
       return {
         passed: false,
         reason: 'Cluster separation loss is not acceptable for this request',
+        code: 'cluster-separation-loss',
       };
     }
 
@@ -669,6 +676,7 @@ export class MonetaHypothesisEngine {
       return {
         passed: false,
         reason: 'ForceDirected requires graph topology or cluster relationships',
+        code: 'layout-topology-requirement',
       };
     }
     if (
@@ -677,25 +685,26 @@ export class MonetaHypothesisEngine {
       signature.cardinality.depth <= 1 &&
       candidate.id !== 'HIERARCHICAL_SPACE'
     ) {
-      return { passed: false, reason: 'RadialOrbital requires hierarchical structure' };
+      return { passed: false, reason: 'RadialOrbital requires hierarchical structure', code: 'layout-topology-requirement' };
     }
     if (layout === 'GEO_SURFACE' && !signature.spatialStructure.isGeospatial && top !== 'GEO') {
-      return { passed: false, reason: 'GeoSurface requires geospatial coordinates' };
+      return { passed: false, reason: 'GeoSurface requires geospatial coordinates', code: 'layout-topology-requirement' };
     }
     if (
       layout === 'TIME_RIBBON' &&
       !signature.temporalStructure.isTimeSeries &&
       top !== 'TIME_SERIES'
     ) {
-      return { passed: false, reason: 'TimeRibbon requires temporal time-series structure' };
+      return { passed: false, reason: 'TimeRibbon requires temporal time-series structure', code: 'layout-topology-requirement' };
     }
     if (layout === 'VECTOR_STREAMLINE' && top !== 'VECTOR_FIELD') {
-      return { passed: false, reason: 'VectorStreamline layout requires vector field topology' };
+      return { passed: false, reason: 'VectorStreamline layout requires vector field topology', code: 'layout-topology-requirement' };
     }
     if (layout === 'SPECTRAL_VOLUME' && !signature.spectralStructure?.hasPeriodicity) {
       return {
         passed: false,
         reason: 'SpectralVolume layout requires detectable harmonic frequency structure',
+        code: 'layout-topology-requirement',
       };
     }
 
@@ -705,35 +714,37 @@ export class MonetaHypothesisEngine {
         !signature.temporalStructure.isTimeSeries &&
         top !== 'TIME_SERIES'
       ) {
-        return { passed: false, reason: constraint.description };
+        return { passed: false, reason: constraint.description, code: 'candidate-structure-requirement' };
       }
       if (constraint.requiresGraph && signature.cardinality.edgeCount === 0 && top !== 'GRAPH') {
-        return { passed: false, reason: constraint.description };
+        return { passed: false, reason: constraint.description, code: 'candidate-structure-requirement' };
       }
       if (
         constraint.requiresHierarchy &&
         top !== 'HIERARCHY' &&
         signature.cardinality.depth <= 1
       ) {
-        return { passed: false, reason: constraint.description };
+        return { passed: false, reason: constraint.description, code: 'candidate-structure-requirement' };
       }
       if (
         constraint.requiresGeospatial &&
         !signature.spatialStructure.isGeospatial &&
         top !== 'GEO'
       ) {
-        return { passed: false, reason: constraint.description };
+        return { passed: false, reason: constraint.description, code: 'candidate-structure-requirement' };
       }
       if (constraint.minDimensions && signature.schema.numericCount < constraint.minDimensions) {
         return {
           passed: false,
           reason: `Requires at least ${constraint.minDimensions} numeric dimensions`,
+          code: 'candidate-structure-requirement',
         };
       }
       if (constraint.maxDimensions && signature.schema.numericCount > constraint.maxDimensions) {
         return {
           passed: false,
           reason: `Supports at most ${constraint.maxDimensions} numeric dimensions`,
+          code: 'candidate-structure-requirement',
         };
       }
     }
@@ -742,12 +753,14 @@ export class MonetaHypothesisEngine {
       return {
         passed: false,
         reason: `Candidate requires at least ${candidate.scaleCharacteristics.minN} rows, received ${rowCount}`,
+        code: 'scale-range',
       };
     }
     if (rowCount > candidate.scaleCharacteristics.maxN) {
       return {
         passed: false,
         reason: `Candidate supports at most ${candidate.scaleCharacteristics.maxN} rows, received ${rowCount}`,
+        code: 'scale-range',
       };
     }
 

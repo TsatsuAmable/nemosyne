@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyRemediation,
+  buildRemediationProvenance,
+  classifyHardConstraint,
   diagnoseInvestigatorOutcome,
+  hashRequirements,
   minimalDatasetSignature,
   MonetaHypothesisEngine,
   createDefaultRequirements,
+  NoFeasibleRepresentationError,
+  type RemediationProvenance,
 } from '../src/moneta/index.ts';
+import { EvidenceLedger } from '../src/atlas/domain/EvidenceLedger.ts';
 
 describe('P1-E: Actionable NIL, Ambiguity and Uncertainty Framework', () => {
   it('E1: distinguishes DECISIVE, AMBIGUOUS, UNDERDETERMINED, and INFEASIBLE states', () => {
@@ -131,6 +137,7 @@ describe('P1-E: Actionable NIL, Ambiguity and Uncertainty Framework', () => {
       kind: 'switch-task' as const,
       description: 'Loss of outlier visibility',
       isSafeToRelax: false,
+      deviceFeasibility: 'unverified' as const,
       suggestedRequirementPatch: {},
       unblocksCandidates: ['POINT_SET' as const],
     };
@@ -211,5 +218,156 @@ describe('P1-E: Actionable NIL, Ambiguity and Uncertainty Framework', () => {
     expect(outcome.availableRemediations.length).toBe(1);
     expect(outcome.availableRemediations[0].kind).toBe('accept-ambiguous-alternative');
     expect(outcome.availableRemediations[0].unblocksCandidates).toContain('DISTRIBUTION_FIELD');
+  });
+});
+
+describe('RF-027: typed constraint codes, feasibility separation, durable provenance', () => {
+  it('classifies hard-constraint codes into coarse remediation categories', () => {
+    expect(classifyHardConstraint('hardware-element-budget')).toBe('hardware');
+    expect(classifyHardConstraint('frustum-exclusion')).toBe('perceptual');
+    expect(classifyHardConstraint('information-loss-critical')).toBe('scientific-info-loss');
+    expect(classifyHardConstraint('identity-loss')).toBe('scientific-info-loss');
+    expect(classifyHardConstraint('layout-topology-requirement')).toBe('structural');
+    expect(classifyHardConstraint(undefined)).toBe('structural');
+  });
+
+  it('emits typed disqualification codes from the engine (hardware)', () => {
+    const engine = new MonetaHypothesisEngine();
+    const signature = minimalDatasetSignature(1_000, 3, 1, 0, 'fp-rf027-hw', 0);
+    const requirements = {
+      ...createDefaultRequirements('individual-inspection'),
+      hardwareConstraints: { maxElements: 10, targetFps: 90 },
+    };
+    const outcome = engine.diagnose(signature, requirements);
+    expect(outcome.state).toBe('INFEASIBLE');
+    const hw = outcome.blockingConstraints.find((b) => b.isHardwareConstraint);
+    expect(hw).toBeDefined();
+    const hwRemediation = outcome.availableRemediations.find((r) => r.kind === 'adjust-hardware-limit');
+    expect(hwRemediation?.constraintCode).toBe('hardware-element-budget');
+  });
+
+  it('routes remediation by typed code, independent of reason-text wording', () => {
+    // A near-miss whose reason text contains NONE of the old substring markers
+    // but carries the typed hardware code must still route to the hardware
+    // remediation. This proves routing no longer depends on prose.
+    const signature = minimalDatasetSignature(100, 3, 1, 0, 'fp-rf027-route', 0);
+    const requirements = createDefaultRequirements('explore');
+    const nearMiss = {
+      family: 'POINT' as const,
+      candidateId: 'POINT_SET' as const,
+      layout: 'GRID_3D' as const,
+      score: 0,
+      components: [],
+      disqualified: true,
+      disqualificationReason: 'a deliberately opaque reason with no hardware keywords',
+      disqualificationCode: 'hardware-element-budget' as const,
+      preserves: [],
+      loses: [],
+    };
+    const error = new NoFeasibleRepresentationError([], [nearMiss], {
+      datasetFingerprint: signature.provenance.datasetFingerprint,
+      kernelVersion: signature.provenance.kernelVersion,
+      evidenceIds: [],
+    });
+    const outcome = diagnoseInvestigatorOutcome(signature, requirements, error);
+    const hw = outcome.blockingConstraints.find((b) => b.isHardwareConstraint);
+    expect(hw).toBeDefined();
+    expect(hw?.isPerceptualConstraint).toBe(false);
+    expect(hw?.isInformationLossConstraint).toBe(false);
+    expect(outcome.availableRemediations.some((r) => r.kind === 'adjust-hardware-limit')).toBe(true);
+  });
+
+  it('separates scientific permissibility from device feasibility on hardware remediation', () => {
+    const engine = new MonetaHypothesisEngine();
+    const signature = minimalDatasetSignature(50, 3, 1, 0, 'fp-rf027-feas', 0);
+    const requirements = {
+      ...createDefaultRequirements('explore'),
+      hardwareConstraints: { maxElements: 10, targetFps: 90 },
+    };
+    const outcome = engine.diagnose(signature, requirements);
+    const hw = outcome.availableRemediations.find((r) => r.kind === 'adjust-hardware-limit');
+    expect(hw).toBeDefined();
+    // Scientifically permissible (not an information-preservation constraint).
+    expect(hw?.isSafeToRelax).toBe(true);
+    // But the relaxed bound is NOT verified against any real device.
+    expect(hw?.deviceFeasibility).toBe('unverified');
+    expect(hw?.description).toMatch(/UNVERIFIED/);
+  });
+
+  it('refuses to mark relaxed hardware bound as device-safe (no "safe" claim)', () => {
+    const engine = new MonetaHypothesisEngine();
+    const signature = minimalDatasetSignature(50, 3, 1, 0, 'fp-rf027-nosafe', 0);
+    const requirements = {
+      ...createDefaultRequirements('explore'),
+      hardwareConstraints: { maxElements: 10, targetFps: 90 },
+    };
+    const outcome = engine.diagnose(signature, requirements);
+    const hw = outcome.availableRemediations.find((r) => r.kind === 'adjust-hardware-limit');
+    // The description must NOT claim the doubled bound is safe on device.
+    expect(hw?.description).not.toMatch(/is safe on device|device-safe/);
+  });
+
+  it('builds durable remediation provenance separating permissibility and feasibility', () => {
+    const engine = new MonetaHypothesisEngine();
+    const signature = minimalDatasetSignature(50, 3, 1, 0, 'fp-rf027-prov', 0);
+    const oldRequirements = {
+      ...createDefaultRequirements('explore'),
+      hardwareConstraints: { maxElements: 10, targetFps: 90 },
+    };
+    const outcome = engine.diagnose(signature, oldRequirements);
+    const hw = outcome.availableRemediations.find((r) => r.kind === 'adjust-hardware-limit')!;
+    const newRequirements = applyRemediation(oldRequirements, hw);
+    expect(newRequirements.hardwareConstraints?.maxElements).toBe(20);
+
+    const record = buildRemediationProvenance(
+      hw,
+      oldRequirements,
+      newRequirements,
+      signature.provenance.datasetFingerprint,
+      12345,
+      'decision_test_1'
+    );
+    expect(record.remediationId).toBe(hw.id);
+    expect(record.kind).toBe('adjust-hardware-limit');
+    expect(record.constraintCode).toBe('hardware-element-budget');
+    expect(record.category).toBe('hardware');
+    expect(record.scientificPermissibility).toBe('permissible');
+    expect(record.deviceFeasibility).toBe('unverified');
+    expect(record.oldRequirementsHash).not.toBe(record.newRequirementsHash);
+    expect(record.resultingDecisionId).toBe('decision_test_1');
+    expect(record.timestamp).toBe(12345);
+  });
+
+  it('persists and replays remediation provenance through the EvidenceLedger', () => {
+    const engine = new MonetaHypothesisEngine();
+    const signature = minimalDatasetSignature(50, 3, 1, 0, 'fp-rf027-replay', 0);
+    const oldRequirements = {
+      ...createDefaultRequirements('explore'),
+      hardwareConstraints: { maxElements: 10, targetFps: 90 },
+    };
+    const outcome = engine.diagnose(signature, oldRequirements);
+    const hw = outcome.availableRemediations.find((r) => r.kind === 'adjust-hardware-limit')!;
+    const newRequirements = applyRemediation(oldRequirements, hw);
+    const record = buildRemediationProvenance(
+      hw,
+      oldRequirements,
+      newRequirements,
+      signature.provenance.datasetFingerprint,
+      99,
+    );
+
+    const ledger = new EvidenceLedger();
+    ledger.recordRemediation(record, 'session-rf027', 1, signature.provenance.datasetFingerprint);
+
+    const replayed = ledger.remediationEvents();
+    expect(replayed).toHaveLength(1);
+    expect(replayed[0].remediationId).toBe(record.remediationId);
+    expect(replayed[0].newRequirementsHash).toBe(record.newRequirementsHash);
+
+    // Round-trips through JSON (the .nemosyne export/import serialization path).
+    const restored = JSON.parse(JSON.stringify(replayed[0])) as RemediationProvenance;
+    expect(restored.newRequirementsHash).toBe(record.newRequirementsHash);
+    expect(restored.oldRequirementsHash).toBe(record.oldRequirementsHash);
+    expect(hashRequirements(newRequirements)).toBe(record.newRequirementsHash);
   });
 });

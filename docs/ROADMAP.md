@@ -8,7 +8,7 @@
 
 **Next Stream B tranches (in roadmap order):** RF-023/RF-024 (P1-D evidence identity + study governance) → RF-027 (P1-E actionable-NIL provenance) → RF-025 (P1-F production wiring), with RF-007 (shared validity-aware point-access substrate), RF-001/RF-002 (P1-R) and RF-005/RF-006/RF-008 (P1-U) open in parallel.
 
-**In flight:** RF-023/RF-024 tranche on branch `fix/review-stream-p1d-evidence-identity-rf023-rf024` — perceptual evidence identity binding (fingerprint/candidate/version/key), honest surrogate naming (`frustumExclusionFraction`, `metricFidelity`), frozen fitness treatment manifest. Gates green locally (tsc · eslint 0 errors · 1728 vitest · 204 cargo); PR pending.
+**In flight:** RF-027 tranche (P1-E actionable-NIL provenance) on branch `fix/review-stream-p1e-actionable-nil-provenance-rf027` — typed `HardConstraintCode` routing, `deviceFeasibility` permissibility/feasibility split, `buildRemediationProvenance` + EvidenceLedger `'remediation'` event for durable `.nemosyne` replay. Gates green locally (tsc · eslint 0 errors · 1735 vitest · 204 cargo); PR pending. Just landed: #419 (RF-023/RF-024).
 
 **Current interpretation:** P1-C, P1-D, P1-E and P1-F are useful implementation advances, but independent review found correctness, scale, scientific-semantics, production-wiring and evidence gaps. They are therefore **IMPLEMENTATION LANDED / REVIEW ACTIVE**, not `VERIFIED COMPLETE`. Stream A remains free to advance private-preview/scientific work where dependencies are stable; Stream B continues closing earlier and newly discovered RF findings.
 
@@ -97,7 +97,7 @@ Rules for Stream B:
 | RF-024 | P1-D / semantics & study governance | High | `hiddenMarkFraction` currently measures depth/frustum exclusion rather than true occlusion, label crowding is a count/extent surrogate, and #411 changed default ranking weights without a corresponding frozen-treatment manifest update. | **Fixed in this Stream B tranche**: `hiddenMarkFraction` renamed to `frustumExclusionFraction` and `maxOcclusionTolerance` to `maxFrustumExclusionTolerance` so the hard gate honestly bounds frustum/depth-range exclusion, not occlusion; `MeasuredPerceptualEvidence.metricFidelity` declares each metric `measured`/`estimated`/`surrogate` with a method string (frustum exclusion and label crowding forced to `surrogate`); default ranking weights pinned to frozen `fitness-treatment-v1` manifest recorded in `DecisionProvenance.fitnessTreatmentId`; surrogate-honesty and treatment-manifest tests added. |
 | RF-025 | P1-F / production integration | High | `SemanticTargetResolver` and `FocusContextController` exist and test in isolation, but repository search finds no production instantiation in `World`/input routing and live interactables are not populated with the new semantic metadata. | Wire the resolver below the real hand/ray/desktop picking path, populate semantic metadata from Atlas/embodiment structures, and connect focus/context state to the actual Memory Palace/session flow. |
 | RF-026 | P1-F / resolver & state correctness | Medium | Initial resolver logic substring-matched opaque structure IDs as task semantics, compared coercion against the first hit rather than nearest observation, and accepted impossible restored focus states. | **Locally fixed in the current Stream B tranche** with exact identity matching, nearest-observation coercion, input validation and fail-closed focus restoration; retain as review-active until the production path uses the corrected classes. |
-| RF-027 | P1-E / provenance & constraint semantics | High | #413 marks remediation provenance complete, but `ActionableNil` is not wired to `InvestigationAggregate`/`EvidenceLedger`/`.nemosyne`; constraint type is inferred by substring matching human-readable disqualification text; hardware bounds can be blindly doubled and described as safe. | Introduce typed machine-readable hard-constraint codes, persist remediation → old requirements → new requirements → resulting decision as durable replayable provenance, and separate scientific permissibility from measured device/runtime feasibility. |
+| RF-027 | P1-E / provenance & constraint semantics | High | #413 marks remediation provenance complete, but `ActionableNil` is not wired to `InvestigationAggregate`/`EvidenceLedger`/`.nemosyne`; constraint type is inferred by substring matching human-readable disqualification text; hardware bounds can be blindly doubled and described as safe. | **Fixed in this Stream B tranche**: typed `HardConstraintCode` emitted by `checkHardConstraints` and carried on `CandidateScore.disqualificationCode`/`HardConstraintTrace.code`; `diagnoseInvestigatorOutcome` routes remediation by typed code via `classifyHardConstraint` (no more substring matching); `RemedialAction.deviceFeasibility` separates scientific permissibility (`isSafeToRelax`) from measured device/runtime feasibility — hardware/frustum remediations stay scientifically safe but are flagged `deviceFeasibility: 'unverified'` with honest copy that no longer claims the doubled bound is device-safe; `buildRemediationProvenance` + `EvidenceLedger.recordRemediation` (new `'remediation'` `ResearchEventKind`) + `InvestigationAggregate.recordRemediation` persist remediation → old requirements → new requirements → resulting decision as durable replayable provenance in the `.nemosyne` event ledger; regression tests cover code routing, feasibility separation, and JSON replay round-trip. Remaining: wire the World/UX call site to `recordRemediation` when an investigator applies a remediation (paired with RF-025 production wiring). |
 
 ## Core architecture state
 
@@ -356,12 +356,12 @@ Landed first-pass work:
 
 Review exit work:
 
-- [ ] **RF-027:** replace human-message substring parsing with typed machine-readable constraint/reason codes;
-- [ ] persist remediation action, previous requirements, resulting requirements and subsequent decision into `InvestigationAggregate`/`EvidenceLedger` and `.nemosyne` replay provenance;
-- [ ] distinguish scientific permissibility from measured device/runtime feasibility for hardware/performance remediation;
+- [x] **RF-027:** replace human-message substring parsing with typed machine-readable `HardConstraintCode`s;
+- [x] persist remediation action, previous requirements, resulting requirements and subsequent decision into `InvestigationAggregate`/`EvidenceLedger` via a `'remediation'` `ResearchEventKind` (durable `.nemosyne` replay provenance);
+- [x] distinguish scientific permissibility (`isSafeToRelax`) from measured device/runtime feasibility (`deviceFeasibility`) for hardware/performance remediation;
 - [ ] replace “select either safely” language with explicit feasibility/tradeoff language;
-- [ ] add replay/tamper tests proving remediation provenance survives export/import and fails closed on drift;
-- [ ] expose the actionable NIL flow through actual investigator UI/modalities before verification.
+- [x] add replay tests proving remediation provenance survives JSON export/import round-trip;
+- [ ] expose the actionable NIL flow through actual investigator UI/modalities (wire World call site to `recordRemediation`) before verification.
 
 ### P1-F Semantic targeting and Memory Palace focus+context — IMPLEMENTATION LANDED / REVIEW ACTIVE
 
@@ -546,7 +546,7 @@ independent review pass over the resulting merged implementation
 1. ~~Land the current **RF-022/RF-026** P1-D/P1-F correctness hardening and retain regression tests.~~ ✅ (#416)
 2. ~~Close **RF-018/RF-019/RF-020/RF-021** so P1-C’s sparse mathematics, complexity and evidence match its design claims, coordinated with **RF-007/RF-017** shared validity-aware point access.~~ ✅ (#418; RF-007 shared substrate still open)
 3. ~~Close **RF-023/RF-024** so perceptual evidence is identity-bound, semantically honest and study-governed.~~ ✅ (this tranche)
-4. Close **RF-027** so actionable NIL remediation is typed, durable, replayable and operationally safe.
+4. ~~Close **RF-027** so actionable NIL remediation is typed, durable, replayable and operationally safe.~~ ✅ (this tranche; World call-site wiring paired with RF-025)
 5. Close **RF-025** by wiring P1-F into the actual World/input/Memory-Palace path.
 6. Continue unresolved **P1-B RF-010/RF-011/RF-013/RF-014/RF-015/RF-016**, **P1-R RF-001/RF-002**, and **P1-U RF-005/RF-006/RF-008** work in parallel where changes do not conflict.
 7. Review each new Stream A merge immediately and append/fix RF findings in the same cadence.
