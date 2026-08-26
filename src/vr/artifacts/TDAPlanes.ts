@@ -429,10 +429,11 @@ export function buildTDASummaryGroup(
           if (bettiPoints) {
             betti.update(bettiPoints);
           }
-          if (dataset) {
-            atlas.discoverPersistenceStructures(dataset, tdaParams);
-            atlas.discoverMapperStructures(dataset, mapperParams);
-          }
+          // Do not call discoverPersistenceStructures/discoverMapperStructures
+          // here: those APIs are synchronous and would recompute the expensive
+          // kernels on the XR/main thread after the Worker already completed.
+          // Async structure-ledger recording remains an explicit P1-B review
+          // residual until it can consume these exact Worker results/provenance.
         })
         .catch((err) => {
           console.warn('[TDAPlanes] async TDA execution error:', err);
