@@ -1,137 +1,124 @@
 import * as THREE from 'three';
-import type { EngineLike, PointerLike, Updatable } from '../coordinators/types.ts';
+import { Container, Text } from '@pmndrs/uikit';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { Button } from '../ui-system/components/Button.ts';
+import { COLOR_TOKENS } from '../ui-system/tokens.ts';
+import type { EngineLike, PointerLike } from '../coordinators/types.ts';
 
 export interface HolographicInspectorOptions {
-  width?: number;
-  height?: number;
   worldSize?: [number, number];
-  offsetX?: number;
-  offsetY?: number;
-  offsetZ?: number;
-  followSpeed?: number;
-  dismissFlickThreshold?: number;
-  lookAwayThreshold?: number;
 }
 
-/**
- * A gravity-glove-style holographic data inspector.
- *
- * Appears near the user's active pointer hand when a data node is selected,
- * follows the hand smoothly, always faces the user, and can be dismissed with
- * a quick flick or by looking away. Inspired by Half-Life: Alyx gravity-glove
- * tooltips and No Man's Sky holographic cockpit readouts.
- */
-export class HolographicInspector implements Updatable {
+export class HolographicInspector extends SpatialPanel {
   engine: EngineLike;
-  camera: THREE.Camera | undefined;
-  cameraGroup: THREE.Group | undefined;
-
-  canvas: HTMLCanvasElement;
-  ctx: CanvasRenderingContext2D;
-  texture: THREE.CanvasTexture;
-  material: THREE.MeshBasicMaterial;
-  mesh: THREE.Mesh;
-
-  active: boolean;
-  data: Record<string, unknown> | null;
-  title: string;
-
-  // Smooth follow state.
-  targetPosition: THREE.Vector3;
-  targetQuaternion: THREE.Quaternion;
-  currentHandPos: THREE.Vector3;
-  currentHandDir: THREE.Vector3;
-  lookAwayTimer: number;
-  lastPointerDir: THREE.Vector3;
-
-  followSpeed: number;
-  offset: THREE.Vector3;
-  dismissFlickThreshold: number;
-  lookAwayThreshold: number;
-
-  pointer: PointerLike | null;
-
-  private _cameraPos: THREE.Vector3;
-  private _cameraDir: THREE.Vector3;
-  private _handPos: THREE.Vector3;
-  private _handQuat: THREE.Quaternion;
-  private _handDir: THREE.Vector3;
-  private _tmpVec: THREE.Vector3;
-  private _tmpQuat: THREE.Quaternion;
-  private _tmpMat: THREE.Matrix4;
+  active: boolean = false;
+  data: Record<string, unknown> | null = null;
+  title: string = '';
+  pointer: PointerLike | null = null;
+  
+  // UI Sub-components
+  private _titleText: Text;
+  private _categoryText: Text;
+  private _contentContainer: Container;
+  
+  // Tabs State
+  private _activeTab: 'Values' | 'Evidence' | 'Provenance' = 'Values';
+  private _tabButtons: Record<string, Button> = {};
 
   constructor(engine: EngineLike, options: HolographicInspectorOptions = {}) {
-    this.engine = engine;
-    this.camera = engine?.camera;
-    this.cameraGroup = engine?.cameraGroup;
-
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = options.width ?? 512;
-    this.canvas.height = options.height ?? 384;
-    this.ctx = (this.canvas.getContext('2d') || this._createMockContext()) as CanvasRenderingContext2D;
-
-    this.texture = new THREE.CanvasTexture(this.canvas);
-    this.texture.minFilter = THREE.LinearFilter;
-    this.texture.magFilter = THREE.LinearFilter;
-
-    const worldSize = options.worldSize ?? [0.6, 0.45];
-    this.material = new THREE.MeshBasicMaterial({
-      map: this.texture,
-      transparent: true,
-      opacity: 0.92,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthTest: false,
-      depthWrite: false,
+    super({
+      width: 512,
+      height: 384,
+      flexDirection: 'column',
+      padding: 16,
+      gap: 12,
     });
+    this.engine = engine;
+    this.name = 'holographic-inspector';
+    this.visible = false;
+    
+    // Default world size to [0.6, 0.45] roughly
+    const scale = options.worldSize ? options.worldSize[0] / 512 : 0.6 / 512;
+    this.scale.setScalar(scale);
 
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(worldSize[0], worldSize[1]), this.material);
-    this.mesh.name = 'holographic-inspector';
-    this.mesh.visible = false;
-    // Reference frame: WORLD_LOCKED transient whose pose follows the active hand
-    // each frame in world space (UX spec §5 "Holographic Inspector"). Callers
-    // must mount() into the scene — never parent to the camera rig, or the
-    // world-space targets assigned in update() would drift under locomotion.
+    // --- Header ---
+    const headerContainer = new Container({
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      height: 48,
+      backgroundColor: COLOR_TOKENS.surface.border,
+      borderRadius: 4,
+      paddingX: 12,
+    });
+    this._titleText = new Text({
+      text: '// DATA NODE',
+      fontSize: 22,
+      color: COLOR_TOKENS.interaction.focus,
+      fontWeight: 'bold',
+    });
+    this._categoryText = new Text({
+      text: '',
+      fontSize: 16,
+      color: COLOR_TOKENS.surface.base,
+      backgroundColor: COLOR_TOKENS.danger.destructive,
+      paddingX: 8,
+      paddingY: 4,
+      borderRadius: 4,
+    });
+    headerContainer.add(this._titleText);
+    headerContainer.add(this._categoryText);
+    this.add(headerContainer);
 
-    this.active = false;
-    this.data = null;
-    this.title = '';
+    // --- Tab Switcher ---
+    const tabsContainer = new Container({
+      flexDirection: 'row',
+      gap: 8,
+    });
+    
+    for (const tabName of ['Values', 'Evidence', 'Provenance'] as const) {
+      const btn = new Button({
+        label: tabName,
+        variant: 'secondary',
+        onClick: () => this.setTab(tabName),
+      });
+      tabsContainer.add(btn);
+      this._tabButtons[tabName] = btn;
+    }
+    this.add(tabsContainer);
 
-    this.targetPosition = new THREE.Vector3();
-    this.targetQuaternion = new THREE.Quaternion();
-    this.currentHandPos = new THREE.Vector3();
-    this.currentHandDir = new THREE.Vector3(0, 0, -1);
-    this.lookAwayTimer = 0;
-    this.lastPointerDir = new THREE.Vector3();
+    // --- Content Area ---
+    this._contentContainer = new Container({
+      flexDirection: 'column',
+      flexGrow: 1,
+      overflow: 'scroll',
+      gap: 8,
+      padding: 8,
+      backgroundColor: COLOR_TOKENS.surface.base,
+      borderRadius: 4,
+      borderColor: COLOR_TOKENS.surface.border,
+      borderWidth: 1,
+    });
+    this.add(this._contentContainer);
 
-    this.followSpeed = options.followSpeed ?? 8;
-    this.offset = new THREE.Vector3(
-      options.offsetX ?? 0.12,
-      options.offsetY ?? 0.18,
-      options.offsetZ ?? -0.25
-    );
-    this.dismissFlickThreshold = options.dismissFlickThreshold ?? 2.5;
-    this.lookAwayThreshold = options.lookAwayThreshold ?? 0.8;
-
-    this._cameraPos = new THREE.Vector3();
-    this._cameraDir = new THREE.Vector3();
-    this._handPos = new THREE.Vector3();
-    this._handQuat = new THREE.Quaternion();
-    this._handDir = new THREE.Vector3();
-    this._tmpVec = new THREE.Vector3();
-    this._tmpQuat = new THREE.Quaternion();
-    this._tmpMat = new THREE.Matrix4();
-
-    this.pointer = null;
+    // --- Action Footer ---
+    const footerContainer = new Container({
+      flexDirection: 'row',
+      gap: 12,
+      justifyContent: 'flex-start',
+    });
+    footerContainer.add(new Button({ label: 'Compare', variant: 'secondary' }));
+    footerContainer.add(new Button({ label: 'Challenge', variant: 'danger' }));
+    footerContainer.add(new Button({ label: 'Annotate', variant: 'secondary' }));
+    footerContainer.add(new Container({ flexGrow: 1 }));
+    footerContainer.add(new Button({ label: 'Close', variant: 'secondary', onClick: () => this.hide() }));
+    this.add(footerContainer);
   }
 
   mount(scene: { add(object: THREE.Object3D): void }): void {
-    scene.add(this.mesh);
+    scene.add(this);
   }
 
-  /**
-   * Show the inspector attached to a node and its selection pointer.
-   */
   showAtNode(
     nodeMesh: THREE.Object3D | null,
     data: Record<string, unknown> | null,
@@ -141,192 +128,74 @@ export class HolographicInspector implements Updatable {
     this.data = data;
     this.title = title;
     this.active = true;
-    this.mesh.visible = true;
-    this.lookAwayTimer = 0;
+    this.visible = true;
+    this.pointer = pointer;
+
+    this._titleText.setProperties({ text: `// ${title}` });
+    const category = data?.category ?? data?.type ?? '';
+    this._categoryText.setProperties({ text: String(category), display: category ? 'flex' : 'none' });
 
     if (nodeMesh) {
-      nodeMesh.getWorldPosition(this.targetPosition);
-      this.mesh.position.copy(this.targetPosition).add(this._tmpVec.set(0, 0.4, 0));
+      const pos = new THREE.Vector3();
+      nodeMesh.getWorldPosition(pos);
+      // Place near the node but offset
+      this.position.copy(pos).add(new THREE.Vector3(0, 0.2, 0.15));
+      if (this.engine.camera) {
+        this.lookAt(this.engine.camera.position);
+      }
     }
 
-    this.pointer = pointer;
-    this.render();
+    this.setTab('Values');
     this._playOpenFeedback(nodeMesh);
   }
 
   hide(): void {
     if (!this.active) return;
     this.active = false;
-    this.mesh.visible = false;
+    this.visible = false;
     this.pointer = null;
     this._playCloseFeedback();
   }
 
-  update(delta: number, time: number): void {
-    if (!this.active || !this.camera) return;
-
-    this._updateTargetFromPointer();
-
-    // Smooth position.
-    const speed = Math.min(1, this.followSpeed * delta);
-    this.mesh.position.lerp(this.targetPosition, speed);
-
-    // Face the user's head.
-    this.camera.getWorldPosition(this._cameraPos);
-    this.mesh.lookAt(this._cameraPos);
-
-    // Dismiss on look-away or flick.
-    if (this._shouldDismiss(delta)) {
-      this.hide();
-      return;
+  setTab(tab: 'Values' | 'Evidence' | 'Provenance') {
+    this._activeTab = tab;
+    // Update button visuals
+    for (const [name, btn] of Object.entries(this._tabButtons)) {
+      btn.setProperties({
+        backgroundColor: name === tab ? COLOR_TOKENS.interaction.focus : COLOR_TOKENS.surface.raised,
+      });
     }
-
-    // Subtle hover breathe.
-    this.mesh.position.y += Math.sin(time * 2) * 0.001;
-
-    this.lastPointerDir.copy(this.currentHandDir);
+    this._renderContent();
   }
 
-  private _updateTargetFromPointer(): void {
-    const pointer = this.pointer;
-    if (!pointer || !this.cameraGroup) {
-      // No active pointer: stay roughly where we are, facing user.
-      this.targetPosition.copy(this.mesh.position);
-      return;
+  private _renderContent() {
+    this._contentContainer.clear();
+    if (this._activeTab === 'Values') {
+      const entries = Object.entries(this.data ?? {});
+      for (const [key, value] of entries) {
+        if (key === 'category' || key === 'type') continue;
+        const row = new Container({ flexDirection: 'row', justifyContent: 'space-between', width: '100%' });
+        row.add(new Text({ text: key, color: COLOR_TOKENS.interaction.focus, fontSize: 16 }));
+        row.add(new Text({ text: String(value).slice(0, 40), color: COLOR_TOKENS.text.primary, fontSize: 16 }));
+        this._contentContainer.add(row);
+      }
+    } else if (this._activeTab === 'Evidence') {
+      this._contentContainer.add(new Text({ text: 'Evidence summary not populated.', color: COLOR_TOKENS.text.muted, fontSize: 16 }));
+    } else if (this._activeTab === 'Provenance') {
+      this._contentContainer.add(new Text({ text: 'Provenance graph not populated.', color: COLOR_TOKENS.text.muted, fontSize: 16 }));
     }
-
-    if (pointer.getWorldPosition) {
-      pointer.getWorldPosition(this._handPos);
-    } else if (pointer.rayOrigin) {
-      this._handPos.copy(pointer.rayOrigin as unknown as THREE.Vector3);
-    } else {
-      this._handPos.copy(this.mesh.position);
-    }
-
-    if (pointer.getHandTransform) {
-      pointer.getHandTransform(this._handPos, this._handQuat);
-      this._handDir.set(0, 0, -1).applyQuaternion(this._handQuat).normalize();
-    } else if (pointer.rayDirection) {
-      this._handDir.copy(pointer.rayDirection as unknown as THREE.Vector3);
-    } else {
-      this._handDir.set(0, 0, -1);
-    }
-
-    this.currentHandPos.copy(this._handPos);
-    this.currentHandDir.copy(this._handDir);
-
-    // Convert hand-local offset to world space.
-    this._tmpMat.identity();
-    this._tmpMat.makeRotationFromQuaternion(
-      this._tmpQuat.setFromUnitVectors(new THREE.Vector3(0, 0, -1), this._handDir)
-    );
-    const worldOffset = this._tmpVec.copy(this.offset).applyMatrix4(this._tmpMat);
-    this.targetPosition.copy(this._handPos).add(worldOffset);
   }
 
-  private _shouldDismiss(delta: number): boolean {
-    // Flick: rapid downward change in pointing direction.
-    if (this.currentHandDir.lengthSq() > 0 && this.lastPointerDir.lengthSq() > 0) {
-      const dirDelta = this.currentHandDir.y - this.lastPointerDir.y;
-      const speed = Math.abs(dirDelta) / Math.max(1e-6, delta);
-      if (speed > this.dismissFlickThreshold && dirDelta < -0.2) {
-        return true;
-      }
+  update(delta: number, _time?: number): void {
+    if (!this.active) return;
+    super.update(delta); // Updates SpatialPanel internals
+    
+    // Face the user's head smoothly if we want
+    if (this.engine.camera) {
+      const camPos = new THREE.Vector3();
+      this.engine.camera.getWorldPosition(camPos);
+      this.lookAt(camPos);
     }
-
-    // Look-away: user keeps pointing away from the inspected node for too long.
-    if (this.targetPosition && this._cameraPos) {
-      const toInspector = this._tmpVec.subVectors(this.targetPosition, this._cameraPos).normalize();
-      this.camera?.getWorldDirection(this._cameraDir);
-      const gazeDot = toInspector.dot(this._cameraDir);
-      if (gazeDot < 0.25) {
-        this.lookAwayTimer += delta;
-      } else {
-        this.lookAwayTimer = Math.max(0, this.lookAwayTimer - delta);
-      }
-      if (this.lookAwayTimer > this.lookAwayThreshold) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  render(): void {
-    const ctx = this.ctx;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
-
-    ctx.clearRect(0, 0, w, h);
-
-    // Background.
-    ctx.fillStyle = 'rgba(4, 12, 24, 0.85)';
-    ctx.fillRect(0, 0, w, h);
-
-    // Scanlines.
-    ctx.fillStyle = 'rgba(0, 255, 204, 0.04)';
-    for (let y = 0; y < h; y += 6) {
-      ctx.fillRect(0, y, w, 2);
-    }
-
-    // Border.
-    ctx.strokeStyle = '#00ffcc';
-    ctx.lineWidth = 5;
-    ctx.strokeRect(10, 10, w - 20, h - 20);
-
-    // Header bar.
-    ctx.fillStyle = 'rgba(0, 255, 204, 0.15)';
-    ctx.fillRect(10, 10, w - 20, 52);
-
-    // Title.
-    ctx.font = 'bold 26px monospace';
-    ctx.fillStyle = '#00ffcc';
-    ctx.shadowColor = '#00ffcc';
-    ctx.shadowBlur = 8;
-    ctx.textAlign = 'left';
-    ctx.fillText(`// ${this.title}`, 26, 46);
-    ctx.shadowBlur = 0;
-
-    // Category badge (if present).
-    const category = this.data?.category ?? this.data?.type ?? '';
-    if (category) {
-      const badgeW = ctx.measureText(String(category)).width + 24;
-      ctx.fillStyle = 'rgba(255, 0, 85, 0.85)';
-      ctx.fillRect(w - badgeW - 18, 18, badgeW, 34);
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.font = 'bold 18px monospace';
-      ctx.fillText(String(category), w - badgeW / 2 - 18, 42);
-      ctx.textAlign = 'left';
-    }
-
-    // Fields.
-    const entries = Object.entries(this.data ?? {});
-    ctx.font = 'bold 18px monospace';
-    ctx.fillStyle = '#88ccff';
-    let y = 92;
-    const lineHeight = 30;
-    const maxRows = Math.floor((h - y - 40) / lineHeight);
-    for (let i = 0; i < entries.length && i < maxRows; i++) {
-      const [key, value] = entries[i];
-      ctx.fillStyle = '#00ffcc';
-      ctx.fillText(`${key}`, 26, y);
-      const valueText = String(value).slice(0, 20);
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'right';
-      ctx.fillText(valueText, w - 26, y);
-      ctx.textAlign = 'left';
-      y += lineHeight;
-    }
-
-    // Hint footer.
-    ctx.fillStyle = 'rgba(0, 255, 204, 0.5)';
-    ctx.font = '14px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('look away or flick wrist to dismiss', w / 2, h - 18);
-    ctx.textAlign = 'left';
-
-    this.texture.needsUpdate = true;
   }
 
   private _playOpenFeedback(nodeMesh: THREE.Object3D | null): void {
@@ -334,14 +203,12 @@ export class HolographicInspector implements Updatable {
     if (!fb) return;
     const volume = fb.volume ?? 0.15;
     fb.playTone?.({ frequency: 990, duration: 0.06, shape: 'sine', volume });
-    setTimeout(
-      () => fb.playTone?.({ frequency: 1320, duration: 0.08, shape: 'sine', volume }),
-      50
-    );
+    setTimeout(() => fb.playTone?.({ frequency: 1320, duration: 0.08, shape: 'sine', volume }), 50);
     if (nodeMesh) {
+      const pos = new THREE.Vector3();
       fb.showHitMarker?.(
         this.engine.scene as unknown as THREE.Scene,
-        nodeMesh.getWorldPosition(this._tmpVec),
+        nodeMesh.getWorldPosition(pos),
         0x00ffcc,
         220
       );
@@ -353,26 +220,5 @@ export class HolographicInspector implements Updatable {
     if (!fb) return;
     const volume = fb.volume ?? 0.15;
     fb.playTone?.({ frequency: 660, duration: 0.08, shape: 'sine', volume: volume * 0.7 });
-  }
-
-  private _createMockContext(): Partial<CanvasRenderingContext2D> {
-    const noOp = () => {};
-    return {
-      clearRect: noOp,
-      fillRect: noOp,
-      strokeRect: noOp,
-      beginPath: noOp,
-      arc: noOp,
-      fill: noOp,
-      fillText: noOp,
-      measureText: () => ({ width: 0 } as TextMetrics),
-      set fillStyle(_value: string) {},
-      set strokeStyle(_value: string) {},
-      set lineWidth(_value: number) {},
-      set font(_value: string) {},
-      set textAlign(_value: CanvasTextAlign) {},
-      set shadowColor(_value: string) {},
-      set shadowBlur(_value: number) {},
-    };
   }
 }

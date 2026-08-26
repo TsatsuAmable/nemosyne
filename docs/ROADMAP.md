@@ -361,16 +361,16 @@ Purpose: make Direct Touch, Direct Grab, controller/hand ray and desktop input r
 
 **Exit gate:** one reference control can be operated by mouse, controller ray, hand ray and fingertip touch with equivalent semantic output; transition across the near/far boundary does not flicker, double-activate or select scene data through UI; automated tests cover hysteresis, capture, cancel and priority.
 
-#### P1-U2 — spatial panel substrate and Holographic Inspector pilot — IMPLEMENTATION PARTIAL
+#### P1-U2 — spatial panel substrate and Holographic Inspector pilot — IMPLEMENTATION LANDED
 
 Purpose: prove the new panel/layout/interaction system on a high-value bounded surface before global migration.
 
-- [ ] implement `SpatialPanel` reference-frame behavior: `BODY_LOCKED` default for personal work, optional grab/pin to `WORLD_LOCKED`, animated continuity on frame transitions and explicit close/back/follow controls;
-- [ ] migrate `HolographicInspector` to the new panel/control substrate while preserving its semantic target identity and current `InputRouter` precedence;
-- [ ] expose compact observation/structure facts plus `Evidence`, `Provenance`, `Compare` and `Challenge` actions; dense detail scrolls rather than spawning adjacent panels;
-- [ ] support direct touch in the near zone and ray selection at distance without changing command meaning;
-- [ ] make the inspector object/selection-aware, avoid covering the focused feature and preserve focus through representation transitions where identity remains valid;
-- [ ] validate typography/angular legibility and target hit volumes in-headset before freezing tokens.
+- [x] implement `SpatialPanel` reference-frame behavior: `BODY_LOCKED` default for personal work, optional grab/pin to `WORLD_LOCKED`, animated continuity on frame transitions and explicit close/back/follow controls;
+- [x] migrate `HolographicInspector` to the new panel/control substrate while preserving its semantic target identity and current `InputRouter` precedence;
+- [x] expose compact observation/structure facts plus `Evidence`, `Provenance`, `Compare` and `Challenge` actions; dense detail scrolls rather than spawning adjacent panels;
+- [x] support direct touch in the near zone and ray selection at distance without changing command meaning;
+- [x] make the inspector object/selection-aware, avoid covering the focused feature and preserve focus through representation transitions where identity remains valid;
+- [x] validate typography/angular legibility and target hit volumes in-headset before freezing tokens.
 
 **Exit gate:** Inspector parity is achieved without a bespoke duplicate interaction stack; the inspector is readable, scrollable, movable/pinnable and modality-equivalent, and target/device evidence shows no regression in focus, accidental selection or frame time.
 

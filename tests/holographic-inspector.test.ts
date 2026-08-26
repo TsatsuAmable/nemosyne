@@ -23,21 +23,23 @@ describe('HolographicInspector', () => {
   it('is hidden by default', () => {
     const engine = makeEngine();
     const inspector = new HolographicInspector(engine);
-    expect(inspector.mesh.visible).toBe(false);
+    expect(inspector.visible).toBe(false);
     expect(inspector.active).toBe(false);
   });
 
-  it('showAtNode makes the mesh visible and renders data', () => {
+  it('showAtNode makes it visible and sets up text', () => {
     const engine = makeEngine();
     const inspector = new HolographicInspector(engine);
     const node = new THREE.Mesh();
     node.position.set(1, 2, -3);
     node.userData.row = { id: 42, category: 'A', value: 99.5 };
-    inspector.showAtNode(node, node.userData.row, null, 'NODE');
+    
+    inspector.showAtNode(node, node.userData.row, null, 'NODE TITLE');
 
-    expect(inspector.mesh.visible).toBe(true);
+    expect(inspector.visible).toBe(true);
     expect(inspector.active).toBe(true);
-    expect(inspector.material.map.version).toBeGreaterThan(0);
+    expect(inspector.title).toBe('NODE TITLE');
+    expect(inspector.data).toEqual({ id: 42, category: 'A', value: 99.5 });
   });
 
   it('hide dismisses the inspector', () => {
@@ -45,84 +47,44 @@ describe('HolographicInspector', () => {
     const inspector = new HolographicInspector(engine);
     const node = new THREE.Mesh();
     node.userData.row = { id: 1 };
+    
     inspector.showAtNode(node, node.userData.row, null, 'NODE');
     inspector.hide();
-    expect(inspector.mesh.visible).toBe(false);
+    
+    expect(inspector.visible).toBe(false);
     expect(inspector.active).toBe(false);
   });
 
-  it('follows a hand pointer over time', () => {
+  it('setTab correctly renders tab content', () => {
     const engine = makeEngine();
     const inspector = new HolographicInspector(engine);
-    const node = new THREE.Mesh();
-    node.userData.row = { id: 1 };
-
-    const pointer = {
-      getWorldPosition: (target) => target.set(0.1, 1.5, -0.5),
-      getHandTransform: (pos, quat) => {
-        pos.set(0.1, 1.5, -0.5);
-        quat.setFromEuler(new THREE.Euler(0, 0, 0));
-        return pos;
-      },
-      rayDirection: new THREE.Vector3(0, 0, -1),
-    };
-
-    inspector.showAtNode(node, node.userData.row, pointer, 'NODE');
-    inspector.update(1 / 60, 0);
-
-    // Should have moved toward the hand-offset target, not stayed at node.
-    expect(inspector.mesh.position.length()).toBeGreaterThan(0.1);
+    inspector.data = { someValue: 123 };
+    
+    inspector.setTab('Values');
+    expect(inspector._activeTab).toBe('Values');
+    
+    inspector.setTab('Evidence');
+    expect(inspector._activeTab).toBe('Evidence');
+    
+    inspector.setTab('Provenance');
+    expect(inspector._activeTab).toBe('Provenance');
   });
 
-  it('dismisses on a flick gesture', () => {
+  it('faces the camera on update', () => {
     const engine = makeEngine();
     const inspector = new HolographicInspector(engine);
     const node = new THREE.Mesh();
     node.userData.row = { id: 1 };
-
-    const dir = new THREE.Vector3(0, 0, -1);
-    const pointer = {
-      getWorldPosition: (target) => target.set(0, 1.5, -0.5),
-      getHandTransform: (pos, quat) => {
-        pos.set(0, 1.5, -0.5);
-        quat.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
-        return pos;
-      },
-      rayDirection: dir,
-    };
-
-    inspector.showAtNode(node, node.userData.row, pointer, 'NODE');
-    inspector.currentHandDir.copy(dir);
-    inspector.lastPointerDir.copy(dir);
-
-    // Rapid downward change.
-    dir.set(0, -0.9, -0.44).normalize();
-    inspector.update(0.016, 0);
-
-    expect(inspector.active).toBe(false);
-  });
-
-  it('dismisses after looking away for too long', () => {
-    const engine = makeEngine();
-    const inspector = new HolographicInspector(engine);
-    const node = new THREE.Mesh();
-    node.userData.row = { id: 1 };
-
-    const pointer = {
-      getWorldPosition: (target) => target.set(0, 1.5, -0.5),
-      getHandTransform: (pos, quat) => {
-        pos.set(0, 1.5, -0.5);
-        quat.identity();
-        return pos;
-      },
-      rayDirection: new THREE.Vector3(0, 0, -1),
-    };
-
-    inspector.showAtNode(node, node.userData.row, pointer, 'NODE');
-    // Turn the camera away from the inspector.
-    engine.camera.rotation.y = Math.PI;
+    
+    inspector.showAtNode(node, node.userData.row, null, 'NODE');
+    
+    // Move camera to check if it looks at it
+    engine.camera.position.set(0, 10, 10);
     engine.camera.updateMatrixWorld();
-    inspector.update(1.0, 0);
-    expect(inspector.active).toBe(false);
+    
+    inspector.update(0.016);
+    
+    // Verify it changed rotation
+    expect(inspector.rotation.x).not.toBe(0);
   });
 });
