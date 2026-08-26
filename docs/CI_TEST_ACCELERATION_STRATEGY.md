@@ -48,15 +48,7 @@ These are dated measurements, not policy values.
 
 ### Landed design
 
-#438 introduced:
-
-1. one cached development WASM build published as an artifact;
-2. three independent coverage shards consuming the identical WASM artifact;
-3. test failures remaining fatal on every shard;
-4. shard-local coverage collection without pretending a partial shard can satisfy repository-global coverage policy;
-5. Vitest blob-report merge in the aggregate `Vitest coverage` job;
-6. canonical global coverage enforcement only after the complete distributed result is reconstructed;
-7. the existing required `Node 24` fan-in remaining dependent on that aggregate result.
+#438 introduced one shared cached development WASM artifact, three fatal-on-test-failure coverage shards, Vitest blob-report aggregation, and canonical global coverage enforcement only over the reconstructed full suite. The required `Node 24` fan-in remains dependent on the aggregate result.
 
 The first live attempt failed closed and exposed three CI-mechanics defects: global thresholds being applied to partial shards, hidden report artifacts being skipped, and a WASM cache key hashing a nonexistent file. Those were fixed before #438 landed.
 
@@ -64,23 +56,15 @@ The first live attempt failed closed and exposed three CI-mechanics defects: glo
 
 The successful #438 run reconstructed exactly the same 311 files and 1,661 tests as the unsharded baseline and reproduced the baseline coverage values above. Full required CI completed in about 3m07s versus about 4m22s for the representative Phase 1 run, roughly a 29% wall-time reduction even on the first cold-cache sharded run.
 
-A same-commit warm-cache rerun also passed. The corrected WASM cache key hit successfully and avoided repeating the full cold compilation across all three shards.
-
-Phase 2 remains **REVIEW ACTIVE**, not `VERIFIED COMPLETE`, until normal post-merge runs establish stable latency, runner-minute cost, and flake behavior across a broader sample.
+A same-commit warm-cache rerun also passed. Phase 2 remains **REVIEW ACTIVE**, not `VERIFIED COMPLETE`, until normal post-merge runs establish stable latency, runner-minute cost, and flake behavior across a broader sample.
 
 ## Phase 3: remove duplicate execution and separate endurance evidence
 
-**Status:** ACTIVE.
+**Status:** PARTIALLY LANDED in project-engineering hygiene work.
 
-The next optimization should remove redundant work before adding more shards. In particular, the standalone `.github/workflows/coverage.yml` currently performs another full unsharded coverage run on every push to `main`, immediately after required PR CI has already reconstructed and enforced full merged coverage. The useful scheduled/manual assurance role should be preserved, but duplicate post-merge execution should be removed.
+The standalone `Coverage Assurance` workflow is now scheduled/manual only and serves as an **unsharded parity audit**. It no longer reruns the entire suite on every push to `main` immediately after required CI has already reconstructed and enforced complete sharded coverage. The periodic audit is weekly rather than daily because PR/main CI already supplies continuous deterministic coverage evidence.
 
-Long-running workloads are appropriate for scheduled/manual assurance when deterministic PR regressions continue to protect the same property. Examples include:
-
-- extended Rust parser/WASM ABI fuzz campaigns;
-- Worker/runtime recovery soak;
-- large resource-envelope sweeps;
-- repeated physical-device/browser qualification;
-- long statistical simulation/calibration campaigns.
+Long-running workloads remain appropriate for scheduled/manual assurance when deterministic PR regressions protect the same property. Examples include extended parser/WASM ABI fuzz campaigns, Worker/runtime recovery soak, large resource-envelope sweeps, repeated physical-device/browser qualification, and long statistical simulation/calibration campaigns.
 
 Any defect found by exploratory fuzz/soak work should become a deterministic PR regression where feasible.
 
@@ -88,9 +72,15 @@ Any defect found by exploratory fuzz/soak work should become a deterministic PR 
 
 - Do not use blind automatic retries to turn a required correctness failure green.
 - Record and investigate repeated nondeterministic failures rather than normalizing them.
-- A known flake that can mask a blocker should be treated as engineering debt with an owner and removal criterion.
+- A known flake that can mask a blocker is engineering debt with an owner and removal criterion.
 - Duration-aware shard balancing should use several normal CI runs, not one anomalous measurement.
 - If tests are quarantined for diagnosis, equivalent deterministic protection must remain in the required gate for the affected safety property.
+
+## Workflow supply-chain policy
+
+External GitHub Actions are pinned to immutable commit SHAs. Human-readable version comments preserve update intent, and the repository's existing Dependabot GitHub Actions configuration remains responsible for proposing updates. `npm run ci:actions-check` fails required static analysis if a mutable external action ref is introduced.
+
+This does not eliminate action supply-chain risk, but it prevents an already-reviewed workflow from silently executing different code because a mutable major tag or branch moved.
 
 ## Developer feedback tiers
 
@@ -103,20 +93,10 @@ Fast feedback is a convenience. It is not promotion evidence.
 
 ## Metrics
 
-Track trends for:
-
-- time to first actionable failure;
-- time to required fan-in completion;
-- coverage-suite and shard wall time;
-- maximum shard imbalance;
-- WASM-build time and cache effectiveness;
-- browser-smoke start delay and duration;
-- total runner minutes per PR;
-- flaky rerun rate;
-- escaped defects that an existing required test should have caught.
+Track trends for time to first actionable failure, required fan-in completion, shard balance, cache effectiveness, browser-smoke delay, total runner minutes, flaky rerun rate, and escaped defects that an existing required test should have caught.
 
 Optimize for feedback latency and resource efficiency while keeping escaped-defect and flake rates flat or improving.
 
 ## Relationship to RF-033
 
-This strategy is the execution record for RF-033. #437 landed the independent proof graph; #438 landed three-way sharding, one shared WASM build, and merged authoritative coverage. The remaining review work is operational measurement, shard balancing if supported by evidence, duplicate-work removal, and clean separation of deterministic PR proof from exploratory endurance assurance.
+#437 landed the independent proof graph; #438 landed three-way sharding, one shared WASM build, and merged authoritative coverage. The hygiene tranche removes redundant coverage execution and makes external workflow dependencies immutable. Remaining RF-033 review work is operational measurement and duration-aware rebalancing only when multiple normal runs justify it.
