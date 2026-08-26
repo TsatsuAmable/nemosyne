@@ -38,6 +38,7 @@ export class TechnoCoreNode implements Updatable {
     this.group = new THREE.Group();
     this.group.position.set(...position);
     this.group.scale.setScalar(scale);
+    this.group.userData = { role: 'technocore', interactive: true };
 
     // Soft inner glow core.
     const coreGeo = new THREE.SphereGeometry(1.05, 24, 24);

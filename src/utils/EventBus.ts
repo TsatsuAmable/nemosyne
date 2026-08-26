@@ -38,6 +38,7 @@ export const WorldTopics = {
   QUEST_BOUNDARY_PROGRESS: 'quest-boundary:progress',
   QUEST_BOUNDARY_COMPLETE: 'quest-boundary:complete',
   USER_MODE_APPLIED: 'userMode:applied',
+  JOURNEY_PHASE_CHANGED: 'journey:phase-changed',
 } as const;
 
 export type WorldTopicName = (typeof WorldTopics)[keyof typeof WorldTopics];
@@ -70,6 +71,7 @@ export interface NemosyneEventMap {
   'quest-boundary:progress': unknown;
   'quest-boundary:complete': unknown;
   'userMode:applied': { mode: string };
+  'journey:phase-changed': { journeyPhase: string; metadata?: Record<string, unknown> };
 }
 
 export type EventHandler<T = unknown> = (payload: T) => void;
