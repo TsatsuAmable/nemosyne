@@ -100,11 +100,16 @@ describe('columnar DatasetStructureProfile real-WASM boundary', () => {
         samplingSeed: null,
         sourceObservationsPerSample: 1,
       });
+      // The temporal column is regular-spaced, so the Rust spectral path selects
+      // the physical-unit `regular-time-fft` method (per-unit dominant frequencies,
+      // spectral entropy, periodicity) rather than the generic full-series path.
       expect(profile?.spectral).toMatchObject({
-        method: 'full-series-fft',
+        method: 'regular-time-fft',
         observedCount: 8,
         transformLength: 8,
         sourceObservationsPerBin: 1,
+        windowFunction: 'hann',
+        hasPeriodicity: true,
       });
       expect(rowMaterialisationCount()).toBe(before);
     } finally {
