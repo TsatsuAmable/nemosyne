@@ -28,7 +28,17 @@ self.onmessage = async (ev: MessageEvent) => {
   if (!data) return;
 
   if (data.type === 'SUPERSEDE' && data.fence) {
-    if (data.fence.generation !== undefined) fence.generation = data.fence.generation;
+    if (data.fence.generation !== undefined && (fence.generation === undefined || data.fence.generation > fence.generation)) {
+      fence.generation = data.fence.generation;
+      for (const h of handleMap.values()) {
+        try {
+          bridge.destroyDataset(h);
+        } catch {
+          // ignore cleanup failures
+        }
+      }
+      handleMap.clear();
+    }
     if (data.fence.datasetVersion !== undefined) fence.datasetVersion = data.fence.datasetVersion;
     return;
   }
@@ -118,10 +128,15 @@ self.onmessage = async (ev: MessageEvent) => {
             throw new Error('Worker kernel operation returned an invalid output handle');
           }
           try {
-            value = bridge.getDatasetJson(outHandle);
-            if (!value) {
+            const outJson = bridge.getDatasetJson(outHandle);
+            if (!outJson) {
               throw new Error('Worker kernel operation produced no dataset output');
             }
+            const outFingerprint = bridge.datasetFingerprint(outHandle) ?? req.dataset.fingerprint;
+            value = {
+              dataset: outJson,
+              outputFingerprint: outFingerprint,
+            };
           } finally {
             bridge.destroyDataset(outHandle);
           }

@@ -59,6 +59,9 @@ export function isKernelFatalError(error: unknown): error is KernelAbiError {
 export function getKernelState(): KernelState {
   return kernelState;
 }
+export function getRuntimeGeneration(): number {
+  return runtimeGeneration;
+}
 export function getKernelUnavailableReason(): string | null {
   return kernelUnavailableReason;
 }

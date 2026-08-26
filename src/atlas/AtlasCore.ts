@@ -75,6 +75,7 @@ export class AtlasCore {
   private _capabilities = 0;
   private _eventBus: WorldEventBus | null;
   private _executionPort: AnalyticalExecutionPort | null = null;
+  private _generation = 1;
   private _requestSeq = 0;
 
   constructor({
@@ -104,6 +105,14 @@ export class AtlasCore {
     this._executionPort = port;
   }
 
+  get generation(): number {
+    return this._generation;
+  }
+
+  setGeneration(generation: number): void {
+    this._generation = generation;
+  }
+
   get eventBus(): WorldEventBus | null {
     return this._eventBus;
   }
@@ -121,16 +130,19 @@ export class AtlasCore {
 
   // --- Kernel binding & status -------------------------------------------
 
-  setKernel(kernel: WasmRuntimeBridgeFull | null, capabilities = 0): void {
+  setKernel(kernel: WasmRuntimeBridgeFull | null, capabilities = 0, generation = 1): void {
     this._aggregate.analytical.invalidateHandle((handle) => this._analytics.destroyDataset(handle));
     this._analytics.setKernel(kernel);
     this._capabilities = capabilities;
+    this._generation = generation;
     if (kernel) {
-      this._executionPort = new InlineAnalyticalPort(kernel);
+      if (!this._executionPort || !this._executionPort.isAsync) {
+        this._executionPort = new InlineAnalyticalPort(kernel);
+      }
     } else {
       this._executionPort = null;
     }
-    this._executionPort?.supersede({ generation: 1, datasetVersion: this.datasetVersion });
+    this._executionPort?.supersede({ generation: this._generation, datasetVersion: this.datasetVersion });
   }
 
   get capabilities(): number {
@@ -565,11 +577,11 @@ export class AtlasCore {
       ? { type: 'json' as const, data: this.dataset.toJSON(), name: this.dataset.name }
       : undefined;
 
-    const res = await this._executionPort.execute<DatasetJSON>({
+    const res = await this._executionPort.execute<DatasetJSON | { dataset: DatasetJSON; outputFingerprint?: string }>({
       requestId: reqId,
       operation: 'operation',
       dataset: { fingerprint: fp, version },
-      generation: 1,
+      generation: this._generation,
       params: { operation: spec.operation },
       datasetPayload: payload,
     });
@@ -582,13 +594,18 @@ export class AtlasCore {
       throw new Error(`[AtlasCore] async op "${spec.operation.op}" superseded or failed`);
     }
 
-    const nextDataset = Dataset.fromJSON(res.value);
-    const outputHash = res.datasetFingerprint;
+    const json = (res.value && typeof res.value === 'object' && 'dataset' in res.value)
+      ? (res.value as { dataset: DatasetJSON }).dataset
+      : (res.value as DatasetJSON);
+    const nextDataset = Dataset.fromJSON(json);
+    const outputHash = (res.value && typeof res.value === 'object' && 'outputFingerprint' in res.value)
+      ? ((res.value as { outputFingerprint?: string }).outputFingerprint ?? fnv1aHex(JSON.stringify(json.rows)))
+      : fnv1aHex(JSON.stringify(json.rows));
 
     this._aggregate.analytical.setCurrentDataset(nextDataset, (handle) =>
       this._analytics.destroyDataset(handle)
     );
-    this._executionPort.supersede({ generation: 1, datasetVersion: this.datasetVersion });
+    this._executionPort.supersede({ generation: this._generation, datasetVersion: this.datasetVersion });
 
     const resultId = this._aggregate.ledger.nextResultId(
       fp,
@@ -601,7 +618,7 @@ export class AtlasCore {
       datasetFingerprint: fp,
       datasetVersion: this.datasetVersion,
       spec,
-      dataset: res.value,
+      dataset: json,
       metrics: null,
       provenance: res.provenance ?? null,
       implementationVersion: this.kernelVersion() ?? spec.algorithmVersion,
@@ -820,7 +837,7 @@ export class AtlasCore {
       requestId: reqId,
       operation: 'tda.persistence',
       dataset: { fingerprint: fp, version },
-      generation: 1,
+      generation: this._generation,
       handle,
       params,
     });
@@ -848,7 +865,7 @@ export class AtlasCore {
       requestId: reqId,
       operation: 'tda.mapper',
       dataset: { fingerprint: fp, version },
-      generation: 1,
+      generation: this._generation,
       handle,
       params,
     });
@@ -876,7 +893,7 @@ export class AtlasCore {
       requestId: reqId,
       operation: 'tda.betti0',
       dataset: { fingerprint: fp, version },
-      generation: 1,
+      generation: this._generation,
       handle,
       params,
     });

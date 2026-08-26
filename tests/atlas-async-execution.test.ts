@@ -267,4 +267,84 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     expect(res.requestId).toBe('areq-inline-1');
     expect(res.value).toBeDefined();
   });
+
+  it('B7: AtlasCore threads runtime generation into async requests and supersession', async () => {
+    const transport = createMockWorkerTransport();
+    const port = new WorkerAnalyticalPort(transport);
+    const kernel = makeKernelMockBridge();
+    const atlas = new AtlasCore({ kernel: kernel as any });
+    atlas.setExecutionPort(port);
+    atlas.setGeneration(42);
+
+    const ds = new Dataset(
+      'GenDS',
+      [{ name: 'x', type: ColumnType.NUMERIC }],
+      [{ x: 1 }, { x: 2 }]
+    );
+    atlas.loadDataset(ds);
+
+    const promise = atlas.computePersistenceIntervalsAsync({});
+    expect(transport.postedMessages.length).toBeGreaterThan(0);
+    const lastMsg = transport.postedMessages[transport.postedMessages.length - 1] as {
+      type: string;
+      request: AnalyticalExecutionRequest;
+    };
+    expect(lastMsg.type).toBe('EXECUTE');
+    expect(lastMsg.request.generation).toBe(42);
+
+    transport.simulateResult({
+      requestId: lastMsg.request.requestId,
+      generation: 42,
+      datasetVersion: atlas.datasetVersion,
+      datasetFingerprint: atlas.datasetFingerprint ?? '',
+      value: [{ birth: 0, death: 1 }],
+    });
+
+    const result = await promise;
+    expect(result).toEqual([{ birth: 0, death: 1 }]);
+  });
+
+  it('B8: applyAnalysisAsync uses output fingerprint from worker result', async () => {
+    const transport = createMockWorkerTransport();
+    const port = new WorkerAnalyticalPort(transport);
+    const kernel = makeKernelMockBridge();
+    const atlas = new AtlasCore({ kernel: kernel as any });
+    atlas.setExecutionPort(port);
+
+    const ds = new Dataset(
+      'OpDS',
+      [{ name: 'val', type: ColumnType.NUMERIC }],
+      [{ val: 10 }, { val: 20 }]
+    );
+    atlas.loadDataset(ds);
+
+    const promise = atlas.applyAnalysisAsync({
+      operation: { op: 'filter', predicate: { type: 'comparison', column: 'val', op: 'gt', value: 15 } },
+      datasetFingerprint: atlas.datasetFingerprint ?? '',
+      datasetVersion: atlas.datasetVersion,
+      algorithmVersion: '1.0.0',
+    });
+
+    const lastMsg = transport.postedMessages[transport.postedMessages.length - 1] as {
+      type: string;
+      request: AnalyticalExecutionRequest;
+    };
+    expect(lastMsg.request.operation).toBe('operation');
+
+    const outDS = new Dataset('FilteredDS', [{ name: 'val', type: ColumnType.NUMERIC }], [{ val: 20 }]);
+    transport.simulateResult({
+      requestId: lastMsg.request.requestId,
+      generation: 1,
+      datasetVersion: atlas.datasetVersion,
+      datasetFingerprint: atlas.datasetFingerprint ?? '',
+      value: {
+        dataset: outDS.toJSON(),
+        outputFingerprint: 'fp_explicit_output_456',
+      },
+    });
+
+    const result = await promise;
+    expect(result.outputHash).toBe('fp_explicit_output_456');
+    expect(result.dataset.rows).toHaveLength(1);
+  });
 });
