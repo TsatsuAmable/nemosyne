@@ -43,10 +43,10 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     try {
       this._worker.postMessage({ type: 'SUPERSEDE', fence: this._fence });
     } catch {
-      // Ignore transport errors during supersession
+      // Supersession is best-effort transport signalling. The local fence below
+      // remains authoritative even if the worker cannot receive the message.
     }
 
-    // Immediately resolve pending requests that violate fence with value: null
     for (const [id, pending] of this._pending.entries()) {
       if (
         (this._fence.generation !== undefined && pending.req.generation < this._fence.generation) ||
@@ -92,14 +92,14 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         const error = new KernelUnavailableError(
           `Worker transport postMessage failed: ${err instanceof Error ? err.message : String(err)}`
         );
-        if (this._onKernelFailure) this._onKernelFailure(error);
+        this._onKernelFailure?.(error);
         reject(error);
       }
     });
   }
 
   private _handleMessage(ev: MessageEvent): void {
-    const data = ev.data as { type: string; result?: AnalyticalExecutionResult; error?: string };
+    const data = ev.data as { type: string; result?: AnalyticalExecutionResult };
     if (!data || data.type !== 'RESULT' || !data.result) return;
 
     const result = data.result;
@@ -108,7 +108,13 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
 
     this._pending.delete(result.requestId);
 
-    // Apply fence filter before resolving
+    if (result.error) {
+      const kernelErr = new KernelUnavailableError(result.error);
+      this._onKernelFailure?.(kernelErr);
+      pending.reject(kernelErr);
+      return;
+    }
+
     if (
       (this._fence.generation !== undefined && result.generation < this._fence.generation) ||
       (this._fence.datasetVersion !== undefined &&
@@ -130,17 +136,10 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
   private _handleError(ev: ErrorEvent | unknown): void {
     const message = (ev as ErrorEvent)?.message ?? 'Worker analytical execution failed';
     const kernelErr = new KernelUnavailableError(message);
-    if (this._onKernelFailure) this._onKernelFailure(kernelErr);
+    this._onKernelFailure?.(kernelErr);
 
     for (const [, pending] of this._pending.entries()) {
-      pending.resolve({
-        requestId: pending.req.requestId,
-        generation: pending.req.generation,
-        datasetVersion: pending.req.dataset.version,
-        datasetFingerprint: pending.req.dataset.fingerprint,
-        value: null,
-        error: message,
-      });
+      pending.reject(kernelErr);
     }
     this._pending.clear();
   }
