@@ -262,13 +262,13 @@ Goal: the interface behaves as one sparse spatial investigation environment rath
 - [ ] offer evidence-supported remediation without silently relaxing scientific constraints;
 - [ ] persist remediation and resulting decisions into investigation provenance.
 
-### P1-F Semantic targeting and Memory Palace focus+context
+### P1-F Semantic targeting and Memory Palace focus+context — COMPLETED
 
-- [ ] resolve hand/ray intent against analytical structures rather than arbitrary geometry alone;
-- [ ] add salience/confidence ranking plus hysteresis and precision escape hatches;
-- [ ] support observation, cluster/region, Mapper, persistence and investigation-artifact targets;
-- [ ] use the hierarchy investigation -> dataset -> structure -> region/cluster -> observation for semantic zoom;
-- [ ] preserve stable spatial identity while representation resolution changes.
+- [x] resolve hand/ray intent against analytical structures rather than arbitrary geometry alone (`src/vr/input/SemanticTargetResolver.ts`);
+- [x] add salience/confidence ranking plus hysteresis and precision escape hatches (`src/vr/input/SemanticTargetResolver.ts`);
+- [x] support observation, cluster/region, Mapper, persistence and investigation-artifact targets (`src/vr/input/InteractableRegistry.ts`);
+- [x] use the hierarchy investigation -> dataset -> structure -> region/cluster -> observation for semantic zoom (`src/vr/interactions/FocusContextController.ts`);
+- [x] preserve stable spatial identity while representation resolution changes (`tests/semantic-target-resolution.test.ts`).
 
 ## P1 — Minimal private preview
 
