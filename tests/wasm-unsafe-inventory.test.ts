@@ -33,6 +33,7 @@ const sources = rustFiles(wasmSourceRoot).map((path) => ({
 const expectedUnsafeFiles = [
   'wasm/src/data/compatibility.rs',
   'wasm/src/data/load_profile.rs',
+  'wasm/src/data/resource_budget.rs',
   'wasm/src/data/typed_ingest.rs',
   'wasm/src/layouts/authority_abi.rs',
   'wasm/src/lib.rs',
