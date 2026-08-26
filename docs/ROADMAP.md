@@ -229,14 +229,14 @@ Goal: the interface behaves as one sparse spatial investigation environment rath
 - [x] treat changes to study-frozen default UI/representation behaviour as controlled-treatment modifications and update the freeze manifest before promotion;
 - [x] establish task-level usability evidence for comprehension, discoverability, error recovery, time-to-orientation and time-to-insight before private-preview promotion (`tests/e2e/investigator-journey-e2e.test.ts`).
 
-### P1-B Asynchronous analytical runtime
+### P1-B Asynchronous analytical runtime — COMPLETED
 
-- [ ] define request/version/cancellation contracts;
-- [ ] isolate expensive analysis behind a dedicated Web Worker;
-- [ ] reject stale results after dataset/kernel/session generation changes;
-- [ ] preserve fail-closed kernel recovery across the worker boundary;
-- [ ] measure transfer/scheduling before considering shared memory;
-- [ ] add SharedArrayBuffer/WASM threads/SIMD only where profiling demonstrates value.
+- [x] define request/version/cancellation contracts (`src/atlas/ports/AnalyticalExecutionPort.ts`);
+- [x] isolate expensive analysis behind a dedicated Web Worker (`src/atlas/ports/WorkerAnalyticalPort.ts`, `src/atlas/ports/analytical.worker.ts`);
+- [x] reject stale results after dataset/kernel/session generation changes (`tests/atlas-async-execution.test.ts`);
+- [x] preserve fail-closed kernel recovery across the worker boundary;
+- [x] measure transfer/scheduling before considering shared memory;
+- [x] add SharedArrayBuffer/WASM threads/SIMD only where profiling demonstrates value.
 
 ### P1-C Sparse topology scalability
 
