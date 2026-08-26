@@ -1,0 +1,129 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { AnalyticalKernelPort } from '../src/atlas/adapters/AnalyticalKernelPort.ts';
+import {
+  GitHubCorpusConnector,
+  type CorpusCatalog,
+} from '../src/data/connectors/GitHubCorpusConnector.ts';
+
+const CSV = new TextEncoder().encode('id,x\n1,2\n');
+const CSV_SHA = 'bd478b7a29bb9458e5409ec846358dee6e300a0ec98509dafc6e3b1f06555963';
+
+function catalog(overrides: Partial<CorpusCatalog> = {}): CorpusCatalog {
+  return {
+    schemaVersion: '1.0',
+    corpusVersion: 'test-v1',
+    repository: 'TsatsuAmable/nemosyne-data',
+    datasets: [
+      {
+        id: 'synthetic.test',
+        label: 'Test corpus',
+        kind: 'synthetic',
+        description: 'test',
+        topology: 'POINT_CLOUD',
+        plannedTiers: ['smoke'],
+        artifacts: [
+          {
+            tier: 'smoke',
+            role: 'primary',
+            format: 'csv',
+            path: 'data/synthetic/test.csv',
+            rows: 1,
+            bytes: CSV.byteLength,
+            sha256: CSV_SHA,
+            compression: 'none',
+          },
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function response(body: BodyInit, init: ResponseInit = {}, url = ''): Response {
+  const res = new Response(body, init);
+  if (url) Object.defineProperty(res, 'url', { value: url });
+  return res;
+}
+
+function fetchFor(doc: CorpusCatalog, artifact = CSV): typeof fetch {
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith('/manifests/catalog.json')) {
+      return response(JSON.stringify(doc), { status: 200 }, url);
+    }
+    return response(artifact, { status: 200 }, url);
+  }) as unknown as typeof fetch;
+}
+
+describe('GitHubCorpusConnector', () => {
+  it('discovers the configured public catalog without a GitHub token', async () => {
+    const fetchImpl = fetchFor(catalog());
+    const connector = new GitHubCorpusConnector({ fetchImpl });
+    const doc = await connector.fetchCatalog();
+    expect(doc.corpusVersion).toBe('test-v1');
+    expect(connector.catalogUrl()).toBe(
+      'https://raw.githubusercontent.com/TsatsuAmable/nemosyne-data/main/manifests/catalog.json',
+    );
+  });
+
+  it('rejects traversal paths and arbitrary artifact hosts', () => {
+    const connector = new GitHubCorpusConnector();
+    expect(() => connector.resolveArtifactUrl({
+      tier: 'smoke', role: 'primary', format: 'csv', path: '../secret', sha256: CSV_SHA,
+    })).toThrow(/Unsafe corpus path/);
+    expect(() => connector.resolveArtifactUrl({
+      tier: 'smoke', role: 'primary', format: 'csv', url: 'https://example.com/test.csv', sha256: CSV_SHA,
+    })).toThrow(/Disallowed corpus host/);
+  });
+
+  it('fails closed when catalog repository identity is wrong', async () => {
+    const fetchImpl = fetchFor(catalog({ repository: 'someone/else' }));
+    const connector = new GitHubCorpusConnector({ fetchImpl });
+    await expect(connector.fetchCatalog()).rejects.toThrow(/repository mismatch/);
+  });
+
+  it('fails closed on SHA-256 drift', async () => {
+    const doc = catalog();
+    doc.datasets[0].artifacts[0].sha256 = '0'.repeat(64);
+    const connector = new GitHubCorpusConnector({ fetchImpl: fetchFor(doc) });
+    const loaded = await connector.fetchCatalog();
+    const selection = connector.selectArtifact(loaded, 'synthetic.test', 'smoke');
+    await expect(connector.fetchArtifactBytes(selection)).rejects.toThrow(/SHA-256 mismatch/);
+  });
+
+  it('rejects catalog-declared artifacts above the configured byte ceiling before downloading', async () => {
+    const doc = catalog();
+    doc.datasets[0].artifacts[0].bytes = 10;
+    const fetchImpl = fetchFor(doc);
+    const connector = new GitHubCorpusConnector({ fetchImpl, maxArtifactBytes: 8 });
+    const loaded = await connector.fetchCatalog();
+    const selection = connector.selectArtifact(loaded, 'synthetic.test', 'smoke');
+    await expect(connector.fetchArtifactBytes(selection)).rejects.toThrow(/exceeds byte limit/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands verified CSV bytes directly to the Rust/WASM kernel loader', async () => {
+    const loadCsv = vi.fn(() => 42);
+    const kernel = { loadCsv } as unknown as AnalyticalKernelPort;
+    const connector = new GitHubCorpusConnector({ fetchImpl: fetchFor(catalog()) });
+    await expect(connector.loadIntoKernel(kernel, { datasetId: 'synthetic.test', tier: 'smoke' })).resolves.toBe(42);
+    expect(loadCsv).toHaveBeenCalledTimes(1);
+    expect(Array.from(loadCsv.mock.calls[0][0] as Uint8Array)).toEqual(Array.from(CSV));
+  });
+
+  it('routes NTC1 artifacts only through typed-column ingest and fails closed if unsupported', async () => {
+    const doc = catalog();
+    doc.datasets[0].artifacts[0].format = 'ntc1';
+    const connector = new GitHubCorpusConnector({ fetchImpl: fetchFor(doc) });
+    const kernel = { loadCsv: vi.fn(), loadJson: vi.fn() } as unknown as AnalyticalKernelPort;
+    await expect(connector.loadIntoKernel(kernel, { datasetId: 'synthetic.test', tier: 'smoke' }))
+      .rejects.toThrow(/does not support NTC1/);
+  });
+
+  it('surfaces planned-but-not-materialized tiers explicitly', () => {
+    const doc = catalog();
+    doc.datasets[0].plannedTiers = ['smoke', 'medium'];
+    const connector = new GitHubCorpusConnector();
+    expect(() => connector.selectArtifact(doc, 'synthetic.test', 'medium')).toThrow(/planned but not materialized/);
+  });
+});
