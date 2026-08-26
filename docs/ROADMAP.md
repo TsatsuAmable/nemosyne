@@ -238,13 +238,13 @@ Goal: the interface behaves as one sparse spatial investigation environment rath
 - [x] measure transfer/scheduling before considering shared memory;
 - [x] add SharedArrayBuffer/WASM threads/SIMD only where profiling demonstrates value.
 
-### P1-C Sparse topology scalability
+### P1-C Sparse topology scalability — COMPLETED
 
-- [ ] replace repeated all-pairs/bucket-pair work with a reusable sparse-neighbourhood substrate;
-- [ ] reuse it across Mapper, H0/Betti-0 and compatible clustering paths;
-- [ ] introduce governed exact/sparse/landmark modes with explicit provenance;
-- [ ] validate approximation/stability against exact small-data references;
-- [ ] benchmark scale separately from deterministic correctness gates.
+- [x] replace repeated all-pairs/bucket-pair work with a reusable sparse-neighbourhood substrate (`wasm/src/data/neighbourhood.rs`);
+- [x] reuse it across Mapper, H0/Betti-0 and compatible clustering paths (`wasm/src/data/topology.rs`, `wasm/src/data/operations.rs`);
+- [x] introduce governed exact/sparse/landmark modes with explicit provenance;
+- [x] validate approximation/stability against exact small-data references (`tests/sparse-topology-scalability.test.ts`);
+- [x] benchmark scale separately from deterministic correctness gates.
 
 ### P1-D 3D-native Moneta perceptual fitness
 
