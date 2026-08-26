@@ -283,7 +283,7 @@ export function makeFlowProcess(stages: number = 6): Dataset {
   const ds = new Dataset(
     'Process Flow',
     [
-      { name: 'id', type: ColumnType.NUMERIC },
+      { name: 'id', type: ColumnType.CATEGORICAL },
       { name: 'stage', type: ColumnType.NUMERIC },
       { name: 'label', type: ColumnType.CATEGORICAL },
       { name: 'throughput', type: ColumnType.NUMERIC },
