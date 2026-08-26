@@ -1,9 +1,8 @@
 //! Descriptive statistics (`Facts`) for a dataset.
 //!
-//! Numeric descriptive statistics and pairwise Pearson correlation use the
-//! canonical primitive columnar substrate. Row-major access remains only for
-//! categorical and transitional temporal/string policy until those physical
-//! representations migrate as well.
+//! Numeric descriptive statistics, pairwise Pearson correlation, and
+//! numeric/epoch temporal trend analysis use the canonical primitive columnar
+//! substrate. Row-major access remains only for categorical compatibility.
 
 use std::collections::HashMap;
 
@@ -50,7 +49,10 @@ pub struct TemporalStats {
     pub column: String,
     pub value_column: String,
     pub trend_direction: String,
+    /// Seasonality is supplied by the sampling-aware spectral estimator, not a
+    /// rank-lag autocorrelation heuristic.
     pub seasonality_hint: bool,
+    /// Dimensionless trend slope over normalized actual timestamps.
     pub normalized_slope: f64,
 }
 
@@ -82,22 +84,14 @@ pub struct Facts {
 }
 
 /// Compatibility entry point for callers that hold only an owned Dataset.
-///
-/// Numeric analysis does not fall back to row-major algorithms: a temporary
-/// columnar representation is constructed and the canonical implementation is
-/// used. Registered handle-based callers should use `compute_statistics_with_columnar`
-/// with the synchronized registry sidecar to avoid rebuilding it.
+/// A temporary columnar representation is constructed and the canonical
+/// numerical/temporal implementation is used.
 pub fn compute_statistics(dataset: &Dataset) -> Facts {
     let columnar = ColumnarDataset::from_dataset(dataset);
     compute_statistics_with_columnar(dataset, &columnar)
 }
 
-/// Compute the full `Facts` block using the synchronized columnar analytical
-/// substrate for numeric descriptive statistics and pairwise correlation.
-///
-/// Dataset/schema and columnar storage are one analytical generation. Any
-/// mismatch is therefore an invariant violation and must fail loudly rather
-/// than producing partial scientific evidence.
+/// Compute `Facts` using the synchronized columnar analytical substrate.
 pub fn compute_statistics_with_columnar(dataset: &Dataset, columnar: &ColumnarDataset) -> Facts {
     assert_eq!(
         dataset.row_count(),
@@ -114,7 +108,6 @@ pub fn compute_statistics_with_columnar(dataset: &Dataset, columnar: &ColumnarDa
         .filter(|(_, column)| column.ty == ColumnType::Numeric)
         .map(|(index, column)| (index, column.name.clone()))
         .collect();
-
     validate_numeric_columnar_invariants(columnar, &numeric_columns, dataset.row_count());
 
     let numeric = numeric_columns
@@ -142,7 +135,6 @@ pub fn compute_statistics_with_columnar(dataset: &Dataset, columnar: &ColumnarDa
             }
         })
         .collect();
-
     let correlation = correlate_columnar(columnar, &numeric_columns);
 
     let categorical = dataset
@@ -151,17 +143,25 @@ pub fn compute_statistics_with_columnar(dataset: &Dataset, columnar: &ColumnarDa
         .map(|column| categorical_stats(dataset, &column.name))
         .collect();
 
-    let temporal_names: Vec<String> = dataset
-        .temporal_columns()
+    let temporal_columns: Vec<(usize, String)> = dataset
+        .columns
         .iter()
-        .map(|column| column.name.clone())
+        .enumerate()
+        .filter(|(_, column)| column.ty == ColumnType::Temporal)
+        .map(|(index, column)| (index, column.name.clone()))
         .collect();
-
-    let value_column = numeric_columns.first().map(|(_, name)| name.clone());
-    let temporal_stats = temporal_names
+    let temporal = temporal_columns
         .iter()
-        .map(|name| temporal_stats(dataset, name, value_column.as_deref()))
+        .map(|(_, name)| name.clone())
         .collect();
+    let temporal_stats = build_temporal_stats(
+        &dataset.columns,
+        columnar,
+        dataset.row_count(),
+        &temporal_columns,
+        numeric_columns.first(),
+    )
+    .expect("owned Dataset -> ColumnarDataset temporal invariants must hold");
 
     Facts {
         row_count: dataset.row_count(),
@@ -169,7 +169,7 @@ pub fn compute_statistics_with_columnar(dataset: &Dataset, columnar: &ColumnarDa
         numeric,
         correlation,
         categorical,
-        temporal: temporal_names,
+        temporal,
         temporal_stats,
     }
 }
@@ -248,52 +248,23 @@ pub fn compute_statistics_from_columnar(
         });
     }
 
-    let temporal: Vec<String> = columns
-        .iter()
-        .filter(|column| column.ty == ColumnType::Temporal)
-        .map(|column| column.name.clone())
-        .collect();
-    let value_column = numeric_columns.first();
-    let mut temporal_stats = Vec::new();
-    for (time_index, time_column) in columns
+    let temporal_columns: Vec<(usize, String)> = columns
         .iter()
         .enumerate()
         .filter(|(_, column)| column.ty == ColumnType::Temporal)
-    {
-        let Some((value_index, value_name)) = value_column else {
-            temporal_stats.push(TemporalStats {
-                column: time_column.name.clone(),
-                value_column: String::new(),
-                trend_direction: "flat".to_string(),
-                seasonality_hint: false,
-                normalized_slope: 0.0,
-            });
-            continue;
-        };
-        let time = columnar.primitive_column(time_index).ok_or_else(|| {
-            format!(
-                "columnar invariant violation: temporal column '{}' at schema index {time_index} is missing",
-                time_column.name
-            )
-        })?;
-        let values = columnar
-            .primitive_column(*value_index)
-            .expect("validated numeric primitive column must exist");
-        if time.values.len() != row_count || time.validity.len() != row_count {
-            return Err(format!(
-                "columnar invariant violation: temporal column '{}' length does not match {row_count} rows",
-                time_column.name
-            ));
-        }
-        let stats = temporal_stats_numeric(time, values);
-        temporal_stats.push(TemporalStats {
-            column: time_column.name.clone(),
-            value_column: value_name.clone(),
-            trend_direction: stats.trend_direction,
-            seasonality_hint: stats.seasonality_hint,
-            normalized_slope: stats.normalized_slope,
-        });
-    }
+        .map(|(index, column)| (index, column.name.clone()))
+        .collect();
+    let temporal = temporal_columns
+        .iter()
+        .map(|(_, name)| name.clone())
+        .collect();
+    let temporal_stats = build_temporal_stats(
+        columns,
+        columnar,
+        row_count,
+        &temporal_columns,
+        numeric_columns.first(),
+    )?;
 
     Ok(Facts {
         row_count,
@@ -304,6 +275,60 @@ pub fn compute_statistics_from_columnar(
         temporal,
         temporal_stats,
     })
+}
+
+fn build_temporal_stats(
+    columns: &[Column],
+    columnar: &ColumnarDataset,
+    row_count: usize,
+    temporal_columns: &[(usize, String)],
+    value_column: Option<&(usize, String)>,
+) -> Result<Vec<TemporalStats>, String> {
+    let mut output = Vec::new();
+    for (time_index, time_name) in temporal_columns {
+        let Some((value_index, value_name)) = value_column else {
+            output.push(TemporalStats {
+                column: time_name.clone(),
+                value_column: String::new(),
+                trend_direction: "flat".to_string(),
+                seasonality_hint: false,
+                normalized_slope: 0.0,
+            });
+            continue;
+        };
+
+        let time = columnar.primitive_column(*time_index).ok_or_else(|| {
+            format!(
+                "columnar invariant violation: temporal column '{}' at schema index {time_index} is missing",
+                time_name
+            )
+        })?;
+        if time.values.len() != row_count || time.validity.len() != row_count {
+            return Err(format!(
+                "columnar invariant violation: temporal column '{}' length does not match {row_count} rows",
+                time_name
+            ));
+        }
+        let values = columnar
+            .primitive_column(*value_index)
+            .expect("validated numeric primitive column must exist");
+        let stats = temporal_stats_numeric(time, values);
+        output.push(TemporalStats {
+            column: time_name.clone(),
+            value_column: value_name.clone(),
+            trend_direction: stats.trend_direction,
+            seasonality_hint: stats.seasonality_hint,
+            normalized_slope: stats.normalized_slope,
+        });
+    }
+
+    // Keep the schema argument in the signature as an explicit synchronized
+    // generation witness; callers may not pair arbitrary sidecars with a
+    // different schema even when indexes happen to exist.
+    debug_assert!(temporal_columns
+        .iter()
+        .all(|(index, name)| columns.get(*index).is_some_and(|column| column.name == *name)));
+    Ok(output)
 }
 
 fn validate_numeric_columnar_invariants(
@@ -365,122 +390,13 @@ fn correlate_columnar(
     pairs
 }
 
-/// Trend direction + seasonality hint for a temporal column paired with a
-/// numeric value column. String-temporal handling remains row-materialized in
-/// this transitional phase; epoch/numeric temporal migration is next.
-fn temporal_stats(
-    dataset: &Dataset,
-    time_column: &str,
-    value_column: Option<&str>,
-) -> TemporalStats {
-    let value_col = match value_column {
-        Some(c) => c.to_string(),
-        None => {
-            return TemporalStats {
-                column: time_column.to_string(),
-                value_column: String::new(),
-                trend_direction: "flat".to_string(),
-                seasonality_hint: false,
-                normalized_slope: 0.0,
-            };
-        }
-    };
-
-    let mut keyed: Vec<(f64, f64)> = dataset
-        .rows
-        .iter()
-        .filter_map(|row| {
-            let t = row.get(time_column)?;
-            let v = row.get(&value_col)?.as_number()?;
-            if !v.is_finite() {
-                return None;
-            }
-            let key = t.as_number().unwrap_or_else(|| {
-                t.to_key_string()
-                    .bytes()
-                    .fold(0f64, |acc, b| acc * 256.0 + b as f64)
-            });
-            // Keep the compatibility path aligned with the columnar validity
-            // contract: a numeric/parseable temporal coordinate is admissible
-            // only when finite. Non-numeric temporal text retains the existing
-            // deterministic key-string fallback until temporal parsing policy
-            // is formalized in the kernel.
-            if !key.is_finite() {
-                return None;
-            }
-            Some((key, v))
-        })
-        .collect();
-    keyed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-    let values: Vec<f64> = keyed.iter().map(|(_, v)| *v).collect();
-
-    let n = values.len();
-    if n < 3 {
-        return TemporalStats {
-            column: time_column.to_string(),
-            value_column: value_col,
-            trend_direction: "flat".to_string(),
-            seasonality_hint: false,
-            normalized_slope: 0.0,
-        };
-    }
-
-    let x_mean = (n - 1) as f64 / 2.0;
-    let y_mean = values.iter().sum::<f64>() / n as f64;
-    let mut num = 0.0;
-    let mut den = 0.0;
-    for (i, y) in values.iter().enumerate() {
-        num += (i as f64 - x_mean) * (y - y_mean);
-        den += (i as f64 - x_mean).powi(2);
-    }
-    let slope = if den > 0.0 { num / den } else { 0.0 };
-    let min_v = values.iter().cloned().fold(f64::INFINITY, f64::min);
-    let max_v = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    let range = max_v - min_v;
-    let normalized_slope = if range > 0.0 { slope / range } else { 0.0 };
-
-    let trend_direction = if normalized_slope > 0.01 {
-        "up"
-    } else if normalized_slope < -0.01 {
-        "down"
-    } else {
-        "flat"
-    };
-
-    let lag = ((n as f64) / 4.0).floor() as usize;
-    let lag = if lag < 1 { 1 } else { lag };
-    let mut cov = 0.0;
-    let mut var_a = 0.0;
-    let mut var_b = 0.0;
-    for i in 0..(n - lag) {
-        let a = values[i] - y_mean;
-        let b = values[i + lag] - y_mean;
-        cov += a * b;
-        var_a += a * a;
-        var_b += b * b;
-    }
-    let corr = if var_a > 0.0 && var_b > 0.0 {
-        cov / (var_a * var_b).sqrt()
-    } else {
-        0.0
-    };
-
-    TemporalStats {
-        column: time_column.to_string(),
-        value_column: value_col,
-        trend_direction: trend_direction.to_string(),
-        seasonality_hint: corr > 0.5,
-        normalized_slope,
-    }
-}
-
 fn categorical_stats(dataset: &Dataset, name: &str) -> CategoricalStats {
     let mut counts: HashMap<String, usize> = HashMap::new();
     let mut total = 0usize;
     for row in &dataset.rows {
         let key = match row.get(name) {
             Some(Value::Null) | None => continue,
-            Some(v) => v.to_key_string(),
+            Some(value) => value.to_key_string(),
         };
         *counts.entry(key).or_default() += 1;
         total += 1;
@@ -533,21 +449,21 @@ mod tests {
     }
 
     fn row(pairs: [(&str, &str); 3]) -> HashMap<String, Value> {
-        let mut r = HashMap::new();
-        for (k, v) in pairs {
-            if let Ok(n) = v.parse::<f64>() {
-                r.insert(k.to_string(), Value::Number(n));
+        let mut row = HashMap::new();
+        for (key, value) in pairs {
+            if let Ok(number) = value.parse::<f64>() {
+                row.insert(key.to_string(), Value::Number(number));
             } else {
-                r.insert(k.to_string(), Value::Text(v.to_string()));
+                row.insert(key.to_string(), Value::Text(value.to_string()));
             }
         }
-        r
+        row
     }
 
     #[test]
     fn computes_numeric_stats() {
         let facts = compute_statistics(&stats_dataset());
-        let x = facts.numeric.iter().find(|c| c.name == "x").unwrap();
+        let x = facts.numeric.iter().find(|column| column.name == "x").unwrap();
         assert_eq!(x.count, 4);
         assert_eq!(x.sum, 10.0);
         assert_eq!(x.mean, 2.5);
@@ -564,7 +480,7 @@ mod tests {
         let xy = facts
             .correlation
             .iter()
-            .find(|p| (p.a == "x" && p.b == "y") || (p.a == "y" && p.b == "x"))
+            .find(|pair| (pair.a == "x" && pair.b == "y") || (pair.a == "y" && pair.b == "x"))
             .unwrap();
         assert!((xy.value - 1.0).abs() < 1e-9);
     }
@@ -580,28 +496,24 @@ mod tests {
         r1.insert("a".to_string(), Value::Number(1.0));
         r1.insert("b".to_string(), Value::Number(2.0));
         r1.insert("c".to_string(), Value::Null);
-
         let mut r2 = HashMap::new();
         r2.insert("a".to_string(), Value::Number(2.0));
         r2.insert("b".to_string(), Value::Number(4.0));
         r2.insert("c".to_string(), Value::Number(10.0));
-
         let mut r3 = HashMap::new();
         r3.insert("a".to_string(), Value::Number(3.0));
         r3.insert("b".to_string(), Value::Number(6.0));
         r3.insert("c".to_string(), Value::Number(20.0));
-
         let mut r4 = HashMap::new();
         r4.insert("a".to_string(), Value::Null);
         r4.insert("b".to_string(), Value::Number(8.0));
         r4.insert("c".to_string(), Value::Number(30.0));
 
-        let ds = Dataset::new("staggered", columns, vec![r1, r2, r3, r4]);
-        let facts = compute_statistics(&ds);
+        let facts = compute_statistics(&Dataset::new("staggered", columns, vec![r1, r2, r3, r4]));
         let ab = facts
             .correlation
             .iter()
-            .find(|p| (p.a == "a" && p.b == "b") || (p.a == "b" && p.b == "a"))
+            .find(|pair| (pair.a == "a" && pair.b == "b") || (pair.a == "b" && pair.b == "a"))
             .unwrap();
         assert!((ab.value - 1.0).abs() < 1e-9);
     }
@@ -609,11 +521,11 @@ mod tests {
     #[test]
     fn categorical_entropy_and_top() {
         let facts = compute_statistics(&stats_dataset());
-        let g = facts.categorical.iter().find(|c| c.name == "g").unwrap();
+        let g = facts.categorical.iter().find(|column| column.name == "g").unwrap();
         assert_eq!(g.cardinality, 2);
         assert!(g.entropy > 0.0);
         assert_eq!(g.top.len(), 2);
-        assert!(g.top.iter().all(|c| c.count == 2));
+        assert!(g.top.iter().all(|bucket| bucket.count == 2));
     }
 
     #[test]
@@ -626,9 +538,8 @@ mod tests {
             row2("x", "4.0"),
             row2("x", "5.0"),
         ];
-        let ds = Dataset::new("sym", columns, rows);
-        let facts = compute_statistics(&ds);
-        let x = facts.numeric.iter().find(|c| c.name == "x").unwrap();
+        let facts = compute_statistics(&Dataset::new("sym", columns, rows));
+        let x = facts.numeric.iter().find(|column| column.name == "x").unwrap();
         assert!(x.skew.abs() < 1e-9);
         assert!(x.kurtosis < 0.0);
     }
@@ -643,35 +554,53 @@ mod tests {
             row2("x", "4.0"),
             row2("x", "100.0"),
         ];
-        let ds = Dataset::new("out", columns, rows);
-        let facts = compute_statistics(&ds);
-        let x = facts.numeric.iter().find(|c| c.name == "x").unwrap();
-        assert!(x.outlier_count >= 1);
+        let facts = compute_statistics(&Dataset::new("out", columns, rows));
+        assert!(facts.numeric[0].outlier_count >= 1);
     }
 
     #[test]
-    fn temporal_trend_up_for_increasing_series() {
+    fn temporal_trend_uses_actual_numeric_timestamps() {
         let columns = vec![
             Column::new("t", ColumnType::Temporal),
             Column::new("v", ColumnType::Numeric),
         ];
-        let rows: Vec<HashMap<String, Value>> = (1..=8)
-            .map(|i| {
-                let mut r = HashMap::new();
-                r.insert("t".to_string(), Value::Text(format!("2020-0{}-01", i)));
-                r.insert("v".to_string(), Value::Number(i as f64));
-                r
+        let rows = (0..8)
+            .map(|index| {
+                HashMap::from([
+                    ("t".to_string(), Value::Number((index * index + 1) as f64)),
+                    ("v".to_string(), Value::Number((index * index + 1) as f64 * 2.0)),
+                ])
             })
             .collect();
-        let ds = Dataset::new("ts", columns, rows);
-        let facts = compute_statistics(&ds);
-        let t = facts
-            .temporal_stats
-            .iter()
-            .find(|s| s.column == "t")
-            .unwrap();
-        assert_eq!(t.trend_direction, "up");
-        assert!(t.normalized_slope > 0.0);
+        let facts = compute_statistics(&Dataset::new("ts", columns, rows));
+        let temporal = facts.temporal_stats.iter().find(|stats| stats.column == "t").unwrap();
+        assert_eq!(temporal.trend_direction, "up");
+        assert!((temporal.normalized_slope - 1.0).abs() < 1e-12);
+        assert!(!temporal.seasonality_hint);
+    }
+
+    #[test]
+    fn unparsed_temporal_strings_fail_closed_instead_of_hashing_lexical_order() {
+        let dataset = Dataset::new(
+            "string-time",
+            vec![
+                Column::new("t", ColumnType::Temporal),
+                Column::new("v", ColumnType::Numeric),
+            ],
+            (1..=8)
+                .map(|index| {
+                    HashMap::from([
+                        ("t".to_string(), Value::Text(format!("2020-0{index}-01"))),
+                        ("v".to_string(), Value::Number(index as f64)),
+                    ])
+                })
+                .collect(),
+        );
+        let facts = compute_statistics(&dataset);
+        let temporal = &facts.temporal_stats[0];
+        assert_eq!(temporal.trend_direction, "flat");
+        assert_eq!(temporal.normalized_slope, 0.0);
+        assert!(!temporal.seasonality_hint);
     }
 
     #[test]
@@ -691,49 +620,49 @@ mod tests {
             temporal_row(Value::Number(4.0), 4.0),
         ];
         let dataset = Dataset::new("temporal-nonfinite", columns, rows);
-        let clean = Dataset::new(
-            "temporal-clean",
-            vec![
-                Column::new("t", ColumnType::Temporal),
-                Column::new("v", ColumnType::Numeric),
-            ],
-            vec![
-                temporal_row(Value::Number(1.0), 1.0),
-                temporal_row(Value::Number(2.0), 2.0),
-                temporal_row(Value::Number(3.0), 3.0),
-                temporal_row(Value::Number(4.0), 4.0),
-            ],
-        );
-
-        let compatibility = temporal_stats(&dataset, "t", Some("v"));
-        let clean_compatibility = temporal_stats(&clean, "t", Some("v"));
-        assert_eq!(
-            compatibility.trend_direction,
-            clean_compatibility.trend_direction
-        );
-        assert_eq!(
-            compatibility.seasonality_hint,
-            clean_compatibility.seasonality_hint
-        );
-        assert!(
-            (compatibility.normalized_slope - clean_compatibility.normalized_slope).abs() < 1e-12
-        );
-
+        let facts = compute_statistics(&dataset);
+        let compatibility = &facts.temporal_stats[0];
         let columnar = ColumnarDataset::from_dataset(&dataset);
-        let columnar_stats = temporal_stats_numeric(
+        let direct = temporal_stats_numeric(
             columnar.primitive_column(0).expect("temporal primitive"),
             columnar.primitive_column(1).expect("numeric primitive"),
         );
-        assert_eq!(columnar_stats.observation_count, 4);
-        assert_eq!(
-            compatibility.trend_direction,
-            columnar_stats.trend_direction
-        );
-        assert_eq!(
-            compatibility.seasonality_hint,
-            columnar_stats.seasonality_hint
-        );
-        assert!((compatibility.normalized_slope - columnar_stats.normalized_slope).abs() < 1e-12);
+        assert_eq!(direct.observation_count, 4);
+        assert_eq!(compatibility.trend_direction, direct.trend_direction);
+        assert_eq!(compatibility.seasonality_hint, direct.seasonality_hint);
+        assert!((compatibility.normalized_slope - direct.normalized_slope).abs() < 1e-12);
+    }
+
+    #[test]
+    fn temporal_row_order_and_time_unit_are_metamorphically_invariant() {
+        let columns = vec![
+            Column::new("t", ColumnType::Temporal),
+            Column::new("v", ColumnType::Numeric),
+        ];
+        let base_rows = vec![
+            temporal_row(Value::Number(0.0), 0.0),
+            temporal_row(Value::Number(1.0), 1.0),
+            temporal_row(Value::Number(4.0), 4.0),
+            temporal_row(Value::Number(9.0), 9.0),
+        ];
+        let mut shuffled_rows = base_rows.clone();
+        shuffled_rows.reverse();
+        let milliseconds = base_rows
+            .iter()
+            .map(|row| {
+                let time = row.get("t").and_then(Value::as_number).unwrap() * 1000.0;
+                let value = row.get("v").cloned().unwrap();
+                HashMap::from([("t".to_string(), Value::Number(time)), ("v".to_string(), value)])
+            })
+            .collect();
+
+        let base = compute_statistics(&Dataset::new("base", columns.clone(), base_rows));
+        let shuffled = compute_statistics(&Dataset::new("shuffled", columns.clone(), shuffled_rows));
+        let scaled = compute_statistics(&Dataset::new("scaled", columns, milliseconds));
+        assert_eq!(base.temporal_stats[0].trend_direction, shuffled.temporal_stats[0].trend_direction);
+        assert_eq!(base.temporal_stats[0].trend_direction, scaled.temporal_stats[0].trend_direction);
+        assert!((base.temporal_stats[0].normalized_slope - shuffled.temporal_stats[0].normalized_slope).abs() < 1e-12);
+        assert!((base.temporal_stats[0].normalized_slope - scaled.temporal_stats[0].normalized_slope).abs() < 1e-12);
     }
 
     #[test]
@@ -741,8 +670,7 @@ mod tests {
         let dataset = stats_dataset();
         let columnar = ColumnarDataset::from_dataset(&dataset);
         let compatibility = serde_json::to_value(compute_statistics(&dataset)).unwrap();
-        let direct =
-            serde_json::to_value(compute_statistics_with_columnar(&dataset, &columnar)).unwrap();
+        let direct = serde_json::to_value(compute_statistics_with_columnar(&dataset, &columnar)).unwrap();
         assert_eq!(compatibility, direct);
     }
 
@@ -770,10 +698,7 @@ mod tests {
         let incompatible = Dataset::new(
             "categorical-sidecar",
             vec![Column::new("x", ColumnType::Categorical)],
-            vec![HashMap::from([(
-                "x".to_string(),
-                Value::Text("1".to_string()),
-            )])],
+            vec![HashMap::from([("x".to_string(), Value::Text("1".to_string()))])],
         );
         let columnar = ColumnarDataset::from_dataset(&incompatible);
         let _ = compute_statistics_with_columnar(&dataset, &columnar);
@@ -805,17 +730,20 @@ mod tests {
         assert_eq!(facts.numeric[0].count, 0);
     }
 
-    fn temporal_row(t: Value, v: f64) -> HashMap<String, Value> {
-        HashMap::from([("t".to_string(), t), ("v".to_string(), Value::Number(v))])
+    fn temporal_row(time: Value, value: f64) -> HashMap<String, Value> {
+        HashMap::from([
+            ("t".to_string(), time),
+            ("v".to_string(), Value::Number(value)),
+        ])
     }
 
-    fn row2(k: &str, v: &str) -> HashMap<String, Value> {
-        let mut r = HashMap::new();
-        if let Ok(n) = v.parse::<f64>() {
-            r.insert(k.to_string(), Value::Number(n));
+    fn row2(key: &str, value: &str) -> HashMap<String, Value> {
+        let mut row = HashMap::new();
+        if let Ok(number) = value.parse::<f64>() {
+            row.insert(key.to_string(), Value::Number(number));
         } else {
-            r.insert(k.to_string(), Value::Text(v.to_string()));
+            row.insert(key.to_string(), Value::Text(value.to_string()));
         }
-        r
+        row
     }
 }
