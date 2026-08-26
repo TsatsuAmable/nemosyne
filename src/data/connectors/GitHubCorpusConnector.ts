@@ -230,7 +230,10 @@ export class GitHubCorpusConnector {
     try {
       parsed = JSON.parse(new TextDecoder().decode(bytes));
     } catch (error) {
-      throw new Error(`Corpus catalog JSON is invalid: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Corpus catalog JSON is invalid: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
     }
     return parseCatalog(parsed, this.repository);
   }
