@@ -98,7 +98,11 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   if (!globalThis.crypto?.subtle) {
     throw new Error('SHA-256 verification requires Web Crypto');
   }
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  const input =
+    bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
+      ? (bytes.buffer as ArrayBuffer)
+      : bytes.slice().buffer;
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', input);
   return bytesToHex(new Uint8Array(digest));
 }
 
