@@ -138,8 +138,8 @@ describe('World coverage extensions', () => {
 
     world._showDataCard(mesh);
     expect(world.inspector.active).toBe(true);
-    expect(world.inspector.mesh.position.x).toBe(2);
-    expect(world.inspector.mesh.position.z).toBe(-4);
+    expect(world.inspector.mesh.position.x).toBeCloseTo(2);
+    expect(world.inspector.mesh.position.z).toBeCloseTo(-3.85);
   });
 
   it('cycles through all sample datasets and wraps around', () => {

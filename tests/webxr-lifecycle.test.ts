@@ -82,7 +82,7 @@ function stubXR({ supported = true } = {}) {
   const sessions = [];
   const xr = {
     isSessionSupported: vi.fn().mockResolvedValue(supported),
-    requestSession: vi.fn().mockImplementation(async (mode, init) => {
+    requestSession: vi.fn().mockImplementation(async (mode, _init) => {
       const session = makeMockSession({ mode });
       sessions.push(session);
       return session;

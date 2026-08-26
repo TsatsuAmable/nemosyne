@@ -1,20 +1,22 @@
 // @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { InteractionModeController } from '../src/vr/input/InteractionModeController.ts';
+import { InteractionModeController, type ModeTransitionEvent } from '../src/vr/input/InteractionModeController.ts';
 import { GestureOwnershipManager, CRITICAL_ACTIONS_REDUNDANCY } from '../src/vr/input/GestureOwnershipManager.ts';
 import { StatusStripController } from '../src/vr/ui/StatusStripController.ts';
 import { PanelRolesManager } from '../src/vr/ui/PanelRolesManager.ts';
 import { ContextualTaskSurface } from '../src/vr/ui/ContextualTaskSurface.ts';
-import { WorldInputCoordinator } from '../src/vr/coordinators/WorldInputCoordinator.ts';
+import { WorldInputCoordinator, type InputCallbacks } from '../src/vr/coordinators/WorldInputCoordinator.ts';
 import { WorldUIManager } from '../src/vr/coordinators/WorldUIManager.ts';
-import { buildIntentWheelMenuCategories, buildWheelMenuCategories } from '../src/vr/coordinators/WheelMenuBuilder.ts';
+import { buildIntentWheelMenuCategories, buildWheelMenuCategories, type WheelMenuHost } from '../src/vr/coordinators/WheelMenuBuilder.ts';
 import { WorldEventBus } from '../src/utils/EventBus.ts';
+import type { Engine } from '../src/vr/Engine.ts';
+import type { PanelLike, EngineLike } from '../src/vr/coordinators/types.ts';
 
 describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', () => {
   describe('1. InteractionModeController & Authoritative State Transitions', () => {
     it('initializes to INTERACT mode and transitions with history tracking', () => {
-      const transitions: any[] = [];
+      const transitions: ModeTransitionEvent[] = [];
       const controller = new InteractionModeController({
         initialMode: 'INTERACT',
         onModeChange: (evt) => transitions.push(evt),
@@ -121,7 +123,7 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
   });
 
   describe('4. PanelRolesManager & WorldUIManager Governance', () => {
-    let engine: any;
+    let engine: Engine;
     let cameraGroup: THREE.Group;
     let analystAnchor: THREE.Group;
     let eventBus: WorldEventBus;
@@ -207,7 +209,7 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
       const uiManager = new WorldUIManager(engine, analystAnchor, eventBus);
       uiManager.panelRolesManager.setUIMode('DEVELOPER');
 
-      const mockPanel: any = { mesh: new THREE.Mesh(), visible: false };
+      const mockPanel: PanelLike = { mesh: new THREE.Mesh(), visible: false };
 
       const opened = uiManager.togglePanelWithRole('recommendation', mockPanel);
       expect(opened).toBe(true);
@@ -243,9 +245,9 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
   });
 
   describe('6. WorldInputCoordinator Both-Pinch & Gesture Integration', () => {
-    let engine: any;
+    let engine: EngineLike;
     let eventBus: WorldEventBus;
-    let callbacks: any;
+    let callbacks: InputCallbacks;
 
     beforeEach(() => {
       eventBus = new WorldEventBus();
@@ -325,7 +327,7 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
     it('constructs complete 6-intent taxonomy with Study Mark Moment action', () => {
       const markMomentSpy = vi.fn();
       const applyOpSpy = vi.fn();
-      const stubWorld: any = {
+      const stubWorld: WheelMenuHost = {
         uiManager: { panelManager: { togglePanel: vi.fn(), recenter: vi.fn() } },
         collaborationCoordinator: { isConnected: () => false },
         engine: { locomotion: {} },
@@ -367,7 +369,7 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
     });
 
     it('exposes the required novice vocabulary (UX spec §6.1: Move, Undo/Redo, Return)', () => {
-      const stubWorld: any = {
+      const stubWorld: WheelMenuHost = {
         uiManager: { panelManager: { togglePanel: vi.fn(), toggleLauncher: vi.fn() } },
         collaborationCoordinator: { isConnected: () => false },
         engine: {
@@ -402,7 +404,7 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
     });
 
     it('maintains backwards compatibility for legacy buildWheelMenuCategories', () => {
-      const stubWorld: any = {
+      const stubWorld: WheelMenuHost = {
         uiManager: { panelManager: { togglePanel: vi.fn() } },
         collaborationCoordinator: { isConnected: () => false },
         engine: { locomotion: {} },
