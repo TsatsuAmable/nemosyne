@@ -640,14 +640,22 @@ mod tests {
         );
         assert_eq!(small.decision, ResourceDecision::ExactAllowed);
 
+        // Isolate the work dimension: production keeps its conservative
+        // memory-first refusal ordering, while this fixture proves that the
+        // user-controlled bin multiplier independently exceeds exact work.
+        let work_only_budget = AnalysisBudget {
+            max_transient_bytes: u64::MAX,
+            ..AnalysisBudget::default()
+        };
         let unbounded_bins = tda_estimate(
             TdaOperation::Mapper,
             100,
             2,
             1_000,
             10,
-            AnalysisBudget::default(),
+            work_only_budget,
         );
+        assert!(unbounded_bins.estimated_work_units > work_only_budget.max_exact_work_units);
         assert_eq!(unbounded_bins.decision, ResourceDecision::UnsupportedAtScale);
         assert_eq!(
             unbounded_bins.reason_code.as_deref(),
@@ -657,14 +665,21 @@ mod tests {
 
     #[test]
     fn betti_budget_accounts_for_requested_steps() {
+        // As above, isolate work from output-buffer memory so this test proves
+        // the requested-step multiplier rather than depending on refusal order.
+        let work_only_budget = AnalysisBudget {
+            max_transient_bytes: u64::MAX,
+            ..AnalysisBudget::default()
+        };
         let estimate = tda_estimate(
             TdaOperation::Betti0,
             10,
             2,
             10,
             100_000_000,
-            AnalysisBudget::default(),
+            work_only_budget,
         );
+        assert!(estimate.estimated_work_units > work_only_budget.max_exact_work_units);
         assert_eq!(estimate.decision, ResourceDecision::UnsupportedAtScale);
         assert_eq!(estimate.reason_code.as_deref(), Some("EXACT_WORK_BUDGET_EXCEEDED"));
     }
