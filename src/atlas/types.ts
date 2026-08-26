@@ -25,6 +25,7 @@ import type {
 import type { DatasetSpaceJSON } from './DatasetSpace.ts';
 import type { HistorySnapshot } from '../data/AnalysisHistory.ts';
 import type { StructureSet } from './structures.ts';
+import type { RemediationProvenance } from '../moneta/representation/ActionableNil.ts';
 
 /**
  * Typed analytical command wrapping a kernel {@link OperationSpec}. Built by
@@ -205,7 +206,8 @@ export type ResearchEventKind =
   | 'reset'
   | 'observation'
   | 'finding'
-  | 'annotation';
+  | 'annotation'
+  | 'remediation';
 
 /**
  * Ledger entry recording one state transition of the analytical session. Every
@@ -231,6 +233,8 @@ export interface ResearchEvent {
   datasetVersion: number;
   datasetFingerprint: string;
   recommendationDecision?: RecommendationDecision;
+  /** RF-027: durable remediation provenance for a `kind: 'remediation'` event. */
+  remediationEvent?: RemediationProvenance;
   observation?: string;
   intervention?: string;
   deviation?: string;
