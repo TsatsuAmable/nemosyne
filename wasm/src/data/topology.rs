@@ -333,30 +333,48 @@ pub fn compute_mapper_graph_space(
             continue;
         }
 
-        let mut visited = HashSet::new();
-        for &a in &bucket {
-            if visited.contains(&a) {
+        let eps = step * 0.5;
+        let dim = values[0].len();
+        let mut bucket_columns = vec![Vec::with_capacity(bucket.len()); dim];
+        for &idx in &bucket {
+            for d in 0..dim {
+                bucket_columns[d].push(values[idx][d]);
+            }
+        }
+        let bucket_cloud = crate::data::neighbourhood::PointCloud {
+            columns: bucket_columns,
+            n: bucket.len(),
+            d: dim,
+        };
+
+        let (csr, _) = if bucket.len() > 8192 {
+            crate::data::neighbourhood::GridSparseIndex::new(eps).radius_neighbourhood(&bucket_cloud, eps)
+        } else {
+            crate::data::neighbourhood::ExactIndex.radius_neighbourhood(&bucket_cloud, eps)
+        };
+
+        let mut visited = vec![false; bucket.len()];
+        for start in 0..bucket.len() {
+            if visited[start] {
                 continue;
             }
-            let mut cluster = vec![a];
-            visited.insert(a);
-            let mut stack = vec![a];
+            visited[start] = true;
+            let mut cluster_local = vec![start];
+            let mut stack = vec![start];
 
-            while let Some(curr) = stack.pop() {
-                for &b in &bucket {
-                    if visited.contains(&b) {
-                        continue;
-                    }
-                    if euclidean_dist(&values[curr], &values[b]) <= step * 0.5 {
-                        visited.insert(b);
-                        cluster.push(b);
-                        stack.push(b);
+            while let Some(u) = stack.pop() {
+                for (v, _) in csr.neighbors(u) {
+                    if !visited[v] {
+                        visited[v] = true;
+                        cluster_local.push(v);
+                        stack.push(v);
                     }
                 }
             }
 
+            let cluster: Vec<usize> = cluster_local.into_iter().map(|loc| bucket[loc]).collect();
+
             if !cluster.is_empty() {
-                let dim = values[0].len();
                 let mut center = vec![0.0; dim];
                 let mut filter_sum = 0.0;
                 for &idx in &cluster {
@@ -430,8 +448,8 @@ pub fn compute_persistence_intervals_space(
     filter_values: &[f64],
     max_distance: f64,
 ) -> Vec<PersistenceInterval> {
-    let n = space.row_count;
     let filter_values = resolve_filter_values_space(space, filter_values);
+    let n = space.row_count;
     if n == 0 || filter_values.len() != n {
         return Vec::new();
     }
@@ -574,15 +592,20 @@ pub fn compute_betti0_curve_space(
         d: d_dim,
     };
 
-    let mut max_d = 0.0f64;
-    for i in 0..n {
-        for j in (i + 1)..n {
-            let d = cloud.dist(i, j);
-            if d > max_d {
-                max_d = d;
+    let max_d = if n <= 100 {
+        let mut d_max = 0.0f64;
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let d = cloud.dist(i, j);
+                if d > d_max {
+                    d_max = d;
+                }
             }
         }
-    }
+        d_max
+    } else {
+        cloud.bounding_box_diagonal()
+    };
 
     let step_size = (max_d / steps.max(1) as f64).max(0.1);
     let effective_max_r = steps as f64 * step_size;
@@ -605,32 +628,31 @@ pub fn compute_betti0_curve_space(
     edges.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
 
     let mut points = Vec::with_capacity(steps + 1);
+    let mut parent: Vec<usize> = (0..n).collect();
+    let mut num_components = n;
+    let mut edge_cursor = 0usize;
+
+    fn find(parent: &mut [usize], mut i: usize) -> usize {
+        while parent[i] != i {
+            parent[i] = parent[parent[i]];
+            i = parent[i];
+        }
+        i
+    }
 
     for s in 0..=steps {
         let r = s as f64 * step_size;
-        let mut parent: Vec<usize> = (0..n).collect();
-
-        fn find(parent: &mut [usize], mut i: usize) -> usize {
-            while parent[i] != i {
-                parent[i] = parent[parent[i]];
-                i = parent[i];
-            }
-            i
-        }
-
         let r_f32 = (r + 1e-6) as f32;
-        let mut num_components = n;
 
-        for &(u, v, dist) in &edges {
-            if dist > r_f32 {
-                break;
-            }
+        while edge_cursor < edges.len() && edges[edge_cursor].2 <= r_f32 {
+            let (u, v, _) = edges[edge_cursor];
             let ru = find(&mut parent, u);
             let rv = find(&mut parent, v);
             if ru != rv {
                 parent[ru] = rv;
                 num_components -= 1;
             }
+            edge_cursor += 1;
         }
 
         points.push(BettiPoint {
@@ -799,6 +821,37 @@ mod tests {
             assert!(curve[i].betti0 <= curve[i - 1].betti0, "Betti0 curve must be non-increasing");
         }
         assert_eq!(curve.last().unwrap().betti0, 1, "At max radius all points merge to 1 component");
+    }
+
+    #[test]
+    fn c7_betti0_bounding_box_diagonal_path_n_gt_100() {
+        // n > 100 triggers the bounding_box_diagonal() branch for max_d estimation.
+        // A chain of points at unit spacing: all 110 points must merge to 1 component
+        // by the time radius exceeds 1.0.
+        let cols = vec![Column::new("x", ColumnType::Numeric)];
+        let mut rows = Vec::new();
+        for i in 0..110 {
+            let mut r = HashMap::new();
+            r.insert("x".to_string(), Value::Number(i as f64));
+            rows.push(r);
+        }
+        let ds = Dataset::new("tda_betti_large", cols, rows);
+        let curve = compute_betti0_curve(&ds, &["x"], 20);
+
+        assert!(!curve.is_empty());
+        for i in 1..curve.len() {
+            assert!(
+                curve[i].betti0 <= curve[i - 1].betti0,
+                "Betti0 must be non-increasing at step {i}: {} -> {}",
+                curve[i - 1].betti0,
+                curve[i].betti0
+            );
+        }
+        assert_eq!(
+            curve.last().unwrap().betti0,
+            1,
+            "All 110 chain points must merge to 1 component at max radius"
+        );
     }
 }
 
