@@ -189,6 +189,10 @@ export interface Provenance {
   inputFingerprint: string;
   outputFingerprint: string;
   timestamp: number;
+  /** Substrate that produced the result (`"row_major"` | `"columnar_only"`). */
+  ingestMode?: string;
+  /** `"refused"` on a kernel-inline resource refusal; absent on success. */
+  outcome?: 'refused';
 }
 
 // ---------------------------------------------------------------------------

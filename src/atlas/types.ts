@@ -26,6 +26,7 @@ import type { DatasetSpaceJSON } from './DatasetSpace.ts';
 import type { HistorySnapshot } from '../data/AnalysisHistory.ts';
 import type { StructureSet } from './structures.ts';
 import type { RemediationProvenance } from '../moneta/representation/ActionableNil.ts';
+import type { TdaResourcePreflight } from '../wasm/runtime/DatasetHandleBridge.ts';
 
 /**
  * Typed analytical command wrapping a kernel {@link OperationSpec}. Built by
@@ -207,7 +208,8 @@ export type ResearchEventKind =
   | 'observation'
   | 'finding'
   | 'annotation'
-  | 'remediation';
+  | 'remediation'
+  | 'refusal';
 
 /**
  * Ledger entry recording one state transition of the analytical session. Every
@@ -235,11 +237,33 @@ export interface ResearchEvent {
   recommendationDecision?: RecommendationDecision;
   /** RF-027: durable remediation provenance for a `kind: 'remediation'` event. */
   remediationEvent?: RemediationProvenance;
+  /** RF-030: durable refusal provenance for a `kind: 'refusal'` event. */
+  refusalEvent?: RefusalProvenance;
   observation?: string;
   intervention?: string;
   deviation?: string;
   /** DatasetSpace fingerprint of the post-state. */
   stateHash: string;
+}
+
+/**
+ * Durable provenance for a kernel-inline TDA resource refusal
+ * (`UNSUPPORTED_AT_SCALE`). Non-mutating: a refusal produces no dataset change,
+ * so it does NOT create an `AnalysisHistory` frame — it is recorded only in the
+ * ledger so the investigator can replay why an analytical attempt was withheld.
+ * Mirrors {@link RemediationProvenance} as the durable non-mutating precedent.
+ */
+export interface RefusalProvenance {
+  operation: string;
+  parameters: JSONValue;
+  inputFingerprint: string;
+  /** Kernel-authoritative refusal provenance envelope (`outcome: 'refused'`). */
+  provenance: Provenance;
+  /** The resource preflight that explains the refusal. */
+  preflight: TdaResourcePreflight;
+  timestamp: number;
+  datasetFingerprint: string;
+  datasetVersion: number;
 }
 
 /**

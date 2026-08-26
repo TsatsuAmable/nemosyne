@@ -14,6 +14,7 @@ import type {
 import {
   KernelAbiError,
   KernelUnavailableError,
+  UnsupportedAtScaleError,
   isKernelFatalError,
 } from '../../wasm/RuntimeBridge.ts';
 import { fnv1aHex } from '../DatasetSpace.ts';
@@ -35,13 +36,23 @@ export class RustAnalyticalEvidenceAdapter {
   private _kernel: AnalyticalKernelPort | null;
   private readonly _onKernelFailure:
     ((error: KernelAbiError | KernelUnavailableError) => void) | null;
+  /**
+   * RF-030: invoked when a kernel-inline TDA resource refusal surfaces through a
+   * sync `_call`. A refusal is NOT a kernel failure (the kernel is healthy; it
+   * deliberately withheld an over-budget operation), so it must never reach
+   * `_onKernelFailure` / `markKernelUnavailable`. The callback durably records
+   * the refusal provenance; the typed error is then rethrown so VR/UI can react.
+   */
+  private readonly _onKernelRefusal: ((error: UnsupportedAtScaleError) => void) | null;
 
   constructor(
     kernel: AnalyticalKernelPort | null,
-    onKernelFailure: ((error: KernelAbiError | KernelUnavailableError) => void) | null
+    onKernelFailure: ((error: KernelAbiError | KernelUnavailableError) => void) | null,
+    onKernelRefusal: ((error: UnsupportedAtScaleError) => void) | null = null
   ) {
     this._kernel = kernel;
     this._onKernelFailure = onKernelFailure;
+    this._onKernelRefusal = onKernelRefusal;
   }
 
   setKernel(kernel: AnalyticalKernelPort | null): void {
@@ -349,6 +360,18 @@ export class RustAnalyticalEvidenceAdapter {
     try {
       return call();
     } catch (error) {
+      // RF-030: a kernel-inline resource refusal is durable provenance, not a
+      // kernel failure. Record it (best-effort) and rethrow the typed error
+      // unchanged — never degrade it to KernelAbiError or mark the kernel
+      // unavailable. This chokepoint covers every sync TDA wrapper.
+      if (error instanceof UnsupportedAtScaleError) {
+        try {
+          this._onKernelRefusal?.(error);
+        } catch {
+          // Ledger recording must never mask the typed refusal.
+        }
+        throw error;
+      }
       throw this._notifyFailure(operation, error);
     }
   }

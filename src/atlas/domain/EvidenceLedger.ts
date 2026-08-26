@@ -10,6 +10,7 @@ import type {
   Annotation,
   Finding,
   Observation,
+  RefusalProvenance,
   ResearchEvent,
   VRCommand,
 } from '../types.ts';
@@ -184,6 +185,41 @@ export class EvidenceLedger {
     return this._ledger
       .filter((event) => event.kind === 'remediation' && event.remediationEvent)
       .map((event) => event.remediationEvent as RemediationProvenance);
+  }
+
+  /**
+   * RF-030: append a durable, replayable refusal event to the ledger. A refusal
+   * is non-mutating — it does NOT create an `AnalysisHistory` frame (no dataset
+   * changed) — so it is recorded only here, letting the investigator replay why
+   * an analytical attempt was withheld at the resource boundary. The kernel
+   * provenance envelope (`outcome: 'refused'`) and the resource preflight travel
+   * on the embedded {@link RefusalProvenance}.
+   */
+  recordRefusal(
+    refusal: RefusalProvenance,
+    sessionId: string,
+    datasetVersion: number = 0,
+    stateHash: string = refusal.datasetFingerprint,
+  ): ResearchEvent {
+    return this.appendEvent(
+      {
+        timestamp: refusal.timestamp,
+        kind: 'refusal',
+        command: { op: 'refusal' },
+        refusalEvent: refusal,
+        datasetVersion,
+        datasetFingerprint: refusal.datasetFingerprint,
+        stateHash,
+      },
+      sessionId,
+    );
+  }
+
+  /** RF-030: replay view over refusal events recorded in this ledger. */
+  refusalEvents(): RefusalProvenance[] {
+    return this._ledger
+      .filter((event) => event.kind === 'refusal' && event.refusalEvent)
+      .map((event) => event.refusalEvent as RefusalProvenance);
   }
 
   findObservationsForFinding(findingId: string): Observation[] {
@@ -384,6 +420,12 @@ export class EvidenceLedger {
           break;
         }
         default:
+          // Non-mutating ledger-only events (`structure`, `recommendation`,
+          // `embodiment`, `preview`, `observation`, `finding`, `annotation`,
+          // `remediation`, `refusal`) intentionally do NOT create undo history
+          // frames — they record evidence/provenance, not dataset transitions.
+          // RF-030: `refusal` is durable provenance for a withheld analytical
+          // attempt; it changes no dataset and so has no history cursor entry.
           break;
       }
     }

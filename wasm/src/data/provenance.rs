@@ -44,6 +44,15 @@ pub struct Provenance {
     /// substrate produced a result.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ingest_mode: Option<String>,
+    /// Outcome of the call. Absent on success (kept out of the JSON so success
+    /// envelopes are byte-identical). Set to `"refused"` on a kernel-inline
+    /// resource refusal so the durable ledger can distinguish a refusal
+    /// provenance from a successful one. A refusal provenance also sets
+    /// `output_fingerprint` to the empty string (no output produced). The
+    /// refusal reason itself travels in the accompanying
+    /// `TdaResourcePreflight.refusal`, not here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
 }
 
 thread_local! {
@@ -80,11 +89,45 @@ pub fn record_with_ingest(
         output_fingerprint: output_fingerprint.to_string(),
         timestamp: now_ms(),
         ingest_mode: ingest_mode.map(|s| s.to_string()),
+        outcome: None,
     };
     let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
     LAST_PROVENANCE.with(|slot| {
         *slot.borrow_mut() = Some(json);
     });
+}
+
+/// Record a refusal provenance envelope: `outcome = "refused"`,
+/// `output_fingerprint = ""`, `ingest_mode = None`. Used by the kernel-inline
+/// TDA resource guard so a refusal carries the same authority as a successful
+/// result. Stores the envelope in `LAST_PROVENANCE` and returns it so the
+/// caller can embed it in the in-band refusal envelope.
+///
+/// Side-channel safety: success-path `last_json()` reads in the host all happen
+/// after a successful call returns; on a refusal the TS `_call` throws before
+/// any success-path read, so a refusal envelope cannot contaminate a success
+/// consumer. The next successful call overwrites it.
+pub fn record_refusal(
+    operation: &str,
+    parameters: serde_json::Value,
+    input_fingerprint: &str,
+) -> Provenance {
+    let envelope = Provenance {
+        kernel: KERNEL_NAME,
+        kernel_version: KERNEL_VERSION,
+        operation: operation.to_string(),
+        parameters,
+        input_fingerprint: input_fingerprint.to_string(),
+        output_fingerprint: String::new(),
+        timestamp: now_ms(),
+        ingest_mode: None,
+        outcome: Some("refused".to_string()),
+    };
+    let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
+    LAST_PROVENANCE.with(|slot| {
+        *slot.borrow_mut() = Some(json);
+    });
+    envelope
 }
 
 /// Return the last recorded provenance envelope as a JSON string (or `""` if
@@ -173,5 +216,47 @@ mod tests {
         record("ping", serde_json::Value::Null, "a", "b");
         clear();
         assert_eq!(last_json(), "");
+    }
+
+    #[test]
+    fn success_envelope_has_no_outcome_key() {
+        // Byte-identity guard: adding `outcome` must not change success JSON.
+        clear();
+        record_with_ingest(
+            "compute_mapper_graph",
+            serde_json::json!({"bins": 4}),
+            "fp-in",
+            "fp-out",
+            Some("columnar_only"),
+        );
+        let json = last_json();
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(v.get("outcome").is_none(), "success envelope must not carry outcome");
+        assert!(v.get("outcome").is_none());
+        // object-level check: the key is literally absent
+        assert!(!json.contains("\"outcome\""));
+        clear();
+    }
+
+    #[test]
+    fn record_refusal_then_read_round_trips_outcome() {
+        clear();
+        let envelope = record_refusal(
+            "compute_mapper_graph",
+            serde_json::json!({"featureColumns": ["x", "y"], "bins": 10}),
+            "fp-in",
+        );
+        assert_eq!(envelope.outcome.as_deref(), Some("refused"));
+        assert_eq!(envelope.output_fingerprint, "");
+        assert!(envelope.ingest_mode.is_none());
+
+        let v: serde_json::Value = serde_json::from_str(&last_json()).unwrap();
+        assert_eq!(v["outcome"], "refused");
+        assert_eq!(v["outputFingerprint"], "");
+        assert_eq!(v["operation"], "compute_mapper_graph");
+        assert_eq!(v["inputFingerprint"], "fp-in");
+        assert!(v.get("ingestMode").is_none());
+        assert!(v["timestamp"].as_f64().unwrap() > 0.0);
+        clear();
     }
 }

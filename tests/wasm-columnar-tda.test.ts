@@ -207,6 +207,13 @@ describe('columnar TDA real-WASM boundary', () => {
         'HIGH_DIMENSIONAL_EXACT_FALLBACK_OVER_BUDGET'
       );
       expect(error.message).toContain('UNSUPPORTED_AT_SCALE');
+      // Durable refusal provenance: the kernel side-channel carries a
+      // kernel-authoritative refusal provenance with outcome 'refused'.
+      expect(error.provenance).not.toBeNull();
+      expect(error.provenance?.outcome).toBe('refused');
+      expect(error.provenance?.outputFingerprint).toBe('');
+      expect(error.provenance?.operation).toBe('compute_persistence_intervals');
+      expect(error.provenance?.kernel).toBe('nemosyne-wasm');
     } finally {
       bridge.destroyDataset(handle);
     }
@@ -216,7 +223,8 @@ describe('columnar TDA real-WASM boundary', () => {
     // Calls the raw WASM export directly, bypassing the TS tdaCall wrapper, to
     // prove the resource envelope is enforced at the kernel ABI boundary: a
     // direct/raw caller cannot cause unbounded TDA work. The export returns the
-    // in-band refusal envelope instead of a plausible result.
+    // in-band refusal envelope instead of a plausible result, and writes the
+    // refusal provenance to the kernel side-channel (read via kernelProvenance).
     const rowCount = 9_000;
     const dimensions = 7;
     const payload = highDimensionalPayload(rowCount, dimensions);
@@ -249,17 +257,29 @@ describe('columnar TDA real-WASM boundary', () => {
           expect(written).toBeGreaterThan(0);
           const envelope = JSON.parse(bridge.readString(outAlloc.ptr, written)) as {
             unsupportedAtScale?: boolean;
+            provenance?: unknown;
             preflight?: {
               sourceRows?: number;
               estimate?: { operation?: string; reasonCode?: string };
             };
           };
           expect(envelope.unsupportedAtScale).toBe(true);
+          // The envelope is size-stable: it must NOT embed the timestamped
+          // provenance (that lives in the side-channel).
+          expect(envelope.provenance).toBeUndefined();
           expect(envelope.preflight?.sourceRows).toBe(rowCount);
           expect(envelope.preflight?.estimate?.operation).toBe('compute_mapper_graph');
           expect(envelope.preflight?.estimate?.reasonCode).toBe(
             'HIGH_DIMENSIONAL_EXACT_FALLBACK_OVER_BUDGET'
           );
+          // The kernel side-channel carries the durable refusal provenance,
+          // available even to a direct/raw caller that bypasses tdaCall.
+          const provenance = bridge.kernelProvenance();
+          expect(provenance).not.toBeNull();
+          expect(provenance?.outcome).toBe('refused');
+          expect(provenance?.outputFingerprint).toBe('');
+          expect(provenance?.operation).toBe('compute_mapper_graph');
+          expect(provenance?.kernel).toBe('nemosyne-wasm');
         } finally {
           bridge.deallocBytes(outAlloc.ptr, outAlloc.len);
         }

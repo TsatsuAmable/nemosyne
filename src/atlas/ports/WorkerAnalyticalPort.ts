@@ -5,7 +5,7 @@ import type {
   AnalyticalExecutionRequest,
   AnalyticalExecutionResult,
 } from './AnalyticalExecutionPort.ts';
-import { KernelUnavailableError } from '../../wasm/RuntimeBridge.ts';
+import { KernelUnavailableError, UnsupportedAtScaleError } from '../../wasm/RuntimeBridge.ts';
 
 export interface WorkerTransport {
   postMessage(message: unknown, transfer?: Transferable[]): void;
@@ -36,11 +36,24 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
   private readonly _registered = new Set<string>();
   private _fence: AnalyticalExecutionFence = {};
   private _onKernelFailure?: ((err: Error) => void) | null;
+  /**
+   * RF-030: invoked when a kernel-inline TDA resource refusal surfaces from the
+   * worker (a `result.refusal` message). A refusal is NOT a kernel failure, so
+   * it must never reach `_onKernelFailure` / `KernelUnavailableError`. The
+   * callback durably records the refusal provenance; the typed error then
+   * rejects the pending request so VR/UI can react.
+   */
+  private _onKernelRefusal?: ((error: UnsupportedAtScaleError) => void) | null;
   private _disposed = false;
 
-  constructor(worker: WorkerTransport, onKernelFailure?: ((err: Error) => void) | null) {
+  constructor(
+    worker: WorkerTransport,
+    onKernelFailure?: ((err: Error) => void) | null,
+    onKernelRefusal?: ((error: UnsupportedAtScaleError) => void) | null
+  ) {
     this._worker = worker;
     this._onKernelFailure = onKernelFailure;
+    this._onKernelRefusal = onKernelRefusal ?? null;
     this._worker.onmessage = this._handleMessage.bind(this);
     this._worker.onerror = this._handleError.bind(this);
     if ('onmessageerror' in this._worker) {
@@ -317,6 +330,25 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     if (!pending) return;
 
     this._pending.delete(result.requestId);
+
+    // RF-030: a kernel-inline resource refusal is durable provenance, not a
+    // kernel failure. Reconstruct the typed error, durably record it via the
+    // refusal callback (best-effort), and reject the pending request with the
+    // typed class — never degrading to KernelUnavailableError or firing
+    // `_onKernelFailure`.
+    if (result.refusal) {
+      const refusalError = new UnsupportedAtScaleError(
+        result.refusal.preflight,
+        result.refusal.provenance ?? null
+      );
+      try {
+        this._onKernelRefusal?.(refusalError);
+      } catch {
+        // Ledger recording must never mask the typed refusal.
+      }
+      pending.reject(refusalError);
+      return;
+    }
 
     if (result.error) {
       const kernelErr = new KernelUnavailableError(result.error);
