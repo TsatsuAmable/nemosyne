@@ -36,6 +36,7 @@ import type {
   Finding,
   Observation,
   RecommendationDecision,
+  RefusalProvenance,
   ResearchEvent,
   VRCommand,
 } from './types.ts';
@@ -58,7 +59,7 @@ import {
 } from './structures.ts';
 import type { StructureSet } from './structures.ts';
 import { generateGuidance } from './GuidanceEngine.ts';
-import { KernelAbiError, KernelUnavailableError } from '../wasm/RuntimeBridge.ts';
+import { KernelAbiError, KernelUnavailableError, UnsupportedAtScaleError } from '../wasm/RuntimeBridge.ts';
 import { InvestigationAggregate, EvidenceLedger } from './domain/index.ts';
 import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidenceAdapter.ts';
@@ -146,7 +147,15 @@ export class AtlasCore {
     onKernelFailure?: ((error: KernelAbiError | KernelUnavailableError) => void) | null;
   } = {}) {
     this._aggregate = new InvestigationAggregate({ sessionId });
-    this._analytics = new RustAnalyticalEvidenceAdapter(kernel, onKernelFailure);
+    this._analytics = new RustAnalyticalEvidenceAdapter(
+      kernel,
+      onKernelFailure,
+      // RF-030: durable refusal provenance. A kernel-inline resource refusal is
+      // recorded in the ledger (non-mutating) and the typed error is rethrown so
+      // VR/UI can react. `_aggregate` is initialised above, before the adapter,
+      // and the closure only invokes it later, so `this` capture is safe.
+      (error) => this.recordRefusalFromError(error)
+    );
     this._eventBus = eventBus;
     if (kernel) {
       this._executionPort = new InlineAnalyticalPort(kernel);
@@ -443,6 +452,38 @@ export class AtlasCore {
       fp,
       stateHash,
       this._aggregate.context.now()
+    );
+  }
+
+  /**
+   * RF-030: durably record a kernel-inline TDA resource refusal in the ledger.
+   * Non-mutating — a refusal produces no dataset change, so it does NOT create
+   * an `AnalysisHistory` frame; it is appended only to the ledger so the
+   * investigator can replay why an analytical attempt was withheld at the
+   * resource boundary. Best-effort: ledger recording must never mask the typed
+   * refusal, so callers (sync adapter / async worker port) wrap this in
+   * try/catch and rethrow the original {@link UnsupportedAtScaleError}.
+   */
+  recordRefusalFromError(error: UnsupportedAtScaleError): void {
+    const provenance = error.provenance;
+    if (!provenance) return;
+    const datasetFingerprint = this.datasetFingerprint ?? provenance.inputFingerprint;
+    const refusal: RefusalProvenance = {
+      operation: provenance.operation,
+      parameters: provenance.parameters,
+      inputFingerprint: provenance.inputFingerprint,
+      provenance,
+      preflight: error.preflight,
+      timestamp: provenance.timestamp,
+      datasetFingerprint,
+      datasetVersion: this.datasetVersion,
+    };
+    const stateHash = this.datasetSpace?.fingerprint ?? datasetFingerprint;
+    this._aggregate.ledger.recordRefusal(
+      refusal,
+      this._aggregate.sessionId,
+      this.datasetVersion,
+      stateHash
     );
   }
 

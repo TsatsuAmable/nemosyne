@@ -6,6 +6,7 @@ import type {
   Facts,
   OperationSpec,
   PersistenceInterval,
+  Provenance,
   SpectralFacts,
   TdaMapperGraph,
 } from '../../data/types.ts';
@@ -18,6 +19,7 @@ import {
   readString,
 } from './MemoryAbi.ts';
 import { getDatasetHandleExports as getRuntimeExports } from './RuntimeState.ts';
+import { kernelProvenance } from './KernelContractBridge.ts';
 import type { DatasetHandleExports, MemoryAbiExports } from './RuntimeExports.ts';
 
 type DatasetHandleRuntime = DatasetHandleExports & MemoryAbiExports;
@@ -57,14 +59,16 @@ export interface TdaResourcePreflight {
 export class UnsupportedAtScaleError extends Error {
   readonly code = 'UNSUPPORTED_AT_SCALE' as const;
   readonly preflight: TdaResourcePreflight;
+  readonly provenance: Provenance | null;
 
-  constructor(preflight: TdaResourcePreflight) {
+  constructor(preflight: TdaResourcePreflight, provenance: Provenance | null = null) {
     super(
       preflight.refusal ??
         `UNSUPPORTED_AT_SCALE:operation=${preflight.estimate.operation};reason=${preflight.estimate.reasonCode ?? 'RESOURCE_BUDGET_EXCEEDED'}`
     );
     this.name = 'UnsupportedAtScaleError';
     this.preflight = preflight;
+    this.provenance = provenance;
     Object.setPrototypeOf(this, UnsupportedAtScaleError.prototype);
   }
 }
@@ -192,7 +196,14 @@ function tdaCall(
     if (!json) return null;
     const refusal = parseTdaRefusalEnvelope(json);
     if (refusal) {
-      throw new UnsupportedAtScaleError(refusal);
+      // The Rust export wrote the refusal provenance to the kernel side-channel
+      // (`LAST_PROVENANCE`) via `record_refusal`. Read it back here — the
+      // envelope itself is size-stable (no timestamped provenance embedded) so
+      // the two-call ABI holds, and the side-channel is the established
+      // provenance channel. Single-threaded WASM guarantees no intervening
+      // call clobbers it before this read.
+      const provenance = kernelProvenance();
+      throw new UnsupportedAtScaleError(refusal, provenance);
     }
     return json;
   } finally {

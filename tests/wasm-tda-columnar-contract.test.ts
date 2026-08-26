@@ -67,6 +67,14 @@ describe('S3: WASM TDA columnar authority contract', () => {
     expect(tdaCallSlice.indexOf('wasm[exportName]')).toBeLessThan(
       tdaCallSlice.indexOf('parseTdaRefusalEnvelope')
     );
+    // Durable refusal provenance: after detecting the in-band refusal, tdaCall
+    // reads the kernel-authoritative refusal provenance from the side-channel
+    // (the envelope itself is size-stable and carries no provenance) and
+    // attaches it to the typed error.
+    expect(tdaCallSlice).toContain('kernelProvenance');
+    expect(tdaCallSlice.indexOf('parseTdaRefusalEnvelope')).toBeLessThan(
+      tdaCallSlice.indexOf('kernelProvenance')
+    );
 
     // The standalone preflight remains available as a dry-run query.
     const dryRunSlice = bridgeSource.slice(dryRunStart, loadCsvStart);

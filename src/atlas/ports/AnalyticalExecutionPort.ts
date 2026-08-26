@@ -1,4 +1,5 @@
 import type { Provenance } from '../../data/types.ts';
+import type { TdaResourcePreflight } from '../../wasm/runtime/DatasetHandleBridge.ts';
 
 export type AnalyticalOperationKind =
   | 'tda.persistence'
@@ -53,6 +54,13 @@ export interface AnalyticalExecutionResult<T = unknown> {
   readonly value: T | null;
   readonly provenance?: Provenance | null;
   readonly error?: string;
+  /**
+   * RF-030: kernel-inline TDA resource refusal surfaced from the worker. When
+   * present, the typed {@link UnsupportedAtScaleError} is reconstructed at the
+   * port boundary and durably recorded before the request rejects. Mutually
+   * exclusive with `value`/`error`.
+   */
+  readonly refusal?: { preflight: TdaResourcePreflight; provenance: Provenance | null };
 }
 
 export interface AnalyticalExecutionFence {

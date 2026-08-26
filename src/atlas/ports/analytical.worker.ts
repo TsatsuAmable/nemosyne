@@ -276,6 +276,23 @@ self.onmessage = async (ev: MessageEvent) => {
 
       self.postMessage({ type: 'RESULT', result });
     } catch (err: unknown) {
+      // RF-030: a kernel-inline TDA resource refusal is durable provenance, not
+      // a generic worker error. Surface the typed refusal (preflight + provenance)
+      // so the port boundary can reconstruct the error, durably record it, and
+      // reject with the typed class — never degrading it to a plain `error`
+      // string or a KernelUnavailable signal.
+      if (err instanceof bridge.UnsupportedAtScaleError) {
+        const refusalResult: AnalyticalExecutionResult = {
+          requestId: req.requestId,
+          generation: req.generation,
+          datasetVersion: req.dataset.version,
+          datasetFingerprint: req.dataset.fingerprint,
+          value: null,
+          refusal: { preflight: err.preflight, provenance: err.provenance },
+        };
+        self.postMessage({ type: 'RESULT', result: refusalResult });
+        return;
+      }
       const errorResult: AnalyticalExecutionResult = {
         requestId: req.requestId,
         generation: req.generation,

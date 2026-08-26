@@ -807,6 +807,21 @@ fn parse_usize_array(v: &serde_json::Value) -> Vec<usize> {
 /// mode for `handle`.
 ///
 /// The row-major path is tried first and is byte-identical to the pre-columnar
+/// Cheap input fingerprint for a TDA refusal provenance. Mirrors the
+/// fingerprint `tda_space` would select (row-major `ds.fingerprint()` or
+/// columnar `columnar_dataset_fingerprint`) WITHOUT building the `FeatureSpace`,
+/// so a refusal provenance's `inputFingerprint` is consistent with a successful
+/// call on the same handle. Returns `None` if the handle has neither substrate
+/// (matching `tda_space`'s failure mode); callers fall back to an empty
+/// fingerprint, which is honest (no input was fingerprintable).
+fn tda_input_fingerprint(handle: u32) -> Option<String> {
+    if let Some(fp) = data::with_dataset(handle, |ds| ds.fingerprint()) {
+        return Some(fp);
+    }
+    let (name, columns, columnar) = data::columnar_snapshot(handle)?;
+    data::columnar_fingerprint::columnar_dataset_fingerprint(&name, &columns, columnar.as_ref()).ok()
+}
+
 /// TDA exports (same `FeatureSpace::from_rows` gather, same `ds.fingerprint()`).
 /// When the handle is columnar-only (no row-major `Dataset` slot), the fallback
 /// builds the feature space directly from the resident primitive `f64` buffers
@@ -875,6 +890,15 @@ pub fn data_compute_mapper_graph(
         data::resource_budget::tda_preflight_for(handle, &params, data::resource_budget::TdaOperation::Mapper)
     {
         if preflight.refusal.is_some() {
+            // Record the refusal provenance in the side-channel (read back via
+            // `kernel_provenance`), then return the size-stable in-band
+            // envelope. The envelope deliberately excludes the provenance: the
+            // two-call (probe -> write) ABI requires the output length to be
+            // identical across calls, and the provenance timestamp is not
+            // size-stable. The side-channel is the established pattern for
+            // kernel provenance (success paths use it too).
+            let input_fp = tda_input_fingerprint(handle).unwrap_or_default();
+            data::provenance::record_refusal("compute_mapper_graph", params, &input_fp);
             let envelope = serde_json::json!({ "unsupportedAtScale": true, "preflight": preflight });
             let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
             return write_str_out(&json, out_ptr, out_len);
@@ -918,6 +942,8 @@ pub fn data_compute_persistence_intervals(
         data::resource_budget::tda_preflight_for(handle, &params, data::resource_budget::TdaOperation::Persistence)
     {
         if preflight.refusal.is_some() {
+            let input_fp = tda_input_fingerprint(handle).unwrap_or_default();
+            data::provenance::record_refusal("compute_persistence_intervals", params, &input_fp);
             let envelope = serde_json::json!({ "unsupportedAtScale": true, "preflight": preflight });
             let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
             return write_str_out(&json, out_ptr, out_len);
@@ -960,6 +986,8 @@ pub fn data_compute_betti0_curve(
         data::resource_budget::tda_preflight_for(handle, &params, data::resource_budget::TdaOperation::Betti0)
     {
         if preflight.refusal.is_some() {
+            let input_fp = tda_input_fingerprint(handle).unwrap_or_default();
+            data::provenance::record_refusal("compute_betti0_curve", params, &input_fp);
             let envelope = serde_json::json!({ "unsupportedAtScale": true, "preflight": preflight });
             let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
             return write_str_out(&json, out_ptr, out_len);
@@ -1534,6 +1562,71 @@ mod tests {
             "columnar TDA must not materialise rows"
         );
 
+        dataset_destroy(handle);
+    }
+
+    /// RF-030 durable refusal provenance: an over-budget high-dimensional
+    /// columnar handle makes `data_compute_mapper_graph` refuse in-band. The
+    /// in-band envelope is `{ unsupportedAtScale, preflight }` (size-stable for
+    /// the two-call ABI — no timestamped provenance embedded), and the
+    /// side-channel (`last_json`) holds the kernel-authoritative refusal
+    /// provenance with `outcome: "refused"` and an empty `outputFingerprint`.
+    #[test]
+    fn refusal_envelope_carries_kernel_refusal_provenance() {
+        let row_count: usize = 9_000;
+        let dims: usize = 7;
+        let columns: Vec<data::column::Column> = (0..dims)
+            .map(|d| data::column::Column::new(format!("x{d}"), data::column::ColumnType::Numeric))
+            .collect();
+        let mut col_map = std::collections::HashMap::new();
+        for d in 0..dims {
+            col_map.insert(
+                d,
+                data::columnar::PrimitiveColumn {
+                    values: (0..row_count).map(|r| r as f64 * 0.01 + d as f64).collect(),
+                    validity: vec![1; row_count],
+                },
+            );
+        }
+        let columnar = data::columnar::ColumnarDataset::from_parts(
+            row_count,
+            col_map,
+            std::collections::HashMap::new(),
+        )
+        .expect("valid high-d columnar dataset");
+        let handle = data::register_columnar_dataset("rf030-refusal".to_string(), columns, columnar);
+
+        let feature_cols: Vec<String> = (0..dims).map(|d| format!("x{d}")).collect();
+        let params = serde_json::json!({
+            "featureColumns": feature_cols,
+            "bins": 10,
+            "overlap": 0.3,
+        });
+        let params_bytes = serde_json::to_vec(&params).unwrap();
+
+        data::provenance::clear();
+        let json = call_tda_export(data_compute_mapper_graph, handle, &params_bytes);
+        let envelope: serde_json::Value = serde_json::from_str(&json).expect("envelope json");
+        assert_eq!(envelope["unsupportedAtScale"], true);
+        assert_eq!(envelope["preflight"]["estimate"]["operation"], "compute_mapper_graph");
+        assert_eq!(
+            envelope["preflight"]["estimate"]["reasonCode"],
+            "HIGH_DIMENSIONAL_EXACT_FALLBACK_OVER_BUDGET"
+        );
+        // The envelope must NOT embed provenance (size-stability for the ABI).
+        assert!(envelope.get("provenance").is_none());
+
+        // The side-channel holds the kernel-authoritative refusal provenance.
+        let side: serde_json::Value =
+            serde_json::from_str(&data::provenance::last_json()).expect("side-channel json");
+        assert_eq!(side["outcome"], "refused");
+        assert_eq!(side["outputFingerprint"], "");
+        assert_eq!(side["operation"], "compute_mapper_graph");
+        assert!(side["inputFingerprint"].as_str().is_some());
+        assert!(side["timestamp"].as_f64().unwrap() > 0.0);
+        assert!(side.get("ingestMode").is_none());
+
+        data::provenance::clear();
         dataset_destroy(handle);
     }
 

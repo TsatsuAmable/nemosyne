@@ -378,6 +378,15 @@ export class InvestigationReplayRunner {
             break;
           }
           case 'reset': atlas.resetAnalysis(); eventsMatched += 1; break;
+          // Remediation and refusal events are durable non-mutating provenance
+          // records, not replay commands — they were appended to the ledger by
+          // the originating session and travel in the persisted eventLedger.
+          // Acknowledging them here prevents a false replay discrepancy without
+          // re-executing the (non-mutating) record.
+          case 'remediation':
+          case 'refusal':
+            eventsMatched += 1;
+            break;
           default: discrepancies.push(`Unsupported or unrecognized event kind at #${i}: '${(event as { kind: string }).kind}'`);
         }
       } else {

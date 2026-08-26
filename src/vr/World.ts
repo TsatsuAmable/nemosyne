@@ -2217,7 +2217,12 @@ export class World {
         );
         const port = new WorkerAnalyticalPort(
           worker as unknown as WorkerTransport,
-          (err) => this.markKernelUnavailable(err)
+          (err) => this.markKernelUnavailable(err),
+          // RF-030: durably record kernel-inline TDA resource refusals (non-
+          // mutating provenance). A refusal is not a kernel failure, so it
+          // must not mark the kernel unavailable — only record, then let the
+          // typed error reject the async request so VR/UI can react.
+          (err) => this.atlas.recordRefusalFromError(err)
         );
         this.atlas.setExecutionPort(port);
       } catch (workerErr) {
