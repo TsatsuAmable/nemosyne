@@ -63,6 +63,9 @@ import { InvestigationAggregate, EvidenceLedger } from './domain/index.ts';
 import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidenceAdapter.ts';
 
+import type { AnalyticalExecutionPort } from './ports/AnalyticalExecutionPort.ts';
+import { InlineAnalyticalPort } from './ports/InlineAnalyticalPort.ts';
+
 export { KernelUnavailableError };
 export type WasmRuntimeBridgeFull = AnalyticalKernelPort;
 
@@ -71,6 +74,8 @@ export class AtlasCore {
   private readonly _analytics: RustAnalyticalEvidenceAdapter;
   private _capabilities = 0;
   private _eventBus: WorldEventBus | null;
+  private _executionPort: AnalyticalExecutionPort | null = null;
+  private _requestSeq = 0;
 
   constructor({
     kernel = null,
@@ -86,6 +91,17 @@ export class AtlasCore {
     this._aggregate = new InvestigationAggregate({ sessionId });
     this._analytics = new RustAnalyticalEvidenceAdapter(kernel, onKernelFailure);
     this._eventBus = eventBus;
+    if (kernel) {
+      this._executionPort = new InlineAnalyticalPort(kernel);
+    }
+  }
+
+  get executionPort(): AnalyticalExecutionPort | null {
+    return this._executionPort;
+  }
+
+  setExecutionPort(port: AnalyticalExecutionPort | null): void {
+    this._executionPort = port;
   }
 
   get eventBus(): WorldEventBus | null {
@@ -109,6 +125,12 @@ export class AtlasCore {
     this._aggregate.analytical.invalidateHandle((handle) => this._analytics.destroyDataset(handle));
     this._analytics.setKernel(kernel);
     this._capabilities = capabilities;
+    if (kernel) {
+      this._executionPort = new InlineAnalyticalPort(kernel);
+    } else {
+      this._executionPort = null;
+    }
+    this._executionPort?.supersede({ generation: 1, datasetVersion: this.datasetVersion });
   }
 
   get capabilities(): number {
@@ -131,6 +153,7 @@ export class AtlasCore {
 
   loadDataset(dataset: Dataset): void {
     this._aggregate.loadDataset(dataset, (handle) => this._analytics.destroyDataset(handle));
+    this._executionPort?.supersede({ generation: 1, datasetVersion: this.datasetVersion });
   }
 
   loadTypedDataset(payload: ArrayBuffer | Uint8Array, name?: string): number {
@@ -143,6 +166,7 @@ export class AtlasCore {
     }
     const fp = this._analytics.fingerprint(handle) ?? '';
     this._aggregate.loadTypedDataset(handle, fp, (h) => this._analytics.destroyDataset(h));
+    this._executionPort?.supersede({ generation: 1, datasetVersion: this.datasetVersion });
     return handle;
   }
 
@@ -154,6 +178,7 @@ export class AtlasCore {
     this._aggregate.analytical.setCurrentDataset(dataset, (handle) =>
       this._analytics.destroyDataset(handle)
     );
+    this._executionPort?.supersede({ generation: 1, datasetVersion: this.datasetVersion });
   }
 
   get originalDataset(): Dataset {
@@ -529,6 +554,77 @@ export class AtlasCore {
     }
   }
 
+  async applyAnalysisAsync(spec: AnalysisSpec): Promise<AnalysisResult> {
+    if (!this._executionPort?.isAsync) {
+      return this.applyAnalysis(spec);
+    }
+    const fp = this.datasetFingerprint ?? spec.datasetFingerprint;
+    const version = this.datasetVersion;
+    const reqId = `areq-${++this._requestSeq}`;
+    const payload = this.dataset
+      ? { type: 'json' as const, data: this.dataset.toJSON(), name: this.dataset.name }
+      : undefined;
+
+    const res = await this._executionPort.execute<DatasetJSON>({
+      requestId: reqId,
+      operation: 'operation',
+      dataset: { fingerprint: fp, version },
+      generation: 1,
+      params: { operation: spec.operation },
+      datasetPayload: payload,
+    });
+
+    if (
+      res.datasetVersion !== this.datasetVersion ||
+      res.datasetFingerprint !== (this.datasetFingerprint ?? '') ||
+      !res.value
+    ) {
+      throw new Error(`[AtlasCore] async op "${spec.operation.op}" superseded or failed`);
+    }
+
+    const nextDataset = Dataset.fromJSON(res.value);
+    const outputHash = res.datasetFingerprint;
+
+    this._aggregate.analytical.setCurrentDataset(nextDataset, (handle) =>
+      this._analytics.destroyDataset(handle)
+    );
+    this._executionPort.supersede({ generation: 1, datasetVersion: this.datasetVersion });
+
+    const resultId = this._aggregate.ledger.nextResultId(
+      fp,
+      this.datasetVersion,
+      spec.operation.op
+    );
+
+    const result: AnalysisResult = {
+      resultId,
+      datasetFingerprint: fp,
+      datasetVersion: this.datasetVersion,
+      spec,
+      dataset: res.value,
+      metrics: null,
+      provenance: res.provenance ?? null,
+      implementationVersion: this.kernelVersion() ?? spec.algorithmVersion,
+      outputHash,
+      evidenceStatus: 'exploratory',
+    };
+
+    this._aggregate.ledger.addResult(result);
+    this._aggregate.ledger.appendEvent(
+      {
+        timestamp: this._aggregate.context.now(),
+        kind: 'analysis',
+        command: spec,
+        result,
+        datasetVersion: this.datasetVersion,
+        datasetFingerprint: fp,
+        stateHash: this.datasetSpace?.fingerprint ?? '',
+      },
+      this._aggregate.sessionId
+    );
+    return result;
+  }
+
   resetAnalysis(): AnalysisResult | null {
     if (!this._aggregate.analytical.originalNullable) return null;
     const prevVersionId = `${this._aggregate.sessionId}:v${this.datasetVersion}`;
@@ -708,6 +804,90 @@ export class AtlasCore {
   computeBetti0Curve(dataset: Dataset, params: Record<string, unknown>): BettiPoint[] | null {
     this._requireCurrentTdaHandle(dataset);
     return this.computeBetti0CurveForCurrent(params);
+  }
+
+  async computePersistenceIntervalsAsync(
+    params: Record<string, unknown>
+  ): Promise<PersistenceInterval[] | null> {
+    if (!this._executionPort) return this.computePersistenceIntervalsForCurrent(params);
+    const handle = this._ensureHandle();
+    if (handle === 0) return null;
+    const fp = this.datasetFingerprint ?? '';
+    const version = this.datasetVersion;
+    const reqId = `areq-${++this._requestSeq}`;
+
+    const res = await this._executionPort.execute<PersistenceInterval[]>({
+      requestId: reqId,
+      operation: 'tda.persistence',
+      dataset: { fingerprint: fp, version },
+      generation: 1,
+      handle,
+      params,
+    });
+
+    if (
+      res.datasetVersion !== this.datasetVersion ||
+      res.datasetFingerprint !== (this.datasetFingerprint ?? '')
+    ) {
+      return null;
+    }
+    return res.value;
+  }
+
+  async computeMapperGraphAsync(
+    params: Record<string, unknown>
+  ): Promise<TdaMapperGraph | null> {
+    if (!this._executionPort) return this.computeMapperGraphForCurrent(params);
+    const handle = this._ensureHandle();
+    if (handle === 0) return null;
+    const fp = this.datasetFingerprint ?? '';
+    const version = this.datasetVersion;
+    const reqId = `areq-${++this._requestSeq}`;
+
+    const res = await this._executionPort.execute<TdaMapperGraph>({
+      requestId: reqId,
+      operation: 'tda.mapper',
+      dataset: { fingerprint: fp, version },
+      generation: 1,
+      handle,
+      params,
+    });
+
+    if (
+      res.datasetVersion !== this.datasetVersion ||
+      res.datasetFingerprint !== (this.datasetFingerprint ?? '')
+    ) {
+      return null;
+    }
+    return res.value;
+  }
+
+  async computeBetti0CurveAsync(
+    params: Record<string, unknown>
+  ): Promise<BettiPoint[] | null> {
+    if (!this._executionPort) return this.computeBetti0CurveForCurrent(params);
+    const handle = this._ensureHandle();
+    if (handle === 0) return null;
+    const fp = this.datasetFingerprint ?? '';
+    const version = this.datasetVersion;
+    const reqId = `areq-${++this._requestSeq}`;
+
+    const res = await this._executionPort.execute<BettiPoint[]>({
+      requestId: reqId,
+      operation: 'tda.betti0',
+      dataset: { fingerprint: fp, version },
+      generation: 1,
+      handle,
+      params,
+    });
+
+    if (
+      res.datasetVersion !== this.datasetVersion ||
+      res.datasetFingerprint !== (this.datasetFingerprint ?? '')
+    ) {
+      return null;
+    }
+    return res.value;
   }
 
   computeSpectralFacts(timeColumn?: string, valueColumn?: string): SpectralFacts | null {
