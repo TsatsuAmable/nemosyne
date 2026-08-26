@@ -22,6 +22,57 @@ import type { DatasetHandleExports, MemoryAbiExports } from './RuntimeExports.ts
 
 type DatasetHandleRuntime = DatasetHandleExports & MemoryAbiExports;
 
+type TdaExportName =
+  | 'data_compute_mapper_graph'
+  | 'data_compute_persistence_intervals'
+  | 'data_compute_betti0_curve';
+
+export type AnalyticalResourceDecision =
+  | 'exact_allowed'
+  | 'approximation_required'
+  | 'unsupported_at_scale';
+
+export interface AnalyticalResourceEstimate {
+  operation: string;
+  rows: number;
+  dimensions: number;
+  complexity: 'linear' | 'n_log_n' | 'quadratic' | 'cubic' | 'exponential';
+  estimatedWorkUnits: number;
+  estimatedTransientBytes: number;
+  decision: AnalyticalResourceDecision;
+  reasonCode?: string | null;
+}
+
+export interface TdaResourcePreflight {
+  sourceRows: number;
+  eligibleRows: number;
+  excludedRows: number;
+  dimensions: number;
+  missingDataPolicy: string;
+  estimate: AnalyticalResourceEstimate;
+  refusal: string | null;
+}
+
+export class UnsupportedAtScaleError extends Error {
+  readonly code = 'UNSUPPORTED_AT_SCALE' as const;
+  readonly preflight: TdaResourcePreflight;
+
+  constructor(preflight: TdaResourcePreflight) {
+    super(
+      preflight.refusal ??
+        `UNSUPPORTED_AT_SCALE:operation=${preflight.estimate.operation};reason=${preflight.estimate.reasonCode ?? 'RESOURCE_BUDGET_EXCEEDED'}`
+    );
+    this.name = 'UnsupportedAtScaleError';
+    this.preflight = preflight;
+  }
+}
+
+const TDA_OPERATION_CODES: Record<TdaExportName, number> = {
+  data_compute_mapper_graph: 0,
+  data_compute_persistence_intervals: 1,
+  data_compute_betti0_curve: 2,
+};
+
 function readStringExport(invoke: (outPtr: number, outLen: number) => number): string | null {
   const required = invoke(0, 0);
   if (!Number.isSafeInteger(required) || required <= 0) return null;
@@ -35,16 +86,79 @@ function readStringExport(invoke: (outPtr: number, outLen: number) => number): s
   }
 }
 
+function parseTdaPreflight(json: string): TdaResourcePreflight {
+  const parsed = JSON.parse(json) as Partial<TdaResourcePreflight>;
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    !parsed.estimate ||
+    typeof parsed.estimate !== 'object' ||
+    typeof parsed.estimate.operation !== 'string' ||
+    typeof parsed.estimate.decision !== 'string' ||
+    typeof parsed.eligibleRows !== 'number' ||
+    typeof parsed.sourceRows !== 'number'
+  ) {
+    throw new Error('Invalid TDA resource preflight payload from Rust kernel');
+  }
+  return parsed as TdaResourcePreflight;
+}
+
+function readTdaPreflight(
+  wasm: DatasetHandleRuntime,
+  handle: number,
+  paramPtr: number,
+  paramLen: number,
+  exportName: TdaExportName
+): TdaResourcePreflight | null {
+  const operationCode = TDA_OPERATION_CODES[exportName];
+  // Resource envelopes are deliberately compact. A one-pass 4 KiB buffer keeps
+  // complete-case validity scanning to one pass in the normal case; the generic
+  // two-call helper is only a fallback if the diagnostic schema grows later.
+  const allocation = allocBuffer(4096);
+  try {
+    const written = wasm.data_tda_resource_preflight(
+      handle,
+      paramPtr,
+      paramLen,
+      operationCode,
+      allocation.ptr,
+      allocation.len
+    );
+    if (!Number.isSafeInteger(written) || written <= 0) return null;
+    if (written <= allocation.len) {
+      return parseTdaPreflight(readString(allocation.ptr, written));
+    }
+  } finally {
+    deallocBuffer(allocation.ptr, allocation.len);
+  }
+
+  const json = readStringExport((outPtr, outLen) =>
+    wasm.data_tda_resource_preflight(
+      handle,
+      paramPtr,
+      paramLen,
+      operationCode,
+      outPtr,
+      outLen
+    )
+  );
+  return json ? parseTdaPreflight(json) : null;
+}
+
 function tdaCall(
   wasm: DatasetHandleRuntime,
   handle: number,
   params: Record<string, unknown>,
-  exportName:
-    'data_compute_mapper_graph' | 'data_compute_persistence_intervals' | 'data_compute_betti0_curve'
+  exportName: TdaExportName
 ): string | null {
   const paramBytes = new TextEncoder().encode(JSON.stringify(params));
   const { ptr: paramPtr, len: paramLen } = allocBytes(paramBytes);
   try {
+    const preflight = readTdaPreflight(wasm, handle, paramPtr, paramLen, exportName);
+    if (preflight?.refusal) {
+      throw new UnsupportedAtScaleError(preflight);
+    }
+
     return readStringExport((outPtr, outLen) => {
       const fn = wasm[exportName] as (
         h: number,
