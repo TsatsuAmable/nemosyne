@@ -15,6 +15,7 @@ pub mod neighbourhood;
 pub mod operations;
 pub mod operations_bridge;
 pub mod parsers;
+pub mod point_access;
 pub mod profile;
 pub mod provenance;
 pub mod spectral;
