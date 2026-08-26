@@ -6,19 +6,19 @@ import { Engine } from '../src/vr/Engine.ts';
 
 describe('Sprint 22.4 Spatial Zonation Architecture', () => {
   it('organizes settings panel sections with spatial zonation and legibility hierarchy', () => {
-    const cameraGroup = new THREE.Group();
-    const panel = new SettingsPanel(cameraGroup);
+    const panel = new SettingsPanel({
+      torsoAnchor: new THREE.Group(),
+      worldScene: new THREE.Scene(),
+    });
 
-    const buttons = panel._buttons;
-    const sections = Array.from(new Set(buttons.map((b) => b.section)));
+    const sections = panel.getSettingSections();
 
     expect(sections).toContain('SPATIAL ZONATION & NAVIGATION');
     expect(sections).toContain('ACCESSIBILITY & LEGIBILITY');
     expect(sections).toContain('COMFORT');
 
     // Panel distance should be under spatial zonation
-    const panelDistBtn = buttons.find((b) => b.key === 'defaultPanelDistance');
-    expect(panelDistBtn?.section).toBe('SPATIAL ZONATION & NAVIGATION');
+    expect(panel.getSettingSection('defaultPanelDistance')).toBe('SPATIAL ZONATION & NAVIGATION');
   });
 
   it('attempts to apply fixed foveation on WebXR session start', () => {

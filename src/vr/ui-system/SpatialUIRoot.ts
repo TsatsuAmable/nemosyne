@@ -55,10 +55,17 @@ export class SpatialUIRoot extends Fullscreen {
     const current = hit ? (hit.object as Component) : null;
 
     if (captured) {
+      // Re-raycast the captured component alone so the dispatched `uv` is local
+      // to the captured component. The panel-wide `hit` above may belong to a
+      // foreign component the ray is now grazing (the pointer drifted off the
+      // captured control during a drag); spreading that hit's `uv` would make a
+      // Slider thumb jump to a foreign coordinate. Mirrors SpatialPanel's fix.
+      const capturedHits = raycaster.intersectObject(captured, false);
+      const capturedHit = capturedHits.length > 0 ? capturedHits[0] : null;
       captured.dispatchEvent({
         type: 'pointermove',
         pointerId,
-        ...(hit || {}),
+        ...(capturedHit || {}),
       } as unknown as Parameters<Component['dispatchEvent']>[0]);
     }
 

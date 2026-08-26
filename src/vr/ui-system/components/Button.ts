@@ -14,8 +14,12 @@ export class Button extends Container {
   private _activeBg: number;
 
   constructor(properties: ButtonProperties) {
-    const variant = properties.variant ?? 'secondary';
-    
+    // Strip non-uikit props so we don't double-wire `onClick` (uikit wires it
+    // via the EventHandlersProperties surface; we attach our own below) and
+    // don't leak `label`/`variant` into the Container schema.
+    const { label, variant: variantProp, onClick, ...containerProps } = properties;
+    const variant = variantProp ?? 'secondary';
+
     let bg: number = COLOR_TOKENS.surface.raised;
     let hoverBg: number = COLOR_TOKENS.surface.border;
     let activeBg: number = COLOR_TOKENS.interaction.focus;
@@ -45,7 +49,7 @@ export class Button extends Container {
       borderColor,
       backgroundColor: bg,
       cursor: 'pointer',
-      ...properties,
+      ...containerProps,
     });
 
     this._defaultBg = bg;
@@ -53,7 +57,7 @@ export class Button extends Container {
     this._activeBg = activeBg;
 
     this._text = new Text({
-      text: properties.label,
+      text: label,
       fontSize: 14,
       color: textColor,
     });
@@ -75,10 +79,10 @@ export class Button extends Container {
       this.setProperties({ backgroundColor: this._hoverBg });
     });
 
-    if (properties.onClick) {
+    if (onClick) {
       this.addEventListener('click', (e) => {
         e?.stopPropagation?.();
-        properties.onClick?.();
+        onClick();
       });
     }
   }

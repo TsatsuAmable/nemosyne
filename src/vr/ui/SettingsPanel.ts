@@ -1,10 +1,21 @@
 import * as THREE from 'three';
-import { MovablePanel } from './MovablePanel.ts';
+import { Container, Text } from '@pmndrs/uikit';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import type { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
+import { Toggle } from '../ui-system/components/Toggle.ts';
+import { Slider } from '../ui-system/components/Slider.ts';
+import { SegmentedControl } from '../ui-system/components/SegmentedControl.ts';
+import { SectionHeader } from '../ui-system/components/SectionHeader.ts';
+import { ScrollContainer } from '../ui-system/components/ScrollContainer.ts';
+import { Button } from '../ui-system/components/Button.ts';
+import { COLOR_TOKENS, SPACING_TOKENS } from '../ui-system/tokens.ts';
+import { getTheme } from '../ui-system/theme.ts';
+import { remapColor } from '../../utils/Accessibility.ts';
 import { buildReviewBundle, formatReviewBundle } from '../../utils/ReviewBundle.ts';
 import { downloadText } from '../../utils/Download.ts';
 import type { Dataset } from '../../data/Dataset.ts';
 import type {
-  MovablePanelOptions,
+  AccessibilityOptions,
   PerformanceBudgetLike,
   PrivacyLevel,
   SettingsMap,
@@ -12,15 +23,31 @@ import type {
 } from '../coordinators/types.ts';
 
 /**
- * In-VR settings panel for gesture, statistical-lens, feedback, telemetry,
- * and accessibility customization. Settings are persisted to localStorage and
- * synced with the World through an `onChange` callback.
+ * In-VR settings panel built on the `SpatialPanel` + `@pmndrs/uikit` substrate.
  *
- * The panel renders large, high-contrast toggle rows so they are readable and
- * clickable with a hand pointer in the Meta Quest 3S.
+ * Settings are persisted to localStorage and synced to the World through an
+ * `onChange` callback. The panel renders UIKit controls (Toggle / Slider /
+ * SegmentedControl / Button) so they are readable and usable with both hand
+ * pointers (direct touch) and ray interaction on the Meta Quest 3S.
+ *
+ * Migration note (P1-U3): the previous `MovablePanel` / Canvas2D hit-test model
+ * is replaced by UIKit component construction. The public data contract —
+ * `STORAGE_KEY`, `DEFAULTS`, `settings`, `onChange`, `getSetting`,
+ * `setSetting`, `getAllSettings`, `applyAccessibility`, `show`/`hide`/`toggle`,
+ * `update`, `mesh` — is preserved for downstream consumers (World,
+ * ComfortSettingsController, WorldSessionController, CollaborationCoordinator,
+ * GuidedTourController, WorldInputCoordinator).
  */
 
-interface SettingsPanelOptions extends MovablePanelOptions {
+const PANEL_WIDTH = 560;
+const PANEL_HEIGHT = 720;
+/** Approximate world-space width in metres; height derives from the aspect ratio. */
+const PANEL_WORLD_WIDTH = 0.9;
+
+export interface SettingsPanelOptions {
+  torsoAnchor: THREE.Object3D;
+  worldScene: THREE.Object3D;
+  position?: [number, number, number];
   onChange?: (key: string, value: unknown) => void;
   onExitVR?: () => void;
   telemetryCollector?: TelemetryCollectorLike | null;
@@ -29,43 +56,152 @@ interface SettingsPanelOptions extends MovablePanelOptions {
   datasetTopology?: string;
   sessionDurationSeconds?: number;
   userNotes?: string;
+  textScale?: number;
+  highContrast?: boolean;
+  colorblindMode?: string;
+  /**
+   * Optional workspace budget controller. When supplied, the panel registers
+   * itself in the `primary` role on `show` and untracks on `hide`, so the live
+   * runtime enforces the analyst workspace panel budget rather than relying on
+   * each caller to mediate coexistence.
+   */
+  panelBudgetController?: PanelBudgetController;
 }
 
-interface StepperBounds {
-  dec: { x: number; y: number; w: number; h: number };
-  inc: { x: number; y: number; w: number; h: number };
-}
+type SettingType = 'toggle' | 'stepper' | 'choice';
 
-interface ChoiceBounds {
-  prev: { x: number; y: number; w: number; h: number };
-  next: { x: number; y: number; w: number; h: number };
-}
-
-interface SettingsButton {
+interface SettingDescriptor {
   key: keyof SettingsMap & string;
   label: string;
   section: string;
-  type: 'toggle' | 'stepper' | 'choice';
+  type: SettingType;
   min?: number;
   max?: number;
   step?: number;
   choices?: string[];
-  bounds: { x: number; y: number; w: number; h: number };
-  stepperBounds?: StepperBounds;
-  choiceBounds?: ChoiceBounds;
-  rowY: number;
-  rowH: number;
+  format?: (v: number) => string;
 }
 
-export class SettingsPanel extends MovablePanel {
+const SETTINGS: SettingDescriptor[] = [
+  {
+    key: 'userMode',
+    label: 'User Mode',
+    section: 'USER MODE',
+    type: 'choice',
+    choices: ['novice', 'intermediate', 'expert'],
+  },
+  { key: 'gesturesEnabled', label: 'Hand Gestures', section: 'GESTURES & CONTROLS', type: 'toggle' },
+  { key: 'snapTurn', label: 'Snap Turn', section: 'COMFORT', type: 'toggle' },
+  {
+    key: 'snapTurnAngle',
+    label: 'Snap Angle',
+    section: 'COMFORT',
+    type: 'stepper',
+    min: 15,
+    max: 90,
+    step: 15,
+    format: (v) => `${v}°`,
+  },
+  { key: 'vignette', label: 'Vignette', section: 'COMFORT', type: 'toggle' },
+  {
+    key: 'vignetteIntensity',
+    label: 'Vignette Intensity',
+    section: 'COMFORT',
+    type: 'stepper',
+    min: 0.1,
+    max: 0.9,
+    step: 0.1,
+    format: (v) => v.toFixed(1),
+  },
+  {
+    key: 'seatedHeightOffset',
+    label: 'Seated Height',
+    section: 'COMFORT',
+    type: 'stepper',
+    min: -0.5,
+    max: 0.5,
+    step: 0.1,
+    format: (v) => v.toFixed(1),
+  },
+  { key: 'reducedMotion', label: 'Reduced Motion', section: 'COMFORT', type: 'toggle' },
+  {
+    key: 'defaultPanelDistance',
+    label: 'Panel Distance',
+    section: 'SPATIAL ZONATION & NAVIGATION',
+    type: 'stepper',
+    min: 0.7,
+    max: 2.5,
+    step: 0.1,
+    format: (v) => `${v.toFixed(1)}m`,
+  },
+  { key: 'miniOverview', label: 'Mini Overview', section: 'SPATIAL ZONATION & NAVIGATION', type: 'toggle' },
+  { key: 'peerPresence', label: 'Peer Presence', section: 'SPATIAL ZONATION & NAVIGATION', type: 'toggle' },
+  { key: 'highContrast', label: 'High Contrast', section: 'ACCESSIBILITY & LEGIBILITY', type: 'toggle' },
+  { key: 'dwellSelection', label: 'Dwell Select', section: 'ACCESSIBILITY & LEGIBILITY', type: 'toggle' },
+  {
+    key: 'dwellTimeMs',
+    label: 'Dwell Time',
+    section: 'ACCESSIBILITY & LEGIBILITY',
+    type: 'stepper',
+    min: 400,
+    max: 3000,
+    step: 200,
+    format: (v) => `${v}ms`,
+  },
+  {
+    key: 'textScale',
+    label: 'Text Scale',
+    section: 'ACCESSIBILITY & LEGIBILITY',
+    type: 'stepper',
+    min: 0.75,
+    max: 2,
+    step: 0.25,
+    format: (v) => `${v.toFixed(2)}x`,
+  },
+  {
+    key: 'colorblindMode',
+    label: 'Colorblind',
+    section: 'ACCESSIBILITY & LEGIBILITY',
+    type: 'choice',
+    choices: ['none', 'deuteranopia', 'protanopia', 'tritanopia'],
+  },
+  { key: 'lensTDA', label: 'TDA Summary Lens', section: 'STATISTICAL LENS', type: 'toggle' },
+  { key: 'lensCorrelation', label: 'Correlation Matrix', section: 'STATISTICAL LENS', type: 'toggle' },
+  { key: 'feedbackAudio', label: 'Audio Feedback', section: 'FEEDBACK', type: 'toggle' },
+  { key: 'feedbackHaptic', label: 'Haptic Feedback', section: 'FEEDBACK', type: 'toggle' },
+  { key: 'feedbackVisual', label: 'Visual Feedback', section: 'FEEDBACK', type: 'toggle' },
+  { key: 'telemetryEnabled', label: 'Telemetry Opt-in', section: 'PRIVACY & TELEMETRY', type: 'toggle' },
+  { key: 'strictBudget', label: 'Strict Budget', section: 'PERFORMANCE', type: 'toggle' },
+  { key: 'collabEnabled', label: 'Collaboration', section: 'COLLABORATION', type: 'toggle' },
+  {
+    key: 'collabRoom',
+    label: 'Room',
+    section: 'COLLABORATION',
+    type: 'choice',
+    choices: ['default', 'team-a', 'team-b', 'demo'],
+  },
+  {
+    key: 'collabName',
+    label: 'Name',
+    section: 'COLLABORATION',
+    type: 'choice',
+    choices: ['Analyst', 'Observer', 'Guest', 'Peer'],
+  },
+];
+
+interface Palette {
+  bg: number;
+  border: number;
+  text: number;
+  textMuted: number;
+  accent: number;
+  danger: number;
+}
+
+export class SettingsPanel extends SpatialPanel {
   static STORAGE_KEY = 'nemosyne-vr-settings';
 
   static DEFAULTS: SettingsMap = {
-    // lensTDA / lensCorrelation are sub-toggles: which components of the
-    // statistical lens appear *when the lens is on*. They default on; the lens
-    // itself is hidden by default via World._statisticalLensEnabled (progressive
-    // disclosure). Flipping these to false would suppress TDA even when the
-    // analyst explicitly toggles the lens on.
     lensTDA: true,
     lensCorrelation: true,
     feedbackAudio: true,
@@ -94,10 +230,12 @@ export class SettingsPanel extends MovablePanel {
     peerPresence: true,
   };
 
+  title = 'SETTINGS';
   onChange: (key: string, value: unknown) => void;
   settings: SettingsMap;
-  private _buttons: SettingsButton[];
+  defaultPosition: THREE.Vector3;
 
+  private _onExitVR: (() => void) | null;
   private _telemetryCollector: TelemetryCollectorLike | null;
   private _performanceBudget: PerformanceBudgetLike | null;
   private _dataset: Dataset | null;
@@ -105,22 +243,42 @@ export class SettingsPanel extends MovablePanel {
   private _sessionDurationSeconds: number;
   private _userNotes: string;
   private _exportPrivacyLevel: PrivacyLevel;
-  private _onExitVR: (() => void) | null;
-  private _exitVRBounds: { x: number; y: number; w: number; h: number } | null = null;
 
-  constructor(cameraGroup: THREE.Group, options: SettingsPanelOptions = {}) {
-    super(cameraGroup, {
-      title: 'SETTINGS',
-      width: 900,
-      height: 1120,
-      position: options.position ?? [0.65, 1.55, -1.1],
-      worldSize: options.worldSize ?? [0.9, 0.82],
-      titleBarHeight: 44,
-      tilt: 0.22,
-      textScale: options.textScale ?? 1,
-      highContrast: options.highContrast ?? false,
-      colorblindMode: options.colorblindMode ?? 'none',
-    });
+  private _textScale: number;
+  private _highContrast: boolean;
+  private _colorblindMode: string;
+
+  private _contentContainer: ScrollContainer;
+  private _controls: Map<string, Toggle | Slider | SegmentedControl> = new Map();
+  private _headerText: Text;
+  private _labelTexts: { node: Text; baseSize: number }[] = [];
+  private _exportButton: Button | null = null;
+  private _exitButton: Button | null = null;
+  private _privacyToggle: Toggle | null = null;
+  private _budgetController: PanelBudgetController | null;
+  private _disposed = false;
+
+  constructor(options: SettingsPanelOptions) {
+    const palette = SettingsPanel._palette(options.highContrast ?? false, options.colorblindMode ?? 'none');
+    super(
+      {
+        width: PANEL_WIDTH,
+        height: PANEL_HEIGHT,
+        flexDirection: 'column',
+        padding: SPACING_TOKENS.panel.outerPadding,
+        gap: SPACING_TOKENS.grid.x8,
+        backgroundColor: palette.bg,
+        borderColor: palette.border,
+        borderWidth: 1.5,
+        borderRadius: 12,
+      },
+      options.torsoAnchor,
+      options.worldScene,
+    );
+    this.name = 'settings-panel';
+
+    // Scale uikit pixels to world metres.
+    this.scale.setScalar(PANEL_WORLD_WIDTH / PANEL_WIDTH);
 
     this.onChange = options.onChange ?? (() => {});
     this._onExitVR = options.onExitVR ?? null;
@@ -134,9 +292,53 @@ export class SettingsPanel extends MovablePanel {
     this._userNotes = options.userNotes ?? '';
     this._exportPrivacyLevel = 'metadata';
 
-    this._buttons = [];
-    this._buildButtons();
-    this.render();
+    this._textScale = options.textScale ?? this.settings.textScale;
+    this._highContrast = options.highContrast ?? this.settings.highContrast;
+    this._colorblindMode = options.colorblindMode ?? this.settings.colorblindMode;
+    this._budgetController = options.panelBudgetController ?? null;
+
+    const pos = options.position ?? [0.65, 1.55, -1.1];
+    this.defaultPosition = new THREE.Vector3(pos[0], pos[1], pos[2]);
+    this.position.copy(this.defaultPosition);
+
+    // Header
+    const header = new Text({
+      text: '// SETTINGS',
+      fontSize: 22 * this._textScale,
+      color: palette.accent,
+      fontWeight: 'bold',
+    });
+    this.add(header);
+    this._headerText = header;
+
+    // Scrollable settings list
+    this._contentContainer = new ScrollContainer({
+      scrollHeight: PANEL_HEIGHT - 120,
+      flexGrow: 1,
+    });
+    this.add(this._contentContainer);
+
+    this._buildContent();
+
+    // Footer: review-bundle export + exit VR
+    this._buildFooter(palette);
+  }
+
+  // --- Public data contract (preserved) ---
+
+  static _palette(highContrast: boolean, colorblindMode: string): Palette {
+    const theme = getTheme(highContrast);
+    const accent = highContrast
+      ? Number(theme.accentColor)
+      : (remapColor(COLOR_TOKENS.interaction.focus, colorblindMode) as number);
+    return {
+      bg: Number(theme.backgroundColor),
+      border: Number(theme.borderColor),
+      text: Number(theme.textPrimary),
+      textMuted: Number(theme.textMuted),
+      accent,
+      danger: Number(theme.dangerColor),
+    };
   }
 
   private _loadSettings(): SettingsMap {
@@ -162,8 +364,14 @@ export class SettingsPanel extends MovablePanel {
     if (!(key in this.settings)) return;
     this.settings[key] = value;
     this._saveSettings();
+    // Keep the bound control in sync without re-triggering its own onChange.
+    const control = this._controls.get(key);
+    if (control) {
+      if (control instanceof Toggle) control.value = Boolean(value);
+      else if (control instanceof Slider) control.value = Number(value);
+      else if (control instanceof SegmentedControl) control.value = String(value);
+    }
     this.onChange(key, value);
-    this.render();
   }
 
   getSetting<K extends keyof SettingsMap & string>(key: K): SettingsMap[K] {
@@ -174,457 +382,242 @@ export class SettingsPanel extends MovablePanel {
     return { ...this.settings };
   }
 
-  private _buildButtons(): void {
-    const labels: {
-      key: keyof SettingsMap & string;
-      label: string;
-      section: string;
-      type?: 'toggle' | 'stepper' | 'choice';
-      min?: number;
-      max?: number;
-      step?: number;
-      choices?: string[];
-    }[] = [
-      {
-        key: 'userMode',
-        label: 'User Mode',
-        section: 'USER MODE',
-        type: 'choice',
-        choices: ['novice', 'intermediate', 'expert'],
-      },
-      { key: 'gesturesEnabled', label: 'Hand Gestures', section: 'GESTURES & CONTROLS' },
-      { key: 'snapTurn', label: 'Snap Turn', section: 'COMFORT' },
-      {
-        key: 'snapTurnAngle',
-        label: 'Snap Angle',
-        section: 'COMFORT',
-        type: 'stepper',
-        min: 15,
-        max: 90,
-        step: 15,
-      },
-      { key: 'vignette', label: 'Vignette', section: 'COMFORT' },
-      {
-        key: 'vignetteIntensity',
-        label: 'Vignette Intensity',
-        section: 'COMFORT',
-        type: 'stepper',
-        min: 0.1,
-        max: 0.9,
-        step: 0.1,
-      },
-      {
-        key: 'seatedHeightOffset',
-        label: 'Seated Height',
-        section: 'COMFORT',
-        type: 'stepper',
-        min: -0.5,
-        max: 0.5,
-        step: 0.1,
-      },
-      { key: 'reducedMotion', label: 'Reduced Motion', section: 'COMFORT' },
-      {
-        key: 'defaultPanelDistance',
-        label: 'Panel Distance',
-        section: 'SPATIAL ZONATION & NAVIGATION',
-        type: 'stepper',
-        min: 0.7,
-        max: 2.5,
-        step: 0.1,
-      },
-      { key: 'miniOverview', label: 'Mini Overview', section: 'SPATIAL ZONATION & NAVIGATION' },
-      { key: 'peerPresence', label: 'Peer Presence', section: 'SPATIAL ZONATION & NAVIGATION' },
-      { key: 'highContrast', label: 'High Contrast', section: 'ACCESSIBILITY & LEGIBILITY' },
-      { key: 'dwellSelection', label: 'Dwell Select', section: 'ACCESSIBILITY & LEGIBILITY' },
-      {
-        key: 'dwellTimeMs',
-        label: 'Dwell Time',
-        section: 'ACCESSIBILITY & LEGIBILITY',
-        type: 'stepper',
-        min: 400,
-        max: 3000,
-        step: 200,
-      },
-      {
-        key: 'textScale',
-        label: 'Text Scale',
-        section: 'ACCESSIBILITY & LEGIBILITY',
-        type: 'stepper',
-        min: 0.75,
-        max: 2,
-        step: 0.25,
-      },
-      {
-        key: 'colorblindMode',
-        label: 'Colorblind',
-        section: 'ACCESSIBILITY & LEGIBILITY',
-        type: 'choice',
-        choices: ['none', 'deuteranopia', 'protanopia', 'tritanopia'],
-      },
-      { key: 'lensTDA', label: 'TDA Summary Lens', section: 'STATISTICAL LENS' },
-      { key: 'lensCorrelation', label: 'Correlation Matrix', section: 'STATISTICAL LENS' },
-      { key: 'feedbackAudio', label: 'Audio Feedback', section: 'FEEDBACK' },
-      { key: 'feedbackHaptic', label: 'Haptic Feedback', section: 'FEEDBACK' },
-      { key: 'feedbackVisual', label: 'Visual Feedback', section: 'FEEDBACK' },
-      { key: 'telemetryEnabled', label: 'Telemetry Opt-in', section: 'PRIVACY & TELEMETRY' },
-      { key: 'strictBudget', label: 'Strict Budget', section: 'PERFORMANCE' },
-      { key: 'collabEnabled', label: 'Collaboration', section: 'COLLABORATION' },
-      {
-        key: 'collabRoom',
-        label: 'Room',
-        section: 'COLLABORATION',
-        type: 'choice',
-        choices: ['default', 'team-a', 'team-b', 'demo'],
-      },
-      {
-        key: 'collabName',
-        label: 'Name',
-        section: 'COLLABORATION',
-        type: 'choice',
-        choices: ['Analyst', 'Observer', 'Guest', 'Peer'],
-      },
-    ];
+  /**
+   * Ordered, de-duplicated section headings the panel renders (the spatial
+   * zonation taxonomy). Exposed so external tooling and tests can verify the
+   * legibility hierarchy without reaching into the rendered component tree.
+   */
+  getSettingSections(): readonly string[] {
+    const seen = new Set<string>();
+    const sections: string[] = [];
+    for (const desc of SETTINGS) {
+      if (!seen.has(desc.section)) {
+        seen.add(desc.section);
+        sections.push(desc.section);
+      }
+    }
+    return sections;
+  }
 
-    const rowH = 72;
-    const margin = 28;
-    const toggleW = 120;
-    const toggleH = 44;
-    const stepperW = 180;
-    const choiceW = 220;
+  /** Section heading a given setting key is grouped under, if it exists. */
+  getSettingSection(key: string): string | undefined {
+    return SETTINGS.find((d) => d.key === key)?.section;
+  }
 
-    this._buttons = [];
-    let y = margin;
-    let currentSection: string | null = null;
+  // --- Lifecycle ---
 
-    for (const item of labels) {
-      if (item.section !== currentSection) {
-        currentSection = item.section;
-        y += 24; // section gap
+  show(): void {
+    // Register with the workspace budget (role: primary) so the live runtime
+    // mediates coexistence with other SpatialPanel surfaces.
+    this._budgetController?.open(this, 'primary');
+    this.visible = true;
+    this.position.copy(this.defaultPosition);
+    this.updateMatrixWorld();
+  }
+
+  hide(): void {
+    this._budgetController?.close(this);
+    this.visible = false;
+  }
+
+  toggle(): void {
+    if (this.visible) this.hide();
+    else this.show();
+  }
+
+  /** Orient toward the viewer each frame (mirrors the MovablePanel behaviour). */
+  update(delta?: number): void {
+    if (!this.visible) return;
+    super.update(delta ?? 0);
+    this.lookAt(0, 0, 0);
+    this.rotation.x = -0.22;
+  }
+
+  applyAccessibility(options: AccessibilityOptions): void {
+    const { textScale, highContrast, colorblindMode } = options;
+    let themeChanged = false;
+    if (highContrast != null && this._highContrast !== highContrast) {
+      this._highContrast = highContrast;
+      themeChanged = true;
+    }
+    if (colorblindMode != null && this._colorblindMode !== String(colorblindMode)) {
+      this._colorblindMode = String(colorblindMode);
+      themeChanged = true;
+    }
+    if (textScale != null && this._textScale !== textScale) {
+      this._textScale = textScale;
+    }
+
+    if (themeChanged) {
+      // A chrome/colour rebuild is safe — these settings are click-triggered, so
+      // no Slider drag is in progress on the panel when this fires.
+      this._rebuildForTheme();
+    } else if (textScale != null) {
+      // Live font-size update without rebuilding, so a textScale drag is not
+      // interrupted by a tree reconstruction that would drop pointer capture.
+      this._applyTextScale();
+    }
+  }
+
+  override dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    this._budgetController?.close(this);
+    this._controls.clear();
+    this._labelTexts = [];
+    super.dispose();
+  }
+
+  // --- Content construction ---
+
+  private _buildContent(): void {
+    this._contentContainer.clear();
+    this._controls.clear();
+    this._labelTexts = [];
+    const palette = SettingsPanel._palette(this._highContrast, this._colorblindMode);
+
+    let currentSection = '';
+    for (const desc of SETTINGS) {
+      if (desc.section !== currentSection) {
+        currentSection = desc.section;
+        const sectionHeader = new SectionHeader({ title: desc.section, color: palette.accent });
+        this._contentContainer.add(sectionHeader);
       }
 
-      const type = item.type || 'toggle';
-      let bounds: { x: number; y: number; w: number; h: number };
-      let stepperBounds: StepperBounds | undefined;
-      let choiceBounds: ChoiceBounds | undefined;
-
-      if (type === 'toggle') {
-        bounds = {
-          x: this.width - margin - toggleW,
-          y: this.titleBarHeight + y + (rowH - toggleH) / 2,
-          w: toggleW,
-          h: toggleH,
-        };
-      } else if (type === 'stepper') {
-        bounds = {
-          x: this.width - margin - stepperW,
-          y: this.titleBarHeight + y + (rowH - toggleH) / 2,
-          w: stepperW,
-          h: toggleH,
-        };
-        stepperBounds = {
-          dec: { x: bounds.x, y: bounds.y, w: toggleH, h: toggleH },
-          inc: { x: bounds.x + bounds.w - toggleH, y: bounds.y, w: toggleH, h: toggleH },
-        };
-      } else {
-        // choice
-        bounds = {
-          x: this.width - margin - choiceW,
-          y: this.titleBarHeight + y + (rowH - toggleH) / 2,
-          w: choiceW,
-          h: toggleH,
-        };
-        const arrowW = toggleH;
-        choiceBounds = {
-          prev: { x: bounds.x, y: bounds.y, w: arrowW, h: toggleH },
-          next: { x: bounds.x + bounds.w - arrowW, y: bounds.y, w: arrowW, h: toggleH },
-        };
-      }
-
-      this._buttons.push({
-        key: item.key,
-        label: item.label,
-        section: item.section,
-        type,
-        min: item.min,
-        max: item.max,
-        step: item.step,
-        choices: item.choices,
-        bounds,
-        stepperBounds,
-        choiceBounds,
-        rowY: this.titleBarHeight + y,
-        rowH,
+      const row = new Container({
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        width: '100%',
+        gap: SPACING_TOKENS.grid.x12,
+        paddingX: SPACING_TOKENS.grid.x4,
       });
 
-      y += rowH;
-    }
-  }
-
-  renderContent(ctx: CanvasRenderingContext2D, _w: number, _contentH: number): void {
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-
-    let currentSection: string | null = null;
-    let privacyRowY = 0;
-    let privacyRowH = 0;
-    for (const btn of this._buttons) {
-      if (btn.section !== currentSection) {
-        currentSection = btn.section;
-        ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
-        ctx.font = this._scaleFont('bold 18px monospace');
-        ctx.fillText(`// ${currentSection}`, 28, btn.rowY - 10);
-      }
-
-      // Label.
-      ctx.font = this._scaleFont('22px monospace');
-      ctx.fillStyle = this.highContrast ? '#ffffff' : '#ccffff';
-      ctx.fillText(btn.label, 28, btn.rowY + btn.rowH / 2);
-
-      const { x, y, w: bw, h } = btn.bounds;
-
-      if (btn.type === 'toggle') {
-        this._renderToggle(ctx, x, y, bw, h, !!this.settings[btn.key]);
-      } else if (btn.type === 'stepper') {
-        this._renderStepper(ctx, x, y, bw, h, Number(this.settings[btn.key]), btn.stepperBounds!);
-      } else if (btn.type === 'choice') {
-        this._renderChoice(ctx, x, y, bw, h, String(this.settings[btn.key]), btn.choices!, btn.choiceBounds!);
-      }
-
-      if (btn.key === 'telemetryEnabled' || btn.section === 'PRIVACY' || btn.section === 'PRIVACY & TELEMETRY') {
-        privacyRowY = btn.rowY;
-        privacyRowH = btn.rowH;
-      }
+      const label = new Text({
+        text: desc.label,
+        fontSize: 16 * this._textScale,
+        color: palette.text,
+      });
+      this._labelTexts.push({ node: label, baseSize: 16 });
+      row.add(label);
+      row.add(this._buildControl(desc, palette));
+      this._contentContainer.add(row);
     }
 
-    if (privacyRowY > 0) {
-      this._renderExportBundleRow(ctx, privacyRowY + privacyRowH + 20);
+    // Re-track the panel header so a textScale change rescales it too; it is
+    // built once in the constructor and is not recreated here, but `_buildContent`
+    // clears `_labelTexts`, so it must be re-registered after each rebuild.
+    this._labelTexts.push({ node: this._headerText, baseSize: 22 });
+  }
+
+  private _buildControl(desc: SettingDescriptor, _palette: Palette): Toggle | Slider | SegmentedControl {
+    const value = this.settings[desc.key];
+
+    if (desc.type === 'toggle') {
+      const toggle = new Toggle({
+        value: Boolean(value),
+        onChange: (v) => this.setSetting(desc.key, v as SettingsMap[typeof desc.key]),
+      });
+      this._controls.set(desc.key, toggle);
+      return toggle;
     }
+
+    if (desc.type === 'stepper') {
+      const slider = new Slider({
+        value: Number(value),
+        min: Number(desc.min),
+        max: Number(desc.max),
+        step: Number(desc.step),
+        width: 160,
+        formatValue: desc.format ?? ((v: number) => v.toFixed(2)),
+        onChange: (v) => this.setSetting(desc.key, v as SettingsMap[typeof desc.key]),
+      });
+      this._controls.set(desc.key, slider);
+      return slider;
+    }
+
+    // choice
+    const segmented = new SegmentedControl({
+      options: desc.choices ?? [],
+      value: String(value),
+      onChange: (v) => this.setSetting(desc.key, v as SettingsMap[typeof desc.key]),
+    });
+    this._controls.set(desc.key, segmented);
+    return segmented;
   }
 
-  private _renderExportBundleRow(ctx: CanvasRenderingContext2D, y: number): void {
-    const margin = 28;
-    const btnH = 44;
-    const toggleW = 160;
-    const exportW = 260;
+  private _buildFooter(palette: Palette): void {
+    const footer = new Container({
+      flexDirection: 'column',
+      gap: SPACING_TOKENS.grid.x8,
+      paddingX: SPACING_TOKENS.grid.x4,
+    });
 
-    // Privacy-level toggle.
-    const toggleX = margin;
-    const level = this._exportPrivacyLevel;
-    ctx.fillStyle = this.highContrast ? 'rgba(255,255,255,0.9)' : 'rgba(60, 60, 80, 0.5)';
-    ctx.fillRect(toggleX, y, toggleW, btnH);
-    ctx.strokeStyle = this.highContrast ? '#ffffff' : '#778899';
-    ctx.lineWidth = this.highContrast ? 3 : 2;
-    ctx.strokeRect(toggleX, y, toggleW, btnH);
-    ctx.font = this._scaleFont('bold 16px monospace');
-    ctx.fillStyle = this.highContrast ? '#000000' : '#ccffff';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`level: ${level}`, toggleX + toggleW / 2, y + btnH / 2);
+    // Review-bundle row: privacy-level toggle + export button.
+    const exportRow = new Container({
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      width: '100%',
+      gap: SPACING_TOKENS.grid.x12,
+    });
+    const privacyLabel = new Text({
+      text: `Bundle: ${this._exportPrivacyLevel}`,
+      fontSize: 14 * this._textScale,
+      color: palette.textMuted,
+    });
+    this._labelTexts.push({ node: privacyLabel, baseSize: 14 });
+    this._privacyToggle = new Toggle({
+      value: this._exportPrivacyLevel === 'full-session',
+      onChange: (v) => {
+        this._exportPrivacyLevel = v ? 'full-session' : 'metadata';
+        privacyLabel.setProperties({ text: `Bundle: ${this._exportPrivacyLevel}` });
+      },
+    });
+    this._exportButton = new Button({
+      label: 'EXPORT BUNDLE',
+      variant: 'primary',
+      onClick: () => this._exportReviewBundle(),
+    });
+    exportRow.add(privacyLabel);
+    exportRow.add(this._privacyToggle);
+    exportRow.add(this._exportButton);
+    footer.add(exportRow);
 
-    // Export button.
-    const exportX = this.width - margin - exportW;
-    ctx.fillStyle = this.highContrast ? 'rgba(255,255,255,0.9)' : 'rgba(0, 255, 204, 0.15)';
-    ctx.fillRect(exportX, y, exportW, btnH);
-    ctx.strokeStyle = this.highContrast ? '#ffffff' : '#00ffcc';
-    ctx.lineWidth = this.highContrast ? 3 : 2;
-    ctx.strokeRect(exportX, y, exportW, btnH);
-    ctx.fillStyle = this.highContrast ? '#000000' : '#00ffcc';
-    ctx.fillText('EXPORT REVIEW BUNDLE', exportX + exportW / 2, y + btnH / 2);
+    // Exit VR button.
+    this._exitButton = new Button({
+      label: 'EXIT IMMERSIVE VR',
+      variant: 'danger',
+      onClick: () => this._onExitVR?.(),
+    });
+    footer.add(this._exitButton);
 
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-
-    // Store bounds for hit testing.
-    this._exportBundleBounds = {
-      toggle: { x: toggleX, y, w: toggleW, h: btnH },
-      export: { x: exportX, y, w: exportW, h: btnH },
-    };
-
-    // Exit VR button row
-    const exitY = y + btnH + 16;
-    const exitW = this.width - margin * 2;
-    ctx.fillStyle = this.highContrast ? '#ff2244' : 'rgba(255, 34, 68, 0.25)';
-    ctx.fillRect(margin, exitY, exitW, btnH);
-    ctx.strokeStyle = '#ff3366';
-    ctx.lineWidth = this.highContrast ? 3 : 2;
-    ctx.strokeRect(margin, exitY, exitW, btnH);
-    ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#ff99aa';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🚪 EXIT IMMERSIVE VR (RETURN TO 2D)', margin + exitW / 2, exitY + btnH / 2);
-
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-
-    this._exitVRBounds = { x: margin, y: exitY, w: exitW, h: btnH };
+    this.add(footer);
   }
 
-  private _exportBundleBounds: {
-    toggle: { x: number; y: number; w: number; h: number };
-    export: { x: number; y: number; w: number; h: number };
-  } | null = null;
-
-  private _renderToggle(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, on: boolean): void {
-    const active = on ? this.remapColor(0x00ffcc) : this.highContrast ? 0xffffff : 0x778899;
-    ctx.fillStyle = on ? 'rgba(0, 255, 204, 0.25)' : 'rgba(60, 60, 80, 0.5)';
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = `#${active.toString(16).padStart(6, '0')}`;
-    ctx.lineWidth = this.highContrast ? 4 : 3;
-    ctx.strokeRect(x, y, w, h);
-
-    ctx.fillStyle = `#${active.toString(16).padStart(6, '0')}`;
-    const thumbX = on ? x + w - h + 4 : x + 4;
-    ctx.fillRect(thumbX, y + 4, h - 8, h - 8);
-
-    ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = this.highContrast ? '#000000' : '#001122';
-    ctx.textAlign = 'center';
-    ctx.fillText(on ? 'ON' : 'OFF', x + w / 2, y + h / 2 + 1);
-    ctx.textAlign = 'left';
-  }
-
-  private _renderStepper(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    value: number,
-    bounds: StepperBounds
-  ): void {
-    ctx.fillStyle = 'rgba(60, 60, 80, 0.5)';
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = this.highContrast ? '#ffffff' : '#778899';
-    ctx.lineWidth = this.highContrast ? 4 : 3;
-    ctx.strokeRect(x, y, w, h);
-
-    // Decrement arrow.
-    const stepperButton = this._buttons.find((b) => b.stepperBounds === bounds);
-    const decActive = stepperButton ? value > stepperButton.min! : true;
-    ctx.fillStyle = decActive
-      ? `#${this.remapColor(0x00ffcc).toString(16).padStart(6, '0')}`
-      : '#445566';
-    ctx.fillRect(bounds.dec.x, bounds.dec.y, bounds.dec.w, bounds.dec.h);
-    ctx.strokeRect(bounds.dec.x, bounds.dec.y, bounds.dec.w, bounds.dec.h);
-
-    // Increment arrow.
-    const incActive = stepperButton ? value < stepperButton.max! : true;
-    ctx.fillStyle = incActive
-      ? `#${this.remapColor(0x00ffcc).toString(16).padStart(6, '0')}`
-      : '#445566';
-    ctx.fillRect(bounds.inc.x, bounds.inc.y, bounds.inc.w, bounds.inc.h);
-    ctx.strokeRect(bounds.inc.x, bounds.inc.y, bounds.inc.w, bounds.inc.h);
-
-    ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
-    ctx.textAlign = 'center';
-    ctx.fillText(`×${Number(value).toFixed(2)}`, x + w / 2, y + h / 2 + 1);
-    ctx.textAlign = 'left';
-  }
-
-  private _renderChoice(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    value: string,
-    _choices: string[],
-    bounds: ChoiceBounds
-  ): void {
-    ctx.fillStyle = 'rgba(60, 60, 80, 0.5)';
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = this.highContrast ? '#ffffff' : '#778899';
-    ctx.lineWidth = this.highContrast ? 4 : 3;
-    ctx.strokeRect(x, y, w, h);
-
-    const accent = `#${this.remapColor(0x00ffcc).toString(16).padStart(6, '0')}`;
-    ctx.fillStyle = accent;
-    ctx.fillRect(bounds.prev.x, bounds.prev.y, bounds.prev.w, bounds.prev.h);
-    ctx.strokeRect(bounds.prev.x, bounds.prev.y, bounds.prev.w, bounds.prev.h);
-
-    ctx.fillRect(bounds.next.x, bounds.next.y, bounds.next.w, bounds.next.h);
-    ctx.strokeRect(bounds.next.x, bounds.next.y, bounds.next.w, bounds.next.h);
-
-    ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
-    ctx.textAlign = 'center';
-    const display =
-      String(value ?? '')
-        .charAt(0)
-        .toUpperCase() + String(value ?? '').slice(1);
-    ctx.fillText(display, x + w / 2, y + h / 2 + 1);
-    ctx.textAlign = 'left';
-  }
-
-  handleContentClick(worldRaycaster: THREE.Raycaster): boolean {
-    const hits = worldRaycaster.intersectObject(this.mesh, false);
-    if (hits.length === 0) return false;
-
-    const uv = hits[0].uv;
-    if (!uv) return false;
-    const cx = uv.x * this.width;
-    const cy = (1 - uv.y) * this.height;
-
-    for (const btn of this._buttons) {
-      if (btn.type === 'toggle') {
-        const b = btn.bounds;
-        if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
-          this.setSetting(btn.key, !this.settings[btn.key]);
-          return true;
-        }
-      } else if (btn.type === 'stepper') {
-        const dec = btn.stepperBounds!.dec;
-        const inc = btn.stepperBounds!.inc;
-        const current = Number(this.settings[btn.key]);
-        if (cx >= dec.x && cx <= dec.x + dec.w && cy >= dec.y && cy <= dec.y + dec.h) {
-          this.setSetting(btn.key, Math.max(btn.min!, current - btn.step!));
-          return true;
-        }
-        if (cx >= inc.x && cx <= inc.x + inc.w && cy >= inc.y && cy <= inc.y + inc.h) {
-          this.setSetting(btn.key, Math.min(btn.max!, current + btn.step!));
-          return true;
-        }
-      } else if (btn.type === 'choice') {
-        const prev = btn.choiceBounds!.prev;
-        const next = btn.choiceBounds!.next;
-        const choices = btn.choices!;
-        const idx = choices.indexOf(String(this.settings[btn.key]));
-        if (cx >= prev.x && cx <= prev.x + prev.w && cy >= prev.y && cy <= prev.y + prev.h) {
-          const newIdx = (idx - 1 + choices.length) % choices.length;
-          this.setSetting(btn.key, choices[newIdx]);
-          return true;
-        }
-        if (cx >= next.x && cx <= next.x + next.w && cy >= next.y && cy <= next.y + next.h) {
-          const newIdx = (idx + 1) % choices.length;
-          this.setSetting(btn.key, choices[newIdx]);
-          return true;
-        }
+  private _rebuildForTheme(): void {
+    const palette = SettingsPanel._palette(this._highContrast, this._colorblindMode);
+    this.setProperties({
+      backgroundColor: palette.bg,
+      borderColor: palette.border,
+    });
+    // Rebuild the settings list and footer so labels, section headers and
+    // chrome pick up the new palette. Controls retain their token colours.
+    this._buildContent();
+    // Footer carries its own label text; rebuild it by removing and re-adding.
+    if (this.children.length > 0) {
+      const last = this.children[this.children.length - 1];
+      if (last instanceof Container && !(last instanceof ScrollContainer)) {
+        this.remove(last);
       }
     }
-    // Export Review Bundle row in the PRIVACY section.
-    const eb = this._exportBundleBounds;
-    if (eb) {
-      if (cx >= eb.toggle.x && cx <= eb.toggle.x + eb.toggle.w && cy >= eb.toggle.y && cy <= eb.toggle.y + eb.toggle.h) {
-        this._exportPrivacyLevel = this._exportPrivacyLevel === 'full-session' ? 'metadata' : 'full-session';
-        this.render();
-        return true;
-      }
-      if (cx >= eb.export.x && cx <= eb.export.x + eb.export.w && cy >= eb.export.y && cy <= eb.export.y + eb.export.h) {
-        this._exportReviewBundle();
-        return true;
-      }
-    }
+    this._buildFooter(palette);
+  }
 
-    // Exit VR button
-    const evb = this._exitVRBounds;
-    if (evb && cx >= evb.x && cx <= evb.x + evb.w && cy >= evb.y && cy <= evb.y + evb.h) {
-      this._onExitVR?.();
-      return true;
+  private _applyTextScale(): void {
+    for (const { node, baseSize } of this._labelTexts) {
+      node.setProperties({ fontSize: baseSize * this._textScale });
     }
-
-    return false;
   }
 
   private _exportReviewBundle(): void {
@@ -641,7 +634,7 @@ export class SettingsPanel extends MovablePanel {
     });
 
     downloadText(formatReviewBundle(bundle), 'nemosyne-review-bundle.json', 'application/json').catch(
-      () => {}
+      () => {},
     );
   }
 }

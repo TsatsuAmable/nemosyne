@@ -10,6 +10,7 @@ import { VRConsole } from '../ui/VRConsole.ts';
 import { VRMenu } from '../ui/VRMenu.ts';
 import { PanelManager } from '../ui/PanelManager.ts';
 import { SettingsPanel } from '../ui/SettingsPanel.ts';
+import { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
 import { HandWheelMenu } from '../ui/HandWheelMenu.ts';
 import { OperationLogPanel } from '../ui/OperationLogPanel.ts';
 import { DashboardManager } from '../ui/DashboardManager.ts';
@@ -125,6 +126,13 @@ export class WorldUIManager {
   statusStrip: StatusStripController;
   panelRolesManager: PanelRolesManager;
   contextualTaskSurface: ContextualTaskSurface;
+  /**
+   * Enforces the analyst workspace panel budget for SpatialPanel-based surfaces
+   * (HolographicInspector, SettingsPanel, and future migrated precision
+   * surfaces). Legacy MovablePanel surfaces remain under `panelManager` /
+   * `panelRolesManager` until they migrate.
+   */
+  panelBudgetController: PanelBudgetController;
 
   telemetryPanel: InputTelemetry;
   vrConsole: VRConsole;
@@ -179,6 +187,9 @@ export class WorldUIManager {
 
     // Contextual task-oriented action filter
     this.contextualTaskSurface = new ContextualTaskSurface();
+
+    // SpatialPanel workspace budget (governs inspector/settings/future surfaces).
+    this.panelBudgetController = new PanelBudgetController();
 
     // DOM telemetry overlay panel.
     this.telemetryPanel = new InputTelemetry(engine, this.analystAnchor);
@@ -289,17 +300,20 @@ export class WorldUIManager {
     this.engine.addHudObject(this.handWheelMenu);
     this.engine.input.setHandWheelMenu(this.handWheelMenu);
 
-    // Settings panel.
-    this.settingsPanel = new SettingsPanel(this.analystAnchor, {
+    // Settings panel (SpatialPanel/UIKit substrate; not registered with the
+    // MovablePanel-only PanelManager — pointer routing is via engine.input).
+    this.settingsPanel = new SettingsPanel({
+      torsoAnchor: this.analystAnchor,
+      worldScene: engine.scene,
       onChange: callbacks.onSettingChanged,
       onExitVR: callbacks.onExitVR,
       telemetryCollector: callbacks.telemetryCollector as TelemetryCollectorLike | undefined,
       performanceBudget: engine.performanceBudget as PerformanceBudgetLike,
       datasetTopology: '-',
+      panelBudgetController: this.panelBudgetController,
     });
     this.engine.addUpdatable(this.settingsPanel);
     applyPanelLayout(this.settingsPanel, PANEL_LAYOUT.settingsPanel);
-    this.panelManager.register(this.settingsPanel);
     this.engine.input.addPanel(this.settingsPanel);
 
     // Telemetry metrics panel.
@@ -630,12 +644,15 @@ export class WorldUIManager {
     for (const panel of this.panelManager.panels) {
       if (panel?.applyAccessibility) panel.applyAccessibility(full);
     }
+    // The settings panel is a SpatialPanel (not a MovablePanel), so it is not in
+    // panelManager.panels; theme it explicitly so it stays in sync.
+    this.settingsPanel?.applyAccessibility(full);
     this.handWheelMenu?.applyAccessibility?.(full);
   }
 
-  /** Toggle the settings panel through PanelManager. */
+  /** Toggle the settings panel directly (SpatialPanel lifecycle). */
   toggleSettingsPanel(): void {
-    this.panelManager.togglePanel(this.settingsPanel);
+    this.settingsPanel.toggle();
   }
 
   /** Return whether the settings panel mesh is currently visible. */
@@ -677,6 +694,21 @@ export class WorldUIManager {
       this.engine.input.removePanel(panel);
       this.panelManager.unregister(panel);
       if (!this._borrowedResources.has(panel)) panel.dispose?.();
+    }
+
+    // The settings panel is a SpatialPanel (not registered with the
+    // MovablePanel-only PanelManager) but is tracked by engine.input; detach
+    // and dispose it explicitly so no owned resource leaks past dispose.
+    this.engine.removeUpdatable(this.settingsPanel);
+    this.engine.input.removePanel(this.settingsPanel);
+    if (!this._borrowedResources.has(this.settingsPanel)) this.settingsPanel.dispose?.();
+
+    // Untrack any SpatialPanels still held by the budget controller (e.g. the
+    // borrowed HolographicInspector, owned by the scene composer) so the
+    // controller does not retain stale references. Close (untrack) only — the
+    // composer owns and disposes the inspector itself.
+    for (const panel of this.panelBudgetController.getOpenPanels()) {
+      this.panelBudgetController.close(panel);
     }
 
     this.engine.removeUpdatable(this.miniOverview);

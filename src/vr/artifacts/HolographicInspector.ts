@@ -3,6 +3,7 @@ import { Container, Text } from '@pmndrs/uikit';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { COLOR_TOKENS } from '../ui-system/tokens.ts';
+import type { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
 import type { EngineLike, PointerLike } from '../coordinators/types.ts';
 
 export interface HolographicInspectorOptions {
@@ -15,6 +16,12 @@ export class HolographicInspector extends SpatialPanel {
   data: Record<string, unknown> | null = null;
   title: string = '';
   pointer: PointerLike | null = null;
+  /**
+   * Workspace budget controller. Set by the composition root (World) after
+   * construction so the inspector registers in the `inspector` role on
+   * `showAtNode` and untracks on `hide`; null leaves behaviour unchanged.
+   */
+  budgetController: PanelBudgetController | null = null;
   
   // UI Sub-components
   private _titleText: Text;
@@ -130,6 +137,8 @@ export class HolographicInspector extends SpatialPanel {
     this.active = true;
     this.visible = true;
     this.pointer = pointer;
+    // Register in the workspace budget as the inspector/context surface.
+    this.budgetController?.open(this, 'inspector');
 
     this._titleText.setProperties({ text: `// ${title}` });
     const category = data?.category ?? data?.type ?? '';
@@ -154,6 +163,7 @@ export class HolographicInspector extends SpatialPanel {
     this.active = false;
     this.visible = false;
     this.pointer = null;
+    this.budgetController?.close(this);
     this._playCloseFeedback();
   }
 
