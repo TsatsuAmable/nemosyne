@@ -46,6 +46,24 @@ export class InvestigationAggregate {
     return this.context.sessionId;
   }
 
+  /**
+   * RF-027: persist a remediation action as durable, replayable provenance in
+   * the EvidenceLedger. The caller builds the {@link RemediationProvenance}
+   * (via `buildRemediationProvenance`) capturing remediation → old requirements
+   * → new requirements → resulting decision; this appends the ledger event so
+   * the chain survives `.nemosyne` export/import.
+   */
+  recordRemediation(
+    provenance: import('../../moneta/representation/ActionableNil.ts').RemediationProvenance
+  ): void {
+    this.ledger.recordRemediation(
+      provenance,
+      this.sessionId,
+      this.analytical.datasetVersion,
+      this.analytical.getFingerprint() ?? provenance.datasetFingerprint
+    );
+  }
+
   /** Reset all constituent sub-states on loading a new dataset. */
   loadDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
     this.analytical.loadDataset(dataset, destroyer);

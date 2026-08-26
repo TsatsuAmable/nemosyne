@@ -6,9 +6,36 @@ export interface ViewpointSample {
   poseHash: string;
 }
 
+/**
+ * Honest fidelity class for a measured perceptual metric. Naming surrogates
+ * honestly is governed by RF-024: a metric that does not directly measure the
+ * quantity it stands in for MUST be labelled so that hard constraints, ranking
+ * and provenance cannot mistake a surrogate for the real measurement.
+ *
+ * - `measured`: a direct screen-space / device measurement of the claimed quantity.
+ * - `estimated`: derived from geometry/projection with a stated method; an
+ *   approximation of the claimed quantity, not a surrogate for a different one.
+ * - `surrogate`: stands in for a quantity it does NOT actually measure (e.g.
+ *   frustum exclusion used in place of occlusion). Consumers MUST NOT relabel a
+ *   surrogate as the quantity it substitutes for.
+ */
+export type MetricFidelityClass = 'measured' | 'estimated' | 'surrogate';
+
+export interface MetricFidelity {
+  readonly class: MetricFidelityClass;
+  /** Human-readable description of what the metric actually computes. */
+  readonly method: string;
+}
+
 export interface MeasuredPerceptualEvidence {
   projectedOverlapFraction: number;
-  hiddenMarkFraction: number;
+  /**
+   * Fraction of marks excluded from the view frustum / depth range across the
+   * viewpoint envelope. Renamed from `hiddenMarkFraction` (RF-024): this is a
+   * frustum/depth-range exclusion SURROGATE, NOT occlusion. Real screen-space
+   * occlusion measurement remains future work.
+   */
+  frustumExclusionFraction: number;
   medianProjectedGlyphSizePx: number;
   labelCrowdingIndex: number;
   depthOrderAmbiguityFraction: number;
@@ -16,6 +43,17 @@ export interface MeasuredPerceptualEvidence {
   requiredViewpointTravelMeters: number;
   viewpointEnvelope: ViewpointSample[];
   deviceClass: 'desktop' | 'quest-3s' | 'other-headset';
+  /**
+   * Per-metric fidelity declarations. Required so consumers and provenance can
+   * distinguish direct measurements from estimates and surrogates.
+   */
+  readonly metricFidelity: {
+    projectedOverlapFraction: MetricFidelity;
+    frustumExclusionFraction: MetricFidelity;
+    medianProjectedGlyphSizePx: MetricFidelity;
+    labelCrowdingIndex: MetricFidelity;
+    depthOrderAmbiguityFraction: MetricFidelity;
+  };
 }
 
 export interface PerceptualPriors {
@@ -68,6 +106,58 @@ function validateViewpointSample(sample: ViewpointSample, index: number): void {
   }
 }
 
+const METRIC_FIDELITY_KEYS: ReadonlyArray<keyof MeasuredPerceptualEvidence['metricFidelity']> = [
+  'projectedOverlapFraction',
+  'frustumExclusionFraction',
+  'medianProjectedGlyphSizePx',
+  'labelCrowdingIndex',
+  'depthOrderAmbiguityFraction',
+];
+
+const METRIC_FIDELITY_CLASSES: ReadonlySet<MetricFidelityClass> = new Set([
+  'measured',
+  'estimated',
+  'surrogate',
+]);
+
+function assertMetricFidelityBlock(
+  block: MeasuredPerceptualEvidence['metricFidelity']
+): void {
+  if (!block || typeof block !== 'object') {
+    throw new TypeError('PerceptualFitnessEvidence.measured.metricFidelity must be present');
+  }
+  for (const key of METRIC_FIDELITY_KEYS) {
+    const entry = block[key];
+    if (!entry || typeof entry !== 'object') {
+      throw new TypeError(
+        `PerceptualFitnessEvidence.measured.metricFidelity.${key} must be present`
+      );
+    }
+    if (!METRIC_FIDELITY_CLASSES.has(entry.class)) {
+      throw new TypeError(
+        `PerceptualFitnessEvidence.measured.metricFidelity.${key}.class must be one of measured|estimated|surrogate`
+      );
+    }
+    if (typeof entry.method !== 'string' || entry.method.trim() === '') {
+      throw new TypeError(
+        `PerceptualFitnessEvidence.measured.metricFidelity.${key}.method must be a non-empty string`
+      );
+    }
+    // Enforce honest labelling: the frustum-exclusion surrogate MUST declare
+    // itself a surrogate, never 'measured' or 'estimated' as occlusion.
+    if (key === 'frustumExclusionFraction' && entry.class !== 'surrogate') {
+      throw new TypeError(
+        'PerceptualFitnessEvidence.measured.metricFidelity.frustumExclusionFraction must be class "surrogate" (it is not occlusion)'
+      );
+    }
+    if (key === 'labelCrowdingIndex' && entry.class !== 'surrogate') {
+      throw new TypeError(
+        'PerceptualFitnessEvidence.measured.metricFidelity.labelCrowdingIndex must be class "surrogate" (it is not screen-space label overlap)'
+      );
+    }
+  }
+}
+
 export function validatePerceptualFitnessEvidence(
   evidence: PerceptualFitnessEvidence
 ): PerceptualFitnessEvidence {
@@ -115,8 +205,8 @@ export function validatePerceptualFitnessEvidence(
       evidence.measured.projectedOverlapFraction
     );
     assertUnitInterval(
-      'PerceptualFitnessEvidence.measured.hiddenMarkFraction',
-      evidence.measured.hiddenMarkFraction
+      'PerceptualFitnessEvidence.measured.frustumExclusionFraction',
+      evidence.measured.frustumExclusionFraction
     );
     assertUnitInterval(
       'PerceptualFitnessEvidence.measured.labelCrowdingIndex',
@@ -139,6 +229,7 @@ export function validatePerceptualFitnessEvidence(
       evidence.measured.requiredViewpointTravelMeters
     );
     evidence.measured.viewpointEnvelope.forEach(validateViewpointSample);
+    assertMetricFidelityBlock(evidence.measured.metricFidelity);
   } else if (evidence.source === 'prior') {
     if (evidence.measured !== null) {
       throw new TypeError('PerceptualFitnessEvidence with source "prior" must have null measured field');

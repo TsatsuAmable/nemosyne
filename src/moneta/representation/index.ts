@@ -17,4 +17,5 @@ export * from './MonetaHypothesisEngine.ts';
 export * from './EvidenceBackedMoneta.ts';
 export * from './LearnedMonetaRuntime.ts';
 export * from './ActionableNil.ts';
+export * from './HardConstraintCode.ts';
 export { MonetaHypothesisEngine as RepresentationHypothesisEngine } from './MonetaHypothesisEngine.ts';

@@ -249,7 +249,7 @@ export class PerceptualFitnessSampler {
 
     const nPoses = envelope.length;
     const projectedOverlapFraction = Math.min(1, totalOverlap / nPoses);
-    const hiddenMarkFraction = Math.min(1, totalHidden / nPoses);
+    const frustumExclusionFraction = Math.min(1, totalHidden / nPoses);
     const depthOrderAmbiguityFraction = Math.min(1, totalAmbiguity / nPoses);
     const medianProjectedGlyphSizePx = totalGlyphPx / nPoses;
 
@@ -260,7 +260,7 @@ export class PerceptualFitnessSampler {
 
     const measured: MeasuredPerceptualEvidence = {
       projectedOverlapFraction,
-      hiddenMarkFraction,
+      frustumExclusionFraction,
       medianProjectedGlyphSizePx,
       labelCrowdingIndex,
       depthOrderAmbiguityFraction,
@@ -268,6 +268,30 @@ export class PerceptualFitnessSampler {
       requiredViewpointTravelMeters,
       viewpointEnvelope: envelope,
       deviceClass,
+      metricFidelity: {
+        projectedOverlapFraction: {
+          class: 'estimated',
+          method:
+            'pairwise projected screen-space overlap ratio over a bounded 100-mark sample',
+        },
+        frustumExclusionFraction: {
+          class: 'surrogate',
+          method:
+            'fraction of marks outside the view frustum / depth range across the viewpoint envelope; NOT occlusion',
+        },
+        medianProjectedGlyphSizePx: {
+          class: 'estimated',
+          method: 'world mark size (~0.02m) projected at median depth',
+        },
+        labelCrowdingIndex: {
+          class: 'surrogate',
+          method: 'label count per spatial extent; NOT screen-space label overlap',
+        },
+        depthOrderAmbiguityFraction: {
+          class: 'estimated',
+          method: 'fraction of projected pairs within a depth-tie threshold',
+        },
+      },
     };
 
     const evidence: PerceptualFitnessEvidence = {

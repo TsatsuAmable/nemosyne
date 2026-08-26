@@ -5,6 +5,7 @@ import type { SpatialStrategy } from '../SpatialStrategy.ts';
 import type { DatasetSignature } from './DatasetSignature.ts';
 import type { RepresentationDecisionStatus } from './DecisionPolicy.ts';
 import type { WeightSensitivityResult } from './SensitivityAnalysis.ts';
+import type { HardConstraintCode } from './HardConstraintCode.ts';
 
 export interface ScoreComponent {
   component: string;
@@ -18,6 +19,8 @@ export interface HardConstraintTrace {
   ruleName: string;
   passed: boolean;
   reason: string;
+  /** RF-027: machine-readable constraint code, present on failure. */
+  code?: HardConstraintCode;
 }
 
 export interface CandidateScore {
@@ -28,6 +31,8 @@ export interface CandidateScore {
   components: ScoreComponent[];
   disqualified?: boolean;
   disqualificationReason?: string;
+  /** RF-027: machine-readable constraint code that disqualified this candidate. */
+  disqualificationCode?: HardConstraintCode;
   preserves: InformationType[];
   loses: InformationType[];
 }
@@ -65,6 +70,10 @@ export interface DecisionProvenance {
   fitnessModelArtifactHash?: string | null;
   perceptualModelVersion?: string;
   perceptualDeviceClass?: string;
+  /** RF-023: count of perceptual evidence items dropped for stale/cross-dataset/version/key mismatch. */
+  stalePerceptualEvidenceDropped?: number;
+  /** RF-024: frozen study-treatment id whose default ranking weights produced this decision. */
+  fitnessTreatmentId?: string;
 }
 
 export interface RepresentationDecision {

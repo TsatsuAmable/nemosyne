@@ -23,26 +23,81 @@ import type {
   NoFeasibleRepresentationProvenance,
 } from './NoFeasibleRepresentationError.ts';
 import type { RepresentationDecisionStatus } from './DecisionPolicy.ts';
+import {
+  classifyHardConstraint,
+  type HardConstraintCode,
+  type HardConstraintCategory,
+} from './HardConstraintCode.ts';
+import { fnv1aHex } from '../../atlas/DatasetSpace.ts';
+import { canonicalJsonStringify } from '../../investigation/InvestigationDigest.ts';
+
+/**
+ * Canonical hash of a requirements object. Matches the hash the engine records
+ * as `DecisionProvenance.requirementsHash`, so remediation provenance can be
+ * correlated with the decision that prompted it.
+ */
+export function hashRequirements(requirements: RepresentationRequirements): string {
+  return fnv1aHex(canonicalJsonStringify(requirements));
+}
 
 export type InvestigatorOutcomeState = RepresentationDecisionStatus;
 
 export type RemediationKind =
   | 'adjust-hardware-limit'
-  | 'adjust-occlusion-tolerance'
+  | 'adjust-frustum-exclusion-tolerance'
   | 'switch-task'
   | 'aggregate-data'
   | 'supply-temporal-order'
   | 'accept-ambiguous-alternative';
+
+/**
+ * RF-027: separates *scientific permissibility* (may this constraint be
+ * relaxed without falsifying the science?) from *measured device/runtime
+ * feasibility* (can the target device actually render the relaxed bound?).
+ *
+ * `isSafeToRelax` reports scientific permissibility only. Hardware / frustum
+ * exclusion bounds are scientifically safe to relax but their relaxed value
+ * is NOT verified against any real device, so `deviceFeasibility` is
+ * `'unverified'` until a qualification run proves otherwise. The remediation
+ * copy must not claim the doubled bound is device-safe.
+ */
+export type DeviceFeasibility = 'unverified' | 'feasible' | 'infeasible';
 
 export interface RemedialAction {
   id: string;
   label: string;
   kind: RemediationKind;
   description: string;
-  /** True for user preference/hardware bounds; false for critical scientific information-preservation requirements. */
+  /** Scientific permissibility only: true for preference/hardware bounds; false for critical information-preservation requirements. */
   isSafeToRelax: boolean;
+  /** RF-027: measured device/runtime feasibility of the relaxed bound. `'unverified'` until a qualification run proves it. */
+  deviceFeasibility: DeviceFeasibility;
   suggestedRequirementPatch: Partial<RepresentationRequirements>;
   unblocksCandidates: SemanticRepresentationId[];
+  /** RF-027: the typed hard-constraint code this remediation addresses. */
+  constraintCode?: HardConstraintCode;
+}
+
+/**
+ * RF-027: durable, replayable provenance for a remediation action. Records
+ * the full remediation → old requirements → new requirements → resulting
+ * decision chain so an analyst can replay why a requirement changed.
+ */
+export interface RemediationProvenance {
+  remediationId: string;
+  kind: RemediationKind;
+  constraintCode?: HardConstraintCode;
+  category: HardConstraintCategory;
+  scientificPermissibility: 'permissible' | 'impermissible';
+  deviceFeasibility: DeviceFeasibility;
+  datasetFingerprint: string;
+  /** Canonical hash of requirements before the patch was applied. */
+  oldRequirementsHash: string;
+  /** Canonical hash of requirements after the patch was applied. */
+  newRequirementsHash: string;
+  /** Decision id produced by re-arbitration under the new requirements, once known. */
+  resultingDecisionId?: string;
+  timestamp: number;
 }
 
 export interface BlockingConstraint {
@@ -89,6 +144,7 @@ export function diagnoseInvestigatorOutcome(
         kind: 'accept-ambiguous-alternative',
         description: `Explicitly select the close alternative (${decision.runnerUp.layout}) with utility margin ${decision.decisionMargin?.toFixed(3) ?? '0.000'}.`,
         isSafeToRelax: true,
+        deviceFeasibility: 'unverified',
         suggestedRequirementPatch: {},
         unblocksCandidates: [decision.runnerUp.candidateId],
       });
@@ -127,19 +183,13 @@ export function diagnoseInvestigatorOutcome(
     const candidateDef = MONETA_REPRESENTATION_CANDIDATES[candidate.candidateId as SemanticRepresentationId];
     const candidateName = candidateDef?.name ?? candidate.candidateId;
 
-    const isHardware =
-      reason.includes('hardware allows at most') ||
-      reason.includes('hardware limit') ||
-      reason.includes('element budget');
-    const isPerceptual =
-      reason.includes('occlusion tolerance') ||
-      reason.includes('perceptual');
-    const isInfoLoss =
-      reason.includes('loses critical information') ||
-      reason.includes('loss is not acceptable') ||
-      reason.includes('Must preserve') ||
-      reason.includes('Must not lose') ||
-      reason.includes('information-preservation');
+    // RF-027: route remediation by the typed machine-readable constraint code,
+    // NOT by substring-matching the human-readable disqualification reason.
+    const code = candidate.disqualificationCode;
+    const category = classifyHardConstraint(code);
+    const isHardware = category === 'hardware';
+    const isPerceptual = category === 'perceptual';
+    const isInfoLoss = category === 'scientific-info-loss';
 
     let remediation: RemedialAction | null = null;
 
@@ -151,8 +201,10 @@ export function diagnoseInvestigatorOutcome(
           id: remId,
           label: 'Increase hardware element budget',
           kind: 'adjust-hardware-limit',
-          description: `Raise maxElements from ${maxEl.toLocaleString()} to ${(maxEl * 2).toLocaleString()} to permit denser representations.`,
+          description: `Raise maxElements from ${maxEl.toLocaleString()} to ${(maxEl * 2).toLocaleString()} to permit denser representations. Scientifically permissible (not an information-preservation constraint), but device feasibility is UNVERIFIED — a target-device qualification run is required before relying on the larger bound.`,
           isSafeToRelax: true,
+          deviceFeasibility: 'unverified',
+          constraintCode: code,
           suggestedRequirementPatch: {
             hardwareConstraints: {
               ...requirements.hardwareConstraints,
@@ -169,17 +221,19 @@ export function diagnoseInvestigatorOutcome(
         }
       }
     } else if (isPerceptual) {
-      const occTol = requirements.maxOcclusionTolerance ?? 0.2;
-      const remId = 'relax_occlusion_tolerance';
+      const occTol = requirements.maxFrustumExclusionTolerance ?? 0.2;
+      const remId = 'relax_frustum_exclusion_tolerance';
       if (!remediationMap.has(remId)) {
         remediation = {
           id: remId,
-          label: 'Relax occlusion tolerance threshold',
-          kind: 'adjust-occlusion-tolerance',
-          description: `Increase maxOcclusionTolerance from ${(occTol * 100).toFixed(0)}% to ${Math.min(100, (occTol + 0.2) * 100).toFixed(0)}% for 3D exploratory layout.`,
+          label: 'Relax frustum exclusion tolerance threshold',
+          kind: 'adjust-frustum-exclusion-tolerance',
+          description: `Increase maxFrustumExclusionTolerance from ${(occTol * 100).toFixed(0)}% to ${Math.min(100, (occTol + 0.2) * 100).toFixed(0)}% for 3D exploratory layout. The hard gate bounds view-frustum/depth-range exclusion, NOT occlusion. Scientifically permissible, but device feasibility is UNVERIFIED until a qualification run confirms legibility on the target headset.`,
           isSafeToRelax: true,
+          deviceFeasibility: 'unverified',
+          constraintCode: code,
           suggestedRequirementPatch: {
-            maxOcclusionTolerance: Math.min(1.0, occTol + 0.2),
+            maxFrustumExclusionTolerance: Math.min(1.0, occTol + 0.2),
           },
           unblocksCandidates: [candidate.candidateId],
         };
@@ -198,6 +252,8 @@ export function diagnoseInvestigatorOutcome(
         kind: 'switch-task',
         description: `Candidate loses critical dimensions required by current task intent. To proceed, change task focus or use multi-representation view.`,
         isSafeToRelax: false,
+        deviceFeasibility: 'unverified',
+        constraintCode: code,
         suggestedRequirementPatch: {},
         unblocksCandidates: [candidate.candidateId],
       };
@@ -262,5 +318,35 @@ export function applyRemediation(
   return {
     ...requirements,
     ...remediation.suggestedRequirementPatch,
+  };
+}
+
+/**
+ * RF-027: build a durable, replayable provenance record for an applied
+ * remediation. Captures remediation → old requirements → new requirements →
+ * (optional) resulting decision, with scientific permissibility and device
+ * feasibility separated. Callers persist this via the EvidenceLedger
+ * `remediation` event so the chain survives `.nemosyne` export/import replay.
+ */
+export function buildRemediationProvenance(
+  remediation: RemedialAction,
+  oldRequirements: RepresentationRequirements,
+  newRequirements: RepresentationRequirements,
+  datasetFingerprint: string,
+  timestamp: number,
+  resultingDecisionId?: string
+): RemediationProvenance {
+  return {
+    remediationId: remediation.id,
+    kind: remediation.kind,
+    constraintCode: remediation.constraintCode,
+    category: classifyHardConstraint(remediation.constraintCode),
+    scientificPermissibility: remediation.isSafeToRelax ? 'permissible' : 'impermissible',
+    deviceFeasibility: remediation.deviceFeasibility,
+    datasetFingerprint,
+    oldRequirementsHash: hashRequirements(oldRequirements),
+    newRequirementsHash: hashRequirements(newRequirements),
+    resultingDecisionId,
+    timestamp,
   };
 }
