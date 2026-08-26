@@ -117,6 +117,8 @@ pub fn infer(dataset: &Dataset) -> Topology {
 // Topological Data Analysis (TDA) Mapper & Persistence Engine
 // ---------------------------------------------------------------------------
 
+pub const TDA_MISSING_DATA_POLICY: &str = "complete_case_selected_features";
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TdaMapperNode {
@@ -151,30 +153,28 @@ fn euclidean_dist(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b.iter()).map(|(x, y)| (x - y) * (x - y)).sum::<f64>().sqrt()
 }
 
-/// Borrowed numeric point source for TDA. Implementations never materialize
-/// row maps (`HashMap<String, Value>`): the row path gathers `f64` points
-/// exactly as the legacy algorithm bodies did; the columnar path reads the
-/// primitive `f64` buffers directly from `ColumnarDataset`. Categorical /
-/// dictionary feature columns are out of scope for TDA and fail closed.
+/// Numeric metric-space source for TDA.
+///
+/// RF-007 validity rule: only complete observations over the selected feature
+/// tuple enter the metric space. `source_row_indices[local]` maps every local
+/// TDA point back to its original dataset row, so exclusion never corrupts
+/// durable observation identity or Mapper row membership.
 #[derive(Debug, Clone)]
 pub struct FeatureSpace {
     row_count: usize,
-    /// `points[i]` is the gathered feature vector for row `i` (row-major
-    /// layout, identical to the legacy `values: Vec<Vec<f64>>` local).
+    source_row_count: usize,
+    source_row_indices: Vec<usize>,
+    /// `points[i]` is the gathered feature vector for eligible local point `i`.
     points: Vec<Vec<f64>>,
-    /// First feature column's per-row values — the filtration fallback used
-    /// when explicit `filter_values` are omitted or length-mismatched. Empty
-    /// when there are no feature columns, matching the legacy
-    /// `resolve_filter_values` empty-vector contract.
+    /// First selected feature for eligible points, used as filtration fallback.
     first_feature: Vec<f64>,
 }
 
-/// Typed errors for the columnar TDA path. Surfaced by exports as a 0 return
-/// plus a `log_error` side-channel message; never a panic, never partial output.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ColumnarTdaError {
     UnknownColumn(String),
     UnsupportedColumnKind(String),
+    InvalidColumnLength(String),
 }
 
 impl std::fmt::Display for ColumnarTdaError {
@@ -183,55 +183,63 @@ impl std::fmt::Display for ColumnarTdaError {
             ColumnarTdaError::UnknownColumn(name) => {
                 write!(f, "feature column {name:?} not found in dataset schema")
             }
-            ColumnarTdaError::UnsupportedColumnKind(name) => {
-                write!(
-                    f,
-                    "feature column {name:?} is categorical/non-numeric; TDA requires numeric or temporal columns"
-                )
-            }
+            ColumnarTdaError::UnsupportedColumnKind(name) => write!(
+                f,
+                "feature column {name:?} is categorical/non-numeric; TDA requires numeric or temporal columns"
+            ),
+            ColumnarTdaError::InvalidColumnLength(name) => write!(
+                f,
+                "feature column {name:?} has inconsistent value/validity length"
+            ),
         }
     }
 }
 
 impl FeatureSpace {
-    /// Row-major path. Gathers exactly as the legacy algorithm bodies did:
-    /// `row.get(col).and_then(|v| v.as_number()).unwrap_or(0.0)` per feature.
-    /// Byte-identical behaviour to the pre-columnar TDA implementation.
+    /// Row-major complete-case path. A row is eligible only when every selected
+    /// feature resolves to a finite number. Real numeric zero remains valid;
+    /// missing, non-numeric and non-finite values are excluded rather than
+    /// silently converted into geometric zero.
     pub fn from_rows(dataset: &Dataset, feature_columns: &[&str]) -> Self {
-        let points: Vec<Vec<f64>> = dataset
-            .rows
-            .iter()
-            .map(|r| {
-                feature_columns
-                    .iter()
-                    .map(|col| r.get(*col).and_then(|v| v.as_number()).unwrap_or(0.0))
-                    .collect()
-            })
-            .collect();
+        let source_row_count = dataset.row_count();
+        let mut points = Vec::with_capacity(source_row_count);
+        let mut source_row_indices = Vec::with_capacity(source_row_count);
+
+        for (source_row, row) in dataset.rows.iter().enumerate() {
+            let mut point = Vec::with_capacity(feature_columns.len());
+            let mut valid = true;
+            for column in feature_columns {
+                match row.get(*column).and_then(|value| value.as_number()) {
+                    Some(value) if value.is_finite() => point.push(value),
+                    _ => {
+                        valid = false;
+                        break;
+                    }
+                }
+            }
+            if valid {
+                source_row_indices.push(source_row);
+                points.push(point);
+            }
+        }
+
         let first_feature = if feature_columns.is_empty() {
             Vec::new()
         } else {
-            points.iter().map(|p| p[0]).collect()
+            points.iter().map(|point| point[0]).collect()
         };
         Self {
-            row_count: dataset.row_count(),
+            row_count: points.len(),
+            source_row_count,
+            source_row_indices,
             points,
             first_feature,
         }
     }
 
-    /// Columnar-only path. Reads primitive `f64` buffers directly from the
-    /// resident `ColumnarDataset` — no row maps are built and the row-major
-    /// `Dataset` slot is never consulted. Dictionary/categorical feature
-    /// columns fail closed with `UnsupportedColumnKind`; expanding categorical
-    /// support is a governed P1-C/P2 decision, not smuggled in here.
-    ///
-    /// RF-007: the columnar primitive invariant (validity 0 ⇒ stored 0.0, all
-    /// finite) is enforced at ingest, so this path borrows the primitive
-    /// buffers via the shared `point_access` substrate and transposes from the
-    /// borrows. It no longer clones each primitive buffer into a throwaway
-    /// intermediate, halving the per-column allocation during construction.
-    /// Output is byte-identical to the previous clone-then-transpose path.
+    /// Columnar complete-case path. Values and validity are borrowed from the
+    /// resident `ColumnarDataset`; only rows valid in every selected primitive
+    /// feature are transposed into the local TDA point matrix.
     pub fn from_columnar(
         columns: &[Column],
         columnar: &ColumnarDataset,
@@ -249,19 +257,37 @@ impl FeatureSpace {
             crate::data::point_access::PointAccessError::UnsupportedColumnKind(name) => {
                 ColumnarTdaError::UnsupportedColumnKind(name)
             }
+            crate::data::point_access::PointAccessError::InvalidColumnLength(name) => {
+                ColumnarTdaError::InvalidColumnLength(name)
+            }
         })?;
-        let row_count = columnar.row_count();
+
+        let source_row_count = columnar.row_count();
+        let source_row_indices = crate::data::point_access::complete_case_row_indices(
+            &borrowed,
+            source_row_count,
+        );
+        let points: Vec<Vec<f64>> = source_row_indices
+            .iter()
+            .map(|&source_row| {
+                borrowed
+                    .iter()
+                    .map(|column| column.values[source_row])
+                    .collect()
+            })
+            .collect();
         let first_feature = match borrowed.first() {
-            Some(buf) => buf.to_vec(),
+            Some(column) => source_row_indices
+                .iter()
+                .map(|&source_row| column.values[source_row])
+                .collect(),
             None => Vec::new(),
         };
-        // Transpose into row-major points to keep the algorithm bodies
-        // byte-identical with the row path (they index `points[i]`).
-        let points: Vec<Vec<f64>> = (0..row_count)
-            .map(|i| borrowed.iter().map(|buf| buf[i]).collect())
-            .collect();
+
         Ok(Self {
-            row_count,
+            row_count: points.len(),
+            source_row_count,
+            source_row_indices,
             points,
             first_feature,
         })
@@ -271,20 +297,32 @@ impl FeatureSpace {
         self.row_count
     }
 
-    /// Borrow the row-major gathered points. Exposed so the shared point-access
-    /// substrate (RF-007) cross-substrate parity tests can read FeatureSpace
-    /// without duplicating storage.
+    pub fn source_row_count(&self) -> usize {
+        self.source_row_count
+    }
+
+    pub fn excluded_row_count(&self) -> usize {
+        self.source_row_count.saturating_sub(self.row_count)
+    }
+
+    pub fn source_row_indices(&self) -> &[usize] {
+        &self.source_row_indices
+    }
+
+    pub fn missing_data_policy(&self) -> &'static str {
+        TDA_MISSING_DATA_POLICY
+    }
+
     pub fn points(&self) -> &[Vec<f64>] {
         &self.points
     }
 }
 
-/// Resolve the filtration vector inside the Rust analytical authority.
+/// Resolve filtration values inside the Rust analytical authority.
 ///
-/// Explicit `filter_values` remain supported for compatibility and tests. When
-/// they are omitted (or length-mismatched), the first feature column becomes the
-/// filtration column. Production Atlas/TDA uses this mode so UI code never
-/// traverses raw rows to manufacture an analytical input vector.
+/// Explicit values may be supplied either for the eligible TDA point set or
+/// for the full source dataset. Full-source vectors are projected through the
+/// complete-case row map. Otherwise the first eligible feature is used.
 fn resolve_filter_values_space(
     space: &FeatureSpace,
     filter_values: &[f64],
@@ -292,14 +330,16 @@ fn resolve_filter_values_space(
     if filter_values.len() == space.row_count {
         return filter_values.to_vec();
     }
+    if filter_values.len() == space.source_row_count {
+        return space
+            .source_row_indices
+            .iter()
+            .map(|&source_row| filter_values[source_row])
+            .collect();
+    }
     space.first_feature.clone()
 }
 
-/// Compute TDA Mapper graph over dataset numeric feature columns.
-///
-/// Row-major convenience wrapper: builds a `FeatureSpace` from the dataset and
-/// delegates to `compute_mapper_graph_space`. Behaviour is byte-identical to
-/// the pre-columnar implementation; kept for direct callers and tests.
 pub fn compute_mapper_graph(
     dataset: &Dataset,
     feature_columns: &[&str],
@@ -311,9 +351,6 @@ pub fn compute_mapper_graph(
     compute_mapper_graph_space(&space, filter_values, bins, overlap)
 }
 
-/// Columnar-native Mapper graph over a borrowed `FeatureSpace`. This is the
-/// substrate-agnostic core: the row path and the columnar-only path both arrive
-/// here, so the algorithm runs identically regardless of ingest mode.
 pub fn compute_mapper_graph_space(
     space: &FeatureSpace,
     filter_values: &[f64],
@@ -405,7 +442,10 @@ pub fn compute_mapper_graph_space(
 
                 nodes.push(TdaMapperNode {
                     id: nodes.len(),
-                    row_indices: cluster.clone(),
+                    row_indices: cluster
+                        .iter()
+                        .map(|&local| space.source_row_indices[local])
+                        .collect(),
                     level: i,
                     center,
                     filter_center: filter_sum / cluster.len() as f64,
@@ -415,7 +455,6 @@ pub fn compute_mapper_graph_space(
         }
     }
 
-    // Build edges for shared dataset rows
     let mut row_to_nodes: HashMap<usize, Vec<usize>> = HashMap::new();
     for node in &nodes {
         for &row_idx in &node.row_indices {
@@ -444,10 +483,6 @@ pub fn compute_mapper_graph_space(
     TdaMapperGraph { nodes, edges }
 }
 
-/// Compute 1D persistence intervals using Union-Find.
-///
-/// Row-major convenience wrapper; byte-identical to the pre-columnar
-/// implementation. Delegates to `compute_persistence_intervals_space`.
 pub fn compute_persistence_intervals(
     dataset: &Dataset,
     feature_columns: &[&str],
@@ -458,7 +493,6 @@ pub fn compute_persistence_intervals(
     compute_persistence_intervals_space(&space, filter_values, max_distance)
 }
 
-/// Columnar-native persistence intervals over a borrowed `FeatureSpace`.
 pub fn compute_persistence_intervals_space(
     space: &FeatureSpace,
     filter_values: &[f64],
@@ -491,7 +525,6 @@ pub fn compute_persistence_intervals_space(
         crate::data::neighbourhood::ExactIndex.radius_neighbourhood(&cloud, max_distance)
     };
 
-    // Extract all edges within max_distance and order by maximum filtration value of endpoints
     let mut edges: Vec<(usize, usize, f64)> = Vec::new();
     for u in 0..n {
         for (v, _) in csr.neighbors(u) {
@@ -503,13 +536,12 @@ pub fn compute_persistence_intervals_space(
     }
     edges.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
 
-    // Union-find tracking component birth and root
     struct Component {
         birth: f64,
     }
 
     let mut parent: Vec<usize> = (0..n).collect();
-    let mut comp: Vec<Component> = (0..n).map(|i| Component { birth: filter_values[i] }).collect();
+    let comp: Vec<Component> = (0..n).map(|i| Component { birth: filter_values[i] }).collect();
 
     fn find(parent: &mut [usize], mut i: usize) -> usize {
         while parent[i] != i {
@@ -525,7 +557,6 @@ pub fn compute_persistence_intervals_space(
         let ru = find(&mut parent, u);
         let rv = find(&mut parent, v);
         if ru != rv {
-            // Elder rule: older component (earlier birth) survives, younger dies
             let (survivor, dying) = if comp[ru].birth < comp[rv].birth {
                 (ru, rv)
             } else if comp[rv].birth < comp[ru].birth {
@@ -536,7 +567,6 @@ pub fn compute_persistence_intervals_space(
                 (rv, ru)
             };
 
-            // Dying component emits persistence interval [birth, death]
             intervals.push(PersistenceInterval {
                 birth: comp[dying].birth,
                 death: Some(edge_filt),
@@ -546,7 +576,6 @@ pub fn compute_persistence_intervals_space(
         }
     }
 
-    // Surviving root components remain alive (death: None - infinite bars)
     for i in 0..n {
         if parent[i] == i {
             intervals.push(PersistenceInterval {
@@ -570,10 +599,6 @@ pub fn compute_persistence_intervals_space(
     intervals
 }
 
-/// Compute Betti-0 curve over distance radius steps.
-///
-/// Row-major convenience wrapper; byte-identical to the pre-columnar
-/// implementation. Delegates to `compute_betti0_curve_space`.
 pub fn compute_betti0_curve(
     dataset: &Dataset,
     feature_columns: &[&str],
@@ -583,7 +608,6 @@ pub fn compute_betti0_curve(
     compute_betti0_curve_space(&space, steps)
 }
 
-/// Columnar-native Betti-0 curve over a borrowed `FeatureSpace`.
 pub fn compute_betti0_curve_space(
     space: &FeatureSpace,
     steps: usize,
@@ -632,7 +656,6 @@ pub fn compute_betti0_curve_space(
         crate::data::neighbourhood::ExactIndex.radius_neighbourhood(&cloud, effective_max_r)
     };
 
-    // Extract unique undirected edges (u, v, dist) with u < v
     let mut edges: Vec<(usize, usize, f32)> = Vec::new();
     for u in 0..n {
         for (v, dist) in csr.neighbors(u) {
@@ -715,7 +738,6 @@ mod tests {
 
     #[test]
     fn fuzzy_time_series_needs_numeric() {
-        // Temporal alone (no numeric) must NOT be TIME_SERIES — falls to TABULAR.
         let cols = vec![Column::new("time", ColumnType::Temporal)];
         let ds = Dataset::new("t", cols, vec![]);
         assert_eq!(infer(&ds), Topology::Tabular);
@@ -768,11 +790,6 @@ mod tests {
         assert!(!intervals.is_empty());
     }
 
-    /// The TS `TdaMapperNode` interface expects camelCase field names
-    /// (`rowIndices`, `filterCenter`). serde defaults to snake_case, which
-    /// made `JSON.parse(json) as TdaMapperGraph` yield nodes with no
-    /// `rowIndices` and crash `[...node.rowIndices]` on the Quest. Guard the
-    /// ABI contract: the JSON MUST use camelCase.
     #[test]
     fn tda_mapper_graph_serializes_camel_case() {
         let graph = TdaMapperGraph {
@@ -799,7 +816,6 @@ mod tests {
     fn c5b_persistence_death_semantics() {
         let cols = vec![Column::new("val", ColumnType::Numeric)];
         let mut rows = Vec::new();
-        // Points at x = 0.0, 1.0, 5.0 with filtration values = 0.0, 1.0, 5.0
         for &v in &[0.0, 1.0, 5.0] {
             let mut r = HashMap::new();
             r.insert("val".to_string(), Value::Number(v));
@@ -808,9 +824,6 @@ mod tests {
         let ds = Dataset::new("tda_persist", cols, rows);
         let intervals = compute_persistence_intervals(&ds, &["val"], &[0.0, 1.0, 5.0], 2.0);
 
-        // Point 0.0 and 1.0 are within max_distance 2.0 -> component born at 1.0 dies at 1.0 when merging with 0.0
-        // Point 5.0 is beyond 2.0 distance from 0/1 -> never merges (death: None)
-        // Root component 0.0 never dies (death: None)
         assert_eq!(intervals.len(), 3);
         assert_eq!(intervals[0].birth, 0.0);
         assert_eq!(intervals[0].death, None);
@@ -841,9 +854,6 @@ mod tests {
 
     #[test]
     fn c7_betti0_bounding_box_diagonal_path_n_gt_100() {
-        // n > 100 triggers the bounding_box_diagonal() branch for max_d estimation.
-        // A chain of points at unit spacing: all 110 points must merge to 1 component
-        // by the time radius exceeds 1.0.
         let cols = vec![Column::new("x", ColumnType::Numeric)];
         let mut rows = Vec::new();
         for i in 0..110 {
@@ -877,10 +887,6 @@ mod columnar_tda_tests {
     use crate::data::column::ColumnType;
     use crate::data::columnar::ColumnarDataset;
 
-    /// A dataset with two numeric feature columns, including a row with a
-    /// missing value in `x` (so the columnar validity bitmap is exercised).
-    /// The columnar sidecar is built via `from_dataset` so both substrates see
-    /// byte-identical normalization (invalid -> 0.0).
     fn parity_fixture() -> (Dataset, ColumnarDataset, Vec<&'static str>) {
         let cols = vec![
             Column::new("x", ColumnType::Numeric),
@@ -893,7 +899,7 @@ mod columnar_tda_tests {
         r1.insert("x".to_string(), Value::Number(1.0));
         r1.insert("y".to_string(), Value::Number(0.5));
         let mut r2 = HashMap::new();
-        r2.insert("y".to_string(), Value::Number(1.0)); // missing x
+        r2.insert("y".to_string(), Value::Number(1.0));
         let mut r3 = HashMap::new();
         r3.insert("x".to_string(), Value::Number(1.0));
         r3.insert("y".to_string(), Value::Number(1.0));
@@ -905,7 +911,8 @@ mod columnar_tda_tests {
     fn spaces() -> (FeatureSpace, FeatureSpace) {
         let (ds, columnar, fc) = parity_fixture();
         let row_space = FeatureSpace::from_rows(&ds, &fc);
-        let col_space = FeatureSpace::from_columnar(&ds.columns, &columnar, &fc).expect("columnar feature space");
+        let col_space = FeatureSpace::from_columnar(&ds.columns, &columnar, &fc)
+            .expect("columnar feature space");
         (row_space, col_space)
     }
 
@@ -931,11 +938,7 @@ mod columnar_tda_tests {
         let (row_space, col_space) = spaces();
         let row_iv = compute_persistence_intervals_space(&row_space, &[], 1.0);
         let col_iv = compute_persistence_intervals_space(&col_space, &[], 1.0);
-        assert_eq!(row_iv.len(), col_iv.len());
-        for (r, c) in row_iv.iter().zip(col_iv.iter()) {
-            assert_eq!(r.birth, c.birth);
-            assert_eq!(r.death, c.death);
-        }
+        assert_eq!(row_iv, col_iv);
     }
 
     #[test]
@@ -943,18 +946,12 @@ mod columnar_tda_tests {
         let (row_space, col_space) = spaces();
         let row_curve = compute_betti0_curve_space(&row_space, 8);
         let col_curve = compute_betti0_curve_space(&col_space, 8);
-        assert_eq!(row_curve.len(), col_curve.len());
-        for (r, c) in row_curve.iter().zip(col_curve.iter()) {
-            assert_eq!(r.radius, c.radius);
-            assert_eq!(r.betti0, c.betti0);
-        }
+        assert_eq!(row_curve, col_curve);
     }
 
     #[test]
     fn r4_columnar_filtration_derivation_parity() {
         let (row_space, col_space) = spaces();
-        // No explicit filterValues -> first feature column drives filtration,
-        // and the derived vectors must match exactly across substrates.
         assert_eq!(row_space.first_feature, col_space.first_feature);
         let row_graph = compute_mapper_graph_space(&row_space, &[], 4, 0.3);
         let col_graph = compute_mapper_graph_space(&col_space, &[], 4, 0.3);
@@ -996,45 +993,65 @@ mod columnar_tda_tests {
     }
 
     #[test]
-    fn r6_columnar_validity_bitmap_matches_row_missing_value_handling() {
-        // Row with a missing `x` becomes 0.0 in the row path (unwrap_or(0.0)) and
-        // 0.0 with validity 0 in the columnar sidecar. Both substrates must
-        // produce the identical gathered point (no row dropped, no divergence).
+    fn r6_rf007_complete_case_excludes_missing_without_conflating_zero() {
         let (row_space, col_space) = spaces();
-        assert_eq!(row_space.row_count, col_space.row_count);
-        assert_eq!(row_space.points, col_space.points);
-        // Row index 2 is the missing-x row: its x feature is 0.0 in both paths.
-        assert_eq!(row_space.points[2][0], 0.0);
-        assert_eq!(col_space.points[2][0], 0.0);
+        assert_eq!(row_space.row_count(), 3);
+        assert_eq!(col_space.row_count(), 3);
+        assert_eq!(row_space.source_row_count(), 4);
+        assert_eq!(col_space.source_row_count(), 4);
+        assert_eq!(row_space.excluded_row_count(), 1);
+        assert_eq!(col_space.excluded_row_count(), 1);
+        assert_eq!(row_space.source_row_indices(), &[0, 1, 3]);
+        assert_eq!(col_space.source_row_indices(), &[0, 1, 3]);
+        assert_eq!(row_space.points(), col_space.points());
+        assert_eq!(row_space.points()[0][0], 0.0, "real zero remains an eligible coordinate");
+        assert_eq!(row_space.missing_data_policy(), TDA_MISSING_DATA_POLICY);
     }
 
-    /// RF-007: the columnar path now borrows primitive buffers via the shared
-    /// `point_access` substrate instead of cloning each buffer into a throwaway
-    /// intermediate. The transposed points must be byte-identical to a manual
-    /// borrow-then-transpose reference (no value divergence, no clone fallout).
     #[test]
-    fn r7_rf007_columnar_path_borrows_without_intermediate_clone() {
-        let (ds, columnar, fc) = parity_fixture();
-        let space = FeatureSpace::from_columnar(&ds.columns, &columnar, &fc).expect("feature space");
-
-        // Manual reference: borrow each primitive buffer directly and transpose,
-        // which is exactly what the shared substrate does. The produced points
-        // must match the FeatureSpace output element-for-element.
-        let borrowed: Vec<&[f64]> = fc
-            .iter()
-            .map(|name| {
-                let idx = ds.columns.iter().position(|c| c.name == *name).unwrap();
-                columnar.primitive_column(idx).unwrap().values.as_slice()
-            })
-            .collect();
-        let n = columnar.row_count();
-        for i in 0..n {
-            for (j, buf) in borrowed.iter().enumerate() {
-                assert_eq!(space.points[i][j], buf[i]);
-            }
+    fn r7_rf007_mapper_preserves_original_row_identity() {
+        let (row_space, col_space) = spaces();
+        let full_source_filter = [0.0, 1.0, 999.0, 2.0];
+        let row_graph = compute_mapper_graph_space(&row_space, &full_source_filter, 4, 0.3);
+        let col_graph = compute_mapper_graph_space(&col_space, &full_source_filter, 4, 0.3);
+        assert_eq!(row_graph.nodes.len(), col_graph.nodes.len());
+        for graph in [&row_graph, &col_graph] {
+            let rows: Vec<usize> = graph
+                .nodes
+                .iter()
+                .flat_map(|node| node.row_indices.iter().copied())
+                .collect();
+            assert!(rows.iter().all(|row| *row != 2), "missing-feature row leaked into Mapper");
+            assert!(rows.iter().all(|row| matches!(*row, 0 | 1 | 3)));
         }
-        // The public accessor exposes the same borrowed view.
-        assert_eq!(space.points().len(), n);
-        assert_eq!(space.points(), &space.points);
+    }
+
+    #[test]
+    fn r8_rf007_missing_and_numeric_zero_are_not_metric_equivalent() {
+        let cols = vec![Column::new("x", ColumnType::Numeric)];
+        let missing = Dataset::new(
+            "missing",
+            cols.clone(),
+            vec![
+                HashMap::from([("x".to_string(), Value::Number(1.0))]),
+                HashMap::from([("x".to_string(), Value::Null)]),
+                HashMap::from([("x".to_string(), Value::Number(2.0))]),
+            ],
+        );
+        let zero = Dataset::new(
+            "zero",
+            cols,
+            vec![
+                HashMap::from([("x".to_string(), Value::Number(1.0))]),
+                HashMap::from([("x".to_string(), Value::Number(0.0))]),
+                HashMap::from([("x".to_string(), Value::Number(2.0))]),
+            ],
+        );
+        let missing_space = FeatureSpace::from_rows(&missing, &["x"]);
+        let zero_space = FeatureSpace::from_rows(&zero, &["x"]);
+        assert_eq!(missing_space.row_count(), 2);
+        assert_eq!(zero_space.row_count(), 3);
+        assert_eq!(missing_space.source_row_indices(), &[0, 2]);
+        assert_eq!(zero_space.source_row_indices(), &[0, 1, 2]);
     }
 }

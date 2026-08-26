@@ -1,43 +1,29 @@
 //! RF-007: shared validity-aware, column-oriented point-access substrate.
 //!
-//! Both TDA (`FeatureSpace`) and the sparse neighbourhood algorithms
-//! (`PointCloud`) need to read numeric feature columns out of the resident
-//! `ColumnarDataset`. Before this module they each re-implemented the lookup
-//! and cloned the primitive buffers, so a large-N dataset paid for the same
-//! column copy twice and the two paths drifted in how they treated validity.
+//! TDA and sparse-neighbourhood algorithms must agree on both numeric values
+//! and whether those values are observations at all. A stored `0.0` in an
+//! invalid primitive slot is an ingest sentinel, not a scientific coordinate.
 //!
-//! This module exposes a single borrowed accessor and codifies the
-//! columnar primitive invariant that lets the accessor borrow instead of
-//! clone.
+//! # Columnar primitive invariant
 //!
-//! # Columnar primitive invariant (the validity contract)
+//! `ColumnarDataset` constructors guarantee that primitive buffers have one
+//! value and one validity byte per source row, all stored values are finite,
+//! and `validity[i] == 0` implies `values[i] == 0.0`. Consumers MUST still
+//! inspect validity before admitting a row into a metric space.
 //!
-//! For every `PrimitiveColumn` produced by `ColumnarDataset::from_dataset` or
-//! `ColumnarDataset::from_parts`:
-//!
-//! 1. every stored `values[i]` is finite; and
-//! 2. `validity[i] == 0` implies `values[i] == 0.0`.
-//!
-//! The two constructors enforce this at ingest (non-finite ⇒ `0.0` with
-//! `validity = 0`). Because the invariant is constructor-enforced and the
-//! struct fields are private, callers of `primitive_column_slice` may borrow
-//! the raw `f64` buffer directly and treat `validity[i] == 0` slots as the
-//! numeric zero the row-major path already yields via `unwrap_or(0.0)` — no
-//! per-element re-normalization, no per-column clone.
+//! For metric/TDA feature tuples Nemosyne uses complete-case eligibility: a
+//! source row participates only when every selected feature is valid. This
+//! preserves a single, well-defined Euclidean metric. Imputation remains an
+//! explicit analytical transformation rather than an invisible distance rule.
 
 use crate::data::column::Column;
 use crate::data::columnar::ColumnarDataset;
 
-/// Error raised by the shared point-access substrate. Mirrors the surface of
-/// `ColumnarTdaError` / `PointCloudError` so each caller can map to its own
-/// typed error without losing the cause.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PointAccessError {
-    /// The requested feature column is not present in the dataset schema.
     MissingColumn(String),
-    /// The requested feature column is categorical/dictionary-encoded; TDA and
-    /// sparse neighbourhood require numeric or temporal primitives.
     UnsupportedColumnKind(String),
+    InvalidColumnLength(String),
 }
 
 impl std::fmt::Display for PointAccessError {
@@ -50,67 +36,101 @@ impl std::fmt::Display for PointAccessError {
                 f,
                 "feature column {name:?} is categorical/non-numeric; point access requires numeric or temporal columns"
             ),
+            Self::InvalidColumnLength(name) => write!(
+                f,
+                "feature column {name:?} has inconsistent value/validity length"
+            ),
         }
     }
 }
 
 impl std::error::Error for PointAccessError {}
 
-/// Borrow the raw `f64` buffer of a named numeric feature column directly from
-/// the resident `ColumnarDataset`, with no clone and no row-map traversal.
-///
-/// Returns `UnsupportedColumnKind` for categorical/dictionary columns and
-/// `MissingColumn` when the name is absent. The returned slice obeys the
-/// columnar primitive invariant (see the module docs): invalid slots are
-/// already numeric zero, so callers may consume the buffer verbatim.
+/// Borrowed primitive feature buffer with its validity bitmap.
+#[derive(Debug, Clone, Copy)]
+pub struct PrimitivePointColumn<'a> {
+    pub values: &'a [f64],
+    pub validity: &'a [u8],
+}
+
+impl PrimitivePointColumn<'_> {
+    #[inline]
+    pub fn is_valid(&self, row: usize) -> bool {
+        self.validity.get(row).copied().unwrap_or(0) != 0
+    }
+}
+
+/// Borrow a named numeric/temporal primitive together with its validity bitmap.
+pub fn primitive_column_view<'a>(
+    columns: &[Column],
+    columnar: &'a ColumnarDataset,
+    name: &str,
+) -> Result<PrimitivePointColumn<'a>, PointAccessError> {
+    let index = columns
+        .iter()
+        .position(|c| c.name == name)
+        .ok_or_else(|| PointAccessError::MissingColumn(name.to_string()))?;
+    let primitive = columnar
+        .primitive_column(index)
+        .ok_or_else(|| PointAccessError::UnsupportedColumnKind(name.to_string()))?;
+    if primitive.values.len() != columnar.row_count()
+        || primitive.validity.len() != columnar.row_count()
+    {
+        return Err(PointAccessError::InvalidColumnLength(name.to_string()));
+    }
+    Ok(PrimitivePointColumn {
+        values: primitive.values.as_slice(),
+        validity: primitive.validity.as_slice(),
+    })
+}
+
+/// Compatibility value-only accessor. Analytical metric consumers should use
+/// `primitive_column_view`/`borrowed_feature_columns` and honor validity.
 pub fn primitive_column_slice<'a>(
     columns: &[Column],
     columnar: &'a ColumnarDataset,
     name: &str,
 ) -> Result<&'a [f64], PointAccessError> {
-    let index = columns
-        .iter()
-        .position(|c| c.name == name)
-        .ok_or_else(|| PointAccessError::MissingColumn(name.to_string()))?;
-    match columnar.primitive_column(index) {
-        Some(primitive) => Ok(primitive.values.as_slice()),
-        None => Err(PointAccessError::UnsupportedColumnKind(name.to_string())),
-    }
+    Ok(primitive_column_view(columns, columnar, name)?.values)
 }
 
-/// Collect the raw borrowed `f64` buffers for an ordered list of feature
-/// columns. The outer `Vec` holds one borrowed slice per feature dimension;
-/// the row-major transpose (`points[i]`) is left to the caller so that
-/// algorithm bodies stay byte-identical.
-///
-/// This is the single shared substrate both `FeatureSpace::from_columnar` and
-/// `PointCloud::from_columnar` consume: one lookup, one invariant, no
-/// duplicate per-column clones.
+/// Borrow ordered primitive feature buffers and their validity bitmaps.
 pub fn borrowed_feature_columns<'a>(
     columns: &[Column],
     columnar: &'a ColumnarDataset,
     feature_columns: &[&str],
-) -> Result<Vec<&'a [f64]>, PointAccessError> {
-    let mut out = Vec::with_capacity(feature_columns.len());
-    for name in feature_columns {
-        out.push(primitive_column_slice(columns, columnar, name)?);
-    }
-    Ok(out)
+) -> Result<Vec<PrimitivePointColumn<'a>>, PointAccessError> {
+    feature_columns
+        .iter()
+        .map(|name| primitive_column_view(columns, columnar, name))
+        .collect()
 }
 
-/// Collect owned `Vec<f64>` copies of the feature columns, for callers (such
-/// as `PointCloud`) that must own their column-major storage. The values are
-/// borrowed from the resident `ColumnarDataset` and then cloned once into the
-/// caller's buffer — there is no second intermediate clone and no per-element
-/// re-normalization, because the columnar primitive invariant already
-/// guarantees `validity 0 ⇒ 0.0` and all-finite values.
+/// Return source-row indices that are valid for every selected feature.
+///
+/// With no selected features every source row is eligible, preserving the
+/// historical empty-feature contract for callers that handle it explicitly.
+pub fn complete_case_row_indices(
+    feature_columns: &[PrimitivePointColumn<'_>],
+    row_count: usize,
+) -> Vec<usize> {
+    (0..row_count)
+        .filter(|&row| feature_columns.iter().all(|column| column.is_valid(row)))
+        .collect()
+}
+
+/// Owned value copies retained for non-metric compatibility callers. This does
+/// not encode row eligibility; metric consumers must use the borrowed views.
 pub fn owned_feature_columns(
     columns: &[Column],
     columnar: &ColumnarDataset,
     feature_columns: &[&str],
 ) -> Result<Vec<Vec<f64>>, PointAccessError> {
     let borrowed = borrowed_feature_columns(columns, columnar, feature_columns)?;
-    Ok(borrowed.into_iter().map(|slice| slice.to_vec()).collect())
+    Ok(borrowed
+        .into_iter()
+        .map(|column| column.values.to_vec())
+        .collect())
 }
 
 #[cfg(test)]
@@ -122,20 +142,20 @@ mod tests {
     use crate::data::value::Value;
 
     fn dataset_with_missing() -> Dataset {
-        // rows: a = [1.0, missing, 3.0]; b = [10.0, 20.0, NaN-as-string? no: numeric]
-        let mut rows = Vec::new();
-        let mut r0 = std::collections::HashMap::new();
-        r0.insert("a".to_string(), Value::Number(1.0));
-        r0.insert("b".to_string(), Value::Number(10.0));
-        rows.push(r0);
-        let mut r1 = std::collections::HashMap::new();
-        r1.insert("a".to_string(), Value::Null);
-        r1.insert("b".to_string(), Value::Number(20.0));
-        rows.push(r1);
-        let mut r2 = std::collections::HashMap::new();
-        r2.insert("a".to_string(), Value::Number(3.0));
-        r2.insert("b".to_string(), Value::Number(30.0));
-        rows.push(r2);
+        let rows = vec![
+            std::collections::HashMap::from([
+                ("a".to_string(), Value::Number(0.0)),
+                ("b".to_string(), Value::Number(10.0)),
+            ]),
+            std::collections::HashMap::from([
+                ("a".to_string(), Value::Null),
+                ("b".to_string(), Value::Number(20.0)),
+            ]),
+            std::collections::HashMap::from([
+                ("a".to_string(), Value::Number(3.0)),
+                ("b".to_string(), Value::Number(30.0)),
+            ]),
+        ];
         Dataset::new(
             "ds",
             vec![
@@ -146,69 +166,67 @@ mod tests {
         )
     }
 
-    /// The columnar primitive invariant: validity 0 ⇒ values 0.0, all finite.
     #[test]
     fn columnar_primitive_invariant_holds_after_ingest() {
         let ds = dataset_with_missing();
         let columnar = ColumnarDataset::from_dataset(&ds);
-        assert_eq!(columnar.primitive_column_count(), 2);
         let a = columnar.primitive_column(0).unwrap();
-        assert_eq!(a.values.len(), 3);
-        // Row 1 was missing ⇒ validity 0 and value 0.0.
         assert_eq!(a.validity, vec![1, 0, 1]);
-        assert_eq!(a.values[1], 0.0);
-        // All stored values are finite (the invariant).
+        assert_eq!(a.values, vec![0.0, 0.0, 3.0]);
         assert!(a.values.iter().all(|v| v.is_finite()));
-        // validity 0 ⇒ values 0.0 across every primitive column.
         for i in 0..columnar.primitive_column_count() {
             let col = columnar.primitive_column(i).unwrap();
-            for (v, valid) in col.values.iter().zip(col.validity.iter()) {
+            for (value, valid) in col.values.iter().zip(&col.validity) {
                 if *valid == 0 {
-                    assert_eq!(*v, 0.0);
+                    assert_eq!(*value, 0.0);
                 }
             }
         }
     }
 
-    /// The shared accessor borrows the buffer with no clone and sees the
-    /// normalized zero for invalid slots.
     #[test]
-    fn primitive_column_slice_borrows_and_sees_normalized_zero() {
+    fn primitive_view_preserves_validity_distinct_from_real_zero() {
         let ds = dataset_with_missing();
         let columnar = ColumnarDataset::from_dataset(&ds);
-        let columns = vec![
-            Column::new("a".to_string(), ColumnType::Numeric),
-            Column::new("b".to_string(), ColumnType::Numeric),
-        ];
-        let slice = primitive_column_slice(&columns, &columnar, "a").unwrap();
-        assert_eq!(slice, &[1.0, 0.0, 3.0]);
+        let view = primitive_column_view(&ds.columns, &columnar, "a").unwrap();
+        assert_eq!(view.values, &[0.0, 0.0, 3.0]);
+        assert_eq!(view.validity, &[1, 0, 1]);
+        assert!(view.is_valid(0), "real numeric zero is a valid observation");
+        assert!(!view.is_valid(1), "missing sentinel zero is not an observation");
+    }
+
+    #[test]
+    fn complete_case_excludes_missing_but_keeps_real_zero() {
+        let ds = dataset_with_missing();
+        let columnar = ColumnarDataset::from_dataset(&ds);
+        let views = borrowed_feature_columns(&ds.columns, &columnar, &["a", "b"]).unwrap();
+        assert_eq!(complete_case_row_indices(&views, columnar.row_count()), vec![0, 2]);
     }
 
     #[test]
     fn missing_column_maps_to_typed_error() {
         let ds = dataset_with_missing();
         let columnar = ColumnarDataset::from_dataset(&ds);
-        let columns = vec![Column::new("a".to_string(), ColumnType::Numeric)];
-        let err = primitive_column_slice(&columns, &columnar, "nope").unwrap_err();
+        let err = primitive_column_view(&ds.columns, &columnar, "nope").unwrap_err();
         assert_eq!(err, PointAccessError::MissingColumn("nope".to_string()));
     }
 
     #[test]
     fn categorical_column_is_unsupported() {
-        // A dataset whose only column is categorical must surface
-        // UnsupportedColumnKind (categoricals are stored as dictionary codes,
-        // not primitive f64 buffers).
-        let rows = vec![std::collections::HashMap::from([
-            ("cat".to_string(), Value::Text("a".to_string())),
-        ])];
+        let rows = vec![std::collections::HashMap::from([(
+            "cat".to_string(),
+            Value::Text("a".to_string()),
+        )])];
         let ds = Dataset::new(
             "ds",
             vec![Column::new("cat".to_string(), ColumnType::Categorical)],
             rows,
         );
         let columnar = ColumnarDataset::from_dataset(&ds);
-        let columns = vec![Column::new("cat".to_string(), ColumnType::Categorical)];
-        let err = primitive_column_slice(&columns, &columnar, "cat").unwrap_err();
-        assert_eq!(err, PointAccessError::UnsupportedColumnKind("cat".to_string()));
+        let err = primitive_column_view(&ds.columns, &columnar, "cat").unwrap_err();
+        assert_eq!(
+            err,
+            PointAccessError::UnsupportedColumnKind("cat".to_string())
+        );
     }
 }

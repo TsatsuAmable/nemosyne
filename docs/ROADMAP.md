@@ -4,13 +4,13 @@
 
 ## Status snapshot — 26 August 2026
 
-**Current main at the start of the latest review pass:** `3d84243` (#417, merged; all CI green). The P1-B async analytical runtime PR #417 landed after a Stream-B integrity repair pass closed four coupled defects that had failed CI: (1) `WorkerAnalyticalPort.registerDataset` returned a `.finally`-derived promise that delayed the registering caller an extra microtask tick (3-concurrent-TDA saw 2 of 3 EXECUTEs); (2) `AtlasCore.applyAnalysis` had a synchronous exact-fingerprint fence that broke the investigation-replay contract (golden-path vertical slice, headless replay); (3) the test `kernelMock.datasetFingerprint` hashed raw JSON including adopted `rowIds`, diverging from Rust `Dataset::fingerprint` which intentionally excludes `row_ids` (adversarial replay drift 2825571a vs 2819d0ae); (4) five atlas-async tests awaited one microtask tick where the two-layer register-then-execute await chain needs two. Earlier tranches: #423 (RF-007 scale/shared-substrate half), #421 (RF-025), #420 (RF-027), #419 (RF-023/RF-024), #416 (RF-022/RF-026), #418 (P1-C sparse topology review exit), #410–#415.
+**Current remote main at the start of this Stream-B tranche:** `b987593` (#425; #417 merged and recorded CI-green). #417 materially closed the known P1-B production-plumbing defects around Worker registration, generation fencing, authoritative mutation output identity, real presentation adoption and replay parity. P1-B therefore leaves the immediate correctness critical path; RF-015 remains an evidence/measurement exit item rather than a known production-plumbing defect.
 
-**Next Stream B tranches (in roadmap order):** RF-007's **validity-honoring half is a governed design decision pending user adjudication** (skip vs mask; changes TDA outputs + the row-path `unwrap_or(0.0)` + columnar `validity 0 ⇒ 0.0` parity contract) — it cannot proceed without user approval per Cardinal Rule 1. Then RF-001/RF-002 (P1-R) and RF-005/RF-006/RF-008 (P1-U), plus the RF-025 carry-over (wire World/UX to `recordRemediation`) and the physical Quest 3S qualification blocker.
+**Current Stream-B tranche:** `fix/rf007-complete-case-validity` implements the governed RF-007/RF-017 missing-data decision approved on 26 August 2026: **metric/TDA operations use complete-case eligibility over the exact selected feature tuple; missing/invalid values are never silently manufactured as numeric zero coordinates; imputation must be an explicit provenance-bearing analytical transformation.** The shared point-access substrate now carries primitive validity, TDA preserves source-row identity through compaction, PointCloud preserves local-to-source identity, and K-means/hierarchical/DBSCAN use the same metric eligibility rule. This tranche remains **REVIEW ACTIVE** until authoritative CI plus pre-PR adversarial review complete. Exact TDA provenance still needs to expose policy + excluded observation counts, and PointCloud's owned compact buffers still belong to the scale/resource-envelope follow-up.
 
-**In flight:** none. The P1-B worker-registration/async-runtime work (#417) is merged and CI-green, closing RF-010/RF-011/RF-013/RF-014/RF-016 and partially closing RF-015 (the inline-parity test is truthfully relabelled; a real module-Worker + real-WASM browser/integration test with recorded dispatch/transfer/compute measurements remains). RF-007's validity-honoring half and the `PointCloud` borrowed/lifetime-parameterised storage refactor remain open as a governed design decision. Last landed: #417 (P1-B worker registration + replay parity), #423 (RF-007 scale+contract), #421 (RF-025), #420 (RF-027), #419 (RF-023/RF-024).
+**Reprioritised Stream-B critical path:** (1) finish RF-007/RF-017 validity correctness; (2) RF-028/RF-032 temporal/evidence integrity; (3) RF-029/RF-030/RF-031/RF-035 analytical resource envelope; (4) RF-001/RF-002 representation truth; (5) RF-005/RF-006/RF-008 plus the RF-027 World/UX carry-over; (6) RF-015/RF-033 production evidence; (7) physical Quest 3S qualification; (8) private-preview hardening. This order prevents Moneta and embodiment work from being built on scientifically false or computationally unbounded evidence.
 
-**Current interpretation:** P1-C, P1-D, P1-E and P1-F are useful implementation advances, but independent review found correctness, scale, scientific-semantics, production-wiring and evidence gaps. They are therefore **IMPLEMENTATION LANDED / REVIEW ACTIVE**, not `VERIFIED COMPLETE`. The P1-F production-wiring gap (RF-025) is closed; RF-026 remains review-active until physical XR task evidence is captured. RF-007's scale/shared-substrate half is fixed; its validity-honoring half is a governed design decision pending user adjudication. P1-B's async analytical runtime is landed and green; RF-015's real-Worker measurement evidence is the remaining P1-B gap. Stream A remains free to advance private-preview/scientific work where dependencies are stable; Stream B continues closing earlier and newly discovered RF findings.
+**Current interpretation:** P1-C, P1-D, P1-E and P1-F remain useful implementation advances but are **IMPLEMENTATION LANDED / REVIEW ACTIVE**, not `VERIFIED COMPLETE`. The dominant risk has shifted from shadow JavaScript authority to authoritative Rust calculations whose missing-data, temporal or scale semantics can still be wrong or unbounded. Stream A remains free to advance work whose dependencies are stable; Stream B fixes correctness and evidence foundations ahead of further representation breadth.
 
 **Physical promotion blocker:** the governed Meta Quest 3S browser/performance and interaction qualification remains outstanding. Desktop/browser CI is necessary evidence but cannot qualify headset behaviour.
 
@@ -56,8 +56,10 @@ Rules for Stream B:
 - Every scientific representation claim must match the mathematics actually computed and the information actually preserved.
 - Every concurrency/runtime completion claim must prove the production path, not merely the existence of an unused abstraction.
 - Every scale claim must account for the full algorithm, including preprocessing, copies, index construction and repeated sweeps rather than only the newly optimized inner loop.
-- A gate becomes **VERIFIED COMPLETE** only after implementation and review evidence agree.
+- A gate becomes **VERIFIED COMPLETE** only after implementation and independent review evidence agree.
 - Private-preview promotion requires convergence of both streams, even though Stream A may continue ahead while Stream B repairs earlier tranches.
+- After each Stream-B tranche: live-sync/check remote main, update this roadmap, adversarially review the resulting branch, then raise the PR. Do not rely on the PR review itself as the first adversarial pass.
+- A failed Stream-B PR is closed, diagnosed and fixed forward from current remote state rather than kept alive as a long-lived broken branch.
 
 ### Status vocabulary
 
@@ -77,27 +79,35 @@ Rules for Stream B:
 | RF-004 | P1-R / tests | Medium | The C4 source guard sliced from `buildAggregateBars` to an earlier `buildDensityField`, producing an empty string and allowing a false pass. | **Fixed in #409**; source guard now proves non-empty method slices and inspects the intended branches. |
 | RF-005 | P1-U / UX | High | The runtime still constructs a broad dashboard/panel constellation; `ContextualTaskSurface` is an action filter, not a colocated spatial task surface. | Reduce/demote persistent surfaces and implement actual selection-anchored contextual controls. |
 | RF-006 | P1-U / world semantics | High | TechnoCore lens methods are not yet demonstrated as wired investigator input/analysis controls; IceVault remains a persistent largely decorative glyph. | Wire TechnoCore through input/NIL/analysis with visible state and provenance; give IceVault a real archival/recovery role or remove it from the default world. |
-| RF-007 | P1-A/P1-C / analytical correctness & scale | High | Columnar TDA `FeatureSpace` and P1-C `PointCloud` clone selected columns and ignore primitive validity bitmaps; `FeatureSpace` also transposes into `Vec<Vec<f64>>`. Invalid values therefore become numeric zero and large-N memory is multiplied. | **Fixed in #423 (scale + contract half)**: new shared `data::point_access` substrate (`primitive_column_slice` / `borrowed_feature_columns` / `owned_feature_columns`) with the documented **columnar primitive invariant** (validity 0 ⇒ stored 0.0, all-finite, enforced at ingest); `FeatureSpace::from_columnar` borrows primitive buffers via the substrate (no throwaway per-column clone; transpose from borrows; byte-identical output, peak-memory reduced by n·d during construction) and exposes `points()`; `PointCloud::from_columnar` delegates lookup + semantics to the same substrate (one lookup, one invariant, no redundant per-element re-normalize). New regression tests: invariant contract, cross-substrate `FeatureSpace`↔`PointCloud` parity on a null-containing columnar dataset, `from_parts` non-finite normalization, borrowed-path byte-identity. **Remaining (governed design decision — Cardinal Rule 1)**: the *validity-honoring* half — carrying the validity bitmap through the substrate so missing/invalid feature values are masked or excluded rather than silently coerced to numeric zero — changes TDA/neighbourhood outputs and breaks the current row-path `unwrap_or(0.0)` + columnar `validity 0 ⇒ 0.0` parity contract. The skip-vs-mask semantics must be approved before implementation; until then the substrate is invariant-aware (not validity-carrying) and the `PointCloud` borrowed (no-clone, lifetime-parameterised) storage refactor also remains. |
+| RF-007 | P1-A/P1-C / analytical correctness & scale | **Blocker** | The shared columnar substrate stored invalid primitive slots as `0.0`, while TDA/PointCloud consumed value buffers without validity. Missing observations therefore became real Euclidean coordinates, capable of manufacturing distances, clusters and topology. | #423 landed the shared substrate/clone reduction. **Current Stream-B tranche implements the approved correctness half:** `PrimitivePointColumn` carries values + validity; metric/TDA eligibility is complete-case over selected features; row and columnar paths agree; real zero remains valid; TDA source-row identity survives compaction; K-means/hierarchical/DBSCAN use the same contract and excluded rows receive null cluster assignment. Remaining before verification: emit exact missing-data policy + excluded counts in TDA analytical provenance, move residual PointCloud compaction/copy cost into RF-029, pass CI and adversarial review. |
 | RF-008 | P1-U / evidence | High | `investigator-journey-e2e.test.ts` manually advances phases and uses a kernel mock. It is useful integration coverage but not evidence of a real browser/XR investigator journey or usability outcomes. | Reclassify as integration evidence; add Playwright product-path coverage and physical XR task evidence. |
-| RF-009 | Roadmap governance | Medium | Roadmap status became stale and internally contradictory, with older main SHAs and completion claims coexisting with open checklist items. | **Fixed by the two-stream model**; every Stream B tranche refreshes the roadmap from live main. |
-| RF-010 | P1-B / production integration | High | #408 added `WorkerAnalyticalPort`, but production `World` does not install it; `AtlasCore.setKernel()` selects `InlineAnalyticalPort`. The interactive runtime therefore remains same-thread by default. | **Fixed in #417**; installed `WorkerAnalyticalPort` on browser/XR startup in `World._initWasmRuntime` and preserved execution port in `AtlasCore.setKernel`. |
-| RF-011 | P1-B / generation authority | High | Async requests and supersession hard-code `generation: 1`, so the documented kernel-generation fence is not connected to the actual runtime lifecycle generation. | **Fixed in #417**; threaded real runtime generation `AtlasCore.generation` and worker generation fencing into requests and supersession. |
-| RF-012 | P1-B / failure semantics | High | Worker transport/runtime errors were converted into resolved `{ value: null, error }` results, making kernel failure indistinguishable from a legitimate null analytical outcome. | **Fixed in #409**; worker failures and worker-reported errors reject with `KernelUnavailableError` and invoke the kernel-failure funnel; supersession remains a non-error null result. |
-| RF-013 | P1-B / worker dataset authority | High | Worker handles are WASM-instance-local. Async TDA requests send a main-thread handle but no first-use dataset payload, while the worker has no registered dataset. | **Fixed in #417**; implemented fingerprint verification and generational dataset handle clearing in worker. |
-| RF-014 | P1-B / output identity | High | `applyAnalysisAsync` assigns the input fingerprint as `outputHash`, so mutation result identity/provenance can be wrong. | **Fixed in #417**; worker returns verified explicit output fingerprint used in result and provenance ledger. |
-| RF-015 | P1-B / evidence | Medium | The test labelled “async TDA parity with real WASM” used a mock bridge and inline execution; transfer/scheduling was checked complete without recorded measurement evidence. | **Partially fixed in #417** by truthfully relabelling the test as inline parity. Add a real module-Worker + real-WASM browser/integration test and recorded dispatch/transfer/compute measurements. |
-| RF-016 | P1-B / presentation adoption | High | #408 added async Atlas methods but did not route `TDAPlanes`, `DataOperationController` or `World` through them. The frame-budget benefit is not demonstrated on the actual interaction path. | **Fixed in #417**; adopted async execution in `TDAPlanes` and `DataOperationController` with stale-result fences and last-valid presentation semantics. |
-| RF-017 | P1-C / substrate authority | High | The new `PointCloud` repeats RF-007: row input maps missing values to `0.0`, columnar input clones primitive values and ignores validity. P1-C therefore built a second point-storage abstraction instead of consuming the planned validity-aware borrowed accessor. | **Fixed in #418**: `PointCloud::from_columnar` normalises rows where `validity == 0` or value is non-finite to `0.0`, matching `from_dataset` row parity. |
-| RF-018 | P1-C / sparse correctness | Blocker | `GridSparseIndex` enumerates only center + axis-aligned neighbour cells for `d > 6`, omitting diagonal cells whose points can still be within epsilon. Sparse mode is automatically selected for `N > 8192`, so high-dimensional results can silently lose valid edges. | **Fixed in #418**: `GridSparseIndex` falls back to `ExactIndex` for `d > 6`; `generate_neighbor_offsets` enumerates all 3^d cells for `d <= 6`; 7D diagonal parity test `c2_high_dimensional_diagonal_parity_rf018` added. |
-| RF-019 | P1-C / integration | High | `compute_mapper_graph_space` still performs its original nested scan over each bucket and does not consume `RaggedNeighbourhood`, despite docs/roadmap claiming the sparse substrate is reused across Mapper. | **Fixed in #418**: Mapper bucket clustering now builds a per-bucket `PointCloud` and dispatches to `ExactIndex`/`GridSparseIndex` at `eps = step x 0.5`; BFS over `csr.neighbors(u)` forms connected-component clusters. |
-| RF-020 | P1-C / complexity | High | Betti-0 still computes the global maximum distance using an O(N²) all-pairs pass and then rebuilds union-find/replays sorted edges from the beginning for every radius step. This is not the claimed single-pass union sweep. | **Fixed in #418**: `max_d` uses exact all-pairs for `n <= 100`; `bounding_box_diagonal()` O(n*d) bound for `n > 100`. Monotonic sweep hoists `parent[]`, `num_components`, `edge_cursor` outside the step loop — single forward scan, no replay. Tests `c6_betti0_monotone_sanity` and `c7_betti0_bounding_box_diagonal_path_n_gt_100` added. |
-| RF-021 | P1-C / evidence & modes | High | `NeighbourhoodMode::Landmark` is declared but has no implementation/use; #410 checked landmark mode and benchmark/stability gates complete while the TS “scalability” tests use `makeKernelMockBridge()` and mostly assert output shapes. | **Fixed in #418**: `LandmarkIndex` implemented with greedy farthest-point sampling (seed LCG selects first; subsequent landmarks chosen by max-min distance); O(K*N + edges) neighbor construction via per-landmark buckets + HashSet dedup; approximate-recall doc comment; tests `c5_landmark_mode_determinism` and `c5b_landmark_farthest_sampling_spreads_landmarks` added. |
-| RF-022 | P1-D / measurement correctness | High | Perceptual sampling projected with world X/Y rather than the sampled camera basis, used an unsorted depth as “median”, sampled the first 100 marks causing row-order dependence, and awarded ideal measured evidence to zero-mark embodiments. | **Fixed in the current Stream B tranche** with camera-relative projection, true median, deterministic order-invariant bounded sampling, zero-mark rejection and stronger finite/range validation. |
-| RF-023 | P1-D / evidence identity | High | Perceptual evidence is looked up by candidate ID but is not yet rejected when its `datasetFingerprint` disagrees with the current `DatasetSignature`, allowing stale measurements to influence hard constraints/ranking. | **Fixed in this Stream B tranche**: `MonetaHypothesisEngine.normalizePerceptualEvidence` binds every evidence item to the current dataset fingerprint, candidate id (key↔candidateId), evidence version and structural contract before hard constraints or scoring; stale/cross-dataset/version/key-mismatched items are dropped fail-closed to the engineering prior and counted in `DecisionProvenance.stalePerceptualEvidenceDropped`; regression tests cover each rejection path. |
-| RF-024 | P1-D / semantics & study governance | High | `hiddenMarkFraction` currently measures depth/frustum exclusion rather than true occlusion, label crowding is a count/extent surrogate, and #411 changed default ranking weights without a corresponding frozen-treatment manifest update. | **Fixed in this Stream B tranche**: `hiddenMarkFraction` renamed to `frustumExclusionFraction` and `maxOcclusionTolerance` to `maxFrustumExclusionTolerance` so the hard gate honestly bounds frustum/depth-range exclusion, not occlusion; `MeasuredPerceptualEvidence.metricFidelity` declares each metric `measured`/`estimated`/`surrogate` with a method string (frustum exclusion and label crowding forced to `surrogate`); default ranking weights pinned to frozen `fitness-treatment-v1` manifest recorded in `DecisionProvenance.fitnessTreatmentId`; surrogate-honesty and treatment-manifest tests added. |
-| RF-025 | P1-F / production integration | High | `SemanticTargetResolver` and `FocusContextController` exist and test in isolation, but repository search finds no production instantiation in `World`/input routing and live interactables are not populated with the new semantic metadata. | **Fixed in #421**: `InteractableRegistry.raycastSceneAll()` returns the full sorted/deduped hit list; `InputRouter.setSemanticTargeting()` installs the resolver + focus controller as an optional non-breaking layer on the per-frame picking path (resolver re-ranks existing hits with coercion + hysteresis; precision escape hatch preserved; legacy nearest-hit path retained when absent); structure-kind selection drives `FocusContextController.focusStructure` + `onFocusChange`; observations never advance focus; live interactables carry durable `semantic` metadata (data nodes = `observation`, `InPlaceOperationHandles` structure handles = `cluster-region`/`persistence-structure`/`mapper-node` with structureId + salience); `World` installs the layer and records Memory Palace navigation in the interaction log + autosave; durable `(currentLevel, focusedStructureId)` focus snapshot persisted/restored through `PresentationState.focus` + `WorldSessionController` (restore fails closed for impossible states). Regression tests exercise the real picking path, focus advance/no-op, legacy fallback, and the session round-trip. Remaining: capture physical XR semantic-target/focus-context task evidence (paired with the Quest 3S qualification blocker); the resolver `confidence` value is already labelled an uncalibrated selection-strength heuristic in code/docstrings. |
-| RF-026 | P1-F / resolver & state correctness | Medium | Initial resolver logic substring-matched opaque structure IDs as task semantics, compared coercion against the first hit rather than nearest observation, and accepted impossible restored focus states. | **Fixed (RF-026 fix-forward)** with exact identity matching, nearest-observation coercion, input validation and fail-closed focus restoration. **Now wired onto the production path by RF-025 (#421)**, so the corrected classes are exercised by the real `InputRouter`/`World` picking path; retain as review-active until physical XR semantic-target/focus-context task evidence is captured. |
-| RF-027 | P1-E / provenance & constraint semantics | High | #413 marks remediation provenance complete, but `ActionableNil` is not wired to `InvestigationAggregate`/`EvidenceLedger`/`.nemosyne`; constraint type is inferred by substring matching human-readable disqualification text; hardware bounds can be blindly doubled and described as safe. | **Fixed in this Stream B tranche**: typed `HardConstraintCode` emitted by `checkHardConstraints` and carried on `CandidateScore.disqualificationCode`/`HardConstraintTrace.code`; `diagnoseInvestigatorOutcome` routes remediation by typed code via `classifyHardConstraint` (no more substring matching); `RemedialAction.deviceFeasibility` separates scientific permissibility (`isSafeToRelax`) from measured device/runtime feasibility — hardware/frustum remediations stay scientifically safe but are flagged `deviceFeasibility: 'unverified'` with honest copy that no longer claims the doubled bound is device-safe; `buildRemediationProvenance` + `EvidenceLedger.recordRemediation` (new `'remediation'` `ResearchEventKind`) + `InvestigationAggregate.recordRemediation` persist remediation → old requirements → new requirements → resulting decision as durable replayable provenance in the `.nemosyne` event ledger; regression tests cover code routing, feasibility separation, and JSON replay round-trip. Remaining: wire the World/UX call site to `recordRemediation` when an investigator applies a remediation (paired with RF-025 production wiring). |
+| RF-009 | Roadmap governance | Medium | Roadmap status became stale and internally contradictory, with older main SHAs and completion claims coexisting with open checklist items. | Two-stream refresh process is in place, but RF-034 records a residual contradiction found after #418. Treat governance as **REVIEW ACTIVE** until current status/exit checklists remain mechanically consistent across multiple tranches. |
+| RF-010 | P1-B / production integration | High | #408 added `WorkerAnalyticalPort`, but production `World` did not install it. | **Fixed in #417**; installed `WorkerAnalyticalPort` on browser/XR startup and retained it across kernel replacement. |
+| RF-011 | P1-B / generation authority | High | Async requests and supersession hard-coded generation 1. | **Fixed in #417**; real runtime generation is threaded through requests and supersession. |
+| RF-012 | P1-B / failure semantics | High | Worker transport/runtime errors were converted into resolved null results. | **Fixed in #409**; failures reject through `KernelUnavailableError`; supersession remains non-error null. |
+| RF-013 | P1-B / worker dataset authority | High | Worker handles are WASM-instance-local but requests attempted to rely on main-thread handle identity. | **Fixed in #417**; fingerprint-keyed generational registration is authoritative and foreign handles are not transferred. |
+| RF-014 | P1-B / output identity | High | Async mutations previously assigned input identity to output. | **Fixed in #417**; worker returns a verified authoritative output fingerprint used by result and provenance. |
+| RF-015 | P1-B / evidence | Medium | Existing parity evidence is inline/mock and does not prove real module-Worker + real-WASM scheduling/transfer behavior. | **Partially fixed in #417** by honest relabelling. Add a real browser module-Worker + real-WASM test and record dispatch/transfer/compute measurements. |
+| RF-016 | P1-B / presentation adoption | High | Async Atlas methods were not used by production presentation consumers. | **Fixed in #417**; TDAPlanes/DataOperationController production paths use async execution with stale-result fences. |
+| RF-017 | P1-C / substrate authority | High | #418 called PointCloud validity fixed by normalising missing values to numeric zero, but that preserves RF-007's scientific defect and loses source/local identity distinction when rows are excluded. | **Reopened by adversarial review. Current tranche fix-forward:** PointCloud construction uses complete-case feature eligibility, retains `source_row_indices`, and downstream DBSCAN writes local results back through that map. The owned compact PointCloud storage remains a scale concern under RF-029 rather than a missing-data correctness excuse. |
+| RF-018 | P1-C / sparse correctness | Blocker | Earlier high-dimensional grid enumeration could omit valid diagonal edges. | **Correctness fixed in #418** by full 3^d enumeration for d≤6 and exact fallback for d>6. RF-030 separately tracks the scale cliff introduced by that sound fallback. |
+| RF-019 | P1-C / integration | High | Mapper did not consume the shared neighbourhood substrate. | **Fixed in #418**; Mapper bucket clustering uses PointCloud + Exact/GridSparse neighbourhoods. |
+| RF-020 | P1-C / complexity | High | Betti-0 repeatedly replayed union work and performed an unbounded all-pairs maximum-distance prepass. | **Fixed in #418** for the claimed path: bounding-box diagonal for n>100 plus monotonic edge sweep. Resource-envelope review continues under RF-029/RF-030. |
+| RF-021 | P1-C / evidence & modes | High | Landmark mode was advertised without an implementation and scale evidence used mocks. | **Fixed in #418** at implementation level with deterministic farthest-point landmarks and Rust tests. Approximation/e2e benchmark evidence remains part of RF-029/RF-030. |
+| RF-022 | P1-D / measurement correctness | High | Perceptual sampling used wrong projection/depth/order semantics and treated zero-mark embodiments optimistically. | **Fixed in #416** with camera-relative projection, true median, deterministic bounded sampling, zero-mark rejection and stronger validation. |
+| RF-023 | P1-D / evidence identity | High | Stale/cross-dataset perceptual evidence could affect hard constraints/ranking. | **Fixed in #419** by dataset/candidate/version/structural binding and fail-closed normalization. |
+| RF-024 | P1-D / semantics & study governance | High | Frustum/crowding surrogates were overnamed and default ranking changed without frozen treatment governance. | **Fixed in #419** by surrogate-honest names/fidelity metadata and pinned `fitness-treatment-v1`. |
+| RF-025 | P1-F / production integration | High | Semantic targeting/focus-context existed only in isolation. | **Fixed in #421** on the production picking/focus/Memory-Palace path. Physical XR evidence remains. |
+| RF-026 | P1-F / resolver & state correctness | Medium | Resolver substring matching/coercion/restoration could produce incorrect focus behavior. | **Fixed in #416/#421** at code level; physical XR evidence remains before verification. |
+| RF-027 | P1-E / provenance & constraint semantics | High | Actionable NIL remediation originally depended on human-message parsing and was not durable. | **Fixed in #420** for typed codes + durable remediation provenance. Remaining: wire the investigator World/UX apply-remediation call site and prove replay through the product path. |
+| RF-028 | Scientific validity / temporal & spectral | **Blocker** | `compute_spectral_facts(dataset, _time_column, value_column)` ignores the supplied time column; columnar spectral facts have no time axis. FFT therefore interprets retained observation order as uniform sampling. Temporal trend code also regresses on observation rank rather than elapsed time. Irregular/gapped series can receive false frequency, period, trend and seasonality evidence that flows into DatasetEvidence/Moneta. | Pair time/value observations with shared validity, sort by authoritative time, use elapsed timestamps for trend, explicitly test sampling regularity, report physical frequency units for regular series, and use a governed irregular-series method (for example Lomb-Scargle) or typed unsupported/resampling outcome. Add row-shuffle, time-unit-rescale, gap and missing-sample metamorphic tests plus method-specific provenance. |
+| RF-029 | Scale / memory & resource envelope | **Blocker for 10M claim** | WASM is capped at 512 MiB while primitive resident storage uses f64 values plus validity and operations allocate additional point/transposition/output buffers. A generic “10M rows” claim is therefore false without dimensional/workload constraints; six numeric dimensions alone exceed the cap before runtime overhead. | Define a governed analytical resource envelope and an explicit 10M qualification profile. Add per-operation peak-memory estimates/budgets, streaming/chunked reductions where appropriate, bit-packed validity if justified, bounded feature projection and typed `UNSUPPORTED_AT_SCALE`/NIL rather than OOM or silent fallback. PointCloud owned compaction/copies are owned here. |
+| RF-030 | P1-C / high-D complexity | High | RF-018's soundness fix makes `GridSparseIndex` fall back to exact all-pairs search for d>6. Large high-dimensional Mapper/neighbourhood workloads can therefore cross a silent O(N²d) performance cliff while nominally requesting sparse mode. | Put exact work behind the resource envelope; above budget choose an explicitly governed approximate method with provenance/quality evidence or return typed unsupported/NIL. Never silently select unbounded exact work because the sparse method is inapplicable. |
+| RF-031 | Operations / computational budget | High | User-callable hierarchical clustering repeatedly compares cluster pairs and member pairs, with roughly cubic worst-case behavior, but the operation ABI has no preflight work budget or scale refusal. Worker execution protects frame responsiveness, not process memory/time. | Apply the common analytical resource envelope to clustering; set exact limits, bounded alternatives/approximations and provenance; add adversarial large-N refusal/budget tests. |
+| RF-032 | Evidence classification / topology inference | High | Rust topology inference uses substring hints and includes single-letter GEO hints `x`/`y`; any normalised column containing those letters can count as a geospatial hint. Ordinary schemas can therefore be classified GEO and receive wrong downstream representations. | Replace loose single-letter substring matching with exact/structured aliases plus type/range/corroboration checks. Keep `x`/`y` as exact coordinate names only and do not let them alone prove geospatial semantics. Add false-positive adversarial schema tests. |
+| RF-033 | CI evidence architecture | Medium | `playwright-smoke` depends on the monolithic `correctness` job, so an unrelated unit/coverage failure suppresses browser smoke evidence exactly when independent product-path signal can be useful. | Split reusable build/artifact production from correctness and let browser smoke depend on the build artifact independently; keep the final required fan-in strict. |
+| RF-034 | Roadmap governance | Medium | After RF-009 was declared fixed, the active ledger marked RF-018..RF-021 fixed in #418 while the P1-C review-exit checklist still showed all four unchecked. The roadmap could still tell two different completion stories. | Current roadmap refresh reconciles these rows/checklists. Add a lightweight consistency check or review rule so fixed ledger items cannot remain contradictory in gate checklists. |
+| RF-035 | P1-B/P1-A / large mutation transport | High | #417 fixes Worker input registration and output identity, but async mutation results still return a full `DatasetJSON`, reconstruct a JS `Dataset`, commit with `handle: 0`, then become material for the next Worker registration. Large transformed datasets can therefore pay an O(N) Worker→JS→Worker rematerialisation cycle. | Design a durable Worker-side/Rust-side mutation capability or bounded typed-column transfer that keeps large analytical state resident. Preserve presentation/replay needs via compact summaries or explicit export, and measure transfer/heap costs under RF-029 before choosing SharedArrayBuffer/threads. |
 
 ## Core architecture state
 
@@ -129,7 +139,7 @@ The #305-#312 migration wave established Rust-resident columnar authority and re
 - no large-data failure may trigger an expensive JavaScript analytical fallback;
 - analytical provenance must state any approximation or reduction mode.
 
-Typed-column ingest, exact canonical identity, primitive-column storage and row-free DatasetStructureProfile evidence have been demonstrated. RF-007/RF-017 reopen the TDA/sparse point-access implementation because current paths copy data and ignore validity.
+Typed-column ingest, exact canonical identity, primitive-column storage and row-free DatasetStructureProfile evidence have been demonstrated. RF-007/RF-017 and RF-029/RF-035 now govern the remaining validity, resident-memory and large-mutation transport gaps.
 
 ### Moneta authority convergence
 
@@ -144,7 +154,7 @@ The #315-#342 sequence completed the Draco-to-Moneta production authority migrat
 - clean-room replay verifies authoritative decision/evidence composition;
 - learned ranking remains explicit and pinned.
 
-The migration authority remains complete. Product embodiment, perceptual-evidence and remediation correctness are separately governed by active P1 review findings.
+The migration authority remains complete. Product embodiment, temporal validity, perceptual-evidence and remediation correctness are separately governed by active review findings.
 
 ### Reproducibility and investigation provenance
 
@@ -156,7 +166,7 @@ The #324-#332 sequence substantially closed the portable provenance chain:
 - NIL/no-feasible-representation is a typed reproducible outcome;
 - discovery/NIL/model/evidence drift fails closed during replay.
 
-RF-027 makes clear that **remediation actions themselves** are not yet part of that durable provenance chain.
+#420 adds typed durable remediation provenance at the aggregate/ledger layer. Product-path apply-remediation wiring remains open under RF-027.
 
 ### Runtime ownership, ABI resilience and recovery
 
@@ -174,17 +184,17 @@ Cross-device/hostile-network qualification remains preview hardening.
 
 ### P1-A typed/columnar TDA implementation
 
-#395 closed production JS TDA rematerialisation; #405 enabled typed/columnar-only handles to execute persistence, Mapper and Betti-0 directly in Rust with `ingestMode` provenance and real-WASM boundary tests.
+#395 closed production JS TDA rematerialisation; #405 enabled typed/columnar-only handles to execute persistence, Mapper and Betti-0 directly in Rust with `ingestMode` provenance and real-WASM boundary tests. #423 introduced the shared point-access substrate. The current RF-007 tranche corrects its missing-value semantics via complete-case eligibility and source-row mapping.
 
-That implementation is retained. Independent review found RF-007/RF-017, so the tranche is **IMPLEMENTATION LANDED / REVIEW ACTIVE**, not yet `VERIFIED COMPLETE`.
+This remains **IMPLEMENTATION LANDED / REVIEW ACTIVE** until policy/exclusion metadata is emitted in analytical provenance, scale copies are bounded, CI passes and independent review agrees.
 
 ### P1-B async execution implementation
 
-#408 established useful first-pass execution-port types, inline/worker transport modules, Atlas async entry points and mock transport fencing tests. Independent review found that the production interactive runtime still selects the inline port, real runtime generation is not wired into requests, worker dataset registration is incomplete, async operation output identity is wrong, and presentation consumers remain synchronous. P1-B is **IMPLEMENTATION LANDED / REVIEW ACTIVE**.
+#408 established first-pass execution-port types and #417 completed the known production registration/generation/output-identity/adoption fixes. P1-B is now **IMPLEMENTATION LANDED / REVIEW ACTIVE** primarily for RF-015 real Worker/WASM evidence and RF-035 large mutation transport, not because the known #408 plumbing defects remain.
 
 ### P1-C through P1-F first-pass implementation
 
-#410-#413 establish useful first-pass sparse-neighbourhood, perceptual-fitness, semantic-target/focus-context and actionable-NIL components. Stream B review found RF-017 through RF-027, so all four tranches remain **IMPLEMENTATION LANDED / REVIEW ACTIVE**. Their code is retained and fixed forward rather than reverted.
+#410-#413 established sparse-neighbourhood, perceptual-fitness, semantic-target/focus-context and actionable-NIL components. Stream B fixes through #416/#418/#419/#420/#421 materially improved them. They remain **IMPLEMENTATION LANDED / REVIEW ACTIVE** until their residual scientific, scale and physical-product evidence exits are met.
 
 ### Test architecture and feedback latency
 
@@ -205,17 +215,18 @@ Remaining efficiency work:
 - [ ] document steady-state test/authority ownership in contributor and agent guidance;
 - [ ] systematically audit source/architecture tests for vacuous or false-positive guards, following RF-004;
 - [ ] distinguish mock/inline tests from real Worker/WASM/browser/device evidence in names and roadmap claims;
-- [ ] require scale tests to exercise the real algorithm/mode being claimed, not a mock bridge that returns a shape-compatible result.
+- [ ] require scale tests to exercise the real algorithm/mode being claimed, not a mock bridge that returns a shape-compatible result;
+- [ ] decouple browser product smoke from unrelated correctness/coverage failures while retaining strict final fan-in (RF-033).
 
 ## Governing V3 gate status
 
 | Gate | Status | Remaining exit work |
 | --- | --- | --- |
 | 0 — Authority reconciliation | **MIGRATION EXIT COMPLETE / REVIEW MONITORED** | Maintain architecture guards; remove Draco facade only through a governed compatibility decision. |
-| 1 — Dataset Evidence | **MIGRATION AUTHORITY COMPLETE / SCIENCE ACTIVE** | Continue measurement semantics; close RF-007/RF-017 validity/borrowed-access semantics. |
+| 1 — Dataset Evidence | **MIGRATION AUTHORITY COMPLETE / SCIENCE ACTIVE** | Finish RF-007 provenance semantics; close RF-028 temporal truth, RF-032 topology classification and measurement semantics. |
 | 2 — Representation Language | **PARTIAL / REVIEW ACTIVE** | Close RF-001/RF-002 and make current single-family candidates mathematically/spatially faithful before composition. |
-| 3 — Moneta correctness | **MIGRATION EXIT COMPLETE / PRODUCT REVIEW ACTIVE** | Close embodiment RF-001/RF-002 plus perceptual evidence RF-022/RF-023/RF-024. |
-| 4 — NIL | **PROVENANCE BASELINE COMPLETE / REMEDIATION REVIEW ACTIVE** | Close RF-027 durable remediation provenance/typed constraint semantics and modality-parity workflow. |
+| 3 — Moneta correctness | **MIGRATION EXIT COMPLETE / PRODUCT REVIEW ACTIVE** | Close RF-001/RF-002 plus upstream evidence validity/scale blockers before representation ranking can be considered scientifically trustworthy. |
+| 4 — NIL | **PROVENANCE BASELINE COMPLETE / PRODUCT WIRING ACTIVE** | Wire RF-027 remediation application through the actual investigator flow and preserve modality parity. |
 | 5 — Discovery | **INFRASTRUCTURE ADVANCED / SCIENCE PARTIAL** | Add falsification workflows, outcome evidence and controlled discovery-quality studies. |
 | 6 — Human refinement | **IN PROGRESS** | Expand outcome events, curation policy and study coverage. |
 | 7 — Learning infrastructure | **ADVANCED** | Add outcome-linked evaluation and operational monitoring evidence. |
@@ -227,7 +238,7 @@ Remaining efficiency work:
 
 The detailed audit evidence remains in `PRE_P1_SYSTEMATIC_AUDIT.md`. The roadmap interpretation is:
 
-- [ ] **PERF-04 / blocker:** run and govern physical Quest 3S 10M browser qualification.
+- [ ] **PERF-04 / blocker:** run and govern physical Quest 3S 10M browser qualification, using the explicit RF-029 qualification profile rather than an unbounded “10M arbitrary dimensions” claim.
 - [x] **ARCH-01 / high:** Atlas/runtime/spatial ownership boundaries are explicit and guarded; Stream B audits implementation conformance continuously.
 - [x] **ARCH-02 / high:** World/UI/kernel lifecycle ownership and recovery are explicit and idempotent.
 - [x] **PERF-03 / high:** production scene selection uses measured BVH crossover behavior; physical crossover validation remains under PERF-04.
@@ -257,15 +268,15 @@ Landed implementation evidence:
 - [x] tested handle-native TDA entry points and Atlas routing;
 - [x] no production JS `Dataset.toJSON()` TDA round trip;
 - [x] typed/columnar-only handles execute persistence, Mapper and Betti-0 through real WASM;
-- [x] typed-vs-row ingest mode is recorded in provenance.
+- [x] typed-vs-row ingest mode is recorded in provenance;
+- [x] current RF-007 tranche carries validity and uses complete-case selected-feature eligibility rather than missing→0 geometry;
+- [x] source row identity is preserved through TDA point compaction.
 
 Review exit work:
 
-- [ ] **RF-007/RF-017 correctness:** honor primitive validity so missing/invalid feature values cannot become numeric zero — **governed design decision pending (skip vs mask; changes TDA outputs + row-path `unwrap_or(0.0)` parity contract)**;
-- [x] **RF-007/RF-017 scale (FeatureSpace half):** `FeatureSpace::from_columnar` borrows primitive buffers via the shared `point_access` substrate (no throwaway per-column clone; transpose from borrows; byte-identical output);
-- [ ] **RF-007/RF-017 scale (PointCloud half):** replace `PointCloud` owned column-major storage with a borrowed, lifetime-parameterised accessor (ripples to neighbourhood algorithm consumers);
-- [x] add Rust invalid-feature + cross-substrate parity + peak-memory/invariant contract tests;
-- [ ] re-run adversarial review before `VERIFIED COMPLETE`.
+- [ ] **RF-007 provenance:** record exact missing-data policy, source count, eligible count and excluded count in TDA operation provenance;
+- [ ] **RF-029 scale:** bound/transparently budget residual row-major TDA transposition and compact point allocations;
+- [ ] re-run authoritative CI + adversarial review before `VERIFIED COMPLETE`.
 
 ## P1 — Product convergence gates
 
@@ -296,53 +307,47 @@ Review exit work:
 
 ### P1-B Asynchronous analytical runtime — IMPLEMENTATION LANDED / REVIEW ACTIVE
 
-Landed first-pass work includes typed request/result contracts, inline/Worker transports, Atlas async entry points, supersession tests and RF-012 plus partial RF-013/RF-015 fixes.
+Landed implementation evidence now includes #417's production Worker installation, real generation fencing, fingerprint-keyed dataset registration, authoritative output fingerprints, async presentation adoption and replay-parity repairs.
 
 Review exit work:
 
-- [x] **RF-010:** install and retain `WorkerAnalyticalPort` on the real interactive browser/XR runtime path (`src/vr/World.ts`, `src/atlas/AtlasCore.ts`);
-- [x] **RF-011:** thread the real runtime generation into every request and supersession fence (`src/atlas/AtlasCore.ts`, `tests/atlas-async-execution.test.ts`);
-- [x] **RF-013:** implement one-time fingerprint-keyed worker registration and generational handle clearing (`src/atlas/ports/analytical.worker.ts`);
-- [x] **RF-014:** return/verify the true output fingerprint for async operations and record it in result/ledger provenance (`src/atlas/ports/analytical.worker.ts`, `src/atlas/AtlasCore.ts`);
-- [x] **RF-016:** route `TDAPlanes`, `DataOperationController` and other interactive consumers through the async methods (`src/vr/artifacts/TDAPlanes.ts`, `src/vr/coordinators/DataOperationController.ts`);
-- [ ] **RF-015:** add a real module-Worker + real-WASM integration/browser test covering TDA, mutation supersession and recovery across at least two runtime generations;
-- [ ] record dispatch/transfer/compute measurements before proposing SharedArrayBuffer, WASM threads or SIMD;
-- [ ] re-run adversarial concurrency/recovery review before marking P1-B `VERIFIED COMPLETE`.
+- [x] RF-010/RF-011/RF-013/RF-014/RF-016 code-level exits (#417);
+- [ ] **RF-015:** real module-Worker + real-WASM integration/browser test across TDA, mutation supersession and recovery for at least two runtime generations;
+- [ ] record dispatch/transfer/compute measurements;
+- [ ] **RF-035:** remove or explicitly bound full mutation Worker→JS→Worker rematerialisation for large transformed datasets;
+- [ ] adversarial concurrency/recovery/large-transfer review before `VERIFIED COMPLETE`.
 
 ### P1-C Sparse topology scalability — IMPLEMENTATION LANDED / REVIEW ACTIVE
 
-Landed first-pass work:
+Landed implementation evidence:
 
-- [x] introduce `RaggedNeighbourhood`, exact and grid-sparse neighbourhood implementations;
-- [x] reuse the substrate in persistence/Betti-0 and compatible clustering paths;
-- [x] introduce explicit neighbourhood metadata/mode types;
-- [x] emit persistence merge deaths in the new H0 implementation.
+- [x] `RaggedNeighbourhood`, exact and grid-sparse implementations;
+- [x] Mapper reuses neighbourhood substrate (#418 / RF-019);
+- [x] Betti-0 incremental sweep + bounded max-distance path (#418 / RF-020);
+- [x] deterministic Landmark implementation (#418 / RF-021);
+- [x] high-dimensional soundness restored by exact fallback (#418 / RF-018);
+- [x] current RF-007/RF-017 tranche uses complete-case validity and preserves source-row identity.
 
 Review exit work:
 
-- [ ] **RF-017:** consume the shared validity-aware borrowed columnar accessor rather than duplicate/copy point storage;
-- [ ] **RF-018 blocker:** make high-dimensional sparse neighbour search sound or fail closed to a governed supported mode;
-- [ ] **RF-019:** route Mapper through the shared sparse-neighbourhood substrate or narrow the claim;
-- [ ] **RF-020:** make Betti-0 a true incremental edge-sorted union sweep and remove/replace the all-pairs max-distance prepass;
-- [ ] **RF-021:** implement Landmark mode before advertising it, or remove/reclassify it; add real Rust/WASM exact-vs-sparse stability tests and recorded end-to-end benchmarks;
-- [ ] review persistence-death semantics/provenance as a fingerprint-affecting analytical migration;
-- [ ] re-run adversarial topology review before verification.
+- [ ] **RF-029:** bound PointCloud/CSR/transpose memory and define supported scale profiles;
+- [ ] **RF-030:** replace silent high-dimensional exact fallback above budget with governed approximate/unsupported behavior;
+- [ ] retain explicit approximation provenance and exact-vs-approximation quality evidence;
+- [ ] re-run adversarial topology/scale review before verification.
 
 ### P1-D 3D-native Moneta perceptual fitness — IMPLEMENTATION LANDED / REVIEW ACTIVE
 
 Landed first-pass work:
 
-- [x] add versioned perceptual evidence types and bootstrap perceptual component;
-- [x] sample a bounded multi-pose viewpoint envelope;
-- [x] feed measured/prior perceptual evidence into hard constraints and bootstrap utility;
-- [x] **RF-022 fix-forward:** correct camera-relative projection, true median depth, deterministic order-invariant bounded mark sampling and zero-mark handling;
-- [x] strengthen finite/range/viewpoint validation for perceptual evidence.
+- [x] versioned perceptual evidence types and bootstrap perceptual component;
+- [x] bounded multi-pose viewpoint sampling;
+- [x] measured/prior perceptual evidence feeds hard constraints and bootstrap utility;
+- [x] RF-022 measurement correctness fix-forward;
+- [x] RF-023 evidence identity binding;
+- [x] RF-024 surrogate honesty + frozen treatment governance.
 
 Review exit work:
 
-- [x] **RF-023:** reject perceptual evidence whose dataset fingerprint/candidate/version is not authoritative for the current decision before hard constraints/ranking;
-- [x] **RF-024 semantics:** rename current hidden/crowding surrogates (`frustumExclusionFraction`, `labelCrowdingIndex`) and add `metricFidelity` so surrogates are honestly labelled;
-- [x] **RF-024 study governance:** pin default ranking weights to frozen `fitness-treatment-v1` and record it in `DecisionProvenance.fitnessTreatmentId`;
 - [ ] validate measured evidence on actual reviewed-faithful P1-R embodiments and target hardware;
 - [ ] preserve the distinction between selection heuristics, engineering priors, measured evidence and calibrated statistical confidence;
 - [ ] re-run adversarial perceptual/scientific review before verification.
@@ -351,34 +356,29 @@ Review exit work:
 
 Landed first-pass work:
 
-- [x] expose `DECISIVE`, `INFEASIBLE`, `UNDERDETERMINED` and `AMBIGUOUS` outcomes;
-- [x] expose readable explanations, near misses and blocking descriptions;
-- [x] generate first-pass remediation proposals and reject automatic mutation of explicitly critical information-loss requirements.
+- [x] `DECISIVE`, `INFEASIBLE`, `UNDERDETERMINED`, `AMBIGUOUS` outcomes;
+- [x] readable explanations, near misses and blocking descriptions;
+- [x] typed hard-constraint remediation routing (#420 / RF-027);
+- [x] durable remediation provenance and replay round-trip at aggregate/ledger layer;
+- [x] separate scientific permissibility from device/runtime feasibility.
 
 Review exit work:
 
-- [x] **RF-027:** replace human-message substring parsing with typed machine-readable `HardConstraintCode`s;
-- [x] persist remediation action, previous requirements, resulting requirements and subsequent decision into `InvestigationAggregate`/`EvidenceLedger` via a `'remediation'` `ResearchEventKind` (durable `.nemosyne` replay provenance);
-- [x] distinguish scientific permissibility (`isSafeToRelax`) from measured device/runtime feasibility (`deviceFeasibility`) for hardware/performance remediation;
-- [ ] replace “select either safely” language with explicit feasibility/tradeoff language;
-- [x] add replay tests proving remediation provenance survives JSON export/import round-trip;
-- [ ] expose the actionable NIL flow through actual investigator UI/modalities (wire World call site to `recordRemediation`) before verification.
+- [ ] expose the actionable NIL flow through actual investigator UI/modalities and call `recordRemediation` when applied;
+- [ ] replace residual “select either safely” wording with explicit feasibility/tradeoff language;
+- [ ] re-run adversarial NIL/replay/product-path review before verification.
 
 ### P1-F Semantic targeting and Memory Palace focus+context — IMPLEMENTATION LANDED / REVIEW ACTIVE
 
 Landed first-pass work:
 
-- [x] add semantic target metadata types, resolver and five-level focus/context controller;
-- [x] provide isolated hysteresis/coercion/focus persistence tests;
-- [x] **RF-026 fix-forward:** validate resolver inputs/weights, compare coercion with nearest observation, stop substring-matching opaque structure IDs, and reject impossible restored focus state.
+- [x] semantic target metadata, resolver and five-level focus/context controller;
+- [x] RF-026 resolver/state fixes;
+- [x] RF-025 production World/input/Memory-Palace wiring (#421);
+- [x] live semantic metadata + precision escape hatch + persisted focus state.
 
 Review exit work:
 
-- [x] **RF-025:** instantiate the resolver in the real World/input path and route desktop/ray/hand target selection through it;
-- [x] populate live `InteractableRegistry` entries with durable semantic metadata from authoritative analytical/embodiment structures;
-- [x] connect focus/context changes to Memory Palace navigation and durable session state rather than isolated controller calls;
-- [x] preserve precision escape hatches and hysteresis on the actual device input path;
-- [x] replace or explicitly label the resolver `confidence` value as an uncalibrated selection-strength heuristic in investigator-facing surfaces;
 - [ ] add desktop Playwright and physical XR semantic-target/focus-context task evidence;
 - [ ] re-run adversarial UX/input review before verification.
 
@@ -441,6 +441,8 @@ The frozen panel/intent-wheel treatment work is merged through #394. Gate F revi
 
 ### Measurement semantics and statistics
 
+- [ ] **RF-028:** make temporal/spectral calculations honor authoritative time and sampling geometry before their evidence can be treated as decision-relevant;
+- [ ] **RF-032:** prevent topology-name heuristics from manufacturing semantic structure;
 - [ ] complete scale/measurement-type coverage beyond storage types;
 - [ ] enforce appropriate geometry for compositional, circular, grouped/repeated and other non-Euclidean structures;
 - [ ] distinguish descriptive statistics, inferential uncertainty and model utility;
@@ -492,6 +494,7 @@ The consolidated dependency update landed in #358. Future updates are evidence-l
 ## Fixed design boundaries
 
 - **Rust owns N-dependent work.** Parsing, storage, filtering, statistics, clustering, topology, spectral analysis, evidence construction, data-derived layout and large-data reduction remain Rust/WASM responsibilities.
+- **Missing is not zero.** Stored normalization sentinels must never silently become analytical coordinates. Metric/TDA operations use a declared eligibility/imputation policy; implicit imputation is forbidden.
 - **Atlas owns durable analytical capabilities.** Reuse canonical handles instead of serialising the same dataset back into Rust.
 - **Moneta is a bounded control plane.** It reasons over compact evidence and semantics, never raw full-dataset traversal.
 - **Semantic representation must survive embodiment.** A non-point Moneta candidate may not silently degrade into point-per-row geometry or a mathematically different visual approximation without explicit semantics/provenance.
@@ -502,6 +505,7 @@ The consolidated dependency update landed in #358. Future updates are evidence-l
 - **Source rows are not render primitives or analytical reduction inputs.** LOD/reduction is first-class architecture, and render-object growth must be governed independently of source N.
 - **Worker handles are local capabilities.** Cross-thread identity travels by fingerprint plus explicit registration, never foreign handles.
 - **Sparse means sound before fast.** An approximate or sparse neighbourhood may only omit edges/points when the approximation contract explicitly permits it and provenance records the mode; optimization must never silently change mathematical meaning.
+- **Unbounded work fails explicitly.** A Worker is scheduling isolation, not a resource budget. Exact analytical work above the governed envelope must use an explicit bounded/approximate mode or return an actionable unsupported/NIL result.
 - **Perceptual evidence is identity-bound.** Measured evidence must correspond to the current dataset, candidate/embodiment, model version and governed viewpoint/device context before it can affect ranking or hard constraints.
 - **The world is an interface, not scenery.** Persistent spatial objects must have a clear investigator function or be removed/demoted.
 - **Approximation is evidence.** Sparse/landmark/approximate modes must be explicit in provenance.
@@ -537,20 +541,23 @@ independent review pass over the resulting merged implementation
 
 ### Stream A — forward implementation
 
-1. Continue **minimal-private-preview, security/reliability, investigation/discovery-science and measurement-semantics work** where unresolved RF findings are not dependencies.
-2. Consume Stream B’s P1-C/P1-D/P1-E/P1-F fixes as they land; do not build new work on known-invalid high-D sparse, stale perceptual-evidence or unpersisted remediation assumptions.
-3. Continue bounded maintenance/dependency work that does not distract from promotion blockers.
-4. Do not begin P2 RepresentationGraph composition or P3 adaptation until the stated reviewed prerequisites are satisfied.
+1. Continue minimal-private-preview, security/reliability, investigation/discovery-science and measurement-semantics work only where the active Stream-B blockers are not dependencies.
+2. Do not consume temporal/spectral periodicity as stronger scientific evidence until RF-028 closes.
+3. Do not introduce scale claims or exact high-D work that bypasses the forthcoming RF-029 resource envelope.
+4. Continue bounded maintenance/dependency work that does not distract from promotion blockers.
+5. Do not begin P2 RepresentationGraph composition or P3 adaptation until the stated reviewed prerequisites are satisfied.
 
 ### Stream B — review and fix-forward
 
-1. ~~Land the current **RF-022/RF-026** P1-D/P1-F correctness hardening and retain regression tests.~~ ✅ (#416)
-2. ~~Close **RF-018/RF-019/RF-020/RF-021** so P1-C’s sparse mathematics, complexity and evidence match its design claims, coordinated with **RF-007/RF-017** shared validity-aware point access.~~ ✅ (#418; RF-007 scale/shared-substrate half landed in #423 — validity-honoring half governed pending)
-3. ~~Close **RF-023/RF-024** so perceptual evidence is identity-bound, semantically honest and study-governed.~~ ✅ (this tranche)
-4. ~~Close **RF-027** so actionable NIL remediation is typed, durable, replayable and operationally safe.~~ ✅ (this tranche; World call-site wiring paired with RF-025)
-5. ~~Close **RF-025** by wiring P1-F into the actual World/input/Memory-Palace path.~~ ✅ (#421; physical XR task evidence + Quest 3S qualification remain)
-6. Continue unresolved **P1-B RF-010/RF-011/RF-013/RF-014/RF-015/RF-016**, **P1-R RF-001/RF-002**, and **P1-U RF-005/RF-006/RF-008** work in parallel where changes do not conflict.
-7. Review each new Stream A merge immediately and append/fix RF findings in the same cadence.
+1. **RF-007 + RF-017 — validity-aware analytical substrate.** Complete-case selected-feature eligibility; preserve source identity; never conflate missing with zero; unify TDA/neighbourhood/metric clustering semantics. **CURRENT TRANCHE.**
+2. **RF-028 + RF-032 — temporal/evidence integrity.** Honor real elapsed time/sampling geometry and tighten topology inference so evidence classification is trustworthy.
+3. **RF-029 + RF-030 + RF-031 + RF-035 — analytical resource envelope.** Define the 10M qualification profile, memory/work budgets, high-D bounded behavior, clustering limits and large mutation residency/transport.
+4. **RF-001 + RF-002 — representation truth.** Rust-owned bounded embodiment payloads and mathematically honest candidate semantics.
+5. **RF-005 + RF-006 + RF-008 + RF-027 carry-over — whole-product convergence.** Contextual spatial interaction, useful TechnoCore/IceVault semantics, real journey evidence and remediation application path.
+6. **RF-015 + RF-033 — production evidence architecture.** Real Worker/WASM timings and independent browser-smoke signal.
+7. **Physical XR qualification — RF-026 residual + PERF-04 + UX-03.** Quest 3S controllers/hands/desktop semantic parity, comfort, frame/memory budgets and target-device task evidence.
+8. **Private-preview hardening.** Auth/access control, retention/privacy, consent/telemetry, release/rollback/recovery and compatibility after the scientific/product substrate is credible.
+9. Review each new Stream A merge immediately and append/fix RF findings in the same cadence.
 
 ### Convergence / promotion
 
