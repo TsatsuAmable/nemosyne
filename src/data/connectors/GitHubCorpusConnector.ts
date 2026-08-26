@@ -81,6 +81,18 @@ function assertSafeRepositoryPath(path: string): void {
   }
 }
 
+function assertOptionalCount(
+  value: number | undefined,
+  label: string,
+  options: { positive?: boolean } = {},
+): void {
+  if (value === undefined) return;
+  const minimum = options.positive ? 1 : 0;
+  if (!Number.isSafeInteger(value) || value < minimum) {
+    throw new Error(`${label} must be a ${options.positive ? 'positive' : 'non-negative'} safe integer`);
+  }
+}
+
 function encodePath(path: string): string {
   return path
     .split('/')
@@ -125,7 +137,7 @@ function assertAllowedManifestUrl(url: URL, owner: string, repo: string): void {
 function assertAllowedFinalResponseUrl(urlText: string, owner: string, repo: string): void {
   if (!urlText) return;
   const url = new URL(urlText);
-  if (url.hostname === 'objects.githubusercontent.com') return; // signed redirect from a validated GitHub release URL
+  if (url.hostname === 'objects.githubusercontent.com') return;
   assertAllowedManifestUrl(url, owner, repo);
 }
 
@@ -153,6 +165,8 @@ function parseCatalog(value: unknown, expectedRepository: string): CorpusCatalog
       if ((artifact.path ? 1 : 0) + (artifact.url ? 1 : 0) !== 1) {
         throw new Error(`Artifact for ${dataset.id} must define exactly one of path or url`);
       }
+      assertOptionalCount(artifact.bytes, `Artifact bytes for ${dataset.id}/${artifact.tier}/${artifact.role}`);
+      assertOptionalCount(artifact.rows, `Artifact rows for ${dataset.id}/${artifact.tier}/${artifact.role}`);
       if (artifact.compression && artifact.compression !== 'none') {
         throw new Error(`Compressed artifact ${dataset.id}/${artifact.tier}/${artifact.role} is not directly ingestible`);
       }
@@ -169,9 +183,39 @@ async function responseBytes(response: Response, maxBytes: number): Promise<Uint
       throw new Error(`Corpus artifact exceeds byte limit (${parsed} > ${maxBytes})`);
     }
   }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > maxBytes) {
-    throw new Error(`Corpus artifact exceeds byte limit (${bytes.byteLength} > ${maxBytes})`);
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > maxBytes) {
+      throw new Error(`Corpus artifact exceeds byte limit (${bytes.byteLength} > ${maxBytes})`);
+    }
+    return bytes;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!value || value.byteLength === 0) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel('corpus byte limit exceeded');
+        throw new Error(`Corpus artifact exceeds byte limit (${total} > ${maxBytes})`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
   }
   return bytes;
 }
@@ -292,21 +336,48 @@ export class GitHubCorpusConnector {
     const catalog = await this.fetchCatalog(request.signal);
     const selection = this.selectArtifact(catalog, request.datasetId, request.tier, request.role ?? 'primary');
     const bytes = await this.fetchArtifactBytes(selection, request.signal);
+
+    let handle: number;
     switch (selection.artifact.format) {
       case 'csv':
-        return kernel.loadCsv(bytes);
+        handle = kernel.loadCsv(bytes);
+        break;
       case 'json':
-        return kernel.loadJson(bytes);
+        handle = kernel.loadJson(bytes);
+        break;
       case 'ntc1': {
         if (!kernel.loadTypedColumns || kernel.supportsTypedColumnIngest?.() === false) {
           throw new Error('Kernel does not support NTC1 typed-column corpus ingest');
         }
-        return kernel.loadTypedColumns(bytes, request.name ?? selection.dataset.label);
+        handle = kernel.loadTypedColumns(bytes, request.name ?? selection.dataset.label);
+        break;
       }
       default: {
         const neverFormat: never = selection.artifact.format;
         throw new Error(`Unsupported corpus format: ${String(neverFormat)}`);
       }
     }
+
+    if (!Number.isSafeInteger(handle) || handle <= 0) {
+      throw new Error(
+        `Kernel rejected corpus artifact ${selection.dataset.id}/${selection.artifact.tier}/${selection.artifact.role} (${selection.artifact.format})`,
+      );
+    }
+
+    if (kernel.datasetFingerprint) {
+      const fingerprint = kernel.datasetFingerprint(handle);
+      if (!fingerprint) {
+        try {
+          kernel.destroyDataset(handle);
+        } catch {
+          // best-effort cleanup after fail-closed identity verification
+        }
+        throw new Error(
+          `Kernel accepted corpus artifact ${selection.dataset.id}/${selection.artifact.tier}/${selection.artifact.role} but produced no dataset fingerprint`,
+        );
+      }
+    }
+
+    return handle;
   }
 }
