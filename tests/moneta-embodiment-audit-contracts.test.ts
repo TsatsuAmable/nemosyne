@@ -58,6 +58,20 @@ function createSyntheticDataset(count: number): Dataset {
   ], rows);
 }
 
+function createZeroAggregateDataset(): Dataset {
+  return new Dataset(
+    'zero-aggregate',
+    [
+      { name: 'category', type: ColumnType.CATEGORICAL },
+      { name: 'value', type: ColumnType.NUMERIC },
+    ],
+    [
+      { category: 'Zero', value: 0 },
+      { category: 'Zero', value: 0 },
+    ]
+  );
+}
+
 describe('P1-R Representation Embodiment Convergence Contracts', () => {
   const dataset = createSyntheticDataset(10000);
 
@@ -74,10 +88,10 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
       facts: baseFacts,
       cost: 0.9,
     };
-    const aggArtifact = VRTopologyTranslator.synthesizeArtifact(
-      aggResult,
-      { dataset, encodings: { color: 'category', size: 'value' } }
-    );
+    const aggArtifact = VRTopologyTranslator.synthesizeArtifact(aggResult, {
+      dataset,
+      encodings: { color: 'category', size: 'value' },
+    });
     expect(aggArtifact.nodeMeshes.length).toBeGreaterThan(0);
     expect(aggArtifact.nodeMeshes.length).toBeLessThan(20); // 5 categories
     for (const mesh of aggArtifact.nodeMeshes) {
@@ -97,10 +111,10 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
       facts: baseFacts,
       cost: 0.85,
     };
-    const densityArtifact = VRTopologyTranslator.synthesizeArtifact(
-      densityResult,
-      { dataset, encodings: { color: 'category' } }
-    );
+    const densityArtifact = VRTopologyTranslator.synthesizeArtifact(densityResult, {
+      dataset,
+      encodings: { color: 'category' },
+    });
     expect(densityArtifact.nodeMeshes.length).toBeGreaterThan(0);
     expect(densityArtifact.nodeMeshes.length).toBeLessThanOrEqual(216); // 6x6x6 max voxels
     for (const mesh of densityArtifact.nodeMeshes) {
@@ -120,10 +134,10 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
       facts: baseFacts,
       cost: 0.88,
     };
-    const clusterArtifact = VRTopologyTranslator.synthesizeArtifact(
-      clusterResult,
-      { dataset, encodings: { color: 'cluster' } }
-    );
+    const clusterArtifact = VRTopologyTranslator.synthesizeArtifact(clusterResult, {
+      dataset,
+      encodings: { color: 'cluster' },
+    });
     expect(clusterArtifact.nodeMeshes.length).toBe(4); // 4 clusters * 1 volumetric hull mesh
     for (const mesh of clusterArtifact.nodeMeshes) {
       expect(mesh.userData).toHaveProperty('representationKind', 'CLUSTER_REGIONS');
@@ -160,6 +174,24 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
     expect(largeArtifact.nodeMeshes.length).toBe(5);
   });
 
+  it('C2b: preserves legitimate zero values when computing aggregate means', () => {
+    const zeroDataset = createZeroAggregateDataset();
+    const spec: MonetaSpec = {
+      layout: 'GRID_3D',
+      geometry: 'AGGREGATE_BARS',
+      behavior: 'STATIC',
+      interaction: 'INSPECT_CELL',
+    };
+
+    const artifact = VRTopologyTranslator.synthesizeArtifact(
+      { spec, facts: { ...baseFacts, rowCount: 2, nodeCount: 2 }, cost: 0.9 },
+      { dataset: zeroDataset, encodings: { color: 'category', size: 'value' } }
+    );
+
+    expect(artifact.nodeMeshes).toHaveLength(1);
+    expect(artifact.nodeMeshes[0].userData.aggregateValue).toBe(0);
+  });
+
   it('C3: generates visibly and structurally distinct spatial embodiments for distinct semantic candidates', () => {
     const pointSpec: MonetaSpec = {
       layout: 'GRID_3D',
@@ -185,22 +217,33 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
 
     // Point cloud vs Aggregate bars must have completely distinct structures
     expect(pointArtifact.nodeMeshes[0].userData).toHaveProperty('instancedCloud');
-    expect(aggArtifact.nodeMeshes[0].userData).toHaveProperty('representationKind', 'AGGREGATE_VOLUME');
+    expect(aggArtifact.nodeMeshes[0].userData).toHaveProperty(
+      'representationKind',
+      'AGGREGATE_VOLUME'
+    );
     expect(pointArtifact.nodeMeshes.length).not.toBe(aggArtifact.nodeMeshes.length);
   });
 
-  it('C4: static AST contract forbids silent buildInstancedPointCloud fallback from non-point branches', () => {
+  it('C4: static source contract forbids silent point-cloud fallback from non-point branches', () => {
     const scalableSource = readFileSync(
       resolve(process.cwd(), 'src/moneta/embodiment/ScalableTopologyEmbodiment.ts'),
       'utf8'
     );
 
-    const aggBarsFn = scalableSource.slice(
-      scalableSource.indexOf('buildAggregateBars('),
-      scalableSource.indexOf('buildDensityField(')
-    );
+    const clusterStart = scalableSource.indexOf('buildClusterVolume(');
+    const densityStart = scalableSource.indexOf('buildDensityField(');
+    const aggregateStart = scalableSource.indexOf('buildAggregateBars(');
 
-    // Ensure buildAggregateBars does NOT call buildInstancedPointCloud
-    expect(aggBarsFn).not.toContain('buildInstancedPointCloud');
+    expect(clusterStart).toBeGreaterThanOrEqual(0);
+    expect(densityStart).toBeGreaterThan(clusterStart);
+    expect(aggregateStart).toBeGreaterThan(densityStart);
+
+    const clusterFn = scalableSource.slice(clusterStart, densityStart);
+    const densityFn = scalableSource.slice(densityStart, aggregateStart);
+    const aggregateFn = scalableSource.slice(aggregateStart);
+
+    expect(clusterFn).not.toContain('buildInstancedPointCloud(');
+    expect(densityFn).not.toContain('buildInstancedPointCloud(');
+    expect(aggregateFn).not.toContain('buildInstancedPointCloud(');
   });
 });
