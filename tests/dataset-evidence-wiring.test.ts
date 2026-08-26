@@ -64,12 +64,22 @@ function profile(): RustDatasetStructureProfile {
       iterations: 5,
       silhouetteSampleCount: 3,
     },
-    density: { globalDensity: 0.5, localDensityVariation: 0.1, modeCount: 1, isSparse: false },
+    density: {
+      globalDensity: 0.5,
+      localDensityVariation: 0.1,
+      modeCount: 1,
+      isSparse: false,
+    },
     temporal: null,
     graph: null,
     hierarchy: null,
     spatial: null,
-    anomalies: { totalAnomalies: 0, anomalyFraction: 0, hasAnomalies: false, maxAnomalyScore: 0 },
+    anomalies: {
+      totalAnomalies: 0,
+      anomalyFraction: 0,
+      hasAnomalies: false,
+      maxAnomalyScore: 0,
+    },
     missingness: {
       totalMissing: 0,
       missingFraction: 0,
@@ -146,7 +156,72 @@ describe('Rust structure profile → DatasetEvidence wiring', () => {
     expect(cluster?.provenance.limitations.join(' ')).toMatch(/k-means heuristics/i);
   });
 
-  it('includes optional analytical domains only when Rust emitted them', () => {
+  it('labels regular temporal spectral evidence in source time-coordinate units', () => {
+    const source = profile();
+    source.dimensionality.temporalColumns = 1;
+    source.temporal = {
+      isTimeSeries: true,
+      timeColumn: 'time',
+      trendDirection: 'up',
+      trendStrength: 0.4,
+      hasSeasonality: true,
+      periodicities: [
+        {
+          frequency: 0.125,
+          periodTimeUnits: 8,
+          confidence: 0.8,
+        },
+      ],
+    };
+    source.spectral = {
+      dominantFrequencies: [0.125],
+      spectralEntropy: 0.2,
+      powerSpectrumPeak: 0.9,
+      hasPeriodicity: true,
+      periodicityConfidence: 0.8,
+      method: 'regular-time-fft',
+      observedCount: 64,
+      transformLength: 64,
+      sourceObservationsPerBin: 1,
+      frequencyResolution: 1 / 32,
+      maximumFrequency: 1,
+      windowFunction: 'hann',
+    };
+
+    const result = structureProfileToDatasetEvidence(source);
+    const temporal = result.evidence.find((item) => item.id === 'temporal:global');
+    const spectral = result.evidence.find((item) => item.id === 'spectral:global');
+
+    expect(temporal?.value).toEqual(
+      expect.objectContaining({
+        periodicities: [
+          expect.objectContaining({
+            frequencyPerTimeUnit: 0.125,
+            periodTimeUnits: 8,
+            heuristicScore: 0.8,
+          }),
+        ],
+      })
+    );
+    expect(JSON.stringify(temporal?.value)).not.toMatch(/periodSamples/i);
+    expect(temporal?.provenance.limitations.join(' ')).toMatch(/actual numeric\/epoch timestamps/i);
+    expect(temporal?.provenance.limitations.join(' ')).toMatch(/irregular or gapped/i);
+
+    expect(spectral?.value).toEqual(
+      expect.objectContaining({
+        dominantFrequenciesPerTimeUnit: [0.125],
+        frequencyResolutionPerTimeUnit: 1 / 32,
+        maximumFrequencyPerTimeUnit: 1,
+        periodicityHeuristicScore: 0.8,
+      })
+    );
+    expect(JSON.stringify(spectral?.value)).not.toMatch(/confidence/i);
+    expect(spectral?.provenance.samplingPolicy).toMatch(/time-sorted, regularly sampled sequence/i);
+    expect(spectral?.provenance.limitations.join(' ')).toMatch(/duplicate timestamps/i);
+    expect(spectral?.provenance.limitations.join(' ')).toMatch(/source temporal coordinate unit/i);
+  });
+
+  it('includes optional spectral domains only when Rust emitted them', () => {
     const withSpectral = profile();
     withSpectral.spectral = {
       dominantFrequencies: [0.125],
@@ -154,7 +229,7 @@ describe('Rust structure profile → DatasetEvidence wiring', () => {
       powerSpectrumPeak: 0.9,
       hasPeriodicity: true,
       periodicityConfidence: 0.8,
-      method: 'mean-pooled-full-sequence-fft',
+      method: 'regular-time-mean-pooled-fft',
       observedCount: 1_000_000,
       transformLength: 65_536,
       sourceObservationsPerBin: 1_000_000 / 65_536,
@@ -166,16 +241,21 @@ describe('Rust structure profile → DatasetEvidence wiring', () => {
     const result = structureProfileToDatasetEvidence(withSpectral);
     const spectral = result.evidence.find((item) => item.category === 'spectral');
     expect(spectral).toBeDefined();
-    expect(spectral?.value).toEqual(expect.objectContaining({ periodicityHeuristicScore: 0.8 }));
+    expect(spectral?.value).toEqual(
+      expect.objectContaining({
+        periodicityHeuristicScore: 0.8,
+        dominantFrequenciesPerTimeUnit: [0.125],
+      })
+    );
     expect(spectral?.provenance.parameters).toEqual(
       expect.objectContaining({
-        estimator: 'mean-pooled-full-sequence-fft',
+        estimator: 'regular-time-mean-pooled-fft',
         transformLength: 65_536,
         sourceObservationsPerBin: 1_000_000 / 65_536,
       })
     );
-    expect(spectral?.provenance.samplingPolicy).toMatch(/full observed sequence/i);
-    expect(spectral?.provenance.limitations.join(' ')).toMatch(/maximumFrequency/i);
+    expect(spectral?.provenance.samplingPolicy).toMatch(/pairwise-complete/i);
+    expect(spectral?.provenance.limitations.join(' ')).toMatch(/maximumFrequencyPerTimeUnit/i);
     expect(JSON.stringify(spectral?.value)).not.toMatch(/confidence/i);
     expect(result.evidence.some((item) => item.category === 'temporal')).toBe(false);
   });

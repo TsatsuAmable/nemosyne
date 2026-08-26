@@ -80,8 +80,8 @@ function spectralFacts(spectral: Record<string, JsonValue> | null): SpectralFact
   if (!spectral) return null;
   return {
     dominantFrequencies: finiteNumberArray(
-      spectral.dominantFrequencies,
-      'spectral.dominantFrequencies',
+      spectral.dominantFrequenciesPerTimeUnit,
+      'spectral.dominantFrequenciesPerTimeUnit',
     ),
     spectralEntropy: finiteNumber(spectral.spectralEntropy, 'spectral.spectralEntropy'),
     powerSpectrumPeak: finiteNumber(spectral.powerSpectrumPeak, 'spectral.powerSpectrumPeak'),

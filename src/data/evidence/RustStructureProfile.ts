@@ -77,8 +77,11 @@ export interface RustDensityProfile {
 }
 
 export interface RustPeriodicityProfile {
+  /** Cycles per time-coordinate unit. */
   frequency: number;
-  periodSamples: number;
+  /** Period in the same time-coordinate unit. */
+  periodTimeUnits: number;
+  /** Historical uncalibrated heuristic score, not statistical confidence. */
   confidence: number;
 }
 
@@ -147,6 +150,7 @@ export interface RustCategoricalProfile {
 }
 
 export interface RustSpectralProfile {
+  /** Cycles per actual time-coordinate unit. */
   dominantFrequencies: number[];
   spectralEntropy: number;
   powerSpectrumPeak: number;
@@ -156,7 +160,9 @@ export interface RustSpectralProfile {
   observedCount: number;
   transformLength: number;
   sourceObservationsPerBin: number;
+  /** Cycles per time-coordinate unit. */
   frequencyResolution: number;
+  /** Nyquist frequency in cycles per time-coordinate unit. */
   maximumFrequency: number;
   windowFunction: string;
 }

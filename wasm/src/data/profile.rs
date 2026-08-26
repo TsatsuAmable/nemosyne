@@ -98,8 +98,12 @@ pub struct DensityProfile {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PeriodicityProfile {
+    /// Cycles per time-coordinate unit.
     pub frequency: f64,
-    pub period_samples: f64,
+    /// Period in the same time-coordinate unit. This replaces the scientifically
+    /// incorrect `periodSamples` label now that FFT uses the actual time axis.
+    pub period_time_units: f64,
+    /// Historical heuristic score, not calibrated statistical confidence.
     pub confidence: f64,
 }
 
@@ -188,6 +192,7 @@ pub struct CategoricalProfile {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpectralProfile {
+    /// Cycles per actual time-coordinate unit.
     pub dominant_frequencies: Vec<f64>,
     pub spectral_entropy: f64,
     pub power_spectrum_peak: f64,
@@ -217,23 +222,19 @@ pub struct DatasetStructureProfile {
     pub dataset_name: String,
     pub row_count: usize,
     pub column_count: usize,
-
     pub dimensionality: DimensionalityProfile,
     pub distributions: DistributionProfile,
     pub correlations: CorrelationProfile,
     pub clusters: ClusterProfile,
     pub density: DensityProfile,
-
     pub temporal: Option<TemporalProfile>,
     pub graph: Option<GraphProfile>,
     pub hierarchy: Option<HierarchyProfile>,
     pub spatial: Option<SpatialProfile>,
-
     pub anomalies: AnomalyProfile,
     pub missingness: MissingnessProfile,
     pub categorical: CategoricalProfile,
     pub spectral: Option<SpectralProfile>,
-
     pub provenance: AnalysisProvenance,
 }
 
@@ -385,6 +386,7 @@ fn evaluate_clusters_from_accessor(
                 .cmp(b.values.iter().map(|value| value.to_bits()))
         })
     });
+
     let mut samples: Vec<Vec<f64>> = selected.into_iter().map(|sample| sample.values).collect();
     for sample in &mut samples {
         for dimension in 0..dimensions {
@@ -393,13 +395,12 @@ fn evaluate_clusters_from_accessor(
                 (sample[dimension] - min_val[dimension]) / span
             } else {
                 0.0
-        };
-    }
+            };
+        }
     }
 
     let mut best_k = 1;
     let mut best_silhouette = -1.0;
-
     for k in 2..=MAX_CANDIDATE_CLUSTERS.min(samples.len() / 2) {
         let mut centroids = vec![vec![0.0; dimensions]; k];
         for (index, centroid) in centroids.iter_mut().enumerate() {
@@ -483,7 +484,6 @@ fn evaluate_clusters_from_accessor(
             let mut a_count = 0;
             let mut b_dists = vec![0.0; k];
             let mut b_counts = vec![0usize; k];
-
             for j in 0..silhouette_samples.len() {
                 if i == j {
                     continue;
@@ -503,21 +503,19 @@ fn evaluate_clusters_from_accessor(
                     b_counts[other_c] += 1;
                 }
             }
-
             if a_count > 0 {
                 let a = a_dist / a_count as f64;
                 let mut b = f64::INFINITY;
-                for c in 0..k {
-                    if c != my_c && b_counts[c] > 0 {
-                        let avg_b = b_dists[c] / b_counts[c] as f64;
+                for cluster in 0..k {
+                    if cluster != my_c && b_counts[cluster] > 0 {
+                        let avg_b = b_dists[cluster] / b_counts[cluster] as f64;
                         if avg_b < b {
                             b = avg_b;
                         }
                     }
                 }
                 if b.is_finite() && a.max(b) > 1e-9 {
-                    let s = (b - a) / a.max(b);
-                    s_sum += s;
+                    s_sum += (b - a) / a.max(b);
                     valid_samples += 1;
                 }
             }
@@ -596,34 +594,31 @@ fn analyze_graph(
     }
 
     let edge_count = edges.len();
-    let mut adj: HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut adjacency: HashMap<usize, Vec<usize>> = HashMap::new();
     let mut in_degrees: HashMap<usize, usize> = HashMap::new();
     let mut nodes = HashSet::new();
-
     for edge in edges {
         nodes.insert(edge.source);
         nodes.insert(edge.target);
-        adj.entry(edge.source).or_default().push(edge.target);
+        adjacency.entry(edge.source).or_default().push(edge.target);
         *in_degrees.entry(edge.target).or_insert(0) += 1;
         in_degrees.entry(edge.source).or_insert(0);
     }
 
     let node_count = nodes.len().max(row_count);
-
-    // Connected components via BFS
     let mut visited = HashSet::new();
     let mut components = 0;
     for &node in &nodes {
         if !visited.contains(&node) {
             components += 1;
-            let mut q = VecDeque::new();
-            q.push_back(node);
+            let mut queue = VecDeque::new();
+            queue.push_back(node);
             visited.insert(node);
-            while let Some(curr) = q.pop_front() {
-                if let Some(neighbors) = adj.get(&curr) {
-                    for &nxt in neighbors {
-                        if visited.insert(nxt) {
-                            q.push_back(nxt);
+            while let Some(current) = queue.pop_front() {
+                if let Some(neighbors) = adjacency.get(&current) {
+                    for &next in neighbors {
+                        if visited.insert(next) {
+                            queue.push_back(next);
                         }
                     }
                 }
@@ -632,87 +627,71 @@ fn analyze_graph(
     }
     let is_connected = components <= 1 && nodes.len() >= row_count;
 
-    // Cycle detection via iterative 3-state DFS (0 = unvisited, 1 = visiting/rec_stack, 2 = visited)
     let mut has_cycles = false;
     let mut node_state: HashMap<usize, u8> = HashMap::new();
-
     for &start_node in &nodes {
         if node_state.get(&start_node).copied().unwrap_or(0) != 0 {
             continue;
         }
-
         let mut stack: Vec<(usize, usize)> = vec![(start_node, 0)];
         node_state.insert(start_node, 1);
-
-        while let Some((curr, next_idx)) = stack.pop() {
-            let neighbors = adj.get(&curr).map(|v| v.as_slice()).unwrap_or(&[]);
-            if next_idx < neighbors.len() {
-                let nxt = neighbors[next_idx];
-                stack.push((curr, next_idx + 1));
-                let nxt_state = node_state.get(&nxt).copied().unwrap_or(0);
-                if nxt_state == 1 {
+        while let Some((current, next_index)) = stack.pop() {
+            let neighbors = adjacency.get(&current).map(|v| v.as_slice()).unwrap_or(&[]);
+            if next_index < neighbors.len() {
+                let next = neighbors[next_index];
+                stack.push((current, next_index + 1));
+                let next_state = node_state.get(&next).copied().unwrap_or(0);
+                if next_state == 1 {
                     has_cycles = true;
                     break;
-                } else if nxt_state == 0 {
-                    node_state.insert(nxt, 1);
-                    stack.push((nxt, 0));
+                } else if next_state == 0 {
+                    node_state.insert(next, 1);
+                    stack.push((next, 0));
                 }
             } else {
-                node_state.insert(curr, 2);
+                node_state.insert(current, 2);
             }
         }
-
         if has_cycles {
             break;
         }
     }
 
-    let is_tree = !has_cycles && (edge_count + 1 == node_count);
-
+    let is_tree = !has_cycles && edge_count + 1 == node_count;
     if is_tree {
-        // Find roots (in-degree == 0)
         let roots: Vec<usize> = in_degrees
             .iter()
-            .filter(|(_, &deg)| deg == 0)
-            .map(|(&n, _)| n)
+            .filter(|(_, degree)| **degree == 0)
+            .map(|(&node, _)| node)
             .collect();
         let root = roots.first().copied().unwrap_or(0);
-
-        // Compute max depth and branching factor
-        let mut depth_q = VecDeque::new();
-        depth_q.push_back((root, 1usize));
+        let mut queue = VecDeque::new();
+        queue.push_back((root, 1usize));
         let mut max_depth = 1usize;
         let mut total_branches = 0;
         let mut branch_nodes = 0;
-
-        while let Some((curr, d)) = depth_q.pop_front() {
-            if d > max_depth {
-                max_depth = d;
-            }
-            if let Some(children) = adj.get(&curr) {
-                let deg = children.len();
-                if deg > 0 {
-                    total_branches += deg;
+        while let Some((current, depth)) = queue.pop_front() {
+            max_depth = max_depth.max(depth);
+            if let Some(children) = adjacency.get(&current) {
+                if !children.is_empty() {
+                    total_branches += children.len();
                     branch_nodes += 1;
-                    for &c in children {
-                        depth_q.push_back((c, d + 1));
+                    for &child in children {
+                        queue.push_back((child, depth + 1));
                     }
                 }
             }
         }
-
-        let branching_factor = if branch_nodes > 0 {
-            total_branches as f64 / branch_nodes as f64
-        } else {
-            1.0
-        };
-
         (
             None,
             Some(HierarchyProfile {
                 is_hierarchy: true,
                 depth: max_depth,
-                branching_factor,
+                branching_factor: if branch_nodes > 0 {
+                    total_branches as f64 / branch_nodes as f64
+                } else {
+                    1.0
+                },
             }),
         )
     } else {
@@ -735,36 +714,34 @@ pub fn compute_dataset_structure_profile(
     kernel_version: &str,
 ) -> DatasetStructureProfile {
     let row_count = dataset.rows.len();
-    let mut col_missingness = HashMap::new();
+    let mut column_missingness = HashMap::new();
     let mut total_missing = 0;
-    for col in &dataset.columns {
-        let mut missing_in_col = 0;
-        for row in &dataset.rows {
-            match row.get(&col.name) {
-                None | Some(Value::Null) => missing_in_col += 1,
-                _ => {}
-            }
-        }
-        total_missing += missing_in_col;
-        let frac = if row_count > 0 {
-            missing_in_col as f64 / row_count as f64
-        } else {
-            0.0
-        };
-        col_missingness.insert(col.name.clone(), frac);
+    for column in &dataset.columns {
+        let missing = dataset
+            .rows
+            .iter()
+            .filter(|row| matches!(row.get(&column.name), None | Some(Value::Null)))
+            .count();
+        total_missing += missing;
+        column_missingness.insert(
+            column.name.clone(),
+            if row_count > 0 {
+                missing as f64 / row_count as f64
+            } else {
+                0.0
+            },
+        );
     }
-    let total_cells = (row_count as u64) * (dataset.columns.len() as u64);
-    let missing_fraction = if total_cells > 0 {
-        total_missing as f64 / total_cells as f64
-    } else {
-        0.0
-    };
-
+    let total_cells = row_count as u64 * dataset.columns.len() as u64;
     let missingness = MissingnessProfile {
         total_missing,
-        missing_fraction,
+        missing_fraction: if total_cells > 0 {
+            total_missing as f64 / total_cells as f64
+        } else {
+            0.0
+        },
         has_missingness: total_missing > 0,
-        column_missingness: col_missingness,
+        column_missingness,
     };
     let stats = compute_statistics(dataset);
     let numeric_col_names: Vec<String> = dataset
@@ -844,7 +821,7 @@ pub fn compute_columnar_dataset_structure_profile(
             },
         );
     }
-    let total_cells = (row_count as u64) * (columns.len() as u64);
+    let total_cells = row_count as u64 * columns.len() as u64;
     let missingness = MissingnessProfile {
         total_missing,
         missing_fraction: if total_cells > 0 {
@@ -875,11 +852,13 @@ pub fn compute_columnar_dataset_structure_profile(
         None,
         dataset_fingerprint,
         kernel_version,
-        |_time_column, value_column| {
-            let index = columns
-                .iter()
-                .position(|column| column.name == value_column)?;
-            compute_spectral_facts_columnar(columnar.primitive_column(index)?)
+        |time_column, value_column| {
+            let time_index = columns.iter().position(|column| column.name == time_column)?;
+            let value_index = columns.iter().position(|column| column.name == value_column)?;
+            compute_spectral_facts_columnar(
+                Some(columnar.primitive_column(time_index)?),
+                columnar.primitive_column(value_index)?,
+            )
         },
     ))
 }
@@ -916,51 +895,39 @@ fn assemble_structure_profile(
     let mut global_high_variance = false;
     let mut max_skewness: f64 = 0.0;
     let mut constant_columns = 0;
-    let mut max_observed_anomaly_score = 0.0;
-
-    for cs in &stats.numeric {
-        let abs_skew = cs.skew.abs();
-        if abs_skew > max_skewness {
-            max_skewness = abs_skew;
-        }
-        if cs.outlier_count > 0 {
-            global_has_outliers = true;
-        }
-        if cs.var > 100.0 {
-            global_high_variance = true;
-        }
-        if (cs.max - cs.min).abs() < 1e-9 {
+    let mut max_observed_anomaly_score: f64 = 0.0;
+    for stats in &stats.numeric {
+        let abs_skew = stats.skew.abs();
+        max_skewness = max_skewness.max(abs_skew);
+        global_has_outliers |= stats.outlier_count > 0;
+        global_high_variance |= stats.var > 100.0;
+        if (stats.max - stats.min).abs() < 1e-9 {
             constant_columns += 1;
         }
-
-        if cs.outlier_count > 0 && cs.std > 1e-9 {
-            let max_dev = (cs.max - cs.mean).abs().max((cs.min - cs.mean).abs());
-            let z_score = max_dev / cs.std;
-            let score = (z_score / 5.0).clamp(0.0, 1.0);
-            if score > max_observed_anomaly_score {
-                max_observed_anomaly_score = score;
-            }
+        if stats.outlier_count > 0 && stats.std > 1e-9 {
+            let max_deviation = (stats.max - stats.mean)
+                .abs()
+                .max((stats.min - stats.mean).abs());
+            max_observed_anomaly_score = max_observed_anomaly_score
+                .max((max_deviation / stats.std / 5.0).clamp(0.0, 1.0));
         }
-
         numeric_summaries.push(NumericDistributionSummary {
-            column: cs.name.clone(),
-            mean: cs.mean,
-            median: cs.median,
-            std_dev: cs.std,
-            variance: cs.var,
-            min: cs.min,
-            max: cs.max,
-            iqr: cs.iqr,
-            skewness: cs.skew,
-            kurtosis: cs.kurtosis,
-            outlier_count: cs.outlier_count,
-            is_multimodal: cs.is_multimodal,
-            is_heavy_tailed: cs.kurtosis > 3.0,
+            column: stats.name.clone(),
+            mean: stats.mean,
+            median: stats.median,
+            std_dev: stats.std,
+            variance: stats.var,
+            min: stats.min,
+            max: stats.max,
+            iqr: stats.iqr,
+            skewness: stats.skew,
+            kurtosis: stats.kurtosis,
+            outlier_count: stats.outlier_count,
+            is_multimodal: stats.is_multimodal,
+            is_heavy_tailed: stats.kurtosis > 3.0,
         });
     }
-
-    let total_anomalies = numeric_summaries.iter().map(|n| n.outlier_count).sum();
-
+    let total_anomalies = numeric_summaries.iter().map(|summary| summary.outlier_count).sum();
     let distributions = DistributionProfile {
         numeric_summaries,
         global_has_outliers,
@@ -968,85 +935,72 @@ fn assemble_structure_profile(
         max_skewness,
     };
 
-    let mut corr_pairs = Vec::new();
+    let mut correlation_pairs = Vec::new();
     let mut max_correlation: f64 = 0.0;
     let mut significant_pairs_count = 0;
-
     for pair in &stats.correlation {
-        let abs_r = pair.value.abs();
-        if abs_r > max_correlation {
-            max_correlation = abs_r;
-        }
-        let is_strong = abs_r > 0.6;
-        if is_strong {
-            significant_pairs_count += 1;
-        }
-        corr_pairs.push(CorrelationPairSummary {
+        let absolute = pair.value.abs();
+        max_correlation = max_correlation.max(absolute);
+        let is_strong = absolute > 0.6;
+        significant_pairs_count += usize::from(is_strong);
+        correlation_pairs.push(CorrelationPairSummary {
             column_a: pair.a.clone(),
             column_b: pair.b.clone(),
             r: pair.value,
             is_strong,
         });
     }
-
     let correlations = CorrelationProfile {
-        pairs: corr_pairs,
+        pairs: correlation_pairs,
         max_correlation,
         significant_pairs_count,
         is_rank_deficient: max_correlation > 0.98,
     };
-
     let dimensionality = DimensionalityProfile {
         total_columns: column_count,
         numeric_columns: numeric_col_count,
         categorical_columns: categorical_col_count,
         temporal_columns: temporal_col_count,
         constant_columns,
-        redundant_columns: if max_correlation > 0.95 { 1 } else { 0 },
+        redundant_columns: usize::from(max_correlation > 0.95),
         effective_dimensions: column_count.saturating_sub(constant_columns),
     };
 
-    let mut cat_summaries = Vec::new();
+    let mut categorical_summaries = Vec::new();
     let mut sum_entropy = 0.0;
     let mut has_high_cardinality = false;
-
-    for cat in &stats.categorical {
-        sum_entropy += cat.entropy;
-        if cat.cardinality > 20 {
-            has_high_cardinality = true;
-        }
-        let top = cat
-            .top
-            .iter()
-            .map(|t| CategoryBucketSummary {
-                value: t.value.clone(),
-                count: t.count,
-                fraction: if row_count > 0 {
-                    t.count as f64 / row_count as f64
-                } else {
-                    0.0
-                },
-            })
-            .collect();
-        cat_summaries.push(CategoricalColumnSummary {
-            column: cat.name.clone(),
-            cardinality: cat.cardinality,
-            entropy: cat.entropy,
-            top_categories: top,
-            is_high_cardinality: cat.cardinality > 20,
+    for category in &stats.categorical {
+        sum_entropy += category.entropy;
+        has_high_cardinality |= category.cardinality > 20;
+        categorical_summaries.push(CategoricalColumnSummary {
+            column: category.name.clone(),
+            cardinality: category.cardinality,
+            entropy: category.entropy,
+            top_categories: category
+                .top
+                .iter()
+                .map(|bucket| CategoryBucketSummary {
+                    value: bucket.value.clone(),
+                    count: bucket.count,
+                    fraction: if row_count > 0 {
+                        bucket.count as f64 / row_count as f64
+                    } else {
+                        0.0
+                    },
+                })
+                .collect(),
+            is_high_cardinality: category.cardinality > 20,
         });
     }
-
     let categorical = CategoricalProfile {
-        mean_entropy: if !stats.categorical.is_empty() {
-            sum_entropy / stats.categorical.len() as f64
-        } else {
+        mean_entropy: if stats.categorical.is_empty() {
             0.0
+        } else {
+            sum_entropy / stats.categorical.len() as f64
         },
-        summaries: cat_summaries,
+        summaries: categorical_summaries,
         has_high_cardinality,
     };
-
     let density = DensityProfile {
         global_density: if row_count >= 50 {
             0.7
@@ -1061,71 +1015,68 @@ fn assemble_structure_profile(
     };
 
     let (temporal, spectral) = if !stats.temporal_stats.is_empty() && numeric_col_count > 0 {
-        let ts = &stats.temporal_stats[0];
-        let computed_spectral_facts = spectral_facts(&ts.column, &ts.value_column);
-        let spectral_profile = computed_spectral_facts.as_ref().map(|s| SpectralProfile {
-            dominant_frequencies: s.dominant_frequencies.clone(),
-            spectral_entropy: s.spectral_entropy,
-            power_spectrum_peak: s.power_spectrum_peak,
-            has_periodicity: s.has_periodicity,
-            periodicity_confidence: s.periodicity_confidence,
-            method: s.method.clone(),
-            observed_count: s.observed_count,
-            transform_length: s.transform_length,
-            source_observations_per_bin: s.source_observations_per_bin,
-            frequency_resolution: s.frequency_resolution,
-            maximum_frequency: s.maximum_frequency,
-            window_function: s.window_function.clone(),
+        let temporal_stats = &stats.temporal_stats[0];
+        let spectral_facts = spectral_facts(&temporal_stats.column, &temporal_stats.value_column);
+        let spectral_profile = spectral_facts.as_ref().map(|facts| SpectralProfile {
+            dominant_frequencies: facts.dominant_frequencies.clone(),
+            spectral_entropy: facts.spectral_entropy,
+            power_spectrum_peak: facts.power_spectrum_peak,
+            has_periodicity: facts.has_periodicity,
+            periodicity_confidence: facts.periodicity_confidence,
+            method: facts.method.clone(),
+            observed_count: facts.observed_count,
+            transform_length: facts.transform_length,
+            source_observations_per_bin: facts.source_observations_per_bin,
+            frequency_resolution: facts.frequency_resolution,
+            maximum_frequency: facts.maximum_frequency,
+            window_function: facts.window_function.clone(),
         });
-
-        let periodicities = if let Some(ref s) = spectral_profile {
-            s.dominant_frequencies
-                .iter()
-                .map(|&f| PeriodicityProfile {
-                    frequency: f,
-                    period_samples: if f > 0.0 { 1.0 / f } else { 0.0 },
-                    confidence: s.periodicity_confidence,
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        let temp_prof = TemporalProfile {
+        let periodicities = spectral_profile
+            .as_ref()
+            .map(|profile| {
+                profile
+                    .dominant_frequencies
+                    .iter()
+                    .map(|&frequency| PeriodicityProfile {
+                        frequency,
+                        period_time_units: if frequency > 0.0 { 1.0 / frequency } else { 0.0 },
+                        confidence: profile.periodicity_confidence,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let temporal_profile = TemporalProfile {
             is_time_series: true,
-            time_column: Some(ts.column.clone()),
-            trend_direction: ts.trend_direction.clone(),
-            trend_strength: ts.normalized_slope.abs(),
+            time_column: Some(temporal_stats.column.clone()),
+            trend_direction: temporal_stats.trend_direction.clone(),
+            trend_strength: temporal_stats.normalized_slope.abs(),
             has_seasonality: spectral_profile
                 .as_ref()
-                .map(|s| s.has_periodicity)
-                .unwrap_or(ts.seasonality_hint),
+                .is_some_and(|profile| profile.has_periodicity),
             periodicities,
         };
-
-        (Some(temp_prof), spectral_profile)
+        (Some(temporal_profile), spectral_profile)
     } else {
         (None, None)
     };
 
-    let mut lat_col = None;
-    let mut lon_col = None;
-    for col in columns {
-        let lower = col.name.to_lowercase();
+    let mut latitude_column = None;
+    let mut longitude_column = None;
+    for column in columns {
+        let lower = column.name.to_lowercase();
         if lower == "lat" || lower == "latitude" {
-            lat_col = Some(col.name.clone());
+            latitude_column = Some(column.name.clone());
         }
         if lower == "lon" || lower == "lng" || lower == "longitude" {
-            lon_col = Some(col.name.clone());
+            longitude_column = Some(column.name.clone());
         }
     }
-
-    let spatial = if lat_col.is_some() && lon_col.is_some() {
+    let spatial = if latitude_column.is_some() && longitude_column.is_some() {
         Some(SpatialProfile {
             is_geospatial: true,
             coordinate_dimensions: 2,
-            lat_column: lat_col,
-            lon_column: lon_col,
+            lat_column: latitude_column,
+            lon_column: longitude_column,
         })
     } else {
         None
@@ -1145,7 +1096,6 @@ fn assemble_structure_profile(
             0.0
         },
     };
-
     let provenance = AnalysisProvenance {
         kernel_version: kernel_version.to_string(),
         dataset_fingerprint: dataset_fingerprint.to_string(),
@@ -1177,35 +1127,30 @@ fn assemble_structure_profile(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::f64::consts::PI;
 
     #[test]
     fn test_compute_dataset_structure_profile() {
         let mut rows = Vec::new();
-        for i in 0..50 {
-            let mut row = HashMap::new();
-            row.insert("x".to_string(), Value::Number(i as f64));
-            row.insert("y".to_string(), Value::Number((i * 2) as f64));
-            row.insert(
-                "cat".to_string(),
-                Value::Text(if i % 2 == 0 {
-                    "A".to_string()
-                } else {
-                    "B".to_string()
-                }),
-            );
-            rows.push(row);
+        for index in 0..50 {
+            rows.push(HashMap::from([
+                ("x".to_string(), Value::Number(index as f64)),
+                ("y".to_string(), Value::Number((index * 2) as f64)),
+                (
+                    "cat".to_string(),
+                    Value::Text(if index % 2 == 0 { "A" } else { "B" }.to_string()),
+                ),
+            ]));
         }
-
         let dataset = Dataset::new(
-            "test_ds".to_string(),
+            "test_ds",
             vec![
-                Column::new("x".to_string(), ColumnType::Numeric),
-                Column::new("y".to_string(), ColumnType::Numeric),
-                Column::new("cat".to_string(), ColumnType::Categorical),
+                Column::new("x", ColumnType::Numeric),
+                Column::new("y", ColumnType::Numeric),
+                Column::new("cat", ColumnType::Categorical),
             ],
             rows,
         );
-
         let profile = compute_dataset_structure_profile(&dataset, "fp-test", "0.1.0");
         assert_eq!(profile.row_count, 50);
         assert_eq!(profile.column_count, 3);
@@ -1226,7 +1171,7 @@ mod tests {
                         if index == 7 {
                             Value::Null
                         } else {
-                            Value::Number(((index as f64) / 4.0).sin())
+                            Value::Number((index as f64 / 4.0).sin())
                         },
                     ),
                     (
@@ -1251,7 +1196,6 @@ mod tests {
         );
         let fingerprint = dataset.fingerprint();
         let columnar = ColumnarDataset::from_dataset(&dataset);
-
         let row_profile = compute_dataset_structure_profile(&dataset, &fingerprint, "0.1.0");
         let columnar_profile = compute_columnar_dataset_structure_profile(
             &dataset.name,
@@ -1261,8 +1205,63 @@ mod tests {
             "0.1.0",
         )
         .expect("columnar profile");
-
         assert_eq!(columnar_profile, row_profile);
+        assert!(row_profile.spectral.is_none(), "missing sample creates a gap; FFT must fail closed");
+    }
+
+    #[test]
+    fn regular_temporal_profile_reports_period_in_time_units() {
+        let rows = (0..64)
+            .map(|index| {
+                HashMap::from([
+                    ("time".to_string(), Value::Number(index as f64 * 0.5)),
+                    (
+                        "value".to_string(),
+                        Value::Number((2.0 * PI * index as f64 / 16.0).sin()),
+                    ),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            "regular-temporal",
+            vec![
+                Column::new("time", ColumnType::Temporal),
+                Column::new("value", ColumnType::Numeric),
+            ],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        let spectral = profile.spectral.as_ref().expect("regular spectral profile");
+        assert_eq!(spectral.method, "regular-time-fft");
+        let periodicity = &profile.temporal.as_ref().unwrap().periodicities[0];
+        assert!((periodicity.frequency - 0.125).abs() < 0.01);
+        assert!((periodicity.period_time_units - 8.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn irregular_temporal_profile_keeps_trend_but_withholds_spectral_claim() {
+        let times = [0.0, 1.0, 2.0, 4.0, 7.0, 11.0];
+        let rows = times
+            .iter()
+            .map(|time| {
+                HashMap::from([
+                    ("time".to_string(), Value::Number(*time)),
+                    ("value".to_string(), Value::Number(*time * 2.0)),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            "irregular-temporal",
+            vec![
+                Column::new("time", ColumnType::Temporal),
+                Column::new("value", ColumnType::Numeric),
+            ],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(profile.temporal.as_ref().unwrap().trend_direction, "up");
+        assert!(!profile.temporal.as_ref().unwrap().has_seasonality);
+        assert!(profile.spectral.is_none());
     }
 
     #[test]
@@ -1275,10 +1274,8 @@ mod tests {
                 Some(cluster + dimension as f64 * 0.1 + (permuted % 17) as f64 * 0.001)
             })
         };
-
         let first = evaluate();
         let second = evaluate();
-
         assert_eq!(first, second);
         assert_eq!(first.method, "fixed-seed-bottom-k-complete-row-kmeans");
         assert_eq!(first.eligible_observation_count, row_count);
@@ -1303,7 +1300,6 @@ mod tests {
         let reversed = evaluate_clusters_from_accessor(row_count, 2, |row, dimension| {
             Some(value(row_count - row - 1, dimension))
         });
-
         assert_eq!(forward, reversed);
     }
 }

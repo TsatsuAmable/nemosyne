@@ -265,12 +265,19 @@ export function structureProfileToDatasetEvidence(
           heuristicTrendStrength: profile.temporal.trendStrength,
           heuristicSeasonalityDetected: profile.temporal.hasSeasonality,
           periodicities: profile.temporal.periodicities.map((periodicity) => ({
-            frequency: periodicity.frequency,
-            periodSamples: periodicity.periodSamples,
+            frequencyPerTimeUnit: periodicity.frequency,
+            periodTimeUnits: periodicity.periodTimeUnits,
             heuristicScore: periodicity.confidence,
           })),
         },
-        'structure-profile/temporal'
+        'structure-profile/temporal',
+        {},
+        'pairwise-complete time/value observations; trend uses the full eligible population',
+        [
+          'Trend is regressed against normalized actual numeric/epoch timestamps, not observation rank.',
+          'Seasonality is only surfaced when the regular-sampling spectral estimator is valid; irregular or gapped series retain trend evidence but withhold FFT periodicity evidence.',
+          'Unparsed temporal strings are not hashed into synthetic coordinates.',
+        ]
       )
     );
   }
@@ -283,7 +290,7 @@ export function structureProfileToDatasetEvidence(
         'spectral',
         'spectral-profile',
         {
-          dominantFrequencies: profile.spectral.dominantFrequencies,
+          dominantFrequenciesPerTimeUnit: profile.spectral.dominantFrequencies,
           spectralEntropy: profile.spectral.spectralEntropy,
           powerSpectrumPeak: profile.spectral.powerSpectrumPeak,
           heuristicPeriodicityDetected: profile.spectral.hasPeriodicity,
@@ -292,8 +299,8 @@ export function structureProfileToDatasetEvidence(
           observedCount: profile.spectral.observedCount,
           transformLength: profile.spectral.transformLength,
           sourceObservationsPerBin: profile.spectral.sourceObservationsPerBin,
-          frequencyResolution: profile.spectral.frequencyResolution,
-          maximumFrequency: profile.spectral.maximumFrequency,
+          frequencyResolutionPerTimeUnit: profile.spectral.frequencyResolution,
+          maximumFrequencyPerTimeUnit: profile.spectral.maximumFrequency,
           windowFunction: profile.spectral.windowFunction,
         },
         'structure-profile/spectral',
@@ -302,15 +309,17 @@ export function structureProfileToDatasetEvidence(
           observedCount: profile.spectral.observedCount,
           transformLength: profile.spectral.transformLength,
           sourceObservationsPerBin: profile.spectral.sourceObservationsPerBin,
-          frequencyResolution: profile.spectral.frequencyResolution,
-          maximumFrequency: profile.spectral.maximumFrequency,
+          frequencyResolutionPerTimeUnit: profile.spectral.frequencyResolution,
+          maximumFrequencyPerTimeUnit: profile.spectral.maximumFrequency,
           windowFunction: profile.spectral.windowFunction,
         },
         profile.spectral.sourceObservationsPerBin === 1
-          ? 'full observed sequence; one exact FFT'
-          : 'full observed sequence; deterministic contiguous mean-pooling before bounded FFT',
+          ? 'full pairwise-complete, time-sorted, regularly sampled sequence; one exact FFT'
+          : 'full pairwise-complete, time-sorted, regularly sampled sequence; deterministic contiguous mean-pooling before bounded FFT',
         [
-          'Mean pooling preserves full-sequence coverage but suppresses frequencies above the reported maximumFrequency.',
+          'FFT is not emitted for duplicate timestamps, irregular sampling, or gaps introduced by missing time/value observations; an explicit governed resampling or irregular-series estimator is required for those cases.',
+          'Frequencies, frequency resolution, Nyquist maximum, and derived periods use the source temporal coordinate unit.',
+          'Mean pooling preserves full-sequence coverage but suppresses frequencies above the reported maximumFrequencyPerTimeUnit.',
         ]
       )
     );

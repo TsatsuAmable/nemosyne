@@ -164,6 +164,31 @@ describe('Evidence-backed Moneta boundary', () => {
     expect(result.decision.datasetSignature.clusterStructure.separationScore).toBe(0.7);
   });
 
+  it('preserves physical-unit spectral frequencies in the Moneta signature', () => {
+    const spectralEvidence = item('spectral:global', 'spectral', {
+      dominantFrequenciesPerTimeUnit: [0.125, 0.25],
+      spectralEntropy: 0.2,
+      powerSpectrumPeak: 0.8,
+      heuristicPeriodicityDetected: true,
+      periodicityHeuristicScore: 0.7,
+      method: 'regular-time-fft',
+      observedCount: 64,
+      transformLength: 64,
+      sourceObservationsPerBin: 1,
+      frequencyResolutionPerTimeUnit: 0.03125,
+      maximumFrequencyPerTimeUnit: 1,
+      windowFunction: 'hann',
+    });
+
+    const authoritative = datasetEvidenceToSignature(evidence([spectralEvidence]));
+
+    expect(authoritative.spectralStructure).toMatchObject({
+      dominantFrequencies: [0.125, 0.25],
+      hasPeriodicity: true,
+      periodicityHeuristicScore: 0.7,
+    });
+  });
+
   it('preserves authoritative evidence and model identity when Moneta returns NIL', () => {
     const requirements = createDefaultRequirements('individual-inspection');
     requirements.hardwareConstraints = { ...requirements.hardwareConstraints, maxElements: 1 };
