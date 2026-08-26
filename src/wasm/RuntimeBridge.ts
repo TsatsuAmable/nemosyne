@@ -61,9 +61,11 @@ export {
   computePersistenceIntervals,
   computeBetti0Curve,
   computeDatasetStructureProfile,
+  tdaResourcePreflight,
   type AnalyticalResourceDecision,
   type AnalyticalResourceEstimate,
   type TdaResourcePreflight,
+  type TdaExportName,
 } from './runtime/DatasetHandleBridge.ts';
 
 export {

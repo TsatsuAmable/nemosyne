@@ -211,4 +211,63 @@ describe('columnar TDA real-WASM boundary', () => {
       bridge.destroyDataset(handle);
     }
   });
+
+  it('W6: kernel-inline guard refuses over-budget direct raw export calls (no bypass)', () => {
+    // Calls the raw WASM export directly, bypassing the TS tdaCall wrapper, to
+    // prove the resource envelope is enforced at the kernel ABI boundary: a
+    // direct/raw caller cannot cause unbounded TDA work. The export returns the
+    // in-band refusal envelope instead of a plausible result.
+    const rowCount = 9_000;
+    const dimensions = 7;
+    const payload = highDimensionalPayload(rowCount, dimensions);
+    const handle = bridge.loadTypedColumns(payload, 'rf030-raw-bypass');
+    expect(handle).toBeGreaterThan(0);
+
+    try {
+      const featureColumns = Array.from({ length: dimensions }, (_, index) => `x${index}`);
+      const paramBytes = new TextEncoder().encode(
+        JSON.stringify({ featureColumns, bins: 10, overlap: 0.3 })
+      );
+      const paramAlloc = bridge.allocBytes(paramBytes);
+      try {
+        const required = Number(
+          bridge.call('data_compute_mapper_graph', handle, paramAlloc.ptr, paramAlloc.len, 0, 0)
+        );
+        expect(required).toBeGreaterThan(0);
+        const outAlloc = bridge.allocBytes(new Uint8Array(required));
+        try {
+          const written = Number(
+            bridge.call(
+              'data_compute_mapper_graph',
+              handle,
+              paramAlloc.ptr,
+              paramAlloc.len,
+              outAlloc.ptr,
+              outAlloc.len
+            )
+          );
+          expect(written).toBeGreaterThan(0);
+          const envelope = JSON.parse(bridge.readString(outAlloc.ptr, written)) as {
+            unsupportedAtScale?: boolean;
+            preflight?: {
+              sourceRows?: number;
+              estimate?: { operation?: string; reasonCode?: string };
+            };
+          };
+          expect(envelope.unsupportedAtScale).toBe(true);
+          expect(envelope.preflight?.sourceRows).toBe(rowCount);
+          expect(envelope.preflight?.estimate?.operation).toBe('compute_mapper_graph');
+          expect(envelope.preflight?.estimate?.reasonCode).toBe(
+            'HIGH_DIMENSIONAL_EXACT_FALLBACK_OVER_BUDGET'
+          );
+        } finally {
+          bridge.deallocBytes(outAlloc.ptr, outAlloc.len);
+        }
+      } finally {
+        bridge.deallocBytes(paramAlloc.ptr, paramAlloc.len);
+      }
+    } finally {
+      bridge.destroyDataset(handle);
+    }
+  });
 });
