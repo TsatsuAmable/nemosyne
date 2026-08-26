@@ -47,6 +47,8 @@ import { WorldTheme } from './WorldTheme.ts';
 import { TelemetryCollector } from '../utils/Telemetry.ts';
 import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.ts';
 import { LivePreview } from './interactions/LivePreview.ts';
+import { FocusContextController } from './interactions/FocusContextController.ts';
+import { SemanticTargetResolver } from './input/SemanticTargetResolver.ts';
 import {
   CollaborationCoordinator,
   type NetworkManagerLike,
@@ -153,6 +155,9 @@ export class World {
   tooltipManager: TooltipManager;
   inPlaceHandles: InPlaceOperationHandles;
   livePreview: LivePreview;
+  /** RF-025: P1-F semantic targeting + focus/context layer installed on the input router. */
+  semanticResolver!: SemanticTargetResolver;
+  focusContext!: FocusContextController;
   portalsEnabled: boolean;
   _datasetCycleIndex: number;
   _wasmCapabilities: number;
@@ -478,6 +483,25 @@ export class World {
 
     // System gesture (controller grip or two-hand pinch) toggles launcher ring.
     this.engine.input.onSystemToggle = () => this._togglePanels();
+
+    // RF-025: install the P1-F semantic targeting + focus/context layer on the
+    // real picking path. The resolver re-ranks the full scene hit list with
+    // coercion + hysteresis (the precision escape hatch is preserved — the
+    // resolver only re-ranks existing hits); structure-kind selection drives
+    // the focus/context controller, which navigates the Memory Palace and
+    // persists durable focus state into the session snapshot.
+    this.semanticResolver = new SemanticTargetResolver();
+    this.focusContext = new FocusContextController();
+    this.engine.input.setSemanticTargeting(this.semanticResolver, this.focusContext);
+    this.engine.input.onFocusChange = (state) => {
+      // Record the Memory Palace navigation in the session interaction log so
+      // the focus/context transition is part of the reproducible investigation
+      // record, then persist the durable focus snapshot.
+      this._logInteraction('Focus structure', {
+        result: `level=${state.currentLevel} structure=${state.focusedStructureId ?? 'none'}`,
+      });
+      this._requestAutoSave();
+    };
 
     // Tell the tooltip manager about any dashboard panels created later.
     this._dashboardTooltipTargets = [];
@@ -1009,6 +1033,11 @@ export class World {
       this.tooltipManager.setTargets(dracoNode.artifact.nodeMeshes);
       for (const mesh of dracoNode.artifact.nodeMeshes) {
         this.engine.addInteractable(mesh, {
+          // RF-025: data nodes are durable observation targets. Carrying the
+          // semantic kind lets the SemanticTargetResolver rank them against
+          // structure handles and keeps observation selection from advancing
+          // the Memory Palace focus/context.
+          semantic: { kind: 'observation' },
           onEnter: (m: THREE.Object3D) =>
             dracoNode.artifact?.interactions?.onHover?.(m as THREE.Mesh),
           onLeave: (m: THREE.Object3D) =>

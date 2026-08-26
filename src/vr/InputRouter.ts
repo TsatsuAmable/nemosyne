@@ -10,6 +10,8 @@ import { PointerEventMachine } from './input/PointerEventMachine.ts';
 import { SystemGestureDetector } from './input/SystemGestureDetector.ts';
 import { SelectionDispatcher } from './input/SelectionDispatcher.ts';
 import { ControllerGestureBridge } from './input/ControllerGestureBridge.ts';
+import { SemanticTargetResolver } from './input/SemanticTargetResolver.ts';
+import { FocusContextController, type FocusLevel } from './interactions/FocusContextController.ts';
 import type {
   ControllerGestureMapperLike,
   EngineLike,
@@ -66,6 +68,19 @@ export class InputRouter {
   handWheelMenu: HandWheelMenuLike | null;
   controllerGestureMapper: ControllerGestureMapperLike | null;
 
+  /**
+   * RF-025: optional semantic targeting layer. When installed, the per-frame
+   * picking path resolves the full scene hit list through the resolver (with
+   * coercion + hysteresis) instead of using the bare nearest hit, and a
+   * structure-kind selection drives the focus/context controller. Both fields
+   * default to `null` so the legacy nearest-hit picking path is unchanged when
+   * the layer is not installed.
+   */
+  semanticResolver: SemanticTargetResolver | null = null;
+  focusContext: FocusContextController | null = null;
+  /** Notified whenever the focus/context state changes so the World/session can navigate + persist. */
+  onFocusChange: ((state: { currentLevel: FocusLevel; focusedStructureId: string | null }) => void) | null = null;
+
   activePointer: PointerLike | null;
   onSelectCallback: ((ray: THREE.Ray) => void) | null;
   onSystemToggle: (() => void) | null;
@@ -91,9 +106,7 @@ export class InputRouter {
     this.dispatcher = new SelectionDispatcher(this.registry);
     this.machine = new PointerEventMachine(this.registry, {
       onTriggerSelect: (pointer) => {
-        this.activePointer = pointer;
-        this.dispatcher.triggerSelect(pointer);
-        this.activePointer = null;
+        this._dispatchSelect(pointer);
       },
     });
     this.systemDetector = new SystemGestureDetector(this.pointers);
@@ -158,9 +171,7 @@ export class InputRouter {
 
     // Fallback path when polling misses a select event.
     controller.onSelect = (pointer) => {
-      this.activePointer = pointer;
-      this.dispatcher.triggerSelect(pointer);
-      this.activePointer = null;
+      this._dispatchSelect(pointer);
     };
   }
 
@@ -175,9 +186,7 @@ export class InputRouter {
         this.handWheelMenu.toggle();
         return;
       }
-      this.activePointer = pointer;
-      this.dispatcher.triggerSelect(pointer);
-      this.activePointer = null;
+      this._dispatchSelect(pointer);
     };
 
     hand.onPinchEnd = (pointer) => {
@@ -252,6 +261,83 @@ export class InputRouter {
     this.onSelectCallback = null;
     this.onSystemToggle = null;
     this.onHandPinchEdge = null;
+    this.semanticResolver?.clearHold();
+    this.semanticResolver = null;
+    this.focusContext = null;
+    this.onFocusChange = null;
+  }
+
+  /**
+   * RF-025: install the semantic targeting + focus/context layer. Pass `null`
+   * to revert to the legacy nearest-hit picking path. Installing a resolver
+   * does not remove the precision escape hatch — the resolver only re-ranks
+   * the existing hit list; when it returns no target the nearest hit is used.
+   */
+  setSemanticTargeting(
+    resolver: SemanticTargetResolver | null,
+    focusController: FocusContextController | null
+  ): void {
+    this.semanticResolver = resolver;
+    this.focusContext = focusController;
+  }
+
+  /**
+   * RF-025: resolve the scene hit for the current ray. When a semantic resolver
+   * is installed, rank ALL scene hits and coerce structure targets over raw
+   * observations with hysteresis; otherwise fall back to the bare nearest hit.
+   * Returns `null` when nothing is hit.
+   */
+  private _resolveSceneHit(): SceneHit | null {
+    if (!this.semanticResolver) {
+      return this.registry.raycastScene();
+    }
+    const allHits = this.registry.raycastSceneAll();
+    if (allHits.length === 0) return null;
+    const ray = this.registry.raycaster.ray;
+    const gazeDir = this.engine?.camera?.getWorldDirection?.(new THREE.Vector3());
+    const resolved = this.semanticResolver.rank(allHits, ray, gazeDir ?? undefined, undefined);
+    if (!resolved) return allHits[0] ?? null;
+    const matched = allHits.find((hit) => hit.entry === resolved.entry);
+    return matched ?? { entry: resolved.entry, distance: 0 };
+  }
+
+  /**
+   * RF-025: trigger selection and propagate any structure-kind selection into
+   * the focus/context controller, notifying subscribers so the World/session
+   * can navigate to the focused structure and persist the state.
+   */
+  private _dispatchSelect(pointer: PointerLike): void {
+    this.activePointer = pointer;
+    this.dispatcher.triggerSelect(pointer);
+    this._applyFocusFromHovered();
+    this.activePointer = null;
+  }
+
+  private _applyFocusFromHovered(): void {
+    const focus = this.focusContext;
+    if (!focus) return;
+    const entry = this.registry.hovered;
+    const semantic = entry?.semantic;
+    if (!semantic?.structureId) return;
+
+    // Only structure-kind selections advance focus; observations stay at the
+    // current context so data-node inspection does not hijack Memory Palace navigation.
+    const isStructure =
+      semantic.kind === 'mapper-node' ||
+      semantic.kind === 'cluster-region' ||
+      semantic.kind === 'persistence-structure' ||
+      semantic.kind === 'investigation-artifact';
+    if (!isStructure) return;
+
+    const before = focus.exportState();
+    focus.focusStructure(semantic.structureId);
+    const after = focus.exportState();
+    if (
+      before.currentLevel !== after.currentLevel ||
+      before.focusedStructureId !== after.focusedStructureId
+    ) {
+      this.onFocusChange?.(after);
+    }
   }
 
   /** Return the pointer object that triggered the most recent selection. */
@@ -306,7 +392,7 @@ export class InputRouter {
 
     // Panels take precedence over scene objects.
     const panelHit = this.registry.raycastPanels();
-    const sceneHit = this.registry.raycastScene();
+    const sceneHit = this._resolveSceneHit();
 
     const pointer = this.pointers.getActivePointerObject();
     if (panelHit) {
@@ -420,6 +506,10 @@ export class InputRouter {
   }
 
   _triggerSelect(): void {
-    this.dispatcher.triggerSelect(this.activePointer);
+    if (this.activePointer) {
+      this._dispatchSelect(this.activePointer);
+    } else {
+      this.dispatcher.triggerSelect(this.activePointer);
+    }
   }
 }

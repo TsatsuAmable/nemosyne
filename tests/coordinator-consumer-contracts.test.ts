@@ -128,6 +128,7 @@ const contracts = [
       'currentEntry',
       'dracoNode',
       'engine',
+      'focusContext',
       'guidedTour',
       'loadDataset',
       'narrativeStrip',

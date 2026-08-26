@@ -23,6 +23,12 @@ export interface PresentationState {
   theme: string;
   panelPositions: Array<unknown>;
   entry: { name: string; topology?: string; encodings?: EncodingMapping; maxDepth?: number };
+  /**
+   * RF-025: durable focus/context snapshot for the Memory Palace. Camera pose
+   * is intentionally excluded (presentation state, not investigation state);
+   * only the semantic level + focused structure identity are portable.
+   */
+  focus?: { currentLevel: string; focusedStructureId: string | null };
 }
 
 export interface PortablePackageEnvironment {
@@ -85,6 +91,7 @@ export class NemosyneSession {
     if (partial.theme) this._presentation.theme = partial.theme;
     if (partial.panelPositions) this._presentation.panelPositions = partial.panelPositions;
     if (partial.entry) this._presentation.entry = partial.entry as PresentationState['entry'];
+    if (partial.focus) this._presentation.focus = partial.focus;
   }
 
   serialize(): NemosyneSessionJSON {
@@ -192,6 +199,7 @@ export class NemosyneSession {
       theme: json.presentation?.theme ?? 'neonMidnight',
       panelPositions: json.presentation?.panelPositions ?? [],
       entry: json.entry ?? json.presentation?.entry ?? { name: 'dataset' },
+      focus: json.presentation?.focus,
     };
     this._researchContext = json.researchContext ?? {};
   }
@@ -207,6 +215,7 @@ export class NemosyneSession {
       theme: json.presentation?.theme ?? 'neonMidnight',
       panelPositions: json.presentation?.panelPositions ?? [],
       entry: json.entry ?? json.presentation?.entry ?? { name: 'dataset' },
+      focus: json.presentation?.focus,
     };
     session._researchContext = json.researchContext ?? {};
     return session;
