@@ -51,7 +51,15 @@ describe('Phase 7: Explanation Traces & Canonical Investigation Digest', () => {
       expect(typeof ev.weight).toBe('number');
       expect(ev.weight).toBeGreaterThanOrEqual(0);
       expect(typeof ev.supports).toBe('boolean');
-      expect(['kernel', 'heuristic', 'user-requirement', 'moneta-config', 'moneta-sensitivity']).toContain(ev.source);
+      expect([
+        'kernel',
+        'heuristic',
+        'user-requirement',
+        'moneta-config',
+        'moneta-sensitivity',
+        'prior',
+        'measured',
+      ]).toContain(ev.source);
     }
   });
 

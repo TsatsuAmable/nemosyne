@@ -49,7 +49,7 @@ describe('Moneta V3 live hypothesis engine', () => {
     const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
 
     expect(decision.weightSensitivity).toBeDefined();
-    expect(decision.weightSensitivity?.scenarioCount).toBe(12);
+    expect(decision.weightSensitivity?.scenarioCount).toBe(14);
     expect(decision.weightSensitivity?.perturbationFraction).toBe(0.1);
     expect(decision.weightSensitivity?.winnerChangeRate).toBeGreaterThanOrEqual(0);
     expect(decision.weightSensitivity?.winnerChangeRate).toBeLessThanOrEqual(1);

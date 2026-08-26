@@ -63,6 +63,8 @@ export interface DecisionProvenance {
   fitnessModelVersion?: string;
   /** Exact immutable learned model artifact used for this decision, when applicable. */
   fitnessModelArtifactHash?: string | null;
+  perceptualModelVersion?: string;
+  perceptualDeviceClass?: string;
 }
 
 export interface RepresentationDecision {
@@ -88,6 +90,7 @@ export interface RepresentationDecision {
   fitnessModelVersion?: string;
   /** Exact immutable learned model artifact used for this decision, when applicable. */
   fitnessModelArtifactHash?: string | null;
+  perceptualModelVersion?: string;
   weightSensitivity?: WeightSensitivityResult;
 
   /** @deprecated Uncalibrated utility must not be described as confidence. */

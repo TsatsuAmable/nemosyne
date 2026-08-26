@@ -39,8 +39,8 @@ describe('Moneta weight sensitivity analysis', () => {
       0.1
     );
 
-    expect(result.scenarioCount).toBe(12);
-    expect(result.winnerChanges).toBe(6);
+    expect(result.scenarioCount).toBe(14);
+    expect(result.winnerChanges).toBe(7);
     expect(result.winnerChangeRate).toBeCloseTo(0.5, 12);
     expect(result.stable).toBe(false);
   });
