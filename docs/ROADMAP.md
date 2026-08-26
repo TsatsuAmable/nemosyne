@@ -4,19 +4,19 @@
 
 ## Status snapshot — 26 August 2026
 
-**Current remote main:** `78a8815` (`fix(science): temporal geometry and evidence integrity v2` — #428 merged). The preceding Stream-B tranches landed: #426 (RF-007/RF-017 missing-data correction), #429 (first RF-029/RF-030/RF-031/RF-035 analytical-resource-envelope cut: shared `AnalysisBudget`/`ResourceEstimate` vocabulary, canonical-operation-ABI preflight for K-means/hierarchical/DBSCAN, stable `UNSUPPORTED_AT_SCALE` refusals), #431 (RF-030 production TDA preflight: Rust-owned `data_tda_resource_preflight` gating Mapper/persistence/Betti with typed refusal), and #432 (VR UI design-system docs). Static resource limits remain kernel safety guards, not Quest qualification and not evidence of generic 10M-row support.
+**Current remote main:** `62c6f05` (`fix(security): remediate CodeQL randomness findings` - #434 merged). The preceding Stream-B tranches landed: #426 (RF-007/RF-017 missing-data correction), #428 (RF-028/RF-032 temporal/evidence integrity), #429 (first RF-029/RF-030/RF-031/RF-035 analytical-resource-envelope cut), #431 (RF-030 production TDA preflight), #432 (VR UI design-system docs), and #433 (roadmap status refresh). Static resource limits remain kernel safety guards, not Quest qualification and not evidence of generic 10M-row support. #434 establishes a clean zero-finding CodeQL baseline for the current JavaScript/TypeScript query set.
 
 **Just-landed Stream-B tranche:** #428 (`fix/rf028-temporal-evidence-integrity-v2`) closed RF-028 and RF-032 and merged green. Temporal trend now uses pairwise-complete observations regressed against actual normalized numeric/epoch timestamps rather than observation rank. Spectral analysis binds value observations to the actual time coordinate, sorts by time, requires positive regular sampling, reports frequencies/periods in source time-coordinate units, and fails closed for duplicate, irregular or gapped sampling rather than manufacturing FFT evidence. Unparsed temporal strings no longer become synthetic numeric coordinates. Topology inference uses exact semantic aliases, numeric/range checks for latitude/longitude, projected-coordinate aliases, and explicit corroboration before bare `x`/`y` can imply GEO. **Review-active residuals:** irregular-series spectral analysis remains deliberately unsupported until a provenance-bearing resampling or Lomb-Scargle design is governed; topology cross-layer authority convergence is owned by RF-036.
 
-**Reprioritised Stream-B critical path:** (1) RF-007/RF-017 validity correctness landed in #426, with provenance/scale residuals; (2) RF-028/RF-032 temporal/evidence integrity landed in #428, with RF-036 authority-convergence and irregular-series-spectral residuals open; (3) **CURRENT:** RF-029/RF-030/RF-031/RF-035 analytical resource envelope (#429/#431 merged; residual kernel-inline/direct-caller enforcement, durable refusal/approximation provenance, RF-035 large-mutation rematerialisation, and measured workload/device-evidence work open); (4) RF-001/RF-002 representation truth; (5) RF-005/RF-006/RF-008 plus the RF-027 World/UX carry-over; (6) RF-015/RF-033 production evidence; (7) physical Quest 3S qualification; (8) private-preview hardening. The dependency rule is: **valid data geometry → valid analytical evidence → bounded computation → faithful representation → coherent investigator UX → physical XR proof → private preview.**
+**Reprioritised Stream-B critical path:** (1) RF-007/RF-017 validity correctness landed in #426, with provenance/scale residuals; (2) RF-028/RF-032 temporal/evidence integrity landed in #428, with RF-036 authority-convergence and irregular-series-spectral residuals open; (3) **CURRENT:** RF-029/RF-030/RF-031/RF-035 analytical resource envelope (#429/#431 merged; residual kernel-inline/direct-caller enforcement, durable refusal/approximation provenance, RF-035 large-mutation rematerialisation, and measured workload/device-evidence work open); (4) RF-001/RF-002 representation truth; (5) RF-005/RF-006/RF-008 plus the RF-027 World/UX carry-over; (6) RF-015/RF-033 production evidence; (7) physical Quest 3S qualification; (8) private-preview hardening. Stream C runs in parallel on RF-037 through RF-043. The dependency rule is: **valid data geometry → valid analytical evidence → bounded computation → faithful representation → coherent investigator UX → physical XR proof → private preview.**
 
-**Current interpretation:** P1-A, P1-B, P1-C, P1-D, P1-E and P1-F contain material implementation advances but remain **IMPLEMENTATION LANDED / REVIEW ACTIVE**, not `VERIFIED COMPLETE`. The dominant risks are scientifically invalid evidence, residual resource-control bypasses, unbounded authoritative Rust work, memory/transport cliffs and product/device evidence gaps. Stream A remains free to advance work whose dependencies are stable; Stream B fixes correctness and evidence foundations ahead of further representation breadth.
+**Current interpretation:** P1-A, P1-B, P1-C, P1-D, P1-E and P1-F contain material implementation advances but remain **IMPLEMENTATION LANDED / REVIEW ACTIVE**, not `VERIFIED COMPLETE`. The dominant risks are scientifically invalid evidence, residual resource-control bypasses, unbounded authoritative Rust work, memory/transport cliffs, security-authority/live-path assurance gaps and product/device evidence gaps. Stream A remains free to advance work whose dependencies are stable; Stream B fixes correctness and evidence foundations; Stream C independently hardens security/privacy-sensitive live boundaries.
 
 **Physical promotion blocker:** the governed Meta Quest 3S browser/performance and interaction qualification remains outstanding. Desktop/browser CI is necessary evidence but cannot qualify headset behaviour.
 
-## Two-workstream operating model
+## Three-stream operating model
 
-Nemosyne development runs as two deliberately independent but converging streams.
+Nemosyne development runs as three deliberately distinct but converging streams.
 
 ### Stream A — forward implementation
 
@@ -35,7 +35,7 @@ adversarial design/code/product review
         ↓
 record concrete findings in this roadmap
         ↓
-add the cheapest test that would have caught each defect
+add the cheapest authoritative test that would have caught each defect
         ↓
 fix forward on current architecture
         ↓
@@ -52,14 +52,34 @@ Rules for Stream B:
 - Prefer fix-forward changes over reverting sound architectural progress.
 - Every correctness bug gets a regression test at the owning layer.
 - Every architecture mismatch gets an authority/boundary test where practical.
+- **General production-path evidence rule:** a claimed product property is not `IMPLEMENTATION LANDED` merely because a helper, isolated module, mock, or unit test demonstrates it. When a property governs a production path, evidence must exercise the real production entry point and the authoritative call graph or boundary that is supposed to enforce it.
+- The production-path evidence rule applies to security, correctness, scientific semantics, privacy/compliance, performance, recovery, concurrency, provenance, persistence and UX state. Unit tests remain necessary, but are not sufficient evidence for a shipped-capability claim.
 - Every UX completion claim requires real product-path evidence, not only isolated class/integration tests.
 - Every scientific representation claim must match the mathematics actually computed and the information actually preserved.
 - Every concurrency/runtime completion claim must prove the production path, not merely the existence of an unused abstraction.
 - Every scale claim must account for the full algorithm, including preprocessing, copies, index construction and repeated sweeps rather than only the newly optimized inner loop.
+- Test acceleration must schedule and shard proof before reducing it: do not lower global coverage, delete authoritative tests, replace live-path evidence with mocks, or make changed-files-only selection the sole merge gate merely to improve latency.
 - A gate becomes **VERIFIED COMPLETE** only after implementation and independent review evidence agree.
-- Private-preview promotion requires convergence of both streams, even though Stream A may continue ahead while Stream B repairs earlier tranches.
+- Private-preview promotion requires convergence of all applicable streams, even though Stream A may continue ahead while Stream B and Stream C repair earlier tranches.
 - After each Stream-B tranche: live-sync/check remote main, update this roadmap, adversarially review the resulting branch, then raise the PR. Do not rely on the PR review itself as the first adversarial pass.
 - A failed Stream-B PR is closed, diagnosed and fixed forward from current remote state rather than kept alive as a long-lived broken branch.
+
+### Stream C — security authority and live-path assurance
+
+Stream C is the dedicated security, privacy/compliance, supply-chain and hostile-boundary assurance lane. It exists to eliminate the recurring pattern where well-designed hardening code and green unit tests sit beside a different or weaker live production authority.
+
+Its detailed work package is [`STREAM_C_SECURITY_ASSURANCE.md`](STREAM_C_SECURITY_ASSURANCE.md). Stream C uses the same RF ledger and completion vocabulary as Stream B, and inherits the general production-path evidence rule above.
+
+Stream C operating principles:
+
+- one authoritative security protocol/implementation per boundary;
+- malformed, ambiguous, stale, replayed or unsupported claims fail closed;
+- replay prevention is enforced at successful admission, not merely implemented in an unused verifier;
+- attacker-controlled and privacy-sensitive properties are tested through the real ingress/call path;
+- upload hardening must preserve Rust/Atlas analytical and parsing authority rather than introduce a shadow JavaScript parser;
+- compliance claims require actual retention/export/revocation/erasure lifecycle evidence;
+- unnecessary third-party runtime trust is removed when the production bundle already owns the dependency;
+- parser/unsafe/ABI assurance is driven by attacker-reachable behavior and fuzz/property evidence, not raw `unsafe`/`unwrap` counts alone.
 
 ### Status vocabulary
 
@@ -81,7 +101,7 @@ Rules for Stream B:
 | RF-006 | P1-U / world semantics | High | TechnoCore lens methods are not yet demonstrated as wired investigator input/analysis controls; IceVault remains a persistent largely decorative glyph. | Execute P1-U5/P1-U6: wire TechnoCore through input/NIL/analysis with visible epistemic state/provenance; make IceVault a real archive/recovery instrument or remove it from the default world. |
 | RF-007 | P1-A/P1-C / analytical correctness & scale | **Blocker** | The shared columnar substrate stored invalid primitive slots as `0.0`, while TDA/PointCloud consumed value buffers without validity. Missing observations therefore became real Euclidean coordinates, capable of manufacturing distances, clusters and topology. | **Correctness landed in #426:** `PrimitivePointColumn` carries values + validity; metric/TDA eligibility is complete-case over selected features; row and columnar paths agree; real zero remains valid; TDA source-row identity survives compaction; K-means/hierarchical/DBSCAN use the same contract and excluded rows receive null cluster assignment. Remaining before verification: emit exact missing-data policy + excluded counts in TDA analytical provenance; RF-029 owns residual PointCloud compaction/copy cost; independent review/CI evidence must continue to agree. |
 | RF-008 | P1-U / evidence | High | `investigator-journey-e2e.test.ts` manually advances phases and uses a kernel mock. It is useful integration coverage but not evidence of a real browser/XR investigator journey or usability outcomes. | Execute P1-U9: reclassify the current test as integration evidence, add real Playwright product-path journeys, and run governed Quest 3S controller/hand task qualification with performance and interaction-failure evidence. |
-| RF-009 | Roadmap governance | Medium | Roadmap status became stale and internally contradictory, with older main SHAs and completion claims coexisting with open checklist items. | Two-stream refresh process is in place, but RF-034 records a residual contradiction found after #418. Treat governance as **REVIEW ACTIVE** until current status/exit checklists remain mechanically consistent across multiple tranches. |
+| RF-009 | Roadmap governance | Medium | Roadmap status became stale and internally contradictory, with older main SHAs and completion claims coexisting with open checklist items. | Three-stream refresh process is in place, but RF-034 records a residual contradiction found after #418. Treat governance as **REVIEW ACTIVE** until current status/exit checklists remain mechanically consistent across multiple tranches. |
 | RF-010 | P1-B / production integration | High | #408 added `WorkerAnalyticalPort`, but production `World` did not install it. | **Fixed in #417**; installed `WorkerAnalyticalPort` on browser/XR startup and retained it across kernel replacement. |
 | RF-011 | P1-B / generation authority | High | Async requests and supersession hard-coded generation 1. | **Fixed in #417**; real runtime generation is threaded through requests and supersession. |
 | RF-012 | P1-B / failure semantics | High | Worker transport/runtime errors were converted into resolved null results. | **Fixed in #409**; failures reject through `KernelUnavailableError`; supersession remains non-error null. |
@@ -105,10 +125,17 @@ Rules for Stream B:
 | RF-030 | P1-C / high-D complexity | High | RF-018's soundness fix makes `GridSparseIndex` fall back to exact all-pairs search for d>6. Large high-dimensional Mapper/neighbourhood workloads can therefore cross a silent O(N²d) performance cliff while nominally requesting sparse mode. | **IMPLEMENTATION LANDED / REVIEW ACTIVE via #431 on the canonical production path:** production Mapper/persistence/Betti calls consult Rust-owned preflight using complete-case validity, conservative source-row fallback, Mapper `bins`, Betti `steps`, dense CSR and duplicate output buffers; over-budget work returns typed `UnsupportedAtScaleError`, with real-WASM high-D boundary coverage. Remaining: raw/direct internal caller bypass review, durable analytical refusal provenance/NIL, governed bounded approximation where useful, and measured workload/device evidence. |
 | RF-031 | Operations / computational budget | High | User-callable hierarchical clustering repeatedly compares cluster/member pairs with cubic worst-case work; current naïve k-means++ seeding is O(N·D·K²) before the fixed Lloyd iterations and is cubic in the user-controlled K≈N worst case; DBSCAN can allocate a dense radius CSR. Worker execution protects frame responsiveness, not process memory/time. | **IMPLEMENTATION LANDED / REVIEW ACTIVE via #429:** the canonical serialisable operation bridge preflights K-means, hierarchical clustering and DBSCAN in Rust before expensive work and emits deterministic `UNSUPPORTED_AT_SCALE` metadata on refusal. Tests cover naïve k-means++ work, pathological hierarchical work, dense DBSCAN CSR risk and preserved small workloads. Remaining before verification: typed/durable cross-ABI refusal and provenance for generic operations, governed bounded alternatives where useful, direct/internal helper bypass review, and measured resource evidence. |
 | RF-032 | Evidence classification / topology inference | High | Fuzzy substring hints, including single-letter GEO hints `x`/`y`, could classify ordinary schemas as geospatial and feed wrong downstream representations. | **Fixed in #428:** topology inference uses exact normalized aliases rather than substring matches; GRAPH requires source/target roles; GEO accepts numeric lat/lon only with observed range checks, explicit easting/northing projected coordinates, or exact numeric x/y only when corroborated by CRS/geometry metadata; vector aliases are exact; explicit investigator override remains authoritative. Adversarial tests cover `index` + `salary`, `total`-like graph false positives, bare x/y, invalid coordinate ranges and non-numeric lat/lon. Cross-layer authority convergence remains under RF-036. |
-| RF-033 | CI evidence architecture | Medium | `playwright-smoke` depends on the monolithic `correctness` job, so an unrelated unit/coverage failure suppresses browser smoke evidence exactly when independent product-path signal can be useful. | Split reusable build/artifact production from correctness and let browser smoke depend on the build artifact independently; keep the final required fan-in strict. |
+| RF-033 | CI evidence architecture | Medium | `playwright-smoke` depends on the monolithic `correctness` job, so an unrelated unit/coverage failure suppresses browser smoke evidence exactly when independent product-path signal can be useful. | **IMPLEMENTATION PARTIAL in this tranche:** split static analysis, full Vitest coverage, production build/artifact, Rust and browser smoke into independent proof tracks with strict final fan-in; retain all current tests and coverage thresholds. Then profile Vitest durations and shard the full suite only with merged global coverage. See `CI_TEST_ACCELERATION_STRATEGY.md`. |
 | RF-034 | Roadmap governance | Medium | After RF-009 was declared fixed, the active ledger marked RF-018..RF-021 fixed in #418 while the P1-C review-exit checklist still showed all four unchecked. The roadmap could still tell two different completion stories. | Current roadmap refresh reconciles these rows/checklists. Add a lightweight consistency check or review rule so fixed ledger items cannot remain contradictory in gate checklists. |
 | RF-035 | P1-B/P1-A / large mutation transport | High | #417 fixes Worker input registration and output identity, but async mutation results still return a full `DatasetJSON`, reconstruct a JS `Dataset`, commit with `handle: 0`, then become material for the next Worker registration. Large transformed datasets can therefore pay an O(N) Worker→JS→Worker rematerialisation cycle. | **OPEN:** design a durable Worker-side/Rust-side mutation capability or bounded typed-column transfer that keeps large analytical state resident. Preserve presentation/replay needs via compact summaries or explicit export, and measure transfer/heap costs under RF-029 before choosing SharedArrayBuffer/threads. |
 | RF-036 | Evidence classification / authority split | High | Adversarial review found topology classification has multiple authorities: direct Rust topology inference, `DatasetStructureProfile` spatial classification and TypeScript `DatasetEvidenceSignature` precedence can disagree, including GEO/vector/time precedence and projected-coordinate evidence. Tightening only one classifier would leave contradictory Moneta evidence. | Converge topology/spatial evidence onto one canonical Rust-owned classification/evidence contract; make structure profile and Moneta consume that result rather than independently re-infer semantics. Add cross-layer parity tests for graph/hierarchy/GEO/projected/vector/time/tabular and adversarial ambiguous schemas. |
+| RF-037 | Stream C / collaboration auth | **Critical** | Live signalling uses replay-permissive `SignedTicket.ts` while replay-safe `SignedTicketVerifier.ts` is off-path; the two implementations also expose incompatible ticket schemas and role ontologies. | Canonicalize one versioned ticket authority and prove second-use rejection through the real `createRoomRegistry().handleConnection()` admission path. Do not merely swap verifier imports; resolve schema, role, nonce-lifetime and deployment semantics and remove/migrate the duplicate authority. |
+| RF-038 | Stream C / collaboration auth | High | Scoped token parsing promotes every suffix except exact `observer` to privileged `participant`, so malformed/typo roles fail open. | Exact-allowlist `observer` and `participant`; reject every other suffix and prove rejection through live room-registry admission tests. |
+| RF-039 | Stream C / upload ingress | High | `UploadSanitizer` is isolated/tested but not the live FileLoader policy. Production has other defenses, so the primary defect is duplicated/orphaned hardening plus tests that prove the helper instead of the real upload call graph. | Consolidate policy without adding a shadow JS parser; adversarial JSON/CSV tests must traverse `FileLoader -> Atlas -> Rust -> Dataset`, including pre-read size, dangerous-key, shape and filename/control-character cases. |
+| RF-040 | Stream C / privacy & compliance | High | `TelemetryConsentManager` is off-path and its current design cannot substantiate GDPR-erasure claims: it retains raw subject IDs, uses a small fixed-salt pseudonym, and erases only an in-memory consent record rather than linked telemetry/traces/exports. | Inventory all retained/exported telemetry, design one authoritative consent/lifecycle model, and prove default-off/grant/revoke/export/erasure behavior end to end before making right-to-erasure claims. Do not simply wire the current helper in as-is. |
+| RF-041 | Stream C / supply chain | Medium | Shipped `index.html`/CSP retain an unpkg Three.js trust path even though Vite bundles `three` from `node_modules`. | Prove dev/production/smoke paths without the remote import map, then remove it and tighten `script-src` if no shipped path requires unpkg. |
+| RF-042 | Stream C / dev tooling | Low | UX trace terminal output interpolates client-controlled fields into ANSI-coloured logs without stripping terminal control sequences. | Strip/escape C0/C1/ESC control sequences before terminal presentation while preserving JSONL encoding; add ANSI/OSC regression coverage. |
+| RF-043 | Stream C / Rust-WASM assurance | High | Raw `unsafe`/`unwrap` counts are not demonstrated vulnerabilities, but hostile-input evidence remains incomplete across attacker-reachable parser, typed-buffer and exported ABI boundaries. | Add targeted fuzz/property campaigns for malformed/truncated CSV/JSON, Unicode/numeric extremes, typed metadata/validity/shape mismatches, stale/foreign/overflowing pointer-length pairs and allocation/reinitialisation stress. Every discovered defect becomes a deterministic PR regression. |
 
 ## Core architecture state
 
@@ -181,7 +208,7 @@ Long-running fuzz/Miri/device endurance remain explicit evidence lanes rather th
 
 The #385-#389 sequence materially closed the available RES-02 browser/runtime gaps: bounded reconnect, multi-context WebRTC recovery, role-authority preservation, stale transport protection, deterministic offer ownership and server-owned peer lifecycle.
 
-Cross-device/hostile-network qualification remains preview hardening.
+Cross-device/hostile-network qualification remains preview hardening. Stream C now separately owns RF-037/RF-038 live authentication authority and replay/role-admission assurance.
 
 ### P1-A typed/columnar TDA implementation
 
@@ -208,8 +235,13 @@ WASM boundary tests              small ABI/provenance seam
 Rust unit/property/metamorphic   exhaustive analytical authority
 ```
 
+The execution strategy is governed by [`CI_TEST_ACCELERATION_STRATEGY.md`](CI_TEST_ACCELERATION_STRATEGY.md): **accelerate scheduling before reducing proof**. The current RF-033 tranche parallelizes independent CI tracks without deleting tests or lowering coverage; the next step is duration-profiled Vitest sharding with merged global coverage, not changed-files-only gating.
+
 Remaining efficiency work:
 
+- [ ] collect representative before/after timings for the RF-033 parallel CI graph: time-to-first-failure, required-gate wall time and total runner minutes;
+- [ ] profile Vitest by measured duration and capability requirements;
+- [ ] shard the full deterministic suite only when raw coverage can be merged and the existing global thresholds remain authoritative;
 - [ ] reclassify mixed suites so only actual kernel boundaries pay WASM startup;
 - [ ] port/delete remaining duplicate JS assertions for Rust-owned mathematics once equivalent Rust coverage is proven;
 - [ ] add Rust-side performance benchmarks separately from deterministic correctness gates;
@@ -217,7 +249,7 @@ Remaining efficiency work:
 - [ ] systematically audit source/architecture tests for vacuous or false-positive guards, following RF-004;
 - [ ] distinguish mock/inline tests from real Worker/WASM/browser/device evidence in names and roadmap claims;
 - [ ] require scale tests to exercise the real algorithm/mode being claimed, not a mock bridge that returns a shape-compatible result;
-- [ ] decouple browser product smoke from unrelated correctness/coverage failures while retaining strict final fan-in (RF-033).
+- [ ] keep security, scientific-semantics, provenance, parser-boundary, worker-lifecycle and production-path regressions PR-blocking even when extended fuzz/soak/performance campaigns move to scheduled evidence lanes.
 
 ## Governing V3 gate status
 
@@ -247,7 +279,7 @@ The detailed audit evidence remains in `PRE_P1_SYSTEMATIC_AUDIT.md`. The roadmap
 - [ ] **UX-03 / high:** execute controller, hand and desktop semantic-parity tasks on physical hardware.
 - [x] **RES-01 / high, code-executable scope:** checked output, host allocation ownership, malformed handles and sustained generation recovery are covered. Device/endurance residuals remain evidence lanes.
 - [x] **RES-02 / high, browser scope:** partition/reconnect/state convergence/role violation and server-owned lifecycle authority are covered through #389. Cross-device/hostile-network residuals remain preview hardening.
-- [x] **SEC-02 / high, deterministic CI scope:** unsafe inventory plus bounded malformed parser/buffer/handle/exhaustion campaigns are covered. Long-running fuzz/Miri remain separate hardening lanes.
+- [x] **SEC-02 / high, deterministic CI scope:** unsafe inventory plus bounded malformed parser/buffer/handle/exhaustion campaigns are covered. Long-running fuzz/Miri remain separate hardening lanes; RF-043 adds targeted hostile-boundary fuzz evidence without treating raw unsafe counts as vulnerabilities.
 - [ ] **MAINT-01 / high:** continue removing `@ts-nocheck` from package, bridge, World and Moneta boundary tests.
 - [ ] **PERF-05 / medium:** profile allocations/GC and sustained analytical scheduling across representative interactions.
 - [ ] **UX-04 / medium:** expose command availability and disabled reasons in every input modality.
@@ -544,17 +576,20 @@ Deliver a controlled, observable deployment suitable for investigator research/u
 - [ ] implement onboarding, sample investigations and unsupported-feature states;
 - [ ] run a small investigator cohort and feed structured evidence into the roadmap.
 
-**Promotion rule:** private preview may not be promoted while any blocker/high review finding that undermines scientific correctness, analytical authority, core task completion or target-device safety remains open.
+**Promotion rule:** private preview may not be promoted while any blocker/high review finding that undermines scientific correctness, analytical authority, security/privacy authority, core task completion or target-device safety remains open.
 
 ## P1 — Security and reliability hardening
 
+Stream C owns the active live-path security-assurance findings in detail; this section remains the preview-level promotion checklist.
+
+- [ ] close or explicitly accept RF-037 through RF-043 before private-preview promotion where applicable;
 - [ ] re-run threat review against the deployed preview boundary;
-- [ ] validate untrusted dataset/archive limits, traversal defences and resource budgets;
+- [ ] validate untrusted dataset/archive limits, traversal defences and resource budgets through the actual ingress paths;
 - [ ] harden CSP, supply-chain controls and release integrity;
 - [ ] ensure kernel failure cannot silently produce plausible-looking substitute results;
 - [ ] add backup/export/recovery procedures for user-created investigations;
 - [ ] establish preview vulnerability/update policy;
-- [ ] run deeper fuzz/Miri/device-endurance campaigns outside the ordinary PR critical path.
+- [ ] run deeper fuzz/Miri/device-endurance campaigns outside the ordinary PR critical path while retaining deterministic regressions in the merge gate.
 
 ## P1 — VR/UI/UX fitness
 
@@ -653,6 +688,7 @@ The consolidated dependency update landed in #358. Future updates are evidence-l
 - **Observations are detail, not universal geometry.** Aggregate, density, cluster, field, topology and other structure-level representations are first-class; observations appear when analytically/interactively appropriate.
 - **JS presents, orchestrates and schedules.** It must not reconstruct a shadow analytical authority.
 - **Tests live with authority.** Exhaustive mathematics belongs beside Rust-owned behavior; higher layers verify seams, presentation and interaction.
+- **Production-path evidence governs shipped claims.** An isolated helper, mock or unit test cannot by itself prove a production property; the real authoritative entry point/call graph must demonstrate the behavior where the claim applies.
 - **Boundary tests remain mandatory.** Rust-first testing does not replace WASM ABI, browser, WebXR or end-to-end verification.
 - **Source rows are not render primitives or analytical reduction inputs.** LOD/reduction is first-class architecture, and render-object growth must be governed independently of source N.
 - **Worker handles are local capabilities.** Cross-thread identity travels by fingerprint plus explicit registration, never foreign handles.
@@ -671,7 +707,7 @@ The consolidated dependency update landed in #358. Future updates are evidence-l
 
 ## Verification cadence
 
-For each PR, use the cheapest authoritative layer that proves the claim. Stream B additionally asks what evidence would falsify the completion claim and adds that evidence where practical. Before private-preview promotion, run the broad checkpoint:
+For each PR, use the cheapest authoritative layer that proves the claim. Stream B additionally asks what evidence would falsify the completion claim and adds that evidence where practical. Stream C attacks security/privacy-sensitive live boundaries and verifies that the production authority, not an orphan helper, enforces the claimed property. Before private-preview promotion, run the broad checkpoint:
 
 ```text
 cargo test / Rust property tests
@@ -686,6 +722,8 @@ browser/WebXR product-path smoke
 real Worker/WASM integration for async analytical paths
 real sparse-mode exact-vs-approximation parity/stability tests
 scale benchmarks measuring the complete algorithm and peak memory
+security admission/ingress tests through the live production path
+hostile parser/WASM ABI fuzz/property campaigns with deterministic regressions
 physical Quest qualification for promotion-critical device claims
 independent review pass over the resulting merged implementation
 ```
@@ -694,7 +732,7 @@ independent review pass over the resulting merged implementation
 
 ### Stream A — forward implementation
 
-1. Continue minimal-private-preview, security/reliability, investigation/discovery-science and measurement-semantics work only where the active Stream-B blockers are not dependencies.
+1. Continue minimal-private-preview, security/reliability, investigation/discovery-science and measurement-semantics work only where the active Stream-B/Stream-C blockers are not dependencies.
 2. Do not consume irregular-series FFT periodicity as scientific evidence; RF-028 (#428) deliberately withholds spectral evidence unless sampling is regular. RF-036 topology-authority convergence remains open.
 3. Do not introduce scale claims or exact high-D work that bypasses the RF-029 resource envelope.
 4. Continue bounded maintenance/dependency work that does not distract from promotion blockers.
@@ -707,15 +745,26 @@ independent review pass over the resulting merged implementation
 3. **RF-029 + RF-030 + RF-031 + RF-035 — analytical resource envelope. CURRENT TRANCHE.** #429 landed the shared clustering guard and #431 landed canonical production TDA preflight/typed refusal. Next close kernel/direct-caller bypass and durable refusal provenance, remove RF-035 large mutation rematerialisation, govern any approximation explicitly, and finish with measured workload/device qualification.
 4. **RF-001 + RF-002 — representation truth.** Rust-owned bounded embodiment payloads and mathematically honest candidate semantics.
 5. **P1-U0..P1-U9 / RF-005 + RF-006 + RF-008 + RF-027 — whole-product convergence.** Execute the UI design-system programme in dependency order: substrate/direct touch -> Inspector -> precision surfaces -> contextual tasks -> TechnoCore/NIL -> archive/Memory Palace -> consolidation/accessibility -> product/device evidence. Scientific-facing TechnoCore completion remains gated by representation/NIL truth.
-6. **RF-015 + RF-033 — production evidence architecture.** Real Worker/WASM timings and independent browser-smoke signal.
+6. **RF-015 + RF-033 — production evidence architecture.** Real Worker/WASM timings and independent browser-smoke signal. Complete RF-033 Phase 1 parallelization, measure it, then shard Vitest only with merged global coverage and strict required fan-in.
 7. **Physical XR qualification — RF-026 residual + PERF-04 + UX-03.** Quest 3S controllers/hands/desktop semantic parity, comfort, frame/memory budgets and target-device task evidence; P1-U9 owns the UI-specific execution/evidence.
-8. **Private-preview hardening.** Auth/access control, retention/privacy, consent/telemetry, release/rollback/recovery and compatibility after the scientific/product substrate is credible.
+8. **Private-preview hardening.** Auth/access control, retention/privacy, consent/telemetry, release/rollback/recovery and compatibility after the scientific/product substrate is credible and applicable Stream C high findings are closed.
 9. Review each new Stream A merge immediately and append/fix RF findings in the same cadence.
+
+### Stream C — security authority and live-path assurance
+
+1. **RF-037 + RF-038 — signalling authentication authority.** Canonicalize one ticket protocol/role ontology, enforce nonce replay prevention in live admission, and make scoped-role parsing fail closed.
+2. **RF-040 — telemetry/privacy lifecycle.** Inventory all retained/exported telemetry and redesign consent/revocation/erasure authority before wiring or claiming GDPR erasure support.
+3. **RF-039 — upload ingress assurance.** Consolidate hardening policy around the real FileLoader/Atlas/Rust/Dataset path and replace helper-only evidence with adversarial live-path tests.
+4. **RF-041 — supply-chain trust.** Remove the unpkg import/CSP allowance if production/dev proof confirms it is unnecessary.
+5. **RF-042 — dev terminal safety.** Escape/strip control sequences from UX-trace terminal presentation.
+6. **RF-043 — hostile-boundary fuzzing.** Expand parser/typed-buffer/WASM ABI fuzz/property evidence; every discovered defect becomes a deterministic PR regression.
+7. Re-review security-sensitive Stream A/Stream B changes continuously; a hardened helper that is not wired to the live path is not a completed security property.
 
 ### Convergence / promotion
 
 - Run PERF-04 and UX-03 physical Quest qualification on the converged P1-U treatment as soon as the P1-U9 prerequisites are met and hardware is available.
 - Re-run blocker/high security, architecture, scientific and UX review before private-preview promotion.
+- Require applicable Stream C blocker/high findings to be closed or explicitly risk-accepted with evidence before private-preview promotion.
 - Continue discovery/outcome studies and learned-Moneta empirical validation.
 - Begin RepresentationGraph/compositional Moneta only after P1 prerequisites are both implemented and review-verified.
 - Begin Adaptive Nemosyne only after evidence and governance prerequisites are satisfied.
