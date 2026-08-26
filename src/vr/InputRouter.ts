@@ -12,6 +12,7 @@ import { SelectionDispatcher } from './input/SelectionDispatcher.ts';
 import { ControllerGestureBridge } from './input/ControllerGestureBridge.ts';
 import { SemanticTargetResolver } from './input/SemanticTargetResolver.ts';
 import { FocusContextController, type FocusLevel } from './interactions/FocusContextController.ts';
+import { NearFieldInteractor } from './interactions/near/NearFieldInteractor.ts';
 import type {
   ControllerGestureMapperLike,
   EngineLike,
@@ -53,6 +54,7 @@ export class InputRouter {
   machine: PointerEventMachine;
   systemDetector: SystemGestureDetector;
   gestureBridge: ControllerGestureBridge;
+  nearInteractor: NearFieldInteractor;
 
   // Legacy public aliases so existing callers and tests continue to work.
   controllers: PointerLike[];
@@ -111,6 +113,7 @@ export class InputRouter {
     });
     this.systemDetector = new SystemGestureDetector(this.pointers);
     this.gestureBridge = new ControllerGestureBridge();
+    this.nearInteractor = new NearFieldInteractor();
 
     this.controllers = this.pointers.controllers;
     this.hands = this.pointers.hands;
@@ -378,6 +381,35 @@ export class InputRouter {
     // Hide controller placeholder rays when hand tracking is active.
     this.pointers.updateControllerRayVisibilities();
 
+    // Update near field direct touch interactor
+    const activePointers: PointerLike[] = [];
+    for (const hand of this.pointers.hands) {
+      if (hand.jointsValid) activePointers.push(hand);
+    }
+    for (const ctrl of this.pointers.controllers) {
+      if (ctrl.handedness !== 'none') activePointers.push(ctrl);
+    }
+    this.nearInteractor.update(activePointers, this.registry.panels);
+
+    // Apply near-field ray suppression overrides on top of standard registry visibility rules
+    const activeHand = this.pointers.getBestHand();
+    for (const ctrl of this.pointers.controllers) {
+      const touchState = this.nearInteractor.getTouchState(ctrl);
+      const isNear = touchState && touchState.phase !== 'FAR';
+      ctrl.setRayVisible?.(!activeHand && !isNear);
+      if (isNear && touchState) {
+        ctrl.setRayLength?.(touchState.distance);
+      }
+    }
+    for (const hand of this.pointers.hands) {
+      const touchState = this.nearInteractor.getTouchState(hand);
+      const isNear = touchState && touchState.phase !== 'FAR';
+      hand.setRayVisible?.(!isNear);
+      if (isNear && touchState) {
+        hand.setRayLength?.(touchState.distance);
+      }
+    }
+
     const ray = this.pointers.getBestPointerRay();
     if (!ray) {
       this.registry.clearHover();
@@ -390,11 +422,15 @@ export class InputRouter {
       this.registry.raycaster.camera = this.engine.camera;
     }
 
-    // Panels take precedence over scene objects.
-    const panelHit = this.registry.raycastPanels();
-    const sceneHit = this._resolveSceneHit();
-
+    // Determine if active pointer is in near touch mode to suppress far raycasting
     const pointer = this.pointers.getActivePointerObject();
+    const touchState = pointer ? this.nearInteractor.getTouchState(pointer) : undefined;
+    const isNear = touchState && touchState.phase !== 'FAR';
+
+    // Panels take precedence over scene objects.
+    const panelHit = isNear ? null : this.registry.raycastPanels();
+    const sceneHit = isNear ? null : this._resolveSceneHit();
+
     if (panelHit) {
       pointer?.setRayLength?.(panelHit.distance);
       this.registry.clearHover();
