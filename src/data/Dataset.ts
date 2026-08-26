@@ -94,6 +94,31 @@ function cloneEdge(edge: DatasetEdge): DatasetEdge {
   return copy;
 }
 
+function remapEdgesAfterPrefixEviction(
+  edges: DatasetEdge[] | undefined,
+  start: number,
+  previousRowCount: number
+): DatasetEdge[] | undefined {
+  if (!edges) return undefined;
+  return edges.flatMap((edge) => {
+    if (typeof edge.source !== 'number' || typeof edge.target !== 'number') {
+      return [cloneEdge(edge)];
+    }
+    if (
+      edge.source < start ||
+      edge.target < start ||
+      edge.source >= previousRowCount ||
+      edge.target >= previousRowCount
+    ) {
+      return [];
+    }
+    const copy = cloneEdge(edge);
+    copy.source = edge.source - start;
+    copy.target = edge.target - start;
+    return [copy];
+  });
+}
+
 /**
  * Non-scientific adapter/presentation metadata. Analytical or provenance-bearing
  * meaning must live in governed dataset/schema/evidence contracts, not `_meta`.
@@ -212,7 +237,12 @@ export class Dataset {
   }
 
   /**
-   * Update rows for live/streaming data.
+   * Update rows for live/streaming data. Replacement clears graph topology
+   * because the new rows have no established endpoint lineage. Append keeps
+   * existing edges; when a rolling limit evicts a prefix, surviving positional
+   * endpoints are shifted to the retained rows. Stable string endpoints are
+   * copied unchanged because they are not positional indices.
+   *
    * New JS rows do not yet have Rust lineage IDs, so any existing aligned ID
    * vector is invalidated rather than risk attaching an ID to the wrong row.
    */
@@ -222,9 +252,18 @@ export class Dataset {
     limit: number | null = null
   ): this {
     const sanitized = newRows.map(sanitizeRow);
-    if (mode === 'replace') this.rows = sanitized;
-    else this.rows.push(...sanitized);
-    if (limit != null && this.rows.length > limit) this.rows = this.rows.slice(-limit);
+    if (mode === 'replace') {
+      this.rows = sanitized;
+      this.edges = undefined;
+    } else {
+      this.rows.push(...sanitized);
+    }
+    if (limit != null && this.rows.length > limit) {
+      const previousRowCount = this.rows.length;
+      const start = previousRowCount - limit;
+      this.edges = remapEdgesAfterPrefixEviction(this.edges, start, previousRowCount);
+      this.rows = this.rows.slice(start);
+    }
     this.rowIds = undefined;
     return this;
   }
