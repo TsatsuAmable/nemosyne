@@ -4,21 +4,21 @@
 
 ## Status snapshot — 26 August 2026
 
-**Current main at the start of this review/fix-forward tranche:** `dce68a4`, through #407. #405 landed the typed/columnar TDA implementation, #406 landed the first representation-embodiment pass, and #407 landed the first whole-product journey/coordinator pass.
+**Current main at the start of the latest review pass:** `fd12a417`, through #408. #405 landed the typed/columnar TDA implementation, #406 landed the first representation-embodiment pass, #407 landed the first whole-product journey/coordinator pass, and #408 landed the first P1-B asynchronous-execution implementation.
 
-**Current interpretation:** those PRs are useful implementation advances, but merge/completion claims are not treated as irreversible. Adversarial review of live `main` found correctness, authority, semantic-fidelity and UX-evidence gaps in all three areas. P1-A, P1-R and P1-U therefore remain active in the review/fix-forward stream even while the forward implementation stream proceeds into P1-B/P1-C.
+**Current interpretation:** these PRs are useful implementation advances, but merge/completion claims are not treated as irreversible. Adversarial review of live `main` found correctness, authority, semantic-fidelity, runtime-integration and UX-evidence gaps. P1-A, P1-R, P1-U and P1-B therefore remain active in the review/fix-forward stream while the forward implementation stream continues into P1-C and later work.
 
 **Physical promotion blocker:** the governed Meta Quest 3S browser/performance and interaction qualification remains outstanding. Desktop/browser CI is necessary evidence but cannot qualify headset behaviour.
 
 ## Two-workstream operating model
 
-Nemosyne development now runs as two deliberately independent but converging streams.
+Nemosyne development runs as two deliberately independent but converging streams.
 
 ### Stream A — forward implementation
 
-Stream A advances the planned architecture and product frontier: P1-B asynchronous execution, P1-C sparse topology, P1-D perceptual fitness, P1-E actionable NIL, P1-F semantic targeting/Memory Palace focus+context, private-preview plumbing and later scientific/product work.
+Stream A advances the planned architecture and product frontier: P1-C sparse topology, P1-D perceptual fitness, P1-E actionable NIL, P1-F semantic targeting/Memory Palace focus+context, private-preview plumbing and later scientific/product work.
 
-Stream A should not stop merely because the review stream finds defects in earlier work unless the defect invalidates a dependency or makes continued implementation unsafe. It should preserve the governing design boundaries and consume review fixes as they land.
+Stream A should not stop merely because the review stream finds defects in earlier work unless a defect invalidates a dependency or makes continued implementation unsafe. It should preserve the governing design boundaries and consume review fixes as they land.
 
 ### Stream B — review and fix-forward
 
@@ -50,6 +50,7 @@ Rules for Stream B:
 - Every architecture mismatch gets an authority/boundary test where practical.
 - Every UX completion claim requires real product-path evidence, not only isolated class/integration tests.
 - Every scientific representation claim must match the mathematics actually computed and the information actually preserved.
+- Every concurrency/runtime completion claim must prove the production path, not merely the existence of an unused abstraction.
 - A gate becomes **VERIFIED COMPLETE** only after implementation and review evidence agree.
 - Private-preview promotion requires convergence of both streams, even though Stream A may continue ahead while Stream B repairs earlier tranches.
 
@@ -73,6 +74,13 @@ Rules for Stream B:
 | RF-007 | P1-A / analytical correctness & scale | High | Columnar TDA `FeatureSpace` clones selected columns, transposes them into `Vec<Vec<f64>>`, and does not honor primitive validity bitmaps, causing invalid values to enter topology as numeric zero. | Make columnar TDA validity-aware and move to borrowed/column-oriented access with bounded scratch memory; add invalid-data and memory/scale contracts. |
 | RF-008 | P1-U / evidence | High | `investigator-journey-e2e.test.ts` manually advances phases and uses a kernel mock. It is valuable integration coverage but not evidence of a real browser/XR end-to-end investigator journey or usability outcomes. | Reclassify the test as integration evidence; add Playwright product-path journey coverage and physical XR task evidence. |
 | RF-009 | Roadmap governance | Medium | Roadmap status had become stale and internally contradictory, with older main SHAs and completion claims coexisting with open checklist items. | **Fixed by this operating-model update**; future review findings update the roadmap in the same tranche. |
+| RF-010 | P1-B / production integration | High | #408 added `WorkerAnalyticalPort`, but production `World` does not install it; `AtlasCore.setKernel()` selects `InlineAnalyticalPort`. The interactive runtime therefore remains same-thread by default. | Install a module Worker-backed execution port for interactive browser/XR startup; keep inline execution only as an explicit bootstrap/test/replay capability decision, never as runtime failure fallback. |
+| RF-011 | P1-B / generation authority | High | Async requests and supersession hard-code `generation: 1`, so the documented kernel-generation fence is not connected to the actual runtime lifecycle generation. | Thread the real runtime/kernel generation through Atlas execution requests and supersession; reject results from prior recovery generations. |
+| RF-012 | P1-B / failure semantics | High | Worker transport/runtime errors were converted into resolved `{ value: null, error }` results, making kernel failure indistinguishable from a legitimate null analytical outcome. | **Fixed in this review tranche**; worker failures and worker-reported errors reject with `KernelUnavailableError` and invoke the kernel-failure funnel; supersession remains a non-error null result. |
+| RF-013 | P1-B / worker dataset authority | High | Worker handles are WASM-instance-local. Async TDA requests send a main-thread handle but no first-use dataset payload, while the worker ignores that foreign handle and has no registered dataset. | Register datasets inside the worker once per fingerprint/generation, preferring NTC1 typed-column payloads; verify fingerprint after registration; never let worker-local handles escape. Missing registration now fails closed explicitly. |
+| RF-014 | P1-B / output identity | High | `applyAnalysisAsync` assigns `outputHash = res.datasetFingerprint`, but the result envelope currently carries the **input** dataset fingerprint. Async operation result identity/provenance can therefore be wrong. | Return and verify an explicit output fingerprint from the worker operation result and use it consistently in ledger/result provenance. |
+| RF-015 | P1-B / evidence | Medium | The test labelled “async TDA parity with real WASM” used `makeKernelMockBridge()` and the default inline execution port. Transfer/scheduling evidence was also marked complete without demonstrated benchmark evidence. | **Partially fixed in this review tranche** by truthfully relabelling the test as inline parity. Add a real module-Worker + real-WASM integration/browser test and record dispatch/transfer/compute measurements. |
+| RF-016 | P1-B / presentation adoption | High | #408 added async Atlas methods but did not change `TDAPlanes`, `DataOperationController` or `World` to route interactive work through them. The frame-budget benefit therefore is not demonstrated on the actual interaction path. | Adopt async execution in the interactive TDA/data-operation paths with stale-result fences and last-valid presentation semantics; prove with browser/product-path tests. |
 
 ## Core architecture state
 
@@ -153,6 +161,10 @@ Cross-device/hostile-network qualification remains preview hardening.
 
 That implementation is retained. Independent review found RF-007, so the tranche is **IMPLEMENTATION LANDED / REVIEW ACTIVE**, not yet `VERIFIED COMPLETE`.
 
+### P1-B async execution implementation
+
+#408 established useful first-pass execution-port types, inline/worker transport modules, Atlas async entry points and mock transport fencing tests. Independent review found that the production interactive runtime still selects the inline port, real runtime generation is not wired into requests, worker dataset registration is incomplete, async operation output identity is wrong, and presentation consumers remain synchronous. P1-B is therefore **IMPLEMENTATION LANDED / REVIEW ACTIVE**.
+
 ### Test architecture and feedback latency
 
 The test pyramid is split by ownership:
@@ -170,7 +182,8 @@ Remaining efficiency work:
 - [ ] port/delete remaining duplicate JS assertions for Rust-owned mathematics once equivalent Rust coverage is proven;
 - [ ] add Rust-side performance benchmarks separately from deterministic correctness gates;
 - [ ] document steady-state test/authority ownership in contributor and agent guidance;
-- [ ] systematically audit source/architecture tests for vacuous or false-positive guards, following RF-004.
+- [ ] systematically audit source/architecture tests for vacuous or false-positive guards, following RF-004;
+- [ ] distinguish mock/inline async-contract tests from real Worker/WASM/browser evidence in names and roadmap claims.
 
 ## Governing V3 gate status
 
@@ -193,9 +206,9 @@ Remaining efficiency work:
 The detailed audit evidence remains in `PRE_P1_SYSTEMATIC_AUDIT.md`. The roadmap interpretation is:
 
 - [ ] **PERF-04 / blocker:** run and govern physical Quest 3S 10M browser qualification.
-- [x] **ARCH-01 / high:** Atlas/runtime/spatial ownership boundaries are explicit and guarded; Stream B now also audits implementation conformance to those boundaries.
+- [x] **ARCH-01 / high:** Atlas/runtime/spatial ownership boundaries are explicit and guarded; Stream B also audits implementation conformance to those boundaries.
 - [x] **ARCH-02 / high:** World/UI/kernel lifecycle ownership and recovery are explicit and idempotent.
-- [x] **PERF-03 / high:** production scene selection uses measured BVH crossover behaviour; physical crossover validation remains under PERF-04.
+- [x] **PERF-03 / high:** production scene selection uses measured BVH crossover behavior; physical crossover validation remains under PERF-04.
 - [x] **UX-02 / high:** real-browser desktop investigation/replay/tamper journey is covered.
 - [ ] **UX-03 / high:** execute controller, hand and desktop semantic-parity tasks on physical hardware.
 - [x] **RES-01 / high, code-executable scope:** checked output, host allocation ownership, malformed handles and sustained generation recovery are covered. Device/endurance residuals remain evidence lanes.
@@ -287,20 +300,32 @@ Review exit work:
 - [ ] validate the same core tasks on Quest 3S controllers and hand tracking, preserving semantic parity while allowing modality-appropriate mechanics;
 - [ ] collect task-level evidence for orientation, discoverability, recovery, falsification, finding capture and share/replay before P1-U can become `VERIFIED COMPLETE`.
 
-### P1-B Asynchronous analytical runtime — STREAM A ACTIVE NEXT
+### P1-B Asynchronous analytical runtime — IMPLEMENTATION LANDED / REVIEW ACTIVE
 
-- [ ] define request/version/cancellation contracts;
-- [ ] isolate expensive analysis behind a dedicated Web Worker;
-- [ ] reject stale results after dataset/kernel/session generation changes;
-- [ ] preserve fail-closed kernel recovery across the worker boundary;
-- [ ] measure transfer/scheduling before considering shared memory;
-- [ ] add SharedArrayBuffer/WASM threads/SIMD only where profiling demonstrates value.
+Landed first-pass work:
 
-Stream A may implement P1-B while Stream B closes P1-A/R/U findings. Any worker design must preserve fixes made by Stream B and must not duplicate analytical authority.
+- [x] define typed asynchronous request/result and supersession contracts;
+- [x] implement inline and Worker transport classes;
+- [x] add async Atlas entry points for TDA and committed analysis operations;
+- [x] add mock-transport version/generation supersession tests;
+- [x] **RF-012:** make transport and worker-reported analytical failures reject with `KernelUnavailableError` instead of resolving ambiguous null/error envelopes;
+- [x] **RF-013 partial:** make the worker fail closed when first-use registration is missing and verify the fingerprint of any dataset registered inside the worker;
+- [x] **RF-015 partial:** rename the inline parity test so it no longer claims real Worker/WASM evidence.
 
-### P1-C Sparse topology scalability — STREAM A QUEUED
+Review exit work:
 
-- [ ] replace repeated all-pairs/bucket-pair work with a reusable sparse-neighbourhood substrate;
+- [ ] **RF-010:** install and retain `WorkerAnalyticalPort` on the real interactive browser/XR runtime path rather than replacing it with `InlineAnalyticalPort` in `setKernel`;
+- [ ] **RF-011:** thread the real runtime generation into every request and supersession fence instead of using literal generation `1`;
+- [ ] **RF-013:** implement one-time fingerprint-keyed worker registration, preferably with NTC1 typed-column payloads, so async TDA has a valid worker-local handle;
+- [ ] **RF-014:** return/verify the true output fingerprint for async operations and record it in result/ledger provenance;
+- [ ] **RF-016:** route `TDAPlanes`, `DataOperationController` and other interactive consumers through the async methods so expensive analysis actually leaves the XR/main thread;
+- [ ] **RF-015:** add a real module-Worker + real-WASM integration/browser test covering TDA, mutation supersession and recovery across at least two runtime generations;
+- [ ] record dispatch/transfer/compute measurements before proposing SharedArrayBuffer, WASM threads or SIMD;
+- [ ] re-run adversarial concurrency/recovery review before marking P1-B `VERIFIED COMPLETE`.
+
+### P1-C Sparse topology scalability — STREAM A NEXT
+
+- [ ] replace repeated all-pairs/bucket-pair work with a reusable sparse-neighborhood substrate;
 - [ ] reuse it across Mapper, H0/Betti-0 and compatible clustering paths;
 - [ ] introduce governed exact/sparse/landmark modes with explicit provenance;
 - [ ] validate approximation/stability against exact small-data references;
@@ -338,7 +363,7 @@ P1-D design work may proceed, but default ranking must not treat an embodiment a
 Deliver a controlled, observable deployment suitable for investigator research/usability testing rather than broad public launch.
 
 - [ ] define supported browsers/headsets and a small tested hardware matrix;
-- [ ] deploy reproducible versioned frontend/WASM artefacts;
+- [ ] deploy reproducible versioned frontend/WASM artifacts;
 - [ ] add authentication/access control for a private cohort;
 - [ ] define dataset retention/upload/deletion/privacy policy;
 - [ ] add explicit consent/telemetry controls;
@@ -451,6 +476,7 @@ The consolidated dependency update landed in #358. Future updates are evidence-l
 - **Tests live with authority.** Exhaustive mathematics belongs beside Rust-owned behavior; higher layers verify seams, presentation and interaction.
 - **Boundary tests remain mandatory.** Rust-first testing does not replace WASM ABI, browser, WebXR or end-to-end verification.
 - **Source rows are not render primitives or analytical reduction inputs.** LOD/reduction is first-class architecture, and render-object growth must be governed independently of source N.
+- **Worker handles are local capabilities.** A handle from one WASM instance/thread is never valid in another; cross-thread identity travels by fingerprint plus explicit registration.
 - **The world is an interface, not scenery.** Persistent spatial objects, including TechnoCore and IceVault, must have a clear investigator function or be removed/demoted.
 - **Approximation is evidence.** Sparse/landmark/approximate modes must be explicit in provenance.
 - **Bootstrap is the safe Moneta default.** Learned ranking remains exact, pinned and explicit.
@@ -474,6 +500,7 @@ portable investigation replay/tamper tests
 coverage assurance
 production build
 browser/WebXR product-path smoke
+real Worker/WASM integration for async analytical paths
 scale benchmarks when scale-sensitive code changes
 physical Quest qualification for promotion-critical device claims
 independent review pass over the resulting merged implementation
@@ -483,20 +510,19 @@ independent review pass over the resulting merged implementation
 
 ### Stream A — forward implementation
 
-1. **P1-B:** implement the asynchronous analytical execution contract, generation/version/fingerprint fencing and Worker isolation; measure transport cost before shared memory.
-2. **P1-C:** implement the reusable sparse-neighbourhood substrate and governed exact/sparse modes, consuming the corrected P1-A accessor rather than introducing another data representation.
-3. Continue **P1-D design/measurement infrastructure**, but gate default ranking changes on reviewed-faithful P1-R embodiments.
-4. Implement **P1-E actionable NIL/ambiguity** and **P1-F semantic targeting/Memory Palace focus+context** where dependencies are stable.
-5. Continue bounded preview/security/maintenance plumbing that does not depend on unresolved review findings.
+1. **P1-C:** implement the reusable sparse-neighborhood substrate and governed exact/sparse modes, coordinating with RF-007 so it consumes a validity-aware borrowed columnar accessor rather than introducing another data representation.
+2. Continue **P1-D design/measurement infrastructure**, but gate default ranking changes on reviewed-faithful P1-R embodiments.
+3. Implement **P1-E actionable NIL/ambiguity** and **P1-F semantic targeting/Memory Palace focus+context** where dependencies are stable.
+4. Continue bounded preview/security/maintenance plumbing that does not depend on unresolved review findings.
 
 ### Stream B — review and fix-forward
 
-1. Land RF-003/RF-004 regression fixes and this roadmap/governance update.
-2. Close **RF-007**: validity-aware, borrowed/column-oriented TDA access with scale evidence.
-3. Close **RF-001/RF-002**: Rust-owned semantic embodiment payloads and honest candidate semantics/provenance.
-4. Close **RF-005/RF-006/RF-008**: actual sparse whole-product UI convergence, functional world objects and real product-path evidence.
-5. Re-review P1-B/P1-C as Stream A lands them; add new RF items immediately when implementation diverges from design.
-6. Re-review P1-D/E/F in the same way rather than assuming acceptance because implementation tests are green.
+1. Land RF-003/RF-004/RF-012 plus the standing two-stream governance update.
+2. Close **P1-B RF-010/RF-011/RF-013/RF-014/RF-015/RF-016** and re-review the actual production Worker path.
+3. Close **RF-007** in coordination with Stream A's P1-C substrate so there is one shared validity-aware point-access abstraction.
+4. Close **RF-001/RF-002** with Rust-owned semantic embodiment payloads and honest candidate semantics/provenance.
+5. Close **RF-005/RF-006/RF-008** with actual sparse whole-product UI convergence, functional world objects and real product-path evidence.
+6. Review P1-C/P1-D/P1-E/P1-F immediately as Stream A lands them; add new RF items in the same roadmap rather than waiting for a separate audit sprint.
 
 ### Convergence / promotion
 
