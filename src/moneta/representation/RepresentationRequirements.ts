@@ -64,7 +64,7 @@ export interface InformationLossBudget {
   allowIdentityLoss: boolean;
   allowExactMetricLoss: boolean;
   allowClusterLoss: boolean;
-  maxOcclusionTolerance: number;
+  maxFrustumExclusionTolerance: number;
 }
 
 export interface HardwareConstraint {
@@ -108,7 +108,15 @@ export interface RepresentationRequirements {
   hardwareConstraints: HardwareConstraint;
   dimensionalityRequirements?: DimensionalityRequirement;
   progressiveDisclosure?: ProgressiveDisclosureRequirement;
-  maxOcclusionTolerance: number;
+  /**
+   * Maximum fraction of marks that may be excluded from the view frustum /
+   * depth range before a candidate is disqualified. Renamed from
+   * `maxOcclusionTolerance` (RF-024): the hard gate bounds frustum exclusion,
+   * NOT occlusion, because the measured metric (`frustumExclusionFraction`) is
+   * a frustum/depth-range surrogate. Real occlusion measurement remains future
+   * work and must not be implied by this field name.
+   */
+  maxFrustumExclusionTolerance: number;
   interactionBudget: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
@@ -199,7 +207,7 @@ export const RepresentationRequirementsSchema = v.strictObject({
     allowIdentityLoss: v.boolean(),
     allowExactMetricLoss: v.boolean(),
     allowClusterLoss: v.boolean(),
-    maxOcclusionTolerance: UnitInterval,
+    maxFrustumExclusionTolerance: UnitInterval,
   }),
   scale: v.picklist(['SMALL', 'MEDIUM', 'LARGE', 'MASSIVE']),
   hardwareConstraints: HardwareEnvelopeSchema,
@@ -227,7 +235,7 @@ export const RepresentationRequirementsSchema = v.strictObject({
       ),
     })
   ),
-  maxOcclusionTolerance: UnitInterval,
+  maxFrustumExclusionTolerance: UnitInterval,
   interactionBudget: v.picklist(['LOW', 'MEDIUM', 'HIGH']),
 });
 
@@ -237,9 +245,9 @@ export function validateRepresentationRequirements(input: unknown): Representati
     RepresentationRequirementsSchema,
     input
   ) as RepresentationRequirements;
-  if (requirements.acceptableLoss.maxOcclusionTolerance !== requirements.maxOcclusionTolerance) {
+  if (requirements.acceptableLoss.maxFrustumExclusionTolerance !== requirements.maxFrustumExclusionTolerance) {
     throw new Error(
-      'RepresentationRequirements: acceptableLoss.maxOcclusionTolerance must equal maxOcclusionTolerance'
+      'RepresentationRequirements: acceptableLoss.maxFrustumExclusionTolerance must equal maxFrustumExclusionTolerance'
     );
   }
   if (
@@ -386,11 +394,11 @@ export function createDefaultRequirements(
       allowIdentityLoss: intent.observationLevel !== 'individual' && scale !== 'SMALL',
       allowExactMetricLoss: scale === 'LARGE' || scale === 'MASSIVE',
       allowClusterLoss: false,
-      maxOcclusionTolerance: scale === 'LARGE' || scale === 'MASSIVE' ? 0.7 : 0.3,
+      maxFrustumExclusionTolerance: scale === 'LARGE' || scale === 'MASSIVE' ? 0.7 : 0.3,
     },
     scale,
     hardwareConstraints: defaultHw,
-    maxOcclusionTolerance: scale === 'LARGE' || scale === 'MASSIVE' ? 0.7 : 0.3,
+    maxFrustumExclusionTolerance: scale === 'LARGE' || scale === 'MASSIVE' ? 0.7 : 0.3,
     interactionBudget: 'MEDIUM',
   };
 }

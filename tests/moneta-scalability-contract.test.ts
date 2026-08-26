@@ -43,7 +43,7 @@ describe('Moneta scalability contract', () => {
 
     expect(requirements.hardwareConstraints.maxElements).toBeUndefined();
     expect(requirements.hardwareConstraints.maxVertices).toBe(500_000);
-    expect(requirements.maxOcclusionTolerance).toBe(0.7);
+    expect(requirements.maxFrustumExclusionTolerance).toBe(0.7);
   });
 
   it('fails closed when bounded reasoning budgets are exceeded', () => {

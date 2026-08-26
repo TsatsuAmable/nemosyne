@@ -50,8 +50,13 @@ import { canonicalJsonStringify } from '../../investigation/InvestigationDigest.
 import { fnv1aHex } from '../../atlas/DatasetSpace.ts';
 import type { PerceptualFitnessEvidence } from '../evidence/PerceptualFitnessEvidence.ts';
 import {
+  PERCEPTUAL_FITNESS_EVIDENCE_VERSION,
+  validatePerceptualFitnessEvidence,
+} from '../evidence/PerceptualFitnessEvidence.ts';
+import {
   BootstrapFitnessModel,
   type BootstrapFitnessWeights,
+  FITNESS_TREATMENT_ID,
 } from './FitnessModel.ts';
 import { assessRepresentationDecision } from './DecisionPolicy.ts';
 import { analyzeWinnerSensitivity } from './SensitivityAnalysis.ts';
@@ -196,25 +201,15 @@ export class MonetaHypothesisEngine {
     const hardTraces: HardConstraintTrace[] = [];
     const scoredCandidates: CandidateScore[] = [];
 
-    // Normalize perceptual evidence into a lookup map
-    const perceptualMap = new Map<string, PerceptualFitnessEvidence>();
-    if (perceptualEvidence) {
-      if (perceptualEvidence instanceof Map) {
-        for (const [k, v] of perceptualEvidence.entries()) {
-          perceptualMap.set(k, v);
-        }
-      } else if (
-        'candidateId' in perceptualEvidence &&
-        typeof (perceptualEvidence as PerceptualFitnessEvidence).candidateId === 'string'
-      ) {
-        const ev = perceptualEvidence as PerceptualFitnessEvidence;
-        perceptualMap.set(ev.candidateId, ev);
-      } else {
-        for (const [k, v] of Object.entries(perceptualEvidence)) {
-          perceptualMap.set(k, v as PerceptualFitnessEvidence);
-        }
-      }
-    }
+    // Normalize perceptual evidence into a lookup map. RF-023: every evidence
+    // item MUST be bound to the current dataset fingerprint, the candidate id
+    // it claims, and the current evidence version before it may influence hard
+    // constraints or scoring. Stale / cross-dataset / mismatched items are
+    // dropped (fail-closed to the engineering prior) rather than consumed.
+    const { perceptualMap, staleEvidenceDropped } = this.normalizePerceptualEvidence(
+      perceptualEvidence,
+      signature.provenance.datasetFingerprint
+    );
 
     for (const item of this.generateCandidates()) {
       const candidate = MONETA_REPRESENTATION_CANDIDATES[item.candidateId];
@@ -394,6 +389,8 @@ export class MonetaHypothesisEngine {
       fitnessModelArtifactHash: this.fitnessModelArtifactHash,
       perceptualModelVersion: 'perceptual-fitness-v1',
       perceptualDeviceClass: winnerPerceptual?.measured?.deviceClass ?? 'desktop',
+      stalePerceptualEvidenceDropped: staleEvidenceDropped,
+      fitnessTreatmentId: FITNESS_TREATMENT_ID,
     };
 
     return {
@@ -459,6 +456,76 @@ export class MonetaHypothesisEngine {
       }
       throw err;
     }
+  }
+
+  /**
+   * RF-023: bind each perceptual evidence item to the current dataset
+   * fingerprint, candidate identity and evidence version. Items that fail any
+   * binding check are dropped (fail-closed to the engineering prior) and
+   * counted, so stale/cross-dataset measurements cannot influence hard
+   * constraints or ranking.
+   */
+  private normalizePerceptualEvidence(
+    perceptualEvidence:
+      | PerceptualFitnessEvidence
+      | Map<string, PerceptualFitnessEvidence>
+      | Record<string, PerceptualFitnessEvidence>
+      | undefined,
+    currentDatasetFingerprint: string
+  ): { perceptualMap: Map<string, PerceptualFitnessEvidence>; staleEvidenceDropped: number } {
+    const perceptualMap = new Map<string, PerceptualFitnessEvidence>();
+    if (!perceptualEvidence) {
+      return { perceptualMap, staleEvidenceDropped: 0 };
+    }
+
+    const entries: Array<[string, PerceptualFitnessEvidence]> = [];
+    if (perceptualEvidence instanceof Map) {
+      for (const [k, v] of perceptualEvidence.entries()) {
+        entries.push([k, v]);
+      }
+    } else if (
+      'candidateId' in perceptualEvidence &&
+      typeof (perceptualEvidence as PerceptualFitnessEvidence).candidateId === 'string'
+    ) {
+      const ev = perceptualEvidence as PerceptualFitnessEvidence;
+      entries.push([ev.candidateId, ev]);
+    } else {
+      for (const [k, v] of Object.entries(perceptualEvidence)) {
+        entries.push([k, v as PerceptualFitnessEvidence]);
+      }
+    }
+
+    let staleEvidenceDropped = 0;
+    for (const [key, evidence] of entries) {
+      // Evidence version must match the contract the engine understands.
+      if (evidence.version !== PERCEPTUAL_FITNESS_EVIDENCE_VERSION) {
+        staleEvidenceDropped++;
+        continue;
+      }
+      // Evidence must pertain to the current dataset, not a previous one.
+      if (evidence.datasetFingerprint !== currentDatasetFingerprint) {
+        staleEvidenceDropped++;
+        continue;
+      }
+      // The map key must agree with the candidate the evidence claims. This
+      // guards against mis-keyed Record/Map inputs silently attributing a
+      // measurement to the wrong candidate.
+      if (!evidence.candidateId || evidence.candidateId !== key) {
+        staleEvidenceDropped++;
+        continue;
+      }
+      // Re-validate structural invariants so a hand-constructed stale item
+      // cannot bypass the evidence contract.
+      try {
+        validatePerceptualFitnessEvidence(evidence);
+      } catch {
+        staleEvidenceDropped++;
+        continue;
+      }
+      perceptualMap.set(key, evidence);
+    }
+
+    return { perceptualMap, staleEvidenceDropped };
   }
 
   private generateCandidates(): Array<{
@@ -537,11 +604,11 @@ export class MonetaHypothesisEngine {
       };
     }
 
-    if (reqs.maxOcclusionTolerance !== undefined && candidateEvidence?.source === 'measured' && candidateEvidence.measured) {
-      if (candidateEvidence.measured.hiddenMarkFraction > reqs.maxOcclusionTolerance) {
+    if (reqs.maxFrustumExclusionTolerance !== undefined && candidateEvidence?.source === 'measured' && candidateEvidence.measured) {
+      if (candidateEvidence.measured.frustumExclusionFraction > reqs.maxFrustumExclusionTolerance) {
         return {
           passed: false,
-          reason: `Candidate hidden mark fraction ${candidateEvidence.measured.hiddenMarkFraction.toFixed(2)} exceeds maximum occlusion tolerance ${reqs.maxOcclusionTolerance.toFixed(2)}`,
+          reason: `Candidate frustum exclusion fraction ${candidateEvidence.measured.frustumExclusionFraction.toFixed(2)} exceeds maximum frustum exclusion tolerance ${reqs.maxFrustumExclusionTolerance.toFixed(2)}`,
         };
       }
     }

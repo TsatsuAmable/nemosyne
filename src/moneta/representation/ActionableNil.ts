@@ -28,7 +28,7 @@ export type InvestigatorOutcomeState = RepresentationDecisionStatus;
 
 export type RemediationKind =
   | 'adjust-hardware-limit'
-  | 'adjust-occlusion-tolerance'
+  | 'adjust-frustum-exclusion-tolerance'
   | 'switch-task'
   | 'aggregate-data'
   | 'supply-temporal-order'
@@ -132,7 +132,7 @@ export function diagnoseInvestigatorOutcome(
       reason.includes('hardware limit') ||
       reason.includes('element budget');
     const isPerceptual =
-      reason.includes('occlusion tolerance') ||
+      reason.includes('frustum exclusion tolerance') ||
       reason.includes('perceptual');
     const isInfoLoss =
       reason.includes('loses critical information') ||
@@ -169,17 +169,17 @@ export function diagnoseInvestigatorOutcome(
         }
       }
     } else if (isPerceptual) {
-      const occTol = requirements.maxOcclusionTolerance ?? 0.2;
-      const remId = 'relax_occlusion_tolerance';
+      const occTol = requirements.maxFrustumExclusionTolerance ?? 0.2;
+      const remId = 'relax_frustum_exclusion_tolerance';
       if (!remediationMap.has(remId)) {
         remediation = {
           id: remId,
-          label: 'Relax occlusion tolerance threshold',
-          kind: 'adjust-occlusion-tolerance',
-          description: `Increase maxOcclusionTolerance from ${(occTol * 100).toFixed(0)}% to ${Math.min(100, (occTol + 0.2) * 100).toFixed(0)}% for 3D exploratory layout.`,
+          label: 'Relax frustum exclusion tolerance threshold',
+          kind: 'adjust-frustum-exclusion-tolerance',
+          description: `Increase maxFrustumExclusionTolerance from ${(occTol * 100).toFixed(0)}% to ${Math.min(100, (occTol + 0.2) * 100).toFixed(0)}% for 3D exploratory layout. Note: the hard gate bounds view-frustum/depth-range exclusion, NOT occlusion.`,
           isSafeToRelax: true,
           suggestedRequirementPatch: {
-            maxOcclusionTolerance: Math.min(1.0, occTol + 0.2),
+            maxFrustumExclusionTolerance: Math.min(1.0, occTol + 0.2),
           },
           unblocksCandidates: [candidate.candidateId],
         };

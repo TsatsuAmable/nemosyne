@@ -47,14 +47,15 @@ export interface PerceptualFitnessEvidence {
   /** measured fields; null when source === 'prior' */
   measured: {
     projectedOverlapFraction: number;        // screen-area overlap of marks, sampled envelope
-    hiddenMarkFraction: number;              // marks outside frustum / behind nearer geometry
+    frustumExclusionFraction: number;        // SURROGATE: marks outside frustum / depth range; NOT occlusion (RF-024)
     medianProjectedGlyphSizePx: number;      // via computeScreenSpaceError-style projection
-    labelCrowdingIndex: number;              // labels-per-screen-region density
+    labelCrowdingIndex: number;              // SURROGATE: label count per spatial extent; NOT screen-space overlap (RF-024)
     depthOrderAmbiguityFraction: number;     // near-tie depth-order swaps across envelope poses
     spatialExtentMeters: number;
     requiredViewpointTravelMeters: number;   // travel to bring median mark into legible range
     viewpointEnvelope: ViewpointSample[];    // bounded nearby-view poses (pose = pos+gaze hash)
     deviceClass: 'desktop' | 'quest-3s' | 'other-headset';
+    metricFidelity: { ... };                  // RF-024: per-metric measured|estimated|surrogate class + method
   } | null;
   /** engineering priors: candidate.interactionCharacteristics verbatim */
   priors: { occlusionResistance: number; cognitiveLoad: number };
@@ -64,8 +65,8 @@ export interface PerceptualFitnessEvidence {
 
 ### 2.3 Ranking integration (hard constraints still precede preference)
 
-1. `checkHardConstraints` first — `maxOcclusionTolerance` becomes a real hard gate when measured `hiddenMarkFraction`/`projectedOverlapFraction` exceed it (information-loss CRITICAL goals already live there; this activates the dormant requirement field, doesn't add policy).
-2. `BootstrapFitnessModel`: add seventh component `perceptualFitness` with weight in `BootstrapFitnessWeights` (rebalance existing weights so the sum stays 1 — weight values are a governed change, bump fit via the existing weights-validation at `FitnessModel.ts:71-86`; propose 0.10 carved from `configuredPrior` + `densityHandling`, recorded in PR).
+1. `checkHardConstraints` first — `maxFrustumExclusionTolerance` (renamed from `maxOcclusionTolerance` in RF-024) becomes a real hard gate when measured `frustumExclusionFraction` exceeds it. The gate bounds view-frustum/depth-range exclusion, NOT occlusion; real screen-space occlusion measurement remains future work. Information-loss CRITICAL goals already live there; this activates the dormant requirement field, doesn't add policy.
+2. `BootstrapFitnessModel`: seventh component `perceptualFitness` with weight in `BootstrapFitnessWeights`. The default weights are pinned to a frozen study-treatment id (`fitness-treatment-v1`, recorded in `DecisionProvenance.fitnessTreatmentId`); changing them is a study-treatment change requiring a new treatment id (RF-024). Rebalance via the existing weights-validation at `FitnessModel.ts`; weight values are a governed change.
 3. `DecisionEvidenceItem[]` entries state `measured` vs `prior` explicitly per candidate (utility is never relabelled confidence — doc line 105).
 4. When no measured evidence exists (current default), the component consumes `priors` with `source: 'prior'` — this *activates* the dormant `occlusionResistance`/`cognitiveLoad` fields as the programme item requires, without pretending measurement.
 5. Provenance: `perceptualModelVersion: 'perceptual-fitness-v1'` in `DecisionProvenance`; learned-feature dimension (and `PAIRWISE_FEATURE_SCHEMA_VERSION` bump) is **deferred** until measured evidence demonstrates benefit — do not widen the learned schema on priors alone.
@@ -134,7 +135,7 @@ export interface RankedSemanticTarget {
 | D1 | contract versioning | `PERCEPTUAL_FITNESS_EVIDENCE_VERSION` present; schema validates; envelope round-trips through session JSON and `.nemosyne` export/import. |
 | D2 | dormancy activation | With `source: 'prior'`, two candidates identical on all analytical dimensions but different `occlusionResistance`/`cognitiveLoad` rank differently; evidence items state `prior`. |
 | D3 | measured beats prior, labelled | With sampled measured evidence, ranking uses measured values; `DecisionEvidenceItem[]` records `source: 'measured'`; priors remain visible. |
-| D4 | hard-before-preference | `hiddenMarkFraction > maxOcclusionTolerance` → candidate infeasible regardless of perceptual score (hard gate runs first; trace recorded in `rulesEvaluated`). |
+| D4 | hard-before-preference | `frustumExclusionFraction > maxFrustumExclusionTolerance` → candidate infeasible regardless of perceptual score (hard gate runs first; trace recorded in `rulesEvaluated`). RF-024: the gate is honestly named as frustum exclusion, not occlusion. |
 | D5 | envelope stability | Evidence generated at a single privileged pose is rejected by the sampler contract (requires full `viewpointEnvelope`); ranking is stable across the envelope. |
 | D6 | weight integrity | `BootstrapFitnessWeights` still sums to 1 (existing validator); perceptual weight change is recorded with reason in the PR and in `MonetaExplainerPanel` copy sources if applicable. |
 | D7 | provenance persistence | `perceptualModelVersion` survives `AtlasCoreState` serialize/restore and portable package round trip (`NemosynePackage` manifest validation untouched). |
