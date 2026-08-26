@@ -85,7 +85,9 @@ pub fn compute_spectral_facts(
 
     let mut observations = Vec::new();
     for (row_index, row) in dataset.rows.iter().enumerate() {
-        let value = row.get(value_name).and_then(|value| value.as_number())?;
+        let Some(value) = row.get(value_name).and_then(|value| value.as_number()) else {
+            continue;
+        };
         if !value.is_finite() {
             continue;
         }
