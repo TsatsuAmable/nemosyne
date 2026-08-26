@@ -86,6 +86,10 @@ export interface DatasetEdge {
   [key: string]: unknown;
 }
 
+function cloneEdge(edge: DatasetEdge): DatasetEdge {
+  return { ...edge };
+}
+
 export interface DatasetMeta {
   [key: string]: unknown;
 }
@@ -109,7 +113,7 @@ export class Dataset {
     this.name = name;
     this.columns = columns;
     this.rows = rows.map(sanitizeRow);
-    this.edges = edges;
+    this.edges = edges?.map(cloneEdge);
     this._setRowIds(rowIds);
   }
 
@@ -221,7 +225,7 @@ export class Dataset {
       this.name,
       this.columns.slice(),
       this.rows.map(cloneRow),
-      undefined,
+      this.edges,
       this.rowIds?.slice()
     );
   }
@@ -254,7 +258,7 @@ export class Dataset {
         type: (typeof c.type === 'string' ? c.type.toUpperCase() : c.type) as ColumnTypeValue,
       })) || [],
       (typedObj.rows ?? []).map(cloneRow),
-      typedObj.edges?.map((e) => ({ ...e })),
+      typedObj.edges?.map(cloneEdge),
       typedObj.rowIds
     );
   }
