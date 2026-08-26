@@ -31,7 +31,7 @@ function createMockWorkerTransport(): WorkerTransport & {
   let onmessageerror: ((ev: MessageEvent | unknown) => void) | null = null;
   const transport = {
     postedMessages,
-    terminated: false,
+    terminated: false as boolean,
     get onmessage() {
       return onmessage;
     },
