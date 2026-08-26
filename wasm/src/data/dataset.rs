@@ -188,8 +188,9 @@ impl Dataset {
     /// Append or replace rows for live streams while keeping identity and
     /// positional graph endpoints aligned. Replacement starts a new lineage and
     /// clears topology. Append preserves existing edges; when a rolling limit
-    /// drops a prefix, surviving positional edges are remapped to the retained
-    /// rows while stable string endpoints retain their source identity.
+    /// drops a prefix, surviving positional edges are remapped to retained rows.
+    /// Stable string endpoints are preserved only while all source rows remain,
+    /// because Rust has no governed source-ID-column mapping for a subset.
     pub fn update_rows(
         &mut self,
         new_rows: Vec<HashMap<String, Value>>,
@@ -228,9 +229,10 @@ impl Dataset {
     /// Clone with transformed rows. When every output row corresponds to one
     /// source observation on the original scientific columns, preserve source
     /// IDs and remap positional graph endpoints into output order. Edges whose
-    /// positional endpoints were removed are dropped; stable string endpoints
-    /// retain their exact source identity. If the output rows are genuinely
-    /// derived, topology is cleared rather than attached to unrelated rows.
+    /// positional endpoints were removed are dropped. Stable string endpoints
+    /// survive pure reorderings, but are dropped when a subset removes source
+    /// rows because no governed Rust mapping says which row a source string ID
+    /// names. If output rows are genuinely derived, topology is cleared.
     pub fn clone_with_rows(
         &self,
         rows: Vec<HashMap<String, Value>>,
@@ -268,6 +270,7 @@ impl Dataset {
     fn remap_endpoint(
         endpoint: &EdgeEndpoint,
         old_to_new: &[Option<usize>],
+        preserve_stable_ids: bool,
     ) -> Option<EdgeEndpoint> {
         match endpoint {
             EdgeEndpoint::Index(index) => old_to_new
@@ -275,7 +278,8 @@ impl Dataset {
                 .copied()
                 .flatten()
                 .map(EdgeEndpoint::Index),
-            EdgeEndpoint::Id(id) => Some(EdgeEndpoint::Id(id.clone())),
+            EdgeEndpoint::Id(id) if preserve_stable_ids => Some(EdgeEndpoint::Id(id.clone())),
+            EdgeEndpoint::Id(_) => None,
         }
     }
 
@@ -287,13 +291,23 @@ impl Dataset {
                 old_to_new[source_index] = Some(new_index);
             }
         }
+        let preserve_stable_ids = source_indices.len() == self.rows.len()
+            && old_to_new.iter().all(Option::is_some);
 
         Some(
             edges
                 .iter()
                 .filter_map(|edge| {
-                    let source = Self::remap_endpoint(&edge.source, &old_to_new)?;
-                    let target = Self::remap_endpoint(&edge.target, &old_to_new)?;
+                    let source = Self::remap_endpoint(
+                        &edge.source,
+                        &old_to_new,
+                        preserve_stable_ids,
+                    )?;
+                    let target = Self::remap_endpoint(
+                        &edge.target,
+                        &old_to_new,
+                        preserve_stable_ids,
+                    )?;
                     let mut remapped = edge.clone();
                     remapped.source = source;
                     remapped.target = target;
@@ -610,6 +624,15 @@ mod row_identity_tests {
     }
 
     #[test]
+    fn filtering_drops_stable_string_edges_when_source_membership_changes() {
+        let ds = string_graph_dataset();
+        let filtered = crate::data::operations::filter(&ds, |row| {
+            row.get("id") != Some(&Value::Text("A".to_string()))
+        });
+        assert_eq!(filtered.edges, Some(vec![]));
+    }
+
+    #[test]
     fn genuinely_derived_rows_clear_graph_topology() {
         let ds = graph_dataset();
         let derived = ds.clone_with_rows(vec![row(99.0)], "[derived]");
@@ -628,6 +651,16 @@ mod row_identity_tests {
         let mut ds = graph_dataset();
         ds.update_rows(vec![row(4.0)], RowUpdateMode::Append, Some(3));
         assert_eq!(ds.edges, Some(vec![Edge::new(0, 1)]));
+    }
+
+    #[test]
+    fn rolling_append_drops_stable_string_edges_after_prefix_eviction() {
+        let mut ds = string_graph_dataset();
+        ds.update_rows(vec![HashMap::from([
+            ("id".to_string(), Value::Text("C".to_string())),
+            ("value".to_string(), Value::Number(3.0)),
+        ])], RowUpdateMode::Append, Some(2));
+        assert_eq!(ds.edges, Some(vec![]));
     }
 
     #[test]
