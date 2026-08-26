@@ -3,7 +3,7 @@ use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 
 use crate::data::column::{Column, ColumnType};
 use crate::data::columnar::{ColumnarDataset, PrimitiveColumn};
-use crate::data::dataset::Dataset;
+use crate::data::dataset::{Dataset, EdgeEndpoint};
 use crate::data::spectral::{
     compute_spectral_facts, compute_spectral_facts_columnar, SpectralFacts,
 };
@@ -585,67 +585,84 @@ fn evaluate_clusters_columnar(
     })
 }
 
+/// Analyze an explicit directed source graph without changing its semantic type.
+/// Connectivity is weak connectivity (edge direction does not make an otherwise
+/// connected source graph disconnected); cycles retain directed source/target
+/// semantics. A tree-shaped graph remains a graph. Hierarchy classification is a
+/// schema/explicit-topology concern, not an inference from `edge_count == n - 1`.
 fn analyze_graph(
     row_count: usize,
     edges: &[crate::data::dataset::Edge],
-) -> (Option<GraphProfile>, Option<HierarchyProfile>) {
+) -> Option<GraphProfile> {
     if edges.is_empty() {
-        return (None, None);
+        return None;
     }
 
     let edge_count = edges.len();
-    let mut adjacency: HashMap<usize, Vec<usize>> = HashMap::new();
-    let mut in_degrees: HashMap<usize, usize> = HashMap::new();
-    let mut nodes = HashSet::new();
+    let mut directed: HashMap<EdgeEndpoint, Vec<EdgeEndpoint>> = HashMap::new();
+    let mut undirected: HashMap<EdgeEndpoint, Vec<EdgeEndpoint>> = HashMap::new();
+    let mut nodes: HashSet<EdgeEndpoint> = HashSet::new();
+
     for edge in edges {
-        nodes.insert(edge.source);
-        nodes.insert(edge.target);
-        adjacency.entry(edge.source).or_default().push(edge.target);
-        *in_degrees.entry(edge.target).or_insert(0) += 1;
-        in_degrees.entry(edge.source).or_insert(0);
+        let source = edge.source.clone();
+        let target = edge.target.clone();
+        nodes.insert(source.clone());
+        nodes.insert(target.clone());
+        directed
+            .entry(source.clone())
+            .or_default()
+            .push(target.clone());
+        directed.entry(target.clone()).or_default();
+        undirected
+            .entry(source.clone())
+            .or_default()
+            .push(target.clone());
+        undirected.entry(target).or_default().push(source);
     }
 
     let node_count = nodes.len().max(row_count);
-    let mut visited = HashSet::new();
-    let mut components = 0;
-    for &node in &nodes {
-        if !visited.contains(&node) {
-            components += 1;
-            let mut queue = VecDeque::new();
-            queue.push_back(node);
-            visited.insert(node);
-            while let Some(current) = queue.pop_front() {
-                if let Some(neighbors) = adjacency.get(&current) {
-                    for &next in neighbors {
-                        if visited.insert(next) {
-                            queue.push_back(next);
-                        }
+
+    let is_connected = if let Some(start) = nodes.iter().next().cloned() {
+        let mut visited: HashSet<EdgeEndpoint> = HashSet::new();
+        let mut queue = VecDeque::new();
+        visited.insert(start.clone());
+        queue.push_back(start);
+        while let Some(current) = queue.pop_front() {
+            if let Some(neighbors) = undirected.get(&current) {
+                for next in neighbors {
+                    if visited.insert(next.clone()) {
+                        queue.push_back(next.clone());
                     }
                 }
             }
         }
-    }
-    let is_connected = components <= 1 && nodes.len() >= row_count;
+        visited.len() == nodes.len() && nodes.len() >= row_count
+    } else {
+        row_count <= 1
+    };
 
     let mut has_cycles = false;
-    let mut node_state: HashMap<usize, u8> = HashMap::new();
-    for &start_node in &nodes {
+    let mut node_state: HashMap<EdgeEndpoint, u8> = HashMap::new();
+    for start_node in nodes.iter().cloned() {
         if node_state.get(&start_node).copied().unwrap_or(0) != 0 {
             continue;
         }
-        let mut stack: Vec<(usize, usize)> = vec![(start_node, 0)];
+        let mut stack: Vec<(EdgeEndpoint, usize)> = vec![(start_node.clone(), 0)];
         node_state.insert(start_node, 1);
         while let Some((current, next_index)) = stack.pop() {
-            let neighbors = adjacency.get(&current).map(|v| v.as_slice()).unwrap_or(&[]);
-            if next_index < neighbors.len() {
-                let next = neighbors[next_index];
-                stack.push((current, next_index + 1));
+            let next = directed
+                .get(&current)
+                .and_then(|neighbors| neighbors.get(next_index))
+                .cloned();
+            if let Some(next) = next {
+                stack.push((current.clone(), next_index + 1));
                 let next_state = node_state.get(&next).copied().unwrap_or(0);
                 if next_state == 1 {
                     has_cycles = true;
                     break;
-                } else if next_state == 0 {
-                    node_state.insert(next, 1);
+                }
+                if next_state == 0 {
+                    node_state.insert(next.clone(), 1);
                     stack.push((next, 0));
                 }
             } else {
@@ -657,55 +674,13 @@ fn analyze_graph(
         }
     }
 
-    let is_tree = !has_cycles && edge_count + 1 == node_count;
-    if is_tree {
-        let roots: Vec<usize> = in_degrees
-            .iter()
-            .filter(|(_, degree)| **degree == 0)
-            .map(|(&node, _)| node)
-            .collect();
-        let root = roots.first().copied().unwrap_or(0);
-        let mut queue = VecDeque::new();
-        queue.push_back((root, 1usize));
-        let mut max_depth = 1usize;
-        let mut total_branches = 0;
-        let mut branch_nodes = 0;
-        while let Some((current, depth)) = queue.pop_front() {
-            max_depth = max_depth.max(depth);
-            if let Some(children) = adjacency.get(&current) {
-                if !children.is_empty() {
-                    total_branches += children.len();
-                    branch_nodes += 1;
-                    for &child in children {
-                        queue.push_back((child, depth + 1));
-                    }
-                }
-            }
-        }
-        (
-            None,
-            Some(HierarchyProfile {
-                is_hierarchy: true,
-                depth: max_depth,
-                branching_factor: if branch_nodes > 0 {
-                    total_branches as f64 / branch_nodes as f64
-                } else {
-                    1.0
-                },
-            }),
-        )
-    } else {
-        (
-            Some(GraphProfile {
-                is_graph: true,
-                node_count,
-                edge_count,
-                has_cycles,
-                is_connected,
-            }),
-            None,
-        )
-    }
+    Some(GraphProfile {
+        is_graph: true,
+        node_count,
+        edge_count,
+        has_cycles,
+        is_connected,
+    })
 }
 
 pub fn compute_dataset_structure_profile(
@@ -751,11 +726,14 @@ pub fn compute_dataset_structure_profile(
         .map(|column| column.name.clone())
         .collect();
     let clusters = evaluate_clusters(dataset, &numeric_col_names);
-    let (graph, hierarchy) = dataset
+    let graph = dataset
         .edges
         .as_deref()
-        .map(|edges| analyze_graph(row_count, edges))
-        .unwrap_or((None, None));
+        .and_then(|edges| analyze_graph(row_count, edges));
+    // RF-044/RF-036: do not manufacture hierarchy from a graph merely because
+    // its current edge set is acyclic/tree-shaped. Hierarchy evidence requires
+    // explicit/schema semantics and is intentionally absent here.
+    let hierarchy = None;
 
     assemble_structure_profile(
         &dataset.name,
@@ -1127,6 +1105,7 @@ fn assemble_structure_profile(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::dataset::Edge;
     use std::f64::consts::PI;
 
     #[test]
@@ -1158,6 +1137,67 @@ mod tests {
         assert_eq!(profile.dimensionality.categorical_columns, 1);
         assert!(profile.correlations.max_correlation > 0.99);
         assert_eq!(profile.categorical.summaries.len(), 1);
+    }
+
+    #[test]
+    fn one_edge_graph_remains_graph_and_is_acyclic() {
+        let mut dataset = Dataset::new(
+            "one-edge",
+            vec![Column::new("value", ColumnType::Numeric)],
+            vec![
+                HashMap::from([("value".to_string(), Value::Number(1.0))]),
+                HashMap::from([("value".to_string(), Value::Number(2.0))]),
+            ],
+        );
+        dataset.edges = Some(vec![Edge::new(0, 1)]);
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(
+            profile.graph,
+            Some(GraphProfile {
+                is_graph: true,
+                node_count: 2,
+                edge_count: 1,
+                has_cycles: false,
+                is_connected: true,
+            })
+        );
+        assert_eq!(profile.hierarchy, None);
+    }
+
+    #[test]
+    fn stable_string_endpoint_graph_has_truthful_profile() {
+        let mut dataset = Dataset::new(
+            "string-edge",
+            vec![Column::new("id", ColumnType::Categorical)],
+            vec![
+                HashMap::from([("id".to_string(), Value::Text("A".to_string()))]),
+                HashMap::from([("id".to_string(), Value::Text("B".to_string()))]),
+            ],
+        );
+        dataset.edges = Some(vec![Edge::new_id("A", "B")]);
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        let graph = profile.graph.expect("explicit edge graph profile");
+        assert_eq!(graph.node_count, 2);
+        assert_eq!(graph.edge_count, 1);
+        assert!(!graph.has_cycles);
+        assert!(graph.is_connected);
+        assert!(profile.hierarchy.is_none());
+    }
+
+    #[test]
+    fn graph_connectivity_is_weak_and_independent_of_edge_direction() {
+        let edges = vec![Edge::new(1, 0), Edge::new(2, 1)];
+        let graph = analyze_graph(3, &edges).expect("graph profile");
+        assert!(graph.is_connected);
+        assert!(!graph.has_cycles);
+    }
+
+    #[test]
+    fn directed_cycle_is_reported_without_changing_graph_type() {
+        let edges = vec![Edge::new_id("A", "B"), Edge::new_id("B", "A")];
+        let graph = analyze_graph(2, &edges).expect("graph profile");
+        assert!(graph.has_cycles);
+        assert!(graph.is_connected);
     }
 
     #[test]
