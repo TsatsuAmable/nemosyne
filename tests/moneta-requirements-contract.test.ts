@@ -19,7 +19,7 @@ describe('Moneta requirements contract', () => {
   it('rejects invalid occlusion, non-finite hardware, and unknown top-level fields', () => {
     const invalidOcclusion = {
       ...createDefaultRequirements('explore'),
-      maxOcclusionTolerance: -0.01,
+      maxFrustumExclusionTolerance: -0.01,
     };
     const nonFiniteHardware = {
       ...createDefaultRequirements('explore'),
@@ -43,7 +43,7 @@ describe('Moneta requirements contract', () => {
       ...createDefaultRequirements('explore'),
       acceptableLoss: {
         ...createDefaultRequirements('explore').acceptableLoss,
-        maxOcclusionTolerance: 0.1,
+        maxFrustumExclusionTolerance: 0.1,
       },
     };
     const emptyDisclosure = {
@@ -52,7 +52,7 @@ describe('Moneta requirements contract', () => {
     };
 
     expect(() => validateRepresentationRequirements(mismatchedOcclusion)).toThrow(
-      /maxOcclusionTolerance/
+      /maxFrustumExclusionTolerance/
     );
     expect(() => validateRepresentationRequirements(emptyDisclosure)).toThrow(
       /requires at least one level/

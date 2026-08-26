@@ -29,6 +29,24 @@ export interface BootstrapFitnessWeights {
 
 export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v1';
 
+/**
+ * Frozen study-treatment identity for the default ranking weights (RF-024).
+ *
+ * The default bootstrap weights are engineering priors, not empirical
+ * probabilities. Because they define the controlled treatment used by every
+ * default Moneta decision, changing them is a study-treatment change: it MUST
+ * mint a new `treatmentId` (e.g. `fitness-treatment-v2`) and pass study/
+ * treatment review before promotion. The treatment id is recorded in decision
+ * provenance so a later analyst can tell which treatment produced a decision.
+ */
+export const FITNESS_TREATMENT_ID = 'fitness-treatment-v1';
+
+export interface FitnessTreatmentManifest {
+  readonly treatmentId: string;
+  readonly weights: BootstrapFitnessWeights;
+  readonly rationale: string;
+}
+
 export const DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS: BootstrapFitnessWeights = {
   structure: 0.30,
   task: 0.25,
@@ -37,6 +55,13 @@ export const DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS: BootstrapFitnessWeights = {
   densityHandling: 0.05,
   configuredPrior: 0.05,
   perceptualFitness: 0.05,
+};
+
+export const DEFAULT_FITNESS_TREATMENT_MANIFEST: FitnessTreatmentManifest = {
+  treatmentId: FITNESS_TREATMENT_ID,
+  weights: DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS,
+  rationale:
+    'Frozen V3 bootstrap engineering priors. Any change to these defaults is a study-treatment change and requires a new treatment id plus study-treatment review before promotion.',
 };
 
 export interface FitnessComponent {
@@ -161,7 +186,7 @@ export class BootstrapFitnessModel {
       const m = evidence.measured;
       const score = clamp01(
         (1 - m.projectedOverlapFraction) * 0.3 +
-        (1 - m.hiddenMarkFraction) * 0.3 +
+        (1 - m.frustumExclusionFraction) * 0.3 +
         (1 - m.depthOrderAmbiguityFraction) * 0.2 +
         clamp01(m.medianProjectedGlyphSizePx / 32) * 0.2
       );

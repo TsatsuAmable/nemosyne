@@ -65,6 +65,10 @@ export interface DecisionProvenance {
   fitnessModelArtifactHash?: string | null;
   perceptualModelVersion?: string;
   perceptualDeviceClass?: string;
+  /** RF-023: count of perceptual evidence items dropped for stale/cross-dataset/version/key mismatch. */
+  stalePerceptualEvidenceDropped?: number;
+  /** RF-024: frozen study-treatment id whose default ranking weights produced this decision. */
+  fitnessTreatmentId?: string;
 }
 
 export interface RepresentationDecision {
