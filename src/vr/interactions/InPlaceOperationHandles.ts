@@ -11,6 +11,7 @@
  */
 
 import * as THREE from 'three';
+import type { SemanticTargetMeta } from '../input/InteractableRegistry.ts';
 
 interface DracoNodeLike {
   artifact?: { nodeMeshes?: THREE.Mesh[] } | undefined;
@@ -33,6 +34,8 @@ interface HandleCallbacks {
   onEnter?: () => void;
   onLeave?: () => void;
   onSelect?: () => void;
+  /** RF-025: durable semantic metadata forwarded onto the interactable entry. */
+  semantic?: SemanticTargetMeta;
 }
 
 interface InputRouterLike {
@@ -47,7 +50,20 @@ interface OperationHandle {
   baseOffset: THREE.Vector3;
   hover: boolean;
   structureId?: string;
+  /** RF-025: semantic metadata for the resolver + focus/context path. */
+  semantic?: SemanticTargetMeta;
 }
+
+/**
+ * RF-025: maps an authoritative analytical structure kind onto the durable
+ * semantic target vocabulary the resolver ranks and the focus/context
+ * controller navigates. Unknown kinds fall back to `investigation-artifact`.
+ */
+const SEMANTIC_KIND_FOR_STRUCTURE: Record<string, SemanticTargetMeta['kind']> = {
+  'cluster': 'cluster-region',
+  'persistent-component': 'persistence-structure',
+  'mapper-node': 'mapper-node',
+};
 
 interface InPlaceOptions {
   onOperation?: (operation: string) => void;
@@ -162,7 +178,17 @@ export class InPlaceOperationHandles {
         if (!anchorMesh) continue;
         const icon = iconForKind[structure.kind] ?? '📍';
         const action = actionForKind[structure.kind] ?? 'explore-region';
-        this._addStructureHandle(anchorMesh, structure.id, action, icon);
+        const semanticKind = SEMANTIC_KIND_FOR_STRUCTURE[structure.kind] ?? 'investigation-artifact';
+        const evidenceScore = structure.evidence?.score;
+        const salience =
+          typeof evidenceScore === 'number' && Number.isFinite(evidenceScore)
+            ? Math.max(0, Math.min(1, evidenceScore))
+            : 0.9;
+        this._addStructureHandle(anchorMesh, structure.id, action, icon, {
+          kind: semanticKind,
+          structureId: structure.id,
+          salience,
+        });
         added++;
       }
       if (added >= 6) break;
@@ -174,6 +200,7 @@ export class InPlaceOperationHandles {
     structureId: string,
     action: string,
     icon: string,
+    semantic?: SemanticTargetMeta,
   ) {
     const mat = this._getSpriteMaterial(structureId, icon);
     const sprite = new THREE.Sprite(mat);
@@ -188,6 +215,7 @@ export class InPlaceOperationHandles {
       baseOffset: new THREE.Vector3(0, 0.45, 0),
       hover: false,
       structureId,
+      semantic,
     };
 
     this._handles.push(handle);
@@ -306,6 +334,9 @@ export class InPlaceOperationHandles {
   registerInteractables(router: InputRouterLike) {
     for (const handle of this._handles) {
       router.addInteractable(handle.sprite, {
+        // RF-025: forward durable semantic metadata so the resolver can rank
+        // structure handles and selection can drive focus/context navigation.
+        semantic: handle.semantic,
         onEnter: () => {
           handle.hover = true;
           handle.baseOffset.y = 0.65;
