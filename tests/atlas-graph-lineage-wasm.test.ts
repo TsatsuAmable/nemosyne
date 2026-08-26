@@ -2,6 +2,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { datasetContentHashHex } from '../src/atlas/DatasetSpace.ts';
 import { ColumnType, Dataset } from '../src/data/Dataset.ts';
+import { structureProfileToDatasetEvidence } from '../src/data/evidence/index.ts';
+import { datasetEvidenceToSignature } from '../src/moneta/representation/index.ts';
 import * as bridge from '../src/wasm/RuntimeBridge.ts';
 
 function graphDataset(): Dataset {
@@ -45,6 +47,19 @@ function stringEndpointGraphDataset(): Dataset {
   );
 }
 
+function expectCanonicalMonetaGraph(
+  profile: NonNullable<ReturnType<typeof bridge.computeDatasetStructureProfile>>,
+  expectedEdgeCount: number
+): void {
+  const evidence = structureProfileToDatasetEvidence(profile);
+  const signature = datasetEvidenceToSignature(evidence);
+  expect(signature.cardinality.edgeCount).toBe(expectedEdgeCount);
+  expect(signature.topologicalStructure).toEqual({
+    topology: 'GRAPH',
+    hasCycles: false,
+  });
+}
+
 describe('RF-044 Atlas to real WASM graph lineage', () => {
   beforeAll(async () => {
     if (!bridge.isReady()) {
@@ -75,6 +90,7 @@ describe('RF-044 Atlas to real WASM graph lineage', () => {
       expect(bridge.inferTopology(handle)).toBe('GRAPH');
 
       const profile = bridge.computeDatasetStructureProfile(handle);
+      expect(profile).not.toBeNull();
       expect(profile?.graph).toMatchObject({
         isGraph: true,
         nodeCount: 3,
@@ -83,6 +99,7 @@ describe('RF-044 Atlas to real WASM graph lineage', () => {
         isConnected: true,
       });
       expect(profile?.hierarchy).toBeNull();
+      expectCanonicalMonetaGraph(profile!, 2);
     } finally {
       bridge.destroyDataset(handle);
     }
@@ -105,6 +122,7 @@ describe('RF-044 Atlas to real WASM graph lineage', () => {
       expect(bridge.inferTopology(handle)).toBe('GRAPH');
 
       const profile = bridge.computeDatasetStructureProfile(handle);
+      expect(profile).not.toBeNull();
       expect(profile?.graph).toMatchObject({
         isGraph: true,
         nodeCount: 2,
@@ -113,6 +131,7 @@ describe('RF-044 Atlas to real WASM graph lineage', () => {
         isConnected: true,
       });
       expect(profile?.hierarchy).toBeNull();
+      expectCanonicalMonetaGraph(profile!, 1);
     } finally {
       bridge.destroyDataset(handle);
     }
