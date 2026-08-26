@@ -15,6 +15,8 @@ export interface AnalyticalDatasetPayload {
   readonly name?: string;
 }
 
+export type DatasetPayload = AnalyticalDatasetPayload;
+
 export interface AnalyticalDatasetRegistration {
   readonly registrationId: string;
   readonly dataset: {
