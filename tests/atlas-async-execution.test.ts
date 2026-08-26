@@ -373,6 +373,13 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     atlas.loadDataset(ds);
 
     const promise = atlas.computePersistenceIntervalsAsync({});
+    // The registering caller posts EXECUTE only after the async worker
+    // registration resolves. The mock transport acknowledges REGISTERED
+    // synchronously inside postMessage, but the two-layer await chain
+    // (`await registerDataset` inside `_registerCurrentDatasetInWorker`,
+    // then the outer `await` in the async op) needs two microtask ticks
+    // before EXECUTE is posted.
+    await Promise.resolve();
     await Promise.resolve();
     const lastMsg = transport.postedMessages[transport.postedMessages.length - 1] as {
       type: string;
@@ -416,6 +423,8 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
       datasetVersion: atlas.datasetVersion,
       algorithmVersion: '1.0.0',
     });
+    // Two microtask ticks — see B7 for the registration await-chain rationale.
+    await Promise.resolve();
     await Promise.resolve();
 
     const lastMsg = transport.postedMessages[transport.postedMessages.length - 1] as {
@@ -459,6 +468,8 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
       datasetVersion: atlas.datasetVersion,
       algorithmVersion: '1.0.0',
     });
+    // Two microtask ticks — see B7 for the registration await-chain rationale.
+    await Promise.resolve();
     await Promise.resolve();
     const request = executeMessages(transport).at(-1)!;
     transport.simulateResult({
@@ -529,6 +540,8 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     const fingerprint = atlas.datasetFingerprint ?? '';
 
     const promise = atlas.computePersistenceIntervalsAsync({ featureColumns: ['x'] });
+    // Two microtask ticks — see B7 for the registration await-chain rationale.
+    await Promise.resolve();
     await Promise.resolve();
 
     const registrations = registerMessages(transport);
@@ -571,6 +584,8 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
       datasetVersion: atlas.datasetVersion,
       algorithmVersion: '1.0.0',
     });
+    // Two microtask ticks — see B7 for the registration await-chain rationale.
+    await Promise.resolve();
     await Promise.resolve();
 
     const lastMsg = transport.postedMessages[transport.postedMessages.length - 1] as {

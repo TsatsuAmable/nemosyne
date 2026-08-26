@@ -13,7 +13,7 @@
  * covered by Rust `#[test]`s + `tests/wasm-runtime.test.ts`.
  */
 import { Dataset, ColumnType } from '../../src/data/Dataset.ts';
-import { fnv1aHex } from '../../src/atlas/DatasetSpace.ts';
+import { datasetContentHashHex } from '../../src/atlas/DatasetSpace.ts';
 import { createMonetaStructureProfile } from './moneta-kernel-fixture.ts';
 
 // ---------------------------------------------------------------------------
@@ -540,7 +540,11 @@ export function makeKernelMockBridge() {
     inferSchema: (handle) => store.get(handle)?.columns ?? null,
     datasetFingerprint: (handle) => {
       const obj = store.get(handle);
-      return obj ? fnv1aHex(obj) : null;
+      // Parity with Rust `Dataset::fingerprint`, which intentionally excludes
+      // `row_ids` lineage metadata from the canonical content hash. Hashing the
+      // raw stored JSON would make the fingerprint sensitive to adopted rowIds,
+      // diverging from the kernel contract and breaking replay provenance.
+      return obj ? datasetContentHashHex(obj) : null;
     },
     computeDatasetStructureProfile: (handle) => {
       const obj = store.get(handle);
@@ -553,7 +557,7 @@ export function makeKernelMockBridge() {
         numericColumns: dataset.numericColumns.length,
         categoricalColumns: dataset.categoricalColumns.length,
         temporalColumns: dataset.temporalColumns.length,
-        fingerprint: fnv1aHex(obj),
+        fingerprint: datasetContentHashHex(obj),
       });
     },
     parseDatasetBytes: (bytes, ext) => {

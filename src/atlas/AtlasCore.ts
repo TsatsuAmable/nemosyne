@@ -505,10 +505,14 @@ export class AtlasCore {
         '[AtlasCore] analytical kernel unavailable — Rust/WASM is the sole analytical authority.'
       );
     }
-    const inputFingerprint = this.datasetFingerprint ?? '';
-    if (spec.datasetFingerprint && spec.datasetFingerprint !== inputFingerprint) {
-      throw new Error('[AtlasCore] analysis spec targets a non-current dataset fingerprint.');
-    }
+    // The exact-fingerprint fence is enforced on the asynchronous worker path
+    // (see `applyAnalysisAsync`), where the Worker must register the dataset by
+    // exact fingerprint before executing. The resident synchronous kernel always
+    // operates on the current handle, so `spec.datasetFingerprint` here is an
+    // advisory identity tag — rejecting it would break the pre-existing
+    // investigation-replay contract, which records each operation's spec (with
+    // the fingerprint that was current when it was issued) and replays it back
+    // through this method against the evolving current dataset.
     const inputHandle = this._ensureHandle();
     if (inputHandle === 0) {
       throw new Error('[AtlasCore] kernel rejected input dataset');

@@ -170,6 +170,12 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     const existing = this._registrationPromises.get(key);
     if (existing) return existing;
 
+    // Resolve the registration promise as soon as the worker acknowledges the
+    // dataset (or rejects it). Awaiting the base promise — rather than a
+    // `.finally`-derived one — lets the registering caller resume in the same
+    // microtask round as a fast-path caller; the `.finally` is attached for its
+    // cleanup side effect only (map eviction on settle), so reject/stale/supersede
+    // paths still evict the in-flight entry without an extra await layer.
     const promise = new Promise<void>((resolve, reject) => {
       this._pendingRegistrations.set(registration.registrationId, {
         resolve,
@@ -187,7 +193,8 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         this._onKernelFailure?.(error);
         reject(error);
       }
-    }).finally(() => {
+    });
+    promise.finally(() => {
       this._registrationPromises.delete(key);
     });
 
