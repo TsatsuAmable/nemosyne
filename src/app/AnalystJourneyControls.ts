@@ -114,8 +114,8 @@ export function mountAnalystJourneyControls(world: World): AnalystJourneyControl
       'success',
     );
   });
-  button('analyst-run-analysis', 'Run analysis', () => {
-    world.dataOperationController.apply('anomaly');
+  button('analyst-run-analysis', 'Run analysis', async () => {
+    await world.dataOperationController.applyAsync('anomaly');
     setStatus(`Evidence ready (${world.atlas.results.length} result)`, 'success');
   });
   button('analyst-mark-moment', 'Record observation', () => {

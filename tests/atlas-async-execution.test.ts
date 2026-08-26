@@ -13,6 +13,8 @@ import type {
   AnalyticalExecutionRequest,
   AnalyticalExecutionResult,
 } from '../src/atlas/ports/AnalyticalExecutionPort.ts';
+import { NemosyneSession } from '../src/session/NemosyneSession.ts';
+import { InvestigationReplayRunner } from '../src/session/InvestigationReplayRunner.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
 function createMockWorkerTransport(): WorkerTransport & {
@@ -346,5 +348,62 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     const result = await promise;
     expect(result.outputHash).toBe('fp_explicit_output_456');
     expect(result.dataset.rows).toHaveLength(1);
+  });
+
+  it('B9: package exported after async analysis replays cleanly and verifies digest', async () => {
+    const bridge = makeKernelMockBridge();
+    const transport = createMockWorkerTransport();
+    const port = new WorkerAnalyticalPort(transport);
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.setExecutionPort(port);
+
+    const ds = new Dataset(
+      'ReplayDS',
+      [{ name: 'val', type: ColumnType.NUMERIC }],
+      [{ val: 10 }, { val: 20 }, { val: 30 }]
+    );
+    atlas.loadDataset(ds);
+
+    const promise = atlas.applyAnalysisAsync({
+      operation: { op: 'filter', predicate: { type: 'comparison', column: 'val', op: 'gt', value: 15 } },
+      datasetFingerprint: atlas.datasetFingerprint ?? '',
+      datasetVersion: atlas.datasetVersion,
+      algorithmVersion: '1.0.0',
+    });
+
+    const lastMsg = transport.postedMessages[transport.postedMessages.length - 1] as {
+      type: string;
+      request: AnalyticalExecutionRequest;
+    };
+
+    const outHandle = bridge.runOperation(1, {
+      op: 'filter',
+      predicate: { type: 'comparison', column: 'val', op: 'gt', value: 15 },
+    } as never);
+    const outDSJson = bridge.getDatasetJson(outHandle);
+    const outFingerprint = bridge.datasetFingerprint(outHandle) ?? 'fp_filtered_123';
+    const outProvenance = bridge.kernelProvenance ? bridge.kernelProvenance() : null;
+    transport.simulateResult({
+      requestId: lastMsg.request.requestId,
+      generation: 1,
+      datasetVersion: atlas.datasetVersion,
+      datasetFingerprint: atlas.datasetFingerprint ?? '',
+      value: {
+        dataset: outDSJson,
+        outputFingerprint: outFingerprint,
+      },
+      provenance: outProvenance,
+    });
+
+    await promise;
+
+    const session = new NemosyneSession({ atlas });
+    const pkgBytes = await session.exportPortablePackage();
+    const runner = new InvestigationReplayRunner(bridge);
+    const replayResult = await runner.replayArchive(pkgBytes);
+
+    expect(replayResult.discrepancies).toEqual([]);
+    expect(replayResult.success).toBe(true);
+    expect(replayResult.eventsMatched).toBe(2);
   });
 });

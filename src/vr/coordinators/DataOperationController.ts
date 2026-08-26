@@ -108,7 +108,9 @@ export class DataOperationController {
   /** Set the transformed dataset directly (session restore / _restoreDataset). */
   setTransformedDataset(dataset: Dataset): void {
     if (this._atlas) {
-      this._atlas.setCurrentDataset(dataset);
+      if (this._atlas.dataset !== dataset) {
+        this._atlas.setCurrentDataset(dataset);
+      }
       return;
     }
     this._localTransformed = dataset?.clone?.() ?? null;
@@ -148,7 +150,9 @@ export class DataOperationController {
       return;
     }
 
-    this.setTransformedDataset(next);
+    if (!this._atlas) {
+      this.setTransformedDataset(next);
+    }
     this.applyVisual(operation, this.transformedDataset!);
     this.clearPreview();
     this.eventBus.emit(WorldTopics.OPERATION_APPLIED, {
@@ -183,11 +187,13 @@ export class DataOperationController {
         next = this._computeViaAtlas(operation, current);
       }
     } catch (err) {
-      console.error(`[DataOperationController] kernel rejected "${operation}":`, err);
+      console.error(`[DataOperationController] apply failed for "${operation}":`, err);
       return;
     }
 
-    this.setTransformedDataset(next);
+    if (!this._atlas) {
+      this.setTransformedDataset(next);
+    }
     this.applyVisual(operation, this.transformedDataset!);
     this.clearPreview();
     this.eventBus.emit(WorldTopics.OPERATION_APPLIED, {
