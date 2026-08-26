@@ -535,38 +535,26 @@ pub fn dbscan(
         return result;
     }
 
-    let values: Vec<Vec<f64>> = dataset
-        .rows
-        .iter()
-        .map(|r| {
-            numeric_names
-                .iter()
-                .map(|name| r.get(name).and_then(|v| v.as_number()).unwrap_or(0.0))
-                .collect()
-        })
-        .collect();
-    let n = values.len();
+    let feature_strings: Vec<String> = numeric_names.iter().map(|s| s.to_string()).collect();
+    let cloud = match crate::data::neighbourhood::PointCloud::from_dataset(dataset, &feature_strings) {
+        Ok(c) => c,
+        Err(_) => return dataset.clone(),
+    };
+    let n = cloud.n;
+    let (csr, _) = if n > 8192 {
+        crate::data::neighbourhood::GridSparseIndex::new(eps).radius_neighbourhood(&cloud, eps)
+    } else {
+        crate::data::neighbourhood::ExactIndex.radius_neighbourhood(&cloud, eps)
+    };
+
     let mut labels: Vec<Option<i32>> = vec![None; n];
     let mut cluster_id = 0i32;
-
-    fn region_query(idx: usize, values: &[Vec<f64>], eps: f64) -> Vec<usize> {
-        let mut neighbours = Vec::new();
-        for i in 0..values.len() {
-            if i == idx {
-                continue;
-            }
-            if euclidean(&values[idx], &values[i]) <= eps {
-                neighbours.push(i);
-            }
-        }
-        neighbours
-    }
 
     for i in 0..n {
         if labels[i].is_some() {
             continue;
         }
-        let neighbours = region_query(i, &values, eps);
+        let neighbours: Vec<usize> = csr.neighbors(i).map(|(j, _)| j).collect();
         if neighbours.len() < min_points {
             labels[i] = Some(-1);
             continue;
@@ -584,7 +572,7 @@ pub fn dbscan(
                 continue;
             }
             labels[j] = Some(cluster_id);
-            let j_neighbours = region_query(j, &values, eps);
+            let j_neighbours: Vec<usize> = csr.neighbors(j).map(|(k, _)| k).collect();
             if j_neighbours.len() >= min_points {
                 seeds.extend(j_neighbours);
             }
