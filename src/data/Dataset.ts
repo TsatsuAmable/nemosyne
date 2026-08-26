@@ -94,6 +94,10 @@ function cloneEdge(edge: DatasetEdge): DatasetEdge {
   return copy;
 }
 
+/**
+ * Non-scientific adapter/presentation metadata. Analytical or provenance-bearing
+ * meaning must live in governed dataset/schema/evidence contracts, not `_meta`.
+ */
 export interface DatasetMeta {
   [key: string]: unknown;
 }
@@ -105,6 +109,7 @@ export class Dataset {
   edges?: DatasetEdge[];
   /** Durable Rust-owned observation IDs aligned 1:1 with `rows`, when known. */
   rowIds?: string[];
+  /** Non-scientific adapter/presentation metadata; excluded from DatasetJSON. */
   _meta?: DatasetMeta;
 
   constructor(
@@ -225,13 +230,17 @@ export class Dataset {
   }
 
   clone(): Dataset {
-    return new Dataset(
+    const copy = new Dataset(
       this.name,
       this.columns.slice(),
       this.rows.map(cloneRow),
       this.edges,
       this.rowIds?.slice()
     );
+    if (this._meta) {
+      copy._meta = cloneSanitizedJsonValue(this._meta) as DatasetMeta;
+    }
+    return copy;
   }
 
   toJSON(): DatasetJSON {
