@@ -73,7 +73,9 @@ export class ScalableTopologyEmbodiment {
         ? [...new Set(dataset.getColumnValues(colorField))]
         : [];
     const sizeRange =
-      sizeField && sizeColumn?.type === 'NUMERIC' ? dataset.rangeOf(sizeField) : { min: 0, max: 1 };
+      sizeField && sizeColumn?.type === 'NUMERIC'
+        ? dataset.rangeOf(sizeField)
+        : { min: 0, max: 1 };
     const items = positions.map((position, index) => {
       const row = position.row;
       let color = 0x00ffcc;
@@ -83,7 +85,13 @@ export class ScalableTopologyEmbodiment {
         if (colorColumn?.type === 'CATEGORICAL') {
           color = categoricalColor(value, uniqueColors.indexOf(value), this._colorblindMode);
         } else if (colorColumn?.type === 'NUMERIC') {
-          color = numericColor(value as number, sizeRange.min, sizeRange.max, 0x00ffcc, 0xff0055);
+          color = numericColor(
+            value as number,
+            sizeRange.min,
+            sizeRange.max,
+            0x00ffcc,
+            0xff0055
+          );
         }
       }
       if (sizeField && sizeColumn?.type === 'NUMERIC') {
@@ -96,8 +104,7 @@ export class ScalableTopologyEmbodiment {
         data: { row, index },
       };
     });
-    const factory =
-      options?.pointCloudFactory || this._pointCloudFactory || createDefaultPointCloud;
+    const factory = options?.pointCloudFactory || this._pointCloudFactory || createDefaultPointCloud;
     const cloud = factory(items.length, new THREE.BoxGeometry(0.06, 0.06, 0.06));
     cloud.setPoints(items);
     (cloud.mesh as THREE.Mesh).userData = { instancedCloud: cloud };
@@ -122,7 +129,10 @@ export class ScalableTopologyEmbodiment {
       (rows[0] && 'cluster' in rows[0] ? 'cluster' : undefined);
     const clusters = new Map<unknown, THREE.Vector3[]>();
     for (const position of positions) {
-      const key = (colorField ? position.row[colorField] : undefined) ?? position.row.cluster ?? 'cluster_0';
+      const key =
+        (colorField ? position.row[colorField] : undefined) ??
+        position.row.cluster ??
+        'cluster_0';
       if (!clusters.has(key)) clusters.set(key, []);
       clusters.get(key)!.push(position.position);
     }
@@ -136,7 +146,7 @@ export class ScalableTopologyEmbodiment {
       for (const point of points) radius = Math.max(radius, point.distanceTo(center));
       radius = Math.max(0.15, radius * 1.15);
       const color = categoricalColor(key, clusterIndex, this._colorblindMode);
-      
+
       // Translucent volumetric boundary hull
       const hullGeometry = new THREE.SphereGeometry(radius, 24, 24);
       const hullMaterial = new THREE.MeshBasicMaterial({
@@ -188,13 +198,25 @@ export class ScalableTopologyEmbodiment {
 
     // Partition space into B x B x B voxels (e.g. 6x6x6 = 216 max bins)
     const BINS = 6;
-    const voxelCounts = new Map<string, { count: number; x: number; y: number; z: number }>();
+    const voxelCounts = new Map<
+      string,
+      { count: number; x: number; y: number; z: number }
+    >();
     let maxDensity = 0;
 
     for (const pos of positions) {
-      const bx = Math.min(BINS - 1, Math.max(0, Math.floor(((pos.position.x - min.x) / size.x) * BINS)));
-      const by = Math.min(BINS - 1, Math.max(0, Math.floor(((pos.position.y - min.y) / size.y) * BINS)));
-      const bz = Math.min(BINS - 1, Math.max(0, Math.floor(((pos.position.z - min.z) / size.z) * BINS)));
+      const bx = Math.min(
+        BINS - 1,
+        Math.max(0, Math.floor(((pos.position.x - min.x) / size.x) * BINS))
+      );
+      const by = Math.min(
+        BINS - 1,
+        Math.max(0, Math.floor(((pos.position.y - min.y) / size.y) * BINS))
+      );
+      const bz = Math.min(
+        BINS - 1,
+        Math.max(0, Math.floor(((pos.position.z - min.z) / size.z) * BINS))
+      );
       const key = `${bx},${by},${bz}`;
       const current = voxelCounts.get(key) ?? { count: 0, x: bx, y: by, z: bz };
       current.count++;
@@ -248,7 +270,7 @@ export class ScalableTopologyEmbodiment {
   ): void {
     const categoryField = encodings.color || dataset?.categoricalColumns[0]?.name;
     const valueField = encodings.size || dataset?.numericColumns[0]?.name;
-    
+
     // Group rows by categorical key or binning
     const groups = new Map<unknown, Record<string, unknown>[]>();
     for (const row of rows) {
@@ -274,7 +296,8 @@ export class ScalableTopologyEmbodiment {
           const position = byRow.get(row);
           if (!position) continue;
           center.add(position.position);
-          valueSum += Number(position.value) || (valueField ? Number(row[valueField]) : 0) || 0;
+          valueSum +=
+            Number(position.value) || (valueField ? Number(row[valueField]) : 0) || 0;
           count++;
         }
         if (count === 0) continue;
@@ -315,7 +338,8 @@ export class ScalableTopologyEmbodiment {
       for (const [key, groupRows] of groups) {
         let valueSum = 0;
         for (const row of groupRows) {
-          valueSum += (valueField ? Number(row[valueField]) : 0) || 1;
+          const rawValue = valueField ? Number(row[valueField]) : 1;
+          valueSum += Number.isFinite(rawValue) ? rawValue : 0;
         }
         const count = groupRows.length;
         const averageValue = count > 0 ? valueSum / count : 0;
