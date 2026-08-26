@@ -1,10 +1,9 @@
 //! Columnar analytical hot-path helpers.
 //!
 //! This module is the parity bridge between row-major compatibility statistics
-//! and the Rust-owned columnar sidecar. Numeric descriptive statistics and
-//! pairwise Pearson correlation are already live. Categorical and numeric/epoch
-//! temporal helpers live here first so their semantics can be proven before the
-//! public `Facts` path switches authority.
+//! and the Rust-owned columnar sidecar. Numeric descriptive statistics,
+//! pairwise Pearson correlation, categorical summaries, and numeric/epoch
+//! temporal trend semantics live here under Rust analytical authority.
 
 use serde::Serialize;
 
@@ -46,7 +45,12 @@ pub struct ColumnarCategoricalStats {
 #[serde(rename_all = "camelCase")]
 pub struct ColumnarTemporalStats {
     pub trend_direction: String,
+    /// Seasonality is deliberately not inferred from observation-rank lag
+    /// autocorrelation. Regular-series seasonality belongs to the spectral
+    /// estimator, which validates actual sampling geometry first.
     pub seasonality_hint: bool,
+    /// Dimensionless slope after normalising the actual time axis to [0, 1]
+    /// and dividing by observed value range. This is invariant to time units.
     pub normalized_slope: f64,
     pub observation_count: usize,
 }
@@ -143,10 +147,6 @@ fn iqr_and_multimodality(sorted: &[f64]) -> (f64, bool) {
 }
 
 /// Pearson correlation over pairwise-complete finite rows.
-///
-/// Validity is intersected directly in the columnar buffers, avoiding row-map
-/// lookup and preserving the existing statistics contract for staggered
-/// missingness.
 pub fn pearson_pairwise(a: &PrimitiveColumn, b: &PrimitiveColumn) -> f64 {
     let len = a
         .values
@@ -179,10 +179,10 @@ pub fn pearson_pairwise(a: &PrimitiveColumn, b: &PrimitiveColumn) -> f64 {
         if a.validity[index] != 0 && b.validity[index] != 0 {
             let da = a.values[index] - mean_a;
             let db = b.values[index] - mean_b;
-        covariance += da * db;
-        variance_a += da * da;
-        variance_b += db * db;
-    }
+            covariance += da * db;
+            variance_a += da * da;
+            variance_b += db * db;
+        }
     }
 
     let denominator = (variance_a * variance_b).sqrt();
@@ -194,7 +194,6 @@ pub fn pearson_pairwise(a: &PrimitiveColumn, b: &PrimitiveColumn) -> f64 {
 }
 
 /// Categorical statistics over dictionary codes rather than row-map strings.
-/// Missing rows are excluded exactly as in the compatibility implementation.
 pub fn categorical_stats(column: &CategoricalColumn) -> ColumnarCategoricalStats {
     let mut counts = vec![0usize; column.dictionary.len()];
     let mut total = 0usize;
@@ -243,12 +242,13 @@ pub fn categorical_stats(column: &CategoricalColumn) -> ColumnarCategoricalStats
     }
 }
 
-/// Trend and seasonality analysis for numeric/epoch temporal columns paired
-/// with a numeric value column.
+/// Trend analysis for numeric/epoch temporal columns paired with a numeric
+/// value column.
 ///
-/// This deliberately does not reinterpret string temporal values. Those retain
-/// their compatibility policy until temporal parsing is represented explicitly
-/// in the kernel rather than hidden in row-materialization heuristics.
+/// RF-028: observations are intersected by validity, sorted by the actual time
+/// coordinate, and regressed against normalized timestamps. Observation rank is
+/// never substituted for elapsed time. Seasonality is intentionally false here;
+/// the spectral estimator owns seasonality only after regular-sampling checks.
 pub fn temporal_stats_numeric(
     time: &PrimitiveColumn,
     values: &PrimitiveColumn,
@@ -260,32 +260,24 @@ pub fn temporal_stats_numeric(
         .min(values.values.len())
         .min(values.validity.len());
 
-    let mut observation_count = 0usize;
-    let mut value_sum = 0.0;
-    let mut value_min = f64::INFINITY;
-    let mut value_max = f64::NEG_INFINITY;
-    let mut previous_time: Option<f64> = None;
-    let mut is_time_ordered = true;
+    let mut keyed = Vec::new();
     for index in 0..len {
-        if time.validity[index] != 0 && values.validity[index] != 0 {
-            let time_value = time.values[index];
-            let value = values.values[index];
-            if previous_time.is_some_and(|previous| {
-                previous
-                    .partial_cmp(&time_value)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-                    == std::cmp::Ordering::Greater
-            }) {
-                is_time_ordered = false;
-            }
-            previous_time = Some(time_value);
-            observation_count += 1;
-            value_sum += value;
-            value_min = value_min.min(value);
-            value_max = value_max.max(value);
+        if time.validity[index] == 0 || values.validity[index] == 0 {
+            continue;
+        }
+        let time_value = time.values[index];
+        let value = values.values[index];
+        if time_value.is_finite() && value.is_finite() {
+            keyed.push((time_value, value));
         }
     }
+    keyed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
+    assemble_temporal_stats(&keyed)
+}
+
+fn assemble_temporal_stats(keyed: &[(f64, f64)]) -> ColumnarTemporalStats {
+    let observation_count = keyed.len();
     if observation_count < 3 {
         return ColumnarTemporalStats {
             trend_direction: "flat".to_string(),
@@ -295,114 +287,48 @@ pub fn temporal_stats_numeric(
         };
     }
 
-    if is_time_ordered {
-        let values_in_time_order = || {
-            (0..len)
-                .filter(|index| time.validity[*index] != 0 && values.validity[*index] != 0)
-                .map(|index| values.values[index])
-        };
-        let y_mean = value_sum / observation_count as f64;
-        let x_mean = (observation_count - 1) as f64 / 2.0;
-        let mut numerator = 0.0;
-        let mut denominator = 0.0;
-        for (index, value) in values_in_time_order().enumerate() {
-            numerator += (index as f64 - x_mean) * (value - y_mean);
-            denominator += (index as f64 - x_mean).powi(2);
-        }
-
-        let lag = ((observation_count as f64) / 4.0).floor().max(1.0) as usize;
-        let mut covariance = 0.0;
-        let mut variance_a = 0.0;
-        let mut variance_b = 0.0;
-        for (a, b) in values_in_time_order()
-            .take(observation_count - lag)
-            .zip(values_in_time_order().skip(lag))
-        {
-            let a = a - y_mean;
-            let b = b - y_mean;
-            covariance += a * b;
-            variance_a += a * a;
-            variance_b += b * b;
-        }
-
-        return assemble_temporal_stats(
-            observation_count,
-            numerator,
-            denominator,
-            value_min,
-            value_max,
-            covariance,
-            variance_a,
-            variance_b,
-        );
-    }
-
-    let mut keyed = Vec::with_capacity(observation_count);
-    for index in 0..len {
-        if time.validity[index] != 0 && values.validity[index] != 0 {
-            keyed.push((time.values[index], values.values[index]));
-        }
-    }
-    keyed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-    let n = keyed.len();
-    let x_mean = (n - 1) as f64 / 2.0;
-    let y_mean = keyed.iter().map(|(_, value)| value).sum::<f64>() / n as f64;
-    let mut numerator = 0.0;
-    let mut denominator = 0.0;
-    for (index, (_, value)) in keyed.iter().enumerate() {
-        numerator += (index as f64 - x_mean) * (value - y_mean);
-        denominator += (index as f64 - x_mean).powi(2);
-    }
-    let min = keyed
+    let time_min = keyed.first().map(|pair| pair.0).unwrap_or(0.0);
+    let time_max = keyed.last().map(|pair| pair.0).unwrap_or(time_min);
+    let time_span = time_max - time_min;
+    let value_min = keyed
         .iter()
         .map(|(_, value)| *value)
         .fold(f64::INFINITY, f64::min);
-    let max = keyed
+    let value_max = keyed
         .iter()
         .map(|(_, value)| *value)
         .fold(f64::NEG_INFINITY, f64::max);
+    let value_range = value_max - value_min;
 
-    let lag = ((n as f64) / 4.0).floor().max(1.0) as usize;
-    let mut covariance = 0.0;
-    let mut variance_a = 0.0;
-    let mut variance_b = 0.0;
-    for index in 0..(n - lag) {
-        let a = keyed[index].1 - y_mean;
-        let b = keyed[index + lag].1 - y_mean;
-        covariance += a * b;
-        variance_a += a * a;
-        variance_b += b * b;
+    if !time_span.is_finite() || time_span <= 0.0 || !value_range.is_finite() || value_range <= 0.0 {
+        return ColumnarTemporalStats {
+            trend_direction: "flat".to_string(),
+            seasonality_hint: false,
+            normalized_slope: 0.0,
+            observation_count,
+        };
     }
 
-    assemble_temporal_stats(
-        n,
-        numerator,
-        denominator,
-        min,
-        max,
-        covariance,
-        variance_a,
-        variance_b,
-    )
-}
+    let x_mean = keyed
+        .iter()
+        .map(|(time, _)| (*time - time_min) / time_span)
+        .sum::<f64>()
+        / observation_count as f64;
+    let y_mean = keyed.iter().map(|(_, value)| *value).sum::<f64>() / observation_count as f64;
+    let mut numerator = 0.0;
+    let mut denominator = 0.0;
+    for (time, value) in keyed {
+        let x = (*time - time_min) / time_span;
+        numerator += (x - x_mean) * (*value - y_mean);
+        denominator += (x - x_mean).powi(2);
+    }
 
-fn assemble_temporal_stats(
-    observation_count: usize,
-    numerator: f64,
-    denominator: f64,
-    min: f64,
-    max: f64,
-    covariance: f64,
-    variance_a: f64,
-    variance_b: f64,
-) -> ColumnarTemporalStats {
     let slope = if denominator > 0.0 {
         numerator / denominator
     } else {
         0.0
     };
-    let range = max - min;
-    let normalized_slope = if range > 0.0 { slope / range } else { 0.0 };
+    let normalized_slope = slope / value_range;
     let trend_direction = if normalized_slope > 0.01 {
         "up"
     } else if normalized_slope < -0.01 {
@@ -410,15 +336,10 @@ fn assemble_temporal_stats(
     } else {
         "flat"
     };
-    let autocorrelation = if variance_a > 0.0 && variance_b > 0.0 {
-        covariance / (variance_a * variance_b).sqrt()
-    } else {
-        0.0
-    };
 
     ColumnarTemporalStats {
         trend_direction: trend_direction.to_string(),
-        seasonality_hint: autocorrelation > 0.5,
+        seasonality_hint: false,
         normalized_slope,
         observation_count,
     }
@@ -536,9 +457,7 @@ mod tests {
             validity: vec![1; values.len()],
             values,
         };
-
         let actual = numeric_stats(&column);
-
         assert_eq!(actual.iqr, 10.0);
         assert!(actual.is_multimodal);
     }
@@ -557,7 +476,6 @@ mod tests {
             .find(|pair| pair.a == "x" && pair.b == "y")
             .expect("compatibility xy correlation")
             .value;
-
         assert!((actual - legacy).abs() < 1e-12);
         assert!((actual - 1.0).abs() < 1e-12);
     }
@@ -643,7 +561,7 @@ mod tests {
     }
 
     #[test]
-    fn unordered_numeric_temporal_stats_retain_sorted_time_semantics() {
+    fn unordered_numeric_temporal_stats_use_actual_time_coordinates() {
         let time = PrimitiveColumn {
             values: vec![40.0, 10.0, 30.0, 20.0, 50.0, 60.0],
             validity: vec![1; 6],
@@ -654,9 +572,45 @@ mod tests {
         };
 
         let actual = temporal_stats_numeric(&time, &values);
-
         assert_eq!(actual.observation_count, 6);
         assert_eq!(actual.trend_direction, "up");
-        assert!((actual.normalized_slope - 0.2).abs() < 1e-12);
+        assert!((actual.normalized_slope - 1.0).abs() < 1e-12);
+        assert!(!actual.seasonality_hint);
+    }
+
+    #[test]
+    fn irregular_time_spacing_does_not_change_linear_trend_semantics() {
+        let time = PrimitiveColumn {
+            values: vec![0.0, 1.0, 3.0, 7.0, 15.0],
+            validity: vec![1; 5],
+        };
+        let values = PrimitiveColumn {
+            values: vec![0.0, 2.0, 6.0, 14.0, 30.0],
+            validity: vec![1; 5],
+        };
+        let actual = temporal_stats_numeric(&time, &values);
+        assert_eq!(actual.trend_direction, "up");
+        assert!((actual.normalized_slope - 1.0).abs() < 1e-12);
+        assert!(!actual.seasonality_hint);
+    }
+
+    #[test]
+    fn temporal_trend_is_invariant_to_time_unit_rescaling() {
+        let values = PrimitiveColumn {
+            values: vec![1.0, 2.0, 4.0, 8.0],
+            validity: vec![1; 4],
+        };
+        let seconds = PrimitiveColumn {
+            values: vec![0.0, 1.0, 2.0, 3.0],
+            validity: vec![1; 4],
+        };
+        let milliseconds = PrimitiveColumn {
+            values: vec![0.0, 1000.0, 2000.0, 3000.0],
+            validity: vec![1; 4],
+        };
+        let a = temporal_stats_numeric(&seconds, &values);
+        let b = temporal_stats_numeric(&milliseconds, &values);
+        assert_eq!(a.trend_direction, b.trend_direction);
+        assert!((a.normalized_slope - b.normalized_slope).abs() < 1e-12);
     }
 }
