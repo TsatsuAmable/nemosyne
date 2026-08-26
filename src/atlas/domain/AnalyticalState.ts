@@ -17,6 +17,12 @@ export interface KernelCommitOptions {
   fingerprint?: string;
   provenance?: unknown;
   versionBump?: boolean;
+  /**
+   * Adopt a freshly-created internal kernel result without an additional O(N)
+   * defensive clone. Callers must only set this when `dataset` has no external
+   * mutable owner; public/user-provided datasets continue to be cloned.
+   */
+  adoptDataset?: boolean;
 }
 
 export class AnalyticalState {
@@ -62,9 +68,9 @@ export class AnalyticalState {
   }
 
   commitKernelResult(options: KernelCommitOptions, destroyer?: (handle: number) => void): void {
-    const { handle, dataset, fingerprint, versionBump = true } = options;
+    const { handle, dataset, fingerprint, versionBump = true, adoptDataset = false } = options;
     this._sourceRef = null;
-    const nextDataset = dataset?.clone?.() ?? emptyDataset();
+    const nextDataset = adoptDataset ? dataset : (dataset?.clone?.() ?? emptyDataset());
     if (this._currentHandle !== 0 && this._currentHandle !== handle && destroyer) {
       try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
     }
