@@ -165,6 +165,7 @@ export class World {
   _wasmCapabilities: number;
   _wasmRuntime: WorldRuntimeBridge | null;
   _wasmUnavailable: boolean;
+  _lastSelectedMesh: THREE.Mesh | null = null;
   liveStreamCoordinator: LiveStreamCoordinator;
   collaborationCoordinator: CollaborationCoordinator;
   landmarkController!: WorldLandmarkController;
@@ -338,6 +339,22 @@ export class World {
       frustrationAnalyzer: this.telemetryCollector.frustrationAnalyzer,
       getDataset: () => this.atlas.dataset,
       applySchemaMapping: (updated) => this.applySchemaMapping(updated),
+      onInspectNode: (data) => {
+        if (this._lastSelectedMesh) {
+          const pointer = this.engine.input.getActivePointer();
+          this.uiManager.contextualTaskSurface.hide();
+          this.inspector.showAtNode(this._lastSelectedMesh, data, pointer, 'DATA NODE');
+        }
+      },
+      onRecordFinding: (_data) => {
+        this.inputCoordinator.callbacks.onRecordAction?.('Record Finding');
+        this.uiManager.vrConsole?.log?.('log', ['Finding recorded to ledger']);
+        this.uiManager.contextualTaskSurface.hide();
+      },
+      onNavigateNode: (_data) => {
+        this.inputCoordinator.callbacks.onApplyOperation?.('timeSlice');
+        this.uiManager.contextualTaskSurface.hide();
+      },
     });
 
     // Input coordinator owns gesture recognition, context-aware suppression, and
@@ -1161,7 +1178,8 @@ export class World {
 
   _showDataCard(mesh: THREE.Mesh): void {
     const pointer = this.engine.input.getActivePointer();
-    this.inspector.showAtNode(mesh, mesh.userData.row, pointer, 'DATA NODE');
+    this._lastSelectedMesh = mesh;
+    this.uiManager.contextualTaskSurface.showAtNode(mesh, mesh.userData.row, pointer);
   }
 
   _warpToZone(zone: string, pos: number[], operation: string | null): void {

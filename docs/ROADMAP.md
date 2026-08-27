@@ -564,16 +564,16 @@ Purpose: move conventional precision work out of hand-built spatial furniture.
 
 **Exit gate:** commodity UI uses shared components and reference-frame rules; no migrated function loses desktop/controller/hand semantics; opening ordinary workflows no longer grows an uncontrolled panel constellation.
 
-#### P1-U4 — contextual task surface and command constellation — IMPLEMENTATION PARTIAL / REVIEW ACTIVE
+#### P1-U4 — contextual task surface and command constellation — IMPLEMENTATION LANDED / REVIEW ACTIVE
 
 Purpose: close RF-005 by replacing subsystem-first navigation with visible task actions at the locus of work.
 
-- [ ] turn `ContextualTaskSurface` from an action filter into a real `OBJECT_ATTACHED` or selection-anchored spatial surface;
-- [ ] expose novice task verbs `Inspect`, `Compare`, `Challenge`, `Record`, `Navigate`, `More`, filtered by the current semantic target and journey context;
-- [ ] keep the constellation/HandWheel as custom Three.js spatial geometry where spatial arrangement adds value, but route its targets through the same interaction events and semantic commands as panels;
-- [ ] ensure target-scoped actions explain disabled/unavailable reasons under UX-04 rather than silently disappearing where that would confuse investigators;
-- [ ] demote custom gestures to optional accelerators; every essential operation has a visible touch/ray/controller/desktop path;
-- [ ] suppress global gestures/locomotion appropriately while hands are manipulating a local object or active menu, without creating an invisible persistent mode.
+- [x] turn `ContextualTaskSurface` from an action filter into a real `OBJECT_ATTACHED` or selection-anchored spatial surface;
+- [x] expose novice task verbs `Inspect`, `Compare`, `Challenge`, `Record`, `Navigate`, `More`, filtered by the current semantic target and journey context;
+- [x] keep the constellation/HandWheel as custom Three.js spatial geometry where spatial arrangement adds value, but route its targets through the same interaction events and semantic commands as panels;
+- [x] ensure target-scoped actions explain disabled/unavailable reasons under UX-04 rather than silently disappearing where that would confuse investigators;
+- [x] demote custom gestures to optional accelerators; every essential operation has a visible touch/ray/controller/desktop path;
+- [x] suppress global gestures/locomotion appropriately while hands are manipulating a local object or active menu, without creating an invisible persistent mode.
 
 **Exit gate:** a researcher can inspect, compare, challenge, record and navigate from context without knowing subsystem names or memorised gestures; RF-005 is closed by product-path evidence, not merely a policy class test.
 
@@ -659,7 +659,7 @@ Review exit work:
 
 - [x] close **RF-049** in P1-U1 before treating later surface migrations as modality-equivalent;
 - [ ] close **RF-050** through P1-U0/P1-U9 production/device evidence;
-- [ ] close **RF-005** through P1-U4/P1-U8;
+- [/] close **RF-005** through P1-U4/P1-U8;
 - [ ] close **RF-006** through P1-U5/P1-U6;
 - [ ] wire **RF-027** through P1-U5 and portable replay through RF-047;
 - [ ] derive journey state from real product events with meaningful prerequisites under P1-U9;

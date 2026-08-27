@@ -137,6 +137,11 @@ describe('World coverage extensions', () => {
     mesh.userData.row = { id: 'X', value: 99 };
 
     world._showDataCard(mesh);
+    expect(world.uiManager.contextualTaskSurface.visible).toBe(true);
+
+    // Simulate clicking "Inspect" on the contextual task surface
+    (world.uiManager.contextualTaskSurface as any).callbacks.onInspect?.(mesh.userData.row);
+
     expect(world.inspector.active).toBe(true);
     expect(world.inspector.mesh.position.x).toBeCloseTo(2);
     expect(world.inspector.mesh.position.z).toBeCloseTo(-3.85);

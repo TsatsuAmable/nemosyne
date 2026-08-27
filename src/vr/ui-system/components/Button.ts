@@ -185,4 +185,8 @@ export class Button extends Container {
   get isDisabled(): boolean {
     return this._disabled;
   }
+
+  get disabledReason(): string | undefined {
+    return this._disabledReason;
+  }
 }

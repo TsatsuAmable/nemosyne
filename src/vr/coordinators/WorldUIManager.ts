@@ -95,6 +95,9 @@ export interface WorldUIManagerCallbacks {
   getDataset?: () => Dataset | null;
   /** Apply a schema-mapping edit by reloading the dataset with new column types. */
   applySchemaMapping?: (updated: Dataset) => void;
+  onInspectNode?: (data: Record<string, unknown> | null) => void;
+  onRecordFinding?: (data: Record<string, unknown> | null) => void;
+  onNavigateNode?: (data: Record<string, unknown> | null) => void;
 }
 
 interface AdaptiveAssistLike {
@@ -188,7 +191,23 @@ export class WorldUIManager {
     this.panelRolesManager = new PanelRolesManager(initialMode);
 
     // Contextual task-oriented action filter
-    this.contextualTaskSurface = new ContextualTaskSurface();
+    this.contextualTaskSurface = new ContextualTaskSurface(engine, {
+      onInspect: (data) => callbacks.onInspectNode?.(data),
+      onCompare: (data) => {
+        if (data && callbacks.onCompare) callbacks.onCompare();
+      },
+      onChallenge: () => {
+        if (callbacks.onAnomaly) callbacks.onAnomaly();
+      },
+      onRecord: (data) => callbacks.onRecordFinding?.(data),
+      onNavigate: (data) => callbacks.onNavigateNode?.(data),
+      onMore: () => {
+        this.handWheelMenu.toggle();
+      },
+    });
+    this.analystAnchor.add(this.contextualTaskSurface);
+    this.engine.addUpdatable(this.contextualTaskSurface);
+    this.engine.input.addPanel(this.contextualTaskSurface);
 
     // SpatialPanel workspace budget (governs inspector/settings/future surfaces).
     this.panelBudgetController = new PanelBudgetController();
@@ -301,6 +320,7 @@ export class WorldUIManager {
     this.engine.addUpdatable(this.handWheelMenu);
     this.engine.addHudObject(this.handWheelMenu);
     this.engine.input.setHandWheelMenu(this.handWheelMenu);
+    this.engine.input.addPanel(this.handWheelMenu);
 
     // Settings panel (SpatialPanel/UIKit substrate; not registered with the
     // MovablePanel-only PanelManager — pointer routing is via engine.input).
@@ -741,7 +761,10 @@ export class WorldUIManager {
     this.engine.removeUpdatable(this.peerPresenceHUD);
     this.engine.removeUpdatable(this.dashboard);
     this.engine.removeUpdatable(this.handWheelMenu);
+    this.engine.removeUpdatable(this.contextualTaskSurface);
     this.engine.removeHudObject(this.handWheelMenu);
+    this.engine.input.removePanel(this.handWheelMenu);
+    this.engine.input.removePanel(this.contextualTaskSurface);
     this.engine.input.setHandWheelMenu(null);
     this.engine.input.setPanelManager(null);
 
@@ -749,6 +772,9 @@ export class WorldUIManager {
     this.peerPresenceHUD.dispose();
     this.dashboard.dispose();
     this.handWheelMenu.dispose();
+    if (!this._borrowedResources.has(this.contextualTaskSurface)) {
+      this.contextualTaskSurface.dispose?.();
+    }
     this.panelManager.dispose();
 
     if (this.representationCarousel && !this._borrowedResources.has(this.representationCarousel)) {
