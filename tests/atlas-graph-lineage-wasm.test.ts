@@ -85,6 +85,8 @@ describe('RF-044 Atlas to real WASM graph lineage', () => {
       const rustDataset = bridge.getDatasetJson(handle);
       expect(rustDataset).not.toBeNull();
       expect(rustDataset?.edges).toEqual(source.edges);
+      expect(typeof rustDataset?.edges?.[0]?.source).toBe('number');
+      expect(typeof rustDataset?.edges?.[0]?.target).toBe('number');
       expect(bridge.datasetFingerprint(handle)).toBe(datasetContentHashHex(source.toJSON()));
       expect(bridge.inferTopology(handle)).toBe('GRAPH');
 
@@ -117,6 +119,10 @@ describe('RF-044 Atlas to real WASM graph lineage', () => {
     try {
       const rustDataset = bridge.getDatasetJson(handle);
       expect(rustDataset?.edges).toEqual(source.edges);
+      expect(typeof rustDataset?.edges?.[0]?.source).toBe('string');
+      expect(typeof rustDataset?.edges?.[0]?.target).toBe('string');
+      expect(rustDataset?.edges?.[0]?.source).toBe('A');
+      expect(rustDataset?.edges?.[0]?.target).toBe('B');
       expect(bridge.datasetFingerprint(handle)).toBe(datasetContentHashHex(source.toJSON()));
       expect(bridge.inferTopology(handle)).toBe('GRAPH');
 
