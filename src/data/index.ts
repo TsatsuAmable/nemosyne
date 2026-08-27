@@ -4,6 +4,12 @@
 
 export { Dataset, ColumnType } from './Dataset.ts';
 export type { ColumnTypeKey, ColumnTypeValue, DatasetEdge, DatasetMeta } from './Dataset.ts';
+export {
+  CANONICAL_DATASET_IDENTITY_ALGORITHM,
+  canonicalDatasetIdentityHex,
+  canonicalDatasetIdentityInput,
+} from './DatasetIdentity.ts';
+export type { CanonicalDatasetIdentityInput } from './DatasetIdentity.ts';
 
 export { AnalysisHistory } from './AnalysisHistory.ts';
 export type {
