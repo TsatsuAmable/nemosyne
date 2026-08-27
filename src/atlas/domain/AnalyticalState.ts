@@ -120,12 +120,15 @@ export class AnalyticalState {
     // Direct/legacy construction without a provider retains the historical
     // row-scan compatibility behavior.
     const ranges = rangesProvider ? rangesProvider() ?? {} : null;
-    // Calling the live fingerprint provider may allocate the Rust handle and
-    // hydrate first-lineage row IDs onto `_current`. Only treat those IDs as
-    // authoritative DatasetSpace datum IDs when the live authority path was
-    // actually consulted; direct/legacy DatasetSpace construction keeps the
-    // schema-v2 content-occurrence contract.
-    const datumIds = fingerprintProvider && fingerprint ? this._current.rowIds ?? null : null;
+    // A live fingerprint provider may allocate the Rust handle and hydrate
+    // first-lineage row IDs. A kernel mutation commit can also retain an
+    // authoritative fingerprint plus row IDs while DatasetSpace stays lazy.
+    // Either authoritative identity source licenses those durable datum IDs;
+    // direct/legacy construction with neither keeps schema-v2 occurrence IDs.
+    const hasAuthoritativeIdentity = Boolean(
+      fingerprint && (fingerprintProvider || this._authoritativeFingerprint)
+    );
+    const datumIds = hasAuthoritativeIdentity ? this._current.rowIds ?? null : null;
     const borrowDataset = Boolean(
       fingerprintProvider &&
       fingerprint &&
@@ -143,13 +146,16 @@ export class AnalyticalState {
   }
 
   getFingerprint(kernelFingerprintProvider?: () => string | null): string | null {
+    // Kernel mutation/typed-load outputs already carry an authoritative
+    // fingerprint. Prefer the retained scalar so fingerprint lookup itself does
+    // not allocate/register a fresh handle (notably after async Worker output).
+    if (this._authoritativeFingerprint) return this._authoritativeFingerprint;
     if (kernelFingerprintProvider) {
       try {
         const fp = kernelFingerprintProvider();
         if (fp) return fp;
-      } catch { /* fall back to retained/canonical browser identity */ }
+      } catch { /* fall back to canonical browser identity */ }
     }
-    if (this._authoritativeFingerprint) return this._authoritativeFingerprint;
     // Fingerprint lookup must not instantiate DatasetSpace: doing so used to
     // trigger a clone, per-row datum hashing and numeric range scans simply to
     // answer an identity question. The canonical TS/Rust identity projection is
