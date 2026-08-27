@@ -122,18 +122,15 @@ describe('RF-051 DatasetSpace authority and materialisation', () => {
     })).toThrow(/datum IDs/i);
   });
 
-  it('keeps legacy v2 snapshots with content-occurrence datum IDs readable even when rowIds are present', () => {
-    // Build the historical v2 identity vector before adding durable rowIds to
-    // the serialized DatasetJSON. The current constructor correctly prefers
-    // durable rowIds when they are already present, so it cannot itself be used
-    // to manufacture an old-format snapshot.
+  it('keeps direct/schema-v2 content-occurrence datum IDs stable even when rowIds are present', () => {
     const dataset = new Dataset(
       'legacy-space',
       [{ name: 'value', type: ColumnType.NUMERIC }],
       [{ value: 1 }, { value: 1 }],
+      undefined,
+      ['rust:a', 'rust:b']
     );
     const legacy = new DatasetSpace(dataset).toJSON();
-    legacy.dataset.rowIds = ['rust:a', 'rust:b'];
 
     expect(legacy.datumIds).not.toEqual(legacy.dataset.rowIds);
     expect(DatasetSpace.fromJSON(legacy).toJSON()).toEqual(legacy);
