@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { Dataset } from '../src/data/Dataset.ts';
+import { structureProfileToDatasetEvidence } from '../src/data/evidence/StructureProfileEvidenceAdapter.ts';
 import type { Facts } from '../src/data/types.ts';
 import type { MonetaFacts } from '../src/moneta/types.ts';
+import { datasetEvidenceToSignature } from '../src/moneta/representation/DatasetEvidenceSignature.ts';
 import { BootstrapFitnessModel } from '../src/moneta/representation/FitnessModel.ts';
 import { MonetaHypothesisEngine } from '../src/moneta/representation/MonetaHypothesisEngine.ts';
 import { MONETA_REPRESENTATION_CANDIDATES } from '../src/moneta/representation/RepresentationCandidate.ts';
 import { createDefaultRequirements } from '../src/moneta/representation/RepresentationRequirements.ts';
 import { minimalDatasetSignature } from '../src/moneta/representation/DatasetSignature.ts';
 import { buildDatasetSignature } from '../src/moneta/representation/SignatureBuilder.ts';
+import { createMonetaStructureProfile } from './helpers/moneta-kernel-fixture.ts';
 
 function legacyGraphFacts(): MonetaFacts {
   return {
@@ -123,6 +126,40 @@ describe('RF-045 truthful DatasetSignature evidence contract', () => {
     expect(signature.epistemic?.facts['distribution.meanEntropy'].source).toBe('measured');
     expect(signature.epistemic?.facts['distribution.highVariance'].source).toBe('unknown');
     expect(signature.epistemic?.facts['clusterStructure.hasClusters'].source).toBe('unknown');
+  });
+
+  it('preserves source classes on canonical Rust DatasetEvidence', () => {
+    const profile = createMonetaStructureProfile({
+      datasetName: 'rf045-canonical',
+      rowCount: 50,
+      columnCount: 3,
+      numericColumns: 2,
+      categoricalColumns: 1,
+      clusterCount: 3,
+      hasClusters: true,
+      separationScore: 0.81,
+      densityVariation: 0.47,
+    });
+    profile.categorical.meanEntropy = 0.72;
+    profile.graph = {
+      isGraph: true,
+      nodeCount: 50,
+      edgeCount: 1,
+      hasCycles: false,
+      isConnected: false,
+    };
+
+    const signature = datasetEvidenceToSignature(structureProfileToDatasetEvidence(profile));
+
+    expect(signature.topologicalStructure).toEqual({ topology: 'GRAPH', hasCycles: false });
+    expect(signature.clusterStructure.separationScore).toBe(0.81);
+    expect(signature.distribution.meanEntropy).toBe(0.72);
+    expect(signature.epistemic?.facts['topologicalStructure.hasCycles'].source).toBe('derived');
+    expect(signature.epistemic?.facts['topologicalStructure.hasCycles'].evidenceId).toBe('topology:graph');
+    expect(signature.epistemic?.facts['clusterStructure.separationScore'].source).toBe('heuristic');
+    expect(signature.epistemic?.facts['clusterStructure.separationScore'].evidenceId).toBe('cluster:global');
+    expect(signature.epistemic?.facts['distribution.meanEntropy'].source).toBe('measured');
+    expect(signature.epistemic?.facts['cardinality.depth'].source).toBe('unknown');
   });
 
   it('does not let unknown hierarchy evidence satisfy hierarchy-only hard constraints', () => {
