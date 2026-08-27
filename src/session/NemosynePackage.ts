@@ -11,11 +11,20 @@
 
 import * as v from 'valibot';
 import { zipSync, strToU8, strFromU8, Unzip, UnzipInflate, type UnzipFile } from 'fflate';
+import { CANONICAL_DATASET_IDENTITY_ALGORITHM } from '../data/DatasetIdentity.ts';
 
 export const MAX_ARCHIVE_SIZE = 100 * 1024 * 1024;
 export const MAX_TOTAL_UNCOMPRESSED = 250 * 1024 * 1024;
 export const MAX_SINGLE_ENTRY = 100 * 1024 * 1024;
 export const MAX_ENTRY_COUNT = 1000;
+
+/**
+ * Format v2 makes `datasetFingerprint` a canonical SHA-256 scientific dataset
+ * identity. Format v1 remains readable for legacy archives whose field contains
+ * the historical name/shape seed hash.
+ */
+export const NEMOSYNE_PACKAGE_FORMAT_VERSION = 2 as const;
+export const LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION = 1 as const;
 
 export interface NemosynePackageReadLimits {
   archiveBytes?: number;
@@ -28,6 +37,8 @@ export const NemosyneManifestSchema = v.object({
   formatVersion: v.number(),
   sessionId: v.string(),
   datasetFingerprint: v.string(),
+  /** Required by format v2; absent on legacy format-v1 archives. */
+  datasetIdentityAlgorithm: v.nullish(v.string()),
   analyticalDatasetFingerprint: v.nullish(v.string()),
   datasetName: v.string(),
   kernelVersion: v.string(),
@@ -69,6 +80,21 @@ export interface NemosynePackagePayload {
   extraFiles?: Record<string, Uint8Array>;
 }
 
+function assertSupportedManifestIdentityContract(manifest: NemosynePackageManifest): void {
+  if (manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION) return;
+  if (manifest.formatVersion !== NEMOSYNE_PACKAGE_FORMAT_VERSION) {
+    throw new Error(`Unsupported .nemosyne formatVersion ${manifest.formatVersion}`);
+  }
+  if (manifest.datasetIdentityAlgorithm !== CANONICAL_DATASET_IDENTITY_ALGORITHM) {
+    throw new Error(
+      `Format-v2 package requires datasetIdentityAlgorithm '${CANONICAL_DATASET_IDENTITY_ALGORITHM}'`,
+    );
+  }
+  if (!/^[0-9a-f]{64}$/.test(manifest.datasetFingerprint)) {
+    throw new Error('Format-v2 package datasetFingerprint must be a lowercase SHA-256 hex digest');
+  }
+}
+
 export function sanitizeEntryPath(rawPath: string): string {
   if (!rawPath || typeof rawPath !== 'string') {
     throw new Error('Invalid archive entry path: path must be a non-empty string');
@@ -106,6 +132,7 @@ export function sanitizeEntryPath(rawPath: string): string {
 export class NemosynePackageManager {
   static pack(payload: NemosynePackagePayload): Uint8Array {
     const validatedManifest = v.parse(NemosyneManifestSchema, payload.manifest);
+    assertSupportedManifestIdentityContract(validatedManifest);
     const zipFiles: Record<string, Uint8Array> = {
       'manifest.json': strToU8(JSON.stringify(validatedManifest, null, 2)),
       'data/dataset.raw': payload.datasetBytes,
@@ -227,6 +254,7 @@ export class NemosynePackageManager {
         .join('; ');
       throw new Error(`Invalid .nemosyne manifest schema: ${errorMsg}`);
     }
+    assertSupportedManifestIdentityContract(manifestResult.output);
 
     const datasetBytes = finalFiles['data/dataset.raw'];
     if (!datasetBytes || datasetBytes.byteLength === 0) {
