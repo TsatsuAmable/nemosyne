@@ -89,7 +89,7 @@ describe('Investigation Replay Runner Adversarial & Tamper Verification', () => 
       datasetName: 'SalesGraph',
       kernelVersion: '0.2.0',
       createdAt: Date.now(),
-      commandCount: 1,
+      commandCount: atlas.ledger.length,
       investigationDigest: digest,
       investigationDigestAlgorithm: INVESTIGATION_DIGEST_ALGORITHM,
       evidenceSummary: {
