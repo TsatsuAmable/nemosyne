@@ -57,6 +57,10 @@ function stableJson(value: unknown): string {
     .join(',')}}`;
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 function compareProvenance(expected: Provenance, actual: Provenance | null): string[] {
   if (!actual) return ['replay kernel emitted no provenance'];
   const discrepancies: string[] = [];
@@ -398,7 +402,7 @@ export class InvestigationReplayRunner {
     const atlas = new AtlasCore({ kernel: this._bridge, sessionId: manifest.sessionId });
     atlas.loadDataset(dataset);
     const recordedLoad = loggedEvents.find(
-      (item): item is ResearchEvent => 'kind' in item && item.kind === 'load',
+      (item): item is ResearchEvent => isObjectRecord(item) && 'kind' in item && item.kind === 'load',
     );
     if (recordedLoad && recordedLoad.datasetVersion !== atlas.datasetVersion) {
       const replayState = atlas.toState();
@@ -424,8 +428,8 @@ export class InvestigationReplayRunner {
 
     for (let i = 0; i < loggedEvents.length; i++) {
       const item = loggedEvents[i];
-      if ('kind' in item) {
-        const event = item as ResearchEvent;
+      if (isObjectRecord(item) && 'kind' in item) {
+        const event = item as unknown as ResearchEvent;
         switch (event.kind) {
           case 'load':
             eventsMatched += 1;
@@ -550,13 +554,15 @@ export class InvestigationReplayRunner {
             } else eventsMatched += 1;
             break;
           default:
-            discrepancies.push(`Unsupported or unrecognized event kind at #${i}: '${(event as { kind: string }).kind}'`);
+            discrepancies.push(`Unsupported or unrecognized event kind at #${i}: '${String(event.kind)}'`);
         }
       } else if (usesSemanticDigestV2) {
         discrepancies.push(`Semantic-v2 command log entry #${i} is missing a research-event kind`);
+      } else if (!isObjectRecord(item)) {
+        discrepancies.push(`Legacy command log entry #${i} must be an object`);
       } else {
         try {
-          atlas.applyAnalysis(item as AnalysisSpec);
+          atlas.applyAnalysis(item as unknown as AnalysisSpec);
           commandsReplayed += 1;
           eventsMatched += 1;
         } catch (err) {
@@ -572,7 +578,9 @@ export class InvestigationReplayRunner {
       // exactly rather than re-generating equivalent-looking events with fresh
       // counters/timestamps. This also rebuilds structures/observations/findings/
       // annotations from the authoritative ledger.
-      const semanticEvents = loggedEvents.filter((item): item is ResearchEvent => 'kind' in item);
+      const semanticEvents = loggedEvents.filter(
+        (item): item is ResearchEvent => isObjectRecord(item) && 'kind' in item,
+      );
       const recordedResults = semanticEvents
         .filter((event) => event.kind === 'analysis' && event.result)
         .map((event) => event.result as AnalysisResult);
