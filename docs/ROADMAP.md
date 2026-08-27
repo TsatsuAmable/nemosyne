@@ -553,12 +553,12 @@ Purpose: prove the new panel/layout/interaction system on a high-value bounded s
 
 Purpose: move conventional precision work out of hand-built spatial furniture.
 
-- [ ] migrate Settings to the shared control system, including statistical-lens options, feedback, gestures/input preferences, UI scale, contrast and reduced-motion controls;
+- [x] migrate Settings to the shared control system, including statistical-lens options, feedback, gestures/input preferences, UI scale, contrast and reduced-motion controls;
 - [ ] migrate dataset load/schema-mapping/import setup and consequential confirmation dialogs where they exist; keep forms, dense tables, exact text and numeric entry planar;
 - [ ] consolidate operation history/provenance/evidence into role-specific precision surfaces rather than separate permanent panels;
 - [ ] provide common button/toggle/slider/segmented/scroll/text-field behavior and disabled-reason presentation across desktop/ray/touch;
 - [ ] standardise panel placement, grab rails, pin/follow, dismissal, focus order and replacement behavior;
-- [ ] preserve a maximum normal analyst workspace of one primary work panel, one inspector/context panel and one secondary reference surface; a fourth requires replacement/consolidation or explicit pinning.
+- [x] preserve a maximum normal analyst workspace of one primary work panel, one inspector/context panel and one secondary reference surface; a fourth requires replacement/consolidation or explicit pinning.
 
 **Exit gate:** commodity UI uses shared components and reference-frame rules; no migrated function loses desktop/controller/hand semantics; opening ordinary workflows no longer grows an uncontrolled panel constellation.
 

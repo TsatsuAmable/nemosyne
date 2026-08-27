@@ -166,10 +166,20 @@ export class SpatialPanel extends Container {
     const current = hit ? (hit.object as Component) : null;
 
     if (captured) {
+      // A captured pointer continues to drive the capturing component (e.g. a
+      // Slider drag). Raycast the captured component alone so the dispatched
+      // event carries a uv local to THAT component — not the uv of whatever
+      // neighbouring component the ray happens to graze when the pointer drifts
+      // off-target. Without this, a Slider drag whose ray slips onto an
+      // adjacent row would jump to that row's local fraction. When the pointer
+      // leaves the captured component entirely, the miss yields no uv and the
+      // control's own guard leaves the value unchanged (no jump, value holds).
+      const capturedHits = raycaster.intersectObject(captured, false);
+      const capturedHit = capturedHits.length > 0 ? capturedHits[0] : null;
       captured.dispatchEvent({
         type: 'pointermove',
         pointerId,
-        ...(hit || {}),
+        ...(capturedHit || {}),
       } as unknown as Parameters<Component['dispatchEvent']>[0]);
     }
 

@@ -96,6 +96,43 @@ describe('WorldUIManager', () => {
     expect(ui.loadTestPanel).toBeTruthy();
   });
 
+  it('tracks the settings panel in the workspace budget controller through the live show/hide path', () => {
+    // The settings panel starts hidden (World hides it at startup); confirm it
+    // is not tracked, then verify the live show/hide paths register/deregister
+    // it in the 'primary' role — production-path evidence that the budget is
+    // enforced by the runtime, not only by an isolated controller unit test.
+    expect(ui.panelBudgetController).toBeTruthy();
+    expect(ui.panelBudgetController.isOpen(ui.settingsPanel)).toBe(false);
+
+    ui.settingsPanel.show();
+    expect(ui.panelBudgetController.isOpen(ui.settingsPanel)).toBe(true);
+    expect(ui.panelBudgetController.getRole(ui.settingsPanel)).toBe('primary');
+    expect(ui.panelBudgetController.activeBudgetCount).toBe(1);
+
+    ui.settingsPanel.hide();
+    expect(ui.panelBudgetController.isOpen(ui.settingsPanel)).toBe(false);
+    expect(ui.panelBudgetController.activeBudgetCount).toBe(0);
+  });
+
+  it('applies accessibility options to the SpatialPanel settings panel via the manager (the World._applyAccessibilitySettings path)', () => {
+    // World._applyAccessibilitySettings delegates panel theming to
+    // uiManager.applyAccessibility; the migrated settings panel is no longer in
+    // panelManager.panels, so this is the path that reaches it. Verify the
+    // settings panel's accessibility state updates through the manager.
+    const before = (ui.settingsPanel as unknown as { _highContrast: boolean })._highContrast;
+    ui.applyAccessibility({ highContrast: true, colorblindMode: 'deuteranopia', textScale: 1.5 });
+    const state = ui.settingsPanel as unknown as {
+      _highContrast: boolean;
+      _colorblindMode: string;
+      _textScale: number;
+    };
+    expect(state._highContrast).toBe(true);
+    expect(state._colorblindMode).toBe('deuteranopia');
+    expect(state._textScale).toBe(1.5);
+    // The panel was not high-contrast before; confirm the change actually landed.
+    expect(before).toBe(false);
+  });
+
   it('uses the production adaptive-assist components in the Dev Lab controls', () => {
     const confidenceHUD = new GestureConfidenceHUD(anchor);
     const frustrationResponse = { update: vi.fn() };

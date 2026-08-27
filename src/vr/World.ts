@@ -367,6 +367,11 @@ export class World {
     });
     this.engine.uiManager = this.uiManager;
 
+    // Wire the HolographicInspector (owned by the scene composer) into the
+    // workspace budget controller owned by the UI manager, so the live
+    // open/close paths enforce the analyst panel budget for SpatialPanels.
+    this.sceneComposer.inspector.budgetController = this.uiManager.panelBudgetController;
+
     // User-mode controller applies novice/intermediate/expert policies to the
     // coach, tour, and tooltips.
     this.userModeController = new UserModeController(this.eventBus as WorldEventBus, {
@@ -593,7 +598,7 @@ export class World {
     // Apply initial settings to feedback.
     this._applyFeedbackSettings(this.uiManager.settingsPanel.getAllSettings());
     // The settings panel is toggled on demand; do not show it at startup.
-    this.uiManager.panelManager.hidePanel(this.uiManager.settingsPanel);
+    this.uiManager.settingsPanel.hide();
 
     // Guided tour: step-by-step spatial onboarding.
     this.tourController = new GuidedTourController(this);
@@ -1554,11 +1559,11 @@ export class World {
       dwellSelection: settings.dwellSelection ?? false,
     };
 
-    for (const panel of this.uiManager.panelManager.panels) {
-      if (panel?.applyAccessibility) panel.applyAccessibility(options);
-    }
+    // Delegate panel theming to the UI manager so the SpatialPanel-based
+    // SettingsPanel (no longer in panelManager.panels) is re-themed too, along
+    // with the registered MovablePanels and the hand wheel menu.
+    this.uiManager.applyAccessibility(options);
 
-    this.uiManager.handWheelMenu?.applyAccessibility?.(options);
     this.engine.input.setDwellSelection?.(
       options.dwellSelection ?? false,
       (settings.dwellTimeMs as number) ?? 1200

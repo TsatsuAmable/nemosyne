@@ -4,6 +4,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { HolographicInspector } from '../src/vr/artifacts/HolographicInspector.ts';
+import { PanelBudgetController } from '../src/vr/ui-system/PanelBudgetController.ts';
 
 function makeEngine() {
   const cameraGroup = new THREE.Group();
@@ -75,16 +76,57 @@ describe('HolographicInspector', () => {
     const inspector = new HolographicInspector(engine);
     const node = new THREE.Mesh();
     node.userData.row = { id: 1 };
-    
+
     inspector.showAtNode(node, node.userData.row, null, 'NODE');
-    
+
     // Move camera to check if it looks at it
     engine.camera.position.set(0, 10, 10);
     engine.camera.updateMatrixWorld();
-    
+
     inspector.update(0.016);
-    
+
     // Verify it changed rotation
     expect(inspector.rotation.x).not.toBe(0);
+  });
+
+  it('registers with the workspace budget controller on show and untracks on hide', () => {
+    const engine = makeEngine();
+    const inspector = new HolographicInspector(engine);
+    const budget = new PanelBudgetController();
+    inspector.budgetController = budget;
+    const node = new THREE.Mesh();
+    node.userData.row = { id: 1 };
+
+    inspector.showAtNode(node, node.userData.row, null, 'NODE');
+
+    expect(budget.isOpen(inspector)).toBe(true);
+    expect(budget.getRole(inspector)).toBe('inspector');
+    expect(budget.activeBudgetCount).toBe(1);
+
+    inspector.hide();
+
+    expect(budget.isOpen(inspector)).toBe(false);
+    expect(budget.activeBudgetCount).toBe(0);
+  });
+
+  it('dismisses a previous inspector-replacement occupant through the budget controller', () => {
+    const engine = makeEngine();
+    const budget = new PanelBudgetController();
+    const first = new HolographicInspector(engine);
+    first.budgetController = budget;
+    const second = new HolographicInspector(engine);
+    second.budgetController = budget;
+    const node = new THREE.Mesh();
+    node.userData.row = { id: 1 };
+
+    first.showAtNode(node, node.userData.row, null, 'NODE');
+    // A second inspector opening in the same role replaces the first.
+    second.showAtNode(node, node.userData.row, null, 'NODE');
+
+    expect(budget.getRole(second)).toBe('inspector');
+    expect(budget.isOpen(first)).toBe(false);
+    expect(first.visible).toBe(false);
+    expect(second.visible).toBe(true);
+    expect(budget.activeBudgetCount).toBe(1);
   });
 });
