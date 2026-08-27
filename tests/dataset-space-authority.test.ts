@@ -81,10 +81,11 @@ describe('RF-051 DatasetSpace authority and materialisation', () => {
     expect(state.getFingerprint()).toBe(canonicalDatasetIdentityHex(state.current.toJSON()));
   });
 
-  it('retains an authoritative mutation fingerprint without eagerly constructing DatasetSpace', () => {
+  it('retains authoritative mutation fingerprint and row lineage without eagerly constructing DatasetSpace', () => {
     const state = new AnalyticalState();
     state.loadDataset(makeDataset());
     const output = makeDataset();
+    expect(output.adoptRowIds(['kernel:0', 'kernel:1', 'kernel:2'])).toBe(true);
     const outputFingerprint = 'c'.repeat(64);
     const originalRangeOf = Dataset.prototype.rangeOf;
     Dataset.prototype.rangeOf = () => {
@@ -97,10 +98,21 @@ describe('RF-051 DatasetSpace authority and materialisation', () => {
         dataset: output,
         fingerprint: outputFingerprint,
       })).not.toThrow();
-      expect(state.getFingerprint()).toBe(outputFingerprint);
     } finally {
       Dataset.prototype.rangeOf = originalRangeOf;
     }
+
+    let providerCalls = 0;
+    expect(state.getFingerprint(() => {
+      providerCalls += 1;
+      return 'd'.repeat(64);
+    })).toBe(outputFingerprint);
+    expect(providerCalls).toBe(0);
+
+    const persistedSpace = state.getDatasetSpace();
+    expect(persistedSpace).not.toBeNull();
+    expect(persistedSpace!.fingerprint).toBe(outputFingerprint);
+    expect(persistedSpace!.datumIds).toEqual(state.current.rowIds);
   });
 
   it('fails closed instead of rescanning JavaScript rows when live range evidence is unavailable', () => {
@@ -136,6 +148,7 @@ describe('RF-051 DatasetSpace authority and materialisation', () => {
       fingerprint,
       ranges: { value: { min: 10, max: 30 } },
       datumIds: ['rust:0', 'rust:1', 'rust:2'],
+      borrowDataset: true,
     });
 
     expect(space.dataset).toBe(source);
