@@ -9,8 +9,9 @@ import {
 } from './NemosynePackage.ts';
 import { AtlasCore, type WasmRuntimeBridgeFull } from '../atlas/AtlasCore.ts';
 import { Dataset } from '../data/Dataset.ts';
+import { canonicalDatasetIdentityHex } from '../data/DatasetIdentity.ts';
 import type { Provenance } from '../data/types.ts';
-import type { AnalysisSpec, ResearchEvent } from '../atlas/types.ts';
+import type { AnalysisResult, AnalysisSpec, ResearchEvent } from '../atlas/types.ts';
 import type { RepresentationDecision } from '../moneta/representation/RepresentationDecision.ts';
 import {
   DiscoveryEpisodeStore,
@@ -71,6 +72,42 @@ function compareProvenance(expected: Provenance, actual: Provenance | null): str
   if (!(expected.timestamp > 0)) discrepancies.push('recorded provenance timestamp is invalid');
   if (!(actual.timestamp > 0)) discrepancies.push('replay provenance timestamp is invalid');
   return discrepancies;
+}
+
+function compareAnalysisResult(expected: AnalysisResult, actual: AnalysisResult): string[] {
+  const discrepancies: string[] = [];
+  if (actual.resultId !== expected.resultId) {
+    discrepancies.push(`resultId expected '${expected.resultId}', replay produced '${actual.resultId}'`);
+  }
+  if (actual.outputHash !== expected.outputHash) {
+    discrepancies.push(`outputHash expected '${expected.outputHash}', replay produced '${actual.outputHash}'`);
+  }
+  if (actual.datasetFingerprint !== expected.datasetFingerprint) {
+    discrepancies.push(`datasetFingerprint expected '${expected.datasetFingerprint}', replay produced '${actual.datasetFingerprint}'`);
+  }
+  if (actual.datasetVersion !== expected.datasetVersion) {
+    discrepancies.push(`datasetVersion expected '${expected.datasetVersion}', replay produced '${actual.datasetVersion}'`);
+  }
+  const expectedDatasetIdentity = canonicalDatasetIdentityHex(expected.dataset);
+  const actualDatasetIdentity = canonicalDatasetIdentityHex(actual.dataset);
+  if (actualDatasetIdentity !== expectedDatasetIdentity) {
+    discrepancies.push(`output dataset identity expected '${expectedDatasetIdentity}', replay produced '${actualDatasetIdentity}'`);
+  }
+  if (actual.implementationVersion !== expected.implementationVersion) {
+    discrepancies.push(`implementationVersion expected '${expected.implementationVersion}', replay produced '${actual.implementationVersion}'`);
+  }
+  if (expected.provenance) discrepancies.push(...compareProvenance(expected.provenance, actual.provenance));
+  return discrepancies;
+}
+
+function eventAnalysisSpec(event: ResearchEvent): AnalysisSpec | null {
+  const command = event.command as Partial<AnalysisSpec> | null;
+  if (!command || typeof command !== 'object') return null;
+  if (!command.operation || typeof command.operation !== 'object') return null;
+  if (typeof command.algorithmVersion !== 'string') return null;
+  if (typeof command.datasetFingerprint !== 'string') return null;
+  if (typeof command.datasetVersion !== 'number') return null;
+  return command as AnalysisSpec;
 }
 
 function parseRepresentationDecision(bytes: Uint8Array): RepresentationDecision {
@@ -138,8 +175,7 @@ function compareDiscoveryProvenance(
   decision: RepresentationDecision | null,
 ): string[] {
   const discrepancies: string[] = [];
-  const expectedDatasetFingerprint =
-    manifest.analyticalDatasetFingerprint ?? manifest.datasetFingerprint;
+  const expectedDatasetFingerprint = manifest.analyticalDatasetFingerprint ?? manifest.datasetFingerprint;
   const expectedKernelVersion = manifest.analyticalKernelVersion ?? manifest.kernelVersion;
   if (snapshot.episodes.length !== (manifest.discoveryCount ?? snapshot.episodes.length)) {
     discrepancies.push(`discovery count expected ${String(manifest.discoveryCount)}, found ${snapshot.episodes.length}`);
@@ -186,8 +222,7 @@ function compareNilProvenance(
   decision: RepresentationDecision | null,
 ): string[] {
   const discrepancies: string[] = [];
-  const expectedDatasetFingerprint =
-    manifest.analyticalDatasetFingerprint ?? manifest.datasetFingerprint;
+  const expectedDatasetFingerprint = manifest.analyticalDatasetFingerprint ?? manifest.datasetFingerprint;
   const expectedKernelVersion = manifest.analyticalKernelVersion ?? manifest.kernelVersion;
   if (snapshot.outcomes.length !== (manifest.nilOutcomeCount ?? snapshot.outcomes.length)) {
     discrepancies.push(`NIL outcome count expected ${String(manifest.nilOutcomeCount)}, found ${snapshot.outcomes.length}`);
@@ -245,8 +280,7 @@ export class InvestigationReplayRunner {
       manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION &&
       !manifest.datasetIdentityAlgorithm &&
       /^\d+$/.test(manifest.datasetFingerprint);
-    const usesSemanticDigestV2 =
-      manifest.investigationDigestAlgorithm === INVESTIGATION_DIGEST_ALGORITHM;
+    const usesSemanticDigestV2 = manifest.investigationDigestAlgorithm === INVESTIGATION_DIGEST_ALGORITHM;
 
     let dataset: Dataset;
     try {
@@ -255,9 +289,7 @@ export class InvestigationReplayRunner {
       discrepancies.push(`Failed to parse dataset from package: ${(e as Error).message}`);
       return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint, discrepancies);
     }
-    const computedPackageFingerprint = isLegacyV1Identity
-      ? String(dataset.seedHash)
-      : dataset.fingerprint;
+    const computedPackageFingerprint = isLegacyV1Identity ? String(dataset.seedHash) : dataset.fingerprint;
     if (computedPackageFingerprint !== String(manifest.datasetFingerprint)) {
       discrepancies.push(`Dataset fingerprint mismatch: package manifest has '${manifest.datasetFingerprint}', dataset computed '${computedPackageFingerprint}'`);
     }
@@ -311,9 +343,7 @@ export class InvestigationReplayRunner {
         ...replayState,
         datasetVersion: recordedLoad.datasetVersion,
         eventLedger: replayState.eventLedger.map((event) =>
-          event.kind === 'load'
-            ? { ...event, datasetVersion: recordedLoad.datasetVersion }
-            : event,
+          event.kind === 'load' ? { ...event, datasetVersion: recordedLoad.datasetVersion } : event,
         ),
       });
     }
@@ -332,24 +362,33 @@ export class InvestigationReplayRunner {
       if ('kind' in item) {
         const event = item as ResearchEvent;
         switch (event.kind) {
-          case 'load': eventsMatched += 1; break;
+          case 'load':
+            eventsMatched += 1;
+            break;
           case 'analysis': {
-            const spec = event.command as AnalysisSpec;
+            if (!event.result) {
+              if (usesSemanticDigestV2) {
+                if (typeof event.intervention === 'string' && event.intervention.length > 0) eventsMatched += 1;
+                else discrepancies.push(`Malformed semantic-v2 analysis event at #${i}: missing result and intervention`);
+                break;
+              }
+            }
+            const spec = usesSemanticDigestV2 ? eventAnalysisSpec(event) : (event.command as AnalysisSpec);
+            if (!spec) {
+              discrepancies.push(`Malformed analysis event at #${i}: missing executable AnalysisSpec`);
+              break;
+            }
             try {
               const res = atlas.applyAnalysis(spec);
               commandsReplayed += 1;
               let eventMatches = true;
-              if (event.result?.outputHash && res.outputHash !== event.result.outputHash) {
-                discrepancies.push(`Output hash drift at event #${i} (${spec.label ?? spec.operation.op}): expected ${event.result.outputHash}, computed ${res.outputHash}`);
-                eventMatches = false;
-              }
-              if (event.result?.provenance) {
-                const provenanceDiscrepancies = compareProvenance(event.result.provenance, res.provenance);
-                if (provenanceDiscrepancies.length === 0) provenanceEventsVerified += 1;
-                else {
+              if (event.result) {
+                const resultDiscrepancies = compareAnalysisResult(event.result, res);
+                if (resultDiscrepancies.length === 0 && event.result.provenance) provenanceEventsVerified += 1;
+                if (resultDiscrepancies.length > 0) {
                   eventMatches = false;
-                  for (const entry of provenanceDiscrepancies) {
-                    discrepancies.push(`Provenance drift at event #${i} (${spec.label ?? spec.operation.op}): ${entry}`);
+                  for (const entry of resultDiscrepancies) {
+                    discrepancies.push(`Analysis drift at event #${i} (${spec.label ?? spec.operation.op}): ${entry}`);
                   }
                 }
               }
@@ -360,54 +399,79 @@ export class InvestigationReplayRunner {
             break;
           }
           case 'observation':
-            if (event.observationEntity) { atlas.recordObservation(event.observationEntity); eventsMatched += 1; }
-            else discrepancies.push(`Malformed observation event at #${i}: missing observationEntity`);
+            if (event.observationEntity) {
+              if (!usesSemanticDigestV2) atlas.recordObservation(event.observationEntity);
+              eventsMatched += 1;
+            } else discrepancies.push(`Malformed observation event at #${i}: missing observationEntity`);
             break;
           case 'finding':
-            if (event.findingEntity) { atlas.recordFinding(event.findingEntity); eventsMatched += 1; }
-            else discrepancies.push(`Malformed finding event at #${i}: missing findingEntity`);
+            if (event.findingEntity) {
+              if (!usesSemanticDigestV2) atlas.recordFinding(event.findingEntity);
+              eventsMatched += 1;
+            } else discrepancies.push(`Malformed finding event at #${i}: missing findingEntity`);
             break;
           case 'annotation':
-            if (event.annotationEntity) { atlas.recordAnnotation(event.annotationEntity); eventsMatched += 1; }
-            else discrepancies.push(`Malformed annotation event at #${i}: missing annotationEntity`);
+            if (event.annotationEntity) {
+              if (!usesSemanticDigestV2) atlas.recordAnnotation(event.annotationEntity);
+              eventsMatched += 1;
+            } else discrepancies.push(`Malformed annotation event at #${i}: missing annotationEntity`);
             break;
           case 'structure':
-            if (event.structureSet) { atlas.evidenceLedger.recordStructure(event.structureSet, manifest.sessionId, event.timestamp); eventsMatched += 1; }
+            if (event.structureSet) {
+              if (!usesSemanticDigestV2) atlas.evidenceLedger.recordStructure(event.structureSet, manifest.sessionId, event.timestamp);
+              eventsMatched += 1;
+            } else discrepancies.push(`Malformed structure event at #${i}: missing structureSet`);
             break;
           case 'recommendation':
             if (event.recommendationDecision) {
-              const { eventId: _eventId, sessionId: _sessionId, ...replayEvent } = event;
-              atlas.evidenceLedger.appendEvent(replayEvent, manifest.sessionId);
+              if (!usesSemanticDigestV2) {
+                const { eventId: _eventId, sessionId: _sessionId, ...replayEvent } = event;
+                atlas.evidenceLedger.appendEvent(replayEvent, manifest.sessionId);
+              }
               eventsMatched += 1;
-            }
+            } else discrepancies.push(`Malformed recommendation event at #${i}: missing recommendationDecision`);
             break;
           case 'embodiment':
-            if (event.embodimentCommand) { atlas.recordEmbodimentCommand(event.embodimentCommand); eventsMatched += 1; }
+            if (event.embodimentCommand) {
+              if (!usesSemanticDigestV2) atlas.recordEmbodimentCommand(event.embodimentCommand);
+              eventsMatched += 1;
+            } else discrepancies.push(`Malformed embodiment event at #${i}: missing embodimentCommand`);
             break;
-          case 'undo': atlas.undo(); eventsMatched += 1; break;
-          case 'redo': atlas.redo(); eventsMatched += 1; break;
-          case 'seek': {
-            const idx = (event.command as { index?: number })?.index;
-            if (idx !== undefined) { atlas.seekHistory(idx); eventsMatched += 1; }
-            break;
-          }
-          case 'reset': atlas.resetAnalysis(); eventsMatched += 1; break;
-          case 'remediation':
-          case 'refusal': {
-            // RF-046 requires these durable semantic events to contribute to the
-            // v2 digest. Reconstruct the record without re-executing the refused
-            // computation or remediation side effect. Legacy digest verification
-            // preserves the historical behavior until RF-047 finishes the full
-            // event-by-event replay contract.
-            if (usesSemanticDigestV2) {
-              const { eventId: _eventId, sessionId: _sessionId, ...replayEvent } = event;
-              atlas.evidenceLedger.appendEvent(replayEvent, manifest.sessionId);
-            }
+          case 'undo':
+            atlas.undo();
             eventsMatched += 1;
             break;
+          case 'redo':
+            atlas.redo();
+            eventsMatched += 1;
+            break;
+          case 'seek': {
+            const idx = (event.command as { index?: number })?.index;
+            if (idx !== undefined) {
+              atlas.seekHistory(idx);
+              eventsMatched += 1;
+            } else discrepancies.push(`Malformed seek event at #${i}: missing history index`);
+            break;
           }
-          default: discrepancies.push(`Unsupported or unrecognized event kind at #${i}: '${(event as { kind: string }).kind}'`);
+          case 'reset':
+            atlas.resetAnalysis();
+            eventsMatched += 1;
+            break;
+          case 'remediation':
+            if (usesSemanticDigestV2 && !event.remediationEvent) {
+              discrepancies.push(`Malformed remediation event at #${i}: missing remediationEvent`);
+            } else eventsMatched += 1;
+            break;
+          case 'refusal':
+            if (usesSemanticDigestV2 && !event.refusalEvent) {
+              discrepancies.push(`Malformed refusal event at #${i}: missing refusalEvent`);
+            } else eventsMatched += 1;
+            break;
+          default:
+            discrepancies.push(`Unsupported or unrecognized event kind at #${i}: '${(event as { kind: string }).kind}'`);
         }
+      } else if (usesSemanticDigestV2) {
+        discrepancies.push(`Semantic-v2 command log entry #${i} is missing a research-event kind`);
       } else {
         try {
           atlas.applyAnalysis(item as AnalysisSpec);
@@ -417,6 +481,20 @@ export class InvestigationReplayRunner {
           discrepancies.push(`Replay execution failure for spec #${i}: ${(err as Error).message}`);
         }
       }
+    }
+
+    if (usesSemanticDigestV2) {
+      // RF-047: after authoritative mutating operations have been independently
+      // re-executed and verified, the persisted semantic ledger is the authority
+      // for durable IDs, attribution and non-mutating provenance. Restore it
+      // exactly rather than re-generating equivalent-looking events with fresh
+      // counters/timestamps. This also rebuilds structures/observations/findings/
+      // annotations from the authoritative ledger.
+      const semanticEvents = loggedEvents.filter((item): item is ResearchEvent => 'kind' in item);
+      const recordedResults = semanticEvents
+        .filter((event) => event.kind === 'analysis' && event.result)
+        .map((event) => event.result as AnalysisResult);
+      atlas.evidenceLedger.restore(recordedResults, semanticEvents);
     }
 
     if (representationDecision) {
