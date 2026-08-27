@@ -2,7 +2,11 @@
  * InvestigationReplayRunner — Headless clean-room deterministic replay & verification.
  */
 
-import { NemosynePackageManager, type NemosynePackagePayload } from './NemosynePackage.ts';
+import {
+  LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION,
+  NemosynePackageManager,
+  type NemosynePackagePayload,
+} from './NemosynePackage.ts';
 import { AtlasCore, type WasmRuntimeBridgeFull } from '../atlas/AtlasCore.ts';
 import { Dataset } from '../data/Dataset.ts';
 import type { Provenance } from '../data/types.ts';
@@ -236,6 +240,9 @@ export class InvestigationReplayRunner {
       discoveryEpisodesBytes,
       nilOutcomesBytes,
     } = payload;
+    const isLegacyV1Identity =
+      manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION &&
+      !manifest.datasetIdentityAlgorithm;
 
     let dataset: Dataset;
     try {
@@ -244,8 +251,11 @@ export class InvestigationReplayRunner {
       discrepancies.push(`Failed to parse dataset from package: ${(e as Error).message}`);
       return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint, discrepancies);
     }
-    if (String(dataset.fingerprint) !== String(manifest.datasetFingerprint)) {
-      discrepancies.push(`Dataset fingerprint mismatch: package manifest has '${manifest.datasetFingerprint}', dataset computed '${dataset.fingerprint}'`);
+    const computedPackageFingerprint = isLegacyV1Identity
+      ? String(dataset.seedHash)
+      : dataset.fingerprint;
+    if (computedPackageFingerprint !== String(manifest.datasetFingerprint)) {
+      discrepancies.push(`Dataset fingerprint mismatch: package manifest has '${manifest.datasetFingerprint}', dataset computed '${computedPackageFingerprint}'`);
     }
 
     let loggedEvents: (AnalysisSpec | ResearchEvent)[] = [];
@@ -426,7 +436,10 @@ export class InvestigationReplayRunner {
     }
 
     const finalOutputHash = atlas.datasetSpace?.fingerprint ?? atlas.datasetFingerprint ?? '';
-    const investigationDigest = await atlas.computeDigest();
+    const investigationDigest = await atlas.aggregate.computeDigest(
+      replayKernelVersion ?? 'unknown',
+      isLegacyV1Identity ? { legacyImmutableDatasetSeedHash: true } : {},
+    );
     if (manifest.investigationDigest && manifest.investigationDigest !== investigationDigest) {
       discrepancies.push(`Investigation digest mismatch: package manifest has '${manifest.investigationDigest}', replayed digest is '${investigationDigest}'`);
     }
