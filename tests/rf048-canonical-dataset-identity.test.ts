@@ -7,7 +7,10 @@ import {
   canonicalDatasetIdentityHex,
 } from '../src/data/DatasetIdentity.ts';
 import { InvestigationReplayRunner } from '../src/session/InvestigationReplayRunner.ts';
-import { NemosynePackageManager } from '../src/session/NemosynePackage.ts';
+import {
+  NemosynePackageManager,
+  type NemosynePackageManifest,
+} from '../src/session/NemosynePackage.ts';
 import { NemosyneSession } from '../src/session/NemosyneSession.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
@@ -25,9 +28,8 @@ describe('RF-048 canonical scientific dataset identity', () => {
     const second = makeDataset([11, 20]);
 
     expect(first.seedHash).toBe(second.seedHash);
-    expect(canonicalDatasetIdentityHex(first.toJSON())).not.toBe(
-      canonicalDatasetIdentityHex(second.toJSON()),
-    );
+    expect(first.fingerprint).toBe(canonicalDatasetIdentityHex(first.toJSON()));
+    expect(first.fingerprint).not.toBe(second.fingerprint);
   });
 
   it('excludes durable row lineage metadata from scientific identity', () => {
@@ -37,6 +39,7 @@ describe('RF-048 canonical scientific dataset identity', () => {
     expect(dataset.adoptRowIds(['rust-row-a', 'rust-row-b'])).toBe(true);
 
     expect(canonicalDatasetIdentityHex(dataset.toJSON())).toBe(before);
+    expect(dataset.fingerprint).toBe(before);
   });
 
   it('matches Rust row semantics by projecting declared columns, nulling missing values, and ignoring undeclared row keys', () => {
@@ -110,5 +113,55 @@ describe('RF-048 canonical scientific dataset identity', () => {
 
     expect(result.success).toBe(false);
     expect(result.discrepancies.join('\n')).toMatch(/dataset fingerprint mismatch/i);
+  });
+
+  it('still verifies legacy format-v1 packages with their historical seed identity and digest input', async () => {
+    const dataset = makeDataset();
+    const bridge = makeKernelMockBridge() as never;
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(dataset);
+    const state = atlas.toState();
+    const legacyDigest = await atlas.aggregate.computeDigest(
+      atlas.kernelVersion() ?? 'unknown',
+      { legacyImmutableDatasetSeedHash: true },
+    );
+    const manifest: NemosynePackageManifest = {
+      formatVersion: 1,
+      sessionId: atlas.sessionId,
+      datasetFingerprint: String(dataset.seedHash),
+      datasetIdentityAlgorithm: undefined,
+      analyticalDatasetFingerprint: undefined,
+      datasetName: dataset.name,
+      kernelVersion: atlas.kernelVersion() ?? 'unknown',
+      analyticalKernelVersion: undefined,
+      createdAt: 1,
+      commandCount: state.eventLedger.length,
+      discoveryCount: 0,
+      nilOutcomeCount: 0,
+      investigationDigest: legacyDigest,
+      representationModel: undefined,
+      evidenceSummary: {
+        observationsCount: 0,
+        findingsCount: 0,
+        annotationsCount: 0,
+      },
+      environment: {
+        userAgent: undefined,
+        platform: undefined,
+        webxrSupported: undefined,
+      },
+    };
+    const archive = NemosynePackageManager.pack({
+      manifest,
+      datasetBytes: strToU8(JSON.stringify(state.originalDataset)),
+      commandLogBytes: strToU8(JSON.stringify(state.eventLedger)),
+    });
+
+    const result = await new InvestigationReplayRunner(
+      makeKernelMockBridge() as never,
+    ).replayArchive(archive);
+
+    expect(result.success).toBe(true);
+    expect(result.discrepancies).toEqual([]);
   });
 });
