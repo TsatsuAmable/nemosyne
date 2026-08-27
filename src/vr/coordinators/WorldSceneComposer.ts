@@ -77,6 +77,14 @@ export class WorldSceneComposer {
     this.inspector = new HolographicInspector(this.engine);
     this.inspector.mount(this.engine.scene);
     this.engine.addUpdatable(this.inspector);
+    // Register the inspector with the input router so the live pointer path
+    // (PointerEventMachine iterates registry.panels) reaches its SpatialPanel
+    // fallback — otherwise its interactive tabs, pin/close chrome, and footer
+    // buttons are inert in production. The inspector is a SpatialPanel
+    // (handlePointerDown/Move/Up + mesh), so it satisfies PanelLike. The real
+    // `Engine` always provides `input`; the optional chain tolerates the
+    // minimal stub engines used by torso-anchor unit tests.
+    this.engine.input?.addPanel?.(this.inspector);
 
     // Farcaster portals: data-transformation gates.
     this.portalA = new FarcasterPortal({
@@ -151,6 +159,7 @@ export class WorldSceneComposer {
     this.engine.removeUpdatable(this.core);
     this.engine.removeUpdatable(this.iceVault);
     this.engine.removeUpdatable(this.inspector);
+    this.engine.input?.removePanel?.(this.inspector);
     this.engine.removeUpdatable(this.portalA);
     this.engine.removeUpdatable(this.portalB);
     disposeObject(this.datum?.mesh);

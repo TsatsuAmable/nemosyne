@@ -8,6 +8,7 @@ export interface SliderProperties {
   step?: number;
   onChange?: (value: number) => void;
   disabled?: boolean;
+  disabledReason?: string;
   width?: number;
   formatValue?: (v: number) => string;
 }
@@ -37,6 +38,7 @@ export class Slider extends Container {
   private _trackWidth: number;
   private _isDragging = false;
   private _formatValue: (v: number) => string;
+  private _reasonText: Text;
 
   constructor(properties: SliderProperties) {
     const trackWidth = properties.width ?? 160;
@@ -115,6 +117,17 @@ export class Slider extends Container {
       color: this._disabled ? COLOR_TOKENS.text.muted : COLOR_TOKENS.text.secondary,
     });
     this.add(this._valueLabel);
+
+    // Disabled-reason explanation (UX-04 / §35: not colour alone). Added only
+    // while disabled with a reason so it does not reserve layout space on
+    // enabled sliders. Bare `Text` whose glyph raycast is already no-op'd by
+    // uikit, so it cannot intercept the production pointer hit.
+    this._reasonText = new Text({
+      text: properties.disabledReason ?? '',
+      fontSize: 12,
+      color: COLOR_TOKENS.epistemic.uncertain,
+    });
+    if (this._disabled && properties.disabledReason) this.add(this._reasonText);
 
     if (!this._disabled) {
       this._trackBg.addEventListener('pointerdown', (e) => {

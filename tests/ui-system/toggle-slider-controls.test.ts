@@ -38,6 +38,22 @@ describe('Toggle', () => {
     expect(t.value).toBe(true);
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it('renders a disabledReason label only when disabled with a reason (UX-04 / §35)', () => {
+    const reasonOf = (c: Toggle): { parent: unknown } =>
+      (c as unknown as { _reasonText: { parent: unknown } })._reasonText;
+
+    const t = new Toggle({ value: false, disabled: true, disabledReason: 'Kernel unavailable' });
+    expect(reasonOf(t).parent).toBe(t);
+
+    // No reason → not attached even when disabled.
+    const t2 = new Toggle({ value: false, disabled: true });
+    expect(reasonOf(t2).parent).toBeNull();
+
+    // Not disabled → not attached even with a reason set.
+    const t3 = new Toggle({ value: false, disabledReason: 'Kernel unavailable' });
+    expect(reasonOf(t3).parent).toBeNull();
+  });
 });
 
 describe('Slider', () => {

@@ -15,7 +15,6 @@ export interface WheelMenuHost {
     | 'getOrCreateInteractionCoach'
     | 'getOrCreateNarrativeStrip'
     | 'getOrCreateOperationLogPanel'
-    | 'getOrCreateSchemaMappingPanel'
     | 'interactionCoach'
     | 'metricsPanel'
     | 'narrativeStrip'
@@ -27,6 +26,7 @@ export interface WheelMenuHost {
     | 'toggleJITGestureHintManager'
     | 'toggleProgressiveDisclosure'
     | 'toggleRepresentationCarousel'
+    | 'toggleSchemaMappingPanel'
     | 'toggleTransientContextCards'
     | 'vrConsole'
   >;
@@ -441,7 +441,7 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
           id: 'su-schema-mapping',
           label: 'Schema Map',
           icon: '🗂️',
-          callback: () => toggle(world.uiManager?.getOrCreateSchemaMappingPanel?.()),
+          callback: () => world.uiManager?.toggleSchemaMappingPanel?.(),
         },
         {
           id: 'su-draco-diagnostic',
@@ -806,7 +806,7 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           id: 'su-schema-mapping',
           label: 'Schema Map',
           icon: '🗂️',
-          callback: () => toggle(world.uiManager?.getOrCreateSchemaMappingPanel?.()),
+          callback: () => world.uiManager?.toggleSchemaMappingPanel?.(),
         },
         {
           id: 'su-draco-diagnostic',

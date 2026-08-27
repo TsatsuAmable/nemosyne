@@ -59,6 +59,12 @@ describe('WorldSceneComposer', () => {
   it('creates a holographic inspector and mounts it', () => {
     expect(composer.inspector).toBeInstanceOf(HolographicInspector);
     expect(engine.updatables).toContain(composer.inspector);
+    // Production-path evidence (P1-U3): the inspector is a SpatialPanel whose
+    // interactive tabs/pin/close/footer must be reachable by the live pointer
+    // path. PointerEventMachine iterates `registry.panels`, so the inspector
+    // MUST be registered with the input router — otherwise every interactive
+    // control added in P1-U3 is inert in production.
+    expect(engine.input.panels).toContain(composer.inspector);
   });
 
   it('creates two Farcaster portals and adds them to the scene', () => {

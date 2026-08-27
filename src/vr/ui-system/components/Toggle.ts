@@ -5,6 +5,7 @@ export interface ToggleProperties {
   value: boolean;
   onChange?: (value: boolean) => void;
   disabled?: boolean;
+  disabledReason?: string;
   label?: string;
 }
 
@@ -18,6 +19,7 @@ export class Toggle extends Container {
   private _track: Container;
   private _thumb: Container;
   private _label: Text | null = null;
+  private _reasonText: Text;
   private _onChange: ((value: boolean) => void) | undefined;
 
   constructor(properties: ToggleProperties) {
@@ -88,6 +90,17 @@ export class Toggle extends Container {
       });
       this.add(this._label);
     }
+
+    // Disabled-reason explanation (UX-04 / §35: not colour alone). Added only
+    // while disabled with a reason so it does not reserve layout space on
+    // enabled toggles. Bare `Text` whose glyph raycast is already no-op'd by
+    // uikit, so it cannot intercept the production pointer hit.
+    this._reasonText = new Text({
+      text: properties.disabledReason ?? '',
+      fontSize: 12,
+      color: COLOR_TOKENS.epistemic.uncertain,
+    });
+    if (this._disabled && properties.disabledReason) this.add(this._reasonText);
 
     // Click handler on the whole toggle
     if (!this._disabled) {

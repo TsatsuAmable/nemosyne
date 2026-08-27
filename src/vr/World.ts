@@ -79,6 +79,8 @@ import { TechnoCoreNode } from './artifacts/TechnoCoreNode.ts';
 import { IceVaultNode } from './artifacts/IceVaultNode.ts';
 import { FarcasterPortal } from './artifacts/FarcasterPortal.ts';
 import { HolographicInspector } from './artifacts/HolographicInspector.ts';
+import type { ProvenanceProvider, ProvenanceEntry, EvidenceEntry } from './artifacts/HolographicInspector.ts';
+import type { ResearchEvent } from '../atlas/types.ts';
 import type { TopologyType } from '../data/types.ts';
 import { DatasetSpace } from '../atlas/DatasetSpace.ts';
 import { AtlasCore } from '../atlas/AtlasCore.ts';
@@ -335,6 +337,7 @@ export class World {
       onExitVR: () => this.exitVR(),
       frustrationAnalyzer: this.telemetryCollector.frustrationAnalyzer,
       getDataset: () => this.atlas.dataset,
+      applySchemaMapping: (updated) => this.applySchemaMapping(updated),
     });
 
     // Input coordinator owns gesture recognition, context-aware suppression, and
@@ -371,6 +374,10 @@ export class World {
     // workspace budget controller owned by the UI manager, so the live
     // open/close paths enforce the analyst panel budget for SpatialPanels.
     this.sceneComposer.inspector.budgetController = this.uiManager.panelBudgetController;
+    // Wire session-level provenance/evidence sourced from the authoritative
+    // atlas evidence ledger into the inspector's Provenance/Evidence tabs.
+    // Node-scoped provenance is a P1-U3 residual (structure-id↔row join).
+    this.sceneComposer.inspector.provenanceProvider = this._buildProvenanceProvider();
 
     // User-mode controller applies novice/intermediate/expert policies to the
     // coach, tour, and tooltips.
@@ -1014,6 +1021,72 @@ export class World {
       preserveAnalyticalState: true,
       preserveAuxiliaryPresentation: this._wasmUnavailable,
     });
+  }
+
+  /**
+   * Apply an edited column schema by reloading the dataset with the new column
+   * types. The new column schema (`updated.columns`) is combined with the
+   * ORIGINAL loaded dataset's rows/edges (`currentEntry.dataset`), NOT the live
+   * `atlas.dataset` (which may be a transformed subset after a filter/cluster).
+   * Sourcing rows from the original prevents a current data operation from
+   * being silently baked into the new baseline — schema mapping is a fresh
+   * reload, so any pending filter/cluster/aggregate is discarded. This resets
+   * the evidence ledger, analysis results, and history, exactly as any fresh
+   * dataset load does (the schema-mapping `ConfirmButton` warns the user).
+   */
+  applySchemaMapping(updated: Dataset): void {
+    if (!this.currentEntry || this._disposed) return;
+    const original = this.currentEntry.dataset;
+    const rebuilt = new Dataset(original.name, updated.columns, original.rows, original.edges);
+    const entry: DatasetLoadEntry = {
+      ...this.currentEntry,
+      dataset: rebuilt,
+    };
+    this.loadDataset(entry);
+  }
+
+  /**
+   * Build the inspector's session-level provenance/evidence provider from the
+   * authoritative `atlas.evidenceLedger`. Provenance is the recent ledger event
+   * stream (operation + dataset version); evidence is observations/findings/
+   * annotations. Both are session-level — node-scoped provenance requires the
+   * structure-id↔row join that is a P1-U3 residual.
+   */
+  _buildProvenanceProvider(): ProvenanceProvider {
+    return {
+      getProvenance: (): ProvenanceEntry[] => {
+        const ledger = this.atlas.evidenceLedger.ledger;
+        return ledger.slice(-50).map((event) => ({
+          id: event.eventId,
+          operation: this._provenanceLabel(event),
+          datasetVersion: event.datasetVersion,
+          timestamp: event.timestamp,
+        }));
+      },
+      getEvidence: (): EvidenceEntry[] => {
+        const lg = this.atlas.evidenceLedger;
+        const out: EvidenceEntry[] = [];
+        for (const o of lg.observations) {
+          out.push({ id: o.id, kind: 'observation', title: o.notes, timestamp: o.timestamp });
+        }
+        for (const f of lg.findings) {
+          out.push({ id: f.id, kind: 'finding', title: f.title, timestamp: f.timestamp });
+        }
+        for (const a of lg.annotations) {
+          out.push({ id: a.id, kind: 'annotation', title: a.text, timestamp: a.timestamp });
+        }
+        return out.slice(-50);
+      },
+    };
+  }
+
+  private _provenanceLabel(event: ResearchEvent): string {
+    const cmd = event.command;
+    if ('operation' in cmd) {
+      return cmd.label ?? cmd.operation.op ?? event.kind;
+    }
+    if (event.kind === 'seek' && cmd.index != null) return `seek #${cmd.index}`;
+    return cmd.op;
   }
 
   _attachTDASummary(): void {
