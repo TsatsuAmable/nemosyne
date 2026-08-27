@@ -10,7 +10,8 @@
  */
 
 import { Dataset } from '../../data/Dataset.ts';
-import type { AtlasCoreState } from '../types.ts';
+import { canonicalDatasetIdentityHex } from '../../data/DatasetIdentity.ts';
+import type { AnalysisResult, AtlasCoreState, ResearchEvent } from '../types.ts';
 import { AnalyticalState } from './AnalyticalState.ts';
 import { EvidenceLedger } from './EvidenceLedger.ts';
 import { RepresentationState } from './RepresentationState.ts';
@@ -41,6 +42,29 @@ export interface InvestigationDigestIdentityOptions {
   nilOutcomes?: readonly NoFeasibleRepresentationRecord[];
   /** Session-owned research context overrides the aggregate-local compatibility view. */
   researchContext?: import('../types.ts').ResearchContext;
+}
+
+/**
+ * RF-046/RF-048: analysis-result semantics commit the authoritative result and
+ * provenance, but the embedded row-major DatasetJSON is represented by the
+ * canonical scientific dataset identity. This preserves the explicit RF-048
+ * invariant that lineage-only `rowIds` do not alter scientific identity while
+ * still making any governed schema/row/edge content change alter the digest.
+ */
+function semanticAnalysisResult(result: AnalysisResult): Record<string, unknown> {
+  const { dataset, ...rest } = result;
+  return {
+    ...rest,
+    outputDatasetFingerprint: canonicalDatasetIdentityHex(dataset),
+  };
+}
+
+function semanticResearchEvent(event: ResearchEvent): Record<string, unknown> {
+  if (!event.result) return event as unknown as Record<string, unknown>;
+  return {
+    ...event,
+    result: semanticAnalysisResult(event.result),
+  };
 }
 
 export class InvestigationAggregate {
@@ -353,21 +377,19 @@ export class InvestigationAggregate {
         rowCount: this.analytical.currentNullable?.rowCount ?? 0,
         columnCount: this.analytical.currentNullable?.columns?.length ?? 0,
       },
-      eventLedger: this.ledger.ledger,
-      analysisResults: this.ledger.results,
+      eventLedger: this.ledger.ledger.map(semanticResearchEvent),
+      analysisResults: this.ledger.results.map(semanticAnalysisResult),
       structures: this.ledger.structures,
       observations: this.ledger.observations,
       findings: this.ledger.findings,
       annotations: this.ledger.annotations,
-      representationState: this.representation.activeDecision ?? this.representation.activeStrategy ?? undefined,
-      recommendations: {
-        active: this.decisions.activeRecommendation ?? undefined,
-        history: this.decisions.history,
-      },
+      // A full RepresentationDecision is persisted as representation.json and
+      // replayed authoritatively. A strategy-only transient is not portable and
+      // is therefore intentionally excluded from v2 rather than overclaiming.
+      representationState: this.representation.activeDecision ?? undefined,
       discoveryEpisodes: this.discoveries.all(),
       nilOutcomes: identityOptions.nilOutcomes,
       researchContext,
-      investigationGraph: this.graph.toJSON(),
     });
   }
 
