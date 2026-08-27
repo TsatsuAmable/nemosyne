@@ -88,6 +88,9 @@ function compareAnalysisResult(expected: AnalysisResult, actual: AnalysisResult)
   if (actual.datasetVersion !== expected.datasetVersion) {
     discrepancies.push(`datasetVersion expected '${expected.datasetVersion}', replay produced '${actual.datasetVersion}'`);
   }
+  if (stableJson(actual.spec) !== stableJson(expected.spec)) {
+    discrepancies.push(`analysis spec expected ${stableJson(expected.spec)}, replay produced ${stableJson(actual.spec)}`);
+  }
   const expectedDatasetIdentity = canonicalDatasetIdentityHex(expected.dataset);
   const actualDatasetIdentity = canonicalDatasetIdentityHex(actual.dataset);
   if (actualDatasetIdentity !== expectedDatasetIdentity) {
@@ -296,10 +299,18 @@ export class InvestigationReplayRunner {
 
     let loggedEvents: (AnalysisSpec | ResearchEvent)[] = [];
     try {
-      loggedEvents = JSON.parse(strFromU8(commandLogBytes));
+      const parsed: unknown = JSON.parse(strFromU8(commandLogBytes));
+      if (!Array.isArray(parsed)) {
+        discrepancies.push('Failed to parse command log: top-level value must be an array');
+        return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint, discrepancies);
+      }
+      loggedEvents = parsed as (AnalysisSpec | ResearchEvent)[];
     } catch (e) {
       discrepancies.push(`Failed to parse command log: ${(e as Error).message}`);
       return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint, discrepancies);
+    }
+    if (usesSemanticDigestV2 && loggedEvents.length !== manifest.commandCount) {
+      discrepancies.push(`Semantic-v2 command count mismatch: manifest expected ${manifest.commandCount}, log contains ${loggedEvents.length}`);
     }
 
     let representationDecision: RepresentationDecision | null = null;
@@ -383,12 +394,29 @@ export class InvestigationReplayRunner {
               commandsReplayed += 1;
               let eventMatches = true;
               if (event.result) {
-                const resultDiscrepancies = compareAnalysisResult(event.result, res);
-                if (resultDiscrepancies.length === 0 && event.result.provenance) provenanceEventsVerified += 1;
-                if (resultDiscrepancies.length > 0) {
-                  eventMatches = false;
-                  for (const entry of resultDiscrepancies) {
-                    discrepancies.push(`Analysis drift at event #${i} (${spec.label ?? spec.operation.op}): ${entry}`);
+                if (usesSemanticDigestV2) {
+                  const resultDiscrepancies = compareAnalysisResult(event.result, res);
+                  if (resultDiscrepancies.length === 0 && event.result.provenance) provenanceEventsVerified += 1;
+                  if (resultDiscrepancies.length > 0) {
+                    eventMatches = false;
+                    for (const entry of resultDiscrepancies) {
+                      discrepancies.push(`Analysis drift at event #${i} (${spec.label ?? spec.operation.op}): ${entry}`);
+                    }
+                  }
+                } else {
+                  if (event.result.outputHash && res.outputHash !== event.result.outputHash) {
+                    discrepancies.push(`Output hash drift at event #${i} (${spec.label ?? spec.operation.op}): expected ${event.result.outputHash}, computed ${res.outputHash}`);
+                    eventMatches = false;
+                  }
+                  if (event.result.provenance) {
+                    const provenanceDiscrepancies = compareProvenance(event.result.provenance, res.provenance);
+                    if (provenanceDiscrepancies.length === 0) provenanceEventsVerified += 1;
+                    else {
+                      eventMatches = false;
+                      for (const entry of provenanceDiscrepancies) {
+                        discrepancies.push(`Provenance drift at event #${i} (${spec.label ?? spec.operation.op}): ${entry}`);
+                      }
+                    }
                   }
                 }
               }
