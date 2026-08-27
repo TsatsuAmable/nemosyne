@@ -225,8 +225,14 @@ export class Dataset {
     return new Set(this.getColumnValues(name)).size;
   }
 
-  /** Stable hash for deterministic procedural generation. */
-  get fingerprint(): number {
+  /**
+   * Cheap deterministic seed for procedural generation only.
+   *
+   * This intentionally depends only on display name and shape and is therefore
+   * NOT a scientific identity, content fingerprint, integrity check, cache
+   * authority, or provenance value.
+   */
+  get seedHash(): number {
     let h = 0;
     const str = `${this.name}:${this.rowCount}:${this.columnCount}`;
     for (let i = 0; i < str.length; i++) {
@@ -234,6 +240,14 @@ export class Dataset {
       h |= 0;
     }
     return Math.abs(h);
+  }
+
+  /**
+   * @deprecated Use `seedHash` for procedural randomness. Scientific identity
+   * must use `canonicalDatasetIdentityHex` / the Rust dataset fingerprint.
+   */
+  get fingerprint(): number {
+    return this.seedHash;
   }
 
   /**
