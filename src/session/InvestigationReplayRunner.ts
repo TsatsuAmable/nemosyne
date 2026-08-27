@@ -242,7 +242,8 @@ export class InvestigationReplayRunner {
     } = payload;
     const isLegacyV1Identity =
       manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION &&
-      !manifest.datasetIdentityAlgorithm;
+      !manifest.datasetIdentityAlgorithm &&
+      /^\d+$/.test(manifest.datasetFingerprint);
 
     let dataset: Dataset;
     try {
