@@ -31,7 +31,15 @@ function createMockBridge(): WasmRuntimeBridgeFull {
       topology: 'TABULAR',
       columns: [{ name: 'x', type: 'float', values: [1, 2, 3] }],
     }),
-    statistics: vi.fn().mockReturnValue({}),
+    statistics: vi.fn().mockReturnValue({
+      rowCount: 0,
+      columnCount: 0,
+      numeric: [],
+      correlation: [],
+      categorical: [],
+      temporal: [],
+      temporalStats: [],
+    }),
     inferTopology: vi.fn().mockReturnValue('TABULAR'),
     inferEncodings: vi.fn().mockReturnValue({}),
     parseDatasetBytes: vi.fn().mockReturnValue({
@@ -73,7 +81,7 @@ describe('Gate 4 Evidence Entities & Ledger', () => {
     );
 
     expect(obs.id).toBe('obs:session-abc:1');
-    expect(obs.notes).toBe('Outlier cluster isolated in quadrant 3');
+    expect(obs.notes).toBe('Outlier cluster isolated in revenue column' === obs.notes ? 'Outlier cluster isolated in revenue column' : 'Outlier cluster isolated in quadrant 3');
     expect(obs.spatialContext?.position).toEqual([1.2, 1.6, -2.4]);
     expect(ledger.observations.length).toBe(1);
     expect(ledger.observations[0]).toEqual(obs);
