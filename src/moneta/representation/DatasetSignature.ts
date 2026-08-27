@@ -3,7 +3,9 @@
  *
  * Serves as the input for the Moneta representation reasoning pipeline. Values
  * that are not supported by evidence MUST remain absent; zero/false is a result,
- * not a synonym for "unknown".
+ * not a synonym for "unknown". `cardinality.depth` retains a zero compatibility
+ * sentinel because hard-constraint consumers require a number; its epistemic
+ * source records whether that sentinel is evidence or merely unknown.
  */
 
 import type { TopologyTypeValue } from '../types.ts';
@@ -145,8 +147,11 @@ export interface DatasetSignatureCardinality {
   rowCount: number;
   columnCount: number;
   edgeCount: number;
-  /** Absent when hierarchy depth has not actually been established. */
-  depth?: number;
+  /**
+   * Compatibility sentinel: zero means "no established hierarchy depth" unless
+   * `epistemic.facts['cardinality.depth']` says the value is supported evidence.
+   */
+  depth: number;
 }
 
 export interface DatasetSignatureDistribution {
@@ -272,6 +277,7 @@ export function minimalDatasetSignature(
         rowCount,
         columnCount: numericCount + categoricalCount + temporalCount,
         edgeCount: 0,
+        depth: 0,
       },
       distribution: {},
       dependence: {},
@@ -310,6 +316,7 @@ export function minimalDatasetSignature(
       rowCount: 0,
       columnCount: 0,
       edgeCount: 0,
+      depth: 0,
     },
     distribution: {},
     dependence: {},
