@@ -14,6 +14,7 @@ import type { AnalysisSpec, ResearchEvent } from '../atlas/types.ts';
 import type { RepresentationDecision } from '../moneta/representation/RepresentationDecision.ts';
 import {
   DiscoveryEpisodeStore,
+  INVESTIGATION_DIGEST_ALGORITHM,
   NoFeasibleRepresentationStore,
   canonicalJsonStringify,
   type DiscoveryEpisodeStoreSnapshot,
@@ -244,6 +245,8 @@ export class InvestigationReplayRunner {
       manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION &&
       !manifest.datasetIdentityAlgorithm &&
       /^\d+$/.test(manifest.datasetFingerprint);
+    const usesSemanticDigestV2 =
+      manifest.investigationDigestAlgorithm === INVESTIGATION_DIGEST_ALGORITHM;
 
     let dataset: Dataset;
     try {
@@ -389,15 +392,20 @@ export class InvestigationReplayRunner {
             break;
           }
           case 'reset': atlas.resetAnalysis(); eventsMatched += 1; break;
-          // Remediation and refusal events are durable non-mutating provenance
-          // records, not replay commands — they were appended to the ledger by
-          // the originating session and travel in the persisted eventLedger.
-          // Acknowledging them here prevents a false replay discrepancy without
-          // re-executing the (non-mutating) record.
           case 'remediation':
-          case 'refusal':
+          case 'refusal': {
+            // RF-046 requires these durable semantic events to contribute to the
+            // v2 digest. Reconstruct the record without re-executing the refused
+            // computation or remediation side effect. Legacy digest verification
+            // preserves the historical behavior until RF-047 finishes the full
+            // event-by-event replay contract.
+            if (usesSemanticDigestV2) {
+              const { eventId: _eventId, sessionId: _sessionId, ...replayEvent } = event;
+              atlas.evidenceLedger.appendEvent(replayEvent, manifest.sessionId);
+            }
             eventsMatched += 1;
             break;
+          }
           default: discrepancies.push(`Unsupported or unrecognized event kind at #${i}: '${(event as { kind: string }).kind}'`);
         }
       } else {
@@ -437,10 +445,31 @@ export class InvestigationReplayRunner {
     }
 
     const finalOutputHash = atlas.datasetSpace?.fingerprint ?? atlas.datasetFingerprint ?? '';
-    const investigationDigest = await atlas.aggregate.computeDigest(
-      replayKernelVersion ?? 'unknown',
-      isLegacyV1Identity ? { legacyImmutableDatasetSeedHash: true } : {},
-    );
+    let investigationDigest: string;
+    if (usesSemanticDigestV2) {
+      const context = manifest.researchContext
+        ? {
+            studyId: manifest.researchContext.studyId ?? undefined,
+            researchQuestion: manifest.researchContext.researchQuestion ?? undefined,
+            hypothesis: manifest.researchContext.hypothesis ?? undefined,
+            variablesOfInterest: manifest.researchContext.variablesOfInterest ?? undefined,
+            currentTask: manifest.researchContext.currentTask ?? undefined,
+            observerMode: manifest.researchContext.observerMode ?? undefined,
+          }
+        : undefined;
+      investigationDigest = await atlas.aggregate.computeDigest(manifest.kernelVersion || 'unknown', {
+        nilOutcomes: nilOutcomes?.outcomes ?? [],
+        researchContext: context,
+      });
+    } else {
+      investigationDigest = await atlas.aggregate.computeDigest(
+        replayKernelVersion ?? manifest.kernelVersion ?? 'unknown',
+        {
+          legacyDigestSchemaV1: true,
+          legacyImmutableDatasetSeedHash: isLegacyV1Identity,
+        },
+      );
+    }
     if (manifest.investigationDigest && manifest.investigationDigest !== investigationDigest) {
       discrepancies.push(`Investigation digest mismatch: package manifest has '${manifest.investigationDigest}', replayed digest is '${investigationDigest}'`);
     }
