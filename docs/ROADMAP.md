@@ -162,16 +162,22 @@ Stream C operating principles:
 
 This programme is the executable plan for RF-044 through RF-052. It deliberately reuses existing P1/RF ownership rather than creating a parallel architecture. Each tranche should normally be one focused PR, with the regression that would have caught the defect included in the same PR. A tranche is not complete merely because the immediate line of code is fixed: the production boundary and downstream semantic claim must also be proved.
 
-### AR-1 — graph lineage integrity — RF-044 — **FIRST / BLOCKING**
+### AR-1 — graph lineage integrity — RF-044 — **IMPLEMENTATION LANDED / REVIEW ACTIVE**
 
 **Owning efforts:** P1-A Handle-native boundary, Gate 1 Dataset Evidence, P1-R representation truth.
 
-- [ ] fix `Dataset.clone()` so lossless clones preserve `edges`, edge weights/attributes, row IDs and scientifically relevant dataset metadata; explicitly document which metadata is presentation-only and may be omitted;
-- [ ] audit `Dataset.fromJSON`, `toJSON`, `AnalyticalState.loadDataset`, `advanceDataset`, `setCurrentDataset`, `restore`, async worker registration and kernel-result commit for the same topology-loss class;
-- [ ] ensure operations that intentionally transform/remove topology declare that semantic change rather than inheriting clone behavior accidentally;
-- [ ] verify canonical content identity changes when scientific edge content changes and remains stable under lineage-only row ID hydration;
-- [ ] add a graph fixture with weighted + attributed edges and duplicate-looking rows, then prove `Dataset -> Atlas -> Rust -> profile/topology -> Moneta` preserves edge semantics;
-- [ ] add a regression proving a one-edge acyclic graph remains a graph but is not reported as cyclic.
+- [x] fix `Dataset.clone()` so lossless clones preserve `edges`, edge weights/attributes, row IDs and scientifically relevant dataset metadata; explicitly document which metadata is presentation-only and may be omitted;
+- [x] audit `Dataset.fromJSON`, `toJSON`, `AnalyticalState.loadDataset`, `advanceDataset`, `setCurrentDataset`, `restore`, async worker registration and kernel-result commit for the same topology-loss class;
+- [x] ensure operations that intentionally transform/remove topology declare that semantic change rather than inheriting clone behavior accidentally;
+- [x] verify canonical content identity changes when scientific edge content changes and remains stable under lineage-only row ID hydration;
+- [x] add a graph fixture with weighted + attributed edges and duplicate-looking rows, then prove `Dataset -> Atlas -> Rust -> profile/topology -> Moneta` preserves edge semantics;
+- [x] add a regression proving a one-edge acyclic graph remains a graph but is not reported as cyclic.
+
+**Evidence:**
+- `tests/dataset-graph-lineage.test.ts`: 6 tests covering clone, AnalyticalState transitions, kernel loader handoff, JSON round-trip, streaming replace/append edge remapping
+- `tests/rf048-canonical-dataset-identity.test.ts`: 8 tests including "includes graph topology, edge attributes, and endpoint JSON type in scientific identity" and "excludes durable row lineage metadata from scientific identity"
+- `tests/atlas-graph-lineage-wasm.test.ts`: 2 real-WASM integration tests verifying Rust receives identical edges, `inferTopology='GRAPH'`, `hasCycles=false`, canonical content identity preserved through kernel
+- All tests pass in CI (297 total)
 
 **Exit gate:** every lossless dataset copy/registration path preserves graph topology byte/semantically equivalently; Rust receives the same scientific graph Atlas loaded; the regression traverses the production boundary rather than only calling `Dataset.clone()`.
 
