@@ -218,6 +218,7 @@ export function buildDatasetSignature(
       );
     }
 
+    const hierarchyDepth = mf.topology === 'HIERARCHY' && Number.isFinite(mf.depth) ? mf.depth : 0;
     if (mf.topology === 'HIERARCHY' && Number.isFinite(mf.depth)) {
       markDatasetSignatureFact(epistemic, 'cardinality.depth', 'heuristic', {
         note: 'Legacy hierarchy-depth value; canonical hierarchy evidence is preferred',
@@ -270,7 +271,7 @@ export function buildDatasetSignature(
         rowCount: mf.rowCount,
         columnCount: mf.numericColumns + mf.categoricalColumns + mf.temporalColumns,
         edgeCount: mf.edgeCount,
-        ...(mf.topology === 'HIERARCHY' && Number.isFinite(mf.depth) ? { depth: mf.depth } : {}),
+        depth: hierarchyDepth,
       },
       distribution,
       dependence,
@@ -424,6 +425,7 @@ export function buildDatasetSignature(
       rowCount,
       columnCount: colCount,
       edgeCount: dataset.edges?.length ?? 0,
+      depth: 0,
     },
     distribution,
     dependence,
