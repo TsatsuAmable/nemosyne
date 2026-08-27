@@ -107,6 +107,7 @@ describe('RF-047 clean-room portable replay contract', () => {
       datasetFingerprint: fingerprint,
       oldRequirementsHash: 'requirements:old',
       newRequirementsHash: 'requirements:new',
+      requirementPatch: { hardwareConstraints: { maxElements: 20_000 } },
       resultingDecisionId: 'decision:2',
       timestamp: 1_787_826_400_100,
     });
