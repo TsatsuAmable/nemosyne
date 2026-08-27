@@ -60,7 +60,7 @@ export class PointerEventMachine {
       if (mode) {
         this.downPointer = pointer;
         this.state = mode === 'drag' ? 'drag' : 'down';
-        this.capturedPanel = mode === 'drag' ? panel : null;
+        this.capturedPanel = panel;
         this.capturedMode = mode;
         return true;
       }
