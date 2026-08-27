@@ -35,6 +35,13 @@ export interface DatasetSpaceSources {
    * explicit null also forces that historical mode while reading old snapshots.
    */
   datumIds?: readonly string[] | null;
+  /**
+   * Borrow the caller-owned Dataset instead of cloning its O(N) row snapshot.
+   * This is valid only on a lifecycle-owned live path that also supplies the
+   * complete authoritative fingerprint/range/datum-ID metadata. Direct and
+   * persisted DatasetSpace construction retains detached snapshot semantics.
+   */
+  borrowDataset?: boolean;
 }
 
 /** Canonical SHA-256 over generic JSON-compatible content. */
@@ -87,7 +94,23 @@ export class DatasetSpace {
   readonly embedding = { method: 'none' as const, dimensions: 0 as const, seed: null };
 
   constructor(dataset: Dataset, sources?: DatasetSpaceSources) {
-    this.dataset = dataset.clone();
+    const borrowDataset = sources?.borrowDataset === true;
+    if (
+      borrowDataset &&
+      (
+        !sources?.fingerprint ||
+        sources.ranges == null ||
+        sources.datumIds == null
+      )
+    ) {
+      throw new Error('[DatasetSpace] borrowed live datasets require authoritative fingerprint, ranges, and datum IDs');
+    }
+
+    // RF-051: the live Atlas path already owns a defensive working Dataset.
+    // Borrow that lifecycle-owned instance when all scientific metadata comes
+    // from the authoritative path instead of allocating a second O(N) row copy.
+    // Direct/fromJSON construction deliberately keeps detached snapshot semantics.
+    this.dataset = borrowDataset ? dataset : dataset.clone();
     this.fingerprint = sources?.fingerprint ?? canonicalDatasetIdentityHex(this.dataset.toJSON());
 
     const hasExplicitDatumIds = sources != null && Object.prototype.hasOwnProperty.call(sources, 'datumIds');
@@ -142,6 +165,8 @@ export class DatasetSpace {
       normalization: { ...this.normalization },
       missingness: this.missingness,
       embedding: { ...this.embedding },
+      // Explicit persistence is allowed to materialise the lifecycle-owned live
+      // dataset. RF-051 removes the *resident duplicate*, not intentional export.
       dataset: this.dataset.toJSON(),
     };
   }

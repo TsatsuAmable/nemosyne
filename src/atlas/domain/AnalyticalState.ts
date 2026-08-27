@@ -26,7 +26,7 @@ export class AnalyticalState {
   private _currentHandle = 0;
   private _datasetSpace: DatasetSpace | null = null;
   private _datasetSpaceSource: Dataset | null = null;
-  private _columnarFingerprint: string | null = null;
+  private _authoritativeFingerprint: string | null = null;
 
   get original(): Dataset { return this._original ?? emptyDataset(); }
   get originalNullable(): Dataset | null { return this._original; }
@@ -70,9 +70,13 @@ export class AnalyticalState {
     }
     this._currentHandle = handle;
     this._current = nextDataset;
+    this._authoritativeFingerprint = fingerprint ?? null;
     if (versionBump) this._datasetVersion += 1;
+    // RF-051: a mutation commit already carries its authoritative output
+    // fingerprint. Retain that scalar directly and leave DatasetSpace lazy;
+    // eagerly constructing the space used to trigger another row clone and,
+    // without a range provider, an O(N) JavaScript range scan after mutation.
     this._invalidateDatasetSpace();
-    if (fingerprint) this.getDatasetSpace(() => fingerprint);
   }
 
   advanceDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
@@ -107,32 +111,51 @@ export class AnalyticalState {
   ): DatasetSpace | null {
     if (!this._current) return null;
     if (this._datasetSpace && this._datasetSpaceSource === this._current) return this._datasetSpace;
-    const fingerprint = fingerprintProvider ? fingerprintProvider() : null;
+    const fingerprint = fingerprintProvider
+      ? fingerprintProvider()
+      : this._authoritativeFingerprint;
     // A live authority provider was supplied. If it has no usable range
     // evidence, keep normalization unavailable instead of silently falling
     // back to a JavaScript O(N) scan. Genuine provider failures still propagate.
     // Direct/legacy construction without a provider retains the historical
     // row-scan compatibility behavior.
     const ranges = rangesProvider ? rangesProvider() ?? {} : null;
-    // Calling the live fingerprint provider may allocate the Rust handle and
-    // hydrate first-lineage row IDs onto `_current`. Only treat those IDs as
-    // authoritative DatasetSpace datum IDs when the live authority path was
-    // actually consulted; direct/legacy DatasetSpace construction keeps the
-    // schema-v2 content-occurrence contract.
-    const datumIds = fingerprintProvider && fingerprint ? this._current.rowIds ?? null : null;
-    this._datasetSpace = new DatasetSpace(this._current, { fingerprint, ranges, datumIds });
+    // A live fingerprint provider may allocate the Rust handle and hydrate
+    // first-lineage row IDs. A kernel mutation commit can also retain an
+    // authoritative fingerprint plus row IDs while DatasetSpace stays lazy.
+    // Either authoritative identity source licenses those durable datum IDs;
+    // direct/legacy construction with neither keeps schema-v2 occurrence IDs.
+    const hasAuthoritativeIdentity = Boolean(
+      fingerprint && (fingerprintProvider || this._authoritativeFingerprint)
+    );
+    const datumIds = hasAuthoritativeIdentity ? this._current.rowIds ?? null : null;
+    const borrowDataset = Boolean(
+      fingerprintProvider &&
+      fingerprint &&
+      rangesProvider &&
+      datumIds
+    );
+    this._datasetSpace = new DatasetSpace(this._current, {
+      fingerprint,
+      ranges,
+      datumIds,
+      borrowDataset,
+    });
     this._datasetSpaceSource = this._current;
     return this._datasetSpace;
   }
 
   getFingerprint(kernelFingerprintProvider?: () => string | null): string | null {
+    // Kernel mutation/typed-load outputs already carry an authoritative
+    // fingerprint. Prefer the retained scalar so fingerprint lookup itself does
+    // not allocate/register a fresh handle (notably after async Worker output).
+    if (this._authoritativeFingerprint) return this._authoritativeFingerprint;
     if (kernelFingerprintProvider) {
       try {
         const fp = kernelFingerprintProvider();
         if (fp) return fp;
       } catch { /* fall back to canonical browser identity */ }
     }
-    if (this._columnarFingerprint) return this._columnarFingerprint;
     // Fingerprint lookup must not instantiate DatasetSpace: doing so used to
     // trigger a clone, per-row datum hashing and numeric range scans simply to
     // answer an identity question. The canonical TS/Rust identity projection is
@@ -181,7 +204,7 @@ export class AnalyticalState {
       try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
     }
     this._currentHandle = 0;
-    this._columnarFingerprint = null;
+    this._authoritativeFingerprint = null;
     // Kernel replacement/recovery changes the source of authoritative metadata.
     // Force the next DatasetSpace request to rebind fingerprint/ranges/lineage.
     this._invalidateDatasetSpace();
@@ -206,7 +229,7 @@ export class AnalyticalState {
       try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
     }
     this._currentHandle = handle;
-    this._columnarFingerprint = meta?.fingerprint ?? null;
+    this._authoritativeFingerprint = meta?.fingerprint ?? null;
     this._datasetVersion += 1;
     this._invalidateDatasetSpace();
   }

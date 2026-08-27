@@ -29,6 +29,22 @@ describe('RF-051 DatasetSpace authority and materialisation', () => {
     expect(space!.normalization.value).toEqual({ min: 10, max: 30 });
   });
 
+  it('does not clone the live Atlas working dataset when authoritative space metadata is complete', () => {
+    const atlas = new AtlasCore({ kernel: makeKernelMockBridge() });
+    atlas.loadDataset(makeDataset());
+    const current = atlas.dataset;
+    current.clone = () => {
+      throw new Error('live DatasetSpace must not allocate another row snapshot');
+    };
+
+    const space = atlas.datasetSpace;
+
+    expect(space).not.toBeNull();
+    expect(space!.dataset).toBe(current);
+    expect(space!.datumIds).toEqual(current.rowIds);
+    expect(space!.normalization.value).toEqual({ min: 10, max: 30 });
+  });
+
   it('reuses the live DatasetSpace identities when discovered structures target the loaded source object', () => {
     const kernel: any = makeKernelMockBridge();
     kernel.computeMapperGraph = () => ({
@@ -65,6 +81,40 @@ describe('RF-051 DatasetSpace authority and materialisation', () => {
     expect(state.getFingerprint()).toBe(canonicalDatasetIdentityHex(state.current.toJSON()));
   });
 
+  it('retains authoritative mutation fingerprint and row lineage without eagerly constructing DatasetSpace', () => {
+    const state = new AnalyticalState();
+    state.loadDataset(makeDataset());
+    const output = makeDataset();
+    expect(output.adoptRowIds(['kernel:0', 'kernel:1', 'kernel:2'])).toBe(true);
+    const outputFingerprint = 'c'.repeat(64);
+    const originalRangeOf = Dataset.prototype.rangeOf;
+    Dataset.prototype.rangeOf = () => {
+      throw new Error('mutation commit must not scan JS ranges');
+    };
+
+    try {
+      expect(() => state.commitKernelResult({
+        handle: 7,
+        dataset: output,
+        fingerprint: outputFingerprint,
+      })).not.toThrow();
+    } finally {
+      Dataset.prototype.rangeOf = originalRangeOf;
+    }
+
+    let providerCalls = 0;
+    expect(state.getFingerprint(() => {
+      providerCalls += 1;
+      return 'd'.repeat(64);
+    })).toBe(outputFingerprint);
+    expect(providerCalls).toBe(0);
+
+    const persistedSpace = state.getDatasetSpace();
+    expect(persistedSpace).not.toBeNull();
+    expect(persistedSpace!.fingerprint).toBe(outputFingerprint);
+    expect(persistedSpace!.datumIds).toEqual(state.current.rowIds);
+  });
+
   it('fails closed instead of rescanning JavaScript rows when live range evidence is unavailable', () => {
     const state = new AnalyticalState();
     state.loadDataset(makeDataset());
@@ -81,15 +131,13 @@ describe('RF-051 DatasetSpace authority and materialisation', () => {
     expect(space!.normalization).toEqual({});
   });
 
-  it('accepts explicit authoritative datum IDs without invoking legacy row hashing or redundant serialization', () => {
+  it('accepts explicit authoritative datum IDs without cloning, legacy row hashing, or redundant serialization', () => {
     const source = makeDataset();
-    const originalClone = source.clone.bind(source);
     source.clone = () => {
-      const copy = originalClone();
-      copy.toJSON = () => {
-        throw new Error('redundant DatasetSpace serialization');
-      };
-      return copy;
+      throw new Error('complete authoritative DatasetSpace metadata must not clone rows');
+    };
+    source.toJSON = () => {
+      throw new Error('redundant DatasetSpace serialization');
     };
     const cycle: Record<string, unknown> = {};
     cycle.self = cycle;
@@ -100,8 +148,10 @@ describe('RF-051 DatasetSpace authority and materialisation', () => {
       fingerprint,
       ranges: { value: { min: 10, max: 30 } },
       datumIds: ['rust:0', 'rust:1', 'rust:2'],
+      borrowDataset: true,
     });
 
+    expect(space.dataset).toBe(source);
     expect(space.fingerprint).toBe(fingerprint);
     expect(space.datumIds).toEqual(['rust:0', 'rust:1', 'rust:2']);
     expect(space.normalization.value).toEqual({ min: 10, max: 30 });
