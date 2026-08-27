@@ -130,6 +130,44 @@ describe('RF-046 semantic investigation digest contract', () => {
     );
   });
 
+  it('keeps lineage-only result rowIds out of scientific digest identity', async () => {
+    const first = new InvestigationAggregate({ sessionId: 'rf046-rowids' });
+    const second = new InvestigationAggregate({ sessionId: 'rf046-rowids' });
+    const atlas = makeAtlas('rf046-rowids-atlas');
+    const base = analysisResult(atlas, 'same-output');
+    first.ledger.addResult({
+      ...base,
+      dataset: { ...base.dataset, rowIds: ['lineage-a', 'lineage-b', 'lineage-c'] },
+    });
+    second.ledger.addResult({
+      ...base,
+      dataset: { ...base.dataset, rowIds: ['other-a', 'other-b', 'other-c'] },
+    });
+
+    expect(await second.computeDigest('rf046-kernel-v1')).toBe(
+      await first.computeDigest('rf046-kernel-v1'),
+    );
+  });
+
+  it('changes when result scientific content changes even if the legacy outputHash does not', async () => {
+    const first = new InvestigationAggregate({ sessionId: 'rf046-result-content' });
+    const second = new InvestigationAggregate({ sessionId: 'rf046-result-content' });
+    const atlas = makeAtlas('rf046-result-content-atlas');
+    const base = analysisResult(atlas, 'same-output');
+    first.ledger.addResult(base);
+    second.ledger.addResult({
+      ...base,
+      dataset: {
+        ...base.dataset,
+        rows: [{ x: 1 }, { x: 2 }, { x: 999 }],
+      },
+    });
+
+    expect(await second.computeDigest('rf046-kernel-v1')).not.toBe(
+      await first.computeDigest('rf046-kernel-v1'),
+    );
+  });
+
   it('commits complete observation semantics, not only id and notes', async () => {
     const first = makeAtlas();
     const second = makeAtlas();
