@@ -123,7 +123,7 @@ describe('RF-048 canonical scientific dataset identity', () => {
     const state = atlas.toState();
     const legacyDigest = await atlas.aggregate.computeDigest(
       atlas.kernelVersion() ?? 'unknown',
-      { legacyImmutableDatasetSeedHash: true },
+      { legacyImmutableDatasetSeedHash: true, legacyDigestSchemaV1: true },
     );
     const manifest: NemosynePackageManifest = {
       formatVersion: 1,
@@ -139,6 +139,60 @@ describe('RF-048 canonical scientific dataset identity', () => {
       discoveryCount: 0,
       nilOutcomeCount: 0,
       investigationDigest: legacyDigest,
+      investigationDigestAlgorithm: undefined,
+      researchContext: undefined,
+      representationModel: undefined,
+      evidenceSummary: {
+        observationsCount: 0,
+        findingsCount: 0,
+        annotationsCount: 0,
+      },
+      environment: {
+        userAgent: undefined,
+        platform: undefined,
+        webxrSupported: undefined,
+      },
+    };
+    const archive = NemosynePackageManager.pack({
+      manifest,
+      datasetBytes: strToU8(JSON.stringify(state.originalDataset)),
+      commandLogBytes: strToU8(JSON.stringify(state.eventLedger)),
+    });
+
+    const result = await new InvestigationReplayRunner(
+      makeKernelMockBridge() as never,
+    ).replayArchive(archive);
+
+    expect(result.success).toBe(true);
+    expect(result.discrepancies).toEqual([]);
+  });
+
+  it('still verifies pre-RF046 format-v2 packages whose digest algorithm was unlabeled', async () => {
+    const dataset = makeDataset();
+    const bridge = makeKernelMockBridge() as never;
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(dataset);
+    const state = atlas.toState();
+    const legacyDigest = await atlas.aggregate.computeDigest(
+      atlas.kernelVersion() ?? 'unknown',
+      { legacyDigestSchemaV1: true },
+    );
+    const manifest: NemosynePackageManifest = {
+      formatVersion: 2,
+      sessionId: atlas.sessionId,
+      datasetFingerprint: dataset.fingerprint,
+      datasetIdentityAlgorithm: CANONICAL_DATASET_IDENTITY_ALGORITHM,
+      analyticalDatasetFingerprint: atlas.datasetFingerprint,
+      datasetName: dataset.name,
+      kernelVersion: atlas.kernelVersion() ?? 'unknown',
+      analyticalKernelVersion: undefined,
+      createdAt: 1,
+      commandCount: state.eventLedger.length,
+      discoveryCount: 0,
+      nilOutcomeCount: 0,
+      investigationDigest: legacyDigest,
+      investigationDigestAlgorithm: undefined,
+      researchContext: undefined,
       representationModel: undefined,
       evidenceSummary: {
         observationsCount: 0,

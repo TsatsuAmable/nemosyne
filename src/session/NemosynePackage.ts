@@ -12,6 +12,7 @@
 import * as v from 'valibot';
 import { zipSync, strToU8, strFromU8, Unzip, UnzipInflate, type UnzipFile } from 'fflate';
 import { CANONICAL_DATASET_IDENTITY_ALGORITHM } from '../data/DatasetIdentity.ts';
+import { INVESTIGATION_DIGEST_ALGORITHM } from '../investigation/InvestigationDigest.ts';
 
 export const MAX_ARCHIVE_SIZE = 100 * 1024 * 1024;
 export const MAX_TOTAL_UNCOMPRESSED = 250 * 1024 * 1024;
@@ -22,6 +23,11 @@ export const MAX_ENTRY_COUNT = 1000;
  * Format v2 makes `datasetFingerprint` a canonical SHA-256 scientific dataset
  * identity. Format v1 remains readable for legacy archives whose field contains
  * the historical name/shape seed hash.
+ *
+ * RF-046 deliberately does not bump the container format: early format-v2
+ * packages already exist with the historical digest projection. New packages
+ * therefore carry `investigationDigestAlgorithm`; its absence means the reader
+ * must verify the legacy schema-v1 digest instead of silently reinterpreting it.
  */
 export const NEMOSYNE_PACKAGE_FORMAT_VERSION = 2 as const;
 export const LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION = 1 as const;
@@ -48,6 +54,19 @@ export const NemosyneManifestSchema = v.object({
   discoveryCount: v.nullish(v.number()),
   nilOutcomeCount: v.nullish(v.number()),
   investigationDigest: v.nullish(v.string()),
+  /** RF-046: absent means the historical schema-v1 digest contract. */
+  investigationDigestAlgorithm: v.nullish(v.string()),
+  /** Portable research semantics committed by the RF-046 v2 digest. */
+  researchContext: v.nullish(
+    v.object({
+      studyId: v.nullish(v.string()),
+      researchQuestion: v.nullish(v.string()),
+      hypothesis: v.nullish(v.string()),
+      variablesOfInterest: v.nullish(v.array(v.string())),
+      currentTask: v.nullish(v.string()),
+      observerMode: v.nullish(v.boolean()),
+    })
+  ),
   representationModel: v.nullish(
     v.object({
       fitnessModelVersion: v.string(),
@@ -81,7 +100,12 @@ export interface NemosynePackagePayload {
 }
 
 function assertSupportedManifestIdentityContract(manifest: NemosynePackageManifest): void {
-  if (manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION) return;
+  if (manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION) {
+    if (manifest.investigationDigestAlgorithm) {
+      throw new Error('Format-v1 package cannot declare an RF-046 investigation digest algorithm');
+    }
+    return;
+  }
   if (manifest.formatVersion !== NEMOSYNE_PACKAGE_FORMAT_VERSION) {
     throw new Error(`Unsupported .nemosyne formatVersion ${manifest.formatVersion}`);
   }
@@ -92,6 +116,14 @@ function assertSupportedManifestIdentityContract(manifest: NemosynePackageManife
   }
   if (!/^[0-9a-f]{64}$/.test(manifest.datasetFingerprint)) {
     throw new Error('Format-v2 package datasetFingerprint must be a lowercase SHA-256 hex digest');
+  }
+  if (
+    manifest.investigationDigestAlgorithm != null &&
+    manifest.investigationDigestAlgorithm !== INVESTIGATION_DIGEST_ALGORITHM
+  ) {
+    throw new Error(
+      `Unsupported investigationDigestAlgorithm '${manifest.investigationDigestAlgorithm}'`,
+    );
   }
 }
 
