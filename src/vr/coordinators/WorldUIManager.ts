@@ -84,10 +84,12 @@ export interface WorldUIManagerCallbacks {
   onFlushLoadTest?: () => void;
   onStartQuestBoundary?: () => void;
   getRecommendation?: () => import('../../atlas/types.ts').AtlasRecommendation | null;
+  getOutcome?: () => import('../../moneta/representation/ActionableNil.ts').InvestigatorActionableOutcome | null;
   onAcceptRecommendation?: () => void;
   onRejectRecommendation?: () => void;
   onOverrideRecommendation?: () => void;
   onGenerateRecommendation?: () => void;
+  onApplyRemediation?: (action: import('../../moneta/representation/ActionableNil.ts').RemedialAction) => void;
   onExitVR?: () => void;
   uiMode?: UIMode;
   onStatusUpdate?: (statusText: string) => void;
@@ -381,10 +383,12 @@ export class WorldUIManager {
 
     this.recommendationPanel = new RecommendationPanel(this.analystAnchor, {
       getRecommendation: () => callbacks.getRecommendation?.() ?? null,
+      getOutcome: () => callbacks.getOutcome?.() ?? null,
       onAccept: callbacks.onAcceptRecommendation,
       onReject: callbacks.onRejectRecommendation,
       onOverride: callbacks.onOverrideRecommendation,
       onGenerate: callbacks.onGenerateRecommendation,
+      onApplyRemediation: callbacks.onApplyRemediation,
     });
     this.panelManager.register(this.recommendationPanel);
     this.engine.input.addPanel(this.recommendationPanel);

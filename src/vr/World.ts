@@ -101,6 +101,12 @@ import type {
 } from './coordinators/types.ts';
 import type { InteractionMode, FocusState } from './input/InteractionModeController.ts';
 import { KernelLayoutUnavailableError } from '../moneta/layouts/LayoutBase.ts';
+import type { RepresentationRequirements } from '../moneta/representation/RepresentationRequirements.ts';
+import type { RepresentationDecision } from '../moneta/representation/RepresentationDecision.ts';
+import { createDefaultRequirements } from '../moneta/representation/RepresentationRequirements.ts';
+import type { InvestigatorActionableOutcome } from '../moneta/representation/ActionableNil.ts';
+import { diagnoseInvestigatorOutcome, buildRemediationProvenance } from '../moneta/representation/ActionableNil.ts';
+import { NoFeasibleRepresentationError } from '../moneta/representation/NoFeasibleRepresentationError.ts';
 
 type WorldRuntimeBridge = typeof import('../wasm/RuntimeBridge.ts');
 
@@ -166,6 +172,9 @@ export class World {
   _wasmRuntime: WorldRuntimeBridge | null;
   _wasmUnavailable: boolean;
   _lastSelectedMesh: THREE.Mesh | null = null;
+  _activeRequirements: RepresentationRequirements = createDefaultRequirements('individual-inspection');
+  _activeOutcome: InvestigatorActionableOutcome | null = null;
+  _lastLoadedEntry: DatasetLoadEntry | null = null;
   liveStreamCoordinator: LiveStreamCoordinator;
   collaborationCoordinator: CollaborationCoordinator;
   landmarkController!: WorldLandmarkController;
@@ -331,10 +340,12 @@ export class World {
       onStopLoadTest: () => this.stopLoadTest(),
       onFlushLoadTest: () => this.flushLastLoadTestSummary(),
       getRecommendation: () => this.atlas.activeRecommendation ?? null,
+      getOutcome: () => this._activeOutcome,
       onAcceptRecommendation: () => this._acceptRecommendation(),
       onRejectRecommendation: () => this._rejectRecommendation(),
       onOverrideRecommendation: () => this._overrideRecommendation(),
       onGenerateRecommendation: () => this._generateRecommendation(),
+      onApplyRemediation: (action) => this._applyRemediation(action),
       onExitVR: () => this.exitVR(),
       frustrationAnalyzer: this.telemetryCollector.frustrationAnalyzer,
       getDataset: () => this.atlas.dataset,
@@ -910,6 +921,7 @@ export class World {
       preserveAuxiliaryPresentation?: boolean;
     } = {}
   ): void {
+    this._lastLoadedEntry = entry;
     const presetName = entry.key && DATASET_THEME_MAP[entry.key];
     const preset = presetName ? WorldTheme.PRESETS[presetName] : null;
     const activity = entry.topology === 'TIME_SERIES' || entry.topology === 'ANOMALY' ? 0.75 : 0.35;
@@ -924,6 +936,7 @@ export class World {
     if (!preserveAnalyticalState) {
       this._originalDataset = entry.dataset?.clone?.() ?? null;
       this._transformedDataset = this._originalDataset?.clone?.() ?? null;
+      this._activeRequirements = createDefaultRequirements('individual-inspection');
     }
 
     const embodiedDataset = preserveAnalyticalState
@@ -945,9 +958,26 @@ export class World {
         getDefaultEncodings({ dataset: embodiedDataset, topology }),
     };
 
-    const representationDecision = this.atlas.isReady()
-      ? this.atlas.arbitrateRepresentation(undefined, dataInput)
-      : null;
+    let representationDecision: RepresentationDecision | null = null;
+    let outcome: InvestigatorActionableOutcome | null = null;
+    if (this.atlas.isReady()) {
+      try {
+        representationDecision = this.atlas.arbitrateRepresentation(this._activeRequirements, dataInput);
+        const signature = this.atlas.computeDatasetSignature(dataInput);
+        outcome = diagnoseInvestigatorOutcome(signature, this._activeRequirements, representationDecision);
+      } catch (error) {
+        if (error instanceof NoFeasibleRepresentationError) {
+          const signature = this.atlas.computeDatasetSignature(dataInput);
+          outcome = diagnoseInvestigatorOutcome(signature, this._activeRequirements, error);
+        } else {
+          throw error;
+        }
+      }
+    }
+    this._activeOutcome = outcome;
+    if (this.uiManager?.recommendationPanel) {
+      this.uiManager.recommendationPanel.markDirty();
+    }
 
     const nextDracoNode = new DracoTopologyNode(
       this.engine.scene,
@@ -1297,6 +1327,56 @@ export class World {
 
   _toggleRecommendationPanel(): void {
     this.uiManager?.panelManager?.togglePanel?.(this.uiManager.recommendationPanel);
+  }
+
+  _applyRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): void {
+    const oldRequirements = this._activeRequirements;
+    const newReq = { ...this._activeRequirements, ...action.suggestedRequirementPatch };
+
+    const provenance = buildRemediationProvenance(
+      action,
+      oldRequirements,
+      newReq,
+      this.atlas.datasetFingerprint ?? '',
+      Date.now()
+    );
+
+    // Record the remediation event in the ledger.
+    this.atlas.recordRemediation(provenance);
+
+    // Apply the patch.
+    this._activeRequirements = newReq;
+
+    // Re-arbitrate representation layout.
+    if (this._lastLoadedEntry) {
+      const savedSelectionName = this._lastSelectedMesh?.name ?? null;
+
+      // Reload dataset preserving analytical state so the ledger is not cleared.
+      this._doLoadDataset(this._lastLoadedEntry, { preserveAnalyticalState: true });
+
+      // Restore selected mesh if possible.
+      if (savedSelectionName && this.dracoNode?.artifact?.nodeMeshes) {
+        const matchingMesh = this.dracoNode.artifact.nodeMeshes.find((m) => m.name === savedSelectionName);
+        if (matchingMesh) {
+          this._lastSelectedMesh = matchingMesh as THREE.Mesh;
+        }
+      }
+    }
+  }
+
+  reconstructRequirementsAndReArbitrate(): void {
+    if (!this.atlas.isReady() || !this._lastLoadedEntry) return;
+
+    let req = createDefaultRequirements('individual-inspection');
+    const events = this.atlas.remediationEvents();
+    for (const ev of events) {
+      if (ev.requirementPatch) {
+        req = { ...req, ...ev.requirementPatch };
+      }
+    }
+    this._activeRequirements = req;
+
+    this._doLoadDataset(this._lastLoadedEntry, { preserveAnalyticalState: true });
   }
 
   _generateRecommendation(): void {
