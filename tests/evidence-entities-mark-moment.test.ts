@@ -81,7 +81,7 @@ describe('Gate 4 Evidence Entities & Ledger', () => {
     );
 
     expect(obs.id).toBe('obs:session-abc:1');
-    expect(obs.notes).toBe('Outlier cluster isolated in revenue column' === obs.notes ? 'Outlier cluster isolated in revenue column' : 'Outlier cluster isolated in quadrant 3');
+    expect(obs.notes).toBe('Outlier cluster isolated in quadrant 3');
     expect(obs.spatialContext?.position).toEqual([1.2, 1.6, -2.4]);
     expect(ledger.observations.length).toBe(1);
     expect(ledger.observations[0]).toEqual(obs);
