@@ -92,15 +92,17 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
     expect(sig.distribution.meanEntropy).toBe(1.5);
     expect(sig.dependence.maxCorrelation).toBe(0.75);
     expect(sig.dependence.significantPairsCount).toBe(1);
-    expect(sig.clusterStructure.estimatedCount).toBe(3);
-    expect(sig.clusterStructure.hasClusters).toBe(true);
+    // RF-045: cluster fields require authoritative Rust DatasetEvidence, not legacy envelope
+    expect(sig.clusterStructure.estimatedCount).toBeUndefined();
+    expect(sig.clusterStructure.hasClusters).toBeUndefined();
     expect(sig.temporalStructure.isTimeSeries).toBe(true);
     expect(sig.temporalStructure.trendDirection).toBe('up');
     expect(sig.temporalStructure.hasSeasonality).toBe(true);
     expect(sig.provenance.datasetFingerprint).toBe('fp-tabular');
     expect(sig.epistemic?.facts['distribution.meanEntropy'].source).toBe('measured');
     expect(sig.epistemic?.facts['distribution.highVariance'].source).toBe('unknown');
-    expect(sig.epistemic?.facts['clusterStructure.hasClusters'].source).toBe('heuristic');
+    // cluster fields absent kernel evidence are unknown
+    expect(sig.epistemic?.facts['clusterStructure.hasClusters'].source).toBe('unknown');
   });
 
   it('does not infer cycles from graph topology or edge presence', () => {
@@ -206,6 +208,7 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
     expect(sig).toBeDefined();
     expect(sig.cardinality.rowCount).toBe(5);
     expect(sig.provenance.datasetFingerprint).toBe(profile.provenance.datasetFingerprint);
+    // RF-045: cluster evidence from Rust structure-profile is heuristic (bounded profile)
     expect(sig.epistemic?.facts['clusterStructure.hasClusters'].source).toBe('heuristic');
     expect(atlas.activeDatasetSignature).toBe(sig);
   });

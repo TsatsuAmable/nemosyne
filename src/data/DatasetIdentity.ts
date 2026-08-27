@@ -1,5 +1,5 @@
 import type { DatasetJSON } from './types.ts';
-import { canonicalSha256Hex } from '../security/CryptoHash.ts';
+import { canonicalSha256Hex, canonicalSha256HexStreaming, canonicalJsonStringify } from '../security/CryptoHash.ts';
 
 /**
  * Stable name for the scientific dataset identity contract shared with Rust.
@@ -9,6 +9,9 @@ import { canonicalSha256Hex } from '../security/CryptoHash.ts';
  * identity evolution to a container format revision.
  */
 export const CANONICAL_DATASET_IDENTITY_ALGORITHM = 'sha256-canonical-dataset-v1' as const;
+
+/** Threshold for using streaming hash to avoid memory pressure on large datasets. */
+const STREAMING_HASH_THRESHOLD = 50000;
 
 export interface CanonicalDatasetIdentityInput {
   columns: DatasetJSON['columns'];
@@ -60,4 +63,50 @@ export function canonicalDatasetIdentityInput(
 /** SHA-256 scientific identity compatible with Rust `dataset_fingerprint`. */
 export function canonicalDatasetIdentityHex(dataset: DatasetJSON): string {
   return canonicalSha256Hex(canonicalDatasetIdentityInput(dataset));
+}
+
+/** Async version that uses streaming hash for large datasets. */
+export async function canonicalDatasetIdentityHexAsync(dataset: DatasetJSON): Promise<string> {
+  const input = canonicalDatasetIdentityInput(dataset);
+  
+  if (input.rows.length < STREAMING_HASH_THRESHOLD) {
+    return canonicalSha256Hex(input);
+  }
+
+  const { columns, edges, name, rows } = input;
+  const declaredNames = columns.map((c) => c.name);
+  const rowCount = rows.length;
+  const chunkSize = 10000;
+
+  return canonicalSha256HexStreaming(
+    (writer) => {
+      // Write prefix: {"name":"...","columns":[...],"edges":[...],"rows":[
+      writer.write(`{"name":${JSON.stringify(name)},"columns":[`);
+      writer.write(columns.map((c) => JSON.stringify(c)).join(','));
+      writer.write(`]`);
+      if (edges && edges.length > 0) {
+        writer.write(`,"edges":[`);
+        writer.write(edges.map((e) => JSON.stringify(e)).join(','));
+        writer.write(`]`);
+      }
+      writer.write(`,"rows":[`);
+    },
+    async (writer, start, end) => {
+      for (let i = start; i < end; i++) {
+        const row = rows[i];
+        const projected: Record<string, unknown> = {};
+        for (const name of declaredNames) {
+          const value = row?.[name];
+          projected[name] = value === undefined ? null : value;
+        }
+        if (i > start) writer.write(',');
+        writer.write(canonicalJsonStringify(projected));
+      }
+    },
+    (writer) => {
+      writer.write(']}');
+    },
+    rowCount,
+    chunkSize
+  );
 }

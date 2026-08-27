@@ -181,60 +181,43 @@ export function buildDatasetSignature(
       }
     } else {
       // MonetaFacts is a compatibility envelope containing several historical
-      // heuristics. Preserve only values explicitly present there and label
-      // them as heuristics rather than pretending they were kernel measurements.
+      // heuristics. Per RF-045, we MUST NOT fabricate analytical evidence.
+      // Only structural/cardinality facts directly observable from the envelope
+      // are preserved as 'derived'; all analytical facts remain absent/unknown.
       if (typeof mf.hasOutliers === 'boolean' || Number.isFinite(mf.outlierCount)) {
         const count = Number.isFinite(mf.outlierCount) ? mf.outlierCount : 0;
+        // These are structural observations about the envelope itself, not kernel measurements
         distribution.hasOutliers = mf.hasOutliers === true || count > 0;
         distribution.anomalyCount = count;
         distribution.outlierFraction = count / Math.max(1, mf.rowCount);
         mark(
           epistemic,
           ['distribution.hasOutliers', 'distribution.anomalyCount', 'distribution.outlierFraction'],
-          'heuristic',
-          'Legacy MonetaFacts compatibility value; not canonical DatasetEvidence',
+          'derived',
+          'Direct observation of the legacy MonetaFacts envelope content',
         );
       }
-      if (typeof mf.hasHighVariance === 'boolean') {
-        distribution.highVariance = mf.hasHighVariance;
-        markDatasetSignatureFact(epistemic, 'distribution.highVariance', 'heuristic', {
-          note: 'Legacy MonetaFacts compatibility flag; threshold provenance is unavailable here',
-        });
-      }
-      if (Number.isFinite(mf.numericSkew)) {
-        distribution.maxSkewness = Math.abs(mf.numericSkew);
-        markDatasetSignatureFact(epistemic, 'distribution.maxSkewness', 'heuristic');
-      }
+      // Do NOT populate: highVariance, maxSkewness, clusterCount, hasCycles, etc.
+      // These are analytical facts requiring kernel evidence. Absent kernel Facts,
+      // they remain structurally absent (undefined) with epistemic source 'unknown'.
+      // The createUnknownDatasetSignatureEpistemic() already initializes all facts to 'unknown'.
     }
 
-    if (Number.isFinite(mf.clusterCount)) {
-      clusterStructure.estimatedCount = mf.clusterCount;
-      clusterStructure.hasClusters = mf.clusterCount > 1;
-      mark(
-        epistemic,
-        ['clusterStructure.estimatedCount', 'clusterStructure.hasClusters'],
-        'heuristic',
-        'Legacy cluster-count heuristic; no separation or density evidence is implied',
-      );
-    }
+    // hierarchyDepth: compatibility sentinel (0 = no established hierarchy).
+    // Marked as 'unknown' in epistemic since it is not analytical evidence.
+    const hierarchyDepth = 0;
+    markDatasetSignatureFact(epistemic, 'cardinality.depth', 'unknown', {
+      note: 'Compatibility sentinel; not analytical hierarchy evidence',
+    });
 
-    const hierarchyDepth = mf.topology === 'HIERARCHY' && Number.isFinite(mf.depth) ? mf.depth : 0;
-    if (mf.topology === 'HIERARCHY' && Number.isFinite(mf.depth)) {
-      markDatasetSignatureFact(epistemic, 'cardinality.depth', 'heuristic', {
-        note: 'Legacy hierarchy-depth value; canonical hierarchy evidence is preferred',
-      });
-    }
-
-    const explicitHasCycles = (mf as Record<string, unknown>).hasCycles;
+    // topologicalStructure: only the explicit topology from the envelope.
+    // hasCycles is NOT inferred from edge presence; requires authoritative Rust cycle result.
     const topologicalStructure: DatasetSignature['topologicalStructure'] = {
       topology: mf.topology as TopologyType,
-      ...(typeof explicitHasCycles === 'boolean' ? { hasCycles: explicitHasCycles } : {}),
     };
-    if (typeof explicitHasCycles === 'boolean') {
-      markDatasetSignatureFact(epistemic, 'topologicalStructure.hasCycles', 'heuristic', {
-        note: 'Explicit legacy compatibility fact; edge presence alone is never cycle evidence',
-      });
-    }
+    markDatasetSignatureFact(epistemic, 'topologicalStructure.topology', 'derived', {
+      note: 'Explicit topology from legacy MonetaFacts envelope',
+    });
 
     if (mf.topology === 'TIME_SERIES') {
       temporalStructure.isTimeSeries = true;

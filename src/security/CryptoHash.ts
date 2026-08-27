@@ -45,6 +45,62 @@ export function canonicalSha256Hex(value: unknown): string {
 }
 
 /**
+ * Streaming canonical SHA-256 for large dataset fingerprints.
+ * Computes the canonical SHA-256 by writing the canonical JSON to a stream
+ * and hashing the complete stream without materializing the full string.
+ * Produces the EXACT same hash as canonicalSha256Hex.
+ */
+export async function canonicalSha256HexStreaming(
+  writePrefix: (writer: { write(chunk: string): void; end(): void }) => void,
+  writeRows: (writer: { write(chunk: string): void; end(): void }, startIndex: number, endIndex: number) => Promise<void>,
+  writeSuffix: (writer: { write(chunk: string): void; end(): void }) => void,
+  rowCount: number,
+  chunkSize = 10000
+): Promise<string> {
+  if (typeof crypto === 'undefined' || !crypto.subtle || !crypto.subtle.digest) {
+    throw new Error('Web Crypto API not available for streaming hash');
+  }
+
+  const encoder = new TextEncoder();
+  const chunks: Uint8Array[] = [];
+  let totalLength = 0;
+
+  const writable = {
+    write(chunk: string) {
+      const bytes = encoder.encode(chunk);
+      chunks.push(bytes);
+      totalLength += bytes.length;
+    },
+    end() {}
+  };
+
+  // Write prefix
+  writePrefix(writable);
+
+  // Write rows in chunks
+  for (let start = 0; start < rowCount; start += chunkSize) {
+    const end = Math.min(start + chunkSize, rowCount);
+    await writeRows(writable, start, end);
+  }
+
+  // Write suffix
+  writeSuffix(writable);
+
+  // Concatenate all chunks and hash
+  const combined = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  const hashBuffer = await crypto.subtle.digest('SHA-256', combined);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
  * Deterministic pseudo-random unit value derived from SHA-256.
  * Uses 48 digest bits so conversion remains exact in IEEE-754 Number.
  */

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ColumnType, Dataset } from '../src/data/Dataset.ts';
+import { AtlasCore } from '../src/atlas/AtlasCore.ts';
+import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
 const LARGE_N = 200_000;
 
@@ -69,5 +71,90 @@ describe('RF-051 Dataset large-N guards', () => {
       { value: 1 },
       { value: 2 },
     ]);
+  });
+});
+
+describe('RF-051 AtlasCore large dataset typed payload', () => {
+  it('uses typed column payload for large datasets in worker registration', () => {
+    const atlas = new AtlasCore({ kernel: makeKernelMockBridge() });
+    const dataset = new Dataset(
+      'large-typed',
+      [{ name: 'value', type: ColumnType.NUMERIC }],
+      numericRows(60000), // Over LARGE_DATASET_ROW_THRESHOLD (50000)
+    );
+    
+    atlas.loadDataset(dataset);
+    
+    // Access private method via type assertion for testing
+    const payload = (atlas as any)._workerDatasetPayload;
+    expect(payload).not.toBeNull();
+    expect(payload?.type).toBe('typed');
+    expect(payload?.data).toBeInstanceOf(ArrayBuffer);
+    expect(payload?.name).toBe('large-typed');
+  });
+
+  it('uses JSON payload for small datasets', () => {
+    const atlas = new AtlasCore({ kernel: makeKernelMockBridge() });
+    const dataset = new Dataset(
+      'small-json',
+      [{ name: 'value', type: ColumnType.NUMERIC }],
+      [{ value: 1 }, { value: 2 }],
+    );
+    
+    atlas.loadDataset(dataset);
+    
+    const payload = (atlas as any)._workerDatasetPayload;
+    expect(payload).not.toBeNull();
+    expect(payload?.type).toBe('json');
+    expect(payload?.data).toBeDefined();
+    expect(payload?.name).toBe('small-json');
+  });
+
+  it('builds typed payload with correct column data', () => {
+    const dataset = new Dataset(
+      'typed-test',
+      [
+        { name: 'a', type: 'NUMERIC' },
+        { name: 'b', type: 'NUMERIC' },
+        { name: 'c', type: 'CATEGORICAL' },
+      ],
+      [
+        { a: 1, b: 10, c: 'x' },
+        { a: 2, b: 20, c: 'y' },
+        { a: 3, b: 30, c: 'z' },
+      ],
+    );
+    
+    const atlas = new AtlasCore({ kernel: makeKernelMockBridge() });
+    // Manually trigger typed payload for testing (bypass threshold)
+    const payload = (atlas as any)._buildTypedPayloadFromDataset(dataset);
+    
+    expect(payload.type).toBe('typed');
+    expect(payload.data).toBeInstanceOf(ArrayBuffer);
+    
+    // Verify we can parse the buffer back
+    const view = new DataView(payload.data);
+    const decoder = new TextDecoder();
+    
+    let offset = 0;
+    const colCount = view.getUint32(offset, true); offset += 4;
+    expect(colCount).toBe(2); // Only numeric columns 'a' and 'b'
+    
+    for (let i = 0; i < colCount; i++) {
+      const nameLen = view.getUint32(offset, true); offset += 4;
+      const name = decoder.decode(new Uint8Array(payload.data, offset, nameLen)); offset += nameLen;
+      expect(['a', 'b']).toContain(name);
+      const arrLen = view.getUint32(offset, true); offset += 4;
+      expect(arrLen).toBe(3);
+      // Align offset to 8 bytes for Float64Array
+      offset = (offset + 7) & ~7;
+      const arr = new Float64Array(payload.data, offset, arrLen);
+      offset += arr.byteLength;
+      if (name === 'a') {
+        expect(Array.from(arr)).toEqual([1, 2, 3]);
+      } else if (name === 'b') {
+        expect(Array.from(arr)).toEqual([10, 20, 30]);
+      }
+    }
   });
 });

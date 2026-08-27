@@ -227,8 +227,21 @@ export class BootstrapFitnessModel {
     family: RepresentationFamily
   ): number {
     const top = signature.topologicalStructure.topology;
+    const epistemic = signature.epistemic;
+    const hasAuthoritativeClusterEvidence =
+      epistemic?.facts['clusterStructure.hasClusters']?.source === 'measured' ||
+      epistemic?.facts['clusterStructure.hasClusters']?.source === 'derived';
+    const hasAuthoritativeHighVariance =
+      epistemic?.facts['distribution.highVariance']?.source === 'measured' ||
+      epistemic?.facts['distribution.highVariance']?.source === 'derived';
+    const hasAuthoritativeHierarchyDepth =
+      epistemic?.facts['cardinality.depth']?.source === 'measured' ||
+      epistemic?.facts['cardinality.depth']?.source === 'derived';
+
     const knownHierarchyDepth =
-      typeof signature.cardinality.depth === 'number' && signature.cardinality.depth > 1;
+      hasAuthoritativeHierarchyDepth &&
+      typeof signature.cardinality.depth === 'number' &&
+      signature.cardinality.depth > 1;
     let score = 0.4;
 
     if (family === 'GRAPH' && (top === 'GRAPH' || signature.cardinality.edgeCount > 0)) score = 1;
@@ -236,10 +249,10 @@ export class BootstrapFitnessModel {
     else if (family === 'TEMPORAL' && (top === 'TIME_SERIES' || signature.temporalStructure.isTimeSeries === true)) score = 1;
     else if (family === 'FREQUENCY' && signature.spectralStructure?.hasPeriodicity === true) score = 1;
     else if (family === 'FIELD' && (top === 'VECTOR_FIELD' || top === 'GEO')) score = 1;
-    else if (family === 'CLUSTER' && signature.clusterStructure.hasClusters === true) score = 0.95;
+    else if (family === 'CLUSTER' && hasAuthoritativeClusterEvidence && signature.clusterStructure.hasClusters === true) score = 0.95;
     else if (
       family === 'DISTRIBUTION' &&
-      (signature.distribution.hasOutliers === true || signature.distribution.highVariance === true)
+      (signature.distribution.hasOutliers === true || hasAuthoritativeHighVariance && signature.distribution.highVariance === true)
     ) score = 0.9;
 
     const requiredCoverage = requirements.requiredStructures.length === 0

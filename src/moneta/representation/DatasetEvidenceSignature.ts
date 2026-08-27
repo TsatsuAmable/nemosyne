@@ -297,13 +297,21 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
   const edgeCount = graph ? finiteNumber(graph.edgeCount, 'graph.edgeCount') : 0;
   if (graphItem) {
     markFromEvidence(epistemic, 'cardinality.edgeCount', 'derived', graphItem);
-    markFromEvidence(
-      epistemic,
-      'topologicalStructure.hasCycles',
-      'derived',
-      graphItem,
-      'Exact directed-cycle result from Rust graph analysis',
-    );
+    // Only set hasCycles when Rust graph analysis explicitly provides it.
+    // Do not infer cycles from edge presence or topology type.
+    if (graph && typeof graph.hasCycles === 'boolean') {
+      markFromEvidence(
+        epistemic,
+        'topologicalStructure.hasCycles',
+        'derived',
+        graphItem,
+        'Exact directed-cycle result from Rust graph analysis',
+      );
+    } else {
+      markDatasetSignatureFact(epistemic, 'topologicalStructure.hasCycles', 'unknown', {
+        note: 'Rust graph profile did not include cycle analysis',
+      });
+    }
   } else {
     markDatasetSignatureFact(epistemic, 'cardinality.edgeCount', 'derived', {
       method: 'structure-profile/graph-absence',
@@ -462,7 +470,9 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
     },
     topologicalStructure: {
       topology,
-      ...(graph ? { hasCycles: booleanValue(graph.hasCycles, 'graph.hasCycles') } : {}),
+      ...(graph && typeof graph.hasCycles === 'boolean'
+        ? { hasCycles: booleanValue(graph.hasCycles, 'graph.hasCycles') }
+        : {}),
     },
     temporalStructure,
     spatialStructure,
