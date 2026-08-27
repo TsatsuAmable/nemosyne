@@ -26,7 +26,7 @@ export class AnalyticalState {
   private _currentHandle = 0;
   private _datasetSpace: DatasetSpace | null = null;
   private _datasetSpaceSource: Dataset | null = null;
-  private _columnarFingerprint: string | null = null;
+  private _authoritativeFingerprint: string | null = null;
 
   get original(): Dataset { return this._original ?? emptyDataset(); }
   get originalNullable(): Dataset | null { return this._original; }
@@ -70,9 +70,13 @@ export class AnalyticalState {
     }
     this._currentHandle = handle;
     this._current = nextDataset;
+    this._authoritativeFingerprint = fingerprint ?? null;
     if (versionBump) this._datasetVersion += 1;
+    // RF-051: a mutation commit already carries its authoritative output
+    // fingerprint. Retain that scalar directly and leave DatasetSpace lazy;
+    // eagerly constructing the space used to trigger another row clone and,
+    // without a range provider, an O(N) JavaScript range scan after mutation.
     this._invalidateDatasetSpace();
-    if (fingerprint) this.getDatasetSpace(() => fingerprint);
   }
 
   advanceDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
@@ -107,7 +111,9 @@ export class AnalyticalState {
   ): DatasetSpace | null {
     if (!this._current) return null;
     if (this._datasetSpace && this._datasetSpaceSource === this._current) return this._datasetSpace;
-    const fingerprint = fingerprintProvider ? fingerprintProvider() : null;
+    const fingerprint = fingerprintProvider
+      ? fingerprintProvider()
+      : this._authoritativeFingerprint;
     // A live authority provider was supplied. If it has no usable range
     // evidence, keep normalization unavailable instead of silently falling
     // back to a JavaScript O(N) scan. Genuine provider failures still propagate.
@@ -120,7 +126,18 @@ export class AnalyticalState {
     // actually consulted; direct/legacy DatasetSpace construction keeps the
     // schema-v2 content-occurrence contract.
     const datumIds = fingerprintProvider && fingerprint ? this._current.rowIds ?? null : null;
-    this._datasetSpace = new DatasetSpace(this._current, { fingerprint, ranges, datumIds });
+    const borrowDataset = Boolean(
+      fingerprintProvider &&
+      fingerprint &&
+      rangesProvider &&
+      datumIds
+    );
+    this._datasetSpace = new DatasetSpace(this._current, {
+      fingerprint,
+      ranges,
+      datumIds,
+      borrowDataset,
+    });
     this._datasetSpaceSource = this._current;
     return this._datasetSpace;
   }
@@ -130,9 +147,9 @@ export class AnalyticalState {
       try {
         const fp = kernelFingerprintProvider();
         if (fp) return fp;
-      } catch { /* fall back to canonical browser identity */ }
+      } catch { /* fall back to retained/canonical browser identity */ }
     }
-    if (this._columnarFingerprint) return this._columnarFingerprint;
+    if (this._authoritativeFingerprint) return this._authoritativeFingerprint;
     // Fingerprint lookup must not instantiate DatasetSpace: doing so used to
     // trigger a clone, per-row datum hashing and numeric range scans simply to
     // answer an identity question. The canonical TS/Rust identity projection is
@@ -181,7 +198,7 @@ export class AnalyticalState {
       try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
     }
     this._currentHandle = 0;
-    this._columnarFingerprint = null;
+    this._authoritativeFingerprint = null;
     // Kernel replacement/recovery changes the source of authoritative metadata.
     // Force the next DatasetSpace request to rebind fingerprint/ranges/lineage.
     this._invalidateDatasetSpace();
@@ -206,7 +223,7 @@ export class AnalyticalState {
       try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
     }
     this._currentHandle = handle;
-    this._columnarFingerprint = meta?.fingerprint ?? null;
+    this._authoritativeFingerprint = meta?.fingerprint ?? null;
     this._datasetVersion += 1;
     this._invalidateDatasetSpace();
   }
