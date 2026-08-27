@@ -231,9 +231,7 @@ export class Dataset {
   }
 
   cardinalityOf(name: string): number {
-    const values = new Set<unknown>();
-    for (const row of this.rows) values.add(row[name]);
-    return values.size;
+    return new Set(this.getColumnValues(name)).size;
   }
 
   /**
