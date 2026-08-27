@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { PointerLike, PanelLike } from '../../coordinators/types.ts';
 
-export type TouchPhase = 'FAR' | 'PROXIMITY' | 'CONTACT' | 'PRESS';
+export type TouchPhase = 'FAR' | 'NEAR_HOVER' | 'CONTACT' | 'PRESS' | 'COMMIT' | 'RELEASE' | 'RECOVER';
 
 export interface PointerTouchState {
   pointer: PointerLike;
@@ -48,7 +48,7 @@ export class NearFieldInteractor {
       const isHand = pointer.jointsValid;
       const tipOffset = isHand ? 0 : this.CONTROLLER_TIP_OFFSET;
 
-      // 2. Perform intersection against visible panels
+      // 2. Perform intersection against panels (using capture if in PRESS phase)
       pointer.getRay(ray);
       this._raycaster.ray.copy(ray);
 
@@ -56,17 +56,26 @@ export class NearFieldInteractor {
       let closestDistance = Infinity;
       let closestHit: THREE.Intersection | null = null;
 
-      for (const panel of panels) {
-        if (!panel.mesh || !panel.mesh.visible) continue;
-        const hits = this._raycaster.intersectObject(panel.mesh, true);
+      if (state.targetPanel && state.targetPanel.mesh && state.targetPanel.mesh.visible && state.phase === 'PRESS') {
+        const hits = this._raycaster.intersectObject(state.targetPanel.mesh, true);
         if (hits.length > 0) {
           const hit = hits[0];
-          // Calculate physical tip distance
-          const tipDist = hit.distance - tipOffset;
-          if (tipDist < closestDistance) {
-            closestDistance = tipDist;
-            closestPanel = panel;
-            closestHit = hit;
+          closestDistance = hit.distance - tipOffset;
+          closestPanel = state.targetPanel;
+          closestHit = hit;
+        }
+      } else {
+        for (const panel of panels) {
+          if (!panel.mesh || !panel.mesh.visible) continue;
+          const hits = this._raycaster.intersectObject(panel.mesh, true);
+          if (hits.length > 0) {
+            const hit = hits[0];
+            const tipDist = hit.distance - tipOffset;
+            if (tipDist < closestDistance) {
+              closestDistance = tipDist;
+              closestPanel = panel;
+              closestHit = hit;
+            }
           }
         }
       }
@@ -77,31 +86,50 @@ export class NearFieldInteractor {
       const currentPhase = state.phase;
       let nextPhase: TouchPhase = currentPhase;
 
-      if (nextPhase === 'FAR') {
-        if (closestDistance <= this.PROXIMITY_ENTER) {
-          nextPhase = 'PROXIMITY';
-        }
-      }
-
-      if (nextPhase === 'PROXIMITY') {
-        if (closestDistance > this.PROXIMITY_EXIT) {
-          nextPhase = 'FAR';
+      if (currentPhase === 'COMMIT') {
+        nextPhase = 'RELEASE';
+      } else if (currentPhase === 'RELEASE' || currentPhase === 'RECOVER') {
+        if (closestDistance <= this.PRESS_ENTER) {
+          nextPhase = 'PRESS';
         } else if (closestDistance <= this.CONTACT_ENTER) {
           nextPhase = 'CONTACT';
+        } else if (closestDistance <= this.PROXIMITY_ENTER) {
+          nextPhase = 'NEAR_HOVER';
+        } else {
+          nextPhase = 'FAR';
         }
-      }
-
-      if (nextPhase === 'CONTACT') {
-        if (closestDistance > this.CONTACT_EXIT) {
-          nextPhase = 'PROXIMITY';
-        } else if (closestDistance <= this.PRESS_ENTER) {
-          nextPhase = 'PRESS';
+      } else {
+        if (nextPhase === 'FAR') {
+          if (closestDistance <= this.PROXIMITY_ENTER) {
+            nextPhase = 'NEAR_HOVER';
+          }
         }
-      }
 
-      if (nextPhase === 'PRESS') {
-        if (closestDistance > this.PRESS_EXIT) {
-          nextPhase = 'CONTACT';
+        if (nextPhase === 'NEAR_HOVER') {
+          if (closestDistance > this.PROXIMITY_EXIT) {
+            nextPhase = 'FAR';
+          } else if (closestDistance <= this.CONTACT_ENTER) {
+            nextPhase = 'CONTACT';
+          }
+        }
+
+        if (nextPhase === 'CONTACT') {
+          if (closestDistance > this.CONTACT_EXIT) {
+            nextPhase = 'NEAR_HOVER';
+          } else if (closestDistance <= this.PRESS_ENTER) {
+            nextPhase = 'PRESS';
+          }
+        }
+
+        if (nextPhase === 'PRESS') {
+          if (closestDistance > this.PRESS_EXIT) {
+            let stillHit = false;
+            if (state.targetPanel && state.targetPanel.mesh) {
+              const hits = this._raycaster.intersectObject(state.targetPanel.mesh, true);
+              stillHit = hits.length > 0;
+            }
+            nextPhase = stillHit ? 'COMMIT' : 'RECOVER';
+          }
         }
       }
 
@@ -121,7 +149,6 @@ export class NearFieldInteractor {
     panel: PanelLike | null,
     hit: THREE.Intersection | null
   ): void {
-    const prev = state.phase;
     state.phase = next;
 
     // Dispatch events on press/release transitions
@@ -130,7 +157,12 @@ export class NearFieldInteractor {
       if (typeof panel.handlePointerDown === 'function') {
         panel.handlePointerDown(this._raycaster, state.pointer);
       }
-    } else if (prev === 'PRESS' && state.targetPanel) {
+    } else if (next === 'COMMIT' && state.targetPanel) {
+      if (typeof state.targetPanel.handlePointerUp === 'function') {
+        state.targetPanel.handlePointerUp(this._raycaster, state.pointer);
+      }
+      state.targetPanel = null;
+    } else if (next === 'RECOVER' && state.targetPanel) {
       if (typeof state.targetPanel.handlePointerUp === 'function') {
         state.targetPanel.handlePointerUp(this._raycaster, state.pointer);
       }

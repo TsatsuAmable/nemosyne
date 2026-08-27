@@ -484,9 +484,13 @@ export class InputRouter {
       }
 
       const triggerPressed = !!source.gamepad.buttons[0]?.pressed;
+      const touchState = this.nearInteractor.getTouchState(controller);
+      const isNear = touchState && touchState.phase !== 'FAR';
 
       if (triggerPressed && !wasTriggerPressed) {
-        this.machine.press(controller);
+        if (!isNear) {
+          this.machine.press(controller);
+        }
       } else if (!triggerPressed && wasTriggerPressed) {
         this.machine.release(controller);
       }
@@ -523,9 +527,14 @@ export class InputRouter {
         continue;
       }
 
+      const touchState = this.nearInteractor.getTouchState(hand);
+      const isNear = touchState && touchState.phase !== 'FAR';
+
       if (pinched && !wasPinched) {
         this.onHandPinchEdge?.(hand, 'start', 'select');
-        this.machine.press(hand);
+        if (!isNear) {
+          this.machine.press(hand);
+        }
       } else if (!pinched && wasPinched && this.machine.downPointer === hand) {
         this.onHandPinchEdge?.(hand, 'end', 'select-release');
         this.machine.release(hand);

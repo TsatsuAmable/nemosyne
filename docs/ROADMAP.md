@@ -524,13 +524,13 @@ Landed implementation evidence from #444:
 
 Review exit work:
 
-- [ ] **RF-049:** implement or explicitly govern the full `FAR -> NEAR_HOVER -> CONTACT -> PRESS -> COMMIT -> RELEASE -> RECOVER` lifecycle, including pre-commit cancel, tracking-loss/occlusion recovery and commit-on-policy rather than first collision;
+- [x] **RF-049:** implement or explicitly govern the full `FAR -> NEAR_HOVER -> CONTACT -> PRESS -> COMMIT -> RELEASE -> RECOVER` lifecycle, including pre-commit cancel, tracking-loss/occlusion recovery and commit-on-policy rather than first collision;
 - [ ] implement the modality priority `captured manipulation > direct touch > direct grab > controller-tip direct > distance ray > mouse > dwell fallback` as one central arbitration contract and prove no duplicate dispatch;
-- [ ] capture the exact target/component for non-drag UI interactions and route move/up/cancel to it; `direct-touch`/generic control capture must not be dropped because `PointerEventMachine` currently retains only `drag` panels;
+- [x] capture the exact target/component for non-drag UI interactions and route move/up/cancel to it; `direct-touch`/generic control capture must not be dropped because `PointerEventMachine` currently retains only `drag` panels;
 - [ ] add panel-before-scene precedence, cancellation and one-semantic-action-per-commit guarantees through the production InputRouter path;
 - [ ] add visual proximity/contact/commit feedback and optional audio/haptics without treating simulated pressure as a scientific signal;
 - [ ] preserve current ray smoothing, semantic coercion and raw-observation precision escape hatch for dense data;
-- [ ] test one reference control through mouse, controller ray, hand ray and fingertip touch with identical semantic output; include cross-panel movement, release-off-target, near/far oscillation, tracking loss and double-activation adversaries;
+- [x] test one reference control through mouse, controller ray, hand ray and fingertip touch with identical semantic output; include cross-panel movement, release-off-target, near/far oscillation, tracking loss and double-activation adversaries;
 - [ ] obtain physical Quest controller/hand evidence under U9 before verification.
 
 **Exit gate:** one reference control is modality-equivalent through the real InputRouter/PointerEventMachine path; transition across near/far does not flicker, lose pointer-up, double-activate or select scene data through UI; automated tests cover capture/cancel/priority and device evidence agrees.
@@ -657,7 +657,7 @@ Purpose: close RF-008/RF-050 and convert implementation claims into promotion ev
 
 Review exit work:
 
-- [ ] close **RF-049** in P1-U1 before treating later surface migrations as modality-equivalent;
+- [x] close **RF-049** in P1-U1 before treating later surface migrations as modality-equivalent;
 - [ ] close **RF-050** through P1-U0/P1-U9 production/device evidence;
 - [ ] close **RF-005** through P1-U4/P1-U8;
 - [ ] close **RF-006** through P1-U5/P1-U6;
