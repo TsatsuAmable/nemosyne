@@ -35,6 +35,8 @@ export interface ReplayVerificationResult {
   representationProvenanceVerified: boolean;
   discoveryProvenanceVerified: number;
   nilProvenanceVerified: number;
+  remediationEventsVerified: number;
+  refusalEventsVerified: number;
   finalOutputHash: string;
   investigationDigest: string;
   evidenceCount: {
@@ -266,6 +268,56 @@ function compareNilProvenance(
   return discrepancies;
 }
 
+function compareRemediationEvent(
+  expected: ResearchEvent,
+  actual: ResearchEvent,
+  index: number,
+): string[] {
+  const discrepancies: string[] = [];
+  const exp = expected.remediationEvent;
+  const act = actual.remediationEvent;
+  if (!exp || !act) {
+    discrepancies.push(`Remediation event at #${index}: missing remediationEvent in expected or actual`);
+    return discrepancies;
+  }
+  const fields: Array<keyof typeof exp> = [
+    'remediationId', 'kind', 'constraintCode', 'category',
+    'scientificPermissibility', 'deviceFeasibility', 'datasetFingerprint',
+    'oldRequirementsHash', 'newRequirementsHash', 'requirementPatch',
+    'resultingDecisionId', 'timestamp',
+  ];
+  for (const field of fields) {
+    if (stableJson(exp[field]) !== stableJson(act[field])) {
+      discrepancies.push(`Remediation ${field} at #${index} expected '${stableJson(exp[field])}', replay produced '${stableJson(act[field])}'`);
+    }
+  }
+  return discrepancies;
+}
+
+function compareRefusalEvent(
+  expected: ResearchEvent,
+  actual: ResearchEvent,
+  index: number,
+): string[] {
+  const discrepancies: string[] = [];
+  const exp = expected.refusalEvent;
+  const act = actual.refusalEvent;
+  if (!exp || !act) {
+    discrepancies.push(`Refusal event at #${index}: missing refusalEvent in expected or actual`);
+    return discrepancies;
+  }
+  const fields: Array<keyof typeof exp> = [
+    'operation', 'parameters', 'inputFingerprint', 'provenance',
+    'preflight', 'timestamp', 'datasetFingerprint', 'datasetVersion',
+  ];
+  for (const field of fields) {
+    if (stableJson(exp[field]) !== stableJson(act[field])) {
+      discrepancies.push(`Refusal ${field} at #${index} expected '${stableJson(exp[field])}', replay produced '${stableJson(act[field])}'`);
+    }
+  }
+  return discrepancies;
+}
+
 export class InvestigationReplayRunner {
   constructor(private _bridge: WasmRuntimeBridgeFull) {}
 
@@ -371,6 +423,8 @@ export class InvestigationReplayRunner {
     let eventsMatched = 0;
     let provenanceEventsVerified = 0;
     let representationProvenanceVerified = false;
+    let remediationEventsVerified = 0;
+    let refusalEventsVerified = 0;
 
     for (let i = 0; i < loggedEvents.length; i++) {
       const item = loggedEvents[i];
@@ -531,6 +585,44 @@ export class InvestigationReplayRunner {
         .filter((event) => event.kind === 'analysis' && event.result)
         .map((event) => event.result as AnalysisResult);
       atlas.evidenceLedger.restore(recordedResults, semanticEvents);
+
+      // RF-047: verify that remediation and refusal events are reconstructed
+      // in the replay ledger with identical provenance (event order, payload).
+      const replayRemediations = atlas.remediationEvents();
+      const originalRemediations = semanticEvents.filter((e) => e.kind === 'remediation');
+      if (replayRemediations.length !== originalRemediations.length) {
+        discrepancies.push(`Remediation event count mismatch: expected ${originalRemediations.length}, replay ledger has ${replayRemediations.length}`);
+      } else {
+        for (let i = 0; i < originalRemediations.length; i++) {
+          const origEvent = originalRemediations[i];
+          const replayEvent = atlas.evidenceLedger.ledger.find((e) => e.kind === 'remediation' && e.remediationEvent?.remediationId === origEvent.remediationEvent?.remediationId);
+          if (!replayEvent) {
+            discrepancies.push(`Remediation event ${origEvent.remediationEvent?.remediationId} at index ${i} not found in replay ledger`);
+          } else {
+            const disc = compareRemediationEvent(origEvent, replayEvent, i);
+            if (disc.length > 0) discrepancies.push(...disc);
+            else remediationEventsVerified += 1;
+          }
+        }
+      }
+
+      const replayRefusals = atlas.evidenceLedger.refusalEvents();
+      const originalRefusals = semanticEvents.filter((e) => e.kind === 'refusal');
+      if (replayRefusals.length !== originalRefusals.length) {
+        discrepancies.push(`Refusal event count mismatch: expected ${originalRefusals.length}, replay ledger has ${replayRefusals.length}`);
+      } else {
+        for (let i = 0; i < originalRefusals.length; i++) {
+          const origEvent = originalRefusals[i];
+          const replayEvent = atlas.evidenceLedger.ledger.find((e) => e.kind === 'refusal' && e.refusalEvent?.provenance?.operation === origEvent.refusalEvent?.provenance?.operation);
+          if (!replayEvent) {
+            discrepancies.push(`Refusal event at index ${i} not found in replay ledger`);
+          } else {
+            const disc = compareRefusalEvent(origEvent, replayEvent, i);
+            if (disc.length > 0) discrepancies.push(...disc);
+            else refusalEventsVerified += 1;
+          }
+        }
+      }
     }
 
     if (representationDecision) {
@@ -605,6 +697,8 @@ export class InvestigationReplayRunner {
       representationProvenanceVerified,
       discoveryProvenanceVerified,
       nilProvenanceVerified,
+      remediationEventsVerified,
+      refusalEventsVerified,
       finalOutputHash,
       investigationDigest,
       evidenceCount: {
@@ -633,6 +727,8 @@ export class InvestigationReplayRunner {
       representationProvenanceVerified: false,
       discoveryProvenanceVerified: 0,
       nilProvenanceVerified: 0,
+      remediationEventsVerified: 0,
+      refusalEventsVerified: 0,
       finalOutputHash: '',
       investigationDigest: '',
       evidenceCount: { observations: 0, findings: 0, annotations: 0 },
