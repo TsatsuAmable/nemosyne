@@ -103,41 +103,12 @@ function evidence(extra: AnalyticalEvidence[] = [], densityVariation = 0): Datas
 }
 
 function signature(topology: DatasetSignature['topologicalStructure']['topology'] = 'TABULAR'): DatasetSignature {
-  return {
-    schema: {
-      numericCount: 2,
-      categoricalCount: 1,
-      temporalCount: 0,
-      geoCount: 0,
-      textCount: 0,
-      idCount: 0,
-    },
-    cardinality: { rowCount: 10, columnCount: 3, edgeCount: 0, depth: 0 },
-    distribution: {
-      hasOutliers: false,
-      outlierFraction: 0,
-      anomalyCount: 0,
-      highVariance: false,
-      maxSkewness: 0,
-      meanEntropy: 0,
-    },
-    dependence: { maxCorrelation: 0, significantPairsCount: 0, rankDeficiency: false },
-    clusterStructure: {
-      estimatedCount: 1,
-      hasClusters: false,
-      separationScore: 0,
-      densityVariation: 0,
-    },
-    topologicalStructure: { topology },
-    temporalStructure: { isTimeSeries: false, trendDirection: 'flat', hasSeasonality: false },
-    spatialStructure: { isGeospatial: false, coordinateDimensions: 0 },
-    spectralStructure: null,
-    provenance: {
-      datasetFingerprint: FP,
-      kernelVersion: KERNEL,
-      analysisTimestamp: 0,
-    },
-  };
+  // Canonical tests should begin from the evidence-derived signature and mutate
+  // only the fact under test. This prevents old false/zero placeholders from
+  // obscuring the boundary behavior being exercised.
+  const source = datasetEvidenceToSignature(evidence());
+  source.topologicalStructure.topology = topology;
+  return source;
 }
 
 describe('Evidence-backed Moneta boundary', () => {
@@ -187,6 +158,9 @@ describe('Evidence-backed Moneta boundary', () => {
       hasPeriodicity: true,
       periodicityHeuristicScore: 0.7,
     });
+    expect(authoritative.epistemic?.facts['spectralStructure.hasPeriodicity'].source).toBe(
+      'heuristic',
+    );
   });
 
   it('preserves authoritative evidence and model identity when Moneta returns NIL', () => {
@@ -260,6 +234,10 @@ describe('Evidence-backed Moneta boundary', () => {
 
     expect(source.topologicalStructure.topology).toBe('GRAPH');
     expect(source.cardinality.edgeCount).toBe(12);
+    expect(source.epistemic?.facts['topologicalStructure.hasCycles']).toMatchObject({
+      source: 'derived',
+      evidenceId: 'topology:graph',
+    });
     expect(assertEvidenceBacksSignature(sourceEvidence, source)).toContain('topology:graph');
   });
 
