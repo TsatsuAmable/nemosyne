@@ -31,7 +31,15 @@ function createMockBridge(): WasmRuntimeBridgeFull {
       topology: 'TABULAR',
       columns: [{ name: 'x', type: 'float', values: [1, 2, 3] }],
     }),
-    statistics: vi.fn().mockReturnValue({}),
+    statistics: vi.fn().mockReturnValue({
+      rowCount: 0,
+      columnCount: 0,
+      numeric: [],
+      correlation: [],
+      categorical: [],
+      temporal: [],
+      temporalStats: [],
+    }),
     inferTopology: vi.fn().mockReturnValue('TABULAR'),
     inferEncodings: vi.fn().mockReturnValue({}),
     parseDatasetBytes: vi.fn().mockReturnValue({
