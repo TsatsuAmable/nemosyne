@@ -30,10 +30,9 @@ export interface DatasetSpaceSources {
   /** Rust-owned numeric ranges. When present, DatasetSpace must not rescan rows. */
   ranges?: Record<string, DatasetSpaceNormalization> | null;
   /**
-   * Durable observation identities supplied by the authoritative lineage path.
-   * Omitted means: prefer the Dataset's validated durable rowIds when present,
-   * otherwise use the schema-v2 content-occurrence compatibility IDs. Explicit
-   * null forces the historical content-occurrence mode when reading old v2 state.
+   * Durable observation identities supplied explicitly by the live authority
+   * path. Omitted preserves the schema-v2 content-occurrence compatibility IDs;
+   * explicit null also forces that historical mode while reading old snapshots.
    */
   datumIds?: readonly string[] | null;
 }
@@ -92,16 +91,14 @@ export class DatasetSpace {
     this.fingerprint = sources?.fingerprint ?? canonicalDatasetIdentityHex(this.dataset.toJSON());
 
     const hasExplicitDatumIds = sources != null && Object.prototype.hasOwnProperty.call(sources, 'datumIds');
-    const authoritativeDatumIds = hasExplicitDatumIds
-      ? sources?.datumIds
-      : this.dataset.rowIds;
+    const authoritativeDatumIds = hasExplicitDatumIds ? sources?.datumIds : null;
 
     if (authoritativeDatumIds != null) {
       this.datumIds = validateAuthoritativeDatumIds(authoritativeDatumIds, this.dataset.rowCount);
     } else {
-      // Historical/direct schema-v2 fallback. New Atlas datasets with durable
-      // rowIds never enter this O(N) content-hash path, regardless of accessor
-      // order or whether DatasetSpace was first requested for state export.
+      // Historical/direct schema-v2 fallback. The live Atlas authority path
+      // passes durable row IDs explicitly; direct construction remains stable
+      // for old state/tests regardless of whether DatasetJSON also carries rowIds.
       const occurrences = new Map<string, number>();
       this.datumIds = this.dataset.rows.map((row) => {
         const rowHash = contentHashHex(row);
