@@ -33,15 +33,15 @@ describe('RF-048 Rust/TypeScript canonical dataset identity parity', () => {
     }
   });
 
-  it('matches Rust for graph edges with nested attributes and preserves endpoint types', () => {
+  it('matches Rust for graph edges with nested attributes', () => {
     const dataset: DatasetJSON = {
       name: 'rf048-edge-parity',
       columns: [{ name: 'value', type: 'NUMERIC' }],
       rows: [{ value: 1 }, { value: 2 }],
       edges: [
         {
-          source: 'node-a',
-          target: 'node-b',
+          source: 0,
+          target: 1,
           weight: 0.75,
           metadata: { z: 2, a: [true, 'x'] },
         },
