@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { strToU8 } from 'fflate';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import type { AnalysisSpec, VRCommand } from '../src/atlas/types.ts';
 import { Dataset } from '../src/data/Dataset.ts';
 import { InvestigationReplayRunner } from '../src/session/InvestigationReplayRunner.ts';
+import { NemosynePackageManager } from '../src/session/NemosynePackage.ts';
 import { NemosyneSession } from '../src/session/NemosyneSession.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
@@ -157,5 +159,19 @@ describe('RF-047 clean-room portable replay contract', () => {
     expect(replay.success, replay.discrepancies.join('\n')).toBe(true);
     expect(replay.commandsReplayed).toBe(0);
     expect(replay.eventsMatched).toBe(atlas.ledger.length);
+  });
+
+  it('rejects a legacy-style bare analysis spec inside a semantic-v2 command log', async () => {
+    const atlas = makeAtlas('rf047-ambiguous-log');
+    const session = new NemosyneSession({ atlas, sessionId: atlas.sessionId });
+    const payload = NemosynePackageManager.unpack(await session.exportPortablePackage());
+    payload.commandLogBytes = strToU8(JSON.stringify([filterSpec(atlas, 2)]));
+    payload.manifest.commandCount = 1;
+
+    const replay = await new InvestigationReplayRunner(makeKernelMockBridge()).replayPayload(payload);
+
+    expect(replay.success).toBe(false);
+    expect(replay.commandsReplayed).toBe(0);
+    expect(replay.discrepancies.some((entry) => entry.includes('missing a research-event kind'))).toBe(true);
   });
 });
