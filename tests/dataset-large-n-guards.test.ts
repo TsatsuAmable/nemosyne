@@ -53,4 +53,21 @@ describe('RF-051 Dataset large-N guards', () => {
       { value: LARGE_N - 1 },
     ]);
   });
+
+  it('snapshots an aliased source array before iterative append', () => {
+    const dataset = new Dataset(
+      'self-append',
+      [{ name: 'value', type: ColumnType.NUMERIC }],
+      [{ value: 1 }, { value: 2 }],
+    );
+
+    dataset.updateRows(dataset.rows, 'append');
+
+    expect(dataset.rows).toEqual([
+      { value: 1 },
+      { value: 2 },
+      { value: 1 },
+      { value: 2 },
+    ]);
+  });
 });
