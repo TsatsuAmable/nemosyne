@@ -120,7 +120,9 @@ async function exportedDigest(session: NemosyneSession): Promise<{ digest: strin
 
 describe('RF-046 semantic investigation digest contract', () => {
   beforeEach(() => {
-    vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    // ZIP/DOS timestamps cannot represent dates before 1980. Keep the test
+    // deterministic without turning package export into an invalid 1970 archive.
+    vi.spyOn(Date, 'now').mockReturnValue(Date.UTC(2026, 0, 1));
   });
 
   afterEach(() => {
