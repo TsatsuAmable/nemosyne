@@ -95,6 +95,8 @@ export interface RemediationProvenance {
   oldRequirementsHash: string;
   /** Canonical hash of requirements after the patch was applied. */
   newRequirementsHash: string;
+  /** The requirement patch that was applied, for replay reconstruction. */
+  requirementPatch: Partial<RepresentationRequirements>;
   /** Decision id produced by re-arbitration under the new requirements, once known. */
   resultingDecisionId?: string;
   timestamp: number;
@@ -346,6 +348,7 @@ export function buildRemediationProvenance(
     datasetFingerprint,
     oldRequirementsHash: hashRequirements(oldRequirements),
     newRequirementsHash: hashRequirements(newRequirements),
+    requirementPatch: remediation.suggestedRequirementPatch,
     resultingDecisionId,
     timestamp,
   };

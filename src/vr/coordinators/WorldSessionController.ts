@@ -42,6 +42,7 @@ export interface WorldSessionHost {
   _logInteraction: LogInteraction;
   _updateNarrativeStrip(): void;
   _restoreDataset(dataset: Dataset | null, operation: string): void;
+  reconstructRequirementsAndReArbitrate(): void;
 }
 
 /**
@@ -149,6 +150,9 @@ export class WorldSessionController {
     w.loadDataset(entry);
     if (!this._isCurrent(generation)) return false;
     w.session.loadFromJSON(s as unknown as Parameters<NemosyneSession['loadFromJSON']>[0]);
+    if (w.reconstructRequirementsAndReArbitrate) {
+      w.reconstructRequirementsAndReArbitrate();
+    }
 
     // Point the current dataset at the restored transformed state.
     w._transformedDataset = transformed.clone();

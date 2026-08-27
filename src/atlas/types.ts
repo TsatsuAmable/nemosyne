@@ -26,6 +26,8 @@ import type { DatasetSpaceJSON } from './DatasetSpace.ts';
 import type { HistorySnapshot } from '../data/AnalysisHistory.ts';
 import type { StructureSet } from './structures.ts';
 import type { RemediationProvenance } from '../moneta/representation/ActionableNil.ts';
+
+export type { RemediationProvenance };
 import type { TdaResourcePreflight } from '../wasm/runtime/DatasetHandleBridge.ts';
 
 /**

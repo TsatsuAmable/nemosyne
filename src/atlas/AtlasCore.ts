@@ -37,6 +37,7 @@ import type {
   Observation,
   RecommendationDecision,
   RefusalProvenance,
+  RemediationProvenance,
   ResearchEvent,
   VRCommand,
 } from './types.ts';
@@ -1313,7 +1314,13 @@ export class AtlasCore {
     );
   }
 
-  // --- Serialization & Lifecycle -----------------------------------------
+  recordRemediation(provenance: RemediationProvenance): void {
+    this._aggregate.recordRemediation(provenance);
+  }
+
+  remediationEvents(): RemediationProvenance[] {
+    return this._aggregate.ledger.remediationEvents();
+  }
 
   toState(): AtlasCoreState {
     return this._aggregate.toState();

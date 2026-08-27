@@ -2,13 +2,16 @@ import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
 import type { MovablePanelOptions } from '../coordinators/types.ts';
 import type { AtlasRecommendation } from '../../atlas/types.ts';
+import type { InvestigatorActionableOutcome, RemedialAction } from '../../moneta/representation/ActionableNil.ts';
 
 export interface RecommendationPanelOptions extends MovablePanelOptions {
   getRecommendation: () => AtlasRecommendation | null;
+  getOutcome?: () => InvestigatorActionableOutcome | null;
   onAccept?: () => void;
   onReject?: () => void;
   onOverride?: () => void;
   onGenerate?: () => void;
+  onApplyRemediation?: (action: RemedialAction) => void;
 }
 
 interface BtnRect {
@@ -36,12 +39,15 @@ const DECISION_COLOR: Record<string, string> = {
 
 export class RecommendationPanel extends MovablePanel {
   private readonly _getRecommendation: () => AtlasRecommendation | null;
+  private readonly _getOutcome?: () => InvestigatorActionableOutcome | null;
   private readonly _onAccept?: () => void;
   private readonly _onReject?: () => void;
   private readonly _onOverride?: () => void;
   private readonly _onGenerate?: () => void;
+  private readonly _onApplyRemediation?: (action: RemedialAction) => void;
   private _dirty = true;
   private _buttons: BtnRect[] = [];
+  private _activeTab: 'guidance' | 'alternatives' | 'constraints' | 'remediation' = 'guidance';
 
   constructor(cameraGroup: THREE.Group, options: RecommendationPanelOptions) {
     super(cameraGroup, {
@@ -57,10 +63,12 @@ export class RecommendationPanel extends MovablePanel {
       colorblindMode: options.colorblindMode ?? 'none',
     });
     this._getRecommendation = options.getRecommendation;
+    this._getOutcome = options.getOutcome;
     this._onAccept = options.onAccept;
     this._onReject = options.onReject;
     this._onOverride = options.onOverride;
     this._onGenerate = options.onGenerate;
+    this._onApplyRemediation = options.onApplyRemediation;
     this.render();
   }
 
@@ -78,9 +86,65 @@ export class RecommendationPanel extends MovablePanel {
   renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
     const pad = 20;
     const lineH = 24;
-    let y = pad;
     this._buttons = [];
 
+    // Draw Tab Headers
+    const tabY = 10;
+    const tabH = 36;
+    const tabW = (w - pad * 2) / 4;
+
+    this._drawTabButton(ctx, 'guidance-tab', 'Guidance', pad + tabW * 0, tabY, tabW - 4, tabH, this._activeTab === 'guidance');
+    this._drawTabButton(ctx, 'alternatives-tab', 'Alternatives', pad + tabW * 1, tabY, tabW - 4, tabH, this._activeTab === 'alternatives');
+    this._drawTabButton(ctx, 'constraints-tab', 'Constraints', pad + tabW * 2, tabY, tabW - 4, tabH, this._activeTab === 'constraints');
+    this._drawTabButton(ctx, 'remediation-tab', 'Remediation', pad + tabW * 3, tabY, tabW - 4, tabH, this._activeTab === 'remediation');
+
+    const y = tabY + tabH + 20;
+
+    if (this._activeTab === 'guidance') {
+      this._renderGuidanceTab(ctx, w, contentH, pad, lineH, y);
+    } else if (this._activeTab === 'alternatives') {
+      this._renderAlternativesTab(ctx, w, contentH, pad, lineH, y);
+    } else if (this._activeTab === 'constraints') {
+      this._renderConstraintsTab(ctx, w, contentH, pad, lineH, y);
+    } else if (this._activeTab === 'remediation') {
+      this._renderRemediationTab(ctx, w, contentH, pad, lineH, y);
+    }
+  }
+
+  private _drawTabButton(
+    ctx: CanvasRenderingContext2D,
+    id: string,
+    label: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    active: boolean,
+  ): void {
+    ctx.fillStyle = active ? '#007799' : '#112233';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = active ? '#00ffff' : '#335577';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+
+    ctx.font = this._scaleFont('bold 14px monospace');
+    ctx.fillStyle = active ? '#ffffff' : '#88ccee';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x + w / 2, y + h / 2);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    this._buttons.push({ id, x, y, w, h });
+  }
+
+  private _renderGuidanceTab(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    contentH: number,
+    pad: number,
+    lineH: number,
+    y: number,
+  ): void {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
@@ -141,7 +205,7 @@ export class RecommendationPanel extends MovablePanel {
         y = this._wrapText(ctx, text, pad + 8, y, w - pad * 2 - 8, lineH, contentH) + 2;
       }
     } else {
-      ctx.fillText(rec.evidence, pad + 8, y + lineH);
+      ctx.fillText(rec.evidence || 'No evidence provided', pad + 8, y + lineH);
       y += lineH;
     }
     y += 8;
@@ -165,7 +229,7 @@ export class RecommendationPanel extends MovablePanel {
     if (rec.limitations) {
       ctx.font = this._scaleFont('13px monospace');
       ctx.fillStyle = '#ff9966';
-      y = this._wrapText(ctx, `⚠ ${rec.limitations}`, pad + 8, y, w - pad * 2 - 8, lineH, contentH) + 8;
+      y = this._wrapText(ctx, `Limitations: ${rec.limitations}`, pad + 8, y, w - pad * 2 - 8, lineH, contentH) + 8;
     }
 
     if (rec.suggestedEmbodiment) {
@@ -192,6 +256,135 @@ export class RecommendationPanel extends MovablePanel {
       y += lineH + 16;
     }
 
+    this.totalContentHeight = y;
+  }
+
+  private _renderAlternativesTab(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    contentH: number,
+    pad: number,
+    lineH: number,
+    y: number,
+  ): void {
+    ctx.font = this._scaleFont('bold 15px monospace');
+    ctx.fillStyle = '#00ffff';
+    ctx.fillText('// VIABLE ALTERNATIVES / NEAR MISSES', pad, y + lineH);
+    y += lineH + 12;
+
+    const outcome = this._getOutcome ? this._getOutcome() : null;
+    if (outcome && outcome.nearMisses && outcome.nearMisses.length > 0) {
+      for (const miss of outcome.nearMisses) {
+        ctx.font = this._scaleFont('bold 14px monospace');
+        ctx.fillStyle = '#ffffff';
+        const candidateName = miss.candidateId ?? miss.family;
+        const utility = miss.score ?? 0;
+        ctx.fillText(`${candidateName} (Utility: ${utility.toFixed(3)})`, pad + 8, y + lineH);
+        y += lineH + 4;
+        ctx.font = this._scaleFont('12px monospace');
+        ctx.fillStyle = '#aaaaaa';
+        const rationale = miss.disqualificationReason ?? 'Close runner up';
+        y = this._wrapText(ctx, `Layout: ${miss.layout}. Rationale: ${rationale}`, pad + 16, y, w - pad * 2 - 16, 16, contentH) + 12;
+      }
+    } else {
+      ctx.font = this._scaleFont('13px monospace');
+      ctx.fillStyle = '#888888';
+      ctx.fillText('No alternative representations or near-miss candidates found.', pad + 8, y + lineH);
+      y += lineH + 8;
+    }
+    this.totalContentHeight = y;
+  }
+
+  private _renderConstraintsTab(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    contentH: number,
+    pad: number,
+    lineH: number,
+    y: number,
+  ): void {
+    ctx.font = this._scaleFont('bold 15px monospace');
+    ctx.fillStyle = '#00ffff';
+    ctx.fillText('// DISQUALIFIED / BLOCKING CONSTRAINTS', pad, y + lineH);
+    y += lineH + 12;
+
+    const outcome = this._getOutcome ? this._getOutcome() : null;
+    if (outcome && outcome.blockingConstraints && outcome.blockingConstraints.length > 0) {
+      for (const bc of outcome.blockingConstraints) {
+        ctx.font = this._scaleFont('bold 13px monospace');
+        ctx.fillStyle = '#ff6666';
+        ctx.fillText(`Rule: ${bc.rule} on ${bc.candidateName}`, pad + 8, y + lineH);
+        y += lineH + 4;
+        ctx.font = this._scaleFont('12px monospace');
+        ctx.fillStyle = '#bbbbbb';
+        y = this._wrapText(ctx, bc.disqualificationReason, pad + 16, y, w - pad * 2 - 16, 16, contentH) + 12;
+      }
+    } else {
+      ctx.font = this._scaleFont('13px monospace');
+      ctx.fillStyle = '#888888';
+      ctx.fillText('No active blocking constraints. Representation requirements satisfied.', pad + 8, y + lineH);
+      y += lineH + 8;
+    }
+    this.totalContentHeight = y;
+  }
+
+  private _renderRemediationTab(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    contentH: number,
+    pad: number,
+    lineH: number,
+    y: number,
+  ): void {
+    ctx.font = this._scaleFont('bold 15px monospace');
+    ctx.fillStyle = '#00ffff';
+    ctx.fillText('// AVAILABLE REMEDIATION ACTIONS', pad, y + lineH);
+    y += lineH + 12;
+
+    const outcome = this._getOutcome ? this._getOutcome() : null;
+    if (outcome && outcome.availableRemediations && outcome.availableRemediations.length > 0) {
+      for (const action of outcome.availableRemediations) {
+        ctx.font = this._scaleFont('bold 14px monospace');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(action.label, pad + 8, y + lineH);
+        y += lineH + 4;
+        ctx.font = this._scaleFont('12px monospace');
+        ctx.fillStyle = '#dddddd';
+        y = this._wrapText(ctx, action.description, pad + 16, y, w - pad * 2 - 16, 16, contentH) + 6;
+
+        ctx.font = this._scaleFont('bold 11px monospace');
+        const safetyText = action.isSafeToRelax ? 'Scientifically Permissible' : 'Not Scientifically Safe';
+        const safetyColor = action.isSafeToRelax ? '#00ff66' : '#ff4444';
+        ctx.fillStyle = safetyColor;
+        ctx.fillText(safetyText, pad + 16, y + 12);
+
+        let feasibilityText = '';
+        let feasibilityColor = '#ffffff';
+        if (action.deviceFeasibility === 'unverified') {
+          feasibilityText = '⚠ UNVERIFIED DEVICE FEASIBILITY';
+          feasibilityColor = '#ffaa00';
+        } else if (action.deviceFeasibility === 'feasible') {
+          feasibilityText = '✓ Feasible';
+          feasibilityColor = '#00ff66';
+        } else {
+          feasibilityText = '✗ Infeasible';
+          feasibilityColor = '#ff4444';
+        }
+        ctx.fillStyle = feasibilityColor;
+        ctx.fillText(feasibilityText, pad + 190, y + 12);
+        y += 24;
+
+        const applyBtnW = 120;
+        const applyBtnH = 30;
+        this._drawButton(ctx, `remedi-${action.id}`, 'Apply', pad + 16, y, applyBtnW, applyBtnH, '#0088cc');
+        y += applyBtnH + 20;
+      }
+    } else {
+      ctx.font = this._scaleFont('13px monospace');
+      ctx.fillStyle = '#888888';
+      ctx.fillText('No remediations available for the current representation state.', pad + 8, y + lineH);
+      y += lineH + 8;
+    }
     this.totalContentHeight = y;
   }
 
@@ -238,21 +431,38 @@ export class RecommendationPanel extends MovablePanel {
   }
 
   private _dispatchButton(id: string): void {
-    switch (id) {
-      case 'accept':
-        this._onAccept?.();
-        break;
-      case 'reject':
-        this._onReject?.();
-        break;
-      case 'override':
-        this._onOverride?.();
-        break;
-      case 'generate':
-        this._onGenerate?.();
-        break;
-      default:
-        break;
+    if (id === 'guidance-tab') {
+      this._activeTab = 'guidance';
+    } else if (id === 'alternatives-tab') {
+      this._activeTab = 'alternatives';
+    } else if (id === 'constraints-tab') {
+      this._activeTab = 'constraints';
+    } else if (id === 'remediation-tab') {
+      this._activeTab = 'remediation';
+    } else if (id.startsWith('remedi-')) {
+      const actionId = id.slice(7);
+      const outcome = this._getOutcome ? this._getOutcome() : null;
+      const action = outcome?.availableRemediations.find((a) => a.id === actionId);
+      if (action) {
+        this._onApplyRemediation?.(action);
+      }
+    } else {
+      switch (id) {
+        case 'accept':
+          this._onAccept?.();
+          break;
+        case 'reject':
+          this._onReject?.();
+          break;
+        case 'override':
+          this._onOverride?.();
+          break;
+        case 'generate':
+          this._onGenerate?.();
+          break;
+        default:
+          break;
+      }
     }
     this._dirty = true;
     this.render();

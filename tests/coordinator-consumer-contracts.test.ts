@@ -132,6 +132,7 @@ const contracts = [
       'guidedTour',
       'loadDataset',
       'narrativeStrip',
+      'reconstructRequirementsAndReArbitrate',
       'session',
       'sessionStore',
       'uiManager',
