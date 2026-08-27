@@ -2,6 +2,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { Dataset } from '../src/data/Dataset.ts';
+import { CANONICAL_DATASET_IDENTITY_ALGORITHM } from '../src/data/DatasetIdentity.ts';
+import { INVESTIGATION_DIGEST_ALGORITHM } from '../src/investigation/InvestigationDigest.ts';
 import { NemosynePackageManager } from '../src/session/NemosynePackage.ts';
 import { InvestigationReplayRunner } from '../src/session/InvestigationReplayRunner.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
@@ -80,14 +82,16 @@ describe('Investigation Replay Runner Adversarial & Tamper Verification', () => 
 
     const digest = await atlas.computeDigest();
     const manifest = {
-      formatVersion: 1,
+      formatVersion: 2,
       sessionId: 'adv-session-1',
       datasetFingerprint: String(dataset.fingerprint),
+      datasetIdentityAlgorithm: CANONICAL_DATASET_IDENTITY_ALGORITHM,
       datasetName: 'SalesGraph',
       kernelVersion: '0.2.0',
       createdAt: Date.now(),
       commandCount: 1,
       investigationDigest: digest,
+      investigationDigestAlgorithm: INVESTIGATION_DIGEST_ALGORITHM,
       evidenceSummary: {
         observationsCount: 1,
         findingsCount: 1,
@@ -135,14 +139,16 @@ describe('Investigation Replay Runner Adversarial & Tamper Verification', () => 
     const digest = await atlas.computeDigest();
     const packageBytes = NemosynePackageManager.pack({
       manifest: {
-        formatVersion: 1,
+        formatVersion: 2,
         sessionId: atlas.sessionId,
         datasetFingerprint: String(dataset.fingerprint),
+        datasetIdentityAlgorithm: CANONICAL_DATASET_IDENTITY_ALGORITHM,
         datasetName: dataset.name,
         kernelVersion: '0.2.0',
         createdAt: Date.now(),
         commandCount: atlas.ledger.length,
         investigationDigest: digest,
+        investigationDigestAlgorithm: INVESTIGATION_DIGEST_ALGORITHM,
         evidenceSummary: { observationsCount: 0, findingsCount: 0, annotationsCount: 0 },
         environment: { userAgent: 'test-agent' },
       },

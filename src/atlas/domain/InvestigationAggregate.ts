@@ -10,7 +10,8 @@
  */
 
 import { Dataset } from '../../data/Dataset.ts';
-import type { AtlasCoreState } from '../types.ts';
+import { canonicalDatasetIdentityHex } from '../../data/DatasetIdentity.ts';
+import type { AnalysisResult, AtlasCoreState, ResearchEvent } from '../types.ts';
 import { AnalyticalState } from './AnalyticalState.ts';
 import { EvidenceLedger } from './EvidenceLedger.ts';
 import { RepresentationState } from './RepresentationState.ts';
@@ -19,8 +20,10 @@ import { ResearchContext, type ResearchContextOptions } from './ResearchContext.
 import { InvestigationGraph } from './InvestigationGraph.ts';
 import {
   computeInvestigationDigest,
+  computeSemanticInvestigationDigest,
   DiscoveryEpisodeStore,
   type DiscoveryEpisodeStoreSnapshot,
+  type NoFeasibleRepresentationRecord,
 } from '../../investigation/index.ts';
 
 export interface InvestigationDigestIdentityOptions {
@@ -29,6 +32,39 @@ export interface InvestigationDigestIdentityOptions {
    * before RF-048. New digests must never opt into this mode.
    */
   legacyImmutableDatasetSeedHash?: boolean;
+  /**
+   * Read-only compatibility for packages exported before RF-046. Their digest
+   * used the historical schema-v1 lossy projection and carried no algorithm
+   * label in the manifest.
+   */
+  legacyDigestSchemaV1?: boolean;
+  /** Session-owned NIL outcomes are part of portable investigation semantics. */
+  nilOutcomes?: readonly NoFeasibleRepresentationRecord[];
+  /** Session-owned research context overrides the aggregate-local compatibility view. */
+  researchContext?: import('../types.ts').ResearchContext;
+}
+
+/**
+ * RF-046/RF-048: analysis-result semantics commit the authoritative result and
+ * provenance, but the embedded row-major DatasetJSON is represented by the
+ * canonical scientific dataset identity. This preserves the explicit RF-048
+ * invariant that lineage-only `rowIds` do not alter scientific identity while
+ * still making any governed schema/row/edge content change alter the digest.
+ */
+function semanticAnalysisResult(result: AnalysisResult): Record<string, unknown> {
+  const { dataset, ...rest } = result;
+  return {
+    ...rest,
+    outputDatasetFingerprint: canonicalDatasetIdentityHex(dataset),
+  };
+}
+
+function semanticResearchEvent(event: ResearchEvent): Record<string, unknown> {
+  if (!event.result) return event as unknown as Record<string, unknown>;
+  return {
+    ...event,
+    result: semanticAnalysisResult(event.result),
+  };
 }
 
 export class InvestigationAggregate {
@@ -241,85 +277,119 @@ export class InvestigationAggregate {
             : originalDataset.fingerprint,
         )
       : fp;
-    const commandStream = this.ledger.ledger.map((evt) => ({
-      op: evt.command ? ('op' in evt.command ? evt.command.op : evt.kind) : evt.kind,
-      datasetVersion: evt.datasetVersion,
-      datasetFingerprint: evt.datasetFingerprint,
-    }));
 
-    const repDecision = this.representation.activeDecision;
-    const repStrategy = this.representation.activeStrategy;
-    const repDecisionPayload = repDecision
-      ? {
-          strategyId: `strategy_${repDecision.chosenCandidateId}`,
-          representationFamily: repDecision.chosenFamily,
-          candidateId: repDecision.chosenCandidateId,
-          layout: repDecision.chosenLayout,
-          utilityScore: repDecision.utilityScore,
-          decisionStatus: repDecision.decisionStatus,
-          decisionMargin: repDecision.decisionMargin,
-          fitnessModelVersion: repDecision.fitnessModelVersion,
-          fitnessModelArtifactHash: repDecision.fitnessModelArtifactHash ?? null,
-          explanation: repDecision.explanation,
-          preserves: repDecision.preserves,
-          loses: repDecision.loses,
-          runnerUp: repDecision.runnerUp
-            ? {
-                candidateId: repDecision.runnerUp.candidateId,
-                family: repDecision.runnerUp.family,
-                layout: repDecision.runnerUp.layout,
-                score: repDecision.runnerUp.score,
-              }
-            : null,
-          rankedAlternatives: (repDecision.rankedCandidates ?? []).slice(1).map((r) => ({
-            candidateId: r.candidateId,
-            family: r.family,
-            layout: r.layout,
-            score: r.score,
-            disqualified: r.disqualified,
-          })),
-        }
-      : repStrategy
+    if (identityOptions.legacyDigestSchemaV1) {
+      const commandStream = this.ledger.ledger.map((evt) => ({
+        op: evt.command ? ('op' in evt.command ? evt.command.op : evt.kind) : evt.kind,
+        datasetVersion: evt.datasetVersion,
+        datasetFingerprint: evt.datasetFingerprint,
+      }));
+
+      const repDecision = this.representation.activeDecision;
+      const repStrategy = this.representation.activeStrategy;
+      const repDecisionPayload = repDecision
         ? {
-            strategyId: repStrategy.id,
-            worldType: repStrategy.worldType,
-            layout: repStrategy.macroLayout.layout,
-            geometry: repStrategy.datumEncoding.geometry,
+            strategyId: `strategy_${repDecision.chosenCandidateId}`,
+            representationFamily: repDecision.chosenFamily,
+            candidateId: repDecision.chosenCandidateId,
+            layout: repDecision.chosenLayout,
+            utilityScore: repDecision.utilityScore,
+            decisionStatus: repDecision.decisionStatus,
+            decisionMargin: repDecision.decisionMargin,
+            fitnessModelVersion: repDecision.fitnessModelVersion,
+            fitnessModelArtifactHash: repDecision.fitnessModelArtifactHash ?? null,
+            explanation: repDecision.explanation,
+            preserves: repDecision.preserves,
+            loses: repDecision.loses,
+            runnerUp: repDecision.runnerUp
+              ? {
+                  candidateId: repDecision.runnerUp.candidateId,
+                  family: repDecision.runnerUp.family,
+                  layout: repDecision.runnerUp.layout,
+                  score: repDecision.runnerUp.score,
+                }
+              : null,
+            rankedAlternatives: (repDecision.rankedCandidates ?? []).slice(1).map((r) => ({
+              candidateId: r.candidateId,
+              family: r.family,
+              layout: r.layout,
+              score: r.score,
+              disqualified: r.disqualified,
+            })),
           }
-        : undefined;
+        : repStrategy
+          ? {
+              strategyId: repStrategy.id,
+              worldType: repStrategy.worldType,
+              layout: repStrategy.macroLayout.layout,
+              geometry: repStrategy.datumEncoding.geometry,
+            }
+          : undefined;
 
-    return computeInvestigationDigest({
-      schemaVersion: 1,
+      return computeInvestigationDigest({
+        schemaVersion: 1,
+        datasetFingerprint: fp,
+        kernelVersion,
+        immutableDatasetFingerprint: originalFp,
+        commandStream,
+        analyticalState: {
+          datasetVersion: this.analytical.datasetVersion,
+          datasetFingerprint: fp,
+          rowCount: this.analytical.currentNullable?.rowCount ?? 0,
+          columnCount: this.analytical.currentNullable?.columns?.length ?? 0,
+        },
+        evidenceLedger: {
+          resultsCount: this.ledger.results.length,
+          eventsCount: this.ledger.ledger.length,
+          observationCount: this.ledger.observations.length,
+          findingCount: this.ledger.findings.length,
+          annotationCount: this.ledger.annotations.length,
+          findings: this.ledger.findings.map((f) => ({
+            id: f.id,
+            title: f.title,
+            confidence: f.confidence,
+          })),
+          observations: this.ledger.observations.map((o) => ({ id: o.id, notes: o.notes })),
+        },
+        discoveryEpisodes: this.discoveries.all(),
+        representationDecision: repDecisionPayload,
+        researchContext: {
+          studyId: this.context.studyId,
+          researchQuestion: this.context.researchQuestion,
+          hypothesis: this.context.hypothesis,
+        },
+      });
+    }
+
+    const researchContext = identityOptions.researchContext ?? {
+      studyId: this.context.studyId,
+      researchQuestion: this.context.researchQuestion,
+      hypothesis: this.context.hypothesis,
+    };
+
+    return computeSemanticInvestigationDigest({
       datasetFingerprint: fp,
-      kernelVersion,
       immutableDatasetFingerprint: originalFp,
-      commandStream,
+      kernelVersion,
       analyticalState: {
         datasetVersion: this.analytical.datasetVersion,
         datasetFingerprint: fp,
         rowCount: this.analytical.currentNullable?.rowCount ?? 0,
         columnCount: this.analytical.currentNullable?.columns?.length ?? 0,
       },
-      evidenceLedger: {
-        resultsCount: this.ledger.results.length,
-        eventsCount: this.ledger.ledger.length,
-        observationCount: this.ledger.observations.length,
-        findingCount: this.ledger.findings.length,
-        annotationCount: this.ledger.annotations.length,
-        findings: this.ledger.findings.map((f) => ({
-          id: f.id,
-          title: f.title,
-          confidence: f.confidence,
-        })),
-        observations: this.ledger.observations.map((o) => ({ id: o.id, notes: o.notes })),
-      },
+      eventLedger: this.ledger.ledger.map(semanticResearchEvent),
+      analysisResults: this.ledger.results.map(semanticAnalysisResult),
+      structures: this.ledger.structures,
+      observations: this.ledger.observations,
+      findings: this.ledger.findings,
+      annotations: this.ledger.annotations,
+      // A full RepresentationDecision is persisted as representation.json and
+      // replayed authoritatively. A strategy-only transient is not portable and
+      // is therefore intentionally excluded from v2 rather than overclaiming.
+      representationState: this.representation.activeDecision ?? undefined,
       discoveryEpisodes: this.discoveries.all(),
-      representationDecision: repDecisionPayload,
-      researchContext: {
-        studyId: this.context.studyId,
-        researchQuestion: this.context.researchQuestion,
-        hypothesis: this.context.hypothesis,
-      },
+      nilOutcomes: identityOptions.nilOutcomes,
+      researchContext,
     });
   }
 

@@ -13,10 +13,11 @@ import {
 import { AtlasCore } from '../atlas/AtlasCore.ts';
 import type { AnalysisSpec, AtlasCoreState, ResearchContext } from '../atlas/types.ts';
 import {
+  INVESTIGATION_DIGEST_ALGORITHM,
   NoFeasibleRepresentationStore,
   type NoFeasibleRepresentationRecord,
   type NoFeasibleRepresentationStoreSnapshot,
-} from '../investigation/NoFeasibleRepresentationStore.ts';
+} from '../investigation/index.ts';
 import {
   NEMOSYNE_PACKAGE_FORMAT_VERSION,
   NemosynePackageManager,
@@ -147,6 +148,11 @@ export class NemosyneSession {
     const fitnessModelVersion =
       representationDecision?.fitnessModelVersion ??
       representationDecision?.provenance.fitnessModelVersion;
+    const kernelVersion = this._atlas.kernelVersion() ?? 'unknown';
+    const investigationDigest = await this._atlas.aggregate.computeDigest(kernelVersion, {
+      nilOutcomes: nilOutcomes.outcomes,
+      researchContext: this._researchContext,
+    });
 
     const manifest: NemosynePackageManifest = {
       formatVersion: NEMOSYNE_PACKAGE_FORMAT_VERSION,
@@ -159,14 +165,16 @@ export class NemosyneSession {
         core.datasetFingerprint ??
         originalDatasetFingerprint,
       datasetName: originalDataset.name,
-      kernelVersion: this._atlas.kernelVersion() ?? 'unknown',
+      kernelVersion,
       analyticalKernelVersion:
         representationDecision?.kernelVersion ?? nilProvenance?.kernelVersion,
       createdAt: typeof Date !== 'undefined' && Date.now ? Date.now() : 0,
       commandCount: core.eventLedger.length,
       discoveryCount: discoveryEpisodes?.episodes.length ?? 0,
       nilOutcomeCount: nilOutcomes.outcomes.length,
-      investigationDigest: await this._atlas.computeDigest(),
+      investigationDigest,
+      investigationDigestAlgorithm: INVESTIGATION_DIGEST_ALGORITHM,
+      researchContext: this._researchContext,
       representationModel:
         representationDecision && fitnessModelVersion
           ? {
