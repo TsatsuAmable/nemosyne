@@ -553,13 +553,13 @@ Review exit work:
 
 **Exit gate:** one reference control is modality-equivalent through the real InputRouter/PointerEventMachine path; transition across near/far does not flicker, lose pointer-up, double-activate or select scene data through UI; automated tests cover capture/cancel/priority and device evidence agrees. #465 supplies the code-level RF-049 repair, not the physical qualification.
 
-#### P1-U2 — spatial panel substrate and Holographic Inspector pilot — IMPLEMENTATION PARTIAL
+#### P1-U2 — spatial panel substrate and Holographic Inspector pilot — IMPLEMENTATION LANDED / REVIEW ACTIVE
 
 Purpose: prove the new panel/layout/interaction system on a high-value bounded surface before global migration.
 
-- [ ] preserve #465's repaired U1 capture/commit semantics and do not claim broader modality parity ahead of remaining U1/U9 evidence;
-- [ ] implement `SpatialPanel` reference-frame behavior: `BODY_LOCKED` default for personal work, optional grab/pin to `WORLD_LOCKED`, animated continuity on frame transitions and explicit close/back/follow controls;
-- [ ] migrate `HolographicInspector` to the new panel/control substrate while preserving its semantic target identity and current `InputRouter` precedence;
+- [x] preserve #465's repaired U1 capture/commit semantics and do not claim broader modality parity ahead of remaining U1/U9 evidence;
+- [x] implement `SpatialPanel` reference-frame behavior: `BODY_LOCKED` default for personal work, optional grab/pin to `WORLD_LOCKED`, animated continuity on frame transitions and explicit close/back/follow controls;
+- [x] migrate `HolographicInspector` to the new panel/control substrate while preserving its semantic target identity and current `InputRouter` precedence;
 - [ ] expose compact observation/structure facts plus `Evidence`, `Provenance`, `Compare` and `Challenge` actions; dense detail scrolls rather than spawning adjacent panels;
 - [ ] support direct touch in the near zone and ray selection at distance without changing command meaning;
 - [ ] make the inspector object/selection-aware, avoid covering the focused feature and preserve focus through representation transitions where identity remains valid;
@@ -567,7 +567,7 @@ Purpose: prove the new panel/layout/interaction system on a high-value bounded s
 
 **Exit gate:** Inspector parity is achieved without a bespoke duplicate interaction stack; the inspector is readable, scrollable, movable/pinnable and modality-equivalent, and target/device evidence shows no regression in focus, accidental selection or frame time.
 
-#### P1-U3 — commodity precision surfaces and panel lifecycle — IMPLEMENTATION PARTIAL
+#### P1-U3 — commodity precision surfaces and panel lifecycle — IMPLEMENTATION LANDED / REVIEW ACTIVE
 
 Purpose: move conventional precision work out of hand-built spatial furniture.
 
@@ -575,7 +575,7 @@ Purpose: move conventional precision work out of hand-built spatial furniture.
 - [x] migrate dataset load/schema-mapping/import setup and consequential confirmation dialogs where they exist; keep forms, dense tables, exact text and numeric entry planar;
 - [x] consolidate operation history/provenance/evidence into role-specific precision surfaces rather than separate permanent panels;
 - [x] provide common button/toggle/slider/segmented/scroll/text-field behavior and disabled-reason presentation across desktop/ray/touch;
-- [ ] standardise panel placement, grab rails, pin/follow, dismissal, focus order and replacement behavior;
+- [x] standardise panel placement, grab rails, pin/follow, dismissal, focus order and replacement behavior;
 - [x] preserve a maximum normal analyst workspace of one primary work panel, one inspector/context panel and one secondary reference surface; a fourth requires replacement/consolidation or explicit pinning.
 
 > P1-U3 residuals (deferred to P1-U8): item 2 provenance is **session-level** only — `HolographicInspector` Provenance/Evidence tabs render `atlas.evidenceLedger`-derived content; node-scoped provenance is pending the structure-id↔row join (the ledger references `DiscoveredStructure` IDs while the inspector receives a raw row); `OperationLogPanel` is retained as a superuser diagnostic. Item 4 `PanelChrome` is adopted by the migrated SpatialPanels (`SchemaMappingPanel`, `HolographicInspector`); `SettingsPanel` chrome retrofit and legacy `MovablePanel` chrome standardisation are deferred to P1-U8. VR text entry remains a controlled display+callback surface (an external input driver is required for caret/selection in WebXR).
