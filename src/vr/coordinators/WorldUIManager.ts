@@ -93,6 +93,8 @@ export interface WorldUIManagerCallbacks {
   onStatusUpdate?: (statusText: string) => void;
   frustrationAnalyzer?: UXFrustrationAnalyzer | null;
   getDataset?: () => Dataset | null;
+  /** Apply a schema-mapping edit by reloading the dataset with new column types. */
+  applySchemaMapping?: (updated: Dataset) => void;
 }
 
 interface AdaptiveAssistLike {
@@ -395,7 +397,9 @@ export class WorldUIManager {
     // so the Super User wheel category can list them before first construction.
     // DracoDiagnosticHUD is owned by World (rebuilt per palace) and toggled via
     // world._toggleDracoDiagnostic, so it is not registered here.
-    this.panelRolesManager.registerPanel('su-schema-mapping', 'Schema Mapping Panel', 'superuser');
+    // SchemaMappingPanel migrated to a SpatialPanel lifecycle (P1-U3) and is
+    // toggled via `toggleSchemaMappingPanel` (not `panelManager.togglePanel`),
+    // so it is no longer pre-registered with the role manager.
     this.panelRolesManager.registerPanel(
       'su-gesture-confidence',
       'Gesture Confidence HUD',
@@ -468,19 +472,32 @@ export class WorldUIManager {
     if (!this.schemaMappingPanel) {
       // Schema mapping requires a Dataset; fall back to an empty placeholder so
       // the panel chrome can be reviewed in the Dev Lab even before a dataset
-      // is loaded. A real dataset, when available, is wired via getDataset.
+      // is loaded. A real dataset, when available, is wired via getDataset and
+      // refreshed on every `show()` so the panel never shows a stale schema.
       const ds =
         (this.callbacks.getDataset?.() as Dataset | null | undefined) ?? this._emptyDataset();
-      this.schemaMappingPanel = new SchemaMappingPanel(this.analystAnchor, {
+      this.schemaMappingPanel = new SchemaMappingPanel({
+        torsoAnchor: this.analystAnchor,
+        worldScene: this.engine.scene,
         dataset: ds,
-        onApplyMapping: () => {},
+        getDataset: () => (this.callbacks.getDataset?.() as Dataset | null | undefined) ?? null,
+        onApplyMapping: (updated) => this.callbacks.applySchemaMapping?.(updated),
+        panelBudgetController: this.panelBudgetController,
       });
-      this.panelManager.register(this.schemaMappingPanel);
+      // SpatialPanel lifecycle: NOT registered with the MovablePanel-only
+      // PanelManager. Pointer routing is via engine.input; workspace budget is
+      // mediated by panelBudgetController (role: 'reference'), mirroring the
+      // SettingsPanel migration.
       applyPanelLayout(this.schemaMappingPanel, PANEL_LAYOUT.schemaMappingPanel);
       this.engine.input.addPanel(this.schemaMappingPanel);
-      this.panelManager.hidePanel(this.schemaMappingPanel);
+      this.schemaMappingPanel.hide();
     }
     return this.schemaMappingPanel;
+  }
+
+  /** Toggle the schema-mapping panel (SpatialPanel lifecycle, mirrors settings). */
+  toggleSchemaMappingPanel(): void {
+    this.getOrCreateSchemaMappingPanel().toggle();
   }
 
   getOrCreateGestureConfidenceHUD(): GestureConfidenceHUD {
@@ -618,7 +635,6 @@ export class WorldUIManager {
       metrics: this.metricsPanel,
       performance: this.performancePanel,
       network: this.networkPanel,
-      'su-schema-mapping': this.schemaMappingPanel,
       'su-gesture-confidence': this.gestureConfidenceHUD,
     };
 
@@ -702,6 +718,16 @@ export class WorldUIManager {
     this.engine.removeUpdatable(this.settingsPanel);
     this.engine.input.removePanel(this.settingsPanel);
     if (!this._borrowedResources.has(this.settingsPanel)) this.settingsPanel.dispose?.();
+
+    // The schema-mapping panel is likewise a SpatialPanel tracked only by
+    // engine.input + the budget controller; detach it explicitly when it has
+    // been lazily constructed.
+    if (this.schemaMappingPanel) {
+      this.engine.input.removePanel(this.schemaMappingPanel);
+      this.panelBudgetController.close(this.schemaMappingPanel);
+      if (!this._borrowedResources.has(this.schemaMappingPanel)) this.schemaMappingPanel.dispose?.();
+      this.schemaMappingPanel = null;
+    }
 
     // Untrack any SpatialPanels still held by the budget controller (e.g. the
     // borrowed HolographicInspector, owned by the scene composer) so the
