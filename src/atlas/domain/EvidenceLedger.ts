@@ -56,7 +56,11 @@ export class EvidenceLedger {
   }
 
   nextResultId(fp: string, datasetVersion: number, opName: string): string {
-    this._resultCounter += 1;
+    // RF-047: only durable results advance durable identity. Preview operations
+    // call this helper but are not persisted, so deriving the next id from the
+    // durable result store prevents hidden preview history from perturbing a
+    // later committed result id.
+    this._resultCounter = this._results.length + 1;
     return `${fp}:${datasetVersion}:${opName}:${this._resultCounter}`;
   }
 
