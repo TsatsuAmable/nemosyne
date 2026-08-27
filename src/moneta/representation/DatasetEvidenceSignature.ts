@@ -225,17 +225,17 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
     'Exact schema classification emitted by Rust',
   );
 
-  markManyFromEvidence(
+  markFromEvidence(
     epistemic,
-    ['distribution.hasOutliers'],
+    'distribution.hasOutliers',
     'heuristic',
     numericItem,
     'Outlier presence depends on the kernel outlier rule and is not a calibrated probability',
   );
   markFromEvidence(epistemic, 'distribution.maxSkewness', 'measured', numericItem);
-  markManyFromEvidence(
+  markFromEvidence(
     epistemic,
-    ['distribution.highVariance'],
+    'distribution.highVariance',
     'heuristic',
     numericItem,
     'High-variance is a kernel threshold classification, not a scale-free scientific fact',
@@ -278,33 +278,42 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
     'Bounded Rust clustering profile; heuristic terminology is preserved',
   );
 
-  markDatasetSignatureFact(epistemic, 'topologicalStructure.topology', 'derived', {
-    evidenceId: graphItem?.id ?? hierarchyItem?.id ?? temporalItem?.id ?? spatialItem?.id,
-    method:
-      graphItem?.provenance.method ??
-      hierarchyItem?.provenance.method ??
-      temporalItem?.provenance.method ??
-      spatialItem?.provenance.method ??
-      'structure-profile/topology-absence',
-    note: 'Topology is derived from authoritative Rust structure-profile evidence',
-  });
+  const topologyEvidence = graphItem ?? hierarchyItem ?? temporalItem ?? spatialItem;
+  if (topologyEvidence) {
+    markFromEvidence(
+      epistemic,
+      'topologicalStructure.topology',
+      'derived',
+      topologyEvidence,
+      'Topology is derived from authoritative Rust structure-profile evidence',
+    );
+  } else {
+    markDatasetSignatureFact(epistemic, 'topologicalStructure.topology', 'derived', {
+      method: 'structure-profile/topology-absence',
+      note: 'No structured topology profile was emitted; canonical structure profile classifies the dataset as TABULAR',
+    });
+  }
 
   const edgeCount = graph ? finiteNumber(graph.edgeCount, 'graph.edgeCount') : 0;
-  markDatasetSignatureFact(epistemic, 'cardinality.edgeCount', 'derived', {
-    ...(graphItem ? { evidenceId: graphItem.id, method: graphItem.provenance.method } : {}),
-    note: graphItem
-      ? 'Exact explicit graph edge count from Rust'
-      : 'No graph profile was emitted by the authoritative structure profile',
-  });
+  if (graphItem) {
+    markFromEvidence(epistemic, 'cardinality.edgeCount', 'derived', graphItem);
+    markFromEvidence(
+      epistemic,
+      'topologicalStructure.hasCycles',
+      'derived',
+      graphItem,
+      'Exact directed-cycle result from Rust graph analysis',
+    );
+  } else {
+    markDatasetSignatureFact(epistemic, 'cardinality.edgeCount', 'derived', {
+      method: 'structure-profile/graph-absence',
+      note: 'No graph profile was emitted by the authoritative structure profile',
+    });
+  }
 
   const depth = hierarchy ? finiteNumber(hierarchy.depth, 'hierarchy.depth') : 0;
   if (hierarchyItem) {
     markFromEvidence(epistemic, 'cardinality.depth', 'derived', hierarchyItem);
-  }
-  if (graphItem) {
-    markFromEvidence(epistemic, 'topologicalStructure.hasCycles', 'derived', graphItem, {
-      toString: undefined,
-    } as never);
   }
 
   const temporalStructure: DatasetSignature['temporalStructure'] = {};
@@ -384,16 +393,17 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
       spectralItem,
       'Periodicity detection/score is explicitly heuristic',
     );
-    for (const path of [
-      'spectralStructure.method',
-      'spectralStructure.observedCount',
-      'spectralStructure.transformLength',
-      'spectralStructure.sourceObservationsPerBin',
-      'spectralStructure.frequencyResolution',
-      'spectralStructure.maximumFrequency',
-      'spectralStructure.windowFunction',
-    ] as const) {
-      if (epistemic.facts[path]) markFromEvidence(epistemic, path, 'derived', spectralItem);
+    const derivedSpectralFacts: Array<[DatasetSignatureFactPath, unknown]> = [
+      ['spectralStructure.method', spectralStructure.method],
+      ['spectralStructure.observedCount', spectralStructure.observedCount],
+      ['spectralStructure.transformLength', spectralStructure.transformLength],
+      ['spectralStructure.sourceObservationsPerBin', spectralStructure.sourceObservationsPerBin],
+      ['spectralStructure.frequencyResolution', spectralStructure.frequencyResolution],
+      ['spectralStructure.maximumFrequency', spectralStructure.maximumFrequency],
+      ['spectralStructure.windowFunction', spectralStructure.windowFunction],
+    ];
+    for (const [path, value] of derivedSpectralFacts) {
+      if (value !== undefined) markFromEvidence(epistemic, path, 'derived', spectralItem);
     }
   }
 
