@@ -8,10 +8,11 @@
  * RF-046 distinguishes two contracts:
  * - schema v1: the historical lossy projection, retained only for replaying
  *   already-exported packages whose manifest has no digest-algorithm label;
- * - schema v2: a semantic Merkle-style projection. Meaning-bearing entities are
- *   individually hashed and composed into one deterministic root. Volatile
- *   capture metadata is normalized out so clean-room replay can reproduce the
- *   same scientific commitment without reproducing wall-clock timing.
+ * - schema v2: a semantic Merkle-style projection. Meaning-bearing portable
+ *   entities are individually hashed and composed into one deterministic root.
+ *   Volatile capture metadata is normalized out so clean-room replay can
+ *   reproduce the same scientific commitment without reproducing wall-clock
+ *   timing.
  */
 
 import { canonicalJsonStringify, sha256Hex } from '../security/CryptoHash.ts';
@@ -105,8 +106,10 @@ export interface CanonicalInvestigationInput {
 }
 
 /**
- * Raw semantic state from which a v2 digest root is built. Arrays may contain
- * full persisted entities: the root stores only their SHA-256 entity hashes.
+ * Raw portable semantic state from which a v2 digest root is built. Arrays may
+ * contain full persisted entities: the root stores only their SHA-256 hashes.
+ * Non-portable in-memory state is deliberately excluded until a later schema
+ * version can persist and replay it authoritatively.
  */
 export interface SemanticInvestigationState {
   datasetFingerprint: string;
@@ -125,14 +128,9 @@ export interface SemanticInvestigationState {
   findings: readonly unknown[];
   annotations: readonly unknown[];
   representationState?: unknown;
-  recommendations?: {
-    active?: unknown;
-    history?: readonly unknown[];
-  };
   discoveryEpisodes?: readonly unknown[];
   nilOutcomes?: readonly unknown[];
   researchContext?: unknown;
-  investigationGraph?: unknown;
 }
 
 /** Compact, versioned root committed by the v2 digest. */
@@ -150,12 +148,9 @@ export interface CanonicalInvestigationInputV2 {
   findingHashes: string[];
   annotationHashes: string[];
   representationStateHash?: string;
-  activeRecommendationHash?: string;
-  recommendationHistoryHashes: string[];
   discoveryEpisodeHashes: string[];
   nilOutcomeHashes: string[];
   researchContextHash?: string;
-  investigationGraphHash?: string;
 }
 
 const VOLATILE_SEMANTIC_KEYS = new Set([
@@ -219,17 +214,10 @@ export function buildCanonicalInvestigationInputV2(
     annotationHashes: hashList(state.annotations),
     representationStateHash:
       state.representationState === undefined ? undefined : semanticEntityHash(state.representationState),
-    activeRecommendationHash:
-      state.recommendations?.active === undefined
-        ? undefined
-        : semanticEntityHash(state.recommendations.active),
-    recommendationHistoryHashes: hashList(state.recommendations?.history),
     discoveryEpisodeHashes: hashList(state.discoveryEpisodes),
     nilOutcomeHashes: hashList(state.nilOutcomes),
     researchContextHash:
       state.researchContext === undefined ? undefined : semanticEntityHash(state.researchContext),
-    investigationGraphHash:
-      state.investigationGraph === undefined ? undefined : semanticEntityHash(state.investigationGraph),
   };
 }
 
