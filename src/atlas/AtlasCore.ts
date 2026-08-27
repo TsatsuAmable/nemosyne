@@ -87,14 +87,70 @@ export class AtlasCore {
    */
   private _workerDatasetPayload: DatasetPayload | null = null;
 
+  private readonly LARGE_DATASET_ROW_THRESHOLD = 50000;
+
   private _cloneTypedPayload(payload: ArrayBuffer | Uint8Array): ArrayBuffer | Uint8Array {
     return payload instanceof Uint8Array ? payload.slice() : payload.slice(0);
   }
 
+  private _buildTypedPayloadFromDataset(dataset: Dataset): { type: 'typed'; data: ArrayBuffer; name: string } {
+    // Build typed column payload column-by-column to avoid row-wise JSON serialization
+    // This avoids materializing the full dataset as JSON
+    const columnData = new Map<string, Float64Array>();
+    const columnNames = dataset.columns
+      .filter((c) => c.type === 'NUMERIC')
+      .map((c) => c.name);
+    
+    // Pre-allocate column arrays
+    for (const name of columnNames) {
+      columnData.set(name, new Float64Array(dataset.rowCount));
+    }
+    
+    // Fill column arrays row by row (single pass)
+    for (let i = 0; i < dataset.rowCount; i++) {
+      const row = dataset.rows[i];
+      for (const name of columnNames) {
+        const value = row[name];
+        columnData.get(name)![i] = typeof value === 'number' && Number.isFinite(value) ? value : NaN;
+      }
+    }
+    
+    // Serialize columns to a single ArrayBuffer
+    const totalBytes = columnNames.reduce((sum, name) => sum + columnData.get(name)!.byteLength, 0);
+    const headerSize = 4 + columnNames.length * (32 + 4); // column count + per-column (name length + name + length)
+    const buffer = new ArrayBuffer(headerSize + totalBytes);
+    const view = new DataView(buffer);
+    const encoder = new TextEncoder();
+    
+    let offset = 0;
+    view.setUint32(offset, columnNames.length, true); offset += 4;
+    
+    for (const name of columnNames) {
+      const nameBytes = encoder.encode(name);
+      view.setUint32(offset, nameBytes.length, true); offset += 4;
+      new Uint8Array(buffer, offset, nameBytes.length).set(nameBytes); offset += nameBytes.length;
+      const arr = columnData.get(name)!;
+      view.setUint32(offset, arr.length, true); offset += 4;
+      // Align offset to 8 bytes for Float64Array
+      offset = (offset + 7) & ~7;
+      new Float64Array(buffer, offset, arr.length).set(arr); offset += arr.byteLength;
+    }
+    
+    return { type: 'typed', data: buffer, name: dataset.name };
+  }
+
   private _setWorkerPayloadFromDataset(dataset: Dataset | null): void {
-    this._workerDatasetPayload = dataset
-      ? { type: 'json', data: dataset.toJSON(), name: dataset.name }
-      : null;
+    if (!dataset) {
+      this._workerDatasetPayload = null;
+      return;
+    }
+    
+    // Use typed column payload for large datasets to avoid JSON serialization bottleneck
+    if (dataset.rowCount >= this.LARGE_DATASET_ROW_THRESHOLD) {
+      this._workerDatasetPayload = this._buildTypedPayloadFromDataset(dataset);
+    } else {
+      this._workerDatasetPayload = { type: 'json', data: dataset.toJSON(), name: dataset.name };
+    }
   }
 
   private _workerRegistrationPayload(): DatasetPayload | undefined {

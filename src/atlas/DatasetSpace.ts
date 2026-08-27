@@ -27,6 +27,7 @@ export interface DatasetSpaceJSON {
 export interface DatasetSpaceSources {
   fingerprint?: string | null;
   ranges?: Record<string, DatasetSpaceNormalization> | null;
+  datumIds?: readonly string[] | null;
 }
 
 /** Canonical SHA-256 over generic JSON-compatible content. */
@@ -57,30 +58,35 @@ export class DatasetSpace {
   readonly embedding = { method: 'none' as const, dimensions: 0 as const, seed: null };
 
   constructor(dataset: Dataset, sources?: DatasetSpaceSources) {
-    this.dataset = dataset.clone();
-    const datasetJSON = this.dataset.toJSON();
-    this.fingerprint = sources?.fingerprint ?? canonicalDatasetIdentityHex(datasetJSON);
+    // Avoid cloning if caller provides pre-computed values
+    this.dataset = dataset;
+    const datasetJSON = sources?.fingerprint ? null : this.dataset.toJSON();
+    this.fingerprint = sources?.fingerprint ?? canonicalDatasetIdentityHex(datasetJSON!);
 
-    const occurrences = new Map<string, number>();
-    this.datumIds = this.dataset.rows.map((row) => {
-      const rowHash = contentHashHex(row);
-      const occurrence = occurrences.get(rowHash) ?? 0;
-      occurrences.set(rowHash, occurrence + 1);
-      return `${this.fingerprint}:datum-${rowHash}-${occurrence}`;
-    });
-
-    const ranges: Record<string, DatasetSpaceNormalization> = {};
-    if (sources?.ranges) {
-      for (const [name, range] of Object.entries(sources.ranges)) {
-        ranges[name] = { min: range.min, max: range.max };
-      }
+    // Use pre-computed datumIds if provided, otherwise compute them
+    if (sources?.datumIds) {
+      this.datumIds = sources.datumIds;
     } else {
+      const occurrences = new Map<string, number>();
+      this.datumIds = this.dataset.rows.map((row) => {
+        const rowHash = contentHashHex(row);
+        const occurrence = occurrences.get(rowHash) ?? 0;
+        occurrences.set(rowHash, occurrence + 1);
+        return `${this.fingerprint}:datum-${rowHash}-${occurrence}`;
+      });
+    }
+
+    // Use pre-computed ranges if provided, otherwise compute them
+    if (sources?.ranges) {
+      this.normalization = sources.ranges;
+    } else {
+      const ranges: Record<string, DatasetSpaceNormalization> = {};
       for (const column of this.dataset.columns) {
         if (column.type !== 'NUMERIC') continue;
         ranges[column.name] = this.dataset.rangeOf(column.name);
       }
+      this.normalization = ranges;
     }
-    this.normalization = ranges;
   }
 
   datumIdAt(rowIndex: number): string | undefined {
@@ -111,9 +117,19 @@ export class DatasetSpace {
     if (snapshot.version !== 2 || snapshot.missingness !== 'exclude-non-finite') {
       throw new Error('Unsupported DatasetSpace version; legacy 32-bit fingerprints must be regenerated');
     }
-    const space = new DatasetSpace(Dataset.fromJSON(snapshot.dataset));
-    if (space.fingerprint !== snapshot.fingerprint || space.datumIds.join('|') !== snapshot.datumIds.join('|')) {
+    const dataset = Dataset.fromJSON(snapshot.dataset);
+    // Compute the expected fingerprint from the dataset to validate against the snapshot
+    const expectedFingerprint = canonicalDatasetIdentityHex(dataset.toJSON());
+    if (expectedFingerprint !== snapshot.fingerprint) {
       throw new Error('DatasetSpace fingerprint mismatch');
+    }
+    const space = new DatasetSpace(dataset, {
+      fingerprint: snapshot.fingerprint,
+      ranges: snapshot.normalization,
+      datumIds: snapshot.datumIds,
+    });
+    if (space.datumIds.join('|') !== snapshot.datumIds.join('|')) {
+      throw new Error('DatasetSpace datumIds mismatch');
     }
     return space;
   }
