@@ -45,6 +45,25 @@ function appendSemanticAnalysisEvent(atlas: AtlasCore, min: number): void {
   );
 }
 
+function appendTimestampParameterEvent(atlas: AtlasCore, timestamp: number): void {
+  const fp = atlas.datasetFingerprint!;
+  const spec = analysisSpec(atlas, 1);
+  atlas.evidenceLedger.appendEvent(
+    {
+      timestamp: 1_000,
+      kind: 'analysis',
+      command: {
+        ...spec,
+        operation: { ...spec.operation, timestamp },
+      },
+      datasetVersion: atlas.datasetVersion,
+      datasetFingerprint: fp,
+      stateHash: fp,
+    },
+    atlas.sessionId,
+  );
+}
+
 function analysisResult(atlas: AtlasCore, outputHash: string): AnalysisResult {
   return {
     resultId: `${atlas.datasetFingerprint}:result:1`,
@@ -113,6 +132,15 @@ describe('RF-046 semantic investigation digest contract', () => {
     const second = makeAtlas();
     appendSemanticAnalysisEvent(first, 1);
     appendSemanticAnalysisEvent(second, 2);
+
+    expect(await second.computeDigest()).not.toBe(await first.computeDigest());
+  });
+
+  it('does not mistake a nested semantic parameter named timestamp for replay metadata', async () => {
+    const first = makeAtlas('rf046-timestamp-param');
+    const second = makeAtlas('rf046-timestamp-param');
+    appendTimestampParameterEvent(first, 100);
+    appendTimestampParameterEvent(second, 200);
 
     expect(await second.computeDigest()).not.toBe(await first.computeDigest());
   });
