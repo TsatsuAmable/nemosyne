@@ -41,13 +41,14 @@ describe('Phase 1: Representation Ontology Types', () => {
     }
   });
 
-  it('constructs a valid minimal DatasetSignature', () => {
+  it('constructs a valid minimal DatasetSignature without inventing time-series evidence', () => {
     const sig: DatasetSignature = minimalDatasetSignature(100, 4, 2, 1, 'fp-12345', 1000);
     expect(sig.schema.numericCount).toBe(4);
     expect(sig.schema.categoricalCount).toBe(2);
     expect(sig.schema.temporalCount).toBe(1);
     expect(sig.cardinality.rowCount).toBe(100);
-    expect(sig.temporalStructure.isTimeSeries).toBe(true);
+    expect(sig.temporalStructure.isTimeSeries).toBeUndefined();
+    expect(sig.epistemic?.facts['temporalStructure.isTimeSeries'].source).toBe('unknown');
     expect(sig.provenance.datasetFingerprint).toBe('fp-12345');
     expect(sig.provenance.timestamp).toBe(1000);
     expect(sig.spectralStructure).toBeNull();
@@ -118,21 +119,17 @@ describe('Phase 1: Representation Ontology Types', () => {
       },
       progressiveDisclosurePolicy: {
         primaryFamily: 'POINT',
-        secondaryFamilies: ['DISTRIBUTION'],
-        defaultViewLevel: 'OVERVIEW',
       },
-      datasetSignature: sig,
       provenance: {
         generatedAt: 1000,
-        engine: 'RepresentationHypothesisEngine',
-        version: '1.0.0',
+        engine: 'MonetaHypothesisEngine',
+        version: 'v1',
         datasetFingerprint: 'fp-1',
-        requirementsHash: 'req-1',
       },
+      datasetSignature: sig,
     };
 
     expect(decision.representationFamily).toBe('POINT');
-    expect(decision.evidence).toHaveLength(1);
-    expect(decision.rejectedAlternatives).toHaveLength(1);
+    expect(decision.datasetSignature).toBe(sig);
   });
 });
