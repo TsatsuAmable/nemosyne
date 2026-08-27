@@ -1,5 +1,8 @@
 import { Dataset } from '../data/Dataset.ts';
 import type { ColumnSchema, DatasetJSON } from '../data/types.ts';
+import {
+  canonicalDatasetIdentityHex,
+} from '../data/DatasetIdentity.ts';
 import { canonicalSha256Hex } from '../security/CryptoHash.ts';
 
 export interface DatasetSpaceNormalization {
@@ -32,14 +35,11 @@ export function contentHashHex(value: unknown): string {
 }
 
 /**
- * Canonical scientific dataset fingerprint. Durable row IDs are lineage
- * metadata and must not alter the data-content identity; Rust follows the same
- * rule when serializing its canonical fingerprint input.
+ * @deprecated Use `canonicalDatasetIdentityHex` from the data layer. Retained
+ * while callers migrate; this alias now follows the exact Rust scientific
+ * projection rather than hashing arbitrary row-object keys.
  */
-export function datasetContentHashHex(dataset: DatasetJSON): string {
-  const { rowIds: _rowIds, ...scientificContent } = dataset;
-  return canonicalSha256Hex(scientificContent);
-}
+export const datasetContentHashHex = canonicalDatasetIdentityHex;
 
 /**
  * @deprecated Compatibility alias for pre-SHA call sites. Despite the historic
@@ -59,7 +59,7 @@ export class DatasetSpace {
   constructor(dataset: Dataset, sources?: DatasetSpaceSources) {
     this.dataset = dataset.clone();
     const datasetJSON = this.dataset.toJSON();
-    this.fingerprint = sources?.fingerprint ?? datasetContentHashHex(datasetJSON);
+    this.fingerprint = sources?.fingerprint ?? canonicalDatasetIdentityHex(datasetJSON);
 
     const occurrences = new Map<string, number>();
     this.datumIds = this.dataset.rows.map((row) => {

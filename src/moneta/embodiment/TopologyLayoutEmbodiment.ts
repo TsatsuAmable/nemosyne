@@ -141,7 +141,7 @@ export class TopologyLayoutEmbodiment {
   ): void {
     const positions = ForceDirected3D.compute(rows, {
       edges,
-      seed: dataset?.fingerprint ?? 1,
+      seed: dataset?.seedHash ?? 1,
       yOffset: 1.2,
     });
     for (const p of positions) {
@@ -179,7 +179,7 @@ export class TopologyLayoutEmbodiment {
   ): void {
     const positions = StreamlineLayout.compute(rows, {
       count: Math.min(30, Math.max(8, rows.length)),
-      seed: dataset?.fingerprint ?? 1,
+      seed: dataset?.seedHash ?? 1,
     }) as StreamlineEntry<Record<string, unknown>>[];
     for (const p of positions) {
       const geom = new THREE.ConeGeometry(0.12, 0.7, 8);
@@ -361,7 +361,7 @@ export class TopologyLayoutEmbodiment {
       case 'FORCE_DIRECTED_3D':
         return ForceDirected3D.compute(rows, {
           edges,
-          seed: dataset?.fingerprint ?? 1,
+          seed: dataset?.seedHash ?? 1,
           yOffset: 1.2,
         });
       case 'RADIAL_ORBITAL':

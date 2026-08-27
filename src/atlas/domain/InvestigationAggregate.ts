@@ -23,6 +23,14 @@ import {
   type DiscoveryEpisodeStoreSnapshot,
 } from '../../investigation/index.ts';
 
+export interface InvestigationDigestIdentityOptions {
+  /**
+   * Read-only compatibility for replaying format-v1 portable archives created
+   * before RF-048. New digests must never opt into this mode.
+   */
+  legacyImmutableDatasetSeedHash?: boolean;
+}
+
 export class InvestigationAggregate {
   readonly analytical: AnalyticalState;
   readonly ledger: EvidenceLedger;
@@ -220,10 +228,18 @@ export class InvestigationAggregate {
   }
 
   /** Compute the canonical cryptographic digest representing this aggregate's semantic state. */
-  async computeDigest(kernelVersion = 'unknown'): Promise<string> {
+  async computeDigest(
+    kernelVersion = 'unknown',
+    identityOptions: InvestigationDigestIdentityOptions = {},
+  ): Promise<string> {
     const fp = this.analytical.getFingerprint() ?? '';
-    const originalFp = this.analytical.originalNullable?.fingerprint
-      ? String(this.analytical.originalNullable.fingerprint)
+    const originalDataset = this.analytical.originalNullable;
+    const originalFp = originalDataset
+      ? String(
+          identityOptions.legacyImmutableDatasetSeedHash
+            ? originalDataset.seedHash
+            : originalDataset.fingerprint,
+        )
       : fp;
     const commandStream = this.ledger.ledger.map((evt) => ({
       op: evt.command ? ('op' in evt.command ? evt.command.op : evt.kind) : evt.kind,

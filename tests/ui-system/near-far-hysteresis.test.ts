@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { SpatialUIRoot } from '../../src/vr/ui-system/SpatialUIRoot.ts';
-import { SpatialPanel } from '../../src/vr/ui-system/SpatialPanel.ts';
 import { NearFieldInteractor } from '../../src/vr/interactions/near/NearFieldInteractor.ts';
-import type { PointerLike } from '../../src/vr/coordinators/types.ts';
+import type { PanelLike, PointerLike } from '../../src/vr/coordinators/types.ts';
 
-// Mock pointer implementing PointerLike
 class MockPointer implements PointerLike {
   index: number;
   handedness = 'right';
@@ -34,101 +31,101 @@ class MockPointer implements PointerLike {
   }
 }
 
+function makeDeterministicPanel(callbacks: {
+  onPointerDown(): void;
+  onPointerUp(): void;
+  onClick(): void;
+}): PanelLike {
+  const geometry = new THREE.PlaneGeometry(1, 1);
+  const material = new THREE.MeshBasicMaterial();
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(0, 0, -0.5);
+  mesh.updateMatrixWorld(true);
+
+  return {
+    mesh,
+    handlePointerDown: () => {
+      callbacks.onPointerDown();
+      return 'direct-touch';
+    },
+    handlePointerUp: () => {
+      callbacks.onPointerUp();
+      callbacks.onClick();
+    },
+    dispose: () => {
+      geometry.dispose();
+      material.dispose();
+    },
+  };
+}
+
 describe('UX-05: Direct Touch & Near/Far Hysteresis resolver', () => {
-  it('suppresses rays, transitions phases correctly, and triggers touch events', () => {
-    const width = 800;
-    const height = 600;
-    const canvas = document.createElement('canvas');
-    const renderer = new THREE.WebGLRenderer({ canvas });
-    renderer.setSize(width, height);
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-    scene.add(camera);
-
-    const root = new SpatialUIRoot(renderer);
-    camera.add(root);
-
-    const torsoAnchor = new THREE.Group();
-    const worldScene = new THREE.Group();
-    scene.add(torsoAnchor);
-    scene.add(worldScene);
-
+  it('transitions phases deterministically and dispatches touch events', () => {
     let pointerDownFired = false;
     let pointerUpFired = false;
     let clickFired = false;
 
-    // Create panel at z = -0.5
-    const panel = new SpatialPanel(
-      {
-        width: 400,
-        height: 300,
-        onPointerDown: () => {
-          pointerDownFired = true;
-        },
-        onPointerUp: () => {
-          pointerUpFired = true;
-        },
-        onClick: () => {
-          clickFired = true;
-        },
+    // This suite owns NearFieldInteractor threshold/hysteresis semantics only.
+    // Use a deterministic Three.js plane rather than a live UIKit SpatialPanel:
+    // SpatialPanel layout/raycast readiness is covered by its dedicated
+    // production-path suites and must not make this pure resolver contract flaky.
+    const panel = makeDeterministicPanel({
+      onPointerDown: () => {
+        pointerDownFired = true;
       },
-      torsoAnchor,
-      worldScene
-    );
-    panel.position.set(0, 0, -0.5);
-    panel.updateMatrixWorld();
-    panel.update(0);
+      onPointerUp: () => {
+        pointerUpFired = true;
+      },
+      onClick: () => {
+        clickFired = true;
+      },
+    });
 
     const interactor = new NearFieldInteractor();
     const pointer = new MockPointer(0);
 
-    // Set pointer position far away: z = 0.5 (distance to panel ≈ 1.0m)
+    // Pointer at z = 0.5 is 1.0m from the plane; controller-tip distance is 0.95m.
     pointer.position.set(0, 0, 0.5);
     interactor.update([pointer], [panel]);
     let state = interactor.getTouchState(pointer);
     expect(state).toBeDefined();
     expect(state?.phase).toBe('FAR');
 
-    // Move pointer closer to z = -0.01 (distance to panel = 0.51 - 0.05 controller offset = 0.46m)
-    // This is within the 0.55m proximity envelope
+    // At z = -0.01 the plane hit is 0.49m away; after the 0.05m controller
+    // tip offset the physical distance is 0.44m, within the 0.55m envelope.
     pointer.position.set(0, 0, -0.01);
     interactor.update([pointer], [panel]);
     state = interactor.getTouchState(pointer);
     expect(state?.phase).toBe('PROXIMITY');
 
-    // Test hysteresis: pull back slightly to z = 0.08 (distance to panel = 0.58 - 0.05 = 0.53m)
-    // It should stay in PROXIMITY because it hasn't exceeded the 0.60m exit threshold yet
+    // Hysteresis: 0.58m ray distance - 0.05m tip offset = 0.53m,
+    // still below the 0.60m proximity-exit threshold.
     pointer.position.set(0, 0, 0.08);
     interactor.update([pointer], [panel]);
     state = interactor.getTouchState(pointer);
     expect(state?.phase).toBe('PROXIMITY');
 
-    // Pull back further to z = 0.20 (distance to panel = 0.70 - 0.05 = 0.65m)
-    // This exceeds the 0.60m exit threshold, transitioning back to FAR
+    // 0.70m ray distance - 0.05m = 0.65m, beyond the exit threshold.
     pointer.position.set(0, 0, 0.2);
     interactor.update([pointer], [panel]);
     state = interactor.getTouchState(pointer);
     expect(state?.phase).toBe('FAR');
 
-    // Move pointer back to near zone and push to PRESS threshold (distance to panel <= 0.008m)
-    // Panel is at z = -0.5. Controller tip offset is 0.05m.
-    // So controller z = -0.45 + epsilon. Let's set z = -0.444 (distance = -0.444 - 0.05 - (-0.5) = 0.006m)
+    // Plane is z = -0.5. At controller z = -0.444 the physical tip distance
+    // is 0.006m, inside PRESS_ENTER (0.008m).
     pointer.position.set(0, 0, -0.444);
     interactor.update([pointer], [panel]);
     state = interactor.getTouchState(pointer);
     expect(state?.phase).toBe('PRESS');
     expect(pointerDownFired).toBe(true);
 
-    // Pull back slightly to z = -0.440 (distance = -0.44 - 0.05 - (-0.5) = 0.01m)
-    // It should stay in PRESS state due to release threshold being 0.015m (1.5cm)
+    // 0.010m remains inside the PRESS_EXIT hysteresis threshold (0.015m).
     pointer.position.set(0, 0, -0.44);
     interactor.update([pointer], [panel]);
     state = interactor.getTouchState(pointer);
     expect(state?.phase).toBe('PRESS');
 
-    // Pull back further to z = -0.430 (distance = -0.43 - 0.05 - (-0.5) = 0.02m)
-    // This exceeds 0.015m release threshold, so it transitions back to CONTACT, triggering up & click
+    // 0.020m exceeds PRESS_EXIT, returning to CONTACT and dispatching release.
     pointer.position.set(0, 0, -0.43);
     interactor.update([pointer], [panel]);
     state = interactor.getTouchState(pointer);
@@ -136,10 +133,7 @@ describe('UX-05: Direct Touch & Near/Far Hysteresis resolver', () => {
     expect(pointerUpFired).toBe(true);
     expect(clickFired).toBe(true);
 
-    // Clean up
     interactor.dispose();
-    panel.dispose();
-    root.dispose();
-    renderer.dispose();
+    panel.dispose?.();
   });
 });

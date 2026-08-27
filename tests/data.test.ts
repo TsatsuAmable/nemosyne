@@ -38,10 +38,13 @@ describe('Dataset', () => {
     expect(ds.cardinalityOf('b')).toBe(2);
   });
 
-  it('produces a stable fingerprint', () => {
+  it('produces a stable canonical fingerprint while keeping a numeric procedural seed', () => {
     const ds = new Dataset('Test', [{ name: 'a', type: ColumnType.NUMERIC }], [{ a: 1 }]);
-    expect(typeof ds.fingerprint).toBe('number');
+    expect(typeof ds.fingerprint).toBe('string');
+    expect(ds.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(ds.fingerprint).toBe(ds.fingerprint);
+    expect(typeof ds.seedHash).toBe('number');
+    expect(ds.seedHash).toBeGreaterThanOrEqual(0);
   });
 });
 

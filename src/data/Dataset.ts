@@ -4,6 +4,7 @@
  */
 
 import type { ColumnSchema, DatasetJSON } from './types.ts';
+import { canonicalDatasetIdentityHex } from './DatasetIdentity.ts';
 import { registerDurableRowId } from './RowIdentity.ts';
 
 const DANGEROUS_ROW_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -225,8 +226,14 @@ export class Dataset {
     return new Set(this.getColumnValues(name)).size;
   }
 
-  /** Stable hash for deterministic procedural generation. */
-  get fingerprint(): number {
+  /**
+   * Cheap deterministic seed for procedural generation only.
+   *
+   * This intentionally depends only on display name and shape and is therefore
+   * NOT a scientific identity, content fingerprint, integrity check, cache
+   * authority, or provenance value.
+   */
+  get seedHash(): number {
     let h = 0;
     const str = `${this.name}:${this.rowCount}:${this.columnCount}`;
     for (let i = 0; i < str.length; i++) {
@@ -234,6 +241,11 @@ export class Dataset {
       h |= 0;
     }
     return Math.abs(h);
+  }
+
+  /** Canonical SHA-256 scientific dataset identity. */
+  get fingerprint(): string {
+    return canonicalDatasetIdentityHex(this.toJSON());
   }
 
   /**

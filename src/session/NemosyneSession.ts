@@ -6,6 +6,10 @@
  */
 
 import type { EncodingMapping } from '../data/types.ts';
+import {
+  CANONICAL_DATASET_IDENTITY_ALGORITHM,
+  canonicalDatasetIdentityHex,
+} from '../data/DatasetIdentity.ts';
 import { AtlasCore } from '../atlas/AtlasCore.ts';
 import type { AnalysisSpec, AtlasCoreState, ResearchContext } from '../atlas/types.ts';
 import {
@@ -13,7 +17,11 @@ import {
   type NoFeasibleRepresentationRecord,
   type NoFeasibleRepresentationStoreSnapshot,
 } from '../investigation/NoFeasibleRepresentationStore.ts';
-import { NemosynePackageManager, type NemosynePackageManifest } from './NemosynePackage.ts';
+import {
+  NEMOSYNE_PACKAGE_FORMAT_VERSION,
+  NemosynePackageManager,
+  type NemosynePackageManifest,
+} from './NemosynePackage.ts';
 import { strToU8 } from 'fflate';
 
 export interface PresentationState {
@@ -131,6 +139,7 @@ export class NemosyneSession {
     }
 
     const originalDataset = this._atlas.originalDataset;
+    const originalDatasetFingerprint = canonicalDatasetIdentityHex(core.originalDataset);
     const representationDecision = core.representationDecision;
     const discoveryEpisodes = core.discoveryEpisodes;
     const nilOutcomes = this._nilOutcomes.toJSON();
@@ -140,11 +149,15 @@ export class NemosyneSession {
       representationDecision?.provenance.fitnessModelVersion;
 
     const manifest: NemosynePackageManifest = {
-      formatVersion: 1,
+      formatVersion: NEMOSYNE_PACKAGE_FORMAT_VERSION,
       sessionId: this._sessionId,
-      datasetFingerprint: String(originalDataset.fingerprint),
+      datasetFingerprint: originalDatasetFingerprint,
+      datasetIdentityAlgorithm: CANONICAL_DATASET_IDENTITY_ALGORITHM,
       analyticalDatasetFingerprint:
-        representationDecision?.datasetFingerprint ?? nilProvenance?.datasetFingerprint,
+        representationDecision?.datasetFingerprint ??
+        nilProvenance?.datasetFingerprint ??
+        core.datasetFingerprint ??
+        originalDatasetFingerprint,
       datasetName: originalDataset.name,
       kernelVersion: this._atlas.kernelVersion() ?? 'unknown',
       analyticalKernelVersion:
