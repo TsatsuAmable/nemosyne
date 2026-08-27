@@ -16,6 +16,7 @@ export type DatasetSignatureEvidenceSource =
   | 'derived'
   | 'heuristic'
   | 'prior'
+  | 'investigator-declared'
   | 'unknown';
 
 export interface DatasetSignatureFactEvidence {
