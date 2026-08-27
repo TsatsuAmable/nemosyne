@@ -215,15 +215,25 @@ export class Dataset {
   }
 
   rangeOf(name: string): { min: number; max: number } {
-    const values = this.getColumnValues(name).filter(
-      (v): v is number => typeof v === 'number' && !Number.isNaN(v)
-    );
-    if (values.length === 0) return { min: 0, max: 0 };
-    return { min: Math.min(...values), max: Math.max(...values) };
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    let observed = false;
+
+    for (const row of this.rows) {
+      const value = row[name];
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+      if (value < min) min = value;
+      if (value > max) max = value;
+      observed = true;
+    }
+
+    return observed ? { min, max } : { min: 0, max: 0 };
   }
 
   cardinalityOf(name: string): number {
-    return new Set(this.getColumnValues(name)).size;
+    const values = new Set<unknown>();
+    for (const row of this.rows) values.add(row[name]);
+    return values.size;
   }
 
   /**
@@ -263,12 +273,14 @@ export class Dataset {
     mode: 'append' | 'replace' = 'append',
     limit: number | null = null
   ): this {
-    const sanitized = newRows.map(sanitizeRow);
+    const sourceRows = newRows === this.rows ? newRows.slice() : newRows;
     if (mode === 'replace') {
+      const sanitized = new Array<Record<string, unknown>>(sourceRows.length);
+      for (let i = 0; i < sourceRows.length; i++) sanitized[i] = sanitizeRow(sourceRows[i]);
       this.rows = sanitized;
       this.edges = undefined;
     } else {
-      this.rows.push(...sanitized);
+      for (const row of sourceRows) this.rows.push(sanitizeRow(row));
     }
     if (limit != null && this.rows.length > limit) {
       const previousRowCount = this.rows.length;
