@@ -554,11 +554,13 @@ Purpose: prove the new panel/layout/interaction system on a high-value bounded s
 Purpose: move conventional precision work out of hand-built spatial furniture.
 
 - [x] migrate Settings to the shared control system, including statistical-lens options, feedback, gestures/input preferences, UI scale, contrast and reduced-motion controls;
-- [ ] migrate dataset load/schema-mapping/import setup and consequential confirmation dialogs where they exist; keep forms, dense tables, exact text and numeric entry planar;
-- [ ] consolidate operation history/provenance/evidence into role-specific precision surfaces rather than separate permanent panels;
-- [ ] provide common button/toggle/slider/segmented/scroll/text-field behavior and disabled-reason presentation across desktop/ray/touch;
+- [x] migrate dataset load/schema-mapping/import setup and consequential confirmation dialogs where they exist; keep forms, dense tables, exact text and numeric entry planar;
+- [x] consolidate operation history/provenance/evidence into role-specific precision surfaces rather than separate permanent panels;
+- [x] provide common button/toggle/slider/segmented/scroll/text-field behavior and disabled-reason presentation across desktop/ray/touch;
 - [ ] standardise panel placement, grab rails, pin/follow, dismissal, focus order and replacement behavior;
 - [x] preserve a maximum normal analyst workspace of one primary work panel, one inspector/context panel and one secondary reference surface; a fourth requires replacement/consolidation or explicit pinning.
+
+> P1-U3 residuals (deferred to P1-U8): item 2 provenance is **session-level** only — `HolographicInspector` Provenance/Evidence tabs render `atlas.evidenceLedger`-derived content; node-scoped provenance is pending the structure-id↔row join (the ledger references `DiscoveredStructure` IDs while the inspector receives a raw row); `OperationLogPanel` is retained as a superuser diagnostic. Item 4 `PanelChrome` is adopted by the migrated SpatialPanels (`SchemaMappingPanel`, `HolographicInspector`); `SettingsPanel` chrome retrofit and legacy `MovablePanel` chrome standardisation are deferred to P1-U8. VR text entry remains a controlled display+callback surface (an external input driver is required for caret/selection in WebXR).
 
 **Exit gate:** commodity UI uses shared components and reference-frame rules; no migrated function loses desktop/controller/hand semantics; opening ordinary workflows no longer grows an uncontrolled panel constellation.
 

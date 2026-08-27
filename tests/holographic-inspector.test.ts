@@ -129,4 +129,49 @@ describe('HolographicInspector', () => {
     expect(second.visible).toBe(true);
     expect(budget.activeBudgetCount).toBe(1);
   });
+
+  it('renders ledger-derived session provenance (not a placeholder) when a provider is wired', () => {
+    const engine = makeEngine();
+    const inspector = new HolographicInspector(engine);
+    inspector.provenanceProvider = {
+      getProvenance: () => [
+        { id: 'e1', operation: 'filter', datasetVersion: 3, timestamp: 1000 },
+        { id: 'e2', operation: 'cluster', datasetVersion: 4, timestamp: 2000 },
+      ],
+      getEvidence: () => [],
+    };
+
+    inspector.setTab('Provenance');
+    // header + 2 provenance rows
+    expect(inspector._contentContainer.children.length).toBe(3);
+  });
+
+  it('renders ledger-derived session evidence when a provider is wired', () => {
+    const engine = makeEngine();
+    const inspector = new HolographicInspector(engine);
+    inspector.provenanceProvider = {
+      getProvenance: () => [],
+      getEvidence: () => [
+        { id: 'o1', kind: 'observation', title: 'Cluster skews left', timestamp: 1000 },
+        { id: 'f1', kind: 'finding', title: 'Anomaly confirmed', timestamp: 2000 },
+      ],
+    };
+
+    inspector.setTab('Evidence');
+    // header + 2 evidence rows
+    expect(inspector._contentContainer.children.length).toBe(3);
+  });
+
+  it('shows an "unavailable" notice for provenance/evidence when no provider is wired', () => {
+    const engine = makeEngine();
+    const inspector = new HolographicInspector(engine);
+    expect(inspector.provenanceProvider).toBeNull();
+
+    inspector.setTab('Provenance');
+    // header + notice
+    expect(inspector._contentContainer.children.length).toBe(2);
+
+    inspector.setTab('Evidence');
+    expect(inspector._contentContainer.children.length).toBe(2);
+  });
 });

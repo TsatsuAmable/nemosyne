@@ -6,11 +6,16 @@ export interface SegmentedControlProperties {
   value: string;
   onChange?: (value: string) => void;
   disabled?: boolean;
+  disabledReason?: string;
 }
 
 /**
  * Horizontal segmented control for choosing between a small set of options.
  * Active segment is highlighted; others are subdued.
+ *
+ * Layout: a column wrapping a bordered, overflow-hidden row of segments plus an
+ * optional disabled-reason line beneath (so the reason is not clipped by the
+ * segments row's `overflow: 'hidden'`).
  */
 export class SegmentedControl extends Container {
   private _value: string;
@@ -19,20 +24,26 @@ export class SegmentedControl extends Container {
   private _segmentLabels: Map<string, Text> = new Map();
   private _onChange: ((value: string) => void) | undefined;
   private _disabled: boolean;
+  private _reasonText: Text;
 
   constructor(properties: SegmentedControlProperties) {
     super({
-      flexDirection: 'row',
-      borderRadius: 4,
-      borderWidth: 1,
-      borderColor: COLOR_TOKENS.surface.border,
-      overflow: 'hidden',
+      flexDirection: 'column',
+      gap: SPACING_TOKENS.grid.x4,
     });
 
     this._value = properties.value;
     this._options = properties.options;
     this._onChange = properties.onChange;
     this._disabled = properties.disabled ?? false;
+
+    const segmentsRow = new Container({
+      flexDirection: 'row',
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: COLOR_TOKENS.surface.border,
+      overflow: 'hidden',
+    });
 
     for (const option of this._options) {
       const isActive = option === this._value;
@@ -57,7 +68,7 @@ export class SegmentedControl extends Container {
       segment.add(label);
       this._segments.set(option, segment);
       this._segmentLabels.set(option, label);
-      this.add(segment);
+      segmentsRow.add(segment);
 
       if (!this._disabled) {
         segment.addEventListener('click', () => {
@@ -68,6 +79,19 @@ export class SegmentedControl extends Container {
         });
       }
     }
+    this.add(segmentsRow);
+
+    // Disabled-reason explanation (UX-04 / §35: not colour alone). Added only
+    // while disabled with a reason so it does not reserve layout space on
+    // enabled controls. Placed beneath the segments row so it is not clipped
+    // by `overflow: 'hidden'`. Bare `Text` whose glyph raycast is already
+    // no-op'd by uikit.
+    this._reasonText = new Text({
+      text: properties.disabledReason ?? '',
+      fontSize: 12,
+      color: COLOR_TOKENS.epistemic.uncertain,
+    });
+    if (this._disabled && properties.disabledReason) this.add(this._reasonText);
   }
 
   get value(): string {

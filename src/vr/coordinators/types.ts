@@ -255,6 +255,8 @@ export interface WorldUIManagerLike {
   getOrCreateLoadTestPanel?(): PanelLike | null;
   /** Superuser / Dev Lab panel accessors (DEVELOPER mode only). */
   getOrCreateSchemaMappingPanel?(): PanelLike | null;
+  /** Toggle the schema-mapping SpatialPanel (lifecycle mirrors settings). */
+  toggleSchemaMappingPanel?(): void;
   getOrCreateGestureConfidenceHUD?(): PanelLike | null;
   /** Superuser service-class toggles (not PanelLike — construct + log for review). */
   toggleRepresentationCarousel?(): void;

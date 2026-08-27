@@ -1,14 +1,46 @@
 import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { PanelChrome } from '../ui-system/components/PanelChrome.ts';
+import { SegmentedControl } from '../ui-system/components/SegmentedControl.ts';
 import { Button } from '../ui-system/components/Button.ts';
-import { COLOR_TOKENS } from '../ui-system/tokens.ts';
+import { COLOR_TOKENS, TYPOGRAPHY_TOKENS } from '../ui-system/tokens.ts';
 import type { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
 import type { EngineLike, PointerLike } from '../coordinators/types.ts';
 
 export interface HolographicInspectorOptions {
   worldSize?: [number, number];
 }
+
+/** One session-level provenance row derived from the evidence ledger. */
+export interface ProvenanceEntry {
+  id: string;
+  operation: string;
+  datasetVersion: number;
+  timestamp: number;
+}
+
+/** One session-level evidence row (observation / finding / annotation). */
+export interface EvidenceEntry {
+  id: string;
+  kind: 'observation' | 'finding' | 'annotation';
+  title: string;
+  timestamp: number;
+}
+
+/**
+ * Provenance/evidence provider injected post-construction by the composition
+ * root (World), sourced from the authoritative `AtlasCore.evidenceLedger`.
+ * Returns session-level entries; node-scoped provenance is a P1-U3 residual
+ * (the ledger references structure-IDs, the inspector receives a raw row).
+ */
+export interface ProvenanceProvider {
+  getProvenance(): ProvenanceEntry[];
+  getEvidence(): EvidenceEntry[];
+}
+
+type InspectorTab = 'Values' | 'Evidence' | 'Provenance';
+const TAB_OPTIONS: InspectorTab[] = ['Values', 'Evidence', 'Provenance'];
 
 export class HolographicInspector extends SpatialPanel {
   engine: EngineLike;
@@ -22,15 +54,21 @@ export class HolographicInspector extends SpatialPanel {
    * `showAtNode` and untracks on `hide`; null leaves behaviour unchanged.
    */
   budgetController: PanelBudgetController | null = null;
-  
+  /**
+   * Session-level provenance/evidence provider. Set by World after
+   * construction, sourced from `atlas.evidenceLedger`. When null the
+   * Provenance/Evidence tabs show an "unavailable" notice.
+   */
+  provenanceProvider: ProvenanceProvider | null = null;
+
   // UI Sub-components
-  private _titleText: Text;
+  private _chrome: PanelChrome;
   private _categoryText: Text;
+  private _tabControl: SegmentedControl;
   private _contentContainer: Container;
-  
+
   // Tabs State
-  private _activeTab: 'Values' | 'Evidence' | 'Provenance' = 'Values';
-  private _tabButtons: Record<string, Button> = {};
+  private _activeTab: InspectorTab = 'Values';
 
   constructor(engine: EngineLike, options: HolographicInspectorOptions = {}) {
     super({
@@ -43,56 +81,39 @@ export class HolographicInspector extends SpatialPanel {
     this.engine = engine;
     this.name = 'holographic-inspector';
     this.visible = false;
-    
+
     // Default world size to [0.6, 0.45] roughly
     const scale = options.worldSize ? options.worldSize[0] / 512 : 0.6 / 512;
     this.scale.setScalar(scale);
 
-    // --- Header ---
-    const headerContainer = new Container({
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      height: 48,
-      backgroundColor: COLOR_TOKENS.surface.border,
-      borderRadius: 4,
-      paddingX: 12,
+    // --- Chrome (standardised title + pin + close, P1-U3 / P1-U8) ---
+    this._chrome = new PanelChrome({
+      title: 'DATA NODE',
+      onPinToggle: () => this._togglePin(),
+      onClose: () => this.hide(),
     });
-    this._titleText = new Text({
-      text: '// DATA NODE',
-      fontSize: 22,
-      color: COLOR_TOKENS.interaction.focus,
-      fontWeight: 'bold',
-    });
+    this.add(this._chrome);
+
+    // --- Category badge (optional, beneath the chrome) ---
     this._categoryText = new Text({
       text: '',
-      fontSize: 16,
+      fontSize: TYPOGRAPHY_TOKENS.scale.label,
       color: COLOR_TOKENS.surface.base,
       backgroundColor: COLOR_TOKENS.danger.destructive,
       paddingX: 8,
       paddingY: 4,
       borderRadius: 4,
     });
-    headerContainer.add(this._titleText);
-    headerContainer.add(this._categoryText);
-    this.add(headerContainer);
+    this.add(this._categoryText);
 
-    // --- Tab Switcher ---
-    const tabsContainer = new Container({
-      flexDirection: 'row',
-      gap: 8,
+    // --- Tab Switcher (shared SegmentedControl; fixes the pre-existing
+    // setTab hover-state bug where tabs mutated Button bg directly) ---
+    this._tabControl = new SegmentedControl({
+      options: TAB_OPTIONS,
+      value: this._activeTab,
+      onChange: (next) => this.setTab(next as InspectorTab),
     });
-    
-    for (const tabName of ['Values', 'Evidence', 'Provenance'] as const) {
-      const btn = new Button({
-        label: tabName,
-        variant: 'secondary',
-        onClick: () => this.setTab(tabName),
-      });
-      tabsContainer.add(btn);
-      this._tabButtons[tabName] = btn;
-    }
-    this.add(tabsContainer);
+    this.add(this._tabControl);
 
     // --- Content Area ---
     this._contentContainer = new Container({
@@ -122,6 +143,12 @@ export class HolographicInspector extends SpatialPanel {
     this.add(footerContainer);
   }
 
+  private _togglePin(): void {
+    if (!this.budgetController) return;
+    if (this._chrome.isPinned) this.budgetController.pin(this);
+    else this.budgetController.unpin(this);
+  }
+
   mount(scene: { add(object: THREE.Object3D): void }): void {
     scene.add(this);
   }
@@ -140,9 +167,9 @@ export class HolographicInspector extends SpatialPanel {
     // Register in the workspace budget as the inspector/context surface.
     this.budgetController?.open(this, 'inspector');
 
-    this._titleText.setProperties({ text: `// ${title}` });
+    this._chrome.title = title;
     const category = data?.category ?? data?.type ?? '';
-    this._categoryText.setProperties({ text: String(category), display: category ? 'flex' : 'none' });
+    this._categoryText.setProperties({ text: String(category) });
 
     if (nodeMesh) {
       const pos = new THREE.Vector3();
@@ -167,39 +194,127 @@ export class HolographicInspector extends SpatialPanel {
     this._playCloseFeedback();
   }
 
-  setTab(tab: 'Values' | 'Evidence' | 'Provenance') {
+  setTab(tab: InspectorTab): void {
     this._activeTab = tab;
-    // Update button visuals
-    for (const [name, btn] of Object.entries(this._tabButtons)) {
-      btn.setProperties({
-        backgroundColor: name === tab ? COLOR_TOKENS.interaction.focus : COLOR_TOKENS.surface.raised,
-      });
-    }
+    // Keep the shared SegmentedControl visual in sync when setTab is called
+    // programmatically (e.g. on open). `value` is a silent set — it does not
+    // fire onChange, so there is no feedback loop.
+    this._tabControl.value = tab;
     this._renderContent();
   }
 
-  private _renderContent() {
+  private _renderContent(): void {
     this._contentContainer.clear();
     if (this._activeTab === 'Values') {
-      const entries = Object.entries(this.data ?? {});
-      for (const [key, value] of entries) {
-        if (key === 'category' || key === 'type') continue;
-        const row = new Container({ flexDirection: 'row', justifyContent: 'space-between', width: '100%' });
-        row.add(new Text({ text: key, color: COLOR_TOKENS.interaction.focus, fontSize: 16 }));
-        row.add(new Text({ text: String(value).slice(0, 40), color: COLOR_TOKENS.text.primary, fontSize: 16 }));
-        this._contentContainer.add(row);
-      }
+      this._renderValues();
     } else if (this._activeTab === 'Evidence') {
-      this._contentContainer.add(new Text({ text: 'Evidence summary not populated.', color: COLOR_TOKENS.text.muted, fontSize: 16 }));
-    } else if (this._activeTab === 'Provenance') {
-      this._contentContainer.add(new Text({ text: 'Provenance graph not populated.', color: COLOR_TOKENS.text.muted, fontSize: 16 }));
+      this._renderEvidence();
+    } else {
+      this._renderProvenance();
+    }
+  }
+
+  private _renderValues(): void {
+    const entries = Object.entries(this.data ?? {});
+    if (entries.length === 0) {
+      this._contentContainer.add(
+        new Text({ text: 'No values for this node.', color: COLOR_TOKENS.text.muted, fontSize: 16 }),
+      );
+      return;
+    }
+    for (const [key, value] of entries) {
+      if (key === 'category' || key === 'type') continue;
+      const row = new Container({ flexDirection: 'row', justifyContent: 'space-between', width: '100%' });
+      row.add(new Text({ text: key, color: COLOR_TOKENS.interaction.focus, fontSize: 16 }));
+      row.add(new Text({ text: String(value).slice(0, 40), color: COLOR_TOKENS.text.primary, fontSize: 16 }));
+      this._contentContainer.add(row);
+    }
+  }
+
+  private _renderEvidence(): void {
+    const entries = this.provenanceProvider?.getEvidence() ?? [];
+    this._contentContainer.add(
+      new Text({
+        text: '// SESSION EVIDENCE',
+        fontSize: TYPOGRAPHY_TOKENS.scale.label,
+        color: COLOR_TOKENS.interaction.focus,
+        fontWeight: 'bold',
+      }),
+    );
+    if (entries.length === 0) {
+      this._contentContainer.add(
+        new Text({
+          text: 'No session evidence recorded yet.',
+          color: COLOR_TOKENS.text.muted,
+          fontSize: 16,
+        }),
+      );
+      return;
+    }
+    for (const entry of entries) {
+      const row = new Container({ flexDirection: 'column', gap: 2, width: '100%' });
+      row.add(
+        new Text({
+          text: `[${entry.kind.toUpperCase()}] ${entry.title}`,
+          color: COLOR_TOKENS.text.primary,
+          fontSize: 16,
+        }),
+      );
+      row.add(
+        new Text({
+          text: new Date(entry.timestamp).toISOString(),
+          color: COLOR_TOKENS.text.muted,
+          fontSize: 12,
+        }),
+      );
+      this._contentContainer.add(row);
+    }
+  }
+
+  private _renderProvenance(): void {
+    const entries = this.provenanceProvider?.getProvenance() ?? [];
+    this._contentContainer.add(
+      new Text({
+        text: '// SESSION PROVENANCE',
+        fontSize: TYPOGRAPHY_TOKENS.scale.label,
+        color: COLOR_TOKENS.interaction.focus,
+        fontWeight: 'bold',
+      }),
+    );
+    if (entries.length === 0) {
+      this._contentContainer.add(
+        new Text({
+          text: 'No session provenance recorded yet.',
+          color: COLOR_TOKENS.text.muted,
+          fontSize: 16,
+        }),
+      );
+      return;
+    }
+    for (const entry of entries) {
+      const row = new Container({ flexDirection: 'column', gap: 2, width: '100%' });
+      row.add(
+        new Text({
+          text: entry.operation,
+          color: COLOR_TOKENS.text.primary,
+          fontSize: 16,
+        }),
+      );
+      row.add(
+        new Text({
+          text: `v${entry.datasetVersion} · ${new Date(entry.timestamp).toISOString()}`,
+          color: COLOR_TOKENS.text.muted,
+          fontSize: 12,
+        }),
+      );
+      this._contentContainer.add(row);
     }
   }
 
   update(delta: number, _time?: number): void {
     if (!this.active) return;
     super.update(delta); // Updates SpatialPanel internals
-    
+
     // Face the user's head smoothly if we want
     if (this.engine.camera) {
       const camPos = new THREE.Vector3();
