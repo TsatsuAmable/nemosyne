@@ -35,7 +35,7 @@ describe('Canonical Vertical Slice Invariant — End-to-End Investigation Lifecy
     // Stage 1: Load Known Dataset & Verify Content-Addressed Fingerprint
     // -------------------------------------------------------------------------
     const originalDataset = Dataset.fromJSON(canonicalSalesJSON);
-    const rendererSeedFingerprint = originalDataset.fingerprint;
+    const rendererSeedFingerprint = originalDataset.seedHash;
 
     expect(rendererSeedFingerprint).toBeDefined();
     expect(typeof rendererSeedFingerprint).toBe('number');
