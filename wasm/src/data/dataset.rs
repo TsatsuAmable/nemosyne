@@ -400,6 +400,12 @@ impl Dataset {
                 for (index, entry) in entries.iter().enumerate() {
                     let edge: Edge = serde_json::from_value(entry.clone())
                         .map_err(|error| format!("invalid edge at index {index}: {error}"))?;
+                    validate_edge_endpoint(&edge.source, rows.len()).map_err(|error| {
+                        format!("invalid edge at index {index}: source {error}")
+                    })?;
+                    validate_edge_endpoint(&edge.target, rows.len()).map_err(|error| {
+                        format!("invalid edge at index {index}: target {error}")
+                    })?;
                     parsed.push(edge);
                 }
                 Some(parsed)
@@ -485,6 +491,16 @@ impl Dataset {
         }
 
         serde_json::to_string(&JsonValue::Object(root)).unwrap_or_else(|_| "{}".to_string())
+    }
+}
+
+fn validate_edge_endpoint(endpoint: &EdgeEndpoint, row_count: usize) -> Result<(), String> {
+    match endpoint {
+        EdgeEndpoint::Index(index) if *index >= row_count => Err(format!(
+            "row index {index} is outside dataset row range 0..{row_count}"
+        )),
+        EdgeEndpoint::Id(id) if id.is_empty() => Err("stable string ID must not be empty".to_string()),
+        _ => Ok(()),
     }
 }
 
@@ -656,10 +672,14 @@ mod row_identity_tests {
     #[test]
     fn rolling_append_drops_stable_string_edges_after_prefix_eviction() {
         let mut ds = string_graph_dataset();
-        ds.update_rows(vec![HashMap::from([
-            ("id".to_string(), Value::Text("C".to_string())),
-            ("value".to_string(), Value::Number(3.0)),
-        ])], RowUpdateMode::Append, Some(2));
+        ds.update_rows(
+            vec![HashMap::from([
+                ("id".to_string(), Value::Text("C".to_string())),
+                ("value".to_string(), Value::Number(3.0)),
+            ])],
+            RowUpdateMode::Append,
+            Some(2),
+        );
         assert_eq!(ds.edges, Some(vec![]));
     }
 
@@ -727,5 +747,29 @@ mod row_identity_tests {
         });
         let error = Dataset::from_js_json(&input.to_string()).expect_err("malformed edge must fail");
         assert!(error.contains("invalid edge at index 0"));
+    }
+
+    #[test]
+    fn out_of_range_positional_endpoint_fails_closed() {
+        let input = json!({
+            "name": "graph",
+            "columns": [{"name": "value", "type": "NUMERIC"}],
+            "rows": [{"value": 1}, {"value": 2}],
+            "edges": [{"source": 0, "target": 99}]
+        });
+        let error = Dataset::from_js_json(&input.to_string()).expect_err("invalid row index must fail");
+        assert!(error.contains("target row index 99 is outside dataset row range"));
+    }
+
+    #[test]
+    fn empty_stable_endpoint_fails_closed() {
+        let input = json!({
+            "name": "graph",
+            "columns": [{"name": "id", "type": "CATEGORICAL"}],
+            "rows": [{"id": "A"}, {"id": "B"}],
+            "edges": [{"source": "", "target": "B"}]
+        });
+        let error = Dataset::from_js_json(&input.to_string()).expect_err("empty ID must fail");
+        assert!(error.contains("source stable string ID must not be empty"));
     }
 }
