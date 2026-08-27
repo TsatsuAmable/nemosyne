@@ -108,18 +108,12 @@ export class AnalyticalState {
     if (!this._current) return null;
     if (this._datasetSpace && this._datasetSpaceSource === this._current) return this._datasetSpace;
     const fingerprint = fingerprintProvider ? fingerprintProvider() : null;
-    let ranges: Record<string, DatasetSpaceNormalization> | null = null;
-    if (rangesProvider) {
-      try {
-        // A live authority provider was supplied. If it has no usable range
-        // evidence, keep normalization unavailable instead of silently falling
-        // back to a JavaScript O(N) scan. Direct/legacy construction without a
-        // provider retains the historical row-scan compatibility behavior.
-        ranges = rangesProvider() ?? {};
-      } catch {
-        ranges = {};
-      }
-    }
+    // A live authority provider was supplied. If it has no usable range
+    // evidence, keep normalization unavailable instead of silently falling
+    // back to a JavaScript O(N) scan. Genuine provider failures still propagate.
+    // Direct/legacy construction without a provider retains the historical
+    // row-scan compatibility behavior.
+    const ranges = rangesProvider ? rangesProvider() ?? {} : null;
     // Calling the live fingerprint provider may allocate the Rust handle and
     // hydrate first-lineage row IDs onto `_current`. Only treat those IDs as
     // authoritative DatasetSpace datum IDs when the live authority path was
