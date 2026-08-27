@@ -6,9 +6,7 @@ import { BootstrapFitnessModel } from '../src/moneta/representation/FitnessModel
 import { MonetaHypothesisEngine } from '../src/moneta/representation/MonetaHypothesisEngine.ts';
 import { MONETA_REPRESENTATION_CANDIDATES } from '../src/moneta/representation/RepresentationCandidate.ts';
 import { createDefaultRequirements } from '../src/moneta/representation/RepresentationRequirements.ts';
-import {
-  minimalDatasetSignature,
-} from '../src/moneta/representation/DatasetSignature.ts';
+import { minimalDatasetSignature } from '../src/moneta/representation/DatasetSignature.ts';
 import { buildDatasetSignature } from '../src/moneta/representation/SignatureBuilder.ts';
 
 function legacyGraphFacts(): MonetaFacts {
@@ -129,7 +127,10 @@ describe('RF-045 truthful DatasetSignature evidence contract', () => {
 
   it('does not let unknown hierarchy evidence satisfy hierarchy-only hard constraints', () => {
     const signature = minimalDatasetSignature(50, 3, 0, 0, 'rf045-unknown-hierarchy', 0);
-    expect(signature.cardinality.depth).toBeUndefined();
+    // A zero depth sentinel is retained for compatibility, but it is explicitly
+    // not evidence and therefore cannot make a hierarchy candidate feasible.
+    expect(signature.cardinality.depth).toBe(0);
+    expect(signature.epistemic?.facts['cardinality.depth'].source).toBe('unknown');
 
     const decision = new MonetaHypothesisEngine().arbitrate(
       signature,
