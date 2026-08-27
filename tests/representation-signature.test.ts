@@ -10,7 +10,7 @@ import {
 } from './helpers/moneta-kernel-fixture.ts';
 
 describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
-  it('builds signature from DracoFacts and kernel Facts', () => {
+  it('builds a source-aware compatibility signature from DracoFacts and kernel Facts', () => {
     const mockDracoFacts: DracoFacts = {
       topology: 'TABULAR',
       rowCount: 100,
@@ -49,8 +49,30 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
     const mockKernelFacts: Facts = {
       rowCount: 100,
       columnCount: 6,
-      numeric: [],
-      categorical: [],
+      numeric: [
+        {
+          name: 'colA',
+          count: 100,
+          sum: 1000,
+          mean: 10,
+          median: 9,
+          std: 2,
+          var: 4,
+          min: 2,
+          max: 20,
+          skew: 0.45,
+          kurtosis: 1.2,
+          outlierCount: 5,
+        },
+      ],
+      categorical: [
+        {
+          name: 'catA',
+          cardinality: 5,
+          entropy: 1.5,
+          top: [],
+        },
+      ],
       correlation: [
         { a: 'colA', b: 'colB', value: 0.75 },
       ],
@@ -65,7 +87,7 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
     expect(sig.schema.temporalCount).toBe(1);
     expect(sig.cardinality.rowCount).toBe(100);
     expect(sig.distribution.hasOutliers).toBe(true);
-    expect(sig.distribution.highVariance).toBe(true);
+    expect(sig.distribution.highVariance).toBeUndefined();
     expect(sig.distribution.maxSkewness).toBe(0.45);
     expect(sig.distribution.meanEntropy).toBe(1.5);
     expect(sig.dependence.maxCorrelation).toBe(0.75);
@@ -76,9 +98,12 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
     expect(sig.temporalStructure.trendDirection).toBe('up');
     expect(sig.temporalStructure.hasSeasonality).toBe(true);
     expect(sig.provenance.datasetFingerprint).toBe('fp-tabular');
+    expect(sig.epistemic?.facts['distribution.meanEntropy'].source).toBe('measured');
+    expect(sig.epistemic?.facts['distribution.highVariance'].source).toBe('unknown');
+    expect(sig.epistemic?.facts['clusterStructure.hasClusters'].source).toBe('heuristic');
   });
 
-  it('builds signature for graph topology', () => {
+  it('does not infer cycles from graph topology or edge presence', () => {
     const mockFacts: DracoFacts = {
       topology: 'GRAPH',
       rowCount: 50,
@@ -110,12 +135,13 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
 
     const sig = buildDatasetSignature(mockFacts);
     expect(sig.topologicalStructure.topology).toBe('GRAPH');
-    expect(sig.topologicalStructure.hasCycles).toBe(true);
+    expect(sig.topologicalStructure.hasCycles).toBeUndefined();
+    expect(sig.epistemic?.facts['topologicalStructure.hasCycles'].source).toBe('unknown');
     expect(sig.cardinality.edgeCount).toBe(120);
-    expect(sig.spatialStructure.isGeospatial).toBe(false);
+    expect(sig.spatialStructure.isGeospatial).toBeUndefined();
   });
 
-  it('builds signature for geospatial topology', () => {
+  it('does not manufacture coordinate dimensionality from a GEO topology label', () => {
     const mockFacts: DracoFacts = {
       topology: 'GEO',
       rowCount: 200,
@@ -147,10 +173,11 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
 
     const sig = buildDatasetSignature(mockFacts);
     expect(sig.spatialStructure.isGeospatial).toBe(true);
-    expect(sig.spatialStructure.coordinateDimensions).toBe(2);
+    expect(sig.spatialStructure.coordinateDimensions).toBeUndefined();
+    expect(sig.epistemic?.facts['spatialStructure.coordinateDimensions'].source).toBe('unknown');
   });
 
-  it('computes dataset signature via AtlasCore', () => {
+  it('computes canonical dataset signature via AtlasCore', () => {
     const profile = createMonetaStructureProfile({
       datasetName: 'test-dataset',
       rowCount: 5,
@@ -179,6 +206,7 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
     expect(sig).toBeDefined();
     expect(sig.cardinality.rowCount).toBe(5);
     expect(sig.provenance.datasetFingerprint).toBe(profile.provenance.datasetFingerprint);
+    expect(sig.epistemic?.facts['clusterStructure.hasClusters'].source).toBe('heuristic');
     expect(atlas.activeDatasetSignature).toBe(sig);
   });
 });

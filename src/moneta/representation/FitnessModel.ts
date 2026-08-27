@@ -227,15 +227,20 @@ export class BootstrapFitnessModel {
     family: RepresentationFamily
   ): number {
     const top = signature.topologicalStructure.topology;
+    const knownHierarchyDepth =
+      typeof signature.cardinality.depth === 'number' && signature.cardinality.depth > 1;
     let score = 0.4;
 
     if (family === 'GRAPH' && (top === 'GRAPH' || signature.cardinality.edgeCount > 0)) score = 1;
-    else if (family === 'HIERARCHICAL' && (top === 'HIERARCHY' || signature.cardinality.depth > 1)) score = 1;
-    else if (family === 'TEMPORAL' && (top === 'TIME_SERIES' || signature.temporalStructure.isTimeSeries)) score = 1;
-    else if (family === 'FREQUENCY' && signature.spectralStructure?.hasPeriodicity) score = 1;
+    else if (family === 'HIERARCHICAL' && (top === 'HIERARCHY' || knownHierarchyDepth)) score = 1;
+    else if (family === 'TEMPORAL' && (top === 'TIME_SERIES' || signature.temporalStructure.isTimeSeries === true)) score = 1;
+    else if (family === 'FREQUENCY' && signature.spectralStructure?.hasPeriodicity === true) score = 1;
     else if (family === 'FIELD' && (top === 'VECTOR_FIELD' || top === 'GEO')) score = 1;
-    else if (family === 'CLUSTER' && signature.clusterStructure.hasClusters) score = 0.95;
-    else if (family === 'DISTRIBUTION' && (signature.distribution.hasOutliers || signature.distribution.highVariance)) score = 0.9;
+    else if (family === 'CLUSTER' && signature.clusterStructure.hasClusters === true) score = 0.95;
+    else if (
+      family === 'DISTRIBUTION' &&
+      (signature.distribution.hasOutliers === true || signature.distribution.highVariance === true)
+    ) score = 0.9;
 
     const requiredCoverage = requirements.requiredStructures.length === 0
       ? 1
@@ -306,9 +311,12 @@ export class BootstrapFitnessModel {
     candidate: RepresentationCandidate
   ): number {
     const densityRequirement = requirements.requiredStructures.find((r) => r.type === 'density');
+    const knownDensityVariation =
+      typeof signature.clusterStructure.densityVariation === 'number' &&
+      signature.clusterStructure.densityVariation > 0;
     const densityRelevant =
       (densityRequirement?.importance ?? 0) > 0 ||
-      signature.clusterStructure.densityVariation > 0 ||
+      knownDensityVariation ||
       signature.cardinality.rowCount > 500;
 
     if (!densityRelevant) return 1;

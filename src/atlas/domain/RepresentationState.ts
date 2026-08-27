@@ -45,6 +45,11 @@ export type RepresentationFitnessRuntimeIdentity =
       artifactHash: string;
     };
 
+/**
+ * Legacy compatibility heuristic. This value is not canonical analytical
+ * evidence and must never be promoted to DatasetSignature without an explicit
+ * heuristic source label.
+ */
 export function estimateClusterCount(
   rowCount: number,
   cardinalityOfColor: number,
@@ -55,6 +60,12 @@ export function estimateClusterCount(
   return Math.min(20, Math.max(1, Math.round(Math.sqrt(rowCount))));
 }
 
+/**
+ * Legacy MonetaFacts adapter. It intentionally remains a compatibility surface;
+ * several fields below are engineering heuristics. Canonical V3 representation
+ * decisions use DatasetEvidence instead, and SignatureBuilder labels any values
+ * that traverse this adapter as heuristic rather than kernel measurement.
+ */
 export function mapKernelFactsToMoneta(
   input: MonetaDataInput,
   kf: Facts,
@@ -273,20 +284,14 @@ export class RepresentationState {
     const ds = input.dataset;
     if (!ds) throw new Error('Dataset required to build DatasetSignature');
 
-    const facts = kernelFacts ?? {
-      rowCount: ds.rowCount ?? 0,
-      columnCount: ds.columnCount ?? 0,
-      numeric: [],
-      correlation: [],
-      categorical: [],
-      temporal: [],
-      temporalStats: [],
-    };
+    // RF-045: absence of kernel facts must stay absence. Do not construct an
+    // empty Facts object or stamp a guessed kernel version, because both would
+    // make unknown analytical state look like a measured all-zero result.
     return buildDatasetSignature(
       ds,
-      facts,
+      kernelFacts,
       datasetFingerprint ?? (ds.fingerprint ? String(ds.fingerprint) : 'unknown'),
-      '0.1.0',
+      'unknown',
       spectralFacts
     );
   }

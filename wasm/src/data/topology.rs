@@ -161,8 +161,13 @@ pub fn parse_topology(s: &str) -> Option<Topology> {
     }
 }
 
-/// Infer topology from schema semantics and bounded value-domain checks,
-/// optionally honouring an explicit investigator override.
+/// Infer topology from explicit source semantics, schema semantics and bounded
+/// value-domain checks, optionally honouring an explicit investigator override.
+///
+/// RF-044: a non-empty `Dataset.edges` collection is direct source graph
+/// evidence and outranks schema heuristics. An empty edge collection is not
+/// sufficient evidence by itself because legacy hierarchy fixtures may carry an
+/// empty edge container.
 pub fn infer_with_explicit(dataset: &Dataset, explicit: Option<Topology>) -> Topology {
     if let Some(topology) = explicit {
         return topology;
@@ -171,6 +176,9 @@ pub fn infer_with_explicit(dataset: &Dataset, explicit: Option<Topology>) -> Top
     let numeric_count = dataset.numeric_columns().len();
     let temporal_count = dataset.temporal_columns().len();
 
+    if dataset.edges.as_ref().is_some_and(|edges| !edges.is_empty()) {
+        return Topology::Graph;
+    }
     if has_graph_coordinates(dataset) {
         return Topology::Graph;
     }
@@ -722,6 +730,7 @@ pub fn compute_betti0_curve_space(space: &FeatureSpace, steps: usize) -> Vec<Bet
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::dataset::Edge;
 
     #[test]
     fn infers_hierarchy_from_exact_parent_semantics() {
@@ -733,6 +742,48 @@ mod tests {
             ],
             vec![],
         );
+        assert_eq!(infer(&dataset), Topology::Hierarchy);
+    }
+
+    #[test]
+    fn explicit_non_empty_edges_are_authoritative_graph_evidence() {
+        let mut dataset = Dataset::new(
+            "edge-only-graph",
+            vec![Column::new("value", ColumnType::Numeric)],
+            vec![
+                HashMap::from([("value".to_string(), Value::Number(1.0))]),
+                HashMap::from([("value".to_string(), Value::Number(2.0))]),
+            ],
+        );
+        dataset.edges = Some(vec![Edge::new(0, 1)]);
+        assert_eq!(infer(&dataset), Topology::Graph);
+    }
+
+    #[test]
+    fn stable_string_edges_are_authoritative_graph_evidence() {
+        let mut dataset = Dataset::new(
+            "string-edge-graph",
+            vec![Column::new("id", ColumnType::Categorical)],
+            vec![
+                HashMap::from([("id".to_string(), Value::Text("A".to_string()))]),
+                HashMap::from([("id".to_string(), Value::Text("B".to_string()))]),
+            ],
+        );
+        dataset.edges = Some(vec![Edge::new_id("A", "B")]);
+        assert_eq!(infer(&dataset), Topology::Graph);
+    }
+
+    #[test]
+    fn empty_edge_container_does_not_override_hierarchy_semantics() {
+        let mut dataset = Dataset::new(
+            "hierarchy",
+            vec![
+                Column::new("parent", ColumnType::Categorical),
+                Column::new("id", ColumnType::Categorical),
+            ],
+            vec![],
+        );
+        dataset.edges = Some(vec![]);
         assert_eq!(infer(&dataset), Topology::Hierarchy);
     }
 

@@ -1,13 +1,107 @@
 /**
- * SignatureBuilder — Pure builder mapping Rust analytical kernel facts to DatasetSignature.
+ * SignatureBuilder — compatibility builder for DatasetSignature.
+ *
+ * Canonical V3 decisions should prefer DatasetEvidenceSignature. This builder
+ * must nevertheless be truthful: unsupported analytical values remain absent
+ * and its epistemic map records whether each populated fact is measured,
+ * derived, heuristic, prior, or unknown.
  */
 
 import type { Dataset } from '../../data/Dataset.ts';
 import type { Facts } from '../../data/types.ts';
-import type { DatasetSignature, SpectralFacts } from './DatasetSignature.ts';
+import {
+  createUnknownDatasetSignatureEpistemic,
+  markDatasetSignatureFact,
+  type DatasetSignature,
+  type DatasetSignatureEpistemic,
+  type DatasetSignatureEvidenceSource,
+  type DatasetSignatureFactPath,
+  type SpectralFacts,
+} from './DatasetSignature.ts';
 import type { RepresentationFamily } from './RepresentationFamily.ts';
 import type { MonetaFacts } from '../types.ts';
 import type { TopologyType } from '../../types/topology.ts';
+
+function mark(
+  epistemic: DatasetSignatureEpistemic,
+  paths: readonly DatasetSignatureFactPath[],
+  source: DatasetSignatureEvidenceSource,
+  note: string,
+): void {
+  for (const path of paths) markDatasetSignatureFact(epistemic, path, source, { note });
+}
+
+function markSpectralFacts(
+  epistemic: DatasetSignatureEpistemic,
+  spectral: SpectralFacts | null | undefined,
+): void {
+  if (!spectral) return;
+  const measured = [
+    'spectralStructure.dominantFrequencies',
+    'spectralStructure.spectralEntropy',
+    'spectralStructure.powerSpectrumPeak',
+  ] as const;
+  mark(epistemic, measured, 'measured', 'Supplied spectral analytical result');
+  if (spectral.directionalAnisotropy !== undefined) {
+    markDatasetSignatureFact(epistemic, 'spectralStructure.directionalAnisotropy', 'measured');
+  }
+  if (spectral.characteristicScale !== undefined) {
+    markDatasetSignatureFact(epistemic, 'spectralStructure.characteristicScale', 'measured');
+  }
+  markDatasetSignatureFact(epistemic, 'spectralStructure.hasPeriodicity', 'heuristic', {
+    note: 'Periodicity detection is a non-calibrated analytical heuristic',
+  });
+  if (spectral.periodicityConfidence !== undefined) {
+    markDatasetSignatureFact(epistemic, 'spectralStructure.periodicityConfidence', 'heuristic');
+  }
+  if (spectral.periodicityHeuristicScore !== undefined) {
+    markDatasetSignatureFact(epistemic, 'spectralStructure.periodicityHeuristicScore', 'heuristic');
+  }
+  for (const [path, value] of [
+    ['spectralStructure.method', spectral.method],
+    ['spectralStructure.observedCount', spectral.observedCount],
+    ['spectralStructure.transformLength', spectral.transformLength],
+    ['spectralStructure.sourceObservationsPerBin', spectral.sourceObservationsPerBin],
+    ['spectralStructure.frequencyResolution', spectral.frequencyResolution],
+    ['spectralStructure.maximumFrequency', spectral.maximumFrequency],
+    ['spectralStructure.windowFunction', spectral.windowFunction],
+  ] as const) {
+    if (value !== undefined) markDatasetSignatureFact(epistemic, path, 'derived');
+  }
+}
+
+function meanCategoricalEntropy(facts: Facts): number | undefined {
+  if (facts.categorical.length === 0) return undefined;
+  return facts.categorical.reduce((sum, category) => sum + category.entropy, 0) /
+    facts.categorical.length;
+}
+
+function correlationSummary(facts: Facts): {
+  maxCorrelation: number;
+  significantPairsCount: number;
+} {
+  let maxCorrelation = 0;
+  let significantPairsCount = 0;
+  for (const corr of facts.correlation) {
+    const absolute = Math.abs(corr.value);
+    if (absolute > maxCorrelation) maxCorrelation = absolute;
+    if (absolute >= 0.5) significantPairsCount += 1;
+  }
+  return { maxCorrelation, significantPairsCount };
+}
+
+function numericSummary(facts: Facts): {
+  totalOutliers: number;
+  maxSkewness: number;
+} {
+  let totalOutliers = 0;
+  let maxSkewness = 0;
+  for (const stat of facts.numeric) {
+    totalOutliers += stat.outlierCount;
+    maxSkewness = Math.max(maxSkewness, Math.abs(stat.skew));
+  }
+  return { totalOutliers, maxSkewness };
+}
 
 export function buildDatasetSignature(
   datasetOrFacts: Dataset | MonetaFacts,
@@ -18,175 +112,312 @@ export function buildDatasetSignature(
   now = Date.now(),
   userHints?: { preferredFamilies?: RepresentationFamily[] }
 ): DatasetSignature {
+  const epistemic = createUnknownDatasetSignatureEpistemic();
+
   if ('topology' in datasetOrFacts && 'rowCount' in datasetOrFacts && !('columns' in datasetOrFacts)) {
     const mf = datasetOrFacts as MonetaFacts;
-    const spectral = (typeof fingerprintOrSpectral === 'object' ? fingerprintOrSpectral : spectralFacts) as SpectralFacts | null;
-    const fp = typeof fingerprintOrSpectral === 'string' ? fingerprintOrSpectral : (typeof kernelOrFingerprint === 'string' ? kernelOrFingerprint : 'unknown');
+    const spectral = (typeof fingerprintOrSpectral === 'object'
+      ? fingerprintOrSpectral
+      : spectralFacts) as SpectralFacts | null;
+    const fingerprintPassedDirectly = typeof fingerprintOrSpectral === 'string';
+    const fp = fingerprintPassedDirectly
+      ? fingerprintOrSpectral
+      : typeof kernelOrFingerprint === 'string'
+        ? kernelOrFingerprint
+        : 'unknown';
+    const kernelVersion = fingerprintPassedDirectly && typeof kernelOrFingerprint === 'string'
+      ? kernelOrFingerprint
+      : 'unknown';
 
-    const hasOutliers = (mf.hasOutliers ?? false) || (mf.outlierCount != null && mf.outlierCount > 0);
-    const clusterCount = mf.clusterCount ?? (mf.cardinalityOfColor && mf.cardinalityOfColor > 1 ? mf.cardinalityOfColor : 1);
-    const hasClusters = clusterCount > 1;
+    mark(
+      epistemic,
+      [
+        'schema.numericCount',
+        'schema.categoricalCount',
+        'schema.temporalCount',
+        'cardinality.rowCount',
+        'cardinality.columnCount',
+        'cardinality.edgeCount',
+        'topologicalStructure.topology',
+      ],
+      'derived',
+      'Direct structural value supplied by the legacy MonetaFacts adapter',
+    );
 
-    const meanEntropy =
-      facts?.categorical?.length
-        ? facts.categorical.reduce((sum, c) => sum + (c.entropy ?? 0), 0) / facts.categorical.length
-        : 1.5;
+    const distribution: DatasetSignature['distribution'] = {};
+    const dependence: DatasetSignature['dependence'] = {};
+    const clusterStructure: DatasetSignature['clusterStructure'] = {};
+    const temporalStructure: DatasetSignature['temporalStructure'] = {};
+    const spatialStructure: DatasetSignature['spatialStructure'] = {};
 
-    const maxCorrelation =
-      facts?.correlation?.length ? Math.max(...facts.correlation.map((c) => Math.abs(c.value))) : 0;
-    const significantPairsCount =
-      facts?.correlation?.filter((c) => Math.abs(c.value) >= 0.5).length ?? 0;
+    if (facts) {
+      const numeric = numericSummary(facts);
+      const correlations = correlationSummary(facts);
+      distribution.hasOutliers = numeric.totalOutliers > 0;
+      distribution.outlierFraction = numeric.totalOutliers / Math.max(1, facts.rowCount);
+      distribution.anomalyCount = numeric.totalOutliers;
+      distribution.maxSkewness = numeric.maxSkewness;
+      dependence.maxCorrelation = correlations.maxCorrelation;
+      dependence.significantPairsCount = correlations.significantPairsCount;
+      mark(
+        epistemic,
+        [
+          'distribution.hasOutliers',
+          'distribution.outlierFraction',
+          'distribution.anomalyCount',
+          'distribution.maxSkewness',
+          'dependence.maxCorrelation',
+          'dependence.significantPairsCount',
+        ],
+        'measured',
+        'Computed by supplied Rust kernel Facts',
+      );
+      const entropy = meanCategoricalEntropy(facts);
+      if (entropy !== undefined) {
+        distribution.meanEntropy = entropy;
+        markDatasetSignatureFact(epistemic, 'distribution.meanEntropy', 'measured', {
+          note: 'Mean of categorical entropies emitted by supplied Rust kernel Facts',
+        });
+      }
+    } else {
+      // MonetaFacts is a compatibility envelope containing several historical
+      // heuristics. Preserve only values explicitly present there and label
+      // them as heuristics rather than pretending they were kernel measurements.
+      if (typeof mf.hasOutliers === 'boolean' || Number.isFinite(mf.outlierCount)) {
+        const count = Number.isFinite(mf.outlierCount) ? mf.outlierCount : 0;
+        distribution.hasOutliers = mf.hasOutliers === true || count > 0;
+        distribution.anomalyCount = count;
+        distribution.outlierFraction = count / Math.max(1, mf.rowCount);
+        mark(
+          epistemic,
+          ['distribution.hasOutliers', 'distribution.anomalyCount', 'distribution.outlierFraction'],
+          'heuristic',
+          'Legacy MonetaFacts compatibility value; not canonical DatasetEvidence',
+        );
+      }
+      if (typeof mf.hasHighVariance === 'boolean') {
+        distribution.highVariance = mf.hasHighVariance;
+        markDatasetSignatureFact(epistemic, 'distribution.highVariance', 'heuristic', {
+          note: 'Legacy MonetaFacts compatibility flag; threshold provenance is unavailable here',
+        });
+      }
+      if (Number.isFinite(mf.numericSkew)) {
+        distribution.maxSkewness = Math.abs(mf.numericSkew);
+        markDatasetSignatureFact(epistemic, 'distribution.maxSkewness', 'heuristic');
+      }
+    }
+
+    if (Number.isFinite(mf.clusterCount)) {
+      clusterStructure.estimatedCount = mf.clusterCount;
+      clusterStructure.hasClusters = mf.clusterCount > 1;
+      mark(
+        epistemic,
+        ['clusterStructure.estimatedCount', 'clusterStructure.hasClusters'],
+        'heuristic',
+        'Legacy cluster-count heuristic; no separation or density evidence is implied',
+      );
+    }
+
+    const hierarchyDepth = mf.topology === 'HIERARCHY' && Number.isFinite(mf.depth) ? mf.depth : 0;
+    if (mf.topology === 'HIERARCHY' && Number.isFinite(mf.depth)) {
+      markDatasetSignatureFact(epistemic, 'cardinality.depth', 'heuristic', {
+        note: 'Legacy hierarchy-depth value; canonical hierarchy evidence is preferred',
+      });
+    }
+
+    const explicitHasCycles = (mf as Record<string, unknown>).hasCycles;
+    const topologicalStructure: DatasetSignature['topologicalStructure'] = {
+      topology: mf.topology as TopologyType,
+      ...(typeof explicitHasCycles === 'boolean' ? { hasCycles: explicitHasCycles } : {}),
+    };
+    if (typeof explicitHasCycles === 'boolean') {
+      markDatasetSignatureFact(epistemic, 'topologicalStructure.hasCycles', 'heuristic', {
+        note: 'Explicit legacy compatibility fact; edge presence alone is never cycle evidence',
+      });
+    }
+
+    if (mf.topology === 'TIME_SERIES') {
+      temporalStructure.isTimeSeries = true;
+      markDatasetSignatureFact(epistemic, 'temporalStructure.isTimeSeries', 'derived');
+    } else if (mf.hasTimeSeries === true) {
+      temporalStructure.isTimeSeries = true;
+      markDatasetSignatureFact(epistemic, 'temporalStructure.isTimeSeries', 'heuristic');
+    }
+    if (temporalStructure.isTimeSeries === true) {
+      temporalStructure.trendDirection = mf.trendDirection;
+      markDatasetSignatureFact(epistemic, 'temporalStructure.trendDirection', 'heuristic');
+      if (mf.seasonalityHint === true || spectral?.hasPeriodicity === true) {
+        temporalStructure.hasSeasonality = true;
+        markDatasetSignatureFact(epistemic, 'temporalStructure.hasSeasonality', 'heuristic');
+      }
+    }
+
+    if (mf.topology === 'GEO' || mf.topology === 'VECTOR_FIELD') {
+      spatialStructure.isGeospatial = true;
+      markDatasetSignatureFact(epistemic, 'spatialStructure.isGeospatial', 'derived', {
+        note: 'Derived from explicit topology; coordinate dimensionality remains unknown',
+      });
+    }
+
+    markSpectralFacts(epistemic, spectral);
 
     return {
       schema: {
-        numericCount: mf.numericColumns ?? 0,
-        categoricalCount: mf.categoricalColumns ?? 0,
-        temporalCount: mf.temporalColumns ?? 0,
-        geoCount: mf.topology === 'GEO' ? 2 : 0,
-        textCount: 0,
-        idCount: 0,
+        numericCount: mf.numericColumns,
+        categoricalCount: mf.categoricalColumns,
+        temporalCount: mf.temporalColumns,
       },
       cardinality: {
-        rowCount: mf.rowCount ?? 0,
-        columnCount: (mf.numericColumns ?? 0) + (mf.categoricalColumns ?? 0) + (mf.temporalColumns ?? 0),
-        edgeCount: mf.edgeCount ?? 0,
-        depth: mf.depth ?? 1,
+        rowCount: mf.rowCount,
+        columnCount: mf.numericColumns + mf.categoricalColumns + mf.temporalColumns,
+        edgeCount: mf.edgeCount,
+        depth: hierarchyDepth,
       },
-      distribution: {
-        hasOutliers,
-        outlierFraction: (mf.outlierCount ?? 0) / Math.max(1, mf.rowCount ?? 1),
-        anomalyCount: mf.outlierCount ?? 0,
-        highVariance: mf.hasHighVariance ?? false,
-        maxSkewness: mf.numericSkew ?? 0,
-        meanEntropy,
-      },
-      dependence: {
-        maxCorrelation,
-        significantPairsCount,
-        rankDeficiency: false,
-      },
-      clusterStructure: {
-        estimatedCount: clusterCount,
-        hasClusters,
-        separationScore: 0.5,
-        densityVariation: 0.2,
-      },
-      topologicalStructure: {
-        topology: mf.topology as TopologyType,
-        hasCycles: mf.topology === 'GRAPH' || (mf.edgeCount ?? 0) > 0,
-      },
-      temporalStructure: {
-        isTimeSeries: (mf.hasTimeSeries ?? false) || mf.topology === 'TIME_SERIES',
-        trendDirection: mf.trendDirection ?? 'flat',
-        hasSeasonality: (mf.seasonalityHint ?? false) || spectral?.hasPeriodicity === true,
-      },
-      spatialStructure: {
-        isGeospatial: mf.topology === 'GEO' || mf.topology === 'VECTOR_FIELD',
-        coordinateDimensions: mf.topology === 'GEO' ? 2 : (mf.topology === 'VECTOR_FIELD' ? 3 : 0),
-      },
+      distribution,
+      dependence,
+      clusterStructure,
+      topologicalStructure,
+      temporalStructure,
+      spatialStructure,
       spectralStructure: spectral ?? null,
       provenance: {
         datasetFingerprint: String(fp),
-        kernelVersion: '0.1.0',
+        kernelVersion,
         analysisTimestamp: now,
         timestamp: now,
+        engine: facts ? 'legacy-kernel-facts-adapter' : 'legacy-moneta-facts-adapter',
       },
+      epistemic,
       preferredFamilies: userHints?.preferredFamilies,
     };
   }
 
   const dataset = datasetOrFacts as Dataset;
-  const kf = facts ?? {
-    rowCount: dataset.rowCount ?? dataset.rows?.length ?? 0,
-    columnCount: dataset.columnCount ?? dataset.columns?.length ?? 0,
-    numeric: [],
-    correlation: [],
-    categorical: [],
-    temporal: [],
-    temporalStats: [],
-  };
+  const hasKernelFacts = facts != null;
+  const fp = typeof fingerprintOrSpectral === 'string'
+    ? fingerprintOrSpectral
+    : dataset.fingerprint ?? 'unknown';
+  const kernelVersion = hasKernelFacts && typeof kernelOrFingerprint === 'string'
+    ? kernelOrFingerprint
+    : 'unknown';
+  const spectral = (typeof fingerprintOrSpectral === 'object'
+    ? fingerprintOrSpectral
+    : spectralFacts) ?? null;
 
-  const fp = typeof fingerprintOrSpectral === 'string' ? fingerprintOrSpectral : dataset.fingerprint ?? 'unknown';
-  const kernelVersion = typeof kernelOrFingerprint === 'string' ? kernelOrFingerprint : '0.1.0';
-  const spectral = (typeof fingerprintOrSpectral === 'object' ? fingerprintOrSpectral : spectralFacts) ?? null;
-
-  const rowCount = kf.rowCount ?? dataset.rowCount ?? dataset.rows?.length ?? 0;
-  const colCount = kf.columnCount ?? dataset.columnCount ?? dataset.columns?.length ?? 0;
+  const rowCount = hasKernelFacts ? facts.rowCount : dataset.rowCount ?? dataset.rows?.length ?? 0;
+  const colCount = hasKernelFacts ? facts.columnCount : dataset.columnCount ?? dataset.columns?.length ?? 0;
 
   let numericCount = 0;
   let categoricalCount = 0;
   let temporalCount = 0;
-  let geoCount = 0;
   let textCount = 0;
   let idCount = 0;
 
   for (const col of dataset.columns ?? []) {
-    // Column names are optional in several legacy/test fixtures. Treat an absent
-    // name as semantically unknown rather than failing signature construction.
-    const nameLower = String(col.name ?? '').toLowerCase();
     const typeStr = String(col.type).toUpperCase();
-    if (typeStr === 'NUMERIC') {
-      if (nameLower === 'lat' || nameLower === 'latitude' || nameLower === 'lon' || nameLower === 'longitude') {
-        geoCount += 1;
-      } else {
-        numericCount += 1;
-      }
-    } else if (typeStr === 'CATEGORICAL') {
-      categoricalCount += 1;
-    } else if (typeStr === 'TEMPORAL') {
-      temporalCount += 1;
-    } else if (typeStr === 'ID') {
-      idCount += 1;
-    } else {
-      textCount += 1;
-    }
+    if (typeStr === 'NUMERIC') numericCount += 1;
+    else if (typeStr === 'CATEGORICAL') categoricalCount += 1;
+    else if (typeStr === 'TEMPORAL') temporalCount += 1;
+    else if (typeStr === 'ID') idCount += 1;
+    else textCount += 1;
   }
 
-  let totalOutliers = 0;
-  let highVariance = false;
-  let maxSkewness = 0;
+  mark(
+    epistemic,
+    [
+      'schema.numericCount',
+      'schema.categoricalCount',
+      'schema.temporalCount',
+      'schema.textCount',
+      'schema.idCount',
+      'cardinality.rowCount',
+      'cardinality.columnCount',
+      'cardinality.edgeCount',
+    ],
+    'derived',
+    'Direct Dataset schema/cardinality observation',
+  );
 
-  for (const stat of kf.numeric ?? []) {
-    totalOutliers += stat.outlierCount ?? 0;
-    if ((stat.var ?? 0) > 100) {
-      highVariance = true;
-    }
-    const skew = Math.abs(stat.skew ?? 0);
-    if (skew > maxSkewness) {
-      maxSkewness = skew;
-    }
-  }
-
-  let maxCorrelation = 0;
-  let significantPairsCount = 0;
-  for (const corr of kf.correlation ?? []) {
-    const absVal = Math.abs(corr.value ?? 0);
-    if (absVal > maxCorrelation) maxCorrelation = absVal;
-    if (absVal > 0.7) significantPairsCount += 1;
-  }
-
-  let hasClusters = false;
-  let clusterCount = 1;
-  for (const cat of kf.categorical ?? []) {
-    if (cat.cardinality > 1 && cat.cardinality <= 20) {
-      hasClusters = true;
-      clusterCount = Math.max(clusterCount, cat.cardinality);
-    }
-  }
-
-  const isTimeSeries = temporalCount > 0 || (kf.temporalStats?.length ?? 0) > 0;
-  const primaryTemporal = kf.temporalStats?.[0];
-  const isGeospatial = geoCount >= 2;
-
-  let topology = (dataset as { topology?: TopologyType }).topology || 'TABULAR';
+  const explicitTopology = (dataset as { topology?: TopologyType }).topology;
+  let topology: TopologyType = explicitTopology ?? 'TABULAR';
   if (dataset.edges && dataset.edges.length > 0) topology = 'GRAPH';
+  markDatasetSignatureFact(
+    epistemic,
+    'topologicalStructure.topology',
+    explicitTopology || (dataset.edges && dataset.edges.length > 0) ? 'derived' : 'prior',
+    {
+      note: explicitTopology || (dataset.edges && dataset.edges.length > 0)
+        ? 'Derived from explicit Dataset topology/edges'
+        : 'Legacy Dataset path defaults unclassified structure to TABULAR',
+    },
+  );
+
+  const distribution: DatasetSignature['distribution'] = {};
+  const dependence: DatasetSignature['dependence'] = {};
+  const clusterStructure: DatasetSignature['clusterStructure'] = {};
+  const temporalStructure: DatasetSignature['temporalStructure'] = {};
+  const spatialStructure: DatasetSignature['spatialStructure'] = {};
+
+  if (hasKernelFacts) {
+    const numeric = numericSummary(facts);
+    const correlations = correlationSummary(facts);
+    distribution.hasOutliers = numeric.totalOutliers > 0;
+    distribution.outlierFraction = numeric.totalOutliers / Math.max(1, rowCount);
+    distribution.anomalyCount = numeric.totalOutliers;
+    distribution.maxSkewness = numeric.maxSkewness;
+    dependence.maxCorrelation = correlations.maxCorrelation;
+    dependence.significantPairsCount = correlations.significantPairsCount;
+    mark(
+      epistemic,
+      [
+        'distribution.hasOutliers',
+        'distribution.outlierFraction',
+        'distribution.anomalyCount',
+        'distribution.maxSkewness',
+        'dependence.maxCorrelation',
+        'dependence.significantPairsCount',
+      ],
+      'measured',
+      'Computed by supplied Rust kernel Facts',
+    );
+
+    const entropy = meanCategoricalEntropy(facts);
+    if (entropy !== undefined) {
+      distribution.meanEntropy = entropy;
+      markDatasetSignatureFact(epistemic, 'distribution.meanEntropy', 'measured');
+    }
+
+    const primaryTemporal = facts.temporalStats[0];
+    if (primaryTemporal) {
+      temporalStructure.isTimeSeries = true;
+      temporalStructure.trendDirection = primaryTemporal.trendDirection;
+      temporalStructure.hasSeasonality = primaryTemporal.seasonalityHint;
+      markDatasetSignatureFact(epistemic, 'temporalStructure.isTimeSeries', 'measured');
+      markDatasetSignatureFact(epistemic, 'temporalStructure.trendDirection', 'measured');
+      markDatasetSignatureFact(epistemic, 'temporalStructure.hasSeasonality', 'heuristic', {
+        note: 'Kernel field is explicitly a seasonality hint, not calibrated evidence',
+      });
+    }
+  }
+
+  if (topology === 'TIME_SERIES' && temporalStructure.isTimeSeries !== true) {
+    temporalStructure.isTimeSeries = true;
+    markDatasetSignatureFact(epistemic, 'temporalStructure.isTimeSeries', 'derived');
+  }
+  if (topology === 'GEO' || topology === 'VECTOR_FIELD') {
+    spatialStructure.isGeospatial = true;
+    markDatasetSignatureFact(epistemic, 'spatialStructure.isGeospatial', 'derived', {
+      note: 'Derived from explicit topology; coordinate dimensionality remains unknown',
+    });
+  }
+
+  markSpectralFacts(epistemic, spectral);
 
   return {
     schema: {
       numericCount,
       categoricalCount,
       temporalCount,
-      geoCount,
       textCount,
       idCount,
     },
@@ -194,46 +425,23 @@ export function buildDatasetSignature(
       rowCount,
       columnCount: colCount,
       edgeCount: dataset.edges?.length ?? 0,
-      depth: 1,
+      depth: 0,
     },
-    distribution: {
-      hasOutliers: totalOutliers > 0,
-      outlierFraction: totalOutliers / Math.max(1, rowCount),
-      anomalyCount: totalOutliers,
-      highVariance,
-      maxSkewness,
-      meanEntropy: 0.5,
-    },
-    dependence: {
-      maxCorrelation,
-      significantPairsCount,
-      rankDeficiency: false,
-    },
-    clusterStructure: {
-      estimatedCount: clusterCount,
-      hasClusters,
-      separationScore: 0.5,
-      densityVariation: 0.2,
-    },
-    topologicalStructure: {
-      topology: topology as TopologyType,
-    },
-    temporalStructure: {
-      isTimeSeries,
-      trendDirection: (primaryTemporal?.trendDirection as 'flat' | 'up' | 'down') ?? 'flat',
-      hasSeasonality: primaryTemporal?.seasonalityHint ?? false,
-    },
-    spatialStructure: {
-      isGeospatial,
-      coordinateDimensions: isGeospatial ? 2 : 0,
-    },
-    spectralStructure: spectral ?? null,
+    distribution,
+    dependence,
+    clusterStructure,
+    topologicalStructure: { topology },
+    temporalStructure,
+    spatialStructure,
+    spectralStructure: spectral,
     provenance: {
       datasetFingerprint: String(fp),
       kernelVersion,
       analysisTimestamp: now,
       timestamp: now,
+      engine: hasKernelFacts ? 'legacy-kernel-facts-adapter' : 'legacy-dataset-adapter',
     },
+    epistemic,
     preferredFamilies: userHints?.preferredFamilies,
   };
 }

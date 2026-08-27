@@ -5,23 +5,64 @@ use serde::{Deserialize, Serialize};
 use crate::data::column::{Column, ColumnType};
 use crate::data::value::Value;
 
+/// Source/target identity for an explicit dataset edge.
+///
+/// Numeric endpoints retain the historical positional-row semantics used by
+/// Rust transforms. String endpoints are stable source identities and must stay
+/// strings across the JS/WASM boundary; coercing `"0"` into row index `0` would
+/// change the scientific graph.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum EdgeEndpoint {
+    Index(usize),
+    Id(String),
+}
+
+impl From<usize> for EdgeEndpoint {
+    fn from(value: usize) -> Self {
+        Self::Index(value)
+    }
+}
+
+impl From<String> for EdgeEndpoint {
+    fn from(value: String) -> Self {
+        Self::Id(value)
+    }
+}
+
+impl From<&str> for EdgeEndpoint {
+    fn from(value: &str) -> Self {
+        Self::Id(value.to_string())
+    }
+}
+
 /// A dataset edge. Mirrors the JS `DatasetEdge` open struct: `source`/`target`
-/// row indices, an optional `weight`, and any extra string-keyed attributes.
+/// are either positional row indices or stable string IDs, with optional
+/// `weight` and arbitrary JSON-compatible attributes.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Edge {
-    pub source: usize,
-    pub target: usize,
+    pub source: EdgeEndpoint,
+    pub target: EdgeEndpoint,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub weight: Option<f64>,
     #[serde(flatten)]
-    pub extra: HashMap<String, Value>,
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 impl Edge {
     pub fn new(source: usize, target: usize) -> Self {
         Self {
-            source,
-            target,
+            source: EdgeEndpoint::Index(source),
+            target: EdgeEndpoint::Index(target),
+            weight: None,
+            extra: HashMap::new(),
+        }
+    }
+
+    pub fn new_id(source: impl Into<String>, target: impl Into<String>) -> Self {
+        Self {
+            source: EdgeEndpoint::Id(source.into()),
+            target: EdgeEndpoint::Id(target.into()),
             weight: None,
             extra: HashMap::new(),
         }
@@ -48,7 +89,11 @@ pub struct Dataset {
 pub type RowIndex = usize;
 
 impl Dataset {
-    pub fn new(name: impl Into<String>, columns: Vec<Column>, rows: Vec<HashMap<String, Value>>) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        columns: Vec<Column>,
+        rows: Vec<HashMap<String, Value>>,
+    ) -> Self {
         let mut dataset = Self {
             name: name.into(),
             columns,
@@ -77,15 +122,24 @@ impl Dataset {
     }
 
     pub fn numeric_columns(&self) -> Vec<&Column> {
-        self.columns.iter().filter(|c| c.ty == ColumnType::Numeric).collect()
+        self.columns
+            .iter()
+            .filter(|c| c.ty == ColumnType::Numeric)
+            .collect()
     }
 
     pub fn categorical_columns(&self) -> Vec<&Column> {
-        self.columns.iter().filter(|c| c.ty == ColumnType::Categorical).collect()
+        self.columns
+            .iter()
+            .filter(|c| c.ty == ColumnType::Categorical)
+            .collect()
     }
 
     pub fn temporal_columns(&self) -> Vec<&Column> {
-        self.columns.iter().filter(|c| c.ty == ColumnType::Temporal).collect()
+        self.columns
+            .iter()
+            .filter(|c| c.ty == ColumnType::Temporal)
+            .collect()
     }
 
     pub fn has_numeric(&self) -> bool {
@@ -131,9 +185,12 @@ impl Dataset {
         crate::data::fingerprint::seed_u32(&self.fingerprint())
     }
 
-    /// Append or replace rows for live streams while keeping the identity vector
-    /// aligned. Replacement starts a new lineage; append preserves existing IDs
-    /// and allocates IDs only for new observations.
+    /// Append or replace rows for live streams while keeping identity and
+    /// positional graph endpoints aligned. Replacement starts a new lineage and
+    /// clears topology. Append preserves existing edges; when a rolling limit
+    /// drops a prefix, surviving positional edges are remapped to retained rows.
+    /// Stable string endpoints are preserved only while all source rows remain,
+    /// because Rust has no governed source-ID-column mapping for a subset.
     pub fn update_rows(
         &mut self,
         new_rows: Vec<HashMap<String, Value>>,
@@ -154,12 +211,15 @@ impl Dataset {
             }
             RowUpdateMode::Replace => {
                 self.rows = new_rows;
+                self.edges = None;
                 self.reset_row_ids();
             }
         }
         if let Some(limit) = limit {
             if self.rows.len() > limit {
                 let start = self.rows.len() - limit;
+                let retained_source_indices: Vec<usize> = (start..self.rows.len()).collect();
+                self.edges = self.remap_edges_for_source_indices(&retained_source_indices);
                 self.rows = self.rows.split_off(start);
                 self.row_ids = self.row_ids.split_off(start);
             }
@@ -167,9 +227,12 @@ impl Dataset {
     }
 
     /// Clone with transformed rows. When every output row corresponds to one
-    /// source observation on the original scientific columns, preserve the
-    /// source IDs in output order. Otherwise the output is a genuinely derived
-    /// dataset and receives a fresh deterministic identity lineage.
+    /// source observation on the original scientific columns, preserve source
+    /// IDs and remap positional graph endpoints into output order. Edges whose
+    /// positional endpoints were removed are dropped. Stable string endpoints
+    /// survive pure reorderings, but are dropped when a subset removes source
+    /// rows because no governed Rust mapping says which row a source string ID
+    /// names. If output rows are genuinely derived, topology is cleared.
     pub fn clone_with_rows(
         &self,
         rows: Vec<HashMap<String, Value>>,
@@ -181,11 +244,13 @@ impl Dataset {
 
         let mut used = vec![false; self.rows.len()];
         let mut carried = Vec::with_capacity(copy.rows.len());
+        let mut source_indices = Vec::with_capacity(copy.rows.len());
         let can_carry = self.has_valid_row_ids()
             && copy.rows.iter().all(|out_row| {
                 if let Some(index) = self.find_matching_source_row(out_row, &used) {
                     used[index] = true;
                     carried.push(self.row_ids[index].clone());
+                    source_indices.push(index);
                     true
                 } else {
                     false
@@ -194,10 +259,62 @@ impl Dataset {
 
         if can_carry && carried.len() == copy.rows.len() {
             copy.row_ids = carried;
+            copy.edges = self.remap_edges_for_source_indices(&source_indices);
         } else {
+            copy.edges = None;
             copy.reset_row_ids();
         }
         copy
+    }
+
+    fn remap_endpoint(
+        endpoint: &EdgeEndpoint,
+        old_to_new: &[Option<usize>],
+        preserve_stable_ids: bool,
+    ) -> Option<EdgeEndpoint> {
+        match endpoint {
+            EdgeEndpoint::Index(index) => old_to_new
+                .get(*index)
+                .copied()
+                .flatten()
+                .map(EdgeEndpoint::Index),
+            EdgeEndpoint::Id(id) if preserve_stable_ids => Some(EdgeEndpoint::Id(id.clone())),
+            EdgeEndpoint::Id(_) => None,
+        }
+    }
+
+    fn remap_edges_for_source_indices(&self, source_indices: &[usize]) -> Option<Vec<Edge>> {
+        let edges = self.edges.as_ref()?;
+        let mut old_to_new = vec![None; self.rows.len()];
+        for (new_index, source_index) in source_indices.iter().copied().enumerate() {
+            if source_index < old_to_new.len() {
+                old_to_new[source_index] = Some(new_index);
+            }
+        }
+        let preserve_stable_ids = source_indices.len() == self.rows.len()
+            && old_to_new.iter().all(Option::is_some);
+
+        Some(
+            edges
+                .iter()
+                .filter_map(|edge| {
+                    let source = Self::remap_endpoint(
+                        &edge.source,
+                        &old_to_new,
+                        preserve_stable_ids,
+                    )?;
+                    let target = Self::remap_endpoint(
+                        &edge.target,
+                        &old_to_new,
+                        preserve_stable_ids,
+                    )?;
+                    let mut remapped = edge.clone();
+                    remapped.source = source;
+                    remapped.target = target;
+                    Some(remapped)
+                })
+                .collect(),
+        )
     }
 
     fn find_matching_source_row(
@@ -276,37 +393,34 @@ impl Dataset {
             })
             .unwrap_or_default();
 
-        let edges = root.get("edges").and_then(|v| v.as_array()).map(|arr| {
-            arr.iter()
-                .filter_map(|e| {
-                    let obj = e.as_object()?;
-                    let source = obj
-                        .get("source")
-                        .and_then(|v| v.as_u64())
-                        .or_else(|| obj.get("source").and_then(|v| v.as_str()).and_then(|s| s.parse::<u64>().ok()))?
-                        as usize;
-                    let target = obj
-                        .get("target")
-                        .and_then(|v| v.as_u64())
-                        .or_else(|| obj.get("target").and_then(|v| v.as_str()).and_then(|s| s.parse::<u64>().ok()))?
-                        as usize;
-                    let weight = obj.get("weight").and_then(|v| v.as_f64());
-                    let mut extra = HashMap::new();
-                    for (k, v) in obj {
-                        if k == "source" || k == "target" || k == "weight" {
-                            continue;
-                        }
-                        extra.insert(k.clone(), js_value_to_value(v));
-                    }
-                    Some(Edge { source, target, weight, extra })
-                })
-                .collect()
-        });
+        let edges = match root.get("edges") {
+            None => None,
+            Some(JsonValue::Array(entries)) => {
+                let mut parsed = Vec::with_capacity(entries.len());
+                for (index, entry) in entries.iter().enumerate() {
+                    let edge: Edge = serde_json::from_value(entry.clone())
+                        .map_err(|error| format!("invalid edge at index {index}: {error}"))?;
+                    validate_edge_endpoint(&edge.source, rows.len()).map_err(|error| {
+                        format!("invalid edge at index {index}: source {error}")
+                    })?;
+                    validate_edge_endpoint(&edge.target, rows.len()).map_err(|error| {
+                        format!("invalid edge at index {index}: target {error}")
+                    })?;
+                    parsed.push(edge);
+                }
+                Some(parsed)
+            }
+            Some(_) => return Err("edges must be an array when present".to_string()),
+        };
 
         let row_ids: Vec<String> = root
             .get("rowIds")
             .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
             .unwrap_or_default();
 
         let mut dataset = Self {
@@ -335,7 +449,10 @@ impl Dataset {
             .map(|c| {
                 let mut col = JsonMap::new();
                 col.insert("name".to_string(), JsonValue::String(c.name.clone()));
-                col.insert("type".to_string(), JsonValue::String(c.ty.as_str().to_string()));
+                col.insert(
+                    "type".to_string(),
+                    JsonValue::String(c.ty.as_str().to_string()),
+                );
                 JsonValue::Object(col)
             })
             .collect();
@@ -356,18 +473,34 @@ impl Dataset {
         root.insert("rows".to_string(), JsonValue::Array(rows));
         root.insert(
             "rowIds".to_string(),
-            JsonValue::Array(self.row_ids.iter().cloned().map(JsonValue::String).collect()),
+            JsonValue::Array(
+                self.row_ids
+                    .iter()
+                    .cloned()
+                    .map(JsonValue::String)
+                    .collect(),
+            ),
         );
 
         if let Some(edges) = &self.edges {
             let edges_json: Vec<JsonValue> = edges
                 .iter()
-                .filter_map(|edge| serde_json::to_value(edge).ok())
+                .map(|edge| serde_json::to_value(edge).expect("edge serialization cannot fail"))
                 .collect();
             root.insert("edges".to_string(), JsonValue::Array(edges_json));
         }
 
         serde_json::to_string(&JsonValue::Object(root)).unwrap_or_else(|_| "{}".to_string())
+    }
+}
+
+fn validate_edge_endpoint(endpoint: &EdgeEndpoint, row_count: usize) -> Result<(), String> {
+    match endpoint {
+        EdgeEndpoint::Index(index) if *index >= row_count => Err(format!(
+            "row index {index} is outside dataset row range 0..{row_count}"
+        )),
+        EdgeEndpoint::Id(id) if id.is_empty() => Err("stable string ID must not be empty".to_string()),
+        _ => Ok(()),
     }
 }
 
@@ -400,6 +533,7 @@ pub enum RowUpdateMode {
 #[cfg(test)]
 mod row_identity_tests {
     use super::*;
+    use serde_json::json;
 
     fn row(value: f64) -> HashMap<String, Value> {
         let mut row = HashMap::new();
@@ -413,6 +547,38 @@ mod row_identity_tests {
             vec![Column::new("value", ColumnType::Numeric)],
             vec![row(2.0), row(1.0), row(2.0)],
         )
+    }
+
+    fn graph_dataset() -> Dataset {
+        let mut dataset = Dataset::new(
+            "graph",
+            vec![Column::new("value", ColumnType::Numeric)],
+            vec![row(2.0), row(1.0), row(3.0)],
+        );
+        dataset.edges = Some(vec![Edge::new(0, 1), Edge::new(1, 2)]);
+        dataset
+    }
+
+    fn string_graph_dataset() -> Dataset {
+        let mut dataset = Dataset::new(
+            "string-graph",
+            vec![
+                Column::new("id", ColumnType::Categorical),
+                Column::new("value", ColumnType::Numeric),
+            ],
+            vec![
+                HashMap::from([
+                    ("id".to_string(), Value::Text("A".to_string())),
+                    ("value".to_string(), Value::Number(2.0)),
+                ]),
+                HashMap::from([
+                    ("id".to_string(), Value::Text("B".to_string())),
+                    ("value".to_string(), Value::Number(1.0)),
+                ]),
+            ],
+        );
+        dataset.edges = Some(vec![Edge::new_id("A", "B")]);
+        dataset
     }
 
     #[test]
@@ -437,7 +603,84 @@ mod row_identity_tests {
         let ds = dataset();
         let original = ds.row_ids.clone();
         let sorted = crate::data::operations::sort(&ds, "value", true);
-        assert_eq!(sorted.row_ids, vec![original[1].clone(), original[0].clone(), original[2].clone()]);
+        assert_eq!(
+            sorted.row_ids,
+            vec![
+                original[1].clone(),
+                original[0].clone(),
+                original[2].clone()
+            ]
+        );
+    }
+
+    #[test]
+    fn sorting_remaps_positional_graph_endpoints() {
+        let ds = graph_dataset();
+        let sorted = crate::data::operations::sort(&ds, "value", true);
+        assert_eq!(
+            sorted.edges,
+            Some(vec![Edge::new(1, 0), Edge::new(0, 2)])
+        );
+    }
+
+    #[test]
+    fn sorting_preserves_stable_string_graph_endpoints() {
+        let ds = string_graph_dataset();
+        let sorted = crate::data::operations::sort(&ds, "value", true);
+        assert_eq!(sorted.edges, Some(vec![Edge::new_id("A", "B")]));
+    }
+
+    #[test]
+    fn filtering_drops_removed_graph_endpoints_and_remaps_survivors() {
+        let ds = graph_dataset();
+        let filtered = crate::data::operations::filter(&ds, |row| {
+            row.get("value").and_then(Value::as_number) != Some(2.0)
+        });
+        assert_eq!(filtered.edges, Some(vec![Edge::new(0, 1)]));
+    }
+
+    #[test]
+    fn filtering_drops_stable_string_edges_when_source_membership_changes() {
+        let ds = string_graph_dataset();
+        let filtered = crate::data::operations::filter(&ds, |row| {
+            row.get("id") != Some(&Value::Text("A".to_string()))
+        });
+        assert_eq!(filtered.edges, Some(vec![]));
+    }
+
+    #[test]
+    fn genuinely_derived_rows_clear_graph_topology() {
+        let ds = graph_dataset();
+        let derived = ds.clone_with_rows(vec![row(99.0)], "[derived]");
+        assert_eq!(derived.edges, None);
+    }
+
+    #[test]
+    fn replacing_live_rows_clears_graph_topology() {
+        let mut ds = graph_dataset();
+        ds.update_rows(vec![row(10.0), row(20.0)], RowUpdateMode::Replace, None);
+        assert_eq!(ds.edges, None);
+    }
+
+    #[test]
+    fn rolling_append_remaps_edges_after_prefix_eviction() {
+        let mut ds = graph_dataset();
+        ds.update_rows(vec![row(4.0)], RowUpdateMode::Append, Some(3));
+        assert_eq!(ds.edges, Some(vec![Edge::new(0, 1)]));
+    }
+
+    #[test]
+    fn rolling_append_drops_stable_string_edges_after_prefix_eviction() {
+        let mut ds = string_graph_dataset();
+        ds.update_rows(
+            vec![HashMap::from([
+                ("id".to_string(), Value::Text("C".to_string())),
+                ("value".to_string(), Value::Number(3.0)),
+            ])],
+            RowUpdateMode::Append,
+            Some(2),
+        );
+        assert_eq!(ds.edges, Some(vec![]));
     }
 
     #[test]
@@ -446,5 +689,87 @@ mod row_identity_tests {
         let json = ds.to_js_json();
         let roundtrip = Dataset::from_js_json(&json).expect("roundtrip");
         assert_eq!(roundtrip.row_ids, ds.row_ids);
+    }
+
+    #[test]
+    fn json_roundtrip_preserves_edge_attributes_without_value_enum_wrappers() {
+        let input = json!({
+            "name": "graph",
+            "columns": [{"name": "value", "type": "NUMERIC"}],
+            "rows": [{"value": 1}, {"value": 2}],
+            "edges": [{
+                "source": 0,
+                "target": 1,
+                "weight": 0.75,
+                "relation": "observed",
+                "active": true,
+                "metadata": {"source": "sensor-a", "tags": ["a", "b"]}
+            }]
+        });
+        let ds = Dataset::from_js_json(&input.to_string()).expect("parse graph");
+        let output: serde_json::Value =
+            serde_json::from_str(&ds.to_js_json()).expect("serialize graph");
+        assert_eq!(output["edges"][0]["relation"], json!("observed"));
+        assert_eq!(output["edges"][0]["active"], json!(true));
+        assert_eq!(
+            output["edges"][0]["metadata"],
+            json!({"source": "sensor-a", "tags": ["a", "b"]})
+        );
+    }
+
+    #[test]
+    fn json_roundtrip_preserves_string_endpoint_types_exactly() {
+        let input = json!({
+            "name": "graph",
+            "columns": [{"name": "id", "type": "CATEGORICAL"}],
+            "rows": [{"id": "A"}, {"id": "B"}],
+            "edges": [{"source": "A", "target": "B", "weight": 0.75}]
+        });
+        let ds = Dataset::from_js_json(&input.to_string()).expect("parse graph");
+        assert_eq!(ds.edges, Some(vec![{
+            let mut edge = Edge::new_id("A", "B");
+            edge.weight = Some(0.75);
+            edge
+        }]));
+        let output: serde_json::Value =
+            serde_json::from_str(&ds.to_js_json()).expect("serialize graph");
+        assert_eq!(output["edges"][0]["source"], json!("A"));
+        assert_eq!(output["edges"][0]["target"], json!("B"));
+    }
+
+    #[test]
+    fn malformed_edge_endpoint_fails_closed_instead_of_disappearing() {
+        let input = json!({
+            "name": "graph",
+            "columns": [{"name": "id", "type": "CATEGORICAL"}],
+            "rows": [{"id": "A"}, {"id": "B"}],
+            "edges": [{"source": true, "target": "B"}]
+        });
+        let error = Dataset::from_js_json(&input.to_string()).expect_err("malformed edge must fail");
+        assert!(error.contains("invalid edge at index 0"));
+    }
+
+    #[test]
+    fn out_of_range_positional_endpoint_fails_closed() {
+        let input = json!({
+            "name": "graph",
+            "columns": [{"name": "value", "type": "NUMERIC"}],
+            "rows": [{"value": 1}, {"value": 2}],
+            "edges": [{"source": 0, "target": 99}]
+        });
+        let error = Dataset::from_js_json(&input.to_string()).expect_err("invalid row index must fail");
+        assert!(error.contains("target row index 99 is outside dataset row range"));
+    }
+
+    #[test]
+    fn empty_stable_endpoint_fails_closed() {
+        let input = json!({
+            "name": "graph",
+            "columns": [{"name": "id", "type": "CATEGORICAL"}],
+            "rows": [{"id": "A"}, {"id": "B"}],
+            "edges": [{"source": "", "target": "B"}]
+        });
+        let error = Dataset::from_js_json(&input.to_string()).expect_err("empty ID must fail");
+        assert!(error.contains("source stable string ID must not be empty"));
     }
 }
