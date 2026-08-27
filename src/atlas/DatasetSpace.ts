@@ -25,8 +25,17 @@ export interface DatasetSpaceJSON {
 }
 
 export interface DatasetSpaceSources {
+  /** Canonical scientific fingerprint supplied by the authoritative data path. */
   fingerprint?: string | null;
+  /** Rust-owned numeric ranges. When present, DatasetSpace must not rescan rows. */
   ranges?: Record<string, DatasetSpaceNormalization> | null;
+  /**
+   * Durable observation identities supplied by the authoritative lineage path.
+   * Omitted means: prefer the Dataset's validated durable rowIds when present,
+   * otherwise use the schema-v2 content-occurrence compatibility IDs. Explicit
+   * null forces the historical content-occurrence mode when reading old v2 state.
+   */
+  datumIds?: readonly string[] | null;
 }
 
 /** Canonical SHA-256 over generic JSON-compatible content. */
@@ -47,6 +56,28 @@ export const datasetContentHashHex = canonicalDatasetIdentityHex;
  */
 export const fnv1aHex = contentHashHex;
 
+function validateAuthoritativeDatumIds(
+  datumIds: readonly string[],
+  rowCount: number,
+): string[] {
+  if (
+    datumIds.length !== rowCount ||
+    datumIds.some((id) => typeof id !== 'string' || id.length === 0) ||
+    new Set(datumIds).size !== datumIds.length
+  ) {
+    throw new Error('[DatasetSpace] authoritative datum IDs must be unique, non-empty, and aligned 1:1 with rows');
+  }
+  return [...datumIds];
+}
+
+function arraysEqual(left: readonly string[] | undefined, right: readonly string[]): boolean {
+  if (!left || left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) return false;
+  }
+  return true;
+}
+
 export class DatasetSpace {
   readonly version = 2 as const;
   readonly dataset: Dataset;
@@ -58,16 +89,27 @@ export class DatasetSpace {
 
   constructor(dataset: Dataset, sources?: DatasetSpaceSources) {
     this.dataset = dataset.clone();
-    const datasetJSON = this.dataset.toJSON();
-    this.fingerprint = sources?.fingerprint ?? canonicalDatasetIdentityHex(datasetJSON);
+    this.fingerprint = sources?.fingerprint ?? canonicalDatasetIdentityHex(this.dataset.toJSON());
 
-    const occurrences = new Map<string, number>();
-    this.datumIds = this.dataset.rows.map((row) => {
-      const rowHash = contentHashHex(row);
-      const occurrence = occurrences.get(rowHash) ?? 0;
-      occurrences.set(rowHash, occurrence + 1);
-      return `${this.fingerprint}:datum-${rowHash}-${occurrence}`;
-    });
+    const hasExplicitDatumIds = sources != null && Object.prototype.hasOwnProperty.call(sources, 'datumIds');
+    const authoritativeDatumIds = hasExplicitDatumIds
+      ? sources?.datumIds
+      : this.dataset.rowIds;
+
+    if (authoritativeDatumIds != null) {
+      this.datumIds = validateAuthoritativeDatumIds(authoritativeDatumIds, this.dataset.rowCount);
+    } else {
+      // Historical/direct schema-v2 fallback. New Atlas datasets with durable
+      // rowIds never enter this O(N) content-hash path, regardless of accessor
+      // order or whether DatasetSpace was first requested for state export.
+      const occurrences = new Map<string, number>();
+      this.datumIds = this.dataset.rows.map((row) => {
+        const rowHash = contentHashHex(row);
+        const occurrence = occurrences.get(rowHash) ?? 0;
+        occurrences.set(rowHash, occurrence + 1);
+        return `${this.fingerprint}:datum-${rowHash}-${occurrence}`;
+      });
+    }
 
     const ranges: Record<string, DatasetSpaceNormalization> = {};
     if (sources?.ranges) {
@@ -111,7 +153,15 @@ export class DatasetSpace {
     if (snapshot.version !== 2 || snapshot.missingness !== 'exclude-non-finite') {
       throw new Error('Unsupported DatasetSpace version; legacy 32-bit fingerprints must be regenerated');
     }
-    const space = new DatasetSpace(Dataset.fromJSON(snapshot.dataset));
+    const dataset = Dataset.fromJSON(snapshot.dataset);
+    // RF-051 compatibility: new live Atlas snapshots use the durable row-ID
+    // vector directly. Older v2 snapshots can contain rowIds while retaining
+    // content-occurrence datum IDs, so explicitly force the historical mode
+    // when the two vectors do not agree instead of reinterpreting old state.
+    const datumIds = arraysEqual(snapshot.dataset.rowIds, snapshot.datumIds)
+      ? snapshot.datumIds
+      : null;
+    const space = new DatasetSpace(dataset, { datumIds });
     if (space.fingerprint !== snapshot.fingerprint || space.datumIds.join('|') !== snapshot.datumIds.join('|')) {
       throw new Error('DatasetSpace fingerprint mismatch');
     }

@@ -109,7 +109,13 @@ export class AnalyticalState {
     if (this._datasetSpace && this._datasetSpaceSource === this._current) return this._datasetSpace;
     const fingerprint = fingerprintProvider ? fingerprintProvider() : null;
     const ranges = rangesProvider ? rangesProvider() : null;
-    this._datasetSpace = new DatasetSpace(this._current, { fingerprint, ranges });
+    // Calling the live fingerprint provider may allocate the Rust handle and
+    // hydrate first-lineage row IDs onto `_current`. Only treat those IDs as
+    // authoritative DatasetSpace datum IDs when the live authority path was
+    // actually consulted; direct/legacy DatasetSpace construction keeps the
+    // schema-v2 content-occurrence contract.
+    const datumIds = fingerprintProvider && fingerprint ? this._current.rowIds ?? null : null;
+    this._datasetSpace = new DatasetSpace(this._current, { fingerprint, ranges, datumIds });
     this._datasetSpaceSource = this._current;
     return this._datasetSpace;
   }
@@ -119,10 +125,15 @@ export class AnalyticalState {
       try {
         const fp = kernelFingerprintProvider();
         if (fp) return fp;
-      } catch { /* fall back to DatasetSpace fingerprint */ }
+      } catch { /* fall back to canonical browser identity */ }
     }
     if (this._columnarFingerprint) return this._columnarFingerprint;
-    return this.getDatasetSpace()?.fingerprint ?? null;
+    // Fingerprint lookup must not instantiate DatasetSpace: doing so used to
+    // trigger a clone, per-row datum hashing and numeric range scans simply to
+    // answer an identity question. The canonical TS/Rust identity projection is
+    // already governed by RF-048 and is the bounded compatibility fallback when
+    // no live kernel fingerprint is available.
+    return this._current ? datasetContentHashHex(this._current.toJSON()) : null;
   }
 
   /**
@@ -154,6 +165,9 @@ export class AnalyticalState {
     if (this._datasetVersion === 1 && this._original && this._original.rowCount === rowIds.length) {
       this._original.adoptRowIds(rowIds);
     }
+    // A previously created legacy DatasetSpace cannot remain authoritative once
+    // durable kernel lineage becomes available.
+    this._invalidateDatasetSpace();
     return true;
   }
 
@@ -163,6 +177,9 @@ export class AnalyticalState {
     }
     this._currentHandle = 0;
     this._columnarFingerprint = null;
+    // Kernel replacement/recovery changes the source of authoritative metadata.
+    // Force the next DatasetSpace request to rebind fingerprint/ranges/lineage.
+    this._invalidateDatasetSpace();
   }
 
   adoptHandle(outHandle: number, destroyer?: (handle: number) => void): void {
