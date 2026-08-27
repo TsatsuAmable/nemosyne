@@ -65,6 +65,22 @@ describe('RF-051 DatasetSpace authority and materialisation', () => {
     expect(state.getFingerprint()).toBe(canonicalDatasetIdentityHex(state.current.toJSON()));
   });
 
+  it('fails closed instead of rescanning JavaScript rows when live range evidence is unavailable', () => {
+    const state = new AnalyticalState();
+    state.loadDataset(makeDataset());
+    state.current.rangeOf = () => {
+      throw new Error('live authority path must not fall back to a JS range scan');
+    };
+
+    const space = state.getDatasetSpace(
+      () => 'b'.repeat(64),
+      () => null,
+    );
+
+    expect(space).not.toBeNull();
+    expect(space!.normalization).toEqual({});
+  });
+
   it('accepts explicit authoritative datum IDs without invoking legacy row hashing or redundant serialization', () => {
     const source = makeDataset();
     const originalClone = source.clone.bind(source);
@@ -107,14 +123,17 @@ describe('RF-051 DatasetSpace authority and materialisation', () => {
   });
 
   it('keeps legacy v2 snapshots with content-occurrence datum IDs readable even when rowIds are present', () => {
+    // Build the historical v2 identity vector before adding durable rowIds to
+    // the serialized DatasetJSON. The current constructor correctly prefers
+    // durable rowIds when they are already present, so it cannot itself be used
+    // to manufacture an old-format snapshot.
     const dataset = new Dataset(
       'legacy-space',
       [{ name: 'value', type: ColumnType.NUMERIC }],
       [{ value: 1 }, { value: 1 }],
-      undefined,
-      ['rust:a', 'rust:b']
     );
     const legacy = new DatasetSpace(dataset).toJSON();
+    legacy.dataset.rowIds = ['rust:a', 'rust:b'];
 
     expect(legacy.datumIds).not.toEqual(legacy.dataset.rowIds);
     expect(DatasetSpace.fromJSON(legacy).toJSON()).toEqual(legacy);
