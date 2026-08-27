@@ -4,6 +4,7 @@
  */
 
 import type { ColumnSchema, DatasetJSON } from './types.ts';
+import { canonicalDatasetIdentityHex } from './DatasetIdentity.ts';
 import { registerDurableRowId } from './RowIdentity.ts';
 
 const DANGEROUS_ROW_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -242,12 +243,9 @@ export class Dataset {
     return Math.abs(h);
   }
 
-  /**
-   * @deprecated Use `seedHash` for procedural randomness. Scientific identity
-   * must use `canonicalDatasetIdentityHex` / the Rust dataset fingerprint.
-   */
-  get fingerprint(): number {
-    return this.seedHash;
+  /** Canonical SHA-256 scientific dataset identity. */
+  get fingerprint(): string {
+    return canonicalDatasetIdentityHex(this.toJSON());
   }
 
   /**
