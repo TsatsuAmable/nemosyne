@@ -158,6 +158,19 @@ export class WorldInputCoordinator {
       return;
     }
 
+    const router = this.engine.input as {
+      pointers?: { isNear?: boolean }[];
+      machine?: { capturedPanel?: unknown };
+    } | null | undefined;
+    const isPointerNear = Array.isArray(router?.pointers) && router.pointers.some((p) => p.isNear);
+    const isPanelCaptured = router?.machine?.capturedPanel != null;
+    const isWheelOpen = this.getHandWheelMenu()?.isVisible?.() ?? false;
+
+    if ((isPointerNear || isPanelCaptured || isWheelOpen) && name !== 'pauseResume') {
+      this.callbacks.onLog?.(`Gesture '${name}' suppressed: active direct interaction`);
+      return;
+    }
+
     this.eventBus.emit(WorldTopics.GESTURE_RECOGNIZED, { name, ctx });
 
     const confidence = typeof ctx.confidence === 'number' ? (ctx.confidence as number) : 0.85;

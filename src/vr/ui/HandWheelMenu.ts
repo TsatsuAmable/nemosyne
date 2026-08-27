@@ -6,6 +6,7 @@ import type {
   HandLike,
   WheelMenuAction,
   WheelMenuCategory,
+  PointerLike,
 } from '../coordinators/types.ts';
 
 /**
@@ -293,6 +294,37 @@ export class HandWheelMenu {
 
     this._updateHover();
     this._updateVisibility();
+  }
+
+  /**
+   * Panel-compatible press handler.
+   */
+  handlePointerDown(raycaster: THREE.Raycaster, _pointer: PointerLike): string | null {
+    if (!this.group.visible) return null;
+    if (this._allMeshes.length === 0) return null;
+
+    this.group.updateMatrixWorld(true);
+    const hits = raycaster.intersectObjects(this._allMeshes, false);
+    if (hits.length === 0) return null;
+
+    // Hit detected, capture the pointer for direct-touch interaction
+    return 'direct-touch';
+  }
+
+  /**
+   * Panel-compatible move handler.
+   */
+  handlePointerMove(_raycaster: THREE.Raycaster, _pointer: PointerLike): void {
+    if (!this.group.visible) return;
+    this._updateHover();
+  }
+
+  /**
+   * Panel-compatible release handler.
+   */
+  handlePointerUp(raycaster: THREE.Raycaster, _pointer: PointerLike): void {
+    if (!this.group.visible) return;
+    this.handlePointerClick(raycaster);
   }
 
   /**

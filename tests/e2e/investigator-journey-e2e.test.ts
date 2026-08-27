@@ -98,7 +98,7 @@ describe('P1-U: Whole-Product 10-Phase Investigator Journey E2E', () => {
     // =========================================================================
     journey.transitionTo('INSPECT_STRUCTURE');
     expect(journey.currentPhase).toBe('INSPECT_STRUCTURE');
-    const taskSurface = new ContextualTaskSurface();
+    const taskSurface = new ContextualTaskSurface({} as any);
     taskSurface.setTopology('TABULAR');
     taskSurface.setIntent('Analyse');
     const actions = taskSurface.getAvailableActions();
