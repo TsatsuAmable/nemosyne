@@ -443,9 +443,7 @@ export class EvidenceLedger {
   }
 
   private _referenceBackedResult(result: AnalysisResult, ref: DatasetVersionRef): AnalysisResult {
-    const { dataset: _transientDataset, ...rest } = result;
-    const stored = rest as AnalysisResult;
-    Object.defineProperty(stored, 'dataset', {
+    Object.defineProperty(result, 'dataset', {
       enumerable: true,
       configurable: false,
       get: () => {
@@ -456,7 +454,7 @@ export class EvidenceLedger {
         return dataset;
       },
     });
-    return stored;
+    return result;
   }
 
   private _buildHistoryFromLedger(original: Dataset | null): AnalysisHistory {

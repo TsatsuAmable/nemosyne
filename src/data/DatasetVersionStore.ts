@@ -89,13 +89,11 @@ function cloneColumns(columns: DatasetJSON['columns']): DatasetJSON['columns'] {
 }
 
 function cloneJson(snapshot: DatasetJSON): DatasetJSON {
-  return {
-    name: snapshot.name,
-    columns: cloneColumns(snapshot.columns),
-    rows: snapshot.rows.map(cloneRow),
-    edges: snapshot.edges?.map((edge) => cloneValue(edge) as NonNullable<DatasetJSON['edges']>[number]),
-    ...(snapshot.rowIds ? { rowIds: snapshot.rowIds.slice() } : {}),
-  };
+  // Full snapshots are a compatibility/persistence boundary. Deep-clone the
+  // payload as received rather than normalising it to the current DatasetJSON
+  // surface: legacy replay fixtures and third-party bridges may still carry
+  // the historical columnar shape without rows[].
+  return cloneValue(snapshot) as DatasetJSON;
 }
 
 function validLineage(rowIds: readonly string[] | undefined, rowCount: number): rowIds is readonly string[] {
@@ -333,8 +331,8 @@ export class DatasetVersionStore {
       return {
         ref: { ...requestedRef },
         name: entry.snapshot.name,
-        rowCount: entry.snapshot.rows.length,
-        columnCount: entry.snapshot.columns.length,
+        rowCount: entry.snapshot.rows?.length ?? 0,
+        columnCount: entry.snapshot.columns?.length ?? 0,
       };
     }
     return {
