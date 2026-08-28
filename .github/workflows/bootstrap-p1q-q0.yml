@@ -65,7 +65,15 @@ jobs:
           PY
 
       - name: Install pilot tools
-        run: npm install --save-dev --save-exact dependency-cruiser@18.2.0 @ast-grep/cli@0.45.2
+        run: |
+          for attempt in 1 2 3; do
+            if npm install --save-dev --save-exact dependency-cruiser@18.2.0 @ast-grep/cli@0.45.2; then
+              exit 0
+            fi
+            echo "pilot dependency install failed on attempt ${attempt}; retrying transient download"
+            sleep 5
+          done
+          exit 1
 
       - name: Write dependency policy
         run: |
