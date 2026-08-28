@@ -180,9 +180,13 @@ export class DataOperationController {
     let next: Dataset;
     try {
       if (this._atlas?.executionPort?.isAsync) {
-        const spec = toAnalysisSpec(operation, current, this._atlas);
-        const result = await this._atlas.applyAnalysisAsync(spec);
-        next = Dataset.fromJSON(result.dataset);
+        const atlas = this._atlas;
+        const spec = toAnalysisSpec(operation, current, atlas);
+        await atlas.applyAnalysisAsync(spec);
+        // Atlas already deserializes and commits the authoritative Worker result.
+        // Reusing that committed Dataset avoids a second O(rows × columns)
+        // Dataset.fromJSON() allocation in the presentation coordinator.
+        next = atlas.dataset;
       } else {
         next = this._computeViaAtlas(operation, current);
       }
@@ -216,8 +220,10 @@ export class DataOperationController {
       );
     }
     const spec = toAnalysisSpec(operation, dataset, this._atlas);
-    const result = this._atlas.applyAnalysis(spec);
-    return Dataset.fromJSON(result.dataset);
+    this._atlas.applyAnalysis(spec);
+    // The sync Atlas path also commits its authoritative output before return;
+    // do not independently deserialize the result a second time here either.
+    return this._atlas.dataset;
   }
 
   /**
@@ -317,7 +323,7 @@ export class DataOperationController {
     return frame;
   }
 
-  /** Redo the next operation. */
+  /** Redo the next previously undone operation. */
   redo(): HistoryEntry | null {
     if (!this.analysisHistory.canRedo) return null;
     const frame = (
@@ -332,7 +338,7 @@ export class DataOperationController {
     return frame;
   }
 
-  /** Jump to a specific history frame. */
+  /** Jump to a specific history frame index. */
   seekHistory(index: number): HistoryEntry | null {
     const frame = this._atlas ? this._atlas.seekHistory(index) : this._fallbackHistory.seek(index);
     if (!frame) return null;
