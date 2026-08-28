@@ -79,6 +79,13 @@ export interface AnalyticalExecutionPort {
    * omit it because they share the caller's kernel instance/handle space.
    */
   registerDataset?(registration: AnalyticalDatasetRegistration): Promise<void>;
+  /**
+   * True only when this exact canonical fingerprint is already resident in the
+   * supplied runtime generation. This is a transport-local capability query,
+   * not an analytical authority claim. Ports that cannot attest residency omit
+   * it, forcing Atlas to retain/materialize ordinary registration data.
+   */
+  hasRegisteredDataset?(generation: number, fingerprint: string): boolean;
   /** Release worker/listener resources owned by this port. */
   dispose?(): void;
   readonly isAsync: boolean;

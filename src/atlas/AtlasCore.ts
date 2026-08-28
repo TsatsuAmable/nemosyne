@@ -123,13 +123,23 @@ export class AtlasCore {
         '[AtlasCore] asynchronous analytical port cannot register worker-local datasets.'
       );
     }
+    const generation = this._generation;
+    // RF-035A: query worker residency before constructing registration material.
+    // Dataset.toJSON() copies the complete row set, so constructing a payload
+    // merely for registerDataset() to discard it defeats resident mutation state.
+    if (port.hasRegisteredDataset?.(generation, fingerprint)) {
+      return (
+        generation === this._generation &&
+        version === this.datasetVersion &&
+        fingerprint === (this.datasetFingerprint ?? '')
+      );
+    }
     const payload = this._workerRegistrationPayload();
     if (!payload) {
       throw new KernelUnavailableError(
         `[AtlasCore] no worker registration payload is available for dataset ${fingerprint}.`
       );
     }
-    const generation = this._generation;
     await port.registerDataset({
       registrationId: `areg-${++this._requestSeq}`,
       dataset: { fingerprint, version },
@@ -782,12 +792,20 @@ export class AtlasCore {
       },
       (handle: number) => this._analytics.destroyDataset(handle)
     );
-    this._setWorkerPayloadFromDataset(nextDataset);
     this._executionPort.supersede({
       generation: this._generation,
       datasetVersion: this.datasetVersion,
       datasetFingerprint: outputHash,
     });
+    // The Worker adopts the Rust mutation output handle before RESULT resolves.
+    // Retire the cached registration snapshot only when the active port can
+    // attest that exact fingerprint in this generation. Other async ports keep
+    // the conservative materialized reconstruction path.
+    if (this._executionPort.hasRegisteredDataset?.(this._generation, outputHash)) {
+      this._workerDatasetPayload = null;
+    } else {
+      this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
+    }
 
     const resultId = this._aggregate.ledger.nextResultId(
       outputHash,
