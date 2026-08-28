@@ -39,8 +39,8 @@ verifies, in order:
    SHA's check-runs, never a different commit);
 3. **no unresolved `CHANGES_REQUESTED` review** on the exact head;
 4. **promotion-evidence/adversarial disposition marker** present (the
-   post-implementation adversarial review section, a promotion-evidence label,
-   or the adversarial-contract disposition).
+   post-implementation adversarial review section at any heading level, a
+   promotion-evidence label, or the adversarial-contract disposition).
 
 It exits non-zero on any failure and prints a verdict that is explicitly
 "promotion evidence only — not an approval."

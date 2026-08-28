@@ -124,16 +124,20 @@ if (openRequests.length > 0) {
 }
 
 // 4. Promotion-evidence marker / adversarial disposition present.
-const marker = '## Post-implementation adversarial review';
+// The disposition is the requirement, not a specific heading level: accept the
+// post-implementation adversarial review section (any heading level), the
+// adversarial-contract section with a high-risk/low-risk disposition, or a
+// promotion-evidence/adversarial label.
 const body = pull.body ?? '';
-const hasMarker = body.includes(marker);
+const hasPostReviewSection = /^#{1,6}\s*post-implementation adversarial review/im.test(body);
+const hasContractSection = /^#{1,6}\s*adversarial implementation contract/im.test(body);
+const hasDisposition =
+  hasContractSection &&
+  (/High-risk change/i.test(body) || /Low-risk exemption/i.test(body));
 const hasAdversarialLabel = (pull.labels ?? []).some(
   (label) => /promotion-evidence|adversarial/i.test(label)
 );
-const hasDisposition =
-  body.includes('## Adversarial implementation contract') &&
-  (/High-risk change/i.test(body) || /Low-risk exemption/i.test(body));
-if (!hasMarker && !hasAdversarialLabel && !hasDisposition) {
+if (!hasPostReviewSection && !hasAdversarialLabel && !hasDisposition) {
   fail(`Promotion-evidence marker and adversarial disposition missing on PR #${prNumber}.`);
 }
 
@@ -145,7 +149,7 @@ console.log(
       verified: true,
       requiredChecksGreen: requiredChecks,
       reviewThreadState: openRequests.length === 0 ? 'clean' : 'blocked',
-      markerPresent: hasMarker || hasAdversarialLabel || hasDisposition,
+      markerPresent: hasPostReviewSection || hasAdversarialLabel || hasDisposition,
       note: 'Promotion evidence only; this verdict is not an approval.',
     },
     null,
