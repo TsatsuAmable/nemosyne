@@ -92,6 +92,9 @@ export function installBrowserEnvelopeDiagnosticHook(world: World): () => void {
   patch(world.atlas as unknown as object, '_materializeWorkerRowView', 'atlas.materializeWorkerRowView');
   patch(world.atlas as unknown as object, '_canUseWorkerRowView', 'atlas.canUseWorkerRowView');
   patch(world.atlas as unknown as object, '_connectResultNode', 'atlas.connectResultNode');
+  patch(world.atlas as unknown as object, '_kernelFingerprintDirect', 'atlas.kernelFingerprintDirect');
+  patch(world.atlas as unknown as object, '_kernelFingerprint', 'atlas.kernelFingerprint');
+  patch(world.atlas as unknown as object, '_ensureHandle', 'atlas.ensureHandle');
 
   const port = world.atlas.executionPort;
   if (port) {
