@@ -20,6 +20,14 @@ export interface SessionListing {
   savedAt: number;
 }
 
+/** Neutral persistence facade shared by session and presentation orchestration. */
+export interface SessionStoreLike {
+  saveSession(id: string, snapshot: SessionSnapshot): Promise<void>;
+  loadSession(id: string): Promise<SessionSnapshot | null>;
+  deleteSession(id: string): Promise<void>;
+  hasSession(id: string): Promise<boolean>;
+}
+
 type IDBFactory = Pick<typeof indexedDB, 'open'>;
 
 /**

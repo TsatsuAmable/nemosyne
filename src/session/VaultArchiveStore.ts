@@ -13,7 +13,7 @@
  * the investigation digest field is best-effort until those contracts close.
  */
 
-import type { SessionStoreLike } from '../vr/coordinators/types.ts';
+import type { SessionStoreLike } from '../data/SessionStore.ts';
 
 export interface ArchiveMetadata {
   label: string;

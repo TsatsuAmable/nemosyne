@@ -1,0 +1,7 @@
+id: worker-construction-boundary
+valid:
+  - "const worker = createAnalyticalWorker()"
+  - "const port = new WorkerAnalyticalPort(transport)"
+invalid:
+  - "const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })"
+  - "new Worker('./legacy-worker.js')"
