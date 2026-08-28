@@ -80,6 +80,23 @@ describe('RF-060 authoritative fingerprint retention', () => {
     expect(calls).toBe(0);
   });
 
+  it('does not retain an empty provider result as authoritative', () => {
+    const state = new AnalyticalState();
+    state.loadDataset(dataset());
+    const fallback = canonicalDatasetIdentityHex(state.current.toJSON());
+    let calls = 0;
+
+    expect(state.getFingerprint(() => {
+      calls += 1;
+      return null;
+    })).toBe(fallback);
+    expect(state.getFingerprint(() => {
+      calls += 1;
+      return 'e'.repeat(64);
+    })).toBe('e'.repeat(64));
+    expect(calls).toBe(2);
+  });
+
   it('does not retain browser fallback identity or swallow DatasetSpace provider failures', () => {
     const state = new AnalyticalState();
     state.loadDataset(dataset());
@@ -90,8 +107,8 @@ describe('RF-060 authoritative fingerprint retention', () => {
     let calls = 0;
     expect(state.getFingerprint(() => {
       calls += 1;
-      return 'e'.repeat(64);
-    })).toBe('e'.repeat(64));
+      return 'f'.repeat(64);
+    })).toBe('f'.repeat(64));
     expect(calls).toBe(1);
 
     state.invalidateHandle();
