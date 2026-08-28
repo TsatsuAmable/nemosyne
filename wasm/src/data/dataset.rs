@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
@@ -87,6 +87,32 @@ pub struct Dataset {
 }
 
 pub type RowIndex = usize;
+
+/// Hashable mirror of the scientific `Value` equality used by row-preserving
+/// transforms. Missing declared values are represented as `Null`; `-0.0` and
+/// `0.0` share a key because Rust `f64` equality treats them as equal. NaN has
+/// no key because the previous equality scan deliberately could not match it,
+/// even to another NaN.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum RowValueKey {
+    Null,
+    Number(u64),
+    Text(String),
+    Bool(bool),
+}
+
+impl RowValueKey {
+    fn from_value(value: &Value) -> Option<Self> {
+        match value {
+            Value::Null => Some(Self::Null),
+            Value::Number(number) if number.is_nan() => None,
+            Value::Number(number) if *number == 0.0 => Some(Self::Number(0.0f64.to_bits())),
+            Value::Number(number) => Some(Self::Number(number.to_bits())),
+            Value::Text(text) => Some(Self::Text(text.clone())),
+            Value::Bool(value) => Some(Self::Bool(*value)),
+        }
+    }
+}
 
 impl Dataset {
     pub fn new(
@@ -233,6 +259,11 @@ impl Dataset {
     /// survive pure reorderings, but are dropped when a subset removes source
     /// rows because no governed Rust mapping says which row a source string ID
     /// names. If output rows are genuinely derived, topology is cleared.
+    ///
+    /// Source identity is indexed once by the declared scientific columns. A
+    /// FIFO queue per key preserves the previous "first unused equal row"
+    /// semantics for duplicate observations while avoiding the former linear
+    /// source scan for every output row.
     pub fn clone_with_rows(
         &self,
         rows: Vec<HashMap<String, Value>>,
@@ -242,19 +273,32 @@ impl Dataset {
         copy.rows = rows;
         copy.name = format!("{} {}", self.name, suffix.as_ref());
 
-        let mut used = vec![false; self.rows.len()];
+        let mut source_rows_by_key: HashMap<Vec<RowValueKey>, VecDeque<usize>> = HashMap::new();
+        let can_index_source = self.has_valid_row_ids()
+            && self.rows.iter().enumerate().all(|(index, source_row)| {
+                let Some(key) = self.scientific_row_key(source_row) else {
+                    return false;
+                };
+                source_rows_by_key.entry(key).or_default().push_back(index);
+                true
+            });
+
         let mut carried = Vec::with_capacity(copy.rows.len());
         let mut source_indices = Vec::with_capacity(copy.rows.len());
-        let can_carry = self.has_valid_row_ids()
+        let can_carry = can_index_source
             && copy.rows.iter().all(|out_row| {
-                if let Some(index) = self.find_matching_source_row(out_row, &used) {
-                    used[index] = true;
-                    carried.push(self.row_ids[index].clone());
-                    source_indices.push(index);
-                    true
-                } else {
-                    false
-                }
+                let Some(key) = self.scientific_row_key(out_row) else {
+                    return false;
+                };
+                let Some(index) = source_rows_by_key
+                    .get_mut(&key)
+                    .and_then(|indices| indices.pop_front())
+                else {
+                    return false;
+                };
+                carried.push(self.row_ids[index].clone());
+                source_indices.push(index);
+                true
             });
 
         if can_carry && carried.len() == copy.rows.len() {
@@ -265,6 +309,15 @@ impl Dataset {
             copy.reset_row_ids();
         }
         copy
+    }
+
+    fn scientific_row_key(&self, row: &HashMap<String, Value>) -> Option<Vec<RowValueKey>> {
+        self.columns
+            .iter()
+            .map(|column| {
+                RowValueKey::from_value(row.get(&column.name).unwrap_or(&Value::Null))
+            })
+            .collect()
     }
 
     fn remap_endpoint(
@@ -315,23 +368,6 @@ impl Dataset {
                 })
                 .collect(),
         )
-    }
-
-    fn find_matching_source_row(
-        &self,
-        candidate: &HashMap<String, Value>,
-        used: &[bool],
-    ) -> Option<usize> {
-        self.rows.iter().enumerate().find_map(|(index, source)| {
-            if used[index] {
-                return None;
-            }
-            let same = self.columns.iter().all(|column| {
-                source.get(&column.name).unwrap_or(&Value::Null)
-                    == candidate.get(&column.name).unwrap_or(&Value::Null)
-            });
-            same.then_some(index)
-        })
     }
 
     fn has_valid_row_ids(&self) -> bool {
@@ -611,6 +647,30 @@ mod row_identity_tests {
                 original[2].clone()
             ]
         );
+    }
+
+    #[test]
+    fn rf059_negative_zero_matches_positive_zero_for_row_identity() {
+        let mut ds = Dataset::new(
+            "zero",
+            vec![Column::new("value", ColumnType::Numeric)],
+            vec![row(0.0)],
+        );
+        ds.row_ids = vec!["source-zero".into()];
+        let carried = ds.clone_with_rows(vec![row(-0.0)], "[zero]");
+        assert_eq!(carried.row_ids, vec!["source-zero"]);
+    }
+
+    #[test]
+    fn rf059_nan_does_not_create_a_false_row_identity_match() {
+        let mut ds = Dataset::new(
+            "nan",
+            vec![Column::new("value", ColumnType::Numeric)],
+            vec![row(f64::NAN)],
+        );
+        ds.row_ids = vec!["source-nan".into()];
+        let carried = ds.clone_with_rows(vec![row(f64::NAN)], "[nan]");
+        assert_ne!(carried.row_ids, vec!["source-nan"]);
     }
 
     #[test]
