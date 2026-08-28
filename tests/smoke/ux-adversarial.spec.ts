@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 /**
  * UI/UX Adversarial Review Test Suite
@@ -28,7 +29,7 @@ test.describe('UI/UX Adversarial Review - Core User Flows', () => {
     (test as any).consoleErrors = consoleErrors;
   });
 
-  test.afterEach(async ({ page }) => {
+  test.afterEach(async () => {
     const pageErrors = (test as any).pageErrors || [];
     const consoleErrors = (test as any).consoleErrors || [];
     
@@ -162,7 +163,7 @@ test.describe('UI/UX Adversarial Review - Accessibility & Inclusive Design', () 
     expect(focusStyles.outline).not.toBe('none');
   });
 
-  test('Colorblind modes: Deuteranopia/protanopia/tritanopia - all data distinguishable?', async ({ page }) => {
+  test('Colorblind modes: Deuteranopia/protanopia/tritanopia - all data distinguishable?', async () => {
     // This requires VR context with settings panel to test colorblind modes
     // Skip for desktop-only test
     test.skip(true, 'Requires VR settings panel to test colorblind modes');
@@ -211,8 +212,8 @@ test.describe('UI/UX Adversarial Review - Accessibility & Inclusive Design', () 
     
     // Verify status text is still readable and informative
     const status = await page.locator('#analyst-journey-status').textContent();
-    expect(status).not.toBe('Ready');
-    expect(status.length).toBeGreaterThan(5);
+    expect(status ?? '').not.toBe('Ready');
+    expect((status ?? '').length).toBeGreaterThan(5);
   });
 });
 
@@ -253,8 +254,7 @@ test.describe('UI/UX Adversarial Review - Error Handling & Recovery UX', () => {
     const artifactPath = await artifact.path();
     
     // Read the package
-    const fs = require('fs');
-    const validPackage = new Uint8Array(fs.readFileSync(artifactPath!));
+    const validPackage = new Uint8Array(readFileSync(artifactPath!));
     
     // Replay it
     await page.locator('#analyst-package-input').setInputFiles({
@@ -275,19 +275,12 @@ test.describe('UI/UX Adversarial Review - Onboarding & Discoverability', () => {
     await expect(page.locator('#telemetry')).toContainText('LAYOUT:', { timeout: 15000 });
     
     // The guided tour should auto-start for novice users
-    // Check if tour elements are present
-    const tourElements = await page.locator('[data-tour-step]').count();
     // Tour may not be visible in headless - this needs real VR test
   });
 
   test('Gesture discoverability: Coach marks? Tooltips? Progressive disclosure?', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#telemetry')).toContainText('LAYOUT:', { timeout: 15000 });
-    
-    // Check for tooltip manager
-    const tooltips = await page.evaluate(() => {
-      return document.querySelectorAll('[data-tooltip], .tooltip, [role="tooltip"]').length;
-    });
     // Tooltips may be VR-only
   });
 
@@ -404,20 +397,20 @@ test.describe('UI/UX Adversarial Review - Performance Perceived by User', () => 
 });
 
 test.describe('UI/UX Adversarial Review - VR/AR Specific (Simulated)', () => {
-  test('Direct touch vs ray interaction: Near/far transition smooth? No flickering?', async ({ page }) => {
+  test('Direct touch vs ray interaction: Near/far transition smooth? No flickering?', async () => {
     // This requires real VR device - simulate via viewport
     test.skip(true, 'Requires real Quest 3S for direct touch testing');
   });
 
-  test('Panel management: Pin/follow works? Max 2 task panels enforced?', async ({ page }) => {
+  test('Panel management: Pin/follow works? Max 2 task panels enforced?', async () => {
     test.skip(true, 'Requires VR panel manager');
   });
 
-  test('Hand wheel menu: Radial menu discoverable? Categories logical? Actions execute?', async ({ page }) => {
+  test('Hand wheel menu: Radial menu discoverable? Categories logical? Actions execute?', async () => {
     test.skip(true, 'Requires VR hand tracking');
   });
 
-  test('Comfort: 20+ min session feasible? Arm fatigue? Seated/standing reach?', async ({ page }) => {
+  test('Comfort: 20+ min session feasible? Arm fatigue? Seated/standing reach?', async () => {
     test.skip(true, 'Requires real VR session');
   });
 });

@@ -89,15 +89,15 @@ describe('RF-047 Clean-Room Replay — falsifying tamper detection via investiga
 
     atlas.aggregate.recordRemediation({
       remediationId: 'remediation:2',
-      kind: 'adjust-parameter',
-      constraintCode: 'parameter-budget',
-      category: 'parameter',
+      kind: 'adjust-frustum-exclusion-tolerance',
+      constraintCode: 'frustum-exclusion',
+      category: 'perceptual',
       scientificPermissibility: 'permissible',
       deviceFeasibility: 'unverified',
       datasetFingerprint: fingerprint,
       oldRequirementsHash: 'requirements:new',
       newRequirementsHash: 'requirements:newer',
-      requirementPatch: { parameterBudget: 1000 },
+      requirementPatch: { maxFrustumExclusionTolerance: 0.6 },
       resultingDecisionId: 'decision:3',
       timestamp: 1787826400200,
     });

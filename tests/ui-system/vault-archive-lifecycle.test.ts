@@ -1,5 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import * as THREE from 'three';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { VaultArchiveStore } from '../../src/session/VaultArchiveStore.ts';
 import { SessionStore } from '../../src/data/SessionStore.ts';
 import { IceVaultNode } from '../../src/vr/artifacts/IceVaultNode.ts';

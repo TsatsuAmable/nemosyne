@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { InvestigationAggregate } from '../src/atlas/domain/InvestigationAggregate.ts';
 import { Dataset } from '../src/data/Dataset.ts';
-import type { AnalysisResult } from '../src/atlas/types.ts';
+import type { AnalysisResult, AnalysisSpec } from '../src/atlas/types.ts';
+import type { RepresentationDecision } from '../src/moneta/representation/RepresentationDecision.ts';
+import type { NemosyneSession } from '../src/session/NemosyneSession.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
 const DATASET = {
@@ -17,7 +19,7 @@ function makeAtlas(sessionId = 'rf046-session'): AtlasCore {
   return atlas;
 }
 
-function analysisSpec(atlas: AtlasCore, min: number) {
+function analysisSpec(atlas: AtlasCore, min: number): AnalysisSpec {
   return {
     datasetFingerprint: atlas.datasetFingerprint!,
     datasetVersion: atlas.datasetVersion,
@@ -120,7 +122,6 @@ describe('RF-046 Semantic Investigation Digest — falsifying mutation/tamper te
   it('digest changes when representation decision evidence changes (governed field)', async () => {
     const first = new InvestigationAggregate({ sessionId: 'rf046-rep-evid' });
     const second = new InvestigationAggregate({ sessionId: 'rf046-rep-evid' });
-    const atlas = makeAtlas('rf046-rep-atlas');
     first.representation.restoreDecision({
       chosenCandidateId: 'scatter',
       chosenFamily: 'POINT_CLOUD',
@@ -144,7 +145,7 @@ describe('RF-046 Semantic Investigation Digest — falsifying mutation/tamper te
         fitnessModelVersion: 'bootstrap-v1',
       },
       datasetSignature: {},
-    });
+    } as unknown as RepresentationDecision);
     second.representation.restoreDecision({
       ...first.representation.activeDecision!,
       evidence: [{ fact: 'measured-density-b', weight: 1, supports: true, source: 'kernel:test' }],
