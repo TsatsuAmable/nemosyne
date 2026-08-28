@@ -122,7 +122,11 @@ export class NarrativeStrip extends MovablePanel {
       ctx.fillText(label, x + chipW / 2, y + chipH / 2 - 5);
 
       // Optional row-count hint.
-      const count = frame.datasetAfter?.rowCount ?? frame.datasetBefore?.rowCount;
+      const count =
+        frame.rowCountAfter ??
+        frame.rowCountBefore ??
+        frame.datasetAfter?.rowCount ??
+        frame.datasetBefore?.rowCount;
       if (typeof count === 'number') {
         ctx.font = this._scaleFont('12px monospace');
         ctx.fillStyle = this.highContrast ? '#cccccc' : '#88ccaa';
