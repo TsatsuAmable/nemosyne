@@ -1,6 +1,11 @@
 name: Architecture policy pilot
 
 on:
+  # Q0 measurement-only trigger. Remove after one hosted timing/RSS run.
+  push:
+    branches: [chore/p1q-q0-architecture-policy]
+    paths:
+      - '.github/workflows/architecture-policy-pilot.yml'
   pull_request:
     branches: [main]
     paths:
