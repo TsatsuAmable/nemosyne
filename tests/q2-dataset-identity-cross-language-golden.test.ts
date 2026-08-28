@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   CANONICAL_DATASET_IDENTITY_ALGORITHM,
@@ -16,7 +17,7 @@ interface IdentityGoldenFixture {
 }
 
 const fixture = JSON.parse(
-  readFileSync(new URL('./fixtures/q2-dataset-identity-golden.json', import.meta.url), 'utf8'),
+  readFileSync(resolve(process.cwd(), 'tests/fixtures/q2-dataset-identity-golden.json'), 'utf8'),
 ) as IdentityGoldenFixture;
 
 describe('P1-Q Q2 cross-language canonical dataset identity golden', () => {
