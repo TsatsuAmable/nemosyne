@@ -1,0 +1,28 @@
+name: Extend XR simulator architecture plan
+on:
+  push:
+    branches: [docs/xr-simulator-stream-integration]
+    paths:
+      - .github/scripts/extend_xr_sim_architecture_plan.py
+      - .github/workflows/extend-xr-sim-architecture-plan.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: docs/xr-simulator-stream-integration
+          fetch-depth: 0
+      - name: Apply roadmap architecture extension
+        run: python .github/scripts/extend_xr_sim_architecture_plan.py
+      - name: Remove one-shot patch machinery
+        run: rm .github/scripts/extend_xr_sim_architecture_plan.py .github/workflows/extend-xr-sim-architecture-plan.yml
+      - name: Commit roadmap extension
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/ROADMAP.md .github/scripts/extend_xr_sim_architecture_plan.py .github/workflows/extend-xr-sim-architecture-plan.yml
+          git commit -m 'docs(xr): add simulator architecture conformance plan'
+          git push origin HEAD:docs/xr-simulator-stream-integration
