@@ -61,7 +61,6 @@ import {
 import type { StructureSet } from './structures.ts';
 import { generateGuidance } from './GuidanceEngine.ts';
 import { KernelAbiError, KernelUnavailableError, UnsupportedAtScaleError } from '../wasm/RuntimeBridge.ts';
-import { encodeTypedColumnsPayload } from '../wasm/TypedColumnsCodec.ts';
 import { InvestigationAggregate, EvidenceLedger } from './domain/index.ts';
 import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidenceAdapter.ts';
@@ -88,63 +87,21 @@ export class AtlasCore {
    */
   private _workerDatasetPayload: DatasetPayload | null = null;
 
-  private readonly LARGE_DATASET_ROW_THRESHOLD = 50000;
-
   private _cloneTypedPayload(payload: ArrayBuffer | Uint8Array): ArrayBuffer | Uint8Array {
     return payload instanceof Uint8Array ? payload.slice() : payload.slice(0);
   }
 
-  private _buildTypedPayloadFromDataset(
-    dataset: Dataset
-  ): { type: 'typed'; data: Uint8Array; name: string } | null {
-    // NTC1 currently preserves numeric/temporal/categorical columns but does not
-    // carry graph edges, text/unknown columns or row lineage. Row lineage is
-    // deliberately excluded from scientific identity, but every scientific
-    // column/edge must survive worker registration. Use the compact path only
-    // for the exact subset we can encode losslessly today; all other datasets
-    // retain canonical JSON registration until RF-035 provides a richer durable
-    // resident capability/transfer contract.
-    if (dataset.edges && dataset.edges.length > 0) return null;
-    if (dataset.columns.some((column) => column.type !== 'NUMERIC')) return null;
-
-    const rowCount = dataset.rowCount;
-    const columns = dataset.columns.map((column) => {
-      const values = new Float64Array(rowCount);
-      const validity = new Uint8Array(rowCount);
-      for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
-        const value = dataset.rows[rowIndex][column.name];
-        if (typeof value === 'number' && Number.isFinite(value)) {
-          values[rowIndex] = value;
-          validity[rowIndex] = 1;
-        }
-      }
-      return {
-        name: column.name,
-        type: 'numeric' as const,
-        values,
-        validity,
-      };
-    });
-
-    return {
-      type: 'typed',
-      data: encodeTypedColumnsPayload({ rowCount, columns }),
-      name: dataset.name,
-    };
-  }
-
   private _setWorkerPayloadFromDataset(dataset: Dataset | null): void {
-    if (!dataset) {
-      this._workerDatasetPayload = null;
-      return;
-    }
-
-    const typedPayload =
-      dataset.rowCount >= this.LARGE_DATASET_ROW_THRESHOLD
-        ? this._buildTypedPayloadFromDataset(dataset)
-        : null;
-    this._workerDatasetPayload =
-      typedPayload ?? { type: 'json', data: dataset.toJSON(), name: dataset.name };
+    // Row-backed Atlas datasets must retain the operation-complete JSON
+    // registration contract. NTC1 columnar handles intentionally do not
+    // materialise row objects, while this shared Worker registration is used by
+    // generic mutations/statistics as well as handle-native TDA. Converting an
+    // arbitrary row-backed dataset to NTC1 here would therefore change which
+    // kernel operations are valid. RF-035 owns an operation-aware resident/
+    // transfer contract; until then correctness outranks the #478 shortcut.
+    this._workerDatasetPayload = dataset
+      ? { type: 'json', data: dataset.toJSON(), name: dataset.name }
+      : null;
   }
 
   private _workerRegistrationPayload(): DatasetPayload | undefined {
