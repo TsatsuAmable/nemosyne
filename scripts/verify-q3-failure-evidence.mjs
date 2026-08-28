@@ -4,7 +4,7 @@ import { basename, resolve } from 'node:path';
 const root = resolve('test-results');
 const secretCanary = 'q3-secret-canary-20260828';
 const queryCanary = 'q3-query-canary-20260828';
-const missingAssetPath = '/assets/__q3-missing-evidence-probe__.js';
+const networkCanaryPath = '/__q3-evidence-probe';
 
 function filesBelow(path) {
   if (!existsSync(path)) return [];
@@ -73,16 +73,17 @@ const redactedCanary = evidence.consoleMessages.find(
 );
 if (!redactedCanary) fail('secret canary was not observed and redacted in console evidence');
 
-if (!Array.isArray(evidence.httpErrors) || evidence.httpErrors.length === 0) {
-  fail('sanitized HTTP failure evidence missing');
+if (!Array.isArray(evidence.requestFailures) || evidence.requestFailures.length === 0) {
+  fail('sanitized request-failure evidence missing');
 }
-const networkCanary = evidence.httpErrors.find(
-  (entry) => entry.status >= 400 && entry.url.endsWith(missingAssetPath)
+const networkCanary = evidence.requestFailures.find(
+  (entry) => entry.method === 'GET' && entry.url.endsWith(networkCanaryPath)
 );
-if (!networkCanary) fail('query canary request was not observed as sanitized HTTP error evidence');
+if (!networkCanary) fail('query canary request was not observed as sanitized request-failure evidence');
 if (networkCanary.url.includes('?') || networkCanary.url.includes('#')) {
   fail('sanitized network canary retained a query string or fragment');
 }
+if (!networkCanary.errorText) fail('network canary failure reason was not retained');
 
 console.log(
   JSON.stringify(
@@ -97,6 +98,7 @@ console.log(
       wasmSha256: evidence.artifacts.wasmSha256,
       runtime: evidence.browser.runtime,
       consoleEvidenceCount: evidence.consoleMessages.length,
+      requestFailureCount: evidence.requestFailures.length,
       httpErrorCount: evidence.httpErrors.length,
       canariesVerified: true,
     },
