@@ -799,6 +799,15 @@ export class AtlasCore {
     const reqId = `areq-${++this._requestSeq}`;
 
     const compactRowView = this._canUseWorkerRowView(inputDataset, spec.operation);
+    if (compactRowView && inputDataset) {
+      // The initial baseline may have been indexed before Rust hydrated durable
+      // row IDs. Refresh metadata only when that exact source is still a borrowed
+      // baseline; compact/snapshot historical entries are never overwritten.
+      this._aggregate.ledger.refreshBorrowedDatasetVersion(
+        { datasetVersion: version, datasetFingerprint: inputFingerprint },
+        inputDataset
+      );
+    }
     const res = await this._executionPort.execute<AnalyticalOperationOutput | {
       dataset: DatasetJSON;
       outputFingerprint: string;
@@ -837,6 +846,7 @@ export class AtlasCore {
     const outputHash = res.value.outputFingerprint;
     let json: DatasetJSON;
     let nextDataset: Dataset;
+    let verifiedRowViewSourceRef: { datasetVersion: number; datasetFingerprint: string } | null = null;
 
     if ('kind' in res.value && res.value.kind === 'row-view') {
       if (!compactRowView || !inputDataset) {
@@ -845,6 +855,10 @@ export class AtlasCore {
       const materialized = this._materializeWorkerRowView(inputDataset, res.value.view, outputHash);
       nextDataset = materialized.dataset;
       json = materialized.json;
+      verifiedRowViewSourceRef = {
+        datasetVersion: version,
+        datasetFingerprint: inputFingerprint,
+      };
     } else {
       // `kind: dataset` is the current production full path. The untagged shape
       // is retained temporarily for third-party/test execution-port compatibility.
@@ -901,7 +915,12 @@ export class AtlasCore {
       evidenceStatus: 'exploratory' as EvidenceStatus,
     };
 
-    this._aggregate.ledger.addResult(result);
+    this._aggregate.ledger.addResult(
+      result,
+      verifiedRowViewSourceRef
+        ? { kind: 'verified-row-view', sourceRef: verifiedRowViewSourceRef }
+        : undefined
+    );
     this._aggregate.ledger.appendEvent(
       {
         timestamp: this._aggregate.context.now(),
