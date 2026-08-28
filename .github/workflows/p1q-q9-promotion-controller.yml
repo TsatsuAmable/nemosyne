@@ -1,0 +1,51 @@
+name: P1-Q Q9 promotion controller
+
+# Non-required governance pilot for P1-Q Q9 (exact-head promotion controller)
+# and RF-052 (governance truth). Reports, for each PR on the exact current
+# head, whether required checks are green, review threads are clean, and the
+# promotion-evidence/adversarial disposition marker is present. Also verifies
+# the live branch-protection ruleset matches the intended policy manifest.
+#
+# This workflow reports promotion evidence; it never manufactures an approval.
+# The approval authority remains the repository approval-gate / review policy.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+
+concurrency:
+  group: p1q-q9-promotion-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  promotion-controller:
+    name: Exact-head promotion evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Verify governance policy matches live ruleset
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: node scripts/check-governance-policy.mjs
+
+      - name: Verify exact-head promotion evidence
+        if: github.event.pull_request.number != null
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: >-
+          node scripts/check-promotion-evidence.mjs
+          --pr ${{ github.event.pull_request.number }}
+          --sha ${{ github.event.pull_request.head.sha }}
+          --required-checks "Node 24,CodeQL SAST (javascript-typescript),approval-gate"

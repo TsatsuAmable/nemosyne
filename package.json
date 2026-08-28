@@ -22,6 +22,8 @@
     "typecheck": "tsc --noEmit",
     "docs:check": "node scripts/check-docs.mjs",
     "ci:actions-check": "node scripts/check-actions-pinned.mjs",
+    "governance:policy": "node scripts/check-governance-policy.mjs",
+    "governance:promotion": "node scripts/check-promotion-evidence.mjs",
     "test": "npm run test:fast && npm run test:ui && npm run test:integration && npm run test:wasm",
     "test:fast": "vitest run --config vitest.fast.config.ts",
     "test:ui": "vitest run --config vitest.ui.config.ts",
