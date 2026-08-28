@@ -1,13 +1,15 @@
 name: Q3C same-operation materialization pilot
 
 on:
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: q3c-materialization-${{ github.ref }}
+  group: q3c-materialization-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -16,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.sha }}
+      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       NEMOSYNE_Q3C_ROW_COUNTS: '1000,8000,32000'
     steps:
       - name: Checkout repository
