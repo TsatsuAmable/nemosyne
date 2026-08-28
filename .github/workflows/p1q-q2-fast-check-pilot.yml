@@ -35,13 +35,25 @@ jobs:
       - name: Install repository dependencies
         run: npm ci
 
-      - name: Install exact pilot dependency without lifecycle scripts or lockfile mutation
+      - name: Install exact pilot dependency in isolated prefix
         run: |
-          npm install --no-save --package-lock=false --ignore-scripts fast-check@4.9.0 pure-rand@8.4.2
-          node --input-type=module -e "import fcPackage from './node_modules/fast-check/package.json' with { type: 'json' }; import prPackage from './node_modules/pure-rand/package.json' with { type: 'json' }; if (fcPackage.version !== '4.9.0' || prPackage.version !== '8.4.2') process.exit(1); console.log('fast-check=' + fcPackage.version + ' pure-rand=' + prPackage.version);"
+          sha256sum node_modules/.package-lock.json > "$RUNNER_TEMP/p1q-q2-node-modules-lock.sha256"
+          npm install \
+            --prefix "$RUNNER_TEMP/p1q-q2-fast-check" \
+            --no-save \
+            --package-lock=false \
+            --ignore-scripts \
+            fast-check@4.9.0 \
+            pure-rand@8.4.2
+          test "$(node -p "require('$RUNNER_TEMP/p1q-q2-fast-check/node_modules/fast-check/package.json').version")" = '4.9.0'
+          test "$(node -p "require('$RUNNER_TEMP/p1q-q2-fast-check/node_modules/pure-rand/package.json').version")" = '8.4.2'
+          (cd "$(dirname node_modules/.package-lock.json)" && sha256sum -c "$RUNNER_TEMP/p1q-q2-node-modules-lock.sha256")
           git diff --exit-code -- package.json package-lock.json
+          echo "fast-check=4.9.0 pure-rand=8.4.2 isolated-prefix=$RUNNER_TEMP/p1q-q2-fast-check"
 
       - name: Run bounded property pilot
+        env:
+          P1Q_FAST_CHECK_ROOT: ${{ runner.temp }}/p1q-q2-fast-check
         run: >-
           /usr/bin/time
           -f 'P1-Q Q2 elapsed=%e sec maxrss=%M KB'
