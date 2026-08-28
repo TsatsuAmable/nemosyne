@@ -119,7 +119,10 @@ describe('RF-035B2 compact row-view mutation transfer', () => {
 
     expect(fromJson).not.toHaveBeenCalled();
     expect(atlas.dataset.rows).toEqual([beforeRows[1], beforeRows[2], beforeRows[0]]);
-    expect(atlas.dataset.rows[0]).toBe(beforeRows[1]);
+    // Preserve the established Atlas defensive-copy boundary: a stale reference
+    // to the prior dataset must not share mutable top-level row objects with the
+    // newly committed current dataset.
+    expect(atlas.dataset.rows[0]).not.toBe(beforeRows[1]);
     expect(atlas.dataset.rowIds).toEqual(['rid-b', 'rid-c', 'rid-a']);
     expect(result.dataset.rows.map((row) => row.id)).toEqual(['b', 'c', 'a']);
     expect(canonicalDatasetIdentityHex(result.dataset)).toBe(outputFingerprint);

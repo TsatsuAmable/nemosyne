@@ -837,7 +837,6 @@ export class AtlasCore {
     const outputHash = res.value.outputFingerprint;
     let json: DatasetJSON;
     let nextDataset: Dataset;
-    let adoptDataset = false;
 
     if ('kind' in res.value && res.value.kind === 'row-view') {
       if (!compactRowView || !inputDataset) {
@@ -846,7 +845,6 @@ export class AtlasCore {
       const materialized = this._materializeWorkerRowView(inputDataset, res.value.view, outputHash);
       nextDataset = materialized.dataset;
       json = materialized.json;
-      adoptDataset = true;
     } else {
       // `kind: dataset` is the current production full path. The untagged shape
       // is retained temporarily for third-party/test execution-port compatibility.
@@ -866,7 +864,6 @@ export class AtlasCore {
         dataset: nextDataset,
         fingerprint: outputHash,
         versionBump: true,
-        adoptDataset,
       },
       (handle: number) => this._analytics.destroyDataset(handle)
     );

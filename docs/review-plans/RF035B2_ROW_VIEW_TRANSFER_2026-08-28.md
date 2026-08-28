@@ -38,7 +38,7 @@ For a compact row-view mutation result:
 4. Atlas explicitly opts into compact transfer only when the exact main-thread input is edge-free, has aligned unique durable row IDs, and the operation is a proven row-preserving `filter`, `sort`, or `slice`. The Worker independently re-checks the operation class and output descriptor before choosing `row-view`.
 5. The Worker may choose `row-view` only when the output reports no edges and the row-ID vector is valid and complete. Otherwise it calls the existing `getDatasetJson()` and returns `kind: 'dataset'`.
 6. Atlas reconstructs a row-view result by exact durable row ID from the captured input dataset. Unknown/duplicate IDs, missing source IDs, schema/shape mismatch, unexpected compact output, or fingerprint mismatch fail closed rather than silently recomputing the operation in JS.
-7. Atlas adopts the internally constructed compact Dataset rather than immediately cloning it again. Direct/external dataset setters and ordinary kernel commits retain defensive-clone behavior.
+7. Atlas preserves the established `commitKernelResult()` defensive-copy boundary. The compact reconstruction may borrow source rows transiently, but the committed current Dataset does not share mutable top-level row objects with stale references to the prior Atlas dataset.
 8. Atlas builds the durable schema-v2 `AnalysisResult.dataset` from the reconstructed dataset so session/replay/digest contracts stay unchanged.
 9. Full-path operations and synchronous execution remain behaviorally unchanged.
 
@@ -63,8 +63,12 @@ The real-WASM tests prove that Rust returns authoritative sort row lineage/order
 
 ## Expected benefit
 
-For eligible edge-free row-preserving operations, Worker -> main transfer becomes O(number of output row IDs) rather than O(rows × columns + nested values). The main-thread current dataset reuses existing source row objects instead of allocating a second transformed row object graph. A schema-v2 durable result snapshot is still materialized on the main thread, so RF-035 remains open.
+For eligible edge-free row-preserving operations, Worker -> main transfer becomes O(number of output row IDs) rather than O(rows × columns + nested values). Atlas avoids Worker-side row-value serialization and `Dataset.fromJSON()` on the compact path, while retaining its defensive current-dataset clone and the schema-v2 durable result snapshot on the main thread. RF-035 therefore remains open.
 
 ## Non-goals
 
 This tranche does not remove schema-v2 embedded result datasets, session autosave materialization, graph edge transfer, derived-row output transfer, or the need for real browser Worker/WASM/Quest memory measurements. It is a bounded transfer/materialization reduction, not RF-035 completion.
+
+## Post-implementation ownership review
+
+Adversarial review rejected an initial zero-copy commit optimization because `AtlasCore.dataset` is publicly reachable and Dataset rows are not deeply immutable. Reusing the exact prior row objects in the new committed state would let stale references mutate current state. B2A therefore preserves `commitKernelResult()` defensive cloning. This narrows the claim to the proven Worker-transfer and deserialization reduction; any future zero-copy main-thread ownership model requires a separate immutability/borrowing contract.
