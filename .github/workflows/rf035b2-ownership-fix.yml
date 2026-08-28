@@ -1,0 +1,25 @@
+name: rf035b2-ownership-fix
+on:
+  push:
+    branches: [fix/rf035b2-row-view-transfer]
+    paths:
+      - 'scripts/fix-rf035b2-ownership.py'
+      - '.github/workflows/rf035b2-ownership-fix.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/rf035b2-row-view-transfer
+          fetch-depth: 0
+      - run: python scripts/fix-rf035b2-ownership.py
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- src/atlas/domain/AnalyticalState.ts src/atlas/AtlasCore.ts tests/rf035b2-row-view-transfer.test.ts docs/review-plans/RF035B2_ROW_VIEW_TRANSFER_2026-08-28.md
+          git add -u -- .github/workflows/rf035b2-ownership-fix.yml scripts/fix-rf035b2-ownership.py
+          git commit -m 'fix(rf035): preserve dataset ownership on compact results'
+          git push origin HEAD:fix/rf035b2-row-view-transfer
