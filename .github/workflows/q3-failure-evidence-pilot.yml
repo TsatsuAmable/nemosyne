@@ -1,15 +1,13 @@
 name: Q3 failure evidence pilot
 
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: q3-failure-evidence-${{ github.event.pull_request.number || github.ref }}
+  group: q3-failure-evidence-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -18,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.sha }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
