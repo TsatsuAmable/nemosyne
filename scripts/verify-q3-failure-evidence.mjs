@@ -4,6 +4,7 @@ import { basename, resolve } from 'node:path';
 const root = resolve('test-results');
 const secretCanary = 'q3-secret-canary-20260828';
 const queryCanary = 'q3-query-canary-20260828';
+const missingAssetPath = '/assets/__q3-missing-evidence-probe__.js';
 
 function filesBelow(path) {
   if (!existsSync(path)) return [];
@@ -67,8 +68,20 @@ if (!Number.isFinite(evidence.browser?.runtime?.renderer?.render?.calls)) {
 if (!Array.isArray(evidence.consoleMessages) || evidence.consoleMessages.length === 0) {
   fail('sanitized console evidence missing');
 }
+const redactedCanary = evidence.consoleMessages.find(
+  (message) => message.type === 'error' && message.text.includes('Q3 probe secret=[REDACTED]')
+);
+if (!redactedCanary) fail('secret canary was not observed and redacted in console evidence');
+
 if (!Array.isArray(evidence.httpErrors) || evidence.httpErrors.length === 0) {
   fail('sanitized HTTP failure evidence missing');
+}
+const networkCanary = evidence.httpErrors.find(
+  (entry) => entry.status >= 400 && entry.url.endsWith(missingAssetPath)
+);
+if (!networkCanary) fail('query canary request was not observed as sanitized HTTP error evidence');
+if (networkCanary.url.includes('?') || networkCanary.url.includes('#')) {
+  fail('sanitized network canary retained a query string or fragment');
 }
 
 console.log(
@@ -85,6 +98,7 @@ console.log(
       runtime: evidence.browser.runtime,
       consoleEvidenceCount: evidence.consoleMessages.length,
       httpErrorCount: evidence.httpErrors.length,
+      canariesVerified: true,
     },
     null,
     2
