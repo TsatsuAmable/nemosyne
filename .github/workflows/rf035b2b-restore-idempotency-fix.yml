@@ -1,0 +1,29 @@
+name: RF035B2B restore idempotency fix
+
+on:
+  push:
+    branches:
+      - fix/rf035b2b-reference-results
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: fix/rf035b2b-reference-results
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply restore idempotency correction
+        run: python .github/scripts/fix_rf035b2b_restore_idempotency.py
+      - name: Commit correction
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(rf035): keep repeated restore inputs immutable'
+          git push origin HEAD:fix/rf035b2b-reference-results
