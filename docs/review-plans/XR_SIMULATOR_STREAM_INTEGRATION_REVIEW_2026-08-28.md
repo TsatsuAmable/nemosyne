@@ -5,6 +5,8 @@
 **Baseline:** `main@22ce66b9302b60a6a5573d50ffdd0083982c2430` (#488 merged)  
 **Scope:** determine where XR simulation materially improves Nemosyne engineering quality and place only those uses into the existing Stream A/B/C and P1-U evidence programme.
 
+**Planning integration:** applied to `ROADMAP.md`, `AI_XR_AGENT_HARNESS_SPEC.md`, and `STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md` on this branch. During verification, the old RF-053 missing-WASM-copy claim was found stale on current main and was narrowed to clean-artifact re-verification rather than repeated as fact.
+
 ## Executive decision
 
 Adopt **IWER (Immersive Web Emulation Runtime)** as Nemosyne's primary WebXR simulation layer for UI design, interaction verification and deterministic XR regression testing. It is the closest fit to the actual Nemosyne runtime because Nemosyne is a Three.js/WebXR browser application. Use the browser extension or `@iwer/devui` for interactive development; prefer the `iwer` runtime behind a dev/test-only adapter for repeatable automated scenarios.
