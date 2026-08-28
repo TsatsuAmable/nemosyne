@@ -180,6 +180,9 @@ async function runScenario(
     throw new Error('Q3B requires the real asynchronous analytical Worker port.');
   }
 
+  // Clear only stale samples from the preceding scenario. Do not drain again
+  // between load and operation: registration may complete during either phase,
+  // and Q3B must retain that acknowledgement alongside execution evidence.
   port.drainDiagnostics();
   const dataset = makeDeterministicDataset(input.rowCount);
   const inputJsonBytesEstimate = jsonBytes(dataset.toJSON());
@@ -201,7 +204,6 @@ async function runScenario(
   const afterLoadFrames = captureMemory(world);
 
   const datasetVersionBefore = world.atlas.datasetVersion;
-  port.drainDiagnostics();
   const operationStartedAt = performance.now();
   await world.dataOperationController.applyAsync(input.operation);
   const operationFinishedAt = performance.now();
