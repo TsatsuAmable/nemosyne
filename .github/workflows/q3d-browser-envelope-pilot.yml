@@ -15,7 +15,7 @@ concurrency:
 jobs:
   browser-envelope:
     name: Decompose browser operation envelope
-    if: ${{ github.event_name == 'workflow_dispatch' || github.head_ref == 'test/p1q-q3d-browser-envelope' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.head_ref == 'test/p1q-q3d-browser-envelope' || github.head_ref == 'fix/rf-060-authoritative-fingerprint-cache' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
