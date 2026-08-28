@@ -35,6 +35,8 @@ export class WorldRendererLifecycle {
   dashboardPanels: { panel: ChartPlanePanel }[] = [];
   dashboardTooltipTargets: THREE.Mesh[] = [];
   tdaGroup: THREE.Group | null = null;
+  tdaCompute: (() => Promise<TDAComputationResult | null>) | null = null;
+  tdaApply: ((result: TDAComputationResult) => boolean) | null = null;
   tdaRecompute: (() => Promise<TDAComputationResult | null>) | null = null;
 
   constructor(options: RendererLifecycleOptions) {
@@ -50,6 +52,8 @@ export class WorldRendererLifecycle {
     if (this.tdaGroup) {
       disposeObject(this.tdaGroup);
       this.tdaGroup = null;
+      this.tdaCompute = null;
+      this.tdaApply = null;
       this.tdaRecompute = null;
     }
 
@@ -65,6 +69,8 @@ export class WorldRendererLifecycle {
       atlas
     );
     this.tdaGroup = summary.group;
+    this.tdaCompute = summary.compute;
+    this.tdaApply = summary.apply;
     this.tdaRecompute = summary.recompute;
     this.engine.scene.add(summary.group);
     void summary.recompute();
@@ -183,6 +189,8 @@ export class WorldRendererLifecycle {
     this.disposeDashboard();
     if (this.tdaGroup) disposeObject(this.tdaGroup);
     this.tdaGroup = null;
+    this.tdaCompute = null;
+    this.tdaApply = null;
     this.tdaRecompute = null;
   }
 }
