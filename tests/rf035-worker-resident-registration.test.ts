@@ -125,9 +125,6 @@ describe('RF-035A worker-resident registration', () => {
 
     expect(firstResult.datasetFingerprint).toBe('rf035-output-1');
     expect(firstResult.dataset.rows).toEqual([{ val: 20 }, { val: 30 }]);
-    // The Worker adopted the Rust output handle before resolving RESULT. Atlas
-    // must not immediately copy every row again merely to prepare a REGISTER
-    // payload that this same Worker generation will never need.
     expect(toJson).not.toHaveBeenCalled();
 
     const second = atlas.applyAnalysisAsync(
@@ -154,9 +151,6 @@ describe('RF-035A worker-resident registration', () => {
     expect(registrations(transport)).toHaveLength(1);
     expect(toJson).not.toHaveBeenCalled();
 
-    // A new Worker/runtime generation cannot inherit the old capability. Once
-    // residency is revoked, Atlas must lazily rebuild canonical registration
-    // material from its still-present main-thread Dataset exactly once.
     atlas.setGeneration(2);
     port.supersede({
       generation: 2,
@@ -182,5 +176,57 @@ describe('RF-035A worker-resident registration', () => {
     await expect(afterRecovery).resolves.toEqual([{ birth: 0, death: 1 }]);
 
     toJson.mockRestore();
+  });
+
+  it('revokes a previous fingerprint when Atlas replaces the current dataset', async () => {
+    const transport = createTransport();
+    const port = new WorkerAnalyticalPort(transport);
+    const atlas = new AtlasCore({ kernel: makeKernelMockBridge() as any });
+    atlas.setExecutionPort(port);
+    atlas.loadDataset(new Dataset(
+      'FirstDataset',
+      [{ name: 'val', type: ColumnType.NUMERIC }],
+      [{ val: 1 }, { val: 2 }],
+    ));
+
+    const firstFingerprint = atlas.datasetFingerprint ?? '';
+    const first = atlas.computePersistenceIntervalsAsync({ featureColumns: ['val'] });
+    await flushRegistration();
+    expect(registrations(transport)).toHaveLength(1);
+    expect(port.hasRegisteredDataset(1, firstFingerprint)).toBe(true);
+    const firstRequest = executions(transport).at(-1)!;
+    transport.simulateResult({
+      requestId: firstRequest.requestId,
+      generation: firstRequest.generation,
+      datasetVersion: firstRequest.dataset.version,
+      datasetFingerprint: firstRequest.dataset.fingerprint,
+      value: [{ birth: 0, death: 1 }],
+    });
+    await expect(first).resolves.toEqual([{ birth: 0, death: 1 }]);
+
+    atlas.setCurrentDataset(new Dataset(
+      'ReplacementDataset',
+      [{ name: 'val', type: ColumnType.NUMERIC }],
+      [{ val: 100 }, { val: 200 }],
+    ));
+    const replacementFingerprint = atlas.datasetFingerprint ?? '';
+
+    expect(replacementFingerprint).not.toBe(firstFingerprint);
+    expect(port.hasRegisteredDataset(1, firstFingerprint)).toBe(false);
+    expect(port.hasRegisteredDataset(1, replacementFingerprint)).toBe(false);
+
+    const replacement = atlas.computePersistenceIntervalsAsync({ featureColumns: ['val'] });
+    await flushRegistration();
+    expect(registrations(transport)).toHaveLength(2);
+    expect(registrations(transport).at(-1)?.dataset.fingerprint).toBe(replacementFingerprint);
+    const replacementRequest = executions(transport).at(-1)!;
+    transport.simulateResult({
+      requestId: replacementRequest.requestId,
+      generation: replacementRequest.generation,
+      datasetVersion: replacementRequest.dataset.version,
+      datasetFingerprint: replacementRequest.dataset.fingerprint,
+      value: [{ birth: 0, death: 2 }],
+    });
+    await expect(replacement).resolves.toEqual([{ birth: 0, death: 2 }]);
   });
 });
