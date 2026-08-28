@@ -1,9 +1,21 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { test, expect, type CDPSession } from '@playwright/test';
+import type { ResourceEnvelopeScenarioResult } from '../../src/app/resourceEnvelopeDiagnostics.ts';
+import type { AnalyticalWorkerDiagnostic } from '../../src/atlas/ports/AnalyticalExecutionPort.ts';
 
 interface MetricSnapshot {
   [name: string]: number;
 }
+
+interface ScenarioCdpEvidence {
+  before: MetricSnapshot;
+  immediate: MetricSnapshot;
+  retainedAfterForcedGc: MetricSnapshot;
+  immediateDelta: MetricSnapshot;
+  retainedDeltaAfterForcedGc: MetricSnapshot;
+}
+
+type ScenarioEvidence = ResourceEnvelopeScenarioResult & { cdp: ScenarioCdpEvidence };
 
 const METRIC_NAMES = [
   'JSHeapUsedSize',
@@ -42,6 +54,14 @@ function rowCounts(): number[] {
   return parsed;
 }
 
+function executionDiagnostic(scenario: ScenarioEvidence): AnalyticalWorkerDiagnostic {
+  const execution = scenario.workerDiagnostics.find(
+    (sample) => sample.phase === 'execution' && sample.operation === 'operation'
+  );
+  if (!execution) throw new Error(`Q3B missing Worker execution diagnostic for ${scenario.operation}.`);
+  return execution;
+}
+
 test('Q3B measures the real Worker + WASM compact/full resource envelope', async ({ page }) => {
   test.skip(
     process.env.NEMOSYNE_Q3B_RESOURCE_PROBE !== '1',
@@ -61,9 +81,10 @@ test('Q3B measures the real Worker + WASM compact/full resource envelope', async
   await client.send('HeapProfiler.enable');
 
   const userAgent = await page.evaluate(() => navigator.userAgent);
-  const scenarios: Array<Record<string, unknown>> = [];
+  const scenarios: ScenarioEvidence[] = [];
+  const configuredRowCounts = rowCounts();
 
-  for (const rowCount of rowCounts()) {
+  for (const rowCount of configuredRowCounts) {
     for (const operation of ['sort', 'anomaly'] as const) {
       await client.send('HeapProfiler.collectGarbage');
       const before = await metrics(client);
@@ -116,27 +137,24 @@ test('Q3B measures the real Worker + WASM compact/full resource envelope', async
     }
   }
 
-  const comparisons = rowCounts().map((rowCount) => {
+  const comparisons = configuredRowCounts.map((rowCount) => {
     const compact = scenarios.find(
       (scenario) => scenario.rowCount === rowCount && scenario.operation === 'sort'
-    ) as Record<string, any> | undefined;
+    );
     const full = scenarios.find(
       (scenario) => scenario.rowCount === rowCount && scenario.operation === 'anomaly'
-    ) as Record<string, any> | undefined;
+    );
     if (!compact || !full) throw new Error(`Q3B missing compact/full pair for ${rowCount} rows.`);
 
-    const compactExecution = compact.workerDiagnostics.find(
-      (sample: Record<string, any>) => sample.phase === 'execution'
-    );
-    const fullExecution = full.workerDiagnostics.find(
-      (sample: Record<string, any>) => sample.phase === 'execution'
-    );
+    const compactExecution = executionDiagnostic(compact);
+    const fullExecution = executionDiagnostic(full);
     return {
       rowCount,
       fullVsCompactEndToEndRatio:
         full.timingMs.operationEndToEnd / Math.max(compact.timingMs.operationEndToEnd, 0.001),
       fullVsCompactWorkerMaterializeRatio:
-        fullExecution.timingMs.materialize / Math.max(compactExecution.timingMs.materialize, 0.001),
+        (fullExecution.timingMs.materialize ?? 0) /
+        Math.max(compactExecution.timingMs.materialize ?? 0, 0.001),
       compactResultKind: compactExecution.resultKind,
       fullResultKind: fullExecution.resultKind,
       compactWorkerWasmGrowthBytes:
