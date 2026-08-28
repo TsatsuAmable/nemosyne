@@ -1,8 +1,14 @@
 import { Dataset } from '../data/Dataset.ts';
-import type { AnalyticalWorkerDiagnostic } from '../atlas/ports/AnalyticalExecutionPort.ts';
+import type {
+  AnalyticalExecutionPort,
+  AnalyticalExecutionRequest,
+  AnalyticalExecutionResult,
+  AnalyticalWorkerDiagnostic,
+} from '../atlas/ports/AnalyticalExecutionPort.ts';
 import type { World } from '../vr/World.ts';
 
 export type ResourceEnvelopeOperation = 'sort' | 'anomaly';
+export type ResourceEnvelopeMaterialization = 'auto' | 'compact' | 'full';
 
 export interface ResourceEnvelopeMemorySample {
   jsHeapUsedBytes: number | null;
@@ -15,10 +21,13 @@ export interface ResourceEnvelopeScenarioResult {
   schemaVersion: 1;
   rowCount: number;
   operation: ResourceEnvelopeOperation;
+  requestedMaterialization: ResourceEnvelopeMaterialization;
   expectedWorkerResultKind: 'row-view' | 'dataset';
   executionMode: 'worker';
   datasetVersionBefore: number;
   datasetVersionAfter: number;
+  datasetFingerprintBefore: string;
+  datasetFingerprintAfter: string;
   inputJsonBytesEstimate: number;
   outputJsonBytesEstimate: number;
   timingMs: {
@@ -50,6 +59,7 @@ export interface ResourceEnvelopeDiagnosticHook {
   runScenario(input: {
     rowCount: number;
     operation: ResourceEnvelopeOperation;
+    materialization?: ResourceEnvelopeMaterialization;
   }): Promise<ResourceEnvelopeScenarioResult>;
 }
 
@@ -66,6 +76,10 @@ type PerformanceWithMemory = Performance & {
   };
 };
 
+type MutableExecutionPort = {
+  execute(req: AnalyticalExecutionRequest): Promise<AnalyticalExecutionResult>;
+};
+
 const COLUMNS = [
   { name: 'group', type: 'CATEGORICAL' as const },
   { name: 'value', type: 'NUMERIC' as const },
@@ -79,8 +93,8 @@ function roundMs(value: number): number {
 }
 
 function deterministicUnit(index: number, salt: number): number {
-  // Pure integer mixing rather than Math.random: repeated Q3B runs receive the
-  // same scientific payload byte-for-byte for a given row count.
+  // Pure integer mixing rather than Math.random: repeated Q3B/Q3C runs receive
+  // the same scientific payload byte-for-byte for a given row count.
   let x = (Math.imul(index + 1, 0x45d9f3b) ^ Math.imul(salt + 1, 0x27d4eb2d)) >>> 0;
   x = Math.imul(x ^ (x >>> 16), 0x45d9f3b) >>> 0;
   x = Math.imul(x ^ (x >>> 16), 0x45d9f3b) >>> 0;
@@ -97,7 +111,7 @@ function makeDeterministicDataset(rowCount: number): Dataset {
     rows[i] = {
       group: `g${i % 16}`,
       value: Math.round((base * 2000 - 1000) * 1000) / 1000,
-      signal: Math.round((signal * 100) * 1000) / 1000,
+      signal: Math.round(signal * 100 * 1000) / 1000,
       trend: i % 4096,
       weight: 1 + (i % 23) / 10,
     };
@@ -164,25 +178,78 @@ function sceneSnapshot(world: World): ResourceEnvelopeScenarioResult['scene'] {
   };
 }
 
+function expectedResultKind(
+  operation: ResourceEnvelopeOperation,
+  materialization: ResourceEnvelopeMaterialization
+): 'row-view' | 'dataset' {
+  if (materialization === 'full') return 'dataset';
+  if (operation === 'sort') return 'row-view';
+  return 'dataset';
+}
+
+/**
+ * Q3C-only evidence shim. Atlas remains the production orchestrator and still
+ * owns Worker registration, exact-fingerprint fencing, result verification,
+ * durable dataset adoption, history/provenance and rendering. This wrapper
+ * changes only the materialisation hint on the single analytical Worker request
+ * so the same Rust operation can be measured as compact versus full output.
+ */
+async function withMaterializationOverride<T>(
+  port: AnalyticalExecutionPort,
+  materialization: ResourceEnvelopeMaterialization,
+  run: () => Promise<T>
+): Promise<T> {
+  if (materialization === 'auto') return run();
+
+  const mutablePort = port as unknown as MutableExecutionPort;
+  const originalExecute = mutablePort.execute;
+  mutablePort.execute = (request) => {
+    if (request.operation !== 'operation') {
+      return originalExecute.call(port, request);
+    }
+    const params = { ...request.params };
+    if (materialization === 'compact') {
+      params.resultMode = 'row-view-if-lossless';
+    } else {
+      delete params.resultMode;
+    }
+    return originalExecute.call(port, { ...request, params });
+  };
+
+  try {
+    return await run();
+  } finally {
+    mutablePort.execute = originalExecute;
+  }
+}
+
 async function runScenario(
   world: World,
-  input: { rowCount: number; operation: ResourceEnvelopeOperation }
+  input: {
+    rowCount: number;
+    operation: ResourceEnvelopeOperation;
+    materialization?: ResourceEnvelopeMaterialization;
+  }
 ): Promise<ResourceEnvelopeScenarioResult> {
   if (!Number.isSafeInteger(input.rowCount) || input.rowCount <= 0 || input.rowCount > 100_000) {
-    throw new Error('Q3B rowCount must be a positive safe integer <= 100000.');
+    throw new Error('Q3B/Q3C rowCount must be a positive safe integer <= 100000.');
   }
   if (input.operation !== 'sort' && input.operation !== 'anomaly') {
-    throw new Error(`Unsupported Q3B operation: ${String(input.operation)}`);
+    throw new Error(`Unsupported Q3B/Q3C operation: ${String(input.operation)}`);
+  }
+  const requestedMaterialization = input.materialization ?? 'auto';
+  if (!['auto', 'compact', 'full'].includes(requestedMaterialization)) {
+    throw new Error(`Unsupported Q3C materialization: ${String(requestedMaterialization)}`);
   }
 
   const port = world.atlas.executionPort;
   if (!port?.isAsync || !port.drainDiagnostics) {
-    throw new Error('Q3B requires the real asynchronous analytical Worker port.');
+    throw new Error('Q3B/Q3C requires the real asynchronous analytical Worker port.');
   }
 
   // Clear only stale samples from the preceding scenario. Do not drain again
   // between load and operation: registration may complete during either phase,
-  // and Q3B must retain that acknowledgement alongside execution evidence.
+  // and the evidence must retain that acknowledgement alongside execution.
   port.drainDiagnostics();
   const dataset = makeDeterministicDataset(input.rowCount);
   const inputJsonBytesEstimate = jsonBytes(dataset.toJSON());
@@ -192,7 +259,7 @@ async function runScenario(
   world.loadDataset({
     key: 'q3b-resource-envelope',
     name: dataset.name,
-    label: `Q3B ${input.rowCount} rows`,
+    label: `Q3 resource envelope ${input.rowCount} rows`,
     topology: 'TABULAR',
     dataset,
     encodings: { color: 'group', size: 'value' },
@@ -204,17 +271,28 @@ async function runScenario(
   const afterLoadFrames = captureMemory(world);
 
   const datasetVersionBefore = world.atlas.datasetVersion;
+  const datasetFingerprintBefore = world.atlas.datasetFingerprint ?? '';
+  if (!datasetFingerprintBefore) {
+    throw new Error('Q3B/Q3C source dataset has no authoritative fingerprint.');
+  }
+
   const operationStartedAt = performance.now();
-  await world.dataOperationController.applyAsync(input.operation);
+  await withMaterializationOverride(port, requestedMaterialization, () =>
+    world.dataOperationController.applyAsync(input.operation)
+  );
   const operationFinishedAt = performance.now();
   const afterOperation = captureMemory(world);
   const workerDiagnostics = port.drainDiagnostics();
   const datasetVersionAfter = world.atlas.datasetVersion;
+  const datasetFingerprintAfter = world.atlas.datasetFingerprint ?? '';
   if (datasetVersionAfter !== datasetVersionBefore + 1) {
     throw new Error(
-      `Q3B ${input.operation} did not commit exactly one authoritative dataset version ` +
+      `Q3B/Q3C ${input.operation} did not commit exactly one authoritative dataset version ` +
         `(before=${datasetVersionBefore}, after=${datasetVersionAfter}).`
     );
+  }
+  if (!datasetFingerprintAfter) {
+    throw new Error('Q3B/Q3C result dataset has no authoritative fingerprint.');
   }
 
   await waitFrames(2);
@@ -225,17 +303,17 @@ async function runScenario(
   const outputJsonBytesEstimate = jsonBytes(world.atlas.dataset.toJSON());
   const outputEstimateFinishedAt = performance.now();
 
-  const expectedWorkerResultKind = input.operation === 'sort' ? 'row-view' : 'dataset';
+  const expectedWorkerResultKind = expectedResultKind(input.operation, requestedMaterialization);
   const executionDiagnostic = [...workerDiagnostics]
     .reverse()
     .find((sample) => sample.phase === 'execution' && sample.operation === 'operation');
   if (!executionDiagnostic) {
-    throw new Error('Q3B Worker execution diagnostic was not emitted by the instrumented build.');
+    throw new Error('Q3B/Q3C Worker execution diagnostic was not emitted by the instrumented build.');
   }
   if (executionDiagnostic.resultKind !== expectedWorkerResultKind) {
     throw new Error(
-      `Q3B expected ${expectedWorkerResultKind} Worker result for ${input.operation}, ` +
-        `received ${executionDiagnostic.resultKind ?? 'none'}.`
+      `Q3B/Q3C expected ${expectedWorkerResultKind} Worker result for ${input.operation} ` +
+        `(${requestedMaterialization}), received ${executionDiagnostic.resultKind ?? 'none'}.`
     );
   }
 
@@ -243,10 +321,13 @@ async function runScenario(
     schemaVersion: 1,
     rowCount: input.rowCount,
     operation: input.operation,
+    requestedMaterialization,
     expectedWorkerResultKind,
     executionMode: 'worker',
     datasetVersionBefore,
     datasetVersionAfter,
+    datasetFingerprintBefore,
+    datasetFingerprintAfter,
     inputJsonBytesEstimate,
     outputJsonBytesEstimate,
     timingMs: {
