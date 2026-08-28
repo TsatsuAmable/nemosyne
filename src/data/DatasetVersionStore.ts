@@ -206,6 +206,7 @@ export class DatasetVersionStore {
       rowValues = new Map<string, Record<string, unknown>>();
       this._rowValuesByBase.set(baseKey, rowValues);
     }
+    const pendingRows = new Map<string, Record<string, unknown>>();
     for (let index = 0; index < view.rowIds.length; index += 1) {
       const rowId = view.rowIds[index];
       const row = view.rows[index];
@@ -216,8 +217,11 @@ export class DatasetVersionStore {
         }
         continue;
       }
-      rowValues.set(rowId, cloneRow(row));
+      pendingRows.set(rowId, cloneRow(row));
     }
+    // Validation is transaction-like: do not mutate durable row-value state
+    // until every existing lineage value has passed the equality fence.
+    for (const [rowId, row] of pendingRows) rowValues.set(rowId, row);
 
     this._setEntry({
       kind: 'row-view',
