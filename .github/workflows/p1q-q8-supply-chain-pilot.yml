@@ -1,0 +1,73 @@
+name: P1-Q Q8 supply-chain pilot
+
+# Non-required pilot for P1-Q Q8 (supply-chain prevention). Evaluates whether
+# GitHub Dependency Review and cargo-deny produce useful defect signal at
+# acceptable cost before any of them is promoted to a required PR gate.
+# A green run is point-in-time evidence, not a permanent absence-of-vulnerability
+# claim, and neither tool replaces Dependabot update automation.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1q-q8-supply-chain-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    name: GitHub Dependency Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Dependency Review
+        # actions/dependency-review-action@v5.0.0 pinned to immutable SHA.
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
+        with:
+          fail-on-severity: high
+
+  cargo-deny:
+    name: cargo-deny (${{ matrix.checks }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Advisory, ban and source checks cover the full lockfile, including
+          # dev-only and host build/test dependencies that CI compiles.
+          - checks: advisories
+            extra-args: --all-features
+            continue-on-error: true
+          - checks: bans licenses sources
+            extra-args: --all-features
+            continue-on-error: false
+          # Licence policy is scoped to the shipped wasm32 graph so target-only
+          # crates that are never built (e.g. getrandom's UEFI `r-efi` tree) do
+          # not require an allow-list exception. `-t` is a global cargo-deny
+          # option and is passed through the action's `arguments` input.
+          - checks: licenses
+            extra-args: --all-features -t wasm32-unknown-unknown
+            continue-on-error: false
+    # A newly published advisory is information to record, not a pilot failure;
+    # policy checks (bans/licenses/sources) remain a hard gate for the pilot.
+    continue-on-error: ${{ matrix.continue-on-error }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Run cargo-deny
+        # EmbarkStudios/cargo-deny-action@v2.1.1 pinned to immutable SHA.
+        uses: embarkstudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25
+        with:
+          manifest-path: wasm/Cargo.toml
+          arguments: ${{ matrix.extra-args }}
+          command: check
+          command-arguments: ${{ matrix.checks }}
