@@ -86,7 +86,12 @@ export function installBrowserEnvelopeDiagnosticHook(world: World): () => void {
 
   patch(world.dataOperationController, 'applyAsync', 'controller.applyAsync');
   patch(world.dataOperationController, 'applyVisual', 'controller.applyVisual');
+
   patch(world.atlas, 'applyAnalysisAsync', 'atlas.applyAnalysisAsync');
+  patch(world.atlas as unknown as object, '_registerCurrentDatasetInWorker', 'atlas.registerCurrentDatasetInWorker');
+  patch(world.atlas as unknown as object, '_materializeWorkerRowView', 'atlas.materializeWorkerRowView');
+  patch(world.atlas as unknown as object, '_canUseWorkerRowView', 'atlas.canUseWorkerRowView');
+  patch(world.atlas as unknown as object, '_connectResultNode', 'atlas.connectResultNode');
 
   const port = world.atlas.executionPort;
   if (port) {
@@ -95,13 +100,32 @@ export function installBrowserEnvelopeDiagnosticHook(world: World): () => void {
       return request?.operation === 'operation' ? 'workerPort.execute.operation' : null;
     });
     patch(port, 'registerDataset', 'workerPort.registerDataset');
+    patch(port, 'supersede', 'workerPort.supersede');
   }
 
-  patch(world.atlas.aggregate.analytical as unknown as object, 'commitKernelResult', 'analytical.commitKernelResult');
+  patch(
+    world.atlas.aggregate.analytical as unknown as object,
+    'commitKernelResult',
+    'analytical.commitKernelResult'
+  );
 
   const ledger = world.atlas.evidenceLedger as unknown as object;
+  patch(ledger, 'refreshBorrowedDatasetVersion', 'ledger.refreshBorrowedDatasetVersion');
   patch(ledger, 'addResult', 'ledger.addResult');
   patch(ledger, 'appendEvent', 'ledger.appendEvent');
+  patch(ledger, 'getAnalysisHistory', 'ledger.getAnalysisHistory');
+
+  // Decompose World's synchronous OPERATION_APPLIED subscriber. The TDA
+  // recompute callback itself is assigned during dataset load, so any event
+  // time left after the named stages below remains visible as a bounded
+  // residual rather than being guessed at.
+  patch(world as unknown as object, '_updateDashboardDatasets', 'world.updateDashboardDatasets');
+  patch(world as unknown as object, '_discoverStructuresAndRecommend', 'world.discoverStructuresAndRecommend');
+  patch(world as unknown as object, '_updateOperationLog', 'world.updateOperationLog');
+  patch(world as unknown as object, '_updateNarrativeStrip', 'world.updateNarrativeStrip');
+  patch(world as unknown as object, '_logInteraction', 'world.logInteraction');
+  patch(world as unknown as object, '_requestAutoSave', 'world.requestAutoSave');
+  patch(world.telemetryCollector as unknown as object, 'recordOperation', 'telemetry.recordOperation');
 
   patch(world.engine.input, 'invalidateSpatialAcceleration', 'input.invalidateSpatialAcceleration');
   patch(world.eventBus, 'emit', (args) => {
