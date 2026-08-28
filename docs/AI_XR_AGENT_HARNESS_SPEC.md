@@ -26,7 +26,7 @@ The harness has two planes with different trust and capability boundaries:
 
 An agent may inhabit an embodiment. It must not inhabit an authority boundary.
 
-No Meta-specific tool is required. Meta XR Operator is one optional external-driver candidate and comparative reference, not a required runtime dependency. Its native OpenXR API-layer design does not directly fit a hosted application running inside Meta Quest Browser. The Nemosyne-native harness is therefore the canonical path. At implementation time, available standards-based browser automation, WebXR test APIs, simulator drivers and vendor tools must be evaluated against the internal adapter contract; a bounded external-driver experiment may add controller, viewer-pose or compositor coverage where the browser/runtime combination supports it.
+No Meta-specific product framework is required. For the Operator Plane, the bounded simulator review selects **IWER** as the preferred browser/WebXR driver candidate because it exercises the runtime surface Nemosyne actually ships; it remains a dev/test dependency behind the Nemosyne adapter contract, not a semantic authority or production dependency. Meta XR Simulator and Meta XR Operator remain optional comparative external-driver candidates for later OpenXR/compositor/device qualification where they can drive the actual browser/runtime path without a native wrapper. The Nemosyne-native semantic registry, evidence recorder, capability guard and authority boundaries remain canonical.
 
 ## 2. Problem statement
 
@@ -204,14 +204,9 @@ The bridge must be disabled by default. Operator capabilities require both a bui
 
 It does not replace the Nemosyne scene registry, NIL driver, evidence recorder or presence model. External tool failure must degrade to an explicit unsupported capability, never to invented success.
 
-External-driver selection is deliberately deferred. A future implementation must prefer, in order:
+External-driver selection is now bounded by the 28 August simulator review. For browser/WebXR operator embodiment, prefer IWER behind this adapter contract; do not build a second synthetic WebXR runtime first. Keep Meta XR Simulator/Operator as optional later comparison adapters when they can add OpenXR/compositor/device evidence without changing the product architecture.
 
-1. browser-standard or WebXR-standard test capabilities;
-2. maintained open tooling that can drive the actual Nemosyne WebXR surface;
-3. a thin Nemosyne-owned adapter over a vendor simulator or runtime;
-4. a native wrapper only after explicit architectural approval.
-
-Candidates are judged on real WebXR compatibility, controller/viewer control, capture fidelity, headless automation, Quest relevance, maintenance status, licensing, platform support and CI operability. Brand or engine integration alone is not a selection criterion.
+Candidates are judged on real WebXR compatibility, controller/viewer/hand control used by Nemosyne, capture fidelity, deterministic automation, Quest relevance, maintenance status, licensing, platform support, CI operability and production-bundle isolation. Brand or engine integration alone is not a selection criterion.
 
 ### 6.4 Scene Semantic Registry
 
@@ -966,6 +961,8 @@ Exit:
 
 Deliver:
 
+- IWER-backed WebXR simulator adapter as the preferred browser driver, dev/test only;
+
 - synthetic viewer/controller/hand-ray driver;
 - on-demand mirror capture;
 - scenario runner;
@@ -1033,7 +1030,7 @@ Exit:
 
 Deliver:
 
-- external-driver discovery and selection record;
+- cross-runtime comparison record for the selected IWER browser driver and any optional Meta XR Simulator/OpenXR adapter justified by remaining evidence gaps;
 - optional vendor-neutral adapter if go criteria pass;
 - Quest Browser controller/hand/desktop parity campaign;
 - performance, memory, thermal and sustained-use evidence;
