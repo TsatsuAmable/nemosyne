@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
 import type { DracoDataInput, DracoFacts } from '../../moneta/types.ts';
-import { buildTDASummaryGroup } from '../artifacts/TDAPlanes.ts';
+import {
+  buildTDASummaryGroup,
+  type TDAComputationResult,
+} from '../artifacts/TDAPlanes.ts';
 import { ChartPlanePanel } from '../ui/ChartPlanePanel.ts';
 import { DashboardManager } from '../ui/DashboardManager.ts';
 import { TooltipManager } from '../ui/TooltipManager.ts';
@@ -32,7 +35,7 @@ export class WorldRendererLifecycle {
   dashboardPanels: { panel: ChartPlanePanel }[] = [];
   dashboardTooltipTargets: THREE.Mesh[] = [];
   tdaGroup: THREE.Group | null = null;
-  tdaRecompute: (() => void) | null = null;
+  tdaRecompute: (() => Promise<TDAComputationResult | null>) | null = null;
 
   constructor(options: RendererLifecycleOptions) {
     this.engine = options.engine;
@@ -64,7 +67,7 @@ export class WorldRendererLifecycle {
     this.tdaGroup = summary.group;
     this.tdaRecompute = summary.recompute;
     this.engine.scene.add(summary.group);
-    summary.recompute();
+    void summary.recompute();
   }
 
   rebuildDashboard(): void {
