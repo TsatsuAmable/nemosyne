@@ -159,6 +159,11 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     }
   }
 
+  hasRegisteredDataset(generation: number, fingerprint: string): boolean {
+    if (this._disposed || !fingerprint) return false;
+    return this._registered.has(this._registrationKey(generation, fingerprint));
+  }
+
   registerDataset(registration: AnalyticalDatasetRegistration): Promise<void> {
     if (this._disposed) {
       return Promise.reject(new KernelUnavailableError('Analytical worker port is disposed'));
