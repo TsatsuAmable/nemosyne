@@ -546,6 +546,7 @@ Programme rules:
 **Q3 — failure evidence / agent runtime observatory — immediate / parallel-safe**
 
 - [ ] make failing browser/IWER product-path jobs retain a reproducible evidence bundle: Playwright trace, screenshot/video, console/page errors, relevant network failures, scene snapshot, simulator scenario/profile, Worker/runtime state and exact source/bundle/WASM identity;
+- [ ] make diagnostic retention dataset-safe: synthetic/CI fixtures by default; sanitize network/console/scene artifacts before retention; treat heap snapshots as potentially containing scientific data, tokens or secrets and never upload them from production/user investigations without an explicit governed policy;
 - [ ] evaluate isolated Chrome DevTools Protocol/MCP-style agent diagnostics for console/network/performance/heap inspection without exposing normal user browser profiles or secrets.
 
 **Q4 — mutation testing — targeted/scheduled**
@@ -560,7 +561,8 @@ Programme rules:
 
 **Q6 — deterministic network fault injection — gated**
 
-- [ ] after RF-037/RF-038/RF-057 and a contract-faithful/deployed service path exist, evaluate Toxiproxy or equivalent for latency/jitter, stalls, partitions, service disappearance and reconnect storms;
+- [ ] after RF-037/RF-038/RF-057 and a contract-faithful/deployed service path exist, evaluate Toxiproxy or equivalent for signalling/WebSocket/service latency, stalls, disappearance and reconnect behavior;
+- [ ] evaluate `tc/netem`-class or a proven WebRTC-specific impairment harness before claiming peer data-channel loss/jitter/partition evidence; do not infer WebRTC data-plane coverage from a TCP proxy;
 - [ ] use real multi-browser/IWER clients where useful, but keep security/correctness authority in the signalling/WebRTC/session implementation.
 
 **Q7 — small-state formal models — targeted**

@@ -139,7 +139,7 @@ Primary owners: Stream C/RF-043, RF-053 artifact qualification.
 
 ## Q6 — Network fault injection — HIGH VALUE AFTER LIVE AUTHORITY FIXES
 
-Evaluate Toxiproxy or an equivalent deterministic TCP/network fault injector for deployed/contract-faithful signalling and other external service paths.
+Evaluate Toxiproxy or an equivalent deterministic TCP/network fault injector for deployed/contract-faithful signalling, WebSocket and ordinary service paths. Do **not** treat it as a faithful WebRTC data-channel impairment tool: WebRTC media/data may use ICE/UDP/DTLS paths that bypass a TCP proxy. Evaluate `tc/netem`-class lower-level network emulation or a proven WebRTC-specific harness separately before making data-channel loss/jitter claims.
 
 Scenarios:
 
@@ -150,7 +150,7 @@ Scenarios:
 - slow close/half-open behavior where representable;
 - recovery after transient partition.
 
-Use IWER/multi-browser clients to drive embodied collaboration while the proxy perturbs the real network path. The security/correctness claim remains owned by the signalling/WebRTC/session authorities, not the proxy.
+Use IWER/multi-browser clients to drive embodied collaboration while the selected fault injector perturbs the boundary it actually controls. Toxiproxy may exercise signalling/service recovery; a lower-level or WebRTC-specific harness must own peer data-channel impairment. The security/correctness claim remains owned by the signalling/WebRTC/session authorities, not the fault injector.
 
 Entry gate: RF-037/RF-038/RF-057 authoritative collaboration fixes landed and a production/contract-faithful service path exists.
 
