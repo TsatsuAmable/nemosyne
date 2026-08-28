@@ -38,8 +38,20 @@ jobs:
         run: |
           cp tools/property-testing/q2-proptest-pilot.rs wasm/src/q2_proptest_pilot.rs
           printf '\n#[cfg(test)]\nmod q2_proptest_pilot;\n' >> wasm/src/lib.rs
+          python - <<'PY'
+          from pathlib import Path
+          manifest = Path('wasm/Cargo.toml')
+          text = manifest.read_text()
+          marker = '[dev-dependencies]\n'
+          dependency = 'proptest = { version = "=1.11.0", default-features = false, features = ["std"] }\n'
+          if marker not in text:
+              raise SystemExit('missing [dev-dependencies] marker')
+          if 'proptest =' in text:
+              raise SystemExit('proptest unexpectedly already present in Cargo.toml')
+          manifest.write_text(text.replace(marker, marker + dependency, 1))
+          PY
           cd wasm
-          cargo add --dev proptest@1.11.0 --no-default-features --features std --exact
+          cargo generate-lockfile
           echo '=== P1-Q Q2 proptest dependency tree ==='
           cargo tree -p proptest --depth 2
           echo '=== P1-Q Q2 transient diff ==='
