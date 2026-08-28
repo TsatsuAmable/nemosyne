@@ -183,4 +183,56 @@ describe('RF-035A worker-resident registration', () => {
 
     toJson.mockRestore();
   });
+
+  it('revokes a previous fingerprint when Atlas replaces the current dataset', async () => {
+    const transport = createTransport();
+    const port = new WorkerAnalyticalPort(transport);
+    const atlas = new AtlasCore({ kernel: makeKernelMockBridge() as any });
+    atlas.setExecutionPort(port);
+    atlas.loadDataset(new Dataset(
+      'FirstDataset',
+      [{ name: 'val', type: ColumnType.NUMERIC }],
+      [{ val: 1 }, { val: 2 }],
+    ));
+
+    const firstFingerprint = atlas.datasetFingerprint ?? '';
+    const first = atlas.computePersistenceIntervalsAsync({ featureColumns: ['val'] });
+    await flushRegistration();
+    expect(registrations(transport)).toHaveLength(1);
+    expect(port.hasRegisteredDataset(1, firstFingerprint)).toBe(true);
+    const firstRequest = executions(transport).at(-1)!;
+    transport.simulateResult({
+      requestId: firstRequest.requestId,
+      generation: firstRequest.generation,
+      datasetVersion: firstRequest.dataset.version,
+      datasetFingerprint: firstRequest.dataset.fingerprint,
+      value: [{ birth: 0, death: 1 }],
+    });
+    await expect(first).resolves.toEqual([{ birth: 0, death: 1 }]);
+
+    atlas.setCurrentDataset(new Dataset(
+      'ReplacementDataset',
+      [{ name: 'val', type: ColumnType.NUMERIC }],
+      [{ val: 100 }, { val: 200 }],
+    ));
+    const replacementFingerprint = atlas.datasetFingerprint ?? '';
+
+    expect(replacementFingerprint).not.toBe(firstFingerprint);
+    expect(port.hasRegisteredDataset(1, firstFingerprint)).toBe(false);
+    expect(port.hasRegisteredDataset(1, replacementFingerprint)).toBe(false);
+
+    const replacement = atlas.computePersistenceIntervalsAsync({ featureColumns: ['val'] });
+    await flushRegistration();
+    expect(registrations(transport)).toHaveLength(2);
+    expect(registrations(transport).at(-1)?.dataset.fingerprint).toBe(replacementFingerprint);
+    const replacementRequest = executions(transport).at(-1)!;
+    transport.simulateResult({
+      requestId: replacementRequest.requestId,
+      generation: replacementRequest.generation,
+      datasetVersion: replacementRequest.dataset.version,
+      datasetFingerprint: replacementRequest.dataset.fingerprint,
+      value: [{ birth: 0, death: 2 }],
+    });
+    await expect(replacement).resolves.toEqual([{ birth: 0, death: 2 }]);
+  });
 });
