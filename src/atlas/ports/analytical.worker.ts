@@ -3,12 +3,48 @@ import type {
   AnalyticalExecutionFence,
   AnalyticalExecutionRequest,
   AnalyticalExecutionResult,
+  AnalyticalWorkerDiagnostic,
 } from './AnalyticalExecutionPort.ts';
 import * as bridge from '../../wasm/RuntimeBridge.ts';
 import type { DatasetJSON, OperationSpec } from '../../data/types.ts';
 
 const handleMap = new Map<string, number>();
 const fence: { generation?: number; datasetVersion?: number; datasetFingerprint?: string } = {};
+const resourceDiagnosticsEnabled = import.meta.env.VITE_NEMOSYNE_Q3B_RESOURCE_PROBE === '1';
+
+function roundMs(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+function wasmBytes(): number | null {
+  if (!resourceDiagnosticsEnabled) return null;
+  try {
+    return bridge.memory().buffer.byteLength;
+  } catch {
+    return null;
+  }
+}
+
+function hostBufferAllocations(): number | null {
+  if (!resourceDiagnosticsEnabled) return null;
+  try {
+    return bridge.hostBufferAllocationCount();
+  } catch {
+    return null;
+  }
+}
+
+function registrationShape(registration: AnalyticalDatasetRegistration): {
+  rowCount?: number;
+  columnCount?: number;
+} {
+  if (registration.payload.type !== 'json') return {};
+  const json = registration.payload.data as DatasetJSON;
+  return {
+    rowCount: Array.isArray(json?.rows) ? json.rows.length : undefined,
+    columnCount: Array.isArray(json?.columns) ? json.columns.length : undefined,
+  };
+}
 
 function destroyHandle(handle: number): void {
   try {
@@ -151,16 +187,63 @@ self.onmessage = async (ev: MessageEvent) => {
 
   if (data.type === 'REGISTER' && data.registration) {
     const registration = data.registration;
+    const startedAt = performance.now();
+    const beforeWasm = wasmBytes();
+    const beforeHostBuffers = hostBufferAllocations();
+    let bridgeReadyMs = 0;
     try {
       await registerDataset(registration);
+      bridgeReadyMs = performance.now() - startedAt;
+      const afterWasm = wasmBytes();
+      const diagnostic: AnalyticalWorkerDiagnostic | undefined = resourceDiagnosticsEnabled
+        ? {
+            schemaVersion: 1,
+            phase: 'registration',
+            id: registration.registrationId,
+            ...registrationShape(registration),
+            timingMs: {
+              total: roundMs(performance.now() - startedAt),
+              bridgeReady: roundMs(bridgeReadyMs),
+            },
+            wasmBytes: {
+              before: beforeWasm,
+              afterKernel: afterWasm,
+              afterMaterialize: afterWasm,
+            },
+            hostBufferAllocations: {
+              before: beforeHostBuffers,
+              after: hostBufferAllocations(),
+            },
+          }
+        : undefined;
       self.postMessage({
         type: 'REGISTERED',
         registrationId: registration.registrationId,
         generation: registration.generation,
         datasetVersion: registration.dataset.version,
         datasetFingerprint: registration.dataset.fingerprint,
+        ...(diagnostic ? { diagnostic } : {}),
       });
     } catch (err: unknown) {
+      const afterWasm = wasmBytes();
+      const diagnostic: AnalyticalWorkerDiagnostic | undefined = resourceDiagnosticsEnabled
+        ? {
+            schemaVersion: 1,
+            phase: 'registration',
+            id: registration.registrationId,
+            ...registrationShape(registration),
+            timingMs: { total: roundMs(performance.now() - startedAt) },
+            wasmBytes: {
+              before: beforeWasm,
+              afterKernel: afterWasm,
+              afterMaterialize: afterWasm,
+            },
+            hostBufferAllocations: {
+              before: beforeHostBuffers,
+              after: hostBufferAllocations(),
+            },
+          }
+        : undefined;
       self.postMessage({
         type: 'REGISTERED',
         registrationId: registration.registrationId,
@@ -168,6 +251,7 @@ self.onmessage = async (ev: MessageEvent) => {
         datasetVersion: registration.dataset.version,
         datasetFingerprint: registration.dataset.fingerprint,
         error: err instanceof Error ? err.message : String(err),
+        ...(diagnostic ? { diagnostic } : {}),
       });
     }
     return;
@@ -188,8 +272,52 @@ self.onmessage = async (ev: MessageEvent) => {
       return;
     }
 
+    const startedAt = performance.now();
+    const beforeWasm = wasmBytes();
+    const beforeHostBuffers = hostBufferAllocations();
+    let bridgeReadyMs = 0;
+    let kernelMs = 0;
+    let materializeMs = 0;
+    let afterKernelWasm = beforeWasm;
+    let afterMaterializeWasm = beforeWasm;
+    let resultKind: AnalyticalWorkerDiagnostic['resultKind'] = 'none';
+    let resultRowCount: number | undefined;
+    let resultColumnCount: number | undefined;
+    let operationName: string | undefined;
+
+    const buildDiagnostic = (): AnalyticalWorkerDiagnostic | undefined =>
+      resourceDiagnosticsEnabled
+        ? {
+            schemaVersion: 1,
+            phase: 'execution',
+            id: req.requestId,
+            operation: req.operation,
+            ...(operationName ? { operationName } : {}),
+            resultKind,
+            ...(resultRowCount !== undefined ? { rowCount: resultRowCount } : {}),
+            ...(resultColumnCount !== undefined ? { columnCount: resultColumnCount } : {}),
+            timingMs: {
+              total: roundMs(performance.now() - startedAt),
+              bridgeReady: roundMs(bridgeReadyMs),
+              kernel: roundMs(kernelMs),
+              materialize: roundMs(materializeMs),
+            },
+            wasmBytes: {
+              before: beforeWasm,
+              afterKernel: afterKernelWasm,
+              afterMaterialize: afterMaterializeWasm,
+            },
+            hostBufferAllocations: {
+              before: beforeHostBuffers,
+              after: hostBufferAllocations(),
+            },
+          }
+        : undefined;
+
     try {
+      const bridgeStartedAt = performance.now();
       await ensureBridgeReady();
+      bridgeReadyMs = performance.now() - bridgeStartedAt;
 
       let handle = handleMap.get(req.dataset.fingerprint);
       if (handle === undefined && req.datasetPayload) {
@@ -207,33 +335,55 @@ self.onmessage = async (ev: MessageEvent) => {
       let value: unknown = null;
 
       switch (req.operation) {
-        case 'tda.persistence':
+        case 'tda.persistence': {
+          const kernelStartedAt = performance.now();
           value = bridge.computePersistenceIntervals(registeredHandle, req.params);
+          kernelMs = performance.now() - kernelStartedAt;
+          resultKind = 'scalar';
           break;
-        case 'tda.mapper':
+        }
+        case 'tda.mapper': {
+          const kernelStartedAt = performance.now();
           value = bridge.computeMapperGraph(registeredHandle, req.params);
+          kernelMs = performance.now() - kernelStartedAt;
+          resultKind = 'scalar';
           break;
-        case 'tda.betti0':
+        }
+        case 'tda.betti0': {
+          const kernelStartedAt = performance.now();
           value = bridge.computeBetti0Curve(registeredHandle, req.params);
+          kernelMs = performance.now() - kernelStartedAt;
+          resultKind = 'scalar';
           break;
-        case 'statistics':
+        }
+        case 'statistics': {
+          const kernelStartedAt = performance.now();
           value = bridge.statistics(registeredHandle);
+          kernelMs = performance.now() - kernelStartedAt;
+          resultKind = 'scalar';
           break;
-        case 'spectralFacts':
+        }
+        case 'spectralFacts': {
+          const kernelStartedAt = performance.now();
           value = bridge.computeSpectralFacts(
             registeredHandle,
             req.params.timeColumn as string | undefined,
             req.params.valueColumn as string | undefined
           );
+          kernelMs = performance.now() - kernelStartedAt;
+          resultKind = 'scalar';
           break;
+        }
         case 'operation': {
           if (!req.params.operation) {
             throw new Error('Worker operation request is missing params.operation');
           }
-          const outHandle = bridge.runOperation(
-            registeredHandle,
-            req.params.operation as OperationSpec
-          );
+          const operation = req.params.operation as OperationSpec;
+          operationName = operation.op;
+          const kernelStartedAt = performance.now();
+          const outHandle = bridge.runOperation(registeredHandle, operation);
+          kernelMs = performance.now() - kernelStartedAt;
+          afterKernelWasm = wasmBytes();
           if (outHandle === 0) {
             throw new Error('Worker kernel operation returned an invalid output handle');
           }
@@ -245,7 +395,7 @@ self.onmessage = async (ev: MessageEvent) => {
               throw new Error('Worker kernel operation produced no authoritative output fingerprint');
             }
 
-            const operation = req.params.operation as OperationSpec;
+            const materializeStartedAt = performance.now();
             const compactRequested = req.params.resultMode === 'row-view-if-lossless';
             const rowPreserving = ['filter', 'sort', 'slice'].includes(operation.op);
             const rowView = compactRequested && rowPreserving
@@ -259,13 +409,21 @@ self.onmessage = async (ev: MessageEvent) => {
               new Set(rowView.rowIds).size === rowView.rowIds.length
             ) {
               value = { kind: 'row-view', view: rowView, outputFingerprint: outFingerprint };
+              resultKind = 'row-view';
+              resultRowCount = rowView.rowCount;
+              resultColumnCount = rowView.columnCount;
             } else {
               const outJson = bridge.getDatasetJson(outHandle);
               if (!outJson) {
                 throw new Error('Worker kernel operation produced no dataset output');
               }
               value = { kind: 'dataset', dataset: outJson, outputFingerprint: outFingerprint };
+              resultKind = 'dataset';
+              resultRowCount = outJson.rows.length;
+              resultColumnCount = outJson.columns.length;
             }
+            materializeMs = performance.now() - materializeStartedAt;
+            afterMaterializeWasm = wasmBytes();
 
             replaceRegisteredHandle(outFingerprint, outHandle);
             adopted = true;
@@ -278,8 +436,10 @@ self.onmessage = async (ev: MessageEvent) => {
           throw new Error(`Unsupported analytical worker operation: ${req.operation}`);
       }
 
-      const provenance = bridge.kernelProvenance ? bridge.kernelProvenance() : null;
+      if (afterKernelWasm === beforeWasm) afterKernelWasm = wasmBytes();
+      if (afterMaterializeWasm === beforeWasm) afterMaterializeWasm = wasmBytes();
 
+      const provenance = bridge.kernelProvenance ? bridge.kernelProvenance() : null;
       const result: AnalyticalExecutionResult = {
         requestId: req.requestId,
         generation: req.generation,
@@ -288,14 +448,12 @@ self.onmessage = async (ev: MessageEvent) => {
         value,
         provenance,
       };
-
-      self.postMessage({ type: 'RESULT', result });
+      const diagnostic = buildDiagnostic();
+      self.postMessage({ type: 'RESULT', result, ...(diagnostic ? { diagnostic } : {}) });
     } catch (err: unknown) {
-      // RF-030: a kernel-inline TDA resource refusal is durable provenance, not
-      // a generic worker error. Surface the typed refusal (preflight + provenance)
-      // so the port boundary can reconstruct the error, durably record it, and
-      // reject with the typed class — never degrading it to a plain `error`
-      // string or a KernelUnavailable signal.
+      afterKernelWasm = wasmBytes();
+      afterMaterializeWasm = afterKernelWasm;
+      const diagnostic = buildDiagnostic();
       if (err instanceof bridge.UnsupportedAtScaleError) {
         const refusalResult: AnalyticalExecutionResult = {
           requestId: req.requestId,
@@ -305,7 +463,11 @@ self.onmessage = async (ev: MessageEvent) => {
           value: null,
           refusal: { preflight: err.preflight, provenance: err.provenance },
         };
-        self.postMessage({ type: 'RESULT', result: refusalResult });
+        self.postMessage({
+          type: 'RESULT',
+          result: refusalResult,
+          ...(diagnostic ? { diagnostic } : {}),
+        });
         return;
       }
       const errorResult: AnalyticalExecutionResult = {
@@ -316,7 +478,11 @@ self.onmessage = async (ev: MessageEvent) => {
         value: null,
         error: err instanceof Error ? err.message : String(err),
       };
-      self.postMessage({ type: 'RESULT', result: errorResult });
+      self.postMessage({
+        type: 'RESULT',
+        result: errorResult,
+        ...(diagnostic ? { diagnostic } : {}),
+      });
     }
   }
 };
