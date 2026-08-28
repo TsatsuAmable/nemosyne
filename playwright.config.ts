@@ -12,19 +12,22 @@ import { defineConfig, devices } from '@playwright/test';
 const previewCommand = process.env.NEMOSYNE_SMOKE_PREBUILT === '1'
   ? 'npx vite preview --port 4173 --strictPort'
   : 'npm run build && npx vite preview --port 4173 --strictPort';
+const q3FailureEvidence = process.env.NEMOSYNE_Q3_EVIDENCE === '1';
 
 export default defineConfig({
   testDir: './tests/smoke',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: q3FailureEvidence ? 0 : process.env.CI ? 1 : 0,
   workers: 1,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
 
   use: {
     headless: true,
     baseURL: 'http://localhost:4173',
-    trace: 'on-first-retry',
+    trace: q3FailureEvidence ? 'retain-on-failure' : 'on-first-retry',
+    screenshot: q3FailureEvidence ? 'only-on-failure' : 'off',
+    video: q3FailureEvidence ? 'retain-on-failure' : 'off',
   },
 
   webServer: {

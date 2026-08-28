@@ -1,0 +1,4 @@
+ruleDirs:
+  - tools/architecture-policy/rules
+testConfigs:
+  - testDir: tools/architecture-policy/rule-tests

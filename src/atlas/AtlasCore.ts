@@ -10,6 +10,7 @@
  */
 
 import { Dataset } from '../data/Dataset.ts';
+import { canonicalDatasetIdentityHex } from '../data/DatasetIdentity.ts';
 import type { AnalysisHistory, HistoryEntry } from '../data/AnalysisHistory.ts';
 import type { DatasetEvidence } from '../data/evidence/index.ts';
 import type {
@@ -65,7 +66,7 @@ import { InvestigationAggregate, EvidenceLedger } from './domain/index.ts';
 import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidenceAdapter.ts';
 
-import type { AnalyticalExecutionPort, DatasetPayload } from './ports/AnalyticalExecutionPort.ts';
+import type { AnalyticalExecutionPort, AnalyticalOperationOutput, AnalyticalRowView, DatasetPayload } from './ports/AnalyticalExecutionPort.ts';
 import { InlineAnalyticalPort } from './ports/InlineAnalyticalPort.ts';
 
 export { KernelUnavailableError };
@@ -87,70 +88,21 @@ export class AtlasCore {
    */
   private _workerDatasetPayload: DatasetPayload | null = null;
 
-  private readonly LARGE_DATASET_ROW_THRESHOLD = 50000;
-
   private _cloneTypedPayload(payload: ArrayBuffer | Uint8Array): ArrayBuffer | Uint8Array {
     return payload instanceof Uint8Array ? payload.slice() : payload.slice(0);
   }
 
-  private _buildTypedPayloadFromDataset(dataset: Dataset): { type: 'typed'; data: ArrayBuffer; name: string } {
-    // Build typed column payload column-by-column to avoid row-wise JSON serialization
-    // This avoids materializing the full dataset as JSON
-    const columnData = new Map<string, Float64Array>();
-    const columnNames = dataset.columns
-      .filter((c) => c.type === 'NUMERIC')
-      .map((c) => c.name);
-    
-    // Pre-allocate column arrays
-    for (const name of columnNames) {
-      columnData.set(name, new Float64Array(dataset.rowCount));
-    }
-    
-    // Fill column arrays row by row (single pass)
-    for (let i = 0; i < dataset.rowCount; i++) {
-      const row = dataset.rows[i];
-      for (const name of columnNames) {
-        const value = row[name];
-        columnData.get(name)![i] = typeof value === 'number' && Number.isFinite(value) ? value : NaN;
-      }
-    }
-    
-    // Serialize columns to a single ArrayBuffer
-    const totalBytes = columnNames.reduce((sum, name) => sum + columnData.get(name)!.byteLength, 0);
-    const headerSize = 4 + columnNames.length * (32 + 4); // column count + per-column (name length + name + length)
-    const buffer = new ArrayBuffer(headerSize + totalBytes);
-    const view = new DataView(buffer);
-    const encoder = new TextEncoder();
-    
-    let offset = 0;
-    view.setUint32(offset, columnNames.length, true); offset += 4;
-    
-    for (const name of columnNames) {
-      const nameBytes = encoder.encode(name);
-      view.setUint32(offset, nameBytes.length, true); offset += 4;
-      new Uint8Array(buffer, offset, nameBytes.length).set(nameBytes); offset += nameBytes.length;
-      const arr = columnData.get(name)!;
-      view.setUint32(offset, arr.length, true); offset += 4;
-      // Align offset to 8 bytes for Float64Array
-      offset = (offset + 7) & ~7;
-      new Float64Array(buffer, offset, arr.length).set(arr); offset += arr.byteLength;
-    }
-    
-    return { type: 'typed', data: buffer, name: dataset.name };
-  }
-
   private _setWorkerPayloadFromDataset(dataset: Dataset | null): void {
-    if (!dataset) {
-      this._workerDatasetPayload = null;
-      return;
-    }
-    
-    // Use typed column payload for large datasets to avoid JSON serialization bottleneck
-    if (dataset.rowCount >= this.LARGE_DATASET_ROW_THRESHOLD) {
-      this._workerDatasetPayload = this._buildTypedPayloadFromDataset(dataset);
-    } else {
-      this._workerDatasetPayload = { type: 'json', data: dataset.toJSON(), name: dataset.name };
-    }
+    // Row-backed Atlas datasets must retain the operation-complete JSON
+    // registration contract. NTC1 columnar handles intentionally do not
+    // materialise row objects, while this shared Worker registration is used by
+    // generic mutations/statistics as well as handle-native TDA. Converting an
+    // arbitrary row-backed dataset to NTC1 here would therefore change which
+    // kernel operations are valid. RF-035 owns an operation-aware resident/
+    // transfer contract; until then correctness outranks the #478 shortcut.
+    this._workerDatasetPayload = dataset
+      ? { type: 'json', data: dataset.toJSON(), name: dataset.name }
+      : null;
   }
 
   private _workerRegistrationPayload(): DatasetPayload | undefined {
@@ -159,6 +111,56 @@ export class AtlasCore {
     if (!current) return undefined;
     this._setWorkerPayloadFromDataset(current);
     return this._workerDatasetPayload ?? undefined;
+  }
+
+  private _canUseWorkerRowView(dataset: Dataset | null, operation: OperationSpec): boolean {
+    const rowIds = dataset?.rowIds;
+    return Boolean(
+      dataset &&
+      dataset.edges === undefined &&
+      rowIds &&
+      rowIds.length === dataset.rowCount &&
+      new Set(rowIds).size === rowIds.length &&
+      ['filter', 'sort', 'slice'].includes(operation.op)
+    );
+  }
+
+  private _materializeWorkerRowView(
+    input: Dataset,
+    view: AnalyticalRowView,
+    outputFingerprint: string
+  ): { dataset: Dataset; json: DatasetJSON } {
+    if (input.edges !== undefined || view.edgesPresent) {
+      throw new KernelUnavailableError('[AtlasCore] compact row-view cannot represent dataset edges.');
+    }
+    const sourceIds = input.rowIds;
+    if (
+      !sourceIds ||
+      sourceIds.length !== input.rowCount ||
+      new Set(sourceIds).size !== sourceIds.length ||
+      view.rowCount !== view.rowIds.length ||
+      view.columnCount !== input.columnCount ||
+      new Set(view.rowIds).size !== view.rowIds.length
+    ) {
+      throw new KernelUnavailableError('[AtlasCore] invalid compact row-view identity metadata.');
+    }
+
+    const byId = new Map(sourceIds.map((id, index) => [id, input.rows[index]] as const));
+    const rows = view.rowIds.map((id) => {
+      const row = byId.get(id);
+      if (!row) {
+        throw new KernelUnavailableError(`[AtlasCore] compact row-view references unknown row id ${id}.`);
+      }
+      return row;
+    });
+    const dataset = new Dataset(view.name, input.columns.slice(), rows, undefined, [...view.rowIds]);
+    const json = dataset.toJSON();
+    if (canonicalDatasetIdentityHex(json) !== outputFingerprint) {
+      throw new KernelUnavailableError(
+        '[AtlasCore] compact row-view reconstruction does not match the authoritative output fingerprint.'
+      );
+    }
+    return { dataset, json };
   }
 
   private async _registerCurrentDatasetInWorker(
@@ -172,13 +174,23 @@ export class AtlasCore {
         '[AtlasCore] asynchronous analytical port cannot register worker-local datasets.'
       );
     }
+    const generation = this._generation;
+    // RF-035A: query worker residency before constructing registration material.
+    // Dataset.toJSON() copies the complete row set, so constructing a payload
+    // merely for registerDataset() to discard it defeats resident mutation state.
+    if (port.hasRegisteredDataset?.(generation, fingerprint)) {
+      return (
+        generation === this._generation &&
+        version === this.datasetVersion &&
+        fingerprint === (this.datasetFingerprint ?? '')
+      );
+    }
     const payload = this._workerRegistrationPayload();
     if (!payload) {
       throw new KernelUnavailableError(
         `[AtlasCore] no worker registration payload is available for dataset ${fingerprint}.`
       );
     }
-    const generation = this._generation;
     await port.registerDataset({
       registrationId: `areg-${++this._requestSeq}`,
       dataset: { fingerprint, version },
@@ -780,12 +792,23 @@ export class AtlasCore {
     }
     const version = this.datasetVersion;
     const generation = this._generation;
+    const inputDataset = this._aggregate.analytical.currentNullable;
     if (!(await this._registerCurrentDatasetInWorker(inputFingerprint, version))) {
       throw new Error(`[AtlasCore] async op "${spec.operation.op}" superseded before dispatch`);
     }
     const reqId = `areq-${++this._requestSeq}`;
 
-    const res = await this._executionPort.execute<{
+    const compactRowView = this._canUseWorkerRowView(inputDataset, spec.operation);
+    if (compactRowView && inputDataset) {
+      // The initial baseline may have been indexed before Rust hydrated durable
+      // row IDs. Refresh metadata only when that exact source is still a borrowed
+      // baseline; compact/snapshot historical entries are never overwritten.
+      this._aggregate.ledger.refreshBorrowedDatasetVersion(
+        { datasetVersion: version, datasetFingerprint: inputFingerprint },
+        inputDataset
+      );
+    }
+    const res = await this._executionPort.execute<AnalyticalOperationOutput | {
       dataset: DatasetJSON;
       outputFingerprint: string;
     }>({
@@ -793,7 +816,10 @@ export class AtlasCore {
       operation: 'operation',
       dataset: { fingerprint: inputFingerprint, version },
       generation,
-      params: { operation: spec.operation },
+      params: {
+        operation: spec.operation,
+        ...(compactRowView ? { resultMode: 'row-view-if-lossless' } : {}),
+      },
     });
 
     if (
@@ -808,7 +834,6 @@ export class AtlasCore {
 
     if (
       typeof res.value !== 'object' ||
-      !('dataset' in res.value) ||
       !('outputFingerprint' in res.value) ||
       typeof res.value.outputFingerprint !== 'string' ||
       !res.value.outputFingerprint
@@ -818,9 +843,34 @@ export class AtlasCore {
       );
     }
 
-    const json = res.value.dataset;
     const outputHash = res.value.outputFingerprint;
-    const nextDataset = Dataset.fromJSON(json);
+    let json: DatasetJSON;
+    let nextDataset: Dataset;
+    let verifiedRowViewSourceRef: { datasetVersion: number; datasetFingerprint: string } | null = null;
+
+    if ('kind' in res.value && res.value.kind === 'row-view') {
+      if (!compactRowView || !inputDataset) {
+        throw new KernelUnavailableError('[AtlasCore] unexpected compact row-view Worker result.');
+      }
+      const materialized = this._materializeWorkerRowView(inputDataset, res.value.view, outputHash);
+      nextDataset = materialized.dataset;
+      json = materialized.json;
+      verifiedRowViewSourceRef = {
+        datasetVersion: version,
+        datasetFingerprint: inputFingerprint,
+      };
+    } else {
+      // `kind: dataset` is the current production full path. The untagged shape
+      // is retained temporarily for third-party/test execution-port compatibility.
+      const datasetJson = 'dataset' in res.value ? res.value.dataset : null;
+      if (!datasetJson) {
+        throw new KernelUnavailableError(
+          `[AtlasCore] async op "${spec.operation.op}" produced no dataset payload.`
+        );
+      }
+      json = datasetJson;
+      nextDataset = Dataset.fromJSON(json);
+    }
 
     this._aggregate.analytical.commitKernelResult(
       {
@@ -831,12 +881,20 @@ export class AtlasCore {
       },
       (handle: number) => this._analytics.destroyDataset(handle)
     );
-    this._setWorkerPayloadFromDataset(nextDataset);
     this._executionPort.supersede({
       generation: this._generation,
       datasetVersion: this.datasetVersion,
       datasetFingerprint: outputHash,
     });
+    // The Worker adopts the Rust mutation output handle before RESULT resolves.
+    // Retire the cached registration snapshot only when the active port can
+    // attest that exact fingerprint in this generation. Other async ports keep
+    // the conservative materialized reconstruction path.
+    if (this._executionPort.hasRegisteredDataset?.(this._generation, outputHash)) {
+      this._workerDatasetPayload = null;
+    } else {
+      this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
+    }
 
     const resultId = this._aggregate.ledger.nextResultId(
       outputHash,
@@ -857,7 +915,12 @@ export class AtlasCore {
       evidenceStatus: 'exploratory' as EvidenceStatus,
     };
 
-    this._aggregate.ledger.addResult(result);
+    this._aggregate.ledger.addResult(
+      result,
+      verifiedRowViewSourceRef
+        ? { kind: 'verified-row-view', sourceRef: verifiedRowViewSourceRef }
+        : undefined
+    );
     this._aggregate.ledger.appendEvent(
       {
         timestamp: this._aggregate.context.now(),

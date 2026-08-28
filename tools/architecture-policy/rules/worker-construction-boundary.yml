@@ -1,0 +1,10 @@
+id: worker-construction-boundary
+language: TypeScript
+severity: error
+message: Direct Worker construction belongs at the governed World composition boundary.
+files:
+  - src/**/*.ts
+ignores:
+  - src/vr/World.ts
+rule:
+  pattern: new Worker($$$ARGS)

@@ -4,6 +4,7 @@
 
 import { AnalysisHistory } from '../../data/AnalysisHistory.ts';
 import { Dataset } from '../../data/Dataset.ts';
+import { DatasetVersionStore, type DatasetVersionRef } from '../../data/DatasetVersionStore.ts';
 import type {
   AnalysisResult,
   AnalysisSpec,
@@ -17,13 +18,20 @@ import type {
 import type { StructureSet } from '../structures.ts';
 import type { RemediationProvenance } from '../../moneta/representation/ActionableNil.ts';
 
+export interface AnalysisResultStorageHint {
+  kind: 'verified-row-view';
+  sourceRef: DatasetVersionRef;
+}
+
 export class EvidenceLedger {
   private _ledger: ResearchEvent[] = [];
   private _results: AnalysisResult[] = [];
+  private readonly _resultsById = new Map<string, AnalysisResult>();
   private _structures: StructureSet[] = [];
   private _observations: Observation[] = [];
   private _findings: Finding[] = [];
   private _annotations: Annotation[] = [];
+  private readonly _datasetVersions = new DatasetVersionStore();
   private _historyView: AnalysisHistory | null = null;
   private _resultCounter = 0;
   private _eventCounter = 0;
@@ -64,8 +72,48 @@ export class EvidenceLedger {
     return `${fp}:${datasetVersion}:${opName}:${this._resultCounter}`;
   }
 
-  addResult(result: AnalysisResult): void {
-    this._results.push(result);
+  registerDatasetVersion(ref: DatasetVersionRef, dataset: Dataset): void {
+    this._datasetVersions.registerBorrowed(ref, dataset);
+  }
+
+  refreshBorrowedDatasetVersion(ref: DatasetVersionRef, dataset: Dataset): void {
+    if (this._datasetVersions.storageKind(ref) === 'borrowed') {
+      this._datasetVersions.registerBorrowed(ref, dataset);
+    }
+  }
+
+  addResult(result: AnalysisResult, storageHint?: AnalysisResultStorageHint): void {
+    const resultRef: DatasetVersionRef = {
+      datasetVersion: result.datasetVersion,
+      datasetFingerprint: result.datasetFingerprint,
+    };
+
+    if (storageHint?.kind === 'verified-row-view') {
+      if (result.dataset.edges && result.dataset.edges.length > 0) {
+        throw new Error('[EvidenceLedger] verified row-view result cannot carry edges');
+      }
+      const rowIds = result.dataset.rowIds;
+      if (!rowIds || rowIds.length !== result.dataset.rows.length) {
+        throw new Error('[EvidenceLedger] verified row-view result requires aligned durable row IDs');
+      }
+      this._datasetVersions.registerRowView(resultRef, storageHint.sourceRef, result.dataset);
+    } else {
+      this._datasetVersions.register(resultRef, result.dataset);
+    }
+
+    const stored = this._referenceBackedResult(result, resultRef);
+    this._results.push(stored);
+    this._resultsById.set(stored.resultId, stored);
+  }
+
+  materializedResults(): AnalysisResult[] {
+    return this._results.map((result) => ({ ...result }));
+  }
+
+  materializedLedger(): ResearchEvent[] {
+    return this._ledger.map((event) =>
+      event.result ? { ...event, result: { ...event.result } } : { ...event }
+    );
   }
 
   recordObservation(
@@ -237,8 +285,12 @@ export class EvidenceLedger {
     sessionId: string,
   ): ResearchEvent {
     this._eventCounter += 1;
+    const canonicalResult = event.result
+      ? this._resultsById.get(event.result.resultId) ?? event.result
+      : undefined;
     const fullEvent: ResearchEvent = {
       ...event,
+      ...(canonicalResult ? { result: canonicalResult } : {}),
       eventId: `${sessionId}:${this._eventCounter}`,
       sessionId,
     };
@@ -326,10 +378,12 @@ export class EvidenceLedger {
   reset(): void {
     this._ledger = [];
     this._results = [];
+    this._resultsById.clear();
     this._structures = [];
     this._observations = [];
     this._findings = [];
     this._annotations = [];
+    this._datasetVersions.clear();
     this._resultCounter = 0;
     this._eventCounter = 0;
     this._observationCounter = 0;
@@ -346,8 +400,25 @@ export class EvidenceLedger {
     findings?: Finding[],
     annotations?: Annotation[],
   ): void {
-    this._results = results.slice();
-    this._ledger = ledger.slice();
+    // RF-035B2B: restore is an input/persistence boundary. Materialize and copy
+    // incoming results before clearing the current version store because an
+    // in-memory session snapshot may be restored repeatedly and may reference
+    // results that were made lazy by an earlier restore. Never attach lazy
+    // getters to caller-owned persisted result objects.
+    const restoredResults = results.map((result) => ({
+      ...result,
+      dataset: result.dataset,
+    }));
+
+    this._results = [];
+    this._resultsById.clear();
+    this._datasetVersions.clear();
+    for (const result of restoredResults) this.addResult(result);
+    this._ledger = ledger.map((event) => {
+      if (!event.result) return { ...event };
+      const canonicalResult = this._resultsById.get(event.result.resultId);
+      return canonicalResult ? { ...event, result: canonicalResult } : { ...event };
+    });
 
     // Rebuild structures from authoritative ledger
     const fromLedgerStructures = this._ledger
@@ -381,45 +452,121 @@ export class EvidenceLedger {
     this.invalidateHistoryView();
   }
 
+  private _referenceBackedResult(result: AnalysisResult, ref: DatasetVersionRef): AnalysisResult {
+    Object.defineProperty(result, 'dataset', {
+      enumerable: true,
+      configurable: false,
+      get: () => {
+        const dataset = this._datasetVersions.materializeJSON(ref);
+        if (!dataset) {
+          throw new Error(`[EvidenceLedger] dataset version ${ref.datasetVersion}:${ref.datasetFingerprint} is unavailable`);
+        }
+        return dataset;
+      },
+    });
+    return result;
+  }
+
   private _buildHistoryFromLedger(original: Dataset | null): AnalysisHistory {
-    const history = new AnalysisHistory();
-    let current = original?.clone?.() ?? null;
+    const loadEvent = this._ledger.find((event) => event.kind === 'load');
+    const originalRef: DatasetVersionRef | null =
+      loadEvent && loadEvent.datasetFingerprint
+        ? {
+            datasetVersion: loadEvent.datasetVersion,
+            datasetFingerprint: loadEvent.datasetFingerprint,
+          }
+        : null;
+
+    const resolvesToOriginal = (ref: DatasetVersionRef): boolean =>
+      Boolean(original && originalRef && ref.datasetFingerprint === originalRef.datasetFingerprint);
+
+    const materialize = (ref: DatasetVersionRef): Dataset | null =>
+      this._datasetVersions.materialize(ref) ??
+      (resolvesToOriginal(ref) ? original!.clone() : null);
+
+    const rowCountFor = (ref: DatasetVersionRef | null): number | undefined => {
+      if (!ref) return undefined;
+      const descriptor = this._datasetVersions.describe(ref);
+      if (descriptor) return descriptor.rowCount;
+      return resolvesToOriginal(ref) ? original!.rowCount : undefined;
+    };
+
+    const history = new AnalysisHistory({ resolveDatasetVersion: materialize });
+    let currentRef = originalRef ? { ...originalRef } : null;
+
     for (const event of this._ledger) {
       switch (event.kind) {
         case 'load':
-          current = original?.clone?.() ?? null;
+          currentRef = event.datasetFingerprint
+            ? {
+                datasetVersion: event.datasetVersion,
+                datasetFingerprint: event.datasetFingerprint,
+              }
+            : null;
           break;
         case 'analysis': {
-          if (!event.result?.dataset) break;
-          const before = current?.clone?.() ?? null;
-          const after = Dataset.fromJSON(event.result.dataset);
-          current = after;
-          const spec = event.command as AnalysisSpec;
+          const result = event.result;
+          if (!result) break;
+          const spec = result.spec as AnalysisSpec;
+          const beforeRef: DatasetVersionRef = {
+            datasetVersion: spec.datasetVersion,
+            datasetFingerprint: spec.datasetFingerprint,
+          };
+          const afterRef: DatasetVersionRef = {
+            datasetVersion: result.datasetVersion,
+            datasetFingerprint: result.datasetFingerprint,
+          };
+          if (!this._datasetVersions.has(afterRef)) {
+            // Legacy/event-only restoration may omit the parallel results array.
+            // Materialize only in that compatibility case; normal live/results-
+            // backed history remains metadata-only.
+            this._datasetVersions.register(afterRef, result.dataset);
+          }
           const label = spec.label ?? spec.operation.op;
-          history.push(label, before, after, spec.operation as Record<string, unknown>);
+          history.pushReference(
+            label,
+            beforeRef,
+            afterRef,
+            spec.operation as Record<string, unknown>,
+            {
+              before: rowCountFor(beforeRef),
+              after: rowCountFor(afterRef),
+            }
+          );
+          currentRef = afterRef;
           break;
         }
         case 'reset': {
-          const before = current?.clone?.() ?? null;
-          current = original?.clone?.() ?? null;
-          if (before) history.push('reset', before, current, {});
+          const afterRef: DatasetVersionRef | null = event.datasetFingerprint
+            ? {
+                datasetVersion: event.datasetVersion,
+                datasetFingerprint: event.datasetFingerprint,
+              }
+            : originalRef;
+          if (currentRef && afterRef) {
+            history.pushReference('reset', currentRef, afterRef, {}, {
+              before: rowCountFor(currentRef),
+              after: rowCountFor(afterRef),
+            });
+          }
+          currentRef = afterRef ? { ...afterRef } : null;
           break;
         }
         case 'undo': {
-          const entry = history.undo();
-          if (entry) current = entry.dataset;
+          const ref = history.moveUndoReference();
+          if (ref) currentRef = ref;
           break;
         }
         case 'redo': {
-          const entry = history.redo();
-          if (entry) current = entry.dataset;
+          const ref = history.moveRedoReference();
+          if (ref) currentRef = ref;
           break;
         }
         case 'seek': {
           const index = (event.command as { index?: number }).index;
           if (index != null) {
-            const entry = history.seek(index);
-            if (entry) current = entry.dataset;
+            const ref = history.moveSeekReference(index);
+            if (ref) currentRef = ref;
           }
           break;
         }

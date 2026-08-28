@@ -4,6 +4,7 @@ import type {
   AnalyticalExecutionPort,
   AnalyticalExecutionRequest,
   AnalyticalExecutionResult,
+  AnalyticalWorkerDiagnostic,
 } from './AnalyticalExecutionPort.ts';
 import { KernelUnavailableError, UnsupportedAtScaleError } from '../../wasm/RuntimeBridge.ts';
 
@@ -28,12 +29,15 @@ interface PendingRegistration {
   key: string;
 }
 
+const MAX_DIAGNOSTIC_SAMPLES = 32;
+
 export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
   private readonly _worker: WorkerTransport;
   private readonly _pending = new Map<string, PendingExecution>();
   private readonly _pendingRegistrations = new Map<string, PendingRegistration>();
   private readonly _registrationPromises = new Map<string, Promise<void>>();
   private readonly _registered = new Set<string>();
+  private readonly _diagnostics: AnalyticalWorkerDiagnostic[] = [];
   private _fence: AnalyticalExecutionFence = {};
   private _onKernelFailure?: ((err: Error) => void) | null;
   /**
@@ -63,6 +67,19 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
 
   get isAsync(): boolean {
     return true;
+  }
+
+  drainDiagnostics(): readonly AnalyticalWorkerDiagnostic[] {
+    if (this._diagnostics.length === 0) return [];
+    return this._diagnostics.splice(0, this._diagnostics.length);
+  }
+
+  private _recordDiagnostic(sample: AnalyticalWorkerDiagnostic | undefined): void {
+    if (!sample) return;
+    this._diagnostics.push(sample);
+    if (this._diagnostics.length > MAX_DIAGNOSTIC_SAMPLES) {
+      this._diagnostics.splice(0, this._diagnostics.length - MAX_DIAGNOSTIC_SAMPLES);
+    }
   }
 
   private _registrationKey(generation: number, fingerprint: string): string {
@@ -159,6 +176,11 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     }
   }
 
+  hasRegisteredDataset(generation: number, fingerprint: string): boolean {
+    if (this._disposed || !fingerprint) return false;
+    return this._registered.has(this._registrationKey(generation, fingerprint));
+  }
+
   registerDataset(registration: AnalyticalDatasetRegistration): Promise<void> {
     if (this._disposed) {
       return Promise.reject(new KernelUnavailableError('Analytical worker port is disposed'));
@@ -183,12 +205,6 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     const existing = this._registrationPromises.get(key);
     if (existing) return existing;
 
-    // Resolve the registration promise as soon as the worker acknowledges the
-    // dataset (or rejects it). Awaiting the base promise — rather than a
-    // `.finally`-derived one — lets the registering caller resume in the same
-    // microtask round as a fast-path caller; the `.finally` is attached for its
-    // cleanup side effect only (map eviction on settle), so reject/stale/supersede
-    // paths still evict the in-flight entry without an extra await layer.
     const promise = new Promise<void>((resolve, reject) => {
       this._pendingRegistrations.set(registration.registrationId, {
         resolve,
@@ -264,6 +280,7 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     this._pendingRegistrations.clear();
     this._registrationPromises.clear();
     this._registered.clear();
+    this._diagnostics.length = 0;
 
     this._worker.onmessage = null;
     this._worker.onerror = null;
@@ -284,8 +301,11 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
       datasetVersion?: number;
       datasetFingerprint?: string;
       error?: string;
+      diagnostic?: AnalyticalWorkerDiagnostic;
     };
     if (!data || this._disposed) return;
+
+    this._recordDiagnostic(data.diagnostic);
 
     if (data.type === 'REGISTERED' && data.registrationId) {
       const pending = this._pendingRegistrations.get(data.registrationId);
@@ -331,11 +351,6 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
 
     this._pending.delete(result.requestId);
 
-    // RF-030: a kernel-inline resource refusal is durable provenance, not a
-    // kernel failure. Reconstruct the typed error, durably record it via the
-    // refusal callback (best-effort), and reject the pending request with the
-    // typed class — never degrading to KernelUnavailableError or firing
-    // `_onKernelFailure`.
     if (result.refusal) {
       const refusalError = new UnsupportedAtScaleError(
         result.refusal.preflight,

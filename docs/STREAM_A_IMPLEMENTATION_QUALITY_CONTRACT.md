@@ -94,7 +94,7 @@ If the pre-review discovers that the proposed implementation changes a durable a
 - Mock tests prove orchestration contracts only. They do not prove real WASM, real Worker, browser, XR, network, file-system, or device behavior.
 - Name tests truthfully. A mock/inline parity test must not be called a real-Worker or real-WASM end-to-end test.
 - For cross-runtime features, include at least one test that crosses the real boundary: Worker/WASM, browser/WASM, WebRTC/browser, export/import/replay, or physical XR as applicable.
-- For UX completion, integration tests that manually call each subsystem are not usability evidence. Drive the real product controls/path in Playwright and validate on target hardware when the claim is device-dependent.
+- For UX completion, integration tests that manually call each subsystem are not usability evidence. Drive the real product controls/path in Playwright. For WebXR interaction/layout/reference-frame claims that a simulator can exercise, add the governed IWER simulator tier through the real WebXR/InputRouter path; validate on target hardware when the claim is device-dependent. Simulator success must never be reported as physical Quest qualification.
 - Benchmark claims require recorded measurements. Never check off "measured" because a measurement hook or benchmark function exists.
 
 **Common failures caught by Stream B:** the P1-U "E2E" journey manually advanced phases with a kernel mock; P1-B "real WASM async parity" used a mock bridge and inline transport.

@@ -63,6 +63,7 @@ const publicFacadeExports = [
   'datasetColumnCount',
   'datasetFingerprint',
   'datasetRowCount',
+  'datasetRowView',
   'deallocBuffer',
   'deallocBytes',
   'debugFillPattern',

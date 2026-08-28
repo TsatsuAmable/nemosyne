@@ -43,6 +43,12 @@ jobs:
       - name: GitHub Actions supply-chain pinning
         run: npm run ci:actions-check
 
+      - name: Prove architecture boundary enforcement
+        run: npm run architecture:boundaries:test
+
+      - name: Enforce architecture boundaries
+        run: npm run architecture:boundaries
+
   coverage-wasm:
     name: Coverage WASM package
     runs-on: ubuntu-latest

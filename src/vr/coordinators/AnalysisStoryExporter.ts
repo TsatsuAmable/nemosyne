@@ -62,7 +62,7 @@ export class AnalysisStoryExporter {
       theme: world.engine?.theme?.currentPreset ?? 'neonMidnight',
       operations: frames.map((f: HistoryFrame) => ({
         operation: f.operation,
-        rowCountAfter: f.datasetAfter?.rowCount,
+        rowCountAfter: f.rowCountAfter ?? f.datasetAfter?.rowCount,
         parameters: f.parameters,
         timestamp: f.timestamp,
       })),
