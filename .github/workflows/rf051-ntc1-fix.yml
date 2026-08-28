@@ -1,0 +1,49 @@
+name: RF051 NTC1 one-shot fix
+
+on:
+  push:
+    branches: [fix/rf051-ntc1-worker-registration]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: fix/rf051-ntc1-worker-registration
+
+      - name: Apply bounded RF-051 fix
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/atlas/AtlasCore.ts')
+          text = path.read_text()
+
+          old_import = "import { KernelAbiError, KernelUnavailableError, UnsupportedAtScaleError } from '../wasm/RuntimeBridge.ts';\n"
+          new_import = old_import + "import { encodeTypedColumnsPayload } from '../wasm/TypedColumnsCodec.ts';\n"
+          assert text.count(old_import) == 1, 'RuntimeBridge import anchor drifted'
+          text = text.replace(old_import, new_import)
+
+          start = text.index('  private readonly LARGE_DATASET_ROW_THRESHOLD = 50000;')
+          end = text.index('  private _workerRegistrationPayload(): DatasetPayload | undefined {', start)
+          replacement = '''  private readonly LARGE_DATASET_ROW_THRESHOLD = 50000;\n\n  private _cloneTypedPayload(payload: ArrayBuffer | Uint8Array): ArrayBuffer | Uint8Array {\n    return payload instanceof Uint8Array ? payload.slice() : payload.slice(0);\n  }\n\n  private _buildTypedPayloadFromDataset(\n    dataset: Dataset\n  ): { type: 'typed'; data: Uint8Array; name: string } | null {\n    // NTC1 currently preserves numeric/temporal/categorical columns but does not\n    // carry graph edges, text/unknown columns or row lineage. Row lineage is\n    // deliberately excluded from scientific identity, but every scientific\n    // column/edge must survive worker registration. Use the compact path only\n    // for the exact subset we can encode losslessly today; all other datasets\n    // retain canonical JSON registration until RF-035 provides a richer durable\n    // resident capability/transfer contract.\n    if (dataset.edges && dataset.edges.length > 0) return null;\n    if (dataset.columns.some((column) => column.type !== 'NUMERIC')) return null;\n\n    const rowCount = dataset.rowCount;\n    const columns = dataset.columns.map((column) => {\n      const values = new Float64Array(rowCount);\n      const validity = new Uint8Array(rowCount);\n      for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {\n        const value = dataset.rows[rowIndex][column.name];\n        if (typeof value === 'number' && Number.isFinite(value)) {\n          values[rowIndex] = value;\n          validity[rowIndex] = 1;\n        }\n      }\n      return {\n        name: column.name,\n        type: 'numeric' as const,\n        values,\n        validity,\n      };\n    });\n\n    return {\n      type: 'typed',\n      data: encodeTypedColumnsPayload({ rowCount, columns }),\n      name: dataset.name,\n    };\n  }\n\n  private _setWorkerPayloadFromDataset(dataset: Dataset | null): void {\n    if (!dataset) {\n      this._workerDatasetPayload = null;\n      return;\n    }\n\n    const typedPayload =\n      dataset.rowCount >= this.LARGE_DATASET_ROW_THRESHOLD\n        ? this._buildTypedPayloadFromDataset(dataset)\n        : null;\n    this._workerDatasetPayload =\n      typedPayload ?? { type: 'json', data: dataset.toJSON(), name: dataset.name };\n  }\n\n'''
+          text = text[:start] + replacement + text[end:]
+          path.write_text(text)
+
+          workflow = Path('.github/workflows/rf051-ntc1-fix.yml')
+          workflow.unlink()
+
+      - name: Commit patch and remove one-shot workflow
+        run: |
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -- src/atlas/AtlasCore.ts .github/workflows/rf051-ntc1-fix.yml
+          git commit -m "fix(rf051): use canonical NTC1 worker payload"
+          git push origin HEAD:fix/rf051-ntc1-worker-registration
