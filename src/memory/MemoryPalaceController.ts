@@ -7,10 +7,7 @@
  */
 
 import * as THREE from 'three';
-import { FocusContextController } from '../vr/interactions/FocusContextController.ts';
-import type { EngineLike } from '../vr/coordinators/types.ts';
 import { MemoryPalaceGraph } from './MemoryPalaceGraph.ts';
-import type { SemanticTargetResolver } from '../vr/input/SemanticTargetResolver.ts';
 
 export interface MemoryPalaceControllerOptions {
   engine: any;
@@ -24,19 +21,17 @@ export interface MemoryPalaceControllerOptions {
 
 export class MemoryPalaceController {
   private readonly _palaceGraph: any;
-  private readonly _focusContext: any;
   private readonly _options: Required<Pick<MemoryPalaceControllerOptions, 'onEpistemicObjectCreated' | 'onEpistemicObjectSelected' | 'onThreadFocused'>>;
   private _activeSelection: string | null = null;
 
   constructor(
     _engine: any,
     palaceGraph: any,
-    focusContext: any,
+    _focusContext: any,
     _semanticResolver: any,
     options: Partial<MemoryPalaceControllerOptions> = {}
   ) {
     this._palaceGraph = palaceGraph;
-    this._focusContext = focusContext;
     this._options = {
       onEpistemicObjectCreated: options.onEpistemicObjectCreated ?? (() => {}),
       onEpistemicObjectSelected: options.onEpistemicObjectSelected ?? (() => {}),
@@ -406,23 +401,4 @@ export class MemoryPalaceController {
       timestamp: Date.now(),
     };
   }
-
-  private _onFocusChange(state: any): void {
-    // Sync palace graph focus with P1-F focus context
-    if (state?.focusedStructureId) {
-      this._palaceGraph.setFocus(state.focusedStructureId);
-    } else {
-      this._palaceGraph.setFocus(undefined);
-    }
-  }
-}
-
-export interface MemoryPalaceControllerOptions {
-  engine: any;
-  palaceGraph: any;
-  focusContext: any;
-  semanticResolver: any;
-  onEpistemicObjectCreated?: (object: any) => void;
-  onEpistemicObjectSelected?: (object: any) => void;
-  onThreadFocused?: (thread: any) => void;
 }

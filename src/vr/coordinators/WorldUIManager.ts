@@ -27,6 +27,8 @@ import { DracoExplainerPanel } from '../ui/DracoExplainerPanel.ts';
 import { RepresentationCarousel } from '../ui/RepresentationCarousel.ts';
 import { TransientContextCardManager } from '../ui/TransientContextCards.ts';
 import { SchemaMappingPanel } from '../ui/SchemaMappingPanel.ts';
+import { VaultPanel } from '../ui/VaultPanel.ts';
+import type { ArchiveEntry } from '../../session/VaultArchiveStore.ts';
 import { GestureConfidenceHUD } from '../ui/GestureConfidenceHUD.ts';
 import { FrustrationResponseManager } from '../ui/FrustrationResponseManager.ts';
 import { JITGestureHintManager } from '../ui/JITGestureHintManager.ts';
@@ -100,6 +102,11 @@ export interface WorldUIManagerCallbacks {
   onInspectNode?: (data: Record<string, unknown> | null) => void;
   onRecordFinding?: (data: Record<string, unknown> | null) => void;
   onNavigateNode?: (data: Record<string, unknown> | null) => void;
+  onFreezeInvestigation?: () => Promise<void>;
+  onRestoreArchive?: (archiveId: string) => void;
+  onExportArchive?: (archiveId: string) => void;
+  onDeleteArchive?: (archiveId: string) => void;
+  getArchiveList?: () => Promise<ArchiveEntry[]>;
 }
 
 interface AdaptiveAssistLike {
@@ -159,6 +166,7 @@ export class WorldUIManager {
   loadTestPanel: LoadTestPanel | null = null;
   recommendationPanel: RecommendationPanel;
   dracoExplainerPanel: DracoExplainerPanel;
+  vaultPanel: VaultPanel;
 
   // Superuser / Dev Lab — panel subclasses (wired into PanelManager on first access)
   schemaMappingPanel: SchemaMappingPanel | null = null;
@@ -409,6 +417,19 @@ export class WorldUIManager {
     this.engine.addUpdatable(this.dracoExplainerPanel);
     this.panelManager.hidePanel(this.dracoExplainerPanel);
 
+    // Evidence Vault panel — archive/restore investigation snapshots.
+    this.vaultPanel = new VaultPanel(this.analystAnchor, {
+      onFreeze: callbacks.onFreezeInvestigation,
+      onRestore: callbacks.onRestoreArchive,
+      onExport: callbacks.onExportArchive,
+      onDelete: callbacks.onDeleteArchive,
+    });
+    this.panelManager.register(this.vaultPanel);
+    this.engine.input.addPanel(this.vaultPanel);
+    this.engine.addUpdatable(this.vaultPanel);
+    this.panelManager.hidePanel(this.vaultPanel);
+    applyPanelLayout(this.vaultPanel, PANEL_LAYOUT.vaultPanel);
+
     // Register eagerly-constructed panels into PanelRolesManager with semantic roles.
     // Lazy panels (operationLog, interactionCoach, narrative, loadTest) pre-register
     // their roles here so the launcher ring can list them before first construction.
@@ -422,6 +443,7 @@ export class WorldUIManager {
     this.panelRolesManager.registerPanel('network', 'Collaboration Network', 'diagnostic');
     this.panelRolesManager.registerPanel('recommendation', 'Recommendation Panel', 'task');
     this.panelRolesManager.registerPanel('dracoExplainer', 'Draco Explainer Panel', 'task');
+    this.panelRolesManager.registerPanel('vault', 'Evidence Vault', 'task');
 
     // Superuser / Dev Lab panels — gated to DEVELOPER mode only. Pre-registered
     // so the Super User wheel category can list them before first construction.

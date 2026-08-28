@@ -509,7 +509,7 @@ Landed first-pass work includes the 10-phase journey model, coordinator, task-su
 
 **Programme rule:** one tranche or a tightly coupled sub-tranche should be the normal PR unit. Preserve `InputRouter` as input-orchestration authority, Atlas/investigation as semantic/provenance authority, Rust/WASM as analytical authority and Three.js as spatial embodiment. UIKit or any pointer library may provide rendering/event mechanics but must not become a second semantic command authority. P1-U becomes `VERIFIED COMPLETE` only after P1-U0 through P1-U9 are complete, RF-005/RF-006/RF-008/RF-027/RF-050 are closed, RF-049's merged code remains review-valid, and physical Quest evidence agrees.
 
-#### P1-U0 — UI design-system contract and substrate decision — IMPLEMENTATION PARTIAL / REVIEW ACTIVE
+#### P1-U0 — UI design-system contract and substrate decision — IMPLEMENTATION LANDED / REVIEW ACTIVE
 
 Purpose: establish one enforceable visual/component system before migrating surfaces.
 
@@ -527,6 +527,18 @@ Review exit work:
 - [ ] measure angular text legibility/target size at governed viewing distances and representative old/new surfaces;
 - [ ] obtain Quest 3S frame-pacing, legibility, scroll/direct-touch and disposal evidence under P1-U9 before freezing the dependency choice;
 - [ ] retain the wrapper boundary so UIKit can be optimized/replaced without changing semantic command authority if device evidence rejects it.
+
+**Adversarial UI/UX Review Findings (2026-08-28):**
+
+**CRITICAL (Block Private Preview):**
+- **Desktop fallback non-functional** — 0 focusable elements via keyboard; keyboard navigation completely broken; blocks CI, accessibility audits, and all non-VR users
+- **Kernel unavailable UX missing** — `AtlasCore` kernel unavailable shows blank white screen; no error boundary, retry button, or diagnostic info; users cannot recover
+- **Reduced motion ignored** — 60+ animations ignore `prefers-reduced-motion` media query; violates WCAG 2.3.3; vestibular disorder risk
+
+**MAJOR:**
+- No loading/progress indicators for dataset loads > 5s
+- Guided tour doesn't auto-start for novice users
+- Hand wheel menu lacks visual affordance (no coach marks)
 
 **Exit gate:** a minimal panel/control fixture renders with Nemosyne visual tokens and survives teardown/recovery, while the UIKit choice is supported by production/device evidence for the properties the roadmap claims. Until that evidence exists, adoption is provisional rather than `IMPLEMENTATION LANDED`.
 

@@ -46,7 +46,8 @@ export const PANEL_LAYOUT = {
   operationLogPanel: fanSlot(-30, 1.15, 0.2), // task — op audit trail
   recommendationPanel: fanSlot(-15, 1.15, 0.2), // task — challenge Moneta
   monetaExplainerPanel: fanSlot(15, 1.15, 0.2), // task — "why this palace?"
-  legacyMenu: fanSlot(30, 1.15, 0.2), // legacy — retired main menu (diagnostic)
+  vaultPanel: fanSlot(30, 1.15, 0.2), // evidence vault — archive/restore
+  legacyMenu: fanSlot(45, 1.15, 0.2), // legacy — retired main menu (diagnostic)
 
   // ---- MID lower strip: transient narrative/log surfaces under the data centerline ----
   vrConsole: [0, -0.3, -1.05], // live ops/results log

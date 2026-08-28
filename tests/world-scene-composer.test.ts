@@ -76,17 +76,23 @@ describe('WorldSceneComposer', () => {
     expect(engine.updatables).toContain(composer.portalB);
   });
 
-  it('wires the onWarp callback to both portals', () => {
-    composer.portalA.onWarp('DEEP_NET', [0, 0, -20], 'anomaly');
-    expect(onWarp).toHaveBeenCalledWith('DEEP_NET', [0, 0, -20], 'anomaly');
+  it('wires the onSemanticWarp callback to both portals', () => {
+    const onSemanticWarp = vi.fn();
+    const semanticComposer = new WorldSceneComposer(engine, { onSemanticWarp });
 
-    composer.portalB.onWarp('LOCAL_MATRIX', [0, 0, 0], 'reset');
-    expect(onWarp).toHaveBeenCalledWith('LOCAL_MATRIX', [0, 0, 0], 'reset');
+    semanticComposer.portalA.initiateFarcasterTravel();
+    expect(onSemanticWarp).toHaveBeenCalledWith({ kind: 'overview' });
+
+    semanticComposer.portalB.initiateFarcasterTravel();
+    expect(onSemanticWarp).toHaveBeenCalledWith({
+      kind: 'saved-investigation',
+      archiveId: 'latest',
+    });
   });
 
-  it('assigns the expected portal operations', () => {
-    expect(composer.portalA.operation).toBe('anomaly');
-    expect(composer.portalB.operation).toBe('reset');
+  it('assigns the expected portal semantic targets', () => {
+    expect(composer.portalA.semanticTarget).toEqual({ kind: 'overview' });
+    expect(composer.portalB.semanticTarget).toEqual({ kind: 'saved-investigation', archiveId: 'latest' });
   });
 
   it('creates portals with distinct target zones', () => {

@@ -15,6 +15,7 @@ import type {
   WorldEngineLike,
   WorldUIManagerLike,
 } from './types.ts';
+import { VaultArchiveStore } from '../../session/VaultArchiveStore.ts';
 
 export interface WorldSessionHost {
   atlas: Pick<AtlasCore, 'analysisHistory'>;
@@ -43,6 +44,7 @@ export interface WorldSessionHost {
   _updateNarrativeStrip(): void;
   _restoreDataset(dataset: Dataset | null, operation: string): void;
   reconstructRequirementsAndReArbitrate(): void;
+  archiveStore: VaultArchiveStore;
 }
 
 /**
@@ -57,8 +59,13 @@ export class WorldSessionController {
   private _disposed = false;
   private _generation = 0;
 
+  /** Vault archive store for managing frozen investigation snapshots (P1-U6). */
+  readonly archiveStore: VaultArchiveStore;
+
   constructor(world: WorldSessionHost) {
     this._world = world;
+    // Expose the archive store from the host
+    this.archiveStore = this._world.archiveStore;
   }
 
   async saveSession(id: string = 'autosave'): Promise<void> {

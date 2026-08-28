@@ -15,14 +15,9 @@ import type {
   MemoryPalaceSnapshot,
   EpistemicObjectKind,
   EpistemicValidationStatus,
-  EpistemicObjectProvenance,
-  EpistemicObjectSpatialAnchor,
-  EPISTEMIC_OBJECT_SCHEMA_VERSION,
   EPISTEMIC_COLORS,
   EPISTEMIC_CUES,
-  FocusLevel,
 } from './EpistemicObject.ts';
-import { canonicalJsonStringify } from '../security/CryptoHash.ts';
 
 export interface MemoryPalaceGraphOptions {
   onObjectAdded?: (object: EpistemicObject) => void;
@@ -57,23 +52,6 @@ export class MemoryPalaceGraph {
   private _version = 1;
   private _updatedAt = Date.now();
   private _options: Required<MemoryPalaceGraphOptions>;
-
-  // Type assertion helpers for Map values
-  private _getObjects(): any[] {
-    return Array.from(this._objects.values());
-  }
-  private _getRelationships(): any[] {
-    return Array.from(this._relationships.values());
-  }
-  private _getBeacons(): any[] {
-    return Array.from(this._beacons.values());
-  }
-  private _getThreads(): any[] {
-    return Array.from(this._threads.values());
-  }
-  private _getBranchPoints(): any[] {
-    return Array.from(this._branchPoints.values());
-  }
 
   constructor(options: MemoryPalaceGraphOptions = {}) {
     this._options = {
@@ -424,11 +402,11 @@ export class MemoryPalaceGraph {
     return {
       schemaVersion: '1.0.0',
       timestamp: Date.now(),
-      objects: Array.from(this._objects.values()).map(cloneObject),
-      relationships: Array.from(this._relationships.values()).map(cloneObject),
-      beacons: Array.from(this._beacons.values()).map(cloneObject),
-      threads: Array.from(this._threads.values()).map(cloneObject),
-      branchPoints: Array.from(this._branchPoints.values()).map(cloneObject),
+      objects: Array.from(this._objects.values()).map(cloneObject) as EpistemicObject[],
+      relationships: Array.from(this._relationships.values()).map(cloneObject) as EpistemicRelationship[],
+      beacons: Array.from(this._beacons.values()).map(cloneObject) as Beacon[],
+      threads: Array.from(this._threads.values()).map(cloneObject) as ReasoningThread[],
+      branchPoints: Array.from(this._branchPoints.values()).map(cloneObject) as BranchPoint[],
       focusContext: { ...this._focusContext },
     };
   }
@@ -464,10 +442,6 @@ export class MemoryPalaceGraph {
     this._version++;
     this._updatedAt = Date.now();
   }
-}
-
-function cloneObject<T>(obj: T): T {
-  return JSON.parse(JSON.stringify(obj));
 }
 
 export { EPISTEMIC_COLORS, EPISTEMIC_CUES };

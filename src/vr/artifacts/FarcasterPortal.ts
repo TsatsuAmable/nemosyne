@@ -27,6 +27,17 @@ export interface DimensionalityWarpResult {
   mapCoordinate?: MapCoordinate;
 }
 
+export type PortalSemanticTarget =
+  | { kind: 'saved-investigation'; archiveId: string }
+  | { kind: 'overview' }
+  | { kind: 'detail'; nodeId: string }
+  | { kind: 'branch'; branchId: string };
+
+export interface PortalPreviewInfo {
+  label: string;
+  description: string;
+}
+
 export interface FarcasterPortalOptions {
   position?: [number, number, number];
   targetZone?: string;
@@ -37,6 +48,8 @@ export interface FarcasterPortalOptions {
   onDimensionWarp?: (result: DimensionalityWarpResult) => void;
   color?: number;
   operation?: string | null;
+  semanticTarget?: PortalSemanticTarget;
+  onSemanticWarp?: (target: PortalSemanticTarget) => void;
 }
 
 export class FarcasterPortal implements Updatable {
@@ -48,6 +61,9 @@ export class FarcasterPortal implements Updatable {
 
   onWarp: FarcasterWarpCallback;
   onDimensionWarp: (result: DimensionalityWarpResult) => void;
+  onSemanticWarp?: (target: PortalSemanticTarget) => void;
+  semanticTarget: PortalSemanticTarget | null = null;
+  previewInfo: PortalPreviewInfo | null = null;
   baseColor: THREE.Color;
   operation: string | null;
 
@@ -79,6 +95,8 @@ export class FarcasterPortal implements Updatable {
     onDimensionWarp = () => {},
     color = 0xff00ff,
     operation = null,
+    semanticTarget,
+    onSemanticWarp,
   }: FarcasterPortalOptions = {}) {
     this.group = new THREE.Group();
     this.group.position.set(...position);
@@ -88,6 +106,8 @@ export class FarcasterPortal implements Updatable {
     this.currentDimension = currentDimension;
     this.onWarp = onWarp;
     this.onDimensionWarp = onDimensionWarp;
+    this.onSemanticWarp = onSemanticWarp;
+    this.semanticTarget = semanticTarget ?? null;
     this.baseColor = new THREE.Color(color);
     this.operation = operation;
 
@@ -176,6 +196,10 @@ export class FarcasterPortal implements Updatable {
     this.operation = operation;
   }
 
+  setPreviewInfo(info: PortalPreviewInfo | null): void {
+    this.previewInfo = info;
+  }
+
   preview(active: boolean): void {
     this._previewActive = active;
   }
@@ -215,8 +239,12 @@ export class FarcasterPortal implements Updatable {
     // Trigger visual swirl burst effect
     this._dataActivity = 1.0;
 
-    this.onDimensionWarp(result);
-    this.onWarp(this.targetZone, [targetPos.x, targetPos.y, targetPos.z], this.operation);
+    if (this.semanticTarget && this.onSemanticWarp) {
+      this.onSemanticWarp(this.semanticTarget);
+    } else {
+      this.onDimensionWarp(result);
+      this.onWarp(this.targetZone, [targetPos.x, targetPos.y, targetPos.z], this.operation);
+    }
     return result;
   }
 
