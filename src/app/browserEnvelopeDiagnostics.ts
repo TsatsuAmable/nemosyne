@@ -27,7 +27,6 @@ declare global {
 
 type Callable = (...args: unknown[]) => unknown;
 type MutableTarget = Record<string, unknown>;
-
 type StageName = string | ((args: readonly unknown[]) => string | null);
 
 function roundMs(value: number): number {
@@ -98,8 +97,7 @@ export function installBrowserEnvelopeDiagnosticHook(world: World): () => void {
     patch(port, 'registerDataset', 'workerPort.registerDataset');
   }
 
-  const analytical = world.atlas.aggregate.analytical as unknown as object;
-  patch(analytical, 'commitKernelResult', 'analytical.commitKernelResult');
+  patch(world.atlas.aggregate.analytical as unknown as object, 'commitKernelResult', 'analytical.commitKernelResult');
 
   const ledger = world.atlas.evidenceLedger as unknown as object;
   patch(ledger, 'addResult', 'ledger.addResult');
@@ -108,8 +106,8 @@ export function installBrowserEnvelopeDiagnosticHook(world: World): () => void {
   patch(world.engine.input, 'invalidateSpatialAcceleration', 'input.invalidateSpatialAcceleration');
   patch(world.eventBus, 'emit', (args) => {
     const topic = String(args[0] ?? 'unknown');
-    if (topic.includes('OPERATION_APPLIED')) return 'event.OPERATION_APPLIED';
-    if (topic.includes('SESSION_AUTOSAVE_REQUEST')) return 'event.SESSION_AUTOSAVE_REQUEST';
+    if (topic === 'operation:applied') return 'event.operation:applied';
+    if (topic === 'session:autosave-request') return 'event.session:autosave-request';
     return null;
   });
 
