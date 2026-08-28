@@ -3,7 +3,7 @@
 Date: 28 August 2026
 Base: `main@f0b91f60a5327d7d6ce462eb0a3560f91b996455` (#486)
 Stream: B — review / fix-forward
-Status: pre-implementation
+Status: implementation candidate / verification active
 
 ## Problem
 
@@ -28,21 +28,19 @@ For a compact row-view mutation result:
 1. Add a Rust/WASM `dataset_row_view` query returning a compact descriptor:
    - `name`
    - authoritative `rowIds`
-   - `hasEdges`
+   - `edgesPresent`
    - row/column counts for validation
    It must not serialize row values.
 2. Expose that query through the RuntimeBridge.
 3. Extend Worker operation results with a discriminated payload:
    - `{ kind: 'row-view', outputFingerprint, view }`, or
    - `{ kind: 'dataset', outputFingerprint, dataset }`.
-4. The Worker may choose `row-view` only when:
-   - the operation is row-preserving (`filter`, `sort`, `slice`);
-   - the output reports no edges;
-   - the row-ID vector is valid and complete.
-   Otherwise it calls the existing `getDatasetJson()` and returns `kind: 'dataset'`.
-5. Atlas reconstructs a row-view result by exact durable row ID from the current input dataset. Unknown/duplicate IDs, missing source IDs, schema/shape mismatch, or fingerprint mismatch fail closed rather than silently recomputing the operation in JS.
-6. Atlas builds the durable schema-v2 `AnalysisResult.dataset` from the reconstructed dataset so session/replay/digest contracts stay unchanged.
-7. Full-path operations and synchronous execution remain behaviorally unchanged.
+4. Atlas explicitly opts into compact transfer only when the exact main-thread input is edge-free, has aligned unique durable row IDs, and the operation is a proven row-preserving `filter`, `sort`, or `slice`. The Worker independently re-checks the operation class and output descriptor before choosing `row-view`.
+5. The Worker may choose `row-view` only when the output reports no edges and the row-ID vector is valid and complete. Otherwise it calls the existing `getDatasetJson()` and returns `kind: 'dataset'`.
+6. Atlas reconstructs a row-view result by exact durable row ID from the captured input dataset. Unknown/duplicate IDs, missing source IDs, schema/shape mismatch, unexpected compact output, or fingerprint mismatch fail closed rather than silently recomputing the operation in JS.
+7. Atlas adopts the internally constructed compact Dataset rather than immediately cloning it again. Direct/external dataset setters and ordinary kernel commits retain defensive-clone behavior.
+8. Atlas builds the durable schema-v2 `AnalysisResult.dataset` from the reconstructed dataset so session/replay/digest contracts stay unchanged.
+9. Full-path operations and synchronous execution remain behaviorally unchanged.
 
 ## Falsifiers
 
@@ -56,6 +54,12 @@ The implementation is wrong if any of the following is true:
 - row values, nested values, row IDs, dataset name, column schema, or result/session digest differ from the full JSON path;
 - derived-row operations are compacted without a separately proven lossless projection;
 - the change is described as generic large-N or Quest qualification.
+
+## Evidence to date
+
+The first exact-head run (`815e69d8`, CI 1286) established that Rust unit tests, TypeScript typecheck/lint/docs, production build, the WASM coverage package, and the new real-WASM row-view ABI tests were sound. Its sole observed test failure was the deliberate RuntimeBridge public-export allowlist rejecting the newly added `datasetRowView` export. That boundary test was updated to enumerate the new dataset-family API rather than weakened or bypassed. A fresh exact-head rerun is required before promotion.
+
+The real-WASM tests prove that Rust returns authoritative sort row lineage/order through `dataset_row_view` without requiring output row-value serialization, and that graph presence is carried in the descriptor so topology-bearing output cannot take the compact path.
 
 ## Expected benefit
 
