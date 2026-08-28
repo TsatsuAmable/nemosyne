@@ -111,9 +111,18 @@ export class AnalyticalState {
   ): DatasetSpace | null {
     if (!this._current) return null;
     if (this._datasetSpace && this._datasetSpaceSource === this._current) return this._datasetSpace;
-    const fingerprint = fingerprintProvider
-      ? fingerprintProvider()
-      : this._authoritativeFingerprint;
+
+    // RF-060: once Rust/WASM has supplied the authoritative fingerprint for the
+    // current governed state, reuse that exact scalar across Atlas consumers.
+    // Unlike getFingerprint(), this path deliberately preserves its historical
+    // fail-closed provider semantics: if no retained value exists and a live
+    // provider throws, the error still propagates rather than falling back.
+    let fingerprint = this._authoritativeFingerprint;
+    if (!fingerprint && fingerprintProvider) {
+      fingerprint = fingerprintProvider();
+      if (fingerprint) this._authoritativeFingerprint = fingerprint;
+    }
+
     // A live authority provider was supplied. If it has no usable range
     // evidence, keep normalization unavailable instead of silently falling
     // back to a JavaScript O(N) scan. Genuine provider failures still propagate.
@@ -146,21 +155,26 @@ export class AnalyticalState {
   }
 
   getFingerprint(kernelFingerprintProvider?: () => string | null): string | null {
-    // Kernel mutation/typed-load outputs already carry an authoritative
-    // fingerprint. Prefer the retained scalar so fingerprint lookup itself does
-    // not allocate/register a fresh handle (notably after async Worker output).
+    // Kernel mutation/typed-load outputs and previously resolved live-kernel
+    // identities already carry authoritative fingerprints. Prefer the retained
+    // scalar so unchanged state does not repeatedly hash the full Rust dataset.
     if (this._authoritativeFingerprint) return this._authoritativeFingerprint;
     if (kernelFingerprintProvider) {
       try {
         const fp = kernelFingerprintProvider();
-        if (fp) return fp;
+        if (fp) {
+          this._authoritativeFingerprint = fp;
+          return fp;
+        }
       } catch { /* fall back to canonical browser identity */ }
     }
     // Fingerprint lookup must not instantiate DatasetSpace: doing so used to
     // trigger a clone, per-row datum hashing and numeric range scans simply to
     // answer an identity question. The canonical TS/Rust identity projection is
     // already governed by RF-048 and is the bounded compatibility fallback when
-    // no live kernel fingerprint is available.
+    // no live kernel fingerprint is available. Browser fallback identities are
+    // intentionally not retained as authoritative, so a later live provider can
+    // still supersede them.
     return this._current ? datasetContentHashHex(this._current.toJSON()) : null;
   }
 
@@ -204,6 +218,8 @@ export class AnalyticalState {
       try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
     }
     this._currentHandle = 0;
+    // RF-060: handle/kernel invalidation is also the authority-cache fence.
+    // Dataset replacement, restore and kernel replacement all flow through here.
     this._authoritativeFingerprint = null;
     // Kernel replacement/recovery changes the source of authoritative metadata.
     // Force the next DatasetSpace request to rebind fingerprint/ranges/lineage.

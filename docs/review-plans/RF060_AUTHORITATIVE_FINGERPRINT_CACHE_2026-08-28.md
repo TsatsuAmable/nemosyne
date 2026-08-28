@@ -1,51 +1,51 @@
 # RF-060 — Cache the authoritative current-dataset fingerprint
 
-**Status:** FALSIFIER ACTIVE / FIX NOT YET SELECTED
+**Status:** IMPLEMENTATION ACTIVE / PRE-FIX FALSIFIER CONFIRMED
 
 ## Trigger
 
-Q3D post-RF-059 browser decomposition on evidence head `7a24375eee864d389a8c416dc4e86f1c9e5b4ff9` showed, at 32k rows:
+Q3D post-RF-059 browser decomposition showed a material browser-side identity cost after the Rust sort cliff was removed. The dedicated pre-fix falsifier on exact source head `d83ad0693bb6b59af19724998a2720bfb207221d` then measured the same deterministic 1k/8k/32k compact-sort production path with direct fingerprint timing enabled.
 
-- controller total: ~3.84 s;
-- Atlas total: ~3.18 s;
-- `AtlasCore._registerCurrentDatasetInWorker`: ~740 ms;
-- `WorkerAnalyticalPort.registerDataset`: ~351 ms;
-- Worker operation promise: ~1.93 s;
-- Atlas row-view materialization: ~120 ms;
-- `operation:applied`: ~477 ms, including ~408 ms synchronous structure discovery and ~49 ms dashboard update.
+At 32k rows the captured operation contained:
 
-The ~389 ms gap inside current-dataset registration is not explained by Worker registration itself. Code review shows the successful registration path rechecks `this.datasetFingerprint`; `AnalyticalState.getFingerprint()` asks its authoritative provider when no retained scalar exists but currently returns the provider value without retaining it. All governed dataset/kernel transitions already clear or replace `_authoritativeFingerprint`.
+- 7 `AtlasCore._kernelFingerprintDirect` calls totalling ~733.1 ms;
+- 2 `AtlasCore._kernelFingerprint` calls totalling ~207.7 ms;
+- ~940.8 ms of repeated authoritative fingerprint work in total;
+- controller total ~3.238 s;
+- Atlas total ~2.611 s;
+- Worker operation promise ~2.120 s;
+- Atlas row-view materialization ~127.0 ms;
+- synchronous `operation:applied` ~484.7 ms.
 
-## Pre-fix falsifier
+The fingerprint timings are nested with Worker/TDA activity, so ~940.8 ms is **not** claimed as additive wall-clock savings. The evidence does establish that unchanged analytical state repeatedly re-enters Rust/WASM to recover an identity scalar that is already authoritative and stable until a governed lifecycle transition.
 
-Before changing fingerprint retention, extend Q3D read-only instrumentation to time:
+## Production invariant
 
-- `AtlasCore._kernelFingerprintDirect`;
-- `AtlasCore._kernelFingerprint`;
-- `AtlasCore._ensureHandle`.
+`AnalyticalState` may retain a successful fingerprint returned by the live Rust/WASM provider for the current governed analytical state. That retained scalar is authority evidence, not a browser-derived replacement.
 
-Run the existing 1k/8k/32k compact-sort staircase through the real production browser/Worker/WASM path. The cache hypothesis is supported only if repeated authoritative fingerprint lookup is a material part of the 32k Atlas registration/event envelope.
+The implementation must preserve:
 
-## Candidate invariant
-
-If the pre-fix falsifier supports the hypothesis, `AnalyticalState` may retain a successful authoritative fingerprint returned by the live kernel provider until an existing lifecycle transition invalidates or replaces it.
-
-The fix must preserve:
-
-1. Rust/WASM remains the fingerprint authority when a live authoritative provider is available;
-2. no cached fingerprint survives dataset replacement, mutation without an explicit output fingerprint, restore, handle invalidation, or kernel replacement;
-3. async Worker output fingerprints remain the authoritative retained scalar after mutation commit;
-4. canonical browser identity remains only the governed fallback when no live fingerprint is available;
-5. dataset identity, Worker registration fencing, replay/provenance and cross-language golden tests remain unchanged semantically.
+1. Rust/WASM remains the fingerprint authority whenever a live provider successfully resolves identity;
+2. browser fallback identity is never retained as authoritative;
+3. dataset replacement, advance, set-current, restore, handle/kernel invalidation and disposal revoke retained identity through the existing lifecycle fence;
+4. mutation/typed-load outputs that already carry authoritative fingerprints remain directly reusable;
+5. DatasetSpace reuses a retained authoritative scalar but still propagates a live provider failure when no retained scalar exists;
+6. Worker registration fencing, replay/provenance and cross-language identity semantics remain unchanged.
 
 ## Required regression evidence
 
 - repeated `getFingerprint(provider)` calls invoke the provider once while state is unchanged;
-- dataset advance/set/restore/invalidation causes a fresh provider call;
+- DatasetSpace reuses a retained authoritative value without another provider call;
+- advance/set/restore/invalidate force a fresh provider call;
 - `commitKernelResult(... fingerprint)` returns the supplied authoritative fingerprint without provider work;
-- provider failure/empty result does not cache a false value and retains the existing canonical fallback behavior;
-- Q3D rerun after the fix shows whether registration and end-to-end latency actually improve.
+- provider failure/empty result does not cache browser fallback as authority;
+- DatasetSpace provider errors still fail closed when no retained identity exists;
+- the identical Q3D 1k/8k/32k staircase is rerun after the fix before any latency-improvement claim.
+
+## Governance cleanup
+
+The Q3D workflow is returned to `workflow_dispatch` only. The temporary PR triggers used to obtain the initial and RF-060 falsifier evidence are not promoted into recurring merge tax.
 
 ## Non-goals
 
-This tranche does not optimize Worker structured-clone transport, row-view reconstruction, synchronous structure discovery, TDA scheduling, dashboard rendering or Quest performance. Those remain separate measured findings unless the cache fix materially changes their envelope.
+This tranche does not optimize Worker structured-clone/scheduling, row-view reconstruction, synchronous structure discovery, TDA scheduling, dashboard rendering or physical Quest performance. Those remain separate measured findings.
