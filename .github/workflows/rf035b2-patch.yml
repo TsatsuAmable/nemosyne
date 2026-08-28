@@ -4,6 +4,7 @@ on:
     branches: [fix/rf035b2-row-view-transfer]
     paths:
       - 'scripts/apply-rf035b2-row-view.py'
+      - '.github/workflows/rf035b2-patch.yml'
 permissions:
   contents: write
 jobs:
