@@ -37,7 +37,7 @@ jobs:
 
       - name: Install exact pilot dependency in isolated prefix
         run: |
-          sha256sum node_modules/.package-lock.json > "$RUNNER_TEMP/p1q-q2-node-modules-lock.sha256"
+          NODE_MODULES_LOCK_BEFORE="$(sha256sum node_modules/.package-lock.json | cut -d' ' -f1)"
           npm install \
             --prefix "$RUNNER_TEMP/p1q-q2-fast-check" \
             --no-save \
@@ -47,7 +47,8 @@ jobs:
             pure-rand@8.4.2
           test "$(node -p "require('$RUNNER_TEMP/p1q-q2-fast-check/node_modules/fast-check/package.json').version")" = '4.9.0'
           test "$(node -p "require('$RUNNER_TEMP/p1q-q2-fast-check/node_modules/pure-rand/package.json').version")" = '8.4.2'
-          (cd "$(dirname node_modules/.package-lock.json)" && sha256sum -c "$RUNNER_TEMP/p1q-q2-node-modules-lock.sha256")
+          NODE_MODULES_LOCK_AFTER="$(sha256sum node_modules/.package-lock.json | cut -d' ' -f1)"
+          test "$NODE_MODULES_LOCK_BEFORE" = "$NODE_MODULES_LOCK_AFTER"
           git diff --exit-code -- package.json package-lock.json
           echo "fast-check=4.9.0 pure-rand=8.4.2 isolated-prefix=$RUNNER_TEMP/p1q-q2-fast-check"
 
