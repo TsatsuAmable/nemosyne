@@ -43,6 +43,8 @@
     "analyze:quest-telemetry": "node scripts/analyze-quest-telemetry.mjs",
     "audit:hygiene": "node scripts/audit-hygiene.mjs",
     "deploy:netlify": "npm run build && npx netlify deploy --prod --dir=dist",
+    "architecture:boundaries": "depcruise --config .dependency-cruiser.boundaries.cjs --output-type err-long src",
+    "architecture:boundaries:test": "node scripts/check-architecture-boundary-fixture.mjs",
     "architecture:deps": "depcruise --config .dependency-cruiser.cjs --output-type err-long src",
     "architecture:ast": "ast-grep scan --config sgconfig.yml src",
     "architecture:ast:test": "ast-grep test --config sgconfig.yml --skip-snapshot-tests",
