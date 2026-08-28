@@ -1,0 +1,1 @@
+Scope: authoritative fingerprint retention only; no Worker/TDA/renderer optimization in this tranche.
