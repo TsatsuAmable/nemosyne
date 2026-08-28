@@ -169,51 +169,10 @@ jobs:
       - name: Validate pilot rules against current production source
         run: npm run architecture:check
 
-      - name: Add non-required hosted pilot workflow
-        run: |
-          cat > .github/workflows/architecture-policy-pilot.yml <<'EOF'
-          name: Architecture policy pilot
-
-          on:
-            pull_request:
-              branches: [main]
-              paths:
-                - 'src/**'
-                - 'package.json'
-                - 'package-lock.json'
-                - '.dependency-cruiser.cjs'
-                - 'sgconfig.yml'
-                - 'tools/architecture-policy/**'
-                - '.github/workflows/architecture-policy-pilot.yml'
-            workflow_dispatch:
-
-          permissions:
-            contents: read
-
-          jobs:
-            architecture-policy:
-              name: P1-Q Q0 architecture policy
-              runs-on: ubuntu-latest
-              timeout-minutes: 10
-              steps:
-                - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-                - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-                  with:
-                    node-version: 24
-                    cache: npm
-                - name: Install dependencies
-                  run: npm ci
-                - name: Run architecture policy with timing
-                  run: /usr/bin/time -f 'P1-Q Q0 elapsed=%e sec maxrss=%M KB' npm run architecture:check
-          EOF
-
-      - name: Remove one-shot bootstrap
-        run: rm .github/workflows/bootstrap-p1q-q0.yml
-
-      - name: Commit pilot
+      - name: Commit non-workflow pilot files
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- package.json package-lock.json .dependency-cruiser.cjs sgconfig.yml tools/architecture-policy .github/workflows/architecture-policy-pilot.yml .github/workflows/bootstrap-p1q-q0.yml src/data/SessionStore.ts src/vr/coordinators/types.ts src/session/VaultArchiveStore.ts
+          git add -- package.json package-lock.json .dependency-cruiser.cjs sgconfig.yml tools/architecture-policy src/data/SessionStore.ts src/vr/coordinators/types.ts src/session/VaultArchiveStore.ts
           git commit -m 'chore(p1q): bootstrap Q0 architecture-policy pilot'
           git push
