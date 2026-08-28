@@ -1,20 +1,13 @@
 name: P1-Q Q2 fast-check pilot
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - '.github/workflows/p1q-q2-fast-check-pilot.yml'
-      - 'tools/property-testing/q2-fast-check-pilot.mjs'
-      - 'src/data/DatasetIdentity.ts'
-      - 'docs/review-plans/P1Q_Q2_FAST_CHECK_PILOT_2026-08-28.md'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: p1q-q2-fast-check-${{ github.event.pull_request.number || github.ref }}
+  group: p1q-q2-fast-check-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
