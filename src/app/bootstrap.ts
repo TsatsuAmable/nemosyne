@@ -21,6 +21,11 @@ export async function bootstrapApp(): Promise<AppInstance> {
     setupDevTraceRecorder(world);
   }
 
+  if (import.meta.env.VITE_NEMOSYNE_DIAGNOSTICS === '1') {
+    const { installRuntimeDiagnosticHook } = await import('./diagnostics.ts');
+    installRuntimeDiagnosticHook(world);
+  }
+
   const telemetry = document.getElementById('telemetry');
   if (telemetry) {
     if (world.bootState === 'KERNEL_UNAVAILABLE') {
