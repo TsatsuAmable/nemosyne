@@ -1,0 +1,48 @@
+name: P1-Q Q2 fast-check pilot
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/p1q-q2-fast-check-pilot.yml'
+      - 'tools/property-testing/q2-fast-check-pilot.mjs'
+      - 'src/data/DatasetIdentity.ts'
+      - 'docs/review-plans/P1Q_Q2_FAST_CHECK_PILOT_2026-08-28.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1q-q2-fast-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast-check-pilot:
+    name: fast-check bounded properties
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install repository dependencies
+        run: npm ci
+
+      - name: Install exact pilot dependency without lifecycle scripts or lockfile mutation
+        run: |
+          npm install --no-save --package-lock=false --ignore-scripts fast-check@4.9.0 pure-rand@8.4.2
+          node --input-type=module -e "import fcPackage from './node_modules/fast-check/package.json' with { type: 'json' }; import prPackage from './node_modules/pure-rand/package.json' with { type: 'json' }; if (fcPackage.version !== '4.9.0' || prPackage.version !== '8.4.2') process.exit(1); console.log('fast-check=' + fcPackage.version + ' pure-rand=' + prPackage.version);"
+          git diff --exit-code -- package.json package-lock.json
+
+      - name: Run bounded property pilot
+        run: >-
+          /usr/bin/time
+          -f 'P1-Q Q2 elapsed=%e sec maxrss=%M KB'
+          node tools/property-testing/q2-fast-check-pilot.mjs
