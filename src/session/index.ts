@@ -19,3 +19,6 @@ export type { NemosynePackageManifest, NemosynePackagePayload } from './Nemosyne
 
 export { InvestigationReplayRunner } from './InvestigationReplayRunner.ts';
 export type { ReplayVerificationResult } from './InvestigationReplayRunner.ts';
+
+export { VaultArchiveStore } from './VaultArchiveStore.ts';
+export type { ArchiveEntry, ArchiveMetadata } from './VaultArchiveStore.ts';

@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { DatumPlane } from '../artifacts/DatumPlane.ts';
 import { TechnoCoreNode } from '../artifacts/TechnoCoreNode.ts';
-import { FarcasterPortal } from '../artifacts/FarcasterPortal.ts';
+import { FarcasterPortal, PortalSemanticTarget } from '../artifacts/FarcasterPortal.ts';
 import { HolographicInspector } from '../artifacts/HolographicInspector.ts';
 import { IceVaultNode } from '../artifacts/IceVaultNode.ts';
 import { WorldTheme } from '../WorldTheme.ts';
@@ -16,6 +16,7 @@ import { disposeObject } from '../../utils/Dispose.ts';
 
 export interface WorldSceneComposerCallbacks {
   onWarp?: (zone: string, pos: number[], operation: string | null) => void;
+  onSemanticWarp?: (target: PortalSemanticTarget) => void;
 }
 
 export class WorldSceneComposer {
@@ -86,14 +87,14 @@ export class WorldSceneComposer {
     // minimal stub engines used by torso-anchor unit tests.
     this.engine.input?.addPanel?.(this.inspector);
 
-    // Farcaster portals: data-transformation gates.
+    // Farcaster portals: semantic travel portals.
     this.portalA = new FarcasterPortal({
       position: [-2.5, 1.6, -2],
       targetZone: 'DEEP_NET',
       targetPosition: [0, 0, -20],
       color: WorldTheme.PRESETS.deepNet.pointColor,
-      operation: 'anomaly',
-      onWarp: callbacks.onWarp,
+      semanticTarget: { kind: 'overview' },
+      onSemanticWarp: callbacks.onSemanticWarp,
     });
     this.engine.scene.add(this.portalA.group);
     this.engine.addUpdatable(this.portalA);
@@ -103,8 +104,8 @@ export class WorldSceneComposer {
       targetZone: 'LOCAL_MATRIX',
       targetPosition: [0, 0, 0],
       color: WorldTheme.PRESETS.neonMidnight.pointColor,
-      operation: 'reset',
-      onWarp: callbacks.onWarp,
+      semanticTarget: { kind: 'saved-investigation', archiveId: 'latest' },
+      onSemanticWarp: callbacks.onSemanticWarp,
     });
     this.engine.scene.add(this.portalB.group);
     this.engine.addUpdatable(this.portalB);

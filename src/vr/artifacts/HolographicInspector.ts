@@ -151,6 +151,9 @@ export class HolographicInspector extends SpatialPanel {
 
   mount(scene: { add(object: THREE.Object3D): void }): void {
     scene.add(this);
+    // Add grab rail mesh to scene for raycasting
+    const grabRail = this.getGrabRailMesh();
+    if (grabRail) scene.add(grabRail);
   }
 
   showAtNode(
@@ -181,6 +184,9 @@ export class HolographicInspector extends SpatialPanel {
       }
     }
 
+    // Show grab rail affordance
+    this.setGrabRailVisible(true);
+
     this.setTab('Values');
     this._playOpenFeedback(nodeMesh);
   }
@@ -191,6 +197,8 @@ export class HolographicInspector extends SpatialPanel {
     this.visible = false;
     this.pointer = null;
     this.budgetController?.close(this);
+    // Hide grab rail affordance
+    this.setGrabRailVisible(false);
     this._playCloseFeedback();
   }
 

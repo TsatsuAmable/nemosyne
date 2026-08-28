@@ -90,6 +90,7 @@ import {
   InvestigationReplayRunner,
   type ReplayVerificationResult,
 } from '../session/InvestigationReplayRunner.ts';
+import { VaultArchiveStore } from '../session/index.ts';
 import type {
   ArtifactRef,
   DatasetLoadEntry,
@@ -180,6 +181,8 @@ export class World {
   landmarkController!: WorldLandmarkController;
   tourController!: GuidedTourController;
   sessionController!: WorldSessionController;
+  /** Vault archive store for managing frozen investigation snapshots (P1-U6). */
+  archiveStore: VaultArchiveStore;
   loader: FileLoaderUI;
   telemetry: HTMLElement | null;
   _dashboardTooltipTargets: THREE.Mesh[];
@@ -264,6 +267,7 @@ export class World {
     // all HUD panels are parented to.
     this.sceneComposer = new WorldSceneComposer(this.engine, {
       onWarp: (zone, pos, operation) => this._warpToZone(zone, pos, operation),
+      onSemanticWarp: (target) => this._onSemanticWarp(target),
     });
     this.analystAnchor = this.sceneComposer.analystAnchor;
     this.datum = this.sceneComposer.datum;
@@ -366,6 +370,10 @@ export class World {
         this.inputCoordinator.callbacks.onApplyOperation?.('timeSlice');
         this.uiManager.contextualTaskSurface.hide();
       },
+      onFreezeInvestigation: () => this._freezeInvestigation(),
+      onRestoreArchive: (archiveId) => this._restoreArchive(archiveId),
+      onExportArchive: (archiveId) => this._exportArchive(archiveId),
+      onDeleteArchive: (archiveId) => this._deleteArchive(archiveId),
     });
 
     // Input coordinator owns gesture recognition, context-aware suppression, and
@@ -653,6 +661,9 @@ export class World {
     // state and owns the schemaVersion-2 snapshot. Constructed before the
     // session controller so it can read `this.session`.
     this.session = new NemosyneSession({ atlas: this.atlas });
+
+    /** Vault archive store for managing frozen investigation snapshots (P1-U6). */
+    this.archiveStore = new VaultArchiveStore(this.sessionStore);
 
     // Session save/load/autosave coordinator (reads facade members lazily).
     this.sessionController = new WorldSessionController(this);
@@ -1232,6 +1243,44 @@ export class World {
     this._captureSession();
   }
 
+  /**
+   * Handle semantic portal travel (P1-U6). Portals navigate between semantic
+   * contexts (Overview, Saved Investigation) without performing analytical
+   * mutations. Overview warps the camera to the overview vantage; a
+   * saved-investigation target restores the latest frozen archive.
+   */
+  _onSemanticWarp(target: import('../vr/artifacts/FarcasterPortal.ts').PortalSemanticTarget): void {
+    if (target.kind === 'overview') {
+      this._warpToZone('OVERVIEW', [0, 1.6, -6], null);
+      this.uiManager.vrConsole?.log?.('log', ['Farcaster: Overview']);
+    } else if (target.kind === 'saved-investigation') {
+      if (target.archiveId === 'latest') {
+        this._restoreLatestArchiveOrWarning();
+      } else {
+        this._restoreArchive(target.archiveId);
+      }
+      this.uiManager.vrConsole?.log?.('log', ['Farcaster: Saved Investigation']);
+    } else if (target.kind === 'detail' || target.kind === 'branch') {
+      this._warpToZone('LOCAL_MATRIX', [0, 1.6, -3], null);
+      this.uiManager.vrConsole?.log?.('log', [`Farcaster: ${target.kind}`]);
+    }
+    this._logInteraction('Semantic portal warp', { result: target.kind });
+  }
+
+  /** Restore the latest archive or warn the user when none exists. */
+  private async _restoreLatestArchiveOrWarning(): Promise<void> {
+    if (!this.sessionController?.archiveStore) return;
+    const archives = await this.sessionController.archiveStore.listArchives();
+    if (archives.length === 0) {
+      this.uiManager.vrConsole?.log?.('warn', [
+        'No frozen archives found. Freeze an investigation first.',
+      ]);
+      return;
+    }
+    const latest = archives[archives.length - 1];
+    await this._restoreArchive(latest.archiveId);
+  }
+
   _togglePanels(): void {
     this.uiManager.panelManager.toggleLauncher();
     this.adaptiveAssist.recordPanelToggle(
@@ -1472,6 +1521,60 @@ export class World {
     });
   }
 
+  // ---- Vault/Archive methods (P1-U6) ----
+
+  /** Freeze the current investigation state as an immutable archive. */
+  private async _freezeInvestigation(): Promise<void> {
+    if (!this.uiManager?.vaultPanel) return;
+    const archives = await this.sessionController?.archiveStore?.listArchives?.() ?? [];
+    this.uiManager.vaultPanel.setArchives(archives);
+    this.uiManager.vaultPanel.show();
+  }
+
+  /** Restore an archived investigation by ID. */
+  private async _restoreArchive(archiveId: string): Promise<void> {
+    if (!this.uiManager?.vaultPanel || !this.sessionController?.archiveStore) return;
+    const archive = await this.sessionController.archiveStore.loadArchive(archiveId);
+    if (!archive) {
+      this.uiManager.vrConsole?.log?.('warn', [`Archive not found: ${archiveId}`]);
+      return;
+    }
+    // Restore the session state
+    this.sessionController.loadSession(archiveId);
+    this.uiManager.vrConsole?.log?.('log', [`Restored archive: ${archiveId}`]);
+    this._captureSession();
+  }
+
+  /** Export an archive as a portable .nemosyne package. */
+  private async _exportArchive(archiveId: string): Promise<void> {
+    if (!this.sessionController?.archiveStore) return;
+    const archive = await this.sessionController.archiveStore.loadArchive(archiveId);
+    if (!archive) return;
+    // Delegate to NemosyneSession for package creation
+    const packageBytes = await this.session.exportPortablePackage();
+    const blob = new Blob([packageBytes as unknown as BlobPart], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nemosyne-${archiveId}.nemosyne`;
+    a.click();
+    URL.revokeObjectURL(url);
+    this.uiManager.vrConsole?.log?.('log', [`Exported archive: ${archiveId}`]);
+  }
+
+  /** Delete an archive by ID. */
+  private async _deleteArchive(archiveId: string): Promise<void> {
+    if (!this.sessionController?.archiveStore) return;
+    await this.sessionController.archiveStore.deleteArchive(archiveId);
+    if (this.uiManager?.vaultPanel) {
+      this.uiManager.vaultPanel.setArchives(
+        await this.sessionController.archiveStore.listArchives?.() ?? []
+      );
+    }
+    this.uiManager.vrConsole?.log?.('log', [`Deleted archive: ${archiveId}`]);
+    this._captureSession();
+  }
+
   private _discoverStructuresAndRecommend(operation: string): void {
     if (!this.atlas.isReady()) return;
     const dataset = this._transformedDataset ?? this.atlas.dataset;
@@ -1646,6 +1749,14 @@ export class World {
     });
   }
 
+  _toggleVaultPanel(): void {
+    if (!this.uiManager?.vaultPanel) return;
+    this.uiManager.panelManager.togglePanel(this.uiManager.vaultPanel);
+    this._logInteraction('Evidence Vault', {
+      result: this.uiManager.vaultPanel.mesh.visible ? 'opened' : 'closed',
+    });
+  }
+
   _toggleDracoExplainer(): void {
     const panel = this.uiManager?.dracoExplainerPanel;
     if (!panel) return;
@@ -1728,6 +1839,7 @@ export class World {
       highContrast: settings.highContrast ?? false,
       colorblindMode: settings.colorblindMode ?? 'none',
       dwellSelection: settings.dwellSelection ?? false,
+      reducedMotion: settings.reducedMotion ?? false,
     };
 
     // Delegate panel theming to the UI manager so the SpatialPanel-based
