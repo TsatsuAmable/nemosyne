@@ -117,6 +117,12 @@ export class InvestigationAggregate {
     this.discoveries.reset();
 
     const fp = this.analytical.getFingerprint() ?? '';
+    if (fp && this.analytical.originalNullable) {
+      this.ledger.registerDatasetVersion(
+        { datasetVersion: this.analytical.datasetVersion, datasetFingerprint: fp },
+        this.analytical.originalNullable
+      );
+    }
     this.ledger.appendEvent(
       {
         timestamp: this.context.now(),
@@ -179,8 +185,8 @@ export class InvestigationAggregate {
       originalDataset: this.analytical.originalNullable?.toJSON?.() ?? null,
       currentDataset: this.analytical.currentNullable?.toJSON?.() ?? null,
       datasetSpace: space?.toJSON() ?? null,
-      analysisResults: this.ledger.results.slice(),
-      eventLedger: this.ledger.ledger.slice(),
+      analysisResults: this.ledger.materializedResults(),
+      eventLedger: this.ledger.materializedLedger(),
       analysisHistory: this.ledger.getAnalysisHistory(this.analytical.originalNullable).toJSON(),
       activeRecommendation: this.decisions.activeRecommendation,
       decisionHistory: this.decisions.history.slice(),

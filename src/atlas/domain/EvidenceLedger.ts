@@ -18,9 +18,15 @@ import type {
 import type { StructureSet } from '../structures.ts';
 import type { RemediationProvenance } from '../../moneta/representation/ActionableNil.ts';
 
+export interface AnalysisResultStorageHint {
+  kind: 'verified-row-view';
+  sourceRef: DatasetVersionRef;
+}
+
 export class EvidenceLedger {
   private _ledger: ResearchEvent[] = [];
   private _results: AnalysisResult[] = [];
+  private readonly _resultsById = new Map<string, AnalysisResult>();
   private _structures: StructureSet[] = [];
   private _observations: Observation[] = [];
   private _findings: Finding[] = [];
@@ -66,14 +72,45 @@ export class EvidenceLedger {
     return `${fp}:${datasetVersion}:${opName}:${this._resultCounter}`;
   }
 
-  addResult(result: AnalysisResult): void {
-    this._results.push(result);
-    this._datasetVersions.register(
-      {
-        datasetVersion: result.datasetVersion,
-        datasetFingerprint: result.datasetFingerprint,
-      },
-      result.dataset
+  registerDatasetVersion(ref: DatasetVersionRef, dataset: Dataset): void {
+    this._datasetVersions.registerBorrowed(ref, dataset);
+  }
+
+  addResult(result: AnalysisResult, storageHint?: AnalysisResultStorageHint): void {
+    const resultRef: DatasetVersionRef = {
+      datasetVersion: result.datasetVersion,
+      datasetFingerprint: result.datasetFingerprint,
+    };
+
+    if (storageHint?.kind === 'verified-row-view') {
+      if (result.dataset.edges && result.dataset.edges.length > 0) {
+        throw new Error('[EvidenceLedger] verified row-view result cannot carry edges');
+      }
+      const rowIds = result.dataset.rowIds;
+      if (!rowIds || rowIds.length !== result.dataset.rows.length) {
+        throw new Error('[EvidenceLedger] verified row-view result requires aligned durable row IDs');
+      }
+      this._datasetVersions.registerRowView(resultRef, storageHint.sourceRef, {
+        name: result.dataset.name,
+        columns: result.dataset.columns,
+        rowIds,
+      });
+    } else {
+      this._datasetVersions.register(resultRef, result.dataset);
+    }
+
+    const stored = this._referenceBackedResult(result, resultRef);
+    this._results.push(stored);
+    this._resultsById.set(stored.resultId, stored);
+  }
+
+  materializedResults(): AnalysisResult[] {
+    return this._results.map((result) => ({ ...result }));
+  }
+
+  materializedLedger(): ResearchEvent[] {
+    return this._ledger.map((event) =>
+      event.result ? { ...event, result: { ...event.result } } : { ...event }
     );
   }
 
@@ -246,8 +283,12 @@ export class EvidenceLedger {
     sessionId: string,
   ): ResearchEvent {
     this._eventCounter += 1;
+    const canonicalResult = event.result
+      ? this._resultsById.get(event.result.resultId) ?? event.result
+      : undefined;
     const fullEvent: ResearchEvent = {
       ...event,
+      ...(canonicalResult ? { result: canonicalResult } : {}),
       eventId: `${sessionId}:${this._eventCounter}`,
       sessionId,
     };
@@ -335,6 +376,7 @@ export class EvidenceLedger {
   reset(): void {
     this._ledger = [];
     this._results = [];
+    this._resultsById.clear();
     this._structures = [];
     this._observations = [];
     this._findings = [];
@@ -356,18 +398,15 @@ export class EvidenceLedger {
     findings?: Finding[],
     annotations?: Annotation[],
   ): void {
-    this._results = results.slice();
+    this._results = [];
+    this._resultsById.clear();
     this._datasetVersions.clear();
-    for (const result of this._results) {
-      this._datasetVersions.register(
-        {
-          datasetVersion: result.datasetVersion,
-          datasetFingerprint: result.datasetFingerprint,
-        },
-        result.dataset
-      );
-    }
-    this._ledger = ledger.slice();
+    for (const result of results) this.addResult(result);
+    this._ledger = ledger.map((event) => {
+      if (!event.result) return { ...event };
+      const canonicalResult = this._resultsById.get(event.result.resultId);
+      return canonicalResult ? { ...event, result: canonicalResult } : { ...event };
+    });
 
     // Rebuild structures from authoritative ledger
     const fromLedgerStructures = this._ledger
@@ -399,6 +438,23 @@ export class EvidenceLedger {
     this._findingCounter = this._findings.length;
     this._annotationCounter = this._annotations.length;
     this.invalidateHistoryView();
+  }
+
+  private _referenceBackedResult(result: AnalysisResult, ref: DatasetVersionRef): AnalysisResult {
+    const { dataset: _transientDataset, ...rest } = result;
+    const stored = rest as AnalysisResult;
+    Object.defineProperty(stored, 'dataset', {
+      enumerable: true,
+      configurable: false,
+      get: () => {
+        const dataset = this._datasetVersions.materializeJSON(ref);
+        if (!dataset) {
+          throw new Error(`[EvidenceLedger] dataset version ${ref.datasetVersion}:${ref.datasetFingerprint} is unavailable`);
+        }
+        return dataset;
+      },
+    });
+    return stored;
   }
 
   private _buildHistoryFromLedger(original: Dataset | null): AnalysisHistory {
@@ -440,7 +496,7 @@ export class EvidenceLedger {
           break;
         case 'analysis': {
           const result = event.result;
-          if (!result?.dataset) break;
+          if (!result) break;
           const spec = result.spec as AnalysisSpec;
           const beforeRef: DatasetVersionRef = {
             datasetVersion: spec.datasetVersion,
@@ -452,7 +508,8 @@ export class EvidenceLedger {
           };
           if (!this._datasetVersions.has(afterRef)) {
             // Legacy/event-only restoration may omit the parallel results array.
-            // Index the already persisted event DatasetJSON without cloning rows.
+            // Materialize only in that compatibility case; normal live/results-
+            // backed history remains metadata-only.
             this._datasetVersions.register(afterRef, result.dataset);
           }
           const label = spec.label ?? spec.operation.op;
@@ -463,7 +520,7 @@ export class EvidenceLedger {
             spec.operation as Record<string, unknown>,
             {
               before: rowCountFor(beforeRef),
-              after: result.dataset.rows.length,
+              after: rowCountFor(afterRef),
             }
           );
           currentRef = afterRef;
