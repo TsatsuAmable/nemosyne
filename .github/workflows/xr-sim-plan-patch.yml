@@ -1,0 +1,34 @@
+name: XR simulator stream-plan patch
+
+on:
+  push:
+    branches:
+      - docs/xr-simulator-stream-integration
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: docs/xr-simulator-stream-integration
+          fetch-depth: 0
+
+      - name: Apply bounded stream-plan patch
+        run: python .github/scripts/patch_xr_sim_stream_plan.py
+
+      - name: Remove one-shot patch machinery
+        run: rm .github/scripts/patch_xr_sim_stream_plan.py .github/workflows/xr-sim-plan-patch.yml
+
+      - name: Commit patched planning documents
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/ROADMAP.md docs/AI_XR_AGENT_HARNESS_SPEC.md docs/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md .github/scripts/patch_xr_sim_stream_plan.py .github/workflows/xr-sim-plan-patch.yml
+          git commit -m 'docs(xr): plan simulator evidence into active streams'
+          git push origin HEAD:docs/xr-simulator-stream-integration
