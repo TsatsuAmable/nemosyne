@@ -77,7 +77,8 @@ jobs:
         working-directory: wasm
         run: |
           set +e
-          PROPTEST_CASES=1 PROPTEST_RNG_SEED=20260828 PROPTEST_VERBOSE=1 \
+          PROPTEST_CASES=1 PROPTEST_MAX_SHRINK_ITERS=1000 \
+            PROPTEST_RNG_SEED=20260828 PROPTEST_VERBOSE=1 \
             cargo test --lib q2_proptest_shrink_probe -- --ignored --nocapture \
             > q2-proptest-shrink.log 2>&1
           status=$?
@@ -88,6 +89,7 @@ jobs:
             exit 1
           fi
           grep -F 'minimal failing input: x = 10' q2-proptest-shrink.log
+          grep -E '^cc [0-9a-f]{64}$' q2-proptest-shrink.log
           echo 'Replay seed: PROPTEST_RNG_SEED=20260828'
 
       - name: Report transient workspace mutations
