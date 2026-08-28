@@ -1,0 +1,35 @@
+name: Apply P1-Q roadmap plan
+
+on:
+  push:
+    branches:
+      - docs/p1q-engineering-quality-cadence
+    paths:
+      - scripts/apply-p1q-roadmap-plan.py
+      - .github/workflows/apply-p1q-roadmap-plan.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: docs/p1q-engineering-quality-cadence
+          fetch-depth: 0
+      - name: Apply roadmap plan
+        run: python scripts/apply-p1q-roadmap-plan.py
+      - name: Remove one-shot helpers
+        run: |
+          rm scripts/apply-p1q-roadmap-plan.py
+          rm .github/workflows/apply-p1q-roadmap-plan.yml
+      - name: Commit roadmap plan
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- docs/ROADMAP.md scripts/apply-p1q-roadmap-plan.py .github/workflows/apply-p1q-roadmap-plan.yml
+          git commit -m 'docs(p1q): integrate quality substrate into roadmap'
+          git push
