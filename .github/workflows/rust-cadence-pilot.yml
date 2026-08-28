@@ -1,21 +1,13 @@
 name: Rust cadence pilot
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - '.github/workflows/rust-cadence-pilot.yml'
-      - 'scripts/q1-rust-cadence-benchmark.sh'
-      - 'docs/review-plans/P1Q_Q1_RUST_CADENCE_2026-08-28.md'
-      - 'wasm/**'
-      - 'rust-toolchain.toml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: rust-cadence-pilot-${{ github.event.pull_request.number || github.ref }}
+  group: rust-cadence-pilot-${{ github.ref }}
   cancel-in-progress: true
 
 env:
