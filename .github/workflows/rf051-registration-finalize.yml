@@ -1,0 +1,58 @@
+name: RF051 worker registration finalizer
+
+on:
+  push:
+    branches: [fix/rf051-ntc1-worker-registration]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: fix/rf051-ntc1-worker-registration
+
+      - name: Remove unsafe automatic typed conversion and unify handle metadata
+        shell: python
+        run: |
+          from pathlib import Path
+
+          atlas = Path('src/atlas/AtlasCore.ts')
+          text = atlas.read_text()
+          text = text.replace("import { encodeTypedColumnsPayload } from '../wasm/TypedColumnsCodec.ts';\n", '')
+          start = text.index('  private readonly LARGE_DATASET_ROW_THRESHOLD = 50000;')
+          end = text.index('  private _workerRegistrationPayload(): DatasetPayload | undefined {', start)
+          replacement = '''  private _cloneTypedPayload(payload: ArrayBuffer | Uint8Array): ArrayBuffer | Uint8Array {\n    return payload instanceof Uint8Array ? payload.slice() : payload.slice(0);\n  }\n\n  private _setWorkerPayloadFromDataset(dataset: Dataset | null): void {\n    // Row-backed Atlas datasets must retain the operation-complete JSON\n    // registration contract. NTC1 columnar handles intentionally do not\n    // materialise row objects, while this shared Worker registration is used by\n    // generic mutations/statistics as well as handle-native TDA. Converting an\n    // arbitrary row-backed dataset to NTC1 here would therefore change which\n    // kernel operations are valid. RF-035 owns an operation-aware resident/\n    // transfer contract; until then correctness outranks the #478 shortcut.\n    this._workerDatasetPayload = dataset\n      ? { type: 'json', data: dataset.toJSON(), name: dataset.name }\n      : null;\n  }\n\n'''
+          text = text[:start] + replacement + text[end:]
+          atlas.write_text(text)
+
+          lib = Path('wasm/src/lib.rs')
+          rust = lib.read_text()
+          old_counts = '''#[wasm_bindgen]\npub fn dataset_row_count(handle: u32) -> u32 {\n    data::with_dataset(handle, |ds| ds.row_count() as u32).unwrap_or(0)\n}\n\n#[wasm_bindgen]\npub fn dataset_column_count(handle: u32) -> u32 {\n    data::with_dataset(handle, |ds| ds.column_count() as u32).unwrap_or(0)\n}\n'''
+          new_counts = '''#[wasm_bindgen]\npub fn dataset_row_count(handle: u32) -> u32 {\n    // Every registry entry has a canonical columnar representation, including\n    // columnar-only NTC1 handles. Metadata queries must not require row\n    // materialisation merely to report shape.\n    data::with_columnar_dataset(handle, |dataset| dataset.row_count() as u32).unwrap_or(0)\n}\n\n#[wasm_bindgen]\npub fn dataset_column_count(handle: u32) -> u32 {\n    data::with_columnar_metadata(handle, |_name, columns, _dataset| columns.len() as u32).unwrap_or(0)\n}\n'''
+          if rust.count(old_counts) != 1:
+              raise SystemExit('dataset count accessor anchor drifted')
+          rust = rust.replace(old_counts, new_counts)
+
+          old_fp = '''#[wasm_bindgen]\npub fn dataset_fingerprint(handle: u32, out_ptr: u32, out_len: u32) -> u32 {\n    let fp = data::with_dataset(handle, |ds| ds.fingerprint()).unwrap_or_default();\n    write_str_out(&fp, out_ptr, out_len)\n}\n'''
+          new_fp = '''#[wasm_bindgen]\npub fn dataset_fingerprint(handle: u32, out_ptr: u32, out_len: u32) -> u32 {\n    // Fingerprint is registry identity, not a row-materialisation API. Use the\n    // canonical handle projection so row-backed and columnar-only datasets share\n    // one public identity accessor.\n    let fp = match data::fingerprint_for_handle(handle) {\n        Some(Ok(fingerprint)) => fingerprint,\n        Some(Err(error)) => {\n            log_error(&format!("dataset_fingerprint failed for handle {handle}: {error}"));\n            return 0;\n        }\n        None => return 0,\n    };\n    write_str_out(&fp, out_ptr, out_len)\n}\n'''
+          if rust.count(old_fp) != 1:
+              raise SystemExit('dataset fingerprint accessor anchor drifted')
+          rust = rust.replace(old_fp, new_fp)
+          lib.write_text(rust)
+
+          Path('.github/workflows/rf051-registration-finalize.yml').unlink()
+
+      - name: Commit patch and remove one-shot workflow
+        run: |
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -- src/atlas/AtlasCore.ts wasm/src/lib.rs .github/workflows/rf051-registration-finalize.yml
+          git commit -m "fix(rf051): preserve row-backed worker semantics"
+          git push origin HEAD:fix/rf051-ntc1-worker-registration
