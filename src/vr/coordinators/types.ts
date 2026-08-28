@@ -793,13 +793,8 @@ export interface NarrativeStripLike extends PanelLike {
   setHistory?(history: AnalysisHistory): void;
 }
 
-/** Persisted-session store facade. */
-export interface SessionStoreLike {
-  saveSession(id: string, snapshot: Record<string, unknown>): Promise<void>;
-  loadSession(id: string): Promise<Record<string, unknown> | null>;
-  deleteSession(id: string): Promise<void>;
-  hasSession(id: string): Promise<boolean>;
-}
+/** Compatibility re-export; persistence contracts live in the neutral data/session layer. */
+export type { SessionStoreLike } from '../../data/SessionStore.ts';
 
 /** TechnoCore landmark facade. */
 export interface CoreNodeLike {
