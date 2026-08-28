@@ -240,20 +240,35 @@ self.onmessage = async (ev: MessageEvent) => {
 
           let adopted = false;
           try {
-            const outJson = bridge.getDatasetJson(outHandle);
-            if (!outJson) {
-              throw new Error('Worker kernel operation produced no dataset output');
-            }
             const outFingerprint = bridge.datasetFingerprint(outHandle);
             if (!outFingerprint) {
               throw new Error('Worker kernel operation produced no authoritative output fingerprint');
             }
+
+            const operation = req.params.operation as OperationSpec;
+            const compactRequested = req.params.resultMode === 'row-view-if-lossless';
+            const rowPreserving = ['filter', 'sort', 'slice'].includes(operation.op);
+            const rowView = compactRequested && rowPreserving
+              ? bridge.datasetRowView(outHandle)
+              : null;
+
+            if (
+              rowView &&
+              !rowView.edgesPresent &&
+              rowView.rowIds.length === rowView.rowCount &&
+              new Set(rowView.rowIds).size === rowView.rowIds.length
+            ) {
+              value = { kind: 'row-view', view: rowView, outputFingerprint: outFingerprint };
+            } else {
+              const outJson = bridge.getDatasetJson(outHandle);
+              if (!outJson) {
+                throw new Error('Worker kernel operation produced no dataset output');
+              }
+              value = { kind: 'dataset', dataset: outJson, outputFingerprint: outFingerprint };
+            }
+
             replaceRegisteredHandle(outFingerprint, outHandle);
             adopted = true;
-            value = {
-              dataset: outJson,
-              outputFingerprint: outFingerprint,
-            };
           } finally {
             if (!adopted) destroyHandle(outHandle);
           }

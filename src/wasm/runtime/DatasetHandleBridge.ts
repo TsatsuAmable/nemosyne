@@ -24,6 +24,14 @@ import type { DatasetHandleExports, MemoryAbiExports } from './RuntimeExports.ts
 
 type DatasetHandleRuntime = DatasetHandleExports & MemoryAbiExports;
 
+export interface DatasetRowView {
+  name: string;
+  rowIds: string[];
+  rowCount: number;
+  columnCount: number;
+  edgesPresent: boolean;
+}
+
 export type TdaExportName =
   | 'data_compute_mapper_graph'
   | 'data_compute_persistence_intervals'
@@ -303,6 +311,34 @@ export function datasetRowCount(handle: number): number {
 
 export function datasetColumnCount(handle: number): number {
   return getRuntimeExports().dataset_column_count(handle);
+}
+
+export function datasetRowView(handle: number): DatasetRowView | null {
+  const wasm = getRuntimeExports();
+  const json = readStringExport((outPtr, outLen) => wasm.dataset_row_view(handle, outPtr, outLen));
+  if (!json) return null;
+  try {
+    const value = JSON.parse(json) as Partial<DatasetRowView>;
+    if (
+      typeof value.name !== 'string' ||
+      !Array.isArray(value.rowIds) ||
+      value.rowIds.some((id) => typeof id !== 'string' || id.length === 0) ||
+      typeof value.rowCount !== 'number' ||
+      !Number.isSafeInteger(value.rowCount) ||
+      value.rowCount < 0 ||
+      typeof value.columnCount !== 'number' ||
+      !Number.isSafeInteger(value.columnCount) ||
+      value.columnCount < 0 ||
+      value.rowIds.length !== value.rowCount ||
+      new Set(value.rowIds).size !== value.rowIds.length ||
+      typeof value.edgesPresent !== 'boolean'
+    ) {
+      return null;
+    }
+    return value as DatasetRowView;
+  } catch {
+    return null;
+  }
 }
 
 export function destroyDataset(handle: number): void {

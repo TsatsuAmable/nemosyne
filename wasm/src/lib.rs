@@ -418,6 +418,26 @@ pub fn dataset_column_count(handle: u32) -> u32 {
 }
 
 #[wasm_bindgen]
+pub fn dataset_row_view(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    let json = match data::with_dataset(handle, |dataset| {
+        serde_json::to_string(&serde_json::json!({
+            "name": dataset.name.as_str(),
+            "rowIds": &dataset.row_ids,
+            "rowCount": dataset.row_count(),
+            "columnCount": dataset.column_count(),
+            // `Some([])` is still explicit graph topology in the durable JSON
+            // contract. Compact B2A is limited to datasets with no edge field.
+            "edgesPresent": dataset.edges.is_some(),
+        }))
+        .unwrap_or_default()
+    }) {
+        Some(value) if !value.is_empty() => value,
+        _ => return 0,
+    };
+    write_str_out(&json, out_ptr, out_len)
+}
+
+#[wasm_bindgen]
 pub fn dataset_destroy(handle: u32) {
     data::destroy_dataset(handle);
 }
