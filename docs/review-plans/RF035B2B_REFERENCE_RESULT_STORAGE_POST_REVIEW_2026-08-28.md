@@ -4,7 +4,7 @@ Date: 28 August 2026
 Base: `main@0b0f4b5a8ba2af948b4a7144202f7fe45717e85f` (#487)
 Branch: `fix/rf035b2b-reference-results`
 Stream: B — independent fix-forward review
-Status: IMPLEMENTATION LANDED / REVIEW ACTIVE candidate; exact-head gates green
+Status: implementation candidate / review active
 
 ## Production boundary re-reviewed
 
@@ -40,25 +40,25 @@ The added RF-035B2B tests require:
 
 Existing session/replay/digest tests remain authoritative for schema-v2 and reproducibility compatibility. CI 1315 and CI 1319 failures were treated as production compatibility defects; the existing tests were not weakened.
 
-## Exact-head promotion evidence
+## Promotion evidence
 
-Final verified head before promotion: `500410e5d9f94236ca0472e8b07189e3e3797af8`.
+Implementation head `500410e5d9f94236ca0472e8b07189e3e3797af8` passed:
 
 - CI 1324: **success**
-  - static analysis/typecheck/lint/docs/action pinning: pass
-  - Rust kernel: pass
-  - production build: pass
-  - coverage WASM package: pass
-  - Vitest coverage shards 1/3, 2/3, 3/3: pass
-  - aggregate coverage thresholds: pass
-  - Chromium production smoke: pass
-  - collaboration recovery smoke: pass
-  - Node 24 required-job gate: pass
+  - static analysis/typecheck/lint/docs/action pinning
+  - Rust kernel
+  - production build
+  - coverage WASM package
+  - Vitest coverage shards 1/3, 2/3 and 3/3
+  - aggregate coverage thresholds
+  - Chromium production smoke
+  - collaboration recovery smoke
+  - Node 24 required-job gate
 - CodeQL 857: **success**
 - approval-gate 1161: **success**
 - PR review threads at promotion: none
 
-This evidence supports promotion of the implementation. It does not constitute browser/Quest memory qualification or close RF-035.
+A later documentation-only evidence commit moved the branch head after that implementation gate. The final branch head must independently satisfy the repository's required gates before merge. This evidence does not constitute browser/Quest memory qualification or close RF-035.
 
 ## Residual risks / non-claims
 
