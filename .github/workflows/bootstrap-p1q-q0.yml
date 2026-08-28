@@ -1,0 +1,169 @@
+name: Bootstrap P1-Q Q0 pilot
+
+on:
+  push:
+    branches:
+      - chore/p1q-q0-architecture-policy
+    paths:
+      - .github/workflows/bootstrap-p1q-q0.yml
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: chore/p1q-q0-architecture-policy
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install pilot tools
+        run: npm install --save-dev --save-exact dependency-cruiser@18.2.0 @ast-grep/cli@0.45.2
+
+      - name: Write dependency policy
+        run: |
+          cat > .dependency-cruiser.cjs <<'EOF'
+          module.exports = {
+            forbidden: [
+              {
+                name: 'no-production-draco-imports',
+                comment: 'Draco is compatibility-only; production code imports Moneta directly.',
+                severity: 'error',
+                from: { path: '^src/', pathNot: '^src/draco/' },
+                to: { path: '^src/draco/' },
+              },
+              {
+                name: 'investigation-domain-is-presentation-independent',
+                comment: 'Investigation and persistence meaning must not depend on VR/UI presentation state.',
+                severity: 'error',
+                from: { path: '^src/(atlas/domain|investigation|session)/' },
+                to: { path: '^src/(vr|ui)/' },
+              },
+              {
+                name: 'moneta-is-presentation-independent',
+                comment: 'Moneta representation reasoning must not depend on VR/UI presentation modules.',
+                severity: 'error',
+                from: { path: '^src/moneta/' },
+                to: { path: '^src/(vr|ui)/' },
+              },
+              {
+                name: 'production-cycles-pilot',
+                comment: 'Cycle evidence is informational during Q0; classify before any future promotion.',
+                severity: 'warn',
+                from: { path: '^src/' },
+                to: { circular: true },
+              },
+            ],
+            options: {
+              includeOnly: { path: '^src/' },
+              doNotFollow: { path: 'node_modules' },
+              tsConfig: { fileName: 'tsconfig.json' },
+              tsPreCompilationDeps: true,
+            },
+          };
+          EOF
+
+      - name: Write ast-grep project and rule tests
+        run: |
+          mkdir -p tools/architecture-policy/rules tools/architecture-policy/rule-tests
+          cat > sgconfig.yml <<'EOF'
+          ruleDirs:
+            - tools/architecture-policy/rules
+          testConfigs:
+            - testDir: tools/architecture-policy/rule-tests
+          EOF
+
+          cat > tools/architecture-policy/rules/worker-construction-boundary.yml <<'EOF'
+          id: worker-construction-boundary
+          language: TypeScript
+          severity: error
+          message: Direct Worker construction belongs at the governed World composition boundary.
+          files:
+            - src/**/*.ts
+          ignores:
+            - src/vr/World.ts
+          rule:
+            pattern: new Worker($$$ARGS)
+          EOF
+
+          cat > tools/architecture-policy/rule-tests/worker-construction-boundary-test.yml <<'EOF'
+          id: worker-construction-boundary
+          valid:
+            - const worker = createAnalyticalWorker()
+            - const port = new WorkerAnalyticalPort(transport)
+          invalid:
+            - const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
+            - new Worker('./legacy-worker.js')
+          EOF
+
+      - name: Add package scripts
+        run: |
+          node <<'EOF'
+          const fs = require('node:fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          pkg.scripts['architecture:deps'] = 'depcruise --config .dependency-cruiser.cjs --output-type err-long src';
+          pkg.scripts['architecture:ast'] = 'ast-grep scan --config sgconfig.yml src';
+          pkg.scripts['architecture:ast:test'] = 'ast-grep test --config sgconfig.yml --skip-snapshot-tests';
+          pkg.scripts['architecture:check'] = 'npm run architecture:deps && npm run architecture:ast:test && npm run architecture:ast';
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          EOF
+
+      - name: Validate pilot rules against current production source
+        run: npm run architecture:check
+
+      - name: Add non-required hosted pilot workflow
+        run: |
+          cat > .github/workflows/architecture-policy-pilot.yml <<'EOF'
+          name: Architecture policy pilot
+
+          on:
+            pull_request:
+              branches: [main]
+              paths:
+                - 'src/**'
+                - 'package.json'
+                - 'package-lock.json'
+                - '.dependency-cruiser.cjs'
+                - 'sgconfig.yml'
+                - 'tools/architecture-policy/**'
+                - '.github/workflows/architecture-policy-pilot.yml'
+            workflow_dispatch:
+
+          permissions:
+            contents: read
+
+          jobs:
+            architecture-policy:
+              name: P1-Q Q0 architecture policy
+              runs-on: ubuntu-latest
+              timeout-minutes: 10
+              steps:
+                - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+                - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+                  with:
+                    node-version: 24
+                    cache: npm
+                - name: Install dependencies
+                  run: npm ci
+                - name: Run architecture policy with timing
+                  run: /usr/bin/time -f 'P1-Q Q0 elapsed=%e sec maxrss=%M KB' npm run architecture:check
+          EOF
+
+      - name: Remove one-shot bootstrap
+        run: rm .github/workflows/bootstrap-p1q-q0.yml
+
+      - name: Commit pilot
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- package.json package-lock.json .dependency-cruiser.cjs sgconfig.yml tools/architecture-policy .github/workflows/architecture-policy-pilot.yml .github/workflows/bootstrap-p1q-q0.yml
+          git commit -m 'chore(p1q): bootstrap Q0 architecture-policy pilot'
+          git push
