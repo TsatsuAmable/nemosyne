@@ -1,51 +1,70 @@
 # RF-060 — Cache the authoritative current-dataset fingerprint
 
-**Status:** FALSIFIER ACTIVE / FIX NOT YET SELECTED
+**Status:** IMPLEMENTATION LANDED / REVIEW ACTIVE / POST-FIX CAUSAL EVIDENCE CAPTURED
 
 ## Trigger
 
-Q3D post-RF-059 browser decomposition on evidence head `7a24375eee864d389a8c416dc4e86f1c9e5b4ff9` showed, at 32k rows:
+Q3D post-RF-059 browser decomposition showed a material browser-side identity cost after the Rust sort cliff was removed. The dedicated pre-fix falsifier on exact source head `d83ad0693bb6b59af19724998a2720bfb207221d` measured the same deterministic 1k/8k/32k compact-sort production path with direct fingerprint timing enabled.
 
-- controller total: ~3.84 s;
-- Atlas total: ~3.18 s;
-- `AtlasCore._registerCurrentDatasetInWorker`: ~740 ms;
-- `WorkerAnalyticalPort.registerDataset`: ~351 ms;
-- Worker operation promise: ~1.93 s;
-- Atlas row-view materialization: ~120 ms;
-- `operation:applied`: ~477 ms, including ~408 ms synchronous structure discovery and ~49 ms dashboard update.
+At 32k rows the pre-fix capture contained:
 
-The ~389 ms gap inside current-dataset registration is not explained by Worker registration itself. Code review shows the successful registration path rechecks `this.datasetFingerprint`; `AnalyticalState.getFingerprint()` asks its authoritative provider when no retained scalar exists but currently returns the provider value without retaining it. All governed dataset/kernel transitions already clear or replace `_authoritativeFingerprint`.
+- 7 `AtlasCore._kernelFingerprintDirect` calls totalling ~733.1 ms;
+- 2 `AtlasCore._kernelFingerprint` calls totalling ~207.7 ms;
+- ~940.8 ms of repeated authoritative fingerprint work in total;
+- controller total ~3.238 s;
+- Atlas total ~2.611 s;
+- Worker operation promise ~2.120 s;
+- Atlas row-view materialization ~127.0 ms;
+- synchronous `operation:applied` ~484.7 ms.
 
-## Pre-fix falsifier
+The fingerprint timings are nested with Worker/TDA activity, so ~940.8 ms is **not** an additive wall-clock saving claim. The evidence established that unchanged analytical state repeatedly re-entered Rust/WASM to recover an identity scalar that was already authoritative and stable until a governed lifecycle transition.
 
-Before changing fingerprint retention, extend Q3D read-only instrumentation to time:
+## Production invariant
 
-- `AtlasCore._kernelFingerprintDirect`;
-- `AtlasCore._kernelFingerprint`;
-- `AtlasCore._ensureHandle`.
+`AnalyticalState` retains a successful fingerprint returned by the live Rust/WASM provider for the current governed analytical state. That retained scalar is authority evidence, not a browser-derived replacement.
 
-Run the existing 1k/8k/32k compact-sort staircase through the real production browser/Worker/WASM path. The cache hypothesis is supported only if repeated authoritative fingerprint lookup is a material part of the 32k Atlas registration/event envelope.
+The implementation preserves:
 
-## Candidate invariant
+1. Rust/WASM remains the fingerprint authority whenever a live provider successfully resolves identity;
+2. browser fallback identity is never retained as authoritative;
+3. dataset replacement, advance, set-current, restore, handle/kernel invalidation and disposal revoke retained identity through the existing lifecycle fence;
+4. mutation/typed-load outputs that already carry authoritative fingerprints remain directly reusable;
+5. DatasetSpace reuses a retained authoritative scalar but still propagates a live provider failure when no retained scalar exists;
+6. an empty/null provider result is not retained and does not prevent a later valid authoritative provider from winning;
+7. Worker registration fencing, replay/provenance and cross-language identity semantics remain unchanged.
 
-If the pre-fix falsifier supports the hypothesis, `AnalyticalState` may retain a successful authoritative fingerprint returned by the live kernel provider until an existing lifecycle transition invalidates or replaces it.
+## Post-fix production evidence
 
-The fix must preserve:
+The identical Q3D 1k/8k/32k compact-sort production-path staircase passed on exact evidence head `40b4455c2f68b64b06636eb97a621c850f51bdd7`, workflow run `33203651345`, artifact `9698807769` (`sha256:d6a47887d7592a857ea936ba2246beb6d70292ff0d1f2431ac0ff3361c48bf73`).
 
-1. Rust/WASM remains the fingerprint authority when a live authoritative provider is available;
-2. no cached fingerprint survives dataset replacement, mutation without an explicit output fingerprint, restore, handle invalidation, or kernel replacement;
-3. async Worker output fingerprints remain the authoritative retained scalar after mutation commit;
-4. canonical browser identity remains only the governed fallback when no live fingerprint is available;
-5. dataset identity, Worker registration fencing, replay/provenance and cross-language golden tests remain unchanged semantically.
+| Rows | Controller pre-fix | Controller post-fix | Change | Atlas pre-fix | Atlas post-fix | Change | Captured fingerprint work |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1k | 483.685 ms | 409.350 ms | -15.4% | 409.365 ms | 348.305 ms | -14.9% | 8 calls / 30.0 ms → 0 calls / 0 ms |
+| 8k | 1432.280 ms | 1041.490 ms | -27.3% | 1252.165 ms | 927.700 ms | -25.9% | 8 calls / 222.8 ms → 0 calls / 0 ms |
+| 32k | 3237.995 ms | 2195.710 ms | -32.2% | 2610.540 ms | 1794.805 ms | -31.2% | 9 calls / 940.8 ms → 0 calls / 0 ms |
 
-## Required regression evidence
+At 32k the same capture also changed Worker-port promise time from ~2119.8 ms to ~1272.8 ms and synchronous `operation:applied` from ~484.7 ms to ~367.5 ms. Those nested stages contain scheduling and concurrent downstream work, so RF-060 does not assign their full deltas solely to fingerprint retention. The supported causal claim is narrower: the same production-path capture no longer performs repeated live fingerprint-provider calls, while controller and Atlas wall time materially improved under the same hosted harness.
 
-- repeated `getFingerprint(provider)` calls invoke the provider once while state is unchanged;
-- dataset advance/set/restore/invalidation causes a fresh provider call;
-- `commitKernelResult(... fingerprint)` returns the supplied authoritative fingerprint without provider work;
-- provider failure/empty result does not cache a false value and retains the existing canonical fallback behavior;
-- Q3D rerun after the fix shows whether registration and end-to-end latency actually improve.
+Worker-internal Rust/WASM operation time changed only modestly (~580.9 ms → ~541.8 ms at 32k), which is consistent with RF-060 being a browser/authority-boundary optimization rather than another Rust sort algorithm change.
 
-## Non-goals
+## Governance cleanup
 
-This tranche does not optimize Worker structured-clone transport, row-view reconstruction, synchronous structure discovery, TDA scheduling, dashboard rendering or Quest performance. Those remain separate measured findings unless the cache fix materially changes their envelope.
+Q3D is restored to `workflow_dispatch` only after the post-fix evidence run. The temporary PR trigger used solely to obtain the bounded before/after evidence is not promoted into recurring merge tax.
+
+## Remaining measured seams
+
+RF-060 deliberately does not absorb the next performance work. The post-fix 32k envelope still contains:
+
+- controller ~2.196 s;
+- Atlas ~1.795 s;
+- main-thread Worker promise ~1.273 s;
+- overlapping registration/residency stages (nested, not additive);
+- synchronous `operation:applied` ~367 ms;
+- structure discovery/recommendation ~313 ms;
+- row-view reconstruction ~123 ms.
+
+These remain owned by RF-029/RF-035/RF-051 and follow-on measured work. Physical Quest qualification remains separate.
+
+## Non-goals / status boundary
+
+RF-060 does not establish generic large-N support, Worker GC/RSS bounds, or Quest frame/memory qualification. The implementation is **LANDED / REVIEW ACTIVE**, not `VERIFIED COMPLETE`, until the broader whole-pipeline/device programme converges.
