@@ -178,6 +178,9 @@ Primary owners: Stream B for runtime/history; Stream C for collaboration; P1-USI
 
 ## Q8 — Supply-chain prevention — HIGH VALUE / LOW COST
 
+**Status: PILOT LANDED / CLASSIFICATION PENDING PR-TIME SIGNAL** — see
+`P1Q_Q8_SUPPLY_CHAIN_PILOT_2026-08-28.md`.
+
 Evaluate:
 
 - GitHub Dependency Review on PRs for newly introduced vulnerable dependencies;
