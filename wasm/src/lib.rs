@@ -406,12 +406,15 @@ pub fn data_load_json(ptr: u32, len: u32) -> u32 {
 
 #[wasm_bindgen]
 pub fn dataset_row_count(handle: u32) -> u32 {
-    data::with_dataset(handle, |ds| ds.row_count() as u32).unwrap_or(0)
+    // Every registry entry has a canonical columnar representation, including
+    // columnar-only NTC1 handles. Metadata queries must not require row
+    // materialisation merely to report shape.
+    data::with_columnar_dataset(handle, |dataset| dataset.row_count() as u32).unwrap_or(0)
 }
 
 #[wasm_bindgen]
 pub fn dataset_column_count(handle: u32) -> u32 {
-    data::with_dataset(handle, |ds| ds.column_count() as u32).unwrap_or(0)
+    data::with_columnar_metadata(handle, |_name, columns, _dataset| columns.len() as u32).unwrap_or(0)
 }
 
 #[wasm_bindgen]
@@ -550,7 +553,17 @@ pub fn kernel_provenance(out_ptr: u32, out_len: u32) -> u32 {
 
 #[wasm_bindgen]
 pub fn dataset_fingerprint(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
-    let fp = data::with_dataset(handle, |ds| ds.fingerprint()).unwrap_or_default();
+    // Fingerprint is registry identity, not a row-materialisation API. Use the
+    // canonical handle projection so row-backed and columnar-only datasets share
+    // one public identity accessor.
+    let fp = match data::fingerprint_for_handle(handle) {
+        Some(Ok(fingerprint)) => fingerprint,
+        Some(Err(error)) => {
+            log_error(&format!("dataset_fingerprint failed for handle {handle}: {error}"));
+            return 0;
+        }
+        None => return 0,
+    };
     write_str_out(&fp, out_ptr, out_len)
 }
 
