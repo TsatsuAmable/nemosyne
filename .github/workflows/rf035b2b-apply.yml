@@ -1,0 +1,38 @@
+name: RF035B2B apply
+
+on:
+  push:
+    branches: [fix/rf035b2b-reference-results]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: fix/rf035b2b-reference-results
+          fetch-depth: 0
+
+      - name: Apply bounded RF-035B2B patch
+        run: python scripts/rf035b2b_apply.py
+
+      - name: Commit implementation
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            docs/ROADMAP.md \
+            src/data/DatasetVersionStore.ts \
+            src/atlas/domain/EvidenceLedger.ts \
+            src/atlas/domain/InvestigationAggregate.ts \
+            src/atlas/AtlasCore.ts \
+            scripts/rf035b2b_apply.py \
+            .github/workflows/rf035b2b-apply.yml
+          git commit -m "fix(rf035): store verified results by version reference"
+          git push origin HEAD:fix/rf035b2b-reference-results
