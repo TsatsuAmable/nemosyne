@@ -171,7 +171,8 @@ describe('World integration', () => {
     const supportsHandles =
       topology === 'TIME_SERIES' || topology === 'TABULAR' || topology === 'HIERARCHY';
     const handleCount = supportsHandles ? (topology === 'TIME_SERIES' ? 1 : 2) : 0;
-    return world.dracoNode.artifact.nodeMeshes.length + 1 + handleCount;
+    // +1 core, +1 iceVault (P1-U6 vault landmark interactable)
+    return world.dracoNode.artifact.nodeMeshes.length + 2 + handleCount;
   }
 
   it('creates the default Draco node and registers diagnostic + telemetry panels', () => {
@@ -544,10 +545,10 @@ describe('World integration', () => {
     expect(world._statisticalLensEnabled).toBe(false);
   });
 
-  it('attaches data operations to each portal', () => {
+  it('attaches semantic targets to each portal', () => {
     world = new World(); wireKernel(world);
-    expect(world.portalA.operation).toBe('anomaly');
-    expect(world.portalB.operation).toBe('reset');
+    expect(world.portalA.semanticTarget).toEqual({ kind: 'overview' });
+    expect(world.portalB.semanticTarget).toEqual({ kind: 'saved-investigation', archiveId: 'latest' });
   });
 
   it('applies portal operation and moves the camera when warping', () => {

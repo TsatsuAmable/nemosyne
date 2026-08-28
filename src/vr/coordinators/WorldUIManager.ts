@@ -27,6 +27,8 @@ import { DracoExplainerPanel } from '../ui/DracoExplainerPanel.ts';
 import { RepresentationCarousel } from '../ui/RepresentationCarousel.ts';
 import { TransientContextCardManager } from '../ui/TransientContextCards.ts';
 import { SchemaMappingPanel } from '../ui/SchemaMappingPanel.ts';
+import { VaultPanel } from '../ui/VaultPanel.ts';
+import type { ArchiveEntry } from '../../session/VaultArchiveStore.ts';
 import { GestureConfidenceHUD } from '../ui/GestureConfidenceHUD.ts';
 import { FrustrationResponseManager } from '../ui/FrustrationResponseManager.ts';
 import { JITGestureHintManager } from '../ui/JITGestureHintManager.ts';
@@ -100,6 +102,11 @@ export interface WorldUIManagerCallbacks {
   onInspectNode?: (data: Record<string, unknown> | null) => void;
   onRecordFinding?: (data: Record<string, unknown> | null) => void;
   onNavigateNode?: (data: Record<string, unknown> | null) => void;
+  onFreezeInvestigation?: () => Promise<void>;
+  onRestoreArchive?: (archiveId: string) => void;
+  onExportArchive?: (archiveId: string) => void;
+  onDeleteArchive?: (archiveId: string) => void;
+  getArchiveList?: () => Promise<ArchiveEntry[]>;
 }
 
 interface AdaptiveAssistLike {
@@ -159,6 +166,7 @@ export class WorldUIManager {
   loadTestPanel: LoadTestPanel | null = null;
   recommendationPanel: RecommendationPanel;
   dracoExplainerPanel: DracoExplainerPanel;
+  vaultPanel: VaultPanel;
 
   // Superuser / Dev Lab — panel subclasses (wired into PanelManager on first access)
   schemaMappingPanel: SchemaMappingPanel | null = null;
@@ -224,7 +232,9 @@ export class WorldUIManager {
     applyPanelLayout(this.vrConsole, PANEL_LAYOUT.vrConsole);
     this.engine.addUpdatable(this.vrConsole);
 
-    // Main operation / dataset menu.
+    // Main operation / dataset menu — retired as primary navigation per P1-U8.
+    // Functionality folded into TechnoCore, ContextualTaskSurface, and HandWheelMenu.
+    // Kept for advanced users but hidden by default.
     this.vrMenu = new VRMenu(this.analystAnchor, {
       onLoadDataset: callbacks.onLoadDataset,
       onTogglePortals: callbacks.onTogglePortals,
@@ -243,7 +253,9 @@ export class WorldUIManager {
       onReset: callbacks.onReset,
     } as LooseOptions);
     this.engine.addUpdatable(this.vrMenu);
-    applyPanelLayout(this.vrMenu, PANEL_LAYOUT.vrMenu);
+    // Apply layout but keep hidden by default (retired as primary navigation)
+    applyPanelLayout(this.vrMenu, PANEL_LAYOUT.legacyMenu);
+    this.vrMenu.hide();
 
     // Panel manager owns the launcher ring and per-panel visibility.
     this.panelManager = new PanelManager(engine.cameraGroup, {
@@ -253,6 +265,7 @@ export class WorldUIManager {
     });
     this.panelManager.register(this.telemetryPanel);
     this.panelManager.register(this.vrConsole);
+    // VRMenu registered but hidden by default (retired as primary navigation)
     this.panelManager.register(this.vrMenu);
     this.engine.input.setPanelManager(this.panelManager);
     this.engine.input.addPanel(this.telemetryPanel);
@@ -404,18 +417,33 @@ export class WorldUIManager {
     this.engine.addUpdatable(this.dracoExplainerPanel);
     this.panelManager.hidePanel(this.dracoExplainerPanel);
 
+    // Evidence Vault panel — archive/restore investigation snapshots.
+    this.vaultPanel = new VaultPanel(this.analystAnchor, {
+      onFreeze: callbacks.onFreezeInvestigation,
+      onRestore: callbacks.onRestoreArchive,
+      onExport: callbacks.onExportArchive,
+      onDelete: callbacks.onDeleteArchive,
+    });
+    this.panelManager.register(this.vaultPanel);
+    this.engine.input.addPanel(this.vaultPanel);
+    this.engine.addUpdatable(this.vaultPanel);
+    this.panelManager.hidePanel(this.vaultPanel);
+    applyPanelLayout(this.vaultPanel, PANEL_LAYOUT.vaultPanel);
+
     // Register eagerly-constructed panels into PanelRolesManager with semantic roles.
     // Lazy panels (operationLog, interactionCoach, narrative, loadTest) pre-register
     // their roles here so the launcher ring can list them before first construction.
     this.panelRolesManager.registerPanel('telemetry', 'Input Telemetry', 'diagnostic');
     this.panelRolesManager.registerPanel('vrConsole', 'VR Console', 'diagnostic');
-    this.panelRolesManager.registerPanel('vrMenu', 'Main Menu', 'workspace');
+    // VRMenu retired as primary navigation per P1-U8; reclassified as diagnostic.
+    this.panelRolesManager.registerPanel('vrMenu', 'Legacy Menu', 'diagnostic');
     this.panelRolesManager.registerPanel('settings', 'Settings', 'system');
     this.panelRolesManager.registerPanel('metrics', 'Telemetry Metrics', 'diagnostic');
     this.panelRolesManager.registerPanel('performance', 'Performance Budget', 'diagnostic');
     this.panelRolesManager.registerPanel('network', 'Collaboration Network', 'diagnostic');
     this.panelRolesManager.registerPanel('recommendation', 'Recommendation Panel', 'task');
     this.panelRolesManager.registerPanel('dracoExplainer', 'Draco Explainer Panel', 'task');
+    this.panelRolesManager.registerPanel('vault', 'Evidence Vault', 'task');
 
     // Superuser / Dev Lab panels — gated to DEVELOPER mode only. Pre-registered
     // so the Super User wheel category can list them before first construction.

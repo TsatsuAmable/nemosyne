@@ -61,6 +61,39 @@ export class IceVaultNode implements Updatable {
 
     this.pulseSpeed = 5;
     this.rotationSpeed = 1;
+    this.archiveState = 'empty';
+    this.setArchiveState('empty');
+  }
+
+  archiveState: 'empty' | 'frozen' | 'restoring';
+
+  setArchiveState(state: 'empty' | 'frozen' | 'restoring'): void {
+    this.archiveState = state;
+    if (state === 'empty') {
+      this.setEncoding({
+        color: 0x555555,
+        emissive: 0x111111,
+        coreColor: 0x333333,
+        pulseSpeed: 1.5,
+        rotationSpeed: 0.5,
+      });
+    } else if (state === 'frozen') {
+      this.setEncoding({
+        color: 0x00aaff,
+        emissive: 0x003366,
+        coreColor: 0x00ffff,
+        pulseSpeed: 4.0,
+        rotationSpeed: 1.0,
+      });
+    } else if (state === 'restoring') {
+      this.setEncoding({
+        color: 0x00ffcc,
+        emissive: 0x005544,
+        coreColor: 0x00ffcc,
+        pulseSpeed: 12.0,
+        rotationSpeed: 3.0,
+      });
+    }
   }
 
   setData(data: Record<string, unknown> | null): void {

@@ -11,6 +11,7 @@ import type {
 export interface WorldLandmarkHost {
   core: CoreNodeLike;
   datum?: DatumLike;
+  iceVault?: { group: import('three').Group };
   portalA?: PortalLike;
   portalB?: PortalLike;
   tooltipManager: TooltipManagerLike;
@@ -22,6 +23,7 @@ export interface WorldLandmarkHost {
   resetDataOperation(): void;
   _logInteraction: LogInteraction;
   _captureSession(): void;
+  _toggleVaultPanel?(): void;
 }
 
 export class WorldLandmarkController {
@@ -49,17 +51,24 @@ export class WorldLandmarkController {
     }
     if (w.portalA?.group) {
       w.portalA.group.userData.tooltipMeta = {
-        title: 'Farcaster: Deep Net',
-        body: 'Step through to apply anomaly lens and warp to the deep-net zone',
+        title: 'Farcaster: Overview',
+        body: 'Step through to return to the overview vantage',
       };
       w.tooltipManager.registerTarget(w.portalA.group);
     }
     if (w.portalB?.group) {
       w.portalB.group.userData.tooltipMeta = {
-        title: 'Farcaster: Local Matrix',
-        body: 'Step through to reset transforms and return to the local matrix',
+        title: 'Farcaster: Saved Investigation',
+        body: 'Step through to restore the latest frozen archive',
       };
       w.tooltipManager.registerTarget(w.portalB.group);
+    }
+    if (w.iceVault?.group) {
+      w.iceVault.group.userData.tooltipMeta = {
+        title: 'Evidence Vault',
+        body: 'Select to freeze, restore, or export investigation snapshots',
+      };
+      w.tooltipManager.registerTarget(w.iceVault.group);
     }
   }
 
@@ -72,6 +81,19 @@ export class WorldLandmarkController {
         onSelect: () => this.onCoreSelect(),
       });
     }
+    if (w.iceVault?.group) {
+      w.engine.addInteractable(w.iceVault.group, {
+        onEnter: () => {},
+        onLeave: () => {},
+        onSelect: () => this.onVaultSelect(),
+      });
+    }
+  }
+
+  onVaultSelect(): void {
+    this._world._toggleVaultPanel?.();
+    this._world._logInteraction('Evidence Vault select', {});
+    this._world.engine.input.feedback?.playHaptic?.(0.4, 50);
   }
 
   onCoreSelect(): void {

@@ -5,6 +5,13 @@ import type { PointerLike } from '../coordinators/types.ts';
 
 export type SpatialPanelReferenceFrame = 'BODY_LOCKED' | 'WORLD_LOCKED';
 
+export interface SpatialPanelGrabConfig {
+  enabled: boolean;
+  onGrabStart?: () => void;
+  onGrabEnd?: () => void;
+  onRepositioned?: (position: THREE.Vector3, quaternion: THREE.Quaternion) => void;
+}
+
 export class SpatialPanel extends Container {
   private _referenceFrame: SpatialPanelReferenceFrame = 'BODY_LOCKED';
   private _torsoAnchor: THREE.Object3D | null = null;
@@ -15,6 +22,14 @@ export class SpatialPanel extends Container {
   private _targetQuaternion: THREE.Quaternion = new THREE.Quaternion();
   private _isLerping = false;
   private _lerpSpeed = 8; // Rad/s or units/s speed
+
+  // Grab rail / drag state
+  private _grabConfig: SpatialPanelGrabConfig = { enabled: true };
+  private _isGrabbed = false;
+  private _grabOffset: THREE.Vector3 = new THREE.Vector3();
+  private _grabQuaternionOffset: THREE.Quaternion = new THREE.Quaternion();
+  private _grabPointerId: number | null = null;
+  private _dragPlane: THREE.Plane = new THREE.Plane();
 
   constructor(
     properties?: ContainerProperties,
@@ -36,7 +51,43 @@ export class SpatialPanel extends Container {
     if (this._torsoAnchor) {
       this._torsoAnchor.add(this);
     }
+
+    // Create grab rail visual affordance
+    this._createGrabRail();
   }
+
+  private _createGrabRail(): void {
+    // Grab rail - thin bar at top of panel for drag/repositioning
+    // Stored as a three.js Mesh (not uikit Component) to avoid Container constraints
+    const railGeometry = new THREE.BoxGeometry(0.48, 0.04, 0.008);
+    const railMaterial = new THREE.MeshBasicMaterial({
+      color: 0x263544,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+    });
+    this._grabRailMesh = new THREE.Mesh(railGeometry, railMaterial);
+    // Use default panel height (384) as fallback since Container doesn't expose height directly
+    const panelHeight = 384;
+    this._grabRailMesh.position.set(0, panelHeight * 0.5 - 0.02, 0.02);
+    this._grabRailMesh.name = 'grab-rail';
+    this._grabRailMesh.userData = { panel: this, isGrabRail: true };
+    this._grabRailMesh.visible = false; // Initially hidden, shown when panel is active
+  }
+
+  /** Get the grab rail mesh for raycasting. */
+  getGrabRailMesh(): THREE.Mesh | null {
+    return this._grabRailMesh;
+  }
+
+  /** Show/hide the grab rail visual affordance. */
+  setGrabRailVisible(visible: boolean): void {
+    if (this._grabRailMesh) {
+      this._grabRailMesh.visible = visible;
+    }
+  }
+
+  private _grabRailMesh: THREE.Mesh | null = null;
 
   get mesh(): THREE.Object3D {
     return this;
@@ -111,6 +162,126 @@ export class SpatialPanel extends Container {
     }
   }
 
+  // ---- Grab rail / drag handling (P1-U3) ----
+
+  /** Enable or disable the grab rail drag affordance. */
+  setGrabEnabled(enabled: boolean): void {
+    this._grabConfig.enabled = enabled;
+  }
+
+  /** Configure grab behavior callbacks. */
+  setGrabConfig(config: Partial<SpatialPanelGrabConfig>): void {
+    this._grabConfig = { ...this._grabConfig, ...config };
+  }
+
+  /** Check if the panel is currently being grabbed. */
+  get isGrabbed(): boolean {
+    return this._isGrabbed;
+  }
+
+  /** Handle grab start on the grab rail. */
+  handleGrabStart(raycaster: THREE.Raycaster, pointerId: number): boolean {
+    if (!this._grabConfig.enabled || this._isGrabbed) return false;
+
+    const grabRail = this._grabRailMesh;
+    if (!grabRail) return false;
+
+    const hits = raycaster.intersectObject(grabRail, false);
+    if (hits.length === 0) return false;
+
+    const hit = hits[0];
+
+    // Store grab state
+    this._isGrabbed = true;
+    this._grabPointerId = pointerId;
+
+    // Calculate grab offset in world space
+    const worldPos = new THREE.Vector3();
+    this.getWorldPosition(worldPos);
+    this._grabOffset.copy(hit.point).sub(worldPos);
+
+    // Store quaternion offset
+    const worldQuat = new THREE.Quaternion();
+    this.getWorldQuaternion(worldQuat);
+    this._grabQuaternionOffset.copy(this.quaternion).premultiply(worldQuat.clone().invert());
+
+    // Create drag plane (perpendicular to camera/view direction for WORLD_LOCKED,
+    // or perpendicular to torso up for BODY_LOCKED)
+    if (this._referenceFrame === 'WORLD_LOCKED' && this._worldScene) {
+      const camDir = new THREE.Vector3();
+      this._worldScene.getWorldDirection(camDir);
+      this._dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), hit.point);
+    } else if (this._torsoAnchor) {
+      const torsoUp = new THREE.Vector3(0, 1, 0);
+      torsoUp.applyQuaternion(this._torsoAnchor.quaternion);
+      this._dragPlane.setFromNormalAndCoplanarPoint(torsoUp, hit.point);
+    }
+
+    this._grabConfig.onGrabStart?.();
+    return true;
+  }
+
+  /** Handle grab move (drag). */
+  handleGrabMove(raycaster: THREE.Raycaster): boolean {
+    if (!this._isGrabbed) return false;
+
+    const hit = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(this._dragPlane, hit)) return false;
+
+    // Calculate new world position
+    const newWorldPos = hit.clone().sub(this._grabOffset);
+
+    if (this._referenceFrame === 'BODY_LOCKED' && this._torsoAnchor) {
+      // Convert to torso-local space
+      const torsoWorldMatrix = new THREE.Matrix4().copy(this._torsoAnchor.matrixWorld).invert();
+      const localPos = newWorldPos.clone().applyMatrix4(torsoWorldMatrix);
+      this.position.lerp(localPos, 0.3); // Smooth lerp for body-locked
+    } else {
+      // World-locked: set directly
+      this.position.lerp(newWorldPos, 0.3);
+    }
+
+    return true;
+  }
+
+  /** Handle grab end. */
+  handleGrabEnd(): boolean {
+    if (!this._isGrabbed) return false;
+
+    this._isGrabbed = false;
+    this._grabPointerId = null;
+
+    // Snap to nearest layout slot if BODY_LOCKED
+    if (this._referenceFrame === 'BODY_LOCKED' && this._torsoAnchor) {
+      this._snapToLayoutSlot();
+    }
+
+    this._grabConfig.onGrabEnd?.();
+    this._grabConfig.onRepositioned?.(this.position.clone(), this.quaternion.clone());
+    return true;
+  }
+
+  /** Snap panel to nearest layout slot (for body-locked panels). */
+  private _snapToLayoutSlot(): void {
+    // This would snap to the nearest PANEL_LAYOUT slot
+    // For now, just ensure it's in a valid position
+    const targetPos = new THREE.Vector3().copy(this.position);
+    targetPos.y = Math.max(0.1, Math.min(1.0, targetPos.y));
+    targetPos.x = Math.max(-1.5, Math.min(1.5, targetPos.x));
+    targetPos.z = Math.max(-2.0, Math.min(-0.5, targetPos.z));
+    this.position.copy(targetPos);
+  }
+
+  /** Check if a pointer event is over the grab rail. */
+  isPointerOverGrabRail(raycaster: THREE.Raycaster): boolean {
+    const grabRail = this._grabRailMesh;
+    if (!grabRail) return false;
+    const hits = raycaster.intersectObject(grabRail, false);
+    return hits.length > 0;
+  }
+
+  // ---- End grab handling ----
+
   private _lastHoveredComponent: Component | null = null;
   private _capturedPointers: Map<number, Component> = new Map();
 
@@ -132,6 +303,14 @@ export class SpatialPanel extends Container {
       return 'direct-touch';
     }
 
+    // Check for grab rail interaction first (P1-U3)
+    const pointerId = pointer.index ?? 0;
+    if (this.isPointerOverGrabRail(raycaster) && this._grabConfig.enabled) {
+      if (this.handleGrabStart(raycaster, pointerId)) {
+        return 'grab-rail';
+      }
+    }
+
     const hits = raycaster.intersectObject(this, true);
     if (hits.length === 0) return null;
 
@@ -139,7 +318,6 @@ export class SpatialPanel extends Container {
     if (!hit) return null;
 
     const component = hit.object as Component;
-    const pointerId = pointer.index ?? 0;
 
     component.dispatchEvent({
       type: 'pointerdown',
@@ -159,6 +337,13 @@ export class SpatialPanel extends Container {
     }
 
     const pointerId = pointer.index ?? 0;
+
+    // Handle grab rail drag (P1-U3)
+    if (this._isGrabbed && this._grabPointerId === pointerId) {
+      this.handleGrabMove(raycaster);
+      return;
+    }
+
     const captured = this._capturedPointers.get(pointerId);
     
     const hits = raycaster.intersectObject(this, true);
@@ -224,6 +409,13 @@ export class SpatialPanel extends Container {
     }
 
     const pointerId = pointer.index ?? 0;
+
+    // Handle grab rail release (P1-U3)
+    if (this._isGrabbed && this._grabPointerId === pointerId) {
+      this.handleGrabEnd();
+      return;
+    }
+
     const captured = this._capturedPointers.get(pointerId);
     this._capturedPointers.delete(pointerId);
 

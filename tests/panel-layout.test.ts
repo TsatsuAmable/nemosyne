@@ -16,7 +16,7 @@ describe('panelLayout (C1′ role-aware depth tiers, torso-locked)', () => {
   });
 
   it('keeps the forward center cone (±12°) clear in the mid tier', () => {
-    const midFan = ['vrMenu', 'operationLogPanel', 'recommendationPanel', 'monetaExplainerPanel', 'settingsPanel'] as const;
+    const midFan = ['legacyMenu', 'operationLogPanel', 'recommendationPanel', 'monetaExplainerPanel', 'settingsPanel'] as const;
     for (const key of midFan) {
       const p = PANEL_LAYOUT[key];
       const angle = Math.abs(Math.atan2(p[0], -p[2])) * (180 / Math.PI);
@@ -25,7 +25,7 @@ describe('panelLayout (C1′ role-aware depth tiers, torso-locked)', () => {
   });
 
   it('keeps mid-tier panels inside the 0.9–1.4 m comfort band', () => {
-    const mid = ['vrMenu', 'operationLogPanel', 'recommendationPanel', 'monetaExplainerPanel', 'settingsPanel', 'vrConsole', 'narrativeStrip'] as const;
+    const mid = ['legacyMenu', 'operationLogPanel', 'recommendationPanel', 'monetaExplainerPanel', 'settingsPanel', 'vrConsole', 'narrativeStrip'] as const;
     for (const key of mid) {
       expect(dist(PANEL_LAYOUT[key])).toBeGreaterThanOrEqual(0.9);
       expect(dist(PANEL_LAYOUT[key])).toBeLessThanOrEqual(1.4);
