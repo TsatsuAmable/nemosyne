@@ -108,8 +108,6 @@ describe('RF-035B1 canonical dataset-version history', () => {
     expect(fromJson).toHaveBeenCalledTimes(1);
     expect(clone).not.toHaveBeenCalled();
 
-    // Returned materializations are disposable views. Mutating one must not
-    // mutate the canonical historical snapshot used by a later navigation.
     undone.dataset.rows[0].value = 999;
     history.redo();
     const undoneAgain = history.undo();
@@ -144,5 +142,54 @@ describe('RF-035B1 canonical dataset-version history', () => {
     expect(frames[1].datasetAfterRef.datasetFingerprint).toBe(fp);
     expect(frames[0].datasetAfterRef.datasetVersion).toBe(2);
     expect(frames[1].datasetAfterRef.datasetVersion).toBe(3);
+  });
+
+  it('materializes an undo branch-point when Atlas keeps the numeric version but restores older content', () => {
+    const ledger = new EvidenceLedger();
+    const originalJson = json('original', [30, 10, 20]);
+    const firstJson = json('first', [10, 20, 30]);
+    const secondJson = json('second', [10, 20]);
+    const branchJson = json('branch', [20, 30]);
+    const original = Dataset.fromJSON(originalJson);
+    const originalFingerprint = canonicalDatasetIdentityHex(originalJson);
+
+    ledger.appendEvent({
+      timestamp: 1,
+      kind: 'load',
+      command: { op: 'load' },
+      datasetVersion: 1,
+      datasetFingerprint: originalFingerprint,
+      stateHash: originalFingerprint,
+    }, 'rf035b1-branch');
+
+    const first = result(1, originalFingerprint, 2, firstJson);
+    const second = result(2, first.datasetFingerprint, 3, secondJson);
+    appendAnalysis(ledger, 'rf035b1-branch', first);
+    appendAnalysis(ledger, 'rf035b1-branch', second);
+
+    ledger.appendEvent({
+      timestamp: 4,
+      kind: 'undo',
+      command: { op: 'undo' },
+      datasetVersion: 3,
+      datasetFingerprint: first.datasetFingerprint,
+      stateHash: first.datasetFingerprint,
+    }, 'rf035b1-branch');
+
+    const branch = result(3, first.datasetFingerprint, 4, branchJson);
+    appendAnalysis(ledger, 'rf035b1-branch', branch);
+
+    const history = ledger.getAnalysisHistory(original);
+    const frames = history.frames();
+    expect(frames.map((frame) => frame.datasetAfterRef.datasetVersion)).toEqual([2, 4]);
+    expect(frames[1].datasetBeforeRef).toEqual({
+      datasetVersion: 3,
+      datasetFingerprint: first.datasetFingerprint,
+    });
+    expect(frames[1].rowCountBefore).toBe(firstJson.rows.length);
+
+    const undoneBranch = history.undo();
+    expect(undoneBranch?.dataset.rows).toEqual(firstJson.rows);
+    expect(undoneBranch?.dataset.rowIds).toEqual(firstJson.rowIds);
   });
 });
