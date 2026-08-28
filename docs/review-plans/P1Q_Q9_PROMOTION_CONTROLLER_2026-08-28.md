@@ -99,3 +99,21 @@ or imply independent human review where repository policy does not require one.
 - The `Continuous Copilot Review` ruleset remains disabled; RF-052 permits this
   as long as automated review is not presented as an approval gate.
 - Roadmap snapshot reconciliation continues under RF-009/RF-034 discipline.
+
+## Pilot defects caught (post-merge)
+
+PR #510 auto-merged at its head before the CI fixes landed; the following were
+caught by exercising the pilot on the merged workflow and on #511:
+
+1. `gh` in CI requires `GH_TOKEN=${{ github.token }}` (GITHUB_TOKEN is not read
+   as GH_TOKEN automatically); added to both controller steps.
+2. `metadata: read` is not a valid GitHub Actions permission scope (metadata is
+   implicit at read-only); removed — the workflow previously failed validation
+   with zero jobs.
+3. The controller's PR query omitted the `body` field, so the
+   adversarial-disposition marker check could never pass; `body` added to the
+   jq projection.
+
+All three are fixed on `main` via #511 and verified end-to-end against a real
+green PR head (`verified: true`, exact head, required checks green, clean
+threads, marker present).

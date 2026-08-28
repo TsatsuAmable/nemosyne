@@ -37,6 +37,7 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/check-governance-policy.mjs
 
       - name: Verify exact-head promotion evidence
@@ -44,6 +45,7 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ github.token }}
         run: >-
           node scripts/check-promotion-evidence.mjs
           --pr ${{ github.event.pull_request.number }}
