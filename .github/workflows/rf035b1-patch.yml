@@ -1,0 +1,31 @@
+name: rf035b1-patch
+
+on:
+  push:
+    branches:
+      - fix/rf035b-version-state
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/rf035b-version-state
+      - name: Apply RF-035B1 patch
+        run: python .github/scripts/rf035b1_patch.py
+      - name: Commit production patch
+        shell: bash
+        run: |
+          rm .github/workflows/rf035b1-patch.yml
+          rm .github/scripts/rf035b1_patch.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- src/atlas/domain/EvidenceLedger.ts src/vr/ui/NarrativeStrip.ts src/vr/coordinators/AnalysisStoryExporter.ts .github/workflows/rf035b1-patch.yml .github/scripts/rf035b1_patch.py
+          git diff --cached --check
+          git commit -m 'feat(rf035): make derived history reference-backed'
+          git push origin HEAD:fix/rf035b-version-state
