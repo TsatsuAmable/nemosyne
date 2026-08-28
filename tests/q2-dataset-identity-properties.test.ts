@@ -32,7 +32,12 @@ const datasetArbitrary = fc.record({
   rows: fc.array(rowArbitrary, { maxLength: 25 }),
 });
 
-function toDataset(sample: fc.ArbitraryValue<typeof datasetArbitrary>): DatasetJSON {
+type GeneratedDatasetSample = {
+  name: string;
+  rows: Record<string, unknown>[];
+};
+
+function toDataset(sample: GeneratedDatasetSample): DatasetJSON {
   return {
     name: sample.name,
     columns: [
@@ -56,17 +61,16 @@ function withoutPresentationExtras(dataset: DatasetJSON): DatasetJSON {
   };
 }
 
-function assertProperty(seedOffset: number, property: fc.IProperty<unknown[]>) {
-  fc.assert(property, {
+function propertyConfig(seedOffset: number) {
+  return {
     numRuns: NUM_RUNS,
     seed: BASE_SEED + seedOffset,
-  });
+  };
 }
 
 describe('P1-Q Q2 bounded canonical dataset identity properties', () => {
   it('excludes undeclared row fields from scientific identity', () => {
-    assertProperty(
-      1,
+    fc.assert(
       fc.property(datasetArbitrary, (sample) => {
         const withPresentationExtras = toDataset(sample);
         const scientificOnly = withoutPresentationExtras(withPresentationExtras);
@@ -74,12 +78,12 @@ describe('P1-Q Q2 bounded canonical dataset identity properties', () => {
           canonicalDatasetIdentityHex(scientificOnly),
         );
       }),
+      propertyConfig(1),
     );
   });
 
   it('excludes row lineage and root presentation metadata from scientific identity', () => {
-    assertProperty(
-      2,
+    fc.assert(
       fc.property(
         datasetArbitrary,
         fc.array(fc.string({ maxLength: 20 }), { maxLength: 25 }),
@@ -95,12 +99,12 @@ describe('P1-Q Q2 bounded canonical dataset identity properties', () => {
           );
         },
       ),
+      propertyConfig(2),
     );
   });
 
   it('preserves scientific identity through a JSON roundtrip', () => {
-    assertProperty(
-      3,
+    fc.assert(
       fc.property(datasetArbitrary, (sample) => {
         const dataset = withoutPresentationExtras(toDataset(sample));
         const roundTripped = JSON.parse(JSON.stringify(dataset)) as DatasetJSON;
@@ -108,12 +112,12 @@ describe('P1-Q Q2 bounded canonical dataset identity properties', () => {
           canonicalDatasetIdentityHex(dataset),
         );
       }),
+      propertyConfig(3),
     );
   });
 
   it('keeps graph endpoint JSON type scientifically visible', () => {
-    assertProperty(
-      4,
+    fc.assert(
       fc.property(jsonScalar, (attribute) => {
         const base: DatasetJSON = {
           name: 'endpoint-type-property',
@@ -132,12 +136,12 @@ describe('P1-Q Q2 bounded canonical dataset identity properties', () => {
           canonicalDatasetIdentityHex(stringEndpoint),
         );
       }),
+      propertyConfig(4),
     );
   });
 
   it('normalizes missing declared values and explicit null to the same canonical projection', () => {
-    assertProperty(
-      5,
+    fc.assert(
       fc.property(fc.integer(), fc.string({ maxLength: 20 }), (x, name) => {
         const missing: DatasetJSON = {
           name,
@@ -158,6 +162,7 @@ describe('P1-Q Q2 bounded canonical dataset identity properties', () => {
           canonicalDatasetIdentityHex(explicitNull),
         );
       }),
+      propertyConfig(5),
     );
   });
 });
