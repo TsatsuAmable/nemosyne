@@ -1,0 +1,153 @@
+name: Rust cadence pilot
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/rust-cadence-pilot.yml'
+      - 'scripts/q1-rust-cadence-benchmark.sh'
+      - 'docs/review-plans/P1Q_Q1_RUST_CADENCE_2026-08-28.md'
+      - 'wasm/**'
+      - 'rust-toolchain.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-cadence-pilot-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXTEST_VERSION: '0.9.143'
+  NEXTEST_SHA256: '66786b9abe23920d022a182d1416b1bbc8130dd4872a9553d76985a1708dcd1e'
+  SCCACHE_VERSION: '0.17.0'
+  SCCACHE_SHA256: '67c4a96dd237c1f518f6b36083f270f9976d516f1e57fce891755ea782e50006'
+
+jobs:
+  runner-comparison:
+    name: cargo test vs nextest (${{ matrix.order }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        order: [cargo-first, nextest-first]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+
+      - name: Install SHA-verified cargo-nextest
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/cargo-nextest.tar.gz"
+          extract="$RUNNER_TEMP/cargo-nextest"
+          url="https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${NEXTEST_VERSION}/cargo-nextest-${NEXTEST_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          curl --fail --location --silent --show-error --retry 4 --retry-all-errors "$url" -o "$archive"
+          echo "${NEXTEST_SHA256}  ${archive}" | sha256sum --check --strict
+          mkdir -p "$extract" "$HOME/.cargo/bin"
+          tar -xzf "$archive" -C "$extract"
+          binary="$(find "$extract" -type f -name cargo-nextest -print -quit)"
+          test -n "$binary"
+          install -m 0755 "$binary" "$HOME/.cargo/bin/cargo-nextest"
+          cargo nextest --version
+
+      - name: Fetch Rust dependencies outside benchmark timer
+        run: cargo fetch --manifest-path wasm/Cargo.toml
+
+      - name: Run cold/warm runner comparison
+        env:
+          Q1_RUNNER_ORDER: ${{ matrix.order }}
+          Q1_RESULT_DIR: q1-rust-cadence-results
+        run: bash scripts/q1-rust-cadence-benchmark.sh runner
+
+      - name: Publish benchmark summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if [[ -f q1-rust-cadence-results/timings.txt ]]; then
+            {
+              echo "### Rust runner benchmark: ${{ matrix.order }}"
+              echo '```text'
+              cat q1-rust-cadence-results/timings.txt
+              echo '```'
+              if [[ -f q1-rust-cadence-results/cargo-test-count.txt ]]; then
+                echo "cargo test inventory count: $(cat q1-rust-cadence-results/cargo-test-count.txt)"
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload runner evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: q1-runner-${{ matrix.order }}
+          path: q1-rust-cadence-results
+          if-no-files-found: warn
+          retention-days: 14
+
+  sccache-comparison:
+    name: sccache bounded experiment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+
+      - name: Install SHA-verified sccache
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/sccache.tar.gz"
+          extract="$RUNNER_TEMP/sccache"
+          url="https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl --fail --location --silent --show-error --retry 4 --retry-all-errors "$url" -o "$archive"
+          echo "${SCCACHE_SHA256}  ${archive}" | sha256sum --check --strict
+          mkdir -p "$extract" "$HOME/.cargo/bin"
+          tar -xzf "$archive" -C "$extract"
+          binary="$(find "$extract" -type f -name sccache -print -quit)"
+          test -n "$binary"
+          install -m 0755 "$binary" "$HOME/.cargo/bin/sccache"
+          sccache --version
+
+      - name: Fetch Rust dependencies outside benchmark timer
+        run: cargo fetch --manifest-path wasm/Cargo.toml
+
+      - name: Run bounded sccache comparison
+        env:
+          Q1_RESULT_DIR: q1-rust-cadence-results
+        run: bash scripts/q1-rust-cadence-benchmark.sh sccache
+
+      - name: Publish sccache summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if [[ -f q1-rust-cadence-results/timings.txt ]]; then
+            {
+              echo '### sccache bounded experiment'
+              echo '```text'
+              cat q1-rust-cadence-results/timings.txt
+              echo '```'
+              if [[ -f q1-rust-cadence-results/sccache-stats.txt ]]; then
+                echo '```text'
+                cat q1-rust-cadence-results/sccache-stats.txt
+                echo '```'
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload sccache evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: q1-sccache
+          path: q1-rust-cadence-results
+          if-no-files-found: warn
+          retention-days: 14
