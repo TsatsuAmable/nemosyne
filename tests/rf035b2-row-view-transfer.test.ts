@@ -81,7 +81,8 @@ describe('RF-035B2 compact row-view mutation transfer', () => {
   it('commits an authoritative row-view result without Dataset.fromJSON', async () => {
     const kernel = makeKernelMockBridge();
     const port = new RowViewPort();
-    const atlas = new AtlasCore({ kernel: kernel as any, executionPort: port });
+    const atlas = new AtlasCore({ kernel: kernel as any });
+    atlas.setExecutionPort(port);
     atlas.loadDataset(dataset());
 
     const expected = new Dataset(
@@ -129,7 +130,8 @@ describe('RF-035B2 compact row-view mutation transfer', () => {
   it('fails closed on an unknown row id instead of recomputing the operation in TypeScript', async () => {
     const kernel = makeKernelMockBridge();
     const port = new RowViewPort();
-    const atlas = new AtlasCore({ kernel: kernel as any, executionPort: port });
+    const atlas = new AtlasCore({ kernel: kernel as any });
+    atlas.setExecutionPort(port);
     atlas.loadDataset(dataset());
     const beforeFingerprint = atlas.datasetFingerprint;
     const beforeVersion = atlas.datasetVersion;
@@ -161,7 +163,8 @@ describe('RF-035B2 compact row-view mutation transfer', () => {
   it('fails closed if a compact result claims graph edges', async () => {
     const kernel = makeKernelMockBridge();
     const port = new RowViewPort();
-    const atlas = new AtlasCore({ kernel: kernel as any, executionPort: port });
+    const atlas = new AtlasCore({ kernel: kernel as any });
+    atlas.setExecutionPort(port);
     atlas.loadDataset(dataset());
 
     port.response = {

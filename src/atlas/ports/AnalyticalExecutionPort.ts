@@ -1,4 +1,4 @@
-import type { Provenance } from '../../data/types.ts';
+import type { DatasetJSON, Provenance } from '../../data/types.ts';
 import type { TdaResourcePreflight } from '../../wasm/runtime/DatasetHandleBridge.ts';
 
 export type AnalyticalOperationKind =
@@ -17,6 +17,26 @@ export interface AnalyticalDatasetPayload {
 }
 
 export type DatasetPayload = AnalyticalDatasetPayload;
+
+export interface AnalyticalRowView {
+  readonly name: string;
+  readonly rowIds: readonly string[];
+  readonly rowCount: number;
+  readonly columnCount: number;
+  readonly edgesPresent: boolean;
+}
+
+export type AnalyticalOperationOutput =
+  | {
+      readonly kind: 'dataset';
+      readonly dataset: DatasetJSON;
+      readonly outputFingerprint: string;
+    }
+  | {
+      readonly kind: 'row-view';
+      readonly view: AnalyticalRowView;
+      readonly outputFingerprint: string;
+    };
 
 export interface AnalyticalDatasetRegistration {
   readonly registrationId: string;

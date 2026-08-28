@@ -17,6 +17,8 @@ export interface KernelCommitOptions {
   fingerprint?: string;
   provenance?: unknown;
   versionBump?: boolean;
+  /** Adopt an Atlas-internal Dataset instance instead of defensively cloning it. */
+  adoptDataset?: boolean;
 }
 
 export class AnalyticalState {
@@ -62,9 +64,9 @@ export class AnalyticalState {
   }
 
   commitKernelResult(options: KernelCommitOptions, destroyer?: (handle: number) => void): void {
-    const { handle, dataset, fingerprint, versionBump = true } = options;
+    const { handle, dataset, fingerprint, versionBump = true, adoptDataset = false } = options;
     this._sourceRef = null;
-    const nextDataset = dataset?.clone?.() ?? emptyDataset();
+    const nextDataset = adoptDataset ? dataset : (dataset?.clone?.() ?? emptyDataset());
     if (this._currentHandle !== 0 && this._currentHandle !== handle && destroyer) {
       try { destroyer(this._currentHandle); } catch { /* best-effort cleanup */ }
     }

@@ -36,6 +36,7 @@ export interface DatasetHandleExports {
   data_sample_keys(ptr: number, len: number): number;
   dataset_row_count(handle: number): number;
   dataset_column_count(handle: number): number;
+  dataset_row_view(handle: number, ptr: number, len: number): number;
   dataset_destroy(handle: number): void;
   dataset_to_json(handle: number, ptr: number, len: number): number;
   data_operation(handle: number, ptr: number, len: number): number;

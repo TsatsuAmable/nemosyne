@@ -10,6 +10,7 @@
  */
 
 import { Dataset } from '../data/Dataset.ts';
+import { canonicalDatasetIdentityHex } from '../data/DatasetIdentity.ts';
 import type { AnalysisHistory, HistoryEntry } from '../data/AnalysisHistory.ts';
 import type { DatasetEvidence } from '../data/evidence/index.ts';
 import type {
@@ -65,7 +66,7 @@ import { InvestigationAggregate, EvidenceLedger } from './domain/index.ts';
 import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidenceAdapter.ts';
 
-import type { AnalyticalExecutionPort, DatasetPayload } from './ports/AnalyticalExecutionPort.ts';
+import type { AnalyticalExecutionPort, AnalyticalOperationOutput, AnalyticalRowView, DatasetPayload } from './ports/AnalyticalExecutionPort.ts';
 import { InlineAnalyticalPort } from './ports/InlineAnalyticalPort.ts';
 
 export { KernelUnavailableError };
@@ -110,6 +111,56 @@ export class AtlasCore {
     if (!current) return undefined;
     this._setWorkerPayloadFromDataset(current);
     return this._workerDatasetPayload ?? undefined;
+  }
+
+  private _canUseWorkerRowView(dataset: Dataset | null, operation: OperationSpec): boolean {
+    const rowIds = dataset?.rowIds;
+    return Boolean(
+      dataset &&
+      dataset.edges === undefined &&
+      rowIds &&
+      rowIds.length === dataset.rowCount &&
+      new Set(rowIds).size === rowIds.length &&
+      ['filter', 'sort', 'slice'].includes(operation.op)
+    );
+  }
+
+  private _materializeWorkerRowView(
+    input: Dataset,
+    view: AnalyticalRowView,
+    outputFingerprint: string
+  ): { dataset: Dataset; json: DatasetJSON } {
+    if (input.edges !== undefined || view.edgesPresent) {
+      throw new KernelUnavailableError('[AtlasCore] compact row-view cannot represent dataset edges.');
+    }
+    const sourceIds = input.rowIds;
+    if (
+      !sourceIds ||
+      sourceIds.length !== input.rowCount ||
+      new Set(sourceIds).size !== sourceIds.length ||
+      view.rowCount !== view.rowIds.length ||
+      view.columnCount !== input.columnCount ||
+      new Set(view.rowIds).size !== view.rowIds.length
+    ) {
+      throw new KernelUnavailableError('[AtlasCore] invalid compact row-view identity metadata.');
+    }
+
+    const byId = new Map(sourceIds.map((id, index) => [id, input.rows[index]] as const));
+    const rows = view.rowIds.map((id) => {
+      const row = byId.get(id);
+      if (!row) {
+        throw new KernelUnavailableError(`[AtlasCore] compact row-view references unknown row id ${id}.`);
+      }
+      return row;
+    });
+    const dataset = new Dataset(view.name, input.columns.slice(), rows, undefined, [...view.rowIds]);
+    const json = dataset.toJSON();
+    if (canonicalDatasetIdentityHex(json) !== outputFingerprint) {
+      throw new KernelUnavailableError(
+        '[AtlasCore] compact row-view reconstruction does not match the authoritative output fingerprint.'
+      );
+    }
+    return { dataset, json };
   }
 
   private async _registerCurrentDatasetInWorker(
@@ -741,12 +792,14 @@ export class AtlasCore {
     }
     const version = this.datasetVersion;
     const generation = this._generation;
+    const inputDataset = this._aggregate.analytical.currentNullable;
     if (!(await this._registerCurrentDatasetInWorker(inputFingerprint, version))) {
       throw new Error(`[AtlasCore] async op "${spec.operation.op}" superseded before dispatch`);
     }
     const reqId = `areq-${++this._requestSeq}`;
 
-    const res = await this._executionPort.execute<{
+    const compactRowView = this._canUseWorkerRowView(inputDataset, spec.operation);
+    const res = await this._executionPort.execute<AnalyticalOperationOutput | {
       dataset: DatasetJSON;
       outputFingerprint: string;
     }>({
@@ -754,7 +807,10 @@ export class AtlasCore {
       operation: 'operation',
       dataset: { fingerprint: inputFingerprint, version },
       generation,
-      params: { operation: spec.operation },
+      params: {
+        operation: spec.operation,
+        ...(compactRowView ? { resultMode: 'row-view-if-lossless' } : {}),
+      },
     });
 
     if (
@@ -769,7 +825,6 @@ export class AtlasCore {
 
     if (
       typeof res.value !== 'object' ||
-      !('dataset' in res.value) ||
       !('outputFingerprint' in res.value) ||
       typeof res.value.outputFingerprint !== 'string' ||
       !res.value.outputFingerprint
@@ -779,9 +834,31 @@ export class AtlasCore {
       );
     }
 
-    const json = res.value.dataset;
     const outputHash = res.value.outputFingerprint;
-    const nextDataset = Dataset.fromJSON(json);
+    let json: DatasetJSON;
+    let nextDataset: Dataset;
+    let adoptDataset = false;
+
+    if ('kind' in res.value && res.value.kind === 'row-view') {
+      if (!compactRowView || !inputDataset) {
+        throw new KernelUnavailableError('[AtlasCore] unexpected compact row-view Worker result.');
+      }
+      const materialized = this._materializeWorkerRowView(inputDataset, res.value.view, outputHash);
+      nextDataset = materialized.dataset;
+      json = materialized.json;
+      adoptDataset = true;
+    } else {
+      // `kind: dataset` is the current production full path. The untagged shape
+      // is retained temporarily for third-party/test execution-port compatibility.
+      const datasetJson = 'dataset' in res.value ? res.value.dataset : null;
+      if (!datasetJson) {
+        throw new KernelUnavailableError(
+          `[AtlasCore] async op "${spec.operation.op}" produced no dataset payload.`
+        );
+      }
+      json = datasetJson;
+      nextDataset = Dataset.fromJSON(json);
+    }
 
     this._aggregate.analytical.commitKernelResult(
       {
@@ -789,6 +866,7 @@ export class AtlasCore {
         dataset: nextDataset,
         fingerprint: outputHash,
         versionBump: true,
+        adoptDataset,
       },
       (handle: number) => this._analytics.destroyDataset(handle)
     );
