@@ -3,7 +3,7 @@
 Date: 28 August 2026
 Base: `main@f0b91f60a5327d7d6ce462eb0a3560f91b996455` (#486)
 Stream: B — review / fix-forward
-Status: implementation candidate / verification active
+Status: implementation candidate / final exact-head verification pending
 
 ## Problem
 
@@ -57,9 +57,11 @@ The implementation is wrong if any of the following is true:
 
 ## Evidence to date
 
-The first exact-head run (`815e69d8`, CI 1286) established that Rust unit tests, TypeScript typecheck/lint/docs, production build, the WASM coverage package, and the new real-WASM row-view ABI tests were sound. Its sole observed test failure was the deliberate RuntimeBridge public-export allowlist rejecting the newly added `datasetRowView` export. That boundary test was updated to enumerate the new dataset-family API rather than weakened or bypassed. A fresh exact-head rerun is required before promotion.
+The first exact-head run (`815e69d8`, CI 1286) established that Rust unit tests, TypeScript typecheck/lint/docs, production build, the WASM coverage package, and the new real-WASM row-view ABI tests were sound. Its sole observed test failure was the deliberate RuntimeBridge public-export allowlist rejecting the newly added `datasetRowView` export. That boundary test was updated to enumerate the new dataset-family API rather than weakened or bypassed.
 
 The real-WASM tests prove that Rust returns authoritative sort row lineage/order through `dataset_row_view` without requiring output row-value serialization, and that graph presence is carried in the descriptor so topology-bearing output cannot take the compact path.
+
+Post-implementation ownership review then rejected an initial zero-copy current-dataset commit optimization. The corrected tree at `07b90698` restores the established `commitKernelResult()` defensive clone while retaining the compact Worker transfer and no-`Dataset.fromJSON()` result path. The net branch diff contains no temporary patch workflows/scripts and no `AnalyticalState` change. A fresh exact-head full CI/CodeQL/approval run from this corrected ownership model is required before promotion.
 
 ## Expected benefit
 
