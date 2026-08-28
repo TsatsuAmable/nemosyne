@@ -3,6 +3,7 @@ import './setup-wasm.ts';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { ColumnType, Dataset } from '../src/data/Dataset.ts';
 import type { DatasetPayload } from '../src/atlas/ports/AnalyticalExecutionPort.ts';
+import { encodeTypedColumnsPayload } from '../src/wasm/TypedColumnsCodec.ts';
 import * as bridge from '../src/wasm/RuntimeBridge.ts';
 
 interface WorkerPayloadAccess {
@@ -22,13 +23,13 @@ function numericRows(rowCount = 50_000): Array<Record<string, unknown>> {
   }));
 }
 
-describe('RF-051 canonical large worker registration', () => {
+describe('RF-051 worker registration authority', () => {
   beforeAll(async () => {
     if (!bridge.isReady()) await bridge.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
     if (!bridge.isReady()) throw new Error('real WASM runtime unavailable');
   });
 
-  it('uses NTC1 for large numeric datasets and Rust accepts the same canonical identity', () => {
+  it('keeps large row-backed numeric datasets on the operation-complete JSON registration contract', () => {
     const dataset = new Dataset(
       'large-numeric-worker',
       [
@@ -41,22 +42,50 @@ describe('RF-051 canonical large worker registration', () => {
     atlas.loadDataset(dataset);
 
     const payload = workerPayload(atlas);
+    expect(payload.type).toBe('json');
+    const json = payload.data as ReturnType<Dataset['toJSON']>;
+    expect(json.rows).toHaveLength(50_000);
+    expect(json.columns).toEqual([
+      { name: 'x', type: 'NUMERIC' },
+      { name: 'y', type: 'NUMERIC' },
+    ]);
+    atlas.setKernel(null);
+  });
+
+  it('keeps explicit NTC1 typed sources typed and exposes unified Rust identity and shape metadata', () => {
+    const bytes = encodeTypedColumnsPayload({
+      rowCount: 3,
+      columns: [
+        {
+          name: 'x',
+          type: 'numeric',
+          values: new Float64Array([1.5, 2.5, 3.5]),
+          validity: new Uint8Array([1, 1, 1]),
+        },
+        {
+          name: 'y',
+          type: 'numeric',
+          values: new Float64Array([10, 20, 30]),
+          validity: new Uint8Array([1, 1, 1]),
+        },
+      ],
+    });
+    const atlas = new AtlasCore({ kernel: bridge });
+    const handle = atlas.loadTypedDataset(bytes, 'typed-native-worker');
+
+    expect(handle).toBeGreaterThan(0);
+    expect(bridge.datasetFingerprint(handle)).toBe(atlas.datasetFingerprint);
+    expect(bridge.datasetRowCount(handle)).toBe(3);
+    expect(bridge.datasetColumnCount(handle)).toBe(2);
+
+    const payload = workerPayload(atlas);
     expect(payload.type).toBe('typed');
-    const bytes = payload.data instanceof Uint8Array
+    const workerBytes = payload.data instanceof Uint8Array
       ? payload.data
       : new Uint8Array(payload.data as ArrayBuffer);
-    expect(new TextDecoder().decode(bytes.subarray(0, 4))).toBe('NTC1');
-
-    const handle = bridge.loadTypedColumns(bytes, payload.name);
-    expect(handle).toBeGreaterThan(0);
-    try {
-      expect(bridge.datasetFingerprint(handle)).toBe(atlas.datasetFingerprint);
-      expect(bridge.datasetRowCount(handle)).toBe(50_000);
-      expect(bridge.datasetColumnCount(handle)).toBe(2);
-    } finally {
-      bridge.destroyDataset(handle);
-      atlas.setKernel(null);
-    }
+    expect(new TextDecoder().decode(workerBytes.subarray(0, 4))).toBe('NTC1');
+    expect(workerBytes).toEqual(bytes);
+    atlas.setKernel(null);
   });
 
   it('keeps large mixed datasets on JSON instead of dropping categorical science', () => {
