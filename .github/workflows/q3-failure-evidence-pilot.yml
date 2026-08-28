@@ -1,0 +1,72 @@
+name: Q3 failure evidence pilot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: q3-failure-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  failure-evidence:
+    name: Deliberate browser failure evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build instrumented production bundle
+        run: |
+          mkdir -p q3-pilot
+          /usr/bin/time -v -o q3-pilot/build-time.txt \
+            env VITE_NEMOSYNE_DIAGNOSTICS=1 npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Prove deliberate failure emits reproducible evidence
+        shell: bash
+        run: |
+          set +e
+          /usr/bin/time -v -o q3-pilot/probe-time.txt \
+            env \
+              NEMOSYNE_Q3_EVIDENCE=1 \
+              NEMOSYNE_Q3_FAILURE_PROBE=1 \
+              NEMOSYNE_SMOKE_PREBUILT=1 \
+              npx playwright test tests/smoke/q3-failure-evidence-probe.spec.ts \
+              > q3-pilot/probe.log 2>&1
+          probe_status=$?
+          set -e
+          printf '%s\n' "$probe_status" > q3-pilot/probe-exit-code.txt
+          if [ "$probe_status" -eq 0 ]; then
+            cat q3-pilot/probe.log
+            echo 'Q3 probe unexpectedly passed; the falsifier did not execute.' >&2
+            exit 1
+          fi
+          node scripts/verify-q3-failure-evidence.mjs | tee q3-pilot/verification.json
+
+      - name: Upload Q3 pilot evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: q3-failure-evidence-pilot
+          path: |
+            q3-pilot
+            test-results
+          if-no-files-found: warn
+          retention-days: 7
