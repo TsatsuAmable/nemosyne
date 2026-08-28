@@ -33,6 +33,11 @@ export async function bootstrapApp(): Promise<AppInstance> {
     installResourceEnvelopeDiagnosticHook(world);
   }
 
+  if (import.meta.env.VITE_NEMOSYNE_Q3D_BROWSER_PROBE === '1') {
+    const { installBrowserEnvelopeDiagnosticHook } = await import('./browserEnvelopeDiagnostics.ts');
+    installBrowserEnvelopeDiagnosticHook(world);
+  }
+
   const telemetry = document.getElementById('telemetry');
   if (telemetry) {
     if (world.bootState === 'KERNEL_UNAVAILABLE') {
