@@ -192,6 +192,9 @@ Primary owners: Stream C / RF-041/RF-058 and dependency-modernization backlog.
 
 ## Q9 — Exact-head promotion controller — VERY HIGH GOVERNANCE VALUE / MEDIUM COST
 
+**Status: IMPLEMENTATION LANDED / PILOT / REVIEW ACTIVE** — see
+`P1Q_Q9_PROMOTION_CONTROLLER_2026-08-28.md`.
+
 Replace promotion races with one explicit merge authority.
 
 A governed PR may promote only when the exact current head SHA has:

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "repository": "TsatsuAmable/nemosyne",
+  "branch": "main",
+  "intendedPolicy": {
+    "rulesetName": "Protect main \u2014 require PR + CI + approval-gate",
+    "enforcement": "active",
+    "requiredStatusChecks": [
+      "Node 24",
+      "CodeQL SAST (javascript-typescript)",
+      "approval-gate"
+    ],
+    "requiredReviewThreadResolution": true,
+    "requiredApprovingReviewCount": 0,
+    "approvalAuthority": "approval-gate workflow (owner approval on the exact PR head)",
+    "promotionEvidenceMarker": "Exact-head promotion evidence verified",
+    "headRevocation": "Any head movement revokes promotion evidence until re-verified"
+  }
+}
