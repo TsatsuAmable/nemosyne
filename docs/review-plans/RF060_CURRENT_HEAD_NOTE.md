@@ -1,1 +1,0 @@
-Current implementation branch head should be read from the PR metadata; this file intentionally contains no asserted SHA and may be removed before promotion.

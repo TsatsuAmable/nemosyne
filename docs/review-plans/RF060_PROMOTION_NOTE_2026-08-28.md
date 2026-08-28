@@ -1,1 +1,0 @@
-RF-060 promotion remains blocked until focused correctness tests, exact-head CI/CodeQL/approval/promotion-controller evidence, zero unresolved review threads, and a post-fix Q3D 1k/8k/32k measurement are all complete. This note does not constitute approval or verified completion.

@@ -1,1 +1,0 @@
-Do not merge RF-060 until the post-fix Q3D staircase is captured and the post-review record is completed.

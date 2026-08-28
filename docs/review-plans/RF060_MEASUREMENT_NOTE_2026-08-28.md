@@ -1,1 +1,0 @@
-Pre-fix Q3D evidence head `d83ad0693bb6b59af19724998a2720bfb207221d` measured 7 direct and 2 DatasetSpace authoritative fingerprint lookups totalling approximately 940.8 ms during the 32k compact-sort capture. These timings are nested with Worker/TDA work and are not additive wall-clock savings. Post-fix causality requires the same Q3D staircase on the implementation head.

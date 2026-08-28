@@ -1,1 +1,0 @@
-Implement and verify RF-060 authoritative fingerprint retention.
