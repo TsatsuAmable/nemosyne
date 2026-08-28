@@ -54,11 +54,13 @@ describe('RF-035B2B reference-backed result storage', () => {
     store.registerRowView(v2, v1, {
       name: 'base sorted',
       columns: base.toJSON().columns,
+      rows: [{ value: 3 }, { value: 1 }],
       rowIds: ['r3', 'r1'],
     });
     store.registerRowView(v3, v2, {
       name: 'base filtered',
       columns: base.toJSON().columns,
+      rows: [{ value: 1 }],
       rowIds: ['r1'],
     });
 
@@ -72,6 +74,15 @@ describe('RF-035B2B reference-backed result storage', () => {
     expect(materialized?.rows).toEqual([{ value: 3 }, { value: 1 }]);
     expect(materialized?.rowIds).toEqual(['r3', 'r1']);
     expect(store.materialize(v3)?.rows).toEqual([{ value: 1 }]);
+
+    expect(() =>
+      store.registerRowView(ref(4, 'fp-corrupt'), v2, {
+        name: 'corrupt',
+        columns: base.toJSON().columns,
+        rows: [{ value: 999 }],
+        rowIds: ['r3'],
+      }),
+    ).toThrow(/changed value/i);
   });
 
   it('keeps live result/event metadata cheap and lazily reconstructs the compatible dataset', () => {

@@ -799,6 +799,15 @@ export class AtlasCore {
     const reqId = `areq-${++this._requestSeq}`;
 
     const compactRowView = this._canUseWorkerRowView(inputDataset, spec.operation);
+    if (compactRowView && inputDataset) {
+      // The initial baseline may have been indexed before Rust hydrated durable
+      // row IDs. Refresh metadata only when that exact source is still a borrowed
+      // baseline; compact/snapshot historical entries are never overwritten.
+      this._aggregate.ledger.refreshBorrowedDatasetVersion(
+        { datasetVersion: version, datasetFingerprint: inputFingerprint },
+        inputDataset
+      );
+    }
     const res = await this._executionPort.execute<AnalyticalOperationOutput | {
       dataset: DatasetJSON;
       outputFingerprint: string;

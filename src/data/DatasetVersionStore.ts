@@ -20,18 +20,15 @@ export interface DatasetVersionDescriptor {
   columnCount: number;
 }
 
-export interface DatasetRowViewDescriptor {
-  name: string;
-  columns: DatasetJSON['columns'];
-  rowIds: string[];
-}
-
 export type DatasetVersionStorageKind = 'borrowed' | 'snapshot' | 'row-view';
 
 type BorrowedEntry = {
   kind: 'borrowed';
   ref: DatasetVersionRef;
-  dataset: Dataset;
+  name: string;
+  columns: DatasetJSON['columns'];
+  rowCount: number;
+  rowIds?: string[];
 };
 
 type SnapshotEntry = {
@@ -65,6 +62,28 @@ function assertRef(ref: DatasetVersionRef): void {
   }
 }
 
+function cloneValue(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
+  if (value === null || typeof value !== 'object') return value;
+  const existing = seen.get(value as object);
+  if (existing !== undefined) return existing;
+  if (Array.isArray(value)) {
+    const output: unknown[] = [];
+    seen.set(value, output);
+    for (const item of value) output.push(cloneValue(item, seen));
+    return output;
+  }
+  const output: Record<string, unknown> = {};
+  seen.set(value as object, output);
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    output[key] = cloneValue((value as Record<string, unknown>)[key], seen);
+  }
+  return output;
+}
+
+function cloneRow(row: Record<string, unknown>): Record<string, unknown> {
+  return cloneValue(row) as Record<string, unknown>;
+}
+
 function cloneColumns(columns: DatasetJSON['columns']): DatasetJSON['columns'] {
   return columns.map((column) => ({ name: column.name, type: column.type }));
 }
@@ -73,8 +92,8 @@ function cloneJson(snapshot: DatasetJSON): DatasetJSON {
   return {
     name: snapshot.name,
     columns: cloneColumns(snapshot.columns),
-    rows: snapshot.rows.map((row) => ({ ...row })),
-    edges: snapshot.edges?.map((edge) => ({ ...edge })),
+    rows: snapshot.rows.map(cloneRow),
+    edges: snapshot.edges?.map((edge) => cloneValue(edge) as NonNullable<DatasetJSON['edges']>[number]),
     ...(snapshot.rowIds ? { rowIds: snapshot.rowIds.slice() } : {}),
   };
 }
@@ -94,13 +113,34 @@ function columnsEqual(a: DatasetJSON['columns'], b: DatasetJSON['columns']): boo
   );
 }
 
+function valuesEqual(a: unknown, b: unknown, seen = new WeakMap<object, object>()): boolean {
+  if (Object.is(a, b)) return true;
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
+  const mapped = seen.get(a as object);
+  if (mapped) return mapped === b;
+  seen.set(a as object, b as object);
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((value, index) => valuesEqual(value, b[index], seen));
+  }
+  const aRecord = a as Record<string, unknown>;
+  const bRecord = b as Record<string, unknown>;
+  const aKeys = Object.keys(aRecord).sort();
+  const bKeys = Object.keys(bRecord).sort();
+  if (aKeys.length !== bKeys.length || aKeys.some((key, index) => key !== bKeys[index])) return false;
+  return aKeys.every((key) => valuesEqual(aRecord[key], bRecord[key], seen));
+}
+
 /**
  * Runtime index over dataset states already owned by the investigation.
  *
- * Full/derived results retain a DatasetJSON snapshot. The initial row-backed
- * baseline may be borrowed from AnalyticalState without cloning. A verified
- * RF-035B2 row-preserving result stores only durable output row IDs plus compact
- * metadata and resolves directly against the nearest full/borrowed base.
+ * Full/derived results retain one isolated DatasetJSON snapshot. The initial
+ * row-backed baseline contributes only compact metadata + durable row lineage;
+ * it is never used as mutable historical row-value backing. A verified RF-035B2
+ * row-preserving result stores only output row IDs + compact metadata while a
+ * per-lineage row cache captures each verified row value once from the transient
+ * fingerprint-verified result. Chained/branched row views reuse those cached
+ * values and therefore cannot be rewritten through stale Dataset references.
  *
  * This remains a persistence/orchestration index, not an analytical authority:
  * it never computes membership/order or transforms scientific values.
@@ -108,24 +148,39 @@ function columnsEqual(a: DatasetJSON['columns'], b: DatasetJSON['columns']): boo
 export class DatasetVersionStore {
   private readonly _entries = new Map<string, DatasetVersionEntry>();
   private readonly _entriesByFingerprint = new Map<string, DatasetVersionEntry>();
+  private readonly _rowValuesByBase = new Map<string, Map<string, Record<string, unknown>>>();
 
   register(ref: DatasetVersionRef, snapshot: DatasetJSON): void {
     assertRef(ref);
-    this._setEntry({ kind: 'snapshot', ref: { ...ref }, snapshot });
+    this._setEntry({ kind: 'snapshot', ref: { ...ref }, snapshot: cloneJson(snapshot) });
   }
 
   registerBorrowed(ref: DatasetVersionRef, dataset: Dataset): void {
     assertRef(ref);
-    this._setEntry({ kind: 'borrowed', ref: { ...ref }, dataset });
+    this._setEntry({
+      kind: 'borrowed',
+      ref: { ...ref },
+      name: dataset.name,
+      columns: cloneColumns(dataset.columns),
+      rowCount: dataset.rowCount,
+      rowIds: dataset.rowIds?.slice(),
+    });
   }
 
   registerRowView(
     ref: DatasetVersionRef,
     sourceRef: DatasetVersionRef,
-    view: DatasetRowViewDescriptor,
+    view: DatasetJSON,
   ): void {
     assertRef(ref);
     assertRef(sourceRef);
+    if (view.edges && view.edges.length > 0) {
+      throw new Error('[DatasetVersionStore] verified row-view output cannot carry edges');
+    }
+    if (!validLineage(view.rowIds, view.rows.length)) {
+      throw new Error('[DatasetVersionStore] verified row-view output row IDs must align, be unique, and be non-empty');
+    }
+
     const source = this._resolveEntry(sourceRef);
     if (!source) {
       throw new Error('[DatasetVersionStore] verified row-view source version is unavailable');
@@ -135,9 +190,6 @@ export class DatasetVersionStore {
     if (!validLineage(sourceRowIds, sourceDescriptor.rowCount)) {
       throw new Error('[DatasetVersionStore] verified row-view source has no valid durable row lineage');
     }
-    if (!validLineage(view.rowIds, view.rowIds.length)) {
-      throw new Error('[DatasetVersionStore] verified row-view output row IDs must be unique and non-empty');
-    }
     const allowed = new Set(sourceRowIds);
     if (view.rowIds.some((id) => !allowed.has(id))) {
       throw new Error('[DatasetVersionStore] verified row-view references a row outside its source lineage');
@@ -146,7 +198,27 @@ export class DatasetVersionStore {
     if (!columnsEqual(sourceColumns, view.columns)) {
       throw new Error('[DatasetVersionStore] verified row-view schema differs from its source version');
     }
+
     const baseRef = source.kind === 'row-view' ? source.baseRef : source.ref;
+    const baseKey = versionKey(baseRef);
+    let rowValues = this._rowValuesByBase.get(baseKey);
+    if (!rowValues) {
+      rowValues = new Map<string, Record<string, unknown>>();
+      this._rowValuesByBase.set(baseKey, rowValues);
+    }
+    for (let index = 0; index < view.rowIds.length; index += 1) {
+      const rowId = view.rowIds[index];
+      const row = view.rows[index];
+      const existing = rowValues.get(rowId);
+      if (existing) {
+        if (!valuesEqual(existing, row)) {
+          throw new Error(`[DatasetVersionStore] verified row ${rowId} changed value within one row-preserving lineage`);
+        }
+        continue;
+      }
+      rowValues.set(rowId, cloneRow(row));
+    }
+
     this._setEntry({
       kind: 'row-view',
       ref: { ...ref },
@@ -174,27 +246,21 @@ export class DatasetVersionStore {
   materializeJSON(ref: DatasetVersionRef): DatasetJSON | null {
     const entry = this._resolveEntry(ref);
     if (!entry) return null;
-    if (entry.kind === 'borrowed') return entry.dataset.toJSON();
+    // Borrowed baselines are metadata/lineage only. EvidenceLedger's original-
+    // dataset compatibility path owns explicit materialisation of that state.
+    if (entry.kind === 'borrowed') return null;
     if (entry.kind === 'snapshot') return cloneJson(entry.snapshot);
 
-    const base = this._resolveEntry(entry.baseRef);
-    if (!base || base.kind === 'row-view') {
-      throw new Error('[DatasetVersionStore] verified row-view base version is unavailable');
-    }
-    const baseJson = base.kind === 'borrowed' ? base.dataset.toJSON() : cloneJson(base.snapshot);
-    if (!validLineage(baseJson.rowIds, baseJson.rows.length)) {
-      throw new Error('[DatasetVersionStore] verified row-view base has no valid durable row lineage');
-    }
-    const byId = new Map<string, Record<string, unknown>>();
-    for (let index = 0; index < baseJson.rowIds.length; index += 1) {
-      byId.set(baseJson.rowIds[index], baseJson.rows[index]);
+    const rowValues = this._rowValuesByBase.get(versionKey(entry.baseRef));
+    if (!rowValues) {
+      throw new Error('[DatasetVersionStore] verified row-view row cache is unavailable');
     }
     const rows = entry.rowIds.map((id) => {
-      const row = byId.get(id);
+      const row = rowValues.get(id);
       if (!row) {
-        throw new Error(`[DatasetVersionStore] verified row-view base is missing row ${id}`);
+        throw new Error(`[DatasetVersionStore] verified row-view cache is missing row ${id}`);
       }
-      return { ...row };
+      return cloneRow(row);
     });
     return {
       name: entry.name,
@@ -213,11 +279,19 @@ export class DatasetVersionStore {
   clear(): void {
     this._entries.clear();
     this._entriesByFingerprint.clear();
+    this._rowValuesByBase.clear();
   }
 
   private _setEntry(entry: DatasetVersionEntry): void {
-    this._entries.set(versionKey(entry.ref), entry);
-    if (!this._entriesByFingerprint.has(entry.ref.datasetFingerprint)) {
+    const key = versionKey(entry.ref);
+    const previous = this._entries.get(key);
+    this._entries.set(key, entry);
+    const fingerprintEntry = this._entriesByFingerprint.get(entry.ref.datasetFingerprint);
+    // Preserve the earliest content entry for fingerprint fallback, except when
+    // this is a metadata refresh of that exact logical entry (for example after
+    // Rust row IDs are hydrated). In that case the fallback must not remain
+    // pinned to stale lineage metadata.
+    if (!fingerprintEntry || fingerprintEntry === previous) {
       this._entriesByFingerprint.set(entry.ref.datasetFingerprint, entry);
     }
   }
@@ -231,13 +305,13 @@ export class DatasetVersionStore {
   }
 
   private _rowIdsForEntry(entry: DatasetVersionEntry): readonly string[] | undefined {
-    if (entry.kind === 'borrowed') return entry.dataset.rowIds;
+    if (entry.kind === 'borrowed') return entry.rowIds;
     if (entry.kind === 'snapshot') return entry.snapshot.rowIds;
     return entry.rowIds;
   }
 
   private _columnsForEntry(entry: DatasetVersionEntry): DatasetJSON['columns'] {
-    if (entry.kind === 'borrowed') return entry.dataset.columns;
+    if (entry.kind === 'borrowed') return entry.columns;
     if (entry.kind === 'snapshot') return entry.snapshot.columns;
     return entry.columns;
   }
@@ -246,9 +320,9 @@ export class DatasetVersionStore {
     if (entry.kind === 'borrowed') {
       return {
         ref: { ...requestedRef },
-        name: entry.dataset.name,
-        rowCount: entry.dataset.rowCount,
-        columnCount: entry.dataset.columnCount,
+        name: entry.name,
+        rowCount: entry.rowCount,
+        columnCount: entry.columns.length,
       };
     }
     if (entry.kind === 'snapshot') {

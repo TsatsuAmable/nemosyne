@@ -76,6 +76,12 @@ export class EvidenceLedger {
     this._datasetVersions.registerBorrowed(ref, dataset);
   }
 
+  refreshBorrowedDatasetVersion(ref: DatasetVersionRef, dataset: Dataset): void {
+    if (this._datasetVersions.storageKind(ref) === 'borrowed') {
+      this._datasetVersions.registerBorrowed(ref, dataset);
+    }
+  }
+
   addResult(result: AnalysisResult, storageHint?: AnalysisResultStorageHint): void {
     const resultRef: DatasetVersionRef = {
       datasetVersion: result.datasetVersion,
@@ -90,11 +96,7 @@ export class EvidenceLedger {
       if (!rowIds || rowIds.length !== result.dataset.rows.length) {
         throw new Error('[EvidenceLedger] verified row-view result requires aligned durable row IDs');
       }
-      this._datasetVersions.registerRowView(resultRef, storageHint.sourceRef, {
-        name: result.dataset.name,
-        columns: result.dataset.columns,
-        rowIds,
-      });
+      this._datasetVersions.registerRowView(resultRef, storageHint.sourceRef, result.dataset);
     } else {
       this._datasetVersions.register(resultRef, result.dataset);
     }
