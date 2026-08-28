@@ -228,6 +228,27 @@ export class InvestigationAggregate {
       state.findings,
       state.annotations
     );
+    // RF-035B2B: persisted results repopulate their own full version entries,
+    // but a valid schema-v2 snapshot may contain zero results. Re-register the
+    // restored original as the borrowed baseline so the first subsequently
+    // verified row-view mutation has a source without allocating another row
+    // snapshot. Fingerprint fallback handles reset/seek versions of this same
+    // canonical content while logical version identity remains distinct.
+    const loadEvent = (state.eventLedger ?? []).find(
+      (event) => event.kind === 'load' && Boolean(event.datasetFingerprint)
+    );
+    const baselineFingerprint =
+      loadEvent?.datasetFingerprint ??
+      ((state.analysisResults?.length ?? 0) === 0 ? state.datasetFingerprint : null);
+    if (original && baselineFingerprint) {
+      this.ledger.registerDatasetVersion(
+        {
+          datasetVersion: loadEvent?.datasetVersion ?? 1,
+          datasetFingerprint: baselineFingerprint,
+        },
+        original
+      );
+    }
     this.decisions.restore(state.activeRecommendation ?? null, state.decisionHistory ?? []);
 
     if (state.investigationGraph && state.investigationGraph.nodes?.length > 0) {
