@@ -1,0 +1,53 @@
+name: P1-Q Q2 fast-check adoption preflight
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/p1q-q2-fast-check-adoption-preflight.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tests/q2-dataset-identity-properties.test.ts'
+      - 'tests/config/test-groups.ts'
+      - 'docs/review-plans/P1Q_Q2_FAST_CHECK_ADOPTION_2026-08-28.md'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: fast-check lockfile and Q8 preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Generate exact lockfile candidate without lifecycle scripts
+        run: |
+          npm install --package-lock-only --ignore-scripts --save-dev --save-exact fast-check@4.9.0
+          echo '=== P1Q_PACKAGE_DIFF_BEGIN ==='
+          git diff -- package.json package-lock.json
+          echo '=== P1Q_PACKAGE_DIFF_END ==='
+
+      - name: Inspect Q8 package metadata
+        run: |
+          echo '=== P1Q_FAST_CHECK_METADATA ==='
+          npm view fast-check@4.9.0 version license dependencies scripts dist.integrity --json
+          echo '=== P1Q_PURE_RAND_METADATA ==='
+          npm view pure-rand@8.4.2 version license dependencies scripts dist.integrity --json
+
+      - name: Audit generated dependency graph
+        run: npm audit --audit-level=moderate
+
+      - name: Measure locked install candidate
+        run: >-
+          /usr/bin/time
+          -f 'P1-Q Q2 locked npm-ci elapsed=%e sec maxrss=%M KB'
+          npm ci --ignore-scripts
