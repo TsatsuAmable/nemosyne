@@ -4,7 +4,7 @@ Date: 28 August 2026
 Base: `main@0b0f4b5a8ba2af948b4a7144202f7fe45717e85f` (#487)
 Branch: `fix/rf035b2b-reference-results`
 Stream: B — independent fix-forward review
-Status: verification active
+Status: corrected candidate / exact-head verification active
 
 ## Production boundary re-reviewed
 
@@ -18,6 +18,8 @@ Rust/WASM still determines result membership/order and authoritative output fing
 2. **Mutable borrowed-base alias:** the first design reconstructed historical row views from a publicly reachable borrowed Atlas `Dataset`, allowing stale mutations to rewrite historical evidence. A regression was committed before the correction. Borrowed entries now retain metadata/lineage only; verified transient outputs seed deep-copied per-lineage row values.
 3. **Late Rust lineage hydration:** baseline metadata can be indexed before first-lineage row IDs are hydrated. Atlas now refreshes only a still-borrowed source entry immediately before eligible compact dispatch; snapshot/row-view history cannot be overwritten by this refresh.
 4. **Rejected-registration partial mutation:** a corrupt row-view could initially add previously unseen row values before a later cached-ID mismatch caused rejection. A regression was committed before the fix. Row-cache writes are now staged and committed only after all equality checks pass, so failure is atomic.
+5. **AnalysisResult object-identity regression:** exact-head CI 1315 exposed that the first lazy-result wrapper changed object identity even though contents matched. Existing Atlas behavior requires the object returned by `applyAnalysis()` to be the same object retained in `atlas.results` and referenced by the analysis event. The fix now replaces only that object's enumerable `dataset` data property with the lazy materialization getter and retains the exact result object.
+6. **Legacy/mock full-result shape assumption:** exact-head CI 1315 also exposed that the new full-snapshot clone assumed canonical row-backed `DatasetJSON.rows[]`. Existing replay compatibility still accepts historical/mock columnar payloads without `rows`. Full-snapshot storage now deep-clones the accepted payload as received rather than normalizing it, and descriptor access treats missing row arrays as zero-row compatibility metadata. Row-view compaction remains restricted to the verified canonical row-backed path.
 
 ## Evidence/falsifiability
 
@@ -30,9 +32,11 @@ The added RF-035B2B tests require:
 - a repeated durable row ID with different values fails closed;
 - a rejected registration cannot poison later legitimate cache state;
 - graph-bearing output cannot be compacted by a row-view storage hint;
-- a zero-result restored session can accept its first later verified row-view result.
+- a zero-result restored session can accept its first later verified row-view result;
+- the exact `AnalysisResult` object remains shared by the caller, result collection and analysis event;
+- accepted legacy/mock full snapshots can be cloned and materialized without requiring `rows[]`.
 
-Existing session/replay/digest tests remain authoritative for schema-v2 and reproducibility compatibility. Exact-head CI, CodeQL and approval-gate must all pass before the PR is promoted from draft.
+Existing session/replay/digest tests remain authoritative for schema-v2 and reproducibility compatibility. The two CI 1315 failures were treated as production compatibility defects; the existing tests were not weakened. A fresh exact-head CI, CodeQL and approval-gate run on the corrected tree must all pass before the PR is promoted from draft.
 
 ## Residual risks / non-claims
 
