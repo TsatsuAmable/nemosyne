@@ -20,6 +20,7 @@ Rust/WASM still determines result membership/order and authoritative output fing
 4. **Rejected-registration partial mutation:** a corrupt row-view could initially add previously unseen row values before a later cached-ID mismatch caused rejection. A regression was committed before the fix. Row-cache writes are now staged and committed only after all equality checks pass, so failure is atomic.
 5. **AnalysisResult object-identity regression:** exact-head CI 1315 exposed that the first lazy-result wrapper changed object identity even though contents matched. Existing Atlas behavior requires the object returned by `applyAnalysis()` to be the same object retained in `atlas.results` and referenced by the analysis event. The fix now replaces only that object's enumerable `dataset` data property with the lazy materialization getter and retains the exact result object.
 6. **Legacy/mock full-result shape assumption:** exact-head CI 1315 also exposed that the new full-snapshot clone assumed canonical row-backed `DatasetJSON.rows[]`. Existing replay compatibility still accepts historical/mock columnar payloads without `rows`. Full-snapshot storage now deep-clones the accepted payload as received rather than normalizing it, and descriptor access treats missing row arrays as zero-row compatibility metadata. Row-view compaction remains restricted to the verified canonical row-backed path.
+7. **Repeated restore input mutation:** exact-head CI 1319 cleared the original result-identity failure in shard 2, but session/world tests in shards 1 and 3 exposed that `EvidenceLedger.restore()` attached lazy getters directly to caller-owned persisted result objects. Reusing the same in-memory session snapshot then failed after the version store was cleared because those input objects still pointed at the prior store. A focused regression was committed before the correction. `restore()` now materializes and copies all incoming results while any existing lazy backing is still valid, then clears internal state and attaches new lazy getters only to private copies. Restore is therefore repeatable and no longer mutates persisted result inputs.
 
 ## Evidence/falsifiability
 
@@ -33,10 +34,11 @@ The added RF-035B2B tests require:
 - a rejected registration cannot poison later legitimate cache state;
 - graph-bearing output cannot be compacted by a row-view storage hint;
 - a zero-result restored session can accept its first later verified row-view result;
-- the exact `AnalysisResult` object remains shared by the caller, result collection and analysis event;
-- accepted legacy/mock full snapshots can be cloned and materialized without requiring `rows[]`.
+- the exact live `AnalysisResult` object remains shared by the caller, result collection and analysis event;
+- accepted legacy/mock full snapshots can be cloned and materialized without requiring `rows[]`;
+- restoring the same persisted result/event snapshot repeatedly succeeds and leaves those caller-owned input result objects unchanged.
 
-Existing session/replay/digest tests remain authoritative for schema-v2 and reproducibility compatibility. The two CI 1315 failures were treated as production compatibility defects; the existing tests were not weakened. A fresh exact-head CI, CodeQL and approval-gate run on the corrected tree must all pass before the PR is promoted from draft.
+Existing session/replay/digest tests remain authoritative for schema-v2 and reproducibility compatibility. CI 1315 and CI 1319 failures were treated as production compatibility defects; the existing tests were not weakened. A fresh exact-head CI, CodeQL and approval-gate run on the corrected tree must all pass before the PR is promoted from draft.
 
 ## Residual risks / non-claims
 
