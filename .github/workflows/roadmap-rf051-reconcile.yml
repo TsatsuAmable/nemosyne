@@ -1,0 +1,141 @@
+name: Roadmap RF051 reconciliation
+
+on:
+  push:
+    branches: [fix/rf051-ntc1-worker-registration]
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: fix/rf051-ntc1-worker-registration
+
+      - name: Reconcile roadmap against merged state
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('docs/ROADMAP.md')
+          text = path.read_text()
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected one roadmap anchor, found {count}: {old[:100]!r}')
+              text = text.replace(old, new, 1)
+
+          replace_once('## Status snapshot — 27 August 2026', '## Status snapshot — 28 August 2026')
+          replace_once(
+              "**Current remote main at roadmap branch cut:** `9b3c990` (`feat(ui): repair P1-U1 direct touch semantics and pointer capture (RF-049)` — #465 merged). Since the prior roadmap snapshot, RF-044 graph lineage repair completed its implementation tranches through #453/#455, RF-045 truthful Moneta signature evidence landed in #461, RF-048 canonical dataset identity landed in #463 with a green definitive gate, and the parallel UI stream advanced P1-U3 through #462/#464 then landed the code-level RF-049 Direct Touch/capture repair in #465. Static resource limits remain kernel safety guards, not Quest qualification and not evidence of generic 10M-row support.",
+              "**Current remote main at roadmap branch cut:** `d2c4eb6` (`Feat/p1 u6 vault archival portals` — #478 merged). Since the prior snapshot, RF-046 semantic investigation digest and RF-047 portable non-mutating-event replay landed at implementation level, while RF-051 advanced through #472/#473/#476 and #478. Merged-state Stream-B review found that #478's new >=50k-row worker registration path emitted a bespoke non-NTC1 binary payload and selected only numeric columns before handing those bytes to the canonical Rust typed loader. This fix-forward tranche restores the governed NTC1 codec for the lossless numeric subset and keeps mixed/graph datasets on canonical JSON. #478's title did **not** implement the P1-U6 IceVault/archive/portal tranche; P1-U6 remains partial. Static resource limits remain kernel safety guards, not Quest qualification and not evidence of generic 10M-row support."
+          )
+          replace_once(
+              "**Reprioritised Stream-B critical path:** (1) **CURRENT: RF-046 semantic investigation digest** now that RF-048 canonical dataset identity has landed; (2) **RF-047 portable replay integrity** so refusal/remediation and other durable non-mutating events reconstruct cleanly; (3) RF-029/RF-030/RF-031/RF-035 plus **RF-051** for the complete analytical resource/memory envelope, including JS-side N-dependent cliffs; (4) RF-001/RF-002/RF-036 representation/evidence authority review on top of the landed RF-045 truth contract; (5) **RF-050** and remaining P1-U convergence/device work in the parallel UI stream, with RF-049 code-level repair landed in #465 but physical qualification still pending; (6) RF-015/RF-033 production evidence and **RF-052** governance truthfulness; (7) physical Quest 3S qualification; (8) **post-UI P1-W production wiring** under RF-053 through RF-056; (9) private-preview hardening. Stream C continues in parallel on RF-037 through RF-043 plus RF-057/RF-058. The dependency rule remains: **preserved source data → truthful analytical evidence → reproducible identity/replay → bounded computation → faithful representation → coherent investigator UX → physical XR proof → production wiring → private preview.**",
+              "**Reprioritised Stream-B critical path:** (1) **CURRENT: RF-029/RF-030/RF-031/RF-035/RF-051 complete resource, memory and mutation-residency envelope**, including the #478 NTC1 worker-registration fix-forward and the still-open Worker -> JS -> Worker mutation cycle; (2) RF-001/RF-002/RF-036 representation/evidence authority review on top of the landed RF-045 truth contract; (3) **RF-050** and remaining P1-U convergence/device work in the parallel UI stream, with RF-049 code-level repair landed in #465 but physical qualification still pending; (4) RF-015/RF-033 production evidence and **RF-052** governance truthfulness; (5) physical Quest 3S qualification; (6) **post-UI P1-W production wiring** under RF-053 through RF-056; (7) private-preview hardening. RF-046/RF-047 are implementation-landed/review-active foundations rather than current implementation targets. Stream C continues in parallel on RF-037 through RF-043 plus RF-057/RF-058. The dependency rule remains: **preserved source data → truthful analytical evidence → reproducible identity/replay → bounded computation → faithful representation → coherent investigator UX → physical XR proof → production wiring → private preview.**"
+          )
+          replace_once(
+              "**Current interpretation:** P1-A, P1-B, P1-C, P1-D, P1-E and P1-F contain material implementation advances but remain **IMPLEMENTATION LANDED / REVIEW ACTIVE**, not `VERIFIED COMPLETE`. RF-044, RF-045 and RF-048 have implementation landed but still require the normal independent merged-state review discipline before any broader gate is called verified. P1-U remains **IMPLEMENTATION PARTIAL / REVIEW ACTIVE** and is advancing independently; #465 materially advances RF-049 at code level but does not substitute for Quest/controller/hand evidence. Dominant risks are incomplete semantic digest/replay commitments, memory/transport cliffs, collaboration/security authority gaps including RF-057, off-path security/privacy controls, production wiring and product/device evidence gaps. Stream A may continue only where these defects are not dependencies; Stream B fixes correctness/evidence foundations; Stream C independently hardens security/privacy-sensitive live boundaries.",
+              "**Current interpretation:** P1-A, P1-B, P1-C, P1-D, P1-E and P1-F contain material implementation advances but remain **IMPLEMENTATION LANDED / REVIEW ACTIVE**, not `VERIFIED COMPLETE`. RF-044, RF-045, RF-046, RF-047 and RF-048 have implementation landed but remain review-monitored; RF-051 has landed several bounded fix-forward tranches but still depends on RF-029/RF-035 and measured whole-pipeline evidence. P1-U remains **IMPLEMENTATION PARTIAL / REVIEW ACTIVE**; #478 did not implement P1-U6 despite its title. Dominant risks are memory/transport/residency cliffs, representation/evidence authority gaps, collaboration/security authority gaps including RF-057, off-path security/privacy controls, production wiring and product/device evidence gaps. Stream A may continue only where these defects are not dependencies; Stream B fixes correctness/evidence foundations; Stream C independently hardens security/privacy-sensitive live boundaries."
+          )
+
+          lines = text.splitlines()
+          out = []
+          section = None
+          for line in lines:
+              if line.startswith('| RF-006 |'):
+                  line = "| RF-006 | P1-U / world semantics | High | TechnoCore's epistemic-instrument/product seam is implemented, but IceVault/Evidence Vault archival/recovery and semantic-portal behavior remain incomplete. | **IMPLEMENTATION PARTIAL / REVIEW ACTIVE:** P1-U5 wired TechnoCore guidance/alternatives/constraints/remediation and typed NIL remediation/replay. P1-U6 still must provide a real immutable archive/recovery function or remove/demote the persistent Vault, and portals must remain semantic travel rather than hidden analytical mutation. |"
+              elif line.startswith('| RF-046 |'):
+                  line = "| RF-046 | Investigation provenance / digest completeness | High | The SHA-256 investigation digest was cryptographically strong but its v1 preimage was a lossy semantic projection. | **IMPLEMENTATION LANDED / REVIEW ACTIVE:** v2 semantic digest (`sha256-canonical-investigation-v2`) commits per-entity canonical hashes for governed events/results/structures/observations/findings/annotations/representation state/discoveries/NIL/research context, excludes presentation-only/replay-volatile identity deliberately, and has mutation/tamper plus legacy-v1 compatibility coverage. Preserve this contract and complete merged-state review before `VERIFIED COMPLETE`. |"
+              elif line.startswith('| RF-051 |'):
+                  line = "| RF-051 | P1-A/P1-B / JavaScript scale cliffs | High | Even with Rust owning analytical work, browser preprocessing/registration/export paths can still create N-dependent copies, serialisation and transfer peaks before or after Rust's resource envelope. | **IMPLEMENTATION LANDED / REVIEW ACTIVE, NOT COMPLETE:** #472 removed spread/argument-count cliffs; #473 bound live DatasetSpace identity/ranges/lineage to authoritative metadata; #476 removed the duplicate live DatasetSpace row snapshot and eager post-mutation range scan. #478 added large-row registration/streaming work, but merged-state review found its bespoke >=50k typed worker payload was not the governed NTC1 ABI and could drop non-numeric/graph semantics; this fix-forward restores canonical NTC1 only for the lossless edge-free all-numeric subset and preserves JSON otherwise. Remaining: RF-035 durable Worker/Rust mutation residency, handle-only/typed DatasetSpace projection, mixed/graph transfer without row-major JSON where justified, full resident+transient Rust+Worker+JS accounting, refusal-before-expensive-JS where possible, and measured browser/WASM/transfer/GC/device evidence. |"
+
+              if line.startswith('### AR-4 — semantic investigation digest completeness'):
+                  line = '### AR-4 — semantic investigation digest completeness — RF-046 — **IMPLEMENTATION LANDED / REVIEW ACTIVE**'
+                  section = 'ar4'
+              elif line.startswith('### AR-5 — portable non-mutating event replay'):
+                  line = '### AR-5 — portable non-mutating event replay — RF-047 with RF-027/RF-030 — **IMPLEMENTATION LANDED / REVIEW ACTIVE**'
+                  section = 'ar5'
+              elif line.startswith('### AR-6 — complete end-to-end resource envelope'):
+                  section = 'ar6'
+              elif line.startswith('### AR-7 —'):
+                  section = None
+
+              if section in {'ar4', 'ar5'} and line.startswith('- [ ] '):
+                  line = line.replace('- [ ] ', '- [x] ', 1)
+
+              if section == 'ar6':
+                  mapping = {
+                      '- [ ] remove `Math.min(...values)`, `Math.max(...values)`, `push(...largeArray)` and equivalent spread/argument-count hazards from large-N paths;': '- [x] remove `Math.min(...values)`, `Math.max(...values)`, `push(...largeArray)` and equivalent spread/argument-count hazards from the identified large-N Dataset paths (#472);',
+                      '- [ ] audit Dataset/DatasetSpace/worker registration/session/package paths for full-row cloning, `map`/`Array.from`, JSON serialization and hash work that scales with N on the main thread;': '- [/] audit Dataset/DatasetSpace/worker registration/session/package paths for full-row cloning, `map`/`Array.from`, JSON serialization and hash work that scales with N on the main thread; #473/#476 removed live DatasetSpace re-derivation/duplication and this tranche repairs #478 worker registration, while RF-035 plus mixed/session/package materialisation remain open;',
+                      '- [ ] expose Rust-owned ranges/identity/summary evidence to avoid recomputing authoritative facts in JS;': '- [x] expose and consume Rust-owned live ranges/identity/row-lineage evidence for DatasetSpace instead of recomputing those facts in JS (#473/#476);',
+                  }
+                  line = mapping.get(line, line)
+
+              if line == '3. **AR-3 RF-048** landed in #463. **AR-4 RF-046 is now current**, followed by AR-5 RF-047 once the digest/event contract is stable.':
+                  line = '3. **AR-3 RF-048, AR-4 RF-046 and AR-5 RF-047** have implementation landed and remain review-active; preserve their identity/digest/replay regressions rather than treating them as the current implementation frontier.'
+              elif line == '4. **AR-6 RF-051** rejoins the already active RF-029/RF-035 resource programme; continue RF-030/RF-031 bounded/refusal work in parallel where it does not depend on identity migration.':
+                  line = '4. **CURRENT: AR-6 RF-051 with RF-029/RF-035**, plus residual RF-030/RF-031 resource/refusal work. Remove/bound full browser/Worker rematerialisation and measure the complete envelope before representation work inherits unsupported scale assumptions.'
+
+              if line == '- [x] close **RF-006** through P1-U5/P1-U6;':
+                  line = '- [/] close **RF-006**: TechnoCore/P1-U5 is implementation-landed; IceVault archival/recovery and semantic portals under P1-U6 remain open.'
+              if line == '- [ ] **RF-047:** prove those refusal events survive clean-room portable replay and digest verification;':
+                  line = '- [x] **RF-047 implementation:** refusal/remediation events survive clean-room portable replay with event-order/payload verification; retain merged-state review before broader verification.'
+              if line == '- [ ] **RF-047:** prove remediation provenance in clean-room `.nemosyne` replay, not only session serialize/deserialize;':
+                  line = '- [x] **RF-047 implementation:** remediation provenance is reconstructed and verified in clean-room `.nemosyne` replay; retain merged-state review.'
+              if line == '- [ ] expose the actionable NIL flow through actual investigator UI/modalities and call `recordRemediation` when applied;':
+                  line = '- [x] P1-U5 exposes typed actionable NIL remediation through the investigator product path and records durable remediation provenance.'
+
+              if line.startswith('#420 adds typed durable remediation provenance'):
+                  line = '#420 adds typed durable remediation provenance at the aggregate/ledger layer and #439 adds durable refusal provenance. #463 landed canonical cryptographic dataset identity (RF-048); #478 landed the RF-046 v2 semantic digest and RF-047 clean-room reconstruction/verification of durable refusal/remediation events. These are **IMPLEMENTATION LANDED / REVIEW ACTIVE** foundations, not yet permission to call portable investigation integrity `VERIFIED COMPLETE`.'
+
+              if line.startswith('| 4 — NIL |'):
+                  line = '| 4 — NIL | **IMPLEMENTATION LANDED / REVIEW ACTIVE** | Typed remediation is wired through the investigator path and RF-047 clean-room replay has landed; retain adversarial merged-state/product evidence before verification. |'
+              if line.startswith('| 5 — Discovery |'):
+                  line = '| 5 — Discovery | **INFRASTRUCTURE ADVANCED / REVIEW ACTIVE** | RF-048 identity plus RF-046/RF-047 semantic digest/replay implementations have landed; finish merged-state review, falsification workflows, outcome evidence and controlled discovery-quality studies. |'
+
+              if line.startswith('1. **RF-046 — semantic investigation digest. CURRENT / HIGH.**'):
+                  line = '1. **CURRENT: RF-029 + RF-030 + RF-031 + RF-035 + RF-051 — analytical resource/residency envelope.** Preserve kernel-inline refusal, correct #478 worker registration at the real NTC1 boundary, remove/bound Worker -> JS -> Worker mutation rematerialisation, and finish measured whole-pipeline qualification.'
+              elif line.startswith('2. **RF-047 — portable replay integrity.**'):
+                  line = '2. **RF-036 + RF-001/RF-002 — representation/evidence authority review.** Re-audit canonical topology/spatial evidence and representation semantics on top of the landed RF-045 truth contract.'
+              elif line.startswith('3. **RF-036 + RF-001/RF-002 — representation/evidence authority review.**'):
+                  line = '3. **RF-050 / remaining P1-U0..P1-U9 evidence — whole-product convergence.** Continue UI implementation independently while preserving scientific/interaction authority boundaries.'
+              elif line.startswith('4. **RF-029 + RF-030 + RF-031 + RF-035 + RF-051 — analytical resource envelope.**'):
+                  line = '4. **RF-015 + RF-033 — production evidence architecture.** Add real Worker/WASM timings and keep browser-smoke signal independent; RF-046/RF-047 remain landed/review-active foundations rather than implementation queue items.'
+              elif line.startswith('5. **RF-050 / remaining P1-U0..P1-U9 evidence — whole-product convergence.**'):
+                  line = '5. **RF-052 + RF-009/RF-034 — governance truth.** Align branch-rule names/review policy/current-main status with actual enforcement; keep automated review from becoming a false or unnecessary blocker.'
+              elif line.startswith('6. **RF-015 + RF-033 — production evidence architecture.**'):
+                  line = '6. **Physical XR qualification — RF-026 residual + RF-049/RF-050 + PERF-04 + UX-03.** Quest 3S controllers/hands/desktop semantic parity, comfort, frame/memory budgets and target-device task evidence.'
+              elif line.startswith('7. **RF-052 + RF-009/RF-034 — governance truth.**'):
+                  line = '7. **P1-W / RF-053 through RF-056 — post-UI production wiring.** Start only after P1-U convergence; include deployed collaboration/security boundaries and capability reconciliation.'
+              elif line.startswith('8. **Physical XR qualification'):
+                  line = '8. **Private-preview hardening.** Auth/access control, retention/privacy, consent/telemetry, release/rollback/recovery and compatibility only after applicable blocker/high findings close or are explicitly risk-accepted.'
+              elif line.startswith('9. **P1-W / RF-053 through RF-056'):
+                  line = '9. Review each new Stream A merge immediately and append/fix RF findings in the same cadence.'
+              elif line.startswith('10. **Private-preview hardening.**') or line.startswith('11. Review each new Stream A merge'):
+                  continue
+
+              if line == '- Require RF-046/RF-047 to close before making strong reproducible-investigation integrity claims; RF-048 canonical dataset identity is implemented and remains review-monitored.':
+                  line = '- RF-046/RF-047 implementation has landed, but strong reproducible-investigation integrity claims still require merged-state adversarial review and compatibility/tamper evidence to agree; RF-048 canonical dataset identity remains review-monitored.'
+
+              out.append(line)
+
+          text = '\n'.join(out) + '\n'
+          path.write_text(text)
+          Path('.github/workflows/roadmap-rf051-reconcile.yml').unlink()
+
+      - name: Commit reconciliation and remove one-shot workflow
+        run: |
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -- docs/ROADMAP.md .github/workflows/roadmap-rf051-reconcile.yml
+          git commit -m "docs(roadmap): reconcile RF-051 merged state"
+          git push origin HEAD:fix/rf051-ntc1-worker-registration
