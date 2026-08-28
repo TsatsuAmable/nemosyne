@@ -1,0 +1,45 @@
+{
+  "algorithm": "sha256-canonical-dataset-v1",
+  "expectedSha256": "086ee326ccea7d4921c5287c2285957f0ced5b34fd1c8a3be98cb6be387bf0d9",
+  "canonicalJson": "{\"columns\":[{\"name\":\"\",\"type\":\"CATEGORICAL\"},{\"name\":\"𐀀\",\"type\":\"CATEGORICAL\"},{\"name\":\"label\",\"type\":\"CATEGORICAL\"},{\"name\":\"value\",\"type\":\"NUMERIC\"}],\"edges\":[{\"active\":true,\"relation\":{\"z\":3,\"𐀀\":\"supp-edge\",\"\":\"bmp-edge\"},\"source\":0,\"target\":1,\"weight\":0.5},{\"kind\":\"stable\",\"source\":\"row-b\",\"target\":\"row-a\"}],\"name\":\"q2-cross-language-golden-v1\",\"rows\":[{\"label\":null,\"value\":42,\"𐀀\":\"supp-a\",\"\":\"bmp-a\"},{\"label\":null,\"value\":0,\"𐀀\":\"supp-b\",\"\":\"bmp-b\"}]}",
+  "dataset": {
+    "name": "q2-cross-language-golden-v1",
+    "columns": [
+      { "name": "", "type": "CATEGORICAL" },
+      { "name": "𐀀", "type": "CATEGORICAL" },
+      { "name": "label", "type": "CATEGORICAL" },
+      { "name": "value", "type": "NUMERIC" }
+    ],
+    "rows": [
+      {
+        "value": 42,
+        "𐀀": "supp-a",
+        "": "bmp-a",
+        "presentationOnly": "ignored"
+      },
+      {
+        "": "bmp-b",
+        "label": null,
+        "value": 0,
+        "𐀀": "supp-b",
+        "presentationOnly": { "camera": true }
+      }
+    ],
+    "rowIds": ["row-a", "row-b"],
+    "_meta": { "selected": true, "cameraHint": "presentation-only" },
+    "edges": [
+      {
+        "target": 1,
+        "relation": { "": "bmp-edge", "z": 3, "𐀀": "supp-edge" },
+        "source": 0,
+        "weight": 0.5,
+        "active": true
+      },
+      {
+        "target": "row-a",
+        "kind": "stable",
+        "source": "row-b"
+      }
+    ]
+  }
+}
