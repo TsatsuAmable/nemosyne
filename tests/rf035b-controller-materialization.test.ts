@@ -23,12 +23,13 @@ describe('RF-035B0 controller materialization', () => {
     const eventBus = new WorldEventBus();
     const atlas = new AtlasCore({ kernel: makeKernelMockBridge(), eventBus });
     const output = {
-      name: 'Filtered',
+      name: 'Sorted',
       columns: [
         { name: 'id', type: ColumnType.NUMERIC },
         { name: 'value', type: ColumnType.NUMERIC },
       ],
       rows: [
+        { id: 1, value: 10 },
         { id: 2, value: 20 },
         { id: 3, value: 30 },
       ],
@@ -74,14 +75,18 @@ describe('RF-035B0 controller materialization', () => {
     eventBus.on(WorldTopics.OPERATION_APPLIED, applied);
     const fromJson = vi.spyOn(Dataset, 'fromJSON');
 
-    await controller.applyAsync('filter');
+    // Use a sort command here rather than filter. Filter builds its threshold
+    // from kernel statistics, and the canned test kernel legitimately parses
+    // its stored JSON to compute that median. That unrelated test-double parse
+    // must not be counted as coordinator result rematerialization.
+    await controller.applyAsync('sort');
 
     expect(fromJson).toHaveBeenCalledTimes(1);
     expect(controller.transformedDataset).toBe(atlas.dataset);
     expect(controller.transformedDataset.rows).toEqual(output.rows);
     expect(applied).toHaveBeenCalledOnce();
     expect(applied.mock.calls[0][0].datasetAfter).toBe(atlas.dataset);
-    expect(applied.mock.calls[0][0].rowCount).toBe(2);
+    expect(applied.mock.calls[0][0].rowCount).toBe(3);
 
     fromJson.mockRestore();
   });
