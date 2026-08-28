@@ -634,16 +634,16 @@ Purpose: turn the Memory Palace into the spatial reasoning graph rather than a s
 
 **Exit gate:** an investigator can move from observation to hypothesis/test/finding, inspect supporting and counterevidence, branch/replay and return without losing provenance or spatial context; graph objects communicate lifecycle rather than subjective importance.
 
-#### P1-U8 — world/panel consolidation, accessibility and comfort hardening — IMPLEMENTATION PARTIAL / REVIEW ACTIVE
+#### P1-U8 — world/panel consolidation, accessibility and comfort hardening — IMPLEMENTATION LANDED / REVIEW ACTIVE
 
 Purpose: remove the remaining panel-wall/runtime clutter and make the converged interface sustainable for real work.
 
-- [ ] retire `VRMenu` as primary navigation after P1-U4 parity; keep developer/research diagnostics (`VRConsole`, input/performance/load telemetry, gesture confidence) hidden from normal analyst mode;
-- [ ] fold recommendation/explainer surfaces into TechnoCore and operation log into Evidence/History; keep Network/peer overview optional and subdued;
-- [ ] enforce declared reference frames and comfortable zones: hand-attached UI is brief, persistent analytical panels are body-locked/pinnable, and head-locked UI is transient critical status only;
-- [ ] add UI-scale, high-contrast and reduced-motion modes; no essential state is color-only and no critical action exists only at tiny/meta typography;
-- [ ] constrain frequent interactions to comfortable reach/posture and replace memorised broad-arm gestures with direct manipulators where a physical mapping exists;
-- [ ] validate 20+ minute inspect/compare sessions for arm fatigue, seated/standing reach, occlusion, legibility and recovery; adjust spatial tokens from device evidence rather than desktop screenshots.
+- [x] retire `VRMenu` as primary navigation after P1-U4 parity; keep developer/research diagnostics (`VRConsole`, input/performance/load telemetry, gesture confidence) hidden from normal analyst mode;
+- [x] fold recommendation/explainer surfaces into TechnoCore and operation log into Evidence/History; keep Network/peer overview optional and subdued;
+- [x] enforce declared reference frames and comfortable zones: hand-attached UI is brief, persistent analytical panels are body-locked/pinnable, and head-locked UI is transient critical status only;
+- [x] add UI-scale, high-contrast and reduced-motion modes; no essential state is color-only and no critical action exists only at tiny/meta typography;
+- [x] constrain frequent interactions to comfortable reach/posture and replace memorised broad-arm gestures with direct manipulators where a physical mapping exists;
+- [x] validate 20+ minute inspect/compare sessions for arm fatigue, seated/standing reach, occlusion, legibility and recovery; adjust spatial tokens from device evidence rather than desktop screenshots.
 
 **Exit gate:** normal analyst mode respects the three-surface budget, diagnostics are non-intrusive, accessibility modes preserve full task semantics, and sustained target-device use does not require repeated shoulder-height/extended-arm interaction.
 

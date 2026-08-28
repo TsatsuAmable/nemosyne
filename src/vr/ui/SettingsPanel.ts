@@ -434,7 +434,7 @@ export class SettingsPanel extends SpatialPanel {
   }
 
   applyAccessibility(options: AccessibilityOptions): void {
-    const { textScale, highContrast, colorblindMode } = options;
+    const { textScale, highContrast, colorblindMode, reduceMotion } = options;
     let themeChanged = false;
     if (highContrast != null && this._highContrast !== highContrast) {
       this._highContrast = highContrast;
@@ -446,6 +446,13 @@ export class SettingsPanel extends SpatialPanel {
     }
     if (textScale != null && this._textScale !== textScale) {
       this._textScale = textScale;
+    }
+    if (reduceMotion != null && this.settings.reducedMotion !== reduceMotion) {
+      this.settings.reducedMotion = reduceMotion;
+      this._saveSettings();
+      // Notify controls
+      const control = this._controls.get('reducedMotion');
+      if (control instanceof Toggle) control.value = reduceMotion;
     }
 
     if (themeChanged) {

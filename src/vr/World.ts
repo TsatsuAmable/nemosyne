@@ -1728,6 +1728,7 @@ export class World {
       highContrast: settings.highContrast ?? false,
       colorblindMode: settings.colorblindMode ?? 'none',
       dwellSelection: settings.dwellSelection ?? false,
+      reducedMotion: settings.reducedMotion ?? false,
     };
 
     // Delegate panel theming to the UI manager so the SpatialPanel-based

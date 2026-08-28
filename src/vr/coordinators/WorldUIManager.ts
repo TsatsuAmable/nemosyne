@@ -224,7 +224,9 @@ export class WorldUIManager {
     applyPanelLayout(this.vrConsole, PANEL_LAYOUT.vrConsole);
     this.engine.addUpdatable(this.vrConsole);
 
-    // Main operation / dataset menu.
+    // Main operation / dataset menu — retired as primary navigation per P1-U8.
+    // Functionality folded into TechnoCore, ContextualTaskSurface, and HandWheelMenu.
+    // Kept for advanced users but hidden by default.
     this.vrMenu = new VRMenu(this.analystAnchor, {
       onLoadDataset: callbacks.onLoadDataset,
       onTogglePortals: callbacks.onTogglePortals,
@@ -243,7 +245,9 @@ export class WorldUIManager {
       onReset: callbacks.onReset,
     } as LooseOptions);
     this.engine.addUpdatable(this.vrMenu);
-    applyPanelLayout(this.vrMenu, PANEL_LAYOUT.vrMenu);
+    // Apply layout but keep hidden by default (retired as primary navigation)
+    applyPanelLayout(this.vrMenu, PANEL_LAYOUT.legacyMenu);
+    this.vrMenu.hide();
 
     // Panel manager owns the launcher ring and per-panel visibility.
     this.panelManager = new PanelManager(engine.cameraGroup, {
@@ -253,6 +257,7 @@ export class WorldUIManager {
     });
     this.panelManager.register(this.telemetryPanel);
     this.panelManager.register(this.vrConsole);
+    // VRMenu registered but hidden by default (retired as primary navigation)
     this.panelManager.register(this.vrMenu);
     this.engine.input.setPanelManager(this.panelManager);
     this.engine.input.addPanel(this.telemetryPanel);
@@ -409,7 +414,8 @@ export class WorldUIManager {
     // their roles here so the launcher ring can list them before first construction.
     this.panelRolesManager.registerPanel('telemetry', 'Input Telemetry', 'diagnostic');
     this.panelRolesManager.registerPanel('vrConsole', 'VR Console', 'diagnostic');
-    this.panelRolesManager.registerPanel('vrMenu', 'Main Menu', 'workspace');
+    // VRMenu retired as primary navigation per P1-U8; reclassified as diagnostic.
+    this.panelRolesManager.registerPanel('vrMenu', 'Legacy Menu', 'diagnostic');
     this.panelRolesManager.registerPanel('settings', 'Settings', 'system');
     this.panelRolesManager.registerPanel('metrics', 'Telemetry Metrics', 'diagnostic');
     this.panelRolesManager.registerPanel('performance', 'Performance Budget', 'diagnostic');
