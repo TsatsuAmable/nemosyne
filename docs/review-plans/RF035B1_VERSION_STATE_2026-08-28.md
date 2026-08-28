@@ -3,7 +3,7 @@
 Date: 28 August 2026
 Base: `main@95e294058ba7f6af8e86e591c7c3b969eb08629c` (#484)
 Stream: B — review / fix-forward
-Status: pre-implementation
+Status: implementation candidate — exact-head verification pending
 
 ## Problem
 
