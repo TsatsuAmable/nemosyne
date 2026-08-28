@@ -1,0 +1,82 @@
+name: Q3D browser envelope pilot
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: q3d-browser-envelope-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-envelope:
+    name: Decompose browser operation envelope
+    if: ${{ github.event_name == 'workflow_dispatch' || github.head_ref == 'test/p1q-q3d-browser-envelope' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      NEMOSYNE_Q3D_ROW_COUNTS: '1000,8000,32000'
+    steps:
+      - name: Checkout exact measurement head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build instrumented production bundle
+        run: |
+          mkdir -p q3d-results
+          /usr/bin/time -v -o q3d-results/build-time.txt \
+            env \
+              VITE_NEMOSYNE_DIAGNOSTICS=1 \
+              VITE_NEMOSYNE_Q3B_RESOURCE_PROBE=1 \
+              VITE_NEMOSYNE_Q3D_BROWSER_PROBE=1 \
+              npm run build
+
+      - name: Pin measured bundle identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_sha="$({
+            find dist -type f -print0 \
+              | LC_ALL=C sort -z \
+              | xargs -0 sha256sum
+          } | sha256sum | awk '{print $1}')"
+          wasm_sha="$(sha256sum dist/wasm/pkg/nemosyne_wasm_bg.wasm | awk '{print $1}')"
+          echo "NEMOSYNE_Q3D_BUNDLE_SHA256=$bundle_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_Q3D_WASM_SHA256=$wasm_sha" >> "$GITHUB_ENV"
+          printf 'bundle_sha256=%s\nwasm_sha256=%s\n' "$bundle_sha" "$wasm_sha" \
+            | tee q3d-results/artifact-identities.txt
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Measure browser-side operation stages
+        run: |
+          /usr/bin/time -v -o q3d-results/probe-time.txt \
+            env \
+              NEMOSYNE_Q3D_BROWSER_PROBE=1 \
+              NEMOSYNE_SMOKE_PREBUILT=1 \
+              npx playwright test tests/smoke/q3d-browser-envelope.spec.ts --retries=0
+
+      - name: Upload Q3D structured evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: q3d-browser-envelope-pilot
+          path: q3d-results
+          if-no-files-found: warn
+          retention-days: 7
