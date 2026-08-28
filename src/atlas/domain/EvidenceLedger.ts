@@ -400,10 +400,20 @@ export class EvidenceLedger {
     findings?: Finding[],
     annotations?: Annotation[],
   ): void {
+    // RF-035B2B: restore is an input/persistence boundary. Materialize and copy
+    // incoming results before clearing the current version store because an
+    // in-memory session snapshot may be restored repeatedly and may reference
+    // results that were made lazy by an earlier restore. Never attach lazy
+    // getters to caller-owned persisted result objects.
+    const restoredResults = results.map((result) => ({
+      ...result,
+      dataset: result.dataset,
+    }));
+
     this._results = [];
     this._resultsById.clear();
     this._datasetVersions.clear();
-    for (const result of results) this.addResult(result);
+    for (const result of restoredResults) this.addResult(result);
     this._ledger = ledger.map((event) => {
       if (!event.result) return { ...event };
       const canonicalResult = this._resultsById.get(event.result.resultId);
