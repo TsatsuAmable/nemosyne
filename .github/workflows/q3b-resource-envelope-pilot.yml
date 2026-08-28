@@ -1,15 +1,13 @@
 name: Q3B resource envelope pilot
 
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: q3b-resource-envelope-${{ github.event.pull_request.number || github.ref }}
+  group: q3b-resource-envelope-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -18,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.sha }}
       NEMOSYNE_Q3B_ROW_COUNTS: '1000,8000,32000'
     steps:
       - name: Checkout repository
