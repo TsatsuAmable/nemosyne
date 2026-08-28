@@ -1,9 +1,17 @@
 import assert from 'node:assert/strict';
-import fc from 'fast-check';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import {
   canonicalDatasetIdentityHex,
   canonicalDatasetIdentityInput,
 } from '../../src/data/DatasetIdentity.ts';
+
+const pilotRoot = process.env.P1Q_FAST_CHECK_ROOT;
+assert.ok(pilotRoot, 'P1Q_FAST_CHECK_ROOT must point at the isolated pilot dependency prefix');
+const pilotRequire = createRequire(path.join(pilotRoot, 'package.json'));
+const fastCheckModule = await import(pathToFileURL(pilotRequire.resolve('fast-check')).href);
+const fc = fastCheckModule.default ?? fastCheckModule;
 
 const BASE_SEED = 20_260_828;
 const NUM_RUNS = 250;
