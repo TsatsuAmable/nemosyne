@@ -74,11 +74,11 @@ describe('RF-051 Dataset large-N guards', () => {
   });
 });
 
-describe('RF-051 AtlasCore large dataset worker payload', () => {
-  it('uses the canonical NTC1 payload for large lossless numeric registration', () => {
+describe('RF-051 AtlasCore row-backed worker payload', () => {
+  it('keeps large numeric row-backed datasets on JSON until RF-035 is operation-aware', () => {
     const atlas = new AtlasCore({ kernel: makeKernelMockBridge() });
     const dataset = new Dataset(
-      'large-typed',
+      'large-json',
       [{ name: 'value', type: ColumnType.NUMERIC }],
       numericRows(60_000),
     );
@@ -87,10 +87,10 @@ describe('RF-051 AtlasCore large dataset worker payload', () => {
 
     const payload = (atlas as any)._workerDatasetPayload;
     expect(payload).not.toBeNull();
-    expect(payload?.type).toBe('typed');
-    expect(payload?.data).toBeInstanceOf(Uint8Array);
-    expect(new TextDecoder().decode(payload.data.subarray(0, 4))).toBe('NTC1');
-    expect(payload?.name).toBe('large-typed');
+    expect(payload?.type).toBe('json');
+    expect(payload?.name).toBe('large-json');
+    expect(payload?.data.rows).toHaveLength(60_000);
+    expect(payload?.data.columns).toEqual([{ name: 'value', type: 'NUMERIC' }]);
   });
 
   it('uses JSON payload for small datasets', () => {
@@ -110,24 +110,25 @@ describe('RF-051 AtlasCore large dataset worker payload', () => {
     expect(payload?.name).toBe('small-json');
   });
 
-  it('refuses the compact conversion when it would discard mixed-schema science', () => {
+  it('preserves mixed-schema columns in large registration material', () => {
     const dataset = new Dataset(
       'mixed-test',
       [
         { name: 'a', type: ColumnType.NUMERIC },
-        { name: 'b', type: ColumnType.NUMERIC },
         { name: 'c', type: ColumnType.CATEGORICAL },
       ],
-      [
-        { a: 1, b: 10, c: 'x' },
-        { a: 2, b: 20, c: 'y' },
-        { a: 3, b: 30, c: 'z' },
-      ],
+      Array.from({ length: 60_000 }, (_, index) => ({
+        a: index,
+        c: index % 2 === 0 ? 'x' : 'y',
+      })),
     );
 
     const atlas = new AtlasCore({ kernel: makeKernelMockBridge() });
-    const payload = (atlas as any)._buildTypedPayloadFromDataset(dataset);
+    atlas.loadDataset(dataset);
+    const payload = (atlas as any)._workerDatasetPayload;
 
-    expect(payload).toBeNull();
+    expect(payload?.type).toBe('json');
+    expect(payload?.data.columns).toContainEqual({ name: 'c', type: 'CATEGORICAL' });
+    expect(payload?.data.rows[1].c).toBe('y');
   });
 });
