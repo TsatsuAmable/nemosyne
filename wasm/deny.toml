@@ -1,0 +1,55 @@
+# cargo-deny policy for the Nemosyne Rust/WASM kernel.
+#
+# Scope note: Nemosyne ships only the wasm32-unknown-unknown artifact. The
+# licence check is therefore run with `-t wasm32-unknown-unknown` so it
+# evaluates the shipped dependency graph (pruning target-specific crates that
+# are never built, such as getrandom's UEFI-only `r-efi` tree). Advisory, ban
+# and source checks intentionally run WITHOUT the target filter so they cover
+# the entire lockfile, including dev-only and host build/test dependencies that
+# CI's `cargo test` actually compiles. A dependency that enters the trusted
+# build graph in any configuration must not carry a known advisory or forbidden
+# source.
+#
+# This is preventive policy, not a permanent absence-of-vulnerability claim:
+# a green run is point-in-time evidence. cargo-deny complements Dependabot
+# update automation; it does not replace it.
+
+[advisories]
+yanked = "deny"
+ignore = []
+
+[licenses]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "BSL-1.0",
+  "Zlib",
+  "Unicode-3.0",
+  "Unlicense",
+]
+confidence-threshold = 0.8
+exceptions = []
+
+[licenses.private]
+ignore = false
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+allow = []
+allow-workspace = true
+deny = []
+skip = []
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[sources.allow-org]
+github = []
+gitlab = []
+bitbucket = []
