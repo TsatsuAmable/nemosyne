@@ -421,8 +421,8 @@ pub fn dataset_column_count(handle: u32) -> u32 {
 pub fn dataset_row_view(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
     let json = match data::with_dataset(handle, |dataset| {
         serde_json::to_string(&serde_json::json!({
-            "name": dataset.name,
-            "rowIds": dataset.row_ids,
+            "name": dataset.name.as_str(),
+            "rowIds": &dataset.row_ids,
             "rowCount": dataset.row_count(),
             "columnCount": dataset.column_count(),
             // `Some([])` is still explicit graph topology in the durable JSON

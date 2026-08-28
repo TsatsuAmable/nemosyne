@@ -323,10 +323,12 @@ export function datasetRowView(handle: number): DatasetRowView | null {
       typeof value.name !== 'string' ||
       !Array.isArray(value.rowIds) ||
       value.rowIds.some((id) => typeof id !== 'string' || id.length === 0) ||
+      typeof value.rowCount !== 'number' ||
       !Number.isSafeInteger(value.rowCount) ||
-      (value.rowCount ?? -1) < 0 ||
+      value.rowCount < 0 ||
+      typeof value.columnCount !== 'number' ||
       !Number.isSafeInteger(value.columnCount) ||
-      (value.columnCount ?? -1) < 0 ||
+      value.columnCount < 0 ||
       value.rowIds.length !== value.rowCount ||
       new Set(value.rowIds).size !== value.rowIds.length ||
       typeof value.edgesPresent !== 'boolean'
