@@ -62,12 +62,26 @@ function executionDiagnostic(scenario: ScenarioEvidence): AnalyticalWorkerDiagno
   return execution;
 }
 
+function sourceMetadata() {
+  return {
+    sourceHeadSha: process.env.NEMOSYNE_SOURCE_HEAD_SHA ?? null,
+    workflowCheckoutSha: process.env.GITHUB_SHA ?? null,
+    productionBundleSha256: process.env.NEMOSYNE_Q3B_BUNDLE_SHA256 ?? null,
+    wasmSha256: process.env.NEMOSYNE_Q3B_WASM_SHA256 ?? null,
+  };
+}
+
 test('Q3B measures the real Worker + WASM compact/full resource envelope', async ({ page }) => {
+  // This is one intentionally serial resource experiment, not an ordinary
+  // smoke assertion. Six scenarios plus two explicit GC samples per scenario
+  // do not fit Playwright's repository-wide 30 s smoke timeout reliably.
+  test.setTimeout(180_000);
   test.skip(
     process.env.NEMOSYNE_Q3B_RESOURCE_PROBE !== '1',
     'Q3B resource envelope only runs in the isolated evidence pilot.'
   );
 
+  await mkdir('q3b-results', { recursive: true });
   await page.goto('/');
   await expect
     .poll(
@@ -134,6 +148,25 @@ test('Q3B measures the real Worker + WASM compact/full resource envelope', async
           retainedDeltaAfterForcedGc: delta(retained, before),
         },
       });
+
+      // Preserve completed synthetic measurements even if a later, larger
+      // scenario falsifies the staircase. Partial evidence is diagnostic-only
+      // until the complete test passes, but it makes failures inspectable.
+      await writeFile(
+        'q3b-results/resource-envelope.partial.json',
+        `${JSON.stringify(
+          {
+            schemaVersion: 1,
+            classification: 'diagnostic-only-partial',
+            source: sourceMetadata(),
+            environment: { userAgent, physicalQuestEvidence: false },
+            completedScenarios: scenarios,
+          },
+          null,
+          2
+        )}\n`,
+        'utf8'
+      );
     }
   }
 
@@ -171,12 +204,7 @@ test('Q3B measures the real Worker + WASM compact/full resource envelope', async
   const report = {
     schemaVersion: 1,
     classification: 'synthetic-ci-resource-evidence',
-    source: {
-      sourceHeadSha: process.env.NEMOSYNE_SOURCE_HEAD_SHA ?? null,
-      workflowCheckoutSha: process.env.GITHUB_SHA ?? null,
-      productionBundleSha256: process.env.NEMOSYNE_Q3B_BUNDLE_SHA256 ?? null,
-      wasmSha256: process.env.NEMOSYNE_Q3B_WASM_SHA256 ?? null,
-    },
+    source: sourceMetadata(),
     environment: {
       userAgent,
       xrActive: false,
@@ -193,8 +221,6 @@ test('Q3B measures the real Worker + WASM compact/full resource envelope', async
   expect(report.source.productionBundleSha256).toMatch(/^[0-9a-f]{64}$/);
   expect(report.source.wasmSha256).toMatch(/^[0-9a-f]{64}$/);
 
-  await mkdir('q3b-results', { recursive: true });
   await writeFile('q3b-results/resource-envelope.json', `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-
   console.log('[Q3B] resource envelope summary', JSON.stringify(comparisons, null, 2));
 });
