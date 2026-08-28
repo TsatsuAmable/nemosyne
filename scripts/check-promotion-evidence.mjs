@@ -60,7 +60,7 @@ if (!expectedSha || !/^[0-9a-f]{40}$/.test(expectedSha)) {
 const pull = gh([
   `repos/${owner}/${repo}/pulls/${prNumber}`,
   '--jq',
-  '{head:{sha:.head.sha}, state, labels:[.labels[].name]}',
+  '{head:{sha:.head.sha}, state, body, labels:[.labels[].name]}',
 ]);
 
 console.log(`[Q9 controller] PR #${prNumber} head=${pull.head.sha} expected=${expectedSha}`);
