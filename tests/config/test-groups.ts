@@ -10,6 +10,7 @@ export const FAST_NODE_TESTS = [
   'tests/q2-dataset-identity-cross-language-golden.test.ts',
   'tests/q2-dataset-identity-parity.test.ts',
   'tests/q2-dataset-identity-properties.test.ts',
+  'tests/quest-validation-manifest.test.ts',
   'tests/runtime-bridge-module-boundaries.test.ts',
   'tests/wasm-unsafe-inventory.test.ts',
   'tests/world-lifecycle-owner.test.ts',
