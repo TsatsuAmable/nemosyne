@@ -5,6 +5,7 @@
  */
 
 import { World } from '../vr/World.ts';
+import { allSampleDatasets } from '../data/SampleDatasets.ts';
 import {
   setupDevTraceRecorder,
   type DevTraceBindings,
@@ -27,9 +28,25 @@ export interface AppInstance {
   analystJourneyControls: AnalystJourneyControlsHandle;
 }
 
+/**
+ * Keep the legacy sample-cycle cursor aligned with the dataset that is actually
+ * active before a semantic cycle intent. World starts with the first sample
+ * already loaded while its legacy cursor starts at -1; without this adapter,
+ * the first "next dataset" intent reloads the current sample instead of moving.
+ */
+function synchronizeDatasetCycleCursor(world: World): void {
+  const currentKey = world.currentEntry?.key;
+  if (!currentKey) return;
+  const currentIndex = allSampleDatasets.findIndex((entry) => entry.key === currentKey);
+  if (currentIndex >= 0) world._datasetCycleIndex = currentIndex;
+}
+
 function applicationIntentDispatcher(world: World): ApplicationIntentDispatcher {
   return createApplicationIntentDispatcher({
-    cycleDataset: (step) => world._cycleDataset(step),
+    cycleDataset: (step) => {
+      synchronizeDatasetCycleCursor(world);
+      world._cycleDataset(step);
+    },
     applyAnalysis: (operation) => world.dataOperationController.applyAsync(operation),
     resetAnalysis: () => world.resetDataOperation(),
     undoHistory: () => world.undoAnalysis(),
@@ -44,7 +61,8 @@ function analystJourneyActions(
 ): AnalystJourneyActions {
   return {
     dispatchIntent,
-    currentDatasetName: () => world.currentEntry?.name ?? null,
+    currentDatasetName: () =>
+      world.currentEntry?.name ?? world.currentEntry?.label ?? world.currentEntry?.key ?? null,
     assessRepresentation: (maxRenderedElements) =>
       assessAnalystRepresentation(world.atlas, world.session, maxRenderedElements),
     analysisResultCount: () => world.atlas.results.length,
@@ -56,6 +74,11 @@ function analystJourneyActions(
         platform: navigator.platform,
         webxrSupported: 'xr' in navigator,
       }),
+    setDatasetPickerVisible: (visible) => {
+      if (visible) world.loader.show();
+      else world.loader.hide();
+    },
+    isDatasetPickerVisible: () => world.loader.container.style.display !== 'none',
   };
 }
 
@@ -99,6 +122,24 @@ function devTraceBindings(world: World): DevTraceBindings {
   };
 }
 
+/**
+ * P1-UV1 composition policy for the normal analyst path.
+ *
+ * Existing diagnostic surfaces stay constructed/registered so the explicit
+ * developer route and evidence harnesses retain them, but they no longer
+ * dominate first use. This is deliberately a composition-root policy rather
+ * than another UI coordinator or a change to analytical owners.
+ */
+function applyNormalAnalystShell(world: World): void {
+  if (world.uiManager.panelRolesManager.uiMode === 'DEVELOPER') return;
+
+  world.uiManager.panelManager.hidePanel(world.uiManager.telemetryPanel);
+  world.uiManager.panelManager.hidePanel(world.uiManager.vrConsole);
+  world.uiManager.dashboard.wallGroup.visible = false;
+  world.uiManager.peerPresenceHUD.setEnabled(false);
+  world.diagnostic?.hide();
+}
+
 export async function bootstrapApp(): Promise<AppInstance> {
   const world = new World();
   await world.start();
@@ -110,6 +151,8 @@ export async function bootstrapApp(): Promise<AppInstance> {
     onDispatchError: (error) =>
       console.error('[ApplicationIntent] input dispatch failed:', error),
   });
+
+  applyNormalAnalystShell(world);
 
   if (import.meta.env.DEV) {
     setupDevTraceRecorder(devTraceBindings(world));
@@ -139,7 +182,18 @@ export async function bootstrapApp(): Promise<AppInstance> {
     } else {
       telemetry.textContent = 'ready — point and select to inspect';
     }
+    // P1-UV1: runtime telemetry remains alive for diagnostics/tests, but it is
+    // not part of the normal analyst information hierarchy.
+    telemetry.hidden = import.meta.env.VITE_NEMOSYNE_DIAGNOSTICS !== '1';
   }
+
+  // The static title is a boot affordance, not permanent chrome over the data.
+  const bootOverlay = document.getElementById('overlay');
+  if (bootOverlay) bootOverlay.hidden = true;
+
+  // Dataset import is a first-class task summoned from the investigation shell,
+  // not an always-open engineering panel competing with the scene.
+  world.loader.hide();
 
   // P1-UV0 instrumentation is a compile-time opt-in. Ordinary production
   // bundles are built without VITE_NEMOSYNE_UV0_EVIDENCE, so Rollup can remove
