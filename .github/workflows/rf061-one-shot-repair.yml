@@ -1,0 +1,111 @@
+name: RF-061 One-Shot Repair
+
+on:
+  push:
+    branches:
+      - fix/rf-061-derived-recompute-coalescing
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/rf-061-derived-recompute-coalescing
+          fetch-depth: 0
+
+      - name: Apply exact RF-061 compatibility repairs
+        shell: python
+        run: |
+          from pathlib import Path
+
+          world = Path('src/vr/World.ts')
+          text = world.read_text()
+          start_marker = '  private _discoverStructuresAndRecommend(operation: string): void {'
+          end_marker = '  _togglePeerPresenceHUD(): void {'
+          if text.count(start_marker) != 1 or text.count(end_marker) != 1:
+              raise SystemExit('World legacy-method markers are not unique')
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+          text = text[:start] + text[end:]
+          world.write_text(text)
+
+          atlas = Path('src/atlas/AtlasCore.ts')
+          text = atlas.read_text()
+          old = '''  async computePersistenceIntervalsAsync(
+              params: Record<string, unknown>
+            ): Promise<PersistenceInterval[] | null> {
+              return (await this.computePersistenceEvidenceAsync(params))?.value ?? null;
+            }
+
+            async computeMapperGraphAsync(
+              params: Record<string, unknown>
+            ): Promise<TdaMapperGraph | null> {
+              return (await this.computeMapperEvidenceAsync(params))?.value ?? null;
+            }
+
+            async computeBetti0CurveAsync(
+              params: Record<string, unknown>
+            ): Promise<BettiPoint[] | null> {
+              return (await this.computeBetti0EvidenceAsync(params))?.value ?? null;
+            }
+          '''
+          new = '''  async computePersistenceIntervalsAsync(
+              params: Record<string, unknown>
+            ): Promise<PersistenceInterval[] | null> {
+              if (this._executionPort?.isAsync) {
+                const fingerprint = this.datasetFingerprint ?? '';
+                if (!fingerprint) return null;
+                if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion))) return null;
+              }
+              return (await this.computePersistenceEvidenceAsync(params))?.value ?? null;
+            }
+
+            async computeMapperGraphAsync(
+              params: Record<string, unknown>
+            ): Promise<TdaMapperGraph | null> {
+              if (this._executionPort?.isAsync) {
+                const fingerprint = this.datasetFingerprint ?? '';
+                if (!fingerprint) return null;
+                if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion))) return null;
+              }
+              return (await this.computeMapperEvidenceAsync(params))?.value ?? null;
+            }
+
+            async computeBetti0CurveAsync(
+              params: Record<string, unknown>
+            ): Promise<BettiPoint[] | null> {
+              if (this._executionPort?.isAsync) {
+                const fingerprint = this.datasetFingerprint ?? '';
+                if (!fingerprint) return null;
+                if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion))) return null;
+              }
+              return (await this.computeBetti0EvidenceAsync(params))?.value ?? null;
+            }
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('Atlas async-wrapper block did not match exactly once')
+          atlas.write_text(text.replace(old, new, 1))
+
+      - name: Verify bounded patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git diff --name-only | sort | tr '\n' ' ')" = "src/atlas/AtlasCore.ts src/vr/World.ts "
+          grep -q '_registerCurrentDatasetInWorker(fingerprint, this.datasetVersion)' src/atlas/AtlasCore.ts
+          ! grep -q 'private _discoverStructuresAndRecommend' src/vr/World.ts
+
+      - name: Commit repair and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/rf061-one-shot-repair.yml
+          git add -- src/atlas/AtlasCore.ts src/vr/World.ts
+          git commit -m 'fix(rf-061): repair async compatibility contracts'
+          git push origin HEAD:fix/rf-061-derived-recompute-coalescing
