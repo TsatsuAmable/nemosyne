@@ -44,11 +44,14 @@ const EXPECTED_ENTRY_IDS: readonly string[] = [
 ];
 
 const EAGER_WORLD_UI_DISPOSITIONS: Readonly<Record<string, string>> = {
+  statusStrip: 'excluded: controller, not an independently visible surface',
+  panelRolesManager: 'excluded: UI policy manager, not a visible surface',
   contextualTaskSurface: 'contextual-task-surface',
+  panelBudgetController: 'excluded: workspace budget controller, not a visible surface',
   telemetryPanel: 'input-telemetry',
   vrConsole: 'vr-console',
   vrMenu: 'legacy-vr-menu',
-  panelManager: 'excluded: infrastructure manager, not a visible surface',
+  panelManager: 'excluded: panel lifecycle manager, not a visible surface',
   miniOverview: 'mini-overview',
   peerPresenceHUD: 'peer-presence-hud',
   dashboard: 'dashboard-wall',
@@ -99,7 +102,7 @@ describe('P1-UV0 visible-product baseline inventory', () => {
     expect(entries.filter((entry) => !entry.visibleAtBoot).length).toBeGreaterThan(0);
   });
 
-  it('source-audits every eagerly constructed WorldUIManager surface', () => {
+  it('source-audits every eagerly constructed WorldUIManager surface or controller', () => {
     const source = readFileSync('src/vr/coordinators/WorldUIManager.ts', 'utf8');
     const constructorStart = source.indexOf('  constructor(');
     const constructorEnd = source.indexOf('  getOrCreateOperationLogPanel()');
