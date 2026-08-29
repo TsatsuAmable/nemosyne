@@ -13,7 +13,7 @@
  * - Room idle expiration and cleanup.
  */
 
-import { verifySignedTicket, timingSafeEqualString } from './SignedTicket.ts';
+import { verifySignedTicket, timingSafeEqualString, SignedTicketReplayGuard } from './SignedTicket.ts';
 
 const DEFAULT_MAX_MESSAGE_BYTES = 64 * 1024; // 64 KiB
 const DEFAULT_MAX_PEERS_PER_ROOM = 50;
@@ -167,6 +167,17 @@ const ROLE_CAPABILITIES: Record<NetworkRole, PeerCapability[]> = {
   participant: ['webrtc_negotiate', 'state_broadcast', 'data_operation', 'presence'],
   observer: ['webrtc_negotiate', 'presence'],
 };
+
+/**
+ * Exact role allow-list: only `observer` and `participant` are valid network
+ * roles. Any other value — typos, casing variants, legacy ontologies
+ * (`analyst`/`collaborator`), or crafted claims — resolves to null so callers
+ * fail closed instead of silently promoting to the privileged `participant`.
+ */
+function normalizeNetworkRole(role: unknown): NetworkRole | null {
+  if (role === 'observer' || role === 'participant') return role;
+  return null;
+}
 
 /**
  * Safe identifier alphabet and length bound for room/peer ids. Identifiers
@@ -332,6 +343,10 @@ export function createRoomRegistry({
   const ipConnectionCounts = new Map<string, number>();
   const ipAuthFailures = new Map<string, { count: number; resetAt: number }>();
   const roomLastActive = new Map<string, number>();
+  // Replay authority: one nonce store per registry instance, consumed atomically
+  // with successful ticket admission and evicted when the ticket expires. Kept
+  // inside the registry so replay enforcement lives on the admission path.
+  const signedTicketReplayGuard = new SignedTicketReplayGuard();
 
   function getTotalPeers(): number {
     let total = 0;
@@ -365,6 +380,7 @@ export function createRoomRegistry({
 
   function cleanupIdleRooms(): void {
     const now = Date.now();
+    signedTicketReplayGuard.clearExpired(now);
     for (const [roomId, room] of rooms.entries()) {
       if (room.size === 0) {
         const lastActive = roomLastActive.get(roomId) ?? 0;
@@ -435,12 +451,23 @@ export function createRoomRegistry({
     token?: string,
     requestedRole: NetworkRole = 'participant'
   ): { authorized: boolean; role: NetworkRole; closeCode?: number; reason?: string } {
+    // Normalize the requested role to the exact ontology up front: a foreign or
+    // malformed request must not flow into any branch below as a pseudo-role.
+    // Least-privilege fallback: unknown requests resolve to `observer`.
+    requestedRole = normalizeNetworkRole(requestedRole) ?? 'observer';
+
     if (tokenValidator && token) {
       const res = tokenValidator(token, roomId);
       if (!res.valid) {
         return { authorized: false, role: 'observer', closeCode: 4001, reason: res.error ?? 'invalid token' };
       }
-      const role = res.claims?.role ?? requestedRole;
+      // The validator is an extension point, but its role output must still be
+      // allow-listed: a validator that returns `analyst`, `collaborator`, or any
+      // other value must fail closed rather than promote the peer.
+      const role = normalizeNetworkRole(res.claims?.role) ?? normalizeNetworkRole(requestedRole);
+      if (!role) {
+        return { authorized: false, role: 'observer', closeCode: 4001, reason: 'invalid role in token claims' };
+      }
       return { authorized: true, role };
     }
 
@@ -449,11 +476,25 @@ export function createRoomRegistry({
         return { authorized: false, role: 'observer', closeCode: 4001, reason: 'token required' };
       }
 
-      // 1. Cryptographically signed HMAC room ticket verification
-      if (token.includes('.')) {
+      // 1. Cryptographically signed canonical HMAC room ticket verification.
+      //    The nonce is consumed atomically with successful admission by the
+      //    per-registry replay guard; a replayed ticket is rejected here even
+      //    though its signature, scope, and expiry all remain valid.
+      if (authToken && token.includes('.')) {
         const res = verifySignedTicket(token, authToken, roomId);
         if (res.valid && res.claims) {
-          const role = res.claims.role ?? requestedRole;
+          const role = normalizeNetworkRole(res.claims.role);
+          if (!role) {
+            return { authorized: false, role: 'observer', closeCode: 4001, reason: 'invalid role in ticket' };
+          }
+          if (!signedTicketReplayGuard.consume(res.claims.nonce, res.claims.exp)) {
+            return {
+              authorized: false,
+              role: 'observer',
+              closeCode: 4001,
+              reason: 'ticket replay detected (nonce already consumed)',
+            };
+          }
           return { authorized: true, role };
         }
         return { authorized: false, role: 'observer', closeCode: 4001, reason: res.error ?? 'invalid signed ticket' };
@@ -464,18 +505,27 @@ export function createRoomRegistry({
         return { authorized: true, role: 'observer' };
       }
 
-      // 3. Scoped token string format: "secret:observer" or "secret:participant"
-      if (token.includes(':') && authToken) {
-        const [secretPart, rolePart] = token.split(':');
+      // 3. Scoped token string format: "secret:observer" or "secret:participant".
+      //    Exact allow-list: only these two suffixes are accepted. Every other
+      //    suffix (typo, casing variant, empty, extra segments, unknown role) is
+      //    rejected — a typo must never promote to the privileged `participant`.
+      if (authToken && token.includes(':')) {
+        const idx = token.indexOf(':');
+        const secretPart = token.slice(0, idx);
+        const rolePart = token.slice(idx + 1);
         if (timingSafeEqualString(secretPart, authToken)) {
-          const enforcedRole: NetworkRole = rolePart === 'observer' ? 'observer' : 'participant';
-          return { authorized: true, role: enforcedRole };
+          const enforcedRole =
+            rolePart === 'observer' ? 'observer' : rolePart === 'participant' ? 'participant' : null;
+          if (enforcedRole) {
+            return { authorized: true, role: enforcedRole };
+          }
+          return { authorized: false, role: 'observer', closeCode: 4001, reason: 'invalid scoped token role' };
         }
       }
 
       // 4. Standard participant shared secret
       if (authToken && timingSafeEqualString(token, authToken)) {
-        return { authorized: true, role: requestedRole === 'observer' ? 'observer' : 'participant' };
+        return { authorized: true, role: requestedRole };
       }
 
       return { authorized: false, role: 'observer', closeCode: 4001, reason: 'invalid token' };
@@ -497,6 +547,11 @@ export function createRoomRegistry({
     request?: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } }
   ): void {
     const ip = request?.socket?.remoteAddress || '127.0.0.1';
+
+    // Exact role ontology up front: a foreign requested role must never be stored
+    // as a pseudo-role (it would silently become an empty-capability identity).
+    // Least-privilege fallback: unknown requests resolve to `observer`.
+    requestedRole = normalizeNetworkRole(requestedRole) ?? 'observer';
 
     // 0. Validate room and peer identifiers (charset + length). The network
     //    gateway validates independently of any other subsystem: identifiers
