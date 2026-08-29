@@ -1,11 +1,21 @@
-import type { World } from '../vr/World.ts';
-import {
-  assessAnalystRepresentation,
-  type AnalystRepresentationOutcome,
-} from './AnalystRepresentationAssessment.ts';
+import type { AnalystRepresentationOutcome } from './AnalystRepresentationAssessment.ts';
 
 export interface AnalystJourneyControlsHandle {
   dispose(): void;
+}
+
+export interface AnalystJourneyActions {
+  cycleDataset(step: number): void;
+  currentDatasetName(): string | null;
+  assessRepresentation(maxRenderedElements?: number): AnalystRepresentationOutcome;
+  runAnomalyAnalysis(): Promise<number>;
+  markMoment(note: string): string;
+  replayPortableInvestigation(bytes: Uint8Array): Promise<{
+    success: boolean;
+    discrepancies: string[];
+    eventsMatched: number;
+  }>;
+  exportPortableInvestigation(): Promise<Uint8Array>;
 }
 
 function downloadPackage(bytes: Uint8Array, filename: string): void {
@@ -27,7 +37,9 @@ function replayFailureMessage(detail: string): string {
   );
 }
 
-export function mountAnalystJourneyControls(world: World): AnalystJourneyControlsHandle {
+export function mountAnalystJourneyControls(
+  actions: AnalystJourneyActions,
+): AnalystJourneyControlsHandle {
   const root = document.createElement('section');
   root.id = 'analyst-journey-controls';
   root.setAttribute('aria-label', 'Analyst journey controls');
@@ -95,15 +107,13 @@ export function mountAnalystJourneyControls(world: World): AnalystJourneyControl
   root.append(budgetInput);
 
   button('analyst-load-sample', 'Load sample', () => {
-    world._cycleDataset(1);
-    showRepresentationOutcome(assessAnalystRepresentation(world.atlas, world.session));
-    setStatus(`Loaded ${world.currentEntry?.name ?? 'sample dataset'}`, 'success');
+    actions.cycleDataset(1);
+    showRepresentationOutcome(actions.assessRepresentation());
+    setStatus(`Loaded ${actions.currentDatasetName() ?? 'sample dataset'}`, 'success');
   });
   button('analyst-assess-representation', 'Assess representation', () => {
     const rawBudget = budgetInput.value.trim();
-    const outcome = assessAnalystRepresentation(
-      world.atlas,
-      world.session,
+    const outcome = actions.assessRepresentation(
       rawBudget.length > 0 ? Number(rawBudget) : undefined,
     );
     showRepresentationOutcome(outcome);
@@ -115,12 +125,12 @@ export function mountAnalystJourneyControls(world: World): AnalystJourneyControl
     );
   });
   button('analyst-run-analysis', 'Run analysis', async () => {
-    await world.dataOperationController.applyAsync('anomaly');
-    setStatus(`Evidence ready (${world.atlas.results.length} result)`, 'success');
+    const resultCount = await actions.runAnomalyAnalysis();
+    setStatus(`Evidence ready (${resultCount} result)`, 'success');
   });
   button('analyst-mark-moment', 'Record observation', () => {
-    const observation = world.markMoment('Recorded from desktop analyst controls');
-    setStatus(`Observation recorded: ${observation.id}`, 'success');
+    const observationId = actions.markMoment('Recorded from desktop analyst controls');
+    setStatus(`Observation recorded: ${observationId}`, 'success');
   });
 
   const packageLabel = document.createElement('label');
@@ -160,7 +170,7 @@ export function mountAnalystJourneyControls(world: World): AnalystJourneyControl
     if (!lastExport) return;
     replayButton.disabled = true;
     setStatus('Verifying investigation package…');
-    world
+    actions
       .replayPortableInvestigation(lastExport)
       .then((result) => {
         if (!result.success) {
@@ -181,11 +191,7 @@ export function mountAnalystJourneyControls(world: World): AnalystJourneyControl
   });
 
   button('analyst-export-package', 'Export investigation', async () => {
-    const bytes = await world.session.exportPortablePackage({
-      userAgent: navigator.userAgent,
-      platform: navigator.platform,
-      webxrSupported: 'xr' in navigator,
-    });
+    const bytes = await actions.exportPortableInvestigation();
     lastExport = bytes;
     replayButton.disabled = false;
     downloadPackage(bytes, 'nemosyne-investigation.nemosyne');
