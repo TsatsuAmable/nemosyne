@@ -15,7 +15,7 @@ The dedicated instrumented UV0 evidence build captures five canonical investigat
 
 | # | State | Asserted evidence | Screenshot |
 |---|---|---|---|
-| S1 | Fresh boot / loaded representation (`World` constructor auto-loads `supply-chain`) | telemetry per-frame form `LAYOUT:`/`GEOM:`/`BEHAVIOR:`; status `Ready`; dataset `Supply Chain Hierarchy`; palace built; boot-visible `SettingsPanel` observed | `01-fresh-boot.png` |
+| S1 | Fresh boot / loaded representation (`World` constructor auto-loads `supply-chain`) | telemetry per-frame form `LAYOUT:`/`GEOM:`/`BEHAVIOR:`; status `Ready`; dataset `Supply Chain Hierarchy`; palace built; eagerly constructed `SettingsPanel` verified runtime-hidden | `01-fresh-boot.png` |
 | S2 | Focused observation / structure (node selected) | contextual task surface visible; inspector visible after Inspect verb | `02-focused-observation.png` |
 | S3 | Moneta decision / NIL (`#analyst-max-elements=1` + assess) | outcome `NIL: no feasible representation`; `NIL outcome recorded`; session `nilCount ≥ 1` | `03-nil.png` |
 | S4 | Evidence / hypothesis state (analysis + mark-moment) | `Evidence ready`; `Observation recorded`; authoritative ledger `evidenceCount > 0`, `observationCount ≥ 1` | `04-evidence.png` |
@@ -28,9 +28,9 @@ The dedicated instrumented UV0 evidence build captures five canonical investigat
 The machine inventory covers:
 
 1. every surface/object known to be visible at fresh boot in normal analyst mode; and
-2. hidden interaction surfaces exercised by the canonical B3 journey (for example the contextual task surface, inspector, intent wheel and retired legacy menu).
+2. hidden interaction surfaces exercised or explicitly audited by the B3 journey/source audit (for example the contextual task surface, inspector, intent wheel, retired legacy menu and SettingsPanel).
 
-It is **not** an exhaustive catalogue of every developer-only diagnostic or every hidden task panel in the application. To stop the inventory and its expected-id list merely agreeing with each other, the fast test independently parses the `WorldUIManager` constructor and requires every eagerly constructed UI surface to be either mapped to a baseline id or carry an explicit exclusion reason.
+It is **not** an exhaustive catalogue of every developer-only diagnostic or every hidden task panel in the application. To stop the inventory and its expected-id list merely agreeing with each other, the fast test independently parses the `WorldUIManager` constructor and requires every eagerly constructed UI object to be either mapped to a baseline id or carry an explicit exclusion reason. Runtime evidence remains authoritative for visibility.
 
 ## Normal-mode baseline surface/object inventory
 
@@ -48,7 +48,7 @@ It is **not** an exhaustive catalogue of every developer-only diagnostic or ever
 | `mini-overview` | MiniOverview | Palace + frustum mini-map | BODY | Visible at boot; setting toggle | Spatial orientation | **KEEP** | §16: optional orientation instrument, subdued |
 | `peer-presence-hud` | PeerPresenceHUD | Collaborator presence dots | BODY | Visible at boot; setting toggle | Collaboration presence | **DEMOTE** | §16: optional ornament; demote to opt-in |
 | `dashboard-wall` | DashboardManager | Semicircle panel wall behind user | BODY | Visible at boot; launcher toggle | Dashboard reference state | **REMOVE** | §16: remove as default "panel wall" |
-| `settings-panel` | SettingsPanel | Spatial comfort/accessibility/collaboration/settings controls | BODY | Eagerly constructed and attached; no boot-time hide | System settings | **CONVERGE** | Independent review found this boot-visible panel missing from the original B3 inventory |
+| `settings-panel` | SettingsPanel | Spatial comfort/accessibility/collaboration/settings controls | BODY | Eagerly constructed; instrumented runtime proves hidden at fresh boot | System settings | **CONVERGE** | Explicit audit entry retained because constructor structure alone misleadingly suggested visibility |
 | `chart-plane` | ChartPlanePanel | Correlation / time-series / distribution charts in the wall | BODY | Visible at boot in wall; hidden when lens off | Derived analytical summaries | **CONVERGE** | Analytical content belongs at the locus of work, not a behind-user wall |
 | `tda-planes` | TDAPlanes (statistical lens) | Statistical-lens overlays on the palace | WORLD | Hidden at boot; statistical-lens intent/setting | Statistical-lens state | **KEEP** | Data-derived overlay gated behind a lens |
 | `holographic-inspector` | HolographicInspector | Precision inspector for the selected node | BODY | Hidden at boot; node select → Inspect | Selection + node inspection | **KEEP** | §16: canonical inspector/context surface |
@@ -69,18 +69,18 @@ It is **not** an exhaustive catalogue of every developer-only diagnostic or ever
 
 `launch → (World constructor auto-loads supply-chain palace + DatumPlane + TechnoCore + IceVault + portals + boot-visible HUD/panel constellation) → first frame rendered → user reads #telemetry / journey controls → #analyst-load-sample → assess representation → inspect a node → ContextualTaskSurface → Inspect → HolographicInspector → record observation → export/replay`
 
-The minimum desktop path to a first meaningful inspection action (`launch → select a node → inspector`) still requires orienting through a scene crowded by the dashboard wall, portals, diagnostics, SettingsPanel, loader, journey controls and static splash before finding the data and the contextual action.
+The minimum desktop path to a first meaningful inspection action (`launch → select a node → inspector`) still requires orienting through a scene crowded by the dashboard wall, portals, diagnostics, loader, journey controls and static splash before finding the data and the contextual action. The SettingsPanel is constructed and available but is not part of the fresh-boot visual crowding.
 
 ## Obvious subsystem/panel-first friction (observed, unchanged)
 
 1. **Fresh boot is not dataset-first.** The first visual impression is the HUD/panel constellation plus loader, journey controls and splash; the palace is one object among many.
 2. **Boot-time diagnostic debt remains large.** `moneta-diagnostic-hud`, `input-telemetry`, `vr-console` and `dom-telemetry` remain visible in the normal journey, while the loader also exposes engineering-like chrome.
-3. **SettingsPanel is also boot-visible.** The independent B3 review caught this omission. B4 should decide whether settings need to be summoned/contextual rather than persistently present.
-4. **`#overlay` never hides.** The static heading remains over the live scene.
-5. **`AnalystJourneyControls` is the primary desktop surface.** There is no deliberate desktop product shell yet.
-6. **Dashboard wall behind the user.** `DashboardManager` + `ChartPlane` cells reconstruct a floating desktop.
-7. **Inspect is a discoverable-but-late action.** The task surface appears only after node selection.
-8. **Representation outcome is pending at boot.** The loaded representation state is not surfaced until Assess is invoked.
+3. **`#overlay` never hides.** The static heading remains over the live scene.
+4. **`AnalystJourneyControls` is the primary desktop surface.** There is no deliberate desktop product shell yet.
+5. **Dashboard wall behind the user.** `DashboardManager` + `ChartPlane` cells reconstruct a floating desktop.
+6. **Inspect is a discoverable-but-late action.** The task surface appears only after node selection.
+7. **Representation outcome is pending at boot.** The loaded representation state is not surfaced until Assess is invoked.
+8. **Source visibility inference is unsafe.** The first hardening run proved an eagerly constructed SettingsPanel can still be runtime-hidden; later inventories must privilege runtime evidence over constructor assumptions.
 
 ## How to read this document going forward
 
