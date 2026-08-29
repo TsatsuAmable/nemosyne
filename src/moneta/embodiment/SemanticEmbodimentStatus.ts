@@ -3,37 +3,68 @@ import * as THREE from 'three';
 export type SemanticEmbodimentPresentationStatus =
   'PENDING' | 'REFUSED' | 'INVALID' | 'UNAVAILABLE' | 'READY';
 
+export type SemanticEmbodimentPresentationCandidateId =
+  | 'AGGREGATE_VOLUME'
+  | 'DISTRIBUTION_FIELD';
+
 export const SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME = 'semantic-embodiment-status';
 
-const STATUS_PRESENTATION: Record<
+const STATUS_STYLE: Record<
   Exclude<SemanticEmbodimentPresentationStatus, 'READY'>,
-  { title: string; fallback: string; color: number; cssColor: string }
+  { color: number; cssColor: string }
 > = {
-  PENDING: {
-    title: 'DISTRIBUTION PENDING',
-    fallback: 'Building the empirical distribution in the analytical kernel.',
-    color: 0xe69f00,
-    cssColor: '#e69f00',
+  PENDING: { color: 0xe69f00, cssColor: '#e69f00' },
+  REFUSED: { color: 0xd55e00, cssColor: '#d55e00' },
+  INVALID: { color: 0xcc79a7, cssColor: '#cc79a7' },
+  UNAVAILABLE: { color: 0x999999, cssColor: '#999999' },
+};
+
+const CANDIDATE_COPY: Record<
+  SemanticEmbodimentPresentationCandidateId,
+  {
+    label: string;
+    pending: string;
+    refused: string;
+    invalid: string;
+    unavailable: string;
+  }
+> = {
+  DISTRIBUTION_FIELD: {
+    label: 'DISTRIBUTION',
+    pending: 'Building the empirical distribution in the analytical kernel.',
+    refused: 'The analytical kernel refused this distribution request.',
+    invalid: 'The returned payload did not match the governed distribution contract.',
+    unavailable: 'No current analytical distribution result is available.',
   },
-  REFUSED: {
-    title: 'DISTRIBUTION REFUSED',
-    fallback: 'The analytical kernel refused this distribution request.',
-    color: 0xd55e00,
-    cssColor: '#d55e00',
-  },
-  INVALID: {
-    title: 'DISTRIBUTION INVALID',
-    fallback: 'The returned payload did not match the governed distribution contract.',
-    color: 0xcc79a7,
-    cssColor: '#cc79a7',
-  },
-  UNAVAILABLE: {
-    title: 'DISTRIBUTION UNAVAILABLE',
-    fallback: 'No current analytical distribution result is available.',
-    color: 0x999999,
-    cssColor: '#999999',
+  AGGREGATE_VOLUME: {
+    label: 'AGGREGATE',
+    pending: 'Building the aggregate volume in the analytical kernel.',
+    refused: 'The analytical kernel refused this aggregate request.',
+    invalid: 'The returned payload did not match the governed aggregate contract.',
+    unavailable: 'No current analytical aggregate result is available.',
   },
 };
+
+function statusPresentation(
+  candidateId: SemanticEmbodimentPresentationCandidateId,
+  status: Exclude<SemanticEmbodimentPresentationStatus, 'READY'>
+): { title: string; fallback: string; color: number; cssColor: string } {
+  const copy = CANDIDATE_COPY[candidateId];
+  const style = STATUS_STYLE[status];
+  const fallback =
+    status === 'PENDING'
+      ? copy.pending
+      : status === 'REFUSED'
+        ? copy.refused
+        : status === 'INVALID'
+          ? copy.invalid
+          : copy.unavailable;
+  return {
+    title: `${copy.label} ${status}`,
+    fallback,
+    ...style,
+  };
+}
 
 function disposeStatusSurface(surface: THREE.Object3D): void {
   if (!(surface instanceof THREE.Mesh)) return;
@@ -53,10 +84,11 @@ function removeStatusSurface(group: THREE.Group): void {
 }
 
 function statusMaterial(
+  candidateId: SemanticEmbodimentPresentationCandidateId,
   status: Exclude<SemanticEmbodimentPresentationStatus, 'READY'>,
   message: string
 ): THREE.MeshBasicMaterial {
-  const presentation = STATUS_PRESENTATION[status];
+  const presentation = statusPresentation(candidateId, status);
   if (typeof document === 'undefined') {
     return new THREE.MeshBasicMaterial({ color: presentation.color, side: THREE.DoubleSide });
   }
@@ -99,31 +131,34 @@ function statusMaterial(
 /**
  * Present semantic loading/refusal state without creating an analytical mark.
  * The surface is deliberately excluded from Artifact.nodeMeshes and therefore
- * cannot be counted, selected or interpreted as Rust distribution evidence.
+ * cannot be counted, selected or interpreted as Rust analytical evidence.
  */
 export function setSemanticEmbodimentPresentationStatus(
   group: THREE.Group,
   status: SemanticEmbodimentPresentationStatus,
-  detail?: string
+  detail?: string,
+  candidateId: SemanticEmbodimentPresentationCandidateId = 'DISTRIBUTION_FIELD'
 ): void {
   group.userData.semanticEmbodimentStatus = status;
+  group.userData.semanticEmbodimentCandidateId = candidateId;
   removeStatusSurface(group);
   if (status === 'READY') {
     delete group.userData.semanticEmbodimentStatusMessage;
     return;
   }
 
-  const presentation = STATUS_PRESENTATION[status];
+  const presentation = statusPresentation(candidateId, status);
   const message = detail?.trim() || presentation.fallback;
   const surface = new THREE.Mesh(
     new THREE.PlaneGeometry(3.2, 0.8),
-    statusMaterial(status, message)
+    statusMaterial(candidateId, status, message)
   );
   surface.name = SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME;
   surface.position.set(0, 1.25, 0.1);
   surface.renderOrder = 20;
   surface.userData = {
     representationKind: 'SEMANTIC_STATUS',
+    semanticEmbodimentCandidateId: candidateId,
     semanticEmbodimentStatus: status,
     semanticEmbodimentMessage: message,
     analyticalElement: false,
