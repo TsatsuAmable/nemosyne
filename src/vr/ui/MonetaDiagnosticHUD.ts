@@ -44,9 +44,12 @@ export class MonetaDiagnosticHUD extends MovablePanel {
     this._lastClickAt = -this._clickCooldownMs;
 
     this.render();
-    // P1-UV1: this is a developer/research diagnostic, not part of the normal
-    // investigator shell. Explicit diagnostic routes may still show/toggle it.
-    this.hide();
+    // P1-UV1: normal product builds do not surface solver internals. The
+    // deliberately instrumented diagnostics build remains the explicit route,
+    // including after representation replacement creates a fresh HUD instance.
+    if (import.meta.env.VITE_NEMOSYNE_DIAGNOSTICS !== '1') {
+      this.hide();
+    }
   }
 
   get dracoNode(): MonetaTopologyNode {
