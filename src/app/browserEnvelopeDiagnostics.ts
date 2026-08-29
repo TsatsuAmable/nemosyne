@@ -1,5 +1,6 @@
 import { Dataset } from '../data/Dataset.ts';
 import type { World } from '../vr/World.ts';
+import type { DerivedAnalysisSchedulerStats } from '../vr/coordinators/DerivedAnalysisScheduler.ts';
 
 export interface BrowserEnvelopeStageSample {
   name: string;
@@ -17,6 +18,8 @@ export interface BrowserEnvelopeDiagnosticHook {
   readonly schemaVersion: 1;
   startCapture(): void;
   stopCapture(): BrowserEnvelopeCapture;
+  waitForDerivedIdle(): Promise<void>;
+  derivedStats(): DerivedAnalysisSchedulerStats;
 }
 
 declare global {
@@ -34,7 +37,7 @@ function roundMs(value: number): number {
 }
 
 /**
- * Q3D instrumentation is read-only and synthetic-evidence-only. It wraps
+ * Q3D/Q3E instrumentation is read-only and synthetic-evidence-only. It wraps
  * existing production methods to time their real execution; it does not change
  * analytical inputs, outputs, authority, ordering, or persistence semantics.
  */
@@ -95,12 +98,16 @@ export function installBrowserEnvelopeDiagnosticHook(world: World): () => void {
   patch(world.atlas as unknown as object, '_kernelFingerprintDirect', 'atlas.kernelFingerprintDirect');
   patch(world.atlas as unknown as object, '_kernelFingerprint', 'atlas.kernelFingerprint');
   patch(world.atlas as unknown as object, '_ensureHandle', 'atlas.ensureHandle');
+  patch(world.atlas, 'generateRecommendation', 'atlas.generateRecommendation');
 
   const port = world.atlas.executionPort;
   if (port) {
     patch(port, 'execute', (args) => {
       const request = args[0] as { operation?: unknown } | undefined;
-      return request?.operation === 'operation' ? 'workerPort.execute.operation' : null;
+      const operation = typeof request?.operation === 'string' ? request.operation : null;
+      if (operation === 'operation') return 'workerPort.execute.operation';
+      if (operation?.startsWith('tda.')) return `workerPort.execute.${operation}`;
+      return null;
     });
     patch(port, 'registerDataset', 'workerPort.registerDataset');
     patch(port, 'supersede', 'workerPort.supersede');
@@ -117,13 +124,17 @@ export function installBrowserEnvelopeDiagnosticHook(world: World): () => void {
   patch(ledger, 'addResult', 'ledger.addResult');
   patch(ledger, 'appendEvent', 'ledger.appendEvent');
   patch(ledger, 'getAnalysisHistory', 'ledger.getAnalysisHistory');
+  patch(ledger, 'recordStructure', 'ledger.recordStructure');
 
-  // Decompose World's synchronous OPERATION_APPLIED subscriber. The TDA
-  // recompute callback itself is assigned during dataset load, so any event
-  // time left after the named stages below remains visible as a bounded
-  // residual rather than being guessed at.
+  // RF-061/Q3E: the synchronous operation event must only schedule derived
+  // guidance. Capture both the schedule call and the later settlement so the
+  // measurement cannot hide work merely by making it asynchronous.
+  patch(world.derivedAnalysisPipeline, 'schedule', 'derived.schedule');
+  patch(world.derivedAnalysisPipeline, 'whenIdle', 'derived.whenIdle');
+  patch(world.rendererLifecycle, 'tdaCompute', 'derived.tdaCompute');
+  patch(world.rendererLifecycle, 'tdaApply', 'derived.tdaApply');
+
   patch(world as unknown as object, '_updateDashboardDatasets', 'world.updateDashboardDatasets');
-  patch(world as unknown as object, '_discoverStructuresAndRecommend', 'world.discoverStructuresAndRecommend');
   patch(world as unknown as object, '_updateOperationLog', 'world.updateOperationLog');
   patch(world as unknown as object, '_updateNarrativeStrip', 'world.updateNarrativeStrip');
   patch(world as unknown as object, '_logInteraction', 'world.logInteraction');
@@ -159,6 +170,8 @@ export function installBrowserEnvelopeDiagnosticHook(world: World): () => void {
       captureStartedAt = null;
       return result;
     },
+    waitForDerivedIdle: () => world.derivedAnalysisPipeline.whenIdle(),
+    derivedStats: () => world.derivedAnalysisPipeline.stats(),
   };
 
   window.__NEMOSYNE_BROWSER_ENVELOPE__ = hook;
