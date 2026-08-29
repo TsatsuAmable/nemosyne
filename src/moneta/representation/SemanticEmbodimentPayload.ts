@@ -6,8 +6,7 @@ export const MAX_AGGREGATE_GROUPS_V1 = 4096 as const;
 /**
  * Payload-family identity is deliberately distinct from layout family identity.
  * A semantic aggregate is still an aggregate if its presentation later uses a
- * grid, radial, geo or other layout. A4 may connect this family to Moneta search
- * only after the Rust aggregate builder exists.
+ * grid, radial, geo or other layout.
  */
 export type SemanticEmbodimentFamilyV1 =
   | 'OBSERVATION'
@@ -67,6 +66,20 @@ export interface AggregateMeasureV1 {
   function: AggregateFunctionV1;
 }
 
+/**
+ * A4 request contract. Grouping and measure are explicit inputs; callers may
+ * not silently scan rows or substitute a different measure in TypeScript.
+ */
+export interface AggregateEmbodimentRequestV1 {
+  schemaVersion: typeof SEMANTIC_EMBODIMENT_SCHEMA_VERSION;
+  candidateId: 'AGGREGATE_VOLUME';
+  groupingField: string;
+  measure: AggregateMeasureV1;
+  decisionId?: string;
+  decisionModelVersion?: string;
+  decisionModelArtifactHash?: string;
+}
+
 export interface AggregateGroupV1 {
   semanticId: string;
   /** A grouping key is intentionally scalar; nested row fragments are forbidden. */
@@ -98,8 +111,8 @@ export type SemanticEmbodimentResultV1 =
 
 /**
  * Rust-owned semantic embodiment envelope. TypeScript mirrors the wire shape
- * but does not validate or repair it; `roundTripSemanticEmbodimentPayloadV1`
- * delegates strict validation/normalisation to the Rust/WASM authority.
+ * but does not validate or repair it; the Rust/WASM authority validates every
+ * envelope before it crosses the boundary.
  */
 export interface SemanticEmbodimentEnvelopeV1 {
   schemaVersion: typeof SEMANTIC_EMBODIMENT_SCHEMA_VERSION;

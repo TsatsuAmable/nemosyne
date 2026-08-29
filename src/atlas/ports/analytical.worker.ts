@@ -6,6 +6,8 @@ import type {
   AnalyticalWorkerDiagnostic,
 } from './AnalyticalExecutionPort.ts';
 import * as bridge from '../../wasm/RuntimeBridge.ts';
+import { buildAggregateSemanticEmbodimentV1 } from '../../wasm/runtime/SemanticEmbodimentBridge.ts';
+import type { AggregateEmbodimentRequestV1 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
 import type { DatasetJSON, OperationSpec } from '../../data/types.ts';
 
 const handleMap = new Map<string, number>();
@@ -371,6 +373,20 @@ self.onmessage = async (ev: MessageEvent) => {
             req.params.valueColumn as string | undefined
           );
           kernelMs = performance.now() - kernelStartedAt;
+          resultKind = 'scalar';
+          break;
+        }
+        case 'semanticEmbodiment': {
+          operationName = 'AGGREGATE_VOLUME';
+          const kernelStartedAt = performance.now();
+          value = buildAggregateSemanticEmbodimentV1(
+            registeredHandle,
+            req.params as unknown as AggregateEmbodimentRequestV1,
+          );
+          kernelMs = performance.now() - kernelStartedAt;
+          if (!value) {
+            throw new Error('Rust aggregate semantic embodiment builder returned no envelope');
+          }
           resultKind = 'scalar';
           break;
         }

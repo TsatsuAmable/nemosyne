@@ -23,23 +23,37 @@ function makeGridDataset(count, categories = 3) {
   );
 }
 
-function makeGeoDataset(count, categories = 3) {
-  const rows = Array.from({ length: count }, (_, i) => ({
-    lat: 35 + (i % 10) * 0.1,
-    lon: -118 + Math.floor(i / 10) * 0.1,
-    magnitude: i,
-    region: String.fromCharCode(65 + (i % categories)),
-  }));
-  return new Dataset(
-    'Geo',
-    [
-      { name: 'lat', type: ColumnType.NUMERIC },
-      { name: 'lon', type: ColumnType.NUMERIC },
-      { name: 'magnitude', type: ColumnType.NUMERIC },
-      { name: 'region', type: ColumnType.CATEGORICAL },
-    ],
-    rows
-  );
+function aggregateEnvelope(groups) {
+  const sourceRowCount = groups.reduce((sum, group) => sum + group.count, 0);
+  return {
+    schemaVersion: 1,
+    datasetFingerprint: 'a'.repeat(64),
+    candidateId: 'AGGREGATE_VOLUME',
+    representationFamily: 'AGGREGATE',
+    analyticalMethod: {
+      name: 'categorical-grouped-aggregate',
+      version: 'aggregate-columnar-v1',
+      parameters: { groupingField: 'region', measure: { field: 'magnitude', function: 'MEAN' } },
+    },
+    approximation: { mode: 'EXACT', representedRowCount: sourceRowCount },
+    informationContract: {
+      preserves: ['aggregate-group-magnitude'],
+      loses: ['individual-observation-identity', 'exact-metric-values', 'outlier-boundary-visibility'],
+    },
+    resource: { sourceRowCount, elementCount: groups.length, maxElementCount: 4096 },
+    provenance: { kernelVersion: 'test', algorithmVersion: 'aggregate-columnar-v1' },
+    result: {
+      status: 'READY',
+      payload: {
+        kind: 'AGGREGATE_VOLUME',
+        data: {
+          groupingFields: ['region'],
+          measure: { field: 'magnitude', function: 'MEAN' },
+          groups,
+        },
+      },
+    },
+  };
 }
 
 describe('VRTopologyTranslator scalable artefacts', () => {
@@ -126,8 +140,7 @@ describe('VRTopologyTranslator scalable artefacts', () => {
     }
   });
 
-  it('builds aggregate bars for large geo data', () => {
-    const ds = makeGeoDataset(40, 4);
+  it('builds aggregate bars only from the bounded semantic payload', () => {
     const result = {
       facts: { rowCount: 40, topology: 'GEO', isLargeDataset: true },
       spec: {
@@ -140,15 +153,20 @@ describe('VRTopologyTranslator scalable artefacts', () => {
     };
     const artifact = VRTopologyTranslator.synthesizeArtifact(result, {
       topology: 'GEO',
-      dataset: ds,
-      encodings: { color: 'region', size: 'magnitude' },
+      semanticEmbodiment: aggregateEnvelope([
+        { semanticId: 'region:A', key: 'A', count: 10, aggregateValue: 4 },
+        { semanticId: 'region:B', key: 'B', count: 10, aggregateValue: 8 },
+        { semanticId: 'region:C', key: 'C', count: 10, aggregateValue: 12 },
+        { semanticId: 'region:D', key: 'D', count: 10, aggregateValue: 16 },
+      ]),
     });
 
     expect(artifact.nodeMeshes.length).toBe(4);
     for (const mesh of artifact.nodeMeshes) {
-      expect(mesh.geometry).toBeInstanceOf(THREE.CylinderGeometry);
+      expect(mesh.geometry).toBeInstanceOf(THREE.BoxGeometry);
       expect(mesh.userData.category).toBeDefined();
-      expect(mesh.userData.count).toBeGreaterThan(0);
+      expect(mesh.userData.count).toBe(10);
+      expect(mesh.userData.representationKind).toBe('AGGREGATE_VOLUME');
     }
   });
 

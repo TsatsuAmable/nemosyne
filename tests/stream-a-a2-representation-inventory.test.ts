@@ -10,6 +10,7 @@ import {
   type SemanticRepresentationId,
 } from '../src/moneta/representation/RepresentationCandidate.ts';
 import { FAMILY_TO_CANDIDATE_IDS } from '../src/moneta/representation/RepresentationFamily.ts';
+import type { SemanticEmbodimentEnvelopeV1 } from '../src/moneta/representation/SemanticEmbodimentPayload.ts';
 import type {
   MonetaDataInput,
   MonetaFacts,
@@ -34,110 +35,63 @@ interface InventoryEntry {
 }
 
 const INVENTORY: Record<SemanticRepresentationId, InventoryEntry> = {
-  POINT_SET: {
-    classification: 'OBSERVATION_LEVEL',
-    productionReachable: true,
-    layout: 'GRID_3D',
-    geometry: 'CUBE_MATRIX',
-  },
-  DENSITY_FIELD: {
-    classification: 'SEMANTICALLY_OVERCLAIMED',
-    productionReachable: true,
-    layout: 'GRID_3D',
-    geometry: 'DENSITY_FIELD',
-  },
-  DISTRIBUTION_FIELD: {
-    classification: 'SEMANTICALLY_OVERCLAIMED',
-    productionReachable: true,
-    layout: 'GRID_3D',
-    geometry: 'DENSITY_FIELD',
-  },
-  CLUSTER_REGIONS: {
-    classification: 'DATASET_LEVEL_ROW_DERIVED',
-    productionReachable: true,
-    layout: 'GRID_3D',
-    geometry: 'CLUSTER_VOLUME',
-  },
-  AGGREGATE_VOLUME: {
-    classification: 'NOT_PRODUCTION_REACHABLE',
-    productionReachable: false,
-    layout: 'GRID_3D',
-    geometry: 'AGGREGATE_BARS',
-  },
-  TEMPORAL_TRAJECTORY: {
-    classification: 'DATASET_LEVEL_ROW_DERIVED',
-    productionReachable: true,
-    layout: 'TIME_RIBBON',
-    geometry: 'BEAM',
-  },
-  HIERARCHICAL_SPACE: {
-    classification: 'DATASET_LEVEL_ROW_DERIVED',
-    productionReachable: true,
-    layout: 'RADIAL_ORBITAL',
-    geometry: 'CONICAL_TREE',
-  },
-  RELATIONSHIP_GRAPH: {
-    classification: 'DATASET_LEVEL_ROW_DERIVED',
-    productionReachable: true,
-    layout: 'FORCE_DIRECTED_3D',
-    geometry: 'ICOSA_NODE',
-  },
-  MATRIX_FIELD: {
-    classification: 'OBSERVATION_LEVEL',
-    productionReachable: true,
-    layout: 'GRID_3D',
-    geometry: 'CUBE_MATRIX',
-  },
-  MANIFOLD_EMBEDDING: {
-    classification: 'SEMANTICALLY_OVERCLAIMED',
-    productionReachable: true,
-    layout: 'FORCE_DIRECTED_3D',
-    geometry: 'ICOSA_NODE',
-  },
-  SPATIAL_REGION: {
-    classification: 'OBSERVATION_LEVEL',
-    productionReachable: true,
-    layout: 'GEO_SURFACE',
-    geometry: 'GEO_COLUMN',
-  },
-  MULTISCALE_FIELD: {
-    classification: 'SEMANTICALLY_OVERCLAIMED',
-    productionReachable: true,
-    layout: 'SPECTRAL_VOLUME',
-    geometry: 'SPECTRAL_BAR',
-  },
+  POINT_SET: { classification: 'OBSERVATION_LEVEL', productionReachable: true, layout: 'GRID_3D', geometry: 'CUBE_MATRIX' },
+  DENSITY_FIELD: { classification: 'SEMANTICALLY_OVERCLAIMED', productionReachable: true, layout: 'GRID_3D', geometry: 'DENSITY_FIELD' },
+  DISTRIBUTION_FIELD: { classification: 'SEMANTICALLY_OVERCLAIMED', productionReachable: true, layout: 'GRID_3D', geometry: 'DENSITY_FIELD' },
+  CLUSTER_REGIONS: { classification: 'DATASET_LEVEL_ROW_DERIVED', productionReachable: true, layout: 'GRID_3D', geometry: 'CLUSTER_VOLUME' },
+  AGGREGATE_VOLUME: { classification: 'DATASET_LEVEL_VALID', productionReachable: true, layout: 'GRID_3D', geometry: 'AGGREGATE_BARS' },
+  TEMPORAL_TRAJECTORY: { classification: 'DATASET_LEVEL_ROW_DERIVED', productionReachable: true, layout: 'TIME_RIBBON', geometry: 'BEAM' },
+  HIERARCHICAL_SPACE: { classification: 'DATASET_LEVEL_ROW_DERIVED', productionReachable: true, layout: 'RADIAL_ORBITAL', geometry: 'CONICAL_TREE' },
+  RELATIONSHIP_GRAPH: { classification: 'DATASET_LEVEL_ROW_DERIVED', productionReachable: true, layout: 'FORCE_DIRECTED_3D', geometry: 'ICOSA_NODE' },
+  MATRIX_FIELD: { classification: 'OBSERVATION_LEVEL', productionReachable: true, layout: 'GRID_3D', geometry: 'CUBE_MATRIX' },
+  MANIFOLD_EMBEDDING: { classification: 'SEMANTICALLY_OVERCLAIMED', productionReachable: true, layout: 'FORCE_DIRECTED_3D', geometry: 'ICOSA_NODE' },
+  SPATIAL_REGION: { classification: 'OBSERVATION_LEVEL', productionReachable: true, layout: 'GEO_SURFACE', geometry: 'GEO_COLUMN' },
+  MULTISCALE_FIELD: { classification: 'SEMANTICALLY_OVERCLAIMED', productionReachable: true, layout: 'SPECTRAL_VOLUME', geometry: 'SPECTRAL_BAR' },
 };
 
 const RAW_ROW_SENTINEL = 'A2_RAW_ROWS_ACCESSED';
 
+function aggregateEnvelope(): SemanticEmbodimentEnvelopeV1 {
+  return {
+    schemaVersion: 1,
+    datasetFingerprint: 'a'.repeat(64),
+    candidateId: 'AGGREGATE_VOLUME',
+    representationFamily: 'AGGREGATE',
+    analyticalMethod: { name: 'categorical-grouped-aggregate', version: 'aggregate-columnar-v1', parameters: {} },
+    approximation: { mode: 'EXACT', representedRowCount: 6 },
+    informationContract: {
+      preserves: ['aggregate-group-magnitude'],
+      loses: ['individual-observation-identity', 'exact-metric-values', 'outlier-boundary-visibility'],
+    },
+    resource: { sourceRowCount: 6, elementCount: 3, maxElementCount: 4096 },
+    provenance: { kernelVersion: 'test', algorithmVersion: 'aggregate-columnar-v1' },
+    result: {
+      status: 'READY',
+      payload: {
+        kind: 'AGGREGATE_VOLUME',
+        data: {
+          groupingFields: ['group'],
+          measure: { field: 'value', function: 'MEAN' },
+          groups: [
+            { semanticId: 'aggregate-group:00000', key: 'a', count: 2, aggregateValue: 1 },
+            { semanticId: 'aggregate-group:00001', key: 'b', count: 2, aggregateValue: 2 },
+            { semanticId: 'aggregate-group:00002', key: 'c', count: 2, aggregateValue: 3 },
+          ],
+        },
+      },
+    },
+  };
+}
+
 function minimalFacts(): MonetaFacts {
   return {
-    topology: 'TABULAR',
-    rowCount: 0,
-    nodeCount: 0,
-    edgeCount: 0,
-    depth: 0,
-    numericColumns: 0,
-    categoricalColumns: 0,
-    temporalColumns: 0,
-    hasTimeSeries: false,
-    hasContinuousValues: false,
-    density: 0,
-    estimatedDensity: 0,
-    outlierCount: 0,
-    cardinalityOfColor: 0,
-    hasHighCardinality: false,
-    isLargeDataset: false,
-    clusterCount: 0,
-    columnStats: {},
-    correlationMatrix: {},
-    categoryDistribution: {},
-    trendDirection: 'flat',
-    seasonalityHint: false,
-    hasOutliers: false,
-    hasHighVariance: false,
-    numericSkew: 0,
-    topCategory: null,
+    topology: 'TABULAR', rowCount: 0, nodeCount: 0, edgeCount: 0, depth: 0,
+    numericColumns: 0, categoricalColumns: 0, temporalColumns: 0,
+    hasTimeSeries: false, hasContinuousValues: false, density: 0, estimatedDensity: 0,
+    outlierCount: 0, cardinalityOfColor: 0, hasHighCardinality: false, isLargeDataset: false,
+    clusterCount: 0, columnStats: {}, correlationMatrix: {}, categoryDistribution: {},
+    trendDirection: 'flat', seasonalityHint: false, hasOutliers: false, hasHighVariance: false,
+    numericSkew: 0, topCategory: null,
   };
 }
 
@@ -145,22 +99,16 @@ function solverResult(entry: InventoryEntry): SolverResult {
   return {
     facts: minimalFacts(),
     cost: 0,
-    spec: {
-      layout: entry.layout,
-      geometry: entry.geometry,
-      behavior: 'STATIC',
-      interaction: 'INSPECT_CELL',
-    },
+    spec: { layout: entry.layout, geometry: entry.geometry, behavior: 'STATIC', interaction: 'INSPECT_CELL' },
   };
 }
 
-function inputThatForbidsRawRows(): MonetaDataInput {
-  const input: MonetaDataInput = { encodings: {} };
+function inputThatForbidsRawRows(candidateId: SemanticRepresentationId): MonetaDataInput {
+  const input: MonetaDataInput & { semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 } = { encodings: {} };
+  if (candidateId === 'AGGREGATE_VOLUME') input.semanticEmbodiment = aggregateEnvelope();
   Object.defineProperty(input, 'rows', {
     configurable: true,
-    get() {
-      throw new Error(RAW_ROW_SENTINEL);
-    },
+    get() { throw new Error(RAW_ROW_SENTINEL); },
   });
   return input;
 }
@@ -174,10 +122,7 @@ function scalableRenderCount(
   rowCount = 24
 ): number {
   const rows = Array.from({ length: rowCount }, (_, index) => ({
-    group: `g${index % 3}`,
-    x: index % 6,
-    y: Math.floor(index / 6),
-    value: index + 1,
+    group: `g${index % 3}`, x: index % 6, y: Math.floor(index / 6), value: index + 1,
   }));
   const dataset = new Dataset(
     `a2-${geometry}`,
@@ -191,26 +136,17 @@ function scalableRenderCount(
   );
   const layouts = new TopologyLayoutEmbodiment('none');
   const layoutSpy = vi.spyOn(layouts, 'computeLayoutPositions').mockReturnValue(
-    rows.map((row, index) => ({
-      row,
-      index,
-      position: new THREE.Vector3(index % 6, Math.floor(index / 6), index % 2),
-    }))
+    rows.map((row, index) => ({ row, index, position: new THREE.Vector3(index % 6, Math.floor(index / 6), index % 2) }))
   );
   const scalable = new ScalableTopologyEmbodiment(layouts, 'none', null);
   const group = new THREE.Group();
   const nodeMeshes: THREE.Mesh[] = [];
-  const spec = {
-    layout: 'GRID_3D' as const,
-    geometry,
-    behavior: 'STATIC' as const,
-    interaction: 'INSPECT_CELL' as const,
-  };
+  const spec = { layout: 'GRID_3D' as const, geometry, behavior: 'STATIC' as const, interaction: 'INSPECT_CELL' as const };
   const encodings = { color: 'group', size: 'value' };
 
   try {
     if (geometry === 'AGGREGATE_BARS') {
-      scalable.buildAggregateBars(group, nodeMeshes, rows, dataset, encodings, spec);
+      scalable.buildAggregateBars(group, nodeMeshes, aggregateEnvelope());
     } else if (geometry === 'CLUSTER_VOLUME') {
       scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec);
     } else {
@@ -223,21 +159,15 @@ function scalableRenderCount(
   }
 }
 
-describe('Stream A A2 representation inventory', () => {
-  it('covers every semantic candidate and pins current Moneta reachability', () => {
+describe('Stream A representation inventory', () => {
+  it('covers every semantic candidate and makes aggregate production reachable', () => {
     const candidateIds = Object.keys(MONETA_REPRESENTATION_CANDIDATES).sort();
     expect(Object.keys(INVENTORY).sort()).toEqual(candidateIds);
-
     const reachable = new Set(Object.values(FAMILY_TO_CANDIDATE_IDS).flat());
-    const actualUnreachable = candidateIds.filter(
-      (id) => !reachable.has(id as SemanticRepresentationId)
-    );
-    const inventoriedUnreachable = candidateIds.filter(
-      (id) => !INVENTORY[id as SemanticRepresentationId].productionReachable
-    );
-
+    const actualUnreachable = candidateIds.filter((id) => !reachable.has(id as SemanticRepresentationId));
+    const inventoriedUnreachable = candidateIds.filter((id) => !INVENTORY[id as SemanticRepresentationId].productionReachable);
     expect(actualUnreachable).toEqual(inventoriedUnreachable);
-    expect(actualUnreachable).toEqual(['AGGREGATE_VOLUME']);
+    expect(actualUnreachable).toEqual([]);
   });
 
   it('makes DATASET_LEVEL_VALID a mechanical raw-row-free renderer gate', () => {
@@ -245,15 +175,11 @@ describe('Stream A A2 representation inventory', () => {
       const entry = INVENTORY[candidateId];
       let error: unknown = null;
       try {
-        const artifact = VRTopologyTranslator.synthesizeArtifact(
-          solverResult(entry),
-          inputThatForbidsRawRows()
-        );
+        const artifact = VRTopologyTranslator.synthesizeArtifact(solverResult(entry), inputThatForbidsRawRows(candidateId));
         disposeObject(artifact.group);
       } catch (caught) {
         error = caught;
       }
-
       if (entry.classification === 'DATASET_LEVEL_VALID') {
         expect(error, `${candidateId} must render without source rows after migration`).toBeNull();
       } else {
@@ -263,41 +189,34 @@ describe('Stream A A2 representation inventory', () => {
     }
   });
 
-  it('pins the current semantic-overclaim mechanisms instead of treating bounded meshes as analytical authority', () => {
+  it('keeps remaining semantic overclaims explicit while aggregate no longer computes in TypeScript', () => {
     const translator = rendererSource('src/moneta/VRTopologyTranslator.ts');
     const scalable = rendererSource('src/moneta/embodiment/ScalableTopologyEmbodiment.ts');
-    const bootstrap = rendererSource('src/moneta/representation/MonetaHypothesisEngine.ts');
+    const aggregateSource = scalable.slice(scalable.indexOf('buildAggregateBars'));
     const learned = rendererSource('src/moneta/representation/LearnedMonetaRuntime.ts');
 
-    expect(translator).toContain('const rows = dataset?.rows ?? dataInput.rows ?? [];');
+    expect(translator).not.toContain('const rows = dataset?.rows ?? dataInput.rows ?? [];');
+    expect(aggregateSource).not.toContain('for (const row of rows)');
+    expect(aggregateSource).not.toContain('new Map<unknown, Record<string, unknown>[]>');
+    expect(aggregateSource).toContain("semanticEmbodimentStatus = 'READY'");
     expect(scalable).toContain('const BINS = 6;');
     expect(scalable).toContain("representationKind: 'DENSITY_FIELD'");
     expect(scalable).toContain("representationKind: 'CLUSTER_REGIONS'");
-    expect(scalable).toContain("representationKind: 'AGGREGATE_VOLUME'");
 
     expect(INVENTORY.DENSITY_FIELD.classification).toBe('SEMANTICALLY_OVERCLAIMED');
     expect(INVENTORY.DISTRIBUTION_FIELD.classification).toBe('SEMANTICALLY_OVERCLAIMED');
     expect(INVENTORY.MANIFOLD_EMBEDDING.classification).toBe('SEMANTICALLY_OVERCLAIMED');
     expect(INVENTORY.MULTISCALE_FIELD.classification).toBe('SEMANTICALLY_OVERCLAIMED');
 
-    expect(bootstrap).toContain("candidateId === 'AGGREGATE_VOLUME'");
-    expect(bootstrap).toContain("candidateId === 'CLUSTER_REGIONS'");
-    expect(bootstrap).toContain(
-      "candidateId === 'DENSITY_FIELD' || candidateId === 'DISTRIBUTION_FIELD'"
-    );
-
-    expect(learned).toContain('function geometryForLayout(layout: VRLayout): VRGeometry');
-    expect(learned).toContain('geometryForLayout(winner.layout)');
-    expect(learned).not.toContain(
-      'function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentationId)'
-    );
+    expect(learned).toContain('function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentationId)');
+    expect(learned).toContain("candidateId === 'AGGREGATE_VOLUME'");
+    expect(learned).toContain('geometryForLayout(winner.layout, winner.candidateId)');
   });
 
-  it('records bounded primitive behavior without replacing Rust layout authority in the test', () => {
+  it('records bounded primitive behavior without replacing Rust analytical authority in the test', () => {
     const rowCount = 24;
     expect(scalableRenderCount('AGGREGATE_BARS', rowCount)).toBe(3);
     expect(scalableRenderCount('CLUSTER_VOLUME', rowCount)).toBe(3);
-
     const densityVoxels = scalableRenderCount('DENSITY_FIELD', rowCount);
     expect(densityVoxels).toBeGreaterThan(0);
     expect(densityVoxels).toBeLessThanOrEqual(216);
