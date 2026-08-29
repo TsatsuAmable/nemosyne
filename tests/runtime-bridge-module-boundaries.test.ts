@@ -102,6 +102,7 @@ const publicFacadeExports = [
   'readU32',
   'refreshMemoryView',
   'requireRuntime',
+  'roundTripSemanticEmbodimentPayloadV1',
   'runOperation',
   'sampleKeys',
   'solveDraco',
