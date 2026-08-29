@@ -6,6 +6,10 @@ import type {
   AnalyticalWorkerDiagnostic,
 } from '../atlas/ports/AnalyticalExecutionPort.ts';
 import type { World } from '../vr/World.ts';
+import {
+  runDistributionEvidenceScenario,
+  type DistributionEvidenceScenarioResult,
+} from './distributionEvidenceDiagnostics.ts';
 
 export type ResourceEnvelopeOperation = 'sort' | 'anomaly';
 export type ResourceEnvelopeMaterialization = 'auto' | 'compact' | 'full';
@@ -61,6 +65,10 @@ export interface ResourceEnvelopeDiagnosticHook {
     operation: ResourceEnvelopeOperation;
     materialization?: ResourceEnvelopeMaterialization;
   }): Promise<ResourceEnvelopeScenarioResult>;
+  runDistributionScenario(input: {
+    rowCount: number;
+    measureField: string;
+  }): Promise<DistributionEvidenceScenarioResult>;
 }
 
 declare global {
@@ -308,7 +316,9 @@ async function runScenario(
     .reverse()
     .find((sample) => sample.phase === 'execution' && sample.operation === 'operation');
   if (!executionDiagnostic) {
-    throw new Error('Q3B/Q3C Worker execution diagnostic was not emitted by the instrumented build.');
+    throw new Error(
+      'Q3B/Q3C Worker execution diagnostic was not emitted by the instrumented build.'
+    );
   }
   if (executionDiagnostic.resultKind !== expectedWorkerResultKind) {
     throw new Error(
@@ -359,6 +369,7 @@ export function installResourceEnvelopeDiagnosticHook(world: World): () => void 
   const hook: ResourceEnvelopeDiagnosticHook = {
     schemaVersion: 1,
     runScenario: (input) => runScenario(world, input),
+    runDistributionScenario: (input) => runDistributionEvidenceScenario(world, input),
   };
   window.__NEMOSYNE_RESOURCE_ENVELOPE__ = hook;
   return () => {

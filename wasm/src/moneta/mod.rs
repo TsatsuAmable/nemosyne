@@ -1,5 +1,6 @@
 pub mod aggregate_embodiment;
 pub mod constraints;
+pub mod distribution_embodiment;
 pub mod embodiment;
 pub mod evidence;
 pub mod solver;

@@ -185,6 +185,7 @@ const PreservationGoalRequirementSchema = v.strictObject({
     'individual-observation-identity',
     'exact-metric-values',
     'population-density-distribution',
+    'empirical-distribution-shape',
     'outlier-boundary-visibility',
     'cluster-separation',
     'relational-edge-connectivity',
@@ -347,9 +348,18 @@ export function createDefaultRequirements(
   const scale = Array.isArray(scaleOrDims) ? 'MEDIUM' : scaleOrDims;
   const primaryDimensions = Array.isArray(scaleOrDims) ? scaleOrDims : undefined;
   const intent = createDefaultIntent(task);
+  const requestsEmpiricalDistribution =
+    task === 'distribution-analysis' ||
+    task === 'identify-outliers' ||
+    task === 'anomaly-detection';
 
   const preservationGoals: PreservationGoal[] = [
-    { information: 'population-density-distribution', priority: 'DESIRED' },
+    {
+      information: requestsEmpiricalDistribution
+        ? 'empirical-distribution-shape'
+        : 'population-density-distribution',
+      priority: 'DESIRED',
+    },
   ];
 
   if (task === 'individual-inspection') {
@@ -359,7 +369,11 @@ export function createDefaultRequirements(
     });
     preservationGoals.push({ information: 'exact-metric-values', priority: 'CRITICAL' });
   } else if (task === 'identify-outliers' || task === 'anomaly-detection') {
-    preservationGoals.push({ information: 'outlier-boundary-visibility', priority: 'CRITICAL' });
+    // V1 empirical distribution supports exploratory anomaly visibility through
+    // its histogram/ECDF/quantiles, but it does not compute a governed formal
+    // outlier boundary. Keep that richer information as a preference rather
+    // than a hard gate until a separately reviewed boundary method exists.
+    preservationGoals.push({ information: 'outlier-boundary-visibility', priority: 'OPTIONAL' });
   } else if (intent.observationLevel === 'group') {
     preservationGoals.unshift({ information: 'cluster-separation', priority: 'CRITICAL' });
     preservationGoals.push({ information: 'aggregate-group-magnitude', priority: 'DESIRED' });
