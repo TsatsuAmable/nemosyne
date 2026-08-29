@@ -102,7 +102,6 @@ import {
 } from '../session/InvestigationReplayRunner.ts';
 import { VaultArchiveStore } from '../session/index.ts';
 import type {
-  ArtifactRef,
   DatasetLoadEntry,
   HandLike,
   PanelLike,
@@ -120,6 +119,16 @@ import {
   buildRemediationProvenance,
   hashRequirements,
 } from '../moneta/representation/ActionableNil.ts';
+import { bindInteractionProjection } from './presentation/bindings/bindInteractionProjection.ts';
+import { bindConsoleProjection } from './presentation/bindings/bindConsoleProjection.ts';
+import { bindOperationStateProjection } from './presentation/bindings/bindOperationStateProjection.ts';
+import { bindTelemetryProjection } from './presentation/bindings/bindTelemetryProjection.ts';
+import { bindDerivedAnalysisProjection } from './presentation/bindings/bindDerivedAnalysisProjection.ts';
+import { bindOperationUiProjection } from './presentation/bindings/bindOperationUiProjection.ts';
+import { bindOperationPreviewProjection } from './presentation/bindings/bindOperationPreviewProjection.ts';
+import { bindAutosaveProjection } from './presentation/bindings/bindAutosaveProjection.ts';
+import { bindDevEvidenceProjection } from './presentation/bindings/bindDevEvidenceProjection.ts';
+import type { BindingDisposer } from './presentation/bindings/BindingDisposer.ts';
 
 type WorldRuntimeBridge = typeof import('../wasm/RuntimeBridge.ts');
 
@@ -238,6 +247,7 @@ export class World {
   _lastLoadTestSummary: LoadTestSummary | null = null;
   _lastQuestBoundarySummary: QuestBoundarySummary | null = null;
   _telemetryConsentBeforeRun: boolean | null = null;
+  private _projectionDisposers: BindingDisposer[] = [];
   /**
    * Canonical application-intent dispatcher, injected by the bootstrap
    * composition root after World construction. When set, mutating commands
@@ -730,9 +740,69 @@ export class World {
     // landmark cycle, or the Settings panel toggle.
     this._statisticalLensEnabled = false;
 
-    // Subscribe to data-operation events so World can keep rendering, logging,
-    // auto-save, and telemetry in sync without the controller knowing about them.
-    this._subscribeDataOperationEvents();
+    // RF-062D: World wires independently disposable event projections. Each
+    // binding receives only the capability required for one reaction family;
+    // feature modules never receive World or a World-shaped host.
+    this._projectionDisposers = [
+      bindInteractionProjection({
+        eventBus: this.eventBus,
+        logInteraction: (event) => this.uiManager.interactionCoach?.log?.(event),
+      }),
+      bindConsoleProjection({
+        eventBus: this.eventBus,
+        log: (level, args) => this.uiManager.vrConsole?.log?.(level, args),
+      }),
+      bindOperationStateProjection({
+        eventBus: this.eventBus,
+        invalidateSpatialAcceleration: () => this.engine.input.invalidateSpatialAcceleration(),
+        getTransformedDataset: () => this._transformedDataset,
+        restoreDataset: (dataset, operation) => this._restoreDataset(dataset, operation),
+        updateDashboardDatasets: (dataset) => this._updateDashboardDatasets(dataset),
+      }),
+      bindTelemetryProjection({
+        eventBus: this.eventBus,
+        recordGesture: (name) => this.telemetryCollector?.recordGesture?.(name),
+        recordOperation: (operation) => this.telemetryCollector?.recordOperation?.(operation),
+      }),
+      bindDerivedAnalysisProjection({
+        eventBus: this.eventBus,
+        schedule: (operation) => {
+          this.derivedAnalysisPipeline.schedule(operation);
+        },
+        recomputeTda: () => {
+          if (this.tdaRecompute) void this.tdaRecompute();
+        },
+      }),
+      bindOperationUiProjection({
+        eventBus: this.eventBus,
+        updateOperationLog: () => this._updateOperationLog(),
+        updateNarrative: () => this._updateNarrativeStrip(),
+        logConsole: (message) => this.uiManager.vrConsole?.log?.('log', [message]),
+        recordInteraction: (operation, result) => this._logInteraction(operation, { result }),
+      }),
+      bindOperationPreviewProjection({
+        eventBus: this.eventBus,
+        preview: (operation, previewDataset, originalDataset, artifact) =>
+          this.livePreview.preview(operation, previewDataset, originalDataset, artifact),
+        clear: () => this.livePreview.clear(),
+      }),
+      bindAutosaveProjection({
+        eventBus: this.eventBus,
+        requestAutosave: () => this._requestAutoSave(),
+      }),
+      bindDevEvidenceProjection<LoadTestSummary, QuestBoundarySummary>({
+        eventBus: this.eventBus,
+        onLoadTestComplete: (summary) => {
+          this._lastLoadTestSummary = summary;
+          this._enrichAndFlushLoadTestSummary(summary);
+          this._restoreTelemetryConsent();
+        },
+        onQuestBoundaryComplete: (summary) => {
+          this._lastQuestBoundarySummary = summary;
+          this._flushQuestBoundarySummary(summary);
+        },
+      }),
+    ];
 
     // Controller gesture mapper: emits the same gesture names as hand tracking.
     this.controllerGestureMapper = new ControllerGestureMapper({
@@ -1364,8 +1434,6 @@ export class World {
 
   _applyRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): void {
     const oldRequirements = this._activeRequirements;
-    // Use the canonical remediation helper so scientific-info-loss constraints
-    // cannot be silently "applied" by a UI path that bypasses its safety rule.
     const newReq = applyRemediation(this._activeRequirements, action);
 
     const provenance = buildRemediationProvenance(
@@ -1392,15 +1460,13 @@ export class World {
     }
   }
 
-  /** Preview a remediation without mutating the ledger or active requirements. */
+  /** Preview a remediation without mutating canonical representation state or the ledger. */
   _previewRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): boolean {
     try {
-      if (!this.atlas.isReady()) {
-        throw new Error('analytical authority is not ready');
-      }
+      if (!this.atlas.isReady()) throw new Error('analytical authority is not ready');
       const baseRequirementsHash = hashRequirements(this._activeRequirements);
       const newReq = applyRemediation(this._activeRequirements, action);
-      const previewDecision = this.atlas.arbitrateRepresentation(newReq);
+      const previewDecision = this.atlas.previewRepresentation(newReq);
       const expectedRequirementsHash = hashRequirements(newReq);
       const decisionRequirementsHash = previewDecision.provenance.requirementsHash;
       if (decisionRequirementsHash && decisionRequirementsHash !== expectedRequirementsHash) {
@@ -1425,7 +1491,7 @@ export class World {
     }
   }
 
-  /** Return a preview only while every authority/fingerprint fence still matches. */
+  /** Return a preview only while all authority/fingerprint fences still match. */
   _getCurrentPreviewDecision(): import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null {
     if (
       !this._previewedDecision ||
@@ -1594,8 +1660,6 @@ export class World {
   private async _freezeInvestigation(): Promise<void> {
     if (!this.uiManager?.vaultPanel || !this.sessionController?.archiveStore || !this.atlas.isReady()) return;
 
-    // Refresh presentation state immediately before freezing. `session.serialize()`
-    // alone can lag behind the live camera/settings/focus state between autosaves.
     const snapshot = this.sessionController.snapshotCurrentSession();
     if (!snapshot) {
       this.uiManager.vrConsole?.log?.('warn', ['Unable to freeze: current session is not snapshot-ready.']);
@@ -1619,12 +1683,11 @@ export class World {
     const archives = await this.sessionController.archiveStore.listArchives?.() ?? [];
     this.uiManager.vaultPanel.setArchives(archives);
     this.uiManager.vaultPanel.show();
-
     this.uiManager.vrConsole?.log?.('log', [`Frozen investigation: ${archiveId}`]);
     this._logInteraction('Freeze investigation', { result: archiveId });
   }
 
-  /** Restore an archived investigation by ID and report success only after restore completes. */
+  /** Restore an archived investigation and report success only after completion. */
   private async _restoreArchive(archiveId: string): Promise<void> {
     if (!this.uiManager?.vaultPanel || !this.sessionController?.archiveStore) return;
     const archive = await this.sessionController.archiveStore.loadArchive(archiveId);
@@ -1632,7 +1695,6 @@ export class World {
       this.uiManager.vrConsole?.log?.('warn', [`Archive not found: ${archiveId}`]);
       return;
     }
-
     const restored = await this.sessionController.loadSession(archiveId);
     if (!restored) {
       this.uiManager.vrConsole?.log?.('warn', [`Archive restore failed: ${archiveId}`]);
@@ -1650,7 +1712,6 @@ export class World {
       this.uiManager.vrConsole?.log?.('warn', [`Archive not found: ${archiveId}`]);
       return;
     }
-
     const packageBytes = await NemosyneSession.exportPortableSnapshot(
       archive as unknown as NemosyneSessionJSON
     );
@@ -2084,114 +2145,6 @@ export class World {
     this.uiManager.operationLogPanel?.setEntries(entries);
   }
 
-  _subscribeDataOperationEvents(): void {
-    // Cross-cutting subscribers: keep logging, telemetry, and auto-save out of
-    // feature methods by reacting to events instead of calling World directly.
-    this.eventBus.on(WorldTopics.INTERACTION_LOG, (payload: unknown) => {
-      const { action, gesture, controller, result } = payload as {
-        action: string;
-        gesture?: string;
-        controller?: string;
-        result?: string;
-      };
-      this.uiManager.interactionCoach?.log?.({ action, gesture, controller, result });
-    });
-
-    this.eventBus.on(WorldTopics.SESSION_CAPTURE, () => {
-      this._requestAutoSave();
-    });
-
-    this.eventBus.on(WorldTopics.CONSOLE_LOG, (args: unknown) => {
-      this.uiManager.vrConsole?.log?.('log', Array.isArray(args) ? args : [args]);
-    });
-
-    this.eventBus.on(WorldTopics.CONSOLE_WARN, (args: unknown) => {
-      this.uiManager.vrConsole?.log?.('warn', Array.isArray(args) ? args : [args]);
-    });
-
-    // Route interaction events (gestures, commands, settings changes) to the
-    // interaction coach and telemetry so individual callers do not need to.
-    this.eventBus.on(WorldTopics.INTERACTION, (payload: unknown) => {
-      const { action, gesture, controller, result } = payload as {
-        action: string;
-        gesture?: string;
-        controller?: string;
-        result?: string;
-      };
-      this.eventBus.emit(WorldTopics.INTERACTION_LOG, { action, gesture, controller, result });
-    });
-
-    this.eventBus.on(WorldTopics.GESTURE_RECOGNIZED, (payload: unknown) => {
-      const { name } = payload as { name: string };
-      this.telemetryCollector?.recordGesture?.(name);
-    });
-
-    this.eventBus.on(WorldTopics.OPERATION_APPLIED, (payload: unknown) => {
-      const { operation, rowCount } = payload as { operation: string; rowCount?: number };
-      this.engine.input.invalidateSpatialAcceleration();
-      this.telemetryCollector?.recordOperation?.(operation);
-      if (operation === 'compare') {
-        // Compare changes the dataset shape, so rebuild the Draco artefact.
-        this._restoreDataset(this._transformedDataset, operation);
-      }
-      this._updateDashboardDatasets(this._transformedDataset);
-      this.derivedAnalysisPipeline.schedule(operation);
-      this._updateOperationLog();
-      this._updateNarrativeStrip();
-      this.uiManager.vrConsole?.log?.('log', [`Operation: ${operation} → ${rowCount} rows`]);
-      this._logInteraction(operation, { result: `${rowCount} rows` });
-      this._requestAutoSave();
-    });
-
-    this.eventBus.on(WorldTopics.OPERATION_PREVIEW, (payload: unknown) => {
-      const { operation, previewDataset, originalDataset, artifact } = payload as {
-        operation: string;
-        previewDataset: Dataset;
-        originalDataset: Dataset | null;
-        artifact: ArtifactRef;
-      };
-      this.livePreview.preview(
-        operation,
-        previewDataset,
-        originalDataset ?? previewDataset,
-        artifact
-      );
-    });
-
-    this.eventBus.on(WorldTopics.OPERATION_CLEAR_PREVIEW, () => {
-      this.livePreview.clear();
-    });
-
-    this.eventBus.on(WorldTopics.HISTORY_SEEK, (payload: unknown) => {
-      const { operation, dataset } = payload as { operation: string; dataset: Dataset };
-      this._restoreDataset(dataset, operation);
-      if (this.tdaRecompute && operation !== 'anomaly') void this.tdaRecompute();
-      this._updateNarrativeStrip();
-    });
-
-    this.eventBus.on(WorldTopics.SESSION_AUTOSAVE_REQUEST, () => {
-      this._requestAutoSave();
-    });
-
-    // Load-test completion: store the summary, enrich it with usability
-    // aggregates (friction score/level/patterns — no raw interaction trail),
-    // restore telemetry consent to its prior state, and flush the perf/UX
-    // summary to the LOCAL dev-server log endpoint. No user dataset rows or
-    // session snapshots leave the device.
-    this.eventBus.on(WorldTopics.LOADTEST_COMPLETE, (payload: unknown) => {
-      const summary = payload as LoadTestSummary;
-      this._lastLoadTestSummary = summary;
-      this._enrichAndFlushLoadTestSummary(summary);
-      this._restoreTelemetryConsent();
-    });
-
-    this.eventBus.on(WorldTopics.QUEST_BOUNDARY_COMPLETE, (payload: unknown) => {
-      const summary = payload as QuestBoundarySummary;
-      this._lastQuestBoundarySummary = summary;
-      this._flushQuestBoundarySummary(summary);
-    });
-  }
-
   _buildWheelMenu(): void {
     this.uiManager.buildWheelMenu(buildIntentWheelMenuCategories(this));
   }
@@ -2517,6 +2470,9 @@ export class World {
     };
 
     await run(() => this.engine.pause());
+    for (const disposeBinding of this._projectionDisposers.splice(0)) {
+      await run(disposeBinding);
+    }
     await run(() => this.loadTestDriver?.dispose());
     await run(() => this.questBoundaryProbe?.dispose());
     await run(() => this.sessionController?.dispose?.());
