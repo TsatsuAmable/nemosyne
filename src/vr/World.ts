@@ -185,6 +185,9 @@ export class World {
   _lastSelectedMesh: THREE.Mesh | null = null;
   _activeRequirements: RepresentationRequirements = createDefaultRequirements('individual-inspection');
   _activeOutcome: InvestigatorActionableOutcome | null = null;
+  _previewedRequirements: RepresentationRequirements | null = null;
+  _previewedRemediationAction: import('../moneta/representation/ActionableNil.ts').RemedialAction | null = null;
+  _previewedDecision: import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null = null;
   _lastLoadedEntry: DatasetLoadEntry | null = null;
   liveStreamCoordinator: LiveStreamCoordinator;
   collaborationCoordinator: CollaborationCoordinator;
@@ -370,6 +373,9 @@ export class World {
       onOverrideRecommendation: () => this._overrideRecommendation(),
       onGenerateRecommendation: () => this._generateRecommendation(),
       onApplyRemediation: (action) => this._applyRemediation(action),
+      onPreviewRemediation: (action) => this._previewRemediation(action),
+      onCommitRemediation: (action) => this._commitRemediation(action),
+      onCancelRemediationPreview: () => this._cancelRemediationPreview(),
       onExitVR: () => this.exitVR(),
       frustrationAnalyzer: this.telemetryCollector.frustrationAnalyzer,
       getDataset: () => this.atlas.dataset,
@@ -397,10 +403,12 @@ export class World {
         this.inputCoordinator.callbacks.onApplyOperation?.('timeSlice');
         this.uiManager.contextualTaskSurface.hide();
       },
+      getDracoNode: () => this.dracoNode,
       onFreezeInvestigation: () => this._freezeInvestigation(),
       onRestoreArchive: (archiveId) => this._restoreArchive(archiveId),
       onExportArchive: (archiveId) => this._exportArchive(archiveId),
       onDeleteArchive: (archiveId) => this._deleteArchive(archiveId),
+      onShowConstraints: () => this.uiManager.showConstraintsPanel(),
     });
 
     // Input coordinator owns gesture recognition, context-aware suppression, and
@@ -1382,6 +1390,39 @@ export class World {
     }
   }
 
+  /** Preview a remediation by computing the alternative representation decision without committing. */
+  _previewRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): void {
+    const newReq = { ...this._activeRequirements, ...action.suggestedRequirementPatch };
+    this._previewedRequirements = newReq;
+    this._previewedRemediationAction = action;
+
+    if (this.atlas.isReady()) {
+      try {
+        const previewDecision = this.atlas.arbitrateRepresentation(newReq);
+        this._previewedDecision = previewDecision;
+      } catch {
+        this._previewedDecision = null;
+      }
+    }
+    this.uiManager.recommendationPanel?.markDirty?.();
+  }
+
+  /** Commit a previewed remediation by applying it for real. */
+  _commitRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): void {
+    this._applyRemediation(action);
+    this._previewedRequirements = null;
+    this._previewedRemediationAction = null;
+    this._previewedDecision = null;
+  }
+
+  /** Cancel a remediation preview without applying. */
+  _cancelRemediationPreview(): void {
+    this._previewedRequirements = null;
+    this._previewedRemediationAction = null;
+    this._previewedDecision = null;
+    this.uiManager.recommendationPanel?.markDirty?.();
+  }
+
   reconstructRequirementsAndReArbitrate(): void {
     if (!this.atlas.isReady() || !this._lastLoadedEntry) return;
 
@@ -1494,10 +1535,31 @@ export class World {
 
   /** Freeze the current investigation state as an immutable archive. */
   private async _freezeInvestigation(): Promise<void> {
-    if (!this.uiManager?.vaultPanel) return;
-    const archives = await this.sessionController?.archiveStore?.listArchives?.() ?? [];
+    if (!this.uiManager?.vaultPanel || !this.sessionController?.archiveStore || !this.atlas.isReady()) return;
+
+    const snapshot = this.session.serialize() as unknown as Record<string, unknown>;
+    const label = `Archive ${new Date().toLocaleString()}`;
+
+    const eventLedger = (snapshot.eventLedger as unknown[]) ?? [];
+    const discoveryEpisodes = snapshot.discoveryEpisodes as
+      | { outcomes?: unknown[] }
+      | undefined;
+    const metadata = {
+      datasetFingerprint: this.atlas.datasetFingerprint ?? '',
+      datasetName: this._lastLoadedEntry?.label ?? this._lastLoadedEntry?.key ?? 'unknown',
+      investigationDigest: null,
+      eventCount: eventLedger.length,
+      discoveryCount: discoveryEpisodes?.outcomes?.length ?? 0,
+    };
+
+    const archiveId = await this.sessionController.archiveStore.freezeInvestigation(label, snapshot, metadata);
+
+    const archives = await this.sessionController.archiveStore.listArchives?.() ?? [];
     this.uiManager.vaultPanel.setArchives(archives);
     this.uiManager.vaultPanel.show();
+
+    this.uiManager.vrConsole?.log?.('log', [`Frozen investigation: ${archiveId}`]);
+    this._logInteraction('Freeze investigation', { result: archiveId });
   }
 
   /** Restore an archived investigation by ID. */

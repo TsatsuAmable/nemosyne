@@ -14,12 +14,10 @@ export interface GuidedTourHost {
   uiManager: Pick<
     WorldUIManagerLike,
     | 'handWheelMenu'
-    | 'loadTestPanel'
     | 'narrativeStrip'
     | 'operationLogPanel'
     | 'peerPresenceHUD'
     | 'settingsPanel'
-    | 'vrMenu'
   >;
   inspector?: { active?: boolean };
   dataOperationController?: DataOperationControllerLike;
@@ -49,11 +47,11 @@ export class GuidedTourController {
         return w.uiManager?.handWheelMenu?.group
           ? { object: w.uiManager.handWheelMenu.group }
           : null;
-      case 'wheel-ops': {
-        const ops = (
+      case 'wheel-analyse': {
+        const analyse = (
           w.uiManager?.handWheelMenu as unknown as { _categories: { id: string }[] }
-        )?._categories?.find((c) => c.id === 'ops');
-        return ops ? { position: new THREE.Vector3(0, 1.4, -0.6) } : null;
+        )?._categories?.find((c) => c.id === 'ANALYSE');
+        return analyse ? { position: new THREE.Vector3(0, 1.4, -0.6) } : null;
       }
       case 'gesture-hint':
         return { position: new THREE.Vector3(0, 1.5, -1.0) };
@@ -61,10 +59,6 @@ export class GuidedTourController {
         return w.uiManager?.settingsPanel?.mesh ? { object: w.uiManager.settingsPanel.mesh } : null;
       case 'dashboard':
         return { position: new THREE.Vector3(0, 1.45, -1.35) };
-      case 'data-loader':
-        return w.uiManager?.vrMenu?.mesh
-          ? { object: w.uiManager.vrMenu.mesh }
-          : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
       case 'session-export':
         return w.uiManager?.operationLogPanel?.mesh
           ? { object: w.uiManager.operationLogPanel.mesh }
@@ -73,10 +67,6 @@ export class GuidedTourController {
         return w.uiManager?.peerPresenceHUD?.mesh
           ? { object: w.uiManager.peerPresenceHUD.mesh }
           : { position: new THREE.Vector3(-0.9, 1.35, -0.7) };
-      case 'draco-transform':
-        return w.uiManager?.vrMenu?.mesh
-          ? { object: w.uiManager.vrMenu.mesh }
-          : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
       case 'tda-lens':
         // TDA group sits at (0, 1.6, -3.5); resolve to that position (the group
         // itself has no resolvable mesh on the facade).
@@ -85,14 +75,6 @@ export class GuidedTourController {
         return w.uiManager?.settingsPanel?.mesh
           ? { object: w.uiManager.settingsPanel.mesh }
           : { position: new THREE.Vector3(0.3, 1.4, -0.9) };
-      case 'live-stream':
-        return w.uiManager?.vrMenu?.mesh
-          ? { object: w.uiManager.vrMenu.mesh }
-          : { position: new THREE.Vector3(-0.9, 1.5, -1.1) };
-      case 'load-test':
-        return w.uiManager?.loadTestPanel?.mesh
-          ? { object: w.uiManager.loadTestPanel.mesh }
-          : { position: new THREE.Vector3(0.9, 1.4, -0.9) };
       case 'theme-preset':
         return { position: new THREE.Vector3(0, 1.5, -0.8) };
       case 'narrative-timeline':
@@ -111,16 +93,14 @@ export class GuidedTourController {
         return w.inspector?.active === true;
       case 'wheel-menu':
         return w.uiManager?.handWheelMenu?.isVisible?.() === true;
+      case 'wheel-analyse':
+        return w.uiManager?.handWheelMenu?.isVisible?.() === true;
       case 'settings-panel':
       case 'comfort-settings':
         return w.uiManager?.settingsPanel?.mesh?.visible === true;
-      case 'draco-transform':
-        return (w.dataOperationController?.analysisHistory?.length ?? 0) > 0;
       case 'tda-lens':
         // Auto-advance once the analyst has revealed the TDA group.
         return w.tdaGroup?.visible === true;
-      case 'load-test':
-        return w.uiManager?.loadTestPanel?.mesh?.visible === true;
       case 'narrative-timeline':
         return w.uiManager?.narrativeStrip?.mesh?.visible === true;
       default:
