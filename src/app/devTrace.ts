@@ -1,47 +1,23 @@
 /**
  * Dev-Only Instrumentation & UX Trace Recorder.
  *
- * Hooks into the input coordinator and gaze tracker to stream UX trace data in development.
+ * Owns recorder construction while the application composition root supplies
+ * the exact runtime capabilities and callback wiring it needs. This keeps
+ * development instrumentation from depending on World as a service locator.
  */
 
-import type { World } from '../vr/World.ts';
-import { UXTraceRecorder } from '../vr/trace/UXTraceRecorder.ts';
+import {
+  UXTraceRecorder,
+  type UXTraceRecorderOptions,
+} from '../vr/trace/UXTraceRecorder.ts';
 
-export function setupDevTraceRecorder(world: World): UXTraceRecorder {
-  const recorder = new UXTraceRecorder({
-    engine: world.engine,
-    eventBus: world.eventBus,
-    getUIState: () => ({
-      wheel: world.uiManager?.handWheelMenu?.isVisible?.() ?? false,
-      tour: world.guidedTour
-        ? {
-            active: world.guidedTour.isActive,
-            step: world.guidedTour.stepIndex,
-            total: world.guidedTour.stepCount,
-          }
-        : null,
-      lens: world._statisticalLensEnabled,
-      paused: world.inputCoordinator.inputPaused,
-    }),
-    extraGazeTargets: () =>
-      world.guidedTour?.isActive && world.guidedTour.cardMesh ? [world.guidedTour.cardMesh] : [],
-  });
+export interface DevTraceBindings {
+  recorderOptions: UXTraceRecorderOptions;
+  bind(recorder: UXTraceRecorder): void;
+}
 
-  world.engine.input.onHandPinchEdge = (hand, phase, gating) =>
-    recorder.recordPinch(hand, phase, gating);
-
-  const previousDispatch = world.engine.input.dispatcher.onDispatch;
-  world.engine.input.dispatcher.onDispatch = (info) => {
-    previousDispatch?.(info);
-    recorder.recordSelection(info);
-  };
-
-  world.engine.input.systemDetector.onTrace = (info) => recorder.recordSystemGesture(info);
-
-  if (world.uiManager?.handWheelMenu) {
-    world.uiManager.handWheelMenu.onVisibility = (visible: boolean, via: 'toggle' | 'show' | 'hide') =>
-      recorder.recordWheel(visible, via);
-  }
-
+export function setupDevTraceRecorder(bindings: DevTraceBindings): UXTraceRecorder {
+  const recorder = new UXTraceRecorder(bindings.recorderOptions);
+  bindings.bind(recorder);
   return recorder;
 }
