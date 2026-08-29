@@ -25,6 +25,15 @@ describe('P1-UV1 task-first investigator shell', () => {
     expect(source).toContain('world.loader.hide()');
   });
 
+  it('keeps semantic dataset cycling aligned with the active sample', () => {
+    const source = readFileSync('src/app/bootstrap.ts', 'utf8');
+
+    expect(source).toContain('function synchronizeDatasetCycleCursor(world: World)');
+    expect(source).toContain('allSampleDatasets.findIndex((entry) => entry.key === currentKey)');
+    expect(source).toContain('synchronizeDatasetCycleCursor(world);');
+    expect(source).toContain('world._cycleDataset(step);');
+  });
+
   it('keeps the Moneta constraint HUD hidden normally and preserves the explicit diagnostic build route', () => {
     const source = readFileSync('src/vr/ui/MonetaDiagnosticHUD.ts', 'utf8');
     const constructor = source.slice(source.indexOf('  constructor('), source.indexOf('  get dracoNode'));
