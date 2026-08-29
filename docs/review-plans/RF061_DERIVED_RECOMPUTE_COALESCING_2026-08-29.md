@@ -1,6 +1,6 @@
 # RF-061 — Version-coalesced derived recomputation
 
-**Status:** IMPLEMENTATION LANDED / REVIEW ACTIVE / Q3E FIX-FORWARD
+**Status:** VERIFIED COMPLETE
 
 ## Trigger
 
@@ -85,11 +85,31 @@ The Rust resource envelope is intentionally conservative. Its static work/memory
 
 **Fix-forward:** keep the generic scheduler domain-agnostic but let its owning pipeline classify known typed refusal outcomes; add a distinct `refused` counter; require Q3E generic `failed = 0`; require deterministic stale settlement `= 0`; accept either one authoritative completed generation or one explicit governed refusal; retain the existing one-registration/coalescing/fingerprint/version evidence.
 
+## Fresh verification — PR #519
+
+A documentation-only measurement branch was reset to `main@d1132d998dacc076120d0d8124d308c6b54af113` before its trigger marker was added, leaving runtime/test/build/WASM/workflow source identical to that baseline. Q3D/Q3E run `33244206140`, artifact `9712325393`, measured production bundle `2fcabd602334e5b15252a49f6b047af524dbd84ee48fe2cae14b57cccf877d4b` and WASM `275a1722702a3d43420224d1121fefa4d09ae4d25bc90dc6583a91b5245bc692`.
+
+Results:
+
+- **1k:** controller 184.40 ms; derived settlement 467.21 ms; `requested=1`, `completed=1`, `refused=0`, `failed=0`, `stale=0`; one derived registration; two structure records.
+- **8k:** controller 617.01 ms; derived settlement 1,001.10 ms; `requested=1`, `completed=0`, `refused=1`, `failed=0`, `stale=0`; one derived registration; zero structure records.
+- **32k:** controller 817.95 ms; derived settlement 383.58 ms; `requested=1`, `completed=0`, `refused=1`, `failed=0`, `stale=0`; one derived registration; zero structure records.
+
+The production Q3E test additionally proved zero duplicate/coalesced schedule in all deterministic scenarios and exactly one authoritative dataset-version increment per mutation. Refused persistence entered no expensive kernel work and published no structures.
+
+**Verification conclusion:** the RF-061 invariant and decision rule are satisfied. The duplicate synchronous derived path is removed from the blocking controller envelope, automatic work is version-coalesced, supported work is preserved, and governed scale refusal is truthfully distinct from programming/runtime failure. RF-061 is therefore **VERIFIED COMPLETE**.
+
+### Residual transferred to the existing resource programme
+
+The fresh artifact also exposed a separate browser presentation threshold cliff: the 8k scenario rendered 8,000 individual node meshes / 4,304 render calls and took ~1,289.81 ms to reach rendered frames after the controller, whereas the 32k scenario had already switched to one compact mesh / 83 render calls and took ~289.86 ms. The 8k refused persistence request took only ~23.35 ms inside the Worker with zero kernel work, so the browser-observed ~1,088.92 ms persistence span is not an expensive Rust TDA computation.
+
+This is outside RF-061's derived-recomputation correctness scope. It is owned by RF-051/RF-029 whole-pipeline browser-resource evidence, coordinated with RF-001/P1-R representation-scale ownership. Do not relax the Rust resource guard to hide it. The next bounded scale measurement should capture the chosen representation/geometry with scene/render counters and falsify the 8k representation/LOD discontinuity before selecting an optimization.
+
 ## Decision rule
 
 Promote RF-061 only if exact-head correctness evidence and a fresh Q3E run agree that automatic derived work is preserved, version-correct and materially removed from the blocking mutation envelope. A supported computation must complete and publish the expected authoritative evidence. An unsupported computation may terminate only through the explicit governed refusal path. Any generic failure, silent dropped work, stale deterministic settlement, duplicate generation or fabricated evidence rejects promotion.
 
-If derived work still creates a later > frame-budget main-thread cliff, that stage becomes the next bounded finding rather than being hidden by the controller metric.
+The fresh PR #519 Q3E evidence satisfies this rule. The later 8k browser presentation cliff has been transferred to its existing resource/representation owners rather than hidden inside RF-061.
 
 ## Non-goals
 
