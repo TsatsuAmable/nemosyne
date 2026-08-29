@@ -159,7 +159,12 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
   );
   await captureState(page, '02-focused-observation', true, 'task surface reached; inspector visible after Inspect', s2b);
 
-  // S3 Moneta decision / NIL.
+  // S3 Moneta decision / NIL. P1-UV1 deliberately collapses advanced tools;
+  // evidence automation must summon that advanced route rather than forcing the
+  // budget control back into the normal startup hierarchy.
+  const tools = page.locator('#analyst-investigation-tools');
+  await tools.locator('summary').click();
+  await expect(tools).toHaveAttribute('open', '');
   await page.locator('#analyst-max-elements').fill('1');
   await page.locator('#analyst-assess-representation').click();
   await expect(page.locator('#analyst-representation-outcome')).toContainText(
