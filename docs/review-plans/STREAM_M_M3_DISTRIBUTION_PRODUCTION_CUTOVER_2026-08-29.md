@@ -54,7 +54,7 @@ M3 must add or strengthen tests proving:
 
 - loader requests contain explicit governed parameters/provenance and no rows;
 - generation, dataset version, fingerprint, candidate, family and decision mismatches fail closed;
-- Worker source dispatches aggregate and distribution independently and rejects unknown semantic candidates;
+- the actual analytical Worker handler registers a canonical dataset, dispatches distribution independently, executes the real Rust/WASM builder and hands its envelope to the row-guarded adapter; unknown semantic candidates remain rejected;
 - the real production use case attaches a distribution promise only for the distribution decision and uses only `primaryDimensions[0]` as measure;
 - the translator renders a valid envelope with a raw-row sentinel installed;
 - pending/refused/unavailable/invalid distribution states create zero meshes and never enter a row/chart branch;
@@ -93,7 +93,7 @@ The review confirmed that the Worker rejects unknown semantic candidates, aggreg
 - full repository `tsc --noEmit` — passed;
 - focused ESLint and Prettier checks — passed;
 - M3 cutover + A2 sentinel + RepresentationSurface + aggregate-loader regression: 4 files, 16 tests — passed;
-- the additional WASM-dependent aggregate audit could not run locally because `wasm/pkg` is not built in this container; exact-head Rust/WASM/coverage gates remain authoritative.
+- the new actual Worker-handler/WASM cutover test and the additional WASM-dependent aggregate audit could not run locally because `wasm/pkg` is not built in this container; exact-head Rust/WASM/coverage gates remain authoritative.
 
 ### Residuals transferred to M4
 
