@@ -4,7 +4,7 @@
 **Stream:** M — Moneta Distribution Truth  
 **Checkpoint:** M1 — distribution contract and falsifiers  
 **Base:** `main@2e77fe333ebacfd30941e7dc7194dea7402ab731`  
-**Status:** IMPLEMENTED — EXACT-HEAD REMOTE VERIFICATION PENDING
+**Status:** IMPLEMENTED — GOVERNED ENGINEERING GATES PASSED
 
 ## Invariant
 
@@ -138,4 +138,14 @@ Local evidence before publication:
 - Prettier parse/write for the new M1 WASM contract test — passed;
 - TypeScript 6 syntax/transpile check over all changed TypeScript files — passed.
 
-This container does not provide Cargo or the complete installed JavaScript dependency tree. Rust unit tests, full TypeScript typechecking and the real-WASM Vitest contract therefore remain explicit exact-head PR gates; M1 must not be merged or described as verified until those governed checks pass.
+This container does not provide Cargo or the complete installed JavaScript dependency tree, so Rust unit tests, full TypeScript typechecking and the real-WASM Vitest contract were delegated explicitly to the governed PR gates.
+
+Governed evidence on implementation head `ed0f12558dd9ae15407f139b15dee2aba120531f`:
+
+- CI run [33274735199](https://github.com/TsatsuAmable/nemosyne/actions/runs/33274735199) — Rust kernel, static analysis/typecheck, coverage WASM package, all three Vitest coverage shards, merged coverage, production build, Chromium production smoke and Node 24 passed;
+- CodeQL run [33274735186](https://github.com/TsatsuAmable/nemosyne/actions/runs/33274735186) — passed;
+- Q0 architecture and Q8 supply-chain workflows — passed;
+- Q9 exact-head run [33274791741](https://github.com/TsatsuAmable/nemosyne/actions/runs/33274791741) — passed;
+- approval gate run [33274791762](https://github.com/TsatsuAmable/nemosyne/actions/runs/33274791762) — passed.
+
+Disposition: the M1 contract is engineering-verified for its bounded scope. It still makes no claim that a dataset-derived builder, Worker transport, renderer or visible product path exists; those remain M2-M4.
