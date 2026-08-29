@@ -3,46 +3,62 @@
  *
  * Enforces explicit participant consent, pseudonymous subject hashing, and
  * full scrubbing/deletion hooks for study and performance logs.
+ *
+ * Privacy contract:
+ * - The pseudonym is a real cryptographic SHA-256 (Web Crypto) digest of
+ *   `salt:subjectId`, so the raw subject identifier cannot be recovered from
+ *   the record.
+ * - The consent record NEVER stores the raw subject id — only the pseudonym
+ *   token and consent metadata.
+ * - A non-empty per-deployment salt is REQUIRED; construction without one
+ *   fails closed so a deployment can never silently fall back to a public
+ *   default that weakens the pseudonym.
  */
 
 export type ConsentStatus = 'unspecified' | 'granted' | 'revoked';
+export type ConsentScope = 'telemetry' | 'biometric' | 'interaction_replay';
 
 export interface ConsentRecord {
-  subjectId: string;
   pseudonymToken: string;
   status: ConsentStatus;
   timestamp: number;
-  scopes: Array<'telemetry' | 'biometric' | 'interaction_replay'>;
+  scopes: ConsentScope[];
 }
+
+const PSEUDONYM_PREFIX = 'subj_';
 
 export class TelemetryConsentManager {
   private readonly _records = new Map<string, ConsentRecord>();
   private readonly _salt: string;
 
-  constructor(salt = 'nemosyne-consent-salt-v1') {
+  constructor(salt: string) {
+    if (typeof salt !== 'string' || salt.length === 0) {
+      throw new Error(
+        'TelemetryConsentManager requires a non-empty per-deployment salt (env/config-provided secret)'
+      );
+    }
     this._salt = salt;
   }
 
   /**
    * Derive a pseudonymous token from raw subject ID without storing PII.
+   * SHA-256 of `salt:subjectId` via Web Crypto; full-length hex digest.
    */
-  generatePseudonymToken(rawSubjectId: string): string {
-    let hash = 0x811c9dc5;
+  async generatePseudonymToken(rawSubjectId: string): Promise<string> {
     const input = `${this._salt}:${rawSubjectId}`;
-    for (let i = 0; i < input.length; i++) {
-      hash ^= input.charCodeAt(i);
-      hash = Math.imul(hash, 0x01000193);
-    }
-    return `subj_${(hash >>> 0).toString(16).padStart(8, '0')}`;
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+    const bytes = new Uint8Array(digest);
+    let hex = '';
+    for (const b of bytes) hex += b.toString(16).padStart(2, '0');
+    return `${PSEUDONYM_PREFIX}${hex}`;
   }
 
-  grantConsent(
+  async grantConsent(
     rawSubjectId: string,
-    scopes: Array<'telemetry' | 'biometric' | 'interaction_replay'> = ['telemetry']
-  ): ConsentRecord {
-    const pseudonymToken = this.generatePseudonymToken(rawSubjectId);
+    scopes: ConsentScope[] = ['telemetry']
+  ): Promise<ConsentRecord> {
+    const pseudonymToken = await this.generatePseudonymToken(rawSubjectId);
     const record: ConsentRecord = {
-      subjectId: rawSubjectId,
       pseudonymToken,
       status: 'granted',
       timestamp: Date.now(),
@@ -52,8 +68,8 @@ export class TelemetryConsentManager {
     return record;
   }
 
-  revokeConsent(rawSubjectId: string): void {
-    const pseudonymToken = this.generatePseudonymToken(rawSubjectId);
+  async revokeConsent(rawSubjectId: string): Promise<void> {
+    const pseudonymToken = await this.generatePseudonymToken(rawSubjectId);
     const record = this._records.get(pseudonymToken);
     if (record) {
       record.status = 'revoked';
@@ -65,11 +81,8 @@ export class TelemetryConsentManager {
   /**
    * Check if telemetry recording is permitted for the given subject and scope.
    */
-  isPermitted(
-    rawSubjectId: string,
-    scope: 'telemetry' | 'biometric' | 'interaction_replay' = 'telemetry'
-  ): boolean {
-    const pseudonymToken = this.generatePseudonymToken(rawSubjectId);
+  async isPermitted(rawSubjectId: string, scope: ConsentScope = 'telemetry'): Promise<boolean> {
+    const pseudonymToken = await this.generatePseudonymToken(rawSubjectId);
     const record = this._records.get(pseudonymToken);
     return record?.status === 'granted' && record.scopes.includes(scope);
   }
@@ -77,8 +90,8 @@ export class TelemetryConsentManager {
   /**
    * GDPR Right-to-Erasure: permanently erase subject record and all linked mapping.
    */
-  executeRightToErasure(rawSubjectId: string): boolean {
-    const pseudonymToken = this.generatePseudonymToken(rawSubjectId);
+  async executeRightToErasure(rawSubjectId: string): Promise<boolean> {
+    const pseudonymToken = await this.generatePseudonymToken(rawSubjectId);
     return this._records.delete(pseudonymToken);
   }
 

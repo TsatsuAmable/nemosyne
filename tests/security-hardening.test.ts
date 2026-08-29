@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as crypto from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
-import { UploadSanitizer } from '../src/data/index.ts';
+import * as dataBarrel from '../src/data/index.ts';
 import {
   createSignedTicket,
   verifySignedTicket,
@@ -9,49 +11,14 @@ import {
   SIGNED_TICKET_VERSION,
   type TicketClaims,
 } from '../src/network/index.ts';
+import * as networkBarrel from '../src/network/index.ts';
 import { TelemetryConsentManager } from '../src/study/index.ts';
 
 describe('Sprint 27.5 — Security, Input Sanitization & Network Hardening', () => {
-  describe('UploadSanitizer', () => {
-    it('sanitizes malicious directory traversal file names', () => {
-      const malicious = '../../../../etc/passwd\0.csv';
-      const clean = UploadSanitizer.sanitizeFileName(malicious);
-      expect(clean).not.toContain('..');
-      expect(clean).not.toContain('\0');
-      expect(clean).toBe('._._._._etc_passwd.csv');
-    });
-
-    it('rejects oversized raw upload bytes before memory allocation', () => {
-      const oversizedBuffer = new Uint8Array(2000);
-      const result = UploadSanitizer.validateUploadBytes(oversizedBuffer, 'data.csv', {
-        maxSizeBytes: 1000,
-      });
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('exceeds maximum allowed limit');
-    });
-
-    it('recursively neutralizes prototype pollution payloads in parsed objects', () => {
-      const maliciousPayload = JSON.parse('{"name":"safe","__proto__":{"polluted":true},"nested":{"constructor":{"admin":true}}}');
-      const clean = UploadSanitizer.neutralizeObject(maliciousPayload);
-
-      expect(clean.name).toBe('safe');
-      expect((clean as Record<string, unknown>).polluted).toBeUndefined();
-      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
-    });
-
-    it('rejects datasets with excess row or column counts', () => {
-      const rowResult = UploadSanitizer.validateDatasetMetrics(600_000, 10, {
-        maxRowCount: 500_000,
-      });
-      expect(rowResult.valid).toBe(false);
-      expect(rowResult.error).toContain('Row count 600000 exceeds');
-
-      const colResult = UploadSanitizer.validateDatasetMetrics(100, 2_000, {
-        maxColumnCount: 1_000,
-      });
-      expect(colResult.valid).toBe(false);
-      expect(colResult.error).toContain('Column count 2000 exceeds');
+  describe('S1-F2 — dead security classes removed from the barrels', () => {
+    it('no longer exposes UploadSanitizer or ConnectorAuthManager from production exports', () => {
+      expect((dataBarrel as any).UploadSanitizer).toBeUndefined();
+      expect((networkBarrel as any).ConnectorAuthManager).toBeUndefined();
     });
   });
 
@@ -272,31 +239,93 @@ describe('Sprint 27.5 — Security, Input Sanitization & Network Hardening', () 
   });
 
   describe('TelemetryConsentManager & GDPR Right-to-Erasure', () => {
-    it('manages consent scopes and pseudonymous hashing', () => {
-      const manager = new TelemetryConsentManager();
+    const SALT = 'deployment-secret-abc-123';
+
+    it('derives a real SHA-256 pseudonym and never stores the raw subjectId', async () => {
+      const manager = new TelemetryConsentManager(SALT);
       const rawSubject = 'analyst_dr_carter@hospital.org';
 
-      expect(manager.isPermitted(rawSubject)).toBe(false);
+      expect(await manager.isPermitted(rawSubject)).toBe(false);
 
-      const record = manager.grantConsent(rawSubject, ['telemetry', 'biometric']);
-      expect(record.pseudonymToken).toMatch(/^subj_[0-9a-f]{8}$/);
-      expect(manager.isPermitted(rawSubject, 'telemetry')).toBe(true);
-      expect(manager.isPermitted(rawSubject, 'biometric')).toBe(true);
-      expect(manager.isPermitted(rawSubject, 'interaction_replay')).toBe(false);
+      const record = await manager.grantConsent(rawSubject, ['telemetry', 'biometric']);
 
-      manager.revokeConsent(rawSubject);
-      expect(manager.isPermitted(rawSubject, 'telemetry')).toBe(false);
+      // The token is the full-length SHA-256 of `salt:subjectId` (Web Crypto),
+      // independently recomputed here to prove it is a real cryptographic hash.
+      const expectedHex = crypto.createHash('sha256').update(`${SALT}:${rawSubject}`).digest('hex');
+      expect(record.pseudonymToken).toBe(`subj_${expectedHex}`);
+      expect(record.pseudonymToken).toMatch(/^subj_[0-9a-f]{64}$/);
+
+      // The record is genuinely pseudonymous: no raw subject identifier.
+      expect(record).not.toHaveProperty('subjectId');
+      expect(JSON.stringify(record)).not.toContain(rawSubject);
+
+      expect(await manager.isPermitted(rawSubject, 'telemetry')).toBe(true);
+      expect(await manager.isPermitted(rawSubject, 'biometric')).toBe(true);
+      expect(await manager.isPermitted(rawSubject, 'interaction_replay')).toBe(false);
+
+      await manager.revokeConsent(rawSubject);
+      expect(await manager.isPermitted(rawSubject, 'telemetry')).toBe(false);
     });
 
-    it('permanently purges records on Right-to-Erasure execution', () => {
-      const manager = new TelemetryConsentManager();
-      manager.grantConsent('user-to-erase');
+    it('fails closed when constructed without a per-deployment salt', () => {
+      // The constructor signature requires a salt; the zero-arg / empty-salt
+      // runtime paths still must fail closed rather than adopt a default.
+      const Ctor = TelemetryConsentManager as unknown as new () => TelemetryConsentManager;
+      expect(() => new Ctor()).toThrow(/non-empty per-deployment salt/);
+      expect(() => new TelemetryConsentManager('')).toThrow(/non-empty per-deployment salt/);
+      expect(() => new TelemetryConsentManager(undefined as unknown as string)).toThrow(/non-empty per-deployment salt/);
+    });
+
+    it('derives a deterministic cryptographic token per salt and subject', async () => {
+      const a = await new TelemetryConsentManager(SALT).generatePseudonymToken('subject-1');
+      const b = await new TelemetryConsentManager(SALT).generatePseudonymToken('subject-1');
+      const c = await new TelemetryConsentManager(SALT).generatePseudonymToken('subject-2');
+      expect(a).toBe(b);
+      expect(a).not.toBe(c);
+    });
+
+    it('permanently purges records on Right-to-Erasure execution', async () => {
+      const manager = new TelemetryConsentManager(SALT);
+      await manager.grantConsent('user-to-erase');
       expect(manager.activeConsentCount).toBe(1);
 
-      const erased = manager.executeRightToErasure('user-to-erase');
+      const erased = await manager.executeRightToErasure('user-to-erase');
       expect(erased).toBe(true);
       expect(manager.activeConsentCount).toBe(0);
-      expect(manager.isPermitted('user-to-erase')).toBe(false);
+      expect(await manager.isPermitted('user-to-erase')).toBe(false);
+    });
+  });
+
+  describe('S1-F4 — CSPRNG-derived live identifiers', () => {
+    it('generates annotation, bookmark, and archive ids from crypto.randomUUID, never Math.random', () => {
+      const sharedAnnotations = readFileSync(
+        resolve(process.cwd(), 'src/vr/interactions/SharedAnnotationManager.ts'),
+        'utf8'
+      );
+      const vaultArchive = readFileSync(resolve(process.cwd(), 'src/session/VaultArchiveStore.ts'), 'utf8');
+      const networkManager = readFileSync(resolve(process.cwd(), 'src/network/NetworkManager.ts'), 'utf8');
+
+      expect(sharedAnnotations).toContain('annot-${crypto.randomUUID()}');
+      expect(sharedAnnotations).toContain('bm-${crypto.randomUUID()}');
+      expect(vaultArchive).toContain('${ARCHIVE_PREFIX}${crypto.randomUUID()}');
+      expect(sharedAnnotations).not.toContain('Math.random');
+      expect(vaultArchive).not.toContain('Math.random');
+
+      // NetworkManager keeps a CSPRNG-first peer id and only falls back to
+      // Math.random when crypto is entirely absent.
+      expect(networkManager).toContain("typeof crypto !== 'undefined' && crypto.randomUUID");
+      expect(networkManager).toMatch(/Math\.random/);
+    });
+  });
+
+  describe('S1-F5 — no untrusted PR data interpolated into CI run blocks', () => {
+    it('passes PR values to the approval gate via env, not inline shell interpolation', () => {
+      const workflow = readFileSync(resolve(process.cwd(), '.github/workflows/approval-gate.yml'), 'utf8');
+      expect(workflow).not.toContain('--pr ${{');
+      expect(workflow).not.toContain('--sha ${{');
+      expect(workflow).not.toContain("OWNER='${{");
+      expect(workflow).toContain('PR_NUMBER: ${{ github.event.pull_request.number }}');
+      expect(workflow).toContain('HEAD_SHA: ${{ github.event.pull_request.head.sha }}');
     });
   });
 });

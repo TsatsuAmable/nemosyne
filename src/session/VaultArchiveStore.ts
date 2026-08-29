@@ -45,7 +45,7 @@ export class VaultArchiveStore {
     snapshot: Record<string, unknown>,
     metadata: Omit<ArchiveMetadata, 'label' | 'frozenAt'>
   ): Promise<string> {
-    const archiveId = `${ARCHIVE_PREFIX}${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const archiveId = `${ARCHIVE_PREFIX}${crypto.randomUUID()}`;
     const entry: ArchiveEntry = {
       archiveId,
       label: label || 'Untitled archive',
