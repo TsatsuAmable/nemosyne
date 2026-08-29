@@ -58,6 +58,7 @@ pub enum InformationTypeV1 {
     IndividualObservationIdentity,
     ExactMetricValues,
     PopulationDensityDistribution,
+    EmpiricalDistributionShape,
     OutlierBoundaryVisibility,
     ClusterSeparation,
     RelationalEdgeConnectivity,
@@ -352,13 +353,12 @@ fn validate_aggregate_information_contract(contract: &InformationContractV1) -> 
 fn validate_distribution_information_contract(
     contract: &InformationContractV1,
 ) -> Result<(), String> {
-    let expected_preserves = vec![
-        InformationTypeV1::PopulationDensityDistribution,
-        InformationTypeV1::OutlierBoundaryVisibility,
-    ];
+    let expected_preserves = vec![InformationTypeV1::EmpiricalDistributionShape];
     let expected_loses = vec![
         InformationTypeV1::IndividualObservationIdentity,
         InformationTypeV1::ExactMetricValues,
+        InformationTypeV1::PopulationDensityDistribution,
+        InformationTypeV1::OutlierBoundaryVisibility,
     ];
     if contract.preserves != expected_preserves || contract.loses != expected_loses {
         return Err(
@@ -544,6 +544,16 @@ fn validate_aggregate_payload(
     Ok(())
 }
 
+fn stable_linear_position(lower: f64, upper: f64, fraction: f64) -> f64 {
+    if fraction <= 0.0 {
+        lower
+    } else if fraction >= 1.0 {
+        upper
+    } else {
+        lower * (1.0 - fraction) + upper * fraction
+    }
+}
+
 fn validate_empirical_distribution_payload(
     candidate_id: SemanticRepresentationIdV1,
     representation_family: SemanticEmbodimentFamilyV1,
@@ -666,11 +676,10 @@ fn validate_empirical_distribution_payload(
     }
     let mut histogram_count = 0u64;
     let mut previous_upper = None;
-    let expected_bin_width = if constant_domain {
-        0.0
-    } else {
-        (payload.domain.max - payload.domain.min) / payload.histogram.len() as f64
-    };
+    let bin_count = payload.histogram.len();
+    let tolerance = f64::EPSILON
+        * payload.domain.min.abs().max(payload.domain.max.abs()).max(1.0)
+        * 32.0;
     for (index, bin) in payload.histogram.iter().enumerate() {
         validate_short_text(&bin.semantic_id, "distribution histogram semanticId")?;
         if !semantic_ids.insert(bin.semantic_id.clone()) {
@@ -691,23 +700,22 @@ fn validate_empirical_distribution_payload(
         if previous_upper.is_some_and(|upper| bin.lower_bound != upper) {
             return Err("distribution histogram bins must be contiguous".to_string());
         }
-        let final_bin = index + 1 == payload.histogram.len();
+        let final_bin = index + 1 == bin_count;
         if !constant_domain {
-            let expected_lower = payload.domain.min + expected_bin_width * index as f64;
+            let expected_lower = stable_linear_position(
+                payload.domain.min,
+                payload.domain.max,
+                index as f64 / bin_count as f64,
+            );
             let expected_upper = if final_bin {
                 payload.domain.max
             } else {
-                payload.domain.min + expected_bin_width * (index + 1) as f64
+                stable_linear_position(
+                    payload.domain.min,
+                    payload.domain.max,
+                    (index + 1) as f64 / bin_count as f64,
+                )
             };
-            let tolerance = f64::EPSILON
-                * payload
-                    .domain
-                    .min
-                    .abs()
-                    .max(payload.domain.max.abs())
-                    .max(expected_bin_width.abs())
-                    .max(1.0)
-                * 16.0;
             if (bin.lower_bound - expected_lower).abs() > tolerance
                 || (bin.upper_bound - expected_upper).abs() > tolerance
             {
@@ -1022,13 +1030,12 @@ mod tests {
                 ),
             },
             information_contract: InformationContractV1 {
-                preserves: vec![
-                    InformationTypeV1::PopulationDensityDistribution,
-                    InformationTypeV1::OutlierBoundaryVisibility,
-                ],
+                preserves: vec![InformationTypeV1::EmpiricalDistributionShape],
                 loses: vec![
                     InformationTypeV1::IndividualObservationIdentity,
                     InformationTypeV1::ExactMetricValues,
+                    InformationTypeV1::PopulationDensityDistribution,
+                    InformationTypeV1::OutlierBoundaryVisibility,
                 ],
             },
             resource: ResourceEnvelopeV1 {
@@ -1190,6 +1197,18 @@ mod tests {
         validate_and_normalize(&mut envelope).expect("valid empirical distribution contract");
         assert_eq!(envelope.resource.max_element_count, MAX_DISTRIBUTION_ELEMENTS_V1);
         assert_eq!(envelope.approximation.represented_row_count, 4);
+        assert_eq!(
+            envelope.information_contract.preserves,
+            vec![InformationTypeV1::EmpiricalDistributionShape]
+        );
+        assert!(envelope
+            .information_contract
+            .loses
+            .contains(&InformationTypeV1::PopulationDensityDistribution));
+        assert!(envelope
+            .information_contract
+            .loses
+            .contains(&InformationTypeV1::OutlierBoundaryVisibility));
         let SemanticEmbodimentResultV1::Ready {
             payload: RepresentationPayloadV1::EmpiricalDistribution(payload),
         } = envelope.result else {
@@ -1206,6 +1225,11 @@ mod tests {
         let mut density_claim = distribution_fixture();
         density_claim.analytical_method.name = "continuous-density-pdf".to_string();
         assert!(validate_and_normalize(&mut density_claim).is_err());
+
+        let mut density_preservation_claim = distribution_fixture();
+        density_preservation_claim.information_contract.preserves =
+            vec![InformationTypeV1::PopulationDensityDistribution];
+        assert!(validate_and_normalize(&mut density_preservation_claim).is_err());
 
         let mut wrong_counts = distribution_fixture();
         if let SemanticEmbodimentResultV1::Ready {
@@ -1239,6 +1263,48 @@ mod tests {
         quantile_policy_drift.analytical_method.parameters["quantiles"]["probabilities"] =
             serde_json::json!([0.0, 0.25, 1.0]);
         assert!(validate_and_normalize(&mut quantile_policy_drift).is_err());
+    }
+
+    #[test]
+    fn extreme_finite_domain_equal_width_validation_fails_closed() {
+        let mut envelope = distribution_fixture();
+        if let SemanticEmbodimentResultV1::Ready {
+            payload: RepresentationPayloadV1::EmpiricalDistribution(payload),
+        } = &mut envelope.result
+        {
+            payload.domain = DistributionDomainV1 {
+                min: -f64::MAX,
+                max: f64::MAX,
+            };
+            payload.histogram = vec![
+                DistributionHistogramBinV1 {
+                    semantic_id: "distribution-bin:000".to_string(),
+                    lower_bound: -f64::MAX,
+                    upper_bound: -1.0,
+                    count: 2,
+                    upper_inclusive: false,
+                },
+                DistributionHistogramBinV1 {
+                    semantic_id: "distribution-bin:001".to_string(),
+                    lower_bound: -1.0,
+                    upper_bound: f64::MAX,
+                    count: 2,
+                    upper_inclusive: true,
+                },
+            ];
+            payload.ecdf = vec![
+                DistributionEcdfKnotV1 { semantic_id: "distribution-ecdf:000".to_string(), value: -f64::MAX, cumulative_count: 1, cumulative_probability: 0.25 },
+                DistributionEcdfKnotV1 { semantic_id: "distribution-ecdf:001".to_string(), value: -1.0, cumulative_count: 2, cumulative_probability: 0.5 },
+                DistributionEcdfKnotV1 { semantic_id: "distribution-ecdf:002".to_string(), value: 0.0, cumulative_count: 3, cumulative_probability: 0.75 },
+                DistributionEcdfKnotV1 { semantic_id: "distribution-ecdf:003".to_string(), value: f64::MAX, cumulative_count: 4, cumulative_probability: 1.0 },
+            ];
+            payload.quantiles = vec![
+                DistributionQuantileV1 { semantic_id: "distribution-quantile:000".to_string(), probability: 0.0, value: -f64::MAX },
+                DistributionQuantileV1 { semantic_id: "distribution-quantile:500".to_string(), probability: 0.5, value: 0.0 },
+                DistributionQuantileV1 { semantic_id: "distribution-quantile:1000".to_string(), probability: 1.0, value: f64::MAX },
+            ];
+        }
+        assert!(validate_and_normalize(&mut envelope).is_err());
     }
 
     #[test]
