@@ -84,8 +84,9 @@ describe('Stream A A3 semantic embodiment V1 contract', () => {
     ]);
     expect(first?.result.status).toBe('READY');
     if (first?.result.status !== 'READY') throw new Error('expected READY aggregate payload');
-    expect(first.result.payload.kind).toBe('AGGREGATE_VOLUME');
-    expect(first.result.payload.data.groups.map((group) => group.semanticId)).toEqual([
+    const payload = first.result.payload;
+    if (payload.kind !== 'AGGREGATE_VOLUME') throw new Error('expected aggregate payload kind');
+    expect(payload.data.groups.map((group) => group.semanticId)).toEqual([
       'group:a',
       'group:b',
     ]);

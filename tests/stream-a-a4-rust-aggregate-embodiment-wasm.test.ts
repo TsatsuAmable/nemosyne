@@ -44,7 +44,9 @@ describe('Stream A A4 Rust aggregate embodiment', () => {
       expect(envelope?.resource).toMatchObject({ sourceRowCount: 4, elementCount: 3, maxElementCount: 4096 });
       expect(envelope?.result.status).toBe('READY');
       if (envelope?.result.status !== 'READY') throw new Error('expected READY aggregate payload');
-      const groups = envelope.result.payload.data.groups;
+      const payload = envelope.result.payload;
+      if (payload.kind !== 'AGGREGATE_VOLUME') throw new Error('expected aggregate payload kind');
+      const groups = payload.data.groups;
       const a = groups.find((group) => group.key === 'a');
       const b = groups.find((group) => group.key === 'b');
       const missing = groups.find((group) => group.key === null);
@@ -94,7 +96,9 @@ describe('Stream A A4 Rust aggregate embodiment', () => {
       expect(envelope?.result.status).toBe('READY');
       expect(envelope?.resource).toMatchObject({ sourceRowCount: 1_024, elementCount: 4 });
       if (envelope?.result.status !== 'READY') throw new Error('expected READY aggregate payload');
-      expect(envelope.result.payload.data.groups).toHaveLength(4);
+      const payload = envelope.result.payload;
+      if (payload.kind !== 'AGGREGATE_VOLUME') throw new Error('expected aggregate payload kind');
+      expect(payload.data.groups).toHaveLength(4);
 
       // This is a deterministic serialized-size proxy, not a claim about exact
       // structured-clone bytes. A1 keeps exact Worker transfer bytes unmeasured.

@@ -136,15 +136,14 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   DISTRIBUTION_FIELD: {
     id: 'DISTRIBUTION_FIELD',
-    name: 'Univariate & Bivariate Distribution Field',
-    description: 'Statistical distribution contours, quantiles, and probability density curves',
-    supports: ['univariate-distribution', 'multivariate-correlation', 'anomaly-isolation'],
+    name: 'Empirical Univariate Distribution',
+    description: 'Bounded empirical histogram, ECDF, and quantile summary for one explicit numeric measure',
+    supports: ['univariate-distribution', 'anomaly-isolation'],
     preserves: [
       'population-density-distribution',
       'outlier-boundary-visibility',
-      'exact-metric-values',
     ],
-    loses: ['individual-observation-identity'],
+    loses: ['individual-observation-identity', 'exact-metric-values'],
     scaleCharacteristics: {
       minN: 50,
       maxN: 500_000,
