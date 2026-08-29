@@ -61,13 +61,16 @@ export class VRTopologyTranslator {
       this._pointCloudFactory
     );
 
-    // A4: aggregate embodiment consumes only the bounded Rust-owned semantic
-    // payload. Resolve raw rows/edges lazily for the still-row-backed families
-    // so an AGGREGATE_VOLUME path cannot accidentally traverse source rows.
+    // Dataset-level semantic embodiments consume only bounded Rust-owned
+    // payloads. Resolve raw rows/edges lazily for the still-row-backed families
+    // so aggregate/distribution paths cannot accidentally traverse source rows.
     let rows: Record<string, unknown>[] = [];
     let edges = dataInput.edges ?? [];
     if (spec.geometry === 'AGGREGATE_BARS') {
       scalable.buildAggregateBars(group, nodeMeshes, semanticInput.semanticEmbodiment);
+      edges = [];
+    } else if (spec.geometry === 'DISTRIBUTION_FIELD') {
+      scalable.buildDistributionField(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
     } else {
       rows = dataset?.rows ?? dataInput.rows ?? [];
@@ -165,6 +168,7 @@ export class VRTopologyTranslator {
     const chartPlaneFactory = options?.chartPlaneFactory || this._chartPlaneFactory;
     if (
       spec.geometry !== 'AGGREGATE_BARS' &&
+      spec.geometry !== 'DISTRIBUTION_FIELD' &&
       (facts.numericColumns > 1 || facts.hasTimeSeries) &&
       dataset &&
       chartPlaneFactory
