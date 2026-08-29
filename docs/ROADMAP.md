@@ -169,6 +169,29 @@ The V1 slice must not use the words PDF, probability density, continuous contour
 
 **Suggested PR:** `test(moneta): prove visible distribution path`
 
+## Advisory model routing for speed and quality
+
+Model choice is an execution aid, not evidence. Tests, production-path proof and independent adversarial review remain authoritative. Use the strongest currently available coding/reasoning model where an error could change scientific meaning, authority, lifecycle fencing or product claims; use balanced/fast models only where the work is mechanically bounded.
+
+Current mapping for the available Codex family:
+
+| Profile | Current model example | Appropriate use |
+| --- | --- | --- |
+| **Frontier** | `gpt-5.6-sol` at `high` or `xhigh` reasoning | Scientific contract, Rust/WASM authority, concurrency/lifecycle, production cutover, adversarial review |
+| **Balanced** | `gpt-5.6-terra` at `high` reasoning | Bounded fixtures, browser evidence plumbing, documentation and well-specified integration work |
+| **Fast support** | `gpt-5.6-luna` at `medium` or `high` reasoning | Repository inventory, mechanical test enumeration, log triage and formatting; never sole scientific implementer/reviewer |
+
+Recommended routing by checkpoint:
+
+| Checkpoint | Implementer | Independent post-review | Rationale |
+| --- | --- | --- | --- |
+| **M1 — contract/falsifiers** | **Frontier / high** | **Frontier / xhigh** | The ontology, missingness, quantile/binning semantics and cross-language validator become the durable scientific contract. |
+| **M2 — Rust/WASM builder** | **Frontier / high** | **Frontier / high** | Numerical correctness, bounds, canonical-handle authority and ABI behavior require strong systems and scientific reasoning. Fast support may enumerate fixtures only. |
+| **M3 — production cutover** | **Frontier / xhigh** | **Frontier / xhigh** | Highest-risk tranche: Worker/runtime identity, stale-result fencing, row-fallback prohibition and visible semantic identity cross several ownership boundaries. |
+| **M4 — product/scale evidence** | **Balanced / high** for evidence plumbing; **Frontier / high** for interpretation or fixes | **Frontier / high** | Much of the harness work is bounded, but interpreting performance/perceptual evidence and promoting claims requires frontier judgment. |
+
+Escalate from Balanced/Fast to Frontier immediately when a task reveals an ambiguous scientific definition, a new ABI/public-format decision, inconsistent authority, nondeterminism, a resource-envelope change, or a production-path defect. Do not downgrade reasoning merely to reduce wall-clock time after a tranche becomes high risk.
+
 ## Parallel-work and collision rules
 
 Stream M may run beside a separately railed UI stream that adds the typed `Show distribution` task transition. The UI stream owns action presentation and semantic-intent dispatch; Stream M owns analytical method, candidate fidelity, payload, Worker/WASM execution and the thin representation adapter. UI code must not calculate statistics, and Stream M must not redesign the shell.
