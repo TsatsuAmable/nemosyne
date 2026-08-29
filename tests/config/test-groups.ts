@@ -43,6 +43,7 @@ export const WASM_TESTS = [
   'tests/e2e/tier4_real_world/scenario5_complete_analyst_journey.spec.ts',
   'tests/frequency-field.test.ts',
   'tests/intent-inference.test.ts',
+  'tests/interaction-grammar-cts-coherence.test.ts',
   'tests/layout-binding-panel-typing.test.ts',
   'tests/moneta-metamorphic-provenance.test.ts',
   'tests/performance-budget.test.ts',
