@@ -7,7 +7,7 @@ import { bindOperationStateProjection } from '../src/vr/presentation/bindings/bi
 import { bindDerivedAnalysisProjection } from '../src/vr/presentation/bindings/bindDerivedAnalysisProjection.ts';
 import { bindOperationUiProjection } from '../src/vr/presentation/bindings/bindOperationUiProjection.ts';
 import { combineBindingDisposers } from '../src/vr/presentation/bindings/BindingDisposer.ts';
-import { Dataset } from '../src/data/Dataset.ts';
+import { ColumnType, Dataset } from '../src/data/Dataset.ts';
 
 describe('RF-062D projection bindings', () => {
   let world: World | null = null;
@@ -25,7 +25,11 @@ describe('RF-062D projection bindings', () => {
   it('preserves state -> derived analysis -> UI ordering for operation and history outcomes', () => {
     const eventBus = new WorldEventBus();
     const calls: string[] = [];
-    const dataset = new Dataset([{ value: 1 }]);
+    const dataset = new Dataset(
+      'projection-test',
+      [{ name: 'value', type: ColumnType.NUMERIC }],
+      [{ value: 1 }]
+    );
 
     const disposeState = bindOperationStateProjection({
       eventBus,
