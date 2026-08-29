@@ -110,14 +110,14 @@ describe('post-M4 independent fix-forward', () => {
 
   it('refreshes and unsubscribes the task-first dataset context from its injected authority', () => {
     let currentDataset = 'First dataset';
-    let datasetHandler: (() => void) | null = null;
+    const subscription: { handler?: () => void } = {};
     let unsubscribed = false;
 
     const handle = mountAnalystJourneyControls({
       dispatchIntent: (async () => undefined) as never,
       currentDatasetName: () => currentDataset,
       subscribeDatasetContext: (handler) => {
-        datasetHandler = handler;
+        subscription.handler = handler;
         return () => {
           unsubscribed = true;
         };
@@ -137,7 +137,8 @@ describe('post-M4 independent fix-forward', () => {
       'Dataset · First dataset'
     );
     currentDataset = 'Second dataset';
-    datasetHandler?.();
+    expect(subscription.handler).toBeTypeOf('function');
+    subscription.handler?.();
     expect(document.getElementById('analyst-workspace-context')?.textContent).toBe(
       'Dataset · Second dataset'
     );
