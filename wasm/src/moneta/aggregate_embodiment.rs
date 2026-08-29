@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
 use crate::data::column::ColumnType;
-use crate::data::columnar::{CategoricalColumn, ColumnarDataset, PrimitiveColumn};
+use crate::data::columnar::{ColumnarDataset, PrimitiveColumn};
 use crate::data;
 
 use super::embodiment::{
@@ -346,15 +346,18 @@ fn aggregate_from_columnar(
         .into_iter()
         .enumerate()
         .filter(|(_, accumulator)| accumulator.count > 0)
-        .map(|(index, accumulator)| AggregateGroupV1 {
-            semantic_id: if Some(index) == missing_index {
-                "aggregate-group:missing".to_string()
-            } else {
-                format!("aggregate-group:{index:05}")
-            },
-            key: accumulator.key,
-            count: accumulator.count,
-            aggregate_value: accumulator.aggregate_value(request.measure.function),
+        .map(|(index, accumulator)| {
+            let aggregate_value = accumulator.aggregate_value(request.measure.function);
+            AggregateGroupV1 {
+                semantic_id: if Some(index) == missing_index {
+                    "aggregate-group:missing".to_string()
+                } else {
+                    format!("aggregate-group:{index:05}")
+                },
+                key: accumulator.key,
+                count: accumulator.count,
+                aggregate_value,
+            }
         })
         .collect();
 
