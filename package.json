@@ -18,6 +18,7 @@
     "dev:quest:ux": "node scripts/quest-validation.mjs quest-ux",
     "dev:quest:10m": "node scripts/quest-validation.mjs quest-10m",
     "dev:quest:validate": "node scripts/quest-validation.mjs quest-validate",
+    "dev:quest:device": "node scripts/quest-device-declaration.mjs",
     "build": "npm run wasm && vite build",
     "preview": "vite preview --host",
     "lint": "eslint src tests dev vite.config.ts vitest.config.ts vitest.coverage.config.ts vitest.fast.config.ts vitest.ui.config.ts vitest.wasm.config.ts playwright.collaboration.config.ts",

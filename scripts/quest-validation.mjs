@@ -26,6 +26,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import {
+  MANIFEST_SCHEMA_VERSION,
   VALIDATION_MODE_TABLE,
   deriveValidationManifest,
   validateValidationManifest,
@@ -39,7 +40,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export function runGit(args, { execFileSyncFn = execFileSync } = {}) {
   try {
-    const stdout = execFileSyncFn('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const stdout = execFileSyncFn('git', args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     return { ok: true, stdout: String(stdout ?? '') };
   } catch (error) {
     return { ok: false, error };
@@ -104,26 +108,95 @@ export function generateSessionLabel(mode, buildId, now = () => new Date()) {
   return `${prefix}-${sha7}-${timestampStamp(now())}`;
 }
 
+export const DEVICE_DECLARATION_FILE = 'device.json';
+export const DEVICE_DECLARATION_FIELDS = [
+  'label',
+  'declaredQuestModel',
+  'declaredFirmwareVersion',
+  'investigator',
+];
+
+function declarationString(value) {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim().slice(0, 128) : null;
+}
+
 /**
- * Read the optional local investigator-declared device facts (QV2 seed). A
- * missing/invalid file yields nulls; the launcher never guesses firmware.
+ * Read the optional local investigator-declared device facts (QV2). A
+ * missing/invalid file yields nulls; the launcher never guesses firmware or
+ * model. The fields are visibly investigator-declared and distinct from the
+ * runtime-measured browser/XR/WebGL facts captured by `QuestTelemetry`.
  */
 export function readDeviceDeclaration(root = process.cwd()) {
   try {
-    const raw = fs.readFileSync(path.join(root, VALIDATION_LOG_ROOT, 'device.json'), 'utf8');
+    const raw = fs.readFileSync(
+      path.join(root, VALIDATION_LOG_ROOT, DEVICE_DECLARATION_FILE),
+      'utf8'
+    );
     const parsed = JSON.parse(raw);
-    const declaredQuestModel =
-      typeof parsed?.declaredQuestModel === 'string' && parsed.declaredQuestModel
-        ? parsed.declaredQuestModel
-        : null;
-    const declaredFirmwareVersion =
-      typeof parsed?.declaredFirmwareVersion === 'string' && parsed.declaredFirmwareVersion
-        ? parsed.declaredFirmwareVersion
-        : null;
-    return { declaredQuestModel, declaredFirmwareVersion };
+    return {
+      label: declarationString(parsed?.label),
+      declaredQuestModel: declarationString(parsed?.declaredQuestModel),
+      declaredFirmwareVersion: declarationString(parsed?.declaredFirmwareVersion),
+      investigator: declarationString(parsed?.investigator),
+    };
   } catch {
-    return { declaredQuestModel: null, declaredFirmwareVersion: null };
+    return {
+      label: null,
+      declaredQuestModel: null,
+      declaredFirmwareVersion: null,
+      investigator: null,
+    };
   }
+}
+
+/**
+ * Merge operator updates into a declaration. An absent update keeps the current
+ * value; an explicit empty string clears the field. All values are trimmed and
+ * bounded (fail closed on oversized/empty -> null).
+ */
+export function mergeDeviceDeclaration(current = {}, updates = {}) {
+  const merged = {};
+  for (const key of DEVICE_DECLARATION_FIELDS) {
+    const raw = updates[key] !== undefined ? updates[key] : current[key];
+    merged[key] = declarationString(raw);
+  }
+  return merged;
+}
+
+/** Persist the declaration under ignored local state (logs/validation/device.json). */
+export function writeDeviceDeclaration(declaration, root = process.cwd()) {
+  const dir = path.join(root, VALIDATION_LOG_ROOT);
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, DEVICE_DECLARATION_FILE);
+  fs.writeFileSync(file, `${JSON.stringify(declaration, null, 2)}\n`, 'utf8');
+  return file;
+}
+
+/**
+ * QV2 gate: a governed validation mode cannot be promotion-eligible without an
+ * investigator-declared device identity. Missing model/firmware downgrade the
+ * manifest (invalidation + promotionEligible:false) rather than being guessed.
+ * Informational modes (`quest`, `quest-validate`) are unaffected.
+ *
+ * This intentionally lives in the launcher layer, not in the pure manifest
+ * derivation, so the B1 `deriveValidationManifest` contract is unchanged.
+ */
+export function applyDeviceDeclarationGate(manifest) {
+  const spec = VALIDATION_MODE_TABLE[manifest.validationMode];
+  if (!spec || spec.evidenceClass !== 'governed-physical-validation') return manifest;
+  const invalidations = [...manifest.invalidations];
+  if (!manifest.declaredQuestModel) {
+    invalidations.push(
+      `no declaredQuestModel in ${VALIDATION_LOG_ROOT}/${DEVICE_DECLARATION_FILE}; physical device identity cannot be attributed`
+    );
+  }
+  if (!manifest.declaredFirmwareVersion) {
+    invalidations.push(
+      `no declaredFirmwareVersion in ${VALIDATION_LOG_ROOT}/${DEVICE_DECLARATION_FILE}; firmware cannot be attributed`
+    );
+  }
+  if (invalidations.length === manifest.invalidations.length) return manifest;
+  return { ...manifest, invalidations, promotionEligible: invalidations.length === 0 };
 }
 
 /**
@@ -146,15 +219,35 @@ export function buildValidationContext({
   const buildId = resolveGitHead(git);
   const worktree = resolveWorktreeState(git);
   const sessionLabel = generateSessionLabel(mode, buildId, now);
-  return deriveValidationManifest({
-    sessionId,
-    sessionLabel,
-    buildId,
-    worktree,
-    mode,
-    createdAt: now().toISOString(),
-    ...device,
-  });
+  return applyDeviceDeclarationGate(
+    deriveValidationManifest({
+      sessionId,
+      sessionLabel,
+      buildId,
+      worktree,
+      mode,
+      createdAt: now().toISOString(),
+      ...device,
+    })
+  );
+}
+
+/**
+ * Resolve the per-session evidence directory and refuse any path that escapes
+ * the validation root (fail closed). Shared by the manifest and evidence writers.
+ */
+export function resolveEvidenceDir(manifest, root = process.cwd()) {
+  const rootResolved = path.resolve(root);
+  const evidenceDir = path.resolve(root, manifest.evidenceDir);
+  if (evidenceDir !== rootResolved && !evidenceDir.startsWith(rootResolved + path.sep)) {
+    throw new Error(`evidence directory escapes validation root: ${manifest.evidenceDir}`);
+  }
+  if (!evidenceDir.startsWith(path.resolve(rootResolved, VALIDATION_LOG_ROOT) + path.sep)) {
+    throw new Error(
+      `evidence directory is outside ${VALIDATION_LOG_ROOT}: ${manifest.evidenceDir}`
+    );
+  }
+  return evidenceDir;
 }
 
 /**
@@ -162,18 +255,107 @@ export function buildValidationContext({
  * evidence directory that escapes the validation root (fail closed).
  */
 export function writeManifestFile(manifest, root = process.cwd()) {
-  const rootResolved = path.resolve(root);
-  const evidenceDir = path.resolve(root, manifest.evidenceDir);
-  if (evidenceDir !== rootResolved && !evidenceDir.startsWith(rootResolved + path.sep)) {
-    throw new Error(`evidence directory escapes validation root: ${manifest.evidenceDir}`);
-  }
-  if (!evidenceDir.startsWith(path.resolve(rootResolved, VALIDATION_LOG_ROOT) + path.sep)) {
-    throw new Error(`evidence directory is outside ${VALIDATION_LOG_ROOT}: ${manifest.evidenceDir}`);
-  }
+  const evidenceDir = resolveEvidenceDir(manifest, root);
   fs.mkdirSync(evidenceDir, { recursive: true });
   const file = path.join(evidenceDir, 'manifest.json');
   fs.writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return file;
+}
+
+/**
+ * Launch-time gate disposition. A governed run whose attribution is broken at
+ * launch (dirty/unknown worktree, missing device declaration) is classified
+ * INVALID_RUN with the attribution reasons. Mode-intrinsic invalidations (e.g.
+ * the 10M boundary probe being non-qualification) are recorded in the manifest
+ * but do not make the run's own-gate evidence invalid; those dispositions stay
+ * pending (null) for QV4 adjudication. Failures are evidence, never discarded.
+ */
+export function deriveLaunchDisposition(manifest) {
+  const spec = VALIDATION_MODE_TABLE[manifest.validationMode];
+  if (!spec || spec.evidenceClass !== 'governed-physical-validation') {
+    return { status: null, reasons: [] };
+  }
+  const attributionBlockers = manifest.invalidations.filter((reason) => {
+    if (reason.startsWith("worktree state is '")) return true;
+    if (reason.includes('declaredQuestModel')) return true;
+    if (reason.includes('declaredFirmwareVersion')) return true;
+    return false;
+  });
+  if (attributionBlockers.length > 0) {
+    return { status: 'INVALID_RUN', reasons: attributionBlockers };
+  }
+  return { status: null, reasons: [] };
+}
+
+/**
+ * Write the per-session gate disposition. The payload is a view of the manifest's
+ * own gate state (session identity, invalidations, promotionEligible) plus the
+ * current status/reasons — no thresholds or analysis are recomputed here.
+ */
+export function writeDispositionFile(manifest, disposition, root = process.cwd()) {
+  const evidenceDir = resolveEvidenceDir(manifest, root);
+  fs.mkdirSync(evidenceDir, { recursive: true });
+  const file = path.join(evidenceDir, 'disposition.json');
+  const payload = {
+    schemaVersion: MANIFEST_SCHEMA_VERSION,
+    sessionId: manifest.sessionId,
+    sessionLabel: manifest.sessionLabel,
+    buildId: manifest.buildId,
+    validationMode: manifest.validationMode,
+    gates: [...(manifest.gates ?? [])],
+    evidenceClass: manifest.evidenceClass,
+    gateDisposition: {
+      status: disposition.status ?? null,
+      reasons: disposition.reasons ?? [],
+    },
+    invalidations: [...(manifest.invalidations ?? [])],
+    promotionEligible: manifest.promotionEligible,
+    recordedAt: new Date().toISOString(),
+  };
+  fs.writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  return file;
+}
+
+/** QV3 analysis placeholder: explicit pending, never a fabricated result. */
+export function writeAnalysisPlaceholder(manifest, root = process.cwd()) {
+  const evidenceDir = resolveEvidenceDir(manifest, root);
+  fs.mkdirSync(evidenceDir, { recursive: true });
+  const file = path.join(evidenceDir, 'analysis.json');
+  const payload = {
+    schemaVersion: MANIFEST_SCHEMA_VERSION,
+    status: 'pending',
+    note: 'QV4 analysis/adjudication has not run; placeholder written at launch.',
+    recordedAt: new Date().toISOString(),
+  };
+  fs.writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  return file;
+}
+
+/** QV3 UX placeholders for quest-ux sessions (bounded, not-run, never backfilled). */
+export function writeUxPlaceholders(manifest, root = process.cwd()) {
+  const evidenceDir = resolveEvidenceDir(manifest, root);
+  fs.mkdirSync(evidenceDir, { recursive: true });
+  const written = [];
+  for (const name of ['ux-results.json', 'comfort-observation.json']) {
+    const file = path.join(evidenceDir, name);
+    const payload = {
+      status: 'not-run',
+      note: 'QV5 guided UX runner not yet implemented; placeholder written at launch.',
+    };
+    fs.writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+    written.push(file);
+  }
+  return written;
+}
+
+/** Write the full set of QV3 per-session evidence files at launch. */
+export function writeEvidencePlaceholders(manifest, root = process.cwd()) {
+  const written = [writeAnalysisPlaceholder(manifest, root)];
+  written.push(writeDispositionFile(manifest, deriveLaunchDisposition(manifest), root));
+  if (manifest.validationMode === 'quest-ux') {
+    written.push(...writeUxPlaceholders(manifest, root));
+  }
+  return written;
 }
 
 export function printSessionSummary(manifest) {
@@ -239,13 +421,29 @@ export function main(argv = process.argv, env = process.env, root = process.cwd(
   }
 
   const manifestPath = writeManifestFile(validated.manifest, root);
+  const evidenceFiles = writeEvidencePlaceholders(validated.manifest, root);
   printSessionSummary(validated.manifest);
   process.stderr.write(`[quest-validation] manifest written to ${manifestPath}\n`);
+  for (const file of evidenceFiles) {
+    process.stderr.write(`[quest-validation] evidence file written to ${file}\n`);
+  }
 
   if (spec.wasmRequired) {
     const wasm = spawnSync('npm', ['run', 'wasm:dev'], { stdio: 'inherit', cwd: root });
     if (wasm.status !== 0) {
       process.stderr.write('[quest-validation] WASM dev build failed; aborting session\n');
+      try {
+        const disposition = writeDispositionFile(
+          validated.manifest,
+          { status: 'FAIL', reasons: ['WASM dev build failed; session aborted before Vite start'] },
+          root
+        );
+        process.stderr.write(`[quest-validation] aborted disposition recorded to ${disposition}\n`);
+      } catch (error) {
+        process.stderr.write(
+          `[quest-validation] failed to record aborted disposition: ${error instanceof Error ? error.message : String(error)}\n`
+        );
+      }
       return wasm.status ?? 1;
     }
   }
@@ -269,7 +467,11 @@ export function main(argv = process.argv, env = process.env, root = process.cwd(
   return undefined;
 }
 
-if (typeof process !== 'undefined' && process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  typeof process !== 'undefined' &&
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   const code = main();
   if (typeof code === 'number') process.exitCode = code;
 }
