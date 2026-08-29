@@ -65,10 +65,11 @@ M2 does not add Worker/loader production transport, renderer geometry, product U
 
 ## Post-implementation adversarial review
 
-The implementation was re-read against this contract before merge. The review found and corrected two resource-path defects:
+The implementation was re-read against this contract before merge. The review found and corrected three defects:
 
 1. **Unbounded ECDF intermediate — fixed.** The first implementation materialized every unique-value endpoint before reducing to the requested knot count. That preserved bounded output but could allocate another `O(unique N)` vector. The final algorithm counts unique endpoints in one pass and selects at most the governed knot bound in a second pass.
 2. **Infallible exact-sort reservation — fixed.** Exact R7 quantiles require an `O(valid N)` sortable value buffer. The final builder reserves that buffer fallibly and returns a typed `RESOURCE_LIMIT` refusal if it cannot be reserved instead of relying on allocator abort behaviour.
+3. **Floating-point bin-boundary contradiction — fixed.** Recomputing a bin index through normalized arithmetic could round a value equal to a published boundary into the preceding bin at sub-unit scales. Assignment now compares against the actual emitted boundaries, with a regression fixture proving equality enters the left-closed successor bin.
 
 The remaining `O(valid N)` transient sort is explicit and intrinsic to this exact V1 algorithm. M2 does not claim generic large-N support; M4 owns measured browser/Worker/WASM scale evidence and may motivate a separately named approximate-quantile method. The 544-element output bound must not be misreported as a 544-element computation bound.
 

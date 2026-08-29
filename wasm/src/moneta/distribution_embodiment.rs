@@ -132,13 +132,6 @@ fn stable_lerp(lower: f64, upper: f64, fraction: f64) -> f64 {
     }
 }
 
-fn normalized_position(value: f64, min: f64, max: f64) -> f64 {
-    let scale = min.abs().max(max.abs()).max(1.0);
-    let scaled_min = min / scale;
-    let scaled_max = max / scale;
-    ((value / scale - scaled_min) / (scaled_max - scaled_min)).clamp(0.0, 1.0)
-}
-
 fn build_histogram(
     sorted: &[f64],
     min: f64,
@@ -156,14 +149,7 @@ fn build_histogram(
     }
 
     let bin_count = requested_bins as usize;
-    let mut counts = vec![0u64; bin_count];
-    for value in sorted {
-        let scaled = normalized_position(*value, min, max) * bin_count as f64;
-        let index = (scaled.floor() as usize).min(bin_count - 1);
-        counts[index] += 1;
-    }
-
-    (0..bin_count)
+    let mut bins: Vec<DistributionHistogramBinV1> = (0..bin_count)
         .map(|index| {
             let final_bin = index + 1 == bin_count;
             DistributionHistogramBinV1 {
@@ -174,11 +160,18 @@ fn build_histogram(
                 } else {
                     stable_lerp(min, max, (index + 1) as f64 / bin_count as f64)
                 },
-                count: counts[index],
+                count: 0,
                 upper_inclusive: final_bin,
             }
         })
-        .collect()
+        .collect();
+
+    for value in sorted {
+        let index = bins[..bin_count - 1]
+            .partition_point(|bin| *value >= bin.upper_bound);
+        bins[index].count += 1;
+    }
+    bins
 }
 
 fn unique_value_count(sorted: &[f64]) -> usize {
@@ -549,6 +542,20 @@ mod tests {
         assert_eq!(distribution.histogram[0].count, 3);
         assert_eq!(distribution.ecdf.len(), 1);
         assert_eq!(distribution.ecdf[0].cumulative_probability, 1.0);
+    }
+
+    #[test]
+    fn value_equal_to_reported_boundary_enters_left_closed_successor_bin() {
+        let min = 1.0e-300;
+        let max = 1.7e-300;
+        let boundary = stable_lerp(min, max, 0.25);
+        let bins = build_histogram(&[min, boundary, max], min, max, 4);
+        assert_eq!(
+            bins.iter().map(|bin| bin.count).collect::<Vec<_>>(),
+            vec![1, 1, 0, 1]
+        );
+        assert_eq!(bins[0].upper_bound, boundary);
+        assert_eq!(bins[1].lower_bound, boundary);
     }
 
     #[test]
