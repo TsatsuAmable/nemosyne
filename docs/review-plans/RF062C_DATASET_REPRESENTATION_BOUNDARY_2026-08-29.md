@@ -1,6 +1,6 @@
 # RF-062C — Dataset / representation workflow boundary
 
-**Status:** IMPLEMENTATION PARTIAL / REVIEW ACTIVE
+**Status:** IMPLEMENTATION LANDED / REVIEW ACTIVE
 
 **Date:** 2026-08-29
 
@@ -39,6 +39,18 @@ The tranche has exactly two new owners:
 - `RepresentationSurface` receives narrow scene/input/interaction/tooltip callbacks, not Engine/World service bags.
 - downstream dashboard/TDA/theme/status/autosave projections remain outside these two owners for RF-062D or existing owners.
 
+## Production wiring now landed
+
+The real `World.loadDataset()` / `_doLoadDataset()` path now:
+
+1. delegates the fresh-load or preserve-state analytical transition to `LoadDatasetUseCase`;
+2. receives the authoritative embodied dataset plus Moneta decision/NIL outcome;
+3. delegates representation construction, interaction registration, replacement and diagnostic ownership to `RepresentationSurface`;
+4. retains only compatibility facade mirrors (`dracoNode`, `diagnostic`, `_lastSelectedMesh`) for existing downstream callers;
+5. leaves theme/status/dashboard/TDA/lens reactions outside both new owners, ready for RF-062D rather than folding them into a new coordinator.
+
+World teardown delegates representation cleanup to `RepresentationSurface.dispose()` rather than manually unregistering/disposal-walking the current node.
+
 ## Pre-implementation adversarial contract
 
 **High-risk change.** Dataset load resets authoritative evidence/history/version state and representation replacement mutates the live XR scene graph.
@@ -58,7 +70,7 @@ Primary failure modes:
 
 ## Falsifying evidence
 
-Focused tests must prove:
+Focused tests prove:
 
 - fresh load clones baseline and working dataset separately and calls Atlas ownership in the existing order;
 - preserve-state re-arbitration does not call fresh-load setters and reuses caller requirements;
@@ -66,9 +78,25 @@ Focused tests must prove:
 - successful replacement unregisters previous resources and rebuilds one current surface;
 - selection is restored by matching semantic mesh name;
 - dispose is idempotent;
-- production `World.loadDataset()` traverses both new owners after wiring;
-- repeated production load/rebuild/dispose remains covered by ordinary CI/browser smoke;
-- RF-062A architecture boundaries remain green and neither owner depends on World.
+- a real `World.loadDataset()` traverses both new owners exactly once and the compatibility mirrors point at the surface-owned resources;
+- World teardown calls the surface owner and clears the compatibility mirrors.
+
+Ordinary full-system World coverage also cycles multiple sample datasets and disposes each World instance, so repeated production load/replacement/teardown remains exercised beyond the focused seam tests.
+
+## Post-implementation adversarial review
+
+The landed call path was re-read after the World extraction rather than treating class existence as completion evidence.
+
+### Findings
+
+- **No duplicate analytical authority:** the use case calls Atlas and Moneta only; it does not compute statistics or retain an independent analytical dataset.
+- **No replacement god class:** the use case is presentation-neutral and the surface is analytical-neutral. Cross-cutting status/theme/dashboard/TDA work deliberately remains outside them.
+- **Construction failure is atomic:** the new node is constructed before the current surface is released.
+- **Compatibility aliases remain:** `World.dracoNode`, `World.diagnostic` and `_lastSelectedMesh` still mirror surface-owned state for existing callers/tests. They are compatibility facade state, not resource owners, and their retirement belongs to RF-062I. They must not regain direct construction/disposal behavior.
+- **Selection has one production mutation path:** `RepresentationSurface` records the selected mesh before invoking the World data-card callback; replacement independently restores selection by semantic mesh name. Direct private `_showDataCard()` test calls do not establish a second production resource owner.
+- **Existing broad World hosts remain out of scope:** live/collaboration/landmark backreferences are RF-062F and were not pulled into this tranche.
+
+No blocker was found in the final ownership split. Final exact-head CI/browser/CodeQL/Q8/Q9 evidence remains required before merge and before any stronger completion classification.
 
 ## Bounded scope
 
