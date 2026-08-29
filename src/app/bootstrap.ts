@@ -5,6 +5,7 @@
  */
 
 import { World } from '../vr/World.ts';
+import { allSampleDatasets } from '../data/SampleDatasets.ts';
 import {
   setupDevTraceRecorder,
   type DevTraceBindings,
@@ -27,9 +28,25 @@ export interface AppInstance {
   analystJourneyControls: AnalystJourneyControlsHandle;
 }
 
+/**
+ * Keep the legacy sample-cycle cursor aligned with the dataset that is actually
+ * active before a semantic cycle intent. World starts with the first sample
+ * already loaded while its legacy cursor starts at -1; without this adapter,
+ * the first "next dataset" intent reloads the current sample instead of moving.
+ */
+function synchronizeDatasetCycleCursor(world: World): void {
+  const currentKey = world.currentEntry?.key;
+  if (!currentKey) return;
+  const currentIndex = allSampleDatasets.findIndex((entry) => entry.key === currentKey);
+  if (currentIndex >= 0) world._datasetCycleIndex = currentIndex;
+}
+
 function applicationIntentDispatcher(world: World): ApplicationIntentDispatcher {
   return createApplicationIntentDispatcher({
-    cycleDataset: (step) => world._cycleDataset(step),
+    cycleDataset: (step) => {
+      synchronizeDatasetCycleCursor(world);
+      world._cycleDataset(step);
+    },
     applyAnalysis: (operation) => world.dataOperationController.applyAsync(operation),
     resetAnalysis: () => world.resetDataOperation(),
     undoHistory: () => world.undoAnalysis(),
