@@ -37,3 +37,10 @@ export {
   type ScenarioRunResult,
   type ScenarioRunnerOptions,
 } from './ScenarioRunner.ts';
+export {
+  XRLifecycleScenarioRunner,
+  type LifecycleScenarioResult,
+  type SchedulerOutcome,
+  type AsyncAnalysisStub,
+  type LifecycleScenarioOptions,
+} from './LifecycleScenarioRunner.ts';
