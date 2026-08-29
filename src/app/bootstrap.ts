@@ -6,11 +6,37 @@
 
 import { World } from '../vr/World.ts';
 import { setupDevTraceRecorder } from './devTrace.ts';
-import { mountAnalystJourneyControls, type AnalystJourneyControlsHandle } from './AnalystJourneyControls.ts';
+import { assessAnalystRepresentation } from './AnalystRepresentationAssessment.ts';
+import {
+  mountAnalystJourneyControls,
+  type AnalystJourneyActions,
+  type AnalystJourneyControlsHandle,
+} from './AnalystJourneyControls.ts';
 
 export interface AppInstance {
   world: World;
   analystJourneyControls: AnalystJourneyControlsHandle;
+}
+
+function analystJourneyActions(world: World): AnalystJourneyActions {
+  return {
+    cycleDataset: (step) => world._cycleDataset(step),
+    currentDatasetName: () => world.currentEntry?.name ?? null,
+    assessRepresentation: (maxRenderedElements) =>
+      assessAnalystRepresentation(world.atlas, world.session, maxRenderedElements),
+    runAnomalyAnalysis: async () => {
+      await world.dataOperationController.applyAsync('anomaly');
+      return world.atlas.results.length;
+    },
+    markMoment: (note) => world.markMoment(note).id,
+    replayPortableInvestigation: (bytes) => world.replayPortableInvestigation(bytes),
+    exportPortableInvestigation: () =>
+      world.session.exportPortablePackage({
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        webxrSupported: 'xr' in navigator,
+      }),
+  };
 }
 
 export async function bootstrapApp(): Promise<AppInstance> {
@@ -47,5 +73,8 @@ export async function bootstrapApp(): Promise<AppInstance> {
     }
   }
 
-  return { world, analystJourneyControls: mountAnalystJourneyControls(world) };
+  return {
+    world,
+    analystJourneyControls: mountAnalystJourneyControls(analystJourneyActions(world)),
+  };
 }
