@@ -1,8 +1,10 @@
 // @ts-nocheck
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as crypto from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
-import { createRoomRegistry, type SignallingSocket } from '../src/network/SignallingServerCore.ts';
+import { createRoomRegistry, WS_MAX_PAYLOAD_BYTES, type SignallingSocket } from '../src/network/SignallingServerCore.ts';
 import { createSignedTicket } from '../src/network/SignedTicket.ts';
 import * as networkBarrel from '../src/network/index.ts';
 
@@ -746,6 +748,153 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
       );
       expect(openPart.sent.length).toBe(0);
       expect(openRegistry.getTotalPeers()).toBe(2);
+    });
+  });
+
+  describe('S1-F1 — Signalling room/connection flood hardening', () => {
+    it('bounds unauthenticated peers per room and still admits a legitimate authenticated peer', () => {
+      const registry = createRoomRegistry({
+        authToken: 'secret',
+        maxPendingPeersPerRoom: 3,
+        maxConnectionsPerIp: 100,
+      });
+      const floodSockets: MockSocketWithState[] = [];
+
+      // 3 unauthenticated flood peers are admitted pending in-band auth.
+      for (let i = 0; i < 3; i++) {
+        const s = makeSocket();
+        registry.handleConnection(s, 'room-flood', `flood-${i}`);
+        expect(s.closeCode).toBeUndefined();
+        floodSockets.push(s);
+      }
+
+      // A flood peer beyond the pending cap is rejected at the admission gate.
+      const overflow = makeSocket();
+      registry.handleConnection(overflow, 'room-flood', 'flood-overflow');
+      expect(overflow.closeCode).toBe(1008);
+      expect(overflow.closeReason).toBe('too many unauthenticated peers in room');
+
+      // A legitimate authenticated peer is still admitted: the pending cap is
+      // distinct from maxPeersPerRoom and does not consume authenticated slots.
+      const legit = makeSocket();
+      registry.handleConnection(legit, 'room-flood', 'legit-analyst', 'secret');
+      expect(legit.closeCode).toBeUndefined();
+      expect(registry.getTotalPeers()).toBe(1);
+
+      // Close pending sockets so their auth timers are cleared.
+      for (const s of floodSockets) s.close?.();
+      legit.close?.();
+    });
+
+    it('counts unauthenticated peers toward the server-wide admission ceiling', () => {
+      const registry = createRoomRegistry({
+        authToken: 'secret',
+        maxTotalConnections: 2,
+        maxConnectionsPerIp: 100,
+        authTimeoutMs: 60_000,
+      });
+      const a = makeSocket();
+      registry.handleConnection(a, 'room-a', 'peer-a');
+      expect(a.closeCode).toBeUndefined();
+      expect(registry.getTotalPeers()).toBe(0); // pending peer is not authenticated
+
+      const b = makeSocket();
+      registry.handleConnection(b, 'room-b', 'peer-b');
+      expect(b.closeCode).toBeUndefined();
+
+      // Once pending + authenticated reach maxTotalConnections, admission closes.
+      const c = makeSocket();
+      registry.handleConnection(c, 'room-c', 'peer-c');
+      expect(c.closeCode).toBe(1008);
+      expect(c.closeReason).toBe('server connection limit exceeded');
+
+      a.close?.();
+      b.close?.();
+    });
+
+    it('rejects once authenticated + pending peers together reach the server cap', () => {
+      const registry = createRoomRegistry({
+        authToken: 'secret',
+        maxTotalConnections: 2,
+        maxConnectionsPerIp: 100,
+        authTimeoutMs: 60_000,
+      });
+      const authed = makeSocket();
+      registry.handleConnection(authed, 'room-mix', 'authed', 'secret');
+      expect(authed.closeCode).toBeUndefined();
+      expect(registry.getTotalPeers()).toBe(1);
+
+      const pending = makeSocket();
+      registry.handleConnection(pending, 'room-mix', 'pending');
+      expect(pending.closeCode).toBeUndefined();
+
+      const overflow = makeSocket();
+      registry.handleConnection(overflow, 'room-mix', 'overflow');
+      expect(overflow.closeCode).toBe(1008);
+      expect(overflow.closeReason).toBe('server connection limit exceeded');
+
+      authed.close?.();
+      pending.close?.();
+    });
+
+    it('records a per-IP auth failure when an unauthenticated peer disconnects before the auth timeout', () => {
+      const registry = createRoomRegistry({
+        authToken: 'secret',
+        maxAuthFailures: 3,
+        authTimeoutMs: 60_000,
+      });
+      const req = { socket: { remoteAddress: '203.0.113.7' } };
+
+      for (let i = 0; i < 3; i++) {
+        const s = makeSocket();
+        registry.handleConnection(s, 'room-recon', `recon-${i}`, undefined, 'participant', req);
+        expect(s.closeCode).toBeUndefined(); // admitted pending auth
+        s.close?.(); // disconnect before the auth timeout elapses
+      }
+
+      // Each early disconnect is charged as an auth failure, so rapid
+      // reconnect-before-timeout cannot bypass the per-IP lockout.
+      expect(registry.getAuthFailureCount('203.0.113.7')).toBe(3);
+
+      const blocked = makeSocket();
+      registry.handleConnection(blocked, 'room-recon', 'blocked', 'secret', 'participant', req);
+      expect(blocked.closeCode).toBe(1008);
+      expect(blocked.closeReason).toBe('too many authentication failures');
+    });
+
+    it('rejects creation of new rooms beyond the room cap while existing rooms keep admitting', () => {
+      const registry = createRoomRegistry({ securityProfile: 'Development', maxRooms: 2 });
+
+      const a = makeSocket();
+      registry.handleConnection(a, 'room-1', 'peer-1');
+      expect(a.closeCode).toBeUndefined();
+
+      const b = makeSocket();
+      registry.handleConnection(b, 'room-2', 'peer-2');
+      expect(b.closeCode).toBeUndefined();
+      expect(registry.getRoomCount()).toBe(2);
+
+      // A brand-new room id is refused once the cap is reached.
+      const c = makeSocket();
+      registry.handleConnection(c, 'room-3', 'peer-3');
+      expect(c.closeCode).toBe(1008);
+      expect(c.closeReason).toBe('too many rooms');
+
+      // Existing rooms still admit peers (the cap only bounds room creation).
+      const d = makeSocket();
+      registry.handleConnection(d, 'room-1', 'peer-4');
+      expect(d.closeCode).toBeUndefined();
+    });
+
+    it('sets a transport-level maxPayload on both WebSocketServer transports', () => {
+      // The shared constant is sized above the registry's 64 KiB relay cap.
+      expect(WS_MAX_PAYLOAD_BYTES).toBeGreaterThanOrEqual(64 * 1024);
+
+      const standalone = readFileSync(resolve(process.cwd(), 'src/network/SignallingServer.mjs'), 'utf8');
+      const devServer = readFileSync(resolve(process.cwd(), 'dev/signalling-dev-server.ts'), 'utf8');
+
+      expect(standalone).toContain('maxPayload: WS_MAX_PAYLOAD_BYTES');
+      expect(devServer).toContain('maxPayload: WS_MAX_PAYLOAD_BYTES');
     });
   });
 });

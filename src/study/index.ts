@@ -16,6 +16,7 @@ export * from './StudyDataExporter.ts';
 export {
   TelemetryConsentManager,
   type ConsentStatus,
+  type ConsentScope,
   type ConsentRecord,
 } from './TelemetryConsentManager.ts';
 export {

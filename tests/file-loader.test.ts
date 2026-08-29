@@ -153,6 +153,39 @@ describe('FileLoaderUI', () => {
     expect(statusEl.textContent).toContain('Error:');
   });
 
+  it('rejects malicious file names (path traversal / null byte) at the real import boundary', async () => {
+    const malicious = new File([CSV_CONTENT], '../../etc/passwd\0.csv', { type: 'text/csv' });
+    const input = loader.container.querySelector('input[type="file"]')!;
+
+    Object.defineProperty(input, 'files', { value: [malicious], writable: false });
+    input.dispatchEvent(new Event('change'));
+
+    await new Promise((r) => setTimeout(r, 20));
+
+    // The malicious name is rejected fail-closed before any content is read,
+    // so no dataset ever reaches the consumer with the traversal label.
+    expect(onLoad).not.toHaveBeenCalled();
+    const statusEl = loader.container.querySelector('#loader-status')!;
+    expect(statusEl.textContent).toContain('File name rejected');
+  });
+
+  it('rejects file names with control characters or excessive length before parsing', async () => {
+    const cases = ['evil\x01.csv', 'x'.repeat(200) + '.csv', '..\\..\\win\\evil.csv'];
+    for (const name of cases) {
+      const file = new File([CSV_CONTENT], name, { type: 'text/csv' });
+      const input = loader.container.querySelector('input[type="file"]')!;
+
+      Object.defineProperty(input, 'files', { value: [file], writable: false, configurable: true });
+      input.dispatchEvent(new Event('change'));
+
+      await new Promise((r) => setTimeout(r, 20));
+      expect(onLoad).not.toHaveBeenCalled();
+    }
+
+    const statusEl = loader.container.querySelector('#loader-status')!;
+    expect(statusEl.textContent).toContain('File name rejected');
+  });
+
   it('renders a schema preview after loading', async () => {
     const file = new File(['category,value\nA,10\nB,20'], 'data.csv', { type: 'text/csv' });
     const input = loader.container.querySelector('input[type="file"]')!;

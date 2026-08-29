@@ -12,6 +12,17 @@ export interface HolographicInspectorOptions {
   worldSize?: [number, number];
 }
 
+/**
+ * Mapped actions for the inspector's footer buttons, injected post-construction
+ * by the composition root (World). When an action is absent the button shows an
+ * explanatory reason instead of remaining inert.
+ */
+export interface InspectorFooterActions {
+  onCompare?: () => void;
+  onChallenge?: () => void;
+  onAnnotate?: () => void;
+}
+
 /** One session-level provenance row derived from the evidence ledger. */
 export interface ProvenanceEntry {
   id: string;
@@ -60,12 +71,21 @@ export class HolographicInspector extends SpatialPanel {
    * Provenance/Evidence tabs show an "unavailable" notice.
    */
   provenanceProvider: ProvenanceProvider | null = null;
+  /**
+   * Mapped footer actions. Set by World after construction so Compare/Challenge/
+   * Annotate route through the canonical command authority and evidence ledger;
+   * null shows an explanatory reason when a button is clicked.
+   */
+  inspectorActions: InspectorFooterActions | null = null;
 
   // UI Sub-components
   private _chrome: PanelChrome;
   private _categoryText: Text;
   private _tabControl: SegmentedControl;
   private _contentContainer: Container;
+  private _compareButton: Button;
+  private _challengeButton: Button;
+  private _annotateButton: Button;
 
   // Tabs State
   private _activeTab: InspectorTab = 'Values';
@@ -135,12 +155,52 @@ export class HolographicInspector extends SpatialPanel {
       gap: 12,
       justifyContent: 'flex-start',
     });
-    footerContainer.add(new Button({ label: 'Compare', variant: 'secondary' }));
-    footerContainer.add(new Button({ label: 'Challenge', variant: 'danger' }));
-    footerContainer.add(new Button({ label: 'Annotate', variant: 'secondary' }));
+    this._compareButton = new Button({
+      label: 'Compare',
+      variant: 'secondary',
+      onClick: () => this._invokeFooterAction('compare'),
+    });
+    this._challengeButton = new Button({
+      label: 'Challenge',
+      variant: 'danger',
+      onClick: () => this._invokeFooterAction('challenge'),
+    });
+    this._annotateButton = new Button({
+      label: 'Annotate',
+      variant: 'secondary',
+      onClick: () => this._invokeFooterAction('annotate'),
+    });
+    footerContainer.add(this._compareButton);
+    footerContainer.add(this._challengeButton);
+    footerContainer.add(this._annotateButton);
     footerContainer.add(new Container({ flexGrow: 1 }));
     footerContainer.add(new Button({ label: 'Close', variant: 'secondary', onClick: () => this.hide() }));
     this.add(footerContainer);
+  }
+
+  private _invokeFooterAction(kind: 'compare' | 'challenge' | 'annotate'): void {
+    const action =
+      kind === 'compare'
+        ? this.inspectorActions?.onCompare
+        : kind === 'challenge'
+          ? this.inspectorActions?.onChallenge
+          : this.inspectorActions?.onAnnotate;
+    if (action) {
+      action();
+      return;
+    }
+    this._showFooterNotice(`Action '${kind}' is unavailable in this context`);
+  }
+
+  private _showFooterNotice(message: string): void {
+    this._contentContainer.clear();
+    this._contentContainer.add(
+      new Text({
+        text: message,
+        fontSize: 16,
+        color: COLOR_TOKENS.epistemic.uncertain,
+      }),
+    );
   }
 
   private _togglePin(): void {

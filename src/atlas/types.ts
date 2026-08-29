@@ -139,7 +139,12 @@ export interface AtlasRecommendation {
   rationale: string;
   evidence: string;
   evidenceItems?: AnalyticalEvidence[];
-  confidence: number;
+  /**
+   * Rank-dominance heuristic score, NOT statistical confidence. Produced by
+   * `GuidanceEngine` from evidence score dominance and rank; it must never be
+   * interpreted as a calibrated probability or confidence interval.
+   */
+  heuristicScore: number;
   limitations?: string;
   suggestedEmbodiment?: string;
   provenance?: Provenance | null;

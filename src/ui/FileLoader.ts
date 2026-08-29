@@ -23,6 +23,29 @@ import type { AtlasCore } from '../atlas/AtlasCore.ts';
  */
 const MAX_IMPORT_BYTES = 256 * 1024 * 1024;
 
+/**
+ * Maximum length of a dataset label derived from an uploaded file name.
+ */
+const MAX_DATASET_NAME_LEN = 128;
+
+/**
+ * Neutralize an untrusted upload file name before it becomes a dataset label.
+ * Returns null (reject) when the name carries null bytes, control characters,
+ * or path separators — such names cannot originate from a legitimate browser
+ * file picker and must not flow into labels, persistence, or exports.
+ */
+function sanitizeDatasetName(rawName: string): string | null {
+  if (typeof rawName !== 'string') return null;
+  const trimmed = rawName.trim();
+  if (trimmed.length === 0) return 'unnamed_dataset';
+  if (trimmed.length > MAX_DATASET_NAME_LEN) return null;
+  for (const ch of trimmed) {
+    const code = ch.charCodeAt(0);
+    if (code === 0 || code < 32 || code === 127 || ch === '/' || ch === '\\') return null;
+  }
+  return trimmed;
+}
+
 export interface FileLoaderLoadEvent {
   name: string;
   topology: TopologyType;
@@ -195,6 +218,16 @@ export class FileLoaderUI {
   private async _handleFile(file: File | undefined): Promise<void> {
     if (!file || this._disposed) return;
     const generation = ++this._generation;
+    // Neutralize the file name before it becomes a dataset label, extension
+    // hint, or display string. Malicious names (path traversal, null bytes,
+    // control characters, over-long) are rejected fail-closed at the import
+    // boundary, before any content is read.
+    const safeName = sanitizeDatasetName(file.name);
+    if (safeName === null) {
+      this._status('File name rejected: contains unsafe characters or is too long.');
+      this._clearSchema();
+      return;
+    }
     // Reject oversized files before reading them into memory. `file.size` is
     // present on all evergreen browsers; guard for the rare undefined case.
     if (typeof file.size === 'number' && file.size > MAX_IMPORT_BYTES) {
@@ -214,12 +247,12 @@ export class FileLoaderUI {
       return;
     }
     if (!this._isCurrent(generation)) return;
-    const ext = file.name.toLowerCase().split('.').pop() ?? '';
+    const ext = safeName.toLowerCase().split('.').pop() ?? '';
     const bytes = new TextEncoder().encode(text);
 
     let parsed: { dataset: Dataset; topology: TopologyType; encodings: Record<string, string> };
     try {
-      parsed = this._parseViaKernel(bytes, ext, file.name);
+      parsed = this._parseViaKernel(bytes, ext, safeName);
     } catch (err: unknown) {
       if (!this._isCurrent(generation)) return;
       this._status(`Error parsing file: ${err instanceof Error ? err.message : String(err)}`);
@@ -241,10 +274,10 @@ export class FileLoaderUI {
 
     if (!this._isCurrent(generation)) return;
     this._renderSchema(dataset, topology, encodings, validation.warnings);
-    this._status(message || `Loaded ${dataset.rowCount} rows from ${file.name} as ${topology}`);
+    this._status(message || `Loaded ${dataset.rowCount} rows from ${safeName} as ${topology}`);
     if (!this._isCurrent(generation)) return;
     this.onLoad({
-      name: file.name,
+      name: safeName,
       topology,
       dataset,
       encodings,

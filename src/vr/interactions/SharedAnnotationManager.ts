@@ -162,7 +162,7 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
     colorHex = 0x3388ff
   ): SpatialAnnotation | null {
     if (!this._canMutateSharedState()) return null;
-    const id = `annot-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const id = `annot-${crypto.randomUUID()}`;
     const annotation: SpatialAnnotation = {
       id,
       position,
@@ -213,7 +213,7 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
     authorId = 'local'
   ): SpatialBookmark | null {
     if (!this._canMutateSharedState()) return null;
-    const id = `bm-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const id = `bm-${crypto.randomUUID()}`;
     const bookmark: SpatialBookmark = {
       id,
       title,

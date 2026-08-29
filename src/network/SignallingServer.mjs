@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import { createRoomRegistry } from './SignallingServerCore.ts';
+import { createRoomRegistry, WS_MAX_PAYLOAD_BYTES } from './SignallingServerCore.ts';
 
 /**
  * Minimal Node.js signalling server for Nemosyne collaboration rooms.
@@ -51,7 +51,7 @@ const registry = createRoomRegistry({
   allowOpenNoToken: ALLOW_OPEN,
 });
 
-const wss = new WebSocketServer({ port: PORT });
+const wss = new WebSocketServer({ port: PORT, maxPayload: WS_MAX_PAYLOAD_BYTES });
 
 // --- Heartbeat & Zombie Socket Reaper ---------------------------------------
 const HEARTBEAT_INTERVAL_MS = 30_000;

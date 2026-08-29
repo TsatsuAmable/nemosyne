@@ -7,7 +7,7 @@ import type {
 import type { DiscoveredStructure, StructureSet } from './structures.ts';
 
 export interface GuidanceOptions {
-  minConfidence?: number;
+  minHeuristicScore?: number;
 }
 
 interface ScoredStructure {
@@ -20,18 +20,18 @@ export function generateGuidance(
   _kernelVersion: string,
   options?: GuidanceOptions,
 ): AtlasRecommendation | null {
-  const minConfidence = options?.minConfidence ?? 0;
+  const minHeuristicScore = options?.minHeuristicScore ?? 0;
   const candidates = scoreAndSort(structureSets);
   if (candidates.length === 0) return null;
 
   const anomaly = detectAnomaly(candidates);
-  if (anomaly && anomaly.confidence >= minConfidence) return anomaly;
+  if (anomaly && anomaly.heuristicScore >= minHeuristicScore) return anomaly;
 
   const comparison = detectComparison(candidates);
-  if (comparison && comparison.confidence >= minConfidence) return comparison;
+  if (comparison && comparison.heuristicScore >= minHeuristicScore) return comparison;
 
   const single = bestSingle(candidates);
-  if (single && single.confidence >= minConfidence) return single;
+  if (single && single.heuristicScore >= minHeuristicScore) return single;
 
   return null;
 }
@@ -49,7 +49,7 @@ function bestSingle(candidates: ScoredStructure[]): AtlasRecommendation | null {
   const structure = best.structure;
   const action = actionForKind(structure.kind);
   const evidenceItems = buildEvidenceItems(structure, best.set.id);
-  const confidence = computeConfidence(structure, candidates.length);
+  const heuristicScore = computeHeuristicScore(structure, candidates.length);
 
   return {
     targetIds: [structure.id],
@@ -57,7 +57,7 @@ function bestSingle(candidates: ScoredStructure[]): AtlasRecommendation | null {
     rationale: rationaleForKind(structure.kind, structure.evidence.rank),
     evidence: evidenceSummary(evidenceItems),
     evidenceItems,
-    confidence,
+    heuristicScore,
     limitations: limitationsForKind(structure.kind),
     suggestedEmbodiment: embodimentForAction(action),
     provenance: best.set.provenance,
@@ -94,7 +94,7 @@ function detectComparison(candidates: ScoredStructure[]): AtlasRecommendation | 
     ...buildEvidenceItems(b.structure, b.set.id),
   ];
 
-  const confidence = Math.min(1, relativeGap * 2);
+  const heuristicScore = Math.min(1, relativeGap * 2);
 
   return {
     targetIds: [a.structure.id, b.structure.id],
@@ -102,7 +102,7 @@ function detectComparison(candidates: ScoredStructure[]): AtlasRecommendation | 
     rationale: `Two clusters show a ${(relativeGap * 100).toFixed(0)}% size disparity (scores ${scoreA.toFixed(1)} vs ${scoreB.toFixed(1)}); compare their memberships for structural divergence.`,
     evidence: evidenceSummary(evidenceItems),
     evidenceItems,
-    confidence,
+    heuristicScore,
     limitations: 'Comparison assumes same clustering parameters; validate with domain knowledge.',
     suggestedEmbodiment: 'split-view',
     provenance: a.set.provenance ?? b.set.provenance,
@@ -133,7 +133,7 @@ function detectAnomaly(candidates: ScoredStructure[]): AtlasRecommendation | nul
   const allScores = candidates.map((c) => c.structure.evidence.score ?? 0);
   const meanScore = allScores.reduce((s, v) => s + v, 0) / allScores.length;
   const deviation = meanScore > 0 ? Math.abs((structure.evidence.score ?? 0) - meanScore) / meanScore : 0;
-  const confidence = Math.min(1, deviation * 1.5);
+  const heuristicScore = Math.min(1, deviation * 1.5);
 
   return {
     targetIds: [structure.id],
@@ -141,7 +141,7 @@ function detectAnomaly(candidates: ScoredStructure[]): AtlasRecommendation | nul
     rationale: anomalyRationale(structure),
     evidence: evidenceSummary(evidenceItems),
     evidenceItems,
-    confidence,
+    heuristicScore,
     limitations: 'Anomaly detection is relative to current structure set; validate against domain baseline.',
     suggestedEmbodiment: 'outlier-orb',
     provenance: best.set.provenance,
@@ -213,7 +213,12 @@ function buildEvidenceItems(
   return items;
 }
 
-function computeConfidence(structure: DiscoveredStructure, totalCandidates: number): number {
+/**
+ * Rank-dominance heuristic score in [0,1]. This is NOT statistical confidence:
+ * it combines evidence-score dominance with a rank penalty and should be
+ * presented to investigators as a heuristic, never as calibrated probability.
+ */
+function computeHeuristicScore(structure: DiscoveredStructure, totalCandidates: number): number {
   const score = structure.evidence.score ?? 0;
   if (totalCandidates <= 1) return 1;
   const dominance = score / (score + 0.001);
