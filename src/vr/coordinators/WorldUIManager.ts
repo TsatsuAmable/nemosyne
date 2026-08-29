@@ -35,7 +35,6 @@ import { JITGestureHintManager } from '../ui/JITGestureHintManager.ts';
 import { ProgressiveDisclosureController } from '../ui/ProgressiveDisclosure.ts';
 import { StatusStripController } from '../ui/StatusStripController.ts';
 import { StatusStripPanel } from '../ui/StatusStripPanel.ts';
-import { EmbodimentStatusNotice } from '../ui/EmbodimentStatusNotice.ts';
 import { PanelRolesManager, type UIMode } from '../ui/PanelRolesManager.ts';
 import { PANEL_LAYOUT, type Vec3 } from '../ui/panelLayout.ts';
 import { ContextualTaskSurface } from '../ui/ContextualTaskSurface.ts';
@@ -94,7 +93,8 @@ export interface WorldUIManagerCallbacks {
   onOverrideRecommendation?: () => void;
   onGenerateRecommendation?: () => void;
   onApplyRemediation?: (action: import('../../moneta/representation/ActionableNil.ts').RemedialAction) => void;
-  onPreviewRemediation?: (action: import('../../moneta/representation/ActionableNil.ts').RemedialAction) => void;
+  onPreviewRemediation?: (action: import('../../moneta/representation/ActionableNil.ts').RemedialAction) => boolean;
+  getPreviewDecision?: () => import('../../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null;
   onCommitRemediation?: (action: import('../../moneta/representation/ActionableNil.ts').RemedialAction) => void;
   onCancelRemediationPreview?: () => void;
   onExitVR?: () => void;
@@ -107,7 +107,6 @@ export interface WorldUIManagerCallbacks {
   onInspectNode?: (data: Record<string, unknown> | null) => void;
   onRecordFinding?: (data: Record<string, unknown> | null) => void;
   onNavigateNode?: (data: Record<string, unknown> | null) => void;
-  getDracoNode?: () => import('../../moneta/MonetaTopologyNode.ts').DracoTopologyNode | null;
   onFreezeInvestigation?: () => Promise<void>;
   onRestoreArchive?: (archiveId: string) => void;
   onExportArchive?: (archiveId: string) => void;
@@ -175,7 +174,6 @@ export class WorldUIManager {
   dracoExplainerPanel: DracoExplainerPanel;
   vaultPanel: VaultPanel;
   statusStripPanel: StatusStripPanel;
-  embodimentStatusNotice: EmbodimentStatusNotice;
 
   // Superuser / Dev Lab — panel subclasses (wired into PanelManager on first access)
   schemaMappingPanel: SchemaMappingPanel | null = null;
@@ -249,13 +247,6 @@ export class WorldUIManager {
     });
     this.engine.addUpdatable(this.statusStripPanel);
 
-    // In-world notice for refused/invalid/pending semantic embodiment states.
-    this.embodimentStatusNotice = new EmbodimentStatusNotice(this.engine.cameraGroup, {
-      getDracoNode: () => callbacks.getDracoNode?.() ?? null,
-      position: [0, 1.2, -1.0],
-      worldSize: [0.6, 0.12],
-    });
-    this.engine.addUpdatable(this.embodimentStatusNotice);
 
     // Main operation / dataset menu — retired as primary navigation per P1-U8.
     // Functionality folded into TechnoCore, ContextualTaskSurface, and HandWheelMenu.
@@ -428,6 +419,7 @@ export class WorldUIManager {
       onGenerate: callbacks.onGenerateRecommendation,
       onApplyRemediation: callbacks.onApplyRemediation,
       onPreviewRemediation: callbacks.onPreviewRemediation,
+      getPreviewDecision: callbacks.getPreviewDecision,
       onCommitRemediation: callbacks.onCommitRemediation,
       onCancelRemediationPreview: callbacks.onCancelRemediationPreview,
     });
@@ -851,7 +843,6 @@ export class WorldUIManager {
     this.dashboard.dispose();
     this.handWheelMenu.dispose();
     this.statusStripPanel.dispose?.();
-    this.embodimentStatusNotice.dispose?.();
     if (!this._borrowedResources.has(this.contextualTaskSurface)) {
       this.contextualTaskSurface.dispose?.();
     }

@@ -3,6 +3,7 @@ import { MovablePanel } from './MovablePanel.ts';
 import type { MovablePanelOptions } from '../coordinators/types.ts';
 import type { AtlasRecommendation } from '../../atlas/types.ts';
 import type { InvestigatorActionableOutcome, RemedialAction } from '../../moneta/representation/ActionableNil.ts';
+import type { RepresentationDecision } from '../../moneta/representation/RepresentationDecision.ts';
 
 export interface RecommendationPanelOptions extends MovablePanelOptions {
   getRecommendation: () => AtlasRecommendation | null;
@@ -12,7 +13,8 @@ export interface RecommendationPanelOptions extends MovablePanelOptions {
   onOverride?: () => void;
   onGenerate?: () => void;
   onApplyRemediation?: (action: RemedialAction) => void;
-  onPreviewRemediation?: (action: RemedialAction) => void;
+  onPreviewRemediation?: (action: RemedialAction) => boolean;
+  getPreviewDecision?: () => RepresentationDecision | null;
   onCommitRemediation?: (action: RemedialAction) => void;
   onCancelRemediationPreview?: () => void;
 }
@@ -51,7 +53,8 @@ export class RecommendationPanel extends MovablePanel {
   private readonly _onOverride?: () => void;
   private readonly _onGenerate?: () => void;
   private readonly _onApplyRemediation?: (action: RemedialAction) => void;
-  private readonly _onPreviewRemediation?: (action: RemedialAction) => void;
+  private readonly _onPreviewRemediation?: (action: RemedialAction) => boolean;
+  private readonly _getPreviewDecision?: () => RepresentationDecision | null;
   private readonly _onCommitRemediation?: (action: RemedialAction) => void;
   private readonly _onCancelRemediationPreview?: () => void;
   private _dirty = true;
@@ -80,6 +83,7 @@ export class RecommendationPanel extends MovablePanel {
     this._onGenerate = options.onGenerate;
     this._onApplyRemediation = options.onApplyRemediation;
     this._onPreviewRemediation = options.onPreviewRemediation;
+    this._getPreviewDecision = options.getPreviewDecision;
     this._onCommitRemediation = options.onCommitRemediation;
     this._onCancelRemediationPreview = options.onCancelRemediationPreview;
     this.render();
@@ -406,12 +410,28 @@ export class RecommendationPanel extends MovablePanel {
         const gap = 12;
 
         if (isPreviewed) {
-          ctx.fillStyle = '#ffcc00';
-          ctx.font = this._scaleFont('bold 12px monospace');
-          ctx.fillText('PREVIEW ACTIVE — Requirement patch applied to arbitration', pad + 16, y + 12);
-          y += 20;
-          this._drawButton(ctx, `remedi-commit-${action.id}`, 'Apply', pad + 16, y, btnW, btnH, '#00aa44');
-          this._drawButton(ctx, `remedi-cancel-${action.id}`, 'Revert', pad + 16 + btnW + gap, y, btnW, btnH, '#aa3333');
+          const previewDecision = this._getPreviewDecision?.() ?? null;
+          if (previewDecision) {
+            const candidate = previewDecision.chosenCandidateId ?? previewDecision.representationFamily;
+            const layout = previewDecision.chosenLayout ?? previewDecision.embodiment.primaryLayout;
+            const status = previewDecision.decisionStatus ?? 'DECISIVE';
+            ctx.fillStyle = '#ffcc00';
+            ctx.font = this._scaleFont('bold 12px monospace');
+            ctx.fillText(`PREVIEW: ${candidate} · ${layout}`, pad + 16, y + 12);
+            ctx.font = this._scaleFont('11px monospace');
+            ctx.fillStyle = '#ddddaa';
+            ctx.fillText(`Utility ${previewDecision.utilityScore.toFixed(3)} · ${status}`, pad + 16, y + 30);
+            y += 40;
+            this._drawButton(ctx, `remedi-commit-${action.id}`, 'Apply', pad + 16, y, btnW, btnH, '#00aa44');
+            this._drawButton(ctx, `remedi-cancel-${action.id}`, 'Revert', pad + 16 + btnW + gap, y, btnW, btnH, '#aa3333');
+          } else {
+            ctx.fillStyle = '#ff9966';
+            ctx.font = this._scaleFont('bold 12px monospace');
+            ctx.fillText('PREVIEW STALE — run preview again', pad + 16, y + 12);
+            y += 20;
+            this._drawButton(ctx, `remedi-preview-${action.id}`, 'Re-preview', pad + 16, y, btnW, btnH, '#0088cc');
+            this._drawButton(ctx, `remedi-cancel-${action.id}`, 'Revert', pad + 16 + btnW + gap, y, btnW, btnH, '#aa3333');
+          }
         } else {
           this._drawButton(ctx, `remedi-preview-${action.id}`, 'Preview', pad + 16, y, btnW, btnH, '#0088cc');
         }
@@ -482,8 +502,8 @@ export class RecommendationPanel extends MovablePanel {
       const outcome = this._getOutcome ? this._getOutcome() : null;
       const action = outcome?.availableRemediations.find((a) => a.id === actionId);
       if (action) {
-        this._previewedRemediationId = actionId;
-        this._onPreviewRemediation?.(action);
+        const accepted = this._onPreviewRemediation?.(action) ?? false;
+        if (accepted) this._previewedRemediationId = actionId;
       }
     } else if (id.startsWith('remedi-commit-')) {
       const actionId = id.slice(14);

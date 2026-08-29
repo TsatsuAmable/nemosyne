@@ -95,7 +95,7 @@ import type { TopologyType } from '../data/types.ts';
 import { DatasetSpace } from '../atlas/DatasetSpace.ts';
 import { AtlasCore } from '../atlas/AtlasCore.ts';
 import { WorkerAnalyticalPort, type WorkerTransport } from '../atlas/ports/WorkerAnalyticalPort.ts';
-import { NemosyneSession } from '../session/NemosyneSession.ts';
+import { NemosyneSession, type NemosyneSessionJSON } from '../session/NemosyneSession.ts';
 import {
   InvestigationReplayRunner,
   type ReplayVerificationResult,
@@ -115,7 +115,11 @@ import { KernelLayoutUnavailableError } from '../moneta/layouts/LayoutBase.ts';
 import type { RepresentationRequirements } from '../moneta/representation/RepresentationRequirements.ts';
 import { createDefaultRequirements } from '../moneta/representation/RepresentationRequirements.ts';
 import type { InvestigatorActionableOutcome } from '../moneta/representation/ActionableNil.ts';
-import { buildRemediationProvenance } from '../moneta/representation/ActionableNil.ts';
+import {
+  applyRemediation,
+  buildRemediationProvenance,
+  hashRequirements,
+} from '../moneta/representation/ActionableNil.ts';
 
 type WorldRuntimeBridge = typeof import('../wasm/RuntimeBridge.ts');
 
@@ -188,6 +192,9 @@ export class World {
   _previewedRequirements: RepresentationRequirements | null = null;
   _previewedRemediationAction: import('../moneta/representation/ActionableNil.ts').RemedialAction | null = null;
   _previewedDecision: import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null = null;
+  _previewedDatasetFingerprint: string | null = null;
+  _previewedDatasetVersion: number | null = null;
+  _previewedBaseRequirementsHash: string | null = null;
   _lastLoadedEntry: DatasetLoadEntry | null = null;
   liveStreamCoordinator: LiveStreamCoordinator;
   collaborationCoordinator: CollaborationCoordinator;
@@ -376,6 +383,7 @@ export class World {
       onPreviewRemediation: (action) => this._previewRemediation(action),
       onCommitRemediation: (action) => this._commitRemediation(action),
       onCancelRemediationPreview: () => this._cancelRemediationPreview(),
+      getPreviewDecision: () => this._getCurrentPreviewDecision(),
       onExitVR: () => this.exitVR(),
       frustrationAnalyzer: this.telemetryCollector.frustrationAnalyzer,
       getDataset: () => this.atlas.dataset,
@@ -403,7 +411,6 @@ export class World {
         this.inputCoordinator.callbacks.onApplyOperation?.('timeSlice');
         this.uiManager.contextualTaskSurface.hide();
       },
-      getDracoNode: () => this.dracoNode,
       onFreezeInvestigation: () => this._freezeInvestigation(),
       onRestoreArchive: (archiveId) => this._restoreArchive(archiveId),
       onExportArchive: (archiveId) => this._exportArchive(archiveId),
@@ -1357,7 +1364,9 @@ export class World {
 
   _applyRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): void {
     const oldRequirements = this._activeRequirements;
-    const newReq = { ...this._activeRequirements, ...action.suggestedRequirementPatch };
+    // Use the canonical remediation helper so scientific-info-loss constraints
+    // cannot be silently "applied" by a UI path that bypasses its safety rule.
+    const newReq = applyRemediation(this._activeRequirements, action);
 
     const provenance = buildRemediationProvenance(
       action,
@@ -1367,20 +1376,13 @@ export class World {
       Date.now()
     );
 
-    // Record the remediation event in the ledger.
     this.atlas.recordRemediation(provenance);
-
-    // Apply the patch.
     this._activeRequirements = newReq;
 
-    // Re-arbitrate representation layout.
     if (this._lastLoadedEntry) {
       const savedSelectionName = this._lastSelectedMesh?.name ?? null;
-
-      // Reload dataset preserving analytical state so the ledger is not cleared.
       this._doLoadDataset(this._lastLoadedEntry, { preserveAnalyticalState: true });
 
-      // Restore selected mesh if possible.
       if (savedSelectionName && this.dracoNode?.artifact?.nodeMeshes) {
         const matchingMesh = this.dracoNode.artifact.nodeMeshes.find((m) => m.name === savedSelectionName);
         if (matchingMesh) {
@@ -1390,36 +1392,91 @@ export class World {
     }
   }
 
-  /** Preview a remediation by computing the alternative representation decision without committing. */
-  _previewRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): void {
-    const newReq = { ...this._activeRequirements, ...action.suggestedRequirementPatch };
-    this._previewedRequirements = newReq;
-    this._previewedRemediationAction = action;
-
-    if (this.atlas.isReady()) {
-      try {
-        const previewDecision = this.atlas.arbitrateRepresentation(newReq);
-        this._previewedDecision = previewDecision;
-      } catch {
-        this._previewedDecision = null;
+  /** Preview a remediation without mutating the ledger or active requirements. */
+  _previewRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): boolean {
+    try {
+      if (!this.atlas.isReady()) {
+        throw new Error('analytical authority is not ready');
       }
+      const baseRequirementsHash = hashRequirements(this._activeRequirements);
+      const newReq = applyRemediation(this._activeRequirements, action);
+      const previewDecision = this.atlas.arbitrateRepresentation(newReq);
+      const expectedRequirementsHash = hashRequirements(newReq);
+      const decisionRequirementsHash = previewDecision.provenance.requirementsHash;
+      if (decisionRequirementsHash && decisionRequirementsHash !== expectedRequirementsHash) {
+        throw new Error('preview decision provenance does not match preview requirements');
+      }
+
+      this._previewedRequirements = newReq;
+      this._previewedRemediationAction = action;
+      this._previewedDecision = previewDecision;
+      this._previewedDatasetFingerprint = this.atlas.datasetFingerprint ?? null;
+      this._previewedDatasetVersion = this.atlas.datasetVersion;
+      this._previewedBaseRequirementsHash = baseRequirementsHash;
+      this.uiManager.recommendationPanel?.markDirty?.();
+      return true;
+    } catch (error) {
+      this._clearRemediationPreview();
+      this.uiManager.vrConsole?.log?.('warn', [
+        `Remediation preview unavailable: ${(error as Error).message}`,
+      ]);
+      this.uiManager.recommendationPanel?.markDirty?.();
+      return false;
     }
-    this.uiManager.recommendationPanel?.markDirty?.();
   }
 
-  /** Commit a previewed remediation by applying it for real. */
+  /** Return a preview only while every authority/fingerprint fence still matches. */
+  _getCurrentPreviewDecision(): import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null {
+    if (
+      !this._previewedDecision ||
+      !this._previewedRemediationAction ||
+      !this._previewedRequirements ||
+      this._previewedDatasetFingerprint !== (this.atlas.datasetFingerprint ?? null) ||
+      this._previewedDatasetVersion !== this.atlas.datasetVersion ||
+      this._previewedBaseRequirementsHash !== hashRequirements(this._activeRequirements)
+    ) {
+      return null;
+    }
+    return this._previewedDecision;
+  }
+
+  /** Commit exactly the remediation that produced the currently displayed preview. */
   _commitRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): void {
-    this._applyRemediation(action);
+    const previewDecision = this._getCurrentPreviewDecision();
+    const previewedAction = this._previewedRemediationAction;
+    if (!previewDecision || !previewedAction || previewedAction.id !== action.id) {
+      this.uiManager.vrConsole?.log?.('warn', [
+        'Remediation preview is stale; preview the action again before applying it.',
+      ]);
+      this._clearRemediationPreview();
+      this.uiManager.recommendationPanel?.markDirty?.();
+      return;
+    }
+
+    try {
+      this._applyRemediation(previewedAction);
+    } catch (error) {
+      this.uiManager.vrConsole?.log?.('warn', [
+        `Remediation was not applied: ${(error as Error).message}`,
+      ]);
+    } finally {
+      this._clearRemediationPreview();
+      this.uiManager.recommendationPanel?.markDirty?.();
+    }
+  }
+
+  private _clearRemediationPreview(): void {
     this._previewedRequirements = null;
     this._previewedRemediationAction = null;
     this._previewedDecision = null;
+    this._previewedDatasetFingerprint = null;
+    this._previewedDatasetVersion = null;
+    this._previewedBaseRequirementsHash = null;
   }
 
   /** Cancel a remediation preview without applying. */
   _cancelRemediationPreview(): void {
-    this._previewedRequirements = null;
-    this._previewedRemediationAction = null;
-    this._previewedDecision = null;
+    this._clearRemediationPreview();
     this.uiManager.recommendationPanel?.markDirty?.();
   }
 
@@ -1537,23 +1594,28 @@ export class World {
   private async _freezeInvestigation(): Promise<void> {
     if (!this.uiManager?.vaultPanel || !this.sessionController?.archiveStore || !this.atlas.isReady()) return;
 
-    const snapshot = this.session.serialize() as unknown as Record<string, unknown>;
+    // Refresh presentation state immediately before freezing. `session.serialize()`
+    // alone can lag behind the live camera/settings/focus state between autosaves.
+    const snapshot = this.sessionController.snapshotCurrentSession();
+    if (!snapshot) {
+      this.uiManager.vrConsole?.log?.('warn', ['Unable to freeze: current session is not snapshot-ready.']);
+      return;
+    }
     const label = `Archive ${new Date().toLocaleString()}`;
 
     const eventLedger = (snapshot.eventLedger as unknown[]) ?? [];
     const discoveryEpisodes = snapshot.discoveryEpisodes as
-      | { outcomes?: unknown[] }
+      | { episodes?: unknown[] }
       | undefined;
     const metadata = {
       datasetFingerprint: this.atlas.datasetFingerprint ?? '',
       datasetName: this._lastLoadedEntry?.label ?? this._lastLoadedEntry?.key ?? 'unknown',
       investigationDigest: null,
       eventCount: eventLedger.length,
-      discoveryCount: discoveryEpisodes?.outcomes?.length ?? 0,
+      discoveryCount: discoveryEpisodes?.episodes?.length ?? 0,
     };
 
     const archiveId = await this.sessionController.archiveStore.freezeInvestigation(label, snapshot, metadata);
-
     const archives = await this.sessionController.archiveStore.listArchives?.() ?? [];
     this.uiManager.vaultPanel.setArchives(archives);
     this.uiManager.vaultPanel.show();
@@ -1562,7 +1624,7 @@ export class World {
     this._logInteraction('Freeze investigation', { result: archiveId });
   }
 
-  /** Restore an archived investigation by ID. */
+  /** Restore an archived investigation by ID and report success only after restore completes. */
   private async _restoreArchive(archiveId: string): Promise<void> {
     if (!this.uiManager?.vaultPanel || !this.sessionController?.archiveStore) return;
     const archive = await this.sessionController.archiveStore.loadArchive(archiveId);
@@ -1570,24 +1632,34 @@ export class World {
       this.uiManager.vrConsole?.log?.('warn', [`Archive not found: ${archiveId}`]);
       return;
     }
-    // Restore the session state
-    this.sessionController.loadSession(archiveId);
+
+    const restored = await this.sessionController.loadSession(archiveId);
+    if (!restored) {
+      this.uiManager.vrConsole?.log?.('warn', [`Archive restore failed: ${archiveId}`]);
+      return;
+    }
     this.uiManager.vrConsole?.log?.('log', [`Restored archive: ${archiveId}`]);
     this._captureSession();
   }
 
-  /** Export an archive as a portable .nemosyne package. */
+  /** Export the selected immutable archive, never the mutable live session. */
   private async _exportArchive(archiveId: string): Promise<void> {
     if (!this.sessionController?.archiveStore) return;
     const archive = await this.sessionController.archiveStore.loadArchive(archiveId);
-    if (!archive) return;
-    // Delegate to NemosyneSession for package creation
-    const packageBytes = await this.session.exportPortablePackage();
+    if (!archive) {
+      this.uiManager.vrConsole?.log?.('warn', [`Archive not found: ${archiveId}`]);
+      return;
+    }
+
+    const packageBytes = await NemosyneSession.exportPortableSnapshot(
+      archive as unknown as NemosyneSessionJSON
+    );
     const blob = new Blob([packageBytes as unknown as BlobPart], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `nemosyne-${archiveId}.nemosyne`;
+    const safeArchiveId = archiveId.replace(/[^A-Za-z0-9._-]+/g, '-');
+    a.download = `nemosyne-${safeArchiveId}.nemosyne`;
     a.click();
     URL.revokeObjectURL(url);
     this.uiManager.vrConsole?.log?.('log', [`Exported archive: ${archiveId}`]);

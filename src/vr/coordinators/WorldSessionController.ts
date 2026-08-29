@@ -68,12 +68,11 @@ export class WorldSessionController {
     this.archiveStore = this._world.archiveStore;
   }
 
-  async saveSession(id: string = 'autosave'): Promise<void> {
+  /** Refresh live presentation state and return a self-contained current-session snapshot. */
+  snapshotCurrentSession(): Record<string, unknown> | null {
     const w = this._world;
-    const generation = this._generation;
-    if (!this._isCurrent(generation) || !w.currentEntry?.dataset || !w.dracoNode) return;
+    if (this._disposed || !w.currentEntry?.dataset || !w.dracoNode) return null;
 
-    // Refresh the session presentation from the live world state.
     w.session.setPresentation({
       camera: {
         position: w.engine.cameraGroup.position.toArray() as [number, number, number],
@@ -92,12 +91,18 @@ export class WorldSessionController {
         encodings: w.currentEntry.encodings,
         maxDepth: w.currentEntry.maxDepth,
       },
-      // RF-025: persist the durable focus/context snapshot so the Memory Palace
-      // restores the focused structure across sessions.
       focus: w.focusContext?.exportState() ?? undefined,
     });
 
-    const snapshot = w.session.serialize();
+    return w.session.serialize() as unknown as Record<string, unknown>;
+  }
+
+  async saveSession(id: string = 'autosave'): Promise<void> {
+    const w = this._world;
+    const generation = this._generation;
+    if (!this._isCurrent(generation)) return;
+    const snapshot = this.snapshotCurrentSession();
+    if (!snapshot) return;
 
     try {
       await w.sessionStore.saveSession(id, snapshot as unknown as Record<string, unknown>);
