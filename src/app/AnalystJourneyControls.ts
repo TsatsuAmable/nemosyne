@@ -155,8 +155,8 @@ export function mountAnalystJourneyControls(
       return;
     }
     representationOutcome.textContent =
-      `No feasible view · ${outcome.failedConstraintCount} constraints unresolved; ` +
-      `${outcome.nearMissCount} alternatives remain`;
+      `No feasible view · NIL: no feasible representation ` +
+      `(${outcome.failedConstraintCount} constraints unresolved; ${outcome.nearMissCount} alternatives remain)`;
   };
 
   const button = (
@@ -249,7 +249,7 @@ export function mountAnalystJourneyControls(
     setStatus(
       outcome.kind === 'decision'
         ? `View decision recorded: ${outcome.decisionId}`
-        : `No-feasible-view outcome recorded: ${outcome.nilId}`,
+        : `NIL outcome recorded: ${outcome.nilId}`,
       'success',
     );
   });
