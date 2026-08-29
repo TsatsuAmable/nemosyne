@@ -21,6 +21,10 @@ type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodimentPromise?: Promise<SemanticEmbodimentEnvelopeV1 | null>;
 };
 
+function usesSemanticEmbodiment(candidateId: string | undefined): boolean {
+  return candidateId === 'AGGREGATE_VOLUME' || candidateId === 'DISTRIBUTION_FIELD';
+}
+
 export class MonetaTopologyNode {
   scene: THREE.Scene;
   dataInput: MonetaDataInput;
@@ -70,7 +74,7 @@ export class MonetaTopologyNode {
     this.reSolveAndSynthesize();
   }
 
-  /** Invalidate any late A4 payload before this node is removed/replaced. */
+  /** Invalidate any late semantic payload before this node is removed/replaced. */
   cancelPendingSemanticEmbodiment(): void {
     this._semanticEmbodimentToken += 1;
   }
@@ -78,13 +82,14 @@ export class MonetaTopologyNode {
   private _subscribeSemanticEmbodiment(): void {
     const input = this.dataInput as SemanticMonetaDataInput;
     const promise = input.semanticEmbodimentPromise;
-    if (!promise || this.representationDecision?.chosenCandidateId !== 'AGGREGATE_VOLUME') return;
+    const candidateId = this.representationDecision?.chosenCandidateId;
+    if (!promise || !usesSemanticEmbodiment(candidateId)) return;
     const token = ++this._semanticEmbodimentToken;
     void promise.then((envelope) => {
       if (
         token !== this._semanticEmbodimentToken ||
         input.semanticEmbodimentPromise !== promise ||
-        this.representationDecision?.chosenCandidateId !== 'AGGREGATE_VOLUME'
+        this.representationDecision?.chosenCandidateId !== candidateId
       ) {
         return;
       }
@@ -148,7 +153,9 @@ export class MonetaTopologyNode {
         cost: this.representationDecision.utilityScore,
       };
     } else {
-      this.solverResult = this.useRustSolver ? this.solveWithRust() : this.engine.solve(this.dataInput);
+      this.solverResult = this.useRustSolver
+        ? this.solveWithRust()
+        : this.engine.solve(this.dataInput);
     }
 
     if (this.artifact) {

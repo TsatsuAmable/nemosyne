@@ -91,7 +91,13 @@ describe('P1-U: Whole-Product 10-Phase Investigator Journey E2E', () => {
       { dataset, encodings: { color: 'category', size: 'amount' } }
     );
     expect(artifact.group).toBeInstanceOf(THREE.Group);
-    expect(artifact.nodeMeshes.length).toBeGreaterThan(0);
+    expect(decision.chosenCandidateId).toBe('DISTRIBUTION_FIELD');
+    expect(decision.embodiment.primaryGeometry).toBe('DISTRIBUTION_FIELD');
+    // This legacy synchronous journey helper has no semantic-payload promise.
+    // A truthful distribution therefore remains pending instead of falling
+    // back to source-row points or the former density-field geometry.
+    expect(artifact.nodeMeshes).toHaveLength(0);
+    expect(artifact.group.userData.semanticEmbodimentStatus).toBe('PENDING');
 
     // =========================================================================
     // Phase 5: INSPECT_STRUCTURE — Contextual Task Surface Probing
