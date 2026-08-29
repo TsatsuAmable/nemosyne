@@ -20,6 +20,8 @@ logs/
 test-results/
 playwright-report/
 tests/coverage
+# P1-UV0 baseline evidence artifacts (screenshots + run JSON)
+tests/smoke/artifacts/
 docs/website_copy.md
 # OS / editor detritus
 .DS_Store
