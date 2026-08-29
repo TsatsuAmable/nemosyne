@@ -5,7 +5,10 @@
  */
 
 import { World } from '../vr/World.ts';
-import { setupDevTraceRecorder } from './devTrace.ts';
+import {
+  setupDevTraceRecorder,
+  type DevTraceBindings,
+} from './devTrace.ts';
 import { assessAnalystRepresentation } from './AnalystRepresentationAssessment.ts';
 import {
   mountAnalystJourneyControls,
@@ -39,12 +42,52 @@ function analystJourneyActions(world: World): AnalystJourneyActions {
   };
 }
 
+function devTraceBindings(world: World): DevTraceBindings {
+  return {
+    recorderOptions: {
+      engine: world.engine,
+      eventBus: world.eventBus,
+      getUIState: () => ({
+        wheel: world.uiManager?.handWheelMenu?.isVisible?.() ?? false,
+        tour: world.guidedTour
+          ? {
+              active: world.guidedTour.isActive,
+              step: world.guidedTour.stepIndex,
+              total: world.guidedTour.stepCount,
+            }
+          : null,
+        lens: world._statisticalLensEnabled,
+        paused: world.inputCoordinator.inputPaused,
+      }),
+      extraGazeTargets: () =>
+        world.guidedTour?.isActive && world.guidedTour.cardMesh ? [world.guidedTour.cardMesh] : [],
+    },
+    bind: (recorder) => {
+      world.engine.input.onHandPinchEdge = (hand, phase, gating) =>
+        recorder.recordPinch(hand, phase, gating);
+
+      const previousDispatch = world.engine.input.dispatcher.onDispatch;
+      world.engine.input.dispatcher.onDispatch = (info) => {
+        previousDispatch?.(info);
+        recorder.recordSelection(info);
+      };
+
+      world.engine.input.systemDetector.onTrace = (info) => recorder.recordSystemGesture(info);
+
+      if (world.uiManager?.handWheelMenu) {
+        world.uiManager.handWheelMenu.onVisibility = (visible, via) =>
+          recorder.recordWheel(visible, via);
+      }
+    },
+  };
+}
+
 export async function bootstrapApp(): Promise<AppInstance> {
   const world = new World();
   await world.start();
 
   if (import.meta.env.DEV) {
-    setupDevTraceRecorder(world);
+    setupDevTraceRecorder(devTraceBindings(world));
   }
 
   if (import.meta.env.VITE_NEMOSYNE_DIAGNOSTICS === '1') {
