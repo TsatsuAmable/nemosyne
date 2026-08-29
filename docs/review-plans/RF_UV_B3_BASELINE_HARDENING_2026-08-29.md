@@ -15,7 +15,7 @@ B3 must remain a trustworthy *before-state*. Its evidence tooling must not expan
 1. **Production instrumentation exposure.** `src/app/uv0TestHandle.ts` was statically imported by `bootstrap.ts`; a normal production build therefore contained a query-addressable `window.__NEMOSYNE_UV0__` handle capable of invoking private World selection/Inspect behavior. Exact `?nemosyne-uv0=1` reduced accidental exposure but did not make the feature test-only.
 2. **Evidence provenance was wrong by construction.** `run-inventory.json` hardcoded `baseSha: 81ec16b` even when a later source/merge commit was actually tested.
 3. **Screenshots were optional despite being the canonical visual baseline.** Capture exceptions were swallowed and the Chromium smoke job did not retain the resulting PNG/manifest directory as a workflow artifact.
-4. **Inventory completeness was self-referential.** The test pinned a hand-maintained id list to the inventory but did not independently compare the inventory with runtime/source construction. Independent source review found a concrete omission: `SettingsPanel` is eagerly constructed, attached to the analyst anchor and not hidden at boot, yet it was absent from the 23-entry baseline.
+4. **Inventory completeness was self-referential.** The test pinned a hand-maintained id list to the inventory but did not independently compare the inventory with runtime/source construction. Source review identified `SettingsPanel` as an eagerly constructed surface that needed an explicit disposition. The first instrumented hardening run then falsified the stronger source-only inference that eager construction meant it was visible at fresh boot: runtime snapshot evidence reported `settingsPanelVisible=false` on both attempts.
 
 ### Bounded remediation
 
@@ -24,9 +24,9 @@ B3 must remain a trustworthy *before-state*. Its evidence tooling must not expan
 - Add a dedicated instrumented UV0 evidence job rather than instrumenting the ordinary production artifact.
 - Require all five screenshots to exist and have non-zero size; retain PNGs + manifest as a workflow artifact.
 - Record `testedSourceSha` from `${{ github.event.pull_request.head.sha || github.sha }}` and the CI merge SHA separately.
-- Add `settings-panel` to the canonical baseline and assert its actual boot visibility through the instrumented runtime.
+- Track `settings-panel` explicitly in the audit, but record runtime truth (`visibleAtBoot=false`) rather than constructor inference.
 - Source-audit eager `WorldUIManager` constructor assignments so every surface/controller has either a baseline id or an explicit exclusion reason.
-- Narrow the inventory claim to boot-visible surfaces plus hidden surfaces exercised by the canonical B3 journey. Do not pretend it is an exhaustive catalogue of every hidden/developer panel.
+- Narrow the inventory claim to a bounded baseline, not an exhaustive catalogue of every hidden/developer panel.
 
 ## Post-implementation adversarial review
 
@@ -44,17 +44,21 @@ Two paths are now deliberately separate:
 - UV0 evidence test is skipped outside the dedicated evidence job;
 - every screenshot is mandatory and non-empty;
 - manifest records exact tested source SHA rather than the historical B3 base;
-- S1 asserts `SettingsPanel` is actually visible and that the inventory says the same;
+- S1 measures `SettingsPanel` visibility and requires the inventory to agree with runtime truth;
 - fast inventory test parses `WorldUIManager` constructor assignments and fails if a new eager object lacks an explicit inventory/exclusion disposition.
+
+### Adversarial correction during CI
+
+The first exact-head UV0 evidence run failed at S1 because the source-derived hypothesis `SettingsPanel visible at boot` was false. The runtime snapshot returned `false` twice, including the retry. The fix-forward therefore changed the inventory to `visibleAtBoot=false` and retained the surface only as an explicitly audited eager object. This is a desirable falsification: constructor structure is evidence of existence, not visibility.
 
 ### Residual risks / nonclaims
 
 - The source audit is intentionally bounded to eager `WorldUIManager` construction. It does not prove exhaustive visibility across every scene composer, lazy panel or future subsystem.
 - Pixel equality is not a gate; screenshots are durable before-state evidence, not a renderer-specific golden-image contract.
 - The instrumented bundle is evidence-only and must never be promoted/deployed as the ordinary product artifact.
-- This fix-forward changes no visible treatment. `SettingsPanel` remains boot-visible; B4 decides whether that is acceptable.
+- This fix-forward changes no visible treatment. `SettingsPanel` remains runtime-hidden at fresh boot.
 - No B4/B5 shell/contextual-locus implementation is included.
 
 ### Disposition
 
-**TARGETED FIX-FORWARD REQUIRED.** The merged B3 baseline was useful but its original production-isolation, provenance, screenshot-durability and completeness claims were too strong. This patch narrows the claims and adds falsifiers at the seams that failed independent review.
+**TARGETED FIX-FORWARD REQUIRED.** The merged B3 baseline was useful but its original production-isolation, provenance, screenshot-durability and completeness claims were too strong. This patch narrows the claims, records a runtime falsification that corrected the review itself, and adds falsifiers at the seams that failed independent review.
