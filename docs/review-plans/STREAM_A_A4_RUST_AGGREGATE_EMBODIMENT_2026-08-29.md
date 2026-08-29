@@ -3,14 +3,16 @@
 **Date:** 2026-08-29  
 **Stream:** A — Analytical Scale & Representation Authority  
 **Checkpoint:** A4 — first production semantic vertical slice  
-**Base:** `main@a1f5e73a26005f01ba826b36469cd1b988b82b4b`  
-**Status:** IMPLEMENTATION LANDED ON BRANCH / REVIEW ACTIVE
+**Implementation base:** `main@a1f5e73a26005f01ba826b36469cd1b988b82b4b`  
+**Exact reviewed PR head:** `b7db283d7b91c7c2bec6ed257a3bdb9d05c1740f`  
+**Merged as:** `d9c348be78261eff4f656ef06fcfd060326dc83e` (#533)  
+**Status:** VERIFIED COMPLETE — A4 CHECKPOINT ONLY
 
 ## Purpose
 
-A4 must prove one complete non-observation representation path where the dataset is reduced by the Rust/WASM analytical authority into a bounded semantic payload and Three.js embodies that payload without traversing source rows.
+A4 proves one complete non-observation representation path where the dataset is reduced by the Rust/WASM analytical authority into a bounded semantic payload and Three.js embodies that payload without traversing source rows.
 
-This checkpoint is intentionally limited to `AGGREGATE_VOLUME`. It does not claim that density, distribution, cluster, manifold, multiscale, temporal, graph or hierarchy embodiment has converged.
+This checkpoint is intentionally limited to `AGGREGATE_VOLUME`. It does not claim that density, distribution, cluster, manifold, multiscale, temporal, graph or hierarchy embodiment has converged, and it does not close RF-001/RF-002 globally.
 
 ## Governing invariant
 
@@ -67,11 +69,11 @@ A4 must fail if any of the following regresses:
 
 ### Production reachability boundary
 
-Fresh dataset load currently uses `individual-inspection` requirements. That correctly forbids an identity-losing aggregate representation. A4 must **not** weaken that rule or force aggregate at startup.
+Fresh dataset load currently uses `individual-inspection` requirements. That correctly forbids an identity-losing aggregate representation. A4 does **not** weaken that rule or force aggregate at startup.
 
-Production reachability therefore means: when an existing group/population-level analytical requirement makes `AGGREGATE_VOLUME` a valid Moneta winner, the normal `LoadDatasetUseCase → RepresentationSurface` path requests and embodies the Rust semantic payload. Family-map reachability alone is insufficient evidence.
+Production reachability means: when a group/population-level analytical requirement makes `AGGREGATE_VOLUME` a valid Moneta winner, the normal `LoadDatasetUseCase → RepresentationSurface` path requests and embodies the Rust semantic payload. Family-map reachability alone is insufficient evidence.
 
-## Implementation on branch
+## Implementation landed
 
 - Added Rust `aggregate_embodiment` builder over the canonical `ColumnarDataset` handle.
 - Added explicit categorical grouping and `COUNT | SUM | MEAN | MIN | MAX` contract.
@@ -90,26 +92,69 @@ Production reachability therefore means: when an existing group/population-level
 - Aggregate meshes are tagged as aggregate groups rather than observations.
 - A2 raw-row gate promotes only `AGGREGATE_VOLUME` to `DATASET_LEVEL_VALID`; other A2 findings remain explicit.
 
+## Exact-head verification
+
+Exact PR head `b7db283d7b91c7c2bec6ed257a3bdb9d05c1740f` completed the required gates successfully:
+
+- CI workflow: success;
+- Rust kernel unit tests: success;
+- development WASM package build: success;
+- TypeScript typecheck and lint: success;
+- architecture-boundary enforcement and documentation integrity: success;
+- all three Vitest coverage shards plus global coverage gate: success;
+- production bundle build: success;
+- Chromium production smoke and collaboration-recovery smoke: success;
+- CodeQL Analysis: success;
+- Architecture policy pilot: success;
+- P1-Q Q8 supply-chain pilot: success;
+- approval-gate: success;
+- P1-Q Q9 promotion controller: success.
+
+### Production reachability evidence
+
+`tests/stream-a-a4-production-reachability.test.ts` proves both sides of the scientific boundary:
+
+- a legitimate `group-comparison` requirement at scale allows Moneta to select `AGGREGATE_VOLUME / AGGREGATE / AGGREGATE_BARS`;
+- fresh `individual-inspection` still disqualifies `AGGREGATE_VOLUME` because identity loss remains unacceptable.
+
+This closes the decorative-authority concern without weakening the investigator's observation-level semantics.
+
+### Bounded-output evidence
+
+`tests/stream-a-a4-rust-aggregate-embodiment-wasm.test.ts` exercises the real WASM builder against a 1,024-row source with four groups and proves:
+
+- `sourceRowCount = 1,024`;
+- `elementCount = 4`;
+- exactly four semantic groups are returned;
+- serialized semantic output is smaller than the serialized source fixture;
+- the semantic envelope contains no `rows` field.
+
+The serialized-size comparison is deliberately recorded as a deterministic proxy, not as a claim about exact Worker structured-clone bytes. A1 remains the authority for measured transfer/resource-envelope evidence.
+
 ## Post-implementation adversarial review
 
 **High-risk change.** This checkpoint changes a scientific/data-reduction authority boundary and the production representation path.
 
-1. **Production authority or decorative?** REVIEW ACTIVE. The Worker/WASM/renderer chain is production-wired. Final review must still prove a group/population Moneta decision can exercise it without weakening individual-inspection semantics.
-2. **Second authority?** No aggregate grouping/reduction remains in the A4 renderer. TypeScript selects declared fields/function, carries the request and maps bounded output to visuals.
-3. **Replacement god class?** No. The builder, transport loader, bridge and renderer adapter are narrow. The V1 contract remains discriminated rather than becoming a bag of optional representations.
-4. **Production-path regression?** Pending/refused aggregate does not fall back to rows. Non-aggregate paths retain their previous behavior and A2 classifications.
-5. **Failures/refusals explicit?** Rust returns explicit semantic refusals for invalid parameters/resource limits. Transport absence/staleness resolves to unavailable rather than fabricated results.
-6. **Resource/lifecycle clear?** Worker execution reuses resident handles, ABI buffers use the existing allocation lifecycle, semantic promises are invalidated on node replacement, and payload output is bounded by group count.
-7. **Outside Stream A boundary?** No `World.ts`, `bootstrap.ts`, Quest-validation, signalling, collaboration or canonical roadmap changes are part of A4.
-8. **Claim <= evidence?** A4 may claim one Rust-owned aggregate vertical slice only. It cannot close RF-001/RF-002 globally, PERF-04, Quest qualification, P1-U9, P1-W, or any remaining A2 semantic overclaim.
+1. **Production authority or decorative?** CLOSED. A legitimate group-level Moneta arbitration selects `AGGREGATE_VOLUME`, while individual inspection still rejects it. The production loader/Worker/WASM/renderer chain is wired to that decision.
+2. **Second authority?** CLOSED. No aggregate grouping/reduction remains in the A4 renderer. TypeScript selects declared fields/function, carries the request and maps bounded output to visuals.
+3. **Replacement god class?** CLOSED. The builder, transport loader, bridge and renderer adapter are narrow. The V1 contract remains discriminated rather than becoming a bag of optional representations.
+4. **Production-path regression?** CLOSED for A4. Pending/refused aggregate does not fall back to rows. Non-aggregate paths retain their previous behavior and A2 classifications.
+5. **Failures/refusals explicit?** CLOSED. Rust returns explicit semantic refusals for invalid parameters/resource limits. Transport absence/staleness resolves to unavailable rather than fabricated results.
+6. **Resource/lifecycle clear?** CLOSED for the A4 slice. Worker execution reuses resident handles, ABI buffers use the existing allocation lifecycle, semantic promises are invalidated on node replacement, and payload output is bounded by group count.
+7. **Outside Stream A boundary?** CLOSED. No Quest-validation, signalling, collaboration or canonical roadmap work was folded into A4. A guarded `World.ts` change that landed concurrently belongs to Stream B B2, not this checkpoint.
+8. **Claim <= evidence?** CLOSED. A4 claims one Rust-owned aggregate vertical slice only. It does not close RF-001/RF-002 globally, PERF-04, Quest qualification, P1-U9, P1-W, or any remaining A2 semantic overclaim.
 
-## Residual work before disposition
+## Residual programme work
 
-- Run exact-head Rust, wasm32, TypeScript, Vitest, browser smoke, architecture and CodeQL gates.
-- Prove the real production group/population decision path can select `AGGREGATE_VOLUME` without modifying the fresh-load individual-inspection policy.
-- Record deterministic source-row versus semantic-output element/serialized-size evidence for the aggregate path.
-- Re-read the exact PR diff for accidental row access, duplicate computation, broad abstraction growth and stale async resurrection.
+A4 itself has no unresolved blocker. Remaining work belongs to later programmes/checkpoints and must not be silently pulled into Stream A now:
+
+- density, distribution, cluster, manifold, multiscale, graph, temporal and hierarchy semantic builders remain outside A4;
+- RF-001/RF-002 remain open globally until those non-observation representations converge truthfully;
+- exact Worker transfer-byte/resource-envelope claims remain governed by A1/RF-029/RF-051 evidence;
+- final Quest PERF-04/P1-U9 and private-preview promotion remain separately gated.
 
 ## Exit disposition
 
-Pending exact-head evidence. If all required falsifiers pass, A4 is the final checkpoint of the current Stream A programme and Stream A must STOP rather than automatically implementing further semantic builders.
+**VERIFIED COMPLETE — A4 only.** The required falsifiers passed on exact head `b7db283d7b91c7c2bec6ed257a3bdb9d05c1740f`, and #533 merged as `d9c348be78261eff4f656ef06fcfd060326dc83e`.
+
+Per the three-stream roadmap rail, A4 is the final checkpoint of the current Stream A programme. **Stream A stops here.** Do not automatically continue into additional semantic builders. Canonical `docs/ROADMAP.md` is updated only at the programme integration checkpoint once the active wave is ready for synthesis.
