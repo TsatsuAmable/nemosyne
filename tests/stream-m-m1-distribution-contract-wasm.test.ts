@@ -33,8 +33,13 @@ function distributionFixture(): SemanticEmbodimentEnvelopeV1 {
       description: 'Equal-width histogram with bounded ECDF knots and explicit quantiles',
     },
     informationContract: {
-      preserves: ['population-density-distribution', 'outlier-boundary-visibility'],
-      loses: ['individual-observation-identity', 'exact-metric-values'],
+      preserves: ['empirical-distribution-shape'],
+      loses: [
+        'individual-observation-identity',
+        'exact-metric-values',
+        'population-density-distribution',
+        'outlier-boundary-visibility',
+      ],
     },
     resource: {
       sourceRowCount: 7,
@@ -132,6 +137,15 @@ describe('Stream M M1 empirical distribution contract', () => {
     expect(first.candidateId).toBe('DISTRIBUTION_FIELD');
     expect(first.representationFamily).toBe('DISTRIBUTION');
     expect(first.approximation).toMatchObject({ mode: 'BINNED', representedRowCount: 4 });
+    expect(first.informationContract).toEqual({
+      preserves: ['empirical-distribution-shape'],
+      loses: [
+        'individual-observation-identity',
+        'exact-metric-values',
+        'population-density-distribution',
+        'outlier-boundary-visibility',
+      ],
+    });
     expect(first.resource).toEqual({
       sourceRowCount: 7,
       elementCount: 9,
@@ -175,6 +189,13 @@ describe('Stream M M1 empirical distribution contract', () => {
     densityClaim.analyticalMethod.name = 'continuous-density-pdf';
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(densityClaim)).toBeNull();
 
+    const densityPreservationClaim = distributionFixture();
+    densityPreservationClaim.informationContract = {
+      preserves: ['population-density-distribution'],
+      loses: ['individual-observation-identity', 'exact-metric-values'],
+    };
+    expect(bridge.roundTripSemanticEmbodimentPayloadV1(densityPreservationClaim)).toBeNull();
+
     const nonFinite = distributionFixture();
     distributionPayload(nonFinite).domain.max = Number.POSITIVE_INFINITY;
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(nonFinite)).toBeNull();
@@ -194,10 +215,12 @@ describe('Stream M M1 empirical distribution contract', () => {
       /pdf|kde|density|contour|bivariate/i
     );
     expect(candidate.supports).toEqual(['univariate-distribution', 'anomaly-isolation']);
-    expect(candidate.preserves).toEqual([
+    expect(candidate.preserves).toEqual(['empirical-distribution-shape']);
+    expect(candidate.loses).toEqual([
+      'individual-observation-identity',
+      'exact-metric-values',
       'population-density-distribution',
       'outlier-boundary-visibility',
     ]);
-    expect(candidate.loses).toEqual(['individual-observation-identity', 'exact-metric-values']);
   });
 });
