@@ -8,7 +8,7 @@
 
 ## Purpose
 
-Convert the normal product entry path from a constellation of engineering/status surfaces into a bounded investigator-oriented shell, while retaining the existing semantic-intent boundary and explicit developer diagnostics.
+Convert the normal product entry path from a constellation of engineering/status surfaces into a bounded investigator-oriented shell, while retaining the existing semantic-intent boundary and an explicit diagnostics route.
 
 This checkpoint intentionally does not implement B5 contextual locus-of-work behavior, P1-UV3 epistemic-object convergence, new analytical operations, Moneta mathematics, or Quest qualification.
 
@@ -24,25 +24,26 @@ The production entry path is:
 
 `bootstrapApp -> World.start -> application intent binding -> normal analyst composition policy -> AnalystJourneyControls`
 
-`src/app/bootstrap.ts` owns composition policy. `ApplicationIntent.ts` remains the action vocabulary/dispatcher. Existing `World`/Atlas/Moneta owners remain responsible for dataset, analytical and representation behavior. `MonetaDiagnosticHUD` remains an explicit diagnostic surface but now starts hidden whenever a new representation creates it.
+`src/app/bootstrap.ts` owns composition policy. `ApplicationIntent.ts` remains the action vocabulary/dispatcher. Existing `World`/Atlas/Moneta owners remain responsible for dataset, analytical and representation behavior. `MonetaDiagnosticHUD` owns its safe visibility default and recognizes the existing explicit `VITE_NEMOSYNE_DIAGNOSTICS=1` build route.
 
 ### Primary failure modes
 
 1. **Decorative shell only:** new labels exist but raw loader/telemetry/diagnostics still dominate boot.
 2. **Dataset-switch regression:** a newly created Moneta diagnostic becomes visible again after the first dataset switch.
 3. **Second analytical authority:** the shell computes anomaly/representation results itself instead of dispatching existing intents/queries.
-4. **Capability loss:** moving controls behind progressive disclosure breaks export/replay or the current production smoke journey.
-5. **Developer-route destruction:** diagnostics are deleted rather than demoted, removing legitimate research/debug access.
+4. **Capability loss:** moving controls behind progressive disclosure breaks export/replay or the B3 canonical evidence journey.
+5. **Developer-route destruction:** diagnostics are merely hidden with no real way to restore them after representation replacement.
 6. **Replacement god object:** B4 introduces another shell/controller/service bag instead of composing the landed seams.
 7. **Evidence laundering:** DOM existence is treated as sufficient proof of visible product convergence.
 
 ### Falsifying evidence
 
-- fast source/policy test pins exactly three primary task actions and the normal-mode demotion policy;
+- source/policy test pins exactly three primary task actions and the normal-mode demotion policy;
+- runtime diagnostic test proves ordinary construction is hidden while `VITE_NEMOSYNE_DIAGNOSTICS=1` construction remains visible;
 - production Playwright smoke asserts the task-first shell is visible while raw loader, boot overlay and DOM telemetry are hidden;
 - product smoke summons the dataset chooser on demand and proves the semantic dataset journey remains live;
-- existing UI/UX smoke IDs/status contracts are preserved for load, analyse, record, export and replay;
-- Moneta diagnostic construction is mechanically checked to end hidden, preventing dataset-switch resurrection.
+- B3 UV0 evidence explicitly opens advanced tools before the NIL/budget step rather than forcing those controls back into normal startup;
+- stable B3 NIL/status markers remain present inside the revised copy.
 
 ### Non-goals / dependencies
 
@@ -64,7 +65,7 @@ The production entry path is:
 - dataset import is summoned with **Choose data…** rather than remaining permanently open;
 - export remains directly reachable because it is a core investigation lifecycle action;
 - explanation/budget, undo, statistical lens and package replay/import live under collapsed **Investigation tools**;
-- existing semantic intent IDs and journey IDs remain stable where they are already part of product-path evidence.
+- existing semantic intent IDs and B3 evidence markers remain stable where they are part of product-path evidence.
 
 ### Normal analyst composition
 
@@ -78,35 +79,37 @@ The production entry path is:
 - the static boot overlay yields after boot;
 - FileLoader is hidden until explicitly summoned.
 
-`MonetaDiagnosticHUD` itself now defaults hidden so representation replacement cannot silently reintroduce it after dataset changes.
+`MonetaDiagnosticHUD` also fails safe on every construction: it hides itself unless the deliberately instrumented diagnostics build sets `VITE_NEMOSYNE_DIAGNOSTICS=1`. This prevents dataset-switch resurrection while preserving a real replacement-safe developer/debug route.
 
 ## Post-implementation adversarial review
 
 ### Production path attacked
 
-Re-read `bootstrapApp`, `AnalystJourneyControls`, representation replacement and the existing UI/UX smoke journey. The shell uses the existing dispatcher for dataset cycling and anomaly analysis; it does not call Atlas/Moneta analytical code directly. FileLoader retains its existing Rust/Atlas parse path and is only visibility-gated.
+Re-read `bootstrapApp`, `AnalystJourneyControls`, representation replacement, `MonetaDiagnosticHUD`, and the B3/B4 browser journeys. The shell uses the existing dispatcher for dataset cycling and anomaly analysis; it does not call Atlas/Moneta analytical code directly. FileLoader retains its existing Rust/Atlas parse path and is only visibility-gated.
 
-### Original failure modes
+### Findings and fix-forward
 
-1. **Decorative-only risk:** addressed by explicitly hiding boot overlay, raw loader, DOM telemetry and VR diagnostic surfaces in the real bootstrap path.
-2. **Dataset-switch diagnostic resurrection:** addressed at the diagnostic constructor, not only at initial bootstrap.
-3. **Second authority:** no analytical calculation was added to the shell; actions still dispatch `dataset.cycle` / `analysis.apply` and assessment reads the existing authoritative state.
-4. **Capability loss:** stable IDs and status wording needed by the current load/analyse/record/export/replay smoke path are retained; package selection opens the advanced section before replay.
-5. **Developer route:** surfaces remain constructed and diagnostics mode remains available. The composition policy exits early in `DEVELOPER` mode.
-6. **Replacement god object:** none added. The change is composition policy plus reshaping the existing desktop shell.
-7. **Evidence quality:** a dedicated production-browser smoke accompanies the mechanical policy test.
+1. **Progressive-disclosure compatibility — FIXED.** The first B4 shape collapsed the representation-budget field, while B3 UV0 automation still attempted to fill it directly. The evidence journey now explicitly opens `Investigation tools` before the NIL step. The product hierarchy remains task-first; evidence automation adapts to the product rather than forcing advanced controls visible.
+2. **Stable evidence wording — FIXED.** Friendlier NIL copy initially removed the hardened B3 text markers. `NIL: no feasible representation` and `NIL outcome recorded` are now retained within the revised user-facing copy.
+3. **Developer-route destruction — FIXED.** A simple constructor-level `hide()` prevented normal-mode resurrection but would also hide freshly replaced diagnostics after an explicit developer selection. The constructor now hides only when `VITE_NEMOSYNE_DIAGNOSTICS !== '1'`; focused runtime tests prove both ordinary-hidden and explicit-diagnostics-visible construction. No `World.ts` hot-file change was required.
+4. **Second authority — NOT FOUND.** No analytical calculation was added to the shell; actions still dispatch `dataset.cycle` / `analysis.apply` and assessment reads existing authoritative state.
+5. **Replacement god object — NOT FOUND.** The change is composition policy plus reshaping the existing desktop shell.
 
-### Newly inferred failure mode
+### Remaining review target
 
-Hiding the dashboard `wallGroup` is not by itself proof that independently snapped chart-plane meshes are hidden. Existing `_doLoadDataset()` already calls `_setStatisticalLensVisible(false)` after rebuilding the dashboard, so chart-plane visibility remains governed by the statistical-lens state rather than the wall container. This boundary remains a focused review target for exact-head browser evidence rather than being inferred from the container alone.
+Hiding the dashboard `wallGroup` is not by itself proof that independently snapped chart-plane meshes are hidden. Existing `_doLoadDataset()` reapplies statistical-lens visibility after dashboard rebuild, with the lens initially disabled. Exact-head browser evidence must still falsify a visible chart-plane leak rather than promoting that source inference to runtime truth.
+
+### Verification boundary
+
+The local execution container could not resolve `github.com`, so no local test run is claimed. Exact-head GitHub CI is the executable verification authority. Any green result from an earlier branch head is treated as stale after a fix-forward commit.
 
 ### Test falsifiability
 
-The new tests fail if primary actions expand, raw boot surfaces become visible again, the loader ceases to be on-demand, or Moneta diagnostics revert to visible-on-construction. Existing journey smoke should fail if stable semantic actions/export/replay were accidentally severed.
+The new tests fail if primary actions expand, raw boot surfaces become visible again, the loader ceases to be on-demand, diagnostic replacement becomes visible in ordinary builds, or the explicit diagnostics build becomes hidden. B3/B4 browser journeys fail if progressive disclosure or stable evidence markers regress.
 
 ### Disposition
 
-No known BLOCKER at implementation review. Exact-head typecheck, focused tests, production smoke and normal repository gates remain required before B4 can be promoted beyond `IMPLEMENTATION LANDED / REVIEW ACTIVE`.
+The two material review findings discovered during implementation review were fixed forward. No known BLOCKER remains in the reviewed source path. Exact-head typecheck, focused tests, production smoke, CodeQL, approval and promotion gates remain required before B4 can be promoted beyond `IMPLEMENTATION LANDED / REVIEW ACTIVE`.
 
 ## Completion boundary
 
