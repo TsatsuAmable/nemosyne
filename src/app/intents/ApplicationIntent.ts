@@ -69,7 +69,9 @@ export function createApplicationIntentDispatcher(
         return handlers.toggleStatisticalLens();
       default: {
         const exhaustive: never = intent;
-        return exhaustive;
+        throw new Error(
+          `Unsupported application intent: ${JSON.stringify(exhaustive)}`,
+        );
       }
     }
   };
