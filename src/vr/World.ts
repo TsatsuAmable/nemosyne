@@ -1595,42 +1595,6 @@ export class World {
     this._captureSession();
   }
 
-  private _discoverStructuresAndRecommend(operation: string): void {
-    if (!this.atlas.isReady()) return;
-    const dataset = this._transformedDataset ?? this.atlas.dataset;
-    if (!dataset || dataset.rowCount === 0) return;
-
-    if (operation === 'cluster' || operation === 'hierarchical' || operation === 'density') {
-      const opMap: Record<string, string> = {
-        cluster: 'k_means',
-        hierarchical: 'hierarchical',
-        density: 'dbscan',
-      };
-      const opName = opMap[operation] ?? 'k_means';
-      this.atlas.discoverClusterStructures(dataset, { op: opName, k: 3 } as never);
-    } else if (this.tdaRecompute) {
-      const filterValues = dataset.rows.map((r) => Number(r[dataset.columns[0]?.name] ?? 0));
-      this.atlas.discoverMapperStructures(dataset, {
-        featureColumns: [dataset.columns[0]?.name].filter(Boolean),
-        filterValues,
-        bins: 10,
-        overlap: 0.5,
-      });
-      this.atlas.discoverPersistenceStructures(dataset, {
-        featureColumns: [dataset.columns[0]?.name].filter(Boolean),
-        filterValues,
-        maxDistance: 2,
-      });
-    }
-
-    this.atlas.generateRecommendation();
-    this.uiManager.recommendationPanel?.markDirty?.();
-    if (this.dracoNode && this.atlas.structures.length > 0) {
-      this.inPlaceHandles.buildFromStructures(this.dracoNode, this.atlas.structures as never);
-      this.inPlaceHandles.registerInteractables(this.engine.input as never);
-    }
-  }
-
   _togglePeerPresenceHUD(): void {
     const next = !this.uiManager.peerPresenceHUD.mesh.visible;
     this.uiManager.peerPresenceHUD.setEnabled(next);

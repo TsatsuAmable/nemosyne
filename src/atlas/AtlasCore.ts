@@ -1246,18 +1246,33 @@ export class AtlasCore {
   async computePersistenceIntervalsAsync(
     params: Record<string, unknown>
   ): Promise<PersistenceInterval[] | null> {
+    if (this._executionPort?.isAsync) {
+      const fingerprint = this.datasetFingerprint ?? '';
+      if (!fingerprint) return null;
+      if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion))) return null;
+    }
     return (await this.computePersistenceEvidenceAsync(params))?.value ?? null;
   }
 
   async computeMapperGraphAsync(
     params: Record<string, unknown>
   ): Promise<TdaMapperGraph | null> {
+    if (this._executionPort?.isAsync) {
+      const fingerprint = this.datasetFingerprint ?? '';
+      if (!fingerprint) return null;
+      if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion))) return null;
+    }
     return (await this.computeMapperEvidenceAsync(params))?.value ?? null;
   }
 
   async computeBetti0CurveAsync(
     params: Record<string, unknown>
   ): Promise<BettiPoint[] | null> {
+    if (this._executionPort?.isAsync) {
+      const fingerprint = this.datasetFingerprint ?? '';
+      if (!fingerprint) return null;
+      if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion))) return null;
+    }
     return (await this.computeBetti0EvidenceAsync(params))?.value ?? null;
   }
 
