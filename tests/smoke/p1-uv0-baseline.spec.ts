@@ -144,20 +144,29 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
     (window as unknown as { __NEMOSYNE_UV0__?: NemosyneUv0TestHandle }).__NEMOSYNE_UV0__?.selectNode(0) ?? false,
   );
   expect(selected, 'node select dispatched through real _showDataCard path').toBe(true);
-  await pollSnapshot(
+  const s2a = await pollSnapshot(
     page,
-    (s) => s.taskSurfaceVisible === true,
-    'focused-observation: contextual task surface visible after node select',
+    (s) =>
+      s.taskSurfaceVisible === true &&
+      s.taskSurfaceDistanceToSelection !== null &&
+      s.activePanelBudgetCount === 1,
+    'focused-observation: object-attached contextual task surface visible in inspector budget slot',
   );
+  expect(s2a.taskSurfaceDistanceToSelection).not.toBeNull();
+  expect(s2a.taskSurfaceDistanceToSelection!).toBeGreaterThan(0.1);
+  expect(s2a.taskSurfaceDistanceToSelection!).toBeLessThan(0.4);
+  expect(s2a.activePanelBudgetCount).toBe(1);
+
   await page.evaluate(() =>
     (window as unknown as { __NEMOSYNE_UV0__?: NemosyneUv0TestHandle }).__NEMOSYNE_UV0__?.inspectSelected(),
   );
   const s2b = await pollSnapshot(
     page,
-    (s) => s.inspectorVisible === true,
-    'focused-observation: inspector visible after Inspect verb',
+    (s) => s.inspectorVisible === true && s.taskSurfaceVisible === false,
+    'focused-observation: inspector replaces contextual rail after Inspect verb',
   );
-  await captureState(page, '02-focused-observation', true, 'task surface reached; inspector visible after Inspect', s2b);
+  expect(s2b.activePanelBudgetCount).toBe(1);
+  await captureState(page, '02-focused-observation', true, 'object-attached task rail replaced by one inspector surface', s2b);
 
   // S3 Moneta decision / NIL. P1-UV1 deliberately collapses advanced tools;
   // evidence automation must summon that advanced route rather than forcing the
