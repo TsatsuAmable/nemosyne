@@ -8,32 +8,9 @@ import type { NemosyneUv0TestHandle, Uv0RuntimeSnapshot } from '../../src/app/uv
 /**
  * P1-UV0 canonical visible-product baseline (Stream B3).
  *
- * This is the first deterministic screenshot/inventory pipeline for the
- * production build. It boots `dist/` in real headless Chromium (WebGL2 via
- * SwiftShader) exactly like the existing load/analyst-journey smokes, then
- * walks five canonical investigation states:
- *
- *   S1 fresh-boot/loaded   (World constructor auto-loads supply-chain)
- *   S2 focused-observation (node selected → contextual task surface + inspector)
- *   S3 Moneta decision/NIL (assess with max-elements=1)
- *   S4 evidence            (run analysis + mark moment → ledger populated)
- *   S5 saved/replay        (export .nemosyne → replay)
- *
- * Every state is ASSERTED before its screenshot is taken; screenshots are
- * evidence artifacts only and are written to a gitignored artifacts directory
- * (renderer variance across CI runners must never break the gate). A run JSON
- * is written alongside linking each screenshot to its asserted state and to the
- * canonical inventory ids from src/validation/uv0-inventory.ts, so B4/B5 can
- * diff the baseline mechanically.
- *
- * State reachability notes:
- * - S2 uses the `?nemosyne-uv0=1` test-only handle to dispatch the REAL
- *   `_showDataCard`/`onInspect` production handlers deterministically (the
- *   raycast hover mechanics are exercised by the unit surface).
- * - S3/S4/S5 depend on the analytical kernel, which the CI production-build
- *   job ships (`npm run wasm && vite build`). If a local worktree has no
- *   compatible kernel, S5 is recorded as `kernel-unavailable` instead of
- *   failing (the mission rule: record as not-yet-baselined rather than force).
+ * This spec runs only in the dedicated instrumented evidence job. Ordinary
+ * production smoke deliberately skips it so the normal production bundle can
+ * prove that UV0 instrumentation is absent.
  */
 
 const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -41,6 +18,12 @@ const ARTIFACTS_DIR = path.join(SPEC_DIR, 'artifacts', 'uv0-baseline');
 const VIEWPORT = { width: 1280, height: 720 };
 const DEVICE_SCALE_FACTOR = 1;
 const TEST_HANDLE_URL = '/?nemosyne-uv0=1';
+const TESTED_SOURCE_SHA = process.env.NEMOSYNE_TESTED_SOURCE_SHA ?? 'local-unpinned';
+
+test.skip(
+  process.env.NEMOSYNE_UV0_EVIDENCE !== '1',
+  'P1-UV0 baseline requires the dedicated instrumented evidence build',
+);
 
 interface CapturedState {
   id: string;
@@ -91,24 +74,17 @@ async function captureState(
 ): Promise<void> {
   const fileName = `${id}.png`;
   const target = path.join(ARTIFACTS_DIR, fileName);
-  let screenshotBytes = 0;
-  try {
-    await page.screenshot({ path: target, fullPage: false });
-    screenshotBytes = (await stat(target)).size;
-  } catch (error) {
-    // Screenshots are evidence artifacts, not the gate. A capture failure is
-    // recorded in the run JSON but must not fail the state-asserted baseline.
-    outcome = `${outcome} (screenshot failed: ${error instanceof Error ? error.message : String(error)})`;
-  }
+  await page.screenshot({ path: target, fullPage: false });
+  const screenshotBytes = (await stat(target)).size;
+  expect(screenshotBytes, `${fileName} must be a non-empty evidence artifact`).toBeGreaterThan(0);
   capturedStates.push({ id, screenshot: fileName, screenshotBytes, asserted, outcome, snapshot: state });
 }
 
 test('P1-UV0 baseline: canonical states captured with state assertions', async ({ page }) => {
-  // Per-run state isolation: Playwright may retry this test in the same worker
-  // (CI retries: 1), so module-level collectors must not leak across attempts.
   capturedStates = [];
   pageErrors = [];
   consoleErrors = [];
+  await mkdir(ARTIFACTS_DIR, { recursive: true });
 
   page.on('pageerror', (err) => pageErrors.push(String(err)));
   page.on('console', (msg) => {
@@ -136,11 +112,11 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
             typeof (window as unknown as { __NEMOSYNE_UV0__?: unknown }).__NEMOSYNE_UV0__ ===
             'object',
         ),
-      { timeout: 15_000, message: 'test handle installed via ?nemosyne-uv0=1' },
+      { timeout: 15_000, message: 'instrumented UV0 test handle installed' },
     )
     .toBe(true);
 
-  // ---------------- S1 fresh boot / loaded representation ----------------
+  // S1 fresh boot / loaded representation.
   await expect(page.locator('#analyst-journey-controls')).toBeVisible();
   await expect(page.locator('#analyst-journey-status')).toHaveText('Ready');
   const bootTelemetry = (await telemetry.textContent()) ?? '';
@@ -156,9 +132,14 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
   );
   expect(s1.datasetName).toBe('Supply Chain Hierarchy');
   expect(s1.palaceNodeCount).toBeGreaterThan(0);
+  // Runtime evidence is authoritative over constructor/source inference. The
+  // first hardening run falsified the assumption that eager construction meant
+  // SettingsPanel was visible at fresh boot.
+  expect(s1.settingsPanelVisible).toBe(false);
+  expect(UV0_INVENTORY.find((entry) => entry.id === 'settings-panel')?.visibleAtBoot).toBe(false);
   await captureState(page, '01-fresh-boot', true, 'supply-chain loaded, ≥1 frame rendered', s1);
 
-  // ---------------- S2 focused observation (node selected) ----------------
+  // S2 focused observation.
   const selected = await page.evaluate(() =>
     (window as unknown as { __NEMOSYNE_UV0__?: NemosyneUv0TestHandle }).__NEMOSYNE_UV0__?.selectNode(0) ?? false,
   );
@@ -176,9 +157,9 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
     (s) => s.inspectorVisible === true,
     'focused-observation: inspector visible after Inspect verb',
   );
-  await captureState(page, '02-focused-observation', true, 'node selected; task surface + inspector visible', s2b);
+  await captureState(page, '02-focused-observation', true, 'task surface reached; inspector visible after Inspect', s2b);
 
-  // ---------------- S3 Moneta decision / NIL ----------------
+  // S3 Moneta decision / NIL.
   await page.locator('#analyst-max-elements').fill('1');
   await page.locator('#analyst-assess-representation').click();
   await expect(page.locator('#analyst-representation-outcome')).toContainText(
@@ -193,7 +174,7 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
   );
   await captureState(page, '03-nil', true, `NIL recorded (nilCount=${s3.nilCount})`, s3);
 
-  // ---------------- S4 evidence / hypothesis state ----------------
+  // S4 evidence / hypothesis state.
   await page.locator('#analyst-run-analysis').click();
   await expect(page.locator('#analyst-journey-status')).toContainText('Evidence ready', {
     timeout: 15_000,
@@ -207,7 +188,7 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
   );
   await captureState(page, '04-evidence', true, `evidence=${s4.evidenceCount} observations=${s4.observationCount}`, s4);
 
-  // ---------------- S5 saved / replay state (kernel-dependent) ----------------
+  // S5 saved / replay state.
   const download = page.waitForEvent('download');
   await page.locator('#analyst-export-package').click();
   const artifact = await download;
@@ -223,11 +204,9 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
   });
   await page.locator('#analyst-replay-package').click();
 
-  const s5 = (await snapshot(page)) as unknown as Uv0RuntimeSnapshot;
+  const s5 = (await snapshot(page)) as Uv0RuntimeSnapshot;
   let s5Outcome: string;
   if (s5.kernelAvailable === false) {
-    // No analytical kernel in this environment → replay is not reachable.
-    // Record it as not-yet-baselined (mission rule) instead of forcing.
     await expect(page.locator('#analyst-journey-status')).toContainText('Replay verification failed', {
       timeout: 15_000,
     });
@@ -240,16 +219,16 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
   }
   await captureState(page, '05-replay', true, s5Outcome, s5);
 
-  // ---------------- Gate: no uncaught errors during the run ----------------
   expect(pageErrors, `uncaught page errors: ${pageErrors.join(' | ')}`).toEqual([]);
   expect(consoleErrors, `unexpected console.error: ${consoleErrors.join(' | ')}`).toEqual([]);
+  expect(capturedStates).toHaveLength(5);
+  expect(capturedStates.every((state) => state.screenshotBytes > 0)).toBe(true);
 
-  // ---------------- Run JSON links screenshots ↔ states ↔ inventory ----------------
-  await mkdir(ARTIFACTS_DIR, { recursive: true });
   const runInventory = {
     schema: 'nemosyne/p1-uv0-baseline-run',
-    schemaVersion: 1,
-    baseSha: '81ec16b',
+    schemaVersion: 2,
+    testedSourceSha: TESTED_SOURCE_SHA,
+    ciMergeSha: process.env.GITHUB_SHA ?? null,
     capturedAt: new Date().toISOString(),
     viewport: { ...VIEWPORT, deviceScaleFactor: DEVICE_SCALE_FACTOR },
     kernelAvailable: s5.kernelAvailable,

@@ -202,6 +202,13 @@ jobs:
       - name: Build production bundle
         run: npm run build
 
+      - name: Prove production bundle excludes UV0 instrumentation
+        run: |
+          if grep -R --binary-files=without-match -n -E '__NEMOSYNE_UV0__|nemosyne-uv0' dist; then
+            echo 'ordinary production bundle contains P1-UV0 test instrumentation' >&2
+            exit 1
+          fi
+
       - name: Upload tested production bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -269,10 +276,53 @@ jobs:
       - name: Run collaboration recovery smoke
         run: npm run test:smoke:collaboration
 
+  uv0-baseline-evidence:
+    name: P1-UV0 baseline evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build instrumented UV0 evidence bundle
+        env:
+          VITE_NEMOSYNE_UV0_EVIDENCE: '1'
+        run: npm run build
+
+      - name: Prove instrumented bundle contains UV0 handle
+        run: grep -R --binary-files=without-match -q '__NEMOSYNE_UV0__' dist
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Capture state-asserted UV0 evidence
+        env:
+          NEMOSYNE_SMOKE_PREBUILT: '1'
+          NEMOSYNE_UV0_EVIDENCE: '1'
+          NEMOSYNE_TESTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: npx playwright test tests/smoke/p1-uv0-baseline.spec.ts
+
+      - name: Upload UV0 screenshots and manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: p1-uv0-baseline-evidence
+          path: tests/smoke/artifacts/uv0-baseline
+          if-no-files-found: error
+          retention-days: 14
+
   required:
     name: Node 24
     if: ${{ always() }}
-    needs: [static, coverage, production-build, rust, playwright-smoke]
+    needs: [static, coverage, production-build, rust, playwright-smoke, uv0-baseline-evidence]
     runs-on: ubuntu-latest
     steps:
       - name: Enforce required jobs
@@ -282,9 +332,11 @@ jobs:
           BUILD_RESULT: ${{ needs.production-build.result }}
           RUST_RESULT: ${{ needs.rust.result }}
           SMOKE_RESULT: ${{ needs.playwright-smoke.result }}
+          UV0_RESULT: ${{ needs.uv0-baseline-evidence.result }}
         run: |
           test "$STATIC_RESULT" = success
           test "$COVERAGE_RESULT" = success
           test "$BUILD_RESULT" = success
           test "$RUST_RESULT" = success
           test "$SMOKE_RESULT" = success
+          test "$UV0_RESULT" = success

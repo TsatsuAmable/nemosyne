@@ -1,19 +1,21 @@
 /**
  * P1-UV0 canonical visible-product baseline inventory.
  *
- * This module is the machine-readable authority for every persistent visible
- * surface/object in normal analyst mode at the B3 checkpoint. B4/B5 and later
- * P1-UV tranches diff against it to prove the visible product actually changed
- * (or that they must not claim it did).
+ * This module is the machine-readable authority for (a) surfaces/objects that
+ * are visible at fresh boot in normal analyst mode and (b) hidden interaction
+ * surfaces exercised or explicitly audited by the canonical B3 journey. It is
+ * deliberately not an exhaustive catalogue of developer-only diagnostics or
+ * every hidden panel in the application. B4/B5 and later P1-UV tranches diff
+ * against this bounded baseline so visible-product claims stay falsifiable.
  *
  * Dependency-free (no Node, no DOM) so it can be imported by the smoke spec,
- * the fast node test, and any future tooling.
+ * the fast node test, and future evidence tooling.
  *
  * Classification basis: `docs/Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`
  * §16 panel-role table + what is actually visible in the built production app
- * at boot/state (verified against constructor defaults at authoring time).
- * See `docs/roadmap/P1_UV0_BASELINE_INVENTORY.md` for the human-readable
- * equivalent and the fresh-start path.
+ * at boot/state. The fast test independently audits eagerly constructed
+ * WorldUIManager surfaces so newly added surfaces cannot silently escape an
+ * explicit inventory/exclusion decision.
  */
 
 export const UV0_CLASSIFICATIONS = [
@@ -202,6 +204,18 @@ export const UV0_INVENTORY: readonly Uv0SurfaceEntry[] = [
     visibleAtBoot: true,
   },
   {
+    id: 'settings-panel',
+    name: 'SettingsPanel',
+    source: 'src/vr/coordinators/WorldUIManager.ts:342',
+    purpose: 'Spatial system/settings controls for comfort, accessibility, collaboration and display preferences.',
+    referenceFrame: 'BODY_LOCKED',
+    summonDismiss: 'Eagerly constructed, but runtime evidence proves it is hidden at fresh boot.',
+    owningState: 'System settings / comfort / accessibility state.',
+    classification: 'CONVERGE',
+    rationale: 'Explicitly retained in the audit because source construction alone misleadingly suggested boot visibility; instrumented runtime evidence is authoritative.',
+    visibleAtBoot: false,
+  },
+  {
     id: 'chart-plane',
     name: 'ChartPlanePanel (correlation / time-series / distribution)',
     source: 'src/vr/coordinators/WorldRendererLifecycle.ts:100',
@@ -336,8 +350,9 @@ export const UV0_INVENTORY: readonly Uv0SurfaceEntry[] = [
 ];
 
 /**
- * Hardcoded completeness contract for drift detection: B4/B5 must keep this
- * exact id set in sync when the visible product actually changes.
+ * Convenience view of the canonical baseline. The independent source-grounded
+ * completeness check lives in `tests/uv0-baseline-inventory.test.ts`; deriving
+ * this view from the inventory must not be mistaken for that proof.
  */
 export const UV0_EXPECTED_ENTRY_IDS: readonly string[] = UV0_INVENTORY.map(
   (entry) => entry.id

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   UV0_INVENTORY,
@@ -9,11 +10,11 @@ import {
 /**
  * P1-UV0 baseline inventory drift + schema gate (Stream B3).
  *
- * The id set below is deliberately HARDCODED in this test rather than derived
- * from the module, so B4/B5 (or any later visible-product change) cannot edit
- * the inventory silently: a reclassification, removal, or addition must update
- * this expected set in the same change, proving the baseline was consciously
- * revised.
+ * The id set is deliberately hardcoded rather than derived from the module.
+ * The separate WorldUIManager source audit below prevents the inventory and its
+ * expected-id list from merely agreeing with each other while missing an eager
+ * runtime surface. Source construction proves existence, not visibility; the
+ * instrumented browser baseline owns visibility truth.
  */
 
 const EXPECTED_ENTRY_IDS: readonly string[] = [
@@ -29,6 +30,7 @@ const EXPECTED_ENTRY_IDS: readonly string[] = [
   'mini-overview',
   'peer-presence-hud',
   'dashboard-wall',
+  'settings-panel',
   'chart-plane',
   'tda-planes',
   'holographic-inspector',
@@ -42,9 +44,30 @@ const EXPECTED_ENTRY_IDS: readonly string[] = [
   'nemosyne-vr-button',
 ];
 
+const EAGER_WORLD_UI_DISPOSITIONS: Readonly<Record<string, string>> = {
+  statusStrip: 'excluded: controller, not an independently visible surface',
+  panelRolesManager: 'excluded: UI policy manager, not a visible surface',
+  contextualTaskSurface: 'contextual-task-surface',
+  panelBudgetController: 'excluded: workspace budget controller, not a visible surface',
+  telemetryPanel: 'input-telemetry',
+  vrConsole: 'vr-console',
+  vrMenu: 'legacy-vr-menu',
+  panelManager: 'excluded: panel lifecycle manager, not a visible surface',
+  miniOverview: 'mini-overview',
+  peerPresenceHUD: 'peer-presence-hud',
+  dashboard: 'dashboard-wall',
+  handWheelMenu: 'hand-wheel-menu',
+  settingsPanel: 'settings-panel',
+  metricsPanel: 'excluded: diagnostic role, hidden in ANALYST mode',
+  performancePanel: 'excluded: diagnostic role, hidden in ANALYST mode',
+  networkPanel: 'excluded: diagnostic role, hidden in ANALYST mode',
+  recommendationPanel: 'excluded: hidden task panel outside the canonical B3 journey',
+  dracoExplainerPanel: 'excluded: hidden task panel outside the canonical B3 journey',
+  vaultPanel: 'excluded: hidden task panel outside the canonical B3 journey',
+};
+
 describe('P1-UV0 visible-product baseline inventory', () => {
-  it('covers at least 10 normal-mode surfaces/objects and matches the pinned id set', () => {
-    expect(UV0_INVENTORY.length).toBeGreaterThanOrEqual(10);
+  it('matches the consciously pinned canonical entry set', () => {
     expect(UV0_INVENTORY.length).toBe(EXPECTED_ENTRY_IDS.length);
     expect(UV0_INVENTORY.map((entry) => entry.id)).toEqual(EXPECTED_ENTRY_IDS);
     expect(new Set(UV0_INVENTORY.map((entry) => entry.id)).size).toBe(UV0_INVENTORY.length);
@@ -71,15 +94,43 @@ describe('P1-UV0 visible-product baseline inventory', () => {
     for (const entry of UV0_INVENTORY) {
       byClassification.set(entry.classification, (byClassification.get(entry.classification) ?? 0) + 1);
     }
-    // At least three distinct dispositions (e.g. KEEP + DEMOTE + CONVERGE +
-    // REMOVE + REPLACE) must be present for the inventory to be an honest
-    // pre-transformation picture rather than a "everything is fine" listing.
     expect(byClassification.size).toBeGreaterThanOrEqual(4);
   });
 
-  it('every boot-visible entry is listed as visibleAtBoot and every hidden one is not', () => {
+  it('contains both boot-visible and state-summoned/audited surfaces', () => {
     const entries: readonly Uv0SurfaceEntry[] = UV0_INVENTORY;
     expect(entries.filter((entry) => entry.visibleAtBoot).length).toBeGreaterThan(0);
     expect(entries.filter((entry) => !entry.visibleAtBoot).length).toBeGreaterThan(0);
+  });
+
+  it('source-audits every eagerly constructed WorldUIManager surface or controller', () => {
+    const source = readFileSync('src/vr/coordinators/WorldUIManager.ts', 'utf8');
+    const constructorStart = source.indexOf('  constructor(');
+    const constructorEnd = source.indexOf('  getOrCreateOperationLogPanel()');
+    expect(constructorStart).toBeGreaterThanOrEqual(0);
+    expect(constructorEnd).toBeGreaterThan(constructorStart);
+
+    const constructorSource = source.slice(constructorStart, constructorEnd);
+    const eagerProperties = Array.from(
+      constructorSource.matchAll(/this\.([A-Za-z0-9_]+)\s*=\s*new\s+[A-Za-z0-9_]+/g),
+      (match) => match[1],
+    );
+
+    expect(eagerProperties).toEqual(Object.keys(EAGER_WORLD_UI_DISPOSITIONS));
+
+    const inventoryIds = new Set(UV0_INVENTORY.map((entry) => entry.id));
+    for (const property of eagerProperties) {
+      const disposition = EAGER_WORLD_UI_DISPOSITIONS[property];
+      expect(disposition, `${property} must have an explicit UV0 disposition`).toBeTruthy();
+      if (!disposition.startsWith('excluded:')) {
+        expect(inventoryIds.has(disposition), `${property} -> ${disposition} missing from UV0 inventory`).toBe(true);
+      }
+    }
+
+    // SettingsPanel is deliberately tracked because it is eagerly constructed.
+    // The browser evidence, not this source scan, establishes that it is hidden
+    // at fresh boot.
+    expect(constructorSource).toContain('this.settingsPanel = new SettingsPanel');
+    expect(UV0_INVENTORY.find((entry) => entry.id === 'settings-panel')?.visibleAtBoot).toBe(false);
   });
 });
