@@ -55,7 +55,9 @@ jobs:
         run: npm ci
 
       - name: Apply pure preview boundary
-        run: python scripts/referee-bu2-pure-preview.py
+        run: |
+          python scripts/referee-bu2-pure-preview-correction.py
+          python scripts/referee-bu2-pure-preview.py
 
       - name: Typecheck
         run: npm run typecheck
@@ -75,6 +77,7 @@ jobs:
       - name: Remove transient verification machinery
         run: >-
           rm scripts/referee-bu2-pure-preview.py
+          scripts/referee-bu2-pure-preview-correction.py
           scripts/referee-bu2-world-reapply.py
           .github/workflows/referee-bu2-sync-preview.yml
 
