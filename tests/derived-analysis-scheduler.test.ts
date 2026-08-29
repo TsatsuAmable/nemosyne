@@ -108,7 +108,7 @@ describe('RF-061 DerivedAnalysisScheduler', () => {
 
   it('replaces an older pending generation with the newest governed version', async () => {
     const deferrer = manualDeferrer();
-    let currentVersion = 3;
+    const currentVersion = 3;
     const computes: number[] = [];
 
     const scheduler = new DerivedAnalysisScheduler<number>({
