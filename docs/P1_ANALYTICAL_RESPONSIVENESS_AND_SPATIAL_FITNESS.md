@@ -13,19 +13,22 @@ The dependency order is intentional:
 1. remove redundant dataset materialisation at analytical boundaries;
 2. isolate expensive analytical execution from the XR/main thread;
 3. bound topology algorithms at large N;
-4. make Moneta evaluate embodied 3D perceptual fitness;
-5. turn NIL/ambiguity into actionable investigator workflows;
-6. resolve imprecise spatial intent against analytical structures;
-7. use the same semantic hierarchy for Memory Palace focus+context;
-8. validate the complete result on physical target hardware.
+4. converge dataset-level representation onto Rust-owned bounded semantic embodiment payloads rather than row-first geometry;
+5. make Moneta evaluate the perceptual fitness of those real embodied representations;
+6. turn NIL/ambiguity into actionable investigator workflows;
+7. resolve imprecise spatial intent against analytical structures;
+8. use the same semantic hierarchy for Memory Palace focus+context and progressive observation disclosure;
+9. validate the complete representation + interaction result on physical target hardware.
 
 ## Fixed boundaries
 
-- Rust/WASM owns N-dependent analytical computation, canonical dataset storage and data-derived evidence.
+- Rust/WASM owns N-dependent analytical computation, canonical dataset storage, data-derived evidence and data-derived semantic representation payloads.
 - Atlas owns durable analytical handles and investigation orchestration.
 - TypeScript/JavaScript owns presentation, interaction and scheduling, not a shadow analytical implementation.
 - Moneta remains a bounded control plane over compact evidence.
 - Source rows are not render primitives and must not be routinely rematerialised to perform analysis.
+- **Non-observation representations are payload-first.** Three.js must not receive/traverse raw dataset rows to construct aggregate, density, distribution, cluster, field or other dataset-level analytical representations.
+- **Observation marks are deliberate detail.** Point-per-observation geometry is valid only when Moneta selects observation-level representation or explicit progressive disclosure/drill-down requests it.
 - Expensive analytical work must not be allowed to stall XR frame delivery.
 - Approximation must be explicit, versioned and provenance-visible.
 - Shared memory, WASM threads and SIMD are optimisations to justify with measurements, not architectural prerequisites.
@@ -91,9 +94,63 @@ The current implementation is not a generic full Vietoris-Rips complex. Mapper a
 
 Topology cost is bounded by an explicit governed strategy rather than an accidental all-pairs path, with approximation visible in provenance and validated against reference cases.
 
+## P1-R — Semantic embodiment convergence — RF-001 / RF-002
+
+Goal: make Nemosyne visualise dataset-level analytical structure rather than treating observations as the universal rendering substrate.
+
+**Detailed executable plan:** [`roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md`](roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md).
+
+The current defect is architectural, not cosmetic: Moneta can choose dataset-level semantic candidates, but `VRTopologyTranslator` still extracts `dataset.rows`, and `ScalableTopologyEmbodiment` / `TopologyLayoutEmbodiment` derive several non-point representations from rows or row-derived positions in TypeScript. RF-001 owns that authority breach. RF-002 owns the resulting scientific-fidelity mismatch where candidate labels can exceed the mathematics actually rendered.
+
+### Governing invariant
+
+For every non-observation representation:
+
+```text
+Rust canonical dataset
+  → Rust analytical representation builder
+    → bounded/versioned SemanticEmbodimentPayload
+      → WASM/Worker transport
+        → thin Three.js embodiment adapter
+```
+
+Raw rows may cross into presentation only for an explicitly selected observation-level representation or a bounded progressive-disclosure/drill-down request.
+
+### Work
+
+- [ ] **R0 — inventory/falsifier:** classify every production candidate as observation-level, valid dataset-level, row-derived dataset-level, semantically overclaimed or unreachable; add an authority test that detects raw-row construction of non-observation representations.
+- [ ] **R1 — payload contract:** define a versioned discriminated Rust-owned semantic payload envelope with representation-specific payload types, canonical identity, analytical method/parameters, approximation mode, information-preservation/loss contract, stable semantic IDs and hard size bounds.
+- [ ] **R2 — Rust builders:** migrate aggregate, distribution, density, cluster and then structural/temporal families in vertical slices; each candidate is computed from the canonical Rust dataset capability and named only as strongly as its implemented mathematics supports.
+- [ ] **R3 — production cutover:** make handle-native payload generation the real Worker/WASM path; prohibit JS row-reduction fallback; fence payloads by dataset/decision/generation identity and propagate typed refusal/failure.
+- [ ] **R4 — thin renderer adapters:** replace row-first translation with payload-first dispatch; keep geometry/material/hit-target construction in small representation-specific adapters and forbid analytical regrouping/estimation/inference there.
+- [ ] **R5 — progressive disclosure:** implement the hierarchy `dataset representation → semantic region/group → observation subset → exact datum`, revealing points only when observation identity/detail is requested.
+- [ ] **R6 — ontology/fidelity:** reconcile every `RepresentationCandidate` description, `supports`/`preserves`/`loses`, scale envelope and candidate→payload compatibility with the mathematics actually implemented; split candidates that currently share geometry despite different statistical meaning.
+- [ ] **R7 — evidence:** prove candidate→payload→artifact identity through the production path, source-N independence for bounded representations, transfer/render complexity, visually distinct dataset-level fixtures and re-bound P1-D perceptual evidence.
+
+### Implementation order
+
+Start with the simplest high-value vertical slices rather than building an abstract framework with no product consumer:
+
+1. R0 production inventory/falsifier + minimal R1 envelope;
+2. aggregate payload, ABI and renderer cutover;
+3. truthful distribution representation;
+4. truthful density representation;
+5. cluster regions from authoritative cluster evidence;
+6. structural/temporal families in bounded slices;
+7. progressive observation drill-down;
+8. final ontology/fidelity and product/performance review.
+
+Do not create a monolithic semantic-payload god module or replace `VRTopologyTranslator` with another giant renderer class. The common envelope should remain small while analytical builders and renderer adapters are representation-specific.
+
+### Exit
+
+RF-001 and RF-002 can close only when non-observation representations no longer depend on raw-row analytical construction in JavaScript; their candidate labels match the actual mathematics; bounded semantic payloads cross the Rust/WASM/Worker boundary; Three.js is presentation-only; and point-per-observation geometry appears only for explicit observation-level intent/detail. Product evidence must show visibly distinct dataset-level representations and preserve semantic identity through drill-down.
+
 ## P1-D — 3D-native Moneta perceptual fitness
 
 Goal: Moneta evaluates the fitness of the actual spatial embodiment, not only dataset/schema/task compatibility.
+
+P1-D must evaluate the **P1-R-converged semantic embodiment**, not a row/point substitute standing in for the chosen semantic candidate.
 
 ### Work
 
@@ -105,11 +162,12 @@ Goal: Moneta evaluates the fitness of the actual spatial embodiment, not only da
 - [ ] Feed perceptual evidence into Moneta ranking without relabelling utility as probability/confidence.
 - [ ] Preserve hard information-loss and hardware constraints ahead of perceptual preference scoring.
 - [ ] Persist exact perceptual-model/version/device assumptions in decision provenance.
+- [ ] Key perceptual evidence to the actual semantic payload/candidate/embodiment identity so evidence from a materially different point representation cannot score a field/region/aggregate candidate.
 - [ ] Calibrate thresholds on physical target hardware before treating them as promotion evidence.
 
 ### Exit
 
-Two otherwise analytically similar candidates can be ranked differently because their actual 3D embodiments have measurably different perceptual fitness, and that reasoning is inspectable.
+Two otherwise analytically similar candidates can be ranked differently because their actual P1-R-converged 3D embodiments have measurably different perceptual fitness, and that reasoning is inspectable.
 
 ## P1-E — Actionable NIL, ambiguity and uncertainty
 
@@ -143,13 +201,13 @@ Goal: imprecise embodied input resolves to meaningful analytical structures, and
 - [ ] Preserve manual precision escape hatches for expert interaction.
 - [ ] Define the focus+context hierarchy: investigation -> dataset -> structure -> region/cluster -> observation.
 - [ ] Keep stable spatial identity/anchors while changing representation resolution with distance, gaze, focus and explicit drill-down.
-- [ ] Use aggregate/topological landmarks at distance and reveal observations only at appropriate detail.
+- [ ] Use aggregate/topological landmarks at distance and reveal observations only at appropriate detail through P1-R progressive disclosure.
 - [ ] Preserve semantic parity for desktop controls where possible.
 - [ ] Persist semantic selections/navigation state only where required for reproducible investigation meaning.
 
 ### Exit
 
-Investigators can move from a global spatial overview to analytical structures and individual observations without losing spatial context, and imprecise VR intent preferentially resolves to semantically meaningful targets.
+Investigators can move from a global dataset-level spatial representation to analytical structures and individual observations without losing spatial context, and imprecise VR intent preferentially resolves to semantically meaningful targets.
 
 ## Physical qualification gate
 
@@ -159,8 +217,8 @@ When a physical Quest 3S is available:
 
 - [ ] run the governed 10M browser envelope;
 - [ ] execute controller, hand and desktop semantic-parity tasks;
-- [ ] measure frame time, draw calls, retained memory, analytical scheduling and interaction latency;
-- [ ] validate perceptual thresholds, occlusion/crowding assumptions and semantic-target assistance;
+- [ ] measure frame time, draw calls, retained memory, analytical scheduling and interaction latency across the P1-R-converged representation treatment;
+- [ ] validate perceptual thresholds, occlusion/crowding assumptions, progressive disclosure and semantic-target assistance;
 - [ ] record device/browser/runtime versions and governed dispositions;
 - [ ] reopen the minimal-private-preview promotion decision only when remaining blocker/high findings are accepted or closed.
 
@@ -171,18 +229,22 @@ When a physical Quest 3S is available:
 - treating alpha complexes as a generic high-dimensional large-N solution;
 - enabling full shared-memory/multithreaded WASM before simpler worker isolation is measured;
 - pulling RepresentationGraph/compositional search forward from P2;
-- enabling adaptive/learned behaviour by default without held-out outcome evidence.
+- enabling adaptive/learned behaviour by default without held-out outcome evidence;
+- treating point marks as forbidden: they remain the correct representation when observation identity/detail is the analytical task.
 
 ## Verification cadence
 
 Each tranche should use the cheapest authoritative evidence that proves its claim:
 
-- Rust unit/property/metamorphic tests for analytical kernels;
-- focused adapter/ABI tests for Rust/JS boundary ownership;
-- source/architecture contracts preventing analytical fallback or row rematerialisation;
-- real-WASM tests for handle generation, provenance and failure recovery;
-- browser tests for worker scheduling/stale-result rejection;
+- Rust unit/property/metamorphic tests for analytical kernels and semantic representation builders;
+- mathematical/reference fixtures for candidate fidelity;
+- focused adapter/ABI tests for Rust/JS boundary ownership and semantic payload serialization;
+- source/architecture contracts preventing analytical fallback, non-observation row traversal or row rematerialisation;
+- real-WASM tests for handle generation, payload identity, provenance and failure recovery;
+- browser tests for worker scheduling/stale-result rejection and candidate→payload→artifact identity;
+- scale evidence showing bounded payload/render element growth for dataset-level representations;
 - frame/performance instrumentation for interaction responsiveness;
+- P1-D perceptual evidence over the actual P1-R embodiment;
 - physical Quest evidence for promotion-critical device claims.
 
 Do not make ordinary PR CI depend on long-running performance campaigns. Keep deterministic correctness gates fast and run scale/device characterisation as explicit evidence lanes.
