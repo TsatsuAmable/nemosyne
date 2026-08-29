@@ -16,10 +16,6 @@ import {
   type AnalystJourneyControlsHandle,
 } from './AnalystJourneyControls.ts';
 import {
-  installUv0TestHandle,
-  UV0_TEST_HANDLE_KEY,
-} from './uv0TestHandle.ts';
-import {
   createApplicationIntentDispatcher,
   type ApplicationIntentDispatcher,
 } from './intents/ApplicationIntent.ts';
@@ -145,13 +141,17 @@ export async function bootstrapApp(): Promise<AppInstance> {
     }
   }
 
-  // P1-UV0 test-only handle: installed only when the page is loaded with the
-  // `?nemosyne-uv0=1` query parameter (the production smoke baseline spec).
-  // It exposes a bounded read/summon surface for state assertions; absent the
-  // parameter the production bundle behaves byte-identically.
-  const uv0 = new URL(window.location.href).searchParams.get('nemosyne-uv0');
-  if (uv0 === '1') {
-    window[UV0_TEST_HANDLE_KEY] = installUv0TestHandle(world);
+  // P1-UV0 instrumentation is a compile-time opt-in. Ordinary production
+  // bundles are built without VITE_NEMOSYNE_UV0_EVIDENCE, so Rollup can remove
+  // both this branch and the dynamic helper chunk. The dedicated UV0 evidence
+  // job enables the flag and still requires the exact query parameter before
+  // installing the runtime handle.
+  if (import.meta.env.VITE_NEMOSYNE_UV0_EVIDENCE === '1') {
+    const uv0 = new URL(window.location.href).searchParams.get('nemosyne-uv0');
+    if (uv0 === '1') {
+      const { installUv0TestHandle, UV0_TEST_HANDLE_KEY } = await import('./uv0TestHandle.ts');
+      window[UV0_TEST_HANDLE_KEY] = installUv0TestHandle(world);
+    }
   }
 
   return {
