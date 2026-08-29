@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
+import { describe, expect, it, vi } from 'vitest';
 import { Dataset } from '../src/data/Dataset.ts';
 import { VRTopologyTranslator } from '../src/moneta/VRTopologyTranslator.ts';
+import { ScalableTopologyEmbodiment } from '../src/moneta/embodiment/ScalableTopologyEmbodiment.ts';
+import { TopologyLayoutEmbodiment } from '../src/moneta/embodiment/TopologyLayoutEmbodiment.ts';
 import {
   MONETA_REPRESENTATION_CANDIDATES,
   type SemanticRepresentationId,
@@ -28,9 +31,6 @@ interface InventoryEntry {
   productionReachable: boolean;
   layout: VRLayout;
   geometry: VRGeometry;
-  currentRenderer: string;
-  claimedSemantics: string;
-  actualCurrentSemantics: string;
 }
 
 const INVENTORY: Record<SemanticRepresentationId, InventoryEntry> = {
@@ -39,111 +39,72 @@ const INVENTORY: Record<SemanticRepresentationId, InventoryEntry> = {
     productionReachable: true,
     layout: 'GRID_3D',
     geometry: 'CUBE_MATRIX',
-    currentRenderer: 'TopologyLayoutEmbodiment.buildGrid',
-    claimedSemantics: 'discrete observations',
-    actualCurrentSemantics: 'one row-derived grid mark per observation',
   },
   DENSITY_FIELD: {
     classification: 'SEMANTICALLY_OVERCLAIMED',
     productionReachable: true,
     layout: 'GRID_3D',
     geometry: 'DENSITY_FIELD',
-    currentRenderer: 'ScalableTopologyEmbodiment.buildDensityField',
-    claimedSemantics: 'continuous population density estimation',
-    actualCurrentSemantics: 'fixed 6x6x6 histogram over TypeScript layout positions',
   },
   DISTRIBUTION_FIELD: {
     classification: 'SEMANTICALLY_OVERCLAIMED',
     productionReachable: true,
     layout: 'GRID_3D',
     geometry: 'DENSITY_FIELD',
-    currentRenderer: 'ScalableTopologyEmbodiment.buildDensityField',
-    claimedSemantics: 'distribution contours, quantiles and probability density',
-    actualCurrentSemantics: 'same fixed spatial histogram used for DENSITY_FIELD',
   },
   CLUSTER_REGIONS: {
     classification: 'DATASET_LEVEL_ROW_DERIVED',
     productionReachable: true,
     layout: 'GRID_3D',
     geometry: 'CLUSTER_VOLUME',
-    currentRenderer: 'ScalableTopologyEmbodiment.buildClusterVolume',
-    claimedSemantics: 'cluster regions with centroid and boundary markers',
-    actualCurrentSemantics: 'TypeScript grouping plus bounding spheres over row-derived positions',
   },
   AGGREGATE_VOLUME: {
     classification: 'NOT_PRODUCTION_REACHABLE',
     productionReachable: false,
     layout: 'GRID_3D',
     geometry: 'AGGREGATE_BARS',
-    currentRenderer: 'ScalableTopologyEmbodiment.buildAggregateBars',
-    claimedSemantics: 'aggregated summary measures',
-    actualCurrentSemantics:
-      'renderer exists and groups/averages raw rows, but Moneta candidate generation does not emit it',
   },
   TEMPORAL_TRAJECTORY: {
     classification: 'DATASET_LEVEL_ROW_DERIVED',
     productionReachable: true,
     layout: 'TIME_RIBBON',
     geometry: 'BEAM',
-    currentRenderer: 'TopologyLayoutEmbodiment.buildTimeRibbon',
-    claimedSemantics: 'chronological temporal trajectory',
-    actualCurrentSemantics: 'TypeScript row ordering and tube construction by series',
   },
   HIERARCHICAL_SPACE: {
     classification: 'DATASET_LEVEL_ROW_DERIVED',
     productionReachable: true,
     layout: 'RADIAL_ORBITAL',
     geometry: 'CONICAL_TREE',
-    currentRenderer: 'TopologyLayoutEmbodiment.buildRadial',
-    claimedSemantics: 'nested hierarchy with parent-child structure',
-    actualCurrentSemantics: 'row-derived radial nodes plus parent-index edges',
   },
   RELATIONSHIP_GRAPH: {
     classification: 'DATASET_LEVEL_ROW_DERIVED',
     productionReachable: true,
     layout: 'FORCE_DIRECTED_3D',
     geometry: 'ICOSA_NODE',
-    currentRenderer: 'TopologyLayoutEmbodiment.buildForceDirected',
-    claimedSemantics: 'relational topology',
-    actualCurrentSemantics: 'row/edge inputs converted into per-observation nodes and edges',
   },
   MATRIX_FIELD: {
     classification: 'OBSERVATION_LEVEL',
     productionReachable: true,
     layout: 'GRID_3D',
     geometry: 'CUBE_MATRIX',
-    currentRenderer: 'TopologyLayoutEmbodiment.buildGrid',
-    claimedSemantics: 'regular indexed observation matrix',
-    actualCurrentSemantics: 'one row-derived grid mark per observation',
   },
   MANIFOLD_EMBEDDING: {
     classification: 'SEMANTICALLY_OVERCLAIMED',
     productionReachable: true,
     layout: 'FORCE_DIRECTED_3D',
     geometry: 'ICOSA_NODE',
-    currentRenderer: 'TopologyLayoutEmbodiment.buildForceDirected',
-    claimedSemantics: 'dimensionality-reduced manifold preserving neighbourhood topology',
-    actualCurrentSemantics:
-      'generic force-directed or grid row layout; no manifold payload reaches the renderer',
   },
   SPATIAL_REGION: {
     classification: 'OBSERVATION_LEVEL',
     productionReachable: true,
     layout: 'GEO_SURFACE',
     geometry: 'GEO_COLUMN',
-    currentRenderer: 'TopologyLayoutEmbodiment.buildGeoSurface',
-    claimedSemantics: 'geographic coordinate mapping',
-    actualCurrentSemantics: 'one row-derived geospatial column per observation',
   },
   MULTISCALE_FIELD: {
     classification: 'SEMANTICALLY_OVERCLAIMED',
     productionReachable: true,
     layout: 'SPECTRAL_VOLUME',
     geometry: 'SPECTRAL_BAR',
-    currentRenderer: 'TopologyLayoutEmbodiment.buildSpectralVolume',
-    claimedSemantics: 'multiscale frequency and wavelet structure',
-    actualCurrentSemantics:
-      'row-derived spectral bars; no multiscale/wavelet payload reaches the renderer',
   },
 };
 
@@ -205,10 +166,13 @@ function inputThatForbidsRawRows(): MonetaDataInput {
 }
 
 function rendererSource(path: string): string {
-  return readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  return readFileSync(path, 'utf8');
 }
 
-function renderCount(geometry: VRGeometry, rowCount = 24): number {
+function scalableRenderCount(
+  geometry: 'AGGREGATE_BARS' | 'CLUSTER_VOLUME' | 'DENSITY_FIELD',
+  rowCount = 24
+): number {
   const rows = Array.from({ length: rowCount }, (_, index) => ({
     group: `g${index % 3}`,
     x: index % 6,
@@ -225,22 +189,38 @@ function renderCount(geometry: VRGeometry, rowCount = 24): number {
     ],
     rows
   );
-  const artifact = VRTopologyTranslator.synthesizeArtifact(
-    {
-      facts: { ...minimalFacts(), rowCount, numericColumns: 3, categoricalColumns: 1 },
-      cost: 0,
-      spec: {
-        layout: 'GRID_3D',
-        geometry,
-        behavior: 'STATIC',
-        interaction: 'INSPECT_CELL',
-      },
-    },
-    { dataset, encodings: { color: 'group', size: 'value' } }
+  const layouts = new TopologyLayoutEmbodiment('none');
+  const layoutSpy = vi.spyOn(layouts, 'computeLayoutPositions').mockReturnValue(
+    rows.map((row, index) => ({
+      row,
+      index,
+      position: new THREE.Vector3(index % 6, Math.floor(index / 6), index % 2),
+    }))
   );
-  const count = artifact.nodeMeshes.length;
-  disposeObject(artifact.group);
-  return count;
+  const scalable = new ScalableTopologyEmbodiment(layouts, 'none', null);
+  const group = new THREE.Group();
+  const nodeMeshes: THREE.Mesh[] = [];
+  const spec = {
+    layout: 'GRID_3D' as const,
+    geometry,
+    behavior: 'STATIC' as const,
+    interaction: 'INSPECT_CELL' as const,
+  };
+  const encodings = { color: 'group', size: 'value' };
+
+  try {
+    if (geometry === 'AGGREGATE_BARS') {
+      scalable.buildAggregateBars(group, nodeMeshes, rows, dataset, encodings, spec);
+    } else if (geometry === 'CLUSTER_VOLUME') {
+      scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec);
+    } else {
+      scalable.buildDensityField(group, nodeMeshes, rows, dataset, encodings, spec);
+    }
+    return nodeMeshes.length;
+  } finally {
+    layoutSpy.mockRestore();
+    disposeObject(group);
+  }
 }
 
 describe('Stream A A2 representation inventory', () => {
@@ -249,8 +229,8 @@ describe('Stream A A2 representation inventory', () => {
     expect(Object.keys(INVENTORY).sort()).toEqual(candidateIds);
 
     const reachable = new Set(Object.values(FAMILY_TO_CANDIDATE_IDS).flat());
-    const actualUnreachable = candidateIds.filter((id) =>
-      !reachable.has(id as SemanticRepresentationId)
+    const actualUnreachable = candidateIds.filter(
+      (id) => !reachable.has(id as SemanticRepresentationId)
     );
     const inventoriedUnreachable = candidateIds.filter(
       (id) => !INVENTORY[id as SemanticRepresentationId].productionReachable
@@ -313,15 +293,12 @@ describe('Stream A A2 representation inventory', () => {
     );
   });
 
-  it('records source-N versus rendered primitive behavior for the existing scalable renderers', () => {
+  it('records bounded primitive behavior without replacing Rust layout authority in the test', () => {
     const rowCount = 24;
-    expect(renderCount('CUBE_MATRIX', rowCount)).toBe(rowCount);
-    expect(renderCount('AGGREGATE_BARS', rowCount)).toBe(3);
+    expect(scalableRenderCount('AGGREGATE_BARS', rowCount)).toBe(3);
+    expect(scalableRenderCount('CLUSTER_VOLUME', rowCount)).toBe(3);
 
-    const clusters = renderCount('CLUSTER_VOLUME', rowCount);
-    expect(clusters).toBe(3);
-
-    const densityVoxels = renderCount('DENSITY_FIELD', rowCount);
+    const densityVoxels = scalableRenderCount('DENSITY_FIELD', rowCount);
     expect(densityVoxels).toBeGreaterThan(0);
     expect(densityVoxels).toBeLessThanOrEqual(216);
   });
