@@ -13,7 +13,8 @@ import {
  * The id set is deliberately hardcoded rather than derived from the module.
  * The separate WorldUIManager source audit below prevents the inventory and its
  * expected-id list from merely agreeing with each other while missing an eager
- * runtime surface.
+ * runtime surface. Source construction proves existence, not visibility; the
+ * instrumented browser baseline owns visibility truth.
  */
 
 const EXPECTED_ENTRY_IDS: readonly string[] = [
@@ -96,7 +97,7 @@ describe('P1-UV0 visible-product baseline inventory', () => {
     expect(byClassification.size).toBeGreaterThanOrEqual(4);
   });
 
-  it('contains both boot-visible and state-summoned surfaces', () => {
+  it('contains both boot-visible and state-summoned/audited surfaces', () => {
     const entries: readonly Uv0SurfaceEntry[] = UV0_INVENTORY;
     expect(entries.filter((entry) => entry.visibleAtBoot).length).toBeGreaterThan(0);
     expect(entries.filter((entry) => !entry.visibleAtBoot).length).toBeGreaterThan(0);
@@ -126,11 +127,10 @@ describe('P1-UV0 visible-product baseline inventory', () => {
       }
     }
 
-    // Independent-review regression: SettingsPanel is attached eagerly and no
-    // constructor-time hide call exists. It must remain a boot-visible baseline
-    // entry until product treatment deliberately changes in B4/B5.
+    // SettingsPanel is deliberately tracked because it is eagerly constructed.
+    // The browser evidence, not this source scan, establishes that it is hidden
+    // at fresh boot.
     expect(constructorSource).toContain('this.settingsPanel = new SettingsPanel');
-    expect(constructorSource).not.toContain('hidePanel(this.settingsPanel)');
-    expect(UV0_INVENTORY.find((entry) => entry.id === 'settings-panel')?.visibleAtBoot).toBe(true);
+    expect(UV0_INVENTORY.find((entry) => entry.id === 'settings-panel')?.visibleAtBoot).toBe(false);
   });
 });
