@@ -3,7 +3,6 @@ import { Dataset } from '../src/data/Dataset.ts';
 import type {
   AnalyticalExecutionPort,
   AnalyticalExecutionRequest,
-  AnalyticalExecutionResult,
 } from '../src/atlas/ports/AnalyticalExecutionPort.ts';
 import { loadAggregateSemanticEmbodiment } from '../src/app/dataset/SemanticEmbodimentLoader.ts';
 import type { RepresentationDecision } from '../src/moneta/representation/RepresentationDecision.ts';
@@ -60,27 +59,30 @@ function envelope(fingerprint: string): SemanticEmbodimentEnvelopeV1 {
   };
 }
 
-function portFor(value: SemanticEmbodimentEnvelopeV1, resident: boolean): AnalyticalExecutionPort {
-  return {
+function portFor(value: SemanticEmbodimentEnvelopeV1, resident: boolean) {
+  const registerDataset = vi.fn(async () => undefined);
+  const execute = vi.fn(async (request: AnalyticalExecutionRequest) => ({
+    requestId: request.requestId,
+    generation: request.generation,
+    datasetVersion: request.dataset.version,
+    datasetFingerprint: request.dataset.fingerprint,
+    value,
+  }));
+  const port: AnalyticalExecutionPort = {
     isAsync: true,
     supersede: vi.fn(),
     hasRegisteredDataset: vi.fn(() => resident),
-    registerDataset: vi.fn(async () => undefined),
-    execute: vi.fn(async (request: AnalyticalExecutionRequest) => ({
-      requestId: request.requestId,
-      generation: request.generation,
-      datasetVersion: request.dataset.version,
-      datasetFingerprint: request.dataset.fingerprint,
-      value,
-    } as AnalyticalExecutionResult<unknown>)),
+    registerDataset,
+    execute: execute as unknown as AnalyticalExecutionPort['execute'],
   };
+  return { port, execute, registerDataset };
 }
 
 describe('Stream A A4 semantic embodiment loader', () => {
   it('uses a resident worker handle without sending rows in the semantic execution request', async () => {
     const data = dataset();
     const fingerprint = data.fingerprint;
-    const port = portFor(envelope(fingerprint), true);
+    const { port, execute, registerDataset } = portFor(envelope(fingerprint), true);
     const authority = { executionPort: port, generation: 3, datasetVersion: 7, datasetFingerprint: fingerprint };
 
     const result = await loadAggregateSemanticEmbodiment(
@@ -91,9 +93,9 @@ describe('Stream A A4 semantic embodiment loader', () => {
     );
 
     expect(result?.candidateId).toBe('AGGREGATE_VOLUME');
-    expect(port.registerDataset).not.toHaveBeenCalled();
-    expect(port.execute).toHaveBeenCalledTimes(1);
-    const request = vi.mocked(port.execute).mock.calls[0][0];
+    expect(registerDataset).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledTimes(1);
+    const request = execute.mock.calls[0][0];
     expect(request.operation).toBe('semanticEmbodiment');
     expect(request.datasetPayload).toBeUndefined();
     expect(JSON.stringify(request.params)).not.toContain('"rows"');
@@ -110,8 +112,8 @@ describe('Stream A A4 semantic embodiment loader', () => {
     const fingerprint = data.fingerprint;
     let release!: () => void;
     const wait = new Promise<void>((resolve) => { release = resolve; });
-    const port = portFor(envelope(fingerprint), false);
-    vi.mocked(port.execute).mockImplementation(async (request) => {
+    const { port, execute, registerDataset } = portFor(envelope(fingerprint), false);
+    execute.mockImplementation(async (request) => {
       await wait;
       return {
         requestId: request.requestId,
@@ -129,11 +131,11 @@ describe('Stream A A4 semantic embodiment loader', () => {
       decision(),
       { color: 'group', size: 'value' },
     );
-    await vi.waitFor(() => expect(port.execute).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
     authority.datasetVersion = 3;
     release();
 
     expect(await pending).toBeNull();
-    expect(port.registerDataset).toHaveBeenCalledTimes(1);
+    expect(registerDataset).toHaveBeenCalledTimes(1);
   });
 });
