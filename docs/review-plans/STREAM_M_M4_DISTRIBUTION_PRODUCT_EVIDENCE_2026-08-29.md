@@ -4,7 +4,7 @@
 **Stream:** M — Moneta Distribution Truth  
 **Checkpoint:** M4 — product, scale and perceptual handoff  
 **Base:** `9db597937e455c01fe7c2770ce76b62792f3e5aa` (`main`, M3 merged)  
-**Status:** EXACT-HEAD BROWSER EVIDENCE CAPTURED — GOVERNED PR GATES PENDING
+**Status:** MERGED — EXACT-HEAD BROWSER EVIDENCE CAPTURED
 
 ## Invariant
 
