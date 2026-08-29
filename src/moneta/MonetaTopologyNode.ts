@@ -15,6 +15,7 @@ import type { RepresentationDecision } from './representation/RepresentationDeci
 import type { RepresentationGraph } from './representation/RepresentationGraph.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
 import { representationGraphToRuntimeSpec } from './representation/RepresentationGraphRuntimeAdapter.ts';
+import { setSemanticEmbodimentPresentationStatus } from './embodiment/SemanticEmbodimentStatus.ts';
 
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
@@ -94,7 +95,7 @@ export class MonetaTopologyNode {
         return;
       }
       if (!envelope) {
-        if (this.group) this.group.userData.semanticEmbodimentStatus = 'UNAVAILABLE';
+        if (this.group) setSemanticEmbodimentPresentationStatus(this.group, 'UNAVAILABLE');
         return;
       }
       input.semanticEmbodiment = envelope;

@@ -9,6 +9,7 @@ import type {
   VRTranslatorOptions,
 } from '../types.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from '../representation/SemanticEmbodimentPayload.ts';
+import { setSemanticEmbodimentPresentationStatus } from './SemanticEmbodimentStatus.ts';
 import { TopologyLayoutEmbodiment } from './TopologyLayoutEmbodiment.ts';
 
 function createDefaultPointCloud(
@@ -340,11 +341,11 @@ export class ScalableTopologyEmbodiment {
     envelope: SemanticEmbodimentEnvelopeV1 | null | undefined
   ): void {
     if (!envelope) {
-      group.userData.semanticEmbodimentStatus = 'PENDING';
+      setSemanticEmbodimentPresentationStatus(group, 'PENDING');
       return;
     }
     if (envelope.result.status === 'REFUSED') {
-      group.userData.semanticEmbodimentStatus = 'REFUSED';
+      setSemanticEmbodimentPresentationStatus(group, 'REFUSED', envelope.result.refusal.message);
       group.userData.semanticEmbodimentRefusal = envelope.result.refusal;
       return;
     }
@@ -353,7 +354,7 @@ export class ScalableTopologyEmbodiment {
       envelope.representationFamily !== 'DISTRIBUTION' ||
       envelope.result.payload.kind !== 'EMPIRICAL_DISTRIBUTION'
     ) {
-      group.userData.semanticEmbodimentStatus = 'INVALID';
+      setSemanticEmbodimentPresentationStatus(group, 'INVALID');
       return;
     }
 
@@ -458,7 +459,7 @@ export class ScalableTopologyEmbodiment {
       nodeMeshes.push(mesh);
     });
 
-    group.userData.semanticEmbodimentStatus = 'READY';
+    setSemanticEmbodimentPresentationStatus(group, 'READY');
     group.userData.semanticEmbodiment = {
       artifactId,
       datasetFingerprint: envelope.datasetFingerprint,
