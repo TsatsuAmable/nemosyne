@@ -185,6 +185,7 @@ const PreservationGoalRequirementSchema = v.strictObject({
     'individual-observation-identity',
     'exact-metric-values',
     'population-density-distribution',
+    'empirical-distribution-shape',
     'outlier-boundary-visibility',
     'cluster-separation',
     'relational-edge-connectivity',
@@ -347,9 +348,18 @@ export function createDefaultRequirements(
   const scale = Array.isArray(scaleOrDims) ? 'MEDIUM' : scaleOrDims;
   const primaryDimensions = Array.isArray(scaleOrDims) ? scaleOrDims : undefined;
   const intent = createDefaultIntent(task);
+  const requestsEmpiricalDistribution =
+    task === 'distribution-analysis' ||
+    task === 'identify-outliers' ||
+    task === 'anomaly-detection';
 
   const preservationGoals: PreservationGoal[] = [
-    { information: 'population-density-distribution', priority: 'DESIRED' },
+    {
+      information: requestsEmpiricalDistribution
+        ? 'empirical-distribution-shape'
+        : 'population-density-distribution',
+      priority: 'DESIRED',
+    },
   ];
 
   if (task === 'individual-inspection') {
