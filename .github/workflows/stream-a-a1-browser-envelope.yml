@@ -63,6 +63,7 @@ jobs:
         run: |
           /usr/bin/time -v -o stream-a-a1-results/probe-time.txt \
             env \
+              NEMOSYNE_A1_BROWSER_PROBE=1 \
               NEMOSYNE_SMOKE_PREBUILT=1 \
               npx playwright test tests/smoke/stream-a-a1-browser-envelope.spec.ts --retries=0
 
