@@ -211,12 +211,18 @@ export class WorldSessionController {
 
     const tourData = (presentation.tour ?? s.tour) as
       { finished?: boolean; stepIndex?: number } | undefined;
-    if (w.guidedTour && tourData && !tourData.finished) {
-      w.guidedTour._stepIndex = tourData.stepIndex ?? 0;
-      w.guidedTour._finished = false;
-      w.guidedTour._active = true;
-      w.guidedTour._cardGroup.visible = true;
-      w.guidedTour._renderStep();
+    if (w.guidedTour && tourData) {
+      if (tourData.finished) {
+        w.guidedTour._finished = true;
+        w.guidedTour._active = false;
+        w.guidedTour._cardGroup.visible = false;
+      } else {
+        w.guidedTour._stepIndex = tourData.stepIndex ?? 0;
+        w.guidedTour._finished = false;
+        w.guidedTour._active = true;
+        w.guidedTour._cardGroup.visible = true;
+        w.guidedTour._renderStep();
+      }
     }
 
     // RF-025: restore the durable focus/context snapshot. `restoreState`
