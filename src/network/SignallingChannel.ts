@@ -29,6 +29,14 @@ export class SignallingChannel extends EventTarget {
   private _manualDisconnect = false;
   private _reconnectAttempt = 0;
   private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private _hasConnectedOnce = false;
+  /** Optional callback to obtain a fresh signed ticket for reconnect.
+   *  If provided, the channel will call this before each reconnect attempt
+   *  (i.e. any connection after the first successful one) and send the
+   *  returned ticket instead of reusing the original consumed one.
+   *  If the callback returns null/undefined or throws, reconnect fails closed.
+   */
+  onNeedReconnectTicket: (() => Promise<string | undefined>) | undefined;
 
   constructor(
     url: string,
@@ -90,24 +98,45 @@ export class SignallingChannel extends EventTarget {
         reject(error instanceof Error ? error : new Error('signalling connection failed'));
       };
 
-      ws.addEventListener('open', () => {
+      ws.addEventListener('open', async () => {
         if (this._ws !== ws || this._manualDisconnect) return;
         opened = true;
         this._connected = true;
-        this._reconnectAttempt = 0;
         // In-band authentication message sent immediately over every socket generation.
         // The server remains authoritative for the role associated with the token.
-        if (this.token) {
+        let authToken = this.token;
+        // On reconnect (any connection after the first successful one), request a fresh ticket.
+        if (this._hasConnectedOnce && this.onNeedReconnectTicket) {
+          try {
+            const freshTicket = await this.onNeedReconnectTicket();
+            if (!freshTicket) {
+              // No fresh ticket available — fail closed with explicit event.
+              this.dispatchEvent(new CustomEvent('reconnect-failed', { detail: { reason: 'no-fresh-ticket' } }));
+              ws.close();
+              rejectOnce(new Error('reconnect failed: no fresh ticket'));
+              return;
+            }
+            authToken = freshTicket;
+          } catch {
+            this.dispatchEvent(new CustomEvent('reconnect-failed', { detail: { reason: 'ticket-callback-error' } }));
+            ws.close();
+            rejectOnce(new Error('reconnect failed: ticket callback error'));
+            return;
+          }
+        }
+        if (authToken) {
           const authMsg: SignallingMessage = {
             roomId: this.roomId,
             from: this.peerId,
             to: '*',
-            data: { type: 'auth', token: this.token, role: this.role },
+            data: { type: 'auth', token: authToken, role: this.role },
           };
           ws.send(JSON.stringify(authMsg));
         }
         this._flushQueue();
         this.dispatchEvent(new Event('open'));
+        this._hasConnectedOnce = true;
+        this._reconnectAttempt = 0;
         resolveOnce();
       });
 

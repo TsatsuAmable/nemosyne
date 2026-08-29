@@ -52,13 +52,16 @@ export class CollaborativeStateSync {
         if (event.data instanceof ArrayBuffer) {
           const pose = BinaryPoseSerializer.deserialize(event.data);
           if (!pose) return;
-          // When the channel-bound string identity is known, the payload numeric
-          // ID must match its deterministic digest; a mismatch frame fails closed.
-          if (this._remotePeerId !== undefined && pose.peerId !== sha256Uint31(this._remotePeerId)) {
+          // The channel-bound string identity is the ONLY sequence key.
+          // If _remotePeerId is absent, fail closed — never fall back to the
+          // payload numeric ID (C2-forbidden untrusted-field keying).
+          if (this._remotePeerId === undefined) {
             return;
           }
-          const sequenceKey = this._remotePeerId ?? pose.peerId.toString();
-          if (!BinaryPoseSerializer.acceptsSequence(this._sequenceState, sequenceKey, pose.sequence)) {
+          if (pose.peerId !== sha256Uint31(this._remotePeerId)) {
+            return;
+          }
+          if (!BinaryPoseSerializer.acceptsSequence(this._sequenceState, this._remotePeerId, pose.sequence)) {
             return;
           }
           this.applyPeerState({
