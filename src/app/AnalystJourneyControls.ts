@@ -9,6 +9,7 @@ export interface AnalystJourneyControlsHandle {
 export interface AnalystJourneyActions {
   dispatchIntent: ApplicationIntentDispatcher;
   currentDatasetName(): string | null;
+  subscribeDatasetContext?(handler: () => void): () => void;
   assessRepresentation(maxRenderedElements?: number): AnalystRepresentationOutcome;
   analysisResultCount(): number;
   markMoment(note: string): string;
@@ -324,9 +325,16 @@ export function mountAnalystJourneyControls(
   });
   advancedStack.append(replayButton);
 
+  const unsubscribeDatasetContext = actions.subscribeDatasetContext?.(refreshContext) ?? null;
   status.textContent = 'Ready';
   refreshContext();
 
   document.body.append(root);
-  return { dispose: () => root.remove(), refreshContext };
+  return {
+    dispose: () => {
+      unsubscribeDatasetContext?.();
+      root.remove();
+    },
+    refreshContext,
+  };
 }
