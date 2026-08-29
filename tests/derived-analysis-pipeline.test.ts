@@ -65,6 +65,7 @@ function makeAtlas(current: Dataset, fingerprint: string, version = 2) {
       datasetFingerprint: fingerprint,
     }],
     datasetSpace: { fingerprint, datumIds: current.rowIds },
+    executionPort: { isAsync: true },
     kernelVersion: () => 'test-kernel',
     sessionId: 'session-rf061',
     evidenceLedger: {
