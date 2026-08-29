@@ -12,6 +12,9 @@ test('desktop analyst controls complete the visible evidence and export path', a
   await expect(page.locator('#analyst-journey-status')).toContainText('Loaded');
   await expect(page.locator('#analyst-representation-outcome')).toContainText('Moneta selected');
 
+  const tools = page.locator('#analyst-investigation-tools');
+  await tools.locator('summary').click();
+  await expect(tools).toHaveAttribute('open', '');
   await page.locator('#analyst-max-elements').fill('1');
   await page.locator('#analyst-assess-representation').click();
   await expect(page.locator('#analyst-representation-outcome')).toContainText(
