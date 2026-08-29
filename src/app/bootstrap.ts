@@ -104,6 +104,24 @@ function devTraceBindings(world: World): DevTraceBindings {
   };
 }
 
+/**
+ * P1-UV1 composition policy for the normal analyst path.
+ *
+ * Existing diagnostic surfaces stay constructed/registered so the explicit
+ * developer route and evidence harnesses retain them, but they no longer
+ * dominate first use. This is deliberately a composition-root policy rather
+ * than another UI coordinator or a change to analytical owners.
+ */
+function applyNormalAnalystShell(world: World): void {
+  if (world.uiManager.panelRolesManager.uiMode === 'DEVELOPER') return;
+
+  world.uiManager.panelManager.hidePanel(world.uiManager.telemetryPanel);
+  world.uiManager.panelManager.hidePanel(world.uiManager.vrConsole);
+  world.uiManager.dashboard.wallGroup.visible = false;
+  world.uiManager.peerPresenceHUD.setEnabled(false);
+  world.diagnostic?.hide();
+}
+
 export async function bootstrapApp(): Promise<AppInstance> {
   const world = new World();
   await world.start();
@@ -115,6 +133,8 @@ export async function bootstrapApp(): Promise<AppInstance> {
     onDispatchError: (error) =>
       console.error('[ApplicationIntent] input dispatch failed:', error),
   });
+
+  applyNormalAnalystShell(world);
 
   if (import.meta.env.DEV) {
     setupDevTraceRecorder(devTraceBindings(world));
