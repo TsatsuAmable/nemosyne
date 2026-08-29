@@ -129,10 +129,14 @@ export class SignallingChannel extends EventTarget {
           // Canonical signed room tickets contain a payload/signature separator
           // and their nonce is consumed on the first successful admission. A
           // second socket generation must not replay that credential merely
-          // because no renewal authority was wired by the caller.
+          // because no renewal authority was wired by the caller. Stop the
+          // automatic loop after this deterministic failure; an explicit later
+          // connect() call resets the flag so a newly-installed renewal provider
+          // can retry deliberately.
           this.dispatchEvent(
             new CustomEvent('reconnect-failed', { detail: { reason: 'fresh-ticket-required' } })
           );
+          this._manualDisconnect = true;
           ws.close();
           rejectOnce(new Error('reconnect failed: fresh signed ticket required'));
           return;
