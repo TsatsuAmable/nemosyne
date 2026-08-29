@@ -16,7 +16,10 @@ concurrency:
 jobs:
   browser-envelope:
     name: Decompose browser operation envelope
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'fix/rf-061-derived-recompute-coalescing'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.head_ref == 'fix/rf-061-derived-recompute-coalescing' ||
+      github.head_ref == 'fix/rf-061-q3e-refusal-settlement'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
