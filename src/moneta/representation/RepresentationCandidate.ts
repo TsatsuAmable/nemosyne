@@ -37,6 +37,7 @@ export type InformationType =
   | 'individual-observation-identity'
   | 'exact-metric-values'
   | 'population-density-distribution'
+  | 'empirical-distribution-shape'
   | 'outlier-boundary-visibility'
   | 'cluster-separation'
   | 'relational-edge-connectivity'
@@ -139,11 +140,13 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
     name: 'Empirical Univariate Distribution',
     description: 'Bounded empirical histogram, ECDF, and quantile summary for one explicit numeric measure',
     supports: ['univariate-distribution', 'anomaly-isolation'],
-    preserves: [
+    preserves: ['empirical-distribution-shape'],
+    loses: [
+      'individual-observation-identity',
+      'exact-metric-values',
       'population-density-distribution',
       'outlier-boundary-visibility',
     ],
-    loses: ['individual-observation-identity', 'exact-metric-values'],
     scaleCharacteristics: {
       minN: 50,
       maxN: 500_000,
