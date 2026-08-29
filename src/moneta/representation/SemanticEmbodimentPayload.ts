@@ -2,6 +2,13 @@ import type { InformationType, SemanticRepresentationId } from './Representation
 
 export const SEMANTIC_EMBODIMENT_SCHEMA_VERSION = 1 as const;
 export const MAX_AGGREGATE_GROUPS_V1 = 4096 as const;
+export const MAX_DISTRIBUTION_BINS_V1 = 256 as const;
+export const MAX_DISTRIBUTION_ECDF_KNOTS_V1 = 256 as const;
+export const MAX_DISTRIBUTION_QUANTILES_V1 = 32 as const;
+export const MAX_DISTRIBUTION_ELEMENTS_V1 =
+  MAX_DISTRIBUTION_BINS_V1 +
+  MAX_DISTRIBUTION_ECDF_KNOTS_V1 +
+  MAX_DISTRIBUTION_QUANTILES_V1;
 
 /**
  * Payload-family identity is deliberately distinct from layout family identity.
@@ -94,10 +101,73 @@ export interface AggregateVolumePayloadV1 {
   groups: AggregateGroupV1[];
 }
 
-export type RepresentationPayloadV1 = {
-  kind: 'AGGREGATE_VOLUME';
-  data: AggregateVolumePayloadV1;
-};
+/**
+ * M1 request contract. The measure is explicit so no presentation or transport
+ * layer can silently choose a numeric column on the investigator's behalf.
+ */
+export interface DistributionEmbodimentRequestV1 {
+  schemaVersion: typeof SEMANTIC_EMBODIMENT_SCHEMA_VERSION;
+  candidateId: 'DISTRIBUTION_FIELD';
+  measureField: string;
+  histogramBinCount: number;
+  ecdfKnotCount: number;
+  quantileProbabilities: number[];
+  decisionId?: string;
+  decisionModelVersion?: string;
+  decisionModelArtifactHash?: string;
+}
+
+export interface DistributionObservationCountsV1 {
+  sourceCount: number;
+  validCount: number;
+  missingCount: number;
+  nonFiniteCount: number;
+}
+
+export interface DistributionDomainV1 {
+  min: number;
+  max: number;
+}
+
+export interface DistributionHistogramBinV1 {
+  semanticId: string;
+  lowerBound: number;
+  upperBound: number;
+  count: number;
+  upperInclusive: boolean;
+}
+
+export interface DistributionEcdfKnotV1 {
+  semanticId: string;
+  value: number;
+  cumulativeCount: number;
+  cumulativeProbability: number;
+}
+
+export interface DistributionQuantileV1 {
+  semanticId: string;
+  probability: number;
+  value: number;
+}
+
+export interface EmpiricalDistributionPayloadV1 {
+  measureField: string;
+  domain: DistributionDomainV1;
+  counts: DistributionObservationCountsV1;
+  histogram: DistributionHistogramBinV1[];
+  ecdf: DistributionEcdfKnotV1[];
+  quantiles: DistributionQuantileV1[];
+}
+
+export type RepresentationPayloadV1 =
+  | {
+      kind: 'AGGREGATE_VOLUME';
+      data: AggregateVolumePayloadV1;
+    }
+  | {
+      kind: 'EMPIRICAL_DISTRIBUTION';
+      data: EmpiricalDistributionPayloadV1;
+    };
 
 export interface SemanticRefusalV1 {
   code: SemanticRefusalCodeV1;

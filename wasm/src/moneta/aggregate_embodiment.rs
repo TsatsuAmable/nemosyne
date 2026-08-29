@@ -500,7 +500,9 @@ mod tests {
         let SemanticEmbodimentResultV1::Ready { payload } = envelope.result else {
             panic!("expected ready aggregate payload");
         };
-        let RepresentationPayloadV1::AggregateVolume(payload) = payload;
+        let RepresentationPayloadV1::AggregateVolume(payload) = payload else {
+            panic!("expected aggregate payload");
+        };
         let b = payload.groups.iter().find(|group| group.key == serde_json::json!("b")).unwrap();
         assert_eq!(b.count, 2);
         assert_eq!(b.aggregate_value, Some(0.0));
@@ -517,7 +519,9 @@ mod tests {
         let SemanticEmbodimentResultV1::Ready { payload } = envelope.result else {
             panic!("expected ready aggregate payload");
         };
-        let RepresentationPayloadV1::AggregateVolume(payload) = payload;
+        let RepresentationPayloadV1::AggregateVolume(payload) = payload else {
+            panic!("expected aggregate payload");
+        };
         assert!(payload.groups.iter().all(|group| group.aggregate_value == Some(group.count as f64)));
         assert!(payload.groups.iter().any(|group| group.key.is_null()));
     }

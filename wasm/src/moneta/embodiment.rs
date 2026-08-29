@@ -7,10 +7,18 @@ use wasm_bindgen::JsCast;
 
 pub const SEMANTIC_EMBODIMENT_SCHEMA_VERSION: u32 = 1;
 pub const MAX_AGGREGATE_GROUPS_V1: u32 = 4096;
+pub const MAX_DISTRIBUTION_BINS_V1: u32 = 256;
+pub const MAX_DISTRIBUTION_ECDF_KNOTS_V1: u32 = 256;
+pub const MAX_DISTRIBUTION_QUANTILES_V1: u32 = 32;
+pub const MAX_DISTRIBUTION_ELEMENTS_V1: u32 =
+    MAX_DISTRIBUTION_BINS_V1
+        + MAX_DISTRIBUTION_ECDF_KNOTS_V1
+        + MAX_DISTRIBUTION_QUANTILES_V1;
 pub const MAX_METHOD_PARAMETERS_JSON_BYTES_V1: usize = 8192;
 const MAX_SHORT_TEXT_BYTES: usize = 256;
 const MAX_MESSAGE_BYTES: usize = 1024;
 const MAX_GROUPING_FIELDS_V1: usize = 4;
+const EMPIRICAL_DISTRIBUTION_METHOD_NAME_V1: &str = "univariate-empirical-distribution";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -161,9 +169,111 @@ pub struct AggregateVolumePayloadV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DistributionEmbodimentRequestV1 {
+    pub schema_version: u32,
+    pub candidate_id: SemanticRepresentationIdV1,
+    pub measure_field: String,
+    pub histogram_bin_count: u32,
+    pub ecdf_knot_count: u32,
+    pub quantile_probabilities: Vec<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision_model_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision_model_artifact_hash: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DistributionObservationCountsV1 {
+    pub source_count: u64,
+    pub valid_count: u64,
+    pub missing_count: u64,
+    pub non_finite_count: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DistributionDomainV1 {
+    pub min: f64,
+    pub max: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DistributionHistogramBinV1 {
+    pub semantic_id: String,
+    pub lower_bound: f64,
+    pub upper_bound: f64,
+    pub count: u64,
+    pub upper_inclusive: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DistributionEcdfKnotV1 {
+    pub semantic_id: String,
+    pub value: f64,
+    pub cumulative_count: u64,
+    pub cumulative_probability: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DistributionQuantileV1 {
+    pub semantic_id: String,
+    pub probability: f64,
+    pub value: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct EmpiricalDistributionPayloadV1 {
+    pub measure_field: String,
+    pub domain: DistributionDomainV1,
+    pub counts: DistributionObservationCountsV1,
+    pub histogram: Vec<DistributionHistogramBinV1>,
+    pub ecdf: Vec<DistributionEcdfKnotV1>,
+    pub quantiles: Vec<DistributionQuantileV1>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DistributionAnalyticalParametersV1 {
+    histogram: DistributionHistogramMethodParametersV1,
+    ecdf: DistributionEcdfMethodParametersV1,
+    quantiles: DistributionQuantileMethodParametersV1,
+    missing_policy: String,
+    non_finite_policy: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DistributionHistogramMethodParametersV1 {
+    binning: String,
+    interval: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DistributionEcdfMethodParametersV1 {
+    selection: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DistributionQuantileMethodParametersV1 {
+    interpolation: String,
+    probabilities: Vec<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "data", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum RepresentationPayloadV1 {
     AggregateVolume(AggregateVolumePayloadV1),
+    EmpiricalDistribution(EmpiricalDistributionPayloadV1),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -237,6 +347,90 @@ fn validate_aggregate_information_contract(contract: &InformationContractV1) -> 
             "AGGREGATE_VOLUME informationContract must match the reviewed candidate ontology"
                 .to_string(),
         );
+    }
+    Ok(())
+}
+
+fn validate_distribution_information_contract(
+    contract: &InformationContractV1,
+) -> Result<(), String> {
+    let expected_preserves = vec![
+        InformationTypeV1::PopulationDensityDistribution,
+        InformationTypeV1::OutlierBoundaryVisibility,
+    ];
+    let expected_loses = vec![
+        InformationTypeV1::IndividualObservationIdentity,
+        InformationTypeV1::ExactMetricValues,
+    ];
+    if contract.preserves != expected_preserves || contract.loses != expected_loses {
+        return Err(
+            "EMPIRICAL_DISTRIBUTION informationContract must match the reviewed candidate ontology"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+pub fn validate_distribution_request_contract(
+    request: &DistributionEmbodimentRequestV1,
+) -> Result<(), String> {
+    if request.schema_version != SEMANTIC_EMBODIMENT_SCHEMA_VERSION {
+        return Err(format!(
+            "unsupported distribution request schemaVersion {}",
+            request.schema_version
+        ));
+    }
+    if request.candidate_id != SemanticRepresentationIdV1::DistributionField {
+        return Err("distribution request requires candidateId=DISTRIBUTION_FIELD".to_string());
+    }
+    validate_short_text(&request.measure_field, "distribution measureField")?;
+    if request.measure_field.trim() != request.measure_field {
+        return Err("distribution measureField must not contain surrounding whitespace".to_string());
+    }
+    if request.histogram_bin_count == 0
+        || request.histogram_bin_count > MAX_DISTRIBUTION_BINS_V1
+    {
+        return Err(format!(
+            "histogramBinCount must be in 1..={MAX_DISTRIBUTION_BINS_V1}"
+        ));
+    }
+    if request.ecdf_knot_count < 2
+        || request.ecdf_knot_count > MAX_DISTRIBUTION_ECDF_KNOTS_V1
+    {
+        return Err(format!(
+            "ecdfKnotCount must be in 2..={MAX_DISTRIBUTION_ECDF_KNOTS_V1}"
+        ));
+    }
+    if request.quantile_probabilities.is_empty()
+        || request.quantile_probabilities.len() > MAX_DISTRIBUTION_QUANTILES_V1 as usize
+    {
+        return Err(format!(
+            "quantileProbabilities must contain 1..={MAX_DISTRIBUTION_QUANTILES_V1} values"
+        ));
+    }
+    let mut previous = None;
+    for probability in &request.quantile_probabilities {
+        if !probability.is_finite() || !(0.0..=1.0).contains(probability) {
+            return Err("quantile probabilities must be finite values in [0, 1]".to_string());
+        }
+        if previous.is_some_and(|value| *probability <= value) {
+            return Err("quantile probabilities must be strictly increasing".to_string());
+        }
+        previous = Some(*probability);
+    }
+    if let Some(decision_id) = &request.decision_id {
+        validate_short_text(decision_id, "distribution decisionId")?;
+    }
+    if let Some(model_version) = &request.decision_model_version {
+        validate_short_text(model_version, "distribution decisionModelVersion")?;
+    }
+    if let Some(hash) = &request.decision_model_artifact_hash {
+        if !is_lower_hex_64(hash) {
+            return Err(
+                "distribution decisionModelArtifactHash must be 64 lowercase hexadecimal characters"
+                    .to_string(),
+            );
+        }
     }
     Ok(())
 }
@@ -352,6 +546,284 @@ fn validate_aggregate_payload(
     Ok(())
 }
 
+fn validate_empirical_distribution_payload(
+    candidate_id: SemanticRepresentationIdV1,
+    representation_family: SemanticEmbodimentFamilyV1,
+    analytical_method: &AnalyticalMethodV1,
+    information_contract: &InformationContractV1,
+    approximation: &ApproximationV1,
+    resource: &ResourceEnvelopeV1,
+    payload: &EmpiricalDistributionPayloadV1,
+) -> Result<(), String> {
+    if candidate_id != SemanticRepresentationIdV1::DistributionField
+        || representation_family != SemanticEmbodimentFamilyV1::Distribution
+    {
+        return Err(
+            "EMPIRICAL_DISTRIBUTION payload requires candidateId=DISTRIBUTION_FIELD and representationFamily=DISTRIBUTION"
+                .to_string(),
+        );
+    }
+    validate_distribution_information_contract(information_contract)?;
+    let method_name = analytical_method.name.to_ascii_lowercase();
+    if method_name != EMPIRICAL_DISTRIBUTION_METHOD_NAME_V1 {
+        return Err(
+            "empirical distribution analyticalMethod.name must identify the reviewed univariate empirical method"
+                .to_string(),
+        );
+    }
+    let method_parameters: DistributionAnalyticalParametersV1 =
+        serde_json::from_value(analytical_method.parameters.clone())
+            .map_err(|error| format!("invalid empirical distribution method parameters: {error}"))?;
+    if method_parameters.histogram.binning != "equal-width"
+        || method_parameters.histogram.interval != "left-closed-right-open-final-closed"
+        || method_parameters.ecdf.selection != "deterministic-rank-knots"
+        || method_parameters.quantiles.interpolation != "linear-r7"
+        || method_parameters.missing_policy != "exclude-and-count"
+        || method_parameters.non_finite_policy != "exclude-and-count"
+    {
+        return Err(
+            "empirical distribution method parameters must match the reviewed V1 policies"
+                .to_string(),
+        );
+    }
+    if approximation.mode != ApproximationModeV1::Binned {
+        return Err("EMPIRICAL_DISTRIBUTION approximation mode must be BINNED".to_string());
+    }
+    validate_short_text(&payload.measure_field, "distribution measureField")?;
+    if payload.measure_field.trim() != payload.measure_field {
+        return Err("distribution measureField must not contain surrounding whitespace".to_string());
+    }
+    if !payload.domain.min.is_finite()
+        || !payload.domain.max.is_finite()
+        || payload.domain.min > payload.domain.max
+    {
+        return Err("distribution domain must contain ordered finite min/max values".to_string());
+    }
+
+    let counts = &payload.counts;
+    let classified_count = counts
+        .valid_count
+        .checked_add(counts.missing_count)
+        .and_then(|value| value.checked_add(counts.non_finite_count))
+        .ok_or_else(|| "distribution observation count overflow".to_string())?;
+    if classified_count != counts.source_count {
+        return Err(
+            "distribution valid/missing/nonFinite counts must sum to sourceCount".to_string(),
+        );
+    }
+    if counts.source_count != resource.source_row_count {
+        return Err("distribution counts.sourceCount must equal resource.sourceRowCount".to_string());
+    }
+    if counts.valid_count == 0 {
+        return Err("READY empirical distribution requires at least one valid observation".to_string());
+    }
+    if approximation.represented_row_count != counts.valid_count {
+        return Err(
+            "distribution representedRowCount must equal counts.validCount".to_string(),
+        );
+    }
+
+    if payload.histogram.is_empty()
+        || payload.histogram.len() > MAX_DISTRIBUTION_BINS_V1 as usize
+    {
+        return Err(format!(
+            "distribution histogram must contain 1..={MAX_DISTRIBUTION_BINS_V1} bins"
+        ));
+    }
+    if payload.ecdf.is_empty()
+        || payload.ecdf.len() > MAX_DISTRIBUTION_ECDF_KNOTS_V1 as usize
+    {
+        return Err(format!(
+            "distribution ECDF must contain 1..={MAX_DISTRIBUTION_ECDF_KNOTS_V1} knots"
+        ));
+    }
+    if payload.quantiles.is_empty()
+        || payload.quantiles.len() > MAX_DISTRIBUTION_QUANTILES_V1 as usize
+    {
+        return Err(format!(
+            "distribution quantiles must contain 1..={MAX_DISTRIBUTION_QUANTILES_V1} values"
+        ));
+    }
+
+    let element_count = payload
+        .histogram
+        .len()
+        .checked_add(payload.ecdf.len())
+        .and_then(|value| value.checked_add(payload.quantiles.len()))
+        .ok_or_else(|| "distribution element count overflow".to_string())?;
+    if resource.max_element_count != MAX_DISTRIBUTION_ELEMENTS_V1 {
+        return Err(format!(
+            "EMPIRICAL_DISTRIBUTION maxElementCount must equal contract bound {MAX_DISTRIBUTION_ELEMENTS_V1}"
+        ));
+    }
+    if resource.element_count as usize != element_count {
+        return Err(
+            "resource.elementCount must equal histogram + ECDF + quantile element count"
+                .to_string(),
+        );
+    }
+
+    let mut semantic_ids = HashSet::new();
+    let constant_domain = payload.domain.min == payload.domain.max;
+    if constant_domain && payload.histogram.len() != 1 {
+        return Err("constant distribution domain must use exactly one histogram bin".to_string());
+    }
+    let mut histogram_count = 0u64;
+    let mut previous_upper = None;
+    let expected_bin_width = if constant_domain {
+        0.0
+    } else {
+        (payload.domain.max - payload.domain.min) / payload.histogram.len() as f64
+    };
+    for (index, bin) in payload.histogram.iter().enumerate() {
+        validate_short_text(&bin.semantic_id, "distribution histogram semanticId")?;
+        if !semantic_ids.insert(bin.semantic_id.clone()) {
+            return Err("distribution semanticId values must be unique".to_string());
+        }
+        if !bin.lower_bound.is_finite()
+            || !bin.upper_bound.is_finite()
+            || bin.lower_bound > bin.upper_bound
+        {
+            return Err("distribution histogram bounds must be ordered and finite".to_string());
+        }
+        if !constant_domain && bin.lower_bound >= bin.upper_bound {
+            return Err("non-constant histogram bins must have positive width".to_string());
+        }
+        if index == 0 && bin.lower_bound != payload.domain.min {
+            return Err("first histogram bin must begin at the distribution domain minimum".to_string());
+        }
+        if previous_upper.is_some_and(|upper| bin.lower_bound != upper) {
+            return Err("distribution histogram bins must be contiguous".to_string());
+        }
+        let final_bin = index + 1 == payload.histogram.len();
+        if !constant_domain {
+            let expected_lower = payload.domain.min + expected_bin_width * index as f64;
+            let expected_upper = if final_bin {
+                payload.domain.max
+            } else {
+                payload.domain.min + expected_bin_width * (index + 1) as f64
+            };
+            let tolerance = f64::EPSILON
+                * payload
+                    .domain
+                    .min
+                    .abs()
+                    .max(payload.domain.max.abs())
+                    .max(expected_bin_width.abs())
+                    .max(1.0)
+                * 16.0;
+            if (bin.lower_bound - expected_lower).abs() > tolerance
+                || (bin.upper_bound - expected_upper).abs() > tolerance
+            {
+                return Err("distribution histogram bins must be equal-width".to_string());
+            }
+        }
+        if bin.upper_inclusive != final_bin {
+            return Err(
+                "only the final distribution histogram bin may be upper-inclusive".to_string(),
+            );
+        }
+        if final_bin && bin.upper_bound != payload.domain.max {
+            return Err("final histogram bin must end at the distribution domain maximum".to_string());
+        }
+        histogram_count = histogram_count
+            .checked_add(bin.count)
+            .ok_or_else(|| "distribution histogram count overflow".to_string())?;
+        previous_upper = Some(bin.upper_bound);
+    }
+    if histogram_count != counts.valid_count {
+        return Err("distribution histogram counts must sum to validCount".to_string());
+    }
+
+    let mut previous_value = None;
+    let mut previous_count = 0u64;
+    for knot in &payload.ecdf {
+        validate_short_text(&knot.semantic_id, "distribution ECDF semanticId")?;
+        if !semantic_ids.insert(knot.semantic_id.clone()) {
+            return Err("distribution semanticId values must be unique".to_string());
+        }
+        if !knot.value.is_finite()
+            || knot.value < payload.domain.min
+            || knot.value > payload.domain.max
+        {
+            return Err("distribution ECDF values must be finite and inside the domain".to_string());
+        }
+        if previous_value.is_some_and(|value| knot.value < value) {
+            return Err("distribution ECDF values must be monotone".to_string());
+        }
+        if knot.cumulative_count <= previous_count || knot.cumulative_count > counts.valid_count {
+            return Err("distribution ECDF cumulativeCount must increase within validCount".to_string());
+        }
+        if !knot.cumulative_probability.is_finite()
+            || knot.cumulative_probability <= 0.0
+            || knot.cumulative_probability > 1.0
+        {
+            return Err("distribution ECDF cumulativeProbability must be in (0, 1]".to_string());
+        }
+        let expected_probability = knot.cumulative_count as f64 / counts.valid_count as f64;
+        if (knot.cumulative_probability - expected_probability).abs() > 1e-12 {
+            return Err(
+                "distribution ECDF probability must equal cumulativeCount / validCount"
+                    .to_string(),
+            );
+        }
+        previous_value = Some(knot.value);
+        previous_count = knot.cumulative_count;
+    }
+    let final_knot = payload.ecdf.last().expect("ECDF was checked non-empty");
+    if final_knot.cumulative_count != counts.valid_count
+        || (final_knot.cumulative_probability - 1.0).abs() > 1e-12
+    {
+        return Err("distribution ECDF must terminate at validCount and probability 1".to_string());
+    }
+
+    let mut previous_probability = None;
+    let mut previous_quantile_value = None;
+    if method_parameters.quantiles.probabilities.len() != payload.quantiles.len() {
+        return Err(
+            "distribution method quantile probabilities must match payload quantiles"
+                .to_string(),
+        );
+    }
+    for (quantile, requested_probability) in payload
+        .quantiles
+        .iter()
+        .zip(&method_parameters.quantiles.probabilities)
+    {
+        validate_short_text(&quantile.semantic_id, "distribution quantile semanticId")?;
+        if !semantic_ids.insert(quantile.semantic_id.clone()) {
+            return Err("distribution semanticId values must be unique".to_string());
+        }
+        if !quantile.probability.is_finite()
+            || !(0.0..=1.0).contains(&quantile.probability)
+        {
+            return Err("distribution quantile probabilities must be finite values in [0, 1]".to_string());
+        }
+        if previous_probability.is_some_and(|value| quantile.probability <= value) {
+            return Err("distribution quantile probabilities must be strictly increasing".to_string());
+        }
+        if quantile.probability != *requested_probability {
+            return Err(
+                "distribution method quantile probabilities must match payload quantiles"
+                    .to_string(),
+            );
+        }
+        if !quantile.value.is_finite()
+            || quantile.value < payload.domain.min
+            || quantile.value > payload.domain.max
+        {
+            return Err("distribution quantile values must be finite and inside the domain".to_string());
+        }
+        if previous_quantile_value.is_some_and(|value| quantile.value < value) {
+            return Err("distribution quantile values must be monotone".to_string());
+        }
+        previous_probability = Some(quantile.probability);
+        previous_quantile_value = Some(quantile.value);
+    }
+
+    Ok(())
+}
+
 pub fn validate_and_normalize(
     envelope: &mut SemanticEmbodimentEnvelopeV1,
 ) -> Result<(), String> {
@@ -423,6 +895,17 @@ pub fn validate_and_normalize(
                     approximation,
                     resource,
                     aggregate,
+                )?;
+            }
+            RepresentationPayloadV1::EmpiricalDistribution(distribution) => {
+                validate_empirical_distribution_payload(
+                    candidate_id,
+                    representation_family,
+                    &envelope.analytical_method,
+                    information_contract,
+                    approximation,
+                    resource,
+                    distribution,
                 )?;
             }
         },
@@ -504,6 +987,111 @@ pub fn moneta_semantic_embodiment_v1_roundtrip(
 mod tests {
     use super::*;
 
+    fn distribution_request() -> DistributionEmbodimentRequestV1 {
+        DistributionEmbodimentRequestV1 {
+            schema_version: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
+            candidate_id: SemanticRepresentationIdV1::DistributionField,
+            measure_field: "value".to_string(),
+            histogram_bin_count: 2,
+            ecdf_knot_count: 4,
+            quantile_probabilities: vec![0.0, 0.5, 1.0],
+            decision_id: Some("decision_distribution_fixture".to_string()),
+            decision_model_version: None,
+            decision_model_artifact_hash: None,
+        }
+    }
+
+    fn distribution_fixture() -> SemanticEmbodimentEnvelopeV1 {
+        SemanticEmbodimentEnvelopeV1 {
+            schema_version: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
+            dataset_fingerprint: "d".repeat(64),
+            candidate_id: SemanticRepresentationIdV1::DistributionField,
+            representation_family: SemanticEmbodimentFamilyV1::Distribution,
+            analytical_method: AnalyticalMethodV1 {
+                name: "univariate-empirical-distribution".to_string(),
+                version: "empirical-distribution-contract-v1".to_string(),
+                parameters: serde_json::json!({
+                    "histogram": { "binning": "equal-width", "interval": "left-closed-right-open-final-closed" },
+                    "ecdf": { "selection": "deterministic-rank-knots" },
+                    "quantiles": { "interpolation": "linear-r7", "probabilities": [0.0, 0.5, 1.0] },
+                    "missingPolicy": "exclude-and-count",
+                    "nonFinitePolicy": "exclude-and-count"
+                }),
+            },
+            approximation: ApproximationV1 {
+                mode: ApproximationModeV1::Binned,
+                represented_row_count: 4,
+                description: Some(
+                    "Equal-width histogram with bounded ECDF knots and explicit quantiles"
+                        .to_string(),
+                ),
+            },
+            information_contract: InformationContractV1 {
+                preserves: vec![
+                    InformationTypeV1::PopulationDensityDistribution,
+                    InformationTypeV1::OutlierBoundaryVisibility,
+                ],
+                loses: vec![
+                    InformationTypeV1::IndividualObservationIdentity,
+                    InformationTypeV1::ExactMetricValues,
+                ],
+            },
+            resource: ResourceEnvelopeV1 {
+                source_row_count: 7,
+                element_count: 9,
+                max_element_count: MAX_DISTRIBUTION_ELEMENTS_V1,
+            },
+            provenance: SemanticPayloadProvenanceV1 {
+                kernel_version: "0.1.0".to_string(),
+                algorithm_version: "empirical-distribution-contract-v1".to_string(),
+                decision_id: Some("decision_distribution_fixture".to_string()),
+                decision_model_version: None,
+                decision_model_artifact_hash: None,
+            },
+            result: SemanticEmbodimentResultV1::Ready {
+                payload: RepresentationPayloadV1::EmpiricalDistribution(
+                    EmpiricalDistributionPayloadV1 {
+                        measure_field: "value".to_string(),
+                        domain: DistributionDomainV1 { min: 1.0, max: 4.0 },
+                        counts: DistributionObservationCountsV1 {
+                            source_count: 7,
+                            valid_count: 4,
+                            missing_count: 2,
+                            non_finite_count: 1,
+                        },
+                        histogram: vec![
+                            DistributionHistogramBinV1 {
+                                semantic_id: "distribution-bin:000".to_string(),
+                                lower_bound: 1.0,
+                                upper_bound: 2.5,
+                                count: 2,
+                                upper_inclusive: false,
+                            },
+                            DistributionHistogramBinV1 {
+                                semantic_id: "distribution-bin:001".to_string(),
+                                lower_bound: 2.5,
+                                upper_bound: 4.0,
+                                count: 2,
+                                upper_inclusive: true,
+                            },
+                        ],
+                        ecdf: vec![
+                            DistributionEcdfKnotV1 { semantic_id: "distribution-ecdf:000".to_string(), value: 1.0, cumulative_count: 1, cumulative_probability: 0.25 },
+                            DistributionEcdfKnotV1 { semantic_id: "distribution-ecdf:001".to_string(), value: 2.0, cumulative_count: 2, cumulative_probability: 0.5 },
+                            DistributionEcdfKnotV1 { semantic_id: "distribution-ecdf:002".to_string(), value: 3.0, cumulative_count: 3, cumulative_probability: 0.75 },
+                            DistributionEcdfKnotV1 { semantic_id: "distribution-ecdf:003".to_string(), value: 4.0, cumulative_count: 4, cumulative_probability: 1.0 },
+                        ],
+                        quantiles: vec![
+                            DistributionQuantileV1 { semantic_id: "distribution-quantile:000".to_string(), probability: 0.0, value: 1.0 },
+                            DistributionQuantileV1 { semantic_id: "distribution-quantile:500".to_string(), probability: 0.5, value: 2.5 },
+                            DistributionQuantileV1 { semantic_id: "distribution-quantile:1000".to_string(), probability: 1.0, value: 4.0 },
+                        ],
+                    },
+                ),
+            },
+        }
+    }
+
     fn fixture() -> SemanticEmbodimentEnvelopeV1 {
         SemanticEmbodimentEnvelopeV1 {
             schema_version: 1,
@@ -577,9 +1165,112 @@ mod tests {
         let SemanticEmbodimentResultV1::Ready { payload } = envelope.result else {
             panic!("expected ready payload");
         };
-        let RepresentationPayloadV1::AggregateVolume(payload) = payload;
+        let RepresentationPayloadV1::AggregateVolume(payload) = payload else {
+            panic!("expected aggregate payload");
+        };
         assert_eq!(payload.groups[0].semantic_id, "group:a");
         assert_eq!(payload.groups[1].semantic_id, "group:b");
+    }
+
+    #[test]
+    fn distribution_request_requires_explicit_bounded_ordered_parameters() {
+        validate_distribution_request_contract(&distribution_request())
+            .expect("valid distribution request");
+
+        let mut blank_measure = distribution_request();
+        blank_measure.measure_field.clear();
+        assert!(validate_distribution_request_contract(&blank_measure).is_err());
+
+        let mut duplicate_quantile = distribution_request();
+        duplicate_quantile.quantile_probabilities = vec![0.0, 0.5, 0.5];
+        assert!(validate_distribution_request_contract(&duplicate_quantile).is_err());
+
+        let mut too_many_bins = distribution_request();
+        too_many_bins.histogram_bin_count = MAX_DISTRIBUTION_BINS_V1 + 1;
+        assert!(validate_distribution_request_contract(&too_many_bins).is_err());
+    }
+
+    #[test]
+    fn empirical_distribution_contract_is_distinct_bounded_and_count_truthful() {
+        let mut envelope = distribution_fixture();
+        validate_and_normalize(&mut envelope).expect("valid empirical distribution contract");
+        assert_eq!(envelope.resource.max_element_count, MAX_DISTRIBUTION_ELEMENTS_V1);
+        assert_eq!(envelope.approximation.represented_row_count, 4);
+        let SemanticEmbodimentResultV1::Ready {
+            payload: RepresentationPayloadV1::EmpiricalDistribution(payload),
+        } = envelope.result else {
+            panic!("expected empirical distribution payload");
+        };
+        assert_eq!(payload.counts.source_count, 7);
+        assert_eq!(payload.counts.valid_count, 4);
+        assert_eq!(payload.histogram.iter().map(|bin| bin.count).sum::<u64>(), 4);
+        assert_eq!(payload.ecdf.last().map(|knot| knot.cumulative_probability), Some(1.0));
+    }
+
+    #[test]
+    fn empirical_distribution_contract_rejects_semantic_and_count_drift() {
+        let mut density_claim = distribution_fixture();
+        density_claim.analytical_method.name = "continuous-density-pdf".to_string();
+        assert!(validate_and_normalize(&mut density_claim).is_err());
+
+        let mut wrong_counts = distribution_fixture();
+        if let SemanticEmbodimentResultV1::Ready {
+            payload: RepresentationPayloadV1::EmpiricalDistribution(payload),
+        } = &mut wrong_counts.result
+        {
+            payload.counts.missing_count = 1;
+        }
+        assert!(validate_and_normalize(&mut wrong_counts).is_err());
+
+        let mut duplicate_id = distribution_fixture();
+        if let SemanticEmbodimentResultV1::Ready {
+            payload: RepresentationPayloadV1::EmpiricalDistribution(payload),
+        } = &mut duplicate_id.result
+        {
+            payload.quantiles[0].semantic_id = payload.histogram[0].semantic_id.clone();
+        }
+        assert!(validate_and_normalize(&mut duplicate_id).is_err());
+
+        let mut unequal_bins = distribution_fixture();
+        if let SemanticEmbodimentResultV1::Ready {
+            payload: RepresentationPayloadV1::EmpiricalDistribution(payload),
+        } = &mut unequal_bins.result
+        {
+            payload.histogram[0].upper_bound = 2.0;
+            payload.histogram[1].lower_bound = 2.0;
+        }
+        assert!(validate_and_normalize(&mut unequal_bins).is_err());
+
+        let mut quantile_policy_drift = distribution_fixture();
+        quantile_policy_drift.analytical_method.parameters["quantiles"]["probabilities"] =
+            serde_json::json!([0.0, 0.25, 1.0]);
+        assert!(validate_and_normalize(&mut quantile_policy_drift).is_err());
+    }
+
+    #[test]
+    fn constant_distribution_domain_has_one_closed_occupied_bin() {
+        let mut envelope = distribution_fixture();
+        if let SemanticEmbodimentResultV1::Ready {
+            payload: RepresentationPayloadV1::EmpiricalDistribution(payload),
+        } = &mut envelope.result
+        {
+            payload.domain = DistributionDomainV1 { min: 2.0, max: 2.0 };
+            payload.histogram = vec![DistributionHistogramBinV1 {
+                semantic_id: "distribution-bin:constant".to_string(),
+                lower_bound: 2.0,
+                upper_bound: 2.0,
+                count: 4,
+                upper_inclusive: true,
+            }];
+            for knot in &mut payload.ecdf {
+                knot.value = 2.0;
+            }
+            for quantile in &mut payload.quantiles {
+                quantile.value = 2.0;
+            }
+            envelope.resource.element_count = 8;
+        }
+        validate_and_normalize(&mut envelope).expect("valid constant distribution contract");
     }
 
     #[test]

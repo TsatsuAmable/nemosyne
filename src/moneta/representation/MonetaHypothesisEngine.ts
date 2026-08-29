@@ -105,7 +105,8 @@ function candidateKey(candidate: Pick<CandidateScore, 'candidateId' | 'layout'>)
 function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentationId): VRGeometry {
   if (candidateId === 'AGGREGATE_VOLUME') return 'AGGREGATE_BARS';
   if (candidateId === 'CLUSTER_REGIONS') return 'CLUSTER_VOLUME';
-  if (candidateId === 'DENSITY_FIELD' || candidateId === 'DISTRIBUTION_FIELD') return 'DENSITY_FIELD';
+  if (candidateId === 'DENSITY_FIELD') return 'DENSITY_FIELD';
+  if (candidateId === 'DISTRIBUTION_FIELD') return 'DISTRIBUTION_FIELD';
   switch (layout) {
     case 'GEO_SURFACE':
       return 'GEO_COLUMN';
@@ -804,7 +805,7 @@ export class MonetaHypothesisEngine {
         .map((candidate) => ({
           strategyId: candidate.candidateId,
           layout: candidate.layout,
-          geometry: geometryForLayout(candidate.layout),
+          geometry: geometryForLayout(candidate.layout, candidate.candidateId),
           score: candidate.score,
           reason: candidate.disqualificationReason ?? `Ranked below ${winner.candidateId}`,
         })),

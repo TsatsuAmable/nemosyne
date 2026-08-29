@@ -37,7 +37,7 @@ interface InventoryEntry {
 const INVENTORY: Record<SemanticRepresentationId, InventoryEntry> = {
   POINT_SET: { classification: 'OBSERVATION_LEVEL', productionReachable: true, layout: 'GRID_3D', geometry: 'CUBE_MATRIX' },
   DENSITY_FIELD: { classification: 'SEMANTICALLY_OVERCLAIMED', productionReachable: true, layout: 'GRID_3D', geometry: 'DENSITY_FIELD' },
-  DISTRIBUTION_FIELD: { classification: 'SEMANTICALLY_OVERCLAIMED', productionReachable: true, layout: 'GRID_3D', geometry: 'DENSITY_FIELD' },
+  DISTRIBUTION_FIELD: { classification: 'SEMANTICALLY_OVERCLAIMED', productionReachable: true, layout: 'GRID_3D', geometry: 'DISTRIBUTION_FIELD' },
   CLUSTER_REGIONS: { classification: 'DATASET_LEVEL_ROW_DERIVED', productionReachable: true, layout: 'GRID_3D', geometry: 'CLUSTER_VOLUME' },
   AGGREGATE_VOLUME: { classification: 'DATASET_LEVEL_VALID', productionReachable: true, layout: 'GRID_3D', geometry: 'AGGREGATE_BARS' },
   TEMPORAL_TRAJECTORY: { classification: 'DATASET_LEVEL_ROW_DERIVED', productionReachable: true, layout: 'TIME_RIBBON', geometry: 'BEAM' },
@@ -194,6 +194,7 @@ describe('Stream A representation inventory', () => {
     const scalable = rendererSource('src/moneta/embodiment/ScalableTopologyEmbodiment.ts');
     const aggregateSource = scalable.slice(scalable.indexOf('buildAggregateBars'));
     const learned = rendererSource('src/moneta/representation/LearnedMonetaRuntime.ts');
+    const bootstrap = rendererSource('src/moneta/representation/MonetaHypothesisEngine.ts');
 
     expect(translator).not.toContain('const rows = dataset?.rows ?? dataInput.rows ?? [];');
     expect(aggregateSource).not.toContain('for (const row of rows)');
@@ -210,7 +211,13 @@ describe('Stream A representation inventory', () => {
 
     expect(learned).toContain('function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentationId)');
     expect(learned).toContain("candidateId === 'AGGREGATE_VOLUME'");
+    expect(learned).toContain("candidateId === 'DENSITY_FIELD'");
+    expect(learned).toContain("candidateId === 'DISTRIBUTION_FIELD'");
     expect(learned).toContain('geometryForLayout(winner.layout, winner.candidateId)');
+    expect(bootstrap).toContain("candidateId === 'DENSITY_FIELD'");
+    expect(bootstrap).toContain("candidateId === 'DISTRIBUTION_FIELD'");
+    expect(bootstrap).toContain('geometryForLayout(winner.layout, winner.candidateId)');
+    expect(bootstrap).toContain('geometryForLayout(candidate.layout, candidate.candidateId)');
   });
 
   it('records bounded primitive behavior without replacing Rust analytical authority in the test', () => {
