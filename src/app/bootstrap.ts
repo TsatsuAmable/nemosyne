@@ -44,7 +44,8 @@ function analystJourneyActions(
 ): AnalystJourneyActions {
   return {
     dispatchIntent,
-    currentDatasetName: () => world.currentEntry?.name ?? null,
+    currentDatasetName: () =>
+      world.currentEntry?.name ?? world.currentEntry?.label ?? world.currentEntry?.key ?? null,
     assessRepresentation: (maxRenderedElements) =>
       assessAnalystRepresentation(world.atlas, world.session, maxRenderedElements),
     analysisResultCount: () => world.atlas.results.length,
