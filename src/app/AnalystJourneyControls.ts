@@ -137,9 +137,6 @@ export function mountAnalystJourneyControls(
     workspaceContext.textContent = dataset
       ? `Dataset · ${dataset}`
       : 'No dataset selected · choose data to begin';
-    if (!status.textContent) {
-      status.textContent = dataset ? 'Ready to investigate' : 'Choose a dataset to begin';
-    }
   };
 
   const setStatus = (message: string, state: 'ready' | 'success' | 'error' = 'ready') => {
@@ -153,7 +150,7 @@ export function mountAnalystJourneyControls(
     representationOutcome.dataset.state = outcome.kind;
     if (outcome.kind === 'decision') {
       representationOutcome.textContent =
-        `Current view · ${outcome.family} / ${outcome.layout} ` +
+        `Current view · Moneta selected ${outcome.family} / ${outcome.layout} ` +
         `(utility ${outcome.utilityScore.toFixed(3)})`;
       return;
     }
@@ -186,15 +183,15 @@ export function mountAnalystJourneyControls(
   button(primaryTasks, 'analyst-load-sample', 'Explore another dataset', async () => {
     await actions.dispatchIntent({ type: 'dataset.cycle', step: 1 });
     showRepresentationOutcome(actions.assessRepresentation());
-    setStatus(`Dataset ready · ${actions.currentDatasetName() ?? 'sample dataset'}`, 'success');
+    setStatus(`Loaded ${actions.currentDatasetName() ?? 'sample dataset'}`, 'success');
   }, true);
   button(primaryTasks, 'analyst-run-analysis', 'Find anomalies', async () => {
     await actions.dispatchIntent({ type: 'analysis.apply', operation: 'anomaly' });
-    setStatus(`Evidence ready · ${actions.analysisResultCount()} result`, 'success');
+    setStatus(`Evidence ready (${actions.analysisResultCount()} result)`, 'success');
   });
   button(primaryTasks, 'analyst-mark-moment', 'Record observation', () => {
     const observationId = actions.markMoment('Recorded from desktop investigation shell');
-    setStatus(`Observation recorded · ${observationId}`, 'success');
+    setStatus(`Observation recorded: ${observationId}`, 'success');
   });
 
   if (actions.setDatasetPickerVisible) {
@@ -204,6 +201,15 @@ export function mountAnalystJourneyControls(
       setStatus(nextVisible ? 'Dataset chooser opened' : 'Dataset chooser closed');
     });
   }
+
+  const exportButton = button(root, 'analyst-export-package', 'Export investigation', async () => {
+    const bytes = await actions.exportPortableInvestigation();
+    lastExport = bytes;
+    replayButton.disabled = false;
+    downloadPackage(bytes, 'nemosyne-investigation.nemosyne');
+    setStatus(`Investigation exported (${bytes.byteLength} bytes)`, 'success');
+  });
+  exportButton.style.marginTop = '7px';
 
   const tools = document.createElement('details');
   tools.id = 'analyst-investigation-tools';
@@ -242,8 +248,8 @@ export function mountAnalystJourneyControls(
     showRepresentationOutcome(outcome);
     setStatus(
       outcome.kind === 'decision'
-        ? `View decision recorded · ${outcome.decisionId}`
-        : `No-feasible-view outcome recorded · ${outcome.nilId}`,
+        ? `View decision recorded: ${outcome.decisionId}`
+        : `No-feasible-view outcome recorded: ${outcome.nilId}`,
       'success',
     );
   });
@@ -285,7 +291,7 @@ export function mountAnalystJourneyControls(
           setStatus(replayFailureMessage(result.discrepancies.join('; ')), 'error');
           return;
         }
-        setStatus(`Replay verified · ${result.eventsMatched} events`, 'success');
+        setStatus(`Replay verified (${result.eventsMatched} events)`, 'success');
       })
       .catch((error: unknown) => {
         setStatus(
@@ -306,7 +312,8 @@ export function mountAnalystJourneyControls(
       .then((bytes) => {
         lastExport = new Uint8Array(bytes);
         replayButton.disabled = false;
-        setStatus(`Investigation selected · ${file.name}`);
+        tools.open = true;
+        setStatus(`Investigation selected: ${file.name}`);
       })
       .catch((error: unknown) => {
         setStatus(
@@ -315,17 +322,9 @@ export function mountAnalystJourneyControls(
         );
       });
   });
-
-  button(advancedStack, 'analyst-export-package', 'Export investigation', async () => {
-    const bytes = await actions.exportPortableInvestigation();
-    lastExport = bytes;
-    replayButton.disabled = false;
-    downloadPackage(bytes, 'nemosyne-investigation.nemosyne');
-    setStatus(`Investigation exported · ${bytes.byteLength} bytes`, 'success');
-  });
   advancedStack.append(replayButton);
 
-  status.textContent = actions.currentDatasetName() ? 'Ready to investigate' : 'Choose a dataset to begin';
+  status.textContent = 'Ready';
   refreshContext();
 
   document.body.append(root);
