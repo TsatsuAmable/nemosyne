@@ -5,12 +5,81 @@
  */
 
 import { World } from '../vr/World.ts';
-import { setupDevTraceRecorder } from './devTrace.ts';
-import { mountAnalystJourneyControls, type AnalystJourneyControlsHandle } from './AnalystJourneyControls.ts';
+import {
+  setupDevTraceRecorder,
+  type DevTraceBindings,
+} from './devTrace.ts';
+import { assessAnalystRepresentation } from './AnalystRepresentationAssessment.ts';
+import {
+  mountAnalystJourneyControls,
+  type AnalystJourneyActions,
+  type AnalystJourneyControlsHandle,
+} from './AnalystJourneyControls.ts';
 
 export interface AppInstance {
   world: World;
   analystJourneyControls: AnalystJourneyControlsHandle;
+}
+
+function analystJourneyActions(world: World): AnalystJourneyActions {
+  return {
+    cycleDataset: (step) => world._cycleDataset(step),
+    currentDatasetName: () => world.currentEntry?.name ?? null,
+    assessRepresentation: (maxRenderedElements) =>
+      assessAnalystRepresentation(world.atlas, world.session, maxRenderedElements),
+    runAnomalyAnalysis: async () => {
+      await world.dataOperationController.applyAsync('anomaly');
+      return world.atlas.results.length;
+    },
+    markMoment: (note) => world.markMoment(note).id,
+    replayPortableInvestigation: (bytes) => world.replayPortableInvestigation(bytes),
+    exportPortableInvestigation: () =>
+      world.session.exportPortablePackage({
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        webxrSupported: 'xr' in navigator,
+      }),
+  };
+}
+
+function devTraceBindings(world: World): DevTraceBindings {
+  return {
+    recorderOptions: {
+      engine: world.engine,
+      eventBus: world.eventBus,
+      getUIState: () => ({
+        wheel: world.uiManager?.handWheelMenu?.isVisible?.() ?? false,
+        tour: world.guidedTour
+          ? {
+              active: world.guidedTour.isActive,
+              step: world.guidedTour.stepIndex,
+              total: world.guidedTour.stepCount,
+            }
+          : null,
+        lens: world._statisticalLensEnabled,
+        paused: world.inputCoordinator.inputPaused,
+      }),
+      extraGazeTargets: () =>
+        world.guidedTour?.isActive && world.guidedTour.cardMesh ? [world.guidedTour.cardMesh] : [],
+    },
+    bind: (recorder) => {
+      world.engine.input.onHandPinchEdge = (hand, phase, gating) =>
+        recorder.recordPinch(hand, phase, gating);
+
+      const previousDispatch = world.engine.input.dispatcher.onDispatch;
+      world.engine.input.dispatcher.onDispatch = (info) => {
+        previousDispatch?.(info);
+        recorder.recordSelection(info);
+      };
+
+      world.engine.input.systemDetector.onTrace = (info) => recorder.recordSystemGesture(info);
+
+      if (world.uiManager?.handWheelMenu) {
+        world.uiManager.handWheelMenu.onVisibility = (visible, via) =>
+          recorder.recordWheel(visible, via);
+      }
+    },
+  };
 }
 
 export async function bootstrapApp(): Promise<AppInstance> {
@@ -18,7 +87,7 @@ export async function bootstrapApp(): Promise<AppInstance> {
   await world.start();
 
   if (import.meta.env.DEV) {
-    setupDevTraceRecorder(world);
+    setupDevTraceRecorder(devTraceBindings(world));
   }
 
   if (import.meta.env.VITE_NEMOSYNE_DIAGNOSTICS === '1') {
@@ -47,5 +116,8 @@ export async function bootstrapApp(): Promise<AppInstance> {
     }
   }
 
-  return { world, analystJourneyControls: mountAnalystJourneyControls(world) };
+  return {
+    world,
+    analystJourneyControls: mountAnalystJourneyControls(analystJourneyActions(world)),
+  };
 }

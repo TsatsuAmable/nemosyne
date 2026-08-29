@@ -20,6 +20,18 @@ const boundaryRules = [
     from: { path: '^src/moneta/' },
     to: { path: '^src/(vr|ui)/' },
   },
+  {
+    name: 'world-is-composition-root',
+    comment:
+      'RF-062: World may compose the runtime, but feature/domain modules must not depend back on World.',
+    severity: 'error',
+    from: {
+      path: '^src/',
+      pathNot:
+        '^src/(?:vr/World\\.(?:ts|js)|app/(?:bootstrap|diagnostics|browserEnvelopeDiagnostics|resourceEnvelopeDiagnostics)\\.(?:ts|js))$',
+    },
+    to: { path: '^src/vr/World\\.(?:ts|js)$' },
+  },
 ];
 
 const options = {

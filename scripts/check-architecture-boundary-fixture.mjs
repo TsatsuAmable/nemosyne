@@ -26,9 +26,29 @@ function runFixture() {
   );
 }
 
+function outputOf(result) {
+  return `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+}
+
+function expectRejected(result, ruleName, description) {
+  const output = outputOf(result);
+  if (result.status === 0 || !output.includes(ruleName)) {
+    throw new Error(`Expected ${description} to fail with ${ruleName}.\n${output}`);
+  }
+}
+
+function expectAccepted(result, description) {
+  if (result.status !== 0) {
+    throw new Error(`Expected ${description} to pass the boundary policy.\n${outputOf(result)}`);
+  }
+}
+
 try {
   await mkdir(path.join(fixtureRoot, 'src', 'draco'), { recursive: true });
   await mkdir(path.join(fixtureRoot, 'src', 'safe'), { recursive: true });
+  await mkdir(path.join(fixtureRoot, 'src', 'vr'), { recursive: true });
+  await mkdir(path.join(fixtureRoot, 'src', 'feature'), { recursive: true });
+  await mkdir(path.join(fixtureRoot, 'src', 'app'), { recursive: true });
 
   await writeFile(
     path.join(fixtureRoot, 'dependency-cruiser.fixture.cjs'),
@@ -43,32 +63,34 @@ try {
   );
   await writeFile(path.join(fixtureRoot, 'src', 'draco', 'compat.js'), 'export const legacy = true;\n');
   await writeFile(path.join(fixtureRoot, 'src', 'safe', 'value.js'), 'export const value = 1;\n');
-  await writeFile(
-    path.join(fixtureRoot, 'src', 'consumer.js'),
-    "import { legacy } from './draco/compat.js';\nexport const value = legacy;\n",
-  );
+  await writeFile(path.join(fixtureRoot, 'src', 'vr', 'World.js'), 'export class World {}\n');
 
-  const invalid = runFixture();
-  const invalidOutput = `${invalid.stdout ?? ''}\n${invalid.stderr ?? ''}`;
-  if (invalid.status === 0 || !invalidOutput.includes('no-production-draco-imports')) {
-    throw new Error(
-      `Expected the deliberately invalid production -> Draco fixture to fail with no-production-draco-imports.\n${invalidOutput}`,
-    );
-  }
+  const consumerPath = path.join(fixtureRoot, 'src', 'feature', 'consumer.js');
+  await writeFile(
+    consumerPath,
+    "import { legacy } from '../draco/compat.js';\nexport const value = legacy;\n",
+  );
+  expectRejected(runFixture(), 'no-production-draco-imports', 'the deliberately invalid production -> Draco fixture');
 
   await writeFile(
-    path.join(fixtureRoot, 'src', 'consumer.js'),
-    "import { value } from './safe/value.js';\nexport const consumerValue = value;\n",
+    consumerPath,
+    "import { World } from '../vr/World.js';\nexport const createFeature = () => new World();\n",
   );
+  expectRejected(runFixture(), 'world-is-composition-root', 'the deliberately invalid feature -> World fixture');
 
-  const valid = runFixture();
-  if (valid.status !== 0) {
-    throw new Error(
-      `Expected the repaired fixture to pass the boundary policy.\n${valid.stdout ?? ''}\n${valid.stderr ?? ''}`,
-    );
-  }
+  await writeFile(
+    consumerPath,
+    "import { value } from '../safe/value.js';\nexport const consumerValue = value;\n",
+  );
+  await writeFile(
+    path.join(fixtureRoot, 'src', 'app', 'bootstrap.js'),
+    "import { World } from '../vr/World.js';\nexport const bootstrap = () => new World();\n",
+  );
+  expectAccepted(runFixture(), 'the repaired feature dependency plus approved bootstrap -> World composition edge');
 
-  console.log('Architecture boundary fixture proved fail-closed enforcement and clean recovery.');
+  console.log(
+    'Architecture boundary fixture proved fail-closed Draco/World enforcement and approved composition-root recovery.',
+  );
 } finally {
   await rm(fixtureRoot, { recursive: true, force: true });
 }
