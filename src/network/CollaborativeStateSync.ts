@@ -4,8 +4,11 @@
  * Replicates active dataset selection, filter operations, gaze target vectors,
  * and spatial camera poses across peer data channels.
  *
- * Sprint 19.1: Binary pose packets now carry a numeric peerId header.
- * Out-of-order / duplicate packets are dropped via BinaryPoseSerializer.validateSequence().
+ * Binary pose replay/staleness state is owned per-instance (this synchronizer
+ * maps to one peer data channel) and never by a shared global map. When the
+ * channel's trusted string peer identity is supplied via `setDataChannel`,
+ * sequence state is keyed by that identity and mismatched payload numeric IDs
+ * are rejected. The payload numeric ID is never an authoritative identity.
  */
 
 import { sha256Uint31 } from '../security/CryptoHash.ts';
@@ -25,6 +28,10 @@ export class CollaborativeStateSync {
   private _dataChannel: RTCDataChannel | null = null;
   private _poseSequence = 0;
   private _numericPeerId: number;
+  /** Per-instance sequence state keyed by string peer identity (RF-057). */
+  private _sequenceState: Map<string, number> = new Map();
+  /** Trusted string identity of the channel-bound remote peer, when known. */
+  private _remotePeerId: string | undefined;
 
   constructor(localPeerId = `peer-${crypto.randomUUID()}`) {
     this.localPeerId = localPeerId;
@@ -34,24 +41,31 @@ export class CollaborativeStateSync {
     this._numericPeerId = sha256Uint31(localPeerId);
   }
 
-  setDataChannel(channel: RTCDataChannel): void {
+  setDataChannel(channel: RTCDataChannel, remotePeerId?: string): void {
     this._dataChannel = channel;
+    this._remotePeerId = remotePeerId;
+    this._sequenceState.clear();
     this._dataChannel.binaryType = 'arraybuffer';
 
     this._dataChannel.onmessage = (event) => {
       try {
         if (event.data instanceof ArrayBuffer) {
           const pose = BinaryPoseSerializer.deserialize(event.data);
-          if (pose) {
-            if (!BinaryPoseSerializer.validateSequence(pose.peerId, pose.sequence)) {
-              return;
-            }
-            this.applyPeerState({
-              peerId: pose.peerId.toString(),
-              cameraPose: { position: pose.position, rotation: pose.rotation },
-              lastUpdatedMs: Date.now(),
-            });
+          if (!pose) return;
+          // When the channel-bound string identity is known, the payload numeric
+          // ID must match its deterministic digest; a mismatch frame fails closed.
+          if (this._remotePeerId !== undefined && pose.peerId !== sha256Uint31(this._remotePeerId)) {
+            return;
           }
+          const sequenceKey = this._remotePeerId ?? pose.peerId.toString();
+          if (!BinaryPoseSerializer.acceptsSequence(this._sequenceState, sequenceKey, pose.sequence)) {
+            return;
+          }
+          this.applyPeerState({
+            peerId: pose.peerId.toString(),
+            cameraPose: { position: pose.position, rotation: pose.rotation },
+            lastUpdatedMs: Date.now(),
+          });
           return;
         }
 
