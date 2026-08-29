@@ -4,7 +4,7 @@
 **Stream:** M — Moneta Distribution Truth  
 **Checkpoint:** M3 — production cutover and thin embodiment  
 **Base:** `main@f6d61e4117629861274f662630045eb3a6a900be`  
-**Status:** IMPLEMENTED — LOCAL GOVERNED CHECKS PASSED / EXACT-HEAD PENDING
+**Status:** IMPLEMENTED — GOVERNED EXACT-HEAD VERIFICATION REQUIRED
 
 ## Invariant
 
@@ -101,4 +101,4 @@ The review confirmed that the Worker rejects unknown semantic candidates, aggreg
 - `artifactId` is a deterministic provenance key for this fixed M3 request policy, not a cryptographic content digest. M4 perceptual evidence must retain the full dataset/payload/provenance record and must not mislabel this key as a payload hash.
 - Connected ECDF line geometry, textual axes/legends and explicit product status surfaces remain M4/product work; their absence does not authorize a point, density or chart fallback.
 
-Exact-head CI, real-WASM coverage, governed approval and post-publication thread review remain required before M3 is complete.
+Exact-head CI, real-WASM coverage, governed approval and post-publication thread review are merge requirements for M3.
