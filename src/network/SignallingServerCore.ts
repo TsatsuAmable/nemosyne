@@ -13,10 +13,16 @@
  * - Room idle expiration and cleanup.
  */
 
-import { verifySignedTicket, timingSafeEqualString, SignedTicketReplayGuard } from './SignedTicket.ts';
+import {
+  verifySignedTicket,
+  timingSafeEqualString,
+  SignedTicketReplayGuard,
+} from './SignedTicket.ts';
 
 const DEFAULT_MAX_MESSAGE_BYTES = 64 * 1024; // 64 KiB
 const DEFAULT_MAX_PEERS_PER_ROOM = 50;
+const DEFAULT_MAX_PENDING_PEERS_PER_ROOM = 10;
+const DEFAULT_MAX_ROOMS = 100;
 const DEFAULT_MAX_CONNECTIONS_PER_IP = 10;
 const DEFAULT_MAX_TOTAL_CONNECTIONS = 500;
 const DEFAULT_MAX_MESSAGES_PER_SECOND = 50;
@@ -24,6 +30,15 @@ const DEFAULT_MAX_AUTH_FAILURES = 5;
 const DEFAULT_AUTH_WINDOW_MS = 60 * 1000; // 1 minute
 const DEFAULT_AUTH_TIMEOUT_MS = 5000; // 5 seconds to authenticate
 const DEFAULT_ROOM_IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Transport-level WebSocket frame cap applied by both server transports
+ * (standalone `SignallingServer.mjs` and the Vite dev plugin) so hostile
+ * oversized frames are rejected by `ws` before they are fully buffered.
+ * Sized generously above the registry's 64 KiB relay cap to absorb framing
+ * overhead while still bounding per-frame memory.
+ */
+export const WS_MAX_PAYLOAD_BYTES = 256 * 1024; // 256 KiB
 
 /**
  * Explicit security profile for a room registry. The profile drives fail-closed
@@ -83,6 +98,14 @@ export interface TokenClaims {
 export interface RoomRegistryOptions {
   maxMessageBytes?: number;
   maxPeersPerRoom?: number;
+  /** Cap on unauthenticated/in-flight peers admitted into a single room while
+   *  they are still within the in-band auth window. Distinct from the total
+   *  `maxPeersPerRoom` so an unauthenticated flood cannot occupy the room's
+   *  authenticated capacity before proving itself. */
+  maxPendingPeersPerRoom?: number;
+  /** Cap on the number of distinct room ids the registry will hold. New rooms
+   *  beyond the cap are rejected fail-closed; existing rooms keep admitting. */
+  maxRooms?: number;
   maxConnectionsPerIp?: number;
   maxTotalConnections?: number;
   maxMessagesPerSecond?: number;
@@ -105,7 +128,10 @@ export interface RoomRegistryOptions {
    * Optional token authorizer function to decode and validate short-lived,
    * room-scoped tokens or JWTs.
    */
-  tokenValidator?: (token: string, roomId: string) => { valid: boolean; claims?: TokenClaims; error?: string };
+  tokenValidator?: (
+    token: string,
+    roomId: string
+  ) => { valid: boolean; claims?: TokenClaims; error?: string };
   /**
    * Explicit security profile. When omitted the registry defaults to fail-closed
    * behaviour (no open mode). Set to `'Development'` to restore frictionless
@@ -136,7 +162,10 @@ export interface RoomRegistry {
     peerId: string,
     token?: string,
     requestedRole?: NetworkRole,
-    request?: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } }
+    request?: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    }
   ): void;
   getRoomCount(): number;
   getTotalPeers(): number;
@@ -206,7 +235,10 @@ function isValidSignallingPayload(data: unknown): boolean {
       return typeof obj.token === 'string';
     case 'offer':
     case 'answer':
-      return (obj.sdp === undefined || typeof obj.sdp === 'string') && (!obj.sdp || (typeof obj.sdp === 'string' && obj.sdp.length < 64 * 1024));
+      return (
+        (obj.sdp === undefined || typeof obj.sdp === 'string') &&
+        (!obj.sdp || (typeof obj.sdp === 'string' && obj.sdp.length < 64 * 1024))
+      );
     case 'ice':
       return obj.candidate !== undefined;
     case 'join':
@@ -258,6 +290,8 @@ function getRequiredCapability(message: unknown): PeerCapability | null {
 export function createRoomRegistry({
   maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES,
   maxPeersPerRoom = DEFAULT_MAX_PEERS_PER_ROOM,
+  maxPendingPeersPerRoom = DEFAULT_MAX_PENDING_PEERS_PER_ROOM,
+  maxRooms = DEFAULT_MAX_ROOMS,
   maxConnectionsPerIp = DEFAULT_MAX_CONNECTIONS_PER_IP,
   maxTotalConnections = DEFAULT_MAX_TOTAL_CONNECTIONS,
   maxMessagesPerSecond = DEFAULT_MAX_MESSAGES_PER_SECOND,
@@ -288,7 +322,8 @@ export function createRoomRegistry({
   }
 
   const hasAuthToken = typeof authToken === 'string' && authToken.length > 0;
-  const hasObserverAuthToken = typeof observerAuthToken === 'string' && observerAuthToken.length > 0;
+  const hasObserverAuthToken =
+    typeof observerAuthToken === 'string' && observerAuthToken.length > 0;
   const hasTokenValidator = typeof tokenValidator === 'function';
   const hasOriginEnforcement = allowedOrigins !== undefined;
   const hasAnyAuth = hasAuthToken || hasObserverAuthToken || hasTokenValidator;
@@ -340,6 +375,10 @@ export function createRoomRegistry({
     for (const w of warnings) console.warn(`${tag} ${w}`);
   }
   const rooms = new Map<string, Map<string, RoomPeer>>();
+  // Number of admitted-but-unauthenticated peers held across all rooms. Bounds
+  // the server-wide admission ceiling for peers still inside the in-band auth
+  // window, because `getTotalPeers()` counts only authenticated peers.
+  let pendingPeers = 0;
   const ipConnectionCounts = new Map<string, number>();
   const ipAuthFailures = new Map<string, { count: number; resetAt: number }>();
   const roomLastActive = new Map<string, number>();
@@ -421,7 +460,13 @@ export function createRoomRegistry({
     }
   }
 
-  function sendTo(roomId: string, to: string, from: string, peer: RoomPeer, message: unknown): void {
+  function sendTo(
+    roomId: string,
+    to: string,
+    from: string,
+    peer: RoomPeer,
+    message: unknown
+  ): void {
     if (!canPeerRelay(peer, message)) return;
     const room = rooms.get(roomId);
     if (!room) return;
@@ -435,7 +480,9 @@ export function createRoomRegistry({
     }
   }
 
-  function checkOrigin(request?: { headers?: Record<string, string | string[] | undefined> }): boolean {
+  function checkOrigin(request?: {
+    headers?: Record<string, string | string[] | undefined>;
+  }): boolean {
     if (!allowedOrigins) return true;
     const rawOrigin = request?.headers?.origin;
     const origin = Array.isArray(rawOrigin) ? rawOrigin[0] : rawOrigin;
@@ -459,14 +506,24 @@ export function createRoomRegistry({
     if (tokenValidator && token) {
       const res = tokenValidator(token, roomId);
       if (!res.valid) {
-        return { authorized: false, role: 'observer', closeCode: 4001, reason: res.error ?? 'invalid token' };
+        return {
+          authorized: false,
+          role: 'observer',
+          closeCode: 4001,
+          reason: res.error ?? 'invalid token',
+        };
       }
       // The validator is an extension point, but its role output must still be
       // allow-listed: a validator that returns `analyst`, `collaborator`, or any
       // other value must fail closed rather than promote the peer.
       const role = normalizeNetworkRole(res.claims?.role) ?? normalizeNetworkRole(requestedRole);
       if (!role) {
-        return { authorized: false, role: 'observer', closeCode: 4001, reason: 'invalid role in token claims' };
+        return {
+          authorized: false,
+          role: 'observer',
+          closeCode: 4001,
+          reason: 'invalid role in token claims',
+        };
       }
       return { authorized: true, role };
     }
@@ -485,7 +542,12 @@ export function createRoomRegistry({
         if (res.valid && res.claims) {
           const role = normalizeNetworkRole(res.claims.role);
           if (!role) {
-            return { authorized: false, role: 'observer', closeCode: 4001, reason: 'invalid role in ticket' };
+            return {
+              authorized: false,
+              role: 'observer',
+              closeCode: 4001,
+              reason: 'invalid role in ticket',
+            };
           }
           if (!signedTicketReplayGuard.consume(res.claims.nonce, res.claims.exp)) {
             return {
@@ -497,7 +559,12 @@ export function createRoomRegistry({
           }
           return { authorized: true, role };
         }
-        return { authorized: false, role: 'observer', closeCode: 4001, reason: res.error ?? 'invalid signed ticket' };
+        return {
+          authorized: false,
+          role: 'observer',
+          closeCode: 4001,
+          reason: res.error ?? 'invalid signed ticket',
+        };
       }
 
       // 2. Observer dedicated secret token match
@@ -515,11 +582,20 @@ export function createRoomRegistry({
         const rolePart = token.slice(idx + 1);
         if (timingSafeEqualString(secretPart, authToken)) {
           const enforcedRole =
-            rolePart === 'observer' ? 'observer' : rolePart === 'participant' ? 'participant' : null;
+            rolePart === 'observer'
+              ? 'observer'
+              : rolePart === 'participant'
+                ? 'participant'
+                : null;
           if (enforcedRole) {
             return { authorized: true, role: enforcedRole };
           }
-          return { authorized: false, role: 'observer', closeCode: 4001, reason: 'invalid scoped token role' };
+          return {
+            authorized: false,
+            role: 'observer',
+            closeCode: 4001,
+            reason: 'invalid scoped token role',
+          };
         }
       }
 
@@ -544,9 +620,16 @@ export function createRoomRegistry({
     peerId: string,
     token?: string,
     requestedRole: NetworkRole = 'participant',
-    request?: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } }
+    request?: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    }
   ): void {
     const ip = request?.socket?.remoteAddress || '127.0.0.1';
+    // Tracks whether the per-IP auth-failure throttle was already charged for
+    // this connection, so a disconnect (or timeout) does not double-charge an
+    // IP that was already rejected for a bad token.
+    let authFailureRecorded = false;
 
     // Exact role ontology up front: a foreign requested role must never be stored
     // as a pseudo-role (it would silently become an empty-capability identity).
@@ -560,13 +643,17 @@ export function createRoomRegistry({
     if (!isValidIdentifier(roomId)) {
       try {
         socket.close?.(4003, 'invalid room id');
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
       return;
     }
     if (!isValidIdentifier(peerId)) {
       try {
         socket.close?.(4003, 'invalid peer id');
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
       return;
     }
 
@@ -574,7 +661,9 @@ export function createRoomRegistry({
     if (getAuthFailureCount(ip) >= maxAuthFailures) {
       try {
         socket.close?.(1008, 'too many authentication failures');
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
       return;
     }
 
@@ -582,15 +671,21 @@ export function createRoomRegistry({
     if (!checkOrigin(request)) {
       try {
         socket.close?.(4003, 'forbidden origin');
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
       return;
     }
 
-    // 3. Global and IP connection limits
-    if (getTotalPeers() >= maxTotalConnections) {
+    // 3. Global and IP connection limits. Unauthenticated (in-flight) peers
+    //    count toward the server-wide ceiling so a flood of pending connections
+    //    cannot bypass `maxTotalConnections` by never authenticating.
+    if (getTotalPeers() + pendingPeers >= maxTotalConnections) {
       try {
         socket.close?.(1008, 'server connection limit exceeded');
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
       return;
     }
 
@@ -598,24 +693,66 @@ export function createRoomRegistry({
     if (currentIpCount >= maxConnectionsPerIp) {
       try {
         socket.close?.(1008, 'ip connection limit exceeded');
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
       return;
     }
 
-    // 4. Room admission check
-    if (!rooms.has(roomId)) rooms.set(roomId, new Map());
+    // 4. Room admission check. Room creation is capped so a distributed flood of
+    //    distinct room ids cannot grow the registry without bound; the cap applies
+    //    only to NEW rooms (existing rooms keep admitting). Within a room, both
+    //    the authenticated capacity and the pending (unauthenticated) capacity
+    //    are enforced so pre-auth flood peers cannot occupy authenticated slots.
+    if (!rooms.has(roomId)) {
+      if (rooms.size >= maxRooms) {
+        try {
+          socket.close?.(1008, 'too many rooms');
+        } catch (_) {
+          /* ignore */
+        }
+        return;
+      }
+      rooms.set(roomId, new Map());
+    }
     const room = rooms.get(roomId)!;
     if (room.size >= maxPeersPerRoom) {
       try {
         socket.close?.(1008, 'room full');
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
       return;
+    }
+
+    const needsToken = Boolean(authToken || observerAuthToken || !allowOpenNoToken);
+    // A peer admitted with a URL token (when accepted) is not an in-flight
+    // pending peer: it either authenticates immediately or is rejected at the
+    // URL-token gate. Only peers that enter the room unauthenticated consume a
+    // pending slot, so a legitimate authenticated peer is never displaced by a
+    // pre-auth flood.
+    const willJoinPending = needsToken && !(token && acceptUrlToken);
+    if (willJoinPending) {
+      let pendingInRoom = 0;
+      for (const other of room.values()) {
+        if (!other.authenticated) pendingInRoom++;
+      }
+      if (pendingInRoom >= maxPendingPeersPerRoom) {
+        try {
+          socket.close?.(1008, 'too many unauthenticated peers in room');
+        } catch (_) {
+          /* ignore */
+        }
+        return;
+      }
     }
 
     if (room.has(peerId)) {
       try {
         socket.close?.(4002, 'peerId in use');
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
       return;
     }
 
@@ -625,7 +762,6 @@ export function createRoomRegistry({
     // ignored so credentials never appear in URLs or server logs; the peer
     // must authenticate via an in-band `auth` message within the auth-timeout
     // window.
-    const needsToken = Boolean(authToken || observerAuthToken || !allowOpenNoToken);
     let initialAuth = false;
     let initialRole: NetworkRole = requestedRole;
 
@@ -633,9 +769,12 @@ export function createRoomRegistry({
       const authResult = authorizePeer(roomId, token, requestedRole);
       if (!authResult.authorized) {
         recordAuthFailure(ip);
+        authFailureRecorded = true;
         try {
           socket.close?.(authResult.closeCode ?? 4001, authResult.reason ?? 'unauthorized');
-        } catch (_) { /* ignore */ }
+        } catch (_) {
+          /* ignore */
+        }
         return;
       }
       initialAuth = true;
@@ -667,14 +806,21 @@ export function createRoomRegistry({
       messageTimestamps: [],
     };
     room.set(peerId, peerEntry);
+    if (!initialAuth) pendingPeers++;
 
     // If already authenticated on connect, announce join
     if (initialAuth) {
       for (const [id, other] of room) {
         if (id !== peerId && other.authenticated && other.socket.readyState === 1) {
-          const data = JSON.stringify({ roomId, from: peerId, data: { type: 'join', role: initialRole } });
+          const data = JSON.stringify({
+            roomId,
+            from: peerId,
+            data: { type: 'join', role: initialRole },
+          });
           if (data.length <= maxMessageBytes) other.socket.send(data);
-          socket.send(JSON.stringify({ roomId, from: id, data: { type: 'join', role: other.role } }));
+          socket.send(
+            JSON.stringify({ roomId, from: id, data: { type: 'join', role: other.role } })
+          );
         }
       }
     }
@@ -685,9 +831,12 @@ export function createRoomRegistry({
       authTimeout = setTimeout(() => {
         if (!peerEntry.authenticated) {
           recordAuthFailure(ip);
+          authFailureRecorded = true;
           try {
             socket.close?.(4001, 'auth timeout');
-          } catch (_) { /* ignore */ }
+          } catch (_) {
+            /* ignore */
+          }
         }
       }, authTimeoutMs);
     }
@@ -700,7 +849,9 @@ export function createRoomRegistry({
       if (peerEntry.messageTimestamps.length >= maxMessagesPerSecond) {
         try {
           socket.close?.(1008, 'rate limit exceeded');
-        } catch (_) { /* ignore */ }
+        } catch (_) {
+          /* ignore */
+        }
         return;
       }
       peerEntry.messageTimestamps.push(now);
@@ -721,6 +872,7 @@ export function createRoomRegistry({
         if (msgData?.type === 'auth' && msgData.token) {
           const authRes = authorizePeer(roomId, msgData.token, msgData.role ?? requestedRole);
           if (authRes.authorized) {
+            if (!peerEntry.authenticated) pendingPeers--;
             peerEntry.authenticated = true;
             peerEntry.role = authRes.role;
             peerEntry.capabilities = new Set(ROLE_CAPABILITIES[authRes.role]);
@@ -729,17 +881,26 @@ export function createRoomRegistry({
             // Announce join to other authenticated peers
             for (const [id, other] of room) {
               if (id !== peerId && other.authenticated && other.socket.readyState === 1) {
-                const data = JSON.stringify({ roomId, from: peerId, data: { type: 'join', role: authRes.role } });
+                const data = JSON.stringify({
+                  roomId,
+                  from: peerId,
+                  data: { type: 'join', role: authRes.role },
+                });
                 if (data.length <= maxMessageBytes) other.socket.send(data);
-                socket.send(JSON.stringify({ roomId, from: id, data: { type: 'join', role: other.role } }));
+                socket.send(
+                  JSON.stringify({ roomId, from: id, data: { type: 'join', role: other.role } })
+                );
               }
             }
             return;
           }
           recordAuthFailure(ip);
+          authFailureRecorded = true;
           try {
             socket.close?.(authRes.closeCode ?? 4001, authRes.reason ?? 'invalid token');
-          } catch (_) { /* ignore */ }
+          } catch (_) {
+            /* ignore */
+          }
           return;
         }
         // Discard unauthenticated messages
@@ -755,6 +916,13 @@ export function createRoomRegistry({
 
     const onClose = () => {
       if (authTimeout) clearTimeout(authTimeout);
+      // A peer that disconnected without ever authenticating is charged as an
+      // auth failure so rapid reconnect-before-timeout triggers the per-IP
+      // lockout instead of bypassing it by closing early.
+      if (!peerEntry.authenticated) {
+        pendingPeers--;
+        if (!authFailureRecorded) recordAuthFailure(ip);
+      }
       const c = ipConnectionCounts.get(ip) || 1;
       if (c <= 1) ipConnectionCounts.delete(ip);
       else ipConnectionCounts.set(ip, c - 1);
@@ -784,5 +952,12 @@ export function createRoomRegistry({
     }
   }
 
-  return { handleConnection, getRoomCount, getTotalPeers, cleanupIdleRooms, getAuthFailureCount, getSecurityDiagnostic: () => diagnostic };
+  return {
+    handleConnection,
+    getRoomCount,
+    getTotalPeers,
+    cleanupIdleRooms,
+    getAuthFailureCount,
+    getSecurityDiagnostic: () => diagnostic,
+  };
 }

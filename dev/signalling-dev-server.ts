@@ -2,7 +2,7 @@ import type { Plugin, ViteDevServer, PreviewServer } from 'vite';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import type { WebSocket } from 'ws';
-import { createRoomRegistry } from '../src/network/SignallingServerCore.ts';
+import { createRoomRegistry, WS_MAX_PAYLOAD_BYTES } from '../src/network/SignallingServerCore.ts';
 
 /**
  * Signalling endpoint mounted on the Vite dev/preview server at /__signal.
@@ -15,7 +15,7 @@ export function signallingPlugin(): Plugin {
   async function attach(server: ViteDevServer | PreviewServer) {
     if (!server.httpServer) return;
     const { WebSocketServer } = await import('ws');
-    const wss = new WebSocketServer({ noServer: true });
+    const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD_BYTES });
     // Optional shared-secret gate: set NEMOSYNE_SIGNAL_TOKEN to require a
     // matching ?token= on join. Dev stays frictionless: the Development
     // security profile enables open (no-token) mode by default. This plugin
@@ -50,4 +50,3 @@ export function signallingPlugin(): Plugin {
     configurePreviewServer: attach,
   };
 }
-
