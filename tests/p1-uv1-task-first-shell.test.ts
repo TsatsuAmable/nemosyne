@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { TASK_FIRST_PRIMARY_ACTION_IDS } from '../src/app/AnalystJourneyControls.ts';
+import {
+  nextDatasetCycleIndex,
+  resolveDatasetCycleCursor,
+} from '../src/app/dataset/DatasetCycleCursor.ts';
+import { allSampleDatasets } from '../src/data/SampleDatasets.ts';
 
 describe('P1-UV1 task-first investigator shell', () => {
   it('keeps the primary desktop choice set bounded to investigator tasks', () => {
@@ -25,13 +30,47 @@ describe('P1-UV1 task-first investigator shell', () => {
     expect(source).toContain('world.loader.hide()');
   });
 
-  it('keeps semantic dataset cycling aligned with the active sample', () => {
+  it('keeps semantic dataset cycling aligned with the active sample identity', () => {
     const source = readFileSync('src/app/bootstrap.ts', 'utf8');
 
-    expect(source).toContain('function synchronizeDatasetCycleCursor(world: World)');
-    expect(source).toContain('allSampleDatasets.findIndex((entry) => entry.key === currentKey)');
-    expect(source).toContain('synchronizeDatasetCycleCursor(world);');
+    expect(source).toContain('function synchronizeDatasetCycleCursor(world: World, step: number)');
+    expect(source).toContain('resolveDatasetCycleCursor(');
+    expect(source).toContain('datasetName: world.currentEntry?.dataset?.name ?? world.atlas.dataset?.name ?? null');
+    expect(source).toContain('synchronizeDatasetCycleCursor(world, step);');
     expect(source).toContain('world._cycleDataset(step);');
+  });
+
+  it('advances from the staged default sample even when only its label survives', () => {
+    expect(
+      nextDatasetCycleIndex(
+        allSampleDatasets,
+        { label: 'Supply Chain Hierarchy' },
+        1,
+      ),
+    ).toBe(1);
+    expect(allSampleDatasets[1]?.key).toBe('fraud-graph');
+  });
+
+  it('matches the underlying dataset name and wraps in both directions', () => {
+    const last = allSampleDatasets.length - 1;
+
+    expect(
+      resolveDatasetCycleCursor(
+        allSampleDatasets,
+        { datasetName: allSampleDatasets[last].dataset.name },
+        1,
+      ),
+    ).toBe(last);
+    expect(
+      nextDatasetCycleIndex(
+        allSampleDatasets,
+        { datasetName: allSampleDatasets[last].dataset.name },
+        1,
+      ),
+    ).toBe(0);
+    expect(
+      nextDatasetCycleIndex(allSampleDatasets, { name: 'Imported investigation data' }, -1),
+    ).toBe(last);
   });
 
   it('keeps the Moneta constraint HUD hidden normally and preserves the explicit diagnostic build route', () => {

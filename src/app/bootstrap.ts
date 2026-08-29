@@ -6,6 +6,7 @@
 
 import { World } from '../vr/World.ts';
 import { allSampleDatasets } from '../data/SampleDatasets.ts';
+import { resolveDatasetCycleCursor } from './dataset/DatasetCycleCursor.ts';
 import {
   setupDevTraceRecorder,
   type DevTraceBindings,
@@ -30,21 +31,27 @@ export interface AppInstance {
 
 /**
  * Keep the legacy sample-cycle cursor aligned with the dataset that is actually
- * active before a semantic cycle intent. World starts with the first sample
- * already loaded while its legacy cursor starts at -1; without this adapter,
- * the first "next dataset" intent reloads the current sample instead of moving.
+ * active before a semantic cycle intent. Restore/import paths may omit the
+ * built-in sample key while retaining a human label or Dataset.name, so the
+ * resolver matches all governed identity forms before advancing.
  */
-function synchronizeDatasetCycleCursor(world: World): void {
-  const currentKey = world.currentEntry?.key;
-  if (!currentKey) return;
-  const currentIndex = allSampleDatasets.findIndex((entry) => entry.key === currentKey);
-  if (currentIndex >= 0) world._datasetCycleIndex = currentIndex;
+function synchronizeDatasetCycleCursor(world: World, step: number): void {
+  world._datasetCycleIndex = resolveDatasetCycleCursor(
+    allSampleDatasets,
+    {
+      key: world.currentEntry?.key,
+      name: world.currentEntry?.name,
+      label: world.currentEntry?.label,
+      datasetName: world.currentEntry?.dataset?.name ?? world.atlas.dataset?.name ?? null,
+    },
+    step,
+  );
 }
 
 function applicationIntentDispatcher(world: World): ApplicationIntentDispatcher {
   return createApplicationIntentDispatcher({
     cycleDataset: (step) => {
-      synchronizeDatasetCycleCursor(world);
+      synchronizeDatasetCycleCursor(world, step);
       world._cycleDataset(step);
     },
     applyAnalysis: (operation) => world.dataOperationController.applyAsync(operation),
