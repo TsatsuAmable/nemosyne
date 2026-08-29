@@ -30,9 +30,13 @@ export function bindInputCallbacksToApplicationIntents(
   options: InputIntentBindingOptions = {},
 ): void {
   const dispatch = (intent: Parameters<ApplicationIntentDispatcher>[0]) => {
-    Promise.resolve(dispatchIntent(intent)).catch((error: unknown) => {
+    try {
+      Promise.resolve(dispatchIntent(intent)).catch((error: unknown) => {
+        options.onDispatchError?.(error);
+      });
+    } catch (error) {
       options.onDispatchError?.(error);
-    });
+    }
   };
 
   callbacks.onApplyOperation = (operation) => {
