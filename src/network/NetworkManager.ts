@@ -60,6 +60,14 @@ export class NetworkManager extends EventTarget {
   _localState: Record<string, unknown> = {};
   private _numericPeerId: number;
   private _poseSequence: number = 0;
+  /**
+   * Per-peer monotonic pose sequence state, keyed by the signalling-admitted
+   * string peer identity bound to the RTCDataChannel. The numeric peer ID
+   * carried inside a binary frame is never a sequence-state key (RF-057).
+   */
+  private _poseSequenceState: Map<string, number> = new Map();
+  /** Deterministic numeric digest cache per channel-bound string peer. */
+  private _remoteNumericIds: Map<string, number> = new Map();
 
   constructor({
     signallingUrl,
@@ -121,6 +129,8 @@ export class NetworkManager extends EventTarget {
     this.connections.clear();
     this.channels.clear();
     this.peerRoles.clear();
+    this._poseSequenceState.clear();
+    this._remoteNumericIds.clear();
     this.signalling?.disconnect();
     this.signalling = null;
     this.dispatchEvent(new Event('disconnected'));
@@ -239,6 +249,8 @@ export class NetworkManager extends EventTarget {
     this.connections.delete(peerId);
     this.channels.delete(peerId);
     this.peerRoles.delete(peerId);
+    this._poseSequenceState.delete(peerId);
+    this._remoteNumericIds.delete(peerId);
     this.room.removePeer(peerId);
     if (hadPeer) {
       this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
@@ -362,6 +374,8 @@ export class NetworkManager extends EventTarget {
         this._closePeer(peerId, conn);
         this.connections.delete(peerId);
         this.channels.delete(peerId);
+        this._poseSequenceState.delete(peerId);
+        this._remoteNumericIds.delete(peerId);
         this.room.removePeer(peerId);
         this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
       }
@@ -379,6 +393,14 @@ export class NetworkManager extends EventTarget {
         // sufficient reason to reject the channel.
       }
       return;
+    }
+
+    // A fresh channel for this peer begins a fresh sequence space. A forged
+    // high sequence on a superseded channel generation must not carry into the
+    // replacement (RF-057 reconnect/generation reset).
+    if (this.channels.has(peerId)) {
+      this._poseSequenceState.delete(peerId);
+      this._remoteNumericIds.delete(peerId);
     }
 
     this.channels.set(peerId, channel);
@@ -413,19 +435,29 @@ export class NetworkManager extends EventTarget {
 
       if (event.data instanceof ArrayBuffer) {
         const pose = BinaryPoseSerializer.deserialize(event.data);
-        if (pose && BinaryPoseSerializer.validateSequence(pose.peerId, pose.sequence)) {
-          this.dispatchEvent(
-            new CustomEvent('remoteCameraPose', {
-              detail: {
-                peerId,
-                numericPeerId: pose.peerId,
-                position: pose.position,
-                rotation: pose.rotation,
-                timestamp: Date.now(),
-              },
-            })
-          );
+        // Fail closed on any wire-contract violation (length, finite, bounded).
+        if (!pose) return;
+        // The payload numeric ID is non-authoritative wire metadata. It must
+        // match the deterministic digest of the channel-bound string peer; a
+        // mismatch frame is dropped before it can touch any sequence state.
+        const expectedNumericPeerId = this._remoteNumericIds.get(peerId) ?? sha256Uint31(peerId);
+        this._remoteNumericIds.set(peerId, expectedNumericPeerId);
+        if (pose.peerId !== expectedNumericPeerId) return;
+        // Replay/staleness authority is the channel-bound string peer identity.
+        if (!BinaryPoseSerializer.acceptsSequence(this._poseSequenceState, peerId, pose.sequence)) {
+          return;
         }
+        this.dispatchEvent(
+          new CustomEvent('remoteCameraPose', {
+            detail: {
+              peerId,
+              numericPeerId: pose.peerId,
+              position: pose.position,
+              rotation: pose.rotation,
+              timestamp: Date.now(),
+            },
+          })
+        );
         return;
       }
 
@@ -515,6 +547,8 @@ export class NetworkManager extends EventTarget {
       // Never let that stale callback delete the replacement or its role.
       if (this.channels.get(peerId) !== channel) return;
       this.channels.delete(peerId);
+      this._poseSequenceState.delete(peerId);
+      this._remoteNumericIds.delete(peerId);
       this.room.removePeer(peerId);
       this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
     });
@@ -550,6 +584,8 @@ export class NetworkManager extends EventTarget {
     this.connections.delete(peerId);
     this.channels.delete(peerId);
     this.peerRoles.delete(peerId);
+    this._poseSequenceState.delete(peerId);
+    this._remoteNumericIds.delete(peerId);
     this.room.removePeer(peerId);
     if (hadPeer) {
       this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
@@ -585,6 +621,8 @@ export class NetworkManager extends EventTarget {
       // Connection may already be closed; ignore.
     }
     this.channels.delete(peerId);
+    this._poseSequenceState.delete(peerId);
+    this._remoteNumericIds.delete(peerId);
     this.room.removePeer(peerId);
   }
 

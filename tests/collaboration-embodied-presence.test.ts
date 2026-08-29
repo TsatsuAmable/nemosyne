@@ -1,17 +1,14 @@
 // @ts-nocheck
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { PeerAvatarManager } from '../src/network/PeerAvatarManager.ts';
 import { NetworkManager } from '../src/network/NetworkManager.ts';
 import { BinaryPoseSerializer } from '../src/network/BinaryPoseSerializer.ts';
+import { sha256Uint31 } from '../src/security/CryptoHash.ts';
 import { CollaborationCoordinator } from '../src/vr/coordinators/CollaborationCoordinator.ts';
 import { AsymmetricDesktopCompanion } from '../src/vr/ui/AsymmetricDesktopCompanion.ts';
 
 describe('Sprint 22.5 Collaboration Embodied Presence', () => {
-  beforeEach(() => {
-    BinaryPoseSerializer.resetCounters();
-  });
-
   describe('PeerAvatarManager', () => {
     it('creates and manages avatar meshes within three.js scene', () => {
       const scene = new THREE.Scene();
@@ -103,8 +100,10 @@ describe('Sprint 22.5 Collaboration Embodied Presence', () => {
       expect(messageCall).toBeDefined();
       const messageHandler = messageCall![1] as (e: { data: unknown }) => void;
 
+      // The payload numeric ID must match the channel-bound peer's deterministic
+      // digest; mismatched numeric identity fails closed (RF-057).
       const buffer = BinaryPoseSerializer.serialize({
-        peerId: 12345,
+        peerId: sha256Uint31('remote-peer-2'),
         sequence: 1,
         position: [0.5, 1.2, -0.8],
         rotation: [0, 1, 0, 0],
