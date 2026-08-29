@@ -33,7 +33,7 @@ interface InventoryEntry {
   actualCurrentSemantics: string;
 }
 
-const INVENTORY = {
+const INVENTORY: Record<SemanticRepresentationId, InventoryEntry> = {
   POINT_SET: {
     classification: 'OBSERVATION_LEVEL',
     productionReachable: true,
@@ -145,7 +145,7 @@ const INVENTORY = {
     actualCurrentSemantics:
       'row-derived spectral bars; no multiscale/wavelet payload reaches the renderer',
   },
-} satisfies Record<SemanticRepresentationId, InventoryEntry>;
+};
 
 const RAW_ROW_SENTINEL = 'A2_RAW_ROWS_ACCESSED';
 
