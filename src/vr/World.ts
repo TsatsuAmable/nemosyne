@@ -411,7 +411,7 @@ export class World {
       getArtifact: () => this.dracoNode?.artifact ?? null,
       getHandWheelMenu: () => this.uiManager.handWheelMenu,
       callbacks: {
-        onApplyOperation: (op) => this.dataOperationController.apply(op),
+        onApplyOperation: (op) => this._dispatchAnalysis(op),
         onCycleDataset: (delta) => this._cycleDataset(delta),
         onResetData: () => this.resetDataOperation(),
         onUndo: () => this.undoAnalysis(),
@@ -518,7 +518,7 @@ export class World {
     this.inPlaceHandles = new InPlaceOperationHandles(this.engine.scene, this.engine.camera, {
       userMode:
         (this.uiManager.settingsPanel?.getSetting?.('userMode') as 'novice' | 'expert') ?? 'novice',
-      onOperation: (op) => this.dataOperationController.apply(op),
+      onOperation: (op) => this._dispatchAnalysis(op),
       onOperationHover: (op) => this.dataOperationController.preview(op),
       onOperationLeave: () => this.dataOperationController.clearPreview(),
       onStructureCommand: (structureId, action) =>

@@ -233,6 +233,23 @@ describe('Stream B-U1 interaction grammar', () => {
       world.applyDataOperation('anomaly');
       expect(dispatched).toEqual([{ type: 'analysis.apply', operation: 'anomaly' }]);
     });
+
+    it('funnels in-place handle operations and input-coordinator gestures through the dispatcher', () => {
+      world = new World(); wireKernel(world);
+      const dispatched: Array<{ type: string; [k: string]: unknown }> = [];
+      world.dispatchIntent = (intent) => {
+        dispatched.push(intent);
+      };
+      // In-place handle onOperation is wired via World._dispatchAnalysis.
+      world.inPlaceHandles.onOperation('filter');
+      // Input coordinator gesture onApplyOperation is wired via World._dispatchAnalysis
+      // when no bootstrap override has replaced it.
+      world.inputCoordinator.callbacks.onApplyOperation?.('sort');
+      expect(dispatched).toEqual([
+        { type: 'analysis.apply', operation: 'filter' },
+        { type: 'analysis.apply', operation: 'sort' },
+      ]);
+    });
   });
 
   describe('settings panel reachable from every production input path', () => {
