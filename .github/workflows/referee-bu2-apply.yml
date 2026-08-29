@@ -33,7 +33,9 @@ jobs:
         run: npm ci
 
       - name: Apply referee patch
-        run: python scripts/referee-bu2-fix.py
+        run: |
+          python scripts/referee-bu2-fix.py
+          python scripts/referee-bu2-corrections.py
 
       - name: Typecheck
         run: npm run typecheck
@@ -46,7 +48,7 @@ jobs:
           tests/uv0-baseline-inventory.test.ts
 
       - name: Remove transient patch machinery
-        run: rm scripts/referee-bu2-fix.py .github/workflows/referee-bu2-apply.yml
+        run: rm scripts/referee-bu2-fix.py scripts/referee-bu2-corrections.py .github/workflows/referee-bu2-apply.yml
 
       - name: Commit verified fix
         run: |
