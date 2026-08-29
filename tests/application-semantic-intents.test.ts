@@ -40,6 +40,21 @@ describe('RF-062B application intent boundary', () => {
     expect(handlers.toggleStatisticalLens).toHaveBeenCalledOnce();
   });
 
+  it('fails closed when an untyped runtime caller supplies an unknown intent', () => {
+    const dispatch = createApplicationIntentDispatcher({
+      cycleDataset: vi.fn(),
+      applyAnalysis: vi.fn(),
+      resetAnalysis: vi.fn(),
+      undoHistory: vi.fn(),
+      redoHistory: vi.fn(),
+      toggleStatisticalLens: vi.fn(),
+    });
+
+    expect(() =>
+      dispatch({ type: 'unknown.intent' } as unknown as ApplicationIntent),
+    ).toThrow(/Unsupported application intent/);
+  });
+
   it('maps the production input callback vocabulary onto the same semantic intents', () => {
     const callbacks: {
       onApplyOperation?: (operation: string) => void;
@@ -80,6 +95,24 @@ describe('RF-062B application intent boundary', () => {
     expect(unsupported).toHaveBeenCalledWith('not-an-operation');
     expect(parseApplicationAnalysisOperation('anomaly')).toBe('anomaly');
     expect(parseApplicationAnalysisOperation('bogus')).toBeNull();
+  });
+
+  it('surfaces synchronous input dispatch failures through the binding hook', () => {
+    const callbacks: { onUndo?: () => void } = {};
+    const failure = new Error('handler failed');
+    const onDispatchError = vi.fn();
+
+    bindInputCallbacksToApplicationIntents(
+      callbacks,
+      () => {
+        throw failure;
+      },
+      { onDispatchError },
+    );
+
+    callbacks.onUndo?.();
+    expect(onDispatchError).toHaveBeenCalledOnce();
+    expect(onDispatchError).toHaveBeenCalledWith(failure);
   });
 
   it('routes representative desktop UI actions through semantic intents', async () => {
