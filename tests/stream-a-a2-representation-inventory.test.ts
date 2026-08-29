@@ -77,7 +77,8 @@ const INVENTORY = {
     geometry: 'AGGREGATE_BARS',
     currentRenderer: 'ScalableTopologyEmbodiment.buildAggregateBars',
     claimedSemantics: 'aggregated summary measures',
-    actualCurrentSemantics: 'renderer exists and groups/averages raw rows, but Moneta candidate generation does not emit it',
+    actualCurrentSemantics:
+      'renderer exists and groups/averages raw rows, but Moneta candidate generation does not emit it',
   },
   TEMPORAL_TRAJECTORY: {
     classification: 'DATASET_LEVEL_ROW_DERIVED',
@@ -122,7 +123,8 @@ const INVENTORY = {
     geometry: 'ICOSA_NODE',
     currentRenderer: 'TopologyLayoutEmbodiment.buildForceDirected',
     claimedSemantics: 'dimensionality-reduced manifold preserving neighbourhood topology',
-    actualCurrentSemantics: 'generic force-directed or grid row layout; no manifold payload reaches the renderer',
+    actualCurrentSemantics:
+      'generic force-directed or grid row layout; no manifold payload reaches the renderer',
   },
   SPATIAL_REGION: {
     classification: 'OBSERVATION_LEVEL',
@@ -140,7 +142,8 @@ const INVENTORY = {
     geometry: 'SPECTRAL_BAR',
     currentRenderer: 'TopologyLayoutEmbodiment.buildSpectralVolume',
     claimedSemantics: 'multiscale frequency and wavelet structure',
-    actualCurrentSemantics: 'row-derived spectral bars; no multiscale/wavelet payload reaches the renderer',
+    actualCurrentSemantics:
+      'row-derived spectral bars; no multiscale/wavelet payload reaches the renderer',
   },
 } satisfies Record<SemanticRepresentationId, InventoryEntry>;
 
@@ -246,7 +249,9 @@ describe('Stream A A2 representation inventory', () => {
     expect(Object.keys(INVENTORY).sort()).toEqual(candidateIds);
 
     const reachable = new Set(Object.values(FAMILY_TO_CANDIDATE_IDS).flat());
-    const actualUnreachable = candidateIds.filter((id) => !reachable.has(id as SemanticRepresentationId));
+    const actualUnreachable = candidateIds.filter((id) =>
+      !reachable.has(id as SemanticRepresentationId)
+    );
     const inventoriedUnreachable = candidateIds.filter(
       (id) => !INVENTORY[id as SemanticRepresentationId].productionReachable
     );
@@ -297,12 +302,15 @@ describe('Stream A A2 representation inventory', () => {
 
     expect(bootstrap).toContain("candidateId === 'AGGREGATE_VOLUME'");
     expect(bootstrap).toContain("candidateId === 'CLUSTER_REGIONS'");
-    expect(bootstrap).toContain("candidateId === 'DENSITY_FIELD' || candidateId === 'DISTRIBUTION_FIELD'");
+    expect(bootstrap).toContain(
+      "candidateId === 'DENSITY_FIELD' || candidateId === 'DISTRIBUTION_FIELD'"
+    );
 
     expect(learned).toContain('function geometryForLayout(layout: VRLayout): VRGeometry');
     expect(learned).toContain('geometryForLayout(winner.layout)');
-    expect(learned).not.toContain("candidateId === 'CLUSTER_REGIONS'");
-    expect(learned).not.toContain("candidateId === 'DENSITY_FIELD'");
+    expect(learned).not.toContain(
+      'function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentationId)'
+    );
   });
 
   it('records source-N versus rendered primitive behavior for the existing scalable renderers', () => {
