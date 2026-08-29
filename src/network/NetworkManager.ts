@@ -523,22 +523,7 @@ export class NetworkManager extends EventTarget {
               timestamp: payload.timestamp,
             },
           })
-        );
-      } else if (
-        payload.type === 'cameraPose' &&
-        this._validVector(payload.position, 3) &&
-        this._validVector(payload.rotation, 4)
-      ) {
-        this.dispatchEvent(
-          new CustomEvent('remoteCameraPose', {
-            detail: {
-              peerId,
-              position: payload.position,
-              rotation: payload.rotation,
-              timestamp: payload.timestamp,
-            },
-          })
-        );
+);
       }
     });
 
@@ -590,10 +575,6 @@ export class NetworkManager extends EventTarget {
     if (hadPeer) {
       this.dispatchEvent(new CustomEvent('peerLeft', { detail: { peerId } }));
     }
-  }
-
-  private _validVector(value: unknown, length: number): value is number[] {
-    return Array.isArray(value) && value.length === length && value.every((n) => typeof n === 'number' && Number.isFinite(n));
   }
 
   private _validRemoteObject(value: unknown): value is Record<string, unknown> {

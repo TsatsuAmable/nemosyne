@@ -95,6 +95,81 @@ describe('SignallingChannel', () => {
     const sent = JSON.parse(mockWs.lastSent!);
     expect(sent.to).toBe('*');
   });
+
+  it('reconnects with fresh ticket via onNeedReconnectTicket (D3)', async () => {
+    let ticketCallCount = 0;
+    let lastSentAuthToken: string | undefined;
+
+    channel = new SignallingChannel('ws://test', 'room1', 'peerA', 'initial-ticket');
+    channel.onNeedReconnectTicket = async () => {
+      ticketCallCount++;
+      return `fresh-ticket-${ticketCallCount}`;
+    };
+
+    // Initial connect
+    const connectPromise = channel.connect();
+    let mockWs = channel._ws as unknown as MockWebSocket;
+    mockWs._open();
+    await connectPromise;
+
+    // Capture the initial auth token sent
+    expect(mockWs.lastSent).toBeTruthy();
+    let sent = JSON.parse(mockWs.lastSent!);
+    expect(sent.data.token).toBe('initial-ticket');
+
+    // Simulate socket close (transient drop)
+    mockWs.close();
+    await new Promise((r) => setTimeout(r, 10)); // let close handler run
+
+    // Reconnect attempt - should call onNeedReconnectTicket
+    const reconnectPromise = channel.connect();
+    mockWs = channel._ws as unknown as MockWebSocket;
+    mockWs._open();
+    await reconnectPromise;
+
+    // Verify fresh ticket was requested and sent
+    expect(ticketCallCount).toBe(1);
+    expect(mockWs.lastSent).toBeTruthy();
+    sent = JSON.parse(mockWs.lastSent!);
+    expect(sent.data.token).toBe('fresh-ticket-1');
+    expect(sent.data.token).not.toBe('initial-ticket');
+
+    // Second reconnect - should get another fresh ticket
+    mockWs.close();
+    await new Promise((r) => setTimeout(r, 10));
+    const reconnectPromise2 = channel.connect();
+    mockWs = channel._ws as unknown as MockWebSocket;
+    mockWs._open();
+    await reconnectPromise2;
+
+    expect(ticketCallCount).toBe(2);
+    sent = JSON.parse(mockWs.lastSent!);
+    expect(sent.data.token).toBe('fresh-ticket-2');
+
+    // Verify reconnect-failed event when callback returns undefined
+    const channel2 = new SignallingChannel('ws://test', 'room1', 'peerB', 'ticket');
+    channel2.onNeedReconnectTicket = async () => undefined;
+    const failedPromise = channel2.connect();
+    mockWs = channel2._ws as unknown as MockWebSocket;
+    mockWs._open();
+    await failedPromise;
+
+    const reconnectFailed: string[] = [];
+    channel2.addEventListener('reconnect-failed', (e: Event) => {
+      const custom = e as CustomEvent;
+      reconnectFailed.push(custom.detail.reason);
+    });
+
+    mockWs.close();
+    await new Promise((r) => setTimeout(r, 10));
+    const reconnectPromise3 = channel2.connect();
+    mockWs = channel2._ws as unknown as MockWebSocket;
+    mockWs._open();
+    await reconnectPromise3.catch(() => {}); // Expected to reject
+
+    expect(reconnectFailed).toContain('no-fresh-ticket');
+    channel2.disconnect();
+  });
 });
 
 describe('Room', () => {
@@ -345,13 +420,16 @@ describe('NetworkManager', () => {
     expect(onSel).toHaveBeenCalled();
     expect(onSel.mock.calls[0][0].detail.selectedIds).toEqual(['item-42']);
 
+    // JSON cameraPose branch removed (F8): no production emitter sends JSON cameraPose.
+    // The branch was sequence-ungated and had no magnitude cap. Hostile JSON pose
+    // frames must be dropped. Verify the removal by asserting the pose handler
+    // is NOT called for a JSON cameraPose frame.
     channel.dispatchEvent(
       new MessageEvent('message', {
         data: JSON.stringify({ type: 'cameraPose', peerId: 'peerB', position: [1, 2, 3], rotation: [0, 0, 0, 1] }),
       })
     );
-    expect(onPose).toHaveBeenCalled();
-    expect(onPose.mock.calls[0][0].detail.position).toEqual([1, 2, 3]);
+    expect(onPose).not.toHaveBeenCalled();
   });
 
   it('does not let an observer elevate through a state role claim', async () => {
