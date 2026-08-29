@@ -144,9 +144,11 @@ describe('RF-030: durable kernel-inline refusal provenance', () => {
     atlas.setExecutionPort(port);
 
     const promise = atlas.computeMapperGraphAsync({ featureColumns: ['x', 'y'] });
-    // Two microtask ticks for the register-then-execute await chain (see B7).
-    await Promise.resolve();
-    await Promise.resolve();
+    // Observe the semantic boundary (EXECUTE dispatched) rather than coupling
+    // this test to the number of microtasks used by the registration/evidence path.
+    await vi.waitFor(() => {
+      expect(transport.lastExecuteRequest()).toBeDefined();
+    });
 
     const result = transport.lastExecuteRequest();
     expect(result).toBeDefined();
