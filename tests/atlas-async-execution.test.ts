@@ -373,19 +373,16 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     atlas.loadDataset(ds);
 
     const promise = atlas.computePersistenceIntervalsAsync({});
-    // The registering caller posts EXECUTE only after the async worker
-    // registration resolves. The mock transport acknowledges REGISTERED
-    // synchronously inside postMessage, but the two-layer await chain
-    // (`await registerDataset` inside `_registerCurrentDatasetInWorker`,
-    // then the outer `await` in the async op) needs two microtask ticks
-    // before EXECUTE is posted.
-    await Promise.resolve();
-    await Promise.resolve();
+    // Observe the transport contract rather than an implementation-specific
+    // number of microtask turns in the registration/evidence path.
+    await vi.waitFor(() => {
+      const last = transport.postedMessages.at(-1) as { type?: string } | undefined;
+      expect(last?.type).toBe('EXECUTE');
+    });
     const lastMsg = transport.postedMessages[transport.postedMessages.length - 1] as {
       type: string;
       request: AnalyticalExecutionRequest;
     };
-    expect(lastMsg.type).toBe('EXECUTE');
     expect(lastMsg.request.generation).toBe(42);
     expect(lastMsg.request.handle).toBeUndefined();
     expect(lastMsg.request.datasetPayload).toBeUndefined();
@@ -499,12 +496,12 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     const p = atlas.computePersistenceIntervalsAsync({ featureColumns: ['x'] });
     const m = atlas.computeMapperGraphAsync({ featureColumns: ['x'] });
     const b = atlas.computeBetti0CurveAsync({ featureColumns: ['x'], steps: 2 });
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(registerMessages(transport)).toHaveLength(1);
+      expect(executeMessages(transport)).toHaveLength(3);
+    });
 
-    expect(registerMessages(transport)).toHaveLength(1);
     const requests = executeMessages(transport);
-    expect(requests).toHaveLength(3);
     expect(requests.every((request) => request.handle === undefined)).toBe(true);
     expect(requests.every((request) => request.datasetPayload === undefined)).toBe(true);
 
@@ -540,12 +537,12 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     const fingerprint = atlas.datasetFingerprint ?? '';
 
     const promise = atlas.computePersistenceIntervalsAsync({ featureColumns: ['x'] });
-    // Two microtask ticks — see B7 for the registration await-chain rationale.
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(registerMessages(transport)).toHaveLength(1);
+      expect(executeMessages(transport)).toHaveLength(1);
+    });
 
     const registrations = registerMessages(transport);
-    expect(registrations).toHaveLength(1);
     expect(registrations[0].dataset.fingerprint).toBe(fingerprint);
     expect(registrations[0].payload.type).toBe('typed');
     expect(Array.from(registrations[0].payload.data as Uint8Array)).toEqual(Array.from(typedPayload));

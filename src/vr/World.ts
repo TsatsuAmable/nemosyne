@@ -67,6 +67,7 @@ import { WorldEventBus, WorldTopics } from '../utils/EventBus.ts';
 import { SceneGraphController } from './coordinators/SceneGraphController.ts';
 import { WorkspaceManager } from './coordinators/WorkspaceManager.ts';
 import { WorldRendererLifecycle } from './coordinators/WorldRendererLifecycle.ts';
+import { DerivedAnalysisPipeline } from './coordinators/DerivedAnalysisPipeline.ts';
 import { WorldLifecycleOwner, type WorldBootState } from './coordinators/WorldLifecycleOwner.ts';
 import {
   LoadTestDriver,
@@ -205,6 +206,7 @@ export class World {
   sceneGraphController: SceneGraphController;
   workspaceManager: WorkspaceManager;
   rendererLifecycle: WorldRendererLifecycle;
+  derivedAnalysisPipeline: DerivedAnalysisPipeline;
   lifecycle: WorldLifecycleOwner;
   _desktopPreviewSavedPose!: { position: THREE.Vector3; yaw: number; pitch: number } | null;
   _orbitControls!: OrbitControls | null;
@@ -212,7 +214,7 @@ export class World {
   diagnostic!: DracoDiagnosticHUD | null;
   currentEntry!: DatasetLoadEntry | null;
   tdaGroup!: THREE.Group | null;
-  tdaRecompute!: (() => void) | null;
+  tdaRecompute!: (() => Promise<import('./artifacts/TDAPlanes.ts').TDAComputationResult | null>) | null;
   dashboardPanels!: { panel: ChartPlanePanel }[];
   _lastLoadTestSummary: LoadTestSummary | null = null;
   _lastQuestBoundarySummary: QuestBoundarySummary | null = null;
@@ -480,6 +482,24 @@ export class World {
     this.engine.addUpdatable({
       update: (delta: number, time: number) =>
         this.inPlaceHandles.update(delta, time, this.engine.input.raycaster.ray),
+    });
+
+    this.derivedAnalysisPipeline = new DerivedAnalysisPipeline({
+      atlas: this.atlas,
+      rendererLifecycle: this.rendererLifecycle,
+      markRecommendationDirty: () => this.uiManager.recommendationPanel?.markDirty?.(),
+      publishStructureHandles: () => {
+        if (this.dracoNode && this.atlas.structures.length > 0) {
+          this.inPlaceHandles.buildFromStructures(this.dracoNode, this.atlas.structures as never);
+          this.inPlaceHandles.registerInteractables(this.engine.input as never);
+        }
+      },
+      onError: (error, request) => {
+        console.warn(
+          `[RF-061] derived analysis failed for v${request.datasetVersion} ${request.operation}:`,
+          error
+        );
+      },
     });
 
     // Live preview of data operations before they are committed.
@@ -1575,42 +1595,6 @@ export class World {
     this._captureSession();
   }
 
-  private _discoverStructuresAndRecommend(operation: string): void {
-    if (!this.atlas.isReady()) return;
-    const dataset = this._transformedDataset ?? this.atlas.dataset;
-    if (!dataset || dataset.rowCount === 0) return;
-
-    if (operation === 'cluster' || operation === 'hierarchical' || operation === 'density') {
-      const opMap: Record<string, string> = {
-        cluster: 'k_means',
-        hierarchical: 'hierarchical',
-        density: 'dbscan',
-      };
-      const opName = opMap[operation] ?? 'k_means';
-      this.atlas.discoverClusterStructures(dataset, { op: opName, k: 3 } as never);
-    } else if (this.tdaRecompute) {
-      const filterValues = dataset.rows.map((r) => Number(r[dataset.columns[0]?.name] ?? 0));
-      this.atlas.discoverMapperStructures(dataset, {
-        featureColumns: [dataset.columns[0]?.name].filter(Boolean),
-        filterValues,
-        bins: 10,
-        overlap: 0.5,
-      });
-      this.atlas.discoverPersistenceStructures(dataset, {
-        featureColumns: [dataset.columns[0]?.name].filter(Boolean),
-        filterValues,
-        maxDistance: 2,
-      });
-    }
-
-    this.atlas.generateRecommendation();
-    this.uiManager.recommendationPanel?.markDirty?.();
-    if (this.dracoNode && this.atlas.structures.length > 0) {
-      this.inPlaceHandles.buildFromStructures(this.dracoNode, this.atlas.structures as never);
-      this.inPlaceHandles.registerInteractables(this.engine.input as never);
-    }
-  }
-
   _togglePeerPresenceHUD(): void {
     const next = !this.uiManager.peerPresenceHUD.mesh.visible;
     this.uiManager.peerPresenceHUD.setEnabled(next);
@@ -1941,9 +1925,6 @@ export class World {
     this._reapplyOperationTransform(operation, transformedDataset);
 
     this._updateDashboardDatasets(transformedDataset);
-    if (this.tdaRecompute && operation !== 'anomaly') {
-      this.tdaRecompute();
-    }
   }
 
   /**
@@ -2071,8 +2052,7 @@ export class World {
         this._restoreDataset(this._transformedDataset, operation);
       }
       this._updateDashboardDatasets(this._transformedDataset);
-      if (this.tdaRecompute && operation !== 'anomaly') this.tdaRecompute();
-      this._discoverStructuresAndRecommend(operation);
+      this.derivedAnalysisPipeline.schedule(operation);
       this._updateOperationLog();
       this._updateNarrativeStrip();
       this.uiManager.vrConsole?.log?.('log', [`Operation: ${operation} → ${rowCount} rows`]);
@@ -2102,6 +2082,7 @@ export class World {
     this.eventBus.on(WorldTopics.HISTORY_SEEK, (payload: unknown) => {
       const { operation, dataset } = payload as { operation: string; dataset: Dataset };
       this._restoreDataset(dataset, operation);
+      if (this.tdaRecompute && operation !== 'anomaly') void this.tdaRecompute();
       this._updateNarrativeStrip();
     });
 
@@ -2420,6 +2401,7 @@ export class World {
     await run(() => this.liveStreamCoordinator?.disconnectLiveStream?.());
     await run(() => this.collaborationCoordinator?.leaveCollaborationRoom?.());
     await run(() => this.telemetryCollector?.setEnabled?.(false));
+    await run(() => this.derivedAnalysisPipeline?.dispose());
     await run(() => this.rendererLifecycle?.dispose());
     await run(() => this.livePreview?.clear());
     await run(() => this.inPlaceHandles?.clear());
