@@ -150,7 +150,7 @@ export async function bootstrapApp(): Promise<AppInstance> {
   // It exposes a bounded read/summon surface for state assertions; absent the
   // parameter the production bundle behaves byte-identically.
   const uv0 = new URL(window.location.href).searchParams.get('nemosyne-uv0');
-  if (uv0 !== null) {
+  if (uv0 === '1') {
     window[UV0_TEST_HANDLE_KEY] = installUv0TestHandle(world);
   }
 
