@@ -196,7 +196,7 @@ export class DerivedAnalysisPipeline {
           request.datasetVersion,
           algorithmVersion,
           result.tda.mapperParams,
-          null
+          result.tda.mapperProvenance
         ),
         mapPersistenceStructures(
           result.tda.persistence,
@@ -204,7 +204,7 @@ export class DerivedAnalysisPipeline {
           request.datasetVersion,
           algorithmVersion,
           result.tda.persistenceParams,
-          null
+          result.tda.persistenceProvenance
         )
       );
     }

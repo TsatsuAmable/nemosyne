@@ -14,6 +14,7 @@ import type { Dataset } from '../../data/Dataset.ts';
 import type {
   BettiPoint as KernelBettiPoint,
   PersistenceInterval as KernelPersistenceInterval,
+  Provenance,
   TdaMapperGraph,
 } from '../../data/types.ts';
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
@@ -49,6 +50,9 @@ export interface TDAComputationResult {
   persistence: KernelPersistenceInterval[];
   mapper: TdaMapperGraph;
   betti0: KernelBettiPoint[];
+  persistenceProvenance: Provenance | null;
+  mapperProvenance: Provenance | null;
+  bettiProvenance: Provenance | null;
   persistenceParams: Record<string, unknown>;
   mapperParams: Record<string, unknown>;
   bettiParams: Record<string, unknown>;
@@ -399,21 +403,35 @@ export function buildTDASummaryGroup(
     let pIntervals: KernelPersistenceInterval[] | null;
     let g: TdaMapperGraph | null;
     let bettiPoints: KernelBettiPoint[] | null;
+    let persistenceProvenance: Provenance | null = null;
+    let mapperProvenance: Provenance | null = null;
+    let bettiProvenance: Provenance | null = null;
 
     if (atlas.executionPort?.isAsync) {
       // Complete the first request (and therefore its resident-registration
-      // fence) before launching the remaining pair. Subsequent calls can attest
-      // residency instead of racing three identical REGISTER messages.
-      pIntervals = await atlas.computePersistenceIntervalsAsync(persistenceParams);
-      if (!isCurrent(datasetVersion, datasetFingerprint)) return null;
-      [g, bettiPoints] = await Promise.all([
-        atlas.computeMapperGraphAsync(mapperParams),
-        atlas.computeBetti0CurveAsync(bettiParams),
+      // fence) before launching the remaining pair. Each response carries its
+      // own provenance so concurrent Mapper/Betti execution cannot race through
+      // a mutable "last provenance" slot.
+      const persistenceEvidence = await atlas.computePersistenceEvidenceAsync(persistenceParams);
+      if (!persistenceEvidence || !isCurrent(datasetVersion, datasetFingerprint)) return null;
+      const [mapperEvidence, bettiEvidence] = await Promise.all([
+        atlas.computeMapperEvidenceAsync(mapperParams),
+        atlas.computeBetti0EvidenceAsync(bettiParams),
       ]);
+      if (!mapperEvidence || !bettiEvidence) return null;
+      pIntervals = persistenceEvidence.value;
+      g = mapperEvidence.value;
+      bettiPoints = bettiEvidence.value;
+      persistenceProvenance = persistenceEvidence.provenance;
+      mapperProvenance = mapperEvidence.provenance;
+      bettiProvenance = bettiEvidence.provenance;
     } else {
       pIntervals = atlas.computePersistenceIntervalsForCurrent(persistenceParams);
+      persistenceProvenance = atlas.lastProvenance();
       g = atlas.computeMapperGraphForCurrent(mapperParams);
+      mapperProvenance = atlas.lastProvenance();
       bettiPoints = atlas.computeBetti0CurveForCurrent(bettiParams);
+      bettiProvenance = atlas.lastProvenance();
     }
 
     if (
@@ -431,6 +449,9 @@ export function buildTDASummaryGroup(
       persistence: pIntervals,
       mapper: g,
       betti0: bettiPoints,
+      persistenceProvenance,
+      mapperProvenance,
+      bettiProvenance,
       persistenceParams,
       mapperParams,
       bettiParams,
