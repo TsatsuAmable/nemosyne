@@ -16,6 +16,10 @@ import {
   type AnalystJourneyControlsHandle,
 } from './AnalystJourneyControls.ts';
 import {
+  installUv0TestHandle,
+  UV0_TEST_HANDLE_KEY,
+} from './uv0TestHandle.ts';
+import {
   createApplicationIntentDispatcher,
   type ApplicationIntentDispatcher,
 } from './intents/ApplicationIntent.ts';
@@ -139,6 +143,15 @@ export async function bootstrapApp(): Promise<AppInstance> {
     } else {
       telemetry.textContent = 'ready — point and select to inspect';
     }
+  }
+
+  // P1-UV0 test-only handle: installed only when the page is loaded with the
+  // `?nemosyne-uv0=1` query parameter (the production smoke baseline spec).
+  // It exposes a bounded read/summon surface for state assertions; absent the
+  // parameter the production bundle behaves byte-identically.
+  const uv0 = new URL(window.location.href).searchParams.get('nemosyne-uv0');
+  if (uv0 === '1') {
+    window[UV0_TEST_HANDLE_KEY] = installUv0TestHandle(world);
   }
 
   return {
