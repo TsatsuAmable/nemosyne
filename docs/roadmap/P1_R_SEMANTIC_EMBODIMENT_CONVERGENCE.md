@@ -1,6 +1,6 @@
 # P1-R Semantic Embodiment Convergence
 
-**Status:** PLANNED / REQUIRED FOR RF-001 + RF-002 CLOSURE  
+**Status:** ACTIVE — AGGREGATE SLICE VERIFIED / STREAM M DISTRIBUTION SLICE SELECTED
 **Programme:** P1-R Representation embodiment convergence  
 **Placement:** after truthful evidence / resource-envelope foundations and before P1-UV can claim the data world itself has visually converged  
 **Owns:** RF-001, RF-002; coordinates with RF-029, RF-036, RF-045, RF-050, P1-D, P1-F, P1-UV and P1-U9  
@@ -142,12 +142,14 @@ Each concrete payload must define:
 
 **Purpose:** prove the defect mechanically before changing architecture and establish a finite migration inventory.
 
-- [ ] inventory every `SemanticRepresentationId` and every `VRLayout`/`VRGeometry` currently reachable from production Moneta decisions;
-- [ ] trace each candidate through `MonetaHypothesisEngine` / decision embodiment → runtime translation → `VRTopologyTranslator` → `ScalableTopologyEmbodiment` / `TopologyLayoutEmbodiment` → rendered artifact;
-- [ ] classify each current representation as `OBSERVATION_LEVEL`, `DATASET_LEVEL_VALID`, `DATASET_LEVEL_ROW_DERIVED`, `SEMANTICALLY_OVERCLAIMED`, or `NOT_PRODUCTION_REACHABLE`;
-- [ ] add an architecture/source falsifier proving that non-observation production embodiment currently depends on `dataset.rows` or row-derived positions;
-- [ ] record current source-N → transferred-elements → rendered-primitives behavior for representative point, aggregate, density, cluster, temporal and graph cases;
-- [ ] establish small canonical fixtures whose expected analytical representation can be independently calculated.
+- [x] inventory every `SemanticRepresentationId` and every `VRLayout`/`VRGeometry` currently reachable from production Moneta decisions;
+- [x] trace each candidate through `MonetaHypothesisEngine` / decision embodiment → runtime translation → `VRTopologyTranslator` → `ScalableTopologyEmbodiment` / `TopologyLayoutEmbodiment` → rendered artifact;
+- [x] classify each current representation as `OBSERVATION_LEVEL`, `DATASET_LEVEL_VALID`, `DATASET_LEVEL_ROW_DERIVED`, `SEMANTICALLY_OVERCLAIMED`, or `NOT_PRODUCTION_REACHABLE`;
+- [x] add an architecture/source falsifier proving that non-observation production embodiment currently depends on `dataset.rows` or row-derived positions;
+- [x] record current source-N → transferred-elements → rendered-primitives behavior for representative point, aggregate, density, cluster, temporal and graph cases;
+- [x] establish small canonical fixtures whose expected analytical representation can be independently calculated.
+
+Completed by A2/#529. The inventory remains a live migration gate: aggregate is now `DATASET_LEVEL_VALID`; distribution remains `SEMANTICALLY_OVERCLAIMED` until Stream M completes.
 
 **Exit gate:** every production candidate has a known real call path, mathematical status and row/materialisation profile. The test suite would fail if a supposedly migrated non-observation representation silently reintroduced raw-row construction.
 
@@ -155,14 +157,16 @@ Each concrete payload must define:
 
 **Purpose:** establish the boundary before moving algorithms.
 
-- [ ] define the versioned discriminated Rust-owned payload envelope and representation-specific payload types;
-- [ ] separate common provenance/identity metadata from representation-specific analytical content;
-- [ ] define hard size/resource bounds for each payload family and how refusal/approximation is represented;
-- [ ] define stable semantic region/group/structure IDs sufficient for selection, evidence linkage and later observation drill-down;
-- [ ] ensure payload identity binds canonical dataset fingerprint + candidate + method/parameters + relevant evidence/model versions;
-- [ ] define representation information-preservation/loss metadata from the reviewed candidate ontology;
-- [ ] define fail-closed handling for unknown future payload versions and unsupported candidate/payload combinations;
-- [ ] add Rust serialization/golden tests and TS/WASM decoding parity tests before migrating builders.
+- [x] define the versioned discriminated Rust-owned payload envelope and first aggregate payload type;
+- [x] separate common provenance/identity metadata from representation-specific analytical content;
+- [x] define hard size/resource bounds and refusal/approximation representation for the landed aggregate family;
+- [x] define stable semantic group IDs sufficient for selection, evidence linkage and later observation drill-down;
+- [x] ensure payload identity binds canonical dataset fingerprint + candidate + method/parameters + relevant evidence/model versions;
+- [x] define aggregate information-preservation/loss metadata from the reviewed candidate ontology;
+- [x] define fail-closed handling for unknown future payload versions and unsupported candidate/payload combinations;
+- [x] add Rust serialization/golden tests and TS/WASM decoding parity tests for the landed contract.
+
+A3/#532 established the common V1 envelope; each new family still owns its discriminated payload, mathematical validator and bounds. Stream M M1 extends rather than broadens this contract.
 
 **Exit gate:** one compact payload can cross Rust/WASM/Worker/TypeScript without rows, preserve semantic/provenance identity and reject unsupported/mismatched versions deterministically.
 
@@ -174,19 +178,23 @@ Implement in vertical slices. Each slice gets its own focused PR and mathematica
 
 #### R2A Aggregate volume
 
-- [ ] move grouping/binning/aggregate computation out of `ScalableTopologyEmbodiment.buildAggregateBars` into Rust;
-- [ ] support explicitly declared aggregate functions only; do not infer a default measure silently;
-- [ ] preserve zero, missingness and measurement semantics;
-- [ ] emit bounded group IDs, positions/placement semantics where analytically defined, aggregate values, counts and provenance;
-- [ ] prove TypeScript receives no source rows for the aggregate representation.
+- [x] move grouping/binning/aggregate computation out of `ScalableTopologyEmbodiment.buildAggregateBars` into Rust;
+- [x] support explicitly declared aggregate functions only; do not infer a default measure silently;
+- [x] preserve zero, missingness and measurement semantics;
+- [x] emit bounded group IDs, presentation placement inputs, aggregate values, counts and provenance;
+- [x] prove TypeScript receives no source rows for the aggregate representation.
+
+Verified for the A4 scope by #533/#538. This does not close other representation families.
 
 #### R2B Distribution representation
 
 - [ ] separate `DISTRIBUTION_FIELD` from density geometry;
-- [ ] decide the truthful P1 mathematical object: e.g. histograms/ECDF/quantile surfaces or another explicit reviewed representation;
+- [x] select the truthful P1 mathematical object: a bounded univariate empirical distribution summary containing deterministic equal-width histogram bins, bounded ECDF knots and explicit quantiles;
 - [ ] implement its statistics in Rust and name it according to the mathematics actually supplied;
 - [ ] record binning/quantile/interpolation parameters and information loss;
 - [ ] do not claim continuous PDF/contours unless an actual governed estimator produces them.
+
+Stream M owns R2B through four finite checkpoints in `docs/ROADMAP.md`. The V1 request requires an explicit numeric measure and records source/valid/missing/non-finite counts plus constant-domain behavior. It excludes weighting, smoothing, KDE/PDF claims, multivariate distributions and inferential uncertainty.
 
 #### R2C Density field
 
