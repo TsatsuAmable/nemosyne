@@ -5,6 +5,7 @@ import { ScalableTopologyEmbodiment } from './embodiment/ScalableTopologyEmbodim
 import { TimeRibbonArtifactUpdater } from './embodiment/TimeRibbonArtifactUpdater.ts';
 import { TopologyInteractionOwner } from './embodiment/TopologyInteractionOwner.ts';
 import { TopologyLayoutEmbodiment } from './embodiment/TopologyLayoutEmbodiment.ts';
+import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
 import type {
   Artifact,
   ChartPlaneFactory,
@@ -15,6 +16,10 @@ import type {
   VRGeometry,
   VRTranslatorOptions,
 } from './types.ts';
+
+type SemanticMonetaDataInput = MonetaDataInput & {
+  semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
+};
 
 export class VRTopologyTranslator {
   private static _colorblindMode: string | boolean = 'none';
@@ -42,10 +47,9 @@ export class VRTopologyTranslator {
   ): Artifact {
     this._colorblindMode = options?.colorblindMode ?? 'none';
     const { spec, facts } = monetaResult;
+    const semanticInput = dataInput as SemanticMonetaDataInput;
     const dataset = dataInput.dataset;
     const encodings = dataInput.encodings ?? {};
-    const rows = dataset?.rows ?? dataInput.rows ?? [];
-    const edges = dataInput.edges ?? dataset?.edges ?? [];
     const group = new THREE.Group();
     const nodeMeshes: THREE.Mesh[] = [];
     const edgeMeshes: THREE.Line[] = [];
@@ -57,55 +61,56 @@ export class VRTopologyTranslator {
       this._pointCloudFactory
     );
 
-    if (spec.geometry === 'INSTANCED_POINT_CLOUD') {
-      scalable.buildInstancedPointCloud(
-        group,
-        nodeMeshes,
-        rows,
-        dataset,
-        encodings,
-        spec,
-        edges,
-        options
-      );
-    } else if (spec.geometry === 'CLUSTER_VOLUME') {
-      scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec, edges);
-    } else if (spec.geometry === 'AGGREGATE_BARS') {
-      scalable.buildAggregateBars(
-        group,
-        nodeMeshes,
-        rows,
-        dataset,
-        encodings,
-        spec,
-        edges,
-        options
-      );
-    } else if (spec.geometry === 'DENSITY_FIELD') {
-      scalable.buildDensityField(group, nodeMeshes, rows, dataset, encodings, spec, edges);
+    // A4: aggregate embodiment consumes only the bounded Rust-owned semantic
+    // payload. Resolve raw rows/edges lazily for the still-row-backed families
+    // so an AGGREGATE_VOLUME path cannot accidentally traverse source rows.
+    let rows: Record<string, unknown>[] = [];
+    let edges = dataInput.edges ?? [];
+    if (spec.geometry === 'AGGREGATE_BARS') {
+      scalable.buildAggregateBars(group, nodeMeshes, semanticInput.semanticEmbodiment);
+      edges = [];
     } else {
-      switch (spec.layout) {
-        case 'GRID_3D':
-          layouts.buildGrid(group, nodeMeshes, rows, dataset, encodings);
-          break;
-        case 'FORCE_DIRECTED_3D':
-          layouts.buildForceDirected(group, nodeMeshes, rows, dataset, encodings, edges);
-          break;
-        case 'RADIAL_ORBITAL':
-          layouts.buildRadial(group, nodeMeshes, rows, dataset, encodings);
-          break;
-        case 'VECTOR_STREAMLINE':
-          layouts.buildStreamlines(group, nodeMeshes, rows, dataset);
-          break;
-        case 'TIME_RIBBON':
-          layouts.buildTimeRibbon(group, nodeMeshes, rows, dataset, encodings);
-          break;
-        case 'GEO_SURFACE':
-          layouts.buildGeoSurface(group, nodeMeshes, rows, dataset, encodings);
-          break;
-        case 'SPECTRAL_VOLUME':
-          layouts.buildSpectralVolume(group, nodeMeshes, rows, dataset, encodings);
-          break;
+      rows = dataset?.rows ?? dataInput.rows ?? [];
+      edges = dataInput.edges ?? dataset?.edges ?? [];
+      if (spec.geometry === 'INSTANCED_POINT_CLOUD') {
+        scalable.buildInstancedPointCloud(
+          group,
+          nodeMeshes,
+          rows,
+          dataset,
+          encodings,
+          spec,
+          edges,
+          options
+        );
+      } else if (spec.geometry === 'CLUSTER_VOLUME') {
+        scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec, edges);
+      } else if (spec.geometry === 'DENSITY_FIELD') {
+        scalable.buildDensityField(group, nodeMeshes, rows, dataset, encodings, spec, edges);
+      } else {
+        switch (spec.layout) {
+          case 'GRID_3D':
+            layouts.buildGrid(group, nodeMeshes, rows, dataset, encodings);
+            break;
+          case 'FORCE_DIRECTED_3D':
+            layouts.buildForceDirected(group, nodeMeshes, rows, dataset, encodings, edges);
+            break;
+          case 'RADIAL_ORBITAL':
+            layouts.buildRadial(group, nodeMeshes, rows, dataset, encodings);
+            break;
+          case 'VECTOR_STREAMLINE':
+            layouts.buildStreamlines(group, nodeMeshes, rows, dataset);
+            break;
+          case 'TIME_RIBBON':
+            layouts.buildTimeRibbon(group, nodeMeshes, rows, dataset, encodings);
+            break;
+          case 'GEO_SURFACE':
+            layouts.buildGeoSurface(group, nodeMeshes, rows, dataset, encodings);
+            break;
+          case 'SPECTRAL_VOLUME':
+            layouts.buildSpectralVolume(group, nodeMeshes, rows, dataset, encodings);
+            break;
+        }
       }
     }
 
@@ -158,7 +163,12 @@ export class VRTopologyTranslator {
     };
 
     const chartPlaneFactory = options?.chartPlaneFactory || this._chartPlaneFactory;
-    if ((facts.numericColumns > 1 || facts.hasTimeSeries) && dataset && chartPlaneFactory) {
+    if (
+      spec.geometry !== 'AGGREGATE_BARS' &&
+      (facts.numericColumns > 1 || facts.hasTimeSeries) &&
+      dataset &&
+      chartPlaneFactory
+    ) {
       const chart = chartPlaneFactory(facts, dataset, {
         title: facts.hasTimeSeries ? 'Time Series' : 'Correlation',
         colorblindMode: options?.colorblindMode,
