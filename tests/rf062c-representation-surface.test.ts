@@ -74,13 +74,13 @@ describe('RF-062C RepresentationSurface', () => {
       { createNode, createDiagnostic },
     );
 
-    surface.replace({ topology: 'TABLE' }, null);
+    surface.replace({ topology: 'TABULAR' }, null);
     const firstMesh = first.artifact!.nodeMeshes[0];
     interactables.get(firstMesh)?.onSelect?.(firstMesh);
     expect(surface.selectedMesh).toBe(firstMesh);
     expect(onSelectNode).toHaveBeenCalledWith(firstMesh);
 
-    surface.replace({ topology: 'TABLE' }, null);
+    surface.replace({ topology: 'TABULAR' }, null);
 
     expect(removeUpdatable).toHaveBeenCalledWith(first);
     expect(removeInteractable).toHaveBeenCalledWith(firstMesh);
@@ -122,8 +122,8 @@ describe('RF-062C RepresentationSurface', () => {
       { createNode, createDiagnostic: () => fakeDiagnostic() },
     );
 
-    surface.replace({ topology: 'TABLE' }, null);
-    expect(() => surface.replace({ topology: 'TABLE' }, null)).toThrow('translation failed');
+    surface.replace({ topology: 'TABULAR' }, null);
+    expect(() => surface.replace({ topology: 'TABULAR' }, null)).toThrow('translation failed');
     expect(surface.currentNode).toBe(first);
     expect(removeUpdatable).not.toHaveBeenCalledWith(first);
   });
@@ -156,7 +156,7 @@ describe('RF-062C RepresentationSurface', () => {
       { createNode: () => node, createDiagnostic: () => diagnostic },
     );
 
-    surface.replace({ topology: 'TABLE' }, null);
+    surface.replace({ topology: 'TABULAR' }, null);
     surface.dispose();
     surface.dispose();
 
