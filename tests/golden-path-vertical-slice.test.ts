@@ -89,7 +89,7 @@ describe('Canonical Vertical Slice Invariant — End-to-End Investigation Lifecy
       action: 'investigate-anomaly',
       rationale: 'Grid topology selected for aggregated regional performance distribution.',
       evidence: 'Outlier value detected in sales amount column',
-      confidence: 0.95,
+      heuristicScore: 0.95,
       decision: 'pending',
     };
     atlas.setRecommendation(recommendation);

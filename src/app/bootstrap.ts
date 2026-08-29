@@ -158,6 +158,10 @@ export async function bootstrapApp(): Promise<AppInstance> {
     onDispatchError: (error) =>
       console.error('[ApplicationIntent] input dispatch failed:', error),
   });
+  // Expose the canonical dispatcher to the XR wheel and World-side operation
+  // funnels (CTS/VRMenu callbacks) so every mutating command shares one
+  // command authority instead of a shadow analysis path.
+  world.dispatchIntent = dispatchIntent;
 
   applyNormalAnalystShell(world);
 

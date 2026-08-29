@@ -64,6 +64,10 @@ import { WorldSceneComposer } from './coordinators/WorldSceneComposer.ts';
 import { WorldSessionController } from './coordinators/WorldSessionController.ts';
 import { MarkMomentAction } from './interactions/MarkMomentAction.ts';
 import type { Observation } from '../atlas/types.ts';
+import {
+  parseApplicationAnalysisOperation,
+  type ApplicationIntentDispatcher,
+} from '../app/intents/ApplicationIntent.ts';
 import { GuidedTourController } from './coordinators/GuidedTourController.ts';
 import { WorldLandmarkController } from './coordinators/WorldLandmarkController.ts';
 import { AnalysisStoryExporter } from './coordinators/AnalysisStoryExporter.ts';
@@ -224,6 +228,13 @@ export class World {
   _lastLoadTestSummary: LoadTestSummary | null = null;
   _lastQuestBoundarySummary: QuestBoundarySummary | null = null;
   _telemetryConsentBeforeRun: boolean | null = null;
+  /**
+   * Canonical application-intent dispatcher, injected by the bootstrap
+   * composition root after World construction. When set, mutating commands
+   * (analysis ops, reset/undo/redo, dataset cycle, lens toggle) funnel through
+   * this single command authority; null keeps pre-bootstrap behavior.
+   */
+  dispatchIntent: ApplicationIntentDispatcher | null = null;
 
   get bootState(): WorldBootState {
     return this.lifecycle.state;
@@ -324,15 +335,15 @@ export class World {
       onConnectStream: () => this.connectLiveStream(),
       onDisconnectStream: () => this.disconnectLiveStream(),
       onSelectLiveSource: (sourceKey) => this.connectLiveSource(sourceKey),
-      onFilter: () => this.dataOperationController.apply('filter'),
-      onSort: () => this.dataOperationController.apply('sort'),
-      onAggregate: () => this.dataOperationController.apply('aggregate'),
-      onCluster: () => this.dataOperationController.apply('cluster'),
-      onHierarchicalCluster: () => this.dataOperationController.apply('hierarchical'),
-      onDensityCluster: () => this.dataOperationController.apply('density'),
-      onAnomaly: () => this.dataOperationController.apply('anomaly'),
-      onTimeSlice: () => this.dataOperationController.apply('timeSlice'),
-      onCompare: () => this.dataOperationController.apply('compare'),
+      onFilter: () => this._dispatchAnalysis('filter'),
+      onSort: () => this._dispatchAnalysis('sort'),
+      onAggregate: () => this._dispatchAnalysis('aggregate'),
+      onCluster: () => this._dispatchAnalysis('cluster'),
+      onHierarchicalCluster: () => this._dispatchAnalysis('hierarchical'),
+      onDensityCluster: () => this._dispatchAnalysis('density'),
+      onAnomaly: () => this._dispatchAnalysis('anomaly'),
+      onTimeSlice: () => this._dispatchAnalysis('timeSlice'),
+      onCompare: () => this._dispatchAnalysis('compare'),
       onReset: () => this.resetDataOperation(),
       onPanelChange: () => this._requestAutoSave(),
       onSettingChanged: (key, value) => this._onSettingChanged(key, value),
@@ -370,7 +381,14 @@ export class World {
           this.inspector.showAtNode(this._lastSelectedMesh, data, pointer, 'DATA NODE');
         }
       },
-      onRecordFinding: (_data) => {
+      onRecordFinding: (data) => {
+        const row = (data ?? {}) as Record<string, unknown> | null;
+        const identity = row?.id ?? row?.name ?? null;
+        const note =
+          identity != null
+            ? `Recorded finding at node ${String(identity)}`
+            : 'Recorded finding from contextual task surface';
+        this.markMoment(note, identity != null ? [String(identity)] : undefined);
         this.inputCoordinator.callbacks.onRecordAction?.('Record Finding');
         this.uiManager.vrConsole?.log?.('log', ['Finding recorded to ledger']);
         this.uiManager.contextualTaskSurface.hide();
@@ -423,6 +441,26 @@ export class World {
     // atlas evidence ledger into the inspector's Provenance/Evidence tabs.
     // Node-scoped provenance is a P1-U3 residual (structure-id↔row join).
     this.sceneComposer.inspector.provenanceProvider = this._buildProvenanceProvider();
+    // Footer actions for the inspector's Compare/Challenge/Annotate buttons,
+    // routed through the same canonical command authority (dispatcher when the
+    // bootstrap has injected it) and the authoritative evidence ledger.
+    this.sceneComposer.inspector.inspectorActions = {
+      onCompare: () => this._dispatchAnalysis('compare'),
+      onChallenge: () => this._dispatchAnalysis('anomaly'),
+      onAnnotate: () => {
+        const row = this._lastSelectedMesh?.userData?.row as
+          | Record<string, unknown>
+          | undefined;
+        const identity = row?.id ?? row?.name ?? 'selected node';
+        const pos = new THREE.Vector3();
+        this.engine.camera.getWorldPosition(pos);
+        this.atlas.recordAnnotation({
+          text: `Inspector annotation on node ${String(identity)}`,
+          position: [pos.x, pos.y, pos.z],
+          targetId: String(identity),
+        });
+      },
+    };
 
     // User-mode controller applies novice/intermediate/expert policies to the
     // coach, tour, and tooltips.
@@ -841,13 +879,14 @@ export class World {
   /**
    * Mark the current spatial/analytical moment as an authoritative Observation.
    */
-  markMoment(notes?: string): Observation {
+  markMoment(notes?: string, targetIds?: string[]): Observation {
     const obs = MarkMomentAction.execute({
       atlas: this.atlas,
       camera: this.engine.camera,
       scene: this.engine.scene,
       feedback: this.engine.input.feedback,
       notes,
+      targetIds,
       onLogged: (msg) => this.uiManager.vrConsole?.log?.('log', [msg]),
     });
     this.uiManager.statusStrip.recordAction('Mark Moment', 'Finding recorded in evidence ledger');
@@ -982,6 +1021,10 @@ export class World {
     } = {}
   ): void {
     this._lastLoadedEntry = entry;
+    // A dataset/representation change invalidates any selection context the
+    // contextual task surface is pinned to; hide it so stale row data and
+    // poses do not linger after the artefact is rebuilt.
+    this.uiManager.contextualTaskSurface.hide();
     const presetName = entry.key && DATASET_THEME_MAP[entry.key];
     const preset = presetName ? WorldTheme.PRESETS[presetName] : null;
     const activity =
@@ -1632,7 +1675,7 @@ export class World {
 
   _toggleSettingsPanel(): void {
     if (!this.uiManager.settingsPanel) return;
-    this.uiManager.panelManager.togglePanel(this.uiManager.settingsPanel);
+    this.uiManager.toggleSettingsPanel();
     this.adaptiveAssist.recordPanelToggle('settings', this.uiManager.settingsPanel.mesh.visible);
     this._logInteraction('Settings panel', {
       result: this.uiManager.settingsPanel.mesh.visible ? 'opened' : 'closed',
@@ -2259,6 +2302,24 @@ export class World {
    * Delegates to `DataOperationController`; World reacts through the event bus.
    */
   applyDataOperation(operation: string): void {
+    this._dispatchAnalysis(operation);
+  }
+
+  /**
+   * Single-command-authority funnel: when the bootstrap has injected the
+   * canonical `ApplicationIntentDispatcher`, mutating operations dispatch
+   * through it; otherwise they fall back to the legacy controller call so the
+   * world stays functional in isolation (tests, harnesses). Compare releases
+   * the artefact via re-solve, so any pinned selection context is dropped
+   * before the dispatcher runs.
+   */
+  _dispatchAnalysis(operation: string): void {
+    if (operation === 'compare') this.uiManager.contextualTaskSurface.hide();
+    const parsed = this.dispatchIntent ? parseApplicationAnalysisOperation(operation) : null;
+    if (this.dispatchIntent && parsed) {
+      this.dispatchIntent({ type: 'analysis.apply', operation: parsed });
+      return;
+    }
     this.dataOperationController.apply(operation);
   }
 
