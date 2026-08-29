@@ -512,7 +512,9 @@ Landed first-pass work includes the 10-phase journey model, coordinator, task-su
 
 **Normative implementation guide:** [`Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`](Nemosyne_VR_UI_Design_System_and_Agent_Spec.md). The guide defines the target interaction grammar, visual system, spatial reference frames, component contracts, Direct Touch behavior, accessibility/comfort constraints, performance rules and agent acceptance gates. The roadmap below turns that specification into bounded implementation tranches.
 
-**Programme rule:** one tranche or a tightly coupled sub-tranche should be the normal PR unit. Preserve `InputRouter` as input-orchestration authority, Atlas/investigation as semantic/provenance authority, Rust/WASM as analytical authority and Three.js as spatial embodiment. UIKit or any pointer library may provide rendering/event mechanics but must not become a second semantic command authority. P1-U becomes `VERIFIED COMPLETE` only after P1-U0 through P1-U9 are complete, RF-005/RF-006/RF-008/RF-027/RF-050 are closed, RF-049's merged code remains review-valid, and physical Quest evidence agrees.
+**Visible-product convergence plan:** [`roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md`](roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md). P1-UV exists specifically to prevent substrate-complete/experience-unchanged closure: the normal investigator production path must be visibly and behaviorally transformed, with before/after evidence, before U9 may certify the converged treatment.
+
+**Programme rule:** one tranche or a tightly coupled sub-tranche should be the normal PR unit. Preserve `InputRouter` as input-orchestration authority, Atlas/investigation as semantic/provenance authority, Rust/WASM as analytical authority and Three.js as spatial embodiment. UIKit or any pointer library may provide rendering/event mechanics but must not become a second semantic command authority. P1-U becomes `VERIFIED COMPLETE` only after P1-U0 through P1-U8, P1-UV and P1-U9 are complete, RF-005/RF-006/RF-008/RF-027/RF-050 are closed, RF-049's merged code remains review-valid, and physical Quest evidence agrees.
 
 
 #### P1-Q — Engineering Quality & Cadence substrate — PLANNED ENABLER
@@ -784,9 +786,24 @@ Purpose: remove the remaining panel-wall/runtime clutter and make the converged 
 
 **Exit gate:** normal analyst mode respects the three-surface budget, diagnostics are non-intrusive, accessibility modes preserve full task semantics, and sustained target-device use does not require repeated shoulder-height/extended-arm interaction.
 
+#### P1-UV — visible product convergence — PLANNED / REQUIRED BEFORE P1-U9
+
+Purpose: turn the landed interaction and panel substrate into a visibly coherent Nemosyne product rather than allowing P1-U to close while the investigator still sees essentially the legacy dashboard/panel treatment. Detailed implementation and acceptance plan: [`roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md`](roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md).
+
+- [ ] **UV0 — baseline:** capture deterministic production-build before screenshots/IWER states and inventory every normal-mode persistent surface/object by purpose;
+- [ ] **UV1 — hierarchy/shell:** make fresh-start navigation task-first, demote diagnostics and remove redundant legacy navigation from normal analyst mode;
+- [ ] **UV2 — locus of work:** make contextual `Inspect`/`Compare`/`Challenge`/`Record`/`Navigate` actions visibly selection/object-attached and preserve the three-surface budget through real journeys;
+- [ ] **UV3 — epistemic objects:** make TechnoCore, Vault/portals and Memory Palace objects visibly functional, stateful and non-decorative, removing/demoting any object that does not earn persistent world presence;
+- [ ] **UV4 — visual system:** converge typography, spacing, target volumes, chrome, materials, semantic state cues, accessibility modes and shared precision surfaces into one sparse data-first visual language;
+- [ ] **UV5 — state legibility:** make load/analysis/refusal, Moneta decision/NIL, focus/selection, observation/hypothesis/finding, branch/archive and replay/recovery states perceptible without requiring log reading;
+- [ ] **UV6 — desktop/XR parity:** redesign the desktop analyst shell as a deliberate Nemosyne counterpart rather than raw engineering controls while preserving the same governed semantic intents;
+- [ ] **UV7 — visible-product evidence:** require production before/after screenshots, task-level Playwright, IWER where applicable, semantic-intent assertions and independent adversarial UX review for materially visible tranches.
+
+**Exit gate:** the canonical before/after evidence demonstrates a material visual/task-flow change in the intended direction; the normal production journey is task-first rather than subsystem/panel-first; the data is more visually salient than the UI; essential tasks are discoverable without expert gestures/diagnostic controls; retained world objects have testable investigator functions; desktop and XR paths produce equivalent governed intents. P1-U9 may not certify the old treatment while P1-UV remains partial.
+
 #### P1-U9 — product-path evidence, performance and physical Quest qualification — DEFERRED UNTIL CONVERGED IMPLEMENTATION
 
-Purpose: close RF-008/RF-050 and convert implementation claims into promotion evidence.
+Purpose: close RF-008/RF-050 and convert implementation claims into promotion evidence. P1-U9 begins only after P1-UV has converged the visible treatment it is supposed to qualify.
 
 - [ ] derive the 10 journey phases from real product events/prerequisites rather than manual test advancement;
 - [ ] add Playwright journeys through the real desktop UI for load -> orient -> inspect -> challenge/falsify -> compare -> record -> Memory Palace -> replay/export, including recovery/cancel paths;
@@ -797,7 +814,7 @@ Purpose: close RF-008/RF-050 and convert implementation claims into promotion ev
 - [ ] run at least one sustained 20+ minute session and record arm-fatigue/comfort outcomes; device evidence outranks screenshots and desktop emulation;
 - [ ] conduct task-based investigator studies for comprehension, falsification behavior, finding capture and share/replay, preserving treatment versions and evidence reproducibly.
 
-**Exit gate:** RF-008, RF-050, UX-03 and the UI-relevant portion of PERF-04/PERF-05 have real product/device evidence; #465's RF-049 code-level repair agrees with device behavior; no required modality changes semantic meaning; all core tasks are possible without expert gestures; the converged treatment passes independent adversarial VR/UI review before `VERIFIED COMPLETE`.
+**Exit gate:** RF-008, RF-050, UX-03 and the UI-relevant portion of PERF-04/PERF-05 have real product/device evidence; #465's RF-049 code-level repair agrees with device behavior; no required modality changes semantic meaning; all core tasks are possible without expert gestures; the P1-UV-converged treatment passes independent adversarial VR/UI review before `VERIFIED COMPLETE`.
 
 #### P1-U dependency order
 
@@ -809,7 +826,8 @@ Purpose: close RF-008/RF-050 and convert implementation claims into promotion ev
 6. **U6** follows durable investigation/archive contracts, now including RF-046/RF-047 and the landed RF-048 identity contract; decorative Vault/portal behavior must not block removing the object from default view.
 7. **U7** builds on P1-F plus investigation/discovery-science contracts and may progress incrementally without waiting for every panel migration.
 8. **U8** happens after functional parity is available so redundant surfaces can be deleted rather than merely hidden beside replacements.
-9. **U9** is the convergence/evidence tranche and cannot certify incomplete U0-U8 work.
+9. **P1-UV** consumes U2-U8 and makes the converged semantics visibly primary in the production product; substrate migration alone cannot satisfy this gate.
+10. **U9** is the product/device evidence tranche and cannot certify incomplete U0-U8 or P1-UV work.
 
 Review exit work:
 
@@ -818,11 +836,12 @@ Review exit work:
 - [/] close **RF-005** through P1-U4/P1-U8;
 - [/] close **RF-006**: TechnoCore/P1-U5 is implementation-landed; IceVault archival/recovery and semantic portals under P1-U6 remain open.
 - [x] wire **RF-027** through P1-U5 and portable replay through RF-047;
+- [ ] complete **P1-UV** visible-product convergence with production-build before/after and canonical journey evidence;
 - [ ] derive journey state from real product events with meaningful prerequisites under P1-U9;
 - [ ] close **RF-008** with real Playwright + Quest product-path evidence under P1-U9;
 - [ ] collect task-level comprehension/discoverability/recovery/falsification/finding/share evidence before verification.
 
-### P1-W Production wiring convergence — DEFERRED UNTIL P1-U0..P1-U9 COMPLETE
+### P1-W Production wiring convergence — DEFERRED UNTIL P1-U0..P1-U8 + P1-UV + P1-U9 COMPLETE
 
 Purpose: turn the converged investigator interface into an honestly deployable system. This tranche begins after the UI tranche is complete so service contracts and capability gates are fitted to the stable product surface rather than repeatedly rewritten during panel/input migration. Inventory and design may be prepared earlier, but production wiring, promotion claims and endpoint exposure belong here.
 
@@ -864,7 +883,7 @@ Purpose: turn the converged investigator interface into an honestly deployable s
 - [ ] record release manifest, source SHA, WASM hash, configuration schema, compatibility result and rollback target;
 - [ ] conduct an independent adversarial production-path review before promotion.
 
-**Entry gate:** P1-U0 through P1-U9 are implementation-complete and their converged UI/product-path evidence agrees; no production service is wired to a UI surface that is still being structurally replaced.
+**Entry gate:** P1-U0 through P1-U8, P1-UV and P1-U9 are implementation-complete and their converged UI/product-path evidence agrees; no production service is wired to a UI surface that is still being structurally replaced.
 
 **Exit gate:** RF-053 through RF-056 are closed; applicable RF-037 through RF-040 and RF-057 security/privacy authorities are closed or explicitly risk-accepted; RF-058 validation discipline has been applied to preview-critical security findings; every visible production capability has a real deployed path or an honest unavailable state; the clean published artifact initializes the Rust/WASM authority and passes the release journey; rollback and release provenance are demonstrated. Only then may the minimal private preview be promoted.
 
@@ -956,7 +975,7 @@ Review exit work:
 Deliver a controlled, observable deployment suitable for investigator research/usability testing rather than broad public launch.
 
 - [ ] define supported browsers/headsets and a small tested hardware matrix;
-- [ ] complete post-UI P1-W and close RF-053 through RF-056;
+- [ ] complete P1-UV, P1-U9 and post-UI P1-W, and close RF-053 through RF-056;
 - [ ] deploy reproducible versioned frontend/WASM artifacts through the RF-053 artifact contract;
 - [ ] add authentication/access control for a private cohort;
 - [ ] define dataset retention/upload/deletion/privacy policy;
@@ -988,7 +1007,7 @@ Stream C owns the active live-path security-assurance findings in detail; this s
 
 ## P1 — VR/UI/UX fitness
 
-The frozen panel/intent-wheel treatment work is merged through #394. Gate F review for that controlled local treatment is complete; Quest 3S validation remains required. **P1-U0 through P1-U9 above own the implementation breakdown**, governed by `Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`; #465 provides the RF-049 code-level repair while RF-050 and remaining device/product evidence stay active. This section remains the cross-cutting promotion/evidence gate.
+The frozen panel/intent-wheel treatment work is merged through #394. Gate F review for that controlled local treatment is complete; Quest 3S validation remains required. **P1-U0 through P1-U8, P1-UV and P1-U9 above own the implementation breakdown**, governed by `Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`; #465 provides the RF-049 code-level repair while RF-050 and remaining device/product evidence stay active. This section remains the cross-cutting promotion/evidence gate.
 
 - [x] spatial-audit + hypothesis + Blender prototype comparison for panel arrangement completed as a recorded decision (`docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md`, evidence tier 4);
 - [x] role-aware depth-tier zoning implemented as panel default positions with invariant tests;
@@ -997,7 +1016,8 @@ The frozen panel/intent-wheel treatment work is merged through #394. Gate F revi
 - [x] novice command vocabulary includes Move, Undo/Redo and Return-to-Overview;
 - [x] HolographicInspector and FrustrationResponseManager moved off the retired rig frame;
 - [x] frozen panel-layout + intent-wheel treatment recorded in `docs/study/UI_TREATMENT.md`;
-- [ ] close RF-050 and execute remaining P1-U0 through P1-U8 work before treating the converged interface as implemented; preserve #465's RF-049 code-level semantics;
+- [ ] close RF-050 and execute remaining P1-U0 through P1-U8 work before treating the interaction substrate as implemented; preserve #465's RF-049 code-level semantics;
+- [ ] execute P1-UV visible-product convergence before asking P1-U9 to qualify the final treatment;
 - [ ] execute P1-U9 to close RF-008/UX-03 and the UI/device portion of PERF-04/PERF-05;
 - [ ] validate comfortable locomotion, scale legibility, reach, occlusion, focus and spatial hierarchy on target headsets;
 - [ ] keep desktop/2D interaction semantically equivalent where possible;
@@ -1094,6 +1114,7 @@ The consolidated dependency update landed in #358. Future updates are evidence-l
 - **A visible capability requires a deployed dependency.** A constructed client, exported helper or dev-only endpoint is not a production capability. Every visible feature must have a healthy deployed path or an explicit unavailable/capability-gated state.
 - **The published artifact is the product boundary.** Mandatory WASM, Worker and runtime assets must be present, integrity-bound and exercised from the clean deployable output; success from the source tree or Vite middleware is insufficient.
 - **Interaction completion means semantic parity.** Mouse, controller ray, hand ray and direct touch may differ mechanically, but required operations must produce one governed semantic action with explicit capture/cancel/commit behavior.
+- **UI substrate is not product convergence.** Shared controls, SpatialPanel migration, semantic intents and green component tests do not complete P1-U unless the normal production journey is visibly/task-flow transformed and the canonical before/after evidence demonstrates it.
 - **Boundary tests remain mandatory.** Rust-first testing does not replace WASM ABI, browser, WebXR or end-to-end verification.
 - **Source rows are not render primitives or analytical reduction inputs.** LOD/reduction is first-class architecture, and render-object growth must be governed independently of source N.
 - **Worker handles are local capabilities.** Cross-thread identity travels by fingerprint plus explicit registration, never foreign handles.
@@ -1148,18 +1169,18 @@ independent review pass over the resulting merged implementation
 2. Do not consume irregular-series FFT periodicity as scientific evidence; RF-028 (#428) deliberately withholds spectral evidence unless sampling is regular. RF-036 topology-authority convergence remains open.
 3. Do not introduce scale claims or exact high-D work that bypasses the RF-029/RF-051 complete resource envelope.
 4. Continue bounded maintenance/dependency work that does not distract from promotion blockers.
-5. P1-U work continues on its parallel stream; preserve #465's RF-049 code-level semantics while remaining U1/U9 product/device evidence and RF-050 stay active. Do not begin P2 RepresentationGraph composition or P3 adaptation until reviewed prerequisites are satisfied.
-6. After P1-U0 through P1-U9 converge, execute P1-W in order: immutable WASM artifact -> deployed service boundaries -> off-path capability reconciliation -> clean production release qualification. Do not promote the private preview before P1-W exits.
+5. P1-U work continues on its parallel stream; preserve #465's RF-049 code-level semantics while remaining U1 product/device evidence and RF-050 stay active. After functional U2-U8 work, execute P1-UV before asking U9 to qualify the treatment. Do not begin P2 RepresentationGraph composition or P3 adaptation until reviewed prerequisites are satisfied.
+6. After P1-U0 through P1-U8, P1-UV and P1-U9 converge, execute P1-W in order: immutable WASM artifact -> deployed service boundaries -> off-path capability reconciliation -> clean production release qualification. Do not promote the private preview before P1-W exits.
 
 ### Stream B — review and fix-forward
 
 1. **CURRENT: RF-029 + RF-030 + RF-031 + RF-035 + RF-051 — analytical resource/residency envelope.** Preserve kernel-inline refusal and #479 operation-complete worker-registration correctness; #480/#481 land same-generation Worker residency reuse and revocation evidence, and #483 removes the duplicate controller result parse. Next implement RF-035B1 canonical dataset-version/materialise-on-demand state, then reduce the remaining Worker → JS full-result transfer and finish measured whole-pipeline qualification.
 2. **RF-036 + RF-001/RF-002 — representation/evidence authority review.** Re-audit canonical topology/spatial evidence and representation semantics on top of the landed RF-045 truth contract.
-3. **P1-USIM / RF-050 / remaining P1-U0..P1-U9 evidence — whole-product convergence.** USIM-0 (dev/test-only IWER adapter + bounded `desktop-simulator` episode evidence through the real InputRouter) is implementation-landed/review-active; continue UI implementation and USIM-A/USIM-1 scenarios independently while preserving scientific/interaction authority boundaries.
+3. **P1-USIM / RF-050 / remaining P1-U0..P1-U8 + P1-UV + P1-U9 evidence — whole-product convergence.** USIM-0 (dev/test-only IWER adapter + bounded `desktop-simulator` episode evidence through the real InputRouter) is implementation-landed/review-active; continue UI implementation and USIM-A/USIM-1 scenarios independently while preserving scientific/interaction authority boundaries. P1-UV owns visible/task-flow convergence before U9 device qualification.
 4. **RF-015 + RF-033 — production evidence architecture.** Add real Worker/WASM timings and keep browser-smoke signal independent; RF-046/RF-047 remain landed/review-active foundations rather than implementation queue items.
 5. **RF-052 + RF-009/RF-034 — governance truth.** Align branch-rule names/review policy/current-main status with actual enforcement; keep automated review from becoming a false or unnecessary blocker.
 6. **Physical XR qualification — RF-026 residual + RF-049/RF-050 + PERF-04 + UX-03.** Quest 3S controllers/hands/desktop semantic parity, comfort, frame/memory budgets and target-device task evidence.
-7. **P1-W / RF-053 through RF-056 — post-UI production wiring.** Start only after P1-U convergence; include deployed collaboration/security boundaries and capability reconciliation.
+7. **P1-W / RF-053 through RF-056 — post-UI production wiring.** Start only after P1-U convergence including P1-UV; include deployed collaboration/security boundaries and capability reconciliation.
 8. **Private-preview hardening.** Auth/access control, retention/privacy, consent/telemetry, release/rollback/recovery and compatibility only after applicable blocker/high findings close or are explicitly risk-accepted.
 9. Review each new Stream A merge immediately and append/fix RF findings in the same cadence.
 
@@ -1177,8 +1198,9 @@ independent review pass over the resulting merged implementation
 
 ### Convergence / promotion
 
-- Run PERF-04 and UX-03 physical Quest qualification on the converged P1-U treatment; #465 provides RF-049's code-level repair while RF-050/U9 define remaining device evidence.
-- Execute P1-W only after P1-U0 through P1-U9 converge; require RF-053 through RF-056 closure before private-preview promotion.
+- Complete P1-UV before running final P1-U9 treatment qualification; U9 evidence must measure the converged product, not the legacy/substrate-only presentation.
+- Run PERF-04 and UX-03 physical Quest qualification on the P1-UV-converged P1-U treatment; #465 provides RF-049's code-level repair while RF-050/U9 define remaining device evidence.
+- Execute P1-W only after P1-U0 through P1-U8, P1-UV and P1-U9 converge; require RF-053 through RF-056 closure before private-preview promotion.
 - Re-run blocker/high security, architecture, scientific, provenance and UX review before private-preview promotion.
 - Require applicable Stream C blocker/high findings to be closed or explicitly risk-accepted with evidence before private-preview promotion; RF-057 must be closed/risk-accepted before collaboration is enabled.
 - RF-046/RF-047 implementation has landed, but strong reproducible-investigation integrity claims still require merged-state adversarial review and compatibility/tamper evidence to agree; RF-048 canonical dataset identity remains review-monitored.
