@@ -1,17 +1,9 @@
 /**
- * P1-UV0 test-only runtime handle.
+ * P1-UV0 instrumented runtime handle.
  *
- * Installed in `src/app/bootstrap.ts` ONLY when the page loads with
- * `?nemosyne-uv0=1`. It exposes a bounded read/summon surface over the live
- * `World` so the production-build smoke spec can (a) assert real runtime state
- * (inspector/task-surface visibility, ledger counts, dataset identity) and
- * (b) drive the REAL node-selection call path deterministically — the same
- * `_showDataCard` method the production ray-select dispatches, and the same
- * `onInspect` callback the ContextualTaskSurface Inspect verb invokes.
- *
- * This file is test-only helper code (Stream B, `docs/ROADMAP.md:186` permits
- * `src/app/bootstrap.ts` composition). It mutates nothing at install and has no
- * effect on the visible product when the query parameter is absent.
+ * This module is only dynamically imported when the build-time
+ * `VITE_NEMOSYNE_UV0_EVIDENCE=1` flag is present and the page also carries
+ * `?nemosyne-uv0=1`. Ordinary production bundles must not contain this helper.
  *
  * Keep this helper structurally typed rather than importing `World`: RF-062
  * makes `World` a composition root, so only the bootstrap seam may depend on it.
@@ -29,6 +21,7 @@ interface Uv0RuntimePort {
         onInspect?: (target: null) => void;
       };
     };
+    settingsPanel?: { visible?: boolean };
   };
   representationSurface?: {
     currentNode?: {
@@ -59,6 +52,7 @@ export interface Uv0RuntimeSnapshot {
   palaceNodeCount: number;
   inspectorVisible: boolean;
   taskSurfaceVisible: boolean;
+  settingsPanelVisible: boolean;
   diagnosticVisible: boolean;
   selectedNodeName: string | null;
   evidenceCount: number;
@@ -102,6 +96,7 @@ export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
         palaceNodeCount: palace?.nodeMeshes?.length ?? 0,
         inspectorVisible: !!runtime.inspector?.visible,
         taskSurfaceVisible: !!taskSurface?.visible,
+        settingsPanelVisible: !!runtime.uiManager?.settingsPanel?.visible,
         diagnosticVisible: !!runtime.diagnostic?.mesh?.visible,
         selectedNodeName: runtime._lastSelectedMesh?.name ?? null,
         evidenceCount: runtime.atlas.results.length,
