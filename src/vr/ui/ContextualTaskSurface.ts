@@ -61,6 +61,12 @@ export interface ContextualTaskSurfaceCallbacks {
   onMore?: (data: Record<string, unknown> | null) => void;
 }
 
+type EngineWithPanelBudget = EngineLike & {
+  uiManager?: {
+    panelBudgetController?: PanelBudgetController;
+  };
+};
+
 /**
  * Short-lived object-attached action rail for the canonical novice verbs.
  *
@@ -198,7 +204,7 @@ export class ContextualTaskSurface extends SpatialPanel {
     this._activeNode = nodeMesh;
     this._activeData = data;
     this.visible = true;
-    this.budgetController?.open(this, 'inspector');
+    this._openInspectorBudgetSlot();
 
     const identity = data?.name ?? data?.label ?? data?.id ?? nodeMesh?.name ?? 'Selected object';
     this._selectionText.setProperties({ text: `Selected · ${String(identity).slice(0, 38)}` });
@@ -211,13 +217,34 @@ export class ContextualTaskSurface extends SpatialPanel {
     this.visible = false;
     this._activeData = null;
     this._activeNode = null;
-    this.budgetController?.close(this);
+    const budget = this._resolvedBudgetController();
+    if (budget?.isOpen(this)) budget.close(this);
   }
 
   update(deltaSeconds: number): void {
     if (!this.visible) return;
     super.update(deltaSeconds);
     this._updateAnchorTransform();
+  }
+
+  private _resolvedBudgetController(): PanelBudgetController | null {
+    if (this.budgetController) return this.budgetController;
+    return (this.engine as EngineWithPanelBudget).uiManager?.panelBudgetController ?? null;
+  }
+
+  private _openInspectorBudgetSlot(): void {
+    const budget = this._resolvedBudgetController();
+    if (!budget) return;
+
+    const occupant = budget
+      .getOpenPanels()
+      .find((panel) => panel !== this && budget.getRole(panel) === 'inspector');
+    if (occupant) {
+      const stateful = occupant as typeof occupant & { hide?: () => void };
+      if (typeof stateful.hide === 'function') stateful.hide();
+      else budget.close(occupant);
+    }
+    budget.open(this, 'inspector');
   }
 
   private _updateAnchorTransform(): void {
