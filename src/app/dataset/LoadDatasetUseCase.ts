@@ -14,6 +14,7 @@ import {
   createDefaultRequirements,
   type RepresentationRequirements,
 } from '../../moneta/representation/RepresentationRequirements.ts';
+import { WorldTopics } from '../../utils/EventBus.ts';
 import type { DatasetLoadEntry } from '../../vr/coordinators/types.ts';
 import {
   loadAggregateSemanticEmbodiment,
@@ -33,7 +34,8 @@ export type DatasetLoadAuthority = Pick<
   | 'generation'
   | 'datasetVersion'
   | 'datasetFingerprint'
->;
+> &
+  Partial<Pick<AtlasCore, 'eventBus'>>;
 
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
@@ -130,6 +132,20 @@ export class LoadDatasetUseCase {
         representationDecision,
         activeRequirements.primaryDimensions?.[0] ?? ''
       );
+    }
+
+    if (!preserveAnalyticalState) {
+      // Cross-cutting UI consumers observe the authoritative logical dataset
+      // transition through the existing event bus rather than polling or
+      // maintaining a second dataset identity.
+      this.atlas.eventBus?.emit(WorldTopics.DATASET_LOADED, {
+        key: entry.key ?? null,
+        name: entry.name ?? null,
+        label: entry.label ?? null,
+        datasetName: embodiedDataset.name,
+        datasetVersion: this.atlas.datasetVersion,
+        datasetFingerprint: this.atlas.datasetFingerprint,
+      });
     }
 
     return {

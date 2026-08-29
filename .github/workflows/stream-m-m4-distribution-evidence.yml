@@ -3,6 +3,17 @@ name: Stream M M4 distribution browser evidence
 on:
   pull_request:
     branches: [main]
+    paths:
+      - '.github/workflows/stream-m-m4-distribution-evidence.yml'
+      - 'src/app/distributionEvidenceDiagnostics.ts'
+      - 'src/app/resourceEnvelopeDiagnostics.ts'
+      - 'src/app/dataset/LoadDatasetUseCase.ts'
+      - 'src/app/AnalystJourneyControls.ts'
+      - 'src/app/bootstrap.ts'
+      - 'src/moneta/MonetaTopologyNode.ts'
+      - 'src/moneta/embodiment/SemanticEmbodimentStatus.ts'
+      - 'src/moneta/embodiment/ScalableTopologyEmbodiment.ts'
+      - 'tests/smoke/stream-m-m4-distribution-evidence.spec.ts'
   workflow_dispatch:
 
 permissions:
@@ -15,7 +26,6 @@ concurrency:
 jobs:
   evidence:
     name: Visible distribution + scale + perceptual evidence
-    if: ${{ github.event_name == 'workflow_dispatch' || github.head_ref == 'test/moneta-visible-distribution-evidence' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -26,6 +36,18 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify exact checkout identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkout_sha="$(git rev-parse HEAD)"
+          if [[ "$checkout_sha" != "$NEMOSYNE_SOURCE_HEAD_SHA" ]]; then
+            echo "Expected checkout $NEMOSYNE_SOURCE_HEAD_SHA but found $checkout_sha" >&2
+            exit 1
+          fi
+          echo "NEMOSYNE_CHECKOUT_HEAD_SHA=$checkout_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_WORKFLOW_EVENT_SHA=$GITHUB_SHA" >> "$GITHUB_ENV"
 
       - name: Set up Node.js 24
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -53,7 +75,13 @@ jobs:
           wasm_sha="$(sha256sum dist/wasm/pkg/nemosyne_wasm_bg.wasm | awk '{print $1}')"
           echo "NEMOSYNE_M4_BUNDLE_SHA256=$bundle_sha" >> "$GITHUB_ENV"
           echo "NEMOSYNE_M4_WASM_SHA256=$wasm_sha" >> "$GITHUB_ENV"
-          printf 'bundle_sha256=%s\nwasm_sha256=%s\n' "$bundle_sha" "$wasm_sha" | tee stream-m-m4-results/artifact-identities.txt
+          printf 'source_head_sha=%s\ncheckout_head_sha=%s\nworkflow_event_sha=%s\nbundle_sha256=%s\nwasm_sha256=%s\n' \
+            "$NEMOSYNE_SOURCE_HEAD_SHA" \
+            "$NEMOSYNE_CHECKOUT_HEAD_SHA" \
+            "$NEMOSYNE_WORKFLOW_EVENT_SHA" \
+            "$bundle_sha" \
+            "$wasm_sha" \
+            | tee stream-m-m4-results/artifact-identities.txt
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
