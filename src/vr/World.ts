@@ -45,6 +45,11 @@ import { GuidedTour, type TourStep } from './ui/GuidedTour.ts';
 import { FIRST_DATASET_TOUR } from '../data/DefaultTour.ts';
 import { WorldTheme } from './WorldTheme.ts';
 import { TelemetryCollector } from '../utils/Telemetry.ts';
+import {
+  VALIDATION_SESSION_LABEL_HEADER,
+  VALIDATION_SESSION_ID_HEADER,
+  readValidationSessionEnv,
+} from '../validation/validation-session.ts';
 import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.ts';
 import { LivePreview } from './interactions/LivePreview.ts';
 import { FocusContextController } from './interactions/FocusContextController.ts';
@@ -2077,13 +2082,36 @@ export class World {
     }
   }
 
-  _flushQuestBoundarySummary(summary: QuestBoundarySummary): void {
-    try {
-      void fetch('/__loadtest-results', {
+  /**
+   * Build the fetch init for a load-test POST. When this build runs under a QV
+   * validation session (the launcher placed the session identity in env), the
+   * POST is tagged with the session label + id so the dev-server sink can route
+   * it to the per-session evidence directory. Without a session this returns the
+   * exact same init as before, so ordinary dev runs are byte-identical.
+   */
+  _loadTestPostInit(body: unknown): RequestInit {
+    const session = readValidationSessionEnv(import.meta.env);
+    if (!session) {
+      return {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(summary),
-      }).catch(() => {});
+        body: JSON.stringify(body),
+      };
+    }
+    return {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        [VALIDATION_SESSION_LABEL_HEADER]: session.label,
+        [VALIDATION_SESSION_ID_HEADER]: session.id,
+      },
+      body: JSON.stringify(body),
+    };
+  }
+
+  _flushQuestBoundarySummary(summary: QuestBoundarySummary): void {
+    try {
+      void fetch('/__loadtest-results', this._loadTestPostInit(summary)).catch(() => {});
     } catch {
       return;
     }
@@ -2115,18 +2143,16 @@ export class World {
   /**
    * Attach usability aggregates (friction score/level/patterns — no raw
    * interaction trail) and POST the summary to the LOCAL dev-server endpoint
-   * `/__loadtest-results` (serve-only), which appends to
-   * `logs/loadtest-results.jsonl`. Failures are silent — the endpoint only
-   * exists on `npm run dev`, and the panel's Download button is the fallback.
+   * `/__loadtest-results` (serve-only). Generic dev appends to
+   * `logs/loadtest-results.jsonl`; under a QV validation session the POST is
+   * tagged so the dev plugin routes it to `logs/validation/<sessionLabel>/`.
+   * Failures are silent — the endpoint only exists on `npm run dev`, and the
+   * panel's Download button is the fallback.
    */
   _enrichAndFlushLoadTestSummary(summary: LoadTestSummary): void {
     summary.usability = this._collectUsabilityDigest();
     try {
-      void fetch('/__loadtest-results', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(summary),
-      }).catch(() => {
+      void fetch('/__loadtest-results', this._loadTestPostInit(summary)).catch(() => {
         // Endpoint absent (production/preview) or fetch unavailable — silent.
       });
     } catch {

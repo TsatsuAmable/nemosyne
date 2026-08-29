@@ -3,6 +3,7 @@ import type { Dataset } from '../../data/Dataset.ts';
 import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
 import type { TopologyType } from '../../data/types.ts';
 import type { MonetaDataInput } from '../../moneta/types.ts';
+import type { SemanticEmbodimentEnvelopeV1 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
 import {
   diagnoseInvestigatorOutcome,
   type InvestigatorActionableOutcome,
@@ -14,6 +15,7 @@ import {
   type RepresentationRequirements,
 } from '../../moneta/representation/RepresentationRequirements.ts';
 import type { DatasetLoadEntry } from '../../vr/coordinators/types.ts';
+import { loadAggregateSemanticEmbodiment } from './SemanticEmbodimentLoader.ts';
 
 export type DatasetLoadAuthority = Pick<
   AtlasCore,
@@ -24,7 +26,16 @@ export type DatasetLoadAuthority = Pick<
   | 'inferEncodings'
   | 'arbitrateRepresentation'
   | 'computeDatasetSignature'
+  | 'executionPort'
+  | 'generation'
+  | 'datasetVersion'
+  | 'datasetFingerprint'
 >;
+
+type SemanticMonetaDataInput = MonetaDataInput & {
+  semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
+  semanticEmbodimentPromise?: Promise<SemanticEmbodimentEnvelopeV1 | null>;
+};
 
 export interface LoadDatasetUseCaseOptions {
   preserveAnalyticalState?: boolean;
@@ -75,14 +86,15 @@ export class LoadDatasetUseCase {
     const embodiedDataset = this.atlas.dataset;
     const topology = entry.topology as TopologyType;
     const kernelEncodings = this.atlas.inferEncodings(topology) ?? undefined;
-    const dataInput: MonetaDataInput = {
+    const encodings =
+      entry.encodings ??
+      kernelEncodings ??
+      getDefaultEncodings({ dataset: embodiedDataset, topology });
+    const dataInput: SemanticMonetaDataInput = {
       topology,
       dataset: embodiedDataset,
       maxDepth: entry.maxDepth,
-      encodings:
-        entry.encodings ??
-        kernelEncodings ??
-        getDefaultEncodings({ dataset: embodiedDataset, topology }),
+      encodings,
     };
 
     let representationDecision: RepresentationDecision | null = null;
@@ -102,6 +114,15 @@ export class LoadDatasetUseCase {
         const signature = this.atlas.computeDatasetSignature(dataInput);
         outcome = diagnoseInvestigatorOutcome(signature, activeRequirements, error);
       }
+    }
+
+    if (representationDecision?.chosenCandidateId === 'AGGREGATE_VOLUME') {
+      dataInput.semanticEmbodimentPromise = loadAggregateSemanticEmbodiment(
+        this.atlas,
+        embodiedDataset,
+        representationDecision,
+        encodings,
+      );
     }
 
     return {

@@ -9,11 +9,12 @@ import {
 } from '../src/moneta/index.ts';
 
 describe('Phase 1: Representation Ontology Types', () => {
-  it('defines 9 representation families', () => {
-    expect(ALL_REPRESENTATION_FAMILIES).toHaveLength(9);
+  it('defines 10 representation families', () => {
+    expect(ALL_REPRESENTATION_FAMILIES).toHaveLength(10);
     expect(ALL_REPRESENTATION_FAMILIES).toContain('POINT');
     expect(ALL_REPRESENTATION_FAMILIES).toContain('DISTRIBUTION');
     expect(ALL_REPRESENTATION_FAMILIES).toContain('CLUSTER');
+    expect(ALL_REPRESENTATION_FAMILIES).toContain('AGGREGATE');
     expect(ALL_REPRESENTATION_FAMILIES).toContain('GRAPH');
     expect(ALL_REPRESENTATION_FAMILIES).toContain('FIELD');
     expect(ALL_REPRESENTATION_FAMILIES).toContain('TOPOLOGY');
@@ -33,7 +34,7 @@ describe('Phase 1: Representation Ontology Types', () => {
     }
   });
 
-  it('provides reverse layout mappings for all 9 families', () => {
+  it('provides reverse layout mappings for all 10 families', () => {
     for (const family of ALL_REPRESENTATION_FAMILIES) {
       const layouts = FAMILY_TO_LAYOUTS[family];
       expect(Array.isArray(layouts)).toBe(true);

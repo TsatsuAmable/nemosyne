@@ -163,6 +163,12 @@ export interface KernelContractExports {
     outLen: number
   ): number;
   draco_adjust_evidence(inputPtr: number, inputLen: number, outPtr: number, outLen: number): number;
+  moneta_semantic_embodiment_v1_roundtrip(
+    inputPtr: number,
+    inputLen: number,
+    outPtr: number,
+    outLen: number
+  ): number;
   intent_compile(inputPtr: number, inputLen: number, outPtr: number, outLen: number): number;
   atlas_discover_structures(
     inputPtr: number,

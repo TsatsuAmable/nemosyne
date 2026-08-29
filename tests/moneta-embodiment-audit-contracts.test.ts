@@ -5,6 +5,7 @@ import './setup-wasm.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { VRTopologyTranslator } from '../src/moneta/VRTopologyTranslator.ts';
 import type { MonetaFacts, MonetaSpec, SolverResult } from '../src/moneta/types.ts';
+import type { SemanticEmbodimentEnvelopeV1 } from '../src/moneta/representation/SemanticEmbodimentPayload.ts';
 
 const baseFacts: MonetaFacts = {
   topology: 'TABULAR',
@@ -58,17 +59,60 @@ function createSyntheticDataset(count: number): Dataset {
   ], rows);
 }
 
-function createZeroAggregateDataset(): Dataset {
-  return new Dataset(
-    'zero-aggregate',
-    [
-      { name: 'category', type: ColumnType.CATEGORICAL },
-      { name: 'value', type: ColumnType.NUMERIC },
-    ],
-    [
-      { category: 'Zero', value: 0 },
-      { category: 'Zero', value: 0 },
-    ]
+function aggregateEnvelope(
+  sourceRowCount: number,
+  groups: Array<{ semanticId: string; key: string | number | boolean | null; count: number; aggregateValue?: number }>,
+): SemanticEmbodimentEnvelopeV1 {
+  return {
+    schemaVersion: 1,
+    datasetFingerprint: 'a'.repeat(64),
+    candidateId: 'AGGREGATE_VOLUME',
+    representationFamily: 'AGGREGATE',
+    analyticalMethod: {
+      name: 'categorical-grouped-aggregate',
+      version: 'aggregate-columnar-v1',
+      parameters: {
+        groupingField: 'category',
+        measure: { field: 'value', function: 'MEAN' },
+        missingGroupingPolicy: 'group-as-null',
+        missingMeasurePolicy: 'exclude-from-measure-retain-group-count',
+      },
+    },
+    approximation: { mode: 'EXACT', representedRowCount: sourceRowCount },
+    informationContract: {
+      preserves: ['aggregate-group-magnitude'],
+      loses: [
+        'individual-observation-identity',
+        'exact-metric-values',
+        'outlier-boundary-visibility',
+      ],
+    },
+    resource: { sourceRowCount, elementCount: groups.length, maxElementCount: 4096 },
+    provenance: { kernelVersion: 'test', algorithmVersion: 'aggregate-columnar-v1' },
+    result: {
+      status: 'READY',
+      payload: {
+        kind: 'AGGREGATE_VOLUME',
+        data: {
+          groupingFields: ['category'],
+          measure: { field: 'value', function: 'MEAN' },
+          groups,
+        },
+      },
+    },
+  };
+}
+
+function fiveGroupEnvelope(sourceRowCount: number): SemanticEmbodimentEnvelopeV1 {
+  const keys = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'];
+  return aggregateEnvelope(
+    sourceRowCount,
+    keys.map((key, index) => ({
+      semanticId: `category:${key}`,
+      key,
+      count: sourceRowCount / keys.length,
+      aggregateValue: 20 + index * 10,
+    })),
   );
 }
 
@@ -76,7 +120,7 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
   const dataset = createSyntheticDataset(10000);
 
   it('C1: non-point semantic candidates do not produce point clouds or point-per-row fallbacks', () => {
-    // 1. AGGREGATE_VOLUME
+    // 1. AGGREGATE_VOLUME consumes a Rust-owned semantic payload, not rows.
     const aggSpec: MonetaSpec = {
       layout: 'GRID_3D',
       geometry: 'AGGREGATE_BARS',
@@ -89,17 +133,15 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
       cost: 0.9,
     };
     const aggArtifact = VRTopologyTranslator.synthesizeArtifact(aggResult, {
-      dataset,
-      encodings: { color: 'category', size: 'value' },
+      semanticEmbodiment: fiveGroupEnvelope(10000),
     });
-    expect(aggArtifact.nodeMeshes.length).toBeGreaterThan(0);
-    expect(aggArtifact.nodeMeshes.length).toBeLessThan(20); // 5 categories
+    expect(aggArtifact.nodeMeshes).toHaveLength(5);
     for (const mesh of aggArtifact.nodeMeshes) {
       expect(mesh.userData).toHaveProperty('representationKind', 'AGGREGATE_VOLUME');
       expect(mesh.userData).not.toHaveProperty('instancedCloud');
     }
 
-    // 2. DENSITY_FIELD
+    // 2. DENSITY_FIELD remains row-derived and explicitly unresolved after A4.
     const densitySpec: MonetaSpec = {
       layout: 'GRID_3D',
       geometry: 'DENSITY_FIELD',
@@ -116,13 +158,13 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
       encodings: { color: 'category' },
     });
     expect(densityArtifact.nodeMeshes.length).toBeGreaterThan(0);
-    expect(densityArtifact.nodeMeshes.length).toBeLessThanOrEqual(216); // 6x6x6 max voxels
+    expect(densityArtifact.nodeMeshes.length).toBeLessThanOrEqual(216);
     for (const mesh of densityArtifact.nodeMeshes) {
       expect(mesh.userData).toHaveProperty('representationKind', 'DENSITY_FIELD');
       expect(mesh.userData).not.toHaveProperty('instancedCloud');
     }
 
-    // 3. CLUSTER_REGIONS
+    // 3. CLUSTER_REGIONS remains row-derived and explicitly unresolved after A4.
     const clusterSpec: MonetaSpec = {
       layout: 'GRID_3D',
       geometry: 'CLUSTER_VOLUME',
@@ -138,44 +180,33 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
       dataset,
       encodings: { color: 'cluster' },
     });
-    expect(clusterArtifact.nodeMeshes.length).toBe(4); // 4 clusters * 1 volumetric hull mesh
+    expect(clusterArtifact.nodeMeshes.length).toBe(4);
     for (const mesh of clusterArtifact.nodeMeshes) {
       expect(mesh.userData).toHaveProperty('representationKind', 'CLUSTER_REGIONS');
     }
   });
 
-  it('C2: bounds render primitive generation independently of source row count N', () => {
-    const smallDs = createSyntheticDataset(100);
-    const largeDs = createSyntheticDataset(10000);
-
+  it('C2: bounds aggregate render primitive generation by semantic group count, not source N', () => {
     const spec: MonetaSpec = {
       layout: 'GRID_3D',
       geometry: 'AGGREGATE_BARS',
       behavior: 'STATIC',
       interaction: 'INSPECT_CELL',
     };
-    const solverResult: SolverResult = {
-      spec,
-      facts: baseFacts,
-      cost: 0.9,
-    };
+    const solverResult: SolverResult = { spec, facts: baseFacts, cost: 0.9 };
 
     const smallArtifact = VRTopologyTranslator.synthesizeArtifact(solverResult, {
-      dataset: smallDs,
-      encodings: { color: 'category', size: 'value' },
+      semanticEmbodiment: fiveGroupEnvelope(100),
     });
     const largeArtifact = VRTopologyTranslator.synthesizeArtifact(solverResult, {
-      dataset: largeDs,
-      encodings: { color: 'category', size: 'value' },
+      semanticEmbodiment: fiveGroupEnvelope(10000),
     });
 
-    // 100 rows vs 10,000 rows with 5 categories produce the exact same bounded mesh count (5)
-    expect(smallArtifact.nodeMeshes.length).toBe(5);
-    expect(largeArtifact.nodeMeshes.length).toBe(5);
+    expect(smallArtifact.nodeMeshes).toHaveLength(5);
+    expect(largeArtifact.nodeMeshes).toHaveLength(5);
   });
 
-  it('C2b: preserves legitimate zero values when computing aggregate means', () => {
-    const zeroDataset = createZeroAggregateDataset();
+  it('C2b: preserves a legitimate zero aggregate value supplied by Rust', () => {
     const spec: MonetaSpec = {
       layout: 'GRID_3D',
       geometry: 'AGGREGATE_BARS',
@@ -185,7 +216,11 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
 
     const artifact = VRTopologyTranslator.synthesizeArtifact(
       { spec, facts: { ...baseFacts, rowCount: 2, nodeCount: 2 }, cost: 0.9 },
-      { dataset: zeroDataset, encodings: { color: 'category', size: 'value' } }
+      {
+        semanticEmbodiment: aggregateEnvelope(2, [
+          { semanticId: 'category:Zero', key: 'Zero', count: 2, aggregateValue: 0 },
+        ]),
+      },
     );
 
     expect(artifact.nodeMeshes).toHaveLength(1);
@@ -208,18 +243,17 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
 
     const pointArtifact = VRTopologyTranslator.synthesizeArtifact(
       { spec: pointSpec, facts: baseFacts, cost: 0.5 },
-      { dataset: createSyntheticDataset(100), encodings: { color: 'category' } }
+      { dataset: createSyntheticDataset(100), encodings: { color: 'category' } },
     );
     const aggArtifact = VRTopologyTranslator.synthesizeArtifact(
       { spec: aggSpec, facts: baseFacts, cost: 0.9 },
-      { dataset: createSyntheticDataset(100), encodings: { color: 'category' } }
+      { semanticEmbodiment: fiveGroupEnvelope(100) },
     );
 
-    // Point cloud vs Aggregate bars must have completely distinct structures
     expect(pointArtifact.nodeMeshes[0].userData).toHaveProperty('instancedCloud');
     expect(aggArtifact.nodeMeshes[0].userData).toHaveProperty(
       'representationKind',
-      'AGGREGATE_VOLUME'
+      'AGGREGATE_VOLUME',
     );
     expect(pointArtifact.nodeMeshes.length).not.toBe(aggArtifact.nodeMeshes.length);
   });
@@ -227,7 +261,7 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
   it('C4: static source contract forbids silent point-cloud fallback from non-point branches', () => {
     const scalableSource = readFileSync(
       resolve(process.cwd(), 'src/moneta/embodiment/ScalableTopologyEmbodiment.ts'),
-      'utf8'
+      'utf8',
     );
 
     const clusterStart = scalableSource.indexOf('buildClusterVolume(');
