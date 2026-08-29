@@ -14,8 +14,12 @@ import {
   createDefaultRequirements,
   type RepresentationRequirements,
 } from '../../moneta/representation/RepresentationRequirements.ts';
+import { WorldTopics } from '../../utils/EventBus.ts';
 import type { DatasetLoadEntry } from '../../vr/coordinators/types.ts';
-import { loadAggregateSemanticEmbodiment } from './SemanticEmbodimentLoader.ts';
+import {
+  loadAggregateSemanticEmbodiment,
+  loadDistributionSemanticEmbodiment,
+} from './SemanticEmbodimentLoader.ts';
 
 export type DatasetLoadAuthority = Pick<
   AtlasCore,
@@ -30,7 +34,8 @@ export type DatasetLoadAuthority = Pick<
   | 'generation'
   | 'datasetVersion'
   | 'datasetFingerprint'
->;
+> &
+  Partial<Pick<AtlasCore, 'eventBus'>>;
 
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
@@ -64,10 +69,7 @@ export class LoadDatasetUseCase {
 
   execute(
     entry: DatasetLoadEntry,
-    {
-      preserveAnalyticalState = false,
-      requirements,
-    }: LoadDatasetUseCaseOptions = {},
+    { preserveAnalyticalState = false, requirements }: LoadDatasetUseCaseOptions = {}
   ): LoadDatasetResult {
     const activeRequirements = preserveAnalyticalState
       ? (requirements ?? createDefaultRequirements('individual-inspection'))
@@ -107,7 +109,7 @@ export class LoadDatasetUseCase {
         outcome = diagnoseInvestigatorOutcome(
           signature,
           activeRequirements,
-          representationDecision,
+          representationDecision
         );
       } catch (error) {
         if (!(error instanceof NoFeasibleRepresentationError)) throw error;
@@ -121,8 +123,29 @@ export class LoadDatasetUseCase {
         this.atlas,
         embodiedDataset,
         representationDecision,
-        encodings,
+        encodings
       );
+    } else if (representationDecision?.chosenCandidateId === 'DISTRIBUTION_FIELD') {
+      dataInput.semanticEmbodimentPromise = loadDistributionSemanticEmbodiment(
+        this.atlas,
+        embodiedDataset,
+        representationDecision,
+        activeRequirements.primaryDimensions?.[0] ?? ''
+      );
+    }
+
+    if (!preserveAnalyticalState) {
+      // Cross-cutting UI consumers observe the authoritative logical dataset
+      // transition through the existing event bus rather than polling or
+      // maintaining a second dataset identity.
+      this.atlas.eventBus?.emit(WorldTopics.DATASET_LOADED, {
+        key: entry.key ?? null,
+        name: entry.name ?? null,
+        label: entry.label ?? null,
+        datasetName: embodiedDataset.name,
+        datasetVersion: this.atlas.datasetVersion,
+        datasetFingerprint: this.atlas.datasetFingerprint,
+      });
     }
 
     return {

@@ -36,9 +36,8 @@ function nonEmpty(value: string, label: string): string {
 function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentationId): VRGeometry {
   if (candidateId === 'AGGREGATE_VOLUME') return 'AGGREGATE_BARS';
   if (candidateId === 'CLUSTER_REGIONS') return 'CLUSTER_VOLUME';
-  if (candidateId === 'DENSITY_FIELD' || candidateId === 'DISTRIBUTION_FIELD') {
-    return 'DENSITY_FIELD';
-  }
+  if (candidateId === 'DENSITY_FIELD') return 'DENSITY_FIELD';
+  if (candidateId === 'DISTRIBUTION_FIELD') return 'DISTRIBUTION_FIELD';
   switch (layout) {
     case 'GEO_SURFACE':
       return 'GEO_COLUMN';

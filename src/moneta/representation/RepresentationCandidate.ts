@@ -37,6 +37,7 @@ export type InformationType =
   | 'individual-observation-identity'
   | 'exact-metric-values'
   | 'population-density-distribution'
+  | 'empirical-distribution-shape'
   | 'outlier-boundary-visibility'
   | 'cluster-separation'
   | 'relational-edge-connectivity'
@@ -136,15 +137,16 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   DISTRIBUTION_FIELD: {
     id: 'DISTRIBUTION_FIELD',
-    name: 'Univariate & Bivariate Distribution Field',
-    description: 'Statistical distribution contours, quantiles, and probability density curves',
-    supports: ['univariate-distribution', 'multivariate-correlation', 'anomaly-isolation'],
-    preserves: [
+    name: 'Empirical Univariate Distribution',
+    description: 'Bounded empirical histogram, ECDF, and quantile summary for one explicit numeric measure',
+    supports: ['univariate-distribution', 'anomaly-isolation'],
+    preserves: ['empirical-distribution-shape'],
+    loses: [
+      'individual-observation-identity',
+      'exact-metric-values',
       'population-density-distribution',
       'outlier-boundary-visibility',
-      'exact-metric-values',
     ],
-    loses: ['individual-observation-identity'],
     scaleCharacteristics: {
       minN: 50,
       maxN: 500_000,

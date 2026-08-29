@@ -9,6 +9,7 @@ import type {
   VRTranslatorOptions,
 } from '../types.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from '../representation/SemanticEmbodimentPayload.ts';
+import { setSemanticEmbodimentPresentationStatus } from './SemanticEmbodimentStatus.ts';
 import { TopologyLayoutEmbodiment } from './TopologyLayoutEmbodiment.ts';
 
 function createDefaultPointCloud(
@@ -42,6 +43,13 @@ function createDefaultPointCloud(
   };
 }
 
+function distributionPosition(value: number, min: number, max: number): number {
+  if (min === max) return 0.5;
+  const scale = Math.max(Math.abs(min), Math.abs(max), 1);
+  const scaledMin = min / scale;
+  return Math.max(0, Math.min(1, (value / scale - scaledMin) / (max / scale - scaledMin)));
+}
+
 export class ScalableTopologyEmbodiment {
   constructor(
     private readonly _layouts: TopologyLayoutEmbodiment,
@@ -72,9 +80,7 @@ export class ScalableTopologyEmbodiment {
         ? [...new Set(dataset.getColumnValues(colorField))]
         : [];
     const sizeRange =
-      sizeField && sizeColumn?.type === 'NUMERIC'
-        ? dataset.rangeOf(sizeField)
-        : { min: 0, max: 1 };
+      sizeField && sizeColumn?.type === 'NUMERIC' ? dataset.rangeOf(sizeField) : { min: 0, max: 1 };
     const items = positions.map((position, index) => {
       const row = position.row;
       let color = 0x00ffcc;
@@ -84,13 +90,7 @@ export class ScalableTopologyEmbodiment {
         if (colorColumn?.type === 'CATEGORICAL') {
           color = categoricalColor(value, uniqueColors.indexOf(value), this._colorblindMode);
         } else if (colorColumn?.type === 'NUMERIC') {
-          color = numericColor(
-            value as number,
-            sizeRange.min,
-            sizeRange.max,
-            0x00ffcc,
-            0xff0055
-          );
+          color = numericColor(value as number, sizeRange.min, sizeRange.max, 0x00ffcc, 0xff0055);
         }
       }
       if (sizeField && sizeColumn?.type === 'NUMERIC') {
@@ -103,7 +103,8 @@ export class ScalableTopologyEmbodiment {
         data: { row, index },
       };
     });
-    const factory = options?.pointCloudFactory || this._pointCloudFactory || createDefaultPointCloud;
+    const factory =
+      options?.pointCloudFactory || this._pointCloudFactory || createDefaultPointCloud;
     const cloud = factory(items.length, new THREE.BoxGeometry(0.06, 0.06, 0.06));
     cloud.setPoints(items);
     (cloud.mesh as THREE.Mesh).userData = { instancedCloud: cloud };
@@ -129,9 +130,7 @@ export class ScalableTopologyEmbodiment {
     const clusters = new Map<unknown, THREE.Vector3[]>();
     for (const position of positions) {
       const key =
-        (colorField ? position.row[colorField] : undefined) ??
-        position.row.cluster ??
-        'cluster_0';
+        (colorField ? position.row[colorField] : undefined) ?? position.row.cluster ?? 'cluster_0';
       if (!clusters.has(key)) clusters.set(key, []);
       clusters.get(key)!.push(position.position);
     }
@@ -193,9 +192,18 @@ export class ScalableTopologyEmbodiment {
     const voxelCounts = new Map<string, { count: number; x: number; y: number; z: number }>();
     let maxDensity = 0;
     for (const pos of positions) {
-      const bx = Math.min(BINS - 1, Math.max(0, Math.floor(((pos.position.x - min.x) / size.x) * BINS)));
-      const by = Math.min(BINS - 1, Math.max(0, Math.floor(((pos.position.y - min.y) / size.y) * BINS)));
-      const bz = Math.min(BINS - 1, Math.max(0, Math.floor(((pos.position.z - min.z) / size.z) * BINS)));
+      const bx = Math.min(
+        BINS - 1,
+        Math.max(0, Math.floor(((pos.position.x - min.x) / size.x) * BINS))
+      );
+      const by = Math.min(
+        BINS - 1,
+        Math.max(0, Math.floor(((pos.position.y - min.y) / size.y) * BINS))
+      );
+      const bz = Math.min(
+        BINS - 1,
+        Math.max(0, Math.floor(((pos.position.z - min.z) / size.z) * BINS))
+      );
       const key = `${bx},${by},${bz}`;
       const current = voxelCounts.get(key) ?? { count: 0, x: bx, y: by, z: bz };
       current.count++;
@@ -317,6 +325,146 @@ export class ScalableTopologyEmbodiment {
     group.userData.semanticEmbodimentStatus = 'READY';
     group.userData.semanticEmbodiment = {
       candidateId: envelope.candidateId,
+      resource: envelope.resource,
+      provenance: envelope.provenance,
+    };
+  }
+
+  /**
+   * M3 thin empirical-distribution adapter. Rust owns bins, counts, ECDF knots,
+   * quantiles and provenance; this method only maps bounded semantic elements
+   * to visual positions and carries their stable identities into the artifact.
+   */
+  buildDistributionField(
+    group: THREE.Group,
+    nodeMeshes: THREE.Mesh[],
+    envelope: SemanticEmbodimentEnvelopeV1 | null | undefined
+  ): void {
+    if (!envelope) {
+      setSemanticEmbodimentPresentationStatus(group, 'PENDING');
+      return;
+    }
+    if (envelope.result.status === 'REFUSED') {
+      setSemanticEmbodimentPresentationStatus(group, 'REFUSED', envelope.result.refusal.message);
+      group.userData.semanticEmbodimentRefusal = envelope.result.refusal;
+      return;
+    }
+    if (
+      envelope.candidateId !== 'DISTRIBUTION_FIELD' ||
+      envelope.representationFamily !== 'DISTRIBUTION' ||
+      envelope.result.payload.kind !== 'EMPIRICAL_DISTRIBUTION'
+    ) {
+      setSemanticEmbodimentPresentationStatus(group, 'INVALID');
+      return;
+    }
+
+    const distribution = envelope.result.payload.data;
+    const { min, max } = distribution.domain;
+    const artifactId = [
+      'semantic-embodiment',
+      envelope.datasetFingerprint,
+      envelope.candidateId,
+      envelope.provenance.algorithmVersion,
+      envelope.provenance.decisionId ?? 'unbound-decision',
+    ].join(':');
+    const commonMetadata = {
+      representationKind: 'DISTRIBUTION_FIELD',
+      payloadKind: 'EMPIRICAL_DISTRIBUTION',
+      artifactId,
+      datasetFingerprint: envelope.datasetFingerprint,
+      measureField: distribution.measureField,
+      analyticalMethod: envelope.analyticalMethod,
+      approximation: envelope.approximation,
+      informationContract: envelope.informationContract,
+      provenance: envelope.provenance,
+    };
+
+    const bins = distribution.histogram;
+    const maxBinCount = Math.max(1, ...bins.map((bin) => bin.count));
+    const binStep = 4 / bins.length;
+    bins.forEach((bin, index) => {
+      const height = 0.15 + 2.35 * (bin.count / maxBinCount);
+      const geometry = new THREE.BoxGeometry(Math.max(0.02, binStep * 0.82), height, 0.32);
+      geometry.translate(0, height / 2, 0);
+      const material = new THREE.MeshStandardMaterial({
+        color: numericColor(bin.count, 0, maxBinCount, 0x0072b2, 0xe69f00),
+        emissive: 0x003344,
+        emissiveIntensity: 0.3,
+        roughness: 0.35,
+        metalness: 0.2,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = bin.semanticId;
+      mesh.position.set(-2 + (index + 0.5) * binStep, 0, 0);
+      mesh.userData = {
+        ...commonMetadata,
+        semanticId: bin.semanticId,
+        distributionElementKind: 'HISTOGRAM_BIN',
+        lowerBound: bin.lowerBound,
+        upperBound: bin.upperBound,
+        upperInclusive: bin.upperInclusive,
+        count: bin.count,
+      };
+      group.add(mesh);
+      nodeMeshes.push(mesh);
+    });
+
+    distribution.ecdf.forEach((knot) => {
+      const geometry = new THREE.SphereGeometry(0.055, 8, 8);
+      const material = new THREE.MeshStandardMaterial({
+        color: 0x00ffcc,
+        emissive: 0x005544,
+        emissiveIntensity: 0.3,
+        roughness: 0.25,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = knot.semanticId;
+      mesh.position.set(
+        -2 + 4 * distributionPosition(knot.value, min, max),
+        2.5 * knot.cumulativeProbability,
+        0.42
+      );
+      mesh.userData = {
+        ...commonMetadata,
+        semanticId: knot.semanticId,
+        distributionElementKind: 'ECDF_KNOT',
+        value: knot.value,
+        cumulativeCount: knot.cumulativeCount,
+        cumulativeProbability: knot.cumulativeProbability,
+      };
+      group.add(mesh);
+      nodeMeshes.push(mesh);
+    });
+
+    distribution.quantiles.forEach((quantile) => {
+      const geometry = new THREE.CylinderGeometry(0.035, 0.035, 0.5, 8);
+      const color = numericColor(quantile.probability, 0, 1, 0x56b4e9, 0xd55e00);
+      const material = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.3,
+        roughness: 0.3,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = quantile.semanticId;
+      mesh.position.set(-2 + 4 * distributionPosition(quantile.value, min, max), 0.25, -0.42);
+      mesh.userData = {
+        ...commonMetadata,
+        semanticId: quantile.semanticId,
+        distributionElementKind: 'QUANTILE',
+        probability: quantile.probability,
+        value: quantile.value,
+      };
+      group.add(mesh);
+      nodeMeshes.push(mesh);
+    });
+
+    setSemanticEmbodimentPresentationStatus(group, 'READY');
+    group.userData.semanticEmbodiment = {
+      artifactId,
+      datasetFingerprint: envelope.datasetFingerprint,
+      candidateId: envelope.candidateId,
+      payloadKind: envelope.result.payload.kind,
       resource: envelope.resource,
       provenance: envelope.provenance,
     };

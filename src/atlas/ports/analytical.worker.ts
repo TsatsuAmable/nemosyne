@@ -6,8 +6,14 @@ import type {
   AnalyticalWorkerDiagnostic,
 } from './AnalyticalExecutionPort.ts';
 import * as bridge from '../../wasm/RuntimeBridge.ts';
-import { buildAggregateSemanticEmbodimentV1 } from '../../wasm/runtime/SemanticEmbodimentBridge.ts';
-import type { AggregateEmbodimentRequestV1 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
+import {
+  buildAggregateSemanticEmbodimentV1,
+  buildDistributionSemanticEmbodimentV1,
+} from '../../wasm/runtime/SemanticEmbodimentBridge.ts';
+import type {
+  AggregateEmbodimentRequestV1,
+  DistributionEmbodimentRequestV1,
+} from '../../moneta/representation/SemanticEmbodimentPayload.ts';
 import type { DatasetJSON, OperationSpec } from '../../data/types.ts';
 
 const handleMap = new Map<string, number>();
@@ -75,7 +81,7 @@ function replaceRegisteredHandle(fingerprint: string, handle: number): void {
 function isSuperseded(
   generation: number,
   datasetVersion: number,
-  datasetFingerprint: string,
+  datasetFingerprint: string
 ): boolean {
   return (
     (fence.generation !== undefined && generation < fence.generation) ||
@@ -84,7 +90,10 @@ function isSuperseded(
   );
 }
 
-function requireRegisteredHandle(req: AnalyticalExecutionRequest, handle: number | undefined): number {
+function requireRegisteredHandle(
+  req: AnalyticalExecutionRequest,
+  handle: number | undefined
+): number {
   if (!handle || handle === 0) {
     throw new Error(
       `Worker dataset ${req.dataset.fingerprint} is not registered; ` +
@@ -113,7 +122,7 @@ async function registerDataset(registration: AnalyticalDatasetRegistration): Pro
     isSuperseded(
       registration.generation,
       registration.dataset.version,
-      registration.dataset.fingerprint,
+      registration.dataset.fingerprint
     )
   ) {
     throw new Error(
@@ -377,15 +386,26 @@ self.onmessage = async (ev: MessageEvent) => {
           break;
         }
         case 'semanticEmbodiment': {
-          operationName = 'AGGREGATE_VOLUME';
+          operationName = String(req.params.candidateId ?? 'UNKNOWN');
           const kernelStartedAt = performance.now();
-          value = buildAggregateSemanticEmbodimentV1(
-            registeredHandle,
-            req.params as unknown as AggregateEmbodimentRequestV1,
-          );
+          if (req.params.candidateId === 'AGGREGATE_VOLUME') {
+            value = buildAggregateSemanticEmbodimentV1(
+              registeredHandle,
+              req.params as unknown as AggregateEmbodimentRequestV1
+            );
+          } else if (req.params.candidateId === 'DISTRIBUTION_FIELD') {
+            value = buildDistributionSemanticEmbodimentV1(
+              registeredHandle,
+              req.params as unknown as DistributionEmbodimentRequestV1
+            );
+          } else {
+            throw new Error(`Unsupported semantic embodiment candidate: ${operationName}`);
+          }
           kernelMs = performance.now() - kernelStartedAt;
           if (!value) {
-            throw new Error('Rust aggregate semantic embodiment builder returned no envelope');
+            throw new Error(
+              `Rust ${operationName} semantic embodiment builder returned no envelope`
+            );
           }
           resultKind = 'scalar';
           break;
@@ -408,15 +428,16 @@ self.onmessage = async (ev: MessageEvent) => {
           try {
             const outFingerprint = bridge.datasetFingerprint(outHandle);
             if (!outFingerprint) {
-              throw new Error('Worker kernel operation produced no authoritative output fingerprint');
+              throw new Error(
+                'Worker kernel operation produced no authoritative output fingerprint'
+              );
             }
 
             const materializeStartedAt = performance.now();
             const compactRequested = req.params.resultMode === 'row-view-if-lossless';
             const rowPreserving = ['filter', 'sort', 'slice'].includes(operation.op);
-            const rowView = compactRequested && rowPreserving
-              ? bridge.datasetRowView(outHandle)
-              : null;
+            const rowView =
+              compactRequested && rowPreserving ? bridge.datasetRowView(outHandle) : null;
 
             if (
               rowView &&
