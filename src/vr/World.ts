@@ -1126,7 +1126,7 @@ export class World {
     this.rendererLifecycle.updateDashboardDatasets(dataset);
   }
 
-  private _rebuildStructureHandles(  private _rebuildStructureHandles(dracoNode: {
+  private _rebuildStructureHandles(dracoNode: {
     artifact?: { nodeMeshes?: THREE.Mesh[] } | undefined;
     dataInput?: { topology?: string } | undefined;
   }): void {
@@ -2309,7 +2309,6 @@ export class World {
     this.dracoNode = null;
     this.diagnostic = null;
     this._lastSelectedMesh = null;
-    await run(() => this.adaptiveAssist?.dispose());
     await run(() => this.adaptiveAssist?.dispose());
     await run(() => this.engine.removeUpdatable(this.guidedTour));
     await run(() => this.engine.removeHudObject(this.guidedTour));
