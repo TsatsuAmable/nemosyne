@@ -68,7 +68,7 @@ describe('RF-062C LoadDatasetUseCase', () => {
     expect(result.embodiedDataset).toBe(working);
     expect(result.dataInput.dataset).toBe(working);
     expect(result.dataInput.encodings).toEqual({ color: 'value' });
-    expect(result.requirements.taskIntent).toBe('individual-inspection');
+    expect(result.requirements.task).toBe('individual-inspection');
     expect(result.representationDecision).toBeNull();
     expect(result.outcome).toBeNull();
   });
