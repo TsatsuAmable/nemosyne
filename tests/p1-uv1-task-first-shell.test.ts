@@ -11,7 +11,7 @@ describe('P1-UV1 task-first investigator shell', () => {
     ]);
   });
 
-  it('demotes normal-mode diagnostics at the composition root without deleting the developer route', () => {
+  it('demotes normal-mode diagnostics at the composition root', () => {
     const source = readFileSync('src/app/bootstrap.ts', 'utf8');
 
     expect(source).toContain('function applyNormalAnalystShell(world: World)');
@@ -25,10 +25,11 @@ describe('P1-UV1 task-first investigator shell', () => {
     expect(source).toContain('world.loader.hide()');
   });
 
-  it('keeps the Moneta constraint HUD hidden until an explicit diagnostic route summons it', () => {
+  it('keeps the Moneta constraint HUD hidden normally and preserves the explicit diagnostic build route', () => {
     const source = readFileSync('src/vr/ui/MonetaDiagnosticHUD.ts', 'utf8');
     const constructor = source.slice(source.indexOf('  constructor('), source.indexOf('  get dracoNode'));
     expect(constructor).toContain('this.render();');
+    expect(constructor).toContain("import.meta.env.VITE_NEMOSYNE_DIAGNOSTICS !== '1'");
     expect(constructor).toContain('this.hide();');
   });
 
