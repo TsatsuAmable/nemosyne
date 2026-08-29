@@ -56,6 +56,11 @@ function analystJourneyActions(
         platform: navigator.platform,
         webxrSupported: 'xr' in navigator,
       }),
+    setDatasetPickerVisible: (visible) => {
+      if (visible) world.loader.show();
+      else world.loader.hide();
+    },
+    isDatasetPickerVisible: () => world.loader.container.style.display !== 'none',
   };
 }
 
@@ -139,7 +144,18 @@ export async function bootstrapApp(): Promise<AppInstance> {
     } else {
       telemetry.textContent = 'ready — point and select to inspect';
     }
+    // P1-UV1: runtime telemetry remains alive for diagnostics/tests, but it is
+    // not part of the normal analyst information hierarchy.
+    telemetry.hidden = import.meta.env.VITE_NEMOSYNE_DIAGNOSTICS !== '1';
   }
+
+  // The static title is a boot affordance, not permanent chrome over the data.
+  const bootOverlay = document.getElementById('overlay');
+  if (bootOverlay) bootOverlay.hidden = true;
+
+  // Dataset import is a first-class task summoned from the investigation shell,
+  // not an always-open engineering panel competing with the scene.
+  world.loader.hide();
 
   // P1-UV0 instrumentation is a compile-time opt-in. Ordinary production
   // bundles are built without VITE_NEMOSYNE_UV0_EVIDENCE, so Rollup can remove
