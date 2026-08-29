@@ -190,8 +190,7 @@ pub struct DistributionEmbodimentRequestV1 {
 pub struct DistributionObservationCountsV1 {
     pub source_count: u64,
     pub valid_count: u64,
-    pub missing_count: u64,
-    pub non_finite_count: u64,
+    pub excluded_count: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -245,8 +244,7 @@ struct DistributionAnalyticalParametersV1 {
     histogram: DistributionHistogramMethodParametersV1,
     ecdf: DistributionEcdfMethodParametersV1,
     quantiles: DistributionQuantileMethodParametersV1,
-    missing_policy: String,
-    non_finite_policy: String,
+    excluded_policy: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -578,8 +576,7 @@ fn validate_empirical_distribution_payload(
         || method_parameters.histogram.interval != "left-closed-right-open-final-closed"
         || method_parameters.ecdf.selection != "deterministic-rank-knots"
         || method_parameters.quantiles.interpolation != "linear-r7"
-        || method_parameters.missing_policy != "exclude-and-count"
-        || method_parameters.non_finite_policy != "exclude-and-count"
+        || method_parameters.excluded_policy != "canonical-invalid-exclude-and-count"
     {
         return Err(
             "empirical distribution method parameters must match the reviewed V1 policies"
@@ -603,12 +600,11 @@ fn validate_empirical_distribution_payload(
     let counts = &payload.counts;
     let classified_count = counts
         .valid_count
-        .checked_add(counts.missing_count)
-        .and_then(|value| value.checked_add(counts.non_finite_count))
+        .checked_add(counts.excluded_count)
         .ok_or_else(|| "distribution observation count overflow".to_string())?;
     if classified_count != counts.source_count {
         return Err(
-            "distribution valid/missing/nonFinite counts must sum to sourceCount".to_string(),
+            "distribution valid/excluded counts must sum to sourceCount".to_string(),
         );
     }
     if counts.source_count != resource.source_row_count {
@@ -1014,8 +1010,7 @@ mod tests {
                     "histogram": { "binning": "equal-width", "interval": "left-closed-right-open-final-closed" },
                     "ecdf": { "selection": "deterministic-rank-knots" },
                     "quantiles": { "interpolation": "linear-r7", "probabilities": [0.0, 0.5, 1.0] },
-                    "missingPolicy": "exclude-and-count",
-                    "nonFinitePolicy": "exclude-and-count"
+                    "excludedPolicy": "canonical-invalid-exclude-and-count"
                 }),
             },
             approximation: ApproximationV1 {
@@ -1056,8 +1051,7 @@ mod tests {
                         counts: DistributionObservationCountsV1 {
                             source_count: 7,
                             valid_count: 4,
-                            missing_count: 2,
-                            non_finite_count: 1,
+                            excluded_count: 3,
                         },
                         histogram: vec![
                             DistributionHistogramBinV1 {
@@ -1218,7 +1212,7 @@ mod tests {
             payload: RepresentationPayloadV1::EmpiricalDistribution(payload),
         } = &mut wrong_counts.result
         {
-            payload.counts.missing_count = 1;
+            payload.counts.excluded_count = 2;
         }
         assert!(validate_and_normalize(&mut wrong_counts).is_err());
 

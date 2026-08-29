@@ -24,8 +24,7 @@ function distributionFixture(): SemanticEmbodimentEnvelopeV1 {
         },
         ecdf: { selection: 'deterministic-rank-knots' },
         quantiles: { interpolation: 'linear-r7', probabilities: [0, 0.5, 1] },
-        missingPolicy: 'exclude-and-count',
-        nonFinitePolicy: 'exclude-and-count',
+        excludedPolicy: 'canonical-invalid-exclude-and-count',
       },
     },
     approximation: {
@@ -54,7 +53,7 @@ function distributionFixture(): SemanticEmbodimentEnvelopeV1 {
         data: {
           measureField: 'value',
           domain: { min: 1, max: 4 },
-          counts: { sourceCount: 7, validCount: 4, missingCount: 2, nonFiniteCount: 1 },
+          counts: { sourceCount: 7, validCount: 4, excludedCount: 3 },
           histogram: [
             {
               semanticId: 'distribution-bin:000',
@@ -141,8 +140,7 @@ describe('Stream M M1 empirical distribution contract', () => {
     expect(payload.counts).toEqual({
       sourceCount: 7,
       validCount: 4,
-      missingCount: 2,
-      nonFiniteCount: 1,
+      excludedCount: 3,
     });
     expect(payload.histogram.reduce((sum, bin) => sum + bin.count, 0)).toBe(4);
     expect(payload.ecdf.at(-1)).toMatchObject({ cumulativeCount: 4, cumulativeProbability: 1 });
@@ -159,7 +157,7 @@ describe('Stream M M1 empirical distribution contract', () => {
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(wrongIdentity)).toBeNull();
 
     const wrongCounts = distributionFixture();
-    distributionPayload(wrongCounts).counts.missingCount = 1;
+    distributionPayload(wrongCounts).counts.excludedCount = 2;
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(wrongCounts)).toBeNull();
 
     const wrongBound = distributionFixture();
