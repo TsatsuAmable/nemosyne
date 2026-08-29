@@ -324,8 +324,8 @@ describe('AtlasCore', () => {
     expect(rec!.evidenceItems!.length).toBeGreaterThanOrEqual(2);
     expect(rec!.evidenceItems!.some((e) => e.source.includes('cluster'))).toBe(true);
     expect(rec!.targetIds).toHaveLength(1);
-    expect(rec!.confidence).toBeGreaterThan(0);
-    expect(rec!.confidence).toBeLessThanOrEqual(1);
+    expect(rec!.heuristicScore).toBeGreaterThan(0);
+    expect(rec!.heuristicScore).toBeLessThanOrEqual(1);
   });
 
   it('generates inspect-boundary guidance from persistence structures', () => {

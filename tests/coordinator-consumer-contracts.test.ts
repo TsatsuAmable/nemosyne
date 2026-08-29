@@ -73,6 +73,7 @@ const contracts = [
       'connectLiveStream',
       'deleteSession',
       'disconnectLiveStream',
+      'dispatchIntent',
       'engine',
       'exitVR',
       'exportAnalysisStory',

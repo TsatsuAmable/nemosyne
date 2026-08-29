@@ -211,7 +211,7 @@ describe('Investigation Domain Aggregate Architecture', () => {
         action: 'inspect-cluster',
         rationale: 'High variance cluster detected',
         evidence: 'Variance = 15.2',
-        confidence: 0.85,
+        heuristicScore: 0.85,
         decision: 'pending',
       });
 

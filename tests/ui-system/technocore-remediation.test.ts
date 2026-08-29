@@ -14,7 +14,7 @@ describe('P1-U5 RecommendationPanel Diagnostic Views', () => {
     action: 'inspect-cluster',
     rationale: 'High density clustering found in the central partition.',
     evidence: 'Density score: 0.85',
-    confidence: 0.9,
+    heuristicScore: 0.9,
     limitations: 'Limited by boundary constraints.',
     suggestedEmbodiment: '3D Scatterplot',
     decision: 'pending',

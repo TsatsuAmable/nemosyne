@@ -37,6 +37,9 @@ const DECISION_COLOR: Record<string, string> = {
   overridden: '#9966ff',
 };
 
+const HEURISTIC_RANK_DISCLAIMER =
+  'HEURISTIC RANK is a rank-dominance heuristic, not statistical confidence or significance.';
+
 export class RecommendationPanel extends MovablePanel {
   private readonly _getRecommendation: () => AtlasRecommendation | null;
   private readonly _getOutcome?: () => InvestigatorActionableOutcome | null;
@@ -212,19 +215,23 @@ export class RecommendationPanel extends MovablePanel {
 
     ctx.font = this._scaleFont('bold 15px monospace');
     ctx.fillStyle = '#00ffff';
-    ctx.fillText('// CONFIDENCE', pad, y + lineH);
+    ctx.fillText('// HEURISTIC RANK', pad, y + lineH);
     y += lineH + 4;
     const barW = w - pad * 2 - 8;
     const barH = 18;
     ctx.fillStyle = '#222222';
     ctx.fillRect(pad + 8, y, barW, barH);
-    const confW = Math.max(0, Math.min(1, rec.confidence)) * barW;
-    ctx.fillStyle = rec.confidence > 0.6 ? '#00ff66' : rec.confidence > 0.3 ? '#ffcc00' : '#ff6644';
-    ctx.fillRect(pad + 8, y, confW, barH);
+    const scoreW = Math.max(0, Math.min(1, rec.heuristicScore)) * barW;
+    ctx.fillStyle =
+      rec.heuristicScore > 0.6 ? '#00ff66' : rec.heuristicScore > 0.3 ? '#ffcc00' : '#ff6644';
+    ctx.fillRect(pad + 8, y, scoreW, barH);
     ctx.font = this._scaleFont('12px monospace');
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(`${(rec.confidence * 100).toFixed(0)}%`, pad + 12, y + 14);
+    ctx.fillText(`${(rec.heuristicScore * 100).toFixed(0)}%`, pad + 12, y + 14);
     y += barH + 12;
+    ctx.font = this._scaleFont('12px monospace');
+    ctx.fillStyle = '#ff9966';
+    y = this._wrapText(ctx, `// ${HEURISTIC_RANK_DISCLAIMER}`, pad + 8, y, w - pad * 2 - 8, lineH, contentH) + 8;
 
     if (rec.limitations) {
       ctx.font = this._scaleFont('13px monospace');

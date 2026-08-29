@@ -1,4 +1,9 @@
 import { ANALYSIS_TEMPLATES } from '../../data/AnalysisTemplates.ts';
+import {
+  parseApplicationAnalysisOperation,
+  type ApplicationIntent,
+  type ApplicationIntentDispatcher,
+} from '../../app/intents/ApplicationIntent.ts';
 import type {
   CollaborationCoordinatorLike,
   PanelLike,
@@ -66,6 +71,42 @@ export interface WheelMenuHost {
   _toggleStatisticalLens?(): void;
   _toggleDracoExplainer?(): void;
   _toggleDracoDiagnostic?(): void;
+  /**
+   * Canonical command authority injected by the bootstrap composition root.
+   * When present the wheel dispatches mutating commands (analysis ops,
+   * reset/undo/redo, dataset cycle, lens) through it instead of calling
+   * `applyDataOperation`/`resetDataOperation`/etc. directly.
+   */
+  dispatchIntent?: ApplicationIntentDispatcher | null;
+}
+
+/**
+ * Route a mutating analysis command through the canonical intent dispatcher
+ * when the bootstrap has injected it; otherwise fall back to the legacy
+ * direct call so the wheel stays functional in isolation.
+ */
+function dispatchAnalysisOp(world: WheelMenuHost, op: string): void {
+  const parsed = world.dispatchIntent ? parseApplicationAnalysisOperation(op) : null;
+  if (world.dispatchIntent && parsed) {
+    world.dispatchIntent({ type: 'analysis.apply', operation: parsed });
+    return;
+  }
+  world.applyDataOperation(op);
+}
+
+/** Dispatch a non-analysis intent via the canonical dispatcher, else fallback. */
+function viaIntent(
+  world: WheelMenuHost,
+  intent: ApplicationIntent,
+  fallback: () => void
+): () => void {
+  return () => {
+    if (world.dispatchIntent) {
+      world.dispatchIntent(intent);
+      return;
+    }
+    fallback();
+  };
 }
 
 export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategory[] {
@@ -75,7 +116,7 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
     id,
     label,
     icon,
-    callback: () => world.applyDataOperation(op),
+    callback: () => dispatchAnalysisOp(world, op),
     onHover: () => world.previewDataOperation(op),
     onLeave: () => world.clearOperationPreview(),
   });
@@ -239,7 +280,7 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
           icon: '🌀',
           callback: () => world.setPortalsEnabled(!world.portalsEnabled),
         },
-        { id: 'dataset', label: 'Dataset', icon: '💎', callback: () => world._cycleDataset() },
+        { id: 'dataset', label: 'Dataset', icon: '💎', callback: viaIntent(world, { type: 'dataset.cycle', step: 1 }, () => world._cycleDataset()) },
         {
           id: 'cycle-theme',
           label: 'Theme',
@@ -314,7 +355,7 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
           id: 'toggle-lens',
           label: 'Lens',
           icon: '🔬',
-          callback: () => world._toggleStatisticalLens?.(),
+          callback: viaIntent(world, { type: 'workspace.toggleStatisticalLens' }, () => world._toggleStatisticalLens?.()),
         },
         {
           id: 'explain-view',
@@ -377,7 +418,7 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
         opItem('density', 'Density', '⚫', 'density'),
         opItem('anomaly', 'Anomaly', '⚡', 'anomaly'),
         opItem('timeSlice', 'Slice', '🕒', 'timeSlice'),
-        { id: 'reset', label: 'Reset', icon: '↺', callback: () => world.resetDataOperation() },
+        { id: 'reset', label: 'Reset', icon: '↺', callback: viaIntent(world, { type: 'analysis.reset' }, () => world.resetDataOperation()) },
         // Undo/Redo surface the analysis history to controller-only VR users who
         // cannot reliably perform the two-handed rotate gestures or know the
         // A/B-button mapping. `undoAnalysis`/`redoAnalysis` are safe no-ops when
@@ -385,8 +426,8 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
         // A live disabled affordance (dimmed when canUndo/canRedo is false) is a
         // future enhancement — it requires dynamic menu state, since the wheel is
         // built once at init.
-        { id: 'undo', label: 'Undo', icon: '⮌', callback: () => world.undoAnalysis() },
-        { id: 'redo', label: 'Redo', icon: '⮎', callback: () => world.redoAnalysis() },
+        { id: 'undo', label: 'Undo', icon: '⮌', callback: viaIntent(world, { type: 'history.undo' }, () => world.undoAnalysis()) },
+        { id: 'redo', label: 'Redo', icon: '⮎', callback: viaIntent(world, { type: 'history.redo' }, () => world.redoAnalysis()) },
       ],
     },
     {
@@ -485,7 +526,7 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
     id,
     label,
     icon,
-    callback: () => world.applyDataOperation(op),
+    callback: () => dispatchAnalysisOp(world, op),
     onHover: () => world.previewDataOperation(op),
     onLeave: () => world.clearOperationPreview(),
   });
@@ -511,11 +552,11 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
         opItem('density', 'Density', '⚫', 'density'),
         opItem('anomaly', 'Anomaly', '⚡', 'anomaly'),
         opItem('timeSlice', 'Slice', '🕒', 'timeSlice'),
-        { id: 'reset', label: 'Reset', icon: '↺', callback: () => world.resetDataOperation() },
+        { id: 'reset', label: 'Reset', icon: '↺', callback: viaIntent(world, { type: 'analysis.reset' }, () => world.resetDataOperation()) },
         // Undo/Return are required novice vocabulary (UX spec §6.1). These are
         // safe no-ops when history is empty; see legacy note in buildWheelMenu.
-        { id: 'undo', label: 'Undo', icon: '⮌', callback: () => world.undoAnalysis() },
-        { id: 'redo', label: 'Redo', icon: '⮎', callback: () => world.redoAnalysis() },
+        { id: 'undo', label: 'Undo', icon: '⮌', callback: viaIntent(world, { type: 'history.undo' }, () => world.undoAnalysis()) },
+        { id: 'redo', label: 'Redo', icon: '⮎', callback: viaIntent(world, { type: 'history.redo' }, () => world.redoAnalysis()) },
       ],
     },
     {
@@ -546,7 +587,7 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           id: 'lens',
           label: 'Statistical Lens',
           icon: '🔬',
-          callback: () => world._toggleStatisticalLens?.(),
+          callback: viaIntent(world, { type: 'workspace.toggleStatisticalLens' }, () => world._toggleStatisticalLens?.()),
         },
         {
           id: 'explain',
@@ -626,7 +667,7 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           id: 'dataset-cycle',
           label: 'Next Dataset',
           icon: '💎',
-          callback: () => world._cycleDataset(),
+          callback: viaIntent(world, { type: 'dataset.cycle', step: 1 }, () => world._cycleDataset()),
         },
         {
           id: 'live-stream',
