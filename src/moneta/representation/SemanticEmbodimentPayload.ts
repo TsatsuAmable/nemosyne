@@ -120,8 +120,8 @@ export interface DistributionEmbodimentRequestV1 {
 export interface DistributionObservationCountsV1 {
   sourceCount: number;
   validCount: number;
-  missingCount: number;
-  nonFiniteCount: number;
+  /** Canonical invalid observations; source-level invalid reasons are not retained by V1 ingest. */
+  excludedCount: number;
 }
 
 export interface DistributionDomainV1 {

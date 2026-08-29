@@ -4,11 +4,11 @@
 **Stream:** M — Moneta Distribution Truth  
 **Checkpoint:** M1 — distribution contract and falsifiers  
 **Base:** `main@2e77fe333ebacfd30941e7dc7194dea7402ab731`  
-**Status:** IMPLEMENTED — GOVERNED ENGINEERING GATES PASSED
+**Status:** IMPLEMENTED — M2 COUNT AMENDMENT UNDER REVIEW
 
 ## Invariant
 
-`DISTRIBUTION_FIELD` means a bounded univariate empirical-distribution summary with an explicit numeric measure, deterministic equal-width histogram bins, bounded ECDF knots, explicit quantiles and truthful source/valid/missing/non-finite counts. It has a distinct candidate, payload and geometry identity from `DENSITY_FIELD`; contains no rows; and cannot be described as PDF, KDE, continuous density or contour output.
+`DISTRIBUTION_FIELD` means a bounded univariate empirical-distribution summary with an explicit numeric measure, deterministic equal-width histogram bins, bounded ECDF knots, explicit quantiles and truthful source/valid/excluded counts. It has a distinct candidate, payload and geometry identity from `DENSITY_FIELD`; contains no rows; and cannot be described as PDF, KDE, continuous density or contour output.
 
 M1 defines and validates this contract only. It must not claim that the Rust builder, Worker transport, renderer or product path exists before M2/M3.
 
@@ -46,7 +46,7 @@ The payload contains:
 - contiguous equal-width histogram bins with deterministic half-open intervals except the final closed interval;
 - bounded ECDF knots with finite values, monotone cumulative counts/probabilities and a final endpoint of `(validCount, 1)` when data is present;
 - quantile results matching the requested probabilities, with recorded interpolation policy;
-- source, valid, missing and non-finite counts whose sum is source count;
+- source, valid and canonical-excluded counts whose sum is source count;
 - stable semantic IDs for bins, knots and quantiles;
 - no row fragments or observation identifiers.
 
@@ -67,7 +67,9 @@ total semantic elements <= 544
 - loses: `individual-observation-identity`, `exact-metric-values`;
 - approximation mode: `BINNED` because the combined visual summary contains a governed histogram and bounded ECDF, even though individual quantile values may be exact under the declared interpolation rule;
 - `representedRowCount` equals valid numeric observations, not source N;
-- method parameters record interval, binning, ECDF selection, quantile interpolation and missing/non-finite policies.
+- method parameters record interval, binning, ECDF selection, quantile interpolation and canonical invalid-value policy.
+
+M2 pre-implementation review corrected the original separate missing/non-finite fields before any production consumer existed. Canonical V1 ingest and fingerprinting intentionally normalize both cases to the same invalid/null state, so the resident-handle builder can truthfully report only `excludedCount`. Source-level invalid-reason provenance requires a separately governed ingest and identity migration.
 
 The inherited information-type name `population-density-distribution` is retained as the existing ontology identifier; prose/UI claims must say empirical distribution, not continuous density.
 
@@ -77,7 +79,7 @@ The inherited information-type name `population-density-distribution` is retaine
 2. Candidate prose still claims bivariate correlation, PDF, continuous contours or exact per-observation values.
 3. The request permits an absent/blank measure and a later layer silently chooses a numeric column.
 4. NaN/Infinity enters JSON as plausible analytical output.
-5. Counts do not reconcile, making missing/non-finite exclusion invisible.
+5. Counts do not reconcile, making canonical invalid-value exclusion invisible.
 6. Histogram intervals overlap/gap, bins exceed bounds, or constant-domain data is rejected/fabricated.
 7. ECDF probabilities/counts are not monotone or do not terminate at one/valid count.
 8. Quantile probabilities are unsorted/duplicated or results do not match the request.
