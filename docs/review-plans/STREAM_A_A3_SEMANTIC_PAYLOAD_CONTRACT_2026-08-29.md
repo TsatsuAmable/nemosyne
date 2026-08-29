@@ -3,7 +3,7 @@
 Date: 2026-08-29  
 Stream: A — Analytical Scale & Representation Authority  
 Checkpoint: A3 — P1-R1 semantic embodiment payload contract  
-Base: `main@3494e3477695e5ddebfa1a8e21d581e2d3dd9f5b`  
+Base: `main@40493f92ed1dd996e8ad2ddc8a76a7838f8c2dfc`  
 Status: IMPLEMENTATION LANDED ON BRANCH / REVIEW ACTIVE
 
 ## Purpose
@@ -11,6 +11,8 @@ Status: IMPLEMENTATION LANDED ON BRANCH / REVIEW ACTIVE
 A2 proved that Nemosyne has semantic candidate identities richer than the renderer contract. Production translation still funnels source rows into embodiment, and semantically distinct candidates can collapse onto layout-driven geometry. A3 therefore establishes the smallest strict Rust-owned wire contract needed before any dataset-level representation is allowed to replace that row-first path.
 
 A3 is a contract checkpoint, not an analytical implementation checkpoint.
+
+Initial A3 work began from the A2 merge head. Before PR creation, Stream C checkpoint C1 (`#530`) advanced `main` to `40493f92ed1dd996e8ad2ddc8a76a7838f8c2dfc`. That movement touched signalling/security authority only and was classified **REBASE ONLY / NO CONTRACT IMPACT**. The A3 tree was replayed onto the new exact `main` before review.
 
 ## Pre-implementation adversarial contract
 
