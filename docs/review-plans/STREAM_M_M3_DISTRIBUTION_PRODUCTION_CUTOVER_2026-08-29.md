@@ -76,12 +76,13 @@ M3 does not add the UI-owned `Show distribution` action, browser/perceptual/scal
 
 ## Post-implementation adversarial review
 
-The implementation was re-read across the use-case, loader, Worker, node lifecycle, translator, adapter and selection surface before publication. Four cross-boundary findings were closed in the implementation:
+The implementation was re-read across the use-case, loader, Worker, node lifecycle, translator, adapter and selection surface before publication. Five cross-boundary findings were closed in the implementation and exact-head verification:
 
 1. **Chart-plane row fallback — closed.** Branching only around layout geometry was insufficient because the post-geometry chart-plane path could still receive the resident `Dataset`. `DISTRIBUTION_FIELD` is now excluded from that path, and the falsifier installs throwing getters on both `dataInput.rows` and `dataset.rows` while keeping a chart factory available.
 2. **Execution-result identity — closed.** Authority-state checks alone did not prove that a returned result carried the requested generation/version/fingerprint. The distribution loader now verifies both current authority and result metadata, then checks envelope schema/fingerprint/candidate/family/payload kind and decision ID before adoption.
 3. **Extreme-domain presentation overflow — closed.** Ordinary `(value-min)/(max-min)` mapping can overflow for finite `[-f64::MAX, f64::MAX]` domains. The adapter scales finite endpoints before subtraction; the regression fixture requires every rendered position to remain finite.
 4. **Late distribution promise — closed.** The node's existing aggregate-only subscription fence now captures either semantic candidate and rejects resolution after token, promise or representation-decision change.
+5. **Legacy journey fallback expectation — closed.** Exact-head coverage found that the synchronous whole-product journey still required non-empty meshes when `DISTRIBUTION_FIELD` had no semantic payload. The test now proves the governed `PENDING`/zero-mesh state instead of requiring the retired source-row/density fallback; the separate Worker-handler/WASM test proves ready distribution meshes.
 
 The review confirmed that the Worker rejects unknown semantic candidates, aggregate dispatch is unchanged, pending/refused/invalid/unavailable output creates no meshes, and every ready mesh name equals its Rust semantic ID while mesh/group metadata retain dataset fingerprint, method, decision and kernel/algorithm provenance.
 
@@ -93,7 +94,7 @@ The review confirmed that the Worker rejects unknown semantic candidates, aggreg
 - full repository `tsc --noEmit` — passed;
 - focused ESLint and Prettier checks — passed;
 - M3 cutover + A2 sentinel + RepresentationSurface + aggregate-loader regression: 4 files, 16 tests — passed;
-- the new actual Worker-handler/WASM cutover test and the additional WASM-dependent aggregate audit could not run locally because `wasm/pkg` is not built in this container; exact-head Rust/WASM/coverage gates remain authoritative.
+- the new actual Worker-handler/WASM cutover test passed locally against the exact-head CI-produced WASM package after the first coverage run exposed the legacy journey expectation; exact-head Rust/WASM/coverage gates remain authoritative after the repair commit.
 
 ### Residuals transferred to M4
 
