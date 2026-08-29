@@ -97,6 +97,10 @@ function sourceMetadata() {
 
 test('A1 measures the real browser -> Worker -> WASM -> presentation envelope', async ({ page }) => {
   test.setTimeout(240_000);
+  test.skip(
+    process.env.NEMOSYNE_A1_BROWSER_PROBE !== '1',
+    'A1 resource envelope only runs in its isolated exact-head evidence workflow.'
+  );
 
   await mkdir('stream-a-a1-results', { recursive: true });
   await page.goto('/');
