@@ -1,8 +1,6 @@
 import type { VRBehavior, VRGeometry, VRInteraction, VRLayout } from '../types.ts';
 import type { SpatialStrategy } from '../SpatialStrategy.ts';
-import {
-  rankWithPinnedLearnedFitnessModel,
-} from '../../fitness/LearnedFitnessRuntimeAdapter.ts';
+import { rankWithPinnedLearnedFitnessModel } from '../../fitness/LearnedFitnessRuntimeAdapter.ts';
 import type { FitnessModelRegistry } from '../../fitness/FitnessModelRegistry.ts';
 import type { FitnessModelPromotionPolicy } from '../../fitness/PromotionGate.ts';
 import { canonicalJsonStringify } from '../../investigation/InvestigationDigest.ts';
@@ -10,6 +8,7 @@ import { fnv1aHex } from '../../atlas/DatasetSpace.ts';
 import { assessRepresentationDecision } from './DecisionPolicy.ts';
 import {
   MONETA_REPRESENTATION_CANDIDATES,
+  type SemanticRepresentationId,
 } from './RepresentationCandidate.ts';
 import { NoFeasibleRepresentationError } from './NoFeasibleRepresentationError.ts';
 import type {
@@ -34,7 +33,12 @@ function nonEmpty(value: string, label: string): string {
   return normalized;
 }
 
-function geometryForLayout(layout: VRLayout): VRGeometry {
+function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentationId): VRGeometry {
+  if (candidateId === 'AGGREGATE_VOLUME') return 'AGGREGATE_BARS';
+  if (candidateId === 'CLUSTER_REGIONS') return 'CLUSTER_VOLUME';
+  if (candidateId === 'DENSITY_FIELD' || candidateId === 'DISTRIBUTION_FIELD') {
+    return 'DENSITY_FIELD';
+  }
   switch (layout) {
     case 'GEO_SURFACE':
       return 'GEO_COLUMN';
@@ -72,7 +76,7 @@ function buildSpatialStrategy(
   modelVersion: string,
   modelArtifactHash: string,
 ): SpatialStrategy {
-  const geometry = geometryForLayout(winner.layout);
+  const geometry = geometryForLayout(winner.layout, winner.candidateId);
   const behavior = behaviorForLayout(winner.layout);
   const interaction = interactionForLayout(winner.layout);
   const positionSemantics =
@@ -103,7 +107,7 @@ function buildSpatialStrategy(
       .map((candidate) => ({
         strategyId: candidate.candidateId,
         layout: candidate.layout,
-        geometry: geometryForLayout(candidate.layout),
+        geometry: geometryForLayout(candidate.layout, candidate.candidateId),
         score: candidate.score,
         reason: candidate.disqualificationReason ?? `Ranked below ${winner.candidateId}`,
       })),
@@ -199,7 +203,7 @@ export function applyPinnedLearnedFitnessRuntime(
   }
   const embodiment: DecisionEmbodiment = {
     primaryLayout: winner.layout,
-    primaryGeometry: geometryForLayout(winner.layout),
+    primaryGeometry: geometryForLayout(winner.layout, winner.candidateId),
     primaryBehavior: behaviorForLayout(winner.layout),
     primaryInteraction: interactionForLayout(winner.layout),
     spatialStrategy: buildSpatialStrategy(

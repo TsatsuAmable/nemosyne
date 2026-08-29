@@ -22,6 +22,7 @@ function fakeNode(meshName: string): MonetaTopologyNode {
     },
     group,
     reSolveAndSynthesize: vi.fn(),
+    cancelPendingSemanticEmbodiment: vi.fn(),
   } as unknown as MonetaTopologyNode;
 }
 
@@ -82,6 +83,7 @@ describe('RF-062C RepresentationSurface', () => {
 
     surface.replace({ topology: 'TABULAR' }, null);
 
+    expect(first.cancelPendingSemanticEmbodiment).toHaveBeenCalledOnce();
     expect(removeUpdatable).toHaveBeenCalledWith(first);
     expect(removeInteractable).toHaveBeenCalledWith(firstMesh);
     expect((firstDiagnostic.dispose as ReturnType<typeof vi.fn>)).toHaveBeenCalledOnce();
@@ -125,6 +127,7 @@ describe('RF-062C RepresentationSurface', () => {
     surface.replace({ topology: 'TABULAR' }, null);
     expect(() => surface.replace({ topology: 'TABULAR' }, null)).toThrow('translation failed');
     expect(surface.currentNode).toBe(first);
+    expect(first.cancelPendingSemanticEmbodiment).not.toHaveBeenCalled();
     expect(removeUpdatable).not.toHaveBeenCalledWith(first);
   });
 
@@ -160,6 +163,7 @@ describe('RF-062C RepresentationSurface', () => {
     surface.dispose();
     surface.dispose();
 
+    expect(node.cancelPendingSemanticEmbodiment).toHaveBeenCalledTimes(1);
     expect(removeUpdatable).toHaveBeenCalledTimes(1);
     expect(removeInteractable).toHaveBeenCalledTimes(1);
     expect(removeDiagnosticPanel).toHaveBeenCalledTimes(1);

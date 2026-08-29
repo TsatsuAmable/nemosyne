@@ -13,7 +13,13 @@ import type {
 } from './types.ts';
 import type { RepresentationDecision } from './representation/RepresentationDecision.ts';
 import type { RepresentationGraph } from './representation/RepresentationGraph.ts';
+import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
 import { representationGraphToRuntimeSpec } from './representation/RepresentationGraphRuntimeAdapter.ts';
+
+type SemanticMonetaDataInput = MonetaDataInput & {
+  semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
+  semanticEmbodimentPromise?: Promise<SemanticEmbodimentEnvelopeV1 | null>;
+};
 
 export class MonetaTopologyNode {
   scene: THREE.Scene;
@@ -27,6 +33,7 @@ export class MonetaTopologyNode {
   solverResult!: SolverResult;
   artifact: Artifact | undefined;
   group: THREE.Group | undefined;
+  private _semanticEmbodimentToken = 0;
 
   constructor(
     scene: THREE.Scene,
@@ -47,18 +54,47 @@ export class MonetaTopologyNode {
     this.representationDecision = representationGraph ? null : representationDecision;
     this.representationGraph = representationGraph;
     this.reSolveAndSynthesize();
+    this._subscribeSemanticEmbodiment();
   }
 
   setRepresentationDecision(decision: RepresentationDecision | null): void {
     this.representationGraph = null;
     this.representationDecision = decision;
     this.reSolveAndSynthesize();
+    this._subscribeSemanticEmbodiment();
   }
 
   setRepresentationGraph(graph: RepresentationGraph | null): void {
     this.representationDecision = null;
     this.representationGraph = graph;
     this.reSolveAndSynthesize();
+  }
+
+  /** Invalidate any late A4 payload before this node is removed/replaced. */
+  cancelPendingSemanticEmbodiment(): void {
+    this._semanticEmbodimentToken += 1;
+  }
+
+  private _subscribeSemanticEmbodiment(): void {
+    const input = this.dataInput as SemanticMonetaDataInput;
+    const promise = input.semanticEmbodimentPromise;
+    if (!promise || this.representationDecision?.chosenCandidateId !== 'AGGREGATE_VOLUME') return;
+    const token = ++this._semanticEmbodimentToken;
+    void promise.then((envelope) => {
+      if (
+        token !== this._semanticEmbodimentToken ||
+        input.semanticEmbodimentPromise !== promise ||
+        this.representationDecision?.chosenCandidateId !== 'AGGREGATE_VOLUME'
+      ) {
+        return;
+      }
+      if (!envelope) {
+        if (this.group) this.group.userData.semanticEmbodimentStatus = 'UNAVAILABLE';
+        return;
+      }
+      input.semanticEmbodiment = envelope;
+      this.reSolveAndSynthesize();
+    });
   }
 
   adjustWeight(ruleName: string, delta: number): void {
@@ -91,8 +127,6 @@ export class MonetaTopologyNode {
       this.solverResult = {
         facts,
         spec: runtime.spec,
-        // SolverResult still calls this value "cost" for historical reasons.
-        // RepresentationGraph carries bootstrap utility, not calibrated confidence.
         cost: runtime.utilityScore,
       };
     } else if (this.representationDecision) {
@@ -111,8 +145,6 @@ export class MonetaTopologyNode {
           behavior: emb?.primaryBehavior ?? 'STATIC',
           interaction: emb?.primaryInteraction ?? 'INSPECT_CELL',
         },
-        // SolverResult still calls this value "cost" for historical reasons.
-        // Do not derive it from confidence: Moneta V3 exposes explicit utility.
         cost: this.representationDecision.utilityScore,
       };
     } else {

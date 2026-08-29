@@ -44,12 +44,7 @@ export interface RepresentationSurfaceFactories {
   ) => MonetaDiagnosticHUD;
 }
 
-/**
- * Owns the resources that constitute the currently rendered Moneta
- * representation. Logical dataset/representation decisions happen upstream;
- * this class owns construction, interaction binding, replacement, selection
- * continuity, diagnostic lifetime, and idempotent disposal.
- */
+/** Owns the resources that constitute the currently rendered Moneta representation. */
 export class RepresentationSurface {
   currentNode: MonetaTopologyNode | null = null;
   diagnostic: MonetaDiagnosticHUD | null = null;
@@ -89,12 +84,7 @@ export class RepresentationSurface {
     dataInput: MonetaDataInput,
     representationDecision: RepresentationDecision | null,
   ): MonetaTopologyNode {
-    if (this.disposed) {
-      throw new Error('RepresentationSurface is disposed');
-    }
-
-    // Construct before releasing the old surface. If Moneta translation throws,
-    // the current representation remains live instead of leaving a blank world.
+    if (this.disposed) throw new Error('RepresentationSurface is disposed');
     const nextNode = this.createNode(
       this.dependencies.scene,
       dataInput,
@@ -116,7 +106,6 @@ export class RepresentationSurface {
     if (selectedName && nextNode.artifact?.nodeMeshes) {
       this.selectedMesh = nextNode.artifact.nodeMeshes.find((mesh) => mesh.name === selectedName) ?? null;
     }
-
     return nextNode;
   }
 
@@ -137,15 +126,13 @@ export class RepresentationSurface {
   private disposeCurrent(): void {
     const node = this.currentNode;
     const diagnostic = this.diagnostic;
-
     this.dependencies.clearStructureHandles();
 
     if (node?.artifact) {
-      for (const mesh of node.artifact.nodeMeshes) {
-        this.dependencies.removeInteractable(mesh);
-      }
+      for (const mesh of node.artifact.nodeMeshes) this.dependencies.removeInteractable(mesh);
     }
     if (node) {
+      node.cancelPendingSemanticEmbodiment();
       this.dependencies.removeUpdatable(node);
       if (node.group) disposeObject(node.group);
     }
@@ -165,8 +152,10 @@ export class RepresentationSurface {
       if (!node.artifact) return;
       this.dependencies.setTooltipTargets(node.artifact.nodeMeshes);
       for (const mesh of node.artifact.nodeMeshes) {
+        const semanticKind =
+          mesh.userData.representationKind === 'AGGREGATE_VOLUME' ? 'aggregate-group' : 'observation';
         this.dependencies.addInteractable(mesh, {
-          semantic: { kind: 'observation' },
+          semantic: { kind: semanticKind },
           onEnter: (object) => node.artifact?.interactions?.onHover?.(object as Mesh),
           onLeave: (object) => node.artifact?.interactions?.onUnhover?.(object as Mesh),
           onSelect: (object) => {
@@ -182,9 +171,7 @@ export class RepresentationSurface {
     const original = node.reSolveAndSynthesize.bind(node);
     node.reSolveAndSynthesize = () => {
       if (node.artifact) {
-        for (const mesh of node.artifact.nodeMeshes) {
-          this.dependencies.removeInteractable(mesh);
-        }
+        for (const mesh of node.artifact.nodeMeshes) this.dependencies.removeInteractable(mesh);
       }
       this.dependencies.clearStructureHandles();
       original();
