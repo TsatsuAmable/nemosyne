@@ -1,6 +1,7 @@
 import type { Provenance } from '../../data/types.ts';
 import type { Dataset } from '../../data/Dataset.ts';
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
+import { UnsupportedAtScaleError } from '../../wasm/RuntimeBridge.ts';
 import {
   mapClusterStructures,
   mapMapperStructures,
@@ -110,6 +111,7 @@ export class DerivedAnalysisPipeline {
       publish: (request, result) => this.publish(request, result),
       defer: options.defer,
       cancelDeferred: options.cancelDeferred,
+      isRefusal: (error) => error instanceof UnsupportedAtScaleError,
       onError: options.onError,
     });
   }

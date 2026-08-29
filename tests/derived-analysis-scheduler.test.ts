@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   DerivedAnalysisScheduler,
   type DerivedAnalysisRequest,
@@ -129,6 +129,34 @@ describe('RF-061 DerivedAnalysisScheduler', () => {
 
     expect(computes).toEqual([3]);
     expect(scheduler.stats()).toMatchObject({ supersededPending: 1, completed: 1 });
+  });
+
+  it('classifies a governed refusal separately from an execution failure', async () => {
+    const deferrer = manualDeferrer();
+    const refusal = Object.assign(new Error('resource envelope refused exact work'), {
+      code: 'UNSUPPORTED_AT_SCALE',
+    });
+    const onError = vi.fn();
+    const publish = vi.fn();
+    const scheduler = new DerivedAnalysisScheduler<number>({
+      isCurrent: () => true,
+      compute: async () => {
+        throw refusal;
+      },
+      publish,
+      isRefusal: (error) => error === refusal,
+      onError,
+      defer: deferrer.defer,
+      cancelDeferred: deferrer.cancel,
+    });
+
+    scheduler.schedule(request(1));
+    deferrer.flushOne();
+    await scheduler.whenIdle();
+
+    expect(publish).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(refusal, request(1));
+    expect(scheduler.stats()).toMatchObject({ completed: 0, refused: 1, failed: 0 });
   });
 
   it('disposal cancels pending work and resolves idle waiters without publication', async () => {

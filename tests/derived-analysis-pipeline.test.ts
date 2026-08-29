@@ -4,6 +4,7 @@ import type { TDAComputationResult } from '../src/vr/artifacts/TDAPlanes.ts';
 import { DerivedAnalysisPipeline } from '../src/vr/coordinators/DerivedAnalysisPipeline.ts';
 import type { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import type { WorldRendererLifecycle } from '../src/vr/coordinators/WorldRendererLifecycle.ts';
+import { UnsupportedAtScaleError } from '../src/wasm/RuntimeBridge.ts';
 
 function dataset(clustered = false): Dataset {
   return new Dataset(
@@ -44,6 +45,28 @@ function tda(version: number, fingerprint: string): TDAComputationResult {
     mapperParams: { featureColumns: ['x'], bins: 10, overlap: 0.5 },
     bettiParams: { featureColumns: ['x'], steps: 12 },
   };
+}
+
+function scaleRefusal(): UnsupportedAtScaleError {
+  return new UnsupportedAtScaleError({
+    sourceRows: 8_000,
+    eligibleRows: 8_000,
+    excludedRows: 0,
+    dimensions: 1,
+    missingDataPolicy: 'complete-case selected features',
+    eligibilityMode: 'complete_case_selected_features',
+    estimate: {
+      operation: 'compute_persistence_intervals',
+      rows: 8_000,
+      dimensions: 1,
+      complexity: 'quadratic',
+      estimatedWorkUnits: 2_111_712_000,
+      estimatedTransientBytes: 1,
+      decision: 'unsupported_at_scale',
+      reasonCode: 'EXACT_WORK_BUDGET_EXCEEDED',
+    },
+    refusal: 'UNSUPPORTED_AT_SCALE:operation=compute_persistence_intervals',
+  });
 }
 
 function immediateDeferrer(callback: () => void): unknown {
@@ -144,6 +167,39 @@ describe('RF-061 derived analysis pipeline', () => {
     expect(clusterSet.structures.map((entry) => entry.evidence.method)).toEqual(['cluster', 'cluster']);
     expect(clusterSet.structures.map((entry) => entry.rowIndices)).toEqual([[0], [1, 2]]);
     expect(clusterSet.structures[0].evidence.parameters.op).toBe('k_means');
+  });
+
+  it('classifies authoritative resource refusal as governed settlement, not pipeline failure', async () => {
+    const fp = 'e'.repeat(64);
+    const { atlas, recorded } = makeAtlas(dataset(), fp);
+    const refusal = scaleRefusal();
+    const onError = vi.fn();
+    const renderer = {
+      tdaCompute: vi.fn(async () => {
+        throw refusal;
+      }),
+      tdaApply: vi.fn(() => true),
+    } as unknown as Pick<WorldRendererLifecycle, 'tdaCompute' | 'tdaApply'>;
+    const pipeline = new DerivedAnalysisPipeline({
+      atlas,
+      rendererLifecycle: renderer,
+      publishStructureHandles: () => {},
+      markRecommendationDirty: () => {},
+      onError,
+      defer: immediateDeferrer,
+    });
+
+    pipeline.schedule('sort');
+    await pipeline.whenIdle();
+
+    expect(recorded).toHaveLength(0);
+    expect(renderer.tdaApply).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(refusal, expect.objectContaining({
+      datasetVersion: 2,
+      datasetFingerprint: fp,
+      operation: 'sort',
+    }));
+    expect(pipeline.stats()).toMatchObject({ completed: 0, refused: 1, failed: 0 });
   });
 
   it('does not publish stale TDA output when Atlas identity changes during computation', async () => {
