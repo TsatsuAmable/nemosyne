@@ -157,7 +157,7 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
     (s) => s.inspectorVisible === true,
     'focused-observation: inspector visible after Inspect verb',
   );
-  await captureState(page, '02-focused-observation', true, 'node selected; task surface + inspector visible', s2b);
+  await captureState(page, '02-focused-observation', true, 'task surface reached; inspector visible after Inspect', s2b);
 
   // S3 Moneta decision / NIL.
   await page.locator('#analyst-max-elements').fill('1');
