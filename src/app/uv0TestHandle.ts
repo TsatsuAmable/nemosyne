@@ -12,9 +12,46 @@
  * This file is test-only helper code (Stream B, `docs/ROADMAP.md:186` permits
  * `src/app/bootstrap.ts` composition). It mutates nothing at install and has no
  * effect on the visible product when the query parameter is absent.
+ *
+ * Keep this helper structurally typed rather than importing `World`: RF-062
+ * makes `World` a composition root, so only the bootstrap seam may depend on it.
  */
 
-import type { World } from '../vr/World.ts';
+interface Uv0RuntimePort {
+  currentEntry?: {
+    name?: string | null;
+    label?: string | null;
+  } | null;
+  uiManager?: {
+    contextualTaskSurface?: {
+      visible?: boolean;
+      callbacks: {
+        onInspect?: (target: null) => void;
+      };
+    };
+  };
+  representationSurface?: {
+    currentNode?: {
+      artifact?: {
+        nodeMeshes?: object[];
+      };
+    } | null;
+    setSelectedMesh(mesh: object): void;
+  };
+  inspector?: { visible?: boolean };
+  diagnostic?: { mesh?: { visible?: boolean } };
+  _lastSelectedMesh?: { name?: string } | null;
+  atlas: {
+    results: readonly unknown[];
+    observations: readonly unknown[];
+    isReady(): boolean;
+  };
+  session: {
+    nilOutcomes: readonly unknown[];
+  };
+  _wasmUnavailable: boolean;
+  _showDataCard(mesh: object): void;
+}
 
 export interface Uv0RuntimeSnapshot {
   datasetName: string | null;
@@ -49,38 +86,40 @@ declare global {
   }
 }
 
-export function installUv0TestHandle(world: World): NemosyneUv0TestHandle {
+export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
+  const runtime = world as Uv0RuntimePort;
+
   return {
     snapshot(): Uv0RuntimeSnapshot {
-      const taskSurface = world.uiManager?.contextualTaskSurface;
-      const palace = world.representationSurface?.currentNode?.artifact;
+      const taskSurface = runtime.uiManager?.contextualTaskSurface;
+      const palace = runtime.representationSurface?.currentNode?.artifact;
       const outcome = document.getElementById(
         'analyst-representation-outcome'
       ) as HTMLElement | null;
       return {
-        datasetName: world.currentEntry?.name ?? world.currentEntry?.label ?? null,
+        datasetName: runtime.currentEntry?.name ?? runtime.currentEntry?.label ?? null,
         telemetry: document.getElementById('telemetry')?.textContent ?? '',
         palaceNodeCount: palace?.nodeMeshes?.length ?? 0,
-        inspectorVisible: !!world.inspector?.visible,
+        inspectorVisible: !!runtime.inspector?.visible,
         taskSurfaceVisible: !!taskSurface?.visible,
-        diagnosticVisible: !!world.diagnostic?.mesh?.visible,
-        selectedNodeName: world._lastSelectedMesh?.name ?? null,
-        evidenceCount: world.atlas.results.length,
-        observationCount: world.atlas.observations.length,
-        nilCount: world.session.nilOutcomes.length,
+        diagnosticVisible: !!runtime.diagnostic?.mesh?.visible,
+        selectedNodeName: runtime._lastSelectedMesh?.name ?? null,
+        evidenceCount: runtime.atlas.results.length,
+        observationCount: runtime.atlas.observations.length,
+        nilCount: runtime.session.nilOutcomes.length,
         outcomeKind: outcome?.dataset.state ?? 'pending',
-        kernelAvailable: !world._wasmUnavailable && world.atlas.isReady(),
+        kernelAvailable: !runtime._wasmUnavailable && runtime.atlas.isReady(),
       };
     },
     selectNode(index = 0): boolean {
-      const mesh = world.representationSurface?.currentNode?.artifact?.nodeMeshes?.[index];
-      if (!mesh) return false;
-      world.representationSurface.setSelectedMesh(mesh);
-      world._showDataCard(mesh);
+      const mesh = runtime.representationSurface?.currentNode?.artifact?.nodeMeshes?.[index];
+      if (!mesh || !runtime.representationSurface) return false;
+      runtime.representationSurface.setSelectedMesh(mesh);
+      runtime._showDataCard(mesh);
       return true;
     },
     inspectSelected(): void {
-      world.uiManager.contextualTaskSurface.callbacks.onInspect?.(null);
+      runtime.uiManager?.contextualTaskSurface?.callbacks.onInspect?.(null);
     },
   };
 }
