@@ -554,6 +554,18 @@ fn stable_linear_position(lower: f64, upper: f64, fraction: f64) -> f64 {
     }
 }
 
+fn distribution_boundary_matches(actual: f64, expected: f64) -> bool {
+    if actual == expected {
+        return true;
+    }
+    let delta = (actual - expected).abs();
+    if !delta.is_finite() {
+        return false;
+    }
+    let local_scale = actual.abs().max(expected.abs()).max(1.0);
+    delta <= f64::EPSILON * local_scale * 32.0
+}
+
 fn validate_empirical_distribution_payload(
     candidate_id: SemanticRepresentationIdV1,
     representation_family: SemanticEmbodimentFamilyV1,
@@ -677,9 +689,6 @@ fn validate_empirical_distribution_payload(
     let mut histogram_count = 0u64;
     let mut previous_upper = None;
     let bin_count = payload.histogram.len();
-    let tolerance = f64::EPSILON
-        * payload.domain.min.abs().max(payload.domain.max.abs()).max(1.0)
-        * 32.0;
     for (index, bin) in payload.histogram.iter().enumerate() {
         validate_short_text(&bin.semantic_id, "distribution histogram semanticId")?;
         if !semantic_ids.insert(bin.semantic_id.clone()) {
@@ -716,8 +725,8 @@ fn validate_empirical_distribution_payload(
                     (index + 1) as f64 / bin_count as f64,
                 )
             };
-            if (bin.lower_bound - expected_lower).abs() > tolerance
-                || (bin.upper_bound - expected_upper).abs() > tolerance
+            if !distribution_boundary_matches(bin.lower_bound, expected_lower)
+                || !distribution_boundary_matches(bin.upper_bound, expected_upper)
             {
                 return Err("distribution histogram bins must be equal-width".to_string());
             }
