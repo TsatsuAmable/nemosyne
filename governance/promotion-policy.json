@@ -3,7 +3,7 @@
   "repository": "TsatsuAmable/nemosyne",
   "branch": "main",
   "intendedPolicy": {
-    "rulesetName": "Protect main \u2014 require PR + CI + approval-gate",
+    "rulesetName": "Protect main — require PR + CI + approval-gate",
     "enforcement": "active",
     "requiredStatusChecks": [
       "Node 24",
@@ -12,7 +12,7 @@
     ],
     "requiredReviewThreadResolution": true,
     "requiredApprovingReviewCount": 0,
-    "approvalAuthority": "approval-gate workflow (owner approval on the exact PR head)",
+    "approvalAuthority": "approval-gate workflow (owner approval plus exact-head promotion evidence on the still-open PR)",
     "promotionEvidenceMarker": "Exact-head promotion evidence verified",
     "headRevocation": "Any head movement revokes promotion evidence until re-verified"
   }

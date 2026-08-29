@@ -1,10 +1,10 @@
 name: P1-Q Q9 promotion controller
 
-# Non-required governance pilot for P1-Q Q9 (exact-head promotion controller)
-# and RF-052 (governance truth). Reports, for each PR on the exact current
-# head, whether required checks are green, review threads are clean, and the
-# promotion-evidence/adversarial disposition marker is present. Also verifies
-# the live branch-protection ruleset matches the intended policy manifest.
+# Non-required governance audit for P1-Q Q9 (exact-head promotion controller)
+# and RF-052 (governance truth). The required approval-gate now runs the same
+# promotion controller before merge. This workflow remains an independent audit
+# and may finish after auto-merge, but it still verifies the exact PR head,
+# required checks, review disposition and adversarial/promotion marker.
 #
 # This workflow reports promotion evidence; it never manufactures an approval.
 # The approval authority remains the repository approval-gate / review policy.
@@ -12,7 +12,7 @@ name: P1-Q Q9 promotion controller
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
   workflow_dispatch:
 
 permissions:
@@ -28,7 +28,7 @@ jobs:
   promotion-controller:
     name: Exact-head promotion evidence
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -51,3 +51,6 @@ jobs:
           --pr ${{ github.event.pull_request.number }}
           --sha ${{ github.event.pull_request.head.sha }}
           --required-checks "Node 24,CodeQL SAST (javascript-typescript),approval-gate"
+          --wait-seconds 780
+          --poll-seconds 10
+          --allow-merged

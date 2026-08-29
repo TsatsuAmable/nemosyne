@@ -11,6 +11,12 @@
 //   4. the promotion-evidence marker / adversarial disposition is present in
 //      the PR body or as a label.
 //
+// The controller can optionally wait for required checks that are missing or
+// still running. Completed non-success checks fail immediately. A non-required
+// audit may also accept an already-merged PR, but it still verifies the exact
+// head, required checks, review disposition and promotion marker. The required
+// approval gate never uses that merged-PR allowance.
+//
 // This controller NEVER manufactures an approval. It reports promotion
 // evidence for the exact head only, and its verdict is explicitly not an
 // approval. The approval authority remains the repository's approval-gate
@@ -24,6 +30,16 @@ const repo = process.env.GITHUB_REPOSITORY?.split('/')[1] || 'nemosyne';
 function argValue(name) {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+function numericArg(name, fallback) {
+  const raw = argValue(name);
+  if (raw === undefined) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    fail(`${name} must be a non-negative number`);
+  }
+  return parsed;
 }
 
 function gh(args, options = {}) {
@@ -45,65 +61,118 @@ function fail(message) {
   process.exit(1);
 }
 
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 const prNumber = argValue('--pr');
 const expectedSha = argValue('--sha');
 const requiredChecks = (argValue('--required-checks') ?? '')
   .split(',')
   .map((entry) => entry.trim())
   .filter(Boolean);
+const waitSeconds = numericArg('--wait-seconds', 0);
+const pollSeconds = Math.max(1, numericArg('--poll-seconds', 5));
+const allowMerged = process.argv.includes('--allow-merged');
 
 if (!prNumber) fail('missing --pr <number>');
 if (!expectedSha || !/^[0-9a-f]{40}$/.test(expectedSha)) {
   fail('missing --sha <exact 40-char head SHA>');
 }
 
-const pull = gh([
-  `repos/${owner}/${repo}/pulls/${prNumber}`,
-  '--jq',
-  '{head:{sha:.head.sha}, state, body, labels:[.labels[].name]}',
-]);
-
-console.log(`[Q9 controller] PR #${prNumber} head=${pull.head.sha} expected=${expectedSha}`);
-
-// 1. Exact-head: any head movement revokes promotion evidence.
-if (pull.head.sha !== expectedSha) {
-  fail(
-    `HEAD MOVEMENT DETECTED: PR head ${pull.head.sha} does not match expected promotion head ${expectedSha}. Promotion evidence revoked; re-verify on the exact new head.`
-  );
-}
-if (pull.state !== 'open') {
-  fail(`PR is not open (state=${pull.state}); no promotion evidence applies.`);
-}
-
-// 2. Required checks green on the exact expected head.
-const checkRuns = gh(
-  [
-    `repos/${owner}/${repo}/commits/${expectedSha}/check-runs`,
-    '--paginate',
+function readPull() {
+  return gh([
+    `repos/${owner}/${repo}/pulls/${prNumber}`,
     '--jq',
-    '.check_runs[] | {name, status, conclusion}',
-  ],
-  { paginated: true }
-);
-const byName = new Map();
-for (const run of checkRuns) {
-  byName.set(run.name, run);
+    '{head:{sha:.head.sha}, state, merged, merged_at, body, labels:[.labels[].name]}',
+  ]);
 }
 
-const failed = [];
-for (const required of requiredChecks) {
-  const run = byName.get(required);
-  if (!run) {
-    failed.push(`${required}: missing on ${expectedSha}`);
-    continue;
+function verifyPullState() {
+  const pull = readPull();
+  console.log(
+    `[Q9 controller] PR #${prNumber} head=${pull.head.sha} expected=${expectedSha} state=${pull.state} merged=${pull.merged}`
+  );
+
+  // Exact-head: any head movement revokes promotion evidence.
+  if (pull.head.sha !== expectedSha) {
+    fail(
+      `HEAD MOVEMENT DETECTED: PR head ${pull.head.sha} does not match expected promotion head ${expectedSha}. Promotion evidence revoked; re-verify on the exact new head.`
+    );
   }
-  if (run.status !== 'completed' || run.conclusion !== 'success') {
-    failed.push(`${required}: ${run.status}/${run.conclusion}`);
+
+  if (pull.state !== 'open' && !(allowMerged && pull.merged === true)) {
+    fail(`PR is not open (state=${pull.state}); no promotion evidence applies.`);
   }
+  if (pull.state !== 'open') {
+    console.log(
+      `[Q9 controller] PR #${prNumber} already merged at ${pull.merged_at}; continuing as a non-required post-merge audit of the exact head.`
+    );
+  }
+  return pull;
 }
-if (failed.length > 0) {
-  fail(`Required checks not green on exact head ${expectedSha}: ${failed.join('; ')}`);
+
+function readRequiredChecks() {
+  const checkRuns = gh(
+    [
+      `repos/${owner}/${repo}/commits/${expectedSha}/check-runs`,
+      '--paginate',
+      '--jq',
+      '.check_runs[] | {id, name, status, conclusion}',
+    ],
+    { paginated: true }
+  );
+
+  // GitHub returns newer check runs first. Preserve the first result for a
+  // duplicate name so a rerun attempt supersedes an older failed attempt.
+  const byName = new Map();
+  for (const run of checkRuns) {
+    if (!byName.has(run.name)) byName.set(run.name, run);
+  }
+  return byName;
 }
+
+// 1 + 2. Remain exact-head/open while boundedly waiting for required checks.
+const deadline = Date.now() + waitSeconds * 1000;
+let pull = verifyPullState();
+while (true) {
+  const byName = readRequiredChecks();
+  const pending = [];
+  const failed = [];
+
+  for (const required of requiredChecks) {
+    const run = byName.get(required);
+    if (!run) {
+      pending.push(`${required}: missing on ${expectedSha}`);
+      continue;
+    }
+    if (run.status !== 'completed') {
+      pending.push(`${required}: ${run.status}/${run.conclusion}`);
+      continue;
+    }
+    if (run.conclusion !== 'success') {
+      failed.push(`${required}: ${run.status}/${run.conclusion}`);
+    }
+  }
+
+  if (failed.length > 0) {
+    fail(`Required checks failed on exact head ${expectedSha}: ${failed.join('; ')}`);
+  }
+  if (pending.length === 0) break;
+  if (Date.now() >= deadline) {
+    fail(`Required checks not green on exact head ${expectedSha}: ${pending.join('; ')}`);
+  }
+
+  console.log(
+    `[Q9 controller] Waiting for required checks on ${expectedSha}: ${pending.join('; ')}`
+  );
+  await sleep(pollSeconds * 1000);
+  pull = verifyPullState();
+}
+
+// Refresh after the wait so body/labels/state are evaluated on the same exact
+// head immediately before the remaining promotion checks.
+pull = verifyPullState();
 
 // 3. No unresolved CHANGES_REQUESTED review on the exact head.
 const reviews = gh(
@@ -147,6 +216,8 @@ console.log(
       pr: Number(prNumber),
       exactHead: expectedSha,
       verified: true,
+      prState: pull.state,
+      merged: pull.merged === true,
       requiredChecksGreen: requiredChecks,
       reviewThreadState: openRequests.length === 0 ? 'clean' : 'blocked',
       markerPresent: hasPostReviewSection || hasAdversarialLabel || hasDisposition,
