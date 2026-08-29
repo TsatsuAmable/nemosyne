@@ -4,6 +4,7 @@ import type { RepresentationDecision } from '../../moneta/representation/Represe
 import {
   SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
   type AggregateEmbodimentRequestV1,
+  type DistributionEmbodimentRequestV1,
   type SemanticEmbodimentEnvelopeV1,
 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
 
@@ -25,7 +26,7 @@ function isCurrent(
   authority: SemanticEmbodimentAuthority,
   generation: number,
   version: number,
-  fingerprint: string,
+  fingerprint: string
 ): boolean {
   return (
     authority.generation === generation &&
@@ -44,7 +45,7 @@ export function loadAggregateSemanticEmbodiment(
   authority: SemanticEmbodimentAuthority,
   dataset: Dataset,
   decision: RepresentationDecision,
-  encodings: AggregateEncodingSelection,
+  encodings: AggregateEncodingSelection
 ): Promise<SemanticEmbodimentEnvelopeV1 | null> | undefined {
   if (decision.chosenCandidateId !== 'AGGREGATE_VOLUME') return undefined;
 
@@ -62,7 +63,9 @@ export function loadAggregateSemanticEmbodiment(
     decisionId: decision.id,
     decisionModelVersion: decision.fitnessModelVersion ?? decision.provenance.fitnessModelVersion,
     decisionModelArtifactHash:
-      decision.fitnessModelArtifactHash ?? decision.provenance.fitnessModelArtifactHash ?? undefined,
+      decision.fitnessModelArtifactHash ??
+      decision.provenance.fitnessModelArtifactHash ??
+      undefined,
   };
 
   return (async () => {
@@ -93,6 +96,87 @@ export function loadAggregateSemanticEmbodiment(
       envelope.schemaVersion !== SEMANTIC_EMBODIMENT_SCHEMA_VERSION ||
       envelope.datasetFingerprint !== fingerprint ||
       envelope.candidateId !== 'AGGREGATE_VOLUME'
+    ) {
+      return null;
+    }
+    return envelope;
+  })().catch(() => null);
+}
+
+/**
+ * Start the M3 production empirical-distribution request. The measure is an
+ * explicit analytical-intent input; an absent/invalid measure is transported
+ * unchanged so Rust can refuse it rather than TypeScript selecting a column.
+ */
+export function loadDistributionSemanticEmbodiment(
+  authority: SemanticEmbodimentAuthority,
+  dataset: Dataset,
+  decision: RepresentationDecision,
+  measureField: string
+): Promise<SemanticEmbodimentEnvelopeV1 | null> | undefined {
+  if (decision.chosenCandidateId !== 'DISTRIBUTION_FIELD') return undefined;
+
+  const port = authority.executionPort;
+  const fingerprint = authority.datasetFingerprint;
+  const version = authority.datasetVersion;
+  const generation = authority.generation;
+  if (!port?.isAsync || !fingerprint) return Promise.resolve(null);
+
+  const request: DistributionEmbodimentRequestV1 = {
+    schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
+    candidateId: 'DISTRIBUTION_FIELD',
+    measureField,
+    histogramBinCount: 32,
+    ecdfKnotCount: 64,
+    quantileProbabilities: [0, 0.25, 0.5, 0.75, 1],
+    decisionId: decision.id,
+    decisionModelVersion: decision.fitnessModelVersion ?? decision.provenance.fitnessModelVersion,
+    decisionModelArtifactHash:
+      decision.fitnessModelArtifactHash ??
+      decision.provenance.fitnessModelArtifactHash ??
+      undefined,
+  };
+
+  return (async () => {
+    if (!port.hasRegisteredDataset?.(generation, fingerprint)) {
+      if (!port.registerDataset) return null;
+      await port.registerDataset({
+        registrationId: `semantic-register-${generation}-${version}-${++requestSequence}`,
+        dataset: { fingerprint, version },
+        generation,
+        payload: { type: 'json', data: dataset.toJSON(), name: dataset.name },
+      });
+    }
+
+    if (!isCurrent(authority, generation, version, fingerprint)) return null;
+
+    const result = await port.execute<SemanticEmbodimentEnvelopeV1>({
+      requestId: `semantic-distribution-${generation}-${version}-${++requestSequence}`,
+      operation: 'semanticEmbodiment',
+      dataset: { fingerprint, version },
+      generation,
+      params: request as unknown as Record<string, unknown>,
+    });
+
+    if (!isCurrent(authority, generation, version, fingerprint)) return null;
+    if (
+      result.generation !== generation ||
+      result.datasetVersion !== version ||
+      result.datasetFingerprint !== fingerprint
+    ) {
+      return null;
+    }
+
+    const envelope = result.value;
+    if (
+      !envelope ||
+      envelope.schemaVersion !== SEMANTIC_EMBODIMENT_SCHEMA_VERSION ||
+      envelope.datasetFingerprint !== fingerprint ||
+      envelope.candidateId !== 'DISTRIBUTION_FIELD' ||
+      envelope.representationFamily !== 'DISTRIBUTION' ||
+      envelope.provenance.decisionId !== decision.id ||
+      (envelope.result.status === 'READY' &&
+        envelope.result.payload.kind !== 'EMPIRICAL_DISTRIBUTION')
     ) {
       return null;
     }

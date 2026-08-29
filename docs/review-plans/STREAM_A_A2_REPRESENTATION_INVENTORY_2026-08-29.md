@@ -200,3 +200,17 @@ The expected handoff to A3 is now sharper than the original plan:
 5. do not migrate density/cluster/manifold/multiscale as incidental scope in the aggregate slice.
 
 A2 does **not** close RF-001 or RF-002. It converts them from narrative concerns into executable migration gates.
+
+---
+
+## Stream M M3 promotion addendum — 29 August 2026
+
+The production inventory and findings above remain the historical A2 baseline. The live sentinel is advanced by Stream M M3 only after M1/M2 established a distinct contract and Rust/WASM empirical-distribution builder:
+
+| Candidate | Live classification after M3 | Production renderer | Promotion basis |
+| --- | --- | --- | --- |
+| `AGGREGATE_VOLUME` | `DATASET_LEVEL_VALID` | `buildAggregateBars` | Existing A4 Rust-owned bounded aggregate payload path remains unchanged. |
+| `DISTRIBUTION_FIELD` | `DATASET_LEVEL_VALID` | `buildDistributionField` | Explicit measure -> resident Worker/WASM handle -> Rust histogram/ECDF/R7 payload -> row-free thin adapter with stable semantic IDs and provenance. |
+| `DENSITY_FIELD` | `SEMANTICALLY_OVERCLAIMED` | `buildDensityField` | Still a row/layout-derived fixed voxel count; no governed continuous-density method exists. |
+
+M3 does not rewrite the original A2 evidence or promote any adjacent family. `tests/stream-a-a2-representation-inventory.test.ts` remains the executable current-state authority: only candidates that succeed with the raw-row sentinel may carry `DATASET_LEVEL_VALID`.

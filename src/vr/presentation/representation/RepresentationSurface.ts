@@ -36,11 +36,11 @@ export interface RepresentationSurfaceFactories {
     scene: Scene,
     dataInput: MonetaDataInput,
     decision: RepresentationDecision | null,
-    dependencies: RepresentationSurfaceDependencies,
+    dependencies: RepresentationSurfaceDependencies
   ) => MonetaTopologyNode;
   createDiagnostic?: (
     dependencies: RepresentationSurfaceDependencies,
-    node: MonetaTopologyNode,
+    node: MonetaTopologyNode
   ) => MonetaDiagnosticHUD;
 }
 
@@ -52,11 +52,13 @@ export class RepresentationSurface {
 
   private disposed = false;
   private readonly createNode: NonNullable<RepresentationSurfaceFactories['createNode']>;
-  private readonly createDiagnostic: NonNullable<RepresentationSurfaceFactories['createDiagnostic']>;
+  private readonly createDiagnostic: NonNullable<
+    RepresentationSurfaceFactories['createDiagnostic']
+  >;
 
   constructor(
     private readonly dependencies: RepresentationSurfaceDependencies,
-    factories: RepresentationSurfaceFactories = {},
+    factories: RepresentationSurfaceFactories = {}
   ) {
     this.createNode =
       factories.createNode ??
@@ -68,28 +70,24 @@ export class RepresentationSurface {
           { colorblindMode: deps.getColorblindMode() as never },
           deps.getFactProvider(),
           false,
-          decision,
+          decision
         ));
     this.createDiagnostic =
       factories.createDiagnostic ??
       ((deps, node) =>
-        new MonetaDiagnosticHUD(
-          deps.cameraGroup,
-          node,
-          [...PANEL_LAYOUT.monetaDiagnosticHUD],
-        ));
+        new MonetaDiagnosticHUD(deps.cameraGroup, node, [...PANEL_LAYOUT.monetaDiagnosticHUD]));
   }
 
   replace(
     dataInput: MonetaDataInput,
-    representationDecision: RepresentationDecision | null,
+    representationDecision: RepresentationDecision | null
   ): MonetaTopologyNode {
     if (this.disposed) throw new Error('RepresentationSurface is disposed');
     const nextNode = this.createNode(
       this.dependencies.scene,
       dataInput,
       representationDecision,
-      this.dependencies,
+      this.dependencies
     );
     const selectedName = this.selectedMesh?.name || null;
 
@@ -104,7 +102,8 @@ export class RepresentationSurface {
     this.dependencies.analystAnchor.add(diagnostic.mesh);
 
     if (selectedName && nextNode.artifact?.nodeMeshes) {
-      this.selectedMesh = nextNode.artifact.nodeMeshes.find((mesh) => mesh.name === selectedName) ?? null;
+      this.selectedMesh =
+        nextNode.artifact.nodeMeshes.find((mesh) => mesh.name === selectedName) ?? null;
     }
     return nextNode;
   }
@@ -153,7 +152,11 @@ export class RepresentationSurface {
       this.dependencies.setTooltipTargets(node.artifact.nodeMeshes);
       for (const mesh of node.artifact.nodeMeshes) {
         const semanticKind =
-          mesh.userData.representationKind === 'AGGREGATE_VOLUME' ? 'aggregate-group' : 'observation';
+          mesh.userData.representationKind === 'AGGREGATE_VOLUME'
+            ? 'aggregate-group'
+            : mesh.userData.representationKind === 'DISTRIBUTION_FIELD'
+              ? 'distribution-element'
+              : 'observation';
         this.dependencies.addInteractable(mesh, {
           semantic: { kind: semanticKind },
           onEnter: (object) => node.artifact?.interactions?.onHover?.(object as Mesh),

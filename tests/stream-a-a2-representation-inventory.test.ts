@@ -37,7 +37,7 @@ interface InventoryEntry {
 const INVENTORY: Record<SemanticRepresentationId, InventoryEntry> = {
   POINT_SET: { classification: 'OBSERVATION_LEVEL', productionReachable: true, layout: 'GRID_3D', geometry: 'CUBE_MATRIX' },
   DENSITY_FIELD: { classification: 'SEMANTICALLY_OVERCLAIMED', productionReachable: true, layout: 'GRID_3D', geometry: 'DENSITY_FIELD' },
-  DISTRIBUTION_FIELD: { classification: 'SEMANTICALLY_OVERCLAIMED', productionReachable: true, layout: 'GRID_3D', geometry: 'DISTRIBUTION_FIELD' },
+  DISTRIBUTION_FIELD: { classification: 'DATASET_LEVEL_VALID', productionReachable: true, layout: 'GRID_3D', geometry: 'DISTRIBUTION_FIELD' },
   CLUSTER_REGIONS: { classification: 'DATASET_LEVEL_ROW_DERIVED', productionReachable: true, layout: 'GRID_3D', geometry: 'CLUSTER_VOLUME' },
   AGGREGATE_VOLUME: { classification: 'DATASET_LEVEL_VALID', productionReachable: true, layout: 'GRID_3D', geometry: 'AGGREGATE_BARS' },
   TEMPORAL_TRAJECTORY: { classification: 'DATASET_LEVEL_ROW_DERIVED', productionReachable: true, layout: 'TIME_RIBBON', geometry: 'BEAM' },
@@ -83,6 +83,57 @@ function aggregateEnvelope(): SemanticEmbodimentEnvelopeV1 {
   };
 }
 
+function distributionEnvelope(): SemanticEmbodimentEnvelopeV1 {
+  return {
+    schemaVersion: 1,
+    datasetFingerprint: 'b'.repeat(64),
+    candidateId: 'DISTRIBUTION_FIELD',
+    representationFamily: 'DISTRIBUTION',
+    analyticalMethod: {
+      name: 'univariate-empirical-distribution',
+      version: 'empirical-distribution-columnar-v1',
+      parameters: {},
+    },
+    approximation: { mode: 'BINNED', representedRowCount: 6 },
+    informationContract: {
+      preserves: ['population-density-distribution', 'outlier-boundary-visibility'],
+      loses: ['individual-observation-identity', 'exact-metric-values'],
+    },
+    resource: { sourceRowCount: 6, elementCount: 9, maxElementCount: 544 },
+    provenance: {
+      kernelVersion: 'test',
+      algorithmVersion: 'empirical-distribution-columnar-v1',
+      decisionId: 'decision-a2-distribution',
+    },
+    result: {
+      status: 'READY',
+      payload: {
+        kind: 'EMPIRICAL_DISTRIBUTION',
+        data: {
+          measureField: 'value',
+          domain: { min: 0, max: 6 },
+          counts: { sourceCount: 6, validCount: 6, excludedCount: 0 },
+          histogram: [
+            { semanticId: 'distribution-bin:000', lowerBound: 0, upperBound: 2, count: 2, upperInclusive: false },
+            { semanticId: 'distribution-bin:001', lowerBound: 2, upperBound: 4, count: 2, upperInclusive: false },
+            { semanticId: 'distribution-bin:002', lowerBound: 4, upperBound: 6, count: 2, upperInclusive: true },
+          ],
+          ecdf: [
+            { semanticId: 'distribution-ecdf:000', value: 0, cumulativeCount: 1, cumulativeProbability: 1 / 6 },
+            { semanticId: 'distribution-ecdf:001', value: 3, cumulativeCount: 3, cumulativeProbability: 0.5 },
+            { semanticId: 'distribution-ecdf:002', value: 6, cumulativeCount: 6, cumulativeProbability: 1 },
+          ],
+          quantiles: [
+            { semanticId: 'distribution-quantile:000', probability: 0, value: 0 },
+            { semanticId: 'distribution-quantile:001', probability: 0.5, value: 3 },
+            { semanticId: 'distribution-quantile:002', probability: 1, value: 6 },
+          ],
+        },
+      },
+    },
+  };
+}
+
 function minimalFacts(): MonetaFacts {
   return {
     topology: 'TABULAR', rowCount: 0, nodeCount: 0, edgeCount: 0, depth: 0,
@@ -106,6 +157,7 @@ function solverResult(entry: InventoryEntry): SolverResult {
 function inputThatForbidsRawRows(candidateId: SemanticRepresentationId): MonetaDataInput {
   const input: MonetaDataInput & { semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 } = { encodings: {} };
   if (candidateId === 'AGGREGATE_VOLUME') input.semanticEmbodiment = aggregateEnvelope();
+  if (candidateId === 'DISTRIBUTION_FIELD') input.semanticEmbodiment = distributionEnvelope();
   Object.defineProperty(input, 'rows', {
     configurable: true,
     get() { throw new Error(RAW_ROW_SENTINEL); },
@@ -118,7 +170,7 @@ function rendererSource(path: string): string {
 }
 
 function scalableRenderCount(
-  geometry: 'AGGREGATE_BARS' | 'CLUSTER_VOLUME' | 'DENSITY_FIELD',
+  geometry: 'AGGREGATE_BARS' | 'CLUSTER_VOLUME' | 'DENSITY_FIELD' | 'DISTRIBUTION_FIELD',
   rowCount = 24
 ): number {
   const rows = Array.from({ length: rowCount }, (_, index) => ({
@@ -147,6 +199,8 @@ function scalableRenderCount(
   try {
     if (geometry === 'AGGREGATE_BARS') {
       scalable.buildAggregateBars(group, nodeMeshes, aggregateEnvelope());
+    } else if (geometry === 'DISTRIBUTION_FIELD') {
+      scalable.buildDistributionField(group, nodeMeshes, distributionEnvelope());
     } else if (geometry === 'CLUSTER_VOLUME') {
       scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec);
     } else {
@@ -205,7 +259,7 @@ describe('Stream A representation inventory', () => {
     expect(scalable).toContain("representationKind: 'CLUSTER_REGIONS'");
 
     expect(INVENTORY.DENSITY_FIELD.classification).toBe('SEMANTICALLY_OVERCLAIMED');
-    expect(INVENTORY.DISTRIBUTION_FIELD.classification).toBe('SEMANTICALLY_OVERCLAIMED');
+    expect(INVENTORY.DISTRIBUTION_FIELD.classification).toBe('DATASET_LEVEL_VALID');
     expect(INVENTORY.MANIFOLD_EMBEDDING.classification).toBe('SEMANTICALLY_OVERCLAIMED');
     expect(INVENTORY.MULTISCALE_FIELD.classification).toBe('SEMANTICALLY_OVERCLAIMED');
 
@@ -223,6 +277,7 @@ describe('Stream A representation inventory', () => {
   it('records bounded primitive behavior without replacing Rust analytical authority in the test', () => {
     const rowCount = 24;
     expect(scalableRenderCount('AGGREGATE_BARS', rowCount)).toBe(3);
+    expect(scalableRenderCount('DISTRIBUTION_FIELD', rowCount)).toBe(9);
     expect(scalableRenderCount('CLUSTER_VOLUME', rowCount)).toBe(3);
     const densityVoxels = scalableRenderCount('DENSITY_FIELD', rowCount);
     expect(densityVoxels).toBeGreaterThan(0);

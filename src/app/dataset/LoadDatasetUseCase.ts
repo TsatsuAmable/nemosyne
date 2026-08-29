@@ -15,7 +15,10 @@ import {
   type RepresentationRequirements,
 } from '../../moneta/representation/RepresentationRequirements.ts';
 import type { DatasetLoadEntry } from '../../vr/coordinators/types.ts';
-import { loadAggregateSemanticEmbodiment } from './SemanticEmbodimentLoader.ts';
+import {
+  loadAggregateSemanticEmbodiment,
+  loadDistributionSemanticEmbodiment,
+} from './SemanticEmbodimentLoader.ts';
 
 export type DatasetLoadAuthority = Pick<
   AtlasCore,
@@ -64,10 +67,7 @@ export class LoadDatasetUseCase {
 
   execute(
     entry: DatasetLoadEntry,
-    {
-      preserveAnalyticalState = false,
-      requirements,
-    }: LoadDatasetUseCaseOptions = {},
+    { preserveAnalyticalState = false, requirements }: LoadDatasetUseCaseOptions = {}
   ): LoadDatasetResult {
     const activeRequirements = preserveAnalyticalState
       ? (requirements ?? createDefaultRequirements('individual-inspection'))
@@ -107,7 +107,7 @@ export class LoadDatasetUseCase {
         outcome = diagnoseInvestigatorOutcome(
           signature,
           activeRequirements,
-          representationDecision,
+          representationDecision
         );
       } catch (error) {
         if (!(error instanceof NoFeasibleRepresentationError)) throw error;
@@ -121,7 +121,14 @@ export class LoadDatasetUseCase {
         this.atlas,
         embodiedDataset,
         representationDecision,
-        encodings,
+        encodings
+      );
+    } else if (representationDecision?.chosenCandidateId === 'DISTRIBUTION_FIELD') {
+      dataInput.semanticEmbodimentPromise = loadDistributionSemanticEmbodiment(
+        this.atlas,
+        embodiedDataset,
+        representationDecision,
+        activeRequirements.primaryDimensions?.[0] ?? ''
       );
     }
 
