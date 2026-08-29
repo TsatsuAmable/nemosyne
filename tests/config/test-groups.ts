@@ -45,6 +45,7 @@ export const WASM_TESTS = [
   'tests/production-runtime-wiring.test.ts',
   'tests/q2-dataset-identity-cross-language-wasm.test.ts',
   'tests/representation-topology-node.test.ts',
+  'tests/rf062c-world-production-path.test.ts',
   'tests/runtime-bridge-concurrency.test.ts',
   'tests/runtime-recovery-endurance.test.ts',
   'tests/subsystem-resiliency-audit.test.ts',

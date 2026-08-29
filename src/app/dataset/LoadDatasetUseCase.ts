@@ -1,0 +1,116 @@
+import type { AtlasCore } from '../../atlas/AtlasCore.ts';
+import type { Dataset } from '../../data/Dataset.ts';
+import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
+import type { TopologyType } from '../../data/types.ts';
+import type { MonetaDataInput } from '../../moneta/types.ts';
+import {
+  diagnoseInvestigatorOutcome,
+  type InvestigatorActionableOutcome,
+} from '../../moneta/representation/ActionableNil.ts';
+import { NoFeasibleRepresentationError } from '../../moneta/representation/NoFeasibleRepresentationError.ts';
+import type { RepresentationDecision } from '../../moneta/representation/RepresentationDecision.ts';
+import {
+  createDefaultRequirements,
+  type RepresentationRequirements,
+} from '../../moneta/representation/RepresentationRequirements.ts';
+import type { DatasetLoadEntry } from '../../vr/coordinators/types.ts';
+
+export type DatasetLoadAuthority = Pick<
+  AtlasCore,
+  | 'setOriginalDataset'
+  | 'setCurrentDataset'
+  | 'dataset'
+  | 'isReady'
+  | 'inferEncodings'
+  | 'arbitrateRepresentation'
+  | 'computeDatasetSignature'
+>;
+
+export interface LoadDatasetUseCaseOptions {
+  preserveAnalyticalState?: boolean;
+  requirements?: RepresentationRequirements;
+}
+
+export interface LoadDatasetResult {
+  entry: DatasetLoadEntry;
+  embodiedDataset: Dataset;
+  dataInput: MonetaDataInput;
+  requirements: RepresentationRequirements;
+  representationDecision: RepresentationDecision | null;
+  outcome: InvestigatorActionableOutcome | null;
+}
+
+/**
+ * Owns the logical dataset → Moneta decision transition.
+ *
+ * Atlas remains the dataset/evidence/statistical authority. This use case only
+ * sequences authoritative operations and returns a presentation-neutral result;
+ * it does not construct Three.js resources, panels, dashboards, or analytical
+ * fallbacks.
+ */
+export class LoadDatasetUseCase {
+  constructor(private readonly atlas: DatasetLoadAuthority) {}
+
+  execute(
+    entry: DatasetLoadEntry,
+    {
+      preserveAnalyticalState = false,
+      requirements,
+    }: LoadDatasetUseCaseOptions = {},
+  ): LoadDatasetResult {
+    const activeRequirements = preserveAnalyticalState
+      ? (requirements ?? createDefaultRequirements('individual-inspection'))
+      : createDefaultRequirements('individual-inspection');
+
+    if (!preserveAnalyticalState) {
+      // Preserve the existing production semantics exactly: Atlas first loads
+      // a cloned baseline, then receives a second clone as the mutable current
+      // dataset. `setOriginalDataset` is the authoritative load/ledger/version
+      // transition; `setCurrentDataset` only establishes the working copy.
+      const originalDataset = entry.dataset.clone();
+      this.atlas.setOriginalDataset(originalDataset);
+      this.atlas.setCurrentDataset(originalDataset.clone());
+    }
+
+    const embodiedDataset = this.atlas.dataset;
+    const topology = entry.topology as TopologyType;
+    const kernelEncodings = this.atlas.inferEncodings(topology) ?? undefined;
+    const dataInput: MonetaDataInput = {
+      topology,
+      dataset: embodiedDataset,
+      maxDepth: entry.maxDepth,
+      encodings:
+        entry.encodings ??
+        kernelEncodings ??
+        getDefaultEncodings({ dataset: embodiedDataset, topology }),
+    };
+
+    let representationDecision: RepresentationDecision | null = null;
+    let outcome: InvestigatorActionableOutcome | null = null;
+
+    if (this.atlas.isReady()) {
+      try {
+        representationDecision = this.atlas.arbitrateRepresentation(activeRequirements, dataInput);
+        const signature = this.atlas.computeDatasetSignature(dataInput);
+        outcome = diagnoseInvestigatorOutcome(
+          signature,
+          activeRequirements,
+          representationDecision,
+        );
+      } catch (error) {
+        if (!(error instanceof NoFeasibleRepresentationError)) throw error;
+        const signature = this.atlas.computeDatasetSignature(dataInput);
+        outcome = diagnoseInvestigatorOutcome(signature, activeRequirements, error);
+      }
+    }
+
+    return {
+      entry,
+      embodiedDataset,
+      dataInput,
+      requirements: activeRequirements,
+      representationDecision,
+      outcome,
+    };
+  }
+}

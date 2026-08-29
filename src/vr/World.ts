@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from './Engine.ts';
+import { LoadDatasetUseCase } from '../app/dataset/LoadDatasetUseCase.ts';
+import { RepresentationSurface } from './presentation/representation/RepresentationSurface.ts';
 import { MonetaTopologyNode as DracoTopologyNode } from '../moneta/MonetaTopologyNode.ts';
 import { MonetaDiagnosticHUD as DracoDiagnosticHUD } from './ui/MonetaDiagnosticHUD.ts';
-import { PANEL_LAYOUT } from './ui/panelLayout.ts';
 import { TooltipManager } from './ui/TooltipManager.ts';
 import { ChartPlanePanel } from './ui/ChartPlanePanel.ts';
 import { FileLoaderUI } from '../ui/FileLoader.ts';
@@ -14,7 +15,6 @@ import {
 } from '../data/SampleDatasets.ts';
 import { resolveTemplate } from '../data/AnalysisTemplates.ts';
 import { TopologyTypes } from '../moneta/ConstraintEngine.ts';
-import { disposeObject } from '../utils/Dispose.ts';
 import {
   LiveStreamCoordinator,
   type LiveConnectorLike,
@@ -104,11 +104,9 @@ import type {
 import type { InteractionMode, FocusState } from './input/InteractionModeController.ts';
 import { KernelLayoutUnavailableError } from '../moneta/layouts/LayoutBase.ts';
 import type { RepresentationRequirements } from '../moneta/representation/RepresentationRequirements.ts';
-import type { RepresentationDecision } from '../moneta/representation/RepresentationDecision.ts';
 import { createDefaultRequirements } from '../moneta/representation/RepresentationRequirements.ts';
 import type { InvestigatorActionableOutcome } from '../moneta/representation/ActionableNil.ts';
-import { diagnoseInvestigatorOutcome, buildRemediationProvenance } from '../moneta/representation/ActionableNil.ts';
-import { NoFeasibleRepresentationError } from '../moneta/representation/NoFeasibleRepresentationError.ts';
+import { buildRemediationProvenance } from '../moneta/representation/ActionableNil.ts';
 
 type WorldRuntimeBridge = typeof import('../wasm/RuntimeBridge.ts');
 
@@ -146,6 +144,8 @@ export class World {
   atlas: AtlasCore;
   session: NemosyneSession;
   dataOperationController: DataOperationController;
+  loadDatasetUseCase: LoadDatasetUseCase;
+  representationSurface!: RepresentationSurface;
   sceneComposer: WorldSceneComposer;
   analystAnchor: THREE.Group;
   datum: DatumPlane;
@@ -251,6 +251,8 @@ export class World {
       eventBus: this.eventBus as WorldEventBus,
       onKernelFailure: (error) => this.markKernelUnavailable(error),
     });
+
+    this.loadDatasetUseCase = new LoadDatasetUseCase(this.atlas);
 
     // Data-operation controller owns dataset mutation, analysis history, and
     // the operation → visual-transform mapping. It issues typed AnalysisSpec
@@ -482,6 +484,28 @@ export class World {
     this.engine.addUpdatable({
       update: (delta: number, time: number) =>
         this.inPlaceHandles.update(delta, time, this.engine.input.raycaster.ray),
+    });
+
+    this.representationSurface = new RepresentationSurface({
+      scene: this.engine.scene,
+      cameraGroup: this.engine.cameraGroup,
+      analystAnchor: this.analystAnchor,
+      getColorblindMode: () =>
+        this.uiManager.settingsPanel?.getSetting?.('colorblindMode') ?? 'none',
+      getFactProvider: () => this.atlas.asFactProvider(),
+      addUpdatable: (node) => this.engine.addUpdatable(node),
+      removeUpdatable: (node) => this.engine.removeUpdatable(node),
+      addInteractable: (mesh, options) => this.engine.addInteractable(mesh, options as never),
+      removeInteractable: (mesh) => this.engine.removeInteractable(mesh),
+      addDiagnosticPanel: (panel) => this.engine.input.addPanel(panel),
+      removeDiagnosticPanel: (panel) => this.engine.input.removePanel(panel),
+      setTooltipTargets: (meshes) => this.tooltipManager.setTargets(meshes),
+      clearStructureHandles: () => {
+        this.inPlaceHandles.unregisterInteractables(this.engine.input);
+        this.inPlaceHandles.clear();
+      },
+      rebuildStructureHandles: (node) => this._rebuildStructureHandles(node),
+      onSelectNode: (mesh) => this._showDataCard(mesh),
     });
 
     this.derivedAnalysisPipeline = new DerivedAnalysisPipeline({
@@ -955,72 +979,23 @@ export class World {
     this._lastLoadedEntry = entry;
     const presetName = entry.key && DATASET_THEME_MAP[entry.key];
     const preset = presetName ? WorldTheme.PRESETS[presetName] : null;
-    const activity = entry.topology === 'TIME_SERIES' || entry.topology === 'ANOMALY' ? 0.75 : 0.35;
+    const activity =
+      entry.topology === 'TIME_SERIES' || entry.topology === 'ANOMALY' ? 0.75 : 0.35;
 
-    // Preserve original state so data operations can be reset. Setting
-    // `_originalDataset` routes through AtlasCore.loadDataset (resets ledger,
-    // results, and history, bumps version, appends a 'load' ResearchEvent);
-    // setting `_transformedDataset` points the current dataset at the original.
-    // Wave 5: this must happen BEFORE the Draco palace build so
-    // `atlas.inferEncodings` and `atlas.asFactProvider` see the new dataset's
-    // kernel handle (statistics + encodings come from the kernel, not JS).
-    if (!preserveAnalyticalState) {
-      this._originalDataset = entry.dataset?.clone?.() ?? null;
-      this._transformedDataset = this._originalDataset?.clone?.() ?? null;
-      this._activeRequirements = createDefaultRequirements('individual-inspection');
-    }
+    const result = this.loadDatasetUseCase.execute(entry, {
+      preserveAnalyticalState,
+      requirements: this._activeRequirements,
+    });
+    this._activeRequirements = result.requirements;
+    this._activeOutcome = result.outcome;
+    this.uiManager?.recommendationPanel?.markDirty();
 
-    const embodiedDataset = preserveAnalyticalState
-      ? this.atlas.dataset
-      : (this._transformedDataset ?? entry.dataset);
-
-    // Build new Draco palace.
-    const topology = entry.topology as TopologyType;
-    // Wave 5: encodings come from the kernel (via AtlasCore) when available,
-    // then the entry's explicit encodings, then the static default mapping.
-    const kernelEncodings = this.atlas.inferEncodings(topology) ?? undefined;
-    const dataInput = {
-      topology,
-      dataset: embodiedDataset,
-      maxDepth: entry.maxDepth,
-      encodings:
-        entry.encodings ??
-        kernelEncodings ??
-        getDefaultEncodings({ dataset: embodiedDataset, topology }),
-    };
-
-    let representationDecision: RepresentationDecision | null = null;
-    let outcome: InvestigatorActionableOutcome | null = null;
-    if (this.atlas.isReady()) {
-      try {
-        representationDecision = this.atlas.arbitrateRepresentation(this._activeRequirements, dataInput);
-        const signature = this.atlas.computeDatasetSignature(dataInput);
-        outcome = diagnoseInvestigatorOutcome(signature, this._activeRequirements, representationDecision);
-      } catch (error) {
-        if (error instanceof NoFeasibleRepresentationError) {
-          const signature = this.atlas.computeDatasetSignature(dataInput);
-          outcome = diagnoseInvestigatorOutcome(signature, this._activeRequirements, error);
-        } else {
-          throw error;
-        }
-      }
-    }
-    this._activeOutcome = outcome;
-    if (this.uiManager?.recommendationPanel) {
-      this.uiManager.recommendationPanel.markDirty();
-    }
-
-    const nextDracoNode = new DracoTopologyNode(
-      this.engine.scene,
-      dataInput,
-      [0, 1.4, -3.5],
-      {
-        colorblindMode: this.uiManager.settingsPanel?.getSetting?.('colorblindMode') ?? 'none',
-      },
-      this.atlas.asFactProvider(),
-      false,
-      representationDecision
+    this.dracoNode = this.representationSurface.replace(
+      result.dataInput,
+      result.representationDecision
     );
+    this.diagnostic = this.representationSurface.diagnostic;
+    this._lastSelectedMesh = this.representationSurface.selectedMesh;
 
     if (presetName) this.engine.theme.applyPreset(presetName);
     if (preset) {
@@ -1030,43 +1005,12 @@ export class World {
     this.portalA?.setDataActivity?.(activity);
     this.portalB?.setDataActivity?.(activity);
 
-    if (this.dracoNode) {
-      this.engine.removeUpdatable(this.dracoNode);
-      this.inPlaceHandles.unregisterInteractables(this.engine.input);
-      this.inPlaceHandles.clear();
-      if (this.dracoNode.artifact) {
-        for (const mesh of this.dracoNode.artifact.nodeMeshes) {
-          this.engine.removeInteractable(mesh);
-        }
-      }
-      disposeObject(this.dracoNode.group!);
-    }
-    if (this.diagnostic) {
-      this.engine.input.removePanel(this.diagnostic);
-      this.diagnostic.dispose();
-    }
-
-    this.dracoNode = nextDracoNode;
-    this.engine.addUpdatable(this.dracoNode);
-    this._wireArtifactInteraction(this.dracoNode);
-
-    // Update persistent spatial status strip and contextual task surface
     const datasetLabel = entry.label ?? entry.name ?? entry.key ?? 'Dataset';
-    const rowCount = embodiedDataset?.rows?.length ?? 0;
+    const rowCount = result.embodiedDataset?.rows?.length ?? 0;
     this.uiManager.statusStrip.setDatasetContext(datasetLabel, String(entry.topology), rowCount);
     if (entry.topology) {
       this.uiManager.contextualTaskSurface.setTopology(entry.topology as never);
     }
-
-    // Rebuild diagnostic HUD bound to the new node. The mesh is re-parented
-    // into the torso anchor below; PANEL_LAYOUT is anchor-local (revision 3).
-    this.diagnostic = new DracoDiagnosticHUD(
-      this.engine.cameraGroup,
-      this.dracoNode,
-      [...PANEL_LAYOUT.monetaDiagnosticHUD]
-    );
-    this.engine.input.addPanel(this.diagnostic);
-    this.analystAnchor.add(this.diagnostic.mesh);
 
     if (!preserveAnalyticalState) {
       this.currentEntry = entry;
@@ -1080,10 +1024,9 @@ export class World {
       this._attachTDASummary();
       this._buildDashboard();
     } else {
-      this._updateDashboardDatasets(embodiedDataset);
+      this._updateDashboardDatasets(result.embodiedDataset);
     }
 
-    // Sync statistical-lens visibility with the current setting.
     this._setStatisticalLensVisible(this._statisticalLensEnabled);
   }
 
@@ -1181,48 +1124,6 @@ export class World {
 
   _updateDashboardDatasets(dataset: Dataset | null | undefined): void {
     this.rendererLifecycle.updateDashboardDatasets(dataset);
-  }
-
-  _wireArtifactInteraction(dracoNode: DracoTopologyNode): void {
-    const wire = () => {
-      if (!dracoNode.artifact) return;
-      this.tooltipManager.setTargets(dracoNode.artifact.nodeMeshes);
-      for (const mesh of dracoNode.artifact.nodeMeshes) {
-        this.engine.addInteractable(mesh, {
-          // RF-025: data nodes are durable observation targets. Carrying the
-          // semantic kind lets the SemanticTargetResolver rank them against
-          // structure handles and keeps observation selection from advancing
-          // the Memory Palace focus/context.
-          semantic: { kind: 'observation' },
-          onEnter: (m: THREE.Object3D) =>
-            dracoNode.artifact?.interactions?.onHover?.(m as THREE.Mesh),
-          onLeave: (m: THREE.Object3D) =>
-            dracoNode.artifact?.interactions?.onUnhover?.(m as THREE.Mesh),
-          onSelect: (m: THREE.Object3D) => {
-            dracoNode.artifact?.interactions?.onSelect?.(m as THREE.Mesh);
-            this._showDataCard(m as THREE.Mesh);
-          },
-        });
-      }
-    };
-
-    const original = dracoNode.reSolveAndSynthesize.bind(dracoNode);
-    dracoNode.reSolveAndSynthesize = () => {
-      if (dracoNode.artifact) {
-        this.inPlaceHandles.unregisterInteractables(this.engine.input);
-        this.inPlaceHandles.clear();
-        for (const mesh of dracoNode.artifact.nodeMeshes) {
-          this.engine.removeInteractable(mesh);
-        }
-      }
-      original();
-      wire();
-      this._rebuildStructureHandles(dracoNode);
-      if (this.diagnostic) this.diagnostic.render();
-    };
-
-    wire();
-    this._rebuildStructureHandles(dracoNode);
   }
 
   private _rebuildStructureHandles(dracoNode: {
@@ -2404,24 +2305,10 @@ export class World {
     await run(() => this.derivedAnalysisPipeline?.dispose());
     await run(() => this.rendererLifecycle?.dispose());
     await run(() => this.livePreview?.clear());
-    await run(() => this.inPlaceHandles?.clear());
-    await run(() => {
-      if (this.dracoNode?.artifact) {
-        for (const mesh of this.dracoNode.artifact.nodeMeshes) {
-          this.engine.removeInteractable(mesh);
-        }
-      }
-      if (this.dracoNode) {
-        this.engine.removeUpdatable(this.dracoNode);
-        disposeObject(this.dracoNode.group!);
-        this.dracoNode = null;
-      }
-      if (this.diagnostic) {
-        this.engine.input.removePanel(this.diagnostic);
-        this.diagnostic.dispose();
-        this.diagnostic = null;
-      }
-    });
+    await run(() => this.representationSurface?.dispose());
+    this.dracoNode = null;
+    this.diagnostic = null;
+    this._lastSelectedMesh = null;
     await run(() => this.adaptiveAssist?.dispose());
     await run(() => this.engine.removeUpdatable(this.guidedTour));
     await run(() => this.engine.removeHudObject(this.guidedTour));
