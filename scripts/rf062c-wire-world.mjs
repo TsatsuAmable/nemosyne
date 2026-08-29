@@ -21,7 +21,21 @@ function replaceBetween(startMarker, endMarker, replacement, label) {
 }
 
 if (source.includes("import { LoadDatasetUseCase } from '../app/dataset/LoadDatasetUseCase.ts';")) {
-  console.log('RF-062C World wiring already applied; no changes.');
+  const before = source;
+  source = source.replace(
+    '  private _rebuildStructureHandles(  private _rebuildStructureHandles(',
+    '  private _rebuildStructureHandles(',
+  );
+  source = source.replace(
+    '    await run(() => this.adaptiveAssist?.dispose());\n    await run(() => this.adaptiveAssist?.dispose());\n',
+    '    await run(() => this.adaptiveAssist?.dispose());\n',
+  );
+  if (source !== before) {
+    writeFileSync(path, source);
+    console.log('RF-062C generated World splice cleanup applied.');
+  } else {
+    console.log('RF-062C World wiring already applied and clean; no changes.');
+  }
   process.exit(0);
 }
 
@@ -70,13 +84,13 @@ replaceBetween(loadStart, rebuildMarker, newLoadMethod, '_doLoadDataset');
 replaceBetween(
   '  _wireArtifactInteraction(dracoNode: DracoTopologyNode): void {\n',
   '  private _rebuildStructureHandles(',
-  '  private _rebuildStructureHandles(',
+  '',
   '_wireArtifactInteraction',
 );
 
 const teardownStart = '    await run(() => this.livePreview?.clear());\n';
 const teardownEnd = '    await run(() => this.adaptiveAssist?.dispose());\n';
-const teardownReplacement = `    await run(() => this.livePreview?.clear());\n    await run(() => this.representationSurface?.dispose());\n    this.dracoNode = null;\n    this.diagnostic = null;\n    this._lastSelectedMesh = null;\n    await run(() => this.adaptiveAssist?.dispose());\n`;
+const teardownReplacement = `    await run(() => this.livePreview?.clear());\n    await run(() => this.representationSurface?.dispose());\n    this.dracoNode = null;\n    this.diagnostic = null;\n    this._lastSelectedMesh = null;\n`;
 replaceBetween(teardownStart, teardownEnd, teardownReplacement, 'representation teardown');
 
 writeFileSync(path, source);
