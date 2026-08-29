@@ -67,13 +67,17 @@ These findings are promoted into the repository-wide RF sequence after RF-036.
 ### RF-037 - Duplicate signalling ticket authorities and replay protection off the live path
 
 **Severity:** Critical  
-**Status:** `IMPLEMENTATION PARTIAL`
+**Status:** `IMPLEMENTATION LANDED` (C1) — awaiting independent Stream B re-review
 
 The live signalling server imports `verifySignedTicket` from `src/network/SignedTicket.ts`. That verifier checks HMAC integrity, expiry, room scope, and role, but does not consume the optional nonce. A valid captured ticket can therefore be replayed until expiry.
 
 `src/network/SignedTicketVerifier.ts` does implement nonce consumption and replay rejection, but it is not the production signalling authority. More importantly, the two implementations are not interchangeable: they define different ticket schemas and different role ontologies.
 
-**Required disposition:**
+**C1 disposition (29 Aug 2026):** `src/network/SignedTicket.ts` is now the single canonical authority — one versioned schema (`version/room/role/issuedAt/exp/nonce`), one role ontology (`observer` | `participant`), one cryptographic mechanism (Node `crypto` HMAC-SHA256, synchronous), mandatory nonce consumed atomically with successful admission via `SignedTicketReplayGuard` on `createRoomRegistry().handleConnection()`. The obsolete `SignedTicketVerifier.ts` (WebCrypto, `sessionId/participantId/analyst|observer|collaborator` ontology) is removed and no longer exported from `src/network/index.ts`. Nonce-cache lifetime is bounded by ticket expiry and evicted in `cleanupIdleRooms`. Multi-instance nonce-store sharing is deliberately out of scope (per-instance replay protection) and is recorded as residual risk.
+
+Evidence: adversarial contract and verification record in `docs/review-plans/RF037_RF038_SIGNALLING_ADMISSION_2026-08-29.md`.
+
+**Required disposition (original):**
 
 - define one versioned canonical room-ticket schema and role model;
 - make one implementation the sole signing/verifying authority;
@@ -86,11 +90,15 @@ The live signalling server imports `verifySignedTicket` from `src/network/Signed
 ### RF-038 - Scoped role token parser fails open to participant
 
 **Severity:** High  
-**Status:** `IMPLEMENTATION PARTIAL`
+**Status:** `IMPLEMENTATION LANDED` (C1) — awaiting independent Stream B re-review
 
 `authorizePeer()` currently maps every scoped-token suffix other than the exact string `observer` to the more privileged `participant` role. Typographical errors and unknown role names therefore fail open.
 
-**Required disposition:**
+**C1 disposition (29 Aug 2026):** `authorizePeer` now uses an exact allow-list — only the suffixes `observer` and `participant` are accepted; `admin`, casing variants, empty suffix, multi-colon suffixes, and unknown role names are rejected with `4001`/`invalid scoped token role` through the real `createRoomRegistry().handleConnection()` path. The resolved role from every branch (scoped token, ticket claims, `tokenValidator` claims, requested-role fallback) is additionally filtered through the single exact allow-list `normalizeNetworkRole`, so no role source can promote a foreign value to `participant`.
+
+Evidence: adversarial contract and verification record in `docs/review-plans/RF037_RF038_SIGNALLING_ADMISSION_2026-08-29.md`.
+
+**Required disposition (original):**
 
 - exact-allowlist `observer` and `participant`;
 - reject every other suffix;
