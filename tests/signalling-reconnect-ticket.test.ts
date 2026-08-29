@@ -62,11 +62,17 @@ describe('signed-ticket signalling reconnect', () => {
     expect(JSON.parse(socket.lastSent ?? '{}').data?.token).toBe('payload.signature');
 
     const failures: string[] = [];
+    const reconnecting: number[] = [];
     channel.addEventListener('reconnect-failed', (event: Event) => {
       failures.push((event as CustomEvent<{ reason: string }>).detail.reason);
     });
+    channel.addEventListener('reconnecting', (event: Event) => {
+      reconnecting.push((event as CustomEvent<{ attempt: number }>).detail.attempt);
+    });
 
     socket.close();
+    expect(reconnecting).toHaveLength(1);
+
     const reconnect = channel.connect();
     socket = channel._ws as unknown as MockWebSocket;
     socket.open();
@@ -75,6 +81,10 @@ describe('signed-ticket signalling reconnect', () => {
     expect(failures).toContain('fresh-ticket-required');
     expect(socket.lastSent).toBeUndefined();
     expect(channel.isOpen).toBe(false);
+    // The deterministic credential failure must not create a second automatic
+    // reconnect schedule. A later explicit connect() may still retry after a
+    // renewal provider has been installed.
+    expect(reconnecting).toHaveLength(1);
   });
 
   it('allows reusable non-ticket development credentials to reconnect without a renewal callback', async () => {
