@@ -665,7 +665,7 @@ The final location may change during decomposition, but production presence and 
 | `NilExecutor`              | Add proposal/dry-validation integration, not an agent-specific authority path.     |
 | `CollaborationCoordinator` | Render agent observer presence and handle scoped lifecycle.                        |
 | `PeerAvatarManager`        | Share disposal/pose infrastructure while keeping AI styling and identity distinct. |
-| `SignedTicketVerifier`     | Issue and verify observer-scoped agent tickets.                                    |
+| `SignedTicket`            | Issue and verify observer-scoped agent tickets via the canonical admission authority (`createSignedTicket` / `verifySignedTicket` / `SignedTicketReplayGuard`). |
 | `StudyFreezeManifest`      | Record AI treatment, model, policy, prompt/tool schema and capabilities.           |
 
 ### 11.3 Persistence
