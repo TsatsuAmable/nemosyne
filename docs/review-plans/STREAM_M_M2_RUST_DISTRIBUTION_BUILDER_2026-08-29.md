@@ -4,7 +4,7 @@
 **Stream:** M — Moneta Distribution Truth  
 **Checkpoint:** M2 — Rust builder and real WASM proof  
 **Base:** `main@cce8a36b40c414cd90cac9e01d4362dfbbcc51c2`  
-**Status:** PRE-IMPLEMENTATION ADVERSARIAL CONTRACT
+**Status:** IMPLEMENTED — EXACT-HEAD VERIFICATION PENDING
 
 ## Invariant
 
@@ -65,4 +65,26 @@ M2 does not add Worker/loader production transport, renderer geometry, product U
 
 ## Post-implementation adversarial review
 
-Pending implementation and focused verification.
+The implementation was re-read against this contract before merge. The review found and corrected two resource-path defects:
+
+1. **Unbounded ECDF intermediate — fixed.** The first implementation materialized every unique-value endpoint before reducing to the requested knot count. That preserved bounded output but could allocate another `O(unique N)` vector. The final algorithm counts unique endpoints in one pass and selects at most the governed knot bound in a second pass.
+2. **Infallible exact-sort reservation — fixed.** Exact R7 quantiles require an `O(valid N)` sortable value buffer. The final builder reserves that buffer fallibly and returns a typed `RESOURCE_LIMIT` refusal if it cannot be reserved instead of relying on allocator abort behaviour.
+
+The remaining `O(valid N)` transient sort is explicit and intrinsic to this exact V1 algorithm. M2 does not claim generic large-N support; M4 owns measured browser/Worker/WASM scale evidence and may motivate a separately named approximate-quantile method. The 544-element output bound must not be misreported as a 544-element computation bound.
+
+The review also confirmed:
+
+- the resident canonical columnar handle is the only analytical input and TypeScript contains no distribution mathematics;
+- row order cannot change the sorted empirical payload;
+- zero, duplicates, invalid observations, constant domains, the final histogram boundary and extreme finite domains have explicit fixtures;
+- ECDF reduction retains the final `(validCount, 1)` endpoint and never emits two endpoints for one equal value;
+- R7 probabilities are request-bound and repeated in the strict analytical-method parameters;
+- no Worker, loader, renderer, UI or production-path claim enters M2.
+
+Exact-head CI, real-WASM coverage and governed approval remain required before this status may advance to complete.
+
+## Model routing
+
+- **Implementation:** Frontier (`gpt-5.6-sol`) at **high** reasoning — appropriate for Rust/WASM statistical code without paying the xhigh latency required by a multi-lifecycle cutover.
+- **Adversarial review:** Frontier (`gpt-5.6-sol`) at **high** reasoning — the resource and numerical edge cases need the same scientific/code strength as implementation.
+- **Mechanical support only:** Fast (`gpt-5.6-luna`) at **medium** — suitable for formatting, file discovery and status polling, never as sole owner of statistical semantics or approval.

@@ -181,43 +181,49 @@ fn build_histogram(
         .collect()
 }
 
-fn unique_ecdf_endpoints(sorted: &[f64]) -> Vec<(f64, u64)> {
-    let mut endpoints = Vec::new();
-    for (index, value) in sorted.iter().copied().enumerate() {
-        let final_value = index + 1 == sorted.len() || sorted[index + 1] != value;
-        if final_value {
-            endpoints.push((value, (index + 1) as u64));
-        }
-    }
-    endpoints
+fn unique_value_count(sorted: &[f64]) -> usize {
+    sorted
+        .iter()
+        .enumerate()
+        .filter(|(index, value)| *index == 0 || sorted[*index - 1] != **value)
+        .count()
 }
 
 fn build_ecdf(sorted: &[f64], requested_knots: u32) -> Vec<DistributionEcdfKnotV1> {
-    let endpoints = unique_ecdf_endpoints(sorted);
-    let knot_count = endpoints.len().min(requested_knots as usize);
-    let selected_indices: Vec<usize> = if knot_count == endpoints.len() {
-        (0..endpoints.len()).collect()
+    let endpoint_count = unique_value_count(sorted);
+    let knot_count = endpoint_count.min(requested_knots as usize);
+    let selected_indices: Vec<usize> = if knot_count == endpoint_count {
+        (0..endpoint_count).collect()
     } else if knot_count == 1 {
-        vec![endpoints.len() - 1]
+        vec![endpoint_count - 1]
     } else {
         (0..knot_count)
-            .map(|index| index * (endpoints.len() - 1) / (knot_count - 1))
+            .map(|index| index * (endpoint_count - 1) / (knot_count - 1))
             .collect()
     };
 
-    selected_indices
-        .into_iter()
-        .enumerate()
-        .map(|(index, endpoint_index)| {
-            let (value, cumulative_count) = endpoints[endpoint_index];
-            DistributionEcdfKnotV1 {
-                semantic_id: format!("distribution-ecdf:{index:03}"),
+    let mut knots = Vec::with_capacity(knot_count);
+    let mut endpoint_index = 0usize;
+    for (index, value) in sorted.iter().copied().enumerate() {
+        let final_value = index + 1 == sorted.len() || sorted[index + 1] != value;
+        if !final_value {
+            continue;
+        }
+        if selected_indices.get(knots.len()) == Some(&endpoint_index) {
+            let cumulative_count = (index + 1) as u64;
+            knots.push(DistributionEcdfKnotV1 {
+                semantic_id: format!("distribution-ecdf:{:03}", knots.len()),
                 value,
                 cumulative_count,
                 cumulative_probability: cumulative_count as f64 / sorted.len() as f64,
+            });
+            if knots.len() == knot_count {
+                break;
             }
-        })
-        .collect()
+        }
+        endpoint_index += 1;
+    }
+    knots
 }
 
 fn quantile_r7(sorted: &[f64], probability: f64) -> f64 {
@@ -247,14 +253,18 @@ fn build_quantiles(
         .collect()
 }
 
-fn valid_values(column: &PrimitiveColumn) -> Vec<f64> {
-    column
-        .values
-        .iter()
-        .copied()
-        .zip(column.validity.iter().copied())
-        .filter_map(|(value, valid)| (valid != 0 && value.is_finite()).then_some(value))
-        .collect()
+fn valid_values(column: &PrimitiveColumn) -> Result<Vec<f64>, ()> {
+    let mut values = Vec::new();
+    values.try_reserve_exact(column.values.len()).map_err(|_| ())?;
+    values.extend(
+        column
+            .values
+            .iter()
+            .copied()
+            .zip(column.validity.iter().copied())
+            .filter_map(|(value, valid)| (valid != 0 && value.is_finite()).then_some(value)),
+    );
+    Ok(values)
 }
 
 fn distribution_from_columnar(
@@ -302,7 +312,18 @@ fn distribution_from_columnar(
         );
     };
 
-    let mut sorted = valid_values(column);
+    let mut sorted = match valid_values(column) {
+        Ok(values) => values,
+        Err(()) => {
+            return refusal(
+                fingerprint,
+                source_row_count,
+                request,
+                SemanticRefusalCodeV1::ResourceLimit,
+                "insufficient transient memory for exact empirical-distribution sorting",
+            )
+        }
+    };
     if sorted.is_empty() {
         return refusal(
             fingerprint,
