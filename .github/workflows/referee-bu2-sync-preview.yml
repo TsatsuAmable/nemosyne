@@ -23,12 +23,27 @@ jobs:
           ref: fix/bu2-post-merge-truthfulness
           fetch-depth: 0
 
-      - name: Sync current main
+      - name: Sync current main with bounded World resolution
         run: |
           git config user.name "Nemosyne Referee"
           git config user.email "referee@noreply.local"
           git fetch origin main
+          set +e
           git merge --no-edit origin/main
+          merge_status=$?
+          set -e
+          if [ "$merge_status" -ne 0 ]; then
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            if [ "$conflicts" != "src/vr/World.ts" ]; then
+              echo "Unexpected merge conflicts:"
+              printf '%s\n' "$conflicts"
+              exit 1
+            fi
+            git checkout --theirs src/vr/World.ts
+            python scripts/referee-bu2-world-reapply.py
+            git add src/vr/World.ts
+            git commit --no-edit
+          fi
 
       - name: Set up Node.js 24
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -58,7 +73,10 @@ jobs:
         run: npm run test:fast
 
       - name: Remove transient verification machinery
-        run: rm scripts/referee-bu2-pure-preview.py .github/workflows/referee-bu2-sync-preview.yml
+        run: >-
+          rm scripts/referee-bu2-pure-preview.py
+          scripts/referee-bu2-world-reapply.py
+          .github/workflows/referee-bu2-sync-preview.yml
 
       - name: Commit verified current-main fix
         run: |
