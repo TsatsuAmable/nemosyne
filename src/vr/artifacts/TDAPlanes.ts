@@ -11,6 +11,12 @@
 
 import * as THREE from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
+import type {
+  BettiPoint as KernelBettiPoint,
+  PersistenceInterval as KernelPersistenceInterval,
+  Provenance,
+  TdaMapperGraph,
+} from '../../data/types.ts';
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 
 const DEFAULT_WIDTH = 1024;
@@ -36,6 +42,20 @@ export interface MapperGraph {
 export interface BettiPoint {
   radius: number;
   betti0: number;
+}
+
+export interface TDAComputationResult {
+  datasetVersion: number;
+  datasetFingerprint: string;
+  persistence: KernelPersistenceInterval[];
+  mapper: TdaMapperGraph;
+  betti0: KernelBettiPoint[];
+  persistenceProvenance: Provenance | null;
+  mapperProvenance: Provenance | null;
+  bettiProvenance: Provenance | null;
+  persistenceParams: Record<string, unknown>;
+  mapperParams: Record<string, unknown>;
+  bettiParams: Record<string, unknown>;
 }
 
 interface CanvasTextureSet {
@@ -103,9 +123,7 @@ function chartRect(w: number, h: number): ChartRect {
   };
 }
 
-/**
- * Build a persistence barcode panel.
- */
+/** Build a persistence barcode panel. */
 export function buildPersistencePlane(options: TDAPlaneOptions = {}): PanelWithUpdate<PersistenceInterval[]> {
   const {
     width = DEFAULT_WIDTH,
@@ -159,7 +177,6 @@ export function buildPersistencePlane(options: TDAPlaneOptions = {}): PanelWithU
       ctx.lineTo(x2, y);
       ctx.stroke();
 
-      // Birth/death ticks.
       ctx.fillStyle = '#00ffcc';
       ctx.beginPath();
       ctx.arc(x1, y, 5, 0, Math.PI * 2);
@@ -172,9 +189,7 @@ export function buildPersistencePlane(options: TDAPlaneOptions = {}): PanelWithU
   return { mesh, update };
 }
 
-/**
- * Build a mapper graph panel.
- */
+/** Build a mapper graph panel. */
 export function buildMapperPlane(options: TDAPlaneOptions = {}): PanelWithUpdate<MapperGraph> & { pickNode: (cx: number, cy: number) => unknown | null } {
   const {
     width = DEFAULT_WIDTH,
@@ -207,8 +222,6 @@ export function buildMapperPlane(options: TDAPlaneOptions = {}): PanelWithUpdate
     const cx = rect.x + rect.width / 2;
     const cy = rect.y + rect.height / 2;
     const radius = Math.min(rect.width, rect.height) * 0.38;
-
-    // Layout nodes in a circle, ordered by filter level.
     const layout = new Map<unknown, { x: number; y: number }>();
     const sorted = nodes.slice().sort((a, b) => a.filterCenter - b.filterCenter);
     for (let i = 0; i < sorted.length; i++) {
@@ -219,7 +232,6 @@ export function buildMapperPlane(options: TDAPlaneOptions = {}): PanelWithUpdate
       });
     }
 
-    // Edges.
     ctx.strokeStyle = 'rgba(0, 255, 204, 0.5)';
     ctx.lineWidth = 2;
     for (const [a, b] of edges) {
@@ -232,7 +244,6 @@ export function buildMapperPlane(options: TDAPlaneOptions = {}): PanelWithUpdate
       ctx.stroke();
     }
 
-    // Nodes.
     nodeHitAreas = [];
     for (const node of nodes) {
       const p = layout.get(node.id);
@@ -258,9 +269,7 @@ export function buildMapperPlane(options: TDAPlaneOptions = {}): PanelWithUpdate
     for (const area of nodeHitAreas) {
       const dx = cx - area.x;
       const dy = cy - area.y;
-      if (dx * dx + dy * dy <= area.r * area.r) {
-        return area.id;
-      }
+      if (dx * dx + dy * dy <= area.r * area.r) return area.id;
     }
     return null;
   }
@@ -268,9 +277,7 @@ export function buildMapperPlane(options: TDAPlaneOptions = {}): PanelWithUpdate
   return { mesh, update, pickNode };
 }
 
-/**
- * Build a Betti-0 curve panel.
- */
+/** Build a Betti-0 curve panel. */
 export function buildBettiPlane(options: TDAPlaneOptions = {}): PanelWithUpdate<BettiPoint[]> {
   const {
     width = DEFAULT_WIDTH,
@@ -299,8 +306,6 @@ export function buildBettiPlane(options: TDAPlaneOptions = {}): PanelWithUpdate<
 
     const maxRadius = Math.max(...curve.map((p) => p.radius), 1);
     const maxBetti = Math.max(...curve.map((p) => p.betti0), 1);
-
-    // Axes.
     ctx.strokeStyle = '#88ccff';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -308,7 +313,6 @@ export function buildBettiPlane(options: TDAPlaneOptions = {}): PanelWithUpdate<
     ctx.lineTo(rect.x + rect.width, rect.y + rect.height);
     ctx.stroke();
 
-    // Curve.
     ctx.strokeStyle = '#00ffcc';
     ctx.lineWidth = 4;
     ctx.beginPath();
@@ -321,7 +325,6 @@ export function buildBettiPlane(options: TDAPlaneOptions = {}): PanelWithUpdate<
     }
     ctx.stroke();
 
-    // Points.
     ctx.fillStyle = '#ffffff';
     for (const { radius, betti0 } of curve) {
       const x = rect.x + (radius / maxRadius) * rect.width;
@@ -341,16 +344,16 @@ export interface TDASummaryGroup {
   persistence: PanelWithUpdate<PersistenceInterval[]>;
   mapper: PanelWithUpdate<MapperGraph>;
   betti: PanelWithUpdate<BettiPoint[]>;
-  recompute: () => void;
+  compute: () => Promise<TDAComputationResult | null>;
+  apply: (result: TDAComputationResult) => boolean;
+  recompute: () => Promise<TDAComputationResult | null>;
   pickStructure: (raycaster: THREE.Raycaster) => string | null;
 }
 
 /**
- * Convenience: build a group of TDA summary panels. When an `atlas` is supplied
- * and the kernel is ready, `recompute()` routes persistence / mapper / betti0
- * through AtlasCore (the single production kernel caller). With no atlas,
- * `recompute()` is a no-op and the panels stay blank — this is the
- * mandatory-kernel unavailable state, NOT a JS analytical fallback.
+ * Build a group of TDA summary panels. `compute()` obtains authoritative
+ * results; `apply()` is presentation-only. The split lets RF-061 coalesce
+ * derived analysis and reject stale generations before publishing UI state.
  */
 export function buildTDASummaryGroup(
   _dataset: Dataset,
@@ -376,92 +379,113 @@ export function buildTDASummaryGroup(
   betti.mesh.lookAt(0, 1.6, -3.5);
   group.add(betti.mesh);
 
-  function recompute(): void {
-    if (!atlas || !atlas.isReady()) return;
-    // Analytical authority: always route the CURRENT Atlas dataset. A captured
-    // constructor-time instance goes stale after any operation/restore, and
-    // AtlasCore correctly refuses TDA on non-current datasets (P1-A guard).
-    const dataset = atlas.dataset;
+  const orderedFeatureColumns = [
+    filterColumn,
+    ...featureColumns.filter((column) => column !== filterColumn),
+  ];
+  const persistenceParams = { featureColumns: orderedFeatureColumns };
+  const mapperParams = { ...persistenceParams, bins: 10, overlap: 0.5 };
+  const bettiParams = { featureColumns: orderedFeatureColumns, steps: 12 };
 
-    // Rust derives the filtration vector from the first feature column when
-    // explicit filterValues are absent. Keep the requested filter column first
-    // so analytical preprocessing remains inside the Rust authority rather than
-    // traversing Dataset.rows in presentation code.
-    const orderedFeatureColumns = [
-      filterColumn,
-      ...featureColumns.filter((column) => column !== filterColumn),
-    ];
-    const tdaParams = { featureColumns: orderedFeatureColumns };
-    const mapperParams = { ...tdaParams, bins: 10, overlap: 0.5 };
+  const isCurrent = (version: number, fingerprint: string) =>
+    Boolean(
+      atlas &&
+      atlas.datasetVersion === version &&
+      atlas.datasetFingerprint === fingerprint
+    );
+
+  async function compute(): Promise<TDAComputationResult | null> {
+    if (!atlas || !atlas.isReady()) return null;
+    const datasetVersion = atlas.datasetVersion;
+    const datasetFingerprint = atlas.datasetFingerprint;
+    if (!datasetFingerprint) return null;
+
+    let pIntervals: KernelPersistenceInterval[] | null;
+    let g: TdaMapperGraph | null;
+    let bettiPoints: KernelBettiPoint[] | null;
+    let persistenceProvenance: Provenance | null = null;
+    let mapperProvenance: Provenance | null = null;
+    let bettiProvenance: Provenance | null = null;
 
     if (atlas.executionPort?.isAsync) {
-      const currentVersion = atlas.datasetVersion;
-      const currentFingerprint = atlas.datasetFingerprint;
-
-      Promise.all([
-        atlas.computePersistenceIntervalsAsync(tdaParams),
-        atlas.computeMapperGraphAsync(mapperParams),
-        atlas.computeBetti0CurveAsync({ featureColumns: orderedFeatureColumns, steps: 12 }),
-      ])
-        .then(([pIntervals, g, bettiPoints]) => {
-          if (
-            atlas.datasetVersion !== currentVersion ||
-            atlas.datasetFingerprint !== currentFingerprint
-          ) {
-            return;
-          }
-          if (pIntervals) {
-            persistence.update(
-              pIntervals.map((i) => ({ birth: i.birth, death: i.death ?? null }))
-            );
-          }
-          if (g) {
-            const graph: MapperGraph = {
-              nodes: (g.nodes ?? []).map((n) => ({
-                id: n.id,
-                filterCenter: n.filterCenter,
-                size: n.size,
-              })),
-              edges: (g.edges ?? []) as [unknown, unknown][],
-            };
-            mapperPanel.update(graph);
-          }
-          if (bettiPoints) {
-            betti.update(bettiPoints);
-          }
-          // Do not call discoverPersistenceStructures/discoverMapperStructures
-          // here: those APIs are synchronous and would recompute the expensive
-          // kernels on the XR/main thread after the Worker already completed.
-          // Async structure-ledger recording remains an explicit P1-B review
-          // residual until it can consume these exact Worker results/provenance.
-        })
-        .catch((err) => {
-          console.warn('[TDAPlanes] async TDA execution error:', err);
-        });
+      // Complete the first request (and therefore its resident-registration
+      // fence) before launching the remaining pair. Each response carries its
+      // own provenance so concurrent Mapper/Betti execution cannot race through
+      // a mutable "last provenance" slot.
+      const persistenceEvidence = await atlas.computePersistenceEvidenceAsync(persistenceParams);
+      if (!persistenceEvidence || !isCurrent(datasetVersion, datasetFingerprint)) return null;
+      const [mapperEvidence, bettiEvidence] = await Promise.all([
+        atlas.computeMapperEvidenceAsync(mapperParams),
+        atlas.computeBetti0EvidenceAsync(bettiParams),
+      ]);
+      if (!mapperEvidence || !bettiEvidence) return null;
+      pIntervals = persistenceEvidence.value;
+      g = mapperEvidence.value;
+      bettiPoints = bettiEvidence.value;
+      persistenceProvenance = persistenceEvidence.provenance;
+      mapperProvenance = mapperEvidence.provenance;
+      bettiProvenance = bettiEvidence.provenance;
     } else {
-      persistence.update(
-        (atlas.computePersistenceIntervalsForCurrent(tdaParams) ?? []).map(
-          (i) => ({ birth: i.birth, death: i.death ?? null })
-        )
-      );
-      const g = atlas.computeMapperGraphForCurrent(mapperParams);
-      const graph: MapperGraph = {
-        nodes: (g?.nodes ?? []).map((n) => ({
-          id: n.id,
-          filterCenter: n.filterCenter,
-          size: n.size,
-        })),
-        edges: (g?.edges ?? []) as [unknown, unknown][],
-      };
-      mapperPanel.update(graph);
-      betti.update(
-        atlas.computeBetti0CurveForCurrent({ featureColumns: orderedFeatureColumns, steps: 12 }) ?? []
-      );
+      pIntervals = atlas.computePersistenceIntervalsForCurrent(persistenceParams);
+      persistenceProvenance = atlas.lastProvenance();
+      g = atlas.computeMapperGraphForCurrent(mapperParams);
+      mapperProvenance = atlas.lastProvenance();
+      bettiPoints = atlas.computeBetti0CurveForCurrent(bettiParams);
+      bettiProvenance = atlas.lastProvenance();
+    }
 
-      if (dataset) {
-        atlas.discoverPersistenceStructures(dataset, tdaParams);
-        atlas.discoverMapperStructures(dataset, mapperParams);
-      }
+    if (
+      !pIntervals ||
+      !g ||
+      !bettiPoints ||
+      !isCurrent(datasetVersion, datasetFingerprint)
+    ) {
+      return null;
+    }
+
+    return {
+      datasetVersion,
+      datasetFingerprint,
+      persistence: pIntervals,
+      mapper: g,
+      betti0: bettiPoints,
+      persistenceProvenance,
+      mapperProvenance,
+      bettiProvenance,
+      persistenceParams,
+      mapperParams,
+      bettiParams,
+    };
+  }
+
+  function apply(result: TDAComputationResult): boolean {
+    if (!atlas || !isCurrent(result.datasetVersion, result.datasetFingerprint)) return false;
+    persistence.update(
+      result.persistence.map((interval) => ({
+        birth: interval.birth,
+        death: interval.death ?? null,
+      }))
+    );
+    mapperPanel.update({
+      nodes: (result.mapper.nodes ?? []).map((node) => ({
+        id: node.id,
+        filterCenter: node.filterCenter,
+        size: node.size,
+      })),
+      edges: (result.mapper.edges ?? []) as [unknown, unknown][],
+    });
+    betti.update(result.betti0);
+    return true;
+  }
+
+  async function recompute(): Promise<TDAComputationResult | null> {
+    try {
+      const result = await compute();
+      if (!result) return null;
+      return apply(result) ? result : null;
+    } catch (error) {
+      console.warn('[TDAPlanes] TDA execution error:', error);
+      return null;
     }
   }
 
@@ -484,5 +508,5 @@ export function buildTDASummaryGroup(
     return null;
   }
 
-  return { group, persistence, mapper: mapperPanel, betti, recompute, pickStructure };
+  return { group, persistence, mapper: mapperPanel, betti, compute, apply, recompute, pickStructure };
 }

@@ -49,11 +49,11 @@ function withinRoot(
     .sort((a, b) => a.startOffsetMs - b.startOffsetMs || a.durationMs - b.durationMs);
 }
 
-test('Q3D decomposes the post-RF059 browser operation envelope', async ({ page }) => {
-  test.setTimeout(180_000);
+test('Q3E decomposes mutation latency and derived-analysis settlement separately', async ({ page }) => {
+  test.setTimeout(240_000);
   test.skip(
     process.env.NEMOSYNE_Q3D_BROWSER_PROBE !== '1',
-    'Q3D browser envelope only runs in its isolated evidence pilot.'
+    'Q3E browser envelope only runs in its isolated evidence pilot.'
   );
 
   await mkdir('q3d-results', { recursive: true });
@@ -65,7 +65,7 @@ test('Q3D decomposes the post-RF059 browser operation envelope', async ({ page }
           resource: window.__NEMOSYNE_RESOURCE_ENVELOPE__?.schemaVersion ?? null,
           browser: window.__NEMOSYNE_BROWSER_ENVELOPE__?.schemaVersion ?? null,
         })),
-      { timeout: 15_000, message: 'Q3D instrumented resource and browser hooks are installed' }
+      { timeout: 15_000, message: 'Q3E instrumented resource and browser hooks are installed' }
     )
     .toEqual({ resource: 1, browser: 1 });
 
@@ -74,7 +74,8 @@ test('Q3D decomposes the post-RF059 browser operation envelope', async ({ page }
     const result = await page.evaluate(async (count) => {
       const resource = window.__NEMOSYNE_RESOURCE_ENVELOPE__;
       const browser = window.__NEMOSYNE_BROWSER_ENVELOPE__;
-      if (!resource || !browser) throw new Error('Q3D diagnostic hooks are unavailable.');
+      if (!resource || !browser) throw new Error('Q3E diagnostic hooks are unavailable.');
+      const statsBefore = browser.derivedStats();
       browser.startCapture();
       try {
         const scenario = await resource.runScenario({
@@ -82,8 +83,18 @@ test('Q3D decomposes the post-RF059 browser operation envelope', async ({ page }
           operation: 'sort',
           materialization: 'compact',
         });
+        const mutationReturnedAt = performance.now();
+        await browser.waitForDerivedIdle();
+        const derivedSettledAt = performance.now();
+        const statsAfter = browser.derivedStats();
         const capture = browser.stopCapture();
-        return { scenario, capture };
+        return {
+          scenario,
+          capture,
+          derivedSettlementAfterMutationMs: derivedSettledAt - mutationReturnedAt,
+          statsBefore,
+          statsAfter,
+        };
       } catch (error) {
         try {
           browser.stopCapture();
@@ -104,6 +115,7 @@ test('Q3D decomposes the post-RF059 browser operation envelope', async ({ page }
     const operationEvent = firstStage(operationStages, 'event.operation:applied');
     const autosaveEvent = firstStage(operationStages, 'event.session:autosave-request');
     const spatialInvalidation = firstStage(operationStages, 'input.invalidateSpatialAcceleration');
+    const derivedSchedule = firstStage(operationStages, 'derived.schedule');
 
     expect(atlas, `${rowCount}: Atlas stage exists`).toBeTruthy();
     expect(worker, `${rowCount}: Worker round-trip stage exists`).toBeTruthy();
@@ -112,6 +124,7 @@ test('Q3D decomposes the post-RF059 browser operation envelope', async ({ page }
     expect(operationEvent, `${rowCount}: operation event stage exists`).toBeTruthy();
     expect(autosaveEvent, `${rowCount}: autosave request stage exists`).toBeTruthy();
     expect(spatialInvalidation, `${rowCount}: spatial invalidation stage exists`).toBeTruthy();
+    expect(derivedSchedule, `${rowCount}: derived generation is scheduled inside operation event`).toBeTruthy();
 
     expect(result.scenario.executionMode).toBe('worker');
     expect(result.scenario.operation).toBe('sort');
@@ -121,8 +134,27 @@ test('Q3D decomposes the post-RF059 browser operation envelope', async ({ page }
     expect(result.scenario.datasetFingerprintAfter).toMatch(/^[0-9a-f]{64}$/);
     expect(Math.abs(root!.durationMs - result.scenario.timingMs.operationEndToEnd)).toBeLessThan(25);
 
+    const requestedDelta = result.statsAfter.requested - result.statsBefore.requested;
+    const completedDelta = result.statsAfter.completed - result.statsBefore.completed;
+    const failedDelta = result.statsAfter.failed - result.statsBefore.failed;
+    const staleDelta =
+      result.statsAfter.staleBeforeCompute - result.statsBefore.staleBeforeCompute +
+      result.statsAfter.staleAfterCompute - result.statsBefore.staleAfterCompute;
+    expect(requestedDelta, `${rowCount}: exactly one automatic derived generation`).toBe(1);
+    expect(
+      completedDelta + failedDelta + staleDelta,
+      `${rowCount}: scheduled generation reaches one governed terminal state`
+    ).toBe(1);
+    expect(
+      result.statsAfter.coalesced - result.statsBefore.coalesced,
+      `${rowCount}: no duplicate schedule for the same version`
+    ).toBe(0);
+
     const rootEnd = root!.startOffsetMs + root!.durationMs;
     const atlasEnd = atlas!.startOffsetMs + atlas!.durationMs;
+    const derivedWorkerExecutions = result.capture.stages.filter((stage) =>
+      stage.name.startsWith('workerPort.execute.tda.')
+    );
     const decomposition = {
       controllerTotalMs: root!.durationMs,
       controllerPreAtlasMs: Math.max(0, atlas!.startOffsetMs - root!.startOffsetMs),
@@ -133,6 +165,15 @@ test('Q3D decomposes the post-RF059 browser operation envelope', async ({ page }
       controllerPostAtlasMs: Math.max(0, rootEnd - atlasEnd),
       visualApplyMs: visual!.durationMs,
       operationEventMs: operationEvent!.durationMs,
+      derivedScheduleMs: derivedSchedule!.durationMs,
+      derivedSettlementAfterMutationMs: result.derivedSettlementAfterMutationMs,
+      derivedWorkerExecutionCount: derivedWorkerExecutions.length,
+      derivedWorkerExecutionTotalMs: derivedWorkerExecutions.reduce(
+        (sum, stage) => sum + stage.durationMs,
+        0
+      ),
+      derivedRegistrationCount: countStages(result.capture.stages, 'workerPort.registerDataset'),
+      derivedStructureRecordCount: countStages(result.capture.stages, 'ledger.recordStructure'),
       autosaveRequestEventMs: autosaveEvent!.durationMs,
       spatialInvalidationMs: spatialInvalidation!.durationMs,
       datasetCloneTotalMs: totalStageMs(operationStages, 'dataset.clone'),
@@ -145,18 +186,35 @@ test('Q3D decomposes the post-RF059 browser operation envelope', async ({ page }
       ),
     };
 
+    // The RF-061 production contract permits at most one registration for the
+    // derived trio. Once the first request establishes residency, Mapper/Betti
+    // must reuse it instead of recreating the former three-registration storm.
+    expect(
+      decomposition.derivedRegistrationCount,
+      `${rowCount}: derived TDA registration is coalesced`
+    ).toBeLessThanOrEqual(1);
+
     scenarios.push({
       rowCount,
       scenario: result.scenario,
       decomposition,
+      schedulerDelta: {
+        requested: requestedDelta,
+        completed: completedDelta,
+        failed: failedDelta,
+        stale: staleDelta,
+      },
       operationStages,
+      derivedStages: result.capture.stages.filter(
+        (stage) => stage.startOffsetMs >= rootEnd - 0.5 || stage.name === 'derived.schedule'
+      ),
     });
 
     await writeFile(
       'q3d-results/browser-envelope.partial.json',
       `${JSON.stringify(
         {
-          schemaVersion: 1,
+          schemaVersion: 2,
           classification: 'diagnostic-only-partial',
           source: sourceMetadata(),
           completedScenarios: scenarios,
@@ -169,12 +227,13 @@ test('Q3D decomposes the post-RF059 browser operation envelope', async ({ page }
   }
 
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     classification: 'synthetic-ci-browser-envelope-decomposition',
     experiment: {
       operation: 'sort',
       materialization: 'compact-row-view',
-      purpose: 'decompose post-RF059 browser-side latency without changing production semantics',
+      purpose:
+        'separate authoritative mutation latency from RF-061 automatic derived-analysis settlement',
     },
     source: sourceMetadata(),
     environment: {
@@ -192,7 +251,7 @@ test('Q3D decomposes the post-RF059 browser operation envelope', async ({ page }
 
   await writeFile('q3d-results/browser-envelope.json', `${JSON.stringify(report, null, 2)}\n`, 'utf8');
   console.log(
-    '[Q3D] browser envelope decomposition',
+    '[Q3E] mutation and derived-analysis envelope',
     JSON.stringify(scenarios.map(({ rowCount, decomposition }) => ({ rowCount, ...decomposition })), null, 2)
   );
 });

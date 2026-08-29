@@ -1162,10 +1162,10 @@ export class AtlasCore {
     return this.computeBetti0CurveForCurrent(params);
   }
 
-  async computePersistenceIntervalsAsync(
-    params: Record<string, unknown>
-  ): Promise<PersistenceInterval[] | null> {
-    if (!this._executionPort?.isAsync) return this.computePersistenceIntervalsForCurrent(params);
+  private async _computeTdaEvidenceAsync<T>(
+    operation: 'tda.persistence' | 'tda.mapper' | 'tda.betti0',
+    params: Record<string, unknown>,
+  ): Promise<{ value: T; provenance: Provenance | null; datasetVersion: number; datasetFingerprint: string } | null> {
     const fp = this.datasetFingerprint ?? '';
     if (!fp) return null;
     const version = this.datasetVersion;
@@ -1173,9 +1173,9 @@ export class AtlasCore {
     if (!(await this._registerCurrentDatasetInWorker(fp, version))) return null;
     const reqId = `areq-${++this._requestSeq}`;
 
-    const res = await this._executionPort.execute<PersistenceInterval[]>({
+    const res = await this._executionPort!.execute<T>({
       requestId: reqId,
-      operation: 'tda.persistence',
+      operation,
       dataset: { fingerprint: fp, version },
       generation,
       params,
@@ -1185,71 +1185,95 @@ export class AtlasCore {
       generation !== this._generation ||
       res.datasetVersion !== this.datasetVersion ||
       res.datasetFingerprint !== fp ||
-      fp !== (this.datasetFingerprint ?? '')
+      fp !== (this.datasetFingerprint ?? '') ||
+      res.value == null
     ) {
       return null;
     }
-    return res.value;
+    return {
+      value: res.value,
+      provenance: res.provenance ?? null,
+      datasetVersion: version,
+      datasetFingerprint: fp,
+    };
+  }
+
+  async computePersistenceEvidenceAsync(
+    params: Record<string, unknown>
+  ): Promise<{ value: PersistenceInterval[]; provenance: Provenance | null; datasetVersion: number; datasetFingerprint: string } | null> {
+    if (!this._executionPort?.isAsync) {
+      const value = this.computePersistenceIntervalsForCurrent(params);
+      return value ? {
+        value,
+        provenance: this.lastProvenance(),
+        datasetVersion: this.datasetVersion,
+        datasetFingerprint: this.datasetFingerprint ?? '',
+      } : null;
+    }
+    return this._computeTdaEvidenceAsync<PersistenceInterval[]>('tda.persistence', params);
+  }
+
+  async computeMapperEvidenceAsync(
+    params: Record<string, unknown>
+  ): Promise<{ value: TdaMapperGraph; provenance: Provenance | null; datasetVersion: number; datasetFingerprint: string } | null> {
+    if (!this._executionPort?.isAsync) {
+      const value = this.computeMapperGraphForCurrent(params);
+      return value ? {
+        value,
+        provenance: this.lastProvenance(),
+        datasetVersion: this.datasetVersion,
+        datasetFingerprint: this.datasetFingerprint ?? '',
+      } : null;
+    }
+    return this._computeTdaEvidenceAsync<TdaMapperGraph>('tda.mapper', params);
+  }
+
+  async computeBetti0EvidenceAsync(
+    params: Record<string, unknown>
+  ): Promise<{ value: BettiPoint[]; provenance: Provenance | null; datasetVersion: number; datasetFingerprint: string } | null> {
+    if (!this._executionPort?.isAsync) {
+      const value = this.computeBetti0CurveForCurrent(params);
+      return value ? {
+        value,
+        provenance: this.lastProvenance(),
+        datasetVersion: this.datasetVersion,
+        datasetFingerprint: this.datasetFingerprint ?? '',
+      } : null;
+    }
+    return this._computeTdaEvidenceAsync<BettiPoint[]>('tda.betti0', params);
+  }
+
+  async computePersistenceIntervalsAsync(
+    params: Record<string, unknown>
+  ): Promise<PersistenceInterval[] | null> {
+    if (this._executionPort?.isAsync) {
+      const fingerprint = this.datasetFingerprint ?? '';
+      if (!fingerprint) return null;
+      if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion))) return null;
+    }
+    return (await this.computePersistenceEvidenceAsync(params))?.value ?? null;
   }
 
   async computeMapperGraphAsync(
     params: Record<string, unknown>
   ): Promise<TdaMapperGraph | null> {
-    if (!this._executionPort?.isAsync) return this.computeMapperGraphForCurrent(params);
-    const fp = this.datasetFingerprint ?? '';
-    if (!fp) return null;
-    const version = this.datasetVersion;
-    const generation = this._generation;
-    if (!(await this._registerCurrentDatasetInWorker(fp, version))) return null;
-    const reqId = `areq-${++this._requestSeq}`;
-
-    const res = await this._executionPort.execute<TdaMapperGraph>({
-      requestId: reqId,
-      operation: 'tda.mapper',
-      dataset: { fingerprint: fp, version },
-      generation,
-      params,
-    });
-
-    if (
-      generation !== this._generation ||
-      res.datasetVersion !== this.datasetVersion ||
-      res.datasetFingerprint !== fp ||
-      fp !== (this.datasetFingerprint ?? '')
-    ) {
-      return null;
+    if (this._executionPort?.isAsync) {
+      const fingerprint = this.datasetFingerprint ?? '';
+      if (!fingerprint) return null;
+      if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion))) return null;
     }
-    return res.value;
+    return (await this.computeMapperEvidenceAsync(params))?.value ?? null;
   }
 
   async computeBetti0CurveAsync(
     params: Record<string, unknown>
   ): Promise<BettiPoint[] | null> {
-    if (!this._executionPort?.isAsync) return this.computeBetti0CurveForCurrent(params);
-    const fp = this.datasetFingerprint ?? '';
-    if (!fp) return null;
-    const version = this.datasetVersion;
-    const generation = this._generation;
-    if (!(await this._registerCurrentDatasetInWorker(fp, version))) return null;
-    const reqId = `areq-${++this._requestSeq}`;
-
-    const res = await this._executionPort.execute<BettiPoint[]>({
-      requestId: reqId,
-      operation: 'tda.betti0',
-      dataset: { fingerprint: fp, version },
-      generation,
-      params,
-    });
-
-    if (
-      generation !== this._generation ||
-      res.datasetVersion !== this.datasetVersion ||
-      res.datasetFingerprint !== fp ||
-      fp !== (this.datasetFingerprint ?? '')
-    ) {
-      return null;
+    if (this._executionPort?.isAsync) {
+      const fingerprint = this.datasetFingerprint ?? '';
+      if (!fingerprint) return null;
+      if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion))) return null;
     }
-    return res.value;
+    return (await this.computeBetti0EvidenceAsync(params))?.value ?? null;
   }
 
   computeSpectralFacts(timeColumn?: string, valueColumn?: string): SpectralFacts | null {
