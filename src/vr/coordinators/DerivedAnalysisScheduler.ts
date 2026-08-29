@@ -11,6 +11,7 @@ export interface DerivedAnalysisSchedulerStats {
   staleBeforeCompute: number;
   staleAfterCompute: number;
   completed: number;
+  refused: number;
   failed: number;
 }
 
@@ -20,6 +21,7 @@ export interface DerivedAnalysisSchedulerOptions<Result> {
   publish: (request: DerivedAnalysisRequest, result: Result) => void | Promise<void>;
   defer?: (callback: () => void) => unknown;
   cancelDeferred?: (handle: unknown) => void;
+  isRefusal?: (error: unknown, request: DerivedAnalysisRequest) => boolean;
   onError?: (error: unknown, request: DerivedAnalysisRequest) => void;
 }
 
@@ -49,6 +51,7 @@ export class DerivedAnalysisScheduler<Result> {
     staleBeforeCompute: 0,
     staleAfterCompute: 0,
     completed: 0,
+    refused: 0,
     failed: 0,
   };
 
@@ -140,7 +143,11 @@ export class DerivedAnalysisScheduler<Result> {
         }
       }
     } catch (error) {
-      this.counters.failed += 1;
+      if (this.options.isRefusal?.(error, request)) {
+        this.counters.refused += 1;
+      } else {
+        this.counters.failed += 1;
+      }
       this.options.onError?.(error, request);
     } finally {
       this.runningRequest = null;
