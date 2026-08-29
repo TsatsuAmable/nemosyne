@@ -7,17 +7,14 @@ export { Room } from './Room.ts';
 export { SignallingChannel } from './SignallingChannel.ts';
 export { BinaryPoseSerializer } from './BinaryPoseSerializer.ts';
 export { SharedAnnotationManager } from './SharedAnnotationManager.ts';
-export { createSignedTicket, verifySignedTicket, timingSafeEqualString } from './SignedTicket.ts';
-export type { TokenClaims } from './SignedTicket.ts';
-export {
-  SignedTicketVerifier,
-  CryptoCapabilityError,
-  timingSafeEqual,
-  timingSafeEqualBytes,
-  type SignedRoomTicket,
-  type TicketVerificationResult,
-  type TicketErrorKind,
-} from './SignedTicketVerifier.ts';
+export { createSignedTicket, verifySignedTicket, timingSafeEqualString, SignedTicketReplayGuard } from './SignedTicket.ts';
+export { SIGNED_TICKET_VERSION, TICKET_ROLES } from './SignedTicket.ts';
+export type {
+  TicketClaims,
+  TicketRole,
+  TicketVerificationResult,
+  TicketErrorKind,
+} from './SignedTicket.ts';
 export { PeerAvatarManager } from './PeerAvatarManager.ts';
 export { CollaborativeStateSync } from './CollaborativeStateSync.ts';
 export { ConnectorAuthManager } from './ConnectorAuth.ts';
