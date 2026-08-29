@@ -74,4 +74,36 @@ describe('Stream A A4 Rust aggregate embodiment', () => {
       bridge.destroyDataset(handle);
     }
   });
+
+  it('keeps semantic output bounded by group cardinality rather than source row count', () => {
+    const source = {
+      name: 'a4-bounded-output',
+      columns: [
+        { name: 'group', type: 'CATEGORICAL' as const },
+        { name: 'value', type: 'NUMERIC' as const },
+      ],
+      rows: Array.from({ length: 1_024 }, (_, index) => ({
+        group: `g${index % 4}`,
+        value: index,
+      })),
+    };
+    const handle = bridge.loadDatasetJson(source);
+    expect(handle).toBeGreaterThan(0);
+    try {
+      const envelope = buildAggregateSemanticEmbodimentV1(handle, request);
+      expect(envelope?.result.status).toBe('READY');
+      expect(envelope?.resource).toMatchObject({ sourceRowCount: 1_024, elementCount: 4 });
+      if (envelope?.result.status !== 'READY') throw new Error('expected READY aggregate payload');
+      expect(envelope.result.payload.data.groups).toHaveLength(4);
+
+      // This is a deterministic serialized-size proxy, not a claim about exact
+      // structured-clone bytes. A1 keeps exact Worker transfer bytes unmeasured.
+      const sourceJsonBytes = new TextEncoder().encode(JSON.stringify(source)).byteLength;
+      const semanticJsonBytes = new TextEncoder().encode(JSON.stringify(envelope)).byteLength;
+      expect(semanticJsonBytes).toBeLessThan(sourceJsonBytes);
+      expect(JSON.stringify(envelope)).not.toContain('"rows"');
+    } finally {
+      bridge.destroyDataset(handle);
+    }
+  });
 });
