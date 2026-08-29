@@ -1,4 +1,5 @@
 import type { Provenance } from '../../data/types.ts';
+import type { SemanticEmbodimentEnvelopeV1 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
 import {
   allocBuffer,
   allocBytes,
@@ -124,6 +125,25 @@ export function adjustMonetaEvidence(
 }
 
 export const adjustDracoEvidence = adjustMonetaEvidence;
+
+/**
+ * Strict Rust-owned V1 semantic payload validation/normalisation boundary.
+ * This does not compute a representation. A4 builders will construct the same
+ * Rust types from canonical dataset handles and return them over this wire shape.
+ */
+export function roundTripSemanticEmbodimentPayloadV1(
+  input: SemanticEmbodimentEnvelopeV1
+): SemanticEmbodimentEnvelopeV1 | null {
+  let wasm: KernelContractRuntime;
+  try {
+    wasm = getRuntimeExports();
+  } catch {
+    return null;
+  }
+  return callJsonAbi(wasm.moneta_semantic_embodiment_v1_roundtrip.bind(wasm), input) as
+    | SemanticEmbodimentEnvelopeV1
+    | null;
+}
 
 export function compileIntent(
   query: string,
