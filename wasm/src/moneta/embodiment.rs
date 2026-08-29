@@ -2,6 +2,8 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::JsCast;
 
 pub const SEMANTIC_EMBODIMENT_SCHEMA_VERSION: u32 = 1;
 pub const MAX_AGGREGATE_GROUPS_V1: u32 = 4096;
@@ -439,6 +441,24 @@ pub fn validate_and_normalize(
     Ok(())
 }
 
+#[cfg(target_arch = "wasm32")]
+fn copy_host_input(in_ptr: u32, in_len: u32) -> Option<Vec<u8>> {
+    if in_len == 0 || !crate::data::column_view::host_buffer_contains_range(in_ptr, in_len) {
+        return None;
+    }
+    let end = in_ptr.checked_add(in_len)?;
+    let memory = wasm_bindgen::memory()
+        .dyn_into::<js_sys::WebAssembly::Memory>()
+        .ok()?;
+    let bytes = js_sys::Uint8Array::new(&memory.buffer()).subarray(in_ptr, end);
+    Some(bytes.to_vec())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn copy_host_input(_in_ptr: u32, _in_len: u32) -> Option<Vec<u8>> {
+    None
+}
+
 /// A3 contract boundary probe. It intentionally performs no analytical work.
 /// Rust owns parsing, strict validation, normalization and serialization of the
 /// versioned payload contract; later representation builders will construct the
@@ -450,10 +470,10 @@ pub fn moneta_semantic_embodiment_v1_roundtrip(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let Some(bytes) = (unsafe { crate::allocator::try_view(in_ptr, in_len) }) else {
+    let Some(bytes) = copy_host_input(in_ptr, in_len) else {
         return 0;
     };
-    let mut envelope: SemanticEmbodimentEnvelopeV1 = match serde_json::from_slice(bytes) {
+    let mut envelope: SemanticEmbodimentEnvelopeV1 = match serde_json::from_slice(&bytes) {
         Ok(value) => value,
         Err(error) => {
             crate::log_error(&format!(
