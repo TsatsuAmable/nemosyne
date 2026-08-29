@@ -434,6 +434,46 @@ export class WebXRSimulatorAdapter {
   }
 
   /**
+   * Inject an XR session visibility change (USIM-A lifecycle fault). IWER
+   * queues the state until the next device frame, then dispatches a real
+   * `visibilitychange` event on the session. While not `visible`, IWER returns
+   * an empty `inputSources` list, so this also exercises "input source
+   * disappears" through the real session surface the production InputRouter
+   * polls.
+   */
+  setSessionVisibilityState(state: 'visible' | 'visible-blurred' | 'hidden'): void {
+    const device = this.device as unknown as {
+      updateVisibilityState(st: string): void;
+      visibilityState: string;
+    };
+    device.updateVisibilityState(state);
+    this.device.notifyStateChange();
+  }
+
+  get sessionVisibilityState(): 'visible' | 'visible-blurred' | 'hidden' {
+    const device = this.device as unknown as { visibilityState: string };
+    return (device.visibilityState as 'visible' | 'visible-blurred' | 'hidden') ?? 'visible';
+  }
+
+  /**
+   * Disconnect/reconnect an emulated input source (USIM-A lifecycle fault).
+   * Toggling `XRTrackedInput.connected` removes/re-adds the source from the
+   * real session `inputSources`, and the next device frame marks the change so
+   * three.js-style `inputsourceschange` handling observes it.
+   */
+  setInputSourceConnected(side: 'left' | 'right', connected: boolean): void {
+    const tracked = (this.device as unknown as {
+      controllers: Record<string, { connected: boolean }>;
+      hands: Record<string, { connected: boolean }>;
+    });
+    const controller = tracked.controllers[side];
+    const hand = tracked.hands[side];
+    if (controller) controller.connected = connected;
+    if (hand) hand.connected = connected;
+    this.device.notifyStateChange();
+  }
+
+  /**
    * Configure the emulated hand so that index-finger-tip and thumb-tip approach
    * each other (pinch) or separate. IWER's shipped pinch pose keeps the tips
    * ~9cm apart, which is above Nemosyne's 0.04m pinch threshold, so the adapter
