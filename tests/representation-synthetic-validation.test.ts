@@ -20,6 +20,13 @@ describe('Phase 8: Synthetic Dataset Validation Suite', () => {
       expect(decision.evidence.length).toBeGreaterThan(0);
       expect(decision.rejectedAlternatives.length).toBeGreaterThan(0);
 
+      if (fixture.name === 'anomalous-outliers') {
+        expect(decision.chosenCandidateId).toBe('DISTRIBUTION_FIELD');
+        expect(decision.preserves).toContain('empirical-distribution-shape');
+        expect(decision.loses).toContain('population-density-distribution');
+        expect(decision.loses).toContain('outlier-boundary-visibility');
+      }
+
       // Verify all rejected alternatives have explanatory reasons
       for (const alt of decision.rejectedAlternatives) {
         expect(alt.reason.length).toBeGreaterThan(0);
