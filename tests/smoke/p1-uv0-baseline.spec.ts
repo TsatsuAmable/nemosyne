@@ -132,10 +132,11 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
   );
   expect(s1.datasetName).toBe('Supply Chain Hierarchy');
   expect(s1.palaceNodeCount).toBeGreaterThan(0);
-  // Independent-review finding: SettingsPanel is eagerly constructed and not
-  // hidden at boot, so the canonical inventory must acknowledge it.
-  expect(s1.settingsPanelVisible).toBe(true);
-  expect(UV0_INVENTORY.find((entry) => entry.id === 'settings-panel')?.visibleAtBoot).toBe(true);
+  // Runtime evidence is authoritative over constructor/source inference. The
+  // first hardening run falsified the assumption that eager construction meant
+  // SettingsPanel was visible at fresh boot.
+  expect(s1.settingsPanelVisible).toBe(false);
+  expect(UV0_INVENTORY.find((entry) => entry.id === 'settings-panel')?.visibleAtBoot).toBe(false);
   await captureState(page, '01-fresh-boot', true, 'supply-chain loaded, ≥1 frame rendered', s1);
 
   // S2 focused observation.
