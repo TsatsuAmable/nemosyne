@@ -1,8 +1,10 @@
 // @ts-nocheck
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import * as crypto from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 import { createRoomRegistry, type SignallingSocket } from '../src/network/SignallingServerCore.ts';
 import { createSignedTicket } from '../src/network/SignedTicket.ts';
+import * as networkBarrel from '../src/network/index.ts';
 
 interface MockSocketWithState extends SignallingSocket {
   listeners: Record<string, ((...args: any[]) => void)[]>;
@@ -476,6 +478,274 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
       registry.handleConnection(a, 'room1', 'peerA', 'dev-secret');
       expect(a.closeCode).toBeUndefined();
       expect(registry.getTotalPeers()).toBe(1);
+    });
+  });
+
+  describe('RF-037 — Canonical ticket authority on the live admission path', () => {
+    /** Sign a raw claims object so tests can construct canonical-schema tickets the creator refuses to issue. */
+    function signRawClaims(claims: unknown, secret: string): string {
+      const payloadB64 = Buffer.from(JSON.stringify(claims), 'utf8').toString('base64url');
+      const hmac = crypto.createHmac('sha256', secret);
+      hmac.update(payloadB64);
+      return `${payloadB64}.${hmac.digest('hex')}`;
+    }
+
+    it('accepts a valid ticket on first use and rejects its replay (same nonce) through handleConnection', () => {
+      const secret = 'rf037-master-secret';
+      const registry = createRoomRegistry({ authToken: secret });
+      const ticket = createSignedTicket({
+        room: 'lab-replay',
+        role: 'participant',
+        exp: Date.now() + 60000,
+      }, secret);
+
+      // First use: verified and admitted through the real admission path.
+      const first = makeSocket();
+      registry.handleConnection(first, 'lab-replay', 'peer-first', ticket);
+      expect(first.closeCode).toBeUndefined();
+      expect(first.readyState).toBe(1);
+      expect(registry.getTotalPeers()).toBe(1);
+
+      // Second use of the identical ticket: rejected at handleConnection.
+      const second = makeSocket();
+      registry.handleConnection(second, 'lab-replay', 'peer-second', ticket);
+      expect(second.closeCode).toBe(4001);
+      expect(second.closeReason).toBe('ticket replay detected (nonce already consumed)');
+      expect(registry.getTotalPeers()).toBe(1);
+    });
+
+    it('rejects a replayed ticket even after the first peer disconnects', () => {
+      const secret = 'rf037-reconnect-secret';
+      const registry = createRoomRegistry({ authToken: secret });
+      const ticket = createSignedTicket({
+        room: 'lab-reconnect',
+        role: 'observer',
+        exp: Date.now() + 60000,
+      }, secret);
+
+      const first = makeSocket();
+      registry.handleConnection(first, 'lab-reconnect', 'peer-a', ticket);
+      expect(first.closeCode).toBeUndefined();
+
+      first.close?.();
+      expect(registry.getTotalPeers()).toBe(0);
+
+      // The nonce was consumed at admission; a new connection cannot reuse it.
+      const replay = makeSocket();
+      registry.handleConnection(replay, 'lab-reconnect', 'peer-b', ticket);
+      expect(replay.closeCode).toBe(4001);
+      expect(replay.closeReason).toBe('ticket replay detected (nonce already consumed)');
+    });
+
+    it('accepts distinct tickets for distinct peers', () => {
+      const secret = 'rf037-distinct-secret';
+      const registry = createRoomRegistry({ authToken: secret });
+      const room = 'lab-distinct';
+      const now = Date.now() + 60000;
+
+      const observerTicket = createSignedTicket({ room, role: 'observer', exp: now }, secret);
+      const participantTicket = createSignedTicket({ room, role: 'participant', exp: now }, secret);
+
+      const observer = makeSocket();
+      registry.handleConnection(observer, room, 'peer-obs', observerTicket);
+      const participant = makeSocket();
+      registry.handleConnection(participant, room, 'peer-part', participantTicket);
+
+      expect(observer.closeCode).toBeUndefined();
+      expect(participant.closeCode).toBeUndefined();
+      expect(registry.getTotalPeers()).toBe(2);
+
+      // Roles from the canonical tickets are enforced: observer cannot relay
+      // application state, participant can.
+      participant.sent.length = 0;
+      observer.listeners.message[0](
+        JSON.stringify({ to: 'peer-part', data: { type: 'datasetOperation', op: { type: 'delete' } } })
+      );
+      expect(participant.sent.length).toBe(0);
+
+      const stateSocket = makeSocket();
+      registry.handleConnection(stateSocket, room, 'peer-state', participantTicket);
+      expect(stateSocket.closeCode).toBe(4001); // participant ticket already consumed
+    });
+
+    it('fails closed on malformed tickets through the real admission path', () => {
+      const secret = 'rf037-malformed-secret';
+      // IP auth-failure throttling is orthogonal to the fail-closed property
+      // under test; a generous limit keeps the specific rejection reason
+      // observable for every malformed variant (throttling is covered by its
+      // own dedicated test below).
+      const registry = createRoomRegistry({ authToken: secret, maxAuthFailures: 100 });
+      const room = 'lab-malformed';
+      const now = Date.now();
+
+      // 1. Bad structure (not two dot-separated parts).
+      const badStructure = makeSocket();
+      registry.handleConnection(badStructure, room, 'peer-structure', 'just-a-string');
+      expect(badStructure.closeCode).toBe(4001);
+
+      // 2. Tampered payload (re-encoded claims with a valid-shaped signature).
+      const good = createSignedTicket({ room, role: 'participant', exp: now + 60000 }, secret);
+      const [payloadB64, sig] = good.split('.');
+      const forgedClaims = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+      forgedClaims.role = 'participant';
+      forgedClaims.room = 'attacker-room';
+      const tamperedPayload = Buffer.from(JSON.stringify(forgedClaims), 'utf8').toString('base64url');
+      const tampered = makeSocket();
+      registry.handleConnection(tampered, room, 'peer-tampered', `${tamperedPayload}.${sig}`);
+      expect(tampered.closeCode).toBe(4001);
+      expect(tampered.closeReason).toBe('invalid ticket cryptographic signature');
+
+      // 3. Wrong room scope.
+      const wrongRoomTicket = createSignedTicket({ room: 'room-alpha', role: 'participant', exp: now + 60000 }, secret);
+      const wrongRoom = makeSocket();
+      registry.handleConnection(wrongRoom, room, 'peer-room', wrongRoomTicket);
+      expect(wrongRoom.closeCode).toBe(4001);
+      expect(wrongRoom.closeReason).toBe('ticket room scope mismatch');
+
+      // 4. Expired.
+      const expiredTicket = createSignedTicket({ room, role: 'participant', exp: now - 1000 }, secret);
+      const expired = makeSocket();
+      registry.handleConnection(expired, room, 'peer-expired', expiredTicket);
+      expect(expired.closeCode).toBe(4001);
+      expect(expired.closeReason).toBe('ticket expired');
+
+      // 5. Unknown role (legacy ontology), validly signed.
+      const unknownRole = signRawClaims(
+        { version: 1, room, role: 'analyst', issuedAt: now, exp: now + 60000, nonce: 'n-analyst' },
+        secret
+      );
+      const rolePeer = makeSocket();
+      registry.handleConnection(rolePeer, room, 'peer-analyst', unknownRole);
+      expect(rolePeer.closeCode).toBe(4001);
+      expect(rolePeer.closeReason).toBe('invalid role in ticket');
+
+      // 6. Missing nonce.
+      const missingNonce = signRawClaims(
+        { version: 1, room, role: 'participant', issuedAt: now, exp: now + 60000 },
+        secret
+      );
+      const noNoncePeer = makeSocket();
+      registry.handleConnection(noNoncePeer, room, 'peer-nonce', missingNonce);
+      expect(noNoncePeer.closeCode).toBe(4001);
+      expect(noNoncePeer.closeReason).toBe('ticket missing required nonce');
+
+      // 7. Unsupported version.
+      const v2 = signRawClaims(
+        { version: 2, room, role: 'participant', issuedAt: now, exp: now + 60000, nonce: 'n-v2' },
+        secret
+      );
+      const v2Peer = makeSocket();
+      registry.handleConnection(v2Peer, room, 'peer-v2', v2);
+      expect(v2Peer.closeCode).toBe(4001);
+      expect(v2Peer.closeReason).toBe('unsupported ticket version');
+
+      // No peer was admitted.
+      expect(registry.getTotalPeers()).toBe(0);
+    });
+
+    it('exposes exactly one canonical ticket authority from the barrel (no competing verifier)', () => {
+      expect(typeof networkBarrel.createSignedTicket).toBe('function');
+      expect(typeof networkBarrel.verifySignedTicket).toBe('function');
+      expect(typeof networkBarrel.SignedTicketReplayGuard).toBe('function');
+      // The obsolete duplicate authority must not be reachable from production exports.
+      expect((networkBarrel as any).SignedTicketVerifier).toBeUndefined();
+      expect((networkBarrel as any).SignedRoomTicket).toBeUndefined();
+      expect((networkBarrel as any).CryptoCapabilityError).toBeUndefined();
+      expect((networkBarrel as any).timingSafeEqualBytes).toBeUndefined();
+    });
+  });
+
+  describe('RF-038 — Fail-closed scoped-token role parsing on the live admission path', () => {
+    it('accepts only exact observer/participant suffixes and rejects every other suffix', () => {
+      const registry = createRoomRegistry({ authToken: 'room-master-key', maxAuthFailures: 100 });
+      const room = 'room-scoped';
+
+      const observer = makeSocket();
+      registry.handleConnection(observer, room, 'peer-obs', 'room-master-key:observer', 'participant');
+      expect(observer.closeCode).toBeUndefined();
+      expect(observer.readyState).toBe(1);
+
+      const participant = makeSocket();
+      registry.handleConnection(participant, room, 'peer-part', 'room-master-key:participant');
+      expect(participant.closeCode).toBeUndefined();
+      expect(participant.readyState).toBe(1);
+
+      const rejectedTokens = [
+        'room-master-key:admin',
+        'room-master-key:PARTICIPANT',
+        'room-master-key:',
+        'room-master-key:participant-extra',
+        'room-master-key:observer:participant',
+        'room-master-key:administrator',
+      ];
+      rejectedTokens.forEach((token, i) => {
+        const s = makeSocket();
+        registry.handleConnection(s, room, `peer-bad-${i}`, token);
+        expect(s.closeCode).toBe(4001);
+        expect(s.closeReason).toBe('invalid scoped token role');
+      });
+
+      // Only the two exact-scoped peers were admitted.
+      expect(registry.getTotalPeers()).toBe(2);
+    });
+
+    it('enforces the exact scoped role capabilities (observer cannot relay state)', () => {
+      const registry = createRoomRegistry({ authToken: 'room-master-key' });
+      const room = 'room-scoped-cap';
+
+      const observer = makeSocket();
+      registry.handleConnection(observer, room, 'peer-obs', 'room-master-key:observer');
+      const participant = makeSocket();
+      registry.handleConnection(participant, room, 'peer-part', 'room-master-key:participant');
+      participant.sent.length = 0;
+
+      observer.listeners.message[0](
+        JSON.stringify({ to: 'peer-part', data: { type: 'state', delta: { count: 1 } } })
+      );
+      expect(participant.sent.length).toBe(0);
+
+      // The exact participant suffix has the privileged capabilities.
+      observer.listeners.message[0](
+        JSON.stringify({ to: 'peer-part', data: { type: 'offer', sdp: 'obs-offer' } })
+      );
+      expect(participant.sent.length).toBe(1);
+    });
+
+    it('a foreign requested role never promotes beyond the exact ontology (least privilege)', () => {
+      const registry = createRoomRegistry({ authToken: 'participant-secret' });
+      const room = 'room-role-ontology';
+
+      // Plain participant secret + a foreign requested role: the request must not
+      // silently become `participant`. The exact allow-list resolves it to the
+      // least-privilege observer role, so it cannot relay application state.
+      const weird = makeSocket();
+      registry.handleConnection(weird, room, 'peer-weird', 'participant-secret', 'analyst');
+      expect(weird.closeCode).toBeUndefined();
+      expect(weird.readyState).toBe(1);
+
+      const participant = makeSocket();
+      registry.handleConnection(participant, room, 'peer-part', 'participant-secret');
+      participant.sent.length = 0;
+
+      weird.listeners.message[0](
+        JSON.stringify({ to: 'peer-part', data: { type: 'datasetOperation', op: { type: 'delete' } } })
+      );
+      expect(participant.sent.length).toBe(0);
+
+      // An administrator request in open (Development) mode is likewise capped:
+      // it must not become a participant with state-broadcast capabilities.
+      const openRegistry = createRoomRegistry({ securityProfile: 'Development' });
+      const admin = makeSocket();
+      openRegistry.handleConnection(admin, 'room-open', 'peer-admin', undefined, 'administrator');
+      expect(admin.closeCode).toBeUndefined();
+      const openPart = makeSocket();
+      openRegistry.handleConnection(openPart, 'room-open', 'peer-open-part');
+      openPart.sent.length = 0;
+      admin.listeners.message[0](
+        JSON.stringify({ to: 'peer-open-part', data: { type: 'datasetOperation', op: { type: 'delete' } } })
+      );
+      expect(openPart.sent.length).toBe(0);
+      expect(openRegistry.getTotalPeers()).toBe(2);
     });
   });
 });
