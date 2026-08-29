@@ -369,7 +369,11 @@ export function createDefaultRequirements(
     });
     preservationGoals.push({ information: 'exact-metric-values', priority: 'CRITICAL' });
   } else if (task === 'identify-outliers' || task === 'anomaly-detection') {
-    preservationGoals.push({ information: 'outlier-boundary-visibility', priority: 'CRITICAL' });
+    // V1 empirical distribution supports exploratory anomaly visibility through
+    // its histogram/ECDF/quantiles, but it does not compute a governed formal
+    // outlier boundary. Keep that richer information as a preference rather
+    // than a hard gate until a separately reviewed boundary method exists.
+    preservationGoals.push({ information: 'outlier-boundary-visibility', priority: 'OPTIONAL' });
   } else if (intent.observationLevel === 'group') {
     preservationGoals.unshift({ information: 'cluster-separation', priority: 'CRITICAL' });
     preservationGoals.push({ information: 'aggregate-group-magnitude', priority: 'DESIRED' });
