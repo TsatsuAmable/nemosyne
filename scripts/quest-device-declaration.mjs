@@ -18,7 +18,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  DEVICE_DECLARATION_FIELDS,
   VALIDATION_LOG_ROOT,
   readDeviceDeclaration,
   writeDeviceDeclaration,
