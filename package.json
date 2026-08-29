@@ -20,7 +20,7 @@
     "dev:quest:validate": "node scripts/quest-validation.mjs quest-validate",
     "dev:quest:device": "node scripts/quest-device-declaration.mjs",
     "build": "npm run wasm && vite build",
-    "preview": "vite preview --host",
+    "preview": "vite preview",
     "lint": "eslint src tests dev vite.config.ts vitest.config.ts vitest.coverage.config.ts vitest.fast.config.ts vitest.ui.config.ts vitest.wasm.config.ts playwright.collaboration.config.ts",
     "lint:fix": "eslint src tests dev vite.config.ts vitest.config.ts vitest.coverage.config.ts vitest.fast.config.ts vitest.ui.config.ts vitest.wasm.config.ts playwright.collaboration.config.ts --fix",
     "format": "prettier --write \"src/**/*.{js,mjs,ts}\" \"tests/**/*.{js,mjs,ts}\" \"dev/**/*.{js,mjs,ts}\" vite.config.ts vitest.config.ts vitest.coverage.config.ts vitest.fast.config.ts vitest.ui.config.ts vitest.wasm.config.ts playwright.collaboration.config.ts",

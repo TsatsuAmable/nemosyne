@@ -153,7 +153,7 @@ describe('Sprint 19.1: Zero-Copy Network Sync — CollaborativeStateSync binary 
     expect(sync3.getNumericPeerId()).not.toBe(numericId);
   });
 
-  it('binary messages from different peerIds are stored under distinct peer map keys', () => {
+  it('binary messages from different peerIds are stored under distinct peer map keys when channel-bound', () => {
     const sync = new CollaborativeStateSync('peer-local');
 
     // Simulate receiving binary pose from peer 101
@@ -182,31 +182,86 @@ describe('Sprint 19.1: Zero-Copy Network Sync — CollaborativeStateSync binary 
       },
     } as unknown as RTCDataChannel;
 
+    // Channel-bound identity provided: sequence state keyed by string identity.
+    sync.setDataChannel(mockChannel, 'trusted-remote-1');
+
+    // Deliver both binary messages with correct numeric IDs matching the bound identity
+    const right1 = BinaryPoseSerializer.serialize({
+      peerId: sha256Uint31('trusted-remote-1'),
+      sequence: 1,
+      position: [1, 0, 0],
+      rotation: [0, 0, 0, 1],
+    });
+    onMessageHandler!({ data: right1 } as MessageEvent);
+
+    // Second peer with different bound identity
+    const sync2 = new CollaborativeStateSync('peer-local');
+    let onMessageHandler2: ((event: MessageEvent) => void) | null = null;
+    const mockChannel2 = {
+      readyState: 'open',
+      binaryType: 'arraybuffer',
+      send: () => {},
+      set onmessage(fn: ((event: MessageEvent) => void) | null) {
+        onMessageHandler2 = fn;
+      },
+    } as unknown as RTCDataChannel;
+    sync2.setDataChannel(mockChannel2, 'trusted-remote-2');
+
+    const right2 = BinaryPoseSerializer.serialize({
+      peerId: sha256Uint31('trusted-remote-2'),
+      sequence: 1,
+      position: [2, 0, 0],
+      rotation: [0, 0, 0, 1],
+    });
+    onMessageHandler2!({ data: right2 } as MessageEvent);
+
+    const peers1 = sync.getConnectedPeers();
+    const peers2 = sync2.getConnectedPeers();
+    expect(peers1.length).toBe(1);
+    expect(peers2.length).toBe(1);
+    expect(peers1[0].peerId).toBe(sha256Uint31('trusted-remote-1').toString());
+    expect(peers2[0].peerId).toBe(sha256Uint31('trusted-remote-2').toString());
+  });
+
+  it('fails closed when _remotePeerId is absent (no untrusted-field fallback)', () => {
+    const sync = new CollaborativeStateSync('peer-local');
+
+    const buf = BinaryPoseSerializer.serialize({
+      peerId: 42,
+      sequence: 1,
+      position: [1, 0, 0],
+      rotation: [0, 0, 0, 1],
+    });
+
+    let onMessageHandler: ((event: MessageEvent) => void) | null = null;
+    const mockChannel = {
+      readyState: 'open',
+      binaryType: 'arraybuffer',
+      send: () => {},
+      set onmessage(fn: ((event: MessageEvent) => void) | null) {
+        onMessageHandler = fn;
+      },
+    } as unknown as RTCDataChannel;
+
+    // No channel-bound identity provided — must fail closed, not fall back to payload ID.
     sync.setDataChannel(mockChannel);
 
-    // Deliver both binary messages
-    onMessageHandler!({ data: buf1 } as MessageEvent);
-    onMessageHandler!({ data: buf2 } as MessageEvent);
-
-    const peers = sync.getConnectedPeers();
-    expect(peers.length).toBe(2);
-
-    const peerIds = peers.map((p) => p.peerId);
-    expect(peerIds).toContain('101');
-    expect(peerIds).toContain('202');
+    onMessageHandler!({ data: buf } as MessageEvent);
+    expect(sync.getConnectedPeers()).toHaveLength(0);
   });
 
   it('drops out-of-order binary pose packets and does not overwrite newer peer state', () => {
     const sync = new CollaborativeStateSync('peer-local');
+    const trustedRemoteId = sha256Uint31('trusted-remote-out-of-order');
 
     const bufNew = BinaryPoseSerializer.serialize({
-      peerId: 55,
+      peerId: trustedRemoteId,
       sequence: 10,
       position: [9, 9, 9],
       rotation: [0, 0, 0, 1],
     });
     const bufOld = BinaryPoseSerializer.serialize({
-      peerId: 55,
+      peerId: trustedRemoteId,
       sequence: 5, // older — should be dropped
       position: [1, 1, 1],
       rotation: [0, 0, 0, 1],
@@ -222,7 +277,8 @@ describe('Sprint 19.1: Zero-Copy Network Sync — CollaborativeStateSync binary 
       },
     } as unknown as RTCDataChannel;
 
-    sync.setDataChannel(mockChannel);
+    // Provide channel-bound identity so sequence gating works (F9 fix).
+    sync.setDataChannel(mockChannel, 'trusted-remote-out-of-order');
 
     // Deliver newer packet first, then the stale one
     onMessageHandler!({ data: bufNew } as MessageEvent);
