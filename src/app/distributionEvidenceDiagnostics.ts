@@ -1,12 +1,29 @@
 import * as THREE from 'three';
+import type { AtlasCore } from '../atlas/AtlasCore.ts';
 import type { AnalyticalWorkerDiagnostic } from '../atlas/ports/AnalyticalExecutionPort.ts';
 import { Dataset } from '../data/Dataset.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from '../moneta/representation/SemanticEmbodimentPayload.ts';
 import { MONETA_REPRESENTATION_CANDIDATES } from '../moneta/representation/RepresentationCandidate.ts';
 import { createDefaultRequirements } from '../moneta/representation/RepresentationRequirements.ts';
 import { SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME } from '../moneta/embodiment/SemanticEmbodimentStatus.ts';
+import type { RepresentationRequirements } from '../moneta/representation/RepresentationRequirements.ts';
 import { PerceptualFitnessSampler } from '../vr/perception/PerceptualFitnessSampler.ts';
-import type { World } from '../vr/World.ts';
+import type { DatasetLoadEntry } from '../vr/coordinators/types.ts';
+
+interface DistributionEvidenceWorld {
+  atlas: Pick<AtlasCore, 'executionPort'>;
+  engine: {
+    scene: THREE.Scene;
+    renderer: { info: { render: { calls: number; triangles: number } } };
+  };
+  dracoNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
+  _activeRequirements: RepresentationRequirements;
+  loadDataset(entry: DatasetLoadEntry): void;
+  _doLoadDataset(
+    entry: DatasetLoadEntry,
+    options: { preserveAnalyticalState?: boolean; preserveAuxiliaryPresentation?: boolean }
+  ): void;
+}
 
 interface SemanticDistributionInput {
   semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
@@ -115,7 +132,9 @@ function jsonBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 }
 
-function sceneSnapshot(world: World): DistributionEvidenceScenarioResult['scene'] {
+function sceneSnapshot(
+  world: DistributionEvidenceWorld
+): DistributionEvidenceScenarioResult['scene'] {
   let objectCount = 0;
   let visibleObjectCount = 0;
   world.engine.scene.traverse((object) => {
@@ -135,7 +154,7 @@ function sceneSnapshot(world: World): DistributionEvidenceScenarioResult['scene'
  * it never computes or repairs distribution statistics.
  */
 export async function runDistributionEvidenceScenario(
-  world: World,
+  world: DistributionEvidenceWorld,
   input: { rowCount: number; measureField: string }
 ): Promise<DistributionEvidenceScenarioResult> {
   if (!Number.isSafeInteger(input.rowCount) || input.rowCount < 50 || input.rowCount > 100_000) {

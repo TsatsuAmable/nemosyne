@@ -62,11 +62,12 @@ M4 does not add KDE/PDF/density mathematics, axes/legends, a connected ECDF line
 
 ## Post-implementation adversarial review
 
-The implementation was re-read from the synthetic fixture through `World.loadDataset`, the governed requirements re-entry, the module Worker/Rust request, node settlement, status presentation, bounded adapter and perceptual sampler. Three blockers found by this pass were closed before publication:
+The implementation was re-read from the synthetic fixture through `World.loadDataset`, the governed requirements re-entry, the module Worker/Rust request, node settlement, status presentation, bounded adapter and perceptual sampler. Four blockers found by this pass and first exact-head run were closed:
 
 1. **Setup/measurement Worker collision — closed.** The ordinary first load can itself choose an asynchronous semantic candidate. The driver now awaits that setup promise and drains setup diagnostics before starting the explicit M4 request, so the recorded distribution execution timing cannot belong to the prior decision.
 2. **Stale status metadata — closed.** Removing the pending surface on `READY` was insufficient if its explanatory message remained in group metadata. The status presenter now deletes that message when ready.
 3. **Per-scenario bound without cross-scale proof — closed.** Checking `elementCount <= maxElementCount` separately did not prove source-N independence. The browser falsifier now also requires identical Rust element and analytical-mesh counts across every configured scale.
+4. **Composition-root reverse dependency — closed.** The first exact-head architecture gate rejected the evidence module's direct import of `World`. The driver now depends on a narrow structural evidence port; only the already-approved resource diagnostic composition seam receives the real `World` instance.
 
 The review also confirmed that the status plane is not included in `Artifact.nodeMeshes`, is marked non-analytical/non-selectable, and is removed for ready output. The evidence record retains the full envelope and provenance; `payloadJsonBytesProxy` is explicitly labelled as a deterministic JSON proxy, whole-scene last-frame renderer counters are not presented as distribution-only draw calls, and the perceptual sampler receives world-space positions from the actual artifact meshes.
 
