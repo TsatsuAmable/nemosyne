@@ -14,7 +14,8 @@ function rowCounts(): number[] {
 function sourceMetadata() {
   return {
     sourceHeadSha: process.env.NEMOSYNE_SOURCE_HEAD_SHA ?? null,
-    workflowCheckoutSha: process.env.GITHUB_SHA ?? null,
+    checkoutHeadSha: process.env.NEMOSYNE_CHECKOUT_HEAD_SHA ?? null,
+    workflowEventSha: process.env.NEMOSYNE_WORKFLOW_EVENT_SHA ?? process.env.GITHUB_SHA ?? null,
     productionBundleSha256: process.env.NEMOSYNE_M4_BUNDLE_SHA256 ?? null,
     wasmSha256: process.env.NEMOSYNE_M4_WASM_SHA256 ?? null,
   };
@@ -110,7 +111,10 @@ test('M4 proves the visible bounded distribution path in the production browser'
     expect(scenario.timingMs.requestToReady).toBeGreaterThanOrEqual(0);
     expect(scenario.scene.renderCallsLastFrame).toBeGreaterThan(0);
 
-    scenarios.push(scenario);
+    const shellDatasetContext = await page.locator('#analyst-workspace-context').textContent();
+    expect(shellDatasetContext).toContain(`stream-m-m4-distribution-${rowCount}`);
+
+    scenarios.push({ ...scenario, shellDatasetContext });
     await writeFile(
       'stream-m-m4-results/m4-distribution.partial.json',
       `${JSON.stringify(
@@ -154,7 +158,8 @@ test('M4 proves the visible bounded distribution path in the production browser'
   };
 
   expect(report.source.sourceHeadSha).toMatch(/^[0-9a-f]{40}$/);
-  expect(report.source.workflowCheckoutSha).toMatch(/^[0-9a-f]{40}$/);
+  expect(report.source.checkoutHeadSha).toBe(report.source.sourceHeadSha);
+  expect(report.source.workflowEventSha).toMatch(/^[0-9a-f]{40}$/);
   expect(report.source.productionBundleSha256).toMatch(/^[0-9a-f]{64}$/);
   expect(report.source.wasmSha256).toMatch(/^[0-9a-f]{64}$/);
 
