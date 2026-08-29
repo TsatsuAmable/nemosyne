@@ -15,22 +15,39 @@ import {
   type AnalystJourneyActions,
   type AnalystJourneyControlsHandle,
 } from './AnalystJourneyControls.ts';
+import {
+  createApplicationIntentDispatcher,
+  type ApplicationIntentDispatcher,
+} from './intents/ApplicationIntent.ts';
+import { bindInputCallbacksToApplicationIntents } from './intents/InputIntentBindings.ts';
 
 export interface AppInstance {
   world: World;
+  dispatchIntent: ApplicationIntentDispatcher;
   analystJourneyControls: AnalystJourneyControlsHandle;
 }
 
-function analystJourneyActions(world: World): AnalystJourneyActions {
-  return {
+function applicationIntentDispatcher(world: World): ApplicationIntentDispatcher {
+  return createApplicationIntentDispatcher({
     cycleDataset: (step) => world._cycleDataset(step),
+    applyAnalysis: (operation) => world.dataOperationController.applyAsync(operation),
+    resetAnalysis: () => world.resetDataOperation(),
+    undoHistory: () => world.undoAnalysis(),
+    redoHistory: () => world.redoAnalysis(),
+    toggleStatisticalLens: () => world._toggleStatisticalLens(),
+  });
+}
+
+function analystJourneyActions(
+  world: World,
+  dispatchIntent: ApplicationIntentDispatcher,
+): AnalystJourneyActions {
+  return {
+    dispatchIntent,
     currentDatasetName: () => world.currentEntry?.name ?? null,
     assessRepresentation: (maxRenderedElements) =>
       assessAnalystRepresentation(world.atlas, world.session, maxRenderedElements),
-    runAnomalyAnalysis: async () => {
-      await world.dataOperationController.applyAsync('anomaly');
-      return world.atlas.results.length;
-    },
+    analysisResultCount: () => world.atlas.results.length,
     markMoment: (note) => world.markMoment(note).id,
     replayPortableInvestigation: (bytes) => world.replayPortableInvestigation(bytes),
     exportPortableInvestigation: () =>
@@ -86,6 +103,14 @@ export async function bootstrapApp(): Promise<AppInstance> {
   const world = new World();
   await world.start();
 
+  const dispatchIntent = applicationIntentDispatcher(world);
+  bindInputCallbacksToApplicationIntents(world.inputCoordinator.callbacks, dispatchIntent, {
+    onUnsupportedOperation: (operation) =>
+      console.warn(`[ApplicationIntent] unsupported input operation: ${operation}`),
+    onDispatchError: (error) =>
+      console.error('[ApplicationIntent] input dispatch failed:', error),
+  });
+
   if (import.meta.env.DEV) {
     setupDevTraceRecorder(devTraceBindings(world));
   }
@@ -118,6 +143,9 @@ export async function bootstrapApp(): Promise<AppInstance> {
 
   return {
     world,
-    analystJourneyControls: mountAnalystJourneyControls(analystJourneyActions(world)),
+    dispatchIntent,
+    analystJourneyControls: mountAnalystJourneyControls(
+      analystJourneyActions(world, dispatchIntent),
+    ),
   };
 }

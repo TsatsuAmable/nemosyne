@@ -1,14 +1,15 @@
 import type { AnalystRepresentationOutcome } from './AnalystRepresentationAssessment.ts';
+import type { ApplicationIntentDispatcher } from './intents/ApplicationIntent.ts';
 
 export interface AnalystJourneyControlsHandle {
   dispose(): void;
 }
 
 export interface AnalystJourneyActions {
-  cycleDataset(step: number): void;
+  dispatchIntent: ApplicationIntentDispatcher;
   currentDatasetName(): string | null;
   assessRepresentation(maxRenderedElements?: number): AnalystRepresentationOutcome;
-  runAnomalyAnalysis(): Promise<number>;
+  analysisResultCount(): number;
   markMoment(note: string): string;
   replayPortableInvestigation(bytes: Uint8Array): Promise<{
     success: boolean;
@@ -106,8 +107,8 @@ export function mountAnalystJourneyControls(
   budgetInput.inputMode = 'numeric';
   root.append(budgetInput);
 
-  button('analyst-load-sample', 'Load sample', () => {
-    actions.cycleDataset(1);
+  button('analyst-load-sample', 'Load sample', async () => {
+    await actions.dispatchIntent({ type: 'dataset.cycle', step: 1 });
     showRepresentationOutcome(actions.assessRepresentation());
     setStatus(`Loaded ${actions.currentDatasetName() ?? 'sample dataset'}`, 'success');
   });
@@ -125,8 +126,16 @@ export function mountAnalystJourneyControls(
     );
   });
   button('analyst-run-analysis', 'Run analysis', async () => {
-    const resultCount = await actions.runAnomalyAnalysis();
-    setStatus(`Evidence ready (${resultCount} result)`, 'success');
+    await actions.dispatchIntent({ type: 'analysis.apply', operation: 'anomaly' });
+    setStatus(`Evidence ready (${actions.analysisResultCount()} result)`, 'success');
+  });
+  button('analyst-undo-analysis', 'Undo analysis', async () => {
+    await actions.dispatchIntent({ type: 'history.undo' });
+    setStatus('Analysis history moved back', 'success');
+  });
+  button('analyst-toggle-statistical-lens', 'Toggle statistical lens', async () => {
+    await actions.dispatchIntent({ type: 'workspace.toggleStatisticalLens' });
+    setStatus('Statistical lens toggled', 'success');
   });
   button('analyst-mark-moment', 'Record observation', () => {
     const observationId = actions.markMoment('Recorded from desktop analyst controls');
