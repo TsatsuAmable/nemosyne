@@ -136,14 +136,17 @@ test('Q3E decomposes mutation latency and derived-analysis settlement separately
 
     const requestedDelta = result.statsAfter.requested - result.statsBefore.requested;
     const completedDelta = result.statsAfter.completed - result.statsBefore.completed;
+    const refusedDelta = result.statsAfter.refused - result.statsBefore.refused;
     const failedDelta = result.statsAfter.failed - result.statsBefore.failed;
     const staleDelta =
       result.statsAfter.staleBeforeCompute - result.statsBefore.staleBeforeCompute +
       result.statsAfter.staleAfterCompute - result.statsBefore.staleAfterCompute;
     expect(requestedDelta, `${rowCount}: exactly one automatic derived generation`).toBe(1);
+    expect(failedDelta, `${rowCount}: no unclassified derived execution failure`).toBe(0);
+    expect(staleDelta, `${rowCount}: deterministic scenario does not supersede its derived generation`).toBe(0);
     expect(
-      completedDelta + failedDelta + staleDelta,
-      `${rowCount}: scheduled generation reaches one governed terminal state`
+      completedDelta + refusedDelta,
+      `${rowCount}: derived generation either publishes or ends in an explicit governed refusal`
     ).toBe(1);
     expect(
       result.statsAfter.coalesced - result.statsBefore.coalesced,
@@ -201,6 +204,7 @@ test('Q3E decomposes mutation latency and derived-analysis settlement separately
       schedulerDelta: {
         requested: requestedDelta,
         completed: completedDelta,
+        refused: refusedDelta,
         failed: failedDelta,
         stale: staleDelta,
       },
