@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { Container } from '@pmndrs/uikit';
+import { Container, Text } from '@pmndrs/uikit';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
-import { PanelChrome } from '../ui-system/components/PanelChrome.ts';
 import { Button } from '../ui-system/components/Button.ts';
+import { COLOR_TOKENS, TYPOGRAPHY_TOKENS } from '../ui-system/tokens.ts';
+import type { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
 import type { EngineLike, PointerLike } from '../coordinators/types.ts';
 
 export type TopologyType =
@@ -60,70 +61,139 @@ export interface ContextualTaskSurfaceCallbacks {
   onMore?: (data: Record<string, unknown> | null) => void;
 }
 
+type EngineWithPanelBudget = EngineLike & {
+  uiManager?: {
+    panelBudgetController?: PanelBudgetController;
+  };
+};
+
+/**
+ * Short-lived object-attached action rail for the canonical novice verbs.
+ *
+ * P1-UV2 deliberately keeps this surface compact and non-grabbable: it belongs
+ * to the selected object, not to the user's persistent panel collection. Dense
+ * work is promoted into the inspector or another precision surface.
+ */
 export class ContextualTaskSurface extends SpatialPanel {
   engine: EngineLike;
+  budgetController: PanelBudgetController | null = null;
+
   private _currentTopology: TopologyType = 'TABULAR';
   private _activeIntent: TaskIntent = 'Analyse';
-
-  private _chrome: PanelChrome;
-  private _gridContainer: Container;
+  private _selectionText: Text;
   private _buttons: Map<string, Button> = new Map();
-
   private _activeData: Record<string, unknown> | null = null;
+  private _activeNode: THREE.Object3D | null = null;
   public callbacks: ContextualTaskSurfaceCallbacks;
 
   constructor(engine: EngineLike, callbacks: ContextualTaskSurfaceCallbacks = {}) {
     super({
-      width: 400,
-      height: 300,
+      width: 420,
+      height: 176,
       flexDirection: 'column',
-      gap: 12,
-      padding: 16,
+      gap: 8,
+      padding: 10,
+      borderRadius: 10,
+      backgroundColor: COLOR_TOKENS.surface.base,
+      borderColor: COLOR_TOKENS.surface.border,
     });
     this.engine = engine;
     this.callbacks = callbacks;
     this.name = 'contextual-task-surface';
     this.visible = false;
 
-    // Apply scaling factor matching other SpatialPanel components
-    this.scale.setScalar(0.6 / 400);
+    // Compact object ornament, roughly 0.52 m wide in world space.
+    this.scale.setScalar(0.52 / 420);
+    this.setGrabEnabled(false);
+    this.setGrabRailVisible(false);
 
-    // Chrome title and control
-    this._chrome = new PanelChrome({
-      title: 'CONTEXT ACTIONS',
-      onClose: () => this.hide(),
-    });
-    this.add(this._chrome);
-
-    // 2x3 Grid Layout container for the 6 novice verbs
-    this._gridContainer = new Container({
+    const header = new Container({
+      width: '100%',
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 12,
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    });
+    this._selectionText = new Text({
+      text: 'Selected object',
+      fontSize: TYPOGRAPHY_TOKENS.scale.label,
+      color: COLOR_TOKENS.text.secondary,
+      maxWidth: 320,
+    });
+    header.add(this._selectionText);
+    header.add(
+      new Button({
+        label: 'Dismiss',
+        width: 72,
+        height: 34,
+        paddingX: 8,
+        paddingY: 4,
+        onClick: () => this.hide(),
+      }),
+    );
+    this.add(header);
+
+    const primaryRow = new Container({
+      flexDirection: 'row',
+      gap: 8,
       width: '100%',
       justifyContent: 'space-between',
     });
-    this.add(this._gridContainer);
+    this.add(primaryRow);
 
-    const verbProps = [
-      { id: 'inspect', label: 'Inspect', callback: callbacks.onInspect },
-      { id: 'compare', label: 'Compare', callback: callbacks.onCompare },
-      { id: 'challenge', label: 'Challenge', callback: callbacks.onChallenge },
-      { id: 'record', label: 'Record', callback: callbacks.onRecord },
-      { id: 'navigate', label: 'Navigate', callback: callbacks.onNavigate },
-      { id: 'more', label: 'More', callback: callbacks.onMore },
-    ];
+    const secondaryRow = new Container({
+      flexDirection: 'row',
+      gap: 8,
+      width: '100%',
+      justifyContent: 'space-between',
+    });
+    this.add(secondaryRow);
 
-    for (const item of verbProps) {
+    const addVerb = (
+      parent: Container,
+      id: string,
+      label: string,
+      callback: ((data: Record<string, unknown> | null) => void) | undefined,
+      width: number,
+      variant: 'primary' | 'secondary' | 'danger' = 'secondary',
+    ) => {
       const btn = new Button({
-        label: item.label,
-        width: 175,
-        height: 60,
-        onClick: () => item.callback?.(this._activeData),
+        label,
+        width,
+        height: 56,
+        paddingX: 8,
+        paddingY: 6,
+        variant,
+        onClick: () => {
+          const data = this._activeData;
+          this.hide();
+          callback?.(data);
+        },
       });
-      this._gridContainer.add(btn);
-      this._buttons.set(item.id, btn);
-    }
+      parent.add(btn);
+      this._buttons.set(id, btn);
+    };
+
+    addVerb(primaryRow, 'inspect', 'Inspect', callbacks.onInspect, 94, 'primary');
+    addVerb(primaryRow, 'compare', 'Compare', callbacks.onCompare, 94);
+    addVerb(primaryRow, 'challenge', 'Challenge', callbacks.onChallenge, 94);
+    addVerb(primaryRow, 'record', 'Record', callbacks.onRecord, 94);
+    addVerb(secondaryRow, 'navigate', 'Navigate', callbacks.onNavigate, 196);
+    addVerb(secondaryRow, 'more', 'More', callbacks.onMore, 196);
+  }
+
+  get activeNode(): THREE.Object3D | null {
+    return this._activeNode;
+  }
+
+  /** Diagnostic/evidence helper: distance from the rail to its active object. */
+  getActiveNodeDistance(): number | null {
+    if (!this._activeNode || !this.visible) return null;
+    const nodePosition = new THREE.Vector3();
+    const surfacePosition = new THREE.Vector3();
+    this._activeNode.getWorldPosition(nodePosition);
+    this.getWorldPosition(surfacePosition);
+    return nodePosition.distanceTo(surfacePosition);
   }
 
   showAtNode(
@@ -131,80 +201,133 @@ export class ContextualTaskSurface extends SpatialPanel {
     data: Record<string, unknown> | null,
     _pointer: PointerLike | null = null
   ): void {
+    this._activeNode = nodeMesh;
     this._activeData = data;
     this.visible = true;
+    this._openInspectorBudgetSlot();
 
-    if (nodeMesh) {
-      const pos = new THREE.Vector3();
-      nodeMesh.getWorldPosition(pos);
-      // Anchor near the node with a slight offset
-      this.position.copy(pos).add(new THREE.Vector3(0, 0.25, 0.15));
-      if (this.engine.camera) {
-        this.lookAt(this.engine.camera.position);
-      }
-    }
+    const identity = data?.name ?? data?.label ?? data?.id ?? nodeMesh?.name ?? 'Selected object';
+    this._selectionText.setProperties({ text: `Selected · ${String(identity).slice(0, 38)}` });
 
+    this._updateAnchorTransform();
     this._updateButtonStates();
   }
 
   hide(): void {
     this.visible = false;
     this._activeData = null;
+    this._activeNode = null;
+    const budget = this._resolvedBudgetController();
+    if (budget?.isOpen(this)) budget.close(this);
+  }
+
+  update(deltaSeconds: number): void {
+    if (!this.visible) return;
+    super.update(deltaSeconds);
+    this._updateAnchorTransform();
+  }
+
+  private _resolvedBudgetController(): PanelBudgetController | null {
+    if (this.budgetController) return this.budgetController;
+    return (this.engine as EngineWithPanelBudget).uiManager?.panelBudgetController ?? null;
+  }
+
+  private _openInspectorBudgetSlot(): void {
+    const budget = this._resolvedBudgetController();
+    if (!budget) return;
+
+    const occupant = budget
+      .getOpenPanels()
+      .find((panel) => panel !== this && budget.getRole(panel) === 'inspector');
+    if (occupant) {
+      const stateful = occupant as typeof occupant & { hide?: () => void };
+      if (typeof stateful.hide === 'function') stateful.hide();
+      else budget.close(occupant);
+    }
+    budget.open(this, 'inspector');
+  }
+
+  private _updateAnchorTransform(): void {
+    if (!this._activeNode) return;
+
+    const nodeWorld = new THREE.Vector3();
+    this._activeNode.getWorldPosition(nodeWorld);
+
+    // Keep the rail just above the evidence and slightly toward the viewer so
+    // it remains readable without sitting directly on top of the selected mark.
+    const anchorWorld = nodeWorld.clone().add(new THREE.Vector3(0, 0.18, 0));
+    const cameraWorld = new THREE.Vector3();
+    if (this.engine.camera) {
+      this.engine.camera.getWorldPosition(cameraWorld);
+      const towardCamera = cameraWorld.clone().sub(nodeWorld);
+      towardCamera.y = 0;
+      if (towardCamera.lengthSq() > 1e-6) {
+        anchorWorld.add(towardCamera.normalize().multiplyScalar(0.08));
+      }
+    }
+
+    // The surface is parented beneath analystAnchor. Convert from the selected
+    // node's world-space locus into the parent's local coordinates instead of
+    // copying world coordinates into a moving local frame.
+    if (this.parent) {
+      this.parent.updateWorldMatrix(true, false);
+      this.position.copy(this.parent.worldToLocal(anchorWorld.clone()));
+    } else {
+      this.position.copy(anchorWorld);
+    }
+
+    if (this.engine.camera) {
+      this.lookAt(cameraWorld);
+    }
   }
 
   private _updateButtonStates(): void {
     const data = this._activeData;
     const topology = (data?.topology ?? this._currentTopology) as TopologyType;
 
-    // Verb 1: Inspect
     const inspectBtn = this._buttons.get('inspect');
     if (inspectBtn) {
       const disabled = !data;
       inspectBtn.disabled = disabled;
-      inspectBtn.disabledReason = disabled ? 'No active selection to inspect' : undefined;
+      inspectBtn.disabledReason = disabled ? 'Select an object' : undefined;
     }
 
-    // Verb 2: Compare
     const compareBtn = this._buttons.get('compare');
     if (compareBtn) {
       const disabled = !data;
       compareBtn.disabled = disabled;
-      compareBtn.disabledReason = disabled ? 'Select a second node to compare' : undefined;
+      compareBtn.disabledReason = disabled ? 'Select an object' : undefined;
     }
 
-    // Verb 3: Challenge
     const challengeBtn = this._buttons.get('challenge');
     if (challengeBtn) {
       const disabled = !data || topology === 'TABULAR';
       challengeBtn.disabled = disabled;
       challengeBtn.disabledReason = !data
-        ? 'No active selection to challenge'
+        ? 'Select an object'
         : disabled
-          ? 'Challenge requires network/hierarchical model'
+          ? 'Needs linked structure'
           : undefined;
     }
 
-    // Verb 4: Record
     const recordBtn = this._buttons.get('record');
     if (recordBtn) {
       const disabled = !data;
       recordBtn.disabled = disabled;
-      recordBtn.disabledReason = disabled ? 'No active selection to record' : undefined;
+      recordBtn.disabledReason = disabled ? 'Select an object' : undefined;
     }
 
-    // Verb 5: Navigate
     const navigateBtn = this._buttons.get('navigate');
     if (navigateBtn) {
       const disabled = !data || topology === 'TABULAR';
       navigateBtn.disabled = disabled;
       navigateBtn.disabledReason = !data
-        ? 'No active selection to navigate'
+        ? 'Select an object'
         : disabled
-          ? 'No linked structures or paths'
+          ? 'No linked path'
           : undefined;
     }
 
-    // Verb 6: More
     const moreBtn = this._buttons.get('more');
     if (moreBtn) {
       moreBtn.disabled = false;

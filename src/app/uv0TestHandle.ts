@@ -17,9 +17,13 @@ interface Uv0RuntimePort {
   uiManager?: {
     contextualTaskSurface?: {
       visible?: boolean;
+      getActiveNodeDistance?(): number | null;
       callbacks: {
         onInspect?: (target: null) => void;
       };
+    };
+    panelBudgetController?: {
+      activeBudgetCount: number;
     };
     settingsPanel?: { visible?: boolean };
   };
@@ -52,6 +56,10 @@ export interface Uv0RuntimeSnapshot {
   palaceNodeCount: number;
   inspectorVisible: boolean;
   taskSurfaceVisible: boolean;
+  /** World-space distance between the active context rail and selected node. */
+  taskSurfaceDistanceToSelection: number | null;
+  /** Active non-pinned SpatialPanel budget count. */
+  activePanelBudgetCount: number;
   settingsPanelVisible: boolean;
   diagnosticVisible: boolean;
   selectedNodeName: string | null;
@@ -96,6 +104,8 @@ export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
         palaceNodeCount: palace?.nodeMeshes?.length ?? 0,
         inspectorVisible: !!runtime.inspector?.visible,
         taskSurfaceVisible: !!taskSurface?.visible,
+        taskSurfaceDistanceToSelection: taskSurface?.getActiveNodeDistance?.() ?? null,
+        activePanelBudgetCount: runtime.uiManager?.panelBudgetController?.activeBudgetCount ?? 0,
         settingsPanelVisible: !!runtime.uiManager?.settingsPanel?.visible,
         diagnosticVisible: !!runtime.diagnostic?.mesh?.visible,
         selectedNodeName: runtime._lastSelectedMesh?.name ?? null,
