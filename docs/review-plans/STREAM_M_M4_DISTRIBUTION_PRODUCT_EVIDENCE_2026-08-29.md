@@ -4,7 +4,7 @@
 **Stream:** M — Moneta Distribution Truth  
 **Checkpoint:** M4 — product, scale and perceptual handoff  
 **Base:** `9db597937e455c01fe7c2770ce76b62792f3e5aa` (`main`, M3 merged)  
-**Status:** IMPLEMENTED — EXACT-HEAD BROWSER EVIDENCE REQUIRED
+**Status:** MERGED — EXACT-HEAD BROWSER EVIDENCE CAPTURED
 
 ## Invariant
 
@@ -70,6 +70,20 @@ The implementation was re-read from the synthetic fixture through `World.loadDat
 4. **Composition-root reverse dependency — closed.** The first exact-head architecture gate rejected the evidence module's direct import of `World`. The driver now depends on a narrow structural evidence port; only the already-approved resource diagnostic composition seam receives the real `World` instance.
 
 The review also confirmed that the status plane is not included in `Artifact.nodeMeshes`, is marked non-analytical/non-selectable, and is removed for ready output. The evidence record retains the full envelope and provenance; `payloadJsonBytesProxy` is explicitly labelled as a deterministic JSON proxy, whole-scene last-frame renderer counters are not presented as distribution-only draw calls, and the perceptual sampler receives world-space positions from the actual artifact meshes.
+
+### Exact-head browser evidence
+
+The isolated M4 workflow passed on implementation head `18a05922a13175565e632fb167dee8e90e9cb857` ([run 33278263468](https://github.com/TsatsuAmable/nemosyne/actions/runs/33278263468)). Artifact `stream-m-m4-distribution-evidence` (`9722202420`) binds the structured report and canonical screenshot to production-bundle SHA-256 `fb6636e455afae306ad6b7c32fee28f0b6779c7ce266f022d6ffae09e0a9781f` and WASM SHA-256 `88529b408a66b3a445ac5711afe42e49d605f94ba5e837a1d0091169c8b84f5f`.
+
+| Source rows | Rust elements | Analytical meshes | JSON byte proxy | Worker kernel (ms) | Request to ready (ms) | Whole-scene calls | Whole-scene triangles |
+| ----------: | ------------: | ----------------: | --------------: | -----------------: | --------------------: | ----------------: | --------------------: |
+|       1,000 |           101 |               101 |          12,629 |              8.995 |               247.365 |               158 |                34,248 |
+|       8,000 |           101 |               101 |          12,742 |             28.855 |               657.485 |               158 |                34,248 |
+|      32,000 |           101 |               101 |          12,880 |            104.625 |               612.735 |               158 |                34,248 |
+
+All three scenarios transitioned `PENDING` → `READY`, removed the non-analytical status surface, retained exact candidate/fingerprint/decision/artifact/perceptual binding, and emitted 32 histogram bins + 64 ECDF knots + 5 quantile marks. The invariant result is bounded output and render complexity at the exercised source sizes: 101 Rust elements and 101 analytical meshes in every scenario. The increasing Worker time is recorded rather than hidden; V1 still performs an exact sort. Request-to-ready timings are not monotonic and are not treated as a performance threshold. The 158 calls and 34,248 triangles are last-frame counters for the complete evidence scene, not distribution-only draw calls.
+
+The screenshot visibly contains the histogram, ECDF samples and quantile marks in the production scene. It is evidence of truthful representation, not a claim that the dense diagnostic composition is the final end-user layout.
 
 ### Focused local verification
 
