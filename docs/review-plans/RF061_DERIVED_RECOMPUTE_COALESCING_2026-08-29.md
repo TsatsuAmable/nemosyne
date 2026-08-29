@@ -1,6 +1,6 @@
 # RF-061 — Version-coalesced derived recomputation
 
-**Status:** PRE-IMPLEMENTATION ADVERSARIAL CONTRACT / ACTIVE
+**Status:** IMPLEMENTATION ACTIVE / LIVE PRODUCTION WIRING / Q3E PENDING
 
 ## Trigger
 
@@ -48,15 +48,22 @@ Rust/WASM remains the sole analytical authority. TypeScript owns scheduling, sta
 - coalescing accidentally dropping the newest requested version;
 - recommendation/structure handles being generated from a different dataset identity than the structures they describe;
 - reset/history/dataset replacement retaining a scheduled stale generation;
-- making automatic background work durable as if investigator-requested evidence when it was never current.
+- making automatic background work durable as if investigator-requested evidence when it was never current;
+- preserving TDA values while dropping or mis-pairing their authoritative kernel provenance.
 
 ## Falsifying evidence required
 
 1. scheduler tests: multiple schedules for one version coalesce; a newer version supersedes an older pending/running request; `whenIdle()` resolves only after the newest accepted generation settles; disposal suppresses publication;
-2. Atlas tests: a TDA bundle performs one Worker registration fence before the three authoritative TDA operations; stale identity returns no bundle;
+2. Atlas tests: a TDA bundle performs one Worker registration fence before the three authoritative TDA operations; stale identity returns no bundle and each value remains paired with its own response provenance;
 3. structure tests: precomputed Mapper/Persistence results record structures without rerunning the analytical kernels; cluster structures consume authoritative `_cluster` assignments without another cluster call;
 4. production-path Q3E: identical deterministic 1k/8k/32k compact `sort` path, with authoritative source/output fingerprints and exactly one dataset-version increment, must show the controller no longer contains derived discovery/recommendation while derived work still settles successfully afterward;
 5. Q3E must record eventual derived settlement, source dataset version/fingerprint, number of Worker registrations and stale/coalesced counts so latency cannot be improved merely by dropping the work.
+
+## Live implementation checkpoint
+
+The production `WorldTopics.OPERATION_APPLIED` subscriber now schedules the derived pipeline instead of synchronously calling both TDA recomputation and `_discoverStructuresAndRecommend`. History-seek keeps its previous panel-only TDA refresh semantics. `DerivedAnalysisPipeline` is disposed before renderer teardown so stale work cannot publish into a dismantled world. Atlas's async TDA API now exposes value + provenance envelopes; TDA presentation and structure mapping consume those exact response pairs rather than relying on mutable `lastProvenance` state.
+
+The self-cleaning wiring commits used repository workflows only as a transport for bounded text surgery. Those helper scripts/workflow mutations are absent from the candidate diff. The zero-job `action_required` suites emitted for the bot-authored intermediate head are explicitly non-evidence; this repository-authored checkpoint exists to trigger fresh executable gates on the live code state.
 
 ## Decision rule
 
