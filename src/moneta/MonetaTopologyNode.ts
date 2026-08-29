@@ -15,14 +15,19 @@ import type { RepresentationDecision } from './representation/RepresentationDeci
 import type { RepresentationGraph } from './representation/RepresentationGraph.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
 import { representationGraphToRuntimeSpec } from './representation/RepresentationGraphRuntimeAdapter.ts';
-import { setSemanticEmbodimentPresentationStatus } from './embodiment/SemanticEmbodimentStatus.ts';
+import {
+  setSemanticEmbodimentPresentationStatus,
+  type SemanticEmbodimentPresentationCandidateId,
+} from './embodiment/SemanticEmbodimentStatus.ts';
 
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
   semanticEmbodimentPromise?: Promise<SemanticEmbodimentEnvelopeV1 | null>;
 };
 
-function usesSemanticEmbodiment(candidateId: string | undefined): boolean {
+function usesSemanticEmbodiment(
+  candidateId: string | undefined
+): candidateId is SemanticEmbodimentPresentationCandidateId {
   return candidateId === 'AGGREGATE_VOLUME' || candidateId === 'DISTRIBUTION_FIELD';
 }
 
@@ -95,7 +100,14 @@ export class MonetaTopologyNode {
         return;
       }
       if (!envelope) {
-        if (this.group) setSemanticEmbodimentPresentationStatus(this.group, 'UNAVAILABLE');
+        if (this.group) {
+          setSemanticEmbodimentPresentationStatus(
+            this.group,
+            'UNAVAILABLE',
+            undefined,
+            candidateId
+          );
+        }
         return;
       }
       input.semanticEmbodiment = envelope;
