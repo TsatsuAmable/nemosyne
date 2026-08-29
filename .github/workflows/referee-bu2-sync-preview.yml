@@ -25,6 +25,8 @@ jobs:
 
       - name: Sync current main
         run: |
+          git config user.name "Nemosyne Referee"
+          git config user.email "referee@noreply.local"
           git fetch origin main
           git merge --no-edit origin/main
 
@@ -60,8 +62,6 @@ jobs:
 
       - name: Commit verified current-main fix
         run: |
-          git config user.name "Nemosyne Referee"
-          git config user.email "referee@noreply.local"
           git add -A
           git commit -m "fix(b-u2): make remediation preview non-mutating"
           git push origin HEAD:fix/bu2-post-merge-truthfulness
