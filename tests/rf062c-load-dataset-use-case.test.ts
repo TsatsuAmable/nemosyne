@@ -10,8 +10,8 @@ function dataset(name = 'fixture'): Dataset {
   return new Dataset(
     name,
     [
-      { name: 'id', type: 'number' },
-      { name: 'value', type: 'number' },
+      { name: 'id', type: 'NUMERIC' },
+      { name: 'value', type: 'NUMERIC' },
     ],
     [
       { id: 1, value: 10 },
@@ -52,7 +52,7 @@ describe('RF-062C LoadDatasetUseCase', () => {
     const result = useCase.execute({
       key: 'fixture',
       name: 'Fixture',
-      topology: 'TABLE',
+      topology: 'TABULAR',
       dataset: source,
       maxDepth: 2,
       encodings: { color: 'value' },
@@ -83,7 +83,7 @@ describe('RF-062C LoadDatasetUseCase', () => {
     const result = useCase.execute(
       {
         name: 'Fixture',
-        topology: 'TABLE',
+        topology: 'TABULAR',
         dataset: source,
       },
       { preserveAnalyticalState: true, requirements },
