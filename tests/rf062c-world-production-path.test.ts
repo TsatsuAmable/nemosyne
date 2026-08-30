@@ -35,7 +35,6 @@ describe('RF-062C production World path', () => {
       topology: sample.topology,
       dataset: sample.dataset,
       maxDepth: sample.depth,
-      encodings: sample.encodings,
     });
 
     expect(execute).toHaveBeenCalledOnce();
@@ -58,7 +57,6 @@ describe('RF-062C production World path', () => {
       topology: sample.topology,
       dataset: sample.dataset,
       maxDepth: sample.depth,
-      encodings: sample.encodings,
     });
 
     const disposeSurface = vi.spyOn(world.representationSurface, 'dispose');
