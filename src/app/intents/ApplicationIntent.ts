@@ -9,14 +9,26 @@ export type ApplicationAnalysisOperation =
   | 'timeSlice'
   | 'compare';
 
+/**
+ * Canonical world/application intents. These are the commands World may
+ * execute directly when no bootstrap dispatcher has been injected.
+ */
 export type ApplicationIntent =
   | { type: 'dataset.cycle'; step: number }
   | { type: 'analysis.apply'; operation: ApplicationAnalysisOperation }
   | { type: 'analysis.reset' }
   | { type: 'history.undo' }
   | { type: 'history.redo' }
-  | { type: 'workspace.toggleStatisticalLens' }
-  | { type: 'settings.open' };
+  | { type: 'workspace.toggleStatisticalLens' };
+
+/**
+ * Presentation-only intents are owned by the application composition root,
+ * not by World. Keeping them separate preserves World's exhaustive fallback
+ * dispatcher while still giving desktop/VR chrome one typed dispatch surface.
+ */
+export type ApplicationPresentationIntent = { type: 'settings.open' };
+
+export type ApplicationDispatchIntent = ApplicationIntent | ApplicationPresentationIntent;
 
 export interface ApplicationIntentHandlers {
   cycleDataset(step: number): void | Promise<void>;
@@ -29,7 +41,7 @@ export interface ApplicationIntentHandlers {
 }
 
 export type ApplicationIntentDispatcher = (
-  intent: ApplicationIntent,
+  intent: ApplicationDispatchIntent,
 ) => void | Promise<void>;
 
 const ANALYSIS_OPERATIONS = new Set<ApplicationAnalysisOperation>([
