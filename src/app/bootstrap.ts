@@ -21,13 +21,14 @@ import {
 } from './InvestigationShell.ts';
 import {
   createApplicationIntentDispatcher,
+  type ApplicationDispatchIntentDispatcher,
   type ApplicationIntentDispatcher,
 } from './intents/ApplicationIntent.ts';
 import { bindInputCallbacksToApplicationIntents } from './intents/InputIntentBindings.ts';
 
 export interface AppInstance {
   world: World;
-  dispatchIntent: ApplicationIntentDispatcher;
+  dispatchIntent: ApplicationDispatchIntentDispatcher;
   investigationShell: InvestigationShellHandle;
 }
 
@@ -50,7 +51,7 @@ function synchronizeDatasetCycleCursor(world: World, step: number): void {
   );
 }
 
-function applicationIntentDispatcher(world: World): ApplicationIntentDispatcher {
+function applicationIntentDispatcher(world: World): ApplicationDispatchIntentDispatcher {
   return createApplicationIntentDispatcher({
     cycleDataset: (step) => {
       synchronizeDatasetCycleCursor(world, step);
@@ -67,7 +68,7 @@ function applicationIntentDispatcher(world: World): ApplicationIntentDispatcher 
 
 function investigationActions(
   world: World,
-  dispatchIntent: ApplicationIntentDispatcher,
+  dispatchIntent: ApplicationDispatchIntentDispatcher,
 ): InvestigationActions {
   return {
     dispatchIntent,
@@ -161,17 +162,21 @@ export async function bootstrapApp(): Promise<AppInstance> {
   const world = new World();
   await world.start();
 
+  // The composition root accepts presentation-only commands (for example
+  // settings.open), while World/XR/input deliberately retain the narrower
+  // canonical analytical/application intent contract.
   const dispatchIntent = applicationIntentDispatcher(world);
-  bindInputCallbacksToApplicationIntents(world.inputCoordinator.callbacks, dispatchIntent, {
+  const dispatchCanonicalIntent: ApplicationIntentDispatcher = (intent) => dispatchIntent(intent);
+
+  bindInputCallbacksToApplicationIntents(world.inputCoordinator.callbacks, dispatchCanonicalIntent, {
     onUnsupportedOperation: (operation) =>
       console.warn(`[ApplicationIntent] unsupported input operation: ${operation}`),
     onDispatchError: (error) =>
       console.error('[ApplicationIntent] input dispatch failed:', error),
   });
-  // Expose the canonical dispatcher to the XR wheel and World-side operation
-  // funnels (CTS/VRMenu callbacks) so every mutating command shares one
-  // command authority instead of a shadow analysis path.
-  world.dispatchIntent = dispatchIntent;
+  // Expose only the canonical dispatcher to World-side operation funnels.
+  // Presentation-only commands remain owned by the composition root/shell.
+  world.dispatchIntent = dispatchCanonicalIntent;
 
   applyNormalAnalystShell(world);
 
