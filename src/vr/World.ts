@@ -672,7 +672,7 @@ export class World {
           } else if (status === 'disconnected') {
             this.uiManager.vrConsole?.log?.('log', ['Live stream disconnected']);
           } else if (status === 'error') {
-            this.uiManager.vrConsole?.warn?.('warn', [`Live stream error: ${detail}`]);
+            this.uiManager.vrConsole?.log?.('warn', [`Live stream error: ${detail}`]);
           }
         },
       },
