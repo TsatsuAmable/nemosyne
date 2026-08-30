@@ -116,9 +116,12 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
     )
     .toBe(true);
 
-  // S1 fresh boot / loaded representation.
-  await expect(page.locator('#analyst-journey-controls')).toBeVisible();
-  await expect(page.locator('#analyst-journey-status')).toHaveText('Ready');
+  // S1 fresh boot / loaded representation. The modern InvestigationShell is
+  // the canonical analyst chrome; UV0 evidence must not pin retired journey
+  // controls back into the product contract.
+  await expect(page.locator('#investigation-shell')).toBeVisible();
+  await expect(page.locator('#status-message')).toHaveText('Ready');
+  await expect(page.locator('#dataset-indicator')).toContainText('Supply Chain Hierarchy');
   const bootTelemetry = (await telemetry.textContent()) ?? '';
   expect(bootTelemetry).toContain('GEOM:');
   expect(bootTelemetry).toContain('BEHAVIOR:');
@@ -132,9 +135,6 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
   );
   expect(s1.datasetName).toBe('Supply Chain Hierarchy');
   expect(s1.palaceNodeCount).toBeGreaterThan(0);
-  // Runtime evidence is authoritative over constructor/source inference. The
-  // first hardening run falsified the assumption that eager construction meant
-  // SettingsPanel was visible at fresh boot.
   expect(s1.settingsPanelVisible).toBe(false);
   expect(UV0_INVENTORY.find((entry) => entry.id === 'settings-panel')?.visibleAtBoot).toBe(false);
   await captureState(page, '01-fresh-boot', true, 'supply-chain loaded, ≥1 frame rendered', s1);
@@ -168,19 +168,17 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
   expect(s2b.activePanelBudgetCount).toBe(1);
   await captureState(page, '02-focused-observation', true, 'object-attached task rail replaced by one inspector surface', s2b);
 
-  // S3 Moneta decision / NIL. P1-UV1 deliberately collapses advanced tools;
-  // evidence automation must summon that advanced route rather than forcing the
-  // budget control back into the normal startup hierarchy.
-  const tools = page.locator('#analyst-investigation-tools');
+  // S3 Moneta decision / NIL. Advanced representation controls remain behind
+  // progressive disclosure in the modern shell.
+  const tools = page.locator('aside details');
   await tools.locator('summary').click();
   await expect(tools).toHaveAttribute('open', '');
-  await page.locator('#analyst-max-elements').fill('1');
-  await page.locator('#analyst-assess-representation').click();
-  await expect(page.locator('#analyst-representation-outcome')).toContainText(
-    'NIL: no feasible representation',
-    { timeout: 15_000 },
-  );
-  await expect(page.locator('#analyst-journey-status')).toContainText('NIL outcome recorded');
+  await page.locator('#max-elements').fill('1');
+  await page.locator('#assess-btn').click();
+  await expect(
+    page.locator('nms-modal[title="Representation Assessment"] .body'),
+  ).toContainText('No feasible representation', { timeout: 15_000 });
+  await expect(page.locator('#status-message')).toContainText('NIL outcome recorded');
   const s3 = await pollSnapshot(
     page,
     (s) => s.outcomeKind === 'nil' && s.nilCount >= 1,
@@ -188,13 +186,16 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
   );
   await captureState(page, '03-nil', true, `NIL recorded (nilCount=${s3.nilCount})`, s3);
 
-  // S4 evidence / hypothesis state.
-  await page.locator('#analyst-run-analysis').click();
-  await expect(page.locator('#analyst-journey-status')).toContainText('Evidence ready', {
-    timeout: 15_000,
-  });
-  await page.locator('#analyst-mark-moment').click();
-  await expect(page.locator('#analyst-journey-status')).toContainText('Observation recorded');
+  // S4 evidence / hypothesis state. Analysis completion is asserted against the
+  // authoritative ledger rather than a retired status-copy contract.
+  await page.locator('#action-run-analysis').click();
+  await pollSnapshot(
+    page,
+    (s) => s.evidenceCount > 0,
+    'evidence: analysis result present in the authoritative ledger',
+  );
+  await page.locator('#action-mark-moment').click();
+  await expect(page.locator('#status-message')).toContainText('Observation recorded');
   const s4 = await pollSnapshot(
     page,
     (s) => s.evidenceCount > 0 && s.observationCount >= 1,
@@ -204,29 +205,44 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
 
   // S5 saved / replay state.
   const download = page.waitForEvent('download');
-  await page.locator('#analyst-export-package').click();
+  await page.locator('#export-btn').click();
   const artifact = await download;
   expect(artifact.suggestedFilename()).toBe('nemosyne-investigation.nemosyne');
   const artifactPath = await artifact.path();
   expect(artifactPath).not.toBeNull();
   const packageBytes = await readFile(artifactPath!);
-  await expect(page.locator('#analyst-journey-status')).toContainText('Investigation exported');
-  await page.locator('#analyst-package-input').setInputFiles({
+  await expect(page.locator('#status-message')).toContainText('Investigation exported');
+
+  // Replay is intentionally an advanced command-palette route. Open the real
+  // component directly so this evidence test validates command execution without
+  // coupling to platform-specific modifier-key semantics.
+  await page.evaluate(() => {
+    const palette = document.querySelector('nms-command-palette') as HTMLElement & { show?: () => void };
+    palette?.show?.();
+  });
+  const paletteSearch = page.locator('nms-command-palette .search-input');
+  await expect(paletteSearch).toBeVisible();
+  await paletteSearch.fill('Replay investigation');
+  await page.keyboard.press('Enter');
+
+  const replayModal = page.locator('nms-modal[title="Replay Investigation"]');
+  await expect(replayModal).toBeVisible();
+  await replayModal.locator('#package-input').setInputFiles({
     name: 'verified.nemosyne',
     mimeType: 'application/zip',
     buffer: Buffer.from(packageBytes),
   });
-  await page.locator('#analyst-replay-package').click();
+  await replayModal.locator('#replay-btn').click();
 
   const s5 = (await snapshot(page)) as Uv0RuntimeSnapshot;
   let s5Outcome: string;
   if (s5.kernelAvailable === false) {
-    await expect(page.locator('#analyst-journey-status')).toContainText('Replay verification failed', {
+    await expect(replayModal.locator('#replay-status')).toContainText('Replay verification failed', {
       timeout: 15_000,
     });
     s5Outcome = 'kernel-unavailable: replay not baselined in this environment';
   } else {
-    await expect(page.locator('#analyst-journey-status')).toContainText('Replay verified', {
+    await expect(replayModal.locator('#replay-status')).toContainText('Replay verified', {
       timeout: 15_000,
     });
     s5Outcome = 'replay-verified';
