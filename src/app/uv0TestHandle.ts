@@ -68,7 +68,7 @@ export interface Uv0RuntimeSnapshot {
   evidenceCount: number;
   observationCount: number;
   nilCount: number;
-  /** `decision` / `nil` when the DOM outcome was assessed, else `pending`. */
+  /** `decision` / `nil` when the visible assessment was produced, else `pending`. */
   outcomeKind: string;
   /** True when the analytical kernel is live (WASM present + atlas ready). */
   kernelAvailable: boolean;
@@ -90,6 +90,20 @@ declare global {
   }
 }
 
+function visibleAssessmentKind(): 'decision' | 'nil' | 'pending' {
+  // InvestigationShell replaced AnalystJourneyControls. Its modal content is
+  // persistent light DOM projected through the shared Modal slot, so textContent
+  // is a stable evidence seam even when Modal recreates its shadow tree.
+  const assessment = document.querySelector<HTMLElement>(
+    'nms-modal[title="Representation Assessment"]',
+  );
+  if (!assessment || !assessment.hasAttribute('open')) return 'pending';
+  const text = assessment.textContent ?? '';
+  if (text.includes('No feasible representation')) return 'nil';
+  if (text.includes('Moneta selected')) return 'decision';
+  return 'pending';
+}
+
 export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
   const runtime = world as Uv0RuntimePort;
 
@@ -97,9 +111,6 @@ export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
     snapshot(): Uv0RuntimeSnapshot {
       const taskSurface = runtime.uiManager?.contextualTaskSurface;
       const palace = runtime.representationSurface?.currentNode?.artifact;
-      const outcome = document.getElementById(
-        'analyst-representation-outcome'
-      ) as HTMLElement | null;
       return {
         datasetName: runtime.currentEntry?.name ?? runtime.currentEntry?.label ?? null,
         telemetry: document.getElementById('telemetry')?.textContent ?? '',
@@ -114,7 +125,7 @@ export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
         evidenceCount: runtime.atlas.results.length,
         observationCount: runtime.atlas.observations.length,
         nilCount: runtime.session.nilOutcomes.length,
-        outcomeKind: outcome?.dataset.state ?? 'pending',
+        outcomeKind: visibleAssessmentKind(),
         kernelAvailable: !runtime.analyticalRuntime.isUnavailable && runtime.atlas.isReady(),
       };
     },
