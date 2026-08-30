@@ -35,6 +35,22 @@ export function fanSlot(angleDeg: number, radius: number, localY: number): Vec3 
   return [radius * Math.sin(a), localY, -radius * Math.cos(a)];
 }
 
+/**
+ * Apply a panel layout slot to both its live mesh and, when present, its
+ * reset-to-home default position. Kept with the layout authority so optional
+ * installers do not need to reach into WorldUIManager for spatial policy.
+ */
+export function applyPanelLayout(
+  panel: { mesh: { position: { set(x: number, y: number, z: number): unknown } } },
+  position: Vec3
+): void {
+  panel.mesh.position.set(position[0], position[1], position[2]);
+  const movable = panel as unknown as {
+    defaultPosition?: { set(x: number, y: number, z: number): unknown };
+  };
+  movable.defaultPosition?.set(position[0], position[1], position[2]);
+}
+
 export const PANEL_LAYOUT = {
   // ---- NEAR tier (0.45–0.8 m from the body): embodied/attention ----
   miniOverview: [0.55, -0.05, -0.6], // world ≈ [0.55, 1.3, −0.6]

@@ -244,7 +244,6 @@ export interface WorldUIManagerLike {
   narrativeStrip?: NarrativeStripLike | null;
   miniOverview?: (PanelLike & { mesh?: Object3D; setEnabled?(enabled: boolean): void }) | null;
   peerPresenceHUD?: PanelLike | null;
-  loadTestPanel?: PanelLike | null;
   recommendationPanel?: (PanelLike & { markDirty?(): void }) | null;
   dracoExplainerPanel?: PanelLike | null;
   dispose?(): void;
@@ -252,7 +251,6 @@ export interface WorldUIManagerLike {
   getOrCreateOperationLogPanel?(): PanelLike | null;
   getOrCreateInteractionCoach?(): PanelLike | null;
   getOrCreateNarrativeStrip?(): NarrativeStripLike | null;
-  getOrCreateLoadTestPanel?(): PanelLike | null;
   /** Superuser / Dev Lab panel accessors (DEVELOPER mode only). */
   getOrCreateSchemaMappingPanel?(): PanelLike | null;
   /** Toggle the schema-mapping SpatialPanel (lifecycle mirrors settings). */
@@ -776,6 +774,9 @@ export interface WorldEngineLike {
   locomotion: WorldLocomotionLike;
   input: { feedback?: WorldFeedbackLike };
   renderer?: { domElement?: { toDataURL(type: string): string } };
+  onToggleLoadTestPanel?: (() => void) | null;
+  onStartLoadTest?: (() => void) | null;
+  onStopLoadTest?: (() => void) | null;
   addInteractable(object: Object3D, handlers?: Record<string, unknown>): void;
   exitVR?(): Promise<boolean> | void;
   isInVR?(): boolean;
