@@ -81,6 +81,25 @@ describe('GuidedTour', () => {
     expect(tour.currentStep).toBe(FIRST_DATASET_TOUR.steps[0]);
   });
 
+  it('captures and restores presentation state through its public boundary', () => {
+    tour.start();
+    tour.next();
+    const snapshot = tour.capturePresentationState();
+    tour.stop();
+
+    tour.restorePresentationState(snapshot);
+
+    expect(tour.stepIndex).toBe(1);
+    expect(tour.isActive).toBe(true);
+    expect(tour.isFinished).toBe(false);
+    expect(tour._cardGroup.visible).toBe(true);
+  });
+
+  it('clamps a restored tour step to the loaded tour', () => {
+    tour.restorePresentationState({ stepIndex: Number.MAX_SAFE_INTEGER, finished: false });
+    expect(tour.stepIndex).toBe(FIRST_DATASET_TOUR.steps.length - 1);
+  });
+
   it('auto-advances when the step condition is met', () => {
     tour = new GuidedTour(engine, {
       tour: {

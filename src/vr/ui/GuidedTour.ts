@@ -26,6 +26,11 @@ export interface GuidedTourOptions {
   userMode?: UserMode;
 }
 
+export interface GuidedTourPresentationState {
+  stepIndex: number;
+  finished: boolean;
+}
+
 /**
  * Step-by-step spatial onboarding tour for Nemosyne.
  *
@@ -249,6 +254,27 @@ export class GuidedTour {
 
   get stepCount(): number {
     return this.tour?.steps?.length ?? 0;
+  }
+
+  capturePresentationState(): GuidedTourPresentationState {
+    return { stepIndex: this._stepIndex, finished: this._finished };
+  }
+
+  restorePresentationState(state: GuidedTourPresentationState): void {
+    if (state.finished) {
+      this._finished = true;
+      this.stop();
+      return;
+    }
+
+    const maxStepIndex = Math.max(0, this.stepCount - 1);
+    this._stepIndex = Number.isInteger(state.stepIndex)
+      ? Math.min(Math.max(0, state.stepIndex), maxStepIndex)
+      : 0;
+    this._finished = false;
+    this._active = this.stepCount > 0;
+    this._cardGroup.visible = this._active;
+    if (this._active) this._renderStep();
   }
 
   get cardMesh(): THREE.Mesh {
