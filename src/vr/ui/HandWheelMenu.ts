@@ -511,7 +511,7 @@ export class HandWheelMenu {
     this._hoverScale.set(targetScale, targetScale, 1);
     mesh.scale.lerp(this._hoverScale, 0.25);
     const material = mesh.material as THREE.MeshBasicMaterial;
-    material.opacity = isHover ? 1 : 0.82;
+    material.opacity = isHover ? 1 : 0.85;
   }
 
   _updateVisibility(): void {
