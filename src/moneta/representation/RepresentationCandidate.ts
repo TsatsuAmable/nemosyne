@@ -110,22 +110,21 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   DENSITY_FIELD: {
     id: 'DENSITY_FIELD',
-    name: 'Continuous Density Field',
-    description: 'Volumetric continuous density estimation representing population mass',
+    name: 'Binned Density Field',
+    description: 'Bounded bivariate binned density grid for two explicit numeric measures',
     supports: ['continuous-density', 'discrete-observations'],
-    preserves: [
-      'population-density-distribution',
-      'cluster-separation',
-    ],
+    preserves: ['population-density-distribution'],
     loses: [
       'individual-observation-identity',
       'exact-metric-values',
+      'empirical-distribution-shape',
+      'outlier-boundary-visibility',
     ],
     scaleCharacteristics: {
-      minN: 500,
-      maxN: 10_000_000,
-      optimalN: [1000, 100_000],
-      scalabilityRating: 0.95,
+      minN: 100,
+      maxN: 500_000,
+      optimalN: [1000, 50_000],
+      scalabilityRating: 0.9,
     },
     interactionCharacteristics: {
       supportedInteractions: ['CLUSTER_PROBE', 'FILTER_BRUSH', 'ALEPH'],

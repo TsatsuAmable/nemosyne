@@ -10,6 +10,10 @@ export const MAX_DISTRIBUTION_ELEMENTS_V1 =
   MAX_DISTRIBUTION_ECDF_KNOTS_V1 +
   MAX_DISTRIBUTION_QUANTILES_V1;
 
+export const MAX_DENSITY_BINS_X_V1 = 20 as const;
+export const MAX_DENSITY_BINS_Y_V1 = 20 as const;
+export const MAX_DENSITY_CELLS_V1 = MAX_DENSITY_BINS_X_V1 * MAX_DENSITY_BINS_Y_V1;
+
 /**
  * Payload-family identity is deliberately distinct from layout family identity.
  * A semantic aggregate is still an aggregate if its presentation later uses a
@@ -18,6 +22,7 @@ export const MAX_DISTRIBUTION_ELEMENTS_V1 =
 export type SemanticEmbodimentFamilyV1 =
   | 'OBSERVATION'
   | 'DISTRIBUTION'
+  | 'DENSITY'
   | 'CLUSTER'
   | 'AGGREGATE'
   | 'GRAPH'
@@ -159,6 +164,58 @@ export interface EmpiricalDistributionPayloadV1 {
   quantiles: DistributionQuantileV1[];
 }
 
+/**
+ * M1 density request contract. Two explicit measures so no layer can silently
+ * choose columns. Bins are explicit and bounded.
+ */
+export interface DensityEmbodimentRequestV1 {
+  schemaVersion: typeof SEMANTIC_EMBODIMENT_SCHEMA_VERSION;
+  candidateId: 'DENSITY_FIELD';
+  measureFieldX: string;
+  measureFieldY: string;
+  binsX: number;
+  binsY: number;
+  decisionId?: string;
+  decisionModelVersion?: string;
+  decisionModelArtifactHash?: string;
+}
+
+export interface DensityObservationCountsV1 {
+  sourceCount: number;
+  validCount: number;
+  excludedCount: number;
+}
+
+export interface DensityDomainV1 {
+  min: number;
+  max: number;
+}
+
+export interface DensityGridCellV1 {
+  semanticId: string;
+  xIndex: number;
+  yIndex: number;
+  xLowerBound: number;
+  xUpperBound: number;
+  yLowerBound: number;
+  yUpperBound: number;
+  count: number;
+  /** Upper bounds are inclusive only on the final bin edge in each dimension. */
+  xUpperInclusive: boolean;
+  yUpperInclusive: boolean;
+}
+
+export interface BinnedDensityPayloadV1 {
+  measureFieldX: string;
+  measureFieldY: string;
+  domainX: DensityDomainV1;
+  domainY: DensityDomainV1;
+  counts: DensityObservationCountsV1;
+  grid: DensityGridCellV1[];
+  binsX: number;
+  binsY: number;
+}
+
 export type RepresentationPayloadV1 =
   | {
       kind: 'AGGREGATE_VOLUME';
@@ -167,6 +224,10 @@ export type RepresentationPayloadV1 =
   | {
       kind: 'EMPIRICAL_DISTRIBUTION';
       data: EmpiricalDistributionPayloadV1;
+    }
+  | {
+      kind: 'BINNED_DENSITY';
+      data: BinnedDensityPayloadV1;
     };
 
 export interface SemanticRefusalV1 {
