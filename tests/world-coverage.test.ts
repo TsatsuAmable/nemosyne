@@ -16,8 +16,6 @@ function wireKernel(w) {
   // Wave 4/6: AtlasCore is the analytical authority; bind the kernel there.
   // FileLoader/TDA/sample-load all reach the kernel through AtlasCore.
   w.atlas?.setKernel?.(bridge, 0x3c07);
-  w._wasmRuntime = bridge;
-  w._wasmUnavailable = false;
 }
 
 const CONNECTING = 0;
@@ -170,35 +168,35 @@ describe('World coverage extensions', () => {
       encodings: { color: 'region', size: 'inventory' },
     });
 
-    const baseRows = world._transformedDataset.rowCount;
+    const baseRows = world.atlas.dataset.rowCount;
 
     world.applyDataOperation('filter');
-    expect(world._transformedDataset.rowCount).toBeLessThan(baseRows);
+    expect(world.atlas.dataset.rowCount).toBeLessThan(baseRows);
 
     world.applyDataOperation('sort');
     // The kernel sort does NOT rename the dataset (the legacy JS path appended
     // 'sorted'). Assert ascending ordering on the sort column instead.
-    const sortCol = world._transformedDataset.numericColumns[0]?.name;
-    expect(world._transformedDataset.rowCount).toBeGreaterThan(0);
+    const sortCol = world.atlas.dataset.numericColumns[0]?.name;
+    expect(world.atlas.dataset.rowCount).toBeGreaterThan(0);
     if (sortCol) {
-      const sortedRows = world._transformedDataset.rows;
+      const sortedRows = world.atlas.dataset.rows;
       const first = Number(sortedRows[0][sortCol]);
       const last = Number(sortedRows[sortedRows.length - 1][sortCol]);
       expect(first).toBeLessThanOrEqual(last);
     }
 
     world.applyDataOperation('aggregate');
-    expect(world._transformedDataset.rowCount).toBeGreaterThan(0);
+    expect(world.atlas.dataset.rowCount).toBeGreaterThan(0);
 
     world.applyDataOperation('cluster');
-    expect(world._transformedDataset.getColumn('_cluster')).toBeTruthy();
+    expect(world.atlas.dataset.getColumn('_cluster')).toBeTruthy();
 
     // timeSlice runs the kernel `slice` against the CURRENT transformed
     // dataset (Wave 2 mandatory-kernel semantics): a contiguous window of the
     // current view. The slice primitive is parity-covered by Rust tests +
     // wasm-runtime.test.ts; here we assert the window is non-empty.
     world.applyDataOperation('timeSlice');
-    expect(world._transformedDataset.rowCount).toBeGreaterThan(0);
+    expect(world.atlas.dataset.rowCount).toBeGreaterThan(0);
   });
 
   it('resets data operations back to the original dataset', () => {
@@ -206,12 +204,12 @@ describe('World coverage extensions', () => {
     const ds = getSampleDataset('sales-table');
     world.loadDataset({ name: ds.label, topology: ds.topology, dataset: ds.dataset });
 
-    const originalRowCount = world._originalDataset.rowCount;
+    const originalRowCount = world.atlas.originalDataset.rowCount;
     world.applyDataOperation('filter');
-    expect(world._transformedDataset.rowCount).not.toBe(originalRowCount);
+    expect(world.atlas.dataset.rowCount).not.toBe(originalRowCount);
 
     world.resetDataOperation();
-    expect(world._transformedDataset.rowCount).toBe(originalRowCount);
+    expect(world.atlas.dataset.rowCount).toBe(originalRowCount);
   });
 
   it('connects to a curated live source by key', () => {
@@ -289,17 +287,17 @@ describe('World coverage extensions', () => {
       encodings: { color: 'region', size: 'inventory' },
     });
 
-    const originalRowCount = world._originalDataset.rowCount;
+    const originalRowCount = world.atlas.originalDataset.rowCount;
     world.applyDataOperation('filter');
-    const filteredRowCount = world._transformedDataset.rowCount;
+    const filteredRowCount = world.atlas.dataset.rowCount;
     expect(filteredRowCount).toBeLessThan(originalRowCount);
-    expect(world.analysisHistory.canUndo).toBe(true);
+    expect(world.atlas.analysisHistory.canUndo).toBe(true);
 
     world.undoAnalysis();
-    expect(world._transformedDataset.rowCount).toBe(originalRowCount);
+    expect(world.atlas.dataset.rowCount).toBe(originalRowCount);
 
     world.redoAnalysis();
-    expect(world._transformedDataset.rowCount).toBe(filteredRowCount);
+    expect(world.atlas.dataset.rowCount).toBe(filteredRowCount);
   });
 
   it('maps hand gestures to analysis commands and perspective switches', () => {
@@ -312,15 +310,15 @@ describe('World coverage extensions', () => {
       encodings: { color: 'region', size: 'inventory' },
     });
 
-    const startRowCount = world._transformedDataset.rowCount;
-    world._onGesture('pinchTogether');
-    expect(world._transformedDataset.rowCount).toBeLessThan(startRowCount);
+    const startRowCount = world.atlas.dataset.rowCount;
+    world.inputCoordinator.onGesture('pinchTogether');
+    expect(world.atlas.dataset.rowCount).toBeLessThan(startRowCount);
 
     const startName = world.currentEntry?.name;
     // The first swipe from the initial -1 index lands on the first sample again,
     // so cycle twice to guarantee a different dataset.
-    world._onGesture('swipeRight');
-    world._onGesture('swipeRight');
+    world.inputCoordinator.onGesture('swipeRight');
+    world.inputCoordinator.onGesture('swipeRight');
     expect(world.currentEntry?.name).not.toBe(startName);
   });
 
@@ -332,9 +330,9 @@ describe('World coverage extensions', () => {
     if (world.tdaGroup) {
       // TDA is hidden by default (progressive disclosure) until the lens is requested.
       expect(world.tdaGroup.visible).toBe(false);
-      world._onGesture('scoopUp');
+      world.inputCoordinator.onGesture('scoopUp');
       expect(world.tdaGroup.visible).toBe(true);
-      world._onGesture('scoopUp');
+      world.inputCoordinator.onGesture('scoopUp');
       expect(world.tdaGroup.visible).toBe(false);
     }
   });
@@ -356,19 +354,19 @@ describe('World coverage extensions', () => {
     const ds = getSampleDataset('sales-table');
     world.loadDataset({ name: ds.label, topology: ds.topology, dataset: ds.dataset });
 
-    const originalRowCount = world._originalDataset.rowCount;
+    const originalRowCount = world.atlas.originalDataset.rowCount;
     world.applyDataOperation('filter');
-    const filteredRowCount = world._transformedDataset.rowCount;
+    const filteredRowCount = world.atlas.dataset.rowCount;
 
     document.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true })
     );
-    expect(world._transformedDataset.rowCount).toBe(originalRowCount);
+    expect(world.atlas.dataset.rowCount).toBe(originalRowCount);
 
     document.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'y', ctrlKey: true, bubbles: true })
     );
-    expect(world._transformedDataset.rowCount).toBe(filteredRowCount);
+    expect(world.atlas.dataset.rowCount).toBe(filteredRowCount);
   });
 
   it('cancels a pending live flush on disconnect', () => {
@@ -377,6 +375,7 @@ describe('World coverage extensions', () => {
     try {
       globalThis.WebSocket = MockWebSocket;
       world = new World(); wireKernel(world);
+      const loadSpy = vi.spyOn(world, 'loadDataset');
       world.connectLiveStream('wss://test/stream', { mode: 'replace' });
       world.liveConnector._ws.open();
       world.liveConnector._ws.dispatchMessage(
@@ -386,10 +385,10 @@ describe('World coverage extensions', () => {
         })
       );
 
-      expect(world._liveFlushTimer).not.toBeNull();
       world.disconnectLiveStream();
-      expect(world._liveFlushTimer).toBeNull();
-      expect(world._pendingRows).toEqual([]);
+      vi.advanceTimersByTime(1100);
+      expect(world.liveConnector).toBeNull();
+      expect(loadSpy).not.toHaveBeenCalled();
     } finally {
       globalThis.WebSocket = originalWebSocket;
       vi.useRealTimers();
