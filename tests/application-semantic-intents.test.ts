@@ -20,6 +20,7 @@ describe('RF-062B application intent boundary', () => {
       undoHistory: vi.fn(),
       redoHistory: vi.fn(),
       toggleStatisticalLens: vi.fn(),
+      openSettings: vi.fn(),
     };
     const dispatch = createApplicationIntentDispatcher(handlers);
 
@@ -29,6 +30,7 @@ describe('RF-062B application intent boundary', () => {
     await dispatch({ type: 'history.undo' });
     await dispatch({ type: 'history.redo' });
     await dispatch({ type: 'workspace.toggleStatisticalLens' });
+    await dispatch({ type: 'settings.open' });
 
     expect(handlers.cycleDataset).toHaveBeenCalledOnce();
     expect(handlers.cycleDataset).toHaveBeenCalledWith(1);
@@ -38,6 +40,7 @@ describe('RF-062B application intent boundary', () => {
     expect(handlers.undoHistory).toHaveBeenCalledOnce();
     expect(handlers.redoHistory).toHaveBeenCalledOnce();
     expect(handlers.toggleStatisticalLens).toHaveBeenCalledOnce();
+    expect(handlers.openSettings).toHaveBeenCalledOnce();
   });
 
   it('fails closed when an untyped runtime caller supplies an unknown intent', () => {
@@ -48,6 +51,7 @@ describe('RF-062B application intent boundary', () => {
       undoHistory: vi.fn(),
       redoHistory: vi.fn(),
       toggleStatisticalLens: vi.fn(),
+      openSettings: vi.fn(),
     });
 
     expect(() =>
