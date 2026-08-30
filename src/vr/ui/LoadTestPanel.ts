@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import { downloadText } from '../../utils/Download.ts';
 import { WorldTopics } from '../../utils/EventBus.ts';
 import type { WorldEventBusLike, MovablePanelOptions } from '../coordinators/types.ts';
@@ -63,9 +64,9 @@ interface BtnRect {
 }
 
 const GRADE_COLOR: Record<VerdictGrade, string> = {
-  green: '#00ff66',
-  yellow: '#ffcc00',
-  red: '#ff3344',
+  green: cssHex(COLOR_TOKENS.status.verified),
+  yellow: cssHex(COLOR_TOKENS.epistemic.uncertain),
+  red: cssHex(COLOR_TOKENS.danger.destructive),
 };
 
 /** Single-N presets + the full staircase. Clicking one starts that run. */
@@ -226,11 +227,11 @@ export class LoadTestPanel extends MovablePanel {
 
     // --- STATUS ---
     ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = '#00ffff';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
     ctx.fillText('// STATUS', pad, y + lineH);
     y += lineH + 4;
     ctx.font = this._scaleFont('15px monospace');
-    ctx.fillStyle = '#ccffff';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
     const stepLabel = cur ? `${cur.label ?? cur.rowCount} (${cur.topology})` : '-';
     const boundary = this._boundaryProgress;
     ctx.fillText(
@@ -249,13 +250,13 @@ export class LoadTestPanel extends MovablePanel {
 
     // --- LIVE METRICS (from last sample) ---
     ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = '#00ffff';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
     ctx.fillText('// LIVE METRICS', pad, y + lineH);
     y += lineH + 4;
 
     const s = this._lastSample;
     ctx.font = this._scaleFont('15px monospace');
-    ctx.fillStyle = '#ccffff';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
     if (this._boundaryRunning && boundary) {
       ctx.fillText(`Rust boundary phase: ${boundary.phase}`, pad + 8, y + lineH);
       ctx.fillText(
@@ -296,7 +297,7 @@ export class LoadTestPanel extends MovablePanel {
 
     // --- VERDICT (completed steps + overall) ---
     ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = '#00ffff';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
     ctx.fillText('// VERDICT', pad, y + lineH);
     y += lineH + 4;
 
@@ -304,7 +305,7 @@ export class LoadTestPanel extends MovablePanel {
     const summary = this._lastSummary;
     if (boundarySummary && this._lastDownloadPayload === boundarySummary) {
       ctx.font = this._scaleFont('15px monospace');
-      ctx.fillStyle = boundarySummary.outcome.status === 'completed' ? '#88ffcc' : '#ff6677';
+      ctx.fillStyle = boundarySummary.outcome.status === 'completed' ? cssHex(COLOR_TOKENS.status.verified) : cssHex(COLOR_TOKENS.danger.destructive);
       ctx.fillText(
         `10M boundary: ${boundarySummary.outcome.status.toUpperCase()}`,
         pad + 8,
@@ -320,13 +321,13 @@ export class LoadTestPanel extends MovablePanel {
         pad + 8,
         y + lineH * 3
       );
-      ctx.fillStyle = '#ffcc00';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.epistemic.uncertain);
       ctx.fillText('Device qualification remains blocked pending audits.', pad + 8, y + lineH * 4);
       y += lineH * 4 + 8;
     } else if (summary) {
       ctx.font = this._scaleFont('15px monospace');
       for (const step of summary.steps) {
-        const color = GRADE_COLOR[step.grade] ?? '#ccffff';
+        const color = GRADE_COLOR[step.grade] ?? cssHex(COLOR_TOKENS.text.secondary);
         const reasons = step.reasons.length ? ` — ${step.reasons.join('; ')}` : '';
         ctx.fillStyle = color;
         const line = `${step.spec.rowCount}: ${step.grade.toUpperCase()}${reasons}`;
@@ -335,7 +336,7 @@ export class LoadTestPanel extends MovablePanel {
         if (y > contentH - 180) break;
       }
       // Overall recommendation.
-      ctx.fillStyle = '#88ffcc';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.status.verified);
       ctx.font = this._scaleFont('bold 15px monospace');
       y = this._wrapText(
         ctx,
@@ -349,7 +350,7 @@ export class LoadTestPanel extends MovablePanel {
       y += 6;
     } else {
       ctx.font = this._scaleFont('15px monospace');
-      ctx.fillStyle = '#88aaff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
       ctx.fillText('No run completed yet.', pad + 8, y + lineH);
       y += lineH + 8;
     }
@@ -411,16 +412,16 @@ export class LoadTestPanel extends MovablePanel {
     active: boolean
   ): void {
     ctx.fillStyle = active
-      ? 'rgba(255, 51, 68, 0.25)'
+      ? cssHex(COLOR_TOKENS.danger.destructive) + '40'
       : this.highContrast
         ? 'rgba(255,255,255,0.9)'
-        : 'rgba(0, 255, 204, 0.15)';
+        : cssHex(COLOR_TOKENS.interaction.focus) + '26';
     ctx.fillRect(x, y, bw, bh);
-    ctx.strokeStyle = active ? '#ff3344' : this.highContrast ? '#ffffff' : '#00ffcc';
+    ctx.strokeStyle = active ? cssHex(COLOR_TOKENS.danger.destructive) : this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
     ctx.lineWidth = this.highContrast ? 3 : 2;
     ctx.strokeRect(x, y, bw, bh);
     ctx.font = this._scaleFont('bold 14px monospace');
-    ctx.fillStyle = active ? '#ff3344' : this.highContrast ? '#000000' : '#00ffcc';
+    ctx.fillStyle = active ? cssHex(COLOR_TOKENS.danger.destructive) : this.highContrast ? cssHex(COLOR_TOKENS.space.void) : cssHex(COLOR_TOKENS.interaction.focus);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(label, x + bw / 2, y + bh / 2);

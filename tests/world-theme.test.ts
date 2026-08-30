@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { WorldTheme } from '../src/vr/WorldTheme.ts';
+import { COLOR_TOKENS } from '../src/vr/ui-system/tokens.ts';
 
 describe('WorldTheme', () => {
   let scene;
@@ -58,11 +59,18 @@ describe('WorldTheme', () => {
     warnSpy.mockRestore();
   });
 
-  it('updates ambient particle positions over time', () => {
-    theme.update(0.016, 1, 0.5);
+  it('uses COLOR_TOKENS for neonMidnight preset fog/grid colors', () => {
+    expect(WorldTheme.PRESETS.neonMidnight.fogColor).toBe(COLOR_TOKENS.space.void);
+    expect(WorldTheme.PRESETS.neonMidnight.gridColor1).toBe(COLOR_TOKENS.surface.border);
+    expect(WorldTheme.PRESETS.neonMidnight.gridColor2).toBe(COLOR_TOKENS.space.void);
+    expect(WorldTheme.PRESETS.neonMidnight.pointColor).toBe(COLOR_TOKENS.interaction.focus);
+  });
 
-    expect(theme.particles).toBeTruthy();
-    const positions = theme.particles.geometry.attributes.position.array;
-    expect(positions.length).toBeGreaterThan(0);
+  it('does not create particles (glyph rain removed)', () => {
+    expect(theme.particles).toBeUndefined();
+  });
+
+  it('update is a no-op without particles', () => {
+    expect(() => theme.update(0.016, 1, 0.5)).not.toThrow();
   });
 });

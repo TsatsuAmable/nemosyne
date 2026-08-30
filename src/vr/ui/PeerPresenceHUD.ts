@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 
 export interface PeerInfo {
   peerId: string;
@@ -146,14 +147,14 @@ export class PeerPresenceHUD {
     const r = this.resolution;
 
     ctx.clearRect(0, 0, r, r);
-    ctx.fillStyle = 'rgba(4, 12, 24, 0.85)';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.space.void) + 'D9';
     ctx.fillRect(0, 0, r, r);
 
-    ctx.strokeStyle = '#00ffcc';
+    ctx.strokeStyle = cssHex(COLOR_TOKENS.interaction.focus);
     ctx.lineWidth = 4;
     ctx.strokeRect(2, 2, r - 4, r - 4);
 
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
     ctx.font = `bold ${Math.floor(r * 0.06)}px monospace`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
@@ -161,7 +162,7 @@ export class PeerPresenceHUD {
 
     if (peers.length === 0) {
       ctx.font = `${Math.floor(r * 0.05)}px monospace`;
-      ctx.fillStyle = '#88aabb';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.text.muted);
       ctx.textAlign = 'center';
       ctx.fillText('No peers connected', r / 2, r / 2);
       return;
@@ -207,7 +208,7 @@ export class PeerPresenceHUD {
       ctx.fill();
 
       // Name.
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
       ctx.font = `${Math.floor(r * 0.05)}px monospace`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
@@ -216,9 +217,9 @@ export class PeerPresenceHUD {
     }
 
     // Peer count pill.
-    ctx.fillStyle = 'rgba(0, 255, 204, 0.2)';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus) + '33';
     ctx.fillRect(r * 0.68, r * 0.04, r * 0.25, r * 0.08);
-    ctx.fillStyle = '#00ffcc';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `bold ${Math.floor(r * 0.05)}px monospace`;

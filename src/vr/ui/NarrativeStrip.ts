@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import type { MovablePanelOptions } from '../coordinators/types.ts';
 import type { AnalysisHistory, HistoryFrame } from '../../data/AnalysisHistory.ts';
 
@@ -65,7 +66,7 @@ export class NarrativeStrip extends MovablePanel {
 
     if (frames.length === 0) {
       ctx.font = this._scaleFont('16px monospace');
-      ctx.fillStyle = this.highContrast ? '#aaaaaa' : '#778899';
+      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.muted) : cssHex(COLOR_TOKENS.text.muted);
       ctx.fillText(
         'Apply a data operation (filter, sort, aggregate, cluster, anomaly, time-slice) to build a timeline.',
         margin,
@@ -75,8 +76,8 @@ export class NarrativeStrip extends MovablePanel {
       return;
     }
 
-    const accent = `#${this.remapColor(0x00ffcc).toString(16).padStart(6, '0')}`;
-    const dim = this.highContrast ? '#888888' : '#445566';
+    const accent = cssHex(COLOR_TOKENS.interaction.focus);
+    const dim = this.highContrast ? cssHex(COLOR_TOKENS.text.muted) : cssHex(COLOR_TOKENS.surface.border);
     const trackY = contentH / 2;
 
     // Compute chip geometry so the full timeline fits with a minimum width.
@@ -107,7 +108,7 @@ export class NarrativeStrip extends MovablePanel {
       const isCurrent = i === current;
 
       // Chip background.
-      ctx.fillStyle = isCurrent ? 'rgba(0, 255, 204, 0.22)' : 'rgba(60, 60, 80, 0.45)';
+      ctx.fillStyle = isCurrent ? cssHex(COLOR_TOKENS.interaction.focus) + '38' : cssHex(COLOR_TOKENS.surface.raised) + '73';
       ctx.fillRect(x, y, chipW, chipH);
       ctx.strokeStyle = isCurrent ? accent : dim;
       ctx.lineWidth = isCurrent ? 3 : 2;
@@ -115,7 +116,7 @@ export class NarrativeStrip extends MovablePanel {
 
       // Operation label.
       ctx.font = this._scaleFont(isCurrent ? 'bold 16px monospace' : '14px monospace');
-      ctx.fillStyle = this.highContrast ? '#ffffff' : isCurrent ? '#00ffff' : '#ccffff';
+      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : isCurrent ? cssHex(COLOR_TOKENS.interaction.focus) : cssHex(COLOR_TOKENS.text.secondary);
       ctx.textAlign = 'center';
       const label = this._formatLabel(frame.operation, frame.parameters);
       this._clipText(ctx, label, chipW - 12);
@@ -129,7 +130,7 @@ export class NarrativeStrip extends MovablePanel {
         frame.datasetBefore?.rowCount;
       if (typeof count === 'number') {
         ctx.font = this._scaleFont('12px monospace');
-        ctx.fillStyle = this.highContrast ? '#cccccc' : '#88ccaa';
+        ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.secondary) : cssHex(COLOR_TOKENS.text.secondary);
         ctx.fillText(`${count} rows`, x + chipW / 2, y + chipH / 2 + 14);
       }
 

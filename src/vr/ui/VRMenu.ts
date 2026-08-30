@@ -6,15 +6,17 @@ import {
   type SampleDatasetEntry,
 } from '../../data/SampleDatasets.ts';
 import { OPEN_DATA_SOURCES, type OpenDataSource } from '../../data/connectors/OpenDataSources.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import type { MovablePanelOptions, VRMenuCallbacks, VisualOperation } from '../coordinators/types.ts';
 
 /**
- * In-VR settings and dataset menu.
+ * Hidden advanced in-VR dataset and live-source selector.
  *
- * Lets the user switch sample datasets and toggle scene features (e.g.
- * Farcaster portals) without leaving immersive mode.
+ * Primary navigation lives on the task-oriented HandWheel. This panel remains
+ * available because it is currently the only concrete chooser for curated live
+ * sources such as USGS/OpenSky/exchange feeds; retiring it requires a wired
+ * replacement, not deletion-by-style-pass.
  */
-
 interface VRMenuOptions extends MovablePanelOptions, VRMenuCallbacks {
   portalsEnabled?: boolean;
 }
@@ -29,9 +31,39 @@ type VRMenuButton =
       h: number;
     }
   | { type: 'toggle'; label: string; x: number; y: number; w: number; h: number }
-  | { type: 'connectStream' | 'disconnectStream'; label: string; x: number; y: number; w: number; h: number }
-  | { type: 'liveSource'; source: OpenDataSource; label: string; x: number; y: number; w: number; h: number }
-  | { type: 'dataset'; entry: SampleDatasetEntry; label: string; x: number; y: number; w: number; h: number };
+  | {
+      type: 'connectStream' | 'disconnectStream';
+      label: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }
+  | {
+      type: 'liveSource';
+      source: OpenDataSource;
+      label: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }
+  | {
+      type: 'dataset';
+      entry: SampleDatasetEntry;
+      label: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    };
+
+function rgba(token: number, alpha: number): string {
+  const r = (token >> 16) & 0xff;
+  const g = (token >> 8) & 0xff;
+  const b = token & 0xff;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 export class VRMenu extends MovablePanel {
   onLoadDataset?: VRMenuCallbacks['onLoadDataset'];
@@ -106,10 +138,8 @@ export class VRMenu extends MovablePanel {
 
     this.buttons = [];
     this._registerButtons();
-
     this._clickCooldownMs = 350;
     this._lastClickAt = -this._clickCooldownMs;
-
     this.render();
   }
 
@@ -129,7 +159,6 @@ export class VRMenu extends MovablePanel {
     const startY = 70 + pad;
     const rowH = 46;
 
-    // Data operation buttons.
     const ops: { type: VisualOperation | 'reset'; label: string }[] = [
       { type: 'filter', label: 'Filter: value > median' },
       { type: 'sort', label: 'Sort by value' },
@@ -153,7 +182,6 @@ export class VRMenu extends MovablePanel {
       });
     });
 
-    // Portal toggle.
     const portalY = startY + ops.length * (rowH + 2) + 24;
     this.buttons.push({
       type: 'toggle',
@@ -164,7 +192,6 @@ export class VRMenu extends MovablePanel {
       h: 44,
     });
 
-    // Live stream controls.
     const liveY = portalY + 44 + 34;
     this.buttons.push({
       type: 'connectStream',
@@ -183,7 +210,6 @@ export class VRMenu extends MovablePanel {
       h: 44,
     });
 
-    // Open live data sources.
     const sourceY = liveY + 44 + 44;
     OPEN_DATA_SOURCES.forEach((source, idx) => {
       this.buttons.push({
@@ -197,7 +223,6 @@ export class VRMenu extends MovablePanel {
       });
     });
 
-    // Dataset buttons.
     const datasetY = sourceY + OPEN_DATA_SOURCES.length * (rowH + 2) + 44;
     allSampleDatasets.forEach((entry, idx) => {
       this.buttons.push({
@@ -214,21 +239,23 @@ export class VRMenu extends MovablePanel {
 
   renderContent(ctx: CanvasRenderingContext2D, _w: number, _contentH: number): void {
     ctx.font = 'bold 20px monospace';
-    ctx.fillStyle = '#00ffcc';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
     ctx.textAlign = 'left';
     ctx.fillText('OPERATIONS', 40, 38);
     ctx.fillText('SETTINGS', 40, 410);
     ctx.fillText('LIVE STREAM', 40, 486);
 
-    // Connection status pill under the live-stream label.
     const statusText = this.liveConnected ? 'CONNECTED' : 'OFFLINE';
-    const statusColor = this.liveConnected ? '#00ff66' : '#ff5577';
+    const statusColor = this.liveConnected
+      ? cssHex(COLOR_TOKENS.interaction.commit)
+      : cssHex(COLOR_TOKENS.danger.destructive);
     ctx.font = 'bold 14px monospace';
     ctx.fillStyle = statusColor;
     ctx.fillText(statusText, 190, 136);
 
     const dataSetLabelY = this._datasetLabelY();
     ctx.font = 'bold 20px monospace';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
     ctx.fillText('DATASETS', 40, dataSetLabelY);
 
     ctx.font = 'bold 18px monospace';
@@ -236,13 +263,17 @@ export class VRMenu extends MovablePanel {
       const isToggleOn = btn.type === 'toggle' && this.portalsEnabled;
       const isConnectOn = btn.type === 'connectStream' && this.liveConnected;
       const isDisconnectOn = btn.type === 'disconnectStream' && !this.liveConnected;
-      const bg =
-        isToggleOn || isConnectOn
-          ? 'rgba(0, 255, 204, 0.25)'
-          : isDisconnectOn
-            ? 'rgba(255, 85, 119, 0.25)'
-            : 'rgba(0, 60, 80, 0.7)';
-      const stroke = isToggleOn || isConnectOn ? '#00ffcc' : '#88ccff';
+      const active = isToggleOn || isConnectOn;
+      const bg = active
+        ? rgba(COLOR_TOKENS.interaction.focus, 0.18)
+        : isDisconnectOn
+          ? rgba(COLOR_TOKENS.danger.destructive, 0.16)
+          : rgba(COLOR_TOKENS.surface.raised, 0.82);
+      const stroke = active
+        ? cssHex(COLOR_TOKENS.interaction.focus)
+        : isDisconnectOn
+          ? cssHex(COLOR_TOKENS.danger.destructive)
+          : cssHex(COLOR_TOKENS.surface.border);
 
       ctx.fillStyle = bg;
       ctx.fillRect(btn.x, btn.y, btn.w, btn.h);
@@ -250,12 +281,10 @@ export class VRMenu extends MovablePanel {
       ctx.lineWidth = 2;
       ctx.strokeRect(btn.x, btn.y, btn.w, btn.h);
 
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
       ctx.textAlign = 'left';
       let text = btn.label;
-      if (btn.type === 'toggle') {
-        text += ` : ${this.portalsEnabled ? 'ON' : 'OFF'}`;
-      }
+      if (btn.type === 'toggle') text += ` : ${this.portalsEnabled ? 'ON' : 'OFF'}`;
       ctx.fillText(text, btn.x + 16, btn.y + 27, btn.w - 32);
     }
   }
@@ -276,12 +305,10 @@ export class VRMenu extends MovablePanel {
         canvasX >= btn.x &&
         canvasX <= btn.x + btn.w &&
         ((canvasY >= btn.y && canvasY <= btn.y + btn.h) ||
-         (contentY >= btn.y && contentY <= btn.y + btn.h))
+          (contentY >= btn.y && contentY <= btn.y + btn.h))
       ) {
         const now = performance.now();
-        if (now - this._lastClickAt < 100) {
-          return true;
-        }
+        if (now - this._lastClickAt < 100) return true;
         this._lastClickAt = now;
 
         if (btn.type === 'toggle') {
@@ -300,22 +327,18 @@ export class VRMenu extends MovablePanel {
           });
           return true;
         }
-
         if (btn.type === 'connectStream') {
           this.onConnectStream?.();
           return true;
         }
-
         if (btn.type === 'disconnectStream') {
           this.onDisconnectStream?.();
           return true;
         }
-
         if (btn.type === 'liveSource') {
           this.onSelectLiveSource?.(btn.source.key);
           return true;
         }
-
         if (btn.type === 'filter') {
           this.onFilter?.();
           return true;

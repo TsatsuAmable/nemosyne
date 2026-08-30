@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import { getGestureMeta } from '../../utils/GestureMapping.ts';
 import type { MovablePanelOptions, UserMode } from '../coordinators/types.ts';
 
@@ -127,11 +128,11 @@ export class InteractionCoach extends MovablePanel {
     ctx.textAlign = 'left';
 
     if (this.userMode === 'expert') {
-      ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
+      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
       ctx.fillText('Expert mode', margin, y + lineHeight / 2);
       y += lineHeight + margin;
       ctx.font = this._scaleFont('16px monospace');
-      ctx.fillStyle = this.highContrast ? '#aaaaaa' : '#778899';
+      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.muted) : cssHex(COLOR_TOKENS.text.muted);
       ctx.fillText(
         'Gesture and controller help are disabled. Open this panel from the wheel menu to re-enable.',
         margin,
@@ -140,7 +141,7 @@ export class InteractionCoach extends MovablePanel {
       return;
     }
 
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
+    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
     const header =
       this.userMode === 'intermediate'
         ? 'Recent interaction (last only)'
@@ -150,7 +151,7 @@ export class InteractionCoach extends MovablePanel {
 
     if (this.entries.length === 0) {
       ctx.font = this._scaleFont('16px monospace');
-      ctx.fillStyle = this.highContrast ? '#aaaaaa' : '#778899';
+      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.muted) : cssHex(COLOR_TOKENS.text.muted);
       ctx.fillText(
         'Perform a gesture, controller action, or menu selection to see it here.',
         margin,
@@ -163,21 +164,21 @@ export class InteractionCoach extends MovablePanel {
       if (y + rowHeight > contentH - margin) break;
 
       // Row background.
-      ctx.fillStyle = 'rgba(0, 255, 204, 0.06)';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus) + '10';
       ctx.fillRect(margin, y, w - margin * 2, rowHeight);
-      ctx.strokeStyle = this.highContrast ? '#ffffff' : 'rgba(0, 255, 204, 0.25)';
+      ctx.strokeStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus) + '40';
       ctx.lineWidth = 1;
       ctx.strokeRect(margin, y, w - margin * 2, rowHeight);
 
       // Action + result.
       ctx.font = this._scaleFont('bold 16px monospace');
-      ctx.fillStyle = this.highContrast ? '#ffffff' : '#ccffff';
+      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.text.secondary);
       const resultText = entry.result ? ` → ${entry.result}` : '';
       ctx.fillText(`${entry.action}${resultText}`, margin + 10, y + lineHeight);
 
       // Input source line.
       ctx.font = this._scaleFont('14px monospace');
-      ctx.fillStyle = this.highContrast ? '#cccccc' : '#88ccaa';
+      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.secondary) : cssHex(COLOR_TOKENS.text.secondary);
       const inputParts: string[] = [];
       if (entry.gesture) inputParts.push(entry.gesture);
       if (entry.controller) inputParts.push(entry.controller);
