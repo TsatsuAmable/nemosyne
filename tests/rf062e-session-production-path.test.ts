@@ -1,80 +1,105 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import * as THREE from 'three';
 import { World } from '../src/vr/World.ts';
-import { Dataset } from '../src/data/Dataset.ts';
+import { getSampleDataset } from '../src/data/SampleDatasets.ts';
+import type { SessionStore } from '../src/data/SessionStore.ts';
+import { WorldTopics } from '../src/utils/EventBus.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
-function dataset(name: string, values: number[]): Dataset {
-  return new Dataset(
-    name,
-    [
-      { name: 'category', type: 'CATEGORICAL' },
-      { name: 'value', type: 'NUMERIC' },
-    ],
-    values.map((value, index) => ({ category: index % 2 === 0 ? 'A' : 'B', value }))
-  );
+// This jsdom lane deliberately has no ambient WASM initialization. Keep the
+// production representation path intact while supplying its governed layout
+// ABI at the test boundary.
+vi.mock('../src/wasm/RuntimeBridge.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/wasm/RuntimeBridge.ts')>();
+  return {
+    ...actual,
+    computeGrid3d: (count: number, spacing = 1.1, yOffset = 1.2) => {
+      const side = Math.ceil(Math.sqrt(count));
+      const positions = new Float32Array(count * 3);
+      for (let index = 0; index < count; index += 1) {
+        positions[index * 3] = (index % side) * spacing;
+        positions[index * 3 + 1] = yOffset;
+        positions[index * 3 + 2] = Math.floor(index / side) * spacing;
+      }
+      return positions;
+    },
+  };
+});
+
+class MemorySessionStore {
+  private readonly snapshots = new Map<string, Record<string, unknown>>();
+
+  async saveSession(id: string, snapshot: Record<string, unknown>): Promise<void> {
+    this.snapshots.set(id, structuredClone(snapshot));
+  }
+
+  async loadSession(id: string): Promise<Record<string, unknown> | null> {
+    const snapshot = this.snapshots.get(id);
+    return snapshot ? structuredClone(snapshot) : null;
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    this.snapshots.delete(id);
+  }
+
+  async hasSession(id: string): Promise<boolean> {
+    return this.snapshots.has(id);
+  }
 }
 
-describe('RF-062E World session production path', () => {
+describe('RF-062E production session path', () => {
   let world: World | null = null;
 
   afterEach(async () => {
-    if (world) await world.dispose();
-    world = null;
+    if (world) {
+      await world.dispose();
+      world.loader?.container?.remove?.();
+      world = null;
+    }
+    for (const canvas of Array.from(document.querySelectorAll('canvas'))) canvas.remove();
     vi.restoreAllMocks();
   });
 
-  it('restores through the application load path and presentation adapter without changing authority state', async () => {
+  it('reloads through LoadDatasetUseCase and projects restore through HISTORY_SEEK', async () => {
     world = new World();
     const bridge = makeKernelMockBridge();
     world.atlas.setKernel(bridge, 0x3c07);
-
-    const baseline = dataset('rf062e-baseline', [1, 2, 3, 4]);
+    const sample = getSampleDataset('sales-table');
+    if (!sample) throw new Error('sales-table sample is required');
     world.loadDataset({
-      key: 'rf062e-baseline',
-      name: baseline.name,
-      topology: 'TABULAR',
-      dataset: baseline,
+      name: sample.label,
+      topology: sample.topology,
+      dataset: sample.dataset,
+      maxDepth: sample.depth,
     });
     world.applyDataOperation('filter');
-    world.engine.cameraGroup.position.set(3, 2, -7);
-    world._captureSession();
 
-    const snapshot = world.sessionController.snapshotCurrentSession();
-    expect(snapshot).not.toBeNull();
-    const beforeFingerprint = world.atlas.datasetFingerprint;
-    const beforeResults = JSON.stringify(world.atlas.results);
-    const beforeLedger = JSON.stringify(world.atlas.evidenceLedger.ledger);
-    const beforeDigest = world.session.semanticDigest();
+    const store = new MemorySessionStore();
+    world.sessionStore = store as unknown as SessionStore;
+    await world.saveSession('rf062e');
+    const before = world.session.serialize();
+    const digestBefore = await world.atlas.computeDigest();
+    const executeDatasetLoad = vi.spyOn(world.loadDatasetUseCase, 'execute');
+    const restorePresentation = vi.spyOn(world.presentationSnapshotPort, 'restore');
+    const historySeek = vi.fn();
+    world.eventBus.on(WorldTopics.HISTORY_SEEK, historySeek);
 
-    const loadSpy = vi.spyOn(world.loadDatasetUseCase, 'execute');
-    const presentationSpy = vi.spyOn(world.presentationSnapshotPort, 'restore');
-    const historyEvents: unknown[] = [];
-    world.eventBus.on('history:seek', (event) => historyEvents.push(event));
+    await expect(world.loadSession('rf062e')).resolves.toBe(true);
 
-    const replacement = dataset('rf062e-replacement', [100, 200]);
-    world.loadDataset({
-      key: 'rf062e-replacement',
-      name: replacement.name,
-      topology: 'TABULAR',
-      dataset: replacement,
+    expect(executeDatasetLoad).toHaveBeenCalledTimes(2);
+    expect(executeDatasetLoad.mock.calls[0][1]).toMatchObject({
+      preserveAnalyticalState: false,
     });
-    world.engine.cameraGroup.position.set(9, 9, 9);
-
-    const store = world.sessionController.getSessionStore();
-    await store.saveSession('rf062e-snapshot', snapshot!);
-    const loaded = await world.sessionController.loadSession('rf062e-snapshot');
-
-    expect(loaded).toBe(true);
-    expect(loadSpy).toHaveBeenCalled();
-    expect(presentationSpy).toHaveBeenCalled();
-    expect(historyEvents.length).toBeGreaterThan(0);
-    expect(world.atlas.datasetFingerprint).toBe(beforeFingerprint);
-    expect(JSON.stringify(world.atlas.results)).toBe(beforeResults);
-    expect(JSON.stringify(world.atlas.evidenceLedger.ledger)).toBe(beforeLedger);
-    expect(world.session.semanticDigest()).toBe(beforeDigest);
-    expect(world.engine.cameraGroup.position.toArray()).toEqual([3, 2, -7]);
+    expect(executeDatasetLoad.mock.calls[1][1]).toMatchObject({
+      preserveAnalyticalState: true,
+      authoritativeRepresentation: { decision: before.representationDecision },
+    });
+    expect(restorePresentation).toHaveBeenCalledOnce();
+    expect(historySeek).toHaveBeenCalledOnce();
+    expect(world.atlas.datasetFingerprint).toBe(before.datasetFingerprint);
+    expect(world.atlas.ledger).toEqual(before.eventLedger);
+    expect(world.atlas.results).toEqual(before.analysisResults);
+    expect(await world.atlas.computeDigest()).toBe(digestBefore);
   });
 });
