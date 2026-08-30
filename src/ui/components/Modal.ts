@@ -16,6 +16,33 @@ const SIZE_STYLES = {
   full: 'max-width: calc(100vw - 48px); width: calc(100vw - 48px);',
 } as const;
 
+const FOCUSABLE_SELECTOR =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+function isUsableFocusable(element: HTMLElement): boolean {
+  return !element.hasAttribute('disabled') && element.getAttribute('aria-disabled') !== 'true';
+}
+
+function focusableDescendants(root: ParentNode): HTMLElement[] {
+  const result: HTMLElement[] = [];
+  for (const candidate of Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))) {
+    if (isUsableFocusable(candidate)) result.push(candidate);
+  }
+
+  // Light-DOM modal content can contain custom controls whose actual focusable
+  // element lives in a shadow root (for example <nms-button>). Include those
+  // composed descendants so the focus trap covers the content callers see.
+  for (const host of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
+    if (!host.shadowRoot) continue;
+    for (const candidate of Array.from(
+      host.shadowRoot.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+    )) {
+      if (isUsableFocusable(candidate)) result.push(candidate);
+    }
+  }
+  return result;
+}
+
 export class Modal extends BaseComponent {
   static observedAttributes = ['open', 'title', 'size'];
 
@@ -28,23 +55,23 @@ export class Modal extends BaseComponent {
   private _previousFocus: HTMLElement | null = null;
   private _focusableElements: HTMLElement[] = [];
 
-  attributeChangedCallback(name: string, _old: string, value: string): void {
+  attributeChangedCallback(name: string, _old: string | null, value: string | null): void {
     switch (name) {
       case 'open':
-        this._open = value !== 'false';
+        this._open = value !== null && value !== 'false';
         break;
       case 'title':
-        this._title = value;
+        this._title = value ?? '';
         break;
       case 'size':
-        this._size = (value as 'sm' | 'md' | 'lg' | 'full') || 'md';
+        this._size = (value as 'sm' | 'md' | 'lg' | 'full' | null) ?? 'md';
         break;
     }
     this.render();
   }
 
   connectedCallback(): void {
-    this._open = this.hasAttribute('open');
+    this._open = this.hasAttribute('open') && this.getAttribute('open') !== 'false';
     this._title = this.getAttribute('title') || '';
     this._size = (this.getAttribute('size') as 'sm' | 'md' | 'lg' | 'full') || 'md';
     this._closeOnOverlayClick = this.getAttribute('close-on-overlay-click') !== 'false';
@@ -52,7 +79,7 @@ export class Modal extends BaseComponent {
     super.connectedCallback();
 
     document.addEventListener('keydown', this.handleKeyDown);
-    if (this._open) this.trapFocus();
+    if (this._open) queueMicrotask(() => this.trapFocus());
   }
 
   disconnectedCallback(): void {
@@ -72,20 +99,20 @@ export class Modal extends BaseComponent {
   }
 
   show(): void {
+    if (this._open) return;
+    this._previousFocus = document.activeElement as HTMLElement | null;
     this._open = true;
     this.setAttribute('open', '');
-    this._previousFocus = document.activeElement as HTMLElement;
     this.render();
-    this.trapFocus();
+    queueMicrotask(() => this.trapFocus());
   }
 
   hide(): void {
+    if (!this._open) return;
     this._open = false;
     this.removeAttribute('open');
     this.render();
-    if (this._previousFocus) {
-      this._previousFocus.focus();
-    }
+    this._previousFocus?.focus();
     this._onClose?.();
   }
 
@@ -102,10 +129,17 @@ export class Modal extends BaseComponent {
       return;
     }
 
-    if (e.key === 'Tab') {
-      this.handleTabKey(e);
-    }
+    if (e.key === 'Tab') this.handleTabKey(e);
   };
+
+  private activeFocusable(): Element | null {
+    const shadowActive = this.shadow.activeElement;
+    if (shadowActive?.shadowRoot?.activeElement) return shadowActive.shadowRoot.activeElement;
+    if (shadowActive) return shadowActive;
+    const documentActive = document.activeElement;
+    if (documentActive?.shadowRoot?.activeElement) return documentActive.shadowRoot.activeElement;
+    return documentActive;
+  }
 
   private handleTabKey(e: KeyboardEvent): void {
     this.updateFocusableElements();
@@ -113,41 +147,36 @@ export class Modal extends BaseComponent {
 
     const first = this._focusableElements[0];
     const last = this._focusableElements[this._focusableElements.length - 1];
+    const active = this.activeFocusable();
 
-    if (e.shiftKey) {
-      if (document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      }
-    } else {
-      if (document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
+    if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
     }
   }
 
   private updateFocusableElements(): void {
     const modal = this.shadow.querySelector('.modal-content');
-    if (!modal) return;
-    const elements = modal.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    this._focusableElements = Array.from(elements).filter(
-      (el): el is HTMLElement => !el.hasAttribute('disabled') && el.offsetParent !== null
-    );
+    if (!modal) {
+      this._focusableElements = [];
+      return;
+    }
+
+    const shadowFocusables = focusableDescendants(modal);
+    const lightFocusables = focusableDescendants(this);
+    this._focusableElements = [...shadowFocusables, ...lightFocusables];
   }
 
   private trapFocus(): void {
     this.updateFocusableElements();
-    if (this._focusableElements.length > 0) {
-      this._focusableElements[0].focus();
-    }
+    this._focusableElements[0]?.focus();
   }
 
   render(): void {
     this.shadow.innerHTML = '';
-
     if (!this._open) return;
 
     const style = this.createStyleSheet(`
@@ -188,6 +217,10 @@ export class Modal extends BaseComponent {
       @keyframes slideUp {
         from { opacity: 0; transform: translateY(16px); }
         to { opacity: 1; transform: translateY(0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .overlay, .modal-content { animation: none; }
+        .close-btn { transition: none; }
       }
       .header {
         display: flex;
@@ -238,14 +271,11 @@ export class Modal extends BaseComponent {
         gap: var(--nms-spacing-x12);
       }
     `);
-
     this.shadow.appendChild(style);
 
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
-    if (this._closeOnOverlayClick) {
-      overlay.addEventListener('click', () => this.hide());
-    }
+    if (this._closeOnOverlayClick) overlay.addEventListener('click', () => this.hide());
     this.shadow.appendChild(overlay);
 
     const modal = document.createElement('div');
@@ -256,7 +286,6 @@ export class Modal extends BaseComponent {
 
     const header = document.createElement('div');
     header.className = 'header';
-
     if (this._title) {
       const title = document.createElement('h2');
       title.id = 'modal-title';
@@ -271,13 +300,11 @@ export class Modal extends BaseComponent {
     closeBtn.setAttribute('aria-label', 'Close dialog');
     closeBtn.addEventListener('click', () => this.hide());
     header.appendChild(closeBtn);
-
     modal.appendChild(header);
 
     const body = document.createElement('div');
     body.className = 'body';
-    const bodySlot = document.createElement('slot');
-    body.appendChild(bodySlot);
+    body.appendChild(document.createElement('slot'));
     modal.appendChild(body);
 
     const footer = document.createElement('div');
@@ -295,8 +322,6 @@ export class Modal extends BaseComponent {
   }
 
   set isOpen(value: boolean) {
-    this._open = value;
-    this.toggleAttribute('open', value);
     if (value) this.show(); else this.hide();
   }
 
@@ -305,9 +330,7 @@ export class Modal extends BaseComponent {
   }
 
   set title(value: string) {
-    this._title = value;
     this.setAttribute('title', value);
-    this.render();
   }
 
   get size(): 'sm' | 'md' | 'lg' | 'full' {
@@ -315,9 +338,7 @@ export class Modal extends BaseComponent {
   }
 
   set size(value: 'sm' | 'md' | 'lg' | 'full') {
-    this._size = value;
     this.setAttribute('size', value);
-    this.render();
   }
 }
 
