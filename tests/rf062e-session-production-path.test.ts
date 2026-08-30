@@ -82,14 +82,20 @@ describe('RF-062E production session path', () => {
     await world.saveSession('rf062e');
     const before = world.session.serialize();
     const digestBefore = await world.atlas.computeDigest();
-    const loadDataset = vi.spyOn(world.loadDatasetUseCase, 'execute');
+    const executeDatasetLoad = vi.spyOn(world.loadDatasetUseCase, 'execute');
     const restorePresentation = vi.spyOn(world.presentationSnapshotPort, 'restore');
     const historySeek = vi.fn();
     world.eventBus.on(WorldTopics.HISTORY_SEEK, historySeek);
 
     await expect(world.loadSession('rf062e')).resolves.toBe(true);
 
-    expect(loadDataset).toHaveBeenCalledOnce();
+    expect(executeDatasetLoad).toHaveBeenCalledTimes(2);
+    expect(executeDatasetLoad.mock.calls[0][1]).toMatchObject({
+      preserveAnalyticalState: false,
+    });
+    expect(executeDatasetLoad.mock.calls[1][1]).toMatchObject({
+      preserveAnalyticalState: true,
+    });
     expect(restorePresentation).toHaveBeenCalledOnce();
     expect(historySeek).toHaveBeenCalledOnce();
     expect(world.atlas.datasetFingerprint).toBe(before.datasetFingerprint);
