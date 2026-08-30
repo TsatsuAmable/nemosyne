@@ -15,20 +15,12 @@ import { rowsToDataset } from '../../data/connectors/normalize.ts';
 import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
 import type { TopologyType } from '../../data/types.ts';
 import type { LiveUpdate } from '../../data/connectors/DataConnector.ts';
-import type { ArtifactRef, WorldUIManagerLike } from './types.ts';
+import type { DatasetLoadEntry } from './types.ts';
 
 export interface LiveStreamOptions {
   topology?: string;
   mode?: 'window' | 'replace' | string;
   windowSize?: number;
-}
-
-export interface LiveTopologyNode {
-  artifact?: ArtifactRef | null;
-  appendRows?(
-    rows: Record<string, unknown>[],
-    options?: { mode?: string; limit?: number | null }
-  ): boolean;
 }
 
 export interface LiveConnectorLike {
@@ -41,15 +33,28 @@ export interface LiveConnectorLike {
   onStatus(fn: (status: string, detail?: string) => void): () => void;
 }
 
-export interface LiveStreamHost {
-  dracoNode?: LiveTopologyNode | null;
-  currentEntry?: { name?: string; [key: string]: unknown } | null;
-  loadDataset(entry: unknown): void;
-  uiManager?: Pick<WorldUIManagerLike, 'vrConsole' | 'vrMenu'>;
+/** Application-owned sink for the authoritative live dataset transition. */
+export interface LiveDatasetSink {
+  appendRows(
+    rows: Record<string, unknown>[],
+    options: { mode: 'append'; limit: number }
+  ): boolean;
+  loadDataset(entry: DatasetLoadEntry): void;
+}
+
+/** Presentation-neutral status outcome published by the live transport. */
+export interface LiveStreamStatusSink {
+  publish(status: string, detail: string | undefined, connected: boolean): void;
+}
+
+export interface LiveStreamCoordinatorOptions {
+  dataset: LiveDatasetSink;
+  status: LiveStreamStatusSink;
 }
 
 export class LiveStreamCoordinator {
-  world: LiveStreamHost;
+  private readonly dataset: LiveDatasetSink;
+  private readonly status: LiveStreamStatusSink;
 
   liveConnector: LiveConnectorLike | null;
   liveRows: Record<string, unknown>[];
@@ -59,8 +64,9 @@ export class LiveStreamCoordinator {
   private _liveUpdateUnsub: (() => void) | null;
   private _liveStatusUnsub: (() => void) | null;
 
-  constructor({ world }: { world: LiveStreamHost }) {
-    this.world = world;
+  constructor({ dataset, status }: LiveStreamCoordinatorOptions) {
+    this.dataset = dataset;
+    this.status = status;
 
     this.liveConnector = null;
     this.liveRows = [];
@@ -179,15 +185,7 @@ export class LiveStreamCoordinator {
     );
     this._liveStatusUnsub = this.liveConnector!.onStatus((status: string, detail?: string) => {
       console.warn(`[LiveStreamCoordinator] live stream ${status}`, detail || '');
-      this.world.uiManager?.vrMenu?.setLiveConnected?.(
-        this.liveConnector?.isConnected?.() ?? false
-      );
-      if (status === 'connected')
-        this.world.uiManager?.vrConsole?.log?.('log', ['Live stream connected']);
-      if (status === 'disconnected')
-        this.world.uiManager?.vrConsole?.log?.('log', ['Live stream disconnected']);
-      if (status === 'error')
-        this.world.uiManager?.vrConsole?.warn?.('warn', [`Live stream error: ${detail}`]);
+      this.status.publish(status, detail, this.liveConnector?.isConnected?.() ?? false);
     });
   }
 
@@ -244,13 +242,8 @@ export class LiveStreamCoordinator {
     const topology = (this.liveConnector?.topology || TopologyTypes.TIME_SERIES) as TopologyType;
 
     // Try incremental append for time-series if the current dataset matches.
-    if (
-      topology === TopologyTypes.TIME_SERIES &&
-      this.world.dracoNode &&
-      this.world.currentEntry?.name === 'Live Stream' &&
-      this._pendingRows.length > 0
-    ) {
-      const incremental = this.world.dracoNode.appendRows?.(this._pendingRows, {
+    if (topology === TopologyTypes.TIME_SERIES && this._pendingRows.length > 0) {
+      const incremental = this.dataset.appendRows(this._pendingRows, {
         mode: 'append',
         limit: this.liveConnector?.windowSize ?? 50,
       });
@@ -262,7 +255,7 @@ export class LiveStreamCoordinator {
 
     // Fallback: full re-solve.
     const dataset = rowsToDataset(this.liveRows, 'Live Stream');
-    this.world.loadDataset({
+    this.dataset.loadDataset({
       name: 'Live Stream',
       topology,
       dataset,

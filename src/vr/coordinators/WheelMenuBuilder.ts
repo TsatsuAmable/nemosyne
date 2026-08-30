@@ -386,8 +386,8 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
       items: [
         {
           id: 'collab-toggle',
-          label: world.collaborationCoordinator.isConnected() ? 'Leave' : 'Join',
-          icon: world.collaborationCoordinator.isConnected() ? '🚪' : '🔗',
+          label: 'Join / Leave',
+          icon: '🔗',
           callback: () =>
             world.collaborationCoordinator.isConnected()
               ? world._leaveCollaborationRoom()
@@ -747,8 +747,8 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
       items: [
         {
           id: 'collab-toggle',
-          label: world.collaborationCoordinator.isConnected() ? 'Leave Room' : 'Join Room',
-          icon: world.collaborationCoordinator.isConnected() ? '🚪' : '🔗',
+          label: 'Join / Leave Room',
+          icon: '🔗',
           callback: () =>
             world.collaborationCoordinator.isConnected()
               ? world._leaveCollaborationRoom()
