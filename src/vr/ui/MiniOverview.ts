@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 
 export interface MiniOverviewOptions {
   title?: string;
@@ -149,16 +150,16 @@ export class MiniOverview {
     const r = this.resolution;
 
     // Background.
-    ctx.fillStyle = 'rgba(4, 12, 24, 0.92)';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.space.void) + 'EB';
     ctx.fillRect(0, 0, r, r);
 
     // Border.
-    ctx.strokeStyle = '#00ffcc';
+    ctx.strokeStyle = cssHex(COLOR_TOKENS.interaction.focus);
     ctx.lineWidth = 4;
     ctx.strokeRect(2, 2, r - 4, r - 4);
 
     // Title.
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
     ctx.font = `bold ${Math.floor(r * 0.06)}px monospace`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
@@ -168,7 +169,7 @@ export class MiniOverview {
     ctx.font = `${Math.floor(r * 0.05)}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#88ffcc';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
     ctx.fillText('N', r / 2, r * 0.08);
     ctx.fillText('S', r / 2, r * 0.92);
     ctx.fillText('E', r * 0.92, r / 2);
@@ -181,7 +182,7 @@ export class MiniOverview {
       const p = this._worldToCanvas(this._nodePos.x, this._nodePos.z);
       ctx.beginPath();
       ctx.arc(p.x, p.y, Math.max(2, r * 0.01), 0, Math.PI * 2);
-      ctx.fillStyle = '#00ccff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
       ctx.fill();
     }
 
@@ -202,16 +203,16 @@ export class MiniOverview {
     ctx.lineTo(cp.x + Math.cos(leftAngle) * coneLen, cp.y - Math.sin(leftAngle) * coneLen);
     ctx.arc(cp.x, cp.y, coneLen, -leftAngle, -rightAngle, true);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(255, 204, 0, 0.25)';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.epistemic.uncertain) + '40';
     ctx.fill();
-    ctx.strokeStyle = '#ffcc00';
+    ctx.strokeStyle = cssHex(COLOR_TOKENS.epistemic.uncertain);
     ctx.lineWidth = 2;
     ctx.stroke();
 
     // Camera marker.
     ctx.beginPath();
     ctx.arc(cp.x, cp.y, r * 0.02, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffcc00';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.epistemic.uncertain);
     ctx.fill();
   }
 

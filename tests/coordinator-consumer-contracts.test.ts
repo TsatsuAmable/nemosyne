@@ -21,17 +21,19 @@ const contracts = [
   },
   {
     file: 'CollaborationCoordinator.ts',
-    name: 'CollaborationHost',
+    name: 'CollaborationPresencePort',
     members: [
-      '_buildWheelMenu',
-      '_logInteraction',
       'annotationManager',
-      'currentEntry',
-      'engine',
+      'camera',
+      'cameraGroup',
+      'getDatasetLabel',
       'scene',
-      'telemetryCollector',
-      'uiManager',
     ],
+  },
+  {
+    file: 'CollaborationCoordinator.ts',
+    name: 'CollaborationPresentationPort',
+    members: ['getSettings', 'log', 'recordInteraction', 'recordTelemetry', 'setStatus'],
   },
   {
     file: 'GuidedTourController.ts',
@@ -48,8 +50,13 @@ const contracts = [
   },
   {
     file: 'LiveStreamCoordinator.ts',
-    name: 'LiveStreamHost',
-    members: ['currentEntry', 'dracoNode', 'loadDataset', 'uiManager'],
+    name: 'LiveDatasetSink',
+    members: ['appendRows', 'loadDataset'],
+  },
+  {
+    file: 'LiveStreamCoordinator.ts',
+    name: 'LiveStreamStatusSink',
+    members: ['publish'],
   },
   {
     file: 'WheelMenuBuilder.ts',
@@ -97,31 +104,43 @@ const contracts = [
   },
   {
     file: 'WorldLandmarkController.ts',
-    name: 'WorldLandmarkHost',
+    name: 'LandmarkTargets',
+    members: ['core', 'datum', 'iceVault', 'portalA', 'portalB'],
+  },
+  {
+    file: 'WorldLandmarkController.ts',
+    name: 'LandmarkRegistryPort',
+    members: ['registerInteractable', 'registerTooltipTarget'],
+  },
+  {
+    file: 'WorldLandmarkController.ts',
+    name: 'LandmarkApplicationPort',
     members: [
-      '_captureSession',
-      '_logInteraction',
-      '_setStatisticalLensVisible',
-      '_statisticalLensEnabled',
-      '_toggleVaultPanel',
-      'applyDataOperation',
-      'core',
-      'datum',
-      'engine',
-      'iceVault',
-      'portalA',
-      'portalB',
-      'resetDataOperation',
-      'tooltipManager',
-      'uiManager',
+      'captureSession',
+      'dispatchIntent',
+      'openVault',
+      'recordInteraction',
+      'setStatisticalLensVisible',
     ],
+  },
+  {
+    file: 'WorldLandmarkController.ts',
+    name: 'LandmarkFeedbackPort',
+    members: ['log', 'playCoreTone', 'playHaptic'],
   },
 ] as const;
 
 const ownedContracts = [
   {
     file: 'CollaborationCoordinator.ts',
-    names: ['CollaborationHost', 'NetworkEvent', 'NetworkManagerLike'],
+    names: [
+      'CollaborationCoordinatorOptions',
+      'CollaborationPresencePort',
+      'CollaborationPresentationPort',
+      'CollaborationStatus',
+      'NetworkEvent',
+      'NetworkManagerLike',
+    ],
   },
   {
     file: 'ComfortSettingsController.ts',
@@ -133,7 +152,23 @@ const ownedContracts = [
   },
   {
     file: 'LiveStreamCoordinator.ts',
-    names: ['LiveConnectorLike', 'LiveStreamHost', 'LiveStreamOptions', 'LiveTopologyNode'],
+    names: [
+      'LiveConnectorLike',
+      'LiveDatasetSink',
+      'LiveStreamCoordinatorOptions',
+      'LiveStreamOptions',
+      'LiveStreamStatusSink',
+    ],
+  },
+  {
+    file: 'WorldLandmarkController.ts',
+    names: [
+      'LandmarkApplicationPort',
+      'LandmarkFeedbackPort',
+      'LandmarkRegistryPort',
+      'LandmarkTargets',
+      'WorldLandmarkControllerOptions',
+    ],
   },
   {
     file: 'UserModeController.ts',
@@ -212,13 +247,23 @@ describe('coordinator consumer contracts', () => {
       /buildAnalysisStory\(world: AnalysisStoryHost\)/
     );
     expect(source('CollaborationCoordinator.ts')).toMatch(
-      /constructor\(\{ world \}: \{ world: CollaborationHost \}\)/
+      /constructor\(\{ presence, presentation \}: CollaborationCoordinatorOptions\)/
     );
     expect(source('GuidedTourController.ts')).toMatch(/constructor\(world: GuidedTourHost\)/);
     expect(source('LiveStreamCoordinator.ts')).toMatch(
-      /constructor\(\{ world \}: \{ world: LiveStreamHost \}\)/
+      /constructor\(\{ dataset, status \}: LiveStreamCoordinatorOptions\)/
     );
-    expect(source('WorldLandmarkController.ts')).toMatch(/constructor\(world: WorldLandmarkHost\)/);
+    expect(source('WorldLandmarkController.ts')).toMatch(
+      /constructor\(\{ targets, registry, application, feedback \}: WorldLandmarkControllerOptions\)/
+    );
+    for (const file of [
+      'CollaborationCoordinator.ts',
+      'LiveStreamCoordinator.ts',
+      'WorldLandmarkController.ts',
+    ]) {
+      expect(source(file), file).not.toMatch(/\b(?:Collaboration|LiveStream|WorldLandmark)Host\b/);
+      expect(source(file), file).not.toMatch(/\b(?:this\.)?_world\b|\bthis\.world\b/);
+    }
     expect(source('WorldSessionController.ts')).toMatch(
       /constructor\(options: WorldSessionControllerOptions\)/
     );

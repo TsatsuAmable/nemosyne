@@ -66,6 +66,7 @@ import { MarkMomentAction } from './interactions/MarkMomentAction.ts';
 import type { Observation } from '../atlas/types.ts';
 import {
   parseApplicationAnalysisOperation,
+  type ApplicationIntent,
   type ApplicationIntentDispatcher,
 } from '../app/intents/ApplicationIntent.ts';
 import { GuidedTourController } from './coordinators/GuidedTourController.ts';
@@ -604,7 +605,40 @@ export class World {
 
     // Register functional landmarks as interactables: core cycles the lens hub,
     // portals are triggered by walking through them.
-    this.landmarkController = new WorldLandmarkController(this);
+    this.landmarkController = new WorldLandmarkController({
+      targets: {
+        core: this.core,
+        datum: this.datum,
+        iceVault: this.iceVault,
+        portalA: this.portalA,
+        portalB: this.portalB,
+      },
+      registry: {
+        registerTooltipTarget: (target) => this.tooltipManager.registerTarget(target),
+        registerInteractable: (target, onSelect) =>
+          this.engine.addInteractable(target, {
+            onEnter: () => {},
+            onLeave: () => {},
+            onSelect,
+          }),
+      },
+      application: {
+        dispatchIntent: (intent) => this._dispatchApplicationIntent(intent),
+        openVault: () => this._toggleVaultPanel(),
+        setStatisticalLensVisible: (visible) => {
+          this._statisticalLensEnabled = visible;
+          this._setStatisticalLensVisible(visible);
+        },
+        recordInteraction: (action, details) => this._logInteraction(action, details),
+        captureSession: () => this._captureSession(),
+      },
+      feedback: {
+        log: (message) => this.uiManager.vrConsole?.log?.('log', [message]),
+        playCoreTone: (mode) => this.engine.input.feedback?.playCoreTone?.(mode),
+        playHaptic: (strength, durationMs) =>
+          this.engine.input.feedback?.playHaptic?.(strength, durationMs),
+      },
+    });
     this.landmarkController.registerLandmarkInteractions();
 
     // Per-frame hook: portal trigger checks and core activity sync.
@@ -622,8 +656,44 @@ export class World {
     this._wasmUnavailable = false;
 
     // Live-streaming and collaboration state.
-    this.liveStreamCoordinator = new LiveStreamCoordinator({ world: this });
-    this.collaborationCoordinator = new CollaborationCoordinator({ world: this });
+    this.liveStreamCoordinator = new LiveStreamCoordinator({
+      dataset: {
+        appendRows: (rows, options) => {
+          if (!this.dracoNode || this.currentEntry?.name !== 'Live Stream') return false;
+          return this.dracoNode.appendRows?.(rows, options) ?? false;
+        },
+        loadDataset: (entry) => this.loadDataset(entry),
+      },
+      status: {
+        publish: (status, detail, connected) => {
+          this.uiManager.vrMenu?.setLiveConnected?.(connected);
+          if (status === 'connected') {
+            this.uiManager.vrConsole?.log?.('log', ['Live stream connected']);
+          } else if (status === 'disconnected') {
+            this.uiManager.vrConsole?.log?.('log', ['Live stream disconnected']);
+          } else if (status === 'error') {
+            this.uiManager.vrConsole?.log?.('warn', [`Live stream error: ${detail}`]);
+          }
+        },
+      },
+    });
+    this.collaborationCoordinator = new CollaborationCoordinator({
+      presence: {
+        scene: this.engine.scene,
+        camera: this.engine.camera,
+        cameraGroup: this.engine.cameraGroup,
+        annotationManager: null,
+        getDatasetLabel: () => this.currentEntry?.name ?? this.currentEntry?.label ?? '-',
+      },
+      presentation: {
+        getSettings: () => this.uiManager.settingsPanel?.getAllSettings?.() ?? {},
+        setStatus: (status) => this.uiManager.networkPanel?.setStatus?.(status),
+        log: (message) => this.uiManager.vrConsole?.log?.('log', [message]),
+        recordInteraction: (action, details) => this._logInteraction(action, details),
+        recordTelemetry: (operation) =>
+          this.telemetryCollector?.recordOperation?.(operation),
+      },
+    });
 
     this._buildWheelMenu();
 
@@ -2438,6 +2508,28 @@ export class World {
     this._dispatchAnalysis(operation);
   }
 
+  _dispatchApplicationIntent(intent: ApplicationIntent): void | Promise<void> {
+    if (this.dispatchIntent) return this.dispatchIntent(intent);
+    switch (intent.type) {
+      case 'dataset.cycle':
+        return this._cycleDataset(intent.step);
+      case 'analysis.apply':
+        return this.dataOperationController.apply(intent.operation);
+      case 'analysis.reset':
+        return this.resetDataOperation();
+      case 'history.undo':
+        return this.undoAnalysis();
+      case 'history.redo':
+        return this.redoAnalysis();
+      case 'workspace.toggleStatisticalLens':
+        return this._toggleStatisticalLens();
+      default: {
+        const exhaustive: never = intent;
+        throw new Error(`Unsupported application intent: ${JSON.stringify(exhaustive)}`);
+      }
+    }
+  }
+
   /**
    * Single-command-authority funnel: when the bootstrap has injected the
    * canonical `ApplicationIntentDispatcher`, mutating operations dispatch
@@ -2523,7 +2615,7 @@ export class World {
     await run(() => this.questBoundaryProbe?.dispose());
     await run(() => this.sessionController?.dispose?.());
     await run(() => this.liveStreamCoordinator?.disconnectLiveStream?.());
-    await run(() => this.collaborationCoordinator?.leaveCollaborationRoom?.());
+    await run(() => this.collaborationCoordinator?.dispose?.());
     await run(() => this.telemetryCollector?.setEnabled?.(false));
     await run(() => this.derivedAnalysisPipeline?.dispose());
     await run(() => this.rendererLifecycle?.dispose());

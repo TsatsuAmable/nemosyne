@@ -149,22 +149,23 @@ describe('Sprint 22.5 Collaboration Embodied Presence', () => {
       const cameraGroup = new THREE.Group();
       cameraGroup.position.set(0, 1.6, 0);
 
-      const mockWorld = {
-        scene,
-        engine: {
+      const presentation = {
+        getSettings: () => ({ collabRoom: 'test-room', collabName: 'Analyst' }),
+        setStatus: vi.fn(),
+        log: vi.fn(),
+        recordInteraction: vi.fn(),
+        recordTelemetry: vi.fn(),
+      };
+      const coordinator = new CollaborationCoordinator({
+        presence: {
+          scene,
           camera,
           cameraGroup,
+          annotationManager: null,
+          getDatasetLabel: () => 'fixture',
         },
-        uiManager: {
-          networkPanel: { setStatus: vi.fn() },
-          vrConsole: { log: vi.fn() },
-          settingsPanel: { getAllSettings: () => ({ collabRoom: 'test-room', collabName: 'Analyst' }) },
-        },
-        _logInteraction: vi.fn(),
-        _buildWheelMenu: vi.fn(),
-      };
-
-      const coordinator = new CollaborationCoordinator({ world: mockWorld });
+        presentation,
+      });
       expect(coordinator.peerAvatarManager).toBeNull();
       expect(coordinator.desktopCompanion).toBeNull();
 
@@ -214,12 +215,55 @@ describe('Sprint 22.5 Collaboration Embodied Presence', () => {
 
       // Test kick peer
       coordinator.kickPeer('peer-remote');
-      expect(mockWorld._logInteraction).toHaveBeenCalledWith('Kick peer', { result: 'peer-remote' });
+      expect(presentation.recordInteraction).toHaveBeenCalledWith('Kick peer', {
+        result: 'peer-remote',
+      });
 
       // Leave room
       coordinator.leaveCollaborationRoom();
       expect(coordinator.peerAvatarManager).toBeNull();
+      expect(coordinator.desktopCompanion).toBeNull();
       expect(coordinator.isConnected()).toBe(false);
+    });
+
+    it('fences late network events and releases owned resources after disposal', async () => {
+      let resolveConnect!: () => void;
+      const connectGate = new Promise<void>((resolve) => {
+        resolveConnect = resolve;
+      });
+      vi.spyOn(NetworkManager.prototype, 'connect').mockReturnValue(connectGate);
+      const presentation = {
+        getSettings: () => ({ collabRoom: 'late-room', collabName: 'Analyst' }),
+        setStatus: vi.fn(),
+        log: vi.fn(),
+        recordInteraction: vi.fn(),
+        recordTelemetry: vi.fn(),
+      };
+      const coordinator = new CollaborationCoordinator({
+        presence: {
+          scene: new THREE.Scene(),
+          camera: new THREE.PerspectiveCamera(),
+          cameraGroup: new THREE.Group(),
+          annotationManager: null,
+          getDatasetLabel: () => 'fixture',
+        },
+        presentation,
+      });
+
+      const pending = coordinator.joinCollaborationRoom('late-room');
+      const networkManager = coordinator.networkManager as unknown as NetworkManager;
+      coordinator.dispose();
+      presentation.setStatus.mockClear();
+      networkManager.dispatchEvent(
+        new CustomEvent('connected', { detail: { roomId: 'late-room' } })
+      );
+      resolveConnect();
+      await pending;
+
+      expect(presentation.setStatus).not.toHaveBeenCalled();
+      expect(coordinator.networkManager).toBeNull();
+      expect(coordinator.peerAvatarManager).toBeNull();
+      expect(coordinator.desktopCompanion).toBeNull();
     });
   });
 });

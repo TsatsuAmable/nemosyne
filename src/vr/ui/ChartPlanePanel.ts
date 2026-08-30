@@ -9,6 +9,7 @@
 
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import { ChartPlane, ChartType, type ChartKind } from '../artifacts/ChartPlane.ts';
 import type { Dataset } from '../../data/Dataset.ts';
 import type { AccessibilityOptions, MovablePanelOptions } from '../coordinators/types.ts';
@@ -106,7 +107,7 @@ export class ChartPlanePanel extends MovablePanel {
     } else {
       // Fallback for test environments that mock the 2D context.
       ctx.font = 'bold 20px monospace';
-      ctx.fillStyle = '#00ffcc';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
       ctx.textAlign = 'center';
       ctx.fillText(this.chartPlane.title, w / 2, contentH / 2);
     }

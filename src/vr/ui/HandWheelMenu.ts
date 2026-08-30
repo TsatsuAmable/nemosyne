@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SpatialAssetRegistry } from './SpatialAssetRegistry.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import type {
   AccessibilityOptions,
   FeedbackLike,
@@ -12,21 +12,11 @@ import type {
 /**
  * Meta Quest-native two-level constellation radial menu.
  *
- * Inspired by Google VR's Constellation Menu and Starblood Arena's circular HUD:
- * an inner ring holds categories, and an outer ring shows actions for the
- * hovered or selected category. A visual path (connector lines) links the
- * category node to its actions so users build spatial muscle memory.
- *
- * The wheel is anchored to the body (cameraGroup or an explicit analyst
- * anchor) rather than the wrist so it stays stable while the menu hand moves.
- * It faces the camera each frame. Segments are hit-tested by the InputRouter
- * using the other hand's pointer ray. Selecting an action fires its callback
- * and closes the wheel.
- *
- * Backward compatibility: setActions(flatList) is auto-wrapped into a single
- * "Actions" category so existing callers continue to work.
+ * An inner ring holds categories and an outer ring shows actions for the
+ * hovered or selected category. Category identity comes from stable position,
+ * label and icon; colour is deliberately restrained to the canonical focus
+ * accent so the menu does not compete with the data field.
  */
-
 interface HandWheelMenuEngine {
   camera?: THREE.Camera;
   cameraGroup?: THREE.Group;
@@ -59,7 +49,8 @@ export class HandWheelMenu {
   engine: HandWheelMenuEngine;
   hand: HandLike;
   group: THREE.Group;
-  hub: THREE.Group;
+  hub: THREE.Mesh;
+  glowRing: THREE.Mesh | null = null;
   offset: THREE.Vector3;
 
   categoryRadius: number;
@@ -101,9 +92,24 @@ export class HandWheelMenu {
     this.group = new THREE.Group();
     this.group.visible = false;
 
-    // Attach 3D central constellation dial hub
-    this.hub = SpatialAssetRegistry.getInstance().createHandWheelHub();
+    // Small functional hub only. Decorative housing/status LEDs are intentionally absent.
+    const hubGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.015, 32);
+    hubGeo.rotateX(Math.PI / 2);
+    const hubMat = new THREE.MeshStandardMaterial({
+      color: COLOR_TOKENS.surface.raised,
+      metalness: 0.55,
+      roughness: 0.5,
+    });
+    this.hub = new THREE.Mesh(hubGeo, hubMat);
+    this.hub.name = 'Hub_Core';
     this.group.add(this.hub);
+
+    const ringGeo = new THREE.TorusGeometry(0.045 * 0.85, 0.003, 8, 32);
+    const glowMat = new THREE.MeshBasicMaterial({ color: COLOR_TOKENS.interaction.focus });
+    this.glowRing = new THREE.Mesh(ringGeo, glowMat);
+    this.glowRing.name = 'Hub_Focus_Ring';
+    this.glowRing.position.z = 0.015 * 0.5 + 0.001;
+    this.group.add(this.glowRing);
 
     if (options.anchorToHand && hand?.group) {
       hand.group.add(this.group);
@@ -128,9 +134,7 @@ export class HandWheelMenu {
     this.actionRadius = options.actionRadius ?? 0.22;
     this.nodeSize = options.nodeSize ?? 0.065;
     this.actionSpread = options.actionSpread ?? Math.PI / 2.2;
-
     this.hoverDelayMs = options.hoverDelayMs ?? 0;
-
     this.feedback = options.feedback ?? engine?.input?.feedback ?? null;
 
     this._cameraPos = new THREE.Vector3();
@@ -149,10 +153,8 @@ export class HandWheelMenu {
     this.hoveredCategory = null;
     this.hoveredAction = null;
     this._lastHovered = { category: null, action: null };
-
     this._categoryMaterials = [];
     this._actionMaterials = [];
-
     this.textScale = 1;
     this.highContrast = false;
     this.colorblindMode = 'none';
@@ -203,16 +205,10 @@ export class HandWheelMenu {
     }
   }
 
-  /**
-   * Backward-compatible flat action list. Wrapped into one category.
-   */
   setActions(actions: WheelMenuAction[]): void {
     this.setMenu([{ id: 'actions', label: 'Actions', items: actions.slice() }]);
   }
 
-  /**
-   * Define the two-level menu.
-   */
   setMenu(categories: WheelMenuCategory[]): void {
     this._clearMenu();
     this._categories = categories.slice();
@@ -229,9 +225,7 @@ export class HandWheelMenu {
   toggle(): void {
     const now =
       typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-    if (now - this._lastToggleTime < this._toggleCooldownMs) {
-      return;
-    }
+    if (now - this._lastToggleTime < this._toggleCooldownMs) return;
     this._lastToggleTime = now;
 
     const wasVisible = this.group.visible;
@@ -281,75 +275,41 @@ export class HandWheelMenu {
     this._previousHoveredAction = null;
   }
 
-  /**
-   * Called by the engine each frame. Keeps the wheel facing the user's head
-   * and updates hover visual feedback.
-   */
   update(_delta?: number, _time?: number): void {
-    if (!this.group.visible) return;
-    if (!this.engine?.camera) return;
-
+    if (!this.group.visible || !this.engine?.camera) return;
     this.engine.camera.getWorldPosition(this._cameraPos);
     this.group.lookAt(this._cameraPos);
-
     this._updateHover();
     this._updateVisibility();
   }
 
-  /**
-   * Panel-compatible press handler.
-   */
   handlePointerDown(raycaster: THREE.Raycaster, _pointer: PointerLike): string | null {
-    if (!this.group.visible) return null;
-    if (this._allMeshes.length === 0) return null;
-
+    if (!this.group.visible || this._allMeshes.length === 0) return null;
     this.group.updateMatrixWorld(true);
     const hits = raycaster.intersectObjects(this._allMeshes, false);
     if (hits.length === 0) return null;
-
-    // Hit detected, capture the pointer for direct-touch interaction
     return 'direct-touch';
   }
 
-  /**
-   * Panel-compatible move handler.
-   */
   handlePointerMove(_raycaster: THREE.Raycaster, _pointer: PointerLike): void {
-    if (!this.group.visible) return;
-    this._updateHover();
+    if (this.group.visible) this._updateHover();
   }
 
-  /**
-   * Panel-compatible release handler.
-   */
   handlePointerUp(raycaster: THREE.Raycaster, _pointer: PointerLike): void {
-    if (!this.group.visible) return;
-    this.handlePointerClick(raycaster);
+    if (this.group.visible) this.handlePointerClick(raycaster);
   }
 
-  /**
-   * HUD-compatible click handler used by InputRouter. Ray is in world space.
-   * Returns true if a category or action was hit.
-   */
   handlePointerClick(raycaster: THREE.Raycaster): boolean {
-    if (!this.group.visible) return false;
-
-    if (this._allMeshes.length === 0) return false;
-
+    if (!this.group.visible || this._allMeshes.length === 0) return false;
     this.group.updateMatrixWorld(true);
     const hits = raycaster.intersectObjects(this._allMeshes, false);
     if (hits.length === 0) return false;
 
     const hit = hits[0].object as THREE.Mesh;
     const kind = hit.userData.kind;
-
     if (kind === 'category') {
       const catId: string = hit.userData.categoryId;
-      if (this.selectedCategory === catId) {
-        this.selectedCategory = null;
-      } else {
-        this.selectedCategory = catId;
-      }
+      this.selectedCategory = this.selectedCategory === catId ? null : catId;
       this.hoveredCategory = catId;
       return true;
     }
@@ -365,12 +325,11 @@ export class HandWheelMenu {
         const name = action.label || action.id || 'menu-action';
         this.engine.telemetry?.recordMenuAction?.(name);
         this.feedback?.playSelect?.();
-        if (action.callback) action.callback();
+        action.callback?.();
       }
       this.hide();
       return true;
     }
-
     return false;
   }
 
@@ -384,33 +343,28 @@ export class HandWheelMenu {
   private _buildCategories(): void {
     const count = this._categories.length;
     if (count === 0) return;
-
-    const palette = [0x00ffcc, 0xff00cc, 0xccff00, 0x00ccff, 0xffcc00, 0xcc00ff];
     const half = Math.ceil(count / 2);
+    const accent = COLOR_TOKENS.interaction.focus;
 
     for (let i = 0; i < count; i++) {
       const cat = this._categories[i];
       const isLeft = i < half;
       const colIndex = isLeft ? i : i - half;
       const colTotal = isLeft ? half : count - half;
-
-      // Vertical position calculation: centered vertically around y = 0
       const posX = isLeft ? -0.36 : 0.36;
       const posY = (colTotal > 1 ? colIndex - (colTotal - 1) / 2 : 0) * 0.085;
 
-      const colorHex = palette[i % palette.length];
       const material = new THREE.MeshBasicMaterial({
-        color: colorHex,
+        color: accent,
         transparent: true,
         opacity: 0.9,
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false,
-        map: this._createLabelTexture(cat, colorHex),
+        map: this._createLabelTexture(cat, accent),
       });
       this._categoryMaterials.push(material);
 
-      // Wide rectangular pill geometry for clear, unbunched text
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.075), material);
       mesh.position.set(posX, posY, 0);
       mesh.userData.kind = 'category';
@@ -425,22 +379,22 @@ export class HandWheelMenu {
   }
 
   private _buildActions(): void {
+    const accent = COLOR_TOKENS.interaction.focus;
     for (const cat of this._categories) {
       if (!cat.items?.length) continue;
       for (let i = 0; i < cat.items.length; i++) {
         const action = cat.items[i];
         const material = new THREE.MeshBasicMaterial({
-          color: 0x00ffcc,
+          color: accent,
           transparent: true,
           opacity: 0.9,
           side: THREE.DoubleSide,
           depthTest: false,
           depthWrite: false,
-          map: this._createLabelTexture(action, 0x00ffcc),
+          map: this._createLabelTexture(action, accent),
         });
         this._actionMaterials.push(material);
 
-        // Wide action pill geometry
         const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.065), material);
         mesh.userData.kind = 'action';
         mesh.userData.categoryId = cat.id;
@@ -461,9 +415,9 @@ export class HandWheelMenu {
     }
     if (!this._connectorMaterial) {
       this._connectorMaterial = new THREE.LineBasicMaterial({
-        color: 0x00ffcc,
+        color: COLOR_TOKENS.interaction.focus,
         transparent: true,
-        opacity: 0.6,
+        opacity: 0.45,
         linewidth: 2,
         depthTest: false,
         depthWrite: false,
@@ -478,14 +432,6 @@ export class HandWheelMenu {
   }
 
   _updateHover(): void {
-    // Raycast in the menu's local space for stable hit testing. The ray is
-    // sourced from the active pointer (controller/hand ray via
-    // `engine.input.pointers.getBestPointerRay()`) — the same ray used for click
-    // selection — so the highlighted item is the one a pinch will actually
-    // activate. Previously this used head gaze, so the highlight could sit on a
-    // different item than the pointer-select (misselection). When no pointer is
-    // active, no hit is recorded and `hoveredCategory` falls back to the selected
-    // category (see below), keeping that category's actions visible.
     if (!this.group || !this.engine || !this.engine.camera) return;
     this.group.updateMatrixWorld();
     const ray = this.engine.input?.pointers?.getBestPointerRay?.();
@@ -522,15 +468,11 @@ export class HandWheelMenu {
 
     const elapsed = now - this._hoverStart.at;
     const hoverConfirmed = hitCategory != null && elapsed >= this.hoverDelayMs;
-
     this.hoveredCategory = hitCategory ?? this.selectedCategory;
     this.hoveredAction = hoverConfirmed ? hitAction : null;
 
-    if (hoverConfirmed && (hitCategory || hitAction)) {
-      this.feedback?.playHover?.();
-    }
+    if (hoverConfirmed && (hitCategory || hitAction)) this.feedback?.playHover?.();
 
-    // Fire optional item hover/leave callbacks when the confirmed action changes.
     const prevAction = this._previousHoveredAction;
     const nextAction = this.hoveredAction
       ? this._findAction(this.hoveredAction.categoryId, this.hoveredAction.index)
@@ -553,10 +495,8 @@ export class HandWheelMenu {
       this._previousHoveredAction = nextAction;
     }
 
-    // Apply hover scale/opacity to all meshes.
     for (const mesh of this._categoryMeshes) {
-      const isHover = mesh.userData.categoryId === this.hoveredCategory;
-      this._applyHover(mesh, isHover);
+      this._applyHover(mesh, mesh.userData.categoryId === this.hoveredCategory);
     }
     for (const mesh of this._actionMeshes) {
       const isHover =
@@ -576,17 +516,12 @@ export class HandWheelMenu {
 
   _updateVisibility(): void {
     const activeCategory = this.hoveredCategory || this.selectedCategory;
-
-    for (const mesh of this._categoryMeshes) {
-      mesh.visible = true;
-    }
+    for (const mesh of this._categoryMeshes) mesh.visible = true;
 
     for (const mesh of this._actionMeshes) {
       const isActive = mesh.userData.categoryId === activeCategory;
       mesh.visible = isActive;
-      if (isActive) {
-        this._positionActionMesh(mesh);
-      }
+      if (isActive) this._positionActionMesh(mesh);
     }
 
     if (activeCategory && this._connectorLines) {
@@ -607,11 +542,8 @@ export class HandWheelMenu {
     const items = this._categories.find((c) => c.id === mesh.userData.categoryId)?.items ?? [];
     const count = items.length;
     const index: number = mesh.userData.actionIndex;
-
-    // Expand action pills horizontally outward (left to the left, right to the right)
-    const offsetX = isLeft ? -0.25 : +0.25;
+    const offsetX = isLeft ? -0.25 : 0.25;
     const offsetY = (count > 1 ? index - (count - 1) / 2 : 0) * 0.075;
-
     mesh.position.set(catMesh.position.x + offsetX, catMesh.position.y + offsetY, 0);
   }
 
@@ -633,7 +565,6 @@ export class HandWheelMenu {
       positions[idx++] = actionMesh.position.y;
       positions[idx++] = actionMesh.position.z;
     }
-    // Zero out unused slots.
     for (let i = idx; i < positions.length; i++) positions[i] = 0;
     this._connectorLines.geometry.attributes.position.needsUpdate = true;
     this._connectorLines.geometry.setDrawRange(0, idx / 3);
@@ -641,7 +572,7 @@ export class HandWheelMenu {
 
   private _createLabelTexture(
     item: WheelMenuCategory | WheelMenuAction | { label?: string; icon?: string } | string,
-    accentColor: number = 0x00ffcc
+    accentColor: number = COLOR_TOKENS.interaction.focus
   ): THREE.CanvasTexture {
     const { label = '', icon = null } =
       item != null && typeof item === 'object'
@@ -654,12 +585,10 @@ export class HandWheelMenu {
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d') || this._createMockContext();
-
     ctx.clearRect(0, 0, width, height);
 
-    // Dark pill background with vibrant category accent border
-    const hexStr = '#' + accentColor.toString(16).padStart(6, '0');
-    ctx.fillStyle = this.highContrast ? '#050a12' : 'rgba(10, 18, 32, 0.94)';
+    const accent = cssHex(accentColor);
+    ctx.fillStyle = this.highContrast ? '#000000' : cssHex(COLOR_TOKENS.surface.base);
 
     if (typeof ctx?.beginPath === 'function') {
       ctx.beginPath();
@@ -669,29 +598,27 @@ export class HandWheelMenu {
         ctx.rect(8, 8, width - 16, height - 16);
       }
       ctx.fill();
-
-      ctx.strokeStyle = this.highContrast ? '#00ffff' : hexStr;
-      ctx.lineWidth = 8;
+      ctx.strokeStyle = this.highContrast ? '#ffffff' : accent;
+      ctx.lineWidth = 6;
       ctx.stroke();
     }
 
     const text = String(label ?? '').slice(0, 24);
-
     if (icon) {
       const iconSize = 72 * this.textScale;
       ctx.font = `${iconSize}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = this.highContrast ? '#ffffff' : hexStr;
+      ctx.fillStyle = this.highContrast ? '#ffffff' : accent;
       ctx.fillText(icon, 70, height / 2);
 
-      ctx.font = `bold 32px sans-serif`;
+      ctx.font = 'bold 32px sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
       ctx.fillText(text, 130, height / 2);
     } else {
       const fontSize = 34 * this.textScale;
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
       ctx.font = `bold ${fontSize}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -737,18 +664,23 @@ export class HandWheelMenu {
   dispose(): void {
     this._clearMenu();
     if (this.hub) {
-      this.hub.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const m = child as THREE.Mesh;
-          m.geometry?.dispose();
-          if (Array.isArray(m.material)) {
-            m.material.forEach((mat) => mat.dispose());
-          } else {
-            m.material?.dispose();
-          }
-        }
-      });
+      this.hub.geometry?.dispose();
+      if (Array.isArray(this.hub.material)) {
+        this.hub.material.forEach((mat) => mat.dispose());
+      } else {
+        this.hub.material?.dispose();
+      }
       this.group.remove(this.hub);
+    }
+    if (this.glowRing) {
+      this.glowRing.geometry?.dispose();
+      if (Array.isArray(this.glowRing.material)) {
+        this.glowRing.material.forEach((mat) => mat.dispose());
+      } else {
+        this.glowRing.material?.dispose();
+      }
+      this.group.remove(this.glowRing);
+      this.glowRing = null;
     }
     if (this._connectorMaterial) {
       this._connectorMaterial.dispose();
