@@ -143,6 +143,67 @@ describe('RF-062G AnalyticalRuntimeOwner', () => {
     expect(authority.setKernel).not.toHaveBeenCalled();
   });
 
+  it('reclaims an attempt-owned Worker when the generation becomes stale during runtime init', async () => {
+    const { authority, getExecutionPort } = createAuthority();
+    const initialized = deferred<unknown>();
+    const worker = createWorker();
+    let currentGeneration = 6;
+    const runtime = {
+      isReady: vi.fn(() => false),
+      initRuntime: vi.fn(() => initialized.promise),
+      capabilities: vi.fn(() => 0x3c07),
+      invalidateRuntime: vi.fn(),
+    } as unknown as AnalyticalRuntimeBridge;
+    const owner = new AnalyticalRuntimeOwner({
+      authority,
+      isAttemptCurrent: (generation) => generation === currentGeneration,
+      onKernelFailure: vi.fn(),
+      importRuntime: vi.fn(async () => runtime),
+      createWorker: vi.fn(() => worker),
+    });
+
+    const pending = owner.initialize(6);
+    await vi.waitFor(() => expect(getExecutionPort()?.isAsync).toBe(true));
+    currentGeneration = 7;
+    initialized.resolve({});
+
+    await expect(pending).resolves.toBeNull();
+    expect(worker.terminate).toHaveBeenCalledOnce();
+    expect(getExecutionPort()).toBeNull();
+    expect(authority.setKernel).not.toHaveBeenCalled();
+  });
+
+  it('reclaims an attempt-owned Worker when both runtime asset init paths fail', async () => {
+    const { authority, getExecutionPort } = createAuthority();
+    const worker = createWorker();
+    const primaryError = new Error('primary asset unavailable');
+    const fallbackError = new Error('legacy asset unavailable');
+    const runtime = {
+      isReady: vi.fn(() => false),
+      initRuntime: vi
+        .fn()
+        .mockRejectedValueOnce(primaryError)
+        .mockRejectedValueOnce(fallbackError),
+      capabilities: vi.fn(() => 0x3c07),
+      invalidateRuntime: vi.fn(),
+    } as unknown as AnalyticalRuntimeBridge;
+    const owner = new AnalyticalRuntimeOwner({
+      authority,
+      isAttemptCurrent: () => true,
+      onKernelFailure: vi.fn(),
+      importRuntime: vi.fn(async () => runtime),
+      createWorker: vi.fn(() => worker),
+    });
+
+    await expect(owner.initialize(9)).rejects.toThrow('legacy asset unavailable');
+
+    expect(worker.terminate).toHaveBeenCalledOnce();
+    expect(getExecutionPort()).toBeNull();
+    expect(authority.setKernel).not.toHaveBeenCalled();
+    expect(owner.runtime).toBeNull();
+    expect(owner.capabilities).toBe(0);
+  });
+
   it('fails closed through Atlas and invalidates the active runtime', async () => {
     const { authority } = createAuthority();
     const { runtime } = createRuntime({ ready: true });

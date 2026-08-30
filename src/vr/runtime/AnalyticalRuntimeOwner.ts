@@ -89,26 +89,40 @@ export class AnalyticalRuntimeOwner {
     const runtime = await this.importRuntime();
     if (!this.isCurrent(generation)) return null;
 
-    this.installWorkerPort(generation);
-    const wasAlreadyReady = runtime.isReady();
-    if (!wasAlreadyReady) {
-      try {
-        await runtime.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
-      } catch {
-        if (!this.isCurrent(generation)) return null;
-        await runtime.initRuntime('/wasm/nemosyne_wasm_bg.wasm');
+    const attemptWorkerPort = this.installWorkerPort(generation);
+    try {
+      const wasAlreadyReady = runtime.isReady();
+      if (!wasAlreadyReady) {
+        try {
+          await runtime.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
+        } catch {
+          if (!this.isCurrent(generation)) {
+            this.releaseAttemptWorker(attemptWorkerPort);
+            return null;
+          }
+          await runtime.initRuntime('/wasm/nemosyne_wasm_bg.wasm');
+        }
       }
+
+      if (!this.isCurrent(generation)) {
+        this.releaseAttemptWorker(attemptWorkerPort);
+        return null;
+      }
+      const capabilities = runtime.capabilities();
+      if (!this.isCurrent(generation)) {
+        this.releaseAttemptWorker(attemptWorkerPort);
+        return null;
+      }
+
+      this.authority.setKernel(runtime, capabilities, generation);
+      this.activeRuntime = runtime;
+      this.activeCapabilities = capabilities;
+      this.unavailable = false;
+      return { runtime, capabilities, generation, wasAlreadyReady };
+    } catch (error) {
+      this.releaseAttemptWorker(attemptWorkerPort);
+      throw error;
     }
-
-    if (!this.isCurrent(generation)) return null;
-    const capabilities = runtime.capabilities();
-    if (!this.isCurrent(generation)) return null;
-
-    this.activeRuntime = runtime;
-    this.activeCapabilities = capabilities;
-    this.unavailable = false;
-    this.authority.setKernel(runtime, capabilities, generation);
-    return { runtime, capabilities, generation, wasAlreadyReady };
   }
 
   markUnavailable(error: unknown): void {
@@ -146,11 +160,11 @@ export class AnalyticalRuntimeOwner {
     return !this.disposed && this.isAttemptCurrent(generation);
   }
 
-  private installWorkerPort(generation: number): void {
+  private installWorkerPort(generation: number): WorkerAnalyticalPort | null {
     let port: WorkerAnalyticalPort | null = null;
     try {
       const worker = this.createWorker();
-      if (!worker) return;
+      if (!worker) return null;
       port = new WorkerAnalyticalPort(
         worker,
         (error) => {
@@ -162,6 +176,7 @@ export class AnalyticalRuntimeOwner {
       );
       this.workerPort = port;
       this.authority.setExecutionPort(port);
+      return port;
     } catch (error) {
       port?.dispose();
       if (this.workerPort === port) this.workerPort = null;
@@ -169,6 +184,21 @@ export class AnalyticalRuntimeOwner {
         '[AnalyticalRuntimeOwner] WorkerAnalyticalPort unavailable, using inline port:',
         error
       );
+      return null;
     }
+  }
+
+  private releaseAttemptWorker(port: WorkerAnalyticalPort | null): void {
+    if (!port) return;
+    if (this.workerPort === port) {
+      this.workerPort = null;
+      try {
+        this.authority.setExecutionPort(null);
+      } finally {
+        port.dispose();
+      }
+      return;
+    }
+    port.dispose();
   }
 }
