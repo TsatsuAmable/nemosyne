@@ -2,9 +2,9 @@
 
 > **Canonical implementation-status and execution authority.** Product and research direction remain governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This file answers the operational questions: what is active now, which stream owns it, which PR comes next, what may run in parallel, what evidence is required, and what must wait. Detailed programme documents remain the specification/evidence authority for their own scope.
 
-## Status snapshot - 29 August 2026
+## Status snapshot - 30 August 2026
 
-**Roadmap integration base:** `main@a0da62dcf9551de975340ae6d446d4b444f8085c` (#552 merged).
+**Roadmap integration base:** `main@668d178986498cb9963bc06994ec9ca74427a8af` (#568 merged).
 
 The completed three-stream convergence wave established the next representation frontier:
 
@@ -25,7 +25,16 @@ The completed three-stream convergence wave established the next representation 
 
 The previous A/B/C wave is closed to new scope. **Stream M — Moneta Distribution Truth** has also reached its finite exit: #544 established the stream and model routing, #547/#548 landed M1's governed contract and evidence, #549 landed the Rust/WASM builder, #550 landed the production cutover, #551 closed the density/outlier overclaim found in independent contract review, and #552 landed the visible product/scale/perceptual evidence handoff.
 
-No post-M implementation stream is active. Select and rail the next wave from the recorded product, scientific and resource evidence rather than continuing the representation candidate list automatically.
+The post-M **UI convergence wave** has completed its substrate and shell convergence:
+
+- #563 landed B-V1 visual system convergence (token canonicalisation, `MovablePanel` cleanup, palette deprecation, `VRMenu`/`SpatialAssetRegistry` removal, CSS variable injection);
+- #564 replaced feature-`World` hosts with ports (`World` no longer the service container);
+- #565 owned the analytical runtime lifecycle in `AnalyticalRuntimeOwner`;
+- #566 isolated dev evidence installation (UV0/RF-062h);
+- #567 retired `World` compatibility scaffolding (RF-062i);
+- #568 landed the modern unified UI system: shared design-system components (`Card`, `Button`, `Toast`, `Modal`, `Tooltip`, `CommandPalette`), `InvestigationShell` replacing `AnalystJourneyControls`, `PanelRolesManager` simplified to `primary | secondary | diagnostic | system` with `ANALYST | DEVELOPER` modes, and `CommandPalette` (⌘K) parity.
+
+No post-UI implementation stream is active. Select and rail the next wave from the recorded product, scientific and resource evidence rather than continuing the representation candidate list automatically.
 
 The dependency chain remains:
 
