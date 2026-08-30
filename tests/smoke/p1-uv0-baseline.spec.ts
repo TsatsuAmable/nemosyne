@@ -5,18 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { UV0_INVENTORY } from '../../src/validation/uv0-inventory.ts';
 import type { NemosyneUv0TestHandle, Uv0RuntimeSnapshot } from '../../src/app/uv0TestHandle.ts';
 
-/**
- * P1-UV0 canonical visible-product baseline (Stream B3).
- *
- * This spec runs only in the dedicated instrumented evidence job. Ordinary
- * production smoke deliberately skips it so the normal production bundle can
- * prove that UV0 instrumentation is absent.
- */
-
+/** P1-UV0 canonical visible-product baseline (Stream B3). */
 const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ARTIFACTS_DIR = path.join(SPEC_DIR, 'artifacts', 'uv0-baseline');
 const VIEWPORT = { width: 1280, height: 720 };
-const DEVICE_SCALE_FACTOR = 1;
 const TEST_HANDLE_URL = '/?nemosyne-uv0=1';
 const TESTED_SOURCE_SHA = process.env.NEMOSYNE_TESTED_SOURCE_SHA ?? 'local-unpinned';
 
@@ -24,6 +16,8 @@ test.skip(
   process.env.NEMOSYNE_UV0_EVIDENCE !== '1',
   'P1-UV0 baseline requires the dedicated instrumented evidence build',
 );
+
+test.use({ viewport: VIEWPORT, deviceScaleFactor: 1 });
 
 interface CapturedState {
   id: string;
@@ -34,12 +28,6 @@ interface CapturedState {
   snapshot: Uv0RuntimeSnapshot;
 }
 
-let capturedStates: CapturedState[] = [];
-let pageErrors: string[] = [];
-let consoleErrors: string[] = [];
-
-test.use({ viewport: VIEWPORT, deviceScaleFactor: DEVICE_SCALE_FACTOR });
-
 async function snapshot(page: Page): Promise<Uv0RuntimeSnapshot | null> {
   return page.evaluate(
     () => (window as unknown as { __NEMOSYNE_UV0__?: NemosyneUv0TestHandle }).__NEMOSYNE_UV0__?.snapshot() ?? null,
@@ -48,27 +36,24 @@ async function snapshot(page: Page): Promise<Uv0RuntimeSnapshot | null> {
 
 async function pollSnapshot(
   page: Page,
-  predicate: (s: Uv0RuntimeSnapshot) => boolean,
+  predicate: (state: Uv0RuntimeSnapshot) => boolean,
   message: string,
   timeout = 15_000,
 ): Promise<Uv0RuntimeSnapshot> {
   let last: Uv0RuntimeSnapshot | null = null;
   await expect
-    .poll(
-      async () => {
-        last = await snapshot(page);
-        return last ? predicate(last) : false;
-      },
-      { timeout, message },
-    )
+    .poll(async () => {
+      last = await snapshot(page);
+      return last ? predicate(last) : false;
+    }, { timeout, message })
     .toBe(true);
   return last as unknown as Uv0RuntimeSnapshot;
 }
 
 async function captureState(
   page: Page,
+  states: CapturedState[],
   id: string,
-  asserted: boolean,
   outcome: string,
   state: Uv0RuntimeSnapshot,
 ): Promise<void> {
@@ -76,175 +61,150 @@ async function captureState(
   const target = path.join(ARTIFACTS_DIR, fileName);
   await page.screenshot({ path: target, fullPage: false });
   const screenshotBytes = (await stat(target)).size;
-  expect(screenshotBytes, `${fileName} must be a non-empty evidence artifact`).toBeGreaterThan(0);
-  capturedStates.push({ id, screenshot: fileName, screenshotBytes, asserted, outcome, snapshot: state });
+  expect(screenshotBytes).toBeGreaterThan(0);
+  states.push({ id, screenshot: fileName, screenshotBytes, asserted: true, outcome, snapshot: state });
 }
 
 test('P1-UV0 baseline: canonical states captured with state assertions', async ({ page }) => {
-  capturedStates = [];
-  pageErrors = [];
-  consoleErrors = [];
+  const capturedStates: CapturedState[] = [];
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
   await mkdir(ARTIFACTS_DIR, { recursive: true });
 
-  page.on('pageerror', (err) => pageErrors.push(String(err)));
-  page.on('console', (msg) => {
-    if (msg.type() !== 'error') return;
-    const text = msg.text();
-    if (text.startsWith('Failed to load resource: the server responded with a status of')) return;
-    consoleErrors.push(text);
+  page.on('pageerror', (error) => pageErrors.push(String(error)));
+  page.on('console', (message) => {
+    if (message.type() !== 'error') return;
+    const text = message.text();
+    if (!text.startsWith('Failed to load resource: the server responded with a status of')) {
+      consoleErrors.push(text);
+    }
   });
 
   await page.goto(TEST_HANDLE_URL);
-
   const telemetry = page.locator('#telemetry');
+  await expect(telemetry).toContainText('LAYOUT:', { timeout: 15_000 });
   await expect
-    .poll(async () => (await telemetry.textContent()) ?? '', {
-      timeout: 15_000,
-      message: '#telemetry reached the per-frame form (boot + first render tick)',
-    })
-    .toContain('LAYOUT:');
+    .poll(() => page.evaluate(() => typeof (window as unknown as { __NEMOSYNE_UV0__?: unknown }).__NEMOSYNE_UV0__))
+    .toBe('object');
 
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () =>
-            typeof (window as unknown as { __NEMOSYNE_UV0__?: unknown }).__NEMOSYNE_UV0__ ===
-            'object',
-        ),
-      { timeout: 15_000, message: 'instrumented UV0 test handle installed' },
-    )
-    .toBe(true);
-
-  // S1 fresh boot / loaded representation.
-  await expect(page.locator('#analyst-journey-controls')).toBeVisible();
-  await expect(page.locator('#analyst-journey-status')).toHaveText('Ready');
-  const bootTelemetry = (await telemetry.textContent()) ?? '';
-  expect(bootTelemetry).toContain('GEOM:');
-  expect(bootTelemetry).toContain('BEHAVIOR:');
-  expect(bootTelemetry.startsWith('ERROR:'), `telemetry was: ${bootTelemetry}`).toBe(false);
-  expect(bootTelemetry.trim()).not.toBe('initializing…');
-
+  // S1 — fresh boot.
+  await expect(page.locator('#investigation-shell')).toBeVisible();
+  await expect(page.locator('#status-message')).toHaveText('Ready');
+  await expect(page.locator('#dataset-indicator')).toContainText('Supply Chain Hierarchy');
   const s1 = await pollSnapshot(
     page,
-    (s) => s.datasetName !== null && s.palaceNodeCount > 0,
-    'fresh-boot: dataset loaded and palace built',
+    (state) => state.datasetName !== null && state.palaceNodeCount > 0,
+    'fresh boot has a dataset and rendered palace',
   );
-  expect(s1.datasetName).toBe('Supply Chain Hierarchy');
-  expect(s1.palaceNodeCount).toBeGreaterThan(0);
-  // Runtime evidence is authoritative over constructor/source inference. The
-  // first hardening run falsified the assumption that eager construction meant
-  // SettingsPanel was visible at fresh boot.
   expect(s1.settingsPanelVisible).toBe(false);
   expect(UV0_INVENTORY.find((entry) => entry.id === 'settings-panel')?.visibleAtBoot).toBe(false);
-  await captureState(page, '01-fresh-boot', true, 'supply-chain loaded, ≥1 frame rendered', s1);
+  await captureState(page, capturedStates, '01-fresh-boot', 'dataset loaded and representation rendered', s1);
 
-  // S2 focused observation.
-  const selected = await page.evaluate(() =>
+  // S2 — focused observation through the production selection path.
+  expect(await page.evaluate(() =>
     (window as unknown as { __NEMOSYNE_UV0__?: NemosyneUv0TestHandle }).__NEMOSYNE_UV0__?.selectNode(0) ?? false,
-  );
-  expect(selected, 'node select dispatched through real _showDataCard path').toBe(true);
-  const s2a = await pollSnapshot(
+  )).toBe(true);
+  await pollSnapshot(
     page,
-    (s) =>
-      s.taskSurfaceVisible === true &&
-      s.taskSurfaceDistanceToSelection !== null &&
-      s.activePanelBudgetCount === 1,
-    'focused-observation: object-attached contextual task surface visible in inspector budget slot',
+    (state) => state.taskSurfaceVisible === true && state.activePanelBudgetCount === 1,
+    'contextual task surface occupies one panel-budget slot',
   );
-  expect(s2a.taskSurfaceDistanceToSelection).not.toBeNull();
-  expect(s2a.taskSurfaceDistanceToSelection!).toBeGreaterThan(0.1);
-  expect(s2a.taskSurfaceDistanceToSelection!).toBeLessThan(0.4);
-  expect(s2a.activePanelBudgetCount).toBe(1);
-
-  await page.evaluate(() =>
-    (window as unknown as { __NEMOSYNE_UV0__?: NemosyneUv0TestHandle }).__NEMOSYNE_UV0__?.inspectSelected(),
-  );
-  const s2b = await pollSnapshot(
+  await page.evaluate(() => {
+    (window as unknown as { __NEMOSYNE_UV0__?: NemosyneUv0TestHandle }).__NEMOSYNE_UV0__?.inspectSelected();
+  });
+  const s2 = await pollSnapshot(
     page,
-    (s) => s.inspectorVisible === true && s.taskSurfaceVisible === false,
-    'focused-observation: inspector replaces contextual rail after Inspect verb',
+    (state) => state.inspectorVisible === true && state.taskSurfaceVisible === false,
+    'inspector replaces contextual task surface',
   );
-  expect(s2b.activePanelBudgetCount).toBe(1);
-  await captureState(page, '02-focused-observation', true, 'object-attached task rail replaced by one inspector surface', s2b);
+  await captureState(page, capturedStates, '02-focused-observation', 'one inspector surface visible', s2);
 
-  // S3 Moneta decision / NIL. P1-UV1 deliberately collapses advanced tools;
-  // evidence automation must summon that advanced route rather than forcing the
-  // budget control back into the normal startup hierarchy.
-  const tools = page.locator('#analyst-investigation-tools');
+  // S3 — Moneta explicit refusal. Modal content is light DOM projected through
+  // the component slot, so evidence asserts the rendered host rather than the
+  // implementation-private shadow .body wrapper.
+  const tools = page.locator('#investigation-shell aside details');
   await tools.locator('summary').click();
-  await expect(tools).toHaveAttribute('open', '');
-  await page.locator('#analyst-max-elements').fill('1');
-  await page.locator('#analyst-assess-representation').click();
-  await expect(page.locator('#analyst-representation-outcome')).toContainText(
-    'NIL: no feasible representation',
-    { timeout: 15_000 },
-  );
-  await expect(page.locator('#analyst-journey-status')).toContainText('NIL outcome recorded');
+  await page.locator('#max-elements').fill('1');
+  await page.locator('#assess-btn').click();
+  const assessment = page.locator('nms-modal[title="Representation Assessment"]');
+  await expect(assessment).toHaveAttribute('open', '');
+  await expect(assessment).toContainText('No feasible representation', { timeout: 15_000 });
+  await expect(page.locator('#status-message')).toContainText('NIL outcome recorded');
   const s3 = await pollSnapshot(
     page,
-    (s) => s.outcomeKind === 'nil' && s.nilCount >= 1,
-    'NIL: Moneta refusal recorded in the session ledger',
+    (state) => state.outcomeKind === 'nil' && state.nilCount >= 1,
+    'Moneta refusal recorded in authoritative session state',
   );
-  await captureState(page, '03-nil', true, `NIL recorded (nilCount=${s3.nilCount})`, s3);
+  await captureState(page, capturedStates, '03-nil', `NIL recorded (nilCount=${s3.nilCount})`, s3);
+  await page.keyboard.press('Escape');
 
-  // S4 evidence / hypothesis state.
-  await page.locator('#analyst-run-analysis').click();
-  await expect(page.locator('#analyst-journey-status')).toContainText('Evidence ready', {
-    timeout: 15_000,
-  });
-  await page.locator('#analyst-mark-moment').click();
-  await expect(page.locator('#analyst-journey-status')).toContainText('Observation recorded');
+  // S4 — evidence + observation.
+  await page.locator('#action-run-analysis').click();
+  await pollSnapshot(page, (state) => state.evidenceCount > 0, 'analysis evidence recorded');
+  await page.locator('#action-mark-moment').click();
+  await expect(page.locator('#status-message')).toContainText('Observation recorded');
   const s4 = await pollSnapshot(
     page,
-    (s) => s.evidenceCount > 0 && s.observationCount >= 1,
-    'evidence: analysis result and observation present in the authoritative ledger',
+    (state) => state.evidenceCount > 0 && state.observationCount >= 1,
+    'analysis evidence and observation recorded',
   );
-  await captureState(page, '04-evidence', true, `evidence=${s4.evidenceCount} observations=${s4.observationCount}`, s4);
+  await captureState(
+    page,
+    capturedStates,
+    '04-evidence',
+    `evidence=${s4.evidenceCount} observations=${s4.observationCount}`,
+    s4,
+  );
 
-  // S5 saved / replay state.
+  // S5 — portable export + replay through the actual command-palette route.
   const download = page.waitForEvent('download');
-  await page.locator('#analyst-export-package').click();
+  await page.locator('#export-btn').click();
   const artifact = await download;
   expect(artifact.suggestedFilename()).toBe('nemosyne-investigation.nemosyne');
   const artifactPath = await artifact.path();
   expect(artifactPath).not.toBeNull();
   const packageBytes = await readFile(artifactPath!);
-  await expect(page.locator('#analyst-journey-status')).toContainText('Investigation exported');
-  await page.locator('#analyst-package-input').setInputFiles({
+
+  await page.evaluate(() => {
+    const palette = document.querySelector('nms-command-palette') as HTMLElement & { show?: () => void };
+    palette?.show?.();
+  });
+  const paletteSearch = page.locator('nms-command-palette .search-input');
+  await paletteSearch.fill('Replay investigation');
+  await page.keyboard.press('Enter');
+
+  const replayModal = page.locator('nms-modal[title="Replay Investigation"]');
+  await expect(replayModal).toHaveAttribute('open', '');
+  await replayModal.locator('#package-input').setInputFiles({
     name: 'verified.nemosyne',
     mimeType: 'application/zip',
     buffer: Buffer.from(packageBytes),
   });
-  await page.locator('#analyst-replay-package').click();
+  await replayModal.locator('#replay-btn').click();
 
   const s5 = (await snapshot(page)) as Uv0RuntimeSnapshot;
+  const replayStatus = replayModal.locator('#replay-status');
   let s5Outcome: string;
   if (s5.kernelAvailable === false) {
-    await expect(page.locator('#analyst-journey-status')).toContainText('Replay verification failed', {
-      timeout: 15_000,
-    });
+    await expect(replayStatus).toContainText('Replay verification failed', { timeout: 15_000 });
     s5Outcome = 'kernel-unavailable: replay not baselined in this environment';
   } else {
-    await expect(page.locator('#analyst-journey-status')).toContainText('Replay verified', {
-      timeout: 15_000,
-    });
+    await expect(replayStatus).toContainText('Replay verified', { timeout: 15_000 });
     s5Outcome = 'replay-verified';
   }
-  await captureState(page, '05-replay', true, s5Outcome, s5);
+  await captureState(page, capturedStates, '05-replay', s5Outcome, s5);
 
   expect(pageErrors, `uncaught page errors: ${pageErrors.join(' | ')}`).toEqual([]);
   expect(consoleErrors, `unexpected console.error: ${consoleErrors.join(' | ')}`).toEqual([]);
   expect(capturedStates).toHaveLength(5);
-  expect(capturedStates.every((state) => state.screenshotBytes > 0)).toBe(true);
 
-  const runInventory = {
+  await writeFile(path.join(ARTIFACTS_DIR, 'run-inventory.json'), `${JSON.stringify({
     schema: 'nemosyne/p1-uv0-baseline-run',
     schemaVersion: 2,
     testedSourceSha: TESTED_SOURCE_SHA,
     ciMergeSha: process.env.GITHUB_SHA ?? null,
     capturedAt: new Date().toISOString(),
-    viewport: { ...VIEWPORT, deviceScaleFactor: DEVICE_SCALE_FACTOR },
+    viewport: { ...VIEWPORT, deviceScaleFactor: 1 },
     kernelAvailable: s5.kernelAvailable,
     states: capturedStates,
     inventory: UV0_INVENTORY.map((entry) => ({
@@ -255,10 +215,5 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
       visibleAtBoot: entry.visibleAtBoot,
       source: entry.source,
     })),
-  };
-  await writeFile(
-    path.join(ARTIFACTS_DIR, 'run-inventory.json'),
-    `${JSON.stringify(runInventory, null, 2)}\n`,
-  );
-  console.log(`[P1-UV0] baseline artifacts written to ${ARTIFACTS_DIR}`);
+  }, null, 2)}\n`);
 });

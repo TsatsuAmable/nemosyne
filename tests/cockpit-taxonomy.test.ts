@@ -67,23 +67,26 @@ describe('UX Cockpit & Interaction Hierarchy (Sprints 24.2, 24.3, 24.4)', () => 
   });
 
   describe('Sprint 24.4 — Panel Roles Taxonomy & Mode Separation', () => {
-    it('enforces maximum 2 task panels rule', () => {
+    it('enforces maximum 3 primary panels rule', () => {
       const manager = new PanelRolesManager('ANALYST');
-      manager.registerPanel('p1', 'Dataset Inspector', 'task');
-      manager.registerPanel('p2', 'Recommendation', 'task');
-      manager.registerPanel('p3', 'Cluster Inspector', 'task');
+      manager.registerPanel('p1', 'Dataset Inspector', 'primary');
+      manager.registerPanel('p2', 'Recommendation', 'primary');
+      manager.registerPanel('p3', 'Cluster Inspector', 'primary');
+      manager.registerPanel('p4', 'Vault', 'primary');
 
       manager.openPanel('p1');
       manager.openPanel('p2');
-      expect(manager.getOpenPanelsByRole('task').length).toBe(2);
-
-      // Opening 3rd closes oldest open task panel (p1)
       manager.openPanel('p3');
-      const open = manager.getOpenPanelsByRole('task');
-      expect(open.length).toBe(2);
+      expect(manager.getOpenPanelsByRole('primary').length).toBe(3);
+
+      // Opening 4th closes oldest open primary panel (p1)
+      manager.openPanel('p4');
+      const open = manager.getOpenPanelsByRole('primary');
+      expect(open.length).toBe(3);
       expect(manager.isPanelOpen('p1')).toBe(false);
       expect(manager.isPanelOpen('p2')).toBe(true);
       expect(manager.isPanelOpen('p3')).toBe(true);
+      expect(manager.isPanelOpen('p4')).toBe(true);
     });
 
     it('hides diagnostic panels outside of DEVELOPER mode', () => {

@@ -7,6 +7,7 @@
 import { World } from '../vr/World.ts';
 import { allSampleDatasets } from '../data/SampleDatasets.ts';
 import { WorldTopics } from '../utils/EventBus.ts';
+import '../ui/components/index.ts';
 import { resolveDatasetCycleCursor } from './dataset/DatasetCycleCursor.ts';
 import {
   setupDevTraceRecorder,
@@ -14,20 +15,21 @@ import {
 } from './devTrace.ts';
 import { assessAnalystRepresentation } from './AnalystRepresentationAssessment.ts';
 import {
-  mountAnalystJourneyControls,
-  type AnalystJourneyActions,
-  type AnalystJourneyControlsHandle,
-} from './AnalystJourneyControls.ts';
+  mountInvestigationShell,
+  type InvestigationActions,
+  type InvestigationShellHandle,
+} from './InvestigationShell.ts';
 import {
   createApplicationIntentDispatcher,
+  type ApplicationDispatchIntentDispatcher,
   type ApplicationIntentDispatcher,
 } from './intents/ApplicationIntent.ts';
 import { bindInputCallbacksToApplicationIntents } from './intents/InputIntentBindings.ts';
 
 export interface AppInstance {
   world: World;
-  dispatchIntent: ApplicationIntentDispatcher;
-  analystJourneyControls: AnalystJourneyControlsHandle;
+  dispatchIntent: ApplicationDispatchIntentDispatcher;
+  investigationShell: InvestigationShellHandle;
 }
 
 /**
@@ -49,7 +51,7 @@ function synchronizeDatasetCycleCursor(world: World, step: number): void {
   );
 }
 
-function applicationIntentDispatcher(world: World): ApplicationIntentDispatcher {
+function applicationIntentDispatcher(world: World): ApplicationDispatchIntentDispatcher {
   return createApplicationIntentDispatcher({
     cycleDataset: (step) => {
       synchronizeDatasetCycleCursor(world, step);
@@ -60,13 +62,14 @@ function applicationIntentDispatcher(world: World): ApplicationIntentDispatcher 
     undoHistory: () => world.undoAnalysis(),
     redoHistory: () => world.redoAnalysis(),
     toggleStatisticalLens: () => world._toggleStatisticalLens(),
+    openSettings: () => world.uiManager.settingsPanel.show(),
   });
 }
 
-function analystJourneyActions(
+function investigationActions(
   world: World,
-  dispatchIntent: ApplicationIntentDispatcher,
-): AnalystJourneyActions {
+  dispatchIntent: ApplicationDispatchIntentDispatcher,
+): InvestigationActions {
   return {
     dispatchIntent,
     currentDatasetName: () =>
@@ -89,11 +92,6 @@ function analystJourneyActions(
         platform: navigator.platform,
         webxrSupported: 'xr' in navigator,
       }),
-    setDatasetPickerVisible: (visible) => {
-      if (visible) world.loader.show();
-      else world.loader.hide();
-    },
-    isDatasetPickerVisible: () => world.loader.container.style.display !== 'none',
   };
 }
 
@@ -159,17 +157,19 @@ export async function bootstrapApp(): Promise<AppInstance> {
   const world = new World();
   await world.start();
 
+  // The composition root accepts presentation-only commands (for example
+  // settings.open), while World/XR/input deliberately retain the narrower
+  // canonical analytical/application intent contract.
   const dispatchIntent = applicationIntentDispatcher(world);
-  bindInputCallbacksToApplicationIntents(world.inputCoordinator.callbacks, dispatchIntent, {
+  const dispatchCanonicalIntent: ApplicationIntentDispatcher = (intent) => dispatchIntent(intent);
+
+  bindInputCallbacksToApplicationIntents(world.inputCoordinator.callbacks, dispatchCanonicalIntent, {
     onUnsupportedOperation: (operation) =>
       console.warn(`[ApplicationIntent] unsupported input operation: ${operation}`),
     onDispatchError: (error) =>
       console.error('[ApplicationIntent] input dispatch failed:', error),
   });
-  // Expose the canonical dispatcher to the XR wheel and World-side operation
-  // funnels (CTS/VRMenu callbacks) so every mutating command shares one
-  // command authority instead of a shadow analysis path.
-  world.dispatchIntent = dispatchIntent;
+  world.dispatchIntent = dispatchCanonicalIntent;
 
   applyNormalAnalystShell(world);
 
@@ -230,24 +230,14 @@ export async function bootstrapApp(): Promise<AppInstance> {
     } else {
       telemetry.textContent = 'ready — point and select to inspect';
     }
-    // P1-UV1: runtime telemetry remains alive for diagnostics/tests, but it is
-    // not part of the normal analyst information hierarchy.
     telemetry.hidden = import.meta.env.VITE_NEMOSYNE_DIAGNOSTICS !== '1';
   }
 
-  // The static title is a boot affordance, not permanent chrome over the data.
   const bootOverlay = document.getElementById('overlay');
   if (bootOverlay) bootOverlay.hidden = true;
 
-  // Dataset import is a first-class task summoned from the investigation shell,
-  // not an always-open engineering panel competing with the scene.
   world.loader.hide();
 
-  // P1-UV0 instrumentation is a compile-time opt-in. Ordinary production
-  // bundles are built without VITE_NEMOSYNE_UV0_EVIDENCE, so Rollup can remove
-  // both this branch and the dynamic helper chunk. The dedicated UV0 evidence
-  // job enables the flag and still requires the exact query parameter before
-  // installing the runtime handle.
   if (import.meta.env.VITE_NEMOSYNE_UV0_EVIDENCE === '1') {
     const uv0 = new URL(window.location.href).searchParams.get('nemosyne-uv0');
     if (uv0 === '1') {
@@ -259,8 +249,6 @@ export async function bootstrapApp(): Promise<AppInstance> {
   return {
     world,
     dispatchIntent,
-    analystJourneyControls: mountAnalystJourneyControls(
-      analystJourneyActions(world, dispatchIntent),
-    ),
+    investigationShell: mountInvestigationShell(investigationActions(world, dispatchIntent)),
   };
 }

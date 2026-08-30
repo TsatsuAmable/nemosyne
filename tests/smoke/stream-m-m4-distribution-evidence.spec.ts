@@ -111,10 +111,10 @@ test('M4 proves the visible bounded distribution path in the production browser'
     expect(scenario.timingMs.requestToReady).toBeGreaterThanOrEqual(0);
     expect(scenario.scene.renderCallsLastFrame).toBeGreaterThan(0);
 
-    await expect(page.locator('#analyst-workspace-context')).toContainText(
+    await expect(page.locator('#dataset-indicator')).toContainText(
       `stream-m-m4-distribution-${rowCount}`
     );
-    const shellDatasetContext = await page.locator('#analyst-workspace-context').textContent();
+    const shellDatasetContext = await page.locator('#dataset-indicator').textContent();
 
     scenarios.push({ ...scenario, shellDatasetContext });
     await writeFile(

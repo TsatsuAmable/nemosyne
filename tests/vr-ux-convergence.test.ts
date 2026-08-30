@@ -153,20 +153,23 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
 
     it('manages panel registration and role-based lifecycle directly', () => {
       const manager = new PanelRolesManager('ANALYST');
-      manager.registerPanel('task-p1', 'Task 1', 'task');
-      manager.registerPanel('task-p2', 'Task 2', 'task');
-      manager.registerPanel('task-p3', 'Task 3', 'task');
+      manager.registerPanel('primary-p1', 'Primary 1', 'primary');
+      manager.registerPanel('primary-p2', 'Primary 2', 'primary');
+      manager.registerPanel('primary-p3', 'Primary 3', 'primary');
+      manager.registerPanel('primary-p4', 'Primary 4', 'primary');
       manager.registerPanel('diag-p1', 'Diagnostic 1', 'diagnostic');
 
-      expect(manager.openPanel('task-p1')).toBe(true);
-      expect(manager.openPanel('task-p2')).toBe(true);
-      expect(manager.getOpenPanelsByRole('task').length).toBe(2);
+      expect(manager.openPanel('primary-p1')).toBe(true);
+      expect(manager.openPanel('primary-p2')).toBe(true);
+      expect(manager.openPanel('primary-p3')).toBe(true);
+      expect(manager.getOpenPanelsByRole('primary').length).toBe(3);
 
-      // 3rd task closes oldest (task-p1)
-      expect(manager.openPanel('task-p3')).toBe(true);
-      expect(manager.isPanelOpen('task-p1')).toBe(false);
-      expect(manager.isPanelOpen('task-p2')).toBe(true);
-      expect(manager.isPanelOpen('task-p3')).toBe(true);
+      // 4th primary closes oldest (primary-p1)
+      expect(manager.openPanel('primary-p4')).toBe(true);
+      expect(manager.isPanelOpen('primary-p1')).toBe(false);
+      expect(manager.isPanelOpen('primary-p2')).toBe(true);
+      expect(manager.isPanelOpen('primary-p3')).toBe(true);
+      expect(manager.isPanelOpen('primary-p4')).toBe(true);
 
       // Diagnostic disallowed in ANALYST
       expect(manager.openPanel('diag-p1')).toBe(false);
@@ -176,8 +179,9 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
       expect(manager.openPanel('diag-p1')).toBe(true);
 
       manager.minimizeAll();
-      expect(manager.isPanelOpen('task-p2')).toBe(false);
-      expect(manager.isPanelOpen('task-p3')).toBe(false);
+      expect(manager.isPanelOpen('primary-p2')).toBe(false);
+      expect(manager.isPanelOpen('primary-p3')).toBe(false);
+      expect(manager.isPanelOpen('primary-p4')).toBe(false);
     });
 
     it('instantiates WorldUIManager with registered panel roles and governance', () => {
@@ -189,10 +193,10 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
       expect(uiManager.panelRolesManager).toBeDefined();
       expect(uiManager.contextualTaskSurface).toBeDefined();
 
-      // Enforces maximum 2 task panels rule
+      // Enforces maximum 3 primary panels rule
       expect(uiManager.panelRolesManager.openPanel('recommendation')).toBe(true);
       expect(uiManager.panelRolesManager.openPanel('dracoExplainer')).toBe(true);
-      expect(uiManager.panelRolesManager.getOpenPanelsByRole('task').length).toBe(2);
+      expect(uiManager.panelRolesManager.getOpenPanelsByRole('primary').length).toBe(2);
 
       // Diagnostic panel is blocked in ANALYST mode
       expect(uiManager.panelRolesManager.uiMode).toBe('ANALYST');
