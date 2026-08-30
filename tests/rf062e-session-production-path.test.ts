@@ -45,15 +45,15 @@ describe('RF-062E production session path', () => {
     world = new World();
     const bridge = makeKernelMockBridge();
     world.atlas.setKernel(bridge, 0x3c07);
-    world._wasmRuntime = bridge;
+    world._wasmRuntime = bridge as never;
     world._wasmUnavailable = false;
     const sample = getSampleDataset('sales-table');
+    if (!sample) throw new Error('sales-table sample is required');
     world.loadDataset({
       name: sample.label,
       topology: sample.topology,
       dataset: sample.dataset,
       maxDepth: sample.depth,
-      encodings: sample.encodings,
     });
     world.applyDataOperation('filter');
 

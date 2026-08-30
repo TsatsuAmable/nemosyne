@@ -111,7 +111,7 @@ export class WorldSessionController {
     }
 
     const sessionJson = snapshot as unknown as NemosyneSessionJSON;
-    const originalDataset = (snapshot.originalDataset as DatasetJSON | null) ?? null;
+    const originalDataset = (snapshot.originalDataset as unknown as DatasetJSON | null) ?? null;
     if (!originalDataset) {
       this.log('warn', `Session ${id} has no dataset`);
       return false;
