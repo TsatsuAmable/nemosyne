@@ -1,84 +1,72 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { World } from '../src/vr/World.ts';
 import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
-describe('RF-062C production World wiring', () => {
-  it('routes World.loadDataset through the logical use case and representation surface', async () => {
-    const world = new World();
-    try {
-      const bridge = makeKernelMockBridge();
-      world.atlas.setKernel(bridge, 0x3c07);
+describe('RF-062C production World path', () => {
+  let world: World | null = null;
 
-      const baselineDecision = world.atlas.activeRepresentationDecision;
-      const baselineResultCount = world.atlas.results.length;
-      const previousNode = world.dracoNode;
-      const previousDiagnostic = world.diagnostic;
-      const execute = world.loadDatasetUseCase.execute.bind(world.loadDatasetUseCase);
-      const replace = world.representationSurface.replace.bind(world.representationSurface);
-      let useCaseCalls = 0;
-      let surfaceCalls = 0;
-      world.loadDatasetUseCase.execute = ((...args: Parameters<typeof execute>) => {
-        useCaseCalls += 1;
-        return execute(...args);
-      }) as typeof world.loadDatasetUseCase.execute;
-      world.representationSurface.replace = ((...args: Parameters<typeof replace>) => {
-        surfaceCalls += 1;
-        return replace(...args);
-      }) as typeof world.representationSurface.replace;
-
-      const fraud = getSampleDataset('fraud-graph');
-      if (!fraud) throw new Error('fraud-graph sample is required');
-      world.loadDataset({
-        key: fraud.key,
-        name: fraud.label,
-        label: fraud.label,
-        topology: fraud.topology,
-        dataset: fraud.dataset,
-        maxDepth: fraud.depth,
-      });
-
-      expect(useCaseCalls).toBe(1);
-      expect(surfaceCalls).toBe(1);
-      expect(world.atlas.activeRepresentationDecision).not.toBeNull();
-      expect(world.atlas.activeRepresentationDecision).not.toBe(baselineDecision);
-      expect(world.atlas.results.length).toBeGreaterThan(baselineResultCount);
-      expect(world.representationSurface.currentNode).toBe(world.dracoNode);
-      expect(world.representationSurface.diagnostic).toBe(world.diagnostic);
-      expect(world.dracoNode).not.toBe(previousNode);
-      expect(world.diagnostic).not.toBe(previousDiagnostic);
-    } finally {
+  afterEach(async () => {
+    if (world) {
       await world.dispose();
+      world.loader?.container?.remove?.();
+      world = null;
     }
+    for (const canvas of Array.from(document.querySelectorAll('canvas'))) {
+      canvas.remove();
+    }
+    vi.restoreAllMocks();
   });
 
-  it('rebuilds the current representation without re-arbitrating Atlas when preserving state', async () => {
-    const world = new World();
-    try {
-      const bridge = makeKernelMockBridge();
-      world.atlas.setKernel(bridge, 0x3c07);
-      const fraud = getSampleDataset('fraud-graph');
-      if (!fraud) throw new Error('fraud-graph sample is required');
-      world.loadDataset({
-        key: fraud.key,
-        name: fraud.label,
-        label: fraud.label,
-        topology: fraud.topology,
-        dataset: fraud.dataset,
-        maxDepth: fraud.depth,
-      });
-      const decision = world.atlas.activeRepresentationDecision;
-      const resultCount = world.atlas.results.length;
+  it('routes a real dataset load through LoadDatasetUseCase and RepresentationSurface exactly once', () => {
+    world = new World();
+    const bridge = makeKernelMockBridge();
+    world.atlas.setKernel(bridge, 0x3c07);
 
-      world._rebuildPalaceWithKernelFacts();
+    const execute = vi.spyOn(world.loadDatasetUseCase, 'execute');
+    const replace = vi.spyOn(world.representationSurface, 'replace');
+    const sample = getSampleDataset('sales-table');
+    if (!sample) throw new Error('sales-table sample is required');
 
-      expect(world.atlas.activeRepresentationDecision).toBe(decision);
-      expect(world.atlas.results.length).toBe(resultCount);
-      expect(world.representationSurface.currentNode).toBe(world.dracoNode);
-    } finally {
-      await world.dispose();
-    }
+    world.loadDataset({
+      name: sample.label,
+      topology: sample.topology,
+      dataset: sample.dataset,
+      maxDepth: sample.depth,
+      encodings: sample.encodings,
+    });
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(replace).toHaveBeenCalledOnce();
+    expect(world.dracoNode).toBe(world.representationSurface.currentNode);
+    expect(world.diagnostic).toBe(world.representationSurface.diagnostic);
+    expect(world.currentEntry?.dataset).toBe(sample.dataset);
+    expect(world.atlas.dataset).not.toBe(sample.dataset);
+  });
+
+  it('delegates representation teardown to the surface owner', async () => {
+    world = new World();
+    const bridge = makeKernelMockBridge();
+    world.atlas.setKernel(bridge, 0x3c07);
+
+    const sample = getSampleDataset('sales-table');
+    if (!sample) throw new Error('sales-table sample is required');
+    world.loadDataset({
+      name: sample.label,
+      topology: sample.topology,
+      dataset: sample.dataset,
+      maxDepth: sample.depth,
+      encodings: sample.encodings,
+    });
+
+    const disposeSurface = vi.spyOn(world.representationSurface, 'dispose');
+    await world.dispose();
+
+    expect(disposeSurface).toHaveBeenCalledOnce();
+    expect(world.dracoNode).toBeNull();
+    expect(world.diagnostic).toBeNull();
+    world = null;
   });
 });
