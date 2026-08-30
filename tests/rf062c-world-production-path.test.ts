@@ -30,6 +30,7 @@ describe('RF-062C production World wiring', () => {
       }) as typeof world.representationSurface.replace;
 
       const fraud = getSampleDataset('fraud-graph');
+      if (!fraud) throw new Error('fraud-graph sample is required');
       world.loadDataset({
         key: fraud.key,
         name: fraud.label,
@@ -59,6 +60,7 @@ describe('RF-062C production World wiring', () => {
       const bridge = makeKernelMockBridge();
       world.atlas.setKernel(bridge, 0x3c07);
       const fraud = getSampleDataset('fraud-graph');
+      if (!fraud) throw new Error('fraud-graph sample is required');
       world.loadDataset({
         key: fraud.key,
         name: fraud.label,
