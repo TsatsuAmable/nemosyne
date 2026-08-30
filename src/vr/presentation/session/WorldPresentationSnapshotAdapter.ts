@@ -138,15 +138,21 @@ export class WorldPresentationSnapshotAdapter implements PresentationSnapshotPor
       });
     }
 
-    if (snapshot.focus) {
-      try {
-        deps.focusContext.restoreState(
-          snapshot.focus as Parameters<FocusContextController['restoreState']>[0]
-        );
-      } catch {
-        // Corrupt or stale semantic focus cannot abort the wider restore.
-        deps.focusContext.clearFocus();
-      }
+    if (!snapshot.focus) {
+      // Focus is investigation-local presentation state. A snapshot that
+      // predates this field must not inherit semantic focus from the session
+      // being replaced.
+      deps.focusContext.clearFocus();
+      return;
+    }
+
+    try {
+      deps.focusContext.restoreState(
+        snapshot.focus as Parameters<FocusContextController['restoreState']>[0]
+      );
+    } catch {
+      // Corrupt or stale semantic focus cannot abort the wider restore.
+      deps.focusContext.clearFocus();
     }
   }
 }
