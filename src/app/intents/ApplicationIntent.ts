@@ -21,13 +21,8 @@ export type ApplicationIntent =
   | { type: 'history.redo' }
   | { type: 'workspace.toggleStatisticalLens' };
 
-/**
- * Presentation-only intents are owned by the application composition root,
- * not by World. Keeping them separate preserves World's exhaustive fallback
- * dispatcher while still giving desktop/VR chrome one typed dispatch surface.
- */
+/** Presentation-only commands are resolved at the application composition root. */
 export type ApplicationPresentationIntent = { type: 'settings.open' };
-
 export type ApplicationDispatchIntent = ApplicationIntent | ApplicationPresentationIntent;
 
 export interface ApplicationIntentHandlers {
@@ -40,7 +35,13 @@ export interface ApplicationIntentHandlers {
   openSettings(): void | Promise<void>;
 }
 
+/** Canonical dispatcher type consumed by World, XR input and wheel-menu code. */
 export type ApplicationIntentDispatcher = (
+  intent: ApplicationIntent,
+) => void | Promise<void>;
+
+/** Broader composition-root dispatcher, which can also own presentation chrome. */
+export type ApplicationDispatchIntentDispatcher = (
   intent: ApplicationDispatchIntent,
 ) => void | Promise<void>;
 
@@ -66,7 +67,7 @@ export function parseApplicationAnalysisOperation(
 
 export function createApplicationIntentDispatcher(
   handlers: ApplicationIntentHandlers,
-): ApplicationIntentDispatcher {
+): ApplicationDispatchIntentDispatcher {
   return (intent) => {
     switch (intent.type) {
       case 'dataset.cycle':
