@@ -29,7 +29,7 @@ export class CommandPalette extends BaseComponent {
   private _input: HTMLInputElement | null = null;
   private _listContainer: HTMLElement | null = null;
 
-  attributeChangedCallback(name: string, _old: string, value: string | null): void {
+  attributeChangedCallback(name: string, _old: string | null, value: string | null): void {
     switch (name) {
       case 'open':
         this._open = value !== null && value !== 'false';
@@ -42,7 +42,7 @@ export class CommandPalette extends BaseComponent {
   }
 
   connectedCallback(): void {
-    this._open = this.hasAttribute('open');
+    this._open = this.hasAttribute('open') && this.getAttribute('open') !== 'false';
     this._placeholder = this.getAttribute('placeholder') || 'Type a command or search...';
     super.connectedCallback();
     document.addEventListener('keydown', this.handleGlobalKeyDown);
@@ -189,10 +189,16 @@ export class CommandPalette extends BaseComponent {
   private executeSelected(): void {
     const command = this._filteredCommands[this._selectedIndex];
     if (!command || command.disabled) return;
-    void Promise.resolve(command.action()).catch((error: unknown) => {
-      console.error('[CommandPalette] command failed:', error);
-    });
+
+    // Tear down the modal palette before launching the selected command. This
+    // prevents its full-screen overlay/focus owner from competing with a modal
+    // opened synchronously by the command (for example replay investigation).
     this.hide();
+    void Promise.resolve()
+      .then(() => command.action())
+      .catch((error: unknown) => {
+        console.error('[CommandPalette] command failed:', error);
+      });
   }
 
   private renderList(): void {
@@ -294,6 +300,7 @@ export class CommandPalette extends BaseComponent {
         inset: 0;
         background: rgba(5, 7, 11, 0.6);
         backdrop-filter: blur(4px);
+        pointer-events: auto;
       }
       .palette {
         position: relative;
@@ -394,6 +401,9 @@ export class CommandPalette extends BaseComponent {
       .command-item.selected kbd {
         background: rgba(5,7,11,0.2);
         color: var(--nms-color-space-void);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { scroll-behavior: auto !important; }
       }
     `);
     this.shadow.appendChild(style);
