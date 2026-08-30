@@ -1,10 +1,10 @@
 id: worker-construction-boundary
 language: TypeScript
 severity: error
-message: Direct Worker construction belongs at the governed World composition boundary.
+message: Direct Worker construction belongs in the governed analytical-runtime owner.
 files:
   - src/**/*.ts
 ignores:
-  - src/vr/World.ts
+  - src/vr/runtime/AnalyticalRuntimeOwner.ts
 rule:
   pattern: new Worker($$$ARGS)
