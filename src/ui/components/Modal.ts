@@ -188,6 +188,10 @@ export class Modal extends BaseComponent {
         align-items: center;
         justify-content: center;
         padding: var(--nms-spacing-x24);
+        /* The unified shell root deliberately ignores pointer input so the
+           canvas remains interactive. Modal is an interaction boundary and
+           must opt back into hit testing rather than inheriting that policy. */
+        pointer-events: auto;
       }
       .overlay {
         position: absolute;
@@ -195,6 +199,7 @@ export class Modal extends BaseComponent {
         background: rgba(5, 7, 11, 0.8);
         backdrop-filter: blur(8px);
         animation: fadeIn 0.2s ease;
+        pointer-events: auto;
       }
       @keyframes fadeIn {
         from { opacity: 0; }
@@ -213,6 +218,7 @@ export class Modal extends BaseComponent {
         flex-direction: column;
         ${SIZE_STYLES[this._size]}
         width: 100%;
+        pointer-events: auto;
       }
       @keyframes slideUp {
         from { opacity: 0; transform: translateY(16px); }
