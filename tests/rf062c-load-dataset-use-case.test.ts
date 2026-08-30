@@ -5,6 +5,7 @@ import {
   type DatasetLoadAuthority,
 } from '../src/app/dataset/LoadDatasetUseCase.ts';
 import { createDefaultRequirements } from '../src/moneta/representation/RepresentationRequirements.ts';
+import type { RepresentationDecision } from '../src/moneta/representation/RepresentationDecision.ts';
 
 function dataset(name = 'fixture'): Dataset {
   return new Dataset(
@@ -94,5 +95,31 @@ describe('RF-062C LoadDatasetUseCase', () => {
     expect(result.embodiedDataset).toBe(active);
     expect(result.dataInput.dataset).toBe(active);
     expect(result.requirements).toBe(requirements);
+  });
+
+  it('embodies a restored authoritative decision without re-arbitrating it', () => {
+    const active = dataset('active');
+    const { authority } = fakeAuthority(active);
+    authority.isReady = vi.fn(() => true);
+    authority.computeDatasetSignature = vi.fn(() => ({})) as never;
+    const useCase = new LoadDatasetUseCase(authority);
+    const decision = {
+      chosenCandidateId: 'restored-candidate',
+    } as unknown as RepresentationDecision;
+
+    const result = useCase.execute(
+      {
+        name: 'Fixture',
+        topology: 'TABULAR',
+        dataset: active,
+      },
+      {
+        preserveAnalyticalState: true,
+        authoritativeRepresentation: { decision },
+      }
+    );
+
+    expect(authority.arbitrateRepresentation).not.toHaveBeenCalled();
+    expect(result.representationDecision).toBe(decision);
   });
 });

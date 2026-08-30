@@ -129,6 +129,7 @@ import { bindOperationPreviewProjection } from './presentation/bindings/bindOper
 import { bindAutosaveProjection } from './presentation/bindings/bindAutosaveProjection.ts';
 import { bindDevEvidenceProjection } from './presentation/bindings/bindDevEvidenceProjection.ts';
 import type { BindingDisposer } from './presentation/bindings/BindingDisposer.ts';
+import { WorldPresentationSnapshotAdapter } from './presentation/session/WorldPresentationSnapshotAdapter.ts';
 
 type WorldRuntimeBridge = typeof import('../wasm/RuntimeBridge.ts');
 
@@ -210,6 +211,7 @@ export class World {
   landmarkController!: WorldLandmarkController;
   tourController!: GuidedTourController;
   sessionController!: WorldSessionController;
+  presentationSnapshotPort!: WorldPresentationSnapshotAdapter;
   /** Vault archive store for managing frozen investigation snapshots (P1-U6). */
   archiveStore: VaultArchiveStore;
   loader: FileLoaderUI;
@@ -837,8 +839,34 @@ export class World {
     /** Vault archive store for managing frozen investigation snapshots (P1-U6). */
     this.archiveStore = new VaultArchiveStore(this.sessionStore);
 
-    // Session save/load/autosave coordinator (reads facade members lazily).
-    this.sessionController = new WorldSessionController(this);
+    // Session persistence consumes explicit application/presentation ports.
+    // The adapter owns presentation-only capture/restore and cannot mutate
+    // analytical/session authority.
+    this.presentationSnapshotPort = new WorldPresentationSnapshotAdapter({
+      cameraGroup: this.engine.cameraGroup,
+      theme: this.engine.theme,
+      settingsPanel: this.uiManager.settingsPanel,
+      panelManager: this.uiManager.panelManager,
+      guidedTour: this.guidedTour,
+      comfortSettingsController: this.comfortSettingsController,
+      focusContext: this.focusContext,
+      getCurrentEntry: () => this.currentEntry,
+      getFallbackDatasetName: () => this._originalDataset?.name ?? null,
+      hasRepresentation: () => !!this.dracoNode,
+    });
+    this.sessionController = new WorldSessionController({
+      session: this.session,
+      getSessionStore: () => this.sessionStore,
+      presentation: this.presentationSnapshotPort,
+      loadDataset: (entry) => this.loadDataset(entry),
+      restoreRepresentation: () => this.restoreAuthoritativeRepresentation(),
+      eventBus: this.eventBus,
+      archiveStore: this.archiveStore,
+      log: (level, message) => this.uiManager.vrConsole?.log?.(level, [message]),
+      recordInteraction: (action, options) => this._logInteraction(action, options),
+      applyUserMode: () => this.userModeController.apply(),
+      isRuntimeActive: () => !this._disposed,
+    });
 
     // Track whether the guided tour has been auto-started for novice users.
     this._tourAutoStarted = false;
@@ -1100,9 +1128,13 @@ export class World {
     {
       preserveAnalyticalState = false,
       preserveAuxiliaryPresentation = false,
+      authoritativeRepresentation,
     }: {
       preserveAnalyticalState?: boolean;
       preserveAuxiliaryPresentation?: boolean;
+      authoritativeRepresentation?: {
+        decision: import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null;
+      };
     } = {}
   ): void {
     this._lastLoadedEntry = entry;
@@ -1118,6 +1150,7 @@ export class World {
     const result = this.loadDatasetUseCase.execute(entry, {
       preserveAnalyticalState,
       requirements: this._activeRequirements,
+      authoritativeRepresentation,
     });
     this._activeRequirements = result.requirements;
     this._activeOutcome = result.outcome;
@@ -1549,16 +1582,29 @@ export class World {
   reconstructRequirementsAndReArbitrate(): void {
     if (!this.atlas.isReady() || !this._lastLoadedEntry) return;
 
-    let req = createDefaultRequirements('individual-inspection');
-    const events = this.atlas.remediationEvents();
-    for (const ev of events) {
-      if (ev.requirementPatch) {
-        req = { ...req, ...ev.requirementPatch };
-      }
-    }
-    this._activeRequirements = req;
+    this._activeRequirements = this._reconstructRequirementsFromLedger();
 
     this._doLoadDataset(this._lastLoadedEntry, { preserveAnalyticalState: true });
+  }
+
+  restoreAuthoritativeRepresentation(): void {
+    if (!this.atlas.isReady() || !this._lastLoadedEntry) return;
+
+    this._activeRequirements = this._reconstructRequirementsFromLedger();
+    this._doLoadDataset(this._lastLoadedEntry, {
+      preserveAnalyticalState: true,
+      authoritativeRepresentation: { decision: this.atlas.activeRepresentationDecision },
+    });
+  }
+
+  private _reconstructRequirementsFromLedger(): RepresentationRequirements {
+    let requirements = createDefaultRequirements('individual-inspection');
+    for (const event of this.atlas.remediationEvents()) {
+      if (event.requirementPatch) {
+        requirements = { ...requirements, ...event.requirementPatch };
+      }
+    }
+    return requirements;
   }
 
   _generateRecommendation(): void {

@@ -828,15 +828,10 @@ export interface DataOperationControllerLike {
   analysisHistory?: { length: number };
 }
 
-/** Guided-tour facade — internal underscore fields are accessed on restore. */
+/** Guided-tour controls used by the tour coordinator. */
 export interface GuidedTourLike {
   start?(): boolean;
   stop?(): void;
-  _stepIndex: number;
-  _finished: boolean;
-  _active: boolean;
-  _cardGroup: { visible: boolean };
-  _renderStep(): void;
 }
 
 /** Collaboration coordinator facade. */
