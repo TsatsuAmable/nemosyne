@@ -201,9 +201,18 @@ export class LiveStreamCoordinator {
       this._liveStatusUnsub();
       this._liveStatusUnsub = null;
     }
-    if (this.liveConnector) {
-      this.liveConnector.disconnect();
-      this.liveConnector = null;
+    const connector = this.liveConnector;
+    this.liveConnector = null;
+    if (connector) {
+      try {
+        connector.disconnect();
+      } finally {
+        // Status callbacks are intentionally unsubscribed before transport
+        // teardown so a connector cannot race stale events into the next
+        // generation. Publish the explicit local outcome through the owned
+        // status port so UI state cannot remain stuck at "connected".
+        this.status.publish('disconnected', undefined, false);
+      }
     }
   }
 
