@@ -61,7 +61,6 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
       getOrCreateOperationLogPanel: () => opLog,
       getOrCreateInteractionCoach: () => coachPanel,
       getOrCreateNarrativeStrip: () => narrStrip,
-      getOrCreateLoadTestPanel: () => panel(),
       // Superuser / Dev Lab panel accessors + service-class toggles.
       getOrCreateSchemaMappingPanel: () => schemaMapPanel,
       getOrCreateGestureConfidenceHUD: () => gestureConfPanel,
@@ -74,7 +73,12 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
     panelManager,
     dashboard,
     collaborationCoordinator: { isConnected: () => false },
-    engine: { locomotion },
+    engine: {
+      locomotion,
+      onToggleLoadTestPanel: fn('engine.onToggleLoadTestPanel'),
+      onStartLoadTest: fn('engine.onStartLoadTest'),
+      onStopLoadTest: fn('engine.onStopLoadTest'),
+    },
 
     // Panel-like targets (truthy so the `toggle` helper actually calls togglePanel).
     operationLogPanel: opLog,
@@ -92,7 +96,6 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
     _toggleMiniOverview: fn('_toggleMiniOverview'),
     _togglePeerPresenceHUD: fn('_togglePeerPresenceHUD'),
     _toggleDesktopPreview: fn('_toggleDesktopPreview'),
-    _toggleLoadTestPanel: fn('_toggleLoadTestPanel'),
     _toggleDracoDiagnostic: fn('_toggleDracoDiagnostic'),
 
     // Views.
@@ -123,10 +126,8 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
     undoAnalysis: fn('undoAnalysis'),
     redoAnalysis: fn('redoAnalysis'),
 
-    // Templates + load test.
+    // Templates.
     loadTemplate: fn('loadTemplate'),
-    runLoadTest: fn('runLoadTest'),
-    stopLoadTest: fn('stopLoadTest'),
     exitVR: fn('exitVR'),
   };
 
@@ -261,7 +262,7 @@ describe('WheelMenuBuilder', () => {
     expect(spy.resetDataOperation).toHaveBeenCalledTimes(1);
 
     find(loadtest, 'loadtest-panel').callback();
-    expect(spy._toggleLoadTestPanel).toHaveBeenCalledTimes(1);
+    expect(spy['engine.onToggleLoadTestPanel']).toHaveBeenCalledTimes(1);
   });
 
   it('ops items expose onHover/onLeave wired to preview/clear', () => {
