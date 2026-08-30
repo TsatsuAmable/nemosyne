@@ -1,5 +1,8 @@
 import type { AnalystRepresentationOutcome } from './AnalystRepresentationAssessment.ts';
-import type { ApplicationIntentDispatcher, ApplicationIntent } from './intents/ApplicationIntent.ts';
+import type {
+  ApplicationDispatchIntentDispatcher,
+  ApplicationIntent,
+} from './intents/ApplicationIntent.ts';
 import { injectCssVariables } from '../vr/ui-system/tokens.ts';
 import { type CommandPaletteCommand } from '../ui/components/index.ts';
 
@@ -20,7 +23,7 @@ export interface InvestigationShellHandle {
 }
 
 export interface InvestigationActions {
-  dispatchIntent: ApplicationIntentDispatcher;
+  dispatchIntent: ApplicationDispatchIntentDispatcher;
   currentDatasetName(): string | null;
   subscribeDatasetContext?(handler: () => void): () => void;
   assessRepresentation(maxRenderedElements?: number): AnalystRepresentationOutcome;
@@ -52,17 +55,17 @@ interface SecondaryAction {
 }
 
 const PRIMARY_ACTIONS: PrimaryAction[] = [
-  { id: 'load-sample', label: 'Explore another dataset', intent: { type: 'dataset.cycle', step: 1 } as ApplicationIntent, emphasis: true },
-  { id: 'run-analysis', label: 'Find anomalies', intent: { type: 'analysis.apply', operation: 'anomaly' } as ApplicationIntent },
+  { id: 'load-sample', label: 'Explore another dataset', intent: { type: 'dataset.cycle', step: 1 }, emphasis: true },
+  { id: 'run-analysis', label: 'Find anomalies', intent: { type: 'analysis.apply', operation: 'anomaly' } },
   { id: 'mark-moment', label: 'Record observation', intent: null, handler: () => {} },
-] as const;
+];
 
 const SECONDARY_ACTIONS: SecondaryAction[] = [
-  { id: 'toggle-lens', label: 'Toggle statistical lens', intent: { type: 'workspace.toggleStatisticalLens' } as ApplicationIntent },
-  { id: 'undo', label: 'Undo last analysis', intent: { type: 'history.undo' } as ApplicationIntent },
-  { id: 'redo', label: 'Redo analysis', intent: { type: 'history.redo' } as ApplicationIntent },
+  { id: 'toggle-lens', label: 'Toggle statistical lens', intent: { type: 'workspace.toggleStatisticalLens' } },
+  { id: 'undo', label: 'Undo last analysis', intent: { type: 'history.undo' } },
+  { id: 'redo', label: 'Redo analysis', intent: { type: 'history.redo' } },
   { id: 'vault', label: 'Evidence vault', intent: null },
-] as const;
+];
 
 function downloadPackage(bytes: Uint8Array, filename: string): void {
   const blob = new Blob([bytes.slice().buffer as ArrayBuffer], { type: 'application/zip' });
@@ -278,8 +281,9 @@ export function mountInvestigationShell(
         </div>
       `;
     }
-    const body = explainModal.shadowRoot?.querySelector('.body') as HTMLElement;
-    if (body) body.innerHTML = content;
+    // Modal owns a persistent light-DOM slot. Write there before show(); its
+    // shadow render may be recreated without destroying the caller's content.
+    explainModal.innerHTML = content;
     (explainModal as HTMLNemosyneModalElement).show();
   };
 
@@ -342,7 +346,7 @@ export function mountInvestigationShell(
 
   const settingsBtn = header.querySelector('#settings-btn') as HTMLElement;
   settingsBtn.addEventListener('click', () => {
-    actions.dispatchIntent({ type: 'settings.open' } as unknown as ApplicationIntent);
+    void actions.dispatchIntent({ type: 'settings.open' });
     setStatus('Settings opened', 'success');
   });
 
@@ -364,13 +368,11 @@ export function mountInvestigationShell(
       <p id="replay-status" style="font-size: var(--nms-font-size-meta); color: var(--nms-color-text-secondary); margin: 0;"></p>
     </div>
   `;
+  replayModal.innerHTML = replayContent;
 
-  const replayBody = replayModal.shadowRoot?.querySelector('.body') as HTMLElement;
-  if (replayBody) replayBody.innerHTML = replayContent;
-
-  const packageInput = replayModal.shadowRoot?.querySelector('#package-input') as HTMLInputElement;
-  const replayBtn = replayModal.shadowRoot?.querySelector('#replay-btn') as HTMLElement;
-  const replayStatus = replayModal.shadowRoot?.querySelector('#replay-status') as HTMLElement;
+  const packageInput = replayModal.querySelector('#package-input') as HTMLInputElement;
+  const replayBtn = replayModal.querySelector('#replay-btn') as HTMLElement;
+  const replayStatus = replayModal.querySelector('#replay-status') as HTMLElement;
 
   if (packageInput) {
     packageInput.addEventListener('change', () => {
@@ -472,10 +474,10 @@ export function mountInvestigationShell(
     { id: 'redo', label: 'Redo analysis', description: 'Reapply the last undone analysis operation', shortcut: '⌘⇧Z', category: 'History', action: async () => { await actions.dispatchIntent({ type: 'history.redo' }); setStatus('Analysis history moved forward', 'success'); } },
     { id: 'assess', label: 'Explain current view', description: 'Show Moneta representation decision details', category: 'View', action: () => { const outcome = actions.assessRepresentation(); showRepresentationOutcome(outcome); setStatus(outcome.kind === 'decision' ? `View decision recorded: ${outcome.decisionId}` : `NIL outcome recorded: ${outcome.nilId}`, 'success'); } },
     { id: 'vault', label: 'Open evidence vault', description: 'Manage frozen investigation snapshots', category: 'Investigation', action: () => { setStatus('Evidence vault opened in VR', 'success'); } },
-    { id: 'settings', label: 'Open settings', description: 'Configure Nemosyne preferences', shortcut: '⌘,', category: 'System', action: () => { actions.dispatchIntent({ type: 'settings.open' } as unknown as ApplicationIntent); setStatus('Settings opened', 'success'); } },
+    { id: 'settings', label: 'Open settings', description: 'Configure Nemosyne preferences', shortcut: '⌘,', category: 'System', action: () => { void actions.dispatchIntent({ type: 'settings.open' }); setStatus('Settings opened', 'success'); } },
     { id: 'replay', label: 'Replay investigation', description: 'Verify and replay a .nemosyne package', category: 'Investigation', action: () => { (replayModal as HTMLNemosyneModalElement).show(); } },
   ];
-  (commandPalette as HTMLNemosyneCommandPaletteElement).commands = commands;
+  commandPalette.commands = commands;
 
   document.body.appendChild(root);
   setStatus('Ready');
