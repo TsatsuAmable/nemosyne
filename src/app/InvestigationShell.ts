@@ -1,5 +1,6 @@
 import type { AnalystRepresentationOutcome } from './AnalystRepresentationAssessment.ts';
 import type {
+  ApplicationDispatchIntent,
   ApplicationDispatchIntentDispatcher,
   ApplicationIntent,
 } from './intents/ApplicationIntent.ts';
@@ -12,7 +13,6 @@ interface HTMLNemosyneModalElement extends HTMLElement {
 }
 
 interface HTMLNemosyneCommandPaletteElement extends HTMLElement {
-  toggle(): void;
   hide(): void;
   commands: CommandPaletteCommand[];
 }
@@ -35,36 +35,35 @@ export interface InvestigationActions {
     eventsMatched: number;
   }>;
   exportPortableInvestigation(): Promise<Uint8Array>;
-  setDatasetPickerVisible?(visible: boolean): void;
-  isDatasetPickerVisible?(): boolean;
 }
 
-interface PrimaryAction {
+interface ActionDefinition {
   id: string;
   label: string;
-  intent: ApplicationIntent | null;
-  emphasis?: boolean;
-  handler?: () => void | Promise<void>;
+  intent: ApplicationIntent;
 }
 
-interface SecondaryAction {
-  id: string;
-  label: string;
-  intent: ApplicationIntent | null;
-  handler?: () => void | Promise<void>;
-}
-
-const PRIMARY_ACTIONS: PrimaryAction[] = [
-  { id: 'load-sample', label: 'Explore another dataset', intent: { type: 'dataset.cycle', step: 1 }, emphasis: true },
-  { id: 'run-analysis', label: 'Find anomalies', intent: { type: 'analysis.apply', operation: 'anomaly' } },
-  { id: 'mark-moment', label: 'Record observation', intent: null, handler: () => {} },
+const PRIMARY_INTENT_ACTIONS: ActionDefinition[] = [
+  {
+    id: 'load-sample',
+    label: 'Explore another dataset',
+    intent: { type: 'dataset.cycle', step: 1 },
+  },
+  {
+    id: 'run-analysis',
+    label: 'Find anomalies',
+    intent: { type: 'analysis.apply', operation: 'anomaly' },
+  },
 ];
 
-const SECONDARY_ACTIONS: SecondaryAction[] = [
-  { id: 'toggle-lens', label: 'Toggle statistical lens', intent: { type: 'workspace.toggleStatisticalLens' } },
+const SECONDARY_INTENT_ACTIONS: ActionDefinition[] = [
+  {
+    id: 'toggle-lens',
+    label: 'Toggle statistical lens',
+    intent: { type: 'workspace.toggleStatisticalLens' },
+  },
   { id: 'undo', label: 'Undo last analysis', intent: { type: 'history.undo' } },
   { id: 'redo', label: 'Redo analysis', intent: { type: 'history.redo' } },
-  { id: 'vault', label: 'Evidence vault', intent: null },
 ];
 
 function downloadPackage(bytes: Uint8Array, filename: string): void {
@@ -86,9 +85,28 @@ function replayFailureMessage(detail: string): string {
   );
 }
 
-export function mountInvestigationShell(
-  actions: InvestigationActions,
-): InvestigationShellHandle {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function createAssessmentRow(label: string, value: string, monospace = false): HTMLElement {
+  const row = document.createElement('div');
+  const heading = document.createElement('strong');
+  heading.style.cssText =
+    'color: var(--nms-color-text-secondary); font-size: var(--nms-font-size-meta);';
+  heading.textContent = label;
+  row.appendChild(heading);
+
+  const valueElement = document.createElement('p');
+  valueElement.style.cssText =
+    `margin: var(--nms-spacing-x4) 0 0; font-size: ${monospace ? 'var(--nms-font-size-meta)' : 'var(--nms-font-size-body)'};` +
+    (monospace ? ' font-family: monospace;' : '');
+  valueElement.textContent = value;
+  row.appendChild(valueElement);
+  return row;
+}
+
+export function mountInvestigationShell(actions: InvestigationActions): InvestigationShellHandle {
   injectCssVariables();
 
   const root = document.createElement('section');
@@ -96,10 +114,7 @@ export function mountInvestigationShell(
   root.setAttribute('aria-label', 'Nemosyne investigation workspace');
   root.style.cssText = `
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     z-index: 30;
     display: grid;
     grid-template-columns: 280px 1fr;
@@ -114,8 +129,7 @@ export function mountInvestigationShell(
     pointer-events: none;
   `;
 
-  const toastManager = document.createElement('nms-toast-manager');
-  root.appendChild(toastManager);
+  root.appendChild(document.createElement('nms-toast-manager'));
 
   const header = document.createElement('header');
   header.style.cssText = `
@@ -132,7 +146,7 @@ export function mountInvestigationShell(
   header.innerHTML = `
     <div style="display: flex; align-items: center; gap: var(--nms-spacing-x16);">
       <span style="font-size: var(--nms-font-size-meta); letter-spacing: 0.16em; color: var(--nms-color-interaction-focus); font-weight: 650;">NEMOSYNE</span>
-      <div style="padding: var(--nms-spacing-x8) var(--nms-spacing-x12); background: var(--nms-color-surface-raised); border: 1px solid var(--nms-color-surface-border); border-radius: var(--nms-panel-border-radius); font-size: var(--nms-font-size-label); color: var(--nms-color-text-secondary);" id="dataset-indicator">No dataset selected</div>
+      <div id="dataset-indicator" style="padding: var(--nms-spacing-x8) var(--nms-spacing-x12); background: var(--nms-color-surface-raised); border: 1px solid var(--nms-color-surface-border); border-radius: var(--nms-panel-border-radius); font-size: var(--nms-font-size-label); color: var(--nms-color-text-secondary);">No dataset selected</div>
     </div>
     <div style="display: flex; align-items: center; gap: var(--nms-spacing-x12);">
       <nms-button id="export-btn" variant="ghost" size="sm">Export investigation</nms-button>
@@ -170,11 +184,7 @@ export function mountInvestigationShell(
   root.appendChild(sidebar);
 
   const canvasArea = document.createElement('div');
-  canvasArea.style.cssText = `
-    grid-area: canvas;
-    position: relative;
-    pointer-events: auto;
-  `;
+  canvasArea.style.cssText = 'grid-area: canvas; position: relative; pointer-events: auto;';
   root.appendChild(canvasArea);
 
   const statusStrip = document.createElement('footer');
@@ -206,276 +216,434 @@ export function mountInvestigationShell(
   replayModal.setAttribute('title', 'Replay Investigation');
   root.appendChild(replayModal);
 
-  const datasetModal = document.createElement('nms-modal');
-  datasetModal.setAttribute('size', 'lg');
-  datasetModal.setAttribute('title', 'Choose Dataset');
-  root.appendChild(datasetModal);
-
-  const commandPalette = document.createElement('nms-command-palette') as HTMLNemosyneCommandPaletteElement;
+  const commandPalette = document.createElement(
+    'nms-command-palette',
+  ) as HTMLNemosyneCommandPaletteElement;
   root.appendChild(commandPalette);
-
-  let lastExport: Uint8Array | null = null;
 
   const datasetIndicator = header.querySelector('#dataset-indicator') as HTMLElement;
   const statusMessage = statusStrip.querySelector('#status-message') as HTMLElement;
   const statusDetails = statusStrip.querySelector('#status-details') as HTMLElement;
-  const primaryActionsContainer = primarySection.querySelector('#primary-actions') as HTMLElement;
-  const secondaryActionsContainer = secondarySection.querySelector('#secondary-actions') as HTMLElement;
+  const primaryActions = primarySection.querySelector('#primary-actions') as HTMLElement;
+  const secondaryActions = secondarySection.querySelector('#secondary-actions') as HTMLElement;
+  const exportBtn = header.querySelector('#export-btn') as HTMLElement;
+  const settingsBtn = header.querySelector('#settings-btn') as HTMLElement;
 
-  const refreshContext = () => {
+  let lastExport: Uint8Array | null = null;
+  let statusTimer: number | null = null;
+
+  const refreshContext = (): void => {
     const dataset = actions.currentDatasetName();
-    datasetIndicator.textContent = dataset ? `Dataset · ${dataset}` : 'No dataset selected · choose data to begin';
+    datasetIndicator.textContent = dataset
+      ? `Dataset · ${dataset}`
+      : 'No dataset selected · choose data to begin';
   };
 
-  const setStatus = (message: string, state: 'ready' | 'success' | 'error' = 'ready', detail?: string) => {
-    statusMessage.textContent = message;
-    statusMessage.style.color = state === 'error' ? 'var(--nms-color-danger-destructive)' : state === 'success' ? 'var(--nms-color-interaction-commit)' : 'var(--nms-color-text-secondary)';
-    if (detail) {
-      statusDetails.textContent = detail;
+  const setStatus = (
+    message: string,
+    state: 'ready' | 'success' | 'error' = 'ready',
+    detail?: string,
+  ): void => {
+    if (statusTimer !== null) {
+      window.clearTimeout(statusTimer);
+      statusTimer = null;
     }
+    statusMessage.textContent = message;
+    statusMessage.style.color =
+      state === 'error'
+        ? 'var(--nms-color-danger-destructive)'
+        : state === 'success'
+          ? 'var(--nms-color-interaction-commit)'
+          : 'var(--nms-color-text-secondary)';
+    statusDetails.textContent = detail ?? '';
     refreshContext();
     if (state !== 'ready') {
-      setTimeout(() => {
+      statusTimer = window.setTimeout(() => {
         if (statusMessage.textContent === message) {
           statusMessage.textContent = 'Ready';
           statusMessage.style.color = 'var(--nms-color-text-secondary)';
+          statusDetails.textContent = '';
         }
+        statusTimer = null;
       }, 5000);
     }
   };
 
-  const showRepresentationOutcome = (outcome: AnalystRepresentationOutcome) => {
-    let content = '';
-    if (outcome.kind === 'decision') {
-      content = `
-        <div style="display: grid; gap: var(--nms-spacing-x16);">
-          <div>
-            <strong style="color: var(--nms-color-text-secondary); font-size: var(--nms-font-size-meta);">Decision</strong>
-            <p style="margin: var(--nms-spacing-x4) 0 0; font-size: var(--nms-font-size-body);">Moneta selected <strong>${outcome.family} / ${outcome.layout}</strong></p>
-          </div>
-          <div>
-            <strong style="color: var(--nms-color-text-secondary); font-size: var(--nms-font-size-meta);">Utility Score</strong>
-            <p style="margin: var(--nms-spacing-x4) 0 0; font-size: var(--nms-font-size-body);">${outcome.utilityScore.toFixed(3)}</p>
-          </div>
-          <div>
-            <strong style="color: var(--nms-color-text-secondary); font-size: var(--nms-font-size-meta);">Decision ID</strong>
-            <p style="margin: var(--nms-spacing-x4) 0 0; font-size: var(--nms-font-size-meta); font-family: monospace;">${outcome.decisionId}</p>
-          </div>
-        </div>
-      `;
-    } else {
-      content = `
-        <div style="display: grid; gap: var(--nms-spacing-x16);">
-          <div style="color: var(--nms-color-epistemic-contradiction);">
-            <strong>No feasible representation</strong>
-          </div>
-          <div>
-            <strong style="color: var(--nms-color-text-secondary); font-size: var(--nms-font-size-meta);">Failed Constraints</strong>
-            <p style="margin: var(--nms-spacing-x4) 0 0; font-size: var(--nms-font-size-body);">${outcome.failedConstraintCount}</p>
-          </div>
-          <div>
-            <strong style="color: var(--nms-color-text-secondary); font-size: var(--nms-font-size-meta);">Near-miss Alternatives</strong>
-            <p style="margin: var(--nms-spacing-x4) 0 0; font-size: var(--nms-font-size-body);">${outcome.nearMissCount}</p>
-          </div>
-          <p style="font-size: var(--nms-font-size-meta); color: var(--nms-color-text-secondary);">NIL: ${outcome.nilId}</p>
-        </div>
-      `;
+  const reportError = (context: string, error: unknown): void => {
+    const message = errorMessage(error);
+    console.error(`[InvestigationShell] ${context}:`, error);
+    setStatus(`${context} failed`, 'error', message);
+  };
+
+  const dispatchWithStatus = async (
+    intent: ApplicationDispatchIntent,
+    successMessage: () => string,
+    failureContext: string,
+  ): Promise<boolean> => {
+    try {
+      await actions.dispatchIntent(intent);
+      setStatus(successMessage(), 'success');
+      return true;
+    } catch (error) {
+      reportError(failureContext, error);
+      return false;
     }
-    // Modal owns a persistent light-DOM slot. Write there before show(); its
-    // shadow render may be recreated without destroying the caller's content.
-    explainModal.innerHTML = content;
+  };
+
+  const showRepresentationOutcome = (outcome: AnalystRepresentationOutcome): void => {
+    const content = document.createElement('div');
+    content.style.cssText = 'display: grid; gap: var(--nms-spacing-x16);';
+
+    if (outcome.kind === 'decision') {
+      content.appendChild(
+        createAssessmentRow('Decision', `Moneta selected ${outcome.family} / ${outcome.layout}`),
+      );
+      content.appendChild(
+        createAssessmentRow('Utility Score', outcome.utilityScore.toFixed(3)),
+      );
+      content.appendChild(createAssessmentRow('Decision ID', outcome.decisionId, true));
+    } else {
+      const refusal = document.createElement('strong');
+      refusal.style.color = 'var(--nms-color-epistemic-contradiction)';
+      refusal.textContent = 'No feasible representation';
+      content.appendChild(refusal);
+      content.appendChild(
+        createAssessmentRow('Failed Constraints', String(outcome.failedConstraintCount)),
+      );
+      content.appendChild(
+        createAssessmentRow('Near-miss Alternatives', String(outcome.nearMissCount)),
+      );
+      content.appendChild(createAssessmentRow('NIL', outcome.nilId, true));
+    }
+
+    explainModal.replaceChildren(content);
+    explainModal.dataset.state = outcome.kind;
     (explainModal as HTMLNemosyneModalElement).show();
   };
 
-  const createActionButton = (action: PrimaryAction, container: HTMLElement) => {
-    const btn = document.createElement('nms-button');
-    btn.id = `action-${action.id}`;
-    btn.setAttribute('label', action.label);
-    btn.setAttribute('variant', action.emphasis ? 'primary' : 'secondary');
-    btn.setAttribute('size', 'md');
-    btn.style.width = '100%';
-    btn.addEventListener('click', async () => {
-      if (action.intent) {
-        await actions.dispatchIntent(action.intent);
-      } else if (action.handler) {
-        await action.handler();
-      }
-    });
-    container.appendChild(btn);
+  const runAssessment = (maxRenderedElements?: number): void => {
+    try {
+      const outcome = actions.assessRepresentation(maxRenderedElements);
+      showRepresentationOutcome(outcome);
+      setStatus(
+        outcome.kind === 'decision'
+          ? `View decision recorded: ${outcome.decisionId}`
+          : `NIL outcome recorded: ${outcome.nilId}`,
+        'success',
+      );
+    } catch (error) {
+      reportError('Representation assessment', error);
+    }
   };
 
-  const createSecondaryButton = (action: SecondaryAction, container: HTMLElement) => {
-    const btn = document.createElement('nms-button');
-    btn.id = `action-${action.id}`;
-    btn.setAttribute('label', action.label);
-    btn.setAttribute('variant', 'secondary');
-    btn.setAttribute('size', 'sm');
-    btn.style.width = '100%';
-    btn.addEventListener('click', async () => {
-      if (action.intent) {
-        await actions.dispatchIntent(action.intent);
-        setStatus(`${action.label} executed`, 'success');
-      } else if (action.handler) {
-        await action.handler();
-      }
+  const createButton = (
+    id: string,
+    label: string,
+    container: HTMLElement,
+    variant: 'primary' | 'secondary',
+    size: 'sm' | 'md',
+    onClick: () => void | Promise<void>,
+  ): HTMLElement => {
+    const button = document.createElement('nms-button');
+    button.id = id;
+    button.textContent = label;
+    button.setAttribute('variant', variant);
+    button.setAttribute('size', size);
+    button.style.width = '100%';
+    button.addEventListener('click', () => {
+      void Promise.resolve(onClick()).catch((error: unknown) => reportError(label, error));
     });
-    container.appendChild(btn);
+    container.appendChild(button);
+    return button;
   };
 
-  PRIMARY_ACTIONS.forEach(action => createActionButton(action, primaryActionsContainer));
-  SECONDARY_ACTIONS.forEach(action => createSecondaryButton(action, secondaryActionsContainer));
+  for (const action of PRIMARY_INTENT_ACTIONS) {
+    createButton(
+      `action-${action.id}`,
+      action.label,
+      primaryActions,
+      action.id === 'load-sample' ? 'primary' : 'secondary',
+      'md',
+      async () => {
+        if (action.id === 'load-sample') {
+          await dispatchWithStatus(
+            action.intent,
+            () => `Loaded ${actions.currentDatasetName() ?? 'sample dataset'}`,
+            'Dataset change',
+          );
+        } else {
+          await dispatchWithStatus(
+            action.intent,
+            () => {
+              const count = actions.analysisResultCount();
+              return `Evidence ready (${count} ${count === 1 ? 'result' : 'results'})`;
+            },
+            'Analysis',
+          );
+        }
+      },
+    );
+  }
+
+  createButton(
+    'action-mark-moment',
+    'Record observation',
+    primaryActions,
+    'secondary',
+    'md',
+    () => {
+      const observationId = actions.markMoment('Recorded from desktop investigation shell');
+      setStatus(`Observation recorded: ${observationId}`, 'success');
+    },
+  );
+
+  for (const action of SECONDARY_INTENT_ACTIONS) {
+    createButton(
+      `action-${action.id}`,
+      action.label,
+      secondaryActions,
+      'secondary',
+      'sm',
+      async () => {
+        await dispatchWithStatus(
+          action.intent,
+          () => `${action.label} executed`,
+          action.label,
+        );
+      },
+    );
+  }
 
   const budgetWrapper = document.createElement('div');
-  budgetWrapper.style.display = 'flex';
-  budgetWrapper.style.flexDirection = 'column';
-  budgetWrapper.style.gap = 'var(--nms-spacing-x4)';
+  budgetWrapper.style.cssText =
+    'display: flex; flex-direction: column; gap: var(--nms-spacing-x4);';
   budgetWrapper.innerHTML = `
-    <label style="font-size: var(--nms-font-size-meta); color: var(--nms-color-text-secondary);">Max rendered elements (optional)</label>
-    <input type="number" id="max-elements" min="1" step="1" inputmode="numeric" style="width: 100%; padding: var(--nms-spacing-x8) var(--nms-spacing-x12); background: var(--nms-color-surface-raised); border: 1px solid var(--nms-color-surface-border); border-radius: var(--nms-panel-border-radius); color: var(--nms-color-text-primary); font-family: inherit; font-size: var(--nms-font-size-label);">
+    <label for="max-elements" style="font-size: var(--nms-font-size-meta); color: var(--nms-color-text-secondary);">Max rendered elements (optional)</label>
+    <input type="number" id="max-elements" min="1" step="1" inputmode="numeric" style="width: 100%; box-sizing: border-box; padding: var(--nms-spacing-x8) var(--nms-spacing-x12); background: var(--nms-color-surface-raised); border: 1px solid var(--nms-color-surface-border); border-radius: var(--nms-panel-border-radius); color: var(--nms-color-text-primary); font-family: inherit; font-size: var(--nms-font-size-label);">
     <nms-button id="assess-btn" variant="secondary" size="sm">Explain current view</nms-button>
   `;
-  secondaryActionsContainer.appendChild(budgetWrapper);
-
-  const exportBtn = header.querySelector('#export-btn') as HTMLElement;
-  exportBtn.addEventListener('click', async () => {
-    const bytes = await actions.exportPortableInvestigation();
-    lastExport = bytes;
-    downloadPackage(bytes, 'nemosyne-investigation.nemosyne');
-    setStatus(`Investigation exported (${bytes.byteLength} bytes)`, 'success');
-  });
-
-  const settingsBtn = header.querySelector('#settings-btn') as HTMLElement;
-  settingsBtn.addEventListener('click', () => {
-    void actions.dispatchIntent({ type: 'settings.open' });
-    setStatus('Settings opened', 'success');
-  });
+  secondaryActions.appendChild(budgetWrapper);
 
   const assessBtn = budgetWrapper.querySelector('#assess-btn') as HTMLElement;
   assessBtn.addEventListener('click', () => {
-    const rawBudget = (document.getElementById('max-elements') as HTMLInputElement)?.value.trim();
-    const outcome = actions.assessRepresentation(rawBudget.length > 0 ? Number(rawBudget) : undefined);
-    showRepresentationOutcome(outcome);
-    setStatus(outcome.kind === 'decision' ? `View decision recorded: ${outcome.decisionId}` : `NIL outcome recorded: ${outcome.nilId}`, 'success');
+    const input = budgetWrapper.querySelector('#max-elements') as HTMLInputElement;
+    const rawBudget = input.value.trim();
+    runAssessment(rawBudget ? Number(rawBudget) : undefined);
   });
 
-  const replayContent = `
+  const exportInvestigation = async (): Promise<void> => {
+    try {
+      const bytes = await actions.exportPortableInvestigation();
+      lastExport = bytes;
+      downloadPackage(bytes, 'nemosyne-investigation.nemosyne');
+      setStatus(`Investigation exported (${bytes.byteLength} bytes)`, 'success');
+    } catch (error) {
+      reportError('Investigation export', error);
+    }
+  };
+  exportBtn.addEventListener('click', () => void exportInvestigation());
+
+  const openSettings = async (): Promise<void> => {
+    await dispatchWithStatus(
+      { type: 'settings.open' },
+      () => 'Settings opened',
+      'Settings',
+    );
+  };
+  settingsBtn.addEventListener('click', () => void openSettings());
+
+  replayModal.innerHTML = `
     <div style="display: grid; gap: var(--nms-spacing-x16);">
       <label>
         <span style="font-size: var(--nms-font-size-meta); color: var(--nms-color-text-secondary); display: block; margin-bottom: var(--nms-spacing-x4);">Investigation package</span>
-        <input type="file" id="package-input" accept=".nemosyne,application/zip" style="width: 100%; padding: var(--nms-spacing-x8); background: var(--nms-color-surface-raised); border: 1px solid var(--nms-color-surface-border); border-radius: var(--nms-panel-border-radius); color: var(--nms-color-text-primary); font-family: inherit;">
+        <input type="file" id="package-input" accept=".nemosyne,application/zip" style="width: 100%; box-sizing: border-box; padding: var(--nms-spacing-x8); background: var(--nms-color-surface-raised); border: 1px solid var(--nms-color-surface-border); border-radius: var(--nms-panel-border-radius); color: var(--nms-color-text-primary); font-family: inherit;">
       </label>
       <nms-button id="replay-btn" variant="primary" disabled>Replay investigation</nms-button>
-      <p id="replay-status" style="font-size: var(--nms-font-size-meta); color: var(--nms-color-text-secondary); margin: 0;"></p>
+      <p id="replay-status" aria-live="polite" style="font-size: var(--nms-font-size-meta); color: var(--nms-color-text-secondary); margin: 0;"></p>
     </div>
   `;
-  replayModal.innerHTML = replayContent;
 
   const packageInput = replayModal.querySelector('#package-input') as HTMLInputElement;
   const replayBtn = replayModal.querySelector('#replay-btn') as HTMLElement;
   const replayStatus = replayModal.querySelector('#replay-status') as HTMLElement;
 
-  if (packageInput) {
-    packageInput.addEventListener('change', () => {
-      const file = packageInput.files?.[0];
-      if (!file) return;
-      file.arrayBuffer().then(bytes => {
+  packageInput.addEventListener('change', () => {
+    const file = packageInput.files?.[0];
+    if (!file) {
+      lastExport = null;
+      replayBtn.setAttribute('disabled', '');
+      replayStatus.textContent = 'Choose an investigation package to replay.';
+      return;
+    }
+
+    void file.arrayBuffer()
+      .then((bytes) => {
         lastExport = new Uint8Array(bytes);
         replayBtn.removeAttribute('disabled');
-        if (replayStatus) replayStatus.textContent = `Selected: ${file.name} (${bytes.byteLength} bytes)`;
-      }).catch(err => {
-        if (replayStatus) {
-          replayStatus.textContent = `Error: ${err.message}`;
-          replayStatus.style.color = 'var(--nms-color-danger-destructive)';
-        }
-      });
-    });
-  }
-
-  if (replayBtn) {
-    replayBtn.addEventListener('click', () => {
-      if (!lastExport) return;
-      replayBtn.setAttribute('disabled', '');
-      if (replayStatus) {
-        replayStatus.textContent = 'Verifying investigation package…';
+        replayStatus.textContent = `Selected: ${file.name} (${bytes.byteLength} bytes)`;
         replayStatus.style.color = 'var(--nms-color-text-secondary)';
-      }
-      actions.replayPortableInvestigation(lastExport).then(result => {
+      })
+      .catch((error: unknown) => {
+        lastExport = null;
+        replayBtn.setAttribute('disabled', '');
+        replayStatus.textContent = `Error: ${errorMessage(error)}`;
+        replayStatus.style.color = 'var(--nms-color-danger-destructive)';
+      });
+  });
+
+  replayBtn.addEventListener('click', () => {
+    if (!lastExport) return;
+    replayBtn.setAttribute('disabled', '');
+    replayStatus.textContent = 'Verifying investigation package…';
+    replayStatus.style.color = 'var(--nms-color-text-secondary)';
+
+    void actions.replayPortableInvestigation(lastExport)
+      .then((result) => {
         if (!result.success) {
-          if (replayStatus) {
-            replayStatus.textContent = replayFailureMessage(result.discrepancies.join('; '));
-            replayStatus.style.color = 'var(--nms-color-danger-destructive)';
-          }
+          replayStatus.textContent = replayFailureMessage(result.discrepancies.join('; '));
+          replayStatus.style.color = 'var(--nms-color-danger-destructive)';
           return;
         }
-        if (replayStatus) {
-          replayStatus.textContent = `Replay verified (${result.eventsMatched} events)`;
-          replayStatus.style.color = 'var(--nms-color-interaction-commit)';
-        }
-      }).catch(err => {
-        if (replayStatus) {
-          replayStatus.textContent = replayFailureMessage(err.message);
-          replayStatus.style.color = 'var(--nms-color-danger-destructive)';
-        }
-      }).finally(() => {
-        replayBtn.removeAttribute('disabled');
-      });
-    });
-  }
-
-  const markMomentAction = PRIMARY_ACTIONS.find(a => a.id === 'mark-moment');
-  if (markMomentAction) {
-    markMomentAction.handler = () => {
-      const observationId = actions.markMoment('Recorded from desktop investigation shell');
-      setStatus(`Observation recorded: ${observationId}`, 'success');
-    };
-  }
-
-  const vaultAction = SECONDARY_ACTIONS.find(a => a.id === 'vault');
-  if (vaultAction) {
-    vaultAction.handler = () => {
-      setStatus('Evidence vault opened in VR', 'success');
-    };
-  }
+        replayStatus.textContent = `Replay verified (${result.eventsMatched} events)`;
+        replayStatus.style.color = 'var(--nms-color-interaction-commit)';
+      })
+      .catch((error: unknown) => {
+        replayStatus.textContent = replayFailureMessage(errorMessage(error));
+        replayStatus.style.color = 'var(--nms-color-danger-destructive)';
+      })
+      .finally(() => replayBtn.removeAttribute('disabled'));
+  });
 
   const unsubscribeDatasetContext = actions.subscribeDatasetContext?.(refreshContext) ?? null;
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.metaKey || e.ctrlKey) {
-      switch (e.key.toLowerCase()) {
-        case 'e':
-          e.preventDefault();
-          exportBtn.click();
-          break;
-        case 's':
-          e.preventDefault();
-          settingsBtn.click();
-          break;
+  const handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.metaKey || event.ctrlKey) {
+      if (event.key.toLowerCase() === 'e') {
+        event.preventDefault();
+        exportBtn.click();
+      } else if (event.key === ',') {
+        event.preventDefault();
+        settingsBtn.click();
       }
     }
-    if (e.key === 'Escape') {
-      const modals: Array<HTMLNemosyneModalElement | HTMLNemosyneCommandPaletteElement> = [
-        explainModal as HTMLNemosyneModalElement,
-        replayModal as HTMLNemosyneModalElement,
-        datasetModal as HTMLNemosyneModalElement,
-        commandPalette,
-      ];
-      modals.forEach(m => m.hide?.());
+
+    if (event.key === 'Escape') {
+      (explainModal as HTMLNemosyneModalElement).hide();
+      (replayModal as HTMLNemosyneModalElement).hide();
+      commandPalette.hide();
     }
   };
   document.addEventListener('keydown', handleKeyDown);
 
   const commands: CommandPaletteCommand[] = [
-    { id: 'load-sample', label: 'Explore another dataset', description: 'Cycle to the next sample dataset', shortcut: '⌘D', category: 'Data', action: async () => { await actions.dispatchIntent({ type: 'dataset.cycle', step: 1 }); setStatus(`Loaded ${actions.currentDatasetName() ?? 'sample dataset'}`, 'success'); } },
-    { id: 'run-analysis', label: 'Find anomalies', description: 'Run anomaly detection on current dataset', shortcut: '⌘A', category: 'Analysis', action: async () => { await actions.dispatchIntent({ type: 'analysis.apply', operation: 'anomaly' }); setStatus(`Evidence ready (${actions.analysisResultCount()} result)`, 'success'); } },
-    { id: 'mark-moment', label: 'Record observation', description: 'Mark current moment in evidence ledger', shortcut: '⌘M', category: 'Investigation', action: () => { const observationId = actions.markMoment('Recorded from desktop investigation shell'); setStatus(`Observation recorded: ${observationId}`, 'success'); } },
-    { id: 'export', label: 'Export investigation', description: 'Export current investigation as .nemosyne package', shortcut: '⌘E', category: 'Investigation', action: async () => { const bytes = await actions.exportPortableInvestigation(); lastExport = bytes; downloadPackage(bytes, 'nemosyne-investigation.nemosyne'); setStatus(`Investigation exported (${bytes.byteLength} bytes)`, 'success'); } },
-    { id: 'toggle-lens', label: 'Toggle statistical lens', description: 'Show/hide TDA and correlation views', shortcut: '⌘L', category: 'View', action: async () => { await actions.dispatchIntent({ type: 'workspace.toggleStatisticalLens' }); setStatus('Statistical lens toggled', 'success'); } },
-    { id: 'undo', label: 'Undo last analysis', description: 'Revert the last analysis operation', shortcut: '⌘Z', category: 'History', action: async () => { await actions.dispatchIntent({ type: 'history.undo' }); setStatus('Analysis history moved back', 'success'); } },
-    { id: 'redo', label: 'Redo analysis', description: 'Reapply the last undone analysis operation', shortcut: '⌘⇧Z', category: 'History', action: async () => { await actions.dispatchIntent({ type: 'history.redo' }); setStatus('Analysis history moved forward', 'success'); } },
-    { id: 'assess', label: 'Explain current view', description: 'Show Moneta representation decision details', category: 'View', action: () => { const outcome = actions.assessRepresentation(); showRepresentationOutcome(outcome); setStatus(outcome.kind === 'decision' ? `View decision recorded: ${outcome.decisionId}` : `NIL outcome recorded: ${outcome.nilId}`, 'success'); } },
-    { id: 'vault', label: 'Open evidence vault', description: 'Manage frozen investigation snapshots', category: 'Investigation', action: () => { setStatus('Evidence vault opened in VR', 'success'); } },
-    { id: 'settings', label: 'Open settings', description: 'Configure Nemosyne preferences', shortcut: '⌘,', category: 'System', action: () => { void actions.dispatchIntent({ type: 'settings.open' }); setStatus('Settings opened', 'success'); } },
-    { id: 'replay', label: 'Replay investigation', description: 'Verify and replay a .nemosyne package', category: 'Investigation', action: () => { (replayModal as HTMLNemosyneModalElement).show(); } },
+    {
+      id: 'load-sample',
+      label: 'Explore another dataset',
+      description: 'Cycle to the next sample dataset',
+      category: 'Data',
+      action: async () => {
+        await dispatchWithStatus(
+          { type: 'dataset.cycle', step: 1 },
+          () => `Loaded ${actions.currentDatasetName() ?? 'sample dataset'}`,
+          'Dataset change',
+        );
+      },
+    },
+    {
+      id: 'run-analysis',
+      label: 'Find anomalies',
+      description: 'Run anomaly detection on current dataset',
+      category: 'Analysis',
+      action: async () => {
+        await dispatchWithStatus(
+          { type: 'analysis.apply', operation: 'anomaly' },
+          () => {
+            const count = actions.analysisResultCount();
+            return `Evidence ready (${count} ${count === 1 ? 'result' : 'results'})`;
+          },
+          'Analysis',
+        );
+      },
+    },
+    {
+      id: 'mark-moment',
+      label: 'Record observation',
+      description: 'Mark current moment in the evidence ledger',
+      category: 'Investigation',
+      action: () => {
+        const observationId = actions.markMoment('Recorded from desktop investigation shell');
+        setStatus(`Observation recorded: ${observationId}`, 'success');
+      },
+    },
+    {
+      id: 'export',
+      label: 'Export investigation',
+      description: 'Export current investigation as a .nemosyne package',
+      shortcut: '⌘E',
+      category: 'Investigation',
+      action: exportInvestigation,
+    },
+    {
+      id: 'toggle-lens',
+      label: 'Toggle statistical lens',
+      description: 'Show or hide statistical analysis views',
+      category: 'View',
+      action: async () => {
+        await dispatchWithStatus(
+          { type: 'workspace.toggleStatisticalLens' },
+          () => 'Statistical lens toggled',
+          'Statistical lens',
+        );
+      },
+    },
+    {
+      id: 'undo',
+      label: 'Undo last analysis',
+      description: 'Revert the last analysis operation',
+      category: 'History',
+      action: async () => {
+        await dispatchWithStatus(
+          { type: 'history.undo' },
+          () => 'Analysis history moved back',
+          'Undo',
+        );
+      },
+    },
+    {
+      id: 'redo',
+      label: 'Redo analysis',
+      description: 'Reapply the last undone analysis operation',
+      category: 'History',
+      action: async () => {
+        await dispatchWithStatus(
+          { type: 'history.redo' },
+          () => 'Analysis history moved forward',
+          'Redo',
+        );
+      },
+    },
+    {
+      id: 'assess',
+      label: 'Explain current view',
+      description: 'Show Moneta representation decision details',
+      category: 'View',
+      action: () => runAssessment(),
+    },
+    {
+      id: 'settings',
+      label: 'Open settings',
+      description: 'Configure Nemosyne preferences',
+      shortcut: '⌘,',
+      category: 'System',
+      action: openSettings,
+    },
+    {
+      id: 'replay',
+      label: 'Replay investigation',
+      description: 'Verify and replay a .nemosyne package',
+      category: 'Investigation',
+      action: () => (replayModal as HTMLNemosyneModalElement).show(),
+    },
   ];
   commandPalette.commands = commands;
 
@@ -487,6 +655,7 @@ export function mountInvestigationShell(
     dispose: () => {
       unsubscribeDatasetContext?.();
       document.removeEventListener('keydown', handleKeyDown);
+      if (statusTimer !== null) window.clearTimeout(statusTimer);
       root.remove();
     },
     refreshContext,
