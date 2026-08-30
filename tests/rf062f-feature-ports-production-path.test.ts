@@ -68,6 +68,27 @@ describe('RF-062F production feature ports', () => {
     expect('world' in world.liveStreamCoordinator).toBe(false);
   });
 
+  it('projects an explicit live disconnect through the installed status sink', () => {
+    world = new World();
+    const disconnect = vi.fn();
+    const setLiveConnected = vi.spyOn(world.uiManager.vrMenu, 'setLiveConnected');
+    world.liveStreamCoordinator.liveConnector = {
+      topology: 'TIME_SERIES',
+      windowSize: 50,
+      isConnected: () => true,
+      connect: vi.fn(),
+      disconnect,
+      onUpdate: vi.fn(() => () => {}),
+      onStatus: vi.fn(() => () => {}),
+    };
+
+    world.disconnectLiveStream();
+
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(setLiveConnected).toHaveBeenCalledWith(false);
+    expect(world.liveStreamCoordinator.liveConnector).toBeNull();
+  });
+
   it('wires collaboration through presence/presentation ports without rebuilding the wheel', async () => {
     world = new World();
     vi.spyOn(NetworkManager.prototype, 'connect').mockResolvedValue(undefined);
