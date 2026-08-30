@@ -5,21 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nemosyne Spatial Data Analysis Suite</title>
     <style>
+      :root {
+        /* Nemosyne design tokens — injected at runtime from tokens.ts */
+        --nms-color-void: #05070b;
+        --nms-color-surface-base: #0b1119;
+        --nms-color-surface-raised: #111a24;
+        --nms-color-surface-border: #263544;
+        --nms-color-text-primary: #f2f6fa;
+        --nms-color-text-secondary: #a9b8c6;
+        --nms-color-text-muted: #718394;
+        --nms-color-interaction-focus: #59d6ff;
+        --nms-color-interaction-commit: #8ce6c1;
+        --nms-color-epistemic-uncertain: #ffc46b;
+        --nms-color-epistemic-contradiction: #ff7aae;
+        --nms-color-danger-destructive: #ff6464;
+        --nms-color-status-verified: #71d99b;
+      }
+
       html, body {
         margin: 0;
         padding: 0;
         width: 100%;
         height: 100%;
         overflow: hidden;
-        background: #000;
-        font-family: 'Courier New', Courier, monospace;
+        background: var(--nms-color-void);
+        font-family: var(--nms-font-family, 'Courier New', Courier, monospace);
       }
       #overlay {
         position: absolute;
         top: 20px;
         left: 20px;
-        color: #00ffcc;
-        text-shadow: 0 0 6px #00ffcc;
+        color: var(--nms-color-interaction-focus);
+        text-shadow: 0 0 6px var(--nms-color-interaction-focus);
         z-index: 100;
         pointer-events: none;
         user-select: none;
@@ -32,17 +49,17 @@
       #overlay p {
         margin: 0;
         font-size: 0.85rem;
-        color: #88ccff;
+        color: var(--nms-color-text-secondary);
       }
       #overlay .about {
         margin-top: 0.5rem;
         font-size: 0.75rem;
-        color: #ff77aa;
+        color: var(--nms-color-epistemic-contradiction);
         max-width: 420px;
         line-height: 1.4;
       }
       #overlay a {
-        color: #00ffcc;
+        color: var(--nms-color-interaction-focus);
         text-decoration: underline;
         pointer-events: auto;
       }
@@ -50,7 +67,7 @@
         position: absolute;
         bottom: 20px;
         left: 20px;
-        color: #00ffcc;
+        color: var(--nms-color-interaction-focus);
         font-size: 0.75rem;
         z-index: 100;
         pointer-events: none;
@@ -89,9 +106,9 @@
         max-height: calc(100vh - 2rem);
         padding: 0.8rem;
         overflow: auto;
-        color: #d8fff6;
+        color: var(--nms-color-text-primary);
         background: rgba(5, 15, 25, 0.9);
-        border: 1px solid rgba(0, 255, 204, 0.45);
+        border: 1px solid var(--nms-color-surface-border);
         font: 12px monospace;
       }
       #analyst-journey-controls h2,
@@ -99,14 +116,14 @@
         margin: 0;
       }
       #analyst-journey-controls label {
-        color: rgba(216, 255, 246, 0.8);
+        color: var(--nms-color-text-secondary);
       }
       #analyst-journey-controls button,
       #analyst-journey-controls input {
         padding: 0.45rem 0.6rem;
         color: inherit;
-        background: rgba(0, 255, 204, 0.12);
-        border: 1px solid rgba(0, 255, 204, 0.4);
+        background: var(--nms-color-surface-raised);
+        border: 1px solid var(--nms-color-surface-border);
         box-sizing: border-box;
         font: inherit;
       }
@@ -119,11 +136,11 @@
       }
       #analyst-journey-status[data-state='error'],
       #analyst-representation-outcome[data-state='nil'] {
-        color: #ff9eb7;
+        color: var(--nms-color-epistemic-contradiction);
       }
       #analyst-journey-controls button:focus-visible,
       #analyst-journey-controls input:focus-visible {
-        outline: 2px solid #fff;
+        outline: 2px solid var(--nms-color-text-primary);
         outline-offset: 2px;
       }
     </style>

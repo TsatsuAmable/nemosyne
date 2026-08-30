@@ -2,6 +2,7 @@
    to mirror browser output into a world-space panel; referencing it is intentional. */
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import type { MovablePanelOptions } from '../coordinators/types.ts';
 
 interface VRConsoleOptions {
@@ -85,16 +86,16 @@ export class VRConsole extends MovablePanel {
     for (const line of lines) {
       switch (line.level) {
         case 'error':
-          ctx.fillStyle = '#ff5555';
+          ctx.fillStyle = cssHex(COLOR_TOKENS.danger.destructive);
           break;
         case 'warn':
-          ctx.fillStyle = '#ffaa00';
+          ctx.fillStyle = cssHex(COLOR_TOKENS.epistemic.uncertain);
           break;
         case 'debug':
-          ctx.fillStyle = '#88ccff';
+          ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
           break;
         default:
-          ctx.fillStyle = '#ccffcc';
+          ctx.fillStyle = cssHex(COLOR_TOKENS.status.verified);
       }
       ctx.fillText(line.text, 16, y);
       y += lineH;
@@ -102,7 +103,7 @@ export class VRConsole extends MovablePanel {
     }
 
     // Subtle scanline overlay.
-    ctx.fillStyle = 'rgba(0, 255, 204, 0.03)';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus) + '08';
     for (let yL = 0; yL < contentH; yL += 6) {
       ctx.fillRect(0, yL, w, 3);
     }

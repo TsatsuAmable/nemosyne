@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import type { MonetaTopologyNode } from '../../moneta/MonetaTopologyNode.ts';
 import type { MonetaFacts, MonetaSpec } from '../../moneta/types.ts';
 
@@ -92,30 +93,30 @@ export class MonetaExplainerPanel extends MovablePanel {
     return lines;
   }
 
-  renderContent(ctx: CanvasRenderingContext2D, _w: number, _contentH: number): void {
+renderContent(ctx: CanvasRenderingContext2D, _w: number, _contentH: number): void {
     const pad = 24;
     let y = 30;
 
-    ctx.fillStyle = '#00ffcc';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
     ctx.font = 'bold 20px monospace';
     ctx.fillText('ANALYTICAL REPRESENTATION SOLVER RATIONALE', pad, y);
     y += 36;
 
     const lines = this._generateRationale();
     ctx.font = '16px monospace';
-    ctx.fillStyle = '#e0f7fa';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
 
     for (const line of lines) {
       if (line.startsWith('STRUCTURE:')) {
-        ctx.fillStyle = '#ffd54f';
+        ctx.fillStyle = cssHex(COLOR_TOKENS.epistemic.uncertain);
       } else if (line.startsWith('• LAYOUT:')) {
-        ctx.fillStyle = '#80deea';
+        ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
       } else if (line.startsWith('• GEOMETRY:')) {
-        ctx.fillStyle = '#b388ff';
+        ctx.fillStyle = cssHex(COLOR_TOKENS.epistemic.contradiction);
       } else if (line.startsWith('• INTERACTION:')) {
-        ctx.fillStyle = '#81c784';
+        ctx.fillStyle = cssHex(COLOR_TOKENS.status.verified);
       } else {
-        ctx.fillStyle = '#e0f7fa';
+        ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
       }
 
       ctx.fillText(line, pad, y);

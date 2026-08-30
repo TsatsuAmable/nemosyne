@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import type { AccessibilityOptions, MovablePanelOptions } from '../coordinators/types.ts';
 
 interface NetworkPeer {
@@ -66,18 +67,18 @@ export class NetworkPanel extends MovablePanel {
     let y = margin;
 
     ctx.font = this._scaleFont('bold 20px monospace');
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
+    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
     ctx.textAlign = 'left';
     ctx.fillText(`Room: ${this.status.roomId}`, margin, y + lineHeight / 2);
     y += lineHeight + 12;
 
     ctx.fillStyle = this.status.connected
       ? this.highContrast
-        ? '#ffffff'
-        : '#00ffcc'
+        ? cssHex(COLOR_TOKENS.text.primary)
+        : cssHex(COLOR_TOKENS.status.verified)
       : this.highContrast
-        ? '#ffffff'
-        : '#ff5577';
+        ? cssHex(COLOR_TOKENS.text.primary)
+        : cssHex(COLOR_TOKENS.danger.destructive);
     ctx.fillText(
       `State: ${this.status.connected ? 'Connected' : 'Offline'}`,
       margin,
@@ -85,20 +86,20 @@ export class NetworkPanel extends MovablePanel {
     );
     y += lineHeight + 18;
 
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#ccffff';
+    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.text.secondary);
     ctx.fillText('Peers:', margin, y + lineHeight / 2);
     y += lineHeight;
 
     ctx.font = this._scaleFont('18px monospace');
     if (this.status.peers.length === 0) {
-      ctx.fillStyle = this.highContrast ? '#aaaaaa' : '#778899';
+      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.muted) : cssHex(COLOR_TOKENS.text.muted);
       ctx.fillText('  No peers in room', margin, y + lineHeight / 2);
     } else {
       for (const peer of this.status.peers) {
         const label = peer.name
           ? `${peer.name} (${peer.peerId.slice(0, 6)})`
           : peer.peerId.slice(0, 12);
-        ctx.fillStyle = this.highContrast ? '#ffffff' : '#ccffff';
+        ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.text.secondary);
         ctx.fillText(`  • ${label}`, margin, y + lineHeight / 2);
         y += lineHeight;
       }
@@ -107,7 +108,7 @@ export class NetworkPanel extends MovablePanel {
     if (this.status.lastEvent) {
       y += 12;
       ctx.font = this._scaleFont('16px monospace');
-      ctx.fillStyle = this.highContrast ? '#aaaaaa' : '#778899';
+      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.muted) : cssHex(COLOR_TOKENS.text.muted);
       ctx.fillText(`Last: ${this.status.lastEvent}`, margin, y + lineHeight / 2);
     }
   }

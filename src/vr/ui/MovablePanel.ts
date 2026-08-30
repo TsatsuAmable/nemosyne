@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { CanvasTextureCacheManager } from './CanvasTextureCacheManager.ts';
-import { PALETTE, cssHex } from '../palette.ts';
-import { SpatialAssetRegistry } from './SpatialAssetRegistry.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import type {
   AccessibilityOptions,
   DragState,
@@ -54,7 +53,6 @@ export class MovablePanel implements IPanelContentHandler {
   texture: THREE.CanvasTexture;
   material: THREE.MeshBasicMaterial;
   mesh: THREE.Mesh;
-  housing: THREE.Group;
   textScale: number;
   highContrast: boolean;
   colorblindMode: string | boolean;
@@ -127,11 +125,6 @@ export class MovablePanel implements IPanelContentHandler {
     this.mesh = new THREE.Mesh(geom, this.material);
     this.mesh.position.set(...position);
     this.mesh.rotation.x = -tilt;
-
-    // Attach 3D beveled spatial housing backing
-    this.housing = SpatialAssetRegistry.getInstance().createSpatialPanelHousing(worldSize[0], worldSize[1]);
-    this.housing.position.set(0, 0, -0.015);
-    this.mesh.add(this.housing);
 
     if (this.parentGroup && typeof this.parentGroup.add === 'function') {
       this.parentGroup.add(this.mesh);
@@ -339,19 +332,6 @@ export class MovablePanel implements IPanelContentHandler {
   dispose(): void {
     if (this._disposed) return;
     this._disposed = true;
-    if (this.housing) {
-      this.housing.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const m = child as THREE.Mesh;
-          m.geometry?.dispose();
-          if (Array.isArray(m.material)) {
-            m.material.forEach((mat) => mat.dispose());
-          } else {
-            m.material?.dispose();
-          }
-        }
-      });
-    }
     this.mesh.parent?.remove(this.mesh);
     this.mesh.geometry.dispose();
     this.material.dispose();
@@ -365,17 +345,17 @@ export class MovablePanel implements IPanelContentHandler {
     const w = this.width;
     const h = this.height;
 
-    const bg = cssHex(this.highContrast ? PALETTE.panelBgHighContrast : PALETTE.panelBg);
-    const border = cssHex(this.highContrast ? PALETTE.panelBorderHighContrast : PALETTE.panelBorder);
-    const titleBg = cssHex(this.highContrast ? PALETTE.panelTitleBgHighContrast : PALETTE.panelTitleBg);
-    const textColor = cssHex(this.highContrast ? PALETTE.panelTextHighContrast : PALETTE.panelText);
-    const accent = cssHex(PALETTE.accent);
+    const bg = cssHex(this.highContrast ? COLOR_TOKENS.space.void : COLOR_TOKENS.surface.base);
+    const border = cssHex(this.highContrast ? COLOR_TOKENS.interaction.focus : COLOR_TOKENS.surface.border);
+    const titleBg = cssHex(this.highContrast ? COLOR_TOKENS.surface.raised : COLOR_TOKENS.surface.raised);
+    const textColor = cssHex(this.highContrast ? COLOR_TOKENS.text.primary : COLOR_TOKENS.text.primary);
+    const accent = cssHex(COLOR_TOKENS.interaction.focus);
 
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
 
     ctx.strokeStyle = border;
-    ctx.lineWidth = 4 * this.textScale;
+    ctx.lineWidth = 2 * this.textScale;
     ctx.strokeRect(2, 2, w - 4, h - 4);
 
     ctx.fillStyle = titleBg;
@@ -392,7 +372,7 @@ export class MovablePanel implements IPanelContentHandler {
 
     // Minimize button
     const mb = this.minimizeBtn;
-    ctx.fillStyle = cssHex(PALETTE.panelMinimize);
+    ctx.fillStyle = cssHex(COLOR_TOKENS.danger.destructive);
     ctx.fillRect(mb.x, mb.y, mb.w, mb.h);
     ctx.fillStyle = '#ffffff';
     ctx.font = `bold ${Math.round(16 * this.textScale)}px sans-serif`;
@@ -434,24 +414,24 @@ export class MovablePanel implements IPanelContentHandler {
       const sbH = containerH;
 
       // Track background
-      ctx.fillStyle = cssHex(PALETTE.panelScrollbarTrack);
+      ctx.fillStyle = cssHex(COLOR_TOKENS.surface.base);
       ctx.fillRect(sbX, sbY, sbW, sbH);
-      ctx.strokeStyle = cssHex(PALETTE.panelBorder);
+      ctx.strokeStyle = cssHex(COLOR_TOKENS.surface.border);
       ctx.lineWidth = 2;
       ctx.strokeRect(sbX, sbY, sbW, sbH);
 
       // Up scroll button (▲)
-      ctx.fillStyle = cssHex(PALETTE.panelTitleBg);
+      ctx.fillStyle = cssHex(COLOR_TOKENS.surface.raised);
       ctx.fillRect(sbX + 2, sbY + 2, sbW - 4, 28);
-      ctx.fillStyle = cssHex(PALETTE.accent);
+      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
       ctx.font = 'bold 16px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('▲', sbX + sbW / 2, sbY + 16);
 
       // Down scroll button (▼)
-      ctx.fillStyle = cssHex(PALETTE.panelTitleBg);
+      ctx.fillStyle = cssHex(COLOR_TOKENS.surface.raised);
       ctx.fillRect(sbX + 2, sbY + sbH - 30, sbW - 4, 28);
-      ctx.fillStyle = cssHex(PALETTE.accent);
+      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
       ctx.fillText('▼', sbX + sbW / 2, sbY + sbH - 16);
 
       // Thumb
@@ -459,7 +439,7 @@ export class MovablePanel implements IPanelContentHandler {
       const thumbH = Math.max(36, (containerH / this.totalContentHeight) * thumbAreaH);
       const thumbY = sbY + 32 + (maxScroll > 0 ? (this.scrollOffset / maxScroll) * (thumbAreaH - thumbH) : 0);
 
-      ctx.fillStyle = cssHex(PALETTE.accent);
+      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
       ctx.fillRect(sbX + 4, thumbY, sbW - 8, thumbH);
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 1;
