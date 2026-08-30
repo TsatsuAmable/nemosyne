@@ -61,6 +61,7 @@ function applicationIntentDispatcher(world: World): ApplicationIntentDispatcher 
     undoHistory: () => world.undoAnalysis(),
     redoHistory: () => world.redoAnalysis(),
     toggleStatisticalLens: () => world._toggleStatisticalLens(),
+    openSettings: () => world.uiManager.settingsPanel.show(),
   });
 }
 
