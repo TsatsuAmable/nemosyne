@@ -92,11 +92,6 @@ function investigationActions(
         platform: navigator.platform,
         webxrSupported: 'xr' in navigator,
       }),
-    setDatasetPickerVisible: (visible) => {
-      if (visible) world.loader.show();
-      else world.loader.hide();
-    },
-    isDatasetPickerVisible: () => world.loader.container.style.display !== 'none',
   };
 }
 
@@ -174,8 +169,6 @@ export async function bootstrapApp(): Promise<AppInstance> {
     onDispatchError: (error) =>
       console.error('[ApplicationIntent] input dispatch failed:', error),
   });
-  // Expose only the canonical dispatcher to World-side operation funnels.
-  // Presentation-only commands remain owned by the composition root/shell.
   world.dispatchIntent = dispatchCanonicalIntent;
 
   applyNormalAnalystShell(world);
@@ -237,24 +230,14 @@ export async function bootstrapApp(): Promise<AppInstance> {
     } else {
       telemetry.textContent = 'ready — point and select to inspect';
     }
-    // P1-UV1: runtime telemetry remains alive for diagnostics/tests, but it is
-    // not part of the normal analyst information hierarchy.
     telemetry.hidden = import.meta.env.VITE_NEMOSYNE_DIAGNOSTICS !== '1';
   }
 
-  // The static title is a boot affordance, not permanent chrome over the data.
   const bootOverlay = document.getElementById('overlay');
   if (bootOverlay) bootOverlay.hidden = true;
 
-  // Dataset import is a first-class task summoned from the investigation shell,
-  // not an always-open engineering panel competing with the scene.
   world.loader.hide();
 
-  // P1-UV0 instrumentation is a compile-time opt-in. Ordinary production
-  // bundles are built without VITE_NEMOSYNE_UV0_EVIDENCE, so Rollup can remove
-  // both this branch and the dynamic helper chunk. The dedicated UV0 evidence
-  // job enables the flag and still requires the exact query parameter before
-  // installing the runtime handle.
   if (import.meta.env.VITE_NEMOSYNE_UV0_EVIDENCE === '1') {
     const uv0 = new URL(window.location.href).searchParams.get('nemosyne-uv0');
     if (uv0 === '1') {
@@ -266,8 +249,6 @@ export async function bootstrapApp(): Promise<AppInstance> {
   return {
     world,
     dispatchIntent,
-    investigationShell: mountInvestigationShell(
-      investigationActions(world, dispatchIntent),
-    ),
+    investigationShell: mountInvestigationShell(investigationActions(world, dispatchIntent)),
   };
 }
