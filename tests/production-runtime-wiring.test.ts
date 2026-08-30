@@ -64,7 +64,7 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
       expect(world.atlas.analysisHistory.length).toBe(historyBefore);
 
       const ledgerAfterStart = [...world.atlas.ledger];
-      const liveRuntime = requireValue(world._wasmRuntime, 'live WASM runtime');
+      const liveRuntime = requireValue(world.analyticalRuntime.runtime, 'live WASM runtime');
       const operationApplied = vi.fn();
       world.eventBus.on(WorldTopics.OPERATION_APPLIED, operationApplied);
       world.atlas.setKernel(
@@ -75,14 +75,14 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
             throw new WebAssembly.RuntimeError('injected ABI trap');
           },
         },
-        world._wasmCapabilities
+        world.analyticalRuntime.capabilities
       );
 
       world.applyDataOperation('sort');
       expect(world.bootState).toBe('KERNEL_UNAVAILABLE');
       expect(world.atlas.isReady()).toBe(false);
-      expect(world._wasmCapabilities).toBe(0);
-      expect(world._wasmUnavailable).toBe(true);
+      expect(world.analyticalRuntime.capabilities).toBe(0);
+      expect(world.analyticalRuntime.isUnavailable).toBe(true);
       expect(runtimeBridge.getKernelState()).toBe('UNAVAILABLE');
       expect(operationApplied).not.toHaveBeenCalled();
 
@@ -90,7 +90,7 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
       expect(world.bootState).toBe('READY');
       expect(runtimeBridge.getKernelState()).toBe('READY');
       expect(world.atlas.isReady()).toBe(true);
-      expect(world._wasmUnavailable).toBe(false);
+      expect(world.analyticalRuntime.isUnavailable).toBe(false);
       expect(requireValue(world.dracoNode, 'recovered representation node')).not.toBe(authoritativeNode);
       expect(world.atlas.datasetVersion).toBe(versionBefore);
       expect(world.atlas.ledger).toEqual(ledgerAfterStart);

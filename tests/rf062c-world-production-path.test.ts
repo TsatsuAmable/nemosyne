@@ -1,4 +1,3 @@
-// @ts-nocheck
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -25,19 +24,17 @@ describe('RF-062C production World path', () => {
     world = new World();
     const bridge = makeKernelMockBridge();
     world.atlas.setKernel(bridge, 0x3c07);
-    world._wasmRuntime = bridge;
-    world._wasmUnavailable = false;
 
     const execute = vi.spyOn(world.loadDatasetUseCase, 'execute');
     const replace = vi.spyOn(world.representationSurface, 'replace');
     const sample = getSampleDataset('sales-table');
+    if (!sample) throw new Error('sales-table sample is required');
 
     world.loadDataset({
       name: sample.label,
       topology: sample.topology,
       dataset: sample.dataset,
       maxDepth: sample.depth,
-      encodings: sample.encodings,
     });
 
     expect(execute).toHaveBeenCalledOnce();
@@ -52,16 +49,14 @@ describe('RF-062C production World path', () => {
     world = new World();
     const bridge = makeKernelMockBridge();
     world.atlas.setKernel(bridge, 0x3c07);
-    world._wasmRuntime = bridge;
-    world._wasmUnavailable = false;
 
     const sample = getSampleDataset('sales-table');
+    if (!sample) throw new Error('sales-table sample is required');
     world.loadDataset({
       name: sample.label,
       topology: sample.topology,
       dataset: sample.dataset,
       maxDepth: sample.depth,
-      encodings: sample.encodings,
     });
 
     const disposeSurface = vi.spyOn(world.representationSurface, 'dispose');

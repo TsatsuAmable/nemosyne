@@ -65,8 +65,6 @@ describe('RF-062E production session path', () => {
     world = new World();
     const bridge = makeKernelMockBridge();
     world.atlas.setKernel(bridge, 0x3c07);
-    world._wasmRuntime = bridge as never;
-    world._wasmUnavailable = false;
     const sample = getSampleDataset('sales-table');
     if (!sample) throw new Error('sales-table sample is required');
     world.loadDataset({

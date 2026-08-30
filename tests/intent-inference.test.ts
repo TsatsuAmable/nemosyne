@@ -103,36 +103,36 @@ describe('World intent inference integration', () => {
     world?.engine?.desktop?.disable?.();
   });
 
-  it('toggles input pause on _togglePauseInput', () => {
-    expect(world._inputPaused).toBeFalsy();
-    world._togglePauseInput();
-    expect(world._inputPaused).toBe(true);
-    world._togglePauseInput();
-    expect(world._inputPaused).toBe(false);
+  it('toggles input pause through the input coordinator', () => {
+    expect(world.inputCoordinator.inputPaused).toBe(false);
+    world.inputCoordinator.togglePauseInput();
+    expect(world.inputCoordinator.inputPaused).toBe(true);
+    world.inputCoordinator.togglePauseInput();
+    expect(world.inputCoordinator.inputPaused).toBe(false);
   });
 
   it('ignores gestures while input is paused', () => {
     const logSpy = vi.spyOn(world.uiManager.vrConsole, 'log').mockImplementation(() => {});
-    world._inputPaused = true;
-    world._onGesture('swipeRight', { openHands: true });
+    world.inputCoordinator.togglePauseInput();
+    world.inputCoordinator.onGesture('swipeRight', { openHands: true });
     expect(logSpy).toHaveBeenCalledWith('log', ['Input paused — gesture ignored']);
   });
 
   it('resets view on open-hand pushForward', () => {
     const teleportSpy = vi.spyOn(world.engine.locomotion, 'teleportToAnchor').mockReturnValue(true);
-    world._onGesture('pushForward', { openHands: true });
+    world.inputCoordinator.onGesture('pushForward', { openHands: true });
     expect(teleportSpy).toHaveBeenCalledWith('overview');
   });
 
   it('resets data operation on pinched pushForward', () => {
     const resetSpy = vi.spyOn(world, 'resetDataOperation').mockImplementation(() => {});
-    world._onGesture('pushForward', { openHands: false });
+    world.inputCoordinator.onGesture('pushForward', { openHands: false });
     expect(resetSpy).toHaveBeenCalled();
   });
 
   it('updates input context flags from hand proximity', () => {
-    world._updateInputContext();
-    expect(typeof world._handNearArtefact).toBe('boolean');
-    expect(typeof world._handNearWheelMenu).toBe('boolean');
+    world.inputCoordinator._updateInputContext();
+    expect(typeof world.inputCoordinator.handNearArtefact).toBe('boolean');
+    expect(typeof world.inputCoordinator.handNearWheelMenu).toBe('boolean');
   });
 });

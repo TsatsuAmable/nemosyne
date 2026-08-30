@@ -38,7 +38,6 @@ import { WorldInputCoordinator } from './coordinators/WorldInputCoordinator.ts';
 import { UserModeController } from './coordinators/UserModeController.ts';
 import { ComfortSettingsController } from './coordinators/ComfortSettingsController.ts';
 import { AdaptiveAssistController } from './coordinators/AdaptiveAssistController.ts';
-import { AnalysisHistory } from '../data/AnalysisHistory.ts';
 import { SessionStore } from '../data/SessionStore.ts';
 import { Dataset } from '../data/Dataset.ts';
 import { GuidedTour, type TourStep } from './ui/GuidedTour.ts';
@@ -118,10 +117,7 @@ import { bindOperationPreviewProjection } from './presentation/bindings/bindOper
 import { bindAutosaveProjection } from './presentation/bindings/bindAutosaveProjection.ts';
 import type { BindingDisposer } from './presentation/bindings/BindingDisposer.ts';
 import { WorldPresentationSnapshotAdapter } from './presentation/session/WorldPresentationSnapshotAdapter.ts';
-import {
-  AnalyticalRuntimeOwner,
-  type AnalyticalRuntimeBridge,
-} from './runtime/AnalyticalRuntimeOwner.ts';
+import { AnalyticalRuntimeOwner } from './runtime/AnalyticalRuntimeOwner.ts';
 
 // Map sample-dataset keys to atmospheric presets so each dataset has a distinct mood.
 const DATASET_THEME_MAP: Record<string, string> = {
@@ -203,12 +199,6 @@ export class World {
   loader: FileLoaderUI;
   telemetry: HTMLElement | null;
   _dashboardTooltipTargets: THREE.Mesh[];
-  analysisHistory!: AnalysisHistory;
-  _originalDataset!: Dataset | null;
-  _transformedDataset!: Dataset | null;
-  _inputPaused!: boolean;
-  _handNearArtefact!: boolean;
-  _handNearWheelMenu!: boolean;
   sessionStore: SessionStore;
   _initPromises: Promise<unknown>[];
   _autosaveRestoreStarted: boolean;
@@ -268,27 +258,6 @@ export class World {
       if (index >= 0) this._extensionDisposers.splice(index, 1);
       registered();
     };
-  }
-
-  /** RF-062I compatibility aliases while private-field tests migrate to runtime injection. */
-  get _wasmCapabilities(): number {
-    return this.analyticalRuntime.capabilities;
-  }
-
-  get _wasmRuntime(): AnalyticalRuntimeBridge | null {
-    return this.analyticalRuntime.runtime;
-  }
-
-  set _wasmRuntime(runtime: AnalyticalRuntimeBridge | null) {
-    this.analyticalRuntime.setCompatibilityRuntime(runtime);
-  }
-
-  get _wasmUnavailable(): boolean {
-    return this.analyticalRuntime.isUnavailable;
-  }
-
-  set _wasmUnavailable(unavailable: boolean) {
-    this.analyticalRuntime.setCompatibilityUnavailable(unavailable);
   }
 
   constructor() {
@@ -541,7 +510,7 @@ export class World {
       engine: this.engine,
       dashboard: this.uiManager.dashboard,
       tooltipManager: this.tooltipManager,
-      getOriginalDataset: () => this._originalDataset,
+      getOriginalDataset: () => this.atlas.originalDataset,
       getDracoNode: () => this.dracoNode,
       getAtlas: () => this.atlas,
     });
@@ -738,46 +707,6 @@ export class World {
     // Tell the tooltip manager about any dashboard panels created later.
     this._dashboardTooltipTargets = [];
 
-    // Analysis history is owned by AtlasCore; expose it as a live getter so
-    // legacy consumers (narrative strip, session restore, tests) stay in sync.
-    Object.defineProperty(this, 'analysisHistory', {
-      get: () => this.atlas.analysisHistory,
-      configurable: true,
-    });
-
-    // Facade getters for the dataset state owned by AtlasCore. Tests and
-    // session code still access `world._originalDataset` and
-    // `world._transformedDataset` directly.
-    Object.defineProperty(this, '_originalDataset', {
-      get: () => this.atlas.originalDataset,
-      set: (value) => {
-        this.atlas.setOriginalDataset(value);
-      },
-      configurable: true,
-    });
-    Object.defineProperty(this, '_transformedDataset', {
-      get: () => this.atlas.dataset,
-      set: (value) => {
-        this.atlas.setCurrentDataset(value);
-      },
-      configurable: true,
-    });
-
-    // Facade getters for input state owned by the input coordinator. Tests read
-    // these directly and sometimes set `_inputPaused` to simulate pause.
-    Object.defineProperty(this, '_inputPaused', {
-      get: () => this.inputCoordinator.inputPaused,
-      set: (value) => {
-        this.inputCoordinator._inputPaused = !!value;
-      },
-    });
-    Object.defineProperty(this, '_handNearArtefact', {
-      get: () => this.inputCoordinator.handNearArtefact,
-    });
-    Object.defineProperty(this, '_handNearWheelMenu', {
-      get: () => this.inputCoordinator.handNearWheelMenu,
-    });
-
     // Persistent session store (IndexedDB). Auto-saves the world state so the
     // user can resume after a page reload.
     this.sessionStore = new SessionStore();
@@ -825,7 +754,7 @@ export class World {
       bindOperationStateProjection({
         eventBus: this.eventBus,
         invalidateSpatialAcceleration: () => this.engine.input.invalidateSpatialAcceleration(),
-        getTransformedDataset: () => this._transformedDataset,
+        getTransformedDataset: () => this.atlas.dataset,
         restoreDataset: (dataset, operation) => this._restoreDataset(dataset, operation),
         updateDashboardDatasets: (dataset) => this._updateDashboardDatasets(dataset),
       }),
@@ -907,7 +836,7 @@ export class World {
       comfortSettingsController: this.comfortSettingsController,
       focusContext: this.focusContext,
       getCurrentEntry: () => this.currentEntry,
-      getFallbackDatasetName: () => this._originalDataset?.name ?? null,
+      getFallbackDatasetName: () => this.atlas.originalDataset?.name ?? null,
       hasRepresentation: () => !!this.dracoNode,
     });
     this.sessionController = new WorldSessionController({
@@ -1066,9 +995,8 @@ export class World {
   _updateWorld(_delta: number, _time: number): void {
     // Sync core pulse to the amount of analysis history in the session.
     if (this.core?.setDataActivity) {
-      const activity = this.analysisHistory
-        ? this.analysisHistory.length / Math.max(1, this.analysisHistory.maxFrames)
-        : 0;
+      const history = this.atlas.analysisHistory;
+      const activity = history.length / Math.max(1, history.maxFrames);
       this.core.setDataActivity(activity);
     }
 
@@ -1433,28 +1361,6 @@ export class World {
     this._logInteraction('Launcher', {
       result: this.uiManager.panelManager.isLauncherVisible() ? 'opened' : 'closed',
     });
-  }
-
-  /** Legacy facade for tests and direct callers. Delegates to the input coordinator. */
-  _onGesture(name: string, ctx: Record<string, unknown> = {}): void {
-    this.inputCoordinator.onGesture(name, ctx);
-  }
-
-  _togglePauseInput(): void {
-    this.inputCoordinator.togglePauseInput();
-  }
-
-  /**
-   * Legacy facade for tests and direct callers. Delegates to the input
-   * coordinator's reset view action.
-   */
-  _resetView(): void {
-    this.inputCoordinator.resetView();
-  }
-
-  /** Legacy facade for tests that want to force a context recompute. */
-  _updateInputContext(): void {
-    this.inputCoordinator._updateInputContext();
   }
 
   _cycleDataset(delta: number = 1): void {
@@ -2089,8 +1995,8 @@ export class World {
       // filter's lifted/hidden nodes). Re-apply it so a mid-analysis palette
       // change does not silently revert the active operation's transform —
       // mirroring _restoreDataset, which re-applies it after the same call.
-      const currentOp = this.analysisHistory?.current?.()?.operation;
-      const currentDataset = this._transformedDataset ?? this._originalDataset;
+      const currentOp = this.atlas.analysisHistory.current()?.operation;
+      const currentDataset = this.atlas.dataset ?? this.atlas.originalDataset;
       if (currentOp && currentDataset) {
         this._reapplyOperationTransform(currentOp, currentDataset);
       }
@@ -2158,7 +2064,7 @@ export class World {
     if (!dataset || !this.dracoNode) return;
 
     const transformedDataset = dataset.clone();
-    this._transformedDataset = transformedDataset;
+    this.atlas.setCurrentDataset(transformedDataset);
     this.dracoNode.dataInput.dataset = transformedDataset;
     this.dracoNode.reSolveAndSynthesize();
 
@@ -2202,7 +2108,7 @@ export class World {
         applyAnomaly(this.dracoNode.artifact, dataset);
         break;
       case 'timeSlice':
-        applySlice(this.dracoNode.artifact, dataset, this._originalDataset ?? dataset);
+        applySlice(this.dracoNode.artifact, dataset, this.atlas.originalDataset ?? dataset);
         break;
       case 'compare':
         // The dataset re-solve is the visual representation for Compare.
@@ -2225,7 +2131,7 @@ export class World {
   _updateNarrativeStrip(): void {
     const strip = this.uiManager.narrativeStrip;
     strip?.render?.();
-    if (this.analysisHistory?.length > 0) {
+    if (this.atlas.analysisHistory.length > 0) {
       if (!strip) {
         this.uiManager.panelManager?.showPanel?.(this.uiManager.getOrCreateNarrativeStrip());
       } else {
@@ -2235,7 +2141,7 @@ export class World {
   }
 
   _updateOperationLog(): void {
-    const entries = this.analysisHistory.frames().map((f) => ({
+    const entries = this.atlas.analysisHistory.frames().map((f) => ({
       operation: f.operation,
       rowCount: f.datasetAfter?.rowCount,
       timestamp: f.timestamp,
@@ -2287,14 +2193,6 @@ export class World {
 
   get liveConnector(): LiveConnectorLike | null {
     return this.liveStreamCoordinator?.liveConnector ?? null;
-  }
-
-  get _liveFlushTimer(): ReturnType<typeof setTimeout> | null {
-    return this.liveStreamCoordinator?._liveFlushTimer ?? null;
-  }
-
-  get _pendingRows(): Record<string, unknown>[] {
-    return this.liveStreamCoordinator?._pendingRows ?? [];
   }
 
   isLiveConnected(): boolean {

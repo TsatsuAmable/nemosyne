@@ -146,16 +146,6 @@ export class AnalyticalRuntimeOwner {
     this.activeCapabilities = 0;
   }
 
-  /** RF-062I compatibility seam for tests that still install a canned bridge directly. */
-  setCompatibilityRuntime(runtime: AnalyticalRuntimeBridge | null): void {
-    this.activeRuntime = runtime;
-  }
-
-  /** RF-062I compatibility seam for tests that still patch availability directly. */
-  setCompatibilityUnavailable(unavailable: boolean): void {
-    this.unavailable = unavailable;
-  }
-
   private isCurrent(generation: number): boolean {
     return !this.disposed && this.isAttemptCurrent(generation);
   }

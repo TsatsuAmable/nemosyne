@@ -134,15 +134,16 @@ function jsonBytes(value: unknown): number {
 
 function captureMemory(world: World): ResourceEnvelopeMemorySample {
   const browserMemory = (performance as PerformanceWithMemory).memory;
+  const runtime = world.analyticalRuntime.runtime;
   let mainWasmBytes: number | null = null;
   let mainHostBufferAllocations: number | null = null;
   try {
-    mainWasmBytes = world._wasmRuntime?.memory().buffer.byteLength ?? null;
+    mainWasmBytes = runtime?.memory().buffer.byteLength ?? null;
   } catch {
     mainWasmBytes = null;
   }
   try {
-    mainHostBufferAllocations = world._wasmRuntime?.hostBufferAllocationCount() ?? null;
+    mainHostBufferAllocations = runtime?.hostBufferAllocationCount() ?? null;
   } catch {
     mainHostBufferAllocations = null;
   }

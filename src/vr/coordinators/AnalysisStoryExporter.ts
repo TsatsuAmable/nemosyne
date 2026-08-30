@@ -10,10 +10,12 @@ import type {
 } from './types.ts';
 
 export interface AnalysisStoryHost {
-  analysisHistory?: Pick<AnalysisHistory, 'frames'>;
+  atlas?: {
+    analysisHistory: Pick<AnalysisHistory, 'frames'>;
+    originalDataset: Pick<Dataset, 'name' | 'rowCount'> | null;
+    dataset: Pick<Dataset, 'rowCount'> | null;
+  };
   currentEntry?: Pick<DatasetLoadEntry, 'name' | 'topology'> | null;
-  _originalDataset?: Pick<Dataset, 'name' | 'rowCount'> | null;
-  _transformedDataset?: Pick<Dataset, 'rowCount'> | null;
   engine?: Pick<WorldEngineLike, 'cameraGroup' | 'theme'>;
   telemetryCollector?: Pick<TelemetryCollectorLike, 'getReport'>;
   uiManager?: { vrConsole?: VRConsoleLike | null };
@@ -48,15 +50,17 @@ export class AnalysisStoryExporter {
   }
 
   static buildAnalysisStory(world: AnalysisStoryHost): Record<string, unknown> {
-    const frames = world.analysisHistory?.frames() ?? [];
+    const frames = world.atlas?.analysisHistory.frames() ?? [];
+    const originalDataset = world.atlas?.originalDataset ?? null;
+    const transformedDataset = world.atlas?.dataset ?? null;
     return {
       version: 1,
       timestamp: Date.now(),
       savedAt: new Date().toISOString(),
       dataset: {
-        name: world.currentEntry?.name ?? world._originalDataset?.name ?? 'dataset',
+        name: world.currentEntry?.name ?? originalDataset?.name ?? 'dataset',
         topology: world.currentEntry?.topology ?? 'TABULAR',
-        rowCount: world._transformedDataset?.rowCount ?? world._originalDataset?.rowCount ?? 0,
+        rowCount: transformedDataset?.rowCount ?? originalDataset?.rowCount ?? 0,
       },
       camera: world.engine?.cameraGroup?.position?.toArray?.() ?? [],
       theme: world.engine?.theme?.currentPreset ?? 'neonMidnight',

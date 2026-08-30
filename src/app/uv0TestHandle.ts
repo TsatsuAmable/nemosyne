@@ -43,10 +43,12 @@ interface Uv0RuntimePort {
     observations: readonly unknown[];
     isReady(): boolean;
   };
+  analyticalRuntime: {
+    isUnavailable: boolean;
+  };
   session: {
     nilOutcomes: readonly unknown[];
   };
-  _wasmUnavailable: boolean;
   _showDataCard(mesh: object): void;
 }
 
@@ -113,7 +115,7 @@ export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
         observationCount: runtime.atlas.observations.length,
         nilCount: runtime.session.nilOutcomes.length,
         outcomeKind: outcome?.dataset.state ?? 'pending',
-        kernelAvailable: !runtime._wasmUnavailable && runtime.atlas.isReady(),
+        kernelAvailable: !runtime.analyticalRuntime.isUnavailable && runtime.atlas.isReady(),
       };
     },
     selectNode(index = 0): boolean {
