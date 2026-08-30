@@ -47,7 +47,7 @@ async function pollSnapshot(
       return last ? predicate(last) : false;
     }, { timeout, message })
     .toBe(true);
-  return last as Uv0RuntimeSnapshot;
+  return last as unknown as Uv0RuntimeSnapshot;
 }
 
 async function captureState(
