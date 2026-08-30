@@ -74,9 +74,10 @@ export class Engine {
   onRedo: (() => void) | null = null;
   onPauseInput: (() => void) | null = null;
   onResetView: (() => void) | null = null;
-  // Optional load-test callbacks (populated by World; triggered by desktop KeyT).
+  // Optional dev-evidence callbacks installed outside the core World graph.
   onToggleLoadTestPanel: (() => void) | null = null;
   onStartLoadTest: (() => void) | null = null;
+  onStopLoadTest: (() => void) | null = null;
 
   _vrButtonElement: HTMLElement;
   headWorldPos: THREE.Vector3;
