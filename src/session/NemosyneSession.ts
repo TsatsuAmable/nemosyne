@@ -49,6 +49,11 @@ export interface PortablePackageEnvironment {
 export interface NemosyneSessionJSON extends AtlasCoreState {
   schemaVersion: 2;
   savedAt: number;
+  /**
+   * Stable logical investigation/session identity. Optional only for backward
+   * compatibility with schema-v2 snapshots written before identity was included.
+   */
+  sessionId?: string;
   entry: PresentationState['entry'];
   analysisSpecs: AnalysisSpec[];
   presentation: PresentationState;
@@ -108,6 +113,7 @@ export class NemosyneSession {
     return {
       schemaVersion: 2,
       savedAt: (typeof Date !== 'undefined' && Date.now) ? Date.now() : 0,
+      sessionId: this._sessionId,
       datasetVersion: core.datasetVersion,
       datasetFingerprint: core.datasetFingerprint,
       originalDataset: core.originalDataset,
@@ -230,6 +236,9 @@ export class NemosyneSession {
 
   loadFromJSON(json: NemosyneSessionJSON): void {
     this._atlas.restoreState(json);
+    if (typeof json.sessionId === 'string' && json.sessionId.length > 0) {
+      this._sessionId = json.sessionId;
+    }
     this._nilOutcomes.reset();
     if (json.nilOutcomes) this._nilOutcomes.restore(json.nilOutcomes);
     this._presentation = {
@@ -246,7 +255,10 @@ export class NemosyneSession {
 
   static deserialize(json: NemosyneSessionJSON, atlas: AtlasCore): NemosyneSession {
     atlas.restoreState(json);
-    const session = new NemosyneSession({ atlas });
+    const sessionId = typeof json.sessionId === 'string' && json.sessionId.length > 0
+      ? json.sessionId
+      : undefined;
+    const session = new NemosyneSession({ atlas, sessionId });
     if (json.nilOutcomes) session._nilOutcomes.restore(json.nilOutcomes);
     session._presentation = {
       camera: json.presentation?.camera ?? { position: [0, 0, 0], rotationY: 0 },

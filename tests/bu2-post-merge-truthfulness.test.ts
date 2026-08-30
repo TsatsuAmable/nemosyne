@@ -50,6 +50,7 @@ describe('B-U2 post-merge truthfulness', () => {
     const session = new NemosyneSession({ atlas, sessionId: 'archive-a-session' });
     session.setPresentation({ entry: { name: 'archive-a' } });
     const snapshot = session.serialize() as NemosyneSessionJSON;
+    expect(snapshot.sessionId).toBe('archive-a-session');
 
     // Mutate the live Atlas after taking the archive snapshot. A correct archive
     // exporter must remain pinned to archive-a rather than following this live state.
@@ -62,6 +63,7 @@ describe('B-U2 post-merge truthfulness', () => {
     const bytes = await NemosyneSession.exportPortableSnapshot(snapshot);
     const unpacked = await NemosynePackageManager.unpack(bytes);
     const archivedDataset = JSON.parse(new TextDecoder().decode(unpacked.datasetBytes));
+    expect(unpacked.manifest.sessionId).toBe('archive-a-session');
     expect(archivedDataset.name).toBe('archive-a');
     expect(archivedDataset.rows).toHaveLength(2);
   });
