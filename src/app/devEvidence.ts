@@ -26,12 +26,6 @@ interface ActiveSpecInfo {
   renderedNodeCount?: number;
 }
 
-interface DevEvidenceTelemetry extends TelemetryCollectorLike {
-  enabled?: boolean;
-  setEnabled?(enabled: boolean): void;
-  frustrationAnalyzer?: { getCompactDigest?(): Record<string, unknown> };
-}
-
 export interface DevEvidenceInstallerDependencies {
   engine: Engine;
   eventBus: WorldEventBusLike;
@@ -81,19 +75,13 @@ function postSummary(summary: unknown): void {
   }
 }
 
-function usabilityDigest(telemetry: DevEvidenceTelemetry): LoadTestSummary['usability'] {
-  const digest = telemetry.frustrationAnalyzer?.getCompactDigest?.();
+function usabilityDigest(telemetry: TelemetryCollectorLike): LoadTestSummary['usability'] {
+  const digest = telemetry.frustrationAnalyzer.getCompactDigest();
   return {
-    frictionLevel:
-      typeof digest?.frictionLevel === 'string' ? digest.frictionLevel : 'unknown',
-    dissatisfactionScore:
-      typeof digest?.dissatisfactionScore === 'number' ? digest.dissatisfactionScore : 0,
-    detectedPatterns: Array.isArray(digest?.detectedPatterns)
-      ? (digest.detectedPatterns as Array<{ name?: string } | string>).map((pattern) =>
-          typeof pattern === 'string' ? pattern : (pattern.name ?? 'pattern')
-        )
-      : [],
-    telemetryConsentEnabled: !!telemetry.enabled,
+    frictionLevel: digest.frictionLevel,
+    dissatisfactionScore: digest.dissatisfactionScore,
+    detectedPatterns: digest.detectedPatterns.map((pattern) => pattern.type),
+    telemetryConsentEnabled: telemetry.enabled,
   };
 }
 
@@ -111,7 +99,6 @@ export function installDevEvidence({
   getActiveSpecInfo,
   getWasmMemoryBytes,
 }: DevEvidenceInstallerDependencies): DevEvidenceHandle {
-  const telemetry = telemetryCollector as DevEvidenceTelemetry;
   const loadTestDriver = new LoadTestDriver(
     { loadDataset, getActiveSpecInfo, eventBus },
     engine,
@@ -131,7 +118,7 @@ export function installDevEvidence({
   const restoreTelemetryConsent = () => {
     if (telemetryConsentBeforeRun === null) return;
     try {
-      telemetry.setEnabled?.(telemetryConsentBeforeRun);
+      telemetryCollector.setEnabled?.(telemetryConsentBeforeRun);
     } catch {
       // Telemetry is best-effort and must not block harness cleanup.
     }
@@ -154,7 +141,7 @@ export function installDevEvidence({
   };
 
   const enrichAndFlushLoadTestSummary = (summary: LoadTestSummary) => {
-    summary.usability = usabilityDigest(telemetry);
+    summary.usability = usabilityDigest(telemetryCollector);
     postSummary(summary);
     try {
       // eslint-disable-next-line no-console
@@ -220,9 +207,9 @@ export function installDevEvidence({
       if (disposed || questBoundaryProbe.running) return;
       lastQuestBoundarySummary = null;
       uiManager.showPanel(getOrCreatePanel());
-      telemetryConsentBeforeRun = !!telemetry.enabled;
+      telemetryConsentBeforeRun = telemetryCollector.enabled;
       try {
-        telemetry.setEnabled?.(true);
+        telemetryCollector.setEnabled?.(true);
       } catch {
         // Telemetry is best-effort.
       }
