@@ -7,6 +7,7 @@
 import { World } from '../vr/World.ts';
 import { allSampleDatasets } from '../data/SampleDatasets.ts';
 import { WorldTopics } from '../utils/EventBus.ts';
+import '../ui/components/index.ts';
 import { resolveDatasetCycleCursor } from './dataset/DatasetCycleCursor.ts';
 import {
   setupDevTraceRecorder,
