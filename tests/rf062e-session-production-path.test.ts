@@ -7,6 +7,26 @@ import type { SessionStore } from '../src/data/SessionStore.ts';
 import { WorldTopics } from '../src/utils/EventBus.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
+// This jsdom lane deliberately has no ambient WASM initialization. Keep the
+// production representation path intact while supplying its governed layout
+// ABI at the test boundary.
+vi.mock('../src/wasm/RuntimeBridge.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/wasm/RuntimeBridge.ts')>();
+  return {
+    ...actual,
+    computeGrid3d: (count: number, spacing = 1.1, yOffset = 1.2) => {
+      const side = Math.ceil(Math.sqrt(count));
+      const positions = new Float32Array(count * 3);
+      for (let index = 0; index < count; index += 1) {
+        positions[index * 3] = (index % side) * spacing;
+        positions[index * 3 + 1] = yOffset;
+        positions[index * 3 + 2] = Math.floor(index / side) * spacing;
+      }
+      return positions;
+    },
+  };
+});
+
 class MemorySessionStore {
   private readonly snapshots = new Map<string, Record<string, unknown>>();
 
