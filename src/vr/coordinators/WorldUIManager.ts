@@ -21,7 +21,6 @@ import { InteractionCoach } from '../ui/InteractionCoach.ts';
 import { NarrativeStrip } from '../ui/NarrativeStrip.ts';
 import { MiniOverview } from '../ui/MiniOverview.ts';
 import { PeerPresenceHUD } from '../ui/PeerPresenceHUD.ts';
-import { LoadTestPanel } from '../ui/LoadTestPanel.ts';
 import { RecommendationPanel } from '../ui/RecommendationPanel.ts';
 import { DracoExplainerPanel } from '../ui/DracoExplainerPanel.ts';
 import { RepresentationCarousel } from '../ui/RepresentationCarousel.ts';
@@ -38,7 +37,6 @@ import { StatusStripPanel } from '../ui/StatusStripPanel.ts';
 import { PanelRolesManager, type UIMode } from '../ui/PanelRolesManager.ts';
 import { PANEL_LAYOUT, type Vec3 } from '../ui/panelLayout.ts';
 import { ContextualTaskSurface } from '../ui/ContextualTaskSurface.ts';
-import type { LoadTestDriver, LoadTestProfile } from '../scalability/LoadTestDriver.ts';
 import type { Dataset } from '../../data/Dataset.ts';
 import { Dataset as DatasetClass } from '../../data/Dataset.ts';
 import type { UXFrustrationAnalyzer } from '../../utils/UXFrustrationAnalyzer.ts';
@@ -81,11 +79,6 @@ export interface WorldUIManagerCallbacks {
   getSetting?: (key: string) => unknown;
   telemetryCollector?: unknown;
   analysisHistory?: unknown;
-  loadTestDriver?: LoadTestDriver;
-  onStartLoadTest?: (profile: LoadTestProfile) => void;
-  onStopLoadTest?: () => void;
-  onFlushLoadTest?: () => void;
-  onStartQuestBoundary?: () => void;
   getRecommendation?: () => import('../../atlas/types.ts').AtlasRecommendation | null;
   getOutcome?: () => import('../../moneta/representation/ActionableNil.ts').InvestigatorActionableOutcome | null;
   onAcceptRecommendation?: () => void;
@@ -169,7 +162,6 @@ export class WorldUIManager {
   networkPanel: NetworkPanel;
   interactionCoach: InteractionCoach | null = null;
   narrativeStrip: NarrativeStrip | null = null;
-  loadTestPanel: LoadTestPanel | null = null;
   recommendationPanel: RecommendationPanel;
   dracoExplainerPanel: DracoExplainerPanel;
   vaultPanel: VaultPanel;
@@ -402,9 +394,8 @@ export class WorldUIManager {
     this.panelManager.hidePanel(this.networkPanel);
     applyPanelLayout(this.networkPanel, PANEL_LAYOUT.networkPanel);
 
-    // OperationLogPanel, InteractionCoach, NarrativeStrip, and LoadTestPanel are
-    // lazy — constructed on first access via getOrCreate*() to avoid unconditional
-    // boot-time GPU overhead for panels hidden in normal analyst sessions.
+    // Core secondary panels are lazy to avoid unconditional boot-time GPU
+    // overhead. Dev-only panels are composed by their external installer.
     this.panelRolesManager.registerPanel('operationLog', 'Operation Log', 'diagnostic');
     this.panelRolesManager.registerPanel('interactionCoach', 'Interaction Coach', 'system');
     this.panelRolesManager.registerPanel('narrative', 'Narrative Strip', 'secondary');
@@ -451,8 +442,8 @@ export class WorldUIManager {
     applyPanelLayout(this.vaultPanel, PANEL_LAYOUT.vaultPanel);
 
     // Register eagerly-constructed panels into PanelRolesManager with semantic roles.
-    // Lazy panels (operationLog, interactionCoach, narrative, loadTest) pre-register
-    // their roles here so the launcher ring can list them before first construction.
+    // Lazy core panels pre-register roles so policy does not depend on allocation.
+    // Extensions register their own roles when installed.
     this.panelRolesManager.registerPanel('telemetry', 'Input Telemetry', 'diagnostic');
     this.panelRolesManager.registerPanel('vrConsole', 'VR Console', 'diagnostic');
     // VRMenu retired as primary navigation per P1-U8; reclassified as diagnostic.
@@ -519,25 +510,6 @@ export class WorldUIManager {
       this.panelManager.hidePanel(this.narrativeStrip);
     }
     return this.narrativeStrip;
-  }
-
-  getOrCreateLoadTestPanel(): LoadTestPanel {
-    if (!this.loadTestPanel) {
-      this.loadTestPanel = new LoadTestPanel(this.analystAnchor, {
-        driver: this.callbacks.loadTestDriver as LoadTestDriver,
-        eventBus: this.eventBus,
-        onStart: this.callbacks.onStartLoadTest,
-        onStartBoundary: this.callbacks.onStartQuestBoundary,
-        onStop: this.callbacks.onStopLoadTest,
-        onFlush: this.callbacks.onFlushLoadTest,
-      });
-      this.panelManager.register(this.loadTestPanel);
-      applyPanelLayout(this.loadTestPanel, PANEL_LAYOUT.loadTestPanel);
-      this.engine.input.addPanel(this.loadTestPanel);
-      this.engine.addUpdatable(this.loadTestPanel);
-      this.panelManager.hidePanel(this.loadTestPanel);
-    }
-    return this.loadTestPanel;
   }
 
   getOrCreateSchemaMappingPanel(): SchemaMappingPanel {

@@ -174,6 +174,35 @@ export async function bootstrapApp(): Promise<AppInstance> {
   applyNormalAnalystShell(world);
 
   if (import.meta.env.DEV) {
+    const { installDevEvidence } = await import('./devEvidence.ts');
+    const devEvidence = installDevEvidence({
+      engine: world.engine,
+      eventBus: world.eventBus,
+      telemetryCollector: world.telemetryCollector,
+      uiManager: world.uiManager,
+      loadDataset: (entry) => world.loadDataset(entry),
+      getActiveSpecInfo: () => {
+        const spec = world.dracoNode?.solverResult?.spec;
+        if (!spec) return null;
+        const renderedNodeCount = world.dracoNode?.artifact?.nodeMeshes?.reduce((total, mesh) => {
+          const candidate = mesh as { isInstancedMesh?: boolean; count?: number };
+          return total + (candidate.isInstancedMesh ? (candidate.count ?? 0) : 1);
+        }, 0);
+        return {
+          geometry: String(spec.geometry),
+          layout: String(spec.layout),
+          renderedNodeCount,
+        };
+      },
+      getWasmMemoryBytes: () => {
+        try {
+          return world.analyticalRuntime.runtime?.memory?.().buffer.byteLength ?? null;
+        } catch {
+          return null;
+        }
+      },
+    });
+    world.registerExtensionDisposer(() => devEvidence.dispose());
     setupDevTraceRecorder(devTraceBindings(world));
   }
 

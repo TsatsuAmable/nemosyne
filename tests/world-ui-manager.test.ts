@@ -82,18 +82,15 @@ describe('WorldUIManager', () => {
     expect(ui.operationLogPanel).toBeNull();
     expect(ui.interactionCoach).toBeNull();
     expect(ui.narrativeStrip).toBeNull();
-    expect(ui.loadTestPanel).toBeNull();
   });
 
   it('constructs lazy panels on first access via getOrCreate accessors', () => {
     expect(ui.getOrCreateOperationLogPanel()).toBeTruthy();
     expect(ui.getOrCreateInteractionCoach()).toBeTruthy();
     expect(ui.getOrCreateNarrativeStrip()).toBeTruthy();
-    expect(ui.getOrCreateLoadTestPanel()).toBeTruthy();
     expect(ui.operationLogPanel).toBeTruthy();
     expect(ui.interactionCoach).toBeTruthy();
     expect(ui.narrativeStrip).toBeTruthy();
-    expect(ui.loadTestPanel).toBeTruthy();
   });
 
   it('tracks the settings panel in the workspace budget controller through the live show/hide path', () => {
@@ -153,7 +150,6 @@ describe('WorldUIManager', () => {
     ui.getOrCreateOperationLogPanel();
     ui.getOrCreateInteractionCoach();
     ui.getOrCreateNarrativeStrip();
-    ui.getOrCreateLoadTestPanel();
     ui.getOrCreateSchemaMappingPanel();
     ui.getOrCreateGestureConfidenceHUD();
     ui.toggleRepresentationCarousel();

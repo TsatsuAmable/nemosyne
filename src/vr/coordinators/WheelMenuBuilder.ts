@@ -35,7 +35,14 @@ export interface WheelMenuHost {
     | 'toggleTransientContextCards'
     | 'vrConsole'
   >;
-  engine: Pick<WorldEngineLike, 'exitVR' | 'locomotion'>;
+  engine: Pick<
+    WorldEngineLike,
+    | 'exitVR'
+    | 'locomotion'
+    | 'onStartLoadTest'
+    | 'onStopLoadTest'
+    | 'onToggleLoadTestPanel'
+  >;
   collaborationCoordinator: CollaborationCoordinatorLike;
   portalsEnabled?: boolean;
   exitVR?(): Promise<boolean> | void;
@@ -57,8 +64,6 @@ export interface WheelMenuHost {
   connectLiveStream(): void;
   disconnectLiveStream(): void;
   startTour(): void;
-  runLoadTest?(profile?: unknown): void;
-  stopLoadTest?(): void;
   _cycleDataset(): void;
   _cycleThemePreset(): void;
   _toggleSettingsPanel(): void;
@@ -67,7 +72,6 @@ export interface WheelMenuHost {
   _toggleDesktopPreview(): void;
   _joinCollaborationRoom(): void;
   _leaveCollaborationRoom(): void;
-  _toggleLoadTestPanel?(): void;
   _toggleStatisticalLens?(): void;
   _toggleDracoExplainer?(): void;
   _toggleDracoDiagnostic?(): void;
@@ -439,19 +443,19 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
           id: 'loadtest-panel',
           label: 'Panel',
           icon: '📊',
-          callback: () => world._toggleLoadTestPanel?.(),
+          callback: () => world.engine.onToggleLoadTestPanel?.(),
         },
         {
           id: 'loadtest-start',
           label: 'Start',
           icon: '▶️',
-          callback: () => world.runLoadTest?.(),
+          callback: () => world.engine.onStartLoadTest?.(),
         },
         {
           id: 'loadtest-stop',
           label: 'Stop',
           icon: '⏹️',
-          callback: () => world.stopLoadTest?.(),
+          callback: () => world.engine.onStopLoadTest?.(),
         },
       ],
     },
@@ -877,19 +881,19 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           id: 'su-loadtest-panel',
           label: 'Load Panel',
           icon: '📊',
-          callback: () => world._toggleLoadTestPanel?.(),
+          callback: () => world.engine.onToggleLoadTestPanel?.(),
         },
         {
           id: 'su-loadtest-start',
           label: 'Load Start',
           icon: '▶️',
-          callback: () => world.runLoadTest?.(),
+          callback: () => world.engine.onStartLoadTest?.(),
         },
         {
           id: 'su-loadtest-stop',
           label: 'Load Stop',
           icon: '⏹️',
-          callback: () => world.stopLoadTest?.(),
+          callback: () => world.engine.onStopLoadTest?.(),
         },
       ],
     },

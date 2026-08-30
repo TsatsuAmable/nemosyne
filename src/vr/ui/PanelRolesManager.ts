@@ -60,6 +60,10 @@ export class PanelRolesManager {
     });
   }
 
+  unregisterPanel(id: string): boolean {
+    return this._panels.delete(id);
+  }
+
   openPanel(id: string): boolean {
     const panel = this._panels.get(id);
     if (!panel) return false;

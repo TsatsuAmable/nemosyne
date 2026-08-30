@@ -45,11 +45,6 @@ import { GuidedTour, type TourStep } from './ui/GuidedTour.ts';
 import { FIRST_DATASET_TOUR } from '../data/DefaultTour.ts';
 import { WorldTheme } from './WorldTheme.ts';
 import { TelemetryCollector } from '../utils/Telemetry.ts';
-import {
-  VALIDATION_SESSION_LABEL_HEADER,
-  VALIDATION_SESSION_ID_HEADER,
-  readValidationSessionEnv,
-} from '../validation/validation-session.ts';
 import { InPlaceOperationHandles } from './interactions/InPlaceOperationHandles.ts';
 import { LivePreview } from './interactions/LivePreview.ts';
 import { FocusContextController } from './interactions/FocusContextController.ts';
@@ -79,12 +74,6 @@ import { WorkspaceManager } from './coordinators/WorkspaceManager.ts';
 import { WorldRendererLifecycle } from './coordinators/WorldRendererLifecycle.ts';
 import { DerivedAnalysisPipeline } from './coordinators/DerivedAnalysisPipeline.ts';
 import { WorldLifecycleOwner, type WorldBootState } from './coordinators/WorldLifecycleOwner.ts';
-import {
-  LoadTestDriver,
-  type LoadTestProfile,
-  type LoadTestSummary,
-} from './scalability/LoadTestDriver.ts';
-import { QuestBoundaryProbe, type QuestBoundarySummary } from './scalability/QuestBoundaryProbe.ts';
 import { DatumPlane } from './artifacts/DatumPlane.ts';
 import { TechnoCoreNode } from './artifacts/TechnoCoreNode.ts';
 import { IceVaultNode } from './artifacts/IceVaultNode.ts';
@@ -127,7 +116,6 @@ import { bindDerivedAnalysisProjection } from './presentation/bindings/bindDeriv
 import { bindOperationUiProjection } from './presentation/bindings/bindOperationUiProjection.ts';
 import { bindOperationPreviewProjection } from './presentation/bindings/bindOperationPreviewProjection.ts';
 import { bindAutosaveProjection } from './presentation/bindings/bindAutosaveProjection.ts';
-import { bindDevEvidenceProjection } from './presentation/bindings/bindDevEvidenceProjection.ts';
 import type { BindingDisposer } from './presentation/bindings/BindingDisposer.ts';
 import { WorldPresentationSnapshotAdapter } from './presentation/session/WorldPresentationSnapshotAdapter.ts';
 import {
@@ -181,8 +169,6 @@ export class World {
   portalB: FarcasterPortal;
   telemetryCollector: TelemetryCollectorLike;
   uiManager: WorldUIManager;
-  loadTestDriver!: LoadTestDriver;
-  questBoundaryProbe!: QuestBoundaryProbe;
   inputCoordinator: WorldInputCoordinator;
   userModeController: UserModeController;
   comfortSettingsController: ComfortSettingsController;
@@ -246,10 +232,8 @@ export class World {
   tdaGroup!: THREE.Group | null;
   tdaRecompute!: (() => Promise<import('./artifacts/TDAPlanes.ts').TDAComputationResult | null>) | null;
   dashboardPanels!: { panel: ChartPlanePanel }[];
-  _lastLoadTestSummary: LoadTestSummary | null = null;
-  _lastQuestBoundarySummary: QuestBoundarySummary | null = null;
-  _telemetryConsentBeforeRun: boolean | null = null;
   private _projectionDisposers: BindingDisposer[] = [];
+  private _extensionDisposers: BindingDisposer[] = [];
   /**
    * Canonical application-intent dispatcher, injected by the bootstrap
    * composition root after World construction. When set, mutating commands
@@ -260,6 +244,30 @@ export class World {
 
   get bootState(): WorldBootState {
     return this.lifecycle.state;
+  }
+
+  /**
+   * Register teardown for an app-composed extension without exposing that
+   * extension through the World facade. Ownership stays with the installer;
+   * World retains only the idempotent release capability.
+   */
+  registerExtensionDisposer(disposer: BindingDisposer): BindingDisposer {
+    if (this._disposed) {
+      disposer();
+      return () => {};
+    }
+    let active = true;
+    const registered = () => {
+      if (!active) return;
+      active = false;
+      disposer();
+    };
+    this._extensionDisposers.push(registered);
+    return () => {
+      const index = this._extensionDisposers.indexOf(registered);
+      if (index >= 0) this._extensionDisposers.splice(index, 1);
+      registered();
+    };
   }
 
   /** RF-062I compatibility aliases while private-field tests migrate to runtime injection. */
@@ -349,30 +357,6 @@ export class World {
     this.telemetryCollector = new TelemetryCollector();
     this.telemetryCollector.loadConsent?.();
 
-    // Load-test driver for the WASM command-buffer decision. Runs a synthetic
-    // staircase through the real loadDataset path and captures per-frame frame
-    // times + GPU counters. Created before the UI manager so the panel can bind
-    // to it. It is an Engine updatable but returns early when IDLE/COMPLETE.
-    this.loadTestDriver = new LoadTestDriver(
-      {
-        loadDataset: (entry) => this.loadDataset(entry),
-        getActiveSpecInfo: () => this._getActiveSpecInfo(),
-        eventBus: this.eventBus as WorldEventBusLike,
-      },
-      this.engine,
-      {
-        getWasmMemoryBytes: () => {
-          try {
-            return this.analyticalRuntime.runtime?.memory?.().buffer.byteLength ?? null;
-          } catch {
-            return null;
-          }
-        },
-      }
-    );
-    this.engine.addUpdatable(this.loadTestDriver);
-    this.questBoundaryProbe = new QuestBoundaryProbe(this.engine, this.eventBus);
-    this.engine.addUpdatable(this.questBoundaryProbe);
     this.engine.telemetry = this.telemetryCollector;
 
     // UI manager owns all HUD panels, dashboard, and wheel menu. It is created
@@ -406,11 +390,6 @@ export class World {
       getSetting: (key) => this.uiManager?.settingsPanel?.getSetting?.(key),
       telemetryCollector: this.telemetryCollector,
       analysisHistory: this.dataOperationController.analysisHistory,
-      loadTestDriver: this.loadTestDriver,
-      onStartLoadTest: (profile) => this.runLoadTest(profile),
-      onStartQuestBoundary: () => this.runQuestBoundaryProbe(),
-      onStopLoadTest: () => this.stopLoadTest(),
-      onFlushLoadTest: () => this.flushLastLoadTestSummary(),
       getRecommendation: () => this.atlas.activeRecommendation ?? null,
       getOutcome: () => this._activeOutcome,
       onAcceptRecommendation: () => this._acceptRecommendation(),
@@ -822,8 +801,6 @@ export class World {
     this.engine.onRedo = () => this.redoAnalysis();
     this.engine.onPauseInput = () => this.inputCoordinator.togglePauseInput();
     this.engine.onResetView = () => this.inputCoordinator.resetView();
-    this.engine.onToggleLoadTestPanel = () => this._toggleLoadTestPanel();
-    this.engine.onStartLoadTest = () => this.runLoadTest();
 
     // Gesture recognition and context routing is owned by the input coordinator.
 
@@ -882,18 +859,6 @@ export class World {
       bindAutosaveProjection({
         eventBus: this.eventBus,
         requestAutosave: () => this._requestAutoSave(),
-      }),
-      bindDevEvidenceProjection<LoadTestSummary, QuestBoundarySummary>({
-        eventBus: this.eventBus,
-        onLoadTestComplete: (summary) => {
-          this._lastLoadTestSummary = summary;
-          this._enrichAndFlushLoadTestSummary(summary);
-          this._restoreTelemetryConsent();
-        },
-        onQuestBoundaryComplete: (summary) => {
-          this._lastQuestBoundarySummary = summary;
-          this._flushQuestBoundarySummary(summary);
-        },
       }),
     ];
 
@@ -1546,10 +1511,6 @@ export class World {
     this.uiManager.vrConsole?.log?.('log', [`Mini overview ${next ? 'on' : 'off'}`]);
     this._logInteraction('Mini overview', { result: next ? 'on' : 'off' });
     this._captureSession();
-  }
-
-  _toggleLoadTestPanel(): void {
-    this.uiManager?.panelManager?.togglePanel?.(this.uiManager.getOrCreateLoadTestPanel());
   }
 
   _toggleRecommendationPanel(): void {
@@ -2286,187 +2247,6 @@ export class World {
     this.uiManager.buildWheelMenu(buildIntentWheelMenuCategories(this));
   }
 
-  // --- Load-test harness (WASM command-buffer decision) ---
-
-  /** Read the geometry/layout the Draco solver actually picked for the current palace. */
-  _getActiveSpecInfo(): {
-    geometry?: string;
-    layout?: string;
-    renderedNodeCount?: number;
-  } | null {
-    const spec = this.dracoNode?.solverResult?.spec;
-    if (!spec) return null;
-    const renderedNodeCount = this.dracoNode?.artifact?.nodeMeshes?.reduce(
-      (total, mesh) => total + (mesh instanceof THREE.InstancedMesh ? mesh.count : 1),
-      0
-    );
-    return {
-      geometry: String(spec.geometry),
-      layout: String(spec.layout),
-      renderedNodeCount,
-    };
-  }
-
-  /**
-   * Start a load-test run. Enables telemetry for the run window (restored on
-   * completion) so the usability/friction aggregates are captured. The per-frame
-   * perf trace is captured independently by the LoadTestCollector.
-   */
-  runLoadTest(profile?: LoadTestProfile): void {
-    if (this.questBoundaryProbe.running) return;
-    this._lastQuestBoundarySummary = null;
-    // Show the panel so the user sees live progress.
-    this.uiManager?.showPanel?.(this.uiManager.getOrCreateLoadTestPanel());
-    this._telemetryConsentBeforeRun = !!this.telemetryCollector?.enabled;
-    try {
-      this.telemetryCollector?.setEnabled?.(true);
-    } catch {
-      // ignore — telemetry is best-effort
-    }
-    this.loadTestDriver.run(profile);
-  }
-
-  runQuestBoundaryProbe(): void {
-    if (this.loadTestDriver.phase !== 'IDLE' && this.loadTestDriver.phase !== 'COMPLETE') return;
-    this._lastLoadTestSummary = null;
-    this.uiManager?.showPanel?.(this.uiManager.getOrCreateLoadTestPanel());
-    this.questBoundaryProbe.run();
-  }
-
-  /** Abort a running load test. */
-  stopLoadTest(): void {
-    this.loadTestDriver.stop();
-    this.questBoundaryProbe.stop();
-  }
-
-  /** Re-POST the last completed summary to the local dev-server log endpoint. */
-  flushLastLoadTestSummary(): void {
-    if (this._lastLoadTestSummary) {
-      this._enrichAndFlushLoadTestSummary(this._lastLoadTestSummary);
-    }
-    if (this._lastQuestBoundarySummary) {
-      this._flushQuestBoundarySummary(this._lastQuestBoundarySummary);
-    }
-  }
-
-  /**
-   * Build the fetch init for a load-test POST. When this build runs under a QV
-   * validation session (the launcher placed the session identity in env), the
-   * POST is tagged with the session label + id so the dev-server sink can route
-   * it to the per-session evidence directory. Without a session this returns the
-   * exact same init as before, so ordinary dev runs are byte-identical.
-   */
-  _loadTestPostInit(body: unknown): RequestInit {
-    const session = readValidationSessionEnv(import.meta.env);
-    if (!session) {
-      return {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      };
-    }
-    return {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        [VALIDATION_SESSION_LABEL_HEADER]: session.label,
-        [VALIDATION_SESSION_ID_HEADER]: session.id,
-      },
-      body: JSON.stringify(body),
-    };
-  }
-
-  _flushQuestBoundarySummary(summary: QuestBoundarySummary): void {
-    try {
-      void fetch('/__loadtest-results', this._loadTestPostInit(summary)).catch(() => {});
-    } catch {
-      return;
-    }
-    try {
-      // eslint-disable-next-line no-console
-      console.log(
-        `[QUEST 10M] status=${summary.outcome.status} | ` +
-          `evidence=${summary.qualification.evidencePathAvailableAt10m} | ` +
-          `maxGapMs=${summary.maximumFrameGapMs ?? 'unknown'} | ` +
-          `auditGate=${summary.qualification.promotionBlockedByAudits}`
-      );
-    } catch {
-      return;
-    }
-  }
-
-  /** Restore telemetry consent to whatever it was before the run. */
-  _restoreTelemetryConsent(): void {
-    if (this._telemetryConsentBeforeRun !== null) {
-      try {
-        this.telemetryCollector?.setEnabled?.(this._telemetryConsentBeforeRun);
-      } catch {
-        // ignore
-      }
-      this._telemetryConsentBeforeRun = null;
-    }
-  }
-
-  /**
-   * Attach usability aggregates (friction score/level/patterns — no raw
-   * interaction trail) and POST the summary to the LOCAL dev-server endpoint
-   * `/__loadtest-results` (serve-only). Generic dev appends to
-   * `logs/loadtest-results.jsonl`; under a QV validation session the POST is
-   * tagged so the dev plugin routes it to `logs/validation/<sessionLabel>/`.
-   * Failures are silent — the endpoint only exists on `npm run dev`, and the
-   * panel's Download button is the fallback.
-   */
-  _enrichAndFlushLoadTestSummary(summary: LoadTestSummary): void {
-    summary.usability = this._collectUsabilityDigest();
-    try {
-      void fetch('/__loadtest-results', this._loadTestPostInit(summary)).catch(() => {
-        // Endpoint absent (production/preview) or fetch unavailable — silent.
-      });
-    } catch {
-      // fetch unavailable — silent
-    }
-    // Also log a one-line verdict to the console so the RemoteDebugStreamer
-    // (which writes logs/vr-remote-console.log) captures it on the headset.
-    try {
-      // eslint-disable-next-line no-console
-      console.log(
-        `[LOAD TEST] ${summary.profileName} | XR=${summary.xrActive} | ` +
-          `sufficientTo=${summary.verdict.jsPathSufficientTo} ` +
-          `warrantedAt=${summary.verdict.commandBufferWarrantedAt} | ` +
-          summary.verdict.recommendation
-      );
-    } catch {
-      // ignore
-    }
-  }
-
-  /** Aggregate usability digest from the frustration analyzer (local, opt-in). */
-  _collectUsabilityDigest(): {
-    frictionLevel: string;
-    dissatisfactionScore: number;
-    detectedPatterns: string[];
-    telemetryConsentEnabled: boolean;
-  } {
-    const tc = this.telemetryCollector as TelemetryCollectorLike & {
-      frustrationAnalyzer?: { getCompactDigest?: () => Record<string, unknown> };
-    };
-    const digest = tc?.frustrationAnalyzer?.getCompactDigest?.();
-    return {
-      frictionLevel:
-        typeof digest?.frictionLevel === 'string' ? (digest.frictionLevel as string) : 'unknown',
-      dissatisfactionScore:
-        typeof digest?.dissatisfactionScore === 'number'
-          ? (digest.dissatisfactionScore as number)
-          : 0,
-      detectedPatterns: Array.isArray(digest?.detectedPatterns)
-        ? (digest.detectedPatterns as Array<{ name?: string } | string>).map((p) =>
-            typeof p === 'string' ? p : (p?.name ?? 'pattern')
-          )
-        : [],
-      telemetryConsentEnabled: !!this.telemetryCollector?.enabled,
-    };
-  }
-
   setPortalsEnabled(enabled: boolean): void {
     this.portalsEnabled = enabled;
     this.portalA.group.visible = enabled;
@@ -2629,12 +2409,13 @@ export class World {
     };
 
     await run(() => this.engine.pause());
+    for (const disposeExtension of this._extensionDisposers.splice(0)) {
+      await run(disposeExtension);
+    }
     await run(() => this.analyticalRuntime.dispose());
     for (const disposeBinding of this._projectionDisposers.splice(0)) {
       await run(disposeBinding);
     }
-    await run(() => this.loadTestDriver?.dispose());
-    await run(() => this.questBoundaryProbe?.dispose());
     await run(() => this.sessionController?.dispose?.());
     await run(() => this.liveStreamCoordinator?.disconnectLiveStream?.());
     await run(() => this.collaborationCoordinator?.dispose?.());
