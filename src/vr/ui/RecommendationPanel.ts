@@ -3,6 +3,7 @@ import { MovablePanel } from './MovablePanel.ts';
 import type { MovablePanelOptions } from '../coordinators/types.ts';
 import type { AtlasRecommendation } from '../../atlas/types.ts';
 import type { InvestigatorActionableOutcome, RemedialAction } from '../../moneta/representation/ActionableNil.ts';
+import type { RepresentationDecision } from '../../moneta/representation/RepresentationDecision.ts';
 
 export interface RecommendationPanelOptions extends MovablePanelOptions {
   getRecommendation: () => AtlasRecommendation | null;
@@ -12,6 +13,10 @@ export interface RecommendationPanelOptions extends MovablePanelOptions {
   onOverride?: () => void;
   onGenerate?: () => void;
   onApplyRemediation?: (action: RemedialAction) => void;
+  onPreviewRemediation?: (action: RemedialAction) => boolean;
+  getPreviewDecision?: () => RepresentationDecision | null;
+  onCommitRemediation?: (action: RemedialAction) => void;
+  onCancelRemediationPreview?: () => void;
 }
 
 interface BtnRect {
@@ -48,9 +53,14 @@ export class RecommendationPanel extends MovablePanel {
   private readonly _onOverride?: () => void;
   private readonly _onGenerate?: () => void;
   private readonly _onApplyRemediation?: (action: RemedialAction) => void;
+  private readonly _onPreviewRemediation?: (action: RemedialAction) => boolean;
+  private readonly _getPreviewDecision?: () => RepresentationDecision | null;
+  private readonly _onCommitRemediation?: (action: RemedialAction) => void;
+  private readonly _onCancelRemediationPreview?: () => void;
   private _dirty = true;
   private _buttons: BtnRect[] = [];
   private _activeTab: 'guidance' | 'alternatives' | 'constraints' | 'remediation' = 'guidance';
+  private _previewedRemediationId: string | null = null;
 
   constructor(cameraGroup: THREE.Group, options: RecommendationPanelOptions) {
     super(cameraGroup, {
@@ -72,6 +82,10 @@ export class RecommendationPanel extends MovablePanel {
     this._onOverride = options.onOverride;
     this._onGenerate = options.onGenerate;
     this._onApplyRemediation = options.onApplyRemediation;
+    this._onPreviewRemediation = options.onPreviewRemediation;
+    this._getPreviewDecision = options.getPreviewDecision;
+    this._onCommitRemediation = options.onCommitRemediation;
+    this._onCancelRemediationPreview = options.onCancelRemediationPreview;
     this.render();
   }
 
@@ -84,6 +98,14 @@ export class RecommendationPanel extends MovablePanel {
 
   markDirty(): void {
     this._dirty = true;
+  }
+
+  setActiveTab(tab: 'guidance' | 'alternatives' | 'constraints' | 'remediation'): void {
+    if (this._activeTab !== tab) {
+      this._activeTab = tab;
+      this._dirty = true;
+      this.render();
+    }
   }
 
   renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
@@ -351,6 +373,8 @@ export class RecommendationPanel extends MovablePanel {
     const outcome = this._getOutcome ? this._getOutcome() : null;
     if (outcome && outcome.availableRemediations && outcome.availableRemediations.length > 0) {
       for (const action of outcome.availableRemediations) {
+        const isPreviewed = this._previewedRemediationId === action.id;
+
         ctx.font = this._scaleFont('bold 14px monospace');
         ctx.fillStyle = '#ffffff';
         ctx.fillText(action.label, pad + 8, y + lineH);
@@ -381,10 +405,37 @@ export class RecommendationPanel extends MovablePanel {
         ctx.fillText(feasibilityText, pad + 190, y + 12);
         y += 24;
 
-        const applyBtnW = 120;
-        const applyBtnH = 30;
-        this._drawButton(ctx, `remedi-${action.id}`, 'Apply', pad + 16, y, applyBtnW, applyBtnH, '#0088cc');
-        y += applyBtnH + 20;
+        const btnW = 120;
+        const btnH = 30;
+        const gap = 12;
+
+        if (isPreviewed) {
+          const previewDecision = this._getPreviewDecision?.() ?? null;
+          if (previewDecision) {
+            const candidate = previewDecision.chosenCandidateId ?? previewDecision.representationFamily;
+            const layout = previewDecision.chosenLayout ?? previewDecision.embodiment.primaryLayout;
+            const status = previewDecision.decisionStatus ?? 'DECISIVE';
+            ctx.fillStyle = '#ffcc00';
+            ctx.font = this._scaleFont('bold 12px monospace');
+            ctx.fillText(`PREVIEW: ${candidate} · ${layout}`, pad + 16, y + 12);
+            ctx.font = this._scaleFont('11px monospace');
+            ctx.fillStyle = '#ddddaa';
+            ctx.fillText(`Utility ${previewDecision.utilityScore.toFixed(3)} · ${status}`, pad + 16, y + 30);
+            y += 40;
+            this._drawButton(ctx, `remedi-commit-${action.id}`, 'Apply', pad + 16, y, btnW, btnH, '#00aa44');
+            this._drawButton(ctx, `remedi-cancel-${action.id}`, 'Revert', pad + 16 + btnW + gap, y, btnW, btnH, '#aa3333');
+          } else {
+            ctx.fillStyle = '#ff9966';
+            ctx.font = this._scaleFont('bold 12px monospace');
+            ctx.fillText('PREVIEW STALE — run preview again', pad + 16, y + 12);
+            y += 20;
+            this._drawButton(ctx, `remedi-preview-${action.id}`, 'Re-preview', pad + 16, y, btnW, btnH, '#0088cc');
+            this._drawButton(ctx, `remedi-cancel-${action.id}`, 'Revert', pad + 16 + btnW + gap, y, btnW, btnH, '#aa3333');
+          }
+        } else {
+          this._drawButton(ctx, `remedi-preview-${action.id}`, 'Preview', pad + 16, y, btnW, btnH, '#0088cc');
+        }
+        y += btnH + 20;
       }
     } else {
       ctx.font = this._scaleFont('13px monospace');
@@ -446,6 +497,25 @@ export class RecommendationPanel extends MovablePanel {
       this._activeTab = 'constraints';
     } else if (id === 'remediation-tab') {
       this._activeTab = 'remediation';
+    } else if (id.startsWith('remedi-preview-')) {
+      const actionId = id.slice(15);
+      const outcome = this._getOutcome ? this._getOutcome() : null;
+      const action = outcome?.availableRemediations.find((a) => a.id === actionId);
+      if (action) {
+        const accepted = this._onPreviewRemediation?.(action) ?? false;
+        if (accepted) this._previewedRemediationId = actionId;
+      }
+    } else if (id.startsWith('remedi-commit-')) {
+      const actionId = id.slice(14);
+      const outcome = this._getOutcome ? this._getOutcome() : null;
+      const action = outcome?.availableRemediations.find((a) => a.id === actionId);
+      if (action) {
+        this._previewedRemediationId = null;
+        this._onCommitRemediation?.(action);
+      }
+    } else if (id.startsWith('remedi-cancel-')) {
+      this._previewedRemediationId = null;
+      this._onCancelRemediationPreview?.();
     } else if (id.startsWith('remedi-')) {
       const actionId = id.slice(7);
       const outcome = this._getOutcome ? this._getOutcome() : null;

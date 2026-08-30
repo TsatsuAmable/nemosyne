@@ -4,7 +4,7 @@
 
 ## Status snapshot - 29 August 2026
 
-**Roadmap integration base:** `main@40e757c76fdf6deb880a5290aa4d7a3f6efd4d1b` (#543 merged).
+**Roadmap integration base:** `main@a0da62dcf9551de975340ae6d446d4b444f8085c` (#552 merged).
 
 The completed three-stream convergence wave established the next representation frontier:
 
@@ -23,7 +23,9 @@ The completed three-stream convergence wave established the next representation 
 - #530, #534 and #536 completed the finite Stream C collaboration-authority wave at implementation/review level;
 - #531, #535, #539-#543 completed the finite Stream B validation/baseline/task-first/contextual-locus wave at implementation/review level.
 
-The previous A/B/C wave is closed to new scope. The next active analytical effort is **Stream M — Moneta Distribution Truth**, a finite candidate vertical slice that may run in parallel with separately railed UI/security work while preserving the ownership and collision rules below.
+The previous A/B/C wave is closed to new scope. **Stream M — Moneta Distribution Truth** has also reached its finite exit: #544 established the stream and model routing, #547/#548 landed M1's governed contract and evidence, #549 landed the Rust/WASM builder, #550 landed the production cutover, #551 closed the density/outlier overclaim found in independent contract review, and #552 landed the visible product/scale/perceptual evidence handoff.
+
+No post-M implementation stream is active. Select and rail the next wave from the recorded product, scientific and resource evidence rather than continuing the representation candidate list automatically.
 
 The dependency chain remains:
 
@@ -87,7 +89,7 @@ The old rule prohibiting a fourth stream applied to this now-completed wave. It 
 
 ---
 
-# Current execution wave: Stream M — Moneta Distribution Truth
+# Completed execution wave: Stream M — Moneta Distribution Truth
 
 ## Mission and finite exit
 
@@ -103,7 +105,16 @@ explicit distribution-analysis intent + measure
   -> visibly distinct product artifact
 ```
 
-Stream M stops when the production `DISTRIBUTION_FIELD` candidate is classified `DATASET_LEVEL_VALID` and exact-head evidence proves that it renders from a bounded Rust-owned payload without source-row traversal or density/PDF overclaim. It does not proceed automatically into density, cluster, progressive disclosure, RepresentationGraph or learned-model expansion.
+Stream M stopped after the production `DISTRIBUTION_FIELD` candidate was classified `DATASET_LEVEL_VALID` and exact-head evidence proved that it renders from a bounded Rust-owned payload without source-row traversal or density/PDF overclaim. It does not proceed automatically into density, cluster, progressive disclosure, RepresentationGraph or learned-model expansion.
+
+| Checkpoint                                | Landed evidence                             | Status     |
+| ----------------------------------------- | ------------------------------------------- | ---------- |
+| **M1 — contract/falsifiers**              | #547 implementation; #548 governed evidence | **MERGED** |
+| **M2 — Rust/WASM builder**                | #549                                        | **MERGED** |
+| **M3 — production cutover**               | #550; #551 independent contract correction  | **MERGED** |
+| **M4 — product/scale/perceptual handoff** | #552; exact-head browser run 33278263468    | **MERGED** |
+
+**Finite exit:** satisfied for the reviewed browser scope. The typed user-facing `Show distribution` action, polished diagnostic composition, generic 100k/500k performance, connected ECDF/axes, progressive disclosure and physical Quest qualification remain explicit residuals rather than hidden completion claims.
 
 ## P1 mathematical contract
 
@@ -116,7 +127,7 @@ The first distribution object is a **univariate empirical distribution summary**
 - source, valid, missing and non-finite observation counts;
 - an explicit constant-domain policy;
 - recorded binning, interpolation, missingness and bounded-sampling parameters;
-- an information contract that preserves empirical distribution shape, order statistics and outlier-boundary visibility while explicitly losing individual observation identity and exact per-observation values.
+- an information contract that preserves empirical-distribution shape while explicitly losing individual observation identity, exact per-observation values, continuous population-density semantics and formal outlier-boundary visibility.
 
 The V1 slice must not use the words PDF, probability density, continuous contour, KDE or density field. Weighted/categorical/multivariate distributions, smoothing and inferential uncertainty are out of scope unless separately governed.
 
@@ -224,7 +235,7 @@ Before every checkpoint PR:
 At most:
 
 ```text
-1 open Stream M implementation PR
+0 open Stream M implementation PR (finite stream exited)
 1 open Stream A implementation PR
 1 open Stream B implementation PR
 1 open Stream C implementation PR
@@ -234,7 +245,7 @@ Streams A/B/C currently have no active implementation checkpoint; their entries 
 
 ## Canonical roadmap ownership
 
-Implementation PRs in Streams A/B/C do **not** edit `docs/ROADMAP.md`.
+Implementation PRs in Streams A/B/C/M do **not** edit `docs/ROADMAP.md`.
 
 After a complete wave of checkpoints merges, Stream A acts as integration scribe and opens one tiny docs-only roadmap sync PR. This avoids recurring three-way roadmap conflicts and keeps RF/status updates serial.
 
@@ -870,17 +881,17 @@ This integration PR contains no runtime/product code.
 
 | Programme / RF | Current interpretation | Current stream/checkpoint |
 | --- | --- | --- |
-| RF-015 / RF-029 / RF-035 / RF-051 | A1 measured the current browser/Worker/WASM envelope; generic 10M claims and complete memory/transfer accounting remain blocked. | Preserve A1 baseline; consume in **M4** |
-| RF-030 / RF-031 | Kernel-inline refusal exists; approximation/generic-operation residuals remain, but Stream M must preserve explicit resource refusal. | Guardrail for **M2-M4** |
-| RF-001 / RF-002 / P1-R semantic embodiment convergence | Aggregate is the first verified dataset-level slice; distribution remains semantically overclaimed and aliased to density geometry. | **Stream M / M1-M4** |
+| RF-015 / RF-029 / RF-035 / RF-051 | A1 measured the current browser/Worker/WASM envelope; generic 10M claims and complete memory/transfer accounting remain blocked. | Consumed by M4; preserve A1 baseline |
+| RF-030 / RF-031 | Kernel-inline refusal exists; approximation/generic-operation residuals remain, and Stream M preserved explicit resource refusal. | Preserved through **M2-M4** |
+| RF-001 / RF-002 / P1-R semantic embodiment convergence | Aggregate and empirical distribution are now distinct Rust-owned dataset-level slices; #551 removed the density and formal outlier-boundary overclaim. | Stream M exited; select the next slice from evidence |
 | RF-036 topology/spatial evidence authority | Still open; it must not be silently declared solved by empirical distribution work. | Preserve; not Stream M scope |
 | RF-044 / RF-045 / RF-046 / RF-047 / RF-048 | Implementations landed; remain review-monitored foundations for graph lineage, evidence truth, digest/replay and identity. | Preserve; not current frontier |
 | RF-059 | Row-identity scale fix landed/review active; preserve regression. | Preserve under A1 evidence |
 | RF-060 | Authoritative dataset fingerprint retention work landed; preserve measured identity path. | Preserve under A1/A3 |
 | RF-061 | Version-coalesced derived analysis settlement verified on current-main evidence (#519). | Stable dependency |
-| RF-062 | A/B/C tranches landed: composition-root boundary, semantic intents, dataset/representation seam. | D-I **paused during current wave** to prevent hot-file churn |
+| RF-062 | A/B/C tranches landed: composition-root boundary, semantic intents, dataset/representation seam. | D-I require a new explicit rail after hot-file settling |
 | P1-QV | B1-B2 implementation landed; broader/final device evidence remains open. | Preserve; next validation work separately railed |
-| P1-UV | B3-B5 finite first wave implementation landed/review active. | Separate next UI wave may run parallel with M |
+| P1-UV | B3-B5 finite first wave implementation landed/review active. | Separate next UI wave remains queued; no active M parallel lane |
 | RF-049 | Code-level Direct Touch repair landed; simulator/device verification remains. | Preserve in B; final physical evidence later |
 | RF-050 | UI substrate evidence still requires browser/simulator/physical separation. | Next B/product evidence wave; not finalised by B5 |
 | P1-USIM | USIM-0 + first USIM-A lifecycle scenario landed/review active. | Preserve; broader USIM-A/USIM-1 selected after B exit |
@@ -1007,7 +1018,7 @@ Green engineering CI must never be described as scientific verification, securit
 
 # After Stream M
 
-Stream M is the evidence-selected next P1-R slice after A1-A4/B1-B5/C1-C3. When M1-M4 reach the finite exit, choose the next wave from the resulting product/scientific/resource evidence rather than automatically continuing the candidate list.
+Stream M was the evidence-selected P1-R slice after A1-A4/B1-B5/C1-C3. M1-M4 have reached the finite exit. The next wave remains intentionally unselected until its contract is derived from the resulting product/scientific/resource evidence.
 
 Candidates that remain explicitly queued:
 

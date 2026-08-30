@@ -22,13 +22,12 @@ const DISTRIBUTION_ALGORITHM_VERSION: &str = "empirical-distribution-columnar-v1
 
 fn information_contract() -> InformationContractV1 {
     InformationContractV1 {
-        preserves: vec![
-            InformationTypeV1::PopulationDensityDistribution,
-            InformationTypeV1::OutlierBoundaryVisibility,
-        ],
+        preserves: vec![InformationTypeV1::EmpiricalDistributionShape],
         loses: vec![
             InformationTypeV1::IndividualObservationIdentity,
             InformationTypeV1::ExactMetricValues,
+            InformationTypeV1::PopulationDensityDistribution,
+            InformationTypeV1::OutlierBoundaryVisibility,
         ],
     }
 }
@@ -490,6 +489,18 @@ mod tests {
         .expect("distribution envelope");
         assert_eq!(envelope.approximation.represented_row_count, 5);
         assert_eq!(envelope.resource.source_row_count, 6);
+        assert_eq!(
+            envelope.information_contract.preserves,
+            vec![InformationTypeV1::EmpiricalDistributionShape]
+        );
+        assert!(envelope
+            .information_contract
+            .loses
+            .contains(&InformationTypeV1::PopulationDensityDistribution));
+        assert!(envelope
+            .information_contract
+            .loses
+            .contains(&InformationTypeV1::OutlierBoundaryVisibility));
         let payload = payload(envelope);
         assert_eq!(payload.counts.valid_count, 5);
         assert_eq!(payload.counts.excluded_count, 1);

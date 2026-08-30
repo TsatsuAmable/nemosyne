@@ -30,11 +30,12 @@ export class SignallingChannel extends EventTarget {
   private _reconnectAttempt = 0;
   private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private _hasConnectedOnce = false;
-  /** Optional callback to obtain a fresh signed ticket for reconnect.
-   *  If provided, the channel will call this before each reconnect attempt
-   *  (i.e. any connection after the first successful one) and send the
-   *  returned ticket instead of reusing the original consumed one.
-   *  If the callback returns null/undefined or throws, reconnect fails closed.
+  /** Optional callback to obtain a fresh admission credential for reconnect.
+   *  When supplied, the channel calls it before each connection after the
+   *  first successful one and sends the returned credential instead of the
+   *  original. Canonical signed room tickets are one-use credentials: if one
+   *  was used for the initial connection and no callback is available, the
+   *  reconnect fails closed rather than replaying the consumed ticket.
    */
   onNeedReconnectTicket: (() => Promise<string | undefined>) | undefined;
 
@@ -101,28 +102,44 @@ export class SignallingChannel extends EventTarget {
       ws.addEventListener('open', async () => {
         if (this._ws !== ws || this._manualDisconnect) return;
         opened = true;
-        this._connected = true;
         // In-band authentication message sent immediately over every socket generation.
         // The server remains authoritative for the role associated with the token.
         let authToken = this.token;
-        // On reconnect (any connection after the first successful one), request a fresh ticket.
         if (this._hasConnectedOnce && this.onNeedReconnectTicket) {
           try {
             const freshTicket = await this.onNeedReconnectTicket();
             if (!freshTicket) {
-              // No fresh ticket available — fail closed with explicit event.
-              this.dispatchEvent(new CustomEvent('reconnect-failed', { detail: { reason: 'no-fresh-ticket' } }));
+              this.dispatchEvent(
+                new CustomEvent('reconnect-failed', { detail: { reason: 'no-fresh-ticket' } })
+              );
               ws.close();
               rejectOnce(new Error('reconnect failed: no fresh ticket'));
               return;
             }
             authToken = freshTicket;
           } catch {
-            this.dispatchEvent(new CustomEvent('reconnect-failed', { detail: { reason: 'ticket-callback-error' } }));
+            this.dispatchEvent(
+              new CustomEvent('reconnect-failed', { detail: { reason: 'ticket-callback-error' } })
+            );
             ws.close();
             rejectOnce(new Error('reconnect failed: ticket callback error'));
             return;
           }
+        } else if (this._hasConnectedOnce && this.token?.includes('.')) {
+          // Canonical signed room tickets contain a payload/signature separator
+          // and their nonce is consumed on the first successful admission. A
+          // second socket generation must not replay that credential merely
+          // because no renewal authority was wired by the caller. Stop the
+          // automatic loop after this deterministic failure; an explicit later
+          // connect() call resets the flag so a newly-installed renewal provider
+          // can retry deliberately.
+          this.dispatchEvent(
+            new CustomEvent('reconnect-failed', { detail: { reason: 'fresh-ticket-required' } })
+          );
+          this._manualDisconnect = true;
+          ws.close();
+          rejectOnce(new Error('reconnect failed: fresh signed ticket required'));
+          return;
         }
         if (authToken) {
           const authMsg: SignallingMessage = {
@@ -133,6 +150,7 @@ export class SignallingChannel extends EventTarget {
           };
           ws.send(JSON.stringify(authMsg));
         }
+        this._connected = true;
         this._flushQueue();
         this.dispatchEvent(new Event('open'));
         this._hasConnectedOnce = true;

@@ -34,6 +34,7 @@ import { FrustrationResponseManager } from '../ui/FrustrationResponseManager.ts'
 import { JITGestureHintManager } from '../ui/JITGestureHintManager.ts';
 import { ProgressiveDisclosureController } from '../ui/ProgressiveDisclosure.ts';
 import { StatusStripController } from '../ui/StatusStripController.ts';
+import { StatusStripPanel } from '../ui/StatusStripPanel.ts';
 import { PanelRolesManager, type UIMode } from '../ui/PanelRolesManager.ts';
 import { PANEL_LAYOUT, type Vec3 } from '../ui/panelLayout.ts';
 import { ContextualTaskSurface } from '../ui/ContextualTaskSurface.ts';
@@ -92,6 +93,10 @@ export interface WorldUIManagerCallbacks {
   onOverrideRecommendation?: () => void;
   onGenerateRecommendation?: () => void;
   onApplyRemediation?: (action: import('../../moneta/representation/ActionableNil.ts').RemedialAction) => void;
+  onPreviewRemediation?: (action: import('../../moneta/representation/ActionableNil.ts').RemedialAction) => boolean;
+  getPreviewDecision?: () => import('../../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null;
+  onCommitRemediation?: (action: import('../../moneta/representation/ActionableNil.ts').RemedialAction) => void;
+  onCancelRemediationPreview?: () => void;
   onExitVR?: () => void;
   uiMode?: UIMode;
   onStatusUpdate?: (statusText: string) => void;
@@ -107,6 +112,7 @@ export interface WorldUIManagerCallbacks {
   onExportArchive?: (archiveId: string) => void;
   onDeleteArchive?: (archiveId: string) => void;
   getArchiveList?: () => Promise<ArchiveEntry[]>;
+  onShowConstraints?: () => void;
 }
 
 interface AdaptiveAssistLike {
@@ -167,6 +173,7 @@ export class WorldUIManager {
   recommendationPanel: RecommendationPanel;
   dracoExplainerPanel: DracoExplainerPanel;
   vaultPanel: VaultPanel;
+  statusStripPanel: StatusStripPanel;
 
   // Superuser / Dev Lab — panel subclasses (wired into PanelManager on first access)
   schemaMappingPanel: SchemaMappingPanel | null = null;
@@ -212,7 +219,7 @@ export class WorldUIManager {
       onRecord: (data) => callbacks.onRecordFinding?.(data),
       onNavigate: (data) => callbacks.onNavigateNode?.(data),
       onMore: () => {
-        this.handWheelMenu.toggle();
+        callbacks.onShowConstraints?.();
       },
     });
     this.analystAnchor.add(this.contextualTaskSurface);
@@ -231,6 +238,15 @@ export class WorldUIManager {
     this.vrConsole = new VRConsole(this.analystAnchor);
     applyPanelLayout(this.vrConsole, PANEL_LAYOUT.vrConsole);
     this.engine.addUpdatable(this.vrConsole);
+
+    // Persistent status strip showing dataset, mode, focus, and last action.
+    this.statusStripPanel = new StatusStripPanel(this.engine.cameraGroup, {
+      statusStrip: this.statusStrip,
+      position: [0, 1.75, -1.1],
+      worldSize: [0.72, 0.08],
+    });
+    this.engine.addUpdatable(this.statusStripPanel);
+
 
     // Main operation / dataset menu — retired as primary navigation per P1-U8.
     // Functionality folded into TechnoCore, ContextualTaskSurface, and HandWheelMenu.
@@ -402,6 +418,10 @@ export class WorldUIManager {
       onOverride: callbacks.onOverrideRecommendation,
       onGenerate: callbacks.onGenerateRecommendation,
       onApplyRemediation: callbacks.onApplyRemediation,
+      onPreviewRemediation: callbacks.onPreviewRemediation,
+      getPreviewDecision: callbacks.getPreviewDecision,
+      onCommitRemediation: callbacks.onCommitRemediation,
+      onCancelRemediationPreview: callbacks.onCancelRemediationPreview,
     });
     this.panelManager.register(this.recommendationPanel);
     this.engine.input.addPanel(this.recommendationPanel);
@@ -652,6 +672,23 @@ export class WorldUIManager {
   }
 
   /**
+   * Show the RecommendationPanel with the Constraints tab active.
+   * Used to surface counterevidence/blocking constraints from the contextual task surface.
+   */
+  showConstraintsPanel(): void {
+    const allowed = this.panelRolesManager.openPanel('recommendation');
+    if (!allowed) {
+      this.vrConsole?.log?.('warn', [
+        `Recommendation Panel not permitted in mode ${this.panelRolesManager.uiMode}`,
+      ]);
+      return;
+    }
+    this._syncPanelVisibilityWithRoles();
+    this.panelManager.showPanel(this.recommendationPanel);
+    this.recommendationPanel.setActiveTab('constraints');
+  }
+
+  /**
    * Toggle a panel while respecting its registered panel role (e.g. max 2 task panels,
    * diagnostic panel UI mode gating).
    */
@@ -794,6 +831,7 @@ export class WorldUIManager {
     this.engine.removeUpdatable(this.dashboard);
     this.engine.removeUpdatable(this.handWheelMenu);
     this.engine.removeUpdatable(this.contextualTaskSurface);
+    this.engine.removeUpdatable(this.statusStripPanel);
     this.engine.removeHudObject(this.handWheelMenu);
     this.engine.input.removePanel(this.handWheelMenu);
     this.engine.input.removePanel(this.contextualTaskSurface);
@@ -804,6 +842,7 @@ export class WorldUIManager {
     this.peerPresenceHUD.dispose();
     this.dashboard.dispose();
     this.handWheelMenu.dispose();
+    this.statusStripPanel.dispose?.();
     if (!this._borrowedResources.has(this.contextualTaskSurface)) {
       this.contextualTaskSurface.dispose?.();
     }

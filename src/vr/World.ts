@@ -95,14 +95,13 @@ import type { TopologyType } from '../data/types.ts';
 import { DatasetSpace } from '../atlas/DatasetSpace.ts';
 import { AtlasCore } from '../atlas/AtlasCore.ts';
 import { WorkerAnalyticalPort, type WorkerTransport } from '../atlas/ports/WorkerAnalyticalPort.ts';
-import { NemosyneSession } from '../session/NemosyneSession.ts';
+import { NemosyneSession, type NemosyneSessionJSON } from '../session/NemosyneSession.ts';
 import {
   InvestigationReplayRunner,
   type ReplayVerificationResult,
 } from '../session/InvestigationReplayRunner.ts';
 import { VaultArchiveStore } from '../session/index.ts';
 import type {
-  ArtifactRef,
   DatasetLoadEntry,
   HandLike,
   PanelLike,
@@ -115,7 +114,22 @@ import { KernelLayoutUnavailableError } from '../moneta/layouts/LayoutBase.ts';
 import type { RepresentationRequirements } from '../moneta/representation/RepresentationRequirements.ts';
 import { createDefaultRequirements } from '../moneta/representation/RepresentationRequirements.ts';
 import type { InvestigatorActionableOutcome } from '../moneta/representation/ActionableNil.ts';
-import { buildRemediationProvenance } from '../moneta/representation/ActionableNil.ts';
+import {
+  applyRemediation,
+  buildRemediationProvenance,
+  hashRequirements,
+} from '../moneta/representation/ActionableNil.ts';
+import { bindInteractionProjection } from './presentation/bindings/bindInteractionProjection.ts';
+import { bindConsoleProjection } from './presentation/bindings/bindConsoleProjection.ts';
+import { bindOperationStateProjection } from './presentation/bindings/bindOperationStateProjection.ts';
+import { bindTelemetryProjection } from './presentation/bindings/bindTelemetryProjection.ts';
+import { bindDerivedAnalysisProjection } from './presentation/bindings/bindDerivedAnalysisProjection.ts';
+import { bindOperationUiProjection } from './presentation/bindings/bindOperationUiProjection.ts';
+import { bindOperationPreviewProjection } from './presentation/bindings/bindOperationPreviewProjection.ts';
+import { bindAutosaveProjection } from './presentation/bindings/bindAutosaveProjection.ts';
+import { bindDevEvidenceProjection } from './presentation/bindings/bindDevEvidenceProjection.ts';
+import type { BindingDisposer } from './presentation/bindings/BindingDisposer.ts';
+import { WorldPresentationSnapshotAdapter } from './presentation/session/WorldPresentationSnapshotAdapter.ts';
 
 type WorldRuntimeBridge = typeof import('../wasm/RuntimeBridge.ts');
 
@@ -185,12 +199,19 @@ export class World {
   _lastSelectedMesh: THREE.Mesh | null = null;
   _activeRequirements: RepresentationRequirements = createDefaultRequirements('individual-inspection');
   _activeOutcome: InvestigatorActionableOutcome | null = null;
+  _previewedRequirements: RepresentationRequirements | null = null;
+  _previewedRemediationAction: import('../moneta/representation/ActionableNil.ts').RemedialAction | null = null;
+  _previewedDecision: import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null = null;
+  _previewedDatasetFingerprint: string | null = null;
+  _previewedDatasetVersion: number | null = null;
+  _previewedBaseRequirementsHash: string | null = null;
   _lastLoadedEntry: DatasetLoadEntry | null = null;
   liveStreamCoordinator: LiveStreamCoordinator;
   collaborationCoordinator: CollaborationCoordinator;
   landmarkController!: WorldLandmarkController;
   tourController!: GuidedTourController;
   sessionController!: WorldSessionController;
+  presentationSnapshotPort!: WorldPresentationSnapshotAdapter;
   /** Vault archive store for managing frozen investigation snapshots (P1-U6). */
   archiveStore: VaultArchiveStore;
   loader: FileLoaderUI;
@@ -228,6 +249,7 @@ export class World {
   _lastLoadTestSummary: LoadTestSummary | null = null;
   _lastQuestBoundarySummary: QuestBoundarySummary | null = null;
   _telemetryConsentBeforeRun: boolean | null = null;
+  private _projectionDisposers: BindingDisposer[] = [];
   /**
    * Canonical application-intent dispatcher, injected by the bootstrap
    * composition root after World construction. When set, mutating commands
@@ -370,6 +392,10 @@ export class World {
       onOverrideRecommendation: () => this._overrideRecommendation(),
       onGenerateRecommendation: () => this._generateRecommendation(),
       onApplyRemediation: (action) => this._applyRemediation(action),
+      onPreviewRemediation: (action) => this._previewRemediation(action),
+      onCommitRemediation: (action) => this._commitRemediation(action),
+      onCancelRemediationPreview: () => this._cancelRemediationPreview(),
+      getPreviewDecision: () => this._getCurrentPreviewDecision(),
       onExitVR: () => this.exitVR(),
       frustrationAnalyzer: this.telemetryCollector.frustrationAnalyzer,
       getDataset: () => this.atlas.dataset,
@@ -401,6 +427,7 @@ export class World {
       onRestoreArchive: (archiveId) => this._restoreArchive(archiveId),
       onExportArchive: (archiveId) => this._exportArchive(archiveId),
       onDeleteArchive: (archiveId) => this._deleteArchive(archiveId),
+      onShowConstraints: () => this.uiManager.showConstraintsPanel(),
     });
 
     // Input coordinator owns gesture recognition, context-aware suppression, and
@@ -715,9 +742,69 @@ export class World {
     // landmark cycle, or the Settings panel toggle.
     this._statisticalLensEnabled = false;
 
-    // Subscribe to data-operation events so World can keep rendering, logging,
-    // auto-save, and telemetry in sync without the controller knowing about them.
-    this._subscribeDataOperationEvents();
+    // RF-062D: World wires independently disposable event projections. Each
+    // binding receives only the capability required for one reaction family;
+    // feature modules never receive World or a World-shaped host.
+    this._projectionDisposers = [
+      bindInteractionProjection({
+        eventBus: this.eventBus,
+        logInteraction: (event) => this.uiManager.interactionCoach?.log?.(event),
+      }),
+      bindConsoleProjection({
+        eventBus: this.eventBus,
+        log: (level, args) => this.uiManager.vrConsole?.log?.(level, args),
+      }),
+      bindOperationStateProjection({
+        eventBus: this.eventBus,
+        invalidateSpatialAcceleration: () => this.engine.input.invalidateSpatialAcceleration(),
+        getTransformedDataset: () => this._transformedDataset,
+        restoreDataset: (dataset, operation) => this._restoreDataset(dataset, operation),
+        updateDashboardDatasets: (dataset) => this._updateDashboardDatasets(dataset),
+      }),
+      bindTelemetryProjection({
+        eventBus: this.eventBus,
+        recordGesture: (name) => this.telemetryCollector?.recordGesture?.(name),
+        recordOperation: (operation) => this.telemetryCollector?.recordOperation?.(operation),
+      }),
+      bindDerivedAnalysisProjection({
+        eventBus: this.eventBus,
+        schedule: (operation) => {
+          this.derivedAnalysisPipeline.schedule(operation);
+        },
+        recomputeTda: () => {
+          if (this.tdaRecompute) void this.tdaRecompute();
+        },
+      }),
+      bindOperationUiProjection({
+        eventBus: this.eventBus,
+        updateOperationLog: () => this._updateOperationLog(),
+        updateNarrative: () => this._updateNarrativeStrip(),
+        logConsole: (message) => this.uiManager.vrConsole?.log?.('log', [message]),
+        recordInteraction: (operation, result) => this._logInteraction(operation, { result }),
+      }),
+      bindOperationPreviewProjection({
+        eventBus: this.eventBus,
+        preview: (operation, previewDataset, originalDataset, artifact) =>
+          this.livePreview.preview(operation, previewDataset, originalDataset, artifact),
+        clear: () => this.livePreview.clear(),
+      }),
+      bindAutosaveProjection({
+        eventBus: this.eventBus,
+        requestAutosave: () => this._requestAutoSave(),
+      }),
+      bindDevEvidenceProjection<LoadTestSummary, QuestBoundarySummary>({
+        eventBus: this.eventBus,
+        onLoadTestComplete: (summary) => {
+          this._lastLoadTestSummary = summary;
+          this._enrichAndFlushLoadTestSummary(summary);
+          this._restoreTelemetryConsent();
+        },
+        onQuestBoundaryComplete: (summary) => {
+          this._lastQuestBoundarySummary = summary;
+          this._flushQuestBoundarySummary(summary);
+        },
+      }),
+    ];
 
     // Controller gesture mapper: emits the same gesture names as hand tracking.
     this.controllerGestureMapper = new ControllerGestureMapper({
@@ -752,8 +839,34 @@ export class World {
     /** Vault archive store for managing frozen investigation snapshots (P1-U6). */
     this.archiveStore = new VaultArchiveStore(this.sessionStore);
 
-    // Session save/load/autosave coordinator (reads facade members lazily).
-    this.sessionController = new WorldSessionController(this);
+    // Session persistence consumes explicit application/presentation ports.
+    // The adapter owns presentation-only capture/restore and cannot mutate
+    // analytical/session authority.
+    this.presentationSnapshotPort = new WorldPresentationSnapshotAdapter({
+      cameraGroup: this.engine.cameraGroup,
+      theme: this.engine.theme,
+      settingsPanel: this.uiManager.settingsPanel,
+      panelManager: this.uiManager.panelManager,
+      guidedTour: this.guidedTour,
+      comfortSettingsController: this.comfortSettingsController,
+      focusContext: this.focusContext,
+      getCurrentEntry: () => this.currentEntry,
+      getFallbackDatasetName: () => this._originalDataset?.name ?? null,
+      hasRepresentation: () => !!this.dracoNode,
+    });
+    this.sessionController = new WorldSessionController({
+      session: this.session,
+      getSessionStore: () => this.sessionStore,
+      presentation: this.presentationSnapshotPort,
+      loadDataset: (entry) => this.loadDataset(entry),
+      restoreRepresentation: () => this.restoreAuthoritativeRepresentation(),
+      eventBus: this.eventBus,
+      archiveStore: this.archiveStore,
+      log: (level, message) => this.uiManager.vrConsole?.log?.(level, [message]),
+      recordInteraction: (action, options) => this._logInteraction(action, options),
+      applyUserMode: () => this.userModeController.apply(),
+      isRuntimeActive: () => !this._disposed,
+    });
 
     // Track whether the guided tour has been auto-started for novice users.
     this._tourAutoStarted = false;
@@ -1015,9 +1128,13 @@ export class World {
     {
       preserveAnalyticalState = false,
       preserveAuxiliaryPresentation = false,
+      authoritativeRepresentation,
     }: {
       preserveAnalyticalState?: boolean;
       preserveAuxiliaryPresentation?: boolean;
+      authoritativeRepresentation?: {
+        decision: import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null;
+      };
     } = {}
   ): void {
     this._lastLoadedEntry = entry;
@@ -1033,6 +1150,7 @@ export class World {
     const result = this.loadDatasetUseCase.execute(entry, {
       preserveAnalyticalState,
       requirements: this._activeRequirements,
+      authoritativeRepresentation,
     });
     this._activeRequirements = result.requirements;
     this._activeOutcome = result.outcome;
@@ -1349,7 +1467,7 @@ export class World {
 
   _applyRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): void {
     const oldRequirements = this._activeRequirements;
-    const newReq = { ...this._activeRequirements, ...action.suggestedRequirementPatch };
+    const newReq = applyRemediation(this._activeRequirements, action);
 
     const provenance = buildRemediationProvenance(
       action,
@@ -1359,20 +1477,13 @@ export class World {
       Date.now()
     );
 
-    // Record the remediation event in the ledger.
     this.atlas.recordRemediation(provenance);
-
-    // Apply the patch.
     this._activeRequirements = newReq;
 
-    // Re-arbitrate representation layout.
     if (this._lastLoadedEntry) {
       const savedSelectionName = this._lastSelectedMesh?.name ?? null;
-
-      // Reload dataset preserving analytical state so the ledger is not cleared.
       this._doLoadDataset(this._lastLoadedEntry, { preserveAnalyticalState: true });
 
-      // Restore selected mesh if possible.
       if (savedSelectionName && this.dracoNode?.artifact?.nodeMeshes) {
         const matchingMesh = this.dracoNode.artifact.nodeMeshes.find((m) => m.name === savedSelectionName);
         if (matchingMesh) {
@@ -1382,19 +1493,118 @@ export class World {
     }
   }
 
+  /** Preview a remediation without mutating canonical representation state or the ledger. */
+  _previewRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): boolean {
+    try {
+      if (!this.atlas.isReady()) throw new Error('analytical authority is not ready');
+      const baseRequirementsHash = hashRequirements(this._activeRequirements);
+      const newReq = applyRemediation(this._activeRequirements, action);
+      const previewDecision = this.atlas.previewRepresentation(newReq);
+      const expectedRequirementsHash = hashRequirements(newReq);
+      const decisionRequirementsHash = previewDecision.provenance.requirementsHash;
+      if (decisionRequirementsHash && decisionRequirementsHash !== expectedRequirementsHash) {
+        throw new Error('preview decision provenance does not match preview requirements');
+      }
+
+      this._previewedRequirements = newReq;
+      this._previewedRemediationAction = action;
+      this._previewedDecision = previewDecision;
+      this._previewedDatasetFingerprint = this.atlas.datasetFingerprint ?? null;
+      this._previewedDatasetVersion = this.atlas.datasetVersion;
+      this._previewedBaseRequirementsHash = baseRequirementsHash;
+      this.uiManager.recommendationPanel?.markDirty?.();
+      return true;
+    } catch (error) {
+      this._clearRemediationPreview();
+      this.uiManager.vrConsole?.log?.('warn', [
+        `Remediation preview unavailable: ${(error as Error).message}`,
+      ]);
+      this.uiManager.recommendationPanel?.markDirty?.();
+      return false;
+    }
+  }
+
+  /** Return a preview only while all authority/fingerprint fences still match. */
+  _getCurrentPreviewDecision(): import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null {
+    if (
+      !this._previewedDecision ||
+      !this._previewedRemediationAction ||
+      !this._previewedRequirements ||
+      this._previewedDatasetFingerprint !== (this.atlas.datasetFingerprint ?? null) ||
+      this._previewedDatasetVersion !== this.atlas.datasetVersion ||
+      this._previewedBaseRequirementsHash !== hashRequirements(this._activeRequirements)
+    ) {
+      return null;
+    }
+    return this._previewedDecision;
+  }
+
+  /** Commit exactly the remediation that produced the currently displayed preview. */
+  _commitRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): void {
+    const previewDecision = this._getCurrentPreviewDecision();
+    const previewedAction = this._previewedRemediationAction;
+    if (!previewDecision || !previewedAction || previewedAction.id !== action.id) {
+      this.uiManager.vrConsole?.log?.('warn', [
+        'Remediation preview is stale; preview the action again before applying it.',
+      ]);
+      this._clearRemediationPreview();
+      this.uiManager.recommendationPanel?.markDirty?.();
+      return;
+    }
+
+    try {
+      this._applyRemediation(previewedAction);
+    } catch (error) {
+      this.uiManager.vrConsole?.log?.('warn', [
+        `Remediation was not applied: ${(error as Error).message}`,
+      ]);
+    } finally {
+      this._clearRemediationPreview();
+      this.uiManager.recommendationPanel?.markDirty?.();
+    }
+  }
+
+  private _clearRemediationPreview(): void {
+    this._previewedRequirements = null;
+    this._previewedRemediationAction = null;
+    this._previewedDecision = null;
+    this._previewedDatasetFingerprint = null;
+    this._previewedDatasetVersion = null;
+    this._previewedBaseRequirementsHash = null;
+  }
+
+  /** Cancel a remediation preview without applying. */
+  _cancelRemediationPreview(): void {
+    this._clearRemediationPreview();
+    this.uiManager.recommendationPanel?.markDirty?.();
+  }
+
   reconstructRequirementsAndReArbitrate(): void {
     if (!this.atlas.isReady() || !this._lastLoadedEntry) return;
 
-    let req = createDefaultRequirements('individual-inspection');
-    const events = this.atlas.remediationEvents();
-    for (const ev of events) {
-      if (ev.requirementPatch) {
-        req = { ...req, ...ev.requirementPatch };
-      }
-    }
-    this._activeRequirements = req;
+    this._activeRequirements = this._reconstructRequirementsFromLedger();
 
     this._doLoadDataset(this._lastLoadedEntry, { preserveAnalyticalState: true });
+  }
+
+  restoreAuthoritativeRepresentation(): void {
+    if (!this.atlas.isReady() || !this._lastLoadedEntry) return;
+
+    this._activeRequirements = this._reconstructRequirementsFromLedger();
+    this._doLoadDataset(this._lastLoadedEntry, {
+      preserveAnalyticalState: true,
+      authoritativeRepresentation: { decision: this.atlas.activeRepresentationDecision },
+    });
+  }
+
+  private _reconstructRequirementsFromLedger(): RepresentationRequirements {
+    let requirements = createDefaultRequirements('individual-inspection');
+    for (const event of this.atlas.remediationEvents()) {
+      if (event.requirementPatch) {
+        requirements = { ...requirements, ...event.requirementPatch };
+      }
+    }
+    return requirements;
   }
 
   _generateRecommendation(): void {
@@ -1494,13 +1704,36 @@ export class World {
 
   /** Freeze the current investigation state as an immutable archive. */
   private async _freezeInvestigation(): Promise<void> {
-    if (!this.uiManager?.vaultPanel) return;
-    const archives = await this.sessionController?.archiveStore?.listArchives?.() ?? [];
+    if (!this.uiManager?.vaultPanel || !this.sessionController?.archiveStore || !this.atlas.isReady()) return;
+
+    const snapshot = this.sessionController.snapshotCurrentSession();
+    if (!snapshot) {
+      this.uiManager.vrConsole?.log?.('warn', ['Unable to freeze: current session is not snapshot-ready.']);
+      return;
+    }
+    const label = `Archive ${new Date().toLocaleString()}`;
+
+    const eventLedger = (snapshot.eventLedger as unknown[]) ?? [];
+    const discoveryEpisodes = snapshot.discoveryEpisodes as
+      | { episodes?: unknown[] }
+      | undefined;
+    const metadata = {
+      datasetFingerprint: this.atlas.datasetFingerprint ?? '',
+      datasetName: this._lastLoadedEntry?.label ?? this._lastLoadedEntry?.key ?? 'unknown',
+      investigationDigest: null,
+      eventCount: eventLedger.length,
+      discoveryCount: discoveryEpisodes?.episodes?.length ?? 0,
+    };
+
+    const archiveId = await this.sessionController.archiveStore.freezeInvestigation(label, snapshot, metadata);
+    const archives = await this.sessionController.archiveStore.listArchives?.() ?? [];
     this.uiManager.vaultPanel.setArchives(archives);
     this.uiManager.vaultPanel.show();
+    this.uiManager.vrConsole?.log?.('log', [`Frozen investigation: ${archiveId}`]);
+    this._logInteraction('Freeze investigation', { result: archiveId });
   }
 
-  /** Restore an archived investigation by ID. */
+  /** Restore an archived investigation and report success only after completion. */
   private async _restoreArchive(archiveId: string): Promise<void> {
     if (!this.uiManager?.vaultPanel || !this.sessionController?.archiveStore) return;
     const archive = await this.sessionController.archiveStore.loadArchive(archiveId);
@@ -1508,24 +1741,32 @@ export class World {
       this.uiManager.vrConsole?.log?.('warn', [`Archive not found: ${archiveId}`]);
       return;
     }
-    // Restore the session state
-    this.sessionController.loadSession(archiveId);
+    const restored = await this.sessionController.loadSession(archiveId);
+    if (!restored) {
+      this.uiManager.vrConsole?.log?.('warn', [`Archive restore failed: ${archiveId}`]);
+      return;
+    }
     this.uiManager.vrConsole?.log?.('log', [`Restored archive: ${archiveId}`]);
     this._captureSession();
   }
 
-  /** Export an archive as a portable .nemosyne package. */
+  /** Export the selected immutable archive, never the mutable live session. */
   private async _exportArchive(archiveId: string): Promise<void> {
     if (!this.sessionController?.archiveStore) return;
     const archive = await this.sessionController.archiveStore.loadArchive(archiveId);
-    if (!archive) return;
-    // Delegate to NemosyneSession for package creation
-    const packageBytes = await this.session.exportPortablePackage();
+    if (!archive) {
+      this.uiManager.vrConsole?.log?.('warn', [`Archive not found: ${archiveId}`]);
+      return;
+    }
+    const packageBytes = await NemosyneSession.exportPortableSnapshot(
+      archive as unknown as NemosyneSessionJSON
+    );
     const blob = new Blob([packageBytes as unknown as BlobPart], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `nemosyne-${archiveId}.nemosyne`;
+    const safeArchiveId = archiveId.replace(/[^A-Za-z0-9._-]+/g, '-');
+    a.download = `nemosyne-${safeArchiveId}.nemosyne`;
     a.click();
     URL.revokeObjectURL(url);
     this.uiManager.vrConsole?.log?.('log', [`Exported archive: ${archiveId}`]);
@@ -1950,114 +2191,6 @@ export class World {
     this.uiManager.operationLogPanel?.setEntries(entries);
   }
 
-  _subscribeDataOperationEvents(): void {
-    // Cross-cutting subscribers: keep logging, telemetry, and auto-save out of
-    // feature methods by reacting to events instead of calling World directly.
-    this.eventBus.on(WorldTopics.INTERACTION_LOG, (payload: unknown) => {
-      const { action, gesture, controller, result } = payload as {
-        action: string;
-        gesture?: string;
-        controller?: string;
-        result?: string;
-      };
-      this.uiManager.interactionCoach?.log?.({ action, gesture, controller, result });
-    });
-
-    this.eventBus.on(WorldTopics.SESSION_CAPTURE, () => {
-      this._requestAutoSave();
-    });
-
-    this.eventBus.on(WorldTopics.CONSOLE_LOG, (args: unknown) => {
-      this.uiManager.vrConsole?.log?.('log', Array.isArray(args) ? args : [args]);
-    });
-
-    this.eventBus.on(WorldTopics.CONSOLE_WARN, (args: unknown) => {
-      this.uiManager.vrConsole?.log?.('warn', Array.isArray(args) ? args : [args]);
-    });
-
-    // Route interaction events (gestures, commands, settings changes) to the
-    // interaction coach and telemetry so individual callers do not need to.
-    this.eventBus.on(WorldTopics.INTERACTION, (payload: unknown) => {
-      const { action, gesture, controller, result } = payload as {
-        action: string;
-        gesture?: string;
-        controller?: string;
-        result?: string;
-      };
-      this.eventBus.emit(WorldTopics.INTERACTION_LOG, { action, gesture, controller, result });
-    });
-
-    this.eventBus.on(WorldTopics.GESTURE_RECOGNIZED, (payload: unknown) => {
-      const { name } = payload as { name: string };
-      this.telemetryCollector?.recordGesture?.(name);
-    });
-
-    this.eventBus.on(WorldTopics.OPERATION_APPLIED, (payload: unknown) => {
-      const { operation, rowCount } = payload as { operation: string; rowCount?: number };
-      this.engine.input.invalidateSpatialAcceleration();
-      this.telemetryCollector?.recordOperation?.(operation);
-      if (operation === 'compare') {
-        // Compare changes the dataset shape, so rebuild the Draco artefact.
-        this._restoreDataset(this._transformedDataset, operation);
-      }
-      this._updateDashboardDatasets(this._transformedDataset);
-      this.derivedAnalysisPipeline.schedule(operation);
-      this._updateOperationLog();
-      this._updateNarrativeStrip();
-      this.uiManager.vrConsole?.log?.('log', [`Operation: ${operation} → ${rowCount} rows`]);
-      this._logInteraction(operation, { result: `${rowCount} rows` });
-      this._requestAutoSave();
-    });
-
-    this.eventBus.on(WorldTopics.OPERATION_PREVIEW, (payload: unknown) => {
-      const { operation, previewDataset, originalDataset, artifact } = payload as {
-        operation: string;
-        previewDataset: Dataset;
-        originalDataset: Dataset | null;
-        artifact: ArtifactRef;
-      };
-      this.livePreview.preview(
-        operation,
-        previewDataset,
-        originalDataset ?? previewDataset,
-        artifact
-      );
-    });
-
-    this.eventBus.on(WorldTopics.OPERATION_CLEAR_PREVIEW, () => {
-      this.livePreview.clear();
-    });
-
-    this.eventBus.on(WorldTopics.HISTORY_SEEK, (payload: unknown) => {
-      const { operation, dataset } = payload as { operation: string; dataset: Dataset };
-      this._restoreDataset(dataset, operation);
-      if (this.tdaRecompute && operation !== 'anomaly') void this.tdaRecompute();
-      this._updateNarrativeStrip();
-    });
-
-    this.eventBus.on(WorldTopics.SESSION_AUTOSAVE_REQUEST, () => {
-      this._requestAutoSave();
-    });
-
-    // Load-test completion: store the summary, enrich it with usability
-    // aggregates (friction score/level/patterns — no raw interaction trail),
-    // restore telemetry consent to its prior state, and flush the perf/UX
-    // summary to the LOCAL dev-server log endpoint. No user dataset rows or
-    // session snapshots leave the device.
-    this.eventBus.on(WorldTopics.LOADTEST_COMPLETE, (payload: unknown) => {
-      const summary = payload as LoadTestSummary;
-      this._lastLoadTestSummary = summary;
-      this._enrichAndFlushLoadTestSummary(summary);
-      this._restoreTelemetryConsent();
-    });
-
-    this.eventBus.on(WorldTopics.QUEST_BOUNDARY_COMPLETE, (payload: unknown) => {
-      const summary = payload as QuestBoundarySummary;
-      this._lastQuestBoundarySummary = summary;
-      this._flushQuestBoundarySummary(summary);
-    });
-  }
-
   _buildWheelMenu(): void {
     this.uiManager.buildWheelMenu(buildIntentWheelMenuCategories(this));
   }
@@ -2383,6 +2516,9 @@ export class World {
     };
 
     await run(() => this.engine.pause());
+    for (const disposeBinding of this._projectionDisposers.splice(0)) {
+      await run(disposeBinding);
+    }
     await run(() => this.loadTestDriver?.dispose());
     await run(() => this.questBoundaryProbe?.dispose());
     await run(() => this.sessionController?.dispose?.());

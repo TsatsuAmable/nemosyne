@@ -51,6 +51,7 @@ const EAGER_WORLD_UI_DISPOSITIONS: Readonly<Record<string, string>> = {
   panelBudgetController: 'excluded: workspace budget controller, not a visible surface',
   telemetryPanel: 'input-telemetry',
   vrConsole: 'vr-console',
+  statusStripPanel: 'excluded: persistent status grounding, not an independently visible surface',
   vrMenu: 'legacy-vr-menu',
   panelManager: 'excluded: panel lifecycle manager, not a visible surface',
   miniOverview: 'mini-overview',

@@ -12,6 +12,7 @@ import {
 } from '../src/app/dataset/LoadDatasetUseCase.ts';
 import { loadDistributionSemanticEmbodiment } from '../src/app/dataset/SemanticEmbodimentLoader.ts';
 import { MonetaTopologyNode } from '../src/moneta/MonetaTopologyNode.ts';
+import { SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME } from '../src/moneta/embodiment/SemanticEmbodimentStatus.ts';
 import { VRTopologyTranslator } from '../src/moneta/VRTopologyTranslator.ts';
 import type { RepresentationDecision } from '../src/moneta/representation/RepresentationDecision.ts';
 import { createDefaultRequirements } from '../src/moneta/representation/RepresentationRequirements.ts';
@@ -331,6 +332,9 @@ describe('Stream M M3 distribution production cutover', () => {
         provenance: semantic.provenance,
       });
       expect(artifact.group.userData.semanticEmbodiment.artifactId).toContain(decision().id);
+      expect(
+        artifact.group.getObjectByName(SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME)
+      ).toBeUndefined();
     } finally {
       disposeObject(artifact.group);
     }
@@ -352,6 +356,13 @@ describe('Stream M M3 distribution production cutover', () => {
     });
     expect(pending.nodeMeshes).toHaveLength(0);
     expect(pending.group.userData.semanticEmbodimentStatus).toBe('PENDING');
+    expect(
+      pending.group.getObjectByName(SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME)?.userData
+    ).toMatchObject({
+      semanticEmbodimentStatus: 'PENDING',
+      analyticalElement: false,
+      selectable: false,
+    });
 
     input.semanticEmbodiment = {
       ...envelope('c'.repeat(64)),
@@ -365,6 +376,10 @@ describe('Stream M M3 distribution production cutover', () => {
     });
     expect(refused.nodeMeshes).toHaveLength(0);
     expect(refused.group.userData.semanticEmbodimentStatus).toBe('REFUSED');
+    expect(
+      refused.group.getObjectByName(SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME)?.userData
+        .semanticEmbodimentMessage
+    ).toBe('explicit measure required');
 
     input.semanticEmbodiment = {
       ...envelope('c'.repeat(64)),
@@ -375,11 +390,53 @@ describe('Stream M M3 distribution production cutover', () => {
     });
     expect(invalid.nodeMeshes).toHaveLength(0);
     expect(invalid.group.userData.semanticEmbodimentStatus).toBe('INVALID');
+    expect(
+      invalid.group.getObjectByName(SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME)?.userData
+        .semanticEmbodimentStatus
+    ).toBe('INVALID');
     expect(chartPlaneFactory).not.toHaveBeenCalled();
 
     disposeObject(pending.group);
     disposeObject(refused.group);
     disposeObject(invalid.group);
+  });
+
+  it('replaces the pending product surface with an explicit unavailable state', async () => {
+    let resolvePayload!: (value: SemanticEmbodimentEnvelopeV1 | null) => void;
+    const promise = new Promise<SemanticEmbodimentEnvelopeV1 | null>((resolve) => {
+      resolvePayload = resolve;
+    });
+    const input = { semanticEmbodimentPromise: promise } as MonetaDataInput & {
+      semanticEmbodimentPromise: Promise<SemanticEmbodimentEnvelopeV1 | null>;
+    };
+    const scene = new THREE.Scene();
+    const node = new MonetaTopologyNode(
+      scene,
+      input,
+      [0, 0, 0],
+      {},
+      { facts: () => distributionSolverResult().facts },
+      false,
+      decision()
+    );
+
+    expect(node.artifact?.nodeMeshes).toHaveLength(0);
+    expect(node.group?.userData.semanticEmbodimentStatus).toBe('PENDING');
+    resolvePayload(null);
+    await promise;
+    await Promise.resolve();
+
+    const statusSurface = node.group?.getObjectByName(SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME);
+    expect(node.artifact?.nodeMeshes).toHaveLength(0);
+    expect(node.group?.userData.semanticEmbodimentStatus).toBe('UNAVAILABLE');
+    expect(statusSurface?.userData).toMatchObject({
+      semanticEmbodimentStatus: 'UNAVAILABLE',
+      analyticalElement: false,
+      selectable: false,
+    });
+
+    node.cancelPendingSemanticEmbodiment();
+    if (node.group) disposeObject(node.group);
   });
 
   it('ignores a late distribution payload after the representation decision changes', async () => {

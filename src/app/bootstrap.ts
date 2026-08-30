@@ -6,6 +6,7 @@
 
 import { World } from '../vr/World.ts';
 import { allSampleDatasets } from '../data/SampleDatasets.ts';
+import { WorldTopics } from '../utils/EventBus.ts';
 import { resolveDatasetCycleCursor } from './dataset/DatasetCycleCursor.ts';
 import {
   setupDevTraceRecorder,
@@ -70,6 +71,13 @@ function analystJourneyActions(
     dispatchIntent,
     currentDatasetName: () =>
       world.currentEntry?.name ?? world.currentEntry?.label ?? world.currentEntry?.key ?? null,
+    subscribeDatasetContext: (handler) =>
+      world.eventBus.on(WorldTopics.DATASET_LOADED, () => {
+        // LoadDatasetUseCase publishes the logical transition synchronously;
+        // World assigns currentEntry immediately after it returns. Refresh on
+        // the next microtask so the shell reads the completed facade state.
+        queueMicrotask(handler);
+      }),
     assessRepresentation: (maxRenderedElements) =>
       assessAnalystRepresentation(world.atlas, world.session, maxRenderedElements),
     analysisResultCount: () => world.atlas.results.length,

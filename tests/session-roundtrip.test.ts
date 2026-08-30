@@ -9,8 +9,12 @@ import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { NemosyneSession } from '../src/session/NemosyneSession.ts';
 import {
   WorldSessionController,
-  type WorldSessionHost,
+  type WorldSessionControllerOptions,
 } from '../src/vr/coordinators/WorldSessionController.ts';
+import { WorldPresentationSnapshotAdapter } from '../src/vr/presentation/session/WorldPresentationSnapshotAdapter.ts';
+import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.ts';
+import { VaultArchiveStore } from '../src/session/VaultArchiveStore.ts';
+import { FocusContextController } from '../src/vr/interactions/FocusContextController.ts';
 import { toAnalysisSpec } from '../src/vr/interactions/DataOperations.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
@@ -96,10 +100,12 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-/** Builds a stub WorldSessionHost backed by REAL Dataset/AtlasCore/NemosyneSession
- *  + three.js objects so the controller's serialize/deserialize roundtrip is
- *  genuine. Wave 4: snapshot authority lives on NemosyneSession. */
-function makeStubWorld(sessionStore: SessionStore): { world: WorldSessionHost; stub: any } {
+/** Builds narrow session/application/presentation ports around real authorities. */
+function makeSessionHarness(sessionStore: SessionStore): {
+  options: WorldSessionControllerOptions;
+  stub: any;
+  eventBus: WorldEventBus;
+} {
   const ds = makeDataset('palace');
 
   // Real AtlasCore with the mock kernel; load the dataset so the ledger + a
@@ -135,13 +141,17 @@ function makeStubWorld(sessionStore: SessionStore): { world: WorldSessionHost; s
     setPanelPositions: vi.fn(),
   };
   const narrativeStrip = { setHistory: vi.fn() };
+  const focusController = new FocusContextController();
+  const focusContext = {
+    exportState: vi.fn(() => focusController.exportState()),
+    restoreState: vi.fn((state) => focusController.restoreState(state)),
+    clearFocus: vi.fn(() => focusController.clearFocus()),
+  };
 
   const stub: any = {
-    _disposed: false,
+    disposed: false,
     currentEntry: { dataset: ds, name: 'palace', topology: 'TABULAR', label: 'palace' },
     dracoNode: { group: new THREE.Object3D() },
-    _originalDataset: ds,
-    _transformedDataset: ds,
     atlas,
     session,
     analysisHistory: atlas.analysisHistory,
@@ -156,10 +166,21 @@ function makeStubWorld(sessionStore: SessionStore): { world: WorldSessionHost; s
       _active: false,
       _cardGroup: { visible: false },
       _renderStep: vi.fn(),
+      capturePresentationState() {
+        return { stepIndex: this._stepIndex, finished: this._finished };
+      },
+      restorePresentationState(state) {
+        this._stepIndex = state.stepIndex;
+        this._finished = state.finished;
+        this._active = !state.finished;
+        this._cardGroup.visible = !state.finished;
+        if (!state.finished) this._renderStep();
+      },
     },
     panelManager,
     comfortSettingsController: { apply: vi.fn(), applyPanelDistance: vi.fn() },
     userModeController: { apply: vi.fn() },
+    focusContext,
     narrativeStrip,
     uiManager: {
       settingsPanel,
@@ -168,13 +189,46 @@ function makeStubWorld(sessionStore: SessionStore): { world: WorldSessionHost; s
     },
     sessionStore,
     vrConsole: { log: vi.fn() },
-    _logInteraction: vi.fn(),
+    recordInteraction: vi.fn(),
     loadDataset: vi.fn(),
-    _restoreDataset: vi.fn(),
-    _updateNarrativeStrip: vi.fn(),
+    restoreRepresentation: vi.fn(),
+    restoreDatasetView: vi.fn(),
   };
 
-  return { world: stub as unknown as WorldSessionHost, stub };
+  const eventBus = new WorldEventBus();
+  eventBus.on(WorldTopics.HISTORY_SEEK, (payload: unknown) => {
+    const restored = payload as { operation: string; dataset: Dataset };
+    narrativeStrip.setHistory(atlas.analysisHistory);
+    stub.restoreDatasetView(restored.dataset, restored.operation);
+  });
+
+  const presentation = new WorldPresentationSnapshotAdapter({
+    cameraGroup,
+    theme: stub.engine.theme,
+    settingsPanel,
+    panelManager: panelManager as never,
+    guidedTour: stub.guidedTour,
+    comfortSettingsController: stub.comfortSettingsController,
+    focusContext,
+    getCurrentEntry: () => stub.currentEntry,
+    getFallbackDatasetName: () => atlas.originalDataset?.name ?? null,
+    hasRepresentation: () => !!stub.dracoNode,
+  });
+  const options: WorldSessionControllerOptions = {
+    session,
+    getSessionStore: () => stub.sessionStore,
+    presentation,
+    loadDataset: stub.loadDataset,
+    restoreRepresentation: stub.restoreRepresentation,
+    eventBus,
+    archiveStore: new VaultArchiveStore(sessionStore),
+    log: (level, message) => stub.vrConsole.log(level, [message]),
+    recordInteraction: stub.recordInteraction,
+    applyUserMode: stub.userModeController.apply,
+    isRuntimeActive: () => !stub.disposed,
+  };
+
+  return { options, stub, eventBus };
 }
 
 describe('SessionStore persistence (fake IndexedDB)', () => {
@@ -235,22 +289,24 @@ describe('WorldSessionController save/load roundtrip', () => {
   let idb: ReturnType<typeof createFakeIndexedDB>;
   let store: SessionStore;
   let stub: any;
-  let world: WorldSessionHost;
+  let options: WorldSessionControllerOptions;
+  let eventBus: WorldEventBus;
   let controller: WorldSessionController;
 
   beforeEach(() => {
     idb = createFakeIndexedDB();
     store = new SessionStore({ indexedDB: idb.factory });
-    const built = makeStubWorld(store);
+    const built = makeSessionHarness(store);
     stub = built.stub;
-    world = built.world;
-    controller = new WorldSessionController(world);
+    options = built.options;
+    eventBus = built.eventBus;
+    controller = new WorldSessionController(options);
   });
 
   it('saveSession serializes the world into the store and logs the interaction', async () => {
     await controller.saveSession('manual');
 
-    expect(stub._logInteraction).toHaveBeenCalledWith('Save session', { result: 'manual' });
+    expect(stub.recordInteraction).toHaveBeenCalledWith('Save session', { result: 'manual' });
     expect(await store.hasSession('manual')).toBe(true);
 
     const snap: any = await store.loadSession('manual');
@@ -295,7 +351,8 @@ describe('WorldSessionController save/load roundtrip', () => {
     expect(stub.uiManager.narrativeStrip.setHistory).toHaveBeenCalledWith(
       stub.atlas.analysisHistory
     );
-    expect(stub._restoreDataset).toHaveBeenCalled();
+    expect(stub.restoreDatasetView).toHaveBeenCalled();
+    expect(stub.restoreRepresentation).toHaveBeenCalledOnce();
 
     // Camera pose restored.
     expect(stub.engine.cameraGroup.position.toArray()).toEqual([1.5, 2.0, -3.0]);
@@ -323,7 +380,51 @@ describe('WorldSessionController save/load roundtrip', () => {
     expect(stub.guidedTour._renderStep).toHaveBeenCalled();
   });
 
-  it('invalidates a deferred session load before disposal can mutate Atlas or World', async () => {
+  it('clears a stale live representation decision when the snapshot has none', async () => {
+    await controller.saveSession('no-representation-decision');
+    const saved: any = await store.loadSession('no-representation-decision');
+    expect(saved.representationDecision).toBeNull();
+
+    stub.atlas.arbitrateRepresentation();
+    expect(stub.atlas.activeRepresentationDecision).not.toBeNull();
+
+    await expect(controller.loadSession('no-representation-decision')).resolves.toBe(true);
+    expect(stub.atlas.activeRepresentationDecision).toBeNull();
+  });
+
+  it('fails closed for malformed presentation coordinates and semantic focus', async () => {
+    await controller.saveSession('malformed-presentation');
+    const snapshot: any = await store.loadSession('malformed-presentation');
+    snapshot.presentation.camera = { position: [Number.NaN, 2, 3], rotationY: Infinity };
+    snapshot.presentation.panelPositions = [
+      { title: 'A', position: [1, Number.POSITIVE_INFINITY, 3], visible: true },
+    ];
+    snapshot.presentation.settings = {
+      ...snapshot.presentation.settings,
+      defaultPanelDistance: Number.NaN,
+      userMode: 17,
+    };
+    snapshot.presentation.theme = 42;
+    snapshot.presentation.tour = { stepIndex: -4, finished: false };
+    snapshot.presentation.focus = { currentLevel: 'observation', focusedStructureId: null };
+    await store.saveSession('malformed-presentation', snapshot);
+    stub.engine.cameraGroup.position.set(9, 8, 7);
+    stub.engine.cameraGroup.rotation.y = 0.25;
+    stub.uiManager.panelManager.setPanelPositions.mockClear();
+
+    await expect(controller.loadSession('malformed-presentation')).resolves.toBe(true);
+
+    expect(stub.engine.cameraGroup.position.toArray()).toEqual([9, 8, 7]);
+    expect(stub.engine.cameraGroup.rotation.y).toBe(0.25);
+    expect(stub.uiManager.panelManager.setPanelPositions).toHaveBeenCalledWith([]);
+    expect(stub.uiManager.settingsPanel.getAllSettings().defaultPanelDistance).toBe(1.4);
+    expect(stub.uiManager.settingsPanel.getAllSettings().userMode).toBe('intermediate');
+    expect(stub.engine.theme.applyPreset).not.toHaveBeenCalled();
+    expect(stub.guidedTour._stepIndex).toBe(0);
+    expect(stub.focusContext.clearFocus).toHaveBeenCalledOnce();
+  });
+
+  it('invalidates a deferred session load before disposal can mutate session authority', async () => {
     await controller.saveSession('late');
     const snapshot = await store.loadSession('late');
     const load = deferred<typeof snapshot>();
@@ -339,8 +440,30 @@ describe('WorldSessionController save/load roundtrip', () => {
     await expect(pending).resolves.toBe(false);
     expect(loadFromJSON).not.toHaveBeenCalled();
     expect(stub.loadDataset).not.toHaveBeenCalled();
-    expect(stub._restoreDataset).not.toHaveBeenCalled();
+    expect(stub.restoreDatasetView).not.toHaveBeenCalled();
     expect(stub.atlas.datasetVersion).toBe(datasetVersion);
+  });
+
+  it('fences disposal while the ordinary dataset-load pathway is still pending', async () => {
+    await controller.saveSession('pending-dataset-load');
+    const gate = deferred<void>();
+    const loadDataset = vi.fn(() => gate.promise);
+    const loadFromJSON = vi.spyOn(stub.session, 'loadFromJSON');
+    const outcome = vi.fn();
+    eventBus.on(WorldTopics.HISTORY_SEEK, outcome);
+    const pendingController = new WorldSessionController({
+      ...options,
+      loadDataset,
+    });
+
+    const pending = pendingController.loadSession('pending-dataset-load');
+    await vi.waitFor(() => expect(loadDataset).toHaveBeenCalledOnce());
+    pendingController.dispose();
+    gate.resolve();
+
+    await expect(pending).resolves.toBe(false);
+    expect(loadFromJSON).not.toHaveBeenCalled();
+    expect(outcome).not.toHaveBeenCalled();
   });
 
   it('deleteSession delegates to the store', async () => {
@@ -363,7 +486,9 @@ describe('WorldSessionController save/load roundtrip', () => {
       await vi.advanceTimersByTimeAsync(2000);
 
       expect(await store.hasSession('autosave')).toBe(true);
-      expect(stub._logInteraction).toHaveBeenCalledWith('Save session', { result: 'autosave' });
+      expect(stub.recordInteraction).toHaveBeenCalledWith('Save session', {
+        result: 'autosave',
+      });
     } finally {
       vi.useRealTimers();
     }
@@ -373,5 +498,17 @@ describe('WorldSessionController save/load roundtrip', () => {
     const result = await controller.restoreAutoSave();
     expect(result).toBeUndefined();
     expect(stub.loadDataset).not.toHaveBeenCalled();
+  });
+
+  it('restores analysis through the ordinary HISTORY_SEEK production outcome', async () => {
+    await controller.saveSession('history-path');
+    const outcome = vi.fn();
+    eventBus.on(WorldTopics.HISTORY_SEEK, outcome);
+
+    await expect(controller.loadSession('history-path')).resolves.toBe(true);
+
+    expect(outcome).toHaveBeenCalledOnce();
+    expect(outcome.mock.calls[0][0]).toMatchObject({ operation: 'filter' });
+    expect(outcome.mock.calls[0][0].dataset).toBeInstanceOf(Dataset);
   });
 });

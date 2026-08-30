@@ -116,34 +116,6 @@ const contracts = [
       'uiManager',
     ],
   },
-  {
-    file: 'WorldSessionController.ts',
-    name: 'WorldSessionHost',
-    members: [
-      '_disposed',
-      '_logInteraction',
-      '_originalDataset',
-      '_restoreDataset',
-      '_transformedDataset',
-      '_updateNarrativeStrip',
-      'archiveStore',
-      'atlas',
-      'comfortSettingsController',
-      'currentEntry',
-      'dracoNode',
-      'engine',
-      'focusContext',
-      'guidedTour',
-      'loadDataset',
-      'narrativeStrip',
-      'reconstructRequirementsAndReArbitrate',
-      'session',
-      'sessionStore',
-      'uiManager',
-      'userModeController',
-      'vrConsole',
-    ],
-  },
 ] as const;
 
 const ownedContracts = [
@@ -174,6 +146,10 @@ const ownedContracts = [
   {
     file: 'WorldSceneComposer.ts',
     names: ['WorldSceneComposerCallbacks'],
+  },
+  {
+    file: 'WorldSessionController.ts',
+    names: ['WorldSessionControllerOptions'],
   },
   {
     file: 'WorldUIManager.ts',
@@ -243,7 +219,13 @@ describe('coordinator consumer contracts', () => {
       /constructor\(\{ world \}: \{ world: LiveStreamHost \}\)/
     );
     expect(source('WorldLandmarkController.ts')).toMatch(/constructor\(world: WorldLandmarkHost\)/);
-    expect(source('WorldSessionController.ts')).toMatch(/constructor\(world: WorldSessionHost\)/);
+    expect(source('WorldSessionController.ts')).toMatch(
+      /constructor\(options: WorldSessionControllerOptions\)/
+    );
+    expect(source('WorldSessionController.ts')).not.toMatch(/\bWorldSessionHost\b/);
+    expect(source('WorldSessionController.ts')).not.toMatch(
+      /_transformedDataset|_restoreDataset|_updateNarrativeStrip/
+    );
     expect(source('WheelMenuBuilder.ts')).toMatch(
       /buildWheelMenuCategories\(world: WheelMenuHost\)/
     );

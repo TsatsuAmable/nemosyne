@@ -49,6 +49,11 @@ export interface PortablePackageEnvironment {
 export interface NemosyneSessionJSON extends AtlasCoreState {
   schemaVersion: 2;
   savedAt: number;
+  /**
+   * Stable logical investigation/session identity. Optional only for backward
+   * compatibility with schema-v2 snapshots written before identity was included.
+   */
+  sessionId?: string;
   entry: PresentationState['entry'];
   analysisSpecs: AnalysisSpec[];
   presentation: PresentationState;
@@ -108,6 +113,7 @@ export class NemosyneSession {
     return {
       schemaVersion: 2,
       savedAt: (typeof Date !== 'undefined' && Date.now) ? Date.now() : 0,
+      sessionId: this._sessionId,
       datasetVersion: core.datasetVersion,
       datasetFingerprint: core.datasetFingerprint,
       originalDataset: core.originalDataset,
@@ -133,7 +139,10 @@ export class NemosyneSession {
     };
   }
 
-  async exportPortablePackage(environment: PortablePackageEnvironment = {}): Promise<Uint8Array> {
+  async exportPortablePackage(
+    environment: PortablePackageEnvironment = {},
+    kernelVersionOverride?: string
+  ): Promise<Uint8Array> {
     const core = this._atlas.toState();
     if (!core.originalDataset) {
       throw new Error('Cannot export portable investigation without an original dataset');
@@ -148,7 +157,7 @@ export class NemosyneSession {
     const fitnessModelVersion =
       representationDecision?.fitnessModelVersion ??
       representationDecision?.provenance.fitnessModelVersion;
-    const kernelVersion = this._atlas.kernelVersion() ?? 'unknown';
+    const kernelVersion = kernelVersionOverride ?? this._atlas.kernelVersion() ?? 'unknown';
     const investigationDigest = await this._atlas.aggregate.computeDigest(kernelVersion, {
       nilOutcomes: nilOutcomes.outcomes,
       researchContext: this._researchContext,
@@ -209,8 +218,27 @@ export class NemosyneSession {
     });
   }
 
+  /** Export a persisted snapshot in isolation from the mutable live Atlas/session. */
+  static async exportPortableSnapshot(
+    json: NemosyneSessionJSON,
+    environment: PortablePackageEnvironment = {}
+  ): Promise<Uint8Array> {
+    const atlas = new AtlasCore({ kernel: null });
+    const session = NemosyneSession.deserialize(json, atlas);
+    const lastImplementationVersion = [...json.analysisResults]
+      .reverse()
+      .find((result) => typeof result.implementationVersion === 'string')
+      ?.implementationVersion;
+    const archivedKernelVersion =
+      json.representationDecision?.kernelVersion ?? lastImplementationVersion ?? 'unknown';
+    return session.exportPortablePackage(environment, archivedKernelVersion);
+  }
+
   loadFromJSON(json: NemosyneSessionJSON): void {
     this._atlas.restoreState(json);
+    if (typeof json.sessionId === 'string' && json.sessionId.length > 0) {
+      this._sessionId = json.sessionId;
+    }
     this._nilOutcomes.reset();
     if (json.nilOutcomes) this._nilOutcomes.restore(json.nilOutcomes);
     this._presentation = {
@@ -227,7 +255,10 @@ export class NemosyneSession {
 
   static deserialize(json: NemosyneSessionJSON, atlas: AtlasCore): NemosyneSession {
     atlas.restoreState(json);
-    const session = new NemosyneSession({ atlas });
+    const sessionId = typeof json.sessionId === 'string' && json.sessionId.length > 0
+      ? json.sessionId
+      : undefined;
+    const session = new NemosyneSession({ atlas, sessionId });
     if (json.nilOutcomes) session._nilOutcomes.restore(json.nilOutcomes);
     session._presentation = {
       camera: json.presentation?.camera ?? { position: [0, 0, 0], rotationY: 0 },

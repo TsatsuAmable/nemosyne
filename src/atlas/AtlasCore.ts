@@ -1436,6 +1436,16 @@ export class AtlasCore {
     );
   }
 
+  /** Evaluate Moneta ranking without changing the active representation state. */
+  previewRepresentation(
+    requirements?: RepresentationRequirements,
+  ): RepresentationDecision {
+    return this._aggregate.representation.previewRepresentationFromEvidence(
+      this.datasetEvidence(),
+      requirements
+    );
+  }
+
   arbitrateRepresentation(
     requirements?: RepresentationRequirements,
     _input?: DracoDataInput,

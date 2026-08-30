@@ -279,9 +279,7 @@ export class InvestigationAggregate {
       this.graph.reset();
     }
 
-    if (state.representationDecision) {
-      this.representation.restoreDecision(state.representationDecision);
-    }
+    this.representation.restoreDecision(state.representationDecision ?? null);
 
     if (discoverySnapshot) {
       this.discoveries.restore(validatedDiscoveries.toJSON());
