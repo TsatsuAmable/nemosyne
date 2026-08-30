@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 
 export interface GestureConfidenceEntry {
   gestureName: string;
@@ -52,37 +53,37 @@ export class GestureConfidenceHUD extends MovablePanel {
     const entries = Array.from(this._confidenceMap.values());
     this.totalContentHeight = 100 + entries.length * 60;
 
-    ctx.fillStyle = 'rgba(10, 20, 35, 0.8)';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.surface.base) + 'CC';
     ctx.fillRect(10, 10, w - 20, contentH - 20);
 
     ctx.font = 'bold 18px monospace';
-    ctx.fillStyle = '#88ccff';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
     ctx.fillText('GESTURE NAME', 30, 40);
     ctx.fillText('CONFIDENCE', 380, 40);
 
     let y = 80;
     for (const entry of entries) {
       ctx.font = 'bold 18px monospace';
-      ctx.fillStyle = '#00ffcc';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
       ctx.textAlign = 'left';
       ctx.fillText(entry.gestureName.toUpperCase(), 30, y + 18);
 
       // Confidence Bar Outer
-      ctx.strokeStyle = '#00ffcc';
+      ctx.strokeStyle = cssHex(COLOR_TOKENS.interaction.focus);
       ctx.lineWidth = 2;
       ctx.strokeRect(300, y, 260, 24);
 
       // Confidence Bar Fill
-      ctx.fillStyle = 'rgba(0, 255, 204, 0.15)';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus) + '26';
       ctx.fillRect(302, y + 2, 256, 20);
 
       const fillW = entry.confidence * 256;
-      ctx.fillStyle = entry.confidence >= 0.75 ? '#00ff66' : entry.confidence >= 0.5 ? '#ffaa00' : '#ff3366';
+      ctx.fillStyle = entry.confidence >= 0.75 ? cssHex(COLOR_TOKENS.status.verified) : entry.confidence >= 0.5 ? cssHex(COLOR_TOKENS.epistemic.uncertain) : cssHex(COLOR_TOKENS.danger.destructive);
       ctx.fillRect(302, y + 2, fillW, 20);
 
       // Confidence Percentage Text
       ctx.font = 'bold 16px monospace';
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
       ctx.fillText(`${(entry.confidence * 100).toFixed(0)}%`, 580, y + 18);
 
       y += 60;

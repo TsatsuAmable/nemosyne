@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import type {
   AccessibilityOptions,
   MovablePanelOptions,
@@ -78,7 +79,7 @@ export class PerformancePanel extends MovablePanel {
     let y = pad;
 
     ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
+    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
     ctx.textAlign = 'left';
 
     const { tel, violations, budgets } = this._buildReport();
@@ -90,13 +91,13 @@ export class PerformancePanel extends MovablePanel {
 
     // Telemetry summary.
     ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
+    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
     ctx.fillText('// TELEMETRY', pad, y + lineH);
     y += lineH + 8;
 
     if (tel) {
       ctx.font = this._scaleFont('16px monospace');
-      ctx.fillStyle = this.highContrast ? '#ffffff' : '#ccffff';
+      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.text.secondary);
       const fps = tel.frames.lastMs > 0 ? (1000 / tel.frames.lastMs).toFixed(0) : '-';
       ctx.fillText(`Session: ${formatDuration(tel.session.durationSeconds)}`, pad + 8, y + lineH);
       y += lineH;
@@ -116,7 +117,7 @@ export class PerformancePanel extends MovablePanel {
       y += lineH;
     } else {
       ctx.font = this._scaleFont('16px monospace');
-      ctx.fillStyle = '#88aaff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
       ctx.fillText(
         'Telemetry is disabled. Enable it in Settings → Telemetry Opt-in.',
         pad + 8,
@@ -129,12 +130,12 @@ export class PerformancePanel extends MovablePanel {
 
     // Budgets.
     ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
+    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
     ctx.fillText('// BUDGETS', pad, y + lineH);
     y += lineH + 8;
 
     ctx.font = this._scaleFont('16px monospace');
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#ccffff';
+    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.text.secondary);
     const budgetRows: [string, string][] = [
       ['Frame time', `${budgets.frameMs?.toFixed(1) ?? '-'} ms`],
       ['Draw calls', `${budgets.drawCalls ?? '-'}`],
@@ -153,19 +154,19 @@ export class PerformancePanel extends MovablePanel {
 
     // Violations.
     ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#00ffff';
+    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
     ctx.fillText('// VIOLATIONS', pad, y + lineH);
     y += lineH + 8;
 
     if (violations.length === 0) {
       ctx.font = this._scaleFont('16px monospace');
-      ctx.fillStyle = this.highContrast ? '#ffffff' : '#88ffaa';
+      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.status.verified);
       ctx.fillText('No budget violations.', pad + 8, y + lineH);
     } else {
       ctx.font = this._scaleFont('16px monospace');
       for (const v of violations.slice(-8).reverse()) {
-        const color = v.severity === 'critical' ? '#ff3355' : '#ffaa33';
-        ctx.fillStyle = this.highContrast ? '#ffffff' : color;
+        const color = v.severity === 'critical' ? cssHex(COLOR_TOKENS.danger.destructive) : cssHex(COLOR_TOKENS.epistemic.uncertain);
+        ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : color;
         const time = new Date(v.time ?? Date.now()).toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',

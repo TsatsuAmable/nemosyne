@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { SpatialAssetRegistry } from './SpatialAssetRegistry.ts';
 import type {
   AccessibilityOptions,
   FeedbackLike,
@@ -59,7 +58,8 @@ export class HandWheelMenu {
   engine: HandWheelMenuEngine;
   hand: HandLike;
   group: THREE.Group;
-  hub: THREE.Group;
+  hub: THREE.Mesh;
+  glowRing: THREE.Mesh | null = null;
   offset: THREE.Vector3;
 
   categoryRadius: number;
@@ -101,9 +101,25 @@ export class HandWheelMenu {
     this.group = new THREE.Group();
     this.group.visible = false;
 
-    // Attach 3D central constellation dial hub
-    this.hub = SpatialAssetRegistry.getInstance().createHandWheelHub();
+    // Attach 3D central constellation dial hub (inline geometry — SpatialAssetRegistry removed per B-V1)
+    const hubGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.015, 32);
+    hubGeo.rotateX(Math.PI / 2);
+    const hubMat = new THREE.MeshStandardMaterial({
+      color: 0x071120,
+      metalness: 0.9,
+      roughness: 0.2,
+    });
+    this.hub = new THREE.Mesh(hubGeo, hubMat);
+    this.hub.name = 'Hub_Core';
     this.group.add(this.hub);
+
+    // Glow ring
+    const ringGeo = new THREE.TorusGeometry(0.045 * 0.85, 0.003, 8, 32);
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
+    this.glowRing = new THREE.Mesh(ringGeo, glowMat);
+    this.glowRing.name = 'Hub_Glow_Ring';
+    this.glowRing.position.z = 0.015 * 0.5 + 0.001;
+    this.group.add(this.glowRing);
 
     if (options.anchorToHand && hand?.group) {
       hand.group.add(this.group);
@@ -749,6 +765,17 @@ export class HandWheelMenu {
         }
       });
       this.group.remove(this.hub);
+    }
+    // Dispose glow ring (added per B-V1)
+    if (this.glowRing) {
+      this.glowRing.geometry?.dispose();
+      if (Array.isArray(this.glowRing.material)) {
+        this.glowRing.material.forEach((mat) => mat.dispose());
+      } else {
+        this.glowRing.material?.dispose();
+      }
+      this.group.remove(this.glowRing);
+      this.glowRing = null;
     }
     if (this._connectorMaterial) {
       this._connectorMaterial.dispose();

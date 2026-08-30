@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import { buildReviewBundle, formatReviewBundle } from '../../utils/ReviewBundle.ts';
 import { downloadText } from '../../utils/Download.ts';
 import type { Dataset } from '../../data/Dataset.ts';
@@ -96,14 +97,14 @@ export class TelemetryPanel extends MovablePanel {
     let y = pad;
 
     ctx.font = 'bold 18px monospace';
-    ctx.fillStyle = '#00ffff';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
     ctx.textAlign = 'left';
 
     const report = this.telemetry?.getReport();
     if (!report || !report.enabled) {
       ctx.fillText('Telemetry is disabled.', pad, y + lineH);
       ctx.font = '16px monospace';
-      ctx.fillStyle = '#88aaff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
       ctx.fillText('Enable it in Settings → Telemetry Opt-in.', pad, y + lineH * 2);
       return;
     }
@@ -155,11 +156,11 @@ export class TelemetryPanel extends MovablePanel {
 
     for (const section of sections) {
       ctx.font = 'bold 18px monospace';
-      ctx.fillStyle = '#00ffff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
       ctx.fillText(`// ${section.title}`, pad, y + lineH);
       y += lineH + 6;
       ctx.font = '16px monospace';
-      ctx.fillStyle = '#ccffff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
       for (const line of section.lines) {
         ctx.fillText(line, pad + 8, y + lineH);
         y += lineH;
@@ -180,15 +181,15 @@ export class TelemetryPanel extends MovablePanel {
     const y = contentH - btnH - pad;
 
     // Button background.
-    ctx.fillStyle = this.highContrast ? 'rgba(255,255,255,0.9)' : 'rgba(0, 255, 204, 0.15)';
+    ctx.fillStyle = this.highContrast ? 'rgba(255,255,255,0.9)' : cssHex(COLOR_TOKENS.interaction.focus) + '26';
     ctx.fillRect(x, y, btnW, btnH);
-    ctx.strokeStyle = this.highContrast ? '#ffffff' : '#00ffcc';
+    ctx.strokeStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
     ctx.lineWidth = this.highContrast ? 3 : 2;
     ctx.strokeRect(x, y, btnW, btnH);
 
     // Label.
     ctx.font = this._scaleFont('bold 16px monospace');
-    ctx.fillStyle = this.highContrast ? '#000000' : '#00ffcc';
+    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.space.void) : cssHex(COLOR_TOKENS.interaction.focus);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('EXPORT REVIEW BUNDLE', x + btnW / 2, y + btnH / 2);
@@ -197,7 +198,7 @@ export class TelemetryPanel extends MovablePanel {
 
     // Toggle label.
     ctx.font = this._scaleFont('14px monospace');
-    ctx.fillStyle = this.highContrast ? '#ffffff' : '#88aaff';
+    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.text.secondary);
     const label = this.fullSession ? 'full-session' : 'metadata';
     ctx.fillText(`level: ${label}`, pad, y + btnH / 2 + 5);
   }

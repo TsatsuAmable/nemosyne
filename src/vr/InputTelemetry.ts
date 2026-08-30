@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Group } from 'three';
 import { MovablePanel } from './ui/MovablePanel.ts';
+import { COLOR_TOKENS, cssHex } from './ui-system/tokens.ts';
 import type { EngineLike, HandLike, PointerLike } from './coordinators/types.ts';
 import { WorldSpatialContext } from './trace/WorldSpatialContext.ts';
 
@@ -186,7 +187,7 @@ export class InputTelemetry extends MovablePanel {
 
   renderContent(ctx: CanvasRenderingContext2D, _w: number, _contentH: number): void {
     ctx.font = 'bold 20px monospace';
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
 
     const lineH = 26;
     const topPad = 14;

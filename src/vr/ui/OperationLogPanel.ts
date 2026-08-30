@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
+import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import type { MovablePanelOptions } from '../coordinators/types.ts';
 
 export interface OperationLogEntry {
@@ -51,7 +52,7 @@ export class OperationLogPanel extends MovablePanel {
     let y = pad;
 
     ctx.font = 'bold 18px monospace';
-    ctx.fillStyle = '#00ffff';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
     ctx.textAlign = 'left';
     ctx.fillText('// Recent operations', pad, y);
     y += lineH + 8;
@@ -59,7 +60,7 @@ export class OperationLogPanel extends MovablePanel {
     const entries = this.entries ?? [];
     if (entries.length === 0) {
       ctx.font = '16px monospace';
-      ctx.fillStyle = '#88aaff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
       ctx.fillText('No operations yet.', pad, y);
       return;
     }
@@ -76,7 +77,7 @@ export class OperationLogPanel extends MovablePanel {
         : '--:--:--';
       const suffix = entry.rowCount != null ? ` — ${entry.rowCount} rows` : '';
       const text = `${time}  ${entry.operation}${suffix}`;
-      ctx.fillStyle = '#ccffff';
+      ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
       ctx.fillText(text, pad, y);
       y += lineH;
       if (y > contentH - pad) break;
