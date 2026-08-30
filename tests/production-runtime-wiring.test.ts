@@ -17,6 +17,7 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
     runtimeBridge.invalidateRuntime(new Error('fresh browser runtime'));
     const { World } = await import('../src/vr/World.ts');
     const world = new World();
+    const initializeRuntime = vi.spyOn(world.analyticalRuntime, 'initialize');
 
     expect(world.bootState).toBe('INITIALIZING');
     expect(requireValue(world.currentEntry, 'initial dataset entry').key).toBe('supply-chain');
@@ -25,10 +26,13 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
     try {
       await world.start();
       expect(world.bootState).toBe('READY');
+      expect(initializeRuntime).toHaveBeenCalledOnce();
+      expect(world.analyticalRuntime.runtime).toBe(runtimeBridge);
       const authoritativeNode = requireValue(world.dracoNode, 'authoritative representation node');
       expect(authoritativeNode.representationDecision).not.toBeNull();
     } finally {
       await world.dispose();
+      expect(world.analyticalRuntime.isDisposed).toBe(true);
     }
   });
 

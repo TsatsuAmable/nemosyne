@@ -95,7 +95,6 @@ import type { ResearchEvent } from '../atlas/types.ts';
 import type { TopologyType } from '../data/types.ts';
 import { DatasetSpace } from '../atlas/DatasetSpace.ts';
 import { AtlasCore } from '../atlas/AtlasCore.ts';
-import { WorkerAnalyticalPort, type WorkerTransport } from '../atlas/ports/WorkerAnalyticalPort.ts';
 import { NemosyneSession, type NemosyneSessionJSON } from '../session/NemosyneSession.ts';
 import {
   InvestigationReplayRunner,
@@ -131,8 +130,10 @@ import { bindAutosaveProjection } from './presentation/bindings/bindAutosaveProj
 import { bindDevEvidenceProjection } from './presentation/bindings/bindDevEvidenceProjection.ts';
 import type { BindingDisposer } from './presentation/bindings/BindingDisposer.ts';
 import { WorldPresentationSnapshotAdapter } from './presentation/session/WorldPresentationSnapshotAdapter.ts';
-
-type WorldRuntimeBridge = typeof import('../wasm/RuntimeBridge.ts');
+import {
+  AnalyticalRuntimeOwner,
+  type AnalyticalRuntimeBridge,
+} from './runtime/AnalyticalRuntimeOwner.ts';
 
 // Map sample-dataset keys to atmospheric presets so each dataset has a distinct mood.
 const DATASET_THEME_MAP: Record<string, string> = {
@@ -194,9 +195,7 @@ export class World {
   focusContext!: FocusContextController;
   portalsEnabled: boolean;
   _datasetCycleIndex: number;
-  _wasmCapabilities: number;
-  _wasmRuntime: WorldRuntimeBridge | null;
-  _wasmUnavailable: boolean;
+  analyticalRuntime: AnalyticalRuntimeOwner;
   _lastSelectedMesh: THREE.Mesh | null = null;
   _activeRequirements: RepresentationRequirements = createDefaultRequirements('individual-inspection');
   _activeOutcome: InvestigatorActionableOutcome | null = null;
@@ -263,6 +262,27 @@ export class World {
     return this.lifecycle.state;
   }
 
+  /** RF-062I compatibility aliases while private-field tests migrate to runtime injection. */
+  get _wasmCapabilities(): number {
+    return this.analyticalRuntime.capabilities;
+  }
+
+  get _wasmRuntime(): AnalyticalRuntimeBridge | null {
+    return this.analyticalRuntime.runtime;
+  }
+
+  set _wasmRuntime(runtime: AnalyticalRuntimeBridge | null) {
+    this.analyticalRuntime.setCompatibilityRuntime(runtime);
+  }
+
+  get _wasmUnavailable(): boolean {
+    return this.analyticalRuntime.isUnavailable;
+  }
+
+  set _wasmUnavailable(unavailable: boolean) {
+    this.analyticalRuntime.setCompatibilityUnavailable(unavailable);
+  }
+
   constructor() {
     this.engine = new Engine();
 
@@ -284,10 +304,15 @@ export class World {
     // AtlasCore is the single analytical authority for the operation path
     // (Wave 4). It owns the kernel handle, the provenance ledger, the analysis
     // results chain, and the AnalysisHistory undo/redo cursor. The kernel is
-    // bound later in `_initWasmRuntime`.
+    // bound later by `AnalyticalRuntimeOwner` during lifecycle start/recovery.
     this.atlas = new AtlasCore({
       kernel: null,
       eventBus: this.eventBus as WorldEventBus,
+      onKernelFailure: (error) => this.markKernelUnavailable(error),
+    });
+    this.analyticalRuntime = new AnalyticalRuntimeOwner({
+      authority: this.atlas,
+      isAttemptCurrent: (generation) => this.lifecycle.isCurrentKernelAttempt(generation),
       onKernelFailure: (error) => this.markKernelUnavailable(error),
     });
 
@@ -338,7 +363,7 @@ export class World {
       {
         getWasmMemoryBytes: () => {
           try {
-            return this._wasmRuntime?.memory?.().buffer.byteLength ?? null;
+            return this.analyticalRuntime.runtime?.memory?.().buffer.byteLength ?? null;
           } catch {
             return null;
           }
@@ -651,10 +676,6 @@ export class World {
 
     this.portalsEnabled = true;
     this._datasetCycleIndex = -1;
-    this._wasmCapabilities = 0;
-    this._wasmRuntime = null;
-    this._wasmUnavailable = false;
-
     // Live-streaming and collaboration state.
     this.liveStreamCoordinator = new LiveStreamCoordinator({
       dataset: {
@@ -788,7 +809,7 @@ export class World {
     this._disposed = false;
     this.lifecycle = new WorldLifecycleOwner({
       startEngine: () => this.engine.start(),
-      initializeKernel: (generation) => this._initWasmRuntime(generation),
+      initializeKernel: (generation) => this._initializeAnalyticalRuntime(generation),
       onKernelUnavailable: (error) => this._onKernelUnavailable(error),
       onDisposing: () => {
         this._disposed = true;
@@ -1052,7 +1073,7 @@ export class World {
   }
 
   async replayPortableInvestigation(bytes: Uint8Array): Promise<ReplayVerificationResult> {
-    const runtime = this._wasmRuntime;
+    const runtime = this.analyticalRuntime.runtime;
     if (!runtime || !this.atlas.isReady()) {
       throw new Error('Analytical kernel unavailable; cannot verify investigation replay');
     }
@@ -1276,7 +1297,7 @@ export class World {
     if (!this.currentEntry || this._disposed) return;
     this._doLoadDataset(this.currentEntry, {
       preserveAnalyticalState: true,
-      preserveAuxiliaryPresentation: this._wasmUnavailable,
+      preserveAuxiliaryPresentation: this.analyticalRuntime.isUnavailable,
     });
   }
 
@@ -2608,6 +2629,7 @@ export class World {
     };
 
     await run(() => this.engine.pause());
+    await run(() => this.analyticalRuntime.dispose());
     for (const disposeBinding of this._projectionDisposers.splice(0)) {
       await run(disposeBinding);
     }
@@ -2659,82 +2681,24 @@ export class World {
   }
 
   _onKernelUnavailable(error: unknown): void {
-    const runtime = this._wasmRuntime;
-    this.atlas.setKernel(null, 0);
-    runtime?.invalidateRuntime?.(error);
-    this._wasmRuntime = null;
-    this._wasmCapabilities = 0;
-    this._wasmUnavailable = true;
+    this.analyticalRuntime.markUnavailable(error);
     console.error('[World] analytical kernel unavailable:', error);
     this.uiManager.vrConsole?.log?.('error', [
       'Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.',
     ]);
   }
 
-  /**
-   * Initialise the WASM runtime and record the enabled capability set. Throws
-   * on failure; the caller (start()) surfaces the unavailable state.
-   */
-  async _initWasmRuntime(generation: number): Promise<void> {
-    // Load the bridge lazily so that production builds which skip wasm-pack
-    // still start without a missing-module error at import time.
-    const bridge = await import('../wasm/RuntimeBridge.ts');
-    if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
-
-    if (typeof Worker !== 'undefined' && typeof window !== 'undefined') {
-      try {
-        const worker = new Worker(
-          new URL('../atlas/ports/analytical.worker.ts', import.meta.url),
-          { type: 'module' }
-        );
-        const port = new WorkerAnalyticalPort(
-          worker as unknown as WorkerTransport,
-          (err) => this.markKernelUnavailable(err),
-          // RF-030: durably record kernel-inline TDA resource refusals (non-
-          // mutating provenance). A refusal is not a kernel failure, so it
-          // must not mark the kernel unavailable — only record, then let the
-          // typed error reject the async request so VR/UI can react.
-          (err) => this.atlas.recordRefusalFromError(err)
-        );
-        this.atlas.setExecutionPort(port);
-      } catch (workerErr) {
-        console.warn('[World] WorkerAnalyticalPort unavailable, defaulting to inline port:', workerErr);
-      }
-    }
-
-    if (bridge.isReady()) {
-      const capabilities = bridge.capabilities();
-      if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
-      this._wasmRuntime = bridge;
-      this._wasmCapabilities = capabilities;
-      this.atlas.setKernel(bridge, this._wasmCapabilities, generation);
-      this._rebuildPalaceWithKernelFacts();
-      this._wasmUnavailable = false;
-      await this._restoreAutoSaveOnce();
-      return;
-    }
-
-    try {
-      await bridge.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
-    } catch {
-      // Fallback for legacy dev paths
-      await bridge.initRuntime('/wasm/nemosyne_wasm_bg.wasm');
-    }
-
-    if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
-
-    const capabilities = bridge.capabilities();
-    if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
-    this._wasmRuntime = bridge;
-    this._wasmCapabilities = capabilities;
-    this.atlas.setKernel(bridge, this._wasmCapabilities, generation);
+  private async _initializeAnalyticalRuntime(generation: number): Promise<void> {
+    const ready = await this.analyticalRuntime.initialize(generation);
+    if (!ready || !this.lifecycle.isCurrentKernelAttempt(generation)) return;
     this._rebuildPalaceWithKernelFacts();
-    this._wasmUnavailable = false;
     await this._restoreAutoSaveOnce();
     if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
-    this.uiManager.vrConsole?.log?.('log', [
-      `WASM ready — capabilities ${this._wasmCapabilities.toString(2)}`,
-    ]);
+    if (!ready.wasAlreadyReady) {
+      this.uiManager.vrConsole?.log?.('log', [
+        `WASM ready — capabilities ${ready.capabilities.toString(2)}`,
+      ]);
+    }
   }
 
   /**

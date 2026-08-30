@@ -234,11 +234,17 @@ describe('coordinator consumer contracts', () => {
     }
   });
 
-  it('derives the World runtime dependency from the authoritative bridge module', () => {
+  it('keeps runtime import and bridge typing inside the analytical runtime owner', () => {
     const worldSource = readFileSync(resolve(process.cwd(), 'src/vr/World.ts'), 'utf8');
+    const ownerSource = readFileSync(
+      resolve(process.cwd(), 'src/vr/runtime/AnalyticalRuntimeOwner.ts'),
+      'utf8'
+    );
     expect(source('types.ts')).not.toMatch(/\bWasmRuntimeBridge\b/);
-    expect(worldSource).toMatch(
-      /type WorldRuntimeBridge = typeof import\('\.\.\/wasm\/RuntimeBridge\.ts'\)/
+    expect(worldSource).not.toMatch(/import\('\.\.\/wasm\/RuntimeBridge\.ts'\)/);
+    expect(worldSource).not.toMatch(/\bWorkerAnalyticalPort\b|\bnew Worker\b/);
+    expect(ownerSource).toMatch(
+      /type AnalyticalRuntimeBridge = typeof import\('\.\.\/\.\.\/wasm\/RuntimeBridge\.ts'\)/
     );
   });
 
