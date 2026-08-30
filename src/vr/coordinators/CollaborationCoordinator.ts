@@ -6,17 +6,34 @@ import type {
   SharedAnnotationManager,
   SpatialBookmark,
 } from '../interactions/SharedAnnotationManager.ts';
-import type { DatasetLoadEntry, EngineLike, LooseOptions, WorldUIManagerLike } from './types.ts';
+import type { LooseOptions } from './types.ts';
 
-export interface CollaborationHost {
-  scene?: THREE.Scene;
-  engine?: Pick<EngineLike, 'camera' | 'cameraGroup'>;
-  currentEntry?: DatasetLoadEntry | null;
-  annotationManager?: unknown;
-  uiManager?: Pick<WorldUIManagerLike, 'networkPanel' | 'settingsPanel' | 'vrConsole'>;
-  telemetryCollector?: { recordOperation?(name: string): void };
-  _logInteraction(action: string, details?: Record<string, unknown>): void;
-  _buildWheelMenu(): void;
+export interface CollaborationPresencePort {
+  scene: THREE.Scene;
+  camera: THREE.Camera;
+  cameraGroup: THREE.Group;
+  annotationManager: SharedAnnotationManager | null;
+  getDatasetLabel(): string;
+}
+
+export interface CollaborationStatus {
+  roomId?: string;
+  connected?: boolean;
+  peers?: Array<{ peerId: string; name?: string }>;
+  lastEvent?: string | null;
+}
+
+export interface CollaborationPresentationPort {
+  getSettings(): Record<string, unknown>;
+  setStatus(status: CollaborationStatus): void;
+  log(message: string): void;
+  recordInteraction(action: string, details: Record<string, unknown>): void;
+  recordTelemetry(operation: string): void;
+}
+
+export interface CollaborationCoordinatorOptions {
+  presence: CollaborationPresencePort;
+  presentation: CollaborationPresentationPort;
 }
 
 export interface NetworkEvent {
@@ -31,7 +48,11 @@ export interface NetworkEvent {
 export interface NetworkManagerLike {
   isConnected: boolean;
   roomId: string;
-  room: { getRemoteSnapshot(): unknown[]; getPeerIds?(): string[]; peers?: Map<string, unknown> };
+  room: {
+    getRemoteSnapshot(): Array<{ peerId: string; name?: string }>;
+    getPeerIds?(): string[];
+    peers?: Map<string, unknown>;
+  };
   peerId: string;
   addEventListener(type: string, handler: (event: NetworkEvent) => void): void;
   connect(roomId?: string): Promise<void>;
@@ -52,13 +73,16 @@ export interface NetworkManagerLike {
  * the monolithic surface area for the future Rust/WASM networking port.
  */
 export class CollaborationCoordinator {
-  world: CollaborationHost;
+  private readonly presence: CollaborationPresencePort;
+  private readonly presentation: CollaborationPresentationPort;
+  private generation = 0;
   networkManager: NetworkManagerLike | null;
   peerAvatarManager: PeerAvatarManager | null = null;
   desktopCompanion: AsymmetricDesktopCompanion | null = null;
 
-  constructor({ world }: { world: CollaborationHost }) {
-    this.world = world;
+  constructor({ presence, presentation }: CollaborationCoordinatorOptions) {
+    this.presence = presence;
+    this.presentation = presentation;
     this.networkManager = null;
   }
 
@@ -70,79 +94,78 @@ export class CollaborationCoordinator {
 
   async joinCollaborationRoom(roomId: string | null = null): Promise<void> {
     if (this.networkManager?.isConnected) return;
-    const settings = (this.world.uiManager?.settingsPanel?.getAllSettings?.() ?? {}) as Record<
-      string,
-      unknown
-    >;
+    if (this.networkManager) {
+      this.generation += 1;
+      this.teardown(this.networkManager);
+    }
+    const generation = ++this.generation;
+    const settings = this.presentation.getSettings();
     const targetRoom = (roomId ??
       (settings.collabRoom as string | undefined) ??
       'default') as string;
-    this.networkManager = new NetworkManager({
+    const networkManager = new NetworkManager({
       signallingUrl: this._defaultSignallingUrl(),
       roomId: targetRoom,
       peerName: (settings.collabName as string | undefined) ?? 'Analyst',
     } as LooseOptions) as unknown as NetworkManagerLike;
+    this.networkManager = networkManager;
 
-    if (this.world.scene) {
-      this.peerAvatarManager = new PeerAvatarManager(this.world.scene as unknown as THREE.Scene);
-    }
+    this.peerAvatarManager = new PeerAvatarManager(this.presence.scene);
 
     this.desktopCompanion = new AsymmetricDesktopCompanion({
-      networkManager: this.networkManager as unknown as NetworkManager,
-      annotationManager: this.world.annotationManager as unknown as SharedAnnotationManager,
+      networkManager: networkManager as unknown as NetworkManager,
+      annotationManager: this.presence.annotationManager,
       onFollowPeer: (peerId: string | null) => {
         if (peerId && this.peerAvatarManager) {
           const avatar = this.peerAvatarManager.getOrCreateAvatar(peerId);
-          if (avatar && this.world.engine?.cameraGroup) {
-            this.world.engine.cameraGroup.position.copy(avatar.headGroup.position);
-          }
+          if (avatar) this.presence.cameraGroup.position.copy(avatar.headGroup.position);
         }
       },
       onJumpToBookmark: (bm: SpatialBookmark) => {
-        if (bm && bm.cameraPosition && this.world.engine?.cameraGroup) {
+        if (bm?.cameraPosition) {
           const [x, y, z] = bm.cameraPosition;
-          this.world.engine.cameraGroup.position.set(x, y, z);
+          this.presence.cameraGroup.position.set(x, y, z);
         }
       },
     });
 
-    this.world.uiManager?.networkPanel?.setStatus?.({
+    this.presentation.setStatus({
       roomId: targetRoom,
       connected: false,
       peers: [],
       lastEvent: 'Joining...',
     });
-    this._wireNetworkEvents();
-    this.world._logInteraction('Join room', { result: targetRoom });
-    return this.networkManager.connect(targetRoom);
+    this._wireNetworkEvents(networkManager, generation);
+    this.presentation.recordInteraction('Join room', { result: targetRoom });
+    try {
+      await networkManager.connect(targetRoom);
+    } catch (error) {
+      if (this.isCurrent(networkManager, generation)) this.teardown(networkManager);
+      throw error;
+    }
   }
 
   leaveCollaborationRoom(): void {
-    if (!this.networkManager) return;
-    const roomId = this.networkManager.roomId;
-    this.networkManager.disconnect();
-    this.networkManager = null;
-
-    if (this.peerAvatarManager) {
-      this.peerAvatarManager.dispose();
-      this.peerAvatarManager = null;
-    }
-
-    if (this.desktopCompanion) {
-      this.desktopCompanion.render();
-    }
-
-    this.world.uiManager?.networkPanel?.setStatus?.({
+    const networkManager = this.networkManager;
+    if (!networkManager) return;
+    const roomId = networkManager.roomId;
+    this.generation += 1;
+    this.teardown(networkManager);
+    this.presentation.setStatus({
       roomId: '-',
       connected: false,
       peers: [],
       lastEvent: 'Left room',
     });
-    this.world._logInteraction('Leave room', { result: roomId });
+    this.presentation.recordInteraction('Leave room', { result: roomId });
   }
 
   isConnected(): boolean {
     return this.networkManager?.isConnected ?? false;
+  }
+
+  dispose(): void {
+    this.leaveCollaborationRoom();
   }
 
   kickPeer(peerId: string): void {
@@ -150,87 +173,90 @@ export class CollaborationCoordinator {
     this.networkManager.kickPeer?.(peerId);
     this.peerAvatarManager?.removePeer(peerId);
     this.desktopCompanion?.render();
-    this.world.uiManager?.vrConsole?.log?.('log', [`Peer removed: ${peerId}`]);
-    this.world._logInteraction('Kick peer', { result: peerId });
+    this.presentation.log(`Peer removed: ${peerId}`);
+    this.presentation.recordInteraction('Kick peer', { result: peerId });
   }
 
   update(): void {
-    if (!this.networkManager?.isConnected || !this.world.engine?.camera) return;
+    if (!this.networkManager?.isConnected) return;
 
-    this.world.engine.camera.updateMatrixWorld(true);
+    this.presence.camera.updateMatrixWorld(true);
     const pos = new THREE.Vector3();
     const rot = new THREE.Quaternion();
-    this.world.engine.camera.getWorldPosition(pos);
-    this.world.engine.camera.getWorldQuaternion(rot);
+    this.presence.camera.getWorldPosition(pos);
+    this.presence.camera.getWorldQuaternion(rot);
 
     const posArray: [number, number, number] = [pos.x, pos.y, pos.z];
     const rotArray: [number, number, number, number] = [rot.x, rot.y, rot.z, rot.w];
 
-    const groupPos = this.world.engine.cameraGroup?.position ?? pos;
+    const groupPos = this.presence.cameraGroup.position;
 
     this.networkManager.broadcastCameraPose?.(posArray, rotArray);
     this.networkManager.setLocalState({
       position: { x: groupPos.x, y: groupPos.y, z: groupPos.z },
-      rotationY: this.world.engine.cameraGroup?.rotation.y ?? 0,
-      dataset: this.world.currentEntry?.name ?? this.world.currentEntry?.label ?? '-',
+      rotationY: this.presence.cameraGroup.rotation.y,
+      dataset: this.presence.getDatasetLabel(),
     });
   }
 
-  _wireNetworkEvents(): void {
-    if (!this.networkManager) return;
-    this.networkManager.addEventListener('connected', (e: NetworkEvent) => {
-      const roomId = String(e.detail?.roomId ?? this.networkManager!.roomId);
-      this.world.uiManager?.networkPanel?.setStatus?.({
+  private _wireNetworkEvents(networkManager: NetworkManagerLike, generation: number): void {
+    networkManager.addEventListener('connected', (e: NetworkEvent) => {
+      if (!this.isCurrent(networkManager, generation)) return;
+      const roomId = String(e.detail?.roomId ?? networkManager.roomId);
+      this.presentation.setStatus({
         roomId,
         connected: true,
         lastEvent: `Connected to ${roomId}`,
       });
-      this.world.uiManager?.vrConsole?.log?.('log', [`Collaboration: joined ${roomId}`]);
-      this.world.telemetryCollector?.recordOperation?.('network-connect');
-      this.world._buildWheelMenu();
+      this.presentation.log(`Collaboration: joined ${roomId}`);
+      this.presentation.recordTelemetry('network-connect');
       this.desktopCompanion?.render();
     });
-    this.networkManager.addEventListener('disconnected', () => {
-      this.world.uiManager?.networkPanel?.setStatus?.({
+    networkManager.addEventListener('disconnected', () => {
+      if (!this.isCurrent(networkManager, generation)) return;
+      this.presentation.setStatus({
         connected: false,
         lastEvent: 'Disconnected',
       });
-      this.world.uiManager?.vrConsole?.log?.('log', ['Collaboration: left room']);
-      this.world.telemetryCollector?.recordOperation?.('network-disconnect');
-      this.world._buildWheelMenu();
+      this.presentation.log('Collaboration: left room');
+      this.presentation.recordTelemetry('network-disconnect');
       this.desktopCompanion?.render();
     });
-    this.networkManager.addEventListener('peerJoined', (e: NetworkEvent) => {
-      const peers = this.networkManager!.room.getRemoteSnapshot();
+    networkManager.addEventListener('peerJoined', (e: NetworkEvent) => {
+      if (!this.isCurrent(networkManager, generation)) return;
+      const peers = networkManager.room.getRemoteSnapshot();
       const peerName = String(e.detail?.name ?? e.detail?.peerId ?? '');
       const peerId = String(e.detail?.peerId ?? '');
       if (peerId && this.peerAvatarManager) {
         this.peerAvatarManager.getOrCreateAvatar(peerId);
       }
-      this.world.uiManager?.networkPanel?.setStatus?.({
+      this.presentation.setStatus({
         peers,
         lastEvent: `${peerName} joined`,
       });
-      this.world.uiManager?.vrConsole?.log?.('log', [`Peer joined: ${peerName}`]);
-      this.world._logInteraction('Peer joined', { result: peerName });
+      this.presentation.log(`Peer joined: ${peerName}`);
+      this.presentation.recordInteraction('Peer joined', { result: peerName });
       this.desktopCompanion?.render();
     });
-    this.networkManager.addEventListener('peerLeft', (e: NetworkEvent) => {
-      const peers = this.networkManager!.room.getRemoteSnapshot();
+    networkManager.addEventListener('peerLeft', (e: NetworkEvent) => {
+      if (!this.isCurrent(networkManager, generation)) return;
+      const peers = networkManager.room.getRemoteSnapshot();
       const peerId = String(e.detail?.peerId ?? '');
       if (peerId && this.peerAvatarManager) {
         this.peerAvatarManager.removePeer(peerId);
       }
-      this.world.uiManager?.networkPanel?.setStatus?.({ peers, lastEvent: `${peerId} left` });
-      this.world.uiManager?.vrConsole?.log?.('log', [`Peer left: ${peerId}`]);
-      this.world._logInteraction('Peer left', { result: peerId });
+      this.presentation.setStatus({ peers, lastEvent: `${peerId} left` });
+      this.presentation.log(`Peer left: ${peerId}`);
+      this.presentation.recordInteraction('Peer left', { result: peerId });
       this.desktopCompanion?.render();
     });
-    this.networkManager.addEventListener('peerState', () => {
-      this.world.telemetryCollector?.recordOperation?.('peer-state');
+    networkManager.addEventListener('peerState', () => {
+      if (!this.isCurrent(networkManager, generation)) return;
+      this.presentation.recordTelemetry('peer-state');
       this.desktopCompanion?.render();
     });
-    this.networkManager.addEventListener('remoteCameraPose', (e: NetworkEvent) => {
+    networkManager.addEventListener('remoteCameraPose', (e: NetworkEvent) => {
+      if (!this.isCurrent(networkManager, generation)) return;
       const detail = e.detail as
         | {
             peerId?: string;
@@ -249,5 +275,18 @@ export class CollaborationCoordinator {
         });
       }
     });
+  }
+
+  private isCurrent(networkManager: NetworkManagerLike, generation: number): boolean {
+    return this.networkManager === networkManager && this.generation === generation;
+  }
+
+  private teardown(networkManager: NetworkManagerLike): void {
+    networkManager.disconnect();
+    if (this.networkManager === networkManager) this.networkManager = null;
+    this.peerAvatarManager?.dispose();
+    this.peerAvatarManager = null;
+    this.desktopCompanion?.dispose();
+    this.desktopCompanion = null;
   }
 }
