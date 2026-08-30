@@ -95,6 +95,7 @@ describe('RF-062E production session path', () => {
     });
     expect(executeDatasetLoad.mock.calls[1][1]).toMatchObject({
       preserveAnalyticalState: true,
+      authoritativeRepresentation: { decision: before.representationDecision },
     });
     expect(restorePresentation).toHaveBeenCalledOnce();
     expect(historySeek).toHaveBeenCalledOnce();

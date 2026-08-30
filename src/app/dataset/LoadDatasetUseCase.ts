@@ -45,6 +45,11 @@ type SemanticMonetaDataInput = MonetaDataInput & {
 export interface LoadDatasetUseCaseOptions {
   preserveAnalyticalState?: boolean;
   requirements?: RepresentationRequirements;
+  /**
+   * Session restore embodies the already-authoritative persisted decision
+   * without committing a fresh Moneta arbitration result.
+   */
+  authoritativeRepresentation?: { decision: RepresentationDecision | null };
 }
 
 export interface LoadDatasetResult {
@@ -69,7 +74,11 @@ export class LoadDatasetUseCase {
 
   execute(
     entry: DatasetLoadEntry,
-    { preserveAnalyticalState = false, requirements }: LoadDatasetUseCaseOptions = {}
+    {
+      preserveAnalyticalState = false,
+      requirements,
+      authoritativeRepresentation,
+    }: LoadDatasetUseCaseOptions = {}
   ): LoadDatasetResult {
     const activeRequirements = preserveAnalyticalState
       ? (requirements ?? createDefaultRequirements('individual-inspection'))
@@ -102,7 +111,17 @@ export class LoadDatasetUseCase {
     let representationDecision: RepresentationDecision | null = null;
     let outcome: InvestigatorActionableOutcome | null = null;
 
-    if (this.atlas.isReady()) {
+    if (authoritativeRepresentation) {
+      representationDecision = authoritativeRepresentation.decision;
+      if (representationDecision) {
+        const signature = this.atlas.computeDatasetSignature(dataInput);
+        outcome = diagnoseInvestigatorOutcome(
+          signature,
+          activeRequirements,
+          representationDecision
+        );
+      }
+    } else if (this.atlas.isReady()) {
       try {
         representationDecision = this.atlas.arbitrateRepresentation(activeRequirements, dataInput);
         const signature = this.atlas.computeDatasetSignature(dataInput);

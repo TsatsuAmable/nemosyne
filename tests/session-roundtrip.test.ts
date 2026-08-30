@@ -191,7 +191,7 @@ function makeSessionHarness(sessionStore: SessionStore): {
     vrConsole: { log: vi.fn() },
     recordInteraction: vi.fn(),
     loadDataset: vi.fn(),
-    rebuildRepresentation: vi.fn(),
+    restoreRepresentation: vi.fn(),
     restoreDatasetView: vi.fn(),
   };
 
@@ -219,7 +219,7 @@ function makeSessionHarness(sessionStore: SessionStore): {
     getSessionStore: () => stub.sessionStore,
     presentation,
     loadDataset: stub.loadDataset,
-    rebuildRepresentation: stub.rebuildRepresentation,
+    restoreRepresentation: stub.restoreRepresentation,
     eventBus,
     archiveStore: new VaultArchiveStore(sessionStore),
     log: (level, message) => stub.vrConsole.log(level, [message]),
@@ -352,7 +352,7 @@ describe('WorldSessionController save/load roundtrip', () => {
       stub.atlas.analysisHistory
     );
     expect(stub.restoreDatasetView).toHaveBeenCalled();
-    expect(stub.rebuildRepresentation).toHaveBeenCalledOnce();
+    expect(stub.restoreRepresentation).toHaveBeenCalledOnce();
 
     // Camera pose restored.
     expect(stub.engine.cameraGroup.position.toArray()).toEqual([1.5, 2.0, -3.0]);
@@ -378,6 +378,18 @@ describe('WorldSessionController save/load roundtrip', () => {
     expect(stub.guidedTour._finished).toBe(false);
     expect(stub.guidedTour._cardGroup.visible).toBe(true);
     expect(stub.guidedTour._renderStep).toHaveBeenCalled();
+  });
+
+  it('clears a stale live representation decision when the snapshot has none', async () => {
+    await controller.saveSession('no-representation-decision');
+    const saved: any = await store.loadSession('no-representation-decision');
+    expect(saved.representationDecision).toBeNull();
+
+    stub.atlas.arbitrateRepresentation();
+    expect(stub.atlas.activeRepresentationDecision).not.toBeNull();
+
+    await expect(controller.loadSession('no-representation-decision')).resolves.toBe(true);
+    expect(stub.atlas.activeRepresentationDecision).toBeNull();
   });
 
   it('fails closed for malformed presentation coordinates and semantic focus', async () => {

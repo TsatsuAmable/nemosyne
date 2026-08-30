@@ -20,7 +20,7 @@ export interface WorldSessionControllerOptions {
   getSessionStore(): SessionStoreLike;
   presentation: PresentationSnapshotPort;
   loadDataset(entry: DatasetLoadEntry): void | Promise<void>;
-  rebuildRepresentation(): void;
+  restoreRepresentation(): void;
   eventBus: Pick<WorldEventBusLike, 'emit'>;
   archiveStore: VaultArchiveStore;
   log(level: 'log' | 'warn', message: string): void;
@@ -40,7 +40,7 @@ export class WorldSessionController {
   private readonly getSessionStore: () => SessionStoreLike;
   private readonly presentation: PresentationSnapshotPort;
   private readonly loadDataset: (entry: DatasetLoadEntry) => void | Promise<void>;
-  private readonly rebuildRepresentation: () => void;
+  private readonly restoreRepresentation: () => void;
   private readonly eventBus: Pick<WorldEventBusLike, 'emit'>;
   private readonly log: WorldSessionControllerOptions['log'];
   private readonly recordInteraction: WorldSessionControllerOptions['recordInteraction'];
@@ -58,7 +58,7 @@ export class WorldSessionController {
     this.getSessionStore = options.getSessionStore;
     this.presentation = options.presentation;
     this.loadDataset = options.loadDataset;
-    this.rebuildRepresentation = options.rebuildRepresentation;
+    this.restoreRepresentation = options.restoreRepresentation;
     this.eventBus = options.eventBus;
     this.archiveStore = options.archiveStore;
     this.log = options.log;
@@ -133,7 +133,7 @@ export class WorldSessionController {
     await this.loadDataset(entry);
     if (!this.isCurrent(generation)) return false;
     this.session.loadFromJSON(sessionJson);
-    this.rebuildRepresentation();
+    this.restoreRepresentation();
 
     // NemosyneSession.loadFromJSON already restored Atlas's current dataset.
     // Publish the ordinary history outcome rather than mutating World/Atlas/UI

@@ -859,7 +859,7 @@ export class World {
       getSessionStore: () => this.sessionStore,
       presentation: this.presentationSnapshotPort,
       loadDataset: (entry) => this.loadDataset(entry),
-      rebuildRepresentation: () => this.reconstructRequirementsAndReArbitrate(),
+      restoreRepresentation: () => this.restoreAuthoritativeRepresentation(),
       eventBus: this.eventBus,
       archiveStore: this.archiveStore,
       log: (level, message) => this.uiManager.vrConsole?.log?.(level, [message]),
@@ -1128,9 +1128,13 @@ export class World {
     {
       preserveAnalyticalState = false,
       preserveAuxiliaryPresentation = false,
+      authoritativeRepresentation,
     }: {
       preserveAnalyticalState?: boolean;
       preserveAuxiliaryPresentation?: boolean;
+      authoritativeRepresentation?: {
+        decision: import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null;
+      };
     } = {}
   ): void {
     this._lastLoadedEntry = entry;
@@ -1146,6 +1150,7 @@ export class World {
     const result = this.loadDatasetUseCase.execute(entry, {
       preserveAnalyticalState,
       requirements: this._activeRequirements,
+      authoritativeRepresentation,
     });
     this._activeRequirements = result.requirements;
     this._activeOutcome = result.outcome;
@@ -1577,16 +1582,29 @@ export class World {
   reconstructRequirementsAndReArbitrate(): void {
     if (!this.atlas.isReady() || !this._lastLoadedEntry) return;
 
-    let req = createDefaultRequirements('individual-inspection');
-    const events = this.atlas.remediationEvents();
-    for (const ev of events) {
-      if (ev.requirementPatch) {
-        req = { ...req, ...ev.requirementPatch };
-      }
-    }
-    this._activeRequirements = req;
+    this._activeRequirements = this._reconstructRequirementsFromLedger();
 
     this._doLoadDataset(this._lastLoadedEntry, { preserveAnalyticalState: true });
+  }
+
+  restoreAuthoritativeRepresentation(): void {
+    if (!this.atlas.isReady() || !this._lastLoadedEntry) return;
+
+    this._activeRequirements = this._reconstructRequirementsFromLedger();
+    this._doLoadDataset(this._lastLoadedEntry, {
+      preserveAnalyticalState: true,
+      authoritativeRepresentation: { decision: this.atlas.activeRepresentationDecision },
+    });
+  }
+
+  private _reconstructRequirementsFromLedger(): RepresentationRequirements {
+    let requirements = createDefaultRequirements('individual-inspection');
+    for (const event of this.atlas.remediationEvents()) {
+      if (event.requirementPatch) {
+        requirements = { ...requirements, ...event.requirementPatch };
+      }
+    }
+    return requirements;
   }
 
   _generateRecommendation(): void {

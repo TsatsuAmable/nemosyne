@@ -419,8 +419,8 @@ export class RepresentationState {
     return this.arbitrateRepresentationFromEvidence(evidence, requirements).embodiment.spatialStrategy;
   }
 
-  restoreDecision(decision: RepresentationDecision): void {
+  restoreDecision(decision: RepresentationDecision | null): void {
     this.activeDecision = decision;
-    this.activeStrategy = decision.embodiment.spatialStrategy;
+    this.activeStrategy = decision?.embodiment.spatialStrategy ?? null;
   }
 }
