@@ -18,8 +18,6 @@ function wireKernel(w) {
   // Wave 4/6: AtlasCore is the analytical authority; bind the kernel there.
   // FileLoader/TDA/sample-load all reach the kernel through AtlasCore.
   w.atlas?.setKernel?.(bridge, 0x3c07);
-  w._wasmRuntime = bridge;
-  w._wasmUnavailable = false;
 }
 
 const CONNECTING = 0;
@@ -513,7 +511,7 @@ describe('World integration', () => {
     world.engine.locomotion.setFlightEnabled(true);
     const startY = world.engine.locomotion.cameraGroup.position.y;
 
-    world._onGesture('scoopUp');
+    world.inputCoordinator.onGesture('scoopUp');
     expect(world.engine.locomotion.cameraGroup.position.y).toBeGreaterThan(startY);
   });
 
@@ -612,7 +610,7 @@ describe('World integration', () => {
     expect(ok).toBe(true);
     expect(restoredWorld.currentEntry.name).toBe('Global Supply Chain');
     expect(restoredWorld.engine.cameraGroup.position.toArray()).toEqual([1, 2, 3]);
-    expect(restoredWorld.analysisHistory.length).toBeGreaterThan(0);
+    expect(restoredWorld.atlas.analysisHistory.length).toBeGreaterThan(0);
 
     // Free-floating panel pose and visibility should have been restored.
     expect(restoredWorld.uiManager.metricsPanel.mesh.position.x).toBeCloseTo(0.5, 2);
@@ -817,9 +815,9 @@ describe('World integration', () => {
     world = new World(); wireKernel(world);
     world.telemetryCollector.setEnabled(true);
 
-    world._onGesture('pinchTogether');
-    world._onGesture('pinchApart');
-    world._onGesture('pinchTogether');
+    world.inputCoordinator.onGesture('pinchTogether');
+    world.inputCoordinator.onGesture('pinchApart');
+    world.inputCoordinator.onGesture('pinchTogether');
 
     const report = world.telemetryCollector.getReport();
     expect(report.gestures).toEqual({ pinchTogether: 2, pinchApart: 1 });
@@ -982,7 +980,7 @@ describe('World integration', () => {
     const coach = world.uiManager.getOrCreateInteractionCoach();
     const logSpy = vi.spyOn(coach, 'log');
 
-    world._onGesture('pinchTogether');
+    world.inputCoordinator.onGesture('pinchTogether');
 
     expect(logSpy).toHaveBeenCalled();
     const call = logSpy.mock.calls[0][0];
@@ -994,7 +992,7 @@ describe('World integration', () => {
     world = new World(); wireKernel(world);
     const logSpy = vi.spyOn(world.uiManager.getOrCreateInteractionCoach(), 'log');
 
-    world._onGesture('rotateCW', { source: 'controller', button: 'B' });
+    world.inputCoordinator.onGesture('rotateCW', { source: 'controller', button: 'B' });
 
     const call = logSpy.mock.calls[0][0];
     expect(call.action).toBe('Redo');
@@ -1035,6 +1033,7 @@ describe('World integration', () => {
 class SessionStoreStub {
   constructor() {
     this._sessions = new Map();
+    this._items = new Map();
   }
 
   async saveSession(id, snapshot) {
@@ -1055,5 +1054,13 @@ class SessionStoreStub {
 
   async deleteSession(id) {
     this._sessions.delete(id);
+  }
+
+  async setItem(key, value) {
+    this._items.set(key, JSON.parse(JSON.stringify(value)));
+  }
+
+  async getItem(key) {
+    return this._items.get(key) ?? null;
   }
 }
