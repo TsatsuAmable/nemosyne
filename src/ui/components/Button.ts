@@ -19,6 +19,10 @@ const SIZE_STYLES = {
   lg: { padding: 'var(--nms-spacing-x12) var(--nms-spacing-x24)', fontSize: 'var(--nms-font-size-body)', minHeight: '48px' },
 } as const;
 
+function booleanAttributeValue(value: string | null): boolean {
+  return value !== null && value !== 'false';
+}
+
 export class Button extends BaseComponent {
   static observedAttributes = ['variant', 'size', 'disabled', 'loading'];
 
@@ -28,19 +32,19 @@ export class Button extends BaseComponent {
   private _loading = false;
   private _onClick: ((e: MouseEvent) => void) | null = null;
 
-  attributeChangedCallback(name: string, _old: string, value: string): void {
+  attributeChangedCallback(name: string, _old: string | null, value: string | null): void {
     switch (name) {
       case 'variant':
-        this._variant = (value as ButtonVariant) || 'secondary';
+        this._variant = (value as ButtonVariant | null) ?? 'secondary';
         break;
       case 'size':
-        this._size = (value as ButtonSize) || 'md';
+        this._size = (value as ButtonSize | null) ?? 'md';
         break;
       case 'disabled':
-        this._disabled = value !== 'false';
+        this._disabled = booleanAttributeValue(value);
         break;
       case 'loading':
-        this._loading = value !== 'false';
+        this._loading = booleanAttributeValue(value);
         break;
     }
     this.render();
@@ -49,13 +53,14 @@ export class Button extends BaseComponent {
   connectedCallback(): void {
     this._variant = (this.getAttribute('variant') as ButtonVariant) || 'secondary';
     this._size = (this.getAttribute('size') as ButtonSize) || 'md';
-    this._disabled = this.hasAttribute('disabled');
-    this._loading = this.hasAttribute('loading');
+    this._disabled = this.hasAttribute('disabled') && this.getAttribute('disabled') !== 'false';
+    this._loading = this.hasAttribute('loading') && this.getAttribute('loading') !== 'false';
     super.connectedCallback();
   }
 
   set onClick(handler: ((e: MouseEvent) => void) | null) {
     this._onClick = handler;
+    this.render();
   }
 
   private getVariantStyles(): Record<string, string> {
@@ -178,6 +183,10 @@ export class Button extends BaseComponent {
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
+      @media (prefers-reduced-motion: reduce) {
+        button { transition: none; }
+        .spinner { animation: none; }
+      }
       .content {
         display: inline-flex;
         align-items: center;
@@ -193,9 +202,7 @@ export class Button extends BaseComponent {
     const button = document.createElement('button');
     button.type = 'button';
     button.disabled = this._disabled || this._loading;
-    if (this._onClick) {
-      button.addEventListener('click', this._onClick);
-    }
+    if (this._onClick) button.addEventListener('click', this._onClick);
 
     if (this.hasAttribute('aria-label')) {
       button.setAttribute('aria-label', this.getAttribute('aria-label')!);
@@ -234,9 +241,7 @@ export class Button extends BaseComponent {
   }
 
   set variant(value: ButtonVariant) {
-    this._variant = value;
     this.setAttribute('variant', value);
-    this.render();
   }
 
   get size(): ButtonSize {
@@ -244,9 +249,7 @@ export class Button extends BaseComponent {
   }
 
   set size(value: ButtonSize) {
-    this._size = value;
     this.setAttribute('size', value);
-    this.render();
   }
 
   get disabled(): boolean {
@@ -254,9 +257,7 @@ export class Button extends BaseComponent {
   }
 
   set disabled(value: boolean) {
-    this._disabled = value;
     this.toggleAttribute('disabled', value);
-    this.render();
   }
 
   get loading(): boolean {
@@ -264,9 +265,7 @@ export class Button extends BaseComponent {
   }
 
   set loading(value: boolean) {
-    this._loading = value;
     this.toggleAttribute('loading', value);
-    this.render();
   }
 }
 
