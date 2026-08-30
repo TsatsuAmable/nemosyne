@@ -1,8 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { NemosynePackageManager } from '../../src/session/NemosynePackage.ts';
 
-async function openReplayCommand(page: import('@playwright/test').Page): Promise<void> {
+async function openReplayCommand(page: Page): Promise<void> {
   await page.evaluate(() => {
     const palette = document.querySelector('nms-command-palette') as HTMLElement & { show?: () => void };
     palette?.show?.();
@@ -66,7 +66,6 @@ test('desktop investigation shell completes the visible evidence and export/repl
   });
   await expect(replayButton).toBeEnabled();
   await replayButton.click();
-  await expect(replayStatus).toMatchAriaSnapshot?.;
   await expect(replayStatus).toContainText(/Replay verified|Replay verification failed/, { timeout: 15_000 });
 
   const payload = NemosynePackageManager.unpack(validPackage);
