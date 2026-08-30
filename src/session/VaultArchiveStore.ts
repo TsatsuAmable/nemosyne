@@ -32,11 +32,44 @@ export interface ArchiveEntry extends ArchiveMetadata {
 const ARCHIVE_PREFIX = 'archive:';
 const ARCHIVE_INDEX_KEY = '__vault_archive_index__';
 
+type ArchiveIndexPersistence = SessionStoreLike & {
+  setItem?: (id: string, value: Record<string, unknown>) => Promise<void>;
+  getItem?: (id: string) => Promise<Record<string, unknown> | null>;
+};
+
+function supportsArchiveIndexItems(
+  store: ArchiveIndexPersistence
+): store is ArchiveIndexPersistence & Required<Pick<ArchiveIndexPersistence, 'setItem' | 'getItem'>> {
+  return typeof store.setItem === 'function' && typeof store.getItem === 'function';
+}
+
+function isArchiveEntry(value: unknown): value is ArchiveEntry {
+  if (!value || typeof value !== 'object') return false;
+  const entry = value as Record<string, unknown>;
+  return (
+    typeof entry.archiveId === 'string' &&
+    entry.archiveId.startsWith(ARCHIVE_PREFIX) &&
+    typeof entry.label === 'string' &&
+    typeof entry.datasetFingerprint === 'string' &&
+    typeof entry.datasetName === 'string' &&
+    (entry.investigationDigest === null || typeof entry.investigationDigest === 'string') &&
+    typeof entry.eventCount === 'number' &&
+    Number.isInteger(entry.eventCount) &&
+    entry.eventCount >= 0 &&
+    typeof entry.discoveryCount === 'number' &&
+    Number.isInteger(entry.discoveryCount) &&
+    entry.discoveryCount >= 0 &&
+    typeof entry.frozenAt === 'number' &&
+    Number.isFinite(entry.frozenAt) &&
+    entry.frozenAt >= 0
+  );
+}
+
 export class VaultArchiveStore {
-  private _store: SessionStoreLike;
+  private _store: ArchiveIndexPersistence;
 
   constructor(store: SessionStoreLike) {
-    this._store = store;
+    this._store = store as ArchiveIndexPersistence;
   }
 
   /** Freeze the current investigation state as an immutable archive snapshot. */
@@ -53,16 +86,18 @@ export class VaultArchiveStore {
       ...metadata,
     };
 
-    // Save the full snapshot under the archive ID.
+    // Save the full schema-validated session snapshot under the archive ID.
     await this._store.saveSession(archiveId, {
       ...snapshot,
       __archiveMetadata__: entry,
     });
 
-    // Update the archive index.
+    // The archive index is metadata, not a session snapshot. Production
+    // SessionStore deliberately rejects non-session values from loadSession(),
+    // so use its arbitrary-value channel when available.
     const index = await this._loadIndex();
     index.push(entry);
-    await this._store.saveSession(ARCHIVE_INDEX_KEY, { entries: index });
+    await this._saveIndex(index);
 
     return archiveId;
   }
@@ -89,7 +124,7 @@ export class VaultArchiveStore {
 
     const index = await this._loadIndex();
     const filtered = index.filter((e) => e.archiveId !== archiveId);
-    await this._store.saveSession(ARCHIVE_INDEX_KEY, { entries: filtered });
+    await this._saveIndex(filtered);
   }
 
   /** Check whether any archives exist. */
@@ -99,8 +134,21 @@ export class VaultArchiveStore {
   }
 
   private async _loadIndex(): Promise<ArchiveEntry[]> {
-    const raw = await this._store.loadSession(ARCHIVE_INDEX_KEY);
-    if (!raw || !Array.isArray((raw as Record<string, unknown>).entries)) return [];
-    return (raw as Record<string, unknown>).entries as ArchiveEntry[];
+    const raw = supportsArchiveIndexItems(this._store)
+      ? await this._store.getItem(ARCHIVE_INDEX_KEY)
+      : await this._store.loadSession(ARCHIVE_INDEX_KEY);
+    if (!raw || !Array.isArray(raw.entries)) return [];
+    return raw.entries.filter(isArchiveEntry);
+  }
+
+  private async _saveIndex(index: ArchiveEntry[]): Promise<void> {
+    const payload: Record<string, unknown> = { entries: index };
+    if (supportsArchiveIndexItems(this._store)) {
+      await this._store.setItem(ARCHIVE_INDEX_KEY, payload);
+      return;
+    }
+    // Compatibility fallback for simple SessionStoreLike test doubles and
+    // alternate stores whose session channel accepts arbitrary metadata.
+    await this._store.saveSession(ARCHIVE_INDEX_KEY, payload);
   }
 }
