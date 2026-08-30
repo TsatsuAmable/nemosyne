@@ -161,6 +161,6 @@ describe('post-M4 independent fix-forward', () => {
     expect(smoke).toContain('checkoutHeadSha: process.env.NEMOSYNE_CHECKOUT_HEAD_SHA');
     expect(smoke).toContain('workflowEventSha: process.env.NEMOSYNE_WORKFLOW_EVENT_SHA');
     expect(smoke).toContain('expect(report.source.checkoutHeadSha).toBe(report.source.sourceHeadSha)');
-    expect(smoke).toContain("locator('#analyst-workspace-context')");
+    expect(smoke).toContain("locator('#dataset-indicator')");
   });
 });
